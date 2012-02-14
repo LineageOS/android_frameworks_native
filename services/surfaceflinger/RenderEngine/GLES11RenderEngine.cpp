@@ -162,8 +162,14 @@ void GLES11RenderEngine::setupLayerTexturing(const Texture& texture) {
     glMatrixMode(GL_TEXTURE);
     glLoadMatrixf(texture.getMatrix().asArray());
     glMatrixMode(GL_MODELVIEW);
+#ifdef DECIDE_TEXTURE_TARGET
+    glDisable((target == Texture::TEXTURE_2D) ?
+            GL_TEXTURE_EXTERNAL_OES : GL_TEXTURE_2D);
+    glEnable(target);
+#else
     glDisable(GL_TEXTURE_2D);
     glEnable(GL_TEXTURE_EXTERNAL_OES);
+#endif
 }
 
 void GLES11RenderEngine::setupLayerBlackedOut() {
