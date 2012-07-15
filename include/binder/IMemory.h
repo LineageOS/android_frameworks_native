@@ -36,7 +36,12 @@ public:
 
     // flags returned by getFlags()
     enum {
+#ifdef EXYNOS4_ENHANCEMENTS
+        READ_ONLY   = 0x00000001,
+        USE_ION_FD  = 0x00000008
+#else
         READ_ONLY   = 0x00000001
+#endif
     };
 
     virtual int         getHeapID() const = 0;
