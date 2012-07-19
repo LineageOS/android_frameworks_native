@@ -52,6 +52,10 @@ ifeq ($(TARGET_SOC),exynos5250)
 LOCAL_CFLAGS += -DSAMSUNG_EXYNOS5250
 endif
 
+ifeq ($(BOARD_USES_HTC_CAMERA),true)
+    LOCAL_SRC_FILES+= OverlayHtc.cpp
+endif
+
 LOCAL_MODULE:= libui
 
 include $(BUILD_SHARED_LIBRARY)
