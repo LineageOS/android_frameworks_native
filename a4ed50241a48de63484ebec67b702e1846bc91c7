@@ -1,0 +1,72 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "AAAAVX///No\u003d",
+        "filename": "include/binder/IMemory.h",
+        "patchSetId": 7
+      },
+      "lineNbr": 43,
+      "author": {
+        "id": 2957
+      },
+      "writtenOn": "2012-07-20T07:59:53Z",
+      "side": 1,
+      "message": "Why not just add a comma and then ifdef the USE_ION_FD",
+      "revId": "a4ed50241a48de63484ebec67b702e1846bc91c7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "AAAAVX///Nw\u003d",
+        "filename": "include/ui/GraphicBuffer.h",
+        "patchSetId": 7
+      },
+      "lineNbr": 71,
+      "author": {
+        "id": 2957
+      },
+      "writtenOn": "2012-07-20T07:59:53Z",
+      "side": 1,
+      "message": "USAVE?\n\nAgain, just add a comma to USAGE_HW_MASK -- it is cleaner.",
+      "revId": "a4ed50241a48de63484ebec67b702e1846bc91c7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "AAAAVX///Ns\u003d",
+        "filename": "libs/ui/Android.mk",
+        "patchSetId": 7
+      },
+      "lineNbr": 50,
+      "author": {
+        "id": 2957
+      },
+      "writtenOn": "2012-07-20T07:59:53Z",
+      "side": 1,
+      "message": "My OCD is hating these extra tabs. :)",
+      "revId": "a4ed50241a48de63484ebec67b702e1846bc91c7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "AAAAVX///Nk\u003d",
+        "filename": "libs/ui/FramebufferNativeWindow.cpp",
+        "patchSetId": 7
+      },
+      "lineNbr": 78,
+      "author": {
+        "id": 2957
+      },
+      "writtenOn": "2012-07-20T07:59:53Z",
+      "side": 1,
+      "message": "OCD :p",
+      "revId": "a4ed50241a48de63484ebec67b702e1846bc91c7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
