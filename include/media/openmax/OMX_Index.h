@@ -56,7 +56,7 @@ extern "C" {
  *  header to compile without errors.  The includes below are required
  *  for this header file to compile successfully 
  */
-#include <OMX_Types.h>
+#include <media/openmax/OMX_Types.h>
 
 
 /** The OMX_INDEXTYPE enumeration is used to select a structure when either

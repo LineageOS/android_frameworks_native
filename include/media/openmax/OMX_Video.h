@@ -63,7 +63,7 @@ extern "C" {
  * for this header file to compile successfully 
  */
 
-#include <OMX_IVCommon.h>
+#include <media/openmax/OMX_IVCommon.h>
 
 
 /**

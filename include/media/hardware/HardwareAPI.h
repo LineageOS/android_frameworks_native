@@ -18,11 +18,11 @@
 
 #define HARDWARE_API_H_
 
-#include <OMXPluginBase.h>
+#include <media/hardware/OMXPluginBase.h>
 #include <system/window.h>
 #include <utils/RefBase.h>
 
-#include <OMX_Component.h>
+#include <media/openmax/OMX_Component.h>
 
 namespace android {
 

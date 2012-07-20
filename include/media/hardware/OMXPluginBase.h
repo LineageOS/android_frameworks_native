@@ -20,7 +20,7 @@
 
 #include <sys/types.h>
 
-#include <OMX_Component.h>
+#include <media/openmax/OMX_Component.h>
 
 #include <utils/String8.h>
 #include <utils/Vector.h>
