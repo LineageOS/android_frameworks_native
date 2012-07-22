@@ -94,6 +94,10 @@ SurfaceFlinger::SurfaceFlinger()
         mDebugRegion(0),
         mDebugDDMS(0),
         mDebugDisableHWC(0),
+        mRenderEffect(0),
+        mRenderColorR(0),
+        mRenderColorG(0),
+        mRenderColorB(0),
         mDebugDisableTransformHint(0),
         mDebugInSwapBuffers(0),
         mLastSwapBufferTime(0),
@@ -141,6 +145,17 @@ void SurfaceFlinger::init()
         DdmConnection::start(getServiceName());
     }
 #endif
+
+    property_get("debug.sf.render_effect", value, "0");
+    mRenderEffect = atoi(value);
+
+    // default calibration color set (disabled by default)
+    property_get("debug.sf.render_color_red", value, "975");
+    mRenderColorR = atoi(value);
+    property_get("debug.sf.render_color_green", value, "937");
+    mRenderColorG = atoi(value);
+    property_get("debug.sf.render_color_blue", value, "824");
+    mRenderColorB = atoi(value);
 
     property_get("persist.sys.use_dithering", value, "1");
     mUseDithering = atoi(value);
@@ -1800,11 +1815,26 @@ status_t SurfaceFlinger::onTransact(
                 reply->writeInt32(mDebugRegion);
                 reply->writeInt32(0);
                 reply->writeInt32(mDebugDisableHWC);
+                reply->writeInt32(mRenderEffect);
                 return NO_ERROR;
             case 1013: {
                 Mutex::Autolock _l(mStateLock);
                 const DisplayHardware& hw(graphicPlane(0).displayHardware());
                 reply->writeInt32(hw.getPageFlipCount());
+            }
+            case 1014: // RENDER_EFFECT
+                // TODO: filter to only allow valid effects
+                mRenderEffect = data.readInt32();
+                return NO_ERROR;
+            case 1015: // RENDER_COLOR_RED
+                mRenderColorR = data.readInt32();
+                return NO_ERROR;
+            case 1016: // RENDER_COLOR_GREEN
+                mRenderColorG = data.readInt32();
+                return NO_ERROR;
+            case 1017: { // RENDER_COLOR_BLUE
+                mRenderColorB = data.readInt32();
+                return NO_ERROR;
             }
             return NO_ERROR;
         }

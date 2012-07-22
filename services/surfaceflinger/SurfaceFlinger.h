@@ -211,6 +211,11 @@ public:
             status_t postMessageSync(const sp<MessageBase>& msg,
                     nsecs_t reltime=0, uint32_t flags = 0);
 
+            inline int                  getRenderEffect() const { return mRenderEffect; }
+            inline int                  getRenderColorR() const { return mRenderColorR; }
+            inline int                  getRenderColorG() const { return mRenderColorG; }
+            inline int                  getRenderColorB() const { return mRenderColorB; }
+
     status_t removeLayer(const sp<LayerBase>& layer);
     status_t addLayer(const sp<LayerBase>& layer);
     status_t invalidateLayerVisibility(const sp<LayerBase>& layer);
@@ -413,6 +418,13 @@ private:
                 int                         mDebugRegion;
                 int                         mDebugDDMS;
                 int                         mDebugDisableHWC;
+
+                // render effects
+                int                         mRenderEffect;
+                int                         mRenderColorR;
+                int                         mRenderColorG;
+                int                         mRenderColorB;
+
                 int                         mDebugDisableTransformHint;
                 volatile nsecs_t            mDebugInSwapBuffers;
                 nsecs_t                     mLastSwapBufferTime;
