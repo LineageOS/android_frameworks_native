@@ -18,7 +18,7 @@
 
 #define HARDWARE_API_H_
 
-#include <media/hardware/OMXPluginBase.h>
+#include <OMXPluginBase.h>
 #include <system/window.h>
 #include <utils/RefBase.h>
 
