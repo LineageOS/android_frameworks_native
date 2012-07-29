@@ -68,6 +68,10 @@ LOCAL_C_INCLUDES += $(TARGET_HAL_PATH)/libhdmi/libhdmiservice
 LOCAL_C_INCLUDES += $(TARGET_HAL_PATH)/include
 endif
 
+ifeq ($(TARGET_BOARD_PLATFORM),exynos4)
+LOCAL_CFLAGS += -DSURFACEFLINGER_FORCE_SCREEN_RELEASE
+endif
+
 LOCAL_MODULE:= libsurfaceflinger
 
 include $(BUILD_SHARED_LIBRARY)
