@@ -1468,6 +1468,10 @@ void SurfaceFlinger::screenReleased() {
             return true;
         }
     };
+#ifdef SURFACEFLINGER_FORCE_SCREEN_RELEASE
+    const DisplayHardware& hw = graphicPlane(0).displayHardware();
+    hw.releaseScreen();
+#endif
     sp<MessageBase> msg = new MessageScreenReleased(this);
     postMessageSync(msg);
 #if defined(BOARD_USES_SAMSUNG_HDMI) && defined(SAMSUNG_EXYNOS5250)
@@ -2110,6 +2114,11 @@ status_t SurfaceFlinger::electronBeamOffAnimationImplLocked()
     glDeleteTextures(1, &tname);
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_BLEND);
+
+#ifdef SURFACEFLINGER_FORCE_SCREEN_RELEASE
+    hw.releaseScreen();
+#endif
+
     return NO_ERROR;
 }
 
