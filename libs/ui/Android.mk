@@ -32,10 +32,30 @@ LOCAL_SHARED_LIBRARIES := \
 	libsync \
 	libutils
 
+ifeq ($(TARGET_SOC),exynos4210)
+    LOCAL_CFLAGS += -DSAMSUNG_EXYNOS4210
+endif
+
+ifeq ($(TARGET_SOC),exynos4x12)
+    LOCAL_CFLAGS += -DSAMSUNG_EXYNOS4x12
+endif
+
+ifeq ($(TARGET_SOC),exynos5250)
+    LOCAL_CFLAGS += -DSAMSUNG_EXYNOS5250
+endif
+
 ifneq ($(BOARD_FRAMEBUFFER_FORCE_FORMAT),)
 LOCAL_CFLAGS += -DFRAMEBUFFER_FORCE_FORMAT=$(BOARD_FRAMEBUFFER_FORCE_FORMAT)
 endif
 
+ifeq ($(EXYNOS4_ENHANCEMENTS),true)
+ifeq ($(BOARD_USES_HDMI),true)
+    LOCAL_CFLAGS += -DBOARD_USES_HDMI
+    LOCAL_SHARED_LIBRARIES += libhdmiclient
+    LOCAL_C_INCLUDES += hardware/samsung/$(TARGET_BOARD_PLATFORM)/hal/libhdmi/libhdmiservice
+    LOCAL_C_INCLUDES += hardware/samsung/$(TARGET_BOARD_PLATFORM)/hal/include
+endif
+endif
 LOCAL_MODULE:= libui
 
 include $(BUILD_SHARED_LIBRARY)
