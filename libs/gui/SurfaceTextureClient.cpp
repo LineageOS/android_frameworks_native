@@ -741,16 +741,22 @@ status_t SurfaceTextureClient::lock(
                     backBuffer->height == frontBuffer->height &&
                     backBuffer->format == frontBuffer->format);
 
+            int backBufferSlot(getSlotFromBufferLocked(backBuffer.get()));
             if (canCopyBack) {
                 // copy the area that is invalid and not repainted this round
-                const Region copyback(mDirtyRegion.subtract(newDirtyRegion));
+                Mutex::Autolock lock(mMutex);
+                Region oldDirtyRegion;
+                for(int i = 0 ; i < NUM_BUFFER_SLOTS; i++ ) {
+                     if(i != backBufferSlot && !mSlots[i].dirtyRegion.isEmpty())
+                         oldDirtyRegion.orSelf(mSlots[i].dirtyRegion);
+                }
+                const Region copyback(oldDirtyRegion.subtract(newDirtyRegion));
                 if (!copyback.isEmpty())
                     copyBlt(backBuffer, frontBuffer, copyback);
             } else {
                 // if we can't copy-back anything, modify the user's dirty
                 // region to make sure they redraw the whole buffer
                 newDirtyRegion.set(bounds);
-                mDirtyRegion.clear();
                 Mutex::Autolock lock(mMutex);
                 for (size_t i=0 ; i<NUM_BUFFER_SLOTS ; i++) {
                     mSlots[i].dirtyRegion.clear();
@@ -760,15 +766,9 @@ status_t SurfaceTextureClient::lock(
 
             { // scope for the lock
                 Mutex::Autolock lock(mMutex);
-                int backBufferSlot(getSlotFromBufferLocked(backBuffer.get()));
-                if (backBufferSlot >= 0) {
-                    Region& dirtyRegion(mSlots[backBufferSlot].dirtyRegion);
-                    mDirtyRegion.subtract(dirtyRegion);
-                    dirtyRegion = newDirtyRegion;
-                }
+                mSlots[backBufferSlot].dirtyRegion = newDirtyRegion;
             }
 
-            mDirtyRegion.orSelf(newDirtyRegion);
             if (inOutDirtyBounds) {
                 *inOutDirtyBounds = newDirtyRegion.getBounds();
             }
