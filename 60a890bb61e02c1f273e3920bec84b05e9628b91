@@ -2,6 +2,23 @@
   "comments": [
     {
       "key": {
+        "uuid": "AAAAWH//+8I\u003d",
+        "filename": "libs/gui/BufferQueue.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 239,
+      "author": {
+        "id": 3564
+      },
+      "writtenOn": "2012-08-17T14:50:02Z",
+      "side": 1,
+      "message": "virtual status_t setBuffersSize(int size) is defined only for QCOM_HARDWARE",
+      "revId": "60a890bb61e02c1f273e3920bec84b05e9628b91",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "AAAAWH//+8s\u003d",
         "filename": "libs/ui/GraphicBufferAllocator.cpp",
         "patchSetId": 2
