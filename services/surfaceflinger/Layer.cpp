@@ -295,6 +295,7 @@ void Layer::setGeometry(hwc_layer_t* hwcl)
      */
 
     const Transform bufferOrientation(mCurrentTransform);
+    hwcl->sourceTransform = bufferOrientation.getOrientation();
     const Transform tr(mTransform * bufferOrientation);
 
     // this gives us only the "orientation" component of the transform
