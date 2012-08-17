@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "AAAAWH//+6E\u003d",
+        "filename": "libs/gui/BufferQueue.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 239,
+      "author": {
+        "id": 3214
+      },
+      "writtenOn": "2012-08-17T15:47:11Z",
+      "side": 1,
+      "message": "Cause error when compiling:\nframeworks/native/libs/gui/BufferQueue.cpp:239:46: error: no \u0027android::status_t android::BufferQueue::setBuffersSize(int)\u0027 member function declared in class \u0027android::BufferQueue",
+      "parentUuid": "AAAAWH//+8I\u003d",
+      "revId": "60a890bb61e02c1f273e3920bec84b05e9628b91",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "AAAAWH//+7o\u003d",
         "filename": "libs/gui/IGraphicBufferAlloc.cpp",
         "patchSetId": 2
