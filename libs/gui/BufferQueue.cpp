@@ -243,6 +243,13 @@ status_t BufferQueue::setBuffersSize(int size) {
     mGraphicBufferAlloc->setGraphicBufferSize(size);
     return NO_ERROR;
 }
+
+status_t BufferQueue::setMinUndequeuedBufferCount(int count) {
+    ST_LOGV("setMinUndequeuedBufferCount: count=%d", count);
+    Mutex::Autolock lock(mMutex);
+    mMinUndequeuedBuffers = count;
+    return NO_ERROR;
+}
 #endif
 
 int BufferQueue::query(int what, int* outValue)
