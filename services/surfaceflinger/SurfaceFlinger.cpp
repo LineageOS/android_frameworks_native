@@ -1076,6 +1076,9 @@ void SurfaceFlinger::drawWormhole() const
     if (region.isEmpty())
         return;
 
+    const DisplayHardware& hw(graphicPlane(0).displayHardware());
+    const int32_t height = hw.getHeight();
+
     glDisable(GL_TEXTURE_EXTERNAL_OES);
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_BLEND);
@@ -1088,13 +1091,13 @@ void SurfaceFlinger::drawWormhole() const
     while (it != end) {
         const Rect& r = *it++;
         vertices[0][0] = r.left;
-        vertices[0][1] = r.top;
+        vertices[0][1] = height - r.top;
         vertices[1][0] = r.right;
-        vertices[1][1] = r.top;
+        vertices[1][1] = height - r.top;
         vertices[2][0] = r.right;
-        vertices[2][1] = r.bottom;
+        vertices[2][1] = height - r.bottom;
         vertices[3][0] = r.left;
-        vertices[3][1] = r.bottom;
+        vertices[3][1] = height - r.bottom;
         glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     }
 }
