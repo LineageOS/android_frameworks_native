@@ -60,7 +60,11 @@ typedef void* GLeglImageOES;
 /* GL_OES_EGL_image_external */
 #ifndef GL_OES_EGL_image_external
 /* GLeglImageOES defined in GL_OES_EGL_image already. */
+#ifdef MISSING_EGL_EXTERNAL_IMAGE
+#define GL_TEXTURE_EXTERNAL_OES                                 0x0DE1
+#else
 #define GL_TEXTURE_EXTERNAL_OES                                 0x8D65
+#endif
 #define GL_SAMPLER_EXTERNAL_OES                                 0x8D66
 #define GL_TEXTURE_BINDING_EXTERNAL_OES                         0x8D67
 #define GL_REQUIRED_TEXTURE_IMAGE_UNITS_OES                     0x8D68
