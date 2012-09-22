@@ -439,6 +439,10 @@ private:
 #if defined(BOARD_USES_SAMSUNG_HDMI) && defined(SAMSUNG_EXYNOS5250)
     SecHdmiClient *                         mHdmiClient;
 #endif
+#ifdef QCOM_HARDWARE
+public:
+   int isCopybitComposition() const;
+#endif
 };
 
 // ---------------------------------------------------------------------------

@@ -41,6 +41,7 @@
 #include "SurfaceFlinger.h"
 #ifdef QCOM_HARDWARE
 #include "qcom_ui.h"
+#include "hwc_utils.h"
 #endif
 
 namespace android {
@@ -169,6 +170,9 @@ status_t HWComposer::prepare() const {
     if (err == NO_ERROR) {
         size_t numOVLayers = 0;
         size_t numFBLayers = 0;
+#ifdef QCOM_HARDWARE
+        size_t numCopybitLayers = 0;
+#endif
         size_t count = mList->numHwLayers;
         for (size_t i=0 ; i<count ; i++) {
             hwc_layer& l(mList->hwLayers[i]);
@@ -183,6 +187,9 @@ status_t HWComposer::prepare() const {
                     numFBLayers++;
                     break;
 #ifdef QCOM_HARDWARE
+                case qhwc::HWC_USE_COPYBIT:
+                    numCopybitLayers++;
+                    break;
                 default:
                     if(qdutils::CBUtils::isUpdatingFB((int)l.compositionType))
                         numFBLayers++;
@@ -191,6 +198,9 @@ status_t HWComposer::prepare() const {
         }
         mNumOVLayers = numOVLayers;
         mNumFBLayers = numFBLayers;
+#ifdef QCOM_HARDWARE
+        mNumCopybitLayers = numCopybitLayers;
+#endif
     }
     return (status_t)err;
 }
@@ -241,6 +251,16 @@ size_t HWComposer::getNumLayers() const {
 hwc_layer_t* HWComposer::getLayers() const {
     return mList ? mList->hwLayers : 0;
 }
+
+#ifdef QCOM_HARDWARE
+int HWComposer::isCopybitComposition() const {
+    if (mHwc && mList && (qdutils::MDPVersion::getInstance().getMDPVersion() < 400)) {
+        if (mNumCopybitLayers == mList->numHwLayers || mNumFBLayers == mList->numHwLayers)
+            return 1;
+    }
+    return 0;
+}
+#endif
 
 void HWComposer::dump(String8& result, char* buffer, size_t SIZE,
         const Vector< sp<LayerBase> >& visibleLayersSortedByZ) const {
