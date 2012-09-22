@@ -413,6 +413,13 @@ void SurfaceFlinger::signalTransaction() {
     mEventQueue.invalidate();
 }
 
+#ifdef QCOM_HARDWARE
+int SurfaceFlinger::isCopybitComposition() const {
+    HWComposer& hwc(graphicPlane(0).displayHardware().getHwComposer());
+    return hwc.isCopybitComposition();
+}
+#endif
+
 void SurfaceFlinger::signalLayerUpdate() {
     mEventQueue.invalidate();
 }
@@ -445,6 +452,9 @@ void SurfaceFlinger::onMessageReceived(int32_t what)
 {
     ATRACE_CALL();
     switch (what) {
+#ifdef QCOM_HARDWARE
+        case MessageQueue::INVALIDATE:
+#endif
         case MessageQueue::REFRESH: {
 //        case MessageQueue::INVALIDATE: {
             // if we're in a global transaction, don't do anything.
