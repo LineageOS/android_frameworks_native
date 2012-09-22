@@ -45,6 +45,7 @@ LOCAL_SHARED_LIBRARIES := \
 ifeq ($(BOARD_USES_QCOM_HARDWARE), true)
     LOCAL_C_INCLUDES += hardware/qcom/display/libgralloc
     LOCAL_C_INCLUDES += hardware/qcom/display/libqdutils
+    LOCAL_C_INCLUDES += hardware/qcom/display/libhwcomposer
     LOCAL_SHARED_LIBRARIES += libqdutils
     LOCAL_CFLAGS += -DQCOM_HARDWARE
 endif
