@@ -133,8 +133,20 @@ status_t MessageQueue::postMessage(
 }
 
 void MessageQueue::invalidate() {
+#ifdef QCOM_HARDWARE
+    /*
+     * For MDP composition work immediately on frame.
+     * A frame coming just around the vsync can cause
+     * one composition to miss, avoid it in MDP composition
+     */
+    if (mFlinger->isCopybitComposition())
+        mHandler->signalInvalidate();
+    else
+        mEvents->requestNextVsync();
+#else
 //    mHandler->signalInvalidate();
     mEvents->requestNextVsync();
+#endif
 }
 
 void MessageQueue::refresh() {
