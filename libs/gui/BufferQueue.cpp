@@ -356,6 +356,9 @@ int BufferQueue::query(int what, int* outValue)
     case NATIVE_WINDOW_CONSUMER_RUNNING_BEHIND:
         value = (mQueue.size() >= 2);
         break;
+    case NATIVE_WINDOW_TRANSFORM_HINT:
+        value = mTransformHint;
+        break;
     default:
         return BAD_VALUE;
     }

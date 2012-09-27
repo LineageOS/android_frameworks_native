@@ -292,9 +292,6 @@ int SurfaceTextureClient::query(int what, int* value) const {
             case NATIVE_WINDOW_DEFAULT_HEIGHT:
                 *value = mUserHeight ? mUserHeight : mDefaultHeight;
                 return NO_ERROR;
-            case NATIVE_WINDOW_TRANSFORM_HINT:
-                *value = mTransformHint;
-                return NO_ERROR;
             case NATIVE_WINDOW_CONSUMER_RUNNING_BEHIND: {
                 status_t err = NO_ERROR;
                 if (!mConsumerRunningBehind) {
