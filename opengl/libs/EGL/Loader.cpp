@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <dlfcn.h>
 #include <limits.h>
+#include <unistd.h>
 
 #include <cutils/log.h>
 #include <cutils/properties.h>
@@ -312,10 +313,19 @@ void *Loader::load_driver(const char* kind, const char *tag,
          * Obviously, this is the wrong place and wrong way to make this
          * adjustment, but at the time of this writing this was the safest
          * solution.
+         *
+         * Not all devices utilize the vendor dir correctly, so we set
+         * it up to look for libIMGegl.so in both vendor/lib and system/lib.
          */
         const char *cmdline = getProcessCmdline();
         if (strstr(cmdline, "systemui")) {
-            void *imgegl = dlopen("/vendor/lib/libIMGegl.so", RTLD_LAZY);
+            char *imgegl_path;
+            if (access("/vendor/lib/libIMGegl.so", F_OK) == 0) {
+                imgegl_path = "/vendor/lib/libIMGegl.so";
+            } else {
+                imgegl_path = "/system/lib/libIMGegl.so";
+            }
+            void *imgegl = dlopen(imgegl_path, RTLD_LAZY);
             if (imgegl) {
                 unsigned int *PVRDefaultPBS =
                         (unsigned int *)dlsym(imgegl, "PVRDefaultPBS");

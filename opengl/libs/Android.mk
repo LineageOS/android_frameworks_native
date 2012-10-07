@@ -49,6 +49,11 @@ ifeq ($(TARGET_BOARD_PLATFORM), s5pc110)
   LOCAL_CFLAGS += -DSYSTEMUI_PBSIZE_HACK=1
 endif
 
+ifeq ($(TARGET_BOARD_PLATFORM), omap3)
+  # see Loader.cpp for details
+  LOCAL_CFLAGS += -DSYSTEMUI_PBSIZE_HACK=1
+endif
+
 ifeq ($(ARCH_ARM_HAVE_TLS_REGISTER),true)
   LOCAL_CFLAGS += -DHAVE_ARM_TLS_REGISTER
 endif
