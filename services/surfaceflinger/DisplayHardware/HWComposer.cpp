@@ -255,7 +255,7 @@ hwc_layer_t* HWComposer::getLayers() const {
 #ifdef QCOM_HARDWARE
 int HWComposer::isCopybitComposition() const {
     if (mHwc && mList && (qdutils::MDPVersion::getInstance().getMDPVersion() < 400)) {
-        if (mNumCopybitLayers == mList->numHwLayers || mNumFBLayers == mList->numHwLayers)
+        if (mNumCopybitLayers == mList->numHwLayers)
             return 1;
     }
     return 0;
