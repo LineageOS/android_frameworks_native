@@ -86,7 +86,7 @@ private:
     virtual void        onFirstRef();
     virtual void        onVSyncReceived(int, nsecs_t timestamp);
 
-    void removeDisplayEventConnection(const wp<Connection>& connection);
+    void removeDisplayEventConnection(const sp<Connection>& connection);
     void enableVSyncLocked();
     void disableVSyncLocked();
 
