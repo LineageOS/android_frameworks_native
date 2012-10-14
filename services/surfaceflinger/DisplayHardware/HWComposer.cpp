@@ -39,7 +39,7 @@
 #include "LayerBase.h"
 #include "HWComposer.h"
 #include "SurfaceFlinger.h"
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(USES_LEGACY_GRAPHICS)
 #include "qcom_ui.h"
 #endif
 
@@ -182,7 +182,7 @@ status_t HWComposer::prepare() const {
                 case HWC_FRAMEBUFFER:
                     numFBLayers++;
                     break;
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(USES_LEGACY_GRAPHICS)
                 default:
                     if(qdutils::CBUtils::isUpdatingFB((int)l.compositionType))
                         numFBLayers++;
