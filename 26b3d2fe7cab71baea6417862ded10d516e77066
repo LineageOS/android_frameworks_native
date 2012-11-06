@@ -1,0 +1,8 @@
+Change-Id: I26b3d2fe7cab71baea6417862ded10d516e77066
+Code-Review+2: Steve Kondik <shade@chemlab.org>
+Verified+1: Steve Kondik <shade@chemlab.org>
+Submitted-by: Steve Kondik <shade@chemlab.org>
+Submitted-at: Mon, 05 Nov 2012 23:42:28 -0800
+Reviewed-on: http://review.cyanogenmod.org/25684
+Project: CyanogenMod/android_frameworks_native
+Branch: refs/heads/jellybean
