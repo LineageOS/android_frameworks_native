@@ -24,6 +24,10 @@ LOCAL_SRC_FILES:= \
 	Rect.cpp \
 	Region.cpp
 
+ifeq ($(BOARD_USES_HTC_CAMERA),true)
+    LOCAL_SRC_FILES+= OverlayHtc.cpp
+endif
+
 LOCAL_SHARED_LIBRARIES := \
 	libcutils \
 	libutils \
