@@ -67,6 +67,22 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
     mInitCheck = initSize(inWidth, inHeight, inFormat, inUsage);
 }
 
+#ifdef QCOM_BSP_LEGACY
+GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
+        PixelFormat inFormat, uint32_t inUsage, uint32_t bufferSize)
+    : BASE(), mOwner(ownData), mBufferMapper(GraphicBufferMapper::get()),
+      mInitCheck(NO_ERROR), mId(getUniqueId())
+{
+    width  =
+    height =
+    stride =
+    format =
+    usage  = 0;
+    handle = NULL;
+    mInitCheck = initSize(inWidth, inHeight, inFormat, inUsage, bufferSize);
+}
+#endif
+
 GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
         PixelFormat inFormat, uint32_t inUsage, uint32_t inStride,
         native_handle_t* inHandle, bool keepOwnership)
@@ -178,6 +194,25 @@ status_t GraphicBuffer::initSize(uint32_t inWidth, uint32_t inHeight,
     }
     return err;
 }
+
+#ifdef QCOM_BSP_LEGACY
+status_t GraphicBuffer::initSize(uint32_t inWidth, uint32_t inHeight,
+        PixelFormat inFormat, uint32_t inUsage, uint32_t bufferSize)
+{
+    GraphicBufferAllocator& allocator = GraphicBufferAllocator::get();
+    uint32_t outStride = 0;
+    status_t err = allocator.alloc(inWidth, inHeight, inFormat, inUsage,
+            &handle, &outStride, bufferSize);
+    if (err == NO_ERROR) {
+        width = static_cast<int>(inWidth);
+        height = static_cast<int>(inHeight);
+        format = inFormat;
+        usage = static_cast<int>(inUsage);
+        stride = static_cast<int>(outStride);
+    }
+    return err;
+}
+#endif
 
 status_t GraphicBuffer::lock(uint32_t inUsage, void** vaddr)
 {
