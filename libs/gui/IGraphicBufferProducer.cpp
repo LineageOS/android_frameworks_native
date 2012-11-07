@@ -42,6 +42,9 @@ enum {
     QUEUE_BUFFER,
     CANCEL_BUFFER,
     QUERY,
+#ifdef QCOM_BSP
+    SET_BUFFERS_SIZE,
+#endif
     CONNECT,
     DISCONNECT,
     SET_SIDEBAND_STREAM,
@@ -268,6 +271,21 @@ public:
             ALOGE("allocateBuffers failed to transact: %d", result);
         }
     }
+
+#ifdef QCOM_BSP
+    virtual status_t setBuffersSize(int size) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
+        data.writeInt32(size);
+        status_t result = remote()->transact(SET_BUFFERS_SIZE, data, &reply);
+        if (result != NO_ERROR) {
+            return result;
+        }
+        result = reply.readInt32();
+        return result;
+    }
+#endif
+
 };
 
 IMPLEMENT_META_INTERFACE(GraphicBufferProducer, "android.gui.IGraphicBufferProducer");
@@ -378,6 +396,15 @@ status_t BnGraphicBufferProducer::onTransact(
             reply->writeInt32(res);
             return NO_ERROR;
         } break;
+#ifdef QCOM_BSP
+        case SET_BUFFERS_SIZE: {
+            CHECK_INTERFACE(IGraphicBufferProducer, data, reply);
+            int size = data.readInt32();
+            status_t res = setBuffersSize(size);
+            reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+#endif
         case CONNECT: {
             CHECK_INTERFACE(IGraphicBufferProducer, data, reply);
             sp<IProducerListener> listener;

@@ -67,6 +67,9 @@ Surface::Surface(
     mReqHeight = 0;
     mReqFormat = 0;
     mReqUsage = 0;
+#ifdef QCOM_BSP
+    mReqSize = 0;
+#endif
     mTimestamp = NATIVE_WINDOW_TIMESTAMP_AUTO;
     mCrop.clear();
 #ifdef QCOM_BSP
@@ -472,6 +475,11 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_SET_BUFFERS_FORMAT:
         res = dispatchSetBuffersFormat(args);
         break;
+#ifdef QCOM_BSP
+    case NATIVE_WINDOW_SET_BUFFERS_SIZE:
+        res = dispatchSetBuffersSize(args);
+        break;
+#endif
     case NATIVE_WINDOW_LOCK:
         res = dispatchLock(args);
         break;
@@ -550,6 +558,13 @@ int Surface::dispatchSetBuffersFormat(va_list args) {
     return setBuffersFormat(f);
 }
 
+#ifdef QCOM_BSP
+int Surface::dispatchSetBuffersSize(va_list args) {
+    int size = va_arg(args, int);
+    return setBuffersSize(size);
+}
+#endif
+
 int Surface::dispatchSetScalingMode(va_list args) {
     int m = va_arg(args, int);
     return setScalingMode(m);
@@ -625,6 +640,9 @@ int Surface::disconnect(int api) {
         mReqWidth = 0;
         mReqHeight = 0;
         mReqUsage = 0;
+#ifdef QCOM_BSP
+        mReqSize = 0;
+#endif
         mCrop.clear();
         mScalingMode = NATIVE_WINDOW_SCALING_MODE_FREEZE;
         mTransform = 0;
@@ -726,6 +744,24 @@ int Surface::setBuffersFormat(int format)
     mReqFormat = format;
     return NO_ERROR;
 }
+
+#ifdef QCOM_BSP
+int Surface::setBuffersSize(int size)
+{
+    ATRACE_CALL();
+    ALOGV("Surface::setBuffersSize");
+
+    if (size<0)
+        return BAD_VALUE;
+
+    Mutex::Autolock lock(mMutex);
+    if(mReqSize != (uint32_t)size) {
+        mReqSize = size;
+        mGraphicBufferProducer->setBuffersSize(size);
+    }
+    return NO_ERROR;
+}
+#endif
 
 int Surface::setScalingMode(int mode)
 {
