@@ -123,6 +123,9 @@ private:
     virtual status_t setGenerationNumber(uint32_t generationNumber);
     virtual String8 getConsumerName() const override;
     virtual void setOutputUsage(uint32_t flag);
+#ifdef QCOM_BSP_LEGACY
+    virtual status_t setBuffersSize(int size);
+#endif
 
     //
     // Utility methods
