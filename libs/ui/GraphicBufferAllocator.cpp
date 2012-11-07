@@ -94,6 +94,16 @@ status_t GraphicBufferAllocator::alloc(uint32_t width, uint32_t height,
         PixelFormat format, uint32_t usage, buffer_handle_t* handle,
         uint32_t* stride)
 {
+#ifdef QCOM_BSP_LEGACY
+    status_t err = alloc(width, height, format, usage, handle, stride, 0);
+    return err;
+}
+
+status_t GraphicBufferAllocator::alloc(uint32_t width, uint32_t height,
+        PixelFormat format, uint32_t usage, buffer_handle_t* handle,
+        uint32_t* stride, uint32_t bufferSize)
+{
+#endif
     ATRACE_CALL();
 
     // make sure to not allocate a N x 0 or 0 x N buffer, since this is
@@ -108,13 +118,26 @@ status_t GraphicBufferAllocator::alloc(uint32_t width, uint32_t height,
     usage &= GRALLOC_USAGE_ALLOC_MASK;
 
     int outStride = 0;
+#ifdef QCOM_BSP_LEGACY
+    if (bufferSize) {
+        err = mAllocDev->allocSize(mAllocDev, static_cast<int>(width),
+                static_cast<int>(height), format, static_cast<int>(usage), handle,
+                &outStride, static_cast<int>(bufferSize));
+    } else {
+        err = mAllocDev->alloc(mAllocDev, static_cast<int>(width),
+                static_cast<int>(height), format, static_cast<int>(usage), handle,
+                &outStride);
+    }
+    ALOGW_IF(err, "alloc(%u, %u, %d, %08x, %d ...) failed %d (%s)",
+            width, height, format, usage, bufferSize, err, strerror(-err));
+#else
     err = mAllocDev->alloc(mAllocDev, static_cast<int>(width),
             static_cast<int>(height), format, static_cast<int>(usage), handle,
             &outStride);
-    *stride = static_cast<uint32_t>(outStride);
-
     ALOGW_IF(err, "alloc(%u, %u, %d, %08x, ...) failed %d (%s)",
             width, height, format, usage, err, strerror(-err));
+#endif
+    *stride = static_cast<uint32_t>(outStride);
 
     if (err == NO_ERROR) {
         Mutex::Autolock _l(sLock);
