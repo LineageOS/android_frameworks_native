@@ -93,6 +93,17 @@ void GraphicBufferAllocator::dumpToSystemLog()
 status_t GraphicBufferAllocator::alloc(uint32_t w, uint32_t h, PixelFormat format,
         int usage, buffer_handle_t* handle, int32_t* stride)
 {
+#ifdef QCOM_HARDWARE
+    status_t err = alloc(w, h, format, usage, handle, stride, 0);
+    return err;
+}
+
+status_t GraphicBufferAllocator::alloc(uint32_t w, uint32_t h,
+                                       PixelFormat format, int usage,
+                                       buffer_handle_t* handle,
+                                       int32_t* stride, uint32_t bufferSize)
+{
+#endif
     ATRACE_CALL();
     // make sure to not allocate a N x 0 or 0 x N buffer, since this is
     // allowed from an API stand-point allocate a 1x1 buffer instead.
@@ -100,7 +111,9 @@ status_t GraphicBufferAllocator::alloc(uint32_t w, uint32_t h, PixelFormat forma
         w = h = 1;
 
     // we have a h/w allocator and h/w buffer is requested
-    status_t err; 
+#ifndef QCOM_HARDWARE
+    status_t err;
+#endif
 
 #ifdef EXYNOS4_ENHANCEMENTS
     if ((format == 0x101) || (format == 0x105) || (format == 0x107)) {
@@ -111,11 +124,23 @@ status_t GraphicBufferAllocator::alloc(uint32_t w, uint32_t h, PixelFormat forma
     }
 #endif
 
+#ifdef QCOM_HARDWARE
+    status_t err;
+    if(bufferSize) {
+        err = mAllocDev->allocSize(mAllocDev, w, h,
+                               format, usage, handle, stride, bufferSize);
+    } else {
+        err = mAllocDev->alloc(mAllocDev, w, h, format, usage, handle, stride);
+    }
+    ALOGW_IF(err, "alloc(%u, %u, %d, %08x, %d ...) failed %d (%s)",
+            w, h, format, usage, bufferSize, err, strerror(-err));
+#else
     err = mAllocDev->alloc(mAllocDev, w, h, format, usage, handle, stride);
 
     ALOGW_IF(err, "alloc(%u, %u, %d, %08x, ...) failed %d (%s)",
             w, h, format, usage, err, strerror(-err));
-    
+#endif
+
     if (err == NO_ERROR) {
         Mutex::Autolock _l(sLock);
         KeyedVector<buffer_handle_t, alloc_rec_t>& list(sAllocList);
