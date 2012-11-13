@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "AAAAa3//8vA\u003d",
+        "filename": "include/ui/Overlay.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 54,
+      "author": {
+        "id": 322
+      },
+      "writtenOn": "2012-11-13T06:31:04Z",
+      "side": 1,
+      "message": "whitespace.",
+      "revId": "1f9ec48ddfa18b824c6e970259fa4950f3a8adca",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "AAAAa3//8u8\u003d",
+        "filename": "include/ui/Overlay.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 90,
+      "author": {
+        "id": 322
+      },
+      "writtenOn": "2012-11-13T06:31:04Z",
+      "side": 1,
+      "message": "moar whitespace.",
+      "revId": "1f9ec48ddfa18b824c6e970259fa4950f3a8adca",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
