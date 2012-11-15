@@ -51,6 +51,10 @@ ifeq ($(TARGET_BOARD_PLATFORM), tegra)
 	LOCAL_CFLAGS += -DALLOW_DEQUEUE_CURRENT_BUFFER
 endif
 
+ifeq ($(BOARD_ADRENO_DECIDE_TEXTURE_TARGET),true)
+    LOCAL_CFLAGS += -DDECIDE_TEXTURE_TARGET
+endif
+
 ifeq ($(BOARD_USES_QCOM_HARDWARE), true)
     LOCAL_C_INCLUDES += hardware/qcom/display/libgralloc
     LOCAL_C_INCLUDES += hardware/qcom/display/libqdutils

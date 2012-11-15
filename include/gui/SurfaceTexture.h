@@ -248,7 +248,11 @@ private:
         virtual ~BufferRejecter() { }
     };
     friend class Layer;
+#ifdef DECIDE_TEXTURE_TARGET
+    status_t updateTexImage(BufferRejecter* rejecter, bool isComposition=false);
+#else
     status_t updateTexImage(BufferRejecter* rejecter);
+#endif
 
     // createImage creates a new EGLImage from a GraphicBuffer.
     EGLImageKHR createImage(EGLDisplay dpy,
@@ -329,7 +333,11 @@ private:
     // glCopyTexSubImage to read from the texture.  This is a hack to work
     // around a GL driver limitation on the number of FBO attachments, which the
     // browser's tile cache exceeds.
+#ifdef DECIDE_TEXTURE_TARGET
+    GLenum mTexTarget;
+#else
     const GLenum mTexTarget;
+#endif
 
     // EGLSlot contains the information and object references that
     // SurfaceTexture maintains about a BufferQueue buffer slot.
