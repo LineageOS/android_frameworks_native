@@ -184,6 +184,12 @@ public:
     // connected to the specified client API.
     virtual status_t disconnect(int api);
 
+#ifdef QCOM_HARDWARE
+    virtual status_t updateDirtyRegion(int bufferidx, int l, int t, int r, int b);
+    Rect getCurrentDirtyRegion();
+    virtual status_t setCurrentDirtyRegion(int bufferidx);
+#endif
+
     // dump our state in a String
     virtual void dump(String8& result) const;
     virtual void dump(String8& result, const char* prefix, char* buffer, size_t SIZE) const;
@@ -514,6 +520,10 @@ private:
 
 #ifdef QCOM_HARDWARE
     qBufGeometry mNextBufferInfo;
+
+    //Swaprect : propagate dirty region
+    mutable Rect mDirtyRegion[BufferQueue::NUM_BUFFER_SLOTS];
+    Rect mCurrentDirtyRegion;
 #endif
 };
 // ----------------------------------------------------------------------------

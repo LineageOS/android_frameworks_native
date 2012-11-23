@@ -262,6 +262,34 @@ status_t BufferQueue::setTransformHint(uint32_t hint) {
     return OK;
 }
 
+#ifdef QCOM_HARDWARE
+status_t BufferQueue::setCurrentDirtyRegion(int cur) {
+    Mutex::Autolock lock(mMutex);
+    ST_LOGV("setCurrentDirtyRegion");
+    mCurrentDirtyRegion.set(mDirtyRegion[cur]);
+    if(mCurrentDirtyRegion.isEmpty()) {
+        const sp<GraphicBuffer>& graphicBuffer(mSlots[cur].mGraphicBuffer);
+        if(graphicBuffer != NULL) {
+            Rect dirty(graphicBuffer->getWidth(), graphicBuffer->getHeight());
+            mCurrentDirtyRegion.set(dirty);
+        }
+    }
+    mDirtyRegion[cur].clear();
+    return OK;
+}
+Rect BufferQueue::getCurrentDirtyRegion() {
+    Mutex::Autolock lock(mMutex);
+    return mCurrentDirtyRegion;
+}
+status_t BufferQueue::updateDirtyRegion(int bufferidx, int l, int t, int r, int b) {
+    Mutex::Autolock lock(mMutex);
+    ST_LOGV("updateDirtyRegion: id:%d dirty rect [%d,%d][%d,%d]", bufferidx, l, t, r, b);
+    Rect x(l,t,r,b);
+    mDirtyRegion[bufferidx].set(x);
+    return OK;
+}
+#endif
+
 status_t BufferQueue::setBufferCount(int bufferCount) {
     ST_LOGV("setBufferCount: count=%d", bufferCount);
 

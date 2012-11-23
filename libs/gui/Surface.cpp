@@ -356,6 +356,18 @@ int Surface::query(int what, int* value) const {
     return SurfaceTextureClient::query(what, value);
 }
 
+#ifdef QCOM_HARDWARE
+status_t Surface::setDirtyRegion(Region* inOutDirtyRegion) {
+    //    ANativeWindow_Buffer outBuffer;
+    Rect dirty;
+    if (inOutDirtyRegion) {
+        dirty = inOutDirtyRegion->getBounds();
+    }
+
+    status_t err = SurfaceTextureClient::setDirtyRegion(dirty);
+    return err;
+}
+#endif
 // ----------------------------------------------------------------------------
 
 status_t Surface::lock(SurfaceInfo* other, Region* inOutDirtyRegion) {
