@@ -192,6 +192,12 @@ BufferQueue::BufferQueue(  bool allowSynchronousMode, int bufferCount ) :
     }
 #ifdef QCOM_HARDWARE
     mNextBufferInfo.set(0, 0, 0);
+
+    Rect x(-1,-1,-1,-1);
+    mCurrentDirtyRegion.set(x);
+
+   for(size_t cur=0 ;cur<NUM_BUFFER_SLOTS ; cur++)
+       mDirtyRegion[cur].set(x);
 #endif
 }
 
@@ -268,11 +274,8 @@ status_t BufferQueue::setCurrentDirtyRegion(int cur) {
     ST_LOGV("setCurrentDirtyRegion");
     mCurrentDirtyRegion.set(mDirtyRegion[cur]);
     if(mCurrentDirtyRegion.isEmpty()) {
-        const sp<GraphicBuffer>& graphicBuffer(mSlots[cur].mGraphicBuffer);
-        if(graphicBuffer != NULL) {
-            Rect dirty(graphicBuffer->getWidth(), graphicBuffer->getHeight());
-            mCurrentDirtyRegion.set(dirty);
-        }
+        Rect x(-1,-1,-1,-1);
+        mCurrentDirtyRegion.set(x);
     }
     mDirtyRegion[cur].clear();
     return OK;
