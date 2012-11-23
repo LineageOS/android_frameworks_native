@@ -165,6 +165,13 @@ SurfaceTexture::~SurfaceTexture() {
     abandon();
 }
 
+#ifdef QCOM_HARDWARE
+Rect SurfaceTexture::getDirtyRegion() {
+   Mutex::Autolock lock(mMutex);
+   return mBufferQueue->getCurrentDirtyRegion();
+}
+#endif
+
 status_t SurfaceTexture::setBufferCountServer(int bufferCount) {
     Mutex::Autolock lock(mMutex);
     return mBufferQueue->setBufferCountServer(bufferCount);
@@ -328,6 +335,11 @@ status_t SurfaceTexture::updateTexImage(BufferRejecter* rejecter) {
         mCurrentScalingMode = item.mScalingMode;
         mCurrentTimestamp = item.mTimestamp;
         computeCurrentTransformMatrix();
+
+#ifdef QCOM_HARDWARE
+        // Update the dirty region for the current buffer
+        mBufferQueue->setCurrentDirtyRegion(buf);
+#endif
     } else  {
         if (err < 0) {
             ALOGE("updateTexImage failed on acquire %d", err);

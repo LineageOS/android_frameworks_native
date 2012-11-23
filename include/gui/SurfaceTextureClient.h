@@ -100,6 +100,7 @@ protected:
 #ifdef QCOM_HARDWARE
     virtual int setBuffersSize(int size);
     virtual int updateBuffersGeometry(int w, int h, int f);
+    virtual int setDirtyRegion(Rect dirty);
 #endif
 
     virtual int connect(int api);
@@ -221,6 +222,12 @@ private:
     // GRALLOC_USAGE_PRIVATE_EXTERNAL_CC,
     // It is initialized to 0
     uint32_t mReqExtUsage;
+
+#ifdef QCOM_HARDWARE
+    // mDequeueIdx is the index of the most recent buffer that was dequeued.
+    // This is used to store the dirty regions in the correct slots.
+    int mDequeueIdx;
+#endif
 };
 
 }; // namespace android

@@ -73,6 +73,9 @@ void SurfaceTextureClient::init() {
     const_cast<int&>(ANativeWindow::minSwapInterval) = 0;
     const_cast<int&>(ANativeWindow::maxSwapInterval) = 1;
 
+#ifdef QCOM_HARDWARE
+    mDequeueIdx = 0;
+#endif
     mReqWidth = 0;
     mReqHeight = 0;
     mReqFormat = 0;
@@ -143,6 +146,15 @@ int SurfaceTextureClient::hook_perform(ANativeWindow* window, int operation, ...
     return c->perform(operation, args);
 }
 
+#ifdef QCOM_HARDWARE
+int SurfaceTextureClient::setDirtyRegion(Rect dirty) {
+    Mutex::Autolock lock(mMutex);
+    status_t res = mSurfaceTexture->updateDirtyRegion(mDequeueIdx, dirty.left,
+                                     dirty.top, dirty.right, dirty.bottom);
+    return res;
+}
+#endif
+
 int SurfaceTextureClient::setSwapInterval(int interval) {
     ATRACE_CALL();
     // EGL specification states:
@@ -190,6 +202,9 @@ int SurfaceTextureClient::dequeueBuffer(android_native_buffer_t** buffer) {
         }
     }
     *buffer = gbuf.get();
+#ifdef QCOM_HARDWARE
+    mDequeueIdx = buf;
+#endif
     return OK;
 }
 
