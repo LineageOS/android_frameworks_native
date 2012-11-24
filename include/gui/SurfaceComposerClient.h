@@ -92,6 +92,10 @@ public:
     static ssize_t getDisplayWidth(int32_t displayId);
     static ssize_t getDisplayHeight(int32_t displayId);
     static ssize_t getDisplayOrientation(int32_t displayId);
+    // TODO: Remove me.  Do not use.
+    // This is a compatibility shim for one product whose drivers are depending on
+    // this legacy function (when they shouldn't).
+    static status_t getDisplayInfo(int32_t displayId, DisplayInfo* info);
 #endif
 
     // ------------------------------------------------------------------------
