@@ -460,6 +460,26 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
     return result;
 }
 
+sp<SurfaceControl> SurfaceComposerClient::createSurface(
+    const String8& name,
+    int32_t display,
+    uint32_t w,
+    uint32_t h,
+    PixelFormat format,
+    uint32_t flags)
+{
+    sp<SurfaceControl> result;
+    if (mStatus == NO_ERROR) {
+        ISurfaceComposerClient::surface_data_t data;
+        sp<ISurface> surface = mClient->createSurface(&data, name,
+                                                      w, h, format, flags);
+        if (surface != 0) {
+            result = new SurfaceControl(this, surface, data);
+        }
+    }
+    return result;
+}
+
 sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName,
         bool secure) {
     return Composer::getInstance().createDisplay(displayName, secure);
