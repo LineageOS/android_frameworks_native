@@ -47,8 +47,8 @@ class Region;
 class SurfaceComposerClient : public RefBase
 {
     friend class Composer;
-public:    
-                SurfaceComposerClient();
+public:
+		SurfaceComposerClient();
     virtual     ~SurfaceComposerClient();
 
     // Always make sure we could initialize
@@ -56,13 +56,13 @@ public:
 
     // Return the connection of this client
     sp<IBinder> connection() const;
-    
+
     // Forcibly remove connection before all references have gone away.
     void        dispose();
 
     // callback when the composer is dies
     status_t linkToComposerDeath(const sp<IBinder::DeathRecipient>& recipient,
-            void* cookie = NULL, uint32_t flags = 0);
+	    void* cookie = NULL, uint32_t flags = 0);
 
     // Get information about a display
     static status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo* info);
@@ -78,11 +78,19 @@ public:
 
     //! Create a surface
     sp<SurfaceControl> createSurface(
-            const String8& name,// name of the surface
-            uint32_t w,         // width in pixel
-            uint32_t h,         // height in pixel
-            PixelFormat format, // pixel-format desired
-            uint32_t flags = 0  // usage flags
+	    const String8& name,// name of the surface
+	    uint32_t w,         // width in pixel
+	    uint32_t h,         // height in pixel
+	    PixelFormat format, // pixel-format desired
+	    uint32_t flags = 0  // usage flags
+    );
+    sp<SurfaceControl> createSurface(
+	    const String8& name,// name of the surface
+	    int32_t display,
+	    uint32_t w,         // width in pixel
+	    uint32_t h,         // height in pixel
+	    PixelFormat format, // pixel-format desired
+	    uint32_t flags = 0  // usage flags
     );
 
     //! Create a display
@@ -122,9 +130,9 @@ public:
     status_t    destroySurface(SurfaceID sid);
 
     static void setDisplaySurface(const sp<IBinder>& token,
-            const sp<ISurfaceTexture>& surface);
+	    const sp<ISurfaceTexture>& surface);
     static void setDisplayLayerStack(const sp<IBinder>& token,
-            uint32_t layerStack);
+	    uint32_t layerStack);
 
     /* setDisplayProjection() defines the projection of layer stacks
      * to a given display.
@@ -137,18 +145,18 @@ public:
      * it uses the orientation seen by the end-user.
      */
     static void setDisplayProjection(const sp<IBinder>& token,
-            uint32_t orientation,
-            const Rect& layerStackRect,
-            const Rect& displayRect);
+	    uint32_t orientation,
+	    const Rect& layerStackRect,
+	    const Rect& displayRect);
 
 private:
     virtual void onFirstRef();
     Composer& getComposer();
 
     mutable     Mutex                       mLock;
-                status_t                    mStatus;
-                sp<ISurfaceComposerClient>  mClient;
-                Composer&                   mComposer;
+		status_t                    mStatus;
+		sp<ISurfaceComposerClient>  mClient;
+		Composer&                   mComposer;
 };
 
 // ---------------------------------------------------------------------------
@@ -170,10 +178,10 @@ public:
     // frees the previous screenshot and capture a new one
     status_t update(const sp<IBinder>& display);
     status_t update(const sp<IBinder>& display,
-            uint32_t reqWidth, uint32_t reqHeight);
+	    uint32_t reqWidth, uint32_t reqHeight);
     status_t update(const sp<IBinder>& display,
-            uint32_t reqWidth, uint32_t reqHeight,
-            uint32_t minLayerZ, uint32_t maxLayerZ);
+	    uint32_t reqWidth, uint32_t reqHeight,
+	    uint32_t minLayerZ, uint32_t maxLayerZ);
 
     // release memory occupied by the screenshot
     void release();

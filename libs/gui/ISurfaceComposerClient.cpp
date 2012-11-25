@@ -68,6 +68,16 @@ public:
         params->readFromParcel(reply);
         return interface_cast<ISurface>(reply.readStrongBinder());
     }
+    virtual sp<ISurface> createSurface( surface_data_t* params,
+                                        const String8& name,
+                                        int32_t display,
+                                        uint32_t w,
+                                        uint32_t h,
+                                        PixelFormat format,
+                                        uint32_t flags)
+    {
+        return createSurface(params, name, w, h, format, flags);
+    }
 
     virtual status_t destroySurface(SurfaceID sid)
     {

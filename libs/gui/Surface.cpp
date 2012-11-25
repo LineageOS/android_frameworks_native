@@ -128,6 +128,9 @@ status_t SurfaceControl::show() {
     const sp<SurfaceComposerClient>& client(mClient);
     return client->show(mToken);
 }
+status_t SurfaceControl::show(int i) {
+   return  show();
+}
 status_t SurfaceControl::setFlags(uint32_t flags, uint32_t mask) {
     status_t err = validate();
     if (err < 0) return err;
