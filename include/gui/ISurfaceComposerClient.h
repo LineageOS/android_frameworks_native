@@ -68,6 +68,10 @@ public:
             const String8& name, uint32_t w, uint32_t h,
             PixelFormat format, uint32_t flags) = 0;
 
+    virtual sp<ISurface> createSurface(surface_data_t* data,
+            const String8& name, int32_t display, uint32_t w, uint32_t h,
+            PixelFormat format, uint32_t flags) = 0;
+
     /*
      * Requires ACCESS_SURFACE_FLINGER permission
      */

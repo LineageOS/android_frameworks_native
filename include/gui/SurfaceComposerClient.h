@@ -84,6 +84,14 @@ public:
             PixelFormat format, // pixel-format desired
             uint32_t flags = 0  // usage flags
     );
+    sp<SurfaceControl> createSurface(
+            const String8& name,// name of the surface
+            int32_t display,
+            uint32_t w,         // width in pixel
+            uint32_t h,         // height in pixel
+            PixelFormat format, // pixel-format desired
+            uint32_t flags = 0  // usage flags
+    );
 
     //! Create a display
     static sp<IBinder> createDisplay(const String8& displayName, bool secure);
