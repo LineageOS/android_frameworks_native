@@ -68,6 +68,25 @@ public:
         params->readFromParcel(reply);
         return interface_cast<ISurface>(reply.readStrongBinder());
     }
+    virtual sp<ISurface> createSurface( surface_data_t* params,
+                                        const String8& name,
+                                        int32_t display,
+                                        uint32_t w,
+                                        uint32_t h,
+                                        PixelFormat format,
+                                        uint32_t flags)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposerClient::getInterfaceDescriptor());
+        data.writeString8(name);
+        data.writeInt32(w);
+        data.writeInt32(h);
+        data.writeInt32(format);
+        data.writeInt32(flags);
+        remote()->transact(CREATE_SURFACE, data, &reply);
+        params->readFromParcel(reply);
+        return interface_cast<ISurface>(reply.readStrongBinder());
+    }
 
     virtual status_t destroySurface(SurfaceID sid)
     {

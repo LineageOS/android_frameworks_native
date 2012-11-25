@@ -460,6 +460,17 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
     return result;
 }
 
+sp<SurfaceControl> SurfaceComposerClient::createSurface(
+    const String8& name,
+    int32_t display,
+    uint32_t w,
+    uint32_t h,
+    PixelFormat format,
+    uint32_t flags)
+{
+    return createSurface(name, w, h, format, flags);
+}
+
 sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName,
         bool secure) {
     return Composer::getInstance().createDisplay(displayName, secure);
