@@ -568,6 +568,10 @@ void SurfaceComposerClient::setDisplayProjection(const sp<IBinder>& token,
 }
 
 // ----------------------------------------------------------------------------
+status_t SurfaceComposerClient::getDisplayInfo(int32_t dpy,
+	DisplayInfo* info) {
+    return getDisplayInfo(ComposerService::getComposerService()->getBuiltInDisplay(dpy), info);
+}
 
 status_t SurfaceComposerClient::getDisplayInfo(
         const sp<IBinder>& display, DisplayInfo* info)

@@ -65,6 +65,7 @@ public:
             void* cookie = NULL, uint32_t flags = 0);
 
     // Get information about a display
+    static status_t getDisplayInfo(int32_t dpy, DisplayInfo* info);
     static status_t getDisplayInfo(const sp<IBinder>& display, DisplayInfo* info);
 
     /* triggers screen off and waits for it to complete */
