@@ -1,0 +1,10 @@
+--- libs/ui/Android.mk
++++ libs/ui/Android.mk
+@@ -22,6 +22,7 @@
+ 	GraphicBufferAllocator.cpp \
+ 	GraphicBufferMapper.cpp \
+ 	PixelFormat.cpp \
++	Overlay.cpp \
+ 	Rect.cpp \
+ 	Region.cpp \
+ 	UiConfig.cpp

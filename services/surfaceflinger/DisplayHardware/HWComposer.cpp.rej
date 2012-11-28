@@ -1,0 +1,11 @@
+--- services/surfaceflinger/DisplayHardware/HWComposer.cpp
++++ services/surfaceflinger/DisplayHardware/HWComposer.cpp
+@@ -187,7 +187,7 @@
+             ALOGW("getting VSYNC period from thin air: %lld",
+                     mDisplayData[HWC_DISPLAY_PRIMARY].refresh);
+         }
+-    } else if (mHwc) {
++    } else if (mHwc && hwcHasApiVersion(mHwc, HWC_DEVICE_API_VERSION_1_1)) {
+         // here we're guaranteed to have at least HWC 1.1
+         for (size_t i =0 ; i<HWC_NUM_DISPLAY_TYPES ; i++) {
+             queryDisplayProperties(i);
