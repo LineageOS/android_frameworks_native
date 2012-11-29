@@ -108,6 +108,12 @@ status_t GraphicBufferAllocator::alloc(uint32_t w, uint32_t h, PixelFormat forma
         // 0x105 = HAL_PIXEL_FORMAT_YCbCr_420_SP (Samsung-specific pixel format)
         usage |= GRALLOC_USAGE_HW_FIMC1; // Exynos HWC wants FIMC-friendly memory allocation
     }
+
+    if (usage == 0x1e02) {
+        // Samsung's super HWComposer doesn't seem to support the new
+        // HW_FB flag (0x1e02). We fall back to 4.1 buffer usage flag.
+        usage = 0xf02;
+    }
 #endif
 
     err = mAllocDev->alloc(mAllocDev, w, h, format, usage, handle, stride);
