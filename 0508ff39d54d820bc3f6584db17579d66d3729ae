@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "AAAAa3//5cs\u003d",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.cpp",
+        "patchSetId": 4
+      },
+      "lineNbr": 679,
+      "author": {
+        "id": 2874
+      },
+      "writtenOn": "2012-11-29T00:27:40Z",
+      "side": 1,
+      "message": "-\u003eblank was introduced in 1.0. Will crash on \u003c 1.0",
+      "revId": "0508ff39d54d820bc3f6584db17579d66d3729ae",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
