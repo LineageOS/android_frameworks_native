@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "AAAAa3//5RM\u003d",
+        "filename": "libs/ui/GraphicBufferAllocator.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 113,
+      "author": {
+        "id": 2874
+      },
+      "writtenOn": "2012-11-30T02:37:40Z",
+      "side": 1,
+      "message": "gralloc",
+      "revId": "1cf2c60475afb8dc356a0de4ae5a2dc04970ba8d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
