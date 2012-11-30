@@ -128,6 +128,7 @@ bool EventThread::threadLoop() {
 
     nsecs_t timestamp;
     DisplayEventReceiver::Event vsync;
+    Vector< sp<EventThread::Connection> > connectionList;
     Vector< wp<EventThread::Connection> > displayEventConnections;
 
     do {
@@ -143,6 +144,7 @@ bool EventThread::threadLoop() {
             for (size_t i=0 ; i<count ; i++) {
                 sp<Connection> connection =
                         mDisplayEventConnections.itemAt(i).promote();
+		connectionList.add(connection);
                 if (connection!=0 && connection->count >= 0) {
                     // at least one continuous mode or active one-shot event
                     waitForNextVsync = true;
@@ -212,6 +214,8 @@ bool EventThread::threadLoop() {
             if (reportVsync) {
                 displayEventConnections.add(connection);
             }
+            // Add display event connections to the list to avoid deadlock.
+            connectionList.add(connection);
         }
     } while (!displayEventConnections.size());
 
@@ -247,6 +251,7 @@ bool EventThread::threadLoop() {
 
     // clear all our references without holding mLock
     displayEventConnections.clear();
+    connectionList.clear();
 
     return true;
 }
