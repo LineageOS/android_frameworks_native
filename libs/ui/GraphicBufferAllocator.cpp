@@ -114,10 +114,10 @@ status_t GraphicBufferAllocator::alloc(uint32_t w, uint32_t h,
     status_t err; 
 
 #ifdef EXYNOS4_ENHANCEMENTS
-    if ((format == 0x101) || (format == 0x105)) {
+    if ((format == 0x101) || (format == 0x105) || (format == 0x107)) {
         // 0x101 = HAL_PIXEL_FORMAT_YCbCr_420_P (Samsung-specific pixel format)
         // 0x105 = HAL_PIXEL_FORMAT_YCbCr_420_SP (Samsung-specific pixel format)
-        usage |= GRALLOC_USAGE_HW_FIMC1; // Exynos HWC wants FIMC-friendly memory allocation
+        usage |= GRALLOC_USAGE_HW_FIMC1 | GRALLOC_USAGE_HWC_HWOVERLAY; // Exynos HWC wants FIMC-friendly memory allocation
     }
 #endif
 
