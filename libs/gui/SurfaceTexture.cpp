@@ -195,7 +195,11 @@ status_t SurfaceTexture::releaseBufferLocked(int buf, EGLDisplay display,
     return err;
 }
 
+#ifdef DECIDE_TEXTURE_TARGET
+status_t SurfaceTexture::updateTexImage(BufferRejecter* rejecter, bool skipSync, bool isComposition) {
+#else
 status_t SurfaceTexture::updateTexImage(BufferRejecter* rejecter, bool skipSync) {
+#endif
     ATRACE_CALL();
     ST_LOGV("updateTexImage");
     Mutex::Autolock lock(mMutex);
@@ -254,6 +258,28 @@ status_t SurfaceTexture::updateTexImage(BufferRejecter* rejecter, bool skipSync)
         }
 
         EGLImageKHR image = mEglSlots[buf].mEglImage;
+#ifdef DECIDE_TEXTURE_TARGET
+                // GPU is not efficient in handling GL_TEXTURE_EXTERNAL_OES
+                // texture target. Depending on the image format, decide,
+                // the texture target to be used
+
+                if(isComposition){
+                    switch (mSlots[buf].mGraphicBuffer->format) {
+                        case HAL_PIXEL_FORMAT_RGBA_8888:
+                        case HAL_PIXEL_FORMAT_RGBX_8888:
+                        case HAL_PIXEL_FORMAT_RGB_888:
+                        case HAL_PIXEL_FORMAT_RGB_565:
+                        case HAL_PIXEL_FORMAT_BGRA_8888:
+                        case HAL_PIXEL_FORMAT_RGBA_5551:
+                        case HAL_PIXEL_FORMAT_RGBA_4444:
+                            mTexTarget = GL_TEXTURE_2D;
+                            break;
+                        default:
+                            mTexTarget = GL_TEXTURE_EXTERNAL_OES;
+                            break;
+                    }
+                }
+#endif
         glBindTexture(mTexTarget, mTexName);
         glEGLImageTargetTexture2DOES(mTexTarget, (GLeglImageOES)image);
 
