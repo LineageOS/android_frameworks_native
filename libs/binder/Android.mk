@@ -41,10 +41,24 @@ LOCAL_LDLIBS += -lpthread
 LOCAL_MODULE := libbinder
 LOCAL_SHARED_LIBRARIES := liblog libcutils libutils
 LOCAL_SRC_FILES := $(sources)
+
+ifeq ($(BOARD_USE_V4L2_ION), true)
+LOCAL_SHARED_LIBRARIES += libsecion
+LOCAL_CFLAGS += -DUSE_V4L2_ION
+sources += \
+	MemoryHeapBaseIon.cpp
+LOCAL_C_INCLUDES := hardware/samsung/exynos4/hal/include
+endif
+
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_LDLIBS += -lpthread
 LOCAL_MODULE := libbinder
 LOCAL_SRC_FILES := $(sources)
+
+ifeq ($(BOARD_USE_V4L2_ION), true)
+LOCAL_C_INCLUDES := hardware/samsung/exynos4/hal/include
+endif
+
 include $(BUILD_STATIC_LIBRARY)
