@@ -726,9 +726,9 @@ void Layer::lockPageFlip(bool& recomputeVisibleRegions)
             mSwapDirtyRect.clear();
         }
     }
-    ALOGD("[%s] mSwapDirtyRect= [%d,%d],[%d,%d], mDirtyRectRepeatCount=%d",
-    getName().string(), mSwapDirtyRect.left, mSwapDirtyRect.top, mSwapDirtyRect.right,
-    mSwapDirtyRect.bottom, mDirtyRectRepeatCount);
+    //ALOGD("[%s] mSwapDirtyRect= [%d,%d],[%d,%d], mDirtyRectRepeatCount=%d",
+    //getName().string(), mSwapDirtyRect.left, mSwapDirtyRect.top, mSwapDirtyRect.right,
+    //mSwapDirtyRect.bottom, mDirtyRectRepeatCount);
 #endif
 }
 
