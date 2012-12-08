@@ -157,6 +157,9 @@ public:
     // 'what' tokens allowed are that of android_natives.h
     virtual int query(int what, int* value) = 0;
 
+    // is it a framebuffer?
+    virtual int isFrameBuffer() const = 0;
+
     // setSynchronousMode set whether dequeueBuffer is synchronous or
     // asynchronous. In synchronous mode, dequeueBuffer blocks until
     // a buffer is available, the currently bound buffer can be dequeued and

@@ -97,6 +97,13 @@ void SurfaceTextureClient::setISurfaceTexture(
         const sp<ISurfaceTexture>& surfaceTexture)
 {
     mSurfaceTexture = surfaceTexture;
+#if 0
+    //cancelBuffer isn't implemented by FramebufferNativeWindow, don't let Mali see em'
+    if(mSurfaceTexture->isFrameBuffer()) {
+        ANativeWindow::cancelBuffer == NULL;
+        ANativeWindow::cancelBuffer_DEPRECATED == NULL;
+    }
+#endif
 }
 
 sp<ISurfaceTexture> SurfaceTextureClient::getISurfaceTexture() const {
@@ -314,12 +321,14 @@ int SurfaceTextureClient::queueBuffer(android_native_buffer_t* buffer, int fence
 
 int SurfaceTextureClient::query(int what, int* value) const {
     ATRACE_CALL();
-    ALOGV("SurfaceTextureClient::query");
+    if(what > 2)
+        ALOGD("SurfaceTextureClient::query called for what > 2, what = %d, isFrameBuffer = %d",what,mSurfaceTexture->isFrameBuffer());
     { // scope for the lock
         Mutex::Autolock lock(mMutex);
         switch (what) {
             case NATIVE_WINDOW_FORMAT:
                 if (mReqFormat) {
+                    ALOGD("SurfaceTextureClient::query Providing our own mReqFormat = %d as response.",mReqFormat);
                     *value = mReqFormat;
                     return NO_ERROR;
                 }
@@ -365,6 +374,7 @@ int SurfaceTextureClient::query(int what, int* value) const {
 
 int SurfaceTextureClient::perform(int operation, va_list args)
 {
+    ALOGD("SurfaceTextureClient::perform called, operation = %d, isFrameBuffer = %d",operation,mSurfaceTexture->isFrameBuffer());
     int res = NO_ERROR;
     switch (operation) {
     case NATIVE_WINDOW_CONNECT:
@@ -374,12 +384,17 @@ int SurfaceTextureClient::perform(int operation, va_list args)
         // deprecated. must return NO_ERROR.
         break;
     case NATIVE_WINDOW_SET_USAGE:
+        if(mSurfaceTexture->isFrameBuffer())
+             return NO_ERROR;
         res = dispatchSetUsage(args);
         break;
     case NATIVE_WINDOW_SET_CROP:
         res = dispatchSetCrop(args);
         break;
     case NATIVE_WINDOW_SET_BUFFER_COUNT:
+        if(mSurfaceTexture->isFrameBuffer()) {
+            return INVALID_OPERATION;
+        }
         res = dispatchSetBufferCount(args);
         break;
     case NATIVE_WINDOW_SET_BUFFERS_GEOMETRY:
@@ -389,6 +404,8 @@ int SurfaceTextureClient::perform(int operation, va_list args)
         res = dispatchSetBuffersTransform(args);
         break;
     case NATIVE_WINDOW_SET_BUFFERS_TIMESTAMP:
+        if(mSurfaceTexture->isFrameBuffer())
+            return INVALID_OPERATION;
         res = dispatchSetBuffersTimestamp(args);
         break;
     case NATIVE_WINDOW_SET_BUFFERS_DIMENSIONS:
@@ -398,18 +415,28 @@ int SurfaceTextureClient::perform(int operation, va_list args)
         res = dispatchSetBuffersUserDimensions(args);
         break;
     case NATIVE_WINDOW_SET_BUFFERS_FORMAT:
+        if(mSurfaceTexture->isFrameBuffer())
+             return NO_ERROR;
         res = dispatchSetBuffersFormat(args);
         break;
     case NATIVE_WINDOW_LOCK:
+        if(mSurfaceTexture->isFrameBuffer())
+            return INVALID_OPERATION;
         res = dispatchLock(args);
         break;
     case NATIVE_WINDOW_UNLOCK_AND_POST:
+        if(mSurfaceTexture->isFrameBuffer())
+            return INVALID_OPERATION;
         res = dispatchUnlockAndPost(args);
         break;
     case NATIVE_WINDOW_SET_SCALING_MODE:
+        if(mSurfaceTexture->isFrameBuffer())
+            return INVALID_OPERATION;
         res = dispatchSetScalingMode(args);
         break;
     case NATIVE_WINDOW_API_CONNECT:
+        if(mSurfaceTexture->isFrameBuffer())
+             return NO_ERROR;
         res = dispatchConnect(args);
         break;
     case NATIVE_WINDOW_API_DISCONNECT:
