@@ -115,6 +115,11 @@ bool BufferQueue::isSynchronousMode() const {
     return mSynchronousMode;
 }
 
+int BufferQueue::isFrameBuffer() const {
+    Mutex::Autolock lock(mMutex);
+    return (strncmp(mConsumerName.string(),"FramebufferSurface",18) == 0);
+}
+
 void BufferQueue::setConsumerName(const String8& name) {
     Mutex::Autolock lock(mMutex);
     mConsumerName = name;
@@ -217,7 +222,10 @@ int BufferQueue::query(int what, int* outValue)
         value = mDefaultBufferFormat;
         break;
     case NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS:
-        value = getMinUndequeuedBufferCountLocked();
+        if(!(strncmp(mConsumerName.string(),"FramebufferSurface",18) == 0))
+            value = getMinUndequeuedBufferCountLocked();
+        else
+            return BAD_VALUE;
         break;
     case NATIVE_WINDOW_CONSUMER_RUNNING_BEHIND:
         value = (mQueue.size() >= 2);
@@ -326,7 +334,7 @@ status_t BufferQueue::dequeueBuffer(int *outBuf, sp<Fence>& outFence,
             // if they didn't set a buffer count.
             if (!mOverrideMaxBufferCount && dequeuedCount) {
                 ST_LOGE("dequeueBuffer: can't dequeue multiple buffers without "
-                        "setting the buffer count");
+                        "setting the buffer count, dequeuedCount = %d, maxBufferCount = %d",dequeuedCount,maxBufferCount);
                 return -EINVAL;
             }
 
