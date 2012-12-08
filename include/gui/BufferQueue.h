@@ -268,6 +268,9 @@ public:
     // synchronous mode.
     bool isSynchronousMode() const;
 
+    // isFrameBuffer returns whether mConsumerName is FramebufferSurface
+    virtual int isFrameBuffer() const;
+
     // setConsumerName sets the name used in logging
     void setConsumerName(const String8& name);
 
@@ -488,6 +491,9 @@ private:
 
     // mSynchronousMode whether we're in synchronous mode or not
     bool mSynchronousMode;
+
+    // mIsFrameBuffer whether our consumer name is FramebufferSurface
+    int mIsFrameBuffer;
 
     // mAllowSynchronousMode whether we allow synchronous mode or not
     const bool mAllowSynchronousMode;

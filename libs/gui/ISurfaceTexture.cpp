@@ -40,6 +40,7 @@ enum {
     SET_SYNCHRONOUS_MODE,
     CONNECT,
     DISCONNECT,
+    IS_FRAMEBUFFER,
 };
 
 
@@ -140,6 +141,17 @@ public:
             return result;
         }
         value[0] = reply.readInt32();
+        result = reply.readInt32();
+        return result;
+    }
+
+    virtual int isFrameBuffer() const {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceTexture::getInterfaceDescriptor());
+        status_t result = remote()->transact(IS_FRAMEBUFFER, data, &reply);
+        if (result != NO_ERROR) {
+            return result;
+        }
         result = reply.readInt32();
         return result;
     }
@@ -256,6 +268,12 @@ status_t BnSurfaceTexture::onTransact(
             int what = data.readInt32();
             int res = query(what, &value);
             reply->writeInt32(value);
+            reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+        case IS_FRAMEBUFFER: {
+            CHECK_INTERFACE(ISurfaceTexture, data, reply);
+            int res = isFrameBuffer();
             reply->writeInt32(res);
             return NO_ERROR;
         } break;

@@ -72,6 +72,7 @@ BufferQueue::BufferQueue(bool allowSynchronousMode,
     mDefaultMaxBufferCount(2),
     mOverrideMaxBufferCount(0),
     mSynchronousMode(false),
+    mIsFrameBuffer(0),
     mAllowSynchronousMode(allowSynchronousMode),
     mConnectedApi(NO_CONNECTED_API),
     mAbandoned(false),
@@ -115,9 +116,16 @@ bool BufferQueue::isSynchronousMode() const {
     return mSynchronousMode;
 }
 
+int BufferQueue::isFrameBuffer() const {
+    Mutex::Autolock lock(mMutex);
+    return mIsFrameBuffer;
+}
+
 void BufferQueue::setConsumerName(const String8& name) {
     Mutex::Autolock lock(mMutex);
     mConsumerName = name;
+    if(strncmp(mConsumerName.string(),"FramebufferSurface",18) == 0)
+        mIsFrameBuffer = 1;
 }
 
 status_t BufferQueue::setDefaultBufferFormat(uint32_t defaultFormat) {
@@ -217,7 +225,10 @@ int BufferQueue::query(int what, int* outValue)
         value = mDefaultBufferFormat;
         break;
     case NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS:
-        value = getMinUndequeuedBufferCountLocked();
+        if(!mIsFrameBuffer)
+            value = getMinUndequeuedBufferCountLocked();
+        else
+            return BAD_VALUE;
         break;
     case NATIVE_WINDOW_CONSUMER_RUNNING_BEHIND:
         value = (mQueue.size() >= 2);
@@ -258,7 +269,7 @@ status_t BufferQueue::requestBuffer(int slot, sp<GraphicBuffer>* buf) {
 status_t BufferQueue::dequeueBuffer(int *outBuf, sp<Fence>& outFence,
         uint32_t w, uint32_t h, uint32_t format, uint32_t usage) {
     ATRACE_CALL();
-    ST_LOGV("dequeueBuffer: w=%d h=%d fmt=%#x usage=%#x", w, h, format, usage);
+    ST_LOGD("dequeueBuffer: w=%d h=%d fmt=%#x usage=%#x", w, h, format, usage);
 
     if ((w && !h) || (!w && h)) {
         ST_LOGE("dequeueBuffer: invalid size: w=%u, h=%u", w, h);
@@ -282,6 +293,8 @@ status_t BufferQueue::dequeueBuffer(int *outBuf, sp<Fence>& outFence,
         int dequeuedCount = 0;
         bool tryAgain = true;
         while (tryAgain) {
+            dequeuedCount = 0;
+
             if (mAbandoned) {
                 ST_LOGE("dequeueBuffer: SurfaceTexture has been abandoned!");
                 return NO_INIT;
@@ -325,15 +338,27 @@ status_t BufferQueue::dequeueBuffer(int *outBuf, sp<Fence>& outFence,
             // clients are not allowed to dequeue more than one buffer
             // if they didn't set a buffer count.
             if (!mOverrideMaxBufferCount && dequeuedCount) {
-                ST_LOGE("dequeueBuffer: can't dequeue multiple buffers without "
-                        "setting the buffer count");
-                return -EINVAL;
+                /*
+                 * Behave more similarly to FramebufferNativeWindow if we're a framebuffer -
+                 * if a dequeue attempt is done while something is dequeued, wait until it
+                 * isn't
+                 */
+                if(mIsFrameBuffer) {
+                    ST_LOGE("dequeueBuffer: dequeued buffers found but we're a framebuffer, loop until we're not dequeued");
+		    found = INVALID_BUFFER_SLOT;
+                }
+	        else {
+                    ST_LOGE("dequeueBuffer: can't dequeue multiple buffers without "
+                            "setting the buffer count, dequeuedCount = %d, maxBufferCount = %d",dequeuedCount,maxBufferCount);
+                    ST_LOGE("dequeueBuffer: found = %d",found);
+                    return -EINVAL;
+	        }
             }
 
             // See whether a buffer has been queued since the last
             // setBufferCount so we know whether to perform the min undequeued
             // buffers check below.
-            if (mBufferHasBeenQueued) {
+            if (mBufferHasBeenQueued && !mIsFrameBuffer) {
                 // make sure the client is not trying to dequeue more buffers
                 // than allowed.
                 const int newUndequeuedCount = maxBufferCount - (dequeuedCount+1);
@@ -490,7 +515,7 @@ status_t BufferQueue::queueBuffer(int buf,
 
     input.deflate(&timestamp, &crop, &scalingMode, &transform, &fence);
 
-    ST_LOGV("queueBuffer: slot=%d time=%#llx crop=[%d,%d,%d,%d] tr=%#x "
+    ST_LOGD("queueBuffer: slot=%d time=%#llx crop=[%d,%d,%d,%d] tr=%#x "
             "scale=%s",
             buf, timestamp, crop.left, crop.top, crop.right, crop.bottom,
             transform, scalingModeName(scalingMode));
@@ -592,7 +617,7 @@ status_t BufferQueue::queueBuffer(int buf,
 
 void BufferQueue::cancelBuffer(int buf, sp<Fence> fence) {
     ATRACE_CALL();
-    ST_LOGV("cancelBuffer: slot=%d", buf);
+    ST_LOGD("cancelBuffer: slot=%d", buf);
     Mutex::Autolock lock(mMutex);
 
     if (mAbandoned) {
