@@ -115,6 +115,11 @@ bool BufferQueue::isSynchronousMode() const {
     return mSynchronousMode;
 }
 
+int BufferQueue::isFrameBuffer() const {
+    Mutex::Autolock lock(mMutex);
+    return (strncmp(mConsumerName.string(),"FramebufferSurface",18) == 0);
+}
+
 void BufferQueue::setConsumerName(const String8& name) {
     Mutex::Autolock lock(mMutex);
     mConsumerName = name;
