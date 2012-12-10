@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDED_FROM_FRAMEBUFFER_NATIVE_WINDOW_CPP
-#warning "FramebufferNativeWindow is deprecated"
-#endif
-
 #ifndef ANDROID_FRAMEBUFFER_NATIVE_WINDOW_H
 #define ANDROID_FRAMEBUFFER_NATIVE_WINDOW_H
 
