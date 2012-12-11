@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "AAAAbH///0g\u003d",
+        "filename": "libs/binder/Android.mk",
+        "patchSetId": 3
+      },
+      "lineNbr": 42,
+      "author": {
+        "id": 523
+      },
+      "writtenOn": "2012-12-11T13:46:10Z",
+      "side": 1,
+      "message": "needs to be removed.",
+      "revId": "d6300c29195f4a1a496419b642269a63c6222beb",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "AAAAbH///0c\u003d",
+        "filename": "libs/binder/Android.mk",
+        "patchSetId": 3
+      },
+      "lineNbr": 47,
+      "author": {
+        "id": 523
+      },
+      "writtenOn": "2012-12-11T13:46:10Z",
+      "side": 1,
+      "message": "see here",
+      "revId": "d6300c29195f4a1a496419b642269a63c6222beb",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
