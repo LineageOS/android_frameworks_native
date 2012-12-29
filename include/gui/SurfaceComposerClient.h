@@ -77,6 +77,9 @@ public:
     // this legacy function (when they shouldn't).
     static status_t getDisplayInfo(int32_t displayId, DisplayInfo* info);
 
+    static ssize_t getDisplayWidth(int32_t displayId);
+    static ssize_t getDisplayHeight(int32_t displayId);
+
     // ------------------------------------------------------------------------
     // surface creation / destruction
 
