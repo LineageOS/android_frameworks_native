@@ -94,6 +94,10 @@ public:
     // the current orientation of the display device.
     virtual void updateTransformHint(const sp<const DisplayDevice>& hw) const;
 
+#ifdef QCOMHW
+    virtual bool getUsage(uint32_t *usage) const;
+#endif
+
 protected:
     virtual void onFirstRef();
     virtual void dump(String8& result, char* scratch, size_t size) const;

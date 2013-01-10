@@ -783,6 +783,19 @@ void Layer::updateTransformHint(const sp<const DisplayDevice>& hw) const {
     mSurfaceTexture->setTransformHint(orientation);
 }
 
+#ifdef QCOMHW
+bool Layer::getUsage(uint32_t *usage) const
+{
+    const sp<GraphicBuffer>& activeBuffer(mActiveBuffer);
+    if (activeBuffer != 0) {
+        *usage = activeBuffer->getUsage();
+        return true;
+    } else {
+        return false;
+    }
+}
+#endif
+
 // ---------------------------------------------------------------------------
 
 

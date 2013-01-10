@@ -65,6 +65,12 @@ ifeq ($(BOARD_USES_SAMSUNG_HDMI),true)
 endif
 
 
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+    LOCAL_C_INCLUDES += hardware/qcom/display-caf/libgralloc
+    LOCAL_CFLAGS += -DQCOMHW
+endif
+
+
 LOCAL_MODULE:= libsurfaceflinger
 
 include $(BUILD_SHARED_LIBRARY)

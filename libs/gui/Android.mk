@@ -56,6 +56,8 @@ endif
 
 ifeq ($(call is-vendor-board-platform,QCOM),true)
 	LOCAL_CFLAGS += -DUSE_NATIVE_FENCE_SYNC
+        LOCAL_C_INCLUDES += hardware/qcom/display/libgralloc
+        LOCAL_CFLAGS += -DQCOMHW
 endif
 
 include $(BUILD_SHARED_LIBRARY)

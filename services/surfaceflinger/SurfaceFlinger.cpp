@@ -68,8 +68,12 @@
 #include "DisplayHardware/GraphicBufferAlloc.h"
 #include "DisplayHardware/HWComposer.h"
 
+
 #ifdef SAMSUNG_HDMI_SUPPORT
 #include "SecTVOutService.h"
+#endif
+#ifdef QCOMHW
+#include <gralloc_priv.h>
 #endif
 
 #define EGL_VERSION_HW_ANDROID  0x3143
@@ -1376,6 +1380,31 @@ void SurfaceFlinger::computeVisibleRegions(
          */
         Region transparentRegion;
 
+#ifdef QCOMHW
+        bool isCustomLayer = false;
+        uint32_t usage = 0;
+        if (layer->getUsage(&usage)) {
+            if( (usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY) ||
+                    (usage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD))
+                isCustomLayer = true;
+        }
+        if (isCustomLayer) {
+            Rect bounds(layer->computeBounds());
+            Rect temp(0,0,0,0);
+            visibleRegion.set(bounds);
+            coveredRegion.set(temp);
+            transparentRegion.set(temp);
+            layer->setVisibleRegion(visibleRegion);
+            layer->setCoveredRegion(coveredRegion);
+            layer->setVisibleNonTransparentRegion(
+                    visibleRegion.subtract(transparentRegion));
+            if (layer->contentDirty) {
+                outDirtyRegion.orSelf(visibleRegion);
+                layer->contentDirty = false;
+            }
+            continue;
+        }
+#endif
 
         // handle hidden surfaces by setting the visible region to empty
         if (CC_LIKELY(layer->isVisible())) {
@@ -1616,6 +1645,14 @@ void SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& hw, const 
                         break;
                     }
                     case HWC_FRAMEBUFFER: {
+#ifdef QCOMHW
+                        uint32_t usage = 0;
+                        if (layer->getUsage(&usage)) {
+                            if( (usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY) ||
+                                (usage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD))
+                                continue;
+                        }
+#endif
                         layer->draw(hw, clip);
                         break;
                     }
@@ -2650,6 +2687,15 @@ status_t SurfaceFlinger::renderScreenToTextureLocked(uint32_t layerStack,
     const size_t count = layers.size();
     for (size_t i=0 ; i<count ; ++i) {
         const sp<LayerBase>& layer(layers[i]);
+
+#ifdef QCOMHW
+        uint32_t usage = 0;
+        if (layer->getUsage(&usage)) {
+            if( (usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY) ||
+                (usage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD))
+                continue;
+        }
+#endif
         layer->draw(hw);
     }
 
@@ -2741,6 +2787,14 @@ status_t SurfaceFlinger::captureScreenImplLocked(const sp<IBinder>& display,
         const size_t count = layers.size();
         for (size_t i=0 ; i<count ; ++i) {
             const sp<LayerBase>& layer(layers[i]);
+#ifdef QCOMHW
+            uint32_t usage = 0;
+            if (layer->getUsage(&usage)) {
+            if( (usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY) ||
+                    (usage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD))
+                continue;
+            }
+#endif
             const uint32_t z = layer->drawingState().z;
             if (z >= minLayerZ && z <= maxLayerZ) {
                 if (filtering) layer->setFiltering(true);

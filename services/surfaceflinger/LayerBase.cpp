@@ -27,6 +27,9 @@
 #include <GLES/glext.h>
 
 #include <hardware/hardware.h>
+#ifdef QCOMHW
+#include <gralloc_priv.h>
+#endif
 
 #include "clz.h"
 #include "Client.h"
@@ -36,6 +39,9 @@
 #include "DisplayDevice.h"
 
 namespace android {
+
+//Helper
+bool isLayerCustom(const sp<Layer>& layer);
 
 // ---------------------------------------------------------------------------
 
@@ -337,11 +343,19 @@ bool LayerBase::isVisible() const {
 
 void LayerBase::draw(const sp<const DisplayDevice>& hw, const Region& clip) const
 {
+    //Dont draw Custom layers
+    if (isLayerCustom(getLayer())) {
+        return;
+    }
     onDraw(hw, clip);
 }
 
 void LayerBase::draw(const sp<const DisplayDevice>& hw)
 {
+    //Dont draw Custom layers
+    if (isLayerCustom(getLayer())) {
+        return;
+    }
     onDraw( hw, Region(hw->bounds()) );
 }
 
@@ -569,5 +583,21 @@ LayerBaseClient::LayerCleaner::~LayerCleaner() {
 }
 
 // ---------------------------------------------------------------------------
+
+//Helper for custom layers
+bool isLayerCustom(const sp<Layer>& layer) {
+#ifdef QCOMHW
+    if(layer != NULL) {
+        const sp<GraphicBuffer>& buffer(layer->getActiveBuffer());
+        if (buffer != NULL) {
+            const int usage = buffer->getUsage();
+            if(usage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD ||
+               usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY)
+                return true;
+        }
+    }
+#endif
+    return false;
+}
 
 }; // namespace android

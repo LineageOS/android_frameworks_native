@@ -253,6 +253,9 @@ public:
     virtual void shortDump(String8& result, char* scratch, size_t size) const;
     virtual void dumpStats(String8& result, char* buffer, size_t SIZE) const;
     virtual void clearStats();
+#ifdef QCOMHW
+    virtual bool getUsage(uint32_t *usage) const { return false; }
+#endif
 
 
     enum { // flags for doTransaction()

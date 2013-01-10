@@ -229,6 +229,16 @@ private:
 
     // must be accessed from lock/unlock thread only
     Region mDirtyRegion;
+
+    // mReqCustomUsage is a flag set by app to mark a layer for custom usage
+    // Depending on the value of this flag mReqUsage  will be ORed(if needed)
+    // with existing values.
+    // Possible values GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY,
+    // GRALLOC_USAGE_PRIVATE_EXTERNAL_BLOCK,
+    // GRALLOC_USAGE_PRIVATE_EXTERNAL_CC,
+    // GRALLOC_USAGE_PRIVATE_SCREEN_RECORD,
+    // It is initialized to 0
+    uint32_t mReqCustomUsage;
 };
 
 }; // namespace android
