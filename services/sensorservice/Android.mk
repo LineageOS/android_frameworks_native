@@ -14,6 +14,16 @@ LOCAL_SRC_FILES:= \
     SensorInterface.cpp \
     SensorService.cpp
 
+ifneq ($(BOARD_USE_LEGACY_SENSORS_FUSION),false)
+# Legacy virtual sensors used in combination from accelerometer & magnetometer.
+LOCAL_SRC_FILES += \
+	legacy/SecondOrderLowPassFilter.cpp \
+	legacy/LegacyGravitySensor.cpp \
+	legacy/LegacyLinearAccelerationSensor.cpp \
+	legacy/LegacyOrientationSensor.cpp \
+	legacy/LegacyRotationVectorSensor.cpp
+endif
+
 LOCAL_CFLAGS:= -DLOG_TAG=\"SensorService\"
 
 LOCAL_CFLAGS += -fvisibility=hidden
@@ -27,6 +37,10 @@ LOCAL_SHARED_LIBRARIES := \
 	libbinder \
 	libui \
 	libgui
+
+ifneq ($(BOARD_USE_LEGACY_SENSORS_FUSION),false)
+    LOCAL_CFLAGS += -DUSE_LEGACY_SENSORS_FUSION
+endif
 
 ifneq ($(BOARD_SYSFS_LIGHT_SENSOR),)
     LOCAL_CFLAGS += -DSYSFS_LIGHT_SENSOR=\"$(BOARD_SYSFS_LIGHT_SENSOR)\"
