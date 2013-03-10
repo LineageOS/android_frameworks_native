@@ -38,6 +38,10 @@ enum {
     CANCEL_BUFFER,
     QUERY,
     SET_SYNCHRONOUS_MODE,
+#ifdef QCOM_BSP
+    UPDATE_BUFFERS_GEOMETRY,
+    SET_BUFFERS_SIZE,
+#endif
     CONNECT,
     DISCONNECT,
 };
@@ -156,6 +160,35 @@ public:
         return result;
     }
 
+#ifdef QCOM_BSP
+    virtual status_t updateBuffersGeometry(int w, int h, int f) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceTexture::getInterfaceDescriptor());
+        data.writeInt32(w);
+        data.writeInt32(h);
+        data.writeInt32(f);
+        status_t result = remote()->transact(UPDATE_BUFFERS_GEOMETRY,
+                                                          data, &reply);
+        if (result != NO_ERROR) {
+            return result;
+        }
+        result = reply.readInt32();
+        return result;
+    }
+
+    virtual status_t setBuffersSize(int size) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceTexture::getInterfaceDescriptor());
+        data.writeInt32(size);
+        status_t result = remote()->transact(SET_BUFFERS_SIZE, data, &reply);
+        if (result != NO_ERROR) {
+            return result;
+        }
+        result = reply.readInt32();
+        return result;
+    }
+#endif
+
     virtual status_t connect(int api, QueueBufferOutput* output) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceTexture::getInterfaceDescriptor());
@@ -266,6 +299,24 @@ status_t BnSurfaceTexture::onTransact(
             reply->writeInt32(res);
             return NO_ERROR;
         } break;
+#ifdef QCOM_BSP
+        case UPDATE_BUFFERS_GEOMETRY: {
+            CHECK_INTERFACE(ISurfaceTexture, data, reply);
+            int w = data.readInt32();
+            int h = data.readInt32();
+            int f = data.readInt32();
+            status_t res = updateBuffersGeometry(w, h, f);
+            reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+        case SET_BUFFERS_SIZE: {
+            CHECK_INTERFACE(ISurfaceTexture, data, reply);
+            int size = data.readInt32();
+            status_t res = setBuffersSize(size);
+            reply->writeInt32(res);
+            return NO_ERROR;
+        } break;
+#endif
         case CONNECT: {
             CHECK_INTERFACE(ISurfaceTexture, data, reply);
             int api = data.readInt32();

@@ -72,6 +72,12 @@ public:
 
     GraphicBuffer();
 
+#ifdef QCOM_BSP
+    // creates buffer of bufferSize
+    GraphicBuffer(uint32_t w, uint32_t h,
+                  PixelFormat format, uint32_t usage, uint32_t bufferSize);
+#endif
+
     // creates w * h buffer
     GraphicBuffer(uint32_t w, uint32_t h, PixelFormat format, uint32_t usage);
 
@@ -97,6 +103,10 @@ public:
     status_t lock(uint32_t usage, void** vaddr);
     status_t lock(uint32_t usage, const Rect& rect, void** vaddr);
     status_t unlock();
+#ifdef QCOM_BSP
+    status_t perform(buffer_handle_t hnd, int operation,
+                     uint32_t w, uint32_t h, PixelFormat format);
+#endif
 
     ANativeWindowBuffer* getNativeBuffer() const;
     
@@ -133,9 +143,12 @@ private:
     GraphicBuffer& operator = (const GraphicBuffer& rhs);
     const GraphicBuffer& operator = (const GraphicBuffer& rhs) const;
 
-    status_t initSize(uint32_t w, uint32_t h, PixelFormat format, 
+    status_t initSize(uint32_t w, uint32_t h, PixelFormat format,
             uint32_t usage);
-
+#ifdef QCOM_BSP
+    status_t initSize(uint32_t w, uint32_t h, PixelFormat format,
+            uint32_t usage, uint32_t bufferSize);
+#endif
     void free_handle();
 
     // Flattenable interface
