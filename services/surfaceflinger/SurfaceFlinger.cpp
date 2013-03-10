@@ -1384,8 +1384,7 @@ void SurfaceFlinger::computeVisibleRegions(
         bool isCustomLayer = false;
         uint32_t usage = 0;
         if (layer->getUsage(&usage)) {
-            if( (usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY) ||
-                    (usage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD))
+            if( usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY )
                 isCustomLayer = true;
         }
         if (isCustomLayer) {
@@ -1648,8 +1647,7 @@ void SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& hw, const 
 #ifdef QCOMHW
                         uint32_t usage = 0;
                         if (layer->getUsage(&usage)) {
-                            if( (usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY) ||
-                                (usage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD))
+                            if( usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY)
                                 continue;
                         }
 #endif
@@ -2691,8 +2689,7 @@ status_t SurfaceFlinger::renderScreenToTextureLocked(uint32_t layerStack,
 #ifdef QCOMHW
         uint32_t usage = 0;
         if (layer->getUsage(&usage)) {
-            if( (usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY) ||
-                (usage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD))
+            if(usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY)
                 continue;
         }
 #endif
@@ -2790,8 +2787,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const sp<IBinder>& display,
 #ifdef QCOMHW
             uint32_t usage = 0;
             if (layer->getUsage(&usage)) {
-            if( (usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY) ||
-                    (usage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD))
+            if( usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY)
                 continue;
             }
 #endif

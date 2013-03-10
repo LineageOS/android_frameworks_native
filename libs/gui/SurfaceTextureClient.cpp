@@ -593,10 +593,11 @@ int SurfaceTextureClient::setUsage(uint32_t reqUsage)
         } else if(reqUsage & GRALLOC_USAGE_PRIVATE_EXTERNAL_CC) {
             mReqCustomUsage |= GRALLOC_USAGE_PRIVATE_EXTERNAL_CC;
         }
-    } else if (reqUsage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD) {
-        //Set explicitly, since reqUsage may have other values.
-        mReqCustomUsage = GRALLOC_USAGE_PRIVATE_SCREEN_RECORD;
-    }
+      }
+//    } else if (reqUsage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD) {
+//        //Set explicitly, since reqUsage may have other values.
+//        mReqCustomUsage = GRALLOC_USAGE_PRIVATE_SCREEN_RECORD;
+//    }
 #endif
 
     // For most cases mReqCustomUsage will be 0.

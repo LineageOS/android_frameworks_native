@@ -591,8 +591,7 @@ bool isLayerCustom(const sp<Layer>& layer) {
         const sp<GraphicBuffer>& buffer(layer->getActiveBuffer());
         if (buffer != NULL) {
             const int usage = buffer->getUsage();
-            if(usage & GRALLOC_USAGE_PRIVATE_SCREEN_RECORD ||
-               usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY)
+            if(usage & GRALLOC_USAGE_PRIVATE_EXTERNAL_ONLY)
                 return true;
         }
     }
