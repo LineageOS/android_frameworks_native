@@ -42,6 +42,10 @@ endif
 
 LOCAL_PATH:= $(call my-dir)
 
+ifeq ($(BOARD_NEEDS_BINDER_COMPAT),true)
+LOCAL_CFLAGS += -DBINDER_COMPAT
+endif
+
 include $(CLEAR_VARS)
 
 ifeq ($(BOARD_USE_V4L2_ION), true)
