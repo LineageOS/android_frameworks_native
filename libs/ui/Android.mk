@@ -65,6 +65,10 @@ ifeq ($(BOARD_HAVE_PIXEL_FORMAT_INFO),true)
 LOCAL_CFLAGS += -DHAVE_PIXEL_FORMAT_INFO
 endif
 
+ifeq ($(BOARD_USES_LEGACY_OVERLAY), true)
+LOCAL_SRC_FILES += legacy/Overlay.cpp
+endif
+
 LOCAL_MODULE:= libui
 
 include $(BUILD_SHARED_LIBRARY)
