@@ -47,6 +47,10 @@ endif
 
 LOCAL_PATH:= $(call my-dir)
 
+# Note about gingerbread compatibility : Require a global cflag,
+# several projects use binder's IMemory.h and MemoryHeapBase.h
+# COMMON_GLOBAL_CFLAGS += -DBINDER_COMPAT
+
 include $(CLEAR_VARS)
 
 ifeq ($(BOARD_NEEDS_MEMORYHEAPION),true)
