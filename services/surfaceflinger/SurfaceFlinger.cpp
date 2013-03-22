@@ -82,6 +82,10 @@
 #include "SecTVOutService.h"
 #endif
 
+#ifdef QCOM_BSP
+#include <display_config.h>
+#endif
+
 #define DISPLAY_COUNT       1
 
 /*
@@ -666,6 +670,7 @@ int32_t SurfaceFlinger::allocateHwcDisplayId(DisplayDevice::DisplayType type) {
 
 void SurfaceFlinger::startBootAnim() {
     // start boot animation
+    mBootFinished = false;
     property_set("service.bootanim.exit", "0");
     property_set("ctl.start", "bootanim");
 }
@@ -1463,8 +1468,41 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                                 || (state.viewport != draw[i].viewport)
                                 || (state.frame != draw[i].frame))
                         {
+#ifdef QCOM_BSP
+                            int orient = state.orientation;
+                            // Honor the orientation change after boot
+                            // animation completes and make sure boot
+                            // animation is shown in panel orientation always.
+                            if(mBootFinished){
+                                disp->setProjection(state.orientation,
+                                        state.viewport, state.frame);
+                                orient = state.orientation;
+                            }
+                            else{
+                                char property[PROPERTY_VALUE_MAX];
+                                int panelOrientation =
+                                        DisplayState::eOrientationDefault;
+                                if(property_get("persist.panel.orientation",
+                                            property, "0") > 0){
+                                    panelOrientation = atoi(property) / 90;
+                                }
+                                disp->setProjection(panelOrientation,
+                                        state.viewport, state.frame);
+                                orient = panelOrientation;
+                            }
+#endif
+#ifdef QCOM_B_FAMILY
+                            // Set the view frame of each display only of its
+                            // default orientation.
+                            if(orient == DisplayState::eOrientationDefault) {
+                                qdutils::setViewFrame(disp->getHwcDisplayId(),
+                                    state.frame.left, state.frame.top,
+                                    state.frame.right, state.frame.bottom);
+                            }
+#else
                             disp->setProjection(state.orientation,
-                                    state.viewport, state.frame);
+                                state.viewport, state.frame);
+#endif
                         }
                     }
                 }
