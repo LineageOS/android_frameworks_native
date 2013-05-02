@@ -122,6 +122,13 @@ status_t SurfaceControl::hide() {
     const sp<SurfaceComposerClient>& client(mClient);
     return client->hide(mToken);
 }
+#ifdef SAMSUNG_MR0_TVOUT_BLOB
+/* Create ICS/MR0-compatible constructors */
+extern "C" status_t _ZN7android14SurfaceControl4showEv();
+extern "C" status_t _ZN7android14SurfaceControl4showEi(int32_t layer) {
+    return _ZN7android14SurfaceControl4showEv();
+}
+#endif
 status_t SurfaceControl::show() {
     status_t err = validate();
     if (err < 0) return err;
