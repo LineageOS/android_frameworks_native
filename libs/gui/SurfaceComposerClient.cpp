@@ -451,6 +451,9 @@ void SurfaceComposerClient::dispose() {
 }
 
 /* Create ICS/MR0-compatible constructors */
+//android::SurfaceComposerClient::createSurface(android::String8 const&, int, unsigned int, unsigned int, int, unsigned int)
+//_ZN7android21SurfaceComposerClient13createSurfaceERKNS_7String8Eijjij
+
 extern "C" sp<SurfaceControl> _ZN7android21SurfaceComposerClient13createSurfaceERKNS_7String8Ejjij(
         const String8& name,
         uint32_t w,
@@ -492,6 +495,19 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
     }
     return result;
 }
+
+#ifdef SAMSUNG_MR0_TVOUT_BLOB
+sp<SurfaceControl> SurfaceComposerClient::createSurface(
+        const String8& name,
+        int32_t display,
+        uint32_t w,
+        uint32_t h,
+        PixelFormat format,
+        uint32_t flags)
+{
+    return createSurface(name, w, h, format, flags);
+}
+#endif
 
 sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName,
         bool secure) {

@@ -66,6 +66,9 @@ public:
     status_t    setSize(uint32_t w, uint32_t h);
     status_t    hide();
     status_t    show();
+#ifdef SAMSUNG_MR0_TVOUT_BLOB
+    status_t    show(int32_t layer);
+#endif
     status_t    setFlags(uint32_t flags, uint32_t mask);
     status_t    setTransparentRegionHint(const Region& transparent);
     status_t    setAlpha(float alpha=1.0f);

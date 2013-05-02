@@ -95,6 +95,17 @@ public:
             uint32_t flags = 0  // usage flags
     );
 
+#ifdef SAMSUNG_MR0_TVOUT_BLOB
+    sp<SurfaceControl> createSurface(
+            const String8& name,
+            int32_t display,
+            uint32_t w,
+            uint32_t h,
+            PixelFormat format,
+            uint32_t flags = 0
+    );
+#endif
+
     //! Create a display
     static sp<IBinder> createDisplay(const String8& displayName, bool secure);
 

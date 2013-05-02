@@ -128,6 +128,11 @@ status_t SurfaceControl::show() {
     const sp<SurfaceComposerClient>& client(mClient);
     return client->show(mToken);
 }
+#ifdef SAMSUNG_MR0_TVOUT_BLOB
+status_t SurfaceControl::show(int32_t layer) {
+    return show();
+}
+#endif
 status_t SurfaceControl::setFlags(uint32_t flags, uint32_t mask) {
     status_t err = validate();
     if (err < 0) return err;
