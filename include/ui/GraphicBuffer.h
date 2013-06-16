@@ -65,9 +65,6 @@ public:
         USAGE_HW_COMPOSER       = GRALLOC_USAGE_HW_COMPOSER,
         USAGE_HW_VIDEO_ENCODER  = GRALLOC_USAGE_HW_VIDEO_ENCODER,
         USAGE_HW_MASK           = GRALLOC_USAGE_HW_MASK,
-#ifdef EXYNOS4_ENHANCEMENTS
-        USAGE_HW_FIMC1          = GRALLOC_USAGE_HW_FIMC1
-#endif
     };
 
     GraphicBuffer();

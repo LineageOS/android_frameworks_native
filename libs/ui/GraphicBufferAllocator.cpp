@@ -210,16 +210,6 @@ status_t GraphicBufferAllocator::alloc(uint32_t w, uint32_t h,
         w = h = 1;
 
     // we have a h/w allocator and h/w buffer is requested
-
-#ifdef EXYNOS4_ENHANCEMENTS
-    if ((format == 0x101) || (format == 0x105) || (format == 0x107)) {
-        // 0x101 = HAL_PIXEL_FORMAT_YCbCr_420_P (Samsung-specific pixel format)
-        // 0x105 = HAL_PIXEL_FORMAT_YCbCr_420_SP (Samsung-specific pixel format)
-        // 0x107 = HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED (Samsung-specific pixel format)
-        usage |= GRALLOC_USAGE_HW_FIMC1; // Exynos HWC wants FIMC-friendly memory allocation
-    }
-#endif
-
     status_t err;
 
     // If too many async frees are queued up then wait for some of them to
