@@ -21,6 +21,7 @@ LOCAL_SRC_FILES += \
 	legacy/SecondOrderLowPassFilter.cpp \
 	legacy/LegacyGravitySensor.cpp \
 	legacy/LegacyLinearAccelerationSensor.cpp \
+	legacy/LegacyOrientationSensor.cpp \
 	legacy/LegacyRotationVectorSensor.cpp
 endif
 

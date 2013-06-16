@@ -52,6 +52,7 @@
 #ifdef USE_LEGACY_SENSORS_FUSION
 #include "legacy/LegacyGravitySensor.h"
 #include "legacy/LegacyLinearAccelerationSensor.h"
+#include "legacy/LegacyOrientationSensor.h"
 #include "legacy/LegacyRotationVectorSensor.h"
 #endif
 
@@ -132,6 +133,9 @@ void SensorService::onFirstRef()
                 registerVirtualSensor( new LegacyRotationVectorSensor() );
                 registerVirtualSensor( new LegacyGravitySensor(list, count) );
                 registerVirtualSensor( new LegacyLinearAccelerationSensor(list, count) );
+
+                if (orientationIndex == -1)
+                    registerVirtualSensor( new LegacyOrientationSensor() );
             }
 #endif
 
