@@ -46,7 +46,18 @@ public:
         IPCThreadState::self()->joinThreadPool();
     }
 
-    static void instantiate() { publish(); }
+    static void instantiate() {
+        status_t status = publish();
+        if (status == DEAD_OBJECT) {
+#ifdef BINDER_SERVICE_PUBLISH_CHECK
+            int pid = getpid();
+            if (pid > 0) {
+                ALOGW("service dead and requires suicide, restarting pid %d", pid);
+                kill(pid, SIGKILL);
+            }
+#endif
+        }
+    }
 
     static status_t shutdown() {
         return NO_ERROR;
