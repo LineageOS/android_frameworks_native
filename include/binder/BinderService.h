@@ -46,7 +46,17 @@ public:
         IPCThreadState::self()->joinThreadPool();
     }
 
-    static void instantiate() { publish(); }
+    static void instantiate() {
+        status_t status = publish();
+        ALOGD("BinderService publish result: %x", status);
+        if (status != NO_ERROR) {
+            int pid = getpid();
+            if (pid > 0) {
+                ALOGW("BinderService kill pid: %d", pid);
+                kill(pid, SIGKILL);
+            }
+        }
+    }
 
     static status_t shutdown() {
         return NO_ERROR;
