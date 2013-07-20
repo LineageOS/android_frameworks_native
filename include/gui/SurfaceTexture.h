@@ -91,6 +91,13 @@ public:
     // target texture belongs is bound to the calling thread.
     status_t updateTexImage();
 
+#ifdef STE_HARDWARE
+    // convert() performs the deferred texture conversion as scheduled
+    // by updateTexImage(bool deferConversion).
+    // The method returns immediately if no conversion is necessary.
+    status_t convert();
+#endif
+
     // setBufferCountServer set the buffer count. If the client has requested
     // a buffer count using setBufferCount, the server-buffer count will
     // take effect once the client sets the count back to zero.
@@ -248,11 +255,26 @@ private:
         virtual ~BufferRejecter() { }
     };
     friend class Layer;
+#ifndef STE_HARDWARE
     status_t updateTexImage(BufferRejecter* rejecter);
+#else
+    // A surface that uses a non-native format requires conversion of
+    // its buffers. This conversion can be deferred until the layer
+    // based on this surface is drawn.
+    status_t updateTexImage(BufferRejecter* rejecter, bool deferConversion);
+#endif
 
     // createImage creates a new EGLImage from a GraphicBuffer.
     EGLImageKHR createImage(EGLDisplay dpy,
             const sp<GraphicBuffer>& graphicBuffer);
+
+#ifdef STE_HARDWARE
+    // returns TRUE if buffer needs color format conversion
+    bool conversionIsNeeded(const sp<GraphicBuffer>& graphicBuffer);
+
+    // converts buffer to a suitable color format
+    status_t convert(sp<GraphicBuffer> &srcBuf, sp<GraphicBuffer> &dstBuf);
+#endif
 
     // freeBufferLocked frees up the given buffer slot.  If the slot has been
     // initialized this will release the reference to the GraphicBuffer in that

@@ -29,6 +29,10 @@
 #include <utils/Vector.h>
 #include <utils/threads.h>
 
+#ifdef STE_HARDWARE
+#include <hardware/copybit.h>
+#endif
+
 namespace android {
 // ----------------------------------------------------------------------------
 
@@ -53,6 +57,9 @@ public:
     enum { MIN_UNDEQUEUED_BUFFERS = 2 };
     enum { NUM_BUFFER_SLOTS = 32 };
     enum { NO_CONNECTED_API = 0 };
+#ifdef STE_HARDWARE
+    enum { NUM_BLIT_BUFFER_SLOTS = 2 };
+#endif
     enum { INVALID_BUFFER_SLOT = -1 };
     enum { STALE_BUFFER_SLOT = 1, NO_BUFFER_AVAILABLE };
 
@@ -497,6 +504,36 @@ private:
     // mFrameCounter is the free running counter, incremented for every buffer queued
     // with the surface Texture.
     uint64_t mFrameCounter;
+
+#ifdef STE_HARDWARE
+    // mBlitEngine is the handle to the copybit device which will be used in
+    // case color transform is needed before the EGL image is created.
+    copybit_device_t* mBlitEngine;
+
+    // mBlitSlots contains several buffers which will
+    // be rendered alternately in case color transform is needed (instead
+    // of rendering the buffers in mSlots).
+    BufferSlot mBlitSlots[NUM_BLIT_BUFFER_SLOTS];
+
+    // mNextBlitSlot is the index of the blitter buffer (in mBlitSlots) which
+    // will be used in the next color transform.
+    int mNextBlitSlot;
+
+    // mConversionSrcSlot designates the slot where source buffer
+    // for the last deferred updateTexImage is located.
+    int mConversionSrcSlot;
+
+    // mConversionBltSlot designates the slot where destination buffer
+    // for the last deferred updateTexImage is located.
+    int mConversionBltSlot;
+
+    // mNeedsConversion indicates that a format conversion is necessary
+    // before the layer based on this surface is drawn.
+    // This flag is set whenever updateTexImage() with deferred conversion
+    // is called. It is cleared once the layer is drawn,
+    // or when updateTexImage() w/o deferred conversion is called.
+    bool mNeedsConversion;
+#endif
 
     // mBufferHasBeenQueued is true once a buffer has been queued.  It is reset
     // by changing the buffer count.
