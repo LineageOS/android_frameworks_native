@@ -604,15 +604,14 @@ status_t BufferQueue::queueBuffer(int buf,
         updatedGeometry.set(mNextBufferInfo.mWidth,
                             mNextBufferInfo.mHeight, mNextBufferInfo.mFormat);
         const sp<GraphicBuffer>& graphicBuffer(mSlots[buf].mGraphicBuffer);
+#ifdef QCOM_BSP
         //  Update the geometry of this buffer without reallocation.
         if(isBufferGeometryUpdateRequired(graphicBuffer, updatedGeometry)) {
-#ifdef QCOM_BSP
             status_t res = graphicBuffer->perform(graphicBuffer->handle,
                                 GRALLOC_MODULE_PERFORM_UPDATE_BUFFER_GEOMETRY,
                                 updatedGeometry.mWidth,
                                 updatedGeometry.mHeight,
                                 updatedGeometry.mFormat);
-#endif
             if(res == NO_ERROR) {
                 graphicBuffer->width  = updatedGeometry.mWidth;
                 graphicBuffer->height = updatedGeometry.mHeight;
@@ -622,6 +621,7 @@ status_t BufferQueue::queueBuffer(int buf,
                 mSlots[buf].mEglDisplay = EGL_NO_DISPLAY;
             }
         }
+#endif
         Rect bufferRect(graphicBuffer->getWidth(), graphicBuffer->getHeight());
         Rect croppedCrop;
         crop.intersect(bufferRect, &croppedCrop);
