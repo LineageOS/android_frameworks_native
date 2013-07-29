@@ -45,9 +45,6 @@ endif
 
 LOCAL_MODULE:= libgui
 
-ifeq ($(TARGET_BOARD_PLATFORM), tegra)
-	LOCAL_CFLAGS += -DDONT_USE_FENCE_SYNC
-endif
 ifeq ($(TARGET_BOARD_PLATFORM), tegra3)
 	LOCAL_CFLAGS += -DDONT_USE_FENCE_SYNC
 endif
