@@ -101,10 +101,21 @@ status_t getPixelFormatInfo(PixelFormat format, PixelFormatInfo* info)
     switch (format) {
     case HAL_PIXEL_FORMAT_YCbCr_422_SP:
     case HAL_PIXEL_FORMAT_YCbCr_422_I:
+#ifdef STE_HARDWARE
+    case HAL_PIXEL_FORMAT_YCrCb_422_SP:
+    case HAL_PIXEL_FORMAT_YCbCr_422_P:
+    case HAL_PIXEL_FORMAT_YCrCb_422_P:
+#endif
         info->bitsPerPixel = 16;
         goto done;
     case HAL_PIXEL_FORMAT_YCrCb_420_SP:
     case HAL_PIXEL_FORMAT_YV12:
+#ifdef STE_HARDWARE
+    case HAL_PIXEL_FORMAT_YCbCr_420_SP:
+    case HAL_PIXEL_FORMAT_YCbCr_420_P:
+    case HAL_PIXEL_FORMAT_YCrCb_420_P:
+    case HAL_PIXEL_FORMAT_YCBCR42XMBN:
+#endif
         info->bitsPerPixel = 12;
      done:
         info->format = format;

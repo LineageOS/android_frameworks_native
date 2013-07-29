@@ -328,6 +328,18 @@ void Layer::setAcquireFence(const sp<const DisplayDevice>& hw,
 
 void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip) const
 {
+#ifdef STE_HARDWARE
+    // Convert the texture to a native format if need be.
+    // convert() returns immediately if no conversion is necessary.
+    if (mSurfaceTexture != NULL) {
+        status_t res = mSurfaceTexture->convert();
+        if (res != NO_ERROR) {
+            ALOGE("Layer::onDraw: texture conversion failed. "
+                "Texture content for this layer will not be initialized.");
+        }
+    }
+#endif
+
     ATRACE_CALL();
 
     if (CC_UNLIKELY(mActiveBuffer == 0)) {
@@ -662,7 +674,11 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions)
 
         Reject r(mDrawingState, currentState(), recomputeVisibleRegions);
 
+#ifndef STE_HARDWARE
         if (mSurfaceTexture->updateTexImage(&r, true) < NO_ERROR) {
+#else
+        if (mSurfaceTexture->updateTexImage(&r, true, true) < NO_ERROR) {
+#endif
             // something happened!
             recomputeVisibleRegions = true;
             return outDirtyRegion;

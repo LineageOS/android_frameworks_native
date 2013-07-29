@@ -54,6 +54,9 @@ class BufferQueue : public BnSurfaceTexture {
 public:
     enum { MIN_UNDEQUEUED_BUFFERS = 2 };
     enum { NUM_BUFFER_SLOTS = 32 };
+#ifdef STE_HARDWARE
+    enum { NUM_BLIT_BUFFER_SLOTS = 2 };
+#endif
     enum { NO_CONNECTED_API = 0 };
     enum { INVALID_BUFFER_SLOT = -1 };
     enum { STALE_BUFFER_SLOT = 1, NO_BUFFER_AVAILABLE };
@@ -319,6 +322,12 @@ private:
     // for the given slot.
     void freeBufferLocked(int index);
 
+#ifdef STE_HARDWARE
+    // freeBlitBufferLocked frees the resources for mBlitSlots (both GraphicBuffer and EGLImage)
+    // for the given slot.
+    void freeBlitBufferLocked(int index);
+#endif
+
     // freeAllBuffersLocked frees the resources (both GraphicBuffer and
     // EGLImage) for all slots.
     void freeAllBuffersLocked();
@@ -478,6 +487,13 @@ private:
     // is initialized to NULL at construction time, and buffers are allocated
     // for a slot when requestBuffer is called with that slot's index.
     BufferSlot mSlots[NUM_BUFFER_SLOTS];
+
+#ifdef STE_HARDWARE
+    // mBlitSlots contains several buffers which will
+    // be rendered alternately in case color transform is needed (instead
+    // of rendering the buffers in mSlots).
+    BufferSlot mBlitSlots[NUM_BLIT_BUFFER_SLOTS];
+#endif
 
     // mDefaultWidth holds the default width of allocated buffers. It is used
     // in requestBuffers() if a width and height of zero is specified.

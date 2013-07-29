@@ -919,8 +919,30 @@ void BufferQueue::freeBufferLocked(int slot) {
         eglDestroySyncKHR(mSlots[slot].mEglDisplay, mSlots[slot].mEglFence);
         mSlots[slot].mEglFence = EGL_NO_SYNC_KHR;
     }
+
     mSlots[slot].mFence.clear();
 }
+
+#ifdef STE_HARDWARE
+void BufferQueue::freeBlitBufferLocked(int slot) {
+    ST_LOGV("freeBufferLocked: slot=%d", slot);
+    mBlitSlots[slot].mGraphicBuffer = 0;
+    if (mBlitSlots[slot].mBufferState == BufferSlot::ACQUIRED) {
+        mBlitSlots[slot].mNeedsCleanupOnRelease = true;
+    }
+    mBlitSlots[slot].mBufferState = BufferSlot::FREE;
+    mBlitSlots[slot].mFrameNumber = 0;
+    mBlitSlots[slot].mAcquireCalled = false;
+
+    // destroy fence as BufferQueue now takes ownership
+    if (mBlitSlots[slot].mEglFence != EGL_NO_SYNC_KHR) {
+        eglDestroySyncKHR(mBlitSlots[slot].mEglDisplay, mBlitSlots[slot].mEglFence);
+        mBlitSlots[slot].mEglFence = EGL_NO_SYNC_KHR;
+    }
+
+    mBlitSlots[slot].mFence.clear();
+}
+#endif
 
 void BufferQueue::freeAllBuffersLocked() {
     ALOGW_IF(!mQueue.isEmpty(),
@@ -930,6 +952,11 @@ void BufferQueue::freeAllBuffersLocked() {
     for (int i = 0; i < NUM_BUFFER_SLOTS; i++) {
         freeBufferLocked(i);
     }
+#ifdef STE_HARDWARE
+    for (int i = 0; i < NUM_BLIT_BUFFER_SLOTS; i++) {
+        freeBlitBufferLocked(i);
+    }
+#endif
 }
 
 status_t BufferQueue::acquireBuffer(BufferItem *buffer) {
@@ -946,10 +973,30 @@ status_t BufferQueue::acquireBuffer(BufferItem *buffer) {
             numAcquiredBuffers++;
         }
     }
+
+#ifdef STE_HARDWARE
+    int numBlitAcquiredBuffers = 0;
+    for (int i = 0; i < NUM_BLIT_BUFFER_SLOTS; i++) {
+        if (mBlitSlots[i].mBufferState == BufferSlot::ACQUIRED) {
+            numBlitAcquiredBuffers++;
+        }
+    }
+#endif
+
     if (numAcquiredBuffers >= mMaxAcquiredBufferCount+1) {
+#ifdef STE_HARDWARE
+       // We assume we are using blit slots if the normal slots exceed the max count
+       // TODO: Make a way to check the one in use instead of checking both.
+        if (numBlitAcquiredBuffers >= mMaxAcquiredBufferCount+1) {
+            ST_LOGE("acquireBuffer: max acquired blit buffer count reached: %d (max=%d)",
+                    numBlitAcquiredBuffers, mMaxAcquiredBufferCount);
+            return INVALID_OPERATION;
+        }
+#else
         ST_LOGE("acquireBuffer: max acquired buffer count reached: %d (max=%d)",
                 numAcquiredBuffers, mMaxAcquiredBufferCount);
         return INVALID_OPERATION;
+#endif
     }
 
     // check if queue is empty
