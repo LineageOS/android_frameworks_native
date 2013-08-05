@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1aca2d91_080f89e2",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 2798,
+      "author": {
+        "id": 1039
+      },
+      "writtenOn": "2013-08-05T02:48:39Z",
+      "side": 1,
+      "message": "should use BOARD_EGL_NEEDS_LEGACY_FB for compat",
+      "revId": "713f56fbb9c2374feeb964c1cb4534cc24e6c356",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1aca2d91_e8132d0c",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 3046,
+      "author": {
+        "id": 1039
+      },
+      "writtenOn": "2013-08-05T02:48:39Z",
+      "side": 1,
+      "message": "The problem happens here (on static_cast)",
+      "revId": "713f56fbb9c2374feeb964c1cb4534cc24e6c356",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
