@@ -697,7 +697,14 @@ ScreenshotClient::ScreenshotClient()
 ScreenshotClient::~ScreenshotClient() {
     ScreenshotClient::release();
 }
+ // TODO: Remove me. Do not use.
+ // This is a compatibilty shim for one product whose drivers are depending on
+ // this legacy function (when they shouldn't).
+status_t ScreenshotClient::update() {
+  sp<ISurfaceComposer> sm(ComposerService::getComposerService());
+  return update(sm->getBuiltInDisplay(0));
 
+}
 sp<CpuConsumer> ScreenshotClient::getCpuConsumer() const {
     if (mCpuConsumer == NULL) {
         mCpuConsumer = new CpuConsumer(1);
