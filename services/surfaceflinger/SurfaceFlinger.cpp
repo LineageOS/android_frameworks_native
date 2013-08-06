@@ -23,6 +23,9 @@
 #include <dlfcn.h>
 
 #include <EGL/egl.h>
+#ifdef BOARD_EGL_NEEDS_LEGACY_FB
+#include <GLES/gl.h>
+#endif
 
 #include <cutils/log.h>
 #include <cutils/properties.h>
@@ -2771,6 +2774,9 @@ status_t SurfaceFlinger::onTransact(
             const int pid = ipc->getCallingPid();
             const int uid = ipc->getCallingUid();
             if ((uid != AID_GRAPHICS) &&
+#ifdef BOARD_EGL_NEEDS_LEGACY_FB
+                 (uid != AID_SYSTEM) &&
+#endif
                     !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
                 ALOGE("Permission Denial: "
                         "can't access SurfaceFlinger pid=%d, uid=%d", pid, uid);
@@ -2779,6 +2785,9 @@ status_t SurfaceFlinger::onTransact(
             break;
         }
         case CAPTURE_SCREEN:
+#ifdef BOARD_EGL_NEEDS_LEGACY_FB
+        case CAPTURE_SCREEN_DEPRECATED:
+#endif
         {
             // codes that require permission check
             IPCThreadState* ipc = IPCThreadState::self();
@@ -3022,9 +3031,14 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
             Mutex::Autolock _l(flinger->mStateLock);
             sp<const DisplayDevice> hw(flinger->getDisplayDevice(display));
             bool useReadPixels = this->useReadPixels && !flinger->mGpuToCpuSupported;
+#ifdef BOARD_EGL_NEEDS_LEGACY_FB
+            // Should never get here
+            return BAD_VALUE;
+#else
             result = flinger->captureScreenImplLocked(hw,
                     producer, reqWidth, reqHeight, minLayerZ, maxLayerZ,
                     useReadPixels);
+#endif
             static_cast<GraphicProducerWrapper*>(producer->asBinder().get())->exit(result);
             return true;
         }
@@ -3105,7 +3119,11 @@ void SurfaceFlinger::renderScreenImplLocked(
 
 status_t SurfaceFlinger::captureScreenImplLocked(
         const sp<const DisplayDevice>& hw,
+#ifdef BOARD_EGL_NEEDS_LEGACY_FB
+        sp<IMemoryHeap>* heap, uint32_t* w, uint32_t* h,
+#else
         const sp<IGraphicBufferProducer>& producer,
+#endif
         uint32_t reqWidth, uint32_t reqHeight,
         uint32_t minLayerZ, uint32_t maxLayerZ,
         bool useReadPixels)
@@ -3125,12 +3143,31 @@ status_t SurfaceFlinger::captureScreenImplLocked(
     reqWidth  = (!reqWidth)  ? hw_w : reqWidth;
     reqHeight = (!reqHeight) ? hw_h : reqHeight;
 
+    status_t result = NO_ERROR;
+
+#ifdef BOARD_EGL_NEEDS_LEGACY_FB
+    size_t size = reqWidth * reqHeight * 4;
+    // allocate shared memory large enough to hold the
+    // screen capture
+    sp<MemoryHeapBase> base(
+            new MemoryHeapBase(size, 0, "screen-capture") );
+    void *vaddr = base->getBase();
+    glReadPixels(0, 0, reqWidth, reqHeight,
+            GL_RGBA, GL_UNSIGNED_BYTE, vaddr);
+    if (glGetError() == GL_NO_ERROR) {
+        *heap = base;
+        *w = reqWidth;
+        *h = reqHeight;
+        result = NO_ERROR;
+    } else {
+        result = INVALID_OPERATION;
+    }
+#else
     // create a surface (because we're a producer, and we need to
     // dequeue/queue a buffer)
     sp<Surface> sur = new Surface(producer, false);
     ANativeWindow* window = sur.get();
 
-    status_t result = NO_ERROR;
     if (native_window_api_connect(window, NATIVE_WINDOW_API_EGL) == NO_ERROR) {
         uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN;
         if (!useReadPixels) {
@@ -3220,6 +3257,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(
         }
         native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
     }
+#endif
 
     return result;
 }
@@ -3251,6 +3289,65 @@ void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* v
         }
     }
 }
+
+#ifdef BOARD_EGL_NEEDS_LEGACY_FB
+status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
+        sp<IMemoryHeap>* heap,
+        uint32_t* outWidth, uint32_t* outHeight,
+        uint32_t reqWidth, uint32_t reqHeight,
+        uint32_t minLayerZ, uint32_t maxLayerZ)
+{
+    if (CC_UNLIKELY(display == 0))
+        return BAD_VALUE;
+
+    class MessageCaptureScreen : public MessageBase {
+        SurfaceFlinger* flinger;
+        sp<IBinder> display;
+        sp<IMemoryHeap>* heap;
+        uint32_t* outWidth;
+        uint32_t* outHeight;
+        uint32_t reqWidth;
+        uint32_t reqHeight;
+        uint32_t minLayerZ;
+        uint32_t maxLayerZ;
+        status_t result;
+    public:
+        MessageCaptureScreen(SurfaceFlinger* flinger,
+                const sp<IBinder>& display, sp<IMemoryHeap>* heap,
+                uint32_t* outWidth, uint32_t* outHeight,
+                uint32_t reqWidth, uint32_t reqHeight,
+                uint32_t minLayerZ, uint32_t maxLayerZ)
+            : flinger(flinger), display(display), heap(heap),
+              outWidth(outWidth), outHeight(outHeight),
+              reqWidth(reqWidth), reqHeight(reqHeight),
+              minLayerZ(minLayerZ), maxLayerZ(maxLayerZ),
+              result(PERMISSION_DENIED)
+        {
+        }
+        status_t getResult() const {
+            return result;
+        }
+        virtual bool handler() {
+            Mutex::Autolock _l(flinger->mStateLock);
+            sp<const DisplayDevice> hw(flinger->getDisplayDevice(display));
+            result = flinger->captureScreenImplCpuConsumerLocked(hw, heap,
+                    outWidth, outHeight,
+                    reqWidth, reqHeight, minLayerZ, maxLayerZ);
+            return true;
+        }
+    };
+
+    sp<MessageBase> msg = new MessageCaptureScreen(this, display, heap,
+            outWidth, outHeight, reqWidth, reqHeight, minLayerZ, maxLayerZ);
+    status_t res = postMessageSync(msg);
+    if (res == NO_ERROR) {
+        res = static_cast<MessageCaptureScreen*>( msg.get() )->getResult();
+    }
+    return res;
+}
+
+#endif
+
 
 // ---------------------------------------------------------------------------
 
@@ -3298,10 +3395,12 @@ SurfaceFlinger::DisplayDeviceState::DisplayDeviceState(DisplayDevice::DisplayTyp
 }; // namespace android
 
 
+#ifndef BOARD_EGL_NEEDS_LEGACY_FB
 #if defined(__gl_h_)
 #error "don't include gl/gl.h in this file"
 #endif
 
 #if defined(__gl2_h_)
 #error "don't include gl2/gl2.h in this file"
+#endif
 #endif
