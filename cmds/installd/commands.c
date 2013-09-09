@@ -505,7 +505,11 @@ int get_size(const char *pkgname, userid_t userid, const char *apkpath,
     }
 
         /* add in size of any libraries */
-    if (libdirpath != NULL && libdirpath[0] != '!') {
+        /* If the app is on the SD card, the libraries are stored in asecpath.
+         * If we don't check that asecpath is defined, the libraries will be
+         * counted twice. Once in asecsize and once in codesize. */
+    if ((asecpath == NULL || asecpath[0] == '!') &&
+            libdirpath != NULL && libdirpath[0] != '!') {
         d = opendir(libdirpath);
         if (d != NULL) {
             dfd = dirfd(d);
