@@ -646,7 +646,7 @@ void SurfaceComposerClient::unblankDisplay(const sp<IBinder>& token) {
     ComposerService::getComposerService()->unblank(token);
 }
 
-#if defined(TOROPLUS_RADIO)
+#if defined(TOROPLUS_RADIO) || defined(QCOM_LEGACY)
 status_t SurfaceComposerClient::getDisplayInfo(
         int32_t displayId, DisplayInfo* info)
 {
