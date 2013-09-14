@@ -77,7 +77,7 @@ public:
     /* triggers screen on and waits for it to complete */
     static void unblankDisplay(const sp<IBinder>& display);
 
-#if defined(TOROPLUS_RADIO)
+#if defined(TOROPLUS_RADIO) || defined(QCOM_LEGACY)
     static status_t getDisplayInfo(int32_t displayId, DisplayInfo* info);
 #endif
 
