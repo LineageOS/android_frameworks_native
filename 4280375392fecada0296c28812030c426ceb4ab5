@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7a016987_d52fe6f4",
+        "filename": "libs/gui/SurfaceComposerClient.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 651,
+      "author": {
+        "id": 2258
+      },
+      "writtenOn": "2013-09-15T14:48:51Z",
+      "side": 0,
+      "message": "adding an ifdef here seriously ruined my day :p aparently my old desire hd uses this legacy function",
+      "revId": "4280375392fecada0296c28812030c426ceb4ab5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
