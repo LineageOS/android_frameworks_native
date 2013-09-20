@@ -47,7 +47,11 @@ public:
     // reject the newly acquired buffer.  Unlike the GLConsumer version,
     // this does not guarantee that the buffer has been bound to the GL
     // texture.
+#ifdef DECIDE_TEXTURE_TARGET
+    status_t updateTexImage(BufferRejecter* rejecter, bool isComposition=false);
+#else
     status_t updateTexImage(BufferRejecter* rejecter);
+#endif
 
     // See GLConsumer::bindTextureImageLocked().
     status_t bindTextureImage();
