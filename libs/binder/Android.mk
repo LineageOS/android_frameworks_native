@@ -41,12 +41,17 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 
-ifeq ($(BOARD_USE_V4L2_ION), true)
-LOCAL_CFLAGS += -DUSE_V4L2_ION
+ifeq ($(BOARD_NEEDS_MEMORYHEAPION),true)
+LOCAL_SHARED_LIBRARIES += libion_exynos
+LOCAL_CFLAGS += -DUSE_MEMORY_HEAP_ION
 sources += \
-	MemoryHeapBaseIon.cpp
-LOCAL_C_INCLUDES := hardware/samsung/exynos4/hal/include
-LOCAL_SHARED_LIBRARIES := libsecion
+    MemoryHeapIon.cpp
+ifneq ($(TARGET_SLSI_VARIANT),)
+PLATFORM_DIR := $(TARGET_BOARD_PLATFORM)-$(TARGET_SLSI_VARIANT)
+else
+PLATFORM_DIR := $(TARGET_BOARD_PLATFORM)
+endif
+LOCAL_C_INCLUDES += hardware/samsung_slsi/$(PLATFORM_DIR)/include
 endif
 
 LOCAL_LDLIBS += -lpthread
