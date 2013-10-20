@@ -25,7 +25,6 @@
 namespace android {
 
 // ---------------------------------------------------------------------------
-
 MemoryBase::MemoryBase(const sp<IMemoryHeap>& heap,
         ssize_t offset, size_t size)
     : mSize(size), mOffset(offset), mHeap(heap)
@@ -53,3 +52,12 @@ extern "C" void _ZN7android10MemoryBaseC1ERKNS_2spINS_11IMemoryHeapEEElj(void* o
     ALOGW("Using temporary compatibility workaround for usage of MemoryBase "
           "private API. Please fix your application!");
 }
+#ifdef STE_HARDWARE
+extern "C" void _ZN7android10MemoryBaseC2ERKNS_2spINS_11IMemoryHeapEEElj(void* obj, void* h, long o, unsigned int size) {
+    _ZN7android10MemoryBaseC1ERKNS_2spINS_11IMemoryHeapEEEij(obj, h, o, size);
+}
+extern "C" void _ZNK7android10MemoryBase9getMemoryEPiPj(ssize_t, size_t);
+extern "C" void _ZNK7android10MemoryBase9getMemoryEPlPj(ssize_t offset, size_t size) {
+    _ZNK7android10MemoryBase9getMemoryEPiPj(offset, size);
+}
+#endif
