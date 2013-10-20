@@ -64,6 +64,13 @@ enum {
     PIXEL_FORMAT_RGBA_5551   = HAL_PIXEL_FORMAT_RGBA_5551,  // 16-bit ARGB
     PIXEL_FORMAT_RGBA_4444   = HAL_PIXEL_FORMAT_RGBA_4444,  // 16-bit ARGB
     PIXEL_FORMAT_A_8         = 8,                           // 8-bit A
+#ifdef STE_HARDWARE
+    PIXEL_FORMAT_YCbCr_420_P  = HAL_PIXEL_FORMAT_YCbCr_420_P,
+    /* STE: Added Support for YUV42XMBN, required for Copybit CC acceleration */
+    PIXEL_FORMAT_YCBCR42XMBN  = HAL_PIXEL_FORMAT_YCBCR42XMBN,
+    /* STE: Added for YCbCr422R -> RGB888 use-case */
+    PIXEL_FORMAT_YCbCr_422_I  = HAL_PIXEL_FORMAT_YCbCr_422_I,
+#endif
 };
 
 typedef int32_t PixelFormat;

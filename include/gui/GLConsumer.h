@@ -32,6 +32,12 @@
 #include <utils/Vector.h>
 #include <utils/threads.h>
 
+
+#ifdef STE_HARDWARE
+#include <hardware/copybit.h>
+#include <gui/IGraphicBufferAlloc.h>
+#endif
+
 #define ANDROID_GRAPHICS_SURFACETEXTURE_JNI_ID "mSurfaceTexture"
 #define ANDROID_GRAPHICS_FRAMEAVAILABLELISTENER_JNI_ID \
                                          "mFrameAvailableListener"
@@ -59,6 +65,9 @@ class String8;
  */
 class GLConsumer : public ConsumerBase {
 public:
+#ifdef STE_HARDWARE
+    enum { NUM_BLIT_BUFFER_SLOTS = 2 };
+#endif
     typedef ConsumerBase::FrameAvailableListener FrameAvailableListener;
 
     // GLConsumer constructs a new GLConsumer object. tex indicates the
@@ -272,6 +281,14 @@ private:
     EGLImageKHR createImage(EGLDisplay dpy,
             const sp<GraphicBuffer>& graphicBuffer);
 
+#ifdef STE_HARDWARE
+    // returns TRUE if buffer needs color format conversion
+    bool conversionIsNeeded(const sp<GraphicBuffer>& graphicBuffer);
+
+    // converts buffer to a suitable color format
+    status_t convert(sp<GraphicBuffer> &srcBuf, sp<GraphicBuffer> &dstBuf);
+#endif
+
     // freeBufferLocked frees up the given buffer slot.  If the slot has been
     // initialized this will release the reference to the GraphicBuffer in that
     // slot and destroy the EGLImage in that slot.  Otherwise it has no effect.
@@ -388,6 +405,20 @@ private:
     // current display when updateTexImage is called for the first time and when
     // attachToContext is called.
     EGLDisplay mEglDisplay;
+
+#ifdef STE_HARDWARE
+    // mBlitEngine is the handle to the copybit device which will be used in
+    // case color transform is needed before the EGL image is created.
+    copybit_device_t* mBlitEngine;
+
+    // mGraphicBufferAlloc is the connection to SurfaceFlinger that is used to
+    // allocate new GraphicBuffer objects.
+    sp<IGraphicBufferAlloc> mGraphicBufferAlloc;
+
+
+    sp<GraphicBuffer> mBlitSlots[NUM_BLIT_BUFFER_SLOTS];
+    int mNextBlitSlot;
+#endif
 
     // mEglContext is the OpenGL ES context with which this GLConsumer is
     // currently associated.  It is initialized to EGL_NO_CONTEXT and gets set
