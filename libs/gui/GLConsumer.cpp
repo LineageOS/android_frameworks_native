@@ -94,12 +94,31 @@ GLConsumer::GLConsumer(GLuint tex, bool allowSynchronousMode,
     mEglDisplay(EGL_NO_DISPLAY),
     mEglContext(EGL_NO_CONTEXT),
     mCurrentTexture(BufferQueue::INVALID_BUFFER_SLOT),
+#ifdef STE_HARDWARE
+    mNextBlitSlot(0),
+#endif
     mAttached(true)
 {
+#ifdef STE_HARDWARE
+    sp<ISurfaceComposer> composer(ComposerService::getComposerService());
+    mGraphicBufferAlloc = composer->createGraphicBufferAlloc();
+    if (mGraphicBufferAlloc == 0) {
+        ST_LOGE("createGraphicBufferAlloc() failed in SurfaceTexture()");
+    }
+#endif
     ST_LOGV("GLConsumer");
 
     memcpy(mCurrentTransformMatrix, mtxIdentity,
             sizeof(mCurrentTransformMatrix));
+
+#ifdef STE_HARDWARE
+    hw_module_t const* module;
+    mBlitEngine = 0;
+    if (hw_get_module(COPYBIT_HARDWARE_MODULE_ID, &module) == 0) {
+        copybit_open(module, &mBlitEngine);
+    }
+    ALOGE_IF(!mBlitEngine, "Cannot open copybit mBlitEngine=%p", mBlitEngine);
+#endif
 
     mBufferQueue->setConsumerUsageBits(DEFAULT_USAGE_FLAGS);
 }
@@ -222,6 +241,59 @@ status_t GLConsumer::releaseAndUpdateLocked(const BufferQueue::BufferItem& item)
     // means the buffer was previously acquired), if we destroyed the
     // EGLImage when detaching from a context but the buffer has not been
     // re-allocated.
+#ifdef STE_HARDWARE
+    sp<GraphicBuffer> textureBuffer;
+    if (conversionIsNeeded(mSlots[buf].mGraphicBuffer)) {
+        /* deallocate image each time .... */
+        if (mEglSlots[buf].mEglImage != EGL_NO_IMAGE_KHR) {
+            eglDestroyImageKHR(mEglDisplay, mEglSlots[buf].mEglImage);
+            mEglSlots[buf].mEglImage = EGL_NO_IMAGE_KHR;
+        }
+        /* test if source and convert buffer size are ok */
+        if (mSlots[buf].mGraphicBuffer != NULL && mBlitSlots[mNextBlitSlot] != NULL) {
+            sp<GraphicBuffer> &srcBuf = mSlots[buf].mGraphicBuffer;
+            sp<GraphicBuffer> &dstBuf = mBlitSlots[mNextBlitSlot];
+            if (srcBuf->getWidth() != dstBuf->getWidth() || srcBuf->getHeight() != dstBuf->getHeight()) {
+                mBlitSlots[mNextBlitSlot] = NULL;
+            }
+        }
+        /* allocate convert buffer if needed */
+        if (mBlitSlots[mNextBlitSlot] == NULL) {
+            sp<GraphicBuffer> &srcBuf = mSlots[buf].mGraphicBuffer;
+            status_t res = 0;
+            sp<GraphicBuffer> dstBuf(mGraphicBufferAlloc->createGraphicBuffer(srcBuf->getWidth(),
+                                                                              srcBuf->getHeight(),
+                                                                              PIXEL_FORMAT_RGBA_8888,
+                                                                              srcBuf->getUsage(),
+                                                                              &res));
+            if (dstBuf == 0) {
+                ST_LOGE("updateTexImage: SurfaceComposer::createGraphicBuffer failed");
+                return NO_MEMORY;
+            }
+            if (res != NO_ERROR) {
+                ST_LOGW("updateTexImage: SurfaceComposer::createGraphicBuffer error=%#04x", res);
+            }
+            mBlitSlots[mNextBlitSlot] = dstBuf;
+        }
+        /* allocate image */
+        EGLImageKHR image = createImage(mEglDisplay, mBlitSlots[mNextBlitSlot]);
+        if (image == EGL_NO_IMAGE_KHR) {
+            ST_LOGW("releaseAndUpdate: unable to createImage on display=%p slot=%d", mEglDisplay, buf);
+            return UNKNOWN_ERROR;
+        }
+        mEglSlots[buf].mEglImage = image;
+        /* convert buffer */
+        if (convert(mSlots[buf].mGraphicBuffer, mBlitSlots[mNextBlitSlot]) != OK) {
+            ALOGE("updateTexImage: convert failed");
+            return UNKNOWN_ERROR;
+        }
+        textureBuffer = mBlitSlots[mNextBlitSlot];
+        mNextBlitSlot = (mNextBlitSlot + 1) % NUM_BLIT_BUFFER_SLOTS;
+    } else {
+        textureBuffer = mSlots[buf].mGraphicBuffer;
+    }
+#endif
+
     if (mEglSlots[buf].mEglImage == EGL_NO_IMAGE_KHR) {
         EGLImageKHR image = createImage(mEglDisplay, mSlots[buf].mGraphicBuffer);
         if (image == EGL_NO_IMAGE_KHR) {
@@ -260,7 +332,11 @@ status_t GLConsumer::releaseAndUpdateLocked(const BufferQueue::BufferItem& item)
 
     // Update the GLConsumer state.
     mCurrentTexture = buf;
+#ifndef STE_HARDWARE
     mCurrentTextureBuf = mSlots[buf].mGraphicBuffer;
+#else
+    mCurrentTextureBuf = textureBuffer;
+#endif
     mCurrentCrop = item.mCrop;
     mCurrentTransform = item.mTransform;
     mCurrentScalingMode = item.mScalingMode;
@@ -900,6 +976,54 @@ void GLConsumer::dumpLocked(String8& result, const char* prefix,
 
     ConsumerBase::dumpLocked(result, prefix, buffer, size);
 }
+
+#ifdef STE_HARDWARE
+bool GLConsumer::conversionIsNeeded(const sp<GraphicBuffer>& graphicBuffer) {
+    int fmt = graphicBuffer->getPixelFormat();
+    return (fmt == PIXEL_FORMAT_YCBCR42XMBN) || (fmt == PIXEL_FORMAT_YCbCr_420_P);
+}
+
+status_t GLConsumer::convert(sp<GraphicBuffer> &srcBuf, sp<GraphicBuffer> &dstBuf) {
+    copybit_image_t dstImg;
+    dstImg.w = dstBuf->getWidth();
+    dstImg.h = dstBuf->getHeight();
+    dstImg.format = dstBuf->getPixelFormat();
+    dstImg.handle = (native_handle_t*) dstBuf->getNativeBuffer()->handle;
+
+    copybit_image_t srcImg;
+    srcImg.w = srcBuf->getWidth();
+    srcImg.h = srcBuf->getHeight();
+    srcImg.format = srcBuf->getPixelFormat();
+    srcImg.base = NULL;
+    srcImg.handle = (native_handle_t*) srcBuf->getNativeBuffer()->handle;
+
+    copybit_rect_t dstCrop;
+    dstCrop.l = 0;
+    dstCrop.t = 0;
+    dstCrop.r = dstBuf->getWidth();
+    dstCrop.b = dstBuf->getHeight();
+
+    copybit_rect_t srcCrop;
+    srcCrop.l = 0;
+    srcCrop.t = 0;
+    srcCrop.r = srcBuf->getWidth();
+    srcCrop.b = srcBuf->getHeight();
+
+    region_iterator clip(Region(Rect(dstCrop.r, dstCrop.b)));
+    mBlitEngine->set_parameter(mBlitEngine, COPYBIT_TRANSFORM, 0);
+    mBlitEngine->set_parameter(mBlitEngine, COPYBIT_PLANE_ALPHA, 0xFF);
+    mBlitEngine->set_parameter(mBlitEngine, COPYBIT_DITHER, COPYBIT_ENABLE);
+
+    int err = mBlitEngine->stretch(
+            mBlitEngine, &dstImg, &srcImg, &dstCrop, &srcCrop, &clip);
+    if (err != 0) {
+        ALOGE("Error: Blit stretch operation failed (err:%d)", err);
+        //* TODO: Bad boy doing hacks here, we have to investigate why blit stretch operation fails sometimes
+        return OK;
+    }
+    return OK;
+}
+#endif
 
 static void mtxMul(float out[16], const float a[16], const float b[16]) {
     out[0] = a[0]*b[0] + a[4]*b[1] + a[8]*b[2] + a[12]*b[3];
