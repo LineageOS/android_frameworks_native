@@ -171,5 +171,18 @@ status_t GraphicBufferMapper::unlockAsync(buffer_handle_t handle, int *fenceFd)
     return err;
 }
 
+#ifdef EXYNOS4210_ENHANCEMENTS
+status_t GraphicBufferMapper::getphys(buffer_handle_t handle, void** paddr)
+{
+    status_t err;
+
+    err = mAllocMod->getphys(mAllocMod, handle, paddr);
+
+    ALOGW_IF(err, "getphys(%p) fail %d(%s)",
+    handle, err, strerror(-err));
+    return err;
+}
+#endif
+
 // ---------------------------------------------------------------------------
 }; // namespace android
