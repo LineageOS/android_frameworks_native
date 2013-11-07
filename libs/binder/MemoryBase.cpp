@@ -44,3 +44,11 @@ MemoryBase::~MemoryBase()
 
 // ---------------------------------------------------------------------------
 }; // namespace android
+
+// Backwards compatibility for libdatabase_sqlcipher (http://b/8253769).
+extern "C" void _ZN7android10MemoryBaseC1ERKNS_2spINS_11IMemoryHeapEEEij(void*, void*, ssize_t, size_t);
+extern "C" void _ZN7android10MemoryBaseC1ERKNS_2spINS_11IMemoryHeapEEElj(void* obj, void* h, long o, unsigned int size) {
+    _ZN7android10MemoryBaseC1ERKNS_2spINS_11IMemoryHeapEEEij(obj, h, o, size);
+    ALOGW("Using temporary compatibility workaround for usage of MemoryBase "
+          "private API. Please fix your application!");
+}
