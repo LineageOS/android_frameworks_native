@@ -56,6 +56,10 @@ LOCAL_C_INCLUDES += hardware/samsung/$(TARGET_BOARD_PLATFORM)/libhdmi/libhdmiser
 LOCAL_C_INCLUDES += hardware/samsung/$(TARGET_BOARD_PLATFORM)/include
 endif
 
+ifeq ($(BOARD_HAVE_PIXEL_FORMAT_INFO),true)
+LOCAL_CFLAGS += -DHAVE_PIXEL_FORMAT_INFO
+endif
+
 LOCAL_MODULE:= libui
 
 include $(BUILD_SHARED_LIBRARY)
