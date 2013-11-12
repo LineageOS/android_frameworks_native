@@ -1132,6 +1132,7 @@ void SurfaceFlinger::setUpHWComposer() {
                      */
                     const sp<Layer>& layer(currentLayers[i]);
                     layer->setPerFrameData(hw, *cur);
+#ifdef QCOM_BSP
                     if(freezeSurfacePresent) {
                         // if freezeSurfacePresent, set ANIMATING flag
                         cur->setAnimating(true);
@@ -1152,6 +1153,7 @@ void SurfaceFlinger::setUpHWComposer() {
                             }
                         }
                     }
+#endif
                 }
             }
         }

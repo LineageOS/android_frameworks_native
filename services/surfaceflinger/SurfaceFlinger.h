@@ -100,8 +100,12 @@ public:
     void run() ANDROID_API;
 
     enum {
+#ifdef QCOM_BSP
         EVENT_VSYNC = HWC_EVENT_VSYNC,
         EVENT_ORIENTATION = HWC_EVENT_ORIENTATION
+#else
+        EVENT_VSYNC = HWC_EVENT_VSYNC
+#endif
     };
 
     // post an asynchronous message to the main thread

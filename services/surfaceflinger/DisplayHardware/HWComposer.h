@@ -241,8 +241,12 @@ public:
     // Events handling ---------------------------------------------------------
 
     enum {
+#ifdef QCOM_bSP
         EVENT_VSYNC = HWC_EVENT_VSYNC,
         EVENT_ORIENTATION = HWC_EVENT_ORIENTATION
+#else
+        EVENT_VSYNC = HWC_EVENT_VSYNC
+#endif
     };
 
     void eventControl(int disp, int event, int enabled);

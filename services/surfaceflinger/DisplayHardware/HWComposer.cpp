@@ -626,10 +626,12 @@ void HWComposer::eventControl(int disp, int event, int enabled) {
                 mVSyncThread->setEnabled(enabled);
             }
             break;
+#ifdef QCOM_BSP
         case EVENT_ORIENTATION:
             // Orientation event
             err = mHwc->eventControl(mHwc, disp, event, enabled);
             break;
+#endif
         default:
             ALOGW("eventControl got unexpected event %d (disp=%d en=%d)",
                     event, disp, enabled);
