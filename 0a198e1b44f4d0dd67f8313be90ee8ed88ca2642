@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da20952f_19902b95",
+        "filename": "libs/gui/Android.mk",
+        "patchSetId": 2
+      },
+      "lineNbr": 47,
+      "author": {
+        "id": 3556
+      },
+      "writtenOn": "2013-11-14T11:18:18Z",
+      "side": 1,
+      "message": "This will NOT work as aosp qcom/display is divided by board now should be\nLOCAL_C_INCLUDES +\u003d hardware/qcom/display/$(TARGET_BOARD_PLATFORM)/libgralloc",
+      "revId": "0a198e1b44f4d0dd67f8313be90ee8ed88ca2642",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da20952f_799367a4",
+        "filename": "services/surfaceflinger/Android.mk",
+        "patchSetId": 2
+      },
+      "lineNbr": 105,
+      "author": {
+        "id": 3556
+      },
+      "writtenOn": "2013-11-14T11:18:18Z",
+      "side": 1,
+      "message": "This will NOT work as aosp qcom/display is divided by board now should be\nLOCAL_C_INCLUDES +\u003d hardware/qcom/display/$(TARGET_BOARD_PLATFORM)/libgralloc",
+      "revId": "0a198e1b44f4d0dd67f8313be90ee8ed88ca2642",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
