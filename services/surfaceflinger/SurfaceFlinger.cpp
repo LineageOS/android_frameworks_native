@@ -3116,10 +3116,17 @@ status_t SurfaceFlinger::captureScreenImplLocked(
     const uint32_t hw_w = hw->getWidth();
     const uint32_t hw_h = hw->getHeight();
 
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.sf.hwrotation", value, "0");
+    int additionalRot = atoi(value) / 90;
     if ((reqWidth > hw_w) || (reqHeight > hw_h)) {
-        ALOGE("size mismatch (%d, %d) > (%d, %d)",
-                reqWidth, reqHeight, hw_w, hw_h);
-        return BAD_VALUE;
+        if (!((hw->getDisplayType() == DisplayDevice::DISPLAY_PRIMARY) &&
+            (additionalRot & DisplayState::eOrientationSwapMask) &&
+            (reqWidth == hw_h) && (reqHeight == hw_w))) {
+            ALOGE("size mismatch (%d, %d) > (%d, %d)",
+                    reqWidth, reqHeight, hw_w, hw_h);
+            return BAD_VALUE;
+        }
     }
 
     reqWidth  = (!reqWidth)  ? hw_w : reqWidth;
