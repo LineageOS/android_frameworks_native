@@ -16,6 +16,24 @@
       "revId": "6e689b974b2deaa6d163435c2315734a68ddb0d0",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da20952f_47622dda",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 3333,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2013-11-20T17:17:39Z",
+      "side": 1,
+      "message": "Yes... code is still missing some bits including this",
+      "parentUuid": "da20952f_c71f1d5a",
+      "revId": "6e689b974b2deaa6d163435c2315734a68ddb0d0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
