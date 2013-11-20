@@ -16,6 +16,23 @@
       "revId": "b9412b3aa407e232b6a8d12392722398b588db4a",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da20952f_079515e3",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 4
+      },
+      "lineNbr": 3336,
+      "author": {
+        "id": 6938
+      },
+      "writtenOn": "2013-11-20T21:19:11Z",
+      "side": 1,
+      "message": "I\u0027m not sure but you can find the function defined here:\nhttps://github.com/CyanogenMod/android_frameworks_native/blob/cm-11.0/services/surfaceflinger/SurfaceFlinger.cpp#L3111\n\nbool useReadPixels\n\nBeen trying to get screenshots to work on omap4 in 4.4 when you force screenshots to cpu path, because that fixes some other weird graphic weirdness for some reason.\n\nWas going to see if this if this solves my issues, but i\u0027m also\ntoo tired to try until tomorrow.",
+      "revId": "b9412b3aa407e232b6a8d12392722398b588db4a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
