@@ -1400,16 +1400,19 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
     // to maintain the on-change logic (any on-change events except the initial
     // one should be trigger by a change in value). Also if this sensor isn't
     // already active, don't call flush().
+    const SensorDevice& device(SensorDevice::getInstance());
     if (err == NO_ERROR &&
             sensor->getSensor().getReportingMode() == AREPORTING_MODE_CONTINUOUS &&
             rec->getNumConnections() > 1) {
-        connection->setFirstFlushPending(handle, true);
-        status_t err_flush = sensor->flush(connection.get(), handle);
-        // Flush may return error if the underlying h/w sensor uses an older HAL.
-        if (err_flush == NO_ERROR) {
-            rec->addPendingFlushConnection(connection.get());
-        } else {
-            connection->setFirstFlushPending(handle, false);
+        if (device.getHalDeviceVersion() >= SENSORS_DEVICE_API_VERSION_1_1) {
+            connection->setFirstFlushPending(handle, true);
+            status_t err_flush = sensor->flush(connection.get(), handle);
+            // Flush may return error if the underlying h/w sensor uses an older HAL.
+            if (err_flush == NO_ERROR) {
+                rec->addPendingFlushConnection(connection.get());
+            } else {
+                connection->setFirstFlushPending(handle, false);
+            }
         }
     }
 
@@ -1425,6 +1428,11 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
                 SensorRegistrationInfo(handle, connection->getPackageName(),
                                        samplingPeriodNs, maxBatchReportLatencyNs, true);
         mNextSensorRegIndex = (mNextSensorRegIndex + 1) % SENSOR_REGISTRATIONS_BUF_SIZE;
+    }
+
+    if (device.getHalDeviceVersion() < SENSORS_DEVICE_API_VERSION_1_1) {
+        // Pre-1.1 sensor HALs had no flush method, and relied on setDelay at init
+        sensor->setDelay(connection.get(), handle, samplingPeriodNs);
     }
 
     if (err != NO_ERROR) {
