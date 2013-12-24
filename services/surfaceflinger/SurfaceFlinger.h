@@ -376,6 +376,8 @@ private:
     // allocate a h/w composer display id
     int32_t allocateHwcDisplayId(DisplayDevice::DisplayType type);
 
+    bool isNonWfdVirtualDisplayDevice(const DisplayDeviceState& state);
+
     /* ------------------------------------------------------------------------
      * H/W composer
      */
