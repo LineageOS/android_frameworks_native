@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9a68dd71_da02846f",
+        "filename": "services/surfaceflinger/DisplayDevice.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 427,
+      "author": {
+        "id": 1579
+      },
+      "writtenOn": "2013-12-30T20:15:23Z",
+      "side": 1,
+      "message": "please use spaces instead of tab",
+      "revId": "6f6ec2236fbb7b87d185083034c923abb9919f76",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
