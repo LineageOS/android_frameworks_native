@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9a68dd71_daeb64af",
+        "filename": "services/surfaceflinger/DisplayDevice.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 423,
+      "author": {
+        "id": 1579
+      },
+      "writtenOn": "2013-12-30T19:40:31Z",
+      "side": 1,
+      "message": "missing braces",
+      "revId": "2474d9bf299137deca634901d56997c3e1922399",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9a68dd71_7ad118fb",
+        "filename": "services/surfaceflinger/DisplayDevice.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 425,
+      "author": {
+        "id": 1579
+      },
+      "writtenOn": "2013-12-30T19:40:31Z",
+      "side": 1,
+      "message": "see above comment",
+      "revId": "2474d9bf299137deca634901d56997c3e1922399",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
