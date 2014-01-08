@@ -43,10 +43,8 @@ LOCAL_SHARED_LIBRARIES := \
 ifeq ($(TARGET_USES_QCOM_BSP),true)
 ifneq ($(TARGET_QCOM_DISPLAY_VARIANT),)
     LOCAL_C_INCLUDES += hardware/qcom/display-$(TARGET_QCOM_DISPLAY_VARIANT)/libgralloc
-else
-    LOCAL_C_INCLUDES += hardware/qcom/display/$(TARGET_BOARD_PLATFORM)/libgralloc
-endif
     LOCAL_CFLAGS += -DQCOM_BSP
+endif
 endif
 
 ifeq ($(BOARD_EGL_SKIP_FIRST_DEQUEUE),true)
