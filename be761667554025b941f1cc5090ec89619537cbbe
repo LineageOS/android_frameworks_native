@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5a5ae5dd_0788c421",
+        "filename": "libs/utils/VectorImpl.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 145,
+      "author": {
+        "id": 5681
+      },
+      "writtenOn": "2014-01-15T12:24:56Z",
+      "side": 1,
+      "message": "Whitespace",
+      "revId": "be761667554025b941f1cc5090ec89619537cbbe",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
