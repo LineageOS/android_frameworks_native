@@ -1607,6 +1607,7 @@ void SurfaceFlinger::computeVisibleRegions(size_t dpy,
         const sp<Layer>& layer = currentLayers[i];
         // iterate through the layer list to find ext_only layers and store
         // the index
+#ifndef AOSP_DISPLAY
         if (layer->isSecureDisplay()) {
             bIgnoreLayers = true;
             indexLOI = -1;
@@ -1614,6 +1615,7 @@ void SurfaceFlinger::computeVisibleRegions(size_t dpy,
                 indexLOI = i;
             break;
         }
+#endif
 
         if (dpy && layer->isExtOnly()) {
             bIgnoreLayers = true;
@@ -1635,8 +1637,11 @@ void SurfaceFlinger::computeVisibleRegions(size_t dpy,
         // Add secure UI layers to primary and remove other layers from internal
         //and external list
         if((bIgnoreLayers && indexLOI != (int)i) ||
-           (!dpy && layer->isExtOnly()) ||
-           (dpy && layer->isIntOnly())) {
+            (!dpy && layer->isExtOnly())
+#ifndef AOSP_DISPLAY
+            || (dpy && layer->isIntOnly())
+#endif
+            ) {
             // Ignore all other layers except the layers marked as ext_only
             // by setting visible non transparent region empty.
             Region visibleNonTransRegion;
@@ -3127,11 +3132,13 @@ void SurfaceFlinger::renderScreenImplLocked(
         const Layer::State& state(layer->getDrawingState());
         if (state.layerStack == hw->getLayerStack()) {
             if (state.z >= minLayerZ && state.z <= maxLayerZ) {
+#ifndef AOSP_DISPLAY
 #ifdef QCOM_BSP
                 // dont render the secure Display Layer
                 if(layer->isSecureDisplay()) {
                     continue;
                 }
+#endif
 #endif
                 if (layer->isVisible()) {
                     if (filtering) layer->setFiltering(true);

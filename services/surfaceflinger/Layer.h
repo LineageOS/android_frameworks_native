@@ -265,8 +265,10 @@ public:
     void updateTransformHint(const sp<const DisplayDevice>& hw) const;
 #ifdef QCOM_BSP
     virtual bool isExtOnly() const;
+#ifndef AOSP_DISPLAY
     virtual bool isIntOnly() const;
     virtual bool isSecureDisplay() const;
+#endif
 #endif
 
     /*

@@ -1283,6 +1283,7 @@ bool Layer::isExtOnly() const
     return false;
 }
 
+#ifndef AOSP_DISPLAY
 bool Layer::isIntOnly() const
 {
     const sp<GraphicBuffer>& activeBuffer(mActiveBuffer);
@@ -1305,6 +1306,7 @@ bool Layer::isSecureDisplay() const
     return false;
 }
 
+#endif
 #endif
 // ---------------------------------------------------------------------------
 }; // namespace android
