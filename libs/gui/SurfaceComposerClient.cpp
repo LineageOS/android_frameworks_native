@@ -514,7 +514,8 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
         if (err == NO_ERROR) {
             sur = new SurfaceControl(this, handle, gbp);
         }
-    }
+    } else
+        ALOGE("SurfaceComposerClient::createSurface error. Status = %s", strerror(-mStatus));
     return sur;
 }
 
