@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fade3982_36170253",
+        "filename": "services/sensorservice/Android.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 17,
+      "author": {
+        "id": 2165
+      },
+      "writtenOn": "2014-02-11T23:47:19Z",
+      "side": 1,
+      "message": "this should be ifeq ($(BOARD_USE_LEGACY_SENSORS_FUSION),true)",
+      "revId": "7636ddd1c572968598ab685a903a25fd157ce31a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fade3982_960c0e44",
+        "filename": "services/sensorservice/Android.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 41,
+      "author": {
+        "id": 2165
+      },
+      "writtenOn": "2014-02-11T23:47:19Z",
+      "side": 1,
+      "message": "this should be ifeq ($(BOARD_USE_LEGACY_SENSORS_FUSION),true)",
+      "revId": "7636ddd1c572968598ab685a903a25fd157ce31a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
