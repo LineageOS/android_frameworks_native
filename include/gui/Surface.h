@@ -78,6 +78,10 @@ public:
         return surface != NULL && surface->getIGraphicBufferProducer() != NULL;
     }
 
+    /* sets dirty rectangle of the buffer that gets queued next for the
+     * Surface */
+    status_t setDirtyRect(const Rect* dirtyRect);
+
 protected:
     virtual ~Surface();
 
@@ -205,6 +209,10 @@ private:
     // mCrop is the crop rectangle that will be used for the next buffer
     // that gets queued. It is set by calling setCrop.
     Rect mCrop;
+
+    // mDirtyRect is the dirty rectangle set for the next buffer that gets
+    // queued. It is set by calling setDirtyRect.
+    Rect mDirtyRect;
 
     // mScalingMode is the scaling mode that will be used for the next
     // buffers that get queued. It is set by calling setScalingMode.

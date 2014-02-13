@@ -112,14 +112,34 @@ public:
                 const Rect& crop, int scalingMode, uint32_t transform, bool async,
                 const sp<Fence>& fence)
         : timestamp(timestamp), isAutoTimestamp(isAutoTimestamp), crop(crop),
-          scalingMode(scalingMode), transform(transform), async(async),
-          fence(fence) { }
+        dirtyRect(crop), scalingMode(scalingMode), transform(transform),
+        async(async), fence(fence) { }
+        inline QueueBufferInput(int64_t timestamp, bool isAutoTimestamp,
+                const Rect& crop, const Rect& dirtyRect, int scalingMode,
+                uint32_t transform, bool async, const sp<Fence>& fence)
+        : timestamp(timestamp), isAutoTimestamp(isAutoTimestamp), crop(crop),
+        dirtyRect(dirtyRect), scalingMode(scalingMode), transform(transform),
+        async(async), fence(fence) { }
         inline void deflate(int64_t* outTimestamp, bool* outIsAutoTimestamp,
-                Rect* outCrop, int* outScalingMode, uint32_t* outTransform,
-                bool* outAsync, sp<Fence>* outFence) const {
+                            Rect* outCrop, int* outScalingMode,
+                            uint32_t* outTransform,  bool* outAsync,
+                            sp<Fence>* outFence) const {
             *outTimestamp = timestamp;
             *outIsAutoTimestamp = bool(isAutoTimestamp);
             *outCrop = crop;
+            *outScalingMode = scalingMode;
+            *outTransform = transform;
+            *outAsync = bool(async);
+            *outFence = fence;
+        }
+        inline void deflate(int64_t* outTimestamp, bool* outIsAutoTimestamp,
+                            Rect* outCrop, Rect* outDirtyRect,
+                            int* outScalingMode, uint32_t* outTransform,
+                            bool* outAsync, sp<Fence>* outFence) const {
+            *outTimestamp = timestamp;
+            *outIsAutoTimestamp = bool(isAutoTimestamp);
+            *outCrop = crop;
+            *outDirtyRect = dirtyRect;
             *outScalingMode = scalingMode;
             *outTransform = transform;
             *outAsync = bool(async);
@@ -136,6 +156,7 @@ public:
         int64_t timestamp;
         int isAutoTimestamp;
         Rect crop;
+        Rect dirtyRect;
         int scalingMode;
         uint32_t transform;
         int async;
