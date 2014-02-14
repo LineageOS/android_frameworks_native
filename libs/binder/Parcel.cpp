@@ -1346,8 +1346,8 @@ void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize,
     for (size_t i = 0; i < mObjectsSize; i++) {
         size_t offset = mObjects[i];
         if (offset < minOffset) {
-            ALOGE("%s: bad object offset %zu < %zu\n",
-                  __func__, offset, minOffset);
+            ALOGE("%s: bad object offset %llu  < %llu \n",
+                  __func__, (uint64_t)offset, (uint64_t)minOffset);
             mObjectsSize = 0;
             break;
         }
