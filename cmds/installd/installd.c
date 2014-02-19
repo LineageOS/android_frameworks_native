@@ -19,7 +19,6 @@
 
 #include "installd.h"
 
-
 #define BUFFER_MAX    1024  /* input buffer for commands */
 #define TOKEN_MAX     8     /* max number of arguments in buffer */
 #define REPLY_MAX     256   /* largest reply allowed */
@@ -189,7 +188,7 @@ static int writex(int s, const void *_buf, int count)
  * ensure that the required number of arguments are provided,
  * call the function(), return the result.
  */
-static int execute(int s, char cmd[BUFFER_MAX])
+static int execute(int s, char cmd[BUFFER_MAX], int id)
 {
     char reply[REPLY_MAX];
     char *arg[TOKEN_MAX+1];
@@ -229,9 +228,9 @@ static int execute(int s, char cmd[BUFFER_MAX])
             goto done;
         }
     }
-    ALOGE("unsupported command '%s'\n", arg[0]);
 
 done:
+    ALOGI("new command '%s'\n", arg[0]);
     if (reply[0]) {
         n = snprintf(cmd, BUFFER_MAX, "%d %s", ret, reply);
     } else {
@@ -240,9 +239,28 @@ done:
     if (n > BUFFER_MAX) n = BUFFER_MAX;
     count = n;
 
-    // ALOGI("reply: '%s'\n", cmd);
-    if (writex(s, &count, sizeof(count))) return -1;
-    if (writex(s, cmd, count)) return -1;
+    ALOGI("reply [%d]: '%s'\n", id, cmd);
+    pthread_mutex_lock(&ioMutex);
+    if (writex(s, &id, sizeof(id))) {
+        pthread_mutex_unlock(&ioMutex);
+        return -1;
+    }
+    if (writex(s, &count, sizeof(count))) {
+        pthread_mutex_unlock(&ioMutex);
+        return -1;
+    }
+    if (writex(s, cmd, count)) {
+        pthread_mutex_unlock(&ioMutex);
+        return -1;
+    }
+    pthread_mutex_unlock(&ioMutex);
+    return 0;
+}
+
+static void* executeAsync(void *arg) {
+    thread_parm* parm = (thread_parm*) arg;
+    execute(parm->s, parm->cmd, parm->id);
+    free(arg);
     return 0;
 }
 
@@ -530,6 +548,12 @@ int main(const int argc, const char *argv[]) {
     struct sockaddr addr;
     socklen_t alen;
     int lsocket, s, count;
+    pthread_t *threads;
+    pthread_attr_t pthread_custom_attr;
+    pthread_mutex_init(&ioMutex, NULL);
+
+    pthread_attr_init(&pthread_custom_attr);
+    threads = (pthread_t*) malloc(sizeof(pthread_t));
 
     ALOGI("installd firing up\n");
 
@@ -568,20 +592,34 @@ int main(const int argc, const char *argv[]) {
         ALOGI("new connection\n");
         for (;;) {
             unsigned short count;
+            int id;
+            if (readx(s, &id, sizeof(id))) {
+                ALOGE("failed to transaction id\n");
+                break;
+            }
             if (readx(s, &count, sizeof(count))) {
                 ALOGE("failed to read size\n");
                 break;
             }
             if ((count < 1) || (count >= BUFFER_MAX)) {
-                ALOGE("invalid size %d\n", count);
+                ALOGE("invalid size [id=%d] %d\n", id, count);
                 break;
             }
             if (readx(s, buf, count)) {
                 ALOGE("failed to read command\n");
                 break;
             }
+            ALOGI("command with id %d\n", id);
             buf[count] = 0;
-            if (execute(s, buf)) break;
+            thread_parm *args = (thread_parm*) malloc(sizeof(thread_parm));
+            args->s = s;
+            strncpy(args->cmd, buf, count+1);
+            args->id = id;
+            int res;
+            if (res=pthread_create(threads, &pthread_custom_attr, executeAsync, (void*) args)) {
+                ALOGE("failed create thread: %d!!!", res);
+            }
+            //if (execute(s, buf, id)) break;
         }
         ALOGI("closing connection\n");
         close(s);
