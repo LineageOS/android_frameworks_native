@@ -1,16 +1,16 @@
 /*
 ** Copyright 2008, The Android Open Source Project
 **
-** Licensed under the Apache License, Version 2.0 (the "License"); 
-** you may not use this file except in compliance with the License. 
-** You may obtain a copy of the License at 
+** Licensed under the Apache License, Version 2.0 (the "License");
+** you may not use this file except in compliance with the License.
+** You may obtain a copy of the License at
 **
-**     http://www.apache.org/licenses/LICENSE-2.0 
+**     http://www.apache.org/licenses/LICENSE-2.0
 **
-** Unless required by applicable law or agreed to in writing, software 
-** distributed under the License is distributed on an "AS IS" BASIS, 
-** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
-** See the License for the specific language governing permissions and 
+** Unless required by applicable law or agreed to in writing, software
+** distributed under the License is distributed on an "AS IS" BASIS,
+** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+** See the License for the specific language governing permissions and
 ** limitations under the License.
 */
 
@@ -18,7 +18,6 @@
 #include <linux/prctl.h>
 
 #include "installd.h"
-
 
 #define BUFFER_MAX    1024  /* input buffer for commands */
 #define TOKEN_MAX     8     /* max number of arguments in buffer */
@@ -146,27 +145,63 @@ struct cmdinfo cmds[] = {
     { "rmuser",               1, do_rm_user },
 };
 
+char write_error = 0;
+
+/* Single threaded. */
 static int readx(int s, void *_buf, int count)
 {
     char *buf = _buf;
     int n = 0, r;
     if (count < 0) return -1;
     while (n < count) {
+        ALOGI("read: locking...");
+        if (pthread_mutex_lock(&ioMutex)) {
+            ALOGI("Error locking mutex: deadlock in read!");
+        }
+        ALOGI("read: locked");
         r = read(s, buf + n, count - n);
+        ALOGI("read: readed");
         if (r < 0) {
-            if (errno == EINTR) continue;
+            if (errno == EINTR) {
+                ALOGI("read: interrupted, continuing");
+                goto read_cont;
+            }
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                ALOGI("read: waiting");
+                if(pthread_cond_wait(&ioWait, &ioMutex)) {
+                    ALOGI("read: wating failed!");
+                }
+                if (write_error) {
+                    goto read_error;
+                }
+                goto read_cont;
+            }
             ALOGE("read error: %s\n", strerror(errno));
-            return -1;
+            goto read_error;
         }
         if (r == 0) {
             ALOGE("eof\n");
-            return -1; /* EOF */
+            goto read_error; /* EOF */
         }
+        ALOGI("read: %d bytes", r);
         n += r;
+read_cont:
+        ALOGI("read: unlock");
+        if (pthread_mutex_unlock(&ioMutex)) {
+            ALOGI("Error unlocking mutex: read tried to unlock twice!");
+        }
+        continue;
+read_error:
+        ALOGI("read: unlock");
+        if (pthread_mutex_unlock(&ioMutex)) {
+            ALOGI("Error unlocking mutex: read tried to unlock twice 2!");
+        }
+        return -1;
     }
     return 0;
 }
 
+/* Mutex should be taken outside. */
 static int writex(int s, const void *_buf, int count)
 {
     const char *buf = _buf;
@@ -184,12 +219,11 @@ static int writex(int s, const void *_buf, int count)
     return 0;
 }
 
-
 /* Tokenize the command buffer, locate a matching command,
  * ensure that the required number of arguments are provided,
  * call the function(), return the result.
  */
-static int execute(int s, char cmd[BUFFER_MAX])
+static int execute(int s, char cmd[BUFFER_MAX], int id)
 {
     char reply[REPLY_MAX];
     char *arg[TOKEN_MAX+1];
@@ -229,9 +263,9 @@ static int execute(int s, char cmd[BUFFER_MAX])
             goto done;
         }
     }
-    ALOGE("unsupported command '%s'\n", arg[0]);
 
 done:
+    ALOGI("new command '%s'\n", arg[0]);
     if (reply[0]) {
         n = snprintf(cmd, BUFFER_MAX, "%d %s", ret, reply);
     } else {
@@ -240,9 +274,41 @@ done:
     if (n > BUFFER_MAX) n = BUFFER_MAX;
     count = n;
 
-    // ALOGI("reply: '%s'\n", cmd);
-    if (writex(s, &count, sizeof(count))) return -1;
-    if (writex(s, cmd, count)) return -1;
+    ALOGI("reply [%d]: '%s'\n", id, cmd);
+    if (pthread_mutex_lock(&ioMutex)) {
+        ALOGI("Error locking mutex: deadlock in execute!");
+    }
+    if (write_error) {
+        goto exec_error;
+    }
+    if (writex(s, &id, sizeof(id))) {
+        write_error = 1;
+        goto exec_error;
+    }
+    if (writex(s, &count, sizeof(count))) {
+        write_error = 1;
+        goto exec_error;
+    }
+    if (writex(s, cmd, count)) {
+        write_error = 1;
+        goto exec_error;
+    }
+    if (pthread_mutex_unlock(&ioMutex)) {
+        ALOGI("Error unlocking mutex: execute tried to unlock twice!");
+    }
+    ALOGI("reply [%d] sent: '%s'\n", id, cmd);
+    return 0;
+exec_error:
+    if (pthread_mutex_unlock(&ioMutex)) {
+        ALOGI("Error unlocking mutex: execute tried to unlock twice 2!");
+    }
+    return -1;
+}
+
+static void* executeAsync(void *arg) {
+    thread_parm* parm = (thread_parm*) arg;
+    execute(parm->s, parm->cmd, parm->id);
+    free(arg);
     return 0;
 }
 
@@ -525,11 +591,44 @@ static void drop_privileges() {
     }
 }
 
+static void sa1_handler(int sig) {
+    sigset_t sigs_to_catch;
+    int caught;
+    sigemptyset(&sigs_to_catch);
+    sigaddset(&sigs_to_catch, SIGIO);
+    for (;;) {
+        sigwait(&sigs_to_catch, &caught);
+        if (SIGKILL == caught) {
+            return;
+        }
+        pthread_mutex_lock(&ioMutex);
+        pthread_cond_broadcast(&ioWait);
+        pthread_mutex_unlock(&ioMutex);
+    }
+}
+
 int main(const int argc, const char *argv[]) {
     char buf[BUFFER_MAX];
     struct sockaddr addr;
     socklen_t alen;
     int lsocket, s, count;
+
+    pthread_t worker_threads, signal_thread;
+    pthread_attr_t pthread_custom_attr;
+    pthread_mutexattr_t mutex_attr;
+    sigset_t sigs_to_block;
+    pthread_mutexattr_init(&mutex_attr);
+    //pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_ERRORCHECK);
+    pthread_mutex_init(&ioMutex, &mutex_attr);
+    pthread_cond_init(&ioWait, NULL);
+
+    pthread_attr_init(&pthread_custom_attr);
+
+    sigemptyset(&sigs_to_block);
+    sigaddset(&sigs_to_block, SIGIO);
+    pthread_sigmask(SIG_BLOCK, &sigs_to_block, NULL);
+
+    pthread_create(&signal_thread, &pthread_custom_attr, sa1_handler, NULL);
 
     ALOGI("installd firing up\n");
 
@@ -555,6 +654,7 @@ int main(const int argc, const char *argv[]) {
         exit(1);
     }
     fcntl(lsocket, F_SETFD, FD_CLOEXEC);
+    fcntl(lsocket, F_SETSIG, 0);
 
     for (;;) {
         alen = sizeof(addr);
@@ -564,28 +664,48 @@ int main(const int argc, const char *argv[]) {
             continue;
         }
         fcntl(s, F_SETFD, FD_CLOEXEC);
+        fcntl(s, F_SETFL, O_ASYNC | O_NONBLOCK);
+        fcntl(s, F_SETSIG, 0);
+        fcntl(s, F_SETOWN, getpid());
+        write_error = 0;
 
         ALOGI("new connection\n");
         for (;;) {
             unsigned short count;
+            int id;
+            if (readx(s, &id, sizeof(id))) {
+                ALOGE("failed to transaction id\n");
+                break;
+            }
             if (readx(s, &count, sizeof(count))) {
                 ALOGE("failed to read size\n");
                 break;
             }
             if ((count < 1) || (count >= BUFFER_MAX)) {
-                ALOGE("invalid size %d\n", count);
+                ALOGE("invalid size [id=%d] %d\n", id, count);
                 break;
             }
             if (readx(s, buf, count)) {
                 ALOGE("failed to read command\n");
                 break;
             }
+            ALOGI("command with id %d\n", id);
             buf[count] = 0;
-            if (execute(s, buf)) break;
+            thread_parm *args = (thread_parm*) malloc(sizeof(thread_parm));
+            args->s = s;
+            strncpy(args->cmd, buf, count);
+            args->id = id;
+            int res;
+            if (res=pthread_create(&worker_threads, &pthread_custom_attr, executeAsync, (void*) args)) {
+                ALOGE("failed create thread: %d!!!", res);
+            }
+            //if (execute(s, buf, id)) break;
         }
         ALOGI("closing connection\n");
         close(s);
     }
+
+    pthread_kill(&signal_thread, SIGKILL);
 
     return 0;
 }
