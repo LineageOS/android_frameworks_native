@@ -1,0 +1,89 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "dae33548_816cda9d",
+        "filename": "cmds/installd/installd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 4,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2014-02-21T20:27:39Z",
+      "side": 1,
+      "message": "Probably unnecessary to fix the trailing whitespace.",
+      "revId": "bba493201ab858e90095f5b4e4c7f8c6bbbb0432",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "dae33548_216fce93",
+        "filename": "cmds/installd/installd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 621,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2014-02-21T20:27:39Z",
+      "side": 1,
+      "message": "Remove commented out line.",
+      "revId": "bba493201ab858e90095f5b4e4c7f8c6bbbb0432",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "dae33548_4172d27d",
+        "filename": "cmds/installd/installd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 699,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2014-02-21T20:27:39Z",
+      "side": 1,
+      "message": "Line length \u003e 80 characters.",
+      "revId": "bba493201ab858e90095f5b4e4c7f8c6bbbb0432",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "dae33548_c10422c8",
+        "filename": "cmds/installd/installd.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 5,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2014-02-21T20:27:39Z",
+      "side": 1,
+      "message": "More unnecessary trailing whitespace removal?",
+      "revId": "bba493201ab858e90095f5b4e4c7f8c6bbbb0432",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "dae33548_a1091ee0",
+        "filename": "cmds/installd/installd.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 137,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2014-02-21T20:27:39Z",
+      "side": 1,
+      "message": "Tab instead of a space used here.",
+      "revId": "bba493201ab858e90095f5b4e4c7f8c6bbbb0432",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}

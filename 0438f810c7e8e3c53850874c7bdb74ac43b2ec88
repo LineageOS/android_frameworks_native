@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "dae33548_6169d68b",
+        "filename": "cmds/installd/installd.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 187,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2014-02-21T20:27:39Z",
+      "side": 0,
+      "message": "More unnecessary trailing whitespace removal?",
+      "revId": "0438f810c7e8e3c53850874c7bdb74ac43b2ec88",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
