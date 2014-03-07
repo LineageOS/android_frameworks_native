@@ -141,7 +141,7 @@ void ConsumerBase::abandon() {
 }
 
 void ConsumerBase::abandonLocked() {
-	CB_LOGV("abandonLocked");
+    CB_LOGV("abandonLocked");
     for (int i =0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
         freeBufferLocked(i);
     }

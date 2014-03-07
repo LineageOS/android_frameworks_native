@@ -39,6 +39,11 @@ LOCAL_SHARED_LIBRARIES := \
 	libutils \
 	liblog
 
+ifeq ($(BOARD_USES_STE_HARDWARE),true)
+	LOCAL_SHARED_LIBRARIES += \
+	libhardware
+endif
+
 # Executed only on QCOM BSPs
 ifeq ($(TARGET_USES_QCOM_BSP),true)
 ifneq ($(TARGET_QCOM_DISPLAY_VARIANT),)

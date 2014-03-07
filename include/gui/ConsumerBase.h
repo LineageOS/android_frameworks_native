@@ -164,7 +164,10 @@ protected:
             const sp<GraphicBuffer> graphicBuffer,
             EGLDisplay display, EGLSyncKHR eglFence);
 
-    // returns true iff the slot still has the graphicBuffer in it.
+    // returns true if the slot still has the graphicBuffer in it.
+#ifdef STE_HARDWARE
+    virtual
+#endif
     bool stillTracking(int slot, const sp<GraphicBuffer> graphicBuffer);
 
     // addReleaseFence* adds the sync points associated with a fence to the set

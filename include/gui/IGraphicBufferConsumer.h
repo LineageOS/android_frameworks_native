@@ -39,8 +39,12 @@ class IGraphicBufferConsumer : public IInterface {
 public:
 
     // public facing structure for BufferSlot
+#ifdef STE_HARDWARE
+    class BufferItem : public Flattenable {
+#else
     class BufferItem : public Flattenable<BufferItem> {
         friend class Flattenable<BufferItem>;
+#endif
         size_t getPodSize() const;
         size_t getFlattenedSize() const;
         size_t getFdCount() const;

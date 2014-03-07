@@ -105,8 +105,13 @@ public:
     // and height of the window and current transform applied to buffers,
     // respectively.
 
+
+#ifdef STE_HARDWARE
+    struct QueueBufferInput : public Flattenable {
+#else
     struct QueueBufferInput : public Flattenable<QueueBufferInput> {
         friend class Flattenable<QueueBufferInput>;
+#endif
         inline QueueBufferInput(const Parcel& parcel);
         inline QueueBufferInput(int64_t timestamp, bool isAutoTimestamp,
                 const Rect& crop, int scalingMode, uint32_t transform, bool async,
