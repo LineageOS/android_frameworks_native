@@ -977,11 +977,12 @@ int64_t Parcel::readInt64() const
 {
     return readAligned<int64_t>();
 }
-
+#ifdef NEEDS_LGE_RIL_SYMBOLS
 status_t Parcel::readuInt64(unsigned long long *pArg) const
 {
     return readAligned(pArg);
 }
+#endif
 
 status_t Parcel::readFloat(float *pArg) const
 {
