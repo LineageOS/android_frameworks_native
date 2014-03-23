@@ -1175,6 +1175,14 @@ uint64_t Parcel::readUint64() const
     return readAligned<uint64_t>();
 }
 
+#ifdef NEEDS_LGE_RIL_SYMBOLS
+status_t Parcel::readuInt64(uint64_t *pArg) const
+{
+    return readAligned(pArg);
+}
+#endif
+
+
 status_t Parcel::readPointer(uintptr_t *pArg) const
 {
     status_t ret;
