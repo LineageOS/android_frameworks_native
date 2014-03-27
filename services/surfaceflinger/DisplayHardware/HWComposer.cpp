@@ -46,6 +46,12 @@
 #include "../Layer.h"           // needed only for debugging
 #include "../SurfaceFlinger.h"
 
+#ifdef SAMSUNG_HDMI_SUPPORT
+#include "SecHdmiClient.h"
+#include "SecTVOutService.h"
+#include "SecHdmi.h"
+#endif
+
 #if defined(ENABLE_SWAPRECT) && defined(QCOM_BSP)
 #include "cb_swap_rect.h"
 #endif
@@ -968,7 +974,20 @@ bool HWComposer::supportsFramebufferTarget() const {
 int HWComposer::fbPost(int32_t id,
         const sp<Fence>& acquireFence, const sp<GraphicBuffer>& buffer) {
     if (mHwc && hwcHasApiVersion(mHwc, HWC_DEVICE_API_VERSION_1_1)) {
-        return setFramebufferTarget(id, acquireFence, buffer);
+        int ret = setFramebufferTarget(id, acquireFence, buffer);
+#ifdef SAMSUNG_HDMI_SUPPORT
+        android::SecHdmiClient *mHdmiClient = android::SecHdmiClient::getInstance();
+        if (mHdmiClient != NULL)
+        {
+            mHdmiClient->blit2Hdmi(getWidth(id), getHeight(id),
+                    HAL_PIXEL_FORMAT_RGBA_8888,
+                    0, 0, 0,
+                    0, 0,
+                    android::SecHdmiClient::HDMI_MODE_UI,
+                    0);
+        }
+#endif
+        return ret;
     } else {
         acquireFence->waitForever("HWComposer::fbPost");
         return mFbDev->post(mFbDev, buffer->handle);
