@@ -98,12 +98,16 @@ FramebufferNativeWindow::FramebufferNativeWindow()
         mUpdateOnDemand = (fbDev->setUpdateRect != 0);
         
         // initialize the buffer FIFO
+#ifdef STE_SAMSUNG_HARDWARE
+        mNumBuffers = NUM_FRAME_BUFFERS;
+#else
         if(fbDev->numFramebuffers >= MIN_NUM_FRAME_BUFFERS &&
            fbDev->numFramebuffers <= MAX_NUM_FRAME_BUFFERS){
             mNumBuffers = fbDev->numFramebuffers;
         } else {
             mNumBuffers = MIN_NUM_FRAME_BUFFERS;
         }
+#endif
         mNumFreeBuffers = mNumBuffers;
         mBufferHead = mNumBuffers-1;
 
@@ -249,7 +253,11 @@ int FramebufferNativeWindow::dequeueBuffer(ANativeWindow* window,
         self->mBufferHead = 0;
 
     // wait for a free non-front buffer
+#ifdef STE_SAMSUNG_HARDWARE
+    while (self->mNumFreeBuffers < NUM_FRAME_BUFFERS) {
+#else
     while (self->mNumFreeBuffers < 2) {
+#endif
         self->mCondition.wait(self->mutex);
     }
     ALOG_ASSERT(self->buffers[index] != self->front);
