@@ -357,6 +357,7 @@ private:
     BitSet32                        mAllocatedDisplayIDs;
     bool                            mSwapRectOn;
     bool                            mVDSEnabled;
+    int                             mFbNativeFormat;
 
     // protected by mLock
     mutable Mutex mLock;

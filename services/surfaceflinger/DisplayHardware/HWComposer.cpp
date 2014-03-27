@@ -199,7 +199,8 @@ HWComposer::HWComposer(
       mEventHandler(handler),
       mDebugForceFakeVSync(false),
       mSwapRectOn(false),
-      mVDSEnabled(false)
+      mVDSEnabled(false),
+      mFbNativeFormat(-1)
 {
     for (size_t i =0 ; i<MAX_HWC_DISPLAYS ; i++) {
         mLists[i] = 0;
@@ -224,8 +225,11 @@ HWComposer::HWComposer(
         // close FB HAL if we don't needed it.
         // FIXME: this is temporary until we're not forced to open FB HAL
         // before HWC.
+        mFbNativeFormat = mFbDev->format;
         framebuffer_close(mFbDev);
         mFbDev = NULL;
+    } else {
+        mFbNativeFormat = HAL_PIXEL_FORMAT_RGBA_8888;
     }
 
     // If we have no HWC, or a pre-1.1 HWC, an FB dev is mandatory.
@@ -960,7 +964,7 @@ int HWComposer::getVisualID() const {
         // FIXME: temporary hack until HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED
         // is supported by the implementation. we can only be in this case
         // if we have HWC 1.1
-        return HAL_PIXEL_FORMAT_RGBA_8888;
+        return mFbNativeFormat;
         //return HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
     } else {
         return mFbDev->format;
@@ -980,7 +984,7 @@ int HWComposer::fbPost(int32_t id,
         if (mHdmiClient != NULL)
         {
             mHdmiClient->blit2Hdmi(getWidth(id), getHeight(id),
-                    HAL_PIXEL_FORMAT_RGBA_8888,
+                    mFbNativeFormat,
                     0, 0, 0,
                     0, 0,
                     android::SecHdmiClient::HDMI_MODE_UI,
