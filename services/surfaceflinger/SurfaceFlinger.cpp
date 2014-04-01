@@ -3225,6 +3225,10 @@ status_t SurfaceFlinger::captureScreenImplLocked(
     const uint32_t hw_w = hw->getWidth();
     const uint32_t hw_h = hw->getHeight();
 
+#ifdef FORCE_SCREENSHOT_CPU_PATH
+    useReadPixels = true;
+#endif
+
     if ((reqWidth > hw_w) || (reqHeight > hw_h)) {
         ALOGE("size mismatch (%d, %d) > (%d, %d)",
                 reqWidth, reqHeight, hw_w, hw_h);
