@@ -433,7 +433,12 @@ status_t HWComposer::queryDisplayProperties(int disp) {
     }
 
     // FIXME: what should we set the format to?
+#ifdef OMAP_ENHANCEMENT
+    // Use pixel format native to DSS HW
+    mDisplayData[disp].format = HAL_PIXEL_FORMAT_BGRA_8888;
+#else
     mDisplayData[disp].format = HAL_PIXEL_FORMAT_RGBA_8888;
+#endif
     mDisplayData[disp].connected = true;
     return NO_ERROR;
 }
@@ -862,7 +867,12 @@ int HWComposer::getVisualID() const {
         // FIXME: temporary hack until HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED
         // is supported by the implementation. we can only be in this case
         // if we have HWC 1.1
+#ifdef OMAP_ENHANCEMENT
+        // Use pixel format native to DSS HW
+        return HAL_PIXEL_FORMAT_BGRA_8888;
+#else
         return HAL_PIXEL_FORMAT_RGBA_8888;
+#endif
         //return HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
     } else {
         return mFbDev->format;
