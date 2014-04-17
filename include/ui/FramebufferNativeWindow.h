@@ -28,8 +28,12 @@
 #include <ui/ANativeObjectBase.h>
 #include <ui/Rect.h>
 
+#ifdef STE_SAMSUNG_HARDWARE
+#define NUM_FRAME_BUFFERS 3
+#else
 #define MIN_NUM_FRAME_BUFFERS  2
 #define MAX_NUM_FRAME_BUFFERS  3
+#endif
 
 #ifdef SAMSUNG_HDMI_SUPPORT
 #include "SecHdmiClient.h"
@@ -85,7 +89,11 @@ private:
     framebuffer_device_t* fbDev;
     alloc_device_t* grDev;
 
+#ifdef STE_SAMSUNG_HARDWARE
+    sp<NativeBuffer> buffers[NUM_FRAME_BUFFERS];
+#else
     sp<NativeBuffer> buffers[MAX_NUM_FRAME_BUFFERS];
+#endif
     sp<NativeBuffer> front;
     
     mutable Mutex mutex;

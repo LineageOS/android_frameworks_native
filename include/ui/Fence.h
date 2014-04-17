@@ -36,7 +36,7 @@ namespace android {
 // ===========================================================================
 
 class Fence
-    : public LightRefBase<Fence>, public Flattenable<Fence>
+    : public LightRefBase<Fence>, public Flattenable
 {
 public:
     static const sp<Fence> NO_FENCE;

@@ -105,8 +105,7 @@ public:
     // and height of the window and current transform applied to buffers,
     // respectively.
 
-    struct QueueBufferInput : public Flattenable<QueueBufferInput> {
-        friend class Flattenable<QueueBufferInput>;
+    struct QueueBufferInput : public Flattenable {
         inline QueueBufferInput(const Parcel& parcel);
         inline QueueBufferInput(int64_t timestamp, bool isAutoTimestamp,
                 const Rect& crop, int scalingMode, uint32_t transform, bool async,
