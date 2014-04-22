@@ -51,11 +51,16 @@ bool LinearAccelerationSensor::process(sensors_event_t* outEvent,
 }
 
 status_t LinearAccelerationSensor::activate(void* ident, bool enabled) {
-    return mGravitySensor.activate(ident, enabled);
+    struct identity* fid = getFusionIdentity(ident);
+    status_t status = mGravitySensor.activate(fid->ident, enabled);
+    if (!enabled)
+        removeFusionIdentity(ident);
+    return status;
 }
 
 status_t LinearAccelerationSensor::setDelay(void* ident, int handle, int64_t ns) {
-    return mGravitySensor.setDelay(ident, handle, ns);
+    struct identity* fid = getFusionIdentity(ident);
+    return mGravitySensor.setDelay(fid->ident, handle, ns);
 }
 
 Sensor LinearAccelerationSensor::getSensor() const {
