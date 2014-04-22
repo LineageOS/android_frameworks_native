@@ -30,6 +30,37 @@ namespace android {
 // ---------------------------------------------------------------------------
 
 class SensorInterface {
+protected:
+    // for virtual sensor ids
+    struct identity {
+            void* ident;
+    };
+    mutable Mutex mLock;
+    KeyedVector<void*, struct identity*> fusionIdentity;
+    struct identity* getFusionIdentity(void *ident) {
+        Mutex::Autolock _l(mLock);
+        ssize_t i = fusionIdentity.indexOfKey(ident);
+        struct identity* fid = NULL;
+        if (i < 0) {
+            fid = new struct identity;
+            fid->ident = reinterpret_cast<void *>(fid);
+            fusionIdentity.add(ident, fid);
+        } else {
+            fid = fusionIdentity.valueAt(i);
+        }
+        return fid;
+    }
+    void removeFusionIdentity(void *ident) {
+        Mutex::Autolock _l(mLock);
+        ssize_t i = fusionIdentity.indexOfKey(ident);
+        struct identity* fid = NULL;
+        if (i >= 0) {
+            fid = fusionIdentity.valueAt(i);
+            fusionIdentity.removeItemsAt(i);
+            delete fid;
+        }
+    }
+
 public:
     virtual ~SensorInterface();
 
