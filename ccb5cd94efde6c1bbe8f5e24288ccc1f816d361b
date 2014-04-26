@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7af24918_b3f959cb",
+        "filename": "cmds/installd/commands.c",
+        "patchSetId": 7
+      },
+      "lineNbr": 1402,
+      "author": {
+        "id": 9100
+      },
+      "writtenOn": "2014-04-26T11:00:44Z",
+      "side": 1,
+      "message": "shouldn\u0027t this be waitchild?",
+      "revId": "ccb5cd94efde6c1bbe8f5e24288ccc1f816d361b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
