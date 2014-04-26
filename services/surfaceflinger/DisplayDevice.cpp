@@ -26,6 +26,9 @@
 
 #include <ui/DisplayInfo.h>
 #include <ui/PixelFormat.h>
+#ifdef STE_HARDWARE
+#include <ui/FramebufferNativeWindow.h>
+#endif
 
 #include <gui/Surface.h>
 
@@ -75,7 +78,11 @@ DisplayDevice::DisplayDevice(
       mOrientation()
 {
     mNativeWindow = new Surface(producer, false);
+#ifndef STE_HARDWARE
     ANativeWindow* const window = mNativeWindow.get();
+#else
+    ANativeWindow* const window = new FramebufferNativeWindow();
+#endif
 
     int format;
     window->query(window, NATIVE_WINDOW_FORMAT, &format);

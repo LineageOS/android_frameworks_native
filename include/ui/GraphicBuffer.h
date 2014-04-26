@@ -38,10 +38,14 @@ class GraphicBufferMapper;
 // ===========================================================================
 
 class GraphicBuffer
-    : public ANativeObjectBase< ANativeWindowBuffer, GraphicBuffer, RefBase >,
-      public Flattenable<GraphicBuffer>
+    : public ANativeObjectBase< ANativeWindowBuffer, GraphicBuffer,
+#ifdef STE_HARDWARE
+    LightRefBase<GraphicBuffer> >,
+#else
+    RefBase >,
+#endif
+      public Flattenable
 {
-    friend class Flattenable<GraphicBuffer>;
 public:
 
     enum {
