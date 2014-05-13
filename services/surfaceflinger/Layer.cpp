@@ -1337,23 +1337,27 @@ bool Layer::isExtOnly() const
 
 bool Layer::isIntOnly() const
 {
+#ifdef QCOM_DISPLAY_CAF
     const sp<GraphicBuffer>& activeBuffer(mActiveBuffer);
     if (activeBuffer != 0) {
         uint32_t usage = activeBuffer->getUsage();
         if(usage & GRALLOC_USAGE_PRIVATE_INTERNAL_ONLY)
             return true;
     }
+#endif
     return false;
 }
 
 bool Layer::isSecureDisplay() const
 {
+#ifdef QCOM_DISPLAY_CAF
     const sp<GraphicBuffer>& activeBuffer(mActiveBuffer);
     if (activeBuffer != 0) {
         uint32_t usage = activeBuffer->getUsage();
         if(usage & GRALLOC_USAGE_PRIVATE_SECURE_DISPLAY)
             return true;
     }
+#endif
     return false;
 }
 
