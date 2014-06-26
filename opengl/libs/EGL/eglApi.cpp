@@ -452,7 +452,11 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         }
 #else
         // by default, just pick RGBA_8888
+#ifdef USE_BGRA_8888
+        EGLine format = HAL_PIXEL_FORMAT_BGRA_8888;
+#else
         EGLint format = HAL_PIXEL_FORMAT_RGBA_8888;
+#endif
         EGLint color_buffer = EGL_RGB_BUFFER;
 
         if (!cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_COLOR_BUFFER_TYPE, &color_buffer))
