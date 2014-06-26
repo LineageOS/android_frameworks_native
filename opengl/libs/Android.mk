@@ -70,6 +70,10 @@ ifeq ($(BOARD_USE_BGRA_8888),true)
   LOCAL_CFLAGS += -DUSE_BGRA_8888=1
 endif
 
+ifeq ($(BOARD_USE_SYSTEMUI_PBSIZE_HACK),true)
+  LOCAL_CFLAGS += -DSYSTEMUI_PBSIZE_HACK=1
+endif
+
 LOCAL_REQUIRED_MODULES := $(egl.cfg_config_module)
 egl.cfg_config_module :=
 
