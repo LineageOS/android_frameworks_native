@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ba0121b8_b46db934",
+        "filename": "opengl/libs/EGL/eglApi.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 454,
+      "author": {
+        "id": 2121
+      },
+      "writtenOn": "2014-07-06T13:12:42Z",
+      "side": 1,
+      "message": "There\u0027s a typo here. This causes a compilation failure if the flag is enabled...",
+      "revId": "f2b22734d575abcd399a2e3da94c28807c1e64c7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
