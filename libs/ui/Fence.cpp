@@ -99,6 +99,31 @@ int Fence::dup() const {
     return ::dup(mFenceFd);
 }
 
+int Fence::SyncPtStatus() const {
+    int ret_status = 0;
+
+    if (mFenceFd == -1) {
+        return ret_status;
+    }
+    struct sync_fence_info_data* finfo = sync_fence_info(mFenceFd);
+    if (finfo == NULL) {
+        return ret_status;
+    }
+
+    struct sync_pt_info* pinfo = NULL;
+    uint64_t timestamp = 0;
+    while ((pinfo = sync_pt_info(finfo, pinfo)) != NULL) {
+        if(pinfo->status == 0)
+        {
+            ret_status = 1;
+            break;
+        }
+    }
+
+    sync_fence_info_free(finfo);
+    return ret_status;
+}
+
 nsecs_t Fence::getSignalTime() const {
     if (mFenceFd == -1) {
         return -1;

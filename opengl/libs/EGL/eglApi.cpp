@@ -693,6 +693,7 @@ EGLBoolean eglMakeCurrent(  EGLDisplay dpy, EGLSurface draw,
 {
     clearError();
 
+    uint32_t surface_switch = false;
     egl_display_ptr dp = validate_display(dpy);
     if (!dp) return setError(EGL_BAD_DISPLAY, EGL_FALSE);
 
@@ -749,6 +750,10 @@ EGLBoolean eglMakeCurrent(  EGLDisplay dpy, EGLSurface draw,
         if (!_d.get()) return setError(EGL_BAD_SURFACE, EGL_FALSE);
         d = get_surface(draw);
         impl_draw = d->surface;
+
+        c = get_context(ctx);
+        if(c->draw != draw && c->draw != EGL_NO_SURFACE)
+            surface_switch = true;
     }
 
     // retrieve the underlying implementation's read EGLSurface
@@ -778,11 +783,18 @@ EGLBoolean eglMakeCurrent(  EGLDisplay dpy, EGLSurface draw,
             setGLHooksThreadSpecific(&gHooksNoContext);
             egl_tls_t::setContext(EGL_NO_CONTEXT);
         }
+
+
+        if (draw != EGL_NO_SURFACE && surface_switch) {
+            egl_surface_t* surf = get_surface(draw);
+            surf->surface_switch_ctx = true;
+        }
     } else {
         // this will ALOGE the error
         egl_connection_t* const cnx = &gEGLImpl;
         result = setError(cnx->egl.eglGetError(), EGL_FALSE);
     }
+
     return result;
 }
 
@@ -1087,7 +1099,7 @@ EGLBoolean eglSwapBuffers(EGLDisplay dpy, EGLSurface draw)
     }
 #endif
 
-    egl_surface_t const * const s = get_surface(draw);
+    egl_surface_t * const s = get_surface(draw);
 
     if (CC_UNLIKELY(dp->traceGpuCompletion)) {
         EGLSyncKHR sync = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL);
@@ -1105,6 +1117,13 @@ EGLBoolean eglSwapBuffers(EGLDisplay dpy, EGLSurface draw)
                     GL_RGBA,GL_UNSIGNED_BYTE,&pixel);
         }
     }
+
+    ANativeWindow* anw = reinterpret_cast<ANativeWindow*>(s->win.get());
+
+    if(anw != 0x0)
+        anw->perform(anw, NATIVE_WINDOW_SET_SURFACE_SWITCH_CONTEXT, s->surface_switch_ctx);
+
+    s->surface_switch_ctx = false;
 
     return s->cnx->egl.eglSwapBuffers(dp->disp.dpy, s->surface);
 }

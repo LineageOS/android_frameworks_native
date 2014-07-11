@@ -233,6 +233,10 @@ public:
     // is CLOCK_MONOTONIC.
     virtual status_t acquireBuffer(BufferItem *buffer, nsecs_t presentWhen);
 
+
+    virtual status_t acquireCompositionBuffer(BufferItem *buffer, nsecs_t presentWhen);
+
+
     // releaseBuffer releases a buffer slot from the consumer back to the
     // BufferQueue.  This may be done while the buffer's contents are still
     // being accessed.  The fence will signal when the buffer is no longer
@@ -321,6 +325,9 @@ public:
 
 
 private:
+
+    status_t acquireBufferLocal(BufferItem *buffer, nsecs_t presentWhen);
+
     // freeBufferLocked frees the GraphicBuffer and sync resources for the
     // given slot.
     void freeBufferLocked(int index);

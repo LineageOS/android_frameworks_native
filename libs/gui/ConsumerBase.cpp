@@ -194,6 +194,27 @@ status_t ConsumerBase::acquireBufferLocked(BufferQueue::BufferItem *item,
     return OK;
 }
 
+status_t ConsumerBase::acquireCompositionBufferLocked(BufferQueue::BufferItem *item,
+        nsecs_t presentWhen) {
+    status_t err = mConsumer->acquireCompositionBuffer(item, presentWhen);
+    if (err != NO_ERROR) {
+        return err;
+    }
+
+    if (item->mGraphicBuffer != NULL) {
+        mSlots[item->mBuf].mGraphicBuffer = item->mGraphicBuffer;
+    }
+
+    mSlots[item->mBuf].mFrameNumber = item->mFrameNumber;
+    mSlots[item->mBuf].mFence = item->mFence;
+
+    CB_LOGV("acquireCompositionBufferLocked: -> slot=%d/%llu",
+            item->mBuf, item->mFrameNumber);
+
+    return OK;
+}
+
+
 status_t ConsumerBase::addReleaseFence(int slot,
         const sp<GraphicBuffer> graphicBuffer, const sp<Fence>& fence) {
     Mutex::Autolock lock(mMutex);
