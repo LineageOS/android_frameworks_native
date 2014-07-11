@@ -69,6 +69,7 @@ egl_surface_t::egl_surface_t(egl_display_t* dpy, EGLConfig config,
     if (win) {
         getDisplay()->onWindowSurfaceCreated();
     }
+    surface_switch_ctx = false;
 }
 
 egl_surface_t::~egl_surface_t() {

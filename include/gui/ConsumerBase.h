@@ -153,6 +153,11 @@ protected:
     virtual status_t acquireBufferLocked(IGraphicBufferConsumer::BufferItem *item,
         nsecs_t presentWhen);
 
+
+    virtual status_t acquireCompositionBufferLocked(IGraphicBufferConsumer::BufferItem *item,
+        nsecs_t presentWhen);
+
+
     // releaseBufferLocked relinquishes control over a buffer, returning that
     // control to the BufferQueue.
     //

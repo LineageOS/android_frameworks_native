@@ -42,6 +42,8 @@ public:
 
     virtual status_t acquireBufferLocked(BufferQueue::BufferItem *item, nsecs_t presentWhen);
 
+    virtual status_t acquireCompositionBufferLocked(BufferQueue::BufferItem *item, nsecs_t presentWhen);
+
     // This version of updateTexImage() takes a functor that may be used to
     // reject the newly acquired buffer.  Unlike the GLConsumer version,
     // this does not guarantee that the buffer has been bound to the GL

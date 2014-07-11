@@ -336,6 +336,43 @@ status_t GLConsumer::acquireBufferLocked(BufferQueue::BufferItem *item,
     return NO_ERROR;
 }
 
+status_t GLConsumer::acquireCompositionBufferLocked(BufferQueue::BufferItem *item,
+        nsecs_t presentWhen) {
+    status_t err = ConsumerBase::acquireCompositionBufferLocked(item, presentWhen);
+
+    if (err != NO_ERROR) {
+        return err;
+    }
+
+    int slot = item->mBuf;
+    bool destroyEglImage = false;
+
+    if (mEglSlots[slot].mEglImage != EGL_NO_IMAGE_KHR) {
+        if (item->mGraphicBuffer != NULL) {
+            // This buffer has not been acquired before, so we must assume
+            // that any EGLImage in mEglSlots is stale.
+            destroyEglImage = true;
+        } else if (mEglSlots[slot].mCropRect != item->mCrop) {
+            // We've already seen this buffer before, but it now has a
+            // different crop rect, so we'll need to recreate the EGLImage if
+            // we're using the EGL_ANDROID_image_crop extension.
+            destroyEglImage = hasEglAndroidImageCrop();
+        }
+    }
+
+    if (destroyEglImage) {
+        if (!eglDestroyImageKHR(mEglDisplay, mEglSlots[slot].mEglImage)) {
+            ST_LOGW("acquireCompositionBufferLocked: eglDestroyImageKHR failed for slot=%d",
+                  slot);
+            // keep going
+        }
+        mEglSlots[slot].mEglImage = EGL_NO_IMAGE_KHR;
+    }
+
+    return NO_ERROR;
+}
+
+
 status_t GLConsumer::releaseBufferLocked(int buf,
         sp<GraphicBuffer> graphicBuffer,
         EGLDisplay display, EGLSyncKHR eglFence) {
