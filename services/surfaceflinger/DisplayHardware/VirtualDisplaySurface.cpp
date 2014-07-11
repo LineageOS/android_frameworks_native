@@ -233,7 +233,7 @@ void VirtualDisplaySurface::onFrameCommitted() {
                     systemTime(), false /* isAutoTimestamp */,
                     Rect(mSinkBufferWidth, mSinkBufferHeight),
                     NATIVE_WINDOW_SCALING_MODE_FREEZE, 0 /* transform */,
-                    true /* async*/,
+                    true /* async*/, false,
                     outFence),
                 &qbo);
         if (result == NO_ERROR) {
@@ -406,8 +406,9 @@ status_t VirtualDisplaySurface::queueBuffer(int pslot,
         int scalingMode;
         uint32_t transform;
         bool async;
+        bool surface_switch_ctx;
         input.deflate(&timestamp, &isAutoTimestamp, &crop, &scalingMode,
-               &transform, &async, &mFbFence);
+               &transform, &async, &surface_switch_ctx, &mFbFence);
 
         mFbProducerSlot = pslot;
         mOutputFence = mFbFence;

@@ -87,6 +87,8 @@ public:
     // be returned and errno will indicate the problem.
     int dup() const;
 
+    int SyncPtStatus() const;
+
     // getSignalTime returns the system monotonic clock time at which the
     // fence transitioned to the signaled state.  If the fence is not signaled
     // then INT64_MAX is returned.  If the fence is invalid or if an error
