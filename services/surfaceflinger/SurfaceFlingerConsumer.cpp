@@ -50,7 +50,8 @@ status_t SurfaceFlingerConsumer::updateTexImage(BufferRejecter* rejecter)
     // Acquire the next buffer.
     // In asynchronous mode the list is guaranteed to be one buffer
     // deep, while in synchronous mode we use the oldest buffer.
-    err = acquireBufferLocked(&item, computeExpectedPresent());
+
+    err = acquireCompositionBufferLocked(&item, computeExpectedPresent());
     if (err != NO_ERROR) {
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
             err = NO_ERROR;
@@ -102,6 +103,15 @@ status_t SurfaceFlingerConsumer::bindTextureImage()
 status_t SurfaceFlingerConsumer::acquireBufferLocked(
         BufferQueue::BufferItem *item, nsecs_t presentWhen) {
     status_t result = GLConsumer::acquireBufferLocked(item, presentWhen);
+    if (result == NO_ERROR) {
+        mTransformToDisplayInverse = item->mTransformToDisplayInverse;
+    }
+    return result;
+}
+
+status_t SurfaceFlingerConsumer::acquireCompositionBufferLocked(
+        BufferQueue::BufferItem *item, nsecs_t presentWhen) {
+    status_t result = GLConsumer::acquireCompositionBufferLocked(item, presentWhen);
     if (result == NO_ERROR) {
         mTransformToDisplayInverse = item->mTransformToDisplayInverse;
     }

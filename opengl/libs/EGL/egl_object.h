@@ -137,6 +137,7 @@ public:
     EGLConfig config;
     sp<ANativeWindow> win;
     egl_connection_t const* cnx;
+    uint32_t surface_switch_ctx;
 };
 
 class egl_context_t: public egl_object_t {
