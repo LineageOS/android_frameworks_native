@@ -488,12 +488,13 @@ status_t BufferQueue::queueBuffer(int buf,
     bool isAutoTimestamp;
     bool async;
     sp<Fence> fence;
+    bool surface_switch_ctx = false;
 
     input.deflate(&timestamp, &isAutoTimestamp, &crop,
 #ifdef QCOM_BSP
             &dirtyRect,
 #endif
-            &scalingMode, &transform, &async, &fence);
+            &scalingMode, &transform, &async, &surface_switch_ctx, &fence);
 
     if (fence == NULL) {
         ST_LOGE("queueBuffer: fence is NULL");
@@ -582,6 +583,7 @@ status_t BufferQueue::queueBuffer(int buf,
         item.mBuf = buf;
         item.mFence = fence;
         item.mIsDroppable = mDequeueBufferCannotBlock || async;
+        item.mSurfaceSwitchCtx = surface_switch_ctx;
 
         if (mQueue.empty()) {
             // when the queue is empty, we can ignore "mDequeueBufferCannotBlock", and
@@ -876,10 +878,8 @@ void BufferQueue::freeAllBuffersLocked() {
     }
 }
 
-status_t BufferQueue::acquireBuffer(BufferItem *buffer, nsecs_t expectedPresent) {
-    ATRACE_CALL();
-    Mutex::Autolock _l(mMutex);
 
+status_t BufferQueue::acquireBufferLocal(BufferItem *buffer, nsecs_t expectedPresent) {
     // Check that the consumer doesn't currently have the maximum number of
     // buffers acquired.  We allow the max buffer count to be exceeded by one
     // buffer, so that the consumer can successfully set up the newly acquired
@@ -891,7 +891,7 @@ status_t BufferQueue::acquireBuffer(BufferItem *buffer, nsecs_t expectedPresent)
         }
     }
     if (numAcquiredBuffers >= mMaxAcquiredBufferCount+1) {
-        ST_LOGE("acquireBuffer: max acquired buffer count reached: %d (max=%d)",
+        ST_LOGE("acquireBufferLocal: max acquired buffer count reached: %d (max=%d)",
                 numAcquiredBuffers, mMaxAcquiredBufferCount);
         return INVALID_OPERATION;
     }
@@ -983,9 +983,10 @@ status_t BufferQueue::acquireBuffer(BufferItem *buffer, nsecs_t expectedPresent)
     *buffer = *front;
     ATRACE_BUFFER_INDEX(buf);
 
-    ST_LOGV("acquireBuffer: acquiring { slot=%d/%llu, buffer=%p }",
+    ST_LOGV("acquireBufferLocal: acquiring { slot=%d/%llu, buffer=%p }",
             front->mBuf, front->mFrameNumber,
             front->mGraphicBuffer->handle);
+
     // if front buffer still being tracked update slot state
     if (stillTracking(front)) {
         mSlots[buf].mAcquireCalled = true;
@@ -1007,6 +1008,69 @@ status_t BufferQueue::acquireBuffer(BufferItem *buffer, nsecs_t expectedPresent)
     ATRACE_INT(mConsumerName.string(), mQueue.size());
 
     return NO_ERROR;
+}
+
+status_t BufferQueue::acquireCompositionBuffer(BufferItem *buffer, nsecs_t expectedPresent) {
+    ATRACE_CALL();
+    Mutex::Autolock _l(mMutex);
+
+    status_t result = NO_ERROR;
+
+    // Check that the consumer doesn't currently have the maximum number of
+    // buffers acquired.  We allow the max buffer count to be exceeded by one
+    // buffer, so that the consumer can successfully set up the newly acquired
+    // buffer before releasing the old one.
+    int numAcquiredBuffers = 0;
+    for (int i = 0; i < NUM_BUFFER_SLOTS; i++) {
+        if (mSlots[i].mBufferState == BufferSlot::ACQUIRED) {
+            numAcquiredBuffers++;
+        }
+    }
+    if (numAcquiredBuffers >= mMaxAcquiredBufferCount+1) {
+        ST_LOGE("acquireCompositionBuffer: max acquired buffer count reached: %d (max=%d)",
+                numAcquiredBuffers, mMaxAcquiredBufferCount);
+        return INVALID_OPERATION;
+    }
+
+    // check if queue is empty
+    // In asynchronous mode the list is guaranteed to be one buffer
+    // deep, while in synchronous mode we use the oldest buffer.
+    if (mQueue.empty()) {
+        return NO_BUFFER_AVAILABLE;
+    }
+
+    Fifo::iterator front(mQueue.begin());
+
+    int buf = front->mBuf;
+    ATRACE_BUFFER_INDEX(buf);
+
+
+    if (stillTracking(front) && front->mIsDroppable == false && front->mSurfaceSwitchCtx == true) {
+        if(mSlots[buf].mFence != Fence::NO_FENCE && mSlots[buf].mFence != NULL ){
+             sp<Fence> fence = mSlots[buf].mFence;
+             int signal_status = fence->SyncPtStatus();
+
+            if(signal_status == 1){
+                ST_LOGV("acquireCompositionBuffer: waiting for surface switching");
+                return PRESENT_LATER;
+            }
+            else
+                front->mSurfaceSwitchCtx = false;
+        }
+    }
+    result = acquireBufferLocal(buffer, expectedPresent);
+
+    return result;
+}
+
+
+status_t BufferQueue::acquireBuffer(BufferItem *buffer, nsecs_t expectedPresent) {
+    ATRACE_CALL();
+    Mutex::Autolock _l(mMutex);
+    status_t result = NO_ERROR;
+
+    result = acquireBufferLocal(buffer, expectedPresent);
+    return result;
 }
 
 status_t BufferQueue::releaseBuffer(

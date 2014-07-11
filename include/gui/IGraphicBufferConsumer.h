@@ -100,6 +100,8 @@ public:
         // Indicates this buffer must be transformed by the inverse transform of the screen
         // it is displayed onto. This is applied after mTransform.
         bool mTransformToDisplayInverse;
+
+        bool mSurfaceSwitchCtx;
     };
 
 
@@ -117,6 +119,10 @@ public:
     // returned.  The presentation time is in nanoseconds, and the time base
     // is CLOCK_MONOTONIC.
     virtual status_t acquireBuffer(BufferItem *buffer, nsecs_t presentWhen) = 0;
+
+
+    virtual status_t acquireCompositionBuffer(BufferItem *buffer, nsecs_t presentWhen) = 0;
+
 
     // releaseBuffer releases a buffer slot from the consumer back to the
     // BufferQueue.  This may be done while the buffer's contents are still

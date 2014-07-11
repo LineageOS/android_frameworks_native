@@ -48,7 +48,8 @@ IGraphicBufferConsumer::BufferItem::BufferItem() :
     mBuf(INVALID_BUFFER_SLOT),
     mIsDroppable(false),
     mAcquireCalled(false),
-    mTransformToDisplayInverse(false) {
+    mTransformToDisplayInverse(false),
+    mSurfaceSwitchCtx(false) {
     mCrop.makeInvalid();
 }
 
@@ -62,7 +63,8 @@ size_t IGraphicBufferConsumer::BufferItem::getPodSize() const {
             sizeof(mBuf) +
             sizeof(mIsDroppable) +
             sizeof(mAcquireCalled) +
-            sizeof(mTransformToDisplayInverse);
+            sizeof(mTransformToDisplayInverse) +
+            sizeof(mSurfaceSwitchCtx);
     return c;
 }
 
@@ -133,6 +135,7 @@ status_t IGraphicBufferConsumer::BufferItem::flatten(
     FlattenableUtils::write(buffer, size, mIsDroppable);
     FlattenableUtils::write(buffer, size, mAcquireCalled);
     FlattenableUtils::write(buffer, size, mTransformToDisplayInverse);
+    FlattenableUtils::write(buffer, size, mSurfaceSwitchCtx);
 
     return NO_ERROR;
 }
@@ -175,6 +178,7 @@ status_t IGraphicBufferConsumer::BufferItem::unflatten(
     FlattenableUtils::read(buffer, size, mIsDroppable);
     FlattenableUtils::read(buffer, size, mAcquireCalled);
     FlattenableUtils::read(buffer, size, mTransformToDisplayInverse);
+    FlattenableUtils::read(buffer, size, mSurfaceSwitchCtx);
 
     return NO_ERROR;
 }
@@ -195,6 +199,7 @@ enum {
     SET_DEFAULT_BUFFER_FORMAT,
     SET_CONSUMER_USAGE_BITS,
     SET_TRANSFORM_HINT,
+    AQUIRE_COMPOSITION_BUFFER,
     DUMP,
 };
 
@@ -212,6 +217,21 @@ public:
         data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
         data.writeInt64(presentWhen);
         status_t result = remote()->transact(ACQUIRE_BUFFER, data, &reply);
+        if (result != NO_ERROR) {
+            return result;
+        }
+        result = reply.read(*buffer);
+        if (result != NO_ERROR) {
+            return result;
+        }
+        return reply.readInt32();
+    }
+
+    virtual status_t acquireCompositionBuffer(BufferItem *buffer, nsecs_t presentWhen) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
+        data.writeInt64(presentWhen);
+        status_t result = remote()->transact(AQUIRE_COMPOSITION_BUFFER, data, &reply);
         if (result != NO_ERROR) {
             return result;
         }
@@ -382,6 +402,18 @@ status_t BnGraphicBufferConsumer::onTransact(
             reply->writeInt32(result);
             return NO_ERROR;
         } break;
+
+        case AQUIRE_COMPOSITION_BUFFER: {
+            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
+            BufferItem item;
+            int64_t presentWhen = data.readInt64();
+            status_t result = acquireCompositionBuffer(&item, presentWhen);
+            status_t err = reply->write(item);
+            if (err) return err;
+            reply->writeInt32(result);
+            return NO_ERROR;
+        } break;
+
         case RELEASE_BUFFER: {
             CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
             int buf = data.readInt32();
