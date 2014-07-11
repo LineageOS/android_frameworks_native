@@ -318,6 +318,7 @@ size_t IGraphicBufferProducer::QueueBufferInput::getFlattenedSize() const {
          + sizeof(scalingMode)
          + sizeof(transform)
          + sizeof(async)
+         + sizeof(switchStatus)
          + fence->getFlattenedSize();
 }
 
@@ -340,6 +341,8 @@ status_t IGraphicBufferProducer::QueueBufferInput::flatten(
     FlattenableUtils::write(buffer, size, scalingMode);
     FlattenableUtils::write(buffer, size, transform);
     FlattenableUtils::write(buffer, size, async);
+    FlattenableUtils::write(buffer, size, switchStatus);
+
     return fence->flatten(buffer, size, fds, count);
 }
 
@@ -355,8 +358,8 @@ status_t IGraphicBufferProducer::QueueBufferInput::unflatten(
 #endif
             + sizeof(scalingMode)
             + sizeof(transform)
-            + sizeof(async);
-
+            + sizeof(async)
+            + sizeof(switchStatus);
     if (size < minNeeded) {
         return NO_MEMORY;
     }
@@ -370,6 +373,7 @@ status_t IGraphicBufferProducer::QueueBufferInput::unflatten(
     FlattenableUtils::read(buffer, size, scalingMode);
     FlattenableUtils::read(buffer, size, transform);
     FlattenableUtils::read(buffer, size, async);
+    FlattenableUtils::read(buffer, size, switchStatus);
 
     fence = new Fence();
     return fence->unflatten(buffer, size, fds, count);

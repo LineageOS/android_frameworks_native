@@ -110,30 +110,31 @@ public:
         inline QueueBufferInput(const Parcel& parcel);
         inline QueueBufferInput(int64_t timestamp, bool isAutoTimestamp,
                 const Rect& crop, int scalingMode, uint32_t transform, bool async,
-                const sp<Fence>& fence)
+                bool switchStatus, const sp<Fence>& fence)
         : timestamp(timestamp), isAutoTimestamp(isAutoTimestamp), crop(crop),
 #ifdef QCOM_BSP
         dirtyRect(crop),
 #endif
         scalingMode(scalingMode), transform(transform),
-        async(async), fence(fence) { }
+        async(async), switchStatus(switchStatus), fence(fence) { }
 #ifdef QCOM_BSP
         inline QueueBufferInput(int64_t timestamp, bool isAutoTimestamp,
                 const Rect& crop, const Rect& dirtyRect, int scalingMode,
-                uint32_t transform, bool async, const sp<Fence>& fence)
+                uint32_t transform, bool async, bool switchStatus, const sp<Fence>& fence)
         : timestamp(timestamp), isAutoTimestamp(isAutoTimestamp), crop(crop),
         dirtyRect(dirtyRect), scalingMode(scalingMode), transform(transform),
-        async(async), fence(fence) { }
+        async(async), switchStatus(switchStatus), fence(fence) { }
         inline void deflate(int64_t* outTimestamp, bool* outIsAutoTimestamp,
                             Rect* outCrop, int* outScalingMode,
                             uint32_t* outTransform,  bool* outAsync,
-                            sp<Fence>* outFence) const {
+                            bool* outSwitchStatus, sp<Fence>* outFence) const {
             *outTimestamp = timestamp;
             *outIsAutoTimestamp = bool(isAutoTimestamp);
             *outCrop = crop;
             *outScalingMode = scalingMode;
             *outTransform = transform;
             *outAsync = bool(async);
+            *outSwitchStatus = bool(switchStatus);
             *outFence = fence;
         }
 #endif
@@ -143,7 +144,7 @@ public:
                             Rect* outDirtyRect,
 #endif
                             int* outScalingMode, uint32_t* outTransform,
-                            bool* outAsync, sp<Fence>* outFence) const {
+                            bool* outAsync, bool* outSwitchStatus, sp<Fence>* outFence) const {
             *outTimestamp = timestamp;
             *outIsAutoTimestamp = bool(isAutoTimestamp);
             *outCrop = crop;
@@ -153,6 +154,7 @@ public:
             *outScalingMode = scalingMode;
             *outTransform = transform;
             *outAsync = bool(async);
+            *outSwitchStatus = bool(switchStatus);
             *outFence = fence;
         }
 
@@ -172,6 +174,8 @@ public:
         int scalingMode;
         uint32_t transform;
         int async;
+        int switchStatus;
+
         sp<Fence> fence;
     };
 

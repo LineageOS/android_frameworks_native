@@ -244,6 +244,10 @@ protected:
     virtual status_t acquireBufferLocked(BufferQueue::BufferItem *item,
         nsecs_t presentWhen);
 
+    virtual status_t acquireCompositionBufferLocked(BufferQueue::BufferItem *item,
+        nsecs_t presentWhen);
+
+
     // releaseBufferLocked overrides the ConsumerBase method to update the
     // mEglSlots array in addition to the ConsumerBase.
     virtual status_t releaseBufferLocked(int slot,
