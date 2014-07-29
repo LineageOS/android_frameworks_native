@@ -1213,7 +1213,7 @@ void SurfaceFlinger::setUpHWComposer() {
                                             uint32_t(draw[i].orientation));
                             }
                         }
-                        if(!strncmp(layer->getName(), "SurfaceView",
+                        if(!strncmp(layer->getName().string(), "SurfaceView",
                                     11)) {
                             lastSurfaceViewLayer = layer;
                         }
