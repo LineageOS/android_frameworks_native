@@ -1,0 +1,72 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7a1b2928_79a01844",
+        "filename": "build/phone-xxhdpi-3072-dalvik-heap.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 16,
+      "author": {
+        "id": 4884
+      },
+      "writtenOn": "2014-10-02T18:02:14Z",
+      "side": 1,
+      "message": "Please remove this whitespace",
+      "revId": "2d4ff7e672f7940497ed224846f8d1f87c111367",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7a1b2928_59a39c4f",
+        "filename": "build/phone-xxhdpi-3072-dalvik-heap.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 18,
+      "author": {
+        "id": 4884
+      },
+      "writtenOn": "2014-10-02T18:02:14Z",
+      "side": 1,
+      "message": "See above",
+      "revId": "2d4ff7e672f7940497ed224846f8d1f87c111367",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7a1b2928_b98ab0bd",
+        "filename": "build/phone-xxhdpi-3072-hwui-memory.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 16,
+      "author": {
+        "id": 4884
+      },
+      "writtenOn": "2014-10-02T18:02:14Z",
+      "side": 1,
+      "message": "Please remove this whitespace",
+      "revId": "2d4ff7e672f7940497ed224846f8d1f87c111367",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7a1b2928_998534af",
+        "filename": "build/phone-xxhdpi-3072-hwui-memory.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 18,
+      "author": {
+        "id": 4884
+      },
+      "writtenOn": "2014-10-02T18:02:14Z",
+      "side": 1,
+      "message": "See above",
+      "revId": "2d4ff7e672f7940497ed224846f8d1f87c111367",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
