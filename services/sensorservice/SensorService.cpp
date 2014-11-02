@@ -145,7 +145,11 @@ void SensorService::onFirstRef()
                 if (virtualSensorsNeeds & (1<<SENSOR_TYPE_ROTATION_VECTOR)) {
                     // if we are doing our own rotation-vector, also add
                     // the orientation sensor and remove the HAL provided one.
+#ifdef FORCE_ORIENTATION_SENSOR
+                    mUserSensorList.add(aSensor);
+#else
                     mUserSensorList.replaceAt(aSensor, orientationIndex);
+#endif
                 }
 
                 // virtual debugging sensors are not added to mUserSensorList
