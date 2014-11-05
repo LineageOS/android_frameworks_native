@@ -198,9 +198,10 @@ void SensorService::onFirstRef() {
                 // available in the HAL
                 bool needRotationVector =
                         (virtualSensorsNeeds & (1<<SENSOR_TYPE_ROTATION_VECTOR)) != 0;
+                bool needOrientation = orientationIndex == -1;
 
                 registerSensor(new RotationVectorSensor(), !needRotationVector, true);
-                registerSensor(new OrientationSensor(), !needRotationVector, true);
+                registerSensor(new OrientationSensor(), !needOrientation, true);
 
                 bool needLinearAcceleration =
                         (virtualSensorsNeeds & (1<<SENSOR_TYPE_LINEAR_ACCELERATION)) != 0;
