@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 The Android Open Source Project
+# Copyright (C) 2015 The CyanogenMod Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,12 +14,12 @@
 # limitations under the License.
 #
 
-# Provides overrides to configure the Dalvik heap for a xhdpi phone
+# Provides overrides to configure the Dalvik heap for a 3G phone
 
 PRODUCT_PROPERTY_OVERRIDES += \
     dalvik.vm.heapstartsize=8m \
-    dalvik.vm.heapgrowthlimit=96m \
-    dalvik.vm.heapsize=256m \
+    dalvik.vm.heapgrowthlimit=288m \
+    dalvik.vm.heapsize=768m \
     dalvik.vm.heaptargetutilization=0.75 \
     dalvik.vm.heapminfree=2m \
     dalvik.vm.heapmaxfree=8m
