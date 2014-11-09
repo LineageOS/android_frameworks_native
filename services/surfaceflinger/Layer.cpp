@@ -558,6 +558,7 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& hw,
         layer.setBuffer(mActiveBuffer);
     }
 
+#ifdef QCOM_BSP
     Rect dirtyRect =  mSurfaceFlingerConsumer->getCurrentDirtyRect();
     int bufferOrientation = computeBufferTransform(hw).getOrientation();
     if((mActiveBuffer != NULL) && mTransformHint && !bufferOrientation &&
@@ -607,6 +608,7 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& hw,
     // NOTE: buffer can be NULL if the client never drew into this
     // layer yet, or if we ran out of memory
     layer.setBuffer(mActiveBuffer);
+#endif
 }
 
 void Layer::setAcquireFence(const sp<const DisplayDevice>& /* hw */,
