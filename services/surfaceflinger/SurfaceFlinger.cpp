@@ -4081,7 +4081,8 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
         const sp<IGraphicBufferProducer>& producer,
         Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
         int32_t minLayerZ, int32_t maxLayerZ,
-        bool useIdentityTransform, ISurfaceComposer::Rotation rotation) {
+        bool useIdentityTransform, ISurfaceComposer::Rotation rotation,
+        bool useReadPixels) {
 
     if (CC_UNLIKELY(display == 0))
         return BAD_VALUE;
@@ -4124,6 +4125,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
         uint32_t minLayerZ,maxLayerZ;
         bool useIdentityTransform;
         Transform::orientation_flags rotation;
+        bool useReadPixels;
         status_t result;
         bool isLocalScreenshot;
     public:
@@ -4134,13 +4136,14 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
                 int32_t minLayerZ, int32_t maxLayerZ,
                 bool useIdentityTransform,
                 Transform::orientation_flags rotation,
-                bool isLocalScreenshot)
+                bool isLocalScreenshot, bool useReadPixels)
             : flinger(flinger), display(display), producer(producer),
               sourceCrop(sourceCrop), reqWidth(reqWidth), reqHeight(reqHeight),
               minLayerZ(minLayerZ), maxLayerZ(maxLayerZ),
               useIdentityTransform(useIdentityTransform),
               rotation(rotation), result(PERMISSION_DENIED),
-              isLocalScreenshot(isLocalScreenshot)
+              isLocalScreenshot(isLocalScreenshot),
+              useReadPixels(useReadPixels)
         {
         }
         status_t getResult() const {
@@ -4149,9 +4152,11 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
         virtual bool handler() {
             Mutex::Autolock _l(flinger->mStateLock);
             sp<const DisplayDevice> hw(flinger->getDisplayDeviceLocked(display));
+            bool useReadPixels = this->useReadPixels && !flinger->mGpuToCpuSupported;
             result = flinger->captureScreenImplLocked(hw, producer,
                     sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ,
-                    useIdentityTransform, rotation, isLocalScreenshot);
+                    useIdentityTransform, rotation, isLocalScreenshot,
+                    useReadPixels);
             static_cast<GraphicProducerWrapper*>(IInterface::asBinder(producer).get())->exit(result);
             return true;
         }
@@ -4167,7 +4172,8 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
     sp<MessageBase> msg = new MessageCaptureScreen(this,
             display, IGraphicBufferProducer::asInterface( wrapper ),
             sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ,
-            useIdentityTransform, rotationFlags, isLocalScreenshot);
+            useIdentityTransform, rotationFlags, isLocalScreenshot,
+            useReadPixels);
 
     status_t res = postMessageAsync(msg);
     if (res == NO_ERROR) {
@@ -4254,7 +4260,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(
         Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
         int32_t minLayerZ, int32_t maxLayerZ,
         bool useIdentityTransform, Transform::orientation_flags rotation,
-        bool isLocalScreenshot)
+        bool isLocalScreenshot, bool useReadPixels)
 {
     ATRACE_CALL();
 
@@ -4332,7 +4338,8 @@ status_t SurfaceFlinger::captureScreenImplLocked(
                 if (image != EGL_NO_IMAGE_KHR) {
                     // this binds the given EGLImage as a framebuffer for the
                     // duration of this scope.
-                    RenderEngine::BindImageAsFramebuffer imageBond(getRenderEngine(), image);
+                    RenderEngine::BindImageAsFramebuffer imageBond(getRenderEngine(), image,
+                            useReadPixels, reqWidth, reqHeight);
                     if (imageBond.getStatus() == NO_ERROR) {
                         // this will in fact render into our dequeued buffer
                         // via an FBO, which means we didn't have to create
@@ -4377,6 +4384,15 @@ status_t SurfaceFlinger::captureScreenImplLocked(
                                 eglDestroySyncKHR(mEGLDisplay, sync);
                             } else {
                                 ALOGW("captureScreen: error creating EGL fence: %#x", eglGetError());
+                            }
+                        }
+                        if (useReadPixels) {
+                            sp<GraphicBuffer> buf = static_cast<GraphicBuffer*>(buffer);
+                            void* vaddr;
+                            if (buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, &vaddr) == NO_ERROR) {
+                                getRenderEngine().readPixels(0, 0, buffer->stride, reqHeight,
+                                        (uint32_t *)vaddr);
+                                buf->unlock();
                             }
                         }
                         if (DEBUG_SCREENSHOTS) {

@@ -283,7 +283,8 @@ private:
             const sp<IGraphicBufferProducer>& producer,
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
             int32_t minLayerZ, int32_t maxLayerZ,
-            bool useIdentityTransform, ISurfaceComposer::Rotation rotation);
+            bool useIdentityTransform, ISurfaceComposer::Rotation rotation,
+            bool isCpuConsumer);
     virtual status_t getDisplayStats(const sp<IBinder>& display,
             DisplayStatInfo* stats);
     virtual status_t getDisplayConfigs(const sp<IBinder>& display,
@@ -423,7 +424,7 @@ private:
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
             int32_t minLayerZ, int32_t maxLayerZ,
             bool useIdentityTransform, Transform::orientation_flags rotation,
-            bool isLocalScreenshot);
+            bool isLocalScreenshot, bool useReadPixels);
 
     sp<StartBootAnimThread> mStartBootAnimThread = nullptr;
 
