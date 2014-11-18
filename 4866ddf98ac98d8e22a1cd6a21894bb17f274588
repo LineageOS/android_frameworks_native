@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "faac7902_5269148b",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 3608,
+      "author": {
+        "id": 3719
+      },
+      "writtenOn": "2014-11-18T11:54:08Z",
+      "side": 1,
+      "message": "Please remove this if and always use the GRALLOC-flags (like in the original code). See also: http://review.cyanogenmod.org/#/c/55377/\nThis is needed on omap4.",
+      "revId": "4866ddf98ac98d8e22a1cd6a21894bb17f274588",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
