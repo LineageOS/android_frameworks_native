@@ -93,7 +93,6 @@ typedef enum OMX_VIDEO_CODINGTYPE {
     OMX_VIDEO_CodingVC1,        /**< VC1 */
     OMX_VIDEO_CodingFLV1,       /**< Sorenson's H.263 */
     OMX_VIDEO_CodingDIVX,       /**< DIVX */
-    OMX_VIDEO_CodingHEVC,       /**< HEVC */
     OMX_VIDEO_CodingFFMPEG,     /**< FFMPEG */
     OMX_VIDEO_CodingMax = 0x7FFFFFFF
 } OMX_VIDEO_CODINGTYPE;
