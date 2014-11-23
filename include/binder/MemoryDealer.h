@@ -34,6 +34,7 @@ class SimpleBestFitAllocator;
 class MemoryDealer : public RefBase
 {
 public:
+    MemoryDealer(size_t size, const char* name = 0);
     MemoryDealer(size_t size, const char* name = 0,
             uint32_t flags = 0 /* or bits such as MemoryHeapBase::READ_ONLY */ );
 
