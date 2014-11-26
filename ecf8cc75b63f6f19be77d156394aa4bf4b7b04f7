@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "bab6814e_b7782791",
+        "filename": "opengl/libs/EGL/eglApi.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 483,
+      "author": {
+        "id": 6351
+      },
+      "writtenOn": "2014-11-26T00:31:58Z",
+      "side": 1,
+      "message": "I don\u0027t believe that this #ifdef/code is necessary.  It simply sets format to its current value and adds another ifdef that could cause merge conflicts in the future.",
+      "revId": "ecf8cc75b63f6f19be77d156394aa4bf4b7b04f7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
