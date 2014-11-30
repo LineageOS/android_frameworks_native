@@ -34,6 +34,9 @@ class SimpleBestFitAllocator;
 class MemoryDealer : public RefBase
 {
 public:
+#ifdef OVERLOAD_MEMORYDEALER
+    MemoryDealer(size_t size, const char* name = 0);
+#endif
     MemoryDealer(size_t size, const char* name = 0,
             uint32_t flags = 0 /* or bits such as MemoryHeapBase::READ_ONLY */ );
 

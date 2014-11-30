@@ -41,6 +41,10 @@ sources += \
     MemoryHeapPmem.cpp
 endif
 
+ifeq ($(BOARD_OVERLOADS_MEMORYDEALER),true)
+LOCAL_CFLAGS += -OVERLOAD_MEMORYDEALER
+endif
+
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
