@@ -20,6 +20,13 @@
 
 #include <android/native_window.h>
 
+// We would eliminate the non-conforming zero-length array, but we can't since
+// this is effectively included from the Linux kernel
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wzero-length-array"
+#include <sync/sync.h>
+#pragma clang diagnostic pop
+
 #include <binder/Parcel.h>
 
 #include <utils/Log.h>
@@ -1285,8 +1292,14 @@ status_t Surface::lock(
                 }
             }
             const Region copyback(oldDirtyRegion.subtract(newDirtyRegion));
-            if (!copyback.isEmpty())
+            if (!copyback.isEmpty()) {
+                if (fenceFd >= 0) {
+                    sync_wait(fenceFd, -1);
+                    close(fenceFd);
+                    fenceFd = -1;
+                }
                 copyBlt(backBuffer, frontBuffer, copyback);
+            }
         } else {
             // if we can't copy-back anything, modify the user's dirty
             // region to make sure they redraw the whole buffer
