@@ -59,6 +59,7 @@ else
 PLATFORM_DIR := $(TARGET_BOARD_PLATFORM)
 endif
 LOCAL_C_INCLUDES += hardware/samsung_slsi/$(PLATFORM_DIR)/include
+LOCAL_CFLAGS += -Wno-error=unused-parameter
 endif
 
 LOCAL_MODULE := libbinder
@@ -89,6 +90,7 @@ else
 PLATFORM_DIR := $(TARGET_BOARD_PLATFORM)
 endif
 LOCAL_C_INCLUDES += hardware/samsung_slsi/$(PLATFORM_DIR)/include
+LOCAL_CFLAGS += -Wno-error=unused-parameter
 endif
 
 LOCAL_MODULE := libbinder
