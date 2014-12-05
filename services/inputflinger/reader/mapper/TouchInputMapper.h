@@ -695,6 +695,9 @@ private:
     VelocityControl mWheelXVelocityControl;
     VelocityControl mWheelYVelocityControl;
 
+    // The time the stylus event was processed by any TouchInputMapper
+    static nsecs_t mLastStylusTime;
+
     std::optional<DisplayViewport> findViewport();
 
     void resetExternalStylus();
@@ -759,6 +762,8 @@ private:
     const VirtualKey* findVirtualKeyHit(int32_t x, int32_t y);
 
     static void assignPointerIds(const RawState& last, RawState& current);
+
+    bool rejectPalm(nsecs_t when);
 
     const char* modeToString(DeviceMode deviceMode);
     void rotateAndScale(float& x, float& y);
