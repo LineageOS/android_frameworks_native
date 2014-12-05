@@ -1581,6 +1581,9 @@ private:
     VelocityControl mWheelXVelocityControl;
     VelocityControl mWheelYVelocityControl;
 
+    // The time the stylus event was processed by any TouchInputMapper
+    static nsecs_t mLastStylusTime;
+
     // Latency statistics for touch events
     struct LatencyStatistics mStatistics;
 
@@ -1652,6 +1655,8 @@ private:
     const VirtualKey* findVirtualKeyHit(int32_t x, int32_t y);
 
     static void assignPointerIds(const RawState* last, RawState* current);
+
+    bool rejectPalm(nsecs_t when);
 
     void reportEventForStatistics(nsecs_t evdevTime);
 
