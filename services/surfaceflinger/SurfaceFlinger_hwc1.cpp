@@ -76,6 +76,7 @@
 #include "EventThread.h"
 #include "Layer.h"
 #include "LayerDim.h"
+#include "LayerBlur.h"
 #include "SurfaceFlinger.h"
 
 #include "DisplayHardware/FramebufferSurface.h"
@@ -167,7 +168,8 @@ SurfaceFlinger::SurfaceFlinger()
         mHasPoweredOff(false),
         mFrameBuckets(),
         mTotalTime(0),
-        mLastSwapTime(0)
+        mLastSwapTime(0),
+        mActiveFrameSequence(0)
 {
     ALOGI("SurfaceFlinger is starting");
 
@@ -1381,6 +1383,8 @@ void SurfaceFlinger::doComposition() {
             // repaint the framebuffer (if needed)
             doDisplayComposition(hw, dirtyRegion);
 
+            ++mActiveFrameSequence;
+
             hw->dirtyRegion.clear();
             hw->flip(hw->swapRegion);
             hw->swapRegion.clear();
@@ -2441,6 +2445,41 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
         }
+        if (what & layer_state_t::eBlurChanged) {
+            ALOGV("eBlurChanged");
+            if (layer->setBlur(uint8_t(255.0f*s.blur+0.5f))) {
+                flags |= eTraversalNeeded;
+            }
+        }
+        if (what & layer_state_t::eBlurMaskSurfaceChanged) {
+            ALOGV("eBlurMaskSurfaceChanged");
+            sp<Layer> maskLayer = 0;
+            if (s.blurMaskSurface != 0) {
+                maskLayer = client->getLayerUser(s.blurMaskSurface);
+            }
+            if (maskLayer == 0) {
+                ALOGV("eBlurMaskSurfaceChanged. maskLayer == 0");
+            } else {
+                ALOGV("eBlurMaskSurfaceChagned. maskLayer.z == %d", maskLayer->getCurrentState().z);
+                if (maskLayer->isBlurLayer()) {
+                    ALOGE("Blur layer can not be used as blur mask surface");
+                    maskLayer = 0;
+                }
+            }
+            if (layer->setBlurMaskLayer(maskLayer)) {
+                flags |= eTraversalNeeded;
+            }
+        }
+        if (what & layer_state_t::eBlurMaskSamplingChanged) {
+            if (layer->setBlurMaskSampling(s.blurMaskSampling)) {
+                flags |= eTraversalNeeded;
+            }
+        }
+        if (what & layer_state_t::eBlurMaskAlphaThresholdChanged) {
+            if (layer->setBlurMaskAlphaThreshold(s.blurMaskAlphaThreshold)) {
+                flags |= eTraversalNeeded;
+            }
+        }
         if (what & layer_state_t::eSizeChanged) {
             if (layer->setSize(s.w, s.h)) {
                 flags |= eTraversalNeeded;
@@ -2527,6 +2566,11 @@ status_t SurfaceFlinger::createLayer(
                     name, w, h, flags,
                     handle, gbp, &layer);
             break;
+        case ISurfaceComposerClient::eFXSurfaceBlur:
+            result = createBlurLayer(client,
+                    name, w, h, flags,
+                    handle, gbp, &layer);
+            break;
         default:
             result = BAD_VALUE;
             break;
@@ -2576,6 +2620,16 @@ status_t SurfaceFlinger::createDimLayer(const sp<Client>& client,
         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* outLayer)
 {
     *outLayer = new LayerDim(this, client, name, w, h, flags);
+    *handle = (*outLayer)->getHandle();
+    *gbp = (*outLayer)->getProducer();
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::createBlurLayer(const sp<Client>& client,
+        const String8& name, uint32_t w, uint32_t h, uint32_t flags,
+        sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* outLayer)
+{
+    *outLayer = new LayerBlur(this, client, name, w, h, flags);
     *handle = (*outLayer)->getHandle();
     *gbp = (*outLayer)->getProducer();
     return NO_ERROR;
@@ -3679,6 +3733,8 @@ status_t SurfaceFlinger::captureScreenImplLocked(
                 reqWidth, reqHeight, hw_w, hw_h);
         return BAD_VALUE;
     }
+
+    ++mActiveFrameSequence;
 
     reqWidth  = (!reqWidth)  ? hw_w : reqWidth;
     reqHeight = (!reqHeight) ? hw_h : reqHeight;
