@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "bab6814e_35941636",
+        "filename": "opengl/libs/EGL/eglApi.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 482,
+      "author": {
+        "id": 11506
+      },
+      "writtenOn": "2014-12-07T04:42:52Z",
+      "side": 1,
+      "message": "When hit here, format is already BGRA_8888, you don\u0027t need assign it again.",
+      "revId": "58c91dafa564158215f384b480b8a33e4d97d4b0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
