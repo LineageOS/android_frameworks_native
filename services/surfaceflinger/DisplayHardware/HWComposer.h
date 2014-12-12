@@ -286,7 +286,9 @@ public:
     sp<Fence> getDisplayFence(int disp) const;
     uint32_t getFormat(int disp) const;
     bool isConnected(int disp) const;
+#ifdef QCOM_BSP
     bool isSecure(int disp) const;
+#endif
 
     // These return the values for the current config of a given display index.
     // To get the values for all configs, use getConfigs below.
