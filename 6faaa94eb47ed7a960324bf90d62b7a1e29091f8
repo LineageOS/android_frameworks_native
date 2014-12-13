@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7aa08908_91625eac",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 1260,
+      "author": {
+        "id": 5531
+      },
+      "writtenOn": "2014-12-13T07:04:39Z",
+      "side": 0,
+      "message": "If you remove secure from the DisplayConfig struct, then secure shouldn\u0027t be displayed in the hwc dump.",
+      "revId": "6faaa94eb47ed7a960324bf90d62b7a1e29091f8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7aa08908_f15762c8",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 1262,
+      "author": {
+        "id": 5531
+      },
+      "writtenOn": "2014-12-13T07:04:39Z",
+      "side": 0,
+      "message": "(and here)",
+      "revId": "6faaa94eb47ed7a960324bf90d62b7a1e29091f8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}

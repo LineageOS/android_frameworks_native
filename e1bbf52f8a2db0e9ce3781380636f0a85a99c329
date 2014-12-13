@@ -2,6 +2,23 @@
   "comments": [
     {
       "key": {
+        "uuid": "7aa08908_5152b6de",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 181,
+      "author": {
+        "id": 5531
+      },
+      "writtenOn": "2014-12-13T07:04:39Z",
+      "side": 1,
+      "message": "If you remove secure from the DisplayConfig struct, this would also need to go.",
+      "revId": "e1bbf52f8a2db0e9ce3781380636f0a85a99c329",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "7aa08908_f11f6259",
         "filename": "services/surfaceflinger/DisplayHardware/HWComposer.h",
         "patchSetId": 1
