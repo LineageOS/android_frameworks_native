@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "7aa08908_b1b95aef",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 181,
+      "author": {
+        "id": 5678
+      },
+      "writtenOn": "2014-12-13T08:13:09Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7aa08908_5152b6de",
+      "revId": "e1bbf52f8a2db0e9ce3781380636f0a85a99c329",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "7aa08908_f11f6259",
         "filename": "services/surfaceflinger/DisplayHardware/HWComposer.h",
         "patchSetId": 1
@@ -30,6 +48,24 @@
       "writtenOn": "2014-12-13T05:45:25Z",
       "side": 1,
       "message": "Should I also ifdef this?",
+      "revId": "e1bbf52f8a2db0e9ce3781380636f0a85a99c329",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7aa08908_d1b866e8",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 279,
+      "author": {
+        "id": 5678
+      },
+      "writtenOn": "2014-12-13T08:13:09Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "7aa08908_f11f6259",
       "revId": "e1bbf52f8a2db0e9ce3781380636f0a85a99c329",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
