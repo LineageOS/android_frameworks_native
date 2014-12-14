@@ -269,7 +269,21 @@ void DisplayDevice::swapBuffers(HWComposer& hwc) const {
     if (hwc.initCheck() != NO_ERROR ||
             (hwc.hasGlesComposition(mHwcDisplayId) &&
              (hwc.supportsFramebufferTarget() || mType >= DISPLAY_VIRTUAL))) {
-        EGLBoolean success = eglSwapBuffers(mDisplay, mSurface);
+        EGLBoolean success;
+#ifdef SWAP_BUFFERS_WORKAROUND
+        /* SwapBuffers on Exynos4 might block if called without
+         * any visible regions. This maybe a driver bug which
+         * needs to be investigated. As a workaround, check if
+         * atleast one layer has a visible region before attempting
+         * to call swapBuffers
+         */
+        if (mFlinger->getNumVisibleRegions())
+#endif
+        success = eglSwapBuffers(mDisplay, mSurface);
+#ifdef SWAP_BUFFERS_WORKAROUND
+        else
+            success = 1;
+#endif
         if (!success) {
             EGLint error = eglGetError();
             if (error == EGL_CONTEXT_LOST ||
