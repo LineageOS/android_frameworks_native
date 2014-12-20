@@ -28,10 +28,20 @@ namespace android {
 
 // --- Static Definitions ---
 
-static int32_t rotateKeyCode(int32_t keyCode, ui::Rotation orientation) {
+static int32_t rotateKeyCode(int32_t keyCode, ui::Rotation orientation, int rotationMapOffset) {
     static constexpr int32_t KEYCODE_ROTATION_MAP[][4] = {
             // key codes enumerated counter-clockwise with the original (unrotated) key first
             // no rotation,        90 degree rotation,  180 degree rotation, 270 degree rotation
+
+            // volume keys - tablet
+            {AKEYCODE_VOLUME_UP, AKEYCODE_VOLUME_UP, AKEYCODE_VOLUME_DOWN, AKEYCODE_VOLUME_DOWN},
+            {AKEYCODE_VOLUME_DOWN, AKEYCODE_VOLUME_DOWN, AKEYCODE_VOLUME_UP, AKEYCODE_VOLUME_UP},
+
+            // volume keys - phone or hybrid
+            {AKEYCODE_VOLUME_UP, AKEYCODE_VOLUME_DOWN, AKEYCODE_VOLUME_DOWN, AKEYCODE_VOLUME_UP},
+            {AKEYCODE_VOLUME_DOWN, AKEYCODE_VOLUME_UP, AKEYCODE_VOLUME_UP, AKEYCODE_VOLUME_DOWN},
+
+            // dpad keys - common
             {AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT},
             {AKEYCODE_DPAD_RIGHT, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_DOWN},
             {AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_DOWN, AKEYCODE_DPAD_RIGHT},
@@ -45,9 +55,12 @@ static int32_t rotateKeyCode(int32_t keyCode, ui::Rotation orientation) {
             {AKEYCODE_SYSTEM_NAVIGATION_LEFT, AKEYCODE_SYSTEM_NAVIGATION_DOWN,
              AKEYCODE_SYSTEM_NAVIGATION_RIGHT, AKEYCODE_SYSTEM_NAVIGATION_UP},
     };
+    static const size_t KEYCODE_ROTATION_MAP_SIZE =
+            sizeof(KEYCODE_ROTATION_MAP) / sizeof(KEYCODE_ROTATION_MAP[0]);
 
     if (orientation != ui::ROTATION_0) {
-        for (const auto& rotation : KEYCODE_ROTATION_MAP) {
+        for (size_t i = rotationMapOffset; i < KEYCODE_ROTATION_MAP_SIZE; i++) {
+            const auto& rotation = KEYCODE_ROTATION_MAP[i];
             if (rotation[static_cast<size_t>(ui::ROTATION_0)] == keyCode) {
                 return rotation[static_cast<size_t>(orientation)];
             }
@@ -200,6 +213,14 @@ std::list<NotifyArgs> KeyboardInputMapper::reconfigure(nsecs_t when,
             bumpGeneration();
         }
     }
+
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::VOLUME_KEYS_ROTATION)) {
+        // mode 0 (disabled) ~ offset 4
+        // mode 1 (phone) ~ offset 2
+        // mode 2 (tablet) ~ offset 0
+        mRotationMapOffset = 4 - 2 * config.volumeKeysRotationMode;
+    }
+
     return out;
 }
 
@@ -215,7 +236,8 @@ bool KeyboardInputMapper::updateKeyboardLayoutOverlay() {
 
 void KeyboardInputMapper::configureParameters() {
     const PropertyMap& config = getDeviceContext().getConfiguration();
-    mParameters.orientationAware = config.getBool("keyboard.orientationAware").value_or(false);
+    mParameters.orientationAware = config.getBool("keyboard.orientationAware").value_or(
+            !getDeviceContext().isExternal());
     mParameters.handlesKeyRepeat = config.getBool("keyboard.handlesKeyRepeat").value_or(false);
     mParameters.doNotWakeByDefault = config.getBool("keyboard.doNotWakeByDefault").value_or(false);
 }
@@ -273,7 +295,7 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
     if (down) {
         // Rotate key codes according to orientation if needed.
         if (mParameters.orientationAware) {
-            keyCode = rotateKeyCode(keyCode, getOrientation());
+            keyCode = rotateKeyCode(keyCode, getOrientation(), mRotationMapOffset);
         }
 
         // Add key down.
