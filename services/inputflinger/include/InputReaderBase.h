@@ -116,6 +116,9 @@ struct InputReaderConfiguration {
         // The axis remapping has changed.
         AXIS_REMAPPING = 1u << 17,
 
+        // Volume keys rotation option changed.
+        VOLUME_KEYS_ROTATION = 1u << 18,
+
         // All devices must be reopened.
         MUST_REOPEN = 1u << 31,
     };
@@ -251,6 +254,10 @@ struct InputReaderConfiguration {
     // secondary action.
     bool mouseSwapPrimaryButtonEnabled;
 
+    // Remap volume keys according to display rotation
+    // 0 - disabled, 1 - phone or hybrid rotation mode, 2 - tablet rotation mode
+    int volumeKeysRotationMode;
+
     InputReaderConfiguration()
           : virtualKeyQuietTime(0),
             defaultPointerDisplayId(ui::LogicalDisplayId::DEFAULT),
@@ -276,7 +283,8 @@ struct InputReaderConfiguration {
             stylusButtonMotionEventsEnabled(true),
             stylusPointerIconEnabled(false),
             mouseReverseVerticalScrollingEnabled(false),
-            mouseSwapPrimaryButtonEnabled(false) {}
+            mouseSwapPrimaryButtonEnabled(false),
+            volumeKeysRotationMode(0) {}
 
     std::optional<DisplayViewport> getDisplayViewportByType(ViewportType type) const;
     std::optional<DisplayViewport> getDisplayViewportByUniqueId(const std::string& uniqueDisplayId)
