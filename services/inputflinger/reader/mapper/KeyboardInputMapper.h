@@ -55,6 +55,8 @@ private:
     uint32_t mSource;
     int32_t mKeyboardType;
 
+    int32_t mRotationMapOffset; // determines if and how volume keys rotate
+
     std::vector<KeyDown> mKeyDowns; // keys that are down
     int32_t mMetaState;
     nsecs_t mDownTime; // time of most recent key down
