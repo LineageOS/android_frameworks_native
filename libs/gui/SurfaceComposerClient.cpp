@@ -430,6 +430,17 @@ void Composer::setDisplayProjection(const sp<IBinder>& token,
     mForceSynchronous = true; // TODO: do we actually still need this?
 }
 
+#ifdef ADD_LEGACY_SURFACE_COMPOSER_CLIENT_SYMBOLS
+status_t Composer::setOrientation(int orientation) {
+    sp<ISurfaceComposer> sm(ComposerService::getComposerService());
+    sp<IBinder> token(sm->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+    DisplayState& s(getDisplayStateLocked(token));
+    s.orientation = orientation;
+    mForceSynchronous = true; // TODO: do we actually still need this?
+    return NO_ERROR;
+}
+#endif
+
 void Composer::setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height) {
     Mutex::Autolock _l(mLock);
     DisplayState& s(getDisplayStateLocked(token));
@@ -485,6 +496,32 @@ void SurfaceComposerClient::dispose() {
     }
     mStatus = NO_INIT;
 }
+
+#ifdef ADD_LEGACY_SURFACE_COMPOSER_CLIENT_SYMBOLS
+/* Create ICS/MR0-compatible constructors */
+extern "C" sp<SurfaceControl> _ZN7android21SurfaceComposerClient13createSurfaceERKNS_7String8Ejjij(
+        const String8& name,
+        uint32_t w,
+        uint32_t h,
+        PixelFormat format,
+        uint32_t flags);
+extern "C" sp<SurfaceControl> _ZN7android21SurfaceComposerClient13createSurfaceEijjij(
+        uint32_t display,
+        uint32_t w,
+        uint32_t h,
+        PixelFormat format,
+        uint32_t flags)
+{
+    String8 name;
+    const size_t SIZE = 128;
+    char buffer[SIZE];
+    snprintf(buffer, SIZE, "<pid_%d>", getpid());
+    name.append(buffer);
+
+    return _ZN7android21SurfaceComposerClient13createSurfaceERKNS_7String8Ejjij(name,
+            w, h, format, flags);
+}
+#endif
 
 sp<SurfaceControl> SurfaceComposerClient::createSurface(
         const String8& name,
@@ -613,6 +650,13 @@ status_t SurfaceComposerClient::setMatrix(const sp<IBinder>& id, float dsdx, flo
     return getComposer().setMatrix(this, id, dsdx, dtdx, dsdy, dtdy);
 }
 
+#ifdef ADD_LEGACY_SURFACE_COMPOSER_CLIENT_SYMBOLS
+status_t SurfaceComposerClient::setOrientation(int32_t dpy, int orientation, uint32_t flags)
+{
+    return Composer::getInstance().setOrientation(orientation);
+}
+#endif
+
 // ----------------------------------------------------------------------------
 
 void SurfaceComposerClient::setDisplaySurface(const sp<IBinder>& token,
@@ -663,6 +707,14 @@ status_t SurfaceComposerClient::getDisplayInfo(const sp<IBinder>& display,
     *info = configs[activeId];
     return NO_ERROR;
 }
+
+#ifdef ADD_LEGACY_SURFACE_COMPOSER_CLIENT_SYMBOLS
+status_t SurfaceComposerClient::getDisplayInfo(
+        int32_t displayId, DisplayInfo* info)
+{
+    return getDisplayInfo(getBuiltInDisplay(displayId), info);
+}
+#endif
 
 int SurfaceComposerClient::getActiveConfig(const sp<IBinder>& display) {
     return ComposerService::getComposerService()->getActiveConfig(display);
