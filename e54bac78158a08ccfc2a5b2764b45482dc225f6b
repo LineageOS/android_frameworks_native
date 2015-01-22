@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fad55976_1e6afd1a",
+        "filename": "libs/gui/Surface.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 902,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2015-01-22T13:20:12Z",
+      "side": 1,
+      "message": "I think you can just end with #endif here and not have the else case.",
+      "revId": "e54bac78158a08ccfc2a5b2764b45482dc225f6b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
