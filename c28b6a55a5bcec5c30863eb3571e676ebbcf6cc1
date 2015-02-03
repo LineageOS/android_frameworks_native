@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "bacf61ea_3c0c2942",
+        "filename": "services/inputflinger/InputReader.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 265,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2015-02-03T13:53:59Z",
+      "side": 1,
+      "message": "Are the rearrangements here and above necessary?",
+      "revId": "c28b6a55a5bcec5c30863eb3571e676ebbcf6cc1",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
