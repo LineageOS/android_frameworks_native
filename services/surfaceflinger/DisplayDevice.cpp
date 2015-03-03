@@ -277,12 +277,12 @@ void DisplayDevice::swapBuffers(HWComposer& hwc) const {
          * atleast one layer has a visible region before attempting
          * to call swapBuffers
          */
-        if (mFlinger->getNumVisibleRegions())
-#endif
-        success = eglSwapBuffers(mDisplay, mSurface);
-#ifdef SWAP_BUFFERS_WORKAROUND
+        if (hwc.initCheck() != NO_ERROR || mFlinger->getNumVisibleRegions())
+            success = eglSwapBuffers(mDisplay, mSurface);
         else
             success = 1;
+#else
+        success = eglSwapBuffers(mDisplay, mSurface);
 #endif
         if (!success) {
             EGLint error = eglGetError();
