@@ -129,7 +129,6 @@ public:
     //GPUTiledRect : function to find out if DR can be used in GPU Comp.
     bool canUseTiledDR(int32_t id, Rect& dr);
 #endif
-
     // get the releaseFence file descriptor for a display's framebuffer layer.
     // the release fence is only valid after commit()
     sp<Fence> getAndResetReleaseFence(int32_t id);
@@ -178,14 +177,18 @@ public:
         virtual sp<Fence> getAndResetReleaseFence() = 0;
         virtual void setDefaultState() = 0;
         virtual void setSkip(bool skip) = 0;
+#ifndef TARGET_NEEDS_HWC_V0
         virtual void setIsCursorLayerHint(bool isCursor = true) = 0;
         virtual void setAnimating(bool animating) = 0;
+#endif
         virtual void setBlending(uint32_t blending) = 0;
         virtual void setTransform(uint32_t transform) = 0;
         virtual void setFrame(const Rect& frame) = 0;
         virtual void setCrop(const FloatRect& crop) = 0;
         virtual void setVisibleRegionScreen(const Region& reg) = 0;
+#ifndef TARGET_NEEDS_HWC_V0
         virtual void setSidebandStream(const sp<NativeHandle>& stream) = 0;
+#endif
 #ifdef QCOM_BSP
         virtual void setDirtyRect(const Rect& dirtyRect) = 0;
 #endif

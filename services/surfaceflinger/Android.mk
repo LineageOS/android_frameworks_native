@@ -4,6 +4,7 @@ include $(CLEAR_VARS)
 LOCAL_CLANG := true
 
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
+
 LOCAL_SRC_FILES:= \
     Client.cpp \
     DisplayDevice.cpp \
@@ -19,7 +20,6 @@ LOCAL_SRC_FILES:= \
     SurfaceFlingerConsumer.cpp \
     Transform.cpp \
     DisplayHardware/FramebufferSurface.cpp \
-    DisplayHardware/HWComposer.cpp \
     DisplayHardware/PowerHAL.cpp \
     DisplayHardware/VirtualDisplaySurface.cpp \
     Effects/Daltonizer.cpp \
@@ -35,6 +35,11 @@ LOCAL_SRC_FILES:= \
     RenderEngine/GLES10RenderEngine.cpp \
     RenderEngine/GLES11RenderEngine.cpp \
     RenderEngine/GLES20RenderEngine.cpp
+ifneq (,$(findstring TARGET_NEEDS_HWC_V0,$(LOCAL_CFLAGS)))
+LOCAL_SRC_FILES += DisplayHardware/HWComposer.cpp
+else
+LOCAL_SRC_FILES += DisplayHardware/HWComposer_v0.cpp
+endif
 
 LOCAL_CFLAGS:= -DLOG_TAG=\"SurfaceFlinger\"
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES

@@ -557,7 +557,9 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& hw,
     layer.setVisibleRegionScreen(visible);
 
     if (mSidebandStream.get()) {
+#ifndef TARGET_NEEDS_HWC_V0
         layer.setSidebandStream(mSidebandStream);
+#endif
     } else {
         // NOTE: buffer can be NULL if the client never drew into this
         // layer yet, or if we ran out of memory

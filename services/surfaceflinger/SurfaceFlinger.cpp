@@ -1257,8 +1257,10 @@ void SurfaceFlinger::setUpHWComposer() {
                 for (size_t i=0 ; cur!=end && i<count ; ++i, ++cur) {
                     const sp<Layer>& layer(currentLayers[i]);
                     if (layer->isPotentialCursor()) {
+#ifndef TARGET_NEEDS_HWC_V0
                         cur->setIsCursorLayerHint();
                         break;
+#endif
                     }
                 }
             }
