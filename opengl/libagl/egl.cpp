@@ -740,6 +740,7 @@ egl_pbuffer_surface_t::egl_pbuffer_surface_t(EGLDisplay dpy,
         case GGL_PIXEL_FORMAT_RGB_565:      size *= 2; break;
         case GGL_PIXEL_FORMAT_RGBA_8888:    size *= 4; break;
         case GGL_PIXEL_FORMAT_RGBX_8888:    size *= 4; break;
+        case GGL_PIXEL_FORMAT_BGRA_8888:    size *= 4; break;
         default:
             ALOGE("incompatible pixel format for pbuffer (format=%d)", f);
             pbuffer.data = 0;
@@ -1027,6 +1028,19 @@ static config_pair_t const config_7_attribute_list[] = {
         { EGL_SURFACE_TYPE,     EGL_WINDOW_BIT|EGL_PBUFFER_BIT|EGL_PIXMAP_BIT },
 };
 
+// BGRA 8888 config
+static config_pair_t const config_8_attribute_list[] = {
+        { EGL_BUFFER_SIZE,     32 },
+        { EGL_ALPHA_SIZE,       8 },
+        { EGL_BLUE_SIZE,        8 },
+        { EGL_GREEN_SIZE,       8 },
+        { EGL_RED_SIZE,         8 },
+        { EGL_DEPTH_SIZE,       0 },
+        { EGL_CONFIG_ID,        8 },
+        { EGL_NATIVE_VISUAL_ID, GGL_PIXEL_FORMAT_BGRA_8888 },
+        { EGL_SURFACE_TYPE,     EGL_WINDOW_BIT|EGL_PBUFFER_BIT|EGL_PIXMAP_BIT },
+};
+
 static configs_t const gConfigs[] = {
         { config_0_attribute_list, NELEM(config_0_attribute_list) },
         { config_1_attribute_list, NELEM(config_1_attribute_list) },
@@ -1036,6 +1050,7 @@ static configs_t const gConfigs[] = {
         { config_5_attribute_list, NELEM(config_5_attribute_list) },
         { config_6_attribute_list, NELEM(config_6_attribute_list) },
         { config_7_attribute_list, NELEM(config_7_attribute_list) },
+        { config_8_attribute_list, NELEM(config_8_attribute_list) },
 };
 
 static config_management_t const gConfigManagement[] = {
@@ -1117,6 +1132,10 @@ static status_t getConfigFormatInfo(EGLint configID,
     case 7:
         pixelFormat = GGL_PIXEL_FORMAT_A_8;
         depthFormat = GGL_PIXEL_FORMAT_Z_16;
+        break;
+    case 8:
+        pixelFormat = GGL_PIXEL_FORMAT_BGRA_8888;
+        depthFormat = 0;
         break;
     default:
         return NAME_NOT_FOUND;
