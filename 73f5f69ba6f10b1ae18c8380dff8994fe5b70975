@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da7fb54a_389fcf04",
+        "filename": "include/binder/Parcel.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 158,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2015-05-01T08:33:32Z",
+      "side": 1,
+      "message": "uint64_t *pArg ?",
+      "range": {
+        "startLine": 158,
+        "startChar": 35,
+        "endLine": 158,
+        "endChar": 59
+      },
+      "revId": "73f5f69ba6f10b1ae18c8380dff8994fe5b70975",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
