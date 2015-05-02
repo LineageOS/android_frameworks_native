@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "da7fb54a_f831e2ed",
+        "filename": "build/phone-xxxhdpi-3072-hwui-memory.mk",
+        "patchSetId": 4
+      },
+      "lineNbr": 2,
+      "author": {
+        "id": 6334
+      },
+      "writtenOn": "2015-05-02T13:30:14Z",
+      "side": 1,
+      "message": "Copied the header from one of the other hwui makefiles",
+      "parentUuid": "da7fb54a_9ee523aa",
+      "revId": "6b25ca2663516ba0f5bcec101a13afd4e8f496f8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "da7fb54a_29b4dff0",
         "filename": "build/phone-xxxhdpi-3072-hwui-memory.mk",
         "patchSetId": 4
@@ -36,6 +54,24 @@
     },
     {
       "key": {
+        "uuid": "da7fb54a_58572e02",
+        "filename": "build/phone-xxxhdpi-3072-hwui-memory.mk",
+        "patchSetId": 4
+      },
+      "lineNbr": 22,
+      "author": {
+        "id": 6334
+      },
+      "writtenOn": "2015-05-02T13:30:14Z",
+      "side": 1,
+      "message": "Pulled directly from S6 (3GB RAM)",
+      "parentUuid": "da7fb54a_29b4dff0",
+      "revId": "6b25ca2663516ba0f5bcec101a13afd4e8f496f8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "da7fb54a_49b923e9",
         "filename": "build/phone-xxxhdpi-3072-hwui-memory.mk",
         "patchSetId": 4
@@ -47,6 +83,24 @@
       "writtenOn": "2015-05-02T11:50:40Z",
       "side": 1,
       "message": "xxhdpi-2048 has this set to 8",
+      "revId": "6b25ca2663516ba0f5bcec101a13afd4e8f496f8",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da7fb54a_785cf225",
+        "filename": "build/phone-xxxhdpi-3072-hwui-memory.mk",
+        "patchSetId": 4
+      },
+      "lineNbr": 26,
+      "author": {
+        "id": 6334
+      },
+      "writtenOn": "2015-05-02T13:30:14Z",
+      "side": 1,
+      "message": "Pulled directly from S6 (3GB RAM)",
+      "parentUuid": "da7fb54a_49b923e9",
       "revId": "6b25ca2663516ba0f5bcec101a13afd4e8f496f8",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
