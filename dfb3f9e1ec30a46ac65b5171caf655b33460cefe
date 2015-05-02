@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da7fb54a_7ed85ff0",
+        "filename": "build/phone-xxxhdpi-3072-dalvik-heap.mk",
+        "patchSetId": 3
+      },
+      "lineNbr": 2,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2015-05-02T11:49:02Z",
+      "side": 1,
+      "message": "Copyright?",
+      "revId": "dfb3f9e1ec30a46ac65b5171caf655b33460cefe",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "da7fb54a_e9b917ee",
+        "filename": "build/phone-xxxhdpi-3072-dalvik-heap.mk",
+        "patchSetId": 3
+      },
+      "lineNbr": 20,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2015-05-02T11:49:02Z",
+      "side": 1,
+      "message": "2048 starts this at 16m",
+      "revId": "dfb3f9e1ec30a46ac65b5171caf655b33460cefe",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
