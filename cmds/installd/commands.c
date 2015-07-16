@@ -698,6 +698,15 @@ static void run_patchoat(int input_fd, int oat_fd, const char* input_file_name,
     ALOGE("execv(%s) failed: %s\n", PATCHOAT_BIN, strerror(errno));
 }
 
+static bool check_boolean_property(const char* property_name) {
+    char tmp_property_value[PROPERTY_VALUE_MAX];
+    bool have_property = property_get(property_name, tmp_property_value, "") > 0;
+    if (!have_property) {
+        return false;
+    }
+    return strcmp(tmp_property_value, "true") == 0;
+}
+
 static void run_dex2oat(int zip_fd, int oat_fd, const char* input_file_name,
     const char* output_file_name, int swap_fd, const char *pkgname, const char *instruction_set,
     bool vm_safe_mode)
@@ -894,20 +903,49 @@ static int wait_child(pid_t pid)
 }
 
 /*
- * Whether dexopt should use a swap file when compiling an APK. If kAlwaysProvideSwapFile, do this
- * on all devices (dex2oat will make a more informed decision itself, anyways). Otherwise, only do
- * this on a low-mem device.
+ * Whether dexopt should use a swap file when compiling an APK.
+ *
+ * If kAlwaysProvideSwapFile, do this on all devices (dex2oat will make a more informed decision
+ * itself, anyways).
+ *
+ * Otherwise, read "dalvik.vm.dex2oat-swap". If the property exists, return whether it is "true".
+ *
+ * Otherwise, return true if this is a low-mem device.
+ *
+ * Otherwise, return default value.
  */
-static bool kAlwaysProvideSwapFile = true;
+static bool kAlwaysProvideSwapFile = false;
+static bool kDefaultProvideSwapFile = true;
 
 static bool ShouldUseSwapFileForDexopt() {
     if (kAlwaysProvideSwapFile) {
         return true;
     }
 
-    char low_mem_buf[PROPERTY_VALUE_MAX];
-    property_get("ro.config.low_ram", low_mem_buf, "");
-    return (strcmp(low_mem_buf, "true") == 0);
+    // Check the "override" property. If it exists, return value == "true".
+    char dex2oat_prop_buf[PROPERTY_VALUE_MAX];
+    if (property_get("dalvik.vm.dex2oat-swap", dex2oat_prop_buf, "") > 0) {
+        if (strcmp(dex2oat_prop_buf, "true") == 0) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    // Shortcut for default value. This is an implementation optimization for the process sketched
+    // above. If the default value is true, we can avoid to check whether this is a low-mem device,
+    // as low-mem is never returning false. The compiler will optimize this away if it can.
+    if (kDefaultProvideSwapFile) {
+        return true;
+    }
+
+    bool is_low_mem = check_boolean_property("ro.config.low_ram");
+    if (is_low_mem) {
+        return true;
+    }
+
+    // Default value must be false here.
+    return kDefaultProvideSwapFile;
 }
 
 /*
