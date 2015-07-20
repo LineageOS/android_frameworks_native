@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ff0f0b1f_8edc3d47",
+        "filename": "cmds/installd/commands.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 812,
+      "author": {
+        "id": 13028
+      },
+      "writtenOn": "2015-07-20T15:04:42Z",
+      "side": 1,
+      "message": "Should\u0027nt you also set have_dex2oat_thread_count \u003d 1; to have it appended later?",
+      "revId": "c21d14278409e7cca9b66578696a0d5ec3fa7c14",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ff0f0b1f_6ee1e9fe",
+        "filename": "cmds/installd/commands.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 857,
+      "author": {
+        "id": 13028
+      },
+      "writtenOn": "2015-07-20T15:04:42Z",
+      "side": 1,
+      "message": "meaning here, your setting won\u0027t have effect if this flag is not set, right?",
+      "revId": "c21d14278409e7cca9b66578696a0d5ec3fa7c14",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
