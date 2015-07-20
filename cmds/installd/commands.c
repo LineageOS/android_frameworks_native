@@ -763,6 +763,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, const char* input_file_name,
     char dex2oat_thread_count[PROPERTY_VALUE_MAX];
     char dex2oat_thread_count_arg[PROPERTY_VALUE_MAX];
     bool have_dex2oat_thread_count = property_get("ro.sys.fw.dex2oat_thread_count", dex2oat_thread_count, NULL) > 0;
+    int cpucores = sysconf(_SC_NPROCESSORS_CONF);
 
     sprintf(zip_fd_arg, "--zip-fd=%d", zip_fd);
     sprintf(zip_location_arg, "--zip-location=%s", input_file_name);
@@ -807,6 +808,10 @@ static void run_dex2oat(int zip_fd, int oat_fd, const char* input_file_name,
         have_dex2oat_compiler_filter_flag = true;
     } else if (have_dex2oat_compiler_filter_flag) {
         sprintf(dex2oat_compiler_filter_arg, "--compiler-filter=%s", dex2oat_compiler_filter_flag);
+    }
+    if ((cpucores >= 4) & (!have_dex2oat_thread_count)) {
+       have_dex2oat_thread_count = true;
+       strcpy(dex2oat_thread_count, "5");
     }
     if (have_dex2oat_thread_count) {
         snprintf(dex2oat_thread_count_arg, PROPERTY_VALUE_MAX, "-j%s", dex2oat_thread_count);
