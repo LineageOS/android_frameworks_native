@@ -808,7 +808,10 @@ static void run_dex2oat(int zip_fd, int oat_fd, const char* input_file_name,
     } else if (have_dex2oat_compiler_filter_flag) {
         sprintf(dex2oat_compiler_filter_arg, "--compiler-filter=%s", dex2oat_compiler_filter_flag);
     }
-    if (have_dex2oat_thread_count) {
+    if (!have_dex2oat_thread_count) {
+        dex2oat_thread_count = android_getCpuCount();
+    }
+    if (dex2oat_thread_count)
         snprintf(dex2oat_thread_count_arg, PROPERTY_VALUE_MAX, "-j%s", dex2oat_thread_count);
     }
 
