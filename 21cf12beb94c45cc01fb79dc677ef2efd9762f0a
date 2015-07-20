@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "df140735_f9115755",
+        "filename": "cmds/installd/commands.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 812,
+      "author": {
+        "id": 3671
+      },
+      "writtenOn": "2015-07-20T20:03:57Z",
+      "side": 1,
+      "message": "Would it be better to do this if cpucores \u003e\u003d 4 set it to cpucores + 1 or something?\n\nAlso, does this maybe belong in an else clause for line 816 so that the if the prop was set it would override this behavior?",
+      "revId": "21cf12beb94c45cc01fb79dc677ef2efd9762f0a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
