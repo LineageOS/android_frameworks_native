@@ -32,6 +32,7 @@ enum {
     BATTERY_STATUS_DISCHARGING = 3, // equals BatteryManager.BATTERY_STATUS_DISCHARGING constant
     BATTERY_STATUS_NOT_CHARGING = 4, // equals BatteryManager.BATTERY_STATUS_NOT_CHARGING constant
     BATTERY_STATUS_FULL = 5, // equals BatteryManager.BATTERY_STATUS_FULL constant
+    BATTERY_STATUS_QUICK_CHARGING = 6, // equals BatteryManager.BATTERY_STATUS_QUICK_CHARGING constant
 };
 
 // must be kept in sync with definitions in BatteryManager.java
