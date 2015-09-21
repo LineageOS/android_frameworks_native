@@ -21,6 +21,7 @@
 
 #include <math.h>
 
+#include <cutils/iosched_policy.h>
 #include <cutils/log.h>
 
 #include <ui/Fence.h>
@@ -299,6 +300,7 @@ private:
 DispSync::DispSync() {
     mThread = new DispSyncThread();
     mThread->run("DispSync", PRIORITY_URGENT_DISPLAY + PRIORITY_MORE_FAVORABLE);
+    android_set_rt_ioprio(mThread->getTid(), 1);
 
     reset();
     beginResync();
