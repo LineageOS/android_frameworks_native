@@ -38,11 +38,7 @@ LOCAL_SRC_FILES := \
     RenderEngine/GLES10RenderEngine.cpp \
     RenderEngine/GLES11RenderEngine.cpp \
     RenderEngine/GLES20RenderEngine.cpp \
-    DisplayUtils.cpp \
-    ExSurfaceFlinger/ExLayer.cpp \
-    ExSurfaceFlinger/ExSurfaceFlinger.cpp \
-    ExSurfaceFlinger/ExVirtualDisplaySurface.cpp \
-    ExSurfaceFlinger/ExHWComposer.cpp
+    DisplayUtils.cpp
 
 LOCAL_C_INCLUDES := \
 	frameworks/native/vulkan/include \
@@ -160,9 +156,14 @@ ifeq ($(TARGET_USES_QCOM_BSP), true)
   else
     LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/qcom/display
   endif
-    LOCAL_SHARED_LIBRARIES += libqdutils
-    LOCAL_SHARED_LIBRARIES += libqdMetaData
-    LOCAL_CFLAGS += -DQTI_BSP
+  LOCAL_SHARED_LIBRARIES += libqdutils
+  LOCAL_SHARED_LIBRARIES += libqdMetaData
+  LOCAL_CFLAGS += -DQTI_BSP
+  LOCAL_SRC_FILES += \
+    ExSurfaceFlinger/ExLayer.cpp \
+    ExSurfaceFlinger/ExSurfaceFlinger.cpp \
+    ExSurfaceFlinger/ExVirtualDisplaySurface.cpp \
+    ExSurfaceFlinger/ExHWComposer.cpp
 endif
 
 LOCAL_MODULE := libsurfaceflinger
