@@ -45,6 +45,8 @@
 #include <DisplayHardware/ExVirtualDisplaySurface.h>
 #include <dlfcn.h>
 
+#include <cutils/properties.h>
+
 namespace android {
 
 DisplayUtils* DisplayUtils::sDisplayUtils = NULL;
