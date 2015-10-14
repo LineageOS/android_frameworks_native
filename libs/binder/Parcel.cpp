@@ -1180,6 +1180,11 @@ status_t Parcel::readuInt64(uint64_t *pArg) const
 {
     return readAligned(pArg);
 }
+
+uint64_t Parcel::readuInt64() const
+{
+    return readAligned<uint64_t>();
+}
 #endif
 
 

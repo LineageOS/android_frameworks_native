@@ -164,6 +164,7 @@ public:
     uint64_t            readUint64() const;
     status_t            readUint64(uint64_t *pArg) const;
 #ifdef NEEDS_LGE_RIL_SYMBOLS
+    uint64_t            readuint64() const;
     status_t            readuInt64(uint64_t *pArg) const;
 #endif
     float               readFloat() const;
