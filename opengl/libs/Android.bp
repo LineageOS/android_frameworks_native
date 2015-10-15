@@ -100,6 +100,13 @@ cc_library_static {
 
 cc_library_shared {
     name: "libEGL",
+    product_variables: {
+        lineage: {
+            egl_workaround_bug_10194508: {
+                cppflags: ["-DWORKAROUND_BUG_10194508"],
+            },
+        },
+    },
     defaults: ["egl_libs_defaults"],
     srcs: [
         "EGL/egl_tls.cpp",
