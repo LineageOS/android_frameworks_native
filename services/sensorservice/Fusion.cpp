@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 
+#include <cutils/properties.h>
 #include <utils/Log.h>
 
 #include "Fusion.h"
@@ -78,9 +79,8 @@ static const float FREE_FALL_THRESHOLD = 0.1f * (NOMINAL_GRAVITY);
  * Fields strengths greater than this likely indicate a local magnetic
  * disturbance which we do not want to update into the fused frame.
  */
-static const float MAX_VALID_MAGNETIC_FIELD = 100; // uT
-static const float MAX_VALID_MAGNETIC_FIELD_SQ =
-        MAX_VALID_MAGNETIC_FIELD*MAX_VALID_MAGNETIC_FIELD;
+static const int MAX_VALID_MAGNETIC_FIELD = 100; // uT
+#define MAX_VALID_MAGNETIC_FIELD_PROP "ro.fusion.magfield.max"
 
 /*
  * Values of the field smaller than this should be ignored in fusion to avoid
@@ -186,6 +186,10 @@ Fusion::Fusion() {
 
     x0 = 0;
     x1 = 0;
+
+    maxValidMagFieldSq = property_get_int32(
+        MAX_VALID_MAGNETIC_FIELD_PROP, MAX_VALID_MAGNETIC_FIELD);
+    maxValidMagFieldSq = maxValidMagFieldSq * maxValidMagFieldSq;
 
     init();
 }
@@ -357,7 +361,7 @@ status_t Fusion::handleMag(const vec3_t& m) {
     // the geomagnetic-field should be between 30uT and 60uT
     // reject if too large to avoid spurious magnetic sources
     const float magFieldSq = length_squared(m);
-    if (magFieldSq > MAX_VALID_MAGNETIC_FIELD_SQ) {
+    if (magFieldSq > maxValidMagFieldSq) {
         return BAD_VALUE;
     } else if (magFieldSq < MIN_VALID_MAGNETIC_FIELD_SQ) {
         // Also reject if too small since we will get ill-defined (zero mag)
