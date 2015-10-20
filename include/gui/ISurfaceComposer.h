@@ -58,9 +58,8 @@ public:
     };
 
     enum {
-        eDisplayIdMain     = 0,
-        eDisplayIdHdmi     = 1,
-        eDisplayIdTertiary = 2
+        eDisplayIdMain = 0,
+        eDisplayIdHdmi = 1
     };
 
     enum Rotation {
