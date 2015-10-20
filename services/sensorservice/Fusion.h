@@ -52,6 +52,10 @@ class Fusion {
      * the process noise covariance matrix
      */
     mat<mat33_t, 2, 2> GQGt;
+    /**
+     * the maximum acceptable geomagnetic-field (square)
+     */
+    float maxValidMagFieldSq;
 
 public:
     Fusion();
