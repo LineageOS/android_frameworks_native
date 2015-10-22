@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5f2577a7_565945fc",
+        "filename": "services/sensorservice/Fusion.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 55,
+      "author": {
+        "id": 13409
+      },
+      "writtenOn": "2015-10-22T01:07:56Z",
+      "side": 1,
+      "message": "Blank line between ^ these ^",
+      "revId": "83e975f70425e9377b11e531b0838002361684cd",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
