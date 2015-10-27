@@ -20,6 +20,7 @@
 #include <utils/misc.h>
 #include <binder/BpBinder.h>
 #include <binder/IInterface.h>
+#include <binder/IPCThreadState.h>
 #include <binder/Parcel.h>
 
 #include <stdio.h>
@@ -71,6 +72,7 @@ public:
 // ---------------------------------------------------------------------------
 
 BBinder::BBinder()
+    : mRemoteRefs(0), mCollectionEnabled(false)
 {
     atomic_init(&mExtras, 0);
 }
@@ -183,6 +185,42 @@ void BBinder::detachObject(const void* objectID)
 BBinder* BBinder::localBinder()
 {
     return this;
+}
+
+void BBinder::incStrongRemote(const void *id)
+{
+    android_atomic_inc(&mRemoteRefs);
+    incStrong(id);
+}
+
+void BBinder::decStrongRemote(const void *id)
+{
+    decStrong(id);
+    const int32_t new_count = android_atomic_dec(&mRemoteRefs);
+
+    // TODO does this need some synchronization of some sort
+    if (mCollectionEnabled && new_count >= getStrongCount()) {
+        die();
+    }
+}
+
+void BBinder::enableCollection()
+{
+    mCollectionEnabled = true;
+    if (mRemoteRefs >= getStrongCount()) {
+        die();
+    }
+}
+
+void BBinder::die()
+{
+    // TODO this probably needs synchronization too, neh?
+    // TODO tell the driver we're dead and send out death notifications
+    // TODO each death notification, once complete, should ping back and decStrongRemote
+
+    IPCThreadState* self = IPCThreadState::self();
+    self->doDie(this);
+    self->flushCommands();
 }
 
 BBinder::~BBinder()

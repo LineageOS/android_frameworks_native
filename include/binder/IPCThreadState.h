@@ -73,7 +73,8 @@ public:
             status_t            requestDeathNotification(   int32_t handle,
                                                             BpBinder* proxy); 
             status_t            clearDeathNotification( int32_t handle,
-                                                        BpBinder* proxy); 
+                                                        BpBinder* proxy);
+            status_t            doDie(BBinder* handle);
 
     static  void                shutdown();
     

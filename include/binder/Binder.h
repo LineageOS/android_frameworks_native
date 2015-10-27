@@ -57,6 +57,10 @@ public:
 
     virtual BBinder*    localBinder();
 
+            void        incStrongRemote(const void* id);
+            void        decStrongRemote(const void* id);
+    virtual void        enableCollection();
+
 protected:
     virtual             ~BBinder();
 
@@ -69,10 +73,14 @@ private:
                         BBinder(const BBinder& o);
             BBinder&    operator=(const BBinder& o);
 
+            void        die();
+
     class Extras;
 
     atomic_uintptr_t    mExtras;  // should be atomic<Extras *>
             void*       mReserved0;
+    int32_t             mRemoteRefs;
+    bool                mCollectionEnabled;
 };
 
 // ---------------------------------------------------------------------------

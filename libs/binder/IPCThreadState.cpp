@@ -115,7 +115,8 @@ static const char *kCommandStrings[] = {
     "BC_EXIT_LOOPER",
     "BC_REQUEST_DEATH_NOTIFICATION",
     "BC_CLEAR_DEATH_NOTIFICATION",
-    "BC_DEAD_BINDER_DONE"
+    "BC_DEAD_BINDER_DONE",
+    "BC_DIE_BINDER"
 };
 
 static const char* getReturnString(size_t idx)
@@ -464,7 +465,7 @@ void IPCThreadState::processPendingDerefs()
         if (numPending > 0) {
             for (size_t i = 0; i < numPending; i++) {
                 BBinder* obj = mPendingStrongDerefs[i];
-                obj->decStrong(mProcess.get());
+                obj->decStrongRemote(mProcess.get());
             }
             mPendingStrongDerefs.clear();
         }
@@ -677,6 +678,14 @@ status_t IPCThreadState::clearDeathNotification(int32_t handle, BpBinder* proxy)
     mOut.writeInt32(BC_CLEAR_DEATH_NOTIFICATION);
     mOut.writeInt32((int32_t)handle);
     mOut.writePointer((uintptr_t)proxy);
+    return NO_ERROR;
+}
+
+status_t IPCThreadState::doDie(BBinder* binder)
+{
+    mOut.writeInt32(BC_DIE_BINDER);
+    mOut.writeInt32((int32_t) binder->getWeakRefs());
+    mOut.writeInt32((int32_t) binder);
     return NO_ERROR;
 }
 
@@ -961,7 +970,7 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
         ALOG_ASSERT(refs->refBase() == obj,
                    "BR_ACQUIRE: object %p does not match cookie %p (expected %p)",
                    refs, obj, refs->refBase());
-        obj->incStrong(mProcess.get());
+        obj->incStrongRemote(mProcess.get());
         IF_LOG_REMOTEREFS() {
             LOG_REMOTEREFS("BR_ACQUIRE from driver on %p", obj);
             obj->printRefs();
@@ -985,6 +994,7 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
         break;
         
     case BR_INCREFS:
+        // TODO: something probably needs to change here as well
         refs = (RefBase::weakref_type*)mIn.readPointer();
         obj = (BBinder*)mIn.readPointer();
         refs->incWeak(mProcess.get());
@@ -994,6 +1004,7 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
         break;
         
     case BR_DECREFS:
+        // TODO: something probably needs to change here as well
         refs = (RefBase::weakref_type*)mIn.readPointer();
         obj = (BBinder*)mIn.readPointer();
         // NOTE: This assertion is not valid, because the object may no
@@ -1005,7 +1016,8 @@ status_t IPCThreadState::executeCommand(int32_t cmd)
         mPendingWeakDerefs.push(refs);
         break;
         
-    case BR_ATTEMPT_ACQUIRE:
+        case BR_ATTEMPT_ACQUIRE:
+        // TODO: something probably needs to change here as well
         refs = (RefBase::weakref_type*)mIn.readPointer();
         obj = (BBinder*)mIn.readPointer();
          
