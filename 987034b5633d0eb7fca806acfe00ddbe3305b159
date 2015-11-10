@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1f2f7f8d_a940ed36",
+        "filename": "services/surfaceflinger/Layer.cpp",
+        "patchSetId": 4
+      },
+      "lineNbr": 625,
+      "author": {
+        "id": 4820
+      },
+      "writtenOn": "2015-11-10T07:48:40Z",
+      "side": 1,
+      "message": "This change is causing an undefined reference with opensource/display-frameworks",
+      "range": {
+        "startLine": 625,
+        "startChar": 13,
+        "endLine": 625,
+        "endChar": 33
+      },
+      "revId": "987034b5633d0eb7fca806acfe00ddbe3305b159",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
