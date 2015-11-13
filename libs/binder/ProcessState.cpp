@@ -15,6 +15,7 @@
  */
 
 #define LOG_TAG "ProcessState"
+#define LOG_NDEBUG 0
 
 #include <cutils/process_name.h>
 

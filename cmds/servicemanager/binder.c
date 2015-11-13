@@ -13,7 +13,8 @@
 
 #define MAX_BIO_SIZE (1 << 30)
 
-#define TRACE 0
+#define TRACE 1
+#define LOG_NDEBUG 0
 
 #define LOG_TAG "Binder"
 #include <cutils/log.h>

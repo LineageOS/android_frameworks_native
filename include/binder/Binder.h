@@ -81,6 +81,8 @@ private:
             void*       mReserved0;
     int32_t             mRemoteRefs;
     bool                mCollectionEnabled;
+public:
+    virtual void decStrong(const void *id) const override;
 };
 
 // ---------------------------------------------------------------------------

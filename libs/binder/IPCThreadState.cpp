@@ -15,6 +15,7 @@
  */
 
 #define LOG_TAG "IPCThreadState"
+#define LOG_NDEBUG 0
 
 #include <binder/IPCThreadState.h>
 

@@ -13,6 +13,8 @@
 
 #include "binder.h"
 
+#define LOG_NDEBUG 0
+
 #if 0
 #define ALOGI(x...) fprintf(stderr, "svcmgr: " x)
 #define ALOGE(x...) fprintf(stderr, "svcmgr: " x)
@@ -381,6 +383,8 @@ int main(int argc, char **argv)
     selinux_set_callback(SELINUX_CB_AUDIT, cb);
     cb.func_log = selinux_log_callback;
     selinux_set_callback(SELINUX_CB_LOG, cb);
+
+    ALOGD("Service Manager entering looper");
 
     svcmgr_handle = BINDER_SERVICE_MANAGER;
     binder_loop(bs, svcmgr_handler);

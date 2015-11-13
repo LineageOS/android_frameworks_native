@@ -187,6 +187,11 @@ BBinder* BBinder::localBinder()
     return this;
 }
 
+
+void BBinder::decStrong(const void *id) const {
+    RefBase::decStrong(id);
+}
+
 void BBinder::incStrongRemote(const void *id)
 {
     android_atomic_inc(&mRemoteRefs);
