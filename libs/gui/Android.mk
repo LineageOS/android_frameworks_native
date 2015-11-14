@@ -36,6 +36,10 @@ LOCAL_CPPFLAGS += -Wno-gnu-zero-variadic-macro-arguments
 # Don't warn about struct padding
 LOCAL_CPPFLAGS += -Wno-padded
 
+ifeq ($(TARGET_HAS_LEGACY_BODY_SENSOR),true)
+LOCAL_CPPFLAGS += -DNO_PERMISSION_CHECK
+endif
+
 LOCAL_SRC_FILES := \
 	IGraphicBufferConsumer.cpp \
 	IConsumerListener.cpp \
