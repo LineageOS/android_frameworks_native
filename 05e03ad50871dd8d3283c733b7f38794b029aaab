@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ff82abbf_91d7a624",
+        "filename": "include/ui/FramebufferNativeWindow.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 18,
+      "author": {
+        "id": 12082
+      },
+      "writtenOn": "2015-11-24T23:25:26Z",
+      "side": 0,
+      "message": "I had to remove because it\u0027s considered an error now",
+      "range": {
+        "startLine": 18,
+        "startChar": 0,
+        "endLine": 18,
+        "endChar": 48
+      },
+      "revId": "05e03ad50871dd8d3283c733b7f38794b029aaab",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
