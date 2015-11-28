@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ff82abbf_ee464450",
+        "filename": "libs/ui/FramebufferNativeWindow.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 32,
+      "author": {
+        "id": 4129
+      },
+      "writtenOn": "2015-11-28T12:56:50Z",
+      "side": 0,
+      "message": "Unused, causes error.",
+      "revId": "8c39282e31603b1b594ff1381f2c11e5863c2bbe",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
