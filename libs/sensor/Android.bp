@@ -44,6 +44,14 @@ cc_library_shared {
         "SensorEventQueue.cpp",
         "SensorManager.cpp",
     ],
+    
+    product_variables: {
+        lineage: {
+            no_sensors_permission_check: {
+                cppflags: ["-DTARGET_NO_SENSOR_PERMISSION_CHECK"],
+            },
+        }
+    },
 
     shared_libs: [
         "libbinder",
