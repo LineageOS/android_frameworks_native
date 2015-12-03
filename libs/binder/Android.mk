@@ -61,6 +61,10 @@ endif
 LOCAL_C_INCLUDES += hardware/$(SLSI_DIR)/$(PLATFORM_DIR)/include
 endif
 
+ifeq ($(BOARD_DISABLE_ASHMEM),true)
+LOCAL_CFLAGS += -DDISABLE_ASHMEM
+endif
+
 LOCAL_MODULE := libbinder
 LOCAL_SHARED_LIBRARIES += liblog libcutils libutils
 LOCAL_SRC_FILES := $(sources)
@@ -86,6 +90,10 @@ SLSI_DIR := samsung_slsi
 PLATFORM_DIR := $(TARGET_BOARD_PLATFORM)-$(TARGET_SLSI_VARIANT)
 endif
 LOCAL_C_INCLUDES += hardware/$(SLSI_DIR)/$(PLATFORM_DIR)/include
+endif
+
+ifeq ($(BOARD_DISABLE_ASHMEM),true)
+LOCAL_CFLAGS += -DDISABLE_ASHMEM
 endif
 
 LOCAL_MODULE := libbinder
