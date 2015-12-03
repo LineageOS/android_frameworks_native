@@ -341,7 +341,9 @@ public:
     };
 
 private:
+#ifndef DISABLE_ASHMEM_TRACKING
     size_t mBlobAshmemSize;
+#endif
     size_t mOpenAshmemSize;
 
 public:

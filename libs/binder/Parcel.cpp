@@ -935,7 +935,9 @@ status_t Parcel::writeBlob(size_t len, bool mutableCopy, WritableBlob* outBlob)
     int fd = ashmem_create_region("Parcel Blob", len);
     if (fd < 0) return NO_MEMORY;
 
+#ifndef DISABLE_ASHMEM_TRACKING
     mBlobAshmemSize += len;
+#endif
 
     int result = ashmem_set_prot_region(fd, PROT_READ | PROT_WRITE);
     if (result < 0) {
@@ -1902,7 +1904,9 @@ void Parcel::initState()
     mFdsKnown = true;
     mAllowFds = true;
     mOwner = NULL;
+#ifndef DISABLE_ASHMEM_TRACKING
     mBlobAshmemSize = 0;
+#endif
     mOpenAshmemSize = 0;
 }
 
@@ -1923,7 +1927,11 @@ void Parcel::scanForFds() const
 
 size_t Parcel::getBlobAshmemSize() const
 {
+#ifndef DISABLE_ASHMEM_TRACKING
     return mBlobAshmemSize;
+#else
+    return 0;
+#endif
 }
 
 size_t Parcel::getOpenAshmemSize() const
