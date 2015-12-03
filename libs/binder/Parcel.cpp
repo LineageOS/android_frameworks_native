@@ -1916,7 +1916,9 @@ void Parcel::initState()
     mFdsKnown = true;
     mAllowFds = true;
     mOwner = NULL;
+#ifndef DISABLE_ASHMEM_TRACKING
     mOpenAshmemSize = 0;
+#endif
 }
 
 void Parcel::scanForFds() const
@@ -1944,7 +1946,11 @@ size_t Parcel::getBlobAshmemSize() const
 
 size_t Parcel::getOpenAshmemSize() const
 {
+#ifndef DISABLE_ASHMEM_TRACKING
     return mOpenAshmemSize;
+#else
+    return 0;
+#endif
 }
 
 // --- Parcel::Blob ---
