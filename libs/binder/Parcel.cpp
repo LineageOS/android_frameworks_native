@@ -1916,7 +1916,9 @@ void Parcel::initState()
     mFdsKnown = true;
     mAllowFds = true;
     mOwner = NULL;
+#ifndef DISABLE_ASHMEM_TRACKING
     mOpenAshmemSize = 0;
+#endif
 }
 
 void Parcel::scanForFds() const
@@ -1939,12 +1941,20 @@ size_t Parcel::getBlobAshmemSize() const
     // This used to return the size of all blobs that were written to ashmem, now we're returning
     // the ashmem currently referenced by this Parcel, which should be equivalent.
     // TODO: Remove method once ABI can be changed.
+#ifndef DISABLE_ASHMEM_TRACKING
     return mOpenAshmemSize;
+#else
+    return 0;
+#endif
 }
 
 size_t Parcel::getOpenAshmemSize() const
 {
+#ifndef DISABLE_ASHMEM_TRACKING
     return mOpenAshmemSize;
+#else
+    return 0;
+#endif
 }
 
 // --- Parcel::Blob ---
