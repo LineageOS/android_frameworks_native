@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "bf8cb3f7_1b12cc59",
+        "filename": "include/binder/Parcel.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 343,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2015-12-04T08:07:01Z",
+      "side": 1,
+      "message": "Anything that uses this header will need this flag defined, otherwise your objects will be sized incorrectly, depending on the library.",
+      "revId": "655671327c5b3ac85ae9191058eae65cba354ae9",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
