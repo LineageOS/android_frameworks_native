@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5f93b717_9d1a6315",
+        "filename": "libs/binder/Parcel.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 183,
+      "author": {
+        "id": 11604
+      },
+      "writtenOn": "2015-12-09T08:23:01Z",
+      "side": 1,
+      "message": "This line needs to be run even if outAshmemSize \u003d\u003d NULL\n\nShould fix the hang",
+      "range": {
+        "startLine": 183,
+        "startChar": 20,
+        "endLine": 183,
+        "endChar": 38
+      },
+      "revId": "0667ac15c5d14cb1bc48ae891fa5a05814dd5f17",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
