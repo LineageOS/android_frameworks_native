@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5f93b717_63a016a7",
+        "filename": "libs/binder/Parcel.cpp",
+        "patchSetId": 5
+      },
+      "lineNbr": 185,
+      "author": {
+        "id": 9809
+      },
+      "writtenOn": "2015-12-10T03:06:48Z",
+      "side": 1,
+      "message": "ifdef is needed here to keep the code original ? think",
+      "revId": "1469f35ff4b6fe7d8f58f72ae31761917dc44e10",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
