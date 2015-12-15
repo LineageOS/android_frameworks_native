@@ -2047,6 +2047,22 @@ fail:
     return -1;
 }
 
+int rm_idmap(const char *overlay_apk)
+{
+    char idmap_path[PATH_MAX];
+
+    if (flatten_path(IDMAP_PREFIX, IDMAP_SUFFIX, overlay_apk,
+                idmap_path, sizeof(idmap_path)) == -1) {
+        ALOGE("idmap cannot generate idmap path for overlay %s\n", overlay_apk);
+        return -1;
+    }
+    if (unlink(idmap_path) < 0) {
+        ALOGE("couldn't unlink idmap file %s\n", idmap_path);
+        return -1;
+    }
+    return 0;
+}
+
 int restorecon_app_data(const char* uuid, const char* pkgName, userid_t userid, int flags,
         appid_t appid, const char* seinfo) {
     int res = 0;

@@ -383,6 +383,11 @@ static int do_idmap(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
     return idmap(arg[0], arg[1], atoi(arg[2]));
 }
 
+static int do_rm_idmap(char **arg, char reply[REPLY_MAX] __unused)
+{
+    return rm_idmap(arg[0]);
+}
+
 static int do_create_oat_dir(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
 {
     /* oat_dir, instruction_set */
@@ -450,6 +455,7 @@ struct cmdinfo cmds[] = {
     { "freecache",            2, do_free_cache },
     { "linklib",              4, do_linklib },
     { "idmap",                3, do_idmap },
+    { "rmidmap",              1, do_rm_idmap },
     { "createoatdir",         2, do_create_oat_dir },
     { "rmpackagedir",         1, do_rm_package_dir },
     { "clear_app_profiles",   1, do_clear_app_profiles },
