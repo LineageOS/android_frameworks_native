@@ -92,6 +92,7 @@ public:
 
     binder::Status idmap(const std::string& targetApkPath, const std::string& overlayApkPath,
             int32_t uid);
+    binder::Status removeIdmap(const std::string& overlayApkPath);
     binder::Status rmPackageDir(const std::string& packageDir);
     binder::Status markBootComplete(const std::string& instructionSet);
     binder::Status freeCache(const std::unique_ptr<std::string>& uuid, int64_t freeStorageSize,

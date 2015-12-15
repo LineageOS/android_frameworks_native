@@ -1890,6 +1890,22 @@ fail:
     return error();
 }
 
+binder::Status InstalldNativeService::removeIdmap(const std::string& overlayApkPath) {
+    const char* overlay_apk = overlayApkPath.c_str();
+    char idmap_path[PATH_MAX];
+
+    if (flatten_path(IDMAP_PREFIX, IDMAP_SUFFIX, overlay_apk,
+                idmap_path, sizeof(idmap_path)) == -1) {
+        ALOGE("idmap cannot generate idmap path for overlay %s\n", overlay_apk);
+        return error();
+    }
+    if (unlink(idmap_path) < 0) {
+        ALOGE("couldn't unlink idmap file %s\n", idmap_path);
+        return error();
+    }
+    return ok();
+}
+
 binder::Status InstalldNativeService::restoreconAppData(const std::unique_ptr<std::string>& uuid,
         const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
         const std::string& seInfo) {
