@@ -112,6 +112,7 @@ public:
     status_t            writeString16(const String16& str);
     status_t            writeString16(const std::unique_ptr<String16>& str);
     status_t            writeString16(const char16_t* str, size_t len);
+    status_t            writeString16(const uint16_t* str, size_t len);
     status_t            writeStrongBinder(const sp<IBinder>& val);
     status_t            writeWeakBinder(const wp<IBinder>& val);
     status_t            writeInt32Array(size_t len, const int32_t *val);
