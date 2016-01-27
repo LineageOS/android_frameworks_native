@@ -173,19 +173,15 @@ static void release_object(const sp<ProcessState>& proc,
             return;
         }
         case BINDER_TYPE_FD: {
-            if (outAshmemSize != NULL) {
-                if (obj.cookie != 0) {
+            if (obj.cookie != 0) { // owned
+                if (outAshmemSize != NULL) {
                     int size = ashmem_get_size_region(obj.handle);
                     if (size > 0) {
                         *outAshmemSize -= size;
                     }
-
-                    close(obj.handle);
                 }
-#ifdef DISABLE_ASHMEM_TRACKING
-            } else if (obj.cookie != 0) {
+
                 close(obj.handle);
-#endif
             }
             return;
         }
