@@ -54,13 +54,15 @@ SensorDevice::SensorDevice()
                 SENSORS_HARDWARE_MODULE_ID, strerror(-err));
 
         if (mSensorDevice) {
-            if (mSensorDevice->common.version == SENSORS_DEVICE_API_VERSION_1_1 ||
-                mSensorDevice->common.version == SENSORS_DEVICE_API_VERSION_1_2) {
-                ALOGE(">>>> WARNING <<< Upgrade sensor HAL to version 1_3");
-            }
 
             sensor_t const* list;
             ssize_t count = mSensorModule->get_sensors_list(mSensorModule, &list);
+
+            if (mSensorDevice->common.version < SENSORS_DEVICE_API_VERSION_1_3) {
+                ALOGE(">>>> WARNING <<< Upgrade sensor HAL to version 1_3, ignoring sensors reported by this device");
+                count = 0;
+            }
+
             mActivationCount.setCapacity(count);
             Info model;
             for (size_t i=0 ; i<size_t(count) ; i++) {
