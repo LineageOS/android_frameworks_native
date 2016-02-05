@@ -437,6 +437,7 @@ static void dumpstate() {
     run_command("LIST OF OPEN FILES", 10, SU_PATH, "root", "lsof", NULL);
     for_each_pid(do_showmap, "SMAPS OF ALL PROCESSES");
     for_each_tid(show_wchan, "BLOCKED PROCESS WAIT-CHANNELS");
+    for_each_pid(show_showtime, "PROCESS TIMES (pid cmd user system iowait+percentage)");
 
     if (screenshot_path[0]) {
         ALOGI("taking screenshot\n");
