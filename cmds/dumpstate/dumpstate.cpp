@@ -437,6 +437,7 @@ static void dumpstate() {
     run_command("LIST OF OPEN FILES", 10, SU_PATH, "root", "lsof", NULL);
     for_each_pid(do_showmap, "SMAPS OF ALL PROCESSES");
     for_each_tid(show_wchan, "BLOCKED PROCESS WAIT-CHANNELS");
+    for_each_pid(show_showtime, "PROCESS TIMES (pid cmd user system iowait+percentage)");
 
     if (screenshot_path[0]) {
         ALOGI("taking screenshot\n");
@@ -885,11 +886,12 @@ int main(int argc, char *argv[]) {
 
     /* tell activity manager we're done */
     if (do_broadcast && use_outfile && do_fb) {
-        run_command(NULL, 5, "/system/bin/am", "broadcast", "--user", "0",
+        const char *args[] = { "/system/bin/am", "broadcast", "--user", "0",
                 "-a", "android.intent.action.BUGREPORT_FINISHED",
                 "--es", "android.intent.extra.BUGREPORT", path,
                 "--es", "android.intent.extra.SCREENSHOT", screenshot_path,
-                "--receiver-permission", "android.permission.DUMP", NULL);
+                "--receiver-permission", "android.permission.DUMP", NULL };
+        run_command_always(NULL, 5, args);
     }
 
     ALOGI("done\n");
