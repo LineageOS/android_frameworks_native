@@ -28,6 +28,7 @@ LOCAL_SRC_FILES := \
     TextureRenderer.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
+	liblog \
 	libEGL \
 	libGLESv1_CM \
 	libGLESv2 \
