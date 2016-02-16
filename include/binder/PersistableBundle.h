@@ -18,6 +18,7 @@
 #define ANDROID_PERSISTABLE_BUNDLE_H
 
 #include <map>
+#include <set>
 #include <vector>
 
 #include <binder/Parcelable.h>
@@ -78,6 +79,19 @@ public:
     bool getDoubleVector(const String16& key, std::vector<double>* out) const;
     bool getStringVector(const String16& key, std::vector<String16>* out) const;
     bool getPersistableBundle(const String16& key, PersistableBundle* out) const;
+
+    /* Getters for all keys for each value type */
+    std::set<String16> getBooleanKeys() const;
+    std::set<String16> getIntKeys() const;
+    std::set<String16> getLongKeys() const;
+    std::set<String16> getDoubleKeys() const;
+    std::set<String16> getStringKeys() const;
+    std::set<String16> getBooleanVectorKeys() const;
+    std::set<String16> getIntVectorKeys() const;
+    std::set<String16> getLongVectorKeys() const;
+    std::set<String16> getDoubleVectorKeys() const;
+    std::set<String16> getStringVectorKeys() const;
+    std::set<String16> getPersistableBundleKeys() const;
 
     friend bool operator==(const PersistableBundle& lhs, const PersistableBundle& rhs) {
         return (lhs.mBoolMap == rhs.mBoolMap && lhs.mIntMap == rhs.mIntMap &&
