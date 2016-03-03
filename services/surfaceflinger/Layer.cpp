@@ -154,9 +154,7 @@ void Layer::onFirstRef() {
     mSurfaceFlingerConsumer->setContentsChangedListener(this);
     mSurfaceFlingerConsumer->setName(mName);
 
-#ifdef TARGET_DISABLE_TRIPLE_BUFFERING
-#warning "disabling triple buffering"
-#else
+#ifndef TARGET_DISABLE_TRIPLE_BUFFERING
     mProducer->setMaxDequeuedBufferCount(2);
 #endif
 
