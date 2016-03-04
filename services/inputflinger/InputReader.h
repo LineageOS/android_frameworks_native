@@ -150,6 +150,9 @@ struct InputReaderConfiguration {
         // Stylus icon option changed.
         CHANGE_STYLUS_ICON_ENABLED = 1 << 9,
 
+        // Swap app switch with back button.
+        CHANGE_APP_SWITCH_BUTTONS = 1 << 10,
+
         // All devices must be reopened.
         CHANGE_MUST_REOPEN = 1 << 31,
     };
@@ -247,6 +250,9 @@ struct InputReaderConfiguration {
     // 0 - disabled, 1 - phone or hybrid rotation mode, 2 - tablet rotation mode
     int volumeKeysRotationMode;
 
+    // Swap app switch button with back button.
+    bool appSwitchSwapButtonsEnabled;
+
     InputReaderConfiguration() :
             virtualKeyQuietTime(0),
             pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f, 3.0f),
@@ -266,7 +272,8 @@ struct InputReaderConfiguration {
             showTouches(false),
             stylusIconEnabled(false),
             stylusPalmRejectionTime(50 * 10000000LL), // 50 ms
-            volumeKeysRotationMode(0)
+            volumeKeysRotationMode(0),
+            appSwitchSwapButtonsEnabled(false)
     { }
 
     bool getDisplayInfo(bool external, DisplayViewport* outViewport) const;
@@ -1149,6 +1156,8 @@ private:
     int32_t mRotationMapOffset; // determines if and how volume keys rotate
     int32_t mOrientation; // orientation for dpad and volume keys
 
+    bool mAppSwitchSwapButtons; // swap app switch with back button
+
     Vector<KeyDown> mKeyDowns; // keys that are down
     int32_t mMetaState;
     nsecs_t mDownTime; // time of most recent key down
@@ -1176,6 +1185,8 @@ private:
     bool isKeyboardOrGamepadKey(int32_t scanCode);
 
     void processKey(nsecs_t when, bool down, int32_t scanCode, int32_t usageCode);
+
+    int getAdjustedKeyCode(int keyCode);
 
     ssize_t findKeyDown(int32_t scanCode);
 

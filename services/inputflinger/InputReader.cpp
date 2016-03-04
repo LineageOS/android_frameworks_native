@@ -2147,6 +2147,9 @@ void KeyboardInputMapper::configure(nsecs_t when,
         // mode 2 (tablet) ~ offset 0
         mRotationMapOffset = 4 - 2 * config->volumeKeysRotationMode;
     }
+    if (!changes || (changes & InputReaderConfiguration::CHANGE_APP_SWITCH_BUTTONS)) {
+        mAppSwitchSwapButtons = config->appSwitchSwapButtonsEnabled;
+    }
 }
 
 void KeyboardInputMapper::configureParameters() {
@@ -2315,8 +2318,25 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
 
     NotifyKeyArgs args(when, getDeviceId(), mSource, policyFlags,
             down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
-            AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
+            AKEY_EVENT_FLAG_FROM_SYSTEM, getAdjustedKeyCode(keyCode),
+            scanCode, keyMetaState, downTime);
     getListener()->notifyKey(&args);
+}
+
+int KeyboardInputMapper::getAdjustedKeyCode(int keyCode) {
+    switch (keyCode) {
+        case AKEYCODE_BACK:
+            if (mAppSwitchSwapButtons) {
+                return AKEYCODE_APP_SWITCH;
+            }
+            break;
+        case AKEYCODE_APP_SWITCH:
+            if (mAppSwitchSwapButtons) {
+                return AKEYCODE_BACK;
+            }
+            break;
+    }
+    return keyCode;
 }
 
 ssize_t KeyboardInputMapper::findKeyDown(int32_t scanCode) {
