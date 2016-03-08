@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ffb9cba7_7922d0a6",
+        "filename": "services/inputflinger/InputReader.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 1810,
+      "author": {
+        "id": 9813
+      },
+      "writtenOn": "2016-03-08T11:11:45Z",
+      "side": 0,
+      "message": "unnecessary change",
+      "revId": "b0cda680c2aaa3cbc0ae080c51f8c21a3e93adb0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ffb9cba7_992544ae",
+        "filename": "services/inputflinger/InputReader.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 1879,
+      "author": {
+        "id": 9813
+      },
+      "writtenOn": "2016-03-08T11:11:45Z",
+      "side": 0,
+      "message": "unnecessary change",
+      "revId": "b0cda680c2aaa3cbc0ae080c51f8c21a3e93adb0",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}

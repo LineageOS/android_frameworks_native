@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ffb9cba7_393c58c7",
+        "filename": "services/inputflinger/InputReader.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 5978,
+      "author": {
+        "id": 9813
+      },
+      "writtenOn": "2016-03-08T11:11:45Z",
+      "side": 1,
+      "message": "same",
+      "revId": "6c9bfa49dcf5a174a4ecb474a49563964bebcee7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ffb9cba7_5937cce4",
+        "filename": "services/inputflinger/InputReader.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 6104,
+      "author": {
+        "id": 9813
+      },
+      "writtenOn": "2016-03-08T11:11:45Z",
+      "side": 1,
+      "message": "same",
+      "revId": "6c9bfa49dcf5a174a4ecb474a49563964bebcee7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ffb9cba7_f93560db",
+        "filename": "services/inputflinger/InputReader.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 6106,
+      "author": {
+        "id": 9813
+      },
+      "writtenOn": "2016-03-08T11:11:45Z",
+      "side": 1,
+      "message": "same",
+      "revId": "6c9bfa49dcf5a174a4ecb474a49563964bebcee7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
