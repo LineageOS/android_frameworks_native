@@ -75,7 +75,6 @@ ExLayer::ExLayer(SurfaceFlinger* flinger, const sp<Client>& client,
     char property[PROPERTY_VALUE_MAX] = {0};
 
     mDebugLogs = false;
-    mIsGPUAllowedForProtected = false;
     if((property_get("persist.debug.qdframework.logs", property, NULL) > 0) &&
        (!strncmp(property, "1", PROPERTY_VALUE_MAX ) ||
         (!strncasecmp(property,"true", PROPERTY_VALUE_MAX )))) {
@@ -83,11 +82,6 @@ ExLayer::ExLayer(SurfaceFlinger* flinger, const sp<Client>& client,
     }
 
     ALOGD_IF(isDebug(),"Creating custom Layer %s",__FUNCTION__);
-
-    if ((property_get("persist.gralloc.cp.level3", property, NULL) > 0) &&
-           (atoi(property) == 1)) {
-        mIsGPUAllowedForProtected = true;
-    }
 }
 
 ExLayer::~ExLayer() {
@@ -194,14 +188,6 @@ void ExLayer::setAcquiredFenceIfBlit(int &fenceFd,
     ALOGD_IF(isDebug(),"Not a BLIT Layer, compType = %d fencefd = %d",
             layer.getCompositionType(), fenceFd);
 #endif
-}
-
-bool ExLayer::canAllowGPUForProtected() const {
-    if(isProtected()) {
-        return mIsGPUAllowedForProtected;
-    } else {
-        return false;
-    }
 }
 
 }; // namespace android
