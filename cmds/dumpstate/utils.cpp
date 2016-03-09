@@ -501,7 +501,7 @@ int dump_files(const char *title, const char *dir,
     dirp = opendir(dir);
     if (dirp == NULL) {
         retval = -errno;
-        fprintf(stderr, "%s: %s\n", dir, strerror(errno));
+        MYLOGE("%s: %s\n", dir, strerror(errno));
         return retval;
     }
 
@@ -703,7 +703,7 @@ int run_command_always(const char *title, int timeout_seconds, const char *args[
 
 void send_broadcast(const std::string& action, const std::vector<std::string>& args) {
     if (args.size() > 1000) {
-        fprintf(stderr, "send_broadcast: too many arguments (%d)\n", (int) args.size());
+        MYLOGE("send_broadcast: too many arguments (%d)\n", (int) args.size());
         return;
     }
     const char *am_args[1024] = { SU_PATH, "shell", "/system/bin/am", "broadcast",
@@ -756,12 +756,12 @@ void print_properties() {
 void redirect_to_socket(FILE *redirect, const char *service) {
     int s = android_get_control_socket(service);
     if (s < 0) {
-        fprintf(stderr, "android_get_control_socket(%s): %s\n", service, strerror(errno));
+        MYLOGE("android_get_control_socket(%s): %s\n", service, strerror(errno));
         exit(1);
     }
     fcntl(s, F_SETFD, FD_CLOEXEC);
     if (listen(s, 4) < 0) {
-        fprintf(stderr, "listen(control socket): %s\n", strerror(errno));
+        MYLOGE("listen(control socket): %s\n", strerror(errno));
         exit(1);
     }
 
@@ -769,7 +769,7 @@ void redirect_to_socket(FILE *redirect, const char *service) {
     socklen_t alen = sizeof(addr);
     int fd = accept(s, &addr, &alen);
     if (fd < 0) {
-        fprintf(stderr, "accept(control socket): %s\n", strerror(errno));
+        MYLOGE("accept(control socket): %s\n", strerror(errno));
         exit(1);
     }
 
@@ -811,7 +811,7 @@ void redirect_to_file(FILE *redirect, char *path) {
     int fd = TEMP_FAILURE_RETRY(open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
                                      S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
     if (fd < 0) {
-        fprintf(stderr, "%s: %s\n", path, strerror(errno));
+        MYLOGE("%s: %s\n", path, strerror(errno));
         exit(1);
     }
 
@@ -843,7 +843,7 @@ const char *dump_traces() {
     strlcpy(anr_traces_path, traces_path, sizeof(anr_traces_path));
     strlcat(anr_traces_path, ".anr", sizeof(anr_traces_path));
     if (rename(traces_path, anr_traces_path) && errno != ENOENT) {
-        fprintf(stderr, "rename(%s, %s): %s\n", traces_path, anr_traces_path, strerror(errno));
+        MYLOGE("rename(%s, %s): %s\n", traces_path, anr_traces_path, strerror(errno));
         return NULL;  // Can't rename old traces.txt -- no permission? -- leave it alone instead
     }
 
@@ -851,12 +851,12 @@ const char *dump_traces() {
     int fd = TEMP_FAILURE_RETRY(open(traces_path, O_CREAT | O_WRONLY | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
                                      0666));  /* -rw-rw-rw- */
     if (fd < 0) {
-        fprintf(stderr, "%s: %s\n", traces_path, strerror(errno));
+        MYLOGE("%s: %s\n", traces_path, strerror(errno));
         return NULL;
     }
     int chmod_ret = fchmod(fd, 0666);
     if (chmod_ret < 0) {
-        fprintf(stderr, "fchmod on %s failed: %s\n", traces_path, strerror(errno));
+        MYLOGE("fchmod on %s failed: %s\n", traces_path, strerror(errno));
         close(fd);
         return NULL;
     }
@@ -868,20 +868,20 @@ const char *dump_traces() {
     /* walk /proc and kill -QUIT all Dalvik processes */
     DIR *proc = opendir("/proc");
     if (proc == NULL) {
-        fprintf(stderr, "/proc: %s\n", strerror(errno));
+        MYLOGE("/proc: %s\n", strerror(errno));
         goto error_close_fd;
     }
 
     /* use inotify to find when processes are done dumping */
     ifd = inotify_init();
     if (ifd < 0) {
-        fprintf(stderr, "inotify_init: %s\n", strerror(errno));
+        MYLOGE("inotify_init: %s\n", strerror(errno));
         goto error_close_fd;
     }
 
     wfd = inotify_add_watch(ifd, traces_path, IN_CLOSE_WRITE);
     if (wfd < 0) {
-        fprintf(stderr, "inotify_add_watch(%s): %s\n", traces_path, strerror(errno));
+        MYLOGE("inotify_add_watch(%s): %s\n", traces_path, strerror(errno));
         goto error_close_ifd;
     }
 
@@ -916,7 +916,7 @@ const char *dump_traces() {
             ++dalvik_found;
             uint64_t start = DurationReporter::nanotime();
             if (kill(pid, SIGQUIT)) {
-                fprintf(stderr, "kill(%d, SIGQUIT): %s\n", pid, strerror(errno));
+                MYLOGE("kill(%d, SIGQUIT): %s\n", pid, strerror(errno));
                 continue;
             }
 
@@ -924,16 +924,16 @@ const char *dump_traces() {
             struct pollfd pfd = { ifd, POLLIN, 0 };
             int ret = poll(&pfd, 1, 5000);  /* 5 sec timeout */
             if (ret < 0) {
-                fprintf(stderr, "poll: %s\n", strerror(errno));
+                MYLOGE("poll: %s\n", strerror(errno));
             } else if (ret == 0) {
-                fprintf(stderr, "warning: timed out dumping pid %d\n", pid);
+                MYLOGE("warning: timed out dumping pid %d\n", pid);
             } else {
                 struct inotify_event ie;
                 read(ifd, &ie, sizeof(ie));
             }
 
             if (lseek(fd, 0, SEEK_END) < 0) {
-                fprintf(stderr, "lseek: %s\n", strerror(errno));
+                MYLOGE("lseek: %s\n", strerror(errno));
             } else {
                 dprintf(fd, "[dump dalvik stack %d: %.3fs elapsed]\n",
                         pid, (float)(DurationReporter::nanotime() - start) / NANOS_PER_SEC);
@@ -941,7 +941,7 @@ const char *dump_traces() {
         } else if (should_dump_native_traces(data)) {
             /* dump native process if appropriate */
             if (lseek(fd, 0, SEEK_END) < 0) {
-                fprintf(stderr, "lseek: %s\n", strerror(errno));
+                MYLOGE("lseek: %s\n", strerror(errno));
             } else {
                 static uint16_t timeout_failures = 0;
                 uint64_t start = DurationReporter::nanotime();
@@ -962,14 +962,14 @@ const char *dump_traces() {
     }
 
     if (dalvik_found == 0) {
-        fprintf(stderr, "Warning: no Dalvik processes found to dump stacks\n");
+        MYLOGE("Warning: no Dalvik processes found to dump stacks\n");
     }
 
     static char dump_traces_path[PATH_MAX];
     strlcpy(dump_traces_path, traces_path, sizeof(dump_traces_path));
     strlcat(dump_traces_path, ".bugreport", sizeof(dump_traces_path));
     if (rename(traces_path, dump_traces_path)) {
-        fprintf(stderr, "rename(%s, %s): %s\n", traces_path, dump_traces_path, strerror(errno));
+        MYLOGE("rename(%s, %s): %s\n", traces_path, dump_traces_path, strerror(errno));
         goto error_close_ifd;
     }
     result = dump_traces_path;
@@ -1022,7 +1022,7 @@ void update_progress(int delta) {
     // adjusts max on the fly
     if (progress > weight_total) {
         int new_total = weight_total * 1.2;
-        fprintf(stderr, "Adjusting total weight from %d to %d\n", weight_total, new_total);
+        MYLOGD("Adjusting total weight from %d to %d\n", weight_total, new_total);
         weight_total = new_total;
         sprintf(key, "dumpstate.%d.max", getpid());
         sprintf(value, "%d", weight_total);
@@ -1036,9 +1036,14 @@ void update_progress(int delta) {
     sprintf(key, "dumpstate.%d.progress", getpid());
     sprintf(value, "%d", progress);
 
-    // stderr is ignored on normal invocations, but useful when calling /system/bin/dumpstate
-    // directly for debuggging.
-    fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, weight_total);
+    if (progress % 100 == 0) {
+        // We don't want to spam logcat, so only log multiples of 100.
+        MYLOGD("Setting progress (%s): %s/%d\n", key, value, weight_total);
+    } else {
+        // stderr is ignored on normal invocations, but useful when calling /system/bin/dumpstate
+        // directly for debuggging.
+        fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, weight_total);
+    }
 
     int status = property_set(key, value);
     if (status) {
@@ -1196,5 +1201,5 @@ void log_args(const std::string& message, int argc, const char *argv[]) {
         args.append(argv[i]);
         args.append(" ");
     }
-    MYLOGI("%s: %s\n", message.c_str(), args.c_str());
+    MYLOGD("%s: %s\n", message.c_str(), args.c_str());
 }
