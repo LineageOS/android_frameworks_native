@@ -1817,8 +1817,8 @@ int link_file(const char* relative_path, const char* from_base, const char* to_b
 
 int calculate_oat_file_path(char path[PKG_PATH_MAX], const char *oat_dir, const char *apk_path,
         const char *instruction_set) {
-    char *file_name_start;
-    char *file_name_end;
+    const char *file_name_start;
+    const char *file_name_end;
 
     file_name_start = strrchr(apk_path, '/');
     if (file_name_start == NULL) {
