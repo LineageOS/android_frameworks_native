@@ -34,39 +34,65 @@ using namespace android;
 
 #undef API_ENTRY
 #undef CALL_GL_API
+#undef CALL_GL_API_INTERNAL_CALL
+#undef CALL_GL_API_INTERNAL_SET_RETURN_VALUE
+#undef CALL_GL_API_INTERNAL_DO_RETURN
 #undef CALL_GL_API_RETURN
 
 #if USE_SLOW_BINDING
 
     #define API_ENTRY(_api) _api
 
-    #define CALL_GL_API(_api, ...)                                       \
+    #define CALL_GL_API_INTERNAL_CALL(_api, ...)                         \
         gl_hooks_t::gl_t const * const _c = &getGlThreadSpecific()->gl;  \
         if (_c) return _c->_api(__VA_ARGS__);
+
+    #define CALL_GL_API_INTERNAL_SET_RETURN_VALUE return 0;
+
+    // This stays blank, since void functions will implicitly return, and
+    // all of the other functions will return 0 based on the previous macro.
+    #define CALL_GL_API_INTERNAL_DO_RETURN
 
 #elif defined(__arm__)
 
     #define GET_TLS(reg) "mrc p15, 0, " #reg ", c13, c0, 3 \n"
 
-    #define API_ENTRY(_api) __attribute__((noinline)) _api
+    #define API_ENTRY(_api) __attribute__((naked,noinline)) _api
 
-    #define CALL_GL_API(_api, ...)                              \
-         asm volatile(                                          \
-            GET_TLS(r12)                                        \
-            "ldr   r12, [r12, %[tls]] \n"                       \
-            "cmp   r12, #0            \n"                       \
-            "ldrne pc,  [r12, %[api]] \n"                       \
-            :                                                   \
-            : [tls] "J"(TLS_SLOT_OPENGL_API*4),                 \
-              [api] "J"(__builtin_offsetof(gl_hooks_t, gl._api))    \
-            : "r12"                                             \
-            );
+    #define CALL_GL_API_INTERNAL_CALL(_api, ...)                 \
+        asm volatile(                                            \
+            GET_TLS(r12)                                         \
+            "ldr   r12, [r12, %[tls]] \n"                        \
+            "cmp   r12, #0            \n"                        \
+            "ldrne pc,  [r12, %[api]] \n"                        \
+            :                                                    \
+            : [tls] "J"(TLS_SLOT_OPENGL_API*4),                  \
+              [api] "J"(__builtin_offsetof(gl_hooks_t, gl._api)) \
+            : "r0", "r1", "r2", "r3", "r12"                      \
+        );
+
+    #define CALL_GL_API_INTERNAL_SET_RETURN_VALUE \
+        asm volatile(                             \
+            "mov r0, #0 \n"                       \
+            :                                     \
+            :                                     \
+            : "r0"                                \
+        );
+
+
+    #define CALL_GL_API_INTERNAL_DO_RETURN \
+        asm volatile(                      \
+            "bx lr \n"                     \
+            :                              \
+            :                              \
+            : "r0"                         \
+        );
 
 #elif defined(__aarch64__)
 
-    #define API_ENTRY(_api) __attribute__((noinline)) _api
+    #define API_ENTRY(_api) __attribute__((naked,noinline)) _api
 
-    #define CALL_GL_API(_api, ...)                                  \
+    #define CALL_GL_API_INTERNAL_CALL(_api, ...)                    \
         asm volatile(                                               \
             "mrs x16, tpidr_el0\n"                                  \
             "ldr x16, [x16, %[tls]]\n"                              \
@@ -77,121 +103,173 @@ using namespace android;
             :                                                       \
             : [tls] "i" (TLS_SLOT_OPENGL_API * sizeof(void*)),      \
               [api] "i" (__builtin_offsetof(gl_hooks_t, gl._api))   \
-            : "x16"                                                 \
+            : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x16" \
+        );
+
+    #define CALL_GL_API_INTERNAL_SET_RETURN_VALUE \
+        asm volatile(                             \
+            "mov w0, wzr \n"                      \
+            :                                     \
+            :                                     \
+            : "w0"                                \
+        );
+
+    #define CALL_GL_API_INTERNAL_DO_RETURN \
+        asm volatile(                      \
+            "ret \n"                       \
+            :                              \
+            :                              \
+            :                              \
         );
 
 #elif defined(__i386__)
 
-    #define API_ENTRY(_api) __attribute__((noinline,optimize("omit-frame-pointer"))) _api
+    #define API_ENTRY(_api) __attribute__((naked,noinline)) _api
 
-    #define CALL_GL_API(_api, ...)                                  \
-        register void** fn;                                         \
+    #define CALL_GL_API_INTERNAL_CALL(_api, ...)                    \
         __asm__ volatile(                                           \
-            "mov %%gs:0, %[fn]\n"                                   \
-            "mov %P[tls](%[fn]), %[fn]\n"                           \
-            "test %[fn], %[fn]\n"                                   \
+            "mov %%gs:0, %%eax\n"                                   \
+            "mov %P[tls](%%eax), %%eax\n"                           \
+            "test %%eax, %%eax\n"                                   \
             "je 1f\n"                                               \
-            "jmp *%P[api](%[fn])\n"                                 \
+            "jmp *%P[api](%%eax)\n"                                 \
             "1:\n"                                                  \
-            : [fn] "=r" (fn)                                        \
+            :                                                       \
             : [tls] "i" (TLS_SLOT_OPENGL_API*sizeof(void*)),        \
               [api] "i" (__builtin_offsetof(gl_hooks_t, gl._api))   \
-            : "cc"                                                  \
+            : "cc", "%eax"                                          \
             );
+
+    #define CALL_GL_API_INTERNAL_SET_RETURN_VALUE \
+        __asm__ volatile(                         \
+            "xor %%eax, %%eax\n"                  \
+            :                                     \
+            :                                     \
+            : "%eax"                              \
+        );
+
+    #define CALL_GL_API_INTERNAL_DO_RETURN \
+        __asm__ volatile(                  \
+            "ret\n"                        \
+            :                              \
+            :                              \
+            :                              \
+        );
 
 #elif defined(__x86_64__)
 
-    #define API_ENTRY(_api) __attribute__((noinline,optimize("omit-frame-pointer"))) _api
+    #define API_ENTRY(_api) __attribute__((naked,noinline)) _api
 
-    #define CALL_GL_API(_api, ...)                                  \
-         register void** fn;                                        \
-         __asm__ volatile(                                          \
-            "mov %%fs:0, %[fn]\n"                                   \
-            "mov %P[tls](%[fn]), %[fn]\n"                           \
-            "test %[fn], %[fn]\n"                                   \
+    #define CALL_GL_API_INTERNAL_CALL(_api, ...)                    \
+        __asm__ volatile(                                           \
+            "mov %%fs:0, %%rax\n"                                   \
+            "mov %P[tls](%%rax), %%rax\n"                           \
+            "test %%rax, %%rax\n"                                   \
             "je 1f\n"                                               \
-            "jmp *%P[api](%[fn])\n"                                 \
+            "jmp *%P[api](%%rax)\n"                                 \
             "1:\n"                                                  \
-            : [fn] "=r" (fn)                                        \
+            :                                                       \
             : [tls] "i" (TLS_SLOT_OPENGL_API*sizeof(void*)),        \
               [api] "i" (__builtin_offsetof(gl_hooks_t, gl._api))   \
-            : "cc"                                                  \
-            );
+            : "cc", "%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9",   \
+              "%xmm0", "%xmm1", "%xmm2", "%xmm3", "%xmm4", "%xmm5", \
+              "%xmm6", "%xmm7"                                      \
+        );
+
+    #define CALL_GL_API_INTERNAL_SET_RETURN_VALUE \
+        __asm__ volatile(                         \
+            "xor %%eax, %%eax\n"                  \
+            :                                     \
+            :                                     \
+            : "%eax"                              \
+        );
+
+    #define CALL_GL_API_INTERNAL_DO_RETURN \
+        __asm__ volatile(                  \
+            "retq\n"                       \
+            :                              \
+            :                              \
+            :                              \
+        );
 
 #elif defined(__mips64)
 
-    #define API_ENTRY(_api) __attribute__((noinline)) _api
+    #define API_ENTRY(_api) __attribute__((naked,noinline)) _api
 
-    #define CALL_GL_API(_api, ...)                            \
-    register unsigned long _t0 asm("$12");                    \
-    register unsigned long _fn asm("$25");                    \
-    register unsigned long _tls asm("$3");                    \
-    register unsigned long _v0 asm("$2");                     \
-    asm volatile(                                             \
-        ".set  push\n\t"                                      \
-        ".set  noreorder\n\t"                                 \
-        "rdhwr %[tls], $29\n\t"                               \
-        "ld    %[t0], %[OPENGL_API](%[tls])\n\t"              \
-        "beqz  %[t0], 1f\n\t"                                 \
-        " move %[fn], $ra\n\t"                                \
-        "ld    %[t0], %[API](%[t0])\n\t"                      \
-        "beqz  %[t0], 1f\n\t"                                 \
-        " nop\n\t"                                            \
-        "move  %[fn], %[t0]\n\t"                              \
-        "1:\n\t"                                              \
-        "jalr  $0, %[fn]\n\t"                                 \
-        " move %[v0], $0\n\t"                                 \
-        ".set  pop\n\t"                                       \
-        : [fn] "=c"(_fn),                                     \
-          [tls] "=&r"(_tls),                                  \
-          [t0] "=&r"(_t0),                                    \
-          [v0] "=&r"(_v0)                                     \
-        : [OPENGL_API] "I"(TLS_SLOT_OPENGL_API*sizeof(void*)),\
-          [API] "I"(__builtin_offsetof(gl_hooks_t, gl._api))  \
-        :                                                     \
+    // t0:  $12
+    // fn:  $25
+    // tls: $3
+    // v0:  $2
+    #define CALL_GL_API_INTERNAL_CALL(_api, ...)                  \
+        asm volatile(                                             \
+            ".set  push\n\t"                                      \
+            ".set  noreorder\n\t"                                 \
+            "rdhwr $3, $29\n\t"                                   \
+            "ld    $12, %[OPENGL_API]($3)\n\t"                    \
+            "beqz  $12, 1f\n\t"                                   \
+            " move $25, $ra\n\t"                                  \
+            "ld    $12, %[API]($12)\n\t"                          \
+            "beqz  $12, 1f\n\t"                                   \
+            " nop\n\t"                                            \
+            "move  $25, $12\n\t"                                  \
+            "1:\n\t"                                              \
+            "jalr  $0, $25\n\t"                                   \
+            " move $2, $0\n\t"                                    \
+            ".set  pop\n\t"                                       \
+            :                                                     \
+            : [OPENGL_API] "I"(TLS_SLOT_OPENGL_API*sizeof(void*)),\
+              [API] "I"(__builtin_offsetof(gl_hooks_t, gl._api))  \
+            : "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9",     \
+              "$10", "$11", "$12", "$25"                          \
         );
+
+    #define CALL_GL_API_INTERNAL_SET_RETURN_VALUE
+    #define CALL_GL_API_INTERNAL_DO_RETURN
 
 #elif defined(__mips__)
 
-    #define API_ENTRY(_api) __attribute__((noinline)) _api
+    #define API_ENTRY(_api) __attribute__((naked,noinline)) _api
 
-    #define CALL_GL_API(_api, ...)                               \
-        register unsigned int _t0 asm("$8");                     \
-        register unsigned int _fn asm("$25");                    \
-        register unsigned int _tls asm("$3");                    \
-        register unsigned int _v0 asm("$2");                     \
+    // t0:  $8
+    // fn:  $25
+    // tls: $3
+    // v0:  $2
+    #define CALL_GL_API_INTERNAL_CALL(_api, ...)                 \
         asm volatile(                                            \
             ".set  push\n\t"                                     \
             ".set  noreorder\n\t"                                \
             ".set  mips32r2\n\t"                                 \
-            "rdhwr %[tls], $29\n\t"                              \
-            "lw    %[t0], %[OPENGL_API](%[tls])\n\t"             \
-            "beqz  %[t0], 1f\n\t"                                \
-            " move %[fn],$ra\n\t"                                \
-            "lw    %[t0], %[API](%[t0])\n\t"                     \
-            "beqz  %[t0], 1f\n\t"                                \
+            "rdhwr $3, $29\n\t"                                  \
+            "lw    $3, %[OPENGL_API]($3)\n\t"                    \
+            "beqz  $3, 1f\n\t"                                   \
+            " move $25,$ra\n\t"                                  \
+            "lw    $3, %[API]($3)\n\t"                           \
+            "beqz  $3, 1f\n\t"                                   \
             " nop\n\t"                                           \
-            "move  %[fn], %[t0]\n\t"                             \
+            "move  $25, $3\n\t"                                  \
             "1:\n\t"                                             \
-            "jalr  $0, %[fn]\n\t"                                \
-            " move %[v0], $0\n\t"                                \
+            "jalr  $0, $25\n\t"                                  \
+            " move $2, $0\n\t"                                   \
             ".set  pop\n\t"                                      \
-            : [fn] "=c"(_fn),                                    \
-              [tls] "=&r"(_tls),                                 \
-              [t0] "=&r"(_t0),                                   \
-              [v0] "=&r"(_v0)                                    \
+            :                                                    \
             : [OPENGL_API] "I"(TLS_SLOT_OPENGL_API*4),           \
               [API] "I"(__builtin_offsetof(gl_hooks_t, gl._api)) \
-            :                                                    \
-            );
+            : "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$25"    \
+        );
+
+    #define CALL_GL_API_INTERNAL_SET_RETURN_VALUE
+    #define CALL_GL_API_INTERNAL_DO_RETURN
 
 #endif
 
+#define CALL_GL_API(_api, ...) \
+    CALL_GL_API_INTERNAL_CALL(_api, __VA_ARGS__) \
+    CALL_GL_API_INTERNAL_DO_RETURN
+
 #define CALL_GL_API_RETURN(_api, ...) \
-    CALL_GL_API(_api, __VA_ARGS__) \
-    return 0;
-
-
+    CALL_GL_API_INTERNAL_CALL(_api, __VA_ARGS__) \
+    CALL_GL_API_INTERNAL_SET_RETURN_VALUE \
+    CALL_GL_API_INTERNAL_DO_RETURN
 
 extern "C" {
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -202,6 +280,9 @@ extern "C" {
 
 #undef API_ENTRY
 #undef CALL_GL_API
+#undef CALL_GL_API_INTERNAL_CALL
+#undef CALL_GL_API_INTERNAL_SET_RETURN_VALUE
+#undef CALL_GL_API_INTERNAL_DO_RETURN
 #undef CALL_GL_API_RETURN
 
 /*
