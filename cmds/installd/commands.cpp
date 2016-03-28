@@ -1851,7 +1851,6 @@ static bool unlink_and_rename(const char* from, const char* to) {
         PLOG(ERROR) << "Could not rename " << from << " to " << to;
         return false;
     }
-
     return true;
 }
 
