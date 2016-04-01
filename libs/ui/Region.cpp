@@ -489,7 +489,8 @@ void Region::rasterizer::flushSpan()
                     merge = false;
                     break;
                 }
-                p++, q++;
+                p++;
+                q++;
             }
         }
     }
