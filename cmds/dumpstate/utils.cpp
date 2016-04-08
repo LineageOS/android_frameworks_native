@@ -28,7 +28,6 @@
 #include <sys/capability.h>
 #include <sys/inotify.h>
 #include <sys/stat.h>
-#include <sys/sysconf.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/klog.h>
