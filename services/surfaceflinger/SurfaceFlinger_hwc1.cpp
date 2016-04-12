@@ -168,6 +168,7 @@ SurfaceFlinger::SurfaceFlinger()
         mHWVsyncAvailable(false),
         mDaltonize(false),
         mHasColorMatrix(false),
+        mHasSecondaryColorMatrix(false),
         mHasPoweredOff(false),
         mFrameBuckets(),
         mTotalTime(0),
@@ -1261,7 +1262,8 @@ void SurfaceFlinger::setUpHWComposer() {
                         for (size_t i=0 ; cur!=end && i<count ; ++i, ++cur) {
                             const sp<Layer>& layer(currentLayers[i]);
                             layer->setGeometry(hw, *cur);
-                            if (mDebugDisableHWC || mDebugRegion || mDaltonize || mHasColorMatrix) {
+                            if (mDebugDisableHWC || mDebugRegion || mDaltonize || mHasColorMatrix
+                                    || mHasSecondaryColorMatrix) {
                                 cur->setSkip(true);
                             }
                         }
@@ -2023,11 +2025,15 @@ void SurfaceFlinger::doDisplayComposition(const sp<const DisplayDevice>& hw,
         }
     }
 
-    if (CC_LIKELY(!mDaltonize && !mHasColorMatrix)) {
+    if (CC_LIKELY(!mDaltonize && !mHasColorMatrix && !mHasSecondaryColorMatrix)) {
         if (!doComposeSurfaces(hw, dirtyRegion)) return;
     } else {
         RenderEngine& engine(getRenderEngine());
         mat4 colorMatrix = mColorMatrix;
+        if (mHasSecondaryColorMatrix) {
+            colorMatrix = mHasColorMatrix
+                    ? (colorMatrix * mSecondaryColorMatrix) : mSecondaryColorMatrix;
+        }
         if (mDaltonize) {
             colorMatrix = colorMatrix * mDaltonizer();
         }
@@ -3110,7 +3116,8 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.appendFormat("  h/w composer %s and %s\n",
             hwc.initCheck()==NO_ERROR ? "present" : "not present",
                     (mDebugDisableHWC || mDebugRegion || mDaltonize
-                            || mHasColorMatrix) ? "disabled" : "enabled");
+                            || mHasColorMatrix
+                            || mHasSecondaryColorMatrix) ? "disabled" : "enabled");
     hwc.dump(result);
 
     /*
@@ -3330,6 +3337,27 @@ status_t SurfaceFlinger::onTransact(
             case 1021: { // Disable HWC virtual displays
                 n = data.readInt32();
                 mUseHwcVirtualDisplays = !n;
+                return NO_ERROR;
+            }
+            case 1030: {
+                // apply a secondary color matrix
+                // this will be combined with any other transformations
+                n = data.readInt32();
+                mHasSecondaryColorMatrix = n ? 1 : 0;
+                if (n) {
+                    // color matrix is sent as mat3 matrix followed by vec3
+                    // offset, then packed into a mat4 where the last row is
+                    // the offset and extra values are 0
+                    for (size_t i = 0 ; i < 4; i++) {
+                        for (size_t j = 0; j < 4; j++) {
+                            mSecondaryColorMatrix[i][j] = data.readFloat();
+                        }
+                    }
+                } else {
+                    mSecondaryColorMatrix = mat4();
+                }
+                invalidateHwcGeometry();
+                repaintEverything();
                 return NO_ERROR;
             }
         }
