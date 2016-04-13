@@ -46,7 +46,7 @@
 #include "ScopedFd.h"
 #include "ziparchive/zip_writer.h"
 
-#include "mincrypt/sha256.h"
+#include <openssl/sha.h>
 
 using android::base::StringPrintf;
 
@@ -985,7 +985,7 @@ static std::string SHA256_file_hash(std::string filepath) {
     }
 
     SHA256_CTX ctx;
-    SHA256_init(&ctx);
+    SHA256_Init(&ctx);
 
     std::vector<uint8_t> buffer(65536);
     while (1) {
@@ -997,13 +997,14 @@ static std::string SHA256_file_hash(std::string filepath) {
             return NULL;
         }
 
-        SHA256_update(&ctx, buffer.data(), bytes_read);
+        SHA256_Update(&ctx, buffer.data(), bytes_read);
     }
 
-    uint8_t hash[SHA256_DIGEST_SIZE];
-    memcpy(hash, SHA256_final(&ctx), SHA256_DIGEST_SIZE);
-    char hash_buffer[SHA256_DIGEST_SIZE * 2 + 1];
-    for(size_t i = 0; i < SHA256_DIGEST_SIZE; i++) {
+    uint8_t hash[SHA256_DIGEST_LENGTH];
+    SHA256_Final(hash, &ctx);
+
+    char hash_buffer[SHA256_DIGEST_LENGTH * 2 + 1];
+    for(size_t i = 0; i < SHA256_DIGEST_LENGTH; i++) {
         sprintf(hash_buffer + (i * 2), "%02x", hash[i]);
     }
     hash_buffer[sizeof(hash_buffer) - 1] = 0;
