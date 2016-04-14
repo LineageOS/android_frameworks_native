@@ -27,6 +27,5 @@ LOCAL_SHARED_LIBRARIES := \
     libbrillo-binder \
     libchrome \
     libutils
-# Commented out momentarily until SELinux policies land in a different repo.
-# LOCAL_INIT_RC := nativeperms.rc
+LOCAL_INIT_RC := nativeperms.rc
 include $(BUILD_EXECUTABLE)
