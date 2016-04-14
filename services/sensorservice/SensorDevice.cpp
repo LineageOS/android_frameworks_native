@@ -18,6 +18,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <cutils/properties.h>
 
 #include <utils/Atomic.h>
 #include <utils/Errors.h>
@@ -219,6 +220,13 @@ status_t SensorDevice::activate(void* ident, int handle, int enabled)
 
 status_t SensorDevice::batch(void* ident, int handle, int flags, int64_t samplingPeriodNs,
                              int64_t maxBatchReportLatencyNs) {
+    const bool force_delay_mode = property_get_bool("ro.sensors.force_delay_mode", false);
+    if (force_delay_mode) {
+        (void)(flags);
+        (void)(maxBatchReportLatencyNs);
+        return setDelay(ident, handle, samplingPeriodNs);
+    }
+
     if (!mSensorDevice) return NO_INIT;
 
     if (samplingPeriodNs < MINIMUM_EVENTS_PERIOD) {
