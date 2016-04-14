@@ -18,6 +18,7 @@
 #define ANDROID_BINDER_STATUS_H
 
 #include <cstdint>
+#include <sstream>
 
 #include <binder/Parcel.h>
 #include <utils/String8.h>
@@ -142,11 +143,7 @@ private:
 };  // class Status
 
 // For gtest output logging
-template<typename T>
-T& operator<< (T& stream, const Status& s) {
-    stream << s.toString8().string();
-    return stream;
-}
+std::stringstream& operator<< (std::stringstream& stream, const Status& s);
 
 }  // namespace binder
 }  // namespace android
