@@ -21,7 +21,7 @@
 #include <vector>
 
 #include <cutils/native_handle.h>
-#include <android-base/unique_fd.h>
+#include <nativehelper/ScopedFd.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/String16.h>
@@ -186,14 +186,14 @@ public:
     // semantics of the smart file descriptor. A new descriptor will be
     // created, and will be closed when the parcel is destroyed.
     status_t            writeUniqueFileDescriptor(
-                            const base::unique_fd& fd);
+                            const ScopedFd& fd);
 
     // Place a vector of file desciptors into the parcel. Each descriptor is
     // dup'd as in writeDupFileDescriptor
     status_t            writeUniqueFileDescriptorVector(
-                            const std::unique_ptr<std::vector<base::unique_fd>>& val);
+                            const std::unique_ptr<std::vector<ScopedFd>>& val);
     status_t            writeUniqueFileDescriptorVector(
-                            const std::vector<base::unique_fd>& val);
+                            const std::vector<ScopedFd>& val);
 
     // Writes a blob to the parcel.
     // If the blob is small, then it is stored in-place, otherwise it is
@@ -324,14 +324,14 @@ public:
 
     // Retrieve a smart file descriptor from the parcel.
     status_t            readUniqueFileDescriptor(
-                            base::unique_fd* val) const;
+                            ScopedFd* val) const;
 
 
     // Retrieve a vector of smart file descriptors from the parcel.
     status_t            readUniqueFileDescriptorVector(
-                            std::unique_ptr<std::vector<base::unique_fd>>* val) const;
+                            std::unique_ptr<std::vector<ScopedFd>>* val) const;
     status_t            readUniqueFileDescriptorVector(
-                            std::vector<base::unique_fd>* val) const;
+                            std::vector<ScopedFd>* val) const;
 
     // Reads a blob from the parcel.
     // The caller should call release() on the blob after reading its contents.
