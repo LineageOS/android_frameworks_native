@@ -81,6 +81,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libutils \
 	liblog
 
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := libbinder
 
 LOCAL_MODULE := libgui
 
