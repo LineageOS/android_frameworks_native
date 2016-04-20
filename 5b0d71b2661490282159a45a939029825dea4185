@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5faad753_b8d95823",
+        "filename": "services/sensorservice/SensorService.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 362,
+      "author": {
+        "id": 10094
+      },
+      "writtenOn": "2016-04-20T19:18:03Z",
+      "side": 1,
+      "message": "Isn\u0027t this the same as %.4f?",
+      "range": {
+        "startLine": 362,
+        "startChar": 37,
+        "endLine": 362,
+        "endChar": 42
+      },
+      "revId": "5b0d71b2661490282159a45a939029825dea4185",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
