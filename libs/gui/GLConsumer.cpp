@@ -715,7 +715,7 @@ status_t GLConsumer::syncForReleaseLocked(EGLDisplay dpy) {
                         "%s (%d)", strerror(-err), err);
                 return err;
             }
-        } else if (mUseFenceSync && SyncFeatures::getInstance().useFenceSync()) {
+        } else if (SyncFeatures::getInstance().useFenceSync()) {
             EGLSyncKHR fence = mEglSlots[mCurrentTexture].mEglFence;
             if (fence != EGL_NO_SYNC_KHR) {
                 // There is already a fence for the current slot.  We need to

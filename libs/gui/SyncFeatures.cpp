@@ -84,7 +84,7 @@ bool SyncFeatures::useFenceSync() const {
 #endif
 }
 bool SyncFeatures::useWaitSync() const {
-    return (useNativeFenceSync() || useFenceSync()) && mHasWaitSync;
+    return mHasNativeFenceSync && mHasWaitSync;
 }
 
 String8 SyncFeatures::toString() const {
