@@ -359,7 +359,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args)
                     result.appendFormat("non-wakeUp | ");
                 }
 
-                result.appendFormat("%.04f mA | ", s.getPowerUsage());
+                result.appendFormat("%.4f mA | ", s.getPowerUsage());
 
                 int bufIndex = mLastEventSeen.indexOfKey(s.getHandle());
                 if (bufIndex >= 0) {
