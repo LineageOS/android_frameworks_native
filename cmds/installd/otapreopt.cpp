@@ -366,7 +366,7 @@ private:
                 atoi(package_parameters_[6]),             // dexopt_flags
                 package_parameters_[7],                   // compiler_filter
                 ParseNull(package_parameters_[8]),        // volume_uuid
-                ParseNull(package_parameters[9]));        // shared_libraries
+                ParseNull(package_parameters_[9]));       // shared_libraries
         return ret;
     }
 
