@@ -67,7 +67,7 @@ void ComposerService::connectLocked() {
             mComposerService.composerServiceDied();
         }
      public:
-        DeathObserver(ComposerService& mgr) : mComposerService(mgr) { }
+        explicit DeathObserver(ComposerService& mgr) : mComposerService(mgr) { }
     };
 
     mDeathObserver = new DeathObserver(*const_cast<ComposerService*>(this));

@@ -47,7 +47,7 @@ enum {
 class BpSurfaceComposerClient : public BpInterface<ISurfaceComposerClient>
 {
 public:
-    BpSurfaceComposerClient(const sp<IBinder>& impl)
+    explicit BpSurfaceComposerClient(const sp<IBinder>& impl)
         : BpInterface<ISurfaceComposerClient>(impl) {
     }
 
