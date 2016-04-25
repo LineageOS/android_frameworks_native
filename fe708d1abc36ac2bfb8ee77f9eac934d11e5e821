@@ -16,6 +16,24 @@
       "revId": "fe708d1abc36ac2bfb8ee77f9eac934d11e5e821",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5faad753_1c8e5678",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 889,
+      "author": {
+        "id": 7155
+      },
+      "writtenOn": "2016-04-25T17:49:27Z",
+      "side": 1,
+      "message": "Shouldn\u0027t mFbDev-\u003eformat never be executed?\nOur current SLSI hwc is version 1.1, so current Exynos 5 devices should never run the else case here, or am I missing something?",
+      "parentUuid": "5faad753_dc2c3e9b",
+      "revId": "fe708d1abc36ac2bfb8ee77f9eac934d11e5e821",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
