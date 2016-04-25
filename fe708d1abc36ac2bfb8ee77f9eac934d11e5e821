@@ -34,6 +34,24 @@
       "revId": "fe708d1abc36ac2bfb8ee77f9eac934d11e5e821",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5faad753_3cc5528f",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 889,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2016-04-25T17:54:36Z",
+      "side": 1,
+      "message": "Oh, I see what you\u0027re saying, there\u0027s some code that closes mFbDev if you\u0027re HWC 1.1. You\u0027re right, this would explode.",
+      "parentUuid": "5faad753_1c8e5678",
+      "revId": "fe708d1abc36ac2bfb8ee77f9eac934d11e5e821",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
