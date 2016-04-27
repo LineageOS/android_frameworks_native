@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5faad753_e69de166",
+        "filename": "opengl/libs/Android.mk",
+        "patchSetId": 3
+      },
+      "lineNbr": 69,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2016-04-27T15:18:12Z",
+      "side": 1,
+      "message": "Don\u0027t need to set \u003d1 if you\u0027re using ifdef",
+      "revId": "35cc3799fda124b8826b0979e81c3f7abb949805",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
