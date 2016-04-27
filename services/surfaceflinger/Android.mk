@@ -135,6 +135,10 @@ LOCAL_LDFLAGS := -Wl,--version-script,art/sigchainlib/version-script.txt -Wl,--e
 LOCAL_CFLAGS:= -DLOG_TAG=\"SurfaceFlinger\"
 LOCAL_CPPFLAGS:= -std=c++11
 
+ifneq ($(USE_MDS_LEGACY),true)
+    LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
+endif
+
 LOCAL_SRC_FILES:= \
 	main_surfaceflinger.cpp
 
@@ -145,6 +149,10 @@ LOCAL_SHARED_LIBRARIES := \
 	libbinder \
 	libutils \
 	libdl
+
+ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    LOCAL_SHARED_LIBRARIES += libmultidisplay
+endif
 
 LOCAL_WHOLE_STATIC_LIBRARIES := libsigchain
 

@@ -18,6 +18,9 @@
 #include <sys/resource.h>
 #endif
 
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+#include <display/MultiDisplayService.h>
+#endif
 #include <cutils/sched_policy.h>
 #include <binder/IServiceManager.h>
 #include <binder/IPCThreadState.h>
@@ -50,6 +53,10 @@ int main(int, char**) {
     // publish surface flinger
     sp<IServiceManager> sm(defaultServiceManager());
     sm->addService(String16(SurfaceFlinger::getServiceName()), flinger, false);
+
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    intel::MultiDisplayService::instantiate();
+#endif
 
     // run in this thread
     flinger->run();
