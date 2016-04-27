@@ -16,6 +16,7 @@ LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libutils \
     libz \
+    libbase
 
 LOCAL_INIT_RC := atrace.rc
 

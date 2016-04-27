@@ -41,6 +41,7 @@
 #include <utils/Timers.h>
 #include <utils/Tokenizer.h>
 #include <utils/Trace.h>
+#include <android-base/file.h>
 
 using namespace android;
 
@@ -533,24 +534,14 @@ static bool disableKernelTraceEvents() {
 // kernel.
 static bool verifyKernelTraceFuncs(const char* funcs)
 {
-    int fd = open(k_ftraceFilterPath, O_RDONLY);
-    if (fd == -1) {
-        fprintf(stderr, "error opening %s: %s (%d)\n", k_ftraceFilterPath,
+    std::string buf;
+    if (!android::base::ReadFileToString(k_ftraceFilterPath, &buf)) {
+         fprintf(stderr, "error opening %s: %s (%d)\n", k_ftraceFilterPath,
             strerror(errno), errno);
-        return false;
+         return false;
     }
 
-    char buf[4097];
-    ssize_t n = read(fd, buf, 4096);
-    close(fd);
-    if (n == -1) {
-        fprintf(stderr, "error reading %s: %s (%d)\n", k_ftraceFilterPath,
-            strerror(errno), errno);
-        return false;
-    }
-
-    buf[n] = '\0';
-    String8 funcList = String8::format("\n%s", buf);
+    String8 funcList = String8::format("\n%s",buf.c_str());
 
     // Make sure that every function listed in funcs is in the list we just
     // read from the kernel, except for wildcard inputs.
@@ -570,7 +561,6 @@ static bool verifyKernelTraceFuncs(const char* funcs)
         func = strtok(NULL, ",");
     }
     free(myFuncs);
-
     return ok;
 }
 
