@@ -165,6 +165,12 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     libdl
 
+ifneq ($(TARGET_HAS_MULTIPLE_DISPLAY),true)
+    LOCAL_CFLAGS += -DTARGET_HAS_MULTIPLE_DISPLAY
+
+LOCAL_SHARED_LIBRARIES += libmultidisplay
+endif
+
 LOCAL_WHOLE_STATIC_LIBRARIES := libsigchain
 
 LOCAL_MODULE := surfaceflinger
