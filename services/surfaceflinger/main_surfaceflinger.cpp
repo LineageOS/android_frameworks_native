@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+#include <display/MultiDisplayService.h>
+#endif
 #include <sys/resource.h>
 
 #include <cutils/sched_policy.h>
@@ -55,6 +57,10 @@ int main(int, char**) {
     // publish surface flinger
     sp<IServiceManager> sm(defaultServiceManager());
     sm->addService(String16(SurfaceFlinger::getServiceName()), flinger, false);
+
+#ifdef TARGET_HAS_MULTIPLE_DISPLAY
+    intel::MultiDisplayService::instantiate();
+#endif
 
     // run in this thread
     flinger->run();
