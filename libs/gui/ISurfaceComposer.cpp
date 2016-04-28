@@ -47,7 +47,7 @@ class IDisplayEventConnection;
 class BpSurfaceComposer : public BpInterface<ISurfaceComposer>
 {
 public:
-    BpSurfaceComposer(const sp<IBinder>& impl)
+    explicit BpSurfaceComposer(const sp<IBinder>& impl)
         : BpInterface<ISurfaceComposer>(impl)
     {
     }
