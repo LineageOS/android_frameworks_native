@@ -36,7 +36,7 @@ enum {
 class BpConsumerListener : public BpInterface<IConsumerListener>
 {
 public:
-    BpConsumerListener(const sp<IBinder>& impl)
+    explicit BpConsumerListener(const sp<IBinder>& impl)
         : BpInterface<IConsumerListener>(impl) {
     }
 

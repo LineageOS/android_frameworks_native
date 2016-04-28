@@ -37,7 +37,7 @@ enum {
 class BpGraphicBufferAlloc : public BpInterface<IGraphicBufferAlloc>
 {
 public:
-    BpGraphicBufferAlloc(const sp<IBinder>& impl)
+    explicit BpGraphicBufferAlloc(const sp<IBinder>& impl)
         : BpInterface<IGraphicBufferAlloc>(impl)
     {
     }
@@ -90,7 +90,7 @@ status_t BnGraphicBufferAlloc::onTransact(
     class BufferReference : public BBinder {
         sp<GraphicBuffer> mBuffer;
     public:
-        BufferReference(const sp<GraphicBuffer>& buffer) : mBuffer(buffer) {}
+        explicit BufferReference(const sp<GraphicBuffer>& buffer) : mBuffer(buffer) {}
     };
 
 

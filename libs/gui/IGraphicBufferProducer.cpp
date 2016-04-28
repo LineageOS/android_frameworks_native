@@ -54,7 +54,7 @@ enum {
 class BpGraphicBufferProducer : public BpInterface<IGraphicBufferProducer>
 {
 public:
-    BpGraphicBufferProducer(const sp<IBinder>& impl)
+    explicit BpGraphicBufferProducer(const sp<IBinder>& impl)
         : BpInterface<IGraphicBufferProducer>(impl)
     {
     }
