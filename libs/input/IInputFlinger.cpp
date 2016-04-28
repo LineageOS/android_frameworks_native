@@ -28,7 +28,7 @@ namespace android {
 
 class BpInputFlinger : public BpInterface<IInputFlinger> {
 public:
-    BpInputFlinger(const sp<IBinder>& impl) :
+    explicit BpInputFlinger(const sp<IBinder>& impl) :
             BpInterface<IInputFlinger>(impl) { }
 
     virtual status_t doSomething() {
