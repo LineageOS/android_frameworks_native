@@ -139,7 +139,7 @@ status_t SensorManager::assertStateLocked() {
                 mSensorManager.sensorManagerDied();
             }
         public:
-            DeathObserver(SensorManager& mgr) : mSensorManager(mgr) { }
+            explicit DeathObserver(SensorManager& mgr) : mSensorManager(mgr) { }
         };
 
         LOG_ALWAYS_FATAL_IF(mSensorServer.get() == NULL, "getService(SensorService) NULL");
