@@ -39,7 +39,7 @@ enum {
 class BpDisplayEventConnection : public BpInterface<IDisplayEventConnection>
 {
 public:
-    BpDisplayEventConnection(const sp<IBinder>& impl)
+    explicit BpDisplayEventConnection(const sp<IBinder>& impl)
         : BpInterface<IDisplayEventConnection>(impl)
     {
     }

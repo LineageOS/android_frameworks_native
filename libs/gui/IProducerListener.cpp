@@ -27,7 +27,7 @@ enum {
 class BpProducerListener : public BpInterface<IProducerListener>
 {
 public:
-    BpProducerListener(const sp<IBinder>& impl)
+    explicit BpProducerListener(const sp<IBinder>& impl)
         : BpInterface<IProducerListener>(impl) {}
 
     virtual ~BpProducerListener();

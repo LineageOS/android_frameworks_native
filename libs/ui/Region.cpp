@@ -424,7 +424,7 @@ class Region::rasterizer : public region_operator<Rect>::region_rasterizer
     Vector<Rect> span;
     Rect* cur;
 public:
-    rasterizer(Region& reg)
+    explicit rasterizer(Region& reg)
         : bounds(INT_MAX, 0, INT_MIN, 0), storage(reg.mStorage), head(), tail(), cur() {
         storage.clear();
     }

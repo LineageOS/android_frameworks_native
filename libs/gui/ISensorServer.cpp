@@ -41,7 +41,7 @@ enum {
 class BpSensorServer : public BpInterface<ISensorServer>
 {
 public:
-    BpSensorServer(const sp<IBinder>& impl)
+    explicit BpSensorServer(const sp<IBinder>& impl)
         : BpInterface<ISensorServer>(impl)
     {
     }

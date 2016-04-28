@@ -40,7 +40,7 @@ enum {
 class BpSensorEventConnection : public BpInterface<ISensorEventConnection>
 {
 public:
-    BpSensorEventConnection(const sp<IBinder>& impl)
+    explicit BpSensorEventConnection(const sp<IBinder>& impl)
         : BpInterface<ISensorEventConnection>(impl)
     {
     }
