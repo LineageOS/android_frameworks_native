@@ -24,7 +24,7 @@ namespace android {
 class BpBatteryPropertiesListener : public BpInterface<IBatteryPropertiesListener>
 {
 public:
-    BpBatteryPropertiesListener(const sp<IBinder>& impl)
+    explicit BpBatteryPropertiesListener(const sp<IBinder>& impl)
         : BpInterface<IBatteryPropertiesListener>(impl)
     {
     }
