@@ -325,7 +325,7 @@ class FakeEventHub : public EventHubInterface {
         KeyedVector<int32_t, bool> leds;
         Vector<VirtualKeyDefinition> virtualKeys;
 
-        Device(uint32_t classes) :
+        explicit Device(uint32_t classes) :
                 classes(classes) {
         }
     };
