@@ -91,7 +91,7 @@ void HWC2On1Adapter::DisplayContentsDeleter::operator()(
 
 class HWC2On1Adapter::Callbacks : public hwc_procs_t {
     public:
-        Callbacks(HWC2On1Adapter& adapter) : mAdapter(adapter) {
+        explicit Callbacks(HWC2On1Adapter& adapter) : mAdapter(adapter) {
             invalidate = &invalidateHook;
             vsync = &vsyncHook;
             hotplug = &hotplugHook;

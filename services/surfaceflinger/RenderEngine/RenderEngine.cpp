@@ -317,7 +317,7 @@ class EGLAttributeVector {
     KeyedVector<Attribute, EGLint> mList;
     struct Attribute {
         Attribute() : v(0) {};
-        Attribute(EGLint v) : v(v) { }
+        explicit Attribute(EGLint v) : v(v) { }
         EGLint v;
         bool operator < (const Attribute& other) const {
             // this places EGL_NONE at the end
@@ -338,18 +338,18 @@ class EGLAttributeVector {
     public:
         void operator = (EGLint value) {
             if (attribute != EGL_NONE) {
-                v.mList.add(attribute, value);
+                v.mList.add(Attribute(attribute), value);
             }
         }
         operator EGLint () const { return v.mList[attribute]; }
     };
 public:
     EGLAttributeVector() {
-        mList.add(EGL_NONE, EGL_NONE);
+        mList.add(Attribute(EGL_NONE), EGL_NONE);
     }
     void remove(EGLint attribute) {
         if (attribute != EGL_NONE) {
-            mList.removeItem(attribute);
+            mList.removeItem(Attribute(attribute));
         }
     }
     Adder operator [] (EGLint attribute) {

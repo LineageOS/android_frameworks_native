@@ -926,7 +926,7 @@ class Iterable : public HWComposer::HWCLayer {
 protected:
     HWCTYPE* const mLayerList;
     HWCTYPE* mCurrentLayer;
-    Iterable(HWCTYPE* layer) : mLayerList(layer), mCurrentLayer(layer),
+    explicit Iterable(HWCTYPE* layer) : mLayerList(layer), mCurrentLayer(layer),
             mIndex(0) { }
     inline HWCTYPE const * getLayer() const { return mCurrentLayer; }
     inline HWCTYPE* getLayer() { return mCurrentLayer; }
