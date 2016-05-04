@@ -649,7 +649,8 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     dump_file("KERNEL CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state");
     dump_file("KERNEL SYNC", "/d/sync");
 
-    run_command("PROCESSES AND THREADS", 10, "ps", "-Z", "-t", "-p", "-P", NULL);
+    run_command("PROCESSES AND THREADS", 10, "toybox", "ps", "-A", "-T", "-Z",
+                "-O", "pri,nice,rtprio,sched,pcy", NULL);
     run_command("LIBRANK", 10, SU_PATH, "root", "librank", NULL);
 
     run_command("PRINTENV", 10, "printenv", NULL);
