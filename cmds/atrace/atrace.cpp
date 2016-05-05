@@ -1121,7 +1121,7 @@ int main(int argc, char **argv)
             fflush(stdout);
             int outFd = STDOUT_FILENO;
             if (g_outputFile) {
-                outFd = open(g_outputFile, O_WRONLY | O_CREAT);
+                outFd = open(g_outputFile, O_WRONLY | O_CREAT, 0644);
             }
             if (outFd == -1) {
                 printf("Failed to open '%s', err=%d", g_outputFile, errno);
