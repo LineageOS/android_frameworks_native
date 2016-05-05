@@ -64,7 +64,7 @@ static const int64_t kPresentTimeOffset = PRESENT_TIME_OFFSET_FROM_VSYNC_NS;
 class DispSyncThread: public Thread {
 public:
 
-    DispSyncThread(const char* name):
+    explicit DispSyncThread(const char* name):
             mName(name),
             mStop(false),
             mPeriod(0),

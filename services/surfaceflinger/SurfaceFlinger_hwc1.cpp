@@ -230,7 +230,7 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName,
              flinger->setTransactionFlags(eDisplayTransactionNeeded);
          }
      public:
-        DisplayToken(const sp<SurfaceFlinger>& flinger)
+        explicit DisplayToken(const sp<SurfaceFlinger>& flinger)
             : flinger(flinger) {
         }
     };
@@ -2475,7 +2475,7 @@ void SurfaceFlinger::initializeDisplays() {
     class MessageScreenInitialized : public MessageBase {
         SurfaceFlinger* flinger;
     public:
-        MessageScreenInitialized(SurfaceFlinger* flinger) : flinger(flinger) { }
+        explicit MessageScreenInitialized(SurfaceFlinger* flinger) : flinger(flinger) { }
         virtual bool handler() {
             flinger->onInitializeDisplays();
             return true;
@@ -3190,7 +3190,7 @@ class GraphicProducerWrapper : public BBinder, public MessageHandler {
     }
 
 public:
-    GraphicProducerWrapper(const sp<IGraphicBufferProducer>& impl)
+    explicit GraphicProducerWrapper(const sp<IGraphicBufferProducer>& impl)
     :   impl(impl),
         looper(new Looper(true)),
         result(NO_ERROR),

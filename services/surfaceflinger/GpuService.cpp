@@ -27,7 +27,7 @@ namespace android {
 class BpGpuService : public BpInterface<IGpuService>
 {
 public:
-    BpGpuService(const sp<IBinder>& impl) : BpInterface<IGpuService>(impl) {}
+    explicit BpGpuService(const sp<IBinder>& impl) : BpInterface<IGpuService>(impl) {}
 };
 
 IMPLEMENT_META_INTERFACE(GpuService, "android.ui.IGpuService");
