@@ -535,7 +535,7 @@ TEST_F(SurfaceTextureClientTest, DISABLED_SurfaceTextureSyncModeWaitRetire) {
             return false;
         }
     public:
-        MyThread(const sp<GLConsumer>& mST)
+        explicit MyThread(const sp<GLConsumer>& mST)
             : mST(mST), mBufferRetired(false) {
             ctx = eglGetCurrentContext();
             sur = eglGetCurrentSurface(EGL_DRAW);

@@ -437,7 +437,7 @@ TEST_F(SurfaceTextureGLTest, DisconnectStressTest) {
 
     class ProducerThread : public Thread {
     public:
-        ProducerThread(const sp<ANativeWindow>& anw):
+        explicit ProducerThread(const sp<ANativeWindow>& anw):
                 mANW(anw) {
         }
 
@@ -620,7 +620,7 @@ TEST_F(SurfaceTextureGLTest, CroppedScalingMode) {
 TEST_F(SurfaceTextureGLTest, AbandonUnblocksDequeueBuffer) {
     class ProducerThread : public Thread {
     public:
-        ProducerThread(const sp<ANativeWindow>& anw):
+        explicit ProducerThread(const sp<ANativeWindow>& anw):
                 mANW(anw),
                 mDequeueError(NO_ERROR) {
         }
