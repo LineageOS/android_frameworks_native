@@ -115,6 +115,9 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
     mCurrentState.sequence = 0;
     mCurrentState.transform.set(0, 0);
     mCurrentState.requested = mCurrentState.active;
+    mCurrentState.requested.x = 0;
+    mCurrentState.requested.y = 0;
+    mCurrentState.requested.isPositionSet = false;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -1027,6 +1030,14 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     if (flags & eDontUpdateGeometryState)  {
     } else {
         Layer::State& editCurrentState(getCurrentState());
+        if (editCurrentState.requested.isPositionSet) {
+            float requestedX = editCurrentState.requested.x;
+            float requestedY = editCurrentState.requested.y;
+            if (requestedX != editCurrentState.active.x ||
+                requestedY != editCurrentState.active.y) {
+                editCurrentState.transform.set(requestedX, requestedY);
+            }
+        }
         editCurrentState.active = c.requested;
     }
 
@@ -1067,7 +1078,9 @@ bool Layer::setPosition(float x, float y) {
     if (mCurrentState.transform.tx() == x && mCurrentState.transform.ty() == y)
         return false;
     mCurrentState.sequence++;
-    mCurrentState.transform.set(x, y);
+    mCurrentState.requested.x = x;
+    mCurrentState.requested.y = y;
+    mCurrentState.requested.isPositionSet = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
@@ -1290,6 +1303,16 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions)
                             (bufWidth == front.requested.w &&
                              bufHeight == front.requested.h))
                     {
+
+                        if (current.requested.isPositionSet) {
+                            float requestedX = current.requested.x;
+                            float requestedY = current.requested.y;
+                            if (requestedX != current.active.x || requestedY != current.active.y) {
+                                front.transform.set(requestedX, requestedY);
+                                current.transform.set(requestedX, requestedY);
+                            }
+                        }
+
                         // Here we pretend the transaction happened by updating the
                         // current and drawing states. Drawing state is only accessed
                         // in this thread, no need to have it locked
