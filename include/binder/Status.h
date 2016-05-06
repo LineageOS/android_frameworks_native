@@ -72,6 +72,7 @@ public:
 
     // A more readable alias for the default constructor.
     static Status ok();
+
     // Authors should explicitly pick whether their integer is:
     //  - an exception code (EX_* above)
     //  - service specific error code
@@ -84,9 +85,15 @@ public:
     static Status fromExceptionCode(int32_t exceptionCode);
     static Status fromExceptionCode(int32_t exceptionCode,
                                     const String8& message);
+    static Status fromExceptionCode(int32_t exceptionCode,
+                                    const char* message);
+
     static Status fromServiceSpecificError(int32_t serviceSpecificErrorCode);
     static Status fromServiceSpecificError(int32_t serviceSpecificErrorCode,
                                            const String8& message);
+    static Status fromServiceSpecificError(int32_t serviceSpecificErrorCode,
+                                           const char* message);
+
     static Status fromStatusT(status_t status);
 
     Status() = default;
