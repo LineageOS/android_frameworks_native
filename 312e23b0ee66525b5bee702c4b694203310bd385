@@ -22,6 +22,30 @@
       "revId": "312e23b0ee66525b5bee702c4b694203310bd385",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5faad753_47728ae5",
+        "filename": "services/surfaceflinger/CleanSpec.mk",
+        "patchSetId": 5
+      },
+      "lineNbr": 45,
+      "author": {
+        "id": 940
+      },
+      "writtenOn": "2016-05-09T18:34:38Z",
+      "side": 1,
+      "message": "I just assumed they\u0027re examples ?\n\nFor our case i just looked at what mm -B built and made sure i cleared those out. I\u0027ve never done CleanSpec\u0027s though...so let me know if im missing something :)",
+      "parentUuid": "5faad753_a7a1feab",
+      "range": {
+        "startLine": 44,
+        "startChar": 0,
+        "endLine": 45,
+        "endChar": 53
+      },
+      "revId": "312e23b0ee66525b5bee702c4b694203310bd385",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
