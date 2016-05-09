@@ -90,6 +90,24 @@
     },
     {
       "key": {
+        "uuid": "5faad753_9681954d",
+        "filename": "services/surfaceflinger/Layer.cpp",
+        "patchSetId": 5
+      },
+      "lineNbr": 110,
+      "author": {
+        "id": 940
+      },
+      "writtenOn": "2016-05-09T22:25:39Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "5faad753_62a53404",
+      "revId": "312e23b0ee66525b5bee702c4b694203310bd385",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "5faad753_627e946c",
         "filename": "services/surfaceflinger/Layer.h",
         "patchSetId": 5
@@ -101,6 +119,24 @@
       "writtenOn": "2016-05-09T19:21:19Z",
       "side": 1,
       "message": "If ordering in the struct does not need some sort of \"compatibility\" then I would expect x/y to be before w/h\n\nAlso, are you sure about \"float\" (vs \"double\" )?",
+      "revId": "312e23b0ee66525b5bee702c4b694203310bd385",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5faad753_f691e99a",
+        "filename": "services/surfaceflinger/Layer.h",
+        "patchSetId": 5
+      },
+      "lineNbr": 100,
+      "author": {
+        "id": 940
+      },
+      "writtenOn": "2016-05-09T22:25:39Z",
+      "side": 1,
+      "message": "Will do.\n\nFloat should be sufficient since that is what they\u0027re sent to us as in setPosition in Layer.cpp",
+      "parentUuid": "5faad753_627e946c",
       "revId": "312e23b0ee66525b5bee702c4b694203310bd385",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
