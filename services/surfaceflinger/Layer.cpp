@@ -1818,6 +1818,7 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions)
                         // NOTE: We don't need to hold the transaction lock here
                         // because State::active is only accessed from this thread.
                         current.active = front.active;
+                        current.modified = true;
 
                         // recompute visible region
                         recomputeVisibleRegions = true;
