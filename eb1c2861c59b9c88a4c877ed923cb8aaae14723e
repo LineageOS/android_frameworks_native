@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5faad753_ba91029c",
+        "filename": "build/phone-xxxhdpi-4096-dalvik-heap.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 17,
+      "author": {
+        "id": 1053
+      },
+      "writtenOn": "2016-05-14T13:24:02Z",
+      "side": 1,
+      "message": "4G phone",
+      "revId": "eb1c2861c59b9c88a4c877ed923cb8aaae14723e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
