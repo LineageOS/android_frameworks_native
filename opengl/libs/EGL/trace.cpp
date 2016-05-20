@@ -409,7 +409,7 @@ EGLAPI gl_hooks_t gHooksSystrace = {
 #define CHECK_ERROR(_c, _api)                                             \
     GLenum status = GL_NO_ERROR;                                          \
     bool error = false;                                                   \
-    while ((status = _c->glGetError()) != GL_NO_ERROR) {                  \
+    while ((status = (_c)->glGetError()) != GL_NO_ERROR) {                \
         ALOGD("[" #_api "] 0x%x", status);                                \
         error = true;                                                     \
     }                                                                     \

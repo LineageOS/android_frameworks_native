@@ -161,7 +161,7 @@ bool eFlag, sFlag, pFlag;
 #define CMD_STOP_FRAMEWORK   "stop 2>&1"
 #define CMD_START_FRAMEWORK  "start 2>&1"
 
-#define NUMA(a) (sizeof(a) / sizeof(a [0]))
+#define NUMA(a) (sizeof(a) / sizeof((a)[0]))
 #define MEMCLR(addr, size) do { \
         memset((addr), 0, (size)); \
     } while (0)
