@@ -55,8 +55,8 @@ namespace android {
 
 #undef GL_ENTRY
 #undef EGL_ENTRY
-#define GL_ENTRY(_r, _api, ...) _r (*_api)(__VA_ARGS__);
-#define EGL_ENTRY(_r, _api, ...) _r (*_api)(__VA_ARGS__);
+#define GL_ENTRY(_r, _api, ...) _r (*(_api))(__VA_ARGS__);
+#define EGL_ENTRY(_r, _api, ...) _r (*(_api))(__VA_ARGS__);
 
 struct egl_t {
     #include "EGL/egl_entries.in"
