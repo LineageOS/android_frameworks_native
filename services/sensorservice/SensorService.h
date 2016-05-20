@@ -49,9 +49,9 @@
 
 #define DEBUG_CONNECTIONS   false
 // Max size is 100 KB which is enough to accept a batch of about 1000 events.
-#define MAX_SOCKET_BUFFER_SIZE_BATCHED 100 * 1024
+#define MAX_SOCKET_BUFFER_SIZE_BATCHED (100 * 1024)
 // For older HALs which don't support batching, use a smaller socket buffer size.
-#define SOCKET_BUFFER_SIZE_NON_BATCHED 4 * 1024
+#define SOCKET_BUFFER_SIZE_NON_BATCHED (4 * 1024)
 
 #define CIRCULAR_BUF_SIZE 10
 #define SENSOR_REGISTRATIONS_BUF_SIZE 20
