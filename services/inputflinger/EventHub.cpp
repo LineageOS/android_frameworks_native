@@ -55,10 +55,10 @@
  * operation with a byte that only has the relevant bit set.
  * eg. to check for the 12th bit, we do (array[1] & 1<<4)
  */
-#define test_bit(bit, array)    (array[bit/8] & (1<<(bit%8)))
+#define test_bit(bit, array)    ((array)[(bit)/8] & (1<<((bit)%8)))
 
 /* this macro computes the number of bytes needed to represent a bit array of the specified size */
-#define sizeof_bit_array(bits)  ((bits + 7) / 8)
+#define sizeof_bit_array(bits)  (((bits) + 7) / 8)
 
 #define INDENT "  "
 #define INDENT2 "    "
