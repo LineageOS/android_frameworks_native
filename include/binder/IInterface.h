@@ -105,7 +105,7 @@ protected:
 
 
 #define CHECK_INTERFACE(interface, data, reply)                         \
-    if (!data.checkInterface(this)) { return PERMISSION_DENIED; }       \
+    if (!(data).checkInterface(this)) { return PERMISSION_DENIED; }     \
 
 
 // ----------------------------------------------------------------------
