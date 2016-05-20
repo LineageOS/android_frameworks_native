@@ -20,7 +20,7 @@
 namespace android {
 
 #define CHECK_OFFSET(type, member, expected_offset) \
-  static_assert((offsetof(type, member) == expected_offset), "")
+  static_assert((offsetof(type, member) == (expected_offset)), "")
 
 struct Foo {
   uint32_t dummy;
