@@ -104,8 +104,8 @@ static bool is_user_build() {
     return 0 == strncmp(build_type, "user", PROPERTY_VALUE_MAX - 1);
 }
 
-/* gets the tombstone data, according to the bugreport type: if zipped gets all tombstones,
- * otherwise gets just those modified in the last half an hour. */
+/* gets the tombstone data, according to the bugreport type: if zipped, gets all tombstones;
+ * otherwise, gets just those modified in the last half an hour. */
 static void get_tombstone_fds(tombstone_data_t data[NUM_TOMBSTONES]) {
     time_t thirty_minutes_ago = now - 60*30;
     for (size_t i = 0; i < NUM_TOMBSTONES; i++) {
@@ -113,11 +113,11 @@ static void get_tombstone_fds(tombstone_data_t data[NUM_TOMBSTONES]) {
         int fd = TEMP_FAILURE_RETRY(open(data[i].name,
                                          O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK));
         struct stat st;
-        if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode) &&
+        if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && st.st_size > 0 &&
             (zip_writer || (time_t) st.st_mtime >= thirty_minutes_ago)) {
-        data[i].fd = fd;
+            data[i].fd = fd;
         } else {
-        close(fd);
+            close(fd);
             data[i].fd = -1;
         }
     }
