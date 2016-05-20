@@ -160,7 +160,7 @@ protected:
 };
 
 #define ASSERT_NO_ERROR(err, msg) \
-    ASSERT_EQ(NO_ERROR, err) << msg << strerror(-err)
+    ASSERT_EQ(NO_ERROR, err) << (msg) << strerror(-(err))
 
 void checkPixel(const CpuConsumer::LockedBuffer &buf,
         uint32_t x, uint32_t y, uint32_t r, uint32_t g=0, uint32_t b=0) {
