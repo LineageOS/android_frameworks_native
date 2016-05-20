@@ -157,7 +157,7 @@ const struct blendType {
 #define CMD_START_FRAMEWORK  "start 2>&1"
 
 // Macros
-#define NUMA(a) (sizeof(a) / sizeof(a [0])) // Num elements in an array
+#define NUMA(a) (sizeof(a) / sizeof((a)[0])) // Num elements in an array
 
 // Local types
 class Rectangle {
