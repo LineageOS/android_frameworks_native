@@ -663,6 +663,7 @@ int run_command(const char *title, int timeout_seconds, const char *command, ...
         std::string cmd;
         format_args(command, args, &cmd);
         MYLOGE("skipping command %s because its args were not NULL-terminated", cmd.c_str());
+        va_end(ap);
         return -1;
     }
 
@@ -700,6 +701,7 @@ int run_command_as_shell(const char *title, int timeout_seconds, const char *com
         std::string cmd;
         format_args(command, args, &cmd);
         MYLOGE("skipping command %s because its args were not NULL-terminated", cmd.c_str());
+        va_end(ap);
         return -1;
     }
 
