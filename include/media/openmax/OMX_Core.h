@@ -735,7 +735,7 @@ typedef struct OMX_TUNNELSETUPTYPE
         pComponentVersion,                                  \
         pSpecVersion,                                       \
         pComponentUUID)                                     \
-    ((OMX_COMPONENTTYPE*)hComponent)->GetComponentVersion(  \
+    ((OMX_COMPONENTTYPE*)(hComponent))->GetComponentVersion(\
         hComponent,                                         \
         pComponentName,                                     \
         pComponentVersion,                                  \
@@ -795,7 +795,7 @@ typedef struct OMX_TUNNELSETUPTYPE
          Cmd,                                               \
          nParam,                                            \
          pCmdData)                                          \
-     ((OMX_COMPONENTTYPE*)hComponent)->SendCommand(         \
+     ((OMX_COMPONENTTYPE*)(hComponent))->SendCommand(       \
          hComponent,                                        \
          Cmd,                                               \
          nParam,                                            \
@@ -834,8 +834,8 @@ typedef struct OMX_TUNNELSETUPTYPE
 #define OMX_GetParameter(                                   \
         hComponent,                                         \
         nParamIndex,                                        \
-        pComponentParameterStructure)                        \
-    ((OMX_COMPONENTTYPE*)hComponent)->GetParameter(         \
+        pComponentParameterStructure)                       \
+    ((OMX_COMPONENTTYPE*)(hComponent))->GetParameter(       \
         hComponent,                                         \
         nParamIndex,                                        \
         pComponentParameterStructure)    /* Macro End */
@@ -873,8 +873,8 @@ typedef struct OMX_TUNNELSETUPTYPE
 #define OMX_SetParameter(                                   \
         hComponent,                                         \
         nParamIndex,                                        \
-        pComponentParameterStructure)                        \
-    ((OMX_COMPONENTTYPE*)hComponent)->SetParameter(         \
+        pComponentParameterStructure)                       \
+    ((OMX_COMPONENTTYPE*)(hComponent))->SetParameter(       \
         hComponent,                                         \
         nParamIndex,                                        \
         pComponentParameterStructure)    /* Macro End */
@@ -909,8 +909,8 @@ typedef struct OMX_TUNNELSETUPTYPE
 #define OMX_GetConfig(                                      \
         hComponent,                                         \
         nConfigIndex,                                       \
-        pComponentConfigStructure)                           \
-    ((OMX_COMPONENTTYPE*)hComponent)->GetConfig(            \
+        pComponentConfigStructure)                          \
+    ((OMX_COMPONENTTYPE*)(hComponent))->GetConfig(          \
         hComponent,                                         \
         nConfigIndex,                                       \
         pComponentConfigStructure)       /* Macro End */
@@ -945,8 +945,8 @@ typedef struct OMX_TUNNELSETUPTYPE
 #define OMX_SetConfig(                                      \
         hComponent,                                         \
         nConfigIndex,                                       \
-        pComponentConfigStructure)                           \
-    ((OMX_COMPONENTTYPE*)hComponent)->SetConfig(            \
+        pComponentConfigStructure)                          \
+    ((OMX_COMPONENTTYPE*)(hComponent))->SetConfig(          \
         hComponent,                                         \
         nConfigIndex,                                       \
         pComponentConfigStructure)       /* Macro End */
@@ -980,7 +980,7 @@ typedef struct OMX_TUNNELSETUPTYPE
         hComponent,                                         \
         cParameterName,                                     \
         pIndexType)                                         \
-    ((OMX_COMPONENTTYPE*)hComponent)->GetExtensionIndex(    \
+    ((OMX_COMPONENTTYPE*)(hComponent))->GetExtensionIndex(  \
         hComponent,                                         \
         cParameterName,                                     \
         pIndexType)                     /* Macro End */
@@ -1006,7 +1006,7 @@ typedef struct OMX_TUNNELSETUPTYPE
 #define OMX_GetState(                                       \
         hComponent,                                         \
         pState)                                             \
-    ((OMX_COMPONENTTYPE*)hComponent)->GetState(             \
+    ((OMX_COMPONENTTYPE*)(hComponent))->GetState(           \
         hComponent,                                         \
         pState)                         /* Macro End */
 
@@ -1037,7 +1037,7 @@ typedef struct OMX_TUNNELSETUPTYPE
            pAppPrivate,                                     \
            nSizeBytes,                                      \
            pBuffer)                                         \
-    ((OMX_COMPONENTTYPE*)hComponent)->UseBuffer(            \
+    ((OMX_COMPONENTTYPE*)(hComponent))->UseBuffer(          \
            hComponent,                                      \
            ppBufferHdr,                                     \
            nPortIndex,                                      \
@@ -1079,7 +1079,7 @@ typedef struct OMX_TUNNELSETUPTYPE
         nPortIndex,                                         \
         pAppPrivate,                                        \
         nSizeBytes)                                         \
-    ((OMX_COMPONENTTYPE*)hComponent)->AllocateBuffer(       \
+    ((OMX_COMPONENTTYPE*)(hComponent))->AllocateBuffer(     \
         hComponent,                                         \
         ppBuffer,                                           \
         nPortIndex,                                         \
@@ -1113,7 +1113,7 @@ typedef struct OMX_TUNNELSETUPTYPE
         hComponent,                                         \
         nPortIndex,                                         \
         pBuffer)                                            \
-    ((OMX_COMPONENTTYPE*)hComponent)->FreeBuffer(           \
+    ((OMX_COMPONENTTYPE*)(hComponent))->FreeBuffer(         \
         hComponent,                                         \
         nPortIndex,                                         \
         pBuffer)                        /* Macro End */
@@ -1144,7 +1144,7 @@ typedef struct OMX_TUNNELSETUPTYPE
 #define OMX_EmptyThisBuffer(                                \
         hComponent,                                         \
         pBuffer)                                            \
-    ((OMX_COMPONENTTYPE*)hComponent)->EmptyThisBuffer(      \
+    ((OMX_COMPONENTTYPE*)(hComponent))->EmptyThisBuffer(    \
         hComponent,                                         \
         pBuffer)                        /* Macro End */
 
@@ -1174,7 +1174,7 @@ typedef struct OMX_TUNNELSETUPTYPE
 #define OMX_FillThisBuffer(                                 \
         hComponent,                                         \
         pBuffer)                                            \
-    ((OMX_COMPONENTTYPE*)hComponent)->FillThisBuffer(       \
+    ((OMX_COMPONENTTYPE*)(hComponent))->FillThisBuffer(     \
         hComponent,                                         \
         pBuffer)                        /* Macro End */
 
@@ -1216,7 +1216,7 @@ typedef struct OMX_TUNNELSETUPTYPE
            nPortIndex,                                      \
            pAppPrivate,                                     \
            eglImage)                                        \
-    ((OMX_COMPONENTTYPE*)hComponent)->UseEGLImage(          \
+    ((OMX_COMPONENTTYPE*)(hComponent))->UseEGLImage(        \
            hComponent,                                      \
            ppBufferHdr,                                     \
            nPortIndex,                                      \
