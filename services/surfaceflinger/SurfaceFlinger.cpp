@@ -3438,6 +3438,17 @@ void SurfaceFlinger::renderScreenImplLocked(
     const int32_t hw_h = hw->getHeight();
     const bool filtering = static_cast<int32_t>(reqWidth) != hw_w ||
                            static_cast<int32_t>(reqHeight) != hw_h;
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.sf.hwrotation", value, "0");
+    const int additionalRot = atoi(value);
+    const int additionalRotIdx = (additionalRot / 90) % 4;
+
+    // ro.sf.hwrotation mapping:
+    // 90   --> ?
+    // 180  --> ?
+    // 270  --> 90
+    const Transform::orientation_flags trMask[] = {Transform::ROT_0, Transform::ROT_0,
+        Transform::ROT_0, Transform::ROT_90};
 
     // if a default or invalid sourceCrop is passed in, set reasonable values
     if (sourceCrop.width() == 0 || sourceCrop.height() == 0 ||
@@ -3462,6 +3473,15 @@ void SurfaceFlinger::renderScreenImplLocked(
 
     // make sure to clear all GL error flags
     engine.checkErrors();
+
+    // handle additional (hw) rotation
+    // FIXME: Why do screenshots and screen-off animations call different codepaths?
+    // As a workaround, we only apply an additional rotation mask if the originally
+    // requested rotation is 0.
+    if (additionalRot > 0 && rotation == Transform::ROT_0) {
+        rotation = (Transform::orientation_flags)
+                (rotation ^ trMask[additionalRotIdx]);
+    }
 
     if (DisplayDevice::DISPLAY_PRIMARY == hw->getDisplayType() &&
                 hw->isPanelInverseMounted()) {
