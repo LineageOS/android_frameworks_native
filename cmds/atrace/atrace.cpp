@@ -533,11 +533,11 @@ static void clearAppProperties()
 
 // Set the system property that indicates which apps should perform
 // application-level tracing.
-static bool setAppCmdlineProperty(const char* cmdline)
+static bool setAppCmdlineProperty(char* cmdline)
 {
     char buf[PROPERTY_KEY_MAX];
     int i = 0;
-    const char* start = cmdline;
+    char* start = cmdline;
     while (start != NULL) {
         if (i == MAX_PACKAGES) {
             fprintf(stderr, "error: only 16 packages could be traced at once\n");
@@ -743,7 +743,7 @@ static bool setUpTrace()
         }
         packageList += value;
     }
-    ok &= setAppCmdlineProperty(packageList.data());
+    ok &= setAppCmdlineProperty(&packageList[0]);
     ok &= pokeBinderServices();
 
     // Disable all the sysfs enables.  This is done as a separate loop from
