@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <algorithm>
+
 #include "SensorDevice.h"
 #include "SensorFusion.h"
 #include "SensorService.h"
@@ -134,7 +136,9 @@ float SensorFusion::getPowerUsage() const {
 }
 
 int32_t SensorFusion::getMinDelay() const {
-    return mAcc.getMinDelay();
+    int32_t minDelay = std::max(std::max(mAcc.getMinDelay(),
+                mGyro.getMinDelay()), mMag.getMinDelay());
+    return minDelay;
 }
 
 void SensorFusion::dump(String8& result) {
