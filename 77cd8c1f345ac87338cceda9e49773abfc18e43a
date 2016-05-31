@@ -16,6 +16,24 @@
       "revId": "77cd8c1f345ac87338cceda9e49773abfc18e43a",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5faad753_bb723fac",
+        "filename": "services/sensorservice/SensorFusion.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 139,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2016-05-31T20:02:46Z",
+      "side": 1,
+      "message": "Hmm, I\u0027ve got a device which has a mag sensor running at 25Hz with an accelerometer at 500Hz, it definitely doesn\u0027t keep up, as CTS clocks it doing 330Hz instead of the 500Hz requested.",
+      "parentUuid": "5faad753_fb7c3784",
+      "revId": "77cd8c1f345ac87338cceda9e49773abfc18e43a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
