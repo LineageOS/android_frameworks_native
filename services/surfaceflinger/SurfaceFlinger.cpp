@@ -3438,6 +3438,12 @@ void SurfaceFlinger::renderScreenImplLocked(
     const int32_t hw_h = hw->getHeight();
     const bool filtering = static_cast<int32_t>(reqWidth) != hw_w ||
                            static_cast<int32_t>(reqHeight) != hw_h;
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.sf.hwrotation", value, "0");
+    const int additionalRot = atoi(value);
+    const int additionalRotIdx = additionalRot / 90 - 3;
+    const Transform::orientation_flags trFlags[] = {Transform::ROT_90,
+        Transform::ROT_180, Transform::ROT_270};
 
     // if a default or invalid sourceCrop is passed in, set reasonable values
     if (sourceCrop.width() == 0 || sourceCrop.height() == 0 ||
@@ -3462,6 +3468,12 @@ void SurfaceFlinger::renderScreenImplLocked(
 
     // make sure to clear all GL error flags
     engine.checkErrors();
+
+    // handle additional (hw) rotation
+    if (additionalRot == 270) {
+        rotation = (Transform::orientation_flags)
+                    (rotation ^ trFlags[additionalRotIdx]);
+    }
 
     if (DisplayDevice::DISPLAY_PRIMARY == hw->getDisplayType() &&
                 hw->isPanelInverseMounted()) {
