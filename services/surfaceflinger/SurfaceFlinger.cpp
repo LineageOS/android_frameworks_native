@@ -3513,6 +3513,23 @@ status_t SurfaceFlinger::captureScreenImplLocked(
     uint32_t hw_w = hw->getWidth();
     uint32_t hw_h = hw->getHeight();
 
+    const int additionalRot = property_get_int32("ro.sf.hwrotation", 0);
+    const int additionalRotIdx = (4 - (additionalRot / 90)) % 4;
+
+    // ro.sf.hwrotation mapping:
+    // 90   --> 270
+    // 180  --> 180
+    // 270  --> 90
+    const Transform::orientation_flags trMask[] = {Transform::ROT_0, Transform::ROT_90,
+        Transform::ROT_180, Transform::ROT_270};
+
+    // handle additional (hw) rotation
+    if (additionalRot > 0 &&
+        hw->getDisplayType() == DisplayDevice::DISPLAY_PRIMARY) {
+        rotation = (Transform::orientation_flags)
+        (rotation ^ trMask[additionalRotIdx]);
+    }
+
     if (rotation & Transform::ROT_90) {
         std::swap(hw_w, hw_h);
     }
