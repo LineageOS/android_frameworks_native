@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5faad753_fb7c3784",
+        "filename": "services/sensorservice/SensorFusion.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 139,
+      "author": {
+        "id": 14090
+      },
+      "writtenOn": "2016-05-31T20:00:33Z",
+      "side": 1,
+      "message": "Take a look at RotationVectorSensor::process() etc, they produce data at the accel rate.\n\nI think the original impl is correct.",
+      "revId": "77cd8c1f345ac87338cceda9e49773abfc18e43a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
