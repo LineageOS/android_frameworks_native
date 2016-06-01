@@ -1249,6 +1249,12 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
             handle, connection.get());
     }
 
+    // Check maximum delay for the sensor.
+    nsecs_t maxDelayNs = sensor->getSensor().getMaxDelay() * 1000;
+    if (maxDelayNs > 0 && (samplingPeriodNs > maxDelayNs)) {
+        samplingPeriodNs = maxDelayNs;
+    }
+
     nsecs_t minDelayNs = sensor->getSensor().getMinDelayNs();
     if (samplingPeriodNs < minDelayNs) {
         samplingPeriodNs = minDelayNs;
