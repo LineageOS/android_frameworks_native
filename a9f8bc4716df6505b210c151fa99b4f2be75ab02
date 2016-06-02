@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5faad753_aab3c309",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 3442,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2016-06-02T15:57:55Z",
+      "side": 1,
+      "message": "property_get_int32?",
+      "revId": "a9f8bc4716df6505b210c151fa99b4f2be75ab02",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5faad753_6ad14b23",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 3486,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2016-06-02T15:57:55Z",
+      "side": 1,
+      "message": "This statement could probably be merged, although that would make the code a little harder to maintain in the future.",
+      "revId": "a9f8bc4716df6505b210c151fa99b4f2be75ab02",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
