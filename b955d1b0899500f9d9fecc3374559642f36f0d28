@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5faad753_5e30d4e8",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 3441,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2016-06-02T19:07:52Z",
+      "side": 1,
+      "message": "This would be:\n\nconst int additionalRot \u003d property_get_int32(\"ro.sf.hwrotation\", 0);\n\nNo need for a separate char array for the value.",
+      "revId": "b955d1b0899500f9d9fecc3374559642f36f0d28",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
