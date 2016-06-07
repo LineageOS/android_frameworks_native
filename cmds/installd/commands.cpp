@@ -57,7 +57,7 @@ namespace installd {
 static constexpr const char* kCpPath = "/system/bin/cp";
 static constexpr const char* kXattrDefault = "user.default";
 
-#define MIN_RESTRICTED_HOME_SDK_VERSION 24 // > M
+static constexpr const int MIN_RESTRICTED_HOME_SDK_VERSION = 24; // > M
 
 typedef int fd_t;
 
