@@ -107,6 +107,7 @@ inline static const char *asString(OMX_AUDIO_AACPROFILETYPE i, const char *def =
         case OMX_AUDIO_AACObjectLTP:      return "LTP";
         case OMX_AUDIO_AACObjectHE:       return "HE";
         case OMX_AUDIO_AACObjectScalable: return "Scalable";
+        case OMX_AUDIO_AACObjectER_Scalable: return "ER_Scalable";
         case OMX_AUDIO_AACObjectERLC:     return "ERLC";
         case OMX_AUDIO_AACObjectLD:       return "LD";
         case OMX_AUDIO_AACObjectHE_PS:    return "HE_PS";
