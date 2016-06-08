@@ -21,6 +21,7 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <math.h>
+#include <mutex>
 #include <dlfcn.h>
 #include <inttypes.h>
 #include <stdatomic.h>
@@ -459,6 +460,30 @@ private:
     bool mEnabled;
 };
 
+class InjectVSyncSource : public VSyncSource {
+public:
+    InjectVSyncSource() {}
+
+    virtual ~InjectVSyncSource() {}
+
+    virtual void setCallback(const sp<VSyncSource::Callback>& callback) {
+        std::lock_guard<std::mutex> lock(mCallbackMutex);
+        mCallback = callback;
+    }
+
+    virtual void onInjectSyncEvent(nsecs_t when) {
+        std::lock_guard<std::mutex> lock(mCallbackMutex);
+        mCallback->onVSyncEvent(when);
+    }
+
+    virtual void setVSyncEnabled(bool) {}
+    virtual void setPhaseOffset(nsecs_t) {}
+
+private:
+    std::mutex mCallbackMutex; // Protects the following
+    sp<VSyncSource::Callback> mCallback;
+};
+
 void SurfaceFlinger::init() {
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
             "Initializing graphics H/W...");
@@ -853,6 +878,40 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& display,
         return BAD_VALUE;
     }
 
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
+    if (enable == mInjectVSyncs) {
+        return NO_ERROR;
+    }
+
+    if (enable) {
+        mInjectVSyncs = enable;
+        ALOGV("VSync Injections enabled");
+        if (mVSyncInjector.get() == nullptr) {
+            mVSyncInjector = new InjectVSyncSource();
+            mInjectorEventThread = new EventThread(mVSyncInjector, *this);
+        }
+        mEventQueue.setEventThread(mInjectorEventThread);
+    } else {
+        mInjectVSyncs = enable;
+        ALOGV("VSync Injections disabled");
+        mEventQueue.setEventThread(mSFEventThread);
+        mVSyncInjector.clear();
+    }
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::injectVSync(nsecs_t when) {
+    if (!mInjectVSyncs) {
+        ALOGE("VSync Injections not enabled");
+        return BAD_VALUE;
+    }
+    if (mInjectVSyncs && mInjectorEventThread.get() != nullptr) {
+        ALOGV("Injecting VSync inside SurfaceFlinger");
+        mVSyncInjector->onInjectSyncEvent(when);
+    }
     return NO_ERROR;
 }
 

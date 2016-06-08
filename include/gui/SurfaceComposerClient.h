@@ -131,6 +131,10 @@ public:
     //! Close a composer transaction on all active SurfaceComposerClients.
     static void closeGlobalTransaction(bool synchronous = false);
 
+    static status_t enableVSyncInjections(bool enable);
+
+    static status_t injectVSync(nsecs_t when);
+
     //! Flag the currently open transaction as an animation transaction.
     static void setAnimationTransaction();
 

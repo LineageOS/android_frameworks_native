@@ -129,6 +129,8 @@ class Composer : public Singleton<Composer>
     void openGlobalTransactionImpl();
     void closeGlobalTransactionImpl(bool synchronous);
     void setAnimationTransactionImpl();
+    status_t enableVSyncInjectionsImpl(bool enable);
+    status_t injectVSyncImpl(nsecs_t when);
 
     layer_state_t* getLayerStateLocked(
             const sp<SurfaceComposerClient>& client, const sp<IBinder>& id);
@@ -189,6 +191,14 @@ public:
 
     static void closeGlobalTransaction(bool synchronous) {
         Composer::getInstance().closeGlobalTransactionImpl(synchronous);
+    }
+
+    static status_t enableVSyncInjections(bool enable) {
+        return Composer::getInstance().enableVSyncInjectionsImpl(enable);
+    }
+
+    static status_t injectVSync(nsecs_t when) {
+        return Composer::getInstance().injectVSyncImpl(when);
     }
 };
 
@@ -251,6 +261,16 @@ void Composer::closeGlobalTransactionImpl(bool synchronous) {
     }
 
    sm->setTransactionState(transaction, displayTransaction, flags);
+}
+
+status_t Composer::enableVSyncInjectionsImpl(bool enable) {
+    sp<ISurfaceComposer> sm(ComposerService::getComposerService());
+    return sm->enableVSyncInjections(enable);
+}
+
+status_t Composer::injectVSyncImpl(nsecs_t when) {
+    sp<ISurfaceComposer> sm(ComposerService::getComposerService());
+    return sm->injectVSync(when);
 }
 
 void Composer::setAnimationTransactionImpl() {
@@ -638,6 +658,14 @@ void SurfaceComposerClient::closeGlobalTransaction(bool synchronous) {
 
 void SurfaceComposerClient::setAnimationTransaction() {
     Composer::setAnimationTransaction();
+}
+
+status_t SurfaceComposerClient::enableVSyncInjections(bool enable) {
+    return Composer::enableVSyncInjections(enable);
+}
+
+status_t SurfaceComposerClient::injectVSync(nsecs_t when) {
+    return Composer::injectVSync(when);
 }
 
 // ----------------------------------------------------------------------------

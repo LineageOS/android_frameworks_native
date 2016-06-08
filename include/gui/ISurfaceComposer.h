@@ -171,6 +171,10 @@ public:
      */
     virtual status_t getHdrCapabilities(const sp<IBinder>& display,
             HdrCapabilities* outCapabilities) const = 0;
+
+    virtual status_t enableVSyncInjections(bool enable) = 0;
+
+    virtual status_t injectVSync(nsecs_t when) = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -202,6 +206,8 @@ public:
         GET_DISPLAY_COLOR_MODES,
         GET_ACTIVE_COLOR_MODE,
         SET_ACTIVE_COLOR_MODE,
+        ENABLE_VSYNC_INJECTIONS,
+        INJECT_VSYNC
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,

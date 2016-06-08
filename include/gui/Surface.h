@@ -205,7 +205,6 @@ protected:
     virtual int connect(int api);
     virtual int disconnect(int api);
     virtual int setBufferCount(int bufferCount);
-    virtual int setBuffersDimensions(uint32_t width, uint32_t height);
     virtual int setBuffersUserDimensions(uint32_t width, uint32_t height);
     virtual int setBuffersFormat(PixelFormat format);
     virtual int setBuffersTransform(uint32_t transform);
@@ -221,6 +220,7 @@ public:
     virtual int setAsyncMode(bool async);
     virtual int setSharedBufferMode(bool sharedBufferMode);
     virtual int setAutoRefresh(bool autoRefresh);
+    virtual int setBuffersDimensions(uint32_t width, uint32_t height);
     virtual int lock(ANativeWindow_Buffer* outBuffer, ARect* inOutDirtyBounds);
     virtual int unlockAndPost();
     virtual int query(int what, int* value) const;

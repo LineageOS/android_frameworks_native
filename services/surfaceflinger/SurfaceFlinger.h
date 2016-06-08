@@ -77,6 +77,8 @@ class LayerDim;
 class Surface;
 class RenderEngine;
 class EventControlThread;
+class VSyncSource;
+class InjectVSyncSource;
 
 // ---------------------------------------------------------------------------
 
@@ -236,6 +238,9 @@ private:
     virtual status_t getAnimationFrameStats(FrameStats* outStats) const;
     virtual status_t getHdrCapabilities(const sp<IBinder>& display,
             HdrCapabilities* outCapabilities) const;
+    virtual status_t enableVSyncInjections(bool enable);
+    virtual status_t injectVSync(nsecs_t when);
+
 
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
@@ -491,6 +496,8 @@ private:
     bool mGpuToCpuSupported;
     sp<EventThread> mEventThread;
     sp<EventThread> mSFEventThread;
+    sp<EventThread> mInjectorEventThread;
+    sp<InjectVSyncSource> mVSyncInjector;
     sp<EventControlThread> mEventControlThread;
     EGLContext mEGLContext;
     EGLDisplay mEGLDisplay;
@@ -550,6 +557,8 @@ private:
     /* ------------------------------------------------------------------------
      * Feature prototyping
      */
+
+    bool mInjectVSyncs;
 
     Daltonizer mDaltonizer;
 #ifndef USE_HWC2

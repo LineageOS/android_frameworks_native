@@ -383,6 +383,48 @@ public:
         }
         return result;
     }
+
+    virtual status_t enableVSyncInjections(bool enable) {
+        Parcel data, reply;
+        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (result != NO_ERROR) {
+            ALOGE("enableVSyncInjections failed to writeInterfaceToken: %d", result);
+            return result;
+        }
+        result = data.writeBool(enable);
+        if (result != NO_ERROR) {
+            ALOGE("enableVSyncInjections failed to writeBool: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::ENABLE_VSYNC_INJECTIONS,
+                data, &reply, TF_ONE_WAY);
+        if (result != NO_ERROR) {
+            ALOGE("enableVSyncInjections failed to transact: %d", result);
+            return result;
+        }
+        return result;
+    }
+
+    virtual status_t injectVSync(nsecs_t when) {
+        Parcel data, reply;
+        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (result != NO_ERROR) {
+            ALOGE("injectVSync failed to writeInterfaceToken: %d", result);
+            return result;
+        }
+        result = data.writeInt64(when);
+        if (result != NO_ERROR) {
+            ALOGE("injectVSync failed to writeInt64: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::INJECT_VSYNC, data, &reply, TF_ONE_WAY);
+        if (result != NO_ERROR) {
+            ALOGE("injectVSync failed to transact: %d", result);
+            return result;
+        }
+        return result;
+    }
+
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -634,6 +676,26 @@ status_t BnSurfaceComposer::onTransact(
                 reply->writeParcelable(capabilities);
             }
             return NO_ERROR;
+        }
+        case ENABLE_VSYNC_INJECTIONS: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            bool enable = false;
+            status_t result = data.readBool(&enable);
+            if (result != NO_ERROR) {
+                ALOGE("enableVSyncInjections failed to readBool: %d", result);
+                return result;
+            }
+            return enableVSyncInjections(enable);
+        }
+        case INJECT_VSYNC: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            int64_t when = 0;
+            status_t result = data.readInt64(&when);
+            if (result != NO_ERROR) {
+                ALOGE("enableVSyncInjections failed to readInt64: %d", result);
+                return result;
+            }
+            return injectVSync(when);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);
