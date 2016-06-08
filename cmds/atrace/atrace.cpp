@@ -350,7 +350,7 @@ static bool isCategorySupported(const TracingCategory& category)
 // Check whether the category would be supported on the device if the user
 // were root.  This function assumes that root is able to write to any file
 // that exists.  It performs the same logic as isCategorySupported, but it
-// uses file existance rather than writability in the /sys/ file checks.
+// uses file existence rather than writability in the /sys/ file checks.
 static bool isCategorySupportedForRoot(const TracingCategory& category)
 {
     bool ok = category.tags != 0;
@@ -910,9 +910,9 @@ static void showHelp(const char *cmd)
                     "  -k fname,...    trace the listed kernel functions\n"
                     "  -n              ignore signals\n"
                     "  -s N            sleep for N seconds before tracing [default 0]\n"
-                    "  -t N            trace for N seconds [defualt 5]\n"
+                    "  -t N            trace for N seconds [default 5]\n"
                     "  -z              compress the trace dump\n"
-                    "  --async_start   start circular trace and return immediatly\n"
+                    "  --async_start   start circular trace and return immediately\n"
                     "  --async_dump    dump the current contents of circular trace buffer\n"
                     "  --async_stop    stop tracing and dump the current contents of circular\n"
                     "                    trace buffer\n"
