@@ -1000,7 +1000,7 @@ static void sigpipe_handler(int n) {
    temporary file.
  */
 static bool finish_zip_file(const std::string& bugreport_name, const std::string& bugreport_path,
-        time_t now) {
+        const std::string& log_path, time_t now) {
     if (!add_zip_entry(bugreport_name, bugreport_path)) {
         MYLOGE("Failed to add text entry to .zip file\n");
         return false;
@@ -1009,6 +1009,16 @@ static bool finish_zip_file(const std::string& bugreport_name, const std::string
         MYLOGE("Failed to add main_entry.txt to .zip file\n");
         return false;
     }
+
+    // Add log file (which contains stderr output) to zip...
+    fprintf(stderr, "dumpstate_log.txt entry on zip file logged up to here\n");
+    if (!add_zip_entry("dumpstate_log.txt", log_path.c_str())) {
+        MYLOGE("Failed to add dumpstate log to .zip file\n");
+        return false;
+    }
+    // ... and re-opens it for further logging.
+    redirect_to_existing_file(stderr, const_cast<char*>(log_path.c_str()));
+    fprintf(stderr, "\n");
 
     int32_t err = zip_writer->Finish();
     if (err) {
@@ -1171,7 +1181,7 @@ int main(int argc, char *argv[]) {
     /* full path of the temporary file containing the bugreport */
     std::string tmp_path;
 
-    /* full path of the file containing the dumpstate logs*/
+    /* full path of the file containing the dumpstate logs */
     std::string log_path;
 
     /* full path of the systrace file, when enabled */
@@ -1380,7 +1390,7 @@ int main(int argc, char *argv[]) {
         if (do_zip_file) {
             std::string entry_name = base_name + "-" + suffix + ".txt";
             MYLOGD("Adding main entry (%s) to .zip bugreport\n", entry_name.c_str());
-            if (!finish_zip_file(entry_name, tmp_path, now)) {
+            if (!finish_zip_file(entry_name, tmp_path, log_path, now)) {
                 MYLOGE("Failed to finish zip file; sending text bugreport instead\n");
                 do_text_file = true;
             } else {
