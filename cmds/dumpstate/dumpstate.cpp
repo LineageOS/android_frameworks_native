@@ -690,7 +690,12 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
 
     run_command("PRINTENV", 10, "printenv", NULL);
     run_command("NETSTAT", 10, "netstat", "-n", NULL);
-    run_command("LSMOD", 10, "lsmod", NULL);
+    struct stat s;
+    if (stat("/proc/modules", &s) != 0) {
+        MYLOGD("Skipping 'lsmod' because /proc/modules does not exist\n");
+    } else {
+        run_command("LSMOD", 10, "lsmod", NULL);
+    }
 
     do_dmesg();
 
