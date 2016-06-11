@@ -975,11 +975,11 @@ void create_parent_dirs(const char *path) {
     }
 }
 
-/* redirect output to a file */
-void redirect_to_file(FILE *redirect, char *path) {
+void _redirect_to_file(FILE *redirect, char *path, int truncate_flag) {
     create_parent_dirs(path);
 
-    int fd = TEMP_FAILURE_RETRY(open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+    int fd = TEMP_FAILURE_RETRY(open(path,
+                                     O_WRONLY | O_CREAT | truncate_flag | O_CLOEXEC | O_NOFOLLOW,
                                      S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
     if (fd < 0) {
         MYLOGE("%s: %s\n", path, strerror(errno));
@@ -988,6 +988,14 @@ void redirect_to_file(FILE *redirect, char *path) {
 
     TEMP_FAILURE_RETRY(dup2(fd, fileno(redirect)));
     close(fd);
+}
+
+void redirect_to_file(FILE *redirect, char *path) {
+    _redirect_to_file(redirect, path, O_TRUNC);
+}
+
+void redirect_to_existing_file(FILE *redirect, char *path) {
+    _redirect_to_file(redirect, path, O_APPEND);
 }
 
 static bool should_dump_native_traces(const char* path) {

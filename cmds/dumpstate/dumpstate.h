@@ -151,8 +151,11 @@ int open_socket(const char *service);
 /* redirect output to a service control socket */
 void redirect_to_socket(FILE *redirect, const char *service);
 
-/* redirect output to a file */
+/* redirect output to a new file */
 void redirect_to_file(FILE *redirect, char *path);
+
+/* redirect output to an existing file */
+void redirect_to_existing_file(FILE *redirect, char *path);
 
 /* create leading directories, if necessary */
 void create_parent_dirs(const char *path);
