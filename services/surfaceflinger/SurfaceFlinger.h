@@ -56,6 +56,7 @@
 #include "FenceTracker.h"
 #include "FrameTracker.h"
 #include "MessageQueue.h"
+#include "SurfaceInterceptor.h"
 
 #include "DisplayHardware/HWComposer.h"
 #include "Effects/Daltonizer.h"
@@ -148,6 +149,7 @@ public:
 private:
     friend class Client;
     friend class DisplayEventConnection;
+    friend class EventThread;
     friend class Layer;
     friend class MonitoredProducer;
 
@@ -529,6 +531,7 @@ private:
 #ifdef USE_HWC2
     bool mPropagateBackpressure = true;
 #endif
+    SurfaceInterceptor mInterceptor;
 
     // these are thread safe
     mutable MessageQueue mEventQueue;

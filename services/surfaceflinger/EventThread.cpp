@@ -226,6 +226,7 @@ Vector< sp<EventThread::Connection> > EventThread::waitForEvent(
             timestamp = mVSyncEvent[i].header.timestamp;
             if (timestamp) {
                 // we have a vsync event to dispatch
+                mFlinger.mInterceptor.saveVSyncEvent(timestamp);
                 *event = mVSyncEvent[i];
                 mVSyncEvent[i].header.timestamp = 0;
                 vsyncCount = mVSyncEvent[i].vsync.count;

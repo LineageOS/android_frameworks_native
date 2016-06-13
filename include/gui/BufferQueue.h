@@ -79,7 +79,8 @@ public:
     // needed gralloc buffers.
     static void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
             sp<IGraphicBufferConsumer>* outConsumer,
-            const sp<IGraphicBufferAlloc>& allocator = NULL);
+            const sp<IGraphicBufferAlloc>& allocator = NULL,
+            bool consumerIsSurfaceFlinger = false);
 
 private:
     BufferQueue(); // Create through createBufferQueue

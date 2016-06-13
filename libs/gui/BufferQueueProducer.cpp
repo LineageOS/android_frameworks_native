@@ -41,11 +41,13 @@
 
 namespace android {
 
-BufferQueueProducer::BufferQueueProducer(const sp<BufferQueueCore>& core) :
+BufferQueueProducer::BufferQueueProducer(const sp<BufferQueueCore>& core,
+        bool consumerIsSurfaceFlinger) :
     mCore(core),
     mSlots(core->mSlots),
     mConsumerName(),
     mStickyTransform(0),
+    mConsumerIsSurfaceFlinger(consumerIsSurfaceFlinger),
     mLastQueueBufferFence(Fence::NO_FENCE),
     mLastQueuedTransform(0),
     mCallbackMutex(),
@@ -913,9 +915,14 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         VALIDATE_CONSISTENCY();
     } // Autolock scope
 
-    // Don't send the GraphicBuffer through the callback, and don't send
-    // the slot number, since the consumer shouldn't need it
-    item.mGraphicBuffer.clear();
+    // It is okay not to clear the GraphicBuffer when the consumer is SurfaceFlinger because
+    // it is guaranteed that the BufferQueue is inside SurfaceFlinger's process and
+    // there will be no Binder call
+    if (!mConsumerIsSurfaceFlinger) {
+        item.mGraphicBuffer.clear();
+    }
+
+    // Don't send the slot number through the callback since the consumer shouldn't need it
     item.mSlot = BufferItem::INVALID_BUFFER_SLOT;
 
     // Call back without the main BufferQueue lock held, but with the callback

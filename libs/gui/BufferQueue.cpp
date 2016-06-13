@@ -72,7 +72,8 @@ bool BufferQueue::ProxyConsumerListener::getFrameTimestamps(
 
 void BufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
         sp<IGraphicBufferConsumer>* outConsumer,
-        const sp<IGraphicBufferAlloc>& allocator) {
+        const sp<IGraphicBufferAlloc>& allocator,
+        bool consumerIsSurfaceFlinger) {
     LOG_ALWAYS_FATAL_IF(outProducer == NULL,
             "BufferQueue: outProducer must not be NULL");
     LOG_ALWAYS_FATAL_IF(outConsumer == NULL,
@@ -82,7 +83,7 @@ void BufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
     LOG_ALWAYS_FATAL_IF(core == NULL,
             "BufferQueue: failed to create BufferQueueCore");
 
-    sp<IGraphicBufferProducer> producer(new BufferQueueProducer(core));
+    sp<IGraphicBufferProducer> producer(new BufferQueueProducer(core, consumerIsSurfaceFlinger));
     LOG_ALWAYS_FATAL_IF(producer == NULL,
             "BufferQueue: failed to create BufferQueueProducer");
 

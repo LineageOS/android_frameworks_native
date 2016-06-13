@@ -29,7 +29,7 @@ class BufferQueueProducer : public BnGraphicBufferProducer,
 public:
     friend class BufferQueue; // Needed to access binderDied
 
-    BufferQueueProducer(const sp<BufferQueueCore>& core);
+    BufferQueueProducer(const sp<BufferQueueCore>& core, bool consumerIsSurfaceFlinger = false);
     virtual ~BufferQueueProducer();
 
     // requestBuffer returns the GraphicBuffer for slot N.
@@ -224,6 +224,10 @@ private:
     String8 mConsumerName;
 
     uint32_t mStickyTransform;
+
+    // This controls whether the GraphicBuffer pointer in the BufferItem is
+    // cleared after being queued
+    bool mConsumerIsSurfaceFlinger;
 
     // This saves the fence from the last queueBuffer, such that the
     // next queueBuffer call can throttle buffer production. The prior

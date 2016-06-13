@@ -162,6 +162,7 @@ SurfaceFlinger::SurfaceFlinger()
         mLastTransactionTime(0),
         mBootFinished(false),
         mForceFullDamage(false),
+        mInterceptor(),
         mPrimaryDispSync("PrimaryDispSync"),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false),
@@ -2302,6 +2303,8 @@ void SurfaceFlinger::setTransactionState(
     }
 
     if (transactionFlags) {
+        mInterceptor.saveLayerUpdates(state, flags);
+
         // this triggers the transaction
         setTransactionFlags(transactionFlags);
 
@@ -2462,7 +2465,6 @@ status_t SurfaceFlinger::createLayer(
         uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp)
 {
-    //ALOGD("createLayer for (%d x %d), name=%s", w, h, name.string());
     if (int32_t(w|h) < 0) {
         ALOGE("createLayer() failed, w or h is negative (w=%d, h=%d)",
                 int(w), int(h));
@@ -2497,6 +2499,7 @@ status_t SurfaceFlinger::createLayer(
     if (result != NO_ERROR) {
         return result;
     }
+    mInterceptor.saveLayerCreate(layer);
 
     setTransactionFlags(eTransactionNeeded);
     return result;
@@ -2544,6 +2547,7 @@ status_t SurfaceFlinger::onLayerRemoved(const sp<Client>& client, const sp<IBind
     status_t err = NO_ERROR;
     sp<Layer> l(client->getLayerUser(handle));
     if (l != NULL) {
+        mInterceptor.saveLayerDelete(l);
         err = removeLayer(l);
         ALOGE_IF(err<0 && err != NAME_NOT_FOUND,
                 "error removing layer=%p (%s)", l.get(), strerror(-err));
@@ -3272,6 +3276,18 @@ status_t SurfaceFlinger::onTransact(
             case 1019: { // Modify SurfaceFlinger's phase offset
                 n = data.readInt32();
                 mSFEventThread->setPhaseOffset(static_cast<nsecs_t>(n));
+                return NO_ERROR;
+            }
+            case 1020: { // Layer updates interceptor
+                n = data.readInt32();
+                if (n) {
+                    ALOGV("Interceptor enabled");
+                    mInterceptor.enable(mDrawingState.layersSortedByZ);
+                }
+                else{
+                    ALOGV("Interceptor disabled");
+                    mInterceptor.disable();
+                }
                 return NO_ERROR;
             }
         }

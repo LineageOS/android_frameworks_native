@@ -155,10 +155,9 @@ void Layer::onFirstRef() {
     // Creates a custom BufferQueue for SurfaceFlingerConsumer to use
     sp<IGraphicBufferProducer> producer;
     sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer);
+    BufferQueue::createBufferQueue(&producer, &consumer, nullptr, true);
     mProducer = new MonitoredProducer(producer, mFlinger);
-    mSurfaceFlingerConsumer = new SurfaceFlingerConsumer(consumer, mTextureName,
-            this);
+    mSurfaceFlingerConsumer = new SurfaceFlingerConsumer(consumer, mTextureName, this);
     mSurfaceFlingerConsumer->setConsumerUsageBits(getEffectiveUsage(0));
     mSurfaceFlingerConsumer->setContentsChangedListener(this);
     mSurfaceFlingerConsumer->setName(mName);
@@ -212,7 +211,8 @@ void Layer::onFrameAvailable(const BufferItem& item) {
     // Add this buffer from our internal queue tracker
     { // Autolock scope
         Mutex::Autolock lock(mQueueItemLock);
-
+        mFlinger->mInterceptor.saveBufferUpdate(this, item.mGraphicBuffer->getWidth(),
+                item.mGraphicBuffer->getHeight(), item.mFrameNumber);
         // Reset the frame number tracker when we receive the first buffer after
         // a frame number reset
         if (item.mFrameNumber == 1) {
@@ -311,22 +311,6 @@ status_t Layer::setBuffers( uint32_t w, uint32_t h,
 
     return NO_ERROR;
 }
-
-/*
- * The layer handle is just a BBinder object passed to the client
- * (remote process) -- we don't keep any reference on our side such that
- * the dtor is called when the remote side let go of its reference.
- *
- * LayerCleaner ensures that mFlinger->onLayerDestroyed() is called for
- * this layer when the handle is destroyed.
- */
-class Layer::Handle : public BBinder, public LayerCleaner {
-    public:
-        Handle(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer)
-            : LayerCleaner(flinger, layer), owner(layer) {}
-
-        wp<Layer> owner;
-};
 
 sp<IBinder> Layer::getHandle() {
     Mutex::Autolock _l(mLock);
@@ -2256,17 +2240,6 @@ bool Layer::getTransformToDisplayInverse() const {
 
 // ---------------------------------------------------------------------------
 
-Layer::LayerCleaner::LayerCleaner(const sp<SurfaceFlinger>& flinger,
-        const sp<Layer>& layer)
-    : mFlinger(flinger), mLayer(layer) {
-}
-
-Layer::LayerCleaner::~LayerCleaner() {
-    // destroy client resources
-    mFlinger->onLayerDestroyed(mLayer);
-}
-
-// ---------------------------------------------------------------------------
 }; // namespace android
 
 #if defined(__gl_h_)

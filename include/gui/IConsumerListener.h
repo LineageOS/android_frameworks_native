@@ -49,7 +49,8 @@ public:
     // previous frames are pending. Frames queued while in synchronous mode
     // always trigger the callback. The item passed to the callback will contain
     // all of the information about the queued frame except for its
-    // GraphicBuffer pointer, which will always be null.
+    // GraphicBuffer pointer, which will always be null (except if the consumer
+    // is SurfaceFlinger).
     //
     // This is called without any lock held and can be called concurrently
     // by multiple threads.
