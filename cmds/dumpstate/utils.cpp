@@ -1376,7 +1376,7 @@ void format_args(int argc, const char *argv[], std::string *args) {
 void format_args(const char* command, const char *args[], std::string *string) {
     LOG_ALWAYS_FATAL_IF(args == nullptr || command == nullptr);
     string->append(command);
-    if (args[0] == nullptr) return;
+    if (args[1] == nullptr) return;
     string->append(" ");
 
     for (int arg = 1; arg <= 1000; ++arg) {
