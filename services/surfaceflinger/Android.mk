@@ -18,6 +18,7 @@ LOCAL_SRC_FILES := \
     MessageQueue.cpp \
     MonitoredProducer.cpp \
     SurfaceFlingerConsumer.cpp \
+    SurfaceInterceptor.cpp \
     Transform.cpp \
     DisplayHardware/FramebufferSurface.cpp \
     DisplayHardware/HWC2.cpp \
@@ -36,11 +37,12 @@ LOCAL_SRC_FILES := \
     RenderEngine/Texture.cpp \
     RenderEngine/GLES10RenderEngine.cpp \
     RenderEngine/GLES11RenderEngine.cpp \
-    RenderEngine/GLES20RenderEngine.cpp
+    RenderEngine/GLES20RenderEngine.cpp \
 
+LOCAL_MODULE := libsurfaceflinger
 LOCAL_C_INCLUDES := \
-	frameworks/native/vulkan/include \
-	external/vulkan-validation-layers/libs/vkjson
+    frameworks/native/vulkan/include \
+    external/vulkan-validation-layers/libs/vkjson \
 
 LOCAL_CFLAGS := -DLOG_TAG=\"SurfaceFlinger\"
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
@@ -108,7 +110,7 @@ endif
 LOCAL_CFLAGS += -fvisibility=hidden -Werror=format
 LOCAL_CFLAGS += -std=c++14
 
-LOCAL_STATIC_LIBRARIES := libvkjson
+LOCAL_STATIC_LIBRARIES := libtrace_proto libvkjson
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     liblog \
@@ -122,9 +124,8 @@ LOCAL_SHARED_LIBRARIES := \
     libui \
     libgui \
     libpowermanager \
-    libvulkan
-
-LOCAL_MODULE := libsurfaceflinger
+    libvulkan \
+    libprotobuf-cpp-full
 
 LOCAL_CFLAGS += -Wall -Werror -Wunused -Wunreachable-code
 
@@ -158,6 +159,7 @@ LOCAL_SHARED_LIBRARIES := \
     libdl
 
 LOCAL_WHOLE_STATIC_LIBRARIES := libsigchain
+LOCAL_STATIC_LIBRARIES := libtrace_proto
 
 LOCAL_MODULE := surfaceflinger
 
