@@ -51,6 +51,8 @@
 
 static const int64_t NANOS_PER_SEC = 1000000000;
 
+static const int TRACE_DUMP_TIMEOUT_MS = 10000; // 10 seconds
+
 /* list of native processes to include in the native dumps */
 // This matches the /proc/pid/exe link instead of /proc/pid/cmdline.
 static const char* native_processes_to_dump[] = {
@@ -1101,7 +1103,7 @@ const char *dump_traces() {
 
             /* wait for the writable-close notification from inotify */
             struct pollfd pfd = { ifd, POLLIN, 0 };
-            int ret = poll(&pfd, 1, 5000);  /* 5 sec timeout */
+            int ret = poll(&pfd, 1, TRACE_DUMP_TIMEOUT_MS);
             if (ret < 0) {
                 MYLOGE("poll: %s\n", strerror(errno));
             } else if (ret == 0) {
