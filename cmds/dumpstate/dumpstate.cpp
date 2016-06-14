@@ -414,7 +414,7 @@ static void dumpstate() {
     dump_files("UPTIME MMC PERF", mmcblk0, skip_not_stat, dump_stat_from_fd);
     dump_emmc_ecsd("/d/mmc0/mmc0:0001/ext_csd");
     dump_file("MEMORY INFO", "/proc/meminfo");
-    run_command("CPU INFO", 10, "toybox", "top", "-b", "-n", "1", "-H", "-s", "6",
+    run_command("CPU INFO", 10, "top", "-b", "-n", "1", "-H", "-s", "6",
                 "-o", "pid,tid,user,pr,ni,%cpu,s,virt,res,pcy,cmd,name", NULL);
     run_command("PROCRANK", 20, SU_PATH, "root", "procrank", NULL);
     dump_file("VIRTUAL MEMORY STATS", "/proc/vmstat");
@@ -430,7 +430,7 @@ static void dumpstate() {
     dump_file("KERNEL CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state");
     dump_file("KERNEL SYNC", "/d/sync");
 
-    run_command("PROCESSES AND THREADS", 10, "toybox", "ps", "-A", "-T", "-Z",
+    run_command("PROCESSES AND THREADS", 10, "ps", "-A", "-T", "-Z",
                 "-O", "pri,nice,rtprio,sched,pcy", NULL);
     run_command("LIBRANK", 10, "librank", NULL);
 
