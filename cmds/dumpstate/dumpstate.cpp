@@ -670,7 +670,8 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     dump_files("UPTIME MMC PERF", mmcblk0, skip_not_stat, dump_stat_from_fd);
     dump_emmc_ecsd("/d/mmc0/mmc0:0001/ext_csd");
     dump_file("MEMORY INFO", "/proc/meminfo");
-    run_command("CPU INFO", 10, "top", "-n", "1", "-d", "1", "-m", "30", "-H", NULL);
+    run_command("CPU INFO", 10, "toybox", "top", "-b", "-n", "1", "-H", "-s", "6",
+                "-o", "pid,tid,user,pr,ni,%cpu,s,virt,res,pcy,cmd,name", NULL);
     run_command("PROCRANK", 20, SU_PATH, "root", "procrank", NULL);
     dump_file("VIRTUAL MEMORY STATS", "/proc/vmstat");
     dump_file("VMALLOC INFO", "/proc/vmallocinfo");
