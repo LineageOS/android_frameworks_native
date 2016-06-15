@@ -259,6 +259,7 @@ typedef enum OMX_AUDIO_AACPROFILETYPE{
   OMX_AUDIO_AACObjectHE,            /**< AAC High Efficiency (object type SBR, HE-AAC profile) */
   OMX_AUDIO_AACObjectScalable,      /**< AAC Scalable object */
   OMX_AUDIO_AACObjectERLC = 17,     /**< ER AAC Low Complexity object (Error Resilient AAC-LC) */
+  OMX_AUDIO_AACObjectER_Scalable = 20, /**< ER AAC scalable object */
   OMX_AUDIO_AACObjectLD = 23,       /**< AAC Low Delay object (Error Resilient) */
   OMX_AUDIO_AACObjectHE_PS = 29,    /**< AAC High Efficiency with Parametric Stereo coding (HE-AAC v2, object type PS) */
   OMX_AUDIO_AACObjectELD = 39,      /** AAC Enhanced Low Delay. NOTE: Pending Khronos standardization **/
