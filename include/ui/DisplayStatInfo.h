@@ -22,8 +22,8 @@
 namespace android {
 
 struct DisplayStatInfo {
-    nsecs_t vsyncTime;
-    nsecs_t vsyncPeriod;
+    nsecs_t vsyncTime{0};
+    nsecs_t vsyncPeriod{0};
 };
 
 }; // namespace android

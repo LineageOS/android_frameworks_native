@@ -247,6 +247,7 @@ private:
                 public:
                     Config(Display& display)
                       : mDisplay(display),
+                        mId(0),
                         mAttributes() {}
 
                     bool isOnDisplay(const Display& display) const {

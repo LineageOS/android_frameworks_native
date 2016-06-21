@@ -66,6 +66,9 @@ size_t BufferItem::getPodSize() const {
     addAligned(size, mIsDroppable);
     addAligned(size, mAcquireCalled);
     addAligned(size, mTransformToDisplayInverse);
+    addAligned(size, mAutoRefresh);
+    addAligned(size, mQueuedBuffer);
+    addAligned(size, mIsStale);
     return size;
 }
 
@@ -151,6 +154,9 @@ status_t BufferItem::flatten(
     writeAligned(buffer, size, mIsDroppable);
     writeAligned(buffer, size, mAcquireCalled);
     writeAligned(buffer, size, mTransformToDisplayInverse);
+    writeAligned(buffer, size, mAutoRefresh);
+    writeAligned(buffer, size, mQueuedBuffer);
+    writeAligned(buffer, size, mIsStale);
 
     return NO_ERROR;
 }
@@ -207,6 +213,9 @@ status_t BufferItem::unflatten(
     readAligned(buffer, size, mIsDroppable);
     readAligned(buffer, size, mAcquireCalled);
     readAligned(buffer, size, mTransformToDisplayInverse);
+    readAligned(buffer, size, mAutoRefresh);
+    readAligned(buffer, size, mQueuedBuffer);
+    readAligned(buffer, size, mIsStale);
 
     return NO_ERROR;
 }

@@ -26,17 +26,17 @@
 namespace android {
 
 struct DisplayInfo {
-    uint32_t w;
-    uint32_t h;
-    float xdpi;
-    float ydpi;
-    float fps;
-    float density;
-    uint8_t orientation;
-    bool secure;
-    nsecs_t appVsyncOffset;
-    nsecs_t presentationDeadline;
-    int colorTransform;
+    uint32_t w{0};
+    uint32_t h{0};
+    float xdpi{0};
+    float ydpi{0};
+    float fps{0};
+    float density{0};
+    uint8_t orientation{0};
+    bool secure{false};
+    nsecs_t appVsyncOffset{0};
+    nsecs_t presentationDeadline{0};
+    int colorTransform{0};
 };
 
 /* Display orientations as defined in Surface.java and ISurfaceComposer.h. */
