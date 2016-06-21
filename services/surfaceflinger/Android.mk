@@ -132,6 +132,9 @@ ifeq ($(TARGET_HAVE_UI_BLUR),true)
     LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/ui
     LOCAL_SHARED_LIBRARIES += libuiblur
     LOCAL_CFLAGS += -DUI_BLUR
+ifeq ($(QCPATH),)
+    LOCAL_CFLAGS += -D_OSS
+endif
 endif
 
 LOCAL_MODULE := libsurfaceflinger
