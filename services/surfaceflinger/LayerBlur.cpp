@@ -97,7 +97,7 @@ LayerBlur::LayerBlur(SurfaceFlinger* flinger, const sp<Client>& client,
     ,mLastFrameSequence(0)
 {
 #ifdef UI_BLUR
-    mBlurToken = qtiblur::initBlurToken();
+    mBlurToken = _ZN7qtiblur13initBlurTokenEv();
 #endif
 
     GLuint texnames[3];
@@ -109,7 +109,7 @@ LayerBlur::LayerBlur(SurfaceFlinger* flinger, const sp<Client>& client,
 
 LayerBlur::~LayerBlur() {
 #ifdef UI_BLUR
-    qtiblur::releaseBlurToken(mBlurToken);
+    _ZN7qtiblur16releaseBlurTokenEPv(mBlurToken);
 #endif
 
     releaseFbo(mFboCapture);
@@ -169,7 +169,7 @@ void LayerBlur::onDraw(const sp<const DisplayDevice>& hw, const Region& /*clip*/
         size_t outTexWidth = mTextureBlur.getWidth();
         size_t outTexHeight = mTextureBlur.getHeight();
 #ifdef UI_BLUR
-        if (!qtiblur::blur(mBlurToken,
+        if (!_ZN7qtiblur4blurEPvijjjjPjS1_(mBlurToken,
                 s.blur,
                 mTextureCapture.getTextureName(),
                 mTextureCapture.getWidth(),

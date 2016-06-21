@@ -59,7 +59,7 @@ public:
 
 private:
 #ifdef UI_BLUR
-    qtiblur::BLUR_TOKEN mBlurToken;
+    int mBlurToken;
 #endif
     wp<Layer> mBlurMaskLayer;
     int32_t mBlurMaskSampling;
