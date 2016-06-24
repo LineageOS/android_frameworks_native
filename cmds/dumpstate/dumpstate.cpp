@@ -46,6 +46,7 @@ static const char *dump_traces_path = NULL;
 static char screenshot_path[PATH_MAX] = "";
 
 #define PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops"
+#define ALT_PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops-0"
 
 #define RAFT_DIR "/data/misc/raft/"
 #define TOMBSTONE_DIR "/data/tombstones"
@@ -540,6 +541,8 @@ static void dumpstate() {
     if (!stat(PSTORE_LAST_KMSG, &st)) {
         /* Also TODO: Make console-ramoops CAP_SYSLOG protected. */
         dump_file("LAST KMSG", PSTORE_LAST_KMSG);
+    } else if (!stat(ALT_PSTORE_LAST_KMSG, &st)) {
+        dump_file("LAST KMSG", ALT_PSTORE_LAST_KMSG);
     } else {
         /* TODO: Make last_kmsg CAP_SYSLOG protected. b/5555691 */
         dump_file("LAST KMSG", "/proc/last_kmsg");
