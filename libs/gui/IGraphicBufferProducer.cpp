@@ -55,8 +55,8 @@ enum {
     SET_AUTO_REFRESH,
     SET_DEQUEUE_TIMEOUT,
     GET_LAST_QUEUED_BUFFER,
-    GET_FRAME_TIMESTAMPS
-    GET_UNIQUE_ID,
+    GET_FRAME_TIMESTAMPS,
+    GET_UNIQUE_ID
 };
 
 class BpGraphicBufferProducer : public BpInterface<IGraphicBufferProducer>
