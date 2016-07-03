@@ -685,7 +685,11 @@ status_t IPCThreadState::clearDeathNotification(int32_t handle, BpBinder* proxy)
 
 IPCThreadState::IPCThreadState()
     : mProcess(ProcessState::self()),
+#ifdef ADD_LEGACY_ANDROID_GET_TID_SYMBOL
+      mMyThreadId(androidGetTid()),
+#else
       mMyThreadId(gettid()),
+#endif
       mStrictModePolicy(0),
       mLastTransactionBinderFlags(0)
 {
