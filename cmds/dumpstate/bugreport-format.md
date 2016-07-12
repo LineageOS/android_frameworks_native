@@ -22,7 +22,7 @@ _bugreport-DATE.zip_ containing a _bugreport-DATE.txt_ entry and sends that
 file as the `ACTION_SEND_MULTIPLE` attachment.
 
 ## Version 1.0 (Android N)
-On _Android N (TBD)_, `dumpstate` generates a zip file directly (unless there
+On _Android N (Nougat)_, `dumpstate` generates a zip file directly (unless there
 is a failure, in which case it reverts to the flat file that is zipped by
 **Shell** and hence the end result is the _v0_ format).
 
