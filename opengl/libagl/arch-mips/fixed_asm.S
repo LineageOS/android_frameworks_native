@@ -17,7 +17,7 @@
 
 
     .text
-    .align
+    .align 4
 
 /*
  * this version rounds-to-nearest and saturates numbers
