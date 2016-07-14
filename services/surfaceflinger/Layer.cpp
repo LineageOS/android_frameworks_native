@@ -2173,7 +2173,7 @@ void Layer::getFenceData(String8* outName, uint64_t* outFrameNumber,
 #endif
     *outRequestedPresentTime = mSurfaceFlingerConsumer->getTimestamp();
     *outAcquireFence = mSurfaceFlingerConsumer->getCurrentFence();
-    *outPrevReleaseFence = mSurfaceFlingerConsumer->getPrevReleaseFence();
+    *outPrevReleaseFence = mSurfaceFlingerConsumer->getPrevFinalReleaseFence();
 }
 
 std::vector<OccupancyTracker::Segment> Layer::getOccupancyHistory(

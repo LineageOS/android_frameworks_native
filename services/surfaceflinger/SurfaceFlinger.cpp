@@ -1148,10 +1148,6 @@ void SurfaceFlinger::handleMessageRefresh() {
                 mHwc->hasClientComposition(displayDevice->getHwcDisplayId());
     }
 
-    // Release any buffers which were replaced this frame
-    for (auto& layer : mLayersWithQueuedFrames) {
-        layer->releasePendingBuffer();
-    }
     mLayersWithQueuedFrames.clear();
 }
 
@@ -1221,6 +1217,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
 {
     ATRACE_CALL();
     ALOGV("postComposition");
+
+    // Release any buffers which were replaced this frame
+    for (auto& layer : mLayersWithQueuedFrames) {
+        layer->releasePendingBuffer();
+    }
 
     const LayerVector& layers(mDrawingState.layersSortedByZ);
     const size_t count = layers.size();

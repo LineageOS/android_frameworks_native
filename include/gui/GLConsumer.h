@@ -250,7 +250,7 @@ protected:
     // mEglSlots array in addition to the ConsumerBase.
     virtual status_t releaseBufferLocked(int slot,
             const sp<GraphicBuffer> graphicBuffer,
-            EGLDisplay display, EGLSyncKHR eglFence);
+            EGLDisplay display, EGLSyncKHR eglFence) override;
 
     status_t releaseBufferLocked(int slot,
             const sp<GraphicBuffer> graphicBuffer, EGLSyncKHR eglFence) {

@@ -180,7 +180,7 @@ protected:
     // Derived classes should override this method to perform any cleanup that
     // must take place when a buffer is released back to the BufferQueue.  If
     // it is overridden the derived class's implementation must call
-    // ConsumerBase::releaseBufferLocked.e
+    // ConsumerBase::releaseBufferLocked.
     virtual status_t releaseBufferLocked(int slot,
             const sp<GraphicBuffer> graphicBuffer,
             EGLDisplay display, EGLSyncKHR eglFence);
@@ -243,6 +243,10 @@ protected:
     // The ConsumerBase has-a BufferQueue and is responsible for creating this object
     // if none is supplied
     sp<IGraphicBufferConsumer> mConsumer;
+
+    // The final release fence of the most recent buffer released by
+    // releaseBufferLocked.
+    sp<Fence> mPrevFinalReleaseFence;
 
     // mMutex is the mutex used to prevent concurrent access to the member
     // variables of ConsumerBase objects. It must be locked whenever the

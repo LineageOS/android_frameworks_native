@@ -158,38 +158,17 @@ void FenceTracker::addFrame(nsecs_t refreshStartTime, sp<Fence> presentFence,
 
         layers[i]->getFenceData(&name, &frameNumber, &glesComposition,
                 &requestedPresentTime, &acquireFence, &prevReleaseFence);
-#ifdef USE_HWC2
-        if (glesComposition) {
-            frame.layers.emplace(std::piecewise_construct,
-                    std::forward_as_tuple(layerId),
-                    std::forward_as_tuple(name, frameNumber, glesComposition,
-                    requestedPresentTime, 0, 0, acquireFence,
-                    prevReleaseFence));
-            wasGlesCompositionDone = true;
-        } else {
-            frame.layers.emplace(std::piecewise_construct,
-                    std::forward_as_tuple(layerId),
-                    std::forward_as_tuple(name, frameNumber, glesComposition,
-                    requestedPresentTime, 0, 0, acquireFence, Fence::NO_FENCE));
-            auto prevLayer = prevFrame.layers.find(layerId);
-            if (prevLayer != prevFrame.layers.end()) {
-                prevLayer->second.releaseFence = prevReleaseFence;
+
+        frame.layers.emplace(std::piecewise_construct,
+                std::forward_as_tuple(layerId),
+                std::forward_as_tuple(name, frameNumber, glesComposition,
+                requestedPresentTime, 0, 0, acquireFence, Fence::NO_FENCE));
+        auto prevLayer = prevFrame.layers.find(layerId);
+        if (prevLayer != prevFrame.layers.end()) {
+            if (frameNumber != prevLayer->second.frameNumber) {
+               prevLayer->second.releaseFence = prevReleaseFence;
             }
         }
-#else
-        frame.layers.emplace(std::piecewise_construct,
-                std::forward_as_tuple(layerId),
-                std::forward_as_tuple(name, frameNumber, glesComposition,
-                requestedPresentTime, 0, 0, acquireFence,
-                glesComposition ? Fence::NO_FENCE : prevReleaseFence));
-        if (glesComposition) {
-            wasGlesCompositionDone = true;
-        }
-#endif
-        frame.layers.emplace(std::piecewise_construct,
-                std::forward_as_tuple(layerId),
-                std::forward_as_tuple(name, frameNumber, glesComposition,
-                requestedPresentTime, 0, 0, acquireFence, prevReleaseFence));
     }
 
     frame.frameId = mFrameCounter;
