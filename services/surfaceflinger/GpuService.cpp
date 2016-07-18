@@ -92,82 +92,27 @@ status_t cmd_help(int out) {
     }
     fprintf(outs,
         "GPU Service commands:\n"
-        "  vkjson   dump Vulkan device capabilities as JSON\n");
+        "  vkjson   dump Vulkan properties as JSON\n");
     fclose(outs);
     return NO_ERROR;
 }
 
-VkResult vkjsonPrint(FILE* out, FILE* err) {
-    VkResult result;
-
-    const VkApplicationInfo app_info = {
-        VK_STRUCTURE_TYPE_APPLICATION_INFO, nullptr,
-        "vkjson", 1,    /* app name, version */
-        "", 0,          /* engine name, version */
-        VK_API_VERSION_1_0
-    };
-    const VkInstanceCreateInfo instance_info = {
-        VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, nullptr,
-        0,              /* flags */
-        &app_info,
-        0, nullptr,     /* layers */
-        0, nullptr,     /* extensions */
-    };
-    VkInstance instance;
-    result = vkCreateInstance(&instance_info, nullptr, &instance);
-    if (result != VK_SUCCESS) {
-        fprintf(err, "vkCreateInstance failed: %d\n", result);
-        return result;
-    }
-
-    uint32_t ngpu = 0;
-    result = vkEnumeratePhysicalDevices(instance, &ngpu, nullptr);
-    if (result != VK_SUCCESS) {
-        fprintf(err, "vkEnumeratePhysicalDevices failed: %d\n", result);
-        return result;
-    }
-    std::vector<VkPhysicalDevice> gpus(ngpu, VK_NULL_HANDLE);
-    result = vkEnumeratePhysicalDevices(instance, &ngpu, gpus.data());
-    if (result != VK_SUCCESS) {
-        fprintf(err, "vkEnumeratePhysicalDevices failed: %d\n", result);
-        return result;
-    }
-
-    for (size_t i = 0, n = gpus.size(); i < n; i++) {
-        auto props = VkJsonGetAllProperties(gpus[i]);
-        std::string json = VkJsonAllPropertiesToJson(props);
-        fwrite(json.data(), 1, json.size(), out);
-        if (i < n - 1)
-            fputc(',', out);
-        fputc('\n', out);
-    }
-
-    vkDestroyInstance(instance, nullptr);
-
-    return VK_SUCCESS;
+void vkjsonPrint(FILE* out) {
+    std::string json = VkJsonInstanceToJson(VkJsonGetInstance());
+    fwrite(json.data(), 1, json.size(), out);
+    fputc('\n', out);
 }
 
-status_t cmd_vkjson(int out, int err) {
-    int errnum;
+status_t cmd_vkjson(int out, int /*err*/) {
     FILE* outs = fdopen(out, "w");
     if (!outs) {
-        errnum = errno;
+        int errnum = errno;
         ALOGE("vkjson: failed to create output stream: %s", strerror(errnum));
         return -errnum;
     }
-    FILE* errs = fdopen(err, "w");
-    if (!errs) {
-        errnum = errno;
-        ALOGE("vkjson: failed to create error stream: %s", strerror(errnum));
-        fclose(outs);
-        return -errnum;
-    }
-    fprintf(outs, "[\n");
-    VkResult result = vkjsonPrint(outs, errs);
-    fprintf(outs, "]\n");
-    fclose(errs);
+    vkjsonPrint(outs);
     fclose(outs);
-    return result >= 0 ? NO_ERROR : UNKNOWN_ERROR;
+    return NO_ERROR;
 }
 
 } // anonymous namespace
