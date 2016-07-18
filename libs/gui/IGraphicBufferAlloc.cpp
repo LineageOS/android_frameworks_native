@@ -101,7 +101,7 @@ status_t BnGraphicBufferAlloc::onTransact(
             uint32_t height = data.readUint32();
             PixelFormat format = static_cast<PixelFormat>(data.readInt32());
             uint32_t usage = data.readUint32();
-            status_t error;
+            status_t error = NO_ERROR;
             sp<GraphicBuffer> result =
                     createGraphicBuffer(width, height, format, usage, &error);
             reply->writeInt32(error);

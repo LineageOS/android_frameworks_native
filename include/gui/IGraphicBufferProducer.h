@@ -339,20 +339,19 @@ public:
         void setSurfaceDamage(const Region& damage) { surfaceDamage = damage; }
 
     private:
-        int64_t timestamp;
-        int isAutoTimestamp;
-        android_dataspace dataSpace;
+        int64_t timestamp{0};
+        int isAutoTimestamp{0};
+        android_dataspace dataSpace{HAL_DATASPACE_UNKNOWN};
         Rect crop;
-        int scalingMode;
-        uint32_t transform;
-        uint32_t stickyTransform;
+        int scalingMode{0};
+        uint32_t transform{0};
+        uint32_t stickyTransform{0};
         sp<Fence> fence;
         Region surfaceDamage;
     };
 
     // QueueBufferOutput must be a POD structure
     struct __attribute__ ((__packed__)) QueueBufferOutput {
-        inline QueueBufferOutput() { }
         // outWidth - filled with default width applied to the buffer
         // outHeight - filled with default height applied to the buffer
         // outTransformHint - filled with default transform applied to the buffer
@@ -379,10 +378,10 @@ public:
             nextFrameNumber = inNextFrameNumber;
         }
     private:
-        uint32_t width;
-        uint32_t height;
-        uint32_t transformHint;
-        uint32_t numPendingBuffers;
+        uint32_t width{0};
+        uint32_t height{0};
+        uint32_t transformHint{0};
+        uint32_t numPendingBuffers{0};
         uint64_t nextFrameNumber{0};
     };
 

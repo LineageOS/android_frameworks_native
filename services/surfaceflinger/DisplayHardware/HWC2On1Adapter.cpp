@@ -562,6 +562,7 @@ HWC2On1Adapter::Display::Display(HWC2On1Adapter& device, HWC2::DisplayType type)
     mHwc1Id(-1),
     mConfigs(),
     mActiveConfig(nullptr),
+    mActiveColorMode(-1),
     mName(),
     mType(type),
     mPowerMode(PowerMode::Off),

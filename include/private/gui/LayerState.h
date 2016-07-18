@@ -74,10 +74,10 @@ struct layer_state_t {
     status_t    read(const Parcel& input);
 
             struct matrix22_t {
-                float   dsdx;
-                float   dtdx;
-                float   dsdy;
-                float   dtdy;
+                float   dsdx{0};
+                float   dtdx{0};
+                float   dsdy{0};
+                float   dtdy{0};
             };
             sp<IBinder>     surface;
             uint32_t        what;

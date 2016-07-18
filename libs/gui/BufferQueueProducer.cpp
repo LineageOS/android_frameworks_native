@@ -47,6 +47,7 @@ BufferQueueProducer::BufferQueueProducer(const sp<BufferQueueCore>& core) :
     mConsumerName(),
     mStickyTransform(0),
     mLastQueueBufferFence(Fence::NO_FENCE),
+    mLastQueuedTransform(0),
     mCallbackMutex(),
     mNextCallbackTicket(0),
     mCurrentCallbackTicket(0),
