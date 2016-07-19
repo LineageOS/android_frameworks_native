@@ -586,10 +586,12 @@ status_t Parcel::readNullableStrongBinder(sp<T>* val) const {
     if (ret == OK) {
         *val = interface_cast<T>(tmp);
 
-        if (val->get() == nullptr) {
-            return UNKNOWN_ERROR;
+        if (val->get() == nullptr && tmp.get() != nullptr) {
+            ret = UNKNOWN_ERROR;
         }
     }
+
+    return ret;
 }
 
 template<typename T, typename U>
