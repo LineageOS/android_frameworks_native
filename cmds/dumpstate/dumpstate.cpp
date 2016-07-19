@@ -35,6 +35,7 @@
 #include <unistd.h>
 
 #include <android-base/stringprintf.h>
+#include <android-base/unique_fd.h>
 #include <cutils/properties.h>
 
 #include "private/android_filesystem_config.h"
@@ -43,7 +44,6 @@
 #include <cutils/log.h>
 
 #include "dumpstate.h"
-#include "ScopedFd.h"
 #include "ziparchive/zip_writer.h"
 
 #include <openssl/sha.h>
@@ -629,8 +629,8 @@ bool add_zip_entry_from_fd(const std::string& entry_name, int fd) {
 }
 
 bool add_zip_entry(const std::string& entry_name, const std::string& entry_path) {
-    ScopedFd fd(TEMP_FAILURE_RETRY(open(entry_path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC)));
-    if (fd.get() == -1) {
+    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(entry_path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC)));
+    if (fd == -1) {
         MYLOGE("open(%s): %s\n", entry_path.c_str(), strerror(errno));
         return false;
     }
@@ -1054,9 +1054,9 @@ static bool finish_zip_file(const std::string& bugreport_name, const std::string
 }
 
 static std::string SHA256_file_hash(std::string filepath) {
-    ScopedFd fd(TEMP_FAILURE_RETRY(open(filepath.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC
+    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(filepath.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC
             | O_NOFOLLOW)));
-    if (fd.get() == -1) {
+    if (fd == -1) {
         MYLOGE("open(%s): %s\n", filepath.c_str(), strerror(errno));
         return NULL;
     }
