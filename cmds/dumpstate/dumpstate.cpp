@@ -572,7 +572,8 @@ bool add_zip_entry_from_fd(const std::string& entry_name, int fd) {
 }
 
 bool add_zip_entry(const std::string& entry_name, const std::string& entry_path) {
-    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(entry_path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC)));
+    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(entry_path.c_str(), O_RDONLY | O_NONBLOCK
+            | O_CLOEXEC)));
     if (fd == -1) {
         MYLOGE("open(%s): %s\n", entry_path.c_str(), strerror(errno));
         return false;
@@ -998,8 +999,8 @@ static bool finish_zip_file(const std::string& bugreport_name, const std::string
 }
 
 static std::string SHA256_file_hash(std::string filepath) {
-    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(filepath.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC
-            | O_NOFOLLOW)));
+    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(filepath.c_str(), O_RDONLY | O_NONBLOCK
+            | O_CLOEXEC | O_NOFOLLOW)));
     if (fd == -1) {
         MYLOGE("open(%s): %s\n", filepath.c_str(), strerror(errno));
         return NULL;
