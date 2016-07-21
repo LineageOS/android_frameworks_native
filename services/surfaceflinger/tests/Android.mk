@@ -3,21 +3,29 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
+LOCAL_CFLAGS := -std=c++14
+
 LOCAL_MODULE := SurfaceFlinger_test
 
 LOCAL_MODULE_TAGS := tests
 
 LOCAL_SRC_FILES := \
     Transaction_test.cpp \
+    SurfaceInterceptor_test.cpp
 
 LOCAL_SHARED_LIBRARIES := \
-	libEGL \
-	libGLESv2 \
-	libbinder \
-	libcutils \
-	libgui \
-	libui \
-	libutils \
+    libEGL \
+    libGLESv2 \
+    libbinder \
+    libcutils \
+    libgui \
+    libprotobuf-cpp-full \
+    libui \
+    libutils \
+
+LOCAL_STATIC_LIBRARIES := libtrace_proto
+
+LOCAL_CFLAGS += -Wall -Werror -Wunused -Wunreachable-code
 
 # Build the binary to $(TARGET_OUT_DATA_NATIVE_TESTS)/$(LOCAL_MODULE)
 # to integrate with auto-test framework.
