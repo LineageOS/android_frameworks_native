@@ -60,8 +60,8 @@ void FenceTracker::dump(String8* outString) {
             outString->appendFormat("---- Frame # %" PRIu64 " (%s)\n",
                     layer.frameNumber,
                     layer.isGlesComposition ? "GLES" : "HWC");
-            outString->appendFormat("---- Posted\t%" PRId64 "\n",
-                    layer.postedTime);
+            outString->appendFormat("---- Req.Present.\t%" PRId64 "\n",
+                    layer.requestedPresentTime);
             if (layer.acquireTime) {
                 outString->appendFormat("---- Acquire\t%" PRId64 "\n",
                         layer.acquireTime);
@@ -134,25 +134,26 @@ void FenceTracker::addFrame(nsecs_t refreshStartTime, sp<Fence> retireFence,
         String8 name;
         uint64_t frameNumber;
         bool glesComposition;
-        nsecs_t postedTime;
+        nsecs_t requestedPresentTime;
         sp<Fence> acquireFence;
         sp<Fence> prevReleaseFence;
         int32_t layerId = layers[i]->getSequence();
 
         layers[i]->getFenceData(&name, &frameNumber, &glesComposition,
-                &postedTime, &acquireFence, &prevReleaseFence);
+                &requestedPresentTime, &acquireFence, &prevReleaseFence);
 #ifdef USE_HWC2
         if (glesComposition) {
             frame.layers.emplace(std::piecewise_construct,
                     std::forward_as_tuple(layerId),
                     std::forward_as_tuple(name, frameNumber, glesComposition,
-                    postedTime, 0, 0, acquireFence, prevReleaseFence));
+                    requestedPresentTime, 0, 0, acquireFence,
+                    prevReleaseFence));
             wasGlesCompositionDone = true;
         } else {
             frame.layers.emplace(std::piecewise_construct,
                     std::forward_as_tuple(layerId),
                     std::forward_as_tuple(name, frameNumber, glesComposition,
-                    postedTime, 0, 0, acquireFence, Fence::NO_FENCE));
+                    requestedPresentTime, 0, 0, acquireFence, Fence::NO_FENCE));
             auto prevLayer = prevFrame.layers.find(layerId);
             if (prevLayer != prevFrame.layers.end()) {
                 prevLayer->second.releaseFence = prevReleaseFence;
@@ -162,7 +163,7 @@ void FenceTracker::addFrame(nsecs_t refreshStartTime, sp<Fence> retireFence,
         frame.layers.emplace(std::piecewise_construct,
                 std::forward_as_tuple(layerId),
                 std::forward_as_tuple(name, frameNumber, glesComposition,
-                postedTime, 0, 0, acquireFence,
+                requestedPresentTime, 0, 0, acquireFence,
                 glesComposition ? Fence::NO_FENCE : prevReleaseFence));
         if (glesComposition) {
             wasGlesCompositionDone = true;
@@ -171,7 +172,7 @@ void FenceTracker::addFrame(nsecs_t refreshStartTime, sp<Fence> retireFence,
         frame.layers.emplace(std::piecewise_construct,
                 std::forward_as_tuple(layerId),
                 std::forward_as_tuple(name, frameNumber, glesComposition,
-                postedTime, 0, 0, acquireFence, prevReleaseFence));
+                requestedPresentTime, 0, 0, acquireFence, prevReleaseFence));
     }
 
     frame.frameId = mFrameCounter;
@@ -207,7 +208,7 @@ bool FenceTracker::getFrameTimestamps(const Layer& layer,
     const FrameRecord& frameRecord = mFrames[i];
     const LayerRecord& layerRecord = mFrames[i].layers[layerId];
     outTimestamps->frameNumber = frameNumber;
-    outTimestamps->postedTime = layerRecord.postedTime;
+    outTimestamps->requestedPresentTime = layerRecord.requestedPresentTime;
     outTimestamps->acquireTime = layerRecord.acquireTime;
     outTimestamps->refreshStartTime = frameRecord.refreshStartTime;
     outTimestamps->glCompositionDoneTime = frameRecord.glesCompositionDoneTime;

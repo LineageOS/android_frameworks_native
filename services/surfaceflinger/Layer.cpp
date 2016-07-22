@@ -2159,7 +2159,7 @@ void Layer::getFrameStats(FrameStats* outStats) const {
 }
 
 void Layer::getFenceData(String8* outName, uint64_t* outFrameNumber,
-        bool* outIsGlesComposition, nsecs_t* outPostedTime,
+        bool* outIsGlesComposition, nsecs_t* outRequestedPresentTime,
         sp<Fence>* outAcquireFence, sp<Fence>* outPrevReleaseFence) const {
     *outName = mName;
     *outFrameNumber = mSurfaceFlingerConsumer->getFrameNumber();
@@ -2171,7 +2171,7 @@ void Layer::getFenceData(String8* outName, uint64_t* outFrameNumber,
 #else
     *outIsGlesComposition = mIsGlesComposition;
 #endif
-    *outPostedTime = mSurfaceFlingerConsumer->getTimestamp();
+    *outRequestedPresentTime = mSurfaceFlingerConsumer->getTimestamp();
     *outAcquireFence = mSurfaceFlingerConsumer->getCurrentFence();
     *outPrevReleaseFence = mSurfaceFlingerConsumer->getPrevReleaseFence();
 }

@@ -135,10 +135,10 @@ public:
             sp<Fence>* outFence, float outTransformMatrix[16]);
 
     // See IGraphicBufferProducer::getFrameTimestamps
-    bool getFrameTimestamps(uint64_t frameNumber, nsecs_t* outPostedTime,
-            nsecs_t* outAcquireTime, nsecs_t* outRefreshStartTime,
-            nsecs_t* outGlCompositionDoneTime, nsecs_t* outDisplayRetireTime,
-            nsecs_t* outReleaseTime);
+    bool getFrameTimestamps(uint64_t frameNumber,
+            nsecs_t* outRequestedPresentTime, nsecs_t* outAcquireTime,
+            nsecs_t* outRefreshStartTime, nsecs_t* outGlCompositionDoneTime,
+            nsecs_t* outDisplayRetireTime, nsecs_t* outReleaseTime);
 
     status_t getUniqueId(uint64_t* outId) const;
 

@@ -135,18 +135,18 @@ status_t Surface::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             outTransformMatrix);
 }
 
-bool Surface::getFrameTimestamps(uint64_t frameNumber, nsecs_t* outPostedTime,
-        nsecs_t* outAcquireTime, nsecs_t* outRefreshStartTime,
-        nsecs_t* outGlCompositionDoneTime, nsecs_t* outDisplayRetireTime,
-        nsecs_t* outReleaseTime) {
+bool Surface::getFrameTimestamps(uint64_t frameNumber,
+        nsecs_t* outRequestedPresentTime, nsecs_t* outAcquireTime,
+        nsecs_t* outRefreshStartTime, nsecs_t* outGlCompositionDoneTime,
+        nsecs_t* outDisplayRetireTime, nsecs_t* outReleaseTime) {
     ATRACE_CALL();
 
     FrameTimestamps timestamps;
     bool found = mGraphicBufferProducer->getFrameTimestamps(frameNumber,
             &timestamps);
     if (found) {
-        if (outPostedTime) {
-            *outPostedTime = timestamps.postedTime;
+        if (outRequestedPresentTime) {
+            *outRequestedPresentTime = timestamps.requestedPresentTime;
         }
         if (outAcquireTime) {
             *outAcquireTime = timestamps.acquireTime;
@@ -795,14 +795,14 @@ int Surface::dispatchSetAutoRefresh(va_list args) {
 
 int Surface::dispatchGetFrameTimestamps(va_list args) {
     uint32_t framesAgo = va_arg(args, uint32_t);
-    nsecs_t* outPostedTime = va_arg(args, int64_t*);
+    nsecs_t* outRequestedPresentTime = va_arg(args, int64_t*);
     nsecs_t* outAcquireTime = va_arg(args, int64_t*);
     nsecs_t* outRefreshStartTime = va_arg(args, int64_t*);
     nsecs_t* outGlCompositionDoneTime = va_arg(args, int64_t*);
     nsecs_t* outDisplayRetireTime = va_arg(args, int64_t*);
     nsecs_t* outReleaseTime = va_arg(args, int64_t*);
     bool ret = getFrameTimestamps(getNextFrameNumber() - 1 - framesAgo,
-            outPostedTime, outAcquireTime, outRefreshStartTime,
+            outRequestedPresentTime, outAcquireTime, outRefreshStartTime,
             outGlCompositionDoneTime, outDisplayRetireTime, outReleaseTime);
     return ret ? NO_ERROR : BAD_VALUE;
 }

@@ -407,7 +407,7 @@ public:
     void getFrameStats(FrameStats* outStats) const;
 
     void getFenceData(String8* outName, uint64_t* outFrameNumber,
-            bool* outIsGlesComposition, nsecs_t* outPostedTime,
+            bool* outIsGlesComposition, nsecs_t* outRequestedPresentTime,
             sp<Fence>* outAcquireFence, sp<Fence>* outPrevReleaseFence) const;
 
     std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush);
