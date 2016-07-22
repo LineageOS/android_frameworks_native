@@ -894,7 +894,7 @@ static void showHelp(const char *cmd)
                     "  -k fname,...    trace the listed kernel functions\n"
                     "  -n              ignore signals\n"
                     "  -s N            sleep for N seconds before tracing [default 0]\n"
-                    "  -t N            trace for N seconds [defualt 5]\n"
+                    "  -t N            trace for N seconds [default 5]\n"
                     "  -z              compress the trace dump\n"
                     "  --async_start   start circular trace and return immediatly\n"
                     "  --async_dump    dump the current contents of circular trace buffer\n"
