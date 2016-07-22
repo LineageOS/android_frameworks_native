@@ -31,6 +31,8 @@
 #include <unistd.h>
 #include <zlib.h>
 
+#include <memory>
+
 #include <binder/IBinder.h>
 #include <binder/IServiceManager.h>
 #include <binder/Parcel.h>
@@ -842,30 +844,34 @@ static void dumpTrace(int outFd)
 
     if (g_compress) {
         z_stream zs;
-        uint8_t *in, *out;
-        int result, flush;
-
         memset(&zs, 0, sizeof(zs));
-        result = deflateInit(&zs, Z_DEFAULT_COMPRESSION);
+
+        int result = deflateInit(&zs, Z_DEFAULT_COMPRESSION);
         if (result != Z_OK) {
             fprintf(stderr, "error initializing zlib: %d\n", result);
             close(traceFD);
             return;
         }
 
-        const size_t bufSize = 64*1024;
-        in = (uint8_t*)malloc(bufSize);
-        out = (uint8_t*)malloc(bufSize);
-        flush = Z_NO_FLUSH;
+        constexpr size_t bufSize = 64*1024;
+        std::unique_ptr<uint8_t> in(new uint8_t[bufSize]);
+        std::unique_ptr<uint8_t> out(new uint8_t[bufSize]);
+        if (!in || !out) {
+            fprintf(stderr, "couldn't allocate buffers\n");
+            close(traceFD);
+            return;
+        }
 
-        zs.next_out = out;
+        int flush = Z_NO_FLUSH;
+
+        zs.next_out = reinterpret_cast<Bytef*>(out.get());
         zs.avail_out = bufSize;
 
         do {
 
             if (zs.avail_in == 0) {
                 // More input is needed.
-                result = read(traceFD, in, bufSize);
+                result = read(traceFD, in.get(), bufSize);
                 if (result < 0) {
                     fprintf(stderr, "error reading trace: %s (%d)\n",
                             strerror(errno), errno);
@@ -874,14 +880,14 @@ static void dumpTrace(int outFd)
                 } else if (result == 0) {
                     flush = Z_FINISH;
                 } else {
-                    zs.next_in = in;
+                    zs.next_in = reinterpret_cast<Bytef*>(in.get());
                     zs.avail_in = result;
                 }
             }
 
             if (zs.avail_out == 0) {
                 // Need to write the output.
-                result = write(outFd, out, bufSize);
+                result = write(outFd, out.get(), bufSize);
                 if ((size_t)result < bufSize) {
                     fprintf(stderr, "error writing deflated trace: %s (%d)\n",
                             strerror(errno), errno);
@@ -889,7 +895,7 @@ static void dumpTrace(int outFd)
                     zs.avail_out = bufSize; // skip the final write
                     break;
                 }
-                zs.next_out = out;
+                zs.next_out = reinterpret_cast<Bytef*>(out.get());
                 zs.avail_out = bufSize;
             }
 
@@ -901,7 +907,7 @@ static void dumpTrace(int outFd)
 
         if (zs.avail_out < bufSize) {
             size_t bytes = bufSize - zs.avail_out;
-            result = write(outFd, out, bytes);
+            result = write(outFd, out.get(), bytes);
             if ((size_t)result < bytes) {
                 fprintf(stderr, "error writing deflated trace: %s (%d)\n",
                         strerror(errno), errno);
@@ -912,9 +918,6 @@ static void dumpTrace(int outFd)
         if (result != Z_OK) {
             fprintf(stderr, "error cleaning up zlib: %d\n", result);
         }
-
-        free(in);
-        free(out);
     } else {
         ssize_t sent = 0;
         while ((sent = sendfile(outFd, traceFD, NULL, 64*1024*1024)) > 0);
