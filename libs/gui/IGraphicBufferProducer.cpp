@@ -120,24 +120,24 @@ public:
     virtual status_t dequeueBuffer(int *buf, sp<Fence>* fence, uint32_t width,
             uint32_t height, PixelFormat format, uint32_t usage) {
         Parcel data, reply;
+
         data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
         data.writeUint32(width);
         data.writeUint32(height);
         data.writeInt32(static_cast<int32_t>(format));
         data.writeUint32(usage);
+
         status_t result = remote()->transact(DEQUEUE_BUFFER, data, &reply);
         if (result != NO_ERROR) {
             return result;
         }
+
         *buf = reply.readInt32();
-        bool nonNull = reply.readInt32();
-        if (nonNull) {
-            *fence = new Fence();
-            result = reply.read(**fence);
-            if (result != NO_ERROR) {
-                fence->clear();
-                return result;
-            }
+        *fence = new Fence();
+        result = reply.read(**fence);
+        if (result != NO_ERROR) {
+            fence->clear();
+            return result;
         }
         result = reply.readInt32();
         return result;
@@ -211,14 +211,21 @@ public:
     virtual status_t queueBuffer(int buf,
             const QueueBufferInput& input, QueueBufferOutput* output) {
         Parcel data, reply;
+
         data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
         data.writeInt32(buf);
         data.write(input);
+
         status_t result = remote()->transact(QUEUE_BUFFER, data, &reply);
         if (result != NO_ERROR) {
             return result;
         }
-        memcpy(output, reply.readInplace(sizeof(*output)), sizeof(*output));
+
+        result = reply.read(*output);
+        if (result != NO_ERROR) {
+            return result;
+        }
+
         result = reply.readInt32();
         return result;
     }
@@ -265,7 +272,7 @@ public:
         if (result != NO_ERROR) {
             return result;
         }
-        memcpy(output, reply.readInplace(sizeof(*output)), sizeof(*output));
+        reply.read(*output);
         result = reply.readInt32();
         return result;
     }
@@ -522,15 +529,14 @@ status_t BnGraphicBufferProducer::onTransact(
             uint32_t height = data.readUint32();
             PixelFormat format = static_cast<PixelFormat>(data.readInt32());
             uint32_t usage = data.readUint32();
+
             int buf = 0;
-            sp<Fence> fence;
+            sp<Fence> fence = Fence::NO_FENCE;
             int result = dequeueBuffer(&buf, &fence, width, height, format,
                     usage);
+
             reply->writeInt32(buf);
-            reply->writeInt32(fence != NULL);
-            if (fence != NULL) {
-                reply->write(*fence);
-            }
+            reply->write(*fence);
             reply->writeInt32(result);
             return NO_ERROR;
         }
@@ -575,11 +581,11 @@ status_t BnGraphicBufferProducer::onTransact(
             CHECK_INTERFACE(IGraphicBufferProducer, data, reply);
             int buf = data.readInt32();
             QueueBufferInput input(data);
-            QueueBufferOutput* const output =
-                    reinterpret_cast<QueueBufferOutput *>(
-                            reply->writeInplace(sizeof(QueueBufferOutput)));
-            memset(output, 0, sizeof(QueueBufferOutput));
-            status_t result = queueBuffer(buf, input, output);
+
+            QueueBufferOutput output;
+            status_t result = queueBuffer(buf, input, &output);
+
+            reply->write(output);
             reply->writeInt32(result);
             return NO_ERROR;
         }
@@ -611,11 +617,9 @@ status_t BnGraphicBufferProducer::onTransact(
             }
             int api = data.readInt32();
             bool producerControlledByApp = data.readInt32();
-            QueueBufferOutput* const output =
-                    reinterpret_cast<QueueBufferOutput *>(
-                            reply->writeInplace(sizeof(QueueBufferOutput)));
-            memset(output, 0, sizeof(QueueBufferOutput));
-            status_t res = connect(listener, api, producerControlledByApp, output);
+            QueueBufferOutput output;
+            status_t res = connect(listener, api, producerControlledByApp, &output);
+            reply->write(output);
             reply->writeInt32(res);
             return NO_ERROR;
         }
@@ -830,6 +834,52 @@ status_t IGraphicBufferProducer::QueueBufferInput::unflatten(
         return result;
     }
     return surfaceDamage.unflatten(buffer, size);
+}
+
+// ----------------------------------------------------------------------------
+
+size_t IGraphicBufferProducer::QueueBufferOutput::getFlattenedSize() const {
+    size_t size = sizeof(width)
+                + sizeof(height)
+                + sizeof(transformHint)
+                + sizeof(numPendingBuffers)
+                + sizeof(nextFrameNumber);
+    return size;
+}
+
+size_t IGraphicBufferProducer::QueueBufferOutput::getFdCount() const {
+    return 0;
+}
+
+status_t IGraphicBufferProducer::QueueBufferOutput::flatten(
+        void*& buffer, size_t& size, int*& /*fds*/, size_t& /*count*/) const
+{
+    if (size < getFlattenedSize()) {
+        return NO_MEMORY;
+    }
+    FlattenableUtils::write(buffer, size, width);
+    FlattenableUtils::write(buffer, size, height);
+    FlattenableUtils::write(buffer, size, transformHint);
+    FlattenableUtils::write(buffer, size, numPendingBuffers);
+    FlattenableUtils::write(buffer, size, nextFrameNumber);
+
+    return NO_ERROR;
+}
+
+status_t IGraphicBufferProducer::QueueBufferOutput::unflatten(
+        void const*& buffer, size_t& size,
+        int const*& /*fds*/, size_t& /*count*/)
+{
+    if (size < getFlattenedSize()) {
+        return NO_MEMORY;
+    }
+    FlattenableUtils::read(buffer, size, width);
+    FlattenableUtils::read(buffer, size, height);
+    FlattenableUtils::read(buffer, size, transformHint);
+    FlattenableUtils::read(buffer, size, numPendingBuffers);
+    FlattenableUtils::read(buffer, size, nextFrameNumber);
+
+    return NO_ERROR;
 }
 
 }; // namespace android
