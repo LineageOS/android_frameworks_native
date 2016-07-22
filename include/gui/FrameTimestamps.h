@@ -22,23 +22,25 @@
 
 namespace android {
 
-struct FrameTimestamps : public LightFlattenablePod<FrameTimestamps> {
-    FrameTimestamps() :
-        frameNumber(0),
-        requestedPresentTime(0),
-        acquireTime(0),
-        refreshStartTime(0),
-        glCompositionDoneTime(0),
-        displayRetireTime(0),
-        releaseTime(0) {}
+enum class SupportableFrameTimestamps {
+    REQUESTED_PRESENT,
+    ACQUIRE,
+    REFRESH_START,
+    GL_COMPOSITION_DONE_TIME,
+    DISPLAY_PRESENT_TIME,
+    DISPLAY_RETIRE_TIME,
+    RELEASE_TIME,
+};
 
-    uint64_t frameNumber;
-    nsecs_t requestedPresentTime;
-    nsecs_t acquireTime;
-    nsecs_t refreshStartTime;
-    nsecs_t glCompositionDoneTime;
-    nsecs_t displayRetireTime;
-    nsecs_t releaseTime;
+struct FrameTimestamps : public LightFlattenablePod<FrameTimestamps> {
+    uint64_t frameNumber{0};
+    nsecs_t requestedPresentTime{0};
+    nsecs_t acquireTime{0};
+    nsecs_t refreshStartTime{0};
+    nsecs_t glCompositionDoneTime{0};
+    nsecs_t displayPresentTime{0};
+    nsecs_t displayRetireTime{0};
+    nsecs_t releaseTime{0};
 };
 
 } // namespace android

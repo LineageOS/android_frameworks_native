@@ -38,8 +38,9 @@ class FenceTracker {
 public:
      FenceTracker();
      void dump(String8* outString);
-     void addFrame(nsecs_t refreshStartTime, sp<Fence> retireFence,
-             const Vector<sp<Layer>>& layers, sp<Fence> glDoneFence);
+     void addFrame(nsecs_t refreshStartTime, sp<Fence> presentFence,
+             sp<Fence> retireFence, const Vector<sp<Layer>>& layers,
+             sp<Fence> glDoneFence);
      bool getFrameTimestamps(const Layer& layer, uint64_t frameNumber,
              FrameTimestamps* outTimestamps);
 
@@ -79,18 +80,22 @@ protected:
          std::unordered_map<int32_t, LayerRecord> layers;
          // timestamp for when SurfaceFlinger::handleMessageRefresh() was called
          nsecs_t refreshStartTime;
+         // timestamp from the present fence
+         nsecs_t presentTime;
          // timestamp from the retire fence
          nsecs_t retireTime;
          // timestamp from the GLES composition completion fence
          nsecs_t glesCompositionDoneTime;
+         // primary display present fence for this frame
+         sp<Fence> presentFence;
          // primary display retire fence for this frame
          sp<Fence> retireFence;
          // if GLES composition was done, the fence for its completion
          sp<Fence> glesCompositionDoneFence;
 
          FrameRecord() : frameId(0), layers(), refreshStartTime(0),
-                 retireTime(0), glesCompositionDoneTime(0),
-                 retireFence(Fence::NO_FENCE),
+                 presentTime(0), retireTime(0), glesCompositionDoneTime(0),
+                 presentFence(Fence::NO_FENCE), retireFence(Fence::NO_FENCE),
                  glesCompositionDoneFence(Fence::NO_FENCE) {}
      };
 

@@ -135,10 +135,11 @@ public:
             sp<Fence>* outFence, float outTransformMatrix[16]);
 
     // See IGraphicBufferProducer::getFrameTimestamps
-    bool getFrameTimestamps(uint64_t frameNumber,
+    status_t getFrameTimestamps(uint64_t frameNumber,
             nsecs_t* outRequestedPresentTime, nsecs_t* outAcquireTime,
             nsecs_t* outRefreshStartTime, nsecs_t* outGlCompositionDoneTime,
-            nsecs_t* outDisplayRetireTime, nsecs_t* outReleaseTime);
+            nsecs_t* outDisplayPresentTime, nsecs_t* outDisplayRetireTime,
+            nsecs_t* outReleaseTime);
 
     status_t getUniqueId(uint64_t* outId) const;
 
@@ -238,6 +239,8 @@ protected:
     enum { DEFAULT_FORMAT = PIXEL_FORMAT_RGBA_8888 };
 
 private:
+    void querySupportedTimestampsLocked() const;
+
     void freeAllBuffers();
     int getSlotFromBufferLocked(android_native_buffer_t* buffer) const;
 
@@ -380,6 +383,11 @@ private:
     Condition mQueueBufferCondition;
 
     uint64_t mNextFrameNumber;
+
+    // Mutable because ANativeWindow::query needs this class const.
+    mutable bool mQueriedSupportedTimestamps;
+    mutable bool mFrameTimestampsSupportsPresent;
+    mutable bool mFrameTimestampsSupportsRetire;
 };
 
 namespace view {

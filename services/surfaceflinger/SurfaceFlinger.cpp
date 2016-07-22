@@ -566,6 +566,21 @@ bool SurfaceFlinger::authenticateSurfaceTexture(
     return mGraphicBufferProducerList.indexOf(surfaceTextureBinder) >= 0;
 }
 
+status_t SurfaceFlinger::getSupportedFrameTimestamps(
+        std::vector<SupportableFrameTimestamps>* outSupported) const {
+    *outSupported = {
+        SupportableFrameTimestamps::REQUESTED_PRESENT,
+        SupportableFrameTimestamps::ACQUIRE,
+        SupportableFrameTimestamps::REFRESH_START,
+        SupportableFrameTimestamps::GL_COMPOSITION_DONE_TIME,
+        getHwComposer().retireFenceRepresentsStartOfScanout() ?
+                SupportableFrameTimestamps::DISPLAY_PRESENT_TIME :
+                SupportableFrameTimestamps::DISPLAY_RETIRE_TIME,
+        SupportableFrameTimestamps::RELEASE_TIME,
+    };
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         Vector<DisplayInfo>* configs) {
     if ((configs == NULL) || (display.get() == NULL)) {
@@ -1234,7 +1249,17 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         }
     }
 
-    mFenceTracker.addFrame(refreshStartTime, presentFence,
+    sp<Fence> fenceTrackerPresentFence;
+    sp<Fence> fenceTrackerRetireFence;
+    if (mHwc->retireFenceRepresentsStartOfScanout()) {
+        fenceTrackerPresentFence = presentFence;
+        fenceTrackerRetireFence = Fence::NO_FENCE;
+    } else {
+        fenceTrackerPresentFence = Fence::NO_FENCE;
+        fenceTrackerRetireFence = presentFence;
+    }
+    mFenceTracker.addFrame(refreshStartTime,
+            fenceTrackerPresentFence, fenceTrackerRetireFence,
             hw->getVisibleLayersSortedByZ(), hw->getClientTargetAcquireFence());
 
     if (mAnimCompositionPending) {

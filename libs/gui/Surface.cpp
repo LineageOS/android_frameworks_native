@@ -49,7 +49,10 @@ Surface::Surface(
       mAutoRefresh(false),
       mSharedBufferSlot(BufferItem::INVALID_BUFFER_SLOT),
       mSharedBufferHasBeenQueued(false),
-      mNextFrameNumber(1)
+      mNextFrameNumber(1),
+      mQueriedSupportedTimestamps(false),
+      mFrameTimestampsSupportsPresent(false),
+      mFrameTimestampsSupportsRetire(false)
 {
     // Initialize the ANativeWindow function pointers.
     ANativeWindow::setSwapInterval  = hook_setSwapInterval;
@@ -135,37 +138,57 @@ status_t Surface::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             outTransformMatrix);
 }
 
-bool Surface::getFrameTimestamps(uint64_t frameNumber,
+status_t Surface::getFrameTimestamps(uint64_t frameNumber,
         nsecs_t* outRequestedPresentTime, nsecs_t* outAcquireTime,
         nsecs_t* outRefreshStartTime, nsecs_t* outGlCompositionDoneTime,
-        nsecs_t* outDisplayRetireTime, nsecs_t* outReleaseTime) {
+        nsecs_t* outDisplayPresentTime, nsecs_t* outDisplayRetireTime,
+        nsecs_t* outReleaseTime) {
     ATRACE_CALL();
+
+    {
+        Mutex::Autolock lock(mMutex);
+
+        // Verify the requested timestamps are supported.
+        querySupportedTimestampsLocked();
+        if (outDisplayPresentTime != nullptr && !mFrameTimestampsSupportsPresent) {
+            return BAD_VALUE;
+        }
+        if (outDisplayRetireTime != nullptr && !mFrameTimestampsSupportsRetire) {
+            return BAD_VALUE;
+        }
+    }
 
     FrameTimestamps timestamps;
     bool found = mGraphicBufferProducer->getFrameTimestamps(frameNumber,
             &timestamps);
-    if (found) {
-        if (outRequestedPresentTime) {
-            *outRequestedPresentTime = timestamps.requestedPresentTime;
-        }
-        if (outAcquireTime) {
-            *outAcquireTime = timestamps.acquireTime;
-        }
-        if (outRefreshStartTime) {
-            *outRefreshStartTime = timestamps.refreshStartTime;
-        }
-        if (outGlCompositionDoneTime) {
-            *outGlCompositionDoneTime = timestamps.glCompositionDoneTime;
-        }
-        if (outDisplayRetireTime) {
-            *outDisplayRetireTime = timestamps.displayRetireTime;
-        }
-        if (outReleaseTime) {
-            *outReleaseTime = timestamps.releaseTime;
-        }
-        return true;
+
+    if (!found) {
+        return NAME_NOT_FOUND;
     }
-    return false;
+
+    if (outRequestedPresentTime) {
+        *outRequestedPresentTime = timestamps.requestedPresentTime;
+    }
+    if (outAcquireTime) {
+        *outAcquireTime = timestamps.acquireTime;
+    }
+    if (outRefreshStartTime) {
+        *outRefreshStartTime = timestamps.refreshStartTime;
+    }
+    if (outGlCompositionDoneTime) {
+        *outGlCompositionDoneTime = timestamps.glCompositionDoneTime;
+    }
+    if (outDisplayPresentTime) {
+        *outDisplayPresentTime = timestamps.displayPresentTime;
+    }
+    if (outDisplayRetireTime) {
+        *outDisplayRetireTime = timestamps.displayRetireTime;
+    }
+    if (outReleaseTime) {
+        *outReleaseTime = timestamps.releaseTime;
+    }
+
+    return NO_ERROR;
 }
 
 int Surface::hook_setSwapInterval(ANativeWindow* window, int interval) {
@@ -533,6 +556,32 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
     return err;
 }
 
+void Surface::querySupportedTimestampsLocked() const {
+    // mMutex must be locked when calling this method.
+
+    if (mQueriedSupportedTimestamps) {
+        return;
+    }
+    mQueriedSupportedTimestamps = true;
+
+    std::vector<SupportableFrameTimestamps> supportedFrameTimestamps;
+    sp<ISurfaceComposer> composer(ComposerService::getComposerService());
+    status_t err = composer->getSupportedFrameTimestamps(
+            &supportedFrameTimestamps);
+
+    if (err != NO_ERROR) {
+        return;
+    }
+
+    for (auto sft : supportedFrameTimestamps) {
+        if (sft == SupportableFrameTimestamps::DISPLAY_PRESENT_TIME) {
+            mFrameTimestampsSupportsPresent = true;
+        } else if (sft == SupportableFrameTimestamps::DISPLAY_RETIRE_TIME) {
+            mFrameTimestampsSupportsRetire = true;
+        }
+    }
+}
+
 int Surface::query(int what, int* value) const {
     ATRACE_CALL();
     ALOGV("Surface::query");
@@ -593,6 +642,16 @@ int Surface::query(int what, int* value) const {
                 *value = durationUs > std::numeric_limits<int>::max() ?
                         std::numeric_limits<int>::max() :
                         static_cast<int>(durationUs);
+                return NO_ERROR;
+            }
+            case NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_PRESENT: {
+                querySupportedTimestampsLocked();
+                *value = mFrameTimestampsSupportsPresent ? 1 : 0;
+                return NO_ERROR;
+            }
+            case NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_RETIRE: {
+                querySupportedTimestampsLocked();
+                *value = mFrameTimestampsSupportsRetire ? 1 : 0;
                 return NO_ERROR;
             }
         }
@@ -799,12 +858,13 @@ int Surface::dispatchGetFrameTimestamps(va_list args) {
     nsecs_t* outAcquireTime = va_arg(args, int64_t*);
     nsecs_t* outRefreshStartTime = va_arg(args, int64_t*);
     nsecs_t* outGlCompositionDoneTime = va_arg(args, int64_t*);
+    nsecs_t* outDisplayPresentTime = va_arg(args, int64_t*);
     nsecs_t* outDisplayRetireTime = va_arg(args, int64_t*);
     nsecs_t* outReleaseTime = va_arg(args, int64_t*);
-    bool ret = getFrameTimestamps(getNextFrameNumber() - 1 - framesAgo,
+    return getFrameTimestamps(getNextFrameNumber() - 1 - framesAgo,
             outRequestedPresentTime, outAcquireTime, outRefreshStartTime,
-            outGlCompositionDoneTime, outDisplayRetireTime, outReleaseTime);
-    return ret ? NO_ERROR : BAD_VALUE;
+            outGlCompositionDoneTime, outDisplayPresentTime,
+            outDisplayRetireTime, outReleaseTime);
 }
 
 int Surface::connect(int api) {

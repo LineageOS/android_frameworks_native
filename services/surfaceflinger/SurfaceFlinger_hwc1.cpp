@@ -599,6 +599,19 @@ bool SurfaceFlinger::authenticateSurfaceTexture(
     return mGraphicBufferProducerList.indexOf(surfaceTextureBinder) >= 0;
 }
 
+status_t SurfaceFlinger::getSupportedFrameTimestamps(
+        std::vector<SupportableFrameTimestamps>* outSupported) const {
+    *outSupported = {
+        SupportableFrameTimestamps::REQUESTED_PRESENT,
+        SupportableFrameTimestamps::ACQUIRE,
+        SupportableFrameTimestamps::REFRESH_START,
+        SupportableFrameTimestamps::GL_COMPOSITION_DONE_TIME,
+        SupportableFrameTimestamps::DISPLAY_RETIRE_TIME,
+        SupportableFrameTimestamps::RELEASE_TIME,
+    };
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         Vector<DisplayInfo>* configs) {
     if ((configs == NULL) || (display.get() == NULL)) {
@@ -1148,7 +1161,8 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         }
     }
 
-    mFenceTracker.addFrame(refreshStartTime, presentFence,
+    // The present fence is actually a retire fence in HWC1.
+    mFenceTracker.addFrame(refreshStartTime, Fence::NO_FENCE, presentFence,
             hw->getVisibleLayersSortedByZ(), hw->getClientTargetAcquireFence());
 
     if (mAnimCompositionPending) {

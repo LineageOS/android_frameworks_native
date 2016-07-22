@@ -122,6 +122,11 @@ public:
     // last call to presentDisplay
     sp<Fence> getRetireFence(int32_t displayId) const;
 
+    // Returns true if the retire fence represents the start of the display
+    // controller's scan out. This should be true for all HWC2 implementations,
+    // except for the wrapper around HWC1 implementations.
+    bool retireFenceRepresentsStartOfScanout() const;
+
     // Get last release fence for the given layer
     sp<Fence> getLayerReleaseFence(int32_t displayId,
             const std::shared_ptr<HWC2::Layer>& layer) const;

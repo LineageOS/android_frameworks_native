@@ -601,6 +601,10 @@ sp<Fence> HWComposer::getRetireFence(int32_t displayId) const {
     return mDisplayData[displayId].lastRetireFence;
 }
 
+bool HWComposer::retireFenceRepresentsStartOfScanout() const {
+    return mAdapter ? false : true;
+}
+
 sp<Fence> HWComposer::getLayerReleaseFence(int32_t displayId,
         const std::shared_ptr<HWC2::Layer>& layer) const {
     if (!isValidDisplay(displayId)) {
