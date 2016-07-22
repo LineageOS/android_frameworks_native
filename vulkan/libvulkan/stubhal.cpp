@@ -43,7 +43,7 @@ static std::mutex g_instance_mutex;
 static std::bitset<kMaxInstances> g_instance_used(false);
 static std::array<hwvulkan_dispatch_t, kMaxInstances> g_instances;
 
-[[noreturn]] void NoOp() {
+[[noreturn]] VKAPI_ATTR void NoOp() {
     LOG_ALWAYS_FATAL("invalid stub function called");
 }
 
