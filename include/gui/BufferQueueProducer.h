@@ -178,7 +178,7 @@ public:
 
     // See IGraphicBufferProducer::getFrameTimestamps
     virtual bool getFrameTimestamps(uint64_t frameNumber,
-            FrameTimestamps* outTimestamps) const override;
+            FrameTimestamps* outTimestamps) override;
 
     // See IGraphicBufferProducer::getUniqueId
     virtual status_t getUniqueId(uint64_t* outId) const override;
@@ -194,6 +194,10 @@ private:
     // Returns the next free slot if one is available or
     // BufferQueueCore::INVALID_BUFFER_SLOT otherwise
     int getFreeSlotLocked() const;
+
+    bool addAndGetFrameTimestamps(
+            const NewFrameEventsEntry* newTimestamps,
+            uint64_t frameNumber, FrameTimestamps* outTimestamps);
 
     // waitForFreeSlotThenRelock finds the oldest slot in the FREE state. It may
     // block if there are no available slots and we are not in non-blocking

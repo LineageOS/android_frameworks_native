@@ -248,10 +248,15 @@ void SurfaceFlingerConsumer::onSidebandStreamChanged() {
     }
 }
 
-bool SurfaceFlingerConsumer::getFrameTimestamps(uint64_t frameNumber,
-        FrameTimestamps* outTimestamps) const {
-    sp<const Layer> l = mLayer.promote();
-    return l.get() ? l->getFrameTimestamps(frameNumber, outTimestamps) : false;
+bool SurfaceFlingerConsumer::addAndGetFrameTimestamps(
+        const NewFrameEventsEntry* newTimestamps,
+        uint64_t frameNumber, FrameTimestamps *outTimestamps) {
+    sp<Layer> l = mLayer.promote();
+    if (!l.get()) {
+        return false;
+    }
+    return l->addAndGetFrameTimestamps(
+            newTimestamps, frameNumber, outTimestamps);
 }
 
 // ---------------------------------------------------------------------------

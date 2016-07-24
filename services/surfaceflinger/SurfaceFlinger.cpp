@@ -1132,12 +1132,12 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     nsecs_t refreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
-    preComposition();
+    preComposition(refreshStartTime);
     rebuildLayerStacks();
     setUpHWComposer();
     doDebugFlashRegions();
     doComposition();
-    postComposition(refreshStartTime);
+    postComposition();
 
     mPreviousPresentFence = mHwc->getRetireFence(HWC_DISPLAY_PRIMARY);
 
@@ -1195,7 +1195,7 @@ void SurfaceFlinger::doDebugFlashRegions()
     }
 }
 
-void SurfaceFlinger::preComposition()
+void SurfaceFlinger::preComposition(nsecs_t refreshStartTime)
 {
     ATRACE_CALL();
     ALOGV("preComposition");
@@ -1204,7 +1204,7 @@ void SurfaceFlinger::preComposition()
     const LayerVector& layers(mDrawingState.layersSortedByZ);
     const size_t count = layers.size();
     for (size_t i=0 ; i<count ; i++) {
-        if (layers[i]->onPreComposition()) {
+        if (layers[i]->onPreComposition(refreshStartTime)) {
             needExtraInvalidate = true;
         }
     }
@@ -1213,7 +1213,7 @@ void SurfaceFlinger::preComposition()
     }
 }
 
-void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
+void SurfaceFlinger::postComposition()
 {
     ATRACE_CALL();
     ALOGV("postComposition");
@@ -1223,10 +1223,16 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         layer->releasePendingBuffer();
     }
 
+    bool hadClientComposition = mHwc->hasClientComposition(HWC_DISPLAY_PRIMARY);
+
+    const sp<const DisplayDevice> hw(getDefaultDisplayDevice());
+    sp<Fence> glCompositionDoneFence = hadClientComposition
+                                     ? hw->getClientTargetAcquireFence()
+                                     : Fence::NO_FENCE;
     const LayerVector& layers(mDrawingState.layersSortedByZ);
     const size_t count = layers.size();
     for (size_t i=0 ; i<count ; i++) {
-        bool frameLatched = layers[i]->onPostComposition();
+        bool frameLatched = layers[i]->onPostComposition(glCompositionDoneFence);
         if (frameLatched) {
             recordBufferingStats(layers[i]->getName().string(),
                     layers[i]->getOccupancyHistory(false));
@@ -1243,25 +1249,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         }
     }
 
-    const sp<const DisplayDevice> hw(getDefaultDisplayDevice());
     if (kIgnorePresentFences) {
         if (hw->isDisplayOn()) {
             enableHardwareVsync();
         }
     }
-
-    sp<Fence> fenceTrackerPresentFence;
-    sp<Fence> fenceTrackerRetireFence;
-    if (mHwc->retireFenceRepresentsStartOfScanout()) {
-        fenceTrackerPresentFence = presentFence;
-        fenceTrackerRetireFence = Fence::NO_FENCE;
-    } else {
-        fenceTrackerPresentFence = Fence::NO_FENCE;
-        fenceTrackerRetireFence = presentFence;
-    }
-    mFenceTracker.addFrame(refreshStartTime,
-            fenceTrackerPresentFence, fenceTrackerRetireFence,
-            hw->getVisibleLayersSortedByZ(), hw->getClientTargetAcquireFence());
 
     if (mAnimCompositionPending) {
         mAnimCompositionPending = false;
@@ -2019,6 +2011,7 @@ bool SurfaceFlinger::handlePageFlip()
 {
     ALOGV("handlePageFlip");
 
+    nsecs_t latchTime = systemTime();
     Region dirtyRegion;
 
     bool visibleRegions = false;
@@ -2048,7 +2041,7 @@ bool SurfaceFlinger::handlePageFlip()
         }
     }
     for (auto& layer : mLayersWithQueuedFrames) {
-        const Region dirty(layer->latchBuffer(visibleRegions));
+        const Region dirty(layer->latchBuffer(visibleRegions, latchTime));
         layer->useSurfaceDamage();
         const Layer::State& s(layer->getDrawingState());
         invalidateLayerStack(s.layerStack, dirty);
@@ -2845,9 +2838,9 @@ status_t SurfaceFlinger::dump(int fd, const Vector<String16>& args)
             }
 
             if ((index < numArgs) &&
-                    (args[index] == String16("--fences"))) {
+                    (args[index] == String16("--frame-events"))) {
                 index++;
-                mFenceTracker.dump(&result);
+                dumpFrameEventsLocked(result);
                 dumpAll = false;
             }
         }
@@ -2985,6 +2978,16 @@ void SurfaceFlinger::recordBufferingStats(const char* layerName,
         }
         ++stats.numSegments;
         stats.totalTime += segment.totalTime;
+    }
+}
+
+void SurfaceFlinger::dumpFrameEventsLocked(String8& result) {
+    result.appendFormat("Layer frame timestamps:\n");
+
+    const LayerVector& currentLayers = mCurrentState.layersSortedByZ;
+    const size_t count = currentLayers.size();
+    for (size_t i=0 ; i<count ; i++) {
+        currentLayers[i]->dumpFrameEvents(result);
     }
 }
 
@@ -3905,11 +3908,6 @@ void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* v
                             layer->isVisible(), state.flags, state.alpha);
         }
     }
-}
-
-bool SurfaceFlinger::getFrameTimestamps(const Layer& layer,
-        uint64_t frameNumber, FrameTimestamps* outTimestamps) {
-    return mFenceTracker.getFrameTimestamps(layer, frameNumber, outTimestamps);
 }
 
 // ---------------------------------------------------------------------------
