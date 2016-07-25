@@ -1306,13 +1306,14 @@ EGLBoolean eglReleaseThread(void)
 {
     clearError();
 
-    // If there is context bound to the thread, release it
-    egl_display_t::loseCurrent(get_context(getContext()));
-
     egl_connection_t* const cnx = &gEGLImpl;
     if (cnx->dso && cnx->egl.eglReleaseThread) {
         cnx->egl.eglReleaseThread();
     }
+
+    // If there is context bound to the thread, release it
+    egl_display_t::loseCurrent(get_context(getContext()));
+
     egl_tls_t::clearTLS();
     return EGL_TRUE;
 }
