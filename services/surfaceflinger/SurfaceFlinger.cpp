@@ -567,16 +567,15 @@ bool SurfaceFlinger::authenticateSurfaceTexture(
 }
 
 status_t SurfaceFlinger::getSupportedFrameTimestamps(
-        std::vector<SupportableFrameTimestamps>* outSupported) const {
+        std::vector<FrameEvent>* outSupported) const {
     *outSupported = {
-        SupportableFrameTimestamps::REQUESTED_PRESENT,
-        SupportableFrameTimestamps::ACQUIRE,
-        SupportableFrameTimestamps::REFRESH_START,
-        SupportableFrameTimestamps::GL_COMPOSITION_DONE_TIME,
+        FrameEvent::REQUESTED_PRESENT,
+        FrameEvent::ACQUIRE,
+        FrameEvent::FIRST_REFRESH_START,
+        FrameEvent::GL_COMPOSITION_DONE,
         getHwComposer().retireFenceRepresentsStartOfScanout() ?
-                SupportableFrameTimestamps::DISPLAY_PRESENT_TIME :
-                SupportableFrameTimestamps::DISPLAY_RETIRE_TIME,
-        SupportableFrameTimestamps::RELEASE_TIME,
+                FrameEvent::DISPLAY_PRESENT : FrameEvent::DISPLAY_RETIRE,
+        FrameEvent::RELEASE,
     };
     return NO_ERROR;
 }

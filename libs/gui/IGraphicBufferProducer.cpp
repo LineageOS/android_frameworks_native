@@ -429,40 +429,24 @@ public:
         return result;
     }
 
-    virtual bool getFrameTimestamps(uint64_t frameNumber,
-                FrameTimestamps* outTimestamps) {
+    virtual void getFrameTimestamps(FrameEventHistoryDelta* outDelta) {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(
                 IGraphicBufferProducer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
-            ALOGE("getFrameTimestamps failed to write token: %d", result);
-            return false;
-        }
-        result = data.writeUint64(frameNumber);
-        if (result != NO_ERROR) {
-            ALOGE("getFrameTimestamps failed to write: %d", result);
-            return false;
+            ALOGE("IGBP::getFrameTimestamps failed to write token: %d", result);
+            return;
         }
         result = remote()->transact(GET_FRAME_TIMESTAMPS, data, &reply);
         if (result != NO_ERROR) {
-            ALOGE("getFrameTimestamps failed to transact: %d", result);
-            return false;
+            ALOGE("IGBP::getFrameTimestamps failed to transact: %d", result);
+            return;
         }
-        bool found = false;
-        result = reply.readBool(&found);
+        result = reply.read(*outDelta);
         if (result != NO_ERROR) {
-            ALOGE("getFrameTimestamps failed to read: %d", result);
-            return false;
+            ALOGE("IGBP::getFrameTimestamps failed to read timestamps: %d",
+                    result);
         }
-        if (found) {
-            result = reply.read(*outTimestamps);
-            if (result != NO_ERROR) {
-                ALOGE("getFrameTimestamps failed to read timestamps: %d",
-                        result);
-                return false;
-            }
-        }
-        return found;
     }
 
     virtual status_t getUniqueId(uint64_t* outId) const {
@@ -722,25 +706,13 @@ status_t BnGraphicBufferProducer::onTransact(
         }
         case GET_FRAME_TIMESTAMPS: {
             CHECK_INTERFACE(IGraphicBufferProducer, data, reply);
-            uint64_t frameNumber = 0;
-            status_t result = data.readUint64(&frameNumber);
+            FrameEventHistoryDelta frameTimestamps;
+            getFrameTimestamps(&frameTimestamps);
+            status_t result = reply->write(frameTimestamps);
             if (result != NO_ERROR) {
-                ALOGE("onTransact failed to read: %d", result);
+                ALOGE("BnGBP::GET_FRAME_TIMESTAMPS failed to write buffer: %d",
+                        result);
                 return result;
-            }
-            FrameTimestamps timestamps;
-            bool found = getFrameTimestamps(frameNumber, &timestamps);
-            result = reply->writeBool(found);
-            if (result != NO_ERROR) {
-                ALOGE("onTransact failed to write: %d", result);
-                return result;
-            }
-            if (found) {
-                result = reply->write(timestamps);
-                if (result != NO_ERROR) {
-                    ALOGE("onTransact failed to write timestamps: %d", result);
-                    return result;
-                }
             }
             return NO_ERROR;
         }

@@ -2215,24 +2215,16 @@ void Layer::dumpFrameEvents(String8& result) {
     mFrameEventHistory.dump(result);
 }
 
-bool Layer::addAndGetFrameTimestamps(
-        const NewFrameEventsEntry* newTimestamps,
-        uint64_t frameNumber, FrameTimestamps *outTimestamps) {
+void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
+        FrameEventHistoryDelta *outDelta) {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     if (newTimestamps) {
         mFrameEventHistory.addQueue(*newTimestamps);
     }
 
-    if (outTimestamps) {
-        FrameEvents* frameEvents = mFrameEventHistory.getFrame(frameNumber);
-        if (frameEvents) {
-            frameEvents->checkFencesForCompletion();
-            *outTimestamps = FrameTimestamps(*frameEvents);
-            return true;
-        }
+    if (outDelta) {
+        mFrameEventHistory.getAndResetDelta(outDelta);
     }
-
-    return false;
 }
 
 std::vector<OccupancyTracker::Segment> Layer::getOccupancyHistory(

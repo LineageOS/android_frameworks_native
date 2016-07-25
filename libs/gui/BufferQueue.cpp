@@ -61,15 +61,13 @@ void BufferQueue::ProxyConsumerListener::onSidebandStreamChanged() {
     }
 }
 
-bool BufferQueue::ProxyConsumerListener::addAndGetFrameTimestamps(
+void BufferQueue::ProxyConsumerListener::addAndGetFrameTimestamps(
         const NewFrameEventsEntry* newTimestamps,
-        uint64_t frameNumber, FrameTimestamps* outTimestamps) {
+        FrameEventHistoryDelta* outDelta) {
     sp<ConsumerListener> listener(mConsumerListener.promote());
-    if (listener == nullptr) {
-        return false;
+    if (listener != nullptr) {
+        listener->addAndGetFrameTimestamps(newTimestamps, outDelta);
     }
-    return listener->addAndGetFrameTimestamps(
-            newTimestamps, frameNumber, outTimestamps);
 }
 
 void BufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,

@@ -84,9 +84,9 @@ public:
     void releasePendingBuffer();
 #endif
 
-    virtual bool addAndGetFrameTimestamps(
+    virtual void addAndGetFrameTimestamps(
             const NewFrameEventsEntry* newTimestamps,
-            uint64_t frameNumber, FrameTimestamps* outTimestamps) override;
+            FrameEventHistoryDelta* outDelta) override;
 
 private:
     virtual void onSidebandStreamChanged();

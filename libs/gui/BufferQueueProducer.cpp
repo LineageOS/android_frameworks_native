@@ -975,7 +975,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         requestedPresentTimestamp,
         acquireFence
     };
-    addAndGetFrameTimestamps(&newFrameEventsEntry, 0, nullptr);
+    addAndGetFrameTimestamps(&newFrameEventsEntry, nullptr);
 
     return NO_ERROR;
 }
@@ -1464,16 +1464,15 @@ status_t BufferQueueProducer::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
     return NO_ERROR;
 }
 
-bool BufferQueueProducer::getFrameTimestamps(
-        uint64_t frameNumber, FrameTimestamps* outTimestamps) {
-    return addAndGetFrameTimestamps(nullptr, frameNumber, outTimestamps);
+void BufferQueueProducer::getFrameTimestamps(FrameEventHistoryDelta* outDelta) {
+    addAndGetFrameTimestamps(nullptr, outDelta);
 }
 
-bool BufferQueueProducer::addAndGetFrameTimestamps(
+void BufferQueueProducer::addAndGetFrameTimestamps(
         const NewFrameEventsEntry* newTimestamps,
-        uint64_t frameNumber, FrameTimestamps* outTimestamps) {
-    if (newTimestamps == nullptr && outTimestamps == nullptr) {
-        return false;
+        FrameEventHistoryDelta* outDelta) {
+    if (newTimestamps == nullptr && outDelta == nullptr) {
+        return;
     }
 
     ATRACE_CALL();
@@ -1484,10 +1483,8 @@ bool BufferQueueProducer::addAndGetFrameTimestamps(
         listener = mCore->mConsumerListener;
     }
     if (listener != NULL) {
-        return listener->addAndGetFrameTimestamps(
-                newTimestamps, frameNumber, outTimestamps);
+        listener->addAndGetFrameTimestamps(newTimestamps, outDelta);
     }
-    return false;
 }
 
 void BufferQueueProducer::binderDied(const wp<android::IBinder>& /* who */) {
