@@ -1218,7 +1218,6 @@ EGLBoolean eglSurfaceAttrib(
         if (!s->win.get()) {
             return setError(EGL_BAD_SURFACE, EGL_FALSE);
         }
-        s->enableTimestamps = value;
         int err = native_window_enable_frame_timestamps(
                 s->win.get(), value ? true : false);
         return (err == NO_ERROR) ? EGL_TRUE :
@@ -2040,7 +2039,7 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
 
     egl_surface_t const * const s = get_surface(surface);
 
-    if (!s->enableTimestamps) {
+    if (!s->win.get()) {
         return setError(EGL_BAD_SURFACE, EGL_FALSE);
     }
 
@@ -2090,6 +2089,8 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
         return EGL_TRUE;
       case NAME_NOT_FOUND:
         return setError(EGL_BAD_ACCESS, EGL_FALSE);
+      case INVALID_OPERATION:
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
       case BAD_VALUE:
         return setError(EGL_BAD_PARAMETER, EGL_FALSE);
       default:

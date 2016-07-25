@@ -118,14 +118,17 @@ public:
     }
 
     virtual status_t dequeueBuffer(int *buf, sp<Fence>* fence, uint32_t width,
-            uint32_t height, PixelFormat format, uint32_t usage) {
+            uint32_t height, PixelFormat format, uint32_t usage,
+            FrameEventHistoryDelta* outTimestamps) {
         Parcel data, reply;
+        bool getFrameTimestamps = (outTimestamps != nullptr);
 
         data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
         data.writeUint32(width);
         data.writeUint32(height);
         data.writeInt32(static_cast<int32_t>(format));
         data.writeUint32(usage);
+        data.writeBool(getFrameTimestamps);
 
         status_t result = remote()->transact(DEQUEUE_BUFFER, data, &reply);
         if (result != NO_ERROR) {
@@ -138,6 +141,14 @@ public:
         if (result != NO_ERROR) {
             fence->clear();
             return result;
+        }
+        if (getFrameTimestamps) {
+            result = reply.read(*outTimestamps);
+            if (result != NO_ERROR) {
+                ALOGE("IGBP::dequeueBuffer failed to read timestamps: %d",
+                        result);
+                return result;
+            }
         }
         result = reply.readInt32();
         return result;
@@ -513,14 +524,19 @@ status_t BnGraphicBufferProducer::onTransact(
             uint32_t height = data.readUint32();
             PixelFormat format = static_cast<PixelFormat>(data.readInt32());
             uint32_t usage = data.readUint32();
+            bool getTimestamps = data.readBool();
 
             int buf = 0;
             sp<Fence> fence = Fence::NO_FENCE;
+            FrameEventHistoryDelta frameTimestamps;
             int result = dequeueBuffer(&buf, &fence, width, height, format,
-                    usage);
+                    usage, getTimestamps ? &frameTimestamps : nullptr);
 
             reply->writeInt32(buf);
             reply->write(*fence);
+            if (getTimestamps) {
+                reply->write(frameTimestamps);
+            }
             reply->writeInt32(result);
             return NO_ERROR;
         }
@@ -563,14 +579,14 @@ status_t BnGraphicBufferProducer::onTransact(
         }
         case QUEUE_BUFFER: {
             CHECK_INTERFACE(IGraphicBufferProducer, data, reply);
+
             int buf = data.readInt32();
             QueueBufferInput input(data);
-
             QueueBufferOutput output;
             status_t result = queueBuffer(buf, input, &output);
-
             reply->write(output);
             reply->writeInt32(result);
+
             return NO_ERROR;
         }
         case CANCEL_BUFFER: {
@@ -740,16 +756,21 @@ IGraphicBufferProducer::QueueBufferInput::QueueBufferInput(const Parcel& parcel)
     parcel.read(*this);
 }
 
+constexpr size_t IGraphicBufferProducer::QueueBufferInput::minFlattenedSize() {
+    return sizeof(timestamp) +
+            sizeof(isAutoTimestamp) +
+            sizeof(dataSpace) +
+            sizeof(crop) +
+            sizeof(scalingMode) +
+            sizeof(transform) +
+            sizeof(stickyTransform) +
+            sizeof(getFrameTimestamps);
+}
+
 size_t IGraphicBufferProducer::QueueBufferInput::getFlattenedSize() const {
-    return sizeof(timestamp)
-         + sizeof(isAutoTimestamp)
-         + sizeof(dataSpace)
-         + sizeof(crop)
-         + sizeof(scalingMode)
-         + sizeof(transform)
-         + sizeof(stickyTransform)
-         + fence->getFlattenedSize()
-         + surfaceDamage.getFlattenedSize();
+    return minFlattenedSize() +
+            fence->getFlattenedSize() +
+            surfaceDamage.getFlattenedSize();
 }
 
 size_t IGraphicBufferProducer::QueueBufferInput::getFdCount() const {
@@ -762,6 +783,7 @@ status_t IGraphicBufferProducer::QueueBufferInput::flatten(
     if (size < getFlattenedSize()) {
         return NO_MEMORY;
     }
+
     FlattenableUtils::write(buffer, size, timestamp);
     FlattenableUtils::write(buffer, size, isAutoTimestamp);
     FlattenableUtils::write(buffer, size, dataSpace);
@@ -769,6 +791,8 @@ status_t IGraphicBufferProducer::QueueBufferInput::flatten(
     FlattenableUtils::write(buffer, size, scalingMode);
     FlattenableUtils::write(buffer, size, transform);
     FlattenableUtils::write(buffer, size, stickyTransform);
+    FlattenableUtils::write(buffer, size, getFrameTimestamps);
+
     status_t result = fence->flatten(buffer, size, fds, count);
     if (result != NO_ERROR) {
         return result;
@@ -779,16 +803,7 @@ status_t IGraphicBufferProducer::QueueBufferInput::flatten(
 status_t IGraphicBufferProducer::QueueBufferInput::unflatten(
         void const*& buffer, size_t& size, int const*& fds, size_t& count)
 {
-    size_t minNeeded =
-              sizeof(timestamp)
-            + sizeof(isAutoTimestamp)
-            + sizeof(dataSpace)
-            + sizeof(crop)
-            + sizeof(scalingMode)
-            + sizeof(transform)
-            + sizeof(stickyTransform);
-
-    if (size < minNeeded) {
+    if (size < minFlattenedSize()) {
         return NO_MEMORY;
     }
 
@@ -799,6 +814,7 @@ status_t IGraphicBufferProducer::QueueBufferInput::unflatten(
     FlattenableUtils::read(buffer, size, scalingMode);
     FlattenableUtils::read(buffer, size, transform);
     FlattenableUtils::read(buffer, size, stickyTransform);
+    FlattenableUtils::read(buffer, size, getFrameTimestamps);
 
     fence = new Fence();
     status_t result = fence->unflatten(buffer, size, fds, count);
@@ -809,49 +825,52 @@ status_t IGraphicBufferProducer::QueueBufferInput::unflatten(
 }
 
 // ----------------------------------------------------------------------------
+constexpr size_t IGraphicBufferProducer::QueueBufferOutput::minFlattenedSize() {
+    return sizeof(width) +
+            sizeof(height) +
+            sizeof(transformHint) +
+            sizeof(numPendingBuffers) +
+            sizeof(nextFrameNumber);
+}
 
 size_t IGraphicBufferProducer::QueueBufferOutput::getFlattenedSize() const {
-    size_t size = sizeof(width)
-                + sizeof(height)
-                + sizeof(transformHint)
-                + sizeof(numPendingBuffers)
-                + sizeof(nextFrameNumber);
-    return size;
+    return minFlattenedSize() + frameTimestamps.getFlattenedSize();
 }
 
 size_t IGraphicBufferProducer::QueueBufferOutput::getFdCount() const {
-    return 0;
+    return frameTimestamps.getFdCount();
 }
 
 status_t IGraphicBufferProducer::QueueBufferOutput::flatten(
-        void*& buffer, size_t& size, int*& /*fds*/, size_t& /*count*/) const
+        void*& buffer, size_t& size, int*& fds, size_t& count) const
 {
     if (size < getFlattenedSize()) {
         return NO_MEMORY;
     }
+
     FlattenableUtils::write(buffer, size, width);
     FlattenableUtils::write(buffer, size, height);
     FlattenableUtils::write(buffer, size, transformHint);
     FlattenableUtils::write(buffer, size, numPendingBuffers);
     FlattenableUtils::write(buffer, size, nextFrameNumber);
 
-    return NO_ERROR;
+    return frameTimestamps.flatten(buffer, size, fds, count);
 }
 
 status_t IGraphicBufferProducer::QueueBufferOutput::unflatten(
-        void const*& buffer, size_t& size,
-        int const*& /*fds*/, size_t& /*count*/)
+        void const*& buffer, size_t& size, int const*& fds, size_t& count)
 {
-    if (size < getFlattenedSize()) {
+    if (size < minFlattenedSize()) {
         return NO_MEMORY;
     }
+
     FlattenableUtils::read(buffer, size, width);
     FlattenableUtils::read(buffer, size, height);
     FlattenableUtils::read(buffer, size, transformHint);
     FlattenableUtils::read(buffer, size, numPendingBuffers);
     FlattenableUtils::read(buffer, size, nextFrameNumber);
 
-    return NO_ERROR;
+    return frameTimestamps.unflatten(buffer, size, fds, count);
 }
 
 }; // namespace android

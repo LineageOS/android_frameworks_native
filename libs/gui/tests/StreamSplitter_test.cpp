@@ -81,7 +81,7 @@ TEST_F(StreamSplitterTest, OneInputOneOutput) {
     sp<GraphicBuffer> buffer;
     ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION,
             inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-                    GRALLOC_USAGE_SW_WRITE_OFTEN));
+                    GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
     ASSERT_EQ(OK, inputProducer->requestBuffer(slot, &buffer));
 
     uint32_t* dataIn;
@@ -115,7 +115,7 @@ TEST_F(StreamSplitterTest, OneInputOneOutput) {
     // received the buffer back from the output BufferQueue
     ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION,
             inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-                    GRALLOC_USAGE_SW_WRITE_OFTEN));
+                    GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
 }
 
 TEST_F(StreamSplitterTest, OneInputMultipleOutputs) {
@@ -153,7 +153,7 @@ TEST_F(StreamSplitterTest, OneInputMultipleOutputs) {
     sp<GraphicBuffer> buffer;
     ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION,
             inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-                    GRALLOC_USAGE_SW_WRITE_OFTEN));
+                    GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
     ASSERT_EQ(OK, inputProducer->requestBuffer(slot, &buffer));
 
     uint32_t* dataIn;
@@ -190,7 +190,7 @@ TEST_F(StreamSplitterTest, OneInputMultipleOutputs) {
     // received the buffer back from the output BufferQueues
     ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION,
             inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-                    GRALLOC_USAGE_SW_WRITE_OFTEN));
+                    GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
 }
 
 TEST_F(StreamSplitterTest, OutputAbandonment) {
@@ -217,7 +217,7 @@ TEST_F(StreamSplitterTest, OutputAbandonment) {
     sp<GraphicBuffer> buffer;
     ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION,
             inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-                    GRALLOC_USAGE_SW_WRITE_OFTEN));
+                    GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
     ASSERT_EQ(OK, inputProducer->requestBuffer(slot, &buffer));
 
     // Abandon the output
@@ -230,7 +230,7 @@ TEST_F(StreamSplitterTest, OutputAbandonment) {
 
     // Input should be abandoned
     ASSERT_EQ(NO_INIT, inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-            GRALLOC_USAGE_SW_WRITE_OFTEN));
+            GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
 }
 
 } // namespace android
