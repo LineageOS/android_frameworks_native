@@ -50,10 +50,6 @@
 
 using namespace android;
 
-// This extension has not been ratified yet, so can't be shipped.
-// Implementation is incomplete and untested.
-#define ENABLE_EGL_KHR_GL_COLORSPACE 0
-
 // ----------------------------------------------------------------------------
 
 namespace android {
@@ -90,9 +86,7 @@ extern char const * const gExtensionString  =
         "EGL_KHR_image_base "                   // mandatory
         "EGL_KHR_image_pixmap "
         "EGL_KHR_lock_surface "
-#if (ENABLE_EGL_KHR_GL_COLORSPACE != 0)
         "EGL_KHR_gl_colorspace "
-#endif
         "EGL_KHR_gl_texture_2D_image "
         "EGL_KHR_gl_texture_3D_image "
         "EGL_KHR_gl_texture_cubemap_image "
@@ -425,12 +419,6 @@ EGLBoolean eglGetConfigAttrib(EGLDisplay dpy, EGLConfig config,
 // surfaces
 // ----------------------------------------------------------------------------
 
-// The EGL_KHR_gl_colorspace spec hasn't been ratified yet, so these haven't
-// been added to the Khronos egl.h.
-#define EGL_GL_COLORSPACE_KHR           EGL_VG_COLORSPACE
-#define EGL_GL_COLORSPACE_SRGB_KHR      EGL_VG_COLORSPACE_sRGB
-#define EGL_GL_COLORSPACE_LINEAR_KHR    EGL_VG_COLORSPACE_LINEAR
-
 // Turn linear formats into corresponding sRGB formats when colorspace is
 // EGL_GL_COLORSPACE_SRGB_KHR, or turn sRGB formats into corresponding linear
 // formats when colorspace is EGL_GL_COLORSPACE_LINEAR_KHR. In any cases where
@@ -497,17 +485,7 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         if (attrib_list && dp->haveExtension("EGL_KHR_gl_colorspace")) {
             for (const EGLint* attr = attrib_list; *attr != EGL_NONE; attr += 2) {
                 if (*attr == EGL_GL_COLORSPACE_KHR) {
-                    if (ENABLE_EGL_KHR_GL_COLORSPACE) {
-                        dataSpace = modifyBufferDataspace(dataSpace, *(attr+1));
-                    } else {
-                        // Normally we'd pass through unhandled attributes to
-                        // the driver. But in case the driver implements this
-                        // extension but we're disabling it, we want to prevent
-                        // it getting through -- support will be broken without
-                        // our help.
-                        ALOGE("sRGB window surfaces not supported");
-                        return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-                    }
+                    dataSpace = modifyBufferDataspace(dataSpace, *(attr+1));
                 }
             }
         }

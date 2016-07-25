@@ -115,6 +115,13 @@ typedef EGLBoolean (EGLAPIENTRYP PFNEGLDESTROYIMAGEKHRPROC) (EGLDisplay dpy, EGL
 #define EGL_GL_TEXTURE_ZOFFSET_KHR		0x30BD	/* eglCreateImageKHR attribute */
 #endif
 
+#ifndef EGL_KHR_gl_colorspace
+#define EGL_KHR_gl_colorspace 1
+#define EGL_GL_COLORSPACE_KHR             0x309D
+#define EGL_GL_COLORSPACE_SRGB_KHR        0x3089
+#define EGL_GL_COLORSPACE_LINEAR_KHR      0x308A
+#endif
+
 #ifndef EGL_KHR_gl_renderbuffer_image
 #define EGL_KHR_gl_renderbuffer_image 1
 #define EGL_GL_RENDERBUFFER_KHR			0x30B9	/* eglCreateImageKHR target */
