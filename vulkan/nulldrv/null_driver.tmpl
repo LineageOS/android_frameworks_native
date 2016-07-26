@@ -158,16 +158,7 @@ PFN_vkVoidFunction GetGlobalProcAddr(const char* name) {
 }
 ¶
 PFN_vkVoidFunction GetInstanceProcAddr(const char* name) {«
-    PFN_vkVoidFunction pfn;
-    if ((pfn = Lookup(name, kInstanceProcs)))
-        return pfn;
-    if (strcmp(name, "vkGetSwapchainGrallocUsageANDROID") == 0)
-        return reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkGetSwapchainGrallocUsageANDROID>(GetSwapchainGrallocUsageANDROID));
-    if (strcmp(name, "vkAcquireImageANDROID") == 0)
-        return reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkAcquireImageANDROID>(AcquireImageANDROID));
-    if (strcmp(name, "vkQueueSignalReleaseImageANDROID") == 0)
-        return reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkQueueSignalReleaseImageANDROID>(QueueSignalReleaseImageANDROID));
-    return nullptr;
+    return Lookup(name, kInstanceProcs);
 »}
 ¶
 } // namespace null_driver
