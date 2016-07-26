@@ -25,8 +25,7 @@ LOCAL_CFLAGS := -DLOG_TAG=\"vulkan\" \
 	-Weverything -Werror \
 	-Wno-padded \
 	-Wno-switch-enum \
-	-Wno-undef \
-	-Wno-cast-calling-convention
+	-Wno-undef
 
 #LOCAL_CFLAGS += -DLOG_NDEBUG=0
 LOCAL_CPPFLAGS := -std=c++14 \
