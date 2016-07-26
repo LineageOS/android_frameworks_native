@@ -1,8 +1,4 @@
 LOCAL_PATH:= $(call my-dir)
-include $(CLEAR_VARS)
-LOCAL_SRC_FILES := libdumpstate_default.cpp
-LOCAL_MODULE := libdumpstate.default
-include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 

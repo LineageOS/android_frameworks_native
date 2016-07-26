@@ -149,33 +149,4 @@ LOCAL_LDFLAGS_arm += -Wl,--hash-style,both
 
 include $(BUILD_SHARED_LIBRARY)
 
-###############################################################################
-# Build the ETC1 host static library
-#
-
-include $(CLEAR_VARS)
-
-LOCAL_SRC_FILES:= 		\
-	ETC1/etc1.cpp 	\
-#
-
-LOCAL_MODULE:= libETC1
-LOCAL_MODULE_HOST_OS := darwin linux windows
-
-include $(BUILD_HOST_STATIC_LIBRARY)
-
-###############################################################################
-# Build the ETC1 device library
-#
-
-include $(CLEAR_VARS)
-
-LOCAL_SRC_FILES:= 		\
-	ETC1/etc1.cpp 	\
-#
-
-LOCAL_MODULE:= libETC1
-
-include $(BUILD_SHARED_LIBRARY)
-
 include $(call all-makefiles-under,$(LOCAL_PATH))
