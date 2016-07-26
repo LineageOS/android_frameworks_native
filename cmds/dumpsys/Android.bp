@@ -1,0 +1,15 @@
+cc_binary {
+    name: "dumpsys",
+
+    srcs: ["dumpsys.cpp"],
+
+    shared_libs: [
+        "libbase",
+        "libutils",
+        "liblog",
+        "libbinder",
+    ],
+
+    cflags: ["-DXP_UNIX"],
+    //shared_libs: ["librt"],
+}
