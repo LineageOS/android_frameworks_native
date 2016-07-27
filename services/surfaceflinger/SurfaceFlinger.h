@@ -175,23 +175,6 @@ private:
         virtual int do_compare(const void* lhs, const void* rhs) const;
     };
 
-    struct DisplayDeviceState {
-        DisplayDeviceState();
-        DisplayDeviceState(DisplayDevice::DisplayType type, bool isSecure);
-        bool isValid() const { return type >= 0; }
-        bool isMainDisplay() const { return type == DisplayDevice::DISPLAY_PRIMARY; }
-        bool isVirtualDisplay() const { return type >= DisplayDevice::DISPLAY_VIRTUAL; }
-        DisplayDevice::DisplayType type;
-        sp<IGraphicBufferProducer> surface;
-        uint32_t layerStack;
-        Rect viewport;
-        Rect frame;
-        uint8_t orientation;
-        uint32_t width, height;
-        String8 displayName;
-        bool isSecure;
-    };
-
     struct State {
         LayerVector layersSortedByZ;
         DefaultKeyedVector< wp<IBinder>, DisplayDeviceState> displays;

@@ -261,7 +261,7 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName,
     DisplayDeviceState info(DisplayDevice::DISPLAY_VIRTUAL, secure);
     info.displayName = displayName;
     mCurrentState.displays.add(token, info);
-
+    mInterceptor.saveDisplayCreation(info);
     return token;
 }
 
@@ -279,7 +279,7 @@ void SurfaceFlinger::destroyDisplay(const sp<IBinder>& display) {
         ALOGE("destroyDisplay called for non-virtual display");
         return;
     }
-
+    mInterceptor.saveDisplayDeletion(info.displayId);
     mCurrentState.displays.removeItemsAt(idx);
     setTransactionFlags(eDisplayTransactionNeeded);
 }
@@ -292,6 +292,7 @@ void SurfaceFlinger::createBuiltinDisplayLocked(DisplayDevice::DisplayType type)
     // All non-virtual displays are currently considered secure.
     DisplayDeviceState info(type, true);
     mCurrentState.displays.add(mBuiltinDisplays[type], info);
+    mInterceptor.saveDisplayCreation(info);
 }
 
 sp<IBinder> SurfaceFlinger::getBuiltInDisplay(int32_t id) {
@@ -2371,7 +2372,9 @@ void SurfaceFlinger::setTransactionState(
     }
 
     if (transactionFlags) {
-        mInterceptor.saveLayerUpdates(state, flags);
+        if (mInterceptor.isEnabled()) {
+            mInterceptor.saveTransaction(state, mCurrentState.displays, displays, flags);
+        }
 
         // this triggers the transaction
         setTransactionFlags(transactionFlags);
@@ -2567,7 +2570,7 @@ status_t SurfaceFlinger::createLayer(
     if (result != NO_ERROR) {
         return result;
     }
-    mInterceptor.saveLayerCreate(layer);
+    mInterceptor.saveSurfaceCreation(layer);
 
     setTransactionFlags(eTransactionNeeded);
     return result;
@@ -2615,7 +2618,7 @@ status_t SurfaceFlinger::onLayerRemoved(const sp<Client>& client, const sp<IBind
     status_t err = NO_ERROR;
     sp<Layer> l(client->getLayerUser(handle));
     if (l != NULL) {
-        mInterceptor.saveLayerDelete(l);
+        mInterceptor.saveSurfaceDeletion(l);
         err = removeLayer(l);
         ALOGE_IF(err<0 && err != NAME_NOT_FOUND,
                 "error removing layer=%p (%s)", l.get(), strerror(-err));
@@ -2692,6 +2695,16 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
     if (type >= DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES) {
         ALOGW("Trying to set power mode for virtual display");
         return;
+    }
+
+    if (mInterceptor.isEnabled()) {
+        Mutex::Autolock _l(mStateLock);
+        ssize_t idx = mCurrentState.displays.indexOfKey(hw->getDisplayToken());
+        if (idx < 0) {
+            ALOGW("Surface Interceptor SavePowerMode: invalid display token");
+            return;
+        }
+        mInterceptor.savePowerModeUpdate(mCurrentState.displays.valueAt(idx).displayId, mode);
     }
 
     if (currentMode == HWC_POWER_MODE_OFF) {
@@ -3363,7 +3376,7 @@ status_t SurfaceFlinger::onTransact(
                 n = data.readInt32();
                 if (n) {
                     ALOGV("Interceptor enabled");
-                    mInterceptor.enable(mDrawingState.layersSortedByZ);
+                    mInterceptor.enable(mDrawingState.layersSortedByZ, mDrawingState.displays);
                 }
                 else{
                     ALOGV("Interceptor disabled");
@@ -3895,31 +3908,6 @@ int SurfaceFlinger::LayerVector::do_compare(const void* lhs,
 
     return l->sequence - r->sequence;
 }
-
-// ---------------------------------------------------------------------------
-
-SurfaceFlinger::DisplayDeviceState::DisplayDeviceState()
-    : type(DisplayDevice::DISPLAY_ID_INVALID),
-      layerStack(DisplayDevice::NO_LAYER_STACK),
-      orientation(0),
-      width(0),
-      height(0),
-      isSecure(false) {
-}
-
-SurfaceFlinger::DisplayDeviceState::DisplayDeviceState(
-    DisplayDevice::DisplayType type, bool isSecure)
-    : type(type),
-      layerStack(DisplayDevice::NO_LAYER_STACK),
-      orientation(0),
-      width(0),
-      height(0),
-      isSecure(isSecure) {
-    viewport.makeInvalid();
-    frame.makeInvalid();
-}
-
-// ---------------------------------------------------------------------------
 
 }; // namespace android
 
