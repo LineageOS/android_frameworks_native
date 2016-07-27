@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 0
-define VERSION_PATCH 13
+define VERSION_PATCH 22
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -78,7 +78,7 @@ define NULL_HANDLE 0
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_SPEC_VERSION     5
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_NAME             "VK_ANDROID_native_buffer"
 
-@extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_SPEC_VERSION       2
+@extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_SPEC_VERSION       3
 @extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_NAME               "VK_EXT_debug_report"
 
 @extension("VK_NV_glsl_shader") define VK_NV_GLSL_SHADER_SPEC_VERSION           1
@@ -93,8 +93,20 @@ define NULL_HANDLE 0
 @extension("VK_AMD_rasterization_order") define VK_AMD_RASTERIZATION_ORDER_SPEC_VERSION   1
 @extension("VK_AMD_rasterization_order") define VK_AMD_RASTERIZATION_ORDER_NAME           "VK_AMD_rasterization_order"
 
+@extension("VK_AMD_shader_trinary_minmax") define VK_AMD_SHADER_TRINARY_MINMAX_SPEC_VERSION 1
+@extension("VK_AMD_shader_trinary_minmax") define VK_AMD_SHADER_TRINARY_MINMAX_EXTENSION_NAME "VK_AMD_shader_trinary_minmax"
+
+@extension("VK_AMD_shader_explicit_vertex_parameter") define VK_AMD_SHADER_EXPLICIT_VERTEX_PARAMETER_SPEC_VERSION 1
+@extension("VK_AMD_shader_explicit_vertex_parameter") define VK_AMD_SHADER_EXPLICIT_VERTEX_PARAMETER_EXTENSION_NAME "VK_AMD_shader_explicit_vertex_parameter"
+
 @extension("VK_EXT_debug_marker") define VK_EXT_DEBUG_MARKER_SPEC_VERSION       3
 @extension("VK_EXT_debug_marker") define VK_EXT_DEBUG_MARKER_NAME               "VK_EXT_debug_marker"
+
+@extension("VK_AMD_gcn_shader") define VK_AMD_GCN_SHADER_SPEC_VERSION 1
+@extension("VK_AMD_gcn_shader") define VK_AMD_GCN_SHADER_EXTENSION_NAME "VK_AMD_gcn_shader"
+
+@extension("VK_NV_dedicated_allocation") define VK_NV_DEDICATED_ALLOCATION_SPEC_VERSION 1
+@extension("VK_NV_dedicated_allocation") define VK_NV_DEDICATED_ALLOCATION_EXTENSION_NAME "VK_NV_dedicated_allocation"
 
 
 /////////////
@@ -684,6 +696,15 @@ enum VkStructureType {
 
     //@extension("VK_EXT_debug_marker")
     VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT              = 1000022002,
+
+    //@extension("VK_NV_dedicated_allocation")
+    VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV = 1000026000,
+
+    //@extension("VK_NV_dedicated_allocation")
+    VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_BUFFER_CREATE_INFO_NV = 1000026001,
+
+    //@extension("VK_NV_dedicated_allocation")
+    VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV = 1000026002,
 }
 
 enum VkSubpassContents {
@@ -721,6 +742,7 @@ enum VkResult {
     VK_ERROR_INCOMPATIBLE_DRIVER                            = 0xFFFFFFF7, // -9
     VK_ERROR_TOO_MANY_OBJECTS                               = 0xFFFFFFF6, // -10
     VK_ERROR_FORMAT_NOT_SUPPORTED                           = 0xFFFFFFF5, // -11
+    VK_ERROR_FRAGMENTED_POOL                                = 0xFFFFFFF4, // -12
 
     //@extension("VK_KHR_surface")
     VK_ERROR_SURFACE_LOST_KHR                               = 0xC4653600, // -1000000000
@@ -2693,6 +2715,28 @@ class VkDebugMarkerMarkerInfoEXT {
     f32[4]                                      color
 }
 
+@extension("VK_NV_dedicated_allocation")
+class VkDedicatedAllocationImageCreateInfoNV {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkBool32                                    dedicatedAllocation
+}
+
+@extension("VK_NV_dedicated_allocation")
+class VkDedicatedAllocationBufferCreateInfoNV {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkBool32                                    dedicatedAllocation
+}
+
+@extension("VK_NV_dedicated_allocation")
+class VkDedicatedAllocationMemoryAllocateInfoNV {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkImage                                     image
+    VkBuffer                                    buffer
+}
+
 
 ////////////////
 //  Commands  //
@@ -4570,7 +4614,7 @@ cmd void vkCmdUpdateBuffer(
         VkBuffer                                    dstBuffer,
         VkDeviceSize                                dstOffset,
         VkDeviceSize                                dataSize,
-        const u32*                                  pData) {
+        const void*                                 pData) {
     commandBufferObject := GetCommandBuffer(commandBuffer)
     dstBufferObject := GetBuffer(dstBuffer)
     assert(commandBufferObject.device == dstBufferObject.device)

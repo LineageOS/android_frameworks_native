@@ -54,6 +54,7 @@ const NameProc kGlobalProcs[] = {
 
 const NameProc kInstanceProcs[] = {
     // clang-format off
+    {"vkAcquireImageANDROID", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkAcquireImageANDROID>(AcquireImageANDROID))},
     {"vkAllocateCommandBuffers", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkAllocateCommandBuffers>(AllocateCommandBuffers))},
     {"vkAllocateDescriptorSets", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkAllocateDescriptorSets>(AllocateDescriptorSets))},
     {"vkAllocateMemory", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkAllocateMemory>(AllocateMemory))},
@@ -179,10 +180,12 @@ const NameProc kInstanceProcs[] = {
     {"vkGetPipelineCacheData", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkGetPipelineCacheData>(GetPipelineCacheData))},
     {"vkGetQueryPoolResults", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkGetQueryPoolResults>(GetQueryPoolResults))},
     {"vkGetRenderAreaGranularity", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkGetRenderAreaGranularity>(GetRenderAreaGranularity))},
+    {"vkGetSwapchainGrallocUsageANDROID", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkGetSwapchainGrallocUsageANDROID>(GetSwapchainGrallocUsageANDROID))},
     {"vkInvalidateMappedMemoryRanges", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkInvalidateMappedMemoryRanges>(InvalidateMappedMemoryRanges))},
     {"vkMapMemory", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkMapMemory>(MapMemory))},
     {"vkMergePipelineCaches", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkMergePipelineCaches>(MergePipelineCaches))},
     {"vkQueueBindSparse", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkQueueBindSparse>(QueueBindSparse))},
+    {"vkQueueSignalReleaseImageANDROID", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkQueueSignalReleaseImageANDROID>(QueueSignalReleaseImageANDROID))},
     {"vkQueueSubmit", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkQueueSubmit>(QueueSubmit))},
     {"vkQueueWaitIdle", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkQueueWaitIdle>(QueueWaitIdle))},
     {"vkResetCommandBuffer", reinterpret_cast<PFN_vkVoidFunction>(static_cast<PFN_vkResetCommandBuffer>(ResetCommandBuffer))},
@@ -206,21 +209,7 @@ PFN_vkVoidFunction GetGlobalProcAddr(const char* name) {
 }
 
 PFN_vkVoidFunction GetInstanceProcAddr(const char* name) {
-    PFN_vkVoidFunction pfn;
-    if ((pfn = Lookup(name, kInstanceProcs)))
-        return pfn;
-    if (strcmp(name, "vkGetSwapchainGrallocUsageANDROID") == 0)
-        return reinterpret_cast<PFN_vkVoidFunction>(
-            static_cast<PFN_vkGetSwapchainGrallocUsageANDROID>(
-                GetSwapchainGrallocUsageANDROID));
-    if (strcmp(name, "vkAcquireImageANDROID") == 0)
-        return reinterpret_cast<PFN_vkVoidFunction>(
-            static_cast<PFN_vkAcquireImageANDROID>(AcquireImageANDROID));
-    if (strcmp(name, "vkQueueSignalReleaseImageANDROID") == 0)
-        return reinterpret_cast<PFN_vkVoidFunction>(
-            static_cast<PFN_vkQueueSignalReleaseImageANDROID>(
-                QueueSignalReleaseImageANDROID));
-    return nullptr;
+    return Lookup(name, kInstanceProcs);
 }
 
 }  // namespace null_driver
