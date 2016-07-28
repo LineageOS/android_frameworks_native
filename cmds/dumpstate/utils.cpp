@@ -644,7 +644,7 @@ int run_command(const char *title, int timeout_seconds, const char *command, ...
     DurationReporter duration_reporter(title);
     fflush(stdout);
 
-    const char *args[1024] = {command};
+    const char *args[ARG_MAX] = {command};
     size_t arg;
     va_list ap;
     va_start(ap, command);
@@ -682,7 +682,7 @@ int run_command_as_shell(const char *title, int timeout_seconds, const char *com
     DurationReporter duration_reporter(title);
     fflush(stdout);
 
-    const char *args[1024] = {command};
+    const char *args[ARG_MAX] = {command};
     size_t arg;
     va_list ap;
     va_start(ap, command);
@@ -871,14 +871,18 @@ void send_broadcast(const std::string& action, const std::vector<std::string>& a
         MYLOGE("send_broadcast: too many arguments (%d)\n", (int) args.size());
         return;
     }
-    const char *am_args[1024] = { "/system/bin/am", "broadcast", "--user", "0", "-a",
-                                  action.c_str() };
+    const char *am_args[ARG_MAX] = { "/system/bin/am", "broadcast", "--user", "0", "-a",
+                                     action.c_str() };
     size_t am_index = 5; // Starts at the index of last initial value above.
     for (const std::string& arg : args) {
+        if (am_index > ARG_MAX - 2) {
+            MYLOGE("send_broadcast: too many arguments (%d)\n", args.size());
+            return;
+        }
         am_args[++am_index] = arg.c_str();
     }
-    // Always terminate with NULL.
-    am_args[am_index + 1] = NULL;
+    // Always terminate with nullptr.
+    am_args[am_index + 1] = nullptr;
     std::string args_string;
     format_args(am_index + 1, am_args, &args_string);
     MYLOGD("send_broadcast command: %s\n", args_string.c_str());
