@@ -130,6 +130,14 @@ nsecs_t FenceTime::getSignalTime() {
     // Make the system call without the lock held.
     signalTime = fence->getSignalTime();
 
+    // Allow tests to override SIGNAL_TIME_INVALID behavior, since tests
+    // use invalid underlying Fences without real file descriptors.
+    if (CC_UNLIKELY(mState == State::FORCED_VALID_FOR_TEST)) {
+        if (signalTime == Fence::SIGNAL_TIME_INVALID) {
+            signalTime = Fence::SIGNAL_TIME_PENDING;
+        }
+    }
+
     // Make the signal time visible to everyone if it is no longer pending
     // and remove the class' reference to the fence.
     if (signalTime != Fence::SIGNAL_TIME_PENDING) {
@@ -163,10 +171,28 @@ FenceTime::Snapshot FenceTime::getSnapshot() const {
     return Snapshot(mFence);
 }
 
+// For tests only. If forceValidForTest is true, then getSignalTime will
+// never return SIGNAL_TIME_INVALID and isValid will always return true.
+FenceTime::FenceTime(const sp<Fence>& fence, bool forceValidForTest)
+  : mState(forceValidForTest ?
+            State::FORCED_VALID_FOR_TEST : State::INVALID),
+    mFence(fence),
+    mSignalTime(mState == State::INVALID ?
+            Fence::SIGNAL_TIME_INVALID : Fence::SIGNAL_TIME_PENDING) {
+}
+
+void FenceTime::signalForTest(nsecs_t signalTime) {
+    // To be realistic, this should really set a hidden value that
+    // gets picked up in the next call to getSignalTime, but this should
+    // be good enough.
+    std::lock_guard<std::mutex> lock(mMutex);
+    mFence.clear();
+    mSignalTime.store(signalTime, std::memory_order_relaxed);
+}
+
 // ============================================================================
 // FenceTime::Snapshot
 // ============================================================================
-
 FenceTime::Snapshot::Snapshot(const sp<Fence>& srcFence)
     : state(State::FENCE), fence(srcFence) {
 }
@@ -275,6 +301,62 @@ void FenceTimeline::updateSignalTimes() {
             // The fence didn't signal yet. Break since the later ones
             // shouldn't have signaled either.
             break;
+        }
+    }
+}
+
+// ============================================================================
+// FenceToFenceTimeMap
+// ============================================================================
+std::shared_ptr<FenceTime> FenceToFenceTimeMap::createFenceTimeForTest(
+        const sp<Fence>& fence) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    // Always garbage collecting isn't efficient, but this is only for testing.
+    garbageCollectLocked();
+    std::shared_ptr<FenceTime> fenceTime(new FenceTime(fence, true));
+    mMap[fence.get()].push_back(fenceTime);
+    return fenceTime;
+}
+
+void FenceToFenceTimeMap::signalAllForTest(
+        const sp<Fence>& fence, nsecs_t signalTime) {
+    bool signaled = false;
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    auto it = mMap.find(fence.get());
+    if (it != mMap.end()) {
+        for (auto& weakFenceTime : it->second) {
+            std::shared_ptr<FenceTime> fenceTime = weakFenceTime.lock();
+            if (!fenceTime) {
+                continue;
+            }
+            ALOGE_IF(!fenceTime->isValid(),
+                    "FenceToFenceTimeMap::signalAllForTest: "
+                     "Signaling invalid fence.");
+            fenceTime->signalForTest(signalTime);
+            signaled = true;
+        }
+    }
+
+    if (!signaled) {
+        ALOGE("FenceToFenceTimeMap::signalAllForTest: Nothing to signal.");
+    }
+}
+
+void FenceToFenceTimeMap::garbageCollectLocked() {
+    for (auto& it : mMap) {
+        // Erase all expired weak pointers from the vector.
+        auto& vect = it.second;
+        vect.erase(
+                std::remove_if(vect.begin(), vect.end(),
+                        [](const std::weak_ptr<FenceTime>& ft) {
+                            return ft.expired();
+                        }),
+                vect.end());
+
+        // Also erase the map entry if the vector is now empty.
+        if (vect.empty()) {
+            mMap.erase(it.first);
         }
     }
 }

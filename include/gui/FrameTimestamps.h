@@ -116,13 +116,22 @@ class ProducerFrameEventHistory : public FrameEventHistory {
 public:
     ~ProducerFrameEventHistory() override;
 
-    void updateAcquireFence(
+    // virtual for testing.
+    virtual void updateAcquireFence(
             uint64_t frameNumber, std::shared_ptr<FenceTime>&& acquire);
     void applyDelta(const FrameEventHistoryDelta& delta);
 
     void updateSignalTimes();
 
-private:
+protected:
+    void applyFenceDelta(FenceTimeline* timeline,
+            std::shared_ptr<FenceTime>* dst,
+            const FenceTime::Snapshot& src) const;
+
+    // virtual for testing.
+    virtual std::shared_ptr<FenceTime> createFenceTime(
+            const sp<Fence>& fence) const;
+
     size_t mAcquireOffset{0};
 
     // The consumer updates it's timelines in Layer and SurfaceFlinger since

@@ -52,7 +52,8 @@ Surface::Surface(
       mQueriedSupportedTimestamps(false),
       mFrameTimestampsSupportsPresent(false),
       mFrameTimestampsSupportsRetire(false),
-      mEnableFrameTimestamps(false)
+      mEnableFrameTimestamps(false),
+      mFrameEventHistory(std::make_unique<ProducerFrameEventHistory>())
 {
     // Initialize the ANativeWindow function pointers.
     ANativeWindow::setSwapInterval  = hook_setSwapInterval;
@@ -94,6 +95,10 @@ Surface::~Surface() {
     if (mConnectedToCpu) {
         Surface::disconnect(NATIVE_WINDOW_API_CPU);
     }
+}
+
+sp<ISurfaceComposer> Surface::composerService() const {
+    return ComposerService::getComposerService();
 }
 
 sp<IGraphicBufferProducer> Surface::getIGraphicBufferProducer() const {
@@ -203,7 +208,7 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
         return BAD_VALUE;
     }
 
-    FrameEvents* events = mFrameEventHistory.getFrame(frameNumber);
+    FrameEvents* events = mFrameEventHistory->getFrame(frameNumber);
     if (events == nullptr) {
         // If the entry isn't available in the producer, it's definitely not
         // available in the consumer.
@@ -216,8 +221,8 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
             outDisplayPresentTime, outDisplayRetireTime, outReleaseTime)) {
         FrameEventHistoryDelta delta;
         mGraphicBufferProducer->getFrameTimestamps(&delta);
-        mFrameEventHistory.applyDelta(delta);
-        events = mFrameEventHistory.getFrame(frameNumber);
+        mFrameEventHistory->applyDelta(delta);
+        events = mFrameEventHistory->getFrame(frameNumber);
     }
 
     if (events == nullptr) {
@@ -396,7 +401,7 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     }
 
     if (enableFrameTimestamps) {
-         mFrameEventHistory.applyDelta(frameTimestamps);
+         mFrameEventHistory->applyDelta(frameTimestamps);
     }
 
     if ((result & IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION) || gbuf == 0) {
@@ -590,16 +595,16 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
     }
 
     if (mEnableFrameTimestamps) {
-        mFrameEventHistory.applyDelta(output.frameTimestamps);
+        mFrameEventHistory->applyDelta(output.frameTimestamps);
         // Update timestamps with the local acquire fence.
         // The consumer doesn't send it back to prevent us from having two
         // file descriptors of the same fence.
-        mFrameEventHistory.updateAcquireFence(mNextFrameNumber,
+        mFrameEventHistory->updateAcquireFence(mNextFrameNumber,
                 std::make_shared<FenceTime>(std::move(fence)));
 
         // Cache timestamps of signaled fences so we can close their file
         // descriptors.
-        mFrameEventHistory.updateSignalTimes();
+        mFrameEventHistory->updateSignalTimes();
     }
 
     mLastFrameNumber = mNextFrameNumber;
@@ -638,8 +643,7 @@ void Surface::querySupportedTimestampsLocked() const {
     mQueriedSupportedTimestamps = true;
 
     std::vector<FrameEvent> supportedFrameTimestamps;
-    sp<ISurfaceComposer> composer(ComposerService::getComposerService());
-    status_t err = composer->getSupportedFrameTimestamps(
+    status_t err = composerService()->getSupportedFrameTimestamps(
             &supportedFrameTimestamps);
 
     if (err != NO_ERROR) {
@@ -668,9 +672,8 @@ int Surface::query(int what, int* value) const {
                 }
                 break;
             case NATIVE_WINDOW_QUEUES_TO_WINDOW_COMPOSER: {
-                sp<ISurfaceComposer> composer(
-                        ComposerService::getComposerService());
-                if (composer->authenticateSurfaceTexture(mGraphicBufferProducer)) {
+                if (composerService()->authenticateSurfaceTexture(
+                        mGraphicBufferProducer)) {
                     *value = 1;
                 } else {
                     *value = 0;

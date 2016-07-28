@@ -241,33 +241,6 @@ void ProducerFrameEventHistory::updateAcquireFence(
     }
 }
 
-static void applyFenceDelta(FenceTimeline* timeline,
-        std::shared_ptr<FenceTime>* dst, const FenceTime::Snapshot& src) {
-    if (CC_UNLIKELY(dst == nullptr)) {
-        ALOGE("applyFenceDelta: dst is null.");
-        return;
-    }
-
-    switch (src.state) {
-        case FenceTime::Snapshot::State::EMPTY:
-            return;
-        case FenceTime::Snapshot::State::FENCE:
-            if (CC_UNLIKELY((*dst)->isValid())) {
-                ALOGE("applyFenceDelta: Unexpected fence.");
-            }
-            *dst = std::make_shared<FenceTime>(src.fence);
-            timeline->push(*dst);
-            return;
-        case FenceTime::Snapshot::State::SIGNAL_TIME:
-            if ((*dst)->isValid()) {
-                (*dst)->applyTrustedSnapshot(src);
-            } else {
-                *dst = std::make_shared<FenceTime>(src.signalTime);
-            }
-            return;
-    }
-}
-
 void ProducerFrameEventHistory::applyDelta(
         const FrameEventHistoryDelta& delta) {
     for (auto& d : delta.mDeltas) {
@@ -318,6 +291,38 @@ void ProducerFrameEventHistory::updateSignalTimes() {
     mPresentTimeline.updateSignalTimes();
     mRetireTimeline.updateSignalTimes();
     mReleaseTimeline.updateSignalTimes();
+}
+
+void ProducerFrameEventHistory::applyFenceDelta(FenceTimeline* timeline,
+        std::shared_ptr<FenceTime>* dst, const FenceTime::Snapshot& src) const {
+    if (CC_UNLIKELY(dst == nullptr)) {
+        ALOGE("applyFenceDelta: dst is null.");
+        return;
+    }
+
+    switch (src.state) {
+        case FenceTime::Snapshot::State::EMPTY:
+            return;
+        case FenceTime::Snapshot::State::FENCE:
+            if (CC_UNLIKELY((*dst)->isValid())) {
+                ALOGE("applyFenceDelta: Unexpected fence.");
+            }
+            *dst = createFenceTime(src.fence);
+            timeline->push(*dst);
+            return;
+        case FenceTime::Snapshot::State::SIGNAL_TIME:
+            if ((*dst)->isValid()) {
+                (*dst)->applyTrustedSnapshot(src);
+            } else {
+                *dst = std::make_shared<FenceTime>(src.signalTime);
+            }
+            return;
+    }
+}
+
+std::shared_ptr<FenceTime> ProducerFrameEventHistory::createFenceTime(
+        const sp<Fence>& fence) const {
+    return std::make_shared<FenceTime>(fence);
 }
 
 
