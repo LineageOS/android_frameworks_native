@@ -267,45 +267,6 @@ static bool skip_none(const char *path) {
     return false;
 }
 
-static void _run_dumpsys(const std::string& title, RootMode root_mode, int timeout_seconds,
-        const std::vector<std::string>& args) {
-    DurationReporter duration_reporter(title.c_str());
-
-    std::string timeout_string = std::to_string(timeout_seconds);
-
-    const char *dumpsys_args[ARG_MAX] = { "/system/bin/dumpsys", "-t", timeout_string.c_str()};
-
-    int index = 3; // 'dumpsys' '-t' 'TIMEOUT'
-    for (const std::string& arg : args) {
-        if (index > ARG_MAX - 2) {
-            MYLOGE("Too many arguments for '%s': %d\n", title.c_str(), args.size());
-            return;
-        }
-        dumpsys_args[index++] = arg.c_str();
-    }
-    // Always terminate with nullptr.
-    dumpsys_args[index] = nullptr;
-
-    std::string args_string;
-    format_args(index, dumpsys_args, &args_string);
-    printf("------ %s (%s) ------\n", title.c_str(), args_string.c_str());
-    fflush(stdout);
-
-    ON_DRY_RUN({ update_progress(timeout_seconds); return; });
-
-    run_command_always(title.c_str(), root_mode, NORMAL_STDOUT, timeout_seconds, dumpsys_args);
-}
-
-static void run_dumpsys(const std::string& title, int timeout_seconds,
-        const std::vector<std::string>& args) {
-    _run_dumpsys(title, DONT_DROP_ROOT, timeout_seconds, args);
-}
-
-static void run_dumpsys_as_shell(const std::string& title, int timeout_seconds,
-        const std::vector<std::string>& args) {
-    _run_dumpsys(title, DROP_ROOT, timeout_seconds, args);
-}
-
 static const char mmcblk0[] = "/sys/block/mmcblk0/";
 unsigned long worst_write_perf = 20000; /* in KB/s */
 
@@ -928,7 +889,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
 #endif
     dump_file("INTERRUPTS (1)", "/proc/interrupts");
 
-    run_dumpsys("NETWORK DIAGNOSTICS", 10, {"connectivity", "--diag"});
+    run_command("NETWORK DIAGNOSTICS", 10, "dumpsys", "-t", "10", "connectivity", "--diag", NULL);
 
 #ifdef FWDUMP_bcmdhd
     run_command("DUMP WIFI STATUS", 20,
@@ -998,36 +959,36 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     printf("== Android Framework Services\n");
     printf("========================================================\n");
 
-    run_dumpsys("DUMPSYS", 60, {"--skip", "meminfo", "cpuinfo"});
+    run_command("DUMPSYS", 60, "dumpsys", "-t", "60", "--skip", "meminfo", "cpuinfo", NULL);
 
     printf("========================================================\n");
     printf("== Checkins\n");
     printf("========================================================\n");
 
-    run_dumpsys("CHECKIN BATTERYSTATS", 30, {"batterystats", "-c"});
-    run_dumpsys("CHECKIN MEMINFO", 30, {"meminfo", "--checkin"});
-    run_dumpsys("CHECKIN NETSTATS", 30, {"netstats", "--checkin"});
-    run_dumpsys("CHECKIN PROCSTATS", 30, {"procstats", "-c"});
-    run_dumpsys("CHECKIN USAGESTATS", 30, {"usagestats", "-c"});
-    run_dumpsys("CHECKIN PACKAGE", 30, {"package", "--checkin"});
+    run_command("CHECKIN BATTERYSTATS", 30, "dumpsys", "-t", "30", "batterystats", "-c", NULL);
+    run_command("CHECKIN MEMINFO", 30, "dumpsys", "-t", "30", "meminfo", "--checkin", NULL);
+    run_command("CHECKIN NETSTATS", 30, "dumpsys", "-t", "30", "netstats", "--checkin", NULL);
+    run_command("CHECKIN PROCSTATS", 30, "dumpsys", "-t", "30", "procstats", "-c", NULL);
+    run_command("CHECKIN USAGESTATS", 30, "dumpsys", "-t", "30", "usagestats", "-c", NULL);
+    run_command("CHECKIN PACKAGE", 30, "dumpsys", "-t", "30", "package", "--checkin", NULL);
 
     printf("========================================================\n");
     printf("== Running Application Activities\n");
     printf("========================================================\n");
 
-    run_dumpsys("APP ACTIVITIES", 30, {"activity", "all"});
+    run_command("APP ACTIVITIES", 30, "dumpsys", "-t", "30", "activity", "all", NULL);
 
     printf("========================================================\n");
     printf("== Running Application Services\n");
     printf("========================================================\n");
 
-    run_dumpsys("APP SERVICES", 30, {"activity", "service", "all"});
+    run_command("APP SERVICES", 30, "dumpsys", "-t", "30", "activity", "service", "all", NULL);
 
     printf("========================================================\n");
     printf("== Running Application Providers\n");
     printf("========================================================\n");
 
-    run_dumpsys("APP PROVIDERS", 30, {"activity", "provider", "all"});
+    run_command("APP PROVIDERS", 30, "dumpsys", "-t", "30", "activity", "provider", "all", NULL);
 
 
     printf("========================================================\n");
@@ -1404,8 +1365,8 @@ int main(int argc, char *argv[]) {
 
     // Invoking the following dumpsys calls before dump_traces() to try and
     // keep the system stats as close to its initial state as possible.
-    run_dumpsys_as_shell("DUMPSYS MEMINFO", 90, {"meminfo", "-a"});
-    run_dumpsys_as_shell("DUMPSYS CPUINFO", 10, {"cpuinfo", "-a"});
+    run_command_as_shell("DUMPSYS MEMINFO", 90, "dumpsys", "-t", "90", "meminfo", "-a", NULL);
+    run_command_as_shell("DUMPSYS CPUINFO", 10, "dumpsys", "-t", "10", "cpuinfo", "-a", NULL);
 
     /* collect stack traces from Dalvik and native processes (needs root) */
     dump_traces_path = dump_traces();
