@@ -44,13 +44,14 @@ static void vsyncOffCallback(union sigval val) {
     return;
 }
 
-EventThread::EventThread(const sp<VSyncSource>& src, SurfaceFlinger& flinger)
+EventThread::EventThread(const sp<VSyncSource>& src, SurfaceFlinger& flinger, bool interceptVSyncs)
     : mVSyncSource(src),
       mFlinger(flinger),
       mUseSoftwareVSync(false),
       mVsyncEnabled(false),
       mDebugVsyncEnabled(false),
-      mVsyncHintSent(false) {
+      mVsyncHintSent(false),
+      mInterceptVSyncs(interceptVSyncs) {
 
     for (int32_t i=0 ; i<DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES ; i++) {
         mVSyncEvent[i].header.type = DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
@@ -226,7 +227,9 @@ Vector< sp<EventThread::Connection> > EventThread::waitForEvent(
             timestamp = mVSyncEvent[i].header.timestamp;
             if (timestamp) {
                 // we have a vsync event to dispatch
-                mFlinger.mInterceptor.saveVSyncEvent(timestamp);
+                if (mInterceptVSyncs) {
+                    mFlinger.mInterceptor.saveVSyncEvent(timestamp);
+                }
                 *event = mVSyncEvent[i];
                 mVSyncEvent[i].header.timestamp = 0;
                 vsyncCount = mVSyncEvent[i].vsync.count;

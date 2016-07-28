@@ -503,10 +503,10 @@ void SurfaceFlinger::init() {
         // start the EventThread
         sp<VSyncSource> vsyncSrc = new DispSyncSource(&mPrimaryDispSync,
                 vsyncPhaseOffsetNs, true, "app");
-        mEventThread = new EventThread(vsyncSrc, *this);
+        mEventThread = new EventThread(vsyncSrc, *this, false);
         sp<VSyncSource> sfVsyncSrc = new DispSyncSource(&mPrimaryDispSync,
                 sfVsyncPhaseOffsetNs, true, "sf");
-        mSFEventThread = new EventThread(sfVsyncSrc, *this);
+        mSFEventThread = new EventThread(sfVsyncSrc, *this, true);
         mEventQueue.setEventThread(mSFEventThread);
 
         // set SFEventThread to SCHED_FIFO to minimize jitter
@@ -896,7 +896,7 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
         ALOGV("VSync Injections enabled");
         if (mVSyncInjector.get() == nullptr) {
             mVSyncInjector = new InjectVSyncSource();
-            mInjectorEventThread = new EventThread(mVSyncInjector, *this);
+            mInjectorEventThread = new EventThread(mVSyncInjector, *this, false);
         }
         mEventQueue.setEventThread(mInjectorEventThread);
     } else {
