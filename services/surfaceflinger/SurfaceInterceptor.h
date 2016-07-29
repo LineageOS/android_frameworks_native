@@ -17,7 +17,7 @@
 #ifndef ANDROID_SURFACEINTERCEPTOR_H
 #define ANDROID_SURFACEINTERCEPTOR_H
 
-#include <frameworks/native/cmds/surfacecapturereplay/proto/src/trace.pb.h>
+#include <frameworks/native/cmds/surfacereplayer/proto/src/trace.pb.h>
 
 #include <mutex>
 
