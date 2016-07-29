@@ -523,6 +523,8 @@ void SurfaceFlinger::init() {
     // set initial conditions (e.g. unblank default device)
     initializeDisplays();
 
+    mRenderEngine->primeCache();
+
     // start boot animation
     startBootAnim();
 
