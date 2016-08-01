@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <time.h>
+#include <dlfcn.h>
 
 #include <utils/Errors.h>
 #include <utils/Log.h>
@@ -90,15 +91,12 @@ static void setupMesh(Mesh& mesh, int width, int height, int viewportHeight) {
     texCoords[3] = vec2(1.0f, 1.0f);
 }
 
-
 LayerBlur::LayerBlur(SurfaceFlinger* flinger, const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags)
-    : Layer(flinger, client, name, w, h, flags), mBlurMaskSampling(1), mBlurMaskAlphaThreshold(0.0f)
-    ,mLastFrameSequence(0)
+    : Layer(flinger, client, name, w, h, flags), mBlurMaskSampling(1),
+    mBlurMaskAlphaThreshold(0.0f) ,mLastFrameSequence(0)
 {
-#ifdef UI_BLUR
-    mBlurToken = qtiblur::initBlurToken();
-#endif
+    mBlurToken = Blur::initBlurToken();
 
     GLuint texnames[3];
     mFlinger->getRenderEngine().genTextures(3, texnames);
@@ -108,9 +106,9 @@ LayerBlur::LayerBlur(SurfaceFlinger* flinger, const sp<Client>& client,
 }
 
 LayerBlur::~LayerBlur() {
-#ifdef UI_BLUR
-    qtiblur::releaseBlurToken(mBlurToken);
-#endif
+    if (mBlurToken != NULL) {
+        Blur::releaseBlurToken(mBlurToken);
+    }
 
     releaseFbo(mFboCapture);
     releaseFbo(mFboMasking);
@@ -168,18 +166,18 @@ void LayerBlur::onDraw(const sp<const DisplayDevice>& hw, const Region& /*clip*/
         // blur
         size_t outTexWidth = mTextureBlur.getWidth();
         size_t outTexHeight = mTextureBlur.getHeight();
-#ifdef UI_BLUR
-        if (!qtiblur::blur(mBlurToken,
-                s.blur,
-                mTextureCapture.getTextureName(),
-                mTextureCapture.getWidth(),
-                mTextureCapture.getHeight(),
-                mTextureBlur.getTextureName(),
-                &outTexWidth,
-                &outTexHeight)) {
-            return;
+        if (mBlurToken != NULL) {
+            if (!Blur::blur(mBlurToken,
+                    s.blur,
+                    mTextureCapture.getTextureName(),
+                    mTextureCapture.getWidth(),
+                    mTextureCapture.getHeight(),
+                    mTextureBlur.getTextureName(),
+                    &outTexWidth,
+                    &outTexHeight)) {
+                return;
+            }
         }
-#endif
 
         // mTextureBlur now has "Blurred image"
         mTextureBlur.setDimensions(outTexWidth, outTexHeight);
@@ -411,6 +409,55 @@ void LayerBlur::ensureFbo(FBO& fbo, int width, int height, int textureName) {
     }
 }
 
+status_t LayerBlur::initBlurImpl() {
+    return Blur::initBlurImpl();
+}
+
+void* LayerBlur::Blur::sLibHandle = NULL;
+
+LayerBlur::Blur::initBlurTokenFn LayerBlur::Blur::initBlurToken = NULL;
+LayerBlur::Blur::releaseBlurTokenFn LayerBlur::Blur::releaseBlurToken = NULL;
+LayerBlur::Blur::blurFn LayerBlur::Blur::blur = NULL;
+
+void LayerBlur::Blur::closeBlurImpl() {
+    if (sLibHandle != NULL) {
+        dlclose(sLibHandle);
+        sLibHandle = NULL;
+    }
+}
+
+status_t LayerBlur::Blur::initBlurImpl() {
+    if (sLibHandle != NULL) {
+        return OK;
+    }
+    sLibHandle = dlopen("libuiblur.so", RTLD_NOW);
+    if (sLibHandle == NULL) {
+        return NO_INIT;
+    }
+
+    // happy happy joy joy!
+
+    initBlurToken = (initBlurTokenFn)dlsym(sLibHandle,
+            "_ZN7qtiblur13initBlurTokenEv");
+    releaseBlurToken = (releaseBlurTokenFn)dlsym(sLibHandle,
+            "_ZN7qtiblur16releaseBlurTokenEPv");
+
+    if (sizeof(size_t) == 4) {
+        blur = (blurFn)dlsym(sLibHandle,
+                     "_ZN7qtiblur4blurEPvijjjjPjS1_");
+    } else if (sizeof(size_t) == 8) {
+        blur = (blurFn)dlsym(sLibHandle,
+                     "_ZN7qtiblur4blurEPvijmmjPmS1_");
+    }
+
+    if (!initBlurToken || !releaseBlurToken || !blur) {
+        ALOGE("dlsym failed for blur impl!: %s", dlerror());
+        closeBlurImpl();
+        return NO_INIT;
+    }
+
+    return OK;
+}
 
 // ---------------------------------------------------------------------------
 

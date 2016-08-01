@@ -576,6 +576,7 @@ private:
      */
     uint32_t mActiveFrameSequence;
 
+    bool mHasBlur;
 };
 
 }; // namespace android

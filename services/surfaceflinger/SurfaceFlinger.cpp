@@ -188,6 +188,9 @@ SurfaceFlinger::SurfaceFlinger()
     }
     ALOGI_IF(mDebugRegion, "showupdates enabled");
     ALOGI_IF(mDebugDDMS, "DDMS debugging enabled");
+
+    mHasBlur = LayerBlur::initBlurImpl() == OK;
+    ALOGI_IF(mHasBlur, "GPU blur layers available");
 }
 
 void SurfaceFlinger::onFirstRef()
@@ -2490,6 +2493,9 @@ status_t SurfaceFlinger::createBlurLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* outLayer)
 {
+    if (!mHasBlur) {
+        return NO_INIT;
+    }
     *outLayer = new LayerBlur(this, client, name, w, h, flags);
     *handle = (*outLayer)->getHandle();
     *gbp = (*outLayer)->getProducer();

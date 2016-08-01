@@ -20,14 +20,11 @@
 #ifndef ANDROID_LAYER_BLUR_H
 #define ANDROID_LAYER_BLUR_H
 
+#include <stdlib.h>
 #include <stdint.h>
 #include <sys/types.h>
 
 #include "Layer.h"
-
-#ifdef UI_BLUR
-#include "Blur.h"           // libuiblur.so
-#endif
 
 // ---------------------------------------------------------------------------
 
@@ -57,15 +54,33 @@ public:
     virtual bool setBlurMaskSampling(int32_t sampling) { mBlurMaskSampling = sampling; return true; }
     virtual bool setBlurMaskAlphaThreshold(float alpha) { mBlurMaskAlphaThreshold = alpha; return true; }
 
+    static status_t initBlurImpl();
+
 private:
-#ifdef UI_BLUR
-    qtiblur::BLUR_TOKEN mBlurToken;
-#endif
+    void* mBlurToken;
+
     wp<Layer> mBlurMaskLayer;
     int32_t mBlurMaskSampling;
     float mBlurMaskAlphaThreshold;
     uint32_t mLastFrameSequence;
 
+    class Blur {
+    public:
+        static status_t initBlurImpl();
+
+        typedef void* (*initBlurTokenFn)();
+        typedef void* (*releaseBlurTokenFn)(void*);
+        typedef void* (*blurFn)(void*, int, uint32_t, size_t, size_t, uint32_t, size_t*, size_t*);
+
+        static initBlurTokenFn initBlurToken;
+        static releaseBlurTokenFn releaseBlurToken;
+        static blurFn blur;
+
+    private:
+        static void closeBlurImpl();
+        static void* sLibHandle;
+    };
+ 
     class FBO {
     public:
         FBO() : fbo(0), width(0), height(0) {}
