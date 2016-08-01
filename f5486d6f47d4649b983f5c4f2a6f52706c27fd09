@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "3fa7e38b_184b8ab0",
+        "filename": "services/surfaceflinger/DisplayUtils.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 48,
+      "author": {
+        "id": 5530
+      },
+      "writtenOn": "2016-08-01T19:08:07Z",
+      "side": 1,
+      "message": "frameworks/native/services/surfaceflinger/DisplayUtils.cpp:48:10: fatal error: \u0027qd_utils.h\u0027 file not found",
+      "range": {
+        "startLine": 48,
+        "startChar": 10,
+        "endLine": 48,
+        "endChar": 18
+      },
+      "revId": "f5486d6f47d4649b983f5c4f2a6f52706c27fd09",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
