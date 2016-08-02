@@ -14,64 +14,6 @@
 
 LOCAL_PATH:= $(call my-dir)
 
-# libinput is partially built for the host (used by build time keymap validation tool)
-# These files are common to host and target builds.
-
-commonSources := \
-    Input.cpp \
-    InputDevice.cpp \
-    Keyboard.cpp \
-    KeyCharacterMap.cpp \
-    KeyLayoutMap.cpp \
-    VirtualKeyMap.cpp
-
-deviceSources := \
-    $(commonSources) \
-    IInputFlinger.cpp \
-    InputTransport.cpp \
-    VelocityControl.cpp \
-    VelocityTracker.cpp
-
-hostSources := \
-    $(commonSources)
-
-# For the host
-# =====================================================
-
-include $(CLEAR_VARS)
-
-LOCAL_SRC_FILES:= $(hostSources)
-
-LOCAL_MODULE:= libinput
-
-LOCAL_MODULE_TAGS := optional
-
-include $(BUILD_HOST_STATIC_LIBRARY)
-
-
-# For the device
-# =====================================================
-
-include $(CLEAR_VARS)
-
-LOCAL_SRC_FILES:= $(deviceSources)
-
-LOCAL_CLANG := true
-LOCAL_SANITIZE := integer
-
-LOCAL_SHARED_LIBRARIES := \
-	liblog \
-	libcutils \
-	libutils \
-	libbinder
-
-LOCAL_MODULE:= libinput
-
-LOCAL_MODULE_TAGS := optional
-
-include $(BUILD_SHARED_LIBRARY)
-
-
 # Include subdirectory makefiles
 # ============================================================
 

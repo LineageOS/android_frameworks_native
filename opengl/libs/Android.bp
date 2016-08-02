@@ -1,0 +1,21 @@
+// Build the ETC1 library
+cc_library {
+    name: "libETC1",
+    srcs: ["ETC1/etc1.cpp"],
+
+    target: {
+        android: {
+            static: {
+                enabled: false,
+            },
+        },
+        host: {
+            shared: {
+                enabled: false,
+            },
+        },
+        windows: {
+            enabled: true,
+        },
+    },
+}
