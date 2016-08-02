@@ -2,6 +2,7 @@
 cc_library {
     name: "libETC1",
     srcs: ["ETC1/etc1.cpp"],
+    host_supported: true,
 
     target: {
         android: {
