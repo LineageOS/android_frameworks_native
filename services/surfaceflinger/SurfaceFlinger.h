@@ -539,6 +539,7 @@ private:
     bool mPropagateBackpressure = true;
 #endif
     SurfaceInterceptor mInterceptor;
+    bool mUseHwcVirtualDisplays = true;
 
     // these are thread safe
     mutable MessageQueue mEventQueue;
