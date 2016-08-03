@@ -14,19 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef _DUMPSTATE_H_
-#define _DUMPSTATE_H_
+#ifndef FRAMEWORK_NATIVE_CMD_DUMPSTATE_H_
+#define FRAMEWORK_NATIVE_CMD_DUMPSTATE_H_
 
-/* When defined, skips the real dumps and just print the section headers.
-   Useful when debugging dumpstate itself. */
-//#define _DUMPSTATE_DRY_RUN_
+#ifndef ON_DRY_RUN_RETURN
+#define ON_DRY_RUN_RETURN(X) if (is_dry_run()) return X
+#endif
 
-#ifdef _DUMPSTATE_DRY_RUN_
-#define ON_DRY_RUN_RETURN(X) return X
-#define ON_DRY_RUN(code) code
-#else
-#define ON_DRY_RUN_RETURN(X)
-#define ON_DRY_RUN(code)
+#ifndef ON_DRY_RUN
+#define ON_DRY_RUN(code) if (is_dry_run()) code
 #endif
 
 #ifndef MYLOGD
@@ -212,6 +208,15 @@ void format_args(int argc, const char *argv[], std::string *args);
 bool is_user_build();
 
 /*
+ * When running in dry-run mode, skips the real dumps and just print the section headers.
+ *
+ * Useful when debugging dumpstate or other bugreport-related activities.
+ *
+ * Dry-run mode is enabled by setting the system property dumpstate.dry_run to true.
+ */
+bool is_dry_run();
+
+/*
  * Helper class used to report how long it takes for a section to finish.
  *
  * Typical usage:
@@ -238,4 +243,4 @@ private:
 }
 #endif
 
-#endif /* _DUMPSTATE_H_ */
+#endif /* FRAMEWORK_NATIVE_CMD_DUMPSTATE_H_ */
