@@ -51,5 +51,10 @@ cc_library {
                 "libbinder",
             ],
         },
+        host: {
+            shared: {
+                enabled: false,
+            },
+        },
     },
 }
