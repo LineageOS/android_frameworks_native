@@ -65,6 +65,7 @@ int control_socket_fd = -1;
 /* suffix of the bugreport files - it's typically the date (when invoked with -d),
  * although it could be changed by the user using a system property */
 static std::string suffix;
+static bool dry_run = false;
 
 #define PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops"
 #define ALT_PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops-0"
@@ -95,12 +96,16 @@ std::string bugreport_dir;
 /*
  * List of supported zip format versions.
  *
- * See bugreport-format.txt for more info.
+ * See bugreport-format.md for more info.
  */
 static std::string VERSION_DEFAULT = "1.0";
 
 bool is_user_build() {
     return 0 == strncmp(build_type, "user", PROPERTY_VALUE_MAX - 1);
+}
+
+bool is_dry_run() {
+    return dry_run;
 }
 
 /* gets the tombstone data, according to the bugreport type: if zipped, gets all tombstones;
@@ -1160,6 +1165,11 @@ int main(int argc, char *argv[]) {
     now = time(NULL);
 
     MYLOGI("begin\n");
+
+    dry_run = property_get_bool("dumpstate.dry_run", 0) != 0;
+    if (is_dry_run()) {
+        MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
+    }
 
     /* gets the sequential id */
     char last_id[PROPERTY_VALUE_MAX];
