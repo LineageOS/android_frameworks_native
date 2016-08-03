@@ -1,0 +1,19 @@
+// Build the unit tests for dumpsys
+cc_test {
+    name: "dumpsys_test",
+
+    srcs: ["dumpsys_test.cpp"],
+
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libutils",
+    ],
+
+    static_libs: [
+        "libdumpsys",
+        "libgmock",
+    ],
+
+    clang: true,
+}
