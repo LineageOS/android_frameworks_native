@@ -99,7 +99,8 @@ uint64_t DurationReporter::DurationReporter::nanotime() {
 }
 
 void for_each_userid(void (*func)(int), const char *header) {
-    ON_DRY_RUN_RETURN();
+    if (is_dry_run()) return;
+
     DIR *d;
     struct dirent *de;
 
@@ -181,7 +182,8 @@ static void for_each_pid_helper(int pid, const char *cmdline, void *arg) {
 }
 
 void for_each_pid(for_each_pid_func func, const char *header) {
-    ON_DRY_RUN_RETURN();
+    if (is_dry_run()) return;
+
     __for_each_pid(for_each_pid_helper, header, (void *) func);
 }
 
@@ -234,12 +236,14 @@ static void for_each_tid_helper(int pid, const char *cmdline, void *arg) {
 }
 
 void for_each_tid(for_each_tid_func func, const char *header) {
-    ON_DRY_RUN_RETURN();
+    if (is_dry_run()) return;
+
     __for_each_pid(for_each_tid_helper, header, (void *) func);
 }
 
 void show_wchan(int pid, int tid, const char *name) {
-    ON_DRY_RUN_RETURN();
+    if (is_dry_run()) return;
+
     char path[255];
     char buffer[255];
     int fd, ret, save_errno;
@@ -305,7 +309,8 @@ static void snprdec(char *buffer, size_t len, size_t spc, unsigned permille) {
 }
 
 void show_showtime(int pid, const char *name) {
-    ON_DRY_RUN_RETURN();
+    if (is_dry_run()) return;
+
     char path[255];
     char buffer[1023];
     int fd, ret, save_errno;
@@ -372,7 +377,8 @@ void do_dmesg() {
     DurationReporter duration_reporter(title);
     printf("------ %s ------\n", title);
 
-    ON_DRY_RUN_RETURN();
+    if (is_dry_run()) return;
+
     /* Get size of kernel buffer */
     int size = klogctl(KLOG_SIZE_BUFFER, NULL, 0);
     if (size <= 0) {
@@ -423,7 +429,11 @@ static int _dump_file_from_fd(const char *title, const char *path, int fd) {
         }
         printf(") ------\n");
     }
-    ON_DRY_RUN({ update_progress(WEIGHT_FILE); close(fd); return 0; });
+    if (is_dry_run()) {
+        update_progress(WEIGHT_FILE);
+        close(fd);
+        return 0;
+    }
 
     bool newline = false;
     fd_set read_set;
@@ -522,7 +532,7 @@ int dump_files(const char *title, const char *dir,
     if (title) {
         printf("------ %s (%s) ------\n", title, dir);
     }
-    ON_DRY_RUN_RETURN(0);
+    if (is_dry_run()) return 0;
 
     if (dir[strlen(dir) - 1] == '/') {
         ++slash;
@@ -579,7 +589,8 @@ int dump_files(const char *title, const char *dir,
  * stuck.
  */
 int dump_file_from_fd(const char *title, const char *path, int fd) {
-    ON_DRY_RUN_RETURN(0);
+    if (is_dry_run()) return 0;
+
     int flags = fcntl(fd, F_GETFL);
     if (flags == -1) {
         printf("*** %s: failed to get flags on fd %d: %s\n", path, fd, strerror(errno));
@@ -671,9 +682,12 @@ int run_command(const char *title, int timeout_seconds, const char *command, ...
         return -1;
     }
 
-    ON_DRY_RUN({ update_progress(timeout_seconds); va_end(ap); return 0; });
-
-    int status = run_command_always(title, DONT_DROP_ROOT, NORMAL_STDOUT, timeout_seconds, args);
+    int status = 0;
+    if (is_dry_run()) {
+        update_progress(timeout_seconds);
+    } else {
+        status = run_command_always(title, DONT_DROP_ROOT, NORMAL_STDOUT, timeout_seconds, args);
+    }
     va_end(ap);
     return status;
 }
@@ -709,9 +723,12 @@ int run_command_as_shell(const char *title, int timeout_seconds, const char *com
         return -1;
     }
 
-    ON_DRY_RUN({ update_progress(timeout_seconds); va_end(ap); return 0; });
-
-    int status = run_command_always(title, DROP_ROOT, NORMAL_STDOUT, timeout_seconds, args);
+    int status = 0;
+    if (is_dry_run()) {
+        update_progress(timeout_seconds);
+    } else {
+        status = run_command_always(title, DROP_ROOT, NORMAL_STDOUT, timeout_seconds, args);
+    }
     va_end(ap);
     return status;
 }
@@ -910,7 +927,7 @@ void print_properties() {
     const char* title = "SYSTEM PROPERTIES";
     DurationReporter duration_reporter(title);
     printf("------ %s ------\n", title);
-    ON_DRY_RUN_RETURN();
+    if (is_dry_run()) return;
     size_t i;
     num_props = 0;
     property_list(print_prop, NULL);
@@ -1016,7 +1033,8 @@ static bool should_dump_native_traces(const char* path) {
 /* dump Dalvik and native stack traces, return the trace file location (NULL if none) */
 const char *dump_traces() {
     DurationReporter duration_reporter("DUMP TRACES", NULL);
-    ON_DRY_RUN_RETURN(NULL);
+    if (is_dry_run()) return NULL;
+
     const char* result = NULL;
 
     char traces_path[PROPERTY_VALUE_MAX] = "";
@@ -1171,7 +1189,7 @@ error_close_fd:
 
 void dump_route_tables() {
     DurationReporter duration_reporter("DUMP ROUTE TABLES");
-    ON_DRY_RUN_RETURN();
+    if (is_dry_run()) return;
     const char* const RT_TABLES_PATH = "/data/misc/net/rt_tables";
     dump_file("RT_TABLES", RT_TABLES_PATH);
     FILE* fp = fopen(RT_TABLES_PATH, "re");

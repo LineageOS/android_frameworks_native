@@ -296,7 +296,10 @@ static void _run_dumpsys(const std::string& title, RootMode root_mode, int timeo
     printf("------ %s (%s) ------\n", title.c_str(), args_string.c_str());
     fflush(stdout);
 
-    ON_DRY_RUN({ update_progress(timeout_seconds); return; });
+    if (is_dry_run()) {
+        update_progress(timeout_seconds);
+        return;
+    }
 
     run_command_always(title.c_str(), root_mode, NORMAL_STDOUT, timeout_seconds, dumpsys_args);
 }

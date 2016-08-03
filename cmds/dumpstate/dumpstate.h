@@ -17,14 +17,6 @@
 #ifndef FRAMEWORK_NATIVE_CMD_DUMPSTATE_H_
 #define FRAMEWORK_NATIVE_CMD_DUMPSTATE_H_
 
-#ifndef ON_DRY_RUN_RETURN
-#define ON_DRY_RUN_RETURN(X) if (is_dry_run()) return X
-#endif
-
-#ifndef ON_DRY_RUN
-#define ON_DRY_RUN(code) if (is_dry_run()) code
-#endif
-
 #ifndef MYLOGD
 #define MYLOGD(...) fprintf(stderr, __VA_ARGS__); ALOGD(__VA_ARGS__);
 #endif
