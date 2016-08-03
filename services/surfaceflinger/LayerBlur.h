@@ -20,11 +20,14 @@
 #ifndef ANDROID_LAYER_BLUR_H
 #define ANDROID_LAYER_BLUR_H
 
-#include <stdlib.h>
 #include <stdint.h>
 #include <sys/types.h>
 
 #include "Layer.h"
+
+#ifdef UI_BLUR
+#include "Blur.h"           // libuiblur.so
+#endif
 
 // ---------------------------------------------------------------------------
 
@@ -55,36 +58,9 @@ public:
     virtual bool setBlurMaskAlphaThreshold(float alpha) { mBlurMaskAlphaThreshold = alpha; return true; }
 
 private:
-    class BlurImpl {
-    public:
-
-        BlurImpl();
-        ~BlurImpl();
-
-        status_t blur(int level, uint32_t inId, size_t inWidth, size_t inheight,
-                uint32_t outId, size_t* outWidth, size_t* outHeight);
-
-    protected:
-        static status_t initBlurImpl();
-        static void closeBlurImpl();
-        static void* sLibHandle;
-
-        typedef void* (*initBlurTokenFn)();
-        typedef void* (*releaseBlurTokenFn)(void*);
-        typedef void* (*blurFn)(void*, int, uint32_t, size_t, size_t, uint32_t, size_t*, size_t*);
-
-        static initBlurTokenFn initBlurToken;
-        static releaseBlurTokenFn releaseBlurToken;
-        static blurFn doBlur;
-
-        static Mutex sLock;
-
-    private:
-        void* mToken;
-    };
-
-    BlurImpl mBlurImpl;
-
+#ifdef UI_BLUR
+    qtiblur::BLUR_TOKEN mBlurToken;
+#endif
     wp<Layer> mBlurMaskLayer;
     int32_t mBlurMaskSampling;
     float mBlurMaskAlphaThreshold;
