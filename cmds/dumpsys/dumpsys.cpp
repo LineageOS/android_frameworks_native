@@ -1,9 +1,18 @@
 /*
- * Command that dumps interesting system state to the log.
+ * Copyright (C) 2009 The Android Open Source Project
  *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
-#define LOG_TAG "dumpsys"
 
 #include <algorithm>
 #include <chrono>
@@ -12,7 +21,6 @@
 #include <android-base/file.h>
 #include <android-base/stringprintf.h>
 #include <android-base/unique_fd.h>
-#include <binder/IServiceManager.h>
 #include <binder/Parcel.h>
 #include <binder/ProcessState.h>
 #include <binder/TextOutput.h>
@@ -29,6 +37,8 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include "dumpsys.h"
 
 using namespace android;
 using android::base::StringPrintf;
@@ -53,7 +63,7 @@ static void usage() {
             "         SERVICE [ARGS]: dumps only service SERVICE, optionally passing ARGS to it\n");
 }
 
-bool IsSkipped(const Vector<String16>& skipped, const String16& service) {
+static bool IsSkipped(const Vector<String16>& skipped, const String16& service) {
     for (const auto& candidate : skipped) {
         if (candidate == service) {
             return true;
@@ -62,17 +72,7 @@ bool IsSkipped(const Vector<String16>& skipped, const String16& service) {
     return false;
 }
 
-int main(int argc, char* const argv[])
-{
-    signal(SIGPIPE, SIG_IGN);
-    sp<IServiceManager> sm = defaultServiceManager();
-    fflush(stdout);
-    if (sm == NULL) {
-        ALOGE("Unable to get default service manager!");
-        aerr << "dumpsys: Unable to get default service manager!" << endl;
-        return 20;
-    }
-
+int Dumpsys::main(int argc, char* const argv[]) {
     Vector<String16> services;
     Vector<String16> args;
     Vector<String16> skippedServices;
@@ -85,6 +85,9 @@ int main(int argc, char* const argv[])
         {     0,           0, 0,  0 }
     };
 
+    // Must reset optind, otherwise subsequent calls will fail (wouldn't happen on main.cpp, but
+    // happens on test cases).
+    optind = 1;
     while (1) {
         int c;
         int optionIndex = 0;
@@ -147,7 +150,7 @@ int main(int argc, char* const argv[])
 
     if (services.empty() || showListOnly) {
         // gets all services
-        services = sm->listServices();
+        services = sm_->listServices();
         services.sort(sort_func);
         args.add(String16("-a"));
     }
@@ -159,8 +162,9 @@ int main(int argc, char* const argv[])
         aout << "Currently running services:" << endl;
 
         for (size_t i=0; i<N; i++) {
-            sp<IBinder> service = sm->checkService(services[i]);
-            if (service != NULL) {
+            sp<IBinder> service = sm_->checkService(services[i]);
+
+            if (service != nullptr) {
                 bool skipped = IsSkipped(skippedServices, services[i]);
                 aout << "  " << services[i] << (skipped ? " (skipped)" : "") << endl;
             }
@@ -175,8 +179,8 @@ int main(int argc, char* const argv[])
         String16 service_name = std::move(services[i]);
         if (IsSkipped(skippedServices, service_name)) continue;
 
-        sp<IBinder> service = sm->checkService(service_name);
-        if (service != NULL) {
+        sp<IBinder> service = sm_->checkService(service_name);
+        if (service != nullptr) {
             int sfd[2];
 
             if (pipe(sfd) != 0) {
@@ -262,7 +266,10 @@ int main(int argc, char* const argv[])
             }
 
             if (timed_out) {
-                aout << endl << "*** SERVICE DUMP TIMEOUT EXPIRED ***" << endl << endl;
+                aout << endl
+                     << "*** SERVICE '" << service_name << "' DUMP TIMEOUT (" << timeoutArg
+                     << "s) EXPIRED ***" << endl
+                     << endl;
             }
 
             if (timed_out || error) {
