@@ -2,5 +2,4 @@ cc_binary {
     name: "bugreport",
     srcs: ["bugreport.cpp"],
     cflags: ["-Wall"],
-    shared_libs: ["libcutils"],
 }
