@@ -1,0 +1,48 @@
+cc_defaults {
+    name: "installd_defaults",
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+    srcs: [
+        "commands.cpp",
+        "utils.cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "libcutils",
+        "liblog",
+        "liblogwrap",
+        "libselinux",
+    ],
+
+    clang: true,
+}
+
+//
+// Static library used in testing and executable
+//
+
+cc_library_static {
+    name: "libinstalld",
+    defaults: ["installd_defaults"],
+
+    export_include_dirs: ["."],
+}
+
+//
+// Executable
+//
+
+cc_binary {
+    name: "installd",
+    defaults: ["installd_defaults"],
+    srcs: ["installd.cpp"],
+
+    static_libs: ["libdiskusage"],
+
+    init_rc: ["installd.rc"],
+}
+
+subdirs = ["tests"]
