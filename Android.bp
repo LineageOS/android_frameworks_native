@@ -1,0 +1,6 @@
+subdirs = [
+    "cmds/*",
+    "libs/*",
+    "opengl/*",
+    "services/*",
+]
