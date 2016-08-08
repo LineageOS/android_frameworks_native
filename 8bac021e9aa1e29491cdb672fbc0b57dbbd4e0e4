@@ -1,0 +1,44 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "3fa7e38b_1e5b6854",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 325,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2016-08-08T02:40:26Z",
+      "side": 1,
+      "message": "What\u0027s enabling this flag? Should this be USES_HWC_SERVICES too? If not, this is pretty generic sounding, and should be renamed if possible :/",
+      "range": {
+        "startLine": 325,
+        "startChar": 12,
+        "endLine": 325,
+        "endChar": 24
+      },
+      "revId": "8bac021e9aa1e29491cdb672fbc0b57dbbd4e0e4",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "3fa7e38b_5e49e088",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 1014,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2016-08-08T02:40:26Z",
+      "side": 1,
+      "message": "needs moar indent",
+      "revId": "8bac021e9aa1e29491cdb672fbc0b57dbbd4e0e4",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
