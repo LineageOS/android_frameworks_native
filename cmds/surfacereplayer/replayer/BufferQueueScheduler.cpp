@@ -23,7 +23,7 @@
 using namespace android;
 
 BufferQueueScheduler::BufferQueueScheduler(
-        const sp<SurfaceControl>& surfaceControl, const RGB& color, int id)
+        const sp<SurfaceControl>& surfaceControl, const HSV& color, int id)
       : mSurfaceControl(surfaceControl), mColor(color), mSurfaceId(id), mContinueScheduling(true) {}
 
 void BufferQueueScheduler::startScheduling() {
@@ -44,6 +44,7 @@ void BufferQueueScheduler::startScheduling() {
 
             bufferUpdate(event.dimensions);
             fillSurface(event.event);
+            mColor.modulate();
             lock.lock();
             mBufferEvents.pop();
         }
@@ -64,7 +65,7 @@ void BufferQueueScheduler::stopScheduling() {
 }
 
 void BufferQueueScheduler::setSurfaceControl(
-        const sp<SurfaceControl>& surfaceControl, const RGB& color) {
+        const sp<SurfaceControl>& surfaceControl, const HSV& color) {
     std::lock_guard<std::mutex> lock(mMutex);
     mSurfaceControl = surfaceControl;
     mColor = color;
@@ -76,7 +77,7 @@ void BufferQueueScheduler::bufferUpdate(const Dimensions& dimensions) {
     s->setBuffersDimensions(dimensions.width, dimensions.height);
 }
 
-void BufferQueueScheduler::fillSurface(std::shared_ptr<Event> event) {
+void BufferQueueScheduler::fillSurface(const std::shared_ptr<Event>& event) {
     ANativeWindow_Buffer outBuffer;
     sp<Surface> s = mSurfaceControl->getSurface();
 
@@ -87,13 +88,15 @@ void BufferQueueScheduler::fillSurface(std::shared_ptr<Event> event) {
         return;
     }
 
+    auto color = mColor.getRGB();
+
     auto img = reinterpret_cast<uint8_t*>(outBuffer.bits);
     for (int y = 0; y < outBuffer.height; y++) {
         for (int x = 0; x < outBuffer.width; x++) {
             uint8_t* pixel = img + (4 * (y * outBuffer.stride + x));
-            pixel[0] = mColor.r;
-            pixel[1] = mColor.g;
-            pixel[2] = mColor.b;
+            pixel[0] = color.r;
+            pixel[1] = color.g;
+            pixel[2] = color.b;
             pixel[3] = LAYER_ALPHA;
         }
     }

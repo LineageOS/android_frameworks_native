@@ -52,23 +52,23 @@ struct BufferEvent {
 
 class BufferQueueScheduler {
   public:
-    BufferQueueScheduler(const sp<SurfaceControl>& surfaceControl, const RGB& color, int id);
+    BufferQueueScheduler(const sp<SurfaceControl>& surfaceControl, const HSV& color, int id);
 
     void startScheduling();
     void addEvent(const BufferEvent&);
     void stopScheduling();
 
-    void setSurfaceControl(const sp<SurfaceControl>& surfaceControl, const RGB& color);
+    void setSurfaceControl(const sp<SurfaceControl>& surfaceControl, const HSV& color);
 
   private:
     void bufferUpdate(const Dimensions& dimensions);
 
     // Lock and fill the surface, block until the event is signaled by the main loop,
     // then unlock and post the buffer.
-    void fillSurface(std::shared_ptr<Event>);
+    void fillSurface(const std::shared_ptr<Event>& event);
 
     sp<SurfaceControl> mSurfaceControl;
-    RGB mColor;
+    HSV mColor;
     const int mSurfaceId;
 
     bool mContinueScheduling;

@@ -40,16 +40,21 @@
 namespace android {
 
 const auto DEFAULT_PATH = "/data/local/tmp/SurfaceTrace.dat";
-const auto RAND_COLOR_SEED = 1000;
+const auto RAND_COLOR_SEED = 700;
 const auto DEFAULT_THREADS = 3;
 
-typedef uint32_t layer_id;
+typedef int32_t layer_id;
+typedef int32_t display_id;
+
+typedef google::protobuf::RepeatedPtrField<SurfaceChange> SurfaceChanges;
+typedef google::protobuf::RepeatedPtrField<DisplayChange> DisplayChanges;
 
 class Replayer {
   public:
     Replayer(const std::string& filename, bool replayManually = false,
-            int numThreads = DEFAULT_THREADS);
-    Replayer(const Trace& trace, bool replayManually = false, int numThreads = DEFAULT_THREADS);
+            int numThreads = DEFAULT_THREADS, bool wait = true, nsecs_t stopHere = -1);
+    Replayer(const Trace& trace, bool replayManually = false, int numThreads = DEFAULT_THREADS,
+            bool wait = true, nsecs_t stopHere = -1);
 
     status_t replay();
 
@@ -62,24 +67,37 @@ class Replayer {
     status_t dispatchEvent(int index);
 
     status_t doTransaction(const Transaction& transaction, const std::shared_ptr<Event>& event);
-    status_t createSurfaceControl(const Create& create, const std::shared_ptr<Event>& event);
-    status_t deleteSurfaceControl(const Delete& delete_, const std::shared_ptr<Event>& event);
+    status_t createSurfaceControl(const SurfaceCreation& create,
+            const std::shared_ptr<Event>& event);
+    status_t deleteSurfaceControl(const SurfaceDeletion& delete_,
+            const std::shared_ptr<Event>& event);
     status_t injectVSyncEvent(const VSyncEvent& vsyncEvent, const std::shared_ptr<Event>& event);
+    void createDisplay(const DisplayCreation& create, const std::shared_ptr<Event>& event);
+    void deleteDisplay(const DisplayDeletion& delete_, const std::shared_ptr<Event>& event);
+    void updatePowerMode(const PowerModeUpdate& update, const std::shared_ptr<Event>& event);
 
-    status_t setPosition(uint32_t id, const PositionChange& pc);
-    status_t setSize(uint32_t id, const SizeChange& sc);
-    status_t setAlpha(uint32_t id, const AlphaChange& ac);
-    status_t setLayer(uint32_t id, const LayerChange& lc);
-    status_t setCrop(uint32_t id, const CropChange& cc);
-    status_t setFinalCrop(uint32_t id, const FinalCropChange& fcc);
-    status_t setMatrix(uint32_t id, const MatrixChange& mc);
-    status_t setOverrideScalingMode(uint32_t id, const OverrideScalingModeChange& osmc);
-    status_t setTransparentRegionHint(uint32_t id, const TransparentRegionHintChange& trgc);
-    status_t setLayerStack(uint32_t id, const LayerStackChange& lsc);
-    status_t setHiddenFlag(uint32_t id, const HiddenFlagChange& hfc);
-    status_t setOpaqueFlag(uint32_t id, const OpaqueFlagChange& ofc);
-    status_t setSecureFlag(uint32_t id, const SecureFlagChange& sfc);
-    status_t setDeferredTransaction(uint32_t id, const DeferredTransactionChange& dtc);
+    status_t doSurfaceTransaction(const SurfaceChanges& surfaceChange);
+    void doDisplayTransaction(const DisplayChanges& displayChange);
+
+    status_t setPosition(layer_id id, const PositionChange& pc);
+    status_t setSize(layer_id id, const SizeChange& sc);
+    status_t setAlpha(layer_id id, const AlphaChange& ac);
+    status_t setLayer(layer_id id, const LayerChange& lc);
+    status_t setCrop(layer_id id, const CropChange& cc);
+    status_t setFinalCrop(layer_id id, const FinalCropChange& fcc);
+    status_t setMatrix(layer_id id, const MatrixChange& mc);
+    status_t setOverrideScalingMode(layer_id id, const OverrideScalingModeChange& osmc);
+    status_t setTransparentRegionHint(layer_id id, const TransparentRegionHintChange& trgc);
+    status_t setLayerStack(layer_id id, const LayerStackChange& lsc);
+    status_t setHiddenFlag(layer_id id, const HiddenFlagChange& hfc);
+    status_t setOpaqueFlag(layer_id id, const OpaqueFlagChange& ofc);
+    status_t setSecureFlag(layer_id id, const SecureFlagChange& sfc);
+    status_t setDeferredTransaction(layer_id id, const DeferredTransactionChange& dtc);
+
+    void setDisplaySurface(display_id id, const DispSurfaceChange& dsc);
+    void setDisplayLayerStack(display_id id, const LayerStackChange& lsc);
+    void setDisplaySize(display_id id, const SizeChange& sc);
+    void setDisplayProjection(display_id id, const ProjectionChange& pc);
 
     void doDeleteSurfaceControls();
     void waitUntilTimestamp(int64_t timestamp);
@@ -93,21 +111,30 @@ class Replayer {
     int64_t mCurrentTime = 0;
     int32_t mNumThreads = DEFAULT_THREADS;
 
+    Increment mCurrentIncrement;
+
     std::string mLastInput;
 
     static atomic_bool sReplayingManually;
     bool mWaitingForNextVSync;
+    bool mWaitForTimeStamps;
+    nsecs_t mStopTimeStamp;
+    bool mHasStopped;
 
     std::mutex mLayerLock;
     std::condition_variable mLayerCond;
     std::unordered_map<layer_id, sp<SurfaceControl>> mLayers;
-    std::unordered_map<layer_id, RGB> mColors;
+    std::unordered_map<layer_id, HSV> mColors;
 
     std::mutex mPendingLayersLock;
     std::vector<layer_id> mLayersPendingRemoval;
 
     std::mutex mBufferQueueSchedulerLock;
     std::unordered_map<layer_id, std::shared_ptr<BufferQueueScheduler>> mBufferQueueSchedulers;
+
+    std::mutex mDisplayLock;
+    std::condition_variable mDisplayCond;
+    std::unordered_map<display_id, sp<IBinder>> mDisplays;
 
     sp<SurfaceComposerClient> mComposerClient;
     std::queue<std::shared_ptr<Event>> mPendingIncrements;
