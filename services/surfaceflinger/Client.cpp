@@ -43,7 +43,10 @@ Client::~Client()
 {
     const size_t count = mLayers.size();
     for (size_t i=0 ; i<count ; i++) {
-        mFlinger->removeLayer(mLayers.valueAt(i));
+        sp<Layer> layer(mLayers.valueAt(i).promote());
+        if (layer != 0) {
+            mFlinger->removeLayer(layer);
+        }
     }
 }
 
