@@ -278,11 +278,12 @@ static void _run_dumpsys(const std::string& title, RootMode root_mode, int timeo
 
     std::string timeout_string = std::to_string(timeout_seconds);
 
-    const char *dumpsys_args[ARG_MAX] = { "/system/bin/dumpsys", "-t", timeout_string.c_str()};
+    const char *dumpsys_args[MAX_ARGS_ARRAY_SIZE] =
+        { "/system/bin/dumpsys", "-t", timeout_string.c_str()};
 
     int index = 3; // 'dumpsys' '-t' 'TIMEOUT'
     for (const std::string& arg : args) {
-        if (index > ARG_MAX - 2) {
+        if (index > MAX_ARGS_ARRAY_SIZE - 2) {
             MYLOGE("Too many arguments for '%s': %d\n", title.c_str(), (int) args.size());
             return;
         }

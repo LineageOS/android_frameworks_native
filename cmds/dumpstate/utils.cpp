@@ -655,7 +655,7 @@ int run_command(const char *title, int timeout_seconds, const char *command, ...
     DurationReporter duration_reporter(title);
     fflush(stdout);
 
-    const char *args[ARG_MAX] = {command};
+    const char *args[MAX_ARGS_ARRAY_SIZE] = {command};
     size_t arg;
     va_list ap;
     va_start(ap, command);
@@ -696,7 +696,7 @@ int run_command_as_shell(const char *title, int timeout_seconds, const char *com
     DurationReporter duration_reporter(title);
     fflush(stdout);
 
-    const char *args[ARG_MAX] = {command};
+    const char *args[MAX_ARGS_ARRAY_SIZE] = {command};
     size_t arg;
     va_list ap;
     va_start(ap, command);
@@ -888,11 +888,11 @@ void send_broadcast(const std::string& action, const std::vector<std::string>& a
         MYLOGE("send_broadcast: too many arguments (%d)\n", (int) args.size());
         return;
     }
-    const char *am_args[ARG_MAX] = { "/system/bin/am", "broadcast", "--user", "0", "-a",
+    const char *am_args[MAX_ARGS_ARRAY_SIZE] = { "/system/bin/am", "broadcast", "--user", "0", "-a",
                                      action.c_str() };
     size_t am_index = 5; // Starts at the index of last initial value above.
     for (const std::string& arg : args) {
-        if (am_index > ARG_MAX - 2) {
+        if (am_index > MAX_ARGS_ARRAY_SIZE - 2) {
             MYLOGE("send_broadcast: too many arguments (%d)\n", (int) args.size());
             return;
         }
@@ -1416,7 +1416,7 @@ void format_args(const char* command, const char *args[], std::string *string) {
     if (args[1] == nullptr) return;
     string->append(" ");
 
-    for (int arg = 1; arg <= 1000; ++arg) {
+    for (int arg = 1; arg <= MAX_ARGS_ARRAY_SIZE; ++arg) {
         if (args[arg] == nullptr) return;
         string->append(args[arg]);
         if (args[arg+1] != nullptr) {

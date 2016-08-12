@@ -37,6 +37,11 @@
 
 #define SU_PATH "/system/xbin/su"
 
+// Workaround for const char *args[MAX_ARGS_ARRAY_SIZE] variables until they're converted to
+// std::vector<std::string>
+#define MAX_ARGS_ARRAY_SIZE 1000
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
