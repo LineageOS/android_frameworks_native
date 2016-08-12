@@ -22,6 +22,7 @@
 
 #include <binder/IMemory.h>
 
+#include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
 #include <private/gui/ComposerService.h>
@@ -40,15 +41,24 @@
 #include <functional>
 #include <iostream>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <thread>
+#include <vector>
 
 using namespace android;
 
 std::atomic_bool Replayer::sReplayingManually(false);
 
-Replayer::Replayer(const std::string& filename, bool replayManually, int numThreads)
-      : mTrace(), mLoaded(false), mIncrementIndex(0), mCurrentTime(0), mNumThreads(numThreads) {
+Replayer::Replayer(const std::string& filename, bool replayManually, int numThreads, bool wait,
+        nsecs_t stopHere)
+      : mTrace(),
+        mLoaded(false),
+        mIncrementIndex(0),
+        mCurrentTime(0),
+        mNumThreads(numThreads),
+        mWaitForTimeStamps(wait),
+        mStopTimeStamp(stopHere) {
     srand(RAND_COLOR_SEED);
 
     std::fstream input(filename, std::ios::in | std::ios::binary);
@@ -62,19 +72,32 @@ Replayer::Replayer(const std::string& filename, bool replayManually, int numThre
     mCurrentTime = mTrace.increment(0).time_stamp();
 
     sReplayingManually.store(replayManually);
+
+    if (stopHere < 0) {
+        mHasStopped = true;
+    }
 }
 
-Replayer::Replayer(const Trace& t, bool replayManually, int numThreads)
-      : mTrace(t), mLoaded(true), mIncrementIndex(0), mCurrentTime(0), mNumThreads(numThreads) {
+Replayer::Replayer(const Trace& t, bool replayManually, int numThreads, bool wait, nsecs_t stopHere)
+      : mTrace(t),
+        mLoaded(true),
+        mIncrementIndex(0),
+        mCurrentTime(0),
+        mNumThreads(numThreads),
+        mWaitForTimeStamps(wait),
+        mStopTimeStamp(stopHere) {
     srand(RAND_COLOR_SEED);
     mCurrentTime = mTrace.increment(0).time_stamp();
 
     sReplayingManually.store(replayManually);
+
+    if (stopHere < 0) {
+        mHasStopped = true;
+    }
 }
 
 status_t Replayer::replay() {
-    // for manual control
-    signal(SIGINT, Replayer::stopAutoReplayHandler);
+    signal(SIGINT, Replayer::stopAutoReplayHandler); //for manual control
 
     ALOGV("There are %d increments.", mTrace.increment_size());
 
@@ -91,11 +114,18 @@ status_t Replayer::replay() {
 
     ALOGV("Starting actual Replay!");
     while (!mPendingIncrements.empty()) {
+        mCurrentIncrement = mTrace.increment(mIncrementIndex);
+
+        if (mHasStopped == false && mCurrentIncrement.time_stamp() >= mStopTimeStamp) {
+            mHasStopped = true;
+            sReplayingManually.store(true);
+        }
+
         waitForConsoleCommmand();
 
-        auto pastIncrement = mTrace.increment(mIncrementIndex);
-
-        waitUntilTimestamp(pastIncrement.time_stamp());
+        if (mWaitForTimeStamps) {
+            waitUntilTimestamp(mCurrentIncrement.time_stamp());
+        }
 
         auto event = mPendingIncrements.front();
         mPendingIncrements.pop();
@@ -116,7 +146,7 @@ status_t Replayer::replay() {
         }
 
         mIncrementIndex++;
-        mCurrentTime = pastIncrement.time_stamp();
+        mCurrentTime = mCurrentIncrement.time_stamp();
     }
 
     SurfaceComposerClient::enableVSyncInjections(false);
@@ -146,6 +176,21 @@ void Replayer::stopAutoReplayHandler(int /*signal*/) {
     sReplayingManually.store(true);
 }
 
+std::vector<std::string> split(const std::string& s, const char delim) {
+    std::vector<std::string> elems;
+    std::stringstream ss(s);
+    std::string item;
+    while (getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+    return elems;
+}
+
+bool isNumber(const std::string& s) {
+    return !s.empty() &&
+           std::find_if(s.begin(), s.end(), [](char c) { return !std::isdigit(c); }) == s.end();
+}
+
 void Replayer::waitForConsoleCommmand() {
     if (!sReplayingManually || mWaitingForNextVSync) {
         return;
@@ -158,18 +203,65 @@ void Replayer::waitForConsoleCommmand() {
 
         if (input.empty()) {
             input = mLastInput;
+        } else {
+            mLastInput = input;
         }
 
-        input = mLastInput;
-        if (input == "n") {  // next vsync
+        if (mLastInput.empty()) {
+            continue;
+        }
+
+        std::vector<std::string> inputs = split(input, ' ');
+
+        if (inputs[0] == "n") {  // next vsync
             mWaitingForNextVSync = true;
             break;
-        } else if (input == "c") {  // continue
+
+        } else if (inputs[0] == "ni") {  // next increment
+            break;
+
+        } else if (inputs[0] == "c") {  // continue
+            if (inputs.size() > 1 && isNumber(inputs[1])) {
+                long milliseconds = stoi(inputs[1]);
+                std::thread([&] {
+                    std::cout << "Started!" << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+                    sReplayingManually.store(true);
+                    std::cout << "Should have stopped!" << std::endl;
+                }).detach();
+            }
             sReplayingManually.store(false);
             mWaitingForNextVSync = false;
             break;
-        } else if (input == "h") {  // help
-                                    // add help menu
+
+        } else if (inputs[0] == "s") {  // stop at this timestamp
+            if (inputs.size() < 1) {
+                std::cout << "No time stamp given" << std::endl;
+                continue;
+            }
+            sReplayingManually.store(false);
+            mStopTimeStamp = stol(inputs[1]);
+            mHasStopped = false;
+            break;
+        } else if (inputs[0] == "l") {  // list
+            std::cout << "Time stamp: " << mCurrentIncrement.time_stamp() << "\n";
+            continue;
+        } else if (inputs[0] == "q") {  // quit
+            SurfaceComposerClient::enableVSyncInjections(false);
+            exit(0);
+
+        } else if (inputs[0] == "h") {  // help
+                                        // add help menu
+            std::cout << "Manual Replay options:\n";
+            std::cout << " n  - Go to next VSync\n";
+            std::cout << " ni - Go to next increment\n";
+            std::cout << " c  - Continue\n";
+            std::cout << " c [milliseconds] - Continue until specified number of milliseconds\n";
+            std::cout << " s [timestamp]    - Continue and stop at specified timestamp\n";
+            std::cout << " l  - List out timestamp of current increment\n";
+            std::cout << " h  - Display help menu\n";
+            std::cout << std::endl;
+            continue;
         }
 
         std::cout << "Invalid Command" << std::endl;
@@ -186,11 +278,13 @@ status_t Replayer::dispatchEvent(int index) {
         case increment.kTransaction: {
             std::thread(&Replayer::doTransaction, this, increment.transaction(), event).detach();
         } break;
-        case increment.kCreate: {
-            std::thread(&Replayer::createSurfaceControl, this, increment.create(), event).detach();
+        case increment.kSurfaceCreation: {
+            std::thread(&Replayer::createSurfaceControl, this, increment.surface_creation(), event)
+                    .detach();
         } break;
-        case increment.kDelete: {
-            std::thread(&Replayer::deleteSurfaceControl, this, increment.delete_(), event).detach();
+        case increment.kSurfaceDeletion: {
+            std::thread(&Replayer::deleteSurfaceControl, this, increment.surface_deletion(), event)
+                    .detach();
         } break;
         case increment.kBufferUpdate: {
             std::lock_guard<std::mutex> lock1(mLayerLock);
@@ -216,6 +310,18 @@ status_t Replayer::dispatchEvent(int index) {
         case increment.kVsyncEvent: {
             std::thread(&Replayer::injectVSyncEvent, this, increment.vsync_event(), event).detach();
         } break;
+        case increment.kDisplayCreation: {
+            std::thread(&Replayer::createDisplay, this, increment.display_creation(), event)
+                    .detach();
+        } break;
+        case increment.kDisplayDeletion: {
+            std::thread(&Replayer::deleteDisplay, this, increment.display_deletion(), event)
+                    .detach();
+        } break;
+        case increment.kPowerModeUpdate: {
+            std::thread(&Replayer::updatePowerMode, this, increment.power_mode_update(), event)
+                    .detach();
+        } break;
         default:
             ALOGE("Unknown Increment Type: %d", increment.increment_case());
             status = BAD_VALUE;
@@ -228,83 +334,12 @@ status_t Replayer::dispatchEvent(int index) {
 status_t Replayer::doTransaction(const Transaction& t, const std::shared_ptr<Event>& event) {
     ALOGV("Started Transaction");
 
-    if (t.change_size() == 0) {
-        event->readyToExecute();
-        return NO_ERROR;
-    }
-
-    Change change = t.change(0);
-
-    std::unique_lock<std::mutex> lock(mLayerLock);
-    if (mLayers[change.id()] == nullptr) {
-        mLayerCond.wait(lock, [&] { return (mLayers[change.id()] != nullptr); });
-    }
-    lock.unlock();
-
     SurfaceComposerClient::openGlobalTransaction();
 
     status_t status = NO_ERROR;
 
-    for (const Change& change : t.change()) {
-        std::unique_lock<std::mutex> lock(mLayerLock);
-        if (mLayers[change.id()] == nullptr) {
-            mLayerCond.wait(lock, [&] { return (mLayers[change.id()] != nullptr); });
-        }
-
-        switch (change.Change_case()) {
-            case Change::ChangeCase::kPosition:
-                status = setPosition(change.id(), change.position());
-                break;
-            case Change::ChangeCase::kSize:
-                status = setSize(change.id(), change.size());
-                break;
-            case Change::ChangeCase::kAlpha:
-                status = setAlpha(change.id(), change.alpha());
-                break;
-            case Change::ChangeCase::kLayer:
-                status = setLayer(change.id(), change.layer());
-                break;
-            case Change::ChangeCase::kCrop:
-                status = setCrop(change.id(), change.crop());
-                break;
-            case Change::ChangeCase::kMatrix:
-                status = setMatrix(change.id(), change.matrix());
-                break;
-            case Change::ChangeCase::kFinalCrop:
-                status = setFinalCrop(change.id(), change.final_crop());
-                break;
-            case Change::ChangeCase::kOverrideScalingMode:
-                status = setOverrideScalingMode(change.id(), change.override_scaling_mode());
-                break;
-            case Change::ChangeCase::kTransparentRegionHint:
-                status = setTransparentRegionHint(change.id(), change.transparent_region_hint());
-                break;
-            case Change::ChangeCase::kLayerStack:
-                status = setLayerStack(change.id(), change.layer_stack());
-                break;
-            case Change::ChangeCase::kHiddenFlag:
-                status = setHiddenFlag(change.id(), change.hidden_flag());
-                break;
-            case Change::ChangeCase::kOpaqueFlag:
-                status = setOpaqueFlag(change.id(), change.opaque_flag());
-                break;
-            case Change::ChangeCase::kSecureFlag:
-                status = setSecureFlag(change.id(), change.secure_flag());
-                break;
-            case Change::ChangeCase::kDeferredTransaction:
-                waitUntilDeferredTransactionLayerExists(change.deferred_transaction(), lock);
-                status = setDeferredTransaction(change.id(), change.deferred_transaction());
-                break;
-            default:
-                status = NO_ERROR;
-                break;
-        }
-
-        if (status != NO_ERROR) {
-            ALOGE("SET TRANSACTION FAILED");
-            return status;
-        }
-    }
+    status = doSurfaceTransaction(t.surface_change());
+    doDisplayTransaction(t.display_change());
 
     if (t.animation()) {
         SurfaceComposerClient::setAnimationTransaction();
@@ -319,27 +354,120 @@ status_t Replayer::doTransaction(const Transaction& t, const std::shared_ptr<Eve
     return status;
 }
 
-status_t Replayer::setPosition(uint32_t id, const PositionChange& pc) {
+status_t Replayer::doSurfaceTransaction(const SurfaceChanges& surfaceChanges) {
+    status_t status = NO_ERROR;
+
+    for (const SurfaceChange& change : surfaceChanges) {
+        std::unique_lock<std::mutex> lock(mLayerLock);
+        if (mLayers[change.id()] == nullptr) {
+            mLayerCond.wait(lock, [&] { return (mLayers[change.id()] != nullptr); });
+        }
+
+        switch (change.SurfaceChange_case()) {
+            case SurfaceChange::SurfaceChangeCase::kPosition:
+                status = setPosition(change.id(), change.position());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kSize:
+                status = setSize(change.id(), change.size());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kAlpha:
+                status = setAlpha(change.id(), change.alpha());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kLayer:
+                status = setLayer(change.id(), change.layer());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kCrop:
+                status = setCrop(change.id(), change.crop());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kMatrix:
+                status = setMatrix(change.id(), change.matrix());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kFinalCrop:
+                status = setFinalCrop(change.id(), change.final_crop());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kOverrideScalingMode:
+                status = setOverrideScalingMode(change.id(), change.override_scaling_mode());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kTransparentRegionHint:
+                status = setTransparentRegionHint(change.id(), change.transparent_region_hint());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kLayerStack:
+                status = setLayerStack(change.id(), change.layer_stack());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kHiddenFlag:
+                status = setHiddenFlag(change.id(), change.hidden_flag());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kOpaqueFlag:
+                status = setOpaqueFlag(change.id(), change.opaque_flag());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kSecureFlag:
+                status = setSecureFlag(change.id(), change.secure_flag());
+                break;
+            case SurfaceChange::SurfaceChangeCase::kDeferredTransaction:
+                waitUntilDeferredTransactionLayerExists(change.deferred_transaction(), lock);
+                status = setDeferredTransaction(change.id(), change.deferred_transaction());
+                break;
+            default:
+                status = NO_ERROR;
+                break;
+        }
+
+        if (status != NO_ERROR) {
+            ALOGE("SET TRANSACTION FAILED");
+            return status;
+        }
+    }
+    return status;
+}
+
+void Replayer::doDisplayTransaction(const DisplayChanges& displayChanges) {
+    for (const DisplayChange& change : displayChanges) {
+        ALOGV("Doing display transaction");
+        std::unique_lock<std::mutex> lock(mDisplayLock);
+        if (mDisplays[change.id()] == nullptr) {
+            mDisplayCond.wait(lock, [&] { return (mDisplays[change.id()] != nullptr); });
+        }
+
+        switch (change.DisplayChange_case()) {
+            case DisplayChange::DisplayChangeCase::kSurface:
+                setDisplaySurface(change.id(), change.surface());
+                break;
+            case DisplayChange::DisplayChangeCase::kLayerStack:
+                setDisplayLayerStack(change.id(), change.layer_stack());
+                break;
+            case DisplayChange::DisplayChangeCase::kSize:
+                setDisplaySize(change.id(), change.size());
+                break;
+            case DisplayChange::DisplayChangeCase::kProjection:
+                setDisplayProjection(change.id(), change.projection());
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+status_t Replayer::setPosition(layer_id id, const PositionChange& pc) {
     ALOGV("Layer %d: Setting Position -- x=%f, y=%f", id, pc.x(), pc.y());
     return mLayers[id]->setPosition(pc.x(), pc.y());
 }
 
-status_t Replayer::setSize(uint32_t id, const SizeChange& sc) {
+status_t Replayer::setSize(layer_id id, const SizeChange& sc) {
     ALOGV("Layer %d: Setting Size -- w=%u, h=%u", id, sc.w(), sc.h());
     return mLayers[id]->setSize(sc.w(), sc.h());
 }
 
-status_t Replayer::setLayer(uint32_t id, const LayerChange& lc) {
+status_t Replayer::setLayer(layer_id id, const LayerChange& lc) {
     ALOGV("Layer %d: Setting Layer -- layer=%d", id, lc.layer());
     return mLayers[id]->setLayer(lc.layer());
 }
 
-status_t Replayer::setAlpha(uint32_t id, const AlphaChange& ac) {
+status_t Replayer::setAlpha(layer_id id, const AlphaChange& ac) {
     ALOGV("Layer %d: Setting Alpha -- alpha=%f", id, ac.alpha());
     return mLayers[id]->setAlpha(ac.alpha());
 }
 
-status_t Replayer::setCrop(uint32_t id, const CropChange& cc) {
+status_t Replayer::setCrop(layer_id id, const CropChange& cc) {
     ALOGV("Layer %d: Setting Crop -- left=%d, top=%d, right=%d, bottom=%d", id,
             cc.rectangle().left(), cc.rectangle().top(), cc.rectangle().right(),
             cc.rectangle().bottom());
@@ -349,7 +477,7 @@ status_t Replayer::setCrop(uint32_t id, const CropChange& cc) {
     return mLayers[id]->setCrop(r);
 }
 
-status_t Replayer::setFinalCrop(uint32_t id, const FinalCropChange& fcc) {
+status_t Replayer::setFinalCrop(layer_id id, const FinalCropChange& fcc) {
     ALOGV("Layer %d: Setting Final Crop -- left=%d, top=%d, right=%d, bottom=%d", id,
             fcc.rectangle().left(), fcc.rectangle().top(), fcc.rectangle().right(),
             fcc.rectangle().bottom());
@@ -358,18 +486,18 @@ status_t Replayer::setFinalCrop(uint32_t id, const FinalCropChange& fcc) {
     return mLayers[id]->setFinalCrop(r);
 }
 
-status_t Replayer::setMatrix(uint32_t id, const MatrixChange& mc) {
+status_t Replayer::setMatrix(layer_id id, const MatrixChange& mc) {
     ALOGV("Layer %d: Setting Matrix -- dsdx=%f, dtdx=%f, dsdy=%f, dtdy=%f", id, mc.dsdx(),
             mc.dtdx(), mc.dsdy(), mc.dtdy());
     return mLayers[id]->setMatrix(mc.dsdx(), mc.dtdx(), mc.dsdy(), mc.dtdy());
 }
 
-status_t Replayer::setOverrideScalingMode(uint32_t id, const OverrideScalingModeChange& osmc) {
+status_t Replayer::setOverrideScalingMode(layer_id id, const OverrideScalingModeChange& osmc) {
     ALOGV("Layer %d: Setting Override Scaling Mode -- mode=%d", id, osmc.override_scaling_mode());
     return mLayers[id]->setOverrideScalingMode(osmc.override_scaling_mode());
 }
 
-status_t Replayer::setTransparentRegionHint(uint32_t id, const TransparentRegionHintChange& trhc) {
+status_t Replayer::setTransparentRegionHint(layer_id id, const TransparentRegionHintChange& trhc) {
     ALOGV("Setting Transparent Region Hint");
     Region re = Region();
 
@@ -381,33 +509,33 @@ status_t Replayer::setTransparentRegionHint(uint32_t id, const TransparentRegion
     return mLayers[id]->setTransparentRegionHint(re);
 }
 
-status_t Replayer::setLayerStack(uint32_t id, const LayerStackChange& lsc) {
+status_t Replayer::setLayerStack(layer_id id, const LayerStackChange& lsc) {
     ALOGV("Layer %d: Setting LayerStack -- layer_stack=%d", id, lsc.layer_stack());
     return mLayers[id]->setLayerStack(lsc.layer_stack());
 }
 
-status_t Replayer::setHiddenFlag(uint32_t id, const HiddenFlagChange& hfc) {
+status_t Replayer::setHiddenFlag(layer_id id, const HiddenFlagChange& hfc) {
     ALOGV("Layer %d: Setting Hidden Flag -- hidden_flag=%d", id, hfc.hidden_flag());
-    uint32_t flag = hfc.hidden_flag() ? layer_state_t::eLayerHidden : 0;
+    layer_id flag = hfc.hidden_flag() ? layer_state_t::eLayerHidden : 0;
 
     return mLayers[id]->setFlags(flag, layer_state_t::eLayerHidden);
 }
 
-status_t Replayer::setOpaqueFlag(uint32_t id, const OpaqueFlagChange& ofc) {
+status_t Replayer::setOpaqueFlag(layer_id id, const OpaqueFlagChange& ofc) {
     ALOGV("Layer %d: Setting Opaque Flag -- opaque_flag=%d", id, ofc.opaque_flag());
-    uint32_t flag = ofc.opaque_flag() ? layer_state_t::eLayerOpaque : 0;
+    layer_id flag = ofc.opaque_flag() ? layer_state_t::eLayerOpaque : 0;
 
     return mLayers[id]->setFlags(flag, layer_state_t::eLayerOpaque);
 }
 
-status_t Replayer::setSecureFlag(uint32_t id, const SecureFlagChange& sfc) {
+status_t Replayer::setSecureFlag(layer_id id, const SecureFlagChange& sfc) {
     ALOGV("Layer %d: Setting Secure Flag -- secure_flag=%d", id, sfc.secure_flag());
-    uint32_t flag = sfc.secure_flag() ? layer_state_t::eLayerSecure : 0;
+    layer_id flag = sfc.secure_flag() ? layer_state_t::eLayerSecure : 0;
 
     return mLayers[id]->setFlags(flag, layer_state_t::eLayerSecure);
 }
 
-status_t Replayer::setDeferredTransaction(uint32_t id, const DeferredTransactionChange& dtc) {
+status_t Replayer::setDeferredTransaction(layer_id id, const DeferredTransactionChange& dtc) {
     ALOGV("Layer %d: Setting Deferred Transaction -- layer_id=%d, "
           "frame_number=%llu",
             id, dtc.layer_id(), dtc.frame_number());
@@ -421,7 +549,32 @@ status_t Replayer::setDeferredTransaction(uint32_t id, const DeferredTransaction
     return mLayers[id]->deferTransactionUntil(handle, dtc.frame_number());
 }
 
-status_t Replayer::createSurfaceControl(const Create& create, const std::shared_ptr<Event>& event) {
+void Replayer::setDisplaySurface(display_id id, const DispSurfaceChange& /*dsc*/) {
+    sp<IGraphicBufferProducer> outProducer;
+    sp<IGraphicBufferConsumer> outConsumer;
+    BufferQueue::createBufferQueue(&outProducer, &outConsumer);
+
+    SurfaceComposerClient::setDisplaySurface(mDisplays[id], outProducer);
+}
+
+void Replayer::setDisplayLayerStack(display_id id, const LayerStackChange& lsc) {
+    SurfaceComposerClient::setDisplayLayerStack(mDisplays[id], lsc.layer_stack());
+}
+
+void Replayer::setDisplaySize(display_id id, const SizeChange& sc) {
+    SurfaceComposerClient::setDisplaySize(mDisplays[id], sc.w(), sc.h());
+}
+
+void Replayer::setDisplayProjection(display_id id, const ProjectionChange& pc) {
+    Rect viewport = Rect(pc.viewport().left(), pc.viewport().top(), pc.viewport().right(),
+            pc.viewport().bottom());
+    Rect frame = Rect(pc.frame().left(), pc.frame().top(), pc.frame().right(), pc.frame().bottom());
+
+    SurfaceComposerClient::setDisplayProjection(mDisplays[id], pc.orientation(), viewport, frame);
+}
+
+status_t Replayer::createSurfaceControl(
+        const SurfaceCreation& create, const std::shared_ptr<Event>& event) {
     event->readyToExecute();
 
     ALOGV("Creating Surface Control: ID: %d", create.id());
@@ -437,7 +590,7 @@ status_t Replayer::createSurfaceControl(const Create& create, const std::shared_
     auto& layer = mLayers[create.id()];
     layer = surfaceControl;
 
-    mColors[create.id()] = HSVToRGB(HSV(rand() % 360, 1, 1));
+    mColors[create.id()] = HSV(rand() % 360, 1, 1);
 
     mLayerCond.notify_all();
 
@@ -451,7 +604,7 @@ status_t Replayer::createSurfaceControl(const Create& create, const std::shared_
 }
 
 status_t Replayer::deleteSurfaceControl(
-        const Delete& delete_, const std::shared_ptr<Event>& event) {
+        const SurfaceDeletion& delete_, const std::shared_ptr<Event>& event) {
     ALOGV("Deleting %d Surface Control", delete_.id());
     event->readyToExecute();
 
@@ -459,13 +612,15 @@ status_t Replayer::deleteSurfaceControl(
 
     mLayersPendingRemoval.push_back(delete_.id());
 
-    auto iterator = mBufferQueueSchedulers.find(delete_.id());
+    const auto& iterator = mBufferQueueSchedulers.find(delete_.id());
     if (iterator != mBufferQueueSchedulers.end()) {
         (*iterator).second->stopScheduling();
     }
 
     std::lock_guard<std::mutex> lock2(mLayerLock);
-    mComposerClient->destroySurface(mLayers[delete_.id()]->getHandle());
+    if (mLayers[delete_.id()] != nullptr) {
+        mComposerClient->destroySurface(mLayers[delete_.id()]->getHandle());
+    }
 
     return NO_ERROR;
 }
@@ -494,6 +649,35 @@ status_t Replayer::injectVSyncEvent(
     SurfaceComposerClient::injectVSync(vSyncEvent.when());
 
     return NO_ERROR;
+}
+
+void Replayer::createDisplay(const DisplayCreation& create, const std::shared_ptr<Event>& event) {
+    ALOGV("Creating display");
+    event->readyToExecute();
+
+    std::lock_guard<std::mutex> lock(mDisplayLock);
+    sp<IBinder> display = SurfaceComposerClient::createDisplay(
+            String8(create.name().c_str()), create.is_secure());
+    mDisplays[create.id()] = display;
+
+    mDisplayCond.notify_all();
+
+    ALOGV("Done creating display");
+}
+
+void Replayer::deleteDisplay(const DisplayDeletion& delete_, const std::shared_ptr<Event>& event) {
+    ALOGV("Delete display");
+    event->readyToExecute();
+
+    std::lock_guard<std::mutex> lock(mDisplayLock);
+    SurfaceComposerClient::destroyDisplay(mDisplays[delete_.id()]);
+    mDisplays.erase(delete_.id());
+}
+
+void Replayer::updatePowerMode(const PowerModeUpdate& pmu, const std::shared_ptr<Event>& event) {
+    ALOGV("Updating power mode");
+    event->readyToExecute();
+    SurfaceComposerClient::setDisplayPowerMode(mDisplays[pmu.id()], pmu.mode());
 }
 
 void Replayer::waitUntilTimestamp(int64_t timestamp) {

@@ -22,76 +22,96 @@
 
 namespace android {
 
-typedef struct RGB {
-    RGB() = default;
+constexpr double modulateFactor = .0001;
+constexpr double modulateLimit = .80;
+
+struct RGB {
     RGB(uint8_t rIn, uint8_t gIn, uint8_t bIn) : r(rIn), g(gIn), b(bIn) {}
 
     uint8_t r = 0;
     uint8_t g = 0;
     uint8_t b = 0;
-} RGB;
+};
 
-typedef struct HSV {
+struct HSV {
     HSV() = default;
     HSV(double hIn, double sIn, double vIn) : h(hIn), s(sIn), v(vIn) {}
 
     double h = 0;
     double s = 0;
     double v = 0;
-} HSV;
 
-static inline RGB HSVToRGB(HSV hsv) {
+    RGB getRGB() const;
+
+    bool modulateUp = false;
+
+    void modulate();
+};
+
+void inline HSV::modulate() {
+    if(modulateUp) {
+        v += modulateFactor;
+    } else {
+        v -= modulateFactor;
+    }
+
+    if(v <= modulateLimit || v >= 1) {
+        modulateUp = !modulateUp;
+    }
+}
+
+inline RGB HSV::getRGB() const {
     using namespace std;
     double r = 0, g = 0, b = 0;
 
-    if (hsv.s == 0) {
-        r = hsv.v;
-        g = hsv.v;
-        b = hsv.v;
+    if (s == 0) {
+        r = v;
+        g = v;
+        b = v;
     } else {
-        hsv.h = static_cast<int>(hsv.h) % 360;
-        hsv.h = hsv.h / 60;
+        auto tempHue = static_cast<int>(h) % 360;
+        tempHue = tempHue / 60;
 
-        int i = static_cast<int>(trunc(hsv.h));
-        double f = hsv.h - i;
+        int i = static_cast<int>(trunc(tempHue));
+        double f = h - i;
 
-        double x = hsv.v * (1.0 - hsv.s);
-        double y = hsv.v * (1.0 - (hsv.s * f));
-        double z = hsv.v * (1.0 - (hsv.s * (1.0 - f)));
+        double x = v * (1.0 - s);
+        double y = v * (1.0 - (s * f));
+        double z = v * (1.0 - (s * (1.0 - f)));
 
         switch (i) {
             case 0:
-                r = hsv.v;
+                r = v;
                 g = z;
                 b = x;
                 break;
 
             case 1:
                 r = y;
-                g = hsv.v;
+                g = v;
                 b = x;
                 break;
 
             case 2:
                 r = x;
-                g = hsv.v;
+                g = v;
                 b = z;
                 break;
 
             case 3:
                 r = x;
                 g = y;
-                b = hsv.v;
+                b = v;
                 break;
 
             case 4:
                 r = z;
                 g = x;
-                b = hsv.v;
+                b = v;
                 break;
 
             default:
-                r = hsv.v;
+                r = v;
                 g = x;
                 b = y;
                 break;

@@ -41,8 +41,15 @@ void printHelpMenu() {
     std::cout << "  -m  Stops the replayer at the start of the trace and switches ";
                  "to manual replay\n";
 
-    std::cout << "  -t [Number of Threads]  Specifies the number of threads to be used while "
+    std::cout << "\n  -t [Number of Threads]  Specifies the number of threads to be used while "
                  "replaying (default is " << android::DEFAULT_THREADS << ")\n";
+
+    std::cout << "\n  -s [Timestamp]  Specify at what timestamp should the replayer switch "
+                 "to manual replay\n";
+
+    std::cout << "  -n  Ignore timestamps and run through trace as fast as possible\n";
+
+    std::cout << "  -l  Indefinitely loop the replayer\n";
 
     std::cout << "  -h  Display help menu\n";
 
@@ -51,17 +58,29 @@ void printHelpMenu() {
 
 int main(int argc, char** argv) {
     std::string filename;
+    bool loop = false;
+    bool wait = true;
     bool pauseBeginning = false;
     int numThreads = DEFAULT_THREADS;
+    long stopHere = -1;
 
     int opt = 0;
-    while ((opt = getopt(argc, argv, "pt:h?")) != -1) {
+    while ((opt = getopt(argc, argv, "mt:s:nlh?")) != -1) {
         switch (opt) {
             case 'm':
                 pauseBeginning = true;
                 break;
             case 't':
                 numThreads = atoi(optarg);
+                break;
+            case 's':
+                stopHere = atol(optarg);
+                break;
+            case 'n':
+                wait = false;
+                break;
+            case 'l':
+                loop = true;
                 break;
             case 'h':
             case '?':
@@ -81,8 +100,11 @@ int main(int argc, char** argv) {
     }
     filename.assign(input[0]);
 
-    android::Replayer r(filename, pauseBeginning, numThreads);
-    auto status = r.replay();
+    status_t status = NO_ERROR;
+    do {
+        android::Replayer r(filename, pauseBeginning, numThreads, wait, stopHere);
+        status = r.replay();
+    } while(loop);
 
     if (status == NO_ERROR) {
         std::cout << "Successfully finished replaying trace" << std::endl;
