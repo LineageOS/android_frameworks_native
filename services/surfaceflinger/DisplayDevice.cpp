@@ -613,3 +613,17 @@ void DisplayDevice::dump(String8& result) const {
     mDisplaySurface->dumpAsString(surfaceDump);
     result.append(surfaceDump);
 }
+
+std::atomic<int32_t> DisplayDeviceState::nextDisplayId(1);
+
+DisplayDeviceState::DisplayDeviceState(DisplayDevice::DisplayType type, bool isSecure)
+    : type(type),
+      layerStack(DisplayDevice::NO_LAYER_STACK),
+      orientation(0),
+      width(0),
+      height(0),
+      isSecure(isSecure)
+{
+    viewport.makeInvalid();
+    frame.makeInvalid();
+}

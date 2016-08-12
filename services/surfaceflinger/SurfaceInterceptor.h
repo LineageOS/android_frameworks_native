@@ -25,6 +25,7 @@ namespace android {
 
 class BufferItem;
 class Layer;
+struct DisplayState;
 struct layer_state_t;
 
 constexpr auto DEFAULT_FILENAME = "/data/SurfaceTrace.dat";
@@ -35,37 +36,56 @@ constexpr auto DEFAULT_FILENAME = "/data/SurfaceTrace.dat";
  */
 class SurfaceInterceptor {
 public:
-    // The layer vector is used to capture the inital snapshot in the trace
-    void enable(const SortedVector<sp<Layer>>& layers);
+    // Both vectors are used to capture the current state of SF as the initial snapshot in the trace
+    void enable(const SortedVector<sp<Layer>>& layers,
+            const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays);
     void disable();
-    void setOutputFileName(const std::string& OutputFileName);
+    bool isEnabled();
 
-    void saveLayerUpdates(const Vector<ComposerState>& state, uint32_t flags);
-    void saveLayerCreate(const sp<const Layer>& layer);
-    void saveLayerDelete(const sp<const Layer>& layer);
+    // Intercept display and surface transactions
+    void saveTransaction(const Vector<ComposerState>& stateUpdates,
+            const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays,
+            const Vector<DisplayState>& changedDisplays, uint32_t flags);
+
+    // Intercept surface data
+    void saveSurfaceCreation(const sp<const Layer>& layer);
+    void saveSurfaceDeletion(const sp<const Layer>& layer);
     void saveBufferUpdate(const sp<const Layer>& layer, uint32_t width, uint32_t height,
             uint64_t frameNumber);
+
+    // Intercept display data
+    void saveDisplayCreation(const DisplayDeviceState& info);
+    void saveDisplayDeletion(int32_t displayId);
+    void savePowerModeUpdate(int32_t displayId, int32_t mode);
     void saveVSyncEvent(nsecs_t timestamp);
 
 private:
-    void saveExistingLayers(const SortedVector<sp<Layer>>& layers);
-    void saveInitialLayerStateLocked(const sp<const Layer>& layer);
-    void saveLayerCreateLocked(const sp<const Layer>& layer);
+    // The creation increments of Surfaces and Displays do not contain enough information to capture
+    // the initial state of each object, so a transaction with all of the missing properties is
+    // performed at the initial snapshot for each display and surface.
+    void saveExistingDisplaysLocked(
+            const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays);
+    void saveExistingSurfacesLocked(const SortedVector<sp<Layer>>& layers);
+    void addInitialSurfaceStateLocked(Increment* increment, const sp<const Layer>& layer);
+    void addInitialDisplayStateLocked(Increment* increment, const DisplayDeviceState& display);
+
     status_t writeProtoFileLocked();
     const sp<const Layer> getLayer(const sp<const IBinder>& handle);
     const std::string getLayerName(const sp<const Layer>& layer);
     int32_t getLayerId(const sp<const Layer>& layer);
-    Increment* addTraceIncrementLocked();
 
-    void addUpdatedLayersLocked(Increment* increment, uint32_t flags,
-            const Vector<ComposerState>& stateUpdates);
-    void addCreatedLayerLocked(Increment* increment, const sp<const Layer>& layer);
-    void addDeletedLayerLocked(Increment* increment, const sp<const Layer>& layer);
-    void addUpdatedBufferLocked(Increment* increment, const sp<const Layer>& layer, uint32_t width,
+    Increment* createTraceIncrementLocked();
+    void addSurfaceCreationLocked(Increment* increment, const sp<const Layer>& layer);
+    void addSurfaceDeletionLocked(Increment* increment, const sp<const Layer>& layer);
+    void addBufferUpdateLocked(Increment* increment, const sp<const Layer>& layer, uint32_t width,
             uint32_t height, uint64_t frameNumber);
-    void addUpdatedVsyncLocked(Increment* increment, nsecs_t timestamp);
+    void addVSyncUpdateLocked(Increment* increment, nsecs_t timestamp);
+    void addDisplayCreationLocked(Increment* increment, const DisplayDeviceState& info);
+    void addDisplayDeletionLocked(Increment* increment, int32_t displayId);
+    void addPowerModeUpdateLocked(Increment* increment, int32_t displayId, int32_t mode);
 
-    Change* addChangeLocked(Transaction* transaction, int32_t layerId);
+    // Add surface transactions to the trace
+    SurfaceChange* createSurfaceChangeLocked(Transaction* transaction, int32_t layerId);
     void setProtoRectLocked(Rectangle* protoRect, const Rect& rect);
     void addPositionLocked(Transaction* transaction, int32_t layerId, float x, float y);
     void addDepthLocked(Transaction* transaction, int32_t layerId, uint32_t z);
@@ -83,7 +103,24 @@ private:
     void addFinalCropLocked(Transaction* transaction, int32_t layerId, const Rect& rect);
     void addOverrideScalingModeLocked(Transaction* transaction, int32_t layerId,
             int32_t overrideScalingMode);
-    void addChangedPropertiesLocked(Transaction* transaction, const layer_state_t& state);
+    void addSurfaceChangesLocked(Transaction* transaction, const layer_state_t& state);
+    void addTransactionLocked(Increment* increment, const Vector<ComposerState>& stateUpdates,
+            const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays,
+            const Vector<DisplayState>& changedDisplays, uint32_t transactionFlags);
+
+    // Add display transactions to the trace
+    DisplayChange* createDisplayChangeLocked(Transaction* transaction, int32_t displayId);
+    void addDisplaySurfaceLocked(Transaction* transaction, int32_t displayId,
+            const sp<const IGraphicBufferProducer>& surface);
+    void addDisplayLayerStackLocked(Transaction* transaction, int32_t displayId,
+            uint32_t layerStack);
+    void addDisplaySizeLocked(Transaction* transaction, int32_t displayId, uint32_t w,
+            uint32_t h);
+    void addDisplayProjectionLocked(Transaction* transaction, int32_t displayId,
+            int32_t orientation, const Rect& viewport, const Rect& frame);
+    void addDisplayChangesLocked(Transaction* transaction,
+            const DisplayState& state, int32_t displayId);
+
 
     bool mEnabled {false};
     std::string mOutputFileName {DEFAULT_FILENAME};

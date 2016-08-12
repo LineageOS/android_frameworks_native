@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <frameworks/native/cmds/surfacecapturereplay/proto/src/trace.pb.h>
+#include <frameworks/native/cmds/surfacereplayer/proto/src/trace.pb.h>
 
 #include <gtest/gtest.h>
 
@@ -23,6 +23,7 @@
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
+#include <private/gui/ComposerService.h>
 #include <private/gui/LayerState.h>
 #include <ui/DisplayInfo.h>
 
@@ -42,6 +43,7 @@ constexpr float ALPHA_UPDATE = 0.29f;
 constexpr float POSITION_UPDATE = 121;
 const Rect CROP_UPDATE(16, 16, 32, 32);
 
+const String8 DISPLAY_NAME("SurfaceInterceptor Display Test");
 constexpr auto LAYER_NAME = "Layer Create and Delete Test";
 
 constexpr auto DEFAULT_FILENAME = "/data/SurfaceTrace.dat";
@@ -81,21 +83,38 @@ static void disableInterceptor() {
     system("service call SurfaceFlinger 1020 i32 0 > /dev/null");
 }
 
-uint32_t getLayerId(const std::string& layerName) {
+int32_t getSurfaceId(const std::string& surfaceName) {
     enableInterceptor();
     disableInterceptor();
     Trace capturedTrace;
     readProtoFile(&capturedTrace);
-    uint32_t layerId = 0;
+    int32_t layerId = 0;
     for (const auto& increment : *capturedTrace.mutable_increment()) {
-        if (increment.increment_case() == increment.kCreate) {
-            if (increment.create().name() == layerName) {
-                layerId = increment.create().id();
+        if (increment.increment_case() == increment.kSurfaceCreation) {
+            if (increment.surface_creation().name() == surfaceName) {
+                layerId = increment.surface_creation().id();
                 break;
             }
         }
     }
     return layerId;
+}
+
+int32_t getDisplayId(const std::string& displayName) {
+    enableInterceptor();
+    disableInterceptor();
+    Trace capturedTrace;
+    readProtoFile(&capturedTrace);
+    int32_t displayId = 0;
+    for (const auto& increment : *capturedTrace.mutable_increment()) {
+        if (increment.increment_case() == increment.kDisplayCreation) {
+            if (increment.display_creation().name() == displayName) {
+                displayId = increment.display_creation().id();
+                break;
+            }
+        }
+    }
+    return displayId;
 }
 
 class SurfaceInterceptorTest : public ::testing::Test {
@@ -120,7 +139,7 @@ protected:
                 PIXEL_FORMAT_RGBA_8888, 0);
         ASSERT_TRUE(mBGSurfaceControl != NULL);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
-        mBGLayerId = getLayerId("BG Interceptor Test Surface");
+        mBGLayerId = getSurfaceId("BG Interceptor Test Surface");
 
         SurfaceComposerClient::openGlobalTransaction();
         mComposerClient->setDisplayLayerStack(display, 0);
@@ -137,35 +156,43 @@ protected:
 
     sp<SurfaceComposerClient> mComposerClient;
     sp<SurfaceControl> mBGSurfaceControl;
-    uint32_t mBGLayerId;
+    int32_t mBGLayerId;
+    // Used to verify creation and destruction of surfaces and displays
+    int32_t mTargetId;
 
 public:
     void captureTest(void (SurfaceInterceptorTest::* action)(void),
             bool (SurfaceInterceptorTest::* verification)(Trace *));
-    void captureTest(void (SurfaceInterceptorTest::* action)(void), Change::ChangeCase changeCase);
+    void captureTest(void (SurfaceInterceptorTest::* action)(void),
+            SurfaceChange::SurfaceChangeCase changeCase);
+    void captureTest(void (SurfaceInterceptorTest::* action)(void),
+            Increment::IncrementCase incrementCase);
     void runInTransaction(void (SurfaceInterceptorTest::* action)(void), bool intercepted = false);
 
     // Verification of changes to a surface
-    bool positionUpdateFound(const Change& change, bool foundPosition);
-    bool sizeUpdateFound(const Change& change, bool foundSize);
-    bool alphaUpdateFound(const Change& change, bool foundAlpha);
-    bool layerUpdateFound(const Change& change, bool foundLayer);
-    bool cropUpdateFound(const Change& change, bool foundCrop);
-    bool finalCropUpdateFound(const Change& change, bool foundFinalCrop);
-    bool matrixUpdateFound(const Change& change, bool foundMatrix);
-    bool scalingModeUpdateFound(const Change& change, bool foundScalingMode);
-    bool transparentRegionHintUpdateFound(const Change& change, bool foundTransparentRegion);
-    bool layerStackUpdateFound(const Change& change, bool foundLayerStack);
-    bool hiddenFlagUpdateFound(const Change& change, bool foundHiddenFlag);
-    bool opaqueFlagUpdateFound(const Change& change, bool foundOpaqueFlag);
-    bool secureFlagUpdateFound(const Change& change, bool foundSecureFlag);
-    bool deferredTransactionUpdateFound(const Change& change, bool foundDeferred);
-    bool surfaceUpdateFound(Trace* trace, Change::ChangeCase changeCase);
+    bool positionUpdateFound(const SurfaceChange& change, bool foundPosition);
+    bool sizeUpdateFound(const SurfaceChange& change, bool foundSize);
+    bool alphaUpdateFound(const SurfaceChange& change, bool foundAlpha);
+    bool layerUpdateFound(const SurfaceChange& change, bool foundLayer);
+    bool cropUpdateFound(const SurfaceChange& change, bool foundCrop);
+    bool finalCropUpdateFound(const SurfaceChange& change, bool foundFinalCrop);
+    bool matrixUpdateFound(const SurfaceChange& change, bool foundMatrix);
+    bool scalingModeUpdateFound(const SurfaceChange& change, bool foundScalingMode);
+    bool transparentRegionHintUpdateFound(const SurfaceChange& change, bool foundTransparentRegion);
+    bool layerStackUpdateFound(const SurfaceChange& change, bool foundLayerStack);
+    bool hiddenFlagUpdateFound(const SurfaceChange& change, bool foundHiddenFlag);
+    bool opaqueFlagUpdateFound(const SurfaceChange& change, bool foundOpaqueFlag);
+    bool secureFlagUpdateFound(const SurfaceChange& change, bool foundSecureFlag);
+    bool deferredTransactionUpdateFound(const SurfaceChange& change, bool foundDeferred);
+    bool surfaceUpdateFound(Trace* trace, SurfaceChange::SurfaceChangeCase changeCase);
     void assertAllUpdatesFound(Trace* trace);
 
     // Verification of creation and deletion of a surface
-    bool surfaceCreateFound(Trace* trace);
-    bool surfaceDeleteFound(Trace* trace, uint32_t targetLayerId);
+    bool surfaceCreationFound(const Increment& increment, bool foundSurface);
+    bool surfaceDeletionFound(const Increment& increment, bool foundSurface);
+    bool displayCreationFound(const Increment& increment, bool foundDisplay);
+    bool displayDeletionFound(const Increment& increment, bool foundDisplay);
+    bool singleIncrementFound(Trace* trace, Increment::IncrementCase incrementCase);
 
     // Verification of buffer updates
     bool bufferUpdatesFound(Trace* trace);
@@ -186,8 +213,10 @@ public:
     void secureFlagUpdate();
     void deferredTransactionUpdate();
     void runAllUpdates();
-    void surfaceCreate();
+    void surfaceCreation();
     void nBufferUpdates();
+    void displayCreation();
+    void displayDeletion();
 };
 
 void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(void),
@@ -200,7 +229,16 @@ void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)
 }
 
 void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(void),
-        Change::ChangeCase changeCase)
+        Increment::IncrementCase incrementCase)
+{
+    runInTransaction(action, true);
+    Trace capturedTrace;
+    ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
+    ASSERT_TRUE(singleIncrementFound(&capturedTrace, incrementCase));
+}
+
+void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(void),
+        SurfaceChange::SurfaceChangeCase changeCase)
 {
     runInTransaction(action, true);
     Trace capturedTrace;
@@ -279,6 +317,17 @@ void SurfaceInterceptorTest::deferredTransactionUpdate() {
     mBGSurfaceControl->deferTransactionUntil(mBGSurfaceControl->getHandle(), DEFERRED_UPDATE);
 }
 
+void SurfaceInterceptorTest::displayCreation() {
+    sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, true);
+    SurfaceComposerClient::destroyDisplay(testDisplay);
+}
+
+void SurfaceInterceptorTest::displayDeletion() {
+    sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, false);
+    mTargetId = getDisplayId(DISPLAY_NAME.string());
+    SurfaceComposerClient::destroyDisplay(testDisplay);
+}
+
 void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::positionUpdate);
     runInTransaction(&SurfaceInterceptorTest::sizeUpdate);
@@ -296,7 +345,7 @@ void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::deferredTransactionUpdate);
 }
 
-void SurfaceInterceptorTest::surfaceCreate() {
+void SurfaceInterceptorTest::surfaceCreation() {
     mComposerClient->createSurface(String8(LAYER_NAME), SIZE_UPDATE, SIZE_UPDATE,
             PIXEL_FORMAT_RGBA_8888, 0);
 }
@@ -311,7 +360,7 @@ void SurfaceInterceptorTest::nBufferUpdates() {
     }
 }
 
-bool SurfaceInterceptorTest::positionUpdateFound(const Change& change, bool foundPosition) {
+bool SurfaceInterceptorTest::positionUpdateFound(const SurfaceChange& change, bool foundPosition) {
     // There should only be one position transaction with x and y = POSITION_UPDATE
     bool hasX(change.position().x() == POSITION_UPDATE);
     bool hasY(change.position().y() == POSITION_UPDATE);
@@ -325,7 +374,7 @@ bool SurfaceInterceptorTest::positionUpdateFound(const Change& change, bool foun
     return foundPosition;
 }
 
-bool SurfaceInterceptorTest::sizeUpdateFound(const Change& change, bool foundSize) {
+bool SurfaceInterceptorTest::sizeUpdateFound(const SurfaceChange& change, bool foundSize) {
     bool hasWidth(change.size().h() == SIZE_UPDATE);
     bool hasHeight(change.size().w() == SIZE_UPDATE);
     if (hasWidth && hasHeight && !foundSize) {
@@ -337,7 +386,7 @@ bool SurfaceInterceptorTest::sizeUpdateFound(const Change& change, bool foundSiz
     return foundSize;
 }
 
-bool SurfaceInterceptorTest::alphaUpdateFound(const Change& change, bool foundAlpha) {
+bool SurfaceInterceptorTest::alphaUpdateFound(const SurfaceChange& change, bool foundAlpha) {
     bool hasAlpha(change.alpha().alpha() == ALPHA_UPDATE);
     if (hasAlpha && !foundAlpha) {
         foundAlpha = true;
@@ -348,7 +397,7 @@ bool SurfaceInterceptorTest::alphaUpdateFound(const Change& change, bool foundAl
     return foundAlpha;
 }
 
-bool SurfaceInterceptorTest::layerUpdateFound(const Change& change, bool foundLayer) {
+bool SurfaceInterceptorTest::layerUpdateFound(const SurfaceChange& change, bool foundLayer) {
     bool hasLayer(change.layer().layer() == LAYER_UPDATE);
     if (hasLayer && !foundLayer) {
         foundLayer = true;
@@ -359,7 +408,7 @@ bool SurfaceInterceptorTest::layerUpdateFound(const Change& change, bool foundLa
     return foundLayer;
 }
 
-bool SurfaceInterceptorTest::cropUpdateFound(const Change& change, bool foundCrop) {
+bool SurfaceInterceptorTest::cropUpdateFound(const SurfaceChange& change, bool foundCrop) {
     bool hasLeft(change.crop().rectangle().left() == CROP_UPDATE.left);
     bool hasTop(change.crop().rectangle().top() == CROP_UPDATE.top);
     bool hasRight(change.crop().rectangle().right() == CROP_UPDATE.right);
@@ -373,7 +422,9 @@ bool SurfaceInterceptorTest::cropUpdateFound(const Change& change, bool foundCro
     return foundCrop;
 }
 
-bool SurfaceInterceptorTest::finalCropUpdateFound(const Change& change, bool foundFinalCrop) {
+bool SurfaceInterceptorTest::finalCropUpdateFound(const SurfaceChange& change,
+        bool foundFinalCrop)
+{
     bool hasLeft(change.final_crop().rectangle().left() == CROP_UPDATE.left);
     bool hasTop(change.final_crop().rectangle().top() == CROP_UPDATE.top);
     bool hasRight(change.final_crop().rectangle().right() == CROP_UPDATE.right);
@@ -387,7 +438,7 @@ bool SurfaceInterceptorTest::finalCropUpdateFound(const Change& change, bool fou
     return foundFinalCrop;
 }
 
-bool SurfaceInterceptorTest::matrixUpdateFound(const Change& change, bool foundMatrix) {
+bool SurfaceInterceptorTest::matrixUpdateFound(const SurfaceChange& change, bool foundMatrix) {
     bool hasSx((float)change.matrix().dsdx() == (float)M_SQRT1_2);
     bool hasTx((float)change.matrix().dtdx() == (float)M_SQRT1_2);
     bool hasSy((float)change.matrix().dsdy() == (float)-M_SQRT1_2);
@@ -401,7 +452,9 @@ bool SurfaceInterceptorTest::matrixUpdateFound(const Change& change, bool foundM
     return foundMatrix;
 }
 
-bool SurfaceInterceptorTest::scalingModeUpdateFound(const Change& change, bool foundScalingMode) {
+bool SurfaceInterceptorTest::scalingModeUpdateFound(const SurfaceChange& change,
+        bool foundScalingMode)
+{
     bool hasScalingUpdate(change.override_scaling_mode().override_scaling_mode() == SCALING_UPDATE);
     if (hasScalingUpdate && !foundScalingMode) {
         foundScalingMode = true;
@@ -412,7 +465,7 @@ bool SurfaceInterceptorTest::scalingModeUpdateFound(const Change& change, bool f
     return foundScalingMode;
 }
 
-bool SurfaceInterceptorTest::transparentRegionHintUpdateFound(const Change& change,
+bool SurfaceInterceptorTest::transparentRegionHintUpdateFound(const SurfaceChange& change,
         bool foundTransparentRegion)
 {
     auto traceRegion = change.transparent_region_hint().region(0);
@@ -429,7 +482,9 @@ bool SurfaceInterceptorTest::transparentRegionHintUpdateFound(const Change& chan
     return foundTransparentRegion;
 }
 
-bool SurfaceInterceptorTest::layerStackUpdateFound(const Change& change, bool foundLayerStack) {
+bool SurfaceInterceptorTest::layerStackUpdateFound(const SurfaceChange& change,
+        bool foundLayerStack)
+{
     bool hasLayerStackUpdate(change.layer_stack().layer_stack() == STACK_UPDATE);
     if (hasLayerStackUpdate && !foundLayerStack) {
         foundLayerStack = true;
@@ -440,7 +495,9 @@ bool SurfaceInterceptorTest::layerStackUpdateFound(const Change& change, bool fo
     return foundLayerStack;
 }
 
-bool SurfaceInterceptorTest::hiddenFlagUpdateFound(const Change& change, bool foundHiddenFlag) {
+bool SurfaceInterceptorTest::hiddenFlagUpdateFound(const SurfaceChange& change,
+        bool foundHiddenFlag)
+{
     bool hasHiddenFlag(change.hidden_flag().hidden_flag());
     if (hasHiddenFlag && !foundHiddenFlag) {
         foundHiddenFlag = true;
@@ -451,7 +508,9 @@ bool SurfaceInterceptorTest::hiddenFlagUpdateFound(const Change& change, bool fo
     return foundHiddenFlag;
 }
 
-bool SurfaceInterceptorTest::opaqueFlagUpdateFound(const Change& change, bool foundOpaqueFlag) {
+bool SurfaceInterceptorTest::opaqueFlagUpdateFound(const SurfaceChange& change,
+        bool foundOpaqueFlag)
+{
     bool hasOpaqueFlag(change.opaque_flag().opaque_flag());
     if (hasOpaqueFlag && !foundOpaqueFlag) {
         foundOpaqueFlag = true;
@@ -462,7 +521,9 @@ bool SurfaceInterceptorTest::opaqueFlagUpdateFound(const Change& change, bool fo
     return foundOpaqueFlag;
 }
 
-bool SurfaceInterceptorTest::secureFlagUpdateFound(const Change& change, bool foundSecureFlag) {
+bool SurfaceInterceptorTest::secureFlagUpdateFound(const SurfaceChange& change,
+        bool foundSecureFlag)
+{
     bool hasSecureFlag(change.secure_flag().secure_flag());
     if (hasSecureFlag && !foundSecureFlag) {
         foundSecureFlag = true;
@@ -473,12 +534,11 @@ bool SurfaceInterceptorTest::secureFlagUpdateFound(const Change& change, bool fo
     return foundSecureFlag;
 }
 
-bool SurfaceInterceptorTest::deferredTransactionUpdateFound(const Change& change,
+bool SurfaceInterceptorTest::deferredTransactionUpdateFound(const SurfaceChange& change,
         bool foundDeferred)
 {
     bool hasId(change.deferred_transaction().layer_id() == mBGLayerId);
-    bool hasFrameNumber(change.deferred_transaction().frame_number() ==
-            DEFERRED_UPDATE);
+    bool hasFrameNumber(change.deferred_transaction().frame_number() == DEFERRED_UPDATE);
     if (hasId && hasFrameNumber && !foundDeferred) {
         foundDeferred = true;
     }
@@ -488,114 +548,158 @@ bool SurfaceInterceptorTest::deferredTransactionUpdateFound(const Change& change
     return foundDeferred;
 }
 
-bool SurfaceInterceptorTest::surfaceUpdateFound(Trace* trace, Change::ChangeCase changeCase) {
-    bool updateFound = false;
+bool SurfaceInterceptorTest::surfaceUpdateFound(Trace* trace,
+        SurfaceChange::SurfaceChangeCase changeCase)
+{
+    bool foundUpdate = false;
     for (const auto& increment : *trace->mutable_increment()) {
         if (increment.increment_case() == increment.kTransaction) {
-            for (const auto& change : increment.transaction().change()) {
-                if (change.id() == mBGLayerId && change.Change_case() == changeCase) {
+            for (const auto& change : increment.transaction().surface_change()) {
+                if (change.id() == mBGLayerId && change.SurfaceChange_case() == changeCase) {
                     switch (changeCase) {
-                        case Change::ChangeCase::kPosition:
-                            // updateFound is sent for the tests to fail on duplicated increments
-                            updateFound = positionUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kPosition:
+                            // foundUpdate is sent for the tests to fail on duplicated increments
+                            foundUpdate = positionUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kSize:
-                            updateFound = sizeUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kSize:
+                            foundUpdate = sizeUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kAlpha:
-                            updateFound = alphaUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kAlpha:
+                            foundUpdate = alphaUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kLayer:
-                            updateFound = layerUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kLayer:
+                            foundUpdate = layerUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kCrop:
-                            updateFound = cropUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kCrop:
+                            foundUpdate = cropUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kFinalCrop:
-                            updateFound = finalCropUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kFinalCrop:
+                            foundUpdate = finalCropUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kMatrix:
-                            updateFound = matrixUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kMatrix:
+                            foundUpdate = matrixUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kOverrideScalingMode:
-                            updateFound = scalingModeUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kOverrideScalingMode:
+                            foundUpdate = scalingModeUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kTransparentRegionHint:
-                            updateFound = transparentRegionHintUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kTransparentRegionHint:
+                            foundUpdate = transparentRegionHintUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kLayerStack:
-                            updateFound = layerStackUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kLayerStack:
+                            foundUpdate = layerStackUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kHiddenFlag:
-                            updateFound = hiddenFlagUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kHiddenFlag:
+                            foundUpdate = hiddenFlagUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kOpaqueFlag:
-                            updateFound = opaqueFlagUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kOpaqueFlag:
+                            foundUpdate = opaqueFlagUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kSecureFlag:
-                            updateFound = secureFlagUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kSecureFlag:
+                            foundUpdate = secureFlagUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::kDeferredTransaction:
-                            updateFound = deferredTransactionUpdateFound(change, updateFound);
+                        case SurfaceChange::SurfaceChangeCase::kDeferredTransaction:
+                            foundUpdate = deferredTransactionUpdateFound(change, foundUpdate);
                             break;
-                        case Change::ChangeCase::CHANGE_NOT_SET:
+                        case SurfaceChange::SurfaceChangeCase::SURFACECHANGE_NOT_SET:
                             break;
                     }
                 }
             }
         }
     }
-    return updateFound;
+    return foundUpdate;
 }
 
 void SurfaceInterceptorTest::assertAllUpdatesFound(Trace* trace) {
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kPosition));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kSize));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kAlpha));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kLayer));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kCrop));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kFinalCrop));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kMatrix));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kOverrideScalingMode));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kTransparentRegionHint));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kLayerStack));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kHiddenFlag));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kOpaqueFlag));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kSecureFlag));
-    ASSERT_TRUE(surfaceUpdateFound(trace, Change::ChangeCase::kDeferredTransaction));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kPosition));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kSize));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kAlpha));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kLayer));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kCrop));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kFinalCrop));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kMatrix));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kOverrideScalingMode));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kTransparentRegionHint));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kLayerStack));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kHiddenFlag));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kOpaqueFlag));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kSecureFlag));
+    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kDeferredTransaction));
 }
 
-bool SurfaceInterceptorTest::surfaceCreateFound(Trace* trace) {
-    bool foundLayer = false;
-    for (const auto& inc : *trace->mutable_increment()) {
-        if (inc.increment_case() == inc.kCreate) {
-            bool isMatch(inc.create().name() == LAYER_NAME && inc.create().w() == SIZE_UPDATE &&
-                    inc.create().h() == SIZE_UPDATE);
-            if (isMatch && !foundLayer) {
-                foundLayer = true;
-            }
-            else if (isMatch && foundLayer) {
-                return false;
-            }
-        }
+bool SurfaceInterceptorTest::surfaceCreationFound(const Increment& increment, bool foundSurface) {
+    bool isMatch(increment.surface_creation().name() == LAYER_NAME &&
+            increment.surface_creation().w() == SIZE_UPDATE &&
+            increment.surface_creation().h() == SIZE_UPDATE);
+    if (isMatch && !foundSurface) {
+        foundSurface = true;
     }
-    return foundLayer;
+    else if (isMatch && foundSurface) {
+        [] () { FAIL(); }();
+    }
+    return foundSurface;
 }
 
-bool SurfaceInterceptorTest::surfaceDeleteFound(Trace* trace, uint32_t targetLayerId) {
-    bool foundLayer = false;
+bool SurfaceInterceptorTest::surfaceDeletionFound(const Increment& increment, bool foundSurface) {
+    bool isMatch(increment.surface_deletion().id() == mTargetId);
+    if (isMatch && !foundSurface) {
+        foundSurface = true;
+    }
+    else if (isMatch && foundSurface) {
+        [] () { FAIL(); }();
+    }
+    return foundSurface;
+}
+
+bool SurfaceInterceptorTest::displayCreationFound(const Increment& increment, bool foundDisplay) {
+    bool isMatch(increment.display_creation().name() == DISPLAY_NAME.string() &&
+            increment.display_creation().is_secure());
+    if (isMatch && !foundDisplay) {
+        foundDisplay = true;
+    }
+    else if (isMatch && foundDisplay) {
+        [] () { FAIL(); }();
+    }
+    return foundDisplay;
+}
+
+bool SurfaceInterceptorTest::displayDeletionFound(const Increment& increment, bool foundDisplay) {
+    bool isMatch(increment.display_deletion().id() == mTargetId);
+    if (isMatch && !foundDisplay) {
+        foundDisplay = true;
+    }
+    else if (isMatch && foundDisplay) {
+        [] () { FAIL(); }();
+    }
+    return foundDisplay;
+}
+
+bool SurfaceInterceptorTest::singleIncrementFound(Trace* trace,
+        Increment::IncrementCase incrementCase)
+{
+    bool foundIncrement = false;
     for (const auto& increment : *trace->mutable_increment()) {
-        if (increment.increment_case() == increment.kDelete) {
-            bool isMatch(increment.delete_().id() == targetLayerId);
-            if (isMatch && !foundLayer) {
-                foundLayer = true;
-            }
-            else if (isMatch && foundLayer) {
-                return false;
+        if (increment.increment_case() == incrementCase) {
+            switch (incrementCase) {
+                case Increment::IncrementCase::kSurfaceCreation:
+                    foundIncrement = surfaceCreationFound(increment, foundIncrement);
+                    break;
+                case Increment::IncrementCase::kSurfaceDeletion:
+                    foundIncrement = surfaceDeletionFound(increment, foundIncrement);
+                    break;
+                case Increment::IncrementCase::kDisplayCreation:
+                    foundIncrement = displayCreationFound(increment, foundIncrement);
+                    break;
+                case Increment::IncrementCase::kDisplayDeletion:
+                    foundIncrement = displayDeletionFound(increment, foundIncrement);
+                    break;
+                default:
+                    /* code */
+                    break;
             }
         }
     }
-    return foundLayer;
+    return foundIncrement;
 }
 
 bool SurfaceInterceptorTest::bufferUpdatesFound(Trace* trace) {
@@ -609,62 +713,68 @@ bool SurfaceInterceptorTest::bufferUpdatesFound(Trace* trace) {
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptPositionUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::positionUpdate, Change::ChangeCase::kPosition);
+    captureTest(&SurfaceInterceptorTest::positionUpdate,
+            SurfaceChange::SurfaceChangeCase::kPosition);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptSizeUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::sizeUpdate, Change::ChangeCase::kSize);
+    captureTest(&SurfaceInterceptorTest::sizeUpdate, SurfaceChange::SurfaceChangeCase::kSize);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptAlphaUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::alphaUpdate, Change::ChangeCase::kAlpha);
+    captureTest(&SurfaceInterceptorTest::alphaUpdate, SurfaceChange::SurfaceChangeCase::kAlpha);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptLayerUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::layerUpdate, Change::ChangeCase::kLayer);
+    captureTest(&SurfaceInterceptorTest::layerUpdate, SurfaceChange::SurfaceChangeCase::kLayer);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptCropUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::cropUpdate, Change::ChangeCase::kCrop);
+    captureTest(&SurfaceInterceptorTest::cropUpdate, SurfaceChange::SurfaceChangeCase::kCrop);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptFinalCropUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::finalCropUpdate, Change::ChangeCase::kFinalCrop);
+    captureTest(&SurfaceInterceptorTest::finalCropUpdate,
+            SurfaceChange::SurfaceChangeCase::kFinalCrop);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptMatrixUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::matrixUpdate, Change::ChangeCase::kMatrix);
+    captureTest(&SurfaceInterceptorTest::matrixUpdate, SurfaceChange::SurfaceChangeCase::kMatrix);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptOverrideScalingModeUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::overrideScalingModeUpdate,
-            Change::ChangeCase::kOverrideScalingMode);
+            SurfaceChange::SurfaceChangeCase::kOverrideScalingMode);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptTransparentRegionHintUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::transparentRegionHintUpdate,
-            Change::ChangeCase::kTransparentRegionHint);
+            SurfaceChange::SurfaceChangeCase::kTransparentRegionHint);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptLayerStackUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::layerStackUpdate, Change::ChangeCase::kLayerStack);
+    captureTest(&SurfaceInterceptorTest::layerStackUpdate,
+            SurfaceChange::SurfaceChangeCase::kLayerStack);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptHiddenFlagUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::hiddenFlagUpdate, Change::ChangeCase::kHiddenFlag);
+    captureTest(&SurfaceInterceptorTest::hiddenFlagUpdate,
+            SurfaceChange::SurfaceChangeCase::kHiddenFlag);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptOpaqueFlagUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::opaqueFlagUpdate, Change::ChangeCase::kOpaqueFlag);
+    captureTest(&SurfaceInterceptorTest::opaqueFlagUpdate,
+            SurfaceChange::SurfaceChangeCase::kOpaqueFlag);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptSecureFlagUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::secureFlagUpdate, Change::ChangeCase::kSecureFlag);
+    captureTest(&SurfaceInterceptorTest::secureFlagUpdate,
+            SurfaceChange::SurfaceChangeCase::kSecureFlag);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptDeferredTransactionUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::deferredTransactionUpdate,
-            Change::ChangeCase::kDeferredTransaction);
+            SurfaceChange::SurfaceChangeCase::kDeferredTransaction);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptAllUpdatesWorks) {
@@ -678,21 +788,32 @@ TEST_F(SurfaceInterceptorTest, InterceptAllUpdatesWorks) {
     assertAllUpdatesFound(&capturedTrace);
 }
 
-TEST_F(SurfaceInterceptorTest, InterceptLayerCreateWorks) {
-    captureTest(&SurfaceInterceptorTest::surfaceCreate, &SurfaceInterceptorTest::surfaceCreateFound);
+TEST_F(SurfaceInterceptorTest, InterceptSurfaceCreationWorks) {
+    captureTest(&SurfaceInterceptorTest::surfaceCreation,
+            Increment::IncrementCase::kSurfaceCreation);
 }
 
-TEST_F(SurfaceInterceptorTest, InterceptLayerDeleteWorks) {
+TEST_F(SurfaceInterceptorTest, InterceptSurfaceDeletionWorks) {
     sp<SurfaceControl> layerToDelete = mComposerClient->createSurface(String8(LAYER_NAME),
             SIZE_UPDATE, SIZE_UPDATE, PIXEL_FORMAT_RGBA_8888, 0);
-    uint32_t targetLayerId = getLayerId(LAYER_NAME);
+    this->mTargetId = getSurfaceId(LAYER_NAME);
     enableInterceptor();
     mComposerClient->destroySurface(layerToDelete->getHandle());
     disableInterceptor();
 
     Trace capturedTrace;
     ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
-    ASSERT_TRUE(surfaceDeleteFound(&capturedTrace, targetLayerId));
+    ASSERT_TRUE(singleIncrementFound(&capturedTrace, Increment::IncrementCase::kSurfaceDeletion));
+}
+
+TEST_F(SurfaceInterceptorTest, InterceptDisplayCreationWorks) {
+    captureTest(&SurfaceInterceptorTest::displayCreation,
+            Increment::IncrementCase::kDisplayCreation);
+}
+
+TEST_F(SurfaceInterceptorTest, InterceptDisplayDeletionWorks) {
+    captureTest(&SurfaceInterceptorTest::displayDeletion,
+            Increment::IncrementCase::kDisplayDeletion);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptBufferUpdateWorks) {
@@ -701,7 +822,8 @@ TEST_F(SurfaceInterceptorTest, InterceptBufferUpdateWorks) {
 }
 
 // If the interceptor is enabled while buffer updates are being pushed, the interceptor should
-// first create a snapshot of the existing surfaces and then start capturing the buffer updates
+// first create a snapshot of the existing displays and surfaces and then start capturing
+// the buffer updates
 TEST_F(SurfaceInterceptorTest, InterceptWhileBufferUpdatesWorks) {
     std::thread bufferUpdates(&SurfaceInterceptorTest::nBufferUpdates, this);
     enableInterceptor();
@@ -711,14 +833,14 @@ TEST_F(SurfaceInterceptorTest, InterceptWhileBufferUpdatesWorks) {
     Trace capturedTrace;
     ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
     const auto& firstIncrement = capturedTrace.mutable_increment(0);
-    ASSERT_EQ(firstIncrement->increment_case(), Increment::IncrementCase::kCreate);
+    ASSERT_EQ(firstIncrement->increment_case(), Increment::IncrementCase::kDisplayCreation);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptSimultaneousUpdatesWorks) {
     enableInterceptor();
     std::thread bufferUpdates(&SurfaceInterceptorTest::nBufferUpdates, this);
     std::thread surfaceUpdates(&SurfaceInterceptorTest::runAllUpdates, this);
-    runInTransaction(&SurfaceInterceptorTest::surfaceCreate);
+    runInTransaction(&SurfaceInterceptorTest::surfaceCreation);
     bufferUpdates.join();
     surfaceUpdates.join();
     disableInterceptor();
@@ -728,7 +850,7 @@ TEST_F(SurfaceInterceptorTest, InterceptSimultaneousUpdatesWorks) {
 
     assertAllUpdatesFound(&capturedTrace);
     ASSERT_TRUE(bufferUpdatesFound(&capturedTrace));
-    ASSERT_TRUE(surfaceCreateFound(&capturedTrace));
+    ASSERT_TRUE(singleIncrementFound(&capturedTrace, Increment::IncrementCase::kSurfaceCreation));
 }
 
 }

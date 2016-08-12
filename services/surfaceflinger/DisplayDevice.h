@@ -263,6 +263,28 @@ private:
 #endif
 };
 
+struct DisplayDeviceState {
+    DisplayDeviceState() = default;
+    DisplayDeviceState(DisplayDevice::DisplayType type, bool isSecure);
+
+    bool isValid() const { return type >= 0; }
+    bool isMainDisplay() const { return type == DisplayDevice::DISPLAY_PRIMARY; }
+    bool isVirtualDisplay() const { return type >= DisplayDevice::DISPLAY_VIRTUAL; }
+
+    static std::atomic<int32_t> nextDisplayId;
+    int32_t displayId = nextDisplayId++;
+    DisplayDevice::DisplayType type = DisplayDevice::DISPLAY_ID_INVALID;
+    sp<IGraphicBufferProducer> surface;
+    uint32_t layerStack = DisplayDevice::NO_LAYER_STACK;
+    Rect viewport;
+    Rect frame;
+    uint8_t orientation = 0;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    String8 displayName;
+    bool isSecure = false;
+};
+
 }; // namespace android
 
 #endif // ANDROID_DISPLAY_DEVICE_H

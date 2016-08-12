@@ -5,42 +5,46 @@ message Trace {
 }
 
 message Increment {
-    required int64 time_stamp       = 1;
+    required int64 time_stamp = 1;
 
     oneof increment {
-        Transaction  transaction    = 2;
-        Create       create         = 3;
-        Delete       delete         = 4;
-        BufferUpdate buffer_update  = 5;
-        VSyncEvent   vsync_event    = 6;
+        Transaction        transaction          = 2;
+        SurfaceCreation    surface_creation     = 3;
+        SurfaceDeletion    surface_deletion     = 4;
+        BufferUpdate       buffer_update        = 5;
+        VSyncEvent         vsync_event          = 6;
+        DisplayCreation    display_creation     = 7;
+        DisplayDeletion    display_deletion     = 8;
+        PowerModeUpdate    power_mode_update    = 9;
     }
 }
 
 message Transaction {
-    repeated Change change      = 1;
+    repeated SurfaceChange surface_change = 1;
+    repeated DisplayChange display_change = 2;
 
-    required bool   synchronous = 2;
-    required bool   animation   = 3;
+    required bool synchronous = 3;
+    required bool animation   = 4;
 }
 
-message Change {
-    required uint32 id = 1;
+message SurfaceChange {
+    required int32 id = 1;
 
-    oneof Change {
-        PositionChange              position                   = 2;
-        SizeChange                  size                       = 3;
-        AlphaChange                 alpha                      = 4;
-        LayerChange                 layer                      = 5;
-        CropChange                  crop                       = 6;
-        FinalCropChange             final_crop                 = 7;
-        MatrixChange                matrix                     = 8;
-        OverrideScalingModeChange   override_scaling_mode      = 9;
-        TransparentRegionHintChange transparent_region_hint    = 10;
-        LayerStackChange            layer_stack                = 11;
-        HiddenFlagChange            hidden_flag                = 12;
-        OpaqueFlagChange            opaque_flag                = 13;
-        SecureFlagChange            secure_flag                = 14;
-        DeferredTransactionChange   deferred_transaction       = 15;
+    oneof SurfaceChange {
+        PositionChange              position                = 2;
+        SizeChange                  size                    = 3;
+        AlphaChange                 alpha                   = 4;
+        LayerChange                 layer                   = 5;
+        CropChange                  crop                    = 6;
+        FinalCropChange             final_crop              = 7;
+        MatrixChange                matrix                  = 8;
+        OverrideScalingModeChange   override_scaling_mode   = 9;
+        TransparentRegionHintChange transparent_region_hint = 10;
+        LayerStackChange            layer_stack             = 11;
+        HiddenFlagChange            hidden_flag             = 12;
+        OpaqueFlagChange            opaque_flag             = 13;
+        SecureFlagChange            secure_flag             = 14;
+        DeferredTransactionChange   deferred_transaction    = 15;
     }
 }
 
@@ -102,8 +106,30 @@ message SecureFlagChange {
 }
 
 message DeferredTransactionChange {
-    required uint32 layer_id     = 1;
+    required int32  layer_id     = 1;
     required uint64 frame_number = 2;
+}
+
+message DisplayChange {
+    required int32 id = 1;
+
+    oneof DisplayChange {
+        DispSurfaceChange surface     = 2;
+        LayerStackChange  layer_stack = 3;
+        SizeChange        size        = 4;
+        ProjectionChange  projection  = 5;
+    }
+}
+
+message DispSurfaceChange {
+    required uint64 buffer_queue_id   = 1;
+    required string buffer_queue_name = 2;
+}
+
+message ProjectionChange {
+    required int32     orientation = 1;
+    required Rectangle viewport    = 2;
+    required Rectangle frame       = 3;
 }
 
 message Rectangle {
@@ -113,24 +139,40 @@ message Rectangle {
     required int32 bottom = 4;
 }
 
-message Create {
-    required uint32 id    = 1;
-    required string name  = 2;
-    required uint32 w     = 3;
-    required uint32 h     = 4;
+message SurfaceCreation {
+    required int32  id   = 1;
+    required string name = 2;
+    required uint32 w    = 3;
+    required uint32 h    = 4;
 }
 
-message Delete {
-    required uint32 id = 1;
+message SurfaceDeletion {
+    required int32 id = 1;
 }
 
 message BufferUpdate {
-    required uint32 id            = 1;
-    required uint32 w             = 2;
-    required uint32 h             = 3;
-    required uint64 frame_number  = 4;
+    required int32  id           = 1;
+    required uint32 w            = 2;
+    required uint32 h            = 3;
+    required uint64 frame_number = 4;
 }
 
 message VSyncEvent {
     required int64 when = 1;
+}
+
+message DisplayCreation {
+    required int32     id                = 1;
+    required string    name              = 2;
+    required int32     type              = 3;
+    required bool      is_secure         = 4;
+}
+
+message DisplayDeletion {
+    required int32 id = 1;
+}
+
+message PowerModeUpdate {
+    required int32  id   = 1;
+    required int32  mode = 2;
 }
