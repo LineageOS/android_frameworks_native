@@ -70,7 +70,7 @@ private:
     void addInitialDisplayStateLocked(Increment* increment, const DisplayDeviceState& display);
 
     status_t writeProtoFileLocked();
-    const sp<const Layer> getLayer(const sp<const IBinder>& handle);
+    const sp<const Layer> getLayer(const wp<const IBinder>& weakHandle);
     const std::string getLayerName(const sp<const Layer>& layer);
     int32_t getLayerId(const sp<const Layer>& layer);
 
@@ -99,7 +99,7 @@ private:
     void addLayerStackLocked(Transaction* transaction, int32_t layerId, uint32_t layerStack);
     void addCropLocked(Transaction* transaction, int32_t layerId, const Rect& rect);
     void addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
-            const sp<const IBinder>& handle, uint64_t frameNumber);
+            const wp<const IBinder>& weakHandle, uint64_t frameNumber);
     void addFinalCropLocked(Transaction* transaction, int32_t layerId, const Rect& rect);
     void addOverrideScalingModeLocked(Transaction* transaction, int32_t layerId,
             int32_t overrideScalingMode);

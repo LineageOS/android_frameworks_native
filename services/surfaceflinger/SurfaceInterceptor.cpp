@@ -130,7 +130,8 @@ status_t SurfaceInterceptor::writeProtoFileLocked() {
     return NO_ERROR;
 }
 
-const sp<const Layer> SurfaceInterceptor::getLayer(const sp<const IBinder>& handle) {
+const sp<const Layer> SurfaceInterceptor::getLayer(const wp<const IBinder>& weakHandle) {
+    const sp<const IBinder>& handle(weakHandle.promote());
     const auto layerHandle(static_cast<const Layer::Handle*>(handle.get()));
     const sp<const Layer> layer(layerHandle->owner.promote());
     // layer could be a nullptr at this point
@@ -279,10 +280,10 @@ void SurfaceInterceptor::addFinalCropLocked(Transaction* transaction, int32_t la
 }
 
 void SurfaceInterceptor::addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
-        const sp<const IBinder>& handle, uint64_t frameNumber)
+        const wp<const IBinder>& weakHandle, uint64_t frameNumber)
 {
     SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
-    const sp<const Layer> layer(getLayer(handle));
+    const sp<const Layer> layer(getLayer(weakHandle));
     if (layer == nullptr) {
         ALOGE("An existing layer could not be retrieved with the handle"
                 " for the deferred transaction");
