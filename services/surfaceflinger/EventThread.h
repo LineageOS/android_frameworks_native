@@ -77,7 +77,7 @@ class EventThread : public Thread, private VSyncSource::Callback {
 
 public:
 
-    EventThread(const sp<VSyncSource>& src, SurfaceFlinger& flinger);
+    EventThread(const sp<VSyncSource>& src, SurfaceFlinger& flinger, bool interceptVSyncs);
 
     sp<Connection> createEventConnection() const;
     status_t registerDisplayEventConnection(const sp<Connection>& connection);
@@ -132,6 +132,7 @@ private:
     bool mDebugVsyncEnabled;
 
     bool mVsyncHintSent;
+    const bool mInterceptVSyncs;
     timer_t mTimerId;
 };
 
