@@ -1133,6 +1133,16 @@ const char* eglQueryString(EGLDisplay dpy, EGLint name)
 {
     clearError();
 
+    // Generate an error quietly when client extensions (as defined by
+    // EGL_EXT_client_extensions) are queried.  We do not want to rely on
+    // validate_display to generate the error as validate_display would log
+    // the error, which can be misleading.
+    //
+    // If we want to support EGL_EXT_client_extensions later, we can return
+    // the client extension string here instead.
+    if (dpy == EGL_NO_DISPLAY && name == EGL_EXTENSIONS)
+        return setErrorQuiet(EGL_BAD_DISPLAY, nullptr);
+
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return (const char *) NULL;
 
