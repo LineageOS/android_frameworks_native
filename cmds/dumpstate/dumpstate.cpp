@@ -36,6 +36,7 @@
 
 #include <android-base/stringprintf.h>
 #include <android-base/unique_fd.h>
+#include <android-base/file.h>
 #include <cutils/properties.h>
 
 #include "private/android_filesystem_config.h"
@@ -177,6 +178,118 @@ static void dump_dev_files(const char *title, const char *driverpath, const char
     }
 
     closedir(d);
+}
+
+// return pid of a userspace process. If not found or error, return 0.
+static unsigned int pid_of_process(const char* ps_name) {
+    DIR *proc_dir;
+    struct dirent *ps;
+    unsigned int pid;
+    std::string cmdline;
+
+    if (!(proc_dir = opendir("/proc"))) {
+        MYLOGE("Can't open /proc\n");
+        return 0;
+    }
+
+    while ((ps = readdir(proc_dir))) {
+        if (!(pid = atoi(ps->d_name))) {
+            continue;
+        }
+        android::base::ReadFileToString("/proc/"
+                + std::string(ps->d_name) + "/cmdline", &cmdline);
+        if (cmdline.find(ps_name) == std::string::npos) {
+            continue;
+        } else {
+            closedir(proc_dir);
+            return pid;
+        }
+    }
+    closedir(proc_dir);
+    return 0;
+}
+
+// dump anrd's trace and add to the zip file.
+// 1. check if anrd is running on this device.
+// 2. send a SIGUSR1 to its pid which will dump anrd's trace.
+// 3. wait until the trace generation completes and add to the zip file.
+static bool dump_anrd_trace() {
+    unsigned int pid;
+    char buf[50], path[PATH_MAX];
+    struct dirent *trace;
+    struct stat st;
+    DIR *trace_dir;
+    long max_ctime = 0;
+    long long cur_size = 0;
+    const char *trace_path = "/data/misc/anrd/";
+
+    if (!zip_writer) {
+        MYLOGE("Not dumping anrd trace because zip_writer is not set\n");
+        return false;
+    }
+
+    // find anrd's pid if it is running.
+    pid = pid_of_process("/system/xbin/anrd");
+
+    if (pid > 0) {
+        // send SIGUSR1 to the anrd to generate a trace.
+        sprintf(buf, "%u", pid);
+        if (run_command("ANRD_DUMP", 1, "kill", "-SIGUSR1", buf, NULL)) {
+            MYLOGE("anrd signal timed out. Please manually collect trace\n");
+            return false;
+        }
+
+        // identify the trace file by its creation time.
+        if (!(trace_dir = opendir(trace_path))) {
+            MYLOGE("Can't open trace file under %s\n", trace_path);
+        }
+        while ((trace = readdir(trace_dir))) {
+            if (strcmp(trace->d_name, ".") == 0
+                    || strcmp(trace->d_name, "..") == 0) {
+                continue;
+            }
+            sprintf(path, "%s%s", trace_path, trace->d_name);
+            if (stat(path, &st) == 0) {
+                if (st.st_ctime > max_ctime) {
+                    max_ctime = st.st_ctime;
+                    sprintf(buf, "%s", trace->d_name);
+                }
+            }
+        }
+        closedir(trace_dir);
+
+        // Wait until the dump completes by checking the size of the trace.
+        if (max_ctime > 0) {
+            sprintf(path, "%s%s", trace_path, buf);
+            while(true) {
+                sleep(1);
+                if (stat(path, &st) == 0) {
+                    if (st.st_size == cur_size) {
+                        break;
+                    } else if (st.st_size > cur_size) {
+                        cur_size = st.st_size;
+                    } else {
+                        return false;
+                    }
+                } else {
+                    MYLOGE("Cant stat() %s anymore\n", path);
+                    return false;
+                }
+            }
+            // Add to the zip file.
+            if (!add_zip_entry("anrd_trace.txt", path)) {
+                MYLOGE("Unable to add anrd_trace file %s to zip file\n", path);
+            } else {
+                if (remove(path)) {
+                    MYLOGE("Error removing anrd_trace file %s: %s", path, strerror(errno));
+                }
+                return true;
+            }
+        } else {
+            MYLOGE("Can't stats any trace file under %s\n", trace_path);
+        }
+    }
+    return false;
 }
 
 static void dump_systrace() {
@@ -1350,7 +1463,11 @@ int main(int argc, char *argv[]) {
     print_header(version);
 
     // Dumps systrace right away, otherwise it will be filled with unnecessary events.
-    dump_systrace();
+    // First try to dump anrd trace if the daemon is running. Otherwise, dump
+    // the raw trace.
+    if (!dump_anrd_trace()) {
+        dump_systrace();
+    }
 
     // TODO: Drop root user and move into dumpstate() once b/28633932 is fixed.
     dump_raft();
