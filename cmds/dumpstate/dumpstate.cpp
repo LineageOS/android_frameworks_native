@@ -1043,7 +1043,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     printf("== Final progress (pid %d): %d/%d (originally %d)\n",
             getpid(), progress, weight_total, WEIGHT_TOTAL);
     printf("========================================================\n");
-    printf("== dumpstate: done\n");
+    printf("== dumpstate: done (id %lu)\n", id);
     printf("========================================================\n");
 }
 
@@ -1080,6 +1080,13 @@ static void sigpipe_handler(int n) {
  */
 static bool finish_zip_file(const std::string& bugreport_name, const std::string& bugreport_path,
         const std::string& log_path, time_t now) {
+    // Final timestamp
+    char date[80];
+    time_t the_real_now_please_stand_up = time(nullptr);
+    strftime(date, sizeof(date), "%Y/%m/%d %H:%M:%S", localtime(&the_real_now_please_stand_up));
+    MYLOGD("dumpstate id %lu finished around %s (%ld s)\n", id, date,
+            the_real_now_please_stand_up - now);
+
     if (!add_zip_entry(bugreport_name, bugreport_path)) {
         MYLOGE("Failed to add text entry to .zip file\n");
         return false;
@@ -1166,7 +1173,7 @@ int main(int argc, char *argv[]) {
     int is_remote_mode = 0;
     std::string version = VERSION_DEFAULT;
 
-    now = time(NULL);
+    now = time(nullptr);
 
     MYLOGI("begin\n");
 
@@ -1568,7 +1575,7 @@ int main(int argc, char *argv[]) {
     }
 
     MYLOGD("Final progress: %d/%d (originally %d)\n", progress, weight_total, WEIGHT_TOTAL);
-    MYLOGI("done\n");
+    MYLOGI("done (id %lu)\n", id);
 
     if (is_redirecting) {
         fclose(stderr);
