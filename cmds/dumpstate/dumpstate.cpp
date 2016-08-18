@@ -652,7 +652,7 @@ bool add_zip_entry_from_fd(const std::string& entry_name, int fd) {
 
     std::vector<uint8_t> buffer(65536);
     while (1) {
-        ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd, buffer.data(), sizeof(buffer)));
+        ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd, buffer.data(), buffer.size()));
         if (bytes_read == 0) {
             break;
         } else if (bytes_read == -1) {
