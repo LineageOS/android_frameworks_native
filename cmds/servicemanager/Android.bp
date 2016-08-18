@@ -31,6 +31,6 @@ cc_binary {
         "service_manager.c",
         "binder.c",
     ],
-    shared_libs: ["libselinux"],
+    shared_libs: ["libcutils", "libselinux"],
     init_rc: ["servicemanager.rc"],
 }
