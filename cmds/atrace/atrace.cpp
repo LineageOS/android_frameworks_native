@@ -116,6 +116,17 @@ static const TracingCategory k_categories[] = {
         { REQ,      "/sys/kernel/debug/tracing/events/irq/enable" },
         { OPT,      "/sys/kernel/debug/tracing/events/ipi/enable" },
     } },
+    { "i2c",        "I2C Events",   0, {
+        { REQ,      "/sys/kernel/debug/tracing/events/i2c/enable" },
+        { REQ,      "/sys/kernel/debug/tracing/events/i2c/i2c_read/enable" },
+        { REQ,      "/sys/kernel/debug/tracing/events/i2c/i2c_write/enable" },
+        { REQ,      "/sys/kernel/debug/tracing/events/i2c/i2c_result/enable" },
+        { REQ,      "/sys/kernel/debug/tracing/events/i2c/i2c_reply/enable" },
+        { OPT,      "/sys/kernel/debug/tracing/events/i2c/smbus_read/enable" },
+        { OPT,      "/sys/kernel/debug/tracing/events/i2c/smbus_write/enable" },
+        { OPT,      "/sys/kernel/debug/tracing/events/i2c/smbus_result/enable" },
+        { OPT,      "/sys/kernel/debug/tracing/events/i2c/smbus_reply/enable" },
+    } },
     { "freq",       "CPU Frequency",    0, {
         { REQ,      "/sys/kernel/debug/tracing/events/power/cpu_frequency/enable" },
         { OPT,      "/sys/kernel/debug/tracing/events/power/clock_set_rate/enable" },
