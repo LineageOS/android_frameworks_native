@@ -54,6 +54,15 @@ on boot
     chmod 0664 /sys/kernel/debug/tracing/events/binder/binder_lock/enable
     chmod 0664 /sys/kernel/debug/tracing/events/binder/binder_locked/enable
     chmod 0664 /sys/kernel/debug/tracing/events/binder/binder_unlock/enable
+    chmod 0664 /sys/kernel/debug/tracing/events/i2c/enable
+    chmod 0664 /sys/kernel/debug/tracing/events/i2c/i2c_read/enable
+    chmod 0664 /sys/kernel/debug/tracing/events/i2c/i2c_write/enable
+    chmod 0664 /sys/kernel/debug/tracing/events/i2c/i2c_result/enable
+    chmod 0664 /sys/kernel/debug/tracing/events/i2c/i2c_reply/enable
+    chmod 0664 /sys/kernel/debug/tracing/events/i2c/smbus_read/enable
+    chmod 0664 /sys/kernel/debug/tracing/events/i2c/smbus_write/enable
+    chmod 0664 /sys/kernel/debug/tracing/events/i2c/smbus_result/enable
+    chmod 0664 /sys/kernel/debug/tracing/events/i2c/smbus_reply/enable
 
     # Tracing disabled by default
     write /sys/kernel/debug/tracing/tracing_on 0
