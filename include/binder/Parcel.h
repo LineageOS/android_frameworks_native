@@ -166,6 +166,10 @@ public:
     template<typename T>
     status_t            write(const LightFlattenable<T>& val);
 
+    template<typename T>
+    status_t            writeVectorSize(const std::vector<T>& val);
+    template<typename T>
+    status_t            writeVectorSize(const std::unique_ptr<std::vector<T>>& val);
 
     // Place a native_handle into the parcel (the native_handle's file-
     // descriptors are dup'ed, so it is safe to delete the native_handle
@@ -304,6 +308,11 @@ public:
 
     template<typename T>
     status_t            read(LightFlattenable<T>& val) const;
+
+    template<typename T>
+    status_t            resizeOutVector(std::vector<T>* val) const;
+    template<typename T>
+    status_t            resizeOutVector(std::unique_ptr<std::vector<T>>* val) const;
 
     // Like Parcel.java's readExceptionCode().  Reads the first int32
     // off of a Parcel's header, returning 0 or the negative error
@@ -561,6 +570,54 @@ status_t Parcel::read(LightFlattenable<T>& val) const {
                 val.unflatten(buffer, size);
     }
     return NO_ERROR;
+}
+
+template<typename T>
+status_t Parcel::writeVectorSize(const std::vector<T>& val) {
+    if (val.size() > INT32_MAX) {
+        return BAD_VALUE;
+    }
+    return writeInt32(val.size());
+}
+
+template<typename T>
+status_t Parcel::writeVectorSize(const std::unique_ptr<std::vector<T>>& val) {
+    if (!val) {
+        return writeInt32(-1);
+    }
+
+    return writeVectorSize(*val);
+}
+
+template<typename T>
+status_t Parcel::resizeOutVector(std::vector<T>* val) const {
+    int32_t size;
+    status_t err = readInt32(&size);
+    if (err != NO_ERROR) {
+        return err;
+    }
+
+    if (size < 0) {
+        return UNEXPECTED_NULL;
+    }
+    val->resize(size_t(size));
+    return OK;
+}
+
+template<typename T>
+status_t Parcel::resizeOutVector(std::unique_ptr<std::vector<T>>* val) const {
+    int32_t size;
+    status_t err = readInt32(&size);
+    if (err != NO_ERROR) {
+        return err;
+    }
+
+    val->reset();
+    if (size >= 0) {
+        val->reset(new std::vector<T>(size_t(size)));
+    }
+
+    return OK;
 }
 
 template<typename T>
