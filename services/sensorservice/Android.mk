@@ -18,6 +18,10 @@ LOCAL_CFLAGS:= -DLOG_TAG=\"SensorService\"
 
 LOCAL_CFLAGS += -fvisibility=hidden
 
+ifeq ($(TARGET_PREFERS_AOSP_ROTATION_SENSOR),true)
+    LOCAL_CFLAGS += -DPREFER_AOSP_ROTATION_SENSOR
+endif
+
 LOCAL_SHARED_LIBRARIES := \
 	libcutils \
 	libhardware \

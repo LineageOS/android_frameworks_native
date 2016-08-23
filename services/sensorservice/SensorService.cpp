@@ -92,6 +92,13 @@ void SensorService::onFirstRef()
 
             mLastEventSeen.setCapacity(count);
             for (ssize_t i=0 ; i<count ; i++) {
+#ifdef PREFER_AOSP_ROTATION_SENSOR
+		// Some devices have an unreliable hardware rotation vector sensor
+		// Let us use AOSP based implementation instead
+		if (SENSOR_TYPE_ROTATION_VECTOR == list[i].type) {
+		    continue;
+		}
+#endif
                 registerSensor( new HardwareSensor(list[i]) );
                 switch (list[i].type) {
                     case SENSOR_TYPE_ACCELEROMETER:
