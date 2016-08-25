@@ -38,7 +38,6 @@
 #include <android-base/unique_fd.h>
 #include <android-base/file.h>
 #include <cutils/properties.h>
-#include <hardware_legacy/power.h>
 
 #include "private/android_filesystem_config.h"
 
@@ -84,7 +83,6 @@ static bool dry_run = false;
 #define TOMBSTONE_MAX_LEN (sizeof(TOMBSTONE_FILE_PREFIX) + 4)
 #define NUM_TOMBSTONES  10
 #define WLUTIL "/vendor/xbin/wlutil"
-#define WAKE_LOCK_NAME "dumpstate_wakelock"
 
 typedef struct {
   char name[TOMBSTONE_MAX_LEN];
@@ -1274,10 +1272,6 @@ static std::string SHA256_file_hash(std::string filepath) {
     return std::string(hash_buffer);
 }
 
-static void wake_lock_releaser() {
-    release_wake_lock(WAKE_LOCK_NAME);
-}
-
 int main(int argc, char *argv[]) {
     struct sigaction sigact;
     int do_add_date = 0;
@@ -1295,9 +1289,6 @@ int main(int argc, char *argv[]) {
     now = time(nullptr);
 
     MYLOGI("begin\n");
-
-    acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_NAME);
-    atexit(wake_lock_releaser);
 
     dry_run = property_get_bool("dumpstate.dry_run", 0) != 0;
     if (is_dry_run()) {
