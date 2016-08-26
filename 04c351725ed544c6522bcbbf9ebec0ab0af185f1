@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1fa4df85_d6ebaead",
+        "filename": "services/surfaceflinger/LayerBlur.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 232,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2016-08-26T20:10:37Z",
+      "side": 0,
+      "message": "Need to be reverted when we merge CAF",
+      "range": {
+        "startLine": 231,
+        "startChar": 0,
+        "endLine": 232,
+        "endChar": 39
+      },
+      "revId": "04c351725ed544c6522bcbbf9ebec0ab0af185f1",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
