@@ -7,8 +7,11 @@ LOCAL_SRC_FILES:= \
 LOCAL_SHARED_LIBRARIES := \
 	libutils \
 	liblog \
+    libselinux \
 	libbinder
-	
+
+LOCAL_C_INCLUDES += \
+    $(JNI_H_INCLUDE)
 
 ifeq ($(TARGET_OS),linux)
 	LOCAL_CFLAGS += -DXP_UNIX

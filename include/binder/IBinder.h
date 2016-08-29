@@ -38,6 +38,7 @@ class BpBinder;
 class IInterface;
 class Parcel;
 class IResultReceiver;
+class IShellCallback;
 
 /**
  * Base class and low-level protocol for a remotable object.
@@ -82,7 +83,7 @@ public:
     virtual status_t        pingBinder() = 0;
     virtual status_t        dump(int fd, const Vector<String16>& args) = 0;
     static  status_t        shellCommand(const sp<IBinder>& target, int in, int out, int err,
-                                         Vector<String16>& args,
+                                         Vector<String16>& args, const sp<IShellCallback>& callback,
                                          const sp<IResultReceiver>& resultReceiver);
 
     virtual status_t        transact(   uint32_t code,
