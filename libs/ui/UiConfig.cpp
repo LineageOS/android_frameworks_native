@@ -18,20 +18,10 @@
 
 namespace android {
 
-#ifdef FRAMEBUFFER_FORCE_FORMAT
-// We need the two-level macro to stringify the contents of a macro argument
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
-#endif
-
 void appendUiConfigString(String8& configStr)
 {
     static const char* config =
-            " [libui"
-#ifdef FRAMEBUFFER_FORCE_FORMAT
-            " FRAMEBUFFER_FORCE_FORMAT=" TOSTRING(FRAMEBUFFER_FORCE_FORMAT)
-#endif
-            "]";
+            " [libui]";
     configStr.append(config);
 }
 
