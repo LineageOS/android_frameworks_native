@@ -40,7 +40,7 @@ struct NotifyConfigurationChangedArgs : public NotifyArgs {
 
     inline NotifyConfigurationChangedArgs() { }
 
-    NotifyConfigurationChangedArgs(nsecs_t eventTime);
+    explicit NotifyConfigurationChangedArgs(nsecs_t eventTime);
 
     NotifyConfigurationChangedArgs(const NotifyConfigurationChangedArgs& other);
 
@@ -178,7 +178,7 @@ protected:
     virtual ~QueuedInputListener();
 
 public:
-    QueuedInputListener(const sp<InputListenerInterface>& innerListener);
+    explicit QueuedInputListener(const sp<InputListenerInterface>& innerListener);
 
     virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args);
     virtual void notifyKey(const NotifyKeyArgs* args);
