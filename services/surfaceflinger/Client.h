@@ -38,7 +38,7 @@ class SurfaceFlinger;
 class Client : public BnSurfaceComposerClient
 {
 public:
-        Client(const sp<SurfaceFlinger>& flinger);
+        explicit Client(const sp<SurfaceFlinger>& flinger);
         ~Client();
 
     status_t initCheck() const;

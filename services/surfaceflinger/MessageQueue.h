@@ -69,7 +69,7 @@ class MessageQueue {
         MessageQueue& mQueue;
         int32_t mEventMask;
     public:
-        Handler(MessageQueue& queue) : mQueue(queue), mEventMask(0) { }
+        explicit Handler(MessageQueue& queue) : mQueue(queue), mEventMask(0) { }
         virtual void handleMessage(const Message& message);
         void dispatchRefresh();
         void dispatchInvalidate();

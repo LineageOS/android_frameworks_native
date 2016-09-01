@@ -29,7 +29,7 @@ class SurfaceFlinger;
 class EventControlThread: public Thread {
 public:
 
-    EventControlThread(const sp<SurfaceFlinger>& flinger);
+    explicit EventControlThread(const sp<SurfaceFlinger>& flinger);
     virtual ~EventControlThread() {}
 
     void setVsyncEnabled(bool enabled);
