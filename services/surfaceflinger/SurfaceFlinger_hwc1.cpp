@@ -607,9 +607,12 @@ status_t SurfaceFlinger::getSupportedFrameTimestamps(
     *outSupported = {
         FrameEvent::REQUESTED_PRESENT,
         FrameEvent::ACQUIRE,
+        FrameEvent::LATCH,
         FrameEvent::FIRST_REFRESH_START,
+        FrameEvent::LAST_REFRESH_START,
         FrameEvent::GL_COMPOSITION_DONE,
         FrameEvent::DISPLAY_RETIRE,
+        FrameEvent::DEQUEUE_READY,
         FrameEvent::RELEASE,
     };
     return NO_ERROR;
