@@ -455,7 +455,7 @@ private:
     };
 
     struct ConfigurationChangedEntry : EventEntry {
-        ConfigurationChangedEntry(nsecs_t eventTime);
+        explicit ConfigurationChangedEntry(nsecs_t eventTime);
         virtual void appendDescription(String8& msg) const;
 
     protected:
@@ -591,7 +591,7 @@ private:
 
     class Connection;
     struct CommandEntry : Link<CommandEntry> {
-        CommandEntry(Command command);
+        explicit CommandEntry(Command command);
         ~CommandEntry();
 
         Command command;
