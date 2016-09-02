@@ -61,7 +61,7 @@ VK_DEFINE_HANDLE(InstanceDispatchable)
 VK_DEFINE_HANDLE(DeviceDispatchable)
 
 struct InstanceData {
-    InstanceData(const VkAllocationCallbacks& alloc)
+    explicit InstanceData(const VkAllocationCallbacks& alloc)
         : opaque_api_data(),
           allocator(alloc),
           driver(),
