@@ -484,7 +484,7 @@ protected:
         InputReader* mReader;
 
     public:
-        ContextImpl(InputReader* reader);
+        explicit ContextImpl(InputReader* reader);
 
         virtual void updateGlobalMetaState();
         virtual int32_t getGlobalMetaState();
@@ -568,7 +568,7 @@ private:
 /* Reads raw events from the event hub and processes them, endlessly. */
 class InputReaderThread : public Thread {
 public:
-    InputReaderThread(const sp<InputReaderInterface>& reader);
+    explicit InputReaderThread(const sp<InputReaderInterface>& reader);
     virtual ~InputReaderThread();
 
 private:
@@ -1007,7 +1007,7 @@ private:
  */
 class InputMapper {
 public:
-    InputMapper(InputDevice* device);
+    explicit InputMapper(InputDevice* device);
     virtual ~InputMapper();
 
     inline InputDevice* getDevice() { return mDevice; }
@@ -1058,7 +1058,7 @@ protected:
 
 class SwitchInputMapper : public InputMapper {
 public:
-    SwitchInputMapper(InputDevice* device);
+    explicit SwitchInputMapper(InputDevice* device);
     virtual ~SwitchInputMapper();
 
     virtual uint32_t getSources();
@@ -1078,7 +1078,7 @@ private:
 
 class VibratorInputMapper : public InputMapper {
 public:
-    VibratorInputMapper(InputDevice* device);
+    explicit VibratorInputMapper(InputDevice* device);
     virtual ~VibratorInputMapper();
 
     virtual uint32_t getSources();
@@ -1178,7 +1178,7 @@ private:
 
 class CursorInputMapper : public InputMapper {
 public:
-    CursorInputMapper(InputDevice* device);
+    explicit CursorInputMapper(InputDevice* device);
     virtual ~CursorInputMapper();
 
     virtual uint32_t getSources();
@@ -1243,7 +1243,7 @@ private:
 
 class RotaryEncoderInputMapper : public InputMapper {
 public:
-    RotaryEncoderInputMapper(InputDevice* device);
+    explicit RotaryEncoderInputMapper(InputDevice* device);
     virtual ~RotaryEncoderInputMapper();
 
     virtual uint32_t getSources();
@@ -1264,7 +1264,7 @@ private:
 
 class TouchInputMapper : public InputMapper {
 public:
-    TouchInputMapper(InputDevice* device);
+    explicit TouchInputMapper(InputDevice* device);
     virtual ~TouchInputMapper();
 
     virtual uint32_t getSources();
@@ -1887,7 +1887,7 @@ private:
 
 class SingleTouchInputMapper : public TouchInputMapper {
 public:
-    SingleTouchInputMapper(InputDevice* device);
+    explicit SingleTouchInputMapper(InputDevice* device);
     virtual ~SingleTouchInputMapper();
 
     virtual void reset(nsecs_t when);
@@ -1905,7 +1905,7 @@ private:
 
 class MultiTouchInputMapper : public TouchInputMapper {
 public:
-    MultiTouchInputMapper(InputDevice* device);
+    explicit MultiTouchInputMapper(InputDevice* device);
     virtual ~MultiTouchInputMapper();
 
     virtual void reset(nsecs_t when);
@@ -1926,7 +1926,7 @@ private:
 
 class ExternalStylusInputMapper : public InputMapper {
 public:
-    ExternalStylusInputMapper(InputDevice* device);
+    explicit ExternalStylusInputMapper(InputDevice* device);
     virtual ~ExternalStylusInputMapper() = default;
 
     virtual uint32_t getSources();
@@ -1948,7 +1948,7 @@ private:
 
 class JoystickInputMapper : public InputMapper {
 public:
-    JoystickInputMapper(InputDevice* device);
+    explicit JoystickInputMapper(InputDevice* device);
     virtual ~JoystickInputMapper();
 
     virtual uint32_t getSources();
