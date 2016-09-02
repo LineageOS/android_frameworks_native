@@ -82,7 +82,7 @@ public:
 
 class InputDriver : public InputDriverInterface {
 public:
-    InputDriver(const char* name);
+    explicit InputDriver(const char* name);
     virtual ~InputDriver() = default;
 
     virtual void init() override;
