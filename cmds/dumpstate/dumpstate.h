@@ -33,18 +33,150 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdio.h>
+
+#include <string>
 #include <vector>
 
 #define SU_PATH "/system/xbin/su"
 
 // Workaround for const char *args[MAX_ARGS_ARRAY_SIZE] variables until they're converted to
 // std::vector<std::string>
+// TODO: remove once not used
 #define MAX_ARGS_ARRAY_SIZE 1000
 
-
+// TODO: remove once moved to HAL
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/*
+ * Defines the Linux user that should be executing a command.
+ */
+enum RootMode {
+    /* Explicitly change the `uid` and `gid` to be `shell`.*/
+    DROP_ROOT,
+    /* Don't change the `uid` and `gid`. */
+    DONT_DROP_ROOT,
+    /* Prefix the command with `/PATH/TO/su root`. Won't work non user builds. */
+    SU_ROOT
+};
+
+/*
+ * Defines what should happen with the `stdout` stream of a command.
+ */
+enum StdoutMode {
+    /* Don't change `stdout`. */
+    NORMAL_STDOUT,
+    /* Redirect `stdout` to `stderr`. */
+    REDIRECT_TO_STDERR
+};
+
+/*
+ * Helper class used to report how long it takes for a section to finish.
+ *
+ * Typical usage:
+ *
+ *    DurationReporter duration_reporter(title);
+ *
+ */
+class DurationReporter {
+  public:
+    DurationReporter(const char* title);
+    DurationReporter(const char* title, FILE* out);
+
+    ~DurationReporter();
+
+    static uint64_t nanotime();
+
+  private:
+    // TODO: use std::string for title, once dump_files() and other places that pass a char* are
+    // refactored as well.
+    const char* mTitle;
+    FILE* mOut;
+    uint64_t mStarted;
+};
+
+/*
+ * Value object used to set command options.
+ *
+ * Typically constructed using a builder with chained setters. Examples:
+ *
+ *  CommandOptions::WithTimeout(20).AsRoot().Build();
+ *  CommandOptions::WithTimeout(10).Always().RedirectStderr().Build();
+ *
+ * Although the builder could be used to dynamically set values. Example:
+ *
+ *  CommandOptions::CommandOptionsBuilder options =
+ *  CommandOptions::WithTimeout(10);
+ *  if (!is_user_build()) {
+ *    options.AsRoot();
+ *  }
+ *  runCommand("command", {"args"}, options.Build());
+ */
+class CommandOptions {
+  private:
+    class CommandOptionsValues {
+      private:
+        CommandOptionsValues(long timeout);
+
+        long mTimeout;
+        bool mAlways;
+        RootMode mRootMode;
+        StdoutMode mStdoutMode;
+        std::string mLoggingMessage;
+
+        friend class CommandOptions;
+        friend class CommandOptionsBuilder;
+    };
+
+    CommandOptions(const CommandOptionsValues& values);
+
+    const CommandOptionsValues mValues;
+
+  public:
+    class CommandOptionsBuilder {
+      public:
+        /* Sets the command to always run, even on `dry-run` mode. */
+        CommandOptionsBuilder& Always();
+        /* Sets the command's RootMode as `SU_ROOT` */
+        CommandOptionsBuilder& AsRoot();
+        /* Sets the command's RootMode as `DROP_ROOT` */
+        CommandOptionsBuilder& DropRoot();
+        /* Sets the command's StdoutMode `REDIRECT_TO_STDERR` */
+        CommandOptionsBuilder& RedirectStderr();
+        /* When not empty, logs a message before executing the command.
+         * Must contain a `%s`, which will be replaced by the full command line, and end on `\n`. */
+        CommandOptionsBuilder& Log(const std::string& message);
+        /* Builds the command options. */
+        CommandOptions Build();
+
+      private:
+        CommandOptionsBuilder(long timeout);
+        CommandOptionsValues mValues;
+        friend class CommandOptions;
+    };
+
+    /** Gets the command timeout, in seconds. */
+    long Timeout() const;
+    /* Checks whether the command should always be run, even on dry-run mode. */
+    bool Always() const;
+    /** Gets the RootMode of the command. */
+    RootMode RootMode() const;
+    /** Gets the StdoutMode of the command. */
+    StdoutMode StdoutMode() const;
+    /** Gets the logging message header, it any. */
+    std::string LoggingMessage() const;
+
+    /** Creates a builder with the requied timeout. */
+    static CommandOptionsBuilder WithTimeout(long timeout);
+
+    // Common options.
+    static CommandOptions DEFAULT;
+    static CommandOptions DEFAULT_DUMPSYS;
+    static CommandOptions AS_ROOT_5;
+    static CommandOptions AS_ROOT_10;
+    static CommandOptions AS_ROOT_20;
+};
 
 typedef void (for_each_pid_func)(int, const char *);
 typedef void (for_each_tid_func)(int, int, const char *);
@@ -110,21 +242,35 @@ int dump_files(const char *title, const char *dir,
         bool (*skip)(const char *path),
         int (*dump_from_fd)(const char *title, const char *path, int fd));
 
-// TODO: need to refactor all those run_command variations; there shold be just one, receiving an
-// optional CommandOptions objects with values such as run_always, drop_root, etc...
-
-/* forks a command and waits for it to finish -- terminate args with NULL */
-int run_command_as_shell(const char *title, int timeout_seconds, const char *command, ...);
+/* forks a command and waits for it to finish -- terminate args with NULL
+ * DEPRECATED: will be removed once device-specific implementations use
+ * runCommand */
 int run_command(const char *title, int timeout_seconds, const char *command, ...);
 
-enum RootMode { DROP_ROOT, DONT_DROP_ROOT };
-enum StdoutMode { NORMAL_STDOUT, REDIRECT_TO_STDERR };
+/*
+ * Forks a command, waits for it to finish, and returns its status.
+ *
+ * |title| description of the command printed on `stdout` (or `nullptr` to skip
+ * description).
+ * |full_command| array containing the command (first entry) and its arguments.
+ * Must contain at least one element.
+ * |options| optional argument defining the command's behavior.
+ */
+// TODO: use std::string for title once other char* title references are refactored.
+int runCommand(const char* title, const std::vector<std::string>& fullCommand,
+               const CommandOptions& options = CommandOptions::DEFAULT);
 
-/* forks a command and waits for it to finish
-   first element of args is the command, and last must be NULL.
-   command is always ran, even when _DUMPSTATE_DRY_RUN_ is defined. */
-int run_command_always(const char *title, RootMode root_mode, StdoutMode stdout_mode,
-        int timeout_seconds, const char *args[]);
+/*
+ * Runs `dumpsys` with the given arguments, automatically setting its timeout
+ * (`-t` argument)
+ * according to the command options.
+ *
+ * |title| description of the command printed on `stdout`.
+ * |dumpsys_args| `dumpsys` arguments (except `-t`).
+ * |options| optional argument defining the command's behavior.
+ */
+void runDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
+                const CommandOptions& options = CommandOptions::DEFAULT_DUMPSYS);
 
 /* switch to non-root user and group */
 bool drop_root_user();
@@ -212,29 +358,6 @@ bool is_user_build();
  * Dry-run mode is enabled by setting the system property dumpstate.dry_run to true.
  */
 bool is_dry_run();
-
-/*
- * Helper class used to report how long it takes for a section to finish.
- *
- * Typical usage:
- *
- *    DurationReporter duration_reporter(title);
- *
- */
-class DurationReporter {
-public:
-    explicit DurationReporter(const char *title);
-    DurationReporter(const char *title, FILE* out);
-
-    ~DurationReporter();
-
-    static uint64_t nanotime();
-
-private:
-    const char* title_;
-    FILE* out_;
-    uint64_t started_;
-};
 
 #ifdef __cplusplus
 }
