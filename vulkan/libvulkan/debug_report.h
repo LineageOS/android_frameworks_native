@@ -85,9 +85,9 @@ class DebugReportCallbackList {
 
 class DebugReportLogger {
    public:
-    DebugReportLogger(const VkInstanceCreateInfo& info)
+    explicit DebugReportLogger(const VkInstanceCreateInfo& info)
         : instance_pnext_(info.pNext), callbacks_(nullptr) {}
-    DebugReportLogger(const DebugReportCallbackList& callbacks)
+    explicit DebugReportLogger(const DebugReportCallbackList& callbacks)
         : instance_pnext_(nullptr), callbacks_(&callbacks) {}
 
     void Message(VkDebugReportFlagsEXT flags,
