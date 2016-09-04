@@ -114,9 +114,11 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
         break;
     case SENSOR_TYPE_HEART_RATE: {
         mStringType = SENSOR_STRING_TYPE_HEART_RATE;
+#ifndef NO_SENSOR_PERMISSION_CHECK
         mRequiredPermission = SENSOR_PERMISSION_BODY_SENSORS;
         AppOpsManager appOps;
         mRequiredAppOp = appOps.permissionToOpCode(String16(SENSOR_PERMISSION_BODY_SENSORS));
+#endif
         mFlags |= SENSOR_FLAG_ON_CHANGE_MODE;
         } break;
     case SENSOR_TYPE_LIGHT:
@@ -258,6 +260,7 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
         if (halVersion > SENSORS_DEVICE_API_VERSION_1_0 && hwSensor.stringType) {
             mStringType = hwSensor.stringType;
         }
+#ifndef NO_SENSOR_PERMISSION_CHECK
         if (halVersion > SENSORS_DEVICE_API_VERSION_1_0 && hwSensor.requiredPermission) {
             mRequiredPermission = hwSensor.requiredPermission;
             if (!strcmp(mRequiredPermission, SENSOR_PERMISSION_BODY_SENSORS)) {
@@ -265,6 +268,7 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
                 mRequiredAppOp = appOps.permissionToOpCode(String16(SENSOR_PERMISSION_BODY_SENSORS));
             }
         }
+#endif
 
         if (halVersion >= SENSORS_DEVICE_API_VERSION_1_3) {
             mFlags = static_cast<uint32_t>(hwSensor.flags);
