@@ -45,8 +45,8 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_CLASS := EXECUTABLES
 LOCAL_SRC_FILES := otapreopt_script.sh
 
-# Let this depend on otapreopt and the chroot tool, so we just have to mention one in a
-# configuration.
-LOCAL_REQUIRED_MODULES := otapreopt otapreopt_chroot
+# Let this depend on otapreopt, the chroot tool and the slot script, so we just have to mention one
+# in a configuration.
+LOCAL_REQUIRED_MODULES := otapreopt otapreopt_chroot otapreopt_slot
 
 include $(BUILD_PREBUILT)
