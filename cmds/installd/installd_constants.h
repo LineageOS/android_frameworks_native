@@ -49,8 +49,7 @@ constexpr const char* PRIVATE_APP_SUBDIR = "app-private/"; // sub-directory unde
 
 // This is used as a string literal, can't be constants. TODO: std::string...
 #define DALVIK_CACHE "dalvik-cache"
-constexpr const char* DALVIK_CACHE_POSTFIX = "/classes.dex";
-constexpr const char* DALVIK_CACHE_POSTFIX2 = "@classes.dex";
+constexpr const char* DALVIK_CACHE_POSTFIX = "@classes.dex";
 
 constexpr const char* IDMAP_PREFIX = "/data/resource-cache/";
 constexpr const char* IDMAP_SUFFIX = "@idmap";

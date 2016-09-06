@@ -151,12 +151,11 @@ bool create_cache_path(char path[PKG_PATH_MAX],
         return false;
     }
 
-    sprintf(path,"%s%s/%s/%s%s",
+    sprintf(path,"%s%s/%s/%s",
             android_data_dir.path,
             DALVIK_CACHE,
             instruction_set,
-            src + 1, /* skip the leading / */
-            DALVIK_CACHE_POSTFIX);
+            src + 1 /* skip the leading / */);
 
     char* tmp =
             path +
@@ -171,6 +170,7 @@ bool create_cache_path(char path[PKG_PATH_MAX],
         }
     }
 
+    strcat(path, DALVIK_CACHE_POSTFIX);
     return true;
 }
 
