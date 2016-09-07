@@ -28,8 +28,7 @@ constexpr const char* SECONDARY_USER_PREFIX = "user/";
 
 // This is used as a string literal, can't be constants. TODO: std::string...
 #define DALVIK_CACHE "dalvik-cache"
-constexpr const char* DALVIK_CACHE_POSTFIX = "/classes.dex";
-constexpr const char* DALVIK_CACHE_POSTFIX2 = "@classes.dex";
+constexpr const char* DALVIK_CACHE_POSTFIX = "@classes.dex";
 
 constexpr size_t PKG_NAME_MAX = 128u;   /* largest allowed package name */
 constexpr size_t PKG_PATH_MAX = 256u;   /* max size of any path we use */
