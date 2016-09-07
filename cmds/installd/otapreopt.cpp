@@ -823,7 +823,7 @@ bool create_cache_path(char path[PKG_PATH_MAX],
                                               DALVIK_CACHE,
                                               instruction_set,
                                               from_src.c_str(),
-                                              DALVIK_CACHE_POSTFIX2);
+                                              DALVIK_CACHE_POSTFIX);
 
     if (assembled_path.length() + 1 > PKG_PATH_MAX) {
         return false;
