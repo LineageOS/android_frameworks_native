@@ -143,6 +143,8 @@ std::string read_path_inode(const std::string& parent, const char* name, const c
 
 void add_cache_files(cache_t* cache, const std::string& data_path);
 
+void add_preloads_file_cache(cache_t* cache, const char* volume_uuid);
+
 void clear_cache_files(const std::string& data_path, cache_t* cache, int64_t free_size);
 
 void finish_cache_collection(cache_t* cache);
