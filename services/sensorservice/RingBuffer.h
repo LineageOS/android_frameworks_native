@@ -39,7 +39,7 @@ public:
     /**
      * Construct a RingBuffer that can grow up to the given length.
      */
-    RingBuffer(size_t length);
+    explicit RingBuffer(size_t length);
 
     /**
      * Forward iterator to this class.  Implements an std:forward_iterator.

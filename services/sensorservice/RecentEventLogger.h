@@ -35,7 +35,7 @@ namespace SensorServiceUtil {
 // behavior.
 class RecentEventLogger : public Dumpable {
 public:
-    RecentEventLogger(int sensorType);
+    explicit RecentEventLogger(int sensorType);
     void addEvent(const sensors_event_t& event);
     bool populateLastEvent(sensors_event_t *event) const;
     bool isEmpty() const;
@@ -47,7 +47,7 @@ public:
 
 protected:
     struct SensorEventLog {
-        SensorEventLog(const sensors_event_t& e);
+        explicit SensorEventLog(const sensors_event_t& e);
         timespec mWallTime;
         sensors_event_t mEvent;
     };
