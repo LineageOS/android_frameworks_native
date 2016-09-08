@@ -139,13 +139,13 @@ public:
 
     mat() { }
     mat(const mat& rhs)  : base(rhs) { }
-    mat(const base& rhs) : base(rhs) { }
+    mat(const base& rhs) : base(rhs) { }  // NOLINT(implicit)
 
     // -----------------------------------------------------------------------
     // conversion constructors
 
     // sets the diagonal to the value, off-diagonal to zero
-    mat(pTYPE rhs) {
+    mat(pTYPE rhs) {  // NOLINT(implicit)
         helpers::doAssign(*this, rhs);
     }
 
@@ -220,7 +220,7 @@ public:
     template<size_t PREV_COLUMN>
     struct column_builder {
         mat& matrix;
-        column_builder(mat& matrix) : matrix(matrix) { }
+        explicit column_builder(mat& matrix) : matrix(matrix) { }
     };
 
     // operator << is not a method of column_builder<> so we can
@@ -265,9 +265,9 @@ public:
     enum { ROWS = R, COLS = 1 };
 
     mat() { }
-    mat(const base& rhs) : base(rhs) { }
+    explicit mat(const base& rhs) : base(rhs) { }
     mat(const mat& rhs) : base(rhs) { }
-    mat(const TYPE& rhs) { helpers::doAssign(*this, rhs); }
+    explicit mat(const TYPE& rhs) { helpers::doAssign(*this, rhs); }
     mat& operator=(const mat& rhs) { base::operator=(rhs); return *this; }
     mat& operator=(const base& rhs) { base::operator=(rhs); return *this; }
     mat& operator=(const TYPE& rhs) { return helpers::doAssign(*this, rhs); }
