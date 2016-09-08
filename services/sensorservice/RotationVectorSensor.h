@@ -34,7 +34,7 @@ namespace android {
 
 class RotationVectorSensor : public VirtualSensor {
 public:
-    RotationVectorSensor(int mode = FUSION_9AXIS);
+    explicit RotationVectorSensor(int mode = FUSION_9AXIS);
     virtual bool process(sensors_event_t* outEvent, const sensors_event_t& event) override;
     virtual status_t activate(void* ident, bool enabled) override;
     virtual status_t setDelay(void* ident, int handle, int64_t ns) override;

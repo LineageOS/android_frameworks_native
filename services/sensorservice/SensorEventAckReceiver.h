@@ -27,7 +27,7 @@ class SensorService::SensorEventAckReceiver : public Thread {
     sp<SensorService> const mService;
 public:
     virtual bool threadLoop();
-    SensorEventAckReceiver(const sp<SensorService>& service)
+    explicit SensorEventAckReceiver(const sp<SensorService>& service)
             : mService(service) {
     }
 };
