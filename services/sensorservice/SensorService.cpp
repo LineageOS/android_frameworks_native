@@ -322,6 +322,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                 IPCThreadState::self()->getCallingPid(),
                 IPCThreadState::self()->getCallingUid());
     } else {
+        bool privileged = IPCThreadState::self()->getCallingUid() == 0;
         if (args.size() > 2) {
            return INVALID_OPERATION;
         }
@@ -393,8 +394,12 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             result.append("Recent Sensor events:\n");
             for (auto&& i : mRecentEvent) {
                 sp<SensorInterface> s = mSensors.getInterface(i.first);
-                if (!i.second->isEmpty() &&
-                    s->getSensor().getRequiredPermission().isEmpty()) {
+                if (!i.second->isEmpty()) {
+                    if (privileged || s->getSensor().getRequiredPermission().isEmpty()) {
+                        i.second->setFormat("normal");
+                    } else {
+                        i.second->setFormat("mask_data");
+                    }
                     // if there is events and sensor does not need special permission.
                     result.appendFormat("%s: ", s->getSensor().getName().string());
                     result.append(i.second->dump().c_str());
