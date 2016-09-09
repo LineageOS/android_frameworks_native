@@ -224,7 +224,8 @@ static bool dump_anrd_trace() {
     struct dirent *trace;
     struct stat st;
     DIR *trace_dir;
-    long max_ctime = 0;
+    int retry = 5;
+    long max_ctime = 0, old_mtime;
     long long cur_size = 0;
     const char *trace_path = "/data/misc/anrd/";
 
@@ -237,10 +238,27 @@ static bool dump_anrd_trace() {
     pid = pid_of_process("/system/xbin/anrd");
 
     if (pid > 0) {
+        if (stat(trace_path, &st) == 0) {
+            old_mtime = st.st_mtime;
+        } else {
+            MYLOGE("Failed to find: %s\n", trace_path);
+            return false;
+        }
+
         // send SIGUSR1 to the anrd to generate a trace.
         sprintf(buf, "%u", pid);
         if (run_command("ANRD_DUMP", 1, "kill", "-SIGUSR1", buf, NULL)) {
             MYLOGE("anrd signal timed out. Please manually collect trace\n");
+            return false;
+        }
+
+        while (retry-- > 0 && old_mtime == st.st_mtime) {
+            sleep(1);
+            stat(trace_path, &st);
+        }
+
+        if (retry < 0 && old_mtime == st.st_mtime) {
+            MYLOGE("Failed to stat %s or trace creation timeout\n", trace_path);
             return false;
         }
 
