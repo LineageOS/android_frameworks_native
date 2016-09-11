@@ -218,7 +218,7 @@ bool is_user_build();
  */
 class DurationReporter {
 public:
-    DurationReporter(const char *title);
+    explicit DurationReporter(const char *title);
     DurationReporter(const char *title, FILE* out);
 
     ~DurationReporter();
