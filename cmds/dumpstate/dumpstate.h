@@ -223,7 +223,7 @@ bool is_dry_run();
  */
 class DurationReporter {
 public:
-    DurationReporter(const char *title);
+    explicit DurationReporter(const char *title);
     DurationReporter(const char *title, FILE* out);
 
     ~DurationReporter();
