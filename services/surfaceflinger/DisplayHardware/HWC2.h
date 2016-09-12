@@ -56,7 +56,7 @@ typedef std::function<void(std::shared_ptr<Display>, nsecs_t)> VsyncCallback;
 class Device
 {
 public:
-    Device(hwc2_device_t* device);
+    explicit Device(hwc2_device_t* device);
     ~Device();
 
     friend class HWC2::Display;
