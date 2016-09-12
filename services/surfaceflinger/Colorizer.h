@@ -34,7 +34,7 @@ public:
         WHITE   = 37
     };
 
-    Colorizer(bool enabled)
+    explicit Colorizer(bool enabled)
         : mEnabled(enabled) {
     }
 

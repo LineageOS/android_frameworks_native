@@ -43,7 +43,7 @@ namespace android {
 class HWC2On1Adapter : public hwc2_device_t
 {
 public:
-    HWC2On1Adapter(struct hwc_composer_device_1* hwc1Device);
+    explicit HWC2On1Adapter(struct hwc_composer_device_1* hwc1Device);
     ~HWC2On1Adapter();
 
     struct hwc_composer_device_1* getHwc1Device() const { return mHwc1Device; }
@@ -496,7 +496,7 @@ private:
 
     class Layer {
         public:
-            Layer(Display& display);
+            explicit Layer(Display& display);
 
             bool operator==(const Layer& other) { return mId == other.mId; }
             bool operator!=(const Layer& other) { return !(*this == other); }
