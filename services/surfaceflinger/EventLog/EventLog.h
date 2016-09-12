@@ -52,7 +52,7 @@ private:
         bool mOverflow;
         char mStorage[STORAGE_MAX_SIZE];
     public:
-        TagBuffer(int32_t tag);
+        explicit TagBuffer(int32_t tag);
 
         // starts list of items
         void startList(int8_t count);

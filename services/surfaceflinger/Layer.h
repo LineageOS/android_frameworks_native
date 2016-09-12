@@ -456,7 +456,7 @@ private:
     class SyncPoint
     {
     public:
-        SyncPoint(uint64_t frameNumber) : mFrameNumber(frameNumber),
+        explicit SyncPoint(uint64_t frameNumber) : mFrameNumber(frameNumber),
                 mFrameIsAvailable(false), mTransactionIsApplied(false) {}
 
         uint64_t getFrameNumber() const {
