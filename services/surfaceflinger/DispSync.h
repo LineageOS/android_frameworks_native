@@ -61,7 +61,7 @@ public:
         virtual void onDispSyncEvent(nsecs_t when) = 0;
     };
 
-    DispSync(const char* name);
+    explicit DispSync(const char* name);
     ~DispSync();
 
     // reset clears the resync samples and error value.

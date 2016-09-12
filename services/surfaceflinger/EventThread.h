@@ -57,7 +57,7 @@ public:
 class EventThread : public Thread, private VSyncSource::Callback {
     class Connection : public BnDisplayEventConnection {
     public:
-        Connection(const sp<EventThread>& eventThread);
+        explicit Connection(const sp<EventThread>& eventThread);
         status_t postEvent(const DisplayEventReceiver::Event& event);
 
         // count >= 1 : continuous event. count is the vsync rate
