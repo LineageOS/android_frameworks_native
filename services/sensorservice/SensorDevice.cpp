@@ -166,6 +166,8 @@ status_t SensorDevice::activate(void* ident, int handle, int enabled) {
         ALOGD_IF(DEBUG_CONNECTIONS, "enable index=%zd", info.batchParams.indexOfKey(ident));
 
         if (isClientDisabledLocked(ident)) {
+            ALOGE("SensorDevice::activate, isClientDisabledLocked(%p):true, handle:%d",
+                    ident, handle);
             return INVALID_OPERATION;
         }
 
@@ -349,6 +351,7 @@ bool SensorDevice::isClientDisabledLocked(void* ident) {
 void SensorDevice::enableAllSensors() {
     Mutex::Autolock _l(mLock);
     mDisabledClients.clear();
+    ALOGI("cleared mDisabledClients");
     const int halVersion = getHalDeviceVersion();
     for (size_t i = 0; i< mActivationCount.size(); ++i) {
         Info& info = mActivationCount.editValueAt(i);
@@ -397,6 +400,7 @@ void SensorDevice::disableAllSensors() {
            // clients list.
            for (size_t j = 0; j < info.batchParams.size(); ++j) {
                mDisabledClients.add(info.batchParams.keyAt(j));
+               ALOGI("added %p to mDisabledClients", info.batchParams.keyAt(j));
            }
         }
     }
