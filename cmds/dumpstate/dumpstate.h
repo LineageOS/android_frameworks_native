@@ -221,8 +221,14 @@ bool add_zip_entry_from_fd(const std::string& entry_name, int fd);
 /* adds all files from a directory to the zipped bugreport file */
 void add_dir(const char *dir, bool recursive);
 
-/* prints the contents of a file */
+/* prints the contents of a file
+ * DEPRECATED: will be removed once device-specific implementations use
+ * dumpFile */
 int dump_file(const char *title, const char *path);
+
+/* Prints the contents of a file. */
+// TODO: use std::string for title once other char* title references are refactored.
+int dumpFile(const char* title, const std::string& path);
 
 /* saves the the contents of a file as a long */
 int read_file_as_long(const char *path, long int *output);
