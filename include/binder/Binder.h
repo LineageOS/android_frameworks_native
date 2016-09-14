@@ -80,7 +80,7 @@ private:
 class BpRefBase : public virtual RefBase
 {
 protected:
-                            BpRefBase(const sp<IBinder>& o);
+    explicit                BpRefBase(const sp<IBinder>& o);
     virtual                 ~BpRefBase();
     virtual void            onFirstRef();
     virtual void            onLastStrongRef(const void* id);
