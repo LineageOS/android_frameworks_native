@@ -880,6 +880,9 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     for_each_tid(show_wchan, "BLOCKED PROCESS WAIT-CHANNELS");
     for_each_pid(show_showtime, "PROCESS TIMES (pid cmd user system iowait+percentage)");
 
+    /* Dump Bluetooth HCI logs */
+    add_dir("/data/misc/bluetooth/logs", true);
+
     if (!screenshot_path.empty()) {
         MYLOGI("taking late screenshot\n");
         take_screenshot(screenshot_path);
