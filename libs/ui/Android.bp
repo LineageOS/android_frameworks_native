@@ -1,0 +1,69 @@
+// Copyright (C) 2010 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+cc_library_shared {
+    name: "libui",
+
+    clang: true,
+    cppflags: [
+        "-std=c++1y",
+        "-Weverything",
+        "-Werror",
+
+        // The static constructors and destructors in this library have not been noted to
+        // introduce significant overheads
+        "-Wno-exit-time-destructors",
+        "-Wno-global-constructors",
+
+        // We only care about compiling as C++14
+        "-Wno-c++98-compat-pedantic",
+
+        // We use four-character constants for the GraphicBuffer header, and don't care
+        // that they're non-portable as long as they're consistent within one execution
+        "-Wno-four-char-constants",
+
+        // Don't warn about struct padding
+        "-Wno-padded",
+    ],
+
+    sanitize: {
+        //misc_undefined: ["integer"],
+    },
+
+    srcs: [
+        "Fence.cpp",
+        "FrameStats.cpp",
+        "Gralloc1.cpp",
+        "Gralloc1On0Adapter.cpp",
+        "GraphicBuffer.cpp",
+        "GraphicBufferAllocator.cpp",
+        "GraphicBufferMapper.cpp",
+        "HdrCapabilities.cpp",
+        "PixelFormat.cpp",
+        "Rect.cpp",
+        "Region.cpp",
+        "UiConfig.cpp",
+    ],
+
+    shared_libs: [
+        "libbinder",
+        "libcutils",
+        "libhardware",
+        "libsync",
+        "libutils",
+        "liblog",
+    ],
+}
+
+subdirs = ["tests"]
