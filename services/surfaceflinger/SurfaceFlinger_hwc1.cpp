@@ -93,19 +93,6 @@
 
 EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
-// Workaround for b/30067360: /proc/self/environ inaccessible in SurfaceFlinger
-// => ASan fails to read ASAN_OPTIONS => alloc-dealloc-mismatch bug is not
-// suppressed and prevents the device from booting.
-#ifndef __has_feature
-#define __has_feature(x) 0
-#endif
-#if __has_feature(address_sanitizer)
-__attribute__((visibility("default")))
-extern "C" const char *__asan_default_options() {
-  return "alloc_dealloc_mismatch=0";
-}
-#endif
-
 namespace android {
 
 // This is the phase offset in nanoseconds of the software vsync event
