@@ -63,7 +63,7 @@ template<typename INTERFACE>
 class BpInterface : public INTERFACE, public BpRefBase
 {
 public:
-                                BpInterface(const sp<IBinder>& remote);
+    explicit                    BpInterface(const sp<IBinder>& remote);
 
 protected:
     virtual IBinder*            onAsBinder();
