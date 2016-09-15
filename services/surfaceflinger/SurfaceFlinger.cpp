@@ -1475,13 +1475,7 @@ void SurfaceFlinger::postFramebuffer()
             mHwc->commit(hwcId);
         }
         displayDevice->onSwapBuffersCompleted();
-        if (displayId == 0) {
-            // Make the default display current because the VirtualDisplayDevice
-            // code cannot deal with dequeueBuffer() being called outside of the
-            // composition loop; however the code below can call glFlush() which
-            // is allowed to (and does in some case) call dequeueBuffer().
-            displayDevice->makeCurrent(mEGLDisplay, mEGLContext);
-        }
+        displayDevice->makeCurrent(mEGLDisplay, mEGLContext);
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             sp<Fence> releaseFence = Fence::NO_FENCE;
             if (layer->getCompositionType(hwcId) == HWC2::Composition::Client) {
