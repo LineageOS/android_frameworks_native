@@ -247,7 +247,8 @@ static bool dump_anrd_trace() {
 
         // send SIGUSR1 to the anrd to generate a trace.
         sprintf(buf, "%u", pid);
-        if (run_command("ANRD_DUMP", 1, "kill", "-SIGUSR1", buf, NULL)) {
+        if (runCommand("ANRD_DUMP", {"kill", "-SIGUSR1", buf},
+                       CommandOptions::WithTimeout(1).Build())) {
             MYLOGE("anrd signal timed out. Please manually collect trace\n");
             return false;
         }
@@ -337,15 +338,15 @@ static void dump_systrace() {
 
     MYLOGD("Running '/system/bin/atrace --async_dump -o %s', which can take several minutes",
             systrace_path.c_str());
-    if (run_command("SYSTRACE", 120, "/system/bin/atrace", "--async_dump", "-o",
-            systrace_path.c_str(), NULL)) {
+    if (runCommand("SYSTRACE", {"/system/bin/atrace", "--async_dump", "-o", systrace_path},
+                   CommandOptions::WithTimeout(120).Build())) {
         MYLOGE("systrace timed out, its zip entry will be incomplete\n");
-        // TODO: run_command tries to kill the process, but atrace doesn't die peacefully; ideally,
-        // we should call strace to stop itself, but there is no such option yet (just a
-        // --async_stop, which stops and dump
-        //        if (run_command("SYSTRACE", 10, "/system/bin/atrace", "--kill", NULL)) {
-        //            MYLOGE("could not stop systrace ");
-        //        }
+        // TODO: run_command tries to kill the process, but atrace doesn't die
+        // peacefully; ideally, we should call strace to stop itself, but there is no such option
+        // yet (just a --async_stop, which stops and dump
+        // if (runCommand("SYSTRACE", {"/system/bin/atrace", "--kill"})) {
+        //   MYLOGE("could not stop systrace ");
+        // }
     }
     if (!add_zip_entry("systrace.txt", systrace_path)) {
         MYLOGE("Unable to add systrace file %s to zip file\n", systrace_path.c_str());
@@ -373,14 +374,14 @@ static void dump_raft() {
         return;
     }
 
+    CommandOptions options = CommandOptions::WithTimeout(600).Build();
     if (!zip_writer) {
         // Write compressed and encoded raft logs to stdout if not zip_writer.
-        run_command("RAFT LOGS", 600, "logcompressor", "-r", RAFT_DIR, NULL);
+        runCommand("RAFT LOGS", {"logcompressor", "-r", RAFT_DIR}, options);
         return;
     }
 
-    run_command("RAFT LOGS", 600, "logcompressor", "-n", "-r", RAFT_DIR,
-            "-o", raft_log_path.c_str(), NULL);
+    runCommand("RAFT LOGS", {"logcompressor", "-n", "-r", RAFT_DIR, "-o", raft_log_path}, options);
     if (!add_zip_entry("raft_log.txt", raft_log_path)) {
         MYLOGE("Unable to add raft log %s to zip file\n", raft_log_path.c_str());
     } else {
@@ -401,49 +402,6 @@ static bool skip_not_stat(const char *path) {
 
 static bool skip_none(const char *path) {
     return false;
-}
-
-static void _run_dumpsys(const std::string& title, RootMode root_mode, int timeout_seconds,
-        const std::vector<std::string>& args) {
-    DurationReporter duration_reporter(title.c_str());
-
-    std::string timeout_string = std::to_string(timeout_seconds);
-
-    const char *dumpsys_args[MAX_ARGS_ARRAY_SIZE] =
-        { "/system/bin/dumpsys", "-t", timeout_string.c_str()};
-
-    int index = 3; // 'dumpsys' '-t' 'TIMEOUT'
-    for (const std::string& arg : args) {
-        if (index > MAX_ARGS_ARRAY_SIZE - 2) {
-            MYLOGE("Too many arguments for '%s': %d\n", title.c_str(), (int) args.size());
-            return;
-        }
-        dumpsys_args[index++] = arg.c_str();
-    }
-    // Always terminate with nullptr.
-    dumpsys_args[index] = nullptr;
-
-    std::string args_string;
-    format_args(index, dumpsys_args, &args_string);
-    printf("------ %s (%s) ------\n", title.c_str(), args_string.c_str());
-    fflush(stdout);
-
-    if (is_dry_run()) {
-        update_progress(timeout_seconds);
-        return;
-    }
-
-    run_command_always(title.c_str(), root_mode, NORMAL_STDOUT, timeout_seconds, dumpsys_args);
-}
-
-static void run_dumpsys(const std::string& title, int timeout_seconds,
-        const std::vector<std::string>& args) {
-    _run_dumpsys(title, DONT_DROP_ROOT, timeout_seconds, args);
-}
-
-static void run_dumpsys_as_shell(const std::string& title, int timeout_seconds,
-        const std::vector<std::string>& args) {
-    _run_dumpsys(title, DROP_ROOT, timeout_seconds, args);
 }
 
 static const char mmcblk0[] = "/sys/block/mmcblk0/";
@@ -741,7 +699,7 @@ static void print_header(std::string version) {
     dump_file(NULL, "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version.c_str());
-    printf("Dumpstate info: id=%lu pid=%d\n", id, getpid());
+    printf("Dumpstate info: id=%lu pid=%d dry_run=%d\n", id, getpid(), dry_run);
     printf("\n");
 }
 
@@ -865,14 +823,14 @@ static bool add_text_zip_entry(const std::string& entry_name, const std::string&
 }
 
 static void dump_iptables() {
-    run_command("IPTABLES", 10, "iptables", "-L", "-nvx", NULL);
-    run_command("IP6TABLES", 10, "ip6tables", "-L", "-nvx", NULL);
-    run_command("IPTABLE NAT", 10, "iptables", "-t", "nat", "-L", "-nvx", NULL);
+    runCommand("IPTABLES", {"iptables", "-L", "-nvx"});
+    runCommand("IP6TABLES", {"ip6tables", "-L", "-nvx"});
+    runCommand("IPTABLE NAT", {"iptables", "-t", "nat", "-L", "-nvx"});
     /* no ip6 nat */
-    run_command("IPTABLE MANGLE", 10, "iptables", "-t", "mangle", "-L", "-nvx", NULL);
-    run_command("IP6TABLE MANGLE", 10, "ip6tables", "-t", "mangle", "-L", "-nvx", NULL);
-    run_command("IPTABLE RAW", 10, "iptables", "-t", "raw", "-L", "-nvx", NULL);
-    run_command("IP6TABLE RAW", 10, "ip6tables", "-t", "raw", "-L", "-nvx", NULL);
+    runCommand("IPTABLE MANGLE", {"iptables", "-t", "mangle", "-L", "-nvx"});
+    runCommand("IP6TABLE MANGLE", {"ip6tables", "-t", "mangle", "-L", "-nvx"});
+    runCommand("IPTABLE RAW", {"iptables", "-t", "raw", "-L", "-nvx"});
+    runCommand("IP6TABLE RAW", {"ip6tables", "-t", "raw", "-L", "-nvx"});
 }
 
 static void dumpstate(const std::string& screenshot_path, const std::string& version) {
@@ -880,13 +838,13 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     unsigned long timeout;
 
     dump_dev_files("TRUSTY VERSION", "/sys/bus/platform/drivers/trusty", "trusty_version");
-    run_command("UPTIME", 10, "uptime", NULL);
+    runCommand("UPTIME", {"uptime"});
     dump_files("UPTIME MMC PERF", mmcblk0, skip_not_stat, dump_stat_from_fd);
     dump_emmc_ecsd("/d/mmc0/mmc0:0001/ext_csd");
     dump_file("MEMORY INFO", "/proc/meminfo");
-    run_command("CPU INFO", 10, "top", "-b", "-n", "1", "-H", "-s", "6",
-                "-o", "pid,tid,user,pr,ni,%cpu,s,virt,res,pcy,cmd,name", NULL);
-    run_command("PROCRANK", 20, SU_PATH, "root", "procrank", NULL);
+    runCommand("CPU INFO", {"top", "-b", "-n", "1", "-H", "-s", "6", "-o",
+                            "pid,tid,user,pr,ni,%cpu,s,virt,res,pcy,cmd,name"});
+    runCommand("PROCRANK", {"procrank"}, CommandOptions::AS_ROOT_20);
     dump_file("VIRTUAL MEMORY STATS", "/proc/vmstat");
     dump_file("VMALLOC INFO", "/proc/vmallocinfo");
     dump_file("SLAB INFO", "/proc/slabinfo");
@@ -899,22 +857,22 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     dump_file("KERNEL CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state");
     dump_file("KERNEL SYNC", "/d/sync");
 
-    run_command("PROCESSES AND THREADS", 10, "ps", "-A", "-T", "-Z",
-                "-O", "pri,nice,rtprio,sched,pcy", NULL);
-    run_command("LIBRANK", 10, SU_PATH, "root", "librank", NULL);
+    runCommand("PROCESSES AND THREADS",
+               {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy"});
+    runCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT_10);
 
-    run_command("PRINTENV", 10, "printenv", NULL);
-    run_command("NETSTAT", 10, "netstat", "-n", NULL);
+    runCommand("PRINTENV", {"printenv"});
+    runCommand("NETSTAT", {"netstat", "-n"});
     struct stat s;
     if (stat("/proc/modules", &s) != 0) {
         MYLOGD("Skipping 'lsmod' because /proc/modules does not exist\n");
     } else {
-        run_command("LSMOD", 10, "lsmod", NULL);
+        runCommand("LSMOD", {"lsmod"});
     }
 
     do_dmesg();
 
-    run_command("LIST OF OPEN FILES", 10, SU_PATH, "root", "lsof", NULL);
+    runCommand("LIST OF OPEN FILES", {"lsof"}, CommandOptions::AS_ROOT_10);
     for_each_pid(do_showmap, "SMAPS OF ALL PROCESSES");
     for_each_tid(show_wchan, "BLOCKED PROCESS WAIT-CHANNELS");
     for_each_pid(show_showtime, "PROCESS TIMES (pid cmd user system iowait+percentage)");
@@ -931,30 +889,24 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     if (timeout < 20000) {
         timeout = 20000;
     }
-    run_command("SYSTEM LOG", timeout / 1000, "logcat", "-v", "threadtime",
-                                                        "-v", "printable",
-                                                        "-d",
-                                                        "*:v", NULL);
+    runCommand("SYSTEM LOG", {"logcat", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
+               CommandOptions::WithTimeout(timeout / 1000).Build());
     timeout = logcat_timeout("events");
     if (timeout < 20000) {
         timeout = 20000;
     }
-    run_command("EVENT LOG", timeout / 1000, "logcat", "-b", "events",
-                                                       "-v", "threadtime",
-                                                       "-v", "printable",
-                                                       "-d",
-                                                       "*:v", NULL);
+    runCommand("EVENT LOG",
+               {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
+               CommandOptions::WithTimeout(timeout / 1000).Build());
     timeout = logcat_timeout("radio");
     if (timeout < 20000) {
         timeout = 20000;
     }
-    run_command("RADIO LOG", timeout / 1000, "logcat", "-b", "radio",
-                                                       "-v", "threadtime",
-                                                       "-v", "printable",
-                                                       "-d",
-                                                       "*:v", NULL);
+    runCommand("RADIO LOG",
+               {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
+               CommandOptions::WithTimeout(timeout / 1000).Build());
 
-    run_command("LOG STATISTICS", 10, "logcat", "-b", "all", "-S", NULL);
+    runCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
 
     /* show the traces we collected in main(), if that was done */
     if (dump_traces_path != NULL) {
@@ -1033,65 +985,57 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     }
 
     /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
-    run_command("LAST LOGCAT", 10, "logcat", "-L",
-                                             "-b", "all",
-                                             "-v", "threadtime",
-                                             "-v", "printable",
-                                             "-d",
-                                             "*:v", NULL);
+    runCommand("LAST LOGCAT",
+               {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable", "-d", "*:v"});
 
     /* The following have a tendency to get wedged when wifi drivers/fw goes belly-up. */
 
-    run_command("NETWORK INTERFACES", 10, "ip", "link", NULL);
+    runCommand("NETWORK INTERFACES", {"ip", "link"});
 
-    run_command("IPv4 ADDRESSES", 10, "ip", "-4", "addr", "show", NULL);
-    run_command("IPv6 ADDRESSES", 10, "ip", "-6", "addr", "show", NULL);
+    runCommand("IPv4 ADDRESSES", {"ip", "-4", "addr", "show"});
+    runCommand("IPv6 ADDRESSES", {"ip", "-6", "addr", "show"});
 
-    run_command("IP RULES", 10, "ip", "rule", "show", NULL);
-    run_command("IP RULES v6", 10, "ip", "-6", "rule", "show", NULL);
+    runCommand("IP RULES", {"ip", "rule", "show"});
+    runCommand("IP RULES v6", {"ip", "-6", "rule", "show"});
 
     dump_route_tables();
 
-    run_command("ARP CACHE", 10, "ip", "-4", "neigh", "show", NULL);
-    run_command("IPv6 ND CACHE", 10, "ip", "-6", "neigh", "show", NULL);
-    run_command("MULTICAST ADDRESSES", 10, "ip", "maddr", NULL);
-    run_command("WIFI NETWORKS", 20, "wpa_cli", "IFNAME=wlan0", "list_networks", NULL);
+    runCommand("ARP CACHE", {"ip", "-4", "neigh", "show"});
+    runCommand("IPv6 ND CACHE", {"ip", "-6", "neigh", "show"});
+    runCommand("MULTICAST ADDRESSES", {"ip", "maddr"});
+    runCommand("WIFI NETWORKS", {"wpa_cli", "IFNAME=wlan0", "list_networks"},
+               CommandOptions::WithTimeout(20).Build());
 
 #ifdef FWDUMP_bcmdhd
-    run_command("ND OFFLOAD TABLE", 5,
-            SU_PATH, "root", WLUTIL, "nd_hostip", NULL);
+    runCommand("ND OFFLOAD TABLE", {WLUTIL, "nd_hostip"}, CommandOptions::AS_ROOT_5);
 
-    run_command("DUMP WIFI INTERNAL COUNTERS (1)", 20,
-            SU_PATH, "root", WLUTIL, "counters", NULL);
+    runCommand("DUMP WIFI INTERNAL COUNTERS (1)", {WLUTIL, "counters"}, CommandOptions::AS_ROOT_20);
 
-    run_command("ND OFFLOAD STATUS (1)", 5,
-            SU_PATH, "root", WLUTIL, "nd_status", NULL);
+    runCommand("ND OFFLOAD STATUS (1)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
 
 #endif
     dump_file("INTERRUPTS (1)", "/proc/interrupts");
 
-    run_dumpsys("NETWORK DIAGNOSTICS", 10, {"connectivity", "--diag"});
+    runDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
+               CommandOptions::WithTimeout(10).Build());
 
 #ifdef FWDUMP_bcmdhd
-    run_command("DUMP WIFI STATUS", 20,
-            SU_PATH, "root", "dhdutil", "-i", "wlan0", "dump", NULL);
+    runCommand("DUMP WIFI STATUS", {"dhdutil", "-i", "wlan0", "dump"}, CommandOptions::AS_ROOT_20);
 
-    run_command("DUMP WIFI INTERNAL COUNTERS (2)", 20,
-            SU_PATH, "root", WLUTIL, "counters", NULL);
+    runCommand("DUMP WIFI INTERNAL COUNTERS (2)", {WLUTIL, "counters"}, CommandOptions::AS_ROOT_20);
 
-    run_command("ND OFFLOAD STATUS (2)", 5,
-            SU_PATH, "root", WLUTIL, "nd_status", NULL);
+    runCommand("ND OFFLOAD STATUS (2)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
 #endif
     dump_file("INTERRUPTS (2)", "/proc/interrupts");
 
     print_properties();
 
-    run_command("VOLD DUMP", 10, "vdc", "dump", NULL);
-    run_command("SECURE CONTAINERS", 10, "vdc", "asec", "list", NULL);
+    runCommand("VOLD DUMP", {"vdc", "dump"});
+    runCommand("SECURE CONTAINERS", {"vdc", "asec", "list"});
 
-    run_command("FILESYSTEMS & FREE SPACE", 10, "df", NULL);
+    runCommand("FILESYSTEMS & FREE SPACE", {"df"});
 
-    run_command("LAST RADIO LOG", 10, "parse_radio_log", "/proc/last_radio_log", NULL);
+    runCommand("LAST RADIO LOG", {"parse_radio_log", "/proc/last_radio_log"});
 
     printf("------ BACKLIGHTS ------\n");
     printf("LCD brightness=");
@@ -1124,53 +1068,51 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     char ril_dumpstate_timeout[PROPERTY_VALUE_MAX] = {0};
     property_get("ril.dumpstate.timeout", ril_dumpstate_timeout, "30");
     if (strnlen(ril_dumpstate_timeout, PROPERTY_VALUE_MAX - 1) > 0) {
-        if (is_user_build()) {
-            // su does not exist on user builds, so try running without it.
-            // This way any implementations of vril-dump that do not require
-            // root can run on user builds.
-            run_command("DUMP VENDOR RIL LOGS", atoi(ril_dumpstate_timeout),
-                    "vril-dump", NULL);
-        } else {
-            run_command("DUMP VENDOR RIL LOGS", atoi(ril_dumpstate_timeout),
-                    SU_PATH, "root", "vril-dump", NULL);
+        // su does not exist on user builds, so try running without it.
+        // This way any implementations of vril-dump that do not require
+        // root can run on user builds.
+        CommandOptions::CommandOptionsBuilder options =
+            CommandOptions::WithTimeout(atoi(ril_dumpstate_timeout));
+        if (!is_user_build()) {
+            options.AsRoot();
         }
+        runCommand("DUMP VENDOR RIL LOGS", {"vril-dump"}, options.Build());
     }
 
     printf("========================================================\n");
     printf("== Android Framework Services\n");
     printf("========================================================\n");
 
-    run_dumpsys("DUMPSYS", 60, {"--skip", "meminfo", "cpuinfo"});
+    runDumpsys("DUMPSYS", {"--skip", "meminfo", "cpuinfo"}, CommandOptions::WithTimeout(60).Build());
 
     printf("========================================================\n");
     printf("== Checkins\n");
     printf("========================================================\n");
 
-    run_dumpsys("CHECKIN BATTERYSTATS", 30, {"batterystats", "-c"});
-    run_dumpsys("CHECKIN MEMINFO", 30, {"meminfo", "--checkin"});
-    run_dumpsys("CHECKIN NETSTATS", 30, {"netstats", "--checkin"});
-    run_dumpsys("CHECKIN PROCSTATS", 30, {"procstats", "-c"});
-    run_dumpsys("CHECKIN USAGESTATS", 30, {"usagestats", "-c"});
-    run_dumpsys("CHECKIN PACKAGE", 30, {"package", "--checkin"});
+    runDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"});
+    runDumpsys("CHECKIN MEMINFO", {"meminfo", "--checkin"});
+    runDumpsys("CHECKIN NETSTATS", {"netstats", "--checkin"});
+    runDumpsys("CHECKIN PROCSTATS", {"procstats", "-c"});
+    runDumpsys("CHECKIN USAGESTATS", {"usagestats", "-c"});
+    runDumpsys("CHECKIN PACKAGE", {"package", "--checkin"});
 
     printf("========================================================\n");
     printf("== Running Application Activities\n");
     printf("========================================================\n");
 
-    run_dumpsys("APP ACTIVITIES", 30, {"activity", "all"});
+    runDumpsys("APP ACTIVITIES", {"activity", "all"});
 
     printf("========================================================\n");
     printf("== Running Application Services\n");
     printf("========================================================\n");
 
-    run_dumpsys("APP SERVICES", 30, {"activity", "service", "all"});
+    runDumpsys("APP SERVICES", {"activity", "service", "all"});
 
     printf("========================================================\n");
     printf("== Running Application Providers\n");
     printf("========================================================\n");
 
-    run_dumpsys("APP PROVIDERS", 30, {"activity", "provider", "all"});
-
+    runDumpsys("APP PROVIDERS", {"activity", "provider", "all"});
 
     printf("========================================================\n");
     printf("== Final progress (pid %d): %d/%d (originally %d)\n",
@@ -1315,6 +1257,13 @@ int main(int argc, char *argv[]) {
         MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
     }
 
+    std::string args;
+    for (int i = 0; i < argc; i++) {
+        args += argv[i];
+        args += " ";
+    }
+    MYLOGD("Dumpstate command line: %s\n", args.c_str());
+
     /* gets the sequential id */
     char last_id[PROPERTY_VALUE_MAX];
     property_get("dumpstate.last_id", last_id, "0");
@@ -1345,9 +1294,6 @@ int main(int argc, char *argv[]) {
     }
 
     /* parse arguments */
-    std::string args;
-    format_args(argc, const_cast<const char **>(argv), &args);
-    MYLOGD("Dumpstate command line: %s\n", args.c_str());
     int c;
     while ((c = getopt(argc, argv, "dho:svqzpPBRSV:")) != -1) {
         switch (c) {
@@ -1569,8 +1515,10 @@ int main(int argc, char *argv[]) {
 
     // Invoking the following dumpsys calls before dump_traces() to try and
     // keep the system stats as close to its initial state as possible.
-    run_dumpsys_as_shell("DUMPSYS MEMINFO", 90, {"meminfo", "-a"});
-    run_dumpsys_as_shell("DUMPSYS CPUINFO", 10, {"cpuinfo", "-a"});
+    runDumpsys("DUMPSYS MEMINFO", {"meminfo", "-a"},
+               CommandOptions::WithTimeout(90).DropRoot().Build());
+    runDumpsys("DUMPSYS CPUINFO", {"cpuinfo", "-a"},
+               CommandOptions::WithTimeout(10).DropRoot().Build());
 
     /* collect stack traces from Dalvik and native processes (needs root) */
     dump_traces_path = dump_traces();

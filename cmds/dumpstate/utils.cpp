@@ -69,25 +69,99 @@ static const char* native_processes_to_dump[] = {
         NULL,
 };
 
+CommandOptions CommandOptions::DEFAULT = CommandOptions::WithTimeout(10).Build();
+CommandOptions CommandOptions::DEFAULT_DUMPSYS = CommandOptions::WithTimeout(30).Build();
+CommandOptions CommandOptions::AS_ROOT_5 = CommandOptions::WithTimeout(5).AsRoot().Build();
+CommandOptions CommandOptions::AS_ROOT_10 = CommandOptions::WithTimeout(10).AsRoot().Build();
+CommandOptions CommandOptions::AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot().Build();
+
+CommandOptions::CommandOptionsBuilder::CommandOptionsBuilder(long timeout) : mValues(timeout) {
+}
+
+CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::Always() {
+    mValues.mAlways = true;
+    return *this;
+}
+
+CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::AsRoot() {
+    mValues.mRootMode = SU_ROOT;
+    return *this;
+}
+
+CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::DropRoot() {
+    mValues.mRootMode = DROP_ROOT;
+    return *this;
+}
+
+CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::RedirectStderr() {
+    mValues.mStdoutMode = REDIRECT_TO_STDERR;
+    return *this;
+}
+
+CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::Log(
+    const std::string& message) {
+    mValues.mLoggingMessage = message;
+    return *this;
+}
+
+CommandOptions CommandOptions::CommandOptionsBuilder::Build() {
+    return CommandOptions(mValues);
+}
+
+CommandOptions::CommandOptionsValues::CommandOptionsValues(long timeout)
+    : mTimeout(timeout),
+      mAlways(false),
+      mRootMode(DONT_DROP_ROOT),
+      mStdoutMode(NORMAL_STDOUT),
+      mLoggingMessage("") {
+}
+
+CommandOptions::CommandOptions(const CommandOptionsValues& values) : mValues(values) {
+}
+
+long CommandOptions::Timeout() const {
+    return mValues.mTimeout;
+}
+
+bool CommandOptions::Always() const {
+    return mValues.mAlways;
+}
+
+RootMode CommandOptions::RootMode() const {
+    return mValues.mRootMode;
+}
+
+StdoutMode CommandOptions::StdoutMode() const {
+    return mValues.mStdoutMode;
+}
+
+std::string CommandOptions::LoggingMessage() const {
+    return mValues.mLoggingMessage;
+}
+
+CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(long timeout) {
+    return CommandOptions::CommandOptionsBuilder(timeout);
+}
+
 DurationReporter::DurationReporter(const char *title) : DurationReporter(title, stdout) {}
 
 DurationReporter::DurationReporter(const char *title, FILE *out) {
-    title_ = title;
-    if (title) {
-        started_ = DurationReporter::nanotime();
+    mTitle = title;
+    if (title != nullptr) {
+        mStarted = DurationReporter::nanotime();
     }
-    out_ = out;
+    mOut = out;
 }
 
 DurationReporter::~DurationReporter() {
-    if (title_) {
-        uint64_t elapsed = DurationReporter::nanotime() - started_;
+    if (mTitle != nullptr) {
+        uint64_t elapsed = DurationReporter::nanotime() - mStarted;
         // Use "Yoda grammar" to make it easier to grep|sort sections.
-        if (out_) {
-            fprintf(out_, "------ %.3fs was the duration of '%s' ------\n",
-                   (float) elapsed / NANOS_PER_SEC, title_);
+        if (mOut != nullptr) {
+            fprintf(mOut, "------ %.3fs was the duration of '%s' ------\n",
+                    (float)elapsed / NANOS_PER_SEC, mTitle);
         } else {
-            MYLOGD("Duration of '%s': %.3fs\n", title_, (float) elapsed / NANOS_PER_SEC);
+            MYLOGD("Duration of '%s': %.3fs\n", mTitle, (float)elapsed / NANOS_PER_SEC);
         }
     }
 }
@@ -408,7 +482,7 @@ void do_showmap(int pid, const char *name) {
 
     snprintf(title, sizeof(title), "SHOW MAP %d (%s)", pid, name);
     snprintf(arg, sizeof(arg), "%d", pid);
-    run_command(title, 10, SU_PATH, "root", "showmap", "-q", arg, NULL);
+    runCommand(title, {"showmap", "-q", arg}, CommandOptions::AS_ROOT_10);
 }
 
 static int _dump_file_from_fd(const char *title, const char *path, int fd) {
@@ -648,103 +722,82 @@ bool waitpid_with_timeout(pid_t pid, int timeout_seconds, int* status) {
     return true;
 }
 
-// TODO: refactor all those commands that convert args
-void format_args(const char* command, const char *args[], std::string *string);
-
-int run_command(const char *title, int timeout_seconds, const char *command, ...) {
-    DurationReporter duration_reporter(title);
-    fflush(stdout);
-
-    const char *args[MAX_ARGS_ARRAY_SIZE] = {command};
+int run_command(const char* title, int timeout_seconds, const char* command, ...) {
+    std::vector<std::string> fullCommand = {command};
     size_t arg;
     va_list ap;
     va_start(ap, command);
-    if (title) printf("------ %s (%s", title, command);
-    bool null_terminated = false;
-    for (arg = 1; arg < sizeof(args) / sizeof(args[0]); ++arg) {
-        args[arg] = va_arg(ap, const char *);
-        if (args[arg] == nullptr) {
-            null_terminated = true;
+    for (arg = 0; arg < MAX_ARGS_ARRAY_SIZE; ++arg) {
+        const char* ptr = va_arg(ap, const char*);
+        if (ptr == nullptr) {
             break;
         }
-        // TODO: null_terminated check is not really working; line below would crash dumpstate if
-        // nullptr is missing
-        if (title) printf(" %s", args[arg]);
-    }
-    if (title) printf(") ------\n");
-    fflush(stdout);
-    if (!null_terminated) {
-        // Fail now, otherwise execvp() call on run_command_always() might hang.
-        std::string cmd;
-        format_args(command, args, &cmd);
-        MYLOGE("skipping command %s because its args were not NULL-terminated", cmd.c_str());
-        va_end(ap);
-        return -1;
-    }
-
-    int status = 0;
-    if (is_dry_run()) {
-        update_progress(timeout_seconds);
-    } else {
-        status = run_command_always(title, DONT_DROP_ROOT, NORMAL_STDOUT, timeout_seconds, args);
+        fullCommand.push_back(ptr);
     }
     va_end(ap);
-    return status;
+
+    return runCommand(title, fullCommand, CommandOptions::WithTimeout(timeout_seconds).Build());
 }
 
-int run_command_as_shell(const char *title, int timeout_seconds, const char *command, ...) {
-    DurationReporter duration_reporter(title);
-    fflush(stdout);
+int runCommand(const char* title, const std::vector<std::string>& fullCommand,
+               const CommandOptions& options) {
+    if (fullCommand.empty()) {
+        MYLOGE("No arguments on command '%s'\n", title);
+        return -1;
+    }
+    DurationReporter durationReporter(title);
 
-    const char *args[MAX_ARGS_ARRAY_SIZE] = {command};
-    size_t arg;
-    va_list ap;
-    va_start(ap, command);
-    if (title) printf("------ %s (%s", title, command);
-    bool null_terminated = false;
-    for (arg = 1; arg < sizeof(args) / sizeof(args[0]); ++arg) {
-        args[arg] = va_arg(ap, const char *);
-        if (args[arg] == nullptr) {
-            null_terminated = true;
-            break;
+    int size = fullCommand.size() + 1;  // null terminated
+    if (options.RootMode() == SU_ROOT) {
+        size += 2;  // "su" "root"
+    }
+
+    const char* args[size];
+
+    printf("------");
+    if (title) printf(" %s", title);
+    printf(" (");
+
+    std::string commandString;
+    int i = 0;
+    if (options.RootMode() == SU_ROOT) {
+        args[0] = SU_PATH;
+        commandString += SU_PATH;
+        args[1] = "root";
+        commandString += " root ";
+    }
+    for (auto arg = fullCommand.begin(); arg < fullCommand.end(); arg++) {
+        args[i++] = arg->c_str();
+        commandString += arg->c_str();
+        if (arg != fullCommand.end() - 1) {
+            commandString += " ";
         }
-        // TODO: null_terminated check is not really working; line below would crash dumpstate if
-        // nullptr is missing
-        if (title) printf(" %s", args[arg]);
     }
-    if (title) printf(") ------\n");
+    args[i] = nullptr;
+    const char* path = args[0];
+    const char* command = commandString.c_str();
+    printf("%s)\n", command);
+
     fflush(stdout);
-    if (!null_terminated) {
-        // Fail now, otherwise execvp() call on run_command_always() might hang.
-        std::string cmd;
-        format_args(command, args, &cmd);
-        MYLOGE("skipping command %s because its args were not NULL-terminated", cmd.c_str());
-        va_end(ap);
-        return -1;
+
+    const std::string& loggingMessage = options.LoggingMessage();
+    if (!loggingMessage.empty()) {
+        MYLOGI(loggingMessage.c_str(), commandString.c_str());
     }
 
-    int status = 0;
-    if (is_dry_run()) {
-        update_progress(timeout_seconds);
-    } else {
-        status = run_command_always(title, DROP_ROOT, NORMAL_STDOUT, timeout_seconds, args);
+    if (is_dry_run() && !options.Always()) {
+        update_progress(options.Timeout());
+        return 0;
     }
-    va_end(ap);
-    return status;
-}
 
-/* forks a command and waits for it to finish */
-int run_command_always(const char *title, RootMode root_mode, StdoutMode stdout_mode,
-        int timeout_seconds, const char *args[]) {
-    bool silent = (stdout_mode == REDIRECT_TO_STDERR);
-    // TODO: need to check if args is null-terminated, otherwise execvp will crash dumpstate
+    bool silent = (options.StdoutMode() == REDIRECT_TO_STDERR);
 
-    /* TODO: for now we're simplifying the progress calculation by using the timeout as the weight.
-     * It's a good approximation for most cases, except when calling dumpsys, where its weight
-     * should be much higher proportionally to its timeout. */
-    int weight = timeout_seconds;
+    /* TODO: for now we're simplifying the progress calculation by using the
+     * timeout as the weight. It's a good approximation for most cases, except when calling dumpsys,
+     * where its weight should be much higher proportionally to its timeout.
+     * Ideally, it should use a options.EstimatedDuration() instead...*/
+    int weight = options.Timeout();
 
-    const char *command = args[0];
     uint64_t start = DurationReporter::nanotime();
     pid_t pid = fork();
 
@@ -757,9 +810,9 @@ int run_command_always(const char *title, RootMode root_mode, StdoutMode stdout_
 
     /* handle child case */
     if (pid == 0) {
-        if (root_mode == DROP_ROOT && !drop_root_user()) {
-        if (!silent) printf("*** fail todrop root before running %s: %s\n", command,
-                strerror(errno));
+        if (options.RootMode() == DROP_ROOT && !drop_root_user()) {
+            if (!silent)
+                printf("*** failed to drop root before running %s: %s\n", command, strerror(errno));
             MYLOGE("*** could not drop root before running %s: %s\n", command, strerror(errno));
             return -1;
         }
@@ -778,49 +831,45 @@ int run_command_always(const char *title, RootMode root_mode, StdoutMode stdout_
         sigact.sa_handler = SIG_IGN;
         sigaction(SIGPIPE, &sigact, NULL);
 
-        execvp(command, (char**) args);
-        // execvp's result will be handled after waitpid_with_timeout() below, but if it failed,
-        // it's safer to exit dumpstate.
-        MYLOGD("execvp on command '%s' failed (error: %s)", command, strerror(errno));
+        execvp(path, (char**)args);
+        // execvp's result will be handled after waitpid_with_timeout() below, but
+        // if it failed, it's safer to exit dumpstate.
+        MYLOGD("execvp on command '%s' failed (error: %s)\n", command, strerror(errno));
         fflush(stdout);
-        // Must call _exit (instead of exit), otherwise it will corrupt the zip file.
+        // Must call _exit (instead of exit), otherwise it will corrupt the zip
+        // file.
         _exit(EXIT_FAILURE);
     }
 
     /* handle parent case */
     int status;
-    bool ret = waitpid_with_timeout(pid, timeout_seconds, &status);
+    bool ret = waitpid_with_timeout(pid, options.Timeout(), &status);
     uint64_t elapsed = DurationReporter::nanotime() - start;
-    std::string cmd; // used to log command and its args
     if (!ret) {
         if (errno == ETIMEDOUT) {
-            format_args(command, args, &cmd);
-            if (!silent) printf("*** command '%s' timed out after %.3fs (killing pid %d)\n",
-            cmd.c_str(), (float) elapsed / NANOS_PER_SEC, pid);
-            MYLOGE("command '%s' timed out after %.3fs (killing pid %d)\n", cmd.c_str(),
-                   (float) elapsed / NANOS_PER_SEC, pid);
+            if (!silent)
+                printf("*** command '%s' timed out after %.3fs (killing pid %d)\n", command,
+                       (float)elapsed / NANOS_PER_SEC, pid);
+            MYLOGE("command '%s' timed out after %.3fs (killing pid %d)\n", command,
+                   (float)elapsed / NANOS_PER_SEC, pid);
         } else {
-            format_args(command, args, &cmd);
-            if (!silent) printf("*** command '%s': Error after %.4fs (killing pid %d)\n",
-            cmd.c_str(), (float) elapsed / NANOS_PER_SEC, pid);
-            MYLOGE("command '%s': Error after %.4fs (killing pid %d)\n", cmd.c_str(),
-                   (float) elapsed / NANOS_PER_SEC, pid);
+            if (!silent)
+                printf("*** command '%s': Error after %.4fs (killing pid %d)\n", command,
+                       (float)elapsed / NANOS_PER_SEC, pid);
+            MYLOGE("command '%s': Error after %.4fs (killing pid %d)\n", command,
+                   (float)elapsed / NANOS_PER_SEC, pid);
         }
         kill(pid, SIGTERM);
         if (!waitpid_with_timeout(pid, 5, NULL)) {
             kill(pid, SIGKILL);
             if (!waitpid_with_timeout(pid, 5, NULL)) {
-                if (!silent) printf("could not kill command '%s' (pid %d) even with SIGKILL.\n",
-                        command, pid);
+                if (!silent)
+                    printf("could not kill command '%s' (pid %d) even with SIGKILL.\n", command,
+                           pid);
                 MYLOGE("could not kill command '%s' (pid %d) even with SIGKILL.\n", command, pid);
             }
         }
         return -1;
-    } else if (status) {
-        format_args(command, args, &cmd);
-        if (!silent) printf("*** command '%s' failed: %s\n", cmd.c_str(), strerror(errno));
-        MYLOGE("command '%s' failed: %s\n", cmd.c_str(), strerror(errno));
-        return -2;
     }
 
     if (WIFSIGNALED(status)) {
@@ -835,6 +884,14 @@ int run_command_always(const char *title, RootMode root_mode, StdoutMode stdout_
         update_progress(weight);
     }
     return status;
+}
+
+void runDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
+                const CommandOptions& options) {
+    std::vector<std::string> dumpsys = {"/system/bin/dumpsys", "-t",
+                                        std::to_string(options.Timeout())};
+    dumpsys.insert(dumpsys.end(), dumpsysArgs.begin(), dumpsysArgs.end());
+    runCommand(title.c_str(), dumpsys, options);
 }
 
 bool drop_root_user() {
@@ -884,26 +941,16 @@ bool drop_root_user() {
 }
 
 void send_broadcast(const std::string& action, const std::vector<std::string>& args) {
-    if (args.size() > 1000) {
-        MYLOGE("send_broadcast: too many arguments (%d)\n", (int) args.size());
-        return;
-    }
-    const char *am_args[MAX_ARGS_ARRAY_SIZE] = { "/system/bin/am", "broadcast", "--user", "0", "-a",
-                                     action.c_str() };
-    size_t am_index = 5; // Starts at the index of last initial value above.
-    for (const std::string& arg : args) {
-        if (am_index > MAX_ARGS_ARRAY_SIZE - 2) {
-            MYLOGE("send_broadcast: too many arguments (%d)\n", (int) args.size());
-            return;
-        }
-        am_args[++am_index] = arg.c_str();
-    }
-    // Always terminate with nullptr.
-    am_args[am_index + 1] = nullptr;
-    std::string args_string;
-    format_args(am_index + 1, am_args, &args_string);
-    MYLOGD("send_broadcast command: %s\n", args_string.c_str());
-    run_command_always(NULL, DROP_ROOT, REDIRECT_TO_STDERR, 20, am_args);
+    std::vector<std::string> am = {"/system/bin/am", "broadcast", "--user", "0", "-a", action};
+
+    am.insert(am.end(), args.begin(), args.end());
+
+    runCommand(nullptr, am, CommandOptions::WithTimeout(20)
+                                .Log("Sending broadcast: '%s'\n")
+                                .Always()
+                                .DropRoot()
+                                .RedirectStderr()
+                                .Build());
 }
 
 size_t num_props = 0;
@@ -1202,8 +1249,8 @@ void dump_route_tables() {
     // need the table number. It's a 32-bit unsigned number, so max 10 chars. Skip the table name.
     // Add a fixed max limit so this doesn't go awry.
     for (int i = 0; i < 64 && fscanf(fp, " %10s %*s", table) == 1; ++i) {
-        run_command("ROUTE TABLE IPv4", 10, "ip", "-4", "route", "show", "table", table, NULL);
-        run_command("ROUTE TABLE IPv6", 10, "ip", "-6", "route", "show", "table", table, NULL);
+        runCommand("ROUTE TABLE IPv4", {"ip", "-4", "route", "show", "table", table});
+        runCommand("ROUTE TABLE IPv6", {"ip", "-6", "route", "show", "table", table});
     }
     fclose(fp);
 }
@@ -1261,8 +1308,8 @@ void update_progress(int delta) {
 }
 
 void take_screenshot(const std::string& path) {
-    const char *args[] = { "/system/bin/screencap", "-p", path.c_str(), NULL };
-    run_command_always(NULL, DONT_DROP_ROOT, REDIRECT_TO_STDERR, 10, args);
+    runCommand(nullptr, {"/system/bin/screencap", "-p", path},
+               CommandOptions::WithTimeout(10).Always().RedirectStderr().Build());
 }
 
 void vibrate(FILE* vibrator, int ms) {
@@ -1398,31 +1445,4 @@ void dump_emmc_ecsd(const char *ext_csd_path) {
     }
 
     printf("\n");
-}
-
-// TODO: refactor all those commands that convert args
-void format_args(int argc, const char *argv[], std::string *args) {
-    LOG_ALWAYS_FATAL_IF(args == nullptr);
-    for (int i = 0; i < argc; i++) {
-        args->append(argv[i]);
-        if (i < argc -1) {
-          args->append(" ");
-        }
-    }
-}
-void format_args(const char* command, const char *args[], std::string *string) {
-    LOG_ALWAYS_FATAL_IF(args == nullptr || command == nullptr);
-    string->append(command);
-    if (args[1] == nullptr) return;
-    string->append(" ");
-
-    for (int arg = 1; arg <= MAX_ARGS_ARRAY_SIZE; ++arg) {
-        if (args[arg] == nullptr) return;
-        string->append(args[arg]);
-        if (args[arg+1] != nullptr) {
-            string->append(" ");
-        }
-    }
-    // TODO: not really working: if NULL is missing, it will crash dumpstate.
-    MYLOGE("internal error: missing NULL entry on %s", string->c_str());
 }
