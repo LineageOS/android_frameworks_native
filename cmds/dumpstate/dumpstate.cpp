@@ -179,7 +179,7 @@ static void dump_dev_files(const char *title, const char *driverpath, const char
             continue;
         }
         snprintf(path, sizeof(path), "%s/%s/%s", driverpath, de->d_name, filename);
-        dump_file(title, path);
+        dumpFile(title, path);
     }
 
     closedir(d);
@@ -696,7 +696,7 @@ static void print_header(std::string version) {
     printf("Network: %s\n", network);
 
     printf("Kernel: ");
-    dump_file(NULL, "/proc/version");
+    dumpFile(nullptr, "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version.c_str());
     printf("Dumpstate info: id=%lu pid=%d dry_run=%d\n", id, getpid(), dry_run);
@@ -841,21 +841,21 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     runCommand("UPTIME", {"uptime"});
     dump_files("UPTIME MMC PERF", mmcblk0, skip_not_stat, dump_stat_from_fd);
     dump_emmc_ecsd("/d/mmc0/mmc0:0001/ext_csd");
-    dump_file("MEMORY INFO", "/proc/meminfo");
+    dumpFile("MEMORY INFO", "/proc/meminfo");
     runCommand("CPU INFO", {"top", "-b", "-n", "1", "-H", "-s", "6", "-o",
                             "pid,tid,user,pr,ni,%cpu,s,virt,res,pcy,cmd,name"});
     runCommand("PROCRANK", {"procrank"}, CommandOptions::AS_ROOT_20);
-    dump_file("VIRTUAL MEMORY STATS", "/proc/vmstat");
-    dump_file("VMALLOC INFO", "/proc/vmallocinfo");
-    dump_file("SLAB INFO", "/proc/slabinfo");
-    dump_file("ZONEINFO", "/proc/zoneinfo");
-    dump_file("PAGETYPEINFO", "/proc/pagetypeinfo");
-    dump_file("BUDDYINFO", "/proc/buddyinfo");
-    dump_file("FRAGMENTATION INFO", "/d/extfrag/unusable_index");
+    dumpFile("VIRTUAL MEMORY STATS", "/proc/vmstat");
+    dumpFile("VMALLOC INFO", "/proc/vmallocinfo");
+    dumpFile("SLAB INFO", "/proc/slabinfo");
+    dumpFile("ZONEINFO", "/proc/zoneinfo");
+    dumpFile("PAGETYPEINFO", "/proc/pagetypeinfo");
+    dumpFile("BUDDYINFO", "/proc/buddyinfo");
+    dumpFile("FRAGMENTATION INFO", "/d/extfrag/unusable_index");
 
-    dump_file("KERNEL WAKE SOURCES", "/d/wakeup_sources");
-    dump_file("KERNEL CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state");
-    dump_file("KERNEL SYNC", "/d/sync");
+    dumpFile("KERNEL WAKE SOURCES", "/d/wakeup_sources");
+    dumpFile("KERNEL CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state");
+    dumpFile("KERNEL SYNC", "/d/sync");
 
     runCommand("PROCESSES AND THREADS",
                {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy"});
@@ -883,7 +883,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
         MYLOGI("wrote screenshot: %s\n", screenshot_path.c_str());
     }
 
-    // dump_file("EVENT LOG TAGS", "/etc/event-log-tags");
+    // dumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
     // calculate timeout
     timeout = logcat_timeout("main") + logcat_timeout("system") + logcat_timeout("crash");
     if (timeout < 20000) {
@@ -910,7 +910,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
 
     /* show the traces we collected in main(), if that was done */
     if (dump_traces_path != NULL) {
-        dump_file("VM TRACES JUST NOW", dump_traces_path);
+        dumpFile("VM TRACES JUST NOW", dump_traces_path);
     }
 
     /* only show ANR traces if they're less than 15 minutes old */
@@ -942,7 +942,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
                 // No traces file at this index, done with the files.
                 break;
             }
-            dump_file("VM TRACES WHEN SLOW", anr_traces_path);
+            dumpFile("VM TRACES WHEN SLOW", anr_traces_path);
             i++;
         }
     }
@@ -968,20 +968,20 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
         printf("*** NO TOMBSTONES to dump in %s\n\n", TOMBSTONE_DIR);
     }
 
-    dump_file("NETWORK DEV INFO", "/proc/net/dev");
-    dump_file("QTAGUID NETWORK INTERFACES INFO", "/proc/net/xt_qtaguid/iface_stat_all");
-    dump_file("QTAGUID NETWORK INTERFACES INFO (xt)", "/proc/net/xt_qtaguid/iface_stat_fmt");
-    dump_file("QTAGUID CTRL INFO", "/proc/net/xt_qtaguid/ctrl");
-    dump_file("QTAGUID STATS INFO", "/proc/net/xt_qtaguid/stats");
+    dumpFile("NETWORK DEV INFO", "/proc/net/dev");
+    dumpFile("QTAGUID NETWORK INTERFACES INFO", "/proc/net/xt_qtaguid/iface_stat_all");
+    dumpFile("QTAGUID NETWORK INTERFACES INFO (xt)", "/proc/net/xt_qtaguid/iface_stat_fmt");
+    dumpFile("QTAGUID CTRL INFO", "/proc/net/xt_qtaguid/ctrl");
+    dumpFile("QTAGUID STATS INFO", "/proc/net/xt_qtaguid/stats");
 
     if (!stat(PSTORE_LAST_KMSG, &st)) {
         /* Also TODO: Make console-ramoops CAP_SYSLOG protected. */
-        dump_file("LAST KMSG", PSTORE_LAST_KMSG);
+        dumpFile("LAST KMSG", PSTORE_LAST_KMSG);
     } else if (!stat(ALT_PSTORE_LAST_KMSG, &st)) {
-        dump_file("LAST KMSG", ALT_PSTORE_LAST_KMSG);
+        dumpFile("LAST KMSG", ALT_PSTORE_LAST_KMSG);
     } else {
         /* TODO: Make last_kmsg CAP_SYSLOG protected. b/5555691 */
-        dump_file("LAST KMSG", "/proc/last_kmsg");
+        dumpFile("LAST KMSG", "/proc/last_kmsg");
     }
 
     /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
@@ -1014,7 +1014,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     runCommand("ND OFFLOAD STATUS (1)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
 
 #endif
-    dump_file("INTERRUPTS (1)", "/proc/interrupts");
+    dumpFile("INTERRUPTS (1)", "/proc/interrupts");
 
     runDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
                CommandOptions::WithTimeout(10).Build());
@@ -1026,7 +1026,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
 
     runCommand("ND OFFLOAD STATUS (2)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
 #endif
-    dump_file("INTERRUPTS (2)", "/proc/interrupts");
+    dumpFile("INTERRUPTS (2)", "/proc/interrupts");
 
     print_properties();
 
@@ -1039,30 +1039,33 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
 
     printf("------ BACKLIGHTS ------\n");
     printf("LCD brightness=");
-    dump_file(NULL, "/sys/class/leds/lcd-backlight/brightness");
+    dumpFile(nullptr, "/sys/class/leds/lcd-backlight/brightness");
     printf("Button brightness=");
-    dump_file(NULL, "/sys/class/leds/button-backlight/brightness");
+    dumpFile(nullptr, "/sys/class/leds/button-backlight/brightness");
     printf("Keyboard brightness=");
-    dump_file(NULL, "/sys/class/leds/keyboard-backlight/brightness");
+    dumpFile(nullptr, "/sys/class/leds/keyboard-backlight/brightness");
     printf("ALS mode=");
-    dump_file(NULL, "/sys/class/leds/lcd-backlight/als");
+    dumpFile(nullptr, "/sys/class/leds/lcd-backlight/als");
     printf("LCD driver registers:\n");
-    dump_file(NULL, "/sys/class/leds/lcd-backlight/registers");
+    dumpFile(nullptr, "/sys/class/leds/lcd-backlight/registers");
     printf("\n");
 
     /* Binder state is expensive to look at as it uses a lot of memory. */
-    dump_file("BINDER FAILED TRANSACTION LOG", "/sys/kernel/debug/binder/failed_transaction_log");
-    dump_file("BINDER TRANSACTION LOG", "/sys/kernel/debug/binder/transaction_log");
-    dump_file("BINDER TRANSACTIONS", "/sys/kernel/debug/binder/transactions");
-    dump_file("BINDER STATS", "/sys/kernel/debug/binder/stats");
-    dump_file("BINDER STATE", "/sys/kernel/debug/binder/state");
+    dumpFile("BINDER FAILED TRANSACTION LOG", "/sys/kernel/debug/binder/failed_transaction_log");
+    dumpFile("BINDER TRANSACTION LOG", "/sys/kernel/debug/binder/transaction_log");
+    dumpFile("BINDER TRANSACTIONS", "/sys/kernel/debug/binder/transactions");
+    dumpFile("BINDER STATS", "/sys/kernel/debug/binder/stats");
+    dumpFile("BINDER STATE", "/sys/kernel/debug/binder/state");
 
     printf("========================================================\n");
     printf("== Board\n");
     printf("========================================================\n");
 
-    dumpstate_board();
-    printf("\n");
+    {
+        DurationReporter tmpDr("dumpstate_board()");
+        dumpstate_board();
+        printf("\n");
+    }
 
     /* Migrate the ril_dumpstate to a dumpstate_board()? */
     char ril_dumpstate_timeout[PROPERTY_VALUE_MAX] = {0};

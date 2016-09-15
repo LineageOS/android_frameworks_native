@@ -553,17 +553,20 @@ static int _dump_file_from_fd(const char *title, const char *path, int fd) {
     return 0;
 }
 
-/* prints the contents of a file */
 int dump_file(const char *title, const char *path) {
-    DurationReporter duration_reporter(title);
-    int fd = TEMP_FAILURE_RETRY(open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC));
+    return dumpFile(title, path);
+}
+
+int dumpFile(const char* title, const std::string& path) {
+    DurationReporter durationReporter(title);
+    int fd = TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
     if (fd < 0) {
         int err = errno;
-        printf("*** %s: %s\n", path, strerror(err));
-        if (title) printf("\n");
+        printf("*** %s: %s\n", path.c_str(), strerror(err));
+        if (title != nullptr) printf("\n");
         return -1;
     }
-    return _dump_file_from_fd(title, path, fd);
+    return _dump_file_from_fd(title, path.c_str(), fd);
 }
 
 int read_file_as_long(const char *path, long int *output) {
