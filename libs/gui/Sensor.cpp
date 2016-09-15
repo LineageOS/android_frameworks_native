@@ -220,7 +220,10 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
         break;
     case SENSOR_TYPE_DYNAMIC_SENSOR_META:
         mStringType = SENSOR_STRING_TYPE_DYNAMIC_SENSOR_META;
-        mFlags = SENSOR_FLAG_SPECIAL_REPORTING_MODE; // special trigger and non-wake up
+        mFlags |= SENSOR_FLAG_SPECIAL_REPORTING_MODE; // special trigger
+        if (halVersion < SENSORS_DEVICE_API_VERSION_1_3) {
+            mFlags |= SENSOR_FLAG_WAKE_UP;
+        }
         break;
     case SENSOR_TYPE_POSE_6DOF:
         mStringType = SENSOR_STRING_TYPE_POSE_6DOF;
