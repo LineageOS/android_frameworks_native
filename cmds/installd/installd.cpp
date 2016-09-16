@@ -369,7 +369,7 @@ static int do_linklib(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
 
 static int do_idmap(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
 {
-    return idmap(arg[0], arg[1], atoi(arg[2]));
+    return idmap(arg[0], arg[1], arg[2], atoi(arg[3]), atoi(arg[4]), atoi(arg[5]));
 }
 
 static int do_create_oat_dir(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
@@ -407,6 +407,16 @@ static int do_move_ab(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
     return move_ab(arg[0], arg[1], arg[2]);
 }
 
+static int do_aapt(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
+{
+    return aapt(arg[0], arg[1], arg[2], atoi(arg[3]), atoi(arg[4]), atoi(arg[5]), arg[6], "");
+}
+
+static int do_aapt_with_common(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
+{
+    return aapt(arg[0], arg[1], arg[2], atoi(arg[3]), atoi(arg[4]), atoi(arg[5]), arg[6], arg[7]);
+}
+
 struct cmdinfo {
     const char *name;
     unsigned numargs;
@@ -433,7 +443,7 @@ struct cmdinfo cmds[] = {
     { "rmdex",                2, do_rm_dex },
     { "freecache",            2, do_free_cache },
     { "linklib",              4, do_linklib },
-    { "idmap",                3, do_idmap },
+    { "idmap",                6, do_idmap },
     { "createoatdir",         2, do_create_oat_dir },
     { "rmpackagedir",         1, do_rm_package_dir },
     { "clear_app_profiles",   1, do_clear_app_profiles },
@@ -442,6 +452,8 @@ struct cmdinfo cmds[] = {
     { "move_ab",              3, do_move_ab },
     { "merge_profiles",       2, do_merge_profiles },
     { "dump_profiles",        3, do_dump_profiles },
+    { "aapt",                 7, do_aapt },
+    { "aapt_with_common",     8, do_aapt_with_common },
 };
 
 static int readx(int s, void *_buf, int count)
