@@ -361,9 +361,11 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice /*pdev*/,
     if (formats) {
         if (*count < kNumFormats)
             result = VK_INCOMPLETE;
-        std::copy(kFormats, kFormats + std::min(*count, kNumFormats), formats);
+        *count = std::min(*count, kNumFormats);
+        std::copy(kFormats, kFormats + *count, formats);
+    } else {
+        *count = kNumFormats;
     }
-    *count = kNumFormats;
     return result;
 }
 
@@ -381,9 +383,11 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice /*pdev*/,
     if (modes) {
         if (*count < kNumModes)
             result = VK_INCOMPLETE;
-        std::copy(kModes, kModes + std::min(*count, kNumModes), modes);
+        *count = std::min(*count, kNumModes);
+        std::copy(kModes, kModes + *count, modes);
+    } else {
+        *count = kNumModes;
     }
-    *count = kNumModes;
     return result;
 }
 
@@ -751,8 +755,10 @@ VkResult GetSwapchainImagesKHR(VkDevice,
         }
         for (uint32_t i = 0; i < n; i++)
             images[i] = swapchain.images[i].image;
+        *count = n;
+    } else {
+        *count = swapchain.num_images;
     }
-    *count = swapchain.num_images;
     return result;
 }
 
