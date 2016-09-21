@@ -1130,7 +1130,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
             const Transform& tr(displayDevice->getTransform());
             const Rect bounds(displayDevice->getBounds());
             if (displayDevice->isDisplayOn()) {
-                SurfaceFlinger::computeVisibleRegions(layers,
+                SurfaceFlinger::computeVisibleRegions(dpy, layers,
                         displayDevice->getLayerStack(), dirtyRegion,
                         opaqueRegion);
 
@@ -1674,7 +1674,7 @@ void SurfaceFlinger::commitTransaction()
     mTransactionCV.broadcast();
 }
 
-void SurfaceFlinger::computeVisibleRegions(
+void SurfaceFlinger::computeVisibleRegions(size_t /*dpy*/,
         const LayerVector& currentLayers, uint32_t layerStack,
         Region& outDirtyRegion, Region& outOpaqueRegion)
 {

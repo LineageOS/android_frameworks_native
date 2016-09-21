@@ -90,6 +90,7 @@ Layer* DisplayUtils::getLayerInstance(SurfaceFlinger* flinger,
     }
 }
 
+#ifndef USE_HWC2
 HWComposer* DisplayUtils::getHWCInstance(
                         const sp<SurfaceFlinger>& flinger,
                         HWComposer::EventHandler& handler) {
@@ -99,6 +100,16 @@ HWComposer* DisplayUtils::getHWCInstance(
         return new HWComposer(flinger,handler);
     }
 }
+#else
+HWComposer* DisplayUtils::getHWCInstance(
+                        const sp<SurfaceFlinger>& flinger) {
+    if(sUseExtendedImpls) {
+        return new ExHWComposer(flinger);
+    } else {
+        return new HWComposer(flinger);
+    }
+}
+#endif
 
 void DisplayUtils::initVDSInstance(HWComposer* hwc, int32_t hwcDisplayId,
         sp<IGraphicBufferProducer> currentStateSurface, sp<DisplaySurface> &dispSurface,
@@ -156,8 +167,10 @@ bool DisplayUtils::createV4L2BasedVirtualDisplay(HWComposer* hwc, int32_t &hwcDi
         surface = eglCreateWindowSurface(display, config, window, NULL);
         eglQuerySurface(display, surface, EGL_WIDTH, &w);
         eglQuerySurface(display, surface, EGL_HEIGHT, &h);
+#ifndef USE_HWC2
         if(hwc->setVirtualDisplayProperties(hwcDisplayId, w, h, format) != NO_ERROR)
             return false;
+#endif
 
         dispSurface = new FramebufferSurface(*hwc, currentStateType, bqConsumer);
         producer = bqProducer;
