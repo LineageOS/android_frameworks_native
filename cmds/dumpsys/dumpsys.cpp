@@ -201,7 +201,7 @@ int main(int argc, char* const argv[])
                 // call returns, to terminate our reads if the other end closes their copy of the
                 // file descriptor, but then hangs for some reason. There doesn't seem to be a good
                 // way to do this, though.
-                remote_end.clear();
+                remote_end.reset();
 
                 if (err != 0) {
                     aerr << "Error dumping service info: (" << strerror(err) << ") " << service_name
