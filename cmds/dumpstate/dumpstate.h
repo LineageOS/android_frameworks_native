@@ -37,6 +37,7 @@
 #include <string>
 #include <vector>
 
+// TODO: remove once dumpstate_board() devices use CommandOptions
 #define SU_PATH "/system/xbin/su"
 
 // Workaround for const char *args[MAX_ARGS_ARRAY_SIZE] variables until they're converted to
@@ -178,10 +179,8 @@ class CommandOptions {
     static CommandOptions AS_ROOT_20;
 };
 
-typedef void (for_each_pid_func)(int, const char *);
-typedef void (for_each_tid_func)(int, int, const char *);
-
-/* Estimated total weight of bugreport generation.
+/*
+ * Estimated total weight of bugreport generation.
  *
  * Each section contributes to the total weight by an individual weight, so the overall progress
  * can be calculated by dividing the all completed weight by the total weight.
@@ -193,24 +192,62 @@ typedef void (for_each_tid_func)(int, int, const char *);
  * example, jumping from 70% to 100%), while a value too low will cause the progress to get stuck
  * at an almost-finished value (like 99%) for a while.
  */
+// TODO: move to dumpstate.cpp / utils.cpp once it's used in just one file
 static const int WEIGHT_TOTAL = 6500;
 
-/* Most simple commands have 10 as timeout, so 5 is a good estimate */
-static const int WEIGHT_FILE = 5;
-
 /*
- * TODO: the dumpstate internal state is getting fragile; for example, this variable is defined
- * here, declared at utils.cpp, and used on utils.cpp and dumpstate.cpp.
- * It would be better to take advantage of the C++ migration and encapsulate the state in an object,
- * but that will be better handled in a major C++ refactoring, which would also get rid of other C
- * idioms (like using std::string instead of char*, removing varargs, etc...) */
-extern int do_update_progress, progress, weight_total, control_socket_fd;
+ * Main class driving a bugreport generation.
+ *
+ * Currently, it only contains variables that are accessed externally, but gradually the functions
+ * that are spread accross utils.cpp and dumpstate.cpp will be moved to it.
+ */
+class Dumpstate {
+  public:
+    static Dumpstate& GetInstance();
 
-/* full path of the directory where the bugreport files will be written */
-extern std::string bugreport_dir;
+    /*
+     * When running in dry-run mode, skips the real dumps and just print the section headers.
+     *
+     * Useful when debugging dumpstate or other bugreport-related activities.
+     *
+     * Dry-run mode is enabled by setting the system property dumpstate.dry_run to true.
+     */
+    bool IsDryRun();
 
-/* root dir for all files copied as-is into the bugreport. */
-extern const std::string ZIP_ROOT_DIR;
+    // TODO: fields below should be private once refactor is finished
+    // TODO: initialize fields on constructor
+
+    // dumpstate id - unique after each device reboot.
+    unsigned long id_;
+
+    // Whether progress updates should be published.
+    bool updateProgress_ = false;
+
+    // Currrent progress.
+    int progress_ = 0;
+
+    // Total estimated progress.
+    int weightTotal_ = WEIGHT_TOTAL;
+
+    // When set, defines a socket file-descriptor use to report progress to bugreportz.
+    int controlSocketFd_ = -1;
+
+    // Whether this is a dry run.
+    bool dryRun_;
+
+    // Full path of the directory where the bugreport files will be written;
+    std::string bugreportDir_;
+
+  private:
+    // Used by GetInstance() only.
+    Dumpstate();
+};
+
+// for_each_pid_func = void (*)(int, const char*);
+// for_each_tid_func = void (*)(int, int, const char*);
+
+typedef void(for_each_pid_func)(int, const char*);
+typedef void(for_each_tid_func)(int, int, const char*);
 
 /* adds a new entry to the existing zip file. */
 bool add_zip_entry(const std::string& entry_name, const std::string& entry_path);
@@ -358,15 +395,6 @@ void format_args(int argc, const char *argv[], std::string *args);
 
 /** Tells if the device is running a user build. */
 bool is_user_build();
-
-/*
- * When running in dry-run mode, skips the real dumps and just print the section headers.
- *
- * Useful when debugging dumpstate or other bugreport-related activities.
- *
- * Dry-run mode is enabled by setting the system property dumpstate.dry_run to true.
- */
-bool is_dry_run();
 
 #ifdef __cplusplus
 }
