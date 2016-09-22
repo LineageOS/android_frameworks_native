@@ -367,7 +367,7 @@ static void dump_systrace() {
     if (RunCommand("SYSTRACE", {"/system/bin/atrace", "--async_dump", "-o", systrace_path},
                    CommandOptions::WithTimeout(120).Build())) {
         MYLOGE("systrace timed out, its zip entry will be incomplete\n");
-        // TODO: run_command tries to kill the process, but atrace doesn't die
+        // TODO: RunCommand tries to kill the process, but atrace doesn't die
         // peacefully; ideally, we should call strace to stop itself, but there is no such option
         // yet (just a --async_stop, which stops and dump
         // if (RunCommand("SYSTRACE", {"/system/bin/atrace", "--kill"})) {
@@ -1621,7 +1621,7 @@ int main(int argc, char *argv[]) {
     dump_iptables();
 
     // Run ss as root so we can see socket marks.
-    run_command("DETAILED SOCKET STATE", 10, "ss", "-eionptu", NULL);
+    RunCommand("DETAILED SOCKET STATE", {"ss", "-eionptu"}, CommandOptions::WithTimeout(10).Build());
 
     if (!drop_root_user()) {
         return -1;

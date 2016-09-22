@@ -300,11 +300,6 @@ bool add_zip_entry_from_fd(const std::string& entry_name, int fd);
 /* adds all files from a directory to the zipped bugreport file */
 void add_dir(const std::string& dir, bool recursive);
 
-/* prints the contents of a file
- * DEPRECATED: will be removed once device-specific implementations use
- * dumpFile */
-int dump_file(const char *title, const char *path);
-
 /* saves the the contents of a file as a long */
 int read_file_as_long(const char *path, long int *output);
 
@@ -321,11 +316,6 @@ int dump_file_from_fd(const char *title, const char *path, int fd);
  */
 int dump_files(const std::string& title, const char* dir, bool (*skip)(const char* path),
                int (*dump_from_fd)(const char* title, const char* path, int fd));
-
-/* forks a command and waits for it to finish -- terminate args with NULL
- * DEPRECATED: will be removed once device-specific implementations use
- * RunCommand */
-int run_command(const char *title, int timeout_seconds, const char *command, ...);
 
 /* switch to non-root user and group */
 bool drop_root_user();

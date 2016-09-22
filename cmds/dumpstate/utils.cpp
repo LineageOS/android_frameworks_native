@@ -576,11 +576,6 @@ static int _dump_file_from_fd(const std::string& title, const char* path, int fd
     return 0;
 }
 
-// DEPRECATED: will be removed once device-specific implementations use dumpFile
-int dump_file(const char *title, const char *path) {
-    return ds.DumpFile(title, path);
-}
-
 int Dumpstate::DumpFile(const std::string& title, const std::string& path) {
     DurationReporter durationReporter(title);
     int fd = TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
@@ -746,24 +741,6 @@ bool waitpid_with_timeout(pid_t pid, int timeout_seconds, int* status) {
         return false;
     }
     return true;
-}
-
-// DEPRECATED: will be removed once device-specific implementations use RunCommand
-int run_command(const char* title, int timeout_seconds, const char* command, ...) {
-    std::vector<std::string> fullCommand = {command};
-    size_t arg;
-    va_list ap;
-    va_start(ap, command);
-    for (arg = 0; arg < MAX_ARGS_ARRAY_SIZE; ++arg) {
-        const char* ptr = va_arg(ap, const char*);
-        if (ptr == nullptr) {
-            break;
-        }
-        fullCommand.push_back(ptr);
-    }
-    va_end(ap);
-
-    return ds.RunCommand(title, fullCommand, CommandOptions::WithTimeout(timeout_seconds).Build());
 }
 
 int Dumpstate::RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
@@ -1271,7 +1248,7 @@ void dump_route_tables() {
     DurationReporter duration_reporter("DUMP ROUTE TABLES");
     if (is_dry_run()) return;
     const char* const RT_TABLES_PATH = "/data/misc/net/rt_tables";
-    dump_file("RT_TABLES", RT_TABLES_PATH);
+    ds.DumpFile("RT_TABLES", RT_TABLES_PATH);
     FILE* fp = fopen(RT_TABLES_PATH, "re");
     if (!fp) {
         printf("*** %s: %s\n", RT_TABLES_PATH, strerror(errno));
