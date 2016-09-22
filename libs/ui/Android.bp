@@ -46,6 +46,8 @@ cc_library_shared {
         "FrameStats.cpp",
         "Gralloc1.cpp",
         "Gralloc1On0Adapter.cpp",
+        "GrallocAllocator.cpp",
+        "GrallocMapper.cpp",
         "GraphicBuffer.cpp",
         "GraphicBufferAllocator.cpp",
         "GraphicBufferMapper.cpp",
@@ -56,10 +58,17 @@ cc_library_shared {
         "UiConfig.cpp",
     ],
 
+    static_libs: [
+        "android.hardware.graphics.mapper@2.0",
+    ],
+
     shared_libs: [
+        "android.hardware.graphics.allocator@2.0",
         "libbinder",
         "libcutils",
         "libhardware",
+        "libhidl",
+        "libhwbinder",
         "libsync",
         "libutils",
         "liblog",

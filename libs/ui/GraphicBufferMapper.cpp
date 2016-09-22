@@ -33,6 +33,7 @@
 #include <utils/Trace.h>
 
 #include <ui/Gralloc1On0Adapter.h>
+#include <ui/GrallocMapper.h>
 #include <ui/GraphicBufferMapper.h>
 #include <ui/Rect.h>
 
@@ -44,8 +45,13 @@ namespace android {
 ANDROID_SINGLETON_STATIC_INSTANCE( GraphicBufferMapper )
 
 GraphicBufferMapper::GraphicBufferMapper()
-  : mLoader(std::make_unique<Gralloc1::Loader>()),
-    mDevice(mLoader->getDevice()) {}
+  : mMapper(std::make_unique<const Gralloc2::Mapper>())
+{
+    if (!mMapper->valid()) {
+        mLoader = std::make_unique<Gralloc1::Loader>();
+        mDevice = mLoader->getDevice();
+    }
+}
 
 
 
@@ -53,7 +59,13 @@ status_t GraphicBufferMapper::registerBuffer(buffer_handle_t handle)
 {
     ATRACE_CALL();
 
-    gralloc1_error_t error = mDevice->retain(handle);
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        error = static_cast<gralloc1_error_t>(mMapper->retain(handle));
+    } else {
+        error = mDevice->retain(handle);
+    }
+
     ALOGW_IF(error != GRALLOC1_ERROR_NONE, "registerBuffer(%p) failed: %d",
             handle, error);
 
@@ -64,7 +76,14 @@ status_t GraphicBufferMapper::registerBuffer(const GraphicBuffer* buffer)
 {
     ATRACE_CALL();
 
-    gralloc1_error_t error = mDevice->retain(buffer);
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        error = static_cast<gralloc1_error_t>(
+                mMapper->retain(buffer->getNativeBuffer()->handle));
+    } else {
+        error = mDevice->retain(buffer);
+    }
+
     ALOGW_IF(error != GRALLOC1_ERROR_NONE, "registerBuffer(%p) failed: %d",
             buffer->getNativeBuffer()->handle, error);
 
@@ -75,7 +94,14 @@ status_t GraphicBufferMapper::unregisterBuffer(buffer_handle_t handle)
 {
     ATRACE_CALL();
 
-    gralloc1_error_t error = mDevice->release(handle);
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        mMapper->release(handle);
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        error = mDevice->release(handle);
+    }
+
     ALOGW_IF(error != GRALLOC1_ERROR_NONE, "unregisterBuffer(%p): failed %d",
             handle, error);
 
@@ -120,11 +146,20 @@ status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
     ATRACE_CALL();
 
     gralloc1_rect_t accessRegion = asGralloc1Rect(bounds);
-    sp<Fence> fence = new Fence(fenceFd);
-    gralloc1_error_t error = mDevice->lock(handle,
-            static_cast<gralloc1_producer_usage_t>(usage),
-            static_cast<gralloc1_consumer_usage_t>(usage),
-            &accessRegion, vaddr, fence);
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        const Gralloc2::Device::Rect& accessRect =
+            *reinterpret_cast<Gralloc2::Device::Rect*>(&accessRegion);
+        error = static_cast<gralloc1_error_t>(mMapper->lock(
+                    handle, usage, usage, accessRect, fenceFd, *vaddr));
+    } else {
+        sp<Fence> fence = new Fence(fenceFd);
+        error = mDevice->lock(handle,
+                static_cast<gralloc1_producer_usage_t>(usage),
+                static_cast<gralloc1_consumer_usage_t>(usage),
+                &accessRegion, vaddr, fence);
+    }
+
     ALOGW_IF(error != GRALLOC1_ERROR_NONE, "lock(%p, ...) failed: %d", handle,
             error);
 
@@ -160,20 +195,29 @@ status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
     ATRACE_CALL();
 
     gralloc1_rect_t accessRegion = asGralloc1Rect(bounds);
-    sp<Fence> fence = new Fence(fenceFd);
 
-    if (mDevice->hasCapability(GRALLOC1_CAPABILITY_ON_ADAPTER)) {
-        gralloc1_error_t error = mDevice->lockYCbCr(handle,
-                static_cast<gralloc1_producer_usage_t>(usage),
-                static_cast<gralloc1_consumer_usage_t>(usage),
-                &accessRegion, ycbcr, fence);
-        ALOGW_IF(error != GRALLOC1_ERROR_NONE, "lockYCbCr(%p, ...) failed: %d",
-                handle, error);
-        return error;
+    if (!mMapper->valid()) {
+        if (mDevice->hasCapability(GRALLOC1_CAPABILITY_ON_ADAPTER)) {
+            sp<Fence> fence = new Fence(fenceFd);
+            gralloc1_error_t error = mDevice->lockYCbCr(handle,
+                    static_cast<gralloc1_producer_usage_t>(usage),
+                    static_cast<gralloc1_consumer_usage_t>(usage),
+                    &accessRegion, ycbcr, fence);
+            ALOGW_IF(error != GRALLOC1_ERROR_NONE,
+                    "lockYCbCr(%p, ...) failed: %d", handle, error);
+            return error;
+        }
     }
 
     uint32_t numPlanes = 0;
-    gralloc1_error_t error = mDevice->getNumFlexPlanes(handle, &numPlanes);
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        error = static_cast<gralloc1_error_t>(
+                mMapper->getNumFlexPlanes(handle, numPlanes));
+    } else {
+        error = mDevice->getNumFlexPlanes(handle, &numPlanes);
+    }
+
     if (error != GRALLOC1_ERROR_NONE) {
         ALOGV("Failed to retrieve number of flex planes: %d", error);
         return error;
@@ -188,10 +232,21 @@ status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
     flexLayout.num_planes = numPlanes;
     flexLayout.planes = planes.data();
 
-    error = mDevice->lockFlex(handle,
-            static_cast<gralloc1_producer_usage_t>(usage),
-            static_cast<gralloc1_consumer_usage_t>(usage),
-            &accessRegion, &flexLayout, fence);
+    if (mMapper->valid()) {
+        const Gralloc2::Device::Rect& accessRect =
+            *reinterpret_cast<Gralloc2::Device::Rect*>(&accessRegion);
+        Gralloc2::FlexLayout& layout =
+            *reinterpret_cast<Gralloc2::FlexLayout*>(&flexLayout);
+        error = static_cast<gralloc1_error_t>(mMapper->lock(
+                    handle, usage, usage, accessRect, fenceFd, layout));
+    } else {
+        sp<Fence> fence = new Fence(fenceFd);
+        error = mDevice->lockFlex(handle,
+                static_cast<gralloc1_producer_usage_t>(usage),
+                static_cast<gralloc1_consumer_usage_t>(usage),
+                &accessRegion, &flexLayout, fence);
+    }
+
     if (error != GRALLOC1_ERROR_NONE) {
         ALOGW("lockFlex(%p, ...) failed: %d", handle, error);
         return error;
@@ -276,14 +331,20 @@ status_t GraphicBufferMapper::unlockAsync(buffer_handle_t handle, int *fenceFd)
 {
     ATRACE_CALL();
 
-    sp<Fence> fence = Fence::NO_FENCE;
-    gralloc1_error_t error = mDevice->unlock(handle, &fence);
-    if (error != GRALLOC1_ERROR_NONE) {
-        ALOGE("unlock(%p) failed: %d", handle, error);
-        return error;
-    }
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        *fenceFd = mMapper->unlock(handle);
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        sp<Fence> fence = Fence::NO_FENCE;
+        error = mDevice->unlock(handle, &fence);
+        if (error != GRALLOC1_ERROR_NONE) {
+            ALOGE("unlock(%p) failed: %d", handle, error);
+            return error;
+        }
 
-    *fenceFd = fence->dup();
+        *fenceFd = fence->dup();
+    }
     return error;
 }
 
