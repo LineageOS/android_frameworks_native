@@ -82,8 +82,8 @@ enum StdoutMode {
  */
 class DurationReporter {
   public:
-    DurationReporter(const char* title);
-    DurationReporter(const char* title, FILE* out);
+    DurationReporter(const std::string& title);
+    DurationReporter(const std::string& title, FILE* out);
 
     ~DurationReporter();
 
@@ -92,7 +92,7 @@ class DurationReporter {
   private:
     // TODO: use std::string for title, once dump_files() and other places that pass a char* are
     // refactored as well.
-    const char* title_;
+    std::string title_;
     FILE* out_;
     uint64_t started_;
 };
@@ -214,6 +214,43 @@ class Dumpstate {
      */
     bool IsDryRun();
 
+    /*
+     * Forks a command, waits for it to finish, and returns its status.
+     *
+     * |title| description of the command printed on `stdout` (or empty to skip
+     * description).
+     * |full_command| array containing the command (first entry) and its arguments.
+     * Must contain at least one element.
+     * |options| optional argument defining the command's behavior.
+     */
+    int RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
+                   const CommandOptions& options = CommandOptions::DEFAULT);
+
+    /*
+     * Runs `dumpsys` with the given arguments, automatically setting its timeout
+     * (`-t` argument)
+     * according to the command options.
+     *
+     * |title| description of the command printed on `stdout` (or empty to skip
+     * description).
+     * |dumpsys_args| `dumpsys` arguments (except `-t`).
+     * |options| optional argument defining the command's behavior.
+ * |dumpsysTimeout| when > 0, defines the value passed to `dumpsys -t` (otherwise it uses the
+ * timeout from `options`)
+     */
+    void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
+                    const CommandOptions& options = CommandOptions::DEFAULT_DUMPSYS,
+                    long dumpsysTimeout = 0);
+
+    /*
+     * Prints the contents of a file.
+     *
+     * |title| description of the command printed on `stdout` (or empty to skip
+     * description).
+     * |path| location of the file to be dumped.
+     */
+    int DumpFile(const std::string& title, const std::string& path);
+
     // TODO: fields below should be private once refactor is finished
     // TODO: initialize fields on constructor
 
@@ -256,16 +293,12 @@ bool add_zip_entry(const std::string& entry_name, const std::string& entry_path)
 bool add_zip_entry_from_fd(const std::string& entry_name, int fd);
 
 /* adds all files from a directory to the zipped bugreport file */
-void add_dir(const char *dir, bool recursive);
+void add_dir(const std::string& dir, bool recursive);
 
 /* prints the contents of a file
  * DEPRECATED: will be removed once device-specific implementations use
  * dumpFile */
 int dump_file(const char *title, const char *path);
-
-/* Prints the contents of a file. */
-// TODO: use std::string for title once other char* title references are refactored.
-int DumpFile(const char* title, const std::string& path);
 
 /* saves the the contents of a file as a long */
 int read_file_as_long(const char *path, long int *output);
@@ -281,42 +314,13 @@ int dump_file_from_fd(const char *title, const char *path, int fd);
  * to false when set to NULL. dump_from_fd will always be
  * called with title NULL.
  */
-int dump_files(const char *title, const char *dir,
-        bool (*skip)(const char *path),
-        int (*dump_from_fd)(const char *title, const char *path, int fd));
+int dump_files(const std::string& title, const char* dir, bool (*skip)(const char* path),
+               int (*dump_from_fd)(const char* title, const char* path, int fd));
 
 /* forks a command and waits for it to finish -- terminate args with NULL
  * DEPRECATED: will be removed once device-specific implementations use
- * runCommand */
+ * RunCommand */
 int run_command(const char *title, int timeout_seconds, const char *command, ...);
-
-/*
- * Forks a command, waits for it to finish, and returns its status.
- *
- * |title| description of the command printed on `stdout` (or `nullptr` to skip
- * description).
- * |full_command| array containing the command (first entry) and its arguments.
- * Must contain at least one element.
- * |options| optional argument defining the command's behavior.
- */
-// TODO: use std::string for title once other char* title references are refactored.
-int RunCommand(const char* title, const std::vector<std::string>& fullCommand,
-               const CommandOptions& options = CommandOptions::DEFAULT);
-
-/*
- * Runs `dumpsys` with the given arguments, automatically setting its timeout
- * (`-t` argument)
- * according to the command options.
- *
- * |title| description of the command printed on `stdout`.
- * |dumpsys_args| `dumpsys` arguments (except `-t`).
- * |options| optional argument defining the command's behavior.
- * |dumpsysTimeout| when > 0, defines the value passed to `dumpsys -t` (otherwise it uses the
- * timeout from `options`)
- */
-void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
-                const CommandOptions& options = CommandOptions::DEFAULT_DUMPSYS,
-                long dumpsysTimeout = 0);
 
 /* switch to non-root user and group */
 bool drop_root_user();
