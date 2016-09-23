@@ -16,6 +16,7 @@ LOCAL_SRC_FILES := \
     GLTest.cpp \
     IGraphicBufferProducer_test.cpp \
     MultiTextureConsumer_test.cpp \
+    Sensor_test.cpp \
     SRGB_test.cpp \
     StreamSplitter_test.cpp \
     SurfaceTextureClient_test.cpp \
