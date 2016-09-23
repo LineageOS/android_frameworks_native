@@ -1393,14 +1393,18 @@ status_t Surface::readFromParcel(const Parcel* parcel, bool nameAlreadyRead) {
         int isSingleBuffered;
         res = parcel->readInt32(&isSingleBuffered);
         if (res != OK) {
+            ALOGE("Can't read isSingleBuffered");
             return res;
         }
     }
 
     sp<IBinder> binder;
 
-    res = parcel->readStrongBinder(&binder);
-    if (res != OK) return res;
+    res = parcel->readNullableStrongBinder(&binder);
+    if (res != OK) {
+        ALOGE("%s: Can't read strong binder", __FUNCTION__);
+        return res;
+    }
 
     graphicBufferProducer = interface_cast<IGraphicBufferProducer>(binder);
 
