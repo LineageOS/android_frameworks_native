@@ -367,12 +367,14 @@ int ASensorManager_getSensorList(ASensorManager* manager, ASensorList* list);
  */
 ASensor const* ASensorManager_getDefaultSensor(ASensorManager* manager, int type);
 
+#if __ANDROID_API__ >= 21
 /**
  * Returns the default sensor with the given type and wakeUp properties or NULL if no sensor
  * of this type and wakeUp properties exists.
  */
 ASensor const* ASensorManager_getDefaultSensorEx(ASensorManager* manager, int type,
         bool wakeUp);
+#endif
 
 /**
  * Creates a new sensor event queue and associate it with a looper.
@@ -471,6 +473,7 @@ float ASensor_getResolution(ASensor const* sensor);
  */
 int ASensor_getMinDelay(ASensor const* sensor);
 
+#if __ANDROID_API__ >= 21
 /**
  * Returns the maximum size of batches for this sensor. Batches will often be
  * smaller, as the hardware fifo might be used for other sensors.
@@ -496,6 +499,7 @@ int ASensor_getReportingMode(ASensor const* sensor);
  * Returns true if this is a wake up sensor, false otherwise.
  */
 bool ASensor_isWakeUpSensor(ASensor const* sensor);
+#endif /* __ANDROID_API__ >= 21 */
 
 #ifdef __cplusplus
 };
