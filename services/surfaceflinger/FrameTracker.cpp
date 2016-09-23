@@ -21,7 +21,6 @@
 
 #include <cutils/log.h>
 
-#include <ui/Fence.h>
 #include <ui/FrameStats.h>
 
 #include <utils/String8.h>
@@ -48,9 +47,10 @@ void FrameTracker::setFrameReadyTime(nsecs_t readyTime) {
     mFrameRecords[mOffset].frameReadyTime = readyTime;
 }
 
-void FrameTracker::setFrameReadyFence(const sp<Fence>& readyFence) {
+void FrameTracker::setFrameReadyFence(
+        std::shared_ptr<FenceTime>&& readyFence) {
     Mutex::Autolock lock(mMutex);
-    mFrameRecords[mOffset].frameReadyFence = readyFence;
+    mFrameRecords[mOffset].frameReadyFence = std::move(readyFence);
     mNumFences++;
 }
 
@@ -59,9 +59,10 @@ void FrameTracker::setActualPresentTime(nsecs_t presentTime) {
     mFrameRecords[mOffset].actualPresentTime = presentTime;
 }
 
-void FrameTracker::setActualPresentFence(const sp<Fence>& readyFence) {
+void FrameTracker::setActualPresentFence(
+        std::shared_ptr<FenceTime>&& readyFence) {
     Mutex::Autolock lock(mMutex);
-    mFrameRecords[mOffset].actualPresentFence = readyFence;
+    mFrameRecords[mOffset].actualPresentFence = std::move(readyFence);
     mNumFences++;
 }
 
@@ -95,10 +96,6 @@ void FrameTracker::advanceFrame() {
         mFrameRecords[mOffset].actualPresentFence = NULL;
         mNumFences--;
     }
-
-    // Clean up the signaled fences to keep the number of open fence FDs in
-    // this process reasonable.
-    processFencesLocked();
 }
 
 void FrameTracker::clearStats() {
@@ -107,8 +104,8 @@ void FrameTracker::clearStats() {
         mFrameRecords[i].desiredPresentTime = 0;
         mFrameRecords[i].frameReadyTime = 0;
         mFrameRecords[i].actualPresentTime = 0;
-        mFrameRecords[i].frameReadyFence.clear();
-        mFrameRecords[i].actualPresentFence.clear();
+        mFrameRecords[i].frameReadyFence.reset();
+        mFrameRecords[i].actualPresentFence.reset();
     }
     mNumFences = 0;
     mFrameRecords[mOffset].desiredPresentTime = INT64_MAX;
@@ -156,7 +153,7 @@ void FrameTracker::processFencesLocked() const {
         size_t idx = (mOffset+NUM_FRAME_RECORDS-i) % NUM_FRAME_RECORDS;
         bool updated = false;
 
-        const sp<Fence>& rfence = records[idx].frameReadyFence;
+        const std::shared_ptr<FenceTime>& rfence = records[idx].frameReadyFence;
         if (rfence != NULL) {
             records[idx].frameReadyTime = rfence->getSignalTime();
             if (records[idx].frameReadyTime < INT64_MAX) {
@@ -166,7 +163,8 @@ void FrameTracker::processFencesLocked() const {
             }
         }
 
-        const sp<Fence>& pfence = records[idx].actualPresentFence;
+        const std::shared_ptr<FenceTime>& pfence =
+                records[idx].actualPresentFence;
         if (pfence != NULL) {
             records[idx].actualPresentTime = pfence->getSignalTime();
             if (records[idx].actualPresentTime < INT64_MAX) {

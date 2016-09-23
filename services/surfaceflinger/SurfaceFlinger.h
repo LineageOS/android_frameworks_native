@@ -37,6 +37,7 @@
 
 #include <binder/IMemory.h>
 
+#include <ui/FenceTime.h>
 #include <ui/PixelFormat.h>
 #include <ui/mat4.h>
 
@@ -501,6 +502,8 @@ private:
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
     bool mHadClientComposition = false;
 #endif
+    FenceTimeline mGlCompositionDoneTimeline;
+    FenceTimeline mDisplayTimeline;
 
     // this may only be written from the main thread with mStateLock held
     // it may be read from other threads with mStateLock held

@@ -20,6 +20,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
+#include <ui/FenceTime.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
@@ -58,6 +59,9 @@ class BufferItem : public Flattenable<BufferItem> {
 
     // mFence is a fence that will signal when the buffer is idle.
     sp<Fence> mFence;
+
+    // The std::shared_ptr<FenceTime> wrapper around mFence.
+    std::shared_ptr<FenceTime> mFenceTime{FenceTime::NO_FENCE};
 
     // mCrop is the current crop rectangle for this buffer slot.
     Rect mCrop;

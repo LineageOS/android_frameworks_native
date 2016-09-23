@@ -281,7 +281,7 @@ void VirtualDisplaySurface::onFrameCommitted() {
 #endif
                     &qbo);
             if (result == NO_ERROR) {
-                updateQueueBufferOutput(qbo);
+                updateQueueBufferOutput(std::move(qbo));
             }
         } else {
             // If the surface hadn't actually been updated, then we only went
@@ -516,7 +516,8 @@ status_t VirtualDisplaySurface::queueBuffer(int pslot,
         mOutputFence = mFbFence;
     }
 
-    *output = mQueueBufferOutput;
+    // This moves the frame timestamps and keeps a copy of all other fields.
+    *output = std::move(mQueueBufferOutput);
     return NO_ERROR;
 }
 
@@ -555,8 +556,9 @@ status_t VirtualDisplaySurface::connect(const sp<IProducerListener>& listener,
     status_t result = mSource[SOURCE_SINK]->connect(listener, api,
             producerControlledByApp, &qbo);
     if (result == NO_ERROR) {
-        updateQueueBufferOutput(qbo);
-        *output = mQueueBufferOutput;
+        updateQueueBufferOutput(std::move(qbo));
+        // This moves the frame timestamps and keeps a copy of all other fields.
+        *output = std::move(mQueueBufferOutput);
     }
     return result;
 }
@@ -615,8 +617,8 @@ status_t VirtualDisplaySurface::getUniqueId(uint64_t* /*outId*/) const {
 }
 
 void VirtualDisplaySurface::updateQueueBufferOutput(
-        const QueueBufferOutput& qbo) {
-    mQueueBufferOutput = qbo;
+        QueueBufferOutput&& qbo) {
+    mQueueBufferOutput = std::move(qbo);
     mQueueBufferOutput.transformHint = 0;
 }
 

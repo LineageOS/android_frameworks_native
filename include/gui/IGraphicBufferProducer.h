@@ -363,6 +363,15 @@ public:
     };
 
     struct QueueBufferOutput : public Flattenable<QueueBufferOutput> {
+        QueueBufferOutput() = default;
+
+        // Moveable.
+        QueueBufferOutput(QueueBufferOutput&& src) = default;
+        QueueBufferOutput& operator=(QueueBufferOutput&& src) = default;
+        // Not copyable.
+        QueueBufferOutput(const QueueBufferOutput& src) = delete;
+        QueueBufferOutput& operator=(const QueueBufferOutput& src) = delete;
+
         // Flattenable protocol
         static constexpr size_t minFlattenedSize();
         size_t getFlattenedSize() const;

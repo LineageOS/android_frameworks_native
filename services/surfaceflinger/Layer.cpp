@@ -1740,41 +1740,23 @@ bool Layer::onPreComposition(nsecs_t refreshStartTime) {
     return mQueuedFrames > 0 || mSidebandStreamChanged || mAutoRefresh;
 }
 
-bool Layer::onPostComposition(sp<Fence> glDoneFence) {
+bool Layer::onPostComposition(
+        const std::shared_ptr<FenceTime>& glDoneFence,
+        const std::shared_ptr<FenceTime>& presentFence,
+        const std::shared_ptr<FenceTime>& retireFence) {
+    mAcquireTimeline.updateSignalTimes();
+    mReleaseTimeline.updateSignalTimes();
+
     // mFrameLatencyNeeded is true when a new frame was latched for the
     // composition.
-
     if (!mFrameLatencyNeeded)
         return false;
-
-    const HWComposer& hwc = mFlinger->getHwComposer();
-#ifdef USE_HWC2
-    sp<Fence> retireFence = Fence::NO_FENCE;
-    sp<Fence> presentFence = Fence::NO_FENCE;
-    sp<Fence> presentOrRetireFence = Fence::NO_FENCE;
-    if (hwc.retireFenceRepresentsStartOfScanout()) {
-        presentFence = hwc.getPresentFence(HWC_DISPLAY_PRIMARY);
-        presentOrRetireFence = presentFence;
-    } else {
-        retireFence = hwc.getPresentFence(HWC_DISPLAY_PRIMARY);
-        presentOrRetireFence = retireFence;
-    }
-    bool wasGpuComposited = mHwcLayers.count(HWC_DISPLAY_PRIMARY) ?
-            mHwcLayers.at(HWC_DISPLAY_PRIMARY).compositionType ==
-            HWC2::Composition::Client : true;
-#else
-    sp<Fence> retireFence = hwc.getDisplayFence(HWC_DISPLAY_PRIMARY);
-    sp<Fence> presentFence = Fence::NO_FENCE;
-    sp<Fence> presentOrRetireFence = retireFence;
-    bool wasGpuComposited = mIsGlesComposition;
-#endif
 
     // Update mFrameEventHistory.
     {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addPostComposition(mCurrentFrameNumber,
-                wasGpuComposited ? glDoneFence : Fence::NO_FENCE,
-                presentFence);
+                glDoneFence, presentFence);
         mFrameEventHistory.addRetire(mPreviousFrameNumber,
                 retireFence);
     }
@@ -1783,22 +1765,28 @@ bool Layer::onPostComposition(sp<Fence> glDoneFence) {
     nsecs_t desiredPresentTime = mSurfaceFlingerConsumer->getTimestamp();
     mFrameTracker.setDesiredPresentTime(desiredPresentTime);
 
-    sp<Fence> frameReadyFence = mSurfaceFlingerConsumer->getCurrentFence();
+    std::shared_ptr<FenceTime> frameReadyFence =
+            mSurfaceFlingerConsumer->getCurrentFenceTime();
     if (frameReadyFence->isValid()) {
-        mFrameTracker.setFrameReadyFence(frameReadyFence);
+        mFrameTracker.setFrameReadyFence(std::move(frameReadyFence));
     } else {
         // There was no fence for this frame, so assume that it was ready
         // to be presented at the desired present time.
         mFrameTracker.setFrameReadyTime(desiredPresentTime);
     }
 
-    if (presentOrRetireFence->isValid()) {
-        mFrameTracker.setActualPresentFence(presentOrRetireFence);
+    if (presentFence->isValid()) {
+        mFrameTracker.setActualPresentFence(
+                std::shared_ptr<FenceTime>(presentFence));
+    } else if (retireFence->isValid()) {
+        mFrameTracker.setActualPresentFence(
+                std::shared_ptr<FenceTime>(retireFence));
     } else {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
-        nsecs_t presentTime = hwc.getRefreshTimestamp(HWC_DISPLAY_PRIMARY);
-        mFrameTracker.setActualPresentTime(presentTime);
+        mFrameTracker.setActualPresentTime(
+            mFlinger->getHwComposer().getRefreshTimestamp(
+                HWC_DISPLAY_PRIMARY));
     }
 
     mFrameTracker.advanceFrame();
@@ -1809,9 +1797,13 @@ bool Layer::onPostComposition(sp<Fence> glDoneFence) {
 #ifdef USE_HWC2
 void Layer::releasePendingBuffer() {
     mSurfaceFlingerConsumer->releasePendingBuffer();
-    Mutex::Autolock lock(mFrameEventHistoryMutex);
-    mFrameEventHistory.addRelease(mPreviousFrameNumber,
+    auto releaseFenceTime = std::make_shared<FenceTime>(
             mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
+    mReleaseTimeline.push(releaseFenceTime);
+
+    Mutex::Autolock lock(mFrameEventHistoryMutex);
+    mFrameEventHistory.addRelease(
+            mPreviousFrameNumber, std::move(releaseFenceTime));
 }
 #endif
 
@@ -1984,8 +1976,11 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime)
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addLatch(mCurrentFrameNumber, latchTime);
 #ifndef USE_HWC2
-        mFrameEventHistory.addRelease(mPreviousFrameNumber,
+        auto releaseFenceTime = std::make_shared<FenceTime>(
                 mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
+        mReleaseTimeline.push(releaseFenceTime);
+        mFrameEventHistory.addRelease(
+                mPreviousFrameNumber, std::move(releaseFenceTime));
 #endif
     }
 
@@ -2220,6 +2215,7 @@ void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
         FrameEventHistoryDelta *outDelta) {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     if (newTimestamps) {
+        mAcquireTimeline.push(newTimestamps->acquireFence);
         mFrameEventHistory.addQueue(*newTimestamps);
     }
 

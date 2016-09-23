@@ -204,6 +204,8 @@ status_t BufferItem::unflatten(
         status_t err = mFence->unflatten(buffer, size, fds, count);
         if (err) return err;
         size -= FlattenableUtils::align<4>(buffer);
+
+        mFenceTime = std::make_shared<FenceTime>(mFence);
     }
 
     status_t err = mSurfaceDamage.unflatten(buffer, size);

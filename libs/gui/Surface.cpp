@@ -144,6 +144,19 @@ void Surface::enableFrameTimestamps(bool enable) {
     mEnableFrameTimestamps = enable;
 }
 
+static void getFrameTimestamp(nsecs_t *dst, const nsecs_t& src) {
+    if (dst != nullptr) {
+        *dst = Fence::isValidTimestamp(src) ? src : 0;
+    }
+}
+
+static void getFrameTimestampFence(nsecs_t *dst, const std::shared_ptr<FenceTime>& src) {
+    if (dst != nullptr) {
+        nsecs_t signalTime = src->getSignalTime();
+        *dst = Fence::isValidTimestamp(signalTime) ? signalTime : 0;
+    }
+}
+
 status_t Surface::getFrameTimestamps(uint64_t frameNumber,
         nsecs_t* outRequestedPresentTime, nsecs_t* outAcquireTime,
         nsecs_t* outRefreshStartTime, nsecs_t* outGlCompositionDoneTime,
@@ -188,29 +201,16 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
         return NAME_NOT_FOUND;
     }
 
-    events->checkFencesForCompletion();
+    getFrameTimestamp(outRequestedPresentTime, events->requestedPresentTime);
+    getFrameTimestamp(outRefreshStartTime, events->firstRefreshStartTime);
 
-    if (outRequestedPresentTime) {
-        *outRequestedPresentTime = events->requestedPresentTime;
-    }
-    if (outAcquireTime) {
-        *outAcquireTime = events->acquireTime;
-    }
-    if (outRefreshStartTime) {
-        *outRefreshStartTime = events->firstRefreshStartTime;
-    }
-    if (outGlCompositionDoneTime) {
-        *outGlCompositionDoneTime = events->gpuCompositionDoneTime;
-    }
-    if (outDisplayPresentTime) {
-        *outDisplayPresentTime = events->displayPresentTime;
-    }
-    if (outDisplayRetireTime) {
-        *outDisplayRetireTime = events->displayRetireTime;
-    }
-    if (outReleaseTime) {
-        *outReleaseTime = events->releaseTime;
-    }
+    getFrameTimestampFence(outAcquireTime, events->acquireFence);
+    getFrameTimestampFence(
+            outGlCompositionDoneTime, events->gpuCompositionDoneFence);
+    getFrameTimestampFence(
+            outDisplayPresentTime, events->displayPresentFence);
+    getFrameTimestampFence(outDisplayRetireTime, events->displayRetireFence);
+    getFrameTimestampFence(outReleaseTime, events->releaseFence);
 
     return NO_ERROR;
 }
@@ -571,7 +571,12 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
         // Update timestamps with the local acquire fence.
         // The consumer doesn't send it back to prevent us from having two
         // file descriptors of the same fence.
-        mFrameEventHistory.updateAcquireFence(mNextFrameNumber, fence);
+        mFrameEventHistory.updateAcquireFence(mNextFrameNumber,
+                std::make_shared<FenceTime>(std::move(fence)));
+
+        // Cache timestamps of signaled fences so we can close their file
+        // descriptors.
+        mFrameEventHistory.updateSignalTimes();
     }
 
     mDefaultWidth = output.width;

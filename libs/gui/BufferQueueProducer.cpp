@@ -762,6 +762,8 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         return BAD_VALUE;
     }
 
+    auto acquireFenceTime = std::make_shared<FenceTime>(acquireFence);
+
     switch (scalingMode) {
         case NATIVE_WINDOW_SCALING_MODE_FREEZE:
         case NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW:
@@ -858,6 +860,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         item.mFrameNumber = currentFrameNumber;
         item.mSlot = slot;
         item.mFence = acquireFence;
+        item.mFenceTime = acquireFenceTime;
         item.mIsDroppable = mCore->mAsyncMode ||
                 mCore->mDequeueBufferCannotBlock ||
                 (mCore->mSharedBufferMode && mCore->mSharedBufferSlot == slot);
@@ -969,7 +972,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         // small trade-off in favor of latency rather than throughput.
         mLastQueueBufferFence->waitForever("Throttling EGL Production");
     }
-    mLastQueueBufferFence = acquireFence;
+    mLastQueueBufferFence = std::move(acquireFence);
     mLastQueuedCrop = item.mCrop;
     mLastQueuedTransform = item.mTransform;
 
@@ -979,7 +982,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         currentFrameNumber,
         postedTime,
         requestedPresentTimestamp,
-        acquireFence
+        std::move(acquireFenceTime)
     };
     addAndGetFrameTimestamps(&newFrameEventsEntry,
             getFrameTimestamps ? &output->frameTimestamps : nullptr);
