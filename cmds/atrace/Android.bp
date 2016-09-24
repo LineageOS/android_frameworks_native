@@ -6,6 +6,7 @@ cc_binary {
 
     shared_libs: [
         "libbinder",
+        "liblog",
         "libcutils",
         "libutils",
         "libz",
