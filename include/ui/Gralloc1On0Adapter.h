@@ -104,7 +104,7 @@ private:
 
     // Buffer descriptor lifecycle functions
 
-    class Descriptor;
+    struct Descriptor;
 
     gralloc1_error_t createDescriptor(
             gralloc1_buffer_descriptor_t* outDescriptor);
