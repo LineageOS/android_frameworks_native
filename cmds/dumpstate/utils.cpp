@@ -757,9 +757,9 @@ int runCommand(const char* title, const std::vector<std::string>& fullCommand,
 
     const char* args[size];
 
-    printf("------");
-    if (title) printf(" %s", title);
-    printf(" (");
+    if (title) {
+        printf("------ %s (", title);
+    }
 
     std::string commandString;
     int i = 0;
@@ -779,7 +779,10 @@ int runCommand(const char* title, const std::vector<std::string>& fullCommand,
     args[i] = nullptr;
     const char* path = args[0];
     const char* command = commandString.c_str();
-    printf("%s)\n", command);
+
+    if (title) {
+        printf("%s) ------\n", command);
+    }
 
     fflush(stdout);
 
