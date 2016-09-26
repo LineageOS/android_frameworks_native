@@ -294,7 +294,7 @@ Region& Region::andSelf(const Rect& r) {
 Region& Region::subtractSelf(const Rect& r) {
     return operationSelf(r, op_nand);
 }
-Region& Region::operationSelf(const Rect& r, int op) {
+Region& Region::operationSelf(const Rect& r, uint32_t op) {
     Region lhs(*this);
     boolean_operation(op, *this, lhs, r);
     return *this;
@@ -314,7 +314,7 @@ Region& Region::andSelf(const Region& rhs) {
 Region& Region::subtractSelf(const Region& rhs) {
     return operationSelf(rhs, op_nand);
 }
-Region& Region::operationSelf(const Region& rhs, int op) {
+Region& Region::operationSelf(const Region& rhs, uint32_t op) {
     Region lhs(*this);
     boolean_operation(op, *this, lhs, rhs);
     return *this;
@@ -339,7 +339,7 @@ const Region Region::intersect(const Rect& rhs) const {
 const Region Region::subtract(const Rect& rhs) const {
     return operation(rhs, op_nand);
 }
-const Region Region::operation(const Rect& rhs, int op) const {
+const Region Region::operation(const Rect& rhs, uint32_t op) const {
     Region result;
     boolean_operation(op, result, *this, rhs);
     return result;
@@ -359,7 +359,7 @@ const Region Region::intersect(const Region& rhs) const {
 const Region Region::subtract(const Region& rhs) const {
     return operation(rhs, op_nand);
 }
-const Region Region::operation(const Region& rhs, int op) const {
+const Region Region::operation(const Region& rhs, uint32_t op) const {
     Region result;
     boolean_operation(op, result, *this, rhs);
     return result;
@@ -385,7 +385,7 @@ Region& Region::andSelf(const Region& rhs, int dx, int dy) {
 Region& Region::subtractSelf(const Region& rhs, int dx, int dy) {
     return operationSelf(rhs, dx, dy, op_nand);
 }
-Region& Region::operationSelf(const Region& rhs, int dx, int dy, int op) {
+Region& Region::operationSelf(const Region& rhs, int dx, int dy, uint32_t op) {
     Region lhs(*this);
     boolean_operation(op, *this, lhs, rhs, dx, dy);
     return *this;
@@ -405,7 +405,7 @@ const Region Region::intersect(const Region& rhs, int dx, int dy) const {
 const Region Region::subtract(const Region& rhs, int dx, int dy) const {
     return operation(rhs, dx, dy, op_nand);
 }
-const Region Region::operation(const Region& rhs, int dx, int dy, int op) const {
+const Region Region::operation(const Region& rhs, int dx, int dy, uint32_t op) const {
     Region result;
     boolean_operation(op, result, *this, rhs, dx, dy);
     return result;
@@ -583,7 +583,7 @@ bool Region::validate(const Region& reg, const char* name, bool silent)
     return result;
 }
 
-void Region::boolean_operation(int op, Region& dst,
+void Region::boolean_operation(uint32_t op, Region& dst,
         const Region& lhs,
         const Region& rhs, int dx, int dy)
 {
@@ -693,7 +693,7 @@ void Region::boolean_operation(int op, Region& dst,
 #endif
 }
 
-void Region::boolean_operation(int op, Region& dst,
+void Region::boolean_operation(uint32_t op, Region& dst,
         const Region& lhs,
         const Rect& rhs, int dx, int dy)
 {
@@ -722,13 +722,13 @@ void Region::boolean_operation(int op, Region& dst,
 #endif
 }
 
-void Region::boolean_operation(int op, Region& dst,
+void Region::boolean_operation(uint32_t op, Region& dst,
         const Region& lhs, const Region& rhs)
 {
     boolean_operation(op, dst, lhs, rhs, 0, 0);
 }
 
-void Region::boolean_operation(int op, Region& dst,
+void Region::boolean_operation(uint32_t op, Region& dst,
         const Region& lhs, const Rect& rhs)
 {
     boolean_operation(op, dst, lhs, rhs, 0, 0);
