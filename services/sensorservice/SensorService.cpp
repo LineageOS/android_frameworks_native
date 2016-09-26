@@ -995,6 +995,9 @@ void SensorService::cleanupConnection(SensorEventConnection* c) {
     if (c->needsWakeLock()) {
         checkWakeLockStateLocked();
     }
+
+    SensorDevice& dev(SensorDevice::getInstance());
+    dev.notifyConnectionDestroyed(c);
 }
 
 sp<SensorInterface> SensorService::getSensorInterfaceFromHandle(int handle) const {
