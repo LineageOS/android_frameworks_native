@@ -33,7 +33,7 @@ class BitTube;
 class ISensorEventConnection : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(SensorEventConnection);
+    DECLARE_META_INTERFACE(SensorEventConnection)
 
     virtual sp<BitTube> getSensorChannel() const = 0;
     virtual status_t enableDisable(int handle, bool enabled, nsecs_t samplingPeriodNs,

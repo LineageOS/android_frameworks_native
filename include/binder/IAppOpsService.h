@@ -28,7 +28,7 @@ namespace android {
 class IAppOpsService : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(AppOpsService);
+    DECLARE_META_INTERFACE(AppOpsService)
 
     virtual int32_t checkOperation(int32_t code, int32_t uid, const String16& packageName) = 0;
     virtual int32_t noteOperation(int32_t code, int32_t uid, const String16& packageName) = 0;

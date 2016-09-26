@@ -84,7 +84,7 @@ public:
 class IConsumerListener : public ConsumerListener, public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(ConsumerListener);
+    DECLARE_META_INTERFACE(ConsumerListener)
 };
 
 // ----------------------------------------------------------------------------

@@ -34,7 +34,7 @@ class IDisplayEventConnection : public IInterface
 {
 public:
 
-    DECLARE_META_INTERFACE(DisplayEventConnection);
+    DECLARE_META_INTERFACE(DisplayEventConnection)
 
     /*
      * getDataChannel() returns a BitTube where to receive the events from

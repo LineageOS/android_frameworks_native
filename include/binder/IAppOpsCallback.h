@@ -27,7 +27,7 @@ namespace android {
 class IAppOpsCallback : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(AppOpsCallback);
+    DECLARE_META_INTERFACE(AppOpsCallback)
 
     virtual void opChanged(int32_t op, const String16& packageName) = 0;
 

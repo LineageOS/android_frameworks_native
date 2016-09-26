@@ -30,7 +30,7 @@ namespace android {
  */
 class IInputFlinger : public IInterface {
 public:
-    DECLARE_META_INTERFACE(InputFlinger);
+    DECLARE_META_INTERFACE(InputFlinger)
 };
 
 
