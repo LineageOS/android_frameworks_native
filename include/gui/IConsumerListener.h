@@ -39,7 +39,7 @@ class BufferItem;
 class ConsumerListener : public virtual RefBase {
 public:
     ConsumerListener() { }
-    virtual ~ConsumerListener() { }
+    virtual ~ConsumerListener();
 
     // onFrameAvailable is called from queueBuffer each time an additional
     // frame becomes available for consumption. This means that frames that
