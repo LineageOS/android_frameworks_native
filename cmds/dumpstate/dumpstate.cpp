@@ -57,6 +57,9 @@ using android::base::StringPrintf;
 static char cmdline_buf[16384] = "(unknown)";
 static const char *dump_traces_path = NULL;
 
+// Command-line arguments as string
+static std::string args;
+
 // TODO: variables below should be part of dumpstate object
 static unsigned long id;
 static char build_type[PROPERTY_VALUE_MAX];
@@ -69,6 +72,7 @@ int control_socket_fd = -1;
  * although it could be changed by the user using a system property */
 static std::string suffix;
 static bool dry_run = false;
+static char extra_options[PROPERTY_VALUE_MAX];
 
 #define PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops"
 #define ALT_PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops-0"
@@ -103,6 +107,8 @@ std::string bugreport_dir;
  * See bugreport-format.md for more info.
  */
 static std::string VERSION_DEFAULT = "1.0";
+
+static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
 
 bool is_user_build() {
     return 0 == strncmp(build_type, "user", PROPERTY_VALUE_MAX - 1);
@@ -702,7 +708,8 @@ static void print_header(std::string version) {
     dumpFile(nullptr, "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version.c_str());
-    printf("Dumpstate info: id=%lu pid=%d dry_run=%d\n", id, getpid(), dry_run);
+    printf("Dumpstate info: id=%lu pid=%d dry_run=%d args=%s extra_options=%s\n", id, getpid(),
+           dry_run, args.c_str(), extra_options);
     printf("\n");
 }
 
@@ -1293,12 +1300,16 @@ int main(int argc, char *argv[]) {
         MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
     }
 
-    std::string args;
+    // TODO: use helper function to convert argv into a string
     for (int i = 0; i < argc; i++) {
         args += argv[i];
-        args += " ";
+        if (i < argc - 1) {
+            args += " ";
+        }
     }
-    MYLOGD("Dumpstate command line: %s\n", args.c_str());
+
+    property_get(PROPERTY_EXTRA_OPTIONS, extra_options, "");
+    MYLOGI("Dumpstate args: %s (extra options: %s)\n", args.c_str(), extra_options);
 
     /* gets the sequential id */
     char last_id[PROPERTY_VALUE_MAX];
@@ -1345,6 +1356,28 @@ int main(int argc, char *argv[]) {
                 usage();
                 exit(1);
         }
+    }
+
+    if (strlen(extra_options) > 0) {
+        // Framework uses a system property to override some command-line args.
+        // Currently, it contains the type of the requested bugreport.
+        if (strcmp(extra_options, "bugreportplus") == 0) {
+            MYLOGD("Running as bugreportplus: add -P, remove -p\n");
+            do_update_progress = 1;
+            do_fb = 0;
+        } else if (strcmp(extra_options, "bugreportremote") == 0) {
+            MYLOGD("Running as bugreportremote: add -q -R, remove -p\n");
+            do_vibrate = 0;
+            is_remote_mode = 1;
+            do_fb = 0;
+        } else if (strcmp(extra_options, "bugreportwear") == 0) {
+            MYLOGD("Running as bugreportwear: add -P\n");
+            do_update_progress = 1;
+        } else {
+            MYLOGE("Unknown extra option: %s\n", extra_options);
+        }
+        // Reset the property
+        property_set(PROPERTY_EXTRA_OPTIONS, "");
     }
 
     if ((do_zip_file || do_add_date || do_update_progress || do_broadcast) && !use_outfile) {

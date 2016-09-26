@@ -17,32 +17,3 @@ service dumpstatez /system/bin/dumpstate -S -d -z \
     class main
     disabled
     oneshot
-
-# bugreportplus is an enhanced version of bugreport that provides a better
-# user interface (like displaying progress and allowing user to enter details).
-# It's typically triggered by the power button or developer settings.
-service bugreportplus /system/bin/dumpstate -d -B -P -z \
-        -o /data/user_de/0/com.android.shell/files/bugreports/bugreport
-    class main
-    disabled
-    oneshot
-
-# bugreportremote is an altered version of bugreport that is supposed to be
-# called not by human user of the device, but by DevicePolicyManagerService only when the
-# Device Owner explicitly requests it, and shared with the Device Policy Controller (DPC) app only
-# if the user consents
-# it will disable vibrations, screenshot taking and will not track progress or
-# allow user to enter any details
-service bugreportremote /system/bin/dumpstate -d -q -B -R -z \
-        -o /data/user_de/0/com.android.shell/files/bugreports/remote/bugreport
-    class main
-    disabled
-    oneshot
-
-# bugreportwear is a wearable version of bugreport that displays progress and takes early
-# screenshot.
-service bugreportwear /system/bin/dumpstate -d -B -P -p -z \
-        -o /data/user_de/0/com.android.shell/files/bugreports/bugreport
-    class main
-    disabled
-    oneshot
