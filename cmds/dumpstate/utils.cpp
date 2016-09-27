@@ -894,9 +894,9 @@ int RunCommand(const char* title, const std::vector<std::string>& fullCommand,
 }
 
 void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
-                const CommandOptions& options) {
-    std::vector<std::string> dumpsys = {"/system/bin/dumpsys", "-t",
-                                        std::to_string(options.Timeout())};
+                const CommandOptions& options, long dumpsysTimeout) {
+    long timeout = dumpsysTimeout > 0 ? dumpsysTimeout : options.Timeout();
+    std::vector<std::string> dumpsys = {"/system/bin/dumpsys", "-t", std::to_string(timeout)};
     dumpsys.insert(dumpsys.end(), dumpsysArgs.begin(), dumpsysArgs.end());
     RunCommand(title.c_str(), dumpsys, options);
 }

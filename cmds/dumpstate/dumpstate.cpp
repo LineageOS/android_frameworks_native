@@ -1101,7 +1101,8 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     printf("== Android Framework Services\n");
     printf("========================================================\n");
 
-    RunDumpsys("DUMPSYS", {"--skip", "meminfo", "cpuinfo"}, CommandOptions::WithTimeout(60).Build());
+    RunDumpsys("DUMPSYS", {"--skip", "meminfo", "cpuinfo"}, CommandOptions::WithTimeout(90).Build(),
+               10);
 
     printf("========================================================\n");
     printf("== Checkins\n");

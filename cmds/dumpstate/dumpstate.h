@@ -274,9 +274,12 @@ int RunCommand(const char* title, const std::vector<std::string>& fullCommand,
  * |title| description of the command printed on `stdout`.
  * |dumpsys_args| `dumpsys` arguments (except `-t`).
  * |options| optional argument defining the command's behavior.
+ * |dumpsysTimeout| when > 0, defines the value passed to `dumpsys -t` (otherwise it uses the
+ * timeout from `options`)
  */
 void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
-                const CommandOptions& options = CommandOptions::DEFAULT_DUMPSYS);
+                const CommandOptions& options = CommandOptions::DEFAULT_DUMPSYS,
+                long dumpsysTimeout = 0);
 
 /* switch to non-root user and group */
 bool drop_root_user();
