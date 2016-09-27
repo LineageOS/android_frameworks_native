@@ -61,6 +61,9 @@ public:
         uuid_t() : b{0} {}
     };
 
+    Sensor(const Sensor&) = default;
+    Sensor& operator=(const Sensor&) = default;
+
     Sensor(const char * name = "");
     Sensor(struct sensor_t const* hwSensor, int halVersion = 0);
     Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersion = 0);
