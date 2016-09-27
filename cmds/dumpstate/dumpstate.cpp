@@ -190,7 +190,7 @@ static void dump_dev_files(const char *title, const char *driverpath, const char
             continue;
         }
         snprintf(path, sizeof(path), "%s/%s/%s", driverpath, de->d_name, filename);
-        dumpFile(title, path);
+        DumpFile(title, path);
     }
 
     closedir(d);
@@ -258,7 +258,7 @@ static bool dump_anrd_trace() {
 
         // send SIGUSR1 to the anrd to generate a trace.
         sprintf(buf, "%u", pid);
-        if (runCommand("ANRD_DUMP", {"kill", "-SIGUSR1", buf},
+        if (RunCommand("ANRD_DUMP", {"kill", "-SIGUSR1", buf},
                        CommandOptions::WithTimeout(1).Build())) {
             MYLOGE("anrd signal timed out. Please manually collect trace\n");
             return false;
@@ -349,13 +349,13 @@ static void dump_systrace() {
 
     MYLOGD("Running '/system/bin/atrace --async_dump -o %s', which can take several minutes",
             systrace_path.c_str());
-    if (runCommand("SYSTRACE", {"/system/bin/atrace", "--async_dump", "-o", systrace_path},
+    if (RunCommand("SYSTRACE", {"/system/bin/atrace", "--async_dump", "-o", systrace_path},
                    CommandOptions::WithTimeout(120).Build())) {
         MYLOGE("systrace timed out, its zip entry will be incomplete\n");
         // TODO: run_command tries to kill the process, but atrace doesn't die
         // peacefully; ideally, we should call strace to stop itself, but there is no such option
         // yet (just a --async_stop, which stops and dump
-        // if (runCommand("SYSTRACE", {"/system/bin/atrace", "--kill"})) {
+        // if (RunCommand("SYSTRACE", {"/system/bin/atrace", "--kill"})) {
         //   MYLOGE("could not stop systrace ");
         // }
     }
@@ -388,11 +388,11 @@ static void dump_raft() {
     CommandOptions options = CommandOptions::WithTimeout(600).Build();
     if (!zip_writer) {
         // Write compressed and encoded raft logs to stdout if not zip_writer.
-        runCommand("RAFT LOGS", {"logcompressor", "-r", RAFT_DIR}, options);
+        RunCommand("RAFT LOGS", {"logcompressor", "-r", RAFT_DIR}, options);
         return;
     }
 
-    runCommand("RAFT LOGS", {"logcompressor", "-n", "-r", RAFT_DIR, "-o", raft_log_path}, options);
+    RunCommand("RAFT LOGS", {"logcompressor", "-n", "-r", RAFT_DIR, "-o", raft_log_path}, options);
     if (!add_zip_entry("raft_log.txt", raft_log_path)) {
         MYLOGE("Unable to add raft log %s to zip file\n", raft_log_path.c_str());
     } else {
@@ -708,7 +708,7 @@ static void print_header(std::string version) {
     printf("Network: %s\n", network.c_str());
 
     printf("Kernel: ");
-    dumpFile(nullptr, "/proc/version");
+    DumpFile(nullptr, "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version.c_str());
     printf("Dumpstate info: id=%lu pid=%d dryRun=%d args=%s extraOptions=%s\n", id, getpid(),
@@ -836,14 +836,14 @@ static bool add_text_zip_entry(const std::string& entry_name, const std::string&
 }
 
 static void dump_iptables() {
-    runCommand("IPTABLES", {"iptables", "-L", "-nvx"});
-    runCommand("IP6TABLES", {"ip6tables", "-L", "-nvx"});
-    runCommand("IPTABLE NAT", {"iptables", "-t", "nat", "-L", "-nvx"});
+    RunCommand("IPTABLES", {"iptables", "-L", "-nvx"});
+    RunCommand("IP6TABLES", {"ip6tables", "-L", "-nvx"});
+    RunCommand("IPTABLE NAT", {"iptables", "-t", "nat", "-L", "-nvx"});
     /* no ip6 nat */
-    runCommand("IPTABLE MANGLE", {"iptables", "-t", "mangle", "-L", "-nvx"});
-    runCommand("IP6TABLE MANGLE", {"ip6tables", "-t", "mangle", "-L", "-nvx"});
-    runCommand("IPTABLE RAW", {"iptables", "-t", "raw", "-L", "-nvx"});
-    runCommand("IP6TABLE RAW", {"ip6tables", "-t", "raw", "-L", "-nvx"});
+    RunCommand("IPTABLE MANGLE", {"iptables", "-t", "mangle", "-L", "-nvx"});
+    RunCommand("IP6TABLE MANGLE", {"ip6tables", "-t", "mangle", "-L", "-nvx"});
+    RunCommand("IPTABLE RAW", {"iptables", "-t", "raw", "-L", "-nvx"});
+    RunCommand("IP6TABLE RAW", {"ip6tables", "-t", "raw", "-L", "-nvx"});
 }
 
 static void dumpstate(const std::string& screenshot_path, const std::string& version) {
@@ -851,41 +851,41 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     unsigned long timeout;
 
     dump_dev_files("TRUSTY VERSION", "/sys/bus/platform/drivers/trusty", "trusty_version");
-    runCommand("UPTIME", {"uptime"});
+    RunCommand("UPTIME", {"uptime"});
     dump_files("UPTIME MMC PERF", mmcblk0, skip_not_stat, dump_stat_from_fd);
     dump_emmc_ecsd("/d/mmc0/mmc0:0001/ext_csd");
-    dumpFile("MEMORY INFO", "/proc/meminfo");
-    runCommand("CPU INFO", {"top", "-b", "-n", "1", "-H", "-s", "6", "-o",
+    DumpFile("MEMORY INFO", "/proc/meminfo");
+    RunCommand("CPU INFO", {"top", "-b", "-n", "1", "-H", "-s", "6", "-o",
                             "pid,tid,user,pr,ni,%cpu,s,virt,res,pcy,cmd,name"});
-    runCommand("PROCRANK", {"procrank"}, CommandOptions::AS_ROOT_20);
-    dumpFile("VIRTUAL MEMORY STATS", "/proc/vmstat");
-    dumpFile("VMALLOC INFO", "/proc/vmallocinfo");
-    dumpFile("SLAB INFO", "/proc/slabinfo");
-    dumpFile("ZONEINFO", "/proc/zoneinfo");
-    dumpFile("PAGETYPEINFO", "/proc/pagetypeinfo");
-    dumpFile("BUDDYINFO", "/proc/buddyinfo");
-    dumpFile("FRAGMENTATION INFO", "/d/extfrag/unusable_index");
+    RunCommand("PROCRANK", {"procrank"}, CommandOptions::AS_ROOT_20);
+    DumpFile("VIRTUAL MEMORY STATS", "/proc/vmstat");
+    DumpFile("VMALLOC INFO", "/proc/vmallocinfo");
+    DumpFile("SLAB INFO", "/proc/slabinfo");
+    DumpFile("ZONEINFO", "/proc/zoneinfo");
+    DumpFile("PAGETYPEINFO", "/proc/pagetypeinfo");
+    DumpFile("BUDDYINFO", "/proc/buddyinfo");
+    DumpFile("FRAGMENTATION INFO", "/d/extfrag/unusable_index");
 
-    dumpFile("KERNEL WAKE SOURCES", "/d/wakeup_sources");
-    dumpFile("KERNEL CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state");
-    dumpFile("KERNEL SYNC", "/d/sync");
+    DumpFile("KERNEL WAKE SOURCES", "/d/wakeup_sources");
+    DumpFile("KERNEL CPUFREQ", "/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state");
+    DumpFile("KERNEL SYNC", "/d/sync");
 
-    runCommand("PROCESSES AND THREADS",
+    RunCommand("PROCESSES AND THREADS",
                {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy"});
-    runCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT_10);
+    RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT_10);
 
-    runCommand("PRINTENV", {"printenv"});
-    runCommand("NETSTAT", {"netstat", "-n"});
+    RunCommand("PRINTENV", {"printenv"});
+    RunCommand("NETSTAT", {"netstat", "-n"});
     struct stat s;
     if (stat("/proc/modules", &s) != 0) {
         MYLOGD("Skipping 'lsmod' because /proc/modules does not exist\n");
     } else {
-        runCommand("LSMOD", {"lsmod"});
+        RunCommand("LSMOD", {"lsmod"});
     }
 
     do_dmesg();
 
-    runCommand("LIST OF OPEN FILES", {"lsof"}, CommandOptions::AS_ROOT_10);
+    RunCommand("LIST OF OPEN FILES", {"lsof"}, CommandOptions::AS_ROOT_10);
     for_each_pid(do_showmap, "SMAPS OF ALL PROCESSES");
     for_each_tid(show_wchan, "BLOCKED PROCESS WAIT-CHANNELS");
     for_each_pid(show_showtime, "PROCESS TIMES (pid cmd user system iowait+percentage)");
@@ -899,34 +899,34 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
         MYLOGI("wrote screenshot: %s\n", screenshot_path.c_str());
     }
 
-    // dumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
+    // DumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
     // calculate timeout
     timeout = logcat_timeout("main") + logcat_timeout("system") + logcat_timeout("crash");
     if (timeout < 20000) {
         timeout = 20000;
     }
-    runCommand("SYSTEM LOG", {"logcat", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
+    RunCommand("SYSTEM LOG", {"logcat", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
                CommandOptions::WithTimeout(timeout / 1000).Build());
     timeout = logcat_timeout("events");
     if (timeout < 20000) {
         timeout = 20000;
     }
-    runCommand("EVENT LOG",
+    RunCommand("EVENT LOG",
                {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
                CommandOptions::WithTimeout(timeout / 1000).Build());
     timeout = logcat_timeout("radio");
     if (timeout < 20000) {
         timeout = 20000;
     }
-    runCommand("RADIO LOG",
+    RunCommand("RADIO LOG",
                {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
                CommandOptions::WithTimeout(timeout / 1000).Build());
 
-    runCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
+    RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
 
     /* show the traces we collected in main(), if that was done */
     if (dump_traces_path != NULL) {
-        dumpFile("VM TRACES JUST NOW", dump_traces_path);
+        DumpFile("VM TRACES JUST NOW", dump_traces_path);
     }
 
     /* only show ANR traces if they're less than 15 minutes old */
@@ -958,7 +958,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
                 // No traces file at this index, done with the files.
                 break;
             }
-            dumpFile("VM TRACES WHEN SLOW", anrTracesPath.c_str());
+            DumpFile("VM TRACES WHEN SLOW", anrTracesPath.c_str());
             i++;
         }
     }
@@ -984,94 +984,94 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
         printf("*** NO TOMBSTONES to dump in %s\n\n", TOMBSTONE_DIR);
     }
 
-    dumpFile("NETWORK DEV INFO", "/proc/net/dev");
-    dumpFile("QTAGUID NETWORK INTERFACES INFO", "/proc/net/xt_qtaguid/iface_stat_all");
-    dumpFile("QTAGUID NETWORK INTERFACES INFO (xt)", "/proc/net/xt_qtaguid/iface_stat_fmt");
-    dumpFile("QTAGUID CTRL INFO", "/proc/net/xt_qtaguid/ctrl");
-    dumpFile("QTAGUID STATS INFO", "/proc/net/xt_qtaguid/stats");
+    DumpFile("NETWORK DEV INFO", "/proc/net/dev");
+    DumpFile("QTAGUID NETWORK INTERFACES INFO", "/proc/net/xt_qtaguid/iface_stat_all");
+    DumpFile("QTAGUID NETWORK INTERFACES INFO (xt)", "/proc/net/xt_qtaguid/iface_stat_fmt");
+    DumpFile("QTAGUID CTRL INFO", "/proc/net/xt_qtaguid/ctrl");
+    DumpFile("QTAGUID STATS INFO", "/proc/net/xt_qtaguid/stats");
 
     if (!stat(PSTORE_LAST_KMSG, &st)) {
         /* Also TODO: Make console-ramoops CAP_SYSLOG protected. */
-        dumpFile("LAST KMSG", PSTORE_LAST_KMSG);
+        DumpFile("LAST KMSG", PSTORE_LAST_KMSG);
     } else if (!stat(ALT_PSTORE_LAST_KMSG, &st)) {
-        dumpFile("LAST KMSG", ALT_PSTORE_LAST_KMSG);
+        DumpFile("LAST KMSG", ALT_PSTORE_LAST_KMSG);
     } else {
         /* TODO: Make last_kmsg CAP_SYSLOG protected. b/5555691 */
-        dumpFile("LAST KMSG", "/proc/last_kmsg");
+        DumpFile("LAST KMSG", "/proc/last_kmsg");
     }
 
     /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
-    runCommand("LAST LOGCAT",
+    RunCommand("LAST LOGCAT",
                {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable", "-d", "*:v"});
 
     /* The following have a tendency to get wedged when wifi drivers/fw goes belly-up. */
 
-    runCommand("NETWORK INTERFACES", {"ip", "link"});
+    RunCommand("NETWORK INTERFACES", {"ip", "link"});
 
-    runCommand("IPv4 ADDRESSES", {"ip", "-4", "addr", "show"});
-    runCommand("IPv6 ADDRESSES", {"ip", "-6", "addr", "show"});
+    RunCommand("IPv4 ADDRESSES", {"ip", "-4", "addr", "show"});
+    RunCommand("IPv6 ADDRESSES", {"ip", "-6", "addr", "show"});
 
-    runCommand("IP RULES", {"ip", "rule", "show"});
-    runCommand("IP RULES v6", {"ip", "-6", "rule", "show"});
+    RunCommand("IP RULES", {"ip", "rule", "show"});
+    RunCommand("IP RULES v6", {"ip", "-6", "rule", "show"});
 
     dump_route_tables();
 
-    runCommand("ARP CACHE", {"ip", "-4", "neigh", "show"});
-    runCommand("IPv6 ND CACHE", {"ip", "-6", "neigh", "show"});
-    runCommand("MULTICAST ADDRESSES", {"ip", "maddr"});
-    runCommand("WIFI NETWORKS", {"wpa_cli", "IFNAME=wlan0", "list_networks"},
+    RunCommand("ARP CACHE", {"ip", "-4", "neigh", "show"});
+    RunCommand("IPv6 ND CACHE", {"ip", "-6", "neigh", "show"});
+    RunCommand("MULTICAST ADDRESSES", {"ip", "maddr"});
+    RunCommand("WIFI NETWORKS", {"wpa_cli", "IFNAME=wlan0", "list_networks"},
                CommandOptions::WithTimeout(20).Build());
 
 #ifdef FWDUMP_bcmdhd
-    runCommand("ND OFFLOAD TABLE", {WLUTIL, "nd_hostip"}, CommandOptions::AS_ROOT_5);
+    RunCommand("ND OFFLOAD TABLE", {WLUTIL, "nd_hostip"}, CommandOptions::AS_ROOT_5);
 
-    runCommand("DUMP WIFI INTERNAL COUNTERS (1)", {WLUTIL, "counters"}, CommandOptions::AS_ROOT_20);
+    RunCommand("DUMP WIFI INTERNAL COUNTERS (1)", {WLUTIL, "counters"}, CommandOptions::AS_ROOT_20);
 
-    runCommand("ND OFFLOAD STATUS (1)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
+    RunCommand("ND OFFLOAD STATUS (1)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
 
 #endif
-    dumpFile("INTERRUPTS (1)", "/proc/interrupts");
+    DumpFile("INTERRUPTS (1)", "/proc/interrupts");
 
-    runDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
+    RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
                CommandOptions::WithTimeout(10).Build());
 
 #ifdef FWDUMP_bcmdhd
-    runCommand("DUMP WIFI STATUS", {"dhdutil", "-i", "wlan0", "dump"}, CommandOptions::AS_ROOT_20);
+    RunCommand("DUMP WIFI STATUS", {"dhdutil", "-i", "wlan0", "dump"}, CommandOptions::AS_ROOT_20);
 
-    runCommand("DUMP WIFI INTERNAL COUNTERS (2)", {WLUTIL, "counters"}, CommandOptions::AS_ROOT_20);
+    RunCommand("DUMP WIFI INTERNAL COUNTERS (2)", {WLUTIL, "counters"}, CommandOptions::AS_ROOT_20);
 
-    runCommand("ND OFFLOAD STATUS (2)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
+    RunCommand("ND OFFLOAD STATUS (2)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
 #endif
-    dumpFile("INTERRUPTS (2)", "/proc/interrupts");
+    DumpFile("INTERRUPTS (2)", "/proc/interrupts");
 
     print_properties();
 
-    runCommand("VOLD DUMP", {"vdc", "dump"});
-    runCommand("SECURE CONTAINERS", {"vdc", "asec", "list"});
+    RunCommand("VOLD DUMP", {"vdc", "dump"});
+    RunCommand("SECURE CONTAINERS", {"vdc", "asec", "list"});
 
-    runCommand("FILESYSTEMS & FREE SPACE", {"df"});
+    RunCommand("FILESYSTEMS & FREE SPACE", {"df"});
 
-    runCommand("LAST RADIO LOG", {"parse_radio_log", "/proc/last_radio_log"});
+    RunCommand("LAST RADIO LOG", {"parse_radio_log", "/proc/last_radio_log"});
 
     printf("------ BACKLIGHTS ------\n");
     printf("LCD brightness=");
-    dumpFile(nullptr, "/sys/class/leds/lcd-backlight/brightness");
+    DumpFile(nullptr, "/sys/class/leds/lcd-backlight/brightness");
     printf("Button brightness=");
-    dumpFile(nullptr, "/sys/class/leds/button-backlight/brightness");
+    DumpFile(nullptr, "/sys/class/leds/button-backlight/brightness");
     printf("Keyboard brightness=");
-    dumpFile(nullptr, "/sys/class/leds/keyboard-backlight/brightness");
+    DumpFile(nullptr, "/sys/class/leds/keyboard-backlight/brightness");
     printf("ALS mode=");
-    dumpFile(nullptr, "/sys/class/leds/lcd-backlight/als");
+    DumpFile(nullptr, "/sys/class/leds/lcd-backlight/als");
     printf("LCD driver registers:\n");
-    dumpFile(nullptr, "/sys/class/leds/lcd-backlight/registers");
+    DumpFile(nullptr, "/sys/class/leds/lcd-backlight/registers");
     printf("\n");
 
     /* Binder state is expensive to look at as it uses a lot of memory. */
-    dumpFile("BINDER FAILED TRANSACTION LOG", "/sys/kernel/debug/binder/failed_transaction_log");
-    dumpFile("BINDER TRANSACTION LOG", "/sys/kernel/debug/binder/transaction_log");
-    dumpFile("BINDER TRANSACTIONS", "/sys/kernel/debug/binder/transactions");
-    dumpFile("BINDER STATS", "/sys/kernel/debug/binder/stats");
-    dumpFile("BINDER STATE", "/sys/kernel/debug/binder/state");
+    DumpFile("BINDER FAILED TRANSACTION LOG", "/sys/kernel/debug/binder/failed_transaction_log");
+    DumpFile("BINDER TRANSACTION LOG", "/sys/kernel/debug/binder/transaction_log");
+    DumpFile("BINDER TRANSACTIONS", "/sys/kernel/debug/binder/transactions");
+    DumpFile("BINDER STATS", "/sys/kernel/debug/binder/stats");
+    DumpFile("BINDER STATE", "/sys/kernel/debug/binder/state");
 
     printf("========================================================\n");
     printf("== Board\n");
@@ -1094,43 +1094,43 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
         if (!is_user_build()) {
             options.AsRoot();
         }
-        runCommand("DUMP VENDOR RIL LOGS", {"vril-dump"}, options.Build());
+        RunCommand("DUMP VENDOR RIL LOGS", {"vril-dump"}, options.Build());
     }
 
     printf("========================================================\n");
     printf("== Android Framework Services\n");
     printf("========================================================\n");
 
-    runDumpsys("DUMPSYS", {"--skip", "meminfo", "cpuinfo"}, CommandOptions::WithTimeout(60).Build());
+    RunDumpsys("DUMPSYS", {"--skip", "meminfo", "cpuinfo"}, CommandOptions::WithTimeout(60).Build());
 
     printf("========================================================\n");
     printf("== Checkins\n");
     printf("========================================================\n");
 
-    runDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"});
-    runDumpsys("CHECKIN MEMINFO", {"meminfo", "--checkin"});
-    runDumpsys("CHECKIN NETSTATS", {"netstats", "--checkin"});
-    runDumpsys("CHECKIN PROCSTATS", {"procstats", "-c"});
-    runDumpsys("CHECKIN USAGESTATS", {"usagestats", "-c"});
-    runDumpsys("CHECKIN PACKAGE", {"package", "--checkin"});
+    RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"});
+    RunDumpsys("CHECKIN MEMINFO", {"meminfo", "--checkin"});
+    RunDumpsys("CHECKIN NETSTATS", {"netstats", "--checkin"});
+    RunDumpsys("CHECKIN PROCSTATS", {"procstats", "-c"});
+    RunDumpsys("CHECKIN USAGESTATS", {"usagestats", "-c"});
+    RunDumpsys("CHECKIN PACKAGE", {"package", "--checkin"});
 
     printf("========================================================\n");
     printf("== Running Application Activities\n");
     printf("========================================================\n");
 
-    runDumpsys("APP ACTIVITIES", {"activity", "all"});
+    RunDumpsys("APP ACTIVITIES", {"activity", "all"});
 
     printf("========================================================\n");
     printf("== Running Application Services\n");
     printf("========================================================\n");
 
-    runDumpsys("APP SERVICES", {"activity", "service", "all"});
+    RunDumpsys("APP SERVICES", {"activity", "service", "all"});
 
     printf("========================================================\n");
     printf("== Running Application Providers\n");
     printf("========================================================\n");
 
-    runDumpsys("APP PROVIDERS", {"activity", "provider", "all"});
+    RunDumpsys("APP PROVIDERS", {"activity", "provider", "all"});
 
     printf("========================================================\n");
     printf("== Final progress (pid %d): %d/%d (originally %d)\n",
@@ -1578,9 +1578,9 @@ int main(int argc, char *argv[]) {
 
     // Invoking the following dumpsys calls before dump_traces() to try and
     // keep the system stats as close to its initial state as possible.
-    runDumpsys("DUMPSYS MEMINFO", {"meminfo", "-a"},
+    RunDumpsys("DUMPSYS MEMINFO", {"meminfo", "-a"},
                CommandOptions::WithTimeout(90).DropRoot().Build());
-    runDumpsys("DUMPSYS CPUINFO", {"cpuinfo", "-a"},
+    RunDumpsys("DUMPSYS CPUINFO", {"cpuinfo", "-a"},
                CommandOptions::WithTimeout(10).DropRoot().Build());
 
     /* collect stack traces from Dalvik and native processes (needs root) */

@@ -76,68 +76,68 @@ CommandOptions CommandOptions::AS_ROOT_5 = CommandOptions::WithTimeout(5).AsRoot
 CommandOptions CommandOptions::AS_ROOT_10 = CommandOptions::WithTimeout(10).AsRoot().Build();
 CommandOptions CommandOptions::AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot().Build();
 
-CommandOptions::CommandOptionsBuilder::CommandOptionsBuilder(long timeout) : mValues(timeout) {
+CommandOptions::CommandOptionsBuilder::CommandOptionsBuilder(long timeout) : values_(timeout) {
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::Always() {
-    mValues.mAlways = true;
+    values_.always_ = true;
     return *this;
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::AsRoot() {
-    mValues.mRootMode = SU_ROOT;
+    values_.rootMode_ = SU_ROOT;
     return *this;
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::DropRoot() {
-    mValues.mRootMode = DROP_ROOT;
+    values_.rootMode_ = DROP_ROOT;
     return *this;
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::RedirectStderr() {
-    mValues.mStdoutMode = REDIRECT_TO_STDERR;
+    values_.stdoutMode_ = REDIRECT_TO_STDERR;
     return *this;
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::Log(
     const std::string& message) {
-    mValues.mLoggingMessage = message;
+    values_.loggingMessage_ = message;
     return *this;
 }
 
 CommandOptions CommandOptions::CommandOptionsBuilder::Build() {
-    return CommandOptions(mValues);
+    return CommandOptions(values_);
 }
 
 CommandOptions::CommandOptionsValues::CommandOptionsValues(long timeout)
-    : mTimeout(timeout),
-      mAlways(false),
-      mRootMode(DONT_DROP_ROOT),
-      mStdoutMode(NORMAL_STDOUT),
-      mLoggingMessage("") {
+    : timeout_(timeout),
+      always_(false),
+      rootMode_(DONT_DROP_ROOT),
+      stdoutMode_(NORMAL_STDOUT),
+      loggingMessage_("") {
 }
 
-CommandOptions::CommandOptions(const CommandOptionsValues& values) : mValues(values) {
+CommandOptions::CommandOptions(const CommandOptionsValues& values) : values_(values) {
 }
 
 long CommandOptions::Timeout() const {
-    return mValues.mTimeout;
+    return values_.timeout_;
 }
 
 bool CommandOptions::Always() const {
-    return mValues.mAlways;
+    return values_.always_;
 }
 
 RootMode CommandOptions::RootMode() const {
-    return mValues.mRootMode;
+    return values_.rootMode_;
 }
 
 StdoutMode CommandOptions::StdoutMode() const {
-    return mValues.mStdoutMode;
+    return values_.stdoutMode_;
 }
 
 std::string CommandOptions::LoggingMessage() const {
-    return mValues.mLoggingMessage;
+    return values_.loggingMessage_;
 }
 
 CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(long timeout) {
@@ -147,27 +147,27 @@ CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(long timeout) 
 DurationReporter::DurationReporter(const char *title) : DurationReporter(title, stdout) {}
 
 DurationReporter::DurationReporter(const char *title, FILE *out) {
-    mTitle = title;
+    title_ = title;
     if (title != nullptr) {
-        mStarted = DurationReporter::nanotime();
+        started_ = DurationReporter::Nanotime();
     }
-    mOut = out;
+    out_ = out;
 }
 
 DurationReporter::~DurationReporter() {
-    if (mTitle != nullptr) {
-        uint64_t elapsed = DurationReporter::nanotime() - mStarted;
+    if (title_ != nullptr) {
+        uint64_t elapsed = DurationReporter::Nanotime() - started_;
         // Use "Yoda grammar" to make it easier to grep|sort sections.
-        if (mOut != nullptr) {
-            fprintf(mOut, "------ %.3fs was the duration of '%s' ------\n",
-                    (float)elapsed / NANOS_PER_SEC, mTitle);
+        if (out_ != nullptr) {
+            fprintf(out_, "------ %.3fs was the duration of '%s' ------\n",
+                    (float)elapsed / NANOS_PER_SEC, title_);
         } else {
-            MYLOGD("Duration of '%s': %.3fs\n", mTitle, (float)elapsed / NANOS_PER_SEC);
+            MYLOGD("Duration of '%s': %.3fs\n", title_, (float)elapsed / NANOS_PER_SEC);
         }
     }
 }
 
-uint64_t DurationReporter::DurationReporter::nanotime() {
+uint64_t DurationReporter::DurationReporter::Nanotime() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t) ts.tv_sec * NANOS_PER_SEC + ts.tv_nsec;
@@ -483,7 +483,7 @@ void do_showmap(int pid, const char *name) {
 
     snprintf(title, sizeof(title), "SHOW MAP %d (%s)", pid, name);
     snprintf(arg, sizeof(arg), "%d", pid);
-    runCommand(title, {"showmap", "-q", arg}, CommandOptions::AS_ROOT_10);
+    RunCommand(title, {"showmap", "-q", arg}, CommandOptions::AS_ROOT_10);
 }
 
 static int _dump_file_from_fd(const char *title, const char *path, int fd) {
@@ -519,14 +519,14 @@ static int _dump_file_from_fd(const char *title, const char *path, int fd) {
         /* Timeout if no data is read for 30 seconds. */
         tm.tv_sec = 30;
         tm.tv_usec = 0;
-        uint64_t elapsed = DurationReporter::nanotime();
+        uint64_t elapsed = DurationReporter::Nanotime();
         int ret = TEMP_FAILURE_RETRY(select(fd + 1, &read_set, NULL, NULL, &tm));
         if (ret == -1) {
             printf("*** %s: select failed: %s\n", path, strerror(errno));
             newline = true;
             break;
         } else if (ret == 0) {
-            elapsed = DurationReporter::nanotime() - elapsed;
+            elapsed = DurationReporter::Nanotime() - elapsed;
             printf("*** %s: Timed out after %.3fs\n", path,
                    (float) elapsed / NANOS_PER_SEC);
             newline = true;
@@ -555,10 +555,10 @@ static int _dump_file_from_fd(const char *title, const char *path, int fd) {
 }
 
 int dump_file(const char *title, const char *path) {
-    return dumpFile(title, path);
+    return DumpFile(title, path);
 }
 
-int dumpFile(const char* title, const std::string& path) {
+int DumpFile(const char* title, const std::string& path) {
     DurationReporter durationReporter(title);
     int fd = TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
     if (fd < 0) {
@@ -740,10 +740,10 @@ int run_command(const char* title, int timeout_seconds, const char* command, ...
     }
     va_end(ap);
 
-    return runCommand(title, fullCommand, CommandOptions::WithTimeout(timeout_seconds).Build());
+    return RunCommand(title, fullCommand, CommandOptions::WithTimeout(timeout_seconds).Build());
 }
 
-int runCommand(const char* title, const std::vector<std::string>& fullCommand,
+int RunCommand(const char* title, const std::vector<std::string>& fullCommand,
                const CommandOptions& options) {
     if (fullCommand.empty()) {
         MYLOGE("No arguments on command '%s'\n", title);
@@ -805,7 +805,7 @@ int runCommand(const char* title, const std::vector<std::string>& fullCommand,
      * Ideally, it should use a options.EstimatedDuration() instead...*/
     int weight = options.Timeout();
 
-    uint64_t start = DurationReporter::nanotime();
+    uint64_t start = DurationReporter::Nanotime();
     pid_t pid = fork();
 
     /* handle error case */
@@ -851,7 +851,7 @@ int runCommand(const char* title, const std::vector<std::string>& fullCommand,
     /* handle parent case */
     int status;
     bool ret = waitpid_with_timeout(pid, options.Timeout(), &status);
-    uint64_t elapsed = DurationReporter::nanotime() - start;
+    uint64_t elapsed = DurationReporter::Nanotime() - start;
     if (!ret) {
         if (errno == ETIMEDOUT) {
             if (!silent)
@@ -893,12 +893,12 @@ int runCommand(const char* title, const std::vector<std::string>& fullCommand,
     return status;
 }
 
-void runDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
+void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
                 const CommandOptions& options) {
     std::vector<std::string> dumpsys = {"/system/bin/dumpsys", "-t",
                                         std::to_string(options.Timeout())};
     dumpsys.insert(dumpsys.end(), dumpsysArgs.begin(), dumpsysArgs.end());
-    runCommand(title.c_str(), dumpsys, options);
+    RunCommand(title.c_str(), dumpsys, options);
 }
 
 bool drop_root_user() {
@@ -955,7 +955,7 @@ void send_broadcast(const std::string& action, const std::vector<std::string>& a
 
     am.insert(am.end(), args.begin(), args.end());
 
-    runCommand(nullptr, am, CommandOptions::WithTimeout(20)
+    RunCommand(nullptr, am, CommandOptions::WithTimeout(20)
                                 .Log("Sending broadcast: '%s'\n")
                                 .Always()
                                 .DropRoot()
@@ -1172,7 +1172,7 @@ const char *dump_traces() {
             }
 
             ++dalvik_found;
-            uint64_t start = DurationReporter::nanotime();
+            uint64_t start = DurationReporter::Nanotime();
             if (kill(pid, SIGQUIT)) {
                 MYLOGE("kill(%d, SIGQUIT): %s\n", pid, strerror(errno));
                 continue;
@@ -1193,8 +1193,8 @@ const char *dump_traces() {
             if (lseek(fd, 0, SEEK_END) < 0) {
                 MYLOGE("lseek: %s\n", strerror(errno));
             } else {
-                dprintf(fd, "[dump dalvik stack %d: %.3fs elapsed]\n",
-                        pid, (float)(DurationReporter::nanotime() - start) / NANOS_PER_SEC);
+                dprintf(fd, "[dump dalvik stack %d: %.3fs elapsed]\n", pid,
+                        (float)(DurationReporter::Nanotime() - start) / NANOS_PER_SEC);
             }
         } else if (should_dump_native_traces(data)) {
             /* dump native process if appropriate */
@@ -1202,7 +1202,7 @@ const char *dump_traces() {
                 MYLOGE("lseek: %s\n", strerror(errno));
             } else {
                 static uint16_t timeout_failures = 0;
-                uint64_t start = DurationReporter::nanotime();
+                uint64_t start = DurationReporter::Nanotime();
 
                 /* If 3 backtrace dumps fail in a row, consider debuggerd dead. */
                 if (timeout_failures == 3) {
@@ -1213,8 +1213,8 @@ const char *dump_traces() {
                 } else {
                     timeout_failures = 0;
                 }
-                dprintf(fd, "[dump native stack %d: %.3fs elapsed]\n",
-                        pid, (float)(DurationReporter::nanotime() - start) / NANOS_PER_SEC);
+                dprintf(fd, "[dump native stack %d: %.3fs elapsed]\n", pid,
+                        (float)(DurationReporter::Nanotime() - start) / NANOS_PER_SEC);
             }
         }
     }
@@ -1255,8 +1255,8 @@ void dump_route_tables() {
     // need the table number. It's a 32-bit unsigned number, so max 10 chars. Skip the table name.
     // Add a fixed max limit so this doesn't go awry.
     for (int i = 0; i < 64 && fscanf(fp, " %10s %*s", table) == 1; ++i) {
-        runCommand("ROUTE TABLE IPv4", {"ip", "-4", "route", "show", "table", table});
-        runCommand("ROUTE TABLE IPv6", {"ip", "-6", "route", "show", "table", table});
+        RunCommand("ROUTE TABLE IPv4", {"ip", "-4", "route", "show", "table", table});
+        RunCommand("ROUTE TABLE IPv6", {"ip", "-6", "route", "show", "table", table});
     }
     fclose(fp);
 }
@@ -1314,7 +1314,7 @@ void update_progress(int delta) {
 }
 
 void take_screenshot(const std::string& path) {
-    runCommand(nullptr, {"/system/bin/screencap", "-p", path},
+    RunCommand(nullptr, {"/system/bin/screencap", "-p", path},
                CommandOptions::WithTimeout(10).Always().RedirectStderr().Build());
 }
 

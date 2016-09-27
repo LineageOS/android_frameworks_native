@@ -86,14 +86,14 @@ class DurationReporter {
 
     ~DurationReporter();
 
-    static uint64_t nanotime();
+    static uint64_t Nanotime();
 
   private:
     // TODO: use std::string for title, once dump_files() and other places that pass a char* are
     // refactored as well.
-    const char* mTitle;
-    FILE* mOut;
-    uint64_t mStarted;
+    const char* title_;
+    FILE* out_;
+    uint64_t started_;
 };
 
 /*
@@ -111,7 +111,7 @@ class DurationReporter {
  *  if (!is_user_build()) {
  *    options.AsRoot();
  *  }
- *  runCommand("command", {"args"}, options.Build());
+ *  RunCommand("command", {"args"}, options.Build());
  */
 class CommandOptions {
   private:
@@ -119,11 +119,11 @@ class CommandOptions {
       private:
         CommandOptionsValues(long timeout);
 
-        long mTimeout;
-        bool mAlways;
-        RootMode mRootMode;
-        StdoutMode mStdoutMode;
-        std::string mLoggingMessage;
+        long timeout_;
+        bool always_;
+        RootMode rootMode_;
+        StdoutMode stdoutMode_;
+        std::string loggingMessage_;
 
         friend class CommandOptions;
         friend class CommandOptionsBuilder;
@@ -131,7 +131,7 @@ class CommandOptions {
 
     CommandOptions(const CommandOptionsValues& values);
 
-    const CommandOptionsValues mValues;
+    const CommandOptionsValues values_;
 
   public:
     class CommandOptionsBuilder {
@@ -152,7 +152,7 @@ class CommandOptions {
 
       private:
         CommandOptionsBuilder(long timeout);
-        CommandOptionsValues mValues;
+        CommandOptionsValues values_;
         friend class CommandOptions;
     };
 
@@ -228,7 +228,7 @@ int dump_file(const char *title, const char *path);
 
 /* Prints the contents of a file. */
 // TODO: use std::string for title once other char* title references are refactored.
-int dumpFile(const char* title, const std::string& path);
+int DumpFile(const char* title, const std::string& path);
 
 /* saves the the contents of a file as a long */
 int read_file_as_long(const char *path, long int *output);
@@ -263,7 +263,7 @@ int run_command(const char *title, int timeout_seconds, const char *command, ...
  * |options| optional argument defining the command's behavior.
  */
 // TODO: use std::string for title once other char* title references are refactored.
-int runCommand(const char* title, const std::vector<std::string>& fullCommand,
+int RunCommand(const char* title, const std::vector<std::string>& fullCommand,
                const CommandOptions& options = CommandOptions::DEFAULT);
 
 /*
@@ -275,7 +275,7 @@ int runCommand(const char* title, const std::vector<std::string>& fullCommand,
  * |dumpsys_args| `dumpsys` arguments (except `-t`).
  * |options| optional argument defining the command's behavior.
  */
-void runDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
+void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
                 const CommandOptions& options = CommandOptions::DEFAULT_DUMPSYS);
 
 /* switch to non-root user and group */
