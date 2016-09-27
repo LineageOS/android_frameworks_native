@@ -732,7 +732,7 @@ status_t BufferQueueConsumer::discardFreeBuffers() {
     return NO_ERROR;
 }
 
-void BufferQueueConsumer::dump(String8& result, const char* prefix) const {
+void BufferQueueConsumer::dumpState(String8& result, const char* prefix) const {
     const IPCThreadState* ipc = IPCThreadState::self();
     const pid_t pid = ipc->getCallingPid();
     const uid_t uid = ipc->getCallingUid();
@@ -744,7 +744,7 @@ void BufferQueueConsumer::dump(String8& result, const char* prefix) const {
         android_errorWriteWithInfoLog(0x534e4554, "27046057",
                 static_cast<int32_t>(uid), NULL, 0);
     } else {
-        mCore->dump(result, prefix);
+        mCore->dumpState(result, prefix);
     }
 }
 
