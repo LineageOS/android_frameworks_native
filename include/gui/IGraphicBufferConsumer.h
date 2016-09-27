@@ -266,7 +266,7 @@ public:
     virtual sp<NativeHandle> getSidebandStream() const = 0;
 
     // dump state into a string
-    virtual void dump(String8& result, const char* prefix) const = 0;
+    virtual void dumpState(String8& result, const char* prefix) const = 0;
 
 public:
     DECLARE_META_INTERFACE(GraphicBufferConsumer);
