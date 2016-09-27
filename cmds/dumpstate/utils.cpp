@@ -39,6 +39,7 @@
 #define LOG_TAG "dumpstate"
 
 #include <android-base/file.h>
+#include <android-base/properties.h>
 #include <cutils/debugger.h>
 #include <cutils/log.h>
 #include <cutils/properties.h>
@@ -1085,36 +1086,34 @@ static bool should_dump_native_traces(const char* path) {
 
 /* dump Dalvik and native stack traces, return the trace file location (NULL if none) */
 const char *dump_traces() {
-    DurationReporter duration_reporter("DUMP TRACES", NULL);
-    if (is_dry_run()) return NULL;
+    DurationReporter duration_reporter("DUMP TRACES", nullptr);
+    if (is_dry_run()) return nullptr;
 
-    const char* result = NULL;
+    const char* result = nullptr;
 
-    char traces_path[PROPERTY_VALUE_MAX] = "";
-    property_get("dalvik.vm.stack-trace-file", traces_path, "");
-    if (!traces_path[0]) return NULL;
+    std::string tracesPath = android::base::GetProperty("dalvik.vm.stack-trace-file", "");
+    if (tracesPath.empty()) return nullptr;
 
     /* move the old traces.txt (if any) out of the way temporarily */
-    char anr_traces_path[PATH_MAX];
-    strlcpy(anr_traces_path, traces_path, sizeof(anr_traces_path));
-    strlcat(anr_traces_path, ".anr", sizeof(anr_traces_path));
-    if (rename(traces_path, anr_traces_path) && errno != ENOENT) {
-        MYLOGE("rename(%s, %s): %s\n", traces_path, anr_traces_path, strerror(errno));
-        return NULL;  // Can't rename old traces.txt -- no permission? -- leave it alone instead
+    std::string anrTracesPath = tracesPath + ".anr";
+    if (rename(tracesPath.c_str(), anrTracesPath.c_str()) && errno != ENOENT) {
+        MYLOGE("rename(%s, %s): %s\n", tracesPath.c_str(), anrTracesPath.c_str(), strerror(errno));
+        return nullptr;  // Can't rename old traces.txt -- no permission? -- leave it alone instead
     }
 
     /* create a new, empty traces.txt file to receive stack dumps */
-    int fd = TEMP_FAILURE_RETRY(open(traces_path, O_CREAT | O_WRONLY | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
-                                     0666));  /* -rw-rw-rw- */
+    int fd = TEMP_FAILURE_RETRY(open(tracesPath.c_str(),
+                                     O_CREAT | O_WRONLY | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
+                                     0666)); /* -rw-rw-rw- */
     if (fd < 0) {
-        MYLOGE("%s: %s\n", traces_path, strerror(errno));
-        return NULL;
+        MYLOGE("%s: %s\n", tracesPath.c_str(), strerror(errno));
+        return nullptr;
     }
     int chmod_ret = fchmod(fd, 0666);
     if (chmod_ret < 0) {
-        MYLOGE("fchmod on %s failed: %s\n", traces_path, strerror(errno));
+        MYLOGE("fchmod on %s failed: %s\n", tracesPath.c_str(), strerror(errno));
         close(fd);
-        return NULL;
+        return nullptr;
     }
 
     /* Variables below must be initialized before 'goto' statements */
@@ -1135,9 +1134,9 @@ const char *dump_traces() {
         goto error_close_fd;
     }
 
-    wfd = inotify_add_watch(ifd, traces_path, IN_CLOSE_WRITE);
+    wfd = inotify_add_watch(ifd, tracesPath.c_str(), IN_CLOSE_WRITE);
     if (wfd < 0) {
-        MYLOGE("inotify_add_watch(%s): %s\n", traces_path, strerror(errno));
+        MYLOGE("inotify_add_watch(%s): %s\n", tracesPath.c_str(), strerror(errno));
         goto error_close_ifd;
     }
 
@@ -1221,17 +1220,15 @@ const char *dump_traces() {
         MYLOGE("Warning: no Dalvik processes found to dump stacks\n");
     }
 
-    static char dump_traces_path[PATH_MAX];
-    strlcpy(dump_traces_path, traces_path, sizeof(dump_traces_path));
-    strlcat(dump_traces_path, ".bugreport", sizeof(dump_traces_path));
-    if (rename(traces_path, dump_traces_path)) {
-        MYLOGE("rename(%s, %s): %s\n", traces_path, dump_traces_path, strerror(errno));
+    static std::string dumpTracesPath = tracesPath + ".bugreport";
+    if (rename(tracesPath.c_str(), dumpTracesPath.c_str())) {
+        MYLOGE("rename(%s, %s): %s\n", tracesPath.c_str(), dumpTracesPath.c_str(), strerror(errno));
         goto error_close_ifd;
     }
-    result = dump_traces_path;
+    result = dumpTracesPath.c_str();
 
     /* replace the saved [ANR] traces.txt file */
-    rename(anr_traces_path, traces_path);
+    rename(anrTracesPath.c_str(), tracesPath.c_str());
 
 error_close_ifd:
     close(ifd);

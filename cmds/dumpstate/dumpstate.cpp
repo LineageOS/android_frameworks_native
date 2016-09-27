@@ -35,9 +35,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <android-base/file.h>
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/unique_fd.h>
-#include <android-base/file.h>
 #include <cutils/properties.h>
 #include <hardware_legacy/power.h>
 
@@ -62,7 +63,7 @@ static std::string args;
 
 // TODO: variables below should be part of dumpstate object
 static unsigned long id;
-static char build_type[PROPERTY_VALUE_MAX];
+static std::string buildType;
 static time_t now;
 static std::unique_ptr<ZipWriter> zip_writer;
 static std::set<std::string> mount_points;
@@ -71,8 +72,8 @@ int control_socket_fd = -1;
 /* suffix of the bugreport files - it's typically the date (when invoked with -d),
  * although it could be changed by the user using a system property */
 static std::string suffix;
-static bool dry_run = false;
-static char extra_options[PROPERTY_VALUE_MAX];
+static bool dryRun = false;
+static std::string extraOptions;
 
 #define PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops"
 #define ALT_PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops-0"
@@ -109,13 +110,14 @@ std::string bugreport_dir;
 static std::string VERSION_DEFAULT = "1.0";
 
 static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
+static constexpr char PROPERTY_LAST_ID[] = "dumpstate.last_id";
 
 bool is_user_build() {
-    return 0 == strncmp(build_type, "user", PROPERTY_VALUE_MAX - 1);
+    return "user" == buildType;
 }
 
 bool is_dry_run() {
-    return dry_run;
+    return dryRun;
 }
 
 /* gets the tombstone data, according to the bugreport type: if zipped, gets all tombstones;
@@ -615,6 +617,7 @@ static bool valid_size(unsigned long value) {
     return value <= maximum;
 }
 
+// TODO: migrate to logd/LogBuffer.cpp or use android::base::GetProperty
 static unsigned long property_get_size(const char *key) {
     unsigned long value;
     char *cp, property[PROPERTY_VALUE_MAX];
@@ -681,16 +684,15 @@ static unsigned long logcat_timeout(const char *name) {
 
 /* dumps the current system state to stdout */
 static void print_header(std::string version) {
-    char build[PROPERTY_VALUE_MAX], fingerprint[PROPERTY_VALUE_MAX];
-    char radio[PROPERTY_VALUE_MAX], bootloader[PROPERTY_VALUE_MAX];
-    char network[PROPERTY_VALUE_MAX], date[80];
+    std::string build, fingerprint, radio, bootloader, network;
+    char date[80];
 
-    property_get("ro.build.display.id", build, "(unknown)");
-    property_get("ro.build.fingerprint", fingerprint, "(unknown)");
-    property_get("ro.build.type", build_type, "(unknown)");
-    property_get("gsm.version.baseband", radio, "(unknown)");
-    property_get("ro.bootloader", bootloader, "(unknown)");
-    property_get("gsm.operator.alpha", network, "(unknown)");
+    build = android::base::GetProperty("ro.build.display.id", "(unknown)");
+    fingerprint = android::base::GetProperty("ro.build.fingerprint", "(unknown)");
+    buildType = android::base::GetProperty("ro.build.type", "(unknown)");
+    radio = android::base::GetProperty("gsm.version.baseband", "(unknown)");
+    bootloader = android::base::GetProperty("ro.bootloader", "(unknown)");
+    network = android::base::GetProperty("gsm.operator.alpha", "(unknown)");
     strftime(date, sizeof(date), "%Y-%m-%d %H:%M:%S", localtime(&now));
 
     printf("========================================================\n");
@@ -698,18 +700,19 @@ static void print_header(std::string version) {
     printf("========================================================\n");
 
     printf("\n");
-    printf("Build: %s\n", build);
-    printf("Build fingerprint: '%s'\n", fingerprint); /* format is important for other tools */
-    printf("Bootloader: %s\n", bootloader);
-    printf("Radio: %s\n", radio);
-    printf("Network: %s\n", network);
+    printf("Build: %s\n", build.c_str());
+    // NOTE: fingerprint entry format is important for other tools.
+    printf("Build fingerprint: '%s'\n", fingerprint.c_str());
+    printf("Bootloader: %s\n", bootloader.c_str());
+    printf("Radio: %s\n", radio.c_str());
+    printf("Network: %s\n", network.c_str());
 
     printf("Kernel: ");
     dumpFile(nullptr, "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version.c_str());
-    printf("Dumpstate info: id=%lu pid=%d dry_run=%d args=%s extra_options=%s\n", id, getpid(),
-           dry_run, args.c_str(), extra_options);
+    printf("Dumpstate info: id=%lu pid=%d dryRun=%d args=%s extraOptions=%s\n", id, getpid(),
+           dryRun, args.c_str(), extraOptions.c_str());
     printf("\n");
 }
 
@@ -928,34 +931,34 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
 
     /* only show ANR traces if they're less than 15 minutes old */
     struct stat st;
-    char anr_traces_path[PATH_MAX];
-    property_get("dalvik.vm.stack-trace-file", anr_traces_path, "");
-    if (!anr_traces_path[0]) {
+    std::string anrTracesPath = android::base::GetProperty("dalvik.vm.stack-trace-file", "");
+    if (anrTracesPath.empty()) {
         printf("*** NO VM TRACES FILE DEFINED (dalvik.vm.stack-trace-file)\n\n");
     } else {
-      int fd = TEMP_FAILURE_RETRY(open(anr_traces_path,
-                                       O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK));
-      if (fd < 0) {
-          printf("*** NO ANR VM TRACES FILE (%s): %s\n\n", anr_traces_path, strerror(errno));
+        int fd = TEMP_FAILURE_RETRY(
+            open(anrTracesPath.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK));
+        if (fd < 0) {
+            printf("*** NO ANR VM TRACES FILE (%s): %s\n\n", anrTracesPath.c_str(), strerror(errno));
       } else {
-          dump_file_from_fd("VM TRACES AT LAST ANR", anr_traces_path, fd);
+          dump_file_from_fd("VM TRACES AT LAST ANR", anrTracesPath.c_str(), fd);
       }
     }
 
     /* slow traces for slow operations */
-    if (anr_traces_path[0] != 0) {
-        int tail = strlen(anr_traces_path)-1;
-        while (tail > 0 && anr_traces_path[tail] != '/') {
+    if (!anrTracesPath.empty()) {
+        int tail = anrTracesPath.size() - 1;
+        while (tail > 0 && anrTracesPath.at(tail) != '/') {
             tail--;
         }
         int i = 0;
         while (1) {
-            sprintf(anr_traces_path+tail+1, "slow%02d.txt", i);
-            if (stat(anr_traces_path, &st)) {
+            anrTracesPath =
+                anrTracesPath.substr(0, tail + 1) + android::base::StringPrintf("slow%02d.txt", i);
+            if (stat(anrTracesPath.c_str(), &st)) {
                 // No traces file at this index, done with the files.
                 break;
             }
-            dumpFile("VM TRACES WHEN SLOW", anr_traces_path);
+            dumpFile("VM TRACES WHEN SLOW", anrTracesPath.c_str());
             i++;
         }
     }
@@ -1081,14 +1084,13 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     }
 
     /* Migrate the ril_dumpstate to a dumpstate_board()? */
-    char ril_dumpstate_timeout[PROPERTY_VALUE_MAX] = {0};
-    property_get("ril.dumpstate.timeout", ril_dumpstate_timeout, "30");
-    if (strnlen(ril_dumpstate_timeout, PROPERTY_VALUE_MAX - 1) > 0) {
+    int rilDumpstateTimeout = android::base::GetIntProperty("ril.dumpstate.timeout", 0);
+    if (rilDumpstateTimeout > 0) {
         // su does not exist on user builds, so try running without it.
         // This way any implementations of vril-dump that do not require
         // root can run on user builds.
         CommandOptions::CommandOptionsBuilder options =
-            CommandOptions::WithTimeout(atoi(ril_dumpstate_timeout));
+            CommandOptions::WithTimeout(rilDumpstateTimeout);
         if (!is_user_build()) {
             options.AsRoot();
         }
@@ -1295,8 +1297,8 @@ int main(int argc, char *argv[]) {
         register_sig_handler();
     }
 
-    dry_run = property_get_bool("dumpstate.dry_run", 0) != 0;
-    if (is_dry_run()) {
+    dryRun = android::base::GetBoolProperty("dumpstate.dry_run", false);
+    if (dryRun) {
         MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
     }
 
@@ -1308,15 +1310,13 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    property_get(PROPERTY_EXTRA_OPTIONS, extra_options, "");
-    MYLOGI("Dumpstate args: %s (extra options: %s)\n", args.c_str(), extra_options);
+    extraOptions = android::base::GetProperty(PROPERTY_EXTRA_OPTIONS, "");
+    MYLOGI("Dumpstate args: %s (extra options: %s)\n", args.c_str(), extraOptions.c_str());
 
     /* gets the sequential id */
-    char last_id[PROPERTY_VALUE_MAX];
-    property_get("dumpstate.last_id", last_id, "0");
-    id = strtoul(last_id, NULL, 10) + 1;
-    snprintf(last_id, sizeof(last_id), "%lu", id);
-    property_set("dumpstate.last_id", last_id);
+    int lastId = android::base::GetIntProperty(PROPERTY_LAST_ID, 0);
+    id = ++lastId;
+    android::base::SetProperty(PROPERTY_LAST_ID, std::to_string(lastId));
     MYLOGI("dumpstate id: %lu\n", id);
 
     /* set as high priority, and protect from OOM killer */
@@ -1358,26 +1358,26 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (strlen(extra_options) > 0) {
+    if (!extraOptions.empty()) {
         // Framework uses a system property to override some command-line args.
         // Currently, it contains the type of the requested bugreport.
-        if (strcmp(extra_options, "bugreportplus") == 0) {
+        if (extraOptions == "bugreportplus") {
             MYLOGD("Running as bugreportplus: add -P, remove -p\n");
             do_update_progress = 1;
             do_fb = 0;
-        } else if (strcmp(extra_options, "bugreportremote") == 0) {
+        } else if (extraOptions == "bugreportremote") {
             MYLOGD("Running as bugreportremote: add -q -R, remove -p\n");
             do_vibrate = 0;
             is_remote_mode = 1;
             do_fb = 0;
-        } else if (strcmp(extra_options, "bugreportwear") == 0) {
+        } else if (extraOptions == "bugreportwear") {
             MYLOGD("Running as bugreportwear: add -P\n");
             do_update_progress = 1;
         } else {
-            MYLOGE("Unknown extra option: %s\n", extra_options);
+            MYLOGE("Unknown extra option: %s\n", extraOptions.c_str());
         }
         // Reset the property
-        property_set(PROPERTY_EXTRA_OPTIONS, "");
+        android::base::SetProperty(PROPERTY_EXTRA_OPTIONS, "");
     }
 
     if ((do_zip_file || do_add_date || do_update_progress || do_broadcast) && !use_outfile) {
@@ -1455,9 +1455,8 @@ int main(int argc, char *argv[]) {
         } else {
             suffix = "undated";
         }
-        char build_id[PROPERTY_VALUE_MAX];
-        property_get("ro.build.id", build_id, "UNKNOWN_BUILD");
-        base_name = base_name + "-" + build_id;
+        std::string buildId = android::base::GetProperty("ro.build.id", "UNKNOWN_BUILD");
+        base_name = base_name + "-" + buildId;
         if (do_fb) {
             // TODO: if dumpstate was an object, the paths could be internal variables and then
             // we could have a function to calculate the derived values, such as:
@@ -1614,23 +1613,21 @@ int main(int argc, char *argv[]) {
     if (use_outfile) {
 
         /* check if user changed the suffix using system properties */
-        char key[PROPERTY_KEY_MAX];
-        char value[PROPERTY_VALUE_MAX];
-        snprintf(key, sizeof(key), "dumpstate.%d.name", getpid());
-        property_get(key, value, "");
+        std::string name = android::base::GetProperty(
+            android::base::StringPrintf("dumpstate.%d.name", getpid()), "");
         bool change_suffix= false;
-        if (value[0]) {
+        if (!name.empty()) {
             /* must whitelist which characters are allowed, otherwise it could cross directories */
             std::regex valid_regex("^[-_a-zA-Z0-9]+$");
-            if (std::regex_match(value, valid_regex)) {
+            if (std::regex_match(name.c_str(), valid_regex)) {
                 change_suffix = true;
             } else {
-                MYLOGE("invalid suffix provided by user: %s\n", value);
+                MYLOGE("invalid suffix provided by user: %s\n", name.c_str());
             }
         }
         if (change_suffix) {
-            MYLOGI("changing suffix from %s to %s\n", suffix.c_str(), value);
-            suffix = value;
+            MYLOGI("changing suffix from %s to %s\n", suffix.c_str(), name.c_str());
+            suffix = name;
             if (!screenshot_path.empty()) {
                 std::string new_screenshot_path =
                         bugreport_dir + "/" + base_name + "-" + suffix + ".png";
