@@ -35,13 +35,19 @@ namespace android {
 class BitTube;
 class IDisplayEventConnection;
 
-// ----------------------------------------------------------------------------
+static inline constexpr uint32_t fourcc(char c1, char c2, char c3, char c4) {
+    return static_cast<uint32_t>(c1) << 24 |
+        static_cast<uint32_t>(c2) << 16 |
+        static_cast<uint32_t>(c3) << 8 |
+        static_cast<uint32_t>(c4);
+}
 
+// ----------------------------------------------------------------------------
 class DisplayEventReceiver {
 public:
     enum {
-        DISPLAY_EVENT_VSYNC = 'vsyn',
-        DISPLAY_EVENT_HOTPLUG = 'plug'
+        DISPLAY_EVENT_VSYNC = fourcc('v', 's', 'y', 'n'),
+        DISPLAY_EVENT_HOTPLUG = fourcc('p', 'l', 'u', 'g'),
     };
 
     struct Event {
