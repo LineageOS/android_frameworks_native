@@ -905,7 +905,8 @@ status_t BufferQueueProducer::queueBuffer(int slot,
                 static_cast<uint32_t>(mCore->mQueue.size()),
                 mCore->mFrameCounter + 1);
 
-        ATRACE_INT(mCore->mConsumerName.string(), mCore->mQueue.size());
+        ATRACE_INT(mCore->mConsumerName.string(),
+                static_cast<int32_t>(mCore->mQueue.size()));
         mCore->mOccupancyTracker.registerOccupancyChange(mCore->mQueue.size());
 
         // Take a ticket for the callback functions
