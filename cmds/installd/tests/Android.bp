@@ -6,6 +6,7 @@ cc_test {
     shared_libs: [
         "libbase",
         "libutils",
+        "liblog",
         "libcutils",
     ],
     static_libs: [
