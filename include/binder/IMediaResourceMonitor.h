@@ -25,7 +25,7 @@ namespace android {
 
 class IMediaResourceMonitor : public IInterface {
 public:
-    DECLARE_META_INTERFACE(MediaResourceMonitor);
+    DECLARE_META_INTERFACE(MediaResourceMonitor)
 
     // Values should be in sync with Intent.EXTRA_MEDIA_RESOURCE_TYPE_XXX.
     enum {

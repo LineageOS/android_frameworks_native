@@ -32,7 +32,7 @@ namespace android {
 class IMemoryHeap : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(MemoryHeap);
+    DECLARE_META_INTERFACE(MemoryHeap)
 
     // flags returned by getFlags()
     enum {
@@ -70,7 +70,7 @@ protected:
 class IMemory : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(Memory);
+    DECLARE_META_INTERFACE(Memory)
 
     virtual sp<IMemoryHeap> getMemory(ssize_t* offset=0, size_t* size=0) const = 0;
 
