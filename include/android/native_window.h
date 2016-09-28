@@ -26,6 +26,8 @@
 #ifndef ANDROID_NATIVE_WINDOW_H
 #define ANDROID_NATIVE_WINDOW_H
 
+#include <sys/cdefs.h>
+
 #include <android/rect.h>
 
 #ifdef __cplusplus
