@@ -270,7 +270,7 @@ struct DescribeColorFormatParams {
     // output: fill out the MediaImage fields
     MediaImage sMediaImage;
 
-    DescribeColorFormatParams(const DescribeColorFormat2Params&); // for internal use only
+    explicit DescribeColorFormatParams(const DescribeColorFormat2Params&); // for internal use only
 };
 
 // A pointer to this struct is passed to OMX_GetParameter when the extension
