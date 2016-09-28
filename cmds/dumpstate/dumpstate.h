@@ -202,6 +202,8 @@ static const int WEIGHT_TOTAL = 6500;
  * that are spread accross utils.cpp and dumpstate.cpp will be moved to it.
  */
 class Dumpstate {
+    friend class DumpstateTest;
+
   public:
     static Dumpstate& GetInstance();
 
@@ -274,15 +276,18 @@ class Dumpstate {
     // When set, defines a socket file-descriptor use to report progress to bugreportz.
     int controlSocketFd_ = -1;
 
-    // Whether this is a dry run.
-    bool dryRun_;
+    // Build type (such as 'user' or 'eng').
+    std::string buildType_;
 
     // Full path of the directory where the bugreport files will be written;
     std::string bugreportDir_;
 
   private:
+    // Whether this is a dry run.
+    bool dryRun_;
+
     // Used by GetInstance() only.
-    Dumpstate();
+    Dumpstate(bool dryRun = false);
 };
 
 // for_each_pid_func = void (*)(int, const char*);

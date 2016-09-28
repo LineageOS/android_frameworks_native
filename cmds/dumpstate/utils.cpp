@@ -60,6 +60,9 @@ static int RunCommand(const std::string& title, const std::vector<std::string>& 
                       const CommandOptions& options = CommandOptions::DEFAULT) {
     return ds.RunCommand(title, fullCommand, options);
 }
+static bool IsDryRun() {
+    return Dumpstate::GetInstance().IsDryRun();
+}
 
 /* list of native processes to include in the native dumps */
 // This matches the /proc/pid/exe link instead of /proc/pid/cmdline.
@@ -154,11 +157,11 @@ CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(long timeout) 
     return CommandOptions::CommandOptionsBuilder(timeout);
 }
 
-Dumpstate::Dumpstate() {
+Dumpstate::Dumpstate(bool dryRun) : dryRun_(dryRun) {
 }
 
 Dumpstate& Dumpstate::GetInstance() {
-    static Dumpstate sSingleton;
+    static Dumpstate sSingleton(android::base::GetBoolProperty("dumpstate.dry_run", false));
     return sSingleton;
 }
 
@@ -190,13 +193,16 @@ uint64_t DurationReporter::DurationReporter::Nanotime() {
     return (uint64_t) ts.tv_sec * NANOS_PER_SEC + ts.tv_nsec;
 }
 
-// TODO: temporary function used during the C++ refactoring
-static bool is_dry_run() {
-    return Dumpstate::GetInstance().IsDryRun();
+bool Dumpstate::IsDryRun() {
+    return dryRun_;
+}
+
+bool Dumpstate::IsUserBuild() {
+    return "user" == buildType_;
 }
 
 void for_each_userid(void (*func)(int), const char *header) {
-    if (is_dry_run()) return;
+    if (IsDryRun()) return;
 
     DIR *d;
     struct dirent *de;
@@ -279,7 +285,7 @@ static void for_each_pid_helper(int pid, const char *cmdline, void *arg) {
 }
 
 void for_each_pid(for_each_pid_func func, const char *header) {
-    if (is_dry_run()) return;
+    if (IsDryRun()) return;
 
     __for_each_pid(for_each_pid_helper, header, (void *) func);
 }
@@ -333,13 +339,13 @@ static void for_each_tid_helper(int pid, const char *cmdline, void *arg) {
 }
 
 void for_each_tid(for_each_tid_func func, const char *header) {
-    if (is_dry_run()) return;
+    if (IsDryRun()) return;
 
     __for_each_pid(for_each_tid_helper, header, (void *) func);
 }
 
 void show_wchan(int pid, int tid, const char *name) {
-    if (is_dry_run()) return;
+    if (IsDryRun()) return;
 
     char path[255];
     char buffer[255];
@@ -406,7 +412,7 @@ static void snprdec(char *buffer, size_t len, size_t spc, unsigned permille) {
 }
 
 void show_showtime(int pid, const char *name) {
-    if (is_dry_run()) return;
+    if (IsDryRun()) return;
 
     char path[255];
     char buffer[1023];
@@ -474,7 +480,7 @@ void do_dmesg() {
     DurationReporter duration_reporter(title);
     printf("------ %s ------\n", title);
 
-    if (is_dry_run()) return;
+    if (IsDryRun()) return;
 
     /* Get size of kernel buffer */
     int size = klogctl(KLOG_SIZE_BUFFER, NULL, 0);
@@ -526,7 +532,7 @@ static int _dump_file_from_fd(const std::string& title, const char* path, int fd
         }
         printf(") ------\n");
     }
-    if (is_dry_run()) {
+    if (IsDryRun()) {
         update_progress(WEIGHT_FILE);
         close(fd);
         return 0;
@@ -627,7 +633,7 @@ int dump_files(const std::string& title, const char* dir, bool (*skip)(const cha
     if (!title.empty()) {
         printf("------ %s (%s) ------\n", title.c_str(), dir);
     }
-    if (is_dry_run()) return 0;
+    if (IsDryRun()) return 0;
 
     if (dir[strlen(dir) - 1] == '/') {
         ++slash;
@@ -684,7 +690,7 @@ int dump_files(const std::string& title, const char* dir, bool (*skip)(const cha
  * stuck.
  */
 int dump_file_from_fd(const char *title, const char *path, int fd) {
-    if (is_dry_run()) return 0;
+    if (IsDryRun()) return 0;
 
     int flags = fcntl(fd, F_GETFL);
     if (flags == -1) {
@@ -796,7 +802,10 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
         MYLOGI(loggingMessage.c_str(), commandString.c_str());
     }
 
-    if (is_dry_run() && !options.Always()) {
+    if (IsDryRun() && !options.Always()) {
+        if (!title.empty()) {
+            printf("\t(skipped on dry run)\n");
+        }
         update_progress(options.Timeout());
         return 0;
     }
@@ -988,7 +997,7 @@ void print_properties() {
     const char* title = "SYSTEM PROPERTIES";
     DurationReporter duration_reporter(title);
     printf("------ %s ------\n", title);
-    if (is_dry_run()) return;
+    if (IsDryRun()) return;
     size_t i;
     num_props = 0;
     property_list(print_prop, NULL);
@@ -1094,7 +1103,7 @@ static bool should_dump_native_traces(const char* path) {
 /* dump Dalvik and native stack traces, return the trace file location (NULL if none) */
 const char *dump_traces() {
     DurationReporter duration_reporter("DUMP TRACES", nullptr);
-    if (is_dry_run()) return nullptr;
+    if (IsDryRun()) return nullptr;
 
     const char* result = nullptr;
 
@@ -1246,7 +1255,7 @@ error_close_fd:
 
 void dump_route_tables() {
     DurationReporter duration_reporter("DUMP ROUTE TABLES");
-    if (is_dry_run()) return;
+    if (IsDryRun()) return;
     const char* const RT_TABLES_PATH = "/data/misc/net/rt_tables";
     ds.DumpFile("RT_TABLES", RT_TABLES_PATH);
     FILE* fp = fopen(RT_TABLES_PATH, "re");

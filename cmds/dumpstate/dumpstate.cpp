@@ -62,7 +62,6 @@ static const char *dump_traces_path = NULL;
 static std::string args;
 
 // TODO: variables below should be part of dumpstate object
-static std::string buildType;
 static time_t now;
 static std::unique_ptr<ZipWriter> zip_writer;
 static std::set<std::string> mount_points;
@@ -127,14 +126,6 @@ static const std::string ZIP_ROOT_DIR = "FS";
 static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
 static constexpr char PROPERTY_LAST_ID[] = "dumpstate.last_id";
 
-bool Dumpstate::IsUserBuild() {
-    return "user" == buildType;
-}
-
-bool Dumpstate::IsDryRun() {
-    return dryRun_;
-}
-
 /* gets the tombstone data, according to the bugreport type: if zipped, gets all tombstones;
  * otherwise, gets just those modified in the last half an hour. */
 static void get_tombstone_fds(tombstone_data_t data[NUM_TOMBSTONES]) {
@@ -155,7 +146,7 @@ static void get_tombstone_fds(tombstone_data_t data[NUM_TOMBSTONES]) {
 }
 
 // for_each_pid() callback to get mount info about a process.
-void do_mountinfo(int pid, const char *name) {
+void do_mountinfo(int pid, const char* name __attribute__((unused))) {
     char path[PATH_MAX];
 
     // Gets the the content of the /proc/PID/ns/mnt link, so only unique mount points
@@ -426,7 +417,7 @@ static bool skip_not_stat(const char *path) {
     return strcmp(path + len - sizeof(stat) + 1, stat); /* .../stat? */
 }
 
-static bool skip_none(const char *path) {
+static bool skip_none(const char* path __attribute__((unused))) {
     return false;
 }
 
@@ -704,7 +695,7 @@ void print_header(const std::string& version) {
 
     build = android::base::GetProperty("ro.build.display.id", "(unknown)");
     fingerprint = android::base::GetProperty("ro.build.fingerprint", "(unknown)");
-    buildType = android::base::GetProperty("ro.build.type", "(unknown)");
+    ds.buildType_ = android::base::GetProperty("ro.build.type", "(unknown)");
     radio = android::base::GetProperty("gsm.version.baseband", "(unknown)");
     bootloader = android::base::GetProperty("ro.bootloader", "(unknown)");
     network = android::base::GetProperty("gsm.operator.alpha", "(unknown)");
@@ -727,7 +718,7 @@ void print_header(const std::string& version) {
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version.c_str());
     printf("Dumpstate info: id=%lu pid=%d dryRun=%d args=%s extraOptions=%s\n", ds.id_, getpid(),
-           ds.dryRun_, args.c_str(), extraOptions.c_str());
+           ds.IsDryRun(), args.c_str(), extraOptions.c_str());
     printf("\n");
 }
 
@@ -805,7 +796,7 @@ bool add_zip_entry(const std::string& entry_name, const std::string& entry_path)
 }
 
 /* adds a file to the existing zipped bugreport */
-static int _add_file_from_fd(const char *title, const char *path, int fd) {
+static int _add_file_from_fd(const char* title __attribute__((unused)), const char* path, int fd) {
     return add_zip_entry_from_fd(ZIP_ROOT_DIR + path, fd) ? 0 : 1;
 }
 
@@ -861,7 +852,8 @@ static void dump_iptables() {
     RunCommand("IP6TABLE RAW", {"ip6tables", "-t", "raw", "-L", "-nvx"});
 }
 
-static void dumpstate(const std::string& screenshot_path, const std::string& version) {
+static void dumpstate(const std::string& screenshot_path,
+                      const std::string& version __attribute__((unused))) {
     DurationReporter durationReporter("DUMPSTATE");
     unsigned long timeout;
 
@@ -1193,7 +1185,7 @@ static void wake_lock_releaser() {
     }
 }
 
-static void sig_handler(int signo) {
+static void sig_handler(int signo __attribute__((unused))) {
     wake_lock_releaser();
     _exit(EXIT_FAILURE);
 }
@@ -1319,8 +1311,7 @@ int main(int argc, char *argv[]) {
         register_sig_handler();
     }
 
-    ds.dryRun_ = android::base::GetBoolProperty("dumpstate.dry_run", false);
-    if (ds.dryRun_) {
+    if (ds.IsDryRun()) {
         MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
     }
 
