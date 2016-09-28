@@ -294,7 +294,7 @@ public:
 
     struct QueueBufferInput : public Flattenable<QueueBufferInput> {
         friend class Flattenable<QueueBufferInput>;
-        inline QueueBufferInput(const Parcel& parcel);
+        explicit inline QueueBufferInput(const Parcel& parcel);
         // timestamp - a monotonically increasing value in nanoseconds
         // isAutoTimestamp - if the timestamp was synthesized at queue time
         // dataSpace - description of the contents, interpretation depends on format
