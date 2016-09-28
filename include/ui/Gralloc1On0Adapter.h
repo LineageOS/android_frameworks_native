@@ -81,7 +81,7 @@ private:
             uint32_t* outCount,
             int32_t* /*gralloc1_capability_t*/ outCapabilities) {
         getAdapter(device)->doGetCapabilities(outCount, outCapabilities);
-    };
+    }
 
     // getFunction
 

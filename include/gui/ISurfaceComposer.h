@@ -50,7 +50,7 @@ class Rect;
  */
 class ISurfaceComposer: public IInterface {
 public:
-    DECLARE_META_INTERFACE(SurfaceComposer);
+    DECLARE_META_INTERFACE(SurfaceComposer)
 
     // flags for setTransactionState()
     enum {
