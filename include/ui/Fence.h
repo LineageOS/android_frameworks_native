@@ -53,7 +53,7 @@ public:
     // Construct a new Fence object to manage a given fence file descriptor.
     // When the new Fence object is destructed the file descriptor will be
     // closed.
-    Fence(int fenceFd);
+    explicit Fence(int fenceFd);
 
     // Check whether the Fence has an open fence file descriptor. Most Fence
     // methods treat an invalid file descriptor just like a valid fence that
