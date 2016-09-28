@@ -27,7 +27,7 @@ namespace android {
 class IResultReceiver : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(ResultReceiver);
+    DECLARE_META_INTERFACE(ResultReceiver)
 
     virtual void send(int32_t resultCode) = 0;
 

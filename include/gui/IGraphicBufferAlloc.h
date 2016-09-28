@@ -33,7 +33,7 @@ namespace android {
 class IGraphicBufferAlloc : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(GraphicBufferAlloc);
+    DECLARE_META_INTERFACE(GraphicBufferAlloc)
 
     /* Create a new GraphicBuffer for the client to use.
      */

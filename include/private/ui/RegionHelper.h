@@ -53,20 +53,20 @@ public:
         TYPE dy;
         inline region(const region& rhs) 
             : rects(rhs.rects), count(rhs.count), dx(rhs.dx), dy(rhs.dy) { }
-        inline region(RECT const* r, size_t c) 
-            : rects(r), count(c), dx(), dy() { }
-        inline region(RECT const* r, size_t c, TYPE dx, TYPE dy) 
-            : rects(r), count(c), dx(dx), dy(dy) { }
+        inline region(RECT const* _r, size_t _c)
+            : rects(_r), count(_c), dx(), dy() { }
+        inline region(RECT const* _r, size_t _c, TYPE _dx, TYPE _dy)
+            : rects(_r), count(_c), dx(_dx), dy(_dy) { }
     };
 
     class region_rasterizer {
         friend class region_operator;
         virtual void operator()(const RECT& rect) = 0;
     public:
-        virtual ~region_rasterizer() { };
+        virtual ~region_rasterizer() { }
     };
     
-    inline region_operator(int op, const region& lhs, const region& rhs) 
+    inline region_operator(uint32_t op, const region& lhs, const region& rhs)
         : op_mask(op), spanner(lhs, rhs) 
     {
     }
@@ -79,8 +79,8 @@ public:
             spannerInner.prepare(inside);
             do {
                 TYPE left, right;
-                int inside = spannerInner.next(current.left, current.right);
-                if ((op_mask >> inside) & 1) {
+                int inner_inside = spannerInner.next(current.left, current.right);
+                if ((op_mask >> inner_inside) & 1) {
                     if (current.left < current.right && 
                             current.top < current.bottom) {
                         rasterizer(current);
@@ -162,8 +162,8 @@ private:
         region rhs;
 
     public:
-        inline Spanner(const region& lhs, const region& rhs)
-        : lhs(lhs), rhs(rhs)
+        inline Spanner(const region& _lhs, const region& _rhs)
+        : lhs(_lhs), rhs(_rhs)
         {
             if (lhs.count) {
                 SpannerBase::lhs_head = lhs.rects->top      + lhs.dy;
@@ -223,8 +223,8 @@ private:
         region rhs;
         
     public:
-        inline SpannerInner(const region& lhs, const region& rhs)
-            : lhs(lhs), rhs(rhs) 
+        inline SpannerInner(const region& _lhs, const region& _rhs)
+            : lhs(_lhs), rhs(_rhs)
         {
         }
 

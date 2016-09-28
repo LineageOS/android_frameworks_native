@@ -28,7 +28,7 @@ namespace android {
 class IPermissionController : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(PermissionController);
+    DECLARE_META_INTERFACE(PermissionController)
 
     virtual bool checkPermission(const String16& permission, int32_t pid, int32_t uid) = 0;
 
