@@ -481,6 +481,11 @@ ssize_t SensorDevice::Info::removeBatchParamsForIdent(void* ident) {
     return idx;
 }
 
+void SensorDevice::notifyConnectionDestroyed(void* ident) {
+    Mutex::Autolock _l(mLock);
+    mDisabledClients.remove(ident);
+}
+
 // ---------------------------------------------------------------------------
 }; // namespace android
 
