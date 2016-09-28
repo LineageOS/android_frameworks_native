@@ -33,7 +33,7 @@ enum {
 
 class IBatteryPropertiesListener : public IInterface {
 public:
-    DECLARE_META_INTERFACE(BatteryPropertiesListener);
+    DECLARE_META_INTERFACE(BatteryPropertiesListener)
 
     virtual void batteryPropertiesChanged(struct BatteryProperties props) = 0;
 };

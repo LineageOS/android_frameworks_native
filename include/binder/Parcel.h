@@ -453,7 +453,7 @@ private:
         void clear();
         void release();
         inline size_t size() const { return mSize; }
-        inline int fd() const { return mFd; };
+        inline int fd() const { return mFd; }
         inline bool isMutable() const { return mMutable; }
 
     protected:

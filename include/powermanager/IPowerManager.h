@@ -50,7 +50,7 @@ public:
         CRASH                        = IBinder::FIRST_CALL_TRANSACTION + 16,
     };
 
-    DECLARE_META_INTERFACE(PowerManager);
+    DECLARE_META_INTERFACE(PowerManager)
 
     // The parcels created by these methods must be kept in sync with the
     // corresponding methods from IPowerManager.aidl.

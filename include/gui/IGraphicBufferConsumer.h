@@ -281,7 +281,7 @@ public:
     virtual void dump(String8& result, const char* prefix) const = 0;
 
 public:
-    DECLARE_META_INTERFACE(GraphicBufferConsumer);
+    DECLARE_META_INTERFACE(GraphicBufferConsumer)
 };
 
 // ----------------------------------------------------------------------------

@@ -56,7 +56,7 @@ class Surface;
 class IGraphicBufferProducer : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(GraphicBufferProducer);
+    DECLARE_META_INTERFACE(GraphicBufferProducer)
 
     enum {
         // A flag returned by dequeueBuffer when the client needs to call

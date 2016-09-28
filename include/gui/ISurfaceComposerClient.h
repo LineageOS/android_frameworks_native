@@ -36,7 +36,7 @@ class IGraphicBufferProducer;
 class ISurfaceComposerClient : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(SurfaceComposerClient);
+    DECLARE_META_INTERFACE(SurfaceComposerClient)
 
     // flags for createSurface()
     enum { // (keep in sync with Surface.java)

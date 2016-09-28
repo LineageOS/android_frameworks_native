@@ -26,7 +26,7 @@ namespace android {
 class IBatteryStats : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(BatteryStats);
+    DECLARE_META_INTERFACE(BatteryStats)
 
     virtual void noteStartSensor(int uid, int sensor) = 0;
     virtual void noteStopSensor(int uid, int sensor) = 0;
