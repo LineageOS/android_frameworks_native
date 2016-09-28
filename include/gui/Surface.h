@@ -66,7 +66,7 @@ public:
      * the controlledByApp flag indicates that this Surface (producer) is
      * controlled by the application. This flag is used at connect time.
      */
-    Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controlledByApp = false);
+    explicit Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controlledByApp = false);
 
     /* getIGraphicBufferProducer() returns the IGraphicBufferProducer this
      * Surface was created with. Usually it's an error to use the
