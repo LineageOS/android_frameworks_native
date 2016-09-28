@@ -477,7 +477,7 @@ private:
     class FlattenableHelper : public FlattenableHelperInterface {
         friend class Parcel;
         const Flattenable<T>& val;
-        explicit FlattenableHelper(const Flattenable<T>& val) : val(val) { }
+        explicit FlattenableHelper(const Flattenable<T>& _val) : val(_val) { }
 
     public:
         virtual size_t getFlattenedSize() const {

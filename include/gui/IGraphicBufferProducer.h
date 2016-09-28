@@ -305,12 +305,13 @@ public:
         //         set this to Fence::NO_FENCE if the buffer is ready immediately
         // sticky - the sticky transform set in Surface (only used by the LEGACY
         //          camera mode).
-        inline QueueBufferInput(int64_t timestamp, bool isAutoTimestamp,
-                android_dataspace dataSpace, const Rect& crop, int scalingMode,
-                uint32_t transform, const sp<Fence>& fence, uint32_t sticky = 0)
-                : timestamp(timestamp), isAutoTimestamp(isAutoTimestamp),
-                  dataSpace(dataSpace), crop(crop), scalingMode(scalingMode),
-                  transform(transform), stickyTransform(sticky), fence(fence),
+        inline QueueBufferInput(int64_t _timestamp, bool _isAutoTimestamp,
+                android_dataspace _dataSpace, const Rect& _crop,
+                int _scalingMode, uint32_t _transform, const sp<Fence>& _fence,
+                uint32_t _sticky = 0)
+                : timestamp(_timestamp), isAutoTimestamp(_isAutoTimestamp),
+                  dataSpace(_dataSpace), crop(_crop), scalingMode(_scalingMode),
+                  transform(_transform), stickyTransform(_sticky), fence(_fence),
                   surfaceDamage() { }
         inline void deflate(int64_t* outTimestamp, bool* outIsAutoTimestamp,
                 android_dataspace* outDataSpace,
