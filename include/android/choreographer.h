@@ -30,6 +30,8 @@
 
 __BEGIN_DECLS
 
+#if __ANDROID_API__ >= 24
+
 struct AChoreographer;
 typedef struct AChoreographer AChoreographer;
 
@@ -62,6 +64,9 @@ void AChoreographer_postFrameCallback(AChoreographer* choreographer,
  */
 void AChoreographer_postFrameCallbackDelayed(AChoreographer* choreographer,
                 AChoreographer_frameCallback callback, void* data, long delayMillis);
+
+#endif /* __ANDROID_API__ >= 24 */
+
 __END_DECLS
 
 #endif // ANDROID_CHOREOGRAPHER_H

@@ -26,6 +26,8 @@
 #ifndef ANDROID_CONFIGURATION_H
 #define ANDROID_CONFIGURATION_H
 
+#include <sys/cdefs.h>
+
 #include <android/asset_manager.h>
 
 #ifdef __cplusplus
@@ -628,6 +630,7 @@ int32_t AConfiguration_getUiModeNight(AConfiguration* config);
  */
 void AConfiguration_setUiModeNight(AConfiguration* config, int32_t uiModeNight);
 
+#if __ANDROID_API__ >= 13
 /**
  * Return the current configuration screen width in dp units, or
  * ACONFIGURATION_SCREEN_WIDTH_DP_ANY if not set.
@@ -660,7 +663,9 @@ int32_t AConfiguration_getSmallestScreenWidthDp(AConfiguration* config);
  * Set the configuration's smallest screen width in dp units.
  */
 void AConfiguration_setSmallestScreenWidthDp(AConfiguration* config, int32_t value);
+#endif /* __ANDROID_API__ >= 13 */
 
+#if __ANDROID_API__ >= 17
 /**
  * Return the configuration's layout direction, or
  * ACONFIGURATION_LAYOUTDIR_ANY if not set.
@@ -671,6 +676,7 @@ int32_t AConfiguration_getLayoutDirection(AConfiguration* config);
  * Set the configuration's layout direction.
  */
 void AConfiguration_setLayoutDirection(AConfiguration* config, int32_t value);
+#endif /* __ANDROID_API__ >= 17 */
 
 /**
  * Perform a diff between two configurations.  Returns a bit mask of

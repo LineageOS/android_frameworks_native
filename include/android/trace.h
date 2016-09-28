@@ -19,10 +19,13 @@
 #define ANDROID_NATIVE_TRACE_H
 
 #include <stdbool.h>
+#include <sys/cdefs.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#if __ANDROID_API__ >= 23
 
 /**
  * Returns true if tracing is enabled. Use this signal to avoid expensive computation only necessary
@@ -47,6 +50,8 @@ void ATrace_beginSection(const char* sectionName);
  * that beginSection / endSection pairs are properly nested and called from the same thread.
  */
 void ATrace_endSection();
+
+#endif /* __ANDROID_API__ >= 23 */
 
 #ifdef __cplusplus
 };
