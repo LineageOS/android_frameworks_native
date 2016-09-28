@@ -60,7 +60,7 @@ public:
     // weak references.
     class ProxyConsumerListener : public BnConsumerListener {
     public:
-        ProxyConsumerListener(const wp<ConsumerListener>& consumerListener);
+        explicit ProxyConsumerListener(const wp<ConsumerListener>& consumerListener);
         virtual ~ProxyConsumerListener();
         virtual void onFrameAvailable(const BufferItem& item) override;
         virtual void onFrameReplaced(const BufferItem& item) override;
