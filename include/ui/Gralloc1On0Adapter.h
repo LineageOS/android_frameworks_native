@@ -124,10 +124,10 @@ private:
     // Buffer descriptor modification functions
 
     struct Descriptor : public std::enable_shared_from_this<Descriptor> {
-        Descriptor(Gralloc1On0Adapter* adapter,
-                gralloc1_buffer_descriptor_t id)
-          : adapter(adapter),
-            id(id),
+        Descriptor(Gralloc1On0Adapter* _adapter,
+                gralloc1_buffer_descriptor_t _id)
+          : adapter(_adapter),
+            id(_id),
             width(0),
             height(0),
             format(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED),

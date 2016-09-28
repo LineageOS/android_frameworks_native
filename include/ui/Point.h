@@ -34,7 +34,7 @@ public:
     // Default constructor doesn't initialize the Point
     inline Point() {
     }
-    inline Point(int x, int y) : x(x), y(y) {
+    inline Point(int _x, int _y) : x(_x), y(_y) {
     }
 
     inline bool operator == (const Point& rhs) const {
