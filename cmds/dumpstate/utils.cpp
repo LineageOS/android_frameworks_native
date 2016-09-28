@@ -54,6 +54,9 @@ static const int64_t NANOS_PER_SEC = 1000000000;
 
 static const int TRACE_DUMP_TIMEOUT_MS = 10000; // 10 seconds
 
+// TODO: temporary variables and functions used during C++ refactoring
+static Dumpstate& ds = Dumpstate::GetInstance();
+
 /* list of native processes to include in the native dumps */
 // This matches the /proc/pid/exe link instead of /proc/pid/cmdline.
 static const char* native_processes_to_dump[] = {
@@ -69,6 +72,9 @@ static const char* native_processes_to_dump[] = {
         "/system/bin/vehicle_network_service",
         NULL,
 };
+
+/* Most simple commands have 10 as timeout, so 5 is a good estimate */
+static const int WEIGHT_FILE = 5;
 
 CommandOptions CommandOptions::DEFAULT = CommandOptions::WithTimeout(10).Build();
 CommandOptions CommandOptions::DEFAULT_DUMPSYS = CommandOptions::WithTimeout(30).Build();
@@ -144,6 +150,14 @@ CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(long timeout) 
     return CommandOptions::CommandOptionsBuilder(timeout);
 }
 
+Dumpstate::Dumpstate() {
+}
+
+Dumpstate& Dumpstate::GetInstance() {
+    static Dumpstate sSingleton;
+    return sSingleton;
+}
+
 DurationReporter::DurationReporter(const char *title) : DurationReporter(title, stdout) {}
 
 DurationReporter::DurationReporter(const char *title, FILE *out) {
@@ -171,6 +185,11 @@ uint64_t DurationReporter::DurationReporter::Nanotime() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t) ts.tv_sec * NANOS_PER_SEC + ts.tv_nsec;
+}
+
+// TODO: temporary function used during the C++ refactoring
+static bool is_dry_run() {
+    return Dumpstate::GetInstance().IsDryRun();
 }
 
 void for_each_userid(void (*func)(int), const char *header) {
@@ -1261,49 +1280,44 @@ void dump_route_tables() {
     fclose(fp);
 }
 
-/* overall progress */
-int progress = 0;
-int do_update_progress = 0; // Set by dumpstate.cpp
-int weight_total = WEIGHT_TOTAL;
-
 // TODO: make this function thread safe if sections are generated in parallel.
 void update_progress(int delta) {
-    if (!do_update_progress) return;
+    if (!ds.updateProgress_) return;
 
-    progress += delta;
+    ds.progress_ += delta;
 
     char key[PROPERTY_KEY_MAX];
     char value[PROPERTY_VALUE_MAX];
 
     // adjusts max on the fly
-    if (progress > weight_total) {
-        int new_total = weight_total * 1.2;
-        MYLOGD("Adjusting total weight from %d to %d\n", weight_total, new_total);
-        weight_total = new_total;
+    if (ds.progress_ > ds.weightTotal_) {
+        int newTotal = ds.weightTotal_ * 1.2;
+        MYLOGD("Adjusting total weight from %d to %d\n", ds.weightTotal_, newTotal);
+        ds.weightTotal_ = newTotal;
         snprintf(key, sizeof(key), "dumpstate.%d.max", getpid());
-        snprintf(value, sizeof(value), "%d", weight_total);
+        snprintf(value, sizeof(value), "%d", ds.weightTotal_);
         int status = property_set(key, value);
-        if (status) {
+        if (status != 0) {
             MYLOGE("Could not update max weight by setting system property %s to %s: %d\n",
                     key, value, status);
         }
     }
 
     snprintf(key, sizeof(key), "dumpstate.%d.progress", getpid());
-    snprintf(value, sizeof(value), "%d", progress);
+    snprintf(value, sizeof(value), "%d", ds.progress_);
 
-    if (progress % 100 == 0) {
+    if (ds.progress_ % 100 == 0) {
         // We don't want to spam logcat, so only log multiples of 100.
-        MYLOGD("Setting progress (%s): %s/%d\n", key, value, weight_total);
+        MYLOGD("Setting progress (%s): %s/%d\n", key, value, ds.weightTotal_);
     } else {
         // stderr is ignored on normal invocations, but useful when calling /system/bin/dumpstate
         // directly for debuggging.
-        fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, weight_total);
+        fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, ds.weightTotal_);
     }
 
-    if (control_socket_fd >= 0) {
-        dprintf(control_socket_fd, "PROGRESS:%d/%d\n", progress, weight_total);
-        fsync(control_socket_fd);
+    if (ds.controlSocketFd_ >= 0) {
+        dprintf(ds.controlSocketFd_, "PROGRESS:%d/%d\n", ds.progress_, ds.weightTotal_);
+        fsync(ds.controlSocketFd_);
     }
 
     int status = property_set(key, value);
