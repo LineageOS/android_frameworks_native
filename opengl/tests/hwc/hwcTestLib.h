@@ -71,7 +71,7 @@ class ColorFract {
 class ColorRGB {
   public:
     ColorRGB(): _r(0.0), _g(0.0), _b(0.0) {};
-    ColorRGB(float f): _r(f), _g(f), _b(f) {}; // Gray
+    ColorRGB(float f): _r(f), _g(f), _b(f) {}; // Gray, NOLINT(implicit)
     ColorRGB(float r, float g, float b): _r(r), _g(g), _b(b) {};
     float r(void) const { return _r; }
     float g(void) const { return _g; }
