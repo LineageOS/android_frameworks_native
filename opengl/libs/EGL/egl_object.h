@@ -48,7 +48,7 @@ protected:
     virtual void terminate();
 
 public:
-    egl_object_t(egl_display_t* display);
+    explicit egl_object_t(egl_display_t* display);
     void destroy();
 
     inline void incRef() { count.fetch_add(1, std::memory_order_relaxed); }
@@ -63,7 +63,7 @@ public:
     class LocalRef {
         egl_object_t* ref;
         LocalRef();
-        LocalRef(const LocalRef* rhs);
+        explicit LocalRef(const LocalRef* rhs);
     public:
         ~LocalRef();
         explicit LocalRef(egl_object_t* rhs);
