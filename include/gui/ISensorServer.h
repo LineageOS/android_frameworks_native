@@ -35,7 +35,7 @@ class String8;
 class ISensorServer : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(SensorServer);
+    DECLARE_META_INTERFACE(SensorServer)
 
     virtual Vector<Sensor> getSensorList(const String16& opPackageName) = 0;
     virtual Vector<Sensor> getDynamicSensorList(const String16& opPackageName) = 0;

@@ -25,7 +25,7 @@ namespace android {
 
 class IProcessInfoService : public IInterface {
 public:
-    DECLARE_META_INTERFACE(ProcessInfoService);
+    DECLARE_META_INTERFACE(ProcessInfoService)
 
     virtual status_t    getProcessStatesFromPids( size_t length,
                                                   /*in*/ int32_t* pids,
