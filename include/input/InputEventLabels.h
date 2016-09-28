@@ -425,30 +425,30 @@ static const char* lookupLabelByValue(int value, const InputEventLabel* list) {
     return NULL;
 }
 
-static int32_t getKeyCodeByLabel(const char* label) {
+static inline int32_t getKeyCodeByLabel(const char* label) {
     return int32_t(lookupValueByLabel(label, KEYCODES));
 }
 
-static const char* getLabelByKeyCode(int32_t keyCode) {
-    if (keyCode >= 0 && keyCode < size(KEYCODES)) {
+static inline const char* getLabelByKeyCode(int32_t keyCode) {
+    if (keyCode >= 0 && keyCode < static_cast<int32_t>(size(KEYCODES))) {
         return KEYCODES[keyCode].literal;
     }
     return NULL;
 }
 
-static uint32_t getKeyFlagByLabel(const char* label) {
+static inline uint32_t getKeyFlagByLabel(const char* label) {
     return uint32_t(lookupValueByLabel(label, FLAGS));
 }
 
-static int32_t getAxisByLabel(const char* label) {
+static inline int32_t getAxisByLabel(const char* label) {
     return int32_t(lookupValueByLabel(label, AXES));
 }
 
-static const char* getAxisLabel(int32_t axisId) {
+static inline const char* getAxisLabel(int32_t axisId) {
     return lookupLabelByValue(axisId, AXES);
 }
 
-static int32_t getLedByLabel(const char* label) {
+static inline int32_t getLedByLabel(const char* label) {
     return int32_t(lookupValueByLabel(label, LEDS));
 }
 
