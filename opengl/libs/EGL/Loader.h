@@ -46,7 +46,7 @@ class Loader : public Singleton<Loader>
         GLESv2      = 0x04
     };
     struct driver_t {
-        driver_t(void* gles);
+        explicit driver_t(void* gles);
         ~driver_t();
         status_t set(void* hnd, int32_t api);
         void* dso[3];
