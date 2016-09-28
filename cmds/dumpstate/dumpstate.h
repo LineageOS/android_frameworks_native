@@ -215,6 +215,11 @@ class Dumpstate {
     bool IsDryRun();
 
     /*
+     * Gets whether device is running a `user` build.
+     */
+    bool IsUserBuild();
+
+    /*
      * Forks a command, waits for it to finish, and returns its status.
      *
      * |title| description of the command printed on `stdout` (or empty to skip
@@ -235,8 +240,8 @@ class Dumpstate {
      * description).
      * |dumpsys_args| `dumpsys` arguments (except `-t`).
      * |options| optional argument defining the command's behavior.
- * |dumpsysTimeout| when > 0, defines the value passed to `dumpsys -t` (otherwise it uses the
- * timeout from `options`)
+     * |dumpsysTimeout| when > 0, defines the value passed to `dumpsys -t` (otherwise it uses the
+     * timeout from `options`)
      */
     void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
                     const CommandOptions& options = CommandOptions::DEFAULT_DUMPSYS,

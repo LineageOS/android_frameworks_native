@@ -110,6 +110,9 @@ static void RunDumpsys(const std::string& title, const std::vector<std::string>&
 static int DumpFile(const std::string& title, const std::string& path) {
     return ds.DumpFile(title, path);
 }
+bool IsUserBuild() {
+    return ds.IsUserBuild();
+}
 
 /*
  * List of supported zip format versions.
@@ -124,7 +127,7 @@ static const std::string ZIP_ROOT_DIR = "FS";
 static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
 static constexpr char PROPERTY_LAST_ID[] = "dumpstate.last_id";
 
-bool is_user_build() {
+bool Dumpstate::IsUserBuild() {
     return "user" == buildType;
 }
 
@@ -381,7 +384,7 @@ static void dump_systrace() {
 }
 
 static void dump_raft() {
-    if (is_user_build()) {
+    if (IsUserBuild()) {
         return;
     }
 
@@ -1103,7 +1106,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
         // root can run on user builds.
         CommandOptions::CommandOptionsBuilder options =
             CommandOptions::WithTimeout(rilDumpstateTimeout);
-        if (!is_user_build()) {
+        if (!IsUserBuild()) {
             options.AsRoot();
         }
         RunCommand("DUMP VENDOR RIL LOGS", {"vril-dump"}, options.Build());
@@ -1244,7 +1247,7 @@ static bool finish_zip_file(const std::string& bugreport_name, const std::string
         return false;
     }
 
-    if (is_user_build()) {
+    if (IsUserBuild()) {
         MYLOGD("Removing temporary file %s\n", bugreport_path.c_str())
         if (remove(bugreport_path.c_str())) {
             ALOGW("remove(%s): %s\n", bugreport_path.c_str(), strerror(errno));
@@ -1610,7 +1613,7 @@ int main(int argc, char *argv[]) {
     add_dir(RECOVERY_DIR, true);
     add_dir(RECOVERY_DATA_DIR, true);
     add_dir(LOGPERSIST_DATA_DIR, false);
-    if (!is_user_build()) {
+    if (!IsUserBuild()) {
         add_dir(PROFILE_DATA_DIR_CUR, true);
         add_dir(PROFILE_DATA_DIR_REF, true);
     }

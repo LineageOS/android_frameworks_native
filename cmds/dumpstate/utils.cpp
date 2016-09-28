@@ -772,28 +772,26 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
         MYLOGE("No arguments on command '%s'\n", title.c_str());
         return -1;
     }
-    DurationReporter durationReporter(title);
 
     int size = fullCommand.size() + 1;  // null terminated
+    int startingIndex = 0;
     if (options.RootMode() == SU_ROOT) {
-        size += 2;  // "su" "root"
+        startingIndex = 2;  // "su" "root"
+        size += startingIndex;
     }
 
-    const char* args[size];
-
-    if (!title.empty()) {
-        printf("------ %s (", title.c_str());
-    }
+    std::vector<const char*> args;
+    args.resize(size);
 
     std::string commandString;
-    int i = 0;
     if (options.RootMode() == SU_ROOT) {
         args[0] = SU_PATH;
         commandString += SU_PATH;
         args[1] = "root";
         commandString += " root ";
     }
-    for (auto arg = fullCommand.begin(); arg < fullCommand.end(); arg++) {
+    int i = startingIndex;
+    for (auto arg = fullCommand.begin(); arg != fullCommand.end(); ++arg) {
         args[i++] = arg->c_str();
         commandString += arg->c_str();
         if (arg != fullCommand.end() - 1) {
@@ -804,11 +802,17 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
     const char* path = args[0];
     const char* command = commandString.c_str();
 
+    if (options.RootMode() == SU_ROOT && ds.IsUserBuild()) {
+        printf("Skipping '%s' on user build.\n", command);
+        return 0;
+    }
+
     if (!title.empty()) {
-        printf("%s) ------\n", command);
+        printf("------ %s (%s) ------\n", title.c_str(), command);
     }
 
     fflush(stdout);
+    DurationReporter durationReporter(title);
 
     const std::string& loggingMessage = options.LoggingMessage();
     if (!loggingMessage.empty()) {
@@ -861,7 +865,7 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
         sigact.sa_handler = SIG_IGN;
         sigaction(SIGPIPE, &sigact, NULL);
 
-        execvp(path, (char**)args);
+        execvp(path, (char**)args.data());
         // execvp's result will be handled after waitpid_with_timeout() below, but
         // if it failed, it's safer to exit dumpstate.
         MYLOGD("execvp on command '%s' failed (error: %s)\n", command, strerror(errno));
