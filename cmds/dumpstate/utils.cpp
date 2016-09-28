@@ -56,6 +56,10 @@ static const int TRACE_DUMP_TIMEOUT_MS = 10000; // 10 seconds
 
 // TODO: temporary variables and functions used during C++ refactoring
 static Dumpstate& ds = Dumpstate::GetInstance();
+static int RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
+                      const CommandOptions& options = CommandOptions::DEFAULT) {
+    return ds.RunCommand(title, fullCommand, options);
+}
 
 /* list of native processes to include in the native dumps */
 // This matches the /proc/pid/exe link instead of /proc/pid/cmdline.
@@ -158,25 +162,24 @@ Dumpstate& Dumpstate::GetInstance() {
     return sSingleton;
 }
 
-DurationReporter::DurationReporter(const char *title) : DurationReporter(title, stdout) {}
+DurationReporter::DurationReporter(const std::string& title) : DurationReporter(title, stdout) {
+}
 
-DurationReporter::DurationReporter(const char *title, FILE *out) {
-    title_ = title;
-    if (title != nullptr) {
+DurationReporter::DurationReporter(const std::string& title, FILE* out) : title_(title), out_(out) {
+    if (!title_.empty()) {
         started_ = DurationReporter::Nanotime();
     }
-    out_ = out;
 }
 
 DurationReporter::~DurationReporter() {
-    if (title_ != nullptr) {
+    if (!title_.empty()) {
         uint64_t elapsed = DurationReporter::Nanotime() - started_;
         // Use "Yoda grammar" to make it easier to grep|sort sections.
         if (out_ != nullptr) {
             fprintf(out_, "------ %.3fs was the duration of '%s' ------\n",
-                    (float)elapsed / NANOS_PER_SEC, title_);
+                    (float)elapsed / NANOS_PER_SEC, title_.c_str());
         } else {
-            MYLOGD("Duration of '%s': %.3fs\n", title_, (float)elapsed / NANOS_PER_SEC);
+            MYLOGD("Duration of '%s': %.3fs\n", title_.c_str(), (float)elapsed / NANOS_PER_SEC);
         }
     }
 }
@@ -505,9 +508,9 @@ void do_showmap(int pid, const char *name) {
     RunCommand(title, {"showmap", "-q", arg}, CommandOptions::AS_ROOT_10);
 }
 
-static int _dump_file_from_fd(const char *title, const char *path, int fd) {
-    if (title) {
-        printf("------ %s (%s", title, path);
+static int _dump_file_from_fd(const std::string& title, const char* path, int fd) {
+    if (!title.empty()) {
+        printf("------ %s (%s", title.c_str(), path);
 
         struct stat st;
         // Only show the modification time of non-device files.
@@ -569,21 +572,22 @@ static int _dump_file_from_fd(const char *title, const char *path, int fd) {
     close(fd);
 
     if (!newline) printf("\n");
-    if (title) printf("\n");
+    if (!title.empty()) printf("\n");
     return 0;
 }
 
+// DEPRECATED: will be removed once device-specific implementations use dumpFile
 int dump_file(const char *title, const char *path) {
-    return DumpFile(title, path);
+    return ds.DumpFile(title, path);
 }
 
-int DumpFile(const char* title, const std::string& path) {
+int Dumpstate::DumpFile(const std::string& title, const std::string& path) {
     DurationReporter durationReporter(title);
     int fd = TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
     if (fd < 0) {
         int err = errno;
         printf("*** %s: %s\n", path.c_str(), strerror(err));
-        if (title != nullptr) printf("\n");
+        if (!title.empty()) printf("\n");
         return -1;
     }
     return _dump_file_from_fd(title, path.c_str(), fd);
@@ -616,9 +620,8 @@ int read_file_as_long(const char *path, long int *output) {
  * to false when set to NULL. dump_from_fd will always be
  * called with title NULL.
  */
-int dump_files(const char *title, const char *dir,
-        bool (*skip)(const char *path),
-        int (*dump_from_fd)(const char *title, const char *path, int fd)) {
+int dump_files(const std::string& title, const char* dir, bool (*skip)(const char* path),
+               int (*dump_from_fd)(const char* title, const char* path, int fd)) {
     DurationReporter duration_reporter(title);
     DIR *dirp;
     struct dirent *d;
@@ -626,8 +629,8 @@ int dump_files(const char *title, const char *dir,
     const char *slash = "/";
     int fd, retval = 0;
 
-    if (title) {
-        printf("------ %s (%s) ------\n", title, dir);
+    if (!title.empty()) {
+        printf("------ %s (%s) ------\n", title.c_str(), dir);
     }
     if (is_dry_run()) return 0;
 
@@ -660,7 +663,7 @@ int dump_files(const char *title, const char *dir,
             continue;
         }
         if (d->d_type == DT_DIR) {
-            int ret = dump_files(NULL, newpath, skip, dump_from_fd);
+            int ret = dump_files("", newpath, skip, dump_from_fd);
             if (ret < 0) {
                 retval = ret;
             }
@@ -675,7 +678,7 @@ int dump_files(const char *title, const char *dir,
         (*dump_from_fd)(NULL, newpath, fd);
     }
     closedir(dirp);
-    if (title) {
+    if (!title.empty()) {
         printf("\n");
     }
     return retval;
@@ -745,6 +748,7 @@ bool waitpid_with_timeout(pid_t pid, int timeout_seconds, int* status) {
     return true;
 }
 
+// DEPRECATED: will be removed once device-specific implementations use RunCommand
 int run_command(const char* title, int timeout_seconds, const char* command, ...) {
     std::vector<std::string> fullCommand = {command};
     size_t arg;
@@ -759,13 +763,13 @@ int run_command(const char* title, int timeout_seconds, const char* command, ...
     }
     va_end(ap);
 
-    return RunCommand(title, fullCommand, CommandOptions::WithTimeout(timeout_seconds).Build());
+    return ds.RunCommand(title, fullCommand, CommandOptions::WithTimeout(timeout_seconds).Build());
 }
 
-int RunCommand(const char* title, const std::vector<std::string>& fullCommand,
-               const CommandOptions& options) {
+int Dumpstate::RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
+                          const CommandOptions& options) {
     if (fullCommand.empty()) {
-        MYLOGE("No arguments on command '%s'\n", title);
+        MYLOGE("No arguments on command '%s'\n", title.c_str());
         return -1;
     }
     DurationReporter durationReporter(title);
@@ -777,8 +781,8 @@ int RunCommand(const char* title, const std::vector<std::string>& fullCommand,
 
     const char* args[size];
 
-    if (title) {
-        printf("------ %s (", title);
+    if (!title.empty()) {
+        printf("------ %s (", title.c_str());
     }
 
     std::string commandString;
@@ -800,7 +804,7 @@ int RunCommand(const char* title, const std::vector<std::string>& fullCommand,
     const char* path = args[0];
     const char* command = commandString.c_str();
 
-    if (title) {
+    if (!title.empty()) {
         printf("%s) ------\n", command);
     }
 
@@ -912,12 +916,12 @@ int RunCommand(const char* title, const std::vector<std::string>& fullCommand,
     return status;
 }
 
-void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
-                const CommandOptions& options, long dumpsysTimeout) {
+void Dumpstate::RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
+                           const CommandOptions& options, long dumpsysTimeout) {
     long timeout = dumpsysTimeout > 0 ? dumpsysTimeout : options.Timeout();
     std::vector<std::string> dumpsys = {"/system/bin/dumpsys", "-t", std::to_string(timeout)};
     dumpsys.insert(dumpsys.end(), dumpsysArgs.begin(), dumpsysArgs.end());
-    RunCommand(title.c_str(), dumpsys, options);
+    RunCommand(title, dumpsys, options);
 }
 
 bool drop_root_user() {
@@ -974,12 +978,12 @@ void send_broadcast(const std::string& action, const std::vector<std::string>& a
 
     am.insert(am.end(), args.begin(), args.end());
 
-    RunCommand(nullptr, am, CommandOptions::WithTimeout(20)
-                                .Log("Sending broadcast: '%s'\n")
-                                .Always()
-                                .DropRoot()
-                                .RedirectStderr()
-                                .Build());
+    RunCommand("", am, CommandOptions::WithTimeout(20)
+                           .Log("Sending broadcast: '%s'\n")
+                           .Always()
+                           .DropRoot()
+                           .RedirectStderr()
+                           .Build());
 }
 
 size_t num_props = 0;
@@ -1328,7 +1332,7 @@ void update_progress(int delta) {
 }
 
 void take_screenshot(const std::string& path) {
-    RunCommand(nullptr, {"/system/bin/screencap", "-p", path},
+    RunCommand("", {"/system/bin/screencap", "-p", path},
                CommandOptions::WithTimeout(10).Always().RedirectStderr().Build());
 }
 

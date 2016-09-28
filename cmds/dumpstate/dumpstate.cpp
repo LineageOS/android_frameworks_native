@@ -98,6 +98,18 @@ static tombstone_data_t tombstone_data[NUM_TOMBSTONES];
 
 // TODO: temporary variables and functions used during C++ refactoring
 static Dumpstate& ds = Dumpstate::GetInstance();
+static int RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
+                      const CommandOptions& options = CommandOptions::DEFAULT) {
+    return ds.RunCommand(title, fullCommand, options);
+}
+static void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
+                       const CommandOptions& options = CommandOptions::DEFAULT_DUMPSYS,
+                       long dumpsysTimeout = 0) {
+    return ds.RunDumpsys(title, dumpsysArgs, options, dumpsysTimeout);
+}
+static int DumpFile(const std::string& title, const std::string& path) {
+    return ds.DumpFile(title, path);
+}
 
 /*
  * List of supported zip format versions.
@@ -167,11 +179,11 @@ void do_mountinfo(int pid, const char *name) {
 
 void add_mountinfo() {
     if (!zip_writer) return;
-    const char *title = "MOUNT INFO";
+    std::string title = "MOUNT INFO";
     mount_points.clear();
-    DurationReporter duration_reporter(title, NULL);
-    for_each_pid(do_mountinfo, NULL);
-    MYLOGD("%s: %d entries added to zip file\n", title, (int) mount_points.size());
+    DurationReporter durationReporter(title, nullptr);
+    for_each_pid(do_mountinfo, nullptr);
+    MYLOGD("%s: %d entries added to zip file\n", title.c_str(), (int)mount_points.size());
 }
 
 static void dump_dev_files(const char *title, const char *driverpath, const char *filename)
@@ -708,7 +720,7 @@ void print_header(const std::string& version) {
     printf("Network: %s\n", network.c_str());
 
     printf("Kernel: ");
-    DumpFile(nullptr, "/proc/version");
+    DumpFile("", "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version.c_str());
     printf("Dumpstate info: id=%lu pid=%d dryRun=%d args=%s extraOptions=%s\n", ds.id_, getpid(),
@@ -795,14 +807,14 @@ static int _add_file_from_fd(const char *title, const char *path, int fd) {
 }
 
 // TODO: move to util.cpp
-void add_dir(const char *dir, bool recursive) {
+void add_dir(const std::string& dir, bool recursive) {
     if (!zip_writer) {
-        MYLOGD("Not adding dir %s because zip_writer is not set\n", dir);
+        MYLOGD("Not adding dir %s because zip_writer is not set\n", dir.c_str());
         return;
     }
-    MYLOGD("Adding dir %s (recursive: %d)\n", dir, recursive);
-    DurationReporter duration_reporter(dir, NULL);
-    dump_files(NULL, dir, recursive ? skip_none : is_dir, _add_file_from_fd);
+    MYLOGD("Adding dir %s (recursive: %d)\n", dir.c_str(), recursive);
+    DurationReporter durationReporter(dir, nullptr);
+    dump_files("", dir.c_str(), recursive ? skip_none : is_dir, _add_file_from_fd);
 }
 
 /* adds a text entry entry to the existing zip file. */
@@ -847,7 +859,7 @@ static void dump_iptables() {
 }
 
 static void dumpstate(const std::string& screenshot_path, const std::string& version) {
-    DurationReporter duration_reporter("DUMPSTATE");
+    DurationReporter durationReporter("DUMPSTATE");
     unsigned long timeout;
 
     dump_dev_files("TRUSTY VERSION", "/sys/bus/platform/drivers/trusty", "trusty_version");
@@ -1055,15 +1067,15 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
 
     printf("------ BACKLIGHTS ------\n");
     printf("LCD brightness=");
-    DumpFile(nullptr, "/sys/class/leds/lcd-backlight/brightness");
+    DumpFile("", "/sys/class/leds/lcd-backlight/brightness");
     printf("Button brightness=");
-    DumpFile(nullptr, "/sys/class/leds/button-backlight/brightness");
+    DumpFile("", "/sys/class/leds/button-backlight/brightness");
     printf("Keyboard brightness=");
-    DumpFile(nullptr, "/sys/class/leds/keyboard-backlight/brightness");
+    DumpFile("", "/sys/class/leds/keyboard-backlight/brightness");
     printf("ALS mode=");
-    DumpFile(nullptr, "/sys/class/leds/lcd-backlight/als");
+    DumpFile("", "/sys/class/leds/lcd-backlight/als");
     printf("LCD driver registers:\n");
-    DumpFile(nullptr, "/sys/class/leds/lcd-backlight/registers");
+    DumpFile("", "/sys/class/leds/lcd-backlight/registers");
     printf("\n");
 
     /* Binder state is expensive to look at as it uses a lot of memory. */
