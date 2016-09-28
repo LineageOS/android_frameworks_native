@@ -1,3 +1,10 @@
+ndk_headers {
+    name: "libandroid_headers",
+    from: "include/android",
+    to: "android",
+    srcs: ["include/android/**/*.h"],
+}
+
 subdirs = [
     "cmds/*",
     "libs/*",
