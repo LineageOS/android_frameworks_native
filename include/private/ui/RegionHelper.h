@@ -66,7 +66,7 @@ public:
         virtual ~region_rasterizer() { }
     };
     
-    inline region_operator(int op, const region& lhs, const region& rhs) 
+    inline region_operator(uint32_t op, const region& lhs, const region& rhs)
         : op_mask(op), spanner(lhs, rhs) 
     {
     }
