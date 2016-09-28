@@ -35,8 +35,8 @@
 namespace android {
 // ----------------------------------------------------------------------------
 
-class ComposerState;
-class DisplayState;
+struct ComposerState;
+struct DisplayState;
 struct DisplayInfo;
 struct DisplayStatInfo;
 class HdrCapabilities;
