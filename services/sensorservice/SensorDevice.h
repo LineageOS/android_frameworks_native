@@ -51,6 +51,7 @@ public:
     void enableAllSensors();
     void autoDisable(void *ident, int handle);
     status_t injectSensorData(const sensors_event_t *event);
+    void notifyConnectionDestroyed(void *ident);
 
     // Dumpable
     virtual std::string dump() const;
