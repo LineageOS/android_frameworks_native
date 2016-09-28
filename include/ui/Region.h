@@ -147,21 +147,21 @@ private:
     class rasterizer;
     friend class rasterizer;
 
-    Region& operationSelf(const Rect& r, int op);
-    Region& operationSelf(const Region& r, int op);
-    Region& operationSelf(const Region& r, int dx, int dy, int op);
-    const Region operation(const Rect& rhs, int op) const;
-    const Region operation(const Region& rhs, int op) const;
-    const Region operation(const Region& rhs, int dx, int dy, int op) const;
+    Region& operationSelf(const Rect& r, uint32_t op);
+    Region& operationSelf(const Region& r, uint32_t op);
+    Region& operationSelf(const Region& r, int dx, int dy, uint32_t op);
+    const Region operation(const Rect& rhs, uint32_t op) const;
+    const Region operation(const Region& rhs, uint32_t op) const;
+    const Region operation(const Region& rhs, int dx, int dy, uint32_t op) const;
 
-    static void boolean_operation(int op, Region& dst,
+    static void boolean_operation(uint32_t op, Region& dst,
             const Region& lhs, const Region& rhs, int dx, int dy);
-    static void boolean_operation(int op, Region& dst,
+    static void boolean_operation(uint32_t op, Region& dst,
             const Region& lhs, const Rect& rhs, int dx, int dy);
 
-    static void boolean_operation(int op, Region& dst,
+    static void boolean_operation(uint32_t op, Region& dst,
             const Region& lhs, const Region& rhs);
-    static void boolean_operation(int op, Region& dst,
+    static void boolean_operation(uint32_t op, Region& dst,
             const Region& lhs, const Rect& rhs);
 
     static void translate(Region& reg, int dx, int dy);
