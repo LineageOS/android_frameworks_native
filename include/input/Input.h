@@ -398,7 +398,7 @@ public:
 
     inline int32_t getButtonState() const { return mButtonState; }
 
-    inline int32_t setButtonState(int32_t buttonState) { mButtonState = buttonState; }
+    inline void setButtonState(int32_t buttonState) { mButtonState = buttonState; }
 
     inline int32_t getActionButton() const { return mActionButton; }
 
