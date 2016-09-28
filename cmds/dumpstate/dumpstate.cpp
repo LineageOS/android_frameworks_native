@@ -1141,27 +1141,33 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     printf("========================================================\n");
 }
 
-static void usage() {
-  fprintf(stderr,
-          "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-o file [-d] [-p] "
-          "[-z]] [-s] [-S] [-q] [-B] [-P] [-R] [-V version]\n"
-          "  -h: display this help message\n"
-          "  -b: play sound file instead of vibrate, at beginning of job\n"
-          "  -e: play sound file instead of vibrate, at end of job\n"
-          "  -o: write to file (instead of stdout)\n"
-          "  -d: append date to filename (requires -o)\n"
-          "  -p: capture screenshot to filename.png (requires -o)\n"
-          "  -z: generate zipped file (requires -o)\n"
-          "  -s: write output to control socket (for init)\n"
-          "  -S: write file location to control socket (for init; requires -o and -z)"
-          "  -q: disable vibrate\n"
-          "  -B: send broadcast when finished (requires -o)\n"
-          "  -P: send broadcast when started and update system properties on "
-          "progress (requires -o and -B)\n"
-          "  -R: take bugreport in remote mode (requires -o, -z, -d and -B, "
-          "shouldn't be used with -P)\n"
-          "  -V: sets the bugreport format version (valid values: %s)\n",
-          VERSION_DEFAULT.c_str());
+static void ShowUsageAndExit(int exitCode = 1) {
+    fprintf(stderr,
+            "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-o file [-d] [-p] "
+            "[-z]] [-s] [-S] [-q] [-B] [-P] [-R] [-V version]\n"
+            "  -h: display this help message\n"
+            "  -b: play sound file instead of vibrate, at beginning of job\n"
+            "  -e: play sound file instead of vibrate, at end of job\n"
+            "  -o: write to file (instead of stdout)\n"
+            "  -d: append date to filename (requires -o)\n"
+            "  -p: capture screenshot to filename.png (requires -o)\n"
+            "  -z: generate zipped file (requires -o)\n"
+            "  -s: write output to control socket (for init)\n"
+            "  -S: write file location to control socket (for init; requires -o and -z)"
+            "  -q: disable vibrate\n"
+            "  -B: send broadcast when finished (requires -o)\n"
+            "  -P: send broadcast when started and update system properties on "
+            "progress (requires -o and -B)\n"
+            "  -R: take bugreport in remote mode (requires -o, -z, -d and -B, "
+            "shouldn't be used with -P)\n"
+            "  -V: sets the bugreport format version (valid values: %s)\n",
+            VERSION_DEFAULT.c_str());
+    exit(exitCode);
+}
+
+static void ExitOnInvalidArgs() {
+    fprintf(stderr, "invalid combination of args\n");
+    ShowUsageAndExit();
 }
 
 static void wake_lock_releaser() {
@@ -1353,8 +1359,12 @@ int main(int argc, char *argv[]) {
             case 'R': is_remote_mode = 1;       break;
             case 'B': do_broadcast = 1;         break;
             case 'V': version = optarg;         break;
-            case '?': printf("\n");
-            case 'h': usage(); exit(1);
+            case 'h':
+                ShowUsageAndExit(0);
+                break;
+            default:
+                fprintf(stderr, "Invalid option: %c\n", c);
+                ShowUsageAndExit();
                 // clang-format on
         }
     }
@@ -1382,28 +1392,23 @@ int main(int argc, char *argv[]) {
     }
 
     if ((do_zip_file || do_add_date || ds.updateProgress_ || do_broadcast) && !use_outfile) {
-        usage();
-        exit(1);
+        ExitOnInvalidArgs();
     }
 
     if (use_control_socket && !do_zip_file) {
-        usage();
-        exit(1);
+        ExitOnInvalidArgs();
     }
 
     if (ds.updateProgress_ && !do_broadcast) {
-        usage();
-        exit(1);
+        ExitOnInvalidArgs();
     }
 
     if (is_remote_mode && (ds.updateProgress_ || !do_broadcast || !do_zip_file || !do_add_date)) {
-        usage();
-        exit(1);
+        ExitOnInvalidArgs();
     }
 
     if (version != VERSION_DEFAULT) {
-      usage();
-      exit(1);
+        ShowUsageAndExit();
     }
 
     MYLOGI("bugreport format version: %s\n", version.c_str());
