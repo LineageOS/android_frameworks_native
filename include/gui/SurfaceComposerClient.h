@@ -38,7 +38,7 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-class DisplayInfo;
+struct DisplayInfo;
 class Composer;
 class HdrCapabilities;
 class ISurfaceComposerClient;
