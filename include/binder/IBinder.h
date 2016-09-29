@@ -90,11 +90,23 @@ public:
                                         Parcel* reply,
                                         uint32_t flags = 0) = 0;
 
+    // DeathRecipient is pure abstract, there is no virtual method
+    // implementation to put in a translation unit in order to silence the
+    // weak vtables warning.
+    #if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wweak-vtables"
+    #endif
+
     class DeathRecipient : public virtual RefBase
     {
     public:
         virtual void binderDied(const wp<IBinder>& who) = 0;
     };
+
+    #if defined(__clang__)
+    #pragma clang diagnostic pop
+    #endif
 
     /**
      * Register the @a recipient for a notification if this binder

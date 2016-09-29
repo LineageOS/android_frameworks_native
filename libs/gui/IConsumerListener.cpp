@@ -92,6 +92,7 @@ status_t BnConsumerListener::onTransact(
     return BBinder::onTransact(code, data, reply, flags);
 }
 
+ConsumerListener::~ConsumerListener() = default;
 
 // ---------------------------------------------------------------------------
 }; // namespace android
