@@ -16,7 +16,7 @@
 
 #include <stdint.h>
 
-#include <android/log.h>
+#include <log/log.h>
 #include <utils/String8.h>
 
 #include "Program.h"
