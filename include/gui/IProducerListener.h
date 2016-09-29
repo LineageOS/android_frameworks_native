@@ -33,7 +33,7 @@ class ProducerListener : public virtual RefBase
 {
 public:
     ProducerListener() {}
-    virtual ~ProducerListener() {}
+    virtual ~ProducerListener();
 
     // onBufferReleased is called from IGraphicBufferConsumer::releaseBuffer to
     // notify the producer that a new buffer is free and ready to be dequeued.
@@ -59,6 +59,7 @@ public:
 class DummyProducerListener : public BnProducerListener
 {
 public:
+    virtual ~DummyProducerListener();
     virtual void onBufferReleased() {}
 };
 
