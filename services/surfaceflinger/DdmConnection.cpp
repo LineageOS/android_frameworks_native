@@ -15,8 +15,10 @@
  */
 
 #include <dlfcn.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#include <cutils/log.h>
+#include <android/log.h>
 
 #include "jni.h"
 #include "DdmConnection.h"

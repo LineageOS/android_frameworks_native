@@ -20,7 +20,7 @@
 
 #include "InputManager.h"
 
-#include <cutils/log.h>
+#include <android/log.h>
 
 namespace android {
 
