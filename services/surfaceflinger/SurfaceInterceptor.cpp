@@ -21,13 +21,11 @@
 #include "SurfaceFlinger.h"
 #include "SurfaceInterceptor.h"
 
-#include <android-base/file.h>
-
-#include <cutils/log.h>
-
-#include <utils/Trace.h>
-
 #include <fstream>
+
+#include <android-base/file.h>
+#include <log/log.h>
+#include <utils/Trace.h>
 
 namespace android {
 
