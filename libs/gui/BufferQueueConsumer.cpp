@@ -259,7 +259,8 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
         // decrease.
         mCore->mDequeueCondition.broadcast();
 
-        ATRACE_INT(mCore->mConsumerName.string(), mCore->mQueue.size());
+        ATRACE_INT(mCore->mConsumerName.string(),
+                static_cast<int32_t>(mCore->mQueue.size()));
 
         VALIDATE_CONSISTENCY();
     }
@@ -726,7 +727,8 @@ void BufferQueueConsumer::dump(String8& result, const char* prefix) const {
             "android.permission.DUMP"), pid, uid)) {
         result.appendFormat("Permission Denial: can't dump BufferQueueConsumer "
                 "from pid=%d, uid=%d\n", pid, uid);
-        android_errorWriteWithInfoLog(0x534e4554, "27046057", uid, NULL, 0);
+        android_errorWriteWithInfoLog(0x534e4554, "27046057",
+                static_cast<int32_t>(uid), NULL, 0);
     } else {
         mCore->dump(result, prefix);
     }
