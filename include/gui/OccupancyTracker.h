@@ -45,12 +45,12 @@ public:
             occupancyAverage(0.0f),
             usedThirdBuffer(false) {}
 
-        Segment(nsecs_t totalTime, size_t numFrames, float occupancyAverage,
-                bool usedThirdBuffer)
-          : totalTime(totalTime),
-            numFrames(numFrames),
-            occupancyAverage(occupancyAverage),
-            usedThirdBuffer(usedThirdBuffer) {}
+        Segment(nsecs_t _totalTime, size_t _numFrames, float _occupancyAverage,
+                bool _usedThirdBuffer)
+          : totalTime(_totalTime),
+            numFrames(_numFrames),
+            occupancyAverage(_occupancyAverage),
+            usedThirdBuffer(_usedThirdBuffer) {}
 
         // Parcelable interface
         virtual status_t writeToParcel(Parcel* parcel) const override;
