@@ -49,7 +49,6 @@ Surface::Surface(
       mAutoRefresh(false),
       mSharedBufferSlot(BufferItem::INVALID_BUFFER_SLOT),
       mSharedBufferHasBeenQueued(false),
-      mNextFrameNumber(1),
       mQueriedSupportedTimestamps(false),
       mFrameTimestampsSupportsPresent(false),
       mFrameTimestampsSupportsRetire(false),
@@ -144,6 +143,31 @@ void Surface::enableFrameTimestamps(bool enable) {
     mEnableFrameTimestamps = enable;
 }
 
+static bool checkConsumerForUpdates(
+        const FrameEvents* e, const uint64_t lastFrameNumber,
+        const nsecs_t* outRefreshStartTime,
+        const nsecs_t* outGlCompositionDoneTime,
+        const nsecs_t* outDisplayPresentTime,
+        const nsecs_t* outDisplayRetireTime,
+        const nsecs_t* outReleaseTime) {
+    bool checkForRefreshStart = (outRefreshStartTime != nullptr) &&
+            !e->hasFirstRefreshStartInfo();
+    bool checkForGlCompositionDone = (outGlCompositionDoneTime != nullptr) &&
+            !e->hasGpuCompositionDoneInfo();
+    bool checkForDisplayPresent = (outDisplayPresentTime != nullptr) &&
+            !e->hasDisplayPresentInfo();
+
+    // DisplayRetire and Release are never available for the last frame.
+    bool checkForDisplayRetire = (outDisplayRetireTime != nullptr) &&
+            !e->hasDisplayRetireInfo() && (e->frameNumber != lastFrameNumber);
+    bool checkForRelease = (outReleaseTime != nullptr) &&
+            !e->hasReleaseInfo() && (e->frameNumber != lastFrameNumber);
+
+    // RequestedPresent and Acquire info are always available producer-side.
+    return checkForRefreshStart || checkForGlCompositionDone ||
+            checkForDisplayPresent || checkForDisplayRetire || checkForRelease;
+}
+
 static void getFrameTimestamp(nsecs_t *dst, const nsecs_t& src) {
     if (dst != nullptr) {
         *dst = Fence::isValidTimestamp(src) ? src : 0;
@@ -180,24 +204,25 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
     }
 
     FrameEvents* events = mFrameEventHistory.getFrame(frameNumber);
-
-    // Update our cache of events if the requested events are not available.
-    if (events == nullptr ||
-        (outRequestedPresentTime && !events->hasRequestedPresentInfo()) ||
-        (outAcquireTime && !events->hasAcquireInfo()) ||
-        (outRefreshStartTime && !events->hasFirstRefreshStartInfo()) ||
-        (outGlCompositionDoneTime && !events->hasGpuCompositionDoneInfo()) ||
-        (outDisplayPresentTime && !events->hasDisplayPresentInfo()) ||
-        (outDisplayRetireTime && !events->hasDisplayRetireInfo()) ||
-        (outReleaseTime && !events->hasReleaseInfo())) {
-            FrameEventHistoryDelta delta;
-            mGraphicBufferProducer->getFrameTimestamps(&delta);
-            mFrameEventHistory.applyDelta(delta);
-            events = mFrameEventHistory.getFrame(frameNumber);
+    if (events == nullptr) {
+        // If the entry isn't available in the producer, it's definitely not
+        // available in the consumer.
+        return NAME_NOT_FOUND;
     }
 
-    // A record for the requested frame does not exist.
+    // Update our cache of events if the requested events are not available.
+    if (checkConsumerForUpdates(events, mLastFrameNumber,
+            outRefreshStartTime, outGlCompositionDoneTime,
+            outDisplayPresentTime, outDisplayRetireTime, outReleaseTime)) {
+        FrameEventHistoryDelta delta;
+        mGraphicBufferProducer->getFrameTimestamps(&delta);
+        mFrameEventHistory.applyDelta(delta);
+        events = mFrameEventHistory.getFrame(frameNumber);
+    }
+
     if (events == nullptr) {
+        // The entry was available before the update, but was overwritten
+        // after the update. Make sure not to send the wrong frame's data.
         return NAME_NOT_FOUND;
     }
 
@@ -347,11 +372,9 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     nsecs_t now = systemTime();
 
     FrameEventHistoryDelta frameTimestamps;
-    FrameEventHistoryDelta* frameTimestampsOrNull =
-            enableFrameTimestamps ? &frameTimestamps : nullptr;
-
     status_t result = mGraphicBufferProducer->dequeueBuffer(&buf, &fence,
-            reqWidth, reqHeight, reqFormat, reqUsage, frameTimestampsOrNull);
+            reqWidth, reqHeight, reqFormat, reqUsage,
+            enableFrameTimestamps ? &frameTimestamps : nullptr);
     mLastDequeueDuration = systemTime() - now;
 
     if (result < 0) {
@@ -578,6 +601,8 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
         // descriptors.
         mFrameEventHistory.updateSignalTimes();
     }
+
+    mLastFrameNumber = mNextFrameNumber;
 
     mDefaultWidth = output.width;
     mDefaultHeight = output.height;

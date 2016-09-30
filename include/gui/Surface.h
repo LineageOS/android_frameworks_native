@@ -389,7 +389,8 @@ private:
 
     Condition mQueueBufferCondition;
 
-    uint64_t mNextFrameNumber;
+    uint64_t mNextFrameNumber = 1;
+    uint64_t mLastFrameNumber = 0;
 
     // Mutable because ANativeWindow::query needs this class const.
     mutable bool mQueriedSupportedTimestamps;
