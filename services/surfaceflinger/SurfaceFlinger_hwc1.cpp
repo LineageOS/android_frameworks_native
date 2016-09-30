@@ -86,7 +86,7 @@
 #include "RenderEngine/RenderEngine.h"
 #include <cutils/compiler.h>
 
-#include <ExSurfaceFlinger/ExSurfaceFlinger.h>
+/*#include <ExSurfaceFlinger/ExSurfaceFlinger.h>*/
 
 
 #define DISPLAY_COUNT       1
