@@ -26,6 +26,11 @@ namespace android {
 
 class Parcel;
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wweak-vtables"
+#endif
+
 // Abstract interface of all parcelables.
 class Parcelable {
 public:
@@ -45,6 +50,10 @@ public:
     // Returns android::OK on success and an appropriate error otherwise.
     virtual status_t readFromParcel(const Parcel* parcel) = 0;
 };  // class Parcelable
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 }  // namespace android
 

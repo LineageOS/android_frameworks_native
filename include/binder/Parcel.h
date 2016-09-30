@@ -474,6 +474,11 @@ private:
         bool mMutable;
     };
 
+    #if defined(__clang__)
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wweak-vtables"
+    #endif
+
     class FlattenableHelperInterface {
     protected:
         ~FlattenableHelperInterface() { }
@@ -484,12 +489,18 @@ private:
         virtual status_t unflatten(void const* buffer, size_t size, int const* fds, size_t count) = 0;
     };
 
+    #if defined(__clang__)
+    #pragma clang diagnostic pop
+    #endif
+
     template<typename T>
     class FlattenableHelper : public FlattenableHelperInterface {
         friend class Parcel;
         const Flattenable<T>& val;
         explicit FlattenableHelper(const Flattenable<T>& _val) : val(_val) { }
 
+    protected:
+        ~FlattenableHelper() = default;
     public:
         virtual size_t getFlattenedSize() const {
             return val.getFlattenedSize();
