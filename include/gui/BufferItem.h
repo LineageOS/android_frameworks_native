@@ -46,6 +46,8 @@ class BufferItem : public Flattenable<BufferItem> {
     enum { INVALID_BUFFER_SLOT = -1 };
     BufferItem();
     ~BufferItem();
+    BufferItem(const BufferItem&) = default;
+    BufferItem& operator=(const BufferItem&) = default;
 
     static const char* scalingModeName(uint32_t scalingMode);
 
