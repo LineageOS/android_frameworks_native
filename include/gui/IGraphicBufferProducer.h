@@ -350,7 +350,7 @@ public:
     };
 
     // QueueBufferOutput must be a POD structure
-    struct __attribute__ ((__packed__)) QueueBufferOutput {
+    struct QueueBufferOutput {
         inline QueueBufferOutput() { }
         // outWidth - filled with default width applied to the buffer
         // outHeight - filled with default height applied to the buffer
