@@ -35,6 +35,7 @@ LOCAL_SHARED_LIBRARIES := \
     libEGL \
     libGLESv2 \
     libbinder \
+    liblog \
     libcutils \
     libgui \
     libui \
