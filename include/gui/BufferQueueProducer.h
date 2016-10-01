@@ -22,7 +22,7 @@
 
 namespace android {
 
-class BufferSlot;
+struct BufferSlot;
 
 class BufferQueueProducer : public BnGraphicBufferProducer,
                             private IBinder::DeathRecipient {
