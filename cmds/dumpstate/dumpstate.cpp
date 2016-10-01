@@ -844,12 +844,12 @@ static bool add_text_zip_entry(const std::string& entry_name, const std::string&
 static void dump_iptables() {
     RunCommand("IPTABLES", {"iptables", "-L", "-nvx"});
     RunCommand("IP6TABLES", {"ip6tables", "-L", "-nvx"});
-    RunCommand("IPTABLE NAT", {"iptables", "-t", "nat", "-L", "-nvx"});
+    RunCommand("IPTABLES NAT", {"iptables", "-t", "nat", "-L", "-nvx"});
     /* no ip6 nat */
-    RunCommand("IPTABLE MANGLE", {"iptables", "-t", "mangle", "-L", "-nvx"});
-    RunCommand("IP6TABLE MANGLE", {"ip6tables", "-t", "mangle", "-L", "-nvx"});
-    RunCommand("IPTABLE RAW", {"iptables", "-t", "raw", "-L", "-nvx"});
-    RunCommand("IP6TABLE RAW", {"ip6tables", "-t", "raw", "-L", "-nvx"});
+    RunCommand("IPTABLES MANGLE", {"iptables", "-t", "mangle", "-L", "-nvx"});
+    RunCommand("IP6TABLES MANGLE", {"ip6tables", "-t", "mangle", "-L", "-nvx"});
+    RunCommand("IPTABLES RAW", {"iptables", "-t", "raw", "-L", "-nvx"});
+    RunCommand("IP6TABLES RAW", {"ip6tables", "-t", "raw", "-L", "-nvx"});
 }
 
 static void dumpstate(const std::string& screenshot_path,
@@ -1610,6 +1610,10 @@ int main(int argc, char *argv[]) {
     }
     add_mountinfo();
     dump_iptables();
+
+    // Capture any IPSec policies in play.  No keys are exposed here.
+    RunCommand("IP XFRM POLICY", {"ip", "xfrm", "policy"},
+               CommandOptions::WithTimeout(10).Build());
 
     // Run ss as root so we can see socket marks.
     RunCommand("DETAILED SOCKET STATE", {"ss", "-eionptu"}, CommandOptions::WithTimeout(10).Build());
