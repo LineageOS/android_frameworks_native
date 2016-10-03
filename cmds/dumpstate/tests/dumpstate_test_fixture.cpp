@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #define LOG_TAG "dumpstate"
@@ -41,6 +42,8 @@ void PrintDefaultOutput() {
  *   3.Exit with status 0.
  *
  * - If 1st argument is '--pid', it first prints its pid on `stdout`.
+ *
+ * - If 1st argument is '--uid', it first prints its uid on `stdout`.
  *
  * - If 1st argument is '--crash', it uses ALOGF to crash and returns 666.
  *
@@ -75,10 +78,14 @@ int main(int argc, char* const argv[]) {
             index++;
             fprintf(stdout, "%d\n", getpid());
             fflush(stdout);
+        } else if (strcmp(argv[1], "--uid") == 0) {
+            index++;
+            fprintf(stdout, "%d\n", getuid());
+            fflush(stdout);
         }
 
+        // Then the "common" arguments, if any.
         if (argc > index + 1) {
-            // Then the "common" arguments.
             if (strcmp(argv[index], "--sleep") == 0) {
                 int napTime = atoi(argv[index + 1]);
                 fprintf(stdout, "stdout line1\n");

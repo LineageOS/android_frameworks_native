@@ -255,7 +255,13 @@ class Dumpstate {
      */
     int DumpFile(const std::string& title, const std::string& path);
 
-    // TODO: fields below should be private once refactor is finished
+    // TODO: members below should be private once refactor is finished
+
+    /*
+     * Updates the overall progress of the bugreport generation by the given weight increment.
+     */
+    void UpdateProgress(int delta);
+
     // TODO: initialize fields on constructor
 
     // dumpstate id - unique after each device reboot.
@@ -273,18 +279,19 @@ class Dumpstate {
     // When set, defines a socket file-descriptor use to report progress to bugreportz.
     int controlSocketFd_ = -1;
 
-    // Build type (such as 'user' or 'eng').
-    std::string buildType_;
 
     // Full path of the directory where the bugreport files will be written;
     std::string bugreportDir_;
 
   private:
+    // Used by GetInstance() only.
+    Dumpstate(bool dryRun = false, const std::string& buildType = "user");
+
     // Whether this is a dry run.
     bool dryRun_;
 
-    // Used by GetInstance() only.
-    Dumpstate(bool dryRun = false);
+    // Build type (such as 'user' or 'eng').
+    std::string buildType_;
 };
 
 // for_each_pid_func = void (*)(int, const char*);
@@ -324,9 +331,6 @@ bool drop_root_user();
 
 /* sends a broadcast using Activity Manager */
 void send_broadcast(const std::string& action, const std::vector<std::string>& args);
-
-/* updates the overall progress of dumpstate by the given weight increment */
-void update_progress(int weight);
 
 /* prints all the system properties */
 void print_properties();

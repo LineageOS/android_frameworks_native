@@ -26,7 +26,12 @@
 #include <thread>
 
 #include <android-base/file.h>
+#include <android-base/properties.h>
+#include <android-base/stringprintf.h>
 #include <android-base/strings.h>
+
+#define LOG_TAG "dumpstate"
+#include <cutils/log.h>
 
 using ::testing::EndsWith;
 using ::testing::IsEmpty;
@@ -46,6 +51,8 @@ class DumpstateTest : public Test {
   public:
     void SetUp() {
         SetDryRun(false);
+        SetBuildType(android::base::GetProperty("ro.build.type", "(unknown)"));
+        ds.updateProgress_ = false;
     }
 
     // Runs a command and capture `stdout` and `stderr`.
@@ -59,6 +66,54 @@ class DumpstateTest : public Test {
         return status;
     }
 
+    void SetDryRun(bool dryRun) {
+        ALOGD("Setting dryRun_ to %s\n", dryRun ? "true" : "false");
+        ds.dryRun_ = dryRun;
+    }
+
+    void SetBuildType(const std::string& buildType) {
+        ALOGD("Setting buildType_ to '%s'\n", buildType.c_str());
+        ds.buildType_ = buildType;
+    }
+
+    bool IsUserBuild() {
+        return "user" == android::base::GetProperty("ro.build.type", "(unknown)");
+    }
+
+    void DropRoot() {
+        drop_root_user();
+        uid_t uid = getuid();
+        ASSERT_EQ(2000, (int)uid);
+    }
+
+    // TODO: remove when progress is set by Binder callbacks.
+    void AssertSystemProperty(const std::string& key, const std::string& expectedValue) {
+        std::string actualValue = android::base::GetProperty(key, "not set");
+        EXPECT_THAT(expectedValue, StrEq(actualValue)) << "invalid value for property " << key;
+    }
+
+    std::string GetProgressMessage(int progress, int weightTotal, int oldWeightTotal = 0) {
+        EXPECT_EQ(progress, ds.progress_) << "invalid progress";
+        EXPECT_EQ(weightTotal, ds.weightTotal_) << "invalid weightTotal";
+
+        AssertSystemProperty(android::base::StringPrintf("dumpstate.%d.progress", getpid()),
+                             std::to_string(progress));
+
+        bool maxIncreased = oldWeightTotal > 0;
+
+        std::string adjustmentMessage = "";
+        if (maxIncreased) {
+            AssertSystemProperty(android::base::StringPrintf("dumpstate.%d.max", getpid()),
+                                 std::to_string(weightTotal));
+            adjustmentMessage = android::base::StringPrintf(
+                "Adjusting total weight from %d to %d\n", oldWeightTotal, weightTotal);
+        }
+
+        return android::base::StringPrintf("%sSetting progress (dumpstate.%d.progress): %d/%d\n",
+                                           adjustmentMessage.c_str(), getpid(), progress,
+                                           weightTotal);
+    }
+
     // `stdout` and `stderr` from the last command ran.
     std::string out, err;
 
@@ -67,10 +122,6 @@ class DumpstateTest : public Test {
     std::string echoCommand = "/system/bin/echo";
 
     Dumpstate& ds = Dumpstate::GetInstance();
-
-    void SetDryRun(bool dryRun) {
-        ds.dryRun_ = dryRun;
-    }
 };
 
 TEST_F(DumpstateTest, RunCommandNoArgs) {
@@ -213,9 +264,80 @@ TEST_F(DumpstateTest, RunCommandIsKilled) {
                            " --pid --sleep 20' failed: killed by signal 15\n"));
 }
 
-// TODO: add test for other scenarios:
-// - AsRoot()
-// - DropRoot
-// - test progress
+TEST_F(DumpstateTest, RunCommandProgress) {
+    ds.updateProgress_ = true;
+    ds.weightTotal_ = 30;
+
+    EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(20).Build()));
+    std::string progressMessage = GetProgressMessage(20, 30);
+    EXPECT_THAT(out, StrEq("stdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n" + progressMessage));
+
+    EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(10).Build()));
+    progressMessage = GetProgressMessage(30, 30);
+    EXPECT_THAT(out, StrEq("stdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n" + progressMessage));
+
+    // Run a command that will increase maximum timeout.
+    EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(1).Build()));
+    progressMessage = GetProgressMessage(31, 36, 30);  // 20% increase
+    EXPECT_THAT(out, StrEq("stdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n" + progressMessage));
+
+    // Make sure command ran while in dryRun is counted.
+    SetDryRun(true);
+    EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(4).Build()));
+    progressMessage = GetProgressMessage(35, 36);
+    EXPECT_THAT(out, IsEmpty());
+    EXPECT_THAT(err, StrEq(progressMessage));
+}
+
+TEST_F(DumpstateTest, RunCommandDropRoot) {
+    // First check root case - only available when running with 'adb root'.
+    uid_t uid = getuid();
+    if (uid == 0) {
+        EXPECT_EQ(0, RunCommand("", {simpleCommand, "--uid"}));
+        EXPECT_THAT(out, StrEq("0\nstdout\n"));
+        EXPECT_THAT(err, StrEq("stderr\n"));
+        return;
+    }
+    // Then drop root.
+
+    EXPECT_EQ(0, RunCommand("", {simpleCommand, "--uid"},
+                            CommandOptions::WithTimeout(1).DropRoot().Build()));
+    EXPECT_THAT(out, StrEq("2000\nstdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n"));
+}
+
+TEST_F(DumpstateTest, RunCommandAsRootUserBuild) {
+    if (!IsUserBuild()) {
+        // Emulates user build if necessarily.
+        SetBuildType("user");
+    }
+
+    DropRoot();
+
+    EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(1).AsRoot().Build()));
+
+    // We don't know the exact path of su, so we just check for the 'root ...' commands
+    EXPECT_THAT(out, StartsWith("Skipping"));
+    EXPECT_THAT(out, EndsWith("root " + simpleCommand + "' on user build.\n"));
+    EXPECT_THAT(err, IsEmpty());
+}
+
+TEST_F(DumpstateTest, RunCommandAsRootNonUserBuild) {
+    if (IsUserBuild()) {
+        ALOGI("Skipping RunCommandAsRootNonUserBuild on user builds\n");
+        return;
+    }
+
+    DropRoot();
+
+    EXPECT_EQ(0, RunCommand("", {simpleCommand, "--uid"},
+                            CommandOptions::WithTimeout(1).AsRoot().Build()));
+
+    EXPECT_THAT(out, StrEq("0\nstdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n"));
+}
 
 // TODO: test DumpFile()

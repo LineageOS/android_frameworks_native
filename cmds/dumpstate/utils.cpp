@@ -65,6 +65,9 @@ static int RunCommand(const std::string& title, const std::vector<std::string>& 
 static bool IsDryRun() {
     return Dumpstate::GetInstance().IsDryRun();
 }
+static void UpdateProgress(int delta) {
+    ds.UpdateProgress(delta);
+}
 
 /* list of native processes to include in the native dumps */
 // This matches the /proc/pid/exe link instead of /proc/pid/cmdline.
@@ -159,11 +162,13 @@ CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(long timeout) 
     return CommandOptions::CommandOptionsBuilder(timeout);
 }
 
-Dumpstate::Dumpstate(bool dryRun) : dryRun_(dryRun) {
+Dumpstate::Dumpstate(bool dryRun, const std::string& buildType)
+    : dryRun_(dryRun), buildType_(buildType) {
 }
 
 Dumpstate& Dumpstate::GetInstance() {
-    static Dumpstate sSingleton(android::base::GetBoolProperty("dumpstate.dry_run", false));
+    static Dumpstate sSingleton(android::base::GetBoolProperty("dumpstate.dry_run", false),
+                                android::base::GetProperty("ro.build.type", "(unknown)"));
     return sSingleton;
 }
 
@@ -535,7 +540,7 @@ static int _dump_file_from_fd(const std::string& title, const char* path, int fd
         printf(") ------\n");
     }
     if (IsDryRun()) {
-        update_progress(WEIGHT_FILE);
+        UpdateProgress(WEIGHT_FILE);
         close(fd);
         return 0;
     }
@@ -576,7 +581,7 @@ static int _dump_file_from_fd(const std::string& title, const char* path, int fd
             }
         }
     }
-    update_progress(WEIGHT_FILE);
+    UpdateProgress(WEIGHT_FILE);
     close(fd);
 
     if (!newline) printf("\n");
@@ -808,7 +813,7 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
         if (!title.empty()) {
             printf("\t(skipped on dry run)\n");
         }
-        update_progress(options.Timeout());
+        UpdateProgress(options.Timeout());
         return 0;
     }
 
@@ -905,7 +910,7 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
     }
 
     if (weight > 0) {
-        update_progress(weight);
+        UpdateProgress(weight);
     }
     return status;
 }
@@ -1279,21 +1284,21 @@ void dump_route_tables() {
 }
 
 // TODO: make this function thread safe if sections are generated in parallel.
-void update_progress(int delta) {
-    if (!ds.updateProgress_) return;
+void Dumpstate::UpdateProgress(int delta) {
+    if (!updateProgress_) return;
 
-    ds.progress_ += delta;
+    progress_ += delta;
 
     char key[PROPERTY_KEY_MAX];
     char value[PROPERTY_VALUE_MAX];
 
     // adjusts max on the fly
-    if (ds.progress_ > ds.weightTotal_) {
-        int newTotal = ds.weightTotal_ * 1.2;
-        MYLOGD("Adjusting total weight from %d to %d\n", ds.weightTotal_, newTotal);
-        ds.weightTotal_ = newTotal;
+    if (progress_ > weightTotal_) {
+        int newTotal = weightTotal_ * 1.2;
+        MYLOGD("Adjusting total weight from %d to %d\n", weightTotal_, newTotal);
+        weightTotal_ = newTotal;
         snprintf(key, sizeof(key), "dumpstate.%d.max", getpid());
-        snprintf(value, sizeof(value), "%d", ds.weightTotal_);
+        snprintf(value, sizeof(value), "%d", weightTotal_);
         int status = property_set(key, value);
         if (status != 0) {
             MYLOGE("Could not update max weight by setting system property %s to %s: %d\n",
@@ -1302,20 +1307,20 @@ void update_progress(int delta) {
     }
 
     snprintf(key, sizeof(key), "dumpstate.%d.progress", getpid());
-    snprintf(value, sizeof(value), "%d", ds.progress_);
+    snprintf(value, sizeof(value), "%d", progress_);
 
-    if (ds.progress_ % 100 == 0) {
+    if (progress_ % 100 == 0) {
         // We don't want to spam logcat, so only log multiples of 100.
-        MYLOGD("Setting progress (%s): %s/%d\n", key, value, ds.weightTotal_);
+        MYLOGD("Setting progress (%s): %s/%d\n", key, value, weightTotal_);
     } else {
         // stderr is ignored on normal invocations, but useful when calling /system/bin/dumpstate
         // directly for debuggging.
-        fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, ds.weightTotal_);
+        fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, weightTotal_);
     }
 
-    if (ds.controlSocketFd_ >= 0) {
-        dprintf(ds.controlSocketFd_, "PROGRESS:%d/%d\n", ds.progress_, ds.weightTotal_);
-        fsync(ds.controlSocketFd_);
+    if (controlSocketFd_ >= 0) {
+        dprintf(controlSocketFd_, "PROGRESS:%d/%d\n", progress_, weightTotal_);
+        fsync(controlSocketFd_);
     }
 
     int status = property_set(key, value);

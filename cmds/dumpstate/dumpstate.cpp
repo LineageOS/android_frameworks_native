@@ -52,8 +52,6 @@
 
 #include <openssl/sha.h>
 
-using android::base::StringPrintf;
-
 /* read before root is shed */
 static char cmdline_buf[16384] = "(unknown)";
 static const char *dump_traces_path = NULL;
@@ -695,7 +693,6 @@ void print_header(const std::string& version) {
 
     build = android::base::GetProperty("ro.build.display.id", "(unknown)");
     fingerprint = android::base::GetProperty("ro.build.fingerprint", "(unknown)");
-    ds.buildType_ = android::base::GetProperty("ro.build.type", "(unknown)");
     radio = android::base::GetProperty("gsm.version.baseband", "(unknown)");
     bootloader = android::base::GetProperty("ro.bootloader", "(unknown)");
     network = android::base::GetProperty("gsm.operator.alpha", "(unknown)");
