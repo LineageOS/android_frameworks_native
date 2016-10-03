@@ -110,11 +110,7 @@ public:
         Geometry requested;
         uint32_t z;
         uint32_t layerStack;
-#ifdef USE_HWC2
         float alpha;
-#else
-        uint8_t alpha;
-#endif
         uint8_t flags;
         uint8_t mask;
         uint8_t reserved[2];
@@ -152,11 +148,7 @@ public:
     bool setPosition(float x, float y, bool immediate);
     bool setLayer(uint32_t z);
     bool setSize(uint32_t w, uint32_t h);
-#ifdef USE_HWC2
     bool setAlpha(float alpha);
-#else
-    bool setAlpha(uint8_t alpha);
-#endif
     bool setMatrix(const layer_state_t::matrix22_t& matrix);
     bool setTransparentRegionHint(const Region& transparent);
     bool setFlags(uint8_t flags, uint8_t mask);
@@ -228,7 +220,6 @@ protected:
 public:
     // -----------------------------------------------------------------------
 
-#ifdef USE_HWC2
     void setGeometry(const sp<const DisplayDevice>& displayDevice);
     void forceClientComposition(int32_t hwcId);
     void setPerFrameData(const sp<const DisplayDevice>& displayDevice);
@@ -243,26 +234,11 @@ public:
     bool getClearClientTarget(int32_t hwcId) const;
 
     void updateCursorPosition(const sp<const DisplayDevice>& hw);
-#else
-    void setGeometry(const sp<const DisplayDevice>& hw,
-            HWComposer::HWCLayerInterface& layer);
-    void setPerFrameData(const sp<const DisplayDevice>& hw,
-            HWComposer::HWCLayerInterface& layer);
-    void setAcquireFence(const sp<const DisplayDevice>& hw,
-            HWComposer::HWCLayerInterface& layer);
-
-    Rect getPosition(const sp<const DisplayDevice>& hw);
-#endif
 
     /*
      * called after page-flip
      */
-#ifdef USE_HWC2
     void onLayerDisplayed(const sp<Fence>& releaseFence);
-#else
-    void onLayerDisplayed(const sp<const DisplayDevice>& hw,
-            HWComposer::HWCLayerInterface* layer);
-#endif
 
     bool shouldPresentNow(const DispSync& dispSync) const;
 
@@ -278,10 +254,8 @@ public:
      */
     bool onPostComposition();
 
-#ifdef USE_HWC2
     // If a buffer was replaced this frame, release the former buffer
     void releasePendingBuffer();
-#endif
 
     /*
      * draw - performs some global clipping optimizations
@@ -350,7 +324,6 @@ public:
     bool hasQueuedFrame() const { return mQueuedFrames > 0 ||
             mSidebandStreamChanged || mAutoRefresh; }
 
-#ifdef USE_HWC2
     // -----------------------------------------------------------------------
 
     bool hasHwcLayer(int32_t hwcId) {
@@ -380,7 +353,6 @@ public:
         }
     }
 
-#endif
     // -----------------------------------------------------------------------
 
     void clearWithOpenGL(const sp<const DisplayDevice>& hw, const Region& clip) const;
@@ -397,10 +369,8 @@ public:
 
     /* always call base class first */
     void dump(String8& result, Colorizer& colorizer) const;
-#ifdef USE_HWC2
     static void miniDumpHeader(String8& result);
     void miniDump(String8& result, int32_t hwcId) const;
-#endif
     void dumpFrameStats(String8& result) const;
     void clearFrameStats();
     void logFrameStats();
@@ -601,7 +571,6 @@ private:
     // The texture used to draw the layer in GLES composition mode
     mutable Texture mTexture;
 
-#ifdef USE_HWC2
     // HWC items, accessed from the main thread
     struct HWCInfo {
         HWCInfo()
@@ -618,9 +587,6 @@ private:
         FloatRect sourceCrop;
     };
     std::unordered_map<int32_t, HWCInfo> mHwcLayers;
-#else
-    bool mIsGlesComposition;
-#endif
 
     // page-flip thread (currently main thread)
     bool mProtectedByApp; // application requires protected path to external sink

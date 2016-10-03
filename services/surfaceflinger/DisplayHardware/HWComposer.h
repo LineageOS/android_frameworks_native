@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-#ifndef USE_HWC2
-#include "HWComposer_hwc1.h"
-#else
-
 #ifndef ANDROID_SF_HWCOMPOSER_H
 #define ANDROID_SF_HWCOMPOSER_H
 
@@ -224,5 +220,3 @@ private:
 }; // namespace android
 
 #endif // ANDROID_SF_HWCOMPOSER_H
-
-#endif // #ifdef USE_HWC2

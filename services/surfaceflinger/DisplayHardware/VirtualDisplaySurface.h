@@ -83,9 +83,6 @@ public:
     //
     virtual status_t beginFrame(bool mustRecompose);
     virtual status_t prepareFrame(CompositionType compositionType);
-#ifndef USE_HWC2
-    virtual status_t compositionComplete();
-#endif
     virtual status_t advanceFrame();
     virtual void onFrameCommitted();
     virtual void dumpAsString(String8& result) const;
