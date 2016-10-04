@@ -78,7 +78,23 @@ LOCAL_MODULE_TAGS := tests
 
 LOCAL_CFLAGS := $(COMMON_LOCAL_CFLAGS)
 
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
+
 LOCAL_SRC_FILES := \
         tests/dumpstate_test_fixture.cpp
+
+dist_zip_root := $(TARGET_OUT_DATA)
+dumpstate_tests_subpath_from_data := nativetest/dumpstate_test_fixture
+dumpstate_tests_root_in_device := /data/$(dumpstate_tests_subpath_from_data)
+dumpstate_tests_root_for_test_zip := $(dist_zip_root)/$(dumpstate_tests_subpath_from_data)
+testdata_files := $(call find-subdir-files, testdata/*)
+
+GEN := $(addprefix $(dumpstate_tests_root_for_test_zip)/, $(testdata_files))
+$(GEN): PRIVATE_PATH := $(LOCAL_PATH)
+$(GEN): PRIVATE_CUSTOM_TOOL = cp $< $@
+$(GEN): $(dumpstate_tests_root_for_test_zip)/testdata/% : $(LOCAL_PATH)/testdata/%
+	$(transform-generated-source)
+LOCAL_GENERATED_SOURCES += $(GEN)
+LOCAL_PICKUP_FILES := $(dist_zip_root)
 
 include $(BUILD_NATIVE_TEST)

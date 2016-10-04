@@ -66,6 +66,16 @@ class DumpstateTest : public Test {
         return status;
     }
 
+    // Dumps a file and capture `stdout` and `stderr`.
+    int DumpFile(const std::string& title, const std::string& path) {
+        CaptureStdout();
+        CaptureStderr();
+        int status = ds.DumpFile(title, path);
+        out = GetCapturedStdout();
+        err = GetCapturedStderr();
+        return status;
+    }
+
     void SetDryRun(bool dryRun) {
         ALOGD("Setting dryRun_ to %s\n", dryRun ? "true" : "false");
         ds.dryRun_ = dryRun;
@@ -118,7 +128,9 @@ class DumpstateTest : public Test {
     std::string out, err;
 
     std::string testPath = dirname(android::base::GetExecutablePath().c_str());
-    std::string simpleCommand = testPath + "/../dumpstate_test_fixture/dumpstate_test_fixture";
+    std::string fixturesPath = testPath + "/../dumpstate_test_fixture/";
+    std::string testDataPath = fixturesPath + "/testdata/";
+    std::string simpleCommand = fixturesPath + "dumpstate_test_fixture";
     std::string echoCommand = "/system/bin/echo";
 
     Dumpstate& ds = Dumpstate::GetInstance();
@@ -266,6 +278,7 @@ TEST_F(DumpstateTest, RunCommandIsKilled) {
 
 TEST_F(DumpstateTest, RunCommandProgress) {
     ds.updateProgress_ = true;
+    ds.progress_ = 0;
     ds.weightTotal_ = 30;
 
     EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(20).Build()));
@@ -340,4 +353,72 @@ TEST_F(DumpstateTest, RunCommandAsRootNonUserBuild) {
     EXPECT_THAT(err, StrEq("stderr\n"));
 }
 
-// TODO: test DumpFile()
+TEST_F(DumpstateTest, DumpFileNotFoundNoTitle) {
+    EXPECT_EQ(-1, DumpFile("", "/I/cant/believe/I/exist"));
+    EXPECT_THAT(out,
+                StrEq("*** Error dumping /I/cant/believe/I/exist: No such file or directory\n"));
+    EXPECT_THAT(err, IsEmpty());
+}
+
+TEST_F(DumpstateTest, DumpFileNotFoundWithTitle) {
+    EXPECT_EQ(-1, DumpFile("Y U NO EXIST?", "/I/cant/believe/I/exist"));
+    EXPECT_THAT(err, IsEmpty());
+    // We don't know the exact duration, so we check the prefix and suffix
+    EXPECT_THAT(out, StartsWith("*** Error dumping /I/cant/believe/I/exist (Y U NO EXIST?): No "
+                                "such file or directory\n"));
+    EXPECT_THAT(out, EndsWith("s was the duration of 'Y U NO EXIST?' ------\n"));
+}
+
+TEST_F(DumpstateTest, DumpFileSingleLine) {
+    EXPECT_EQ(0, DumpFile("", testDataPath + "single-line.txt"));
+    EXPECT_THAT(err, IsEmpty());
+    EXPECT_THAT(out, StrEq("I AM LINE1\n"));  // dumpstate adds missing newline
+}
+
+TEST_F(DumpstateTest, DumpFileSingleLineWithNewLine) {
+    EXPECT_EQ(0, DumpFile("", testDataPath + "single-line-with-newline.txt"));
+    EXPECT_THAT(err, IsEmpty());
+    EXPECT_THAT(out, StrEq("I AM LINE1\n"));
+}
+
+TEST_F(DumpstateTest, DumpFileMultipleLines) {
+    EXPECT_EQ(0, DumpFile("", testDataPath + "multiple-lines.txt"));
+    EXPECT_THAT(err, IsEmpty());
+    EXPECT_THAT(out, StrEq("I AM LINE1\nI AM LINE2\nI AM LINE3\n"));
+}
+
+TEST_F(DumpstateTest, DumpFileMultipleLinesWithNewLine) {
+    EXPECT_EQ(0, DumpFile("", testDataPath + "multiple-lines-with-newline.txt"));
+    EXPECT_THAT(err, IsEmpty());
+    EXPECT_THAT(out, StrEq("I AM LINE1\nI AM LINE2\nI AM LINE3\n"));
+}
+
+TEST_F(DumpstateTest, DumpFileOnDryRunNoTitle) {
+    SetDryRun(true);
+    EXPECT_EQ(0, DumpFile("", testDataPath + "single-line.txt"));
+    EXPECT_THAT(err, IsEmpty());
+    EXPECT_THAT(out, IsEmpty());
+}
+
+TEST_F(DumpstateTest, DumpFileOnDryRun) {
+    SetDryRun(true);
+    EXPECT_EQ(0, DumpFile("Might as well dump. Dump!", testDataPath + "single-line.txt"));
+    EXPECT_THAT(err, IsEmpty());
+    EXPECT_THAT(out, StartsWith("------ Might as well dump. Dump! (" + testDataPath +
+                                "single-line.txt) ------\n\t(skipped on dry run)\n------"));
+    EXPECT_THAT(out, EndsWith("s was the duration of 'Might as well dump. Dump!' ------\n"));
+    EXPECT_THAT(err, IsEmpty());
+}
+
+TEST_F(DumpstateTest, DumpFileUpdateProgress) {
+    ds.updateProgress_ = true;
+    ds.progress_ = 0;
+    ds.weightTotal_ = 30;
+
+    EXPECT_EQ(0, DumpFile("", testDataPath + "single-line.txt"));
+
+    std::string progressMessage = GetProgressMessage(5, 30);  // TODO: unhardcode WEIGHT_FILE (5)?
+
+    EXPECT_THAT(err, StrEq(progressMessage));
+    EXPECT_THAT(out, StrEq("I AM LINE1\n"));  // dumpstate adds missing newline
+}

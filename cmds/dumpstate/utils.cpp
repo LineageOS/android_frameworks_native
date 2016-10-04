@@ -591,11 +591,23 @@ static int _dump_file_from_fd(const std::string& title, const char* path, int fd
 
 int Dumpstate::DumpFile(const std::string& title, const std::string& path) {
     DurationReporter durationReporter(title);
+    if (IsDryRun()) {
+        if (!title.empty()) {
+            printf("------ %s (%s) ------\n", title.c_str(), path.c_str());
+            printf("\t(skipped on dry run)\n");
+        }
+        UpdateProgress(WEIGHT_FILE);
+        return 0;
+    }
+
     int fd = TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
     if (fd < 0) {
         int err = errno;
-        printf("*** %s: %s\n", path.c_str(), strerror(err));
-        if (!title.empty()) printf("\n");
+        if (title.empty()) {
+            printf("*** Error dumping %s: %s\n", path.c_str(), strerror(err));
+        } else {
+            printf("*** Error dumping %s (%s): %s\n", path.c_str(), title.c_str(), strerror(err));
+        }
         return -1;
     }
     return _dump_file_from_fd(title, path.c_str(), fd);
