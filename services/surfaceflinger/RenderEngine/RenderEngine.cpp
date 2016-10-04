@@ -19,8 +19,6 @@
 #include <ui/Region.h>
 
 #include "RenderEngine.h"
-#include "GLES10RenderEngine.h"
-#include "GLES11RenderEngine.h"
 #include "GLES20RenderEngine.h"
 #include "GLExtensions.h"
 #include "Mesh.h"
@@ -122,10 +120,8 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat) {
     RenderEngine* engine = NULL;
     switch (version) {
     case GLES_VERSION_1_0:
-        engine = new GLES10RenderEngine();
-        break;
     case GLES_VERSION_1_1:
-        engine = new GLES11RenderEngine();
+        LOG_ALWAYS_FATAL("SurfaceFlinger requires OpenGL ES 2.0 minimum to run.");
         break;
     case GLES_VERSION_2_0:
     case GLES_VERSION_3_0:
