@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ff2e2bb8_384f76be",
+        "filename": "services/surfaceflinger/DisplayUtils.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 101,
+      "author": {
+        "id": 11124
+      },
+      "writtenOn": "2016-10-04T18:37:33Z",
+      "side": 1,
+      "message": "The build breaks for shamu when removing the handler with\n\nerror: no matching constructor for initialization of \u0027android::HWComposer\u0027 return new HWComposer(flinger);\n\nCould we handle both cases like this?\n\n#ifdef USE_HWC2\nHWComposer* DisplayUtils::getHWCInstance(\n                        const sp\u003cSurfaceFlinger\u003e\u0026 flinger,\n                        HWComposer::EventHandler\u0026) {\n    return new HWComposer(flinger);\n}\n#else\nHWComposer* DisplayUtils::getHWCInstance(\n                        const sp\u003cSurfaceFlinger\u003e\u0026 flinger,\n                        HWComposer::EventHandler\u0026 handler) {\n#if defined(QTI_BSP)\n    if(sUseExtendedImpls) {\n        return new ExHWComposer(flinger, handler);\n    }\n#endif\n    return new HWComposer(flinger, handler);\n}\n#endif",
+      "revId": "b552c184bbb44c61f00d6438dbda5afbde6e2197",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
