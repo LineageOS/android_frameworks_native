@@ -313,8 +313,8 @@ private:
 
     // Cached data about the shared buffer in shared buffer mode
     struct SharedBufferCache {
-        SharedBufferCache(Rect _crop, uint32_t _transform, int _scalingMode,
-                android_dataspace _dataspace)
+        SharedBufferCache(Rect _crop, uint32_t _transform,
+                uint32_t _scalingMode, android_dataspace _dataspace)
         : crop(_crop),
           transform(_transform),
           scalingMode(_scalingMode),
