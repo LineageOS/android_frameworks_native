@@ -50,6 +50,8 @@
 
 #include "dumpstate.h"
 
+#define SU_PATH "/system/xbin/su"
+
 static const int64_t NANOS_PER_SEC = 1000000000;
 
 static const int TRACE_DUMP_TIMEOUT_MS = 10000; // 10 seconds
@@ -870,7 +872,7 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
             if (!silent)
                 printf("*** command '%s' timed out after %.3fs (killing pid %d)\n", command,
                        (float)elapsed / NANOS_PER_SEC, pid);
-            MYLOGE("command '%s' timed out after %.3fs (killing pid %d)\n", command,
+            MYLOGE("*** command '%s' timed out after %.3fs (killing pid %d)\n", command,
                    (float)elapsed / NANOS_PER_SEC, pid);
         } else {
             if (!silent)
@@ -880,9 +882,9 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
                    (float)elapsed / NANOS_PER_SEC, pid);
         }
         kill(pid, SIGTERM);
-        if (!waitpid_with_timeout(pid, 5, NULL)) {
+        if (!waitpid_with_timeout(pid, 5, nullptr)) {
             kill(pid, SIGKILL);
-            if (!waitpid_with_timeout(pid, 5, NULL)) {
+            if (!waitpid_with_timeout(pid, 5, nullptr)) {
                 if (!silent)
                     printf("could not kill command '%s' (pid %d) even with SIGKILL.\n", command,
                            pid);
@@ -893,11 +895,13 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
     }
 
     if (WIFSIGNALED(status)) {
-        if (!silent) printf("*** %s: Killed by signal %d\n", command, WTERMSIG(status));
-        MYLOGE("*** %s: Killed by signal %d\n", command, WTERMSIG(status));
+        if (!silent)
+            printf("*** command '%s' failed: killed by signal %d\n", command, WTERMSIG(status));
+        MYLOGE("*** command '%s' failed: killed by signal %d\n", command, WTERMSIG(status));
     } else if (WIFEXITED(status) && WEXITSTATUS(status) > 0) {
-        if (!silent) printf("*** %s: Exit code %d\n", command, WEXITSTATUS(status));
-        MYLOGE("*** %s: Exit code %d\n", command, WEXITSTATUS(status));
+        status = WEXITSTATUS(status);
+        if (!silent) printf("*** command '%s' failed: exit code %d\n", command, status);
+        MYLOGE("*** command '%s' failed: exit code %d\n", command, status);
     }
 
     if (weight > 0) {

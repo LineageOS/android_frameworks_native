@@ -37,9 +37,6 @@
 #include <string>
 #include <vector>
 
-// TODO: remove once dumpstate_board() devices use CommandOptions
-#define SU_PATH "/system/xbin/su"
-
 // Workaround for const char *args[MAX_ARGS_ARRAY_SIZE] variables until they're converted to
 // std::vector<std::string>
 // TODO: remove once not used

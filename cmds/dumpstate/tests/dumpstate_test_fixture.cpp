@@ -15,30 +15,86 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#define LOG_TAG "dumpstate"
+#include <cutils/log.h>
+
+void PrintDefaultOutput() {
+    fprintf(stdout, "stdout\n");
+    fflush(stdout);
+    fprintf(stderr, "stderr\n");
+    fflush(stderr);
+}
 
 /*
  * Binary used to on RunCommand tests.
  *
  * Usage:
  *
- * - It returns 0 unless documented otherwise.
- * - Without any arguments, prints `stdout\n` on `stdout` and `stderr\n` on `stderr`.
- * - With arguments, prints all arguments on `stdout` separated by ` `.
+ * - Unless stated otherwise this command:
+ *
+ *   1.Prints `stdout\n` on `stdout` and flushes it.
+ *   2.Prints `stderr\n` on `stderr` and flushes it.
+ *   3.Exit with status 0.
+ *
+ * - If 1st argument is '--pid', it first prints its pid on `stdout`.
+ *
+ * - If 1st argument is '--crash', it uses ALOGF to crash and returns 666.
+ *
+ * - With argument '--exit' 'CODE', returns CODE;
+ *
+ * - With argument '--sleep 'TIME':
+ *
+ *   1.Prints `stdout line1\n` on `stdout` and `sleeping TIME s\n` on `stderr`
+ *   2.Sleeps for TIME s
+ *   3.Prints `stdout line2\n` on `stdout` and `woke up\n` on `stderr`
  */
 int main(int argc, char* const argv[]) {
+    if (argc == 2) {
+        if (strcmp(argv[1], "--crash") == 0) {
+            PrintDefaultOutput();
+            LOG_FATAL("D'OH\n");
+            return 666;
+        }
+    }
+    if (argc == 3) {
+        if (strcmp(argv[1], "--exit") == 0) {
+            PrintDefaultOutput();
+            return atoi(argv[2]);
+        }
+    }
+
     if (argc > 1) {
-        for (int i = 1; i < argc; i++) {
-            fprintf(stdout, "%s", argv[i]);
-            if (i == argc - 1) {
-                fprintf(stdout, "\n");
-            } else {
-                fprintf(stdout, " ");
+        int index = 1;
+
+        // First check arguments that can shift the index.
+        if (strcmp(argv[1], "--pid") == 0) {
+            index++;
+            fprintf(stdout, "%d\n", getpid());
+            fflush(stdout);
+        }
+
+        if (argc > index + 1) {
+            // Then the "common" arguments.
+            if (strcmp(argv[index], "--sleep") == 0) {
+                int napTime = atoi(argv[index + 1]);
+                fprintf(stdout, "stdout line1\n");
+                fflush(stdout);
+                fprintf(stderr, "sleeping for %ds\n", napTime);
+                fflush(stderr);
+                sleep(napTime);
+                fprintf(stdout, "stdout line2\n");
+                fflush(stdout);
+                fprintf(stderr, "woke up\n");
+                fflush(stderr);
+                return 0;
             }
         }
-        return 0;
     }
-    fprintf(stdout, "stdout\n");
-    fprintf(stderr, "stderr\n");
 
+    PrintDefaultOutput();
     return 0;
 }
