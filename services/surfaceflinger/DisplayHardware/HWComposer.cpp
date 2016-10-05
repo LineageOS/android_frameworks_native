@@ -109,6 +109,7 @@ void HWComposer::loadHwcModule()
 {
     ALOGV("loadHwcModule");
 
+#ifdef BYPASS_IHWC
     hw_module_t const* module;
 
     if (hw_get_module(HWC_HARDWARE_MODULE_ID, &module) != 0) {
@@ -140,6 +141,9 @@ void HWComposer::loadHwcModule()
         mHwcDevice = std::make_unique<HWC2::Device>(
                 static_cast<hwc2_device_t*>(mAdapter.get()));
     }
+#else
+    mHwcDevice = std::make_unique<HWC2::Device>();
+#endif
 
     mRemainingHwcVirtualDisplays = mHwcDevice->getMaxVirtualDisplayCount();
 }

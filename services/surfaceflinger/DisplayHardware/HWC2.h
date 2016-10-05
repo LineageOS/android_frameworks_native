@@ -17,6 +17,10 @@
 #ifndef ANDROID_SF_HWC2_H
 #define ANDROID_SF_HWC2_H
 
+#ifndef USE_HWC2
+#define BYPASS_IHWC
+#endif
+
 #define HWC2_INCLUDE_STRINGIFICATION
 #define HWC2_USE_CPP11
 #include <hardware/hwcomposer2.h>
@@ -42,6 +46,9 @@ namespace android {
     class GraphicBuffer;
     class Rect;
     class Region;
+    namespace Hwc2 {
+        class Composer;
+    };
 }
 
 namespace HWC2 {
@@ -57,7 +64,11 @@ typedef std::function<void(std::shared_ptr<Display>, nsecs_t)> VsyncCallback;
 class Device
 {
 public:
+#ifdef BYPASS_IHWC
     explicit Device(hwc2_device_t* device);
+#else
+    Device();
+#endif
     ~Device();
 
     friend class HWC2::Display;
@@ -98,6 +109,7 @@ public:
 private:
     // Initialization methods
 
+#ifdef BYPASS_IHWC
     template <typename PFN>
     [[clang::warn_unused_result]] bool loadFunctionPointer(
             FunctionDescriptor desc, PFN& outPFN) {
@@ -121,6 +133,7 @@ private:
         auto pfn = reinterpret_cast<hwc2_function_pointer_t>(hook);
         mRegisterCallback(mHwcDevice, intCallback, callbackData, pfn);
     }
+#endif
 
     void loadCapabilities();
     void loadFunctionPointers();
@@ -132,6 +145,7 @@ private:
 
     // Member variables
 
+#ifdef BYPASS_IHWC
     hwc2_device_t* mHwcDevice;
 
     // Device function pointers
@@ -181,6 +195,9 @@ private:
     HWC2_PFN_SET_LAYER_TRANSFORM mSetLayerTransform;
     HWC2_PFN_SET_LAYER_VISIBLE_REGION mSetLayerVisibleRegion;
     HWC2_PFN_SET_LAYER_Z_ORDER mSetLayerZOrder;
+#else
+    std::unique_ptr<android::Hwc2::Composer> mComposer;
+#endif // BYPASS_IHWC
 
     std::unordered_set<Capability> mCapabilities;
     std::unordered_map<hwc2_display_t, std::weak_ptr<Display>> mDisplays;

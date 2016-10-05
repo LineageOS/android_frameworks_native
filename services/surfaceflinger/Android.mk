@@ -20,6 +20,7 @@ LOCAL_SRC_FILES := \
     SurfaceFlingerConsumer.cpp \
     SurfaceInterceptor.cpp \
     Transform.cpp \
+    DisplayHardware/ComposerHal.cpp \
     DisplayHardware/FramebufferSurface.cpp \
     DisplayHardware/HWC2.cpp \
     DisplayHardware/HWC2On1Adapter.cpp \
@@ -129,10 +130,14 @@ LOCAL_CFLAGS += -fvisibility=hidden -Werror=format
 
 LOCAL_STATIC_LIBRARIES := libtrace_proto libvkjson
 LOCAL_SHARED_LIBRARIES := \
+    android.hardware.graphics.allocator@2.0 \
+    android.hardware.graphics.composer@2.1 \
     libcutils \
     liblog \
     libdl \
     libhardware \
+    libhidl \
+    libhwbinder \
     libutils \
     libEGL \
     libGLESv1_CM \
@@ -148,6 +153,12 @@ LOCAL_SHARED_LIBRARIES := \
     libbase \
     libutils \
     android.hardware.power@1.0
+
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := \
+    android.hardware.graphics.allocator@2.0 \
+    android.hardware.graphics.composer@2.1 \
+    libhidl \
+    libhwbinder
 
 LOCAL_CFLAGS += -Wall -Werror -Wunused -Wunreachable-code
 
