@@ -36,6 +36,9 @@ LOCAL_CPPFLAGS += -Wno-gnu-zero-variadic-macro-arguments
 # Don't warn about struct padding
 LOCAL_CPPFLAGS += -Wno-padded
 
+# android/sensors.h uses nested anonymous unions and anonymous structs
+LOCAL_CPPFLAGS += -Wno-nested-anon-types -Wno-gnu-anonymous-struct
+
 LOCAL_CPPFLAGS += -DDEBUG_ONLY_CODE=$(if $(filter userdebug eng,$(TARGET_BUILD_VARIANT)),1,0)
 
 LOCAL_SRC_FILES := \
