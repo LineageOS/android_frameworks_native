@@ -90,16 +90,20 @@ Layer* DisplayUtils::getLayerInstance(SurfaceFlinger* flinger,
     return new Layer(flinger, client, name, w, h, flags);
 }
 
+#if defined(USE_HWC2)
 HWComposer* DisplayUtils::getHWCInstance(
                         const sp<SurfaceFlinger>& flinger,
-                        HWComposer::EventHandler& /* handler */) {
-#if defined(QTI_BSP) && !defined(USE_HWC2)
+                        HWComposer::EventHandler&) {
+    return new HWComposer(flinger);
+#else
+HWComposer* DisplayUtils::getHWCInstance(
+                        const sp<SurfaceFlinger>& flinger,
+                        HWComposer::EventHandler& handler) {
+#if defined(QTI_BSP)
     if(sUseExtendedImpls) {
         return new ExHWComposer(flinger, handler);
     }
-#elif defined(USE_HWC2)
-    return new HWComposer(flinger);
-#else
+#endif
     return new HWComposer(flinger, handler);
 #endif
 }
