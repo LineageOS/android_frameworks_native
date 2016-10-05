@@ -39,3 +39,9 @@ ndk_library {
     symbol_file: "libGLESv2.map.txt",
     first_version: "9",
 }
+
+ndk_library {
+    name: "libGLESv3.ndk",
+    symbol_file: "libGLESv3.map.txt",
+    first_version: "18",
+}
