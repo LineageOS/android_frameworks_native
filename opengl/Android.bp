@@ -33,6 +33,13 @@ ndk_headers {
     srcs: ["include/GLES2/**/*.h"],
 }
 
+ndk_headers {
+    name: "libGLESv3_headers",
+    from: "include",
+    to: "",
+    srcs: ["include/GLES3/**/*.h"],
+}
+
 subdirs = [
     "*",
 ]
