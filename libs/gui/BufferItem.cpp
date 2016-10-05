@@ -23,6 +23,21 @@
 
 namespace android {
 
+template<typename T>
+static inline constexpr uint32_t low32(const T n) {
+    return static_cast<uint32_t>(static_cast<uint64_t>(n));
+}
+
+template<typename T>
+static inline constexpr uint32_t high32(const T n) {
+    return static_cast<uint32_t>(static_cast<uint64_t>(n)>>32);
+}
+
+template<typename T>
+static inline constexpr T to64(const uint32_t lo, const uint32_t hi) {
+    return static_cast<T>(static_cast<uint64_t>(hi)<<32 | lo);
+}
+
 BufferItem::BufferItem() :
     mGraphicBuffer(NULL),
     mFence(NULL),
@@ -56,12 +71,12 @@ size_t BufferItem::getPodSize() const {
     addAligned(size, mCrop);
     addAligned(size, mTransform);
     addAligned(size, mScalingMode);
-    addAligned(size, mTimestampLo);
-    addAligned(size, mTimestampHi);
+    addAligned(size, low32(mTimestamp));
+    addAligned(size, high32(mTimestamp));
     addAligned(size, mIsAutoTimestamp);
     addAligned(size, mDataSpace);
-    addAligned(size, mFrameNumberLo);
-    addAligned(size, mFrameNumberHi);
+    addAligned(size, low32(mFrameNumber));
+    addAligned(size, high32(mFrameNumber));
     addAligned(size, mSlot);
     addAligned(size, mIsDroppable);
     addAligned(size, mAcquireCalled);
@@ -144,12 +159,12 @@ status_t BufferItem::flatten(
     writeAligned(buffer, size, mCrop);
     writeAligned(buffer, size, mTransform);
     writeAligned(buffer, size, mScalingMode);
-    writeAligned(buffer, size, mTimestampLo);
-    writeAligned(buffer, size, mTimestampHi);
+    writeAligned(buffer, size, low32(mTimestamp));
+    writeAligned(buffer, size, high32(mTimestamp));
     writeAligned(buffer, size, mIsAutoTimestamp);
     writeAligned(buffer, size, mDataSpace);
-    writeAligned(buffer, size, mFrameNumberLo);
-    writeAligned(buffer, size, mFrameNumberHi);
+    writeAligned(buffer, size, low32(mFrameNumber));
+    writeAligned(buffer, size, high32(mFrameNumber));
     writeAligned(buffer, size, mSlot);
     writeAligned(buffer, size, mIsDroppable);
     writeAligned(buffer, size, mAcquireCalled);
@@ -200,15 +215,20 @@ status_t BufferItem::unflatten(
         return NO_MEMORY;
     }
 
+    uint32_t timestampLo = 0, timestampHi = 0;
+    uint32_t frameNumberLo = 0, frameNumberHi = 0;
+
     readAligned(buffer, size, mCrop);
     readAligned(buffer, size, mTransform);
     readAligned(buffer, size, mScalingMode);
-    readAligned(buffer, size, mTimestampLo);
-    readAligned(buffer, size, mTimestampHi);
+    readAligned(buffer, size, timestampLo);
+    readAligned(buffer, size, timestampHi);
+    mTimestamp = to64<int64_t>(timestampLo, timestampHi);
     readAligned(buffer, size, mIsAutoTimestamp);
     readAligned(buffer, size, mDataSpace);
-    readAligned(buffer, size, mFrameNumberLo);
-    readAligned(buffer, size, mFrameNumberHi);
+    readAligned(buffer, size, frameNumberLo);
+    readAligned(buffer, size, frameNumberHi);
+    mFrameNumber = to64<uint64_t>(frameNumberLo, frameNumberHi);
     readAligned(buffer, size, mSlot);
     readAligned(buffer, size, mIsDroppable);
     readAligned(buffer, size, mAcquireCalled);
