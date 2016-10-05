@@ -40,6 +40,13 @@ ndk_headers {
     srcs: ["include/GLES3/**/*.h"],
 }
 
+ndk_headers {
+    name: "khr_headers",
+    from: "include",
+    to: "",
+    srcs: ["include/KHR/**/*.h"],
+}
+
 subdirs = [
     "*",
 ]
