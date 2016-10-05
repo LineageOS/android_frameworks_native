@@ -20,3 +20,10 @@ cc_library {
         },
     },
 }
+
+// The headers module is in frameworks/native/opengl/Android.bp.
+ndk_library {
+    name: "libEGL.ndk",
+    symbol_file: "libEGL.map.txt",
+    first_version: "9",
+}
