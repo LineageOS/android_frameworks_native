@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <android/hardware/power/1.0/IPower.h>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -26,6 +27,7 @@
 
 #include "PowerHAL.h"
 
+using android::hardware::power::V1_0::PowerHint;
 namespace android {
 // ---------------------------------------------------------------------------
 
@@ -39,7 +41,9 @@ status_t PowerHAL::vsyncHint(bool enabled) {
         }
         mPowerManager = interface_cast<IPowerManager>(bs);
     }
-    status_t status = mPowerManager->powerHint(POWER_HINT_VSYNC, enabled ? 1 : 0);
+    status_t status;
+    status = mPowerManager->powerHint(static_cast<int>(PowerHint::VSYNC),
+            enabled ? 1 : 0);
     if(status == DEAD_OBJECT) {
         mPowerManager = NULL;
     }
