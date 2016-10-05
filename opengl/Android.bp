@@ -19,6 +19,13 @@ ndk_headers {
     srcs: ["include/EGL/**/*.h"],
 }
 
+ndk_headers {
+    name: "libGLESv1_CM_headers",
+    from: "include",
+    to: "",
+    srcs: ["include/GLES/**/*.h"],
+}
+
 subdirs = [
     "*",
 ]
