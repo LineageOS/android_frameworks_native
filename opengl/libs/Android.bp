@@ -21,9 +21,27 @@ cc_library {
     },
 }
 
-// The headers module is in frameworks/native/opengl/Android.bp.
+// The headers modules are in frameworks/native/opengl/Android.bp.
 ndk_library {
     name: "libEGL.ndk",
     symbol_file: "libEGL.map.txt",
     first_version: "9",
+}
+
+ndk_library {
+    name: "libGLESv1_CM.ndk",
+    symbol_file: "libGLESv1_CM.map.txt",
+    first_version: "9",
+}
+
+ndk_library {
+    name: "libGLESv2.ndk",
+    symbol_file: "libGLESv2.map.txt",
+    first_version: "9",
+}
+
+ndk_library {
+    name: "libGLESv3.ndk",
+    symbol_file: "libGLESv3.map.txt",
+    first_version: "18",
 }
