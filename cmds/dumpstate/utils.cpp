@@ -925,7 +925,7 @@ void Dumpstate::RunDumpsys(const std::string& title, const std::vector<std::stri
 
 bool drop_root_user() {
     if (getgid() == AID_SHELL && getuid() == AID_SHELL) {
-        MYLOGD("drop_root_user(): already running as Shell");
+        MYLOGD("drop_root_user(): already running as Shell\n");
         return true;
     }
     /* ensure we will keep capabilities when we drop root */

@@ -306,7 +306,7 @@ TEST_F(DumpstateTest, RunCommandDropRoot) {
     EXPECT_EQ(0, RunCommand("", {simpleCommand, "--uid"},
                             CommandOptions::WithTimeout(1).DropRoot().Build()));
     EXPECT_THAT(out, StrEq("2000\nstdout\n"));
-    EXPECT_THAT(err, StrEq("stderr\n"));
+    EXPECT_THAT(err, StrEq("drop_root_user(): already running as Shell\nstderr\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandAsRootUserBuild) {
