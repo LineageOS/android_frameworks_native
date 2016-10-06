@@ -41,6 +41,7 @@ public:
     // This is called without any lock held and can be called concurrently by
     // multiple threads.
     virtual void onBufferReleased() = 0; // Asynchronous
+    virtual bool needsReleaseNotify() = 0;
 };
 
 class IProducerListener : public ProducerListener, public IInterface
@@ -54,6 +55,7 @@ class BnProducerListener : public BnInterface<IProducerListener>
 public:
     virtual status_t onTransact(uint32_t code, const Parcel& data,
             Parcel* reply, uint32_t flags = 0);
+    virtual bool needsReleaseNotify();
 };
 
 class DummyProducerListener : public BnProducerListener
@@ -61,6 +63,7 @@ class DummyProducerListener : public BnProducerListener
 public:
     virtual ~DummyProducerListener();
     virtual void onBufferReleased() {}
+    virtual bool needsReleaseNotify() { return false; }
 };
 
 } // namespace android
