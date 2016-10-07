@@ -79,6 +79,9 @@ public:
     // becomes signaled when both f1 and f2 are signaled (even if f1 or f2 is
     // destroyed before it becomes signaled).  The name argument specifies the
     // human-readable name to associated with the new Fence object.
+    static sp<Fence> merge(const char* name, const sp<Fence>& f1,
+            const sp<Fence>& f2);
+
     static sp<Fence> merge(const String8& name, const sp<Fence>& f1,
             const sp<Fence>& f2);
 
