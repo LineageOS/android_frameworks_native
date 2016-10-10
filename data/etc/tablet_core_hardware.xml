@@ -42,6 +42,7 @@
     <feature name="android.software.backup" />
     <feature name="android.software.home_screen" />
     <feature name="android.software.input_methods" />
+    <feature name="android.software.picture_in_picture" />
     <feature name="android.software.print" />
 
     <!-- Feature to specify if the device supports adding device admins. -->
