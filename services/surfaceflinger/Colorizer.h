@@ -17,6 +17,8 @@
 #ifndef ANDROID_SURFACE_FLINGER_COLORIZER_H
 #define ANDROID_SURFACE_FLINGER_COLORIZER_H
 
+#include <utils/String8.h>
+
 namespace android {
 
 // ---------------------------------------------------------------------------

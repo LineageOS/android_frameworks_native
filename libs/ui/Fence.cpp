@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <ui/Fence.h>
+
 #define LOG_TAG "Fence"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 //#define LOG_NDEBUG 0
@@ -25,9 +27,10 @@
 #include <sync/sync.h>
 #pragma clang diagnostic pop
 
-#include <ui/Fence.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <utils/Log.h>
+#include <utils/String8.h>
 #include <utils/Trace.h>
 
 namespace android {

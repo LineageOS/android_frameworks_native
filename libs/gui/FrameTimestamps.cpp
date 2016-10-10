@@ -18,6 +18,7 @@
 
 #include <cutils/compiler.h>  // For CC_[UN]LIKELY
 #include <inttypes.h>
+#include <utils/Log.h>
 #include <utils/String8.h>
 
 #include <algorithm>
