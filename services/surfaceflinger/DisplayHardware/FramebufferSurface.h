@@ -41,9 +41,6 @@ public:
 
     virtual status_t beginFrame(bool mustRecompose);
     virtual status_t prepareFrame(CompositionType compositionType);
-#ifndef USE_HWC2
-    virtual status_t compositionComplete();
-#endif
     virtual status_t advanceFrame();
     virtual void onFrameCommitted();
     virtual void dumpAsString(String8& result) const;
@@ -57,9 +54,6 @@ public:
 private:
     virtual ~FramebufferSurface() { }; // this class cannot be overloaded
 
-#ifndef USE_HWC2
-    virtual void onFrameAvailable(const BufferItem& item);
-#endif
     virtual void freeBufferLocked(int slotIndex);
 
     virtual void dumpLocked(String8& result, const char* prefix) const;
@@ -67,12 +61,8 @@ private:
     // nextBuffer waits for and then latches the next buffer from the
     // BufferQueue and releases the previously latched buffer to the
     // BufferQueue.  The new buffer is returned in the 'buffer' argument.
-#ifdef USE_HWC2
     status_t nextBuffer(sp<GraphicBuffer>& outBuffer, sp<Fence>& outFence,
             android_dataspace_t& outDataspace);
-#else
-    status_t nextBuffer(sp<GraphicBuffer>& outBuffer, sp<Fence>& outFence);
-#endif
 
     // mDisplayType must match one of the HWC display types
     int mDisplayType;
@@ -92,12 +82,10 @@ private:
     // Hardware composer, owned by SurfaceFlinger.
     HWComposer& mHwc;
 
-#ifdef USE_HWC2
     // Previous buffer to release after getting an updated retire fence
     bool mHasPendingRelease;
     int mPreviousBufferSlot;
     sp<GraphicBuffer> mPreviousBuffer;
-#endif
 };
 
 // ---------------------------------------------------------------------------
