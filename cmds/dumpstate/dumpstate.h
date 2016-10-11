@@ -193,6 +193,13 @@ class CommandOptions {
 static const int WEIGHT_TOTAL = 6500;
 
 /*
+ * List of supported zip format versions.
+ *
+ * See bugreport-format.md for more info.
+ */
+static std::string VERSION_DEFAULT = "1.0";
+
+/*
  * Main class driving a bugreport generation.
  *
  * Currently, it only contains variables that are accessed externally, but gradually the functions
@@ -255,12 +262,25 @@ class Dumpstate {
      */
     int DumpFile(const std::string& title, const std::string& path);
 
+    /*
+     * Takes a screenshot and save it to the given `path`.
+     *
+     * If `path` is empty, uses a standard path based on the bugreport name.
+     */
+    void TakeScreenshot(const std::string& path = "");
+
     // TODO: members below should be private once refactor is finished
 
     /*
      * Updates the overall progress of the bugreport generation by the given weight increment.
      */
     void UpdateProgress(int delta);
+
+    /* Prints the dumpstate header on `stdout`. */
+    void PrintHeader();
+
+    /* Gets the path of a bugreport file with the given suffix. */
+    std::string GetPath(const std::string& suffix);
 
     // TODO: initialize fields on constructor
 
@@ -269,6 +289,9 @@ class Dumpstate {
 
     // Whether progress updates should be published.
     bool updateProgress_ = false;
+
+    // Whether it should take an screenshot earlier in the process.
+    bool doEarlyScreenshot_ = false;
 
     // Currrent progress.
     int progress_ = 0;
@@ -279,9 +302,29 @@ class Dumpstate {
     // When set, defines a socket file-descriptor use to report progress to bugreportz.
     int controlSocketFd_ = -1;
 
+    // Bugreport format version;
+    std::string version_ = VERSION_DEFAULT;
 
-    // Full path of the directory where the bugreport files will be written;
+    // Command-line arguments as string
+    std::string args_;
+
+    // Extra options passed as system property.
+    std::string extraOptions_;
+
+    // Full path of the directory where the bugreport files will be written.
     std::string bugreportDir_;
+
+    // Full path of the temporary file containing the screenshot (when requested).
+    std::string screenshotPath_;
+
+    time_t now_;
+
+    // Suffix of the bugreport files - it's typically the date (when invoked with -d),
+    // although it could be changed by the user using a system property.
+    std::string suffix_;
+
+    // Base name (without suffix or extensions) of the bugreport files.
+    std::string baseName_;
 
   private:
     // Used by GetInstance() only.
@@ -379,9 +422,6 @@ void play_sound(const char *path);
 
 /* Implemented by libdumpstate_board to dump board-specific info */
 void dumpstate_board();
-
-/* Takes a screenshot and save it to the given file */
-void take_screenshot(const std::string& path);
 
 /* Vibrates for a given durating (in milliseconds). */
 void vibrate(FILE* vibrator, int ms);
