@@ -212,8 +212,6 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
             *major = VERSION_MAJOR;
         if (minor != NULL)
             *minor = VERSION_MINOR;
-
-        mHibernation.setDisplayValid(true);
     }
 
     {
@@ -261,8 +259,6 @@ EGLBoolean egl_display_t::terminate() {
             disp.state = egl_display_t::TERMINATED;
             res = EGL_TRUE;
         }
-
-        mHibernation.setDisplayValid(false);
 
         // Reset the extension string since it will be regenerated if we get
         // reinitialized.
@@ -342,16 +338,12 @@ EGLBoolean egl_display_t::makeCurrent(egl_context_t* c, egl_context_t* cur_c,
                     disp.dpy, impl_draw, impl_read, impl_ctx);
             if (result == EGL_TRUE) {
                 c->onMakeCurrent(draw, read);
-                if (!cur_c) {
-                    mHibernation.incWakeCount(HibernationMachine::STRONG);
-                }
             }
         } else {
             result = cur_c->cnx->egl.eglMakeCurrent(
                     disp.dpy, impl_draw, impl_read, impl_ctx);
             if (result == EGL_TRUE) {
                 cur_c->onLooseCurrent();
-                mHibernation.decWakeCount(HibernationMachine::STRONG);
             }
         }
     }
@@ -373,64 +365,6 @@ bool egl_display_t::haveExtension(const char* name, size_t nameLen) const {
         nameLen = strlen(name);
     }
     return findExtension(mExtensionString.string(), name, nameLen);
-}
-
-// ----------------------------------------------------------------------------
-
-bool egl_display_t::HibernationMachine::incWakeCount(WakeRefStrength strength) {
-    Mutex::Autolock _l(mLock);
-    ALOGE_IF(mWakeCount < 0 || mWakeCount == INT32_MAX,
-             "Invalid WakeCount (%d) on enter\n", mWakeCount);
-
-    mWakeCount++;
-    if (strength == STRONG)
-        mAttemptHibernation = false;
-
-    if (CC_UNLIKELY(mHibernating)) {
-        ALOGV("Awakening\n");
-        egl_connection_t* const cnx = &gEGLImpl;
-
-        // These conditions should be guaranteed before entering hibernation;
-        // we don't want to get into a state where we can't wake up.
-        ALOGD_IF(!mDpyValid || !cnx->egl.eglAwakenProcessIMG,
-                 "Invalid hibernation state, unable to awaken\n");
-
-        if (!cnx->egl.eglAwakenProcessIMG()) {
-            ALOGE("Failed to awaken EGL implementation\n");
-            return false;
-        }
-        mHibernating = false;
-    }
-    return true;
-}
-
-void egl_display_t::HibernationMachine::decWakeCount(WakeRefStrength strength) {
-    Mutex::Autolock _l(mLock);
-    ALOGE_IF(mWakeCount <= 0, "Invalid WakeCount (%d) on leave\n", mWakeCount);
-
-    mWakeCount--;
-    if (strength == STRONG)
-        mAttemptHibernation = true;
-
-    if (mWakeCount == 0 && CC_UNLIKELY(mAttemptHibernation)) {
-        egl_connection_t* const cnx = &gEGLImpl;
-        mAttemptHibernation = false;
-        if (mAllowHibernation && mDpyValid &&
-                cnx->egl.eglHibernateProcessIMG &&
-                cnx->egl.eglAwakenProcessIMG) {
-            ALOGV("Hibernating\n");
-            if (!cnx->egl.eglHibernateProcessIMG()) {
-                ALOGE("Failed to hibernate EGL implementation\n");
-                return;
-            }
-            mHibernating = true;
-        }
-    }
-}
-
-void egl_display_t::HibernationMachine::setDisplayValid(bool valid) {
-    Mutex::Autolock _l(mLock);
-    mDpyValid = valid;
 }
 
 // ----------------------------------------------------------------------------
