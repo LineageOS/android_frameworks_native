@@ -56,12 +56,18 @@ typedef UniquePtr<char[], SecurityContext_Delete> Unique_SecurityContext;
 class MyShellCallback : public BnShellCallback
 {
 public:
+    bool mActive = true;
+
     virtual int openOutputFile(const String16& path, const String16& seLinuxContext) {
         String8 path8(path);
         char cwd[256];
         getcwd(cwd, 256);
         String8 fullPath(cwd);
         fullPath.appendPath(path8);
+        if (!mActive) {
+            aerr << "Open attempt after active for: " << fullPath << endl;
+            return -EPERM;
+        }
         int fd = open(fullPath.string(), O_WRONLY|O_CREAT|O_TRUNC, S_IRWXU|S_IRWXG);
         if (fd < 0) {
             return fd;
@@ -136,8 +142,13 @@ int main(int argc, char* const argv[])
         return 20;
     }
 
+    sp<MyShellCallback> cb = new MyShellCallback();
+
     // TODO: block until a result is returned to MyResultReceiver.
     IBinder::shellCommand(service, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO, args,
-            new MyShellCallback(), new MyResultReceiver());
+            cb, new MyResultReceiver());
+
+    cb->mActive = false;
+
     return 0;
 }
