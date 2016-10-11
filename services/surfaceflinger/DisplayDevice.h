@@ -21,20 +21,27 @@
 
 #include <stdlib.h>
 
+#ifndef USE_HWC2
+#include <ui/PixelFormat.h>
+#endif
 #include <ui/Region.h>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
+#ifdef USE_HWC2
 #include <binder/IBinder.h>
 #include <utils/RefBase.h>
+#endif
 #include <utils/Mutex.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
 #include <hardware/hwcomposer_defs.h>
 
+#ifdef USE_HWC2
 #include <memory>
+#endif
 
 struct ANativeWindow;
 
@@ -80,6 +87,9 @@ public:
             const sp<SurfaceFlinger>& flinger,
             DisplayType type,
             int32_t hwcId,
+#ifndef USE_HWC2
+            int format,
+#endif
             bool isSecure,
             const wp<IBinder>& displayToken,
             const sp<DisplaySurface>& displaySurface,
@@ -102,6 +112,9 @@ public:
 
     int         getWidth() const;
     int         getHeight() const;
+#ifndef USE_HWC2
+    PixelFormat getFormat() const;
+#endif
     uint32_t    getFlags() const;
 
     EGLSurface  getEGLSurface() const;
@@ -131,12 +144,23 @@ public:
     // We pass in mustRecompose so we can keep VirtualDisplaySurface's state
     // machine happy without actually queueing a buffer if nothing has changed
     status_t beginFrame(bool mustRecompose) const;
+#ifdef USE_HWC2
     status_t prepareFrame(HWComposer& hwc);
+#else
+    status_t prepareFrame(const HWComposer& hwc) const;
+#endif
 
     void swapBuffers(HWComposer& hwc) const;
+#ifndef USE_HWC2
+    status_t compositionComplete() const;
+#endif
 
     // called after h/w composer has completed its set() call
+#ifdef USE_HWC2
     void onSwapBuffersCompleted() const;
+#else
+    void onSwapBuffersCompleted(HWComposer& hwc) const;
+#endif
 
     Rect getBounds() const {
         return Rect(mDisplayWidth, mDisplayHeight);
@@ -158,8 +182,10 @@ public:
     void setPowerMode(int mode);
     bool isDisplayOn() const;
 
+#ifdef USE_HWC2
     android_color_mode_t getActiveColorMode() const;
     void setActiveColorMode(android_color_mode_t mode);
+#endif
 
     /* ------------------------------------------------------------------------
      * Display active config management.
@@ -194,6 +220,9 @@ private:
     EGLSurface      mSurface;
     int             mDisplayWidth;
     int             mDisplayHeight;
+#ifndef USE_HWC2
+    PixelFormat     mFormat;
+#endif
     uint32_t        mFlags;
     mutable uint32_t mPageFlipCount;
     String8         mDisplayName;
@@ -228,8 +257,10 @@ private:
     int mPowerMode;
     // Current active config
     int mActiveConfig;
+#ifdef USE_HWC2
     // current active color mode
     android_color_mode_t mActiveColorMode;
+#endif
 };
 
 struct DisplayDeviceState {

@@ -88,7 +88,11 @@ status_t SurfaceFlingerConsumer::updateTexImage(BufferRejecter* rejecter,
     }
 
     // Release the previous buffer.
+#ifdef USE_HWC2
     err = updateAndReleaseLocked(item, &mPendingRelease);
+#else
+    err = updateAndReleaseLocked(item);
+#endif
     if (err != NO_ERROR) {
         return err;
     }
@@ -185,6 +189,7 @@ nsecs_t SurfaceFlingerConsumer::computeExpectedPresent(const DispSync& dispSync)
     return nextRefresh + extraPadding;
 }
 
+#ifdef USE_HWC2
 void SurfaceFlingerConsumer::setReleaseFence(const sp<Fence>& fence)
 {
     mPrevReleaseFence = fence;
@@ -217,6 +222,12 @@ void SurfaceFlingerConsumer::releasePendingBuffer()
             strerror(-result), result);
     mPendingRelease = PendingRelease();
 }
+#else
+void SurfaceFlingerConsumer::setReleaseFence(const sp<Fence>& fence) {
+    mPrevReleaseFence = fence;
+    GLConsumer::setReleaseFence(fence);
+}
+#endif
 
 sp<Fence> SurfaceFlingerConsumer::getPrevReleaseFence() const {
     return mPrevReleaseFence;
