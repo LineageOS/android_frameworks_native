@@ -81,7 +81,9 @@ public:
 
     virtual void setReleaseFence(const sp<Fence>& fence) override;
     sp<Fence> getPrevReleaseFence() const;
+#ifdef USE_HWC2
     void releasePendingBuffer();
+#endif
 
     virtual bool getFrameTimestamps(uint64_t frameNumber,
             FrameTimestamps* outTimestamps) const override;
@@ -99,9 +101,11 @@ private:
     // The portion of this surface that has changed since the previous frame
     Region mSurfaceDamage;
 
+#ifdef USE_HWC2
     // A release that is pending on the receipt of a new release fence from
     // presentDisplay
     PendingRelease mPendingRelease;
+#endif
 
     // The release fence of the already displayed buffer (previous frame).
     sp<Fence> mPrevReleaseFence;

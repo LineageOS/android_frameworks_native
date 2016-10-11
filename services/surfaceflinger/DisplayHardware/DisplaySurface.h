@@ -49,6 +49,14 @@ public:
     };
     virtual status_t prepareFrame(CompositionType compositionType) = 0;
 
+#ifndef USE_HWC2
+    // Should be called when composition rendering is complete for a frame (but
+    // eglSwapBuffers hasn't necessarily been called). Required by certain
+    // older drivers for synchronization.
+    // TODO: Remove this when we drop support for HWC 1.0.
+    virtual status_t compositionComplete() = 0;
+#endif
+
     // Inform the surface that GLES composition is complete for this frame, and
     // the surface should make sure that HWComposer has the correct buffer for
     // this frame. Some implementations may only push a new buffer to

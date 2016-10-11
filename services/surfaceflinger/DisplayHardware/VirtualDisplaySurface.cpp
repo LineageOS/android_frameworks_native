@@ -175,6 +175,12 @@ status_t VirtualDisplaySurface::prepareFrame(CompositionType compositionType) {
     return NO_ERROR;
 }
 
+#ifndef USE_HWC2
+status_t VirtualDisplaySurface::compositionComplete() {
+    return NO_ERROR;
+}
+#endif
+
 status_t VirtualDisplaySurface::advanceFrame() {
     if (mDisplayId < 0)
         return NO_ERROR;
@@ -214,9 +220,13 @@ status_t VirtualDisplaySurface::advanceFrame() {
 
     status_t result = NO_ERROR;
     if (fbBuffer != NULL) {
+#ifdef USE_HWC2
         // TODO: Correctly propagate the dataspace from GL composition
         result = mHwc.setClientTarget(mDisplayId, mFbFence, fbBuffer,
                 HAL_DATASPACE_UNKNOWN);
+#else
+        result = mHwc.fbPost(mDisplayId, mFbFence, fbBuffer);
+#endif
     }
 
     return result;
@@ -230,14 +240,22 @@ void VirtualDisplaySurface::onFrameCommitted() {
             "Unexpected onFrameCommitted() in %s state", dbgStateStr());
     mDbgState = DBG_STATE_IDLE;
 
+#ifdef USE_HWC2
     sp<Fence> retireFence = mHwc.getRetireFence(mDisplayId);
+#else
+    sp<Fence> fbFence = mHwc.getAndResetReleaseFence(mDisplayId);
+#endif
     if (mCompositionType == COMPOSITION_MIXED && mFbProducerSlot >= 0) {
         // release the scratch buffer back to the pool
         Mutex::Autolock lock(mMutex);
         int sslot = mapProducer2SourceSlot(SOURCE_SCRATCH, mFbProducerSlot);
         VDS_LOGV("onFrameCommitted: release scratch sslot=%d", sslot);
+#ifdef USE_HWC2
         addReleaseFenceLocked(sslot, mProducerBuffers[mFbProducerSlot],
                 retireFence);
+#else
+        addReleaseFenceLocked(sslot, mProducerBuffers[mFbProducerSlot], fbFence);
+#endif
         releaseBufferLocked(sslot, mProducerBuffers[mFbProducerSlot],
                 EGL_NO_DISPLAY, EGL_NO_SYNC_KHR);
     }
@@ -245,6 +263,9 @@ void VirtualDisplaySurface::onFrameCommitted() {
     if (mOutputProducerSlot >= 0) {
         int sslot = mapProducer2SourceSlot(SOURCE_SINK, mOutputProducerSlot);
         QueueBufferOutput qbo;
+#ifndef USE_HWC2
+        sp<Fence> outFence = mHwc.getLastRetireFence(mDisplayId);
+#endif
         VDS_LOGV("onFrameCommitted: queue sink sslot=%d", sslot);
         if (mMustRecompose) {
             status_t result = mSource[SOURCE_SINK]->queueBuffer(sslot,
@@ -253,7 +274,11 @@ void VirtualDisplaySurface::onFrameCommitted() {
                         HAL_DATASPACE_UNKNOWN,
                         Rect(mSinkBufferWidth, mSinkBufferHeight),
                         NATIVE_WINDOW_SCALING_MODE_FREEZE, 0 /* transform */,
+#ifdef USE_HWC2
                         retireFence),
+#else
+                        outFence),
+#endif
                     &qbo);
             if (result == NO_ERROR) {
                 updateQueueBufferOutput(qbo);
@@ -263,7 +288,11 @@ void VirtualDisplaySurface::onFrameCommitted() {
             // through the motions of updating the display to keep our state
             // machine happy. We cancel the buffer to avoid triggering another
             // re-composition and causing an infinite loop.
+#ifdef USE_HWC2
             mSource[SOURCE_SINK]->cancelBuffer(sslot, retireFence);
+#else
+            mSource[SOURCE_SINK]->cancelBuffer(sslot, outFence);
+#endif
         }
     }
 

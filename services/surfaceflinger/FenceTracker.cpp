@@ -141,6 +141,7 @@ void FenceTracker::addFrame(nsecs_t refreshStartTime, sp<Fence> retireFence,
 
         layers[i]->getFenceData(&name, &frameNumber, &glesComposition,
                 &postedTime, &acquireFence, &prevReleaseFence);
+#ifdef USE_HWC2
         if (glesComposition) {
             frame.layers.emplace(std::piecewise_construct,
                     std::forward_as_tuple(layerId),
@@ -157,6 +158,16 @@ void FenceTracker::addFrame(nsecs_t refreshStartTime, sp<Fence> retireFence,
                 prevLayer->second.releaseFence = prevReleaseFence;
             }
         }
+#else
+        frame.layers.emplace(std::piecewise_construct,
+                std::forward_as_tuple(layerId),
+                std::forward_as_tuple(name, frameNumber, glesComposition,
+                postedTime, 0, 0, acquireFence,
+                glesComposition ? Fence::NO_FENCE : prevReleaseFence));
+        if (glesComposition) {
+            wasGlesCompositionDone = true;
+        }
+#endif
         frame.layers.emplace(std::piecewise_construct,
                 std::forward_as_tuple(layerId),
                 std::forward_as_tuple(name, frameNumber, glesComposition,

@@ -129,7 +129,11 @@ public:
 
     // enable/disable h/w composer event
     // TODO: this should be made accessible only to EventThread
+#ifdef USE_HWC2
     void setVsyncEnabled(int disp, int enabled);
+#else
+    void eventControl(int disp, int event, int enabled);
+#endif
 
     // called on the main thread by MessageQueue when an internal message
     // is received
@@ -377,6 +381,10 @@ private:
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(uint32_t layerStack, const Region& dirty);
 
+#ifndef USE_HWC2
+    int32_t allocateHwcDisplayId(DisplayDevice::DisplayType type);
+#endif
+
     /* ------------------------------------------------------------------------
      * H/W composer
      */
@@ -482,11 +490,17 @@ private:
     // don't need synchronization
     State mDrawingState;
     bool mVisibleRegionsDirty;
+#ifndef USE_HWC2
+    bool mHwWorkListDirty;
+#else
     bool mGeometryInvalid;
+#endif
     bool mAnimCompositionPending;
+#ifdef USE_HWC2
     std::vector<sp<Layer>> mLayersWithQueuedFrames;
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
     bool mHadClientComposition = false;
+#endif
 
     // this may only be written from the main thread with mStateLock held
     // it may be read from other threads with mStateLock held
@@ -504,7 +518,9 @@ private:
     bool mBootFinished;
     bool mForceFullDamage;
     FenceTracker mFenceTracker;
+#ifdef USE_HWC2
     bool mPropagateBackpressure = true;
+#endif
     SurfaceInterceptor mInterceptor;
     bool mUseHwcVirtualDisplays = true;
 
@@ -529,6 +545,9 @@ private:
     bool mInjectVSyncs;
 
     Daltonizer mDaltonizer;
+#ifndef USE_HWC2
+    bool mDaltonize;
+#endif
 
     mat4 mPreviousColorMatrix;
     mat4 mColorMatrix;
