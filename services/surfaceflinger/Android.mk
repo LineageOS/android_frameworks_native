@@ -142,7 +142,12 @@ LOCAL_SHARED_LIBRARIES := \
     libgui \
     libpowermanager \
     libvulkan \
-    libprotobuf-cpp-full
+    libprotobuf-cpp-full \
+    libhidl \
+    libhwbinder \
+    libbase \
+    libutils \
+    android.hardware.power@1.0
 
 LOCAL_CFLAGS += -Wall -Werror -Wunused -Wunreachable-code
 
