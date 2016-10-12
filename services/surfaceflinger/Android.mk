@@ -141,8 +141,7 @@ ifeq ($(TARGET_USES_QCOM_BSP), true)
     LOCAL_C_INCLUDES += $(BOARD_DISPLAY_HAL)/libgralloc
     LOCAL_C_INCLUDES += $(BOARD_DISPLAY_HAL)/libqdutils
   else
-    LOCAL_C_INCLUDES += hardware/qcom/display/libgralloc
-    LOCAL_C_INCLUDES += hardware/qcom/display/libqdutils
+    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/qcom/display
   endif
     LOCAL_SHARED_LIBRARIES += libqdutils
     LOCAL_SHARED_LIBRARIES += libqdMetaData
