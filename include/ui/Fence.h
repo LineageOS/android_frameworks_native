@@ -96,6 +96,17 @@ public:
     // occurs then -1 is returned.
     nsecs_t getSignalTime() const;
 
+    // hasSignaled returns whether the fence has signaled yet. Prefer this to
+    // getSignalTime() or wait() if all you care about is whether the fence has
+    // signaled.
+    inline bool hasSignaled() {
+        // The sync_wait call underlying wait() has been measured to be
+        // significantly faster than the sync_fence_info call underlying
+        // getSignalTime(), which might otherwise appear to be the more obvious
+        // way to check whether a fence has signaled.
+        return wait(0) == NO_ERROR;
+    }
+
     // Flattenable interface
     size_t getFlattenedSize() const;
     size_t getFdCount() const;
