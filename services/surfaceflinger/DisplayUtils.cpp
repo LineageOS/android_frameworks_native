@@ -191,7 +191,7 @@ bool DisplayUtils::canAllocateHwcDisplayIdForVDS(int usage) {
     flag_mask = GRALLOC_USAGE_PRIVATE_WFD;
 #endif
 
-    return ((mHasWbNode) && (!allowHwcForVDS) && (usage & flag_mask));
+    return ((mHasWbNode) && (allowHwcForVDS || (usage & flag_mask)));
 }
 
 int DisplayUtils::getNumFbNodes() {
