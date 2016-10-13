@@ -1803,127 +1803,81 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions)
     }
 
     Region outDirtyRegion;
-    if (mQueuedFrames > 0 || mAutoRefresh) {
+    if (mQueuedFrames <= 0 && !mAutoRefresh) {
+        return outDirtyRegion;
+    }
 
-        // if we've already called updateTexImage() without going through
-        // a composition step, we have to skip this layer at this point
-        // because we cannot call updateTeximage() without a corresponding
-        // compositionComplete() call.
-        // we'll trigger an update in onPreComposition().
-        if (mRefreshPending) {
-            return outDirtyRegion;
+    // if we've already called updateTexImage() without going through
+    // a composition step, we have to skip this layer at this point
+    // because we cannot call updateTeximage() without a corresponding
+    // compositionComplete() call.
+    // we'll trigger an update in onPreComposition().
+    if (mRefreshPending) {
+        return outDirtyRegion;
+    }
+
+    // If the head buffer's acquire fence hasn't signaled yet, return and
+    // try again later
+    if (!headFenceHasSignaled()) {
+        mFlinger->signalLayerUpdate();
+        return outDirtyRegion;
+    }
+
+    // Capture the old state of the layer for comparisons later
+    const State& s(getDrawingState());
+    const bool oldOpacity = isOpaque(s);
+    sp<GraphicBuffer> oldActiveBuffer = mActiveBuffer;
+
+    struct Reject : public SurfaceFlingerConsumer::BufferRejecter {
+        Layer::State& front;
+        Layer::State& current;
+        bool& recomputeVisibleRegions;
+        bool stickyTransformSet;
+        const char* name;
+        int32_t overrideScalingMode;
+        bool& freezePositionUpdates;
+
+        Reject(Layer::State& front, Layer::State& current,
+                bool& recomputeVisibleRegions, bool stickySet,
+                const char* name,
+                int32_t overrideScalingMode,
+                bool& freezePositionUpdates)
+            : front(front), current(current),
+              recomputeVisibleRegions(recomputeVisibleRegions),
+              stickyTransformSet(stickySet),
+              name(name),
+              overrideScalingMode(overrideScalingMode),
+              freezePositionUpdates(freezePositionUpdates) {
         }
 
-        // If the head buffer's acquire fence hasn't signaled yet, return and
-        // try again later
-        if (!headFenceHasSignaled()) {
-            mFlinger->signalLayerUpdate();
-            return outDirtyRegion;
-        }
-
-        // Capture the old state of the layer for comparisons later
-        const State& s(getDrawingState());
-        const bool oldOpacity = isOpaque(s);
-        sp<GraphicBuffer> oldActiveBuffer = mActiveBuffer;
-
-        struct Reject : public SurfaceFlingerConsumer::BufferRejecter {
-            Layer::State& front;
-            Layer::State& current;
-            bool& recomputeVisibleRegions;
-            bool stickyTransformSet;
-            const char* name;
-            int32_t overrideScalingMode;
-            bool& freezePositionUpdates;
-
-            Reject(Layer::State& front, Layer::State& current,
-                    bool& recomputeVisibleRegions, bool stickySet,
-                    const char* name,
-                    int32_t overrideScalingMode,
-                    bool& freezePositionUpdates)
-                : front(front), current(current),
-                  recomputeVisibleRegions(recomputeVisibleRegions),
-                  stickyTransformSet(stickySet),
-                  name(name),
-                  overrideScalingMode(overrideScalingMode),
-                  freezePositionUpdates(freezePositionUpdates) {
+        virtual bool reject(const sp<GraphicBuffer>& buf,
+                const BufferItem& item) {
+            if (buf == NULL) {
+                return false;
             }
 
-            virtual bool reject(const sp<GraphicBuffer>& buf,
-                    const BufferItem& item) {
-                if (buf == NULL) {
-                    return false;
-                }
+            uint32_t bufWidth  = buf->getWidth();
+            uint32_t bufHeight = buf->getHeight();
 
-                uint32_t bufWidth  = buf->getWidth();
-                uint32_t bufHeight = buf->getHeight();
+            // check that we received a buffer of the right size
+            // (Take the buffer's orientation into account)
+            if (item.mTransform & Transform::ROT_90) {
+                swap(bufWidth, bufHeight);
+            }
 
-                // check that we received a buffer of the right size
-                // (Take the buffer's orientation into account)
-                if (item.mTransform & Transform::ROT_90) {
-                    swap(bufWidth, bufHeight);
-                }
+            int actualScalingMode = overrideScalingMode >= 0 ?
+                    overrideScalingMode : item.mScalingMode;
+            bool isFixedSize = actualScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE;
+            if (front.active != front.requested) {
 
-                int actualScalingMode = overrideScalingMode >= 0 ?
-                        overrideScalingMode : item.mScalingMode;
-                bool isFixedSize = actualScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE;
-                if (front.active != front.requested) {
-
-                    if (isFixedSize ||
-                            (bufWidth == front.requested.w &&
-                             bufHeight == front.requested.h))
-                    {
-                        // Here we pretend the transaction happened by updating the
-                        // current and drawing states. Drawing state is only accessed
-                        // in this thread, no need to have it locked
-                        front.active = front.requested;
-
-                        // We also need to update the current state so that
-                        // we don't end-up overwriting the drawing state with
-                        // this stale current state during the next transaction
-                        //
-                        // NOTE: We don't need to hold the transaction lock here
-                        // because State::active is only accessed from this thread.
-                        current.active = front.active;
-                        current.modified = true;
-
-                        // recompute visible region
-                        recomputeVisibleRegions = true;
-                    }
-
-                    ALOGD_IF(DEBUG_RESIZE,
-                            "[%s] latchBuffer/reject: buffer (%ux%u, tr=%02x), scalingMode=%d\n"
-                            "  drawing={ active   ={ wh={%4u,%4u} crop={%4d,%4d,%4d,%4d} (%4d,%4d) }\n"
-                            "            requested={ wh={%4u,%4u} }}\n",
-                            name,
-                            bufWidth, bufHeight, item.mTransform, item.mScalingMode,
-                            front.active.w, front.active.h,
-                            front.crop.left,
-                            front.crop.top,
-                            front.crop.right,
-                            front.crop.bottom,
-                            front.crop.getWidth(),
-                            front.crop.getHeight(),
-                            front.requested.w, front.requested.h);
-                }
-
-                if (!isFixedSize && !stickyTransformSet) {
-                    if (front.active.w != bufWidth ||
-                        front.active.h != bufHeight) {
-                        // reject this buffer
-                        ALOGE("[%s] rejecting buffer: "
-                                "bufWidth=%d, bufHeight=%d, front.active.{w=%d, h=%d}",
-                                name, bufWidth, bufHeight, front.active.w, front.active.h);
-                        return true;
-                    }
-                }
-
-                // if the transparent region has changed (this test is
-                // conservative, but that's fine, worst case we're doing
-                // a bit of extra work), we latch the new one and we
-                // trigger a visible-region recompute.
-                if (!front.activeTransparentRegion.isTriviallyEqual(
-                        front.requestedTransparentRegion)) {
-                    front.activeTransparentRegion = front.requestedTransparentRegion;
+                if (isFixedSize ||
+                        (bufWidth == front.requested.w &&
+                         bufHeight == front.requested.h))
+                {
+                    // Here we pretend the transaction happened by updating the
+                    // current and drawing states. Drawing state is only accessed
+                    // in this thread, no need to have it locked
+                    front.active = front.requested;
 
                     // We also need to update the current state so that
                     // we don't end-up overwriting the drawing state with
@@ -1931,206 +1885,254 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions)
                     //
                     // NOTE: We don't need to hold the transaction lock here
                     // because State::active is only accessed from this thread.
-                    current.activeTransparentRegion = front.activeTransparentRegion;
+                    current.active = front.active;
+                    current.modified = true;
 
                     // recompute visible region
                     recomputeVisibleRegions = true;
                 }
 
-                if (front.crop != front.requestedCrop) {
-                    front.crop = front.requestedCrop;
-                    current.crop = front.requestedCrop;
-                    recomputeVisibleRegions = true;
+                ALOGD_IF(DEBUG_RESIZE,
+                        "[%s] latchBuffer/reject: buffer (%ux%u, tr=%02x), scalingMode=%d\n"
+                        "  drawing={ active   ={ wh={%4u,%4u} crop={%4d,%4d,%4d,%4d} (%4d,%4d) }\n"
+                        "            requested={ wh={%4u,%4u} }}\n",
+                        name,
+                        bufWidth, bufHeight, item.mTransform, item.mScalingMode,
+                        front.active.w, front.active.h,
+                        front.crop.left,
+                        front.crop.top,
+                        front.crop.right,
+                        front.crop.bottom,
+                        front.crop.getWidth(),
+                        front.crop.getHeight(),
+                        front.requested.w, front.requested.h);
+            }
+
+            if (!isFixedSize && !stickyTransformSet) {
+                if (front.active.w != bufWidth ||
+                    front.active.h != bufHeight) {
+                    // reject this buffer
+                    ALOGE("[%s] rejecting buffer: "
+                            "bufWidth=%d, bufHeight=%d, front.active.{w=%d, h=%d}",
+                            name, bufWidth, bufHeight, front.active.w, front.active.h);
+                    return true;
                 }
-                freezePositionUpdates = false;
-
-                return false;
-            }
-        };
-
-        Reject r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
-                getProducerStickyTransform() != 0, mName.string(),
-                mOverrideScalingMode, mFreezePositionUpdates);
-
-
-        // Check all of our local sync points to ensure that all transactions
-        // which need to have been applied prior to the frame which is about to
-        // be latched have signaled
-
-        auto headFrameNumber = getHeadFrameNumber();
-        bool matchingFramesFound = false;
-        bool allTransactionsApplied = true;
-        {
-            Mutex::Autolock lock(mLocalSyncPointMutex);
-            for (auto& point : mLocalSyncPoints) {
-                if (point->getFrameNumber() > headFrameNumber) {
-                    break;
-                }
-
-                matchingFramesFound = true;
-
-                if (!point->frameIsAvailable()) {
-                    // We haven't notified the remote layer that the frame for
-                    // this point is available yet. Notify it now, and then
-                    // abort this attempt to latch.
-                    point->setFrameAvailable();
-                    allTransactionsApplied = false;
-                    break;
-                }
-
-                allTransactionsApplied &= point->transactionIsApplied();
-            }
-        }
-
-        if (matchingFramesFound && !allTransactionsApplied) {
-            mFlinger->signalLayerUpdate();
-            return outDirtyRegion;
-        }
-
-        // This boolean is used to make sure that SurfaceFlinger's shadow copy
-        // of the buffer queue isn't modified when the buffer queue is returning
-        // BufferItem's that weren't actually queued. This can happen in shared
-        // buffer mode.
-        bool queuedBuffer = false;
-        status_t updateResult = mSurfaceFlingerConsumer->updateTexImage(&r,
-                mFlinger->mPrimaryDispSync, &mAutoRefresh, &queuedBuffer,
-                mLastFrameNumberReceived);
-        if (updateResult == BufferQueue::PRESENT_LATER) {
-            // Producer doesn't want buffer to be displayed yet.  Signal a
-            // layer update so we check again at the next opportunity.
-            mFlinger->signalLayerUpdate();
-            return outDirtyRegion;
-        } else if (updateResult == SurfaceFlingerConsumer::BUFFER_REJECTED) {
-            // If the buffer has been rejected, remove it from the shadow queue
-            // and return early
-            if (queuedBuffer) {
-                Mutex::Autolock lock(mQueueItemLock);
-                mQueueItems.removeAt(0);
-                android_atomic_dec(&mQueuedFrames);
-            }
-            return outDirtyRegion;
-        } else if (updateResult != NO_ERROR || mUpdateTexImageFailed) {
-            // This can occur if something goes wrong when trying to create the
-            // EGLImage for this buffer. If this happens, the buffer has already
-            // been released, so we need to clean up the queue and bug out
-            // early.
-            if (queuedBuffer) {
-                Mutex::Autolock lock(mQueueItemLock);
-                mQueueItems.clear();
-                android_atomic_and(0, &mQueuedFrames);
             }
 
-            // Once we have hit this state, the shadow queue may no longer
-            // correctly reflect the incoming BufferQueue's contents, so even if
-            // updateTexImage starts working, the only safe course of action is
-            // to continue to ignore updates.
-            mUpdateTexImageFailed = true;
+            // if the transparent region has changed (this test is
+            // conservative, but that's fine, worst case we're doing
+            // a bit of extra work), we latch the new one and we
+            // trigger a visible-region recompute.
+            if (!front.activeTransparentRegion.isTriviallyEqual(
+                    front.requestedTransparentRegion)) {
+                front.activeTransparentRegion = front.requestedTransparentRegion;
 
-            return outDirtyRegion;
-        }
+                // We also need to update the current state so that
+                // we don't end-up overwriting the drawing state with
+                // this stale current state during the next transaction
+                //
+                // NOTE: We don't need to hold the transaction lock here
+                // because State::active is only accessed from this thread.
+                current.activeTransparentRegion = front.activeTransparentRegion;
 
-        if (queuedBuffer) {
-            // Autolock scope
-            auto currentFrameNumber = mSurfaceFlingerConsumer->getFrameNumber();
-
-            Mutex::Autolock lock(mQueueItemLock);
-
-            // Remove any stale buffers that have been dropped during
-            // updateTexImage
-            while (mQueueItems[0].mFrameNumber != currentFrameNumber) {
-                mQueueItems.removeAt(0);
-                android_atomic_dec(&mQueuedFrames);
-            }
-
-            mQueueItems.removeAt(0);
-        }
-
-
-        // Decrement the queued-frames count.  Signal another event if we
-        // have more frames pending.
-        if ((queuedBuffer && android_atomic_dec(&mQueuedFrames) > 1)
-                || mAutoRefresh) {
-            mFlinger->signalLayerUpdate();
-        }
-
-        if (updateResult != NO_ERROR) {
-            // something happened!
-            recomputeVisibleRegions = true;
-            return outDirtyRegion;
-        }
-
-        // update the active buffer
-        mActiveBuffer = mSurfaceFlingerConsumer->getCurrentBuffer();
-        if (mActiveBuffer == NULL) {
-            // this can only happen if the very first buffer was rejected.
-            return outDirtyRegion;
-        }
-
-        mRefreshPending = true;
-        mFrameLatencyNeeded = true;
-        if (oldActiveBuffer == NULL) {
-             // the first time we receive a buffer, we need to trigger a
-             // geometry invalidation.
-            recomputeVisibleRegions = true;
-         }
-
-        Rect crop(mSurfaceFlingerConsumer->getCurrentCrop());
-        const uint32_t transform(mSurfaceFlingerConsumer->getCurrentTransform());
-        const uint32_t scalingMode(mSurfaceFlingerConsumer->getCurrentScalingMode());
-        if ((crop != mCurrentCrop) ||
-            (transform != mCurrentTransform) ||
-            (scalingMode != mCurrentScalingMode))
-        {
-            mCurrentCrop = crop;
-            mCurrentTransform = transform;
-            mCurrentScalingMode = scalingMode;
-            recomputeVisibleRegions = true;
-        }
-
-        if (oldActiveBuffer != NULL) {
-            uint32_t bufWidth  = mActiveBuffer->getWidth();
-            uint32_t bufHeight = mActiveBuffer->getHeight();
-            if (bufWidth != uint32_t(oldActiveBuffer->width) ||
-                bufHeight != uint32_t(oldActiveBuffer->height)) {
+                // recompute visible region
                 recomputeVisibleRegions = true;
             }
+
+            if (front.crop != front.requestedCrop) {
+                front.crop = front.requestedCrop;
+                current.crop = front.requestedCrop;
+                recomputeVisibleRegions = true;
+            }
+            freezePositionUpdates = false;
+
+            return false;
+        }
+    };
+
+    Reject r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
+            getProducerStickyTransform() != 0, mName.string(),
+            mOverrideScalingMode, mFreezePositionUpdates);
+
+
+    // Check all of our local sync points to ensure that all transactions
+    // which need to have been applied prior to the frame which is about to
+    // be latched have signaled
+
+    auto headFrameNumber = getHeadFrameNumber();
+    bool matchingFramesFound = false;
+    bool allTransactionsApplied = true;
+    {
+        Mutex::Autolock lock(mLocalSyncPointMutex);
+        for (auto& point : mLocalSyncPoints) {
+            if (point->getFrameNumber() > headFrameNumber) {
+                break;
+            }
+
+            matchingFramesFound = true;
+
+            if (!point->frameIsAvailable()) {
+                // We haven't notified the remote layer that the frame for
+                // this point is available yet. Notify it now, and then
+                // abort this attempt to latch.
+                point->setFrameAvailable();
+                allTransactionsApplied = false;
+                break;
+            }
+
+            allTransactionsApplied &= point->transactionIsApplied();
+        }
+    }
+
+    if (matchingFramesFound && !allTransactionsApplied) {
+        mFlinger->signalLayerUpdate();
+        return outDirtyRegion;
+    }
+
+    // This boolean is used to make sure that SurfaceFlinger's shadow copy
+    // of the buffer queue isn't modified when the buffer queue is returning
+    // BufferItem's that weren't actually queued. This can happen in shared
+    // buffer mode.
+    bool queuedBuffer = false;
+    status_t updateResult = mSurfaceFlingerConsumer->updateTexImage(&r,
+            mFlinger->mPrimaryDispSync, &mAutoRefresh, &queuedBuffer,
+            mLastFrameNumberReceived);
+    if (updateResult == BufferQueue::PRESENT_LATER) {
+        // Producer doesn't want buffer to be displayed yet.  Signal a
+        // layer update so we check again at the next opportunity.
+        mFlinger->signalLayerUpdate();
+        return outDirtyRegion;
+    } else if (updateResult == SurfaceFlingerConsumer::BUFFER_REJECTED) {
+        // If the buffer has been rejected, remove it from the shadow queue
+        // and return early
+        if (queuedBuffer) {
+            Mutex::Autolock lock(mQueueItemLock);
+            mQueueItems.removeAt(0);
+            android_atomic_dec(&mQueuedFrames);
+        }
+        return outDirtyRegion;
+    } else if (updateResult != NO_ERROR || mUpdateTexImageFailed) {
+        // This can occur if something goes wrong when trying to create the
+        // EGLImage for this buffer. If this happens, the buffer has already
+        // been released, so we need to clean up the queue and bug out
+        // early.
+        if (queuedBuffer) {
+            Mutex::Autolock lock(mQueueItemLock);
+            mQueueItems.clear();
+            android_atomic_and(0, &mQueuedFrames);
         }
 
-        mCurrentOpacity = getOpacityForFormat(mActiveBuffer->format);
-        if (oldOpacity != isOpaque(s)) {
+        // Once we have hit this state, the shadow queue may no longer
+        // correctly reflect the incoming BufferQueue's contents, so even if
+        // updateTexImage starts working, the only safe course of action is
+        // to continue to ignore updates.
+        mUpdateTexImageFailed = true;
+
+        return outDirtyRegion;
+    }
+
+    if (queuedBuffer) {
+        // Autolock scope
+        auto currentFrameNumber = mSurfaceFlingerConsumer->getFrameNumber();
+
+        Mutex::Autolock lock(mQueueItemLock);
+
+        // Remove any stale buffers that have been dropped during
+        // updateTexImage
+        while (mQueueItems[0].mFrameNumber != currentFrameNumber) {
+            mQueueItems.removeAt(0);
+            android_atomic_dec(&mQueuedFrames);
+        }
+
+        mQueueItems.removeAt(0);
+    }
+
+
+    // Decrement the queued-frames count.  Signal another event if we
+    // have more frames pending.
+    if ((queuedBuffer && android_atomic_dec(&mQueuedFrames) > 1)
+            || mAutoRefresh) {
+        mFlinger->signalLayerUpdate();
+    }
+
+    if (updateResult != NO_ERROR) {
+        // something happened!
+        recomputeVisibleRegions = true;
+        return outDirtyRegion;
+    }
+
+    // update the active buffer
+    mActiveBuffer = mSurfaceFlingerConsumer->getCurrentBuffer();
+    if (mActiveBuffer == NULL) {
+        // this can only happen if the very first buffer was rejected.
+        return outDirtyRegion;
+    }
+
+    mRefreshPending = true;
+    mFrameLatencyNeeded = true;
+    if (oldActiveBuffer == NULL) {
+         // the first time we receive a buffer, we need to trigger a
+         // geometry invalidation.
+        recomputeVisibleRegions = true;
+     }
+
+    Rect crop(mSurfaceFlingerConsumer->getCurrentCrop());
+    const uint32_t transform(mSurfaceFlingerConsumer->getCurrentTransform());
+    const uint32_t scalingMode(mSurfaceFlingerConsumer->getCurrentScalingMode());
+    if ((crop != mCurrentCrop) ||
+        (transform != mCurrentTransform) ||
+        (scalingMode != mCurrentScalingMode))
+    {
+        mCurrentCrop = crop;
+        mCurrentTransform = transform;
+        mCurrentScalingMode = scalingMode;
+        recomputeVisibleRegions = true;
+    }
+
+    if (oldActiveBuffer != NULL) {
+        uint32_t bufWidth  = mActiveBuffer->getWidth();
+        uint32_t bufHeight = mActiveBuffer->getHeight();
+        if (bufWidth != uint32_t(oldActiveBuffer->width) ||
+            bufHeight != uint32_t(oldActiveBuffer->height)) {
             recomputeVisibleRegions = true;
         }
+    }
 
-        mCurrentFrameNumber = mSurfaceFlingerConsumer->getFrameNumber();
+    mCurrentOpacity = getOpacityForFormat(mActiveBuffer->format);
+    if (oldOpacity != isOpaque(s)) {
+        recomputeVisibleRegions = true;
+    }
 
-        // Remove any sync points corresponding to the buffer which was just
-        // latched
-        {
-            Mutex::Autolock lock(mLocalSyncPointMutex);
-            auto point = mLocalSyncPoints.begin();
-            while (point != mLocalSyncPoints.end()) {
-                if (!(*point)->frameIsAvailable() ||
-                        !(*point)->transactionIsApplied()) {
-                    // This sync point must have been added since we started
-                    // latching. Don't drop it yet.
-                    ++point;
-                    continue;
-                }
+    mCurrentFrameNumber = mSurfaceFlingerConsumer->getFrameNumber();
 
-                if ((*point)->getFrameNumber() <= mCurrentFrameNumber) {
-                    point = mLocalSyncPoints.erase(point);
-                } else {
-                    ++point;
-                }
+    // Remove any sync points corresponding to the buffer which was just
+    // latched
+    {
+        Mutex::Autolock lock(mLocalSyncPointMutex);
+        auto point = mLocalSyncPoints.begin();
+        while (point != mLocalSyncPoints.end()) {
+            if (!(*point)->frameIsAvailable() ||
+                    !(*point)->transactionIsApplied()) {
+                // This sync point must have been added since we started
+                // latching. Don't drop it yet.
+                ++point;
+                continue;
+            }
+
+            if ((*point)->getFrameNumber() <= mCurrentFrameNumber) {
+                point = mLocalSyncPoints.erase(point);
+            } else {
+                ++point;
             }
         }
-
-        // FIXME: postedRegion should be dirty & bounds
-        Region dirtyRegion(Rect(s.active.w, s.active.h));
-
-        // transform the dirty region to window-manager space
-        outDirtyRegion = (s.active.transform.transform(dirtyRegion));
     }
+
+    // FIXME: postedRegion should be dirty & bounds
+    Region dirtyRegion(Rect(s.active.w, s.active.h));
+
+    // transform the dirty region to window-manager space
+    outDirtyRegion = (s.active.transform.transform(dirtyRegion));
+
     return outDirtyRegion;
 }
 
