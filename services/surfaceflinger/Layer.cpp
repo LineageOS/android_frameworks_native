@@ -44,6 +44,7 @@
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "Layer.h"
+#include "LayerRejecter.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 
@@ -1829,133 +1830,6 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions)
     const bool oldOpacity = isOpaque(s);
     sp<GraphicBuffer> oldActiveBuffer = mActiveBuffer;
 
-    struct Reject : public SurfaceFlingerConsumer::BufferRejecter {
-        Layer::State& front;
-        Layer::State& current;
-        bool& recomputeVisibleRegions;
-        bool stickyTransformSet;
-        const char* name;
-        int32_t overrideScalingMode;
-        bool& freezePositionUpdates;
-
-        Reject(Layer::State& front, Layer::State& current,
-                bool& recomputeVisibleRegions, bool stickySet,
-                const char* name,
-                int32_t overrideScalingMode,
-                bool& freezePositionUpdates)
-            : front(front), current(current),
-              recomputeVisibleRegions(recomputeVisibleRegions),
-              stickyTransformSet(stickySet),
-              name(name),
-              overrideScalingMode(overrideScalingMode),
-              freezePositionUpdates(freezePositionUpdates) {
-        }
-
-        virtual bool reject(const sp<GraphicBuffer>& buf,
-                const BufferItem& item) {
-            if (buf == NULL) {
-                return false;
-            }
-
-            uint32_t bufWidth  = buf->getWidth();
-            uint32_t bufHeight = buf->getHeight();
-
-            // check that we received a buffer of the right size
-            // (Take the buffer's orientation into account)
-            if (item.mTransform & Transform::ROT_90) {
-                swap(bufWidth, bufHeight);
-            }
-
-            int actualScalingMode = overrideScalingMode >= 0 ?
-                    overrideScalingMode : item.mScalingMode;
-            bool isFixedSize = actualScalingMode != NATIVE_WINDOW_SCALING_MODE_FREEZE;
-            if (front.active != front.requested) {
-
-                if (isFixedSize ||
-                        (bufWidth == front.requested.w &&
-                         bufHeight == front.requested.h))
-                {
-                    // Here we pretend the transaction happened by updating the
-                    // current and drawing states. Drawing state is only accessed
-                    // in this thread, no need to have it locked
-                    front.active = front.requested;
-
-                    // We also need to update the current state so that
-                    // we don't end-up overwriting the drawing state with
-                    // this stale current state during the next transaction
-                    //
-                    // NOTE: We don't need to hold the transaction lock here
-                    // because State::active is only accessed from this thread.
-                    current.active = front.active;
-                    current.modified = true;
-
-                    // recompute visible region
-                    recomputeVisibleRegions = true;
-                }
-
-                ALOGD_IF(DEBUG_RESIZE,
-                        "[%s] latchBuffer/reject: buffer (%ux%u, tr=%02x), scalingMode=%d\n"
-                        "  drawing={ active   ={ wh={%4u,%4u} crop={%4d,%4d,%4d,%4d} (%4d,%4d) }\n"
-                        "            requested={ wh={%4u,%4u} }}\n",
-                        name,
-                        bufWidth, bufHeight, item.mTransform, item.mScalingMode,
-                        front.active.w, front.active.h,
-                        front.crop.left,
-                        front.crop.top,
-                        front.crop.right,
-                        front.crop.bottom,
-                        front.crop.getWidth(),
-                        front.crop.getHeight(),
-                        front.requested.w, front.requested.h);
-            }
-
-            if (!isFixedSize && !stickyTransformSet) {
-                if (front.active.w != bufWidth ||
-                    front.active.h != bufHeight) {
-                    // reject this buffer
-                    ALOGE("[%s] rejecting buffer: "
-                            "bufWidth=%d, bufHeight=%d, front.active.{w=%d, h=%d}",
-                            name, bufWidth, bufHeight, front.active.w, front.active.h);
-                    return true;
-                }
-            }
-
-            // if the transparent region has changed (this test is
-            // conservative, but that's fine, worst case we're doing
-            // a bit of extra work), we latch the new one and we
-            // trigger a visible-region recompute.
-            if (!front.activeTransparentRegion.isTriviallyEqual(
-                    front.requestedTransparentRegion)) {
-                front.activeTransparentRegion = front.requestedTransparentRegion;
-
-                // We also need to update the current state so that
-                // we don't end-up overwriting the drawing state with
-                // this stale current state during the next transaction
-                //
-                // NOTE: We don't need to hold the transaction lock here
-                // because State::active is only accessed from this thread.
-                current.activeTransparentRegion = front.activeTransparentRegion;
-
-                // recompute visible region
-                recomputeVisibleRegions = true;
-            }
-
-            if (front.crop != front.requestedCrop) {
-                front.crop = front.requestedCrop;
-                current.crop = front.requestedCrop;
-                recomputeVisibleRegions = true;
-            }
-            freezePositionUpdates = false;
-
-            return false;
-        }
-    };
-
-    Reject r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
-            getProducerStickyTransform() != 0, mName.string(),
-            mOverrideScalingMode, mFreezePositionUpdates);
-
-
     // Check all of our local sync points to ensure that all transactions
     // which need to have been applied prior to the frame which is about to
     // be latched have signaled
@@ -1995,6 +1869,9 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions)
     // BufferItem's that weren't actually queued. This can happen in shared
     // buffer mode.
     bool queuedBuffer = false;
+    LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
+                    getProducerStickyTransform() != 0, mName.string(),
+                    mOverrideScalingMode, mFreezePositionUpdates);
     status_t updateResult = mSurfaceFlingerConsumer->updateTexImage(&r,
             mFlinger->mPrimaryDispSync, &mAutoRefresh, &queuedBuffer,
             mLastFrameNumberReceived);
