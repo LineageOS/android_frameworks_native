@@ -32,7 +32,12 @@
 
 namespace android {
 
+namespace Gralloc2 {
+class Allocator;
+}
+
 class Gralloc1Loader;
+class GraphicBufferMapper;
 class String8;
 
 class GraphicBufferAllocator : public Singleton<GraphicBufferAllocator>
@@ -85,6 +90,9 @@ private:
     friend class Singleton<GraphicBufferAllocator>;
     GraphicBufferAllocator();
     ~GraphicBufferAllocator();
+
+    const std::unique_ptr<const Gralloc2::Allocator> mAllocator;
+    GraphicBufferMapper& mMapper;
 
     std::unique_ptr<Gralloc1::Loader> mLoader;
     std::unique_ptr<Gralloc1::Device> mDevice;

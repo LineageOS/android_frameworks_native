@@ -26,6 +26,9 @@
 
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/Gralloc1On0Adapter.h>
+#include <ui/GrallocAllocator.h>
+#include <ui/GrallocMapper.h>
+#include <ui/GraphicBufferMapper.h>
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -37,8 +40,14 @@ KeyedVector<buffer_handle_t,
     GraphicBufferAllocator::alloc_rec_t> GraphicBufferAllocator::sAllocList;
 
 GraphicBufferAllocator::GraphicBufferAllocator()
-  : mLoader(std::make_unique<Gralloc1::Loader>()),
-    mDevice(mLoader->getDevice()) {}
+  : mAllocator(std::make_unique<Gralloc2::Allocator>()),
+    mMapper(GraphicBufferMapper::getInstance())
+{
+    if (!mAllocator->valid()) {
+        mLoader = std::make_unique<Gralloc1::Loader>();
+        mDevice = mLoader->getDevice();
+    }
+}
 
 GraphicBufferAllocator::~GraphicBufferAllocator() {}
 
@@ -70,7 +79,14 @@ void GraphicBufferAllocator::dump(String8& result) const
     }
     snprintf(buffer, SIZE, "Total allocated (estimate): %.2f KB\n", total/1024.0f);
     result.append(buffer);
-    std::string deviceDump = mDevice->dump();
+
+    std::string deviceDump;
+    if (mAllocator->valid()) {
+        deviceDump = mAllocator->dumpDebugInfo();
+    } else {
+        deviceDump = mDevice->dump();
+    }
+
     result.append(deviceDump.c_str(), deviceDump.size());
 }
 
@@ -80,6 +96,103 @@ void GraphicBufferAllocator::dumpToSystemLog()
     GraphicBufferAllocator::getInstance().dump(s);
     ALOGD("%s", s.string());
 }
+
+namespace {
+
+class HalBuffer {
+public:
+    HalBuffer(const Gralloc2::Allocator* allocator,
+            uint32_t width, uint32_t height,
+            PixelFormat format, uint32_t usage)
+        : mAllocator(allocator), mBufferValid(false)
+    {
+        Gralloc2::IAllocator::BufferDescriptorInfo info = {};
+        info.width = width;
+        info.height = height;
+        info.format = static_cast<Gralloc2::PixelFormat>(format);
+        info.producerUsageMask = usage;
+        info.consumerUsageMask = usage;
+
+        Gralloc2::BufferDescriptor descriptor;
+        auto error = mAllocator->createBufferDescriptor(info, descriptor);
+        if (error != Gralloc2::Error::NONE) {
+            ALOGE("Failed to create desc (%u x %u) format %d usage %u: %d",
+                    width, height, format, usage, error);
+            return;
+        }
+
+        error = mAllocator->allocate(descriptor, mBuffer);
+        if (error == Gralloc2::Error::NOT_SHARED) {
+            error = Gralloc2::Error::NONE;
+        }
+
+        if (error != Gralloc2::Error::NONE) {
+            ALOGE("Failed to allocate (%u x %u) format %d usage %u: %d",
+                    width, height, format, usage, error);
+            mAllocator->destroyBufferDescriptor(descriptor);
+            return;
+        }
+
+        error = mAllocator->exportHandle(descriptor, mBuffer, mHandle);
+        if (error != Gralloc2::Error::NONE) {
+            ALOGE("Failed to export handle");
+            mAllocator->free(mBuffer);
+            mAllocator->destroyBufferDescriptor(descriptor);
+            return;
+        }
+
+        mAllocator->destroyBufferDescriptor(descriptor);
+
+        mBufferValid = true;
+    }
+
+    ~HalBuffer()
+    {
+        if (mBufferValid) {
+            if (mHandle) {
+                native_handle_close(mHandle);
+                native_handle_delete(mHandle);
+            }
+
+            mAllocator->free(mBuffer);
+        }
+    }
+
+    bool exportHandle(GraphicBufferMapper& mapper,
+            buffer_handle_t* handle, uint32_t* stride)
+    {
+        if (!mBufferValid) {
+            return false;
+        }
+
+        if (mapper.registerBuffer(mHandle)) {
+            return false;
+        }
+
+        *handle = mHandle;
+
+        auto error = mapper.getGrallocMapper().getStride(mHandle, *stride);
+        if (error != Gralloc2::Error::NONE) {
+            ALOGW("Failed to get stride from buffer: %d", error);
+            *stride = 0;
+        }
+
+        mHandle = nullptr;
+        mAllocator->free(mBuffer);
+        mBufferValid = false;
+
+        return true;
+    }
+
+private:
+    const Gralloc2::Allocator* mAllocator;
+
+    bool mBufferValid;
+    Gralloc2::Buffer mBuffer;
+    native_handle_t* mHandle;
+};
+
+} // namespace
 
 status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
         PixelFormat format, uint32_t usage, buffer_handle_t* handle,
@@ -95,40 +208,51 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
     // Filter out any usage bits that should not be passed to the gralloc module
     usage &= GRALLOC_USAGE_ALLOC_MASK;
 
-    auto descriptor = mDevice->createDescriptor();
-    auto error = descriptor->setDimensions(width, height);
-    if (error != GRALLOC1_ERROR_NONE) {
-        ALOGE("Failed to set dimensions to (%u, %u): %d", width, height, error);
-        return BAD_VALUE;
-    }
-    error = descriptor->setFormat(static_cast<android_pixel_format_t>(format));
-    if (error != GRALLOC1_ERROR_NONE) {
-        ALOGE("Failed to set format to %d: %d", format, error);
-        return BAD_VALUE;
-    }
-    error = descriptor->setProducerUsage(
-            static_cast<gralloc1_producer_usage_t>(usage));
-    if (error != GRALLOC1_ERROR_NONE) {
-        ALOGE("Failed to set producer usage to %u: %d", usage, error);
-        return BAD_VALUE;
-    }
-    error = descriptor->setConsumerUsage(
-            static_cast<gralloc1_consumer_usage_t>(usage));
-    if (error != GRALLOC1_ERROR_NONE) {
-        ALOGE("Failed to set consumer usage to %u: %d", usage, error);
-        return BAD_VALUE;
-    }
+    gralloc1_error_t error;
+    if (mAllocator->valid()) {
+        HalBuffer buffer(mAllocator.get(), width, height, format, usage);
+        if (!buffer.exportHandle(mMapper, handle, stride)) {
+            return NO_MEMORY;
+        }
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        auto descriptor = mDevice->createDescriptor();
+        error = descriptor->setDimensions(width, height);
+        if (error != GRALLOC1_ERROR_NONE) {
+            ALOGE("Failed to set dimensions to (%u, %u): %d",
+                    width, height, error);
+            return BAD_VALUE;
+        }
+        error = descriptor->setFormat(
+                static_cast<android_pixel_format_t>(format));
+        if (error != GRALLOC1_ERROR_NONE) {
+            ALOGE("Failed to set format to %d: %d", format, error);
+            return BAD_VALUE;
+        }
+        error = descriptor->setProducerUsage(
+                static_cast<gralloc1_producer_usage_t>(usage));
+        if (error != GRALLOC1_ERROR_NONE) {
+            ALOGE("Failed to set producer usage to %u: %d", usage, error);
+            return BAD_VALUE;
+        }
+        error = descriptor->setConsumerUsage(
+                static_cast<gralloc1_consumer_usage_t>(usage));
+        if (error != GRALLOC1_ERROR_NONE) {
+            ALOGE("Failed to set consumer usage to %u: %d", usage, error);
+            return BAD_VALUE;
+        }
 
-    error = mDevice->allocate(descriptor, graphicBufferId, handle);
-    if (error != GRALLOC1_ERROR_NONE) {
-        ALOGE("Failed to allocate (%u x %u) format %d usage %u: %d",
-                width, height, format, usage, error);
-        return NO_MEMORY;
-    }
+        error = mDevice->allocate(descriptor, graphicBufferId, handle);
+        if (error != GRALLOC1_ERROR_NONE) {
+            ALOGE("Failed to allocate (%u x %u) format %d usage %u: %d",
+                    width, height, format, usage, error);
+            return NO_MEMORY;
+        }
 
-    error = mDevice->getStride(*handle, stride);
-    if (error != GRALLOC1_ERROR_NONE) {
-        ALOGW("Failed to get stride from buffer: %d", error);
+        error = mDevice->getStride(*handle, stride);
+        if (error != GRALLOC1_ERROR_NONE) {
+            ALOGW("Failed to get stride from buffer: %d", error);
+        }
     }
 
     if (error == NO_ERROR) {
@@ -153,7 +277,14 @@ status_t GraphicBufferAllocator::free(buffer_handle_t handle)
 {
     ATRACE_CALL();
 
-    auto error = mDevice->release(handle);
+    gralloc1_error_t error;
+    if (mAllocator->valid()) {
+        error = static_cast<gralloc1_error_t>(
+                mMapper.unregisterBuffer(handle));
+    } else {
+        error = mDevice->release(handle);
+    }
+
     if (error != GRALLOC1_ERROR_NONE) {
         ALOGE("Failed to free buffer: %d", error);
     }
