@@ -163,7 +163,7 @@ CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(long timeout) 
 }
 
 Dumpstate::Dumpstate(bool dryRun, const std::string& buildType)
-    : dryRun_(dryRun), buildType_(buildType) {
+    : now_(time(nullptr)), dryRun_(dryRun), buildType_(buildType) {
 }
 
 Dumpstate& Dumpstate::GetInstance() {
@@ -206,6 +206,10 @@ bool Dumpstate::IsDryRun() {
 
 bool Dumpstate::IsUserBuild() {
     return "user" == buildType_;
+}
+
+std::string Dumpstate::GetPath(const std::string& suffix) {
+    return bugreportDir_ + "/" + baseName_ + "-" + suffix_ + suffix;
 }
 
 void for_each_userid(void (*func)(int), const char *header) {
@@ -1342,9 +1346,16 @@ void Dumpstate::UpdateProgress(int delta) {
     }
 }
 
-void take_screenshot(const std::string& path) {
-    RunCommand("", {"/system/bin/screencap", "-p", path},
-               CommandOptions::WithTimeout(10).Always().RedirectStderr().Build());
+void Dumpstate::TakeScreenshot(const std::string& path) {
+    const std::string& realPath = path.empty() ? screenshotPath_ : path;
+    int status =
+        RunCommand("", {"/system/bin/screencap", "-p", realPath},
+                   CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
+    if (status == 0) {
+        MYLOGD("Screenshot saved on %s\n", realPath.c_str());
+    } else {
+        MYLOGE("Failed to take screenshot on %s\n", realPath.c_str());
+    }
 }
 
 void vibrate(FILE* vibrator, int ms) {

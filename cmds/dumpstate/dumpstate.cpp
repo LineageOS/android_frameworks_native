@@ -56,18 +56,10 @@
 static char cmdline_buf[16384] = "(unknown)";
 static const char *dump_traces_path = NULL;
 
-// Command-line arguments as string
-static std::string args;
-
 // TODO: variables below should be part of dumpstate object
-static time_t now;
 static std::unique_ptr<ZipWriter> zip_writer;
 static std::set<std::string> mount_points;
 void add_mountinfo();
-/* suffix of the bugreport files - it's typically the date (when invoked with -d),
- * although it could be changed by the user using a system property */
-static std::string suffix;
-static std::string extraOptions;
 
 #define PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops"
 #define ALT_PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops-0"
@@ -111,13 +103,6 @@ bool IsUserBuild() {
     return ds.IsUserBuild();
 }
 
-/*
- * List of supported zip format versions.
- *
- * See bugreport-format.md for more info.
- */
-static std::string VERSION_DEFAULT = "1.0";
-
 // Relative directory (inside the zip) for all files copied as-is into the bugreport.
 static const std::string ZIP_ROOT_DIR = "FS";
 
@@ -127,7 +112,7 @@ static constexpr char PROPERTY_LAST_ID[] = "dumpstate.last_id";
 /* gets the tombstone data, according to the bugreport type: if zipped, gets all tombstones;
  * otherwise, gets just those modified in the last half an hour. */
 static void get_tombstone_fds(tombstone_data_t data[NUM_TOMBSTONES]) {
-    time_t thirty_minutes_ago = now - 60*30;
+    time_t thirty_minutes_ago = ds.now_ - 60 * 30;
     for (size_t i = 0; i < NUM_TOMBSTONES; i++) {
         snprintf(data[i].name, sizeof(data[i].name), "%s%02zu", TOMBSTONE_FILE_PREFIX, i);
         int fd = TEMP_FAILURE_RETRY(open(data[i].name,
@@ -336,7 +321,7 @@ static void dump_systrace() {
         MYLOGD("Not dumping systrace because zip_writer is not set\n");
         return;
     }
-    std::string systrace_path = ds.bugreportDir_ + "/systrace-" + suffix + ".txt";
+    std::string systrace_path = ds.GetPath("-systrace.txt");
     if (systrace_path.empty()) {
         MYLOGE("Not dumping systrace because path is empty\n");
         return;
@@ -377,7 +362,7 @@ static void dump_raft() {
         return;
     }
 
-    std::string raft_log_path = ds.bugreportDir_ + "/raft_log.txt";
+    std::string raft_log_path = ds.GetPath("-raft_log.txt");
     if (raft_log_path.empty()) {
         MYLOGD("raft_log_path is empty\n");
         return;
@@ -686,8 +671,8 @@ static unsigned long logcat_timeout(const char *name) {
 
 /* End copy from system/core/logd/LogBuffer.cpp */
 
-/* dumps the current system state to stdout */
-void print_header(const std::string& version) {
+// TODO: move to utils.cpp
+void Dumpstate::PrintHeader() {
     std::string build, fingerprint, radio, bootloader, network;
     char date[80];
 
@@ -696,7 +681,7 @@ void print_header(const std::string& version) {
     radio = android::base::GetProperty("gsm.version.baseband", "(unknown)");
     bootloader = android::base::GetProperty("ro.bootloader", "(unknown)");
     network = android::base::GetProperty("gsm.operator.alpha", "(unknown)");
-    strftime(date, sizeof(date), "%Y-%m-%d %H:%M:%S", localtime(&now));
+    strftime(date, sizeof(date), "%Y-%m-%d %H:%M:%S", localtime(&now_));
 
     printf("========================================================\n");
     printf("== dumpstate: %s\n", date);
@@ -713,9 +698,9 @@ void print_header(const std::string& version) {
     printf("Kernel: ");
     DumpFile("", "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
-    printf("Bugreport format version: %s\n", version.c_str());
-    printf("Dumpstate info: id=%lu pid=%d dryRun=%d args=%s extraOptions=%s\n", ds.id_, getpid(),
-           ds.IsDryRun(), args.c_str(), extraOptions.c_str());
+    printf("Bugreport format version: %s\n", version_.c_str());
+    printf("Dumpstate info: id=%lu pid=%d dryRun=%d args=%s extraOptions=%s\n", id_, getpid(),
+           dryRun_, args_.c_str(), extraOptions_.c_str());
     printf("\n");
 }
 
@@ -748,8 +733,8 @@ bool add_zip_entry_from_fd(const std::string& entry_name, int fd) {
 
     // Logging statement  below is useful to time how long each entry takes, but it's too verbose.
     // MYLOGD("Adding zip entry %s\n", entry_name.c_str());
-    int32_t err = zip_writer->StartEntryWithTime(valid_name.c_str(),
-            ZipWriter::kCompress, get_mtime(fd, now));
+    int32_t err = zip_writer->StartEntryWithTime(valid_name.c_str(), ZipWriter::kCompress,
+                                                 get_mtime(fd, ds.now_));
     if (err) {
         MYLOGE("zip_writer->StartEntryWithTime(%s): %s\n", valid_name.c_str(),
                 ZipWriter::ErrorCodeString(err));
@@ -815,7 +800,7 @@ static bool add_text_zip_entry(const std::string& entry_name, const std::string&
         return false;
     }
     MYLOGD("Adding zip text entry %s\n", entry_name.c_str());
-    int32_t err = zip_writer->StartEntryWithTime(entry_name.c_str(), ZipWriter::kCompress, now);
+    int32_t err = zip_writer->StartEntryWithTime(entry_name.c_str(), ZipWriter::kCompress, ds.now_);
     if (err) {
         MYLOGE("zip_writer->StartEntryWithTime(%s): %s\n", entry_name.c_str(),
                 ZipWriter::ErrorCodeString(err));
@@ -849,8 +834,7 @@ static void dump_iptables() {
     RunCommand("IP6TABLES RAW", {"ip6tables", "-t", "raw", "-L", "-nvx"});
 }
 
-static void dumpstate(const std::string& screenshot_path,
-                      const std::string& version __attribute__((unused))) {
+static void dumpstate() {
     DurationReporter durationReporter("DUMPSTATE");
     unsigned long timeout;
 
@@ -897,10 +881,9 @@ static void dumpstate(const std::string& screenshot_path,
     /* Dump Bluetooth HCI logs */
     add_dir("/data/misc/bluetooth/logs", true);
 
-    if (!screenshot_path.empty()) {
+    if (!ds.doEarlyScreenshot_) {
         MYLOGI("taking late screenshot\n");
-        take_screenshot(screenshot_path);
-        MYLOGI("wrote screenshot: %s\n", screenshot_path.c_str());
+        ds.TakeScreenshot();
     }
 
     // DumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
@@ -1147,7 +1130,7 @@ static void dumpstate(const std::string& screenshot_path,
 
 static void ShowUsageAndExit(int exitCode = 1) {
     fprintf(stderr,
-            "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-o file [-d] [-p] "
+            "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-o file] [-d] [-p] "
             "[-z]] [-s] [-S] [-q] [-B] [-P] [-R] [-V version]\n"
             "  -h: display this help message\n"
             "  -b: play sound file instead of vibrate, at beginning of job\n"
@@ -1203,13 +1186,13 @@ static void register_sig_handler() {
    temporary file.
  */
 static bool finish_zip_file(const std::string& bugreport_name, const std::string& bugreport_path,
-                            const std::string& log_path, time_t now) {
+                            const std::string& log_path) {
     // Final timestamp
     char date[80];
     time_t the_real_now_please_stand_up = time(nullptr);
     strftime(date, sizeof(date), "%Y/%m/%d %H:%M:%S", localtime(&the_real_now_please_stand_up));
     MYLOGD("dumpstate id %lu finished around %s (%ld s)\n", ds.id_, date,
-           the_real_now_please_stand_up - now);
+           the_real_now_please_stand_up - ds.now_);
 
     if (!add_zip_entry(bugreport_name, bugreport_path)) {
         MYLOGE("Failed to add text entry to .zip file\n");
@@ -1292,11 +1275,7 @@ int main(int argc, char *argv[]) {
     int use_control_socket = 0;
     int do_fb = 0;
     int do_broadcast = 0;
-    int do_early_screenshot = 0;
     int is_remote_mode = 0;
-    std::string version = VERSION_DEFAULT;
-
-    now = time(nullptr);
 
     MYLOGI("begin\n");
 
@@ -1314,14 +1293,14 @@ int main(int argc, char *argv[]) {
 
     // TODO: use helper function to convert argv into a string
     for (int i = 0; i < argc; i++) {
-        args += argv[i];
+        ds.args_ += argv[i];
         if (i < argc - 1) {
-            args += " ";
+            ds.args_ += " ";
         }
     }
 
-    extraOptions = android::base::GetProperty(PROPERTY_EXTRA_OPTIONS, "");
-    MYLOGI("Dumpstate args: %s (extra options: %s)\n", args.c_str(), extraOptions.c_str());
+    ds.extraOptions_ = android::base::GetProperty(PROPERTY_EXTRA_OPTIONS, "");
+    MYLOGI("Dumpstate args: %s (extra options: %s)\n", ds.args_.c_str(), ds.extraOptions_.c_str());
 
     /* gets the sequential id */
     int lastId = android::base::GetIntProperty(PROPERTY_LAST_ID, 0);
@@ -1350,18 +1329,18 @@ int main(int argc, char *argv[]) {
     while ((c = getopt(argc, argv, "dho:svqzpPBRSV:")) != -1) {
         switch (c) {
             // clang-format off
-            case 'd': do_add_date = 1;          break;
-            case 'z': do_zip_file = 1;          break;
-            case 'o': use_outfile = optarg;     break;
-            case 's': use_socket = 1;           break;
-            case 'S': use_control_socket = 1;   break;
-            case 'v': break;  // compatibility no-op
-            case 'q': do_vibrate = 0;           break;
-            case 'p': do_fb = 1;                break;
-            case 'P': ds.updateProgress_ = 1;   break;
-            case 'R': is_remote_mode = 1;       break;
-            case 'B': do_broadcast = 1;         break;
-            case 'V': version = optarg;         break;
+            case 'd': do_add_date = 1;           break;
+            case 'z': do_zip_file = 1;           break;
+            case 'o': use_outfile = optarg;      break;
+            case 's': use_socket = 1;            break;
+            case 'S': use_control_socket = 1;    break;
+            case 'v':                            break;  // compatibility no-op
+            case 'q': do_vibrate = 0;            break;
+            case 'p': do_fb = 1;                 break;
+            case 'P': ds.updateProgress_ = true; break;
+            case 'R': is_remote_mode = 1;        break;
+            case 'B': do_broadcast = 1;          break;
+            case 'V': ds.version_ = optarg;      break;
             case 'h':
                 ShowUsageAndExit(0);
                 break;
@@ -1372,23 +1351,23 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (!extraOptions.empty()) {
+    if (!ds.extraOptions_.empty()) {
         // Framework uses a system property to override some command-line args.
         // Currently, it contains the type of the requested bugreport.
-        if (extraOptions == "bugreportplus") {
+        if (ds.extraOptions_ == "bugreportplus") {
             MYLOGD("Running as bugreportplus: add -P, remove -p\n");
-            ds.updateProgress_ = 1;
+            ds.updateProgress_ = true;
             do_fb = 0;
-        } else if (extraOptions == "bugreportremote") {
+        } else if (ds.extraOptions_ == "bugreportremote") {
             MYLOGD("Running as bugreportremote: add -q -R, remove -p\n");
             do_vibrate = 0;
             is_remote_mode = 1;
             do_fb = 0;
-        } else if (extraOptions == "bugreportwear") {
+        } else if (ds.extraOptions_ == "bugreportwear") {
             MYLOGD("Running as bugreportwear: add -P\n");
-            ds.updateProgress_ = 1;
+            ds.updateProgress_ = true;
         } else {
-            MYLOGE("Unknown extra option: %s\n", extraOptions.c_str());
+            MYLOGE("Unknown extra option: %s\n", ds.extraOptions_.c_str());
         }
         // Reset the property
         android::base::SetProperty(PROPERTY_EXTRA_OPTIONS, "");
@@ -1410,13 +1389,13 @@ int main(int argc, char *argv[]) {
         ExitOnInvalidArgs();
     }
 
-    if (version != VERSION_DEFAULT) {
+    if (ds.version_ != VERSION_DEFAULT) {
         ShowUsageAndExit();
     }
 
-    MYLOGI("bugreport format version: %s\n", version.c_str());
+    MYLOGI("bugreport format version: %s\n", ds.version_.c_str());
 
-    do_early_screenshot = ds.updateProgress_;
+    ds.doEarlyScreenshot_ = ds.updateProgress_;
 
     // If we are going to use a socket, do it as early as possible
     // to avoid timeouts from bugreport.
@@ -1436,15 +1415,6 @@ int main(int argc, char *argv[]) {
     /* full path of the file containing the dumpstate logs */
     std::string log_path;
 
-    /* full path of the systrace file, when enabled */
-    std::string systrace_path;
-
-    /* full path of the temporary file containing the screenshot (when requested) */
-    std::string screenshot_path;
-
-    /* base name (without suffix or extensions) of the bugreport files */
-    std::string base_name;
-
     /* pointer to the actual path, be it zip or text */
     std::string path;
 
@@ -1456,25 +1426,21 @@ int main(int argc, char *argv[]) {
 
     if (is_redirecting) {
         ds.bugreportDir_ = dirname(use_outfile);
-        base_name = basename(use_outfile);
+        ds.baseName_ = basename(use_outfile);
         if (do_add_date) {
             char date[80];
-            strftime(date, sizeof(date), "%Y-%m-%d-%H-%M-%S", localtime(&now));
-            suffix = date;
+            strftime(date, sizeof(date), "%Y-%m-%d-%H-%M-%S", localtime(&ds.now_));
+            ds.suffix_ = date;
         } else {
-            suffix = "undated";
+            ds.suffix_ = "undated";
         }
         std::string buildId = android::base::GetProperty("ro.build.id", "UNKNOWN_BUILD");
-        base_name = base_name + "-" + buildId;
+        ds.baseName_ = ds.baseName_ + "-" + buildId;
         if (do_fb) {
-            // TODO: if dumpstate was an object, the paths could be internal variables and then
-            // we could have a function to calculate the derived values, such as:
-            //     screenshot_path = GetPath(".png");
-            screenshot_path = ds.bugreportDir_ + "/" + base_name + "-" + suffix + ".png";
+            ds.screenshotPath_ = ds.GetPath(".png");
         }
-        tmp_path = ds.bugreportDir_ + "/" + base_name + "-" + suffix + ".tmp";
-        log_path =
-            ds.bugreportDir_ + "/dumpstate_log-" + suffix + "-" + std::to_string(getpid()) + ".txt";
+        tmp_path = ds.GetPath(".tmp");
+        log_path = ds.GetPath("-dumpstate_log-" + std::to_string(getpid()) + ".txt");
 
         MYLOGD(
             "Bugreport dir: %s\n"
@@ -1483,11 +1449,11 @@ int main(int argc, char *argv[]) {
             "Log path: %s\n"
             "Temporary path: %s\n"
             "Screenshot path: %s\n",
-            ds.bugreportDir_.c_str(), base_name.c_str(), suffix.c_str(), log_path.c_str(),
-            tmp_path.c_str(), screenshot_path.c_str());
+            ds.bugreportDir_.c_str(), ds.baseName_.c_str(), ds.suffix_.c_str(), log_path.c_str(),
+            tmp_path.c_str(), ds.screenshotPath_.c_str());
 
         if (do_zip_file) {
-            path = ds.bugreportDir_ + "/" + base_name + "-" + suffix + ".zip";
+            path = ds.GetPath(".zip");
             MYLOGD("Creating initial .zip file (%s)\n", path.c_str());
             create_parent_dirs(path.c_str());
             zip_file.reset(fopen(path.c_str(), "wb"));
@@ -1497,7 +1463,7 @@ int main(int argc, char *argv[]) {
             } else {
                 zip_writer.reset(new ZipWriter(zip_file.get()));
             }
-            add_text_zip_entry("version.txt", version);
+            add_text_zip_entry("version.txt", ds.version_);
         }
 
         if (ds.updateProgress_) {
@@ -1505,7 +1471,7 @@ int main(int argc, char *argv[]) {
                 // clang-format off
                 std::vector<std::string> am_args = {
                      "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
-                     "--es", "android.intent.extra.NAME", suffix,
+                     "--es", "android.intent.extra.NAME", ds.suffix_,
                      "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
                      "--ei", "android.intent.extra.PID", std::to_string(getpid()),
                      "--ei", "android.intent.extra.MAX", std::to_string(WEIGHT_TOTAL),
@@ -1535,18 +1501,13 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (do_fb && do_early_screenshot) {
-        if (screenshot_path.empty()) {
+    if (do_fb && ds.doEarlyScreenshot_) {
+        if (ds.screenshotPath_.empty()) {
             // should not have happened
             MYLOGE("INTERNAL ERROR: skipping early screenshot because path was not set\n");
         } else {
             MYLOGI("taking early screenshot\n");
-            take_screenshot(screenshot_path);
-            MYLOGI("wrote screenshot: %s\n", screenshot_path.c_str());
-            if (chown(screenshot_path.c_str(), AID_SHELL, AID_SHELL)) {
-                MYLOGE("Unable to change ownership of screenshot file %s: %s\n",
-                        screenshot_path.c_str(), strerror(errno));
-            }
+            ds.TakeScreenshot();
         }
     }
 
@@ -1574,7 +1535,7 @@ int main(int argc, char *argv[]) {
     // NOTE: there should be no stdout output until now, otherwise it would break the header.
     // In particular, DurationReport objects should be created passing 'title, NULL', so their
     // duration is logged into MYLOG instead.
-    print_header(version);
+    ds.PrintHeader();
 
     // Dumps systrace right away, otherwise it will be filled with unnecessary events.
     // First try to dump anrd trace if the daemon is running. Otherwise, dump
@@ -1619,7 +1580,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    dumpstate(do_early_screenshot ? "": screenshot_path, version);
+    dumpstate();
 
     /* close output if needed */
     if (is_redirecting) {
@@ -1643,31 +1604,30 @@ int main(int argc, char *argv[]) {
             }
         }
         if (change_suffix) {
-            MYLOGI("changing suffix from %s to %s\n", suffix.c_str(), name.c_str());
-            suffix = name;
-            if (!screenshot_path.empty()) {
-                std::string new_screenshot_path =
-                    ds.bugreportDir_ + "/" + base_name + "-" + suffix + ".png";
-                if (rename(screenshot_path.c_str(), new_screenshot_path.c_str())) {
-                    MYLOGE("rename(%s, %s): %s\n", screenshot_path.c_str(),
-                            new_screenshot_path.c_str(), strerror(errno));
+            MYLOGI("changing suffix from %s to %s\n", ds.suffix_.c_str(), name.c_str());
+            ds.suffix_ = name;
+            if (!ds.screenshotPath_.empty()) {
+                std::string newScreenshotPath = ds.GetPath(".png");
+                if (rename(ds.screenshotPath_.c_str(), newScreenshotPath.c_str())) {
+                    MYLOGE("rename(%s, %s): %s\n", ds.screenshotPath_.c_str(),
+                           newScreenshotPath.c_str(), strerror(errno));
                 } else {
-                    screenshot_path = new_screenshot_path;
+                    ds.screenshotPath_ = newScreenshotPath;
                 }
             }
         }
 
         bool do_text_file = true;
         if (do_zip_file) {
-            std::string entry_name = base_name + "-" + suffix + ".txt";
+            std::string entry_name = ds.baseName_ + "-" + ds.suffix_ + ".txt";
             MYLOGD("Adding main entry (%s) to .zip bugreport\n", entry_name.c_str());
-            if (!finish_zip_file(entry_name, tmp_path, log_path, now)) {
+            if (!finish_zip_file(entry_name, tmp_path, log_path)) {
                 MYLOGE("Failed to finish zip file; sending text bugreport instead\n");
                 do_text_file = true;
             } else {
                 do_text_file = false;
                 // Since zip file is already created, it needs to be renamed.
-                std::string new_path = ds.bugreportDir_ + "/" + base_name + "-" + suffix + ".zip";
+                std::string new_path = ds.GetPath(".zip");
                 if (path != new_path) {
                     MYLOGD("Renaming zip file from %s to %s\n", path.c_str(), new_path.c_str());
                     if (rename(path.c_str(), new_path.c_str())) {
@@ -1680,7 +1640,7 @@ int main(int argc, char *argv[]) {
             }
         }
         if (do_text_file) {
-            path = ds.bugreportDir_ + "/" + base_name + "-" + suffix + ".txt";
+            path = ds.GetPath(".txt");
             MYLOGD("Generating .txt bugreport at %s from %s\n", path.c_str(), tmp_path.c_str());
             if (rename(tmp_path.c_str(), path.c_str())) {
                 MYLOGE("rename(%s, %s): %s\n", tmp_path.c_str(), path.c_str(), strerror(errno));
@@ -1724,7 +1684,7 @@ int main(int argc, char *argv[]) {
             if (do_fb) {
                 am_args.push_back("--es");
                 am_args.push_back("android.intent.extra.SCREENSHOT");
-                am_args.push_back(screenshot_path);
+                am_args.push_back(ds.screenshotPath_);
             }
             if (is_remote_mode) {
                 am_args.push_back("--es");
