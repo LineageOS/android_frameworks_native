@@ -69,17 +69,12 @@ egl_surface_t::egl_surface_t(egl_display_t* dpy, EGLConfig config,
         egl_connection_t const* cnx) :
     egl_object_t(dpy), surface(surface), config(config), win(win), cnx(cnx),
     enableTimestamps(false), connected(true)
-{
-    if (win) {
-        getDisplay()->onWindowSurfaceCreated();
-    }
-}
+{}
 
 egl_surface_t::~egl_surface_t() {
     ANativeWindow* const window = win.get();
     if (window != NULL) {
         disconnect();
-        getDisplay()->onWindowSurfaceDestroyed();
     }
 }
 
