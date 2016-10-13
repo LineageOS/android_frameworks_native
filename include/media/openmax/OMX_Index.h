@@ -98,10 +98,13 @@ typedef enum OMX_INDEXTYPE {
     OMX_IndexParamMetadataKeyFilter,        /**< reference: OMX_PARAM_METADATAFILTERTYPE */
     OMX_IndexConfigPriorityMgmt,            /**< reference: OMX_PRIORITYMGMTTYPE */
     OMX_IndexParamStandardComponentRole,    /**< reference: OMX_PARAM_COMPONENTROLETYPE */
+    OMX_IndexComponentEndUnused,
 
     OMX_IndexPortStartUnused = 0x02000000,
     OMX_IndexParamPortDefinition,           /**< reference: OMX_PARAM_PORTDEFINITIONTYPE */
     OMX_IndexParamCompBufferSupplier,       /**< reference: OMX_PARAM_BUFFERSUPPLIERTYPE */
+    OMX_IndexPortEndUnused,
+
     OMX_IndexReservedStartUnused = 0x03000000,
 
     /* Audio parameters and configurations */
@@ -134,6 +137,7 @@ typedef enum OMX_INDEXTYPE {
     OMX_IndexParamAudioSmv,                 /**< reference: OMX_AUDIO_PARAM_SMVTYPE */
     OMX_IndexParamAudioVorbis,              /**< reference: OMX_AUDIO_PARAM_VORBISTYPE */
     OMX_IndexParamAudioFlac,                /**< reference: OMX_AUDIO_PARAM_FLACTYPE */
+    OMX_IndexAudioEndUnused,
 
     OMX_IndexConfigAudioMidiImmediateEvent, /**< reference: OMX_AUDIO_CONFIG_MIDIIMMEDIATEEVENTTYPE */
     OMX_IndexConfigAudioMidiControl,        /**< reference: OMX_AUDIO_CONFIG_MIDICONTROLTYPE */
@@ -194,6 +198,7 @@ typedef enum OMX_INDEXTYPE {
     OMX_IndexParamVideoSliceFMO,            /**< reference: OMX_VIDEO_PARAM_AVCSLICEFMO */
     OMX_IndexConfigVideoAVCIntraPeriod,     /**< reference: OMX_VIDEO_CONFIG_AVCINTRAPERIOD */
     OMX_IndexConfigVideoNalSize,            /**< reference: OMX_VIDEO_CONFIG_NALSIZE */
+    OMX_IndexVideoEndUnused,
 
     /* Image & Video common Configurations */
     OMX_IndexCommonStartUnused = 0x07000000,
@@ -231,6 +236,7 @@ typedef enum OMX_INDEXTYPE {
     OMX_IndexConfigCommonFocusRegion,       /**< reference: OMX_CONFIG_FOCUSREGIONTYPE */
     OMX_IndexConfigCommonFocusStatus,       /**< reference: OMX_PARAM_FOCUSSTATUSTYPE */
     OMX_IndexConfigCommonTransitionEffect,  /**< reference: OMX_CONFIG_TRANSITIONEFFECTTYPE */
+    OMX_IndexCommonEndUnused,
 
     /* Reserved Configuration range */
     OMX_IndexOtherStartUnused = 0x08000000,
