@@ -558,6 +558,11 @@ private:
 
     // -----------------------------------------------------------------------
 
+    // Check all of the local sync points to ensure that all transactions
+    // which need to have been applied prior to the frame which is about to
+    // be latched have signaled
+    bool allTransactionsSignaled();
+
     // constants
     sp<SurfaceFlingerConsumer> mSurfaceFlingerConsumer;
     sp<IGraphicBufferProducer> mProducer;
