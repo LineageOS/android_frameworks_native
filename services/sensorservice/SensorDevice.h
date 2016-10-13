@@ -27,19 +27,29 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#ifdef ENABLE_TREBLE
+#include <map>
+
+#include "android/hardware/sensors/1.0/ISensors.h"
+#endif
+
 // ---------------------------------------------------------------------------
 
 namespace android {
+
 // ---------------------------------------------------------------------------
 using SensorServiceUtil::Dumpable;
 
 class SensorDevice : public Singleton<SensorDevice>, public Dumpable {
 public:
     ssize_t getSensorList(sensor_t const** list);
+
     void handleDynamicSensorConnection(int handle, bool connected);
     status_t initCheck() const;
     int getHalDeviceVersion() const;
+
     ssize_t poll(sensors_event_t* buffer, size_t count);
+
     status_t activate(void* ident, int handle, int enabled);
     status_t batch(void* ident, int handle, int flags, int64_t samplingPeriodNs,
                    int64_t maxBatchReportLatencyNs);
@@ -50,6 +60,7 @@ public:
     void disableAllSensors();
     void enableAllSensors();
     void autoDisable(void *ident, int handle);
+
     status_t injectSensorData(const sensors_event_t *event);
     void notifyConnectionDestroyed(void *ident);
 
@@ -57,8 +68,15 @@ public:
     virtual std::string dump() const;
 private:
     friend class Singleton<SensorDevice>;
+#ifdef ENABLE_TREBLE
+    sp<android::hardware::sensors::V1_0::ISensors> mSensors;
+    Vector<sensor_t> mSensorList;
+    std::map<int32_t, sensor_t*> mConnectedDynamicSensors;
+#else
     sensors_poll_device_1_t* mSensorDevice;
     struct sensors_module_t* mSensorModule;
+#endif
+
     static const nsecs_t MINIMUM_EVENTS_PERIOD =   1000000; // 1000 Hz
     mutable Mutex mLock; // protect mActivationCount[].batchParams
     // fixed-size array after construction
@@ -111,6 +129,18 @@ private:
 
     bool isClientDisabled(void* ident);
     bool isClientDisabledLocked(void* ident);
+
+#ifdef ENABLE_TREBLE
+    using Event = hardware::sensors::V1_0::Event;
+    using SensorInfo = hardware::sensors::V1_0::SensorInfo;
+
+    void convertToSensorEvent(const Event &src, sensors_event_t *dst);
+
+    void convertToSensorEvents(
+            const hardware::hidl_vec<Event> &src,
+            const hardware::hidl_vec<SensorInfo> &dynamicSensorsAdded,
+            sensors_event_t *dst);
+#endif  // ENABLE_TREBLE
 };
 
 // ---------------------------------------------------------------------------
