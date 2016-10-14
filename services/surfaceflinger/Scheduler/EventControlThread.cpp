@@ -22,6 +22,7 @@
 #include <sched.h>
 #include <sys/resource.h>
 
+#include <bfqio/bfqio.h>
 #include <cutils/sched_policy.h>
 #include <log/log.h>
 #include <system/thread_defs.h>
@@ -41,6 +42,8 @@ EventControlThread::EventControlThread(EventControlThread::SetVSyncEnabledFuncti
     pid_t tid = pthread_gettid_np(mThread.native_handle());
     setpriority(PRIO_PROCESS, tid, ANDROID_PRIORITY_URGENT_DISPLAY);
     set_sched_policy(tid, SP_FOREGROUND);
+
+    android_set_rt_ioprio(tid, 1);
 }
 
 EventControlThread::~EventControlThread() {

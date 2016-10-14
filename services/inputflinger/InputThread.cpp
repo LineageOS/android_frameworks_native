@@ -16,6 +16,8 @@
 
 #include "InputThread.h"
 
+#include <bfqio/bfqio.h>
+
 namespace android {
 
 namespace {
@@ -42,7 +44,9 @@ private:
 InputThread::InputThread(std::string name, std::function<void()> loop, std::function<void()> wake)
       : mName(name), mThreadWake(wake) {
     mThread = new InputThreadImpl(loop);
-    mThread->run(mName.c_str(), ANDROID_PRIORITY_URGENT_DISPLAY);
+    mThread->run(mName.c_str(), ANDROID_PRIORITY_URGENT_DISPLAY + ANDROID_PRIORITY_MORE_FAVORABLE);
+
+    android_set_rt_ioprio(mThread->getTid(), 1);
 }
 
 InputThread::~InputThread() {
