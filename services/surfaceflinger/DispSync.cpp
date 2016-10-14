@@ -25,6 +25,7 @@
 #include <algorithm>
 
 #include <log/log.h>
+#include <bfqio/bfqio.h>
 #include <utils/String8.h>
 #include <utils/Thread.h>
 #include <utils/Trace.h>
@@ -389,6 +390,7 @@ DispSync::DispSync(const char* name) :
         ALOGE("Couldn't set SCHED_FIFO for DispSyncThread");
     }
 
+    android_set_rt_ioprio(mThread->getTid(), 1);
 
     reset();
     beginResync();
