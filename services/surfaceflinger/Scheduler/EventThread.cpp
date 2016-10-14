@@ -31,6 +31,7 @@
 
 #include <android-base/stringprintf.h>
 
+#include <bfqio/bfqio.h>
 #include <cutils/compiler.h>
 #include <cutils/sched_policy.h>
 
@@ -189,6 +190,8 @@ EventThread::EventThread(std::unique_ptr<VSyncSource> vsyncSource,
     }
 
     set_sched_policy(tid, SP_FOREGROUND);
+
+    android_set_rt_ioprio(tid, 1);
 }
 
 EventThread::~EventThread() {
