@@ -39,6 +39,7 @@ cc_defaults {
         "android.hardware.power@1.3",
         "android.hardware.power-cpp",
         "libbase",
+        "libbfqio",
         "libbinder",
         "libbufferhubqueue",
         "libcutils",
