@@ -37,6 +37,7 @@ cc_library_shared {
     shared_libs: [
         "android.hardware.input.classifier@1.0",
         "libbase",
+        "libbfqio",
         "libinputflinger_base",
         "libinputreporter",
         "libinputreader",
