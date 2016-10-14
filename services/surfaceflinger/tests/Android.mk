@@ -3,8 +3,6 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
-LOCAL_CFLAGS := -std=c++14
-
 LOCAL_MODULE := SurfaceFlinger_test
 
 LOCAL_MODULE_TAGS := tests
