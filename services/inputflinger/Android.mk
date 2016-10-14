@@ -25,6 +25,7 @@ LOCAL_SRC_FILES:= \
     InputWindow.cpp
 
 LOCAL_SHARED_LIBRARIES := \
+    libbfqio \
     libbinder \
     libcrypto \
     libcutils \
