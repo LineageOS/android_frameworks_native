@@ -672,7 +672,7 @@ static unsigned long logcat_timeout(const char *name) {
 /* End copy from system/core/logd/LogBuffer.cpp */
 
 // TODO: move to utils.cpp
-void Dumpstate::PrintHeader() {
+void Dumpstate::PrintHeader() const {
     std::string build, fingerprint, radio, bootloader, network;
     char date[80];
 
@@ -696,7 +696,7 @@ void Dumpstate::PrintHeader() {
     printf("Network: %s\n", network.c_str());
 
     printf("Kernel: ");
-    DumpFile("", "/proc/version");
+    JustDumpFile("", "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version_.c_str());
     printf("Dumpstate info: id=%lu pid=%d dryRun=%d args=%s extraOptions=%s\n", id_, getpid(),
@@ -1430,9 +1430,9 @@ int main(int argc, char *argv[]) {
         if (do_add_date) {
             char date[80];
             strftime(date, sizeof(date), "%Y-%m-%d-%H-%M-%S", localtime(&ds.now_));
-            ds.suffix_ = date;
+            ds.name_ = date;
         } else {
-            ds.suffix_ = "undated";
+            ds.name_ = "undated";
         }
         std::string buildId = android::base::GetProperty("ro.build.id", "UNKNOWN_BUILD");
         ds.baseName_ = ds.baseName_ + "-" + buildId;
@@ -1449,7 +1449,7 @@ int main(int argc, char *argv[]) {
             "Log path: %s\n"
             "Temporary path: %s\n"
             "Screenshot path: %s\n",
-            ds.bugreportDir_.c_str(), ds.baseName_.c_str(), ds.suffix_.c_str(), log_path.c_str(),
+            ds.bugreportDir_.c_str(), ds.baseName_.c_str(), ds.name_.c_str(), log_path.c_str(),
             tmp_path.c_str(), ds.screenshotPath_.c_str());
 
         if (do_zip_file) {
@@ -1471,7 +1471,7 @@ int main(int argc, char *argv[]) {
                 // clang-format off
                 std::vector<std::string> am_args = {
                      "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
-                     "--es", "android.intent.extra.NAME", ds.suffix_,
+                     "--es", "android.intent.extra.NAME", ds.name_,
                      "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
                      "--ei", "android.intent.extra.PID", std::to_string(getpid()),
                      "--ei", "android.intent.extra.MAX", std::to_string(WEIGHT_TOTAL),
@@ -1604,8 +1604,8 @@ int main(int argc, char *argv[]) {
             }
         }
         if (change_suffix) {
-            MYLOGI("changing suffix from %s to %s\n", ds.suffix_.c_str(), name.c_str());
-            ds.suffix_ = name;
+            MYLOGI("changing suffix from %s to %s\n", ds.name_.c_str(), name.c_str());
+            ds.name_ = name;
             if (!ds.screenshotPath_.empty()) {
                 std::string newScreenshotPath = ds.GetPath(".png");
                 if (rename(ds.screenshotPath_.c_str(), newScreenshotPath.c_str())) {
@@ -1619,7 +1619,7 @@ int main(int argc, char *argv[]) {
 
         bool do_text_file = true;
         if (do_zip_file) {
-            std::string entry_name = ds.baseName_ + "-" + ds.suffix_ + ".txt";
+            std::string entry_name = ds.baseName_ + "-" + ds.name_ + ".txt";
             MYLOGD("Adding main entry (%s) to .zip bugreport\n", entry_name.c_str());
             if (!finish_zip_file(entry_name, tmp_path, log_path)) {
                 MYLOGE("Failed to finish zip file; sending text bugreport instead\n");

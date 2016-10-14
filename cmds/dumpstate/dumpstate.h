@@ -218,12 +218,12 @@ class Dumpstate {
      *
      * Dry-run mode is enabled by setting the system property dumpstate.dry_run to true.
      */
-    bool IsDryRun();
+    bool IsDryRun() const;
 
     /*
      * Gets whether device is running a `user` build.
      */
-    bool IsUserBuild();
+    bool IsUserBuild() const;
 
     /*
      * Forks a command, waits for it to finish, and returns its status.
@@ -277,10 +277,10 @@ class Dumpstate {
     void UpdateProgress(int delta);
 
     /* Prints the dumpstate header on `stdout`. */
-    void PrintHeader();
+    void PrintHeader() const;
 
     /* Gets the path of a bugreport file with the given suffix. */
-    std::string GetPath(const std::string& suffix);
+    std::string GetPath(const std::string& suffix) const;
 
     // TODO: initialize fields on constructor
 
@@ -319,16 +319,24 @@ class Dumpstate {
 
     time_t now_;
 
-    // Suffix of the bugreport files - it's typically the date (when invoked with -d),
-    // although it could be changed by the user using a system property.
-    std::string suffix_;
-
-    // Base name (without suffix or extensions) of the bugreport files.
+    // Base name (without suffix or extensions) of the bugreport files, typically
+    // `bugreport-BUILD_ID`.
     std::string baseName_;
+
+    // Name is the suffix part of the bugreport files - it's typically the date (when invoked with
+    // `-d`), but it could be changed by the user..
+    std::string name_;
 
   private:
     // Used by GetInstance() only.
     Dumpstate(bool dryRun = false, const std::string& buildType = "user");
+
+    // Internal version of RunCommand that just runs it, without updating progress.
+    int JustRunCommand(const char* command, const char* path, std::vector<const char*>& args,
+                       const CommandOptions& options) const;
+
+    // Internal version of RunCommand that just dumps it, without updating progress.
+    int JustDumpFile(const std::string& title, const std::string& path) const;
 
     // Whether this is a dry run.
     bool dryRun_;
