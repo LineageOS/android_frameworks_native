@@ -56,7 +56,11 @@
 static char cmdline_buf[16384] = "(unknown)";
 static const char *dump_traces_path = NULL;
 
-// TODO: variables below should be part of dumpstate object
+// TODO: variables and functions below should be part of dumpstate object
+
+// TODO: Can't be added to dumpstate.h because including "ziparchive/zip_writer.h" would not work.
+// That's probably because of the dumpstate -> libdumpstate -> device implementation setup, which
+// might be changed anyways - let's keep it here and wait
 static std::unique_ptr<ZipWriter> zip_writer;
 static std::set<std::string> mount_points;
 void add_mountinfo();
@@ -119,7 +123,7 @@ static void get_tombstone_fds(tombstone_data_t data[NUM_TOMBSTONES]) {
                                          O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK));
         struct stat st;
         if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && st.st_size > 0 &&
-            (zip_writer || (time_t) st.st_mtime >= thirty_minutes_ago)) {
+            (ds.IsZipping() || st.st_mtime >= thirty_minutes_ago)) {
             data[i].fd = fd;
         } else {
             close(fd);
@@ -146,7 +150,7 @@ void do_mountinfo(int pid, const char* name __attribute__((unused))) {
     if (mount_points.find(linkname) == mount_points.end()) {
         // First time this mount point was found: add it
         snprintf(path, sizeof(path), "/proc/%d/mountinfo", pid);
-        if (add_zip_entry(ZIP_ROOT_DIR + path, path)) {
+        if (ds.AddZipEntry(ZIP_ROOT_DIR + path, path)) {
             mount_points.insert(linkname);
         } else {
             MYLOGE("Unable to add mountinfo %s to zip file\n", path);
@@ -155,7 +159,7 @@ void do_mountinfo(int pid, const char* name __attribute__((unused))) {
 }
 
 void add_mountinfo() {
-    if (!zip_writer) return;
+    if (!ds.IsZipping()) return;
     std::string title = "MOUNT INFO";
     mount_points.clear();
     DurationReporter durationReporter(title, nullptr);
@@ -229,8 +233,8 @@ static bool dump_anrd_trace() {
     long long cur_size = 0;
     const char *trace_path = "/data/misc/anrd/";
 
-    if (!zip_writer) {
-        MYLOGE("Not dumping anrd trace because zip_writer is not set\n");
+    if (!ds.IsZipping()) {
+        MYLOGE("Not dumping anrd trace because it's not a zipped bugreport\n");
         return false;
     }
 
@@ -301,7 +305,7 @@ static bool dump_anrd_trace() {
                 }
             }
             // Add to the zip file.
-            if (!add_zip_entry("anrd_trace.txt", path)) {
+            if (!ds.AddZipEntry("anrd_trace.txt", path)) {
                 MYLOGE("Unable to add anrd_trace file %s to zip file\n", path);
             } else {
                 if (remove(path)) {
@@ -317,8 +321,8 @@ static bool dump_anrd_trace() {
 }
 
 static void dump_systrace() {
-    if (!zip_writer) {
-        MYLOGD("Not dumping systrace because zip_writer is not set\n");
+    if (!ds.IsZipping()) {
+        MYLOGD("Not dumping systrace because it's not a zipped bugreport\n");
         return;
     }
     std::string systrace_path = ds.GetPath("-systrace.txt");
@@ -348,7 +352,7 @@ static void dump_systrace() {
         //   MYLOGE("could not stop systrace ");
         // }
     }
-    if (!add_zip_entry("systrace.txt", systrace_path)) {
+    if (!ds.AddZipEntry("systrace.txt", systrace_path)) {
         MYLOGE("Unable to add systrace file %s to zip file\n", systrace_path.c_str());
     } else {
         if (remove(systrace_path.c_str())) {
@@ -362,9 +366,9 @@ static void dump_raft() {
         return;
     }
 
-    std::string raft_log_path = ds.GetPath("-raft_log.txt");
-    if (raft_log_path.empty()) {
-        MYLOGD("raft_log_path is empty\n");
+    std::string raft_path = ds.GetPath("-raft_log.txt");
+    if (raft_path.empty()) {
+        MYLOGD("raft_path is empty\n");
         return;
     }
 
@@ -375,18 +379,18 @@ static void dump_raft() {
     }
 
     CommandOptions options = CommandOptions::WithTimeout(600).Build();
-    if (!zip_writer) {
-        // Write compressed and encoded raft logs to stdout if not zip_writer.
+    if (!ds.IsZipping()) {
+        // Write compressed and encoded raft logs to stdout if it's not a zipped bugreport.
         RunCommand("RAFT LOGS", {"logcompressor", "-r", RAFT_DIR}, options);
         return;
     }
 
-    RunCommand("RAFT LOGS", {"logcompressor", "-n", "-r", RAFT_DIR, "-o", raft_log_path}, options);
-    if (!add_zip_entry("raft_log.txt", raft_log_path)) {
-        MYLOGE("Unable to add raft log %s to zip file\n", raft_log_path.c_str());
+    RunCommand("RAFT LOGS", {"logcompressor", "-n", "-r", RAFT_DIR, "-o", raft_path}, options);
+    if (!ds.AddZipEntry("raft_log.txt", raft_path)) {
+        MYLOGE("Unable to add raft log %s to zip file\n", raft_path.c_str());
     } else {
-        if (remove(raft_log_path.c_str())) {
-            MYLOGE("Error removing raft file %s: %s\n", raft_log_path.c_str(), strerror(errno));
+        if (remove(raft_path.c_str())) {
+            MYLOGE("Error removing raft file %s: %s\n", raft_path.c_str(), strerror(errno));
         }
     }
 }
@@ -671,7 +675,6 @@ static unsigned long logcat_timeout(const char *name) {
 
 /* End copy from system/core/logd/LogBuffer.cpp */
 
-// TODO: move to utils.cpp
 void Dumpstate::PrintHeader() const {
     std::string build, fingerprint, radio, bootloader, network;
     char date[80];
@@ -704,6 +707,10 @@ void Dumpstate::PrintHeader() const {
     printf("\n");
 }
 
+bool Dumpstate::IsZipping() const {
+    return zip_writer != nullptr;
+}
+
 // List of file extensions that can cause a zip file attachment to be rejected by some email
 // service providers.
 static const std::set<std::string> PROBLEMATIC_FILE_EXTENSIONS = {
@@ -712,10 +719,10 @@ static const std::set<std::string> PROBLEMATIC_FILE_EXTENSIONS = {
       ".shb", ".sys", ".vb",  ".vbe", ".vbs", ".vxd", ".wsc", ".wsf", ".wsh"
 };
 
-bool add_zip_entry_from_fd(const std::string& entry_name, int fd) {
-    if (!zip_writer) {
-        MYLOGD("Not adding zip entry %s from fd because zip_writer is not set\n",
-                entry_name.c_str());
+bool Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd) {
+    if (!IsZipping()) {
+        MYLOGD("Not adding zip entry %s from fd because it's not a zipped bugreport\n",
+               entry_name.c_str());
         return false;
     }
     std::string valid_name = entry_name;
@@ -735,9 +742,9 @@ bool add_zip_entry_from_fd(const std::string& entry_name, int fd) {
     // MYLOGD("Adding zip entry %s\n", entry_name.c_str());
     int32_t err = zip_writer->StartEntryWithTime(valid_name.c_str(), ZipWriter::kCompress,
                                                  get_mtime(fd, ds.now_));
-    if (err) {
+    if (err != 0) {
         MYLOGE("zip_writer->StartEntryWithTime(%s): %s\n", valid_name.c_str(),
-                ZipWriter::ErrorCodeString(err));
+               ZipWriter::ErrorCodeString(err));
         return false;
     }
 
@@ -758,7 +765,7 @@ bool add_zip_entry_from_fd(const std::string& entry_name, int fd) {
     }
 
     err = zip_writer->FinishEntry();
-    if (err) {
+    if (err != 0) {
         MYLOGE("zip_writer->FinishEntry(): %s\n", ZipWriter::ErrorCodeString(err));
         return false;
     }
@@ -766,26 +773,25 @@ bool add_zip_entry_from_fd(const std::string& entry_name, int fd) {
     return true;
 }
 
-bool add_zip_entry(const std::string& entry_name, const std::string& entry_path) {
-    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(entry_path.c_str(), O_RDONLY | O_NONBLOCK
-            | O_CLOEXEC)));
+bool Dumpstate::AddZipEntry(const std::string& entry_name, const std::string& entry_path) {
+    android::base::unique_fd fd(
+        TEMP_FAILURE_RETRY(open(entry_path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC)));
     if (fd == -1) {
         MYLOGE("open(%s): %s\n", entry_path.c_str(), strerror(errno));
         return false;
     }
 
-    return add_zip_entry_from_fd(entry_name, fd.get());
+    return AddZipEntryFromFd(entry_name, fd.get());
 }
 
 /* adds a file to the existing zipped bugreport */
 static int _add_file_from_fd(const char* title __attribute__((unused)), const char* path, int fd) {
-    return add_zip_entry_from_fd(ZIP_ROOT_DIR + path, fd) ? 0 : 1;
+    return ds.AddZipEntryFromFd(ZIP_ROOT_DIR + path, fd) ? 0 : 1;
 }
 
-// TODO: move to util.cpp
-void add_dir(const std::string& dir, bool recursive) {
-    if (!zip_writer) {
-        MYLOGD("Not adding dir %s because zip_writer is not set\n", dir.c_str());
+void Dumpstate::AddDir(const std::string& dir, bool recursive) {
+    if (!IsZipping()) {
+        MYLOGD("Not adding dir %s because it's not a zipped bugreport\n", dir.c_str());
         return;
     }
     MYLOGD("Adding dir %s (recursive: %d)\n", dir.c_str(), recursive);
@@ -793,29 +799,29 @@ void add_dir(const std::string& dir, bool recursive) {
     dump_files("", dir.c_str(), recursive ? skip_none : is_dir, _add_file_from_fd);
 }
 
-/* adds a text entry entry to the existing zip file. */
-static bool add_text_zip_entry(const std::string& entry_name, const std::string& content) {
-    if (!zip_writer) {
-        MYLOGD("Not adding text zip entry %s because zip_writer is not set\n", entry_name.c_str());
+bool Dumpstate::AddTextZipEntry(const std::string& entry_name, const std::string& content) {
+    if (!IsZipping()) {
+        MYLOGD("Not adding text zip entry %s because it's not a zipped bugreport\n",
+               entry_name.c_str());
         return false;
     }
     MYLOGD("Adding zip text entry %s\n", entry_name.c_str());
     int32_t err = zip_writer->StartEntryWithTime(entry_name.c_str(), ZipWriter::kCompress, ds.now_);
-    if (err) {
+    if (err != 0) {
         MYLOGE("zip_writer->StartEntryWithTime(%s): %s\n", entry_name.c_str(),
-                ZipWriter::ErrorCodeString(err));
+               ZipWriter::ErrorCodeString(err));
         return false;
     }
 
     err = zip_writer->WriteBytes(content.c_str(), content.length());
-    if (err) {
+    if (err != 0) {
         MYLOGE("zip_writer->WriteBytes(%s): %s\n", entry_name.c_str(),
-                ZipWriter::ErrorCodeString(err));
+               ZipWriter::ErrorCodeString(err));
         return false;
     }
 
     err = zip_writer->FinishEntry();
-    if (err) {
+    if (err != 0) {
         MYLOGE("zip_writer->FinishEntry(): %s\n", ZipWriter::ErrorCodeString(err));
         return false;
     }
@@ -879,7 +885,7 @@ static void dumpstate() {
     for_each_pid(show_showtime, "PROCESS TIMES (pid cmd user system iowait+percentage)");
 
     /* Dump Bluetooth HCI logs */
-    add_dir("/data/misc/bluetooth/logs", true);
+    ds.AddDir("/data/misc/bluetooth/logs", true);
 
     if (!ds.doEarlyScreenshot_) {
         MYLOGI("taking late screenshot\n");
@@ -956,8 +962,8 @@ static void dumpstate() {
             const char *name = tombstone_data[i].name;
             int fd = tombstone_data[i].fd;
             dumped = 1;
-            if (zip_writer) {
-                if (!add_zip_entry_from_fd(ZIP_ROOT_DIR + name, fd)) {
+            if (ds.IsZipping()) {
+                if (!ds.AddZipEntryFromFd(ZIP_ROOT_DIR + name, fd)) {
                     MYLOGE("Unable to add tombstone %s to zip file\n", name);
                 }
             } else {
@@ -1182,11 +1188,10 @@ static void register_sig_handler() {
     sigaction(SIGQUIT, &sa, NULL); // quit
 }
 
-/* adds the temporary report to the existing .zip file, closes the .zip file, and removes the
-   temporary file.
- */
-static bool finish_zip_file(const std::string& bugreport_name, const std::string& bugreport_path,
-                            const std::string& log_path) {
+bool Dumpstate::FinishZipFile() {
+    std::string entry_name = baseName_ + "-" + name_ + ".txt";
+    MYLOGD("Adding main entry (%s) from %s to .zip bugreport\n", entry_name.c_str(),
+           tmp_path.c_str());
     // Final timestamp
     char date[80];
     time_t the_real_now_please_stand_up = time(nullptr);
@@ -1194,38 +1199,41 @@ static bool finish_zip_file(const std::string& bugreport_name, const std::string
     MYLOGD("dumpstate id %lu finished around %s (%ld s)\n", ds.id_, date,
            the_real_now_please_stand_up - ds.now_);
 
-    if (!add_zip_entry(bugreport_name, bugreport_path)) {
+    if (!ds.AddZipEntry(entry_name, tmp_path)) {
         MYLOGE("Failed to add text entry to .zip file\n");
         return false;
     }
-    if (!add_text_zip_entry("main_entry.txt", bugreport_name)) {
+    if (!AddTextZipEntry("main_entry.txt", entry_name)) {
         MYLOGE("Failed to add main_entry.txt to .zip file\n");
         return false;
     }
 
     // Add log file (which contains stderr output) to zip...
     fprintf(stderr, "dumpstate_log.txt entry on zip file logged up to here\n");
-    if (!add_zip_entry("dumpstate_log.txt", log_path.c_str())) {
+    if (!ds.AddZipEntry("dumpstate_log.txt", ds.log_path.c_str())) {
         MYLOGE("Failed to add dumpstate log to .zip file\n");
         return false;
     }
     // ... and re-opens it for further logging.
-    redirect_to_existing_file(stderr, const_cast<char*>(log_path.c_str()));
+    redirect_to_existing_file(stderr, const_cast<char*>(ds.log_path.c_str()));
     fprintf(stderr, "\n");
 
     int32_t err = zip_writer->Finish();
-    if (err) {
+    if (err != 0) {
         MYLOGE("zip_writer->Finish(): %s\n", ZipWriter::ErrorCodeString(err));
         return false;
     }
 
+    // TODO: remove once FinishZipFile() is automatically handled by Dumpstate's destructor.
+    ds.zip_file.reset(nullptr);
+
     if (IsUserBuild()) {
-        MYLOGD("Removing temporary file %s\n", bugreport_path.c_str())
-        if (remove(bugreport_path.c_str())) {
-            ALOGW("remove(%s): %s\n", bugreport_path.c_str(), strerror(errno));
+        MYLOGD("Removing temporary file %s\n", tmp_path.c_str())
+        if (remove(tmp_path.c_str()) != 0) {
+            ALOGW("remove(%s): %s\n", tmp_path.c_str(), strerror(errno));
         }
     } else {
-        MYLOGD("Keeping temporary file %s on non-user build\n", bugreport_path.c_str())
+        MYLOGD("Keeping temporary file %s on non-user build\n", tmp_path.c_str())
     }
 
     return true;
@@ -1409,18 +1417,6 @@ int main(int argc, char *argv[]) {
         ds.updateProgress_ = 1;
     }
 
-    /* full path of the temporary file containing the bugreport */
-    std::string tmp_path;
-
-    /* full path of the file containing the dumpstate logs */
-    std::string log_path;
-
-    /* pointer to the actual path, be it zip or text */
-    std::string path;
-
-    /* pointer to the zipped file */
-    std::unique_ptr<FILE, int(*)(FILE*)> zip_file(NULL, fclose);
-
     /* redirect output if needed */
     bool is_redirecting = !use_socket && use_outfile;
 
@@ -1439,8 +1435,8 @@ int main(int argc, char *argv[]) {
         if (do_fb) {
             ds.screenshotPath_ = ds.GetPath(".png");
         }
-        tmp_path = ds.GetPath(".tmp");
-        log_path = ds.GetPath("-dumpstate_log-" + std::to_string(getpid()) + ".txt");
+        ds.tmp_path = ds.GetPath(".tmp");
+        ds.log_path = ds.GetPath("-dumpstate_log-" + std::to_string(getpid()) + ".txt");
 
         MYLOGD(
             "Bugreport dir: %s\n"
@@ -1449,21 +1445,21 @@ int main(int argc, char *argv[]) {
             "Log path: %s\n"
             "Temporary path: %s\n"
             "Screenshot path: %s\n",
-            ds.bugreportDir_.c_str(), ds.baseName_.c_str(), ds.name_.c_str(), log_path.c_str(),
-            tmp_path.c_str(), ds.screenshotPath_.c_str());
+            ds.bugreportDir_.c_str(), ds.baseName_.c_str(), ds.name_.c_str(), ds.log_path.c_str(),
+            ds.tmp_path.c_str(), ds.screenshotPath_.c_str());
 
         if (do_zip_file) {
-            path = ds.GetPath(".zip");
-            MYLOGD("Creating initial .zip file (%s)\n", path.c_str());
-            create_parent_dirs(path.c_str());
-            zip_file.reset(fopen(path.c_str(), "wb"));
-            if (!zip_file) {
-                MYLOGE("fopen(%s, 'wb'): %s\n", path.c_str(), strerror(errno));
+            ds.path = ds.GetPath(".zip");
+            MYLOGD("Creating initial .zip file (%s)\n", ds.path.c_str());
+            create_parent_dirs(ds.path.c_str());
+            ds.zip_file.reset(fopen(ds.path.c_str(), "wb"));
+            if (ds.zip_file == nullptr) {
+                MYLOGE("fopen(%s, 'wb'): %s\n", ds.path.c_str(), strerror(errno));
                 do_zip_file = 0;
             } else {
-                zip_writer.reset(new ZipWriter(zip_file.get()));
+                zip_writer.reset(new ZipWriter(ds.zip_file.get()));
             }
-            add_text_zip_entry("version.txt", ds.version_);
+            ds.AddTextZipEntry("version.txt", ds.version_);
         }
 
         if (ds.updateProgress_) {
@@ -1480,7 +1476,7 @@ int main(int argc, char *argv[]) {
                 send_broadcast("android.intent.action.BUGREPORT_STARTED", am_args);
             }
             if (use_control_socket) {
-                dprintf(ds.controlSocketFd_, "BEGIN:%s\n", path.c_str());
+                dprintf(ds.controlSocketFd_, "BEGIN:%s\n", ds.path.c_str());
             }
         }
     }
@@ -1512,24 +1508,25 @@ int main(int argc, char *argv[]) {
     }
 
     if (do_zip_file) {
-        if (chown(path.c_str(), AID_SHELL, AID_SHELL)) {
-            MYLOGE("Unable to change ownership of zip file %s: %s\n", path.c_str(), strerror(errno));
+        if (chown(ds.path.c_str(), AID_SHELL, AID_SHELL)) {
+            MYLOGE("Unable to change ownership of zip file %s: %s\n", ds.path.c_str(),
+                   strerror(errno));
         }
     }
 
     if (is_redirecting) {
-        redirect_to_file(stderr, const_cast<char*>(log_path.c_str()));
-        if (chown(log_path.c_str(), AID_SHELL, AID_SHELL)) {
-            MYLOGE("Unable to change ownership of dumpstate log file %s: %s\n",
-                    log_path.c_str(), strerror(errno));
+        redirect_to_file(stderr, const_cast<char*>(ds.log_path.c_str()));
+        if (chown(ds.log_path.c_str(), AID_SHELL, AID_SHELL)) {
+            MYLOGE("Unable to change ownership of dumpstate log file %s: %s\n", ds.log_path.c_str(),
+                   strerror(errno));
         }
         /* TODO: rather than generating a text file now and zipping it later,
            it would be more efficient to redirect stdout to the zip entry
            directly, but the libziparchive doesn't support that option yet. */
-        redirect_to_file(stdout, const_cast<char*>(tmp_path.c_str()));
-        if (chown(tmp_path.c_str(), AID_SHELL, AID_SHELL)) {
+        redirect_to_file(stdout, const_cast<char*>(ds.tmp_path.c_str()));
+        if (chown(ds.tmp_path.c_str(), AID_SHELL, AID_SHELL)) {
             MYLOGE("Unable to change ownership of temporary bugreport file %s: %s\n",
-                    tmp_path.c_str(), strerror(errno));
+                   ds.tmp_path.c_str(), strerror(errno));
         }
     }
     // NOTE: there should be no stdout output until now, otherwise it would break the header.
@@ -1559,12 +1556,12 @@ int main(int argc, char *argv[]) {
 
     /* Run some operations that require root. */
     get_tombstone_fds(tombstone_data);
-    add_dir(RECOVERY_DIR, true);
-    add_dir(RECOVERY_DATA_DIR, true);
-    add_dir(LOGPERSIST_DATA_DIR, false);
+    ds.AddDir(RECOVERY_DIR, true);
+    ds.AddDir(RECOVERY_DATA_DIR, true);
+    ds.AddDir(LOGPERSIST_DATA_DIR, false);
     if (!IsUserBuild()) {
-        add_dir(PROFILE_DATA_DIR_CUR, true);
-        add_dir(PROFILE_DATA_DIR_REF, true);
+        ds.AddDir(PROFILE_DATA_DIR_CUR, true);
+        ds.AddDir(PROFILE_DATA_DIR_REF, true);
     }
     add_mountinfo();
     dump_iptables();
@@ -1619,32 +1616,32 @@ int main(int argc, char *argv[]) {
 
         bool do_text_file = true;
         if (do_zip_file) {
-            std::string entry_name = ds.baseName_ + "-" + ds.name_ + ".txt";
-            MYLOGD("Adding main entry (%s) to .zip bugreport\n", entry_name.c_str());
-            if (!finish_zip_file(entry_name, tmp_path, log_path)) {
+            if (!ds.FinishZipFile()) {
                 MYLOGE("Failed to finish zip file; sending text bugreport instead\n");
                 do_text_file = true;
             } else {
                 do_text_file = false;
                 // Since zip file is already created, it needs to be renamed.
-                std::string new_path = ds.GetPath(".zip");
-                if (path != new_path) {
-                    MYLOGD("Renaming zip file from %s to %s\n", path.c_str(), new_path.c_str());
-                    if (rename(path.c_str(), new_path.c_str())) {
-                        MYLOGE("rename(%s, %s): %s\n", path.c_str(),
-                                new_path.c_str(), strerror(errno));
+                std::string newPath = ds.GetPath(".zip");
+                if (ds.path != newPath) {
+                    MYLOGD("Renaming zip file from %s to %s\n", ds.path.c_str(), newPath.c_str());
+                    if (rename(ds.path.c_str(), newPath.c_str())) {
+                        MYLOGE("rename(%s, %s): %s\n", ds.path.c_str(), newPath.c_str(),
+                               strerror(errno));
                     } else {
-                        path = new_path;
+                        ds.path = newPath;
                     }
                 }
             }
         }
         if (do_text_file) {
-            path = ds.GetPath(".txt");
-            MYLOGD("Generating .txt bugreport at %s from %s\n", path.c_str(), tmp_path.c_str());
-            if (rename(tmp_path.c_str(), path.c_str())) {
-                MYLOGE("rename(%s, %s): %s\n", tmp_path.c_str(), path.c_str(), strerror(errno));
-                path.clear();
+            ds.path = ds.GetPath(".txt");
+            MYLOGD("Generating .txt bugreport at %s from %s\n", ds.path.c_str(),
+                   ds.tmp_path.c_str());
+            if (rename(ds.tmp_path.c_str(), ds.path.c_str())) {
+                MYLOGE("rename(%s, %s): %s\n", ds.tmp_path.c_str(), ds.path.c_str(),
+                       strerror(errno));
+                ds.path.clear();
             }
         }
         if (use_control_socket) {
@@ -1652,9 +1649,9 @@ int main(int argc, char *argv[]) {
                 dprintf(ds.controlSocketFd_,
                         "FAIL:could not create zip file, check %s "
                         "for more details\n",
-                        log_path.c_str());
+                        ds.log_path.c_str());
             } else {
-                dprintf(ds.controlSocketFd_, "OK:%s\n", path.c_str());
+                dprintf(ds.controlSocketFd_, "OK:%s\n", ds.path.c_str());
             }
         }
     }
@@ -1669,16 +1666,16 @@ int main(int argc, char *argv[]) {
 
     /* tell activity manager we're done */
     if (do_broadcast) {
-        if (!path.empty()) {
-            MYLOGI("Final bugreport path: %s\n", path.c_str());
+        if (!ds.path.empty()) {
+            MYLOGI("Final bugreport path: %s\n", ds.path.c_str());
             // clang-format off
             std::vector<std::string> am_args = {
                  "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
                  "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
                  "--ei", "android.intent.extra.PID", std::to_string(getpid()),
                  "--ei", "android.intent.extra.MAX", std::to_string(ds.weightTotal_),
-                 "--es", "android.intent.extra.BUGREPORT", path,
-                 "--es", "android.intent.extra.DUMPSTATE_LOG", log_path
+                 "--es", "android.intent.extra.BUGREPORT", ds.path,
+                 "--es", "android.intent.extra.DUMPSTATE_LOG", ds.log_path
             };
             // clang-format on
             if (do_fb) {
@@ -1689,7 +1686,7 @@ int main(int argc, char *argv[]) {
             if (is_remote_mode) {
                 am_args.push_back("--es");
                 am_args.push_back("android.intent.extra.REMOTE_BUGREPORT_HASH");
-                am_args.push_back(SHA256_file_hash(path));
+                am_args.push_back(SHA256_file_hash(ds.path));
                 send_broadcast("android.intent.action.REMOTE_BUGREPORT_FINISHED", am_args);
             } else {
                 send_broadcast("android.intent.action.BUGREPORT_FINISHED", am_args);
