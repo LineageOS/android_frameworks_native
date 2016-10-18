@@ -194,7 +194,8 @@ Sensor const* SensorManager::getDefaultSensor(int type)
         // a non_wake-up version.
         if (type == SENSOR_TYPE_PROXIMITY || type == SENSOR_TYPE_SIGNIFICANT_MOTION ||
             type == SENSOR_TYPE_TILT_DETECTOR || type == SENSOR_TYPE_WAKE_GESTURE ||
-            type == SENSOR_TYPE_GLANCE_GESTURE || type == SENSOR_TYPE_PICK_UP_GESTURE) {
+            type == SENSOR_TYPE_GLANCE_GESTURE || type == SENSOR_TYPE_PICK_UP_GESTURE ||
+            type == SENSOR_TYPE_WRIST_TILT_GESTURE) {
             wakeUpSensor = true;
         }
         // For now we just return the first sensor of that type we find.
