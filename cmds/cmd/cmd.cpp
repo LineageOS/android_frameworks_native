@@ -23,6 +23,8 @@
 #include <binder/IServiceManager.h>
 #include <binder/IShellCallback.h>
 #include <binder/TextOutput.h>
+#include <utils/Condition.h>
+#include <utils/Mutex.h>
 #include <utils/Vector.h>
 
 #include <getopt.h>
@@ -38,6 +40,8 @@
 #include "selinux/android.h"
 
 #include <UniquePtr.h>
+
+#define DEBUG 0
 
 using namespace android;
 
@@ -94,7 +98,24 @@ public:
 class MyResultReceiver : public BnResultReceiver
 {
 public:
-    virtual void send(int32_t /*resultCode*/) {
+    Mutex mMutex;
+    Condition mCondition;
+    bool mHaveResult = false;
+    int32_t mResult = 0;
+
+    virtual void send(int32_t resultCode) {
+        AutoMutex _l(mMutex);
+        mResult = resultCode;
+        mHaveResult = true;
+        mCondition.signal();
+    }
+
+    int32_t waitForResult() {
+        AutoMutex _l(mMutex);
+        while (!mHaveResult) {
+            mCondition.wait(mMutex);
+        }
+        return mResult;
     }
 };
 
@@ -107,13 +128,13 @@ int main(int argc, char* const argv[])
     sp<IServiceManager> sm = defaultServiceManager();
     fflush(stdout);
     if (sm == NULL) {
-        ALOGE("Unable to get default service manager!");
+        ALOGW("Unable to get default service manager!");
         aerr << "cmd: Unable to get default service manager!" << endl;
         return 20;
     }
 
     if (argc == 1) {
-        aout << "cmd: no service specified; use -l to list all services" << endl;
+        aerr << "cmd: No service specified; use -l to list all services" << endl;
         return 20;
     }
 
@@ -138,17 +159,41 @@ int main(int argc, char* const argv[])
     String16 cmd = String16(argv[1]);
     sp<IBinder> service = sm->checkService(cmd);
     if (service == NULL) {
-        aerr << "Can't find service: " << argv[1] << endl;
+        ALOGW("Can't find service %s", argv[1]);
+        aerr << "cmd: Can't find service: " << argv[1] << endl;
         return 20;
     }
 
     sp<MyShellCallback> cb = new MyShellCallback();
+    sp<MyResultReceiver> result = new MyResultReceiver();
+
+#if DEBUG
+    ALOGD("cmd: Invoking %s in=%d, out=%d, err=%d", argv[1], STDIN_FILENO, STDOUT_FILENO,
+            STDERR_FILENO);
+#endif
 
     // TODO: block until a result is returned to MyResultReceiver.
-    IBinder::shellCommand(service, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO, args,
-            cb, new MyResultReceiver());
+    status_t err = IBinder::shellCommand(service, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO, args,
+            cb, result);
+    if (err < 0) {
+        const char* errstr;
+        switch (err) {
+            case BAD_TYPE: errstr = "Bad type"; break;
+            case FAILED_TRANSACTION: errstr = "Failed transaction"; break;
+            case FDS_NOT_ALLOWED: errstr = "File descriptors not allowed"; break;
+            case UNEXPECTED_NULL: errstr = "Unexpected null"; break;
+            default: errstr = strerror(-err); break;
+        }
+        ALOGW("Failure calling service %s: %s (%d)", argv[1], errstr, -err);
+        aout << "cmd: Failure calling service " << argv[1] << ": " << errstr << " ("
+                << (-err) << ")" << endl;
+        return err;
+    }
 
     cb->mActive = false;
-
-    return 0;
+    status_t res = result->waitForResult();
+#if DEBUG
+    ALOGD("result=%d", (int)res);
+#endif
+    return res;
 }
