@@ -70,6 +70,14 @@ status_t SurfaceFlingerConsumer::updateTexImage(BufferRejecter* rejecter,
         return err;
     }
 
+    if (autoRefresh) {
+        *autoRefresh = item.mAutoRefresh;
+    }
+
+    if (queuedBuffer) {
+        *queuedBuffer = item.mQueuedBuffer;
+    }
+
     // We call the rejecter here, in case the caller has a reason to
     // not accept this buffer.  This is used by SurfaceFlinger to
     // reject buffers which have the wrong size
@@ -77,14 +85,6 @@ status_t SurfaceFlingerConsumer::updateTexImage(BufferRejecter* rejecter,
     if (rejecter && rejecter->reject(mSlots[slot].mGraphicBuffer, item)) {
         releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer, EGL_NO_SYNC_KHR);
         return BUFFER_REJECTED;
-    }
-
-    if (autoRefresh) {
-        *autoRefresh = item.mAutoRefresh;
-    }
-
-    if (queuedBuffer) {
-        *queuedBuffer = item.mQueuedBuffer;
     }
 
     // Release the previous buffer.
