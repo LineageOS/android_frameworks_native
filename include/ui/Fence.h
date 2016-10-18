@@ -27,6 +27,8 @@
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
+#include <experimental/optional>
+
 struct ANativeWindowBuffer;
 
 namespace android {
@@ -96,16 +98,26 @@ public:
     // occurs then -1 is returned.
     nsecs_t getSignalTime() const;
 
+#if __cplusplus > 201103L
     // hasSignaled returns whether the fence has signaled yet. Prefer this to
     // getSignalTime() or wait() if all you care about is whether the fence has
-    // signaled.
-    inline bool hasSignaled() {
+    // signaled. Returns an optional bool, which will have a value if there was
+    // no error.
+    inline std::experimental::optional<bool> hasSignaled() {
         // The sync_wait call underlying wait() has been measured to be
         // significantly faster than the sync_fence_info call underlying
         // getSignalTime(), which might otherwise appear to be the more obvious
         // way to check whether a fence has signaled.
-        return wait(0) == NO_ERROR;
+        switch (wait(0)) {
+            case NO_ERROR:
+                return true;
+            case -ETIME:
+                return false;
+            default:
+                return {};
+        }
     }
+#endif
 
     // Flattenable interface
     size_t getFlattenedSize() const;

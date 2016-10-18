@@ -314,6 +314,18 @@ status_t ConsumerBase::addReleaseFenceLocked(int slot,
 
     if (!mSlots[slot].mFence.get()) {
         mSlots[slot].mFence = fence;
+        return OK;
+    }
+
+    auto signaled = mSlots[slot].mFence->hasSignaled();
+
+    if (!signaled) {
+        CB_LOGE("fence has invalid state");
+        return BAD_VALUE;
+    }
+
+    if (*signaled) {
+        mSlots[slot].mFence = fence;
     } else {
         char fenceName[32] = {};
         snprintf(fenceName, 32, "%.28s:%d", mName.string(), slot);
