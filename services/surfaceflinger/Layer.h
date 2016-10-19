@@ -27,6 +27,8 @@
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
+#include <gfx/FloatRect.h>
+
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/PixelFormat.h>
@@ -46,7 +48,6 @@
 #include "Transform.h"
 
 #include "DisplayHardware/HWComposer.h"
-#include "DisplayHardware/FloatRect.h"
 #include "RenderEngine/Mesh.h"
 #include "RenderEngine/Texture.h"
 
@@ -457,7 +458,7 @@ private:
     bool needsFiltering(const sp<const DisplayDevice>& hw) const;
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
-    FloatRect computeCrop(const sp<const DisplayDevice>& hw) const;
+    gfx::FloatRect computeCrop(const sp<const DisplayDevice>& hw) const;
     bool isCropped() const;
     static bool getOpacityForFormat(uint32_t format);
 
@@ -629,7 +630,7 @@ private:
         HWC2::Composition compositionType;
         bool clearClientTarget;
         Rect displayFrame;
-        FloatRect sourceCrop;
+        gfx::FloatRect sourceCrop;
     };
     std::unordered_map<int32_t, HWCInfo> mHwcLayers;
 #else

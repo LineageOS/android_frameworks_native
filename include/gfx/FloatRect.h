@@ -14,31 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_SF_FLOAT_RECT
-#define ANDROID_SF_FLOAT_RECT
-
-#include <ui/Rect.h>
-#include <utils/TypeHelpers.h>
+#pragma once
 
 namespace android {
+namespace gfx {
 
-class FloatRect
-{
-public:
-    float left;
-    float top;
-    float right;
-    float bottom;
+class FloatRect {
+  public:
+    FloatRect() = default;
+    constexpr FloatRect(float _left, float _top, float _right, float _bottom)
+      : left(_left), top(_top), right(_right), bottom(_bottom) {}
 
-    inline FloatRect()
-        : left(0), top(0), right(0), bottom(0) { }
-    inline FloatRect(const Rect& other)  // NOLINT(implicit)
-        : left(other.left), top(other.top), right(other.right), bottom(other.bottom) { }
+    float getWidth() const { return right - left; }
+    float getHeight() const { return bottom - top; }
 
-    inline float getWidth() const { return right - left; }
-    inline float getHeight() const { return bottom - top; }
+    float left = 0.0f;
+    float top = 0.0f;
+    float right = 0.0f;
+    float bottom = 0.0f;
 };
 
-}; // namespace android
+inline bool operator==(const FloatRect& a, const FloatRect& b) {
+    return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
+}
 
-#endif // ANDROID_SF_FLOAT_RECT
+}  // namespace gfx
+}  // namespace android

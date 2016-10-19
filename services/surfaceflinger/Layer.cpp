@@ -377,10 +377,10 @@ Rect Layer::computeBounds(const Region& activeTransparentRegion) const {
     return reduce(win, activeTransparentRegion);
 }
 
-FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
+gfx::FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
     // the content crop is the area of the content that gets scaled to the
     // layer's size.
-    FloatRect crop(getContentCrop());
+    gfx::FloatRect crop = getContentCrop().toFloatRect();
 
     // the crop is the area of the window that gets cropped, but not
     // scaled in any ways.
@@ -585,7 +585,7 @@ void Layer::setGeometry(
         hwcInfo.displayFrame = transformedFrame;
     }
 
-    FloatRect sourceCrop = computeCrop(displayDevice);
+    gfx::FloatRect sourceCrop = computeCrop(displayDevice);
     error = hwcLayer->setSourceCrop(sourceCrop);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: "
@@ -2179,7 +2179,7 @@ void Layer::miniDump(String8& result, int32_t hwcId) const {
     const Rect& frame = hwcInfo.displayFrame;
     result.appendFormat("%4d %4d %4d %4d | ", frame.left, frame.top,
             frame.right, frame.bottom);
-    const FloatRect& crop = hwcInfo.sourceCrop;
+    const gfx::FloatRect& crop = hwcInfo.sourceCrop;
     result.appendFormat("%6.1f %6.1f %6.1f %6.1f\n", crop.left, crop.top,
             crop.right, crop.bottom);
 

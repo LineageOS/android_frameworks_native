@@ -46,6 +46,7 @@ cc_library_shared {
         "-Wno-c99-extensions",
         "-Wno-c++98-compat-pedantic",
         "-Wno-exit-time-destructors",
+        "-Wno-float-equal",
         "-Wno-global-constructors",
         "-Wno-zero-length-array",
     ],

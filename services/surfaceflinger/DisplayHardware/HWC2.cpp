@@ -23,7 +23,7 @@
 #include "HWC2.h"
 #include "ComposerHal.h"
 
-#include "FloatRect.h"
+#include <gfx/FloatRect.h>
 
 #include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
@@ -74,12 +74,12 @@ extern "C" {
 }
 
 using android::Fence;
-using android::FloatRect;
 using android::GraphicBuffer;
 using android::HdrCapabilities;
 using android::Rect;
 using android::Region;
 using android::sp;
+using android::gfx::FloatRect;
 using android::hardware::Return;
 using android::hardware::Void;
 

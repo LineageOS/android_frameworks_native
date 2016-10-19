@@ -42,6 +42,9 @@ cc_library_shared {
         "-Wno-nested-anon-types",
         "-Wno-gnu-anonymous-struct",
 
+        // We are aware of the risks inherent in comparing floats for equality
+        "-Wno-float-equal",
+
         "-DDEBUG_ONLY_CODE=0",
     ],
 

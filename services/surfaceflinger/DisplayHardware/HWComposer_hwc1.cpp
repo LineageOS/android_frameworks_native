@@ -1031,7 +1031,7 @@ public:
     virtual void setFrame(const Rect& frame) {
         getLayer()->displayFrame = reinterpret_cast<hwc_rect_t const&>(frame);
     }
-    virtual void setCrop(const FloatRect& crop) {
+    virtual void setCrop(const gfx::FloatRect& crop) {
         if (hwcHasApiVersion(mHwc, HWC_DEVICE_API_VERSION_1_3)) {
             getLayer()->sourceCropf = reinterpret_cast<hwc_frect_t const&>(crop);
         } else {
