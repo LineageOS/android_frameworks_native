@@ -760,9 +760,7 @@ void Layer::forceClientComposition(int32_t hwcId) {
 
     mHwcLayers[hwcId].forceClientComposition = true;
 }
-#endif
 
-#ifdef USE_HWC2
 void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     // Apply this display's projection's viewport to the visible region
     // before giving it to the HWC HAL.
@@ -864,6 +862,10 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
                 mActiveBuffer->handle, to_string(error).c_str(),
                 static_cast<int32_t>(error));
     }
+}
+
+android_dataspace Layer::getDataSpace() const {
+    return mCurrentState.dataSpace;
 }
 #else
 void Layer::setPerFrameData(const sp<const DisplayDevice>& hw,

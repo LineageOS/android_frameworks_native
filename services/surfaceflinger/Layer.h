@@ -261,6 +261,8 @@ public:
     void forceClientComposition(int32_t hwcId);
     void setPerFrameData(const sp<const DisplayDevice>& displayDevice);
 
+    android_dataspace getDataSpace() const;
+
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state
     void setCompositionType(int32_t hwcId, HWC2::Composition type,
