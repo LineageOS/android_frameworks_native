@@ -17,6 +17,7 @@ ndk_headers {
     from: "include",
     to: "",
     srcs: ["include/EGL/**/*.h"],
+    license: "include/EGL/NOTICE",
 }
 
 ndk_headers {
@@ -24,6 +25,7 @@ ndk_headers {
     from: "include",
     to: "",
     srcs: ["include/GLES/**/*.h"],
+    license: "include/GLES/NOTICE",
 }
 
 ndk_headers {
@@ -31,6 +33,7 @@ ndk_headers {
     from: "include",
     to: "",
     srcs: ["include/GLES2/**/*.h"],
+    license: "include/GLES2/NOTICE",
 }
 
 ndk_headers {
@@ -38,6 +41,7 @@ ndk_headers {
     from: "include",
     to: "",
     srcs: ["include/GLES3/**/*.h"],
+    license: "include/GLES3/NOTICE",
 }
 
 ndk_headers {
@@ -45,6 +49,7 @@ ndk_headers {
     from: "include",
     to: "",
     srcs: ["include/KHR/**/*.h"],
+    license: "include/KHR/NOTICE",
 }
 
 subdirs = [
