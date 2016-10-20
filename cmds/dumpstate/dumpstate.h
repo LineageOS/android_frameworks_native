@@ -197,7 +197,12 @@ static const int WEIGHT_TOTAL = 6500;
  *
  * See bugreport-format.md for more info.
  */
-static std::string VERSION_DEFAULT = "1.0";
+static std::string VERSION_CURRENT = "1.0";
+
+/*
+ * "Alias" for the current version.
+ */
+static std::string VERSION_DEFAULT = "default";
 
 /*
  * Main class driving a bugreport generation.
@@ -332,7 +337,7 @@ class Dumpstate {
     int control_socket_fd_ = -1;
 
     // Bugreport format version;
-    std::string version_ = VERSION_DEFAULT;
+    std::string version_ = VERSION_CURRENT;
 
     // Command-line arguments as string
     std::string args_;
@@ -370,7 +375,8 @@ class Dumpstate {
 
   private:
     // Used by GetInstance() only.
-    Dumpstate(bool dry_run = false, const std::string& build_type = "user");
+    Dumpstate(const std::string& version = VERSION_CURRENT, bool dry_run = false,
+              const std::string& build_type = "user");
 
     // Internal version of RunCommand that just runs it, without updating progress.
     int JustRunCommand(const char* command, const char* path, std::vector<const char*>& args,

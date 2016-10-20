@@ -112,6 +112,7 @@ static const std::string ZIP_ROOT_DIR = "FS";
 
 static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
 static constexpr char PROPERTY_LAST_ID[] = "dumpstate.last_id";
+static constexpr char PROPERTY_VERSION[] = "dumpstate.version";
 
 /* gets the tombstone data, according to the bugreport type: if zipped, gets all tombstones;
  * otherwise, gets just those modified in the last half an hour. */
@@ -702,7 +703,7 @@ void Dumpstate::PrintHeader() const {
     JustDumpFile("", "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version_.c_str());
-    printf("Dumpstate info: id=%lu pid=%d dryRun=%d args=%s extraOptions=%s\n", id_, getpid(),
+    printf("Dumpstate info: id=%lu pid=%d dry_run=%d args=%s extra_options=%s\n", id_, getpid(),
            dry_run_, args_.c_str(), extra_options_.c_str());
     printf("\n");
 }
@@ -1153,8 +1154,7 @@ static void ShowUsageAndExit(int exitCode = 1) {
             "progress (requires -o and -B)\n"
             "  -R: take bugreport in remote mode (requires -o, -z, -d and -B, "
             "shouldn't be used with -P)\n"
-            "  -V: sets the bugreport format version (valid values: %s)\n",
-            VERSION_DEFAULT.c_str());
+            "  -v: prints the dumpstate header and exit\n");
     exit(exitCode);
 }
 
@@ -1284,42 +1284,12 @@ int main(int argc, char *argv[]) {
     int do_fb = 0;
     int do_broadcast = 0;
     int is_remote_mode = 0;
-
-    MYLOGI("begin\n");
-
-    if (acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_NAME) < 0) {
-        MYLOGE("Failed to acquire wake lock: %s \n", strerror(errno));
-    } else {
-        MYLOGD("Wake lock acquired.\n");
-        atexit(wake_lock_releaser);
-        register_sig_handler();
-    }
-
-    if (ds.IsDryRun()) {
-        MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
-    }
-
-    // TODO: use helper function to convert argv into a string
-    for (int i = 0; i < argc; i++) {
-        ds.args_ += argv[i];
-        if (i < argc - 1) {
-            ds.args_ += " ";
-        }
-    }
-
-    ds.extra_options_ = android::base::GetProperty(PROPERTY_EXTRA_OPTIONS, "");
-    MYLOGI("Dumpstate args: %s (extra options: %s)\n", ds.args_.c_str(), ds.extra_options_.c_str());
-
-    /* gets the sequential id */
-    int last_id = android::base::GetIntProperty(PROPERTY_LAST_ID, 0);
-    ds.id_ = ++last_id;
-    android::base::SetProperty(PROPERTY_LAST_ID, std::to_string(last_id));
-    MYLOGI("dumpstate id: %lu\n", ds.id_);
+    bool show_header_only = false;
 
     /* set as high priority, and protect from OOM killer */
     setpriority(PRIO_PROCESS, 0, -20);
 
-    FILE *oom_adj = fopen("/proc/self/oom_score_adj", "we");
+    FILE* oom_adj = fopen("/proc/self/oom_score_adj", "we");
     if (oom_adj) {
         fputs("-1000", oom_adj);
         fclose(oom_adj);
@@ -1337,18 +1307,18 @@ int main(int argc, char *argv[]) {
     while ((c = getopt(argc, argv, "dho:svqzpPBRSV:")) != -1) {
         switch (c) {
             // clang-format off
-            case 'd': do_add_date = 1;           break;
-            case 'z': do_zip_file = 1;           break;
-            case 'o': use_outfile = optarg;      break;
-            case 's': use_socket = 1;            break;
-            case 'S': use_control_socket = 1;    break;
-            case 'v':                            break;  // compatibility no-op
-            case 'q': do_vibrate = 0;            break;
-            case 'p': do_fb = 1;                 break;
+            case 'd': do_add_date = 1;            break;
+            case 'z': do_zip_file = 1;            break;
+            case 'o': use_outfile = optarg;       break;
+            case 's': use_socket = 1;             break;
+            case 'S': use_control_socket = 1;     break;
+            case 'v': show_header_only = true;    break;
+            case 'q': do_vibrate = 0;             break;
+            case 'p': do_fb = 1;                  break;
             case 'P': ds.update_progress_ = true; break;
-            case 'R': is_remote_mode = 1;        break;
-            case 'B': do_broadcast = 1;          break;
-            case 'V': ds.version_ = optarg;      break;
+            case 'R': is_remote_mode = 1;         break;
+            case 'B': do_broadcast = 1;           break;
+            case 'V':                             break; // compatibility no-op
             case 'h':
                 ShowUsageAndExit(0);
                 break;
@@ -1359,20 +1329,26 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // TODO: use helper function to convert argv into a string
+    for (int i = 0; i < argc; i++) {
+        ds.args_ += argv[i];
+        if (i < argc - 1) {
+            ds.args_ += " ";
+        }
+    }
+
+    ds.extra_options_ = android::base::GetProperty(PROPERTY_EXTRA_OPTIONS, "");
     if (!ds.extra_options_.empty()) {
         // Framework uses a system property to override some command-line args.
         // Currently, it contains the type of the requested bugreport.
         if (ds.extra_options_ == "bugreportplus") {
-            MYLOGD("Running as bugreportplus: add -P, remove -p\n");
             ds.update_progress_ = true;
             do_fb = 0;
         } else if (ds.extra_options_ == "bugreportremote") {
-            MYLOGD("Running as bugreportremote: add -q -R, remove -p\n");
             do_vibrate = 0;
             is_remote_mode = 1;
             do_fb = 0;
         } else if (ds.extra_options_ == "bugreportwear") {
-            MYLOGD("Running as bugreportwear: add -P\n");
             ds.update_progress_ = true;
         } else {
             MYLOGE("Unknown extra option: %s\n", ds.extra_options_.c_str());
@@ -1397,9 +1373,42 @@ int main(int argc, char *argv[]) {
         ExitOnInvalidArgs();
     }
 
-    if (ds.version_ != VERSION_DEFAULT) {
-        ShowUsageAndExit();
+    if (ds.version_ == VERSION_DEFAULT) {
+        ds.version_ = VERSION_CURRENT;
     }
+
+    if (ds.version_ != VERSION_CURRENT) {
+        MYLOGE("invalid version requested ('%s'); suppported values are: ('%s', '%s')\n",
+               ds.version_.c_str(), VERSION_DEFAULT.c_str(), VERSION_CURRENT.c_str());
+        exit(1);
+    }
+
+    if (show_header_only) {
+        ds.PrintHeader();
+        exit(0);
+    }
+
+    /* gets the sequential id */
+    int last_id = android::base::GetIntProperty(PROPERTY_LAST_ID, 0);
+    ds.id_ = ++last_id;
+    android::base::SetProperty(PROPERTY_LAST_ID, std::to_string(last_id));
+
+    MYLOGI("begin\n");
+
+    if (acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_NAME) < 0) {
+        MYLOGE("Failed to acquire wake lock: %s \n", strerror(errno));
+    } else {
+        MYLOGD("Wake lock acquired.\n");
+        atexit(wake_lock_releaser);
+        register_sig_handler();
+    }
+
+    if (ds.IsDryRun()) {
+        MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
+    }
+
+    MYLOGI("dumpstate info: id=%lu, args='%s', extra_options= %s)\n", ds.id_, ds.args_.c_str(),
+           ds.extra_options_.c_str());
 
     MYLOGI("bugreport format version: %s\n", ds.version_.c_str());
 

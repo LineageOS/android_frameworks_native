@@ -63,8 +63,8 @@ changes become stable.
 For example, the initial version during _Android N_ development was
 **1.0-dev1**. When `dumpsys` was split in 2 sections but not all tools were
 ready to parse that format, the version was named **1.0-dev2**,
-which had to be passed do `dumpsys` explicitly (i.e., trhough a
-`-V 1.0-dev2` argument). Once that format became stable and tools
+which had to be passed to `dumpsys` explicitly (by setting the `dumpstate.version` system property).
+Once that format became stable and tools
 knew how to parse it, the default version became **1.0-dev2**.
 
 Similarly, if changes in the file format are made after the initial release of

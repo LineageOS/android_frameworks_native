@@ -163,12 +163,13 @@ CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(long timeout) 
     return CommandOptions::CommandOptionsBuilder(timeout);
 }
 
-Dumpstate::Dumpstate(bool dry_run, const std::string& build_type)
-    : now_(time(nullptr)), dry_run_(dry_run), build_type_(build_type) {
+Dumpstate::Dumpstate(const std::string& version, bool dry_run, const std::string& build_type)
+    : version_(version), now_(time(nullptr)), dry_run_(dry_run), build_type_(build_type) {
 }
 
 Dumpstate& Dumpstate::GetInstance() {
-    static Dumpstate singleton_(android::base::GetBoolProperty("dumpstate.dry_run", false),
+    static Dumpstate singleton_(android::base::GetProperty("dumpstate.version", VERSION_CURRENT),
+                                android::base::GetBoolProperty("dumpstate.dry_run", false),
                                 android::base::GetProperty("ro.build.type", "(unknown)"));
     return singleton_;
 }
@@ -545,11 +546,6 @@ static int _dump_file_from_fd(const std::string& title, const char* path, int fd
             printf(": %s", stamp);
         }
         printf(") ------\n");
-    }
-    if (IsDryRun()) {
-        UpdateProgress(WEIGHT_FILE);
-        close(fd);
-        return 0;
     }
 
     bool newline = false;
