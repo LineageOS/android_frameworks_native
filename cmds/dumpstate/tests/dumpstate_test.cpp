@@ -52,15 +52,15 @@ class DumpstateTest : public Test {
     void SetUp() {
         SetDryRun(false);
         SetBuildType(android::base::GetProperty("ro.build.type", "(unknown)"));
-        ds.updateProgress_ = false;
+        ds.update_progress_ = false;
     }
 
     // Runs a command and capture `stdout` and `stderr`.
-    int RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
+    int RunCommand(const std::string& title, const std::vector<std::string>& full_command,
                    const CommandOptions& options = CommandOptions::DEFAULT) {
         CaptureStdout();
         CaptureStderr();
-        int status = ds.RunCommand(title, fullCommand, options);
+        int status = ds.RunCommand(title, full_command, options);
         out = GetCapturedStdout();
         err = GetCapturedStderr();
         return status;
@@ -76,14 +76,14 @@ class DumpstateTest : public Test {
         return status;
     }
 
-    void SetDryRun(bool dryRun) {
-        ALOGD("Setting dryRun_ to %s\n", dryRun ? "true" : "false");
-        ds.dryRun_ = dryRun;
+    void SetDryRun(bool dry_run) {
+        ALOGD("Setting dry_run_ to %s\n", dry_run ? "true" : "false");
+        ds.dry_run_ = dry_run;
     }
 
-    void SetBuildType(const std::string& buildType) {
-        ALOGD("Setting buildType_ to '%s'\n", buildType.c_str());
-        ds.buildType_ = buildType;
+    void SetBuildType(const std::string& build_type) {
+        ALOGD("Setting build_type_ to '%s'\n", build_type.c_str());
+        ds.build_type_ = build_type;
     }
 
     bool IsUserBuild() {
@@ -97,41 +97,41 @@ class DumpstateTest : public Test {
     }
 
     // TODO: remove when progress is set by Binder callbacks.
-    void AssertSystemProperty(const std::string& key, const std::string& expectedValue) {
+    void AssertSystemProperty(const std::string& key, const std::string& expected_value) {
         std::string actualValue = android::base::GetProperty(key, "not set");
-        EXPECT_THAT(expectedValue, StrEq(actualValue)) << "invalid value for property " << key;
+        EXPECT_THAT(expected_value, StrEq(actualValue)) << "invalid value for property " << key;
     }
 
-    std::string GetProgressMessage(int progress, int weightTotal, int oldWeightTotal = 0) {
+    std::string GetProgressMessage(int progress, int weigh_total, int old_weigh_total = 0) {
         EXPECT_EQ(progress, ds.progress_) << "invalid progress";
-        EXPECT_EQ(weightTotal, ds.weightTotal_) << "invalid weightTotal";
+        EXPECT_EQ(weigh_total, ds.weight_total_) << "invalid weigh_total";
 
         AssertSystemProperty(android::base::StringPrintf("dumpstate.%d.progress", getpid()),
                              std::to_string(progress));
 
-        bool maxIncreased = oldWeightTotal > 0;
+        bool max_increased = old_weigh_total > 0;
 
-        std::string adjustmentMessage = "";
-        if (maxIncreased) {
+        std::string adjustment_message = "";
+        if (max_increased) {
             AssertSystemProperty(android::base::StringPrintf("dumpstate.%d.max", getpid()),
-                                 std::to_string(weightTotal));
-            adjustmentMessage = android::base::StringPrintf(
-                "Adjusting total weight from %d to %d\n", oldWeightTotal, weightTotal);
+                                 std::to_string(weigh_total));
+            adjustment_message = android::base::StringPrintf(
+                "Adjusting total weight from %d to %d\n", old_weigh_total, weigh_total);
         }
 
         return android::base::StringPrintf("%sSetting progress (dumpstate.%d.progress): %d/%d\n",
-                                           adjustmentMessage.c_str(), getpid(), progress,
-                                           weightTotal);
+                                           adjustment_message.c_str(), getpid(), progress,
+                                           weigh_total);
     }
 
     // `stdout` and `stderr` from the last command ran.
     std::string out, err;
 
-    std::string testPath = dirname(android::base::GetExecutablePath().c_str());
-    std::string fixturesPath = testPath + "/../dumpstate_test_fixture/";
-    std::string testDataPath = fixturesPath + "/testdata/";
-    std::string simpleCommand = fixturesPath + "dumpstate_test_fixture";
-    std::string echoCommand = "/system/bin/echo";
+    std::string test_path = dirname(android::base::GetExecutablePath().c_str());
+    std::string fixtures_path = test_path + "/../dumpstate_test_fixture/";
+    std::string test_data_path = fixtures_path + "/testdata/";
+    std::string simple_command = fixtures_path + "dumpstate_test_fixture";
+    std::string echo_command = "/system/bin/echo";
 
     Dumpstate& ds = Dumpstate::GetInstance();
 };
@@ -141,52 +141,52 @@ TEST_F(DumpstateTest, RunCommandNoArgs) {
 }
 
 TEST_F(DumpstateTest, RunCommandNoTitle) {
-    EXPECT_EQ(0, RunCommand("", {simpleCommand}));
+    EXPECT_EQ(0, RunCommand("", {simple_command}));
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandWithTitle) {
-    EXPECT_EQ(0, RunCommand("I AM GROOT", {simpleCommand}));
+    EXPECT_EQ(0, RunCommand("I AM GROOT", {simple_command}));
     EXPECT_THAT(err, StrEq("stderr\n"));
     // We don't know the exact duration, so we check the prefix and suffix
     EXPECT_THAT(out,
-                StartsWith("------ I AM GROOT (" + simpleCommand + ") ------\nstdout\n------"));
+                StartsWith("------ I AM GROOT (" + simple_command + ") ------\nstdout\n------"));
     EXPECT_THAT(out, EndsWith("s was the duration of 'I AM GROOT' ------\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandWithLoggingMessage) {
     EXPECT_EQ(
-        0, RunCommand("", {simpleCommand},
+        0, RunCommand("", {simple_command},
                       CommandOptions::WithTimeout(10).Log("COMMAND, Y U NO LOG FIRST?").Build()));
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("COMMAND, Y U NO LOG FIRST?stderr\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandRedirectStderr) {
-    EXPECT_EQ(0, RunCommand("", {simpleCommand},
+    EXPECT_EQ(0, RunCommand("", {simple_command},
                             CommandOptions::WithTimeout(10).RedirectStderr().Build()));
     EXPECT_THAT(out, IsEmpty());
     EXPECT_THAT(err, StrEq("stdout\nstderr\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandWithOneArg) {
-    EXPECT_EQ(0, RunCommand("", {echoCommand, "one"}));
+    EXPECT_EQ(0, RunCommand("", {echo_command, "one"}));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("one\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandWithMultipleArgs) {
-    EXPECT_EQ(0, RunCommand("", {echoCommand, "one", "is", "the", "loniest", "number"}));
+    EXPECT_EQ(0, RunCommand("", {echo_command, "one", "is", "the", "loniest", "number"}));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("one is the loniest number\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandDryRun) {
     SetDryRun(true);
-    EXPECT_EQ(0, RunCommand("I AM GROOT", {simpleCommand}));
+    EXPECT_EQ(0, RunCommand("I AM GROOT", {simple_command}));
     // We don't know the exact duration, so we check the prefix and suffix
-    EXPECT_THAT(out, StartsWith("------ I AM GROOT (" + simpleCommand +
+    EXPECT_THAT(out, StartsWith("------ I AM GROOT (" + simple_command +
                                 ") ------\n\t(skipped on dry run)\n------"));
     EXPECT_THAT(out, EndsWith("s was the duration of 'I AM GROOT' ------\n"));
     EXPECT_THAT(err, IsEmpty());
@@ -194,14 +194,14 @@ TEST_F(DumpstateTest, RunCommandDryRun) {
 
 TEST_F(DumpstateTest, RunCommandDryRunNoTitle) {
     SetDryRun(true);
-    EXPECT_EQ(0, RunCommand("", {simpleCommand}));
+    EXPECT_EQ(0, RunCommand("", {simple_command}));
     EXPECT_THAT(out, IsEmpty());
     EXPECT_THAT(err, IsEmpty());
 }
 
 TEST_F(DumpstateTest, RunCommandDryRunAlways) {
     SetDryRun(true);
-    EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(10).Always().Build()));
+    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(10).Always().Build()));
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n"));
 }
@@ -213,28 +213,28 @@ TEST_F(DumpstateTest, RunCommandNotFound) {
 }
 
 TEST_F(DumpstateTest, RunCommandFails) {
-    EXPECT_EQ(42, RunCommand("", {simpleCommand, "--exit", "42"}));
-    EXPECT_THAT(
-        out, StrEq("stdout\n*** command '" + simpleCommand + " --exit 42' failed: exit code 42\n"));
-    EXPECT_THAT(
-        err, StrEq("stderr\n*** command '" + simpleCommand + " --exit 42' failed: exit code 42\n"));
+    EXPECT_EQ(42, RunCommand("", {simple_command, "--exit", "42"}));
+    EXPECT_THAT(out, StrEq("stdout\n*** command '" + simple_command +
+                           " --exit 42' failed: exit code 42\n"));
+    EXPECT_THAT(err, StrEq("stderr\n*** command '" + simple_command +
+                           " --exit 42' failed: exit code 42\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandCrashes) {
-    EXPECT_NE(0, RunCommand("", {simpleCommand, "--crash"}));
+    EXPECT_NE(0, RunCommand("", {simple_command, "--crash"}));
     // We don't know the exit code, so check just the prefix.
     EXPECT_THAT(
-        out, StartsWith("stdout\n*** command '" + simpleCommand + " --crash' failed: exit code"));
+        out, StartsWith("stdout\n*** command '" + simple_command + " --crash' failed: exit code"));
     EXPECT_THAT(
-        err, StartsWith("stderr\n*** command '" + simpleCommand + " --crash' failed: exit code"));
+        err, StartsWith("stderr\n*** command '" + simple_command + " --crash' failed: exit code"));
 }
 
 TEST_F(DumpstateTest, RunCommandTimesout) {
-    EXPECT_EQ(-1, RunCommand("", {simpleCommand, "--sleep", "2"},
+    EXPECT_EQ(-1, RunCommand("", {simple_command, "--sleep", "2"},
                              CommandOptions::WithTimeout(1).Build()));
-    EXPECT_THAT(out, StartsWith("stdout line1\n*** command '" + simpleCommand +
+    EXPECT_THAT(out, StartsWith("stdout line1\n*** command '" + simple_command +
                                 " --sleep 2' timed out after 1"));
-    EXPECT_THAT(err, StartsWith("sleeping for 2s\n*** command '" + simpleCommand +
+    EXPECT_THAT(err, StartsWith("sleeping for 2s\n*** command '" + simple_command +
                                 " --sleep 2' timed out after 1"));
 }
 
@@ -243,7 +243,7 @@ TEST_F(DumpstateTest, RunCommandIsKilled) {
     CaptureStderr();
 
     std::thread t([=]() {
-        EXPECT_EQ(SIGTERM, ds.RunCommand("", {simpleCommand, "--pid", "--sleep", "20"},
+        EXPECT_EQ(SIGTERM, ds.RunCommand("", {simple_command, "--pid", "--sleep", "20"},
                                          CommandOptions::WithTimeout(100).Always().Build()));
     });
 
@@ -270,53 +270,53 @@ TEST_F(DumpstateTest, RunCommandIsKilled) {
     out = GetCapturedStdout();
     err = GetCapturedStderr();
 
-    EXPECT_THAT(out, StrEq("*** command '" + simpleCommand +
+    EXPECT_THAT(out, StrEq("*** command '" + simple_command +
                            " --pid --sleep 20' failed: killed by signal 15\n"));
-    EXPECT_THAT(err, StrEq("*** command '" + simpleCommand +
+    EXPECT_THAT(err, StrEq("*** command '" + simple_command +
                            " --pid --sleep 20' failed: killed by signal 15\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandProgress) {
-    ds.updateProgress_ = true;
+    ds.update_progress_ = true;
     ds.progress_ = 0;
-    ds.weightTotal_ = 30;
+    ds.weight_total_ = 30;
 
-    EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(20).Build()));
-    std::string progressMessage = GetProgressMessage(20, 30);
+    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(20).Build()));
+    std::string progress_message = GetProgressMessage(20, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
-    EXPECT_THAT(err, StrEq("stderr\n" + progressMessage));
+    EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
-    EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(10).Build()));
-    progressMessage = GetProgressMessage(30, 30);
+    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(10).Build()));
+    progress_message = GetProgressMessage(30, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
-    EXPECT_THAT(err, StrEq("stderr\n" + progressMessage));
+    EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
     // Run a command that will increase maximum timeout.
-    EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(1).Build()));
-    progressMessage = GetProgressMessage(31, 36, 30);  // 20% increase
+    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(1).Build()));
+    progress_message = GetProgressMessage(31, 36, 30);  // 20% increase
     EXPECT_THAT(out, StrEq("stdout\n"));
-    EXPECT_THAT(err, StrEq("stderr\n" + progressMessage));
+    EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
-    // Make sure command ran while in dryRun is counted.
+    // Make sure command ran while in dry_run is counted.
     SetDryRun(true);
-    EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(4).Build()));
-    progressMessage = GetProgressMessage(35, 36);
+    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(4).Build()));
+    progress_message = GetProgressMessage(35, 36);
     EXPECT_THAT(out, IsEmpty());
-    EXPECT_THAT(err, StrEq(progressMessage));
+    EXPECT_THAT(err, StrEq(progress_message));
 }
 
 TEST_F(DumpstateTest, RunCommandDropRoot) {
     // First check root case - only available when running with 'adb root'.
     uid_t uid = getuid();
     if (uid == 0) {
-        EXPECT_EQ(0, RunCommand("", {simpleCommand, "--uid"}));
+        EXPECT_EQ(0, RunCommand("", {simple_command, "--uid"}));
         EXPECT_THAT(out, StrEq("0\nstdout\n"));
         EXPECT_THAT(err, StrEq("stderr\n"));
         return;
     }
     // Then drop root.
 
-    EXPECT_EQ(0, RunCommand("", {simpleCommand, "--uid"},
+    EXPECT_EQ(0, RunCommand("", {simple_command, "--uid"},
                             CommandOptions::WithTimeout(1).DropRoot().Build()));
     EXPECT_THAT(out, StrEq("2000\nstdout\n"));
     EXPECT_THAT(err, StrEq("drop_root_user(): already running as Shell\nstderr\n"));
@@ -330,11 +330,11 @@ TEST_F(DumpstateTest, RunCommandAsRootUserBuild) {
 
     DropRoot();
 
-    EXPECT_EQ(0, RunCommand("", {simpleCommand}, CommandOptions::WithTimeout(1).AsRoot().Build()));
+    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(1).AsRoot().Build()));
 
     // We don't know the exact path of su, so we just check for the 'root ...' commands
     EXPECT_THAT(out, StartsWith("Skipping"));
-    EXPECT_THAT(out, EndsWith("root " + simpleCommand + "' on user build.\n"));
+    EXPECT_THAT(out, EndsWith("root " + simple_command + "' on user build.\n"));
     EXPECT_THAT(err, IsEmpty());
 }
 
@@ -346,7 +346,7 @@ TEST_F(DumpstateTest, RunCommandAsRootNonUserBuild) {
 
     DropRoot();
 
-    EXPECT_EQ(0, RunCommand("", {simpleCommand, "--uid"},
+    EXPECT_EQ(0, RunCommand("", {simple_command, "--uid"},
                             CommandOptions::WithTimeout(1).AsRoot().Build()));
 
     EXPECT_THAT(out, StrEq("0\nstdout\n"));
@@ -370,55 +370,55 @@ TEST_F(DumpstateTest, DumpFileNotFoundWithTitle) {
 }
 
 TEST_F(DumpstateTest, DumpFileSingleLine) {
-    EXPECT_EQ(0, DumpFile("", testDataPath + "single-line.txt"));
+    EXPECT_EQ(0, DumpFile("", test_data_path + "single-line.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\n"));  // dumpstate adds missing newline
 }
 
 TEST_F(DumpstateTest, DumpFileSingleLineWithNewLine) {
-    EXPECT_EQ(0, DumpFile("", testDataPath + "single-line-with-newline.txt"));
+    EXPECT_EQ(0, DumpFile("", test_data_path + "single-line-with-newline.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\n"));
 }
 
 TEST_F(DumpstateTest, DumpFileMultipleLines) {
-    EXPECT_EQ(0, DumpFile("", testDataPath + "multiple-lines.txt"));
+    EXPECT_EQ(0, DumpFile("", test_data_path + "multiple-lines.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\nI AM LINE2\nI AM LINE3\n"));
 }
 
 TEST_F(DumpstateTest, DumpFileMultipleLinesWithNewLine) {
-    EXPECT_EQ(0, DumpFile("", testDataPath + "multiple-lines-with-newline.txt"));
+    EXPECT_EQ(0, DumpFile("", test_data_path + "multiple-lines-with-newline.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\nI AM LINE2\nI AM LINE3\n"));
 }
 
 TEST_F(DumpstateTest, DumpFileOnDryRunNoTitle) {
     SetDryRun(true);
-    EXPECT_EQ(0, DumpFile("", testDataPath + "single-line.txt"));
+    EXPECT_EQ(0, DumpFile("", test_data_path + "single-line.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, IsEmpty());
 }
 
 TEST_F(DumpstateTest, DumpFileOnDryRun) {
     SetDryRun(true);
-    EXPECT_EQ(0, DumpFile("Might as well dump. Dump!", testDataPath + "single-line.txt"));
+    EXPECT_EQ(0, DumpFile("Might as well dump. Dump!", test_data_path + "single-line.txt"));
     EXPECT_THAT(err, IsEmpty());
-    EXPECT_THAT(out, StartsWith("------ Might as well dump. Dump! (" + testDataPath +
+    EXPECT_THAT(out, StartsWith("------ Might as well dump. Dump! (" + test_data_path +
                                 "single-line.txt) ------\n\t(skipped on dry run)\n------"));
     EXPECT_THAT(out, EndsWith("s was the duration of 'Might as well dump. Dump!' ------\n"));
     EXPECT_THAT(err, IsEmpty());
 }
 
 TEST_F(DumpstateTest, DumpFileUpdateProgress) {
-    ds.updateProgress_ = true;
+    ds.update_progress_ = true;
     ds.progress_ = 0;
-    ds.weightTotal_ = 30;
+    ds.weight_total_ = 30;
 
-    EXPECT_EQ(0, DumpFile("", testDataPath + "single-line.txt"));
+    EXPECT_EQ(0, DumpFile("", test_data_path + "single-line.txt"));
 
-    std::string progressMessage = GetProgressMessage(5, 30);  // TODO: unhardcode WEIGHT_FILE (5)?
+    std::string progress_message = GetProgressMessage(5, 30);  // TODO: unhardcode WEIGHT_FILE (5)?
 
-    EXPECT_THAT(err, StrEq(progressMessage));
+    EXPECT_THAT(err, StrEq(progress_message));
     EXPECT_THAT(out, StrEq("I AM LINE1\n"));  // dumpstate adds missing newline
 }
