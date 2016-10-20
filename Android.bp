@@ -3,6 +3,7 @@ ndk_headers {
     from: "include/android",
     to: "android",
     srcs: ["include/android/**/*.h"],
+    license: "NOTICE",
 }
 
 subdirs = [
