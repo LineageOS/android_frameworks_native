@@ -225,6 +225,9 @@ class Dumpstate {
      */
     bool IsUserBuild() const;
 
+    /* Checkes whether dumpstate is generating a zipped bugreport. */
+    bool IsZipping() const;
+
     /*
      * Forks a command, waits for it to finish, and returns its status.
      *
@@ -263,6 +266,26 @@ class Dumpstate {
     int DumpFile(const std::string& title, const std::string& path);
 
     /*
+     * Adds a new entry to the existing zip file.
+     * */
+    bool AddZipEntry(const std::string& entry_name, const std::string& entry_path);
+
+    /*
+     * Adds a new entry to the existing zip file.
+     */
+    bool AddZipEntryFromFd(const std::string& entry_name, int fd);
+
+    /*
+     * Adds a text entry entry to the existing zip file.
+     */
+    bool AddTextZipEntry(const std::string& entry_name, const std::string& content);
+
+    /*
+     * Adds all files from a directory to the zipped bugreport file.
+     */
+    void AddDir(const std::string& dir, bool recursive);
+
+    /*
      * Takes a screenshot and save it to the given `path`.
      *
      * If `path` is empty, uses a standard path based on the bugreport name.
@@ -278,6 +301,12 @@ class Dumpstate {
 
     /* Prints the dumpstate header on `stdout`. */
     void PrintHeader() const;
+
+    /*
+     * Adds the temporary report to the existing .zip file, closes the .zip file, and removes the
+     * temporary file.
+     */
+    bool FinishZipFile();
 
     /* Gets the path of a bugreport file with the given suffix. */
     std::string GetPath(const std::string& suffix) const;
@@ -327,6 +356,18 @@ class Dumpstate {
     // `-d`), but it could be changed by the user..
     std::string name_;
 
+    // Full path of the temporary file containing the bugreport.
+    std::string tmp_path;
+
+    // Full path of the file containing the dumpstate logs.
+    std::string log_path;
+
+    // Pointer to the actual path, be it zip or text.
+    std::string path;
+
+    // Pointer to the zipped file.
+    std::unique_ptr<FILE, int (*)(FILE*)> zip_file{nullptr, fclose};
+
   private:
     // Used by GetInstance() only.
     Dumpstate(bool dryRun = false, const std::string& buildType = "user");
@@ -350,15 +391,6 @@ class Dumpstate {
 
 typedef void(for_each_pid_func)(int, const char*);
 typedef void(for_each_tid_func)(int, int, const char*);
-
-/* adds a new entry to the existing zip file. */
-bool add_zip_entry(const std::string& entry_name, const std::string& entry_path);
-
-/* adds a new entry to the existing zip file. */
-bool add_zip_entry_from_fd(const std::string& entry_name, int fd);
-
-/* adds all files from a directory to the zipped bugreport file */
-void add_dir(const std::string& dir, bool recursive);
 
 /* saves the the contents of a file as a long */
 int read_file_as_long(const char *path, long int *output);
