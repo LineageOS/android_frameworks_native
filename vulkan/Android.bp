@@ -17,6 +17,7 @@ ndk_headers {
     from: "include",
     to: "",
     srcs: ["include/vulkan/**/*.h"],
+    license: "include/vulkan/NOTICE",
 }
 
 subdirs = [
