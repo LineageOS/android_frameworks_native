@@ -40,6 +40,7 @@
 
 #include <android-base/file.h>
 #include <android-base/properties.h>
+#include <android-base/stringprintf.h>
 #include <cutils/debugger.h>
 #include <cutils/log.h>
 #include <cutils/properties.h>
@@ -200,16 +201,17 @@ uint64_t DurationReporter::DurationReporter::Nanotime() {
     return (uint64_t) ts.tv_sec * NANOS_PER_SEC + ts.tv_nsec;
 }
 
-bool Dumpstate::IsDryRun() {
+bool Dumpstate::IsDryRun() const {
     return dryRun_;
 }
 
-bool Dumpstate::IsUserBuild() {
+bool Dumpstate::IsUserBuild() const {
     return "user" == buildType_;
 }
 
-std::string Dumpstate::GetPath(const std::string& suffix) {
-    return bugreportDir_ + "/" + baseName_ + "-" + suffix_ + suffix;
+std::string Dumpstate::GetPath(const std::string& suffix) const {
+    return android::base::StringPrintf("%s/%s-%s%s", bugreportDir_.c_str(), baseName_.c_str(),
+                                       name_.c_str(), suffix.c_str());
 }
 
 void for_each_userid(void (*func)(int), const char *header) {
@@ -525,6 +527,7 @@ void do_showmap(int pid, const char *name) {
     RunCommand(title, {"showmap", "-q", arg}, CommandOptions::AS_ROOT_10);
 }
 
+// TODO: when converted to a Dumpstate function, it should be const
 static int _dump_file_from_fd(const std::string& title, const char* path, int fd) {
     if (!title.empty()) {
         printf("------ %s (%s", title.c_str(), path);
@@ -603,7 +606,10 @@ int Dumpstate::DumpFile(const std::string& title, const std::string& path) {
         UpdateProgress(WEIGHT_FILE);
         return 0;
     }
+    return JustDumpFile(title, path);
+}
 
+int Dumpstate::JustDumpFile(const std::string& title, const std::string& path) const {
     int fd = TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
     if (fd < 0) {
         int err = errno;
@@ -833,13 +839,24 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
         return 0;
     }
 
-    bool silent = (options.StdoutMode() == REDIRECT_TO_STDERR);
+    int status = JustRunCommand(command, path, args, options);
 
     /* TODO: for now we're simplifying the progress calculation by using the
      * timeout as the weight. It's a good approximation for most cases, except when calling dumpsys,
      * where its weight should be much higher proportionally to its timeout.
      * Ideally, it should use a options.EstimatedDuration() instead...*/
     int weight = options.Timeout();
+
+    if (weight > 0) {
+        UpdateProgress(weight);
+    }
+
+    return status;
+}
+
+int Dumpstate::JustRunCommand(const char* command, const char* path, std::vector<const char*>& args,
+                              const CommandOptions& options) const {
+    bool silent = (options.StdoutMode() == REDIRECT_TO_STDERR);
 
     uint64_t start = DurationReporter::Nanotime();
     pid_t pid = fork();
@@ -925,9 +942,6 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
         MYLOGE("*** command '%s' failed: exit code %d\n", command, status);
     }
 
-    if (weight > 0) {
-        UpdateProgress(weight);
-    }
     return status;
 }
 
