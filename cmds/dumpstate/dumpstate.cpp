@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#define LOG_TAG "dumpstate"
 
 #include <dirent.h>
 #include <errno.h>
@@ -42,10 +43,8 @@
 #include <cutils/properties.h>
 #include <hardware_legacy/power.h>
 
-#include "private/android_filesystem_config.h"
-
-#define LOG_TAG "dumpstate"
-#include <cutils/log.h>
+#include <private/android_filesystem_config.h>
+#include <private/android_logger.h>
 
 #include "dumpstate.h"
 #include "ziparchive/zip_writer.h"
@@ -578,102 +577,13 @@ static int dump_stat_from_fd(const char *title __unused, const char *path, int f
     return 0;
 }
 
-/* Copied policy from system/core/logd/LogBuffer.cpp */
-
-#define LOG_BUFFER_SIZE (256 * 1024)
-#define LOG_BUFFER_MIN_SIZE (64 * 1024UL)
-#define LOG_BUFFER_MAX_SIZE (256 * 1024 * 1024UL)
-
-static bool valid_size(unsigned long value) {
-    if ((value < LOG_BUFFER_MIN_SIZE) || (LOG_BUFFER_MAX_SIZE < value)) {
-        return false;
-    }
-
-    long pages = sysconf(_SC_PHYS_PAGES);
-    if (pages < 1) {
-        return true;
-    }
-
-    long pagesize = sysconf(_SC_PAGESIZE);
-    if (pagesize <= 1) {
-        pagesize = PAGE_SIZE;
-    }
-
-    // maximum memory impact a somewhat arbitrary ~3%
-    pages = (pages + 31) / 32;
-    unsigned long maximum = pages * pagesize;
-
-    if ((maximum < LOG_BUFFER_MIN_SIZE) || (LOG_BUFFER_MAX_SIZE < maximum)) {
-        return true;
-    }
-
-    return value <= maximum;
-}
-
-// TODO: migrate to logd/LogBuffer.cpp or use android::base::GetProperty
-static unsigned long property_get_size(const char *key) {
-    unsigned long value;
-    char *cp, property[PROPERTY_VALUE_MAX];
-
-    property_get(key, property, "");
-    value = strtoul(property, &cp, 10);
-
-    switch(*cp) {
-    case 'm':
-    case 'M':
-        value *= 1024;
-    /* FALLTHRU */
-    case 'k':
-    case 'K':
-        value *= 1024;
-    /* FALLTHRU */
-    case '\0':
-        break;
-
-    default:
-        value = 0;
-    }
-
-    if (!valid_size(value)) {
-        value = 0;
-    }
-
-    return value;
-}
-
 /* timeout in ms */
 static unsigned long logcat_timeout(const char *name) {
-    static const char global_tuneable[] = "persist.logd.size"; // Settings App
-    static const char global_default[] = "ro.logd.size";       // BoardConfig.mk
-    char key[PROP_NAME_MAX];
-    unsigned long property_size, default_size;
-
-    default_size = property_get_size(global_tuneable);
-    if (!default_size) {
-        default_size = property_get_size(global_default);
-    }
-
-    snprintf(key, sizeof(key), "%s.%s", global_tuneable, name);
-    property_size = property_get_size(key);
-
-    if (!property_size) {
-        snprintf(key, sizeof(key), "%s.%s", global_default, name);
-        property_size = property_get_size(key);
-    }
-
-    if (!property_size) {
-        property_size = default_size;
-    }
-
-    if (!property_size) {
-        property_size = LOG_BUFFER_SIZE;
-    }
-
+    log_id_t id = android_name_to_log_id(name);
+    unsigned long property_size = __android_logger_get_buffer_size(id);
     /* Engineering margin is ten-fold our guess */
     return 10 * (property_size + worst_write_perf) / worst_write_perf;
 }
-
-/* End copy from system/core/logd/LogBuffer.cpp */
 
 void Dumpstate::PrintHeader() const {
     std::string build, fingerprint, radio, bootloader, network;
