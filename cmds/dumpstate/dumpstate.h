@@ -119,9 +119,9 @@ class CommandOptions {
 
         long timeout_;
         bool always_;
-        RootMode rootMode_;
-        StdoutMode stdoutMode_;
-        std::string loggingMessage_;
+        RootMode root_mode_;
+        StdoutMode stdout_mode_;
+        std::string logging_message_;
 
         friend class CommandOptions;
         friend class CommandOptionsBuilder;
@@ -129,7 +129,7 @@ class CommandOptions {
 
     CommandOptions(const CommandOptionsValues& values);
 
-    const CommandOptionsValues values_;
+    const CommandOptionsValues values;
 
   public:
     class CommandOptionsBuilder {
@@ -150,7 +150,7 @@ class CommandOptions {
 
       private:
         CommandOptionsBuilder(long timeout);
-        CommandOptionsValues values_;
+        CommandOptionsValues values;
         friend class CommandOptions;
     };
 
@@ -197,7 +197,12 @@ static const int WEIGHT_TOTAL = 6500;
  *
  * See bugreport-format.md for more info.
  */
-static std::string VERSION_DEFAULT = "1.0";
+static std::string VERSION_CURRENT = "1.0";
+
+/*
+ * "Alias" for the current version.
+ */
+static std::string VERSION_DEFAULT = "default";
 
 /*
  * Main class driving a bugreport generation.
@@ -249,12 +254,12 @@ class Dumpstate {
      * description).
      * |dumpsys_args| `dumpsys` arguments (except `-t`).
      * |options| optional argument defining the command's behavior.
-     * |dumpsysTimeout| when > 0, defines the value passed to `dumpsys -t` (otherwise it uses the
+     * |dumpsys_timeout| when > 0, defines the value passed to `dumpsys -t` (otherwise it uses the
      * timeout from `options`)
      */
-    void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
+    void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsys_args,
                     const CommandOptions& options = CommandOptions::DEFAULT_DUMPSYS,
-                    long dumpsysTimeout = 0);
+                    long dumpsys_timeout = 0);
 
     /*
      * Prints the contents of a file.
@@ -317,60 +322,61 @@ class Dumpstate {
     unsigned long id_;
 
     // Whether progress updates should be published.
-    bool updateProgress_ = false;
+    bool update_progress_ = false;
 
     // Whether it should take an screenshot earlier in the process.
-    bool doEarlyScreenshot_ = false;
+    bool do_early_screenshot_ = false;
 
     // Currrent progress.
     int progress_ = 0;
 
     // Total estimated progress.
-    int weightTotal_ = WEIGHT_TOTAL;
+    int weight_total_ = WEIGHT_TOTAL;
 
     // When set, defines a socket file-descriptor use to report progress to bugreportz.
-    int controlSocketFd_ = -1;
+    int control_socket_fd_ = -1;
 
     // Bugreport format version;
-    std::string version_ = VERSION_DEFAULT;
+    std::string version_ = VERSION_CURRENT;
 
     // Command-line arguments as string
     std::string args_;
 
     // Extra options passed as system property.
-    std::string extraOptions_;
+    std::string extra_options_;
 
     // Full path of the directory where the bugreport files will be written.
-    std::string bugreportDir_;
+    std::string bugreport_dir_;
 
     // Full path of the temporary file containing the screenshot (when requested).
-    std::string screenshotPath_;
+    std::string screenshot_path_;
 
     time_t now_;
 
     // Base name (without suffix or extensions) of the bugreport files, typically
     // `bugreport-BUILD_ID`.
-    std::string baseName_;
+    std::string base_name_;
 
     // Name is the suffix part of the bugreport files - it's typically the date (when invoked with
     // `-d`), but it could be changed by the user..
     std::string name_;
 
     // Full path of the temporary file containing the bugreport.
-    std::string tmp_path;
+    std::string tmp_path_;
 
     // Full path of the file containing the dumpstate logs.
-    std::string log_path;
+    std::string log_path_;
 
     // Pointer to the actual path, be it zip or text.
-    std::string path;
+    std::string path_;
 
     // Pointer to the zipped file.
     std::unique_ptr<FILE, int (*)(FILE*)> zip_file{nullptr, fclose};
 
   private:
     // Used by GetInstance() only.
-    Dumpstate(bool dryRun = false, const std::string& buildType = "user");
+    Dumpstate(const std::string& version = VERSION_CURRENT, bool dry_run = false,
+              const std::string& build_type = "user");
 
     // Internal version of RunCommand that just runs it, without updating progress.
     int JustRunCommand(const char* command, const char* path, std::vector<const char*>& args,
@@ -380,10 +386,10 @@ class Dumpstate {
     int JustDumpFile(const std::string& title, const std::string& path) const;
 
     // Whether this is a dry run.
-    bool dryRun_;
+    bool dry_run_;
 
     // Build type (such as 'user' or 'eng').
-    std::string buildType_;
+    std::string build_type_;
 };
 
 // for_each_pid_func = void (*)(int, const char*);

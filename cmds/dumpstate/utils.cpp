@@ -59,9 +59,9 @@ static const int TRACE_DUMP_TIMEOUT_MS = 10000; // 10 seconds
 
 // TODO: temporary variables and functions used during C++ refactoring
 static Dumpstate& ds = Dumpstate::GetInstance();
-static int RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
+static int RunCommand(const std::string& title, const std::vector<std::string>& full_command,
                       const CommandOptions& options = CommandOptions::DEFAULT) {
-    return ds.RunCommand(title, fullCommand, options);
+    return ds.RunCommand(title, full_command, options);
 }
 static bool IsDryRun() {
     return Dumpstate::GetInstance().IsDryRun();
@@ -95,82 +95,83 @@ CommandOptions CommandOptions::AS_ROOT_5 = CommandOptions::WithTimeout(5).AsRoot
 CommandOptions CommandOptions::AS_ROOT_10 = CommandOptions::WithTimeout(10).AsRoot().Build();
 CommandOptions CommandOptions::AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot().Build();
 
-CommandOptions::CommandOptionsBuilder::CommandOptionsBuilder(long timeout) : values_(timeout) {
+CommandOptions::CommandOptionsBuilder::CommandOptionsBuilder(long timeout) : values(timeout) {
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::Always() {
-    values_.always_ = true;
+    values.always_ = true;
     return *this;
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::AsRoot() {
-    values_.rootMode_ = SU_ROOT;
+    values.root_mode_ = SU_ROOT;
     return *this;
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::DropRoot() {
-    values_.rootMode_ = DROP_ROOT;
+    values.root_mode_ = DROP_ROOT;
     return *this;
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::RedirectStderr() {
-    values_.stdoutMode_ = REDIRECT_TO_STDERR;
+    values.stdout_mode_ = REDIRECT_TO_STDERR;
     return *this;
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::Log(
     const std::string& message) {
-    values_.loggingMessage_ = message;
+    values.logging_message_ = message;
     return *this;
 }
 
 CommandOptions CommandOptions::CommandOptionsBuilder::Build() {
-    return CommandOptions(values_);
+    return CommandOptions(values);
 }
 
 CommandOptions::CommandOptionsValues::CommandOptionsValues(long timeout)
     : timeout_(timeout),
       always_(false),
-      rootMode_(DONT_DROP_ROOT),
-      stdoutMode_(NORMAL_STDOUT),
-      loggingMessage_("") {
+      root_mode_(DONT_DROP_ROOT),
+      stdout_mode_(NORMAL_STDOUT),
+      logging_message_("") {
 }
 
-CommandOptions::CommandOptions(const CommandOptionsValues& values) : values_(values) {
+CommandOptions::CommandOptions(const CommandOptionsValues& values) : values(values) {
 }
 
 long CommandOptions::Timeout() const {
-    return values_.timeout_;
+    return values.timeout_;
 }
 
 bool CommandOptions::Always() const {
-    return values_.always_;
+    return values.always_;
 }
 
 RootMode CommandOptions::RootMode() const {
-    return values_.rootMode_;
+    return values.root_mode_;
 }
 
 StdoutMode CommandOptions::StdoutMode() const {
-    return values_.stdoutMode_;
+    return values.stdout_mode_;
 }
 
 std::string CommandOptions::LoggingMessage() const {
-    return values_.loggingMessage_;
+    return values.logging_message_;
 }
 
 CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(long timeout) {
     return CommandOptions::CommandOptionsBuilder(timeout);
 }
 
-Dumpstate::Dumpstate(bool dryRun, const std::string& buildType)
-    : now_(time(nullptr)), dryRun_(dryRun), buildType_(buildType) {
+Dumpstate::Dumpstate(const std::string& version, bool dry_run, const std::string& build_type)
+    : version_(version), now_(time(nullptr)), dry_run_(dry_run), build_type_(build_type) {
 }
 
 Dumpstate& Dumpstate::GetInstance() {
-    static Dumpstate sSingleton(android::base::GetBoolProperty("dumpstate.dry_run", false),
+    static Dumpstate singleton_(android::base::GetProperty("dumpstate.version", VERSION_CURRENT),
+                                android::base::GetBoolProperty("dumpstate.dry_run", false),
                                 android::base::GetProperty("ro.build.type", "(unknown)"));
-    return sSingleton;
+    return singleton_;
 }
 
 DurationReporter::DurationReporter(const std::string& title) : DurationReporter(title, stdout) {
@@ -202,15 +203,15 @@ uint64_t DurationReporter::DurationReporter::Nanotime() {
 }
 
 bool Dumpstate::IsDryRun() const {
-    return dryRun_;
+    return dry_run_;
 }
 
 bool Dumpstate::IsUserBuild() const {
-    return "user" == buildType_;
+    return "user" == build_type_;
 }
 
 std::string Dumpstate::GetPath(const std::string& suffix) const {
-    return android::base::StringPrintf("%s/%s-%s%s", bugreportDir_.c_str(), baseName_.c_str(),
+    return android::base::StringPrintf("%s/%s-%s%s", bugreport_dir_.c_str(), base_name_.c_str(),
                                        name_.c_str(), suffix.c_str());
 }
 
@@ -546,11 +547,6 @@ static int _dump_file_from_fd(const std::string& title, const char* path, int fd
         }
         printf(") ------\n");
     }
-    if (IsDryRun()) {
-        UpdateProgress(WEIGHT_FILE);
-        close(fd);
-        return 0;
-    }
 
     bool newline = false;
     fd_set read_set;
@@ -597,7 +593,7 @@ static int _dump_file_from_fd(const std::string& title, const char* path, int fd
 }
 
 int Dumpstate::DumpFile(const std::string& title, const std::string& path) {
-    DurationReporter durationReporter(title);
+    DurationReporter duration_reporter(title);
     if (IsDryRun()) {
         if (!title.empty()) {
             printf("------ %s (%s) ------\n", title.c_str(), path.c_str());
@@ -778,41 +774,41 @@ bool waitpid_with_timeout(pid_t pid, int timeout_seconds, int* status) {
     return true;
 }
 
-int Dumpstate::RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
+int Dumpstate::RunCommand(const std::string& title, const std::vector<std::string>& full_command,
                           const CommandOptions& options) {
-    if (fullCommand.empty()) {
+    if (full_command.empty()) {
         MYLOGE("No arguments on command '%s'\n", title.c_str());
         return -1;
     }
 
-    int size = fullCommand.size() + 1;  // null terminated
-    int startingIndex = 0;
+    int size = full_command.size() + 1;  // null terminated
+    int starting_index = 0;
     if (options.RootMode() == SU_ROOT) {
-        startingIndex = 2;  // "su" "root"
-        size += startingIndex;
+        starting_index = 2;  // "su" "root"
+        size += starting_index;
     }
 
     std::vector<const char*> args;
     args.resize(size);
 
-    std::string commandString;
+    std::string command_string;
     if (options.RootMode() == SU_ROOT) {
         args[0] = SU_PATH;
-        commandString += SU_PATH;
+        command_string += SU_PATH;
         args[1] = "root";
-        commandString += " root ";
+        command_string += " root ";
     }
-    int i = startingIndex;
-    for (auto arg = fullCommand.begin(); arg != fullCommand.end(); ++arg) {
+    int i = starting_index;
+    for (auto arg = full_command.begin(); arg != full_command.end(); ++arg) {
         args[i++] = arg->c_str();
-        commandString += arg->c_str();
-        if (arg != fullCommand.end() - 1) {
-            commandString += " ";
+        command_string += arg->c_str();
+        if (arg != full_command.end() - 1) {
+            command_string += " ";
         }
     }
     args[i] = nullptr;
     const char* path = args[0];
-    const char* command = commandString.c_str();
+    const char* command = command_string.c_str();
 
     if (options.RootMode() == SU_ROOT && ds.IsUserBuild()) {
         printf("Skipping '%s' on user build.\n", command);
@@ -824,11 +820,11 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
     }
 
     fflush(stdout);
-    DurationReporter durationReporter(title);
+    DurationReporter duration_reporter(title);
 
-    const std::string& loggingMessage = options.LoggingMessage();
-    if (!loggingMessage.empty()) {
-        MYLOGI(loggingMessage.c_str(), commandString.c_str());
+    const std::string& logging_message = options.LoggingMessage();
+    if (!logging_message.empty()) {
+        MYLOGI(logging_message.c_str(), command_string.c_str());
     }
 
     if (IsDryRun() && !options.Always()) {
@@ -945,11 +941,11 @@ int Dumpstate::JustRunCommand(const char* command, const char* path, std::vector
     return status;
 }
 
-void Dumpstate::RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
+void Dumpstate::RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsys_args,
                            const CommandOptions& options, long dumpsysTimeout) {
     long timeout = dumpsysTimeout > 0 ? dumpsysTimeout : options.Timeout();
     std::vector<std::string> dumpsys = {"/system/bin/dumpsys", "-t", std::to_string(timeout)};
-    dumpsys.insert(dumpsys.end(), dumpsysArgs.begin(), dumpsysArgs.end());
+    dumpsys.insert(dumpsys.end(), dumpsys_args.begin(), dumpsys_args.end());
     RunCommand(title, dumpsys, options);
 }
 
@@ -1315,7 +1311,7 @@ void dump_route_tables() {
 
 // TODO: make this function thread safe if sections are generated in parallel.
 void Dumpstate::UpdateProgress(int delta) {
-    if (!updateProgress_) return;
+    if (!update_progress_) return;
 
     progress_ += delta;
 
@@ -1323,12 +1319,12 @@ void Dumpstate::UpdateProgress(int delta) {
     char value[PROPERTY_VALUE_MAX];
 
     // adjusts max on the fly
-    if (progress_ > weightTotal_) {
-        int newTotal = weightTotal_ * 1.2;
-        MYLOGD("Adjusting total weight from %d to %d\n", weightTotal_, newTotal);
-        weightTotal_ = newTotal;
+    if (progress_ > weight_total_) {
+        int new_total = weight_total_ * 1.2;
+        MYLOGD("Adjusting total weight from %d to %d\n", weight_total_, new_total);
+        weight_total_ = new_total;
         snprintf(key, sizeof(key), "dumpstate.%d.max", getpid());
-        snprintf(value, sizeof(value), "%d", weightTotal_);
+        snprintf(value, sizeof(value), "%d", weight_total_);
         int status = property_set(key, value);
         if (status != 0) {
             MYLOGE("Could not update max weight by setting system property %s to %s: %d\n",
@@ -1341,16 +1337,16 @@ void Dumpstate::UpdateProgress(int delta) {
 
     if (progress_ % 100 == 0) {
         // We don't want to spam logcat, so only log multiples of 100.
-        MYLOGD("Setting progress (%s): %s/%d\n", key, value, weightTotal_);
+        MYLOGD("Setting progress (%s): %s/%d\n", key, value, weight_total_);
     } else {
         // stderr is ignored on normal invocations, but useful when calling /system/bin/dumpstate
         // directly for debuggging.
-        fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, weightTotal_);
+        fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, weight_total_);
     }
 
-    if (controlSocketFd_ >= 0) {
-        dprintf(controlSocketFd_, "PROGRESS:%d/%d\n", progress_, weightTotal_);
-        fsync(controlSocketFd_);
+    if (control_socket_fd_ >= 0) {
+        dprintf(control_socket_fd_, "PROGRESS:%d/%d\n", progress_, weight_total_);
+        fsync(control_socket_fd_);
     }
 
     int status = property_set(key, value);
@@ -1361,14 +1357,14 @@ void Dumpstate::UpdateProgress(int delta) {
 }
 
 void Dumpstate::TakeScreenshot(const std::string& path) {
-    const std::string& realPath = path.empty() ? screenshotPath_ : path;
+    const std::string& real_path = path.empty() ? screenshot_path_ : path;
     int status =
-        RunCommand("", {"/system/bin/screencap", "-p", realPath},
+        RunCommand("", {"/system/bin/screencap", "-p", real_path},
                    CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
     if (status == 0) {
-        MYLOGD("Screenshot saved on %s\n", realPath.c_str());
+        MYLOGD("Screenshot saved on %s\n", real_path.c_str());
     } else {
-        MYLOGE("Failed to take screenshot on %s\n", realPath.c_str());
+        MYLOGE("Failed to take screenshot on %s\n", real_path.c_str());
     }
 }
 
