@@ -32,19 +32,21 @@ GraphicBufferAlloc::~GraphicBufferAlloc() {
 }
 
 sp<GraphicBuffer> GraphicBufferAlloc::createGraphicBuffer(uint32_t width,
-        uint32_t height, PixelFormat format, uint32_t usage,
-        std::string requestorName, status_t* error) {
+        uint32_t height, PixelFormat format, uint32_t layerCount,
+        uint32_t usage, std::string requestorName, status_t* error) {
     sp<GraphicBuffer> graphicBuffer(new GraphicBuffer(
-            width, height, format, usage, std::move(requestorName)));
+            width, height, format, layerCount, usage,
+            std::move(requestorName)));
     status_t err = graphicBuffer->initCheck();
     *error = err;
     if (err != 0 || graphicBuffer->handle == 0) {
         if (err == NO_MEMORY) {
             GraphicBuffer::dumpAllocationsToSystemLog();
         }
-        ALOGE("GraphicBufferAlloc::createGraphicBuffer(w=%d, h=%d) "
+        ALOGE("GraphicBufferAlloc::createGraphicBuffer(w=%u, h=%u, lc=%u) "
              "failed (%s), handle=%p",
-                width, height, strerror(-err), graphicBuffer->handle);
+                width, height, layerCount, strerror(-err),
+                graphicBuffer->handle);
         return 0;
     }
     return graphicBuffer;

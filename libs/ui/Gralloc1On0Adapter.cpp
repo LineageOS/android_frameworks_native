@@ -97,6 +97,8 @@ gralloc1_function_pointer_t Gralloc1On0Adapter::doGetFunction(
             return asFP<GRALLOC1_PFN_SET_DIMENSIONS>(setDimensionsHook);
         case GRALLOC1_FUNCTION_SET_FORMAT:
             return asFP<GRALLOC1_PFN_SET_FORMAT>(setFormatHook);
+        case GRALLOC1_FUNCTION_SET_LAYER_COUNT:
+            return asFP<GRALLOC1_PFN_SET_LAYER_COUNT>(setLayerCountHook);
         case GRALLOC1_FUNCTION_SET_PRODUCER_USAGE:
             return asFP<GRALLOC1_PFN_SET_PRODUCER_USAGE>(setProducerUsageHook);
         case GRALLOC1_FUNCTION_GET_BACKING_STORE:
@@ -113,6 +115,10 @@ gralloc1_function_pointer_t Gralloc1On0Adapter::doGetFunction(
             return asFP<GRALLOC1_PFN_GET_FORMAT>(
                     bufferHook<decltype(&Buffer::getFormat),
                     &Buffer::getFormat, int32_t*>);
+        case GRALLOC1_FUNCTION_GET_LAYER_COUNT:
+            return asFP<GRALLOC1_PFN_GET_LAYER_COUNT>(
+                    bufferHook<decltype(&Buffer::getLayerCount),
+                    &Buffer::getLayerCount, uint32_t*>);
         case GRALLOC1_FUNCTION_GET_PRODUCER_USAGE:
             return asFP<GRALLOC1_PFN_GET_PRODUCER_USAGE>(getProducerUsageHook);
         case GRALLOC1_FUNCTION_GET_STRIDE:

@@ -140,6 +140,14 @@ TEST_F(SurfaceTest, ConcreteTypeIsSurface) {
     EXPECT_EQ(NATIVE_WINDOW_SURFACE, result);
 }
 
+TEST_F(SurfaceTest, LayerCountIsOne) {
+    sp<ANativeWindow> anw(mSurface);
+    int result = -123;
+    int err = anw->query(anw.get(), NATIVE_WINDOW_LAYER_COUNT, &result);
+    EXPECT_EQ(NO_ERROR, err);
+    EXPECT_EQ(1, result);
+}
+
 TEST_F(SurfaceTest, QueryConsumerUsage) {
     const int TEST_USAGE_FLAGS =
             GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER;

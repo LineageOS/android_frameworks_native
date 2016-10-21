@@ -131,6 +131,7 @@ private:
             width(0),
             height(0),
             format(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED),
+            layerCount(1),
             producerUsage(GRALLOC1_PRODUCER_USAGE_NONE),
             consumerUsage(GRALLOC1_CONSUMER_USAGE_NONE) {}
 
@@ -142,6 +143,11 @@ private:
 
         gralloc1_error_t setFormat(int32_t f) {
             format = f;
+            return GRALLOC1_ERROR_NONE;
+        }
+
+        gralloc1_error_t setLayerCount(uint32_t lc) {
+            layerCount = lc;
             return GRALLOC1_ERROR_NONE;
         }
 
@@ -161,6 +167,7 @@ private:
         uint32_t width;
         uint32_t height;
         int32_t format;
+        uint32_t layerCount;
         gralloc1_producer_usage_t producerUsage;
         gralloc1_consumer_usage_t consumerUsage;
     };
@@ -195,6 +202,12 @@ private:
             gralloc1_buffer_descriptor_t descriptorId, int32_t format) {
         return callDescriptorFunction(device, descriptorId,
                 &Descriptor::setFormat, format);
+    }
+
+    static int32_t setLayerCountHook(gralloc1_device_t* device,
+            gralloc1_buffer_descriptor_t descriptorId, uint32_t layerCount) {
+        return callDescriptorFunction(device, descriptorId,
+                &Descriptor::setLayerCount, layerCount);
     }
 
     static int32_t setProducerUsageHook(gralloc1_device_t* device,
@@ -243,6 +256,11 @@ private:
 
         gralloc1_error_t getFormat(int32_t* outFormat) const {
             *outFormat = mDescriptor.format;
+            return GRALLOC1_ERROR_NONE;
+        }
+
+        gralloc1_error_t getLayerCount(uint32_t* outLayerCount) const {
+            *outLayerCount = mDescriptor.layerCount;
             return GRALLOC1_ERROR_NONE;
         }
 

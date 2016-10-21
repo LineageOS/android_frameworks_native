@@ -49,6 +49,7 @@ public:
         mWidth(0),
         mHeight(0),
         mFormat(static_cast<android_pixel_format_t>(0)),
+        mLayerCount(0),
         mProducerUsage(GRALLOC1_PRODUCER_USAGE_NONE),
         mConsumerUsage(GRALLOC1_CONSUMER_USAGE_NONE) {}
 
@@ -58,6 +59,7 @@ public:
 
     gralloc1_error_t setDimensions(uint32_t width, uint32_t height);
     gralloc1_error_t setFormat(android_pixel_format_t format);
+    gralloc1_error_t setLayerCount(uint32_t layerCount);
     gralloc1_error_t setProducerUsage(gralloc1_producer_usage_t usage);
     gralloc1_error_t setConsumerUsage(gralloc1_consumer_usage_t usage);
 
@@ -68,6 +70,7 @@ private:
     uint32_t mWidth;
     uint32_t mHeight;
     android_pixel_format_t mFormat;
+    uint32_t mLayerCount;
     gralloc1_producer_usage_t mProducerUsage;
     gralloc1_consumer_usage_t mConsumerUsage;
 
@@ -178,6 +181,8 @@ private:
                 GRALLOC1_FUNCTION_SET_DIMENSIONS> setDimensions;
         FunctionLoader<GRALLOC1_PFN_SET_FORMAT,
                 GRALLOC1_FUNCTION_SET_FORMAT> setFormat;
+        FunctionLoader<GRALLOC1_PFN_SET_LAYER_COUNT,
+                GRALLOC1_FUNCTION_SET_LAYER_COUNT> setLayerCount;
         FunctionLoader<GRALLOC1_PFN_SET_PRODUCER_USAGE,
                 GRALLOC1_FUNCTION_SET_PRODUCER_USAGE> setProducerUsage;
         FunctionLoader<GRALLOC1_PFN_GET_BACKING_STORE,
@@ -188,6 +193,8 @@ private:
                 GRALLOC1_FUNCTION_GET_DIMENSIONS> getDimensions;
         FunctionLoader<GRALLOC1_PFN_GET_FORMAT,
                 GRALLOC1_FUNCTION_GET_FORMAT> getFormat;
+        FunctionLoader<GRALLOC1_PFN_GET_LAYER_COUNT,
+                GRALLOC1_FUNCTION_GET_LAYER_COUNT> getLayerCount;
         FunctionLoader<GRALLOC1_PFN_GET_PRODUCER_USAGE,
                 GRALLOC1_FUNCTION_GET_PRODUCER_USAGE> getProducerUsage;
         FunctionLoader<GRALLOC1_PFN_GET_STRIDE,
