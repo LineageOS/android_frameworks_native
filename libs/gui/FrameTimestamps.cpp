@@ -16,6 +16,8 @@
 
 #include <gui/FrameTimestamps.h>
 
+#define LOG_TAG "FrameEvents"
+
 #include <cutils/compiler.h>  // For CC_[UN]LIKELY
 #include <inttypes.h>
 #include <utils/Log.h>
@@ -256,8 +258,7 @@ void ProducerFrameEventHistory::updateAcquireFence(
         uint64_t frameNumber, std::shared_ptr<FenceTime>&& acquire) {
     FrameEvents* frame = getFrame(frameNumber, &mAcquireOffset);
     if (frame == nullptr) {
-        ALOGE("ProducerFrameEventHistory::updateAcquireFence: "
-              "Did not find frame.");
+        ALOGE("updateAcquireFence: Did not find frame.");
         return;
     }
 
@@ -277,8 +278,8 @@ void ProducerFrameEventHistory::applyDelta(
 
     for (auto& d : delta.mDeltas) {
         // Avoid out-of-bounds access.
-        if (d.mIndex >= mFrames.size()) {
-            ALOGE("ProducerFrameEventHistory::applyDelta: Bad index.");
+        if (CC_UNLIKELY(d.mIndex >= mFrames.size())) {
+            ALOGE("applyDelta: Bad index.");
             return;
         }
 
@@ -337,9 +338,7 @@ void ProducerFrameEventHistory::applyFenceDelta(FenceTimeline* timeline,
         case FenceTime::Snapshot::State::EMPTY:
             return;
         case FenceTime::Snapshot::State::FENCE:
-            if (CC_UNLIKELY((*dst)->isValid())) {
-                ALOGE("applyFenceDelta: Unexpected fence.");
-            }
+            ALOGE_IF((*dst)->isValid(), "applyFenceDelta: Unexpected fence.");
             *dst = createFenceTime(src.fence);
             timeline->push(*dst);
             return;
@@ -454,8 +453,8 @@ void ConsumerFrameEventHistory::addRetire(
 void ConsumerFrameEventHistory::addRelease(uint64_t frameNumber,
         nsecs_t dequeueReadyTime, std::shared_ptr<FenceTime>&& release) {
     FrameEvents* frame = getFrame(frameNumber, &mReleaseOffset);
-    if (frame == nullptr) {
-        ALOGE("ConsumerFrameEventHistory::addRelease: Did not find frame.");
+    if (CC_UNLIKELY(frame == nullptr)) {
+        ALOGE("addRelease: Did not find frame (%" PRIu64 ").", frameNumber);
         return;
     }
     frame->addReleaseCalled = true;
@@ -648,7 +647,7 @@ FrameEventHistoryDelta& FrameEventHistoryDelta::operator=(
     mCompositorTiming = src.mCompositorTiming;
 
     if (CC_UNLIKELY(!mDeltas.empty())) {
-        ALOGE("FrameEventHistoryDelta: Clobbering history.");
+        ALOGE("FrameEventHistoryDelta assign clobbering history.");
     }
     mDeltas = std::move(src.mDeltas);
     ALOGE_IF(src.mDeltas.empty(), "Source mDeltas not empty.");
