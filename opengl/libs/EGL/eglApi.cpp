@@ -2197,7 +2197,7 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
     nsecs_t* acquireTime = nullptr;
     nsecs_t* latchTime = nullptr;
     nsecs_t* firstRefreshStartTime = nullptr;
-    nsecs_t* GLCompositionDoneTime = nullptr;
+    nsecs_t* gpuCompositionDoneTime = nullptr;
     nsecs_t* lastRefreshStartTime = nullptr;
     nsecs_t* displayPresentTime = nullptr;
     nsecs_t* displayRetireTime = nullptr;
@@ -2221,8 +2221,8 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
             case EGL_LAST_COMPOSITION_START_TIME_ANDROID:
                 lastRefreshStartTime = &values[i];
                 break;
-            case EGL_FIRST_COMPOSITION_FINISHED_TIME_ANDROID:
-                GLCompositionDoneTime = &values[i];
+            case EGL_FIRST_COMPOSITION_GPU_FINISHED_TIME_ANDROID:
+                gpuCompositionDoneTime = &values[i];
                 break;
             case EGL_DISPLAY_PRESENT_TIME_ANDROID:
                 displayPresentTime = &values[i];
@@ -2243,7 +2243,7 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
 
     status_t ret = native_window_get_frame_timestamps(s->win.get(), frameId,
             requestedPresentTime, acquireTime, latchTime, firstRefreshStartTime,
-            lastRefreshStartTime, GLCompositionDoneTime, displayPresentTime,
+            lastRefreshStartTime, gpuCompositionDoneTime, displayPresentTime,
             displayRetireTime, dequeueReadyTime, releaseTime);
 
     switch (ret) {
@@ -2294,7 +2294,7 @@ EGLBoolean eglGetFrameTimestampSupportedANDROID(
         case EGL_COMPOSITION_LATCH_TIME_ANDROID:
         case EGL_FIRST_COMPOSITION_START_TIME_ANDROID:
         case EGL_LAST_COMPOSITION_START_TIME_ANDROID:
-        case EGL_FIRST_COMPOSITION_FINISHED_TIME_ANDROID:
+        case EGL_FIRST_COMPOSITION_GPU_FINISHED_TIME_ANDROID:
         case EGL_DEQUEUE_READY_TIME_ANDROID:
         case EGL_READS_DONE_TIME_ANDROID:
             return EGL_TRUE;

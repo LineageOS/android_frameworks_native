@@ -196,7 +196,7 @@ static bool checkConsumerForUpdates(
         const nsecs_t* outLatchTime,
         const nsecs_t* outFirstRefreshStartTime,
         const nsecs_t* outLastRefreshStartTime,
-        const nsecs_t* outGlCompositionDoneTime,
+        const nsecs_t* outGpuCompositionDoneTime,
         const nsecs_t* outDisplayPresentTime,
         const nsecs_t* outDisplayRetireTime,
         const nsecs_t* outDequeueReadyTime,
@@ -204,7 +204,7 @@ static bool checkConsumerForUpdates(
     bool checkForLatch = (outLatchTime != nullptr) && !e->hasLatchInfo();
     bool checkForFirstRefreshStart = (outFirstRefreshStartTime != nullptr) &&
             !e->hasFirstRefreshStartInfo();
-    bool checkForGlCompositionDone = (outGlCompositionDoneTime != nullptr) &&
+    bool checkForGpuCompositionDone = (outGpuCompositionDoneTime != nullptr) &&
             !e->hasGpuCompositionDoneInfo();
     bool checkForDisplayPresent = (outDisplayPresentTime != nullptr) &&
             !e->hasDisplayPresentInfo();
@@ -223,7 +223,7 @@ static bool checkConsumerForUpdates(
 
     // RequestedPresent and Acquire info are always available producer-side.
     return checkForLatch || checkForFirstRefreshStart ||
-            checkForLastRefreshStart || checkForGlCompositionDone ||
+            checkForLastRefreshStart || checkForGpuCompositionDone ||
             checkForDisplayPresent || checkForDisplayRetire ||
             checkForDequeueReady || checkForRelease;
 }
@@ -244,7 +244,7 @@ static void getFrameTimestampFence(nsecs_t *dst, const std::shared_ptr<FenceTime
 status_t Surface::getFrameTimestamps(uint64_t frameNumber,
         nsecs_t* outRequestedPresentTime, nsecs_t* outAcquireTime,
         nsecs_t* outLatchTime, nsecs_t* outFirstRefreshStartTime,
-        nsecs_t* outLastRefreshStartTime, nsecs_t* outGlCompositionDoneTime,
+        nsecs_t* outLastRefreshStartTime, nsecs_t* outGpuCompositionDoneTime,
         nsecs_t* outDisplayPresentTime, nsecs_t* outDisplayRetireTime,
         nsecs_t* outDequeueReadyTime, nsecs_t* outReleaseTime) {
     ATRACE_CALL();
@@ -274,7 +274,7 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
     // Update our cache of events if the requested events are not available.
     if (checkConsumerForUpdates(events, mLastFrameNumber,
             outLatchTime, outFirstRefreshStartTime, outLastRefreshStartTime,
-            outGlCompositionDoneTime, outDisplayPresentTime,
+            outGpuCompositionDoneTime, outDisplayPresentTime,
             outDisplayRetireTime, outDequeueReadyTime, outReleaseTime)) {
         FrameEventHistoryDelta delta;
         mGraphicBufferProducer->getFrameTimestamps(&delta);
@@ -296,7 +296,7 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
 
     getFrameTimestampFence(outAcquireTime, events->acquireFence);
     getFrameTimestampFence(
-            outGlCompositionDoneTime, events->gpuCompositionDoneFence);
+            outGpuCompositionDoneTime, events->gpuCompositionDoneFence);
     getFrameTimestampFence(
             outDisplayPresentTime, events->displayPresentFence);
     getFrameTimestampFence(outDisplayRetireTime, events->displayRetireFence);
@@ -1032,7 +1032,7 @@ int Surface::dispatchGetFrameTimestamps(va_list args) {
     nsecs_t* outLatchTime = va_arg(args, int64_t*);
     nsecs_t* outFirstRefreshStartTime = va_arg(args, int64_t*);
     nsecs_t* outLastRefreshStartTime = va_arg(args, int64_t*);
-    nsecs_t* outGlCompositionDoneTime = va_arg(args, int64_t*);
+    nsecs_t* outGpuCompositionDoneTime = va_arg(args, int64_t*);
     nsecs_t* outDisplayPresentTime = va_arg(args, int64_t*);
     nsecs_t* outDisplayRetireTime = va_arg(args, int64_t*);
     nsecs_t* outDequeueReadyTime = va_arg(args, int64_t*);
@@ -1040,7 +1040,7 @@ int Surface::dispatchGetFrameTimestamps(va_list args) {
     return getFrameTimestamps(frameId,
             outRequestedPresentTime, outAcquireTime, outLatchTime,
             outFirstRefreshStartTime, outLastRefreshStartTime,
-            outGlCompositionDoneTime, outDisplayPresentTime,
+            outGpuCompositionDoneTime, outDisplayPresentTime,
             outDisplayRetireTime, outDequeueReadyTime, outReleaseTime);
 }
 

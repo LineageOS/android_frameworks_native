@@ -430,7 +430,7 @@ void ConsumerFrameEventHistory::addPostComposition(uint64_t frameNumber,
     if (!frame->addPostCompositeCalled) {
         frame->addPostCompositeCalled = true;
         frame->gpuCompositionDoneFence = gpuCompositionDone;
-        mFramesDirty[mCompositionOffset].setDirty<FrameEvent::GL_COMPOSITION_DONE>();
+        mFramesDirty[mCompositionOffset].setDirty<FrameEvent::GPU_COMPOSITION_DONE>();
         if (!frame->displayPresentFence->isValid()) {
             frame->displayPresentFence = displayPresent;
             mFramesDirty[mCompositionOffset].setDirty<FrameEvent::DISPLAY_PRESENT>();
@@ -511,7 +511,7 @@ FrameEventsDelta::FrameEventsDelta(
       mFirstRefreshStartTime(frameTimestamps.firstRefreshStartTime),
       mLastRefreshStartTime(frameTimestamps.lastRefreshStartTime),
       mDequeueReadyTime(frameTimestamps.dequeueReadyTime) {
-    if (dirtyFields.isDirty<FrameEvent::GL_COMPOSITION_DONE>()) {
+    if (dirtyFields.isDirty<FrameEvent::GPU_COMPOSITION_DONE>()) {
         mGpuCompositionDoneFence =
                 frameTimestamps.gpuCompositionDoneFence->getSnapshot();
     }
