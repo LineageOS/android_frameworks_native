@@ -41,15 +41,14 @@ int LayerVector::do_compare(const void* lhs, const void* rhs) const
 }
 
 void LayerVector::traverseInZOrder(const std::function<void(Layer*)>& consume) const {
-    const size_t n = size();
-    for (size_t i = 0; i < n; i++) {
-        consume((*this)[i].get());
+    for (size_t i = 0; i < size(); i++) {
+        (*this)[i]->traverseInZOrder(consume);
     }
 }
 
 void LayerVector::traverseInReverseZOrder(const std::function<void(Layer*)>& consume) const {
     for (auto i = static_cast<int64_t>(size()) - 1; i >= 0; i--) {
-        consume((*this)[i].get());
+        (*this)[i]->traverseInReverseZOrder(consume);
      }
 }
 } // namespace android

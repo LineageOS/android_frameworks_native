@@ -293,7 +293,8 @@ private:
      */
     status_t createLayer(const String8& name, const sp<Client>& client,
             uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-            sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp);
+            sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp,
+            sp<Layer>* parent);
 
     status_t createNormalLayer(const sp<Client>& client, const String8& name,
             uint32_t w, uint32_t h, uint32_t flags, PixelFormat& format,
@@ -320,7 +321,8 @@ private:
     status_t addClientLayer(const sp<Client>& client,
             const sp<IBinder>& handle,
             const sp<IGraphicBufferProducer>& gbc,
-            const sp<Layer>& lbc);
+            const sp<Layer>& lbc,
+            const sp<Layer>& parent);
 
     /* ------------------------------------------------------------------------
      * Boot animation, on/off animations and screen capture
@@ -423,6 +425,7 @@ private:
      void enableHardwareVsync();
      void resyncToHardwareVsync(bool makeAvailable);
      void disableHardwareVsync(bool makeUnavailable);
+
 public:
      void resyncWithRateLimit();
 private:
@@ -464,11 +467,12 @@ private:
     Condition mTransactionCV;
     bool mTransactionPending;
     bool mAnimTransactionPending;
-    Vector< sp<Layer> > mLayersPendingRemoval;
+    SortedVector< sp<Layer> > mLayersPendingRemoval;
     SortedVector< wp<IBinder> > mGraphicBufferProducerList;
 
     // protected by mStateLock (but we could use another lock)
     bool mLayersRemoved;
+    bool mLayersAdded;
 
     // access must be protected by mInvalidateLock
     volatile int32_t mRepaintEverything;
@@ -564,6 +568,8 @@ private:
     nsecs_t mFrameBuckets[NUM_BUCKETS];
     nsecs_t mTotalTime;
     std::atomic<nsecs_t> mLastSwapTime;
+
+    size_t mNumLayers;
 
     // Double- vs. triple-buffering stats
     struct BufferingStats {

@@ -84,6 +84,18 @@ public:
         }
     }
 
+    void expectFGColor(uint32_t x, uint32_t y) {
+        checkPixel(x, y, 195, 63, 63);
+    }
+
+    void expectBGColor(uint32_t x, uint32_t y) {
+        checkPixel(x, y, 63, 63, 195);
+    }
+
+    void expectChildColor(uint32_t x, uint32_t y) {
+        checkPixel(x, y, 200, 200, 200);
+    }
+
 private:
     ScreenCapture(const sp<CpuConsumer>& cc) :
         mCC(cc) {
@@ -140,14 +152,14 @@ protected:
 
         mComposerClient->setDisplayLayerStack(display, 0);
 
-        ASSERT_EQ(NO_ERROR, mBGSurfaceControl->setLayer(INT_MAX-2));
+        ASSERT_EQ(NO_ERROR, mBGSurfaceControl->setLayer(INT32_MAX-2));
         ASSERT_EQ(NO_ERROR, mBGSurfaceControl->show());
 
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setLayer(INT_MAX-1));
+        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setLayer(INT32_MAX-1));
         ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setPosition(64, 64));
         ASSERT_EQ(NO_ERROR, mFGSurfaceControl->show());
 
-        ASSERT_EQ(NO_ERROR, mSyncSurfaceControl->setLayer(INT_MAX-1));
+        ASSERT_EQ(NO_ERROR, mSyncSurfaceControl->setLayer(INT32_MAX-1));
         ASSERT_EQ(NO_ERROR, mSyncSurfaceControl->setPosition(displayWidth-2,
                 displayHeight-2));
         ASSERT_EQ(NO_ERROR, mSyncSurfaceControl->show());
@@ -517,4 +529,105 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     }
 }
 
+class ChildLayerTest : public LayerUpdateTest {
+protected:
+    void SetUp() override {
+        LayerUpdateTest::SetUp();
+        mChild = mComposerClient->createSurface(
+                String8("Child surface"),
+                10, 10, PIXEL_FORMAT_RGBA_8888,
+                0, mFGSurfaceControl.get());
+        fillSurfaceRGBA8(mChild, 200, 200, 200);
+
+        {
+            SCOPED_TRACE("before anything");
+            ScreenCapture::captureScreen(&mCapture);
+            mCapture->expectChildColor(64, 64);
+        }
+    }
+    void TearDown() override {
+        LayerUpdateTest::TearDown();
+        mChild = 0;
+    }
+
+    sp<SurfaceControl> mChild;
+    sp<ScreenCapture> mCapture;
+};
+
+TEST_F(ChildLayerTest, ChildLayerPositioning) {
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->show();
+    mChild->setPosition(10, 10);
+    mFGSurfaceControl->setPosition(64, 64);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // Top left of foreground must now be visible
+        mCapture->expectFGColor(64, 64);
+        // But 10 pixels in we should see the child surface
+        mCapture->expectChildColor(74, 74);
+        // And 10 more pixels we should be back to the foreground surface
+        mCapture->expectFGColor(84, 84);
+    }
+
+    SurfaceComposerClient::openGlobalTransaction();
+    ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setPosition(0, 0));
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // Top left of foreground should now be at 0, 0
+        mCapture->expectFGColor(0, 0);
+        // But 10 pixels in we should see the child surface
+        mCapture->expectChildColor(10, 10);
+        // And 10 more pixels we should be back to the foreground surface
+        mCapture->expectFGColor(20, 20);
+    }
+}
+
+TEST_F(ChildLayerTest, ChildLayerConstraints) {
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->show();
+    mFGSurfaceControl->setPosition(0, 0);
+    mChild->setPosition(63, 63);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->expectFGColor(0, 0);
+        // Last pixel in foreground should now be the child.
+        mCapture->expectChildColor(63, 63);
+        // But the child should be constrained and the next pixel
+        // must be the background
+        mCapture->expectBGColor(64, 64);
+    }
+}
+
+TEST_F(ChildLayerTest, ChildLayerScaling) {
+    SurfaceComposerClient::openGlobalTransaction();
+    mFGSurfaceControl->setPosition(0, 0);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    // Find the boundary between the parent and child
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->expectChildColor(9, 9);
+        mCapture->expectFGColor(10, 10);
+    }
+
+    SurfaceComposerClient::openGlobalTransaction();
+    mFGSurfaceControl->setMatrix(2.0, 0, 0, 2.0);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    // The boundary should be twice as far from the origin now.
+    // The pixels from the last test should all be child now
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->expectChildColor(9, 9);
+        mCapture->expectChildColor(10, 10);
+        mCapture->expectChildColor(19, 19);
+        mCapture->expectFGColor(20, 20);
+    }
+}
 }

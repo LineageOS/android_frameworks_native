@@ -42,6 +42,7 @@
 
 #include "FrameTracker.h"
 #include "Client.h"
+#include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceFlingerConsumer.h"
@@ -168,6 +169,7 @@ public:
     bool setFinalCrop(const Rect& crop);
     bool setLayerStack(uint32_t layerStack);
     bool setDataSpace(android_dataspace dataSpace);
+    uint32_t getLayerStack() const;
     void deferTransactionUntil(const sp<IBinder>& handle, uint64_t frameNumber);
     bool setOverrideScalingMode(int32_t overrideScalingMode);
 
@@ -217,6 +219,14 @@ public:
      * isVisible - true if this layer is visible, false otherwise
      */
     virtual bool isVisible() const;
+
+    /*
+     * isHiddenByPolicy - true if this layer has been forced invisible.
+     * just because this is false, doesn't mean isVisible() is true.
+     * For example if this layer has no active buffer, it may not be hidden by
+     * policy, but it still can not be visible.
+     */
+    virtual bool isHiddenByPolicy() const;
 
     /*
      * isFixedSize - true if content has a fixed size
@@ -422,6 +432,26 @@ public:
 
     bool getTransformToDisplayInverse() const;
 
+    Transform getTransform() const;
+
+    void traverseInReverseZOrder(const std::function<void(Layer*)>& exec);
+    void traverseInZOrder(const std::function<void(Layer*)>& exec);
+
+    void addChild(const sp<Layer>& layer);
+    // Returns index if removed, or negative value otherwise
+    // for symmetry with Vector::remove
+    ssize_t removeChild(const sp<Layer>& layer);
+    sp<Layer> getParent() const { return mParent.promote(); }
+    bool hasParent() const { return getParent() != nullptr; }
+
+    Rect computeScreenBounds(bool reduceTransparentRegion = true) const;
+    bool setChildLayer(const sp<Layer>& childLayer, int32_t z);
+
+    // Copy the current list of children to the drawing state. Called by
+    // SurfaceFlinger to complete a transaction.
+    void commitChildList();
+
+    int32_t getZ() const;
 protected:
     // constant
     sp<SurfaceFlinger> mFlinger;
@@ -462,7 +492,12 @@ private:
     bool needsFiltering(const sp<const DisplayDevice>& hw) const;
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
+
     gfx::FloatRect computeCrop(const sp<const DisplayDevice>& hw) const;
+    // Compute the initial crop as specified by parent layers and the SurfaceControl
+    // for this layer. Does not include buffer crop from the IGraphicBufferProducer
+    // client, as that should not affect child clipping. Returns in screen space.
+    Rect computeInitialCrop(const sp<const DisplayDevice>& hw) const;
     bool isCropped() const;
     static bool getOpacityForFormat(uint32_t format);
 
@@ -477,6 +512,8 @@ private:
 
     // Loads the corresponding system property once per process
     static bool latchUnsignaledBuffers();
+
+    void setParent(const sp<Layer>& layer);
 
     // -----------------------------------------------------------------------
 
@@ -531,6 +568,8 @@ private:
     void pushPendingState();
     void popPendingState(State* stateToCommit);
     bool applyPendingStates(State* stateToCommit);
+
+    void clearSyncPoints();
 
     // Returns mCurrentScaling mode (originating from the
     // Client) or mOverrideScalingMode mode (originating from
@@ -662,6 +701,13 @@ private:
 
     bool mAutoRefresh;
     bool mFreezePositionUpdates;
+
+    // Child list about to be committed/used for editing.
+    LayerVector mCurrentChildren;
+    // Child list used for rendering.
+    LayerVector mDrawingChildren;
+
+    wp<Layer> mParent;
 };
 
 // ---------------------------------------------------------------------------

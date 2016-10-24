@@ -20,6 +20,7 @@ LOCAL_SHARED_LIBRARIES := \
     libprotobuf-cpp-full \
     libui \
     libutils \
+    liblog
 
 LOCAL_STATIC_LIBRARIES := libtrace_proto
 

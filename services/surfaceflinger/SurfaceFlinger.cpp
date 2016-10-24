@@ -69,6 +69,7 @@
 #include "EventControlThread.h"
 #include "EventThread.h"
 #include "Layer.h"
+#include "LayerVector.h"
 #include "LayerDim.h"
 #include "SurfaceFlinger.h"
 
@@ -133,6 +134,7 @@ SurfaceFlinger::SurfaceFlinger()
         mTransactionPending(false),
         mAnimTransactionPending(false),
         mLayersRemoved(false),
+        mLayersAdded(false),
         mRepaintEverything(0),
         mRenderEngine(NULL),
         mBootTime(systemTime()),
@@ -158,7 +160,8 @@ SurfaceFlinger::SurfaceFlinger()
         mHasPoweredOff(false),
         mFrameBuckets(),
         mTotalTime(0),
-        mLastSwapTime(0)
+        mLastSwapTime(0),
+        mNumLayers(0)
 {
     ALOGI("SurfaceFlinger is starting");
 
@@ -1340,8 +1343,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
                         opaqueRegion);
 
                 mDrawingState.traverseInZOrder([&](Layer* layer) {
-                    const Layer::State& s(layer->getDrawingState());
-                    if (s.layerStack == displayDevice->getLayerStack()) {
+                    if (layer->getLayerStack() == displayDevice->getLayerStack()) {
                         Region drawRegion(tr.transform(
                                 layer->visibleNonTransparentRegion));
                         drawRegion.andSelf(bounds);
@@ -1409,7 +1411,7 @@ void SurfaceFlinger::setUpHWComposer() {
                         displayDevice->getVisibleLayersSortedByZ());
                 bool foundLayerWithoutHwc = false;
                 for (size_t i = 0; i < currentLayers.size(); i++) {
-                    auto const& layer = currentLayers[i];
+                    const auto& layer = currentLayers[i];
                     if (!layer->hasHwcLayer(hwcId)) {
                         auto hwcLayer = mHwc->createLayer(hwcId);
                         if (hwcLayer) {
@@ -1560,8 +1562,6 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
 
 void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
 {
-    const LayerVector& currentLayers(mCurrentState.layersSortedByZ);
-
     // Notify all layers of available frames
     mCurrentState.traverseInZOrder([](Layer* layer) {
         layer->notifyAvailableFrames();
@@ -1778,7 +1778,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
             // NOTE: we rely on the fact that layers are sorted by
             // layerStack first (so we don't have to traverse the list
             // of displays for every layer).
-            uint32_t layerStack = layer->getDrawingState().layerStack;
+            uint32_t layerStack = layer->getLayerStack();
             if (first || currentlayerStack != layerStack) {
                 currentlayerStack = layerStack;
                 // figure out if this layerstack is mirrored
@@ -1816,9 +1816,10 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
     /*
      * Perform our own transaction if needed
      */
-    const LayerVector& layers(mDrawingState.layersSortedByZ);
-    if (currentLayers.size() > layers.size()) {
-        // layers have been added
+
+    if (mLayersAdded) {
+        mLayersAdded = false;
+        // Layers have been added.
         mVisibleRegionsDirty = true;
     }
 
@@ -1828,15 +1829,14 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
         mLayersRemoved = false;
         mVisibleRegionsDirty = true;
         mDrawingState.traverseInZOrder([&](Layer* layer) {
-            if (currentLayers.indexOf(layer) < 0) {
+            if (mLayersPendingRemoval.indexOf(layer) >= 0) {
                 // this layer is not visible anymore
                 // TODO: we could traverse the tree from front to back and
                 //       compute the actual visible region
                 // TODO: we could cache the transformed region
-                const Layer::State& s(layer->getDrawingState());
-                Region visibleReg = s.active.transform.transform(
-                        Region(Rect(s.active.w, s.active.h)));
-                invalidateLayerStack(s.layerStack, visibleReg);
+                Region visibleReg;
+                visibleReg.set(layer->computeScreenBounds());
+                invalidateLayerStack(layer->getLayerStack(), visibleReg);
             }
         });
     }
@@ -1864,10 +1864,10 @@ void SurfaceFlinger::commitTransaction()
 {
     if (!mLayersPendingRemoval.isEmpty()) {
         // Notify removed layers now that they can't be drawn from
-        for (size_t i = 0; i < mLayersPendingRemoval.size(); i++) {
-            recordBufferingStats(mLayersPendingRemoval[i]->getName().string(),
-                    mLayersPendingRemoval[i]->getOccupancyHistory(true));
-            mLayersPendingRemoval[i]->onRemoved();
+        for (const auto& l : mLayersPendingRemoval) {
+            recordBufferingStats(l->getName().string(),
+                    l->getOccupancyHistory(true));
+            l->onRemoved();
         }
         mLayersPendingRemoval.clear();
     }
@@ -1877,6 +1877,9 @@ void SurfaceFlinger::commitTransaction()
     mAnimCompositionPending = mAnimTransactionPending;
 
     mDrawingState = mCurrentState;
+    mDrawingState.traverseInZOrder([](Layer* layer) {
+        layer->commitChildList();
+    });
     mTransactionPending = false;
     mAnimTransactionPending = false;
     mTransactionCV.broadcast();
@@ -1899,7 +1902,7 @@ void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
         const Layer::State& s(layer->getDrawingState());
 
         // only consider the layers on the given layer stack
-        if (s.layerStack != layerStack)
+        if (layer->getLayerStack() != layerStack)
             return;
 
         /*
@@ -1935,12 +1938,12 @@ void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
         // handle hidden surfaces by setting the visible region to empty
         if (CC_LIKELY(layer->isVisible())) {
             const bool translucent = !layer->isOpaque(s);
-            Rect bounds(s.active.transform.transform(layer->computeBounds()));
+            Rect bounds(layer->computeScreenBounds());
             visibleRegion.set(bounds);
+            Transform tr = layer->getTransform();
             if (!visibleRegion.isEmpty()) {
                 // Remove the transparent area from the visible region
                 if (translucent) {
-                    const Transform tr(s.active.transform);
                     if (tr.preserveRects()) {
                         // transform the transparent region
                         transparentRegion = tr.transform(s.activeTransparentRegion);
@@ -1952,7 +1955,7 @@ void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
                 }
 
                 // compute the opaque region
-                const int32_t layerOrientation = s.active.transform.getOrientation();
+                const int32_t layerOrientation = tr.getOrientation();
                 if (s.alpha == 1.0f && !translucent &&
                         ((layerOrientation & Transform::ROT_INVALID) == false)) {
                     // the opaque region is the layer's footprint
@@ -2058,8 +2061,7 @@ bool SurfaceFlinger::handlePageFlip()
     for (auto& layer : mLayersWithQueuedFrames) {
         const Region dirty(layer->latchBuffer(visibleRegions, latchTime));
         layer->useSurfaceDamage();
-        const Layer::State& s(layer->getDrawingState());
-        invalidateLayerStack(s.layerStack, dirty);
+        invalidateLayerStack(layer->getLayerStack(), dirty);
     }
 
     mVisibleRegionsDirty |= visibleRegions;
@@ -2281,16 +2283,23 @@ void SurfaceFlinger::drawWormhole(const sp<const DisplayDevice>& displayDevice, 
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
         const sp<IBinder>& handle,
         const sp<IGraphicBufferProducer>& gbc,
-        const sp<Layer>& lbc)
+        const sp<Layer>& lbc,
+        const sp<Layer>& parent)
 {
     // add this layer to the current state list
     {
         Mutex::Autolock _l(mStateLock);
-        if (mCurrentState.layersSortedByZ.size() >= MAX_LAYERS) {
+        if (mNumLayers >= MAX_LAYERS) {
             return NO_MEMORY;
         }
-        mCurrentState.layersSortedByZ.add(lbc);
+        if (parent == nullptr) {
+            mCurrentState.layersSortedByZ.add(lbc);
+        } else {
+            parent->addChild(lbc);
+        }
         mGraphicBufferProducerList.add(IInterface::asBinder(gbc));
+        mLayersAdded = true;
+        mNumLayers++;
     }
 
     // attach this layer to the client
@@ -2307,14 +2316,22 @@ status_t SurfaceFlinger::removeLayer(const wp<Layer>& weakLayer) {
         return NO_ERROR;
     }
 
-    ssize_t index = mCurrentState.layersSortedByZ.remove(layer);
-    if (index >= 0) {
-        mLayersPendingRemoval.push(layer);
-        mLayersRemoved = true;
-        setTransactionFlags(eTransactionNeeded);
-        return NO_ERROR;
+    const auto& p = layer->getParent();
+    const ssize_t index = (p != nullptr) ? p->removeChild(layer) :
+        mCurrentState.layersSortedByZ.remove(layer);
+
+    if (index < 0) {
+        ALOGE("Failed to find layer (%s) in layer parent (%s).",
+                layer->getName().string(),
+                (p != nullptr) ? p->getName().string() : "no-parent");
+        return BAD_VALUE;
     }
-    return status_t(index);
+
+    mLayersPendingRemoval.add(layer);
+    mLayersRemoved = true;
+    mNumLayers--;
+    setTransactionFlags(eTransactionNeeded);
+    return NO_ERROR;
 }
 
 uint32_t SurfaceFlinger::peekTransactionFlags() {
@@ -2489,13 +2506,20 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         }
         if (what & layer_state_t::eLayerChanged) {
             // NOTE: index needs to be calculated before we update the state
-            ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
-            if (layer->setLayer(s.z) && idx >= 0) {
-                mCurrentState.layersSortedByZ.removeAt(idx);
-                mCurrentState.layersSortedByZ.add(layer);
-                // we need traversal (state changed)
-                // AND transaction (list changed)
-                flags |= eTransactionNeeded|eTraversalNeeded;
+            const auto& p = layer->getParent();
+            if (p == nullptr) {
+                ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
+                if (layer->setLayer(s.z) && idx >= 0) {
+                    mCurrentState.layersSortedByZ.removeAt(idx);
+                    mCurrentState.layersSortedByZ.add(layer);
+                    // we need traversal (state changed)
+                    // AND transaction (list changed)
+                    flags |= eTransactionNeeded|eTraversalNeeded;
+                }
+            } else {
+                if (p->setChildLayer(layer, s.z)) {
+                    flags |= eTransactionNeeded|eTraversalNeeded;
+                }
             }
         }
         if (what & layer_state_t::eSizeChanged) {
@@ -2528,9 +2552,17 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 flags |= eTraversalNeeded;
         }
         if (what & layer_state_t::eLayerStackChanged) {
-            // NOTE: index needs to be calculated before we update the state
             ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
-            if (layer->setLayerStack(s.layerStack) && idx >= 0) {
+            // We only allow setting layer stacks for top level layers,
+            // everything else inherits layer stack from its parent.
+            if (layer->hasParent()) {
+                ALOGE("Attempt to set layer stack on layer with parent (%s) is invalid",
+                        layer->getName().string());
+            } else if (idx < 0) {
+                ALOGE("Attempt to set layer stack on layer without parent (%s) that "
+                        "that also does not appear in the top level layer list. Something"
+                        " has gone wrong.", layer->getName().string());
+            } else if (layer->setLayerStack(s.layerStack)) {
                 mCurrentState.layersSortedByZ.removeAt(idx);
                 mCurrentState.layersSortedByZ.add(layer);
                 // we need traversal (state changed)
@@ -2556,7 +2588,8 @@ status_t SurfaceFlinger::createLayer(
         const String8& name,
         const sp<Client>& client,
         uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-        sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp)
+        sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp,
+        sp<Layer>* parent)
 {
     if (int32_t(w|h) < 0) {
         ALOGE("createLayer() failed, w or h is negative (w=%d, h=%d)",
@@ -2588,7 +2621,7 @@ status_t SurfaceFlinger::createLayer(
         return result;
     }
 
-    result = addClientLayer(client, *handle, *gbp, layer);
+    result = addClientLayer(client, *handle, *gbp, layer, *parent);
     if (result != NO_ERROR) {
         return result;
     }
@@ -3085,10 +3118,8 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     /*
      * Dump the visible layer list
      */
-    const LayerVector& currentLayers = mCurrentState.layersSortedByZ;
-    const size_t count = currentLayers.size();
     colorizer.bold(result);
-    result.appendFormat("Visible layers (count = %zu)\n", count);
+    result.appendFormat("Visible layers (count = %zu)\n", mNumLayers);
     colorizer.reset(result);
     mCurrentState.traverseInZOrder([&](Layer* layer) {
         layer->dump(result, colorizer);
@@ -3170,10 +3201,9 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
 
         result.appendFormat("Display %d HWC layers:\n", hwcId);
         Layer::miniDumpHeader(result);
-        for (size_t l = 0; l < count; l++) {
-            const sp<Layer>& layer(currentLayers[l]);
+        mCurrentState.traverseInZOrder([&](Layer* layer) {
             layer->miniDump(result, hwcId);
-        }
+        });
         result.append("\n");
     }
 
@@ -3698,18 +3728,25 @@ void SurfaceFlinger::renderScreenImplLocked(
     // redraw the screen entirely...
     engine.clearWithColor(0, 0, 0, 1);
 
-    mDrawingState.traverseInZOrder([&](Layer* layer) {
-        const Layer::State& state(layer->getDrawingState());
-        if (state.layerStack == hw->getLayerStack()) {
-            if (state.z >= minLayerZ && state.z <= maxLayerZ) {
-                if (layer->isVisible()) {
-                    if (filtering) layer->setFiltering(true);
-                    layer->draw(hw, useIdentityTransform);
-                    if (filtering) layer->setFiltering(false);
-                }
-            }
+    // We loop through the first level of layers without traversing,
+    // as we need to interpret min/max layer Z in the top level Z space.
+    for (const auto& layer : mDrawingState.layersSortedByZ) {
+        if (layer->getLayerStack() != hw->getLayerStack()) {
+            continue;
         }
-    });
+        const Layer::State& state(layer->getDrawingState());
+        if (state.z < minLayerZ || state.z > maxLayerZ) {
+            continue;
+        }
+        layer->traverseInZOrder([&](Layer* layer) {
+            if (!layer->isVisible()) {
+                return;
+            }
+            if (filtering) layer->setFiltering(true);
+            layer->draw(hw, useIdentityTransform);
+            if (filtering) layer->setFiltering(false);
+        });
+    }
 
     hw->setViewportAndProjection();
 }
@@ -3743,14 +3780,17 @@ status_t SurfaceFlinger::captureScreenImplLocked(
     reqHeight = (!reqHeight) ? hw_h : reqHeight;
 
     bool secureLayerIsVisible = false;
-    mDrawingState.traverseInZOrder([&](Layer* layer) {
+    for (const auto& layer : mDrawingState.layersSortedByZ) {
         const Layer::State& state(layer->getDrawingState());
-        if (state.layerStack == hw->getLayerStack() && state.z >= minLayerZ &&
-                state.z <= maxLayerZ && layer->isVisible() &&
-                layer->isSecure()) {
-            secureLayerIsVisible = true;
+        if ((layer->getLayerStack() != hw->getLayerStack()) ||
+                (state.z < minLayerZ || state.z > maxLayerZ)) {
+            continue;
         }
-    });
+        layer->traverseInZOrder([&](Layer *layer) {
+            secureLayerIsVisible = secureLayerIsVisible || (layer->isVisible() &&
+                    layer->isSecure());
+        });
+    }
 
     if (!isLocalScreenshot && secureLayerIsVisible) {
         ALOGW("FB is protected: PERMISSION_DENIED");
@@ -3888,18 +3928,21 @@ void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* v
         ALOGE("*** we just took a black screenshot ***\n"
                 "requested minz=%d, maxz=%d, layerStack=%d",
                 minLayerZ, maxLayerZ, hw->getLayerStack());
+
         size_t i = 0;
-        mDrawingState.traverseInZOrder([&](Layer* layer) {
+        for (const auto& layer : mDrawingState.layersSortedByZ) {
             const Layer::State& state(layer->getDrawingState());
-            const bool visible = (state.layerStack == hw->getLayerStack())
-                                && (state.z >= minLayerZ && state.z <= maxLayerZ)
-                                && (layer->isVisible());
-            ALOGE("%c index=%zu, name=%s, layerStack=%d, z=%d, visible=%d, flags=%x, alpha=%.3f",
-                    visible ? '+' : '-',
-                    i, layer->getName().string(), state.layerStack, state.z,
+            if (layer->getLayerStack() == hw->getLayerStack() && state.z >= minLayerZ &&
+                    state.z <= maxLayerZ) {
+                layer->traverseInZOrder([&](Layer* layer) {
+                    ALOGE("%c index=%zu, name=%s, layerStack=%d, z=%d, visible=%d, flags=%x, alpha=%.3f",
+                            layer->isVisible() ? '+' : '-',
+                            i, layer->getName().string(), layer->getLayerStack(), state.z,
                             layer->isVisible(), state.flags, state.alpha);
-            i++;
-        });
+                    i++;
+                });
+            }
+        }
     }
 }
 

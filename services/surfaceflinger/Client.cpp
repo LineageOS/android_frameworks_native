@@ -106,14 +106,22 @@ status_t Client::onTransact(
 status_t Client::createSurface(
         const String8& name,
         uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
+        const sp<IBinder>& parentHandle,
         sp<IBinder>* handle,
         sp<IGraphicBufferProducer>* gbp)
 {
+    sp<Layer> parent = nullptr;
+    if (parentHandle != nullptr) {
+        parent = getLayerUser(parentHandle);
+        if (parent == nullptr) {
+            return NAME_NOT_FOUND;
+        }
+    }
+
     /*
      * createSurface must be called from the GL thread so that it can
      * have access to the GL context.
      */
-
     class MessageCreateLayer : public MessageBase {
         SurfaceFlinger* flinger;
         Client* client;
@@ -124,26 +132,29 @@ status_t Client::createSurface(
         uint32_t w, h;
         PixelFormat format;
         uint32_t flags;
+        sp<Layer>* parent;
     public:
         MessageCreateLayer(SurfaceFlinger* flinger,
                 const String8& name, Client* client,
                 uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
                 sp<IBinder>* handle,
-                sp<IGraphicBufferProducer>* gbp)
+                sp<IGraphicBufferProducer>* gbp,
+                sp<Layer>* parent)
             : flinger(flinger), client(client),
               handle(handle), gbp(gbp), result(NO_ERROR),
-              name(name), w(w), h(h), format(format), flags(flags) {
+              name(name), w(w), h(h), format(format), flags(flags),
+              parent(parent) {
         }
         status_t getResult() const { return result; }
         virtual bool handler() {
             result = flinger->createLayer(name, client, w, h, format, flags,
-                    handle, gbp);
+                    handle, gbp, parent);
             return true;
         }
     };
 
     sp<MessageBase> msg = new MessageCreateLayer(mFlinger.get(),
-            name, this, w, h, format, flags, handle, gbp);
+            name, this, w, h, format, flags, handle, gbp, &parent);
     mFlinger->postMessageSync(msg);
     return static_cast<MessageCreateLayer*>( msg.get() )->getResult();
 }

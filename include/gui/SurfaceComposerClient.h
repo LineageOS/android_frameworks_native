@@ -105,7 +105,8 @@ public:
             uint32_t w,         // width in pixel
             uint32_t h,         // height in pixel
             PixelFormat format, // pixel-format desired
-            uint32_t flags = 0  // usage flags
+            uint32_t flags = 0,  // usage flags
+            SurfaceControl* parent = nullptr // parent
     );
 
     //! Create a virtual display

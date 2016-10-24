@@ -610,13 +610,19 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
         uint32_t w,
         uint32_t h,
         PixelFormat format,
-        uint32_t flags)
+        uint32_t flags,
+        SurfaceControl* parent)
 {
     sp<SurfaceControl> sur;
     if (mStatus == NO_ERROR) {
         sp<IBinder> handle;
+        sp<IBinder> parentHandle;
         sp<IGraphicBufferProducer> gbp;
-        status_t err = mClient->createSurface(name, w, h, format, flags,
+
+        if (parent != nullptr) {
+            parentHandle = parent->getHandle();
+        }
+        status_t err = mClient->createSurface(name, w, h, format, flags, parentHandle,
                 &handle, &gbp);
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
