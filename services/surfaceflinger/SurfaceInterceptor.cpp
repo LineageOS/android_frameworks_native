@@ -20,6 +20,9 @@
 #include "Layer.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceInterceptor.h"
+
+#include <android-base/file.h>
+
 #include <cutils/log.h>
 
 #include <utils/Trace.h>
@@ -119,14 +122,18 @@ void SurfaceInterceptor::addInitialDisplayStateLocked(Increment* increment,
 
 status_t SurfaceInterceptor::writeProtoFileLocked() {
     ATRACE_CALL();
-    std::ofstream output(mOutputFileName, std::ios::out | std::ios::trunc | std::ios::binary);
-    // SerializeToOstream returns false when it's missing required data or when it could not write
+    std::string output;
+
     if (!mTrace.IsInitialized()) {
         return NOT_ENOUGH_DATA;
     }
-    if (!mTrace.SerializeToOstream(&output)) {
+    if (!mTrace.SerializeToString(&output)) {
         return PERMISSION_DENIED;
     }
+    if (!android::base::WriteStringToFile(output, mOutputFileName, true)) {
+        return PERMISSION_DENIED;
+    }
+
     return NO_ERROR;
 }
 
