@@ -18,6 +18,7 @@
 #define ANDROID_TEXTOUTPUT_H
 
 #include <utils/Errors.h>
+#include <utils/String8.h>
 
 #include <stdint.h>
 #include <string.h>
@@ -25,9 +26,6 @@
 
 // ---------------------------------------------------------------------------
 namespace android {
-
-class String8;
-class String16;
 
 class TextOutput
 {
@@ -121,6 +119,32 @@ private:
 };
 
 TextOutput& operator<<(TextOutput& to, const HexDump& val);
+inline TextOutput& operator<<(TextOutput& to,
+                              decltype(std::endl<char,
+                                       std::char_traits<char>>)
+                              /*val*/) {
+    endl(to);
+    return to;
+}
+
+inline TextOutput& operator<<(TextOutput& to, const char &c)
+{
+    to.print(&c, 1);
+    return to;
+}
+
+inline TextOutput& operator<<(TextOutput& to, const bool &val)
+{
+    if (val) to.print("true", 4);
+    else to.print("false", 5);
+    return to;
+}
+
+inline TextOutput& operator<<(TextOutput& to, const String16& val)
+{
+    to << String8(val).string();
+    return to;
+}
 
 // ---------------------------------------------------------------------------
 // No user servicable parts below.
