@@ -18,10 +18,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := $(call all-proto-files-under, src)
 
-LOCAL_SHARED_LIBRARIES := \
-    libprotobuf-cpp-full
-
-LOCAL_PROTOC_OPTIMIZE_TYPE := full
+LOCAL_PROTOC_OPTIMIZE_TYPE := lite
 
 LOCAL_MODULE := libtrace_proto
 LOCAL_MODULE_CLASS := STATIC_LIBRARIES

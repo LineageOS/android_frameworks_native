@@ -40,7 +40,8 @@ LOCAL_SHARED_LIBRARIES := \
     libgui \
     libui \
     libutils \
-    libprotobuf-cpp-full \
+    libprotobuf-cpp-lite \
+    libbase \
 
 LOCAL_STATIC_LIBRARIES := \
     libtrace_proto \
@@ -57,7 +58,7 @@ LOCAL_SRC_FILES := \
     Main.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
-    libprotobuf-cpp-full \
+    libprotobuf-cpp-lite \
     libsurfacereplayer \
     libutils \
 

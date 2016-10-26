@@ -145,7 +145,7 @@ LOCAL_SHARED_LIBRARIES := \
     libgui \
     libpowermanager \
     libvulkan \
-    libprotobuf-cpp-full \
+    libprotobuf-cpp-lite \
     libhidl \
     libhwbinder \
     libbase \

@@ -20,6 +20,8 @@
 
 #include <android/native_window.h>
 
+#include <android-base/file.h>
+
 #include <binder/IMemory.h>
 
 #include <gui/BufferQueue.h>
@@ -61,11 +63,15 @@ Replayer::Replayer(const std::string& filename, bool replayManually, int numThre
         mStopTimeStamp(stopHere) {
     srand(RAND_COLOR_SEED);
 
-    std::fstream input(filename, std::ios::in | std::ios::binary);
-
-    mLoaded = mTrace.ParseFromIstream(&input);
-    if (!mLoaded) {
+    std::string input;
+    if (!android::base::ReadFileToString(filename, &input, true)) {
         std::cerr << "Trace did not load. Does " << filename << " exist?" << std::endl;
+        abort();
+    }
+
+    mLoaded = mTrace.ParseFromString(input);
+    if (!mLoaded) {
+        std::cerr << "Trace did not load." << std::endl;
         abort();
     }
 
