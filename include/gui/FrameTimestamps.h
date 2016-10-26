@@ -52,6 +52,16 @@ enum class FrameEvent {
 
 // A collection of timestamps corresponding to a single frame.
 struct FrameEvents {
+    static constexpr auto EVENT_COUNT =
+            static_cast<size_t>(FrameEvent::EVENT_COUNT);
+    static_assert(EVENT_COUNT <= 32, "Event count sanity check failed.");
+    static constexpr nsecs_t TIMESTAMP_PENDING =
+            std::numeric_limits<nsecs_t>::max();
+
+    static inline bool isValidTimestamp(nsecs_t time) {
+        return time != TIMESTAMP_PENDING;
+    }
+
     bool hasPostedInfo() const;
     bool hasRequestedPresentInfo() const;
     bool hasLatchInfo() const;
@@ -67,10 +77,6 @@ struct FrameEvents {
     void checkFencesForCompletion();
     void dump(String8& outString) const;
 
-    static constexpr size_t EVENT_COUNT =
-            static_cast<size_t>(FrameEvent::EVENT_COUNT);
-    static_assert(EVENT_COUNT <= 32, "Event count sanity check failed.");
-
     bool valid{false};
     uint64_t frameNumber{0};
 
@@ -81,12 +87,12 @@ struct FrameEvents {
     bool addRetireCalled{false};
     bool addReleaseCalled{false};
 
-    nsecs_t postedTime{-1};
-    nsecs_t requestedPresentTime{-1};
-    nsecs_t latchTime{-1};
-    nsecs_t firstRefreshStartTime{-1};
-    nsecs_t lastRefreshStartTime{-1};
-    nsecs_t dequeueReadyTime{-1};
+    nsecs_t postedTime{TIMESTAMP_PENDING};
+    nsecs_t requestedPresentTime{TIMESTAMP_PENDING};
+    nsecs_t latchTime{TIMESTAMP_PENDING};
+    nsecs_t firstRefreshStartTime{TIMESTAMP_PENDING};
+    nsecs_t lastRefreshStartTime{TIMESTAMP_PENDING};
+    nsecs_t dequeueReadyTime{TIMESTAMP_PENDING};
 
     std::shared_ptr<FenceTime> acquireFence{FenceTime::NO_FENCE};
     std::shared_ptr<FenceTime> gpuCompositionDoneFence{FenceTime::NO_FENCE};
@@ -273,12 +279,12 @@ private:
     bool mAddRetireCalled{0};
     bool mAddReleaseCalled{0};
 
-    nsecs_t mPostedTime{0};
-    nsecs_t mRequestedPresentTime{0};
-    nsecs_t mLatchTime{0};
-    nsecs_t mFirstRefreshStartTime{0};
-    nsecs_t mLastRefreshStartTime{0};
-    nsecs_t mDequeueReadyTime{0};
+    nsecs_t mPostedTime{FrameEvents::TIMESTAMP_PENDING};
+    nsecs_t mRequestedPresentTime{FrameEvents::TIMESTAMP_PENDING};
+    nsecs_t mLatchTime{FrameEvents::TIMESTAMP_PENDING};
+    nsecs_t mFirstRefreshStartTime{FrameEvents::TIMESTAMP_PENDING};
+    nsecs_t mLastRefreshStartTime{FrameEvents::TIMESTAMP_PENDING};
+    nsecs_t mDequeueReadyTime{FrameEvents::TIMESTAMP_PENDING};
 
     FenceTime::Snapshot mGpuCompositionDoneFence;
     FenceTime::Snapshot mDisplayPresentFence;

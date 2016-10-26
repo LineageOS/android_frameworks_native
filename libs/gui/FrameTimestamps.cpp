@@ -35,19 +35,19 @@ namespace android {
 // ============================================================================
 
 bool FrameEvents::hasPostedInfo() const {
-    return Fence::isValidTimestamp(postedTime);
+    return FrameEvents::isValidTimestamp(postedTime);
 }
 
 bool FrameEvents::hasRequestedPresentInfo() const {
-    return Fence::isValidTimestamp(requestedPresentTime);
+    return FrameEvents::isValidTimestamp(requestedPresentTime);
 }
 
 bool FrameEvents::hasLatchInfo() const {
-    return Fence::isValidTimestamp(latchTime);
+    return FrameEvents::isValidTimestamp(latchTime);
 }
 
 bool FrameEvents::hasFirstRefreshStartInfo() const {
-    return Fence::isValidTimestamp(firstRefreshStartTime);
+    return FrameEvents::isValidTimestamp(firstRefreshStartTime);
 }
 
 bool FrameEvents::hasLastRefreshStartInfo() const {
@@ -58,7 +58,7 @@ bool FrameEvents::hasLastRefreshStartInfo() const {
 }
 
 bool FrameEvents::hasDequeueReadyInfo() const {
-    return Fence::isValidTimestamp(dequeueReadyTime);
+    return FrameEvents::isValidTimestamp(dequeueReadyTime);
 }
 
 bool FrameEvents::hasAcquireInfo() const {
@@ -119,21 +119,21 @@ void FrameEvents::dump(String8& outString) const
     outString.appendFormat("--- Req. Present\t%" PRId64 "\n", requestedPresentTime);
 
     outString.appendFormat("--- Latched     \t");
-    if (Fence::isValidTimestamp(latchTime)) {
+    if (FrameEvents::isValidTimestamp(latchTime)) {
         outString.appendFormat("%" PRId64 "\n", latchTime);
     } else {
         outString.appendFormat("Pending\n");
     }
 
     outString.appendFormat("--- Refresh (First)\t");
-    if (Fence::isValidTimestamp(firstRefreshStartTime)) {
+    if (FrameEvents::isValidTimestamp(firstRefreshStartTime)) {
         outString.appendFormat("%" PRId64 "\n", firstRefreshStartTime);
     } else {
         outString.appendFormat("Pending\n");
     }
 
     outString.appendFormat("--- Refresh (Last)\t");
-    if (Fence::isValidTimestamp(lastRefreshStartTime)) {
+    if (FrameEvents::isValidTimestamp(lastRefreshStartTime)) {
         outString.appendFormat("%" PRId64 "\n", lastRefreshStartTime);
     } else {
         outString.appendFormat("Pending\n");
@@ -149,7 +149,7 @@ void FrameEvents::dump(String8& outString) const
             !addRetireCalled, *displayRetireFence);
 
     outString.appendFormat("--- DequeueReady  \t");
-    if (Fence::isValidTimestamp(dequeueReadyTime)) {
+    if (FrameEvents::isValidTimestamp(dequeueReadyTime)) {
         outString.appendFormat("%" PRId64 "\n", dequeueReadyTime);
     } else {
         outString.appendFormat("Pending\n");
@@ -408,7 +408,7 @@ void ConsumerFrameEventHistory::addPreComposition(
     }
     frame->lastRefreshStartTime = refreshStartTime;
     mFramesDirty[mCompositionOffset].setDirty<FrameEvent::LAST_REFRESH_START>();
-    if (!Fence::isValidTimestamp(frame->firstRefreshStartTime)) {
+    if (!FrameEvents::isValidTimestamp(frame->firstRefreshStartTime)) {
         frame->firstRefreshStartTime = refreshStartTime;
         mFramesDirty[mCompositionOffset].setDirty<FrameEvent::FIRST_REFRESH_START>();
     }

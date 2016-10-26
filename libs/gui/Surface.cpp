@@ -230,7 +230,7 @@ static bool checkConsumerForUpdates(
 
 static void getFrameTimestamp(nsecs_t *dst, const nsecs_t& src) {
     if (dst != nullptr) {
-        *dst = Fence::isValidTimestamp(src) ? src : 0;
+        *dst = FrameEvents::isValidTimestamp(src) ? src : 0;
     }
 }
 
