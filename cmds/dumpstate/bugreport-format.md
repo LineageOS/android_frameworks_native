@@ -55,6 +55,10 @@ files upon the end user’s request:
 - `title.txt`: whose value is a single-line summary of the problem.
 - `description.txt`: whose value is a multi-line, detailed description of the problem.
 
+## Android O versions
+On _Android O (OhMightyAndroidWhatsYourNextReleaseName?)_, the following changes were made:
+- The ANR traces are added to the `FS` folder, typically under `FS/data/anr` (version `2.0-dev-1`).
+
 ## Intermediate versions
 During development, the versions will be suffixed with _-devX_ or
 _-devX-EXPERIMENTAL_FEATURE_, where _X_ is a number that increases as the
