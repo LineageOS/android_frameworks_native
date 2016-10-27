@@ -165,7 +165,11 @@ CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(long timeout) 
 }
 
 Dumpstate::Dumpstate(const std::string& version, bool dry_run, const std::string& build_type)
-    : version_(version), now_(time(nullptr)), dry_run_(dry_run), build_type_(build_type) {
+    : pid_(getpid()),
+      version_(version),
+      now_(time(nullptr)),
+      dry_run_(dry_run),
+      build_type_(build_type) {
 }
 
 Dumpstate& Dumpstate::GetInstance() {
@@ -209,6 +213,10 @@ bool Dumpstate::IsDryRun() const {
 
 bool Dumpstate::IsUserBuild() const {
     return "user" == build_type_;
+}
+
+bool Dumpstate::IsZipping() const {
+    return zip_writer_ != nullptr;
 }
 
 std::string Dumpstate::GetPath(const std::string& suffix) const {
@@ -1317,6 +1325,7 @@ void Dumpstate::UpdateProgress(int delta) {
 
     progress_ += delta;
 
+    // TODO: remove property support once Shell uses IDumpstateListener
     char key[PROPERTY_KEY_MAX];
     char value[PROPERTY_VALUE_MAX];
 
@@ -1325,25 +1334,18 @@ void Dumpstate::UpdateProgress(int delta) {
         int new_total = weight_total_ * 1.2;
         MYLOGD("Adjusting total weight from %d to %d\n", weight_total_, new_total);
         weight_total_ = new_total;
-        snprintf(key, sizeof(key), "dumpstate.%d.max", getpid());
-        snprintf(value, sizeof(value), "%d", weight_total_);
-        int status = property_set(key, value);
-        if (status != 0) {
-            MYLOGE("Could not update max weight by setting system property %s to %s: %d\n",
-                    key, value, status);
+
+        if (listener_ != nullptr) {
+            listener_->onMaxProgressUpdated(weight_total_);
+        } else {
+            snprintf(key, sizeof(key), "dumpstate.%d.max", pid_);
+            snprintf(value, sizeof(value), "%d", weight_total_);
+            int status = property_set(key, value);
+            if (status != 0) {
+                MYLOGE("Could not update max weight by setting system property %s to %s: %d\n", key,
+                       value, status);
+            }
         }
-    }
-
-    snprintf(key, sizeof(key), "dumpstate.%d.progress", getpid());
-    snprintf(value, sizeof(value), "%d", progress_);
-
-    if (progress_ % 100 == 0) {
-        // We don't want to spam logcat, so only log multiples of 100.
-        MYLOGD("Setting progress (%s): %s/%d\n", key, value, weight_total_);
-    } else {
-        // stderr is ignored on normal invocations, but useful when calling /system/bin/dumpstate
-        // directly for debuggging.
-        fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, weight_total_);
     }
 
     if (control_socket_fd_ >= 0) {
@@ -1351,10 +1353,36 @@ void Dumpstate::UpdateProgress(int delta) {
         fsync(control_socket_fd_);
     }
 
-    int status = property_set(key, value);
-    if (status) {
-        MYLOGE("Could not update progress by setting system property %s to %s: %d\n",
-                key, value, status);
+    if (listener_ != nullptr) {
+        if (progress_ % 100 == 0) {
+            // We don't want to spam logcat, so only log multiples of 100.
+            MYLOGD("Setting progress (%s): %d/%d\n", listener_name_.c_str(), progress_,
+                   weight_total_);
+        } else {
+            // stderr is ignored on normal invocations, but useful when calling
+            // /system/bin/dumpstate directly for debuggging.
+            fprintf(stderr, "Setting progress (%s): %d/%d\n", listener_name_.c_str(), progress_,
+                    weight_total_);
+        }
+        listener_->onProgressUpdated(progress_);
+    } else {
+        snprintf(key, sizeof(key), "dumpstate.%d.progress", pid_);
+        snprintf(value, sizeof(value), "%d", progress_);
+
+        if (progress_ % 100 == 0) {
+            // We don't want to spam logcat, so only log multiples of 100.
+            MYLOGD("Setting progress (%s): %s/%d\n", key, value, weight_total_);
+        } else {
+            // stderr is ignored on normal invocations, but useful when calling
+            // /system/bin/dumpstate directly for debuggging.
+            fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, weight_total_);
+        }
+
+        int status = property_set(key, value);
+        if (status) {
+            MYLOGE("Could not update progress by setting system property %s to %s: %d\n", key,
+                   value, status);
+        }
     }
 }
 

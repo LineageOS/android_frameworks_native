@@ -40,6 +40,8 @@
 #include <android-base/macros.h>
 #include <ziparchive/zip_writer.h>
 
+#include "android/os/BnDumpstate.h"
+
 // Workaround for const char *args[MAX_ARGS_ARRAY_SIZE] variables until they're converted to
 // std::vector<std::string>
 // TODO: remove once not used
@@ -332,6 +334,9 @@ class Dumpstate {
     // dumpstate id - unique after each device reboot.
     unsigned long id_;
 
+    // dumpstate pid
+    pid_t pid_;
+
     // Whether progress updates should be published.
     bool update_progress_ = false;
 
@@ -386,6 +391,10 @@ class Dumpstate {
 
     // Pointer to the zip structure.
     std::unique_ptr<ZipWriter> zip_writer_;
+
+    // Binder object listing to progress.
+    android::sp<android::os::IDumpstateListener> listener_;
+    std::string listener_name_;
 
   private:
     // Used by GetInstance() only.

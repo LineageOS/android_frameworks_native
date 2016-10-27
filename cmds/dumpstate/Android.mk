@@ -15,10 +15,13 @@ COMMON_SRC_FILES := \
         utils.cpp
 COMMON_SHARED_LIBRARIES := \
         libbase \
+        libbinder \
         libcutils \
+        libdumpstateaidl \
         libhardware_legacy \
         liblog \
-        libselinux
+        libselinux \
+        libutils
 
 # ====================#
 # libdumpstateheaders #
@@ -39,6 +42,27 @@ LOCAL_STATIC_LIBRARIES := $(LOCAL_EXPORT_STATIC_LIBRARY_HEADERS)
 
 include $(BUILD_STATIC_LIBRARY)
 
+# ================ #
+# libdumpstateaidl #
+# =================#
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := libdumpstateaidl
+
+LOCAL_CFLAGS := $(COMMON_LOCAL_CFLAGS)
+
+LOCAL_SHARED_LIBRARIES := \
+        libbinder \
+        libutils
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/binder
+LOCAL_AIDL_INCLUDES := $(LOCAL_PATH)/binder
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/binder
+LOCAL_SRC_FILES := \
+        binder/android/os/IDumpstateListener.aidl \
+        binder/android/os/IDumpstate.aidl
+
+include $(BUILD_SHARED_LIBRARY)
+
 # ==========#
 # dumpstate #
 # ==========#
@@ -49,6 +73,7 @@ LOCAL_CFLAGS := -DFWDUMP_$(BOARD_WLAN_DEVICE)
 endif
 
 LOCAL_SRC_FILES := $(COMMON_SRC_FILES) \
+        DumpstateService.cpp \
         dumpstate.cpp
 
 LOCAL_MODULE := dumpstate
@@ -77,6 +102,7 @@ LOCAL_MODULE_TAGS := tests
 LOCAL_CFLAGS := $(COMMON_LOCAL_CFLAGS)
 
 LOCAL_SRC_FILES := $(COMMON_SRC_FILES) \
+        DumpstateService.cpp \
         tests/dumpstate_test.cpp
 
 LOCAL_STATIC_LIBRARIES := $(COMMON_ZIP_LIBRARIES) \
