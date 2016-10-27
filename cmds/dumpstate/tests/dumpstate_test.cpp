@@ -845,6 +845,14 @@ class DumpstateUtilTest : public DumpstateBaseTest {
         return status;
     }
 
+    // Find out the pid of the process_name
+    int FindPidOfProcess(const std::string& process_name) {
+        CaptureStderr();
+        int status = GetPidByName(process_name);
+        err = GetCapturedStderr();
+        return status;
+    }
+
     int fd;
 
     // 'fd` output and `stderr` from the last command ran.
@@ -1136,4 +1144,16 @@ TEST_F(DumpstateUtilTest, DumpFileOnDryRun) {
     EXPECT_THAT(
         out, StartsWith("------ Might as well dump. Dump! (" + kTestDataPath + "single-line.txt:"));
     EXPECT_THAT(out, EndsWith("skipped on dry run\n"));
+}
+
+TEST_F(DumpstateUtilTest, FindingPidWithExistingProcess) {
+    // init process always has pid 1.
+    EXPECT_EQ(1, FindPidOfProcess("init"));
+    EXPECT_THAT(err, IsEmpty());
+}
+
+TEST_F(DumpstateUtilTest, FindingPidWithNotExistingProcess) {
+    // find the process with abnormal name.
+    EXPECT_EQ(-1, FindPidOfProcess("abcdef12345-543"));
+    EXPECT_THAT(err, StrEq("can't find the pid\n"));
 }

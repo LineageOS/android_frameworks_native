@@ -189,34 +189,7 @@ static void dump_dev_files(const char *title, const char *driverpath, const char
     closedir(d);
 }
 
-// return pid of a userspace process. If not found or error, return 0.
-static unsigned int pid_of_process(const char* ps_name) {
-    DIR *proc_dir;
-    struct dirent *ps;
-    unsigned int pid;
-    std::string cmdline;
 
-    if (!(proc_dir = opendir("/proc"))) {
-        MYLOGE("Can't open /proc\n");
-        return 0;
-    }
-
-    while ((ps = readdir(proc_dir))) {
-        if (!(pid = atoi(ps->d_name))) {
-            continue;
-        }
-        android::base::ReadFileToString("/proc/"
-                + std::string(ps->d_name) + "/cmdline", &cmdline);
-        if (cmdline.find(ps_name) == std::string::npos) {
-            continue;
-        } else {
-            closedir(proc_dir);
-            return pid;
-        }
-    }
-    closedir(proc_dir);
-    return 0;
-}
 
 // dump anrd's trace and add to the zip file.
 // 1. check if anrd is running on this device.
@@ -239,7 +212,7 @@ static bool dump_anrd_trace() {
     }
 
     // find anrd's pid if it is running.
-    pid = pid_of_process("/system/xbin/anrd");
+    pid = GetPidByName("/system/xbin/anrd");
 
     if (pid > 0) {
         if (stat(trace_path, &st) == 0) {
