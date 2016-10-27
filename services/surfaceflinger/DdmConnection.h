@@ -24,6 +24,9 @@ extern "C" void DdmConnection_start(const char* name);
 
 class DdmConnection {
 public:
+    // Creates a JVM and registers all handlers to DDMS.
+    // This allows tools relying on DDMS to find surfaceflinger
+    // (e.g: Memory Leak finder, heap analyzer, ...)
     static void start(const char* name);
 };
 
