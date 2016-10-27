@@ -48,7 +48,6 @@
 #include <private/android_logger.h>
 
 #include "dumpstate.h"
-#include "ziparchive/zip_writer.h"
 
 #include <openssl/sha.h>
 
@@ -58,10 +57,6 @@ static const char *dump_traces_path = NULL;
 
 // TODO: variables and functions below should be part of dumpstate object
 
-// TODO: Can't be added to dumpstate.h because including "ziparchive/zip_writer.h" would not work.
-// That's probably because of the dumpstate -> libdumpstate -> device implementation setup, which
-// might be changed anyways - let's keep it here and wait
-static std::unique_ptr<ZipWriter> zip_writer;
 static std::set<std::string> mount_points;
 void add_mountinfo();
 
@@ -695,7 +690,7 @@ void Dumpstate::PrintHeader() const {
 }
 
 bool Dumpstate::IsZipping() const {
-    return zip_writer != nullptr;
+    return zip_writer_ != nullptr;
 }
 
 // List of file extensions that can cause a zip file attachment to be rejected by some email
@@ -727,10 +722,10 @@ bool Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd) {
 
     // Logging statement  below is useful to time how long each entry takes, but it's too verbose.
     // MYLOGD("Adding zip entry %s\n", entry_name.c_str());
-    int32_t err = zip_writer->StartEntryWithTime(valid_name.c_str(), ZipWriter::kCompress,
-                                                 get_mtime(fd, ds.now_));
+    int32_t err = zip_writer_->StartEntryWithTime(valid_name.c_str(), ZipWriter::kCompress,
+                                                  get_mtime(fd, ds.now_));
     if (err != 0) {
-        MYLOGE("zip_writer->StartEntryWithTime(%s): %s\n", valid_name.c_str(),
+        MYLOGE("zip_writer_->StartEntryWithTime(%s): %s\n", valid_name.c_str(),
                ZipWriter::ErrorCodeString(err));
         return false;
     }
@@ -744,16 +739,16 @@ bool Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd) {
             MYLOGE("read(%s): %s\n", entry_name.c_str(), strerror(errno));
             return false;
         }
-        err = zip_writer->WriteBytes(buffer.data(), bytes_read);
+        err = zip_writer_->WriteBytes(buffer.data(), bytes_read);
         if (err) {
-            MYLOGE("zip_writer->WriteBytes(): %s\n", ZipWriter::ErrorCodeString(err));
+            MYLOGE("zip_writer_->WriteBytes(): %s\n", ZipWriter::ErrorCodeString(err));
             return false;
         }
     }
 
-    err = zip_writer->FinishEntry();
+    err = zip_writer_->FinishEntry();
     if (err != 0) {
-        MYLOGE("zip_writer->FinishEntry(): %s\n", ZipWriter::ErrorCodeString(err));
+        MYLOGE("zip_writer_->FinishEntry(): %s\n", ZipWriter::ErrorCodeString(err));
         return false;
     }
 
@@ -793,23 +788,23 @@ bool Dumpstate::AddTextZipEntry(const std::string& entry_name, const std::string
         return false;
     }
     MYLOGD("Adding zip text entry %s\n", entry_name.c_str());
-    int32_t err = zip_writer->StartEntryWithTime(entry_name.c_str(), ZipWriter::kCompress, ds.now_);
+    int32_t err = zip_writer_->StartEntryWithTime(entry_name.c_str(), ZipWriter::kCompress, ds.now_);
     if (err != 0) {
-        MYLOGE("zip_writer->StartEntryWithTime(%s): %s\n", entry_name.c_str(),
+        MYLOGE("zip_writer_->StartEntryWithTime(%s): %s\n", entry_name.c_str(),
                ZipWriter::ErrorCodeString(err));
         return false;
     }
 
-    err = zip_writer->WriteBytes(content.c_str(), content.length());
+    err = zip_writer_->WriteBytes(content.c_str(), content.length());
     if (err != 0) {
-        MYLOGE("zip_writer->WriteBytes(%s): %s\n", entry_name.c_str(),
+        MYLOGE("zip_writer_->WriteBytes(%s): %s\n", entry_name.c_str(),
                ZipWriter::ErrorCodeString(err));
         return false;
     }
 
-    err = zip_writer->FinishEntry();
+    err = zip_writer_->FinishEntry();
     if (err != 0) {
-        MYLOGE("zip_writer->FinishEntry(): %s\n", ZipWriter::ErrorCodeString(err));
+        MYLOGE("zip_writer_->FinishEntry(): %s\n", ZipWriter::ErrorCodeString(err));
         return false;
     }
 
@@ -1254,9 +1249,9 @@ bool Dumpstate::FinishZipFile() {
     redirect_to_existing_file(stderr, const_cast<char*>(ds.log_path_.c_str()));
     fprintf(stderr, "\n");
 
-    int32_t err = zip_writer->Finish();
+    int32_t err = zip_writer_->Finish();
     if (err != 0) {
-        MYLOGE("zip_writer->Finish(): %s\n", ZipWriter::ErrorCodeString(err));
+        MYLOGE("zip_writer_->Finish(): %s\n", ZipWriter::ErrorCodeString(err));
         return false;
     }
 
@@ -1503,7 +1498,7 @@ int main(int argc, char *argv[]) {
                 MYLOGE("fopen(%s, 'wb'): %s\n", ds.path_.c_str(), strerror(errno));
                 do_zip_file = 0;
             } else {
-                zip_writer.reset(new ZipWriter(ds.zip_file.get()));
+                ds.zip_writer_.reset(new ZipWriter(ds.zip_file.get()));
             }
             ds.AddTextZipEntry("version.txt", ds.version_);
         }

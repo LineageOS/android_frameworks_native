@@ -17,8 +17,6 @@
 #ifndef FRAMEWORK_NATIVE_CMD_DUMPSTATE_H_
 #define FRAMEWORK_NATIVE_CMD_DUMPSTATE_H_
 
-#include <android-base/macros.h>
-
 #ifndef MYLOGD
 #define MYLOGD(...) fprintf(stderr, __VA_ARGS__); ALOGD(__VA_ARGS__);
 #endif
@@ -38,6 +36,9 @@
 
 #include <string>
 #include <vector>
+
+#include <android-base/macros.h>
+#include <ziparchive/zip_writer.h>
 
 // Workaround for const char *args[MAX_ARGS_ARRAY_SIZE] variables until they're converted to
 // std::vector<std::string>
@@ -382,6 +383,9 @@ class Dumpstate {
 
     // Pointer to the zipped file.
     std::unique_ptr<FILE, int (*)(FILE*)> zip_file{nullptr, fclose};
+
+    // Pointer to the zip structure.
+    std::unique_ptr<ZipWriter> zip_writer_;
 
   private:
     // Used by GetInstance() only.
