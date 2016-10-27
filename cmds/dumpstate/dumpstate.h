@@ -17,6 +17,8 @@
 #ifndef FRAMEWORK_NATIVE_CMD_DUMPSTATE_H_
 #define FRAMEWORK_NATIVE_CMD_DUMPSTATE_H_
 
+#include <android-base/macros.h>
+
 #ifndef MYLOGD
 #define MYLOGD(...) fprintf(stderr, __VA_ARGS__); ALOGD(__VA_ARGS__);
 #endif
@@ -92,6 +94,8 @@ class DurationReporter {
     std::string title_;
     FILE* out_;
     uint64_t started_;
+
+    DISALLOW_COPY_AND_ASSIGN(DurationReporter);
 };
 
 /*
@@ -396,6 +400,8 @@ class Dumpstate {
 
     // Build type (such as 'user' or 'eng').
     std::string build_type_;
+
+    DISALLOW_COPY_AND_ASSIGN(Dumpstate);
 };
 
 // for_each_pid_func = void (*)(int, const char*);

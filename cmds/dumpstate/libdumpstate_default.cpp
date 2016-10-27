@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "dumpstate.h"
-
 void dumpstate_board(void)
 {
 }
