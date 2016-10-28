@@ -35,9 +35,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <android-base/stringprintf.h>
-#include <android-base/unique_fd.h>
 #include <android-base/file.h>
+#include <android-base/stringprintf.h>
+#include <android-base/strings.h>
+#include <android-base/unique_fd.h>
 #include <cutils/properties.h>
 
 #include <private/android_filesystem_config.h>
@@ -381,6 +382,80 @@ static void dump_raft() {
         if (remove(raft_log_path.c_str())) {
             MYLOGE("Error removing raft file %s: %s\n", raft_log_path.c_str(), strerror(errno));
         }
+    }
+}
+
+/**
+ * Finds the last modified file in the directory dir whose name starts with file_prefix
+ * Function returns empty string when it does not find a file
+ */
+static std::string get_last_modified_file_matching_prefix(const std::string& dir,
+                                                          const std::string& file_prefix) {
+    std::unique_ptr<DIR, decltype(&closedir)> d(opendir(dir.c_str()), closedir);
+    if (d == nullptr) {
+        MYLOGD("Error %d opening %s\n", errno, dir.c_str());
+        return "";
+    }
+
+    // Find the newest file matching the file_prefix in dir
+    struct dirent *de;
+    time_t last_modified = 0;
+    std::string last_modified_file = "";
+    struct stat s;
+
+    while ((de = readdir(d.get()))) {
+        std::string file = std::string(de->d_name);
+        if (!file_prefix.empty()) {
+            if (!android::base::StartsWith(file, file_prefix.c_str())) continue;
+        }
+        file = dir + "/" + file;
+        int ret = stat(file.c_str(), &s);
+
+        if ((ret == 0) && (s.st_mtime > last_modified)) {
+            last_modified_file = file;
+            last_modified = s.st_mtime;
+        }
+    }
+
+    return last_modified_file;
+}
+
+void dump_modem_logs() {
+    DurationReporter duration_reporter("dump_modem_logs");
+    if (is_user_build()) {
+        return;
+    }
+
+    if (!is_zipping()) {
+        MYLOGD("Not dumping modem logs. dumpstate is not generating a zipping bugreport\n");
+        return;
+    }
+
+    char property[PROPERTY_VALUE_MAX];
+    property_get("ro.radio.log_prefix", property, "");
+    std::string file_prefix = std::string(property);
+    if(file_prefix.empty()) {
+        MYLOGD("No modem log : file_prefix is empty\n");
+        return;
+    }
+
+    MYLOGD("dump_modem_logs: directory is %s and file_prefix is %s\n",
+           bugreport_dir.c_str(), file_prefix.c_str());
+
+    std::string modem_log_file =
+        get_last_modified_file_matching_prefix(bugreport_dir, file_prefix);
+
+    struct stat s;
+    if (modem_log_file.empty() || stat(modem_log_file.c_str(), &s) != 0) {
+        MYLOGD("Modem log %s does not exist\n", modem_log_file.c_str());
+        return;
+    }
+
+    std::string filename = basename(modem_log_file.c_str());
+    if (!add_zip_entry(filename, modem_log_file)) {
+        MYLOGE("Unable to add modem log %s to zip file\n", modem_log_file.c_str());
+    } else {
+        MYLOGD("Modem Log %s is added to zip\n", modem_log_file.c_str());
     }
 }
 
@@ -1036,6 +1111,10 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
 
     run_command("APP PROVIDERS", 30, "dumpsys", "-t", "30", "activity", "provider", "all", NULL);
 
+    // dump_modem_logs adds the modem logs if available to the bugreport.
+    // Do this at the end to allow for sufficient time for the modem logs to be
+    // collected.
+    dump_modem_logs();
 
     printf("========================================================\n");
     printf("== Final progress (pid %d): %d/%d (originally %d)\n",
