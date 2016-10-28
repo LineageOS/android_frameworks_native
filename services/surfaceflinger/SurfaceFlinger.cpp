@@ -3215,9 +3215,7 @@ bool SurfaceFlinger::startDdmConnection()
     return true;
 }
 
-status_t SurfaceFlinger::onTransact(
-    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
+status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
     switch (code) {
         case CREATE_CONNECTION:
         case CREATE_DISPLAY:
@@ -3234,8 +3232,7 @@ status_t SurfaceFlinger::onTransact(
             const int uid = ipc->getCallingUid();
             if ((uid != AID_GRAPHICS && uid != AID_SYSTEM) &&
                     !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
-                ALOGE("Permission Denial: "
-                        "can't access SurfaceFlinger pid=%d, uid=%d", pid, uid);
+                ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d", pid, uid);
                 return PERMISSION_DENIED;
             }
             break;
@@ -3248,12 +3245,21 @@ status_t SurfaceFlinger::onTransact(
             const int uid = ipc->getCallingUid();
             if ((uid != AID_GRAPHICS) &&
                     !PermissionCache::checkPermission(sReadFramebuffer, pid, uid)) {
-                ALOGE("Permission Denial: "
-                        "can't read framebuffer pid=%d, uid=%d", pid, uid);
+                ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
                 return PERMISSION_DENIED;
             }
             break;
         }
+    }
+    return OK;
+}
+
+status_t SurfaceFlinger::onTransact(
+    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
+{
+    status_t credentialCheck = CheckTransactCodeCredentials(code);
+    if (credentialCheck != OK) {
+        return credentialCheck;
     }
 
     status_t err = BnSurfaceComposer::onTransact(code, data, reply, flags);
