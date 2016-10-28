@@ -77,7 +77,7 @@ public:
 
     HWComposer(const sp<SurfaceFlinger>& flinger);
 
-    ~HWComposer();
+    virtual ~HWComposer();
 
     void setEventHandler(EventHandler* handler);
 
@@ -160,6 +160,8 @@ public:
 
     // for debugging ----------------------------------------------------------
     void dump(String8& out) const;
+    // Extensions
+    virtual inline bool isVDSEnabled() const { return true; };
 
 private:
     static const int32_t VIRTUAL_DISPLAY_ID_BASE = 2;

@@ -56,8 +56,7 @@ endif
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
 #LOCAL_CFLAGS += -DENABLE_FENCE_TRACKING
 
-USE_HWC2 := false
-ifeq ($(USE_HWC2),true)
+ifeq ($(TARGET_USES_HWC2),true)
     LOCAL_CFLAGS += -DUSE_HWC2
     LOCAL_SRC_FILES += \
         SurfaceFlinger.cpp \
@@ -141,8 +140,7 @@ ifeq ($(TARGET_USES_QCOM_BSP), true)
     LOCAL_C_INCLUDES += $(BOARD_DISPLAY_HAL)/libgralloc
     LOCAL_C_INCLUDES += $(BOARD_DISPLAY_HAL)/libqdutils
   else
-    LOCAL_C_INCLUDES += hardware/qcom/display/libgralloc
-    LOCAL_C_INCLUDES += hardware/qcom/display/libqdutils
+    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/qcom/display
   endif
     LOCAL_SHARED_LIBRARIES += libqdutils
     LOCAL_SHARED_LIBRARIES += libqdMetaData
@@ -169,6 +167,10 @@ LOCAL_INIT_RC := surfaceflinger.rc
 
 ifneq ($(ENABLE_CPUSETS),)
     LOCAL_CFLAGS += -DENABLE_CPUSETS
+endif
+
+ifeq ($(TARGET_USES_HWC2),true)
+    LOCAL_CFLAGS += -DUSE_HWC2
 endif
 
 LOCAL_SRC_FILES := \

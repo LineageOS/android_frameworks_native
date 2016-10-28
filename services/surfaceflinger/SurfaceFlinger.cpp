@@ -1009,7 +1009,12 @@ void SurfaceFlinger::doDebugFlashRegions()
     }
 
     for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
-        status_t result = mDisplays[displayId]->prepareFrame(*mHwc);
+        auto& displayDevice = mDisplays[displayId];
+        if (!displayDevice->isDisplayOn()) {
+            continue;
+        }
+
+        status_t result = displayDevice->prepareFrame(*mHwc);
         ALOGE_IF(result != NO_ERROR, "prepareFrame for display %zd failed:"
                 " %d (%s)", displayId, result, strerror(-result));
     }
@@ -1125,7 +1130,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
             const Transform& tr(displayDevice->getTransform());
             const Rect bounds(displayDevice->getBounds());
             if (displayDevice->isDisplayOn()) {
-                SurfaceFlinger::computeVisibleRegions(layers,
+                SurfaceFlinger::computeVisibleRegions(dpy, layers,
                         displayDevice->getLayerStack(), dirtyRegion,
                         opaqueRegion);
 
@@ -1235,7 +1240,12 @@ void SurfaceFlinger::setUpHWComposer() {
     }
 
     for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
-        status_t result = mDisplays[displayId]->prepareFrame(*mHwc);
+        auto& displayDevice = mDisplays[displayId];
+        if (!displayDevice->isDisplayOn()) {
+            continue;
+        }
+
+        status_t result = displayDevice->prepareFrame(*mHwc);
         ALOGE_IF(result != NO_ERROR, "prepareFrame for display %zd failed:"
                 " %d (%s)", displayId, result, strerror(-result));
     }
@@ -1273,6 +1283,9 @@ void SurfaceFlinger::postFramebuffer()
 
     for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
         auto& displayDevice = mDisplays[displayId];
+        if (!displayDevice->isDisplayOn()) {
+            continue;
+        }
         const auto hwcId = displayDevice->getHwcDisplayId();
         if (hwcId >= 0) {
             mHwc->commit(hwcId);
@@ -1661,7 +1674,7 @@ void SurfaceFlinger::commitTransaction()
     mTransactionCV.broadcast();
 }
 
-void SurfaceFlinger::computeVisibleRegions(
+void SurfaceFlinger::computeVisibleRegions(size_t /*dpy*/,
         const LayerVector& currentLayers, uint32_t layerStack,
         Region& outDirtyRegion, Region& outOpaqueRegion)
 {
@@ -2081,8 +2094,14 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer) {
+status_t SurfaceFlinger::removeLayer(const wp<Layer>& weakLayer) {
     Mutex::Autolock _l(mStateLock);
+    sp<Layer> layer = weakLayer.promote();
+    if (layer == nullptr) {
+        // The layer has already been removed, carry on
+        return NO_ERROR;
+    }
+
     ssize_t index = mCurrentState.layersSortedByZ.remove(layer);
     if (index >= 0) {
         mLayersPendingRemoval.push(layer);
@@ -2423,14 +2442,7 @@ status_t SurfaceFlinger::onLayerDestroyed(const wp<Layer>& layer)
 {
     // called by ~LayerCleaner() when all references to the IBinder (handle)
     // are gone
-    status_t err = NO_ERROR;
-    sp<Layer> l(layer.promote());
-    if (l != NULL) {
-        err = removeLayer(l);
-        ALOGE_IF(err<0 && err != NAME_NOT_FOUND,
-                "error removing layer=%p (%s)", l.get(), strerror(-err));
-    }
-    return err;
+    return removeLayer(layer);
 }
 
 // ---------------------------------------------------------------------------

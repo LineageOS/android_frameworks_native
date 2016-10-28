@@ -725,18 +725,33 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
         return;
     }
 
-    // Client or SolidColor layers
-    if (mActiveBuffer == nullptr || mActiveBuffer->handle == nullptr ||
-            mHwcLayers[hwcId].forceClientComposition) {
-        // TODO: This also includes solid color layers, but no API exists to
-        // setup a solid color layer yet
+    // Client layers
+    if (mHwcLayers[hwcId].forceClientComposition ||
+            (mActiveBuffer != nullptr && mActiveBuffer->handle == nullptr)) {
         ALOGV("[%s] Requesting Client composition", mName.string());
         setCompositionType(hwcId, HWC2::Composition::Client);
-        error = hwcLayer->setBuffer(nullptr, Fence::NO_FENCE);
+        return;
+    }
+
+    // SolidColor layers
+    if (mActiveBuffer == nullptr) {
+        setCompositionType(hwcId, HWC2::Composition::SolidColor);
+
+        // For now, we only support black for DimLayer
+        error = hwcLayer->setColor({0, 0, 0, 255});
         if (error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set null buffer: %s (%d)", mName.string(),
+            ALOGE("[%s] Failed to set color: %s (%d)", mName.string(),
                     to_string(error).c_str(), static_cast<int32_t>(error));
         }
+
+        // Clear out the transform, because it doesn't make sense absent a
+        // source buffer
+        error = hwcLayer->setTransform(HWC2::Transform::None);
+        if (error != HWC2::Error::None) {
+            ALOGE("[%s] Failed to clear transform: %s (%d)", mName.string(),
+                    to_string(error).c_str(), static_cast<int32_t>(error));
+        }
+
         return;
     }
 
@@ -1089,8 +1104,13 @@ void Layer::setCompositionType(int32_t hwcId, HWC2::Composition type,
 }
 
 HWC2::Composition Layer::getCompositionType(int32_t hwcId) const {
+    if (hwcId == DisplayDevice::DISPLAY_ID_INVALID) {
+        // If we're querying the composition type for a display that does not
+        // have a HWC counterpart, then it will always be Client
+        return HWC2::Composition::Client;
+    }
     if (mHwcLayers.count(hwcId) == 0) {
-        ALOGE("getCompositionType called without a valid HWC layer");
+        ALOGE("getCompositionType called with an invalid HWC layer");
         return HWC2::Composition::Invalid;
     }
     return mHwcLayers.at(hwcId).compositionType;
@@ -1337,9 +1357,14 @@ void Layer::pushPendingState() {
     // If this transaction is waiting on the receipt of a frame, generate a sync
     // point and send it to the remote layer.
     if (mCurrentState.handle != nullptr) {
-        sp<Handle> handle = static_cast<Handle*>(mCurrentState.handle.get());
-        sp<Layer> handleLayer = handle->owner.promote();
-        if (handleLayer == nullptr) {
+        sp<IBinder> strongBinder = mCurrentState.handle.promote();
+        sp<Handle> handle = nullptr;
+        sp<Layer> handleLayer = nullptr;
+        if (strongBinder != nullptr) {
+            handle = static_cast<Handle*>(strongBinder.get());
+            handleLayer = handle->owner.promote();
+        }
+        if (strongBinder == nullptr || handleLayer == nullptr) {
             ALOGE("[%s] Unable to promote Layer handle", mName.string());
             // If we can't promote the layer we are intended to wait on,
             // then it is expired or otherwise invalid. Allow this transaction
