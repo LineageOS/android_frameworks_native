@@ -1228,14 +1228,19 @@ EGLImageKHR GLConsumer::EglImage::createImage(EGLDisplay dpy,
         EGL_NONE,
     };
     if (!crop.isValid()) {
-        // No crop rect to set, so terminate the attrib array before the crop.
-        attrs[2] = EGL_NONE;
+        // No crop rect to set, so leave the crop out of the attrib array. Make
+        // sure to propagate the protected content attrs if they are set.
+        attrs[2] = attrs[10];
+        attrs[3] = attrs[11];
+        attrs[4] = EGL_NONE;
     } else if (!isEglImageCroppable(crop)) {
         // The crop rect is not at the origin, so we can't set the crop on the
         // EGLImage because that's not allowed by the EGL_ANDROID_image_crop
         // extension.  In the future we can add a layered extension that
         // removes this restriction if there is hardware that can support it.
-        attrs[2] = EGL_NONE;
+        attrs[2] = attrs[10];
+        attrs[3] = attrs[11];
+        attrs[4] = EGL_NONE;
     }
     eglInitialize(dpy, 0, 0);
     EGLImageKHR image = eglCreateImageKHR(dpy, EGL_NO_CONTEXT,
