@@ -20,6 +20,25 @@ COMMON_SHARED_LIBRARIES := \
         liblog \
         libselinux
 
+# ====================#
+# libdumpstateheaders #
+# ====================#
+# TODO: this module is necessary so the device-specific libdumpstate implementations do not
+# need to add any other dependency (like libbase). Should go away once dumpstate HAL changes.
+include $(CLEAR_VARS)
+
+LOCAL_EXPORT_C_INCLUDE_DIRS = $(LOCAL_PATH)
+LOCAL_MODULE := libdumpstateheaders
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := \
+        $(COMMON_SHARED_LIBRARIES)
+LOCAL_EXPORT_STATIC_LIBRARY_HEADERS := \
+        $(COMMON_ZIP_LIBRARIES)
+# Soong requires that whats is on LOCAL_EXPORTED_ is also on LOCAL_
+LOCAL_SHARED_LIBRARIES := $(LOCAL_EXPORT_SHARED_LIBRARY_HEADERS)
+LOCAL_STATIC_LIBRARIES := $(LOCAL_EXPORT_STATIC_LIBRARY_HEADERS)
+
+include $(BUILD_STATIC_LIBRARY)
+
 # ==========#
 # dumpstate #
 # ==========#
