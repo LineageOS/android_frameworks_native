@@ -200,6 +200,12 @@ static const int WEIGHT_TOTAL = 6500;
 static std::string VERSION_CURRENT = "1.0";
 
 /*
+ * Temporary version that adds a anr-traces.txt entry. Once tools support it, the current version
+ * will be bumped to 2.0-dev-1.
+ */
+static std::string VERSION_SPLIT_ANR = "2.0-dev-1";
+
+/*
  * "Alias" for the current version.
  */
 static std::string VERSION_DEFAULT = "default";
