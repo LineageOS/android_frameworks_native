@@ -937,7 +937,7 @@ static void dumpstate() {
     RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT_10);
 
     RunCommand("PRINTENV", {"printenv"});
-    RunCommand("NETSTAT", {"netstat", "-n"});
+    RunCommand("NETSTAT", {"netstat", "-nW"});
     struct stat s;
     if (stat("/proc/modules", &s) != 0) {
         MYLOGD("Skipping 'lsmod' because /proc/modules does not exist\n");
