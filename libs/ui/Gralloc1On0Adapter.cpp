@@ -173,6 +173,10 @@ gralloc1_function_pointer_t Gralloc1On0Adapter::doGetFunction(
                     &Gralloc1On0Adapter::lockYCbCr>);
         case GRALLOC1_FUNCTION_UNLOCK:
             return asFP<GRALLOC1_PFN_UNLOCK>(unlockHook);
+#if defined(EXYNOS4_ENHANCEMENTS)
+        case GRALLOC1_FUNCTION_GETPHYS:
+            return asFP<GRALLOC1_PFN_GETPHYS>(getphysHook);
+#endif
         case GRALLOC1_FUNCTION_INVALID:
             ALOGE("Invalid function descriptor");
             return nullptr;
@@ -305,6 +309,27 @@ gralloc1_error_t Gralloc1On0Adapter::allocateWithIdHook(
     *outBuffer = bufferHandle;
     return error;
 }
+
+#if defined(EXYNOS4_ENHANCEMENTS)
+gralloc1_error_t Gralloc1On0Adapter::getphys(
+        gralloc1_device_t* device,
+        buffer_handle_t handle,
+        void **paddr)
+{
+    gralloc1_error_t err;
+    auto adapter = getAdapter(device);
+    int res = mModule->getphys(mModule, handle, paddr);
+
+    if (res) {
+        ALOGE("getphys(%p) fail %d(%s)", handle, res, strerror(-res));
+        err = GRALLOC1_ERROR_UNDEFINED;
+    } else {
+        err = GRALLOC1_ERROR_NONE;
+    }
+
+    return err;
+}
+#endif
 
 gralloc1_error_t Gralloc1On0Adapter::retain(
         const std::shared_ptr<Buffer>& buffer)
