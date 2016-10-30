@@ -348,6 +348,11 @@ bool Device::loadFunctions()
     if (!mFunctions.unlock.load(mDevice, true)) {
         return false;
     }
+#ifdef EXYNOS4_ENHANCEMENTS
+    if (!mFunctions.getphys.load(mDevice, true)) {
+        return false;
+    }
+#endif
 
     if (hasCapability(GRALLOC1_CAPABILITY_ON_ADAPTER)) {
         // These should always be present on the adapter
