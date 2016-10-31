@@ -479,6 +479,8 @@ private:
     #pragma clang diagnostic ignored "-Wweak-vtables"
     #endif
 
+    // FlattenableHelperInterface and FlattenableHelper avoid generating a vtable entry in objects
+    // following Flattenable template/protocol.
     class FlattenableHelperInterface {
     protected:
         ~FlattenableHelperInterface() { }
@@ -493,6 +495,9 @@ private:
     #pragma clang diagnostic pop
     #endif
 
+    // Concrete implementation of FlattenableHelperInterface that delegates virtual calls to the
+    // specified class T implementing the Flattenable protocol. It "virtualizes" a compile-time
+    // protocol.
     template<typename T>
     class FlattenableHelper : public FlattenableHelperInterface {
         friend class Parcel;
