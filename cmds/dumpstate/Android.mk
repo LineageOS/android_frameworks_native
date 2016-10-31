@@ -117,3 +117,14 @@ LOCAL_GENERATED_SOURCES += $(GEN)
 LOCAL_PICKUP_FILES := $(dist_zip_root)
 
 include $(BUILD_NATIVE_TEST)
+
+# =======================#
+# libdumpstate.default #
+# =======================#
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES := libdumpstate_default.cpp
+LOCAL_MODULE := libdumpstate.default
+
+LOCAL_STATIC_LIBRARIES := libdumpstateheaders
+include $(BUILD_STATIC_LIBRARY)
