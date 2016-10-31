@@ -1226,8 +1226,9 @@ void SurfaceFlinger::postComposition()
     ALOGV("postComposition");
 
     // Release any buffers which were replaced this frame
+    nsecs_t dequeueReadyTime = systemTime();
     for (auto& layer : mLayersWithQueuedFrames) {
-        layer->releasePendingBuffer();
+        layer->releasePendingBuffer(dequeueReadyTime);
     }
 
     const sp<const DisplayDevice> hw(getDefaultDisplayDevice());

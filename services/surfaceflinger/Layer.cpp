@@ -1796,7 +1796,7 @@ bool Layer::onPostComposition(
 }
 
 #ifdef USE_HWC2
-void Layer::releasePendingBuffer() {
+void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     mSurfaceFlingerConsumer->releasePendingBuffer();
     auto releaseFenceTime = std::make_shared<FenceTime>(
             mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
@@ -1804,7 +1804,7 @@ void Layer::releasePendingBuffer() {
 
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.addRelease(
-            mPreviousFrameNumber, std::move(releaseFenceTime));
+            mPreviousFrameNumber, dequeueReadyTime, std::move(releaseFenceTime));
 }
 #endif
 
@@ -1981,7 +1981,7 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime)
                 mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
         mReleaseTimeline.push(releaseFenceTime);
         mFrameEventHistory.addRelease(
-                mPreviousFrameNumber, std::move(releaseFenceTime));
+                mPreviousFrameNumber, latchTime, std::move(releaseFenceTime));
 #endif
     }
 

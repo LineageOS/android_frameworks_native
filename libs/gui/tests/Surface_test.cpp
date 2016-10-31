@@ -522,8 +522,9 @@ protected:
               kProducerAcquireTime(frameStartTime + 300),
               kConsumerAcquireTime(frameStartTime + 301),
               kLatchTime(frameStartTime + 500),
-              kRetireTime(frameStartTime + 600),
-              kReleaseTime(frameStartTime + 700),
+              kDequeueReadyTime(frameStartTime + 600),
+              kRetireTime(frameStartTime + 700),
+              kReleaseTime(frameStartTime + 800),
               mRefreshes {
                     { mFenceMap, frameStartTime + 410 },
                     { mFenceMap, frameStartTime + 420 },
@@ -559,6 +560,7 @@ protected:
         const nsecs_t kProducerAcquireTime;
         const nsecs_t kConsumerAcquireTime;
         const nsecs_t kLatchTime;
+        const nsecs_t kDequeueReadyTime;
         const nsecs_t kRetireTime;
         const nsecs_t kReleaseTime;
 
@@ -654,7 +656,7 @@ protected:
         // HWC2 releases the previous buffer after a new latch just before
         // calling postComposition.
         if (oldFrame != nullptr) {
-            mCfeh->addRelease(nOldFrame,
+            mCfeh->addRelease(nOldFrame, oldFrame->kDequeueReadyTime,
                     std::shared_ptr<FenceTime>(oldFrame->mRelease.mFenceTime));
         }
         mCfeh->addPostComposition(nNewFrame, gpuDoneFenceTime,
