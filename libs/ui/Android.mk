@@ -34,6 +34,9 @@ LOCAL_CPPFLAGS += -Wno-four-char-constants
 # Don't warn about struct padding
 LOCAL_CPPFLAGS += -Wno-padded
 
+# Allow C-style casts
+LOCAL_CPPFLAGS += -Wno-old-style-cast
+
 LOCAL_SRC_FILES := \
 	Fence.cpp \
 	FrameStats.cpp \
