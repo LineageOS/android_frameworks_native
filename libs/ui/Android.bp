@@ -67,7 +67,6 @@ cc_library_shared {
         "libcutils",
         "libhardware",
         "libhidl",
-        "libhwbinder",
         "libsync",
         "libutils",
         "liblog",
