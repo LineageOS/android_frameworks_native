@@ -582,7 +582,11 @@ private:
     };
     mutable Mutex mBufferingStatsMutex;
     std::unordered_map<std::string, BufferingStats> mBufferingStats;
-};
+
+    // Verify that transaction is being called by an approved process:
+    // either AID_GRAPHICS or AID_SYSTEM.
+    status_t CheckTransactCodeCredentials(uint32_t code);
+    };
 
 }; // namespace android
 
