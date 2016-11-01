@@ -163,7 +163,7 @@ status_t SensorFusion::setDelay(int mode, void* ident, int64_t ns) {
     }
     mSensorDevice.batch(ident, mAcc.getHandle(), 0, ns, 0);
     if (mode != FUSION_NOMAG) {
-        mSensorDevice.batch(ident, mMag.getHandle(), 0, ms2ns(20), 0);
+        mSensorDevice.batch(ident, mMag.getHandle(), 0, ms2ns(10), 0);
     }
     if (mode != FUSION_NOGYRO) {
         mSensorDevice.batch(ident, mGyro.getHandle(), 0, mTargetDelayNs, 0);
