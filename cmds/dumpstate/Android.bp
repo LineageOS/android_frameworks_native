@@ -1,6 +1,0 @@
-cc_library_static {
-    name: "libdumpstate.default",
-    srcs: ["libdumpstate_default.cpp"],
-    // TODO: should use libdumpstateheaders, but if fails with 'undefined'
-    static_libs: ["libbase", "libziparchive", "libz"]
-}
