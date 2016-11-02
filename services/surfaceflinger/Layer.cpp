@@ -1346,6 +1346,7 @@ void Layer::pushPendingState() {
 
         // Wake us up to check if the frame has been received
         setTransactionFlags(eTransactionNeeded);
+        mFlinger->setTransactionFlags(eTraversalNeeded);
     }
     mPendingStates.push_back(mCurrentState);
 }
