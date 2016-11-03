@@ -99,7 +99,6 @@ cc_library_shared {
         "libcutils",
         "libEGL",
         "libGLESv2",
-        "libsync",
         "libui",
         "libutils",
         "liblog",
