@@ -43,13 +43,12 @@
 #include <android-base/unique_fd.h>
 #include <cutils/properties.h>
 #include <hardware_legacy/power.h>
-
+#include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
 #include <private/android_logger.h>
 
+#include "DumpstateService.h"
 #include "dumpstate.h"
-
-#include <openssl/sha.h>
 
 /* read before root is shed */
 static char cmdline_buf[16384] = "(unknown)";
@@ -684,13 +683,9 @@ void Dumpstate::PrintHeader() const {
     JustDumpFile("", "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version_.c_str());
-    printf("Dumpstate info: id=%lu pid=%d dry_run=%d args=%s extra_options=%s\n", id_, getpid(),
+    printf("Dumpstate info: id=%lu pid=%d dry_run=%d args=%s extra_options=%s\n", id_, pid_,
            dry_run_, args_.c_str(), extra_options_.c_str());
     printf("\n");
-}
-
-bool Dumpstate::IsZipping() const {
-    return zip_writer_ != nullptr;
 }
 
 // List of file extensions that can cause a zip file attachment to be rejected by some email
@@ -1159,7 +1154,7 @@ static void dumpstate() {
     DumpModemLogs();
 
     printf("========================================================\n");
-    printf("== Final progress (pid %d): %d/%d (originally %d)\n", getpid(), ds.progress_,
+    printf("== Final progress (pid %d): %d/%d (originally %d)\n", ds.pid_, ds.progress_,
            ds.weight_total_, WEIGHT_TOTAL);
     printf("========================================================\n");
     printf("== dumpstate: done (id %lu)\n", ds.id_);
@@ -1316,6 +1311,7 @@ int main(int argc, char *argv[]) {
     int do_broadcast = 0;
     int is_remote_mode = 0;
     bool show_header_only = false;
+    bool do_start_service = false;
 
     /* set as high priority, and protect from OOM killer */
     setpriority(PRIO_PROCESS, 0, -20);
@@ -1373,6 +1369,8 @@ int main(int argc, char *argv[]) {
         // Framework uses a system property to override some command-line args.
         // Currently, it contains the type of the requested bugreport.
         if (ds.extra_options_ == "bugreportplus") {
+            // Currently, the dumpstate binder is only used by Shell to update progress.
+            do_start_service = true;
             ds.update_progress_ = true;
             do_fb = 0;
         } else if (ds.extra_options_ == "bugreportremote") {
@@ -1435,6 +1433,14 @@ int main(int argc, char *argv[]) {
         register_sig_handler();
     }
 
+    if (do_start_service) {
+        MYLOGI("Starting 'dumpstate' service\n");
+        android::status_t ret;
+        if ((ret = android::os::DumpstateService::Start()) != android::OK) {
+            MYLOGE("Unable to start DumpstateService: %d\n", ret);
+        }
+    }
+
     if (ds.IsDryRun()) {
         MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
     }
@@ -1477,7 +1483,7 @@ int main(int argc, char *argv[]) {
             ds.screenshot_path_ = ds.GetPath(".png");
         }
         ds.tmp_path_ = ds.GetPath(".tmp");
-        ds.log_path_ = ds.GetPath("-dumpstate_log-" + std::to_string(getpid()) + ".txt");
+        ds.log_path_ = ds.GetPath("-dumpstate_log-" + std::to_string(ds.pid_) + ".txt");
 
         MYLOGD(
             "Bugreport dir: %s\n"
@@ -1510,7 +1516,7 @@ int main(int argc, char *argv[]) {
                      "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
                      "--es", "android.intent.extra.NAME", ds.name_,
                      "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
-                     "--ei", "android.intent.extra.PID", std::to_string(getpid()),
+                     "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
                      "--ei", "android.intent.extra.MAX", std::to_string(WEIGHT_TOTAL),
                 };
                 // clang-format on
@@ -1630,7 +1636,7 @@ int main(int argc, char *argv[]) {
 
         /* check if user changed the suffix using system properties */
         std::string name = android::base::GetProperty(
-            android::base::StringPrintf("dumpstate.%d.name", getpid()), "");
+            android::base::StringPrintf("dumpstate.%d.name", ds.pid_), "");
         bool change_suffix= false;
         if (!name.empty()) {
             /* must whitelist which characters are allowed, otherwise it could cross directories */
@@ -1713,7 +1719,7 @@ int main(int argc, char *argv[]) {
             std::vector<std::string> am_args = {
                  "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
                  "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
-                 "--ei", "android.intent.extra.PID", std::to_string(getpid()),
+                 "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
                  "--ei", "android.intent.extra.MAX", std::to_string(ds.weight_total_),
                  "--es", "android.intent.extra.BUGREPORT", ds.path_,
                  "--es", "android.intent.extra.DUMPSTATE_LOG", ds.log_path_
