@@ -21,6 +21,7 @@
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
 
+#include <cutils/ashmem.h>
 #include <gui/SensorEventQueue.h>
 
 #include <hardware/sensors.h>
@@ -40,6 +41,7 @@
 #include "SensorInterface.h"
 
 #include "SensorService.h"
+#include "SensorDirectConnection.h"
 #include "SensorEventAckReceiver.h"
 #include "SensorEventConnection.h"
 #include "SensorRecord.h"
@@ -337,7 +339,16 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             if (mCurrentOperatingMode != NORMAL) {
                 return INVALID_OPERATION;
             }
+
             mCurrentOperatingMode = RESTRICTED;
+            // temporarily stop all sensor direct report
+            for (auto &i : mDirectConnections) {
+                sp<SensorDirectConnection> connection(i.promote());
+                if (connection != nullptr) {
+                    connection->stopAll(true /* backupRecord */);
+                }
+            }
+
             dev.disableAllSensors();
             // Clear all pending flush connections for all active sensors. If one of the active
             // connections has called flush() and the underlying sensor has been disabled before a
@@ -352,6 +363,13 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             if (mCurrentOperatingMode == RESTRICTED) {
                 mCurrentOperatingMode = NORMAL;
                 dev.enableAllSensors();
+                // recover all sensor direct report
+                for (auto &i : mDirectConnections) {
+                    sp<SensorDirectConnection> connection(i.promote());
+                    if (connection != nullptr) {
+                        connection->recoverAll();
+                    }
+                }
             }
             if (mCurrentOperatingMode == DATA_INJECTION) {
                resetToNormalModeLocked();
@@ -430,12 +448,21 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                case DATA_INJECTION:
                    result.appendFormat(" DATA_INJECTION : %s\n", mWhiteListedPackage.string());
             }
-            result.appendFormat("%zd active connections\n", mActiveConnections.size());
 
+            result.appendFormat("%zd active connections\n", mActiveConnections.size());
             for (size_t i=0 ; i < mActiveConnections.size() ; i++) {
                 sp<SensorEventConnection> connection(mActiveConnections[i].promote());
                 if (connection != 0) {
                     result.appendFormat("Connection Number: %zu \n", i);
+                    connection->dump(result);
+                }
+            }
+
+            result.appendFormat("%zd direct connections\n", mDirectConnections.size());
+            for (size_t i = 0 ; i < mDirectConnections.size() ; i++) {
+                sp<SensorDirectConnection> connection(mDirectConnections[i].promote());
+                if (connection != nullptr) {
+                    result.appendFormat("Direct connection %zu:\n", i);
                     connection->dump(result);
                 }
             }
@@ -936,6 +963,85 @@ int SensorService::isDataInjectionEnabled() {
     return (mCurrentOperatingMode == DATA_INJECTION);
 }
 
+sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
+        const String16& opPackageName, uint32_t size, int32_t type, int32_t format,
+        const native_handle *resource) {
+    Mutex::Autolock _l(mLock);
+
+    struct sensors_direct_mem_t mem = {
+        .type = type,
+        .format = format,
+        .size = size,
+        .handle = resource,
+    };
+    uid_t uid = IPCThreadState::self()->getCallingUid();
+
+    if (mem.handle == nullptr) {
+        ALOGE("Failed to clone resource handle");
+        return nullptr;
+    }
+
+    // check format
+    if (format != SENSOR_DIRECT_FMT_SENSORS_EVENT) {
+        ALOGE("Direct channel format %d is unsupported!", format);
+        return nullptr;
+    }
+
+    // check for duplication
+    for (auto &i : mDirectConnections) {
+        sp<SensorDirectConnection> connection(i.promote());
+        if (connection != nullptr && connection->isEquivalent(&mem)) {
+            return nullptr;
+        }
+    }
+
+    // check specific to memory type
+    switch(type) {
+        case SENSOR_DIRECT_MEM_TYPE_ASHMEM: { // channel backed by ashmem
+            int fd = resource->data[0];
+            int size2 = ashmem_get_size_region(fd);
+            // check size consistency
+            if (size2 != static_cast<int>(size)) {
+                ALOGE("Ashmem direct channel size mismatch, %" PRIu32 " vs %d", size, size2);
+                return nullptr;
+            }
+            break;
+        }
+        case SENSOR_DIRECT_MEM_TYPE_GRALLOC:
+            LOG_FATAL("%s: Finish implementation of ION and GRALLOC or remove", __FUNCTION__);
+            break;
+        default:
+            ALOGE("Unknown direct connection memory type %d", type);
+            return nullptr;
+    }
+
+    native_handle_t *clone = native_handle_clone(resource);
+    if (!clone) {
+        return nullptr;
+    }
+
+    SensorDirectConnection* conn = nullptr;
+    SensorDevice& dev(SensorDevice::getInstance());
+    int channelHandle = dev.registerDirectChannel(&mem);
+
+    if (channelHandle <= 0) {
+        ALOGE("SensorDevice::registerDirectChannel returns %d", channelHandle);
+    } else {
+        mem.handle = clone;
+        conn = new SensorDirectConnection(this, uid, &mem, channelHandle, opPackageName);
+    }
+
+    if (conn == nullptr) {
+        native_handle_close(clone);
+        native_handle_delete(clone);
+    } else {
+        // add to list of direct connections
+        // sensor service should never hold pointer or sp of SensorDirectConnection object.
+        mDirectConnections.add(wp<SensorDirectConnection>(conn));
+    }
+    return conn;
+}
+
 status_t SensorService::resetToNormalMode() {
     Mutex::Autolock _l(mLock);
     return resetToNormalModeLocked();
@@ -995,10 +1101,17 @@ void SensorService::cleanupConnection(SensorEventConnection* c) {
     dev.notifyConnectionDestroyed(c);
 }
 
+void SensorService::cleanupConnection(SensorDirectConnection* c) {
+    Mutex::Autolock _l(mLock);
+
+    SensorDevice& dev(SensorDevice::getInstance());
+    dev.unregisterDirectChannel(c->getHalChannelHandle());
+    mDirectConnections.remove(c);
+}
+
 sp<SensorInterface> SensorService::getSensorInterfaceFromHandle(int handle) const {
     return mSensors.getInterface(handle);
 }
-
 
 status_t SensorService::enable(const sp<SensorEventConnection>& connection,
         int handle, nsecs_t samplingPeriodNs, nsecs_t maxBatchReportLatencyNs, int reservedFlags,
@@ -1013,7 +1126,7 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
     }
 
     Mutex::Autolock _l(mLock);
-    if ((mCurrentOperatingMode == RESTRICTED || mCurrentOperatingMode == DATA_INJECTION)
+    if (mCurrentOperatingMode != NORMAL
            && !isWhiteListedPackage(connection->getPackageName())) {
         return INVALID_OPERATION;
     }
@@ -1329,6 +1442,15 @@ void SensorService::populateActiveConnections(
 
 bool SensorService::isWhiteListedPackage(const String8& packageName) {
     return (packageName.contains(mWhiteListedPackage.string()));
+}
+
+bool SensorService::isOperationRestricted(const String16& opPackageName) {
+    Mutex::Autolock _l(mLock);
+    if (mCurrentOperatingMode != RESTRICTED) {
+        String8 package(opPackageName);
+        return !isWhiteListedPackage(package);
+    }
+    return false;
 }
 
 }; // namespace android

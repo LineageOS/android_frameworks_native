@@ -14,23 +14,27 @@
  * limitations under the License.
  */
 
-#include <inttypes.h>
-#include <math.h>
-#include <stdint.h>
-#include <sys/types.h>
 
-#include <utils/Atomic.h>
-#include <utils/Errors.h>
-#include <utils/Singleton.h>
+#include "SensorDevice.h"
+#include "SensorService.h"
+
 
 #include <binder/BinderService.h>
 #include <binder/Parcel.h>
 #include <binder/IServiceManager.h>
-
+#include <cutils/ashmem.h>
 #include <hardware/sensors.h>
+#include <utils/Atomic.h>
+#include <utils/Errors.h>
+#include <utils/Singleton.h>
 
-#include "SensorDevice.h"
-#include "SensorService.h"
+#include <inttypes.h>
+#include <math.h>
+#include <sys/mman.h>
+#include <stdint.h>
+#include <sys/types.h>
+#include <sstream>
+#include <unistd.h>
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -386,7 +390,7 @@ void SensorDevice::enableAllSensors() {
 
 void SensorDevice::disableAllSensors() {
     Mutex::Autolock _l(mLock);
-   for (size_t i = 0; i< mActivationCount.size(); ++i) {
+    for (size_t i = 0; i< mActivationCount.size(); ++i) {
         const Info& info = mActivationCount.valueAt(i);
         // Check if this sensor has been activated previously and disable it.
         if (info.batchParams.size() > 0) {
@@ -486,6 +490,29 @@ void SensorDevice::notifyConnectionDestroyed(void* ident) {
     mDisabledClients.remove(ident);
 }
 
+int32_t SensorDevice::registerDirectChannel(const sensors_direct_mem_t* memory) {
+    Mutex::Autolock _l(mLock);
+
+    int32_t channelHandle = mSensorDevice->register_direct_channel(
+            mSensorDevice, memory, -1 /*channel_handle*/);
+    return channelHandle;
+}
+
+void SensorDevice::unregisterDirectChannel(int32_t channelHandle) {
+    Mutex::Autolock _l(mLock);
+
+    mSensorDevice->register_direct_channel(mSensorDevice, nullptr, channelHandle);
+}
+
+int32_t SensorDevice::configureDirectChannel(int32_t sensorHandle, int32_t channelHandle,
+        const struct sensors_direct_cfg_t *config) {
+    Mutex::Autolock _l(mLock);
+
+    int32_t ret = mSensorDevice->config_direct_report(
+            mSensorDevice, sensorHandle, channelHandle, config);
+    ALOGE_IF(ret < 0, "SensorDevice::configureDirectChannel ret %d", ret);
+    return ret;
+}
 // ---------------------------------------------------------------------------
 }; // namespace android
 

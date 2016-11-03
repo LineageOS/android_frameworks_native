@@ -10,6 +10,7 @@ LOCAL_SRC_FILES:= \
     OrientationSensor.cpp \
     RecentEventLogger.cpp \
     RotationVectorSensor.cpp \
+    SensorDirectConnection.cpp \
     SensorEventConnection.cpp \
     SensorFusion.cpp \
     SensorInterface.cpp \

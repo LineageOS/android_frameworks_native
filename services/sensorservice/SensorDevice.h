@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <string>
 
 #ifdef ENABLE_TREBLE
 #include <map>
@@ -57,6 +58,12 @@ public:
     status_t setDelay(void* ident, int handle, int64_t ns);
     status_t flush(void* ident, int handle);
     status_t setMode(uint32_t mode);
+
+    int32_t registerDirectChannel(const sensors_direct_mem_t *memory);
+    void unregisterDirectChannel(int32_t channelHandle);
+    int32_t configureDirectChannel(int32_t sensorHandle,
+            int32_t channelHandle, const struct sensors_direct_cfg_t *config);
+
     void disableAllSensors();
     void enableAllSensors();
     void autoDisable(void *ident, int handle);

@@ -124,7 +124,7 @@ std::string SensorList::dump() const {
     forEachSensor([&result] (const Sensor& s) -> bool {
             result.appendFormat(
                     "%#010x) %-25s | %-15s | ver: %" PRId32 " | type: %20s(%" PRId32
-                        ") | perm: %s\n\t",
+                        ") | perm: %s\n",
                     s.getHandle(),
                     s.getName().string(),
                     s.getVendor().string(),
@@ -133,17 +133,18 @@ std::string SensorList::dump() const {
                     s.getType(),
                     s.getRequiredPermission().size() ? s.getRequiredPermission().string() : "n/a");
 
+            result.append("\t");
             const int reportingMode = s.getReportingMode();
             if (reportingMode == AREPORTING_MODE_CONTINUOUS) {
-                result.append(" continuous | ");
+                result.append("continuous | ");
             } else if (reportingMode == AREPORTING_MODE_ON_CHANGE) {
-                result.append(" on-change | ");
+                result.append("on-change | ");
             } else if (reportingMode == AREPORTING_MODE_ONE_SHOT) {
-                result.append(" one-shot | ");
+                result.append("one-shot | ");
             } else if (reportingMode == AREPORTING_MODE_SPECIAL_TRIGGER) {
-                result.append(" special-trigger | ");
+                result.append("special-trigger | ");
             } else {
-                result.append(" unknown-mode | ");
+                result.append("unknown-mode | ");
             }
 
             if (s.getMaxDelay() > 0) {
@@ -178,8 +179,19 @@ std::string SensorList::dump() const {
             if (s.hasAdditionalInfo()) {
                 result.appendFormat("has-additional-info, ");
             }
-
             result.append("\n");
+
+            if (s.getHighestDirectReportRateLevel() > SENSOR_DIRECT_RATE_STOP) {
+                result.appendFormat("\thighest rate level = %d, support shared mem: ",
+                        s.getHighestDirectReportRateLevel());
+                if (s.isDirectChannelTypeSupported(SENSOR_DIRECT_MEM_TYPE_ASHMEM)) {
+                    result.append("ashmem, ");
+                }
+                if (s.isDirectChannelTypeSupported(SENSOR_DIRECT_MEM_TYPE_GRALLOC)) {
+                    result.append("gralloc, ");
+                }
+                result.append("\n");
+            }
             return true;
         });
     return std::string(result.string());

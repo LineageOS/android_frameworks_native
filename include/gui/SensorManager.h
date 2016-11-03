@@ -34,9 +34,14 @@
 
 #include <gui/SensorEventQueue.h>
 
+#include <unordered_map>
+
 // ----------------------------------------------------------------------------
 // Concrete types for the NDK
 struct ASensorManager { };
+
+struct native_handle;
+typedef struct native_handle native_handle_t;
 
 // ----------------------------------------------------------------------------
 namespace android {
@@ -59,6 +64,9 @@ public:
     Sensor const* getDefaultSensor(int type);
     sp<SensorEventQueue> createEventQueue(String8 packageName = String8(""), int mode = 0);
     bool isDataInjectionEnabled();
+    int createDirectChannel(size_t size, int channelType, const native_handle_t *channelData);
+    void destroyDirectChannel(int channelNativeHandle);
+    int configureDirectChannel(int channelNativeHandle, int sensorHandle, int rateLevel);
 
 private:
     // DeathRecipient interface
@@ -77,6 +85,8 @@ private:
     Vector<Sensor> mSensors;
     sp<IBinder::DeathRecipient> mDeathObserver;
     const String16 mOpPackageName;
+    std::unordered_map<int, sp<ISensorEventConnection>> mDirectConnection;
+    int32_t mDirectConnectionHandle;
 };
 
 // ----------------------------------------------------------------------------

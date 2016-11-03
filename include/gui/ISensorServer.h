@@ -25,6 +25,8 @@
 
 #include <binder/IInterface.h>
 
+struct native_handle;
+typedef struct native_handle native_handle_t;
 namespace android {
 // ----------------------------------------------------------------------------
 
@@ -43,6 +45,9 @@ public:
     virtual sp<ISensorEventConnection> createSensorEventConnection(const String8& packageName,
              int mode, const String16& opPackageName) = 0;
     virtual int32_t isDataInjectionEnabled() = 0;
+
+    virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
+            uint32_t size, int32_t type, int32_t format, const native_handle_t *resource) = 0;
 };
 
 // ----------------------------------------------------------------------------

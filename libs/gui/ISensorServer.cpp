@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <cutils/native_handle.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Vector.h>
@@ -37,6 +38,7 @@ enum {
     CREATE_SENSOR_EVENT_CONNECTION,
     ENABLE_DATA_INJECTION,
     GET_DYNAMIC_SENSOR_LIST,
+    CREATE_SENSOR_DIRECT_CONNECTION,
 };
 
 class BpSensorServer : public BpInterface<ISensorServer>
@@ -101,6 +103,19 @@ public:
         remote()->transact(ENABLE_DATA_INJECTION, data, &reply);
         return reply.readInt32();
     }
+
+    virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
+            uint32_t size, int32_t type, int32_t format, const native_handle_t *resource) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISensorServer::getInterfaceDescriptor());
+        data.writeString16(opPackageName);
+        data.writeUint32(size);
+        data.writeInt32(type);
+        data.writeInt32(format);
+        data.writeNativeHandle(resource);
+        remote()->transact(CREATE_SENSOR_DIRECT_CONNECTION, data, &reply);
+        return interface_cast<ISensorEventConnection>(reply.readStrongBinder());
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -151,6 +166,20 @@ status_t BnSensorServer::onTransact(
             for (size_t i = 0; i < n; i++) {
                 reply->write(v[i]);
             }
+            return NO_ERROR;
+        }
+        case CREATE_SENSOR_DIRECT_CONNECTION: {
+            CHECK_INTERFACE(ISensorServer, data, reply);
+            const String16& opPackageName = data.readString16();
+            uint32_t size = data.readUint32();
+            int32_t type = data.readInt32();
+            int32_t format = data.readInt32();
+            native_handle_t *resource = data.readNativeHandle();
+            sp<ISensorEventConnection> ch =
+                    createSensorDirectConnection(opPackageName, size, type, format, resource);
+            native_handle_close(resource);
+            native_handle_delete(resource);
+            reply->writeStrongBinder(IInterface::asBinder(ch));
             return NO_ERROR;
         }
     }
