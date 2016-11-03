@@ -20,7 +20,6 @@
 #include <sys/types.h>
 
 #include <android-base/logging.h>
-#include <hidl/ServiceManagement.h>
 #include <utils/Atomic.h>
 #include <utils/Errors.h>
 #include <utils/Singleton.h>
