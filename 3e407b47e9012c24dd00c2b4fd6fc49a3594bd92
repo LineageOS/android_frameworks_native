@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "ff2e2bb8_bc121357",
+        "filename": "libs/ui/Gralloc1.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 267,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2016-11-03T16:48:09Z",
+      "side": 1,
+      "message": "tabs",
+      "revId": "3e407b47e9012c24dd00c2b4fd6fc49a3594bd92",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "ff2e2bb8_9c0d8f37",
+        "filename": "libs/ui/Gralloc1On0Adapter.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 298,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2016-11-03T16:48:09Z",
+      "side": 1,
+      "message": "tab",
+      "revId": "3e407b47e9012c24dd00c2b4fd6fc49a3594bd92",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
