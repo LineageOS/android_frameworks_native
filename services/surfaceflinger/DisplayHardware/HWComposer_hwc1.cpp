@@ -1042,7 +1042,6 @@ public:
         }
     }
     virtual void setDim(uint32_t color) {
-        setSkip(false);
         getLayer()->flags |= 0x80000000;
 #ifdef QTI_BSP
         // Set RGBA color on HWC Dim layer
@@ -1123,7 +1122,7 @@ public:
     virtual void setBuffer(const sp<GraphicBuffer>& buffer) {
         if (buffer == 0 || buffer->handle == 0) {
             getLayer()->compositionType = HWC_FRAMEBUFFER;
-            getLayer()->flags |= HWC_SKIP_LAYER;
+            getLayer()->flags |=  (getLayer()->flags & 0x80000000) ? 0 : HWC_SKIP_LAYER;
             getLayer()->handle = 0;
         } else {
             if (getLayer()->compositionType == HWC_SIDEBAND) {
