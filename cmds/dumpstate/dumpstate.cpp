@@ -683,7 +683,7 @@ void Dumpstate::PrintHeader() const {
     JustDumpFile("", "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version_.c_str());
-    printf("Dumpstate info: id=%lu pid=%d dry_run=%d args=%s extra_options=%s\n", id_, pid_,
+    printf("Dumpstate info: id=%d pid=%d dry_run=%d args=%s extra_options=%s\n", id_, pid_,
            dry_run_, args_.c_str(), extra_options_.c_str());
     printf("\n");
 }
@@ -1154,10 +1154,10 @@ static void dumpstate() {
     DumpModemLogs();
 
     printf("========================================================\n");
-    printf("== Final progress (pid %d): %d/%d (originally %d)\n", ds.pid_, ds.progress_,
-           ds.weight_total_, WEIGHT_TOTAL);
+    printf("== Final progress (pid %d): %d/%d (estimated %d)\n", ds.pid_, ds.progress_->Get(),
+           ds.progress_->GetMax(), ds.progress_->GetInitialMax());
     printf("========================================================\n");
-    printf("== dumpstate: done (id %lu)\n", ds.id_);
+    printf("== dumpstate: done (id %d)\n", ds.id_);
     printf("========================================================\n");
 }
 
@@ -1222,7 +1222,7 @@ bool Dumpstate::FinishZipFile() {
     char date[80];
     time_t the_real_now_please_stand_up = time(nullptr);
     strftime(date, sizeof(date), "%Y/%m/%d %H:%M:%S", localtime(&the_real_now_please_stand_up));
-    MYLOGD("dumpstate id %lu finished around %s (%ld s)\n", ds.id_, date,
+    MYLOGD("dumpstate id %d finished around %s (%ld s)\n", ds.id_, date,
            the_real_now_please_stand_up - ds.now_);
 
     if (!ds.AddZipEntry(entry_name, tmp_path_)) {
@@ -1418,8 +1418,17 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
+    /* redirect output if needed */
+    bool is_redirecting = !use_socket && use_outfile;
+
+    // TODO: temporarily set progress until it's part of the Dumpstate constructor
+    std::string stats_path =
+        is_redirecting ? android::base::StringPrintf("%s/dumpstate-stats.txt", dirname(use_outfile))
+                       : "";
+    ds.progress_.reset(new Progress(stats_path));
+
     /* gets the sequential id */
-    int last_id = android::base::GetIntProperty(PROPERTY_LAST_ID, 0);
+    uint32_t last_id = android::base::GetIntProperty(PROPERTY_LAST_ID, 0);
     ds.id_ = ++last_id;
     android::base::SetProperty(PROPERTY_LAST_ID, std::to_string(last_id));
 
@@ -1445,7 +1454,7 @@ int main(int argc, char *argv[]) {
         MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
     }
 
-    MYLOGI("dumpstate info: id=%lu, args='%s', extra_options= %s)\n", ds.id_, ds.args_.c_str(),
+    MYLOGI("dumpstate info: id=%d, args='%s', extra_options= %s)\n", ds.id_, ds.args_.c_str(),
            ds.extra_options_.c_str());
 
     MYLOGI("bugreport format version: %s\n", ds.version_.c_str());
@@ -1463,9 +1472,6 @@ int main(int argc, char *argv[]) {
         ds.control_socket_fd_ = open_socket("dumpstate");
         ds.update_progress_ = 1;
     }
-
-    /* redirect output if needed */
-    bool is_redirecting = !use_socket && use_outfile;
 
     if (is_redirecting) {
         ds.bugreport_dir_ = dirname(use_outfile);
@@ -1517,7 +1523,7 @@ int main(int argc, char *argv[]) {
                      "--es", "android.intent.extra.NAME", ds.name_,
                      "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
                      "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
-                     "--ei", "android.intent.extra.MAX", std::to_string(WEIGHT_TOTAL),
+                     "--ei", "android.intent.extra.MAX", std::to_string(ds.progress_->GetMax()),
                 };
                 // clang-format on
                 send_broadcast("android.intent.action.BUGREPORT_STARTED", am_args);
@@ -1720,7 +1726,7 @@ int main(int argc, char *argv[]) {
                  "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
                  "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
                  "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
-                 "--ei", "android.intent.extra.MAX", std::to_string(ds.weight_total_),
+                 "--ei", "android.intent.extra.MAX", std::to_string(ds.progress_->GetMax()),
                  "--es", "android.intent.extra.BUGREPORT", ds.path_,
                  "--es", "android.intent.extra.DUMPSTATE_LOG", ds.log_path_
             };
@@ -1743,8 +1749,10 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    MYLOGD("Final progress: %d/%d (originally %d)\n", ds.progress_, ds.weight_total_, WEIGHT_TOTAL);
-    MYLOGI("done (id %lu)\n", ds.id_);
+    MYLOGD("Final progress: %d/%d (estimated %d)\n", ds.progress_->Get(), ds.progress_->GetMax(),
+           ds.progress_->GetInitialMax());
+    ds.progress_->Save();
+    MYLOGI("done (id %d)\n", ds.id_);
 
     if (is_redirecting) {
         fclose(stderr);
