@@ -58,8 +58,9 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/binder
 LOCAL_AIDL_INCLUDES := $(LOCAL_PATH)/binder
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/binder
 LOCAL_SRC_FILES := \
+        binder/android/os/IDumpstate.aidl \
         binder/android/os/IDumpstateListener.aidl \
-        binder/android/os/IDumpstate.aidl
+        binder/android/os/IDumpstateToken.aidl
 
 include $(BUILD_SHARED_LIBRARY)
 

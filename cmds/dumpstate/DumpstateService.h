@@ -23,6 +23,7 @@
 #include <binder/BinderService.h>
 
 #include "android/os/BnDumpstate.h"
+#include "android/os/BnDumpstateToken.h"
 #include "dumpstate.h"
 
 namespace android {
@@ -37,7 +38,7 @@ class DumpstateService : public BinderService<DumpstateService>, public BnDumpst
 
     status_t dump(int fd, const Vector<String16>& args) override;
     binder::Status setListener(const std::string& name, const sp<IDumpstateListener>& listener,
-                               bool* set) override;
+                               sp<IDumpstateToken>* returned_token) override;
 
   private:
     Dumpstate& ds_;

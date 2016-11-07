@@ -1451,27 +1451,19 @@ void Dumpstate::UpdateProgress(int32_t delta) {
     // ...but only notifiy listeners when necessary.
     if (!update_progress_) return;
 
-    // TODO: remove property support once Shell uses IDumpstateListener
-    char key[PROPERTY_KEY_MAX];
-    char value[PROPERTY_VALUE_MAX];
+    int progress = progress_->Get();
+    int max = progress_->GetMax();
 
     // adjusts max on the fly
-    if (max_changed) {
-        if (listener_ != nullptr) {
-            listener_->onMaxProgressUpdated(progress_->GetMax());
-        } else {
-            snprintf(key, sizeof(key), "dumpstate.%d.max", pid_);
-            snprintf(value, sizeof(value), "%d", progress_->GetMax());
-            int status = property_set(key, value);
-            if (status != 0) {
-                MYLOGE("Could not update max weight by setting system property %s to %s: %d\n", key,
-                       value, status);
-            }
-        }
+    if (max_changed && listener_ != nullptr) {
+        listener_->onMaxProgressUpdated(max);
     }
 
-    int32_t progress = progress_->Get();
-    int32_t max = progress_->GetMax();
+    int32_t last_update_delta = progress - last_updated_progress_;
+    if (last_updated_progress_ > 0 && last_update_delta < update_progress_threshold_) {
+        return;
+    }
+    last_updated_progress_ = progress;
 
     if (control_socket_fd_ >= 0) {
         dprintf(control_socket_fd_, "PROGRESS:%d/%d\n", progress, max);
@@ -1488,24 +1480,6 @@ void Dumpstate::UpdateProgress(int32_t delta) {
             fprintf(stderr, "Setting progress (%s): %d/%d\n", listener_name_.c_str(), progress, max);
         }
         listener_->onProgressUpdated(progress);
-    } else {
-        snprintf(key, sizeof(key), "dumpstate.%d.progress", pid_);
-        snprintf(value, sizeof(value), "%d", progress);
-
-        if (progress % 100 == 0) {
-            // We don't want to spam logcat, so only log multiples of 100.
-            MYLOGD("Setting progress (%s): %s/%d\n", key, value, max);
-        } else {
-            // stderr is ignored on normal invocations, but useful when calling
-            // /system/bin/dumpstate directly for debuggging.
-            fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, max);
-        }
-
-        int status = property_set(key, value);
-        if (status) {
-            MYLOGE("Could not update progress by setting system property %s to %s: %d\n", key,
-                   value, status);
-        }
     }
 }
 
