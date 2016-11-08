@@ -27,7 +27,7 @@
 #include "SensorDevice.h"
 #include "SensorService.h"
 
-#include "convert.h"
+#include <sensors/convert.h>
 
 using android::hardware::sensors::V1_0::ISensors;
 using android::hardware::hidl_vec;
