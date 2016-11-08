@@ -1787,6 +1787,32 @@ bool Layer::isVisible() const {
 #endif
 }
 
+bool Layer::allTransactionsSignaled() {
+    auto headFrameNumber = getHeadFrameNumber();
+    bool matchingFramesFound = false;
+    bool allTransactionsApplied = true;
+    Mutex::Autolock lock(mLocalSyncPointMutex);
+
+    for (auto& point : mLocalSyncPoints) {
+        if (point->getFrameNumber() > headFrameNumber) {
+            break;
+        }
+        matchingFramesFound = true;
+
+        if (!point->frameIsAvailable()) {
+           // We haven't notified the remote layer that the frame for
+           // this point is available yet. Notify it now, and then
+           // abort this attempt to latch.
+           point->setFrameAvailable();
+           allTransactionsApplied = false;
+           break;
+        }
+
+        allTransactionsApplied = allTransactionsApplied && point->transactionIsApplied();
+    }
+    return !matchingFramesFound || allTransactionsApplied;
+}
+
 Region Layer::latchBuffer(bool& recomputeVisibleRegions)
 {
     ATRACE_CALL();
@@ -1830,36 +1856,7 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions)
     const bool oldOpacity = isOpaque(s);
     sp<GraphicBuffer> oldActiveBuffer = mActiveBuffer;
 
-    // Check all of our local sync points to ensure that all transactions
-    // which need to have been applied prior to the frame which is about to
-    // be latched have signaled
-
-    auto headFrameNumber = getHeadFrameNumber();
-    bool matchingFramesFound = false;
-    bool allTransactionsApplied = true;
-    {
-        Mutex::Autolock lock(mLocalSyncPointMutex);
-        for (auto& point : mLocalSyncPoints) {
-            if (point->getFrameNumber() > headFrameNumber) {
-                break;
-            }
-
-            matchingFramesFound = true;
-
-            if (!point->frameIsAvailable()) {
-                // We haven't notified the remote layer that the frame for
-                // this point is available yet. Notify it now, and then
-                // abort this attempt to latch.
-                point->setFrameAvailable();
-                allTransactionsApplied = false;
-                break;
-            }
-
-            allTransactionsApplied &= point->transactionIsApplied();
-        }
-    }
-
-    if (matchingFramesFound && !allTransactionsApplied) {
+    if (!allTransactionsSignaled()) {
         mFlinger->signalLayerUpdate();
         return outDirtyRegion;
     }
