@@ -29,3 +29,13 @@ cc_test {
     name: "mat_test",
     srcs: ["mat_test.cpp"],
 }
+
+cc_test {
+    name: "half_test",
+    srcs: ["half_test.cpp"],
+}
+
+cc_test {
+    name: "quat_test",
+    srcs: ["quat_test.cpp"],
+}

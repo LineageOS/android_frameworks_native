@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef TVEC_IMPLEMENTATION
-#error "Don't include TVecHelpers.h directly. use ui/vec*.h instead"
-#else
-#undef TVEC_IMPLEMENTATION
-#endif
 
+#ifndef UI_TVECHELPERS_H_
+#define UI_TVECHELPERS_H_
 
-#ifndef UI_TVEC_HELPERS_H
-#define UI_TVEC_HELPERS_H
-
+#include <math.h>
 #include <stdint.h>
 #include <sys/types.h>
+
+#include <cmath>
+#include <limits>
+#include <iostream>
 
 #define PURE __attribute__((pure))
 
 namespace android {
+namespace details {
 // -------------------------------------------------------------------------------------
 
 /*
@@ -37,24 +37,6 @@ namespace android {
  *
  * Don't use this file directly, instead include ui/vec{2|3|4}.h
  */
-
-/*
- * This class casts itself into anything and assign itself from anything!
- * Use with caution!
- */
-template <typename TYPE>
-struct Impersonator {
-    Impersonator& operator = (const TYPE& rhs) {
-        reinterpret_cast<TYPE&>(*this) = rhs;
-        return *this;
-    }
-    operator TYPE& () {
-        return reinterpret_cast<TYPE&>(*this);
-    }
-    operator TYPE const& () const {
-        return reinterpret_cast<TYPE const&>(*this);
-    }
-};
 
 /*
  * TVec{Add|Product}Operators implements basic arithmetic and basic compound assignments
@@ -65,27 +47,27 @@ struct Impersonator {
  * get all the functionality here.
  */
 
-template <template<typename T> class BASE, typename T>
+template <template<typename T> class VECTOR, typename T>
 class TVecAddOperators {
 public:
     /* compound assignment from a another vector of the same size but different
      * element type.
      */
-    template <typename OTHER>
-    BASE<T>& operator += (const BASE<OTHER>& v) {
-        BASE<T>& rhs = static_cast<BASE<T>&>(*this);
-        for (size_t i=0 ; i<BASE<T>::size() ; i++) {
-            rhs[i] += v[i];
+    template<typename OTHER>
+    VECTOR<T>& operator +=(const VECTOR<OTHER>& v) {
+        VECTOR<T>& lhs = static_cast<VECTOR<T>&>(*this);
+        for (size_t i = 0; i < lhs.size(); i++) {
+            lhs[i] += v[i];
         }
-        return rhs;
+        return lhs;
     }
-    template <typename OTHER>
-    BASE<T>& operator -= (const BASE<OTHER>& v) {
-        BASE<T>& rhs = static_cast<BASE<T>&>(*this);
-        for (size_t i=0 ; i<BASE<T>::size() ; i++) {
-            rhs[i] -= v[i];
+    template<typename OTHER>
+    VECTOR<T>& operator -=(const VECTOR<OTHER>& v) {
+        VECTOR<T>& lhs = static_cast<VECTOR<T>&>(*this);
+        for (size_t i = 0; i < lhs.size(); i++) {
+            lhs[i] -= v[i];
         }
-        return rhs;
+        return lhs;
     }
 
     /* compound assignment from a another vector of the same type.
@@ -93,19 +75,19 @@ public:
      * like "vector *= scalar" by letting the compiler implicitly convert a scalar
      * to a vector (assuming the BASE<T> allows it).
      */
-    BASE<T>& operator += (const BASE<T>& v) {
-        BASE<T>& rhs = static_cast<BASE<T>&>(*this);
-        for (size_t i=0 ; i<BASE<T>::size() ; i++) {
-            rhs[i] += v[i];
+    VECTOR<T>& operator +=(const VECTOR<T>& v) {
+        VECTOR<T>& lhs = static_cast<VECTOR<T>&>(*this);
+        for (size_t i = 0; i < lhs.size(); i++) {
+            lhs[i] += v[i];
         }
-        return rhs;
+        return lhs;
     }
-    BASE<T>& operator -= (const BASE<T>& v) {
-        BASE<T>& rhs = static_cast<BASE<T>&>(*this);
-        for (size_t i=0 ; i<BASE<T>::size() ; i++) {
-            rhs[i] -= v[i];
+    VECTOR<T>& operator -=(const VECTOR<T>& v) {
+        VECTOR<T>& lhs = static_cast<VECTOR<T>&>(*this);
+        for (size_t i = 0; i < lhs.size(); i++) {
+            lhs[i] -= v[i];
         }
-        return rhs;
+        return lhs;
     }
 
     /*
@@ -116,57 +98,57 @@ public:
      * (the first one, BASE<T> being known).
      */
 
-    /* The operators below handle operation between vectors of the same side
+    /* The operators below handle operation between vectors of the same size
      * but of a different element type.
      */
     template<typename RT>
-    friend inline
-    BASE<T> PURE operator +(const BASE<T>& lv, const BASE<RT>& rv) {
-        return BASE<T>(lv) += rv;
+    friend inline constexpr VECTOR<T> PURE operator +(VECTOR<T> lv, const VECTOR<RT>& rv) {
+        // don't pass lv by reference because we need a copy anyways
+        return lv += rv;
     }
     template<typename RT>
-    friend inline
-    BASE<T> PURE operator -(const BASE<T>& lv, const BASE<RT>& rv) {
-        return BASE<T>(lv) -= rv;
+    friend inline constexpr VECTOR<T> PURE operator -(VECTOR<T> lv, const VECTOR<RT>& rv) {
+        // don't pass lv by reference because we need a copy anyways
+        return lv -= rv;
     }
 
     /* The operators below (which are not templates once this class is instanced,
      * i.e.: BASE<T> is known) can be used for implicit conversion on both sides.
-     * These handle operations like "vector * scalar" and "scalar * vector" by
+     * These handle operations like "vector + scalar" and "scalar + vector" by
      * letting the compiler implicitly convert a scalar to a vector (assuming
      * the BASE<T> allows it).
      */
-    friend inline
-    BASE<T> PURE operator +(const BASE<T>& lv, const BASE<T>& rv) {
-        return BASE<T>(lv) += rv;
+    friend inline constexpr VECTOR<T> PURE operator +(VECTOR<T> lv, const VECTOR<T>& rv) {
+        // don't pass lv by reference because we need a copy anyways
+        return lv += rv;
     }
-    friend inline
-    BASE<T> PURE operator -(const BASE<T>& lv, const BASE<T>& rv) {
-        return BASE<T>(lv) -= rv;
+    friend inline constexpr VECTOR<T> PURE operator -(VECTOR<T> lv, const VECTOR<T>& rv) {
+        // don't pass lv by reference because we need a copy anyways
+        return lv -= rv;
     }
 };
 
-template <template<typename T> class BASE, typename T>
+template<template<typename T> class VECTOR, typename T>
 class TVecProductOperators {
 public:
     /* compound assignment from a another vector of the same size but different
      * element type.
      */
-    template <typename OTHER>
-    BASE<T>& operator *= (const BASE<OTHER>& v) {
-        BASE<T>& rhs = static_cast<BASE<T>&>(*this);
-        for (size_t i=0 ; i<BASE<T>::size() ; i++) {
-            rhs[i] *= v[i];
+    template<typename OTHER>
+    VECTOR<T>& operator *=(const VECTOR<OTHER>& v) {
+        VECTOR<T>& lhs = static_cast<VECTOR<T>&>(*this);
+        for (size_t i = 0; i < lhs.size(); i++) {
+            lhs[i] *= v[i];
         }
-        return rhs;
+        return lhs;
     }
-    template <typename OTHER>
-    BASE<T>& operator /= (const BASE<OTHER>& v) {
-        BASE<T>& rhs = static_cast<BASE<T>&>(*this);
-        for (size_t i=0 ; i<BASE<T>::size() ; i++) {
-            rhs[i] /= v[i];
+    template<typename OTHER>
+    VECTOR<T>& operator /=(const VECTOR<OTHER>& v) {
+        VECTOR<T>& lhs = static_cast<VECTOR<T>&>(*this);
+        for (size_t i = 0; i < lhs.size(); i++) {
+            lhs[i] /= v[i];
         }
-        return rhs;
+        return lhs;
     }
 
     /* compound assignment from a another vector of the same type.
@@ -174,19 +156,19 @@ public:
      * like "vector *= scalar" by letting the compiler implicitly convert a scalar
      * to a vector (assuming the BASE<T> allows it).
      */
-    BASE<T>& operator *= (const BASE<T>& v) {
-        BASE<T>& rhs = static_cast<BASE<T>&>(*this);
-        for (size_t i=0 ; i<BASE<T>::size() ; i++) {
-            rhs[i] *= v[i];
+    VECTOR<T>& operator *=(const VECTOR<T>& v) {
+        VECTOR<T>& lhs = static_cast<VECTOR<T>&>(*this);
+        for (size_t i = 0; i < lhs.size(); i++) {
+            lhs[i] *= v[i];
         }
-        return rhs;
+        return lhs;
     }
-    BASE<T>& operator /= (const BASE<T>& v) {
-        BASE<T>& rhs = static_cast<BASE<T>&>(*this);
-        for (size_t i=0 ; i<BASE<T>::size() ; i++) {
-            rhs[i] /= v[i];
+    VECTOR<T>& operator /=(const VECTOR<T>& v) {
+        VECTOR<T>& lhs = static_cast<VECTOR<T>&>(*this);
+        for (size_t i = 0; i < lhs.size(); i++) {
+            lhs[i] /= v[i];
         }
-        return rhs;
+        return lhs;
     }
 
     /*
@@ -197,18 +179,18 @@ public:
      * (the first one, BASE<T> being known).
      */
 
-    /* The operators below handle operation between vectors of the same side
+    /* The operators below handle operation between vectors of the same size
      * but of a different element type.
      */
     template<typename RT>
-    friend inline
-    BASE<T> PURE operator *(const BASE<T>& lv, const BASE<RT>& rv) {
-        return BASE<T>(lv) *= rv;
+    friend inline constexpr VECTOR<T> PURE operator *(VECTOR<T> lv, const VECTOR<RT>& rv) {
+        // don't pass lv by reference because we need a copy anyways
+        return lv *= rv;
     }
     template<typename RT>
-    friend inline
-    BASE<T> PURE operator /(const BASE<T>& lv, const BASE<RT>& rv) {
-        return BASE<T>(lv) /= rv;
+    friend inline constexpr VECTOR<T> PURE operator /(VECTOR<T> lv, const VECTOR<RT>& rv) {
+        // don't pass lv by reference because we need a copy anyways
+        return lv /= rv;
     }
 
     /* The operators below (which are not templates once this class is instanced,
@@ -217,13 +199,13 @@ public:
      * letting the compiler implicitly convert a scalar to a vector (assuming
      * the BASE<T> allows it).
      */
-    friend inline
-    BASE<T> PURE operator *(const BASE<T>& lv, const BASE<T>& rv) {
-        return BASE<T>(lv) *= rv;
+    friend inline constexpr VECTOR<T> PURE operator *(VECTOR<T> lv, const VECTOR<T>& rv) {
+        // don't pass lv by reference because we need a copy anyways
+        return lv *= rv;
     }
-    friend inline
-    BASE<T> PURE operator /(const BASE<T>& lv, const BASE<T>& rv) {
-        return BASE<T>(lv) /= rv;
+    friend inline constexpr VECTOR<T> PURE operator /(VECTOR<T> lv, const VECTOR<T>& rv) {
+        // don't pass lv by reference because we need a copy anyways
+        return lv /= rv;
     }
 };
 
@@ -236,33 +218,32 @@ public:
  *
  * These operators are implemented as friend functions of TVecUnaryOperators<BASE, T>
  */
-template <template<typename T> class BASE, typename T>
+template<template<typename T> class VECTOR, typename T>
 class TVecUnaryOperators {
 public:
-    BASE<T>& operator ++ () {
-        BASE<T>& rhs = static_cast<BASE<T>&>(*this);
-        for (size_t i=0 ; i<BASE<T>::size() ; i++) {
+    VECTOR<T>& operator ++() {
+        VECTOR<T>& rhs = static_cast<VECTOR<T>&>(*this);
+        for (size_t i = 0; i < rhs.size(); i++) {
             ++rhs[i];
         }
         return rhs;
     }
-    BASE<T>& operator -- () {
-        BASE<T>& rhs = static_cast<BASE<T>&>(*this);
-        for (size_t i=0 ; i<BASE<T>::size() ; i++) {
+    VECTOR<T>& operator --() {
+        VECTOR<T>& rhs = static_cast<VECTOR<T>&>(*this);
+        for (size_t i = 0; i < rhs.size(); i++) {
             --rhs[i];
         }
         return rhs;
     }
-    BASE<T> operator - () const {
-        BASE<T> r(BASE<T>::NO_INIT);
-        BASE<T> const& rv(static_cast<BASE<T> const&>(*this));
-        for (size_t i=0 ; i<BASE<T>::size() ; i++) {
+    VECTOR<T> operator -() const {
+        VECTOR<T> r(VECTOR<T>::NO_INIT);
+        VECTOR<T> const& rv(static_cast<VECTOR<T> const&>(*this));
+        for (size_t i = 0; i < r.size(); i++) {
             r[i] = -rv[i];
         }
         return r;
     }
 };
-
 
 /*
  * TVecComparisonOperators implements relational/comparison operators
@@ -272,7 +253,7 @@ public:
  * By simply inheriting from TVecComparisonOperators<BASE, T> BASE will automatically
  * get all the functionality here.
  */
-template <template<typename T> class BASE, typename T>
+template<template<typename T> class VECTOR, typename T>
 class TVecComparisonOperators {
 public:
     /*
@@ -284,8 +265,8 @@ public:
      */
     template<typename RT>
     friend inline
-    bool PURE operator ==(const BASE<T>& lv, const BASE<RT>& rv) {
-        for (size_t i = 0; i < BASE<T>::size(); i++)
+    bool PURE operator ==(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
+        for (size_t i = 0; i < lv.size(); i++)
             if (lv[i] != rv[i])
                 return false;
         return true;
@@ -293,41 +274,46 @@ public:
 
     template<typename RT>
     friend inline
-    bool PURE operator !=(const BASE<T>& lv, const BASE<RT>& rv) {
+    bool PURE operator !=(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         return !operator ==(lv, rv);
     }
 
     template<typename RT>
     friend inline
-    bool PURE operator >(const BASE<T>& lv, const BASE<RT>& rv) {
-        for (size_t i = 0; i < BASE<T>::size(); i++)
-            if (lv[i] <= rv[i])
-                return false;
-        return true;
+    bool PURE operator >(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
+        for (size_t i = 0; i < lv.size(); i++) {
+            if (lv[i] == rv[i]) {
+                continue;
+            }
+            return lv[i] > rv[i];
+        }
+        return false;
     }
 
     template<typename RT>
     friend inline
-    bool PURE operator <=(const BASE<T>& lv, const BASE<RT>& rv) {
+    constexpr bool PURE operator <=(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         return !(lv > rv);
     }
 
     template<typename RT>
     friend inline
-    bool PURE operator <(const BASE<T>& lv, const BASE<RT>& rv) {
-        for (size_t i = 0; i < BASE<T>::size(); i++)
-            if (lv[i] >= rv[i])
-                return false;
-        return true;
+    bool PURE operator <(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
+        for (size_t i = 0; i < lv.size(); i++) {
+            if (lv[i] == rv[i]) {
+                continue;
+            }
+            return lv[i] < rv[i];
+        }
+        return false;
     }
 
     template<typename RT>
     friend inline
-    bool PURE operator >=(const BASE<T>& lv, const BASE<RT>& rv) {
+    constexpr bool PURE operator >=(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         return !(lv < rv);
     }
 };
-
 
 /*
  * TVecFunctions implements functions on a vector of type BASE<T>.
@@ -336,7 +322,7 @@ public:
  * By simply inheriting from TVecFunctions<BASE, T> BASE will automatically
  * get all the functionality here.
  */
-template <template<typename T> class BASE, typename T>
+template<template<typename T> class VECTOR, typename T>
 class TVecFunctions {
 public:
     /*
@@ -347,35 +333,180 @@ public:
      * (the first one, BASE<T> being known).
      */
     template<typename RT>
-    friend inline
-    T PURE dot(const BASE<T>& lv, const BASE<RT>& rv) {
+    friend inline T PURE dot(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         T r(0);
-        for (size_t i = 0; i < BASE<T>::size(); i++)
-            r += lv[i]*rv[i];
+        for (size_t i = 0; i < lv.size(); i++) {
+            //r = std::fma(lv[i], rv[i], r);
+            r += lv[i] * rv[i];
+        }
         return r;
     }
 
-    friend inline
-    T PURE length(const BASE<T>& lv) {
-        return sqrt( dot(lv, lv) );
+    friend inline constexpr T PURE norm(const VECTOR<T>& lv) {
+        return std::sqrt(dot(lv, lv));
+    }
+
+    friend inline constexpr T PURE length(const VECTOR<T>& lv) {
+        return norm(lv);
+    }
+
+    friend inline constexpr T PURE norm2(const VECTOR<T>& lv) {
+        return dot(lv, lv);
+    }
+
+    friend inline constexpr T PURE length2(const VECTOR<T>& lv) {
+        return norm2(lv);
     }
 
     template<typename RT>
-    friend inline
-    T PURE distance(const BASE<T>& lv, const BASE<RT>& rv) {
+    friend inline constexpr T PURE distance(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         return length(rv - lv);
     }
 
-    friend inline
-    BASE<T> PURE normalize(const BASE<T>& lv) {
-        return lv * (1 / length(lv));
+    template<typename RT>
+    friend inline constexpr T PURE distance2(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
+        return length2(rv - lv);
+    }
+
+    friend inline constexpr VECTOR<T> PURE normalize(const VECTOR<T>& lv) {
+        return lv * (T(1) / length(lv));
+    }
+
+    friend inline VECTOR<T> PURE rcp(VECTOR<T> v) {
+        return T(1) / v;
+    }
+
+    friend inline VECTOR<T> PURE abs(VECTOR<T> v) {
+        for (size_t i=0 ; i<v.size() ; i++) {
+            v[i] = std::abs(v[i]);
+        }
+        return v;
+    }
+
+    friend inline VECTOR<T> PURE floor(VECTOR<T> v) {
+        for (size_t i=0 ; i<v.size() ; i++) {
+            v[i] = std::floor(v[i]);
+        }
+        return v;
+    }
+
+    friend inline VECTOR<T> PURE ceil(VECTOR<T> v) {
+        for (size_t i=0 ; i<v.size() ; i++) {
+            v[i] = std::ceil(v[i]);
+        }
+        return v;
+    }
+
+    friend inline VECTOR<T> PURE round(VECTOR<T> v) {
+        for (size_t i=0 ; i<v.size() ; i++) {
+            v[i] = std::round(v[i]);
+        }
+        return v;
+    }
+
+    friend inline VECTOR<T> PURE inversesqrt(VECTOR<T> v) {
+        for (size_t i=0 ; i<v.size() ; i++) {
+            v[i] = T(1) / std::sqrt(v[i]);
+        }
+        return v;
+    }
+
+    friend inline VECTOR<T> PURE sqrt(VECTOR<T> v) {
+        for (size_t i=0 ; i<v.size() ; i++) {
+            v[i] = std::sqrt(v[i]);
+        }
+        return v;
+    }
+
+    friend inline VECTOR<T> PURE pow(VECTOR<T> v, T p) {
+        for (size_t i=0 ; i<v.size() ; i++) {
+            v[i] = std::pow(v[i], p);
+        }
+        return v;
+    }
+
+    friend inline VECTOR<T> PURE saturate(const VECTOR<T>& lv) {
+        return clamp(lv, T(0), T(1));
+    }
+
+    friend inline VECTOR<T> PURE clamp(VECTOR<T> v, T min, T max) {
+        for (size_t i=0 ; i< v.size() ; i++) {
+            v[i] = std::min(max, std::max(min, v[i]));
+        }
+        return v;
+    }
+
+    friend inline VECTOR<T> PURE fma(const VECTOR<T>& lv, const VECTOR<T>& rv, VECTOR<T> a) {
+        for (size_t i=0 ; i<lv.size() ; i++) {
+            //a[i] = std::fma(lv[i], rv[i], a[i]);
+            a[i] += (lv[i] * rv[i]);
+        }
+        return a;
+    }
+
+    friend inline VECTOR<T> PURE min(const VECTOR<T>& u, VECTOR<T> v) {
+        for (size_t i=0 ; i<v.size() ; i++) {
+            v[i] = std::min(u[i], v[i]);
+        }
+        return v;
+    }
+
+    friend inline VECTOR<T> PURE max(const VECTOR<T>& u, VECTOR<T> v) {
+        for (size_t i=0 ; i<v.size() ; i++) {
+            v[i] = std::max(u[i], v[i]);
+        }
+        return v;
+    }
+
+    friend inline T PURE max(const VECTOR<T>& v) {
+        T r(std::numeric_limits<T>::lowest());
+        for (size_t i=0 ; i<v.size() ; i++) {
+            r = std::max(r, v[i]);
+        }
+        return r;
+    }
+
+    friend inline T PURE min(const VECTOR<T>& v) {
+        T r(std::numeric_limits<T>::max());
+        for (size_t i=0 ; i<v.size() ; i++) {
+            r = std::min(r, v[i]);
+        }
+        return r;
+    }
+};
+
+/*
+ * TVecDebug implements functions on a vector of type BASE<T>.
+ *
+ * BASE only needs to implement operator[] and size().
+ * By simply inheriting from TVecDebug<BASE, T> BASE will automatically
+ * get all the functionality here.
+ */
+template<template<typename T> class VECTOR, typename T>
+class TVecDebug {
+public:
+    /*
+     * NOTE: the functions below ARE NOT member methods. They are friend functions
+     * with they definition inlined with their declaration. This makes these
+     * template functions available to the compiler when (and only when) this class
+     * is instantiated, at which point they're only templated on the 2nd parameter
+     * (the first one, BASE<T> being known).
+     */
+    friend std::ostream& operator<<(std::ostream& stream, const VECTOR<T>& v) {
+        stream << "< ";
+        for (size_t i = 0; i < v.size() - 1; i++) {
+            stream << T(v[i]) << ", ";
+        }
+        stream << T(v[v.size() - 1]) << " >";
+        return stream;
     }
 };
 
 #undef PURE
 
 // -------------------------------------------------------------------------------------
-}; // namespace android
+}  // namespace details
+}  // namespace android
 
 
-#endif /* UI_TVEC_HELPERS_H */
+#endif  // UI_TVECHELPERS_H_

@@ -14,24 +14,27 @@
  * limitations under the License.
  */
 
-#ifndef UI_VEC3_H
-#define UI_VEC3_H
+#ifndef UI_VEC3_H_
+#define UI_VEC3_H_
 
+#include <ui/vec2.h>
+#include <ui/half.h>
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <ui/vec2.h>
 
 namespace android {
 // -------------------------------------------------------------------------------------
 
+namespace details {
+
 template <typename T>
-class tvec3 :   public TVecProductOperators<tvec3, T>,
-                public TVecAddOperators<tvec3, T>,
-                public TVecUnaryOperators<tvec3, T>,
-                public TVecComparisonOperators<tvec3, T>,
-                public TVecFunctions<tvec3, T>
-{
+class TVec3 :   public TVecProductOperators<TVec3, T>,
+                public TVecAddOperators<TVec3, T>,
+                public TVecUnaryOperators<TVec3, T>,
+                public TVecComparisonOperators<TVec3, T>,
+                public TVecFunctions<TVec3, T>,
+                public TVecDebug<TVec3, T> {
 public:
     enum no_init { NO_INIT };
     typedef T value_type;
@@ -43,71 +46,83 @@ public:
         struct { T x, y, z; };
         struct { T s, t, p; };
         struct { T r, g, b; };
-        Impersonator< tvec2<T> > xy;
-        Impersonator< tvec2<T> > st;
-        Impersonator< tvec2<T> > rg;
+        TVec2<T> xy;
+        TVec2<T> st;
+        TVec2<T> rg;
     };
 
-    enum { SIZE = 3 };
-    inline static size_type size() { return SIZE; }
+    static constexpr size_t SIZE = 3;
+    inline constexpr size_type size() const { return SIZE; }
 
     // array access
-    inline T const& operator [] (size_t i) const { return (&x)[i]; }
-    inline T&       operator [] (size_t i)       { return (&x)[i]; }
+    inline constexpr T const& operator[](size_t i) const {
+#if __cplusplus >= 201402L
+        // only possible in C++0x14 with constexpr
+        assert(i < SIZE);
+#endif
+        return (&x)[i];
+    }
+
+    inline T& operator[](size_t i) {
+        assert(i < SIZE);
+        return (&x)[i];
+    }
 
     // -----------------------------------------------------------------------
-    // we don't provide copy-ctor and operator= on purpose
-    // because we want the compiler generated versions
+    // we want the compiler generated versions for these...
+    TVec3(const TVec3&) = default;
+    ~TVec3() = default;
+    TVec3& operator = (const TVec3&) = default;
 
     // constructors
     // leaves object uninitialized. use with caution.
-    explicit tvec3(no_init) { }
+    explicit
+    constexpr TVec3(no_init) { }
 
     // default constructor
-    tvec3() : x(0), y(0), z(0) { }
+    constexpr TVec3() : x(0), y(0), z(0) { }
 
     // handles implicit conversion to a tvec4. must not be explicit.
-    template<typename A>
-    tvec3(A v) : x(v), y(v), z(v) { }
+    template<typename A, typename = typename std::enable_if<std::is_arithmetic<A>::value >::type>
+    constexpr TVec3(A v) : x(v), y(v), z(v) { }
 
     template<typename A, typename B, typename C>
-    tvec3(A x, B y, C z) : x(x), y(y), z(z) { }
+    constexpr TVec3(A x, B y, C z) : x(x), y(y), z(z) { }
 
     template<typename A, typename B>
-    tvec3(const tvec2<A>& v, B z) : x(v.x), y(v.y), z(z) { }
+    constexpr TVec3(const TVec2<A>& v, B z) : x(v.x), y(v.y), z(z) { }
 
     template<typename A>
-    explicit tvec3(const tvec3<A>& v) : x(v.x), y(v.y), z(v.z) { }
-
-    template<typename A>
-    tvec3(const Impersonator< tvec3<A> >& v)
-        : x(((const tvec3<A>&)v).x),
-          y(((const tvec3<A>&)v).y),
-          z(((const tvec3<A>&)v).z) { }
-
-    template<typename A, typename B>
-    tvec3(const Impersonator< tvec2<A> >& v, B z)
-        : x(((const tvec2<A>&)v).x),
-          y(((const tvec2<A>&)v).y),
-          z(z) { }
+    explicit
+    constexpr TVec3(const TVec3<A>& v) : x(v.x), y(v.y), z(v.z) { }
 
     // cross product works only on vectors of size 3
     template <typename RT>
     friend inline
-    tvec3 __attribute__((pure)) cross(const tvec3& u, const tvec3<RT>& v) {
-        return tvec3(
+    constexpr TVec3 cross(const TVec3& u, const TVec3<RT>& v) {
+        return TVec3(
                 u.y*v.z - u.z*v.y,
                 u.z*v.x - u.x*v.z,
                 u.x*v.y - u.y*v.x);
     }
 };
 
+}  // namespace details
 
 // ----------------------------------------------------------------------------------------
 
-typedef tvec3<float> vec3;
+typedef details::TVec3<double> double3;
+typedef details::TVec3<float> float3;
+typedef details::TVec3<float> vec3;
+typedef details::TVec3<half> half3;
+typedef details::TVec3<int32_t> int3;
+typedef details::TVec3<uint32_t> uint3;
+typedef details::TVec3<int16_t> short3;
+typedef details::TVec3<uint16_t> ushort3;
+typedef details::TVec3<int8_t> byte3;
+typedef details::TVec3<uint8_t> ubyte3;
 
 // ----------------------------------------------------------------------------------------
-}; // namespace android
+}  // namespace android
 
-#endif /* UI_VEC4_H */
+#endif  // UI_VEC3_H_
