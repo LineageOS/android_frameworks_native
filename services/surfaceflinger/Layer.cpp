@@ -1930,12 +1930,6 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions)
         mFlinger->signalLayerUpdate();
     }
 
-    if (updateResult != NO_ERROR) {
-        // something happened!
-        recomputeVisibleRegions = true;
-        return outDirtyRegion;
-    }
-
     // update the active buffer
     mActiveBuffer = mSurfaceFlingerConsumer->getCurrentBuffer();
     if (mActiveBuffer == NULL) {
