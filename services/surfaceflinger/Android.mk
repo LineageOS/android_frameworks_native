@@ -15,6 +15,7 @@ LOCAL_SRC_FILES := \
     GpuService.cpp \
     Layer.cpp \
     LayerDim.cpp \
+    LayerRejecter.cpp \
     MessageQueue.cpp \
     MonitoredProducer.cpp \
     SurfaceFlingerConsumer.cpp \
