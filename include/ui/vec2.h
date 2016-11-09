@@ -14,25 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef UI_VEC2_H
-#define UI_VEC2_H
+#ifndef UI_VEC2_H_
+#define UI_VEC2_H_
 
+#include <ui/TVecHelpers.h>
+#include <ui/half.h>
+#include <assert.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <type_traits>
 
-#define TVEC_IMPLEMENTATION
-#include <ui/TVecHelpers.h>
 
 namespace android {
 // -------------------------------------------------------------------------------------
 
+namespace details {
+
 template <typename T>
-class tvec2 :   public TVecProductOperators<tvec2, T>,
-                public TVecAddOperators<tvec2, T>,
-                public TVecUnaryOperators<tvec2, T>,
-                public TVecComparisonOperators<tvec2, T>,
-                public TVecFunctions<tvec2, T>
-{
+class TVec2 :   public TVecProductOperators<TVec2, T>,
+                public TVecAddOperators<TVec2, T>,
+                public TVecUnaryOperators<TVec2, T>,
+                public TVecComparisonOperators<TVec2, T>,
+                public TVecFunctions<TVec2, T>,
+                public TVecDebug<TVec2, T> {
 public:
     enum no_init { NO_INIT };
     typedef T value_type;
@@ -46,46 +50,73 @@ public:
         struct { T r, g; };
     };
 
-    enum { SIZE = 2 };
-    inline static size_type size() { return SIZE; }
+    static constexpr size_t SIZE = 2;
+    inline constexpr size_type size() const { return SIZE; }
 
     // array access
-    inline T const& operator [] (size_t i) const { return (&x)[i]; }
-    inline T&       operator [] (size_t i)       { return (&x)[i]; }
+    inline constexpr T const& operator[](size_t i) const {
+#if __cplusplus >= 201402L
+        // only possible in C++0x14 with constexpr
+        assert(i < SIZE);
+#endif
+        return (&x)[i];
+    }
+
+    inline T& operator[](size_t i) {
+        assert(i < SIZE);
+        return (&x)[i];
+    }
 
     // -----------------------------------------------------------------------
-    // we don't provide copy-ctor and operator= on purpose
-    // because we want the compiler generated versions
+    // we want the compiler generated versions for these...
+    TVec2(const TVec2&) = default;
+    ~TVec2() = default;
+    TVec2& operator = (const TVec2&) = default;
 
     // constructors
 
     // leaves object uninitialized. use with caution.
-    explicit tvec2(no_init) { }
+    explicit
+    constexpr TVec2(no_init) { }
 
     // default constructor
-    tvec2() : x(0), y(0) { }
+    constexpr TVec2() : x(0), y(0) { }
 
     // handles implicit conversion to a tvec4. must not be explicit.
-    template<typename A>
-    tvec2(A v) : x(v), y(v) { }
+    template<typename A, typename = typename std::enable_if<std::is_arithmetic<A>::value >::type>
+    constexpr TVec2(A v) : x(v), y(v) { }
 
     template<typename A, typename B>
-    tvec2(A x, B y) : x(x), y(y) { }
+    constexpr TVec2(A x, B y) : x(x), y(y) { }
 
     template<typename A>
-    explicit tvec2(const tvec2<A>& v) : x(v.x), y(v.y) { }
+    explicit
+    constexpr TVec2(const TVec2<A>& v) : x(v.x), y(v.y) { }
 
-    template<typename A>
-    tvec2(const Impersonator< tvec2<A> >& v)
-        : x(((const tvec2<A>&)v).x),
-          y(((const tvec2<A>&)v).y) { }
+    // cross product works only on vectors of size 2 or 3
+    template <typename RT>
+    friend inline
+    constexpr value_type cross(const TVec2& u, const TVec2<RT>& v) {
+        return value_type(u.x*v.y - u.y*v.x);
+    }
 };
 
-// ----------------------------------------------------------------------------------------
-
-typedef tvec2<float> vec2;
+}  // namespace details
 
 // ----------------------------------------------------------------------------------------
-}; // namespace android
 
-#endif /* UI_VEC4_H */
+typedef details::TVec2<double> double2;
+typedef details::TVec2<float> float2;
+typedef details::TVec2<float> vec2;
+typedef details::TVec2<half> half2;
+typedef details::TVec2<int32_t> int2;
+typedef details::TVec2<uint32_t> uint2;
+typedef details::TVec2<int16_t> short2;
+typedef details::TVec2<uint16_t> ushort2;
+typedef details::TVec2<int8_t> byte2;
+typedef details::TVec2<uint8_t> ubyte2;
+
+// ----------------------------------------------------------------------------------------
+}  // namespace android
+
+#endif  // UI_VEC2_H_

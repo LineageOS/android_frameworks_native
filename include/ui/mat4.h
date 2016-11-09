@@ -14,173 +14,325 @@
  * limitations under the License.
  */
 
-#ifndef UI_MAT4_H
-#define UI_MAT4_H
+#ifndef UI_MAT4_H_
+#define UI_MAT4_H_
+
+#include <ui/mat3.h>
+#include <ui/quat.h>
+#include <ui/TMatHelpers.h>
+#include <ui/vec3.h>
+#include <ui/vec4.h>
 
 #include <stdint.h>
 #include <sys/types.h>
-
-#include <ui/vec4.h>
-#include <utils/String8.h>
-
-#define TMAT_IMPLEMENTATION
-#include <ui/TMatHelpers.h>
+#include <limits>
 
 #define PURE __attribute__((pure))
 
 namespace android {
 // -------------------------------------------------------------------------------------
+namespace details {
 
+template<typename T>
+class TQuaternion;
+
+/**
+ * A 4x4 column-major matrix class.
+ *
+ * Conceptually a 4x4 matrix is a an array of 4 column double4:
+ *
+ * mat4 m =
+ *      \f$
+ *      \left(
+ *      \begin{array}{cccc}
+ *      m[0] & m[1] & m[2] & m[3] \\
+ *      \end{array}
+ *      \right)
+ *      \f$
+ *      =
+ *      \f$
+ *      \left(
+ *      \begin{array}{cccc}
+ *      m[0][0] & m[1][0] & m[2][0] & m[3][0] \\
+ *      m[0][1] & m[1][1] & m[2][1] & m[3][1] \\
+ *      m[0][2] & m[1][2] & m[2][2] & m[3][2] \\
+ *      m[0][3] & m[1][3] & m[2][3] & m[3][3] \\
+ *      \end{array}
+ *      \right)
+ *      \f$
+ *      =
+ *      \f$
+ *      \left(
+ *      \begin{array}{cccc}
+ *      m(0,0) & m(0,1) & m(0,2) & m(0,3) \\
+ *      m(1,0) & m(1,1) & m(1,2) & m(1,3) \\
+ *      m(2,0) & m(2,1) & m(2,2) & m(2,3) \\
+ *      m(3,0) & m(3,1) & m(3,2) & m(3,3) \\
+ *      \end{array}
+ *      \right)
+ *      \f$
+ *
+ * m[n] is the \f$ n^{th} \f$ column of the matrix and is a double4.
+ *
+ */
 template <typename T>
-class tmat44 :  public TVecUnaryOperators<tmat44, T>,
-                public TVecComparisonOperators<tmat44, T>,
-                public TVecAddOperators<tmat44, T>,
-                public TMatProductOperators<tmat44, T>,
-                public TMatSquareFunctions<tmat44, T>,
-                public TMatDebug<tmat44, T>
-{
+class TMat44 :  public TVecUnaryOperators<TMat44, T>,
+                public TVecComparisonOperators<TMat44, T>,
+                public TVecAddOperators<TMat44, T>,
+                public TMatProductOperators<TMat44, T>,
+                public TMatSquareFunctions<TMat44, T>,
+                public TMatTransform<TMat44, T>,
+                public TMatHelpers<TMat44, T>,
+                public TMatDebug<TMat44, T> {
 public:
     enum no_init { NO_INIT };
     typedef T value_type;
     typedef T& reference;
     typedef T const& const_reference;
     typedef size_t size_type;
-    typedef tvec4<T> col_type;
-    typedef tvec4<T> row_type;
+    typedef TVec4<T> col_type;
+    typedef TVec4<T> row_type;
 
-    // size of a column (i.e.: number of rows)
-    enum { COL_SIZE = col_type::SIZE };
-    static inline size_t col_size() { return COL_SIZE; }
-
-    // size of a row (i.e.: number of columns)
-    enum { ROW_SIZE = row_type::SIZE };
-    static inline size_t row_size() { return ROW_SIZE; }
-    static inline size_t size()     { return row_size(); }  // for TVec*<>
+    static constexpr size_t COL_SIZE = col_type::SIZE;  // size of a column (i.e.: number of rows)
+    static constexpr size_t ROW_SIZE = row_type::SIZE;  // size of a row (i.e.: number of columns)
+    static constexpr size_t NUM_ROWS = COL_SIZE;
+    static constexpr size_t NUM_COLS = ROW_SIZE;
 
 private:
-
     /*
      *  <--  N columns  -->
      *
-     *  a00 a10 a20 ... aN0    ^
-     *  a01 a11 a21 ... aN1    |
-     *  a02 a12 a22 ... aN2  M rows
-     *  ...                    |
-     *  a0M a1M a2M ... aNM    v
+     *  a[0][0] a[1][0] a[2][0] ... a[N][0]    ^
+     *  a[0][1] a[1][1] a[2][1] ... a[N][1]    |
+     *  a[0][2] a[1][2] a[2][2] ... a[N][2]  M rows
+     *  ...                                    |
+     *  a[0][M] a[1][M] a[2][M] ... a[N][M]    v
      *
      *  COL_SIZE = M
      *  ROW_SIZE = N
-     *  m[0] = [a00 a01 a02 ... a01M]
+     *  m[0] = [ a[0][0] a[0][1] a[0][2] ... a[0][M] ]
      */
 
-    col_type mValue[ROW_SIZE];
+    col_type m_value[NUM_COLS];
 
 public:
     // array access
-    inline col_type const& operator [] (size_t i) const { return mValue[i]; }
-    inline col_type&       operator [] (size_t i)       { return mValue[i]; }
+    inline constexpr col_type const& operator[](size_t column) const {
+#if __cplusplus >= 201402L
+        // only possible in C++0x14 with constexpr
+        assert(column < NUM_COLS);
+#endif
+        return m_value[column];
+    }
 
-    T const* asArray() const { return &mValue[0][0]; }
+    inline col_type& operator[](size_t column) {
+        assert(column < NUM_COLS);
+        return m_value[column];
+    }
 
     // -----------------------------------------------------------------------
-    // we don't provide copy-ctor and operator= on purpose
-    // because we want the compiler generated versions
+    // we want the compiler generated versions for these...
+    TMat44(const TMat44&) = default;
+    ~TMat44() = default;
+    TMat44& operator = (const TMat44&) = default;
 
     /*
      *  constructors
      */
 
     // leaves object uninitialized. use with caution.
-    explicit tmat44(no_init) { }
+    explicit
+    constexpr TMat44(no_init)
+            : m_value{ col_type(col_type::NO_INIT),
+                       col_type(col_type::NO_INIT),
+                       col_type(col_type::NO_INIT),
+                       col_type(col_type::NO_INIT) } {}
 
-    // initialize to identity
-    tmat44();
+    /** initialize to identity.
+     *
+     *      \f$
+     *      \left(
+     *      \begin{array}{cccc}
+     *      1 & 0 & 0 & 0 \\
+     *      0 & 1 & 0 & 0 \\
+     *      0 & 0 & 1 & 0 \\
+     *      0 & 0 & 0 & 1 \\
+     *      \end{array}
+     *      \right)
+     *      \f$
+     */
+    TMat44();
 
-    // initialize to Identity*scalar.
+    /** initialize to Identity*scalar.
+     *
+     *      \f$
+     *      \left(
+     *      \begin{array}{cccc}
+     *      v & 0 & 0 & 0 \\
+     *      0 & v & 0 & 0 \\
+     *      0 & 0 & v & 0 \\
+     *      0 & 0 & 0 & v \\
+     *      \end{array}
+     *      \right)
+     *      \f$
+     */
     template<typename U>
-    explicit tmat44(U v);
+    explicit TMat44(U v);
 
-    // sets the diagonal to the passed vector
+    /** sets the diagonal to a vector.
+     *
+     *      \f$
+     *      \left(
+     *      \begin{array}{cccc}
+     *      v[0] & 0 & 0 & 0 \\
+     *      0 & v[1] & 0 & 0 \\
+     *      0 & 0 & v[2] & 0 \\
+     *      0 & 0 & 0 & v[3] \\
+     *      \end{array}
+     *      \right)
+     *      \f$
+     */
     template <typename U>
-    explicit tmat44(const tvec4<U>& rhs);
+    explicit TMat44(const TVec4<U>& v);
 
     // construct from another matrix of the same size
     template <typename U>
-    explicit tmat44(const tmat44<U>& rhs);
+    explicit TMat44(const TMat44<U>& rhs);
 
-    // construct from 4 column vectors
+    /** construct from 4 column vectors.
+     *
+     *      \f$
+     *      \left(
+     *      \begin{array}{cccc}
+     *      v0 & v1 & v2 & v3 \\
+     *      \end{array}
+     *      \right)
+     *      \f$
+     */
     template <typename A, typename B, typename C, typename D>
-    tmat44(const tvec4<A>& v0, const tvec4<B>& v1, const tvec4<C>& v2, const tvec4<D>& v3);
+    TMat44(const TVec4<A>& v0, const TVec4<B>& v1, const TVec4<C>& v2, const TVec4<D>& v3);
 
-    // construct from 16 scalars
+    /** construct from 16 elements in column-major form.
+     *
+     *      \f$
+     *      \left(
+     *      \begin{array}{cccc}
+     *      m[0][0] & m[1][0] & m[2][0] & m[3][0] \\
+     *      m[0][1] & m[1][1] & m[2][1] & m[3][1] \\
+     *      m[0][2] & m[1][2] & m[2][2] & m[3][2] \\
+     *      m[0][3] & m[1][3] & m[2][3] & m[3][3] \\
+     *      \end{array}
+     *      \right)
+     *      \f$
+     */
     template <
         typename A, typename B, typename C, typename D,
         typename E, typename F, typename G, typename H,
         typename I, typename J, typename K, typename L,
         typename M, typename N, typename O, typename P>
-    tmat44( A m00, B m01, C m02, D m03,
-            E m10, F m11, G m12, H m13,
-            I m20, J m21, K m22, L m23,
-            M m30, N m31, O m32, P m33);
+    TMat44(A m00, B m01, C m02, D m03,
+           E m10, F m11, G m12, H m13,
+           I m20, J m21, K m22, L m23,
+           M m30, N m31, O m32, P m33);
 
-    // construct from a C array
+    /**
+     * construct from a quaternion
+     */
     template <typename U>
-    explicit tmat44(U const* rawArray);
+    explicit TMat44(const TQuaternion<U>& q);
+
+    /**
+     * construct from a C array in column major form.
+     */
+    template <typename U>
+    explicit TMat44(U const* rawArray);
+
+    /**
+     * construct from a 3x3 matrix
+     */
+    template <typename U>
+    explicit TMat44(const TMat33<U>& matrix);
+
+    /**
+     * construct from a 3x3 matrix and 3d translation
+     */
+    template <typename U, typename V>
+    TMat44(const TMat33<U>& matrix, const TVec3<V>& translation);
+
+    /**
+     * construct from a 3x3 matrix and 4d last column.
+     */
+    template <typename U, typename V>
+    TMat44(const TMat33<U>& matrix, const TVec4<V>& column3);
 
     /*
      *  helpers
      */
 
-    static tmat44 ortho(T left, T right, T bottom, T top, T near, T far);
+    static TMat44 ortho(T left, T right, T bottom, T top, T near, T far);
 
-    static tmat44 frustum(T left, T right, T bottom, T top, T near, T far);
+    static TMat44 frustum(T left, T right, T bottom, T top, T near, T far);
+
+    enum class Fov {
+        HORIZONTAL,
+        VERTICAL
+    };
+    static TMat44 perspective(T fov, T aspect, T near, T far, Fov direction = Fov::VERTICAL);
 
     template <typename A, typename B, typename C>
-    static tmat44 lookAt(const tvec3<A>& eye, const tvec3<B>& center, const tvec3<C>& up);
+    static TMat44 lookAt(const TVec3<A>& eye, const TVec3<B>& center, const TVec3<C>& up);
 
     template <typename A>
-    static tmat44 translate(const tvec4<A>& t);
+    static TVec3<A> project(const TMat44& projectionMatrix, TVec3<A> vertice) {
+        TVec4<A> r = projectionMatrix * TVec4<A>{ vertice, 1 };
+        return r.xyz / r.w;
+    }
 
     template <typename A>
-    static tmat44 scale(const tvec4<A>& s);
+    static TVec4<A> project(const TMat44& projectionMatrix, TVec4<A> vertice) {
+        vertice = projectionMatrix * vertice;
+        return { vertice.xyz / vertice.w, 1 };
+    }
 
-    template <typename A, typename B>
-    static tmat44 rotate(A radian, const tvec3<B>& about);
+    /**
+     * Constructs a 3x3 matrix from the upper-left corner of this 4x4 matrix
+     */
+    inline constexpr TMat33<T> upperLeft() const {
+        return TMat33<T>(m_value[0].xyz, m_value[1].xyz, m_value[2].xyz);
+    }
 };
 
 // ----------------------------------------------------------------------------------------
 // Constructors
 // ----------------------------------------------------------------------------------------
 
-/*
- * Since the matrix code could become pretty big quickly, we don't inline most
- * operations.
- */
+// Since the matrix code could become pretty big quickly, we don't inline most
+// operations.
 
 template <typename T>
-tmat44<T>::tmat44() {
-    mValue[0] = col_type(1,0,0,0);
-    mValue[1] = col_type(0,1,0,0);
-    mValue[2] = col_type(0,0,1,0);
-    mValue[3] = col_type(0,0,0,1);
+TMat44<T>::TMat44() {
+    m_value[0] = col_type(1, 0, 0, 0);
+    m_value[1] = col_type(0, 1, 0, 0);
+    m_value[2] = col_type(0, 0, 1, 0);
+    m_value[3] = col_type(0, 0, 0, 1);
 }
 
 template <typename T>
 template <typename U>
-tmat44<T>::tmat44(U v) {
-    mValue[0] = col_type(v,0,0,0);
-    mValue[1] = col_type(0,v,0,0);
-    mValue[2] = col_type(0,0,v,0);
-    mValue[3] = col_type(0,0,0,v);
+TMat44<T>::TMat44(U v) {
+    m_value[0] = col_type(v, 0, 0, 0);
+    m_value[1] = col_type(0, v, 0, 0);
+    m_value[2] = col_type(0, 0, v, 0);
+    m_value[3] = col_type(0, 0, 0, v);
 }
 
 template<typename T>
 template<typename U>
-tmat44<T>::tmat44(const tvec4<U>& v) {
-    mValue[0] = col_type(v.x,0,0,0);
-    mValue[1] = col_type(0,v.y,0,0);
-    mValue[2] = col_type(0,0,v.z,0);
-    mValue[3] = col_type(0,0,0,v.w);
+TMat44<T>::TMat44(const TVec4<U>& v) {
+    m_value[0] = col_type(v.x, 0, 0, 0);
+    m_value[1] = col_type(0, v.y, 0, 0);
+    m_value[2] = col_type(0, 0, v.z, 0);
+    m_value[3] = col_type(0, 0, 0, v.w);
 }
 
 // construct from 16 scalars
@@ -190,38 +342,93 @@ template <
     typename E, typename F, typename G, typename H,
     typename I, typename J, typename K, typename L,
     typename M, typename N, typename O, typename P>
-tmat44<T>::tmat44(  A m00, B m01, C m02, D m03,
-                    E m10, F m11, G m12, H m13,
-                    I m20, J m21, K m22, L m23,
-                    M m30, N m31, O m32, P m33) {
-    mValue[0] = col_type(m00, m01, m02, m03);
-    mValue[1] = col_type(m10, m11, m12, m13);
-    mValue[2] = col_type(m20, m21, m22, m23);
-    mValue[3] = col_type(m30, m31, m32, m33);
+TMat44<T>::TMat44(A m00, B m01, C m02, D m03,
+                  E m10, F m11, G m12, H m13,
+                  I m20, J m21, K m22, L m23,
+                  M m30, N m31, O m32, P m33) {
+    m_value[0] = col_type(m00, m01, m02, m03);
+    m_value[1] = col_type(m10, m11, m12, m13);
+    m_value[2] = col_type(m20, m21, m22, m23);
+    m_value[3] = col_type(m30, m31, m32, m33);
 }
 
 template <typename T>
 template <typename U>
-tmat44<T>::tmat44(const tmat44<U>& rhs) {
-    for (size_t r=0 ; r<row_size() ; r++)
-        mValue[r] = rhs[r];
+TMat44<T>::TMat44(const TMat44<U>& rhs) {
+    for (size_t col = 0; col < NUM_COLS; ++col) {
+        m_value[col] = col_type(rhs[col]);
+    }
 }
 
+// Construct from 4 column vectors.
 template <typename T>
 template <typename A, typename B, typename C, typename D>
-tmat44<T>::tmat44(const tvec4<A>& v0, const tvec4<B>& v1, const tvec4<C>& v2, const tvec4<D>& v3) {
-    mValue[0] = v0;
-    mValue[1] = v1;
-    mValue[2] = v2;
-    mValue[3] = v3;
+TMat44<T>::TMat44(const TVec4<A>& v0, const TVec4<B>& v1, const TVec4<C>& v2, const TVec4<D>& v3) {
+    m_value[0] = col_type(v0);
+    m_value[1] = col_type(v1);
+    m_value[2] = col_type(v2);
+    m_value[3] = col_type(v3);
+}
+
+// Construct from raw array, in column-major form.
+template <typename T>
+template <typename U>
+TMat44<T>::TMat44(U const* rawArray) {
+    for (size_t col = 0; col < NUM_COLS; ++col) {
+        for (size_t row = 0; row < NUM_ROWS; ++row) {
+            m_value[col][row] = *rawArray++;
+        }
+    }
 }
 
 template <typename T>
 template <typename U>
-tmat44<T>::tmat44(U const* rawArray) {
-    for (size_t r=0 ; r<row_size() ; r++)
-        for (size_t c=0 ; c<col_size() ; c++)
-            mValue[r][c] = *rawArray++;
+TMat44<T>::TMat44(const TQuaternion<U>& q) {
+    const U n = q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w;
+    const U s = n > 0 ? 2/n : 0;
+    const U x = s*q.x;
+    const U y = s*q.y;
+    const U z = s*q.z;
+    const U xx = x*q.x;
+    const U xy = x*q.y;
+    const U xz = x*q.z;
+    const U xw = x*q.w;
+    const U yy = y*q.y;
+    const U yz = y*q.z;
+    const U yw = y*q.w;
+    const U zz = z*q.z;
+    const U zw = z*q.w;
+    m_value[0] = col_type(1-yy-zz,    xy+zw,    xz-yw,   0);
+    m_value[1] = col_type(  xy-zw,  1-xx-zz,    yz+xw,   0);  // NOLINT
+    m_value[2] = col_type(  xz+yw,    yz-xw,  1-xx-yy,   0);  // NOLINT
+    m_value[3] = col_type(      0,        0,        0,   1);  // NOLINT
+}
+
+template <typename T>
+template <typename U>
+TMat44<T>::TMat44(const TMat33<U>& m) {
+    m_value[0] = col_type(m[0][0], m[0][1], m[0][2], 0);
+    m_value[1] = col_type(m[1][0], m[1][1], m[1][2], 0);
+    m_value[2] = col_type(m[2][0], m[2][1], m[2][2], 0);
+    m_value[3] = col_type(      0,       0,       0, 1);  // NOLINT
+}
+
+template <typename T>
+template <typename U, typename V>
+TMat44<T>::TMat44(const TMat33<U>& m, const TVec3<V>& v) {
+    m_value[0] = col_type(m[0][0], m[0][1], m[0][2], 0);
+    m_value[1] = col_type(m[1][0], m[1][1], m[1][2], 0);
+    m_value[2] = col_type(m[2][0], m[2][1], m[2][2], 0);
+    m_value[3] = col_type(   v[0],    v[1],    v[2], 1);  // NOLINT
+}
+
+template <typename T>
+template <typename U, typename V>
+TMat44<T>::TMat44(const TMat33<U>& m, const TVec4<V>& v) {
+    m_value[0] = col_type(m[0][0], m[0][1], m[0][2],    0);  // NOLINT
+    m_value[1] = col_type(m[1][0], m[1][1], m[1][2],    0);  // NOLINT
+    m_value[2] = col_type(m[2][0], m[2][1], m[2][2],    0);  // NOLINT
+    m_value[3] = col_type(   v[0],    v[1],    v[2], v[3]);  // NOLINT
 }
 
 // ----------------------------------------------------------------------------------------
@@ -229,8 +436,8 @@ tmat44<T>::tmat44(U const* rawArray) {
 // ----------------------------------------------------------------------------------------
 
 template <typename T>
-tmat44<T> tmat44<T>::ortho(T left, T right, T bottom, T top, T near, T far) {
-    tmat44<T> m;
+TMat44<T> TMat44<T>::ortho(T left, T right, T bottom, T top, T near, T far) {
+    TMat44<T> m;
     m[0][0] =  2 / (right - left);
     m[1][1] =  2 / (top   - bottom);
     m[2][2] = -2 / (far   - near);
@@ -241,88 +448,55 @@ tmat44<T> tmat44<T>::ortho(T left, T right, T bottom, T top, T near, T far) {
 }
 
 template <typename T>
-tmat44<T> tmat44<T>::frustum(T left, T right, T bottom, T top, T near, T far) {
-    tmat44<T> m;
-    T A = (right + left)   / (right - left);
-    T B = (top   + bottom) / (top   - bottom);
-    T C = (far   + near)   / (far   - near);
-    T D = (2 * far * near) / (far   - near);
-    m[0][0] = (2 * near) / (right - left);
-    m[1][1] = (2 * near) / (top   - bottom);
-    m[2][0] = A;
-    m[2][1] = B;
-    m[2][2] = C;
-    m[2][3] =-1;
-    m[3][2] = D;
-    m[3][3] = 0;
+TMat44<T> TMat44<T>::frustum(T left, T right, T bottom, T top, T near, T far) {
+    TMat44<T> m;
+    m[0][0] =  (2 * near) / (right - left);
+    m[1][1] =  (2 * near) / (top   - bottom);
+    m[2][0] =  (right + left)   / (right - left);
+    m[2][1] =  (top   + bottom) / (top   - bottom);
+    m[2][2] = -(far   + near)   / (far   - near);
+    m[2][3] = -1;
+    m[3][2] = -(2 * far * near) / (far   - near);
+    m[3][3] =  0;
     return m;
 }
 
 template <typename T>
-template <typename A, typename B, typename C>
-tmat44<T> tmat44<T>::lookAt(const tvec3<A>& eye, const tvec3<B>& center, const tvec3<C>& up) {
-    tvec3<T> L(normalize(center - eye));
-    tvec3<T> S(normalize( cross(L, up) ));
-    tvec3<T> U(cross(S, L));
-    return tmat44<T>(
-            tvec4<T>( S, 0),
-            tvec4<T>( U, 0),
-            tvec4<T>(-L, 0),
-            tvec4<T>(-eye, 1));
-}
+TMat44<T> TMat44<T>::perspective(T fov, T aspect, T near, T far, TMat44::Fov direction) {
+    T h;
+    T w;
 
-template <typename T>
-template <typename A>
-tmat44<T> tmat44<T>::translate(const tvec4<A>& t) {
-    tmat44<T> r;
-    r[3] = t;
-    return r;
-}
-
-template <typename T>
-template <typename A>
-tmat44<T> tmat44<T>::scale(const tvec4<A>& s) {
-    tmat44<T> r;
-    r[0][0] = s[0];
-    r[1][1] = s[1];
-    r[2][2] = s[2];
-    r[3][3] = s[3];
-    return r;
-}
-
-template <typename T>
-template <typename A, typename B>
-tmat44<T> tmat44<T>::rotate(A radian, const tvec3<B>& about) {
-    tmat44<T> rotation;
-    T* r = const_cast<T*>(rotation.asArray());
-    T c = cos(radian);
-    T s = sin(radian);
-    if (about.x==1 && about.y==0 && about.z==0) {
-        r[5] = c;   r[10]= c;
-        r[6] = s;   r[9] = -s;
-    } else if (about.x==0 && about.y==1 && about.z==0) {
-        r[0] = c;   r[10]= c;
-        r[8] = s;   r[2] = -s;
-    } else if (about.x==0 && about.y==0 && about.z==1) {
-        r[0] = c;   r[5] = c;
-        r[1] = s;   r[4] = -s;
+    if (direction == TMat44::Fov::VERTICAL) {
+        h = std::tan(fov * M_PI / 360.0f) * near;
+        w = h * aspect;
     } else {
-        tvec3<B> nabout = normalize(about);
-        B x = nabout.x;
-        B y = nabout.y;
-        B z = nabout.z;
-        T nc = 1 - c;
-        T xy = x * y;
-        T yz = y * z;
-        T zx = z * x;
-        T xs = x * s;
-        T ys = y * s;
-        T zs = z * s;
-        r[ 0] = x*x*nc +  c;    r[ 4] =  xy*nc - zs;    r[ 8] =  zx*nc + ys;
-        r[ 1] =  xy*nc + zs;    r[ 5] = y*y*nc +  c;    r[ 9] =  yz*nc - xs;
-        r[ 2] =  zx*nc - ys;    r[ 6] =  yz*nc + xs;    r[10] = z*z*nc +  c;
+        w = std::tan(fov * M_PI / 360.0f) * near;
+        h = w / aspect;
     }
-    return rotation;
+    return frustum(-w, w, -h, h, near, far);
+}
+
+/*
+ * Returns a matrix representing the pose of a virtual camera looking towards -Z in its
+ * local Y-up coordinate system. "eye" is where the camera is located, "center" is the points its
+ * looking at and "up" defines where the Y axis of the camera's local coordinate system is.
+ */
+template <typename T>
+template <typename A, typename B, typename C>
+TMat44<T> TMat44<T>::lookAt(const TVec3<A>& eye, const TVec3<B>& center, const TVec3<C>& up) {
+    TVec3<T> z_axis(normalize(center - eye));
+    TVec3<T> norm_up(normalize(up));
+    if (std::abs(dot(z_axis, norm_up)) > 0.999) {
+        // Fix up vector if we're degenerate (looking straight up, basically)
+        norm_up = { norm_up.z, norm_up.x, norm_up.y };
+    }
+    TVec3<T> x_axis(normalize(cross(z_axis, norm_up)));
+    TVec3<T> y_axis(cross(x_axis, z_axis));
+    return TMat44<T>(
+            TVec4<T>(x_axis, 0),
+            TVec4<T>(y_axis, 0),
+            TVec4<T>(-z_axis, 0),
+            TVec4<T>(eye, 1));
 }
 
 // ----------------------------------------------------------------------------------------
@@ -337,40 +511,46 @@ tmat44<T> tmat44<T>::rotate(A radian, const tvec3<B>& about) {
  * it determines the output type (only relevant when T != U).
  */
 
-// matrix * vector, result is a vector of the same type than the input vector
+// matrix * column-vector, result is a vector of the same type than the input vector
 template <typename T, typename U>
-typename tmat44<U>::col_type PURE operator *(const tmat44<T>& lv, const tvec4<U>& rv) {
-    typename tmat44<U>::col_type result;
-    for (size_t r=0 ; r<tmat44<T>::row_size() ; r++)
-        result += rv[r]*lv[r];
+typename TMat44<T>::col_type PURE operator *(const TMat44<T>& lhs, const TVec4<U>& rhs) {
+    // Result is initialized to zero.
+    typename TMat44<T>::col_type result;
+    for (size_t col = 0; col < TMat44<T>::NUM_COLS; ++col) {
+        result += lhs[col] * rhs[col];
+    }
     return result;
 }
 
-// vector * matrix, result is a vector of the same type than the input vector
+// mat44 * vec3, result is vec3( mat44 * {vec3, 1} )
 template <typename T, typename U>
-typename tmat44<U>::row_type PURE operator *(const tvec4<U>& rv, const tmat44<T>& lv) {
-    typename tmat44<U>::row_type result(tmat44<U>::row_type::NO_INIT);
-    for (size_t r=0 ; r<tmat44<T>::row_size() ; r++)
-        result[r] = dot(rv, lv[r]);
+typename TMat44<T>::col_type PURE operator *(const TMat44<T>& lhs, const TVec3<U>& rhs) {
+    return lhs * TVec4<U>{ rhs, 1 };
+}
+
+
+// row-vector * matrix, result is a vector of the same type than the input vector
+template <typename T, typename U>
+typename TMat44<U>::row_type PURE operator *(const TVec4<U>& lhs, const TMat44<T>& rhs) {
+    typename TMat44<U>::row_type result(TMat44<U>::row_type::NO_INIT);
+    for (size_t col = 0; col < TMat44<T>::NUM_COLS; ++col) {
+        result[col] = dot(lhs, rhs[col]);
+    }
     return result;
 }
 
 // matrix * scalar, result is a matrix of the same type than the input matrix
 template <typename T, typename U>
-tmat44<T> PURE operator *(const tmat44<T>& lv, U rv) {
-    tmat44<T> result(tmat44<T>::NO_INIT);
-    for (size_t r=0 ; r<tmat44<T>::row_size() ; r++)
-        result[r] = lv[r]*rv;
-    return result;
+constexpr typename std::enable_if<std::is_arithmetic<U>::value, TMat44<T>>::type PURE
+operator *(TMat44<T> lhs, U rhs) {
+    return lhs *= rhs;
 }
 
 // scalar * matrix, result is a matrix of the same type than the input matrix
 template <typename T, typename U>
-tmat44<T> PURE operator *(U rv, const tmat44<T>& lv) {
-    tmat44<T> result(tmat44<T>::NO_INIT);
-    for (size_t r=0 ; r<tmat44<T>::row_size() ; r++)
-        result[r] = lv[r]*rv;
-    return result;
+constexpr typename std::enable_if<std::is_arithmetic<U>::value, TMat44<T>>::type PURE
+operator *(U lhs, const TMat44<T>& rhs) {
+    return rhs * lhs;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -379,17 +559,21 @@ tmat44<T> PURE operator *(U rv, const tmat44<T>& lv) {
  * BASE<T>::col_type is not accessible from there (???)
  */
 template<typename T>
-typename tmat44<T>::col_type PURE diag(const tmat44<T>& m) {
+typename TMat44<T>::col_type PURE diag(const TMat44<T>& m) {
     return matrix::diag(m);
 }
 
-// ----------------------------------------------------------------------------------------
-
-typedef tmat44<float> mat4;
+} // namespace details
 
 // ----------------------------------------------------------------------------------------
-}; // namespace android
+
+typedef details::TMat44<double> mat4d;
+typedef details::TMat44<float> mat4;
+typedef details::TMat44<float> mat4f;
+
+// ----------------------------------------------------------------------------------------
+}  // namespace android
 
 #undef PURE
 
-#endif /* UI_MAT4_H */
+#endif  // UI_MAT4_H_
