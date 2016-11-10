@@ -28,6 +28,12 @@
 
 #define PURE __attribute__((pure))
 
+#if __cplusplus >= 201402L
+#define CONSTEXPR constexpr
+#else
+#define CONSTEXPR
+#endif
+
 namespace android {
 namespace details {
 // -------------------------------------------------------------------------------------
@@ -228,6 +234,7 @@ public:
         }
         return rhs;
     }
+
     VECTOR<T>& operator --() {
         VECTOR<T>& rhs = static_cast<VECTOR<T>&>(*this);
         for (size_t i = 0; i < rhs.size(); i++) {
@@ -235,7 +242,8 @@ public:
         }
         return rhs;
     }
-    VECTOR<T> operator -() const {
+
+    CONSTEXPR VECTOR<T> operator -() const {
         VECTOR<T> r(VECTOR<T>::NO_INIT);
         VECTOR<T> const& rv(static_cast<VECTOR<T> const&>(*this));
         for (size_t i = 0; i < r.size(); i++) {
@@ -333,7 +341,7 @@ public:
      * (the first one, BASE<T> being known).
      */
     template<typename RT>
-    friend inline T PURE dot(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
+    friend inline CONSTEXPR T PURE dot(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         T r(0);
         for (size_t i = 0; i < lv.size(); i++) {
             //r = std::fma(lv[i], rv[i], r);
@@ -372,71 +380,71 @@ public:
         return lv * (T(1) / length(lv));
     }
 
-    friend inline VECTOR<T> PURE rcp(VECTOR<T> v) {
+    friend inline constexpr VECTOR<T> PURE rcp(VECTOR<T> v) {
         return T(1) / v;
     }
 
-    friend inline VECTOR<T> PURE abs(VECTOR<T> v) {
+    friend inline CONSTEXPR VECTOR<T> PURE abs(VECTOR<T> v) {
         for (size_t i=0 ; i<v.size() ; i++) {
             v[i] = std::abs(v[i]);
         }
         return v;
     }
 
-    friend inline VECTOR<T> PURE floor(VECTOR<T> v) {
+    friend inline CONSTEXPR VECTOR<T> PURE floor(VECTOR<T> v) {
         for (size_t i=0 ; i<v.size() ; i++) {
             v[i] = std::floor(v[i]);
         }
         return v;
     }
 
-    friend inline VECTOR<T> PURE ceil(VECTOR<T> v) {
+    friend inline CONSTEXPR VECTOR<T> PURE ceil(VECTOR<T> v) {
         for (size_t i=0 ; i<v.size() ; i++) {
             v[i] = std::ceil(v[i]);
         }
         return v;
     }
 
-    friend inline VECTOR<T> PURE round(VECTOR<T> v) {
+    friend inline CONSTEXPR VECTOR<T> PURE round(VECTOR<T> v) {
         for (size_t i=0 ; i<v.size() ; i++) {
             v[i] = std::round(v[i]);
         }
         return v;
     }
 
-    friend inline VECTOR<T> PURE inversesqrt(VECTOR<T> v) {
+    friend inline CONSTEXPR VECTOR<T> PURE inversesqrt(VECTOR<T> v) {
         for (size_t i=0 ; i<v.size() ; i++) {
             v[i] = T(1) / std::sqrt(v[i]);
         }
         return v;
     }
 
-    friend inline VECTOR<T> PURE sqrt(VECTOR<T> v) {
+    friend inline CONSTEXPR VECTOR<T> PURE sqrt(VECTOR<T> v) {
         for (size_t i=0 ; i<v.size() ; i++) {
             v[i] = std::sqrt(v[i]);
         }
         return v;
     }
 
-    friend inline VECTOR<T> PURE pow(VECTOR<T> v, T p) {
+    friend inline CONSTEXPR VECTOR<T> PURE pow(VECTOR<T> v, T p) {
         for (size_t i=0 ; i<v.size() ; i++) {
             v[i] = std::pow(v[i], p);
         }
         return v;
     }
 
-    friend inline VECTOR<T> PURE saturate(const VECTOR<T>& lv) {
+    friend inline CONSTEXPR VECTOR<T> PURE saturate(const VECTOR<T>& lv) {
         return clamp(lv, T(0), T(1));
     }
 
-    friend inline VECTOR<T> PURE clamp(VECTOR<T> v, T min, T max) {
+    friend inline CONSTEXPR VECTOR<T> PURE clamp(VECTOR<T> v, T min, T max) {
         for (size_t i=0 ; i< v.size() ; i++) {
             v[i] = std::min(max, std::max(min, v[i]));
         }
         return v;
     }
 
-    friend inline VECTOR<T> PURE fma(const VECTOR<T>& lv, const VECTOR<T>& rv, VECTOR<T> a) {
+    friend inline CONSTEXPR VECTOR<T> PURE fma(const VECTOR<T>& lv, const VECTOR<T>& rv, VECTOR<T> a) {
         for (size_t i=0 ; i<lv.size() ; i++) {
             //a[i] = std::fma(lv[i], rv[i], a[i]);
             a[i] += (lv[i] * rv[i]);
@@ -444,21 +452,21 @@ public:
         return a;
     }
 
-    friend inline VECTOR<T> PURE min(const VECTOR<T>& u, VECTOR<T> v) {
+    friend inline CONSTEXPR VECTOR<T> PURE min(const VECTOR<T>& u, VECTOR<T> v) {
         for (size_t i=0 ; i<v.size() ; i++) {
             v[i] = std::min(u[i], v[i]);
         }
         return v;
     }
 
-    friend inline VECTOR<T> PURE max(const VECTOR<T>& u, VECTOR<T> v) {
+    friend inline CONSTEXPR VECTOR<T> PURE max(const VECTOR<T>& u, VECTOR<T> v) {
         for (size_t i=0 ; i<v.size() ; i++) {
             v[i] = std::max(u[i], v[i]);
         }
         return v;
     }
 
-    friend inline T PURE max(const VECTOR<T>& v) {
+    friend inline CONSTEXPR T PURE max(const VECTOR<T>& v) {
         T r(std::numeric_limits<T>::lowest());
         for (size_t i=0 ; i<v.size() ; i++) {
             r = std::max(r, v[i]);
@@ -466,12 +474,19 @@ public:
         return r;
     }
 
-    friend inline T PURE min(const VECTOR<T>& v) {
+    friend inline CONSTEXPR T PURE min(const VECTOR<T>& v) {
         T r(std::numeric_limits<T>::max());
         for (size_t i=0 ; i<v.size() ; i++) {
             r = std::min(r, v[i]);
         }
         return r;
+    }
+
+    friend inline CONSTEXPR VECTOR<T> PURE apply(VECTOR<T> v, const std::function<T(T)>& f) {
+        for (size_t i=0 ; i<v.size() ; i++) {
+            v[i] = f(v[i]);
+        }
+        return v;
     }
 };
 
@@ -502,6 +517,7 @@ public:
     }
 };
 
+#undef CONSTEXPR
 #undef PURE
 
 // -------------------------------------------------------------------------------------

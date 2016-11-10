@@ -30,6 +30,12 @@
 #   define UNLIKELY( exp )  (__builtin_expect( !!(exp), 0 ))
 #endif
 
+#if __cplusplus >= 201402L
+#define CONSTEXPR constexpr
+#else
+#define CONSTEXPR
+#endif
+
 namespace android {
 
 /*
@@ -50,13 +56,13 @@ class half {
     struct fp16 {
         uint16_t bits = 0;
         fp16() noexcept = default;
-        explicit constexpr fp16(uint16_t bits) noexcept : bits(bits) { }
+        explicit constexpr fp16(uint16_t b) noexcept : bits(b) { }
         void setS(unsigned int s) noexcept { bits = uint16_t((bits & 0x7FFF) | (s<<15)); }
         void setE(unsigned int s) noexcept { bits = uint16_t((bits & 0xE3FF) | (s<<10)); }
         void setM(unsigned int s) noexcept { bits = uint16_t((bits & 0xFC00) | (s<< 0)); }
-        unsigned int getS() const noexcept { return  bits >> 15u; }
-        unsigned int getE() const noexcept { return (bits >> 10u) & 0x1Fu; }
-        unsigned int getM() const noexcept { return  bits         & 0x3FFu; }
+        constexpr unsigned int getS() const noexcept { return  bits >> 15u; }
+        constexpr unsigned int getE() const noexcept { return (bits >> 10u) & 0x1Fu; }
+        constexpr unsigned int getM() const noexcept { return  bits         & 0x3FFu; }
     };
     struct fp32 {
         union {
@@ -68,14 +74,14 @@ class half {
         void setS(unsigned int s) noexcept { bits = uint32_t((bits & 0x7FFFFFFF) | (s<<31)); }
         void setE(unsigned int s) noexcept { bits = uint32_t((bits & 0x807FFFFF) | (s<<23)); }
         void setM(unsigned int s) noexcept { bits = uint32_t((bits & 0xFF800000) | (s<< 0)); }
-        unsigned int getS() const noexcept { return  bits >> 31u; }
-        unsigned int getE() const noexcept { return (bits >> 23u) & 0xFFu; }
-        unsigned int getM() const noexcept { return  bits         & 0x7FFFFFu; }
+        constexpr unsigned int getS() const noexcept { return  bits >> 31u; }
+        constexpr unsigned int getE() const noexcept { return (bits >> 23u) & 0xFFu; }
+        constexpr unsigned int getM() const noexcept { return  bits         & 0x7FFFFFu; }
     };
 
 public:
-    half(float v) noexcept : mBits(ftoh(v)) { }
-    operator float() const noexcept { return htof(mBits); }
+    CONSTEXPR half(float v) noexcept : mBits(ftoh(v)) { }
+    CONSTEXPR operator float() const noexcept { return htof(mBits); }
 
     uint16_t getBits() const noexcept { return mBits.bits; }
     unsigned int getExponent() const noexcept { return mBits.getE(); }
@@ -83,23 +89,23 @@ public:
 
 private:
     friend class std::numeric_limits<half>;
-    friend half operator"" _hf(long double v);
+    friend CONSTEXPR half operator"" _hf(long double v);
 
     enum Binary { binary };
     explicit constexpr half(Binary, uint16_t bits) noexcept : mBits(bits) { }
-    static fp16 ftoh(float v) noexcept;
-    static float htof(fp16 v) noexcept;
+    static CONSTEXPR fp16 ftoh(float v) noexcept;
+    static CONSTEXPR float htof(fp16 v) noexcept;
     fp16 mBits;
 };
 
-inline /* constexpr */ half::fp16 half::ftoh(float v) noexcept {
+inline CONSTEXPR half::fp16 half::ftoh(float v) noexcept {
     fp16 out;
     fp32 in(v);
     if (UNLIKELY(in.getE() == 0xFF)) { // inf or nan
         out.setE(0x1F);
         out.setM(in.getM() ? 0x200 : 0);
     } else {
-        int e = in.getE() - 127 + 15;
+        int e = static_cast<int>(in.getE()) - 127 + 15;
         if (e >= 0x1F) {
             // overflow
             out.setE(0x31); // +/- inf
@@ -120,7 +126,7 @@ inline /* constexpr */ half::fp16 half::ftoh(float v) noexcept {
     return out;
 }
 
-inline float half::htof(half::fp16 in) noexcept {
+inline CONSTEXPR float half::htof(half::fp16 in) noexcept {
     fp32 out;
     if (UNLIKELY(in.getE() == 0x1F)) { // inf or nan
         out.setE(0xFF);
@@ -132,7 +138,7 @@ inline float half::htof(half::fp16 in) noexcept {
                 // (it's stupid because they can be represented as regular float)
             }
         } else {
-            int e = in.getE() - 15 + 127;
+            int e = static_cast<int>(in.getE()) - 15 + 127;
             unsigned int m = in.getM();
             out.setE(uint32_t(e));
             out.setM(m << 13);
@@ -142,8 +148,8 @@ inline float half::htof(half::fp16 in) noexcept {
     return out.fp;
 }
 
-inline /* constexpr */ android::half operator"" _hf(long double v) {
-    return android::half(android::half::binary, android::half::ftoh(v).bits);
+inline CONSTEXPR android::half operator"" _hf(long double v) {
+    return android::half(android::half::binary, android::half::ftoh(static_cast<float>(v)).bits);
 }
 
 } // namespace android
@@ -197,5 +203,6 @@ public:
 
 #undef LIKELY
 #undef UNLIKELY
+#undef CONSTEXPR
 
 #endif // UI_HALF_H

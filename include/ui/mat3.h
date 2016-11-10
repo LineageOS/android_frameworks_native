@@ -25,6 +25,12 @@
 
 #define PURE __attribute__((pure))
 
+#if __cplusplus >= 201402L
+#define CONSTEXPR constexpr
+#else
+#define CONSTEXPR
+#endif
+
 namespace android {
 // -------------------------------------------------------------------------------------
 namespace details {
@@ -137,8 +143,7 @@ public:
     /**
      * leaves object uninitialized. use with caution.
      */
-    explicit
-    constexpr TMat33(no_init)
+    explicit constexpr TMat33(no_init)
             : m_value{ col_type(col_type::NO_INIT),
                        col_type(col_type::NO_INIT),
                        col_type(col_type::NO_INIT) } {}
@@ -157,7 +162,7 @@ public:
      *      \right)
      *      \f$
      */
-    TMat33();
+    CONSTEXPR TMat33();
 
     /**
      * initialize to Identity*scalar.
@@ -173,7 +178,7 @@ public:
      *      \f$
      */
     template<typename U>
-    explicit TMat33(U v);
+    explicit CONSTEXPR TMat33(U v);
 
     /**
      * sets the diagonal to a vector.
@@ -189,13 +194,13 @@ public:
      *      \f$
      */
     template <typename U>
-    explicit TMat33(const TVec3<U>& v);
+    explicit CONSTEXPR TMat33(const TVec3<U>& v);
 
     /**
      * construct from another matrix of the same size
      */
     template <typename U>
-    explicit TMat33(const TMat33<U>& rhs);
+    explicit CONSTEXPR TMat33(const TMat33<U>& rhs);
 
     /**
      * construct from 3 column vectors.
@@ -209,7 +214,7 @@ public:
      *      \f$
      */
     template <typename A, typename B, typename C>
-    TMat33(const TVec3<A>& v0, const TVec3<B>& v1, const TVec3<C>& v2);
+    CONSTEXPR TMat33(const TVec3<A>& v0, const TVec3<B>& v1, const TVec3<C>& v2);
 
     /** construct from 9 elements in column-major form.
      *
@@ -227,7 +232,8 @@ public:
         typename A, typename B, typename C,
         typename D, typename E, typename F,
         typename G, typename H, typename I>
-    TMat33(A m00, B m01, C m02,
+    CONSTEXPR TMat33(
+           A m00, B m01, C m02,
            D m10, E m11, F m12,
            G m20, H m21, I m22);
 
@@ -235,19 +241,19 @@ public:
      * construct from a quaternion
      */
     template <typename U>
-    explicit TMat33(const TQuaternion<U>& q);
+    explicit CONSTEXPR TMat33(const TQuaternion<U>& q);
 
     /**
      * construct from a C array in column major form.
      */
     template <typename U>
-    explicit TMat33(U const* rawArray);
+    explicit CONSTEXPR TMat33(U const* rawArray);
 
     /**
      * orthogonalize only works on matrices of size 3x3
      */
     friend inline
-    TMat33 orthogonalize(const TMat33& m) {
+    CONSTEXPR TMat33 orthogonalize(const TMat33& m) {
         TMat33 ret(TMat33::NO_INIT);
         ret[0] = normalize(m[0]);
         ret[2] = normalize(cross(ret[0], m[1]));
@@ -264,7 +270,7 @@ public:
 // operations.
 
 template <typename T>
-TMat33<T>::TMat33() {
+CONSTEXPR TMat33<T>::TMat33() {
     m_value[0] = col_type(1, 0, 0);
     m_value[1] = col_type(0, 1, 0);
     m_value[2] = col_type(0, 0, 1);
@@ -272,7 +278,7 @@ TMat33<T>::TMat33() {
 
 template <typename T>
 template <typename U>
-TMat33<T>::TMat33(U v) {
+CONSTEXPR TMat33<T>::TMat33(U v) {
     m_value[0] = col_type(v, 0, 0);
     m_value[1] = col_type(0, v, 0);
     m_value[2] = col_type(0, 0, v);
@@ -280,7 +286,7 @@ TMat33<T>::TMat33(U v) {
 
 template<typename T>
 template<typename U>
-TMat33<T>::TMat33(const TVec3<U>& v) {
+CONSTEXPR TMat33<T>::TMat33(const TVec3<U>& v) {
     m_value[0] = col_type(v.x, 0, 0);
     m_value[1] = col_type(0, v.y, 0);
     m_value[2] = col_type(0, 0, v.z);
@@ -294,9 +300,10 @@ template <
     typename A, typename B, typename C,
     typename D, typename E, typename F,
     typename G, typename H, typename I>
-TMat33<T>::TMat33(A m00, B m01, C m02,
-                  D m10, E m11, F m12,
-                  G m20, H m21, I m22) {
+CONSTEXPR TMat33<T>::TMat33(
+        A m00, B m01, C m02,
+        D m10, E m11, F m12,
+        G m20, H m21, I m22) {
     m_value[0] = col_type(m00, m01, m02);
     m_value[1] = col_type(m10, m11, m12);
     m_value[2] = col_type(m20, m21, m22);
@@ -304,7 +311,7 @@ TMat33<T>::TMat33(A m00, B m01, C m02,
 
 template <typename T>
 template <typename U>
-TMat33<T>::TMat33(const TMat33<U>& rhs) {
+CONSTEXPR TMat33<T>::TMat33(const TMat33<U>& rhs) {
     for (size_t col = 0; col < NUM_COLS; ++col) {
         m_value[col] = col_type(rhs[col]);
     }
@@ -313,7 +320,7 @@ TMat33<T>::TMat33(const TMat33<U>& rhs) {
 // Construct from 3 column vectors.
 template <typename T>
 template <typename A, typename B, typename C>
-TMat33<T>::TMat33(const TVec3<A>& v0, const TVec3<B>& v1, const TVec3<C>& v2) {
+CONSTEXPR TMat33<T>::TMat33(const TVec3<A>& v0, const TVec3<B>& v1, const TVec3<C>& v2) {
     m_value[0] = v0;
     m_value[1] = v1;
     m_value[2] = v2;
@@ -322,7 +329,7 @@ TMat33<T>::TMat33(const TVec3<A>& v0, const TVec3<B>& v1, const TVec3<C>& v2) {
 // Construct from raw array, in column-major form.
 template <typename T>
 template <typename U>
-TMat33<T>::TMat33(U const* rawArray) {
+CONSTEXPR TMat33<T>::TMat33(U const* rawArray) {
     for (size_t col = 0; col < NUM_COLS; ++col) {
         for (size_t row = 0; row < NUM_ROWS; ++row) {
             m_value[col][row] = *rawArray++;
@@ -332,7 +339,7 @@ TMat33<T>::TMat33(U const* rawArray) {
 
 template <typename T>
 template <typename U>
-TMat33<T>::TMat33(const TQuaternion<U>& q) {
+CONSTEXPR TMat33<T>::TMat33(const TQuaternion<U>& q) {
     const U n = q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w;
     const U s = n > 0 ? 2/n : 0;
     const U x = s*q.x;
@@ -366,7 +373,7 @@ TMat33<T>::TMat33(const TQuaternion<U>& q) {
 
 // matrix * column-vector, result is a vector of the same type than the input vector
 template <typename T, typename U>
-typename TMat33<U>::col_type PURE operator *(const TMat33<T>& lhs, const TVec3<U>& rhs) {
+CONSTEXPR typename TMat33<U>::col_type PURE operator *(const TMat33<T>& lhs, const TVec3<U>& rhs) {
     // Result is initialized to zero.
     typename TMat33<U>::col_type result;
     for (size_t col = 0; col < TMat33<T>::NUM_COLS; ++col) {
@@ -377,7 +384,7 @@ typename TMat33<U>::col_type PURE operator *(const TMat33<T>& lhs, const TVec3<U
 
 // row-vector * matrix, result is a vector of the same type than the input vector
 template <typename T, typename U>
-typename TMat33<U>::row_type PURE operator *(const TVec3<U>& lhs, const TMat33<T>& rhs) {
+CONSTEXPR typename TMat33<U>::row_type PURE operator *(const TVec3<U>& lhs, const TMat33<T>& rhs) {
     typename TMat33<U>::row_type result(TMat33<U>::row_type::NO_INIT);
     for (size_t col = 0; col < TMat33<T>::NUM_COLS; ++col) {
         result[col] = dot(lhs, rhs[col]);
@@ -401,7 +408,7 @@ operator*(U lhs, const TMat33<T>& rhs) {
 
 //------------------------------------------------------------------------------
 template <typename T>
-TMat33<T> orthogonalize(const TMat33<T>& m) {
+CONSTEXPR TMat33<T> orthogonalize(const TMat33<T>& m) {
     TMat33<T> ret(TMat33<T>::NO_INIT);
     ret[0] = normalize(m[0]);
     ret[2] = normalize(cross(ret[0], m[1]));
@@ -415,7 +422,7 @@ TMat33<T> orthogonalize(const TMat33<T>& m) {
  * BASE<T>::col_type is not accessible from there (???)
  */
 template<typename T>
-typename TMat33<T>::col_type PURE diag(const TMat33<T>& m) {
+CONSTEXPR typename TMat33<T>::col_type PURE diag(const TMat33<T>& m) {
     return matrix::diag(m);
 }
 
@@ -431,5 +438,6 @@ typedef details::TMat33<float> mat3f;
 }  // namespace android
 
 #undef PURE
+#undef CONSTEXPR
 
 #endif  // UI_MAT3_H_

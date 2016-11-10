@@ -24,6 +24,9 @@
 #include <sys/types.h>
 #include <type_traits>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-anonymous-struct"
+#pragma clang diagnostic ignored "-Wnested-anon-types"
 
 namespace android {
 // -------------------------------------------------------------------------------------
@@ -94,7 +97,7 @@ public:
     constexpr TVec2(const TVec2<A>& v) : x(v.x), y(v.y) { }
 
     // cross product works only on vectors of size 2 or 3
-    template <typename RT>
+    template<typename RT>
     friend inline
     constexpr value_type cross(const TVec2& u, const TVec2<RT>& v) {
         return value_type(u.x*v.y - u.y*v.x);
@@ -118,5 +121,7 @@ typedef details::TVec2<uint8_t> ubyte2;
 
 // ----------------------------------------------------------------------------------------
 }  // namespace android
+
+#pragma clang diagnostic pop
 
 #endif  // UI_VEC2_H_

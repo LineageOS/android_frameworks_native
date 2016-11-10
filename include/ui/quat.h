@@ -29,6 +29,10 @@
 #define PURE __attribute__((pure))
 #endif
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-anonymous-struct"
+#pragma clang diagnostic ignored "-Wnested-anon-types"
+
 namespace android {
 // -------------------------------------------------------------------------------------
 
@@ -142,47 +146,49 @@ typedef details::TQuaternion<float> quatf;
 typedef details::TQuaternion<half> quath;
 
 constexpr inline quat operator"" _i(long double v) {
-    return quat(0, v, 0, 0);
+    return quat(0, static_cast<float>(v), 0, 0);
 }
 constexpr inline quat operator"" _j(long double v) {
-    return quat(0, 0, v, 0);
+    return quat(0, 0, static_cast<float>(v), 0);
 }
 constexpr inline quat operator"" _k(long double v) {
-    return quat(0, 0, 0, v);
+    return quat(0, 0, 0, static_cast<float>(v));
 }
 
 constexpr inline quat operator"" _i(unsigned long long v) {  // NOLINT
-    return quat(0, v, 0, 0);
+    return quat(0, static_cast<float>(v), 0, 0);
 }
 constexpr inline quat operator"" _j(unsigned long long v) {  // NOLINT
-    return quat(0, 0, v, 0);
+    return quat(0, 0, static_cast<float>(v), 0);
 }
 constexpr inline quat operator"" _k(unsigned long long v) {  // NOLINT
-    return quat(0, 0, 0, v);
+    return quat(0, 0, 0, static_cast<float>(v));
 }
 
 constexpr inline quatd operator"" _id(long double v) {
-    return quatd(0, v, 0, 0);
+    return quatd(0, static_cast<double>(v), 0, 0);
 }
 constexpr inline quatd operator"" _jd(long double v) {
-    return quatd(0, 0, v, 0);
+    return quatd(0, 0, static_cast<double>(v), 0);
 }
 constexpr inline quatd operator"" _kd(long double v) {
-    return quatd(0, 0, 0, v);
+    return quatd(0, 0, 0, static_cast<double>(v));
 }
 
 constexpr inline quatd operator"" _id(unsigned long long v) {  // NOLINT
-    return quatd(0, v, 0, 0);
+    return quatd(0, static_cast<double>(v), 0, 0);
 }
 constexpr inline quatd operator"" _jd(unsigned long long v) {  // NOLINT
-    return quatd(0, 0, v, 0);
+    return quatd(0, 0, static_cast<double>(v), 0);
 }
 constexpr inline quatd operator"" _kd(unsigned long long v) {  // NOLINT
-    return quatd(0, 0, 0, v);
+    return quatd(0, 0, 0, static_cast<double>(v));
 }
 
 // ----------------------------------------------------------------------------------------
 }  // namespace android
+
+#pragma clang diagnostic pop
 
 #undef PURE
 
