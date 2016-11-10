@@ -41,6 +41,12 @@
 
 #define PURE __attribute__((pure))
 
+#if __cplusplus >= 201402L
+#define CONSTEXPR constexpr
+#else
+#define CONSTEXPR
+#endif
+
 namespace android {
 namespace details {
 // -------------------------------------------------------------------------------------
@@ -103,10 +109,10 @@ MATRIX PURE gaussJordanInverse(const MATRIX& src) {
         // Factor out the lower triangle
         for (size_t j = 0; j < N; ++j) {
             if (j != i) {
-                const T t = tmp[j][i];
+                const T d = tmp[j][i];
                 for (size_t k = 0; k < N; ++k) {
-                    tmp[j][k] -= tmp[i][k] * t;
-                    inverted[j][k] -= inverted[i][k] * t;
+                    tmp[j][k] -= tmp[i][k] * d;
+                    inverted[j][k] -= inverted[i][k] * d;
                 }
             }
         }
@@ -119,7 +125,7 @@ MATRIX PURE gaussJordanInverse(const MATRIX& src) {
 //------------------------------------------------------------------------------
 // 2x2 matrix inverse is easy.
 template <typename MATRIX>
-MATRIX PURE fastInverse2(const MATRIX& x) {
+CONSTEXPR MATRIX PURE fastInverse2(const MATRIX& x) {
     typedef typename MATRIX::value_type T;
 
     // Assuming the input matrix is:
@@ -153,7 +159,7 @@ MATRIX PURE fastInverse2(const MATRIX& x) {
 // matrix inversion:
 // http://en.wikipedia.org/wiki/Invertible_matrix#Inversion_of_3.C3.973_matrices
 template <typename MATRIX>
-MATRIX PURE fastInverse3(const MATRIX& x) {
+CONSTEXPR MATRIX PURE fastInverse3(const MATRIX& x) {
     typedef typename MATRIX::value_type T;
 
     // Assuming the input matrix is:
@@ -216,7 +222,6 @@ MATRIX PURE fastInverse3(const MATRIX& x) {
     return inverted;
 }
 
-
 /**
  * Inversion function which switches on the matrix size.
  * @warning This function assumes the matrix is invertible. The result is
@@ -232,7 +237,7 @@ inline constexpr MATRIX PURE inverse(const MATRIX& matrix) {
 }
 
 template<typename MATRIX_R, typename MATRIX_A, typename MATRIX_B>
-MATRIX_R PURE multiply(const MATRIX_A& lhs, const MATRIX_B& rhs) {
+CONSTEXPR MATRIX_R PURE multiply(const MATRIX_A& lhs, const MATRIX_B& rhs) {
     // pre-requisite:
     //  lhs : D columns, R rows
     //  rhs : C columns, D rows
@@ -254,7 +259,7 @@ MATRIX_R PURE multiply(const MATRIX_A& lhs, const MATRIX_B& rhs) {
 
 // transpose. this handles matrices of matrices
 template <typename MATRIX>
-MATRIX PURE transpose(const MATRIX& m) {
+CONSTEXPR MATRIX PURE transpose(const MATRIX& m) {
     // for now we only handle square matrix transpose
     static_assert(MATRIX::NUM_COLS == MATRIX::NUM_ROWS, "transpose only supports square matrices");
     MATRIX result(MATRIX::NO_INIT);
@@ -268,7 +273,7 @@ MATRIX PURE transpose(const MATRIX& m) {
 
 // trace. this handles matrices of matrices
 template <typename MATRIX>
-typename MATRIX::value_type PURE trace(const MATRIX& m) {
+CONSTEXPR typename MATRIX::value_type PURE trace(const MATRIX& m) {
     static_assert(MATRIX::NUM_COLS == MATRIX::NUM_ROWS, "trace only defined for square matrices");
     typename MATRIX::value_type result(0);
     for (size_t col = 0; col < MATRIX::NUM_COLS; ++col) {
@@ -279,7 +284,7 @@ typename MATRIX::value_type PURE trace(const MATRIX& m) {
 
 // diag. this handles matrices of matrices
 template <typename MATRIX>
-typename MATRIX::col_type PURE diag(const MATRIX& m) {
+CONSTEXPR typename MATRIX::col_type PURE diag(const MATRIX& m) {
     static_assert(MATRIX::NUM_COLS == MATRIX::NUM_ROWS, "diag only defined for square matrices");
     typename MATRIX::col_type result(MATRIX::col_type::NO_INIT);
     for (size_t col = 0; col < MATRIX::NUM_COLS; ++col) {
@@ -389,7 +394,7 @@ public:
 
     // matrix * matrix, result is a matrix of the same type than the lhs matrix
     template<typename U>
-    friend BASE<T> PURE operator *(const BASE<T>& lhs, const BASE<U>& rhs) {
+    friend CONSTEXPR BASE<T> PURE operator *(const BASE<T>& lhs, const BASE<U>& rhs) {
         return matrix::multiply<BASE<T> >(lhs, rhs);
     }
 };
@@ -419,7 +424,7 @@ public:
      * is instantiated, at which point they're only templated on the 2nd parameter
      * (the first one, BASE<T> being known).
      */
-    friend inline BASE<T> PURE inverse(const BASE<T>& matrix) {
+    friend inline CONSTEXPR BASE<T> PURE inverse(const BASE<T>& matrix) {
         return matrix::inverse(matrix);
     }
     friend inline constexpr BASE<T> PURE transpose(const BASE<T>& m) {
@@ -454,7 +459,7 @@ public:
     }
 
     template <typename VEC>
-    static BASE<T> translate(const VEC& t) {
+    static CONSTEXPR BASE<T> translate(const VEC& t) {
         BASE<T> r;
         r[BASE<T>::NUM_COLS-1] = t;
         return r;
@@ -465,7 +470,7 @@ public:
         return BASE<T>(s);
     }
 
-    friend inline BASE<T> PURE abs(BASE<T> m) {
+    friend inline CONSTEXPR BASE<T> PURE abs(BASE<T> m) {
         for (size_t col = 0; col < BASE<T>::NUM_COLS; ++col) {
             m[col] = abs(m[col]);
         }
@@ -482,7 +487,7 @@ public:
     }
 
     template <typename A, typename VEC>
-    static BASE<T> rotate(A radian, const VEC& about) {
+    static CONSTEXPR BASE<T> rotate(A radian, const VEC& about) {
         BASE<T> r;
         T c = std::cos(radian);
         T s = std::sin(radian);
@@ -533,7 +538,7 @@ public:
         typename = typename std::enable_if<std::is_arithmetic<P>::value >::type,
         typename = typename std::enable_if<std::is_arithmetic<R>::value >::type
     >
-    static BASE<T> eulerYXZ(Y yaw, P pitch, R roll) {
+    static CONSTEXPR BASE<T> eulerYXZ(Y yaw, P pitch, R roll) {
         return eulerZYX(roll, pitch, yaw);
     }
 
@@ -552,7 +557,7 @@ public:
     typename = typename std::enable_if<std::is_arithmetic<P>::value >::type,
     typename = typename std::enable_if<std::is_arithmetic<R>::value >::type
     >
-    static BASE<T> eulerZYX(Y yaw, P pitch, R roll) {
+    static CONSTEXPR BASE<T> eulerZYX(Y yaw, P pitch, R roll) {
         BASE<T> r;
         T cy = std::cos(yaw);
         T sy = std::sin(yaw);
@@ -630,5 +635,6 @@ public:
 #undef LIKELY
 #undef UNLIKELY
 #undef PURE
+#undef CONSTEXPR
 
 #endif  // UI_TMATHELPERS_H_

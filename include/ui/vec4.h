@@ -22,6 +22,9 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-anonymous-struct"
+#pragma clang diagnostic ignored "-Wnested-anon-types"
 
 namespace android {
 // -------------------------------------------------------------------------------------
@@ -121,5 +124,7 @@ typedef details::TVec4<uint8_t> ubyte4;
 
 // ----------------------------------------------------------------------------------------
 }  // namespace android
+
+#pragma clang diagnostic pop
 
 #endif  // UI_VEC4_H_

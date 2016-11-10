@@ -29,6 +29,12 @@
 
 #define PURE __attribute__((pure))
 
+#if __cplusplus >= 201402L
+#define CONSTEXPR constexpr
+#else
+#define CONSTEXPR
+#endif
+
 namespace android {
 // -------------------------------------------------------------------------------------
 namespace details {
@@ -141,8 +147,7 @@ public:
      */
 
     // leaves object uninitialized. use with caution.
-    explicit
-    constexpr TMat44(no_init)
+    explicit constexpr TMat44(no_init)
             : m_value{ col_type(col_type::NO_INIT),
                        col_type(col_type::NO_INIT),
                        col_type(col_type::NO_INIT),
@@ -161,7 +166,7 @@ public:
      *      \right)
      *      \f$
      */
-    TMat44();
+    CONSTEXPR TMat44();
 
     /** initialize to Identity*scalar.
      *
@@ -177,7 +182,7 @@ public:
      *      \f$
      */
     template<typename U>
-    explicit TMat44(U v);
+    explicit CONSTEXPR TMat44(U v);
 
     /** sets the diagonal to a vector.
      *
@@ -193,11 +198,11 @@ public:
      *      \f$
      */
     template <typename U>
-    explicit TMat44(const TVec4<U>& v);
+    explicit CONSTEXPR TMat44(const TVec4<U>& v);
 
     // construct from another matrix of the same size
     template <typename U>
-    explicit TMat44(const TMat44<U>& rhs);
+    explicit CONSTEXPR TMat44(const TMat44<U>& rhs);
 
     /** construct from 4 column vectors.
      *
@@ -210,7 +215,7 @@ public:
      *      \f$
      */
     template <typename A, typename B, typename C, typename D>
-    TMat44(const TVec4<A>& v0, const TVec4<B>& v1, const TVec4<C>& v2, const TVec4<D>& v3);
+    CONSTEXPR TMat44(const TVec4<A>& v0, const TVec4<B>& v1, const TVec4<C>& v2, const TVec4<D>& v3);
 
     /** construct from 16 elements in column-major form.
      *
@@ -230,66 +235,67 @@ public:
         typename E, typename F, typename G, typename H,
         typename I, typename J, typename K, typename L,
         typename M, typename N, typename O, typename P>
-    TMat44(A m00, B m01, C m02, D m03,
-           E m10, F m11, G m12, H m13,
-           I m20, J m21, K m22, L m23,
-           M m30, N m31, O m32, P m33);
+    CONSTEXPR TMat44(
+            A m00, B m01, C m02, D m03,
+            E m10, F m11, G m12, H m13,
+            I m20, J m21, K m22, L m23,
+            M m30, N m31, O m32, P m33);
 
     /**
      * construct from a quaternion
      */
     template <typename U>
-    explicit TMat44(const TQuaternion<U>& q);
+    explicit CONSTEXPR TMat44(const TQuaternion<U>& q);
 
     /**
      * construct from a C array in column major form.
      */
     template <typename U>
-    explicit TMat44(U const* rawArray);
+    explicit CONSTEXPR TMat44(U const* rawArray);
 
     /**
      * construct from a 3x3 matrix
      */
     template <typename U>
-    explicit TMat44(const TMat33<U>& matrix);
+    explicit CONSTEXPR TMat44(const TMat33<U>& matrix);
 
     /**
      * construct from a 3x3 matrix and 3d translation
      */
     template <typename U, typename V>
-    TMat44(const TMat33<U>& matrix, const TVec3<V>& translation);
+    CONSTEXPR TMat44(const TMat33<U>& matrix, const TVec3<V>& translation);
 
     /**
      * construct from a 3x3 matrix and 4d last column.
      */
     template <typename U, typename V>
-    TMat44(const TMat33<U>& matrix, const TVec4<V>& column3);
+    CONSTEXPR TMat44(const TMat33<U>& matrix, const TVec4<V>& column3);
 
     /*
      *  helpers
      */
 
-    static TMat44 ortho(T left, T right, T bottom, T top, T near, T far);
+    static CONSTEXPR TMat44 ortho(T left, T right, T bottom, T top, T near, T far);
 
-    static TMat44 frustum(T left, T right, T bottom, T top, T near, T far);
+    static CONSTEXPR TMat44 frustum(T left, T right, T bottom, T top, T near, T far);
 
     enum class Fov {
         HORIZONTAL,
         VERTICAL
     };
-    static TMat44 perspective(T fov, T aspect, T near, T far, Fov direction = Fov::VERTICAL);
+    static CONSTEXPR TMat44 perspective(T fov, T aspect, T near, T far, Fov direction = Fov::VERTICAL);
 
     template <typename A, typename B, typename C>
-    static TMat44 lookAt(const TVec3<A>& eye, const TVec3<B>& center, const TVec3<C>& up);
+    static CONSTEXPR TMat44 lookAt(const TVec3<A>& eye, const TVec3<B>& center, const TVec3<C>& up);
 
     template <typename A>
-    static TVec3<A> project(const TMat44& projectionMatrix, TVec3<A> vertice) {
+    static CONSTEXPR TVec3<A> project(const TMat44& projectionMatrix, TVec3<A> vertice) {
         TVec4<A> r = projectionMatrix * TVec4<A>{ vertice, 1 };
         return r.xyz / r.w;
     }
 
     template <typename A>
-    static TVec4<A> project(const TMat44& projectionMatrix, TVec4<A> vertice) {
+    static CONSTEXPR TVec4<A> project(const TMat44& projectionMatrix, TVec4<A> vertice) {
         vertice = projectionMatrix * vertice;
         return { vertice.xyz / vertice.w, 1 };
     }
@@ -310,7 +316,7 @@ public:
 // operations.
 
 template <typename T>
-TMat44<T>::TMat44() {
+CONSTEXPR TMat44<T>::TMat44() {
     m_value[0] = col_type(1, 0, 0, 0);
     m_value[1] = col_type(0, 1, 0, 0);
     m_value[2] = col_type(0, 0, 1, 0);
@@ -319,7 +325,7 @@ TMat44<T>::TMat44() {
 
 template <typename T>
 template <typename U>
-TMat44<T>::TMat44(U v) {
+CONSTEXPR TMat44<T>::TMat44(U v) {
     m_value[0] = col_type(v, 0, 0, 0);
     m_value[1] = col_type(0, v, 0, 0);
     m_value[2] = col_type(0, 0, v, 0);
@@ -328,7 +334,7 @@ TMat44<T>::TMat44(U v) {
 
 template<typename T>
 template<typename U>
-TMat44<T>::TMat44(const TVec4<U>& v) {
+CONSTEXPR TMat44<T>::TMat44(const TVec4<U>& v) {
     m_value[0] = col_type(v.x, 0, 0, 0);
     m_value[1] = col_type(0, v.y, 0, 0);
     m_value[2] = col_type(0, 0, v.z, 0);
@@ -342,10 +348,11 @@ template <
     typename E, typename F, typename G, typename H,
     typename I, typename J, typename K, typename L,
     typename M, typename N, typename O, typename P>
-TMat44<T>::TMat44(A m00, B m01, C m02, D m03,
-                  E m10, F m11, G m12, H m13,
-                  I m20, J m21, K m22, L m23,
-                  M m30, N m31, O m32, P m33) {
+CONSTEXPR TMat44<T>::TMat44(
+        A m00, B m01, C m02, D m03,
+        E m10, F m11, G m12, H m13,
+        I m20, J m21, K m22, L m23,
+        M m30, N m31, O m32, P m33) {
     m_value[0] = col_type(m00, m01, m02, m03);
     m_value[1] = col_type(m10, m11, m12, m13);
     m_value[2] = col_type(m20, m21, m22, m23);
@@ -354,7 +361,7 @@ TMat44<T>::TMat44(A m00, B m01, C m02, D m03,
 
 template <typename T>
 template <typename U>
-TMat44<T>::TMat44(const TMat44<U>& rhs) {
+CONSTEXPR TMat44<T>::TMat44(const TMat44<U>& rhs) {
     for (size_t col = 0; col < NUM_COLS; ++col) {
         m_value[col] = col_type(rhs[col]);
     }
@@ -363,7 +370,9 @@ TMat44<T>::TMat44(const TMat44<U>& rhs) {
 // Construct from 4 column vectors.
 template <typename T>
 template <typename A, typename B, typename C, typename D>
-TMat44<T>::TMat44(const TVec4<A>& v0, const TVec4<B>& v1, const TVec4<C>& v2, const TVec4<D>& v3) {
+CONSTEXPR TMat44<T>::TMat44(
+        const TVec4<A>& v0, const TVec4<B>& v1,
+        const TVec4<C>& v2, const TVec4<D>& v3) {
     m_value[0] = col_type(v0);
     m_value[1] = col_type(v1);
     m_value[2] = col_type(v2);
@@ -373,7 +382,7 @@ TMat44<T>::TMat44(const TVec4<A>& v0, const TVec4<B>& v1, const TVec4<C>& v2, co
 // Construct from raw array, in column-major form.
 template <typename T>
 template <typename U>
-TMat44<T>::TMat44(U const* rawArray) {
+CONSTEXPR TMat44<T>::TMat44(U const* rawArray) {
     for (size_t col = 0; col < NUM_COLS; ++col) {
         for (size_t row = 0; row < NUM_ROWS; ++row) {
             m_value[col][row] = *rawArray++;
@@ -383,7 +392,7 @@ TMat44<T>::TMat44(U const* rawArray) {
 
 template <typename T>
 template <typename U>
-TMat44<T>::TMat44(const TQuaternion<U>& q) {
+CONSTEXPR TMat44<T>::TMat44(const TQuaternion<U>& q) {
     const U n = q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w;
     const U s = n > 0 ? 2/n : 0;
     const U x = s*q.x;
@@ -406,7 +415,7 @@ TMat44<T>::TMat44(const TQuaternion<U>& q) {
 
 template <typename T>
 template <typename U>
-TMat44<T>::TMat44(const TMat33<U>& m) {
+CONSTEXPR TMat44<T>::TMat44(const TMat33<U>& m) {
     m_value[0] = col_type(m[0][0], m[0][1], m[0][2], 0);
     m_value[1] = col_type(m[1][0], m[1][1], m[1][2], 0);
     m_value[2] = col_type(m[2][0], m[2][1], m[2][2], 0);
@@ -415,7 +424,7 @@ TMat44<T>::TMat44(const TMat33<U>& m) {
 
 template <typename T>
 template <typename U, typename V>
-TMat44<T>::TMat44(const TMat33<U>& m, const TVec3<V>& v) {
+CONSTEXPR TMat44<T>::TMat44(const TMat33<U>& m, const TVec3<V>& v) {
     m_value[0] = col_type(m[0][0], m[0][1], m[0][2], 0);
     m_value[1] = col_type(m[1][0], m[1][1], m[1][2], 0);
     m_value[2] = col_type(m[2][0], m[2][1], m[2][2], 0);
@@ -424,7 +433,7 @@ TMat44<T>::TMat44(const TMat33<U>& m, const TVec3<V>& v) {
 
 template <typename T>
 template <typename U, typename V>
-TMat44<T>::TMat44(const TMat33<U>& m, const TVec4<V>& v) {
+CONSTEXPR TMat44<T>::TMat44(const TMat33<U>& m, const TVec4<V>& v) {
     m_value[0] = col_type(m[0][0], m[0][1], m[0][2],    0);  // NOLINT
     m_value[1] = col_type(m[1][0], m[1][1], m[1][2],    0);  // NOLINT
     m_value[2] = col_type(m[2][0], m[2][1], m[2][2],    0);  // NOLINT
@@ -436,7 +445,7 @@ TMat44<T>::TMat44(const TMat33<U>& m, const TVec4<V>& v) {
 // ----------------------------------------------------------------------------------------
 
 template <typename T>
-TMat44<T> TMat44<T>::ortho(T left, T right, T bottom, T top, T near, T far) {
+CONSTEXPR TMat44<T> TMat44<T>::ortho(T left, T right, T bottom, T top, T near, T far) {
     TMat44<T> m;
     m[0][0] =  2 / (right - left);
     m[1][1] =  2 / (top   - bottom);
@@ -448,7 +457,7 @@ TMat44<T> TMat44<T>::ortho(T left, T right, T bottom, T top, T near, T far) {
 }
 
 template <typename T>
-TMat44<T> TMat44<T>::frustum(T left, T right, T bottom, T top, T near, T far) {
+CONSTEXPR TMat44<T> TMat44<T>::frustum(T left, T right, T bottom, T top, T near, T far) {
     TMat44<T> m;
     m[0][0] =  (2 * near) / (right - left);
     m[1][1] =  (2 * near) / (top   - bottom);
@@ -462,7 +471,7 @@ TMat44<T> TMat44<T>::frustum(T left, T right, T bottom, T top, T near, T far) {
 }
 
 template <typename T>
-TMat44<T> TMat44<T>::perspective(T fov, T aspect, T near, T far, TMat44::Fov direction) {
+CONSTEXPR TMat44<T> TMat44<T>::perspective(T fov, T aspect, T near, T far, TMat44::Fov direction) {
     T h;
     T w;
 
@@ -483,7 +492,7 @@ TMat44<T> TMat44<T>::perspective(T fov, T aspect, T near, T far, TMat44::Fov dir
  */
 template <typename T>
 template <typename A, typename B, typename C>
-TMat44<T> TMat44<T>::lookAt(const TVec3<A>& eye, const TVec3<B>& center, const TVec3<C>& up) {
+CONSTEXPR TMat44<T> TMat44<T>::lookAt(const TVec3<A>& eye, const TVec3<B>& center, const TVec3<C>& up) {
     TVec3<T> z_axis(normalize(center - eye));
     TVec3<T> norm_up(normalize(up));
     if (std::abs(dot(z_axis, norm_up)) > 0.999) {
@@ -513,7 +522,7 @@ TMat44<T> TMat44<T>::lookAt(const TVec3<A>& eye, const TVec3<B>& center, const T
 
 // matrix * column-vector, result is a vector of the same type than the input vector
 template <typename T, typename U>
-typename TMat44<T>::col_type PURE operator *(const TMat44<T>& lhs, const TVec4<U>& rhs) {
+CONSTEXPR typename TMat44<T>::col_type PURE operator *(const TMat44<T>& lhs, const TVec4<U>& rhs) {
     // Result is initialized to zero.
     typename TMat44<T>::col_type result;
     for (size_t col = 0; col < TMat44<T>::NUM_COLS; ++col) {
@@ -524,14 +533,14 @@ typename TMat44<T>::col_type PURE operator *(const TMat44<T>& lhs, const TVec4<U
 
 // mat44 * vec3, result is vec3( mat44 * {vec3, 1} )
 template <typename T, typename U>
-typename TMat44<T>::col_type PURE operator *(const TMat44<T>& lhs, const TVec3<U>& rhs) {
+CONSTEXPR typename TMat44<T>::col_type PURE operator *(const TMat44<T>& lhs, const TVec3<U>& rhs) {
     return lhs * TVec4<U>{ rhs, 1 };
 }
 
 
 // row-vector * matrix, result is a vector of the same type than the input vector
 template <typename T, typename U>
-typename TMat44<U>::row_type PURE operator *(const TVec4<U>& lhs, const TMat44<T>& rhs) {
+CONSTEXPR typename TMat44<U>::row_type PURE operator *(const TVec4<U>& lhs, const TMat44<T>& rhs) {
     typename TMat44<U>::row_type result(TMat44<U>::row_type::NO_INIT);
     for (size_t col = 0; col < TMat44<T>::NUM_COLS; ++col) {
         result[col] = dot(lhs, rhs[col]);
@@ -575,5 +584,6 @@ typedef details::TMat44<float> mat4f;
 }  // namespace android
 
 #undef PURE
+#undef CONSTEXPR
 
 #endif  // UI_MAT4_H_

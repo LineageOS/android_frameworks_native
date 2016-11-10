@@ -39,3 +39,9 @@ cc_test {
     name: "quat_test",
     srcs: ["quat_test.cpp"],
 }
+
+cc_test {
+    name: "colorspace_test",
+    shared_libs: ["libui"],
+    srcs: ["colorspace_test.cpp"],
+}

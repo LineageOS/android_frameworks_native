@@ -32,7 +32,7 @@ protected:
 
 TEST_F(HalfTest, Basics) {
 
-    EXPECT_EQ(2, sizeof(half));
+    EXPECT_EQ(2UL, sizeof(half));
 
     // test +/- zero
     EXPECT_EQ(0x0000, half( 0.0f).getBits());

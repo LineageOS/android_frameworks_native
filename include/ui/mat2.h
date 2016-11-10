@@ -24,6 +24,12 @@
 
 #define PURE __attribute__((pure))
 
+#if __cplusplus >= 201402L
+#define CONSTEXPR constexpr
+#else
+#define CONSTEXPR
+#endif
+
 namespace android {
 // -------------------------------------------------------------------------------------
 namespace details {
@@ -130,8 +136,7 @@ public:
     /**
      * leaves object uninitialized. use with caution.
      */
-    explicit
-    constexpr TMat22(no_init)
+    explicit constexpr TMat22(no_init)
             : m_value{ col_type(col_type::NO_INIT),
                        col_type(col_type::NO_INIT) } {}
 
@@ -148,7 +153,7 @@ public:
      *      \right)
      *      \f$
      */
-    TMat22();
+    CONSTEXPR TMat22();
 
     /**
      * initialize to Identity*scalar.
@@ -163,7 +168,7 @@ public:
      *      \f$
      */
     template<typename U>
-    explicit TMat22(U v);
+    explicit CONSTEXPR TMat22(U v);
 
     /**
      * sets the diagonal to a vector.
@@ -178,13 +183,13 @@ public:
      *      \f$
      */
     template <typename U>
-    explicit TMat22(const TVec2<U>& v);
+    explicit CONSTEXPR TMat22(const TVec2<U>& v);
 
     /**
      * construct from another matrix of the same size
      */
     template <typename U>
-    explicit TMat22(const TMat22<U>& rhs);
+    explicit CONSTEXPR TMat22(const TMat22<U>& rhs);
 
     /**
      * construct from 2 column vectors.
@@ -198,7 +203,7 @@ public:
      *      \f$
      */
     template <typename A, typename B>
-    TMat22(const TVec2<A>& v0, const TVec2<B>& v1);
+    CONSTEXPR TMat22(const TVec2<A>& v0, const TVec2<B>& v1);
 
     /** construct from 4 elements in column-major form.
      *
@@ -214,19 +219,18 @@ public:
     template <
         typename A, typename B,
         typename C, typename D>
-    TMat22(A m00, B m01,
-           C m10, D m11);
+    CONSTEXPR TMat22(A m00, B m01, C m10, D m11);
 
     /**
      * construct from a C array in column major form.
      */
     template <typename U>
-    explicit TMat22(U const* rawArray);
+    explicit CONSTEXPR TMat22(U const* rawArray);
 
     /**
      * Rotate by radians in the 2D plane
      */
-    static TMat22<T> rotate(T radian) {
+    static CONSTEXPR TMat22<T> rotate(T radian) {
         TMat22<T> r(TMat22<T>::NO_INIT);
         T c = std::cos(radian);
         T s = std::sin(radian);
@@ -244,21 +248,21 @@ public:
 // operations.
 
 template <typename T>
-TMat22<T>::TMat22() {
+CONSTEXPR TMat22<T>::TMat22() {
     m_value[0] = col_type(1, 0);
     m_value[1] = col_type(0, 1);
 }
 
 template <typename T>
 template <typename U>
-TMat22<T>::TMat22(U v) {
+CONSTEXPR TMat22<T>::TMat22(U v) {
     m_value[0] = col_type(v, 0);
     m_value[1] = col_type(0, v);
 }
 
 template<typename T>
 template<typename U>
-TMat22<T>::TMat22(const TVec2<U>& v) {
+CONSTEXPR TMat22<T>::TMat22(const TVec2<U>& v) {
     m_value[0] = col_type(v.x, 0);
     m_value[1] = col_type(0, v.y);
 }
@@ -270,15 +274,14 @@ template<typename T>
 template <
     typename A, typename B,
     typename C, typename D>
-TMat22<T>::TMat22(A m00, B m01,
-                  C m10, D m11) {
+CONSTEXPR TMat22<T>::TMat22( A m00, B m01, C m10, D m11) {
     m_value[0] = col_type(m00, m01);
     m_value[1] = col_type(m10, m11);
 }
 
 template <typename T>
 template <typename U>
-TMat22<T>::TMat22(const TMat22<U>& rhs) {
+CONSTEXPR TMat22<T>::TMat22(const TMat22<U>& rhs) {
     for (size_t col = 0; col < NUM_COLS; ++col) {
         m_value[col] = col_type(rhs[col]);
     }
@@ -287,7 +290,7 @@ TMat22<T>::TMat22(const TMat22<U>& rhs) {
 // Construct from 2 column vectors.
 template <typename T>
 template <typename A, typename B>
-TMat22<T>::TMat22(const TVec2<A>& v0, const TVec2<B>& v1) {
+CONSTEXPR TMat22<T>::TMat22(const TVec2<A>& v0, const TVec2<B>& v1) {
     m_value[0] = v0;
     m_value[1] = v1;
 }
@@ -295,7 +298,7 @@ TMat22<T>::TMat22(const TVec2<A>& v0, const TVec2<B>& v1) {
 // Construct from raw array, in column-major form.
 template <typename T>
 template <typename U>
-TMat22<T>::TMat22(U const* rawArray) {
+CONSTEXPR TMat22<T>::TMat22(U const* rawArray) {
     for (size_t col = 0; col < NUM_COLS; ++col) {
         for (size_t row = 0; row < NUM_ROWS; ++row) {
             m_value[col][row] = *rawArray++;
@@ -317,7 +320,7 @@ TMat22<T>::TMat22(U const* rawArray) {
 
 // matrix * column-vector, result is a vector of the same type than the input vector
 template <typename T, typename U>
-typename TMat22<U>::col_type PURE operator *(const TMat22<T>& lhs, const TVec2<U>& rhs) {
+CONSTEXPR typename TMat22<U>::col_type PURE operator *(const TMat22<T>& lhs, const TVec2<U>& rhs) {
     // Result is initialized to zero.
     typename TMat22<U>::col_type result;
     for (size_t col = 0; col < TMat22<T>::NUM_COLS; ++col) {
@@ -328,7 +331,7 @@ typename TMat22<U>::col_type PURE operator *(const TMat22<T>& lhs, const TVec2<U
 
 // row-vector * matrix, result is a vector of the same type than the input vector
 template <typename T, typename U>
-typename TMat22<U>::row_type PURE operator *(const TVec2<U>& lhs, const TMat22<T>& rhs) {
+CONSTEXPR typename TMat22<U>::row_type PURE operator *(const TVec2<U>& lhs, const TMat22<T>& rhs) {
     typename TMat22<U>::row_type result(TMat22<U>::row_type::NO_INIT);
     for (size_t col = 0; col < TMat22<T>::NUM_COLS; ++col) {
         result[col] = dot(lhs, rhs[col]);
@@ -356,7 +359,7 @@ operator*(U lhs, const TMat22<T>& rhs) {
  * BASE<T>::col_type is not accessible from there (???)
  */
 template<typename T>
-typename TMat22<T>::col_type PURE diag(const TMat22<T>& m) {
+CONSTEXPR typename TMat22<T>::col_type PURE diag(const TMat22<T>& m) {
     return matrix::diag(m);
 }
 
@@ -372,5 +375,6 @@ typedef details::TMat22<float> mat2f;
 }  // namespace android
 
 #undef PURE
+#undef CONSTEXPR
 
 #endif  // UI_MAT2_H_

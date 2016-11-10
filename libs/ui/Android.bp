@@ -41,6 +41,7 @@ cc_library_shared {
     },
 
     srcs: [
+        "ColorSpace.cpp",
         "Fence.cpp",
         "FrameStats.cpp",
         "Gralloc1.cpp",
