@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <libgen.h>
 #include <limits.h>
+#include <math.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -42,6 +43,7 @@
 #include <android-base/file.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
+#include <android-base/strings.h>
 #include <cutils/debugger.h>
 #include <cutils/log.h>
 #include <cutils/properties.h>
@@ -67,7 +69,7 @@ static int RunCommand(const std::string& title, const std::vector<std::string>& 
 static bool IsDryRun() {
     return Dumpstate::GetInstance().IsDryRun();
 }
-static void UpdateProgress(int delta) {
+static void UpdateProgress(int32_t delta) {
     ds.UpdateProgress(delta);
 }
 
@@ -89,6 +91,10 @@ static const char* native_processes_to_dump[] = {
 
 /* Most simple commands have 10 as timeout, so 5 is a good estimate */
 static const int WEIGHT_FILE = 5;
+
+// Reasonable value for max stats.
+static const int STATS_MAX_N_RUNS = 1000;
+static const long STATS_MAX_AVERAGE = 100000;
 
 CommandOptions CommandOptions::DEFAULT = CommandOptions::WithTimeout(10).Build();
 CommandOptions CommandOptions::DEFAULT_DUMPSYS = CommandOptions::WithTimeout(30).Build();
@@ -207,6 +213,115 @@ uint64_t DurationReporter::DurationReporter::Nanotime() {
     return (uint64_t) ts.tv_sec * NANOS_PER_SEC + ts.tv_nsec;
 }
 
+const int32_t Progress::kDefaultMax = 5000;
+
+Progress::Progress(const std::string& path) : Progress(Progress::kDefaultMax, 1.1, path) {
+}
+
+Progress::Progress(int32_t initial_max, int32_t progress, float growth_factor)
+    : Progress(initial_max, growth_factor, "") {
+    progress_ = progress;
+}
+
+Progress::Progress(int32_t initial_max, float growth_factor, const std::string& path)
+    : initial_max_(initial_max),
+      progress_(0),
+      max_(initial_max),
+      growth_factor_(growth_factor),
+      n_runs_(0),
+      average_max_(0),
+      path_(path) {
+    if (!path_.empty()) {
+        Load();
+    }
+}
+
+void Progress::Load() {
+    MYLOGD("Loading stats from %s\n", path_.c_str());
+    std::string content;
+    if (!android::base::ReadFileToString(path_, &content)) {
+        MYLOGI("Could not read stats from %s; using max of %d\n", path_.c_str(), max_);
+        return;
+    }
+    if (content.empty()) {
+        MYLOGE("No stats (empty file) on %s; using max of %d\n", path_.c_str(), max_);
+        return;
+    }
+    std::vector<std::string> lines = android::base::Split(content, "\n");
+
+    if (lines.size() < 1) {
+        MYLOGE("Invalid stats on file %s: not enough lines (%d). Using max of %d\n", path_.c_str(),
+               (int)lines.size(), max_);
+        return;
+    }
+    char* ptr;
+    n_runs_ = strtol(lines[0].c_str(), &ptr, 10);
+    average_max_ = strtol(ptr, nullptr, 10);
+    if (n_runs_ <= 0 || average_max_ <= 0 || n_runs_ > STATS_MAX_N_RUNS ||
+        average_max_ > STATS_MAX_AVERAGE) {
+        MYLOGE("Invalid stats line on file %s: %s\n", path_.c_str(), lines[0].c_str());
+        initial_max_ = Progress::kDefaultMax;
+    } else {
+        initial_max_ = average_max_;
+    }
+    max_ = initial_max_;
+
+    MYLOGI("Average max progress: %d in %d runs; estimated max: %d\n", average_max_, n_runs_, max_);
+}
+
+void Progress::Save() {
+    int32_t total = n_runs_ * average_max_ + progress_;
+    int32_t runs = n_runs_ + 1;
+    int32_t average = floor(((float)total) / runs);
+    MYLOGI("Saving stats (total=%d, runs=%d, average=%d) on %s\n", total, runs, average,
+           path_.c_str());
+    if (path_.empty()) {
+        return;
+    }
+
+    std::string content = android::base::StringPrintf("%d %d\n", runs, average);
+    if (!android::base::WriteStringToFile(content, path_)) {
+        MYLOGE("Could not save stats on %s\n", path_.c_str());
+    }
+}
+
+int32_t Progress::Get() const {
+    return progress_;
+}
+
+bool Progress::Inc(int32_t delta) {
+    bool changed = false;
+    if (delta >= 0) {
+        progress_ += delta;
+        if (progress_ > max_) {
+            int32_t old_max = max_;
+            max_ = floor((float)progress_ * growth_factor_);
+            MYLOGD("Adjusting max progress from %d to %d\n", old_max, max_);
+            changed = true;
+        }
+    }
+    return changed;
+}
+
+int32_t Progress::GetMax() const {
+    return max_;
+}
+
+int32_t Progress::GetInitialMax() const {
+    return initial_max_;
+}
+
+void Progress::Dump(int fd, const std::string& prefix) const {
+    const char* pr = prefix.c_str();
+    dprintf(fd, "%sprogress: %d\n", pr, progress_);
+    dprintf(fd, "%smax: %d\n", pr, max_);
+    dprintf(fd, "%sinitial_max: %d\n", pr, initial_max_);
+    dprintf(fd, "%sgrowth_factor: %0.2f\n", pr, growth_factor_);
+    dprintf(fd, "%spath: %s\n", pr, path_.c_str());
+    dprintf(fd, "%sn_runs: %d\n", pr, n_runs_);
+    dprintf(fd, "%saverage_max: %d\n", pr, average_max_);
+}
+
 bool Dumpstate::IsDryRun() const {
     return dry_run_;
 }
@@ -222,6 +337,10 @@ bool Dumpstate::IsZipping() const {
 std::string Dumpstate::GetPath(const std::string& suffix) const {
     return android::base::StringPrintf("%s/%s-%s%s", bugreport_dir_.c_str(), base_name_.c_str(),
                                        name_.c_str(), suffix.c_str());
+}
+
+void Dumpstate::SetProgress(std::unique_ptr<Progress> progress) {
+    progress_ = std::move(progress);
 }
 
 void for_each_userid(void (*func)(int), const char *header) {
@@ -1320,26 +1439,29 @@ void dump_route_tables() {
 }
 
 // TODO: make this function thread safe if sections are generated in parallel.
-void Dumpstate::UpdateProgress(int delta) {
-    if (!update_progress_) return;
+void Dumpstate::UpdateProgress(int32_t delta) {
+    if (progress_ == nullptr) {
+        MYLOGE("UpdateProgress: progress_ not set\n");
+        return;
+    }
 
-    progress_ += delta;
+    // Always update progess so stats can be tuned...
+    bool max_changed = progress_->Inc(delta);
+
+    // ...but only notifiy listeners when necessary.
+    if (!update_progress_) return;
 
     // TODO: remove property support once Shell uses IDumpstateListener
     char key[PROPERTY_KEY_MAX];
     char value[PROPERTY_VALUE_MAX];
 
     // adjusts max on the fly
-    if (progress_ > weight_total_) {
-        int new_total = weight_total_ * 1.2;
-        MYLOGD("Adjusting total weight from %d to %d\n", weight_total_, new_total);
-        weight_total_ = new_total;
-
+    if (max_changed) {
         if (listener_ != nullptr) {
-            listener_->onMaxProgressUpdated(weight_total_);
+            listener_->onMaxProgressUpdated(progress_->GetMax());
         } else {
             snprintf(key, sizeof(key), "dumpstate.%d.max", pid_);
-            snprintf(value, sizeof(value), "%d", weight_total_);
+            snprintf(value, sizeof(value), "%d", progress_->GetMax());
             int status = property_set(key, value);
             if (status != 0) {
                 MYLOGE("Could not update max weight by setting system property %s to %s: %d\n", key,
@@ -1348,34 +1470,35 @@ void Dumpstate::UpdateProgress(int delta) {
         }
     }
 
+    int32_t progress = progress_->Get();
+    int32_t max = progress_->GetMax();
+
     if (control_socket_fd_ >= 0) {
-        dprintf(control_socket_fd_, "PROGRESS:%d/%d\n", progress_, weight_total_);
+        dprintf(control_socket_fd_, "PROGRESS:%d/%d\n", progress, max);
         fsync(control_socket_fd_);
     }
 
     if (listener_ != nullptr) {
-        if (progress_ % 100 == 0) {
+        if (progress % 100 == 0) {
             // We don't want to spam logcat, so only log multiples of 100.
-            MYLOGD("Setting progress (%s): %d/%d\n", listener_name_.c_str(), progress_,
-                   weight_total_);
+            MYLOGD("Setting progress (%s): %d/%d\n", listener_name_.c_str(), progress, max);
         } else {
             // stderr is ignored on normal invocations, but useful when calling
             // /system/bin/dumpstate directly for debuggging.
-            fprintf(stderr, "Setting progress (%s): %d/%d\n", listener_name_.c_str(), progress_,
-                    weight_total_);
+            fprintf(stderr, "Setting progress (%s): %d/%d\n", listener_name_.c_str(), progress, max);
         }
-        listener_->onProgressUpdated(progress_);
+        listener_->onProgressUpdated(progress);
     } else {
         snprintf(key, sizeof(key), "dumpstate.%d.progress", pid_);
-        snprintf(value, sizeof(value), "%d", progress_);
+        snprintf(value, sizeof(value), "%d", progress);
 
-        if (progress_ % 100 == 0) {
+        if (progress % 100 == 0) {
             // We don't want to spam logcat, so only log multiples of 100.
-            MYLOGD("Setting progress (%s): %s/%d\n", key, value, weight_total_);
+            MYLOGD("Setting progress (%s): %s/%d\n", key, value, max);
         } else {
             // stderr is ignored on normal invocations, but useful when calling
             // /system/bin/dumpstate directly for debuggging.
-            fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, weight_total_);
+            fprintf(stderr, "Setting progress (%s): %s/%d\n", key, value, max);
         }
 
         int status = property_set(key, value);

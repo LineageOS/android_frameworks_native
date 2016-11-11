@@ -63,11 +63,48 @@ class DumpstateListenerMock : public IDumpstateListener {
     MOCK_METHOD0(onAsBinder, IBinder*());
 };
 
-class DumpstateTest : public Test {
+// Base class for all tests in this file
+class DumpstateBaseTest : public Test {
+  protected:
+    const std::string kTestPath = dirname(android::base::GetExecutablePath().c_str());
+    const std::string kFixturesPath = kTestPath + "/../dumpstate_test_fixture/";
+    const std::string kTestDataPath = kFixturesPath + "/testdata/";
+    const std::string kSimpleCommand = kFixturesPath + "dumpstate_test_fixture";
+    const std::string kEchoCommand = "/system/bin/echo";
+
+    /*
+     * Copies a text file fixture to a temporary file, returning it's path.
+     *
+     * Useful in cases where the test case changes the content of the tile.
+     */
+    std::string CopyTextFileFixture(const std::string& relative_name) {
+        std::string from = kTestDataPath + relative_name;
+        // Not using TemporaryFile because it's deleted at the end, and it's useful to keep it
+        // around for poking when the test fails.
+        std::string to = kTestDataPath + relative_name + ".tmp";
+        ALOGD("CopyTextFileFixture: from %s to %s\n", from.c_str(), to.c_str());
+        android::base::RemoveFileIfExists(to);
+        CopyTextFile(from, to);
+        return to.c_str();
+    }
+
+  private:
+    // Need a function that returns void to use assertions -
+    // https://github.com/google/googletest/blob/master/googletest/docs/AdvancedGuide.md#assertion-placement
+    void CopyTextFile(const std::string& from, const std::string& to) {
+        std::string content;
+        ASSERT_TRUE(android::base::ReadFileToString(from, &content)) << "could not read from "
+                                                                     << from;
+        ASSERT_TRUE(android::base::WriteStringToFile(content, to)) << "could not write to " << to;
+    }
+};
+
+class DumpstateTest : public DumpstateBaseTest {
   public:
     void SetUp() {
         SetDryRun(false);
         SetBuildType(android::base::GetProperty("ro.build.type", "(unknown)"));
+        ds.progress_.reset(new Progress());
         ds.update_progress_ = false;
     }
 
@@ -112,6 +149,11 @@ class DumpstateTest : public Test {
         ASSERT_EQ(2000, (int)uid);
     }
 
+    void SetProgress(long progress, long initial_max) {
+        ds.update_progress_ = true;
+        ds.progress_.reset(new Progress(initial_max, progress, 1.2));
+    }
+
     // TODO: remove when progress is set by Binder callbacks.
     void AssertSystemProperty(const std::string& key, const std::string& expected_value) {
         std::string actualValue = android::base::GetProperty(key, "not set");
@@ -119,55 +161,47 @@ class DumpstateTest : public Test {
     }
 
     // TODO: remove when progress is set by Binder callbacks.
-    std::string GetProgressMessageAndAssertSystemProperties(int progress, int weight_total,
-                                                            int old_weight_total = 0) {
-        EXPECT_EQ(progress, ds.progress_) << "invalid progress";
-        EXPECT_EQ(weight_total, ds.weight_total_) << "invalid weight_total";
+    std::string GetProgressMessageAndAssertSystemProperties(int progress, int max, int old_max = 0) {
+        EXPECT_EQ(progress, ds.progress_->Get()) << "invalid progress";
+        EXPECT_EQ(max, ds.progress_->GetMax()) << "invalid max";
 
         AssertSystemProperty(android::base::StringPrintf("dumpstate.%d.progress", getpid()),
                              std::to_string(progress));
 
-        bool max_increased = old_weight_total > 0;
+        bool max_increased = old_max > 0;
 
         std::string adjustment_message = "";
         if (max_increased) {
             AssertSystemProperty(android::base::StringPrintf("dumpstate.%d.max", getpid()),
-                                 std::to_string(weight_total));
-            adjustment_message = android::base::StringPrintf(
-                "Adjusting total weight from %d to %d\n", old_weight_total, weight_total);
+                                 std::to_string(max));
+            adjustment_message =
+                android::base::StringPrintf("Adjusting max progress from %d to %d\n", old_max, max);
         }
 
         return android::base::StringPrintf("%sSetting progress (dumpstate.%d.progress): %d/%d\n",
-                                           adjustment_message.c_str(), getpid(), progress,
-                                           weight_total);
+                                           adjustment_message.c_str(), getpid(), progress, max);
     }
 
-    std::string GetProgressMessage(const std::string& listener_name, int progress, int weight_total,
-                                   int old_weight_total = 0) {
-        EXPECT_EQ(progress, ds.progress_) << "invalid progress";
-        EXPECT_EQ(weight_total, ds.weight_total_) << "invalid weight_total";
+    std::string GetProgressMessage(const std::string& listener_name, int progress, int max,
+                                   int old_max = 0) {
+        EXPECT_EQ(progress, ds.progress_->Get()) << "invalid progress";
+        EXPECT_EQ(max, ds.progress_->GetMax()) << "invalid max";
 
-        bool max_increased = old_weight_total > 0;
+        bool max_increased = old_max > 0;
 
         std::string adjustment_message = "";
         if (max_increased) {
-            adjustment_message = android::base::StringPrintf(
-                "Adjusting total weight from %d to %d\n", old_weight_total, weight_total);
+            adjustment_message =
+                android::base::StringPrintf("Adjusting max progress from %d to %d\n", old_max, max);
         }
 
         return android::base::StringPrintf("%sSetting progress (%s): %d/%d\n",
                                            adjustment_message.c_str(), listener_name.c_str(),
-                                           progress, weight_total);
+                                           progress, max);
     }
 
     // `stdout` and `stderr` from the last command ran.
     std::string out, err;
-
-    std::string test_path = dirname(android::base::GetExecutablePath().c_str());
-    std::string fixtures_path = test_path + "/../dumpstate_test_fixture/";
-    std::string test_data_path = fixtures_path + "/testdata/";
-    std::string simple_command = fixtures_path + "dumpstate_test_fixture";
-    std::string echo_command = "/system/bin/echo";
 
     Dumpstate& ds = Dumpstate::GetInstance();
 };
@@ -177,52 +211,52 @@ TEST_F(DumpstateTest, RunCommandNoArgs) {
 }
 
 TEST_F(DumpstateTest, RunCommandNoTitle) {
-    EXPECT_EQ(0, RunCommand("", {simple_command}));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}));
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandWithTitle) {
-    EXPECT_EQ(0, RunCommand("I AM GROOT", {simple_command}));
+    EXPECT_EQ(0, RunCommand("I AM GROOT", {kSimpleCommand}));
     EXPECT_THAT(err, StrEq("stderr\n"));
     // We don't know the exact duration, so we check the prefix and suffix
     EXPECT_THAT(out,
-                StartsWith("------ I AM GROOT (" + simple_command + ") ------\nstdout\n------"));
+                StartsWith("------ I AM GROOT (" + kSimpleCommand + ") ------\nstdout\n------"));
     EXPECT_THAT(out, EndsWith("s was the duration of 'I AM GROOT' ------\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandWithLoggingMessage) {
     EXPECT_EQ(
-        0, RunCommand("", {simple_command},
+        0, RunCommand("", {kSimpleCommand},
                       CommandOptions::WithTimeout(10).Log("COMMAND, Y U NO LOG FIRST?").Build()));
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("COMMAND, Y U NO LOG FIRST?stderr\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandRedirectStderr) {
-    EXPECT_EQ(0, RunCommand("", {simple_command},
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand},
                             CommandOptions::WithTimeout(10).RedirectStderr().Build()));
     EXPECT_THAT(out, IsEmpty());
     EXPECT_THAT(err, StrEq("stdout\nstderr\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandWithOneArg) {
-    EXPECT_EQ(0, RunCommand("", {echo_command, "one"}));
+    EXPECT_EQ(0, RunCommand("", {kEchoCommand, "one"}));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("one\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandWithMultipleArgs) {
-    EXPECT_EQ(0, RunCommand("", {echo_command, "one", "is", "the", "loniest", "number"}));
+    EXPECT_EQ(0, RunCommand("", {kEchoCommand, "one", "is", "the", "loniest", "number"}));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("one is the loniest number\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandDryRun) {
     SetDryRun(true);
-    EXPECT_EQ(0, RunCommand("I AM GROOT", {simple_command}));
+    EXPECT_EQ(0, RunCommand("I AM GROOT", {kSimpleCommand}));
     // We don't know the exact duration, so we check the prefix and suffix
-    EXPECT_THAT(out, StartsWith("------ I AM GROOT (" + simple_command +
+    EXPECT_THAT(out, StartsWith("------ I AM GROOT (" + kSimpleCommand +
                                 ") ------\n\t(skipped on dry run)\n------"));
     EXPECT_THAT(out, EndsWith("s was the duration of 'I AM GROOT' ------\n"));
     EXPECT_THAT(err, IsEmpty());
@@ -230,14 +264,14 @@ TEST_F(DumpstateTest, RunCommandDryRun) {
 
 TEST_F(DumpstateTest, RunCommandDryRunNoTitle) {
     SetDryRun(true);
-    EXPECT_EQ(0, RunCommand("", {simple_command}));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}));
     EXPECT_THAT(out, IsEmpty());
     EXPECT_THAT(err, IsEmpty());
 }
 
 TEST_F(DumpstateTest, RunCommandDryRunAlways) {
     SetDryRun(true);
-    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(10).Always().Build()));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(10).Always().Build()));
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n"));
 }
@@ -249,28 +283,28 @@ TEST_F(DumpstateTest, RunCommandNotFound) {
 }
 
 TEST_F(DumpstateTest, RunCommandFails) {
-    EXPECT_EQ(42, RunCommand("", {simple_command, "--exit", "42"}));
-    EXPECT_THAT(out, StrEq("stdout\n*** command '" + simple_command +
+    EXPECT_EQ(42, RunCommand("", {kSimpleCommand, "--exit", "42"}));
+    EXPECT_THAT(out, StrEq("stdout\n*** command '" + kSimpleCommand +
                            " --exit 42' failed: exit code 42\n"));
-    EXPECT_THAT(err, StrEq("stderr\n*** command '" + simple_command +
+    EXPECT_THAT(err, StrEq("stderr\n*** command '" + kSimpleCommand +
                            " --exit 42' failed: exit code 42\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandCrashes) {
-    EXPECT_NE(0, RunCommand("", {simple_command, "--crash"}));
+    EXPECT_NE(0, RunCommand("", {kSimpleCommand, "--crash"}));
     // We don't know the exit code, so check just the prefix.
     EXPECT_THAT(
-        out, StartsWith("stdout\n*** command '" + simple_command + " --crash' failed: exit code"));
+        out, StartsWith("stdout\n*** command '" + kSimpleCommand + " --crash' failed: exit code"));
     EXPECT_THAT(
-        err, StartsWith("stderr\n*** command '" + simple_command + " --crash' failed: exit code"));
+        err, StartsWith("stderr\n*** command '" + kSimpleCommand + " --crash' failed: exit code"));
 }
 
 TEST_F(DumpstateTest, RunCommandTimesout) {
-    EXPECT_EQ(-1, RunCommand("", {simple_command, "--sleep", "2"},
+    EXPECT_EQ(-1, RunCommand("", {kSimpleCommand, "--sleep", "2"},
                              CommandOptions::WithTimeout(1).Build()));
-    EXPECT_THAT(out, StartsWith("stdout line1\n*** command '" + simple_command +
+    EXPECT_THAT(out, StartsWith("stdout line1\n*** command '" + kSimpleCommand +
                                 " --sleep 2' timed out after 1"));
-    EXPECT_THAT(err, StartsWith("sleeping for 2s\n*** command '" + simple_command +
+    EXPECT_THAT(err, StartsWith("sleeping for 2s\n*** command '" + kSimpleCommand +
                                 " --sleep 2' timed out after 1"));
 }
 
@@ -279,7 +313,7 @@ TEST_F(DumpstateTest, RunCommandIsKilled) {
     CaptureStderr();
 
     std::thread t([=]() {
-        EXPECT_EQ(SIGTERM, ds.RunCommand("", {simple_command, "--pid", "--sleep", "20"},
+        EXPECT_EQ(SIGTERM, ds.RunCommand("", {kSimpleCommand, "--pid", "--sleep", "20"},
                                          CommandOptions::WithTimeout(100).Always().Build()));
     });
 
@@ -306,37 +340,35 @@ TEST_F(DumpstateTest, RunCommandIsKilled) {
     out = GetCapturedStdout();
     err = GetCapturedStderr();
 
-    EXPECT_THAT(out, StrEq("*** command '" + simple_command +
+    EXPECT_THAT(out, StrEq("*** command '" + kSimpleCommand +
                            " --pid --sleep 20' failed: killed by signal 15\n"));
-    EXPECT_THAT(err, StrEq("*** command '" + simple_command +
+    EXPECT_THAT(err, StrEq("*** command '" + kSimpleCommand +
                            " --pid --sleep 20' failed: killed by signal 15\n"));
 }
 
 TEST_F(DumpstateTest, RunCommandProgressNoListener) {
-    ds.update_progress_ = true;
-    ds.progress_ = 0;
-    ds.weight_total_ = 30;
+    SetProgress(0, 30);
 
-    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(20).Build()));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(20).Build()));
     std::string progress_message = GetProgressMessageAndAssertSystemProperties(20, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
-    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(10).Build()));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(10).Build()));
     progress_message = GetProgressMessageAndAssertSystemProperties(30, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
     // Run a command that will increase maximum timeout.
-    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(1).Build()));
-    progress_message = GetProgressMessageAndAssertSystemProperties(31, 36, 30);  // 20% increase
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(1).Build()));
+    progress_message = GetProgressMessageAndAssertSystemProperties(31, 37, 30);  // 20% increase
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
     // Make sure command ran while in dry_run is counted.
     SetDryRun(true);
-    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(4).Build()));
-    progress_message = GetProgressMessageAndAssertSystemProperties(35, 36);
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(4).Build()));
+    progress_message = GetProgressMessageAndAssertSystemProperties(35, 37);
     EXPECT_THAT(out, IsEmpty());
     EXPECT_THAT(err, StrEq(progress_message));
 }
@@ -345,36 +377,33 @@ TEST_F(DumpstateTest, RunCommandProgress) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
     ds.listener_ = listener;
     ds.listener_name_ = "FoxMulder";
-
-    ds.update_progress_ = true;
-    ds.progress_ = 0;
-    ds.weight_total_ = 30;
+    SetProgress(0, 30);
 
     EXPECT_CALL(*listener, onProgressUpdated(20));
-    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(20).Build()));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(20).Build()));
     std::string progress_message = GetProgressMessage(ds.listener_name_, 20, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
     EXPECT_CALL(*listener, onProgressUpdated(30));
-    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(10).Build()));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(10).Build()));
     progress_message = GetProgressMessage(ds.listener_name_, 30, 30);
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
     // Run a command that will increase maximum timeout.
     EXPECT_CALL(*listener, onProgressUpdated(31));
-    EXPECT_CALL(*listener, onMaxProgressUpdated(36));
-    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(1).Build()));
-    progress_message = GetProgressMessage(ds.listener_name_, 31, 36, 30);  // 20% increase
+    EXPECT_CALL(*listener, onMaxProgressUpdated(37));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(1).Build()));
+    progress_message = GetProgressMessage(ds.listener_name_, 31, 37, 30);  // 20% increase
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
     // Make sure command ran while in dry_run is counted.
     SetDryRun(true);
     EXPECT_CALL(*listener, onProgressUpdated(35));
-    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(4).Build()));
-    progress_message = GetProgressMessage(ds.listener_name_, 35, 36);
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(4).Build()));
+    progress_message = GetProgressMessage(ds.listener_name_, 35, 37);
     EXPECT_THAT(out, IsEmpty());
     EXPECT_THAT(err, StrEq(progress_message));
 
@@ -385,14 +414,13 @@ TEST_F(DumpstateTest, RunCommandDropRoot) {
     // First check root case - only available when running with 'adb root'.
     uid_t uid = getuid();
     if (uid == 0) {
-        EXPECT_EQ(0, RunCommand("", {simple_command, "--uid"}));
+        EXPECT_EQ(0, RunCommand("", {kSimpleCommand, "--uid"}));
         EXPECT_THAT(out, StrEq("0\nstdout\n"));
         EXPECT_THAT(err, StrEq("stderr\n"));
         return;
     }
-    // Then drop root.
-
-    EXPECT_EQ(0, RunCommand("", {simple_command, "--uid"},
+    // Then run dropping root.
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand, "--uid"},
                             CommandOptions::WithTimeout(1).DropRoot().Build()));
     EXPECT_THAT(out, StrEq("2000\nstdout\n"));
     EXPECT_THAT(err, StrEq("drop_root_user(): already running as Shell\nstderr\n"));
@@ -406,27 +434,12 @@ TEST_F(DumpstateTest, RunCommandAsRootUserBuild) {
 
     DropRoot();
 
-    EXPECT_EQ(0, RunCommand("", {simple_command}, CommandOptions::WithTimeout(1).AsRoot().Build()));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(1).AsRoot().Build()));
 
     // We don't know the exact path of su, so we just check for the 'root ...' commands
     EXPECT_THAT(out, StartsWith("Skipping"));
-    EXPECT_THAT(out, EndsWith("root " + simple_command + "' on user build.\n"));
+    EXPECT_THAT(out, EndsWith("root " + kSimpleCommand + "' on user build.\n"));
     EXPECT_THAT(err, IsEmpty());
-}
-
-TEST_F(DumpstateTest, RunCommandAsRootNonUserBuild) {
-    if (IsUserBuild()) {
-        ALOGI("Skipping RunCommandAsRootNonUserBuild on user builds\n");
-        return;
-    }
-
-    DropRoot();
-
-    EXPECT_EQ(0, RunCommand("", {simple_command, "--uid"},
-                            CommandOptions::WithTimeout(1).AsRoot().Build()));
-
-    EXPECT_THAT(out, StrEq("0\nstdout\n"));
-    EXPECT_THAT(err, StrEq("stderr\n"));
 }
 
 TEST_F(DumpstateTest, DumpFileNotFoundNoTitle) {
@@ -446,52 +459,50 @@ TEST_F(DumpstateTest, DumpFileNotFoundWithTitle) {
 }
 
 TEST_F(DumpstateTest, DumpFileSingleLine) {
-    EXPECT_EQ(0, DumpFile("", test_data_path + "single-line.txt"));
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "single-line.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\n"));  // dumpstate adds missing newline
 }
 
 TEST_F(DumpstateTest, DumpFileSingleLineWithNewLine) {
-    EXPECT_EQ(0, DumpFile("", test_data_path + "single-line-with-newline.txt"));
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "single-line-with-newline.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\n"));
 }
 
 TEST_F(DumpstateTest, DumpFileMultipleLines) {
-    EXPECT_EQ(0, DumpFile("", test_data_path + "multiple-lines.txt"));
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "multiple-lines.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\nI AM LINE2\nI AM LINE3\n"));
 }
 
 TEST_F(DumpstateTest, DumpFileMultipleLinesWithNewLine) {
-    EXPECT_EQ(0, DumpFile("", test_data_path + "multiple-lines-with-newline.txt"));
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "multiple-lines-with-newline.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\nI AM LINE2\nI AM LINE3\n"));
 }
 
 TEST_F(DumpstateTest, DumpFileOnDryRunNoTitle) {
     SetDryRun(true);
-    EXPECT_EQ(0, DumpFile("", test_data_path + "single-line.txt"));
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "single-line.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, IsEmpty());
 }
 
 TEST_F(DumpstateTest, DumpFileOnDryRun) {
     SetDryRun(true);
-    EXPECT_EQ(0, DumpFile("Might as well dump. Dump!", test_data_path + "single-line.txt"));
+    EXPECT_EQ(0, DumpFile("Might as well dump. Dump!", kTestDataPath + "single-line.txt"));
     EXPECT_THAT(err, IsEmpty());
-    EXPECT_THAT(out, StartsWith("------ Might as well dump. Dump! (" + test_data_path +
+    EXPECT_THAT(out, StartsWith("------ Might as well dump. Dump! (" + kTestDataPath +
                                 "single-line.txt) ------\n\t(skipped on dry run)\n------"));
     EXPECT_THAT(out, EndsWith("s was the duration of 'Might as well dump. Dump!' ------\n"));
     EXPECT_THAT(err, IsEmpty());
 }
 
 TEST_F(DumpstateTest, DumpFileUpdateProgressNoListener) {
-    ds.update_progress_ = true;
-    ds.progress_ = 0;
-    ds.weight_total_ = 30;
+    SetProgress(0, 30);
 
-    EXPECT_EQ(0, DumpFile("", test_data_path + "single-line.txt"));
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "single-line.txt"));
 
     std::string progress_message =
         GetProgressMessageAndAssertSystemProperties(5, 30);  // TODO: unhardcode WEIGHT_FILE (5)?
@@ -504,12 +515,10 @@ TEST_F(DumpstateTest, DumpFileUpdateProgress) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
     ds.listener_ = listener;
     ds.listener_name_ = "FoxMulder";
-    ds.update_progress_ = true;
-    ds.progress_ = 0;
-    ds.weight_total_ = 30;
+    SetProgress(0, 30);
 
     EXPECT_CALL(*listener, onProgressUpdated(5));
-    EXPECT_EQ(0, DumpFile("", test_data_path + "single-line.txt"));
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "single-line.txt"));
 
     std::string progress_message =
         GetProgressMessage(ds.listener_name_, 5, 30);  // TODO: unhardcode WEIGHT_FILE (5)?
@@ -519,7 +528,7 @@ TEST_F(DumpstateTest, DumpFileUpdateProgress) {
     ds.listener_.clear();
 }
 
-class DumpstateServiceTest : public Test {
+class DumpstateServiceTest : public DumpstateBaseTest {
   public:
     DumpstateService dss;
 };
@@ -547,4 +556,230 @@ TEST_F(DumpstateServiceTest, SetListenerTwice) {
 
     EXPECT_TRUE(dss.setListener("whatever", listener, &result).isOk());
     EXPECT_FALSE(result);
+}
+
+class ProgressTest : public DumpstateBaseTest {
+  public:
+    Progress GetInstance(int32_t max, double growth_factor, const std::string& path = "") {
+        return Progress(max, growth_factor, path);
+    }
+
+    void AssertStats(const std::string& path, int32_t expected_runs, int32_t expected_average) {
+        std::string expected_content =
+            android::base::StringPrintf("%d %d\n", expected_runs, expected_average);
+        std::string actual_content;
+        ASSERT_TRUE(android::base::ReadFileToString(path, &actual_content))
+            << "could not read statsfrom" << path;
+        ASSERT_THAT(actual_content, StrEq(expected_content)) << "invalid stats on " << path;
+    }
+};
+
+TEST_F(ProgressTest, SimpleTest) {
+    Progress progress;
+    EXPECT_EQ(0, progress.Get());
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetInitialMax());
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+
+    bool max_increased = progress.Inc(1);
+    EXPECT_EQ(1, progress.Get());
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetInitialMax());
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+    EXPECT_FALSE(max_increased);
+
+    // Ignore negative increase.
+    max_increased = progress.Inc(-1);
+    EXPECT_EQ(1, progress.Get());
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetInitialMax());
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+    EXPECT_FALSE(max_increased);
+}
+
+TEST_F(ProgressTest, MaxGrowsInsideNewRange) {
+    Progress progress = GetInstance(10, 1.2);  // 20% growth factor
+    EXPECT_EQ(0, progress.Get());
+    EXPECT_EQ(10, progress.GetInitialMax());
+    EXPECT_EQ(10, progress.GetMax());
+
+    // No increase
+    bool max_increased = progress.Inc(10);
+    EXPECT_EQ(10, progress.Get());
+    EXPECT_EQ(10, progress.GetMax());
+    EXPECT_FALSE(max_increased);
+
+    // Increase, with new value < max*20%
+    max_increased = progress.Inc(1);
+    EXPECT_EQ(11, progress.Get());
+    EXPECT_EQ(13, progress.GetMax());  // 11 average * 20% growth = 13.2 = 13
+    EXPECT_TRUE(max_increased);
+}
+
+TEST_F(ProgressTest, MaxGrowsOutsideNewRange) {
+    Progress progress = GetInstance(10, 1.2);  // 20% growth factor
+    EXPECT_EQ(0, progress.Get());
+    EXPECT_EQ(10, progress.GetInitialMax());
+    EXPECT_EQ(10, progress.GetMax());
+
+    // No increase
+    bool max_increased = progress.Inc(10);
+    EXPECT_EQ(10, progress.Get());
+    EXPECT_EQ(10, progress.GetMax());
+    EXPECT_FALSE(max_increased);
+
+    // Increase, with new value > max*20%
+    max_increased = progress.Inc(5);
+    EXPECT_EQ(15, progress.Get());
+    EXPECT_EQ(18, progress.GetMax());  // 15 average * 20% growth = 18
+    EXPECT_TRUE(max_increased);
+}
+
+TEST_F(ProgressTest, InvalidPath) {
+    Progress progress("/devil/null");
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+}
+
+TEST_F(ProgressTest, EmptyFile) {
+    Progress progress(CopyTextFileFixture("empty-file.txt"));
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+}
+
+TEST_F(ProgressTest, InvalidLine1stEntryNAN) {
+    Progress progress(CopyTextFileFixture("stats-invalid-1st-NAN.txt"));
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+}
+
+TEST_F(ProgressTest, InvalidLine2ndEntryNAN) {
+    Progress progress(CopyTextFileFixture("stats-invalid-2nd-NAN.txt"));
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+}
+
+TEST_F(ProgressTest, InvalidLineBothNAN) {
+    Progress progress(CopyTextFileFixture("stats-invalid-both-NAN.txt"));
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+}
+
+TEST_F(ProgressTest, InvalidLine1stEntryNegative) {
+    Progress progress(CopyTextFileFixture("stats-invalid-1st-negative.txt"));
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+}
+
+TEST_F(ProgressTest, InvalidLine2ndEntryNegative) {
+    Progress progress(CopyTextFileFixture("stats-invalid-2nd-negative.txt"));
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+}
+
+TEST_F(ProgressTest, InvalidLine1stEntryTooBig) {
+    Progress progress(CopyTextFileFixture("stats-invalid-1st-too-big.txt"));
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+}
+
+TEST_F(ProgressTest, InvalidLine2ndEntryTooBig) {
+    Progress progress(CopyTextFileFixture("stats-invalid-2nd-too-big.txt"));
+    EXPECT_EQ(Progress::kDefaultMax, progress.GetMax());
+}
+
+// Tests stats are properly saved when the file does not exists.
+TEST_F(ProgressTest, FirstTime) {
+    std::string path = kTestDataPath + "FirstTime.txt";
+    android::base::RemoveFileIfExists(path);
+
+    Progress run1(path);
+    EXPECT_EQ(0, run1.Get());
+    EXPECT_EQ(Progress::kDefaultMax, run1.GetInitialMax());
+    EXPECT_EQ(Progress::kDefaultMax, run1.GetMax());
+
+    bool max_increased = run1.Inc(20);
+    EXPECT_EQ(20, run1.Get());
+    EXPECT_EQ(Progress::kDefaultMax, run1.GetMax());
+    EXPECT_FALSE(max_increased);
+
+    run1.Save();
+    AssertStats(path, 1, 20);
+}
+
+// Tests what happens when the persistent settings contains the average duration of 1 run.
+// Data on file is 1 run and 109 average.
+TEST_F(ProgressTest, SecondTime) {
+    std::string path = CopyTextFileFixture("stats-one-run-no-newline.txt");
+
+    Progress run1 = GetInstance(-42, 1.2, path);
+    EXPECT_EQ(0, run1.Get());
+    EXPECT_EQ(10, run1.GetInitialMax());
+    EXPECT_EQ(10, run1.GetMax());
+
+    bool max_increased = run1.Inc(20);
+    EXPECT_EQ(20, run1.Get());
+    EXPECT_EQ(24, run1.GetMax());
+    EXPECT_TRUE(max_increased);
+
+    // Average now is 2 runs and (10 + 20)/ 2 = 15
+    run1.Save();
+    AssertStats(path, 2, 15);
+
+    Progress run2 = GetInstance(-42, 1.2, path);
+    EXPECT_EQ(0, run2.Get());
+    EXPECT_EQ(15, run2.GetInitialMax());
+    EXPECT_EQ(15, run2.GetMax());
+
+    max_increased = run2.Inc(25);
+    EXPECT_EQ(25, run2.Get());
+    EXPECT_EQ(30, run2.GetMax());
+    EXPECT_TRUE(max_increased);
+
+    // Average now is 3 runs and (15 * 2 + 25)/ 3 = 18.33 = 18
+    run2.Save();
+    AssertStats(path, 3, 18);
+
+    Progress run3 = GetInstance(-42, 1.2, path);
+    EXPECT_EQ(0, run3.Get());
+    EXPECT_EQ(18, run3.GetInitialMax());
+    EXPECT_EQ(18, run3.GetMax());
+
+    // Make sure average decreases as well
+    max_increased = run3.Inc(5);
+    EXPECT_EQ(5, run3.Get());
+    EXPECT_EQ(18, run3.GetMax());
+    EXPECT_FALSE(max_increased);
+
+    // Average now is 4 runs and (18 * 3 + 5)/ 4 = 14.75 = 14
+    run3.Save();
+    AssertStats(path, 4, 14);
+}
+
+// Tests what happens when the persistent settings contains the average duration of 2 runs.
+// Data on file is 2 runs and 15 average.
+TEST_F(ProgressTest, ThirdTime) {
+    std::string path = CopyTextFileFixture("stats-two-runs.txt");
+    AssertStats(path, 2, 15);  // Sanity check
+
+    Progress run1 = GetInstance(-42, 1.2, path);
+    EXPECT_EQ(0, run1.Get());
+    EXPECT_EQ(15, run1.GetInitialMax());
+    EXPECT_EQ(15, run1.GetMax());
+
+    bool max_increased = run1.Inc(20);
+    EXPECT_EQ(20, run1.Get());
+    EXPECT_EQ(24, run1.GetMax());
+    EXPECT_TRUE(max_increased);
+
+    // Average now is 3 runs and (15 * 2 + 20)/ 3 = 16.66 = 16
+    run1.Save();
+    AssertStats(path, 3, 16);
+}
+
+// TODO: RunCommandAsRootNonUserBuild must be the last test because it drops root, which could cause
+// other tests to fail if they're relyin on the process running as root.
+// For now this is fine, but eventually it might need to be moved to its own test case / process.
+TEST_F(DumpstateTest, RunCommandAsRootNonUserBuild) {
+    if (IsUserBuild()) {
+        ALOGI("Skipping RunCommandAsRootNonUserBuild on user builds\n");
+        return;
+    }
+
+    DropRoot();
+
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand, "--uid"},
+                            CommandOptions::WithTimeout(1).AsRoot().Build()));
+
+    EXPECT_THAT(out, StrEq("0\nstdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n"));
 }

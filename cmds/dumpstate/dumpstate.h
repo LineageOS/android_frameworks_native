@@ -184,20 +184,65 @@ class CommandOptions {
 };
 
 /*
- * Estimated total weight of bugreport generation.
+ * Keeps track of current progress and estimated max, saving stats on file to tune up future runs.
  *
- * Each section contributes to the total weight by an individual weight, so the overall progress
- * can be calculated by dividing the all completed weight by the total weight.
+ * Each `dumpstate` section contributes to the total weight by an individual weight, so the overall
+ * progress can be calculated by dividing the estimate max progress by the current progress.
  *
- * This value is defined empirically and it need to be adjusted as more sections are added.
+ * The estimated max progress is initially set to a value (`kDefaultMax) defined empirically, but
+ * it's adjusted after each dumpstate run by storing the average duration in a file.
  *
- * It does not need to match the exact sum of all sections, but ideally it should to be slight more
- * than such sum: a value too high will cause the bugreport to finish before the user expected (for
- * example, jumping from 70% to 100%), while a value too low will cause the progress to get stuck
- * at an almost-finished value (like 99%) for a while.
  */
-// TODO: move to dumpstate.cpp / utils.cpp once it's used in just one file
-static const int WEIGHT_TOTAL = 6500;
+class Progress {
+    friend class ProgressTest;
+    friend class DumpstateTest;
+
+  public:
+    /*
+     * Default estimation of the max duration of a bugreport generation.
+     *
+     * It does not need to match the exact sum of all sections, but ideally it should to be slight
+     * more than such sum: a value too high will cause the bugreport to finish before the user
+     * expected (for example, jumping from 70% to 100%), while a value too low will cause the
+     * progress to get stuck at an almost-finished value (like 99%) for a while.
+     *
+     * This constant is only used when the average duration from previous runs cannot be used.
+     */
+    static const int kDefaultMax;
+
+    Progress(const std::string& path = "");
+
+    // Gets the current progress.
+    int32_t Get() const;
+
+    // Gets the current estimated max progress.
+    int32_t GetMax() const;
+
+    // Gets the initial estimated max progress.
+    int32_t GetInitialMax() const;
+
+    // Increments progress (ignored if not positive).
+    // Returns `true` if the max progress increased as well.
+    bool Inc(int32_t delta);
+
+    // Persist the stats.
+    void Save();
+
+    void Dump(int fd, const std::string& prefix) const;
+
+  private:
+    Progress(int32_t initial_max, float growth_factor,
+             const std::string& path = "");                                // Used by test cases.
+    Progress(int32_t initial_max, int32_t progress, float growth_factor);  // Used by test cases.
+    void Load();
+    int32_t initial_max_;
+    int32_t progress_;
+    int32_t max_;
+    float growth_factor_;
+    int32_t n_runs_;
+    int32_t average_max_;
+    const std::string& path_;
+};
 
 /*
  * List of supported zip format versions.
@@ -310,12 +355,17 @@ class Dumpstate {
      */
     void TakeScreenshot(const std::string& path = "");
 
-    // TODO: members below should be private once refactor is finished
+    /////////////////////////////////////////////////////////////////////
+    // TODO: members below should be private once refactor is finished //
+    /////////////////////////////////////////////////////////////////////
+
+    // TODO: temporary method until Dumpstate object is properly set
+    void SetProgress(std::unique_ptr<Progress> progress);
 
     /*
      * Updates the overall progress of the bugreport generation by the given weight increment.
      */
-    void UpdateProgress(int delta);
+    void UpdateProgress(int32_t delta);
 
     /* Prints the dumpstate header on `stdout`. */
     void PrintHeader() const;
@@ -332,7 +382,7 @@ class Dumpstate {
     // TODO: initialize fields on constructor
 
     // dumpstate id - unique after each device reboot.
-    unsigned long id_;
+    uint32_t id_;
 
     // dumpstate pid
     pid_t pid_;
@@ -343,11 +393,7 @@ class Dumpstate {
     // Whether it should take an screenshot earlier in the process.
     bool do_early_screenshot_ = false;
 
-    // Currrent progress.
-    int progress_ = 0;
-
-    // Total estimated progress.
-    int weight_total_ = WEIGHT_TOTAL;
+    std::unique_ptr<Progress> progress_;
 
     // When set, defines a socket file-descriptor use to report progress to bugreportz.
     int control_socket_fd_ = -1;
