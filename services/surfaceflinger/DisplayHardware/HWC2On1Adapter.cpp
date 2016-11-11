@@ -1841,29 +1841,39 @@ void HWC2On1Adapter::Display::initializeActiveConfig()
 
     auto activeConfig = mDevice.mHwc1Device->getActiveConfig(
             mDevice.mHwc1Device, mHwc1Id);
-    if (activeConfig >= 0) {
-        for (const auto& config : mConfigs) {
-            if (config->hasHwc1Id(activeConfig)) {
-                ALOGV("Setting active config to %d for HWC1 config %u",
-                        config->getId(), activeConfig);
-                mActiveConfig = config;
-                if (config->getColorModeForHwc1Id(activeConfig, &mActiveColorMode) != Error::None) {
-                    // This should never happen since we checked for the config's presence before
-                    // setting it as active.
-                    ALOGE("Unable to find color mode for active HWC1 config %d",
-                            config->getId());
-                    mActiveColorMode = HAL_COLOR_MODE_NATIVE;
-                }
-                break;
+
+    // Some devices startup without an activeConfig:
+    // We need to set one ourselves.
+    if (activeConfig == HWC_ERROR) {
+        ALOGV("There is no active configuration: Picking the first one: 0.");
+        const int defaultIndex = 0;
+        mDevice.mHwc1Device->setActiveConfig(mDevice.mHwc1Device, mHwc1Id, defaultIndex);
+        activeConfig = defaultIndex;
+    }
+
+    for (const auto& config : mConfigs) {
+        if (config->hasHwc1Id(activeConfig)) {
+            ALOGE("Setting active config to %d for HWC1 config %u", config->getId(), activeConfig);
+            mActiveConfig = config;
+            if (config->getColorModeForHwc1Id(activeConfig, &mActiveColorMode) != Error::None) {
+                // This should never happen since we checked for the config's presence before
+                // setting it as active.
+                ALOGE("Unable to find color mode for active HWC1 config %d", config->getId());
+                mActiveColorMode = HAL_COLOR_MODE_NATIVE;
             }
-        }
-        if (!mActiveConfig) {
-            ALOGV("Unable to find active HWC1 config %u, defaulting to "
-                    "config 0", activeConfig);
-            mActiveConfig = mConfigs[0];
-            mActiveColorMode = HAL_COLOR_MODE_NATIVE;
+            break;
         }
     }
+    if (!mActiveConfig) {
+        ALOGV("Unable to find active HWC1 config %u, defaulting to "
+                "config 0", activeConfig);
+        mActiveConfig = mConfigs[0];
+        mActiveColorMode = HAL_COLOR_MODE_NATIVE;
+    }
+
+
+
+
 }
 
 void HWC2On1Adapter::Display::reallocateHwc1Contents()

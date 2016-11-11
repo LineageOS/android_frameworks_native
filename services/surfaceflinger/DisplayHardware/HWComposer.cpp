@@ -346,14 +346,14 @@ std::vector<std::shared_ptr<const HWC2::Display::Config>>
 std::shared_ptr<const HWC2::Display::Config>
         HWComposer::getActiveConfig(int32_t displayId) const {
     if (!isValidDisplay(displayId)) {
-        ALOGE("getActiveConfigs: Attempted to access invalid display %d",
+        ALOGV("getActiveConfigs: Attempted to access invalid display %d",
                 displayId);
         return nullptr;
     }
     std::shared_ptr<const HWC2::Display::Config> config;
     auto error = mDisplayData[displayId].hwcDisplay->getActiveConfig(&config);
     if (error == HWC2::Error::BadConfig) {
-        ALOGV("getActiveConfig: No config active, returning null");
+        ALOGE("getActiveConfig: No config active, returning null");
         return nullptr;
     } else if (error != HWC2::Error::None) {
         ALOGE("getActiveConfig failed for display %d: %s (%d)", displayId,
