@@ -38,7 +38,9 @@
 using namespace android;
 
 using ::testing::EndsWith;
+using ::testing::IsNull;
 using ::testing::IsEmpty;
+using ::testing::NotNull;
 using ::testing::StrEq;
 using ::testing::StartsWith;
 using ::testing::Test;
@@ -49,6 +51,7 @@ using ::testing::internal::GetCapturedStdout;
 
 using os::DumpstateService;
 using os::IDumpstateListener;
+using os::IDumpstateToken;
 
 // Not used on test cases yet...
 void dumpstate_board(void) {
@@ -106,6 +109,7 @@ class DumpstateTest : public DumpstateBaseTest {
         SetBuildType(android::base::GetProperty("ro.build.type", "(unknown)"));
         ds.progress_.reset(new Progress());
         ds.update_progress_ = false;
+        ds.update_progress_threshold_ = 0;
     }
 
     // Runs a command and capture `stdout` and `stderr`.
@@ -149,55 +153,32 @@ class DumpstateTest : public DumpstateBaseTest {
         ASSERT_EQ(2000, (int)uid);
     }
 
-    void SetProgress(long progress, long initial_max) {
+    void SetProgress(long progress, long initial_max, long threshold = 0) {
         ds.update_progress_ = true;
+        ds.update_progress_threshold_ = threshold;
+        ds.last_updated_progress_ = 0;
         ds.progress_.reset(new Progress(initial_max, progress, 1.2));
     }
 
-    // TODO: remove when progress is set by Binder callbacks.
-    void AssertSystemProperty(const std::string& key, const std::string& expected_value) {
-        std::string actualValue = android::base::GetProperty(key, "not set");
-        EXPECT_THAT(expected_value, StrEq(actualValue)) << "invalid value for property " << key;
-    }
-
-    // TODO: remove when progress is set by Binder callbacks.
-    std::string GetProgressMessageAndAssertSystemProperties(int progress, int max, int old_max = 0) {
-        EXPECT_EQ(progress, ds.progress_->Get()) << "invalid progress";
-        EXPECT_EQ(max, ds.progress_->GetMax()) << "invalid max";
-
-        AssertSystemProperty(android::base::StringPrintf("dumpstate.%d.progress", getpid()),
-                             std::to_string(progress));
-
-        bool max_increased = old_max > 0;
-
-        std::string adjustment_message = "";
-        if (max_increased) {
-            AssertSystemProperty(android::base::StringPrintf("dumpstate.%d.max", getpid()),
-                                 std::to_string(max));
-            adjustment_message =
-                android::base::StringPrintf("Adjusting max progress from %d to %d\n", old_max, max);
-        }
-
-        return android::base::StringPrintf("%sSetting progress (dumpstate.%d.progress): %d/%d\n",
-                                           adjustment_message.c_str(), getpid(), progress, max);
-    }
-
     std::string GetProgressMessage(const std::string& listener_name, int progress, int max,
-                                   int old_max = 0) {
+                                   int old_max = 0, bool update_progress = true) {
         EXPECT_EQ(progress, ds.progress_->Get()) << "invalid progress";
         EXPECT_EQ(max, ds.progress_->GetMax()) << "invalid max";
 
         bool max_increased = old_max > 0;
 
-        std::string adjustment_message = "";
+        std::string message = "";
         if (max_increased) {
-            adjustment_message =
+            message =
                 android::base::StringPrintf("Adjusting max progress from %d to %d\n", old_max, max);
         }
 
-        return android::base::StringPrintf("%sSetting progress (%s): %d/%d\n",
-                                           adjustment_message.c_str(), listener_name.c_str(),
-                                           progress, max);
+        if (update_progress) {
+            message += android::base::StringPrintf("Setting progress (%s): %d/%d\n",
+                                                   listener_name.c_str(), progress, max);
+        }
+
+        return message;
     }
 
     // `stdout` and `stderr` from the last command ran.
@@ -346,33 +327,6 @@ TEST_F(DumpstateTest, RunCommandIsKilled) {
                            " --pid --sleep 20' failed: killed by signal 15\n"));
 }
 
-TEST_F(DumpstateTest, RunCommandProgressNoListener) {
-    SetProgress(0, 30);
-
-    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(20).Build()));
-    std::string progress_message = GetProgressMessageAndAssertSystemProperties(20, 30);
-    EXPECT_THAT(out, StrEq("stdout\n"));
-    EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
-
-    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(10).Build()));
-    progress_message = GetProgressMessageAndAssertSystemProperties(30, 30);
-    EXPECT_THAT(out, StrEq("stdout\n"));
-    EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
-
-    // Run a command that will increase maximum timeout.
-    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(1).Build()));
-    progress_message = GetProgressMessageAndAssertSystemProperties(31, 37, 30);  // 20% increase
-    EXPECT_THAT(out, StrEq("stdout\n"));
-    EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
-
-    // Make sure command ran while in dry_run is counted.
-    SetDryRun(true);
-    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(4).Build()));
-    progress_message = GetProgressMessageAndAssertSystemProperties(35, 37);
-    EXPECT_THAT(out, IsEmpty());
-    EXPECT_THAT(err, StrEq(progress_message));
-}
-
 TEST_F(DumpstateTest, RunCommandProgress) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
     ds.listener_ = listener;
@@ -406,6 +360,42 @@ TEST_F(DumpstateTest, RunCommandProgress) {
     progress_message = GetProgressMessage(ds.listener_name_, 35, 37);
     EXPECT_THAT(out, IsEmpty());
     EXPECT_THAT(err, StrEq(progress_message));
+
+    ds.listener_.clear();
+}
+
+TEST_F(DumpstateTest, RunCommandProgressIgnoreThreshold) {
+    sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
+    ds.listener_ = listener;
+    ds.listener_name_ = "FoxMulder";
+    SetProgress(0, 8, 5);  // 8 max, 5 threshold
+
+    // First update should always be sent.
+    EXPECT_CALL(*listener, onProgressUpdated(1));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(1).Build()));
+    std::string progress_message = GetProgressMessage(ds.listener_name_, 1, 8);
+    EXPECT_THAT(out, StrEq("stdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
+
+    // Fourth update should be ignored because it's between the threshold (5 -1 = 4 < 5).
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(4).Build()));
+    EXPECT_THAT(out, StrEq("stdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n"));
+
+    // Third update should be sent because it reaches threshold (6 - 1 = 5).
+    EXPECT_CALL(*listener, onProgressUpdated(6));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(1).Build()));
+    progress_message = GetProgressMessage(ds.listener_name_, 6, 8);
+    EXPECT_THAT(out, StrEq("stdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
+
+    // Fourth update should be ignored because it's between the threshold (9 - 6 = 3 < 5).
+    // But max update should be sent.
+    EXPECT_CALL(*listener, onMaxProgressUpdated(10));  // 9 * 120% = 10.8 = 10
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(3).Build()));
+    progress_message = GetProgressMessage(ds.listener_name_, 9, 10, 8, false);
+    EXPECT_THAT(out, StrEq("stdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n" + progress_message));
 
     ds.listener_.clear();
 }
@@ -499,18 +489,6 @@ TEST_F(DumpstateTest, DumpFileOnDryRun) {
     EXPECT_THAT(err, IsEmpty());
 }
 
-TEST_F(DumpstateTest, DumpFileUpdateProgressNoListener) {
-    SetProgress(0, 30);
-
-    EXPECT_EQ(0, DumpFile("", kTestDataPath + "single-line.txt"));
-
-    std::string progress_message =
-        GetProgressMessageAndAssertSystemProperties(5, 30);  // TODO: unhardcode WEIGHT_FILE (5)?
-
-    EXPECT_THAT(err, StrEq(progress_message));
-    EXPECT_THAT(out, StrEq("I AM LINE1\n"));  // dumpstate adds missing newline
-}
-
 TEST_F(DumpstateTest, DumpFileUpdateProgress) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
     ds.listener_ = listener;
@@ -535,27 +513,28 @@ class DumpstateServiceTest : public DumpstateBaseTest {
 
 TEST_F(DumpstateServiceTest, SetListenerNoName) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
-    bool result;
-    EXPECT_TRUE(dss.setListener("", listener, &result).isOk());
-    EXPECT_FALSE(result);
+    sp<IDumpstateToken> token;
+    EXPECT_TRUE(dss.setListener("", listener, &token).isOk());
+    ASSERT_THAT(token, IsNull());
 }
 
 TEST_F(DumpstateServiceTest, SetListenerNoPointer) {
-    bool result;
-    EXPECT_TRUE(dss.setListener("whatever", nullptr, &result).isOk());
-    EXPECT_FALSE(result);
+    sp<IDumpstateToken> token;
+    EXPECT_TRUE(dss.setListener("whatever", nullptr, &token).isOk());
+    ASSERT_THAT(token, IsNull());
 }
 
 TEST_F(DumpstateServiceTest, SetListenerTwice) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
-    bool result;
-    EXPECT_TRUE(dss.setListener("whatever", listener, &result).isOk());
-    EXPECT_TRUE(result);
-
+    sp<IDumpstateToken> token;
+    EXPECT_TRUE(dss.setListener("whatever", listener, &token).isOk());
+    ASSERT_THAT(token, NotNull());
     EXPECT_THAT(Dumpstate::GetInstance().listener_name_, StrEq("whatever"));
 
-    EXPECT_TRUE(dss.setListener("whatever", listener, &result).isOk());
-    EXPECT_FALSE(result);
+    token.clear();
+    EXPECT_TRUE(dss.setListener("whatsoever", listener, &token).isOk());
+    ASSERT_THAT(token, IsNull());
+    EXPECT_THAT(Dumpstate::GetInstance().listener_name_, StrEq("whatever"));
 }
 
 class ProgressTest : public DumpstateBaseTest {

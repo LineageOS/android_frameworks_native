@@ -25,6 +25,10 @@
 namespace android {
 namespace os {
 
+namespace {
+class DumpstateToken : public BnDumpstateToken {};
+}
+
 DumpstateService::DumpstateService() : ds_(Dumpstate::GetInstance()) {
 }
 
@@ -45,32 +49,36 @@ status_t DumpstateService::Start() {
 }
 
 binder::Status DumpstateService::setListener(const std::string& name,
-                                             const sp<IDumpstateListener>& listener, bool* set) {
+                                             const sp<IDumpstateListener>& listener,
+                                             sp<IDumpstateToken>* returned_token) {
+    *returned_token = nullptr;
     if (name.empty()) {
         MYLOGE("setListener(): name not set\n");
-        *set = false;
         return binder::Status::ok();
     }
     if (listener == nullptr) {
         MYLOGE("setListener(): listener not set\n");
-        *set = false;
         return binder::Status::ok();
     }
     std::lock_guard<std::mutex> lock(lock_);
     if (ds_.listener_ != nullptr) {
         MYLOGE("setListener(%s): already set (%s)\n", name.c_str(), ds_.listener_name_.c_str());
-        *set = false;
         return binder::Status::ok();
     }
+
     ds_.listener_name_ = name;
     ds_.listener_ = listener;
-    *set = true;
+    *returned_token = new DumpstateToken();
+
     return binder::Status::ok();
 }
 
 status_t DumpstateService::dump(int fd, const Vector<String16>&) {
     dprintf(fd, "id: %d\n", ds_.id_);
     dprintf(fd, "pid: %d\n", ds_.pid_);
+    dprintf(fd, "update_progress: %s\n", ds_.update_progress_ ? "true" : "false");
+    dprintf(fd, "update_progress_threshold: %d\n", ds_.update_progress_threshold_);
+    dprintf(fd, "last_updated_progress: %d\n", ds_.last_updated_progress_);
     dprintf(fd, "progress:\n");
     ds_.progress_->Dump(fd, "  ");
     dprintf(fd, "args: %s\n", ds_.args_.c_str());
