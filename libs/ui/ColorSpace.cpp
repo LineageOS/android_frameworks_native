@@ -217,8 +217,8 @@ const ColorSpace ColorSpace::DCIP3() {
         "SMPTE RP 431-2-2007 DCI (P3)",
         {{float2{0.680f, 0.320f}, {0.265f, 0.690f}, {0.150f, 0.060f}}},
         {0.3127f, 0.3290f},
-        std::bind(saturate<float>, std::bind(powf, _1, 1.0f / 2.6f)),
-        std::bind(saturate<float>, std::bind(powf, _1, 2.6f))
+        std::bind(powf, _1, 1.0f / 2.6f),
+        std::bind(powf, _1, 2.6f)
     };
 }
 
