@@ -1357,6 +1357,7 @@ status_t BufferQueueProducer::setGenerationNumber(uint32_t generationNumber) {
 
 String8 BufferQueueProducer::getConsumerName() const {
     ATRACE_CALL();
+    Mutex::Autolock lock(mCore->mMutex);
     BQ_LOGV("getConsumerName: %s", mConsumerName.string());
     return mConsumerName;
 }
