@@ -1253,13 +1253,9 @@ bool Dumpstate::FinishZipFile() {
     // TODO: remove once FinishZipFile() is automatically handled by Dumpstate's destructor.
     ds.zip_file.reset(nullptr);
 
-    if (IsUserBuild()) {
-        MYLOGD("Removing temporary file %s\n", tmp_path_.c_str())
-        if (remove(tmp_path_.c_str()) != 0) {
-            ALOGW("remove(%s): %s\n", tmp_path_.c_str(), strerror(errno));
-        }
-    } else {
-        MYLOGD("Keeping temporary file %s on non-user build\n", tmp_path_.c_str())
+    MYLOGD("Removing temporary file %s\n", tmp_path_.c_str())
+    if (remove(tmp_path_.c_str()) != 0) {
+        MYLOGE("Failed to remove temporary file (%s): %s\n", tmp_path_.c_str(), strerror(errno));
     }
 
     return true;
