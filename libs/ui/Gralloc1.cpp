@@ -77,6 +77,17 @@ gralloc1_error_t Descriptor::setFormat(android_pixel_format_t format)
             mShimDevice.mDevice, mDeviceId, format, &mFormat);
 }
 
+gralloc1_error_t Descriptor::setLayerCount(uint32_t layerCount)
+{
+    if (mShimDevice.hasCapability(GRALLOC1_CAPABILITY_LAYERED_BUFFERS)) {
+        return setHelper<uint32_t>(mShimDevice.mFunctions.setLayerCount.pfn,
+                mShimDevice.mDevice, mDeviceId, layerCount, &mLayerCount);
+    } else {
+        // Layered buffers are not supported on this device.
+        return GRALLOC1_ERROR_UNSUPPORTED;
+    }
+}
+
 gralloc1_error_t Descriptor::setProducerUsage(gralloc1_producer_usage_t usage)
 {
     return setHelper<uint64_t>(mShimDevice.mFunctions.setProducerUsage.pfn,
@@ -364,6 +375,15 @@ bool Device::loadFunctions()
     } else {
         // allocate may not be present if we're only able to map in this process
         mFunctions.allocate.load(mDevice, false);
+    }
+
+    if (hasCapability(GRALLOC1_CAPABILITY_LAYERED_BUFFERS)) {
+        if (!mFunctions.setLayerCount.load(mDevice, true)) {
+            return false;
+        }
+        if (!mFunctions.getLayerCount.load(mDevice, true)) {
+            return false;
+        }
     }
 
     return true;

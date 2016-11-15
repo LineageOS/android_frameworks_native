@@ -76,10 +76,15 @@ public:
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inUsage, std::string requestorName = "<Unknown>");
 
+    // creates w * h buffer with a layer count
+    GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
+            uint32_t inLayerCount, uint32_t inUsage,
+            std::string requestorName = "<Unknown>");
+
     // create a buffer from an existing handle
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
-            uint32_t inUsage, uint32_t inStride, native_handle_t* inHandle,
-            bool keepOwnership);
+            uint32_t inLayerCount, uint32_t inUsage, uint32_t inStride,
+            native_handle_t* inHandle, bool keepOwnership);
 
     // create a buffer from an existing ANativeWindowBuffer
     GraphicBuffer(ANativeWindowBuffer* buffer, bool keepOwnership);
@@ -92,6 +97,7 @@ public:
     uint32_t getStride() const          { return static_cast<uint32_t>(stride); }
     uint32_t getUsage() const           { return static_cast<uint32_t>(usage); }
     PixelFormat getPixelFormat() const  { return format; }
+    uint32_t getLayerCount() const      { return static_cast<uint32_t>(layerCount); }
     Rect getBounds() const              { return Rect(width, height); }
     uint64_t getId() const              { return mId; }
 
@@ -101,10 +107,10 @@ public:
     }
 
     status_t reallocate(uint32_t inWidth, uint32_t inHeight,
-            PixelFormat inFormat, uint32_t inUsage);
+            PixelFormat inFormat, uint32_t inLayerCount, uint32_t inUsage);
 
     bool needsReallocation(uint32_t inWidth, uint32_t inHeight,
-            PixelFormat inFormat, uint32_t inUsage);
+            PixelFormat inFormat, uint32_t inLayerCount, uint32_t inUsage);
 
     status_t lock(uint32_t inUsage, void** vaddr);
     status_t lock(uint32_t inUsage, const Rect& rect, void** vaddr);
@@ -160,7 +166,7 @@ private:
     const GraphicBuffer& operator = (const GraphicBuffer& rhs) const;
 
     status_t initSize(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
-            uint32_t inUsage, std::string requestorName);
+            uint32_t inLayerCount, uint32_t inUsage, std::string requestorName);
 
     void free_handle();
 

@@ -64,15 +64,15 @@ void GraphicBufferAllocator::dump(String8& result) const
     for (size_t i=0 ; i<c ; i++) {
         const alloc_rec_t& rec(list.valueAt(i));
         if (rec.size) {
-            snprintf(buffer, SIZE, "%10p: %7.2f KiB | %4u (%4u) x %4u | %8X | 0x%08x | %s\n",
+            snprintf(buffer, SIZE, "%10p: %7.2f KiB | %4u (%4u) x %4u | %4u | %8X | 0x%08x | %s\n",
                     list.keyAt(i), rec.size/1024.0f,
-                    rec.width, rec.stride, rec.height, rec.format, rec.usage,
-                    rec.requestorName.c_str());
+                    rec.width, rec.stride, rec.height, rec.layerCount, rec.format,
+                    rec.usage, rec.requestorName.c_str());
         } else {
-            snprintf(buffer, SIZE, "%10p: unknown     | %4u (%4u) x %4u | %8X | 0x%08x | %s\n",
+            snprintf(buffer, SIZE, "%10p: unknown     | %4u (%4u) x %4u | %4u | %8X | 0x%08x | %s\n",
                     list.keyAt(i),
-                    rec.width, rec.stride, rec.height, rec.format, rec.usage,
-                    rec.requestorName.c_str());
+                    rec.width, rec.stride, rec.height, rec.layerCount, rec.format,
+                    rec.usage, rec.requestorName.c_str());
         }
         result.append(buffer);
         total += rec.size;
@@ -103,21 +103,22 @@ class HalBuffer {
 public:
     HalBuffer(const Gralloc2::Allocator* allocator,
             uint32_t width, uint32_t height,
-            PixelFormat format, uint32_t usage)
+            PixelFormat format, uint32_t layerCount, uint32_t usage)
         : mAllocator(allocator), mBufferValid(false)
     {
         Gralloc2::IAllocator::BufferDescriptorInfo info = {};
         info.width = width;
         info.height = height;
         info.format = static_cast<Gralloc2::PixelFormat>(format);
+        info.layerCount = layerCount;
         info.producerUsageMask = usage;
         info.consumerUsageMask = usage;
 
         Gralloc2::BufferDescriptor descriptor;
         auto error = mAllocator->createBufferDescriptor(info, descriptor);
         if (error != Gralloc2::Error::NONE) {
-            ALOGE("Failed to create desc (%u x %u) format %d usage %u: %d",
-                    width, height, format, usage, error);
+            ALOGE("Failed to create desc (%u x %u) layerCount %u format %d usage %u: %d",
+                    width, height, layerCount, format, usage, error);
             return;
         }
 
@@ -127,8 +128,8 @@ public:
         }
 
         if (error != Gralloc2::Error::NONE) {
-            ALOGE("Failed to allocate (%u x %u) format %d usage %u: %d",
-                    width, height, format, usage, error);
+            ALOGE("Failed to allocate (%u x %u) layerCount %u format %d usage %u: %d",
+                    width, height, layerCount, format, usage, error);
             mAllocator->destroyBufferDescriptor(descriptor);
             return;
         }
@@ -195,8 +196,9 @@ private:
 } // namespace
 
 status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
-        PixelFormat format, uint32_t usage, buffer_handle_t* handle,
-        uint32_t* stride, uint64_t graphicBufferId, std::string requestorName)
+        PixelFormat format, uint32_t layerCount, uint32_t usage,
+        buffer_handle_t* handle, uint32_t* stride, uint64_t graphicBufferId,
+        std::string requestorName)
 {
     ATRACE_CALL();
 
@@ -205,12 +207,17 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
     if (!width || !height)
         width = height = 1;
 
+    // Ensure that layerCount is valid.
+    if (layerCount < 1)
+        layerCount = 1;
+
     // Filter out any usage bits that should not be passed to the gralloc module
     usage &= GRALLOC_USAGE_ALLOC_MASK;
 
     gralloc1_error_t error;
     if (mAllocator->valid()) {
-        HalBuffer buffer(mAllocator.get(), width, height, format, usage);
+        HalBuffer buffer(mAllocator.get(), width, height, format, layerCount,
+                usage);
         if (!buffer.exportHandle(mMapper, handle, stride)) {
             return NO_MEMORY;
         }
@@ -229,6 +236,17 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
             ALOGE("Failed to set format to %d: %d", format, error);
             return BAD_VALUE;
         }
+        if (mDevice->hasCapability(GRALLOC1_CAPABILITY_LAYERED_BUFFERS)) {
+            error = descriptor->setLayerCount(layerCount);
+            if (error != GRALLOC1_ERROR_NONE) {
+                ALOGE("Failed to set layer count to %u: %d", layerCount, error);
+                return BAD_VALUE;
+            }
+        } else if (layerCount > 1) {
+            ALOGE("Failed to set layer count to %u: capability unsupported",
+                    layerCount);
+            return BAD_VALUE;
+        }
         error = descriptor->setProducerUsage(
                 static_cast<gralloc1_producer_usage_t>(usage));
         if (error != GRALLOC1_ERROR_NONE) {
@@ -244,8 +262,8 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
 
         error = mDevice->allocate(descriptor, graphicBufferId, handle);
         if (error != GRALLOC1_ERROR_NONE) {
-            ALOGE("Failed to allocate (%u x %u) format %d usage %u: %d",
-                    width, height, format, usage, error);
+            ALOGE("Failed to allocate (%u x %u) layerCount %u format %d usage %u: %d",
+                    width, height, layerCount, format, usage, error);
             return NO_MEMORY;
         }
 
@@ -264,6 +282,7 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
         rec.height = height;
         rec.stride = *stride;
         rec.format = format;
+        rec.layerCount = layerCount;
         rec.usage = usage;
         rec.size = static_cast<size_t>(height * (*stride) * bpp);
         rec.requestorName = std::move(requestorName);

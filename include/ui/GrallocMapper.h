@@ -63,6 +63,11 @@ public:
         return mMapper->getFormat(mDevice, handle, &format);
     }
 
+    Error getLayerCount(buffer_handle_t handle, uint32_t& layerCount) const
+    {
+        return mMapper->getLayerCount(mDevice, handle, &layerCount);
+    }
+
     Error getProducerUsageMask(buffer_handle_t handle,
             uint64_t& usageMask) const
     {

@@ -1802,6 +1802,7 @@ EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint *attrib_list)
     uint32_t width = 0;
     uint32_t height = 0;
     uint32_t format = 0;
+    uint32_t layer_count = 1;
     uint32_t red_size = 0;
     uint32_t green_size = 0;
     uint32_t blue_size = 0;
@@ -1827,6 +1828,7 @@ EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint *attrib_list)
                 GET_NONNEGATIVE_VALUE(EGL_GREEN_SIZE, green_size);
                 GET_NONNEGATIVE_VALUE(EGL_BLUE_SIZE, blue_size);
                 GET_NONNEGATIVE_VALUE(EGL_ALPHA_SIZE, alpha_size);
+                GET_NONNEGATIVE_VALUE(EGL_LAYER_COUNT_ANDROID, layer_count);
                 case EGL_NATIVE_BUFFER_USAGE_ANDROID:
                     if (value & EGL_NATIVE_BUFFER_USAGE_PROTECTED_BIT_ANDROID) {
                         usage |= GRALLOC_USAGE_PROTECTED;
@@ -1862,7 +1864,7 @@ EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint *attrib_list)
                alpha_size == 0) {
         format = HAL_PIXEL_FORMAT_RGB_565;
     } else {
-        ALOGE("Invalid native pixel format { r=%d, g=%d, b=%d, a=%d }",
+        ALOGE("Invalid native pixel format { r=%u, g=%u, b=%u, a=%u }",
                 red_size, green_size, blue_size, alpha_size);
         return setError(EGL_BAD_PARAMETER, (EGLClientBuffer)0);
     }
@@ -1907,7 +1909,9 @@ EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint *attrib_list)
     CHECK_ERROR_CONDITION("Unable to write height");
     err = data.writeInt32(static_cast<int32_t>(format));
     CHECK_ERROR_CONDITION("Unable to write format");
-    err = data.writeUint32(usage);
+    err = data.writeUint32(layer_count);
+    CHECK_ERROR_CONDITION("Unable to write layer count");
+     err = data.writeUint32(usage);
     CHECK_ERROR_CONDITION("Unable to write usage");
     err = data.writeUtf8AsUtf16(
             std::string("[eglCreateNativeClientBufferANDROID pid ") +
@@ -1924,12 +1928,13 @@ EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint *attrib_list)
 
     err = gBuffer->initCheck();
     if (err != NO_ERROR) {
-        ALOGE("Unable to create native buffer { w=%d, h=%d, f=%d, u=%#x }: %#x",
-                width, height, format, usage, err);
+        ALOGE("Unable to create native buffer "
+                "{ w=%u, h=%u, f=%u, u=%#x, lc=%u}: %#x", width, height, format,
+                usage, layer_count, err);
         goto error_condition;
     }
-    ALOGD("Created new native buffer %p { w=%d, h=%d, f=%d, u=%#x }",
-            gBuffer, width, height, format, usage);
+    ALOGV("Created new native buffer %p { w=%u, h=%u, f=%u, u=%#x, lc=%u}",
+            gBuffer, width, height, format, usage, layer_count);
     return static_cast<EGLClientBuffer>(gBuffer->getNativeBuffer());
 
 #undef CHECK_ERROR_CONDITION

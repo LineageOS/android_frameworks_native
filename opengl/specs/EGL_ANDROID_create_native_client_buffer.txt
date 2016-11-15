@@ -20,7 +20,7 @@ Status
 
 Version
 
-    Version 1, January 19, 2016
+    Version 1.1, October 26, 2016
 
 Number
 
@@ -53,6 +53,7 @@ EGLClientBuffer eglCreateNativeClientBufferANDROID(
 
 New Tokens
 
+    EGL_NATIVE_BUFFER_LAYER_COUNT_ANDROID 0x3434
     EGL_NATIVE_BUFFER_USAGE_ANDROID 0x3143
     EGL_NATIVE_BUFFER_USAGE_PROTECTED_BIT_ANDROID 0x00000001
     EGL_NATIVE_BUFFER_USAGE_RENDERBUFFER_BIT_ANDROID 0x00000002
@@ -103,6 +104,8 @@ Changes to Chapter 3 of the EGL 1.2 Specification (EGL Functions and Errors)
       | EGL_ALPHA_SIZE                  | The bits of Alpha in | 0             |
       |                                 | the color buffer     |               |
       |                                 | buffer data          |               |
+      | EGL_LAYER_COUNT_ANDROID         | The number of image  | 1             |
+      |                                 | layers in the buffer |               |
       | EGL_NATIVE_BUFFER_USAGE_ANDROID | The usage bits of    | 0             |
       |                                 | the buffer data      |               |
       +---------------------------------+----------------------+---------------+
@@ -114,8 +117,10 @@ Changes to Chapter 3 of the EGL 1.2 Specification (EGL Functions and Errors)
     EGL_RED_SIZE, EGL_GREEN_SIZE, and EGL_BLUE_SIZE must be non-zero and
     correspond to a valid pixel format for the implementation. If EGL_ALPHA_SIZE
     is non-zero then the combination of all four sizes must correspond to a
-    valid pixel format for the implementation. The
-    EGL_NATIVE_BUFFER_USAGE_ANDROID flag may include any of the following bits:
+    valid pixel format for the implementation. The value of
+    EGL_LAYER_COUNT_ANDROID must be a valid number of image layers for the
+    implementation. The EGL_NATIVE_BUFFER_USAGE_ANDROID flag may include any of
+    the following bits:
 
         EGL_NATIVE_BUFFER_USAGE_PROTECTED_BIT_ANDROID: Indicates that the
         created buffer must have a hardware-protected path to external display
@@ -188,6 +193,10 @@ Issues
     ensure proper lifetime semantics.
 
 Revision History
+
+#3 (Craig Donner, October 26, 2016)
+    - Added EGL_LAYER_COUNT_ANDROID for creating buffers that back texture
+    arrays.
 
 #2 (Craig Donner, April 15, 2016)
     - Set color formats and usage bits explicitly using additional attributes,

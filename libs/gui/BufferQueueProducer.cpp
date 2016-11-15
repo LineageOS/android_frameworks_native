@@ -42,6 +42,8 @@
 
 namespace android {
 
+static constexpr uint32_t BQ_LAYER_COUNT = 1;
+
 BufferQueueProducer::BufferQueueProducer(const sp<BufferQueueCore>& core,
         bool consumerIsSurfaceFlinger) :
     mCore(core),
@@ -414,7 +416,8 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
             // buffer. If this buffer would require reallocation to meet the
             // requested attributes, we free it and attempt to get another one.
             if (!mCore->mAllowAllocation) {
-                if (buffer->needsReallocation(width, height, format, usage)) {
+                if (buffer->needsReallocation(width, height, format,
+                        BQ_LAYER_COUNT, usage)) {
                     if (mCore->mSharedBufferSlot == found) {
                         BQ_LOGE("dequeueBuffer: cannot re-allocate a shared"
                                 "buffer");
@@ -430,7 +433,8 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
 
         const sp<GraphicBuffer>& buffer(mSlots[found].mGraphicBuffer);
         if (mCore->mSharedBufferSlot == found &&
-                buffer->needsReallocation(width,  height, format, usage)) {
+                buffer->needsReallocation(width, height, format,
+                        BQ_LAYER_COUNT, usage)) {
             BQ_LOGE("dequeueBuffer: cannot re-allocate a shared"
                     "buffer");
 
@@ -449,7 +453,8 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
         mSlots[found].mBufferState.dequeue();
 
         if ((buffer == NULL) ||
-                buffer->needsReallocation(width, height, format, usage))
+                buffer->needsReallocation(width, height, format, BQ_LAYER_COUNT,
+                usage))
         {
             mSlots[found].mAcquireCalled = false;
             mSlots[found].mGraphicBuffer = NULL;
@@ -500,7 +505,7 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
         status_t error;
         BQ_LOGV("dequeueBuffer: allocating a new buffer for slot %d", *outSlot);
         sp<GraphicBuffer> graphicBuffer(mCore->mAllocator->createGraphicBuffer(
-                width, height, format, usage,
+                width, height, format, BQ_LAYER_COUNT, usage,
                 {mConsumerName.string(), mConsumerName.size()}, &error));
         { // Autolock scope
             Mutex::Autolock lock(mCore->mMutex);
@@ -1039,6 +1044,10 @@ int BufferQueueProducer::query(int what, int *outValue) {
         case NATIVE_WINDOW_FORMAT:
             value = static_cast<int32_t>(mCore->mDefaultBufferFormat);
             break;
+        case NATIVE_WINDOW_LAYER_COUNT:
+            // All BufferQueue buffers have a single layer.
+            value = BQ_LAYER_COUNT;
+            break;
         case NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS:
             value = mCore->getMinUndequeuedBufferCountLocked();
             break;
@@ -1287,8 +1296,9 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
         for (size_t i = 0; i <  newBufferCount; ++i) {
             status_t result = NO_ERROR;
             sp<GraphicBuffer> graphicBuffer(mCore->mAllocator->createGraphicBuffer(
-                    allocWidth, allocHeight, allocFormat, allocUsage,
-                    {mConsumerName.string(), mConsumerName.size()}, &result));
+                    allocWidth, allocHeight, allocFormat, BQ_LAYER_COUNT,
+                    allocUsage, {mConsumerName.string(), mConsumerName.size()},
+                    &result));
             if (result != NO_ERROR) {
                 BQ_LOGE("allocateBuffers: failed to allocate buffer (%u x %u, format"
                         " %u, usage %u)", width, height, format, usage);
