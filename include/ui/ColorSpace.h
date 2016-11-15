@@ -99,11 +99,10 @@ public:
     /**
      * Converts the supplied RGB value to XYZ. The input RGB value
      * is decoded using this color space's electro-optical function
-     * before being converted to XYZ. The returned result is clamped
-     * by this color space's clamping function.
+     * before being converted to XYZ.
      */
     constexpr float3 rgbToXYZ(const float3& rgb) const noexcept {
-        return apply(mRGBtoXYZ * toLinear(rgb), mClamper);
+        return mRGBtoXYZ * toLinear(rgb);
     }
 
     constexpr const std::string& getName() const noexcept {

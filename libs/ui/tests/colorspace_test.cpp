@@ -134,7 +134,7 @@ TEST_F(ColorSpaceTest, TransferFunctions) {
 
 TEST_F(ColorSpaceTest, Clamping) {
     // Pick a color outside of sRGB
-    float3 c(ColorSpace::DCIP3().rgbToXYZ(float3{0, 1, 0}));
+    float3 c(ColorSpace::BT2020().rgbToXYZ(float3{0, 1, 0}));
 
     // The color will be clamped
     float3 sRGB(ColorSpace::sRGB().xyzToRGB(c));
