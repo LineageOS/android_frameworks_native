@@ -572,6 +572,7 @@ status_t BufferQueueConsumer::setTransformHint(uint32_t hint) {
 }
 
 sp<NativeHandle> BufferQueueConsumer::getSidebandStream() const {
+    Mutex::Autolock lock(mCore->mMutex);
     return mCore->mSidebandStream;
 }
 
