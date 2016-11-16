@@ -18,6 +18,7 @@
 #include <stdio.h>
 
 #include <EGL/egl.h>
+#include <EGL/eglext.h>
 
 #define ATTRIBUTE(_attr) { _attr, #_attr }
 
@@ -26,6 +27,7 @@ struct Attribute {
     char const* name;
 };
 
+// clang-format off
 Attribute attributes[] = {
         ATTRIBUTE( EGL_BUFFER_SIZE ),
         ATTRIBUTE( EGL_ALPHA_SIZE ),
@@ -60,8 +62,9 @@ Attribute attributes[] = {
         ATTRIBUTE( EGL_RENDERABLE_TYPE ),
         ATTRIBUTE( EGL_MATCH_NATIVE_PIXMAP ),
         ATTRIBUTE( EGL_CONFORMANT ),
+        ATTRIBUTE( EGL_COLOR_COMPONENT_TYPE_EXT ),
 };
-
+// clang-format on
 
 int main(int argc, char** argv)
 {

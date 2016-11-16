@@ -651,6 +651,13 @@ typedef EGLBoolean (EGLAPIENTRYP PFNEGLQUERYTIMESTAMPSUPPORTEDANDROID) (EGLDispl
 #endif
 #endif
 
+#ifndef EGL_KHR_pixel_format_float
+#define EGL_KHR_pixel_format_float 1
+#define EGL_COLOR_COMPONENT_TYPE_EXT 0x3339  // eglChooseConfig and eglGetConfigAttrib attribute
+#define EGL_COLOR_COMPONENT_TYPE_FIXED_EXT 0x333A  // Attribute value for COLOR_COMPONENT_TYPE
+#define EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT 0x333B  // Attribute value for COLOR_COMPONENT_TYPE
+#endif
+
 #ifdef __cplusplus
 }
 #endif
