@@ -52,7 +52,11 @@ ifeq ($(TARGET_USES_HWC2),true)
     LOCAL_SRC_FILES += \
         SurfaceFlinger.cpp \
         DisplayHardware/HWComposer.cpp
+    ifeq ($(TARGET_USES_HWC2ON1ADAPTER), true)
+        LOCAL_CFLAGS += -DBYPASS_IHWC
+    endif
 else
+    LOCAL_CFLAGS += -DBYPASS_IHWC
     LOCAL_SRC_FILES += \
         SurfaceFlinger_hwc1.cpp \
         DisplayHardware/HWComposer_hwc1.cpp

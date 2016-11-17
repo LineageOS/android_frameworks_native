@@ -614,6 +614,8 @@ Error Display::getActiveConfig(
     auto error = static_cast<Error>(intError);
 
     if (error != Error::None) {
+        ALOGE("Unable to get active config for mId:[%" PRIu64 "]", mId);
+        *outConfig = nullptr;
         return error;
     }
 

@@ -17,10 +17,6 @@
 #ifndef ANDROID_SF_HWC2_H
 #define ANDROID_SF_HWC2_H
 
-#ifndef USE_HWC2
-#define BYPASS_IHWC
-#endif
-
 #define HWC2_INCLUDE_STRINGIFICATION
 #define HWC2_USE_CPP11
 #include <hardware/hwcomposer2.h>
