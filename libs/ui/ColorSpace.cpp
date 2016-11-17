@@ -137,7 +137,7 @@ const ColorSpace ColorSpace::extendedSRGB() {
         {0.3127f, 0.3290f},
         std::bind(absRcpResponse, _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.04045f),
         std::bind(absResponse,    _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.04045f),
-        [](float x){return x;}
+        std::bind(clamp<float>, _1, -0.5f, 7.5f)
     };
 }
 
@@ -148,7 +148,7 @@ const ColorSpace ColorSpace::linearExtendedSRGB() {
         {0.3127f, 0.3290f},
         linearReponse,
         linearReponse,
-        [](float x){return x;}
+        std::bind(clamp<float>, _1, -0.5f, 7.5f)
     };
 }
 
@@ -187,8 +187,8 @@ const ColorSpace ColorSpace::AdobeRGB() {
         "Adobe RGB (1998)",
         {{float2{0.64f, 0.33f}, {0.21f, 0.71f}, {0.15f, 0.06f}}},
         {0.3127f, 0.3290f},
-        std::bind(saturate<float>, std::bind(powf, _1, 1.0f / 2.2f)),
-        std::bind(saturate<float>, std::bind(powf, _1, 2.2f))
+        std::bind(powf, _1, 1.0f / 2.2f),
+        std::bind(powf, _1, 2.2f)
     };
 }
 
@@ -226,7 +226,10 @@ const ColorSpace ColorSpace::ACES() {
     return {
         "SMPTE ST 2065-1:2012 ACES",
         {{float2{0.73470f, 0.26530f}, {0.0f, 1.0f}, {0.00010f, -0.0770f}}},
-        {0.32168f, 0.33767f}
+        {0.32168f, 0.33767f},
+        linearReponse,
+        linearReponse,
+        std::bind(clamp<float>, _1, -65504.0f, 65504.0f)
     };
 }
 
@@ -234,7 +237,10 @@ const ColorSpace ColorSpace::ACEScg() {
     return {
         "Academy S-2014-004 ACEScg",
         {{float2{0.713f, 0.293f}, {0.165f, 0.830f}, {0.128f, 0.044f}}},
-        {0.32168f, 0.33767f}
+        {0.32168f, 0.33767f},
+        linearReponse,
+        linearReponse,
+        std::bind(clamp<float>, _1, -65504.0f, 65504.0f)
     };
 }
 
