@@ -27,12 +27,12 @@ namespace android {
 namespace Gralloc2 {
 
 using hardware::graphics::allocator::V2_0::Error;
-using hardware::graphics::allocator::V2_0::PixelFormat;
 using hardware::graphics::allocator::V2_0::ProducerUsage;
 using hardware::graphics::allocator::V2_0::ConsumerUsage;
 using hardware::graphics::allocator::V2_0::BufferDescriptor;
 using hardware::graphics::allocator::V2_0::Buffer;
 using hardware::graphics::allocator::V2_0::IAllocator;
+using hardware::graphics::common::V1_0::PixelFormat;
 
 // Allocator is a wrapper to IAllocator, a proxy to server-side allocator.
 class Allocator {
