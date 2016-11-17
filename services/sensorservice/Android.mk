@@ -46,7 +46,8 @@ ifeq ($(ENABLE_TREBLE), true)
 
 LOCAL_SHARED_LIBRARIES += \
     libbase \
-    libhidl \
+    libhidlbase \
+    libhidltransport \
     libhwbinder \
     android.hardware.sensors@1.0
 

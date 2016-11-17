@@ -139,7 +139,8 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libdl \
     libhardware \
-    libhidl \
+    libhidlbase \
+    libhidltransport \
     libhwbinder \
     libutils \
     libEGL \
@@ -151,16 +152,14 @@ LOCAL_SHARED_LIBRARIES := \
     libpowermanager \
     libvulkan \
     libprotobuf-cpp-lite \
-    libhidl \
-    libhwbinder \
     libbase \
-    libutils \
     android.hardware.power@1.0
 
 LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := \
     android.hardware.graphics.allocator@2.0 \
     android.hardware.graphics.composer@2.1 \
-    libhidl \
+    libhidlbase \
+    libhidltransport \
     libhwbinder
 
 LOCAL_CFLAGS += -Wall -Werror -Wunused -Wunreachable-code
