@@ -21,8 +21,12 @@
 
 #include <utils/Log.h>
 
+#include <android-base/test_utils.h>
+
 #include "egl_cache.h"
 #include "egl_display.h"
+
+#include <memory>
 
 namespace android {
 
@@ -79,23 +83,20 @@ protected:
 
     virtual void SetUp() {
         EGLCacheTest::SetUp();
-
-        char* tn = tempnam("/sdcard", "EGL_test-cache-");
-        mFilename = tn;
-        free(tn);
+        mTempFile.reset(new TemporaryFile());
     }
 
     virtual void TearDown() {
-        unlink(mFilename.string());
+        mTempFile.reset(nullptr);
         EGLCacheTest::TearDown();
     }
 
-    String8 mFilename;
+    std::unique_ptr<TemporaryFile> mTempFile;
 };
 
 TEST_F(EGLCacheSerializationTest, ReinitializedCacheContainsValues) {
     uint8_t buf[4] = { 0xee, 0xee, 0xee, 0xee };
-    mCache->setCacheFilename(mFilename);
+    mCache->setCacheFilename(&mTempFile->path[0]);
     mCache->initialize(egl_display_t::get(EGL_DEFAULT_DISPLAY));
     mCache->setBlob("abcd", 4, "efgh", 4);
     mCache->terminate();
