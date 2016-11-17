@@ -90,7 +90,7 @@ static int RunCommand(const std::string& title, const std::vector<std::string>& 
     return ds.RunCommand(title, fullCommand, options);
 }
 static void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
-                       const CommandOptions& options = CommandOptions::DEFAULT_DUMPSYS,
+                       const CommandOptions& options = Dumpstate::DEFAULT_DUMPSYS,
                        long dumpsysTimeout = 0) {
     return ds.RunDumpsys(title, dumpsysArgs, options, dumpsysTimeout);
 }
@@ -680,7 +680,8 @@ void Dumpstate::PrintHeader() const {
     printf("Network: %s\n", network.c_str());
 
     printf("Kernel: ");
-    JustDumpFile("", "/proc/version");
+    fflush(stdout);
+    DumpFileToFd(STDOUT_FILENO, "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version_.c_str());
     printf("Dumpstate info: id=%d pid=%d dry_run=%d args=%s extra_options=%s\n", id_, pid_,

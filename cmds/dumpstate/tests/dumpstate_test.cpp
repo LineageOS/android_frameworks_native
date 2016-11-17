@@ -548,7 +548,7 @@ class ProgressTest : public DumpstateBaseTest {
             android::base::StringPrintf("%d %d\n", expected_runs, expected_average);
         std::string actual_content;
         ASSERT_TRUE(android::base::ReadFileToString(path, &actual_content))
-            << "could not read statsfrom" << path;
+            << "could not read stats from " << path;
         ASSERT_THAT(actual_content, StrEq(expected_content)) << "invalid stats on " << path;
     }
 };

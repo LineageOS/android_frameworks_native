@@ -97,12 +97,12 @@ static const int STATS_MAX_N_RUNS = 1000;
 static const long STATS_MAX_AVERAGE = 100000;
 
 CommandOptions CommandOptions::DEFAULT = CommandOptions::WithTimeout(10).Build();
-CommandOptions CommandOptions::DEFAULT_DUMPSYS = CommandOptions::WithTimeout(30).Build();
+CommandOptions Dumpstate::DEFAULT_DUMPSYS = CommandOptions::WithTimeout(30).Build();
 CommandOptions CommandOptions::AS_ROOT_5 = CommandOptions::WithTimeout(5).AsRoot().Build();
 CommandOptions CommandOptions::AS_ROOT_10 = CommandOptions::WithTimeout(10).AsRoot().Build();
 CommandOptions CommandOptions::AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot().Build();
 
-CommandOptions::CommandOptionsBuilder::CommandOptionsBuilder(long timeout) : values(timeout) {
+CommandOptions::CommandOptionsBuilder::CommandOptionsBuilder(int64_t timeout) : values(timeout) {
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::Always() {
@@ -135,7 +135,7 @@ CommandOptions CommandOptions::CommandOptionsBuilder::Build() {
     return CommandOptions(values);
 }
 
-CommandOptions::CommandOptionsValues::CommandOptionsValues(long timeout)
+CommandOptions::CommandOptionsValues::CommandOptionsValues(int64_t timeout)
     : timeout_(timeout),
       always_(false),
       root_mode_(DONT_DROP_ROOT),
@@ -146,7 +146,7 @@ CommandOptions::CommandOptionsValues::CommandOptionsValues(long timeout)
 CommandOptions::CommandOptions(const CommandOptionsValues& values) : values(values) {
 }
 
-long CommandOptions::Timeout() const {
+int64_t CommandOptions::Timeout() const {
     return values.timeout_;
 }
 
@@ -166,7 +166,7 @@ std::string CommandOptions::LoggingMessage() const {
     return values.logging_message_;
 }
 
-CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(long timeout) {
+CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(int64_t timeout) {
     return CommandOptions::CommandOptionsBuilder(timeout);
 }
 
@@ -657,9 +657,9 @@ void do_showmap(int pid, const char *name) {
 }
 
 // TODO: when converted to a Dumpstate function, it should be const
-static int _dump_file_from_fd(const std::string& title, const char* path, int fd) {
+static int _dump_file_from_fd_to_fd(const std::string& title, const char* path, int fd, int out_fd) {
     if (!title.empty()) {
-        printf("------ %s (%s", title.c_str(), path);
+        dprintf(out_fd, "------ %s (%s", title.c_str(), path);
 
         struct stat st;
         // Only show the modification time of non-device files.
@@ -671,9 +671,9 @@ static int _dump_file_from_fd(const std::string& title, const char* path, int fd
             char stamp[80];
             time_t mtime = st.st_mtime;
             strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", localtime(&mtime));
-            printf(": %s", stamp);
+            dprintf(out_fd, ": %s", stamp);
         }
-        printf(") ------\n");
+        dprintf(out_fd, ") ------\n");
     }
 
     bool newline = false;
@@ -688,24 +688,23 @@ static int _dump_file_from_fd(const std::string& title, const char* path, int fd
         uint64_t elapsed = DurationReporter::Nanotime();
         int ret = TEMP_FAILURE_RETRY(select(fd + 1, &read_set, NULL, NULL, &tm));
         if (ret == -1) {
-            printf("*** %s: select failed: %s\n", path, strerror(errno));
+            dprintf(out_fd, "*** %s: select failed: %s\n", path, strerror(errno));
             newline = true;
             break;
         } else if (ret == 0) {
             elapsed = DurationReporter::Nanotime() - elapsed;
-            printf("*** %s: Timed out after %.3fs\n", path,
-                   (float) elapsed / NANOS_PER_SEC);
+            dprintf(out_fd, "*** %s: Timed out after %.3fs\n", path, (float)elapsed / NANOS_PER_SEC);
             newline = true;
             break;
         } else {
             char buffer[65536];
             ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd, buffer, sizeof(buffer)));
             if (bytes_read > 0) {
-                fwrite(buffer, bytes_read, 1, stdout);
+                android::base::WriteFully(out_fd, buffer, bytes_read);
                 newline = (buffer[bytes_read-1] == '\n');
             } else {
                 if (bytes_read == -1) {
-                    printf("*** %s: Failed to read from fd: %s", path, strerror(errno));
+                    dprintf(out_fd, "*** %s: Failed to read from fd: %s", path, strerror(errno));
                     newline = true;
                 }
                 break;
@@ -715,9 +714,29 @@ static int _dump_file_from_fd(const std::string& title, const char* path, int fd
     UpdateProgress(WEIGHT_FILE);
     close(fd);
 
-    if (!newline) printf("\n");
-    if (!title.empty()) printf("\n");
+    if (!newline) dprintf(out_fd, "\n");
+    if (!title.empty()) dprintf(out_fd, "\n");
     return 0;
+}
+
+// Internal function used by both DumpFile and DumpFileToFd - the former wants to print title
+// information, while the later doesn't.
+static int DumpFileToFd(const std::string& title, int out_fd, const std::string& path) {
+    int fd = TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
+    if (fd < 0) {
+        int err = errno;
+        if (title.empty()) {
+            printf("*** Error dumping %s: %s\n", path.c_str(), strerror(err));
+        } else {
+            printf("*** Error dumping %s (%s): %s\n", path.c_str(), title.c_str(), strerror(err));
+        }
+        return -1;
+    }
+    return _dump_file_from_fd_to_fd(title, path.c_str(), fd, out_fd);
+}
+
+int DumpFileToFd(int out_fd, const std::string& path) {
+    return DumpFileToFd("", out_fd, path);
 }
 
 int Dumpstate::DumpFile(const std::string& title, const std::string& path) {
@@ -730,21 +749,7 @@ int Dumpstate::DumpFile(const std::string& title, const std::string& path) {
         UpdateProgress(WEIGHT_FILE);
         return 0;
     }
-    return JustDumpFile(title, path);
-}
-
-int Dumpstate::JustDumpFile(const std::string& title, const std::string& path) const {
-    int fd = TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
-    if (fd < 0) {
-        int err = errno;
-        if (title.empty()) {
-            printf("*** Error dumping %s: %s\n", path.c_str(), strerror(err));
-        } else {
-            printf("*** Error dumping %s (%s): %s\n", path.c_str(), title.c_str(), strerror(err));
-        }
-        return -1;
-    }
-    return _dump_file_from_fd(title, path.c_str(), fd);
+    return DumpFileToFd(title, STDOUT_FILENO, path);
 }
 
 int read_file_as_long(const char *path, long int *output) {
@@ -855,7 +860,7 @@ int dump_file_from_fd(const char *title, const char *path, int fd) {
         close(fd);
         return -1;
     }
-    return _dump_file_from_fd(title, path, fd);
+    return _dump_file_from_fd_to_fd(title, path, fd, STDOUT_FILENO);
 }
 
 bool waitpid_with_timeout(pid_t pid, int timeout_seconds, int* status) {
@@ -909,6 +914,8 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
         return -1;
     }
 
+    // TODO: SU_ROOT logic must be moved to RunCommandToFd
+
     int size = full_command.size() + 1;  // null terminated
     int starting_index = 0;
     if (options.RootMode() == SU_ROOT) {
@@ -935,7 +942,6 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
         }
     }
     args[i] = nullptr;
-    const char* path = args[0];
     const char* command = command_string.c_str();
 
     if (options.RootMode() == SU_ROOT && ds.IsUserBuild()) {
@@ -963,7 +969,7 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
         return 0;
     }
 
-    int status = JustRunCommand(command, path, args, options);
+    int status = RunCommandToFd(STDOUT_FILENO, args, options, command);
 
     /* TODO: for now we're simplifying the progress calculation by using the
      * timeout as the weight. It's a good approximation for most cases, except when calling dumpsys,
@@ -978,8 +984,15 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
     return status;
 }
 
-int Dumpstate::JustRunCommand(const char* command, const char* path, std::vector<const char*>& args,
-                              const CommandOptions& options) const {
+int RunCommandToFd(int fd, const std::vector<const char*>& full_command,
+                   const CommandOptions& options, const std::string& description) {
+    if (full_command.empty()) {
+        MYLOGE("No arguments on RunCommandToFd'\n");
+        return -1;
+    }
+    const char* path = full_command[0];
+    const char* command = description.empty() ? path : description.c_str();
+
     bool silent = (options.StdoutMode() == REDIRECT_TO_STDERR);
 
     uint64_t start = DurationReporter::Nanotime();
@@ -1001,9 +1014,13 @@ int Dumpstate::JustRunCommand(const char* command, const char* path, std::vector
             return -1;
         }
 
+        if (STDOUT_FILENO != fd) {
+            TEMP_FAILURE_RETRY(dup2(fd, STDOUT_FILENO));
+            close(fd);
+        }
         if (silent) {
-            // Redirect stderr to stdout
-            dup2(STDERR_FILENO, STDOUT_FILENO);
+            // Redirect stderr to fd
+            dup2(STDERR_FILENO, fd);
         }
 
         /* make sure the child dies when dumpstate dies */
@@ -1015,11 +1032,10 @@ int Dumpstate::JustRunCommand(const char* command, const char* path, std::vector
         sigact.sa_handler = SIG_IGN;
         sigaction(SIGPIPE, &sigact, NULL);
 
-        execvp(path, (char**)args.data());
+        execvp(path, (char**)full_command.data());
         // execvp's result will be handled after waitpid_with_timeout() below, but
         // if it failed, it's safer to exit dumpstate.
         MYLOGD("execvp on command '%s' failed (error: %s)\n", command, strerror(errno));
-        fflush(stdout);
         // Must call _exit (instead of exit), otherwise it will corrupt the zip
         // file.
         _exit(EXIT_FAILURE);
@@ -1028,6 +1044,8 @@ int Dumpstate::JustRunCommand(const char* command, const char* path, std::vector
     /* handle parent case */
     int status;
     bool ret = waitpid_with_timeout(pid, options.Timeout(), &status);
+    fsync(fd);
+
     uint64_t elapsed = DurationReporter::Nanotime() - start;
     if (!ret) {
         if (errno == ETIMEDOUT) {

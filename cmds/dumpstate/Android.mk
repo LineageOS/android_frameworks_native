@@ -22,6 +22,27 @@ COMMON_SHARED_LIBRARIES := \
         liblog \
         libselinux \
         libutils
+COMMON_STATIC_LIBRARIES := \
+        libdumpstateutil \
+        $(COMMON_ZIP_LIBRARIES)
+
+# ====================#
+# libdumpstateutil #
+# ====================#
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := libdumpstateutil
+
+LOCAL_CFLAGS := $(COMMON_LOCAL_CFLAGS)
+LOCAL_C_INCLUDES := $(LOCAL_PATH)
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)
+LOCAL_SRC_FILES := \
+        utils.cpp # TODO: temporary, until functions are moved to DumpstateUtil.cpp
+# TODO: include just what it uses once split from utils.cpp
+LOCAL_SHARED_LIBRARIES := $(COMMON_SHARED_LIBRARIES)
+LOCAL_STATIC_LIBRARIES := $(COMMON_ZIP_LIBRARIES)
+
+include $(BUILD_STATIC_LIBRARY)
 
 # ====================#
 # libdumpstateheaders #
@@ -35,7 +56,7 @@ LOCAL_MODULE := libdumpstateheaders
 LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := \
         $(COMMON_SHARED_LIBRARIES)
 LOCAL_EXPORT_STATIC_LIBRARY_HEADERS := \
-        $(COMMON_ZIP_LIBRARIES)
+        $(COMMON_STATIC_LIBRARIES)
 # Soong requires that whats is on LOCAL_EXPORTED_ is also on LOCAL_
 LOCAL_SHARED_LIBRARIES := $(LOCAL_EXPORT_SHARED_LIBRARY_HEADERS)
 LOCAL_STATIC_LIBRARIES := $(LOCAL_EXPORT_STATIC_LIBRARY_HEADERS)
@@ -81,7 +102,7 @@ LOCAL_MODULE := dumpstate
 
 LOCAL_SHARED_LIBRARIES := $(COMMON_SHARED_LIBRARIES)
 
-LOCAL_STATIC_LIBRARIES := $(COMMON_ZIP_LIBRARIES)
+LOCAL_STATIC_LIBRARIES := $(COMMON_STATIC_LIBRARIES)
 
 LOCAL_HAL_STATIC_LIBRARIES := libdumpstate
 
@@ -106,7 +127,7 @@ LOCAL_SRC_FILES := $(COMMON_SRC_FILES) \
         DumpstateService.cpp \
         tests/dumpstate_test.cpp
 
-LOCAL_STATIC_LIBRARIES := $(COMMON_ZIP_LIBRARIES) \
+LOCAL_STATIC_LIBRARIES := $(COMMON_STATIC_LIBRARIES) \
         libgmock
 
 LOCAL_SHARED_LIBRARIES := $(COMMON_SHARED_LIBRARIES)
