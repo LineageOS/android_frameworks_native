@@ -106,6 +106,11 @@ TEST_F(ColorSpaceTest, XYZFromPrimaries) {
 TEST_F(ColorSpaceTest, TransferFunctions) {
     ColorSpace sRGB = ColorSpace::sRGB();
 
+    EXPECT_NEAR(0.0f, sRGB.getEOTF()(0.0f), 1e-6f);
+    EXPECT_NEAR(0.0f, sRGB.getOETF()(0.0f), 1e-6f);
+    EXPECT_NEAR(1.0f, sRGB.getEOTF()(1.0f), 1e-6f);
+    EXPECT_NEAR(1.0f, sRGB.getOETF()(1.0f), 1e-6f);
+
     for (float v = 0.0f; v <= 0.5f; v += 1e-3f) {
         ASSERT_TRUE(v >= sRGB.getEOTF()(v));
         ASSERT_TRUE(v <= sRGB.getOETF()(v));

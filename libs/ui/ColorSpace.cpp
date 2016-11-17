@@ -97,7 +97,7 @@ constexpr mat3 ColorSpace::computeXYZMatrix(
 }
 
 static constexpr float rcpResponse(float x, float g,float a, float b, float c, float d) {
-    return x >= d * c ? std::pow(x / a, 1.0f / g) - b / a : x / c;
+    return x >= d * c ? (std::pow(x, 1.0f / g) - b) / a : x / c;
 }
 
 static constexpr float response(float x, float g, float a, float b, float c, float d) {
@@ -216,7 +216,7 @@ const ColorSpace ColorSpace::DCIP3() {
     return {
         "SMPTE RP 431-2-2007 DCI (P3)",
         {{float2{0.680f, 0.320f}, {0.265f, 0.690f}, {0.150f, 0.060f}}},
-        {0.3127f, 0.3290f},
+        {0.314f, 0.351f},
         std::bind(powf, _1, 1.0f / 2.6f),
         std::bind(powf, _1, 2.6f)
     };
