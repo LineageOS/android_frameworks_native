@@ -79,7 +79,7 @@ typedef EGLBoolean (EGLAPIENTRYP PFNEGLUNLOCKSURFACEKHRPROC) (EGLDisplay display
 #define EGL_KHR_image 1
 #define EGL_NATIVE_PIXMAP_KHR			0x30B0	/* eglCreateImageKHR target */
 typedef void *EGLImageKHR;
-#define EGL_NO_IMAGE_KHR			((EGLImageKHR)0)
+#define EGL_NO_IMAGE_KHR			EGL_CAST(EGLImageKHR, 0)
 #ifdef EGL_EGLEXT_PROTOTYPES
 EGLAPI EGLImageKHR EGLAPIENTRY eglCreateImageKHR (EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list);
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroyImageKHR (EGLDisplay dpy, EGLImageKHR image);
@@ -143,7 +143,7 @@ typedef khronos_utime_nanoseconds_t EGLTimeKHR;
 #define EGL_SYNC_REUSABLE_KHR			0x30FA
 #define EGL_SYNC_FLUSH_COMMANDS_BIT_KHR		0x0001	/* eglClientWaitSyncKHR <flags> bitfield */
 #define EGL_FOREVER_KHR				0xFFFFFFFFFFFFFFFFull
-#define EGL_NO_SYNC_KHR				((EGLSyncKHR)0)
+#define EGL_NO_SYNC_KHR				EGL_CAST(EGLSyncKHR, 0)
 #ifdef EGL_EGLEXT_PROTOTYPES
 EGLAPI EGLSyncKHR EGLAPIENTRY eglCreateSyncKHR(EGLDisplay dpy, EGLenum type, const EGLint *attrib_list);
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroySyncKHR(EGLDisplay dpy, EGLSyncKHR sync);
@@ -220,7 +220,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSetDamageRegionKHR (EGLDisplay dpy, EGLSurface 
 #define EGL_SYNC_TYPE_NV			0x30ED
 #define EGL_SYNC_CONDITION_NV			0x30EE
 #define EGL_SYNC_FENCE_NV			0x30EF
-#define EGL_NO_SYNC_NV				((EGLSyncNV)0)
+#define EGL_NO_SYNC_NV				EGL_CAST(EGLSyncNV, 0)
 typedef void* EGLSyncNV;
 typedef khronos_utime_nanoseconds_t EGLTimeNV;
 #ifdef EGL_EGLEXT_PROTOTYPES
@@ -346,7 +346,7 @@ typedef EGLuint64NV (EGLAPIENTRYP PFNEGLGETSYSTEMTIMENVPROC) (void);
 #define EGL_KHR_stream 1
 typedef void* EGLStreamKHR;
 typedef khronos_uint64_t EGLuint64KHR;
-#define EGL_NO_STREAM_KHR			((EGLStreamKHR)0)
+#define EGL_NO_STREAM_KHR			EGL_CAST(EGLStreamKHR, 0)
 #define EGL_CONSUMER_LATENCY_USEC_KHR		0x3210
 #define EGL_PRODUCER_FRAME_KHR			0x3212
 #define EGL_CONSUMER_FRAME_KHR			0x3213
@@ -473,7 +473,7 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSwapBuffersWithDamageKHR (EGLDisplay dpy, EGLSu
 #ifndef EGL_KHR_stream_cross_process_fd
 #define EGL_KHR_stream_cross_process_fd 1
 typedef int EGLNativeFileDescriptorKHR;
-#define EGL_NO_FILE_DESCRIPTOR_KHR		((EGLNativeFileDescriptorKHR)(-1))
+#define EGL_NO_FILE_DESCRIPTOR_KHR		EGL_CAST(EGLNativeFileDescriptorKHR, -1)
 #ifdef EGL_EGLEXT_PROTOTYPES
 EGLAPI EGLNativeFileDescriptorKHR EGLAPIENTRY eglGetStreamFileDescriptorKHR(EGLDisplay dpy, EGLStreamKHR stream);
 EGLAPI EGLStreamKHR EGLAPIENTRY eglCreateStreamFromFileDescriptorKHR(EGLDisplay dpy, EGLNativeFileDescriptorKHR file_descriptor);
@@ -614,7 +614,7 @@ typedef EGLBoolean (EGLAPIENTRYP PFNEGLPRESENTATIONTIMEANDROID) (EGLDisplay dpy,
 #ifdef EGL_EGLEXT_PROTOTYPES
 EGLAPI EGLClientBuffer eglCreateNativeClientBufferANDROID (const EGLint *attrib_list);
 #else
-typedef EGLAPI EGLClientBuffer (EGLAPIENTRYP PFNEGLCREATENATIVECLIENTBUFFERANDROID) (const EGLint *attrib_list);
+typedef EGLClientBuffer (EGLAPIENTRYP PFNEGLCREATENATIVECLIENTBUFFERANDROID) (const EGLint *attrib_list);
 #endif
 #endif
 
