@@ -65,13 +65,13 @@ typedef void *EGLClientBuffer;
 #define EGL_TRUE			1
 
 /* Out-of-band handle values */
-#define EGL_DEFAULT_DISPLAY		((EGLNativeDisplayType)0)
-#define EGL_NO_CONTEXT			((EGLContext)0)
-#define EGL_NO_DISPLAY			((EGLDisplay)0)
-#define EGL_NO_SURFACE			((EGLSurface)0)
+#define EGL_DEFAULT_DISPLAY		EGL_CAST(EGLNativeDisplayType, 0)
+#define EGL_NO_CONTEXT			EGL_CAST(EGLContext, 0)
+#define EGL_NO_DISPLAY			EGL_CAST(EGLDisplay, 0)
+#define EGL_NO_SURFACE			EGL_CAST(EGLSurface, 0)
 
 /* Out-of-band attribute value */
-#define EGL_DONT_CARE			((EGLint)-1)
+#define EGL_DONT_CARE			EGL_CAST(EGLint, -1)
 
 /* Errors / GetError return values */
 #define EGL_SUCCESS			0x3000
@@ -198,7 +198,7 @@ typedef void *EGLClientBuffer;
 #define EGL_DISPLAY_SCALING		10000
 
 /* Unknown display resolution/aspect ratio */
-#define EGL_UNKNOWN			((EGLint)-1)
+#define EGL_UNKNOWN			EGL_CAST(EGLint, -1)
 
 /* Back buffer swap behaviors */
 #define EGL_BUFFER_PRESERVED		0x3094	/* EGL_SWAP_BEHAVIOR value */
