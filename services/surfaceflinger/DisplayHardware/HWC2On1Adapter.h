@@ -63,6 +63,10 @@ private:
         getAdapter(device)->doGetCapabilities(outCount, outCapabilities);
     }
 
+    bool supportsBackgroundColor() {
+        return mHwc1SupportsBackgroundColor;
+    }
+
     // getFunction
 
     hwc2_function_pointer_t doGetFunction(HWC2::FunctionDescriptor descriptor);
@@ -576,6 +580,7 @@ private:
             size_t mHwc1Id;
             bool mHasUnsupportedDataspace;
             bool mHasUnsupportedPlaneAlpha;
+            bool mHasUnsupportedBackgroundColor;
     };
 
     template <typename ...Args>
@@ -656,6 +661,7 @@ private:
     struct hwc_composer_device_1* const mHwc1Device;
     const uint8_t mHwc1MinorVersion;
     bool mHwc1SupportsVirtualDisplays;
+    bool mHwc1SupportsBackgroundColor;
 
     class Callbacks;
     const std::unique_ptr<Callbacks> mHwc1Callbacks;

@@ -132,6 +132,7 @@ HWC2On1Adapter::HWC2On1Adapter(hwc_composer_device_1_t* hwc1Device)
     mHwc1Device(hwc1Device),
     mHwc1MinorVersion(getMinorVersion(hwc1Device)),
     mHwc1SupportsVirtualDisplays(false),
+    mHwc1SupportsBackgroundColor(false),
     mHwc1Callbacks(std::make_unique<Callbacks>(*this)),
     mCapabilities(),
     mLayers(),
@@ -2272,7 +2273,18 @@ void HWC2On1Adapter::Layer::applySolidColorState(hwc_layer_1_t& hwc1Layer,
         bool applyAllState)
 {
     if (applyAllState || mColor.isDirty()) {
-        hwc1Layer.backgroundColor = mColor.getPendingValue();
+        // If the device does not support background color it is likely to make
+        // assumption regarding backgroundColor and handle (both fields occupy
+        // the same location in hwc_layer_1_t union).
+        // To not confuse these devices we don't set background color and we
+        // make sure handle is a null pointer.
+        if (mDisplay.getDevice().supportsBackgroundColor()) {
+            hwc1Layer.backgroundColor = mColor.getPendingValue();
+            mHasUnsupportedBackgroundColor = false;
+        } else {
+            hwc1Layer.handle = nullptr;
+            mHasUnsupportedBackgroundColor = true;
+        }
         mColor.latch();
     }
 }
@@ -2299,7 +2311,7 @@ void HWC2On1Adapter::Layer::applyCompositionType(hwc_layer_1_t& hwc1Layer,
     // supports plane alpha (depending on the version). These require us to drop
     // some or all layers to client composition.
     if (mHasUnsupportedDataspace || mHasUnsupportedPlaneAlpha ||
-            mDisplay.hasColorTransform()) {
+            mDisplay.hasColorTransform() || mHasUnsupportedBackgroundColor) {
         hwc1Layer.compositionType = HWC_FRAMEBUFFER;
         hwc1Layer.flags = HWC_SKIP_LAYER;
         return;
@@ -2368,6 +2380,18 @@ void HWC2On1Adapter::populateCapabilities()
     }
     if (mHwc1MinorVersion >= 4U) {
         mCapabilities.insert(Capability::SidebandStream);
+    }
+
+    // Check for HWC background color layer support.
+    if (mHwc1MinorVersion >= 1U) {
+        int backgroundColorSupported = 0;
+        auto result = mHwc1Device->query(mHwc1Device,
+                                         HWC_BACKGROUND_LAYER_SUPPORTED,
+                                         &backgroundColorSupported);
+        if ((result == 0) && (backgroundColorSupported == 1)) {
+            ALOGV("Found support for HWC background color");
+            mHwc1SupportsBackgroundColor = true;
+        }
     }
 }
 
