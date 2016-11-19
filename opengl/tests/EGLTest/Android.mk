@@ -17,6 +17,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libbinder \
 	libutils \
 	libgui \
+	libbase \
 
 LOCAL_C_INCLUDES := \
     bionic/libc/private \
