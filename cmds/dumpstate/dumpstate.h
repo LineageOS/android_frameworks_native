@@ -260,6 +260,8 @@ class Dumpstate {
     // TODO: temporary method until Dumpstate object is properly set
     void SetProgress(std::unique_ptr<Progress> progress);
 
+    void DumpstateBoard();
+
     /*
      * Updates the overall progress of the bugreport generation by the given weight increment.
      */

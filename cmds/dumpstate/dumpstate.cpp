@@ -41,6 +41,8 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
+#include <android/hardware/dumpstate/1.0/IDumpstateDevice.h>
+#include <cutils/native_handle.h>
 #include <cutils/properties.h>
 #include <hardware_legacy/power.h>
 #include <openssl/sha.h>
@@ -1092,15 +1094,7 @@ static void dumpstate() {
     DumpFile("BINDER STATS", "/sys/kernel/debug/binder/stats");
     DumpFile("BINDER STATE", "/sys/kernel/debug/binder/state");
 
-    printf("========================================================\n");
-    printf("== Board\n");
-    printf("========================================================\n");
-
-    {
-        DurationReporter tmpDr("dumpstate_board()");
-        dumpstate_board();
-        printf("\n");
-    }
+    ds.DumpstateBoard();
 
     /* Migrate the ril_dumpstate to a dumpstate_board()? */
     int rilDumpstateTimeout = android::base::GetIntProperty("ril.dumpstate.timeout", 0);
@@ -1163,6 +1157,57 @@ static void dumpstate() {
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
     printf("========================================================\n");
+}
+
+void Dumpstate::DumpstateBoard() {
+    DurationReporter duration_reporter("dumpstate_board()");
+    printf("========================================================\n");
+    printf("== Board\n");
+    printf("========================================================\n");
+    fflush(stdout);
+
+    android::sp<android::hardware::dumpstate::V1_0::IDumpstateDevice> dumpstate_device(
+        android::hardware::dumpstate::V1_0::IDumpstateDevice::getService("DumpstateDevice"));
+    if (dumpstate_device == nullptr) {
+        // TODO: temporary workaround until devices on master implement it
+        MYLOGE("no IDumpstateDevice implementation; using legacy dumpstate_board()\n");
+        dumpstate_board();
+        return;
+    }
+
+    if (!IsZipping()) {
+        MYLOGE("Not dumping board info because it's not a zipped bugreport\n");
+        return;
+    }
+
+    std::string path = ds.GetPath("-dumpstate-board.txt");
+    MYLOGI("Calling IDumpstateDevice implementation using path %s\n", path.c_str());
+
+    int fd =
+        TEMP_FAILURE_RETRY(open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                                S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
+    if (fd < 0) {
+        MYLOGE("Could not open file %s: %s\n", path.c_str(), strerror(errno));
+        return;
+    }
+
+    native_handle_t* handle = native_handle_create(1, 0);
+    if (handle == nullptr) {
+        MYLOGE("Could not create native_handle\n");
+        return;
+    }
+    handle->data[0] = fd;
+
+    dumpstate_device->dumpstateBoard(handle);
+
+    AddZipEntry("dumpstate-board.txt", path);
+
+    native_handle_close(handle);
+    native_handle_delete(handle);
+
+    if (remove(path.c_str()) != 0) {
+        MYLOGE("Could not remove(%s): %s\n", path.c_str(), strerror(errno));
+    }
 }
 
 static void ShowUsageAndExit(int exitCode = 1) {

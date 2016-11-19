@@ -14,6 +14,7 @@ COMMON_LOCAL_CFLAGS := \
 COMMON_SRC_FILES := \
         utils.cpp
 COMMON_SHARED_LIBRARIES := \
+        android.hardware.dumpstate@1.0 \
         libbase \
         libbinder \
         libcutils \
@@ -38,7 +39,7 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)
 LOCAL_SRC_FILES := \
         utils.cpp # TODO: temporary, until functions are moved to DumpstateUtil.cpp
-# TODO: include just what it uses once split from utils.cpp
+# TODO: include just what it uses (libbase, libcutils, etc...) once split from utils.cpp
 LOCAL_SHARED_LIBRARIES := $(COMMON_SHARED_LIBRARIES)
 LOCAL_STATIC_LIBRARIES := $(COMMON_ZIP_LIBRARIES)
 
