@@ -86,6 +86,10 @@ ifeq ($(TARGET_RUNNING_WITHOUT_SYNC_FRAMEWORK),true)
     LOCAL_CFLAGS += -DRUNNING_WITHOUT_SYNC_FRAMEWORK
 endif
 
+ifeq ($(TARGET_HAS_HH_VSYNC_ISSUE),true)
+    LOCAL_CFLAGS += -DHH_VSYNC_ISSUE
+endif
+
 # The following two BoardConfig variables define (respectively):
 #
 #   - The phase offset between hardware vsync and when apps are woken up by the
