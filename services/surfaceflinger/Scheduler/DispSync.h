@@ -193,6 +193,9 @@ private:
     enum { MIN_RESYNC_SAMPLES_FOR_UPDATE = 6 };
     enum { NUM_PRESENT_SAMPLES = 8 };
     enum { MAX_RESYNC_SAMPLES_WITHOUT_PRESENT = 4 };
+#if defined(HAS_HH_VSYNC_ISSUE)
+    enum { MAX_PRESENT_WITHOUT_RESYNC_SAMPLES = 8 };
+#endif
     enum { ACCEPTABLE_ZERO_ERR_SAMPLES_COUNT = 64 };
 
     const char* const mName;
@@ -240,6 +243,9 @@ private:
     size_t mFirstResyncSample = 0;
     size_t mNumResyncSamples = 0;
     int mNumResyncSamplesSincePresent;
+#if defined(HAS_HH_VSYNC_ISSUE)
+    int mNumPresentWithoutResyncSamples;
+#endif
 
     // These member variables store information about the present fences used
     // to validate the currently computed model.

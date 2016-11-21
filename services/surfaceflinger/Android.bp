@@ -15,6 +15,7 @@ cc_defaults {
     name: "libsurfaceflinger_defaults",
     defaults: [
         "disable_postrender_cleanup_defaults",
+        "has_hh_vsync_issue_defaults",
         "surfaceflinger_defaults",
         "surfaceflinger_qcom_ext_defaults",
     ],
