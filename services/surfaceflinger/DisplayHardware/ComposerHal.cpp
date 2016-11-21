@@ -26,6 +26,7 @@ namespace android {
 
 using hardware::Return;
 using hardware::hidl_vec;
+using hardware::hidl_handle;
 
 namespace Hwc2 {
 
@@ -39,14 +40,14 @@ public:
         mHandle = (buffer) ? buffer : native_handle_init(mStorage, 0, 0);
     }
 
-    operator const native_handle_t*() const
+    operator const hidl_handle&() const
     {
         return mHandle;
     }
 
 private:
     NATIVE_HANDLE_DECLARE_STORAGE(mStorage, 0, 0);
-    const native_handle_t* mHandle;
+    hidl_handle mHandle;
 };
 
 class FenceHandle
@@ -55,13 +56,15 @@ public:
     FenceHandle(int fd, bool owned)
         : mOwned(owned)
     {
+        native_handle_t* handle;
         if (fd >= 0) {
-            mHandle = native_handle_init(mStorage, 1, 0);
-            mHandle->data[0] = fd;
+            handle = native_handle_init(mStorage, 1, 0);
+            handle->data[0] = fd;
         } else {
             // nullptr is not a valid handle to HIDL
-            mHandle = native_handle_init(mStorage, 0, 0);
+            handle = native_handle_init(mStorage, 0, 0);
         }
+        mHandle = handle;
     }
 
     ~FenceHandle()
@@ -71,7 +74,7 @@ public:
         }
     }
 
-    operator const native_handle_t*() const
+    operator const hidl_handle&() const
     {
         return mHandle;
     }
@@ -79,7 +82,7 @@ public:
 private:
     bool mOwned;
     NATIVE_HANDLE_DECLARE_STORAGE(mStorage, 1, 0);
-    native_handle_t* mHandle;
+    hidl_handle mHandle;
 };
 
 // assume NO_RESOURCES when Status::isOk returns false
