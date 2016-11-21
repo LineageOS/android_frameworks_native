@@ -457,6 +457,9 @@ void dump_modem_logs() {
         MYLOGE("Unable to add modem log %s to zip file\n", modem_log_file.c_str());
     } else {
         MYLOGD("Modem Log %s is added to zip\n", modem_log_file.c_str());
+        if (remove(modem_log_file.c_str())) {
+            MYLOGE("Error removing modem log %s\n", modem_log_file.c_str());
+        }
     }
 }
 
