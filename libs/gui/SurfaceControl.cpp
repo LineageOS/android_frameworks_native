@@ -107,6 +107,11 @@ status_t SurfaceControl::setLayer(uint32_t layer) {
     if (err < 0) return err;
     return mClient->setLayer(mHandle, layer);
 }
+status_t SurfaceControl::setLayerInfo(uint32_t type, uint32_t appid) {
+    status_t err = validate();
+    if (err < 0) return err;
+    return mClient->setLayerInfo(mHandle, type, appid);
+}
 status_t SurfaceControl::setPosition(float x, float y) {
     status_t err = validate();
     if (err < 0) return err;
