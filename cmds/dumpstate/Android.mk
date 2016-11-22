@@ -12,6 +12,7 @@ COMMON_ZIP_LIBRARIES := libziparchive libz libcrypto_static
 COMMON_LOCAL_CFLAGS := \
        -Wall -Werror -Wno-missing-field-initializers -Wno-unused-variable -Wunused-parameter
 COMMON_SRC_FILES := \
+        DumpstateInternal.cpp \
         utils.cpp
 COMMON_SHARED_LIBRARIES := \
         android.hardware.dumpstate@1.0 \
@@ -38,10 +39,10 @@ LOCAL_CFLAGS := $(COMMON_LOCAL_CFLAGS)
 LOCAL_C_INCLUDES := $(LOCAL_PATH)
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)
 LOCAL_SRC_FILES := \
-        utils.cpp # TODO: temporary, until functions are moved to DumpstateUtil.cpp
-# TODO: include just what it uses (libbase, libcutils, etc...) once split from utils.cpp
-LOCAL_SHARED_LIBRARIES := $(COMMON_SHARED_LIBRARIES)
-LOCAL_STATIC_LIBRARIES := $(COMMON_ZIP_LIBRARIES)
+        DumpstateInternal.cpp \
+        DumpstateUtil.cpp
+LOCAL_SHARED_LIBRARIES := \
+        libbase
 
 include $(BUILD_STATIC_LIBRARY)
 

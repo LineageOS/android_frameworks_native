@@ -17,18 +17,6 @@
 #ifndef FRAMEWORK_NATIVE_CMD_DUMPSTATE_H_
 #define FRAMEWORK_NATIVE_CMD_DUMPSTATE_H_
 
-#ifndef MYLOGD
-#define MYLOGD(...) fprintf(stderr, __VA_ARGS__); ALOGD(__VA_ARGS__);
-#endif
-
-#ifndef MYLOGI
-#define MYLOGI(...) fprintf(stderr, __VA_ARGS__); ALOGI(__VA_ARGS__);
-#endif
-
-#ifndef MYLOGE
-#define MYLOGE(...) fprintf(stderr, __VA_ARGS__); ALOGE(__VA_ARGS__);
-#endif
-
 #include <time.h>
 #include <unistd.h>
 #include <stdbool.h>
@@ -66,8 +54,6 @@ class DurationReporter {
     DurationReporter(const std::string& title, bool log_only = false);
 
     ~DurationReporter();
-
-    static uint64_t Nanotime();
 
   private:
     std::string title_;
@@ -164,26 +150,14 @@ static std::string VERSION_DEFAULT = "default";
  */
 class Dumpstate {
     friend class DumpstateTest;
-    friend class DumpstateUtilTest;
 
   public:
     static CommandOptions DEFAULT_DUMPSYS;
 
     static Dumpstate& GetInstance();
 
-    /*
-     * When running in dry-run mode, skips the real dumps and just print the section headers.
-     *
-     * Useful when debugging dumpstate or other bugreport-related activities.
-     *
-     * Dry-run mode is enabled by setting the system property dumpstate.dry_run to true.
-     */
-    bool IsDryRun() const;
-
-    /*
-     * Gets whether device is running a `user` build.
-     */
-    bool IsUserBuild() const;
+    // TODO: temporary function until device code uses PropertiesHelper::IsUserBuild()
+    bool IsUserBuild();
 
     /* Checkes whether dumpstate is generating a zipped bugreport. */
     bool IsZipping() const;
@@ -349,14 +323,7 @@ class Dumpstate {
 
   private:
     // Used by GetInstance() only.
-    Dumpstate(const std::string& version = VERSION_CURRENT, bool dry_run = false,
-              const std::string& build_type = "user");
-
-    // Whether this is a dry run.
-    bool dry_run_;
-
-    // Build type (such as 'user' or 'eng').
-    std::string build_type_;
+    Dumpstate(const std::string& version = VERSION_CURRENT);
 
     DISALLOW_COPY_AND_ASSIGN(Dumpstate);
 };
@@ -383,9 +350,6 @@ int dump_file_from_fd(const char *title, const char *path, int fd);
  */
 int dump_files(const std::string& title, const char* dir, bool (*skip)(const char* path),
                int (*dump_from_fd)(const char* title, const char* path, int fd));
-
-/* switch to non-root user and group */
-bool drop_root_user();
 
 /* sends a broadcast using Activity Manager */
 void send_broadcast(const std::string& action, const std::vector<std::string>& args);
@@ -452,9 +416,6 @@ void dump_emmc_ecsd(const char *ext_csd_path);
 
 /** Gets command-line arguments. */
 void format_args(int argc, const char *argv[], std::string *args);
-
-/** Tells if the device is running a user build. */
-bool is_user_build();
 
 #ifdef __cplusplus
 }

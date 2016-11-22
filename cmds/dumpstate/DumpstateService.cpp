@@ -22,6 +22,8 @@
 
 #include "android/os/BnDumpstate.h"
 
+#include "DumpstateInternal.h"
+
 namespace android {
 namespace os {
 

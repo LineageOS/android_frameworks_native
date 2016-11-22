@@ -17,6 +17,7 @@
 #define LOG_TAG "dumpstate"
 #include <cutils/log.h>
 
+#include "DumpstateInternal.h"
 #include "DumpstateService.h"
 #include "android/os/BnDumpstate.h"
 #include "dumpstate.h"
@@ -75,18 +76,23 @@ class DumpstateBaseTest : public Test {
   public:
     virtual void SetUp() override {
         calls_++;
+        SetDryRun(false);
     }
 
-    bool IsStandalone() {
+    void SetDryRun(bool dry_run) const {
+        PropertiesHelper::dry_run_ = dry_run;
+    }
+
+    void SetBuildType(const std::string& build_type) const {
+        PropertiesHelper::build_type_ = build_type;
+    }
+
+    bool IsStandalone() const {
         return calls_ == 1;
     }
 
-    bool IsUserBuild() {
-        return "user" == android::base::GetProperty("ro.build.type", "(unknown)");
-    }
-
-    void DropRoot() {
-        drop_root_user();
+    void DropRoot() const {
+        DropRootUser();
         uid_t uid = getuid();
         ASSERT_EQ(2000, (int)uid);
     }
@@ -163,18 +169,6 @@ class DumpstateTest : public DumpstateBaseTest {
         out = GetCapturedStdout();
         err = GetCapturedStderr();
         return status;
-    }
-
-    // TODO: should set the system property directly, rather than messing with Dumpstate variable
-    void SetDryRun(bool dry_run) {
-        ALOGD("Setting dry_run_ to %s\n", dry_run ? "true" : "false");
-        ds.dry_run_ = dry_run;
-    }
-
-    // TODO: should set the system property directly, rather than messing with Dumpstate variable
-    void SetBuildType(const std::string& build_type) {
-        ALOGD("Setting build_type_ to '%s'\n", build_type.c_str());
-        ds.build_type_ = build_type;
     }
 
     void SetProgress(long progress, long initial_max, long threshold = 0) {
@@ -453,7 +447,7 @@ TEST_F(DumpstateTest, RunCommandAsRootUserBuild) {
         MYLOGE("Skipping DumpstateTest.RunCommandAsRootUserBuild() on test suite\n")
         return;
     }
-    if (!IsUserBuild()) {
+    if (!PropertiesHelper::IsUserBuild()) {
         // Emulates user build if necessarily.
         SetBuildType("user");
     }
@@ -475,7 +469,7 @@ TEST_F(DumpstateTest, RunCommandAsRootNonUserBuild) {
         MYLOGE("Skipping DumpstateTest.RunCommandAsRootNonUserBuild() on test suite\n")
         return;
     }
-    if (IsUserBuild()) {
+    if (PropertiesHelper::IsUserBuild()) {
         ALOGI("Skipping RunCommandAsRootNonUserBuild on user builds\n");
         return;
     }
@@ -544,7 +538,6 @@ TEST_F(DumpstateTest, DumpFileOnDryRun) {
         out, StartsWith("------ Might as well dump. Dump! (" + kTestDataPath + "single-line.txt:"));
     EXPECT_THAT(out, HasSubstr("\n\t(skipped on dry run)\n------"));
     EXPECT_THAT(out, EndsWith("s was the duration of 'Might as well dump. Dump!' ------\n"));
-    EXPECT_THAT(err, IsEmpty());
 }
 
 TEST_F(DumpstateTest, DumpFileUpdateProgress) {
@@ -815,25 +808,8 @@ class DumpstateUtilTest : public DumpstateBaseTest {
         SetDryRun(false);
     }
 
-    // TODO: should set the system property directly, rather than messing with Dumpstate variable
-    void SetDryRun(bool dry_run) {
-        ALOGD("Setting dry_run_ to %s\n", dry_run ? "true" : "false");
-        Dumpstate::GetInstance().dry_run_ = dry_run;
-    }
-
-    // TODO: should set the system property directly, rather than messing with Dumpstate variable
-    void SetBuildType(const std::string& build_type) {
-        ALOGD("Setting build_type_ to '%s'\n", build_type.c_str());
-        Dumpstate::GetInstance().build_type_ = build_type;
-    }
-
     void CaptureFdOut() {
-        // TODO: for some obscure, black-magic C++ curse, the ASSERT_TRUE assertion inside
-        // ReadFileToString() fails, even though the returned value is true, so it's using the
-        // core library function directly, without checking the result (if the file cannot be read,
-        // the test case will eventually fail anyways because of the contents of out).
-        // ReadFileToString(path_, &out);
-        android::base::ReadFileToString(path_, &out);
+        ReadFileToString(path_, &out);
     }
 
     void CreateFd(const std::string& name) {
@@ -847,10 +823,10 @@ class DumpstateUtilTest : public DumpstateBaseTest {
     }
 
     // Runs a command into the `fd` and capture `stderr`.
-    int RunCommand(const std::vector<std::string>& full_command,
+    int RunCommand(const std::string& title, const std::vector<std::string>& full_command,
                    const CommandOptions& options = CommandOptions::DEFAULT) {
         CaptureStderr();
-        int status = RunCommandToFd(fd, full_command, options);
+        int status = RunCommandToFd(fd, title, full_command, options);
         close(fd);
 
         CaptureFdOut();
@@ -859,9 +835,9 @@ class DumpstateUtilTest : public DumpstateBaseTest {
     }
 
     // Dumps a file and into the `fd` and `stderr`.
-    int DumpFile(const std::string& path) {
+    int DumpFile(const std::string& title, const std::string& path) {
         CaptureStderr();
-        int status = DumpFileToFd(fd, path);
+        int status = DumpFileToFd(fd, title, path);
         close(fd);
 
         CaptureFdOut();
@@ -879,26 +855,34 @@ class DumpstateUtilTest : public DumpstateBaseTest {
 };
 
 TEST_F(DumpstateUtilTest, RunCommandNoArgs) {
-    EXPECT_EQ(-1, RunCommand({}));
+    CreateFd("RunCommandNoArgs.txt");
+    EXPECT_EQ(-1, RunCommand("", {}));
 }
 
-TEST_F(DumpstateUtilTest, RunCommandWithNoArgs) {
+TEST_F(DumpstateUtilTest, RunCommandNoTitle) {
     CreateFd("RunCommandWithNoArgs.txt");
-    EXPECT_EQ(0, RunCommand({kSimpleCommand}));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}));
     EXPECT_THAT(out, StrEq("stdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n"));
+}
+
+TEST_F(DumpstateUtilTest, RunCommandWithTitle) {
+    CreateFd("RunCommandWithNoArgs.txt");
+    EXPECT_EQ(0, RunCommand("I AM GROOT", {kSimpleCommand}));
+    EXPECT_THAT(out, StrEq("------ I AM GROOT (" + kSimpleCommand + ") ------\nstdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n"));
 }
 
 TEST_F(DumpstateUtilTest, RunCommandWithOneArg) {
     CreateFd("RunCommandWithOneArg.txt");
-    EXPECT_EQ(0, RunCommand({kEchoCommand, "one"}));
+    EXPECT_EQ(0, RunCommand("", {kEchoCommand, "one"}));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("one\n"));
 }
 
 TEST_F(DumpstateUtilTest, RunCommandWithMultipleArgs) {
     CreateFd("RunCommandWithMultipleArgs.txt");
-    EXPECT_EQ(0, RunCommand({kEchoCommand, "one", "is", "the", "loniest", "number"}));
+    EXPECT_EQ(0, RunCommand("", {kEchoCommand, "one", "is", "the", "loniest", "number"}));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("one is the loniest number\n"));
 }
@@ -906,7 +890,7 @@ TEST_F(DumpstateUtilTest, RunCommandWithMultipleArgs) {
 TEST_F(DumpstateUtilTest, RunCommandWithLoggingMessage) {
     CreateFd("RunCommandWithLoggingMessage.txt");
     EXPECT_EQ(
-        0, RunCommand({kSimpleCommand},
+        0, RunCommand("", {kSimpleCommand},
                       CommandOptions::WithTimeout(10).Log("COMMAND, Y U NO LOG FIRST?").Build()));
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("COMMAND, Y U NO LOG FIRST?stderr\n"));
@@ -914,8 +898,8 @@ TEST_F(DumpstateUtilTest, RunCommandWithLoggingMessage) {
 
 TEST_F(DumpstateUtilTest, RunCommandRedirectStderr) {
     CreateFd("RunCommandRedirectStderr.txt");
-    EXPECT_EQ(
-        0, RunCommand({kSimpleCommand}, CommandOptions::WithTimeout(10).RedirectStderr().Build()));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand},
+                            CommandOptions::WithTimeout(10).RedirectStderr().Build()));
     EXPECT_THAT(out, IsEmpty());
     EXPECT_THAT(err, StrEq("stdout\nstderr\n"));
 }
@@ -923,7 +907,17 @@ TEST_F(DumpstateUtilTest, RunCommandRedirectStderr) {
 TEST_F(DumpstateUtilTest, RunCommandDryRun) {
     CreateFd("RunCommandDryRun.txt");
     SetDryRun(true);
-    EXPECT_EQ(0, RunCommand({kSimpleCommand}));
+    EXPECT_EQ(0, RunCommand("I AM GROOT", {kSimpleCommand}));
+    EXPECT_THAT(out, StrEq(android::base::StringPrintf(
+                         "------ I AM GROOT (%s) ------\n\t(skipped on dry run)\n",
+                         kSimpleCommand.c_str())));
+    EXPECT_THAT(err, IsEmpty());
+}
+
+TEST_F(DumpstateUtilTest, RunCommandDryRunNoTitle) {
+    CreateFd("RunCommandDryRun.txt");
+    SetDryRun(true);
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}));
     EXPECT_THAT(
         out, StrEq(android::base::StringPrintf("%s: skipped on dry run\n", kSimpleCommand.c_str())));
     EXPECT_THAT(err, IsEmpty());
@@ -932,21 +926,21 @@ TEST_F(DumpstateUtilTest, RunCommandDryRun) {
 TEST_F(DumpstateUtilTest, RunCommandDryRunAlways) {
     CreateFd("RunCommandDryRunAlways.txt");
     SetDryRun(true);
-    EXPECT_EQ(0, RunCommand({kSimpleCommand}, CommandOptions::WithTimeout(10).Always().Build()));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(10).Always().Build()));
     EXPECT_THAT(out, StrEq("stdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n"));
 }
 
 TEST_F(DumpstateUtilTest, RunCommandNotFound) {
     CreateFd("RunCommandNotFound.txt");
-    EXPECT_NE(0, RunCommand({"/there/cannot/be/such/command"}));
+    EXPECT_NE(0, RunCommand("", {"/there/cannot/be/such/command"}));
     EXPECT_THAT(out, StartsWith("*** command '/there/cannot/be/such/command' failed: exit code"));
     EXPECT_THAT(err, StartsWith("execvp on command '/there/cannot/be/such/command' failed"));
 }
 
 TEST_F(DumpstateUtilTest, RunCommandFails) {
     CreateFd("RunCommandFails.txt");
-    EXPECT_EQ(42, RunCommand({kSimpleCommand, "--exit", "42"}));
+    EXPECT_EQ(42, RunCommand("", {kSimpleCommand, "--exit", "42"}));
     EXPECT_THAT(out, StrEq("stdout\n*** command '" + kSimpleCommand +
                            " --exit 42' failed: exit code 42\n"));
     EXPECT_THAT(err, StrEq("stderr\n*** command '" + kSimpleCommand +
@@ -955,7 +949,7 @@ TEST_F(DumpstateUtilTest, RunCommandFails) {
 
 TEST_F(DumpstateUtilTest, RunCommandCrashes) {
     CreateFd("RunCommandCrashes.txt");
-    EXPECT_NE(0, RunCommand({kSimpleCommand, "--crash"}));
+    EXPECT_NE(0, RunCommand("", {kSimpleCommand, "--crash"}));
     // We don't know the exit code, so check just the prefix.
     EXPECT_THAT(
         out, StartsWith("stdout\n*** command '" + kSimpleCommand + " --crash' failed: exit code"));
@@ -965,8 +959,8 @@ TEST_F(DumpstateUtilTest, RunCommandCrashes) {
 
 TEST_F(DumpstateUtilTest, RunCommandTimesout) {
     CreateFd("RunCommandTimesout.txt");
-    EXPECT_EQ(-1,
-              RunCommand({kSimpleCommand, "--sleep", "2"}, CommandOptions::WithTimeout(1).Build()));
+    EXPECT_EQ(-1, RunCommand("", {kSimpleCommand, "--sleep", "2"},
+                             CommandOptions::WithTimeout(1).Build()));
     EXPECT_THAT(out, StartsWith("stdout line1\n*** command '" + kSimpleCommand +
                                 " --sleep 2' timed out after 1"));
     EXPECT_THAT(err, StartsWith("sleeping for 2s\n*** command '" + kSimpleCommand +
@@ -978,7 +972,7 @@ TEST_F(DumpstateUtilTest, RunCommandIsKilled) {
     CaptureStderr();
 
     std::thread t([=]() {
-        EXPECT_EQ(SIGTERM, RunCommandToFd(fd, {kSimpleCommand, "--pid", "--sleep", "20"},
+        EXPECT_EQ(SIGTERM, RunCommandToFd(fd, "", {kSimpleCommand, "--pid", "--sleep", "20"},
                                           CommandOptions::WithTimeout(100).Always().Build()));
     });
 
@@ -1020,14 +1014,14 @@ TEST_F(DumpstateUtilTest, RunCommandAsRootUserBuild) {
         return;
     }
     CreateFd("RunCommandAsRootUserBuild.txt");
-    if (!IsUserBuild()) {
+    if (!PropertiesHelper::IsUserBuild()) {
         // Emulates user build if necessarily.
         SetBuildType("user");
     }
 
     DropRoot();
 
-    EXPECT_EQ(0, RunCommand({kSimpleCommand}, CommandOptions::WithTimeout(1).AsRoot().Build()));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand}, CommandOptions::WithTimeout(1).AsRoot().Build()));
 
     // We don't know the exact path of su, so we just check for the 'root ...' commands
     EXPECT_THAT(out, StartsWith("Skipping"));
@@ -1043,15 +1037,15 @@ TEST_F(DumpstateUtilTest, RunCommandAsRootNonUserBuild) {
         return;
     }
     CreateFd("RunCommandAsRootNonUserBuild.txt");
-    if (IsUserBuild()) {
+    if (PropertiesHelper::IsUserBuild()) {
         ALOGI("Skipping RunCommandAsRootNonUserBuild on user builds\n");
         return;
     }
 
     DropRoot();
 
-    EXPECT_EQ(
-        0, RunCommand({kSimpleCommand, "--uid"}, CommandOptions::WithTimeout(1).AsRoot().Build()));
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand, "--uid"},
+                            CommandOptions::WithTimeout(1).AsRoot().Build()));
 
     EXPECT_THAT(out, StrEq("0\nstdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n"));
@@ -1068,59 +1062,78 @@ TEST_F(DumpstateUtilTest, RunCommandDropRoot) {
     // First check root case - only available when running with 'adb root'.
     uid_t uid = getuid();
     if (uid == 0) {
-        EXPECT_EQ(0, RunCommand({kSimpleCommand, "--uid"}));
+        EXPECT_EQ(0, RunCommand("", {kSimpleCommand, "--uid"}));
         EXPECT_THAT(out, StrEq("0\nstdout\n"));
         EXPECT_THAT(err, StrEq("stderr\n"));
         return;
     }
     // Then run dropping root.
-    EXPECT_EQ(0, RunCommand({kSimpleCommand, "--uid"},
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand, "--uid"},
                             CommandOptions::WithTimeout(1).DropRoot().Build()));
     EXPECT_THAT(out, StrEq("2000\nstdout\n"));
     EXPECT_THAT(err, StrEq("drop_root_user(): already running as Shell\nstderr\n"));
 }
 
-TEST_F(DumpstateUtilTest, DumpFileNotFound) {
+TEST_F(DumpstateUtilTest, DumpFileNotFoundNoTitle) {
     CreateFd("DumpFileNotFound.txt");
-    EXPECT_EQ(-1, DumpFile("/I/cant/believe/I/exist"));
+    EXPECT_EQ(-1, DumpFile("", "/I/cant/believe/I/exist"));
     EXPECT_THAT(out,
                 StrEq("*** Error dumping /I/cant/believe/I/exist: No such file or directory\n"));
     EXPECT_THAT(err, IsEmpty());
 }
 
+TEST_F(DumpstateUtilTest, DumpFileNotFoundWithTitle) {
+    CreateFd("DumpFileNotFound.txt");
+    EXPECT_EQ(-1, DumpFile("Y U NO EXIST?", "/I/cant/believe/I/exist"));
+    EXPECT_THAT(out, StrEq("*** Error dumping /I/cant/believe/I/exist (Y U NO EXIST?): No such "
+                           "file or directory\n"));
+    EXPECT_THAT(err, IsEmpty());
+}
+
 TEST_F(DumpstateUtilTest, DumpFileSingleLine) {
     CreateFd("DumpFileSingleLine.txt");
-    EXPECT_EQ(0, DumpFile(kTestDataPath + "single-line.txt"));
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "single-line.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\n"));  // dumpstate adds missing newline
 }
 
 TEST_F(DumpstateUtilTest, DumpFileSingleLineWithNewLine) {
     CreateFd("DumpFileSingleLineWithNewLine.txt");
-    EXPECT_EQ(0, DumpFile(kTestDataPath + "single-line-with-newline.txt"));
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "single-line-with-newline.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\n"));
 }
 
 TEST_F(DumpstateUtilTest, DumpFileMultipleLines) {
     CreateFd("DumpFileMultipleLines.txt");
-    EXPECT_EQ(0, DumpFile(kTestDataPath + "multiple-lines.txt"));
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "multiple-lines.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\nI AM LINE2\nI AM LINE3\n"));
 }
 
 TEST_F(DumpstateUtilTest, DumpFileMultipleLinesWithNewLine) {
     CreateFd("DumpFileMultipleLinesWithNewLine.txt");
-    EXPECT_EQ(0, DumpFile(kTestDataPath + "multiple-lines-with-newline.txt"));
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "multiple-lines-with-newline.txt"));
     EXPECT_THAT(err, IsEmpty());
     EXPECT_THAT(out, StrEq("I AM LINE1\nI AM LINE2\nI AM LINE3\n"));
+}
+
+TEST_F(DumpstateUtilTest, DumpFileOnDryRunNoTitle) {
+    CreateFd("DumpFileOnDryRun.txt");
+    SetDryRun(true);
+    std::string path = kTestDataPath + "single-line.txt";
+    EXPECT_EQ(0, DumpFile("", kTestDataPath + "single-line.txt"));
+    EXPECT_THAT(err, IsEmpty());
+    EXPECT_THAT(out, StrEq(path + ": skipped on dry run\n"));
 }
 
 TEST_F(DumpstateUtilTest, DumpFileOnDryRun) {
     CreateFd("DumpFileOnDryRun.txt");
     SetDryRun(true);
     std::string path = kTestDataPath + "single-line.txt";
-    EXPECT_EQ(0, DumpFile(kTestDataPath + "single-line.txt"));
+    EXPECT_EQ(0, DumpFile("Might as well dump. Dump!", kTestDataPath + "single-line.txt"));
     EXPECT_THAT(err, IsEmpty());
-    EXPECT_THAT(out, StrEq(path + ": skipped on dry run\n"));
+    EXPECT_THAT(
+        out, StartsWith("------ Might as well dump. Dump! (" + kTestDataPath + "single-line.txt:"));
+    EXPECT_THAT(out, EndsWith("skipped on dry run\n"));
 }
