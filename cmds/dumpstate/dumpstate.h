@@ -40,6 +40,7 @@
 #include <android-base/macros.h>
 #include <ziparchive/zip_writer.h>
 
+#include "DumpstateUtil.h"
 #include "android/os/BnDumpstate.h"
 
 // Workaround for const char *args[MAX_ARGS_ARRAY_SIZE] variables until they're converted to
@@ -51,28 +52,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/*
- * Defines the Linux user that should be executing a command.
- */
-enum RootMode {
-    /* Explicitly change the `uid` and `gid` to be `shell`.*/
-    DROP_ROOT,
-    /* Don't change the `uid` and `gid`. */
-    DONT_DROP_ROOT,
-    /* Prefix the command with `/PATH/TO/su root`. Won't work non user builds. */
-    SU_ROOT
-};
-
-/*
- * Defines what should happen with the `stdout` stream of a command.
- */
-enum StdoutMode {
-    /* Don't change `stdout`. */
-    NORMAL_STDOUT,
-    /* Redirect `stdout` to `stderr`. */
-    REDIRECT_TO_STDERR
-};
 
 /*
  * Helper class used to report how long it takes for a section to finish.
@@ -99,88 +78,6 @@ class DurationReporter {
     uint64_t started_;
 
     DISALLOW_COPY_AND_ASSIGN(DurationReporter);
-};
-
-/*
- * Value object used to set command options.
- *
- * Typically constructed using a builder with chained setters. Examples:
- *
- *  CommandOptions::WithTimeout(20).AsRoot().Build();
- *  CommandOptions::WithTimeout(10).Always().RedirectStderr().Build();
- *
- * Although the builder could be used to dynamically set values. Example:
- *
- *  CommandOptions::CommandOptionsBuilder options =
- *  CommandOptions::WithTimeout(10);
- *  if (!is_user_build()) {
- *    options.AsRoot();
- *  }
- *  RunCommand("command", {"args"}, options.Build());
- */
-class CommandOptions {
-  private:
-    class CommandOptionsValues {
-      private:
-        CommandOptionsValues(long timeout);
-
-        long timeout_;
-        bool always_;
-        RootMode root_mode_;
-        StdoutMode stdout_mode_;
-        std::string logging_message_;
-
-        friend class CommandOptions;
-        friend class CommandOptionsBuilder;
-    };
-
-    CommandOptions(const CommandOptionsValues& values);
-
-    const CommandOptionsValues values;
-
-  public:
-    class CommandOptionsBuilder {
-      public:
-        /* Sets the command to always run, even on `dry-run` mode. */
-        CommandOptionsBuilder& Always();
-        /* Sets the command's RootMode as `SU_ROOT` */
-        CommandOptionsBuilder& AsRoot();
-        /* Sets the command's RootMode as `DROP_ROOT` */
-        CommandOptionsBuilder& DropRoot();
-        /* Sets the command's StdoutMode `REDIRECT_TO_STDERR` */
-        CommandOptionsBuilder& RedirectStderr();
-        /* When not empty, logs a message before executing the command.
-         * Must contain a `%s`, which will be replaced by the full command line, and end on `\n`. */
-        CommandOptionsBuilder& Log(const std::string& message);
-        /* Builds the command options. */
-        CommandOptions Build();
-
-      private:
-        CommandOptionsBuilder(long timeout);
-        CommandOptionsValues values;
-        friend class CommandOptions;
-    };
-
-    /** Gets the command timeout, in seconds. */
-    long Timeout() const;
-    /* Checks whether the command should always be run, even on dry-run mode. */
-    bool Always() const;
-    /** Gets the RootMode of the command. */
-    RootMode RootMode() const;
-    /** Gets the StdoutMode of the command. */
-    StdoutMode StdoutMode() const;
-    /** Gets the logging message header, it any. */
-    std::string LoggingMessage() const;
-
-    /** Creates a builder with the requied timeout. */
-    static CommandOptionsBuilder WithTimeout(long timeout);
-
-    // Common options.
-    static CommandOptions DEFAULT;
-    static CommandOptions DEFAULT_DUMPSYS;
-    static CommandOptions AS_ROOT_5;
-    static CommandOptions AS_ROOT_10;
-    static CommandOptions AS_ROOT_20;
 };
 
 /*
@@ -272,6 +169,8 @@ class Dumpstate {
     friend class DumpstateTest;
 
   public:
+    static CommandOptions DEFAULT_DUMPSYS;
+
     static Dumpstate& GetInstance();
 
     /*
@@ -316,8 +215,7 @@ class Dumpstate {
      * timeout from `options`)
      */
     void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsys_args,
-                    const CommandOptions& options = CommandOptions::DEFAULT_DUMPSYS,
-                    long dumpsys_timeout = 0);
+                    const CommandOptions& options = DEFAULT_DUMPSYS, long dumpsys_timeout = 0);
 
     /*
      * Prints the contents of a file.
@@ -453,13 +351,6 @@ class Dumpstate {
     // Used by GetInstance() only.
     Dumpstate(const std::string& version = VERSION_CURRENT, bool dry_run = false,
               const std::string& build_type = "user");
-
-    // Internal version of RunCommand that just runs it, without updating progress.
-    int JustRunCommand(const char* command, const char* path, std::vector<const char*>& args,
-                       const CommandOptions& options) const;
-
-    // Internal version of RunCommand that just dumps it, without updating progress.
-    int JustDumpFile(const std::string& title, const std::string& path) const;
 
     // Whether this is a dry run.
     bool dry_run_;
