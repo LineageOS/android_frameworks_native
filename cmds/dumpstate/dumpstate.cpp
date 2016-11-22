@@ -159,7 +159,7 @@ void add_mountinfo() {
     if (!ds.IsZipping()) return;
     std::string title = "MOUNT INFO";
     mount_points.clear();
-    DurationReporter duration_reporter(title, nullptr);
+    DurationReporter duration_reporter(title, true);
     for_each_pid(do_mountinfo, nullptr);
     MYLOGD("%s: %d entries added to zip file\n", title.c_str(), (int)mount_points.size());
 }
@@ -692,6 +692,7 @@ void Dumpstate::PrintHeader() const {
     printf("Dumpstate info: id=%d pid=%d dry_run=%d args=%s extra_options=%s\n", id_, pid_,
            dry_run_, args_.c_str(), extra_options_.c_str());
     printf("\n");
+    fflush(stdout);
 }
 
 // List of file extensions that can cause a zip file attachment to be rejected by some email
@@ -778,7 +779,7 @@ void Dumpstate::AddDir(const std::string& dir, bool recursive) {
         return;
     }
     MYLOGD("Adding dir %s (recursive: %d)\n", dir.c_str(), recursive);
-    DurationReporter duration_reporter(dir, nullptr);
+    DurationReporter duration_reporter(dir, true);
     dump_files("", dir.c_str(), recursive ? skip_none : is_dir, _add_file_from_fd);
 }
 
@@ -1201,6 +1202,8 @@ void Dumpstate::DumpstateBoard() {
     dumpstate_device->dumpstateBoard(handle);
 
     AddZipEntry("dumpstate-board.txt", path);
+    printf("*** See dumpstate-board.txt entry ***\n");
+    fflush(stdout);
 
     native_handle_close(handle);
     native_handle_delete(handle);
