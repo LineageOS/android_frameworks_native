@@ -106,7 +106,7 @@ public:
             PixelFormat format, uint32_t layerCount, uint32_t usage)
         : mAllocator(allocator), mBufferValid(false)
     {
-        Gralloc2::IAllocator::BufferDescriptorInfo info = {};
+        Gralloc2::IAllocatorClient::BufferDescriptorInfo info = {};
         info.width = width;
         info.height = height;
         info.format = static_cast<Gralloc2::PixelFormat>(format);
