@@ -6,6 +6,10 @@ cc_binary {
 
     shared_libs: [
         "libbinder",
+        "libhwbinder",
+        "android.hidl.manager@1.0",
+        "libhidlbase",
+        "libhidltransport",
         "liblog",
         "libcutils",
         "libutils",
