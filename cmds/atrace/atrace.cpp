@@ -37,6 +37,8 @@
 #include <binder/IServiceManager.h>
 #include <binder/Parcel.h>
 
+#include <android/hidl/manager/1.0/IServiceManager.h>
+#include <hidl/ServiceManagement.h>
 #include <cutils/properties.h>
 
 #include <utils/String8.h>
@@ -47,6 +49,7 @@
 
 using namespace android;
 
+using std::string;
 #define NELEM(x) ((int) (sizeof(x) / sizeof((x)[0])))
 
 #define MAX_SYS_FILES 10
@@ -506,6 +509,35 @@ static bool pokeBinderServices()
     return true;
 }
 
+// Poke all the HAL processes in the system to get them to re-read
+// their system properties.
+static void pokeHalServices()
+{
+    using ::android::hidl::manager::V1_0::IServiceManager;
+    using ::android::hardware::IBinder;
+    using ::android::hardware::hidl_string;
+    using ::android::hardware::Parcel;
+
+    Parcel data;
+
+    sp<IServiceManager> sm = ::android::hardware::defaultServiceManager();
+    sm->list([&](const auto &interfaces) {
+        for (size_t i = 0; i < interfaces.size(); i++) {
+            string fqInstanceName = interfaces[i];
+            string::size_type n = fqInstanceName.find("/");
+            if (n == std::string::npos || interfaces[i].size() == n+1)
+                continue;
+            hidl_string fqInterfaceName = fqInstanceName.substr(0, n);
+            hidl_string instanceName = fqInstanceName.substr(n+1, std::string::npos);
+            sm->get(fqInterfaceName, instanceName, [&](const auto &interface) {
+                // TODO(b/32756130)
+                // Once IServiceManager returns IBase, use interface->notifySyspropsChanged() here
+                interface->transact(IBinder::SYSPROPS_TRANSACTION, data, nullptr, 0, nullptr);
+            });
+        }
+    });
+}
+
 // Set the trace tags that userland tracing uses, and poke the running
 // processes to pick up the new value.
 static bool setTagsProperty(uint64_t tags)
@@ -748,6 +780,7 @@ static bool setUpTrace()
     }
     ok &= setAppCmdlineProperty(&packageList[0]);
     ok &= pokeBinderServices();
+    pokeHalServices();
 
     // Disable all the sysfs enables.  This is done as a separate loop from
     // the enables to allow the same enable to exist in multiple categories.
