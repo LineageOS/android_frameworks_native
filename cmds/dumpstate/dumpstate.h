@@ -63,18 +63,15 @@ extern "C" {
  */
 class DurationReporter {
   public:
-    DurationReporter(const std::string& title);
-    DurationReporter(const std::string& title, FILE* out);
+    DurationReporter(const std::string& title, bool log_only = false);
 
     ~DurationReporter();
 
     static uint64_t Nanotime();
 
   private:
-    // TODO: use std::string for title, once dump_files() and other places that pass a char* are
-    // refactored as well.
     std::string title_;
-    FILE* out_;
+    bool log_only_;
     uint64_t started_;
 
     DISALLOW_COPY_AND_ASSIGN(DurationReporter);
@@ -167,6 +164,7 @@ static std::string VERSION_DEFAULT = "default";
  */
 class Dumpstate {
     friend class DumpstateTest;
+    friend class DumpstateUtilTest;
 
   public:
     static CommandOptions DEFAULT_DUMPSYS;

@@ -19,9 +19,9 @@
 // TODO: use android::os::dumpstate (must wait until device code is refactored)
 
 /*
- * Defines the Linux user that should be executing a command.
+ * Defines the Linux account that should be executing a command.
  */
-enum RootMode {
+enum PrivilegeMode {
     /* Explicitly change the `uid` and `gid` to be `shell`.*/
     DROP_ROOT,
     /* Don't change the `uid` and `gid`. */
@@ -31,12 +31,12 @@ enum RootMode {
 };
 
 /*
- * Defines what should happen with the `stdout` stream of a command.
+ * Defines what should happen with the main output stream (`stdout` or fd) of a command.
  */
-enum StdoutMode {
-    /* Don't change `stdout`. */
-    NORMAL_STDOUT,
-    /* Redirect `stdout` to `stderr`. */
+enum OutputMode {
+    /* Don't change main output. */
+    NORMAL_OUTPUT,
+    /* Redirect main output to `stderr`. */
     REDIRECT_TO_STDERR
 };
 
@@ -65,8 +65,8 @@ class CommandOptions {
 
         int64_t timeout_;
         bool always_;
-        RootMode root_mode_;
-        StdoutMode stdout_mode_;
+        PrivilegeMode account_mode_;
+        OutputMode output_mode_;
         std::string logging_message_;
 
         friend class CommandOptions;
@@ -82,11 +82,11 @@ class CommandOptions {
       public:
         /* Sets the command to always run, even on `dry-run` mode. */
         CommandOptionsBuilder& Always();
-        /* Sets the command's RootMode as `SU_ROOT` */
+        /* Sets the command's PrivilegeMode as `SU_ROOT` */
         CommandOptionsBuilder& AsRoot();
-        /* Sets the command's RootMode as `DROP_ROOT` */
+        /* Sets the command's PrivilegeMode as `DROP_ROOT` */
         CommandOptionsBuilder& DropRoot();
-        /* Sets the command's StdoutMode `REDIRECT_TO_STDERR` */
+        /* Sets the command's OutputMode as `REDIRECT_TO_STDERR` */
         CommandOptionsBuilder& RedirectStderr();
         /* When not empty, logs a message before executing the command.
          * Must contain a `%s`, which will be replaced by the full command line, and end on `\n`. */
@@ -104,10 +104,10 @@ class CommandOptions {
     int64_t Timeout() const;
     /* Checks whether the command should always be run, even on dry-run mode. */
     bool Always() const;
-    /** Gets the RootMode of the command. */
-    RootMode RootMode() const;
-    /** Gets the StdoutMode of the command. */
-    StdoutMode StdoutMode() const;
+    /** Gets the PrivilegeMode of the command. */
+    PrivilegeMode PrivilegeMode() const;
+    /** Gets the OutputMode of the command. */
+    OutputMode OutputMode() const;
     /** Gets the logging message header, it any. */
     std::string LoggingMessage() const;
 
@@ -126,14 +126,11 @@ class CommandOptions {
  *
  * |fd| file descriptor that receives the command's 'stdout'.
  * |full_command| array containing the command (first entry) and its arguments.
- * Must contain at least one element.
+ *                Must contain at least one element.
  * |options| optional argument defining the command's behavior.
- * |description| optional description of the command to be used on log messages. If empty,
- * the command path (without arguments) will be used instead.
  */
-int RunCommandToFd(int fd, const std::vector<const char*>& full_command,
-                   const CommandOptions& options = CommandOptions::DEFAULT,
-                   const std::string& description = "");
+int RunCommandToFd(int fd, const std::vector<std::string>& full_command,
+                   const CommandOptions& options = CommandOptions::DEFAULT);
 
 /*
  * Dumps the contents of a file into a file descriptor.
