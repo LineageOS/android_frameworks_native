@@ -365,6 +365,7 @@ static bool compileShaderLines(GLenum shaderType, const char* const* lines,
     if (!result) {
         fprintf(stderr, "Shader source:\n");
         printShaderSource(lines);
+        delete[] src;
         return false;
     }
     delete[] src;
