@@ -32,6 +32,7 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libutils \
     libui \
+    libgui \
     libhardware_legacy
 
 
