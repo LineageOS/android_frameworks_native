@@ -4,7 +4,7 @@ LOCAL_PATH:= $(call my-dir)
 # Common settings #
 # ================#
 # ZipArchive support, the order matters here to get all symbols.
-COMMON_ZIP_LIBRARIES := libziparchive libz libcrypto_static
+COMMON_ZIP_LIBRARIES := libziparchive libz libcrypto
 
 # TODO: ideally the tests should depend on a shared dumpstate library, but currently libdumpstate
 # is used to define the device-specific HAL library. Instead, both dumpstate and dumpstate_test
@@ -23,10 +23,10 @@ COMMON_SHARED_LIBRARIES := \
         libhardware_legacy \
         liblog \
         libselinux \
-        libutils
-COMMON_STATIC_LIBRARIES := \
-        libdumpstateutil \
+        libutils \
         $(COMMON_ZIP_LIBRARIES)
+COMMON_STATIC_LIBRARIES := \
+        libdumpstateutil
 
 # ====================#
 # libdumpstateutil #

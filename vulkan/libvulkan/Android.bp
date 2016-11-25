@@ -65,9 +65,9 @@ cc_library_shared {
     export_static_lib_headers: ["vulkan_headers"],
     static_libs: [
         "vulkan_headers",
-        "libziparchive",
     ],
     shared_libs: [
+        "libziparchive",
         "libhardware",
         "libsync",
         "libbase",
