@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5f681702_03696cbd",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 338,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2016-11-27T21:36:05Z",
+      "side": 1,
+      "message": "Whoops, don\u0027t need this newline either",
+      "revId": "d3f2d4d9dd6fce5ed3ef52df950c5553b3e56f3f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
