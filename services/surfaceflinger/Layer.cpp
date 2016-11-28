@@ -903,7 +903,7 @@ void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
 
         // figure out if there is something below us
         Region under;
-        const SurfaceFlinger::LayerVector& drawingLayers(
+        const LayerVector& drawingLayers(
                 mFlinger->mDrawingState.layersSortedByZ);
         const size_t count = drawingLayers.size();
         for (size_t i=0 ; i<count ; ++i) {

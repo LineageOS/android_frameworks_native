@@ -55,6 +55,7 @@
 #include "DisplayDevice.h"
 #include "DispSync.h"
 #include "FrameTracker.h"
+#include "LayerVector.h"
 #include "MessageQueue.h"
 #include "SurfaceInterceptor.h"
 
@@ -168,16 +169,13 @@ private:
      * Internal data structures
      */
 
-    class LayerVector : public SortedVector< sp<Layer> > {
+    class State {
     public:
-        LayerVector();
-        LayerVector(const LayerVector& rhs);
-        virtual int do_compare(const void* lhs, const void* rhs) const;
-    };
-
-    struct State {
         LayerVector layersSortedByZ;
         DefaultKeyedVector< wp<IBinder>, DisplayDeviceState> displays;
+
+        void traverseInZOrder(const std::function<void(Layer*)>& consume) const;
+        void traverseInReverseZOrder(const std::function<void(Layer*)>& consume) const;
     };
 
     /* ------------------------------------------------------------------------
@@ -397,8 +395,7 @@ private:
      * Compositing
      */
     void invalidateHwcGeometry();
-    static void computeVisibleRegions(
-            const LayerVector& currentLayers, uint32_t layerStack,
+    void computeVisibleRegions(uint32_t layerStack,
             Region& dirtyRegion, Region& opaqueRegion);
 
     void preComposition(nsecs_t refreshStartTime);
