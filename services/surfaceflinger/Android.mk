@@ -167,6 +167,7 @@ ifeq ($(TARGET_USES_QCOM_BSP), true)
   LOCAL_SHARED_LIBRARIES += libqdutils
   LOCAL_SHARED_LIBRARIES += libqdMetaData
   LOCAL_CFLAGS += -DQTI_BSP
+  LOCAL_CFLAGS += -DUSE_COLOR_METADATA
   LOCAL_SRC_FILES += \
     ExSurfaceFlinger/ExLayer.cpp \
     ExSurfaceFlinger/ExSurfaceFlinger.cpp \
