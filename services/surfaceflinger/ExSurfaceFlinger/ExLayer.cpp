@@ -37,6 +37,7 @@
 #ifdef QTI_BSP
 #include <gralloc_priv.h>
 #include <qdMetaData.h>
+#include <color_metadata.h>
 #include <hardware/display_defs.h>
 #endif
 
@@ -156,6 +157,32 @@ bool ExLayer::isYuvLayer() const {
                 (const_cast<native_handle_t*>(buffer->handle));
             /* return true if layer is YUV */
             return (hnd && (hnd->bufferType == BUFFER_TYPE_VIDEO));
+        }
+#endif
+    }
+    return false;
+}
+
+bool ExLayer::isHDRLayer() const {
+    const sp<GraphicBuffer>& activeBuffer(mActiveBuffer);
+    if (activeBuffer != 0) {
+#ifdef QTI_BSP
+        ANativeWindowBuffer* buffer = activeBuffer->getNativeBuffer();
+        if(buffer) {
+            private_handle_t* hnd = static_cast<private_handle_t*>
+                (const_cast<native_handle_t*>(buffer->handle));
+            const MetaData_t *metaData = NULL;
+            if (hnd) {
+                metaData = reinterpret_cast<MetaData_t *>(hnd->base_metadata);
+                if (metaData && (metaData->operation & COLOR_METADATA)) {
+                    const ColorMetaData &colorData = metaData->color;
+                    if (colorData.colorPrimaries == ColorPrimaries_BT2020 &&
+                        (colorData.transfer == Transfer_SMPTE_ST2084 ||
+                        colorData.transfer == Transfer_HLG)) {
+                            return true;
+                    }
+                }
+            }
         }
 #endif
     }
