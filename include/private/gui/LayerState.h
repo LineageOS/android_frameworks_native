@@ -84,7 +84,7 @@ struct layer_state_t {
             uint32_t        what;
             float           x;
             float           y;
-            uint32_t        z;
+            int32_t         z;
             uint32_t        w;
             uint32_t        h;
             uint32_t        layerStack;

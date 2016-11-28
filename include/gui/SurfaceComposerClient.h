@@ -142,7 +142,7 @@ public:
     status_t    show(const sp<IBinder>& id);
     status_t    setFlags(const sp<IBinder>& id, uint32_t flags, uint32_t mask);
     status_t    setTransparentRegionHint(const sp<IBinder>& id, const Region& transparent);
-    status_t    setLayer(const sp<IBinder>& id, uint32_t layer);
+    status_t    setLayer(const sp<IBinder>& id, int32_t layer);
     status_t    setLayerInfo(const sp<IBinder>& id, uint32_t type, uint32_t appid);
     status_t    setAlpha(const sp<IBinder>& id, float alpha=1.0f);
     status_t    setMatrix(const sp<IBinder>& id, float dsdx, float dtdx, float dsdy, float dtdy);
@@ -213,12 +213,12 @@ public:
             const sp<IBinder>& display,
             const sp<IGraphicBufferProducer>& producer,
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            uint32_t minLayerZ, uint32_t maxLayerZ,
+            int32_t minLayerZ, int32_t maxLayerZ,
             bool useIdentityTransform);
     static status_t captureToBuffer(
             const sp<IBinder>& display,
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            uint32_t minLayerZ, uint32_t maxLayerZ,
+            int32_t minLayerZ, int32_t maxLayerZ,
             bool useIdentityTransform,
             uint32_t rotation,
             sp<GraphicBuffer>* outbuffer);
@@ -242,11 +242,11 @@ public:
             bool useIdentityTransform);
     status_t update(const sp<IBinder>& display,
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            uint32_t minLayerZ, uint32_t maxLayerZ,
+            int32_t minLayerZ, int32_t maxLayerZ,
             bool useIdentityTransform);
     status_t update(const sp<IBinder>& display,
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            uint32_t minLayerZ, uint32_t maxLayerZ,
+            int32_t minLayerZ, int32_t maxLayerZ,
             bool useIdentityTransform, uint32_t rotation);
 
     sp<CpuConsumer> getCpuConsumer() const;

@@ -206,7 +206,7 @@ private:
     virtual status_t captureScreen(const sp<IBinder>& display,
             const sp<IGraphicBufferProducer>& producer,
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            uint32_t minLayerZ, uint32_t maxLayerZ,
+            int32_t minLayerZ, int32_t maxLayerZ,
             bool useIdentityTransform, ISurfaceComposer::Rotation rotation);
     virtual status_t getDisplayStats(const sp<IBinder>& display,
             DisplayStatInfo* stats);
@@ -333,14 +333,14 @@ private:
     void renderScreenImplLocked(
             const sp<const DisplayDevice>& hw,
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            uint32_t minLayerZ, uint32_t maxLayerZ,
+            int32_t minLayerZ, int32_t maxLayerZ,
             bool yswap, bool useIdentityTransform, Transform::orientation_flags rotation);
 
     status_t captureScreenImplLocked(
             const sp<const DisplayDevice>& hw,
             const sp<IGraphicBufferProducer>& producer,
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            uint32_t minLayerZ, uint32_t maxLayerZ,
+            int32_t minLayerZ, int32_t maxLayerZ,
             bool useIdentityTransform, Transform::orientation_flags rotation,
             bool isLocalScreenshot);
 
@@ -441,7 +441,7 @@ private:
     void appendSfConfigString(String8& result) const;
     void checkScreenshot(size_t w, size_t s, size_t h, void const* vaddr,
             const sp<const DisplayDevice>& hw,
-            uint32_t minLayerZ, uint32_t maxLayerZ);
+            int32_t minLayerZ, int32_t maxLayerZ);
 
     void logFrameStats();
 

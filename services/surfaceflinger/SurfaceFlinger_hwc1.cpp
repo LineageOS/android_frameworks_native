@@ -3459,7 +3459,7 @@ public:
 status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
         const sp<IGraphicBufferProducer>& producer,
         Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        uint32_t minLayerZ, uint32_t maxLayerZ,
+        int32_t minLayerZ, int32_t maxLayerZ,
         bool useIdentityTransform, ISurfaceComposer::Rotation rotation) {
 
     if (CC_UNLIKELY(display == 0))
@@ -3500,7 +3500,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
         sp<IGraphicBufferProducer> producer;
         Rect sourceCrop;
         uint32_t reqWidth, reqHeight;
-        uint32_t minLayerZ,maxLayerZ;
+        int32_t minLayerZ,maxLayerZ;
         bool useIdentityTransform;
         Transform::orientation_flags rotation;
         status_t result;
@@ -3510,7 +3510,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
                 const sp<IBinder>& display,
                 const sp<IGraphicBufferProducer>& producer,
                 Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                uint32_t minLayerZ, uint32_t maxLayerZ,
+                int32_t minLayerZ, int32_t maxLayerZ,
                 bool useIdentityTransform,
                 Transform::orientation_flags rotation,
                 bool isLocalScreenshot)
@@ -3559,7 +3559,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
 void SurfaceFlinger::renderScreenImplLocked(
         const sp<const DisplayDevice>& hw,
         Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        uint32_t minLayerZ, uint32_t maxLayerZ,
+        int32_t minLayerZ, int32_t maxLayerZ,
         bool yswap, bool useIdentityTransform, Transform::orientation_flags rotation)
 {
     ATRACE_CALL();
@@ -3629,7 +3629,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(
         const sp<const DisplayDevice>& hw,
         const sp<IGraphicBufferProducer>& producer,
         Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        uint32_t minLayerZ, uint32_t maxLayerZ,
+        int32_t minLayerZ, int32_t maxLayerZ,
         bool useIdentityTransform, Transform::orientation_flags rotation,
         bool isLocalScreenshot)
 {
@@ -3782,7 +3782,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(
 }
 
 void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* vaddr,
-        const sp<const DisplayDevice>& hw, uint32_t minLayerZ, uint32_t maxLayerZ) {
+        const sp<const DisplayDevice>& hw, int32_t minLayerZ, int32_t maxLayerZ) {
     if (DEBUG_SCREENSHOTS) {
         for (size_t y=0 ; y<h ; y++) {
             uint32_t const * p = (uint32_t const *)vaddr + y*s;

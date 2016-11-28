@@ -482,7 +482,7 @@ gfx::FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
 }
 
 #ifdef USE_HWC2
-void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice)
+void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z)
 #else
 void Layer::setGeometry(
     const sp<const DisplayDevice>& hw,
@@ -602,9 +602,9 @@ void Layer::setGeometry(
             "%s (%d)", mName.string(), s.alpha, to_string(error).c_str(),
             static_cast<int32_t>(error));
 
-    error = hwcLayer->setZOrder(s.z);
+    error = hwcLayer->setZOrder(z);
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set Z %u: %s (%d)",
-            mName.string(), s.z, to_string(error).c_str(),
+            mName.string(), z, to_string(error).c_str(),
             static_cast<int32_t>(error));
 #else
     if (!frame.intersect(hw->getViewport(), &frame)) {
@@ -1585,7 +1585,7 @@ bool Layer::setPosition(float x, float y, bool immediate) {
     return true;
 }
 
-bool Layer::setLayer(uint32_t z) {
+bool Layer::setLayer(int32_t z) {
     if (mCurrentState.z == z)
         return false;
     mCurrentState.sequence++;

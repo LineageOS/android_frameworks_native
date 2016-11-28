@@ -109,7 +109,7 @@ public:
     struct State {
         Geometry active;
         Geometry requested;
-        uint32_t z;
+        int32_t z;
         uint32_t layerStack;
 #ifdef USE_HWC2
         float alpha;
@@ -154,7 +154,7 @@ public:
 
     // modify current state
     bool setPosition(float x, float y, bool immediate);
-    bool setLayer(uint32_t z);
+    bool setLayer(int32_t z);
     bool setSize(uint32_t w, uint32_t h);
 #ifdef USE_HWC2
     bool setAlpha(float alpha);
@@ -234,7 +234,7 @@ public:
     // -----------------------------------------------------------------------
 
 #ifdef USE_HWC2
-    void setGeometry(const sp<const DisplayDevice>& displayDevice);
+    void setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z);
     void forceClientComposition(int32_t hwcId);
     void setPerFrameData(const sp<const DisplayDevice>& displayDevice);
 
