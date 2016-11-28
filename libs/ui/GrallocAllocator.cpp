@@ -28,14 +28,25 @@ constexpr Error kDefaultError = Error::NO_RESOURCES;
 
 Allocator::Allocator()
 {
-    mService = IAllocator::getService("gralloc");
+    mAllocator = IAllocator::getService("gralloc");
+    if (mAllocator != nullptr) {
+        mAllocator->createClient(
+                [&](const auto& tmpError, const auto& tmpClient) {
+                    if (tmpError == Error::NONE) {
+                        mClient = tmpClient;
+                    }
+                });
+        if (mClient == nullptr) {
+            mAllocator.clear();
+        }
+    }
 }
 
 std::string Allocator::dumpDebugInfo() const
 {
     std::string info;
 
-    mService->dumpDebugInfo([&](const auto& tmpInfo) {
+    mAllocator->dumpDebugInfo([&](const auto& tmpInfo) {
         info = tmpInfo.c_str();
     });
 
@@ -43,11 +54,11 @@ std::string Allocator::dumpDebugInfo() const
 }
 
 Error Allocator::createBufferDescriptor(
-        const IAllocator::BufferDescriptorInfo& descriptorInfo,
+        const IAllocatorClient::BufferDescriptorInfo& descriptorInfo,
         BufferDescriptor& descriptor) const
 {
     Error error = kDefaultError;
-    mService->createDescriptor(descriptorInfo,
+    mClient->createDescriptor(descriptorInfo,
             [&](const auto& tmpError, const auto& tmpDescriptor) {
                 error = tmpError;
                 if (error != Error::NONE) {
@@ -62,7 +73,7 @@ Error Allocator::createBufferDescriptor(
 
 void Allocator::destroyBufferDescriptor(BufferDescriptor descriptor) const
 {
-    mService->destroyDescriptor(descriptor);
+    mClient->destroyDescriptor(descriptor);
 }
 
 Error Allocator::allocate(BufferDescriptor descriptor, Buffer& buffer) const
@@ -71,7 +82,7 @@ Error Allocator::allocate(BufferDescriptor descriptor, Buffer& buffer) const
     descriptors.setToExternal(&descriptor, 1);
 
     Error error = kDefaultError;
-    auto status = mService->allocate(descriptors,
+    auto status = mClient->allocate(descriptors,
             [&](const auto& tmpError, const auto& tmpBuffers) {
                 error = tmpError;
                 if (tmpError != Error::NONE) {
@@ -86,14 +97,14 @@ Error Allocator::allocate(BufferDescriptor descriptor, Buffer& buffer) const
 
 void Allocator::free(Buffer buffer) const
 {
-    mService->free(buffer);
+    mClient->free(buffer);
 }
 
 Error Allocator::exportHandle(BufferDescriptor descriptor, Buffer buffer,
         native_handle_t*& bufferHandle) const
 {
     Error error = kDefaultError;
-    auto status = mService->exportHandle(descriptor, buffer,
+    auto status = mClient->exportHandle(descriptor, buffer,
             [&](const auto& tmpError, const auto& tmpBufferHandle) {
                 error = tmpError;
                 if (tmpError != Error::NONE) {

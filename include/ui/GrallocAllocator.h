@@ -32,6 +32,7 @@ using hardware::graphics::allocator::V2_0::ConsumerUsage;
 using hardware::graphics::allocator::V2_0::BufferDescriptor;
 using hardware::graphics::allocator::V2_0::Buffer;
 using hardware::graphics::allocator::V2_0::IAllocator;
+using hardware::graphics::allocator::V2_0::IAllocatorClient;
 using hardware::graphics::common::V1_0::PixelFormat;
 
 // Allocator is a wrapper to IAllocator, a proxy to server-side allocator.
@@ -40,12 +41,12 @@ public:
     Allocator();
 
     // this will be removed and Allocator will be always valid
-    bool valid() const { return (mService != nullptr); }
+    bool valid() const { return (mAllocator != nullptr); }
 
     std::string dumpDebugInfo() const;
 
     Error createBufferDescriptor(
-            const IAllocator::BufferDescriptorInfo& descriptorInfo,
+            const IAllocatorClient::BufferDescriptorInfo& descriptorInfo,
             BufferDescriptor& descriptor) const;
     void destroyBufferDescriptor(BufferDescriptor descriptor) const;
 
@@ -56,7 +57,8 @@ public:
             native_handle_t*& bufferHandle) const;
 
 private:
-    sp<IAllocator> mService;
+    sp<IAllocator> mAllocator;
+    sp<IAllocatorClient> mClient;
 };
 
 } // namespace Gralloc2
