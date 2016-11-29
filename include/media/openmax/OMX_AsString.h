@@ -534,6 +534,8 @@ inline static const char *asString(OMX_INDEXEXTTYPE i, const char *def = "??") {
         case OMX_IndexParamAudioAndroidAc3:             return "ParamAudioAndroidAc3";
         case OMX_IndexParamAudioAndroidOpus:            return "ParamAudioAndroidOpus";
         case OMX_IndexParamAudioAndroidAacPresentation: return "ParamAudioAndroidAacPresentation";
+        case OMX_IndexParamAudioAndroidEac3:            return "ParamAudioAndroidEac3";
+        case OMX_IndexParamAudioProfileQuerySupported:  return "ParamAudioProfileQuerySupported";
 //      case OMX_IndexParamNalStreamFormatSupported:    return "ParamNalStreamFormatSupported";
 //      case OMX_IndexParamNalStreamFormat:             return "ParamNalStreamFormat";
 //      case OMX_IndexParamNalStreamFormatSelect:       return "ParamNalStreamFormatSelect";
@@ -548,6 +550,8 @@ inline static const char *asString(OMX_INDEXEXTTYPE i, const char *def = "??") {
         case OMX_IndexConfigAndroidVideoTemporalLayering: return "ConfigAndroidVideoTemporalLayering";
         case OMX_IndexParamMaxFrameDurationForBitrateControl:
             return "ParamMaxFrameDurationForBitrateControl";
+        case OMX_IndexParamVideoVp9:                    return "ParamVideoVp9";
+        case OMX_IndexParamVideoAndroidVp9Encoder:      return "ParamVideoAndroidVp9Encoder";
         case OMX_IndexConfigAutoFramerateConversion:    return "ConfigAutoFramerateConversion";
         case OMX_IndexConfigPriority:                   return "ConfigPriority";
         case OMX_IndexConfigOperatingRate:              return "ConfigOperatingRate";
