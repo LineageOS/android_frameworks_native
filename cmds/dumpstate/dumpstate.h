@@ -402,9 +402,6 @@ void play_sound(const char *path);
 /* Implemented by libdumpstate_board to dump board-specific info */
 void dumpstate_board();
 
-/* Vibrates for a given durating (in milliseconds). */
-void vibrate(FILE* vibrator, int ms);
-
 /* Checks if a given path is a directory. */
 bool is_dir(const char* pathname);
 

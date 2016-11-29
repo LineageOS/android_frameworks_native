@@ -43,6 +43,7 @@
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
 #include <android/hardware/dumpstate/1.0/IDumpstateDevice.h>
+#include <android/hardware/vibrator/1.0/IVibrator.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
 #include <hardware_legacy/power.h>
@@ -53,6 +54,10 @@
 #include "DumpstateInternal.h"
 #include "DumpstateService.h"
 #include "dumpstate.h"
+
+using ::android::hardware::dumpstate::V1_0::IDumpstateDevice;
+using ::android::hardware::vibrator::V1_0::IVibrator;
+using VibratorStatus = ::android::hardware::vibrator::V1_0::Status;
 
 /* read before root is shed */
 static char cmdline_buf[16384] = "(unknown)";
@@ -1164,8 +1169,8 @@ void Dumpstate::DumpstateBoard() {
     printf("== Board\n");
     printf("========================================================\n");
 
-    android::sp<android::hardware::dumpstate::V1_0::IDumpstateDevice> dumpstate_device(
-        android::hardware::dumpstate::V1_0::IDumpstateDevice::getService("DumpstateDevice"));
+    ::android::sp<IDumpstateDevice> dumpstate_device(
+        IDumpstateDevice::getService("DumpstateDevice"));
     if (dumpstate_device == nullptr) {
         // TODO: temporary workaround until devices on master implement it
         MYLOGE("no IDumpstateDevice implementation; using legacy dumpstate_board()\n");
@@ -1586,12 +1591,21 @@ int main(int argc, char *argv[]) {
         fclose(cmdline);
     }
 
-    /* open the vibrator before dropping root */
-    std::unique_ptr<FILE, int(*)(FILE*)> vibrator(NULL, fclose);
+    ::android::sp<IVibrator> vibrator = nullptr;
     if (do_vibrate) {
-        vibrator.reset(fopen("/sys/class/timed_output/vibrator/enable", "we"));
-        if (vibrator) {
-            vibrate(vibrator.get(), 150);
+        vibrator = IVibrator::getService("vibrator");
+
+        if (vibrator != nullptr) {
+            // cancel previous vibration if any
+            ::android::hardware::Return<VibratorStatus> offStatus = vibrator->off();
+            if (!offStatus.isOk() || offStatus != VibratorStatus::OK) {
+                MYLOGE("Vibrator off failed.");
+            } else {
+                ::android::hardware::Return<VibratorStatus> onStatus = vibrator->on(150);
+                if (!onStatus.isOk() || onStatus != VibratorStatus::OK) {
+                    MYLOGE("Vibrator on failed.");
+                }
+            }
         }
     }
 
@@ -1759,10 +1773,20 @@ int main(int argc, char *argv[]) {
     }
 
     /* vibrate a few but shortly times to let user know it's finished */
-    if (vibrator) {
-        for (int i = 0; i < 3; i++) {
-            vibrate(vibrator.get(), 75);
-            usleep((75 + 50) * 1000);
+    if (vibrator != nullptr) {
+        // in case dumpstate magically completes before the above vibration
+        ::android::hardware::Return<VibratorStatus> offStatus = vibrator->off();
+        if (!offStatus.isOk() || offStatus != VibratorStatus::OK) {
+            MYLOGE("Vibrator off failed.");
+        } else {
+            for (int i = 0; i < 3; i++) {
+                ::android::hardware::Return<VibratorStatus> onStatus = vibrator->on(75);
+                if (!onStatus.isOk() || onStatus != VibratorStatus::OK) {
+                    MYLOGE("Vibrator on failed.");
+                    break;
+                }
+                usleep((75 + 50) * 1000);
+            }
         }
     }
 

@@ -1061,11 +1061,6 @@ void Dumpstate::TakeScreenshot(const std::string& path) {
     }
 }
 
-void vibrate(FILE* vibrator, int ms) {
-    fprintf(vibrator, "%d\n", ms);
-    fflush(vibrator);
-}
-
 bool is_dir(const char* pathname) {
     struct stat info;
     if (stat(pathname, &info) == -1) {
