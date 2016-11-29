@@ -310,14 +310,6 @@ private:
                         return mLayerRequests;
                     }
 
-                    int32_t getDisplayRequests() const {
-                        int32_t requests = 0;
-                        for (auto request : mDisplayRequests) {
-                            requests |= static_cast<int32_t>(request);
-                        }
-                        return requests;
-                    }
-
                     void addTypeChange(hwc2_layer_t layerId,
                             HWC2::Composition type) {
                         mTypeChanges.insert({layerId, type});
@@ -335,7 +327,6 @@ private:
                             mTypeChanges;
                     std::unordered_map<hwc2_layer_t, HWC2::LayerRequest>
                             mLayerRequests;
-                    std::unordered_set<HWC2::DisplayRequest> mDisplayRequests;
             };
 
             std::shared_ptr<const Config>

@@ -808,7 +808,10 @@ Error HWC2On1Adapter::Display::getRequests(int32_t* outDisplayRequests,
         return Error::None;
     }
 
-    *outDisplayRequests = mChanges->getDisplayRequests();
+    // Display requests (HWC2::DisplayRequest) are not supported by hwc1:
+    // A hwc1 has always zero requests for the client.
+    *outDisplayRequests = 0;
+
     uint32_t numWritten = 0;
     for (const auto& request : mChanges->getLayerRequests()) {
         if (numWritten == *outNumElements) {
