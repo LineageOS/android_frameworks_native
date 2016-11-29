@@ -16,6 +16,9 @@
 #ifndef FRAMEWORK_NATIVE_CMD_DUMPSTATE_UTIL_H_
 #define FRAMEWORK_NATIVE_CMD_DUMPSTATE_UTIL_H_
 
+#include <cstdint>
+#include <string>
+
 // TODO: use android::os::dumpstate (must wait until device code is refactored)
 
 /*
@@ -116,28 +119,59 @@ class CommandOptions {
 
     // Common options.
     static CommandOptions DEFAULT;
+    static CommandOptions AS_ROOT;
+
+    // TODO: temporary, until device implementations use AS_ROOT
     static CommandOptions AS_ROOT_5;
-    static CommandOptions AS_ROOT_10;
-    static CommandOptions AS_ROOT_20;
+};
+
+/*
+ * System properties helper.
+ */
+class PropertiesHelper {
+    friend class DumpstateBaseTest;
+
+  public:
+    /*
+     * Gets whether device is running a `user` build.
+     */
+    static bool IsUserBuild();
+
+    /*
+     * When running in dry-run mode, skips the real dumps and just print the section headers.
+     *
+     * Useful when debugging dumpstate or other bugreport-related activities.
+     *
+     * Dry-run mode is enabled by setting the system property `dumpstate.dry_run` to true.
+     */
+    static bool IsDryRun();
+
+  private:
+    static std::string build_type_;
+    static int dry_run_;
 };
 
 /*
  * Forks a command, waits for it to finish, and returns its status.
  *
  * |fd| file descriptor that receives the command's 'stdout'.
+ * |title| description of the command printed on `stdout` (or empty to skip
+ * description).
  * |full_command| array containing the command (first entry) and its arguments.
  *                Must contain at least one element.
  * |options| optional argument defining the command's behavior.
  */
-int RunCommandToFd(int fd, const std::vector<std::string>& full_command,
+int RunCommandToFd(int fd, const std::string& title, const std::vector<std::string>& full_command,
                    const CommandOptions& options = CommandOptions::DEFAULT);
 
 /*
  * Dumps the contents of a file into a file descriptor.
  *
  * |fd| file descriptor where the file is dumped into.
+ * |title| description of the command printed on `stdout` (or empty to skip
+ * description).
  * |path| location of the file to be dumped.
  */
-int DumpFileToFd(int fd, const std::string& path);
+int DumpFileToFd(int fd, const std::string& title, const std::string& path);
 
 #endif  // FRAMEWORK_NATIVE_CMD_DUMPSTATE_UTIL_H_

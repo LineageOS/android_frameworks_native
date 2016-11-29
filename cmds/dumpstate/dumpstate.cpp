@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #define LOG_TAG "dumpstate"
 
 #include <dirent.h>
@@ -49,6 +50,7 @@
 #include <private/android_filesystem_config.h>
 #include <private/android_logger.h>
 
+#include "DumpstateInternal.h"
 #include "DumpstateService.h"
 #include "dumpstate.h"
 
@@ -99,9 +101,6 @@ static void RunDumpsys(const std::string& title, const std::vector<std::string>&
 static int DumpFile(const std::string& title, const std::string& path) {
     return ds.DumpFile(title, path);
 }
-bool IsUserBuild() {
-    return ds.IsUserBuild();
-}
 
 // Relative directory (inside the zip) for all files copied as-is into the bugreport.
 static const std::string ZIP_ROOT_DIR = "FS";
@@ -109,6 +108,8 @@ static const std::string ZIP_ROOT_DIR = "FS";
 static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
 static constexpr char PROPERTY_LAST_ID[] = "dumpstate.last_id";
 static constexpr char PROPERTY_VERSION[] = "dumpstate.version";
+
+static const CommandOptions AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot().Build();
 
 /* gets the tombstone data, according to the bugreport type: if zipped, gets all tombstones;
  * otherwise, gets just those modified in the last half an hour. */
@@ -359,7 +360,7 @@ static void dump_systrace() {
 }
 
 static void dump_raft() {
-    if (IsUserBuild()) {
+    if (PropertiesHelper::IsUserBuild()) {
         return;
     }
 
@@ -430,7 +431,7 @@ static std::string GetLastModifiedFileWithPrefix(const std::string& dir,
 
 static void DumpModemLogs() {
     DurationReporter durationReporter("DUMP MODEM LOGS");
-    if (IsUserBuild()) {
+    if (PropertiesHelper::IsUserBuild()) {
         return;
     }
 
@@ -686,11 +687,11 @@ void Dumpstate::PrintHeader() const {
 
     printf("Kernel: ");
     fflush(stdout);
-    DumpFileToFd(STDOUT_FILENO, "/proc/version");
+    DumpFileToFd(STDOUT_FILENO, "", "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
     printf("Bugreport format version: %s\n", version_.c_str());
     printf("Dumpstate info: id=%d pid=%d dry_run=%d args=%s extra_options=%s\n", id_, pid_,
-           dry_run_, args_.c_str(), extra_options_.c_str());
+           PropertiesHelper::IsDryRun(), args_.c_str(), extra_options_.c_str());
     printf("\n");
     fflush(stdout);
 }
@@ -916,7 +917,7 @@ static void dumpstate() {
     DumpFile("MEMORY INFO", "/proc/meminfo");
     RunCommand("CPU INFO", {"top", "-b", "-n", "1", "-H", "-s", "6", "-o",
                             "pid,tid,user,pr,ni,%cpu,s,virt,res,pcy,cmd,name"});
-    RunCommand("PROCRANK", {"procrank"}, CommandOptions::AS_ROOT_20);
+    RunCommand("PROCRANK", {"procrank"}, AS_ROOT_20);
     DumpFile("VIRTUAL MEMORY STATS", "/proc/vmstat");
     DumpFile("VMALLOC INFO", "/proc/vmallocinfo");
     DumpFile("SLAB INFO", "/proc/slabinfo");
@@ -931,7 +932,7 @@ static void dumpstate() {
 
     RunCommand("PROCESSES AND THREADS",
                {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy"});
-    RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT_10);
+    RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT);
 
     RunCommand("PRINTENV", {"printenv"});
     RunCommand("NETSTAT", {"netstat", "-nW"});
@@ -944,7 +945,7 @@ static void dumpstate() {
 
     do_dmesg();
 
-    RunCommand("LIST OF OPEN FILES", {"lsof"}, CommandOptions::AS_ROOT_10);
+    RunCommand("LIST OF OPEN FILES", {"lsof"}, CommandOptions::AS_ROOT);
     for_each_pid(do_showmap, "SMAPS OF ALL PROCESSES");
     for_each_tid(show_wchan, "BLOCKED PROCESS WAIT-CHANNELS");
     for_each_pid(show_showtime, "PROCESS TIMES (pid cmd user system iowait+percentage)");
@@ -1047,7 +1048,7 @@ static void dumpstate() {
 #ifdef FWDUMP_bcmdhd
     RunCommand("ND OFFLOAD TABLE", {WLUTIL, "nd_hostip"}, CommandOptions::AS_ROOT_5);
 
-    RunCommand("DUMP WIFI INTERNAL COUNTERS (1)", {WLUTIL, "counters"}, CommandOptions::AS_ROOT_20);
+    RunCommand("DUMP WIFI INTERNAL COUNTERS (1)", {WLUTIL, "counters"}, AS_ROOT_20);
 
     RunCommand("ND OFFLOAD STATUS (1)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
 
@@ -1058,9 +1059,9 @@ static void dumpstate() {
                CommandOptions::WithTimeout(10).Build());
 
 #ifdef FWDUMP_bcmdhd
-    RunCommand("DUMP WIFI STATUS", {"dhdutil", "-i", "wlan0", "dump"}, CommandOptions::AS_ROOT_20);
+    RunCommand("DUMP WIFI STATUS", {"dhdutil", "-i", "wlan0", "dump"}, AS_ROOT_20);
 
-    RunCommand("DUMP WIFI INTERNAL COUNTERS (2)", {WLUTIL, "counters"}, CommandOptions::AS_ROOT_20);
+    RunCommand("DUMP WIFI INTERNAL COUNTERS (2)", {WLUTIL, "counters"}, AS_ROOT_20);
 
     RunCommand("ND OFFLOAD STATUS (2)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
 #endif
@@ -1105,7 +1106,7 @@ static void dumpstate() {
         // root can run on user builds.
         CommandOptions::CommandOptionsBuilder options =
             CommandOptions::WithTimeout(rilDumpstateTimeout);
-        if (!IsUserBuild()) {
+        if (!PropertiesHelper::IsUserBuild()) {
             options.AsRoot();
         }
         RunCommand("DUMP VENDOR RIL LOGS", {"vril-dump"}, options.Build());
@@ -1199,6 +1200,7 @@ void Dumpstate::DumpstateBoard() {
     }
     handle->data[0] = fd;
 
+    // TODO: need a timeout mechanism so dumpstate does not hang on device implementation call.
     dumpstate_device->dumpstateBoard(handle);
 
     AddZipEntry("dumpstate-board.txt", path);
@@ -1498,7 +1500,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (ds.IsDryRun()) {
+    if (PropertiesHelper::IsDryRun()) {
         MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
     }
 
@@ -1660,7 +1662,7 @@ int main(int argc, char *argv[]) {
     ds.AddDir(RECOVERY_DIR, true);
     ds.AddDir(RECOVERY_DATA_DIR, true);
     ds.AddDir(LOGPERSIST_DATA_DIR, false);
-    if (!IsUserBuild()) {
+    if (!PropertiesHelper::IsUserBuild()) {
         ds.AddDir(PROFILE_DATA_DIR_CUR, true);
         ds.AddDir(PROFILE_DATA_DIR_REF, true);
     }
@@ -1674,7 +1676,7 @@ int main(int argc, char *argv[]) {
     // Run ss as root so we can see socket marks.
     RunCommand("DETAILED SOCKET STATE", {"ss", "-eionptu"}, CommandOptions::WithTimeout(10).Build());
 
-    if (!drop_root_user()) {
+    if (!DropRootUser()) {
         return -1;
     }
 
