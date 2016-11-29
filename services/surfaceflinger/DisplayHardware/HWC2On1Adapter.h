@@ -138,8 +138,7 @@ private:
     class DeferredFence {
         public:
             DeferredFence()
-              : mMutex(),
-                mFences({Fence::NO_FENCE, Fence::NO_FENCE}) {}
+              : mFences({Fence::NO_FENCE, Fence::NO_FENCE}) {}
 
             void add(int32_t fenceFd) {
                 mFences.emplace(new Fence(fenceFd));
@@ -151,7 +150,6 @@ private:
             }
 
         private:
-            mutable std::mutex mMutex;
             std::queue<sp<Fence>> mFences;
     };
 
