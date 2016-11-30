@@ -295,6 +295,7 @@ public:
     struct QueueBufferInput : public Flattenable<QueueBufferInput> {
         friend class Flattenable<QueueBufferInput>;
         explicit inline QueueBufferInput(const Parcel& parcel);
+
         // timestamp - a monotonically increasing value in nanoseconds
         // isAutoTimestamp - if the timestamp was synthesized at queue time
         // dataSpace - description of the contents, interpretation depends on format
@@ -313,11 +314,12 @@ public:
                   dataSpace(_dataSpace), crop(_crop), scalingMode(_scalingMode),
                   transform(_transform), stickyTransform(_sticky), fence(_fence),
                   surfaceDamage() { }
+
         inline void deflate(int64_t* outTimestamp, bool* outIsAutoTimestamp,
                 android_dataspace* outDataSpace,
                 Rect* outCrop, int* outScalingMode,
                 uint32_t* outTransform, sp<Fence>* outFence,
-                uint32_t* outStickyTransform = NULL) const {
+                uint32_t* outStickyTransform = nullptr) const {
             *outTimestamp = timestamp;
             *outIsAutoTimestamp = bool(isAutoTimestamp);
             *outDataSpace = dataSpace;
@@ -351,8 +353,7 @@ public:
         Region surfaceDamage;
     };
 
-    // QueueBufferOutput must be a POD structure
-    struct QueueBufferOutput {
+    struct QueueBufferOutput : public Flattenable<QueueBufferOutput> {
         // outWidth - filled with default width applied to the buffer
         // outHeight - filled with default height applied to the buffer
         // outTransformHint - filled with default transform applied to the buffer
@@ -369,6 +370,7 @@ public:
             *outNumPendingBuffers = numPendingBuffers;
             *outNextFrameNumber = nextFrameNumber;
         }
+
         inline void inflate(uint32_t inWidth, uint32_t inHeight,
                 uint32_t inTransformHint, uint32_t inNumPendingBuffers,
                 uint64_t inNextFrameNumber) {
@@ -378,7 +380,13 @@ public:
             numPendingBuffers = inNumPendingBuffers;
             nextFrameNumber = inNextFrameNumber;
         }
-    private:
+
+        // Flattenable protocol
+        size_t getFlattenedSize() const;
+        size_t getFdCount() const;
+        status_t flatten(void*& buffer, size_t& size, int*& fds, size_t& count) const;
+        status_t unflatten(void const*& buffer, size_t& size, int const*& fds, size_t& count);
+
         uint32_t width{0};
         uint32_t height{0};
         uint32_t transformHint{0};

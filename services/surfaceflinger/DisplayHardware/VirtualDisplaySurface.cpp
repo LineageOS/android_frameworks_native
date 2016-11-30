@@ -303,13 +303,8 @@ void VirtualDisplaySurface::dumpAsString(String8& /* result */) const {
 }
 
 void VirtualDisplaySurface::resizeBuffers(const uint32_t w, const uint32_t h) {
-    uint32_t tmpW, tmpH, transformHint, numPendingBuffers;
-    uint64_t nextFrameNumber;
-    mQueueBufferOutput.deflate(&tmpW, &tmpH, &transformHint, &numPendingBuffers,
-            &nextFrameNumber);
-    mQueueBufferOutput.inflate(w, h, transformHint, numPendingBuffers,
-            nextFrameNumber);
-
+    mQueueBufferOutput.width = w;
+    mQueueBufferOutput.height = h;
     mSinkBufferWidth = w;
     mSinkBufferHeight = h;
 }
@@ -618,10 +613,8 @@ status_t VirtualDisplaySurface::getUniqueId(uint64_t* /*outId*/) const {
 
 void VirtualDisplaySurface::updateQueueBufferOutput(
         const QueueBufferOutput& qbo) {
-    uint32_t w, h, transformHint, numPendingBuffers;
-    uint64_t nextFrameNumber;
-    qbo.deflate(&w, &h, &transformHint, &numPendingBuffers, &nextFrameNumber);
-    mQueueBufferOutput.inflate(w, h, 0, numPendingBuffers, nextFrameNumber);
+    mQueueBufferOutput = qbo;
+    mQueueBufferOutput.transformHint = 0;
 }
 
 void VirtualDisplaySurface::resetPerFrameState() {
