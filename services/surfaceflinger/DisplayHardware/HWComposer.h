@@ -140,12 +140,12 @@ public:
 
     // Events handling ---------------------------------------------------------
 
-    void setVsyncEnabled(int32_t disp, HWC2::Vsync enabled);
+    void setVsyncEnabled(int32_t displayId, HWC2::Vsync enabled);
 
     // Query display parameters.  Pass in a display index (e.g.
     // HWC_DISPLAY_PRIMARY).
-    nsecs_t getRefreshTimestamp(int32_t disp) const;
-    bool isConnected(int32_t disp) const;
+    nsecs_t getRefreshTimestamp(int32_t displayId) const;
+    bool isConnected(int32_t displayId) const;
 
     // Non-const because it can update configMap inside of mDisplayData
     std::vector<std::shared_ptr<const HWC2::Display::Config>>
