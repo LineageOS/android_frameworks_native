@@ -25,7 +25,7 @@ namespace android {
 struct FrameTimestamps : public LightFlattenablePod<FrameTimestamps> {
     FrameTimestamps() :
         frameNumber(0),
-        postedTime(0),
+        requestedPresentTime(0),
         acquireTime(0),
         refreshStartTime(0),
         glCompositionDoneTime(0),
@@ -33,7 +33,7 @@ struct FrameTimestamps : public LightFlattenablePod<FrameTimestamps> {
         releaseTime(0) {}
 
     uint64_t frameNumber;
-    nsecs_t postedTime;
+    nsecs_t requestedPresentTime;
     nsecs_t acquireTime;
     nsecs_t refreshStartTime;
     nsecs_t glCompositionDoneTime;

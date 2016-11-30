@@ -50,23 +50,25 @@ protected:
          String8 name; // layer name
          uint64_t frameNumber; // frame number for this layer
          bool isGlesComposition; // was GLES composition used for this layer?
-         nsecs_t postedTime; // time when buffer was queued
+         // time the producer requested this frame be presented
+         nsecs_t requestedPresentTime;
          nsecs_t acquireTime; // timestamp from the acquire fence
          nsecs_t releaseTime; // timestamp from the release fence
          sp<Fence> acquireFence; // acquire fence
          sp<Fence> releaseFence; // release fence
 
          LayerRecord(const String8& name, uint64_t frameNumber,
-                 bool isGlesComposition, nsecs_t postedTime,
+                 bool isGlesComposition, nsecs_t requestedPresentTime,
                  nsecs_t acquireTime, nsecs_t releaseTime,
                  sp<Fence> acquireFence, sp<Fence> releaseFence) :
                  name(name), frameNumber(frameNumber),
-                 isGlesComposition(isGlesComposition), postedTime(postedTime),
+                 isGlesComposition(isGlesComposition),
+                 requestedPresentTime(requestedPresentTime),
                  acquireTime(acquireTime), releaseTime(releaseTime),
                  acquireFence(acquireFence), releaseFence(releaseFence) {};
          LayerRecord() : name("uninitialized"), frameNumber(0),
-                 isGlesComposition(false), postedTime(0), acquireTime(0),
-                 releaseTime(0), acquireFence(Fence::NO_FENCE),
+                 isGlesComposition(false), requestedPresentTime(0),
+                 acquireTime(0), releaseTime(0), acquireFence(Fence::NO_FENCE),
                  releaseFence(Fence::NO_FENCE) {};
      };
 

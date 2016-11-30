@@ -67,7 +67,7 @@ New Procedures and Functions
 New Tokens
 
     EGL_TIMESTAMPS_ANDROID 0x314D
-    EGL_QUEUE_TIME_ANDROID 0x314E
+    EGL_REQUESTED_PRESENT_TIME_ANDROID 0x314E
     EGL_RENDERING_COMPLETE_TIME_ANDROID 0x314F
     EGL_COMPOSITION_START_TIME_ANDROID 0x3430
     EGL_COMPOSITION_FINISHED_TIME_ANDROID 0x3431
@@ -98,9 +98,9 @@ Changes to Chapter 3 of the EGL 1.5 Specification (EGL Functions and Errors)
     allows querying various timestamps related to the composition and display of
     a window surface.
 
-    The framesAgo parameter indicates how many frames before the last posted
+    The framesAgo parameter indicates how many frames before the last queued
     frame to query. So a value of zero would indicate that the query is for the
-    last posted frame. Note that the implementation maintains a limited history
+    last queued frame. Note that the implementation maintains a limited history
     of timestamp data. If a query is made for a frame whose timestamp history
     no longer exists then EGL_BAD_ACCESS is generated. If timestamp collection
     has not been enabled for the surface then EGL_BAD_SURFACE is generated.
@@ -112,8 +112,10 @@ Changes to Chapter 3 of the EGL 1.5 Specification (EGL Functions and Errors)
     The eglGetFrameTimestampsANDROID function takes an array of timestamps to
     query and returns timestamps in the corresponding indices of the values
     array. The possible timestamps that can be queried are:
-        - EGL_QUEUE_TIME_ANDROID - The time this frame was queued by the
-          application.
+        - EGL_REQUESTED_PRESENT_TIME_ANDROID - The time the application
+          requested this frame be presented. See EGL_ANDROID_presentation_time.
+          If the application does not request a presentation time explicitly,
+          this will correspond to buffer's queue time.
         - EGL_RENDERING_COMPLETE_TIME_ANDROID - The time when all of the
           application's rendering to the surface was completed.
         - EGL_COMPOSITION_START_TIME_ANDROID - The time at which the compositor
@@ -143,3 +145,7 @@ Revision History
 
 #1 (Pablo Ceballos, May 31, 2016)
     - Initial draft.
+
+#2 (Brian Anderson, July 22, 2016)
+    - Replace EGL_QUEUE_TIME_ANDROID with EGL_REQUESTED_PRESENT_TIME_ANDROID.
+
