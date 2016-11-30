@@ -139,6 +139,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
     mCurrentState.flags = layerFlags;
     mCurrentState.sequence = 0;
     mCurrentState.requested = mCurrentState.active;
+    mCurrentState.dataSpace = HAL_DATASPACE_UNKNOWN;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -749,6 +750,14 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     } else {
         ALOGV("[%s] Requesting Device composition", mName.string());
         setCompositionType(hwcId, HWC2::Composition::Device);
+    }
+
+    ALOGV("setPerFrameData: dataspace = %d", mCurrentState.dataSpace);
+    error = hwcLayer->setDataspace(mCurrentState.dataSpace);
+    if (error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(),
+              mCurrentState.dataSpace, to_string(error).c_str(),
+              static_cast<int32_t>(error));
     }
 
     auto acquireFence = mSurfaceFlingerConsumer->getCurrentFence();
@@ -1680,6 +1689,16 @@ bool Layer::setLayerStack(uint32_t layerStack) {
     return true;
 }
 
+bool Layer::setDataSpace(android_dataspace dataSpace) {
+    if (mCurrentState.dataSpace == dataSpace)
+        return false;
+    mCurrentState.sequence++;
+    mCurrentState.dataSpace = dataSpace;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
 void Layer::deferTransactionUntil(const sp<IBinder>& handle,
         uint64_t frameNumber) {
     mCurrentState.handle = handle;
@@ -1992,6 +2011,8 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime)
          // geometry invalidation.
         recomputeVisibleRegions = true;
      }
+
+    setDataSpace(mSurfaceFlingerConsumer->getCurrentDataSpace());
 
     Rect crop(mSurfaceFlingerConsumer->getCurrentCrop());
     const uint32_t transform(mSurfaceFlingerConsumer->getCurrentTransform());

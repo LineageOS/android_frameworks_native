@@ -157,6 +157,7 @@ GLConsumer::GLConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex,
     mCurrentScalingMode(NATIVE_WINDOW_SCALING_MODE_FREEZE),
     mCurrentFence(Fence::NO_FENCE),
     mCurrentTimestamp(0),
+    mCurrentDataSpace(HAL_DATASPACE_UNKNOWN),
     mCurrentFrameNumber(0),
     mDefaultWidth(1),
     mDefaultHeight(1),
@@ -185,6 +186,7 @@ GLConsumer::GLConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t texTarget,
     mCurrentScalingMode(NATIVE_WINDOW_SCALING_MODE_FREEZE),
     mCurrentFence(Fence::NO_FENCE),
     mCurrentTimestamp(0),
+    mCurrentDataSpace(HAL_DATASPACE_UNKNOWN),
     mCurrentFrameNumber(0),
     mDefaultWidth(1),
     mDefaultHeight(1),
@@ -321,6 +323,7 @@ status_t GLConsumer::releaseTexImage() {
         mCurrentCrop.makeInvalid();
         mCurrentTransform = 0;
         mCurrentTimestamp = 0;
+        mCurrentDataSpace = HAL_DATASPACE_UNKNOWN;
         mCurrentFence = Fence::NO_FENCE;
         mCurrentFenceTime = FenceTime::NO_FENCE;
 
@@ -488,6 +491,7 @@ status_t GLConsumer::updateAndReleaseLocked(const BufferItem& item,
     mCurrentTransform = item.mTransform;
     mCurrentScalingMode = item.mScalingMode;
     mCurrentTimestamp = item.mTimestamp;
+    mCurrentDataSpace = item.mDataSpace;
     mCurrentFence = item.mFence;
     mCurrentFenceTime = item.mFenceTime;
     mCurrentFrameNumber = item.mFrameNumber;
@@ -912,6 +916,12 @@ nsecs_t GLConsumer::getTimestamp() {
     GLC_LOGV("getTimestamp");
     Mutex::Autolock lock(mMutex);
     return mCurrentTimestamp;
+}
+
+android_dataspace GLConsumer::getCurrentDataSpace() {
+    GLC_LOGV("getCurrentDataSpace");
+    Mutex::Autolock lock(mMutex);
+    return mCurrentDataSpace;
 }
 
 uint64_t GLConsumer::getFrameNumber() {

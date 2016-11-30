@@ -137,6 +137,7 @@ public:
         // dependent.
         Region activeTransparentRegion;
         Region requestedTransparentRegion;
+        android_dataspace dataSpace;
     };
 
     // -----------------------------------------------------------------------
@@ -164,6 +165,7 @@ public:
     bool setCrop(const Rect& crop, bool immediate);
     bool setFinalCrop(const Rect& crop);
     bool setLayerStack(uint32_t layerStack);
+    bool setDataSpace(android_dataspace dataSpace);
     void deferTransactionUntil(const sp<IBinder>& handle, uint64_t frameNumber);
     bool setOverrideScalingMode(int32_t overrideScalingMode);
 
