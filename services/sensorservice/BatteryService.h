@@ -49,6 +49,7 @@ class BatteryService : public Singleton<BatteryService> {
     SortedVector<Info> mActivations;
     bool addSensor(uid_t uid, int handle);
     bool removeSensor(uid_t uid, int handle);
+    bool checkService();
 
 public:
     static void enableSensor(uid_t uid, int handle) {
