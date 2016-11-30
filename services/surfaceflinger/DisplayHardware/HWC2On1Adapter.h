@@ -40,6 +40,10 @@ struct hwc_layer_1;
 
 namespace android {
 
+// For devices unable to provide an implementation of HWC2 (see hwcomposer2.h),
+// we provide an adapter able to talk to HWC1 (see hwcomposer.h). It translates
+// streamed function calls ala HWC2 model to batched array of structs calls ala
+// HWC1 model.
 class HWC2On1Adapter : public hwc2_device_t
 {
 public:
@@ -135,6 +139,24 @@ private:
             void operator()(struct hwc_display_contents_1* contents);
     };
 
+    // The semantics of the fences returned by the device differ between
+    // hwc1.set() and hwc2.present(). Read hwcomposer.h and hwcomposer2.h
+    // for more information.
+    //
+    // Release fences in hwc1 are obtained on set() for a frame n and signaled
+    // when the layer buffer is not needed for read operations anymore
+    // (typically on frame n+1). In HWC2, release fences are obtained with a
+    // special call after present() for frame n. These fences signal
+    // on frame n: More specifically, the fence for a given buffer provided in
+    // frame n will signal when the prior buffer is no longer required.
+    //
+    // A retire fence (HWC1) is signaled when a composition is replaced
+    // on the panel whereas a present fence (HWC2) is signaled when a
+    // composition starts to be displayed on a panel.
+    //
+    // The HWC2to1Adapter emulates the new fence semantics for a frame
+    // n by returning the fence from frame n-1. For frame 0, the adapter
+    // returns NO_FENCE.
     class DeferredFence {
         public:
             DeferredFence()
@@ -150,6 +172,7 @@ private:
             }
 
         private:
+            // There are always two fences in this queue.
             std::queue<sp<Fence>> mFences;
     };
 
@@ -234,7 +257,10 @@ private:
 
             bool prepare();
             HWC1Contents cloneRequestedContents() const;
+
+            // Called after hwc.prepare() with responses from the device.
             void setReceivedContents(HWC1Contents contents);
+
             bool hasChanges() const;
             HWC2::Error set(hwc_display_contents_1& hwcContents);
             void addRetireFence(int fenceFd);
@@ -288,6 +314,10 @@ private:
                     std::unordered_map<android_color_mode_t, uint32_t> mHwc1Ids;
             };
 
+            // Store changes requested from the device upon calling prepare().
+            // Handles change request to:
+            //   - Layer composition type.
+            //   - Layer hints.
             class Changes {
                 public:
                     uint32_t getNumTypes() const {
@@ -336,8 +366,13 @@ private:
             void reallocateHwc1Contents();
             void assignHwc1LayerIds();
 
+            // Called after a response to prepare() has been received:
+            // Ingest composition type changes requested by the device.
             void updateTypeChanges(const struct hwc_layer_1& hwc1Layer,
                     const Layer& layer);
+
+            // Called after a response to prepare() has been received:
+            // Ingest layer hint changes requested by the device.
             void updateLayerRequests(const struct hwc_layer_1& hwc1Layer,
                     const Layer& layer);
 
@@ -361,8 +396,11 @@ private:
             mutable std::recursive_mutex mStateMutex;
 
             bool mZIsDirty;
-            HWC1Contents mHwc1RequestedContents;
-            HWC1Contents mHwc1ReceivedContents;
+
+            // Array of structs exchanged between client and hwc1 device.
+            HWC1Contents mHwc1RequestedContents; // Sent to device upon calling prepare().
+            HWC1Contents mHwc1ReceivedContents;  // Returned by device after prepare().
+
             DeferredFence mRetireFence;
 
             // Will only be non-null after the layer has been validated but
