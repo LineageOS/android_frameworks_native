@@ -32,6 +32,8 @@
 #include <gui/IGraphicBufferAlloc.h>
 #include <gui/ISurfaceComposerClient.h>
 
+#include <vector>
+
 namespace android {
 // ----------------------------------------------------------------------------
 
@@ -43,6 +45,7 @@ class HdrCapabilities;
 class IDisplayEventConnection;
 class IMemoryHeap;
 class Rect;
+enum class SupportableFrameTimestamps;
 
 /*
  * This class defines the Binder IPC interface for accessing various
@@ -111,6 +114,11 @@ public:
      */
     virtual bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& surface) const = 0;
+
+    /* Returns the frame timestamps supported by SurfaceFlinger.
+     */
+    virtual status_t getSupportedFrameTimestamps(
+            std::vector<SupportableFrameTimestamps>* outSupported) const = 0;
 
     /* set display power mode. depending on the mode, it can either trigger
      * screen on, off or low power mode and wait for it to complete.
@@ -193,6 +201,7 @@ public:
         GET_BUILT_IN_DISPLAY,
         SET_TRANSACTION_STATE,
         AUTHENTICATE_SURFACE,
+        GET_SUPPORTED_FRAME_TIMESTAMPS,
         GET_DISPLAY_CONFIGS,
         GET_ACTIVE_CONFIG,
         SET_ACTIVE_CONFIG,

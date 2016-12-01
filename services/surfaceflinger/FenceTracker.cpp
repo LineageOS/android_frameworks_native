@@ -48,12 +48,21 @@ void FenceTracker::dump(String8* outString) {
         } else if (frame.glesCompositionDoneFence != Fence::NO_FENCE) {
             outString->append("- GLES done\tNot signaled\n");
         }
+
+        if (frame.presentTime) {
+            outString->appendFormat("- Present\t%" PRId64 "\n",
+                    frame.presentTime);
+        } else if (frame.presentFence != Fence::NO_FENCE) {
+            outString->append("- Present\tNot signaled\n");
+        }
+
         if (frame.retireTime) {
             outString->appendFormat("- Retire\t%" PRId64 "\n",
                     frame.retireTime);
-        } else {
+        } else if (frame.retireFence != Fence::NO_FENCE) {
             outString->append("- Retire\tNot signaled\n");
         }
+
         for (const auto& kv : frame.layers) {
             const LayerRecord& layer = kv.second;
             outString->appendFormat("-- %s\n", layer.name.string());
@@ -85,6 +94,13 @@ static inline bool isValidTimestamp(nsecs_t time) {
 void FenceTracker::checkFencesForCompletion() {
     ATRACE_CALL();
     for (auto& frame : mFrames) {
+        if (frame.presentFence != Fence::NO_FENCE) {
+            nsecs_t time = frame.presentFence->getSignalTime();
+            if (isValidTimestamp(time)) {
+                frame.presentTime = time;
+                frame.presentFence = Fence::NO_FENCE;
+            }
+        }
         if (frame.retireFence != Fence::NO_FENCE) {
             nsecs_t time = frame.retireFence->getSignalTime();
             if (isValidTimestamp(time)) {
@@ -119,8 +135,9 @@ void FenceTracker::checkFencesForCompletion() {
     }
 }
 
-void FenceTracker::addFrame(nsecs_t refreshStartTime, sp<Fence> retireFence,
-        const Vector<sp<Layer>>& layers, sp<Fence> glDoneFence) {
+void FenceTracker::addFrame(nsecs_t refreshStartTime, sp<Fence> presentFence,
+        sp<Fence> retireFence, const Vector<sp<Layer>>& layers,
+        sp<Fence> glDoneFence) {
     ATRACE_CALL();
     Mutex::Autolock lock(mMutex);
     FrameRecord& frame = mFrames[mOffset];
@@ -177,8 +194,10 @@ void FenceTracker::addFrame(nsecs_t refreshStartTime, sp<Fence> retireFence,
 
     frame.frameId = mFrameCounter;
     frame.refreshStartTime = refreshStartTime;
+    frame.presentTime = 0;
     frame.retireTime = 0;
     frame.glesCompositionDoneTime = 0;
+    frame.presentFence = presentFence;
     prevFrame.retireFence = retireFence;
     frame.retireFence = Fence::NO_FENCE;
     frame.glesCompositionDoneFence = wasGlesCompositionDone ? glDoneFence :
@@ -212,6 +231,7 @@ bool FenceTracker::getFrameTimestamps(const Layer& layer,
     outTimestamps->acquireTime = layerRecord.acquireTime;
     outTimestamps->refreshStartTime = frameRecord.refreshStartTime;
     outTimestamps->glCompositionDoneTime = frameRecord.glesCompositionDoneTime;
+    outTimestamps->displayPresentTime = frameRecord.presentTime;
     outTimestamps->displayRetireTime = frameRecord.retireTime;
     outTimestamps->releaseTime = layerRecord.releaseTime;
     return true;

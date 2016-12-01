@@ -158,6 +158,50 @@ public:
         return result != 0;
     }
 
+    virtual status_t getSupportedFrameTimestamps(
+            std::vector<SupportableFrameTimestamps>* outSupported) const {
+        if (!outSupported) {
+            return UNEXPECTED_NULL;
+        }
+        outSupported->clear();
+
+        Parcel data, reply;
+
+        status_t err = data.writeInterfaceToken(
+                ISurfaceComposer::getInterfaceDescriptor());
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        err = remote()->transact(
+                BnSurfaceComposer::GET_SUPPORTED_FRAME_TIMESTAMPS,
+                data, &reply);
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        int32_t result = 0;
+        err = reply.readInt32(&result);
+        if (err != NO_ERROR) {
+            return err;
+        }
+        if (result != NO_ERROR) {
+            return result;
+        }
+
+        std::vector<int32_t> supported;
+        err = reply.readInt32Vector(&supported);
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        outSupported->reserve(supported.size());
+        for (int32_t s : supported) {
+            outSupported->push_back(static_cast<SupportableFrameTimestamps>(s));
+        }
+        return NO_ERROR;
+    }
+
     virtual sp<IDisplayEventConnection> createDisplayEventConnection()
     {
         Parcel data, reply;
@@ -519,6 +563,25 @@ status_t BnSurfaceComposer::onTransact(
             int32_t result = authenticateSurfaceTexture(bufferProducer) ? 1 : 0;
             reply->writeInt32(result);
             return NO_ERROR;
+        }
+        case GET_SUPPORTED_FRAME_TIMESTAMPS: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            std::vector<SupportableFrameTimestamps> supportedTimestamps;
+            status_t result = getSupportedFrameTimestamps(&supportedTimestamps);
+            status_t err = reply->writeInt32(result);
+            if (err != NO_ERROR) {
+                return err;
+            }
+            if (result != NO_ERROR) {
+                return result;
+            }
+
+            std::vector<int32_t> supported;
+            supported.reserve(supportedTimestamps.size());
+            for (SupportableFrameTimestamps s : supportedTimestamps) {
+                supported.push_back(static_cast<int32_t>(s));
+            }
+            return reply->writeInt32Vector(supported);
         }
         case CREATE_DISPLAY_EVENT_CONNECTION: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);

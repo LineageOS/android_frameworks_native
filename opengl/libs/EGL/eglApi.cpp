@@ -1204,6 +1204,9 @@ EGLBoolean eglSurfaceAttrib(
     egl_surface_t * const s = get_surface(surface);
 
     if (attribute == EGL_FRONT_BUFFER_AUTO_REFRESH_ANDROID) {
+        if (!s->win.get()) {
+            setError(EGL_BAD_SURFACE, EGL_FALSE);
+        }
         int err = native_window_set_auto_refresh(s->win.get(),
             value ? true : false);
         return (err == NO_ERROR) ? EGL_TRUE :
@@ -1212,8 +1215,14 @@ EGLBoolean eglSurfaceAttrib(
 
 #if ENABLE_EGL_ANDROID_GET_FRAME_TIMESTAMPS
     if (attribute == EGL_TIMESTAMPS_ANDROID) {
+        if (!s->win.get()) {
+            return setError(EGL_BAD_SURFACE, EGL_FALSE);
+        }
         s->enableTimestamps = value;
-        return EGL_TRUE;
+        int err = native_window_enable_frame_timestamps(
+                s->win.get(), value ? true : false);
+        return (err == NO_ERROR) ? EGL_TRUE :
+            setError(EGL_BAD_SURFACE, EGL_FALSE);
     }
 #endif
 
@@ -2021,27 +2030,25 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
 
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) {
-        setError(EGL_BAD_DISPLAY, EGL_FALSE);
-        return EGL_FALSE;
+        return setError(EGL_BAD_DISPLAY, EGL_FALSE);
     }
 
     SurfaceRef _s(dp.get(), surface);
     if (!_s.get()) {
-        setError(EGL_BAD_SURFACE, EGL_FALSE);
-        return EGL_FALSE;
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
     }
 
     egl_surface_t const * const s = get_surface(surface);
 
     if (!s->enableTimestamps) {
-        setError(EGL_BAD_SURFACE, EGL_FALSE);
-        return EGL_FALSE;
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
     }
 
     nsecs_t* requestedPresentTime = nullptr;
     nsecs_t* acquireTime = nullptr;
     nsecs_t* refreshStartTime = nullptr;
     nsecs_t* GLCompositionDoneTime = nullptr;
+    nsecs_t* displayPresentTime = nullptr;
     nsecs_t* displayRetireTime = nullptr;
     nsecs_t* releaseTime = nullptr;
 
@@ -2059,6 +2066,9 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
             case EGL_COMPOSITION_FINISHED_TIME_ANDROID:
                 GLCompositionDoneTime = &values[i];
                 break;
+            case EGL_DISPLAY_PRESENT_TIME_ANDROID:
+                displayPresentTime = &values[i];
+                break;
             case EGL_DISPLAY_RETIRE_TIME_ANDROID:
                 displayRetireTime = &values[i];
                 break;
@@ -2066,21 +2076,27 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
                 releaseTime = &values[i];
                 break;
             default:
-                setError(EGL_BAD_PARAMETER, EGL_FALSE);
-                return EGL_FALSE;
+                return setError(EGL_BAD_PARAMETER, EGL_FALSE);
         }
     }
 
     status_t ret = native_window_get_frame_timestamps(s->win.get(), framesAgo,
             requestedPresentTime, acquireTime, refreshStartTime,
-            GLCompositionDoneTime, displayRetireTime, releaseTime);
+            GLCompositionDoneTime, displayPresentTime, displayRetireTime,
+            releaseTime);
 
-    if (ret != NO_ERROR) {
-        setError(EGL_BAD_ACCESS, EGL_FALSE);
-        return EGL_FALSE;
+    switch (ret) {
+      case NO_ERROR:
+        return EGL_TRUE;
+      case NAME_NOT_FOUND:
+        return setError(EGL_BAD_ACCESS, EGL_FALSE);
+      case BAD_VALUE:
+        return setError(EGL_BAD_PARAMETER, EGL_FALSE);
+      default:
+        // This should not happen. Return an error that is not in the spec
+        // so it's obvious something is very wrong.
+        return setError(EGL_NOT_INITIALIZED, EGL_FALSE);
     }
-
-    return EGL_TRUE;
 }
 
 EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy, EGLSurface surface,
@@ -2090,14 +2106,19 @@ EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy, EGLSurface surface,
 
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) {
-        setError(EGL_BAD_DISPLAY, EGL_FALSE);
-        return EGL_FALSE;
+        return setError(EGL_BAD_DISPLAY, EGL_FALSE);
     }
 
     SurfaceRef _s(dp.get(), surface);
     if (!_s.get()) {
-        setError(EGL_BAD_SURFACE, EGL_FALSE);
-        return EGL_FALSE;
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
+    }
+
+    egl_surface_t const * const s = get_surface(surface);
+
+    ANativeWindow* window = s->win.get();
+    if (!window) {
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
     }
 
     switch (timestamp) {
@@ -2106,9 +2127,20 @@ EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy, EGLSurface surface,
         case EGL_RENDERING_COMPLETE_TIME_ANDROID:
         case EGL_COMPOSITION_START_TIME_ANDROID:
         case EGL_COMPOSITION_FINISHED_TIME_ANDROID:
-        case EGL_DISPLAY_RETIRE_TIME_ANDROID:
         case EGL_READS_DONE_TIME_ANDROID:
             return EGL_TRUE;
+        case EGL_DISPLAY_PRESENT_TIME_ANDROID: {
+            int value = 0;
+            window->query(window,
+                    NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_PRESENT, &value);
+            return value == 0 ? EGL_FALSE : EGL_TRUE;
+        }
+        case EGL_DISPLAY_RETIRE_TIME_ANDROID: {
+            int value = 0;
+            window->query(window,
+                    NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_RETIRE, &value);
+            return value == 0 ? EGL_FALSE : EGL_TRUE;
+        }
 #endif
         default:
             return EGL_FALSE;

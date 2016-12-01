@@ -38,8 +38,8 @@ Overview
     and display of window surfaces.
 
     Some examples of how this might be used:
-        - The display retire time can be used to calculate end-to-end latency of
-          the entire graphics pipeline.
+        - The display present or retire time can be used to calculate end-to-end
+          latency of the entire graphics pipeline.
         - The queue time and rendering complete time can be used to determine
           how long the application's rendering took to complete. Likewise, the
           composition start time and finish time can be used to determine how
@@ -71,8 +71,9 @@ New Tokens
     EGL_RENDERING_COMPLETE_TIME_ANDROID 0x314F
     EGL_COMPOSITION_START_TIME_ANDROID 0x3430
     EGL_COMPOSITION_FINISHED_TIME_ANDROID 0x3431
-    EGL_DISPLAY_RETIRE_TIME_ANDROID 0x3432
-    EGL_READS_DONE_TIME_ANDROID 0x3433
+    EGL_DISPLAY_PRESENT_TIME_ANDROID 0x3432
+    EGL_DISPLAY_RETIRE_TIME_ANDROID 0x3433
+    EGL_READS_DONE_TIME_ANDROID 0x3434
 
 Add to the list of supported tokens for eglSurfaceAttrib in section 3.5.6
 "Surface Attributes", page 43:
@@ -124,12 +125,14 @@ Changes to Chapter 3 of the EGL 1.5 Specification (EGL Functions and Errors)
           compositor's rendering work for this frame finished. This will be zero
           if composition was handled by the display and the compositor didn't do
           any rendering.
+        - EGL_DISPLAY_PRESENT_TIME_ANDROID - The time at which this frame
+          started to scan out on the physical display.
         - EGL_DISPLAY_RETIRE_TIME_ANDROID - The time at which this frame was
           replaced by the next frame on-screen.
         - EGL_READS_DONE_TIME_ANDROID - The time at which all reads for the
           purpose of display/composition were completed for this frame.
 
-    Not all implementations may support all off the above timestamp queries. The
+    Not all implementations may support all of the above timestamp queries. The
     function
 
         EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy, EGLSurface
@@ -148,4 +151,4 @@ Revision History
 
 #2 (Brian Anderson, July 22, 2016)
     - Replace EGL_QUEUE_TIME_ANDROID with EGL_REQUESTED_PRESENT_TIME_ANDROID.
-
+    - Add DISPLAY_PRESENT_TIME_ANDROID.
