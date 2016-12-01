@@ -681,7 +681,15 @@ status_t Parcel::unsafeReadTypedVector(
         return UNEXPECTED_NULL;
     }
 
+    if (val->max_size() < static_cast<size_t>(size)) {
+        return NO_MEMORY;
+    }
+
     val->resize(static_cast<size_t>(size));
+
+    if (val->size() < static_cast<size_t>(size)) {
+        return NO_MEMORY;
+    }
 
     for (auto& v: *val) {
         status = (this->*read_func)(&v);
