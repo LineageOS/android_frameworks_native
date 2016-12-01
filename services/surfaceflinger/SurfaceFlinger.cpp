@@ -1463,7 +1463,7 @@ void SurfaceFlinger::postFramebuffer()
         }
         const auto hwcId = displayDevice->getHwcDisplayId();
         if (hwcId >= 0) {
-            mHwc->commit(hwcId);
+            mHwc->presentAndGetReleaseFences(hwcId);
         }
         displayDevice->onSwapBuffersCompleted();
         displayDevice->makeCurrent(mEGLDisplay, mEGLContext);

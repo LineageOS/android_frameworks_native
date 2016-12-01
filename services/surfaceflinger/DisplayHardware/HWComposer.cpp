@@ -615,7 +615,7 @@ sp<Fence> HWComposer::getLayerReleaseFence(int32_t displayId,
     return displayFences[layer];
 }
 
-status_t HWComposer::commit(int32_t displayId) {
+status_t HWComposer::presentAndGetReleaseFences(int32_t displayId) {
     ATRACE_CALL();
 
     if (!isValidDisplay(displayId)) {
@@ -626,15 +626,16 @@ status_t HWComposer::commit(int32_t displayId) {
     auto& hwcDisplay = displayData.hwcDisplay;
     auto error = hwcDisplay->present(&displayData.lastRetireFence);
     if (error != HWC2::Error::None) {
-        ALOGE("commit: present failed for display %d: %s (%d)", displayId,
-                to_string(error).c_str(), static_cast<int32_t>(error));
+        ALOGE("presentAndGetReleaseFences: failed for display %d: %s (%d)",
+              displayId, to_string(error).c_str(), static_cast<int32_t>(error));
         return UNKNOWN_ERROR;
     }
 
     std::unordered_map<std::shared_ptr<HWC2::Layer>, sp<Fence>> releaseFences;
     error = hwcDisplay->getReleaseFences(&releaseFences);
     if (error != HWC2::Error::None) {
-        ALOGE("commit: Failed to get release fences for display %d: %s (%d)",
+        ALOGE("presentAndGetReleaseFences: Failed to get release fences "
+              "for display %d: %s (%d)",
                 displayId, to_string(error).c_str(),
                 static_cast<int32_t>(error));
         return UNKNOWN_ERROR;
