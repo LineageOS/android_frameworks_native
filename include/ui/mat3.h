@@ -292,7 +292,7 @@ CONSTEXPR TMat33<T>::TMat33(const TVec3<U>& v) {
     m_value[2] = col_type(0, 0, v.z);
 }
 
-// construct from 16 scalars. Note that the arrangement
+// construct from 9 scalars. Note that the arrangement
 // of values in the constructor is the transpose of the matrix
 // notation.
 template<typename T>
