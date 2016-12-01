@@ -56,7 +56,8 @@ static int32_t createProcessUniqueId() {
 
 ConsumerBase::ConsumerBase(const sp<IGraphicBufferConsumer>& bufferQueue, bool controlledByApp) :
         mAbandoned(false),
-        mConsumer(bufferQueue) {
+        mConsumer(bufferQueue),
+        mPrevFinalReleaseFence(Fence::NO_FENCE) {
     // Choose a name using the PID and a process-unique ID.
     mName = String8::format("unnamed-%d-%d", getpid(), createProcessUniqueId());
 
@@ -366,6 +367,7 @@ status_t ConsumerBase::releaseBufferLocked(
         freeBufferLocked(slot);
     }
 
+    mPrevFinalReleaseFence = mSlots[slot].mFence;
     mSlots[slot].mFence = Fence::NO_FENCE;
 
     return err;
