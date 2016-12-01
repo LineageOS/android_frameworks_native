@@ -1142,7 +1142,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     doComposition();
     postComposition();
 
-    mPreviousPresentFence = mHwc->getRetireFence(HWC_DISPLAY_PRIMARY);
+    mPreviousPresentFence = mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
 
     mHadClientComposition = false;
     for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
@@ -1242,7 +1242,7 @@ void SurfaceFlinger::postComposition()
         }
     }
 
-    sp<Fence> presentFence = mHwc->getRetireFence(HWC_DISPLAY_PRIMARY);
+    sp<Fence> presentFence = mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
 
     if (presentFence->isValid()) {
         if (mPrimaryDispSync.addPresentFence(presentFence)) {

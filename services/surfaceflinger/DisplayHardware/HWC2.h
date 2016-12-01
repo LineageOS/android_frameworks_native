@@ -313,7 +313,7 @@ public:
             std::unordered_map<std::shared_ptr<Layer>,
                     android::sp<android::Fence>>* outFences) const;
     [[clang::warn_unused_result]] Error present(
-            android::sp<android::Fence>* outRetireFence);
+            android::sp<android::Fence>* outPresentFence);
     [[clang::warn_unused_result]] Error setActiveConfig(
             const std::shared_ptr<const Config>& config);
     [[clang::warn_unused_result]] Error setClientTarget(

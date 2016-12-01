@@ -1751,10 +1751,10 @@ bool Layer::onPostComposition(sp<Fence> glDoneFence) {
         sp<Fence> presentFence = Fence::NO_FENCE;
         sp<Fence> presentOrRetireFence = Fence::NO_FENCE;
         if (hwc.retireFenceRepresentsStartOfScanout()) {
-            presentFence = hwc.getRetireFence(HWC_DISPLAY_PRIMARY);
+            presentFence = hwc.getPresentFence(HWC_DISPLAY_PRIMARY);
             presentOrRetireFence = presentFence;
         } else {
-            retireFence = hwc.getRetireFence(HWC_DISPLAY_PRIMARY);
+            retireFence = hwc.getPresentFence(HWC_DISPLAY_PRIMARY);
             presentOrRetireFence = retireFence;
         }
         bool wasGpuComposited = mHwcLayers.count(HWC_DISPLAY_PRIMARY) ?

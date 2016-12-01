@@ -594,12 +594,12 @@ bool HWComposer::hasClientComposition(int32_t displayId) const {
     return mDisplayData[displayId].hasClientComposition;
 }
 
-sp<Fence> HWComposer::getRetireFence(int32_t displayId) const {
+sp<Fence> HWComposer::getPresentFence(int32_t displayId) const {
     if (!isValidDisplay(displayId)) {
-        ALOGE("getRetireFence failed for invalid display %d", displayId);
+        ALOGE("getPresentFence failed for invalid display %d", displayId);
         return Fence::NO_FENCE;
     }
-    return mDisplayData[displayId].lastRetireFence;
+    return mDisplayData[displayId].lastPresentFence;
 }
 
 bool HWComposer::retireFenceRepresentsStartOfScanout() const {
@@ -629,7 +629,7 @@ status_t HWComposer::presentAndGetReleaseFences(int32_t displayId) {
 
     auto& displayData = mDisplayData[displayId];
     auto& hwcDisplay = displayData.hwcDisplay;
-    auto error = hwcDisplay->present(&displayData.lastRetireFence);
+    auto error = hwcDisplay->present(&displayData.lastPresentFence);
     if (error != HWC2::Error::None) {
         ALOGE("presentAndGetReleaseFences: failed for display %d: %s (%d)",
               displayId, to_string(error).c_str(), static_cast<int32_t>(error));
@@ -879,7 +879,7 @@ HWComposer::DisplayData::DisplayData()
   : hasClientComposition(false),
     hasDeviceComposition(false),
     hwcDisplay(),
-    lastRetireFence(Fence::NO_FENCE),
+    lastPresentFence(Fence::NO_FENCE),
     outbufHandle(nullptr),
     outbufAcquireFence(Fence::NO_FENCE),
     vsyncEnabled(HWC2::Vsync::Disable) {

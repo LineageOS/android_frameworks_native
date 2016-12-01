@@ -205,7 +205,7 @@ void FramebufferSurface::freeBufferLocked(int slotIndex) {
 void FramebufferSurface::onFrameCommitted() {
 #ifdef USE_HWC2
     if (mHasPendingRelease) {
-        sp<Fence> fence = mHwc.getRetireFence(mDisplayType);
+        sp<Fence> fence = mHwc.getPresentFence(mDisplayType);
         if (fence->isValid()) {
             status_t result = addReleaseFence(mPreviousBufferSlot,
                     mPreviousBuffer, fence);

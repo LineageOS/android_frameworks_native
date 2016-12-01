@@ -241,7 +241,7 @@ void VirtualDisplaySurface::onFrameCommitted() {
     mDbgState = DBG_STATE_IDLE;
 
 #ifdef USE_HWC2
-    sp<Fence> retireFence = mHwc.getRetireFence(mDisplayId);
+    sp<Fence> retireFence = mHwc.getPresentFence(mDisplayId);
 #else
     sp<Fence> fbFence = mHwc.getAndResetReleaseFence(mDisplayId);
 #endif

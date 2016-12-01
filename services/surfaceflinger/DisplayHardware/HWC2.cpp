@@ -924,21 +924,21 @@ Error Display::getReleaseFences(
     return Error::None;
 }
 
-Error Display::present(sp<Fence>* outRetireFence)
+Error Display::present(sp<Fence>* outPresentFence)
 {
-    int32_t retireFenceFd = 0;
+    int32_t presentFenceFd = 0;
 #ifdef BYPASS_IHWC
     int32_t intError = mDevice.mPresentDisplay(mDevice.mHwcDevice, mId,
-            &retireFenceFd);
+            &presentFenceFd);
 #else
-    auto intError = mDevice.mComposer->presentDisplay(mId, retireFenceFd);
+    auto intError = mDevice.mComposer->presentDisplay(mId, presentFenceFd);
 #endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
         return error;
     }
 
-    *outRetireFence = new Fence(retireFenceFd);
+    *outPresentFence = new Fence(presentFenceFd);
     return Error::None;
 }
 

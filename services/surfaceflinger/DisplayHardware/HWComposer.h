@@ -118,9 +118,8 @@ public:
     // does this display have layers handled by GLES
     bool hasClientComposition(int32_t displayId) const;
 
-    // get the retire fence for the previous frame (i.e., corresponding to the
-    // last call to presentDisplay
-    sp<Fence> getRetireFence(int32_t displayId) const;
+    // get the present fence received from the last call to present.
+    sp<Fence> getPresentFence(int32_t displayId) const;
 
     // Returns true if the retire fence represents the start of the display
     // controller's scan out. This should be true for all HWC2 implementations,
@@ -191,7 +190,7 @@ private:
         bool hasDeviceComposition;
         std::shared_ptr<HWC2::Display> hwcDisplay;
         HWC2::DisplayRequest displayRequests;
-        sp<Fence> lastRetireFence;  // signals when the last set op retires
+        sp<Fence> lastPresentFence;  // signals when the last set op retires
         std::unordered_map<std::shared_ptr<HWC2::Layer>, sp<Fence>>
                 releaseFences;
         buffer_handle_t outbufHandle;
