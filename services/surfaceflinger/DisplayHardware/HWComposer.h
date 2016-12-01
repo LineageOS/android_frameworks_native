@@ -97,8 +97,8 @@ public:
     status_t setClientTarget(int32_t displayId, const sp<Fence>& acquireFence,
             const sp<GraphicBuffer>& target, android_dataspace_t dataspace);
 
-    // Finalize the layers and present them
-    status_t commit(int32_t displayId);
+    // Present layers to the display and read releaseFences.
+    status_t presentAndGetReleaseFences(int32_t displayId);
 
     // set power mode
     status_t setPowerMode(int32_t displayId, int mode);
