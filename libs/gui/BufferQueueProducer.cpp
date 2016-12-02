@@ -1272,6 +1272,7 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
     // Call back without lock held
     if (listener != NULL) {
         listener->onBuffersReleased();
+        listener->onDisconnect();
     }
 
     return status;

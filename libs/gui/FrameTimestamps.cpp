@@ -329,7 +329,7 @@ void ProducerFrameEventHistory::updateSignalTimes() {
 
 void ProducerFrameEventHistory::applyFenceDelta(FenceTimeline* timeline,
         std::shared_ptr<FenceTime>* dst, const FenceTime::Snapshot& src) const {
-    if (CC_UNLIKELY(dst == nullptr)) {
+    if (CC_UNLIKELY(dst == nullptr || dst->get() == nullptr)) {
         ALOGE("applyFenceDelta: dst is null.");
         return;
     }
@@ -364,6 +364,11 @@ std::shared_ptr<FenceTime> ProducerFrameEventHistory::createFenceTime(
 
 ConsumerFrameEventHistory::~ConsumerFrameEventHistory() = default;
 
+void ConsumerFrameEventHistory::onDisconnect() {
+    mCurrentConnectId++;
+    mProducerWantsEvents = false;
+}
+
 void ConsumerFrameEventHistory::initializeCompositorTiming(
         const CompositorTiming& compositorTiming) {
     mCompositorTiming = compositorTiming;
@@ -372,6 +377,7 @@ void ConsumerFrameEventHistory::initializeCompositorTiming(
 void ConsumerFrameEventHistory::addQueue(const NewFrameEventsEntry& newEntry) {
     // Overwrite all fields of the frame with default values unless set here.
     FrameEvents newTimestamps;
+    newTimestamps.connectId = mCurrentConnectId;
     newTimestamps.frameNumber = newEntry.frameNumber;
     newTimestamps.postedTime = newEntry.postedTime;
     newTimestamps.requestedPresentTime = newEntry.requestedPresentTime;
@@ -453,8 +459,8 @@ void ConsumerFrameEventHistory::addRetire(
 void ConsumerFrameEventHistory::addRelease(uint64_t frameNumber,
         nsecs_t dequeueReadyTime, std::shared_ptr<FenceTime>&& release) {
     FrameEvents* frame = getFrame(frameNumber, &mReleaseOffset);
-    if (CC_UNLIKELY(frame == nullptr)) {
-        ALOGE("addRelease: Did not find frame (%" PRIu64 ").", frameNumber);
+    if (frame == nullptr) {
+        ALOGE_IF(mProducerWantsEvents, "addRelease: Did not find frame.");
         return;
     }
     frame->addReleaseCalled = true;
@@ -469,13 +475,19 @@ void ConsumerFrameEventHistory::getFrameDelta(
     mProducerWantsEvents = true;
     size_t i = static_cast<size_t>(std::distance(mFrames.begin(), frame));
     if (mFramesDirty[i].anyDirty()) {
-        delta->mDeltas.emplace_back(i, *frame, mFramesDirty[i]);
+        // Make sure only to send back deltas for the current connection
+        // since the producer won't have the correct state to apply a delta
+        // from a previous connection.
+        if (mFrames[i].connectId == mCurrentConnectId) {
+            delta->mDeltas.emplace_back(i, *frame, mFramesDirty[i]);
+        }
         mFramesDirty[i].reset();
     }
 }
 
 void ConsumerFrameEventHistory::getAndResetDelta(
         FrameEventHistoryDelta* delta) {
+    mProducerWantsEvents = true;
     delta->mCompositorTiming = mCompositorTiming;
 
     // Write these in order of frame number so that it is easy to

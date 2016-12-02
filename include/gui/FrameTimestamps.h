@@ -78,6 +78,7 @@ struct FrameEvents {
     void dump(String8& outString) const;
 
     bool valid{false};
+    int connectId{0};
     uint64_t frameNumber{0};
 
     // Whether or not certain points in the frame's life cycle have been
@@ -212,6 +213,8 @@ class ConsumerFrameEventHistory : public FrameEventHistory {
 public:
     ~ConsumerFrameEventHistory() override;
 
+    void onDisconnect();
+
     void initializeCompositorTiming(const CompositorTiming& compositorTiming);
 
     void addQueue(const NewFrameEventsEntry& newEntry);
@@ -233,11 +236,13 @@ private:
             const std::array<FrameEvents, MAX_FRAME_HISTORY>::iterator& frame);
 
     std::array<FrameEventDirtyFields, MAX_FRAME_HISTORY> mFramesDirty;
+
     size_t mQueueOffset{0};
     size_t mCompositionOffset{0};
     size_t mRetireOffset{0};
     size_t mReleaseOffset{0};
 
+    int mCurrentConnectId{0};
     bool mProducerWantsEvents{false};
 };
 

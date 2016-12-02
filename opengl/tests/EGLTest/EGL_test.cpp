@@ -106,9 +106,9 @@ TEST_F(EGLTest, EGLTerminateSucceedsWithRemainingObjects) {
     EXPECT_TRUE(eglChooseConfig(mEglDisplay, attrs, &config, 1, &numConfigs));
 
     struct DummyConsumer : public BnConsumerListener {
-        virtual void onFrameAvailable(const BufferItem& /* item */) {}
-        virtual void onBuffersReleased() {}
-        virtual void onSidebandStreamChanged() {}
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
     };
 
     // Create a EGLSurface

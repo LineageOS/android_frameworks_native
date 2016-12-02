@@ -82,10 +82,11 @@ public:
     sp<Fence> getPrevFinalReleaseFence() const;
 #ifdef USE_HWC2
     virtual void setReleaseFence(const sp<Fence>& fence) override;
-    void releasePendingBuffer();
+    bool releasePendingBuffer();
 #endif
 
-    virtual void addAndGetFrameTimestamps(
+    void onDisconnect() override;
+    void addAndGetFrameTimestamps(
             const NewFrameEventsEntry* newTimestamps,
             FrameEventHistoryDelta* outDelta) override;
 

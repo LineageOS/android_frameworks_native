@@ -17,6 +17,8 @@
 #define LOG_TAG "IGraphicBufferProducer_test"
 //#define LOG_NDEBUG 0
 
+#include "DummyConsumer.h"
+
 #include <gtest/gtest.h>
 
 #include <utils/String8.h>
@@ -63,12 +65,6 @@ namespace {
     const int QUEUE_BUFFER_INPUT_TRANSFORM = 0;
     const sp<Fence> QUEUE_BUFFER_INPUT_FENCE = Fence::NO_FENCE;
 }; // namespace anonymous
-
-struct DummyConsumer : public BnConsumerListener {
-    virtual void onFrameAvailable(const BufferItem& /* item */) {}
-    virtual void onBuffersReleased() {}
-    virtual void onSidebandStreamChanged() {}
-};
 
 class IGraphicBufferProducerTest : public ::testing::Test {
 protected:

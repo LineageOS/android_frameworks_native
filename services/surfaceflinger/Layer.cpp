@@ -1944,7 +1944,10 @@ bool Layer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
 
 #ifdef USE_HWC2
 void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
-    mSurfaceFlingerConsumer->releasePendingBuffer();
+    if (!mSurfaceFlingerConsumer->releasePendingBuffer()) {
+        return;
+    }
+
     auto releaseFenceTime = std::make_shared<FenceTime>(
             mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
     mReleaseTimeline.push(releaseFenceTime);
@@ -2375,6 +2378,11 @@ void Layer::dumpFrameEvents(String8& result) {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.checkFencesForCompletion();
     mFrameEventHistory.dump(result);
+}
+
+void Layer::onDisconnect() {
+    Mutex::Autolock lock(mFrameEventHistoryMutex);
+    mFrameEventHistory.onDisconnect();
 }
 
 void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
