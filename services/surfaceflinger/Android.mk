@@ -10,7 +10,6 @@ LOCAL_SRC_FILES := \
     DispSync.cpp \
     EventControlThread.cpp \
     EventThread.cpp \
-    FenceTracker.cpp \
     FrameTracker.cpp \
     GpuService.cpp \
     Layer.cpp \

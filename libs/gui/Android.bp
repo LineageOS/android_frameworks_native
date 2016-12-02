@@ -71,6 +71,7 @@ cc_library_shared {
         "ConsumerBase.cpp",
         "CpuConsumer.cpp",
         "DisplayEventReceiver.cpp",
+        "FrameTimestamps.cpp",
         "GLConsumer.cpp",
         "GraphicBufferAlloc.cpp",
         "GuiConfig.cpp",

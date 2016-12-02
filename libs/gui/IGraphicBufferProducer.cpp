@@ -430,7 +430,7 @@ public:
     }
 
     virtual bool getFrameTimestamps(uint64_t frameNumber,
-                FrameTimestamps* outTimestamps) const {
+                FrameTimestamps* outTimestamps) {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(
                 IGraphicBufferProducer::getInterfaceDescriptor());

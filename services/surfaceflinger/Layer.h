@@ -270,13 +270,13 @@ public:
      * called before composition.
      * returns true if the layer has pending updates.
      */
-    bool onPreComposition();
+    bool onPreComposition(nsecs_t refreshStartTime);
 
     /*
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
      */
-    bool onPostComposition();
+    bool onPostComposition(sp<Fence> glCompositionDoneFence);
 
 #ifdef USE_HWC2
     // If a buffer was replaced this frame, release the former buffer
@@ -323,7 +323,7 @@ public:
      * operation, so this should be set only if needed). Typically this is used
      * to figure out if the content or size of a surface has changed.
      */
-    Region latchBuffer(bool& recomputeVisibleRegions);
+    Region latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime);
 
     bool isPotentialCursor() const { return mPotentialCursor;}
 
@@ -402,20 +402,17 @@ public:
     void miniDump(String8& result, int32_t hwcId) const;
 #endif
     void dumpFrameStats(String8& result) const;
+    void dumpFrameEvents(String8& result);
     void clearFrameStats();
     void logFrameStats();
     void getFrameStats(FrameStats* outStats) const;
 
-    void getFenceData(String8* outName, uint64_t* outFrameNumber,
-            bool* outIsGlesComposition, nsecs_t* outRequestedPresentTime,
-            sp<Fence>* outAcquireFence, sp<Fence>* outPrevReleaseFence) const;
 
     std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush);
 
-    bool getFrameTimestamps(uint64_t frameNumber,
-            FrameTimestamps* outTimestamps) const {
-        return mFlinger->getFrameTimestamps(*this, frameNumber, outTimestamps);
-    }
+    bool addAndGetFrameTimestamps(
+            const NewFrameEventsEntry* newTimestamps,
+            uint64_t frameNumber, FrameTimestamps* outTimestamps);
 
     bool getTransformToDisplayInverse() const;
 
@@ -583,7 +580,14 @@ private:
     // thread-safe
     volatile int32_t mQueuedFrames;
     volatile int32_t mSidebandStreamChanged; // used like an atomic boolean
+
+    // Timestamp history for UIAutomation. Thread safe.
     FrameTracker mFrameTracker;
+
+    // Timestamp history for the consumer to query.
+    // Accessed by both consumer and producer on main and binder threads.
+    Mutex mFrameEventHistoryMutex;
+    FrameEventHistory mFrameEventHistory;
 
     // main thread
     sp<GraphicBuffer> mActiveBuffer;
@@ -594,7 +598,9 @@ private:
     // We encode unset as -1.
     int32_t mOverrideScalingMode;
     bool mCurrentOpacity;
+    bool mBufferLatched = false;  // TODO: Use mActiveBuffer?
     std::atomic<uint64_t> mCurrentFrameNumber;
+    uint64_t mPreviousFrameNumber; // Only accessed on the main thread.
     bool mRefreshPending;
     bool mFrameLatencyNeeded;
     // Whether filtering is forced on or not
@@ -644,7 +650,7 @@ private:
     Condition mQueueItemCondition;
     Vector<BufferItem> mQueueItems;
     std::atomic<uint64_t> mLastFrameNumberReceived;
-    bool mUpdateTexImageFailed; // This is only modified from the main thread
+    bool mUpdateTexImageFailed; // This is only accessed on the main thread.
 
     bool mAutoRefresh;
     bool mFreezePositionUpdates;

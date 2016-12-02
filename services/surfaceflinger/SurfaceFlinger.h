@@ -53,7 +53,6 @@
 #include "Barrier.h"
 #include "DisplayDevice.h"
 #include "DispSync.h"
-#include "FenceTracker.h"
 #include "FrameTracker.h"
 #include "MessageQueue.h"
 #include "SurfaceInterceptor.h"
@@ -401,8 +400,8 @@ private:
             const LayerVector& currentLayers, uint32_t layerStack,
             Region& dirtyRegion, Region& opaqueRegion);
 
-    void preComposition();
-    void postComposition(nsecs_t refreshStartTime);
+    void preComposition(nsecs_t refreshStartTime);
+    void postComposition();
     void rebuildLayerStacks();
     void setUpHWComposer();
     void doComposition();
@@ -446,13 +445,12 @@ private:
     void logFrameStats();
 
     void dumpStaticScreenStats(String8& result) const;
+    // Not const because each Layer needs to query Fences and cache timestamps.
+    void dumpFrameEventsLocked(String8& result);
 
     void recordBufferingStats(const char* layerName,
             std::vector<OccupancyTracker::Segment>&& history);
     void dumpBufferingStats(String8& result) const;
-
-    bool getFrameTimestamps(const Layer& layer, uint64_t frameNumber,
-            FrameTimestamps* outTimestamps);
 
     /* ------------------------------------------------------------------------
      * Attributes
@@ -519,7 +517,6 @@ private:
     nsecs_t mLastTransactionTime;
     bool mBootFinished;
     bool mForceFullDamage;
-    FenceTracker mFenceTracker;
 #ifdef USE_HWC2
     bool mPropagateBackpressure = true;
 #endif

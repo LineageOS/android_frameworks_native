@@ -63,6 +63,8 @@ public:
     virtual IBinder* onAsBinder();
     virtual status_t setSharedBufferMode(bool sharedBufferMode) override;
     virtual status_t setAutoRefresh(bool autoRefresh) override;
+    virtual bool getFrameTimestamps(uint64_t frameNumber,
+            FrameTimestamps* outTimestamps) override;
     virtual status_t getUniqueId(uint64_t* outId) const override;
 
 private:

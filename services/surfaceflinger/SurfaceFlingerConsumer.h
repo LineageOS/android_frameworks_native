@@ -37,7 +37,7 @@ public:
     };
 
     SurfaceFlingerConsumer(const sp<IGraphicBufferConsumer>& consumer,
-            uint32_t tex, const Layer* layer)
+            uint32_t tex, Layer* layer)
         : GLConsumer(consumer, tex, GLConsumer::TEXTURE_EXTERNAL, false, false),
           mTransformToDisplayInverse(false), mSurfaceDamage(), mLayer(layer)
     {}
@@ -84,8 +84,9 @@ public:
     void releasePendingBuffer();
 #endif
 
-    virtual bool getFrameTimestamps(uint64_t frameNumber,
-            FrameTimestamps* outTimestamps) const override;
+    virtual bool addAndGetFrameTimestamps(
+            const NewFrameEventsEntry* newTimestamps,
+            uint64_t frameNumber, FrameTimestamps* outTimestamps) override;
 
 private:
     virtual void onSidebandStreamChanged();
@@ -107,7 +108,7 @@ private:
 #endif
 
     // The layer for this SurfaceFlingerConsumer
-    wp<const Layer> mLayer;
+    const wp<Layer> mLayer;
 };
 
 // ----------------------------------------------------------------------------

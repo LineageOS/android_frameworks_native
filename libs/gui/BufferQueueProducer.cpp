@@ -740,19 +740,19 @@ status_t BufferQueueProducer::queueBuffer(int slot,
     ATRACE_CALL();
     ATRACE_BUFFER_INDEX(slot);
 
-    int64_t timestamp;
+    int64_t requestedPresentTimestamp;
     bool isAutoTimestamp;
     android_dataspace dataSpace;
     Rect crop(Rect::EMPTY_RECT);
     int scalingMode;
     uint32_t transform;
     uint32_t stickyTransform;
-    sp<Fence> fence;
-    input.deflate(&timestamp, &isAutoTimestamp, &dataSpace, &crop, &scalingMode,
-            &transform, &fence, &stickyTransform);
+    sp<Fence> acquireFence;
+    input.deflate(&requestedPresentTimestamp, &isAutoTimestamp, &dataSpace,
+            &crop, &scalingMode, &transform, &acquireFence, &stickyTransform);
     Region surfaceDamage = input.getSurfaceDamage();
 
-    if (fence == NULL) {
+    if (acquireFence == NULL) {
         BQ_LOGE("queueBuffer: fence is NULL");
         return BAD_VALUE;
     }
@@ -771,6 +771,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
     sp<IConsumerListener> frameAvailableListener;
     sp<IConsumerListener> frameReplacedListener;
     int callbackTicket = 0;
+    uint64_t currentFrameNumber = 0;
     BufferItem item;
     { // Autolock scope
         Mutex::Autolock lock(mCore->mMutex);
@@ -809,8 +810,9 @@ status_t BufferQueueProducer::queueBuffer(int slot,
 
         BQ_LOGV("queueBuffer: slot=%d/%" PRIu64 " time=%" PRIu64 " dataSpace=%d"
                 " crop=[%d,%d,%d,%d] transform=%#x scale=%s",
-                slot, mCore->mFrameCounter + 1, timestamp, dataSpace,
-                crop.left, crop.top, crop.right, crop.bottom, transform,
+                slot, mCore->mFrameCounter + 1, requestedPresentTimestamp,
+                dataSpace, crop.left, crop.top, crop.right, crop.bottom,
+                transform,
                 BufferItem::scalingModeName(static_cast<uint32_t>(scalingMode)));
 
         const sp<GraphicBuffer>& graphicBuffer(mSlots[slot].mGraphicBuffer);
@@ -828,11 +830,14 @@ status_t BufferQueueProducer::queueBuffer(int slot,
             dataSpace = mCore->mDefaultBufferDataSpace;
         }
 
-        mSlots[slot].mFence = fence;
+        mSlots[slot].mFence = acquireFence;
         mSlots[slot].mBufferState.queue();
 
+        // Increment the frame counter and store a local version of it
+        // for use outside the lock on mCore->mMutex.
         ++mCore->mFrameCounter;
-        mSlots[slot].mFrameNumber = mCore->mFrameCounter;
+        currentFrameNumber = mCore->mFrameCounter;
+        mSlots[slot].mFrameNumber = currentFrameNumber;
 
         item.mAcquireCalled = mSlots[slot].mAcquireCalled;
         item.mGraphicBuffer = mSlots[slot].mGraphicBuffer;
@@ -842,12 +847,12 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         item.mTransformToDisplayInverse =
                 (transform & NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY) != 0;
         item.mScalingMode = static_cast<uint32_t>(scalingMode);
-        item.mTimestamp = timestamp;
+        item.mTimestamp = requestedPresentTimestamp;
         item.mIsAutoTimestamp = isAutoTimestamp;
         item.mDataSpace = dataSpace;
-        item.mFrameNumber = mCore->mFrameCounter;
+        item.mFrameNumber = currentFrameNumber;
         item.mSlot = slot;
-        item.mFence = fence;
+        item.mFence = acquireFence;
         item.mIsDroppable = mCore->mAsyncMode ||
                 mCore->mDequeueBufferCannotBlock ||
                 (mCore->mSharedBufferMode && mCore->mSharedBufferSlot == slot);
@@ -958,9 +963,19 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         // small trade-off in favor of latency rather than throughput.
         mLastQueueBufferFence->waitForever("Throttling EGL Production");
     }
-    mLastQueueBufferFence = fence;
+    mLastQueueBufferFence = acquireFence;
     mLastQueuedCrop = item.mCrop;
     mLastQueuedTransform = item.mTransform;
+
+    // Update and get FrameEventHistory.
+    nsecs_t postedTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    NewFrameEventsEntry newFrameEventsEntry = {
+        currentFrameNumber,
+        postedTime,
+        requestedPresentTimestamp,
+        acquireFence
+    };
+    addAndGetFrameTimestamps(&newFrameEventsEntry, 0, nullptr);
 
     return NO_ERROR;
 }
@@ -1449,18 +1464,28 @@ status_t BufferQueueProducer::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
     return NO_ERROR;
 }
 
-bool BufferQueueProducer::getFrameTimestamps(uint64_t frameNumber,
-        FrameTimestamps* outTimestamps) const {
-    ATRACE_CALL();
-    BQ_LOGV("getFrameTimestamps, %" PRIu64, frameNumber);
-    sp<IConsumerListener> listener;
+bool BufferQueueProducer::getFrameTimestamps(
+        uint64_t frameNumber, FrameTimestamps* outTimestamps) {
+    return addAndGetFrameTimestamps(nullptr, frameNumber, outTimestamps);
+}
 
+bool BufferQueueProducer::addAndGetFrameTimestamps(
+        const NewFrameEventsEntry* newTimestamps,
+        uint64_t frameNumber, FrameTimestamps* outTimestamps) {
+    if (newTimestamps == nullptr && outTimestamps == nullptr) {
+        return false;
+    }
+
+    ATRACE_CALL();
+    BQ_LOGV("addAndGetFrameTimestamps");
+    sp<IConsumerListener> listener;
     {
         Mutex::Autolock lock(mCore->mMutex);
         listener = mCore->mConsumerListener;
     }
     if (listener != NULL) {
-        return listener->getFrameTimestamps(frameNumber, outTimestamps);
+        return listener->addAndGetFrameTimestamps(
+                newTimestamps, frameNumber, outTimestamps);
     }
     return false;
 }
