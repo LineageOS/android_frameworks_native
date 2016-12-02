@@ -521,7 +521,7 @@ static void pokeHalServices()
     Parcel data;
 
     sp<IServiceManager> sm = ::android::hardware::defaultServiceManager();
-    sm->list([&](const auto &interfaces) {
+    auto listRet = sm->list([&](const auto &interfaces) {
         for (size_t i = 0; i < interfaces.size(); i++) {
             string fqInstanceName = interfaces[i];
             string::size_type n = fqInstanceName.find("/");
@@ -529,13 +529,21 @@ static void pokeHalServices()
                 continue;
             hidl_string fqInterfaceName = fqInstanceName.substr(0, n);
             hidl_string instanceName = fqInstanceName.substr(n+1, std::string::npos);
-            sm->get(fqInterfaceName, instanceName, [&](const auto &interface) {
+            auto getRet = sm->get(fqInterfaceName, instanceName, [&](const auto &interface) {
                 // TODO(b/32756130)
                 // Once IServiceManager returns IBase, use interface->notifySyspropsChanged() here
                 interface->transact(IBinder::SYSPROPS_TRANSACTION, data, nullptr, 0, nullptr);
             });
+            if (!getRet.isOk()) {
+                fprintf(stderr, "failed to get service %s: %s\n",
+                        fqInstanceName.c_str(),
+                        getRet.getStatus().toString8().string());
+            }
         }
     });
+    if (!listRet.isOk()) {
+        fprintf(stderr, "failed to list services: %s\n", listRet.getStatus().toString8().string());
+    }
 }
 
 // Set the trace tags that userland tracing uses, and poke the running
