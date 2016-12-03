@@ -513,11 +513,7 @@ static bool pokeBinderServices()
 static void pokeHalServices()
 {
     using ::android::hidl::manager::V1_0::IServiceManager;
-    using ::android::hardware::IBinder;
     using ::android::hardware::hidl_string;
-    using ::android::hardware::Parcel;
-
-    Parcel data;
 
     sp<IServiceManager> sm = ::android::hardware::defaultServiceManager();
     auto listRet = sm->list([&](const auto &interfaces) {
@@ -529,9 +525,7 @@ static void pokeHalServices()
             hidl_string fqInterfaceName = fqInstanceName.substr(0, n);
             hidl_string instanceName = fqInstanceName.substr(n+1, std::string::npos);
             auto getRet = sm->get(fqInterfaceName, instanceName, [&](const auto &interface) {
-                // TODO(b/32756130)
-                // Once IServiceManager returns IBase, use interface->notifySyspropsChanged() here
-                interface->transact(IBinder::SYSPROPS_TRANSACTION, data, nullptr, 0, nullptr);
+                interface->notifySyspropsChanged();
             });
             if (!getRet.isOk()) {
                 fprintf(stderr, "failed to get service %s: %s\n",
