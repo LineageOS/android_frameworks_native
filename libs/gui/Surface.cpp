@@ -145,47 +145,61 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
         nsecs_t* outReleaseTime) {
     ATRACE_CALL();
 
-    {
-        Mutex::Autolock lock(mMutex);
+    Mutex::Autolock lock(mMutex);
 
-        // Verify the requested timestamps are supported.
-        querySupportedTimestampsLocked();
-        if (outDisplayPresentTime != nullptr && !mFrameTimestampsSupportsPresent) {
-            return BAD_VALUE;
-        }
-        if (outDisplayRetireTime != nullptr && !mFrameTimestampsSupportsRetire) {
-            return BAD_VALUE;
-        }
+    // Verify the requested timestamps are supported.
+    querySupportedTimestampsLocked();
+    if (outDisplayPresentTime != nullptr && !mFrameTimestampsSupportsPresent) {
+        return BAD_VALUE;
+    }
+    if (outDisplayRetireTime != nullptr && !mFrameTimestampsSupportsRetire) {
+        return BAD_VALUE;
     }
 
-    FrameTimestamps timestamps;
-    bool found = mGraphicBufferProducer->getFrameTimestamps(frameNumber,
-            &timestamps);
+    FrameEvents* events = mFrameEventHistory.getFrame(frameNumber);
 
-    if (!found) {
+    // Update our cache of events if the requested events are not available.
+    if (events == nullptr ||
+        (outRequestedPresentTime && !events->hasRequestedPresentInfo()) ||
+        (outAcquireTime && !events->hasAcquireInfo()) ||
+        (outRefreshStartTime && !events->hasFirstRefreshStartInfo()) ||
+        (outGlCompositionDoneTime && !events->hasGpuCompositionDoneInfo()) ||
+        (outDisplayPresentTime && !events->hasDisplayPresentInfo()) ||
+        (outDisplayRetireTime && !events->hasDisplayRetireInfo()) ||
+        (outReleaseTime && !events->hasReleaseInfo())) {
+            FrameEventHistoryDelta delta;
+            mGraphicBufferProducer->getFrameTimestamps(&delta);
+            mFrameEventHistory.applyDelta(delta);
+            events = mFrameEventHistory.getFrame(frameNumber);
+    }
+
+    // A record for the requested frame does not exist.
+    if (events == nullptr) {
         return NAME_NOT_FOUND;
     }
 
+    events->checkFencesForCompletion();
+
     if (outRequestedPresentTime) {
-        *outRequestedPresentTime = timestamps.requestedPresentTime;
+        *outRequestedPresentTime = events->requestedPresentTime;
     }
     if (outAcquireTime) {
-        *outAcquireTime = timestamps.acquireTime;
+        *outAcquireTime = events->acquireTime;
     }
     if (outRefreshStartTime) {
-        *outRefreshStartTime = timestamps.refreshStartTime;
+        *outRefreshStartTime = events->firstRefreshStartTime;
     }
     if (outGlCompositionDoneTime) {
-        *outGlCompositionDoneTime = timestamps.glCompositionDoneTime;
+        *outGlCompositionDoneTime = events->gpuCompositionDoneTime;
     }
     if (outDisplayPresentTime) {
-        *outDisplayPresentTime = timestamps.displayPresentTime;
+        *outDisplayPresentTime = events->displayPresentTime;
     }
     if (outDisplayRetireTime) {
-        *outDisplayRetireTime = timestamps.displayRetireTime;
+        *outDisplayRetireTime = events->displayRetireTime;
     }
     if (outReleaseTime) {
-        *outReleaseTime = timestamps.releaseTime;
+        *outReleaseTime = events->releaseTime;
     }
 
     return NO_ERROR;
@@ -564,7 +578,7 @@ void Surface::querySupportedTimestampsLocked() const {
     }
     mQueriedSupportedTimestamps = true;
 
-    std::vector<SupportableFrameTimestamps> supportedFrameTimestamps;
+    std::vector<FrameEvent> supportedFrameTimestamps;
     sp<ISurfaceComposer> composer(ComposerService::getComposerService());
     status_t err = composer->getSupportedFrameTimestamps(
             &supportedFrameTimestamps);
@@ -574,9 +588,9 @@ void Surface::querySupportedTimestampsLocked() const {
     }
 
     for (auto sft : supportedFrameTimestamps) {
-        if (sft == SupportableFrameTimestamps::DISPLAY_PRESENT_TIME) {
+        if (sft == FrameEvent::DISPLAY_PRESENT) {
             mFrameTimestampsSupportsPresent = true;
-        } else if (sft == SupportableFrameTimestamps::DISPLAY_RETIRE_TIME) {
+        } else if (sft == FrameEvent::DISPLAY_RETIRE) {
             mFrameTimestampsSupportsRetire = true;
         }
     }

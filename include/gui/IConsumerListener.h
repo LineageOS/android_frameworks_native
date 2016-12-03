@@ -82,13 +82,11 @@ public:
     // different stream.
     virtual void onSidebandStreamChanged() = 0; /* Asynchronous */
 
-    // Notifies the consumer of any new producer-side events and then queries
-    // the consumer timestamps
-    virtual bool addAndGetFrameTimestamps(
+    // Notifies the consumer of any new producer-side timestamps and
+    // returns the combined frame history that hasn't already been retrieved.
+    virtual void addAndGetFrameTimestamps(
             const NewFrameEventsEntry* /*newTimestamps*/,
-            uint64_t /*frameNumber*/, FrameTimestamps* /*outTimestamps*/) {
-        return false;
-    }
+            FrameEventHistoryDelta* /*outDelta*/) {}
 };
 
 

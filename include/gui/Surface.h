@@ -388,6 +388,9 @@ private:
     mutable bool mQueriedSupportedTimestamps;
     mutable bool mFrameTimestampsSupportsPresent;
     mutable bool mFrameTimestampsSupportsRetire;
+
+    // A cached copy of the FrameEventHistory maintained by the consumer.
+    ProducerFrameEventHistory mFrameEventHistory;
 };
 
 namespace view {

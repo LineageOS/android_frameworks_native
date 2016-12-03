@@ -407,12 +407,10 @@ public:
     void logFrameStats();
     void getFrameStats(FrameStats* outStats) const;
 
-
     std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush);
 
-    bool addAndGetFrameTimestamps(
-            const NewFrameEventsEntry* newTimestamps,
-            uint64_t frameNumber, FrameTimestamps* outTimestamps);
+    void addAndGetFrameTimestamps(const NewFrameEventsEntry* newEntry,
+            FrameEventHistoryDelta* outDelta);
 
     bool getTransformToDisplayInverse() const;
 
@@ -587,7 +585,7 @@ private:
     // Timestamp history for the consumer to query.
     // Accessed by both consumer and producer on main and binder threads.
     Mutex mFrameEventHistoryMutex;
-    FrameEventHistory mFrameEventHistory;
+    ConsumerFrameEventHistory mFrameEventHistory;
 
     // main thread
     sp<GraphicBuffer> mActiveBuffer;

@@ -159,7 +159,7 @@ public:
     }
 
     virtual status_t getSupportedFrameTimestamps(
-            std::vector<SupportableFrameTimestamps>* outSupported) const {
+            std::vector<FrameEvent>* outSupported) const {
         if (!outSupported) {
             return UNEXPECTED_NULL;
         }
@@ -197,7 +197,7 @@ public:
 
         outSupported->reserve(supported.size());
         for (int32_t s : supported) {
-            outSupported->push_back(static_cast<SupportableFrameTimestamps>(s));
+            outSupported->push_back(static_cast<FrameEvent>(s));
         }
         return NO_ERROR;
     }
@@ -566,7 +566,7 @@ status_t BnSurfaceComposer::onTransact(
         }
         case GET_SUPPORTED_FRAME_TIMESTAMPS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            std::vector<SupportableFrameTimestamps> supportedTimestamps;
+            std::vector<FrameEvent> supportedTimestamps;
             status_t result = getSupportedFrameTimestamps(&supportedTimestamps);
             status_t err = reply->writeInt32(result);
             if (err != NO_ERROR) {
@@ -578,7 +578,7 @@ status_t BnSurfaceComposer::onTransact(
 
             std::vector<int32_t> supported;
             supported.reserve(supportedTimestamps.size());
-            for (SupportableFrameTimestamps s : supportedTimestamps) {
+            for (FrameEvent s : supportedTimestamps) {
                 supported.push_back(static_cast<int32_t>(s));
             }
             return reply->writeInt32Vector(supported);

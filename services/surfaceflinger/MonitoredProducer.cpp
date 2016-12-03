@@ -145,9 +145,8 @@ status_t MonitoredProducer::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             outTransformMatrix);
 }
 
-bool MonitoredProducer::getFrameTimestamps(
-        uint64_t frameNumber, FrameTimestamps* outTimestamps) {
-    return mProducer->getFrameTimestamps(frameNumber, outTimestamps);
+void MonitoredProducer::getFrameTimestamps(FrameEventHistoryDelta* outDelta) {
+    mProducer->getFrameTimestamps(outDelta);
 }
 
 status_t MonitoredProducer::getUniqueId(uint64_t* outId) const {

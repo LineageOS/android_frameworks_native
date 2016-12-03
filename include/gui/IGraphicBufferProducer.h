@@ -588,13 +588,8 @@ public:
     virtual status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]) = 0;
 
-    // Attempts to retrieve timestamp information for the given frame number.
-    // If information for the given frame number is not found, returns false.
-    // Returns true otherwise.
-    //
-    // If a fence has not yet signaled the timestamp returned will be 0;
-    virtual bool getFrameTimestamps(uint64_t /*frameNumber*/,
-            FrameTimestamps* /*outTimestamps*/) { return false; }
+    // Gets the frame events that haven't already been retrieved.
+    virtual void getFrameTimestamps(FrameEventHistoryDelta* /*outDelta*/) {}
 
     // Returns a unique id for this BufferQueue
     virtual status_t getUniqueId(uint64_t* outId) const = 0;

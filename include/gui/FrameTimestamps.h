@@ -23,46 +23,51 @@
 #include <utils/Timers.h>
 
 #include <array>
+#include <bitset>
+#include <vector>
 
 namespace android {
 
 
 struct FrameEvents;
+class FrameEventHistoryDelta;
 class String8;
 
 
-enum class SupportableFrameTimestamps {
+enum class FrameEvent {
+    POSTED,
     REQUESTED_PRESENT,
+    LATCH,
     ACQUIRE,
-    REFRESH_START,
-    GL_COMPOSITION_DONE_TIME,
-    DISPLAY_PRESENT_TIME,
-    DISPLAY_RETIRE_TIME,
-    RELEASE_TIME,
-};
-
-
-// The timestamps the consumer sends to the producer over binder.
-struct FrameTimestamps : public LightFlattenablePod<FrameTimestamps> {
-    FrameTimestamps() = default;
-    explicit FrameTimestamps(const FrameEvents& fences);
-
-    uint64_t frameNumber{0};
-    nsecs_t postedTime{0};
-    nsecs_t requestedPresentTime{0};
-    nsecs_t acquireTime{0};
-    nsecs_t refreshStartTime{0};
-    nsecs_t glCompositionDoneTime{0};
-    nsecs_t displayPresentTime{0};
-    nsecs_t displayRetireTime{0};
-    nsecs_t releaseTime{0};
+    FIRST_REFRESH_START,
+    LAST_REFRESH_START,
+    GL_COMPOSITION_DONE,
+    DISPLAY_PRESENT,
+    DISPLAY_RETIRE,
+    RELEASE,
+    EVENT_COUNT, // Not an actual event.
 };
 
 
 // A collection of timestamps corresponding to a single frame.
 struct FrameEvents {
+    bool hasPostedInfo() const;
+    bool hasRequestedPresentInfo() const;
+    bool hasLatchInfo() const;
+    bool hasFirstRefreshStartInfo() const;
+    bool hasLastRefreshStartInfo() const;
+    bool hasAcquireInfo() const;
+    bool hasGpuCompositionDoneInfo() const;
+    bool hasDisplayPresentInfo() const;
+    bool hasDisplayRetireInfo() const;
+    bool hasReleaseInfo() const;
+
     void checkFencesForCompletion();
     void dump(String8& outString) const;
+
+    static constexpr size_t EVENT_COUNT =
+            static_cast<size_t>(FrameEvent::EVENT_COUNT);
+    static_assert(EVENT_COUNT <= 32, "Event count sanity check failed.");
 
     bool valid{false};
     uint64_t frameNumber{0};
@@ -72,6 +77,7 @@ struct FrameEvents {
     // a) we'll just never get them or b) they're not ready yet.
     bool addPostCompositeCalled{false};
     bool addRetireCalled{false};
+    bool addReleaseCalled{false};
 
     nsecs_t postedTime{0};
     nsecs_t requestedPresentTime{0};
@@ -93,6 +99,39 @@ struct FrameEvents {
 };
 
 
+// A short history of frames that are synchronized between the consumer and
+// producer via deltas.
+class FrameEventHistory {
+public:
+    virtual ~FrameEventHistory();
+
+    FrameEvents* getFrame(uint64_t frameNumber);
+    FrameEvents* getFrame(uint64_t frameNumber, size_t* iHint);
+    void checkFencesForCompletion();
+    void dump(String8& outString) const;
+
+    static constexpr size_t MAX_FRAME_HISTORY = 8;
+
+protected:
+    std::array<FrameEvents, MAX_FRAME_HISTORY> mFrames;
+};
+
+
+// The producer's interface to FrameEventHistory
+class ProducerFrameEventHistory : public FrameEventHistory {
+public:
+    ~ProducerFrameEventHistory() override;
+
+    void updateAcquireFence(uint64_t frameNumber, sp<Fence> acquire);
+    void applyDelta(const FrameEventHistoryDelta& delta);
+
+private:
+    size_t mAcquireOffset{0};
+};
+
+
+// Used by the consumer to create a new frame event record that is
+// partially complete.
 struct NewFrameEventsEntry {
     uint64_t frameNumber{0};
     nsecs_t postedTime{0};
@@ -101,14 +140,38 @@ struct NewFrameEventsEntry {
 };
 
 
-class FrameEventHistory {
+// Used by the consumer to keep track of which fields it already sent to
+// the producer.
+class FrameEventDirtyFields {
 public:
-    FrameEvents* getFrame(uint64_t frameNumber);
-    FrameEvents* getFrame(uint64_t frameNumber, size_t* iHint);
-    void checkFencesForCompletion();
-    void dump(String8& outString) const;
+    inline void reset() { mBitset.reset(); }
+    inline bool anyDirty() const { return mBitset.any(); }
 
-    void addQueue(const NewFrameEventsEntry& newFrameEntry);
+    template <FrameEvent event>
+    inline void setDirty() {
+        constexpr size_t eventIndex = static_cast<size_t>(event);
+        static_assert(eventIndex < FrameEvents::EVENT_COUNT, "Bad index.");
+        mBitset.set(eventIndex);
+    }
+
+    template <FrameEvent event>
+    inline bool isDirty() const {
+        constexpr size_t eventIndex = static_cast<size_t>(event);
+        static_assert(eventIndex < FrameEvents::EVENT_COUNT, "Bad index.");
+        return mBitset[eventIndex];
+    }
+
+private:
+    std::bitset<FrameEvents::EVENT_COUNT> mBitset;
+};
+
+
+// The consumer's interface to FrameEventHistory
+class ConsumerFrameEventHistory : public FrameEventHistory {
+public:
+    ~ConsumerFrameEventHistory() override;
+
+    void addQueue(const NewFrameEventsEntry& newEntry);
     void addLatch(uint64_t frameNumber, nsecs_t latchTime);
     void addPreComposition(uint64_t frameNumber, nsecs_t refreshStartTime);
     void addPostComposition(uint64_t frameNumber,
@@ -116,14 +179,96 @@ public:
     void addRetire(uint64_t frameNumber, sp<Fence> displayRetire);
     void addRelease(uint64_t frameNumber, sp<Fence> release);
 
+    void getAndResetDelta(FrameEventHistoryDelta* delta);
+
 private:
-    static constexpr size_t MAX_FRAME_HISTORY = 8;
-    std::array<FrameEvents, MAX_FRAME_HISTORY> mFrames;
+    std::array<FrameEventDirtyFields, MAX_FRAME_HISTORY> mFramesDirty;
     size_t mQueueOffset{0};
     size_t mCompositionOffset{0};
     size_t mRetireOffset{0};
     size_t mReleaseOffset{0};
 };
+
+
+// A single frame update from the consumer to producer that can be sent
+// through Binder.
+// Although this may be sent multiple times for the same frame as new
+// timestamps are set, Fences only need to be sent once.
+class FrameEventsDelta : public Flattenable<FrameEventsDelta> {
+friend class ProducerFrameEventHistory;
+public:
+    FrameEventsDelta() = default;
+    FrameEventsDelta(size_t index,
+            const FrameEvents& frameTimestamps,
+            const FrameEventDirtyFields& dirtyFields);
+
+    // Flattenable implementation
+    size_t getFlattenedSize() const;
+    size_t getFdCount() const;
+    status_t flatten(void*& buffer, size_t& size, int*& fds,
+            size_t& count) const;
+    status_t unflatten(void const*& buffer, size_t& size, int const*& fds,
+            size_t& count);
+
+private:
+    static size_t minFlattenedSize();
+
+    size_t mIndex{0};
+    uint64_t mFrameNumber{0};
+
+    bool mAddPostCompositeCalled{0};
+    bool mAddRetireCalled{0};
+    bool mAddReleaseCalled{0};
+
+    nsecs_t mPostedTime{0};
+    nsecs_t mRequestedPresentTime{0};
+    nsecs_t mLatchTime{0};
+    nsecs_t mFirstRefreshStartTime{0};
+    nsecs_t mLastRefreshStartTime{0};
+
+    sp<Fence> mAcquireFence{Fence::NO_FENCE};
+    sp<Fence> mGpuCompositionDoneFence{Fence::NO_FENCE};
+    sp<Fence> mDisplayPresentFence{Fence::NO_FENCE};
+    sp<Fence> mDisplayRetireFence{Fence::NO_FENCE};
+    sp<Fence> mReleaseFence{Fence::NO_FENCE};
+
+    // This is a static method with an auto return value so we can call
+    // it without needing const and non-const versions.
+    template <typename ThisType>
+    static inline auto allFences(ThisType fed) ->
+            std::array<decltype(&fed->mAcquireFence), 5> {
+        return {{
+            &fed->mAcquireFence, &fed->mGpuCompositionDoneFence,
+            &fed->mDisplayPresentFence, &fed->mDisplayRetireFence,
+            &fed->mReleaseFence
+        }};
+    }
+};
+
+
+// A collection of updates from consumer to producer that can be sent
+// through Binder.
+class FrameEventHistoryDelta
+        : public Flattenable<FrameEventHistoryDelta> {
+
+friend class ConsumerFrameEventHistory;
+friend class ProducerFrameEventHistory;
+
+public:
+    // Flattenable implementation.
+    size_t getFlattenedSize() const;
+    size_t getFdCount() const;
+    status_t flatten(void*& buffer, size_t& size, int*& fds,
+            size_t& count) const;
+    status_t unflatten(void const*& buffer, size_t& size, int const*& fds,
+            size_t& count);
+
+private:
+    static size_t minFlattenedSize();
+
+    std::vector<FrameEventsDelta> mDeltas;
+};
+
 
 } // namespace android
 #endif

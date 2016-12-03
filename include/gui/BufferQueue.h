@@ -66,9 +66,9 @@ public:
         virtual void onFrameReplaced(const BufferItem& item) override;
         virtual void onBuffersReleased() override;
         virtual void onSidebandStreamChanged() override;
-        virtual bool addAndGetFrameTimestamps(
+        virtual void addAndGetFrameTimestamps(
                 const NewFrameEventsEntry* newTimestamps,
-                uint64_t frameNumber, FrameTimestamps* outTimestamps) override;
+                FrameEventHistoryDelta* outDelta) override;
     private:
         // mConsumerListener is a weak reference to the IConsumerListener.  This is
         // the raison d'etre of ProxyConsumerListener.

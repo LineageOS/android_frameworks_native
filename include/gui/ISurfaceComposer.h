@@ -45,7 +45,7 @@ class HdrCapabilities;
 class IDisplayEventConnection;
 class IMemoryHeap;
 class Rect;
-enum class SupportableFrameTimestamps;
+enum class FrameEvent;
 
 /*
  * This class defines the Binder IPC interface for accessing various
@@ -118,7 +118,7 @@ public:
     /* Returns the frame timestamps supported by SurfaceFlinger.
      */
     virtual status_t getSupportedFrameTimestamps(
-            std::vector<SupportableFrameTimestamps>* outSupported) const = 0;
+            std::vector<FrameEvent>* outSupported) const = 0;
 
     /* set display power mode. depending on the mode, it can either trigger
      * screen on, off or low power mode and wait for it to complete.
