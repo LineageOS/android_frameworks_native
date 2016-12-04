@@ -109,17 +109,17 @@ int Fence::dup() const {
 
 nsecs_t Fence::getSignalTime() const {
     if (mFenceFd == -1) {
-        return -1;
+        return SIGNAL_TIME_INVALID;
     }
 
     struct sync_fence_info_data* finfo = sync_fence_info(mFenceFd);
     if (finfo == NULL) {
         ALOGE("sync_fence_info returned NULL for fd %d", mFenceFd);
-        return -1;
+        return SIGNAL_TIME_INVALID;
     }
     if (finfo->status != 1) {
         sync_fence_info_free(finfo);
-        return INT64_MAX;
+        return SIGNAL_TIME_PENDING;
     }
 
     struct sync_pt_info* pinfo = NULL;

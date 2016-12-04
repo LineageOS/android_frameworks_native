@@ -42,6 +42,11 @@ class Fence
 {
 public:
     static const sp<Fence> NO_FENCE;
+    static constexpr nsecs_t SIGNAL_TIME_PENDING = INT64_MAX;
+    static constexpr nsecs_t SIGNAL_TIME_INVALID = -1;
+    static inline bool isValidTimestamp(nsecs_t time) {
+        return time >= 0 && time < INT64_MAX;
+    }
 
     // TIMEOUT_NEVER may be passed to the wait method to indicate that it
     // should wait indefinitely for the fence to signal.
@@ -94,8 +99,8 @@ public:
 
     // getSignalTime returns the system monotonic clock time at which the
     // fence transitioned to the signaled state.  If the fence is not signaled
-    // then INT64_MAX is returned.  If the fence is invalid or if an error
-    // occurs then -1 is returned.
+    // then SIGNAL_TIME_PENDING is returned.  If the fence is invalid or if an
+    // error occurs then SIGNAL_TIME_INVALID is returned.
     nsecs_t getSignalTime() const;
 
 #if __cplusplus > 201103L
