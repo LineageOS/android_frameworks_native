@@ -66,8 +66,10 @@ status_t MonitoredProducer::setAsyncMode(bool async) {
 }
 
 status_t MonitoredProducer::dequeueBuffer(int* slot, sp<Fence>* fence,
-        uint32_t w, uint32_t h, PixelFormat format, uint32_t usage) {
-    return mProducer->dequeueBuffer(slot, fence, w, h, format, usage);
+        uint32_t w, uint32_t h, PixelFormat format, uint32_t usage,
+        FrameEventHistoryDelta* outTimestamps) {
+    return mProducer->dequeueBuffer(
+            slot, fence, w, h, format, usage, outTimestamps);
 }
 
 status_t MonitoredProducer::detachBuffer(int slot) {

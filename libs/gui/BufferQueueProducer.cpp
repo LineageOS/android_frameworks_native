@@ -348,7 +348,8 @@ status_t BufferQueueProducer::waitForFreeSlotThenRelock(FreeSlotCaller caller,
 
 status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
         sp<android::Fence> *outFence, uint32_t width, uint32_t height,
-        PixelFormat format, uint32_t usage) {
+        PixelFormat format, uint32_t usage,
+        FrameEventHistoryDelta* outTimestamps) {
     ATRACE_CALL();
     { // Autolock scope
         Mutex::Autolock lock(mCore->mMutex);
@@ -560,6 +561,8 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
             mSlots[*outSlot].mFrameNumber,
             mSlots[*outSlot].mGraphicBuffer->handle, returnFlags);
 
+    addAndGetFrameTimestamps(nullptr, outTimestamps);
+
     return returnFlags;
 }
 
@@ -748,8 +751,10 @@ status_t BufferQueueProducer::queueBuffer(int slot,
     uint32_t transform;
     uint32_t stickyTransform;
     sp<Fence> acquireFence;
+    bool getFrameTimestamps = false;
     input.deflate(&requestedPresentTimestamp, &isAutoTimestamp, &dataSpace,
-            &crop, &scalingMode, &transform, &acquireFence, &stickyTransform);
+            &crop, &scalingMode, &transform, &acquireFence, &stickyTransform,
+            &getFrameTimestamps);
     Region surfaceDamage = input.getSurfaceDamage();
 
     if (acquireFence == NULL) {
@@ -913,10 +918,11 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         mCore->mDequeueCondition.broadcast();
         mCore->mLastQueuedSlot = slot;
 
-        output->inflate(mCore->mDefaultWidth, mCore->mDefaultHeight,
-                mCore->mTransformHint,
-                static_cast<uint32_t>(mCore->mQueue.size()),
-                mCore->mFrameCounter + 1);
+        output->width = mCore->mDefaultWidth;
+        output->height = mCore->mDefaultHeight;
+        output->transformHint = mCore->mTransformHint;
+        output->numPendingBuffers = static_cast<uint32_t>(mCore->mQueue.size());
+        output->nextFrameNumber = mCore->mFrameCounter + 1;
 
         ATRACE_INT(mCore->mConsumerName.string(),
                 static_cast<int32_t>(mCore->mQueue.size()));
@@ -975,7 +981,8 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         requestedPresentTimestamp,
         acquireFence
     };
-    addAndGetFrameTimestamps(&newFrameEventsEntry, nullptr);
+    addAndGetFrameTimestamps(&newFrameEventsEntry,
+            getFrameTimestamps ? &output->frameTimestamps : nullptr);
 
     return NO_ERROR;
 }
@@ -1141,10 +1148,13 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
         case NATIVE_WINDOW_API_MEDIA:
         case NATIVE_WINDOW_API_CAMERA:
             mCore->mConnectedApi = api;
-            output->inflate(mCore->mDefaultWidth, mCore->mDefaultHeight,
-                    mCore->mTransformHint,
-                    static_cast<uint32_t>(mCore->mQueue.size()),
-                    mCore->mFrameCounter + 1);
+
+            output->width = mCore->mDefaultWidth;
+            output->height = mCore->mDefaultHeight;
+            output->transformHint = mCore->mTransformHint;
+            output->numPendingBuffers =
+                    static_cast<uint32_t>(mCore->mQueue.size());
+            output->nextFrameNumber = mCore->mFrameCounter + 1;
 
             if (listener != NULL) {
                 // Set up a death notification so that we can disconnect

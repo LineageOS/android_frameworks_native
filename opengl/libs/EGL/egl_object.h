@@ -139,7 +139,6 @@ public:
     EGLConfig config;
     sp<ANativeWindow> win;
     egl_connection_t const* cnx;
-    bool enableTimestamps;
 private:
     bool connected;
     void disconnect();

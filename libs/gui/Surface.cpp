@@ -52,7 +52,8 @@ Surface::Surface(
       mNextFrameNumber(1),
       mQueriedSupportedTimestamps(false),
       mFrameTimestampsSupportsPresent(false),
-      mFrameTimestampsSupportsRetire(false)
+      mFrameTimestampsSupportsRetire(false),
+      mEnableFrameTimestamps(false)
 {
     // Initialize the ANativeWindow function pointers.
     ANativeWindow::setSwapInterval  = hook_setSwapInterval;
@@ -138,6 +139,11 @@ status_t Surface::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             outTransformMatrix);
 }
 
+void Surface::enableFrameTimestamps(bool enable) {
+    Mutex::Autolock lock(mMutex);
+    mEnableFrameTimestamps = enable;
+}
+
 status_t Surface::getFrameTimestamps(uint64_t frameNumber,
         nsecs_t* outRequestedPresentTime, nsecs_t* outAcquireTime,
         nsecs_t* outRefreshStartTime, nsecs_t* outGlCompositionDoneTime,
@@ -146,6 +152,10 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
     ATRACE_CALL();
 
     Mutex::Autolock lock(mMutex);
+
+    if (!mEnableFrameTimestamps) {
+        return INVALID_OPERATION;
+    }
 
     // Verify the requested timestamps are supported.
     querySupportedTimestampsLocked();
@@ -308,6 +318,7 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     uint32_t reqHeight;
     PixelFormat reqFormat;
     uint32_t reqUsage;
+    bool enableFrameTimestamps;
 
     {
         Mutex::Autolock lock(mMutex);
@@ -317,6 +328,8 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
 
         reqFormat = mReqFormat;
         reqUsage = mReqUsage;
+
+        enableFrameTimestamps = mEnableFrameTimestamps;
 
         if (mSharedBufferMode && mAutoRefresh && mSharedBufferSlot !=
                 BufferItem::INVALID_BUFFER_SLOT) {
@@ -332,8 +345,13 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     int buf = -1;
     sp<Fence> fence;
     nsecs_t now = systemTime();
+
+    FrameEventHistoryDelta frameTimestamps;
+    FrameEventHistoryDelta* frameTimestampsOrNull =
+            enableFrameTimestamps ? &frameTimestamps : nullptr;
+
     status_t result = mGraphicBufferProducer->dequeueBuffer(&buf, &fence,
-            reqWidth, reqHeight, reqFormat, reqUsage);
+            reqWidth, reqHeight, reqFormat, reqUsage, frameTimestampsOrNull);
     mLastDequeueDuration = systemTime() - now;
 
     if (result < 0) {
@@ -352,6 +370,10 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
 
     if (result & IGraphicBufferProducer::RELEASE_ALL_BUFFERS) {
         freeAllBuffers();
+    }
+
+    if (enableFrameTimestamps) {
+         mFrameEventHistory.applyDelta(frameTimestamps);
     }
 
     if ((result & IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION) || gbuf == 0) {
@@ -472,7 +494,7 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
     IGraphicBufferProducer::QueueBufferOutput output;
     IGraphicBufferProducer::QueueBufferInput input(timestamp, isAutoTimestamp,
             mDataSpace, crop, mScalingMode, mTransform ^ mStickyTransform,
-            fence, mStickyTransform);
+            fence, mStickyTransform, mEnableFrameTimestamps);
 
     if (mConnectedToCpu || mDirtyRegion.bounds() == Rect::INVALID_RECT) {
         input.setSurfaceDamage(Region::INVALID_REGION);
@@ -544,17 +566,24 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
         ALOGE("queueBuffer: error queuing buffer to SurfaceTexture, %d", err);
     }
 
-    uint32_t numPendingBuffers = 0;
-    uint32_t hint = 0;
-    output.deflate(&mDefaultWidth, &mDefaultHeight, &hint,
-            &numPendingBuffers, &mNextFrameNumber);
+    if (mEnableFrameTimestamps) {
+        mFrameEventHistory.applyDelta(output.frameTimestamps);
+        // Update timestamps with the local acquire fence.
+        // The consumer doesn't send it back to prevent us from having two
+        // file descriptors of the same fence.
+        mFrameEventHistory.updateAcquireFence(mNextFrameNumber, fence);
+    }
+
+    mDefaultWidth = output.width;
+    mDefaultHeight = output.height;
+    mNextFrameNumber = output.nextFrameNumber;
 
     // Disable transform hint if sticky transform is set.
     if (mStickyTransform == 0) {
-        mTransformHint = hint;
+        mTransformHint = output.transformHint;
     }
 
-    mConsumerRunningBehind = (numPendingBuffers >= 2);
+    mConsumerRunningBehind = (output.numPendingBuffers >= 2);
 
     if (!mConnectedToCpu) {
         // Clear surface damage back to full-buffer
@@ -743,6 +772,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_SET_AUTO_REFRESH:
         res = dispatchSetAutoRefresh(args);
         break;
+    case NATIVE_WINDOW_ENABLE_FRAME_TIMESTAMPS:
+        res = dispatchEnableFrameTimestamps(args);
+        break;
     case NATIVE_WINDOW_GET_FRAME_TIMESTAMPS:
         res = dispatchGetFrameTimestamps(args);
         break;
@@ -866,6 +898,12 @@ int Surface::dispatchSetAutoRefresh(va_list args) {
     return setAutoRefresh(autoRefresh);
 }
 
+int Surface::dispatchEnableFrameTimestamps(va_list args) {
+    bool enable = va_arg(args, int);
+    enableFrameTimestamps(enable);
+    return NO_ERROR;
+}
+
 int Surface::dispatchGetFrameTimestamps(va_list args) {
     uint32_t framesAgo = va_arg(args, uint32_t);
     nsecs_t* outRequestedPresentTime = va_arg(args, int64_t*);
@@ -893,17 +931,16 @@ int Surface::connect(int api, const sp<IProducerListener>& listener) {
     IGraphicBufferProducer::QueueBufferOutput output;
     int err = mGraphicBufferProducer->connect(listener, api, mProducerControlledByApp, &output);
     if (err == NO_ERROR) {
-        uint32_t numPendingBuffers = 0;
-        uint32_t hint = 0;
-        output.deflate(&mDefaultWidth, &mDefaultHeight, &hint,
-                &numPendingBuffers, &mNextFrameNumber);
+        mDefaultWidth = output.width;
+        mDefaultHeight = output.height;
+        mNextFrameNumber = output.nextFrameNumber;
 
         // Disable transform hint if sticky transform is set.
         if (mStickyTransform == 0) {
-            mTransformHint = hint;
+            mTransformHint = output.transformHint;
         }
 
-        mConsumerRunningBehind = (numPendingBuffers >= 2);
+        mConsumerRunningBehind = (output.numPendingBuffers >= 2);
     }
     if (!err && api == NATIVE_WINDOW_API_CPU) {
         mConnectedToCpu = true;

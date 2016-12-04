@@ -340,7 +340,7 @@ status_t VirtualDisplaySurface::dequeueBuffer(Source source,
     LOG_FATAL_IF(mDisplayId < 0, "mDisplayId=%d but should not be < 0.", mDisplayId);
 
     status_t result = mSource[source]->dequeueBuffer(sslot, fence,
-            mSinkBufferWidth, mSinkBufferHeight, format, usage);
+            mSinkBufferWidth, mSinkBufferHeight, format, usage, nullptr);
     if (result < 0)
         return result;
     int pslot = mapSource2ProducerSlot(source, *sslot);
@@ -379,9 +379,12 @@ status_t VirtualDisplaySurface::dequeueBuffer(Source source,
 }
 
 status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence,
-        uint32_t w, uint32_t h, PixelFormat format, uint32_t usage) {
-    if (mDisplayId < 0)
-        return mSource[SOURCE_SINK]->dequeueBuffer(pslot, fence, w, h, format, usage);
+        uint32_t w, uint32_t h, PixelFormat format, uint32_t usage,
+        FrameEventHistoryDelta* outTimestamps) {
+    if (mDisplayId < 0) {
+        return mSource[SOURCE_SINK]->dequeueBuffer(
+                pslot, fence, w, h, format, usage, outTimestamps);
+    }
 
     VDS_LOGW_IF(mDbgState != DBG_STATE_PREPARED,
             "Unexpected dequeueBuffer() in %s state", dbgStateStr());

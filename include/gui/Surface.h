@@ -134,6 +134,12 @@ public:
     status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]);
 
+    /* Enables or disables frame timestamp tracking. It is disabled by default
+     * to avoid overhead during queue and dequeue for applications that don't
+     * need the feature. If disabled, calls to getFrameTimestamps will fail.
+     */
+    void enableFrameTimestamps(bool enable);
+
     // See IGraphicBufferProducer::getFrameTimestamps
     status_t getFrameTimestamps(uint64_t frameNumber,
             nsecs_t* outRequestedPresentTime, nsecs_t* outAcquireTime,
@@ -192,6 +198,7 @@ private:
     int dispatchSetSurfaceDamage(va_list args);
     int dispatchSetSharedBufferMode(va_list args);
     int dispatchSetAutoRefresh(va_list args);
+    int dispatchEnableFrameTimestamps(va_list args);
     int dispatchGetFrameTimestamps(va_list args);
 
 protected:
@@ -390,6 +397,7 @@ private:
     mutable bool mFrameTimestampsSupportsRetire;
 
     // A cached copy of the FrameEventHistory maintained by the consumer.
+    bool mEnableFrameTimestamps = false;
     ProducerFrameEventHistory mFrameEventHistory;
 };
 

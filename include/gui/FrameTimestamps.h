@@ -226,7 +226,6 @@ private:
     nsecs_t mFirstRefreshStartTime{0};
     nsecs_t mLastRefreshStartTime{0};
 
-    sp<Fence> mAcquireFence{Fence::NO_FENCE};
     sp<Fence> mGpuCompositionDoneFence{Fence::NO_FENCE};
     sp<Fence> mDisplayPresentFence{Fence::NO_FENCE};
     sp<Fence> mDisplayRetireFence{Fence::NO_FENCE};
@@ -234,13 +233,12 @@ private:
 
     // This is a static method with an auto return value so we can call
     // it without needing const and non-const versions.
-    template <typename ThisType>
-    static inline auto allFences(ThisType fed) ->
-            std::array<decltype(&fed->mAcquireFence), 5> {
+    template <typename ThisT>
+    static inline auto allFences(ThisT fed) ->
+            std::array<decltype(&fed->mReleaseFence), 4> {
         return {{
-            &fed->mAcquireFence, &fed->mGpuCompositionDoneFence,
-            &fed->mDisplayPresentFence, &fed->mDisplayRetireFence,
-            &fed->mReleaseFence
+            &fed->mGpuCompositionDoneFence, &fed->mDisplayPresentFence,
+            &fed->mDisplayRetireFence, &fed->mReleaseFence
         }};
     }
 };

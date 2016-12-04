@@ -301,7 +301,6 @@ void ProducerFrameEventHistory::applyDelta(
             // Existing frame. Merge.
             // Consumer never sends timestamps of fences, only the fences
             // themselves, so we never need to update the fence timestamps here.
-            applyFenceDelta(&frame.acquireFence, d.mAcquireFence);
             applyFenceDelta(
                     &frame.gpuCompositionDoneFence, d.mGpuCompositionDoneFence);
             applyFenceDelta(&frame.displayPresentFence, d.mDisplayPresentFence);
@@ -318,7 +317,7 @@ void ProducerFrameEventHistory::applyDelta(
 
             // Set aquire fence and time at this point.
             frame.acquireTime = 0;
-            frame.acquireFence = d.mAcquireFence;
+            frame.acquireFence = Fence::NO_FENCE;
 
             // Reset fence-related timestamps
             frame.gpuCompositionDoneTime = 0;
@@ -348,8 +347,11 @@ void ConsumerFrameEventHistory::addQueue(const NewFrameEventsEntry& newEntry) {
     newTimestamps.acquireFence = newEntry.acquireFence;
     newTimestamps.valid = true;
     mFrames[mQueueOffset] = newTimestamps;
+
+    // Note: We avoid sending the acquire fence back to the caller since
+    // they have the original one already, so there is no need to set the
+    // acquire dirty bit.
     mFramesDirty[mQueueOffset].setDirty<FrameEvent::POSTED>();
-    mFramesDirty[mQueueOffset].setDirty<FrameEvent::ACQUIRE>();
 
     mQueueOffset = (mQueueOffset + 1) % mFrames.size();
 }
@@ -456,8 +458,6 @@ FrameEventsDelta::FrameEventsDelta(
       mLatchTime(frameTimestamps.latchTime),
       mFirstRefreshStartTime(frameTimestamps.firstRefreshStartTime),
       mLastRefreshStartTime(frameTimestamps.lastRefreshStartTime) {
-    mAcquireFence = dirtyFields.isDirty<FrameEvent::ACQUIRE>() ?
-            frameTimestamps.acquireFence : Fence::NO_FENCE;
     mGpuCompositionDoneFence =
             dirtyFields.isDirty<FrameEvent::GL_COMPOSITION_DONE>() ?
                     frameTimestamps.gpuCompositionDoneFence : Fence::NO_FENCE;
