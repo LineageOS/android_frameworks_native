@@ -2069,14 +2069,15 @@ void SurfaceFlinger::invalidateHwcGeometry()
 }
 
 
-void SurfaceFlinger::doDisplayComposition(const sp<const DisplayDevice>& hw,
+void SurfaceFlinger::doDisplayComposition(
+        const sp<const DisplayDevice>& displayDevice,
         const Region& inDirtyRegion)
 {
     // We only need to actually compose the display if:
     // 1) It is being handled by hardware composer, which may need this to
     //    keep its virtual display state machine in sync, or
     // 2) There is work to be done (the dirty region isn't empty)
-    bool isHwcDisplay = hw->getHwcDisplayId() >= 0;
+    bool isHwcDisplay = displayDevice->getHwcDisplayId() >= 0;
     if (!isHwcDisplay && inDirtyRegion.isEmpty()) {
         ALOGV("Skipping display composition");
         return;
@@ -2087,35 +2088,35 @@ void SurfaceFlinger::doDisplayComposition(const sp<const DisplayDevice>& hw,
     Region dirtyRegion(inDirtyRegion);
 
     // compute the invalid region
-    hw->swapRegion.orSelf(dirtyRegion);
+    displayDevice->swapRegion.orSelf(dirtyRegion);
 
-    uint32_t flags = hw->getFlags();
+    uint32_t flags = displayDevice->getFlags();
     if (flags & DisplayDevice::SWAP_RECTANGLE) {
         // we can redraw only what's dirty, but since SWAP_RECTANGLE only
         // takes a rectangle, we must make sure to update that whole
         // rectangle in that case
-        dirtyRegion.set(hw->swapRegion.bounds());
+        dirtyRegion.set(displayDevice->swapRegion.bounds());
     } else {
         if (flags & DisplayDevice::PARTIAL_UPDATES) {
             // We need to redraw the rectangle that will be updated
             // (pushed to the framebuffer).
             // This is needed because PARTIAL_UPDATES only takes one
             // rectangle instead of a region (see DisplayDevice::flip())
-            dirtyRegion.set(hw->swapRegion.bounds());
+            dirtyRegion.set(displayDevice->swapRegion.bounds());
         } else {
             // we need to redraw everything (the whole screen)
-            dirtyRegion.set(hw->bounds());
-            hw->swapRegion = dirtyRegion;
+            dirtyRegion.set(displayDevice->bounds());
+            displayDevice->swapRegion = dirtyRegion;
         }
     }
 
-    if (!doComposeSurfaces(hw, dirtyRegion)) return;
+    if (!doComposeSurfaces(displayDevice, dirtyRegion)) return;
 
     // update the swap region and clear the dirty region
-    hw->swapRegion.orSelf(dirtyRegion);
+    displayDevice->swapRegion.orSelf(dirtyRegion);
 
     // swap buffers (presentation)
-    hw->swapBuffers(getHwComposer());
+    displayDevice->swapBuffers(getHwComposer());
 }
 
 bool SurfaceFlinger::doComposeSurfaces(
@@ -2259,8 +2260,8 @@ bool SurfaceFlinger::doComposeSurfaces(
     return true;
 }
 
-void SurfaceFlinger::drawWormhole(const sp<const DisplayDevice>& hw, const Region& region) const {
-    const int32_t height = hw->getHeight();
+void SurfaceFlinger::drawWormhole(const sp<const DisplayDevice>& displayDevice, const Region& region) const {
+    const int32_t height = displayDevice->getHeight();
     RenderEngine& engine(getRenderEngine());
     engine.fillRegionWithColor(region, height, 0, 0, 0, 0);
 }
