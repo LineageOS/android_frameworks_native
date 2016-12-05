@@ -985,6 +985,7 @@ public class JniCodeEmitter {
         boolean emitExceptionCheck = ((numArrays > 0 || numStrings > 0)
                                              && (hasNonConstArg(jfunc, cfunc, nonPrimitiveArgs)
                                                  || (cfunc.hasPointerArg() && numArrays > 0))
+                                         || (numBufferArgs > 0)
                                          || hasCheckTest(cfunc)
                                          || hasIfTest(cfunc))
                                          || (stringArgs.size() > 0);
@@ -1308,6 +1309,8 @@ public class JniCodeEmitter {
 
                     out.println();
                 } else if (jfunc.getArgType(idx).isBuffer()) {
+                    needsExit = needsExit || (!nullAllowed && !isPointerFunc);
+
                     String array = numBufferArgs <= 1 ? "_array" :
                         "_" + cfunc.getArgName(cIndex) + "Array";
                     String bufferOffset = numBufferArgs <= 1 ? "_bufferOffset" :
@@ -1317,6 +1320,17 @@ public class JniCodeEmitter {
                     if (nullAllowed) {
                         out.println(indent + "if (" + cname + "_buf) {");
                         out.print(indent);
+                    }
+                    else
+                    {
+                        out.println(indent + "if (!" + cname + "_buf) {");
+                        out.println(indent + indent + "_exception = 1;");
+                        out.println(indent + indent + "_exceptionType = " +
+                                "\"java/lang/IllegalArgumentException\";");
+                        out.println(indent + indent + "_exceptionMessage = \"" +
+                                cname +" == null\";");
+                        out.println(indent + indent + "goto exit;");
+                        out.println(indent + "}");
                     }
 
                     if (isPointerFunc) {
