@@ -1743,66 +1743,67 @@ bool Layer::onPreComposition(nsecs_t refreshStartTime) {
 bool Layer::onPostComposition(sp<Fence> glDoneFence) {
     // mFrameLatencyNeeded is true when a new frame was latched for the
     // composition.
-    bool frameLatencyNeeded = mFrameLatencyNeeded;
-    if (mFrameLatencyNeeded) {
-        const HWComposer& hwc = mFlinger->getHwComposer();
+
+    if (!mFrameLatencyNeeded)
+        return false;
+
+    const HWComposer& hwc = mFlinger->getHwComposer();
 #ifdef USE_HWC2
-        sp<Fence> retireFence = Fence::NO_FENCE;
-        sp<Fence> presentFence = Fence::NO_FENCE;
-        sp<Fence> presentOrRetireFence = Fence::NO_FENCE;
-        if (hwc.retireFenceRepresentsStartOfScanout()) {
-            presentFence = hwc.getPresentFence(HWC_DISPLAY_PRIMARY);
-            presentOrRetireFence = presentFence;
-        } else {
-            retireFence = hwc.getPresentFence(HWC_DISPLAY_PRIMARY);
-            presentOrRetireFence = retireFence;
-        }
-        bool wasGpuComposited = mHwcLayers.count(HWC_DISPLAY_PRIMARY) ?
-                mHwcLayers.at(HWC_DISPLAY_PRIMARY).compositionType ==
-                HWC2::Composition::Client : true;
+    sp<Fence> retireFence = Fence::NO_FENCE;
+    sp<Fence> presentFence = Fence::NO_FENCE;
+    sp<Fence> presentOrRetireFence = Fence::NO_FENCE;
+    if (hwc.retireFenceRepresentsStartOfScanout()) {
+        presentFence = hwc.getPresentFence(HWC_DISPLAY_PRIMARY);
+        presentOrRetireFence = presentFence;
+    } else {
+        retireFence = hwc.getPresentFence(HWC_DISPLAY_PRIMARY);
+        presentOrRetireFence = retireFence;
+    }
+    bool wasGpuComposited = mHwcLayers.count(HWC_DISPLAY_PRIMARY) ?
+            mHwcLayers.at(HWC_DISPLAY_PRIMARY).compositionType ==
+            HWC2::Composition::Client : true;
 #else
-        sp<Fence> retireFence = hwc.getDisplayFence(HWC_DISPLAY_PRIMARY);
-        sp<Fence> presentFence = Fence::NO_FENCE;
-        sp<Fence> presentOrRetireFence = retireFence;
-        bool wasGpuComposited = mIsGlesComposition;
+    sp<Fence> retireFence = hwc.getDisplayFence(HWC_DISPLAY_PRIMARY);
+    sp<Fence> presentFence = Fence::NO_FENCE;
+    sp<Fence> presentOrRetireFence = retireFence;
+    bool wasGpuComposited = mIsGlesComposition;
 #endif
 
-        // Update mFrameEventHistory.
-        {
-            Mutex::Autolock lock(mFrameEventHistoryMutex);
-            mFrameEventHistory.addPostComposition(mCurrentFrameNumber,
-                    wasGpuComposited ? glDoneFence : Fence::NO_FENCE,
-                    presentFence);
-            mFrameEventHistory.addRetire(mPreviousFrameNumber,
-                    retireFence);
-        }
-
-        // Update mFrameTracker.
-        nsecs_t desiredPresentTime = mSurfaceFlingerConsumer->getTimestamp();
-        mFrameTracker.setDesiredPresentTime(desiredPresentTime);
-
-        sp<Fence> frameReadyFence = mSurfaceFlingerConsumer->getCurrentFence();
-        if (frameReadyFence->isValid()) {
-            mFrameTracker.setFrameReadyFence(frameReadyFence);
-        } else {
-            // There was no fence for this frame, so assume that it was ready
-            // to be presented at the desired present time.
-            mFrameTracker.setFrameReadyTime(desiredPresentTime);
-        }
-
-        if (presentOrRetireFence->isValid()) {
-            mFrameTracker.setActualPresentFence(presentOrRetireFence);
-        } else {
-            // The HWC doesn't support present fences, so use the refresh
-            // timestamp instead.
-            nsecs_t presentTime = hwc.getRefreshTimestamp(HWC_DISPLAY_PRIMARY);
-            mFrameTracker.setActualPresentTime(presentTime);
-        }
-
-        mFrameTracker.advanceFrame();
-        mFrameLatencyNeeded = false;
+    // Update mFrameEventHistory.
+    {
+        Mutex::Autolock lock(mFrameEventHistoryMutex);
+        mFrameEventHistory.addPostComposition(mCurrentFrameNumber,
+                wasGpuComposited ? glDoneFence : Fence::NO_FENCE,
+                presentFence);
+        mFrameEventHistory.addRetire(mPreviousFrameNumber,
+                retireFence);
     }
-    return frameLatencyNeeded;
+
+    // Update mFrameTracker.
+    nsecs_t desiredPresentTime = mSurfaceFlingerConsumer->getTimestamp();
+    mFrameTracker.setDesiredPresentTime(desiredPresentTime);
+
+    sp<Fence> frameReadyFence = mSurfaceFlingerConsumer->getCurrentFence();
+    if (frameReadyFence->isValid()) {
+        mFrameTracker.setFrameReadyFence(frameReadyFence);
+    } else {
+        // There was no fence for this frame, so assume that it was ready
+        // to be presented at the desired present time.
+        mFrameTracker.setFrameReadyTime(desiredPresentTime);
+    }
+
+    if (presentOrRetireFence->isValid()) {
+        mFrameTracker.setActualPresentFence(presentOrRetireFence);
+    } else {
+        // The HWC doesn't support present fences, so use the refresh
+        // timestamp instead.
+        nsecs_t presentTime = hwc.getRefreshTimestamp(HWC_DISPLAY_PRIMARY);
+        mFrameTracker.setActualPresentTime(presentTime);
+    }
+
+    mFrameTracker.advanceFrame();
+    mFrameLatencyNeeded = false;
+    return true;
 }
 
 #ifdef USE_HWC2
