@@ -93,6 +93,7 @@ BufferQueueCore::BufferQueueCore(const sp<IGraphicBufferAlloc>& allocator) :
     mSharedBufferSlot(INVALID_BUFFER_SLOT),
     mSharedBufferCache(Rect::INVALID_RECT, 0, NATIVE_WINDOW_SCALING_MODE_FREEZE,
             HAL_DATASPACE_UNKNOWN),
+    mLastQueuedSlot(INVALID_BUFFER_SLOT),
     mUniqueId(getUniqueId())
 {
     if (allocator == NULL) {
