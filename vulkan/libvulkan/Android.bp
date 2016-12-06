@@ -18,3 +18,62 @@ ndk_library {
     symbol_file: "libvulkan.map.txt",
     first_version: "24",
 }
+
+cc_library_shared {
+    name: "libvulkan",
+    clang: true,
+    sanitize: {
+        misc_undefined: ["integer"],
+    },
+
+    cflags: [
+        "-DLOG_TAG=\"vulkan\"",
+        "-DVK_USE_PLATFORM_ANDROID_KHR",
+        "-DVK_NO_PROTOTYPES",
+        "-fvisibility=hidden",
+        "-fstrict-aliasing",
+        "-Weverything",
+        "-Werror",
+        "-Wno-padded",
+        "-Wno-switch-enum",
+        "-Wno-undef",
+
+        //"-DLOG_NDEBUG=0",
+    ],
+
+    cppflags: [
+        "-std=c++14",
+        "-Wno-c99-extensions",
+        "-Wno-c++98-compat-pedantic",
+        "-Wno-exit-time-destructors",
+        "-Wno-global-constructors",
+        "-Wno-zero-length-array",
+    ],
+
+    srcs: [
+        "api.cpp",
+        "api_gen.cpp",
+        "debug_report.cpp",
+        "driver.cpp",
+        "driver_gen.cpp",
+        "layers_extensions.cpp",
+        "stubhal.cpp",
+        "swapchain.cpp",
+        "vulkan_loader_data.cpp",
+    ],
+
+    export_static_lib_headers: ["vulkan_headers"],
+    static_libs: [
+        "vulkan_headers",
+        "libziparchive",
+    ],
+    shared_libs: [
+        "libhardware",
+        "libsync",
+        "libbase",
+        "liblog",
+        "libutils",
+        "libcutils",
+        "libz",
+    ],
+}

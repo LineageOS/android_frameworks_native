@@ -20,6 +20,13 @@ ndk_headers {
     license: "include/vulkan/NOTICE",
 }
 
+cc_library_static {
+    name: "vulkan_headers",
+    export_include_dirs: ["include"],
+}
+
 subdirs = [
+    "nulldrv",
     "libvulkan",
+    "tools",
 ]
