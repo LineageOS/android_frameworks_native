@@ -30,6 +30,8 @@
 #include <cutils/sockets.h>
 #include <private/android_filesystem_config.h>
 
+#include <InstalldNativeService.h>
+
 #include <commands.h>
 #include <globals.h>
 #include <installd_constants.h>
@@ -705,7 +707,7 @@ static int installd_main(const int argc ATTRIBUTE_UNUSED, char *argv[]) {
     char buf[BUFFER_MAX];
     struct sockaddr addr;
     socklen_t alen;
-    int lsocket, s;
+    int lsocket, s, ret;
     int selinux_enabled = (is_selinux_enabled() > 0);
 
     setenv("ANDROID_LOG_TAGS", "*:v", 1);
@@ -729,6 +731,11 @@ static int installd_main(const int argc ATTRIBUTE_UNUSED, char *argv[]) {
 
     if (selinux_enabled && selinux_status_open(true) < 0) {
         ALOGE("Could not open selinux status; exiting.\n");
+        exit(1);
+    }
+
+    if ((ret = InstalldNativeService::start()) != android::OK) {
+        ALOGE("Unable to start InstalldNativeService: %d", ret);
         exit(1);
     }
 
