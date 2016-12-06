@@ -30,6 +30,8 @@ constexpr const char* SECONDARY_USER_PREFIX = "user/";
 #define DALVIK_CACHE "dalvik-cache"
 constexpr const char* DALVIK_CACHE_POSTFIX = "@classes.dex";
 
+static constexpr size_t DEXOPT_PARAM_COUNT = 10U;
+
 constexpr size_t PKG_NAME_MAX = 128u;   /* largest allowed package name */
 constexpr size_t PKG_PATH_MAX = 256u;   /* max size of any path we use */
 

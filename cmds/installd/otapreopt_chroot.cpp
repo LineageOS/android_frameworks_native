@@ -25,8 +25,8 @@
 #include <android-base/macros.h>
 #include <android-base/stringprintf.h>
 
-#include <commands.h>
-#include <otapreopt_utils.h>
+#include "installd_constants.h"
+#include "otapreopt_utils.h"
 
 #ifndef LOG_TAG
 #define LOG_TAG "otapreopt"

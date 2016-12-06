@@ -17,6 +17,9 @@
 package android.os;
 
 interface IInstalld {
-    void createAppData(in @nullable @utf8InCpp String uuid, in @utf8InCpp String pkgname,
-            int userid, int flags, int appid, in @utf8InCpp String seinfo, int targetSdkVersion);
+    void createAppData(in @nullable @utf8InCpp String uuid, in @utf8InCpp String packageName,
+            int userId, int flags, int appId, in @utf8InCpp String seInfo, int targetSdkVersion);
+    void moveCompleteApp(@nullable @utf8InCpp String fromUuid, @nullable @utf8InCpp String toUuid,
+            @utf8InCpp String packageName, @utf8InCpp String dataAppName, int appId,
+            @utf8InCpp String seInfo, int targetSdkVersion);
 }
