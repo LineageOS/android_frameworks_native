@@ -24,13 +24,15 @@ LOCAL_CFLAGS += -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
 LOCAL_CFLAGS += -DART_BASE_ADDRESS_MIN_DELTA=$(LOCAL_LIBART_IMG_HOST_MIN_BASE_ADDRESS_DELTA)
 LOCAL_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LOCAL_LIBART_IMG_HOST_MAX_BASE_ADDRESS_DELTA)
 
-LOCAL_SRC_FILES := otapreopt.cpp commands.cpp globals.cpp utils.cpp
+LOCAL_SRC_FILES := otapreopt.cpp commands.cpp globals.cpp utils.cpp binder/android/os/IInstalld.aidl
 LOCAL_SHARED_LIBRARIES := \
     libbase \
+    libbinder \
     libcutils \
     liblog \
     liblogwrap \
     libselinux \
+    libutils \
 
 LOCAL_STATIC_LIBRARIES := libdiskusage
 LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
@@ -51,7 +53,7 @@ LOCAL_REQUIRED_MODULES := otapreopt otapreopt_chroot otapreopt_slot
 
 include $(BUILD_PREBUILT)
 
-common_src_files := commands.cpp globals.cpp utils.cpp
+common_src_files := commands.cpp globals.cpp utils.cpp binder/android/os/IInstalld.aidl
 common_cflags := -Wall -Werror
 
 #
@@ -65,8 +67,10 @@ LOCAL_SRC_FILES := $(common_src_files)
 LOCAL_CFLAGS := $(common_cflags)
 LOCAL_SHARED_LIBRARIES := \
     libbase \
+    libbinder \
     liblogwrap \
     libselinux \
+    libutils \
 
 LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
 LOCAL_CLANG := true
@@ -80,10 +84,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := installd
 LOCAL_MODULE_TAGS := optional
 LOCAL_CFLAGS := $(common_cflags)
-LOCAL_SRC_FILES := $(common_src_files) \
-    installd.cpp \
-    InstalldNativeService.cpp \
-    binder/android/os/IInstalld.aidl \
+LOCAL_SRC_FILES := $(common_src_files) installd.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     libbase \
