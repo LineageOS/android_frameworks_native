@@ -86,6 +86,67 @@ static constexpr int PATCHOAT_FOR_RELOCATION     = 5;
 
 typedef int fd_t;
 
+namespace {
+
+constexpr const char* kDump = "android.permission.DUMP";
+
+binder::Status checkPermission(const char* permission) {
+    pid_t pid;
+    uid_t uid;
+
+    if (checkCallingPermission(String16(permission), reinterpret_cast<int32_t*>(&pid),
+            reinterpret_cast<int32_t*>(&uid))) {
+        return binder::Status::ok();
+    } else {
+        auto err = StringPrintf("UID %d / PID %d lacks permission %s", uid, pid, permission);
+        return binder::Status::fromExceptionCode(binder::Status::EX_SECURITY, String8(err.c_str()));
+    }
+}
+
+binder::Status checkUid(uid_t expectedUid) {
+    uid_t uid = IPCThreadState::self()->getCallingUid();
+    if (uid == expectedUid || uid == AID_ROOT) {
+        return binder::Status::ok();
+    } else {
+        auto err = StringPrintf("UID %d is not expected UID %d", uid, expectedUid);
+        return binder::Status::fromExceptionCode(binder::Status::EX_SECURITY, String8(err.c_str()));
+    }
+}
+
+#define ENFORCE_UID(uid) {                                  \
+    binder::Status status = checkUid((uid));                \
+    if (!status.isOk()) {                                   \
+        return status;                                      \
+    }                                                       \
+}
+
+}  // namespace
+
+status_t InstalldNativeService::start() {
+    IPCThreadState::self()->disableBackgroundScheduling(true);
+    status_t ret = BinderService<InstalldNativeService>::publish();
+    if (ret != android::OK) {
+        return ret;
+    }
+    sp<ProcessState> ps(ProcessState::self());
+    ps->startThreadPool();
+    ps->giveThreadPoolName();
+    return android::OK;
+}
+
+status_t InstalldNativeService::dump(int fd, const Vector<String16> & /* args */) {
+    const binder::Status dump_permission = checkPermission(kDump);
+    if (!dump_permission.isOk()) {
+        const String8 msg(dump_permission.toString8());
+        write(fd, msg.string(), msg.size());
+        return PERMISSION_DENIED;
+    }
+
+    std::string msg = "installd is happy\n";
+    write(fd, msg.c_str(), strlen(msg.c_str()));
+    return NO_ERROR;
+}
+
 static bool property_get_bool(const char* property_name, bool default_value = false) {
     char tmp_property_value[kPropertyValueMax];
     bool have_property = get_property(property_name, tmp_property_value, nullptr) > 0;
@@ -106,7 +167,7 @@ static std::string create_primary_profile(const std::string& profile_dir) {
  * if the label of that top-level file actually changed.  This can save us
  * significant time by avoiding no-op traversals of large filesystem trees.
  */
-static int restorecon_app_data_lazy(const char* path, const char* seinfo, uid_t uid) {
+static int restorecon_app_data_lazy(const std::string& path, const std::string& seInfo, uid_t uid) {
     int res = 0;
     char* before = nullptr;
     char* after = nullptr;
@@ -114,15 +175,15 @@ static int restorecon_app_data_lazy(const char* path, const char* seinfo, uid_t 
     // Note that SELINUX_ANDROID_RESTORECON_DATADATA flag is set by
     // libselinux. Not needed here.
 
-    if (lgetfilecon(path, &before) < 0) {
+    if (lgetfilecon(path.c_str(), &before) < 0) {
         PLOG(ERROR) << "Failed before getfilecon for " << path;
         goto fail;
     }
-    if (selinux_android_restorecon_pkgdir(path, seinfo, uid, 0) < 0) {
+    if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid, 0) < 0) {
         PLOG(ERROR) << "Failed top-level restorecon for " << path;
         goto fail;
     }
-    if (lgetfilecon(path, &after) < 0) {
+    if (lgetfilecon(path.c_str(), &after) < 0) {
         PLOG(ERROR) << "Failed after getfilecon for " << path;
         goto fail;
     }
@@ -132,7 +193,7 @@ static int restorecon_app_data_lazy(const char* path, const char* seinfo, uid_t 
     if (strcmp(before, after)) {
         LOG(DEBUG) << "Detected label change from " << before << " to " << after << " at " << path
                 << "; running recursive restorecon";
-        if (selinux_android_restorecon_pkgdir(path, seinfo, uid,
+        if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid,
                 SELINUX_ANDROID_RESTORECON_RECURSE) < 0) {
             PLOG(ERROR) << "Failed recursive restorecon for " << path;
             goto fail;
@@ -148,6 +209,11 @@ done:
     return res;
 }
 
+static int restorecon_app_data_lazy(const std::string& parent, const char* name,
+        const std::string& seInfo, uid_t uid) {
+    return restorecon_app_data_lazy(StringPrintf("%s/%s", parent.c_str(), name), seInfo, uid);
+}
+
 static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid) {
     if (fs_prepare_dir_strict(path.c_str(), target_mode, uid, uid) != 0) {
         PLOG(ERROR) << "Failed to prepare " << path;
@@ -161,54 +227,62 @@ static int prepare_app_dir(const std::string& parent, const char* name, mode_t t
     return prepare_app_dir(StringPrintf("%s/%s", parent.c_str(), name), target_mode, uid);
 }
 
-int create_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags,
-        appid_t appid, const char* seinfo, int target_sdk_version) {
-    uid_t uid = multiuser_get_uid(userid, appid);
-    mode_t target_mode = target_sdk_version >= MIN_RESTRICTED_HOME_SDK_VERSION ? 0700 : 0751;
+binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::string>& uuid,
+        const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
+        const std::string& seInfo, int32_t targetSdkVersion) {
+    ENFORCE_UID(AID_SYSTEM);
+
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgname = packageName.c_str();
+
+    uid_t uid = multiuser_get_uid(userId, appId);
+    mode_t target_mode = targetSdkVersion >= MIN_RESTRICTED_HOME_SDK_VERSION ? 0700 : 0751;
     if (flags & FLAG_STORAGE_CE) {
-        auto path = create_data_user_ce_package_path(uuid, userid, pkgname);
+        auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
         if (prepare_app_dir(path, target_mode, uid) ||
                 prepare_app_dir(path, "cache", 0771, uid) ||
                 prepare_app_dir(path, "code_cache", 0771, uid)) {
-            return -1;
+            return binder::Status::fromServiceSpecificError(-1);
         }
 
         // Consider restorecon over contents if label changed
-        if (restorecon_app_data_lazy(path.c_str(), seinfo, uid)) {
-            return -1;
+        if (restorecon_app_data_lazy(path, seInfo, uid) ||
+                restorecon_app_data_lazy(path, "cache", seInfo, uid) ||
+                restorecon_app_data_lazy(path, "code_cache", seInfo, uid)) {
+            return binder::Status::fromServiceSpecificError(-1);
         }
 
         // Remember inode numbers of cache directories so that we can clear
         // contents while CE storage is locked
         if (write_path_inode(path, "cache", kXattrInodeCache) ||
                 write_path_inode(path, "code_cache", kXattrInodeCodeCache)) {
-            return -1;
+            return binder::Status::fromServiceSpecificError(-1);
         }
     }
     if (flags & FLAG_STORAGE_DE) {
-        auto path = create_data_user_de_package_path(uuid, userid, pkgname);
+        auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
         if (prepare_app_dir(path, target_mode, uid)) {
             // TODO: include result once 25796509 is fixed
-            return 0;
+            return binder::Status::ok();
         }
 
         // Consider restorecon over contents if label changed
-        if (restorecon_app_data_lazy(path.c_str(), seinfo, uid)) {
-            return -1;
+        if (restorecon_app_data_lazy(path, seInfo, uid)) {
+            return binder::Status::fromServiceSpecificError(-1);
         }
 
         if (property_get_bool("dalvik.vm.usejitprofiles")) {
-            const std::string profile_path = create_data_user_profile_package_path(userid, pkgname);
+            const std::string profile_path = create_data_user_profile_package_path(userId, pkgname);
             // read-write-execute only for the app user.
             if (fs_prepare_dir_strict(profile_path.c_str(), 0700, uid, uid) != 0) {
                 PLOG(ERROR) << "Failed to prepare " << profile_path;
-                return -1;
+                return binder::Status::fromServiceSpecificError(-1);
             }
             std::string profile_file = create_primary_profile(profile_path);
             // read-write only for the app user.
             if (fs_prepare_file_strict(profile_file.c_str(), 0600, uid, uid) != 0) {
                 PLOG(ERROR) << "Failed to prepare " << profile_path;
-                return -1;
+                return binder::Status::fromServiceSpecificError(-1);
             }
             const std::string ref_profile_path = create_data_ref_profile_package_path(pkgname);
             // dex2oat/profman runs under the shared app gid and it needs to read/write reference
@@ -217,11 +291,11 @@ int create_app_data(const char *uuid, const char *pkgname, userid_t userid, int 
             if (fs_prepare_dir_strict(
                     ref_profile_path.c_str(), 0700, shared_app_gid, shared_app_gid) != 0) {
                 PLOG(ERROR) << "Failed to prepare " << ref_profile_path;
-                return -1;
+                return binder::Status::fromServiceSpecificError(-1);
             }
         }
     }
-    return 0;
+    return binder::Status::ok();
 }
 
 int migrate_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags) {
@@ -414,8 +488,17 @@ int destroy_app_data(const char *uuid, const char *pkgname, userid_t userid, int
     return res;
 }
 
-int move_complete_app(const char *from_uuid, const char *to_uuid, const char *package_name,
-        const char *data_app_name, appid_t appid, const char* seinfo, int target_sdk_version) {
+binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std::string>& fromUuid,
+        const std::unique_ptr<std::string>& toUuid, const std::string& packageName,
+        const std::string& dataAppName, int32_t appId, const std::string& seInfo,
+        int32_t targetSdkVersion) {
+
+    const char* from_uuid = fromUuid ? fromUuid->c_str() : nullptr;
+    const char* to_uuid = toUuid ? toUuid->c_str() : nullptr;
+    const char* package_name = packageName.c_str();
+    const char* data_app_name = dataAppName.c_str();
+    const char* seinfo = seInfo.c_str();
+
     std::vector<userid_t> users = get_known_users(from_uuid);
 
     // Copy app
@@ -460,8 +543,8 @@ int move_complete_app(const char *from_uuid, const char *to_uuid, const char *pa
             continue;
         }
 
-        if (create_app_data(to_uuid, package_name, user, FLAG_STORAGE_CE | FLAG_STORAGE_DE,
-                appid, seinfo, target_sdk_version) != 0) {
+        if (!createAppData(toUuid, packageName, user, FLAG_STORAGE_CE | FLAG_STORAGE_DE, appId,
+                seInfo, targetSdkVersion).isOk()) {
             LOG(ERROR) << "Failed to create package target on " << to_uuid;
             goto fail;
         }
@@ -505,7 +588,7 @@ int move_complete_app(const char *from_uuid, const char *to_uuid, const char *pa
         }
 
         if (restorecon_app_data(to_uuid, package_name, user, FLAG_STORAGE_CE | FLAG_STORAGE_DE,
-                appid, seinfo) != 0) {
+                appId, seinfo) != 0) {
             LOG(ERROR) << "Failed to restorecon";
             goto fail;
         }
@@ -514,7 +597,7 @@ int move_complete_app(const char *from_uuid, const char *to_uuid, const char *pa
     // We let the framework scan the new location and persist that before
     // deleting the data in the old location; this ordering ensures that
     // we can recover from things like battery pulls.
-    return 0;
+    return binder::Status::ok();
 
 fail:
     // Nuke everything we might have already copied
@@ -538,7 +621,7 @@ fail:
             }
         }
     }
-    return -1;
+    return binder::Status::fromServiceSpecificError(-1);
 }
 
 int create_user_data(const char *uuid, userid_t userid, int user_serial ATTRIBUTE_UNUSED,
