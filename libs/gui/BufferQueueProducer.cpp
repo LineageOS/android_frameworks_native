@@ -28,6 +28,7 @@
 
 #define EGL_EGLEXT_PROTOTYPES
 
+#include <binder/IPCThreadState.h>
 #include <gui/BufferItem.h>
 #include <gui/BufferQueueCore.h>
 #include <gui/BufferQueueProducer.h>
@@ -510,11 +511,15 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
             mCore->mIsAllocatingCondition.broadcast();
 
             if (graphicBuffer == NULL) {
+                mCore->mFreeSlots.insert(*outSlot);
+                mCore->clearBufferSlotLocked(*outSlot);
                 BQ_LOGE("dequeueBuffer: createGraphicBuffer failed");
                 return error;
             }
 
             if (mCore->mIsAbandoned) {
+                mCore->mFreeSlots.insert(*outSlot);
+                mCore->clearBufferSlotLocked(*outSlot);
                 BQ_LOGE("dequeueBuffer: BufferQueue has been abandoned");
                 return NO_INIT;
             }
@@ -897,10 +902,12 @@ status_t BufferQueueProducer::queueBuffer(int slot,
 
         output->inflate(mCore->mDefaultWidth, mCore->mDefaultHeight,
                 mCore->mTransformHint,
-                static_cast<uint32_t>(mCore->mQueue.size()));
+                static_cast<uint32_t>(mCore->mQueue.size()),
+                mCore->mFrameCounter + 1);
 
         ATRACE_INT(mCore->mConsumerName.string(),
                 static_cast<int32_t>(mCore->mQueue.size()));
+        mCore->mOccupancyTracker.registerOccupancyChange(mCore->mQueue.size());
 
         // Take a ticket for the callback functions
         callbackTicket = mNextCallbackTicket++;
@@ -1104,27 +1111,32 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
             mCore->mConnectedApi = api;
             output->inflate(mCore->mDefaultWidth, mCore->mDefaultHeight,
                     mCore->mTransformHint,
-                    static_cast<uint32_t>(mCore->mQueue.size()));
+                    static_cast<uint32_t>(mCore->mQueue.size()),
+                    mCore->mFrameCounter + 1);
 
-            // Set up a death notification so that we can disconnect
-            // automatically if the remote producer dies
-            if (listener != NULL &&
-                    IInterface::asBinder(listener)->remoteBinder() != NULL) {
-                status = IInterface::asBinder(listener)->linkToDeath(
-                        static_cast<IBinder::DeathRecipient*>(this));
-                if (status != NO_ERROR) {
-                    BQ_LOGE("connect: linkToDeath failed: %s (%d)",
-                            strerror(-status), status);
+            if (listener != NULL) {
+                // Set up a death notification so that we can disconnect
+                // automatically if the remote producer dies
+                if (IInterface::asBinder(listener)->remoteBinder() != NULL) {
+                    status = IInterface::asBinder(listener)->linkToDeath(
+                            static_cast<IBinder::DeathRecipient*>(this));
+                    if (status != NO_ERROR) {
+                        BQ_LOGE("connect: linkToDeath failed: %s (%d)",
+                                strerror(-status), status);
+                    }
+                    mCore->mLinkedToDeath = listener;
+                }
+                if (listener->needsReleaseNotify()) {
+                    mCore->mConnectedProducerListener = listener;
                 }
             }
-            mCore->mConnectedProducerListener = listener;
             break;
         default:
             BQ_LOGE("connect: unknown API %d", api);
             status = BAD_VALUE;
             break;
     }
-
+    mCore->mConnectedPid = IPCThreadState::self()->getCallingPid();
     mCore->mBufferHasBeenQueued = false;
     mCore->mDequeueBufferCannotBlock = false;
     if (mDequeueTimeout < 0) {
@@ -1137,7 +1149,7 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
     return status;
 }
 
-status_t BufferQueueProducer::disconnect(int api) {
+status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
     ATRACE_CALL();
     BQ_LOGV("disconnect: api %d", api);
 
@@ -1145,6 +1157,14 @@ status_t BufferQueueProducer::disconnect(int api) {
     sp<IConsumerListener> listener;
     { // Autolock scope
         Mutex::Autolock lock(mCore->mMutex);
+
+        if (mode == DisconnectMode::AllLocal) {
+            if (IPCThreadState::self()->getCallingPid() != mCore->mConnectedPid) {
+                return NO_ERROR;
+            }
+            api = BufferQueueCore::CURRENTLY_CONNECTED_API;
+        }
+
         mCore->waitWhileAllocatingLocked();
 
         if (mCore->mIsAbandoned) {
@@ -1171,9 +1191,9 @@ status_t BufferQueueProducer::disconnect(int api) {
                     mCore->freeAllBuffersLocked();
 
                     // Remove our death notification callback if we have one
-                    if (mCore->mConnectedProducerListener != NULL) {
+                    if (mCore->mLinkedToDeath != NULL) {
                         sp<IBinder> token =
-                                IInterface::asBinder(mCore->mConnectedProducerListener);
+                                IInterface::asBinder(mCore->mLinkedToDeath);
                         // This can fail if we're here because of the death
                         // notification, but we just ignore it
                         token->unlinkToDeath(
@@ -1181,8 +1201,10 @@ status_t BufferQueueProducer::disconnect(int api) {
                     }
                     mCore->mSharedBufferSlot =
                             BufferQueueCore::INVALID_BUFFER_SLOT;
+                    mCore->mLinkedToDeath = NULL;
                     mCore->mConnectedProducerListener = NULL;
                     mCore->mConnectedApi = BufferQueueCore::NO_CONNECTED_API;
+                    mCore->mConnectedPid = -1;
                     mCore->mSidebandStream.clear();
                     mCore->mDequeueCondition.broadcast();
                     listener = mCore->mConsumerListener;
@@ -1340,14 +1362,6 @@ String8 BufferQueueProducer::getConsumerName() const {
     return mConsumerName;
 }
 
-uint64_t BufferQueueProducer::getNextFrameNumber() const {
-    ATRACE_CALL();
-
-    Mutex::Autolock lock(mCore->mMutex);
-    uint64_t nextFrameNumber = mCore->mFrameCounter + 1;
-    return nextFrameNumber;
-}
-
 status_t BufferQueueProducer::setSharedBufferMode(bool sharedBufferMode) {
     ATRACE_CALL();
     BQ_LOGV("setSharedBufferMode: %d", sharedBufferMode);
@@ -1416,6 +1430,22 @@ status_t BufferQueueProducer::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
     return NO_ERROR;
 }
 
+bool BufferQueueProducer::getFrameTimestamps(uint64_t frameNumber,
+        FrameTimestamps* outTimestamps) const {
+    ATRACE_CALL();
+    BQ_LOGV("getFrameTimestamps, %" PRIu64, frameNumber);
+    sp<IConsumerListener> listener;
+
+    {
+        Mutex::Autolock lock(mCore->mMutex);
+        listener = mCore->mConsumerListener;
+    }
+    if (listener != NULL) {
+        return listener->getFrameTimestamps(frameNumber, outTimestamps);
+    }
+    return false;
+}
+
 void BufferQueueProducer::binderDied(const wp<android::IBinder>& /* who */) {
     // If we're here, it means that a producer we were connected to died.
     // We're guaranteed that we are still connected to it because we remove
@@ -1423,6 +1453,13 @@ void BufferQueueProducer::binderDied(const wp<android::IBinder>& /* who */) {
     // without synchronization here.
     int api = mCore->mConnectedApi;
     disconnect(api);
+}
+
+status_t BufferQueueProducer::getUniqueId(uint64_t* outId) const {
+    BQ_LOGV("getUniqueId");
+
+    *outId = mCore->mUniqueId;
+    return NO_ERROR;
 }
 
 } // namespace android

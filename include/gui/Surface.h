@@ -134,6 +134,14 @@ public:
     status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]);
 
+    // See IGraphicBufferProducer::getFrameTimestamps
+    bool getFrameTimestamps(uint64_t frameNumber, nsecs_t* outPostedTime,
+            nsecs_t* outAcquireTime, nsecs_t* outRefreshStartTime,
+            nsecs_t* outGlCompositionDoneTime, nsecs_t* outDisplayRetireTime,
+            nsecs_t* outReleaseTime);
+
+    status_t getUniqueId(uint64_t* outId) const;
+
 protected:
     virtual ~Surface();
 
@@ -183,19 +191,18 @@ private:
     int dispatchSetSurfaceDamage(va_list args);
     int dispatchSetSharedBufferMode(va_list args);
     int dispatchSetAutoRefresh(va_list args);
+    int dispatchGetFrameTimestamps(va_list args);
 
 protected:
     virtual int dequeueBuffer(ANativeWindowBuffer** buffer, int* fenceFd);
     virtual int cancelBuffer(ANativeWindowBuffer* buffer, int fenceFd);
     virtual int queueBuffer(ANativeWindowBuffer* buffer, int fenceFd);
     virtual int perform(int operation, va_list args);
-    virtual int query(int what, int* value) const;
     virtual int setSwapInterval(int interval);
 
     virtual int lockBuffer_DEPRECATED(ANativeWindowBuffer* buffer);
 
     virtual int connect(int api);
-    virtual int disconnect(int api);
     virtual int setBufferCount(int bufferCount);
     virtual int setBuffersDimensions(uint32_t width, uint32_t height);
     virtual int setBuffersUserDimensions(uint32_t width, uint32_t height);
@@ -209,12 +216,17 @@ protected:
     virtual void setSurfaceDamage(android_native_rect_t* rects, size_t numRects);
 
 public:
+    virtual int disconnect(int api,
+            IGraphicBufferProducer::DisconnectMode mode =
+                    IGraphicBufferProducer::DisconnectMode::Api);
+
     virtual int setMaxDequeuedBufferCount(int maxDequeuedBuffers);
     virtual int setAsyncMode(bool async);
     virtual int setSharedBufferMode(bool sharedBufferMode);
     virtual int setAutoRefresh(bool autoRefresh);
     virtual int lock(ANativeWindow_Buffer* outBuffer, ARect* inOutDirtyBounds);
     virtual int unlockAndPost();
+    virtual int query(int what, int* value) const;
 
     virtual int connect(int api, const sp<IProducerListener>& listener);
     virtual int detachNextBuffer(sp<GraphicBuffer>* outBuffer,
@@ -361,7 +373,13 @@ private:
     // used to prevent a mismatch between the number of queue/dequeue calls.
     bool mSharedBufferHasBeenQueued;
 
+    // These are used to satisfy the NATIVE_WINDOW_LAST_*_DURATION queries
+    nsecs_t mLastDequeueDuration = 0;
+    nsecs_t mLastQueueDuration = 0;
+
     Condition mQueueBufferCondition;
+
+    uint64_t mNextFrameNumber;
 };
 
 namespace view {

@@ -115,19 +115,19 @@ private:
     virtual int query(int what, int* value);
     virtual status_t connect(const sp<IProducerListener>& listener,
             int api, bool producerControlledByApp, QueueBufferOutput* output);
-    virtual status_t disconnect(int api);
+    virtual status_t disconnect(int api, DisconnectMode mode);
     virtual status_t setSidebandStream(const sp<NativeHandle>& stream);
     virtual void allocateBuffers(uint32_t width, uint32_t height,
             PixelFormat format, uint32_t usage);
     virtual status_t allowAllocation(bool allow);
     virtual status_t setGenerationNumber(uint32_t generationNumber);
     virtual String8 getConsumerName() const override;
-    virtual uint64_t getNextFrameNumber() const override;
     virtual status_t setSharedBufferMode(bool sharedBufferMode) override;
     virtual status_t setAutoRefresh(bool autoRefresh) override;
     virtual status_t setDequeueTimeout(nsecs_t timeout) override;
     virtual status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]) override;
+    virtual status_t getUniqueId(uint64_t* outId) const override;
 
     //
     // Utility methods

@@ -29,6 +29,8 @@
 #include <binder/IMemory.h>
 #include <binder/IServiceManager.h>
 
+#include <system/graphics.h>
+
 #include <ui/DisplayInfo.h>
 
 #include <gui/CpuConsumer.h>
@@ -165,11 +167,11 @@ public:
             uint64_t frameNumber);
     status_t setOverrideScalingMode(const sp<SurfaceComposerClient>& client,
             const sp<IBinder>& id, int32_t overrideScalingMode);
-    status_t setPositionAppliesWithResize(const sp<SurfaceComposerClient>& client,
+    status_t setGeometryAppliesWithResize(const sp<SurfaceComposerClient>& client,
             const sp<IBinder>& id);
 
-    void setDisplaySurface(const sp<IBinder>& token,
-            const sp<IGraphicBufferProducer>& bufferProducer);
+    status_t setDisplaySurface(const sp<IBinder>& token,
+            sp<IGraphicBufferProducer> bufferProducer);
     void setDisplayLayerStack(const sp<IBinder>& token, uint32_t layerStack);
     void setDisplayProjection(const sp<IBinder>& token,
             uint32_t orientation,
@@ -445,7 +447,7 @@ status_t Composer::setOverrideScalingMode(
     return NO_ERROR;
 }
 
-status_t Composer::setPositionAppliesWithResize(
+status_t Composer::setGeometryAppliesWithResize(
         const sp<SurfaceComposerClient>& client,
         const sp<IBinder>& id) {
     Mutex::Autolock lock(mLock);
@@ -453,7 +455,7 @@ status_t Composer::setPositionAppliesWithResize(
     if (!s) {
         return BAD_INDEX;
     }
-    s->what |= layer_state_t::ePositionAppliesWithResize;
+    s->what |= layer_state_t::eGeometryAppliesWithResize;
     return NO_ERROR;
 }
 
@@ -471,12 +473,24 @@ DisplayState& Composer::getDisplayStateLocked(const sp<IBinder>& token) {
     return mDisplayStates.editItemAt(static_cast<size_t>(index));
 }
 
-void Composer::setDisplaySurface(const sp<IBinder>& token,
-        const sp<IGraphicBufferProducer>& bufferProducer) {
+status_t Composer::setDisplaySurface(const sp<IBinder>& token,
+        sp<IGraphicBufferProducer> bufferProducer) {
+    if (bufferProducer.get() != nullptr) {
+        // Make sure that composition can never be stalled by a virtual display
+        // consumer that isn't processing buffers fast enough.
+        status_t err = bufferProducer->setAsyncMode(true);
+        if (err != NO_ERROR) {
+            ALOGE("Composer::setDisplaySurface Failed to enable async mode on the "
+                    "BufferQueue. This BufferQueue cannot be used for virtual "
+                    "display. (%d)", err);
+            return err;
+        }
+    }
     Mutex::Autolock _l(mLock);
     DisplayState& s(getDisplayStateLocked(token));
     s.surface = bufferProducer;
     s.what |= DisplayState::eSurfaceChanged;
+    return NO_ERROR;
 }
 
 void Composer::setDisplayLayerStack(const sp<IBinder>& token,
@@ -612,6 +626,14 @@ status_t SurfaceComposerClient::getLayerFrameStats(const sp<IBinder>& token,
     return mClient->getLayerFrameStats(token, outStats);
 }
 
+status_t SurfaceComposerClient::getTransformToDisplayInverse(const sp<IBinder>& token,
+        bool* outTransformToDisplayInverse) const {
+    if (mStatus != NO_ERROR) {
+        return mStatus;
+    }
+    return mClient->getTransformToDisplayInverse(token, outTransformToDisplayInverse);
+}
+
 inline Composer& SurfaceComposerClient::getComposer() {
     return mComposer;
 }
@@ -699,16 +721,16 @@ status_t SurfaceComposerClient::setOverrideScalingMode(
             this, id, overrideScalingMode);
 }
 
-status_t SurfaceComposerClient::setPositionAppliesWithResize(
+status_t SurfaceComposerClient::setGeometryAppliesWithResize(
         const sp<IBinder>& id) {
-    return getComposer().setPositionAppliesWithResize(this, id);
+    return getComposer().setGeometryAppliesWithResize(this, id);
 }
 
 // ----------------------------------------------------------------------------
 
-void SurfaceComposerClient::setDisplaySurface(const sp<IBinder>& token,
-        const sp<IGraphicBufferProducer>& bufferProducer) {
-    Composer::getInstance().setDisplaySurface(token, bufferProducer);
+status_t SurfaceComposerClient::setDisplaySurface(const sp<IBinder>& token,
+        sp<IGraphicBufferProducer> bufferProducer) {
+    return Composer::getInstance().setDisplaySurface(token, bufferProducer);
 }
 
 void SurfaceComposerClient::setDisplayLayerStack(const sp<IBinder>& token,
@@ -761,6 +783,20 @@ int SurfaceComposerClient::getActiveConfig(const sp<IBinder>& display) {
 
 status_t SurfaceComposerClient::setActiveConfig(const sp<IBinder>& display, int id) {
     return ComposerService::getComposerService()->setActiveConfig(display, id);
+}
+
+status_t SurfaceComposerClient::getDisplayColorModes(const sp<IBinder>& display,
+        Vector<android_color_mode_t>* outColorModes) {
+    return ComposerService::getComposerService()->getDisplayColorModes(display, outColorModes);
+}
+
+android_color_mode_t SurfaceComposerClient::getActiveColorMode(const sp<IBinder>& display) {
+    return ComposerService::getComposerService()->getActiveColorMode(display);
+}
+
+status_t SurfaceComposerClient::setActiveColorMode(const sp<IBinder>& display,
+        android_color_mode_t colorMode) {
+    return ComposerService::getComposerService()->setActiveColorMode(display, colorMode);
 }
 
 void SurfaceComposerClient::setDisplayPowerMode(const sp<IBinder>& token,

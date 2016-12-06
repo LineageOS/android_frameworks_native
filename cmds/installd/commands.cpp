@@ -2418,6 +2418,7 @@ int move_ab(const char* apk_path, const char* instruction_set, const char* oat_d
 
             if (!a_image_path.empty()) {
                 if (!move_ab_path(b_image_path, a_image_path)) {
+                    unlink(a_image_path.c_str());
                     if (!kIgnoreAppImageFailure) {
                         success = false;
                     }

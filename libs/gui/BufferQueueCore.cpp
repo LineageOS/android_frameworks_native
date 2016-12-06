@@ -47,6 +47,12 @@ static String8 getUniqueName() {
             android_atomic_inc(&counter));
 }
 
+static uint64_t getUniqueId() {
+    static std::atomic<uint32_t> counter{0};
+    static uint64_t id = static_cast<uint64_t>(getpid()) << 32;
+    return id | counter++;
+}
+
 BufferQueueCore::BufferQueueCore(const sp<IGraphicBufferAlloc>& allocator) :
     mAllocator(allocator),
     mMutex(),
@@ -56,6 +62,7 @@ BufferQueueCore::BufferQueueCore(const sp<IGraphicBufferAlloc>& allocator) :
     mConsumerListener(),
     mConsumerUsageBits(0),
     mConnectedApi(NO_CONNECTED_API),
+    mLinkedToDeath(),
     mConnectedProducerListener(),
     mSlots(),
     mQueue(),
@@ -85,7 +92,8 @@ BufferQueueCore::BufferQueueCore(const sp<IGraphicBufferAlloc>& allocator) :
     mAutoRefresh(false),
     mSharedBufferSlot(INVALID_BUFFER_SLOT),
     mSharedBufferCache(Rect::INVALID_RECT, 0, NATIVE_WINDOW_SCALING_MODE_FREEZE,
-            HAL_DATASPACE_UNKNOWN)
+            HAL_DATASPACE_UNKNOWN),
+    mUniqueId(getUniqueId())
 {
     if (allocator == NULL) {
 
@@ -252,6 +260,16 @@ void BufferQueueCore::freeAllBuffersLocked() {
     for (auto& b : mQueue) {
         b.mIsStale = true;
     }
+
+    VALIDATE_CONSISTENCY();
+}
+
+void BufferQueueCore::discardFreeBuffersLocked() {
+    for (int s : mFreeBuffers) {
+        mFreeSlots.insert(s);
+        clearBufferSlotLocked(s);
+    }
+    mFreeBuffers.clear();
 
     VALIDATE_CONSISTENCY();
 }

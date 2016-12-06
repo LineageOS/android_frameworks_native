@@ -102,8 +102,8 @@ status_t MonitoredProducer::connect(const sp<IProducerListener>& listener,
     return mProducer->connect(listener, api, producerControlledByApp, output);
 }
 
-status_t MonitoredProducer::disconnect(int api) {
-    return mProducer->disconnect(api);
+status_t MonitoredProducer::disconnect(int api, DisconnectMode mode) {
+    return mProducer->disconnect(api, mode);
 }
 
 status_t MonitoredProducer::setSidebandStream(const sp<NativeHandle>& stream) {
@@ -127,10 +127,6 @@ String8 MonitoredProducer::getConsumerName() const {
     return mProducer->getConsumerName();
 }
 
-uint64_t MonitoredProducer::getNextFrameNumber() const {
-    return mProducer->getNextFrameNumber();
-}
-
 status_t MonitoredProducer::setSharedBufferMode(bool sharedBufferMode) {
     return mProducer->setSharedBufferMode(sharedBufferMode);
 }
@@ -147,6 +143,10 @@ status_t MonitoredProducer::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
         sp<Fence>* outFence, float outTransformMatrix[16]) {
     return mProducer->getLastQueuedBuffer(outBuffer, outFence,
             outTransformMatrix);
+}
+
+status_t MonitoredProducer::getUniqueId(uint64_t* outId) const {
+    return mProducer->getUniqueId(outId);
 }
 
 IBinder* MonitoredProducer::onAsBinder() {

@@ -31,7 +31,7 @@ namespace {
 
 RecentEventLogger::RecentEventLogger(int sensorType) :
         mSensorType(sensorType), mEventSize(eventSizeBySensorType(mSensorType)),
-        mRecentEvents(logSizeBySensorType(sensorType)) {
+        mRecentEvents(logSizeBySensorType(sensorType)), mMaskData(false) {
     // blank
 }
 
@@ -60,16 +60,28 @@ std::string RecentEventLogger::dump() const {
                 (int) ns2ms(ev.mWallTime.tv_nsec));
 
         // data
-        if (mSensorType == SENSOR_TYPE_STEP_COUNTER) {
-            buffer.appendFormat("%" PRIu64 ", ", ev.mEvent.u64.step_counter);
-        } else {
-            for (size_t k = 0; k < mEventSize; ++k) {
-                buffer.appendFormat("%.2f, ", ev.mEvent.data[k]);
+        if (!mMaskData) {
+            if (mSensorType == SENSOR_TYPE_STEP_COUNTER) {
+                buffer.appendFormat("%" PRIu64 ", ", ev.mEvent.u64.step_counter);
+            } else {
+                for (size_t k = 0; k < mEventSize; ++k) {
+                    buffer.appendFormat("%.2f, ", ev.mEvent.data[k]);
+                }
             }
+        } else {
+            buffer.append("[value masked]");
         }
         buffer.append("\n");
     }
     return std::string(buffer.string());
+}
+
+void RecentEventLogger::setFormat(std::string format) {
+    if (format == "mask_data" ) {
+        mMaskData = true;
+    } else {
+        mMaskData = false;
+    }
 }
 
 bool RecentEventLogger::populateLastEvent(sensors_event_t *event) const {

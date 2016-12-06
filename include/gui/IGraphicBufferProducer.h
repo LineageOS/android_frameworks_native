@@ -30,6 +30,8 @@
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
+#include <gui/FrameTimestamps.h>
+
 namespace android {
 // ----------------------------------------------------------------------------
 
@@ -360,24 +362,29 @@ public:
         inline void deflate(uint32_t* outWidth,
                 uint32_t* outHeight,
                 uint32_t* outTransformHint,
-                uint32_t* outNumPendingBuffers) const {
+                uint32_t* outNumPendingBuffers,
+                uint64_t* outNextFrameNumber) const {
             *outWidth = width;
             *outHeight = height;
             *outTransformHint = transformHint;
             *outNumPendingBuffers = numPendingBuffers;
+            *outNextFrameNumber = nextFrameNumber;
         }
         inline void inflate(uint32_t inWidth, uint32_t inHeight,
-                uint32_t inTransformHint, uint32_t inNumPendingBuffers) {
+                uint32_t inTransformHint, uint32_t inNumPendingBuffers,
+                uint64_t inNextFrameNumber) {
             width = inWidth;
             height = inHeight;
             transformHint = inTransformHint;
             numPendingBuffers = inNumPendingBuffers;
+            nextFrameNumber = inNextFrameNumber;
         }
     private:
         uint32_t width;
         uint32_t height;
         uint32_t transformHint;
         uint32_t numPendingBuffers;
+        uint64_t nextFrameNumber{0};
     };
 
     virtual status_t queueBuffer(int slot, const QueueBufferInput& input,
@@ -452,16 +459,23 @@ public:
     virtual status_t connect(const sp<IProducerListener>& listener,
             int api, bool producerControlledByApp, QueueBufferOutput* output) = 0;
 
+    enum class DisconnectMode {
+        // Disconnect only the specified API.
+        Api,
+        // Disconnect any API originally connected from the process calling disconnect.
+        AllLocal
+    };
+
     // disconnect attempts to disconnect a client API from the
     // IGraphicBufferProducer.  Calling this method will cause any subsequent
     // calls to other IGraphicBufferProducer methods to fail except for
     // getAllocator and connect.  Successfully calling connect after this will
     // allow the other methods to succeed again.
     //
-    // This method will fail if the the IGraphicBufferProducer is not currently
-    // connected to the specified client API.
-    //
     // The api should be one of the NATIVE_WINDOW_API_* values in <window.h>
+    //
+    // Alternatively if mode is AllLocal, then the API value is ignored, and any API
+    // connected from the same PID calling disconnect will be disconnected.
     //
     // Disconnecting from an abandoned IGraphicBufferProducer is legal and
     // is considered a no-op.
@@ -471,7 +485,7 @@ public:
     //             * the api specified does not match the one that was connected
     //             * api was out of range (see above).
     // * DEAD_OBJECT - the token is hosted by an already-dead process
-    virtual status_t disconnect(int api) = 0;
+    virtual status_t disconnect(int api, DisconnectMode mode = DisconnectMode::Api) = 0;
 
     // Attaches a sideband buffer stream to the IGraphicBufferProducer.
     //
@@ -522,9 +536,6 @@ public:
     // Returns the name of the connected consumer.
     virtual String8 getConsumerName() const = 0;
 
-    // Returns the number of the next frame which will be dequeued.
-    virtual uint64_t getNextFrameNumber() const = 0;
-
     // Used to enable/disable shared buffer mode.
     //
     // When shared buffer mode is enabled the first buffer that is queued or
@@ -569,6 +580,17 @@ public:
     // Returns NO_ERROR or the status of the Binder transaction
     virtual status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]) = 0;
+
+    // Attempts to retrieve timestamp information for the given frame number.
+    // If information for the given frame number is not found, returns false.
+    // Returns true otherwise.
+    //
+    // If a fence has not yet signaled the timestamp returned will be 0;
+    virtual bool getFrameTimestamps(uint64_t /*frameNumber*/,
+            FrameTimestamps* /*outTimestamps*/) const { return false; }
+
+    // Returns a unique id for this BufferQueue
+    virtual status_t getUniqueId(uint64_t* outId) const = 0;
 };
 
 // ----------------------------------------------------------------------------

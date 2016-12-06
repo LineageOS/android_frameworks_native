@@ -53,7 +53,7 @@
 // For older HALs which don't support batching, use a smaller socket buffer size.
 #define SOCKET_BUFFER_SIZE_NON_BATCHED (4 * 1024)
 
-#define SENSOR_REGISTRATIONS_BUF_SIZE 20
+#define SENSOR_REGISTRATIONS_BUF_SIZE 200
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -215,6 +215,8 @@ private:
     // Either read from storage or create a new one.
     static bool initializeHmacKey();
 
+    // Enable SCHED_FIFO priority for thread
+    void enableSchedFifoMode();
 
     static uint8_t sHmacGlobalKey[128];
     static bool sHmacGlobalKeyIsValid;
@@ -235,7 +237,7 @@ private:
     SortedVector< wp<SensorEventConnection> > mActiveConnections;
     bool mWakeLockAcquired;
     sensors_event_t *mSensorEventBuffer, *mSensorEventScratch;
-    SensorEventConnection const **mMapFlushEventsToConnections;
+    wp<const SensorEventConnection> * mMapFlushEventsToConnections;
     std::unordered_map<int, RecentEventLogger*> mRecentEvent;
     Mode mCurrentOperatingMode;
 

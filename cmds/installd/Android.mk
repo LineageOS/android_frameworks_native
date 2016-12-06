@@ -39,6 +39,17 @@ LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
 LOCAL_CLANG := true
 include $(BUILD_EXECUTABLE)
 
+# OTA slot script
+
+include $(CLEAR_VARS)
+LOCAL_MODULE:= otapreopt_slot
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := EXECUTABLES
+LOCAL_SRC_FILES := otapreopt_slot.sh
+LOCAL_INIT_RC := otapreopt.rc
+
+include $(BUILD_PREBUILT)
+
 # OTA postinstall script
 
 include $(CLEAR_VARS)

@@ -24,6 +24,7 @@
     <feature name="android.hardware.location" />
     <!-- devices supporting compass/magnitometer sensor must include
 	 android.hardware.sensor.compass.xml -->
+    <feature name="android.hardware.sensor.gyroscope" />
     <feature name="android.hardware.sensor.accelerometer" />
     <feature name="android.hardware.bluetooth" />
     <feature name="android.hardware.touchscreen" />
@@ -34,7 +35,6 @@
 
     <!-- device administration -->
     <feature name="android.software.device_admin" />
-    <feature name="android.software.managed_users" />
 
     <!-- devices with GPS must include device/google/clockwork/gps.xml -->
     <!-- devices with an autofocus camera and/or flash must include either
