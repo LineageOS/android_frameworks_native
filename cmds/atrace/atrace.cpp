@@ -537,7 +537,12 @@ static void pokeHalServices()
             hidl_string fqInterfaceName = fqInstanceName.substr(0, n);
             hidl_string instanceName = fqInstanceName.substr(n+1, std::string::npos);
             auto getRet = sm->get(fqInterfaceName, instanceName, [&](const auto &interface) {
-                interface->notifySyspropsChanged();
+                auto notifyRet = interface->notifySyspropsChanged();
+                if (!notifyRet.isOk()) {
+                    fprintf(stderr, "failed to notifySyspropsChanged on service %s: %s\n",
+                            fqInstanceName.c_str(),
+                            notifyRet.getStatus().toString8().string());
+                }
             });
             if (!getRet.isOk()) {
                 fprintf(stderr, "failed to get service %s: %s\n",
