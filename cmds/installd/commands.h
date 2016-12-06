@@ -38,30 +38,35 @@ public:
     static char const* getServiceName() { return "installd"; }
     virtual status_t dump(int fd, const Vector<String16> &args) override;
 
+    binder::Status createUserData(const std::unique_ptr<std::string>& uuid, int32_t userId,
+            int32_t userSerial, int32_t flags);
+    binder::Status destroyUserData(const std::unique_ptr<std::string>& uuid, int32_t userId,
+            int32_t flags);
+
     binder::Status createAppData(const std::unique_ptr<std::string>& uuid,
             const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
             const std::string& seInfo, int32_t targetSdkVersion);
+    binder::Status restoreconAppData(const std::unique_ptr<std::string>& uuid,
+            const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
+            const std::string& seInfo);
+    binder::Status migrateAppData(const std::unique_ptr<std::string>& uuid,
+            const std::string& packageName, int32_t userId, int32_t flags);
+    binder::Status clearAppData(const std::unique_ptr<std::string>& uuid,
+            const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode);
+    binder::Status destroyAppData(const std::unique_ptr<std::string>& uuid,
+            const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode);
+    binder::Status getAppDataInode(const std::unique_ptr<std::string>& uuid,
+            const std::string& packageName, int32_t userId, int32_t flags, int64_t* _aidl_return);
+
     binder::Status moveCompleteApp(const std::unique_ptr<std::string>& fromUuid,
             const std::unique_ptr<std::string>& toUuid, const std::string& packageName,
             const std::string& dataAppName, int32_t appId, const std::string& seInfo,
             int32_t targetSdkVersion);
 };
 
-int restorecon_app_data(const char* uuid, const char* pkgName, userid_t userid, int flags,
-        appid_t appid, const char* seinfo);
-int migrate_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags);
-int clear_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags,
-        ino_t ce_data_inode);
-int destroy_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags,
-        ino_t ce_data_inode);
-
 int get_app_size(const char *uuid, const char *pkgname, int userid, int flags, ino_t ce_data_inode,
         const char* code_path, int64_t *codesize, int64_t *datasize, int64_t *cachesize,
         int64_t *asecsize);
-int get_app_data_inode(const char *uuid, const char *pkgname, int userid, int flags, ino_t *inode);
-
-int create_user_data(const char *uuid, userid_t userid, int user_serial, int flags);
-int destroy_user_data(const char *uuid, userid_t userid, int flags);
 
 int rm_dex(const char *path, const char *instruction_set);
 int free_cache(const char *uuid, int64_t free_size);
