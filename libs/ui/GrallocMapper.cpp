@@ -26,85 +26,144 @@ namespace android {
 
 namespace Gralloc2 {
 
-typedef const void*(*FetchInterface)(const char* name);
-
-static FetchInterface loadHalLib(const char* pkg_name)
-{
-    static const std::array<const char*, 3> sSearchDirs = {{
-        HAL_LIBRARY_PATH_ODM,
-        HAL_LIBRARY_PATH_VENDOR,
-        HAL_LIBRARY_PATH_SYSTEM,
-    }};
-    static const char sSymbolName[] = "HALLIB_FETCH_Interface";
-
-    void* handle = nullptr;
-    std::string path;
-    for (auto dir : sSearchDirs) {
-        path = dir;
-        path += pkg_name;
-        path += ".hallib.so";
-        handle = dlopen(path.c_str(), RTLD_LOCAL | RTLD_NOW);
-        if (handle) {
-            break;
-        }
-    }
-    if (!handle) {
-        return nullptr;
-    }
-
-    void* symbol = dlsym(handle, sSymbolName);
-    if (!symbol) {
-        ALOGE("%s is missing from %s", sSymbolName, path.c_str());
-        dlclose(handle);
-        return nullptr;
-    }
-
-    return reinterpret_cast<FetchInterface>(symbol);
-}
+static constexpr Error kDefaultError = Error::NO_RESOURCES;
 
 Mapper::Mapper()
-    : mMapper(nullptr), mDevice(nullptr)
 {
-    static const char sHalLibName[] = "android.hardware.graphics.mapper";
-    static const char sSupportedInterface[] =
-        "android.hardware.graphics.mapper@2.0::IMapper";
-
-    FetchInterface fetchInterface = loadHalLib(sHalLibName);
-    if (!fetchInterface) {
-        return;
-    }
-
-    mMapper = static_cast<const IMapper*>(
-            fetchInterface(sSupportedInterface));
-    if (!mMapper) {
-        ALOGE("%s is not supported", sSupportedInterface);
-        return;
-    }
-
-    if (mMapper->createDevice(&mDevice) != Error::NONE) {
-        ALOGE("failed to create mapper device");
-        mMapper = nullptr;
+    mMapper = IMapper::getService("gralloc-mapper");
+    if (mMapper != nullptr && mMapper->isRemote()) {
+        LOG_ALWAYS_FATAL("gralloc-mapper must be in passthrough mode");
     }
 }
 
-Mapper::~Mapper()
+Error Mapper::retain(buffer_handle_t handle) const
 {
-    if (mMapper) {
-        mMapper->destroyDevice(mDevice);
-    }
+    auto ret = mMapper->retain(handle);
+    return (ret.isOk()) ? static_cast<Error>(ret) : kDefaultError;
 }
 
 void Mapper::release(buffer_handle_t handle) const
 {
-    auto error = mMapper->release(mDevice, handle);
+    auto ret = mMapper->release(handle);
+
+    auto error = (ret.isOk()) ? static_cast<Error>(ret) : kDefaultError;
     ALOGE_IF(error != Error::NONE,
             "release(%p) failed with %d", handle, error);
+}
+
+Error Mapper::getStride(buffer_handle_t handle, uint32_t* outStride) const
+{
+    Error error = kDefaultError;
+    mMapper->getStride(handle,
+            [&](const auto& tmpError, const auto& tmpStride)
+            {
+                error = tmpError;
+                if (error != Error::NONE) {
+                    return;
+                }
+
+                *outStride = tmpStride;
+            });
+
+    return error;
+}
+
+Error Mapper::lock(buffer_handle_t handle,
+        uint64_t producerUsageMask,
+        uint64_t consumerUsageMask,
+        const IMapper::Rect& accessRegion,
+        int acquireFence, void** outData) const
+{
+    hardware::hidl_handle acquireFenceHandle;
+
+    NATIVE_HANDLE_DECLARE_STORAGE(acquireFenceStorage, 1, 0);
+    if (acquireFence >= 0) {
+        auto h = native_handle_init(acquireFenceStorage, 1, 0);
+        h->data[0] = acquireFence;
+        acquireFenceHandle = h;
+    }
+
+    Error error = kDefaultError;
+    mMapper->lock(handle, producerUsageMask, consumerUsageMask,
+            accessRegion, acquireFenceHandle,
+            [&](const auto& tmpError, const auto& tmpData)
+            {
+                error = tmpError;
+                if (error != Error::NONE) {
+                    return;
+                }
+
+                *outData = tmpData;
+            });
+
+    if (error == Error::NONE && acquireFence >= 0) {
+        close(acquireFence);
+    }
+
+    return error;
+}
+
+Error Mapper::lock(buffer_handle_t handle,
+        uint64_t producerUsageMask,
+        uint64_t consumerUsageMask,
+        const IMapper::Rect& accessRegion,
+        int acquireFence, FlexLayout* outLayout) const
+{
+    hardware::hidl_handle acquireFenceHandle;
+
+    NATIVE_HANDLE_DECLARE_STORAGE(acquireFenceStorage, 1, 0);
+    if (acquireFence >= 0) {
+        auto h = native_handle_init(acquireFenceStorage, 1, 0);
+        h->data[0] = acquireFence;
+        acquireFenceHandle = h;
+    }
+
+    Error error = kDefaultError;
+    mMapper->lockFlex(handle, producerUsageMask, consumerUsageMask,
+            accessRegion, acquireFenceHandle,
+            [&](const auto& tmpError, const auto& tmpLayout)
+            {
+                error = tmpError;
+                if (error != Error::NONE) {
+                    return;
+                }
+
+                *outLayout = tmpLayout;
+            });
+
+    if (error == Error::NONE && acquireFence >= 0) {
+        close(acquireFence);
+    }
+
+    return error;
 }
 
 int Mapper::unlock(buffer_handle_t handle) const
 {
     int releaseFence;
-    auto error = mMapper->unlock(mDevice, handle, &releaseFence);
+
+    Error error = kDefaultError;
+    mMapper->unlock(handle,
+            [&](const auto& tmpError, const auto& tmpReleaseFence)
+            {
+                error = tmpError;
+                if (error != Error::NONE) {
+                    return;
+                }
+
+                auto fenceHandle = tmpReleaseFence.getNativeHandle();
+                if (fenceHandle && fenceHandle->numFds == 1) {
+                    int fd = dup(fenceHandle->data[0]);
+                    if (fd >= 0) {
+                        releaseFence = fd;
+                    } else {
+                        error = Error::NO_RESOURCES;
+                    }
+                } else {
+                    releaseFence = -1;
+                }
+            });
+
     if (error != Error::NONE) {
         ALOGE("unlock(%p) failed with %d", handle, error);
         releaseFence = -1;
