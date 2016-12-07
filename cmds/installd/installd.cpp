@@ -188,27 +188,6 @@ static int do_ping(char **arg ATTRIBUTE_UNUSED, char reply[REPLY_MAX] ATTRIBUTE_
     return 0;
 }
 
-static int do_restorecon_app_data(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
-    /* const char* uuid, const char* pkgName, userid_t userid, int flags,
-            appid_t appid, const char* seinfo */
-    return restorecon_app_data(parse_null(arg[0]), arg[1], atoi(arg[2]), atoi(arg[3]), atoi(arg[4]), arg[5]);
-}
-
-static int do_migrate_app_data(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
-    /* const char *uuid, const char *pkgname, userid_t userid, int flags */
-    return migrate_app_data(parse_null(arg[0]), arg[1], atoi(arg[2]), atoi(arg[3]));
-}
-
-static int do_clear_app_data(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
-    /* const char *uuid, const char *pkgname, userid_t userid, int flags, ino_t ce_data_inode */
-    return clear_app_data(parse_null(arg[0]), arg[1], atoi(arg[2]), atoi(arg[3]), atol(arg[4]));
-}
-
-static int do_destroy_app_data(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
-    /* const char *uuid, const char *pkgname, userid_t userid, int flags, ino_t ce_data_inode */
-    return destroy_app_data(parse_null(arg[0]), arg[1], atoi(arg[2]), atoi(arg[3]), atol(arg[4]));
-}
-
 // We use otapreopt_chroot to get into the chroot.
 static constexpr const char* kOtaPreopt = "/system/bin/otapreopt_chroot";
 
@@ -335,29 +314,6 @@ static int do_get_app_size(char **arg, char reply[REPLY_MAX]) {
     return res;
 }
 
-static int do_get_app_data_inode(char **arg, char reply[REPLY_MAX]) {
-    ino_t inode = 0;
-    int res = 0;
-
-    /* const char *uuid, const char *pkgname, int userid, int flags */
-    res = get_app_data_inode(parse_null(arg[0]), arg[1], atoi(arg[2]), atoi(arg[3]), &inode);
-
-    snprintf(reply, REPLY_MAX, "%" PRId64, (int64_t) inode);
-    return res;
-}
-
-static int do_create_user_data(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    /* const char *uuid, userid_t userid, int user_serial, int flags */
-    return create_user_data(parse_null(arg[0]), atoi(arg[1]), atoi(arg[2]), atoi(arg[3]));
-}
-
-static int do_destroy_user_data(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    /* const char *uuid, userid_t userid, int flags */
-    return destroy_user_data(parse_null(arg[0]), atoi(arg[1]), atoi(arg[2]));
-}
-
 static int do_linklib(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
 {
     return linklib(parse_null(arg[0]), arg[1], arg[2], atoi(arg[3]));
@@ -416,17 +372,7 @@ struct cmdinfo {
 
 struct cmdinfo cmds[] = {
     { "ping",                 0, do_ping },
-
-    { "restorecon_app_data",  6, do_restorecon_app_data },
-    { "migrate_app_data",     4, do_migrate_app_data },
-    { "clear_app_data",       5, do_clear_app_data },
-    { "destroy_app_data",     5, do_destroy_app_data },
     { "get_app_size",         6, do_get_app_size },
-    { "get_app_data_inode",   4, do_get_app_data_inode },
-
-    { "create_user_data",     4, do_create_user_data },
-    { "destroy_user_data",    3, do_destroy_user_data },
-
     { "dexopt",              10, do_dexopt },
     { "markbootcomplete",     1, do_mark_boot_complete },
     { "rmdex",                2, do_rm_dex },
