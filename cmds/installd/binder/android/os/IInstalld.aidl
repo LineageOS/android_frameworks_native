@@ -17,8 +17,22 @@
 package android.os;
 
 interface IInstalld {
+    void createUserData(@nullable @utf8InCpp String uuid, int userId, int userSerial, int flags);
+    void destroyUserData(@nullable @utf8InCpp String uuid, int userId, int flags);
+
     void createAppData(in @nullable @utf8InCpp String uuid, in @utf8InCpp String packageName,
             int userId, int flags, int appId, in @utf8InCpp String seInfo, int targetSdkVersion);
+    void restoreconAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
+            int userId, int flags, int appId, @utf8InCpp String seInfo);
+    void migrateAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
+            int userId, int flags);
+    void clearAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
+            int userId, int flags, long ceDataInode);
+    void destroyAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
+            int userId, int flags, long ceDataInode);
+    long getAppDataInode(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
+            int userId, int flags);
+
     void moveCompleteApp(@nullable @utf8InCpp String fromUuid, @nullable @utf8InCpp String toUuid,
             @utf8InCpp String packageName, @utf8InCpp String dataAppName, int appId,
             @utf8InCpp String seInfo, int targetSdkVersion);
