@@ -36,4 +36,25 @@ interface IInstalld {
     void moveCompleteApp(@nullable @utf8InCpp String fromUuid, @nullable @utf8InCpp String toUuid,
             @utf8InCpp String packageName, @utf8InCpp String dataAppName, int appId,
             @utf8InCpp String seInfo, int targetSdkVersion);
+
+    void rmdex(@utf8InCpp String codePath, @utf8InCpp String instructionSet);
+
+    boolean mergeProfiles(int uid, @utf8InCpp String packageName);
+    boolean dumpProfiles(int uid, @utf8InCpp String packageName, @utf8InCpp String codePaths);
+    void clearAppProfiles(@utf8InCpp String packageName);
+    void destroyAppProfiles(@utf8InCpp String packageName);
+
+    void idmap(@utf8InCpp String targetApkPath, @utf8InCpp String overlayApkPath, int uid);
+    void rmPackageDir(@utf8InCpp String packageDir);
+    void markBootComplete(@utf8InCpp String instructionSet);
+    void freeCache(@nullable @utf8InCpp String uuid, long freeStorageSize);
+    void linkNativeLibraryDirectory(@nullable @utf8InCpp String uuid,
+            @utf8InCpp String packageName, @utf8InCpp String nativeLibPath32, int userId);
+    void createOatDir(@utf8InCpp String oatDir, @utf8InCpp String instructionSet);
+    void linkFile(@utf8InCpp String relativePath, @utf8InCpp String fromBase,
+            @utf8InCpp String toBase);
+    void moveAb(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
+            @utf8InCpp String outputPath);
+    void deleteOdex(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
+            @utf8InCpp String outputPath);
 }

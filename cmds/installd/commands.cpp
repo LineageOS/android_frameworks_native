@@ -298,7 +298,6 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
     return binder::Status::ok();
 }
 
-//int migrate_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags) {
 binder::Status InstalldNativeService::migrateAppData(const std::unique_ptr<std::string>& uuid,
         const std::string& packageName, int32_t userId, int32_t flags) {
     ENFORCE_UID(AID_SYSTEM);
@@ -407,11 +406,13 @@ static bool clear_current_profiles(const char* pkgname) {
     return success;
 }
 
-int clear_app_profiles(const char* pkgname) {
+binder::Status InstalldNativeService::clearAppProfiles(const std::string& packageName) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* pkgname = packageName.c_str();
     bool success = true;
     success &= clear_reference_profile(pkgname);
     success &= clear_current_profiles(pkgname);
-    return success ? 0 : -1;
+    return success ? binder::Status::ok() : binder::Status::fromServiceSpecificError(-1);
 }
 
 binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::string>& uuid,
@@ -469,14 +470,16 @@ static int destroy_app_current_profiles(const char *pkgname, userid_t userid) {
         /*ignore_if_missing*/ true);
 }
 
-int destroy_app_profiles(const char *pkgname) {
+binder::Status InstalldNativeService::destroyAppProfiles(const std::string& packageName) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* pkgname = packageName.c_str();
     int result = 0;
     std::vector<userid_t> users = get_known_users(/*volume_uuid*/ nullptr);
     for (auto user : users) {
         result |= destroy_app_current_profiles(pkgname, user);
     }
     result |= destroy_app_reference_profile(pkgname);
-    return result;
+    return result ? binder::Status::fromServiceSpecificError(-1) : binder::Status::ok();
 }
 
 binder::Status InstalldNativeService::destroyAppData(const std::unique_ptr<std::string>& uuid,
@@ -676,53 +679,70 @@ binder::Status InstalldNativeService::destroyUserData(const std::unique_ptr<std:
  * also require that apps constantly modify file metadata even
  * when just reading from the cache, which is pretty awful.
  */
-int free_cache(const char *uuid, int64_t free_size) {
+binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::string>& uuid,
+        int64_t freeStorageSize) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     cache_t* cache;
     int64_t avail;
 
-    auto data_path = create_data_path(uuid);
+    auto data_path = create_data_path(uuid_);
 
     avail = data_disk_free(data_path);
-    if (avail < 0) return -1;
+    if (avail < 0) {
+        return binder::Status::fromServiceSpecificError(-1);
+    }
 
-    ALOGI("free_cache(%" PRId64 ") avail %" PRId64 "\n", free_size, avail);
-    if (avail >= free_size) return 0;
+    ALOGI("free_cache(%" PRId64 ") avail %" PRId64 "\n", freeStorageSize, avail);
+    if (avail >= freeStorageSize) {
+        return binder::Status::ok();
+    }
 
     cache = start_cache_collection();
 
-    auto users = get_known_users(uuid);
+    auto users = get_known_users(uuid_);
     for (auto user : users) {
-        add_cache_files(cache, create_data_user_ce_path(uuid, user));
-        add_cache_files(cache, create_data_user_de_path(uuid, user));
+        add_cache_files(cache, create_data_user_ce_path(uuid_, user));
+        add_cache_files(cache, create_data_user_de_path(uuid_, user));
         add_cache_files(cache,
-                StringPrintf("%s/Android/data", create_data_media_path(uuid, user).c_str()));
+                StringPrintf("%s/Android/data", create_data_media_path(uuid_, user).c_str()));
     }
 
-    clear_cache_files(data_path, cache, free_size);
+    clear_cache_files(data_path, cache, freeStorageSize);
     finish_cache_collection(cache);
 
-    return data_disk_free(data_path) >= free_size ? 0 : -1;
+    if (data_disk_free(data_path) >= freeStorageSize) {
+        return binder::Status::ok();
+    } else {
+        return binder::Status::fromServiceSpecificError(-1);
+    }
 }
 
-int rm_dex(const char *path, const char *instruction_set)
-{
+binder::Status InstalldNativeService::rmdex(const std::string& codePath,
+        const std::string& instructionSet) {
+    ENFORCE_UID(AID_SYSTEM);
     char dex_path[PKG_PATH_MAX];
+
+    const char* path = codePath.c_str();
+    const char* instruction_set = instructionSet.c_str();
 
     if (validate_apk_path(path) && validate_system_app_path(path)) {
         ALOGE("invalid apk path '%s' (bad prefix)\n", path);
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
 
-    if (!create_cache_path(dex_path, path, instruction_set)) return -1;
+    if (!create_cache_path(dex_path, path, instruction_set)) {
+        return binder::Status::fromServiceSpecificError(-1);
+    }
 
     ALOGV("unlink %s\n", dex_path);
     if (unlink(dex_path) < 0) {
         if (errno != ENOENT) {
             ALOGE("Couldn't unlink %s: %s\n", dex_path, strerror(errno));
         }
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     } else {
-        return 0;
+        return binder::Status::ok();
     }
 }
 
@@ -1486,7 +1506,13 @@ static const char* get_location_from_path(const char* path) {
 
 // Dumps the contents of a profile file, using pkgname's dex files for pretty
 // printing the result.
-bool dump_profile(uid_t uid, const char* pkgname, const char* code_path_string) {
+binder::Status InstalldNativeService::dumpProfiles(int32_t uid, const std::string& packageName,
+        const std::string& codePaths, bool* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+
+    const char* pkgname = packageName.c_str();
+    const char* code_path_string = codePaths.c_str();
+
     std::vector<fd_t> profile_fds;
     fd_t reference_profile_fd = -1;
     std::string out_file_name = StringPrintf("/data/misc/profman/%s.txt", pkgname);
@@ -1500,13 +1526,15 @@ bool dump_profile(uid_t uid, const char* pkgname, const char* code_path_string) 
 
     if (!has_reference_profile && !has_profiles) {
         ALOGE("profman dump: no profiles to dump for '%s'", pkgname);
-        return false;
+        *_aidl_return = false;
+        return binder::Status::ok();
     }
 
     fd_t output_fd = open(out_file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW);
     if (fchmod(output_fd, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH) < 0) {
         ALOGE("installd cannot chmod '%s' dump_profile\n", out_file_name.c_str());
-        return false;
+        *_aidl_return = false;
+        return binder::Status::ok();
     }
     std::vector<std::string> code_full_paths = base::Split(code_path_string, ";");
     std::vector<std::string> dex_locations;
@@ -1516,7 +1544,8 @@ bool dump_profile(uid_t uid, const char* pkgname, const char* code_path_string) 
         fd_t apk_fd = open(full_path, O_RDONLY | O_NOFOLLOW);
         if (apk_fd == -1) {
             ALOGE("installd cannot open '%s'\n", full_path);
-            return false;
+            *_aidl_return = false;
+            return binder::Status::ok();
         }
         dex_locations.push_back(get_location_from_path(full_path));
         apk_fds.push_back(apk_fd);
@@ -1540,9 +1569,11 @@ bool dump_profile(uid_t uid, const char* pkgname, const char* code_path_string) 
     if (!WIFEXITED(return_code)) {
         LOG(WARNING) << "profman failed for package " << pkgname << ": "
                 << return_code;
-        return false;
+        *_aidl_return = false;
+        return binder::Status::ok();
     }
-    return true;
+    *_aidl_return = true;
+    return binder::Status::ok();
 }
 
 static std::string replace_file_extension(const std::string& oat_path, const std::string& new_ext) {
@@ -1649,8 +1680,12 @@ static bool create_oat_out_path(const char* apk_path, const char* instruction_se
 }
 
 // TODO: Consider returning error codes.
-bool merge_profiles(uid_t uid, const char *pkgname) {
-    return analyse_profiles(uid, pkgname);
+binder::Status InstalldNativeService::mergeProfiles(int32_t uid, const std::string& packageName,
+    bool* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* pkgname = packageName.c_str();
+    *_aidl_return = analyse_profiles(uid, pkgname);
+    return binder::Status::ok();
 }
 
 static const char* parse_null(const char* arg) {
@@ -2025,23 +2060,23 @@ int dexopt(const char* apk_path, uid_t uid, const char* pkgname, const char* ins
     return 0;
 }
 
-int mark_boot_complete(const char* instruction_set)
-{
-  char boot_marker_path[PKG_PATH_MAX];
-  sprintf(boot_marker_path,
+binder::Status InstalldNativeService::markBootComplete(const std::string& instructionSet) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* instruction_set = instructionSet.c_str();
+
+    char boot_marker_path[PKG_PATH_MAX];
+    sprintf(boot_marker_path,
           "%s/%s/%s/.booting",
           android_data_dir.path,
           DALVIK_CACHE,
           instruction_set);
 
-  ALOGV("mark_boot_complete : %s", boot_marker_path);
-  if (unlink(boot_marker_path) != 0) {
-      ALOGE("Unable to unlink boot marker at %s, error=%s", boot_marker_path,
-            strerror(errno));
-      return -1;
-  }
-
-  return 0;
+    ALOGV("mark_boot_complete : %s", boot_marker_path);
+    if (unlink(boot_marker_path) != 0) {
+        ALOGE("Unable to unlink boot marker at %s, error=%s", boot_marker_path, strerror(errno));
+        return binder::Status::fromServiceSpecificError(-1);
+    }
+    return binder::Status::ok();
 }
 
 void mkinnerdirs(char* path, int basepos, mode_t mode, int uid, int gid,
@@ -2065,22 +2100,29 @@ void mkinnerdirs(char* path, int basepos, mode_t mode, int uid, int gid,
     }
 }
 
-int linklib(const char* uuid, const char* pkgname, const char* asecLibDir, int userId)
-{
+binder::Status InstalldNativeService::linkNativeLibraryDirectory(
+        const std::unique_ptr<std::string>& uuid, const std::string& packageName,
+        const std::string& nativeLibPath32, int32_t userId) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgname = packageName.c_str();
+    const char* asecLibDir = nativeLibPath32.c_str();
     struct stat s, libStat;
     int rc = 0;
 
-    std::string _pkgdir(create_data_user_ce_package_path(uuid, userId, pkgname));
+    std::string _pkgdir(create_data_user_ce_package_path(uuid_, userId, pkgname));
     std::string _libsymlink(_pkgdir + PKG_LIB_POSTFIX);
 
     const char* pkgdir = _pkgdir.c_str();
     const char* libsymlink = _libsymlink.c_str();
 
-    if (stat(pkgdir, &s) < 0) return -1;
+    if (stat(pkgdir, &s) < 0) {
+        return binder::Status::fromServiceSpecificError(-1);
+    }
 
     if (chown(pkgdir, AID_INSTALL, AID_INSTALL) < 0) {
         ALOGE("failed to chown '%s': %s\n", pkgdir, strerror(errno));
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
 
     if (chmod(pkgdir, 0700) < 0) {
@@ -2125,10 +2167,10 @@ out:
 
     if (chown(pkgdir, s.st_uid, s.st_gid) < 0) {
         ALOGE("failed to chown '%s' : %s\n", pkgdir, strerror(errno));
-        return -errno;
+        rc = -errno;
     }
 
-    return rc;
+    return rc ? binder::Status::fromServiceSpecificError(-1) : binder::Status::ok();
 }
 
 static void run_idmap(const char *target_apk, const char *overlay_apk, int idmap_fd)
@@ -2178,8 +2220,11 @@ static int flatten_path(const char *prefix, const char *suffix,
     return 0;
 }
 
-int idmap(const char *target_apk, const char *overlay_apk, uid_t uid)
-{
+binder::Status InstalldNativeService::idmap(const std::string& targetApkPath,
+        const std::string& overlayApkPath, int32_t uid) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* target_apk = targetApkPath.c_str();
+    const char* overlay_apk = overlayApkPath.c_str();
     ALOGV("idmap target_apk=%s overlay_apk=%s uid=%d\n", target_apk, overlay_apk, uid);
 
     int idmap_fd = -1;
@@ -2234,13 +2279,13 @@ int idmap(const char *target_apk, const char *overlay_apk, uid_t uid)
     }
 
     close(idmap_fd);
-    return 0;
+    return binder::Status::ok();
 fail:
     if (idmap_fd >= 0) {
         close(idmap_fd);
         unlink(idmap_path);
     }
-    return -1;
+    return binder::Status::fromServiceSpecificError(-1);
 }
 
 binder::Status InstalldNativeService::restoreconAppData(const std::unique_ptr<std::string>& uuid,
@@ -2278,38 +2323,49 @@ binder::Status InstalldNativeService::restoreconAppData(const std::unique_ptr<st
     return res ? binder::Status::fromServiceSpecificError(-1) : binder::Status::ok();
 }
 
-int create_oat_dir(const char* oat_dir, const char* instruction_set)
-{
+binder::Status InstalldNativeService::createOatDir(const std::string& oatDir,
+        const std::string& instructionSet) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* oat_dir = oatDir.c_str();
+    const char* instruction_set = instructionSet.c_str();
     char oat_instr_dir[PKG_PATH_MAX];
 
     if (validate_apk_path(oat_dir)) {
         ALOGE("invalid apk path '%s' (bad prefix)\n", oat_dir);
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
     if (fs_prepare_dir(oat_dir, S_IRWXU | S_IRWXG | S_IXOTH, AID_SYSTEM, AID_INSTALL)) {
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
     if (selinux_android_restorecon(oat_dir, 0)) {
         ALOGE("cannot restorecon dir '%s': %s\n", oat_dir, strerror(errno));
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
     snprintf(oat_instr_dir, PKG_PATH_MAX, "%s/%s", oat_dir, instruction_set);
     if (fs_prepare_dir(oat_instr_dir, S_IRWXU | S_IRWXG | S_IXOTH, AID_SYSTEM, AID_INSTALL)) {
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
-    return 0;
+    return binder::Status::ok();
 }
 
-int rm_package_dir(const char* apk_path)
-{
+binder::Status InstalldNativeService::rmPackageDir(const std::string& packageDir) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* apk_path = packageDir.c_str();
     if (validate_apk_path(apk_path)) {
         ALOGE("invalid apk path '%s' (bad prefix)\n", apk_path);
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
-    return delete_dir_contents(apk_path, 1 /* also_delete_dir */ , NULL /* exclusion_predicate */);
+    int res = delete_dir_contents(apk_path, 1 /* also_delete_dir */,
+            NULL /* exclusion_predicate */);
+    return res ? binder::Status::fromServiceSpecificError(-1) : binder::Status::ok();
 }
 
-int link_file(const char* relative_path, const char* from_base, const char* to_base) {
+binder::Status InstalldNativeService::linkFile(const std::string& relativePath,
+        const std::string& fromBase, const std::string& toBase) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* relative_path = relativePath.c_str();
+    const char* from_base = fromBase.c_str();
+    const char* to_base = toBase.c_str();
     char from_path[PKG_PATH_MAX];
     char to_path[PKG_PATH_MAX];
     snprintf(from_path, PKG_PATH_MAX, "%s/%s", from_base, relative_path);
@@ -2317,21 +2373,21 @@ int link_file(const char* relative_path, const char* from_base, const char* to_b
 
     if (validate_apk_path_subdirs(from_path)) {
         ALOGE("invalid app data sub-path '%s' (bad prefix)\n", from_path);
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
 
     if (validate_apk_path_subdirs(to_path)) {
         ALOGE("invalid app data sub-path '%s' (bad prefix)\n", to_path);
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
 
     const int ret = link(from_path, to_path);
     if (ret < 0) {
         ALOGE("link(%s, %s) failed : %s", from_path, to_path, strerror(errno));
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
 
-    return 0;
+    return binder::Status::ok();
 }
 
 // Helper for move_ab, so that we can have common failure-case cleanup.
@@ -2392,40 +2448,42 @@ static bool move_ab_path(const std::string& b_path, const std::string& a_path) {
     return true;
 }
 
-int move_ab(const char* apk_path, const char* instruction_set, const char* oat_dir) {
-    if (apk_path == nullptr || instruction_set == nullptr || oat_dir == nullptr) {
-        LOG(ERROR) << "Cannot move_ab with null input";
-        return -1;
-    }
+//int move_ab(const char* apk_path, const char* instruction_set, const char* oat_dir) {
+binder::Status InstalldNativeService::moveAb(const std::string& apkPath,
+        const std::string& instructionSet, const std::string& outputPath) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* apk_path = apkPath.c_str();
+    const char* instruction_set = instructionSet.c_str();
+    const char* oat_dir = outputPath.c_str();
 
     // Get the current slot suffix. No suffix, no A/B.
     std::string slot_suffix;
     {
         char buf[kPropertyValueMax];
         if (get_property("ro.boot.slot_suffix", buf, nullptr) <= 0) {
-            return -1;
+            return binder::Status::fromServiceSpecificError(-1);
         }
         slot_suffix = buf;
 
         if (!ValidateTargetSlotSuffix(slot_suffix)) {
             LOG(ERROR) << "Target slot suffix not legal: " << slot_suffix;
-            return -1;
+            return binder::Status::fromServiceSpecificError(-1);
         }
     }
 
     // Validate other inputs.
     if (validate_apk_path(apk_path) != 0) {
         LOG(ERROR) << "invalid apk_path " << apk_path;
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
     if (validate_apk_path(oat_dir) != 0) {
         LOG(ERROR) << "invalid oat_dir " << oat_dir;
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
 
     char a_path[PKG_PATH_MAX];
     if (!calculate_oat_file_path(a_path, oat_dir, apk_path, instruction_set)) {
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
     const std::string a_vdex_path = create_vdex_filename(a_path);
     const std::string a_image_path = create_image_filename(a_path);
@@ -2465,14 +2523,20 @@ int move_ab(const char* apk_path, const char* instruction_set, const char* oat_d
         success = false;
     }
 
-    return success ? 0 : -1;
+    return success ? binder::Status::ok() : binder::Status::fromServiceSpecificError(-1);
 }
 
-bool delete_odex(const char *apk_path, const char *instruction_set, const char *oat_dir) {
+binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
+        const std::string& instructionSet, const std::string& outputPath) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* apk_path = apkPath.c_str();
+    const char* instruction_set = instructionSet.c_str();
+    const char* oat_dir = outputPath.c_str();
+
     // Delete the oat/odex file.
     char out_path[PKG_PATH_MAX];
     if (!create_oat_out_path(apk_path, instruction_set, oat_dir, out_path)) {
-        return false;
+        return binder::Status::fromServiceSpecificError(-1);
     }
 
     // In case of a permission failure report the issue. Otherwise just print a warning.
@@ -2495,7 +2559,8 @@ bool delete_odex(const char *apk_path, const char *instruction_set, const char *
     bool return_value_art = unlink_and_check(create_image_filename(out_path).c_str());
 
     // Report success.
-    return return_value_oat && return_value_art;
+    bool success = return_value_oat && return_value_art;
+    return success ? binder::Status::ok() : binder::Status::fromServiceSpecificError(-1);
 }
 
 }  // namespace installd
