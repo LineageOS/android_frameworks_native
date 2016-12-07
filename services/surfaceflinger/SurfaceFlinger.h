@@ -283,7 +283,7 @@ private:
      * Transactions
      */
     uint32_t getTransactionFlags(uint32_t flags);
-    uint32_t peekTransactionFlags(uint32_t flags);
+    uint32_t peekTransactionFlags();
     uint32_t setTransactionFlags(uint32_t flags);
     void commitTransaction();
     uint32_t setClientStateLocked(const sp<Client>& client, const layer_state_t& s);

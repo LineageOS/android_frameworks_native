@@ -1117,7 +1117,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
 }
 
 bool SurfaceFlinger::handleMessageTransaction() {
-    uint32_t transactionFlags = peekTransactionFlags(eTransactionMask);
+    uint32_t transactionFlags = peekTransactionFlags();
     if (transactionFlags) {
         handleTransaction(transactionFlags);
         return true;
@@ -2305,7 +2305,7 @@ status_t SurfaceFlinger::removeLayer(const wp<Layer>& weakLayer) {
     return status_t(index);
 }
 
-uint32_t SurfaceFlinger::peekTransactionFlags(uint32_t /* flags */) {
+uint32_t SurfaceFlinger::peekTransactionFlags() {
     return android_atomic_release_load(&mTransactionFlags);
 }
 
