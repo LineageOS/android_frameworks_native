@@ -298,21 +298,27 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
     return binder::Status::ok();
 }
 
-int migrate_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags) {
+//int migrate_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags) {
+binder::Status InstalldNativeService::migrateAppData(const std::unique_ptr<std::string>& uuid,
+        const std::string& packageName, int32_t userId, int32_t flags) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgname = packageName.c_str();
+
     // This method only exists to upgrade system apps that have requested
     // forceDeviceEncrypted, so their default storage always lives in a
     // consistent location.  This only works on non-FBE devices, since we
     // never want to risk exposing data on a device with real CE/DE storage.
 
-    auto ce_path = create_data_user_ce_package_path(uuid, userid, pkgname);
-    auto de_path = create_data_user_de_package_path(uuid, userid, pkgname);
+    auto ce_path = create_data_user_ce_package_path(uuid_, userId, pkgname);
+    auto de_path = create_data_user_de_package_path(uuid_, userId, pkgname);
 
     // If neither directory is marked as default, assume CE is default
     if (getxattr(ce_path.c_str(), kXattrDefault, nullptr, 0) == -1
             && getxattr(de_path.c_str(), kXattrDefault, nullptr, 0) == -1) {
         if (setxattr(ce_path.c_str(), kXattrDefault, nullptr, 0, 0) != 0) {
             PLOG(ERROR) << "Failed to mark default storage " << ce_path;
-            return -1;
+            return binder::Status::fromServiceSpecificError(-1);
         }
     }
 
@@ -325,15 +331,15 @@ int migrate_app_data(const char *uuid, const char *pkgname, userid_t userid, int
                 << " is not active; migrating from " << source;
         if (delete_dir_contents_and_dir(target) != 0) {
             PLOG(ERROR) << "Failed to delete";
-            return -1;
+            return binder::Status::fromServiceSpecificError(-1);
         }
         if (rename(source.c_str(), target.c_str()) != 0) {
             PLOG(ERROR) << "Failed to rename";
-            return -1;
+            return binder::Status::fromServiceSpecificError(-1);
         }
     }
 
-    return 0;
+    return binder::Status::ok();
 }
 
 static bool clear_profile(const std::string& profile) {
@@ -408,11 +414,15 @@ int clear_app_profiles(const char* pkgname) {
     return success ? 0 : -1;
 }
 
-int clear_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags,
-        ino_t ce_data_inode) {
+binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::string>& uuid,
+        const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgname = packageName.c_str();
+
     int res = 0;
     if (flags & FLAG_STORAGE_CE) {
-        auto path = create_data_user_ce_package_path(uuid, userid, pkgname, ce_data_inode);
+        auto path = create_data_user_ce_package_path(uuid_, userId, pkgname, ceDataInode);
         if (flags & FLAG_CLEAR_CACHE_ONLY) {
             path = read_path_inode(path, "cache", kXattrInodeCache);
         } else if (flags & FLAG_CLEAR_CODE_CACHE_ONLY) {
@@ -433,18 +443,18 @@ int clear_app_data(const char *uuid, const char *pkgname, userid_t userid, int f
             only_cache = true;
         }
 
-        auto path = create_data_user_de_package_path(uuid, userid, pkgname) + suffix;
+        auto path = create_data_user_de_package_path(uuid_, userId, pkgname) + suffix;
         if (access(path.c_str(), F_OK) == 0) {
             // TODO: include result once 25796509 is fixed
             delete_dir_contents(path);
         }
         if (!only_cache) {
-            if (!clear_current_profile(pkgname, userid)) {
+            if (!clear_current_profile(pkgname, userId)) {
                 res |= -1;
             }
         }
     }
-    return res;
+    return res ? binder::Status::fromServiceSpecificError(-1) : binder::Status::ok();
 }
 
 static int destroy_app_reference_profile(const char *pkgname) {
@@ -469,23 +479,27 @@ int destroy_app_profiles(const char *pkgname) {
     return result;
 }
 
-int destroy_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags,
-        ino_t ce_data_inode) {
+binder::Status InstalldNativeService::destroyAppData(const std::unique_ptr<std::string>& uuid,
+        const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgname = packageName.c_str();
+
     int res = 0;
     if (flags & FLAG_STORAGE_CE) {
         res |= delete_dir_contents_and_dir(
-                create_data_user_ce_package_path(uuid, userid, pkgname, ce_data_inode));
+                create_data_user_ce_package_path(uuid_, userId, pkgname, ceDataInode));
     }
     if (flags & FLAG_STORAGE_DE) {
         res |= delete_dir_contents_and_dir(
-                create_data_user_de_package_path(uuid, userid, pkgname));
-        destroy_app_current_profiles(pkgname, userid);
+                create_data_user_de_package_path(uuid_, userId, pkgname));
+        destroy_app_current_profiles(pkgname, userId);
         // TODO(calin): If the package is still installed by other users it's probably
         // beneficial to keep the reference profile around.
         // Verify if it's ok to do that.
         destroy_app_reference_profile(pkgname);
     }
-    return res;
+    return res ? binder::Status::fromServiceSpecificError(-1) : binder::Status::ok();
 }
 
 binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std::string>& fromUuid,
@@ -497,7 +511,6 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std:
     const char* to_uuid = toUuid ? toUuid->c_str() : nullptr;
     const char* package_name = packageName.c_str();
     const char* data_app_name = dataAppName.c_str();
-    const char* seinfo = seInfo.c_str();
 
     std::vector<userid_t> users = get_known_users(from_uuid);
 
@@ -587,8 +600,8 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std:
             }
         }
 
-        if (restorecon_app_data(to_uuid, package_name, user, FLAG_STORAGE_CE | FLAG_STORAGE_DE,
-                appId, seinfo) != 0) {
+        if (!restoreconAppData(toUuid, packageName, user, FLAG_STORAGE_CE | FLAG_STORAGE_DE,
+                appId, seInfo).isOk()) {
             LOG(ERROR) << "Failed to restorecon";
             goto fail;
         }
@@ -624,30 +637,36 @@ fail:
     return binder::Status::fromServiceSpecificError(-1);
 }
 
-int create_user_data(const char *uuid, userid_t userid, int user_serial ATTRIBUTE_UNUSED,
-        int flags) {
-    if (flags & FLAG_STORAGE_DE) {
-        if (uuid == nullptr) {
-            return ensure_config_user_dirs(userid);
-        }
-    }
-    return 0;
-}
-
-int destroy_user_data(const char *uuid, userid_t userid, int flags) {
+binder::Status InstalldNativeService::createUserData(const std::unique_ptr<std::string>& uuid,
+        int32_t userId, int32_t userSerial ATTRIBUTE_UNUSED, int32_t flags) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     int res = 0;
     if (flags & FLAG_STORAGE_DE) {
-        res |= delete_dir_contents_and_dir(create_data_user_de_path(uuid, userid), true);
-        if (uuid == nullptr) {
-            res |= delete_dir_contents_and_dir(create_data_misc_legacy_path(userid), true);
-            res |= delete_dir_contents_and_dir(create_data_user_profiles_path(userid), true);
+        if (uuid_ == nullptr) {
+            res = ensure_config_user_dirs(userId);
+        }
+    }
+    return res ? binder::Status::fromServiceSpecificError(-1) : binder::Status::ok();
+}
+
+binder::Status InstalldNativeService::destroyUserData(const std::unique_ptr<std::string>& uuid,
+        int32_t userId, int32_t flags) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    int res = 0;
+    if (flags & FLAG_STORAGE_DE) {
+        res |= delete_dir_contents_and_dir(create_data_user_de_path(uuid_, userId), true);
+        if (uuid_ == nullptr) {
+            res |= delete_dir_contents_and_dir(create_data_misc_legacy_path(userId), true);
+            res |= delete_dir_contents_and_dir(create_data_user_profiles_path(userId), true);
         }
     }
     if (flags & FLAG_STORAGE_CE) {
-        res |= delete_dir_contents_and_dir(create_data_user_ce_path(uuid, userid), true);
-        res |= delete_dir_contents_and_dir(create_data_media_path(uuid, userid), true);
+        res |= delete_dir_contents_and_dir(create_data_user_ce_path(uuid_, userId), true);
+        res |= delete_dir_contents_and_dir(create_data_media_path(uuid_, userId), true);
     }
-    return res;
+    return res ? binder::Status::fromServiceSpecificError(-1) : binder::Status::ok();
 }
 
 /* Try to ensure free_size bytes of storage are available.
@@ -784,12 +803,18 @@ int get_app_size(const char *uuid, const char *pkgname, int userid, int flags, i
     return 0;
 }
 
-int get_app_data_inode(const char *uuid, const char *pkgname, int userid, int flags, ino_t *inode) {
+binder::Status InstalldNativeService::getAppDataInode(const std::unique_ptr<std::string>& uuid,
+    const std::string& packageName, int32_t userId, int32_t flags, int64_t* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgname = packageName.c_str();
+
+    int res = 0;
     if (flags & FLAG_STORAGE_CE) {
-        auto path = create_data_user_ce_package_path(uuid, userid, pkgname);
-        return get_path_inode(path, inode);
+        auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
+        res = get_path_inode(path, reinterpret_cast<ino_t*>(_aidl_return));
     }
-    return -1;
+    return res ? binder::Status::fromServiceSpecificError(-1) : binder::Status::ok();
 }
 
 static int split_count(const char *str)
@@ -2218,35 +2243,39 @@ fail:
     return -1;
 }
 
-int restorecon_app_data(const char* uuid, const char* pkgName, userid_t userid, int flags,
-        appid_t appid, const char* seinfo) {
+binder::Status InstalldNativeService::restoreconAppData(const std::unique_ptr<std::string>& uuid,
+        const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
+        const std::string& seInfo) {
+    ENFORCE_UID(AID_SYSTEM);
     int res = 0;
 
     // SELINUX_ANDROID_RESTORECON_DATADATA flag is set by libselinux. Not needed here.
     unsigned int seflags = SELINUX_ANDROID_RESTORECON_RECURSE;
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgName = packageName.c_str();
+    const char* seinfo = seInfo.c_str();
 
     if (!pkgName || !seinfo) {
         ALOGE("Package name or seinfo tag is null when trying to restorecon.");
-        return -1;
+        return binder::Status::fromServiceSpecificError(-1);
     }
 
-    uid_t uid = multiuser_get_uid(userid, appid);
+    uid_t uid = multiuser_get_uid(userId, appId);
     if (flags & FLAG_STORAGE_CE) {
-        auto path = create_data_user_ce_package_path(uuid, userid, pkgName);
+        auto path = create_data_user_ce_package_path(uuid_, userId, pkgName);
         if (selinux_android_restorecon_pkgdir(path.c_str(), seinfo, uid, seflags) < 0) {
             PLOG(ERROR) << "restorecon failed for " << path;
             res = -1;
         }
     }
     if (flags & FLAG_STORAGE_DE) {
-        auto path = create_data_user_de_package_path(uuid, userid, pkgName);
+        auto path = create_data_user_de_package_path(uuid_, userId, pkgName);
         if (selinux_android_restorecon_pkgdir(path.c_str(), seinfo, uid, seflags) < 0) {
             PLOG(ERROR) << "restorecon failed for " << path;
             // TODO: include result once 25796509 is fixed
         }
     }
-
-    return res;
+    return res ? binder::Status::fromServiceSpecificError(-1) : binder::Status::ok();
 }
 
 int create_oat_dir(const char* oat_dir, const char* instruction_set)
