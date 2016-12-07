@@ -972,7 +972,7 @@ void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
     } else {
         engine.setupLayerBlackedOut();
     }
-    drawWithOpenGL(hw, clip, useIdentityTransform);
+    drawWithOpenGL(hw, useIdentityTransform);
     engine.disableTexturing();
 }
 
@@ -993,7 +993,7 @@ void Layer::clearWithOpenGL(
 }
 
 void Layer::drawWithOpenGL(const sp<const DisplayDevice>& hw,
-        const Region& /* clip */, bool useIdentityTransform) const {
+        bool useIdentityTransform) const {
     const State& s(getDrawingState());
 
     computeGeometry(hw, mMesh, useIdentityTransform);
