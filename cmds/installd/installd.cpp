@@ -253,46 +253,6 @@ static int do_dexopt(char **arg, char reply[REPLY_MAX])
     return dexopt_fn(args, reply);
 }
 
-static int do_merge_profiles(char **arg, char reply[REPLY_MAX])
-{
-    uid_t uid = static_cast<uid_t>(atoi(arg[0]));
-    const char* pkgname = arg[1];
-    if (merge_profiles(uid, pkgname)) {
-        strncpy(reply, "true", REPLY_MAX);
-    } else {
-        strncpy(reply, "false", REPLY_MAX);
-    }
-    return 0;
-}
-
-static int do_dump_profiles(char **arg, char reply[REPLY_MAX])
-{
-    uid_t uid = static_cast<uid_t>(atoi(arg[0]));
-    const char* pkgname = arg[1];
-    const char* dex_files = arg[2];
-    if (dump_profile(uid, pkgname, dex_files)) {
-        strncpy(reply, "true", REPLY_MAX);
-    } else {
-        strncpy(reply, "false", REPLY_MAX);
-    }
-    return 0;
-}
-
-static int do_mark_boot_complete(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    return mark_boot_complete(arg[0] /* instruction set */);
-}
-
-static int do_rm_dex(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    return rm_dex(arg[0], arg[1]); /* pkgname, instruction_set */
-}
-
-static int do_free_cache(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED) /* TODO int:free_size */
-{
-    return free_cache(parse_null(arg[0]), (int64_t)atoll(arg[1])); /* uuid, free_size */
-}
-
 static int do_get_app_size(char **arg, char reply[REPLY_MAX]) {
     int64_t codesize = 0;
     int64_t datasize = 0;
@@ -314,56 +274,6 @@ static int do_get_app_size(char **arg, char reply[REPLY_MAX]) {
     return res;
 }
 
-static int do_linklib(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    return linklib(parse_null(arg[0]), arg[1], arg[2], atoi(arg[3]));
-}
-
-static int do_idmap(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    return idmap(arg[0], arg[1], atoi(arg[2]));
-}
-
-static int do_create_oat_dir(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    /* oat_dir, instruction_set */
-    return create_oat_dir(arg[0], arg[1]);
-}
-
-static int do_rm_package_dir(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    /* oat_dir */
-    return rm_package_dir(arg[0]);
-}
-
-static int do_clear_app_profiles(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    /* package_name */
-    return clear_app_profiles(arg[0]);
-}
-
-static int do_destroy_app_profiles(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    /* package_name */
-    return destroy_app_profiles(arg[0]);
-}
-
-static int do_link_file(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    /* relative_path, from_base, to_base */
-    return link_file(arg[0], arg[1], arg[2]);
-}
-
-static int do_move_ab(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
-    // apk_path, instruction_set, oat_dir
-    return move_ab(arg[0], arg[1], arg[2]);
-}
-
-static int do_delete_odex(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
-    // apk_path, instruction_set, oat_dir
-    return delete_odex(arg[0], arg[1], arg[2]) ? 0 : -1;
-}
-
 struct cmdinfo {
     const char *name;
     unsigned numargs;
@@ -374,20 +284,6 @@ struct cmdinfo cmds[] = {
     { "ping",                 0, do_ping },
     { "get_app_size",         6, do_get_app_size },
     { "dexopt",              10, do_dexopt },
-    { "markbootcomplete",     1, do_mark_boot_complete },
-    { "rmdex",                2, do_rm_dex },
-    { "freecache",            2, do_free_cache },
-    { "linklib",              4, do_linklib },
-    { "idmap",                3, do_idmap },
-    { "createoatdir",         2, do_create_oat_dir },
-    { "rmpackagedir",         1, do_rm_package_dir },
-    { "clear_app_profiles",   1, do_clear_app_profiles },
-    { "destroy_app_profiles", 1, do_destroy_app_profiles },
-    { "linkfile",             3, do_link_file },
-    { "move_ab",              3, do_move_ab },
-    { "merge_profiles",       2, do_merge_profiles },
-    { "dump_profiles",        3, do_dump_profiles },
-    { "delete_odex",          3, do_delete_odex },
 };
 
 static int readx(int s, void *_buf, int count)
