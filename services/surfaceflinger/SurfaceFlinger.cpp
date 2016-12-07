@@ -2015,7 +2015,6 @@ bool SurfaceFlinger::handlePageFlip()
     ALOGV("handlePageFlip");
 
     nsecs_t latchTime = systemTime();
-    Region dirtyRegion;
 
     bool visibleRegions = false;
     const LayerVector& layers(mDrawingState.layersSortedByZ);
