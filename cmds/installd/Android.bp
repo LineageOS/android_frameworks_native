@@ -1,3 +1,57 @@
+cc_defaults {
+    name: "installd_defaults",
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+    srcs: [
+        "commands.cpp",
+        "globals.cpp",
+        "utils.cpp",
+        "binder/android/os/IInstalld.aidl",
+    ],
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libcutils",
+        "liblog",
+        "liblogwrap",
+        "libselinux",
+        "libutils",
+    ],
+
+    clang: true,
+}
+
+//
+// Static library used in testing and executable
+//
+
+cc_library_static {
+    name: "libinstalld",
+    defaults: ["installd_defaults"],
+
+    export_include_dirs: ["."],
+    aidl: {
+        export_aidl_headers: true,
+    },
+}
+
+//
+// Executable
+//
+
+cc_binary {
+    name: "installd",
+    defaults: ["installd_defaults"],
+    srcs: ["installd.cpp"],
+
+    static_libs: ["libdiskusage"],
+
+    init_rc: ["installd.rc"],
+}
+
 // OTA chroot tool
 
 cc_binary {
@@ -14,3 +68,5 @@ cc_binary {
         "liblog",
     ],
 }
+
+subdirs = ["tests"]
