@@ -906,7 +906,7 @@ void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
         // if not everything below us is covered, we plug the holes!
         Region holes(clip.subtract(under));
         if (!holes.isEmpty()) {
-            clearWithOpenGL(hw, holes, 0, 0, 0, 1);
+            clearWithOpenGL(hw, 0, 0, 0, 1);
         }
         return;
     }
@@ -978,7 +978,7 @@ void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
 
 
 void Layer::clearWithOpenGL(const sp<const DisplayDevice>& hw,
-        const Region& /* clip */, float red, float green, float blue,
+        float red, float green, float blue,
         float alpha) const
 {
     RenderEngine& engine(mFlinger->getRenderEngine());
@@ -988,8 +988,8 @@ void Layer::clearWithOpenGL(const sp<const DisplayDevice>& hw,
 }
 
 void Layer::clearWithOpenGL(
-        const sp<const DisplayDevice>& hw, const Region& clip) const {
-    clearWithOpenGL(hw, clip, 0,0,0,0);
+        const sp<const DisplayDevice>& hw) const {
+    clearWithOpenGL(hw, 0,0,0,0);
 }
 
 void Layer::drawWithOpenGL(const sp<const DisplayDevice>& hw,

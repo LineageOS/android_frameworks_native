@@ -2143,7 +2143,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& hw, const 
                                 && hasGlesComposition) {
                             // never clear the very first layer since we're
                             // guaranteed the FB is already cleared
-                            layer->clearWithOpenGL(hw, clip);
+                            layer->clearWithOpenGL(hw);
                         }
                         break;
                     }

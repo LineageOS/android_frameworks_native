@@ -2224,7 +2224,7 @@ bool SurfaceFlinger::doComposeSurfaces(
                                 && hasClientComposition) {
                             // never clear the very first layer since we're
                             // guaranteed the FB is already cleared
-                            layer->clearWithOpenGL(displayDevice, clip);
+                            layer->clearWithOpenGL(displayDevice);
                         }
                         break;
                     }
