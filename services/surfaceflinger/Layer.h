@@ -296,10 +296,10 @@ public:
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
      */
-    bool onPostComposition(
-            const std::shared_ptr<FenceTime>& glDoneFence,
+    bool onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
             const std::shared_ptr<FenceTime>& presentFence,
-            const std::shared_ptr<FenceTime>& retireFence);
+            const std::shared_ptr<FenceTime>& retireFence,
+            const CompositorTiming& compositorTiming);
 
 #ifdef USE_HWC2
     // If a buffer was replaced this frame, release the former buffer

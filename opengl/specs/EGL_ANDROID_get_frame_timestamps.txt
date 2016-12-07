@@ -60,26 +60,33 @@ New Procedures and Functions
     EGLBoolean eglGetNextFrameIdANDROID(EGLDisplay dpy, EGLSurface surface,
             EGLuint64KHR *frameId);
 
+    EGLBoolean eglGetCompositorTimingANDROID(EGLDisplay dpy,
+            EGLSurface surface, EGLint numTimestamps,
+            const EGLint *names, EGLnsecsANDROID *values);
+
     EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
             EGLuint64KHR frameId, EGLint numTimestamps,
             const EGLint *timestamps, EGLnsecsANDROID *values);
 
-    EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy, EGLSurface
-            surface, EGLint timestamp);
+    EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy,
+            EGLSurface surface, EGLint timestamp);
 
 New Tokens
 
     EGL_TIMESTAMPS_ANDROID 0x314D
-    EGL_REQUESTED_PRESENT_TIME_ANDROID 0x314E
-    EGL_RENDERING_COMPLETE_TIME_ANDROID 0x314F
-    EGL_COMPOSITION_LATCH_TIME_ANDROID 0x3150
-    EGL_FIRST_COMPOSITION_START_TIME_ANDROID 0x3151
-    EGL_LAST_COMPOSITION_START_TIME_ANDROID 0x3152
-    EGL_FIRST_COMPOSITION_FINISHED_TIME_ANDROID 0x3153
-    EGL_DISPLAY_PRESENT_TIME_ANDROID 0x3154
-    EGL_DISPLAY_RETIRE_TIME_ANDROID 0x3155
-    EGL_DEQUEUE_READY_TIME_ANDROID 0x3156
-    EGL_READS_DONE_TIME_ANDROID 0x3157
+    EGL_COMPOSITE_DEADLINE_ANDROID 0x314E
+    EGL_COMPOSITE_INTERVAL_ANDROID 0x314F
+    EGL_COMPOSITE_TO_PRESENT_LATENCY_ANDROID 0x3150
+    EGL_REQUESTED_PRESENT_TIME_ANDROID 0x3151
+    EGL_RENDERING_COMPLETE_TIME_ANDROID 0x3152
+    EGL_COMPOSITION_LATCH_TIME_ANDROID 0x3153
+    EGL_FIRST_COMPOSITION_START_TIME_ANDROID 0x3154
+    EGL_LAST_COMPOSITION_START_TIME_ANDROID 0x3155
+    EGL_FIRST_COMPOSITION_FINISHED_TIME_ANDROID 0x3156
+    EGL_DISPLAY_PRESENT_TIME_ANDROID 0x3157
+    EGL_DISPLAY_RETIRE_TIME_ANDROID 0x3158
+    EGL_DEQUEUE_READY_TIME_ANDROID 0x3159
+    EGL_READS_DONE_TIME_ANDROID 0x315A
 
 Add to the list of supported tokens for eglSurfaceAttrib in section 3.5.6
 "Surface Attributes", page 43:
@@ -105,6 +112,29 @@ Changes to Chapter 3 of the EGL 1.5 Specification (EGL Functions and Errors)
     be used to correlate a particular eglSwapBuffers with its timestamps in
     eglGetFrameTimestampsANDROID. If any error is generated, the function will
     return EGL_FALSE.
+
+    The function
+
+        EGLBoolean eglGetCompositorTimingANDROID(EGLDisplay dpy,
+                EGLSurface surface, EGLint numTimestamps,
+                const EGLint *names, EGLnsecsANDROID *values);
+
+    allows querying anticipated timestamps and durations related to the
+    composition and display of a window surface. The values are not associated
+    with a particular frame and can be retrieved before the first swap.
+
+    The eglGetCompositorTimingANDROID function takes an array of names to
+    query and returns their values in the corresponding indices of the values
+    array. The possible names that can be queried are:
+        - EGL_COMPOSITE_DEADLINE_ANDROID - The timestamp of the next time the
+          compositor will begin composition. This is effectively the deadline
+          for when the compositor must receive a newly queued frame.
+        - EGL_COMPOSITE_INTERVAL_ANDROID - The time delta between subsequent
+          composition events.
+        - EGL_COMPOSITE_TO_PRESENT_LATENCY_ANDROID - The time delta between
+          the start of composition and the expected present time of that
+          composition. This can be used to estimate the latency of the
+          actual present time.
 
     The function
 
@@ -162,12 +192,19 @@ Changes to Chapter 3 of the EGL 1.5 Specification (EGL Functions and Errors)
           purpose of display/composition were completed for this frame.
 
     Not all implementations may support all of the above timestamp queries. The
-    function
+    functions
 
-        EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy, EGLSurface
-            surface, EGLint timestamp);
+        EGLBoolean eglGetCompositorTimingSupportedANDROID(EGLDisplay dpy,
+            EGLSurface surface, EGLint name);
 
-    allows querying which timestamps are supported on the implementation."
+    and
+
+        EGLBoolean eglGetFrameTimestampsSupportedANDROID(EGLDisplay dpy,
+            EGLSurface surface, EGLint timestamp);
+
+    allows querying which values are supported by the implementations of
+    eglGetCompositoTimingANDROID and eglGetFrameTimestampsSupportedANDROID
+    respectively."
 
 Issues
 
@@ -189,3 +226,6 @@ Revision History
 
 #4 (Brian Anderson, January 10, 2017)
     - Use an absolute frameId rather than a relative framesAgo.
+
+#5 (Brian Anderson, January 13, 2017)
+    - Add eglGetCompositorTimingANDROID.

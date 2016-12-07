@@ -155,6 +155,10 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
             flinger->getHwComposer().getRefreshPeriod(HWC_DISPLAY_PRIMARY);
 #endif
     mFrameTracker.setDisplayRefreshPeriod(displayPeriod);
+
+    CompositorTiming compositorTiming;
+    flinger->getCompositorTiming(&compositorTiming);
+    mFrameEventHistory.initializeCompositorTiming(compositorTiming);
 }
 
 void Layer::onFirstRef() {
@@ -1856,10 +1860,10 @@ bool Layer::onPreComposition(nsecs_t refreshStartTime) {
     return mQueuedFrames > 0 || mSidebandStreamChanged || mAutoRefresh;
 }
 
-bool Layer::onPostComposition(
-        const std::shared_ptr<FenceTime>& glDoneFence,
+bool Layer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
         const std::shared_ptr<FenceTime>& presentFence,
-        const std::shared_ptr<FenceTime>& retireFence) {
+        const std::shared_ptr<FenceTime>& retireFence,
+        const CompositorTiming& compositorTiming) {
     mAcquireTimeline.updateSignalTimes();
     mReleaseTimeline.updateSignalTimes();
 
@@ -1872,7 +1876,7 @@ bool Layer::onPostComposition(
     {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addPostComposition(mCurrentFrameNumber,
-                glDoneFence, presentFence);
+                glDoneFence, presentFence, compositorTiming);
         mFrameEventHistory.addRetire(mPreviousFrameNumber,
                 retireFence);
     }

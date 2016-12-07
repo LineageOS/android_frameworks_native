@@ -136,7 +136,7 @@ static int64_t getVsyncEventPhaseOffsetNs() {
 static int64_t vsyncPhaseOffsetNs = getVsyncEventPhaseOffsetNs();
 
 // This is the phase offset at which SurfaceFlinger's composition runs.
-static const int64_t sfVsyncPhaseOffsetNs = SF_VSYNC_EVENT_PHASE_OFFSET_NS;
+static constexpr int64_t sfVsyncPhaseOffsetNs = SF_VSYNC_EVENT_PHASE_OFFSET_NS;
 
 // ---------------------------------------------------------------------------
 
@@ -1095,6 +1095,11 @@ void SurfaceFlinger::onVSyncReceived(int32_t type, nsecs_t timestamp) {
     }
 }
 
+void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
+    std::lock_guard<std::mutex> lock(mCompositeTimingLock);
+    *compositorTiming = mCompositorTiming;
+}
+
 void SurfaceFlinger::onHotplugReceived(int32_t disp, bool connected) {
     ALOGV("onHotplugReceived(%d, %s)", disp, connected ? "true" : "false");
     if (disp == DisplayDevice::DISPLAY_PRIMARY) {
@@ -1145,7 +1150,8 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
         case MessageQueue::INVALIDATE: {
             bool frameMissed = !mHadClientComposition &&
                     mPreviousPresentFence != Fence::NO_FENCE &&
-                    mPreviousPresentFence->getSignalTime() == INT64_MAX;
+                    (mPreviousPresentFence->getSignalTime() ==
+                            Fence::SIGNAL_TIME_PENDING);
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (mPropagateBackpressure && frameMissed) {
                 signalLayerUpdate();
@@ -1194,7 +1200,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     setUpHWComposer();
     doDebugFlashRegions();
     doComposition();
-    postComposition();
+    postComposition(refreshStartTime);
 
     mPreviousPresentFence = mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
 
@@ -1269,7 +1275,61 @@ void SurfaceFlinger::preComposition(nsecs_t refreshStartTime)
     }
 }
 
-void SurfaceFlinger::postComposition()
+void SurfaceFlinger::updateCompositorTiming(
+        nsecs_t vsyncPhase, nsecs_t vsyncInterval, nsecs_t compositeTime,
+        std::shared_ptr<FenceTime>& presentFenceTime) {
+    // Update queue of past composite+present times and determine the
+    // most recently known composite to present latency.
+    mCompositePresentTimes.push({compositeTime, presentFenceTime});
+    nsecs_t compositeToPresentLatency = -1;
+    while (!mCompositePresentTimes.empty()) {
+        CompositePresentTime& cpt = mCompositePresentTimes.front();
+        // Cached values should have been updated before calling this method,
+        // which helps avoid duplicate syscalls.
+        nsecs_t displayTime = cpt.display->getCachedSignalTime();
+        if (displayTime == Fence::SIGNAL_TIME_PENDING) {
+            break;
+        }
+        compositeToPresentLatency = displayTime - cpt.composite;
+        mCompositePresentTimes.pop();
+    }
+
+    // Don't let mCompositePresentTimes grow unbounded, just in case.
+    while (mCompositePresentTimes.size() > 16) {
+        mCompositePresentTimes.pop();
+    }
+
+    // Integer division and modulo round toward 0 not -inf, so we need to
+    // treat negative and positive offsets differently.
+    nsecs_t idealLatency = (sfVsyncPhaseOffsetNs >= 0) ?
+            (vsyncInterval - (sfVsyncPhaseOffsetNs % vsyncInterval)) :
+            ((-sfVsyncPhaseOffsetNs) % vsyncInterval);
+
+    // Snap the latency to a value that removes scheduling jitter from the
+    // composition and present times, which often have >1ms of jitter.
+    // Reducing jitter is important if an app attempts to extrapolate
+    // something (such as user input) to an accurate diasplay time.
+    // Snapping also allows an app to precisely calculate sfVsyncPhaseOffsetNs
+    // with (presentLatency % interval).
+    nsecs_t snappedCompositeToPresentLatency = -1;
+    if (compositeToPresentLatency >= 0) {
+        nsecs_t bias = vsyncInterval / 2;
+        int64_t extraVsyncs =
+                (compositeToPresentLatency - idealLatency + bias) /
+                vsyncInterval;
+        nsecs_t extraLatency = extraVsyncs * vsyncInterval;
+        snappedCompositeToPresentLatency = idealLatency + extraLatency;
+    }
+
+    std::lock_guard<std::mutex> lock(mCompositeTimingLock);
+    mCompositorTiming.deadline = vsyncPhase - idealLatency;
+    mCompositorTiming.interval = vsyncInterval;
+    if (snappedCompositeToPresentLatency >= 0) {
+        mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
+    }
+}
+
+void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
 {
     ATRACE_CALL();
     ALOGV("postComposition");
@@ -1304,9 +1364,19 @@ void SurfaceFlinger::postComposition()
     } else {
         retireFenceTime = &displayFenceTime;
     }
+
+    nsecs_t vsyncPhase = mPrimaryDispSync.computeNextRefresh(0);
+    nsecs_t vsyncInterval = mPrimaryDispSync.getPeriod();
+
+    // We use the refreshStartTime which might be sampled a little later than
+    // when we started doing work for this frame, but that should be okay
+    // since updateCompositorTiming has snapping logic.
+    updateCompositorTiming(
+        vsyncPhase, vsyncInterval, refreshStartTime, displayFenceTime);
+
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         bool frameLatched = layer->onPostComposition(glCompositionDoneFenceTime,
-                *presentFenceTime, *retireFenceTime);
+                *presentFenceTime, *retireFenceTime, mCompositorTiming);
         if (frameLatched) {
             recordBufferingStats(layer->getName().string(),
                     layer->getOccupancyHistory(false));
@@ -1351,9 +1421,8 @@ void SurfaceFlinger::postComposition()
     if (mHasPoweredOff) {
         mHasPoweredOff = false;
     } else {
-        nsecs_t period = mPrimaryDispSync.getPeriod();
         nsecs_t elapsedTime = currentTime - mLastSwapTime;
-        size_t numPeriods = static_cast<size_t>(elapsedTime / period);
+        size_t numPeriods = static_cast<size_t>(elapsedTime / vsyncInterval);
         if (numPeriods < NUM_BUCKETS - 1) {
             mFrameBuckets[numPeriods] += elapsedTime;
         } else {
@@ -2761,6 +2830,11 @@ void SurfaceFlinger::onInitializeDisplays() {
     const auto& activeConfig = mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
     const nsecs_t period = activeConfig->getVsyncPeriod();
     mAnimFrameTracker.setDisplayRefreshPeriod(period);
+
+    {
+        std::lock_guard<std::mutex> lock(mCompositeTimingLock);
+        mCompositorTiming.interval = period;
+    }
 }
 
 void SurfaceFlinger::initializeDisplays() {

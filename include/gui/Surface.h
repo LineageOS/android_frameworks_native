@@ -137,11 +137,17 @@ public:
     status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]);
 
+    status_t getDisplayRefreshCycleDuration(nsecs_t* outRefreshDuration);
+
     /* Enables or disables frame timestamp tracking. It is disabled by default
      * to avoid overhead during queue and dequeue for applications that don't
      * need the feature. If disabled, calls to getFrameTimestamps will fail.
      */
     void enableFrameTimestamps(bool enable);
+
+    status_t getCompositorTiming(
+            nsecs_t* compositeDeadline, nsecs_t* compositeInterval,
+            nsecs_t* compositeToPresentLatency);
 
     // See IGraphicBufferProducer::getFrameTimestamps
     status_t getFrameTimestamps(uint64_t frameNumber,
@@ -150,7 +156,6 @@ public:
             nsecs_t* outLastRefreshStartTime, nsecs_t* outGlCompositionDoneTime,
             nsecs_t* outDisplayPresentTime, nsecs_t* outDisplayRetireTime,
             nsecs_t* outDequeueReadyTime, nsecs_t* outReleaseTime);
-    status_t getDisplayRefreshCycleDuration(nsecs_t* outRefreshDuration);
 
     status_t getUniqueId(uint64_t* outId) const;
 
@@ -159,6 +164,7 @@ protected:
 
     // Virtual for testing.
     virtual sp<ISurfaceComposer> composerService() const;
+    virtual nsecs_t now() const;
 
 private:
     // can't be copied
@@ -206,10 +212,11 @@ private:
     int dispatchSetSurfaceDamage(va_list args);
     int dispatchSetSharedBufferMode(va_list args);
     int dispatchSetAutoRefresh(va_list args);
+    int dispatchGetDisplayRefreshCycleDuration(va_list args);
     int dispatchGetNextFrameId(va_list args);
     int dispatchEnableFrameTimestamps(va_list args);
+    int dispatchGetCompositorTiming(va_list args);
     int dispatchGetFrameTimestamps(va_list args);
-    int dispatchGetDisplayRefreshCycleDuration(va_list args);
 
 protected:
     virtual int dequeueBuffer(ANativeWindowBuffer** buffer, int* fenceFd);
