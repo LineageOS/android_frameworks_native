@@ -21,17 +21,32 @@
 #include <inttypes.h>
 #include <unistd.h>
 
+#include <vector>
+
+#include <binder/BinderService.h>
 #include <cutils/multiuser.h>
 
-#include <installd_constants.h>
+#include "android/os/BnInstalld.h"
+#include "installd_constants.h"
 
 namespace android {
 namespace installd {
 
-static constexpr size_t DEXOPT_PARAM_COUNT = 10U;
+class InstalldNativeService : public BinderService<InstalldNativeService>, public os::BnInstalld {
+public:
+    static status_t start();
+    static char const* getServiceName() { return "installd"; }
+    virtual status_t dump(int fd, const Vector<String16> &args) override;
 
-int create_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags,
-        appid_t appid, const char* seinfo, int target_sdk_version);
+    binder::Status createAppData(const std::unique_ptr<std::string>& uuid,
+            const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
+            const std::string& seInfo, int32_t targetSdkVersion);
+    binder::Status moveCompleteApp(const std::unique_ptr<std::string>& fromUuid,
+            const std::unique_ptr<std::string>& toUuid, const std::string& packageName,
+            const std::string& dataAppName, int32_t appId, const std::string& seInfo,
+            int32_t targetSdkVersion);
+};
+
 int restorecon_app_data(const char* uuid, const char* pkgName, userid_t userid, int flags,
         appid_t appid, const char* seinfo);
 int migrate_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags);
@@ -39,9 +54,6 @@ int clear_app_data(const char *uuid, const char *pkgname, userid_t userid, int f
         ino_t ce_data_inode);
 int destroy_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags,
         ino_t ce_data_inode);
-
-int move_complete_app(const char* from_uuid, const char *to_uuid, const char *package_name,
-        const char *data_app_name, appid_t appid, const char* seinfo, int target_sdk_version);
 
 int get_app_size(const char *uuid, const char *pkgname, int userid, int flags, ino_t ce_data_inode,
         const char* code_path, int64_t *codesize, int64_t *datasize, int64_t *cachesize,
