@@ -30,8 +30,6 @@
 #include <cutils/sockets.h>
 #include <private/android_filesystem_config.h>
 
-#include <InstalldNativeService.h>
-
 #include <commands.h>
 #include <globals.h>
 #include <installd_constants.h>
@@ -188,13 +186,6 @@ static char* parse_null(char* arg) {
 static int do_ping(char **arg ATTRIBUTE_UNUSED, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
 {
     return 0;
-}
-
-static int do_create_app_data(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
-    /* const char *uuid, const char *pkgname, userid_t userid, int flags,
-            appid_t appid, const char* seinfo, int target_sdk_version */
-    return create_app_data(parse_null(arg[0]), arg[1], atoi(arg[2]), atoi(arg[3]),
-                           atoi(arg[4]), arg[5], atoi(arg[6]));
 }
 
 static int do_restorecon_app_data(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
@@ -355,14 +346,6 @@ static int do_get_app_data_inode(char **arg, char reply[REPLY_MAX]) {
     return res;
 }
 
-static int do_move_complete_app(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
-    /* const char* from_uuid, const char *to_uuid, const char *package_name,
-            const char *data_app_name, appid_t appid, const char* seinfo,
-            int target_sdk_version */
-    return move_complete_app(parse_null(arg[0]), parse_null(arg[1]), arg[2], arg[3],
-                             atoi(arg[4]), arg[5], atoi(arg[6]));
-}
-
 static int do_create_user_data(char **arg, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
 {
     /* const char *uuid, userid_t userid, int user_serial, int flags */
@@ -434,12 +417,10 @@ struct cmdinfo {
 struct cmdinfo cmds[] = {
     { "ping",                 0, do_ping },
 
-    { "create_app_data",      7, do_create_app_data },
     { "restorecon_app_data",  6, do_restorecon_app_data },
     { "migrate_app_data",     4, do_migrate_app_data },
     { "clear_app_data",       5, do_clear_app_data },
     { "destroy_app_data",     5, do_destroy_app_data },
-    { "move_complete_app",    7, do_move_complete_app },
     { "get_app_size",         6, do_get_app_size },
     { "get_app_data_inode",   4, do_get_app_data_inode },
 
