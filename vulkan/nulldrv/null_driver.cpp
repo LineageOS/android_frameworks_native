@@ -886,6 +886,16 @@ VkResult GetSwapchainGrallocUsageANDROID(VkDevice,
     return VK_SUCCESS;
 }
 
+VkResult GetSwapchainGrallocUsage2ANDROID(VkDevice,
+                                          VkFormat,
+                                          VkImageUsageFlags,
+                                          VkSwapchainImageUsageFlagsANDROID,
+                                          int* grallocUsage) {
+    // The null driver never reads or writes the gralloc buffer
+    *grallocUsage = 0;
+    return VK_SUCCESS;
+}
+
 VkResult AcquireImageANDROID(VkDevice,
                              VkImage,
                              int fence,
