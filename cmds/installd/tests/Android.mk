@@ -9,6 +9,7 @@ test_src_files := \
 
 shared_libraries := \
     libbase \
+    liblog \
     libutils \
     libcutils \
 
