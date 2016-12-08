@@ -97,9 +97,8 @@ DurationReporter::~DurationReporter() {
             MYLOGD("Duration of '%s': %.3fs\n", title_.c_str(), (float)elapsed / NANOS_PER_SEC);
         } else {
             // Use "Yoda grammar" to make it easier to grep|sort sections.
-            dprintf(STDOUT_FILENO, "------ %.3fs was the duration of '%s' ------\n",
-                    (float)elapsed / NANOS_PER_SEC, title_.c_str());
-            fsync(STDOUT_FILENO);
+            printf("------ %.3fs was the duration of '%s' ------\n", (float)elapsed / NANOS_PER_SEC,
+                   title_.c_str());
         }
     }
 }
@@ -235,11 +234,11 @@ void for_each_userid(void (*func)(int), const char *header) {
     DIR *d;
     struct dirent *de;
 
-    if (header) dprintf(STDOUT_FILENO, "\n------ %s ------\n", header);
+    if (header) printf("\n------ %s ------\n", header);
     func(0);
 
     if (!(d = opendir("/data/system/users"))) {
-        dprintf(STDOUT_FILENO, "Failed to open /data/system/users (%s)\n", strerror(errno));
+        printf("Failed to open /data/system/users (%s)\n", strerror(errno));
         return;
     }
 
@@ -259,11 +258,11 @@ static void __for_each_pid(void (*helper)(int, const char *, void *), const char
     struct dirent *de;
 
     if (!(d = opendir("/proc"))) {
-        dprintf(STDOUT_FILENO, "Failed to open /proc (%s)\n", strerror(errno));
+        printf("Failed to open /proc (%s)\n", strerror(errno));
         return;
     }
 
-    if (header) dprintf(STDOUT_FILENO, "\n------ %s ------\n", header);
+    if (header) printf("\n------ %s ------\n", header);
     while ((de = readdir(d))) {
         int pid;
         int fd;
@@ -330,7 +329,7 @@ static void for_each_tid_helper(int pid, const char *cmdline, void *arg) {
     snprintf(taskpath, sizeof(taskpath), "/proc/%d/task", pid);
 
     if (!(d = opendir(taskpath))) {
-        dprintf(STDOUT_FILENO, "Failed to open %s (%s)\n", taskpath, strerror(errno));
+        printf("Failed to open %s (%s)\n", taskpath, strerror(errno));
         return;
     }
 
@@ -373,6 +372,7 @@ void for_each_tid(for_each_tid_func func, const char *header) {
     std::string title = header == nullptr ? "for_each_tid"
                                           : android::base::StringPrintf("for_each_tid(%s)", header);
     DurationReporter duration_reporter(title);
+
     if (PropertiesHelper::IsDryRun()) return;
 
     __for_each_pid(for_each_tid_helper, header, (void *) func);
@@ -390,7 +390,7 @@ void show_wchan(int pid, int tid, const char *name) {
 
     snprintf(path, sizeof(path), "/proc/%d/wchan", tid);
     if ((fd = TEMP_FAILURE_RETRY(open(path, O_RDONLY | O_CLOEXEC))) < 0) {
-        dprintf(STDOUT_FILENO, "Failed to open '%s' (%s)\n", path, strerror(errno));
+        printf("Failed to open '%s' (%s)\n", path, strerror(errno));
         return;
     }
 
@@ -399,14 +399,14 @@ void show_wchan(int pid, int tid, const char *name) {
     close(fd);
 
     if (ret < 0) {
-        dprintf(STDOUT_FILENO, "Failed to read '%s' (%s)\n", path, strerror(save_errno));
+        printf("Failed to read '%s' (%s)\n", path, strerror(save_errno));
         return;
     }
 
     snprintf(name_buffer, sizeof(name_buffer), "%*s%s",
              pid == tid ? 0 : 3, "", name);
 
-    dprintf(STDOUT_FILENO, "%-7d %-32s %s\n", tid, name_buffer, buffer);
+    printf("%-7d %-32s %s\n", tid, name_buffer, buffer);
 
     return;
 }
@@ -456,7 +456,7 @@ void show_showtime(int pid, const char *name) {
 
     snprintf(path, sizeof(path), "/proc/%d/stat", pid);
     if ((fd = TEMP_FAILURE_RETRY(open(path, O_RDONLY | O_CLOEXEC))) < 0) {
-        dprintf(STDOUT_FILENO, "Failed to open '%s' (%s)\n", path, strerror(errno));
+        printf("Failed to open '%s' (%s)\n", path, strerror(errno));
         return;
     }
 
@@ -465,7 +465,7 @@ void show_showtime(int pid, const char *name) {
     close(fd);
 
     if (ret < 0) {
-        dprintf(STDOUT_FILENO, "Failed to read '%s' (%s)\n", path, strerror(save_errno));
+        printf("Failed to read '%s' (%s)\n", path, strerror(save_errno));
         return;
     }
 
@@ -504,7 +504,7 @@ void show_showtime(int pid, const char *name) {
     if (iotime) {
         snprdec(buffer, sizeof(buffer), 79, permille);
     }
-    dprintf(STDOUT_FILENO, "%s\n", buffer);
+    puts(buffer);  // adds a trailing newline
 
     return;
 }
@@ -512,29 +512,29 @@ void show_showtime(int pid, const char *name) {
 void do_dmesg() {
     const char *title = "KERNEL LOG (dmesg)";
     DurationReporter duration_reporter(title);
-    dprintf(STDOUT_FILENO, "------ %s ------\n", title);
+    printf("------ %s ------\n", title);
 
     if (PropertiesHelper::IsDryRun()) return;
 
     /* Get size of kernel buffer */
     int size = klogctl(KLOG_SIZE_BUFFER, NULL, 0);
     if (size <= 0) {
-        dprintf(STDOUT_FILENO, "Unexpected klogctl return value: %d\n\n", size);
+        printf("Unexpected klogctl return value: %d\n\n", size);
         return;
     }
     char *buf = (char *) malloc(size + 1);
     if (buf == NULL) {
-        dprintf(STDOUT_FILENO, "memory allocation failed\n\n");
+        printf("memory allocation failed\n\n");
         return;
     }
     int retval = klogctl(KLOG_READ_ALL, buf, size);
     if (retval < 0) {
-        dprintf(STDOUT_FILENO, "klogctl failure\n\n");
+        printf("klogctl failure\n\n");
         free(buf);
         return;
     }
     buf[retval] = '\0';
-    dprintf(STDOUT_FILENO, "%s\n\n", buf);
+    printf("%s\n\n", buf);
     free(buf);
     return;
 }
@@ -554,8 +554,6 @@ int Dumpstate::DumpFile(const std::string& title, const std::string& path) {
     int status = DumpFileToFd(STDOUT_FILENO, title, path);
 
     UpdateProgress(WEIGHT_FILE);
-
-    fsync(STDOUT_FILENO);
 
     return status;
 }
@@ -597,7 +595,7 @@ int dump_files(const std::string& title, const char* dir, bool (*skip)(const cha
     int fd, retval = 0;
 
     if (!title.empty()) {
-        dprintf(STDOUT_FILENO, "------ %s (%s) ------\n", title.c_str(), dir);
+        printf("------ %s (%s) ------\n", title.c_str(), dir);
     }
     if (PropertiesHelper::IsDryRun()) return 0;
 
@@ -639,14 +637,14 @@ int dump_files(const std::string& title, const char* dir, bool (*skip)(const cha
         fd = TEMP_FAILURE_RETRY(open(newpath, O_RDONLY | O_NONBLOCK | O_CLOEXEC));
         if (fd < 0) {
             retval = fd;
-            dprintf(STDOUT_FILENO, "*** %s: %s\n", newpath, strerror(errno));
+            printf("*** %s: %s\n", newpath, strerror(errno));
             continue;
         }
         (*dump_from_fd)(NULL, newpath, fd);
     }
     closedir(dirp);
     if (!title.empty()) {
-        dprintf(STDOUT_FILENO, "\n");
+        printf("\n");
     }
     return retval;
 }
@@ -660,12 +658,11 @@ int dump_file_from_fd(const char *title, const char *path, int fd) {
 
     int flags = fcntl(fd, F_GETFL);
     if (flags == -1) {
-        dprintf(STDOUT_FILENO, "*** %s: failed to get flags on fd %d: %s\n", path, fd,
-                strerror(errno));
+        printf("*** %s: failed to get flags on fd %d: %s\n", path, fd, strerror(errno));
         close(fd);
         return -1;
     } else if (!(flags & O_NONBLOCK)) {
-        dprintf(STDOUT_FILENO, "*** %s: fd must have O_NONBLOCK set.\n", path);
+        printf("*** %s: fd must have O_NONBLOCK set.\n", path);
         close(fd);
         return -1;
     }
@@ -683,8 +680,6 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
      * where its weight should be much higher proportionally to its timeout.
      * Ideally, it should use a options.EstimatedDuration() instead...*/
     UpdateProgress(options.Timeout());
-
-    fsync(STDOUT_FILENO);
 
     return status;
 }
@@ -730,7 +725,7 @@ static int compare_prop(const void *a, const void *b) {
 void print_properties() {
     const char* title = "SYSTEM PROPERTIES";
     DurationReporter duration_reporter(title);
-    dprintf(STDOUT_FILENO, "------ %s ------\n", title);
+    printf("------ %s ------\n", title);
     if (PropertiesHelper::IsDryRun()) return;
     size_t i;
     num_props = 0;
@@ -741,7 +736,7 @@ void print_properties() {
         fputs(props[i], stdout);
         free(props[i]);
     }
-    dprintf(STDOUT_FILENO, "\n");
+    printf("\n");
 }
 
 int open_socket(const char *service) {
@@ -995,7 +990,7 @@ void dump_route_tables() {
     ds.DumpFile("RT_TABLES", RT_TABLES_PATH);
     FILE* fp = fopen(RT_TABLES_PATH, "re");
     if (!fp) {
-        dprintf(STDOUT_FILENO, "*** %s: %s\n", RT_TABLES_PATH, strerror(errno));
+        printf("*** %s: %s\n", RT_TABLES_PATH, strerror(errno));
         return;
     }
     char table[16];
@@ -1102,42 +1097,40 @@ void dump_emmc_ecsd(const char *ext_csd_path) {
         return;
     }
 
-    dprintf(STDOUT_FILENO, "------ %s Extended CSD ------\n", ext_csd_path);
+    printf("------ %s Extended CSD ------\n", ext_csd_path);
 
     if (buffer.length() < (EXT_CSD_REV + sizeof(hex))) {
-        dprintf(STDOUT_FILENO, "*** %s: truncated content %zu\n\n", ext_csd_path, buffer.length());
+        printf("*** %s: truncated content %zu\n\n", ext_csd_path, buffer.length());
         return;
     }
 
     int ext_csd_rev = 0;
     std::string sub = buffer.substr(EXT_CSD_REV, sizeof(hex));
     if (sscanf(sub.c_str(), "%2x", &ext_csd_rev) != 1) {
-        dprintf(STDOUT_FILENO, "*** %s: EXT_CSD_REV parse error \"%s\"\n\n", ext_csd_path,
-                sub.c_str());
+        printf("*** %s: EXT_CSD_REV parse error \"%s\"\n\n", ext_csd_path, sub.c_str());
         return;
     }
 
     static const char *ver_str[] = {
         "4.0", "4.1", "4.2", "4.3", "Obsolete", "4.41", "4.5", "5.0"
     };
-    dprintf(STDOUT_FILENO, "rev 1.%d (MMC %s)\n", ext_csd_rev,
-            (ext_csd_rev < (int)(sizeof(ver_str) / sizeof(ver_str[0]))) ? ver_str[ext_csd_rev]
-                                                                        : "Unknown");
+    printf("rev 1.%d (MMC %s)\n", ext_csd_rev,
+           (ext_csd_rev < (int)(sizeof(ver_str) / sizeof(ver_str[0]))) ? ver_str[ext_csd_rev]
+                                                                       : "Unknown");
     if (ext_csd_rev < 7) {
-        dprintf(STDOUT_FILENO, "\n");
+        printf("\n");
         return;
     }
 
     if (buffer.length() < (EXT_PRE_EOL_INFO + sizeof(hex))) {
-        dprintf(STDOUT_FILENO, "*** %s: truncated content %zu\n\n", ext_csd_path, buffer.length());
+        printf("*** %s: truncated content %zu\n\n", ext_csd_path, buffer.length());
         return;
     }
 
     int ext_pre_eol_info = 0;
     sub = buffer.substr(EXT_PRE_EOL_INFO, sizeof(hex));
     if (sscanf(sub.c_str(), "%2x", &ext_pre_eol_info) != 1) {
-        dprintf(STDOUT_FILENO, "*** %s: PRE_EOL_INFO parse error \"%s\"\n\n", ext_csd_path,
-                sub.c_str());
+        printf("*** %s: PRE_EOL_INFO parse error \"%s\"\n\n", ext_csd_path, sub.c_str());
         return;
     }
 
@@ -1147,8 +1140,8 @@ void dump_emmc_ecsd(const char *ext_csd_path) {
         "Warning (consumed 80% of reserve)",
         "Urgent (consumed 90% of reserve)"
     };
-    dprintf(
-        STDOUT_FILENO, "PRE_EOL_INFO %d (MMC %s)\n", ext_pre_eol_info,
+    printf(
+        "PRE_EOL_INFO %d (MMC %s)\n", ext_pre_eol_info,
         eol_str[(ext_pre_eol_info < (int)(sizeof(eol_str) / sizeof(eol_str[0]))) ? ext_pre_eol_info
                                                                                  : 0]);
 
@@ -1172,26 +1165,25 @@ void dump_emmc_ecsd(const char *ext_csd_path) {
         };
 
         if (buffer.length() < (lifetime + sizeof(hex))) {
-            dprintf(STDOUT_FILENO, "*** %s: truncated content %zu\n", ext_csd_path, buffer.length());
+            printf("*** %s: truncated content %zu\n", ext_csd_path, buffer.length());
             break;
         }
 
         ext_device_life_time_est = 0;
         sub = buffer.substr(lifetime, sizeof(hex));
         if (sscanf(sub.c_str(), "%2x", &ext_device_life_time_est) != 1) {
-            dprintf(STDOUT_FILENO, "*** %s: DEVICE_LIFE_TIME_EST_TYP_%c parse error \"%s\"\n",
-                    ext_csd_path,
-                    (unsigned)((lifetime - EXT_DEVICE_LIFE_TIME_EST_TYP_A) / sizeof(hex)) + 'A',
-                    sub.c_str());
+            printf("*** %s: DEVICE_LIFE_TIME_EST_TYP_%c parse error \"%s\"\n", ext_csd_path,
+                   (unsigned)((lifetime - EXT_DEVICE_LIFE_TIME_EST_TYP_A) / sizeof(hex)) + 'A',
+                   sub.c_str());
             continue;
         }
-        dprintf(STDOUT_FILENO, "DEVICE_LIFE_TIME_EST_TYP_%c %d (MMC %s)\n",
-                (unsigned)((lifetime - EXT_DEVICE_LIFE_TIME_EST_TYP_A) / sizeof(hex)) + 'A',
-                ext_device_life_time_est,
-                est_str[(ext_device_life_time_est < (int)(sizeof(est_str) / sizeof(est_str[0])))
-                            ? ext_device_life_time_est
-                            : 0]);
+        printf("DEVICE_LIFE_TIME_EST_TYP_%c %d (MMC %s)\n",
+               (unsigned)((lifetime - EXT_DEVICE_LIFE_TIME_EST_TYP_A) / sizeof(hex)) + 'A',
+               ext_device_life_time_est,
+               est_str[(ext_device_life_time_est < (int)(sizeof(est_str) / sizeof(est_str[0])))
+                           ? ext_device_life_time_est
+                           : 0]);
     }
 
-    dprintf(STDOUT_FILENO, "\n");
+    printf("\n");
 }
