@@ -602,7 +602,7 @@ static int dump_stat_from_fd(const char *title __unused, const char *path, int f
         path += sizeof(mmcblk0) - 1;
     }
 
-    printf("%s: %s\n", path, buffer);
+    dprintf(STDOUT_FILENO, "%s: %s\n", path, buffer);
     free(buffer);
 
     if (fields[__STAT_IO_TICKS]) {
@@ -639,11 +639,11 @@ static int dump_stat_from_fd(const char *title __unused, const char *path, int f
                                  / fields[__STAT_IO_TICKS];
 
         if (!write_perf && !write_ios) {
-            printf("%s: perf(ios) rd: %luKB/s(%lu/s) q: %u\n",
-                   path, read_perf, read_ios, queue);
+            dprintf(STDOUT_FILENO, "%s: perf(ios) rd: %luKB/s(%lu/s) q: %u\n", path, read_perf,
+                    read_ios, queue);
         } else {
-            printf("%s: perf(ios) rd: %luKB/s(%lu/s) wr: %luKB/s(%lu/s) q: %u\n",
-                   path, read_perf, read_ios, write_perf, write_ios, queue);
+            dprintf(STDOUT_FILENO, "%s: perf(ios) rd: %luKB/s(%lu/s) wr: %luKB/s(%lu/s) q: %u\n",
+                    path, read_perf, read_ios, write_perf, write_ios, queue);
         }
 
         /* bugreport timeout factor adjustment */
@@ -673,27 +673,27 @@ void Dumpstate::PrintHeader() const {
     network = android::base::GetProperty("gsm.operator.alpha", "(unknown)");
     strftime(date, sizeof(date), "%Y-%m-%d %H:%M:%S", localtime(&now_));
 
-    printf("========================================================\n");
-    printf("== dumpstate: %s\n", date);
-    printf("========================================================\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
+    dprintf(STDOUT_FILENO, "== dumpstate: %s\n", date);
+    dprintf(STDOUT_FILENO, "========================================================\n");
 
-    printf("\n");
-    printf("Build: %s\n", build.c_str());
+    dprintf(STDOUT_FILENO, "\n");
+    dprintf(STDOUT_FILENO, "Build: %s\n", build.c_str());
     // NOTE: fingerprint entry format is important for other tools.
-    printf("Build fingerprint: '%s'\n", fingerprint.c_str());
-    printf("Bootloader: %s\n", bootloader.c_str());
-    printf("Radio: %s\n", radio.c_str());
-    printf("Network: %s\n", network.c_str());
+    dprintf(STDOUT_FILENO, "Build fingerprint: '%s'\n", fingerprint.c_str());
+    dprintf(STDOUT_FILENO, "Bootloader: %s\n", bootloader.c_str());
+    dprintf(STDOUT_FILENO, "Radio: %s\n", radio.c_str());
+    dprintf(STDOUT_FILENO, "Network: %s\n", network.c_str());
 
-    printf("Kernel: ");
-    fflush(stdout);
+    dprintf(STDOUT_FILENO, "Kernel: ");
+    fsync(STDOUT_FILENO);
     DumpFileToFd(STDOUT_FILENO, "", "/proc/version");
-    printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
-    printf("Bugreport format version: %s\n", version_.c_str());
-    printf("Dumpstate info: id=%d pid=%d dry_run=%d args=%s extra_options=%s\n", id_, pid_,
-           PropertiesHelper::IsDryRun(), args_.c_str(), extra_options_.c_str());
-    printf("\n");
-    fflush(stdout);
+    dprintf(STDOUT_FILENO, "Command line: %s\n", strtok(cmdline_buf, "\n"));
+    dprintf(STDOUT_FILENO, "Bugreport format version: %s\n", version_.c_str());
+    dprintf(STDOUT_FILENO, "Dumpstate info: id=%d pid=%d dry_run=%d args=%s extra_options=%s\n",
+            id_, pid_, PropertiesHelper::IsDryRun(), args_.c_str(), extra_options_.c_str());
+    dprintf(STDOUT_FILENO, "\n");
+    fsync(STDOUT_FILENO);
 }
 
 // List of file extensions that can cause a zip file attachment to be rejected by some email
@@ -857,13 +857,13 @@ static void AddAnrTraceFiles() {
            dump_traces_dir.c_str(), anr_traces_dir.c_str(), already_dumped);
 
     if (anr_traces_path.empty()) {
-        printf("*** NO VM TRACES FILE DEFINED (dalvik.vm.stack-trace-file)\n\n");
+        dprintf(STDOUT_FILENO, "*** NO VM TRACES FILE DEFINED (dalvik.vm.stack-trace-file)\n\n");
     } else {
         int fd = TEMP_FAILURE_RETRY(
             open(anr_traces_path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK));
         if (fd < 0) {
-            printf("*** NO ANR VM TRACES FILE (%s): %s\n\n", anr_traces_path.c_str(),
-                   strerror(errno));
+            dprintf(STDOUT_FILENO, "*** NO ANR VM TRACES FILE (%s): %s\n\n",
+                    anr_traces_path.c_str(), strerror(errno));
         } else {
             if (add_to_zip) {
                 if (!already_dumped) {
@@ -1003,7 +1003,7 @@ static void dumpstate() {
         }
     }
     if (!dumped) {
-        printf("*** NO TOMBSTONES to dump in %s\n\n", TOMBSTONE_DIR);
+        dprintf(STDOUT_FILENO, "*** NO TOMBSTONES to dump in %s\n\n", TOMBSTONE_DIR);
     }
 
     DumpFile("NETWORK DEV INFO", "/proc/net/dev");
@@ -1076,18 +1076,18 @@ static void dumpstate() {
 
     RunCommand("LAST RADIO LOG", {"parse_radio_log", "/proc/last_radio_log"});
 
-    printf("------ BACKLIGHTS ------\n");
-    printf("LCD brightness=");
+    dprintf(STDOUT_FILENO, "------ BACKLIGHTS ------\n");
+    dprintf(STDOUT_FILENO, "LCD brightness=");
     DumpFile("", "/sys/class/leds/lcd-backlight/brightness");
-    printf("Button brightness=");
+    dprintf(STDOUT_FILENO, "Button brightness=");
     DumpFile("", "/sys/class/leds/button-backlight/brightness");
-    printf("Keyboard brightness=");
+    dprintf(STDOUT_FILENO, "Keyboard brightness=");
     DumpFile("", "/sys/class/leds/keyboard-backlight/brightness");
-    printf("ALS mode=");
+    dprintf(STDOUT_FILENO, "ALS mode=");
     DumpFile("", "/sys/class/leds/lcd-backlight/als");
-    printf("LCD driver registers:\n");
+    dprintf(STDOUT_FILENO, "LCD driver registers:\n");
     DumpFile("", "/sys/class/leds/lcd-backlight/registers");
-    printf("\n");
+    dprintf(STDOUT_FILENO, "\n");
 
     /* Binder state is expensive to look at as it uses a lot of memory. */
     DumpFile("BINDER FAILED TRANSACTION LOG", "/sys/kernel/debug/binder/failed_transaction_log");
@@ -1112,16 +1112,16 @@ static void dumpstate() {
         RunCommand("DUMP VENDOR RIL LOGS", {"vril-dump"}, options.Build());
     }
 
-    printf("========================================================\n");
-    printf("== Android Framework Services\n");
-    printf("========================================================\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
+    dprintf(STDOUT_FILENO, "== Android Framework Services\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
 
     RunDumpsys("DUMPSYS", {"--skip", "meminfo", "cpuinfo"}, CommandOptions::WithTimeout(90).Build(),
                10);
 
-    printf("========================================================\n");
-    printf("== Checkins\n");
-    printf("========================================================\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
+    dprintf(STDOUT_FILENO, "== Checkins\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
 
     RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"});
     RunDumpsys("CHECKIN MEMINFO", {"meminfo", "--checkin"});
@@ -1130,21 +1130,21 @@ static void dumpstate() {
     RunDumpsys("CHECKIN USAGESTATS", {"usagestats", "-c"});
     RunDumpsys("CHECKIN PACKAGE", {"package", "--checkin"});
 
-    printf("========================================================\n");
-    printf("== Running Application Activities\n");
-    printf("========================================================\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
+    dprintf(STDOUT_FILENO, "== Running Application Activities\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
 
     RunDumpsys("APP ACTIVITIES", {"activity", "all"});
 
-    printf("========================================================\n");
-    printf("== Running Application Services\n");
-    printf("========================================================\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
+    dprintf(STDOUT_FILENO, "== Running Application Services\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
 
     RunDumpsys("APP SERVICES", {"activity", "service", "all"});
 
-    printf("========================================================\n");
-    printf("== Running Application Providers\n");
-    printf("========================================================\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
+    dprintf(STDOUT_FILENO, "== Running Application Providers\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
 
     RunDumpsys("APP PROVIDERS", {"activity", "provider", "all"});
 
@@ -1153,20 +1153,20 @@ static void dumpstate() {
     // collected.
     DumpModemLogs();
 
-    printf("========================================================\n");
-    printf("== Final progress (pid %d): %d/%d (estimated %d)\n", ds.pid_, ds.progress_->Get(),
-           ds.progress_->GetMax(), ds.progress_->GetInitialMax());
-    printf("========================================================\n");
-    printf("== dumpstate: done (id %d)\n", ds.id_);
-    printf("========================================================\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
+    dprintf(STDOUT_FILENO, "== Final progress (pid %d): %d/%d (estimated %d)\n", ds.pid_,
+            ds.progress_->Get(), ds.progress_->GetMax(), ds.progress_->GetInitialMax());
+    dprintf(STDOUT_FILENO, "========================================================\n");
+    dprintf(STDOUT_FILENO, "== dumpstate: done (id %d)\n", ds.id_);
+    dprintf(STDOUT_FILENO, "========================================================\n");
 }
 
 void Dumpstate::DumpstateBoard() {
     DurationReporter duration_reporter("dumpstate_board()");
-    printf("========================================================\n");
-    printf("== Board\n");
-    printf("========================================================\n");
-    fflush(stdout);
+    dprintf(STDOUT_FILENO, "========================================================\n");
+    dprintf(STDOUT_FILENO, "== Board\n");
+    dprintf(STDOUT_FILENO, "========================================================\n");
+    fsync(STDOUT_FILENO);
 
     android::sp<android::hardware::dumpstate::V1_0::IDumpstateDevice> dumpstate_device(
         android::hardware::dumpstate::V1_0::IDumpstateDevice::getService("DumpstateDevice"));
@@ -1204,8 +1204,8 @@ void Dumpstate::DumpstateBoard() {
     dumpstate_device->dumpstateBoard(handle);
 
     AddZipEntry("dumpstate-board.txt", path);
-    printf("*** See dumpstate-board.txt entry ***\n");
-    fflush(stdout);
+    dprintf(STDOUT_FILENO, "*** See dumpstate-board.txt entry ***\n");
+    fsync(STDOUT_FILENO);
 
     native_handle_close(handle);
     native_handle_delete(handle);
