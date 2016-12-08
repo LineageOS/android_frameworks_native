@@ -383,7 +383,7 @@ public:
 #endif
     // -----------------------------------------------------------------------
 
-    void clearWithOpenGL(const sp<const DisplayDevice>& hw, const Region& clip) const;
+    void clearWithOpenGL(const sp<const DisplayDevice>& hw) const;
     void setFiltering(bool filtering);
     bool getFiltering() const;
 
@@ -459,7 +459,7 @@ private:
     static bool getOpacityForFormat(uint32_t format);
 
     // drawing
-    void clearWithOpenGL(const sp<const DisplayDevice>& hw, const Region& clip,
+    void clearWithOpenGL(const sp<const DisplayDevice>& hw,
             float r, float g, float b, float alpha) const;
     void drawWithOpenGL(const sp<const DisplayDevice>& hw, const Region& clip,
             bool useIdentityTransform) const;
