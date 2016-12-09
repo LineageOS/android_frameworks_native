@@ -300,6 +300,11 @@ enum {
      * <a href="@dacRoot/guide/topics/resources/providing-resources.html#UiModeQualifier">watch</a> resource qualifier specified.
      */
     ACONFIGURATION_UI_MODE_TYPE_WATCH = 0x06,
+    /**
+     * UI mode: value that corresponds to
+     * <a href="@dacRoot/guide/topics/resources/providing-resources.html#UiModeQualifier">vr</a> resource qualifier specified.
+     */
+    ACONFIGURATION_UI_MODE_TYPE_VR_HEADSET = 0x07,
 
     /** UI night mode: not specified.*/
     ACONFIGURATION_UI_MODE_NIGHT_ANY = 0x00,
