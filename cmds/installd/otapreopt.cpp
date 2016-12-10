@@ -36,15 +36,14 @@
 #include <cutils/properties.h>
 #include <private/android_filesystem_config.h>
 
-#include <commands.h>
-#include <file_parsing.h>
-#include <globals.h>
-#include <installd_deps.h>  // Need to fill in requirements of commands.
-#include <otapreopt_utils.h>
-#include <system_properties.h>
-#include <utils.h>
-
+#include "InstalldNativeService.h"
 #include "dexopt.h"
+#include "file_parsing.h"
+#include "globals.h"
+#include "installd_deps.h"  // Need to fill in requirements of commands.
+#include "otapreopt_utils.h"
+#include "system_properties.h"
+#include "utils.h"
 
 #ifndef LOG_TAG
 #define LOG_TAG "otapreopt"
