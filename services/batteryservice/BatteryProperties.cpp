@@ -41,6 +41,7 @@ status_t BatteryProperties::readFromParcel(Parcel* p) {
     batteryLevel = p->readInt32();
     batteryVoltage = p->readInt32();
     batteryTemperature = p->readInt32();
+    batteryFullCharge = p->readInt32();
     batteryChargeCounter = p->readInt32();
     batteryTechnology = String8((p->readString16()).string());
     return OK;
@@ -58,6 +59,7 @@ status_t BatteryProperties::writeToParcel(Parcel* p) const {
     p->writeInt32(batteryLevel);
     p->writeInt32(batteryVoltage);
     p->writeInt32(batteryTemperature);
+    p->writeInt32(batteryFullCharge);
     p->writeInt32(batteryChargeCounter);
     p->writeString16(String16(batteryTechnology));
     return OK;
