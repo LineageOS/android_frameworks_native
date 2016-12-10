@@ -44,6 +44,8 @@
 #include <system_properties.h>
 #include <utils.h>
 
+#include "dexopt.h"
+
 #ifndef LOG_TAG
 #define LOG_TAG "otapreopt"
 #endif
