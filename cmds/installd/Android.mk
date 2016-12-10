@@ -24,7 +24,7 @@ LOCAL_CFLAGS += -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
 LOCAL_CFLAGS += -DART_BASE_ADDRESS_MIN_DELTA=$(LOCAL_LIBART_IMG_HOST_MIN_BASE_ADDRESS_DELTA)
 LOCAL_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LOCAL_LIBART_IMG_HOST_MAX_BASE_ADDRESS_DELTA)
 
-LOCAL_SRC_FILES := otapreopt.cpp commands.cpp globals.cpp utils.cpp dexopt.cpp binder/android/os/IInstalld.aidl
+LOCAL_SRC_FILES := otapreopt.cpp InstalldNativeService.cpp globals.cpp utils.cpp dexopt.cpp binder/android/os/IInstalld.aidl
 LOCAL_SHARED_LIBRARIES := \
     libbase \
     libbinder \

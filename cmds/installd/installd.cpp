@@ -28,11 +28,11 @@
 #include <cutils/properties.h>
 #include <private/android_filesystem_config.h>
 
-#include <commands.h>
-#include <globals.h>
-#include <installd_constants.h>
-#include <installd_deps.h>  // Need to fill in requirements of commands.
-#include <utils.h>
+#include "InstalldNativeService.h"
+#include "globals.h"
+#include "installd_constants.h"
+#include "installd_deps.h"  // Need to fill in requirements of commands.
+#include "utils.h"
 
 #ifndef LOG_TAG
 #define LOG_TAG "installd"
