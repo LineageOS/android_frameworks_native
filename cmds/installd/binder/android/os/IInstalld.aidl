@@ -16,6 +16,7 @@
 
 package android.os;
 
+/** {@hide} */
 interface IInstalld {
     void createUserData(@nullable @utf8InCpp String uuid, int userId, int userSerial, int flags);
     void destroyUserData(@nullable @utf8InCpp String uuid, int userId, int flags);
@@ -32,10 +33,18 @@ interface IInstalld {
             int userId, int flags, long ceDataInode);
     long getAppDataInode(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, int flags);
+    long[] getAppSize(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
+            int userId, int flags, long ceDataInode, @utf8InCpp String codePath);
 
     void moveCompleteApp(@nullable @utf8InCpp String fromUuid, @nullable @utf8InCpp String toUuid,
             @utf8InCpp String packageName, @utf8InCpp String dataAppName, int appId,
             @utf8InCpp String seInfo, int targetSdkVersion);
+
+    void dexopt(@utf8InCpp String apkPath, int uid, @nullable @utf8InCpp String packageName,
+            @utf8InCpp String instructionSet, int dexoptNeeded,
+            @nullable @utf8InCpp String outputPath, int dexFlags,
+            @utf8InCpp String compilerFilter, @nullable @utf8InCpp String uuid,
+            @nullable @utf8InCpp String sharedLibraries);
 
     void rmdex(@utf8InCpp String codePath, @utf8InCpp String instructionSet);
 

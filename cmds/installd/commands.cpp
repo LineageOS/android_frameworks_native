@@ -47,6 +47,8 @@
 #include <otapreopt_utils.h>
 #include <utils.h>
 
+#include "dexopt.h"
+
 #ifndef LOG_TAG
 #define LOG_TAG "installd"
 #endif
@@ -796,35 +798,48 @@ static void add_app_data_size(std::string& path, int64_t *codesize, int64_t *dat
     closedir(d);
 }
 
-int get_app_size(const char *uuid, const char *pkgname, int userid, int flags, ino_t ce_data_inode,
-        const char *code_path, int64_t *codesize, int64_t *datasize, int64_t *cachesize,
-        int64_t* asecsize) {
+binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::string>& uuid,
+    const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode,
+    const std::string& codePath, std::vector<int64_t>* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* pkgname = packageName.c_str();
+    const char* code_path = codePath.c_str();
+
     DIR *d;
     int dfd;
+    int64_t codesize = 0;
+    int64_t datasize = 0;
+    int64_t cachesize = 0;
+    int64_t asecsize = 0;
 
     d = opendir(code_path);
     if (d != nullptr) {
         dfd = dirfd(d);
-        *codesize += calculate_dir_size(dfd);
+        codesize += calculate_dir_size(dfd);
         closedir(d);
     }
 
     if (flags & FLAG_STORAGE_CE) {
-        auto path = create_data_user_ce_package_path(uuid, userid, pkgname, ce_data_inode);
-        add_app_data_size(path, codesize, datasize, cachesize);
+        auto path = create_data_user_ce_package_path(uuid_, userId, pkgname, ceDataInode);
+        add_app_data_size(path, &codesize, &datasize, &cachesize);
     }
     if (flags & FLAG_STORAGE_DE) {
-        auto path = create_data_user_de_package_path(uuid, userid, pkgname);
-        add_app_data_size(path, codesize, datasize, cachesize);
+        auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
+        add_app_data_size(path, &codesize, &datasize, &cachesize);
     }
 
-    *asecsize = 0;
-
-    return 0;
+    std::vector<int64_t> res;
+    res.push_back(codesize);
+    res.push_back(datasize);
+    res.push_back(cachesize);
+    res.push_back(asecsize);
+    *_aidl_return = res;
+    return binder::Status::ok();
 }
 
 binder::Status InstalldNativeService::getAppDataInode(const std::unique_ptr<std::string>& uuid,
-    const std::string& packageName, int32_t userId, int32_t flags, int64_t* _aidl_return) {
+        const std::string& packageName, int32_t userId, int32_t flags, int64_t* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -1688,28 +1703,6 @@ binder::Status InstalldNativeService::mergeProfiles(int32_t uid, const std::stri
     return binder::Status::ok();
 }
 
-static const char* parse_null(const char* arg) {
-    if (strcmp(arg, "!") == 0) {
-        return nullptr;
-    } else {
-        return arg;
-    }
-}
-
-int dexopt(const char* const params[DEXOPT_PARAM_COUNT]) {
-    return dexopt(params[0],                    // apk_path
-                  atoi(params[1]),              // uid
-                  params[2],                    // pkgname
-                  params[3],                    // instruction_set
-                  atoi(params[4]),              // dexopt_needed
-                  params[5],                    // oat_dir
-                  atoi(params[6]),              // dexopt_flags
-                  params[7],                    // compiler_filter
-                  parse_null(params[8]),        // volume_uuid
-                  parse_null(params[9]));       // shared_libraries
-    static_assert(DEXOPT_PARAM_COUNT == 10U, "Unexpected dexopt param count");
-}
-
 // Helper for fd management. This is similar to a unique_fd in that it closes the file descriptor
 // on destruction. It will also run the given cleanup (unless told not to) after closing.
 //
@@ -1788,10 +1781,10 @@ class Dex2oatFileWrapper {
     bool do_cleanup_;
 };
 
+// TODO: eventually move dexopt() implementation into dexopt.cpp
 int dexopt(const char* apk_path, uid_t uid, const char* pkgname, const char* instruction_set,
-           int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
-           const char* volume_uuid ATTRIBUTE_UNUSED, const char* shared_libraries)
-{
+        int dexopt_needed, const char* oat_dir, int dexopt_flags,const char* compiler_filter,
+        const char* volume_uuid ATTRIBUTE_UNUSED, const char* shared_libraries) {
     bool is_public = ((dexopt_flags & DEXOPT_PUBLIC) != 0);
     bool vm_safe_mode = (dexopt_flags & DEXOPT_SAFEMODE) != 0;
     bool debuggable = (dexopt_flags & DEXOPT_DEBUGGABLE) != 0;
@@ -2058,6 +2051,26 @@ int dexopt(const char* apk_path, uid_t uid, const char* pkgname, const char* ins
     reference_profile_fd.SetCleanup(false);
 
     return 0;
+}
+
+binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t uid,
+        const std::unique_ptr<std::string>& packageName, const std::string& instructionSet,
+        int32_t dexoptNeeded, const std::unique_ptr<std::string>& outputPath, int32_t dexFlags,
+        const std::string& compilerFilter, const std::unique_ptr<std::string>& uuid,
+        const std::unique_ptr<std::string>& sharedLibraries) {
+    ENFORCE_UID(AID_SYSTEM);
+
+    const char* apk_path = apkPath.c_str();
+    const char* pkgname = packageName ? packageName->c_str() : "*";
+    const char* instruction_set = instructionSet.c_str();
+    const char* oat_dir = outputPath ? outputPath->c_str() : nullptr;
+    const char* compiler_filter = compilerFilter.c_str();
+    const char* volume_uuid = uuid ? uuid->c_str() : nullptr;
+    const char* shared_libraries = sharedLibraries ? sharedLibraries->c_str() : nullptr;
+
+    int res = android::installd::dexopt(apk_path, uid, pkgname, instruction_set, dexoptNeeded,
+            oat_dir, dexFlags, compiler_filter, volume_uuid, shared_libraries);
+    return res ? binder::Status::fromServiceSpecificError(-1) : binder::Status::ok();
 }
 
 binder::Status InstalldNativeService::markBootComplete(const std::string& instructionSet) {
@@ -2448,7 +2461,6 @@ static bool move_ab_path(const std::string& b_path, const std::string& a_path) {
     return true;
 }
 
-//int move_ab(const char* apk_path, const char* instruction_set, const char* oat_dir) {
 binder::Status InstalldNativeService::moveAb(const std::string& apkPath,
         const std::string& instructionSet, const std::string& outputPath) {
     ENFORCE_UID(AID_SYSTEM);
