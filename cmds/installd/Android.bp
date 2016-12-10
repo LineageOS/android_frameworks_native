@@ -6,7 +6,7 @@ cc_defaults {
         "-Werror",
     ],
     srcs: [
-        "commands.cpp",
+        "InstalldNativeService.cpp",
         "dexopt.cpp",
         "globals.cpp",
         "utils.cpp",

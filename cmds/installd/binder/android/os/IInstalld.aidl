@@ -21,7 +21,7 @@ interface IInstalld {
     void createUserData(@nullable @utf8InCpp String uuid, int userId, int userSerial, int flags);
     void destroyUserData(@nullable @utf8InCpp String uuid, int userId, int flags);
 
-    void createAppData(in @nullable @utf8InCpp String uuid, in @utf8InCpp String packageName,
+    void createAppData(@nullable @utf8InCpp String uuid, in @utf8InCpp String packageName,
             int userId, int flags, int appId, in @utf8InCpp String seInfo, int targetSdkVersion);
     void restoreconAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, int flags, int appId, @utf8InCpp String seInfo);
