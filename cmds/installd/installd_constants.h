@@ -42,7 +42,6 @@ constexpr int DEXOPT_SAFEMODE       = 1 << 2;
 constexpr int DEXOPT_DEBUGGABLE     = 1 << 3;
 constexpr int DEXOPT_BOOTCOMPLETE   = 1 << 4;
 constexpr int DEXOPT_PROFILE_GUIDED = 1 << 5;
-constexpr int DEXOPT_OTA            = 1 << 6;
 
 /* all known values for dexopt flags */
 constexpr int DEXOPT_MASK =
@@ -50,8 +49,7 @@ constexpr int DEXOPT_MASK =
     | DEXOPT_SAFEMODE
     | DEXOPT_DEBUGGABLE
     | DEXOPT_BOOTCOMPLETE
-    | DEXOPT_PROFILE_GUIDED
-    | DEXOPT_OTA;
+    | DEXOPT_PROFILE_GUIDED;
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(*(a)))
 

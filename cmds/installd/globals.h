@@ -18,8 +18,9 @@
 #ifndef GLOBALS_H_
 #define GLOBALS_H_
 
-#include <commands.h>
 #include <inttypes.h>
+
+#include "InstalldNativeService.h"
 
 namespace android {
 namespace installd {

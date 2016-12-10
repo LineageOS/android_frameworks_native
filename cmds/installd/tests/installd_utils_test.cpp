@@ -19,9 +19,9 @@
 
 #include <gtest/gtest.h>
 
-#include <commands.h>
-#include <globals.h>
-#include <utils.h>
+#include "InstalldNativeService.h"
+#include "globals.h"
+#include "utils.h"
 
 #undef LOG_TAG
 #define LOG_TAG "utils_test"

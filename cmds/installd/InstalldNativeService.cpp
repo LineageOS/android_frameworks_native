@@ -14,7 +14,7 @@
 ** limitations under the License.
 */
 
-#include "commands.h"
+#include "InstalldNativeService.h"
 
 #include <errno.h>
 #include <inttypes.h>
@@ -42,12 +42,11 @@
 #include <selinux/android.h>
 #include <system/thread_defs.h>
 
-#include <globals.h>
-#include <installd_deps.h>
-#include <otapreopt_utils.h>
-#include <utils.h>
-
 #include "dexopt.h"
+#include "globals.h"
+#include "installd_deps.h"
+#include "otapreopt_utils.h"
+#include "utils.h"
 
 #ifndef LOG_TAG
 #define LOG_TAG "installd"
