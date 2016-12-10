@@ -20,14 +20,12 @@
 #include <sys/capability.h>
 #include <sys/fsuid.h>
 #include <sys/prctl.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 
 #include <android-base/logging.h>
 #include <cutils/fs.h>
 #include <cutils/log.h>               // TODO: Move everything to base::logging.
 #include <cutils/properties.h>
-#include <cutils/sockets.h>
 #include <private/android_filesystem_config.h>
 
 #include <commands.h>
@@ -39,11 +37,6 @@
 #ifndef LOG_TAG
 #define LOG_TAG "installd"
 #endif
-#define SOCKET_PATH "installd"
-
-#define BUFFER_MAX    1024  /* input buffer for commands */
-#define TOKEN_MAX     16    /* max number of arguments in buffer */
-#define REPLY_MAX     256   /* largest reply allowed */
 
 namespace android {
 namespace installd {
@@ -172,220 +165,6 @@ bool create_cache_path(char path[PKG_PATH_MAX],
 
     strcat(path, DALVIK_CACHE_POSTFIX);
     return true;
-}
-
-
-static char* parse_null(char* arg) {
-    if (strcmp(arg, "!") == 0) {
-        return nullptr;
-    } else {
-        return arg;
-    }
-}
-
-static int do_ping(char **arg ATTRIBUTE_UNUSED, char reply[REPLY_MAX] ATTRIBUTE_UNUSED)
-{
-    return 0;
-}
-
-// We use otapreopt_chroot to get into the chroot.
-static constexpr const char* kOtaPreopt = "/system/bin/otapreopt_chroot";
-
-static int do_ota_dexopt(const char* args[DEXOPT_PARAM_COUNT],
-                         char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
-    // Time to fork and run otapreopt.
-
-    // Check that the tool exists.
-    struct stat s;
-    if (stat(kOtaPreopt, &s) != 0) {
-        LOG(ERROR) << "Otapreopt chroot tool not found.";
-        return -1;
-    }
-
-    pid_t pid = fork();
-    if (pid == 0) {
-        const char* argv[1 + DEXOPT_PARAM_COUNT + 1];
-        argv[0] = kOtaPreopt;
-
-        for (size_t i = 0; i < DEXOPT_PARAM_COUNT; ++i) {
-            argv[i + 1] = args[i];
-        }
-
-        argv[DEXOPT_PARAM_COUNT + 1] = nullptr;
-
-        execv(argv[0], (char * const *)argv);
-        PLOG(ERROR) << "execv(OTAPREOPT_CHROOT) failed";
-        exit(99);
-    } else {
-        int res = wait_child(pid);
-        if (res == 0) {
-            ALOGV("DexInv: --- END OTAPREOPT (success) ---\n");
-        } else {
-            ALOGE("DexInv: --- END OTAPREOPT --- status=0x%04x, process failed\n", res);
-        }
-        return res;
-    }
-}
-
-static int do_regular_dexopt(const char* args[DEXOPT_PARAM_COUNT],
-                             char reply[REPLY_MAX] ATTRIBUTE_UNUSED) {
-    return dexopt(args);
-}
-
-using DexoptFn = int (*)(const char* args[DEXOPT_PARAM_COUNT],
-                         char reply[REPLY_MAX]);
-
-static int do_dexopt(char **arg, char reply[REPLY_MAX])
-{
-    const char* args[DEXOPT_PARAM_COUNT];
-    for (size_t i = 0; i < DEXOPT_PARAM_COUNT; ++i) {
-        CHECK(arg[i] != nullptr);
-        args[i] = arg[i];
-    }
-
-    int dexopt_flags = atoi(arg[6]);
-    DexoptFn dexopt_fn;
-    if ((dexopt_flags & DEXOPT_OTA) != 0) {
-        dexopt_fn = do_ota_dexopt;
-    } else {
-        dexopt_fn = do_regular_dexopt;
-    }
-    return dexopt_fn(args, reply);
-}
-
-static int do_get_app_size(char **arg, char reply[REPLY_MAX]) {
-    int64_t codesize = 0;
-    int64_t datasize = 0;
-    int64_t cachesize = 0;
-    int64_t asecsize = 0;
-    int res = 0;
-
-    /* const char *uuid, const char *pkgname, int userid, int flags, ino_t ce_data_inode,
-            const char* code_path */
-    res = get_app_size(parse_null(arg[0]), arg[1], atoi(arg[2]), atoi(arg[3]), atol(arg[4]),
-            arg[5], &codesize, &datasize, &cachesize, &asecsize);
-
-    /*
-     * Each int64_t can take up 22 characters printed out. Make sure it
-     * doesn't go over REPLY_MAX in the future.
-     */
-    snprintf(reply, REPLY_MAX, "%" PRId64 " %" PRId64 " %" PRId64 " %" PRId64,
-            codesize, datasize, cachesize, asecsize);
-    return res;
-}
-
-struct cmdinfo {
-    const char *name;
-    unsigned numargs;
-    int (*func)(char **arg, char reply[REPLY_MAX]);
-};
-
-struct cmdinfo cmds[] = {
-    { "ping",                 0, do_ping },
-    { "get_app_size",         6, do_get_app_size },
-    { "dexopt",              10, do_dexopt },
-};
-
-static int readx(int s, void *_buf, int count)
-{
-    char *buf = (char *) _buf;
-    int n = 0, r;
-    if (count < 0) return -1;
-    while (n < count) {
-        r = read(s, buf + n, count - n);
-        if (r < 0) {
-            if (errno == EINTR) continue;
-            ALOGE("read error: %s\n", strerror(errno));
-            return -1;
-        }
-        if (r == 0) {
-            ALOGE("eof\n");
-            return -1; /* EOF */
-        }
-        n += r;
-    }
-    return 0;
-}
-
-static int writex(int s, const void *_buf, int count)
-{
-    const char *buf = (const char *) _buf;
-    int n = 0, r;
-    if (count < 0) return -1;
-    while (n < count) {
-        r = write(s, buf + n, count - n);
-        if (r < 0) {
-            if (errno == EINTR) continue;
-            ALOGE("write error: %s\n", strerror(errno));
-            return -1;
-        }
-        n += r;
-    }
-    return 0;
-}
-
-
-/* Tokenize the command buffer, locate a matching command,
- * ensure that the required number of arguments are provided,
- * call the function(), return the result.
- */
-static int execute(int s, char cmd[BUFFER_MAX])
-{
-    char reply[REPLY_MAX];
-    char *arg[TOKEN_MAX+1];
-    unsigned i;
-    unsigned n = 0;
-    unsigned short count;
-    int ret = -1;
-
-    // ALOGI("execute('%s')\n", cmd);
-
-        /* default reply is "" */
-    reply[0] = 0;
-
-        /* n is number of args (not counting arg[0]) */
-    arg[0] = cmd;
-    while (*cmd) {
-        if (isspace(*cmd)) {
-            *cmd++ = 0;
-            n++;
-            arg[n] = cmd;
-            if (n == TOKEN_MAX) {
-                ALOGE("too many arguments\n");
-                goto done;
-            }
-        }
-        if (*cmd) {
-          cmd++;
-        }
-    }
-
-    for (i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++) {
-        if (!strcmp(cmds[i].name,arg[0])) {
-            if (n != cmds[i].numargs) {
-                ALOGE("%s requires %d arguments (%d given)\n",
-                     cmds[i].name, cmds[i].numargs, n);
-            } else {
-                ret = cmds[i].func(arg + 1, reply);
-            }
-            goto done;
-        }
-    }
-    ALOGE("unsupported command '%s'\n", arg[0]);
-
-done:
-    if (reply[0]) {
-        n = snprintf(cmd, BUFFER_MAX, "%d %s", ret, reply);
-    } else {
-        n = snprintf(cmd, BUFFER_MAX, "%d", ret);
-    }
-    if (n > BUFFER_MAX) n = BUFFER_MAX;
-    count = n;
-
-    // ALOGI("reply: '%s'\n", cmd);
-    if (writex(s, &count, sizeof(count))) return -1;
-    if (writex(s, cmd, count)) return -1;
-    return 0;
 }
 
 static bool initialize_globals() {
@@ -527,16 +306,13 @@ static int log_callback(int type, const char *fmt, ...) {
 }
 
 static int installd_main(const int argc ATTRIBUTE_UNUSED, char *argv[]) {
-    char buf[BUFFER_MAX];
-    struct sockaddr addr;
-    socklen_t alen;
-    int lsocket, s, ret;
+    int ret;
     int selinux_enabled = (is_selinux_enabled() > 0);
 
     setenv("ANDROID_LOG_TAGS", "*:v", 1);
     android::base::InitLogging(argv);
 
-    ALOGI("installd firing up\n");
+    LOG(INFO) << "installd firing up";
 
     union selinux_callback cb;
     cb.func_log = log_callback;
@@ -562,50 +338,9 @@ static int installd_main(const int argc ATTRIBUTE_UNUSED, char *argv[]) {
         exit(1);
     }
 
-    lsocket = android_get_control_socket(SOCKET_PATH);
-    if (lsocket < 0) {
-        ALOGE("Failed to get socket from environment: %s\n", strerror(errno));
-        exit(1);
-    }
-    if (listen(lsocket, 5)) {
-        ALOGE("Listen on socket failed: %s\n", strerror(errno));
-        exit(1);
-    }
-    fcntl(lsocket, F_SETFD, FD_CLOEXEC);
+    IPCThreadState::self()->joinThreadPool();
 
-    for (;;) {
-        alen = sizeof(addr);
-        s = accept(lsocket, &addr, &alen);
-        if (s < 0) {
-            ALOGE("Accept failed: %s\n", strerror(errno));
-            continue;
-        }
-        fcntl(s, F_SETFD, FD_CLOEXEC);
-
-        ALOGI("new connection\n");
-        for (;;) {
-            unsigned short count;
-            if (readx(s, &count, sizeof(count))) {
-                ALOGE("failed to read size\n");
-                break;
-            }
-            if ((count < 1) || (count >= BUFFER_MAX)) {
-                ALOGE("invalid size %d\n", count);
-                break;
-            }
-            if (readx(s, buf, count)) {
-                ALOGE("failed to read command\n");
-                break;
-            }
-            buf[count] = 0;
-            if (selinux_enabled && selinux_status_updated() > 0) {
-                selinux_android_seapp_context_reload();
-            }
-            if (execute(s, buf)) break;
-        }
-        ALOGI("closing connection\n");
-        close(s);
-    }
+    LOG(INFO) << "installd shutting down";
 
     return 0;
 }
