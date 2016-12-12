@@ -186,6 +186,11 @@ public:
     void setPowerMode(int mode);
     bool isDisplayOn() const;
 
+#ifdef USE_HWC2
+    android_color_mode_t getActiveColorMode() const;
+    void setActiveColorMode(android_color_mode_t mode);
+#endif
+
     /* ------------------------------------------------------------------------
      * Display active config management.
      */
