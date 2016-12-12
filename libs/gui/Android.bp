@@ -77,6 +77,7 @@ cc_library_shared {
         "FrameTimestamps.cpp",
         "GLConsumer.cpp",
         "GraphicBufferAlloc.cpp",
+        "GraphicsEnv.cpp",
         "GuiConfig.cpp",
         "IDisplayEventConnection.cpp",
         "IGraphicBufferAlloc.cpp",
