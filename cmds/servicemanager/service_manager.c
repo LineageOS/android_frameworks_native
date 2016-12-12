@@ -60,7 +60,6 @@ int str16eq(const uint16_t *a, const char *b)
     return 1;
 }
 
-static int selinux_enabled;
 static char *service_manager_context;
 static struct selabel_handle* sehandle;
 
@@ -89,10 +88,6 @@ static bool check_mac_perms(pid_t spid, uid_t uid, const char *tctx, const char 
 
 static bool check_mac_perms_from_getcon(pid_t spid, uid_t uid, const char *perm)
 {
-    if (selinux_enabled <= 0) {
-        return true;
-    }
-
     return check_mac_perms(spid, uid, service_manager_context, perm, NULL);
 }
 
@@ -100,10 +95,6 @@ static bool check_mac_perms_from_lookup(pid_t spid, uid_t uid, const char *perm,
 {
     bool allowed;
     char *tctx = NULL;
-
-    if (selinux_enabled <= 0) {
-        return true;
-    }
 
     if (!sehandle) {
         ALOGE("SELinux: Failed to find sehandle. Aborting service_manager.\n");
@@ -384,20 +375,17 @@ int main()
         return -1;
     }
 
-    selinux_enabled = is_selinux_enabled();
     sehandle = selinux_android_service_context_handle();
     selinux_status_open(true);
 
-    if (selinux_enabled > 0) {
-        if (sehandle == NULL) {
-            ALOGE("SELinux: Failed to acquire sehandle. Aborting.\n");
-            abort();
-        }
+    if (sehandle == NULL) {
+        ALOGE("SELinux: Failed to acquire sehandle. Aborting.\n");
+        abort();
+    }
 
-        if (getcon(&service_manager_context) != 0) {
-            ALOGE("SELinux: Failed to acquire service_manager context. Aborting.\n");
-            abort();
-        }
+    if (getcon(&service_manager_context) != 0) {
+        ALOGE("SELinux: Failed to acquire service_manager context. Aborting.\n");
+        abort();
     }
 
     union selinux_callback cb;
