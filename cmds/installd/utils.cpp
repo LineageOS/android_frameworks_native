@@ -53,7 +53,7 @@ namespace installd {
  * Check that given string is valid filename, and that it attempts no
  * parent or child directory traversal.
  */
-static bool is_valid_filename(const std::string& name) {
+bool is_valid_filename(const std::string& name) {
     if (name.empty() || (name == ".") || (name == "..")
             || (name.find('/') != std::string::npos)) {
         return false;
@@ -64,7 +64,7 @@ static bool is_valid_filename(const std::string& name) {
 
 static void check_package_name(const char* package_name) {
     CHECK(is_valid_filename(package_name));
-    CHECK(is_valid_package_name(package_name) == 0);
+    CHECK(is_valid_package_name(package_name));
 }
 
 /**
@@ -135,7 +135,7 @@ std::string create_data_user_de_package_path(const char* volume_uuid,
 
 int create_pkg_path(char path[PKG_PATH_MAX], const char *pkgname,
         const char *postfix, userid_t userid) {
-    if (is_valid_package_name(pkgname) != 0) {
+    if (!is_valid_package_name(pkgname)) {
         path[0] = '\0';
         return -1;
     }
@@ -266,12 +266,13 @@ int create_move_path(char path[PKG_PATH_MAX],
  * Checks whether the package name is valid. Returns -1 on error and
  * 0 on success.
  */
-int is_valid_package_name(const char* pkgname) {
+bool is_valid_package_name(const std::string& packageName) {
+    const char* pkgname = packageName.c_str();
     const char *x = pkgname;
     int alpha = -1;
 
     if (strlen(pkgname) > PKG_NAME_MAX) {
-        return -1;
+        return false;
     }
 
     while (*x) {
@@ -281,7 +282,7 @@ int is_valid_package_name(const char* pkgname) {
             if ((x == pkgname) || (x[1] == '.') || (x[1] == 0)) {
                     /* periods must not be first, last, or doubled */
                 ALOGE("invalid package name '%s'\n", pkgname);
-                return -1;
+                return false;
             }
         } else if (*x == '-') {
             /* Suffix -X is fine to let versioning of packages.
@@ -290,7 +291,7 @@ int is_valid_package_name(const char* pkgname) {
         } else {
                 /* anything not A-Z, a-z, 0-9, _, or . is invalid */
             ALOGE("invalid package name '%s'\n", pkgname);
-            return -1;
+            return false;
         }
 
         x++;
@@ -302,13 +303,13 @@ int is_valid_package_name(const char* pkgname) {
         while (*x) {
             if (!isalnum(*x)) {
                 ALOGE("invalid package name '%s' should include only numbers after -\n", pkgname);
-                return -1;
+                return false;
             }
             x++;
         }
     }
 
-    return 0;
+    return true;
 }
 
 static int _delete_dir_contents(DIR *d,

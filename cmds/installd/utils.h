@@ -102,7 +102,8 @@ int create_move_path(char path[PKG_PATH_MAX],
                      const char* leaf,
                      userid_t userid);
 
-int is_valid_package_name(const char* pkgname);
+bool is_valid_filename(const std::string& name);
+bool is_valid_package_name(const std::string& packageName);
 
 int delete_dir_contents(const std::string& pathname, bool ignore_if_missing = false);
 int delete_dir_contents_and_dir(const std::string& pathname, bool ignore_if_missing = false);
