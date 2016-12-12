@@ -129,12 +129,10 @@ Changes to Chapter 3 of the EGL 1.2 Specification (EGL Functions and Errors)
         desirable) do not route the entire composition to the external sink.
 
         EGL_NATIVE_BUFFER_USAGE_RENDERBUFFER_BIT_ANDROID: The buffer will be
-        used to create a renderbuffer. This flag must not be set if
-        EGL_NATIVE_BUFFER_USAGE_TEXTURE_BIT_ANDROID is set.
+        used to create a color-renderable texture.
 
         EGL_NATIVE_BUFFER_USAGE_TEXTURE_BIT_ANDROID: The buffer will be used to
-        create a texture. This flag must not be set if
-        EGL_NATIVE_BUFFER_USAGE_RENDERBUFFER_BIT_ANDROID is set.
+        create a filterable texture.
 
     Errors
 
@@ -153,11 +151,6 @@ Changes to Chapter 3 of the EGL 1.2 Specification (EGL Functions and Errors)
          of gralloc usage flags for the EGL implementation, or is incompatible
          with the value of EGL_FORMAT, the error EGL_BAD_PARAMETER is
          Generated.
-
-       * If both the EGL_NATIVE_BUFFER_USAGE_RENDERBUFFER_BIT_ANDROID and
-         EGL_NATIVE_BUFFER_USAGE_TEXTURE_BIT_ANDROID are set in the value of
-         EGL_NATIVE_BUFFER_USAGE_ANDROID, the error EGL_BAD_PARAMETER is
-         Generated."
 
 Issues
 
