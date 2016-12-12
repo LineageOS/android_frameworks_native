@@ -73,6 +73,7 @@ cc_library_shared {
         "DisplayEventReceiver.cpp",
         "GLConsumer.cpp",
         "GraphicBufferAlloc.cpp",
+        "GraphicsEnv.cpp",
         "GuiConfig.cpp",
         "IDisplayEventConnection.cpp",
         "IGraphicBufferAlloc.cpp",
