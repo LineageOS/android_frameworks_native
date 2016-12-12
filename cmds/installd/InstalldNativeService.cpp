@@ -95,6 +95,10 @@ static binder::Status ok() {
     return binder::Status::ok();
 }
 
+static binder::Status exception(uint32_t code) {
+    return binder::Status::fromExceptionCode(code);
+}
+
 static binder::Status exception(uint32_t code, const std::string& msg) {
     return binder::Status::fromExceptionCode(code, String8(msg.c_str()));
 }
@@ -728,15 +732,14 @@ binder::Status InstalldNativeService::createUserData(const std::unique_ptr<std::
     CHECK_ARGUMENT_UUID(uuid);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
-    binder::Status res = ok();
     if (flags & FLAG_STORAGE_DE) {
         if (uuid_ == nullptr) {
             if (ensure_config_user_dirs(userId) != 0) {
-                res = error(StringPrintf("Failed to ensure dirs for %d", userId));
+                return error(StringPrintf("Failed to ensure dirs for %d", userId));
             }
         }
     }
-    return res;
+    return ok();
 }
 
 binder::Status InstalldNativeService::destroyUserData(const std::unique_ptr<std::string>& uuid,
@@ -951,14 +954,15 @@ binder::Status InstalldNativeService::getAppDataInode(const std::unique_ptr<std:
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
 
-    binder::Status res = ok();
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
-        if (get_path_inode(path, reinterpret_cast<ino_t*>(_aidl_return)) != 0) {
-            res = error("Failed to get_path_inode for " + path);
+        if (get_path_inode(path, reinterpret_cast<ino_t*>(_aidl_return)) == 0) {
+            return ok();
+        } else {
+            return error("Failed to get_path_inode for " + path);
         }
     }
-    return res;
+    return exception(binder::Status::EX_UNSUPPORTED_OPERATION);
 }
 
 static int split_count(const char *str)
