@@ -518,6 +518,12 @@ static void pokeHalServices()
     using ::android::hardware::hidl_string;
 
     sp<IServiceManager> sm = ::android::hardware::defaultServiceManager();
+
+    if (sm == nullptr) {
+        fprintf(stderr, "failed to get IServiceManager to poke hal services\n");
+        return;
+    }
+
     auto listRet = sm->list([&](const auto &interfaces) {
         for (size_t i = 0; i < interfaces.size(); i++) {
             string fqInstanceName = interfaces[i];
