@@ -216,6 +216,13 @@ std::string create_data_ref_profile_package_path(const char* package_name) {
     return StringPrintf("%s/ref/%s", android_profiles_dir.path, package_name);
 }
 
+// Keep profile paths in sync with ActivityThread.
+constexpr const char* PRIMARY_PROFILE_NAME = "primary.prof";
+
+std::string create_primary_profile(const std::string& profile_dir) {
+    return StringPrintf("%s/%s", profile_dir.c_str(), PRIMARY_PROFILE_NAME);
+}
+
 std::vector<userid_t> get_known_users(const char* volume_uuid) {
     std::vector<userid_t> users;
 
