@@ -199,6 +199,8 @@ private:
     size_t mCompositionOffset{0};
     size_t mRetireOffset{0};
     size_t mReleaseOffset{0};
+
+    bool mProducerWantsEvents{false};
 };
 
 

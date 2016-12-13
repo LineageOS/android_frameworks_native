@@ -349,7 +349,7 @@ void ConsumerFrameEventHistory::addLatch(
         uint64_t frameNumber, nsecs_t latchTime) {
     FrameEvents* frame = getFrame(frameNumber, &mCompositionOffset);
     if (frame == nullptr) {
-        ALOGE("ConsumerFrameEventHistory::addLatch: Did not find frame.");
+        ALOGE_IF(mProducerWantsEvents, "addLatch: Did not find frame.");
         return;
     }
     frame->latchTime = latchTime;
@@ -360,8 +360,8 @@ void ConsumerFrameEventHistory::addPreComposition(
         uint64_t frameNumber, nsecs_t refreshStartTime) {
     FrameEvents* frame = getFrame(frameNumber, &mCompositionOffset);
     if (frame == nullptr) {
-        ALOGE("ConsumerFrameEventHistory::addPreComposition: "
-              "Did not find frame.");
+        ALOGE_IF(mProducerWantsEvents,
+                "addPreComposition: Did not find frame.");
         return;
     }
     frame->lastRefreshStartTime = refreshStartTime;
@@ -377,8 +377,8 @@ void ConsumerFrameEventHistory::addPostComposition(uint64_t frameNumber,
         const std::shared_ptr<FenceTime>& displayPresent) {
     FrameEvents* frame = getFrame(frameNumber, &mCompositionOffset);
     if (frame == nullptr) {
-        ALOGE("ConsumerFrameEventHistory::addPostComposition: "
-              "Did not find frame.");
+        ALOGE_IF(mProducerWantsEvents,
+                "addPostComposition: Did not find frame.");
         return;
     }
     // Only get GPU and present info for the first composite.
@@ -397,7 +397,7 @@ void ConsumerFrameEventHistory::addRetire(
         uint64_t frameNumber, const std::shared_ptr<FenceTime>& displayRetire) {
     FrameEvents* frame = getFrame(frameNumber, &mRetireOffset);
     if (frame == nullptr) {
-        ALOGE("ConsumerFrameEventHistory::addRetire: Did not find frame.");
+        ALOGE_IF(mProducerWantsEvents, "addRetire: Did not find frame.");
         return;
     }
     frame->addRetireCalled = true;
@@ -420,6 +420,7 @@ void ConsumerFrameEventHistory::addRelease(
 void ConsumerFrameEventHistory::getFrameDelta(
         FrameEventHistoryDelta* delta,
         const std::array<FrameEvents, MAX_FRAME_HISTORY>::iterator& frame) {
+    mProducerWantsEvents = true;
     size_t i = static_cast<size_t>(std::distance(mFrames.begin(), frame));
     if (mFramesDirty[i].anyDirty()) {
         delta->mDeltas.emplace_back(i, *frame, mFramesDirty[i]);
