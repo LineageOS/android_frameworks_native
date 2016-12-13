@@ -93,6 +93,8 @@ std::string create_data_user_profiles_path(userid_t userid);
 std::string create_data_user_profile_package_path(userid_t user, const char* package_name);
 std::string create_data_ref_profile_package_path(const char* package_name);
 
+std::string create_primary_profile(const std::string& profile_dir);
+
 std::vector<userid_t> get_known_users(const char* volume_uuid);
 
 int create_user_config_path(char path[PKG_PATH_MAX], userid_t userid);
