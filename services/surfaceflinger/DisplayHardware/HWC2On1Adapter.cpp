@@ -86,6 +86,7 @@ void HWC2On1Adapter::DisplayContentsDeleter::operator()(
         for (size_t l = 0; l < contents->numHwLayers; ++l) {
             auto& layer = contents->hwLayers[l];
             std::free(const_cast<hwc_rect_t*>(layer.visibleRegionScreen.rects));
+            std::free(const_cast<hwc_rect_t*>(layer.surfaceDamage.rects));
         }
     }
     std::free(contents);
