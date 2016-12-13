@@ -723,6 +723,8 @@ void DestroySwapchainKHR(VkDevice device,
                          const VkAllocationCallbacks* allocator) {
     const auto& dispatch = GetData(device).driver;
     Swapchain* swapchain = SwapchainFromHandle(swapchain_handle);
+    if (!swapchain)
+        return;
     bool active = swapchain->surface.swapchain_handle == swapchain_handle;
     ANativeWindow* window = active ? swapchain->surface.window.get() : nullptr;
 
