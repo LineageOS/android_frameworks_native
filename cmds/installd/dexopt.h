@@ -19,8 +19,30 @@
 
 #include <sys/types.h>
 
+#include <cutils/multiuser.h>
+
 namespace android {
 namespace installd {
+
+/* dexopt needed flags matching those in dalvik.system.DexFile */
+static constexpr int DEX2OAT_FROM_SCRATCH        = 1;
+static constexpr int DEX2OAT_FOR_BOOT_IMAGE      = 2;
+static constexpr int DEX2OAT_FOR_FILTER          = 3;
+static constexpr int DEX2OAT_FOR_RELOCATION      = 4;
+static constexpr int PATCHOAT_FOR_RELOCATION     = 5;
+
+typedef int fd_t;
+
+bool clear_reference_profile(const char* pkgname);
+bool clear_current_profile(const char* pkgname, userid_t user);
+bool clear_current_profiles(const char* pkgname);
+
+bool move_ab(const char* apk_path, const char* instruction_set, const char* output_path);
+
+bool analyse_profiles(uid_t uid, const char* pkgname);
+bool dump_profiles(int32_t uid, const char* pkgname, const char* code_paths);
+
+bool delete_odex(const char* apk_path, const char* instruction_set, const char* output_path);
 
 int dexopt(const char *apk_path, uid_t uid, const char *pkgName, const char *instruction_set,
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
