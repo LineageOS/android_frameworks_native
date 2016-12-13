@@ -121,9 +121,11 @@ public:
         int32_t sequence; // changes when visible regions can change
         bool modified;
 
+        // Crop is expressed in layer space coordinate.
         Rect crop;
         Rect requestedCrop;
 
+        // finalCrop is expressed in display space coordinate.
         Rect finalCrop;
 
         // If set, defers this state update until the Layer identified by handle
