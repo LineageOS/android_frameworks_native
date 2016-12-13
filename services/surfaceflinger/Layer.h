@@ -461,7 +461,7 @@ private:
     // drawing
     void clearWithOpenGL(const sp<const DisplayDevice>& hw,
             float r, float g, float b, float alpha) const;
-    void drawWithOpenGL(const sp<const DisplayDevice>& hw, const Region& clip,
+    void drawWithOpenGL(const sp<const DisplayDevice>& hw,
             bool useIdentityTransform) const;
 
     // Temporary - Used only for LEGACY camera mode.
