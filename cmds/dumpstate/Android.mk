@@ -16,6 +16,7 @@ COMMON_SRC_FILES := \
         utils.cpp
 COMMON_SHARED_LIBRARIES := \
         android.hardware.dumpstate@1.0 \
+        libhidlbase \
         libbase \
         libbinder \
         libcutils \
