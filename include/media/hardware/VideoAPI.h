@@ -110,7 +110,7 @@ static_assert(sizeof(MediaImage2) == 104, "wrong struct size");
 // though could verify that nSize is at least the size of the structure at the
 // time of implementation. All new fields will be added at the end of the structure
 // ensuring backward compatibility.
-struct __attribute__ ((__packed__)) ColorAspects {
+struct __attribute__ ((__packed__, aligned(alignof(uint32_t)))) ColorAspects {
     // this is in sync with the range values in graphics.h
     enum Range : uint32_t {
         RangeUnspecified,
