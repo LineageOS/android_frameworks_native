@@ -1136,27 +1136,35 @@ void SurfaceFlinger::postComposition()
     const HWComposer& hwc = getHwComposer();
     const sp<const DisplayDevice> hw(getDefaultDisplayDevice());
 
-    bool hadGlesComposition =
-            getHwComposer().hasGlesComposition(hw->getHwcDisplayId());
-    sp<Fence> glCompositionDoneFence = hadGlesComposition
-                                     ? hw->getClientTargetAcquireFence()
-                                     : Fence::NO_FENCE;
+    std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
+    if (getHwComposer().hasGlesComposition(hw->getHwcDisplayId())) {
+        glCompositionDoneFenceTime =
+                std::make_shared<FenceTime>(hw->getClientTargetAcquireFence());
+        mGlCompositionDoneTimeline.push(glCompositionDoneFenceTime);
+    } else {
+        glCompositionDoneFenceTime = FenceTime::NO_FENCE;
+    }
+    mGlCompositionDoneTimeline.updateSignalTimes();
+
+    sp<Fence> displayFence = mHwc->getDisplayFence(HWC_DISPLAY_PRIMARY);
+    const std::shared_ptr<FenceTime>& presentFenceTime = FenceTime::NO_FENCE;
+    auto retireFenceTime = std::make_shared<FenceTime>(displayFence);
+    mDisplayTimeline.push(retireFenceTime);
+    mDisplayTimeline.updateSignalTimes();
 
     const LayerVector& layers(mDrawingState.layersSortedByZ);
     const size_t count = layers.size();
     for (size_t i=0 ; i<count ; i++) {
         bool frameLatched = layers[i]->onPostComposition(
-                glCompositionDoneFence);
+                glCompositionDoneFenceTime, presentFenceTime, retireFenceTime);
         if (frameLatched) {
             recordBufferingStats(layers[i]->getName().string(),
                     layers[i]->getOccupancyHistory(false));
         }
     }
 
-    sp<Fence> presentFence = hwc.getDisplayFence(HWC_DISPLAY_PRIMARY);
-
-    if (presentFence->isValid()) {
-        if (mPrimaryDispSync.addPresentFence(presentFence)) {
+    if (displayFence->isValid()) {
+        if (mPrimaryDispSync.addPresentFence(displayFence)) {
             enableHardwareVsync();
         } else {
             disableHardwareVsync(false);
@@ -1172,8 +1180,8 @@ void SurfaceFlinger::postComposition()
     if (mAnimCompositionPending) {
         mAnimCompositionPending = false;
 
-        if (presentFence->isValid()) {
-            mAnimFrameTracker.setActualPresentFence(presentFence);
+        if (retireFenceTime->isValid()) {
+            mAnimFrameTracker.setActualPresentFence(std::move(retireFenceTime));
         } else {
             // The HWC doesn't support present fences, so use the refresh
             // timestamp instead.

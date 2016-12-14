@@ -17,7 +17,7 @@
 #ifndef ANDROID_GUI_FRAMETIMESTAMPS_H
 #define ANDROID_GUI_FRAMETIMESTAMPS_H
 
-#include <ui/Fence.h>
+#include <ui/FenceTime.h>
 #include <utils/Flattenable.h>
 #include <utils/StrongPointer.h>
 #include <utils/Timers.h>
@@ -28,12 +28,12 @@
 
 namespace android {
 
-
 struct FrameEvents;
 class FrameEventHistoryDelta;
 class String8;
 
 
+// Identifiers for all the events that may be recorded or reported.
 enum class FrameEvent {
     POSTED,
     REQUESTED_PRESENT,
@@ -79,23 +79,17 @@ struct FrameEvents {
     bool addRetireCalled{false};
     bool addReleaseCalled{false};
 
-    nsecs_t postedTime{0};
-    nsecs_t requestedPresentTime{0};
-    nsecs_t latchTime{0};
-    nsecs_t firstRefreshStartTime{0};
-    nsecs_t lastRefreshStartTime{0};
+    nsecs_t postedTime{-1};
+    nsecs_t requestedPresentTime{-1};
+    nsecs_t latchTime{-1};
+    nsecs_t firstRefreshStartTime{-1};
+    nsecs_t lastRefreshStartTime{-1};
 
-    nsecs_t acquireTime{0};
-    nsecs_t gpuCompositionDoneTime{0};
-    nsecs_t displayPresentTime{0};
-    nsecs_t displayRetireTime{0};
-    nsecs_t releaseTime{0};
-
-    sp<Fence> acquireFence{Fence::NO_FENCE};
-    sp<Fence> gpuCompositionDoneFence{Fence::NO_FENCE};
-    sp<Fence> displayPresentFence{Fence::NO_FENCE};
-    sp<Fence> displayRetireFence{Fence::NO_FENCE};
-    sp<Fence> releaseFence{Fence::NO_FENCE};
+    std::shared_ptr<FenceTime> acquireFence{FenceTime::NO_FENCE};
+    std::shared_ptr<FenceTime> gpuCompositionDoneFence{FenceTime::NO_FENCE};
+    std::shared_ptr<FenceTime> displayPresentFence{FenceTime::NO_FENCE};
+    std::shared_ptr<FenceTime> displayRetireFence{FenceTime::NO_FENCE};
+    std::shared_ptr<FenceTime> releaseFence{FenceTime::NO_FENCE};
 };
 
 
@@ -122,11 +116,23 @@ class ProducerFrameEventHistory : public FrameEventHistory {
 public:
     ~ProducerFrameEventHistory() override;
 
-    void updateAcquireFence(uint64_t frameNumber, sp<Fence> acquire);
+    void updateAcquireFence(
+            uint64_t frameNumber, std::shared_ptr<FenceTime>&& acquire);
     void applyDelta(const FrameEventHistoryDelta& delta);
+
+    void updateSignalTimes();
 
 private:
     size_t mAcquireOffset{0};
+
+    // The consumer updates it's timelines in Layer and SurfaceFlinger since
+    // they can coordinate shared timelines better. The producer doesn't have
+    // shared timelines though, so just let it own and update all of them.
+    FenceTimeline mAcquireTimeline;
+    FenceTimeline mGpuCompositionDoneTimeline;
+    FenceTimeline mPresentTimeline;
+    FenceTimeline mRetireTimeline;
+    FenceTimeline mReleaseTimeline;
 };
 
 
@@ -136,7 +142,7 @@ struct NewFrameEventsEntry {
     uint64_t frameNumber{0};
     nsecs_t postedTime{0};
     nsecs_t requestedPresentTime{0};
-    sp<Fence> acquireFence{Fence::NO_FENCE};
+    std::shared_ptr<FenceTime> acquireFence{FenceTime::NO_FENCE};
 };
 
 
@@ -175,13 +181,19 @@ public:
     void addLatch(uint64_t frameNumber, nsecs_t latchTime);
     void addPreComposition(uint64_t frameNumber, nsecs_t refreshStartTime);
     void addPostComposition(uint64_t frameNumber,
-            sp<Fence> gpuCompositionDone, sp<Fence> displayPresent);
-    void addRetire(uint64_t frameNumber, sp<Fence> displayRetire);
-    void addRelease(uint64_t frameNumber, sp<Fence> release);
+            const std::shared_ptr<FenceTime>& gpuCompositionDone,
+            const std::shared_ptr<FenceTime>& displayPresent);
+    void addRetire(uint64_t frameNumber,
+            const std::shared_ptr<FenceTime>& displayRetire);
+    void addRelease(uint64_t frameNumber,
+            std::shared_ptr<FenceTime>&& release);
 
     void getAndResetDelta(FrameEventHistoryDelta* delta);
 
 private:
+    void getFrameDelta(FrameEventHistoryDelta* delta,
+            const std::array<FrameEvents, MAX_FRAME_HISTORY>::iterator& frame);
+
     std::array<FrameEventDirtyFields, MAX_FRAME_HISTORY> mFramesDirty;
     size_t mQueueOffset{0};
     size_t mCompositionOffset{0};
@@ -201,6 +213,13 @@ public:
     FrameEventsDelta(size_t index,
             const FrameEvents& frameTimestamps,
             const FrameEventDirtyFields& dirtyFields);
+
+    // Movable.
+    FrameEventsDelta(FrameEventsDelta&& src) = default;
+    FrameEventsDelta& operator=(FrameEventsDelta&& src) = default;
+    // Not copyable.
+    FrameEventsDelta(const FrameEventsDelta& src) = delete;
+    FrameEventsDelta& operator=(const FrameEventsDelta& src) = delete;
 
     // Flattenable implementation
     size_t getFlattenedSize() const;
@@ -226,10 +245,10 @@ private:
     nsecs_t mFirstRefreshStartTime{0};
     nsecs_t mLastRefreshStartTime{0};
 
-    sp<Fence> mGpuCompositionDoneFence{Fence::NO_FENCE};
-    sp<Fence> mDisplayPresentFence{Fence::NO_FENCE};
-    sp<Fence> mDisplayRetireFence{Fence::NO_FENCE};
-    sp<Fence> mReleaseFence{Fence::NO_FENCE};
+    FenceTime::Snapshot mGpuCompositionDoneFence;
+    FenceTime::Snapshot mDisplayPresentFence;
+    FenceTime::Snapshot mDisplayRetireFence;
+    FenceTime::Snapshot mReleaseFence;
 
     // This is a static method with an auto return value so we can call
     // it without needing const and non-const versions.
@@ -253,6 +272,16 @@ friend class ConsumerFrameEventHistory;
 friend class ProducerFrameEventHistory;
 
 public:
+    FrameEventHistoryDelta() = default;
+
+    // Movable.
+    FrameEventHistoryDelta(FrameEventHistoryDelta&& src) = default;
+    FrameEventHistoryDelta& operator=(FrameEventHistoryDelta&& src);
+    // Not copyable.
+    FrameEventHistoryDelta(const FrameEventHistoryDelta& src) = delete;
+    FrameEventHistoryDelta& operator=(
+            const FrameEventHistoryDelta& src) = delete;
+
     // Flattenable implementation.
     size_t getFlattenedSize() const;
     size_t getFdCount() const;

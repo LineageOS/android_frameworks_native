@@ -276,7 +276,10 @@ public:
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
      */
-    bool onPostComposition(sp<Fence> glCompositionDoneFence);
+    bool onPostComposition(
+            const std::shared_ptr<FenceTime>& glDoneFence,
+            const std::shared_ptr<FenceTime>& presentFence,
+            const std::shared_ptr<FenceTime>& retireFence);
 
 #ifdef USE_HWC2
     // If a buffer was replaced this frame, release the former buffer
@@ -586,6 +589,8 @@ private:
     // Accessed by both consumer and producer on main and binder threads.
     Mutex mFrameEventHistoryMutex;
     ConsumerFrameEventHistory mFrameEventHistory;
+    FenceTimeline mAcquireTimeline;
+    FenceTimeline mReleaseTimeline;
 
     // main thread
     sp<GraphicBuffer> mActiveBuffer;

@@ -602,7 +602,7 @@ sp<Fence> HWComposer::getPresentFence(int32_t displayId) const {
     return mDisplayData[displayId].lastPresentFence;
 }
 
-bool HWComposer::retireFenceRepresentsStartOfScanout() const {
+bool HWComposer::presentFenceRepresentsStartOfScanout() const {
     return mAdapter ? false : true;
 }
 

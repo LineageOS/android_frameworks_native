@@ -16,6 +16,7 @@
 
 #include <gui/FrameTimestamps.h>
 
+#include <cutils/compiler.h>  // For CC_[UN]LIKELY
 #include <inttypes.h>
 #include <utils/String8.h>
 
@@ -25,28 +26,25 @@
 
 namespace android {
 
-static inline bool isValidTimestamp(nsecs_t time) {
-    return time > 0 && time < INT64_MAX;
-}
 
 // ============================================================================
 // FrameEvents
 // ============================================================================
 
 bool FrameEvents::hasPostedInfo() const {
-    return isValidTimestamp(postedTime);
+    return Fence::isValidTimestamp(postedTime);
 }
 
 bool FrameEvents::hasRequestedPresentInfo() const {
-    return isValidTimestamp(requestedPresentTime);
+    return Fence::isValidTimestamp(requestedPresentTime);
 }
 
 bool FrameEvents::hasLatchInfo() const {
-    return isValidTimestamp(latchTime);
+    return Fence::isValidTimestamp(latchTime);
 }
 
 bool FrameEvents::hasFirstRefreshStartInfo() const {
-    return isValidTimestamp(firstRefreshStartTime);
+    return Fence::isValidTimestamp(firstRefreshStartTime);
 }
 
 bool FrameEvents::hasLastRefreshStartInfo() const {
@@ -57,7 +55,7 @@ bool FrameEvents::hasLastRefreshStartInfo() const {
 }
 
 bool FrameEvents::hasAcquireInfo() const {
-    return isValidTimestamp(acquireTime) || acquireFence->isValid();
+    return acquireFence->isValid();
 }
 
 bool FrameEvents::hasGpuCompositionDoneInfo() const {
@@ -80,22 +78,27 @@ bool FrameEvents::hasReleaseInfo() const {
     return addReleaseCalled;
 }
 
-static void checkFenceForCompletion(sp<Fence>* fence, nsecs_t* dstTime) {
-    if ((*fence)->isValid()) {
-        nsecs_t time = (*fence)->getSignalTime();
-        if (isValidTimestamp(time)) {
-            *dstTime = time;
-            *fence = Fence::NO_FENCE;
-        }
-    }
+void FrameEvents::checkFencesForCompletion() {
+    acquireFence->getSignalTime();
+    gpuCompositionDoneFence->getSignalTime();
+    displayPresentFence->getSignalTime();
+    displayRetireFence->getSignalTime();
+    releaseFence->getSignalTime();
 }
 
-void FrameEvents::checkFencesForCompletion() {
-    checkFenceForCompletion(&acquireFence, &acquireTime);
-    checkFenceForCompletion(&gpuCompositionDoneFence, &gpuCompositionDoneTime);
-    checkFenceForCompletion(&displayPresentFence, &displayPresentTime);
-    checkFenceForCompletion(&displayRetireFence, &displayRetireTime);
-    checkFenceForCompletion(&releaseFence, &releaseTime);
+static void dumpFenceTime(String8& outString, const char* name,
+        bool pending, const FenceTime& fenceTime) {
+    outString.appendFormat("--- %s", name);
+    nsecs_t signalTime = fenceTime.getCachedSignalTime();
+    if (Fence::isValidTimestamp(signalTime)) {
+        outString.appendFormat("%" PRId64 "\n", signalTime);
+    } else if (pending || signalTime == Fence::SIGNAL_TIME_PENDING) {
+        outString.appendFormat("Pending\n");
+    } else if (&fenceTime == FenceTime::NO_FENCE.get()){
+        outString.appendFormat("N/A\n");
+    } else {
+        outString.appendFormat("Error\n");
+    }
 }
 
 void FrameEvents::dump(String8& outString) const
@@ -109,66 +112,36 @@ void FrameEvents::dump(String8& outString) const
     outString.appendFormat("--- Req. Present\t%" PRId64 "\n", requestedPresentTime);
 
     outString.appendFormat("--- Latched     \t");
-    if (isValidTimestamp(latchTime)) {
+    if (Fence::isValidTimestamp(latchTime)) {
         outString.appendFormat("%" PRId64 "\n", latchTime);
     } else {
         outString.appendFormat("Pending\n");
     }
 
     outString.appendFormat("--- Refresh (First)\t");
-    if (isValidTimestamp(firstRefreshStartTime)) {
+    if (Fence::isValidTimestamp(firstRefreshStartTime)) {
         outString.appendFormat("%" PRId64 "\n", firstRefreshStartTime);
     } else {
         outString.appendFormat("Pending\n");
     }
 
     outString.appendFormat("--- Refresh (Last)\t");
-    if (isValidTimestamp(lastRefreshStartTime)) {
+    if (Fence::isValidTimestamp(lastRefreshStartTime)) {
         outString.appendFormat("%" PRId64 "\n", lastRefreshStartTime);
     } else {
         outString.appendFormat("Pending\n");
     }
 
-    outString.appendFormat("--- Acquire     \t");
-    if (isValidTimestamp(acquireTime)) {
-        outString.appendFormat("%" PRId64 "\n", acquireTime);
-    } else {
-        outString.appendFormat("Pending\n");
-    }
-
-    outString.appendFormat("--- GPU Composite Done\t");
-    if (isValidTimestamp(gpuCompositionDoneTime)) {
-        outString.appendFormat("%" PRId64 "\n", gpuCompositionDoneTime);
-    } else if (!addPostCompositeCalled || gpuCompositionDoneFence->isValid()) {
-        outString.appendFormat("Pending\n");
-    } else {
-        outString.appendFormat("N/A\n");
-    }
-
-    outString.appendFormat("--- Display Present\t");
-    if (isValidTimestamp(displayPresentTime)) {
-        outString.appendFormat("%" PRId64 "\n", displayPresentTime);
-    } else if (!addPostCompositeCalled || displayPresentFence->isValid()) {
-        outString.appendFormat("Pending\n");
-    } else {
-        outString.appendFormat("N/A\n");
-    }
-
-    outString.appendFormat("--- Display Retire\t");
-    if (isValidTimestamp(displayRetireTime)) {
-        outString.appendFormat("%" PRId64 "\n", displayRetireTime);
-    } else if (!addRetireCalled || displayRetireFence->isValid()) {
-        outString.appendFormat("Pending\n");
-    } else {
-        outString.appendFormat("N/A\n");
-    }
-
-    outString.appendFormat("--- Release     \t");
-    if (isValidTimestamp(releaseTime)) {
-        outString.appendFormat("%" PRId64 "\n", releaseTime);
-    } else {
-        outString.appendFormat("Pending\n");
-    }
+    dumpFenceTime(outString, "Acquire           \t",
+            true, *acquireFence);
+    dumpFenceTime(outString, "GPU Composite Done\t",
+            !addPostCompositeCalled, *gpuCompositionDoneFence);
+    dumpFenceTime(outString, "Display Present   \t",
+            !addPostCompositeCalled, *displayPresentFence);
+    dumpFenceTime(outString, "Display Retire    \t",
+            !addRetireCalled, *displayRetireFence);
+    dumpFenceTime(outString, "Release           \t",
+            true, *releaseFence);
 }
 
 
@@ -250,7 +223,7 @@ void FrameEventHistory::dump(String8& outString) const {
 ProducerFrameEventHistory::~ProducerFrameEventHistory() = default;
 
 void ProducerFrameEventHistory::updateAcquireFence(
-        uint64_t frameNumber, sp<Fence> acquire) {
+        uint64_t frameNumber, std::shared_ptr<FenceTime>&& acquire) {
     FrameEvents* frame = getFrame(frameNumber, &mAcquireOffset);
     if (frame == nullptr) {
         ALOGE("ProducerFrameEventHistory::updateAcquireFence: "
@@ -259,20 +232,39 @@ void ProducerFrameEventHistory::updateAcquireFence(
     }
 
     if (acquire->isValid()) {
-        frame->acquireFence = acquire;
+        mAcquireTimeline.push(acquire);
+        frame->acquireFence = std::move(acquire);
     } else {
         // If there isn't an acquire fence, assume that buffer was
         // ready for the consumer when posted.
-        frame->acquireTime = frame->postedTime;
+        frame->acquireFence = std::make_shared<FenceTime>(frame->postedTime);
     }
 }
 
-static void applyFenceDelta(sp<Fence>* dst, const sp<Fence>& src) {
-    if (src->isValid()) {
-        if ((*dst)->isValid()) {
-            ALOGE("applyFenceDelta: Unexpected fence.");
-        }
-        *dst = src;
+static void applyFenceDelta(FenceTimeline* timeline,
+        std::shared_ptr<FenceTime>* dst, const FenceTime::Snapshot& src) {
+    if (CC_UNLIKELY(dst == nullptr)) {
+        ALOGE("applyFenceDelta: dst is null.");
+        return;
+    }
+
+    switch (src.state) {
+        case FenceTime::Snapshot::State::EMPTY:
+            return;
+        case FenceTime::Snapshot::State::FENCE:
+            if (CC_UNLIKELY((*dst)->isValid())) {
+                ALOGE("applyFenceDelta: Unexpected fence.");
+            }
+            *dst = std::make_shared<FenceTime>(src.fence);
+            timeline->push(*dst);
+            return;
+        case FenceTime::Snapshot::State::SIGNAL_TIME:
+            if ((*dst)->isValid()) {
+                (*dst)->applyTrustedSnapshot(src);
+            } else {
+                *dst = std::make_shared<FenceTime>(src.signalTime);
+            }
+            return;
     }
 }
 
@@ -297,38 +289,35 @@ void ProducerFrameEventHistory::applyDelta(
         frame.firstRefreshStartTime = d.mFirstRefreshStartTime;
         frame.lastRefreshStartTime = d.mLastRefreshStartTime;
 
-        if (frame.frameNumber == d.mFrameNumber) {
-            // Existing frame. Merge.
-            // Consumer never sends timestamps of fences, only the fences
-            // themselves, so we never need to update the fence timestamps here.
-            applyFenceDelta(
-                    &frame.gpuCompositionDoneFence, d.mGpuCompositionDoneFence);
-            applyFenceDelta(&frame.displayPresentFence, d.mDisplayPresentFence);
-            applyFenceDelta(&frame.displayRetireFence, d.mDisplayRetireFence);
-            applyFenceDelta(&frame.releaseFence, d.mReleaseFence);
-        } else {
-            // New frame. Overwrite.
+        if (frame.frameNumber != d.mFrameNumber) {
+            // We got a new frame. Initialize some of the fields.
             frame.frameNumber = d.mFrameNumber;
-
-            frame.gpuCompositionDoneFence = d.mGpuCompositionDoneFence;
-            frame.displayPresentFence = d.mDisplayPresentFence;
-            frame.displayRetireFence = d.mDisplayRetireFence;
-            frame.releaseFence = d.mReleaseFence;
-
-            // Set aquire fence and time at this point.
-            frame.acquireTime = 0;
-            frame.acquireFence = Fence::NO_FENCE;
-
-            // Reset fence-related timestamps
-            frame.gpuCompositionDoneTime = 0;
-            frame.displayPresentTime = 0;
-            frame.displayRetireTime = 0;
-            frame.releaseTime = 0;
-
+            frame.acquireFence = FenceTime::NO_FENCE;
+            frame.gpuCompositionDoneFence = FenceTime::NO_FENCE;
+            frame.displayPresentFence = FenceTime::NO_FENCE;
+            frame.displayRetireFence = FenceTime::NO_FENCE;
+            frame.releaseFence = FenceTime::NO_FENCE;
             // The consumer only sends valid frames.
             frame.valid = true;
         }
+
+        applyFenceDelta(&mGpuCompositionDoneTimeline,
+                &frame.gpuCompositionDoneFence, d.mGpuCompositionDoneFence);
+        applyFenceDelta(&mPresentTimeline,
+                &frame.displayPresentFence, d.mDisplayPresentFence);
+        applyFenceDelta(&mRetireTimeline,
+                &frame.displayRetireFence, d.mDisplayRetireFence);
+        applyFenceDelta(&mReleaseTimeline,
+                &frame.releaseFence, d.mReleaseFence);
     }
+}
+
+void ProducerFrameEventHistory::updateSignalTimes() {
+    mAcquireTimeline.updateSignalTimes();
+    mGpuCompositionDoneTimeline.updateSignalTimes();
+    mPresentTimeline.updateSignalTimes();
+    mRetireTimeline.updateSignalTimes();
+    mReleaseTimeline.updateSignalTimes();
 }
 
 
@@ -377,14 +366,15 @@ void ConsumerFrameEventHistory::addPreComposition(
     }
     frame->lastRefreshStartTime = refreshStartTime;
     mFramesDirty[mCompositionOffset].setDirty<FrameEvent::LAST_REFRESH_START>();
-    if (!isValidTimestamp(frame->firstRefreshStartTime)) {
+    if (!Fence::isValidTimestamp(frame->firstRefreshStartTime)) {
         frame->firstRefreshStartTime = refreshStartTime;
         mFramesDirty[mCompositionOffset].setDirty<FrameEvent::FIRST_REFRESH_START>();
     }
 }
 
 void ConsumerFrameEventHistory::addPostComposition(uint64_t frameNumber,
-        sp<Fence> gpuCompositionDone, sp<Fence> displayPresent) {
+        const std::shared_ptr<FenceTime>& gpuCompositionDone,
+        const std::shared_ptr<FenceTime>& displayPresent) {
     FrameEvents* frame = getFrame(frameNumber, &mCompositionOffset);
     if (frame == nullptr) {
         ALOGE("ConsumerFrameEventHistory::addPostComposition: "
@@ -404,7 +394,7 @@ void ConsumerFrameEventHistory::addPostComposition(uint64_t frameNumber,
 }
 
 void ConsumerFrameEventHistory::addRetire(
-        uint64_t frameNumber, sp<Fence> displayRetire) {
+        uint64_t frameNumber, const std::shared_ptr<FenceTime>& displayRetire) {
     FrameEvents* frame = getFrame(frameNumber, &mRetireOffset);
     if (frame == nullptr) {
         ALOGE("ConsumerFrameEventHistory::addRetire: Did not find frame.");
@@ -416,26 +406,39 @@ void ConsumerFrameEventHistory::addRetire(
 }
 
 void ConsumerFrameEventHistory::addRelease(
-        uint64_t frameNumber, sp<Fence> release) {
+        uint64_t frameNumber, std::shared_ptr<FenceTime>&& release) {
     FrameEvents* frame = getFrame(frameNumber, &mReleaseOffset);
     if (frame == nullptr) {
         ALOGE("ConsumerFrameEventHistory::addRelease: Did not find frame.");
         return;
     }
     frame->addReleaseCalled = true;
-    frame->releaseFence = release;
+    frame->releaseFence = std::move(release);
     mFramesDirty[mReleaseOffset].setDirty<FrameEvent::RELEASE>();
+}
+
+void ConsumerFrameEventHistory::getFrameDelta(
+        FrameEventHistoryDelta* delta,
+        const std::array<FrameEvents, MAX_FRAME_HISTORY>::iterator& frame) {
+    size_t i = static_cast<size_t>(std::distance(mFrames.begin(), frame));
+    if (mFramesDirty[i].anyDirty()) {
+        delta->mDeltas.emplace_back(i, *frame, mFramesDirty[i]);
+        mFramesDirty[i].reset();
+    }
 }
 
 void ConsumerFrameEventHistory::getAndResetDelta(
         FrameEventHistoryDelta* delta) {
+    // Write these in order of frame number so that it is easy to
+    // add them to a FenceTimeline in the proper order producer side.
     delta->mDeltas.reserve(mFramesDirty.size());
-    for (size_t i = 0; i < mFramesDirty.size(); i++) {
-        if (mFramesDirty[i].anyDirty()) {
-            delta->mDeltas.push_back(
-                    FrameEventsDelta(i, mFrames[i], mFramesDirty[i]));
-            mFramesDirty[i].reset();
-        }
+    auto earliestFrame = std::min_element(
+            mFrames.begin(), mFrames.end(), &FrameNumberLessThan);
+    for (auto frame = earliestFrame; frame != mFrames.end(); ++frame) {
+        getFrameDelta(delta, frame);
+    }
+    for (auto frame = mFrames.begin(); frame != earliestFrame; ++frame) {
+        getFrameDelta(delta, frame);
     }
 }
 
@@ -458,15 +461,20 @@ FrameEventsDelta::FrameEventsDelta(
       mLatchTime(frameTimestamps.latchTime),
       mFirstRefreshStartTime(frameTimestamps.firstRefreshStartTime),
       mLastRefreshStartTime(frameTimestamps.lastRefreshStartTime) {
-    mGpuCompositionDoneFence =
-            dirtyFields.isDirty<FrameEvent::GL_COMPOSITION_DONE>() ?
-                    frameTimestamps.gpuCompositionDoneFence : Fence::NO_FENCE;
-    mDisplayPresentFence = dirtyFields.isDirty<FrameEvent::DISPLAY_PRESENT>() ?
-            frameTimestamps.displayPresentFence : Fence::NO_FENCE;
-    mDisplayRetireFence = dirtyFields.isDirty<FrameEvent::DISPLAY_RETIRE>() ?
-            frameTimestamps.displayRetireFence : Fence::NO_FENCE;
-    mReleaseFence = dirtyFields.isDirty<FrameEvent::RELEASE>() ?
-            frameTimestamps.releaseFence : Fence::NO_FENCE;
+    if (dirtyFields.isDirty<FrameEvent::GL_COMPOSITION_DONE>()) {
+        mGpuCompositionDoneFence =
+                frameTimestamps.gpuCompositionDoneFence->getSnapshot();
+    }
+    if (dirtyFields.isDirty<FrameEvent::DISPLAY_PRESENT>()) {
+        mDisplayPresentFence =
+                frameTimestamps.displayPresentFence->getSnapshot();
+    }
+    if (dirtyFields.isDirty<FrameEvent::DISPLAY_RETIRE>()) {
+        mDisplayRetireFence = frameTimestamps.displayRetireFence->getSnapshot();
+    }
+    if (dirtyFields.isDirty<FrameEvent::RELEASE>()) {
+        mReleaseFence = frameTimestamps.releaseFence->getSnapshot();
+    }
 }
 
 size_t FrameEventsDelta::minFlattenedSize() {
@@ -489,16 +497,16 @@ size_t FrameEventsDelta::getFlattenedSize() const {
     auto fences = allFences(this);
     return minFlattenedSize() +
             std::accumulate(fences.begin(), fences.end(), size_t(0),
-                    [](size_t a, const sp<Fence>* fence) {
-                            return a + (*fence)->getFlattenedSize();
+                    [](size_t a, const FenceTime::Snapshot* fence) {
+                            return a + fence->getFlattenedSize();
                     });
 }
 
 size_t FrameEventsDelta::getFdCount() const {
     auto fences = allFences(this);
     return std::accumulate(fences.begin(), fences.end(), size_t(0),
-            [](size_t a, const sp<Fence>* fence) {
-                return a + (*fence)->getFdCount();
+            [](size_t a, const FenceTime::Snapshot* fence) {
+                return a + fence->getFdCount();
             });
 }
 
@@ -532,7 +540,7 @@ status_t FrameEventsDelta::flatten(void*& buffer, size_t& size, int*& fds,
 
     // Fences
     for (auto fence : allFences(this)) {
-        status_t status = (*fence)->flatten(buffer, size, fds, count);
+        status_t status = fence->flatten(buffer, size, fds, count);
         if (status != NO_ERROR) {
             return status;
         }
@@ -570,8 +578,7 @@ status_t FrameEventsDelta::unflatten(void const*& buffer, size_t& size,
 
     // Fences
     for (auto fence : allFences(this)) {
-        *fence = new Fence;
-        status_t status = (*fence)->unflatten(buffer, size, fds, count);
+        status_t status = fence->unflatten(buffer, size, fds, count);
         if (status != NO_ERROR) {
             return status;
         }
@@ -583,6 +590,16 @@ status_t FrameEventsDelta::unflatten(void const*& buffer, size_t& size,
 // ============================================================================
 // FrameEventHistoryDelta
 // ============================================================================
+
+FrameEventHistoryDelta& FrameEventHistoryDelta::operator=(
+        FrameEventHistoryDelta&& src) {
+    if (CC_UNLIKELY(!mDeltas.empty())) {
+        ALOGE("FrameEventHistoryDelta: Clobbering history.");
+    }
+    mDeltas = std::move(src.mDeltas);
+    ALOGE_IF(src.mDeltas.empty(), "Source mDeltas not empty.");
+    return *this;
+}
 
 size_t FrameEventHistoryDelta::minFlattenedSize() {
     return sizeof(uint32_t);

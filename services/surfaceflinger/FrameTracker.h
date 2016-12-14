@@ -17,6 +17,8 @@
 #ifndef ANDROID_FRAMETRACKER_H
 #define ANDROID_FRAMETRACKER_H
 
+#include <ui/FenceTime.h>
+
 #include <stddef.h>
 
 #include <utils/Mutex.h>
@@ -26,7 +28,6 @@
 namespace android {
 
 class String8;
-class Fence;
 
 // FrameTracker tracks information about the most recently rendered frames. It
 // uses a circular buffer of frame records, and is *NOT* thread-safe -
@@ -60,7 +61,7 @@ public:
 
     // setFrameReadyFence sets the fence that is used to get the time at which
     // the current frame became ready to be presented to the user.
-    void setFrameReadyFence(const sp<Fence>& readyFence);
+    void setFrameReadyFence(std::shared_ptr<FenceTime>&& readyFence);
 
     // setActualPresentTime sets the timestamp at which the current frame became
     // visible to the user.
@@ -68,7 +69,7 @@ public:
 
     // setActualPresentFence sets the fence that is used to get the time
     // at which the current frame became visible to the user.
-    void setActualPresentFence(const sp<Fence>& fence);
+    void setActualPresentFence(std::shared_ptr<FenceTime>&& fence);
 
     // setDisplayRefreshPeriod sets the display refresh period in nanoseconds.
     // This is used to compute frame presentation duration statistics relative
@@ -100,8 +101,8 @@ private:
         nsecs_t desiredPresentTime;
         nsecs_t frameReadyTime;
         nsecs_t actualPresentTime;
-        sp<Fence> frameReadyFence;
-        sp<Fence> actualPresentFence;
+        std::shared_ptr<FenceTime> frameReadyFence;
+        std::shared_ptr<FenceTime> actualPresentFence;
     };
 
     // processFences iterates over all the frame records that have a fence set

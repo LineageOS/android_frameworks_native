@@ -205,6 +205,7 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
             // was cached when it was last queued.
             outBuffer->mGraphicBuffer = mSlots[slot].mGraphicBuffer;
             outBuffer->mFence = Fence::NO_FENCE;
+            outBuffer->mFenceTime = FenceTime::NO_FENCE;
             outBuffer->mCrop = mCore->mSharedBufferCache.crop;
             outBuffer->mTransform = mCore->mSharedBufferCache.transform &
                     ~static_cast<uint32_t>(

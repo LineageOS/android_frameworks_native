@@ -187,6 +187,10 @@ public:
     // ready to be read from.
     sp<Fence> getCurrentFence() const;
 
+    // getCurrentFence returns the FenceTime indicating when the current
+    // buffer is ready to be read from.
+    std::shared_ptr<FenceTime> getCurrentFenceTime() const;
+
     // doGLFenceWait inserts a wait command into the OpenGL ES command stream
     // to ensure that it is safe for future OpenGL ES commands to access the
     // current texture buffer.
@@ -397,6 +401,9 @@ private:
 
     // mCurrentFence is the fence received from BufferQueue in updateTexImage.
     sp<Fence> mCurrentFence;
+
+    // The FenceTime wrapper around mCurrentFence.
+    std::shared_ptr<FenceTime> mCurrentFenceTime{FenceTime::NO_FENCE};
 
     // mCurrentTransformMatrix is the transform matrix for the current texture.
     // It gets computed by computeTransformMatrix each time updateTexImage is
