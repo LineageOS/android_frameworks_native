@@ -64,6 +64,8 @@ static bool isPossiblyYUV(PixelFormat format) {
     switch (static_cast<int>(format)) {
         case HAL_PIXEL_FORMAT_RGBA_8888:
         case HAL_PIXEL_FORMAT_RGBX_8888:
+        case HAL_PIXEL_FORMAT_RGBA_FP16:
+        case HAL_PIXEL_FORMAT_RGBX_FP16:
         case HAL_PIXEL_FORMAT_RGB_888:
         case HAL_PIXEL_FORMAT_RGB_565:
         case HAL_PIXEL_FORMAT_BGRA_8888:

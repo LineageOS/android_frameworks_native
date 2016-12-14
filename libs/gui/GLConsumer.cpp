@@ -856,6 +856,8 @@ void GLConsumer::computeTransformMatrix(float outTransform[16],
             switch (buf->getPixelFormat()) {
                 case PIXEL_FORMAT_RGBA_8888:
                 case PIXEL_FORMAT_RGBX_8888:
+                case PIXEL_FORMAT_RGBA_FP16:
+                case PIXEL_FORMAT_RGBX_FP16:
                 case PIXEL_FORMAT_RGB_888:
                 case PIXEL_FORMAT_RGB_565:
                 case PIXEL_FORMAT_BGRA_8888:
