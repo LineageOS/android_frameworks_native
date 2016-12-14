@@ -29,7 +29,11 @@
 #include <private/gui/ComposerService.h>
 #include <binder/ProcessState.h>
 
+#include <thread>
+
 namespace android {
+
+using namespace std::chrono_literals;
 
 class SurfaceTest : public ::testing::Test {
 protected:
@@ -77,6 +81,8 @@ TEST_F(SurfaceTest, QueuesToWindowComposerIsTrueWhenVisible) {
 
 TEST_F(SurfaceTest, QueuesToWindowComposerIsTrueWhenPurgatorized) {
     mSurfaceControl.clear();
+    // Wait for the async clean-up to complete.
+    std::this_thread::sleep_for(50ms);
 
     sp<ANativeWindow> anw(mSurface);
     int result = -123;

@@ -49,7 +49,7 @@ MonitoredProducer::~MonitoredProducer() {
         wp<IBinder> mProducer;
     };
 
-    mFlinger->postMessageAsync(new MessageCleanUpList(mFlinger, asBinder(this)));
+    mFlinger->postMessageAsync(new MessageCleanUpList(mFlinger, asBinder(mProducer)));
 }
 
 status_t MonitoredProducer::requestBuffer(int slot, sp<GraphicBuffer>* buf) {
@@ -156,7 +156,7 @@ status_t MonitoredProducer::getUniqueId(uint64_t* outId) const {
 }
 
 IBinder* MonitoredProducer::onAsBinder() {
-    return IInterface::asBinder(mProducer).get();
+    return this;
 }
 
 // ---------------------------------------------------------------------------

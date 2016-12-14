@@ -27,7 +27,7 @@ class SurfaceFlinger;
 
 // MonitoredProducer wraps an IGraphicBufferProducer so that SurfaceFlinger will
 // be notified upon its destruction
-class MonitoredProducer : public IGraphicBufferProducer {
+class MonitoredProducer : public BnGraphicBufferProducer {
 public:
     MonitoredProducer(const sp<IGraphicBufferProducer>& producer,
             const sp<SurfaceFlinger>& flinger);
