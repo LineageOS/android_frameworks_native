@@ -27,6 +27,7 @@
 #undef HWC2_USE_CPP11
 
 #include "Hwc2TestLayer.h"
+#include "Hwc2TestLayers.h"
 
 void hwc2TestHotplugCallback(hwc2_callback_data_t callbackData,
         hwc2_display_t display, int32_t connected);
@@ -424,6 +425,23 @@ public:
         }
     }
 
+    void setLayerZOrder(hwc2_display_t display, hwc2_layer_t layer,
+            uint32_t zOrder, hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_SET_LAYER_Z_ORDER>(
+                getFunction(HWC2_FUNCTION_SET_LAYER_Z_ORDER));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, layer,
+                zOrder));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set layer z order "
+                    << zOrder;
+        }
+    }
+
 protected:
     hwc2_function_pointer_t getFunction(hwc2_function_descriptor_t descriptor)
     {
@@ -567,6 +585,12 @@ protected:
             hwc2_display_t display, hwc2_layer_t layer,
             const Hwc2TestLayer& testLayer, hwc2_error_t* outErr);
 
+    /* Calls a set property function from Hwc2Test to set property values from
+     * Hwc2TestLayers to hwc2_layer_t on hwc2_display_t */
+    using TestLayerPropertiesFunction = void (*)(Hwc2Test* test,
+            hwc2_display_t display, hwc2_layer_t layer,
+            const Hwc2TestLayers& testLayers);
+
     /* Calls a set property function from Hwc2Test to set a bad property value
      * on hwc2_layer_t on hwc2_display_t */
     using TestLayerPropertyBadLayerFunction = void (*)(Hwc2Test* test,
@@ -635,6 +659,36 @@ protected:
                 } while (advance(&testLayer));
 
                 ASSERT_NO_FATAL_FAILURE(destroyLayer(display, layer));
+            }
+        }
+    }
+
+    /* For each active display it cycles through each display config and tests
+     * each property value. It creates multiple layers, calls the
+     * TestLayerPropertiesFunction to set property values and then
+     * destroys the layers */
+    void setLayerProperties(Hwc2TestCoverage coverage, size_t layerCnt,
+            TestLayerPropertiesFunction function)
+    {
+        for (auto display : mDisplays) {
+            std::vector<hwc2_config_t> configs;
+
+            ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+            for (auto config : configs) {
+                std::vector<hwc2_layer_t> layers;
+
+                ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config));
+
+                ASSERT_NO_FATAL_FAILURE(createLayers(display, &layers, layerCnt));
+                Hwc2TestLayers testLayers(layers, coverage);
+
+                for (auto layer : layers) {
+                    EXPECT_NO_FATAL_FAILURE(function(this, display, layer,
+                            testLayers));
+                }
+
+                ASSERT_NO_FATAL_FAILURE(destroyLayers(display, std::move(layers)));
             }
         }
     }
@@ -799,6 +853,13 @@ void setTransform(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
 {
     EXPECT_NO_FATAL_FAILURE(test->setLayerTransform(display, layer,
             testLayer.getTransform(), outErr));
+}
+
+void setZOrder(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
+        const Hwc2TestLayer& testLayer, hwc2_error_t* outErr)
+{
+    EXPECT_NO_FATAL_FAILURE(test->setLayerZOrder(display, layer,
+            testLayer.getZOrder(), outErr));
 }
 
 bool advanceBlendMode(Hwc2TestLayer* testLayer)
@@ -1775,4 +1836,53 @@ TEST_F(Hwc2Test, SET_LAYER_TRANSFORM_bad_layer)
 {
     ASSERT_NO_FATAL_FAILURE(setLayerPropertyBadLayer(Hwc2TestCoverage::Default,
             setTransform));
+}
+
+/* TESTCASE: Tests that the HWC2 can set the z order of a layer. */
+TEST_F(Hwc2Test, SET_LAYER_Z_ORDER)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerProperties(Hwc2TestCoverage::Complete, 10,
+            [] (Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
+                    const Hwc2TestLayers& testLayers) {
+
+                EXPECT_NO_FATAL_FAILURE(test->setLayerZOrder(display, layer,
+                        testLayers.getZOrder(layer)));
+            }
+    ));
+}
+
+/* TESTCASE: Tests that the HWC2 can update the z order of a layer. */
+TEST_F(Hwc2Test, SET_LAYER_Z_ORDER_update)
+{
+    const std::vector<uint32_t> zOrders = { static_cast<uint32_t>(0),
+            static_cast<uint32_t>(1), static_cast<uint32_t>(UINT32_MAX / 4),
+            static_cast<uint32_t>(UINT32_MAX / 2),
+            static_cast<uint32_t>(UINT32_MAX) };
+
+    for (auto display : mDisplays) {
+        std::vector<hwc2_config_t> configs;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+        for (auto config : configs) {
+            hwc2_layer_t layer;
+
+            ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config));
+
+            ASSERT_NO_FATAL_FAILURE(createLayer(display, &layer));
+
+            for (uint32_t zOrder : zOrders) {
+                EXPECT_NO_FATAL_FAILURE(setLayerZOrder(display, layer, zOrder));
+            }
+
+            ASSERT_NO_FATAL_FAILURE(destroyLayer(display, layer));
+        }
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set the z order of a bad layer. */
+TEST_F(Hwc2Test, SET_LAYER_Z_ORDER_bad_layer)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyBadLayer(Hwc2TestCoverage::Default,
+            setZOrder));
 }

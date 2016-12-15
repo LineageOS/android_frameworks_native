@@ -27,7 +27,7 @@
 
 class Hwc2TestLayer {
 public:
-    Hwc2TestLayer(Hwc2TestCoverage coverage);
+    Hwc2TestLayer(Hwc2TestCoverage coverage, uint32_t zOrder = 0);
 
     std::string dump() const;
 
@@ -38,6 +38,7 @@ public:
     android_dataspace_t    getDataspace() const;
     float                  getPlaneAlpha() const;
     hwc_transform_t        getTransform() const;
+    uint32_t               getZOrder() const;
 
     bool advanceBlendMode();
     bool advanceComposition();
@@ -55,6 +56,8 @@ private:
     Hwc2TestDataspace mDataspace;
     Hwc2TestPlaneAlpha mPlaneAlpha;
     Hwc2TestTransform mTransform;
+
+    uint32_t mZOrder;
 };
 
 #endif /* ifndef _HWC2_TEST_LAYER_H */

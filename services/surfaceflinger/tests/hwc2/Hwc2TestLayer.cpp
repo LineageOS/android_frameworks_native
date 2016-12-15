@@ -18,12 +18,13 @@
 
 #include "Hwc2TestLayer.h"
 
-Hwc2TestLayer::Hwc2TestLayer(Hwc2TestCoverage coverage)
+Hwc2TestLayer::Hwc2TestLayer(Hwc2TestCoverage coverage, uint32_t zOrder)
     : mBlendMode(coverage),
       mComposition(coverage),
       mDataspace(coverage),
       mPlaneAlpha(coverage),
-      mTransform(coverage) { }
+      mTransform(coverage),
+      mZOrder(zOrder) { }
 
 std::string Hwc2TestLayer::dump() const
 {
@@ -34,6 +35,8 @@ std::string Hwc2TestLayer::dump() const
     for (auto property : mProperties) {
         dmp << property->dump();
     }
+
+    dmp << "\tz order: " << mZOrder << "\n";
 
     return dmp.str();
 }
@@ -68,6 +71,11 @@ float Hwc2TestLayer::getPlaneAlpha() const
 hwc_transform_t Hwc2TestLayer::getTransform() const
 {
     return mTransform.get();
+}
+
+uint32_t Hwc2TestLayer::getZOrder() const
+{
+    return mZOrder;
 }
 
 bool Hwc2TestLayer::advanceBlendMode()
