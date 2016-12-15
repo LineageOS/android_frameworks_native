@@ -36,19 +36,22 @@ public:
     hwc2_blend_mode_t      getBlendMode() const;
     hwc2_composition_t     getComposition() const;
     android_dataspace_t    getDataspace() const;
+    float                  getPlaneAlpha() const;
 
     bool advanceBlendMode();
     bool advanceComposition();
     bool advanceDataspace();
+    bool advancePlaneAlpha();
 
 private:
-    std::array<Hwc2TestContainer*, 3> mProperties = {{
-        &mBlendMode, &mComposition, &mDataspace
+    std::array<Hwc2TestContainer*, 4> mProperties = {{
+        &mBlendMode, &mComposition, &mDataspace, &mPlaneAlpha
     }};
 
     Hwc2TestBlendMode mBlendMode;
     Hwc2TestComposition mComposition;
     Hwc2TestDataspace mDataspace;
+    Hwc2TestPlaneAlpha mPlaneAlpha;
 };
 
 #endif /* ifndef _HWC2_TEST_LAYER_H */
