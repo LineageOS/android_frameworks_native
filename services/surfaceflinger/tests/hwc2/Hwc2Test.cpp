@@ -309,6 +309,35 @@ public:
         mVsyncCv.notify_all();
     }
 
+    void getDisplayName(hwc2_display_t display, std::string* outName,
+                hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_GET_DISPLAY_NAME>(
+                getFunction(HWC2_FUNCTION_GET_DISPLAY_NAME));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        uint32_t size = 0;
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, &size,
+                nullptr));
+
+        if (err == HWC2_ERROR_NONE) {
+            std::vector<char> name(size);
+
+            err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, &size,
+                    name.data()));
+
+            outName->assign(name.data());
+        }
+
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to get display name for "
+                    << display;
+        }
+    }
+
 protected:
     hwc2_function_pointer_t getFunction(hwc2_function_descriptor_t descriptor)
     {
@@ -1276,4 +1305,28 @@ TEST_F(Hwc2Test, SET_VSYNC_ENABLED_no_callback)
 
         ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_OFF));
     }
+}
+
+/* TESTCASE: Tests that the HWC2 returns a display name for each display */
+TEST_F(Hwc2Test, GET_DISPLAY_NAME)
+{
+    for (auto display : mDisplays) {
+        std::string name;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayName(display, &name));
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 does not return a display name for a bad
+ * display */
+TEST_F(Hwc2Test, GET_DISPLAY_NAME_bad_display)
+{
+    hwc2_display_t display;
+    std::string name;
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
+
+    ASSERT_NO_FATAL_FAILURE(getDisplayName(display, &name, &err));
+    EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
 }
