@@ -60,14 +60,16 @@ protected:
                      bool& freezeSurfacePresent,
                      const sp<const DisplayDevice>& hw,
                      const int32_t& id);
+    virtual void updateVisibleRegionsDirty();
+#ifndef USE_HWC2
     virtual void setOrientationEventControl(
                      bool& freezeSurfacePresent,
                      const int32_t& id);
-    virtual void updateVisibleRegionsDirty();
     virtual void drawWormHoleIfRequired(HWComposer::LayerListIterator& /*cur*/,
                      const HWComposer::LayerListIterator& /*end*/,
                      const sp<const DisplayDevice>& hw,
                      const Region& region);
+#endif
     virtual bool isS3DLayerPresent(const sp<const DisplayDevice>& hw);
     virtual ~ExSurfaceFlinger();
 

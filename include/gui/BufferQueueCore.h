@@ -20,6 +20,7 @@
 #include <gui/BufferItem.h>
 #include <gui/BufferQueueDefs.h>
 #include <gui/BufferSlot.h>
+#include <gui/OccupancyTracker.h>
 
 #include <utils/Condition.h>
 #include <utils/Mutex.h>
@@ -124,6 +125,11 @@ private:
     // all slots, even if they're currently dequeued, queued, or acquired.
     void freeAllBuffersLocked();
 
+    // discardFreeBuffersLocked releases all currently-free buffers held by the
+    // queue, in order to reduce the memory consumption of the queue to the
+    // minimum possible without discarding data.
+    void discardFreeBuffersLocked();
+
     // If delta is positive, makes more slots available. If negative, takes
     // away slots. Returns false if the request can't be met.
     bool adjustAvailableSlotsLocked(int delta);
@@ -176,6 +182,8 @@ private:
     // to this BufferQueue. It defaults to NO_CONNECTED_API, and gets updated
     // by the connect and disconnect methods.
     int mConnectedApi;
+    // PID of the process which last successfully called connect(...)
+    pid_t mConnectedPid;
 
     // mConnectedProducerToken is used to set a binder death notification on
     // the producer.
@@ -321,6 +329,8 @@ private:
 
     // The slot of the last queued buffer
     int mLastQueuedSlot;
+
+    OccupancyTracker mOccupancyTracker;
 
     const uint64_t mUniqueId;
 

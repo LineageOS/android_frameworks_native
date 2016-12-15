@@ -35,9 +35,14 @@
 
 namespace android {
 
+#ifndef USE_HWC2
 ExHWComposer::ExHWComposer(const sp<SurfaceFlinger>& flinger,
                            EventHandler& handler)
         : HWComposer(flinger, handler) {
+#else
+ExHWComposer::ExHWComposer(const sp<SurfaceFlinger>& flinger)
+    : HWComposer(flinger) {
+#endif
 
     mVDSEnabled = false;
     char property[PROPERTY_VALUE_MAX] = {0};

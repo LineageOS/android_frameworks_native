@@ -149,7 +149,12 @@ Device::~Device()
     }
 
     for (auto element : mDisplays) {
-        auto display = element.second;
+        auto display = element.second.lock();
+        if (!display) {
+            ALOGE("~Device: Found a display (%" PRId64 " that has already been"
+                    " destroyed", element.first);
+            continue;
+        }
 
         DisplayType displayType = HWC2::DisplayType::Invalid;
         auto error = display->getType(&displayType);
@@ -208,6 +213,10 @@ Error Device::createVirtualDisplay(uint32_t width, uint32_t height,
     ALOGI("Created virtual display");
     *format = static_cast<android_pixel_format_t>(intFormat);
     *outDisplay = getDisplayById(displayId);
+    if (!*outDisplay) {
+        ALOGE("Failed to get display by id");
+        return Error::BadDisplay;
+    }
     (*outDisplay)->setVirtual();
     return Error::None;
 }
@@ -289,7 +298,10 @@ void Device::callVsync(std::shared_ptr<Display> display, nsecs_t timestamp)
 
 std::shared_ptr<Display> Device::getDisplayById(hwc2_display_t id) {
     if (mDisplays.count(id) != 0) {
-        return mDisplays.at(id);
+        auto strongDisplay = mDisplays[id].lock();
+        ALOGE_IF(!strongDisplay, "Display %" PRId64 " is in mDisplays but is no"
+                " longer alive", id);
+        return strongDisplay;
     }
 
     auto display = std::make_shared<Display>(*this, id);
@@ -305,9 +317,12 @@ void Device::loadCapabilities()
             "Capability size has changed");
     uint32_t numCapabilities = 0;
     mHwcDevice->getCapabilities(mHwcDevice, &numCapabilities, nullptr);
-    mCapabilities.resize(numCapabilities);
-    auto asInt = reinterpret_cast<int32_t*>(mCapabilities.data());
+    std::vector<Capability> capabilities(numCapabilities);
+    auto asInt = reinterpret_cast<int32_t*>(capabilities.data());
     mHwcDevice->getCapabilities(mHwcDevice, &numCapabilities, asInt);
+    for (auto capability : capabilities) {
+        mCapabilities.emplace(capability);
+    }
 }
 
 bool Device::hasCapability(HWC2::Capability capability) const
@@ -430,6 +445,7 @@ void Device::destroyVirtualDisplay(hwc2_display_t display)
     auto error = static_cast<Error>(intError);
     ALOGE_IF(error != Error::None, "destroyVirtualDisplay(%" PRIu64 ") failed:"
             " %s (%d)", display, to_string(error).c_str(), intError);
+    mDisplays.erase(display);
 }
 
 // Display methods
@@ -565,7 +581,7 @@ Error Display::getChangedCompositionTypes(
     return Error::None;
 }
 
-Error Display::getColorModes(std::vector<int32_t>* outModes) const
+Error Display::getColorModes(std::vector<android_color_mode_t>* outModes) const
 {
     uint32_t numModes = 0;
     int32_t intError = mDevice.mGetColorModes(mDevice.mHwcDevice, mId,
@@ -583,7 +599,10 @@ Error Display::getColorModes(std::vector<int32_t>* outModes) const
         return error;
     }
 
-    std::swap(*outModes, modes);
+    outModes->resize(numModes);
+    for (size_t i = 0; i < numModes; i++) {
+        (*outModes)[i] = static_cast<android_color_mode_t>(modes[i]);
+    }
     return Error::None;
 }
 
@@ -789,7 +808,7 @@ Error Display::setClientTarget(buffer_handle_t target,
     return static_cast<Error>(intError);
 }
 
-Error Display::setColorMode(int32_t mode)
+Error Display::setColorMode(android_color_mode_t mode)
 {
     int32_t intError = mDevice.mSetColorMode(mDevice.mHwcDevice, mId, mode);
     return static_cast<Error>(intError);
@@ -810,6 +829,7 @@ Error Display::setOutputBuffer(const sp<GraphicBuffer>& buffer,
     auto handle = buffer->getNativeBuffer()->handle;
     int32_t intError = mDevice.mSetOutputBuffer(mDevice.mHwcDevice, mId, handle,
             fenceFd);
+    close(fenceFd);
     return static_cast<Error>(intError);
 }
 
