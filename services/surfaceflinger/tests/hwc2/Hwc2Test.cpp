@@ -425,6 +425,22 @@ public:
         }
     }
 
+    void setLayerSourceCrop(hwc2_display_t display, hwc2_layer_t layer,
+            const hwc_frect_t& sourceCrop, hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_SET_LAYER_SOURCE_CROP>(
+                getFunction(HWC2_FUNCTION_SET_LAYER_SOURCE_CROP));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, layer,
+                sourceCrop));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set layer source crop";
+        }
+    }
+
     void setLayerTransform(hwc2_display_t display, hwc2_layer_t layer,
             hwc_transform_t transform, hwc2_error_t* outErr = nullptr)
     {
@@ -903,6 +919,13 @@ void setPlaneAlpha(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
             testLayer.getPlaneAlpha(), outErr));
 }
 
+void setSourceCrop(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
+        const Hwc2TestLayer& testLayer, hwc2_error_t* outErr)
+{
+    EXPECT_NO_FATAL_FAILURE(test->setLayerSourceCrop(display, layer,
+            testLayer.getSourceCrop(), outErr));
+}
+
 void setTransform(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
         const Hwc2TestLayer& testLayer, hwc2_error_t* outErr)
 {
@@ -940,6 +963,13 @@ bool advanceDisplayFrame(Hwc2TestLayer* testLayer)
 bool advancePlaneAlpha(Hwc2TestLayer* testLayer)
 {
     return testLayer->advancePlaneAlpha();
+}
+
+bool advanceSourceCrop(Hwc2TestLayer* testLayer)
+{
+    if (testLayer->advanceSourceCrop())
+        return true;
+    return testLayer->advanceBufferArea();
 }
 
 bool advanceTransform(Hwc2TestLayer* testLayer)
@@ -1896,6 +1926,27 @@ TEST_F(Hwc2Test, SET_LAYER_PLANE_ALPHA_bad_layer)
                             badLayer, testLayer.getPlaneAlpha(), outErr));
             }
     ));
+}
+
+/* TESTCASE: Tests that the HWC2 can set the source crop of a layer. */
+TEST_F(Hwc2Test, SET_LAYER_SOURCE_CROP)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerProperty(Hwc2TestCoverage::Complete,
+            setSourceCrop, advanceSourceCrop));
+}
+
+/* TESTCASE: Tests that the HWC2 can update the source crop of a layer. */
+TEST_F(Hwc2Test, SET_LAYER_SOURCE_CROP_update)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyUpdate(Hwc2TestCoverage::Complete,
+            setSourceCrop, advanceSourceCrop));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set the source crop of a bad layer. */
+TEST_F(Hwc2Test, SET_LAYER_SOURCE_CROP_bad_layer)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyBadLayer(Hwc2TestCoverage::Default,
+            setSourceCrop));
 }
 
 /* TESTCASE: Tests that the HWC2 can set the transform value of a layer. */

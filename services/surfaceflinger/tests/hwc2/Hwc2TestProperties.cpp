@@ -18,6 +18,70 @@
 
 #include "Hwc2TestProperties.h"
 
+Hwc2TestBufferArea::Hwc2TestBufferArea(Hwc2TestCoverage coverage,
+        const Area& displayArea)
+    : Hwc2TestProperty(mBufferAreas),
+      mScalars((coverage == Hwc2TestCoverage::Complete)? mCompleteScalars:
+            (coverage == Hwc2TestCoverage::Basic)? mBasicScalars:
+            mDefaultScalars),
+      mDisplayArea(displayArea)
+{
+    update();
+}
+
+std::string Hwc2TestBufferArea::dump() const
+{
+    std::stringstream dmp;
+    const Area& curr = get();
+    dmp << "\tbuffer area: width " << curr.width << ", height " << curr.height
+            << "\n";
+    return dmp.str();
+}
+
+void Hwc2TestBufferArea::setDependent(Hwc2TestSourceCrop* sourceCrop)
+{
+    mSourceCrop = sourceCrop;
+    updateDependents();
+}
+
+void Hwc2TestBufferArea::update()
+{
+    mBufferAreas.clear();
+
+    if (mDisplayArea.width == 0 && mDisplayArea.height == 0) {
+        mBufferAreas.push_back({0, 0});
+        return;
+    }
+
+    for (auto scalar : mScalars) {
+        mBufferAreas.push_back({static_cast<int32_t>(scalar * mDisplayArea.width),
+                static_cast<int32_t>(scalar * mDisplayArea.height)});
+    }
+
+    updateDependents();
+}
+
+void Hwc2TestBufferArea::updateDependents()
+{
+    const Area& curr = get();
+
+    if (mSourceCrop)
+        mSourceCrop->updateBufferArea(curr);
+}
+
+const std::vector<float> Hwc2TestBufferArea::mDefaultScalars = {
+    1.0f,
+};
+
+const std::vector<float> Hwc2TestBufferArea::mBasicScalars = {
+    1.0f, 0.5f,
+};
+
+const std::vector<float> Hwc2TestBufferArea::mCompleteScalars = {
+    1.0f, 0.75f, 0.5f
+};
+
+
 Hwc2TestBlendMode::Hwc2TestBlendMode(Hwc2TestCoverage coverage)
     : Hwc2TestProperty(coverage, mCompleteBlendModes, mBasicBlendModes,
             mDefaultBlendModes) { }
@@ -221,6 +285,70 @@ const std::vector<float> Hwc2TestPlaneAlpha::mBasicPlaneAlphas = {
 
 const std::vector<float> Hwc2TestPlaneAlpha::mCompletePlaneAlphas = {
     1.0f, 0.75f, 0.5f, 0.25f, 0.0f,
+};
+
+
+Hwc2TestSourceCrop::Hwc2TestSourceCrop(Hwc2TestCoverage coverage,
+        const Area& bufferArea)
+    : Hwc2TestProperty(mSourceCrops),
+      mFrectScalars((coverage == Hwc2TestCoverage::Complete)? mCompleteFrectScalars:
+            (coverage == Hwc2TestCoverage::Basic)? mBasicFrectScalars:
+            mDefaultFrectScalars),
+      mBufferArea(bufferArea)
+{
+    update();
+}
+
+std::string Hwc2TestSourceCrop::dump() const
+{
+    std::stringstream dmp;
+    const hwc_frect_t& sourceCrop = get();
+    dmp << "\tsource crop: left " << sourceCrop.left << ", top "
+            << sourceCrop.top << ", right " << sourceCrop.right << ", bottom "
+            << sourceCrop.bottom << "\n";
+    return dmp.str();
+}
+
+void Hwc2TestSourceCrop::updateBufferArea(const Area& bufferArea)
+{
+    mBufferArea = bufferArea;
+    update();
+}
+
+void Hwc2TestSourceCrop::update()
+{
+    mSourceCrops.clear();
+
+    if (mBufferArea.width == 0 && mBufferArea.height == 0) {
+        mSourceCrops.push_back({0, 0, 0, 0});
+        return;
+    }
+
+    for (const auto& frectScalar : mFrectScalars) {
+        mSourceCrops.push_back({
+                frectScalar.left * mBufferArea.width,
+                frectScalar.top * mBufferArea.height,
+                frectScalar.right * mBufferArea.width,
+                frectScalar.bottom * mBufferArea.height});
+    }
+}
+
+const std::vector<hwc_frect_t> Hwc2TestSourceCrop::mDefaultFrectScalars = {
+    {0.0, 0.0, 1.0, 1.0},
+};
+
+const std::vector<hwc_frect_t> Hwc2TestSourceCrop::mBasicFrectScalars = {
+    {0.0, 0.0, 1.0, 1.0},
+    {0.0, 0.0, 0.5, 0.5},
+    {0.5, 0.5, 1.0, 1.0},
+};
+
+const std::vector<hwc_frect_t> Hwc2TestSourceCrop::mCompleteFrectScalars = {
+    {0.0, 0.0, 1.0, 1.0},
+    {0.0, 0.0, 0.5, 0.5},
+    {0.5, 0.5, 1.0, 1.0},
+    {0.0, 0.0, 0.25, 0.25},
+    {0.25, 0.25, 0.75, 0.75},
 };
 
 
