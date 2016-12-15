@@ -641,8 +641,8 @@ typedef EGLClientBuffer (EGLAPIENTRYP PFNEGLCREATENATIVECLIENTBUFFERANDROID) (co
 EGLAPI EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface, EGLint framesAgo, EGLint numTimestamps, const EGLint *timestamps, EGLnsecsANDROID *values);
 EGLAPI EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy, EGLSurface surface, EGLint timestamp);
 #else
-typedef EGLAPI EGLBoolean (EGLAPIENTRYP PFNEGLGETFRAMETIMESTAMPSANDROID) (EGLDisplay dpy, EGLSurface surface, EGLint framesAgo, EGLint numTimestamps, const EGLint *timestamps, EGLnsecsANDROID *values);
-typedef EGLAPI EGLBoolean (EGLAPIENTRYP PFNEGLQUERYTIMESTAMPSUPPORTEDANDROID) (EGLDisplay dpy, EGLSurface surface, EGLint timestamp);
+typedef EGLBoolean (EGLAPIENTRYP PFNEGLGETFRAMETIMESTAMPSANDROID) (EGLDisplay dpy, EGLSurface surface, EGLint framesAgo, EGLint numTimestamps, const EGLint *timestamps, EGLnsecsANDROID *values);
+typedef EGLBoolean (EGLAPIENTRYP PFNEGLQUERYTIMESTAMPSUPPORTEDANDROID) (EGLDisplay dpy, EGLSurface surface, EGLint timestamp);
 #endif
 #endif
 
