@@ -16,6 +16,7 @@
 
 #include <sstream>
 #include <cutils/log.h>
+#include <ui/Rect.h>
 
 #define HWC2_INCLUDE_STRINGIFICATION
 #define HWC2_USE_CPP11
@@ -597,3 +598,59 @@ const std::vector<hwc_transform_t> Hwc2TestTransform::mCompleteTransforms = {
     HWC_TRANSFORM_FLIP_H_ROT_90,
     HWC_TRANSFORM_FLIP_V_ROT_90,
 };
+
+
+Hwc2TestVisibleRegion::~Hwc2TestVisibleRegion()
+{
+    release();
+}
+
+std::string Hwc2TestVisibleRegion::dump() const
+{
+    std::stringstream dmp;
+
+    const hwc_region_t& curr = get();
+    dmp << "\tvisible region: region count " << curr.numRects << "\n";
+    for (size_t i = 0; i < curr.numRects; i++) {
+        const hwc_rect_t& rect = curr.rects[i];
+        dmp << "\t\trect: left " << rect.left << ", top " << rect.top
+                << ", right " << rect.right << ", bottom " << rect.bottom << "\n";
+    }
+
+    return dmp.str();
+}
+
+void Hwc2TestVisibleRegion::set(const android::Region& visibleRegion)
+{
+    release();
+
+    size_t size = 0;
+    const android::Rect* rects = visibleRegion.getArray(&size);
+
+    mVisibleRegion.numRects = size;
+    mVisibleRegion.rects = nullptr;
+
+    if (size > 0) {
+        hwc_rect_t* hwcRects = new hwc_rect_t[size];
+        for (size_t i = 0; i < size; i++) {
+            hwcRects[i].left = rects[i].left;
+            hwcRects[i].top = rects[i].top;
+            hwcRects[i].right = rects[i].right;
+            hwcRects[i].bottom = rects[i].bottom;
+        }
+        mVisibleRegion.rects = hwcRects;
+    }
+}
+
+hwc_region_t Hwc2TestVisibleRegion::get() const
+{
+    return mVisibleRegion;
+}
+
+void Hwc2TestVisibleRegion::release()
+{
+    if (mVisibleRegion.numRects > 0 && mVisibleRegion.rects)
+        delete[] mVisibleRegion.rects;
+    mVisibleRegion.rects = nullptr;
+    mVisibleRegion.numRects = 0;
+}

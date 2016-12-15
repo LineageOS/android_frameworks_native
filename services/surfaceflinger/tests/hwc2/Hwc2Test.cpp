@@ -525,6 +525,23 @@ public:
         }
     }
 
+    void setLayerVisibleRegion(hwc2_display_t display, hwc2_layer_t layer,
+            const hwc_region_t& visibleRegion, hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_SET_LAYER_VISIBLE_REGION>(
+                getFunction(HWC2_FUNCTION_SET_LAYER_VISIBLE_REGION));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, layer,
+                visibleRegion));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set layer visible"
+                    " region";
+        }
+    }
+
     void setLayerZOrder(hwc2_display_t display, hwc2_layer_t layer,
             uint32_t zOrder, hwc2_error_t* outErr = nullptr)
     {
@@ -705,6 +722,9 @@ protected:
     /* Advances a property of Hwc2TestLayer */
     using AdvanceProperty = bool (*)(Hwc2TestLayer* testLayer);
 
+    /* Advances properties of Hwc2TestLayers */
+    using AdvanceProperties = bool (*)(Hwc2TestLayers* testLayer);
+
     /* For each active display it cycles through each display config and tests
      * each property value. It creates a layer, sets the property and then
      * destroys the layer */
@@ -774,7 +794,7 @@ protected:
      * TestLayerPropertiesFunction to set property values and then
      * destroys the layers */
     void setLayerProperties(Hwc2TestCoverage coverage, size_t layerCnt,
-            TestLayerPropertiesFunction function)
+            TestLayerPropertiesFunction function, AdvanceProperties advance)
     {
         for (auto display : mDisplays) {
             std::vector<hwc2_config_t> configs;
@@ -792,10 +812,12 @@ protected:
                 ASSERT_NO_FATAL_FAILURE(createLayers(display, &layers, layerCnt));
                 Hwc2TestLayers testLayers(layers, coverage, displayArea);
 
-                for (auto layer : layers) {
-                    EXPECT_NO_FATAL_FAILURE(function(this, display, layer,
-                            &testLayers));
-                }
+                do {
+                    for (auto layer : layers) {
+                        EXPECT_NO_FATAL_FAILURE(function(this, display, layer,
+                                &testLayers));
+                    }
+                } while (advance(&testLayers));
 
                 ASSERT_NO_FATAL_FAILURE(destroyLayers(display, std::move(layers)));
             }
@@ -1052,6 +1074,13 @@ void setTransform(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
             testLayer->getTransform(), outErr));
 }
 
+void setVisibleRegion(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
+        Hwc2TestLayer* testLayer, hwc2_error_t* outErr)
+{
+    EXPECT_NO_FATAL_FAILURE(test->setLayerVisibleRegion(display, layer,
+            testLayer->getVisibleRegion(), outErr));
+}
+
 void setZOrder(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
         Hwc2TestLayer* testLayer, hwc2_error_t* outErr)
 {
@@ -1124,6 +1153,11 @@ bool advanceSurfaceDamage(Hwc2TestLayer* testLayer)
 bool advanceTransform(Hwc2TestLayer* testLayer)
 {
     return testLayer->advanceTransform();
+}
+
+bool advanceVisibleRegions(Hwc2TestLayers* testLayers)
+{
+    return testLayers->advanceVisibleRegions();
 }
 
 
@@ -2295,6 +2329,27 @@ TEST_F(Hwc2Test, SET_LAYER_TRANSFORM_bad_layer)
             setTransform));
 }
 
+/* TESTCASE: Tests that the HWC2 can set the visible region of a layer. */
+TEST_F(Hwc2Test, SET_LAYER_VISIBLE_REGION)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerProperties(Hwc2TestCoverage::Basic, 5,
+            [] (Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
+                    Hwc2TestLayers* testLayers) {
+
+                EXPECT_NO_FATAL_FAILURE(test->setLayerVisibleRegion(display,
+                        layer, testLayers->getVisibleRegion(layer)));
+            },
+
+            advanceVisibleRegions));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set the visible region of a bad layer. */
+TEST_F(Hwc2Test, SET_LAYER_VISIBLE_REGION_bad_layer)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyBadLayer(Hwc2TestCoverage::Default,
+            setVisibleRegion));
+}
+
 /* TESTCASE: Tests that the HWC2 can set the z order of a layer. */
 TEST_F(Hwc2Test, SET_LAYER_Z_ORDER)
 {
@@ -2304,6 +2359,13 @@ TEST_F(Hwc2Test, SET_LAYER_Z_ORDER)
 
                 EXPECT_NO_FATAL_FAILURE(test->setLayerZOrder(display, layer,
                         testLayers->getZOrder(layer)));
+            },
+
+            /* TestLayer z orders are set during the construction of TestLayers
+             * and cannot be updated. There is no need (or ability) to cycle
+             * through additional z order configurations. */
+            [] (Hwc2TestLayers* /*testLayers*/) {
+                return false;
             }
     ));
 }

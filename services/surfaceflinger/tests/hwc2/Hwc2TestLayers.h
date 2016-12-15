@@ -37,9 +37,14 @@ public:
 
     void reset();
 
-    uint32_t getZOrder(hwc2_layer_t layer) const;
+    bool advanceVisibleRegions();
+
+    hwc_region_t    getVisibleRegion(hwc2_layer_t layer) const;
+    uint32_t        getZOrder(hwc2_layer_t layer) const;
 
 private:
+    void setVisibleRegions();
+
     std::map<hwc2_layer_t, Hwc2TestLayer> mTestLayers;
 };
 

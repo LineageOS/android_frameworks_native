@@ -18,8 +18,7 @@
 
 #include "Hwc2TestLayer.h"
 
-Hwc2TestLayer::Hwc2TestLayer(Hwc2TestCoverage coverage, const Area& displayArea,
-        uint32_t zOrder)
+Hwc2TestLayer::Hwc2TestLayer(Hwc2TestCoverage coverage, const Area& displayArea)
     : mBlendMode(coverage),
       mBufferArea(coverage, displayArea),
       mColor(coverage),
@@ -29,8 +28,7 @@ Hwc2TestLayer::Hwc2TestLayer(Hwc2TestCoverage coverage, const Area& displayArea,
       mPlaneAlpha(coverage),
       mSourceCrop(coverage),
       mSurfaceDamage(coverage),
-      mTransform(coverage),
-      mZOrder(zOrder)
+      mTransform(coverage)
 {
     mBufferArea.setDependent(&mBuffer);
     mBufferArea.setDependent(&mSourceCrop);
@@ -48,6 +46,7 @@ std::string Hwc2TestLayer::dump() const
         dmp << property->dump();
     }
 
+    dmp << mVisibleRegion.dump();
     dmp << "\tz order: " << mZOrder << "\n";
 
     return dmp.str();
@@ -62,8 +61,20 @@ int Hwc2TestLayer::getBuffer(buffer_handle_t* outHandle,
     return ret;
 }
 
+void Hwc2TestLayer::setZOrder(uint32_t zOrder)
+{
+    mZOrder = zOrder;
+}
+
+void Hwc2TestLayer::setVisibleRegion(const android::Region& region)
+{
+    return mVisibleRegion.set(region);
+}
+
 void Hwc2TestLayer::reset()
 {
+    mVisibleRegion.release();
+
     for (auto property : mProperties) {
         property->reset();
     }
@@ -72,6 +83,11 @@ void Hwc2TestLayer::reset()
 hwc2_blend_mode_t Hwc2TestLayer::getBlendMode() const
 {
     return mBlendMode.get();
+}
+
+Area Hwc2TestLayer::getBufferArea() const
+{
+    return mBufferArea.get();
 }
 
 hwc_color_t Hwc2TestLayer::getColor() const
@@ -118,6 +134,11 @@ hwc_region_t Hwc2TestLayer::getSurfaceDamage() const
 hwc_transform_t Hwc2TestLayer::getTransform() const
 {
     return mTransform.get();
+}
+
+hwc_region_t Hwc2TestLayer::getVisibleRegion() const
+{
+    return mVisibleRegion.get();
 }
 
 uint32_t Hwc2TestLayer::getZOrder() const
@@ -178,4 +199,11 @@ bool Hwc2TestLayer::advanceSurfaceDamage()
 bool Hwc2TestLayer::advanceTransform()
 {
     return mTransform.advance();
+}
+
+bool Hwc2TestLayer::advanceVisibleRegion()
+{
+    if (mPlaneAlpha.advance())
+        return true;
+    return mDisplayFrame.advance();
 }

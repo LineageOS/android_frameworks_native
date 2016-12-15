@@ -20,6 +20,8 @@
 #include <array>
 #include <vector>
 
+#include <ui/Region.h>
+
 #define HWC2_INCLUDE_STRINGIFICATION
 #define HWC2_USE_CPP11
 #include <hardware/hwcomposer2.h>
@@ -288,6 +290,21 @@ protected:
     static const std::vector<hwc_transform_t> mDefaultTransforms;
     static const std::vector<hwc_transform_t> mBasicTransforms;
     static const std::vector<hwc_transform_t> mCompleteTransforms;
+};
+
+
+class Hwc2TestVisibleRegion {
+public:
+    ~Hwc2TestVisibleRegion();
+
+    std::string dump() const;
+
+    void set(const android::Region& visibleRegion);
+    hwc_region_t get() const;
+    void release();
+
+protected:
+    hwc_region_t mVisibleRegion = {0, nullptr};
 };
 
 #endif /* ifndef _HWC2_TEST_PROPERTIES_H */
