@@ -199,6 +199,39 @@ public:
         }
     }
 
+    void getActiveConfig(hwc2_display_t display, hwc2_config_t* outConfig,
+            hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_GET_ACTIVE_CONFIG>(
+                getFunction(HWC2_FUNCTION_GET_ACTIVE_CONFIG));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display,
+                outConfig));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to get active config on"
+                    " display " << display;
+        }
+    }
+
+    void setActiveConfig(hwc2_display_t display, hwc2_config_t config,
+            hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_SET_ACTIVE_CONFIG>(
+                getFunction(HWC2_FUNCTION_SET_ACTIVE_CONFIG));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, config));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set active config "
+                    << config;
+        }
+    }
+
 protected:
     hwc2_function_pointer_t getFunction(hwc2_function_descriptor_t descriptor)
     {
@@ -736,5 +769,106 @@ TEST_F(Hwc2Test, GET_DISPLAY_CONFIGS_duplicate)
                 configs.end());
         EXPECT_EQ(configs.size(), configsSet.size()) << "returned duplicate"
                 " configs";
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 returns the active config for a display */
+TEST_F(Hwc2Test, GET_ACTIVE_CONFIG)
+{
+    for (auto display : mDisplays) {
+        std::vector<hwc2_config_t> configs;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+        for (auto config : configs) {
+            hwc2_config_t activeConfig;
+
+            ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config));
+            ASSERT_NO_FATAL_FAILURE(getActiveConfig(display, &activeConfig));
+
+            EXPECT_EQ(activeConfig, config) << "failed to get active config";
+        }
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 does not return an active config for a bad
+ * display. */
+TEST_F(Hwc2Test, GET_ACTIVE_CONFIG_bad_display)
+{
+    hwc2_display_t display;
+    hwc2_config_t activeConfig;
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
+
+    ASSERT_NO_FATAL_FAILURE(getActiveConfig(display, &activeConfig, &err));
+
+    EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
+}
+
+/* TESTCASE: Tests that the HWC2 either begins with a valid active config
+ * or returns an error when getActiveConfig is called. */
+TEST_F(Hwc2Test, GET_ACTIVE_CONFIG_bad_config)
+{
+    for (auto display : mDisplays) {
+        std::vector<hwc2_config_t> configs;
+        hwc2_config_t activeConfig;
+        hwc2_error_t err = HWC2_ERROR_NONE;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+        if (configs.empty())
+            return;
+
+        ASSERT_NO_FATAL_FAILURE(getActiveConfig(display, &activeConfig, &err));
+        if (err == HWC2_ERROR_NONE) {
+            EXPECT_NE(std::count(configs.begin(), configs.end(),
+                    activeConfig), 0) << "active config is not found in "
+                    " configs for display";
+        } else {
+            EXPECT_EQ(err, HWC2_ERROR_BAD_CONFIG) << "returned wrong error code";
+        }
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 can set every display config as an active
+ * config */
+TEST_F(Hwc2Test, SET_ACTIVE_CONFIG)
+{
+    for (auto display : mDisplays) {
+        std::vector<hwc2_config_t> configs;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+        for (auto config : configs) {
+            EXPECT_NO_FATAL_FAILURE(setActiveConfig(display, config));
+        }
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set an active config for a bad display */
+TEST_F(Hwc2Test, SET_ACTIVE_CONFIG_bad_display)
+{
+    hwc2_display_t display;
+    const hwc2_config_t config = 0;
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
+
+    ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config, &err));
+    EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set an invalid active config */
+TEST_F(Hwc2Test, SET_ACTIVE_CONFIG_bad_config)
+{
+    for (auto display : mDisplays) {
+        hwc2_config_t config;
+        hwc2_error_t err = HWC2_ERROR_NONE;
+
+        ASSERT_NO_FATAL_FAILURE(getInvalidConfig(display, &config));
+
+        ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config, &err));
+        EXPECT_EQ(err, HWC2_ERROR_BAD_CONFIG) << "returned wrong error code";
     }
 }
