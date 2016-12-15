@@ -162,3 +162,37 @@ const std::vector<float> Hwc2TestPlaneAlpha::mBasicPlaneAlphas = {
 const std::vector<float> Hwc2TestPlaneAlpha::mCompletePlaneAlphas = {
     1.0f, 0.75f, 0.5f, 0.25f, 0.0f,
 };
+
+
+Hwc2TestTransform::Hwc2TestTransform(Hwc2TestCoverage coverage)
+    : Hwc2TestProperty(coverage, mCompleteTransforms, mBasicTransforms,
+            mDefaultTransforms) { }
+
+std::string Hwc2TestTransform::dump() const
+{
+    std::stringstream dmp;
+    dmp << "\ttransform: " << getTransformName(get()) << "\n";
+    return dmp.str();
+}
+
+const std::vector<hwc_transform_t> Hwc2TestTransform::mDefaultTransforms = {
+    static_cast<hwc_transform_t>(0),
+};
+
+const std::vector<hwc_transform_t> Hwc2TestTransform::mBasicTransforms = {
+    static_cast<hwc_transform_t>(0),
+    HWC_TRANSFORM_FLIP_H,
+    HWC_TRANSFORM_FLIP_V,
+    HWC_TRANSFORM_ROT_90,
+};
+
+const std::vector<hwc_transform_t> Hwc2TestTransform::mCompleteTransforms = {
+    static_cast<hwc_transform_t>(0),
+    HWC_TRANSFORM_FLIP_H,
+    HWC_TRANSFORM_FLIP_V,
+    HWC_TRANSFORM_ROT_90,
+    HWC_TRANSFORM_ROT_180,
+    HWC_TRANSFORM_ROT_270,
+    HWC_TRANSFORM_FLIP_H_ROT_90,
+    HWC_TRANSFORM_FLIP_V_ROT_90,
+};

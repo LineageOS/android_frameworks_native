@@ -137,4 +137,17 @@ protected:
     static const std::vector<float> mCompletePlaneAlphas;
 };
 
+
+class Hwc2TestTransform : public Hwc2TestProperty<hwc_transform_t> {
+public:
+    Hwc2TestTransform(Hwc2TestCoverage coverage);
+
+    std::string dump() const override;
+
+protected:
+    static const std::vector<hwc_transform_t> mDefaultTransforms;
+    static const std::vector<hwc_transform_t> mBasicTransforms;
+    static const std::vector<hwc_transform_t> mCompleteTransforms;
+};
+
 #endif /* ifndef _HWC2_TEST_PROPERTIES_H */
