@@ -152,6 +152,53 @@ public:
         }
     }
 
+    void getDisplayAttribute(hwc2_display_t display, hwc2_config_t config,
+            hwc2_attribute_t attribute, int32_t* outValue,
+            hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_GET_DISPLAY_ATTRIBUTE>(
+                getFunction(HWC2_FUNCTION_GET_DISPLAY_ATTRIBUTE));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, config,
+                attribute, outValue));
+
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to get display attribute "
+                    << getAttributeName(attribute) << " for config " << config;
+        }
+    }
+
+    void getDisplayConfigs(hwc2_display_t display,
+            std::vector<hwc2_config_t>* outConfigs,
+            hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_GET_DISPLAY_CONFIGS>(
+                getFunction(HWC2_FUNCTION_GET_DISPLAY_CONFIGS));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        uint32_t numConfigs = 0;
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display,
+                &numConfigs, nullptr));
+
+        if (err == HWC2_ERROR_NONE) {
+            outConfigs->resize(numConfigs);
+
+            err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display,
+                    &numConfigs, outConfigs->data()));
+        }
+
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to get configs for"
+                    " display " << display;
+        }
+    }
+
 protected:
     hwc2_function_pointer_t getFunction(hwc2_function_descriptor_t descriptor)
     {
@@ -241,6 +288,26 @@ protected:
         for (hwc2_layer_t layer : layers) {
             EXPECT_NO_FATAL_FAILURE(destroyLayer(display, layer));
         }
+    }
+
+    void getInvalidConfig(hwc2_display_t display, hwc2_config_t* outConfig)
+    {
+        std::vector<hwc2_config_t> configs;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+        hwc2_config_t CONFIG_MAX = UINT32_MAX;
+
+        ASSERT_LE(configs.size() - 1, CONFIG_MAX) << "every config value"
+                " (2^32 values) has been taken which shouldn't happen";
+
+        hwc2_config_t config;
+        for (config = 0; config < CONFIG_MAX; config++) {
+            if (std::count(configs.begin(), configs.end(), config) == 0)
+                break;
+        }
+
+        *outConfig = config;
     }
 
     hwc2_device_t* mHwc2Device = nullptr;
@@ -506,5 +573,168 @@ TEST_F(Hwc2Test, DESTROY_LAYER_bad_layer)
 
         ASSERT_NO_FATAL_FAILURE(destroyLayer(display, layer, &err));
         EXPECT_EQ(err, HWC2_ERROR_BAD_LAYER) << "returned wrong error code";
+    }
+}
+
+static const std::array<hwc2_attribute_t, 2> requiredAttributes = {{
+    HWC2_ATTRIBUTE_WIDTH,
+    HWC2_ATTRIBUTE_HEIGHT,
+}};
+
+static const std::array<hwc2_attribute_t, 3> optionalAttributes = {{
+    HWC2_ATTRIBUTE_VSYNC_PERIOD,
+    HWC2_ATTRIBUTE_DPI_X,
+    HWC2_ATTRIBUTE_DPI_Y,
+}};
+
+/* TESTCASE: Tests that the HWC2 can return display attributes for a valid
+ * config. */
+TEST_F(Hwc2Test, GET_DISPLAY_ATTRIBUTE)
+{
+    for (auto display : mDisplays) {
+        std::vector<hwc2_config_t> configs;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+        for (auto config : configs) {
+            int32_t value;
+
+            for (auto attribute : requiredAttributes) {
+                ASSERT_NO_FATAL_FAILURE(getDisplayAttribute(display, config,
+                        attribute, &value));
+                EXPECT_GE(value, 0) << "missing required attribute "
+                        << getAttributeName(attribute) << " for config "
+                        << config;
+            }
+            for (auto attribute : optionalAttributes) {
+                ASSERT_NO_FATAL_FAILURE(getDisplayAttribute(display, config,
+                        attribute, &value));
+            }
+        }
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 will return a value of -1 for an invalid
+ * attribute */
+TEST_F(Hwc2Test, GET_DISPLAY_ATTRIBUTE_invalid_attribute)
+{
+    const hwc2_attribute_t attribute = HWC2_ATTRIBUTE_INVALID;
+
+    for (auto display : mDisplays) {
+        std::vector<hwc2_config_t> configs;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+        for (auto config : configs) {
+            int32_t value;
+            hwc2_error_t err = HWC2_ERROR_NONE;
+
+            ASSERT_NO_FATAL_FAILURE(getDisplayAttribute(display, config,
+                    attribute, &value, &err));
+            EXPECT_EQ(value, -1) << "failed to return -1 for an invalid"
+                    " attribute for config " << config;
+        }
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 will fail to get attributes for a bad display */
+TEST_F(Hwc2Test, GET_DISPLAY_ATTRIBUTE_bad_display)
+{
+    hwc2_display_t display;
+    const hwc2_config_t config = 0;
+    int32_t value;
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
+
+    for (auto attribute : requiredAttributes) {
+        ASSERT_NO_FATAL_FAILURE(getDisplayAttribute(display, config, attribute,
+                &value, &err));
+        EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
+    }
+
+    for (auto attribute : optionalAttributes) {
+        ASSERT_NO_FATAL_FAILURE(getDisplayAttribute(display, config, attribute,
+                &value, &err));
+        EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 will fail to get attributes for a bad config */
+TEST_F(Hwc2Test, GET_DISPLAY_ATTRIBUTE_bad_config)
+{
+    for (auto display : mDisplays) {
+        hwc2_config_t config;
+        int32_t value;
+        hwc2_error_t err = HWC2_ERROR_NONE;
+
+        ASSERT_NO_FATAL_FAILURE(getInvalidConfig(display, &config));
+
+        for (auto attribute : requiredAttributes) {
+            ASSERT_NO_FATAL_FAILURE(getDisplayAttribute(display, config,
+                    attribute, &value, &err));
+            EXPECT_EQ(err, HWC2_ERROR_BAD_CONFIG) << "returned wrong error code";
+        }
+
+        for (auto attribute : optionalAttributes) {
+            ASSERT_NO_FATAL_FAILURE(getDisplayAttribute(display, config,
+                    attribute, &value, &err));
+            EXPECT_EQ(err, HWC2_ERROR_BAD_CONFIG) << "returned wrong error code";
+        }
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 will get display configs for active displays */
+TEST_F(Hwc2Test, GET_DISPLAY_CONFIGS)
+{
+    for (auto display : mDisplays) {
+        std::vector<hwc2_config_t> configs;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 will not get display configs for bad displays */
+TEST_F(Hwc2Test, GET_DISPLAY_CONFIGS_bad_display)
+{
+    hwc2_display_t display;
+    std::vector<hwc2_config_t> configs;
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
+
+    ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs, &err));
+
+    EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
+    EXPECT_TRUE(configs.empty()) << "returned configs for bad display";
+}
+
+/* TESTCASE: Tests that the HWC2 will return the same config list multiple
+ * times in a row. */
+TEST_F(Hwc2Test, GET_DISPLAY_CONFIGS_same)
+{
+    for (auto display : mDisplays) {
+        std::vector<hwc2_config_t> configs1, configs2;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs1));
+        ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs2));
+
+        EXPECT_TRUE(std::is_permutation(configs1.begin(), configs1.end(),
+                configs2.begin())) << "returned two different config sets";
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 does not return duplicate display configs */
+TEST_F(Hwc2Test, GET_DISPLAY_CONFIGS_duplicate)
+{
+    for (auto display : mDisplays) {
+        std::vector<hwc2_config_t> configs;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+        std::unordered_set<hwc2_config_t> configsSet(configs.begin(),
+                configs.end());
+        EXPECT_EQ(configs.size(), configsSet.size()) << "returned duplicate"
+                " configs";
     }
 }
