@@ -32,6 +32,7 @@ Hwc2TestLayer::Hwc2TestLayer(Hwc2TestCoverage coverage, const Area& displayArea,
       mTransform(coverage),
       mZOrder(zOrder)
 {
+    mBufferArea.setDependent(&mBuffer);
     mBufferArea.setDependent(&mSourceCrop);
     mBufferArea.setDependent(&mSurfaceDamage);
     mBlendMode.setDependent(&mColor);
@@ -50,6 +51,15 @@ std::string Hwc2TestLayer::dump() const
     dmp << "\tz order: " << mZOrder << "\n";
 
     return dmp.str();
+}
+
+int Hwc2TestLayer::getBuffer(buffer_handle_t* outHandle,
+        android::base::unique_fd* outAcquireFence)
+{
+    int32_t acquireFence;
+    int ret = mBuffer.get(outHandle, &acquireFence);
+    outAcquireFence->reset(acquireFence);
+    return ret;
 }
 
 void Hwc2TestLayer::reset()

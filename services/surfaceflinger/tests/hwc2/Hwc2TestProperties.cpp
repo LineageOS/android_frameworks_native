@@ -17,6 +17,13 @@
 #include <sstream>
 #include <cutils/log.h>
 
+#define HWC2_INCLUDE_STRINGIFICATION
+#define HWC2_USE_CPP11
+#include <hardware/hwcomposer2.h>
+#undef HWC2_INCLUDE_STRINGIFICATION
+#undef HWC2_USE_CPP11
+
+#include "Hwc2TestBuffer.h"
 #include "Hwc2TestProperties.h"
 
 Hwc2TestBufferArea::Hwc2TestBufferArea(Hwc2TestCoverage coverage,
@@ -37,6 +44,14 @@ std::string Hwc2TestBufferArea::dump() const
     dmp << "\tbuffer area: width " << curr.width << ", height " << curr.height
             << "\n";
     return dmp.str();
+}
+
+void Hwc2TestBufferArea::setDependent(Hwc2TestBuffer* buffer)
+{
+    mBuffer = buffer;
+    if (buffer) {
+        buffer->updateBufferArea(get());
+    }
 }
 
 void Hwc2TestBufferArea::setDependent(Hwc2TestSourceCrop* sourceCrop)
@@ -76,6 +91,8 @@ void Hwc2TestBufferArea::updateDependents()
 {
     const Area& curr = get();
 
+    if (mBuffer)
+        mBuffer->updateBufferArea(curr);
     if (mSourceCrop)
         mSourceCrop->updateBufferArea(curr);
     if (mSurfaceDamage)

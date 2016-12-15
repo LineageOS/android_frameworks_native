@@ -96,6 +96,7 @@ protected:
 };
 
 
+class Hwc2TestBuffer;
 class Hwc2TestSourceCrop;
 class Hwc2TestSurfaceDamage;
 
@@ -105,6 +106,7 @@ public:
 
     std::string dump() const override;
 
+    void setDependent(Hwc2TestBuffer* buffer);
     void setDependent(Hwc2TestSourceCrop* sourceCrop);
     void setDependent(Hwc2TestSurfaceDamage* surfaceDamage);
 
@@ -119,6 +121,7 @@ protected:
 
     Area mDisplayArea;
 
+    Hwc2TestBuffer* mBuffer = nullptr;
     Hwc2TestSourceCrop* mSourceCrop = nullptr;
     Hwc2TestSurfaceDamage* mSurfaceDamage = nullptr;
 
