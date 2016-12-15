@@ -28,6 +28,8 @@
 
 void hwc2TestHotplugCallback(hwc2_callback_data_t callbackData,
         hwc2_display_t display, int32_t connected);
+void hwc2TestVsyncCallback(hwc2_callback_data_t callbackData,
+        hwc2_display_t display, int64_t timestamp);
 
 class Hwc2Test : public testing::Test {
 public:
@@ -282,6 +284,31 @@ public:
         }
     }
 
+    void setVsyncEnabled(hwc2_display_t display, hwc2_vsync_t enabled,
+            hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_SET_VSYNC_ENABLED>(
+                getFunction(HWC2_FUNCTION_SET_VSYNC_ENABLED));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display,
+                enabled));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set vsync enabled "
+                    << getVsyncName(enabled);
+        }
+    }
+
+    void vsyncCallback(hwc2_display_t display, int64_t timestamp)
+    {
+        std::lock_guard<std::mutex> lock(mVsyncMutex);
+        mVsyncDisplay = display;
+        mVsyncTimestamp = timestamp;
+        mVsyncCv.notify_all();
+    }
+
 protected:
     hwc2_function_pointer_t getFunction(hwc2_function_descriptor_t descriptor)
     {
@@ -393,6 +420,32 @@ protected:
         *outConfig = config;
     }
 
+    void enableVsync(hwc2_display_t display)
+    {
+        ASSERT_NO_FATAL_FAILURE(registerCallback(HWC2_CALLBACK_VSYNC, this,
+                reinterpret_cast<hwc2_function_pointer_t>(
+                hwc2TestVsyncCallback)));
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_ENABLE));
+    }
+
+    void disableVsync(hwc2_display_t display)
+    {
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_DISABLE));
+    }
+
+    void waitForVsync(hwc2_display_t* outDisplay = nullptr,
+            int64_t* outTimestamp = nullptr)
+    {
+        std::unique_lock<std::mutex> lock(mVsyncMutex);
+        ASSERT_EQ(mVsyncCv.wait_for(lock, std::chrono::seconds(3)),
+                std::cv_status::no_timeout) << "timed out attempting to get"
+                " vsync callback";
+        if (outDisplay)
+            *outDisplay = mVsyncDisplay;
+        if (outTimestamp)
+            *outTimestamp = mVsyncTimestamp;
+    }
+
     hwc2_device_t* mHwc2Device = nullptr;
 
     enum class Hwc2TestHotplugStatus {
@@ -413,6 +466,11 @@ protected:
     /* Store the power mode state. If it is not HWC2_POWER_MODE_OFF when
      * tearing down the test cases, change it to HWC2_POWER_MODE_OFF */
     std::set<hwc2_display_t> mActiveDisplays;
+
+    std::mutex mVsyncMutex;
+    std::condition_variable mVsyncCv;
+    hwc2_display_t mVsyncDisplay;
+    int64_t mVsyncTimestamp = -1;
 };
 
 void hwc2TestHotplugCallback(hwc2_callback_data_t callbackData,
@@ -421,6 +479,14 @@ void hwc2TestHotplugCallback(hwc2_callback_data_t callbackData,
     if (callbackData)
         static_cast<Hwc2Test*>(callbackData)->hotplugCallback(display,
                 connection);
+}
+
+void hwc2TestVsyncCallback(hwc2_callback_data_t callbackData,
+        hwc2_display_t display, int64_t timestamp)
+{
+    if (callbackData)
+        static_cast<Hwc2Test*>(callbackData)->vsyncCallback(display,
+                timestamp);
 }
 
 
@@ -1063,6 +1129,150 @@ TEST_F(Hwc2Test, SET_POWER_MODE_stress)
                 HWC2_POWER_MODE_DOZE_SUSPEND));
         ASSERT_NO_FATAL_FAILURE(setPowerMode(display,
                 HWC2_POWER_MODE_DOZE_SUSPEND));
+
+        ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_OFF));
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 can enable and disable vsync on active
+ * displays */
+TEST_F(Hwc2Test, SET_VSYNC_ENABLED)
+{
+    for (auto display : mDisplays) {
+        hwc2_callback_data_t data = reinterpret_cast<hwc2_callback_data_t>(
+                const_cast<char*>("data"));
+
+        ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_ON));
+
+        ASSERT_NO_FATAL_FAILURE(registerCallback(HWC2_CALLBACK_VSYNC, data,
+                []() { return; }));
+
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_ENABLE));
+
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_DISABLE));
+
+        ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_OFF));
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 issues a valid vsync callback. */
+TEST_F(Hwc2Test, SET_VSYNC_ENABLED_callback)
+{
+    for (auto display : mDisplays) {
+        hwc2_display_t receivedDisplay;
+        int64_t receivedTimestamp;
+
+        ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_ON));
+
+        ASSERT_NO_FATAL_FAILURE(enableVsync(display));
+
+        ASSERT_NO_FATAL_FAILURE(waitForVsync(&receivedDisplay,
+                &receivedTimestamp));
+
+        EXPECT_EQ(receivedDisplay, display) << "failed to get correct display";
+        EXPECT_GE(receivedTimestamp, 0) << "failed to get valid timestamp";
+
+        ASSERT_NO_FATAL_FAILURE(disableVsync(display));
+
+        ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_OFF));
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 cannot enable a vsync for a bad display */
+TEST_F(Hwc2Test, SET_VSYNC_ENABLED_bad_display)
+{
+    hwc2_display_t display;
+    hwc2_callback_data_t data = reinterpret_cast<hwc2_callback_data_t>(
+            const_cast<char*>("data"));
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
+
+    ASSERT_NO_FATAL_FAILURE(registerCallback(HWC2_CALLBACK_VSYNC, data,
+            []() { return; }));
+
+    ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_ENABLE, &err));
+    EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
+
+    ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_DISABLE, &err));
+    EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
+}
+
+/* TESTCASE: Tests that the HWC2 cannot enable an invalid vsync value */
+TEST_F(Hwc2Test, SET_VSYNC_ENABLED_bad_parameter)
+{
+    for (auto display : mDisplays) {
+        hwc2_callback_data_t data = reinterpret_cast<hwc2_callback_data_t>(
+                const_cast<char*>("data"));
+        hwc2_error_t err = HWC2_ERROR_NONE;
+
+        ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_ON));
+
+        ASSERT_NO_FATAL_FAILURE(registerCallback(HWC2_CALLBACK_VSYNC, data,
+                []() { return; }));
+
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_INVALID,
+                &err));
+        EXPECT_EQ(err, HWC2_ERROR_BAD_PARAMETER) << "returned wrong error code";
+
+        ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_OFF));
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 can enable and disable a vsync value multiple
+ * times. */
+TEST_F(Hwc2Test, SET_VSYNC_ENABLED_stress)
+{
+    for (auto display : mDisplays) {
+        hwc2_callback_data_t data = reinterpret_cast<hwc2_callback_data_t>(
+                const_cast<char*>("data"));
+
+        ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_ON));
+
+        ASSERT_NO_FATAL_FAILURE(registerCallback(HWC2_CALLBACK_VSYNC, data,
+                []() { return; }));
+
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_DISABLE));
+
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_ENABLE));
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_ENABLE));
+
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_DISABLE));
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_DISABLE));
+
+        ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_OFF));
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 can set a vsync enable value when the display
+ * is off and no callback is registered. */
+TEST_F(Hwc2Test, SET_VSYNC_ENABLED_no_callback_no_power)
+{
+    const uint secs = 1;
+
+    for (auto display : mDisplays) {
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_ENABLE));
+
+        sleep(secs);
+
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_DISABLE));
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 can set a vsync enable value when no callback
+ * is registered. */
+TEST_F(Hwc2Test, SET_VSYNC_ENABLED_no_callback)
+{
+    const uint secs = 1;
+
+    for (auto display : mDisplays) {
+        ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_ON));
+
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_ENABLE));
+
+        sleep(secs);
+
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_DISABLE));
 
         ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_OFF));
     }
