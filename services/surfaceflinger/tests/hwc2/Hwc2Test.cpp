@@ -374,6 +374,22 @@ public:
         }
     }
 
+    void setLayerDataspace(hwc2_display_t display, hwc2_layer_t layer,
+            android_dataspace_t dataspace, hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_SET_LAYER_DATASPACE>(
+                getFunction(HWC2_FUNCTION_SET_LAYER_DATASPACE));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display,
+                layer, dataspace));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set layer dataspace";
+        }
+    }
+
 protected:
     hwc2_function_pointer_t getFunction(hwc2_function_descriptor_t descriptor)
     {
@@ -728,6 +744,13 @@ void setComposition(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
     }
 }
 
+void setDataspace(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
+        const Hwc2TestLayer& testLayer, hwc2_error_t* outErr)
+{
+    EXPECT_NO_FATAL_FAILURE(test->setLayerDataspace(display, layer,
+            testLayer.getDataspace(), outErr));
+}
+
 bool advanceBlendMode(Hwc2TestLayer* testLayer)
 {
     return testLayer->advanceBlendMode();
@@ -736,6 +759,11 @@ bool advanceBlendMode(Hwc2TestLayer* testLayer)
 bool advanceComposition(Hwc2TestLayer* testLayer)
 {
     return testLayer->advanceComposition();
+}
+
+bool advanceDataspace(Hwc2TestLayer* testLayer)
+{
+    return testLayer->advanceDataspace();
 }
 
 
@@ -1618,4 +1646,25 @@ TEST_F(Hwc2Test, SET_LAYER_BLEND_MODE_bad_parameter)
                         layer, HWC2_BLEND_MODE_INVALID, outErr));
             }
     ));
+}
+
+/* TESTCASE: Tests that the HWC2 can set the dataspace of a layer. */
+TEST_F(Hwc2Test, SET_LAYER_DATASPACE)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerProperty(Hwc2TestCoverage::Complete,
+            setDataspace, advanceDataspace));
+}
+
+/* TESTCASE: Tests that the HWC2 can update the dataspace of a layer. */
+TEST_F(Hwc2Test, SET_LAYER_DATASPACE_update)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyUpdate(Hwc2TestCoverage::Complete,
+            setDataspace, advanceDataspace));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set a dataspace for a bad layer. */
+TEST_F(Hwc2Test, SET_LAYER_DATASPACE_bad_layer)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyBadLayer(Hwc2TestCoverage::Default,
+            setDataspace));
 }

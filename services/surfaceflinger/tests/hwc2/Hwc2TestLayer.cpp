@@ -20,7 +20,8 @@
 
 Hwc2TestLayer::Hwc2TestLayer(Hwc2TestCoverage coverage)
     : mBlendMode(coverage),
-      mComposition(coverage) { }
+      mComposition(coverage),
+      mDataspace(coverage) { }
 
 std::string Hwc2TestLayer::dump() const
 {
@@ -52,6 +53,11 @@ hwc2_composition_t Hwc2TestLayer::getComposition() const
     return mComposition.get();
 }
 
+android_dataspace_t Hwc2TestLayer::getDataspace() const
+{
+    return mDataspace.get();
+}
+
 bool Hwc2TestLayer::advanceBlendMode()
 {
     return mBlendMode.advance();
@@ -60,4 +66,9 @@ bool Hwc2TestLayer::advanceBlendMode()
 bool Hwc2TestLayer::advanceComposition()
 {
     return mComposition.advance();
+}
+
+bool Hwc2TestLayer::advanceDataspace()
+{
+    return mDataspace.advance();
 }
