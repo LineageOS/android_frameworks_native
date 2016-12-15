@@ -26,6 +26,8 @@
 #undef HWC2_INCLUDE_STRINGIFICATION
 #undef HWC2_USE_CPP11
 
+#include "Hwc2TestLayer.h"
+
 void hwc2TestHotplugCallback(hwc2_callback_data_t callbackData,
         hwc2_display_t display, int32_t connected);
 void hwc2TestVsyncCallback(hwc2_callback_data_t callbackData,
@@ -338,6 +340,23 @@ public:
         }
     }
 
+    void setLayerCompositionType(hwc2_display_t display, hwc2_layer_t layer,
+            hwc2_composition_t composition, hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_SET_LAYER_COMPOSITION_TYPE>(
+                getFunction(HWC2_FUNCTION_SET_LAYER_COMPOSITION_TYPE));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, layer,
+                composition));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set layer composition"
+                    " type " << getCompositionName(composition);
+        }
+    }
+
 protected:
     hwc2_function_pointer_t getFunction(hwc2_function_descriptor_t descriptor)
     {
@@ -475,6 +494,152 @@ protected:
             *outTimestamp = mVsyncTimestamp;
     }
 
+    /* Calls a set property function from Hwc2Test to set a property value from
+     * Hwc2TestLayer to hwc2_layer_t on hwc2_display_t */
+    using TestLayerPropertyFunction = void (*)(Hwc2Test* test,
+            hwc2_display_t display, hwc2_layer_t layer,
+            const Hwc2TestLayer& testLayer, hwc2_error_t* outErr);
+
+    /* Calls a set property function from Hwc2Test to set a bad property value
+     * on hwc2_layer_t on hwc2_display_t */
+    using TestLayerPropertyBadLayerFunction = void (*)(Hwc2Test* test,
+            hwc2_display_t display, hwc2_layer_t layer,
+            const Hwc2TestLayer& testLayer, hwc2_error_t* outErr);
+
+    /* Calls a set property function from Hwc2Test to set a bad property value
+     * on hwc2_layer_t on hwc2_display_t */
+    using TestLayerPropertyBadParameterFunction = void (*)(Hwc2Test* test,
+            hwc2_display_t display, hwc2_layer_t layer, hwc2_error_t* outErr);
+
+    /* Advances a property of Hwc2TestLayer */
+    using AdvanceProperty = bool (*)(Hwc2TestLayer* testLayer);
+
+    /* For each active display it cycles through each display config and tests
+     * each property value. It creates a layer, sets the property and then
+     * destroys the layer */
+    void setLayerProperty(Hwc2TestCoverage coverage,
+            TestLayerPropertyFunction function, AdvanceProperty advance)
+    {
+        for (auto display : mDisplays) {
+            std::vector<hwc2_config_t> configs;
+
+            ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+            for (auto config : configs) {
+                hwc2_layer_t layer;
+
+                ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config));
+                Hwc2TestLayer testLayer(coverage);
+
+                do {
+                    ASSERT_NO_FATAL_FAILURE(createLayer(display, &layer));
+
+                    ASSERT_NO_FATAL_FAILURE(function(this, display, layer,
+                            testLayer, nullptr));
+
+                    ASSERT_NO_FATAL_FAILURE(destroyLayer(display, layer));
+                } while (advance(&testLayer));
+            }
+        }
+    }
+
+    /* For each active display it cycles through each display config and tests
+     * each property value. It creates a layer, cycles through each property
+     * value and updates the layer property value and then destroys the layer */
+    void setLayerPropertyUpdate(Hwc2TestCoverage coverage,
+            TestLayerPropertyFunction function, AdvanceProperty advance)
+    {
+        for (auto display : mDisplays) {
+            std::vector<hwc2_config_t> configs;
+
+            ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+            for (auto config : configs) {
+                hwc2_layer_t layer;
+
+                ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config));
+                Hwc2TestLayer testLayer(coverage);
+
+                ASSERT_NO_FATAL_FAILURE(createLayer(display, &layer));
+
+                do {
+                    ASSERT_NO_FATAL_FAILURE(function(this, display, layer,
+                            testLayer, nullptr));
+                } while (advance(&testLayer));
+
+                ASSERT_NO_FATAL_FAILURE(destroyLayer(display, layer));
+            }
+        }
+    }
+
+    /* For each active display it cycles through each display config.
+     * 1) It attempts to set a valid property value to bad layer handle.
+     * 2) It creates a layer x and attempts to set a valid property value to
+     *    layer x + 1
+     * 3) It destroys the layer x and attempts to set a valid property value to
+     *    the destroyed layer x.
+     */
+    void setLayerPropertyBadLayer(Hwc2TestCoverage coverage,
+            TestLayerPropertyBadLayerFunction function)
+    {
+        for (auto display : mDisplays) {
+            std::vector<hwc2_config_t> configs;
+
+            ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+            for (auto config : configs) {
+                hwc2_layer_t layer = 0;
+                hwc2_error_t err = HWC2_ERROR_NONE;
+
+                ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config));
+                Hwc2TestLayer testLayer(coverage);
+
+                ASSERT_NO_FATAL_FAILURE(function(this, display, layer,
+                        testLayer, &err));
+                EXPECT_EQ(err, HWC2_ERROR_BAD_LAYER) << "returned wrong error code";
+
+                ASSERT_NO_FATAL_FAILURE(createLayer(display, &layer));
+
+                ASSERT_NO_FATAL_FAILURE(function(this, display, layer + 1,
+                        testLayer, &err));
+                EXPECT_EQ(err, HWC2_ERROR_BAD_LAYER) << "returned wrong error code";
+
+                ASSERT_NO_FATAL_FAILURE(destroyLayer(display, layer));
+
+                ASSERT_NO_FATAL_FAILURE(function(this, display, layer,
+                        testLayer, &err));
+                EXPECT_EQ(err, HWC2_ERROR_BAD_LAYER) << "returned wrong error code";
+            }
+        }
+    }
+
+    /* For each active display it cycles through each display config and tests
+     * each property value. It creates a layer, sets a bad property value and
+     * then destroys the layer */
+    void setLayerPropertyBadParameter(TestLayerPropertyBadParameterFunction function)
+    {
+        for (auto display : mDisplays) {
+            std::vector<hwc2_config_t> configs;
+
+            ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+            for (auto config : configs) {
+                hwc2_layer_t layer;
+                hwc2_error_t err = HWC2_ERROR_NONE;
+
+                ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config));
+
+                ASSERT_NO_FATAL_FAILURE(createLayer(display, &layer));
+
+                ASSERT_NO_FATAL_FAILURE(function(this, display, layer, &err));
+                EXPECT_EQ(err, HWC2_ERROR_BAD_PARAMETER) << "returned wrong"
+                        " error code";
+
+                ASSERT_NO_FATAL_FAILURE(destroyLayer(display, layer));
+            }
+        }
+    }
+
     hwc2_device_t* mHwc2Device = nullptr;
 
     enum class Hwc2TestHotplugStatus {
@@ -516,6 +681,32 @@ void hwc2TestVsyncCallback(hwc2_callback_data_t callbackData,
     if (callbackData)
         static_cast<Hwc2Test*>(callbackData)->vsyncCallback(display,
                 timestamp);
+}
+
+void setComposition(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
+        const Hwc2TestLayer& testLayer, hwc2_error_t* outErr)
+{
+    hwc2_composition_t composition = testLayer.getComposition();
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(test->setLayerCompositionType(display, layer,
+            composition, &err));
+    if (outErr) {
+        *outErr = err;
+        return;
+    }
+
+    if (composition != HWC2_COMPOSITION_SIDEBAND) {
+        EXPECT_EQ(err, HWC2_ERROR_NONE) << "returned wrong error code";
+    } else {
+        EXPECT_TRUE(err == HWC2_ERROR_NONE || err == HWC2_ERROR_UNSUPPORTED)
+                 << "returned wrong error code";
+    }
+}
+
+bool advanceComposition(Hwc2TestLayer* testLayer)
+{
+    return testLayer->advanceComposition();
 }
 
 
@@ -1329,4 +1520,39 @@ TEST_F(Hwc2Test, GET_DISPLAY_NAME_bad_display)
 
     ASSERT_NO_FATAL_FAILURE(getDisplayName(display, &name, &err));
     EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
+}
+
+/* TESTCASE: Tests that the HWC2 can set basic composition types. */
+TEST_F(Hwc2Test, SET_LAYER_COMPOSITION_TYPE)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerProperty(Hwc2TestCoverage::Complete,
+            setComposition, advanceComposition));
+}
+
+/* TESTCASE: Tests that the HWC2 can update a basic composition type on a
+ * layer. */
+TEST_F(Hwc2Test, SET_LAYER_COMPOSITION_TYPE_update)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyUpdate(Hwc2TestCoverage::Complete,
+            setComposition, advanceComposition));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set a composition type for a bad layer */
+TEST_F(Hwc2Test, SET_LAYER_COMPOSITION_TYPE_bad_layer)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyBadLayer(Hwc2TestCoverage::Default,
+            setComposition));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set a bad composition type */
+TEST_F(Hwc2Test, SET_LAYER_COMPOSITION_TYPE_bad_parameter)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyBadParameter(
+            [] (Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
+                    hwc2_error_t* outErr) {
+
+                ASSERT_NO_FATAL_FAILURE(test->setLayerCompositionType(display,
+                        layer, HWC2_COMPOSITION_INVALID, outErr));
+            }
+    ));
 }
