@@ -38,12 +38,18 @@ extern "C" {
  * Pixel formats that a window can use.
  */
 enum {
+    // NOTE: these values must match the values from graphics/common/x.x/types.hal
+
     /** Red: 8 bits, Green: 8 bits, Blue: 8 bits, Alpha: 8 bits. **/
     WINDOW_FORMAT_RGBA_8888          = 1,
     /** Red: 8 bits, Green: 8 bits, Blue: 8 bits, Unused: 8 bits. **/
     WINDOW_FORMAT_RGBX_8888          = 2,
     /** Red: 5 bits, Green: 6 bits, Blue: 5 bits. **/
     WINDOW_FORMAT_RGB_565            = 4,
+    /** Red: 16 bits, Green: 16 bits, Blue: 16 bits, Alpha: 16 bits. **/
+    WINDOW_FORMAT_RGBA_FP16          = 0x16,
+    /** Red: 16 bits, Green: 16 bits, Blue: 16 bits, Unused: 16 bits. **/
+    WINDOW_FORMAT_RGBX_FP16          = 0x17,
 };
 
 struct ANativeWindow;

@@ -476,6 +476,7 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         // modify the EGLconfig's format before setting the native window's
         // format.
 
+        // TODO: Add support for HAL_PIXEL_FORMAT_RGBA_FP16
         // by default, just pick RGBA_8888
         EGLint format = HAL_PIXEL_FORMAT_RGBA_8888;
         android_dataspace dataSpace = HAL_DATASPACE_UNKNOWN;
