@@ -51,7 +51,7 @@ LOCAL_SRC_FILES := \
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
 LOCAL_STATIC_LIBRARIES := libziparchive
-LOCAL_SHARED_LIBRARIES := libhardware libsync libbase liblog libutils libcutils libz
+LOCAL_SHARED_LIBRARIES := libgui libhardware libsync libbase liblog libutils libcutils libz
 
 LOCAL_MODULE := libvulkan
 include $(BUILD_SHARED_LIBRARY)
