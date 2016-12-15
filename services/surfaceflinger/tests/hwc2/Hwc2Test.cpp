@@ -1022,6 +1022,23 @@ public:
         }
     }
 
+    void dump(std::string* outBuffer)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_DUMP>(
+                getFunction(HWC2_FUNCTION_DUMP));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        uint32_t size = 0;
+
+        pfn(mHwc2Device, &size, nullptr);
+
+        std::vector<char> buffer(size);
+
+        pfn(mHwc2Device, &size, buffer.data());
+
+        outBuffer->assign(buffer.data());
+    }
+
     void getBadDisplay(hwc2_display_t* outDisplay)
     {
         for (hwc2_display_t display = 0; display < UINT64_MAX; display++) {
@@ -4528,4 +4545,12 @@ TEST_F(Hwc2Test, SET_OUTPUT_BUFFER_unsupported)
 
         } while (testVirtualDisplay.advance());
     }
+}
+
+/* TESTCASE: Tests that the HWC2 can dump debug information. */
+TEST_F(Hwc2Test, DUMP)
+{
+    std::string buffer;
+
+    ASSERT_NO_FATAL_FAILURE(dump(&buffer));
 }
