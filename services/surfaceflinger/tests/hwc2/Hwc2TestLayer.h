@@ -33,11 +33,18 @@ public:
 
     void reset();
 
+    hwc2_blend_mode_t  getBlendMode() const;
     hwc2_composition_t getComposition() const;
 
+    bool advanceBlendMode();
     bool advanceComposition();
 
 private:
+    std::array<Hwc2TestContainer*, 2> mProperties = {{
+        &mBlendMode, &mComposition
+    }};
+
+    Hwc2TestBlendMode mBlendMode;
     Hwc2TestComposition mComposition;
 };
 

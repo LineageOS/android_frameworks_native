@@ -17,6 +17,7 @@
 #ifndef _HWC2_TEST_PROPERTIES_H
 #define _HWC2_TEST_PROPERTIES_H
 
+#include <array>
 #include <vector>
 
 #define HWC2_INCLUDE_STRINGIFICATION
@@ -32,20 +33,39 @@ enum class Hwc2TestCoverage {
 };
 
 
-template <class T>
-class Hwc2TestProperty {
+class Hwc2TestContainer {
 public:
+    virtual ~Hwc2TestContainer() = default;
+
+    /* Resets the container */
+    virtual void reset() = 0;
+
+    /* Attempts to advance to the next valid value. Returns true if one can be
+     * found */
+    virtual bool advance() = 0;
+
+    virtual std::string dump() const = 0;
+};
+
+
+template <class T>
+class Hwc2TestProperty : public Hwc2TestContainer {
+public:
+    Hwc2TestProperty(Hwc2TestCoverage coverage,
+            const std::vector<T>& completeList, const std::vector<T>& basicList,
+            const std::vector<T>& defaultList)
+        : Hwc2TestProperty((coverage == Hwc2TestCoverage::Complete)? completeList:
+                (coverage == Hwc2TestCoverage::Basic)? basicList : defaultList) { }
+
     Hwc2TestProperty(const std::vector<T>& list)
         : mList(list) { }
 
-    virtual ~Hwc2TestProperty() { };
-
-    virtual void reset()
+    void reset() override
     {
         mListIdx = 0;
     }
 
-    virtual bool advance()
+    bool advance() override
     {
         if (mListIdx + 1 < mList.size()) {
             mListIdx++;
@@ -55,16 +75,27 @@ public:
         return false;
     }
 
-    virtual T get() const
+    T get() const
     {
         return mList.at(mListIdx);
     }
 
-    virtual std::string dump() const = 0;
-
 protected:
     const std::vector<T>& mList;
     size_t mListIdx = 0;
+};
+
+
+class Hwc2TestBlendMode : public Hwc2TestProperty<hwc2_blend_mode_t> {
+public:
+    Hwc2TestBlendMode(Hwc2TestCoverage coverage);
+
+    std::string dump() const override;
+
+protected:
+    static const std::vector<hwc2_blend_mode_t> mDefaultBlendModes;
+    static const std::vector<hwc2_blend_mode_t> mBasicBlendModes;
+    static const std::vector<hwc2_blend_mode_t> mCompleteBlendModes;
 };
 
 
