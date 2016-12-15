@@ -19,14 +19,14 @@
 #include "Hwc2TestLayers.h"
 
 Hwc2TestLayers::Hwc2TestLayers(const std::vector<hwc2_layer_t>& layers,
-        Hwc2TestCoverage coverage)
+        Hwc2TestCoverage coverage, const Area& displayArea)
 {
     uint32_t nextZOrder = 0;
 
     for (auto layer : layers) {
         mTestLayers.emplace(std::piecewise_construct,
                 std::forward_as_tuple(layer),
-                std::forward_as_tuple(coverage, nextZOrder++));
+                std::forward_as_tuple(coverage, displayArea, nextZOrder++));
     }
 }
 

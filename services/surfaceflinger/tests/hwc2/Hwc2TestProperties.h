@@ -32,6 +32,11 @@ enum class Hwc2TestCoverage {
     Complete,
 };
 
+typedef struct {
+    int32_t width;
+    int32_t height;
+} Area;
+
 
 class Hwc2TestContainer {
 public:
@@ -122,6 +127,26 @@ protected:
     static const std::vector<android_dataspace_t> defaultDataspaces;
     static const std::vector<android_dataspace_t> basicDataspaces;
     static const std::vector<android_dataspace_t> completeDataspaces;
+};
+
+
+class Hwc2TestDisplayFrame : public Hwc2TestProperty<hwc_rect_t> {
+public:
+    Hwc2TestDisplayFrame(Hwc2TestCoverage coverage, const Area& displayArea);
+
+    std::string dump() const override;
+
+protected:
+    void update();
+
+    const std::vector<hwc_frect_t>& mFrectScalars;
+    const static std::vector<hwc_frect_t> mDefaultFrectScalars;
+    const static std::vector<hwc_frect_t> mBasicFrectScalars;
+    const static std::vector<hwc_frect_t> mCompleteFrectScalars;
+
+    Area mDisplayArea;
+
+    std::vector<hwc_rect_t> mDisplayFrames;
 };
 
 
