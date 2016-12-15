@@ -868,7 +868,7 @@ void SensorService::makeUuidsIntoIdsForSensorList(Vector<Sensor> &sensorList) co
     }
 }
 
-Vector<Sensor> SensorService::getSensorList(const String16& opPackageName) {
+Vector<Sensor> SensorService::getSensorList(const String16& /* opPackageName */) {
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sensors", value, "0");
     const Vector<Sensor>& initialSensorList = (atoi(value)) ?
@@ -876,14 +876,7 @@ Vector<Sensor> SensorService::getSensorList(const String16& opPackageName) {
     Vector<Sensor> accessibleSensorList;
     for (size_t i = 0; i < initialSensorList.size(); i++) {
         Sensor sensor = initialSensorList[i];
-        if (canAccessSensor(sensor, "getSensorList", opPackageName)) {
-            accessibleSensorList.add(sensor);
-        } else {
-            ALOGI("Skipped sensor %s because it requires permission %s and app op %d",
-                  sensor.getName().string(),
-                  sensor.getRequiredPermission().string(),
-                  sensor.getRequiredAppOp());
-        }
+        accessibleSensorList.add(sensor);
     }
     makeUuidsIntoIdsForSensorList(accessibleSensorList);
     return accessibleSensorList;
