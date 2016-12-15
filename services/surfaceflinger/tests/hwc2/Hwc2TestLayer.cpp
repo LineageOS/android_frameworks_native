@@ -22,6 +22,7 @@ Hwc2TestLayer::Hwc2TestLayer(Hwc2TestCoverage coverage, const Area& displayArea,
         uint32_t zOrder)
     : mBlendMode(coverage),
       mBufferArea(coverage, displayArea),
+      mColor(coverage),
       mComposition(coverage),
       mDataspace(coverage),
       mDisplayFrame(coverage, displayArea),
@@ -31,6 +32,7 @@ Hwc2TestLayer::Hwc2TestLayer(Hwc2TestCoverage coverage, const Area& displayArea,
       mZOrder(zOrder)
 {
     mBufferArea.setDependent(&mSourceCrop);
+    mBlendMode.setDependent(&mColor);
 }
 
 std::string Hwc2TestLayer::dump() const
@@ -58,6 +60,11 @@ void Hwc2TestLayer::reset()
 hwc2_blend_mode_t Hwc2TestLayer::getBlendMode() const
 {
     return mBlendMode.get();
+}
+
+hwc_color_t Hwc2TestLayer::getColor() const
+{
+    return mColor.get();
 }
 
 hwc2_composition_t Hwc2TestLayer::getComposition() const
@@ -103,6 +110,11 @@ bool Hwc2TestLayer::advanceBlendMode()
 bool Hwc2TestLayer::advanceBufferArea()
 {
     return mBufferArea.advance();
+}
+
+bool Hwc2TestLayer::advanceColor()
+{
+    return mColor.advance();
 }
 
 bool Hwc2TestLayer::advanceComposition()

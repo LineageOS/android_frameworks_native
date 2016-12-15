@@ -375,6 +375,22 @@ public:
         }
     }
 
+    void setLayerColor(hwc2_display_t display, hwc2_layer_t layer,
+            hwc_color_t color, hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_SET_LAYER_COLOR>(
+                getFunction(HWC2_FUNCTION_SET_LAYER_COLOR));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, layer,
+                color));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set layer color";
+        }
+    }
+
     void setLayerDataspace(hwc2_display_t display, hwc2_layer_t layer,
             android_dataspace_t dataspace, hwc2_error_t* outErr = nullptr)
     {
@@ -875,6 +891,19 @@ void setBlendMode(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
             testLayer.getBlendMode(), outErr));
 }
 
+void setColor(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
+        const Hwc2TestLayer& testLayer, hwc2_error_t* outErr)
+{
+    ASSERT_NO_FATAL_FAILURE(test->setLayerCompositionType(display,
+            layer, HWC2_COMPOSITION_SOLID_COLOR));
+    ASSERT_NO_FATAL_FAILURE(test->setLayerPlaneAlpha(display,
+            layer, testLayer.getPlaneAlpha()));
+    ASSERT_NO_FATAL_FAILURE(test->setLayerBlendMode(display,
+            layer, testLayer.getBlendMode()));
+    EXPECT_NO_FATAL_FAILURE(test->setLayerColor(display, layer,
+            testLayer.getColor(), outErr));
+}
+
 void setComposition(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
         const Hwc2TestLayer& testLayer, hwc2_error_t* outErr)
 {
@@ -942,6 +971,17 @@ void setZOrder(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
 
 bool advanceBlendMode(Hwc2TestLayer* testLayer)
 {
+    return testLayer->advanceBlendMode();
+}
+
+bool advanceColor(Hwc2TestLayer* testLayer)
+{
+    /* Color depends on blend mode so advance blend mode last so color is not
+     * force to update as often */
+    if (testLayer->advancePlaneAlpha())
+        return true;
+    if (testLayer->advanceColor())
+        return true;
     return testLayer->advanceBlendMode();
 }
 
@@ -1855,6 +1895,48 @@ TEST_F(Hwc2Test, SET_LAYER_BLEND_MODE_bad_parameter)
 
                 ASSERT_NO_FATAL_FAILURE(test->setLayerBlendMode(display,
                         layer, HWC2_BLEND_MODE_INVALID, outErr));
+            }
+    ));
+}
+
+/* TESTCASE: Tests that the HWC2 can set the color of a layer. */
+TEST_F(Hwc2Test, SET_LAYER_COLOR)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerProperty(Hwc2TestCoverage::Complete,
+            setColor, advanceColor));
+}
+
+/* TESTCASE: Tests that the HWC2 can update the color of a layer. */
+TEST_F(Hwc2Test, SET_LAYER_COLOR_update)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyUpdate(Hwc2TestCoverage::Complete,
+            setColor, advanceColor));
+}
+
+/* TESTCASE: Tests that the HWC2 can set the color of a layer when the
+ * composition type has not been set to HWC2_COMPOSITION_SOLID_COLOR. */
+TEST_F(Hwc2Test, SET_LAYER_COLOR_composition_type_unset)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerProperty(Hwc2TestCoverage::Basic,
+            [] (Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
+                    const Hwc2TestLayer& testLayer, hwc2_error_t* outErr) {
+
+                EXPECT_NO_FATAL_FAILURE(test->setLayerColor(display, layer,
+                        testLayer.getColor(), outErr));
+            },
+
+            advanceColor));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set the color of a bad layer. */
+TEST_F(Hwc2Test, SET_LAYER_COLOR_bad_layer)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyBadLayer(Hwc2TestCoverage::Default,
+            [] (Hwc2Test* test, hwc2_display_t display, hwc2_layer_t badLayer,
+                    const Hwc2TestLayer& testLayer, hwc2_error_t* outErr) {
+
+                EXPECT_NO_FATAL_FAILURE(test->setLayerColor(display, badLayer,
+                        testLayer.getColor(), outErr));
             }
     ));
 }

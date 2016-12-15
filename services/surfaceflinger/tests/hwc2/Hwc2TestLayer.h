@@ -35,6 +35,7 @@ public:
     void reset();
 
     hwc2_blend_mode_t      getBlendMode() const;
+    hwc_color_t            getColor() const;
     hwc2_composition_t     getComposition() const;
     android_dataspace_t    getDataspace() const;
     hwc_rect_t             getDisplayFrame() const;
@@ -45,6 +46,7 @@ public:
 
     bool advanceBlendMode();
     bool advanceBufferArea();
+    bool advanceColor();
     bool advanceComposition();
     bool advanceDataspace();
     bool advanceDisplayFrame();
@@ -53,13 +55,14 @@ public:
     bool advanceTransform();
 
 private:
-    std::array<Hwc2TestContainer*, 7> mProperties = {{
-        &mBlendMode, &mComposition, &mDataspace, &mDisplayFrame, &mPlaneAlpha,
-        &mSourceCrop, &mTransform
+    std::array<Hwc2TestContainer*, 8> mProperties = {{
+        &mBlendMode, &mColor, &mComposition, &mDataspace, &mDisplayFrame,
+        &mPlaneAlpha, &mSourceCrop, &mTransform
     }};
 
     Hwc2TestBlendMode mBlendMode;
     Hwc2TestBufferArea mBufferArea;
+    Hwc2TestColor mColor;
     Hwc2TestComposition mComposition;
     Hwc2TestDataspace mDataspace;
     Hwc2TestDisplayFrame mDisplayFrame;

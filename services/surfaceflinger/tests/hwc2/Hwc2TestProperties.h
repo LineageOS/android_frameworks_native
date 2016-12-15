@@ -123,16 +123,47 @@ protected:
 };
 
 
+class Hwc2TestColor;
+
 class Hwc2TestBlendMode : public Hwc2TestProperty<hwc2_blend_mode_t> {
 public:
     Hwc2TestBlendMode(Hwc2TestCoverage coverage);
 
     std::string dump() const override;
 
+    void setDependent(Hwc2TestColor* color);
+
 protected:
+    void updateDependents() override;
+
+    Hwc2TestColor* mColor = nullptr;
+
     static const std::vector<hwc2_blend_mode_t> mDefaultBlendModes;
     static const std::vector<hwc2_blend_mode_t> mBasicBlendModes;
     static const std::vector<hwc2_blend_mode_t> mCompleteBlendModes;
+};
+
+
+class Hwc2TestColor : public Hwc2TestProperty<hwc_color_t> {
+public:
+    Hwc2TestColor(Hwc2TestCoverage coverage,
+            hwc2_blend_mode_t blendMode = HWC2_BLEND_MODE_NONE);
+
+    std::string dump() const override;
+
+    void updateBlendMode(hwc2_blend_mode_t blendMode);
+
+protected:
+    void update();
+
+    std::vector<hwc_color_t> mBaseColors;
+    static const std::vector<hwc_color_t> mDefaultBaseColors;
+    static const std::vector<hwc_color_t> mBasicBaseColors;
+    static const std::vector<hwc_color_t> mCompleteBaseColors;
+
+    hwc2_blend_mode_t mBlendMode;
+
+    std::vector<hwc_color_t> mColors;
 };
 
 

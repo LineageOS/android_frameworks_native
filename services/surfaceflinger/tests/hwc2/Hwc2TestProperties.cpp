@@ -93,6 +93,18 @@ std::string Hwc2TestBlendMode::dump() const
     return dmp.str();
 }
 
+void Hwc2TestBlendMode::setDependent(Hwc2TestColor* color)
+{
+    mColor = color;
+    updateDependents();
+}
+
+void Hwc2TestBlendMode::updateDependents()
+{
+    if (mColor)
+        mColor->updateBlendMode(get());
+}
+
 const std::vector<hwc2_blend_mode_t> Hwc2TestBlendMode::mDefaultBlendModes = {
     HWC2_BLEND_MODE_NONE,
 };
@@ -106,6 +118,80 @@ const std::vector<hwc2_blend_mode_t> Hwc2TestBlendMode::mCompleteBlendModes = {
     HWC2_BLEND_MODE_NONE,
     HWC2_BLEND_MODE_PREMULTIPLIED,
     HWC2_BLEND_MODE_COVERAGE,
+};
+
+
+Hwc2TestColor::Hwc2TestColor(Hwc2TestCoverage coverage,
+        hwc2_blend_mode_t blendMode)
+    : Hwc2TestProperty(mColors),
+      mBaseColors((coverage == Hwc2TestCoverage::Complete)? mCompleteBaseColors:
+            (coverage == Hwc2TestCoverage::Basic)? mBasicBaseColors:
+            mDefaultBaseColors),
+      mBlendMode(blendMode)
+{
+    update();
+}
+
+std::string Hwc2TestColor::dump() const
+{
+    std::stringstream dmp;
+    const hwc_color_t& color = get();
+    dmp << "\tcolor: r " << std::to_string(color.r) << ", g "
+            << std::to_string(color.g) << ", b " << std::to_string(color.b)
+            << ", a " << std::to_string(color.a) << "\n";
+    return dmp.str();
+}
+
+void Hwc2TestColor::updateBlendMode(hwc2_blend_mode_t blendMode)
+{
+    mBlendMode = blendMode;
+    update();
+}
+
+void Hwc2TestColor::update()
+{
+    if (mBlendMode != HWC2_BLEND_MODE_PREMULTIPLIED) {
+        mColors = mBaseColors;
+        return;
+    }
+
+    mColors.clear();
+
+    for (const hwc_color_t& baseColor : mBaseColors) {
+        if (baseColor.a >= baseColor.r && baseColor.a >= baseColor.g
+                && baseColor.a >= baseColor.b) {
+            mColors.push_back(baseColor);
+        }
+    }
+
+}
+
+const std::vector<hwc_color_t> Hwc2TestColor::mDefaultBaseColors = {
+    {UINT8_MAX, UINT8_MAX, UINT8_MAX, UINT8_MAX},
+};
+
+const std::vector<hwc_color_t> Hwc2TestColor::mBasicBaseColors = {
+    {UINT8_MAX, UINT8_MAX, UINT8_MAX, UINT8_MAX},
+    {        0,         0,         0,         0},
+};
+
+const std::vector<hwc_color_t> Hwc2TestColor::mCompleteBaseColors = {
+    {UINT8_MAX, UINT8_MAX, UINT8_MAX, UINT8_MAX},
+    {UINT8_MAX, UINT8_MAX, UINT8_MAX,         0},
+    {UINT8_MAX, UINT8_MAX,         0, UINT8_MAX},
+    {UINT8_MAX, UINT8_MAX,         0,         0},
+    {UINT8_MAX,         0, UINT8_MAX, UINT8_MAX},
+    {UINT8_MAX,         0, UINT8_MAX,         0},
+    {UINT8_MAX,         0,         0, UINT8_MAX},
+    {UINT8_MAX,         0,         0,         0},
+    {        0, UINT8_MAX, UINT8_MAX, UINT8_MAX},
+    {        0, UINT8_MAX, UINT8_MAX,         0},
+    {        0, UINT8_MAX,         0, UINT8_MAX},
+    {        0, UINT8_MAX,         0,         0},
+    {        0,         0, UINT8_MAX, UINT8_MAX},
+    {        0,         0, UINT8_MAX,         0},
+    {        0,         0,         0, UINT8_MAX},
+    {        0,         0,         0,         0},
 };
 
 
