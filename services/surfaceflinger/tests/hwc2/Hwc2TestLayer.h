@@ -37,6 +37,7 @@ public:
     hwc2_blend_mode_t      getBlendMode() const;
     hwc_color_t            getColor() const;
     hwc2_composition_t     getComposition() const;
+    hwc_rect_t             getCursorPosition() const;
     android_dataspace_t    getDataspace() const;
     hwc_rect_t             getDisplayFrame() const;
     float                  getPlaneAlpha() const;
@@ -48,6 +49,7 @@ public:
     bool advanceBufferArea();
     bool advanceColor();
     bool advanceComposition();
+    bool advanceCursorPosition();
     bool advanceDataspace();
     bool advanceDisplayFrame();
     bool advancePlaneAlpha();

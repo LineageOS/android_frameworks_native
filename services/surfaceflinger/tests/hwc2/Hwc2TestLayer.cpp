@@ -72,6 +72,12 @@ hwc2_composition_t Hwc2TestLayer::getComposition() const
     return mComposition.get();
 }
 
+/* The cursor position corresponds to {displayFrame.left, displayFrame.top} */
+hwc_rect_t Hwc2TestLayer::getCursorPosition() const
+{
+    return mDisplayFrame.get();
+}
+
 android_dataspace_t Hwc2TestLayer::getDataspace() const
 {
     return mDataspace.get();
@@ -120,6 +126,11 @@ bool Hwc2TestLayer::advanceColor()
 bool Hwc2TestLayer::advanceComposition()
 {
     return mComposition.advance();
+}
+
+bool Hwc2TestLayer::advanceCursorPosition()
+{
+    return mDisplayFrame.advance();
 }
 
 bool Hwc2TestLayer::advanceDataspace()
