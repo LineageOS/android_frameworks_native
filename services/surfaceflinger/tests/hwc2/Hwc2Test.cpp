@@ -473,6 +473,23 @@ public:
         }
     }
 
+    void setLayerSurfaceDamage(hwc2_display_t display, hwc2_layer_t layer,
+            const hwc_region_t& surfaceDamage, hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_SET_LAYER_SURFACE_DAMAGE>(
+                getFunction(HWC2_FUNCTION_SET_LAYER_SURFACE_DAMAGE));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, layer,
+                surfaceDamage));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set layer surface"
+                    " damage";
+        }
+    }
+
     void setLayerTransform(hwc2_display_t display, hwc2_layer_t layer,
             hwc_transform_t transform, hwc2_error_t* outErr = nullptr)
     {
@@ -982,6 +999,13 @@ void setSourceCrop(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
             testLayer.getSourceCrop(), outErr));
 }
 
+void setSurfaceDamage(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
+        const Hwc2TestLayer& testLayer, hwc2_error_t* outErr)
+{
+    EXPECT_NO_FATAL_FAILURE(test->setLayerSurfaceDamage(display, layer,
+            testLayer.getSurfaceDamage(), outErr));
+}
+
 void setTransform(Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
         const Hwc2TestLayer& testLayer, hwc2_error_t* outErr)
 {
@@ -1040,6 +1064,13 @@ bool advancePlaneAlpha(Hwc2TestLayer* testLayer)
 bool advanceSourceCrop(Hwc2TestLayer* testLayer)
 {
     if (testLayer->advanceSourceCrop())
+        return true;
+    return testLayer->advanceBufferArea();
+}
+
+bool advanceSurfaceDamage(Hwc2TestLayer* testLayer)
+{
+    if (testLayer->advanceSurfaceDamage())
         return true;
     return testLayer->advanceBufferArea();
 }
@@ -2121,6 +2152,27 @@ TEST_F(Hwc2Test, SET_LAYER_SOURCE_CROP_bad_layer)
 {
     ASSERT_NO_FATAL_FAILURE(setLayerPropertyBadLayer(Hwc2TestCoverage::Default,
             setSourceCrop));
+}
+
+/* TESTCASE: Tests that the HWC2 can set the surface damage of a layer. */
+TEST_F(Hwc2Test, SET_LAYER_SURFACE_DAMAGE)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerProperty(Hwc2TestCoverage::Complete,
+            setSurfaceDamage, advanceSurfaceDamage));
+}
+
+/* TESTCASE: Tests that the HWC2 can update the surface damage of a layer. */
+TEST_F(Hwc2Test, SET_LAYER_SURFACE_DAMAGE_update)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyUpdate(Hwc2TestCoverage::Complete,
+            setSurfaceDamage, advanceSurfaceDamage));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set the surface damage of a bad layer. */
+TEST_F(Hwc2Test, SET_LAYER_SURFACE_DAMAGE_bad_layer)
+{
+    ASSERT_NO_FATAL_FAILURE(setLayerPropertyBadLayer(Hwc2TestCoverage::Default,
+            setSurfaceDamage));
 }
 
 /* TESTCASE: Tests that the HWC2 can set the transform value of a layer. */

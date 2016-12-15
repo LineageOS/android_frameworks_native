@@ -97,6 +97,7 @@ protected:
 
 
 class Hwc2TestSourceCrop;
+class Hwc2TestSurfaceDamage;
 
 class Hwc2TestBufferArea : public Hwc2TestProperty<Area> {
 public:
@@ -105,6 +106,7 @@ public:
     std::string dump() const override;
 
     void setDependent(Hwc2TestSourceCrop* sourceCrop);
+    void setDependent(Hwc2TestSurfaceDamage* surfaceDamage);
 
 protected:
     void update();
@@ -118,6 +120,7 @@ protected:
     Area mDisplayArea;
 
     Hwc2TestSourceCrop* mSourceCrop = nullptr;
+    Hwc2TestSurfaceDamage* mSurfaceDamage = nullptr;
 
     std::vector<Area> mBufferAreas;
 };
@@ -245,6 +248,30 @@ protected:
     Area mBufferArea;
 
     std::vector<hwc_frect_t> mSourceCrops;
+};
+
+
+class Hwc2TestSurfaceDamage : public Hwc2TestProperty<hwc_region_t> {
+public:
+    Hwc2TestSurfaceDamage(Hwc2TestCoverage coverage);
+    ~Hwc2TestSurfaceDamage();
+
+    std::string dump() const override;
+
+    void updateBufferArea(const Area& bufferArea);
+
+protected:
+    void update();
+    void freeSurfaceDamages();
+
+    const std::vector<std::vector<hwc_frect_t>> &mRegionScalars;
+    const static std::vector<std::vector<hwc_frect_t>> mDefaultRegionScalars;
+    const static std::vector<std::vector<hwc_frect_t>> mBasicRegionScalars;
+    const static std::vector<std::vector<hwc_frect_t>> mCompleteRegionScalars;
+
+    Area mBufferArea = {0, 0};
+
+    std::vector<hwc_region_t> mSurfaceDamages;
 };
 
 

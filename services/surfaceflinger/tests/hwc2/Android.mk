@@ -25,7 +25,7 @@ LOCAL_CFLAGS += \
     -Wall -Wextra \
     -Werror \
     -fno-builtin
-LOCAL_SHARED_LIBRARIES := libcutils libutils libhardware
+LOCAL_SHARED_LIBRARIES := libcutils libutils libhardware liblog
 LOCAL_STATIC_LIBRARIES := libbase libadf libadfhwc
 LOCAL_SRC_FILES := \
     Hwc2Test.cpp \

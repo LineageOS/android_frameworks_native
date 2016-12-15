@@ -42,6 +42,7 @@ public:
     hwc_rect_t             getDisplayFrame() const;
     float                  getPlaneAlpha() const;
     hwc_frect_t            getSourceCrop() const;
+    hwc_region_t           getSurfaceDamage() const;
     hwc_transform_t        getTransform() const;
     uint32_t               getZOrder() const;
 
@@ -54,12 +55,13 @@ public:
     bool advanceDisplayFrame();
     bool advancePlaneAlpha();
     bool advanceSourceCrop();
+    bool advanceSurfaceDamage();
     bool advanceTransform();
 
 private:
-    std::array<Hwc2TestContainer*, 8> mProperties = {{
+    std::array<Hwc2TestContainer*, 9> mProperties = {{
         &mBlendMode, &mColor, &mComposition, &mDataspace, &mDisplayFrame,
-        &mPlaneAlpha, &mSourceCrop, &mTransform
+        &mPlaneAlpha, &mSourceCrop, &mSurfaceDamage, &mTransform
     }};
 
     Hwc2TestBlendMode mBlendMode;
@@ -70,6 +72,7 @@ private:
     Hwc2TestDisplayFrame mDisplayFrame;
     Hwc2TestPlaneAlpha mPlaneAlpha;
     Hwc2TestSourceCrop mSourceCrop;
+    Hwc2TestSurfaceDamage mSurfaceDamage;
     Hwc2TestTransform mTransform;
 
     uint32_t mZOrder;
