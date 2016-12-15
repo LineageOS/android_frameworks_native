@@ -98,24 +98,6 @@ checkGlesEmulationStatus(void)
 
 // ----------------------------------------------------------------------------
 
-static char const * getProcessCmdline() {
-    long pid = getpid();
-    char procPath[128];
-    snprintf(procPath, 128, "/proc/%ld/cmdline", pid);
-    FILE * file = fopen(procPath, "r");
-    if (file) {
-        static char cmdline[256];
-        char *str = fgets(cmdline, sizeof(cmdline) - 1, file);
-        fclose(file);
-        if (str) {
-            return cmdline;
-        }
-    }
-    return NULL;
-}
-
-// ----------------------------------------------------------------------------
-
 Loader::driver_t::driver_t(void* gles)
 {
     dso[0] = gles;
