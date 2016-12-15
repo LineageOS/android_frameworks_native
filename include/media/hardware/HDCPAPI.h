@@ -73,7 +73,7 @@ struct HDCPModule {
     // Module can call the notification function to signal completion/failure
     // of asynchronous operations (such as initialization) or out of band
     // events.
-    HDCPModule(void *cookie, ObserverFunc observerNotify) {};
+    HDCPModule(void * /*cookie*/, ObserverFunc /*observerNotify*/) {};
 
     virtual ~HDCPModule() {};
 
@@ -104,8 +104,8 @@ struct HDCPModule {
     // 1 for the second and so on)
     // inputCTR _will_be_maintained_by_the_callee_ for each PES stream.
     virtual status_t encrypt(
-            const void *inData, size_t size, uint32_t streamCTR,
-            uint64_t *outInputCTR, void *outData) {
+            const void * /*inData*/, size_t /*size*/, uint32_t /*streamCTR*/,
+            uint64_t * /*outInputCTR*/, void * /*outData*/) {
         return INVALID_OPERATION;
     }
 
@@ -119,8 +119,8 @@ struct HDCPModule {
     // 1 for the second and so on)
     // inputCTR _will_be_maintained_by_the_callee_ for each PES stream.
     virtual status_t encryptNative(
-            buffer_handle_t buffer, size_t offset, size_t size,
-            uint32_t streamCTR, uint64_t *outInputCTR, void *outData) {
+            buffer_handle_t /*buffer*/, size_t /*offset*/, size_t /*size*/,
+            uint32_t /*streamCTR*/, uint64_t * /*outInputCTR*/, void * /*outData*/) {
         return INVALID_OPERATION;
     }
     // DECRYPTION only:
@@ -133,9 +133,9 @@ struct HDCPModule {
     // until outData contains size bytes of decrypted data.
     // Both streamCTR and inputCTR will be provided by the caller.
     virtual status_t decrypt(
-            const void *inData, size_t size,
-            uint32_t streamCTR, uint64_t inputCTR,
-            void *outData) {
+            const void * /*inData*/, size_t /*size*/,
+            uint32_t /*streamCTR*/, uint64_t /*inputCTR*/,
+            void * /*outData*/) {
         return INVALID_OPERATION;
     }
 
