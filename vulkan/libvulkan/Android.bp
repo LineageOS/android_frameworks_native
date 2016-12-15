@@ -69,6 +69,7 @@ cc_library_shared {
         "libziparchive",
     ],
     shared_libs: [
+        "libgui",
         "libhardware",
         "libsync",
         "libbase",
