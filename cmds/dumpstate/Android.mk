@@ -107,8 +107,6 @@ LOCAL_SHARED_LIBRARIES := $(COMMON_SHARED_LIBRARIES) \
 
 LOCAL_STATIC_LIBRARIES := $(COMMON_STATIC_LIBRARIES)
 
-LOCAL_HAL_STATIC_LIBRARIES := libdumpstate
-
 LOCAL_CFLAGS += $(COMMON_LOCAL_CFLAGS)
 
 LOCAL_INIT_RC := dumpstate.rc
@@ -181,14 +179,3 @@ LOCAL_GENERATED_SOURCES += $(GEN)
 LOCAL_PICKUP_FILES := $(dumpstate_tests_intermediates)
 
 include $(BUILD_NATIVE_TEST)
-
-# =======================#
-# libdumpstate.default #
-# =======================#
-include $(CLEAR_VARS)
-
-LOCAL_SRC_FILES := libdumpstate_default.cpp
-LOCAL_MODULE := libdumpstate.default
-
-LOCAL_STATIC_LIBRARIES := libdumpstateheaders
-include $(BUILD_STATIC_LIBRARY)

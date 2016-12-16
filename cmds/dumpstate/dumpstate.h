@@ -399,9 +399,6 @@ void dump_route_tables();
 /* Play a sound via Stagefright */
 void play_sound(const char *path);
 
-/* Implemented by libdumpstate_board to dump board-specific info */
-void dumpstate_board();
-
 /* Checks if a given path is a directory. */
 bool is_dir(const char* pathname);
 

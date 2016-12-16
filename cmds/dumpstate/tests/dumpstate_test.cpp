@@ -56,10 +56,6 @@ using os::DumpstateService;
 using os::IDumpstateListener;
 using os::IDumpstateToken;
 
-// Not used on test cases yet...
-void dumpstate_board(void) {
-}
-
 class DumpstateListenerMock : public IDumpstateListener {
   public:
     MOCK_METHOD1(onProgressUpdated, binder::Status(int32_t progress));
