@@ -48,8 +48,6 @@ enum {
     WINDOW_FORMAT_RGB_565            = 4,
     /** Red: 16 bits, Green: 16 bits, Blue: 16 bits, Alpha: 16 bits. **/
     WINDOW_FORMAT_RGBA_FP16          = 0x16,
-    /** Red: 16 bits, Green: 16 bits, Blue: 16 bits, Unused: 16 bits. **/
-    WINDOW_FORMAT_RGBX_FP16          = 0x17,
 };
 
 struct ANativeWindow;
