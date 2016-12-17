@@ -110,17 +110,29 @@ void assignFromHidlVec(std::vector<T>& vec, const hidl_vec<T>& data)
 } // anonymous namespace
 
 Composer::Composer()
+    : mWriter(kWriterInitialSize)
 {
-    mService = IComposer::getService("hwcomposer");
-    if (mService == nullptr) {
+    mComposer = IComposer::getService("hwcomposer");
+    if (mComposer == nullptr) {
         LOG_ALWAYS_FATAL("failed to get hwcomposer service");
+    }
+
+    mComposer->createClient(
+            [&](const auto& tmpError, const auto& tmpClient)
+            {
+                if (tmpError == Error::NONE) {
+                    mClient = tmpClient;
+                }
+            });
+    if (mClient == nullptr) {
+        LOG_ALWAYS_FATAL("failed to create composer client");
     }
 }
 
-std::vector<IComposer::Capability> Composer::getCapabilities() const
+std::vector<IComposer::Capability> Composer::getCapabilities()
 {
     std::vector<IComposer::Capability> capabilities;
-    mService->getCapabilities(
+    mComposer->getCapabilities(
             [&](const auto& tmpCapabilities) {
                 assignFromHidlVec(capabilities, tmpCapabilities);
             });
@@ -128,35 +140,36 @@ std::vector<IComposer::Capability> Composer::getCapabilities() const
     return capabilities;
 }
 
-std::string Composer::dumpDebugInfo() const
+std::string Composer::dumpDebugInfo()
 {
     std::string info;
-    mService->dumpDebugInfo([&](const auto& tmpInfo) {
+    mComposer->dumpDebugInfo([&](const auto& tmpInfo) {
         info = tmpInfo.c_str();
     });
 
     return info;
 }
 
-void Composer::registerCallback(const sp<IComposerCallback>& callback) const
+void Composer::registerCallback(const sp<IComposerCallback>& callback)
 {
-    auto ret = mService->registerCallback(callback);
+    auto ret = mClient->registerCallback(callback);
     if (!ret.getStatus().isOk()) {
         ALOGE("failed to register IComposerCallback");
     }
 }
 
-uint32_t Composer::getMaxVirtualDisplayCount() const
+uint32_t Composer::getMaxVirtualDisplayCount()
 {
-    auto ret = mService->getMaxVirtualDisplayCount();
+    auto ret = mClient->getMaxVirtualDisplayCount();
     return unwrapRet(ret, 0);
 }
 
 Error Composer::createVirtualDisplay(uint32_t width, uint32_t height,
-            PixelFormat& format, Display& display) const
+            PixelFormat& format, Display& display)
 {
+    const uint32_t bufferSlotCount = 1;
     Error error = kDefaultError;
-    mService->createVirtualDisplay(width, height, format,
+    mClient->createVirtualDisplay(width, height, format, bufferSlotCount,
             [&](const auto& tmpError, const auto& tmpDisplay,
                 const auto& tmpFormat) {
                 error = tmpError;
@@ -171,22 +184,24 @@ Error Composer::createVirtualDisplay(uint32_t width, uint32_t height,
     return error;
 }
 
-Error Composer::destroyVirtualDisplay(Display display) const
+Error Composer::destroyVirtualDisplay(Display display)
 {
-    auto ret = mService->destroyVirtualDisplay(display);
+    auto ret = mClient->destroyVirtualDisplay(display);
     return unwrapRet(ret);
 }
 
-Error Composer::acceptDisplayChanges(Display display) const
+Error Composer::acceptDisplayChanges(Display display)
 {
-    auto ret = mService->acceptDisplayChanges(display);
-    return unwrapRet(ret);
+    mWriter.selectDisplay(display);
+    mWriter.acceptDisplayChanges();
+    return Error::NONE;
 }
 
-Error Composer::createLayer(Display display, Layer& layer) const
+Error Composer::createLayer(Display display, Layer& layer)
 {
+    const uint32_t bufferSlotCount = 1;
     Error error = kDefaultError;
-    mService->createLayer(display,
+    mClient->createLayer(display, bufferSlotCount,
             [&](const auto& tmpError, const auto& tmpLayer) {
                 error = tmpError;
                 if (error != Error::NONE) {
@@ -199,16 +214,16 @@ Error Composer::createLayer(Display display, Layer& layer) const
     return error;
 }
 
-Error Composer::destroyLayer(Display display, Layer layer) const
+Error Composer::destroyLayer(Display display, Layer layer)
 {
-    auto ret = mService->destroyLayer(display, layer);
+    auto ret = mClient->destroyLayer(display, layer);
     return unwrapRet(ret);
 }
 
-Error Composer::getActiveConfig(Display display, Config& config) const
+Error Composer::getActiveConfig(Display display, Config& config)
 {
     Error error = kDefaultError;
-    mService->getActiveConfig(display,
+    mClient->getActiveConfig(display,
             [&](const auto& tmpError, const auto& tmpConfig) {
                 error = tmpError;
                 if (error != Error::NONE) {
@@ -223,29 +238,17 @@ Error Composer::getActiveConfig(Display display, Config& config) const
 
 Error Composer::getChangedCompositionTypes(Display display,
         std::vector<Layer>& layers,
-        std::vector<IComposer::Composition>& types) const
+        std::vector<IComposerClient::Composition>& types)
 {
-    Error error = kDefaultError;
-    mService->getChangedCompositionTypes(display,
-            [&](const auto& tmpError, const auto& tmpLayers,
-                const auto& tmpTypes) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
-
-                assignFromHidlVec(layers, tmpLayers);
-                assignFromHidlVec(types, tmpTypes);
-            });
-
-    return error;
+    mReader.takeChangedCompositionTypes(display, layers, types);
+    return Error::NONE;
 }
 
 Error Composer::getColorModes(Display display,
-        std::vector<ColorMode>& modes) const
+        std::vector<ColorMode>& modes)
 {
     Error error = kDefaultError;
-    mService->getColorModes(display,
+    mClient->getColorModes(display,
             [&](const auto& tmpError, const auto& tmpModes) {
                 error = tmpError;
                 if (error != Error::NONE) {
@@ -259,10 +262,10 @@ Error Composer::getColorModes(Display display,
 }
 
 Error Composer::getDisplayAttribute(Display display, Config config,
-        IComposer::Attribute attribute, int32_t& value) const
+        IComposerClient::Attribute attribute, int32_t& value)
 {
     Error error = kDefaultError;
-    mService->getDisplayAttribute(display, config, attribute,
+    mClient->getDisplayAttribute(display, config, attribute,
             [&](const auto& tmpError, const auto& tmpValue) {
                 error = tmpError;
                 if (error != Error::NONE) {
@@ -276,10 +279,10 @@ Error Composer::getDisplayAttribute(Display display, Config config,
 }
 
 Error Composer::getDisplayConfigs(Display display,
-        std::vector<Config>& configs) const
+        std::vector<Config>& configs)
 {
     Error error = kDefaultError;
-    mService->getDisplayConfigs(display,
+    mClient->getDisplayConfigs(display,
             [&](const auto& tmpError, const auto& tmpConfigs) {
                 error = tmpError;
                 if (error != Error::NONE) {
@@ -292,10 +295,10 @@ Error Composer::getDisplayConfigs(Display display,
     return error;
 }
 
-Error Composer::getDisplayName(Display display, std::string& name) const
+Error Composer::getDisplayName(Display display, std::string& name)
 {
     Error error = kDefaultError;
-    mService->getDisplayName(display,
+    mClient->getDisplayName(display,
             [&](const auto& tmpError, const auto& tmpName) {
                 error = tmpError;
                 if (error != Error::NONE) {
@@ -310,29 +313,17 @@ Error Composer::getDisplayName(Display display, std::string& name) const
 
 Error Composer::getDisplayRequests(Display display,
         uint32_t& displayRequestMask, std::vector<Layer>& layers,
-        std::vector<uint32_t>& layerRequestMasks) const
+        std::vector<uint32_t>& layerRequestMasks)
 {
-    Error error = kDefaultError;
-    mService->getDisplayRequests(display,
-            [&](const auto& tmpError, const auto& tmpDisplayRequestMask,
-                const auto& tmpLayers, const auto& tmpLayerRequestMasks) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
-
-                displayRequestMask = tmpDisplayRequestMask;
-                assignFromHidlVec(layers, tmpLayers);
-                assignFromHidlVec(layerRequestMasks, tmpLayerRequestMasks);
-            });
-
-    return error;
+    mReader.takeDisplayRequests(display, displayRequestMask,
+            layers, layerRequestMasks);
+    return Error::NONE;
 }
 
-Error Composer::getDisplayType(Display display, IComposer::DisplayType& type) const
+Error Composer::getDisplayType(Display display, IComposerClient::DisplayType& type)
 {
     Error error = kDefaultError;
-    mService->getDisplayType(display,
+    mClient->getDisplayType(display,
             [&](const auto& tmpError, const auto& tmpType) {
                 error = tmpError;
                 if (error != Error::NONE) {
@@ -345,10 +336,10 @@ Error Composer::getDisplayType(Display display, IComposer::DisplayType& type) co
     return error;
 }
 
-Error Composer::getDozeSupport(Display display, bool& support) const
+Error Composer::getDozeSupport(Display display, bool& support)
 {
     Error error = kDefaultError;
-    mService->getDozeSupport(display,
+    mClient->getDozeSupport(display,
             [&](const auto& tmpError, const auto& tmpSupport) {
                 error = tmpError;
                 if (error != Error::NONE) {
@@ -363,10 +354,10 @@ Error Composer::getDozeSupport(Display display, bool& support) const
 
 Error Composer::getHdrCapabilities(Display display, std::vector<Hdr>& types,
         float& maxLuminance, float& maxAverageLuminance,
-        float& minLuminance) const
+        float& minLuminance)
 {
     Error error = kDefaultError;
-    mService->getHdrCapabilities(display,
+    mClient->getHdrCapabilities(display,
             [&](const auto& tmpError, const auto& tmpTypes,
                 const auto& tmpMaxLuminance,
                 const auto& tmpMaxAverageLuminance,
@@ -386,266 +377,574 @@ Error Composer::getHdrCapabilities(Display display, std::vector<Hdr>& types,
 }
 
 Error Composer::getReleaseFences(Display display, std::vector<Layer>& layers,
-        std::vector<int>& releaseFences) const
+        std::vector<int>& releaseFences)
 {
-    Error error = kDefaultError;
-    mService->getReleaseFences(display,
-            [&](const auto& tmpError, const auto& tmpLayers,
-                const auto& tmpReleaseFences) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
-
-                if (static_cast<int>(tmpLayers.size()) !=
-                        tmpReleaseFences->numFds) {
-                    ALOGE("invalid releaseFences outputs: "
-                          "layer count %zu != fence count %d",
-                          tmpLayers.size(), tmpReleaseFences->numFds);
-                    error = Error::NO_RESOURCES;
-                    return;
-                }
-
-                // dup the file descriptors
-                std::vector<int> tmpFds;
-                tmpFds.reserve(tmpReleaseFences->numFds);
-                for (int i = 0; i < tmpReleaseFences->numFds; i++) {
-                    int fd = dup(tmpReleaseFences->data[i]);
-                    if (fd < 0) {
-                        break;
-                    }
-                    tmpFds.push_back(fd);
-                }
-                if (static_cast<int>(tmpFds.size()) <
-                        tmpReleaseFences->numFds) {
-                    for (auto fd : tmpFds) {
-                        close(fd);
-                    }
-
-                    error = Error::NO_RESOURCES;
-                    return;
-                }
-
-                assignFromHidlVec(layers, tmpLayers);
-                releaseFences = std::move(tmpFds);
-            });
-
-    return error;
+    mReader.takeReleaseFences(display, layers, releaseFences);
+    return Error::NONE;
 }
 
-Error Composer::presentDisplay(Display display, int& presentFence) const
+Error Composer::presentDisplay(Display display, int& presentFence)
 {
-    Error error = kDefaultError;
-    mService->presentDisplay(display,
-            [&](const auto& tmpError, const auto& tmpPresentFence) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
+    mWriter.selectDisplay(display);
+    mWriter.presentDisplay();
 
-                if (tmpPresentFence->numFds == 1) {
-                    int fd = dup(tmpPresentFence->data[0]);
-                    if (fd >= 0) {
-                        presentFence = fd;
-                    } else {
-                        error = Error::NO_RESOURCES;
-                    }
-                } else {
-                    presentFence = -1;
-                }
-            });
+    Error error = execute();
+    if (error != Error::NONE) {
+        return error;
+    }
 
-    return error;
+    mReader.takePresentFence(display, presentFence);
+
+    return Error::NONE;
 }
 
-Error Composer::setActiveConfig(Display display, Config config) const
+Error Composer::setActiveConfig(Display display, Config config)
 {
-    auto ret = mService->setActiveConfig(display, config);
+    auto ret = mClient->setActiveConfig(display, config);
     return unwrapRet(ret);
 }
 
 Error Composer::setClientTarget(Display display, const native_handle_t* target,
         int acquireFence, Dataspace dataspace,
-        const std::vector<IComposer::Rect>& damage) const
+        const std::vector<IComposerClient::Rect>& damage)
 {
-    BufferHandle tmpTarget(target);
-    FenceHandle tmpAcquireFence(acquireFence, true);
-
-    hidl_vec<IComposer::Rect> tmpDamage;
-    tmpDamage.setToExternal(const_cast<IComposer::Rect*>(damage.data()),
-            damage.size());
-
-    auto ret = mService->setClientTarget(display, tmpTarget,
-            tmpAcquireFence, dataspace, tmpDamage);
-    return unwrapRet(ret);
+    mWriter.selectDisplay(display);
+    mWriter.setClientTarget(0, target, acquireFence, dataspace, damage);
+    return Error::NONE;
 }
 
-Error Composer::setColorMode(Display display, ColorMode mode) const
+Error Composer::setColorMode(Display display, ColorMode mode)
 {
-    auto ret = mService->setColorMode(display, mode);
+    auto ret = mClient->setColorMode(display, mode);
     return unwrapRet(ret);
 }
 
 Error Composer::setColorTransform(Display display, const float* matrix,
-        ColorTransform hint) const
+        ColorTransform hint)
 {
-    hidl_vec<float> tmpMatrix;
-    tmpMatrix.setToExternal(const_cast<float*>(matrix), 16);
-
-    auto ret = mService->setColorTransform(display, tmpMatrix, hint);
-    return unwrapRet(ret);
+    mWriter.selectDisplay(display);
+    mWriter.setColorTransform(matrix, hint);
+    return Error::NONE;
 }
 
 Error Composer::setOutputBuffer(Display display, const native_handle_t* buffer,
-        int releaseFence) const
+        int releaseFence)
 {
-    BufferHandle tmpBuffer(buffer);
-    FenceHandle tmpReleaseFence(releaseFence, false);
+    mWriter.selectDisplay(display);
+    mWriter.setOutputBuffer(0, buffer, dup(releaseFence));
+    return Error::NONE;
+}
 
-    auto ret = mService->setOutputBuffer(display, tmpBuffer, tmpReleaseFence);
+Error Composer::setPowerMode(Display display, IComposerClient::PowerMode mode)
+{
+    auto ret = mClient->setPowerMode(display, mode);
     return unwrapRet(ret);
 }
 
-Error Composer::setPowerMode(Display display, IComposer::PowerMode mode) const
+Error Composer::setVsyncEnabled(Display display, IComposerClient::Vsync enabled)
 {
-    auto ret = mService->setPowerMode(display, mode);
+    auto ret = mClient->setVsyncEnabled(display, enabled);
     return unwrapRet(ret);
 }
 
-Error Composer::setVsyncEnabled(Display display, IComposer::Vsync enabled) const
+Error Composer::setClientTargetSlotCount(Display display)
 {
-    auto ret = mService->setVsyncEnabled(display, enabled);
+    const uint32_t bufferSlotCount = 1;
+    auto ret = mClient->setClientTargetSlotCount(display, bufferSlotCount);
     return unwrapRet(ret);
 }
 
-Error Composer::validateDisplay(Display display, uint32_t& numTypes, uint32_t&
-        numRequests) const
+Error Composer::validateDisplay(Display display, uint32_t& numTypes,
+        uint32_t& numRequests)
 {
+    mWriter.selectDisplay(display);
+    mWriter.validateDisplay();
+
+    Error error = execute();
+    if (error != Error::NONE) {
+        return error;
+    }
+
+    mReader.hasChanges(display, numTypes, numRequests);
+
+    return Error::NONE;
+}
+
+Error Composer::setCursorPosition(Display display, Layer layer,
+        int32_t x, int32_t y)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerCursorPosition(x, y);
+    return Error::NONE;
+}
+
+Error Composer::setLayerBuffer(Display display, Layer layer,
+        const native_handle_t* buffer, int acquireFence)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerBuffer(0, buffer, acquireFence);
+    return Error::NONE;
+}
+
+Error Composer::setLayerSurfaceDamage(Display display, Layer layer,
+        const std::vector<IComposerClient::Rect>& damage)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerSurfaceDamage(damage);
+    return Error::NONE;
+}
+
+Error Composer::setLayerBlendMode(Display display, Layer layer,
+        IComposerClient::BlendMode mode)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerBlendMode(mode);
+    return Error::NONE;
+}
+
+Error Composer::setLayerColor(Display display, Layer layer,
+        const IComposerClient::Color& color)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerColor(color);
+    return Error::NONE;
+}
+
+Error Composer::setLayerCompositionType(Display display, Layer layer,
+        IComposerClient::Composition type)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerCompositionType(type);
+    return Error::NONE;
+}
+
+Error Composer::setLayerDataspace(Display display, Layer layer,
+        Dataspace dataspace)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerDataspace(dataspace);
+    return Error::NONE;
+}
+
+Error Composer::setLayerDisplayFrame(Display display, Layer layer,
+        const IComposerClient::Rect& frame)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerDisplayFrame(frame);
+    return Error::NONE;
+}
+
+Error Composer::setLayerPlaneAlpha(Display display, Layer layer,
+        float alpha)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerPlaneAlpha(alpha);
+    return Error::NONE;
+}
+
+Error Composer::setLayerSidebandStream(Display display, Layer layer,
+        const native_handle_t* stream)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerSidebandStream(stream);
+    return Error::NONE;
+}
+
+Error Composer::setLayerSourceCrop(Display display, Layer layer,
+        const IComposerClient::FRect& crop)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerSourceCrop(crop);
+    return Error::NONE;
+}
+
+Error Composer::setLayerTransform(Display display, Layer layer,
+        Transform transform)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerTransform(transform);
+    return Error::NONE;
+}
+
+Error Composer::setLayerVisibleRegion(Display display, Layer layer,
+        const std::vector<IComposerClient::Rect>& visible)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerVisibleRegion(visible);
+    return Error::NONE;
+}
+
+Error Composer::setLayerZOrder(Display display, Layer layer, uint32_t z)
+{
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerZOrder(z);
+    return Error::NONE;
+}
+
+Error Composer::execute()
+{
+    // prepare input command queue
+    bool queueChanged = false;
+    uint32_t commandLength = 0;
+    hidl_vec<hidl_handle> commandHandles;
+    if (!mWriter.writeQueue(queueChanged, commandLength, commandHandles)) {
+        mWriter.reset();
+        return Error::NO_RESOURCES;
+    }
+
+    // set up new input command queue if necessary
+    if (queueChanged) {
+        auto ret = mClient->setInputCommandQueue(*mWriter.getMQDescriptor());
+        auto error = unwrapRet(ret);
+        if (error != Error::NONE) {
+            mWriter.reset();
+            return error;
+        }
+    }
+
     Error error = kDefaultError;
-    mService->validateDisplay(display,
-            [&](const auto& tmpError, const auto& tmpNumTypes,
-                const auto& tmpNumRequests) {
+    mClient->executeCommands(commandLength, commandHandles,
+            [&](const auto& tmpError, const auto& tmpOutChanged,
+                const auto& tmpOutLength, const auto& tmpOutHandles)
+            {
                 error = tmpError;
+
+                // set up new output command queue if necessary
+                if (error == Error::NONE && tmpOutChanged) {
+                    error = kDefaultError;
+                    mClient->getOutputCommandQueue(
+                            [&](const auto& tmpError,
+                                const auto& tmpDescriptor)
+                            {
+                                error = tmpError;
+                                if (error != Error::NONE) {
+                                    return;
+                                }
+
+                                mReader.setMQDescriptor(tmpDescriptor);
+                            });
+                }
+
                 if (error != Error::NONE) {
                     return;
                 }
 
-                numTypes = tmpNumTypes;
-                numRequests = tmpNumRequests;
+                if (mReader.readQueue(tmpOutLength, tmpOutHandles)) {
+                    error = mReader.parse();
+                    mReader.reset();
+                } else {
+                    error = Error::NO_RESOURCES;
+                }
             });
+
+    if (error == Error::NONE) {
+        std::vector<CommandReader::CommandError> commandErrors =
+            mReader.takeErrors();
+
+        for (const auto& cmdErr : commandErrors) {
+            auto command = mWriter.getCommand(cmdErr.location);
+
+            if (command == IComposerClient::Command::VALIDATE_DISPLAY ||
+                command == IComposerClient::Command::PRESENT_DISPLAY) {
+                error = cmdErr.error;
+            } else {
+                ALOGW("command 0x%x generated error %d",
+                        command, cmdErr.error);
+            }
+        }
+    }
+
+    mWriter.reset();
 
     return error;
 }
 
-Error Composer::setCursorPosition(Display display, Layer layer,
-        int32_t x, int32_t y) const
+CommandReader::~CommandReader()
 {
-    auto ret = mService->setCursorPosition(display, layer, x, y);
-    return unwrapRet(ret);
+    resetData();
 }
 
-Error Composer::setLayerBuffer(Display display, Layer layer,
-        const native_handle_t* buffer, int acquireFence) const
+Error CommandReader::parse()
 {
-    BufferHandle tmpBuffer(buffer);
-    FenceHandle tmpAcquireFence(acquireFence, true);
+    resetData();
 
-    auto ret = mService->setLayerBuffer(display, layer,
-            tmpBuffer, tmpAcquireFence);
-    return unwrapRet(ret);
+    IComposerClient::Command command;
+    uint16_t length = 0;
+
+    while (!isEmpty()) {
+        if (!beginCommand(command, length)) {
+            break;
+        }
+
+        bool parsed = false;
+        switch (command) {
+        case IComposerClient::Command::SELECT_DISPLAY:
+            parsed = parseSelectDisplay(length);
+            break;
+        case IComposerClient::Command::SET_ERROR:
+            parsed = parseSetError(length);
+            break;
+        case IComposerClient::Command::SET_CHANGED_COMPOSITION_TYPES:
+            parsed = parseSetChangedCompositionTypes(length);
+            break;
+        case IComposerClient::Command::SET_DISPLAY_REQUESTS:
+            parsed = parseSetDisplayRequests(length);
+            break;
+        case IComposerClient::Command::SET_PRESENT_FENCE:
+            parsed = parseSetPresentFence(length);
+            break;
+        case IComposerClient::Command::SET_RELEASE_FENCES:
+            parsed = parseSetReleaseFences(length);
+            break;
+        default:
+            parsed = false;
+            break;
+        }
+
+        endCommand();
+
+        if (!parsed) {
+            ALOGE("failed to parse command 0x%x length %" PRIu16,
+                    command, length);
+            break;
+        }
+    }
+
+    return isEmpty() ? Error::NONE : Error::NO_RESOURCES;
 }
 
-Error Composer::setLayerSurfaceDamage(Display display, Layer layer,
-        const std::vector<IComposer::Rect>& damage) const
+bool CommandReader::parseSelectDisplay(uint16_t length)
 {
-    hidl_vec<IComposer::Rect> tmpDamage;
-    tmpDamage.setToExternal(const_cast<IComposer::Rect*>(damage.data()),
-            damage.size());
+    if (length != CommandWriter::kSelectDisplayLength) {
+        return false;
+    }
 
-    auto ret = mService->setLayerSurfaceDamage(display, layer, tmpDamage);
-    return unwrapRet(ret);
+    mCurrentReturnData = &mReturnData[read64()];
+
+    return true;
 }
 
-Error Composer::setLayerBlendMode(Display display, Layer layer,
-        IComposer::BlendMode mode) const
+bool CommandReader::parseSetError(uint16_t length)
 {
-    auto ret = mService->setLayerBlendMode(display, layer, mode);
-    return unwrapRet(ret);
+    if (length != CommandWriter::kSetErrorLength) {
+        return false;
+    }
+
+    auto location = read();
+    auto error = static_cast<Error>(readSigned());
+
+    mErrors.emplace_back(CommandError{location, error});
+
+    return true;
 }
 
-Error Composer::setLayerColor(Display display, Layer layer,
-        const IComposer::Color& color) const
+bool CommandReader::parseSetChangedCompositionTypes(uint16_t length)
 {
-    auto ret = mService->setLayerColor(display, layer, color);
-    return unwrapRet(ret);
+    // (layer id, composition type) pairs
+    if (length % 3 != 0 || !mCurrentReturnData) {
+        return false;
+    }
+
+    uint32_t count = length / 3;
+    mCurrentReturnData->changedLayers.reserve(count);
+    mCurrentReturnData->compositionTypes.reserve(count);
+    while (count > 0) {
+        auto layer = read64();
+        auto type = static_cast<IComposerClient::Composition>(readSigned());
+
+        mCurrentReturnData->changedLayers.push_back(layer);
+        mCurrentReturnData->compositionTypes.push_back(type);
+
+        count--;
+    }
+
+    return true;
 }
 
-Error Composer::setLayerCompositionType(Display display, Layer layer,
-        IComposer::Composition type) const
+bool CommandReader::parseSetDisplayRequests(uint16_t length)
 {
-    auto ret = mService->setLayerCompositionType(display, layer, type);
-    return unwrapRet(ret);
+    // display requests followed by (layer id, layer requests) pairs
+    if (length % 3 != 1 || !mCurrentReturnData) {
+        return false;
+    }
+
+    mCurrentReturnData->displayRequests = read();
+
+    uint32_t count = (length - 1) / 3;
+    mCurrentReturnData->requestedLayers.reserve(count);
+    mCurrentReturnData->requestMasks.reserve(count);
+    while (count > 0) {
+        auto layer = read64();
+        auto layerRequestMask = read();
+
+        mCurrentReturnData->requestedLayers.push_back(layer);
+        mCurrentReturnData->requestMasks.push_back(layerRequestMask);
+
+        count--;
+    }
+
+    return true;
 }
 
-Error Composer::setLayerDataspace(Display display, Layer layer,
-        Dataspace dataspace) const
+bool CommandReader::parseSetPresentFence(uint16_t length)
 {
-    auto ret = mService->setLayerDataspace(display, layer, dataspace);
-    return unwrapRet(ret);
+    if (length != CommandWriter::kSetPresentFenceLength ||
+            !mCurrentReturnData) {
+        return false;
+    }
+
+    if (mCurrentReturnData->presentFence >= 0) {
+        close(mCurrentReturnData->presentFence);
+    }
+    mCurrentReturnData->presentFence = readFence();
+
+    return true;
 }
 
-Error Composer::setLayerDisplayFrame(Display display, Layer layer,
-        const IComposer::Rect& frame) const
+bool CommandReader::parseSetReleaseFences(uint16_t length)
 {
-    auto ret = mService->setLayerDisplayFrame(display, layer, frame);
-    return unwrapRet(ret);
+    // (layer id, release fence index) pairs
+    if (length % 3 != 0 || !mCurrentReturnData) {
+        return false;
+    }
+
+    uint32_t count = length / 3;
+    mCurrentReturnData->releasedLayers.reserve(count);
+    mCurrentReturnData->releaseFences.reserve(count);
+    while (count > 0) {
+        auto layer = read64();
+        auto fence = readFence();
+
+        mCurrentReturnData->releasedLayers.push_back(layer);
+        mCurrentReturnData->releaseFences.push_back(fence);
+
+        count--;
+    }
+
+    return true;
 }
 
-Error Composer::setLayerPlaneAlpha(Display display, Layer layer,
-        float alpha) const
+void CommandReader::resetData()
 {
-    auto ret = mService->setLayerPlaneAlpha(display, layer, alpha);
-    return unwrapRet(ret);
+    mErrors.clear();
+
+    for (auto& data : mReturnData) {
+        if (data.second.presentFence >= 0) {
+            close(data.second.presentFence);
+        }
+        for (auto fence : data.second.releaseFences) {
+            if (fence >= 0) {
+                close(fence);
+            }
+        }
+    }
+
+    mReturnData.clear();
+    mCurrentReturnData = nullptr;
 }
 
-Error Composer::setLayerSidebandStream(Display display, Layer layer,
-        const native_handle_t* stream) const
+std::vector<CommandReader::CommandError> CommandReader::takeErrors()
 {
-    BufferHandle tmpStream(stream);
-
-    auto ret = mService->setLayerSidebandStream(display, layer, tmpStream);
-    return unwrapRet(ret);
+    return std::move(mErrors);
 }
 
-Error Composer::setLayerSourceCrop(Display display, Layer layer,
-        const IComposer::FRect& crop) const
+bool CommandReader::hasChanges(Display display,
+        uint32_t& numChangedCompositionTypes,
+        uint32_t& numLayerRequestMasks) const
 {
-    auto ret = mService->setLayerSourceCrop(display, layer, crop);
-    return unwrapRet(ret);
+    auto found = mReturnData.find(display);
+    if (found == mReturnData.end()) {
+        numChangedCompositionTypes = 0;
+        numLayerRequestMasks = 0;
+        return false;
+    }
+
+    const ReturnData& data = found->second;
+
+    numChangedCompositionTypes = data.compositionTypes.size();
+    numLayerRequestMasks = data.requestMasks.size();
+
+    return !(data.compositionTypes.empty() && data.requestMasks.empty());
 }
 
-Error Composer::setLayerTransform(Display display, Layer layer,
-        Transform transform) const
+void CommandReader::takeChangedCompositionTypes(Display display,
+        std::vector<Layer>& layers,
+        std::vector<IComposerClient::Composition>& types)
 {
-    auto ret = mService->setLayerTransform(display, layer, transform);
-    return unwrapRet(ret);
+    auto found = mReturnData.find(display);
+    if (found == mReturnData.end()) {
+        layers.clear();
+        types.clear();
+        return;
+    }
+
+    ReturnData& data = found->second;
+
+    layers = std::move(data.changedLayers);
+    types = std::move(data.compositionTypes);
 }
 
-Error Composer::setLayerVisibleRegion(Display display, Layer layer,
-        const std::vector<IComposer::Rect>& visible) const
+void CommandReader::takeDisplayRequests(Display display,
+        uint32_t& displayRequestMask, std::vector<Layer>& layers,
+        std::vector<uint32_t>& layerRequestMasks)
 {
-    hidl_vec<IComposer::Rect> tmpVisible;
-    tmpVisible.setToExternal(const_cast<IComposer::Rect*>(visible.data()),
-            visible.size());
+    auto found = mReturnData.find(display);
+    if (found == mReturnData.end()) {
+        displayRequestMask = 0;
+        layers.clear();
+        layerRequestMasks.clear();
+        return;
+    }
 
-    auto ret = mService->setLayerVisibleRegion(display, layer, tmpVisible);
-    return unwrapRet(ret);
+    ReturnData& data = found->second;
+
+    displayRequestMask = data.displayRequests;
+    layers = std::move(data.requestedLayers);
+    layerRequestMasks = std::move(data.requestMasks);
 }
 
-Error Composer::setLayerZOrder(Display display, Layer layer, uint32_t z) const
+void CommandReader::takeReleaseFences(Display display,
+        std::vector<Layer>& layers, std::vector<int>& releaseFences)
 {
-    auto ret = mService->setLayerZOrder(display, layer, z);
-    return unwrapRet(ret);
+    auto found = mReturnData.find(display);
+    if (found == mReturnData.end()) {
+        layers.clear();
+        releaseFences.clear();
+        return;
+    }
+
+    ReturnData& data = found->second;
+
+    layers = std::move(data.releasedLayers);
+    releaseFences = std::move(data.releaseFences);
+}
+
+void CommandReader::takePresentFence(Display display, int& presentFence)
+{
+    auto found = mReturnData.find(display);
+    if (found == mReturnData.end()) {
+        presentFence = -1;
+        return;
+    }
+
+    ReturnData& data = found->second;
+
+    presentFence = data.presentFence;
+    data.presentFence = -1;
 }
 
 } // namespace Hwc2
