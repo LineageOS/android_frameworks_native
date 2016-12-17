@@ -216,6 +216,8 @@ static const extention_map_t sExtensionMap[] = {
             (__eglMustCastToProperFunctionPointerType)&eglCreateStreamFromFileDescriptorKHR },
 
     // EGL_ANDROID_get_frame_timestamps
+    { "eglGetNextFrameIdANDROID",
+            (__eglMustCastToProperFunctionPointerType)&eglGetNextFrameIdANDROID },
     { "eglGetFrameTimestampsANDROID",
             (__eglMustCastToProperFunctionPointerType)&eglGetFrameTimestampsANDROID },
     { "eglQueryTimestampSupportedANDROID",
@@ -2042,8 +2044,42 @@ EGLBoolean eglSetDamageRegionKHR(EGLDisplay dpy, EGLSurface surface,
     return EGL_FALSE;
 }
 
+EGLBoolean eglGetNextFrameIdANDROID(EGLDisplay dpy, EGLSurface surface,
+            EGLuint64KHR *frameId) {
+    clearError();
+
+    const egl_display_ptr dp = validate_display(dpy);
+    if (!dp) {
+        return setError(EGL_BAD_DISPLAY, EGL_FALSE);
+    }
+
+    SurfaceRef _s(dp.get(), surface);
+    if (!_s.get()) {
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
+    }
+
+    egl_surface_t const * const s = get_surface(surface);
+
+    if (!s->win.get()) {
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
+    }
+
+    uint64_t nextFrameId = 0;
+    status_t ret = native_window_get_next_frame_id(s->win.get(), &nextFrameId);
+
+    if (ret != NO_ERROR) {
+        // This should not happen. Return an error that is not in the spec
+        // so it's obvious something is very wrong.
+        ALOGE("eglGetNextFrameId: Unexpected error.");
+        return setError(EGL_NOT_INITIALIZED, EGL_FALSE);
+    }
+
+    *frameId = nextFrameId;
+    return EGL_TRUE;
+}
+
 EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
-        EGLint framesAgo, EGLint numTimestamps, const EGLint *timestamps,
+        EGLuint64KHR frameId, EGLint numTimestamps, const EGLint *timestamps,
         EGLnsecsANDROID *values)
 {
     clearError();
@@ -2112,7 +2148,7 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
         }
     }
 
-    status_t ret = native_window_get_frame_timestamps(s->win.get(), framesAgo,
+    status_t ret = native_window_get_frame_timestamps(s->win.get(), frameId,
             requestedPresentTime, acquireTime, latchTime, firstRefreshStartTime,
             lastRefreshStartTime, GLCompositionDoneTime, displayPresentTime,
             displayRetireTime, dequeueReadyTime, releaseTime);
@@ -2129,6 +2165,7 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
       default:
         // This should not happen. Return an error that is not in the spec
         // so it's obvious something is very wrong.
+        ALOGE("eglGetFrameTimestamps: Unexpected error.");
         return setError(EGL_NOT_INITIALIZED, EGL_FALSE);
     }
 }

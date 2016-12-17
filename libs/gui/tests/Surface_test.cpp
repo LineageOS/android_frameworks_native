@@ -598,8 +598,8 @@ protected:
         mFrameTimestampsEnabled = true;
     }
 
-    int getAllFrameTimestamps(uint32_t framesAgo) {
-        return native_window_get_frame_timestamps(mWindow.get(), framesAgo,
+    int getAllFrameTimestamps(uint64_t frameId) {
+        return native_window_get_frame_timestamps(mWindow.get(), frameId,
                 &outRequestedPresentTime, &outAcquireTime, &outLatchTime,
                 &outFirstRefreshStartTime, &outLastRefreshStartTime,
                 &outGpuCompositionDoneTime, &outDisplayPresentTime,
@@ -617,6 +617,13 @@ protected:
         outDisplayRetireTime = -1;
         outDequeueReadyTime = -1;
         outReleaseTime = -1;
+    }
+
+    uint64_t getNextFrameId() {
+        uint64_t frameId = -1;
+        int status = native_window_get_next_frame_id(mWindow.get(), &frameId);
+        EXPECT_EQ(status, NO_ERROR);
+        return frameId;
     }
 
     void dequeueAndQueue(uint64_t frameIndex) {
@@ -748,6 +755,8 @@ TEST_F(GetFrameTimestampsTest, DefaultDisabled) {
     EXPECT_EQ(0, mFakeConsumer->mAddFrameTimestampsCount);
     EXPECT_EQ(0, mFakeConsumer->mGetFrameTimestampsCount);
 
+    const uint64_t fId = getNextFrameId();
+
     // Verify the producer doesn't get frame timestamps piggybacked on dequeue.
     ASSERT_EQ(NO_ERROR, mWindow->dequeueBuffer(mWindow.get(), &buffer, &fence));
     EXPECT_EQ(0, mFakeConsumer->mAddFrameTimestampsCount);
@@ -761,8 +770,7 @@ TEST_F(GetFrameTimestampsTest, DefaultDisabled) {
     EXPECT_EQ(0, mFakeConsumer->mGetFrameTimestampsCount);
 
     // Verify attempts to get frame timestamps fail.
-    const uint32_t framesAgo = 0;
-    int result = getAllFrameTimestamps(framesAgo);
+    int result = getAllFrameTimestamps(fId);
     EXPECT_EQ(INVALID_OPERATION, result);
     EXPECT_EQ(0, mFakeConsumer->mGetFrameTimestampsCount);
 }
@@ -777,6 +785,8 @@ TEST_F(GetFrameTimestampsTest, EnabledSimple) {
 
     EXPECT_EQ(0, mFakeConsumer->mAddFrameTimestampsCount);
     EXPECT_EQ(0, mFakeConsumer->mGetFrameTimestampsCount);
+
+    const uint64_t fId1 = getNextFrameId();
 
     // Verify getFrameTimestamps is piggybacked on dequeue.
     ASSERT_EQ(NO_ERROR, mWindow->dequeueBuffer(mWindow.get(), &buffer, &fence));
@@ -802,8 +812,7 @@ TEST_F(GetFrameTimestampsTest, EnabledSimple) {
 
     // Verify queries for timestamps that the producer doesn't know about
     // triggers a call to see if the consumer has any new timestamps.
-    const uint32_t framesAgo = 0;
-    int result = getAllFrameTimestamps(framesAgo);
+    int result = getAllFrameTimestamps(fId1);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(3, mFakeConsumer->mGetFrameTimestampsCount);
 }
@@ -833,16 +842,17 @@ TEST_F(GetFrameTimestampsTest, QueryRetireSupported) {
    QueryPresentRetireSupported(false, true);
 }
 
-// This test verifies that:
-// 1) The timestamps recorded in the consumer's FrameTimestampsHistory are
-//    properly retrieved by the producer for the correct frames.
-// 2) When framesAgo is 0, it is querying for the most recently queued frame.
+// This verifies the timestamps recorded in the consumer's
+// FrameTimestampsHistory are properly retrieved by the producer for the
+// correct frames.
 TEST_F(GetFrameTimestampsTest, TimestampsAssociatedWithCorrectFrame) {
     enableFrameTimestamps();
 
+    const uint64_t fId1 = getNextFrameId();
     dequeueAndQueue(0);
     mFrames[0].signalQueueFences();
 
+    const uint64_t fId2 = getNextFrameId();
     dequeueAndQueue(1);
     mFrames[1].signalQueueFences();
 
@@ -853,9 +863,8 @@ TEST_F(GetFrameTimestampsTest, TimestampsAssociatedWithCorrectFrame) {
     mFrames[1].signalRefreshFences();
 
     // Verify timestamps are correct for frame 1.
-    uint32_t framesAgo = 1;
     resetTimestamps();
-    int result = getAllFrameTimestamps(framesAgo);
+    int result = getAllFrameTimestamps(fId1);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
     EXPECT_EQ(mFrames[0].kProducerAcquireTime, outAcquireTime);
@@ -870,9 +879,8 @@ TEST_F(GetFrameTimestampsTest, TimestampsAssociatedWithCorrectFrame) {
     EXPECT_EQ(mFrames[0].kReleaseTime, outReleaseTime);
 
     // Verify timestamps are correct for frame 2.
-    framesAgo = 0;
     resetTimestamps();
-    result = getAllFrameTimestamps(framesAgo);
+    result = getAllFrameTimestamps(fId2);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[1].kRequestedPresentTime, outRequestedPresentTime);
     EXPECT_EQ(mFrames[1].kProducerAcquireTime, outAcquireTime);
@@ -893,9 +901,8 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     enableFrameTimestamps();
     mSurface->mFakeSurfaceComposer->setSupportedTimestamps(true, true);
 
-    const uint32_t framesAgo = 0;
-
     // Dequeue and queue frame 1.
+    const uint64_t fId1 = getNextFrameId();
     dequeueAndQueue(0);
 
     // Verify queue-related timestamps for f1 are available immediately in the
@@ -903,7 +910,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     // acquire fence.
     resetTimestamps();
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
+    int result = native_window_get_frame_timestamps(mWindow.get(), fId1,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
             nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
@@ -915,7 +922,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     mFrames[0].signalQueueFences();
 
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
+    result = native_window_get_frame_timestamps(mWindow.get(), fId1,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
             nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
@@ -924,6 +931,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     EXPECT_EQ(mFrames[0].kProducerAcquireTime, outAcquireTime);
 
     // Dequeue and queue frame 2.
+    const uint64_t fId2 = getNextFrameId();
     dequeueAndQueue(1);
 
     // Verify queue-related timestamps for f2 are available immediately in the
@@ -931,7 +939,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     // acquire fence.
     resetTimestamps();
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
+    result = native_window_get_frame_timestamps(mWindow.get(), fId2,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
             nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
@@ -943,7 +951,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     mFrames[1].signalQueueFences();
 
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
+    result = native_window_get_frame_timestamps(mWindow.get(), fId2,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
             nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
@@ -961,6 +969,7 @@ TEST_F(GetFrameTimestampsTest, ZeroRequestedTimestampsNoSync) {
     mFrames[0].signalQueueFences();
 
     // Dequeue and queue frame 2.
+    const uint64_t fId2 = getNextFrameId();
     dequeueAndQueue(1);
     mFrames[1].signalQueueFences();
 
@@ -971,9 +980,8 @@ TEST_F(GetFrameTimestampsTest, ZeroRequestedTimestampsNoSync) {
     mFrames[1].signalRefreshFences();
 
     // Verify a request for no timestamps doesn't result in a sync call.
-    const uint32_t framesAgo = 0;
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
+    int result = native_window_get_frame_timestamps(mWindow.get(), fId2,
             nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
             nullptr, nullptr, nullptr);
     EXPECT_EQ(NO_ERROR, result);
@@ -987,6 +995,7 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     mSurface->mFakeSurfaceComposer->setSupportedTimestamps(true, true);
 
     // Dequeue and queue frame 1.
+    const uint64_t fId1 = getNextFrameId();
     dequeueAndQueue(0);
     mFrames[0].signalQueueFences();
 
@@ -1001,10 +1010,9 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     // fence has been signaled.
     // Note: A sync call is necessary here since the events triggered by
     // addFrameEvents didn't get to piggyback on the earlier queues/dequeues.
-    uint32_t framesAgo = 1;
     resetTimestamps();
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    int result = getAllFrameTimestamps(framesAgo);
+    int result = getAllFrameTimestamps(fId1);
     EXPECT_EQ(oldCount + 1, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
@@ -1021,10 +1029,9 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     // Verify available timestamps are correct for frame 1 again, before any
     // fence has been signaled.
     // This time a sync call should not be necessary.
-    framesAgo = 1;
     resetTimestamps();
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    result = getAllFrameTimestamps(framesAgo);
+    result = getAllFrameTimestamps(fId1);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
@@ -1043,10 +1050,9 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     mFrames[0].signalReleaseFences();
 
     // Verify all timestamps are available without a sync call.
-    framesAgo = 1;
     resetTimestamps();
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    result = getAllFrameTimestamps(framesAgo);
+    result = getAllFrameTimestamps(fId1);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
@@ -1069,9 +1075,8 @@ TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
     enableFrameTimestamps();
     mSurface->mFakeSurfaceComposer->setSupportedTimestamps(true, true);
 
-    const uint32_t framesAgo = 1;
-
     // Dequeue and queue frame 1.
+    const uint64_t fId1 = getNextFrameId();
     dequeueAndQueue(0);
     mFrames[0].signalQueueFences();
 
@@ -1088,7 +1093,7 @@ TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
     // addFrameEvents didn't get to piggyback on the earlier queues/dequeues.
     resetTimestamps();
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    int result = getAllFrameTimestamps(framesAgo);
+    int result = getAllFrameTimestamps(fId1);
     EXPECT_EQ(oldCount + 1, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
@@ -1110,7 +1115,7 @@ TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
     // sync call.
     resetTimestamps();
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    result = getAllFrameTimestamps(framesAgo);
+    result = getAllFrameTimestamps(fId1);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
@@ -1132,10 +1137,12 @@ TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
     mSurface->mFakeSurfaceComposer->setSupportedTimestamps(true, true);
 
     // Dequeue and queue frame 1.
+    const uint64_t fId1 = getNextFrameId();
     dequeueAndQueue(0);
     mFrames[0].signalQueueFences();
 
     // Dequeue and queue frame 2.
+    const uint64_t fId2 = getNextFrameId();
     dequeueAndQueue(1);
     mFrames[1].signalQueueFences();
 
@@ -1146,10 +1153,9 @@ TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
     // fence has been signaled.
     // Note: A sync call is necessary here since the events triggered by
     // addFrameEvents didn't get to piggyback on the earlier queues/dequeues.
-    uint32_t framesAgo = 1;
     resetTimestamps();
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    int result = getAllFrameTimestamps(framesAgo);
+    int result = getAllFrameTimestamps(fId1);
     EXPECT_EQ(oldCount + 1, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
@@ -1167,15 +1173,14 @@ TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
     mFrames[0].signalReleaseFences();
     mFrames[1].signalRefreshFences();
 
-    // Verify querying for all timestmaps of f2 does not do a sync call.
-    // Even though the lastRefresh, retire, dequeueReady, and release times aren't
+    // Verify querying for all timestmaps of f2 does not do a sync call. Even
+    // though the lastRefresh, retire, dequeueReady, and release times aren't
     // available, a sync call should not occur because it's not possible for f2
     // to encounter the final value for those events until another frame is
     // queued.
-    framesAgo = 0;
     resetTimestamps();
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    result = getAllFrameTimestamps(framesAgo);
+    result = getAllFrameTimestamps(fId2);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[1].kRequestedPresentTime, outRequestedPresentTime);
@@ -1200,14 +1205,14 @@ void GetFrameTimestampsTest::PresentOrRetireUnsupportedNoSyncTest(
         displayPresentSupported, displayRetireSupported);
 
     // Dequeue and queue frame 1.
+    const uint64_t fId1 = getNextFrameId();
     dequeueAndQueue(0);
 
     // Verify a query for the Present and Retire times do not trigger
     // a sync call if they are not supported.
-    const uint32_t framesAgo = 0;
     resetTimestamps();
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
+    int result = native_window_get_frame_timestamps(mWindow.get(), fId1,
             nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
             displayPresentSupported ? nullptr : &outDisplayPresentTime,
             displayRetireSupported ? nullptr : &outDisplayRetireTime,
