@@ -100,13 +100,6 @@ Error unwrapRet(Return<Error>& ret)
     return unwrapRet(ret, kDefaultError);
 }
 
-template<typename T>
-void assignFromHidlVec(std::vector<T>& vec, const hidl_vec<T>& data)
-{
-    vec.clear();
-    vec.insert(vec.begin(), &data[0], &data[data.size()]);
-}
-
 } // anonymous namespace
 
 Composer::Composer()
@@ -134,7 +127,7 @@ std::vector<IComposer::Capability> Composer::getCapabilities()
     std::vector<IComposer::Capability> capabilities;
     mComposer->getCapabilities(
             [&](const auto& tmpCapabilities) {
-                assignFromHidlVec(capabilities, tmpCapabilities);
+                capabilities = tmpCapabilities;
             });
 
     return capabilities;
@@ -165,11 +158,11 @@ uint32_t Composer::getMaxVirtualDisplayCount()
 }
 
 Error Composer::createVirtualDisplay(uint32_t width, uint32_t height,
-            PixelFormat& format, Display& display)
+            PixelFormat* format, Display* outDisplay)
 {
     const uint32_t bufferSlotCount = 1;
     Error error = kDefaultError;
-    mClient->createVirtualDisplay(width, height, format, bufferSlotCount,
+    mClient->createVirtualDisplay(width, height, *format, bufferSlotCount,
             [&](const auto& tmpError, const auto& tmpDisplay,
                 const auto& tmpFormat) {
                 error = tmpError;
@@ -177,8 +170,8 @@ Error Composer::createVirtualDisplay(uint32_t width, uint32_t height,
                     return;
                 }
 
-                display = tmpDisplay;
-                format = tmpFormat;
+                *outDisplay = tmpDisplay;
+                *format = tmpFormat;
             });
 
     return error;
@@ -197,7 +190,7 @@ Error Composer::acceptDisplayChanges(Display display)
     return Error::NONE;
 }
 
-Error Composer::createLayer(Display display, Layer& layer)
+Error Composer::createLayer(Display display, Layer* outLayer)
 {
     const uint32_t bufferSlotCount = 1;
     Error error = kDefaultError;
@@ -208,7 +201,7 @@ Error Composer::createLayer(Display display, Layer& layer)
                     return;
                 }
 
-                layer = tmpLayer;
+                *outLayer = tmpLayer;
             });
 
     return error;
@@ -220,7 +213,7 @@ Error Composer::destroyLayer(Display display, Layer layer)
     return unwrapRet(ret);
 }
 
-Error Composer::getActiveConfig(Display display, Config& config)
+Error Composer::getActiveConfig(Display display, Config* outConfig)
 {
     Error error = kDefaultError;
     mClient->getActiveConfig(display,
@@ -230,22 +223,22 @@ Error Composer::getActiveConfig(Display display, Config& config)
                     return;
                 }
 
-                config = tmpConfig;
+                *outConfig = tmpConfig;
             });
 
     return error;
 }
 
 Error Composer::getChangedCompositionTypes(Display display,
-        std::vector<Layer>& layers,
-        std::vector<IComposerClient::Composition>& types)
+        std::vector<Layer>* outLayers,
+        std::vector<IComposerClient::Composition>* outTypes)
 {
-    mReader.takeChangedCompositionTypes(display, layers, types);
+    mReader.takeChangedCompositionTypes(display, outLayers, outTypes);
     return Error::NONE;
 }
 
 Error Composer::getColorModes(Display display,
-        std::vector<ColorMode>& modes)
+        std::vector<ColorMode>* outModes)
 {
     Error error = kDefaultError;
     mClient->getColorModes(display,
@@ -255,14 +248,14 @@ Error Composer::getColorModes(Display display,
                     return;
                 }
 
-                assignFromHidlVec(modes, tmpModes);
+                *outModes = tmpModes;
             });
 
     return error;
 }
 
 Error Composer::getDisplayAttribute(Display display, Config config,
-        IComposerClient::Attribute attribute, int32_t& value)
+        IComposerClient::Attribute attribute, int32_t* outValue)
 {
     Error error = kDefaultError;
     mClient->getDisplayAttribute(display, config, attribute,
@@ -272,14 +265,14 @@ Error Composer::getDisplayAttribute(Display display, Config config,
                     return;
                 }
 
-                value = tmpValue;
+                *outValue = tmpValue;
             });
 
     return error;
 }
 
 Error Composer::getDisplayConfigs(Display display,
-        std::vector<Config>& configs)
+        std::vector<Config>* outConfigs)
 {
     Error error = kDefaultError;
     mClient->getDisplayConfigs(display,
@@ -289,13 +282,13 @@ Error Composer::getDisplayConfigs(Display display,
                     return;
                 }
 
-                assignFromHidlVec(configs, tmpConfigs);
+                *outConfigs = tmpConfigs;
             });
 
     return error;
 }
 
-Error Composer::getDisplayName(Display display, std::string& name)
+Error Composer::getDisplayName(Display display, std::string* outName)
 {
     Error error = kDefaultError;
     mClient->getDisplayName(display,
@@ -305,22 +298,23 @@ Error Composer::getDisplayName(Display display, std::string& name)
                     return;
                 }
 
-                name = tmpName.c_str();
+                *outName = tmpName.c_str();
             });
 
     return error;
 }
 
 Error Composer::getDisplayRequests(Display display,
-        uint32_t& displayRequestMask, std::vector<Layer>& layers,
-        std::vector<uint32_t>& layerRequestMasks)
+        uint32_t* outDisplayRequestMask, std::vector<Layer>* outLayers,
+        std::vector<uint32_t>* outLayerRequestMasks)
 {
-    mReader.takeDisplayRequests(display, displayRequestMask,
-            layers, layerRequestMasks);
+    mReader.takeDisplayRequests(display, outDisplayRequestMask,
+            outLayers, outLayerRequestMasks);
     return Error::NONE;
 }
 
-Error Composer::getDisplayType(Display display, IComposerClient::DisplayType& type)
+Error Composer::getDisplayType(Display display,
+        IComposerClient::DisplayType* outType)
 {
     Error error = kDefaultError;
     mClient->getDisplayType(display,
@@ -330,13 +324,13 @@ Error Composer::getDisplayType(Display display, IComposerClient::DisplayType& ty
                     return;
                 }
 
-                type = tmpType;
+                *outType = tmpType;
             });
 
     return error;
 }
 
-Error Composer::getDozeSupport(Display display, bool& support)
+Error Composer::getDozeSupport(Display display, bool* outSupport)
 {
     Error error = kDefaultError;
     mClient->getDozeSupport(display,
@@ -346,15 +340,15 @@ Error Composer::getDozeSupport(Display display, bool& support)
                     return;
                 }
 
-                support = tmpSupport;
+                *outSupport = tmpSupport;
             });
 
     return error;
 }
 
-Error Composer::getHdrCapabilities(Display display, std::vector<Hdr>& types,
-        float& maxLuminance, float& maxAverageLuminance,
-        float& minLuminance)
+Error Composer::getHdrCapabilities(Display display,
+        std::vector<Hdr>* outTypes, float* outMaxLuminance,
+        float* outMaxAverageLuminance, float* outMinLuminance)
 {
     Error error = kDefaultError;
     mClient->getHdrCapabilities(display,
@@ -367,23 +361,23 @@ Error Composer::getHdrCapabilities(Display display, std::vector<Hdr>& types,
                     return;
                 }
 
-                assignFromHidlVec(types, tmpTypes);
-                maxLuminance = tmpMaxLuminance;
-                maxAverageLuminance = tmpMaxAverageLuminance;
-                minLuminance = tmpMinLuminance;
+                *outTypes = tmpTypes;
+                *outMaxLuminance = tmpMaxLuminance;
+                *outMaxAverageLuminance = tmpMaxAverageLuminance;
+                *outMinLuminance = tmpMinLuminance;
             });
 
     return error;
 }
 
-Error Composer::getReleaseFences(Display display, std::vector<Layer>& layers,
-        std::vector<int>& releaseFences)
+Error Composer::getReleaseFences(Display display,
+        std::vector<Layer>* outLayers, std::vector<int>* outReleaseFences)
 {
-    mReader.takeReleaseFences(display, layers, releaseFences);
+    mReader.takeReleaseFences(display, outLayers, outReleaseFences);
     return Error::NONE;
 }
 
-Error Composer::presentDisplay(Display display, int& presentFence)
+Error Composer::presentDisplay(Display display, int* outPresentFence)
 {
     mWriter.selectDisplay(display);
     mWriter.presentDisplay();
@@ -393,7 +387,7 @@ Error Composer::presentDisplay(Display display, int& presentFence)
         return error;
     }
 
-    mReader.takePresentFence(display, presentFence);
+    mReader.takePresentFence(display, outPresentFence);
 
     return Error::NONE;
 }
@@ -454,8 +448,8 @@ Error Composer::setClientTargetSlotCount(Display display)
     return unwrapRet(ret);
 }
 
-Error Composer::validateDisplay(Display display, uint32_t& numTypes,
-        uint32_t& numRequests)
+Error Composer::validateDisplay(Display display, uint32_t* outNumTypes,
+        uint32_t* outNumRequests)
 {
     mWriter.selectDisplay(display);
     mWriter.validateDisplay();
@@ -465,7 +459,7 @@ Error Composer::validateDisplay(Display display, uint32_t& numTypes,
         return error;
     }
 
-    mReader.hasChanges(display, numTypes, numRequests);
+    mReader.hasChanges(display, outNumTypes, outNumRequests);
 
     return Error::NONE;
 }
@@ -601,7 +595,7 @@ Error Composer::execute()
     bool queueChanged = false;
     uint32_t commandLength = 0;
     hidl_vec<hidl_handle> commandHandles;
-    if (!mWriter.writeQueue(queueChanged, commandLength, commandHandles)) {
+    if (!mWriter.writeQueue(&queueChanged, &commandLength, &commandHandles)) {
         mWriter.reset();
         return Error::NO_RESOURCES;
     }
@@ -686,7 +680,7 @@ Error CommandReader::parse()
     uint16_t length = 0;
 
     while (!isEmpty()) {
-        if (!beginCommand(command, length)) {
+        if (!beginCommand(&command, &length)) {
             break;
         }
 
@@ -863,87 +857,87 @@ std::vector<CommandReader::CommandError> CommandReader::takeErrors()
 }
 
 bool CommandReader::hasChanges(Display display,
-        uint32_t& numChangedCompositionTypes,
-        uint32_t& numLayerRequestMasks) const
+        uint32_t* outNumChangedCompositionTypes,
+        uint32_t* outNumLayerRequestMasks) const
 {
     auto found = mReturnData.find(display);
     if (found == mReturnData.end()) {
-        numChangedCompositionTypes = 0;
-        numLayerRequestMasks = 0;
+        *outNumChangedCompositionTypes = 0;
+        *outNumLayerRequestMasks = 0;
         return false;
     }
 
     const ReturnData& data = found->second;
 
-    numChangedCompositionTypes = data.compositionTypes.size();
-    numLayerRequestMasks = data.requestMasks.size();
+    *outNumChangedCompositionTypes = data.compositionTypes.size();
+    *outNumLayerRequestMasks = data.requestMasks.size();
 
     return !(data.compositionTypes.empty() && data.requestMasks.empty());
 }
 
 void CommandReader::takeChangedCompositionTypes(Display display,
-        std::vector<Layer>& layers,
-        std::vector<IComposerClient::Composition>& types)
+        std::vector<Layer>* outLayers,
+        std::vector<IComposerClient::Composition>* outTypes)
 {
     auto found = mReturnData.find(display);
     if (found == mReturnData.end()) {
-        layers.clear();
-        types.clear();
+        outLayers->clear();
+        outTypes->clear();
         return;
     }
 
     ReturnData& data = found->second;
 
-    layers = std::move(data.changedLayers);
-    types = std::move(data.compositionTypes);
+    *outLayers = std::move(data.changedLayers);
+    *outTypes = std::move(data.compositionTypes);
 }
 
 void CommandReader::takeDisplayRequests(Display display,
-        uint32_t& displayRequestMask, std::vector<Layer>& layers,
-        std::vector<uint32_t>& layerRequestMasks)
+        uint32_t* outDisplayRequestMask, std::vector<Layer>* outLayers,
+        std::vector<uint32_t>* outLayerRequestMasks)
 {
     auto found = mReturnData.find(display);
     if (found == mReturnData.end()) {
-        displayRequestMask = 0;
-        layers.clear();
-        layerRequestMasks.clear();
+        *outDisplayRequestMask = 0;
+        outLayers->clear();
+        outLayerRequestMasks->clear();
         return;
     }
 
     ReturnData& data = found->second;
 
-    displayRequestMask = data.displayRequests;
-    layers = std::move(data.requestedLayers);
-    layerRequestMasks = std::move(data.requestMasks);
+    *outDisplayRequestMask = data.displayRequests;
+    *outLayers = std::move(data.requestedLayers);
+    *outLayerRequestMasks = std::move(data.requestMasks);
 }
 
 void CommandReader::takeReleaseFences(Display display,
-        std::vector<Layer>& layers, std::vector<int>& releaseFences)
+        std::vector<Layer>* outLayers, std::vector<int>* outReleaseFences)
 {
     auto found = mReturnData.find(display);
     if (found == mReturnData.end()) {
-        layers.clear();
-        releaseFences.clear();
+        outLayers->clear();
+        outReleaseFences->clear();
         return;
     }
 
     ReturnData& data = found->second;
 
-    layers = std::move(data.releasedLayers);
-    releaseFences = std::move(data.releaseFences);
+    *outLayers = std::move(data.releasedLayers);
+    *outReleaseFences = std::move(data.releaseFences);
 }
 
-void CommandReader::takePresentFence(Display display, int& presentFence)
+void CommandReader::takePresentFence(Display display, int* outPresentFence)
 {
     auto found = mReturnData.find(display);
     if (found == mReturnData.end()) {
-        presentFence = -1;
+        *outPresentFence = -1;
         return;
     }
 
     ReturnData& data = found->second;
 
-    presentFence = data.presentFence;
+    *outPresentFence = data.presentFence;
     data.presentFence = -1;
 }
 

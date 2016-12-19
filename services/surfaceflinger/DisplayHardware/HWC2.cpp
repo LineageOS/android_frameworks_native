@@ -231,7 +231,7 @@ Error Device::createVirtualDisplay(uint32_t width, uint32_t height,
 #else
     auto intFormat = static_cast<Hwc2::PixelFormat>(*format);
     auto intError = mComposer->createVirtualDisplay(width, height,
-            intFormat, displayId);
+            &intFormat, &displayId);
 #endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
@@ -590,7 +590,7 @@ Error Display::createLayer(std::shared_ptr<Layer>* outLayer)
 #ifdef BYPASS_IHWC
     int32_t intError = mDevice.mCreateLayer(mDevice.mHwcDevice, mId, &layerId);
 #else
-    auto intError = mDevice.mComposer->createLayer(mId, layerId);
+    auto intError = mDevice.mComposer->createLayer(mId, &layerId);
 #endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
@@ -612,7 +612,7 @@ Error Display::getActiveConfig(
     int32_t intError = mDevice.mGetActiveConfig(mDevice.mHwcDevice, mId,
             &configId);
 #else
-    auto intError = mDevice.mComposer->getActiveConfig(mId, configId);
+    auto intError = mDevice.mComposer->getActiveConfig(mId, &configId);
 #endif
     auto error = static_cast<Error>(intError);
 
@@ -655,7 +655,7 @@ Error Display::getChangedCompositionTypes(
     std::vector<Hwc2::Layer> layerIds;
     std::vector<Hwc2::IComposerClient::Composition> types;
     auto intError = mDevice.mComposer->getChangedCompositionTypes(mId,
-            layerIds, types);
+            &layerIds, &types);
     uint32_t numElements = layerIds.size();
     auto error = static_cast<Error>(intError);
 #endif
@@ -699,7 +699,7 @@ Error Display::getColorModes(std::vector<android_color_mode_t>* outModes) const
     error = static_cast<Error>(intError);
 #else
     std::vector<Hwc2::ColorMode> modes;
-    auto intError = mDevice.mComposer->getColorModes(mId, modes);
+    auto intError = mDevice.mComposer->getColorModes(mId, &modes);
     uint32_t numModes = modes.size();
     auto error = static_cast<Error>(intError);
 #endif
@@ -745,7 +745,7 @@ Error Display::getName(std::string* outName) const
     *outName = std::string(rawName.cbegin(), rawName.cend());
     return Error::None;
 #else
-    auto intError = mDevice.mComposer->getDisplayName(mId, *outName);
+    auto intError = mDevice.mComposer->getDisplayName(mId, outName);
     return static_cast<Error>(intError);
 #endif
 }
@@ -775,7 +775,7 @@ Error Display::getRequests(HWC2::DisplayRequest* outDisplayRequests,
     std::vector<Hwc2::Layer> layerIds;
     std::vector<uint32_t> layerRequests;
     auto intError = mDevice.mComposer->getDisplayRequests(mId,
-            intDisplayRequests, layerIds, layerRequests);
+            &intDisplayRequests, &layerIds, &layerRequests);
     uint32_t numElements = layerIds.size();
     auto error = static_cast<Error>(intError);
 #endif
@@ -810,7 +810,7 @@ Error Display::getType(DisplayType* outType) const
 #else
     Hwc2::IComposerClient::DisplayType intType =
         Hwc2::IComposerClient::DisplayType::INVALID;
-    auto intError = mDevice.mComposer->getDisplayType(mId, intType);
+    auto intError = mDevice.mComposer->getDisplayType(mId, &intType);
 #endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
@@ -829,7 +829,7 @@ Error Display::supportsDoze(bool* outSupport) const
             &intSupport);
 #else
     bool intSupport = false;
-    auto intError = mDevice.mComposer->getDozeSupport(mId, intSupport);
+    auto intError = mDevice.mComposer->getDozeSupport(mId, &intSupport);
 #endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
@@ -861,8 +861,8 @@ Error Display::getHdrCapabilities(
     error = static_cast<HWC2::Error>(intError);
 #else
     std::vector<Hwc2::Hdr> intTypes;
-    auto intError = mDevice.mComposer->getHdrCapabilities(mId, intTypes,
-            maxLuminance, maxAverageLuminance, minLuminance);
+    auto intError = mDevice.mComposer->getHdrCapabilities(mId, &intTypes,
+            &maxLuminance, &maxAverageLuminance, &minLuminance);
     auto error = static_cast<HWC2::Error>(intError);
 
     std::vector<int32_t> types;
@@ -901,7 +901,7 @@ Error Display::getReleaseFences(
     std::vector<Hwc2::Layer> layerIds;
     std::vector<int> fenceFds;
     auto intError = mDevice.mComposer->getReleaseFences(mId,
-            layerIds, fenceFds);
+            &layerIds, &fenceFds);
     auto error = static_cast<Error>(intError);
     uint32_t numElements = layerIds.size();
 #endif
@@ -934,7 +934,7 @@ Error Display::present(sp<Fence>* outPresentFence)
     int32_t intError = mDevice.mPresentDisplay(mDevice.mHwcDevice, mId,
             &presentFenceFd);
 #else
-    auto intError = mDevice.mComposer->presentDisplay(mId, presentFenceFd);
+    auto intError = mDevice.mComposer->presentDisplay(mId, &presentFenceFd);
 #endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
@@ -1051,7 +1051,7 @@ Error Display::validate(uint32_t* outNumTypes, uint32_t* outNumRequests)
             &numTypes, &numRequests);
 #else
     auto intError = mDevice.mComposer->validateDisplay(mId,
-            numTypes, numRequests);
+            &numTypes, &numRequests);
 #endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None && error != Error::HasChanges) {
@@ -1072,9 +1072,9 @@ int32_t Display::getAttribute(hwc2_config_t configId, Attribute attribute)
     int32_t intError = mDevice.mGetDisplayAttribute(mDevice.mHwcDevice, mId,
             configId, static_cast<int32_t>(attribute), &value);
 #else
-    auto intError = mDevice.mComposer->getDisplayAttribute(mId,
-            configId, static_cast<Hwc2::IComposerClient::Attribute>(attribute),
-            value);
+    auto intError = mDevice.mComposer->getDisplayAttribute(mId, configId,
+            static_cast<Hwc2::IComposerClient::Attribute>(attribute),
+            &value);
 #endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
@@ -1121,7 +1121,7 @@ void Display::loadConfigs()
     error = static_cast<Error>(intError);
 #else
     std::vector<Hwc2::Config> configIds;
-    auto intError = mDevice.mComposer->getDisplayConfigs(mId, configIds);
+    auto intError = mDevice.mComposer->getDisplayConfigs(mId, &configIds);
     auto error = static_cast<Error>(intError);
 #endif
     if (error != Error::None) {

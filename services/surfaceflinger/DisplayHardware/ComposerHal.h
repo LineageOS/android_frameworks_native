@@ -71,25 +71,25 @@ public:
     };
     std::vector<CommandError> takeErrors();
 
-    bool hasChanges(Display display, uint32_t& numChangedCompositionTypes,
-            uint32_t& numLayerRequestMasks) const;
+    bool hasChanges(Display display, uint32_t* outNumChangedCompositionTypes,
+            uint32_t* outNumLayerRequestMasks) const;
 
     // Get and clear saved changed composition types.
     void takeChangedCompositionTypes(Display display,
-            std::vector<Layer>& layers,
-            std::vector<IComposerClient::Composition>& types);
+            std::vector<Layer>* outLayers,
+            std::vector<IComposerClient::Composition>* outTypes);
 
     // Get and clear saved display requests.
     void takeDisplayRequests(Display display,
-        uint32_t& displayRequestMask, std::vector<Layer>& layers,
-        std::vector<uint32_t>& layerRequestMasks);
+        uint32_t* outDisplayRequestMask, std::vector<Layer>* outLayers,
+        std::vector<uint32_t>* outLayerRequestMasks);
 
     // Get and clear saved release fences.
-    void takeReleaseFences(Display display, std::vector<Layer>& layers,
-            std::vector<int>& releaseFences);
+    void takeReleaseFences(Display display, std::vector<Layer>* outLayers,
+            std::vector<int>* outReleaseFences);
 
     // Get and clear saved present fence.
-    void takePresentFence(Display display, int& presentFence);
+    void takePresentFence(Display display, int* outPresentFence);
 
 private:
     void resetData();
@@ -137,39 +137,39 @@ public:
 
     uint32_t getMaxVirtualDisplayCount();
     Error createVirtualDisplay(uint32_t width, uint32_t height,
-            PixelFormat& format, Display& display);
+            PixelFormat* format, Display* outDisplay);
     Error destroyVirtualDisplay(Display display);
 
     Error acceptDisplayChanges(Display display);
 
-    Error createLayer(Display display, Layer& layer);
+    Error createLayer(Display display, Layer* outLayer);
     Error destroyLayer(Display display, Layer layer);
 
-    Error getActiveConfig(Display display, Config& config);
+    Error getActiveConfig(Display display, Config* outConfig);
     Error getChangedCompositionTypes(Display display,
-            std::vector<Layer>& layers,
-            std::vector<IComposerClient::Composition>& types);
-    Error getColorModes(Display display, std::vector<ColorMode>& modes);
+            std::vector<Layer>* outLayers,
+            std::vector<IComposerClient::Composition>* outTypes);
+    Error getColorModes(Display display, std::vector<ColorMode>* outModes);
     Error getDisplayAttribute(Display display, Config config,
-            IComposerClient::Attribute attribute, int32_t& value);
-    Error getDisplayConfigs(Display display,
-            std::vector<Config>& configs);
-    Error getDisplayName(Display display, std::string& name);
+            IComposerClient::Attribute attribute, int32_t* outValue);
+    Error getDisplayConfigs(Display display, std::vector<Config>* outConfigs);
+    Error getDisplayName(Display display, std::string* outName);
 
-    Error getDisplayRequests(Display display, uint32_t& displayRequestMask,
-            std::vector<Layer>& layers,
-            std::vector<uint32_t>& layerRequestMasks);
+    Error getDisplayRequests(Display display, uint32_t* outDisplayRequestMask,
+            std::vector<Layer>* outLayers,
+            std::vector<uint32_t>* outLayerRequestMasks);
 
-    Error getDisplayType(Display display, IComposerClient::DisplayType& type);
-    Error getDozeSupport(Display display, bool& support);
-    Error getHdrCapabilities(Display display, std::vector<Hdr>& types,
-            float& maxLuminance, float& maxAverageLuminance,
-            float& minLuminance);
+    Error getDisplayType(Display display,
+            IComposerClient::DisplayType* outType);
+    Error getDozeSupport(Display display, bool* outSupport);
+    Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes,
+            float* outMaxLuminance, float* outMaxAverageLuminance,
+            float* outMinLuminance);
 
-    Error getReleaseFences(Display display, std::vector<Layer>& layers,
-            std::vector<int>& releaseFences);
+    Error getReleaseFences(Display display, std::vector<Layer>* outLayers,
+            std::vector<int>* outReleaseFences);
 
-    Error presentDisplay(Display display, int& presentFence);
+    Error presentDisplay(Display display, int* outPresentFence);
 
     Error setActiveConfig(Display display, Config config);
     Error setClientTarget(Display display, const native_handle_t* target,
@@ -185,8 +185,8 @@ public:
 
     Error setClientTargetSlotCount(Display display);
 
-    Error validateDisplay(Display display, uint32_t& numTypes,
-            uint32_t& numRequests);
+    Error validateDisplay(Display display, uint32_t* outNumTypes,
+            uint32_t* outNumRequests);
 
     Error setCursorPosition(Display display, Layer layer,
             int32_t x, int32_t y);

@@ -55,7 +55,7 @@ std::string Allocator::dumpDebugInfo() const
 
 Error Allocator::createBufferDescriptor(
         const IAllocatorClient::BufferDescriptorInfo& descriptorInfo,
-        BufferDescriptor& descriptor) const
+        BufferDescriptor* outDescriptor) const
 {
     Error error = kDefaultError;
     mClient->createDescriptor(descriptorInfo,
@@ -65,7 +65,7 @@ Error Allocator::createBufferDescriptor(
                     return;
                 }
 
-                descriptor = tmpDescriptor;
+                *outDescriptor = tmpDescriptor;
             });
 
     return error;
@@ -76,7 +76,8 @@ void Allocator::destroyBufferDescriptor(BufferDescriptor descriptor) const
     mClient->destroyDescriptor(descriptor);
 }
 
-Error Allocator::allocate(BufferDescriptor descriptor, Buffer& buffer) const
+Error Allocator::allocate(BufferDescriptor descriptor,
+        Buffer* outBuffer) const
 {
     hardware::hidl_vec<BufferDescriptor> descriptors;
     descriptors.setToExternal(&descriptor, 1);
@@ -89,7 +90,7 @@ Error Allocator::allocate(BufferDescriptor descriptor, Buffer& buffer) const
                     return;
                 }
 
-                buffer = tmpBuffers[0];
+                *outBuffer = tmpBuffers[0];
             });
 
     return error;
@@ -101,7 +102,7 @@ void Allocator::free(Buffer buffer) const
 }
 
 Error Allocator::exportHandle(BufferDescriptor descriptor, Buffer buffer,
-        native_handle_t*& bufferHandle) const
+        native_handle_t** outBufferHandle) const
 {
     Error error = kDefaultError;
     auto status = mClient->exportHandle(descriptor, buffer,
@@ -111,8 +112,8 @@ Error Allocator::exportHandle(BufferDescriptor descriptor, Buffer buffer,
                     return;
                 }
 
-                bufferHandle = native_handle_clone(tmpBufferHandle);
-                if (!bufferHandle) {
+                *outBufferHandle = native_handle_clone(tmpBufferHandle);
+                if (!*outBufferHandle) {
                     error = Error::NO_RESOURCES;
                 }
             });
