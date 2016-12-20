@@ -21,7 +21,7 @@ interface IInstalld {
     void createUserData(@nullable @utf8InCpp String uuid, int userId, int userSerial, int flags);
     void destroyUserData(@nullable @utf8InCpp String uuid, int userId, int flags);
 
-    void createAppData(@nullable @utf8InCpp String uuid, in @utf8InCpp String packageName,
+    long createAppData(@nullable @utf8InCpp String uuid, in @utf8InCpp String packageName,
             int userId, int flags, int appId, in @utf8InCpp String seInfo, int targetSdkVersion);
     void restoreconAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, int flags, int appId, @utf8InCpp String seInfo);
@@ -31,8 +31,6 @@ interface IInstalld {
             int userId, int flags, long ceDataInode);
     void destroyAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, int flags, long ceDataInode);
-    long getAppDataInode(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
-            int userId, int flags);
     long[] getAppSize(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, int flags, long ceDataInode, @utf8InCpp String codePath);
 
