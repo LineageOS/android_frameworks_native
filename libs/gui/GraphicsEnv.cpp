@@ -75,3 +75,7 @@ android_namespace_t* GraphicsEnv::getDriverNamespace() {
 }
 
 } // namespace android
+
+extern "C" android_namespace_t* android_getDriverNamespace() {
+    return android::GraphicsEnv::getInstance().getDriverNamespace();
+}
