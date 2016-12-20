@@ -2580,6 +2580,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             // We don't trigger a traversal here because if no other state is
             // changed, we don't want this to cause any more work
         }
+        if (what & layer_state_t::eLayerInfoChanged) {
+          layer->setInfo(s.type, s.appid);
+        }
     }
     return flags;
 }

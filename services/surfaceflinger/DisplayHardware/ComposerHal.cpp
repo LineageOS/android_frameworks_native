@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "HwcComposer"
 
+#include <android/dvr/composer/1.0/IVrComposerClient.h>
 #include <inttypes.h>
 #include <log/log.h>
 
@@ -24,6 +25,7 @@
 
 namespace android {
 
+using dvr::composer::V1_0::IVrComposerClient;
 using hardware::Return;
 using hardware::hidl_vec;
 using hardware::hidl_handle;
@@ -102,10 +104,37 @@ Error unwrapRet(Return<Error>& ret)
 
 } // anonymous namespace
 
-Composer::Composer()
-    : mWriter(kWriterInitialSize)
+Composer::CommandWriter::CommandWriter(uint32_t initialMaxSize)
+    : CommandWriterBase(initialMaxSize) {}
+
+Composer::CommandWriter::~CommandWriter()
 {
-    mComposer = IComposer::getService("hwcomposer");
+}
+
+void Composer::CommandWriter::setLayerInfo(uint32_t type, uint32_t appId)
+{
+    constexpr uint16_t kSetLayerInfoLength = 2;
+    beginCommand(
+        static_cast<IComposerClient::Command>(
+            IVrComposerClient::VrCommand::SET_LAYER_INFO),
+        kSetLayerInfoLength);
+    write(type);
+    write(appId);
+    endCommand();
+}
+
+Composer::Composer() : mWriter(kWriterInitialSize)
+{
+#if defined(IN_VR_MODE)
+    mIsInVrMode = true;
+#endif
+
+    if (mIsInVrMode) {
+        mComposer = IComposer::getService("vr_hwcomposer");
+    } else {
+        mComposer = IComposer::getService("hwcomposer");
+    }
+
     if (mComposer == nullptr) {
         LOG_ALWAYS_FATAL("failed to get hwcomposer service");
     }
@@ -586,6 +615,18 @@ Error Composer::setLayerZOrder(Display display, Layer layer, uint32_t z)
     mWriter.selectDisplay(display);
     mWriter.selectLayer(layer);
     mWriter.setLayerZOrder(z);
+    return Error::NONE;
+}
+
+Error Composer::setLayerInfo(Display display, Layer layer, uint32_t type,
+                             uint32_t appId)
+{
+    if (mIsInVrMode)
+    {
+        mWriter.selectDisplay(display);
+        mWriter.selectLayer(layer);
+        mWriter.setLayerInfo(type, appId);
+    }
     return Error::NONE;
 }
 

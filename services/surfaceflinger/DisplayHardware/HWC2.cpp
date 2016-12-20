@@ -1424,4 +1424,16 @@ Error Layer::setZOrder(uint32_t z)
     return static_cast<Error>(intError);
 }
 
+Error Layer::setInfo(uint32_t type, uint32_t appId)
+{
+#ifdef BYPASS_IHWC
+  (void)type;
+  (void)appId;
+  int32_t intError = 0;
+#else
+  auto intError = mDevice.mComposer->setLayerInfo(mDisplayId, mId, type, appId);
+#endif
+  return static_cast<Error>(intError);
+}
+
 } // namespace HWC2
