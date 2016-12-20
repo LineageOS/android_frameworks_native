@@ -87,10 +87,6 @@ static binder::Status ok() {
     return binder::Status::ok();
 }
 
-static binder::Status exception(uint32_t code) {
-    return binder::Status::fromExceptionCode(code);
-}
-
 static binder::Status exception(uint32_t code, const std::string& msg) {
     return binder::Status::fromExceptionCode(code, String8(msg.c_str()));
 }
@@ -266,13 +262,16 @@ static int prepare_app_dir(const std::string& parent, const char* name, mode_t t
 
 binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::string>& uuid,
         const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
-        const std::string& seInfo, int32_t targetSdkVersion) {
+        const std::string& seInfo, int32_t targetSdkVersion, int64_t* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
+
+    // Assume invalid inode unless filled in below
+    if (_aidl_return != nullptr) *_aidl_return = -1;
 
     uid_t uid = multiuser_get_uid(userId, appId);
     mode_t target_mode = targetSdkVersion >= MIN_RESTRICTED_HOME_SDK_VERSION ? 0700 : 0751;
@@ -296,6 +295,13 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
         if (write_path_inode(path, "cache", kXattrInodeCache) ||
                 write_path_inode(path, "code_cache", kXattrInodeCodeCache)) {
             return error("Failed to write_path_inode for " + path);
+        }
+
+        // And return the CE inode of the top-level data directory so we can
+        // clear contents while CE storage is locked
+        if ((_aidl_return != nullptr)
+                && get_path_inode(path, reinterpret_cast<ino_t*>(_aidl_return)) != 0) {
+            return error("Failed to get_path_inode for " + path);
         }
     }
     if (flags & FLAG_STORAGE_DE) {
@@ -559,7 +565,7 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std:
         }
 
         if (!createAppData(toUuid, packageName, user, FLAG_STORAGE_CE | FLAG_STORAGE_DE, appId,
-                seInfo, targetSdkVersion).isOk()) {
+                seInfo, targetSdkVersion, nullptr).isOk()) {
             res = error("Failed to create package target");
             goto fail;
         }
@@ -856,26 +862,6 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
     res.push_back(asecsize);
     *_aidl_return = res;
     return ok();
-}
-
-binder::Status InstalldNativeService::getAppDataInode(const std::unique_ptr<std::string>& uuid,
-        const std::string& packageName, int32_t userId, int32_t flags, int64_t* _aidl_return) {
-    ENFORCE_UID(AID_SYSTEM);
-    CHECK_ARGUMENT_UUID(uuid);
-    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-
-    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
-    const char* pkgname = packageName.c_str();
-
-    if (flags & FLAG_STORAGE_CE) {
-        auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
-        if (get_path_inode(path, reinterpret_cast<ino_t*>(_aidl_return)) == 0) {
-            return ok();
-        } else {
-            return error("Failed to get_path_inode for " + path);
-        }
-    }
-    return exception(binder::Status::EX_UNSUPPORTED_OPERATION);
 }
 
 // Dumps the contents of a profile file, using pkgname's dex files for pretty
