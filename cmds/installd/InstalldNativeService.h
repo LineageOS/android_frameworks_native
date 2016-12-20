@@ -45,7 +45,7 @@ public:
 
     binder::Status createAppData(const std::unique_ptr<std::string>& uuid,
             const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
-            const std::string& seInfo, int32_t targetSdkVersion);
+            const std::string& seInfo, int32_t targetSdkVersion, int64_t* _aidl_return);
     binder::Status restoreconAppData(const std::unique_ptr<std::string>& uuid,
             const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
             const std::string& seInfo);
@@ -55,8 +55,6 @@ public:
             const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode);
     binder::Status destroyAppData(const std::unique_ptr<std::string>& uuid,
             const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode);
-    binder::Status getAppDataInode(const std::unique_ptr<std::string>& uuid,
-            const std::string& packageName, int32_t userId, int32_t flags, int64_t* _aidl_return);
     binder::Status getAppSize(const std::unique_ptr<std::string>& uuid,
             const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode,
             const std::string& codePath, std::vector<int64_t>* _aidl_return);
