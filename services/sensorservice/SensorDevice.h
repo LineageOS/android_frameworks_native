@@ -20,19 +20,16 @@
 #include "SensorServiceUtils.h"
 
 #include <gui/Sensor.h>
+#include <stdint.h>
+#include <sys/types.h>
 #include <utils/KeyedVector.h>
 #include <utils/Singleton.h>
 #include <utils/String8.h>
 
-#include <stdint.h>
-#include <sys/types.h>
 #include <string>
-
-#ifdef ENABLE_TREBLE
 #include <map>
 
 #include "android/hardware/sensors/1.0/ISensors.h"
-#endif
 
 // ---------------------------------------------------------------------------
 
@@ -76,14 +73,10 @@ public:
     virtual std::string dump() const;
 private:
     friend class Singleton<SensorDevice>;
-#ifdef ENABLE_TREBLE
+
     sp<android::hardware::sensors::V1_0::ISensors> mSensors;
     Vector<sensor_t> mSensorList;
     std::map<int32_t, sensor_t*> mConnectedDynamicSensors;
-#else
-    sensors_poll_device_1_t* mSensorDevice;
-    struct sensors_module_t* mSensorModule;
-#endif
 
     static const nsecs_t MINIMUM_EVENTS_PERIOD =   1000000; // 1000 Hz
     mutable Mutex mLock; // protect mActivationCount[].batchParams
@@ -138,7 +131,6 @@ private:
     bool isClientDisabled(void* ident);
     bool isClientDisabledLocked(void* ident);
 
-#ifdef ENABLE_TREBLE
     using Event = hardware::sensors::V1_0::Event;
     using SensorInfo = hardware::sensors::V1_0::SensorInfo;
 
@@ -150,7 +142,6 @@ private:
             sensors_event_t *dst);
 
     bool mIsDirectReportSupported;
-#endif  // ENABLE_TREBLE
 };
 
 // ---------------------------------------------------------------------------
