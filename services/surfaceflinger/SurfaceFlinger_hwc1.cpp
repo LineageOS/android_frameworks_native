@@ -3407,6 +3407,40 @@ status_t SurfaceFlinger::onTransact(
                 repaintEverything();
                 return NO_ERROR;
             }
+            case 10000: { // Get frame stats of specific layer
+                FrameStats frameStats;
+                size_t arraySize = 0;
+                int layerIndex = -1;
+                String8 layerName = String8(data.readString16());
+                String8 surfaceView = String8("SurfaceView -");
+                const LayerVector& currentLayers = mCurrentState.layersSortedByZ;
+                const size_t count = currentLayers.size();
+                for (size_t i=0 ; i<count ; i++) {
+                    const sp<Layer>& layer(currentLayers[i]);
+                    if (layer->getName().contains(layerName)) {
+                        if (layer->getName().contains(surfaceView)) {
+                            layer->getFrameStats(&frameStats);
+                            arraySize = frameStats.actualPresentTimesNano.size();
+                            if (arraySize == 0) {
+                                continue;
+                            } else {
+                                break;
+                            }
+                        }
+                        layerIndex = i;
+                    }
+                }
+                if ((arraySize == 0) && (layerIndex >= 0)){
+                    const sp<Layer>& layer(currentLayers[layerIndex]);
+                    layer->getFrameStats(&frameStats);
+                    arraySize = frameStats.actualPresentTimesNano.size();
+                }
+                reply->writeInt32(arraySize);
+                if (arraySize > 0) {
+                    reply->write(frameStats.actualPresentTimesNano.array(), 8*arraySize);
+                }
+                return NO_ERROR;
+            }
         }
     }
     return err;
