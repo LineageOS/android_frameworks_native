@@ -199,7 +199,8 @@ status_t InstalldNativeService::dump(int fd, const Vector<String16> & /* args */
  * if the label of that top-level file actually changed.  This can save us
  * significant time by avoiding no-op traversals of large filesystem trees.
  */
-static int restorecon_app_data_lazy(const std::string& path, const std::string& seInfo, uid_t uid) {
+static int restorecon_app_data_lazy(const std::string& path, const std::string& seInfo, uid_t uid,
+        bool existing) {
     int res = 0;
     char* before = nullptr;
     char* after = nullptr;
@@ -223,8 +224,10 @@ static int restorecon_app_data_lazy(const std::string& path, const std::string& 
     // If the initial top-level restorecon above changed the label, then go
     // back and restorecon everything recursively
     if (strcmp(before, after)) {
-        LOG(DEBUG) << "Detected label change from " << before << " to " << after << " at " << path
-                << "; running recursive restorecon";
+        if (existing) {
+            LOG(DEBUG) << "Detected label change from " << before << " to " << after << " at "
+                    << path << "; running recursive restorecon";
+        }
         if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid,
                 SELINUX_ANDROID_RESTORECON_RECURSE) < 0) {
             PLOG(ERROR) << "Failed recursive restorecon for " << path;
@@ -242,8 +245,9 @@ done:
 }
 
 static int restorecon_app_data_lazy(const std::string& parent, const char* name,
-        const std::string& seInfo, uid_t uid) {
-    return restorecon_app_data_lazy(StringPrintf("%s/%s", parent.c_str(), name), seInfo, uid);
+        const std::string& seInfo, uid_t uid, bool existing) {
+    return restorecon_app_data_lazy(StringPrintf("%s/%s", parent.c_str(), name), seInfo, uid,
+            existing);
 }
 
 static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t uid) {
@@ -276,6 +280,8 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
     mode_t target_mode = targetSdkVersion >= MIN_RESTRICTED_HOME_SDK_VERSION ? 0700 : 0751;
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
+        bool existing = (access(path.c_str(), F_OK) == 0);
+
         if (prepare_app_dir(path, target_mode, uid) ||
                 prepare_app_dir(path, "cache", 0771, uid) ||
                 prepare_app_dir(path, "code_cache", 0771, uid)) {
@@ -283,9 +289,9 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
         }
 
         // Consider restorecon over contents if label changed
-        if (restorecon_app_data_lazy(path, seInfo, uid) ||
-                restorecon_app_data_lazy(path, "cache", seInfo, uid) ||
-                restorecon_app_data_lazy(path, "code_cache", seInfo, uid)) {
+        if (restorecon_app_data_lazy(path, seInfo, uid, existing) ||
+                restorecon_app_data_lazy(path, "cache", seInfo, uid, existing) ||
+                restorecon_app_data_lazy(path, "code_cache", seInfo, uid, existing)) {
             return error("Failed to restorecon " + path);
         }
 
@@ -305,12 +311,14 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
     }
     if (flags & FLAG_STORAGE_DE) {
         auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
+        bool existing = (access(path.c_str(), F_OK) == 0);
+
         if (prepare_app_dir(path, target_mode, uid)) {
             return error("Failed to prepare " + path);
         }
 
         // Consider restorecon over contents if label changed
-        if (restorecon_app_data_lazy(path, seInfo, uid)) {
+        if (restorecon_app_data_lazy(path, seInfo, uid, existing)) {
             return error("Failed to restorecon " + path);
         }
 
