@@ -537,18 +537,18 @@ static void pokeHalServices()
                 if (!notifyRet.isOk()) {
                     fprintf(stderr, "failed to notifySyspropsChanged on service %s: %s\n",
                             fqInstanceName.c_str(),
-                            notifyRet.getStatus().toString8().string());
+                            notifyRet.description().c_str());
                 }
             });
             if (!getRet.isOk()) {
                 fprintf(stderr, "failed to get service %s: %s\n",
                         fqInstanceName.c_str(),
-                        getRet.getStatus().toString8().string());
+                        getRet.description().c_str());
             }
         }
     });
     if (!listRet.isOk()) {
-        fprintf(stderr, "failed to list services: %s\n", listRet.getStatus().toString8().string());
+        fprintf(stderr, "failed to list services: %s\n", listRet.description().c_str());
     }
 }
 
