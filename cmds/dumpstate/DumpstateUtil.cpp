@@ -34,10 +34,14 @@
 
 #include "DumpstateInternal.h"
 
-// TODO: move to unnamed namespace
+namespace android {
+namespace os {
+namespace dumpstate {
+
+namespace {
+
 static constexpr const char* kSuPath = "/system/xbin/su";
 
-// TODO: move to unnamed namespace
 static bool waitpid_with_timeout(pid_t pid, int timeout_seconds, int* status) {
     sigset_t child_mask, old_mask;
     sigemptyset(&child_mask);
@@ -81,10 +85,10 @@ static bool waitpid_with_timeout(pid_t pid, int timeout_seconds, int* status) {
     }
     return true;
 }
+}  // unnamed namespace
 
 CommandOptions CommandOptions::DEFAULT = CommandOptions::WithTimeout(10).Build();
 CommandOptions CommandOptions::AS_ROOT = CommandOptions::WithTimeout(10).AsRoot().Build();
-CommandOptions CommandOptions::AS_ROOT_5 = CommandOptions::WithTimeout(5).AsRoot().Build();
 
 CommandOptions::CommandOptionsBuilder::CommandOptionsBuilder(int64_t timeout) : values(timeout) {
 }
@@ -374,3 +378,7 @@ int GetPidByName(const std::string& ps_name) {
     closedir(proc_dir);
     return -1;
 }
+
+}  // namespace dumpstate
+}  // namespace os
+}  // namespace android

@@ -57,6 +57,12 @@ using ::android::hardware::dumpstate::V1_0::IDumpstateDevice;
 using ::android::hardware::vibrator::V1_0::IVibrator;
 using VibratorStatus = ::android::hardware::vibrator::V1_0::Status;
 
+// TODO: remove once moved to namespace
+using android::os::dumpstate::CommandOptions;
+using android::os::dumpstate::DumpFileToFd;
+using android::os::dumpstate::PropertiesHelper;
+using android::os::dumpstate::GetPidByName;
+
 /* read before root is shed */
 static char cmdline_buf[16384] = "(unknown)";
 static const char *dump_traces_path = NULL;
@@ -1029,11 +1035,11 @@ static void dumpstate() {
                CommandOptions::WithTimeout(20).Build());
 
 #ifdef FWDUMP_bcmdhd
-    RunCommand("ND OFFLOAD TABLE", {WLUTIL, "nd_hostip"}, CommandOptions::AS_ROOT_5);
+    RunCommand("ND OFFLOAD TABLE", {WLUTIL, "nd_hostip"}, CommandOptions::AS_ROOT);
 
     RunCommand("DUMP WIFI INTERNAL COUNTERS (1)", {WLUTIL, "counters"}, AS_ROOT_20);
 
-    RunCommand("ND OFFLOAD STATUS (1)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
+    RunCommand("ND OFFLOAD STATUS (1)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT);
 
 #endif
     DumpFile("INTERRUPTS (1)", "/proc/interrupts");
@@ -1046,7 +1052,7 @@ static void dumpstate() {
 
     RunCommand("DUMP WIFI INTERNAL COUNTERS (2)", {WLUTIL, "counters"}, AS_ROOT_20);
 
-    RunCommand("ND OFFLOAD STATUS (2)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
+    RunCommand("ND OFFLOAD STATUS (2)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT);
 #endif
     DumpFile("INTERRUPTS (2)", "/proc/interrupts");
 

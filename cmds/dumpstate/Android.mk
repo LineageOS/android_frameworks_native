@@ -21,12 +21,11 @@ COMMON_SHARED_LIBRARIES := \
         libbinder \
         libcutils \
         libdumpstateaidl \
+        libdumpstateutil \
         liblog \
         libselinux \
         libutils \
         $(COMMON_ZIP_LIBRARIES)
-COMMON_STATIC_LIBRARIES := \
-        libdumpstateutil
 
 # ====================#
 # libdumpstateutil #
@@ -42,9 +41,10 @@ LOCAL_SRC_FILES := \
         DumpstateInternal.cpp \
         DumpstateUtil.cpp
 LOCAL_SHARED_LIBRARIES := \
-        libbase
+        libbase \
+        liblog \
 
-include $(BUILD_STATIC_LIBRARY)
+include $(BUILD_SHARED_LIBRARY)
 
 # ====================#
 # libdumpstateheaders #

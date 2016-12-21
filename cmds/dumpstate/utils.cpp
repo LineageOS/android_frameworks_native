@@ -53,6 +53,11 @@
 
 #include "DumpstateInternal.h"
 
+// TODO: remove once moved to namespace
+using android::os::dumpstate::CommandOptions;
+using android::os::dumpstate::DumpFileToFd;
+using android::os::dumpstate::PropertiesHelper;
+
 static const int TRACE_DUMP_TIMEOUT_MS = 10000; // 10 seconds
 
 /* Most simple commands have 10 as timeout, so 5 is a good estimate */
@@ -63,9 +68,6 @@ static Dumpstate& ds = Dumpstate::GetInstance();
 static int RunCommand(const std::string& title, const std::vector<std::string>& full_command,
                       const CommandOptions& options = CommandOptions::DEFAULT) {
     return ds.RunCommand(title, full_command, options);
-}
-bool Dumpstate::IsUserBuild() {
-    return PropertiesHelper::IsUserBuild();
 }
 
 /* list of native processes to include in the native dumps */
