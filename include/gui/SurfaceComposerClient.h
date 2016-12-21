@@ -52,6 +52,7 @@ class SurfaceComposerClient : public RefBase
     friend class Composer;
 public:
                 SurfaceComposerClient();
+                SurfaceComposerClient(const sp<IGraphicBufferProducer>& parent);
     virtual     ~SurfaceComposerClient();
 
     // Always make sure we could initialize
@@ -154,6 +155,8 @@ public:
     status_t    setLayerStack(const sp<IBinder>& id, uint32_t layerStack);
     status_t    deferTransactionUntil(const sp<IBinder>& id,
             const sp<IBinder>& handle, uint64_t frameNumber);
+    status_t    reparentChildren(const sp<IBinder>& id,
+            const sp<IBinder>& newParentHandle);
     status_t    setOverrideScalingMode(const sp<IBinder>& id,
             int32_t overrideScalingMode);
     status_t    setGeometryAppliesWithResize(const sp<IBinder>& id);
@@ -201,6 +204,7 @@ private:
                 status_t                    mStatus;
                 sp<ISurfaceComposerClient>  mClient;
                 Composer&                   mComposer;
+                wp<IGraphicBufferProducer>  mParent;
 };
 
 // ---------------------------------------------------------------------------

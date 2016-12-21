@@ -17,13 +17,16 @@
 #include "MessageQueue.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
+#include "Layer.h"
 
 namespace android {
 
 MonitoredProducer::MonitoredProducer(const sp<IGraphicBufferProducer>& producer,
-        const sp<SurfaceFlinger>& flinger) :
+        const sp<SurfaceFlinger>& flinger,
+        const wp<Layer>& layer) :
     mProducer(producer),
-    mFlinger(flinger) {}
+    mFlinger(flinger),
+    mLayer(layer) {}
 
 MonitoredProducer::~MonitoredProducer() {
     // Remove ourselves from SurfaceFlinger's list. We do this asynchronously
@@ -157,6 +160,10 @@ status_t MonitoredProducer::getUniqueId(uint64_t* outId) const {
 
 IBinder* MonitoredProducer::onAsBinder() {
     return this;
+}
+
+sp<Layer> MonitoredProducer::getLayer() const {
+    return mLayer.promote();
 }
 
 // ---------------------------------------------------------------------------

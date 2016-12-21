@@ -35,7 +35,13 @@ const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER"
 // ---------------------------------------------------------------------------
 
 Client::Client(const sp<SurfaceFlinger>& flinger)
-    : mFlinger(flinger)
+    : Client(flinger, nullptr)
+{
+}
+
+Client::Client(const sp<SurfaceFlinger>& flinger, const sp<Layer>& parentLayer)
+    : mFlinger(flinger),
+      mParentLayer(parentLayer)
 {
 }
 
@@ -45,6 +51,10 @@ Client::~Client()
     for (size_t i=0 ; i<count ; i++) {
         mFlinger->removeLayer(mLayers.valueAt(i));
     }
+}
+
+void Client::setParentLayer(const sp<Layer>& parentLayer) {
+    mParentLayer = parentLayer;
 }
 
 status_t Client::initCheck() const {
@@ -90,12 +100,17 @@ status_t Client::onTransact(
      const int pid = ipc->getCallingPid();
      const int uid = ipc->getCallingUid();
      const int self_pid = getpid();
-     if (CC_UNLIKELY(pid != self_pid && uid != AID_GRAPHICS && uid != AID_SYSTEM && uid != 0)) {
+     // If we are called from another non root process without the GRAPHICS, SYSTEM, or ROOT
+     // uid we require the sAccessSurfaceFlinger permission.
+     // We grant an exception in the case that the Client has a "parent layer", as its
+     // effects will be scoped to that layer.
+     if (CC_UNLIKELY(pid != self_pid && uid != AID_GRAPHICS && uid != AID_SYSTEM && uid != 0)
+             && (mParentLayer.promote() == nullptr)) {
          // we're called from a different process, do the real check
          if (!PermissionCache::checkCallingPermission(sAccessSurfaceFlinger))
          {
              ALOGE("Permission Denial: "
-                     "can't openGlobalTransaction pid=%d, uid=%d", pid, uid);
+                     "can't openGlobalTransaction pid=%d, uid<=%d", pid, uid);
              return PERMISSION_DENIED;
          }
      }
@@ -113,6 +128,14 @@ status_t Client::createSurface(
     sp<Layer> parent = nullptr;
     if (parentHandle != nullptr) {
         parent = getLayerUser(parentHandle);
+        if (parent == nullptr) {
+            return NAME_NOT_FOUND;
+        }
+    }
+    if (parent == nullptr && mParentLayer != nullptr) {
+        parent = mParentLayer.promote();
+        // If we had a parent, but it died, we've lost all
+        // our capabilities.
         if (parent == nullptr) {
             return NAME_NOT_FOUND;
         }

@@ -162,7 +162,7 @@ void Layer::onFirstRef() {
     sp<IGraphicBufferProducer> producer;
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer, nullptr, true);
-    mProducer = new MonitoredProducer(producer, mFlinger);
+    mProducer = new MonitoredProducer(producer, mFlinger, this);
     mSurfaceFlingerConsumer = new SurfaceFlingerConsumer(consumer, mTextureName, this);
     mSurfaceFlingerConsumer->setConsumerUsageBits(getEffectiveUsage(0));
     mSurfaceFlingerConsumer->setContentsChangedListener(this);
@@ -2378,6 +2378,32 @@ void Layer::addChild(const sp<Layer>& layer) {
 ssize_t Layer::removeChild(const sp<Layer>& layer) {
     layer->setParent(nullptr);
     return mCurrentChildren.remove(layer);
+}
+
+bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
+    sp<Handle> handle = nullptr;
+    sp<Layer> newParent = nullptr;
+    if (newParentHandle == nullptr) {
+        return false;
+    }
+    handle = static_cast<Handle*>(newParentHandle.get());
+    newParent = handle->owner.promote();
+    if (newParent == nullptr) {
+        ALOGE("Unable to promote Layer handle");
+        return false;
+    }
+
+    for (const sp<Layer>& child : mCurrentChildren) {
+        newParent->addChild(child);
+
+        sp<Client> client(child->mClientRef.promote());
+        if (client != nullptr) {
+            client->setParentLayer(newParent);
+        }
+    }
+    mCurrentChildren.clear();
+
+    return true;
 }
 
 void Layer::setParent(const sp<Layer>& layer) {

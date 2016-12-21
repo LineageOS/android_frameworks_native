@@ -168,11 +168,17 @@ status_t SurfaceControl::setFinalCrop(const Rect& crop) {
     return mClient->setFinalCrop(mHandle, crop);
 }
 
-status_t SurfaceControl::deferTransactionUntil(sp<IBinder> handle,
+status_t SurfaceControl::deferTransactionUntil(const sp<IBinder>& handle,
         uint64_t frameNumber) {
     status_t err = validate();
     if (err < 0) return err;
     return mClient->deferTransactionUntil(mHandle, handle, frameNumber);
+}
+
+status_t SurfaceControl::reparentChildren(const sp<IBinder>& newParentHandle) {
+    status_t err = validate();
+    if (err < 0) return err;
+    return mClient->reparentChildren(mHandle, newParentHandle);
 }
 
 status_t SurfaceControl::setOverrideScalingMode(int32_t overrideScalingMode) {

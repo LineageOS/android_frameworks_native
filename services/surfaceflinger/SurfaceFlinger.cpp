@@ -71,6 +71,7 @@
 #include "Layer.h"
 #include "LayerVector.h"
 #include "LayerDim.h"
+#include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 
 #include "DisplayHardware/FramebufferSurface.h"
@@ -221,15 +222,29 @@ void SurfaceFlinger::binderDied(const wp<IBinder>& /* who */)
     startBootAnim();
 }
 
-sp<ISurfaceComposerClient> SurfaceFlinger::createConnection()
-{
-    sp<ISurfaceComposerClient> bclient;
-    sp<Client> client(new Client(this));
+static sp<ISurfaceComposerClient> initClient(const sp<Client>& client) {
     status_t err = client->initCheck();
     if (err == NO_ERROR) {
-        bclient = client;
+        return client;
     }
-    return bclient;
+    return nullptr;
+}
+
+sp<ISurfaceComposerClient> SurfaceFlinger::createConnection() {
+    return initClient(new Client(this));
+}
+
+sp<ISurfaceComposerClient> SurfaceFlinger::createScopedConnection(
+        const sp<IGraphicBufferProducer>& gbp) {
+    if (authenticateSurfaceTexture(gbp) == false) {
+        return nullptr;
+    }
+    const auto& layer = (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
+    if (layer == nullptr) {
+        return nullptr;
+    }
+
+   return initClient(new Client(this, layer));
 }
 
 sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName,
@@ -2575,6 +2590,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             // We don't trigger a traversal here because if no other state is
             // changed, we don't want this to cause any more work
         }
+        if (what & layer_state_t::eReparentChildren) {
+            if (layer->reparentChildren(s.reparentHandle)) {
+                flags |= eTransactionNeeded|eTraversalNeeded;
+            }
+        }
         if (what & layer_state_t::eOverrideScalingModeChanged) {
             layer->setOverrideScalingMode(s.overrideScalingMode);
             // We don't trigger a traversal here because if no other state is
@@ -3268,7 +3288,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
     switch (code) {
         case CREATE_CONNECTION:
         case CREATE_DISPLAY:
-        case SET_TRANSACTION_STATE:
         case BOOT_FINISHED:
         case CLEAR_ANIMATION_FRAME_STATS:
         case GET_ANIMATION_FRAME_STATS:
@@ -3285,6 +3304,17 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
                 return PERMISSION_DENIED;
             }
             break;
+        }
+        /*
+         * Calling setTransactionState is safe, because you need to have been
+         * granted a reference to Client* and Handle* to do anything with it.
+         *
+         * Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
+         */
+        case SET_TRANSACTION_STATE:
+        case CREATE_SCOPED_CONNECTION:
+        {
+            return OK;
         }
         case CAPTURE_SCREEN:
         {

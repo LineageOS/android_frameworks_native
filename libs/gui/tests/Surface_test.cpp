@@ -333,6 +333,10 @@ public:
     }
 
     sp<ISurfaceComposerClient> createConnection() override { return nullptr; }
+    sp<ISurfaceComposerClient> createScopedConnection(
+            const sp<IGraphicBufferProducer>& /* parent */) override {
+        return nullptr;
+    }
     sp<IGraphicBufferAlloc> createGraphicBufferAlloc() override {
         return nullptr;
     }

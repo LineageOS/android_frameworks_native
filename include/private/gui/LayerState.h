@@ -57,6 +57,7 @@ struct layer_state_t {
         eOverrideScalingModeChanged = 0x00000800,
         eGeometryAppliesWithResize  = 0x00001000,
         eLayerInfoChanged           = 0x00002000,
+        eReparentChildren           = 0x00004000,
     };
 
     layer_state_t()
@@ -96,6 +97,7 @@ struct layer_state_t {
             Rect            crop;
             Rect            finalCrop;
             sp<IBinder>     handle;
+            sp<IBinder>     reparentHandle;
             uint64_t        frameNumber;
             int32_t         overrideScalingMode;
             uint32_t        type;

@@ -40,6 +40,7 @@ status_t layer_state_t::write(Parcel& output) const
     output.write(crop);
     output.write(finalCrop);
     output.writeStrongBinder(handle);
+    output.writeStrongBinder(reparentHandle);
     output.writeUint64(frameNumber);
     output.writeInt32(overrideScalingMode);
     output.writeUint32(type);
@@ -70,6 +71,7 @@ status_t layer_state_t::read(const Parcel& input)
     input.read(crop);
     input.read(finalCrop);
     handle = input.readStrongBinder();
+    reparentHandle = input.readStrongBinder();
     frameNumber = input.readUint64();
     overrideScalingMode = input.readInt32();
     type = input.readUint32();

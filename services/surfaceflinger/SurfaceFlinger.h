@@ -189,6 +189,7 @@ private:
      * ISurfaceComposer interface
      */
     virtual sp<ISurfaceComposerClient> createConnection();
+    virtual sp<ISurfaceComposerClient> createScopedConnection(const sp<IGraphicBufferProducer>& gbp);
     virtual sp<IGraphicBufferAlloc> createGraphicBufferAlloc();
     virtual sp<IBinder> createDisplay(const String8& displayName, bool secure);
     virtual void destroyDisplay(const sp<IBinder>& display);

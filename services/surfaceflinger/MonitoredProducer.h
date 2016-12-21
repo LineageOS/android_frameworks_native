@@ -24,13 +24,15 @@ namespace android {
 class IProducerListener;
 class NativeHandle;
 class SurfaceFlinger;
+class Layer;
 
 // MonitoredProducer wraps an IGraphicBufferProducer so that SurfaceFlinger will
 // be notified upon its destruction
 class MonitoredProducer : public BnGraphicBufferProducer {
 public:
     MonitoredProducer(const sp<IGraphicBufferProducer>& producer,
-            const sp<SurfaceFlinger>& flinger);
+            const sp<SurfaceFlinger>& flinger,
+            const wp<Layer>& layer);
     virtual ~MonitoredProducer();
 
     // From IGraphicBufferProducer
@@ -67,9 +69,14 @@ public:
     virtual void getFrameTimestamps(FrameEventHistoryDelta *outDelta) override;
     virtual status_t getUniqueId(uint64_t* outId) const override;
 
+    // The Layer which created this producer, and on which queued Buffer's will be displayed.
+    sp<Layer> getLayer() const;
+
 private:
     sp<IGraphicBufferProducer> mProducer;
     sp<SurfaceFlinger> mFlinger;
+    // The Layer which created this producer, and on which queued Buffer's will be displayed.
+    wp<Layer> mLayer;
 };
 
 }; // namespace android

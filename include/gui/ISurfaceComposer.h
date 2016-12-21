@@ -78,6 +78,17 @@ public:
      */
     virtual sp<ISurfaceComposerClient> createConnection() = 0;
 
+    /** create a scoped connection with surface flinger.
+     * Surfaces produced with this connection will act
+     * as children of the passed in GBP. That is to say
+     * SurfaceFlinger will draw them relative and confined to
+     * drawing of buffers from the layer associated with parent.
+     * As this is graphically equivalent in reach to just drawing
+     * pixels into the parent buffers, it requires no special permission.
+     */
+    virtual sp<ISurfaceComposerClient> createScopedConnection(
+            const sp<IGraphicBufferProducer>& parent) = 0;
+
     /* create a graphic buffer allocator
      */
     virtual sp<IGraphicBufferAlloc> createGraphicBufferAlloc() = 0;
@@ -216,7 +227,8 @@ public:
         GET_ACTIVE_COLOR_MODE,
         SET_ACTIVE_COLOR_MODE,
         ENABLE_VSYNC_INJECTIONS,
-        INJECT_VSYNC
+        INJECT_VSYNC,
+        CREATE_SCOPED_CONNECTION
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,
