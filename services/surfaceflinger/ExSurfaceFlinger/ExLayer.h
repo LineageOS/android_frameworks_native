@@ -51,6 +51,7 @@ public:
     virtual bool isIntOnly() const;
     virtual bool isSecureDisplay() const;
     virtual bool isYuvLayer() const;
+    virtual bool isHDRLayer() const;
     virtual uint32_t getS3dFormat(const sp<const DisplayDevice>& hw) const;
     virtual void clearS3dFormat(const sp<const DisplayDevice>& hw) const;
 #ifndef USE_HWC2
