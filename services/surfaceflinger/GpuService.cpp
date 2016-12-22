@@ -16,6 +16,7 @@
 
 #include "GpuService.h"
 
+#include <binder/IResultReceiver.h>
 #include <binder/Parcel.h>
 #include <utils/String8.h>
 #include <vkjson.h>
@@ -35,6 +36,7 @@ IMPLEMENT_META_INTERFACE(GpuService, "android.ui.IGpuService");
 status_t BnGpuService::onTransact(uint32_t code, const Parcel& data,
         Parcel* reply, uint32_t flags)
 {
+    status_t status;
     switch (code) {
     case SHELL_COMMAND_TRANSACTION: {
         int in = data.readFileDescriptor();
@@ -45,7 +47,16 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data,
         for (int i = 0; i < argc && data.dataAvail() > 0; i++) {
            args.add(data.readString16());
         }
-        return shellCommand(in, out, err, args);
+        sp<IBinder> unusedCallback;
+        sp<IResultReceiver> resultReceiver;
+        if ((status = data.readNullableStrongBinder(&unusedCallback)) != OK)
+            return status;
+        if ((status = data.readNullableStrongBinder(&resultReceiver)) != OK)
+            return status;
+        status = shellCommand(in, out, err, args);
+        if (resultReceiver != nullptr)
+            resultReceiver->send(status);
+        return OK;
     }
 
     default:
@@ -71,12 +82,15 @@ status_t GpuService::shellCommand(int /*in*/, int out, int err,
     for (size_t i = 0, n = args.size(); i < n; i++)
         ALOGV("  arg[%zu]: '%s'", i, String8(args[i]).string());
 
-    if (args[0] == String16("vkjson"))
-        return cmd_vkjson(out, err);
-    else if (args[0] == String16("help"))
-        return cmd_help(out);
-
-    return NO_ERROR;
+    if (args.size() >= 1) {
+        if (args[0] == String16("vkjson"))
+            return cmd_vkjson(out, err);
+        if (args[0] == String16("help"))
+            return cmd_help(out);
+    }
+    // no command, or unrecognized command
+    cmd_help(err);
+    return BAD_VALUE;
 }
 
 // ----------------------------------------------------------------------------
