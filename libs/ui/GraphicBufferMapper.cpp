@@ -151,7 +151,7 @@ status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
         const Gralloc2::Device::Rect& accessRect =
             *reinterpret_cast<Gralloc2::Device::Rect*>(&accessRegion);
         error = static_cast<gralloc1_error_t>(mMapper->lock(
-                    handle, usage, usage, accessRect, fenceFd, *vaddr));
+                    handle, usage, usage, accessRect, fenceFd, vaddr));
     } else {
         sp<Fence> fence = new Fence(fenceFd);
         error = mDevice->lock(handle,
@@ -213,7 +213,7 @@ status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
     gralloc1_error_t error;
     if (mMapper->valid()) {
         error = static_cast<gralloc1_error_t>(
-                mMapper->getNumFlexPlanes(handle, numPlanes));
+                mMapper->getNumFlexPlanes(handle, &numPlanes));
     } else {
         error = mDevice->getNumFlexPlanes(handle, &numPlanes);
     }
@@ -238,7 +238,7 @@ status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
         Gralloc2::FlexLayout& layout =
             *reinterpret_cast<Gralloc2::FlexLayout*>(&flexLayout);
         error = static_cast<gralloc1_error_t>(mMapper->lock(
-                    handle, usage, usage, accessRect, fenceFd, layout));
+                    handle, usage, usage, accessRect, fenceFd, &layout));
     } else {
         sp<Fence> fence = new Fence(fenceFd);
         error = mDevice->lockFlex(handle,

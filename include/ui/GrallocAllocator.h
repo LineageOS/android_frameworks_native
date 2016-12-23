@@ -47,14 +47,14 @@ public:
 
     Error createBufferDescriptor(
             const IAllocatorClient::BufferDescriptorInfo& descriptorInfo,
-            BufferDescriptor& descriptor) const;
+            BufferDescriptor* outDescriptor) const;
     void destroyBufferDescriptor(BufferDescriptor descriptor) const;
 
-    Error allocate(BufferDescriptor descriptor, Buffer& buffer) const;
+    Error allocate(BufferDescriptor descriptor, Buffer* outBuffer) const;
     void free(Buffer buffer) const;
 
     Error exportHandle(BufferDescriptor descriptor, Buffer buffer,
-            native_handle_t*& bufferHandle) const;
+            native_handle_t** outBufferHandle) const;
 
 private:
     sp<IAllocator> mAllocator;

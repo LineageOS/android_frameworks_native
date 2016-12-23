@@ -52,70 +52,71 @@ public:
     void release(buffer_handle_t handle) const;
 
     Error getDimensions(buffer_handle_t handle,
-            uint32_t& width, uint32_t& height) const
+            uint32_t* outWidth, uint32_t* outHeight) const
     {
-        return mMapper->getDimensions(mDevice, handle, &width, &height);
+        return mMapper->getDimensions(mDevice, handle, outWidth, outHeight);
     }
 
     Error getFormat(buffer_handle_t handle,
-            PixelFormat& format) const
+            PixelFormat* outFormat) const
     {
-        return mMapper->getFormat(mDevice, handle, &format);
+        return mMapper->getFormat(mDevice, handle, outFormat);
     }
 
-    Error getLayerCount(buffer_handle_t handle, uint32_t& layerCount) const
+    Error getLayerCount(buffer_handle_t handle, uint32_t* outLayerCount) const
     {
-        return mMapper->getLayerCount(mDevice, handle, &layerCount);
+        return mMapper->getLayerCount(mDevice, handle, outLayerCount);
     }
 
     Error getProducerUsageMask(buffer_handle_t handle,
-            uint64_t& usageMask) const
+            uint64_t* outUsageMask) const
     {
-        return mMapper->getProducerUsageMask(mDevice, handle, &usageMask);
+        return mMapper->getProducerUsageMask(mDevice, handle, outUsageMask);
     }
 
     Error getConsumerUsageMask(buffer_handle_t handle,
-            uint64_t& usageMask) const
+            uint64_t* outUsageMask) const
     {
-        return mMapper->getConsumerUsageMask(mDevice, handle, &usageMask);
+        return mMapper->getConsumerUsageMask(mDevice, handle, outUsageMask);
     }
 
     Error getBackingStore(buffer_handle_t handle,
-            BackingStore& store) const
+            BackingStore* outStore) const
     {
-        return mMapper->getBackingStore(mDevice, handle, &store);
+        return mMapper->getBackingStore(mDevice, handle, outStore);
     }
 
-    Error getStride(buffer_handle_t handle, uint32_t& stride) const
+    Error getStride(buffer_handle_t handle, uint32_t* outStride) const
     {
-        return mMapper->getStride(mDevice, handle, &stride);
+        return mMapper->getStride(mDevice, handle, outStride);
     }
 
-    Error getNumFlexPlanes(buffer_handle_t handle, uint32_t& numPlanes) const
+    Error getNumFlexPlanes(buffer_handle_t handle,
+            uint32_t* outNumPlanes) const
     {
-        return mMapper->getNumFlexPlanes(mDevice, handle, &numPlanes);
+        return mMapper->getNumFlexPlanes(mDevice, handle, outNumPlanes);
     }
 
     Error lock(buffer_handle_t handle,
             uint64_t producerUsageMask,
             uint64_t consumerUsageMask,
             const Device::Rect& accessRegion,
-            int acquireFence, void*& data) const
+            int acquireFence, void** outData) const
     {
         return mMapper->lock(mDevice, handle,
                 producerUsageMask, consumerUsageMask,
-                &accessRegion, acquireFence, &data);
+                &accessRegion, acquireFence, outData);
     }
 
     Error lock(buffer_handle_t handle,
             uint64_t producerUsageMask,
             uint64_t consumerUsageMask,
             const Device::Rect& accessRegion,
-            int acquireFence, FlexLayout& flexLayout) const
+            int acquireFence, FlexLayout* outFlexLayout) const
     {
         return mMapper->lockFlex(mDevice, handle,
                 producerUsageMask, consumerUsageMask,
-                &accessRegion, acquireFence, &flexLayout);
+                &accessRegion, acquireFence, outFlexLayout);
     }
 
     int unlock(buffer_handle_t handle) const;

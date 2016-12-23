@@ -115,14 +115,14 @@ public:
         info.consumerUsageMask = usage;
 
         Gralloc2::BufferDescriptor descriptor;
-        auto error = mAllocator->createBufferDescriptor(info, descriptor);
+        auto error = mAllocator->createBufferDescriptor(info, &descriptor);
         if (error != Gralloc2::Error::NONE) {
             ALOGE("Failed to create desc (%u x %u) layerCount %u format %d usage %u: %d",
                     width, height, layerCount, format, usage, error);
             return;
         }
 
-        error = mAllocator->allocate(descriptor, mBuffer);
+        error = mAllocator->allocate(descriptor, &mBuffer);
         if (error == Gralloc2::Error::NOT_SHARED) {
             error = Gralloc2::Error::NONE;
         }
@@ -134,7 +134,7 @@ public:
             return;
         }
 
-        error = mAllocator->exportHandle(descriptor, mBuffer, mHandle);
+        error = mAllocator->exportHandle(descriptor, mBuffer, &mHandle);
         if (error != Gralloc2::Error::NONE) {
             ALOGE("Failed to export handle");
             mAllocator->free(mBuffer);
@@ -172,7 +172,7 @@ public:
 
         *handle = mHandle;
 
-        auto error = mapper.getGrallocMapper().getStride(mHandle, *stride);
+        auto error = mapper.getGrallocMapper().getStride(mHandle, stride);
         if (error != Gralloc2::Error::NONE) {
             ALOGW("Failed to get stride from buffer: %d", error);
             *stride = 0;
