@@ -148,8 +148,8 @@ status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
     gralloc1_rect_t accessRegion = asGralloc1Rect(bounds);
     gralloc1_error_t error;
     if (mMapper->valid()) {
-        const Gralloc2::Device::Rect& accessRect =
-            *reinterpret_cast<Gralloc2::Device::Rect*>(&accessRegion);
+        const Gralloc2::IMapper::Rect& accessRect =
+            *reinterpret_cast<Gralloc2::IMapper::Rect*>(&accessRegion);
         error = static_cast<gralloc1_error_t>(mMapper->lock(
                     handle, usage, usage, accessRect, fenceFd, vaddr));
     } else {
@@ -196,10 +196,32 @@ status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
 
     gralloc1_rect_t accessRegion = asGralloc1Rect(bounds);
 
-    if (!mMapper->valid()) {
+    std::vector<android_flex_plane_t> planes;
+    android_flex_layout_t flexLayout{};
+    gralloc1_error_t error;
+
+    if (mMapper->valid()) {
+        const Gralloc2::IMapper::Rect& accessRect =
+            *reinterpret_cast<Gralloc2::IMapper::Rect*>(&accessRegion);
+        Gralloc2::FlexLayout layout{};
+        error = static_cast<gralloc1_error_t>(mMapper->lock(
+                    handle, usage, usage, accessRect, fenceFd, &layout));
+
+        if (error == GRALLOC1_ERROR_NONE) {
+            planes.resize(layout.planes.size());
+            memcpy(planes.data(), layout.planes.data(),
+                    sizeof(planes[0]) * planes.size());
+
+            flexLayout.format = static_cast<android_flex_format_t>(
+                    layout.format);
+            flexLayout.num_planes = static_cast<uint32_t>(planes.size());
+            flexLayout.planes = planes.data();
+        }
+    } else {
+        sp<Fence> fence = new Fence(fenceFd);
+
         if (mDevice->hasCapability(GRALLOC1_CAPABILITY_ON_ADAPTER)) {
-            sp<Fence> fence = new Fence(fenceFd);
-            gralloc1_error_t error = mDevice->lockYCbCr(handle,
+            error = mDevice->lockYCbCr(handle,
                     static_cast<gralloc1_producer_usage_t>(usage),
                     static_cast<gralloc1_consumer_usage_t>(usage),
                     &accessRegion, ycbcr, fence);
@@ -207,40 +229,23 @@ status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
                     "lockYCbCr(%p, ...) failed: %d", handle, error);
             return error;
         }
-    }
 
-    uint32_t numPlanes = 0;
-    gralloc1_error_t error;
-    if (mMapper->valid()) {
-        error = static_cast<gralloc1_error_t>(
-                mMapper->getNumFlexPlanes(handle, &numPlanes));
-    } else {
+        uint32_t numPlanes = 0;
         error = mDevice->getNumFlexPlanes(handle, &numPlanes);
-    }
 
-    if (error != GRALLOC1_ERROR_NONE) {
-        ALOGV("Failed to retrieve number of flex planes: %d", error);
-        return error;
-    }
-    if (numPlanes < 3) {
-        ALOGV("Not enough planes for YCbCr (%u found)", numPlanes);
-        return GRALLOC1_ERROR_UNSUPPORTED;
-    }
+        if (error != GRALLOC1_ERROR_NONE) {
+            ALOGV("Failed to retrieve number of flex planes: %d", error);
+            return error;
+        }
+        if (numPlanes < 3) {
+            ALOGV("Not enough planes for YCbCr (%u found)", numPlanes);
+            return GRALLOC1_ERROR_UNSUPPORTED;
+        }
 
-    std::vector<android_flex_plane_t> planes(numPlanes);
-    android_flex_layout_t flexLayout{};
-    flexLayout.num_planes = numPlanes;
-    flexLayout.planes = planes.data();
+        planes.resize(numPlanes);
+        flexLayout.num_planes = numPlanes;
+        flexLayout.planes = planes.data();
 
-    if (mMapper->valid()) {
-        const Gralloc2::Device::Rect& accessRect =
-            *reinterpret_cast<Gralloc2::Device::Rect*>(&accessRegion);
-        Gralloc2::FlexLayout& layout =
-            *reinterpret_cast<Gralloc2::FlexLayout*>(&flexLayout);
-        error = static_cast<gralloc1_error_t>(mMapper->lock(
-                    handle, usage, usage, accessRect, fenceFd, &layout));
-    } else {
-        sp<Fence> fence = new Fence(fenceFd);
         error = mDevice->lockFlex(handle,
                 static_cast<gralloc1_producer_usage_t>(usage),
                 static_cast<gralloc1_consumer_usage_t>(usage),
