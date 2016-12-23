@@ -308,20 +308,20 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
 
 #define UNLIKELY(expr) __builtin_expect((expr), 0)
 
-#define INIT_PROC(obj, proc)                                           \
+#define INIT_PROC(required, obj, proc)                                 \
     do {                                                               \
         data.driver.proc =                                             \
             reinterpret_cast<PFN_vk##proc>(get_proc(obj, "vk" #proc)); \
-        if (UNLIKELY(!data.driver.proc)) {                             \
+        if (UNLIKELY(required && !data.driver.proc)) {                 \
             ALOGE("missing " #obj " proc: vk" #proc);                  \
             success = false;                                           \
         }                                                              \
     } while (0)
 
-#define INIT_PROC_EXT(ext, obj, proc)  \
-    do {                               \
-        if (extensions[ProcHook::ext]) \
-            INIT_PROC(obj, proc);      \
+#define INIT_PROC_EXT(ext, required, obj, proc) \
+    do {                                        \
+        if (extensions[ProcHook::ext])          \
+            INIT_PROC(required, obj, proc);     \
     } while (0)
 
 bool InitDriverTable(VkInstance instance,
@@ -331,14 +331,14 @@ bool InitDriverTable(VkInstance instance,
     bool success = true;
 
     // clang-format off
-    INIT_PROC(instance, DestroyInstance);
-    INIT_PROC(instance, EnumeratePhysicalDevices);
-    INIT_PROC(instance, GetInstanceProcAddr);
-    INIT_PROC(instance, CreateDevice);
-    INIT_PROC(instance, EnumerateDeviceExtensionProperties);
-    INIT_PROC_EXT(EXT_debug_report, instance, CreateDebugReportCallbackEXT);
-    INIT_PROC_EXT(EXT_debug_report, instance, DestroyDebugReportCallbackEXT);
-    INIT_PROC_EXT(EXT_debug_report, instance, DebugReportMessageEXT);
+    INIT_PROC(true, instance, DestroyInstance);
+    INIT_PROC(true, instance, EnumeratePhysicalDevices);
+    INIT_PROC(true, instance, GetInstanceProcAddr);
+    INIT_PROC(true, instance, CreateDevice);
+    INIT_PROC(true, instance, EnumerateDeviceExtensionProperties);
+    INIT_PROC_EXT(EXT_debug_report, true, instance, CreateDebugReportCallbackEXT);
+    INIT_PROC_EXT(EXT_debug_report, true, instance, DestroyDebugReportCallbackEXT);
+    INIT_PROC_EXT(EXT_debug_report, true, instance, DebugReportMessageEXT);
     // clang-format on
 
     return success;
@@ -351,16 +351,16 @@ bool InitDriverTable(VkDevice dev,
     bool success = true;
 
     // clang-format off
-    INIT_PROC(dev, GetDeviceProcAddr);
-    INIT_PROC(dev, DestroyDevice);
-    INIT_PROC(dev, GetDeviceQueue);
-    INIT_PROC(dev, CreateImage);
-    INIT_PROC(dev, DestroyImage);
-    INIT_PROC(dev, AllocateCommandBuffers);
-    INIT_PROC_EXT(ANDROID_native_buffer, dev, GetSwapchainGrallocUsageANDROID);
-    INIT_PROC_EXT(ANDROID_native_buffer, dev, GetSwapchainGrallocUsage2ANDROID);
-    INIT_PROC_EXT(ANDROID_native_buffer, dev, AcquireImageANDROID);
-    INIT_PROC_EXT(ANDROID_native_buffer, dev, QueueSignalReleaseImageANDROID);
+    INIT_PROC(true, dev, GetDeviceProcAddr);
+    INIT_PROC(true, dev, DestroyDevice);
+    INIT_PROC(true, dev, GetDeviceQueue);
+    INIT_PROC(true, dev, CreateImage);
+    INIT_PROC(true, dev, DestroyImage);
+    INIT_PROC(true, dev, AllocateCommandBuffers);
+    INIT_PROC_EXT(ANDROID_native_buffer, true, dev, GetSwapchainGrallocUsageANDROID);
+    INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsage2ANDROID);
+    INIT_PROC_EXT(ANDROID_native_buffer, true, dev, AcquireImageANDROID);
+    INIT_PROC_EXT(ANDROID_native_buffer, true, dev, QueueSignalReleaseImageANDROID);
     // clang-format on
 
     return success;

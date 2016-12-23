@@ -389,10 +389,10 @@ bool InitDriverTable(VkDevice dev, PFN_vkGetDeviceProcAddr get_proc,
 {{define "C++.DefineInitProcMacro"}}
   #define UNLIKELY(expr) __builtin_expect((expr), 0)
   ¶
-  #define INIT_PROC(obj, proc) do {                             \
+  #define INIT_PROC(required, obj, proc) do {                   \
       data.{{$}}.proc = reinterpret_cast<PFN_vk ## proc>(       \
               get_proc(obj, "vk" # proc));                      \
-      if (UNLIKELY(!data.{{$}}.proc)) {                         \
+      if (UNLIKELY(required && !data.{{$}}.proc)) {             \
           ALOGE("missing " # obj " proc: vk" # proc);           \
           success = false;                                      \
       }                                                         \
@@ -409,10 +409,11 @@ bool InitDriverTable(VkDevice dev, PFN_vkGetDeviceProcAddr get_proc,
   {{AssertType $ "Function"}}
 
   {{$ext := GetAnnotation $ "extension"}}
+  {{$required := (Macro "IsRequiredFunction" $)}}
   {{if $ext}}
-    INIT_PROC_EXT({{Macro "BaseName" $ext}}, §
+    INIT_PROC_EXT({{Macro "BaseName" $ext}}, {{$required}}, §
   {{else}}
-    INIT_PROC(§
+    INIT_PROC({{$required}}, §
   {{end}}
 
   {{if (Macro "IsInstanceDispatched" $)}}
@@ -422,6 +423,25 @@ bool InitDriverTable(VkDevice dev, PFN_vkGetDeviceProcAddr get_proc,
   {{end}}
 
   {{Macro "BaseName" $}});
+{{end}}
+
+
+{{/*
+------------------------------------------------------------------------------
+  Emits true if a function /must/ be resolved. The only time this is not
+  the case is for extension-added functions added in a later revision of the
+  extension, and where we have to cope with drivers written against an older
+  revision.
+------------------------------------------------------------------------------
+*/}}
+{{define "IsRequiredFunction"}}
+  {{AssertType $ "Function"}}
+
+  {{if eq $.Name "vkGetSwapchainGrallocUsage2ANDROID"}}
+    false
+  {{else}}
+    true
+  {{end}}
 {{end}}
 
 
@@ -490,9 +510,9 @@ bool InitDriverTable(VkDevice dev, PFN_vkGetDeviceProcAddr get_proc,
 {{define "api.C++.DefineInitProcExtMacro"}}
   // Exported extension functions may be invoked even when their extensions
   // are disabled.  Dispatch to stubs when that happens.
-  #define INIT_PROC_EXT(ext, obj, proc) do {                    \
+  #define INIT_PROC_EXT(ext, required, obj, proc) do {          \
       if (extensions[driver::ProcHook::ext])                    \
-        INIT_PROC(obj, proc);                                   \
+        INIT_PROC(required, obj, proc);                         \
       else                                                      \
         data.dispatch.proc = disabled ## proc;                  \
   } while(0)
@@ -792,9 +812,9 @@ VK_KHR_swapchain
 -------------------------------------------------------------------------------
 */}}
 {{define "driver.C++.DefineInitProcExtMacro"}}
-  #define INIT_PROC_EXT(ext, obj, proc) do {                    \
+  #define INIT_PROC_EXT(ext, required, obj, proc) do {          \
       if (extensions[ProcHook::ext])                            \
-        INIT_PROC(obj, proc);                                   \
+        INIT_PROC(required, obj, proc);                         \
   } while(0)
 {{end}}
 
