@@ -55,7 +55,7 @@ struct layer_state_t {
         eDeferTransaction           = 0x00000200,
         eFinalCropChanged           = 0x00000400,
         eOverrideScalingModeChanged = 0x00000800,
-        ePositionAppliesWithResize  = 0x00001000,
+        eGeometryAppliesWithResize  = 0x00001000,
         eColorChanged               = 0x00002000,
     };
 
@@ -98,9 +98,9 @@ struct layer_state_t {
             sp<IBinder>     handle;
             uint64_t        frameNumber;
             int32_t         overrideScalingMode;
+            uint32_t        color;
             // non POD must be last. see write/read
             Region          transparentRegion;
-            uint32_t        color;
 };
 
 struct ComposerState {
