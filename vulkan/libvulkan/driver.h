@@ -18,9 +18,11 @@
 #define LIBVULKAN_DRIVER_H 1
 
 #include <inttypes.h>
+
 #include <bitset>
 #include <type_traits>
-#include <log/log.h>
+
+#include <android/log.h>
 
 #include <vulkan/vulkan.h>
 #include <hardware/hwvulkan.h>

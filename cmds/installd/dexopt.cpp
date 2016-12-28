@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#define LOG_TAG "installed"
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -26,11 +27,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <android/log.h>               // TODO: Move everything to base/logging.
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
-#include <cutils/log.h>               // TODO: Move everything to base/logging.
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
 #include <private/android_filesystem_config.h>

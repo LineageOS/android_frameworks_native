@@ -39,7 +39,7 @@
 
 #include <android/configuration.h>
 
-#include <cutils/log.h>
+#include <android/log.h>
 #include <cutils/properties.h>
 
 #include <system/graphics.h>

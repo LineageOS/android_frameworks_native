@@ -44,17 +44,18 @@
 
 #include "InputReader.h"
 
-#include <cutils/log.h>
-#include <input/Keyboard.h>
-#include <input/VirtualKeyMap.h>
-
+#include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <errno.h>
-#include <limits.h>
-#include <math.h>
+
+#include <android/log.h>
+
+#include <input/Keyboard.h>
+#include <input/VirtualKeyMap.h>
 
 #define INDENT "  "
 #define INDENT2 "    "

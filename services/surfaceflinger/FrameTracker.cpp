@@ -19,12 +19,11 @@
 
 #include <inttypes.h>
 
-#include <cutils/log.h>
+#include <android/log.h>
+#include <utils/String8.h>
 
 #include <ui/Fence.h>
 #include <ui/FrameStats.h>
-
-#include <utils/String8.h>
 
 #include "FrameTracker.h"
 #include "EventLog/EventLog.h"

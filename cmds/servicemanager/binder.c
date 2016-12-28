@@ -1,23 +1,24 @@
 /* Copyright 2008 The Android Open Source Project
  */
 
+#define LOG_TAG "Binder"
+
+#include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <sys/mman.h>
+#include <unistd.h>
+
+#include <android/log.h>
 
 #include "binder.h"
 
 #define MAX_BIO_SIZE (1 << 30)
 
 #define TRACE 0
-
-#define LOG_TAG "Binder"
-#include <cutils/log.h>
 
 void bio_init_from_txn(struct binder_io *io, struct binder_transaction_data *txn);
 
