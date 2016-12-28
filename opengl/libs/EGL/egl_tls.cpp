@@ -14,10 +14,10 @@
  ** limitations under the License.
  */
 
-#include <stdlib.h>
 #include <pthread.h>
+#include <stdlib.h>
 
-#include <cutils/log.h>
+#include <android/log.h>
 #include <cutils/properties.h>
 
 #include <utils/CallStack.h>
@@ -25,7 +25,6 @@
 #include <EGL/egl.h>
 
 #include "egl_tls.h"
-
 
 namespace android {
 

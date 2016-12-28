@@ -19,13 +19,12 @@
 #undef LOG_TAG
 #define LOG_TAG "FramebufferSurface"
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include <cutils/log.h>
-
+#include <android/log.h>
 #include <utils/String8.h>
 
 #include <ui/Rect.h>

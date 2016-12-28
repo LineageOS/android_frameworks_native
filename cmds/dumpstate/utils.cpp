@@ -23,9 +23,25 @@
 #include <libgen.h>
 #include <math.h>
 #include <poll.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/capability.h>
 #include <sys/inotify.h>
 #include <sys/klog.h>
+#include <sys/prctl.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
 
+#include <string>
+#include <vector>
+
+#include <android/log.h>
 #include <android-base/file.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>

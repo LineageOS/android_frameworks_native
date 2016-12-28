@@ -16,7 +16,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <cutils/log.h>
+#include <log/log.h>
 #include <utils/String8.h>
 
 #include "EventLog.h"

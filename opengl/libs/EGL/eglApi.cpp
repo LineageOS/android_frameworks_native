@@ -16,8 +16,8 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <dlfcn.h>
 #include <ctype.h>
+#include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -27,11 +27,11 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
-#include <cutils/log.h>
+#include <android/log.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
-#include <cutils/properties.h>
 #include <cutils/memory.h>
+#include <cutils/properties.h>
 
 #include <gui/ISurfaceComposer.h>
 

@@ -15,15 +15,15 @@
  */
 
 #include <ctype.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <dlfcn.h>
-#include <limits.h>
 #include <dirent.h>
+#include <dlfcn.h>
+#include <errno.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include <cutils/log.h>
+#include <android/log.h>
 #include <cutils/properties.h>
 
 #include <EGL/egl.h>

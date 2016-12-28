@@ -17,8 +17,10 @@
 // WARNING: This file is generated. See ../README.md for instructions.
 
 #include <string.h>
+
 #include <algorithm>
-#include <log/log.h>
+
+#include <android/log.h>
 
 #include "driver.h"
 

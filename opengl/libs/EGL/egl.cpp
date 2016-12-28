@@ -24,7 +24,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
-#include <cutils/log.h>
+#include <android/log.h>
 #include <cutils/atomic.h>
 #include <cutils/properties.h>
 
