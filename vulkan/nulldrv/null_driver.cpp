@@ -16,13 +16,14 @@
 
 #include <hardware/hwvulkan.h>
 
-#include <algorithm>
-#include <array>
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include <log/log.h>
+#include <algorithm>
+#include <array>
+
+#include <android/log.h>
 #include <utils/Errors.h>
 
 #include "null_driver_gen.h"

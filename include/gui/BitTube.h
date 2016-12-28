@@ -20,10 +20,9 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <android/log.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
-#include <cutils/log.h>
-
 
 namespace android {
 // ----------------------------------------------------------------------------

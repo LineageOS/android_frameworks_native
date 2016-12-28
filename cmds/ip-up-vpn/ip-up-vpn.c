@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "ip-up-vpn"
+
+#include <arpa/inet.h>
+#include <errno.h>
+#include <linux/if.h>
+#include <linux/route.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
-
-#include <arpa/inet.h>
-#include <netinet/in.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <linux/if.h>
-#include <linux/route.h>
 
-#define LOG_TAG "ip-up-vpn"
-#include <cutils/log.h>
+#include <android/log.h>
 
 #define DIR "/data/misc/vpn/"
 

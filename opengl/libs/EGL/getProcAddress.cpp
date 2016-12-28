@@ -15,10 +15,10 @@
  */
 
 #include <ctype.h>
-#include <stdlib.h>
 #include <errno.h>
+#include <stdlib.h>
 
-#include <cutils/log.h>
+#include <android/log.h>
 
 #include "egldefs.h"
 

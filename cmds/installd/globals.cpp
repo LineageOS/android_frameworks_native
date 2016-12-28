@@ -14,18 +14,16 @@
 ** limitations under the License.
 */
 
+#define LOG_TAG "installd"
+
 #include <stdlib.h>
 #include <string.h>
 
-#include <cutils/log.h>               // TODO: Move everything to base::logging.
+#include <android/log.h>              // TODO: Move everything to base::logging.
 
 #include <globals.h>
 #include <installd_constants.h>
 #include <utils.h>
-
-#ifndef LOG_TAG
-#define LOG_TAG "installd"
-#endif
 
 namespace android {
 namespace installd {

@@ -13,6 +13,7 @@
 ** See the License for the specific language governing permissions and
 ** limitations under the License.
 */
+#define LOG_TAG "installd"
 
 #include <fcntl.h>
 #include <selinux/android.h>
@@ -24,8 +25,8 @@
 
 #include <android-base/logging.h>
 #include <cutils/fs.h>
-#include <cutils/log.h>               // TODO: Move everything to base::logging.
 #include <cutils/properties.h>
+#include <log/log.h>              // TODO: Move everything to base::logging.
 #include <private/android_filesystem_config.h>
 
 #include "InstalldNativeService.h"
@@ -33,10 +34,6 @@
 #include "installd_constants.h"
 #include "installd_deps.h"  // Need to fill in requirements of commands.
 #include "utils.h"
-
-#ifndef LOG_TAG
-#define LOG_TAG "installd"
-#endif
 
 namespace android {
 namespace installd {
@@ -63,12 +60,12 @@ bool calculate_oat_file_path(char path[PKG_PATH_MAX],
 
     file_name_start = strrchr(apk_path, '/');
     if (file_name_start == NULL) {
-        ALOGE("apk_path '%s' has no '/'s in it\n", apk_path);
+        SLOGE("apk_path '%s' has no '/'s in it\n", apk_path);
         return false;
     }
     file_name_end = strrchr(apk_path, '.');
     if (file_name_end < file_name_start) {
-        ALOGE("apk_path '%s' has no extension\n", apk_path);
+        SLOGE("apk_path '%s' has no extension\n", apk_path);
         return false;
     }
 
@@ -94,14 +91,14 @@ bool calculate_odex_file_path(char path[PKG_PATH_MAX],
                               const char *instruction_set) {
     if (strlen(apk_path) + strlen("oat/") + strlen(instruction_set)
             + strlen("/") + strlen("odex") + 1 > PKG_PATH_MAX) {
-        ALOGE("apk_path '%s' may be too long to form odex file path.\n", apk_path);
+        SLOGE("apk_path '%s' may be too long to form odex file path.\n", apk_path);
         return false;
     }
 
     strcpy(path, apk_path);
     char *end = strrchr(path, '/');
     if (end == NULL) {
-        ALOGE("apk_path '%s' has no '/'s in it?!\n", apk_path);
+        SLOGE("apk_path '%s' has no '/'s in it?!\n", apk_path);
         return false;
     }
     const char *apk_end = apk_path + (end - path); // strrchr(apk_path, '/');
@@ -111,7 +108,7 @@ bool calculate_odex_file_path(char path[PKG_PATH_MAX],
     strcat(path, apk_end);         // path = /system/framework/oat/<isa>/whatever.jar\0
     end = strrchr(path, '.');
     if (end == NULL) {
-        ALOGE("apk_path '%s' has no extension.\n", apk_path);
+        SLOGE("apk_path '%s' has no extension.\n", apk_path);
         return false;
     }
     strcpy(end + 1, "odex");
@@ -170,12 +167,12 @@ bool create_cache_path(char path[PKG_PATH_MAX],
 static bool initialize_globals() {
     const char* data_path = getenv("ANDROID_DATA");
     if (data_path == nullptr) {
-        ALOGE("Could not find ANDROID_DATA");
+        SLOGE("Could not find ANDROID_DATA");
         return false;
     }
     const char* root_path = getenv("ANDROID_ROOT");
     if (root_path == nullptr) {
-        ALOGE("Could not find ANDROID_ROOT");
+        SLOGE("Could not find ANDROID_ROOT");
         return false;
     }
 
@@ -201,12 +198,12 @@ static int initialize_directories() {
     }
 
     if (ensure_config_user_dirs(0) == -1) {
-        ALOGE("Failed to setup misc for user 0");
+        SLOGE("Failed to setup misc for user 0");
         goto fail;
     }
 
     if (version == 2) {
-        ALOGD("Upgrading to /data/misc/user directories");
+        SLOGD("Upgrading to /data/misc/user directories");
 
         char misc_dir[PATH_MAX];
         snprintf(misc_dir, PATH_MAX, "%smisc", android_data_dir.path);
@@ -247,12 +244,12 @@ static int initialize_directories() {
                 gid_t gid = uid;
                 if (access(keychain_added_dir, F_OK) == 0) {
                     if (copy_dir_files(keychain_added_dir, misc_added_dir, uid, gid) != 0) {
-                        ALOGE("Some files failed to copy");
+                        SLOGE("Some files failed to copy");
                     }
                 }
                 if (access(keychain_removed_dir, F_OK) == 0) {
                     if (copy_dir_files(keychain_removed_dir, misc_removed_dir, uid, gid) != 0) {
-                        ALOGE("Some files failed to copy");
+                        SLOGE("Some files failed to copy");
                     }
                 }
             }
@@ -272,7 +269,7 @@ static int initialize_directories() {
     // Persist layout version if changed
     if (version != oldVersion) {
         if (fs_write_atomic_int(version_path, version) == -1) {
-            ALOGE("Failed to save version to %s: %s", version_path, strerror(errno));
+            SLOGE("Failed to save version to %s: %s", version_path, strerror(errno));
             goto fail;
         }
     }
@@ -312,29 +309,29 @@ static int installd_main(const int argc ATTRIBUTE_UNUSED, char *argv[]) {
     setenv("ANDROID_LOG_TAGS", "*:v", 1);
     android::base::InitLogging(argv);
 
-    LOG(INFO) << "installd firing up";
+    SLOGI("installd firing up");
 
     union selinux_callback cb;
     cb.func_log = log_callback;
     selinux_set_callback(SELINUX_CB_LOG, cb);
 
     if (!initialize_globals()) {
-        ALOGE("Could not initialize globals; exiting.\n");
+        SLOGE("Could not initialize globals; exiting.\n");
         exit(1);
     }
 
     if (initialize_directories() < 0) {
-        ALOGE("Could not create directories; exiting.\n");
+        SLOGE("Could not create directories; exiting.\n");
         exit(1);
     }
 
     if (selinux_enabled && selinux_status_open(true) < 0) {
-        ALOGE("Could not open selinux status; exiting.\n");
+        SLOGE("Could not open selinux status; exiting.\n");
         exit(1);
     }
 
     if ((ret = InstalldNativeService::start()) != android::OK) {
-        ALOGE("Unable to start InstalldNativeService: %d", ret);
+        SLOGE("Unable to start InstalldNativeService: %d", ret);
         exit(1);
     }
 
