@@ -16,8 +16,8 @@
 
 #include <algorithm>
 
+#include <android/log.h>
 #include <gui/BufferQueue.h>
-#include <log/log.h>
 #include <sync/sync.h>
 #include <utils/StrongPointer.h>
 

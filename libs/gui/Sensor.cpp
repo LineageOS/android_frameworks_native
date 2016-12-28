@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
+#include <stdint.h>
+#include <sys/limits.h>
+#include <sys/types.h>
 
+#include <android/log.h>
 #include <binder/AppOpsManager.h>
 #include <binder/IServiceManager.h>
 #include <gui/Sensor.h>
 #include <hardware/sensors.h>
-#include <log/log.h>
 #include <utils/Errors.h>
 #include <utils/String8.h>
 #include <utils/Flattenable.h>
-
-#include <inttypes.h>
-#include <stdint.h>
-#include <sys/types.h>
-#include <sys/limits.h>
 
 // ----------------------------------------------------------------------------
 namespace android {

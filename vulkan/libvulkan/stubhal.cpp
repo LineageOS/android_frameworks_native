@@ -29,8 +29,10 @@
 #include <array>
 #include <bitset>
 #include <mutex>
+
+#include <android/log.h>
 #include <hardware/hwvulkan.h>
-#include <log/log.h>
+
 #include "stubhal.h"
 
 namespace vulkan {
