@@ -19,7 +19,7 @@
 
 #include "InputWindow.h"
 
-#include <cutils/log.h>
+#include <android/log.h>
 
 #include <ui/Rect.h>
 #include <ui/Region.h>

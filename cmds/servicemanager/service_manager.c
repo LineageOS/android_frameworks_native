@@ -22,7 +22,7 @@
 #define ALOGE(x...) fprintf(stderr, "svcmgr: " x)
 #else
 #define LOG_TAG "ServiceManager"
-#include <cutils/log.h>
+#include <android/log.h>
 #endif
 
 struct audit_data {

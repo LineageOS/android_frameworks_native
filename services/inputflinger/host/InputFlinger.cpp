@@ -16,20 +16,18 @@
 
 #define LOG_TAG "InputFlinger"
 
-
 #include <stdint.h>
+#include <sys/types.h>
 #include <unistd.h>
 
-#include <sys/types.h>
-
-#include "InputFlinger.h"
-#include "InputDriver.h"
-
+#include <android/log.h>
 #include <binder/IPCThreadState.h>
 #include <binder/PermissionCache.h>
 #include <hardware/input.h>
-#include <cutils/log.h>
 #include <private/android_filesystem_config.h>
+
+#include "InputFlinger.h"
+#include "InputDriver.h"
 
 namespace android {
 

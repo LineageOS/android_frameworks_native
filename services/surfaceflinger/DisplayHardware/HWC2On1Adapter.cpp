@@ -22,14 +22,15 @@
 
 #include "HWC2On1Adapter.h"
 
-#include <hardware/hwcomposer.h>
-#include <log/log.h>
-#include <utils/Trace.h>
-
-#include <cstdlib>
-#include <chrono>
 #include <inttypes.h>
+
+#include <chrono>
+#include <cstdlib>
 #include <sstream>
+
+#include <android/log.h>
+#include <hardware/hwcomposer.h>
+#include <utils/Trace.h>
 
 using namespace std::chrono_literals;
 

@@ -15,12 +15,11 @@
  */
 
 #include <ctype.h>
-#include <string.h>
 #include <errno.h>
-
+#include <string.h>
 #include <sys/ioctl.h>
 
-#include <cutils/log.h>
+#include <android/log.h>
 #include <cutils/properties.h>
 
 #include "../hooks.h"

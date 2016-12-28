@@ -27,12 +27,12 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+#include <android/log.h>
 #include <android-base/logging.h>
 #include <android-base/macros.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <cutils/fs.h>
-#include <cutils/log.h>
 #include <cutils/properties.h>
 #include <private/android_filesystem_config.h>
 

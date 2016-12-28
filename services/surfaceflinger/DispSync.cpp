@@ -22,19 +22,18 @@
 
 #include <math.h>
 
-#include <cutils/log.h>
+#include <algorithm>
 
-#include <ui/Fence.h>
-
+#include <android/log.h>
 #include <utils/String8.h>
 #include <utils/Thread.h>
 #include <utils/Trace.h>
 #include <utils/Vector.h>
 
+#include <ui/Fence.h>
+
 #include "DispSync.h"
 #include "EventLog/EventLog.h"
-
-#include <algorithm>
 
 using std::max;
 using std::min;

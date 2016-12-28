@@ -16,12 +16,12 @@
 
 #include <stdint.h>
 
-#include <log/log.h>
+#include <android/log.h>
+#include <utils/String8.h>
 
 #include "Program.h"
 #include "ProgramCache.h"
 #include "Description.h"
-#include <utils/String8.h>
 
 namespace android {
 
