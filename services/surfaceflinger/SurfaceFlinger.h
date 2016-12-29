@@ -438,7 +438,7 @@ private:
     void clearStatsLocked(const Vector<String16>& args, size_t& index, String8& result);
     void dumpAllLocked(const Vector<String16>& args, size_t& index, String8& result) const;
     bool startDdmConnection();
-    static void appendSfConfigString(String8& result);
+    void appendSfConfigString(String8& result) const;
     void checkScreenshot(size_t w, size_t s, size_t h, void const* vaddr,
             const sp<const DisplayDevice>& hw,
             uint32_t minLayerZ, uint32_t maxLayerZ);
@@ -453,6 +453,9 @@ private:
             std::vector<OccupancyTracker::Segment>&& history);
     void dumpBufferingStats(String8& result) const;
 
+    bool isLayerTripleBufferingDisabled() const {
+        return this->mLayerTripleBufferingDisabled;
+    }
     /* ------------------------------------------------------------------------
      * Attributes
      */
@@ -525,6 +528,9 @@ private:
 #endif
     SurfaceInterceptor mInterceptor;
     bool mUseHwcVirtualDisplays = true;
+
+    // Restrict layers to use two buffers in their bufferqueues.
+    bool mLayerTripleBufferingDisabled = false;
 
     // these are thread safe
     mutable MessageQueue mEventQueue;

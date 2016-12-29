@@ -165,9 +165,9 @@ void Layer::onFirstRef() {
     mSurfaceFlingerConsumer->setContentsChangedListener(this);
     mSurfaceFlingerConsumer->setName(mName);
 
-#ifndef TARGET_DISABLE_TRIPLE_BUFFERING
-    mProducer->setMaxDequeuedBufferCount(2);
-#endif
+    if (mFlinger->isLayerTripleBufferingDisabled()) {
+        mProducer->setMaxDequeuedBufferCount(2);
+    }
 
     const sp<const DisplayDevice> hw(mFlinger->getDefaultDisplayDevice());
     updateTransformHint(hw);
