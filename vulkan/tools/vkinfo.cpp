@@ -176,7 +176,7 @@ void GatherGpuInfo(VkPhysicalDevice gpu,
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
         .queueFamilyIndex = 0,
         .queueCount = 1,
-        queue_priorities
+        .pQueuePriorities = queue_priorities
     };
     // clang-format off
     const char *kValidationLayers[] = {
