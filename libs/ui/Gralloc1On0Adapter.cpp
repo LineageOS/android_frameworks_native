@@ -294,6 +294,7 @@ gralloc1_error_t Gralloc1On0Adapter::allocateWithIdHook(
 gralloc1_error_t Gralloc1On0Adapter::retain(
         const std::shared_ptr<Buffer>& buffer)
 {
+    std::lock_guard<std::mutex> lock(mBufferMutex);
     buffer->retain();
     return GRALLOC1_ERROR_NONE;
 }
@@ -301,6 +302,7 @@ gralloc1_error_t Gralloc1On0Adapter::retain(
 gralloc1_error_t Gralloc1On0Adapter::release(
         const std::shared_ptr<Buffer>& buffer)
 {
+    std::lock_guard<std::mutex> lock(mBufferMutex);
     if (!buffer->release()) {
         return GRALLOC1_ERROR_NONE;
     }
@@ -320,7 +322,6 @@ gralloc1_error_t Gralloc1On0Adapter::release(
         }
     }
 
-    std::lock_guard<std::mutex> lock(mBufferMutex);
     mBuffers.erase(handle);
     return GRALLOC1_ERROR_NONE;
 }
