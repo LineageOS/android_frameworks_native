@@ -73,6 +73,24 @@ VKAPI_ATTR VkResult checkedQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR
     }
 }
 
+VKAPI_ATTR VkResult checkedGetRefreshCycleDurationGOOGLE(VkDevice device, VkSwapchainKHR swapchain, VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties) {
+    if (GetData(device).hook_extensions[ProcHook::GOOGLE_display_timing]) {
+        return GetRefreshCycleDurationGOOGLE(device, swapchain, pDisplayTimingProperties);
+    } else {
+        Logger(device).Err(device, "VK_GOOGLE_display_timing not enabled. vkGetRefreshCycleDurationGOOGLE not executed.");
+        return VK_SUCCESS;
+    }
+}
+
+VKAPI_ATTR VkResult checkedGetPastPresentationTimingGOOGLE(VkDevice device, VkSwapchainKHR swapchain, uint32_t* pPresentationTimingCount, VkPastPresentationTimingGOOGLE* pPresentationTimings) {
+    if (GetData(device).hook_extensions[ProcHook::GOOGLE_display_timing]) {
+        return GetPastPresentationTimingGOOGLE(device, swapchain, pPresentationTimingCount, pPresentationTimings);
+    } else {
+        Logger(device).Err(device, "VK_GOOGLE_display_timing not enabled. vkGetPastPresentationTimingGOOGLE not executed.");
+        return VK_SUCCESS;
+    }
+}
+
 // clang-format on
 
 const ProcHook g_proc_hooks[] = {
@@ -218,6 +236,13 @@ const ProcHook g_proc_hooks[] = {
         nullptr,
     },
     {
+        "vkGetPastPresentationTimingGOOGLE",
+        ProcHook::DEVICE,
+        ProcHook::GOOGLE_display_timing,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPastPresentationTimingGOOGLE),
+        reinterpret_cast<PFN_vkVoidFunction>(checkedGetPastPresentationTimingGOOGLE),
+    },
+    {
         "vkGetPhysicalDeviceSurfaceCapabilitiesKHR",
         ProcHook::INSTANCE,
         ProcHook::KHR_surface,
@@ -244,6 +269,13 @@ const ProcHook g_proc_hooks[] = {
         ProcHook::KHR_surface,
         reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceSurfaceSupportKHR),
         nullptr,
+    },
+    {
+        "vkGetRefreshCycleDurationGOOGLE",
+        ProcHook::DEVICE,
+        ProcHook::GOOGLE_display_timing,
+        reinterpret_cast<PFN_vkVoidFunction>(GetRefreshCycleDurationGOOGLE),
+        reinterpret_cast<PFN_vkVoidFunction>(checkedGetRefreshCycleDurationGOOGLE),
     },
     {
         "vkGetSwapchainGrallocUsage2ANDROID",
@@ -302,6 +334,7 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
     if (strcmp(name, "VK_KHR_android_surface") == 0) return ProcHook::KHR_android_surface;
     if (strcmp(name, "VK_KHR_surface") == 0) return ProcHook::KHR_surface;
     if (strcmp(name, "VK_KHR_swapchain") == 0) return ProcHook::KHR_swapchain;
+    if (strcmp(name, "VK_GOOGLE_display_timing") == 0) return ProcHook::GOOGLE_display_timing;
     // clang-format on
     return ProcHook::EXTENSION_UNKNOWN;
 }

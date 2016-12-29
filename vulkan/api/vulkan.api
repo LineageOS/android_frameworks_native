@@ -81,6 +81,9 @@ define NULL_HANDLE 0
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_SPEC_VERSION     6
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_NAME             "VK_ANDROID_native_buffer"
 
+@extension("VK_GOOGLE_display_timing") define VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION     1
+@extension("VK_GOOGLE_display_timing") define VK_GOOGLE_DISPLAY_TIMING_NAME             "VK_GOOGLE_display_timing"
+
 @extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_SPEC_VERSION       4
 @extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_NAME               "VK_EXT_debug_report"
 
@@ -752,6 +755,9 @@ enum VkStructureType {
     //@extension("VK_ANDROID_native_buffer")
     VK_STRUCTURE_TYPE_NATIVE_BUFFER_ANDROID                     = 1000010000,
     VK_STRUCTURE_TYPE_SWAPCHAIN_IMAGE_CREATE_INFO_ANDROID       = 1000010001,
+
+    //@extension("VK_GOOGLE_display_timing")
+    VK_STRUCTURE_TYPE_PRESENT_TIMES_GOOGLE                      = 1000092000,
 
     //@extension("VK_EXT_debug_report")
     VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT     = 1000011000,
@@ -2916,6 +2922,34 @@ class VkSwapchainImageCreateInfoANDROID {
     VkStructureType                             sType
     const void*                                 pNext
     VkSwapchainImageUsageFlagBitsANDROID        flags
+
+@extension("VK_GOOGLE_display_timing")
+class VkRefreshCycleDurationGOOGLE {
+    uint64_t                                    minRefreshDuration
+    uint64_t                                    maxRefreshDuration
+}
+
+@extension("VK_GOOGLE_display_timing")
+class VkPastPresentationTimingGOOGLE {
+    uint32_t                                    presentID
+    uint64_t                                    desiredPresentTime
+    uint64_t                                    actualPresentTime
+    uint64_t                                    earliestPresentTime
+    uint64_t                                    presentMargin
+}
+
+@extension("VK_GOOGLE_display_timing")
+class VkPresentTimeGOOGLE {
+    uint32_t                                    presentID
+    uint64_t                                    desiredPresentTime
+}
+
+@extension("VK_GOOGLE_display_timing")
+class VkPresentTimesInfoGOOGLE {
+    VkStructureType                             sType
+    const void*                                 pNext
+    uint32_t                                    swapchainCount
+    const VkPresentTimeGOOGLE*                  pTimes
 }
 
 @extension("VK_EXT_debug_report")
@@ -5832,6 +5866,41 @@ cmd VkResult vkQueueSignalReleaseImageANDROID(
         const VkSemaphore*                      pWaitSemaphores,
         VkImage                                 image,
         int*                                    pNativeFenceFd) {
+    return ?
+}
+
+@extension("VK_GOOGLE_display_timing")
+cmd VkResult vkGetRefreshCycleDurationGOOGLE(
+        VkDevice                                 device,
+        VkSwapchainKHR                           swapchain,
+        VkRefreshCycleDurationGOOGLE*            pDisplayTimingProperties) {
+    deviceObject := GetDevice(device)
+    swapchainObject := GetSwapchain(swapchain)
+
+    displayTimingProperties := ?
+    pDisplayTimingProperties[0] = displayTimingProperties
+
+    return ?
+}
+
+@extension("VK_GOOGLE_display_timing")
+cmd VkResult vkGetPastPresentationTimingGOOGLE(
+        VkDevice                                 device,
+        VkSwapchainKHR                           swapchain,
+        u32*                                     pPresentationTimingCount,
+        VkPastPresentationTimingGOOGLE*          pPresentationTimings) {
+    deviceObject := GetDevice(device)
+
+    count := as!u32(?)
+    pPresentationTimingCount[0] = count
+    presentationTimings := pPresentationTimings[0:count]
+
+    for i in (0 .. count) {
+        presentationTiming := ?
+        presentationTimings[i] = presentationTiming
+        State.Timings[presentationTiming] = new!PresentationTiming(device: device)
+    }
+
     return ?
 }
 
