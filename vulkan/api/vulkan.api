@@ -108,6 +108,9 @@ define NULL_HANDLE 0
 @extension("VK_NV_dedicated_allocation") define VK_NV_DEDICATED_ALLOCATION_SPEC_VERSION 1
 @extension("VK_NV_dedicated_allocation") define VK_NV_DEDICATED_ALLOCATION_EXTENSION_NAME "VK_NV_dedicated_allocation"
 
+@extension("VK_KHR_get_physical_device_properties2") define VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION 1
+@extension("VK_KHR_get_physical_device_properties2") define VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME "VK_KHR_get_physical_device_properties2"
+
 @extension("VK_AMD_draw_indirect_count") define VK_AMD_DRAW_INDIRECT_COUNT_SPEC_VERSION 1
 @extension("VK_AMD_draw_indirect_count") define VK_AMD_DRAW_INDIRECT_COUNT_EXTENSION_NAME "VK_AMD_draw_indirect_count"
 
@@ -782,6 +785,33 @@ enum VkStructureType {
 
     //@extension("VK_NV_win32_keyed_mutex")
     VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_NV = 1000058000,
+
+    //@extension("VK_KHR_get_physical_device_properties2")
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR = 1000059000,
+
+    //@extension("VK_KHR_get_physical_device_properties2")
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR = 1000059001,
+
+    //@extension("VK_KHR_get_physical_device_properties2")
+    VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2_KHR = 1000059002,
+
+    //@extension("VK_KHR_get_physical_device_properties2")
+    VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2_KHR = 1000059003,
+
+    //@extension("VK_KHR_get_physical_device_properties2")
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2_KHR = 1000059004,
+
+    //@extension("VK_KHR_get_physical_device_properties2")
+    VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2_KHR = 1000059005,
+
+    //@extension("VK_KHR_get_physical_device_properties2")
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2_KHR = 1000059006,
+
+    //@extension("VK_KHR_get_physical_device_properties2")
+    VK_STRUCTURE_TYPE_SPARSE_IMAGE_FORMAT_PROPERTIES_2_KHR = 1000059007,
+
+    //@extension("VK_KHR_get_physical_device_properties2")
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SPARSE_IMAGE_FORMAT_INFO_2_KHR = 1000059008,
 
     //@extension("VK_EXT_validation_flags")
     VK_STRUCTURE_TYPE_VALIDATION_FLAGS_EXT = 1000061000,
@@ -2925,6 +2955,77 @@ class VkDedicatedAllocationMemoryAllocateInfoNV {
     const void*                                 pNext
     VkImage                                     image
     VkBuffer                                    buffer
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+class VkPhysicalDeviceFeatures2KHR {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkPhysicalDeviceFeatures                    features
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+class VkPhysicalDeviceProperties2KHR {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkPhysicalDeviceProperties                  properties
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+class VkFormatProperties2KHR {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkFormatProperties                          formatProperties
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+class VkImageFormatProperties2KHR {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkImageFormatProperties                     imageFormatProperties
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+class VkPhysicalDeviceImageFormatInfo2KHR {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkFormat                                    format
+    VkImageType                                 type
+    VkImageTiling                               tiling
+    VkImageUsageFlags                           usage
+    VkImageCreateFlags                          flags
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+class VkQueueFamilyProperties2KHR {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkQueueFamilyProperties                     queueFamilyProperties
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+class VkPhysicalDeviceMemoryProperties2KHR {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkPhysicalDeviceMemoryProperties            memoryProperties
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+class VkSparseImageFormatProperties2KHR {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkSparseImageFormatProperties               properties
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+class VkPhysicalDeviceSparseImageFormatInfo2KHR {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkFormat                                    format
+    VkImageType                                 type
+    VkSampleCountFlagBits                       samples
+    VkImageUsageFlags                           usage
+    VkImageTiling                               tiling
 }
 
 @extension("VK_KHR_incremental_present")
@@ -5779,6 +5880,54 @@ cmd void vkCmdDebugMarkerEndEXT(
 cmd void vkCmdDebugMarkerInsertEXT(
         VkCommandBuffer                             commandBuffer,
         VkDebugMarkerMarkerInfoEXT*                 pMarkerInfo) {
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+cmd void vkGetPhysicalDeviceFeatures2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        VkPhysicalDeviceFeatures2KHR*               pFeatures) {
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+cmd void vkGetPhysicalDeviceProperties2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        VkPhysicalDeviceProperties2KHR*             pProperties) {
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+cmd void vkGetPhysicalDeviceFormatProperties2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        VkFormat                                    format,
+        VkFormatProperties2KHR*                     pFormatProperties) {
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+cmd VkResult vkGetPhysicalDeviceImageFormatProperties2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        const VkPhysicalDeviceImageFormatInfo2KHR*  pImageFormatInfo,
+        VkImageFormatProperties2KHR*                pImageFormatProperties) {
+    return ?
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+cmd void vkGetPhysicalDeviceQueueFamilyProperties2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        u32*                                        pQueueFamilyPropertyCount,
+        VkQueueFamilyProperties2KHR*                pQueueFamilyProperties) {
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+cmd void vkGetPhysicalDeviceMemoryProperties2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        VkPhysicalDeviceMemoryProperties2KHR*       pMemoryProperties) {
+}
+
+@extension("VK_KHR_get_physical_device_properties2")
+cmd void vkGetPhysicalDeviceSparseImageFormatProperties2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        const VkPhysicalDeviceSparseImageFormatInfo2KHR* pFormatInfo,
+        u32*                                        pPropertyCount,
+        VkSparseImageFormatProperties2KHR*          pProperties) {
 }
 
 @extension("VK_AMD_draw_indirect_count")
