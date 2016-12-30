@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 0
-define VERSION_PATCH 22
+define VERSION_PATCH 38
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -78,7 +78,7 @@ define NULL_HANDLE 0
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_SPEC_VERSION     6
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_NAME             "VK_ANDROID_native_buffer"
 
-@extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_SPEC_VERSION       3
+@extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_SPEC_VERSION       4
 @extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_NAME               "VK_EXT_debug_report"
 
 @extension("VK_NV_glsl_shader") define VK_NV_GLSL_SHADER_SPEC_VERSION           1
@@ -107,6 +107,40 @@ define NULL_HANDLE 0
 
 @extension("VK_NV_dedicated_allocation") define VK_NV_DEDICATED_ALLOCATION_SPEC_VERSION 1
 @extension("VK_NV_dedicated_allocation") define VK_NV_DEDICATED_ALLOCATION_EXTENSION_NAME "VK_NV_dedicated_allocation"
+
+@extension("VK_AMD_draw_indirect_count") define VK_AMD_DRAW_INDIRECT_COUNT_SPEC_VERSION 1
+@extension("VK_AMD_draw_indirect_count") define VK_AMD_DRAW_INDIRECT_COUNT_EXTENSION_NAME "VK_AMD_draw_indirect_count"
+
+@extension("VK_AMD_negative_viewport_height") define VK_AMD_NEGATIVE_VIEWPORT_HEIGHT_SPEC_VERSION 1
+@extension("VK_AMD_negative_viewport_height") define VK_AMD_NEGATIVE_VIEWPORT_HEIGHT_EXTENSION_NAME "VK_AMD_negative_viewport_height"
+
+@extension("VK_AMD_gpu_shader_half_float") define VK_AMD_GPU_SHADER_HALF_FLOAT_SPEC_VERSION 1
+@extension("VK_AMD_gpu_shader_half_float") define VK_AMD_GPU_SHADER_HALF_FLOAT_EXTENSION_NAME "VK_AMD_gpu_shader_half_float"
+
+@extension("VK_AMD_shader_ballot") define VK_AMD_SHADER_BALLOT_SPEC_VERSION 1
+@extension("VK_AMD_shader_ballot") define VK_AMD_SHADER_BALLOT_EXTENSION_NAME "VK_AMD_shader_ballot"
+
+@extension("VK_IMG_format_pvrtc") define VK_IMG_FORMAT_PVRTC_SPEC_VERSION 1
+@extension("VK_IMG_format_pvrtc") define VK_IMG_FORMAT_PVRTC_EXTENSION_NAME "VK_IMG_format_pvrtc"
+
+@extension("VK_NV_external_memory_capabilities") define VK_NV_EXTERNAL_MEMORY_CAPABILITIES_SPEC_VERSION 1
+@extension("VK_NV_external_memory_capabilities") define VK_NV_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME "VK_NV_external_memory_capabilities"
+
+@extension("VK_NV_external_memory") define VK_NV_EXTERNAL_MEMORY_SPEC_VERSION 1
+@extension("VK_NV_external_memory") define VK_NV_EXTERNAL_MEMORY_EXTENSION_NAME "VK_NV_external_memory"
+
+@extension("VK_NV_external_memory_win32") define VK_NV_EXTERNAL_MEMORY_WIN32_SPEC_VERSION 1
+@extension("VK_NV_external_memory_win32") define VK_NV_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME "VK_NV_external_memory_win32"
+
+@extension("VK_NV_win32_keyed_mutex") define VK_NV_WIN32_KEYED_MUTEX_SPEC_VERSION 1
+@extension("VK_NV_win32_keyed_mutex") define VK_NV_WIN32_KEYED_MUTEX_EXTENSION_NAME "VK_NV_win32_keyed_mutex"
+
+@extension("VK_EXT_validation_flags") define VK_EXT_VALIDATION_FLAGS_SPEC_VERSION 1
+@extension("VK_EXT_validation_flags") define VK_EXT_VALIDATION_FLAGS_EXTENSION_NAME "VK_EXT_validation_flags"
+
+@extension("VK_NVX_device_generated_commands") define VK_NVX_DEVICE_GENERATED_COMMANDS_SPEC_VERSION 1
+@extension("VK_NVX_device_generated_commands") define VK_NVX_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME "VK_NVX_device_generated_commands"
+
 
 
 /////////////
@@ -155,6 +189,9 @@ type u32 VkSampleMask
 @extension("VK_KHR_display")    @nonDispatchHandle type u64 VkDisplayModeKHR
 
 @extension("VK_EXT_debug_report") @nonDispatchHandle type u64 VkDebugReportCallbackEXT
+
+@extension("VK_NVX_device_generated_commands") @nonDispatchHandle type u64 VkObjectTableNVX
+@extension("VK_NVX_device_generated_commands") @nonDispatchHandle type u64 VkIndirectCommandsLayoutNVX
 
 
 /////////////
@@ -596,6 +633,30 @@ enum VkFormat {
     VK_FORMAT_ASTC_12x10_SRGB_BLOCK                         = 182,
     VK_FORMAT_ASTC_12x12_UNORM_BLOCK                        = 183,
     VK_FORMAT_ASTC_12x12_SRGB_BLOCK                         = 184,
+
+    //@extension("VK_IMG_format_pvrtc")
+    VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG = 1000054000,
+
+    //@extension("VK_IMG_format_pvrtc")
+    VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG = 1000054001,
+
+    //@extension("VK_IMG_format_pvrtc")
+    VK_FORMAT_PVRTC2_2BPP_UNORM_BLOCK_IMG = 1000054002,
+
+    //@extension("VK_IMG_format_pvrtc")
+    VK_FORMAT_PVRTC2_4BPP_UNORM_BLOCK_IMG = 1000054003,
+
+    //@extension("VK_IMG_format_pvrtc")
+    VK_FORMAT_PVRTC1_2BPP_SRGB_BLOCK_IMG = 1000054004,
+
+    //@extension("VK_IMG_format_pvrtc")
+    VK_FORMAT_PVRTC1_4BPP_SRGB_BLOCK_IMG = 1000054005,
+
+    //@extension("VK_IMG_format_pvrtc")
+    VK_FORMAT_PVRTC2_2BPP_SRGB_BLOCK_IMG = 1000054006,
+
+    //@extension("VK_IMG_format_pvrtc")
+    VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG = 1000054007,
 }
 
 /// Structure type enumerant
@@ -706,6 +767,45 @@ enum VkStructureType {
 
     //@extension("VK_NV_dedicated_allocation")
     VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV = 1000026002,
+
+    //@extension("VK_NV_external_memory")
+    VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO_NV = 1000056000,
+
+    //@extension("VK_NV_external_memory")
+    VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_NV = 1000056001,
+
+    //@extension("VK_NV_external_memory_win32")
+    VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_NV = 1000057000,
+
+    //@extension("VK_NV_external_memory_win32")
+    VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_NV = 1000057001,
+
+    //@extension("VK_NV_win32_keyed_mutex")
+    VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_NV = 1000058000,
+
+    //@extension("VK_EXT_validation_flags")
+    VK_STRUCTURE_TYPE_VALIDATION_FLAGS_EXT = 1000061000,
+
+    //@extension("VK_KHR_incremental_present")
+    VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR = 1000084000,
+
+    //@extension("VK_NVX_device_generated_commands")
+    VK_STRUCTURE_TYPE_OBJECT_TABLE_CREATE_INFO_NVX = 1000086000,
+
+    //@extension("VK_NVX_device_generated_commands")
+    VK_STRUCTURE_TYPE_INDIRECT_COMMANDS_LAYOUT_CREATE_INFO_NVX = 1000086001,
+
+    //@extension("VK_NVX_device_generated_commands")
+    VK_STRUCTURE_TYPE_CMD_PROCESS_COMMANDS_INFO_NVX = 1000086002,
+
+    //@extension("VK_NVX_device_generated_commands")
+    VK_STRUCTURE_TYPE_CMD_RESERVE_SPACE_FOR_COMMANDS_INFO_NVX = 1000086003,
+
+    //@extension("VK_NVX_device_generated_commands")
+    VK_STRUCTURE_TYPE_DEVICE_GENERATED_COMMANDS_LIMITS_NVX = 1000086004,
+
+    //@extension("VK_NVX_device_generated_commands")
+    VK_STRUCTURE_TYPE_DEVICE_GENERATED_COMMANDS_FEATURES_NVX = 1000086005,
 }
 
 enum VkSubpassContents {
@@ -820,6 +920,10 @@ enum VkDebugReportObjectTypeEXT {
     VK_DEBUG_REPORT_OBJECT_TYPE_SURFACE_KHR_EXT             = 26,
     VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT           = 27,
     VK_DEBUG_REPORT_OBJECT_TYPE_DEBUG_REPORT_EXT            = 28,
+    VK_DEBUG_REPORT_OBJECT_TYPE_DISPLAY_KHR_EXT             = 29,
+    VK_DEBUG_REPORT_OBJECT_TYPE_DISPLAY_MODE_KHR_EXT        = 30,
+    VK_DEBUG_REPORT_OBJECT_TYPE_OBJECT_TABLE_NVX_EXT        = 31,
+    VK_DEBUG_REPORT_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX_EXT = 32,
 }
 
 @extension("VK_EXT_debug_report")
@@ -834,6 +938,31 @@ enum VkRasterizationOrderAMD {
     VK_RASTERIZATION_ORDER_RELAXED_AMD                      = 1,
 }
 
+@extension("VK_EXT_validation_flags")
+enum VkValidationCheckEXT {
+    VK_VALIDATION_CHECK_ALL_EXT                             = 0,
+}
+
+@extension("VK_NVX_device_generated_commands")
+enum VkIndirectCommandsTokenTypeNVX {
+    VK_INDIRECT_COMMANDS_TOKEN_PIPELINE_NVX = 0,
+    VK_INDIRECT_COMMANDS_TOKEN_DESCRIPTOR_SET_NVX = 1,
+    VK_INDIRECT_COMMANDS_TOKEN_INDEX_BUFFER_NVX = 2,
+    VK_INDIRECT_COMMANDS_TOKEN_VERTEX_BUFFER_NVX = 3,
+    VK_INDIRECT_COMMANDS_TOKEN_PUSH_CONSTANT_NVX = 4,
+    VK_INDIRECT_COMMANDS_TOKEN_DRAW_INDEXED_NVX = 5,
+    VK_INDIRECT_COMMANDS_TOKEN_DRAW_NVX = 6,
+    VK_INDIRECT_COMMANDS_TOKEN_DISPATCH_NVX = 7,
+}
+
+@extension("VK_NVX_device_generated_commands")
+enum VkObjectEntryTypeNVX {
+    VK_OBJECT_ENTRY_DESCRIPTOR_SET_NVX = 0,
+    VK_OBJECT_ENTRY_PIPELINE_NVX = 1,
+    VK_OBJECT_ENTRY_INDEX_BUFFER_NVX = 2,
+    VK_OBJECT_ENTRY_VERTEX_BUFFER_NVX = 3,
+    VK_OBJECT_ENTRY_PUSH_CONSTANT_NVX = 4,
+}
 
 /////////////////
 //  Bitfields  //
@@ -884,6 +1013,12 @@ bitfield VkAccessFlagBits {
     VK_ACCESS_HOST_WRITE_BIT                                = 0x00004000,
     VK_ACCESS_MEMORY_READ_BIT                               = 0x00008000,
     VK_ACCESS_MEMORY_WRITE_BIT                              = 0x00010000,
+
+    //@extension("VK_NVX_device_generated_commands")
+    VK_ACCESS_COMMAND_PROCESS_READ_BIT_NVX                  = 0x00020000,
+
+    //@extension("VK_NVX_device_generated_commands")
+    VK_ACCESS_COMMAND_PROCESS_WRITE_BIT_NVX                 = 0x00040000,
 }
 
 /// Buffer usage flags
@@ -1108,6 +1243,9 @@ bitfield VkPipelineStageFlagBits {
 
     VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT                      = 0x00008000,  /// All stages of the graphics pipeline
     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT                      = 0x00010000,  /// All graphics, compute, copy, and transition commands
+
+    //@extension("VK_NVX_device_generated_commands")
+    VK_PIPELINE_STAGE_COMMAND_PROCESS_BIT_NVX               = 0x00020000,
 }
 
 /// Render pass attachment description flags
@@ -1382,6 +1520,43 @@ type VkFlags VkSwapchainImageUsageFlagsANDROID
 @extension("VK_ANDROID_native_buffer")
 bitfield VkSwapchainImageUsageFlagBitsANDROID {
     VK_SWAPCHAIN_IMAGE_USAGE_FLAGS_FRONT_BUFFER_BIT_ANDROID = 0x00000001,
+}
+
+@extension("VK_NV_external_memory_capabilities")
+type VkFlags VkExternalMemoryHandleTypeFlagsNV
+@extension("VK_NV_external_memory_capabilities")
+bitfield VkExternalMemoryHandleTypeFlagBitsNV {
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_NV = 0x00000001,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_NV = 0x00000002,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_IMAGE_BIT_NV = 0x00000004,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_IMAGE_KMT_BIT_NV = 0x00000008,
+}
+
+@extension("VK_NV_external_memory_capabilities")
+type VkFlags VkExternalMemoryFeatureFlagsNV
+@extension("VK_NV_external_memory_capabilities")
+bitfield VkExternalMemoryFeatureFlagBitsNV {
+    VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT_NV = 0x00000001,
+    VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_NV = 0x00000002,
+    VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT_NV = 0x00000004,
+}
+
+@extension("VK_NVX_device_generated_commands")
+type VkFlags VkIndirectCommandsLayoutUsageFlagsNVX
+@extension("VK_NVX_device_generated_commands")
+bitfield VkIndirectCommandsLayoutUsageFlagBitsNVX {
+    VK_INDIRECT_COMMANDS_LAYOUT_USAGE_UNORDERED_SEQUENCES_BIT_NVX = 0x00000001,
+    VK_INDIRECT_COMMANDS_LAYOUT_USAGE_SPARSE_SEQUENCES_BIT_NVX = 0x00000002,
+    VK_INDIRECT_COMMANDS_LAYOUT_USAGE_EMPTY_EXECUTIONS_BIT_NVX = 0x00000004,
+    VK_INDIRECT_COMMANDS_LAYOUT_USAGE_INDEXED_SEQUENCES_BIT_NVX = 0x00000008,
+}
+
+@extension("VK_NVX_device_generated_commands")
+type VkFlags VkObjectEntryUsageFlagsNVX
+@extension("VK_NVX_device_generated_commands")
+bitfield VkObjectEntryUsageFlagBitsNVX {
+    VK_OBJECT_ENTRY_USAGE_GRAPHICS_BIT_NVX = 0x00000001,
+    VK_OBJECT_ENTRY_USAGE_COMPUTE_BIT_NVX = 0x00000002,
 }
 
 
@@ -2751,6 +2926,213 @@ class VkDedicatedAllocationMemoryAllocateInfoNV {
     VkImage                                     image
     VkBuffer                                    buffer
 }
+
+@extension("VK_KHR_incremental_present")
+class VkRectLayerKHR {
+    VkOffset2D                                  offset
+    VkExtent2D                                  extent
+    u32                                         layer
+}
+
+@extension("VK_KHR_incremental_present")
+class VkPresentRegionKHR {
+    u32                                         rectangleCount
+    const VkRectLayerKHR*                       pRectangles
+}
+
+@extension("VK_KHR_incremental_present")
+class VkPresentRegionsKHR {
+    VkStructureType                             sType
+    const void*                                 pNext
+    u32                                         swapchainCount
+    const VkPresentRegionKHR*                   pRegions
+}
+
+@extension("VK_NV_external_memory_capabilities")
+class VkExternalImageFormatPropertiesNV {
+    VkImageFormatProperties                     imageFormatProperties
+    VkExternalMemoryFeatureFlagsNV              externalMemoryFeatures
+    VkExternalMemoryHandleTypeFlagsNV           exportFromImportedHandleTypes
+    VkExternalMemoryHandleTypeFlagsNV           compatibleHandleTypes
+}
+
+@extension("VK_NV_external_memory")
+class VkExternalMemoryImageCreateInfoNV {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkExternalMemoryHandleTypeFlagsNV           handleTypes
+}
+
+@extension("VK_NV_external_memory")
+class VkExportMemoryAllocateInfoNV {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkExternalMemoryHandleTypeFlagsNV           handleTypes
+}
+
+@extension("VK_NV_external_memory_win32")
+class VkImportMemoryWin32HandleInfoNV {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkExternalMemoryHandleTypeFlagsNV           handleType
+    platform.HANDLE                             handle
+}
+
+@extension("VK_NV_external_memory_win32")
+class VkExportMemoryWin32HandleInfoNV {
+    VkStructureType                             sType
+    const void*                                 pNext
+    const platform.SECURITY_ATTRIBUTES*         pAttributes
+    u32                                         dwAccess
+}
+
+@extension("VK_NV_win32_keyed_mutex")
+class VkWin32KeyedMutexAcquireReleaseInfoNV {
+    VkStructureType                             sType
+    const void*                                 pNext
+    u32                                         acquireCount
+    const VkDeviceMemory*                       pAcquireSyncs
+    const u64*                                  pAcquireKeys
+    const u32*                                  pAcquireTimeoutMilliseconds
+    u32                                         releaseCount
+    const VkDeviceMemory*                       pReleaseSyncs
+    const u64*                                  pReleaseKeys
+}
+
+@extension("VK_EXT_validation_flags")
+class VkValidationFlagsEXT {
+    VkStructureType                             sType
+    const void*                                 pNext
+    u32                                         disabledValidationCheckCount
+    VkValidationCheckEXT*                       pDisabledValidationChecks
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkDeviceGeneratedCommandsFeaturesNVX {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkBool32                                    computeBindingPointSupport
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkDeviceGeneratedCommandsLimitsNVX {
+    VkStructureType                             sType
+    const void*                                 pNext
+    u32                                         maxIndirectCommandsLayoutTokenCount
+    u32                                         maxObjectEntryCounts
+    u32                                         minSequenceCountBufferOffsetAlignment
+    u32                                         minSequenceIndexBufferOffsetAlignment
+    u32                                         minCommandsTokenBufferOffsetAlignment
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkIndirectCommandsTokenNVX {
+    VkIndirectCommandsTokenTypeNVX              tokenType
+    VkBuffer                                    buffer
+    VkDeviceSize                                offset
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkIndirectCommandsLayoutTokenNVX {
+    VkIndirectCommandsTokenTypeNVX              tokenType
+    u32                                         bindingUnit
+    u32                                         dynamicCount
+    u32                                         divisor
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkIndirectCommandsLayoutCreateInfoNVX {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkPipelineBindPoint                         pipelineBindPoint
+    VkIndirectCommandsLayoutUsageFlagsNVX       flags
+    u32                                         tokenCount
+    const VkIndirectCommandsLayoutTokenNVX*     pTokens
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkCmdProcessCommandsInfoNVX {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkObjectTableNVX                            objectTable
+    VkIndirectCommandsLayoutNVX                 indirectCommandsLayout
+    u32                                         indirectCommandsTokenCount
+    const VkIndirectCommandsTokenNVX*           pIndirectCommandsTokens
+    u32                                         maxSequencesCount
+    VkCommandBuffer                             targetCommandBuffer
+    VkBuffer                                    sequencesCountBuffer
+    VkDeviceSize                                sequencesCountOffset
+    VkBuffer                                    sequencesIndexBuffer
+    VkDeviceSize                                sequencesIndexOffset
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkCmdReserveSpaceForCommandsInfoNVX {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkObjectTableNVX                            objectTable
+    VkIndirectCommandsLayoutNVX                 indirectCommandsLayout
+    u32                                         maxSequencesCount
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkObjectTableCreateInfoNVX {
+    VkStructureType                             sType
+    const void*                                 pNext
+    u32                                         objectCount
+    const VkObjectEntryTypeNVX*                 pObjectEntryTypes
+    const u32*                                  pObjectEntryCounts
+    const VkObjectEntryUsageFlagsNVX*           pObjectEntryUsageFlags
+    u32                                         maxUniformBuffersPerDescriptor
+    u32                                         maxStorageBuffersPerDescriptor
+    u32                                         maxStorageImagesPerDescriptor
+    u32                                         maxSampledImagesPerDescriptor
+    u32                                         maxPipelineLayouts
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkObjectTableEntryNVX {
+    VkObjectEntryTypeNVX                        type
+    VkObjectEntryUsageFlagsNVX                  flags
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkObjectTablePipelineEntryNVX {
+    VkObjectEntryTypeNVX                        type
+    VkObjectEntryUsageFlagsNVX                  flags
+    VkPipeline                                  pipeline
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkObjectTableDescriptorSetEntryNVX {
+    VkObjectEntryTypeNVX                        type
+    VkObjectEntryUsageFlagsNVX                  flags
+    VkPipelineLayout                            pipelineLayout
+    VkDescriptorSet                             descriptorSet
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkObjectTableVertexBufferEntryNVX {
+    VkObjectEntryTypeNVX                        type
+    VkObjectEntryUsageFlagsNVX                  flags
+    VkBuffer                                    buffer
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkObjectTableIndexBufferEntryNVX {
+    VkObjectEntryTypeNVX                        type
+    VkObjectEntryUsageFlagsNVX                  flags
+    VkBuffer                                    buffer
+}
+
+@extension("VK_NVX_device_generated_commands")
+class VkObjectTablePushConstantEntryNVX {
+    VkObjectEntryTypeNVX                        type
+    VkObjectEntryUsageFlagsNVX                  flags
+    VkPipelineLayout                            pipelineLayout
+    VkShaderStageFlags                          stageFlags
+}
+
 
 
 ////////////////
@@ -5397,6 +5779,121 @@ cmd void vkCmdDebugMarkerEndEXT(
 cmd void vkCmdDebugMarkerInsertEXT(
         VkCommandBuffer                             commandBuffer,
         VkDebugMarkerMarkerInfoEXT*                 pMarkerInfo) {
+}
+
+@extension("VK_AMD_draw_indirect_count")
+cmd void vkCmdDrawIndirectCountAMD(
+        VkCommandBuffer                             commandBuffer,
+        VkBuffer                                    buffer,
+        VkDeviceSize                                offset,
+        VkBuffer                                    countBuffer,
+        VkDeviceSize                                countBufferOffset,
+        u32                                         maxDrawCount,
+        u32                                         stride) {
+}
+
+@extension("VK_AMD_draw_indirect_count")
+cmd void vkCmdDrawIndexedIndirectCountAMD(
+        VkCommandBuffer                             commandBuffer,
+        VkBuffer                                    buffer,
+        VkDeviceSize                                offset,
+        VkBuffer                                    countBuffer,
+        VkDeviceSize                                countBufferOffset,
+        u32                                         maxDrawCount,
+        u32                                         stride) {
+}
+
+@extension("VK_NV_external_memory_capabilities")
+cmd VkResult vkGetPhysicalDeviceExternalImageFormatPropertiesNV(
+        VkPhysicalDevice                            physicalDevice,
+        VkFormat                                    format,
+        VkImageType                                 type,
+        VkImageTiling                               tiling,
+        VkImageUsageFlags                           usage,
+        VkImageCreateFlags                          flags,
+        VkExternalMemoryHandleTypeFlagsNV           externalHandleType,
+        VkExternalImageFormatPropertiesNV*          pExternalImageFormatProperties) {
+    return ?
+}
+
+@extension("VK_NV_external_memory_win32")
+cmd VkResult vkGetMemoryWin32HandleNV(
+        VkDevice                                    device,
+        VkDeviceMemory                              memory,
+        VkExternalMemoryHandleTypeFlagsNV           handleType,
+        platform.HANDLE*                            pHandle) {
+    return ?
+}
+
+@extension("VK_NV_external_memory_win32")
+cmd void  vkCmdProcessCommandsNVX(
+        VkCommandBuffer                             commandBuffer,
+        const VkCmdProcessCommandsInfoNVX*          pProcessCommandsInfo) {
+}
+
+@extension("VK_NV_external_memory_win32")
+cmd void  vkCmdReserveSpaceForCommandsNVX(
+        VkCommandBuffer                             commandBuffer,
+        const VkCmdReserveSpaceForCommandsInfoNVX*  pReserveSpaceInfo) {
+}
+
+@extension("VK_NV_external_memory_win32")
+cmd VkResult  vkCreateIndirectCommandsLayoutNVX(
+        VkDevice                                    device,
+        const VkIndirectCommandsLayoutCreateInfoNVX* pCreateInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkIndirectCommandsLayoutNVX*                pIndirectCommandsLayout) {
+    return ?
+}
+
+@extension("VK_NV_external_memory_win32")
+cmd void  vkDestroyIndirectCommandsLayoutNVX(
+        VkDevice                                    device,
+        VkIndirectCommandsLayoutNVX                 indirectCommandsLayout,
+        const VkAllocationCallbacks*                pAllocator) {
+}
+
+@extension("VK_NV_external_memory_win32")
+cmd VkResult  vkCreateObjectTableNVX(
+        VkDevice                                    device,
+        const VkObjectTableCreateInfoNVX*           pCreateInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkObjectTableNVX*                           pObjectTable) {
+    return ?
+}
+
+@extension("VK_NV_external_memory_win32")
+cmd void  vkDestroyObjectTableNVX(
+        VkDevice                                    device,
+        VkObjectTableNVX                            objectTable,
+        const VkAllocationCallbacks*                pAllocator) {
+}
+
+@extension("VK_NV_external_memory_win32")
+cmd VkResult  vkRegisterObjectsNVX(
+        VkDevice                                    device,
+        VkObjectTableNVX                            objectTable,
+        u32                                         objectCount,
+        const VkObjectTableEntryNVX* const*         ppObjectTableEntries,
+        const u32*                                  pObjectIndices) {
+    return ?
+}
+
+@extension("VK_NV_external_memory_win32")
+cmd VkResult  vkUnregisterObjectsNVX(
+        VkDevice                                    device,
+        VkObjectTableNVX                            objectTable,
+        u32                                         objectCount,
+        const VkObjectEntryTypeNVX*                 pObjectEntryTypes,
+        const u32*                                  pObjectIndices) {
+    return ?
+}
+
+@extension("VK_NV_external_memory_win32")
+cmd void  vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX(
+        VkPhysicalDevice                            physicalDevice,
+        VkDeviceGeneratedCommandsFeaturesNVX*       pFeatures,
+        VkDeviceGeneratedCommandsLimitsNVX*         pLimits) {
 }
 
 

@@ -48,3 +48,5 @@ type u64 size_t
 // VK_USE_PLATFORM_WIN32_KHR
 @internal type void* HINSTANCE
 @internal type void* HWND
+@internal type void* HANDLE
+@internal class SECURITY_ATTRIBUTES {}

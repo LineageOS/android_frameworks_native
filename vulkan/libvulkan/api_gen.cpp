@@ -17,9 +17,7 @@
 // WARNING: This file is generated. See ../README.md for instructions.
 
 #include <string.h>
-
 #include <algorithm>
-
 #include <android/log.h>
 
 // to catch mismatches between vulkan.h and this file
@@ -453,8 +451,10 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
         "vkEnumerateInstanceLayerProperties",
         "vkEnumeratePhysicalDevices",
         "vkGetInstanceProcAddr",
+        "vkGetPhysicalDeviceExternalImageFormatPropertiesNV",
         "vkGetPhysicalDeviceFeatures",
         "vkGetPhysicalDeviceFormatProperties",
+        "vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX",
         "vkGetPhysicalDeviceImageFormatProperties",
         "vkGetPhysicalDeviceMemoryProperties",
         "vkGetPhysicalDeviceProperties",
