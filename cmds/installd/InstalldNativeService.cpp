@@ -18,12 +18,17 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <fstream>
+#include <fts.h>
 #include <regex>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/capability.h>
 #include <sys/file.h>
 #include <sys/resource.h>
+#include <sys/quota.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/xattr.h>
@@ -37,7 +42,6 @@
 #include <cutils/log.h>               // TODO: Move everything to base/logging.
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
-#include <diskusage/dirsize.h>
 #include <logwrap/logwrap.h>
 #include <private/android_filesystem_config.h>
 #include <selinux/android.h>
@@ -52,6 +56,8 @@
 #ifndef LOG_TAG
 #define LOG_TAG "installd"
 #endif
+
+#define MEASURE_EXTERNAL 0
 
 using android::base::StringPrintf;
 
@@ -77,7 +83,7 @@ static constexpr int FLAG_STORAGE_CE = 1 << 1;
 // NOTE: keep in sync with Installer
 static constexpr int FLAG_CLEAR_CACHE_ONLY = 1 << 8;
 static constexpr int FLAG_CLEAR_CODE_CACHE_ONLY = 1 << 9;
-
+static constexpr int FLAG_USE_QUOTA = 1 << 12;
 
 namespace {
 
@@ -259,9 +265,70 @@ static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t ui
     return 0;
 }
 
-static int prepare_app_dir(const std::string& parent, const char* name, mode_t target_mode,
-        uid_t uid) {
-    return prepare_app_dir(StringPrintf("%s/%s", parent.c_str(), name), target_mode, uid);
+/**
+ * Prepare an app cache directory, which offers to fix-up the GID and
+ * directory mode flags during a platform upgrade.
+ */
+static int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t target_mode,
+        uid_t uid, gid_t gid) {
+    auto path = StringPrintf("%s/%s", parent.c_str(), name);
+    struct stat st;
+    if (stat(path.c_str(), &st) != 0) {
+        if (errno == ENOENT) {
+            // This is fine, just create it
+            if (fs_prepare_dir_strict(path.c_str(), target_mode, uid, gid) != 0) {
+                PLOG(ERROR) << "Failed to prepare " << path;
+                return -1;
+            } else {
+                return 0;
+            }
+        } else {
+            PLOG(ERROR) << "Failed to stat " << path;
+            return -1;
+        }
+    }
+
+    if (st.st_uid != uid) {
+        // Mismatched UID is real trouble; we can't recover
+        LOG(ERROR) << "Mismatched UID at " << path << ": found " << st.st_uid
+                << " but expected " << uid;
+        return -1;
+    } else if (st.st_gid == gid && st.st_mode == target_mode) {
+        // Everything looks good!
+        return 0;
+    }
+
+    // Directory is owned correctly, but GID or mode mismatch means it's
+    // probably a platform upgrade so we need to fix them
+    FTS *fts;
+    FTSENT *p;
+    char *argv[] = { (char*) path.c_str(), nullptr };
+    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+        PLOG(ERROR) << "Failed to fts_open " << path;
+        return -1;
+    }
+    while ((p = fts_read(fts)) != NULL) {
+        switch (p->fts_info) {
+        case FTS_DP:
+            if (chmod(p->fts_accpath, target_mode) != 0) {
+                PLOG(WARNING) << "Failed to chmod " << p->fts_path;
+            }
+            // Intentional fall through to also set GID
+        case FTS_F:
+            if (chown(p->fts_accpath, -1, gid) != 0) {
+                PLOG(WARNING) << "Failed to chown " << p->fts_path;
+            }
+            break;
+        case FTS_SL:
+        case FTS_SLNONE:
+            if (lchown(p->fts_accpath, -1, gid) != 0) {
+                PLOG(WARNING) << "Failed to chown " << p->fts_path;
+            }
+            break;
+        }
+    }
+    fts_close(fts);
+    return 0;
 }
 
 binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::string>& uuid,
@@ -278,14 +345,16 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
     if (_aidl_return != nullptr) *_aidl_return = -1;
 
     uid_t uid = multiuser_get_uid(userId, appId);
-    mode_t target_mode = targetSdkVersion >= MIN_RESTRICTED_HOME_SDK_VERSION ? 0700 : 0751;
+    gid_t cacheGid = multiuser_get_cache_gid(userId, appId);
+    mode_t targetMode = targetSdkVersion >= MIN_RESTRICTED_HOME_SDK_VERSION ? 0700 : 0751;
+
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
         bool existing = (access(path.c_str(), F_OK) == 0);
 
-        if (prepare_app_dir(path, target_mode, uid) ||
-                prepare_app_dir(path, "cache", 0771, uid) ||
-                prepare_app_dir(path, "code_cache", 0771, uid)) {
+        if (prepare_app_dir(path, targetMode, uid) ||
+                prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
+                prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
             return error("Failed to prepare " + path);
         }
 
@@ -314,7 +383,9 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
         auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
         bool existing = (access(path.c_str(), F_OK) == 0);
 
-        if (prepare_app_dir(path, target_mode, uid)) {
+        if (prepare_app_dir(path, targetMode, uid) ||
+                prepare_app_cache_dir(path, "cache", 02771, uid, cacheGid) ||
+                prepare_app_cache_dir(path, "code_cache", 02771, uid, cacheGid)) {
             return error("Failed to prepare " + path);
         }
 
@@ -779,8 +850,91 @@ binder::Status InstalldNativeService::rmdex(const std::string& codePath,
     }
 }
 
-static void add_app_data_size(std::string& path, int64_t *codesize, int64_t *datasize,
-        int64_t *cachesize) {
+static bool uuidEquals(const std::unique_ptr<std::string>& a,
+        const std::unique_ptr<std::string>& b) {
+    if (!a && !b) {
+        return true;
+    } else if (!a && b) {
+        return false;
+    } else if (a && !b) {
+        return false;
+    } else {
+        return *a == *b;
+    }
+}
+
+struct stats {
+    int64_t codeSize;
+    int64_t dataSize;
+    int64_t cacheSize;
+};
+
+static void collectQuotaStats(const std::unique_ptr<std::string>& uuid, int32_t userId,
+        int32_t appId, struct stats* stats) {
+    struct dqblk dq;
+
+    auto path = create_data_path(uuid ? uuid->c_str() : nullptr);
+    std::string device;
+    {
+        std::ifstream in("/proc/mounts");
+        if (!in.is_open()) {
+            PLOG(ERROR) << "Failed to read mounts";
+            return;
+        }
+        std::string source;
+        std::string target;
+        while (!in.eof()) {
+            std::getline(in, source, ' ');
+            std::getline(in, target, ' ');
+            if (target == path) {
+                device = source;
+                break;
+            }
+            // Skip to next line
+            std::getline(in, source);
+        }
+    }
+    if (device.empty()) {
+        PLOG(ERROR) << "Failed to resolve block device for " << path;
+        return;
+    }
+
+    uid_t uid = multiuser_get_uid(userId, appId);
+    if (quotactl(QCMD(Q_GETQUOTA, USRQUOTA), device.c_str(), uid,
+            reinterpret_cast<char*>(&dq)) != 0) {
+        if (errno != ESRCH) {
+            PLOG(ERROR) << "Failed to quotactl " << device << " for UID " << uid;
+        }
+    } else {
+        stats->dataSize += dq.dqb_curspace;
+    }
+
+    int cacheGid = multiuser_get_cache_gid(userId, appId);
+    if (cacheGid != -1) {
+        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), device.c_str(), cacheGid,
+                reinterpret_cast<char*>(&dq)) != 0) {
+            if (errno != ESRCH) {
+                PLOG(ERROR) << "Failed to quotactl " << device << " for GID " << cacheGid;
+            }
+        } else {
+            stats->cacheSize += dq.dqb_curspace;
+        }
+    }
+
+    int sharedGid = multiuser_get_shared_app_gid(uid);
+    if (sharedGid != -1) {
+        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), device.c_str(), sharedGid,
+                reinterpret_cast<char*>(&dq)) != 0) {
+            if (errno != ESRCH) {
+                PLOG(ERROR) << "Failed to quotactl " << device << " for GID " << sharedGid;
+            }
+        } else {
+            stats->codeSize += dq.dqb_curspace;
+        }
+    }
+}
+
+static void collectManualStats(std::string& path, struct stats* stats) {
     DIR *d;
     int dfd;
     struct dirent *de;
@@ -788,87 +942,123 @@ static void add_app_data_size(std::string& path, int64_t *codesize, int64_t *dat
 
     d = opendir(path.c_str());
     if (d == nullptr) {
-        PLOG(WARNING) << "Failed to open " << path;
+        if (errno != ENOENT) {
+            PLOG(WARNING) << "Failed to open " << path;
+        }
         return;
     }
     dfd = dirfd(d);
     while ((de = readdir(d))) {
         const char *name = de->d_name;
 
-        int64_t statsize = 0;
+        int64_t size = 0;
         if (fstatat(dfd, name, &s, AT_SYMLINK_NOFOLLOW) == 0) {
-            statsize = stat_size(&s);
+            size = s.st_blocks * 512;
         }
 
         if (de->d_type == DT_DIR) {
-            int subfd;
-            int64_t dirsize = 0;
-            /* always skip "." and ".." */
-            if (name[0] == '.') {
-                if (name[1] == 0) continue;
-                if ((name[1] == '.') && (name[2] == 0)) continue;
-            }
-            subfd = openat(dfd, name, O_RDONLY | O_DIRECTORY);
-            if (subfd >= 0) {
-                dirsize = calculate_dir_size(subfd);
-                close(subfd);
-            }
-            // TODO: check xattrs!
-            if (!strcmp(name, "cache") || !strcmp(name, "code_cache")) {
-                *datasize += statsize;
-                *cachesize += dirsize;
+            if (!strcmp(name, ".")) {
+                // Don't recurse, but still count node size
+            } else if (!strcmp(name, "..")) {
+                // Don't recurse or count node size
+                continue;
             } else {
-                *datasize += dirsize + statsize;
+                // Measure all children nodes
+                size = 0;
+                calculate_tree_size(StringPrintf("%s/%s", path.c_str(), name), &size);
             }
-        } else if (de->d_type == DT_LNK && !strcmp(name, "lib")) {
-            *codesize += statsize;
-        } else {
-            *datasize += statsize;
+
+            if (!strcmp(name, "cache") || !strcmp(name, "code_cache")) {
+                stats->cacheSize += size;
+            }
         }
+
+        // Legacy symlink isn't owned by app
+        if (de->d_type == DT_LNK && !strcmp(name, "lib")) {
+            continue;
+        }
+
+        // Everything found inside is considered data
+        stats->dataSize += size;
     }
     closedir(d);
 }
 
 binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::string>& uuid,
-        const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode,
-        const std::string& codePath, std::vector<int64_t>* _aidl_return) {
+        const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
+        int64_t ceDataInode, const std::string& codePath,
+        const std::unique_ptr<std::string>& externalUuid, std::vector<int64_t>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    const char* extuuid_ = externalUuid ? externalUuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
-    const char* code_path = codePath.c_str();
 
-    DIR *d;
-    int dfd;
-    int64_t codesize = 0;
-    int64_t datasize = 0;
-    int64_t cachesize = 0;
-    int64_t asecsize = 0;
+    // Here's a summary of the common storage locations across the platform,
+    // and how they're each tagged:
+    //
+    // /data/app/com.example                           UID system
+    // /data/app/com.example/oat                       UID system
+    // /data/user/0/com.example                        UID u0_a10 GID u0_a10
+    // /data/user/0/com.example/cache                  UID u0_a10 GID u0_a10_cache
+    // /data/media/0/Android/data/com.example          UID u0_a10 GID u0_a10
+    // /data/media/0/Android/data/com.example/cache    UID u0_a10 GID u0_a10_cache
+    // /data/media/0/Android/obb/com.example           UID system
 
-    d = opendir(code_path);
-    if (d != nullptr) {
-        dfd = dirfd(d);
-        codesize += calculate_dir_size(dfd);
-        closedir(d);
+    struct stats stats;
+    memset(&stats, 0, sizeof(stats));
+
+    auto obbCodePath = create_data_media_package_path(extuuid_, userId, pkgname, "obb");
+    calculate_tree_size(obbCodePath, &stats.codeSize);
+
+    if (flags & FLAG_USE_QUOTA) {
+        calculate_tree_size(codePath, &stats.codeSize,
+                0, multiuser_get_shared_gid(userId, appId));
+
+        collectQuotaStats(uuid, userId, appId, &stats);
+
+        // If external storage lives on a different storage device, also
+        // collect quota stats from that block device
+        if (!uuidEquals(uuid, externalUuid)) {
+            collectQuotaStats(externalUuid, userId, appId, &stats);
+        }
+    } else {
+        calculate_tree_size(codePath, &stats.codeSize);
+
+        auto cePath = create_data_user_ce_package_path(uuid_, userId, pkgname, ceDataInode);
+        collectManualStats(cePath, &stats);
+
+        auto dePath = create_data_user_de_package_path(uuid_, userId, pkgname);
+        collectManualStats(dePath, &stats);
+
+        auto userProfilePath = create_data_user_profile_package_path(userId, pkgname);
+        calculate_tree_size(userProfilePath, &stats.dataSize);
+
+        auto refProfilePath = create_data_ref_profile_package_path(pkgname);
+        calculate_tree_size(refProfilePath, &stats.codeSize);
+
+        calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
+                multiuser_get_shared_gid(userId, appId), 0);
+
+        calculate_tree_size(create_data_misc_foreign_dex_path(userId), &stats.dataSize,
+                multiuser_get_uid(userId, appId), 0);
+
+#if MEASURE_EXTERNAL
+        auto extPath = create_data_media_package_path(extuuid_, userId, pkgname, "data");
+        collectManualStats(extPath, &stats);
+
+        auto mediaPath = create_data_media_package_path(extuuid_, userId, pkgname, "media");
+        calculate_tree_size(mediaPath, &stats.dataSize);
+#endif
     }
 
-    if (flags & FLAG_STORAGE_CE) {
-        auto path = create_data_user_ce_package_path(uuid_, userId, pkgname, ceDataInode);
-        add_app_data_size(path, &codesize, &datasize, &cachesize);
-    }
-    if (flags & FLAG_STORAGE_DE) {
-        auto path = create_data_user_de_package_path(uuid_, userId, pkgname);
-        add_app_data_size(path, &codesize, &datasize, &cachesize);
-    }
-
-    std::vector<int64_t> res;
-    res.push_back(codesize);
-    res.push_back(datasize);
-    res.push_back(cachesize);
-    res.push_back(asecsize);
-    *_aidl_return = res;
+    std::vector<int64_t> ret;
+    ret.push_back(stats.codeSize);
+    ret.push_back(stats.dataSize);
+    ret.push_back(stats.cacheSize);
+    *_aidl_return = ret;
     return ok();
 }
 
