@@ -18,6 +18,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <fts.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -198,6 +199,12 @@ std::string create_data_media_path(const char* volume_uuid, userid_t userid) {
     return StringPrintf("%s/media/%u", create_data_path(volume_uuid).c_str(), userid);
 }
 
+std::string create_data_media_package_path(const char* volume_uuid, userid_t userid,
+        const char* data_type, const char* package_name) {
+    return StringPrintf("%s/Android/%s/%s", create_data_media_path(volume_uuid, userid).c_str(),
+            data_type, package_name);
+}
+
 std::string create_data_misc_legacy_path(userid_t userid) {
     return StringPrintf("%s/misc/user/%u", create_data_path(nullptr).c_str(), userid);
 }
@@ -214,6 +221,14 @@ std::string create_data_user_profile_package_path(userid_t user, const char* pac
 std::string create_data_ref_profile_package_path(const char* package_name) {
     check_package_name(package_name);
     return StringPrintf("%s/ref/%s", android_profiles_dir.path, package_name);
+}
+
+std::string create_data_dalvik_cache_path() {
+    return "/data/dalvik-cache";
+}
+
+std::string create_data_misc_foreign_dex_path(userid_t userid) {
+    return StringPrintf("/data/misc/profiles/cur/%d/foreign-dex", userid);
 }
 
 // Keep profile paths in sync with ActivityThread.
@@ -253,6 +268,38 @@ std::vector<userid_t> get_known_users(const char* volume_uuid) {
     closedir(dir);
 
     return users;
+}
+
+int calculate_tree_size(const std::string& path, int64_t* size,
+        gid_t include_gid, gid_t exclude_gid) {
+    FTS *fts;
+    FTSENT *p;
+    char *argv[] = { (char*) path.c_str(), nullptr };
+    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+        if (errno != ENOENT) {
+            PLOG(ERROR) << "Failed to fts_open " << path;
+        }
+        return -1;
+    }
+    while ((p = fts_read(fts)) != NULL) {
+        switch (p->fts_info) {
+        case FTS_D:
+        case FTS_DEFAULT:
+        case FTS_F:
+        case FTS_SL:
+        case FTS_SLNONE:
+            if (include_gid != 0 && p->fts_statp->st_gid != include_gid) {
+                break;
+            }
+            if (exclude_gid != 0 && p->fts_statp->st_gid == exclude_gid) {
+                break;
+            }
+            *size += (p->fts_statp->st_blocks * 512);
+            break;
+        }
+    }
+    fts_close(fts);
+    return 0;
 }
 
 int create_move_path(char path[PKG_PATH_MAX],
