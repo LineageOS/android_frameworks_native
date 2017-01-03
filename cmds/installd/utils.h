@@ -86,6 +86,8 @@ std::string create_data_user_de_package_path(const char* volume_uuid,
         userid_t user, const char* package_name);
 
 std::string create_data_media_path(const char* volume_uuid, userid_t userid);
+std::string create_data_media_package_path(const char* volume_uuid, userid_t userid,
+        const char* data_type, const char* package_name);
 
 std::string create_data_misc_legacy_path(userid_t userid);
 
@@ -93,9 +95,15 @@ std::string create_data_user_profiles_path(userid_t userid);
 std::string create_data_user_profile_package_path(userid_t user, const char* package_name);
 std::string create_data_ref_profile_package_path(const char* package_name);
 
+std::string create_data_dalvik_cache_path();
+std::string create_data_misc_foreign_dex_path(userid_t userid);
+
 std::string create_primary_profile(const std::string& profile_dir);
 
 std::vector<userid_t> get_known_users(const char* volume_uuid);
+
+int calculate_tree_size(const std::string& path, int64_t* size,
+        gid_t include_gid = 0, gid_t exclude_gid = 0);
 
 int create_user_config_path(char path[PKG_PATH_MAX], userid_t userid);
 
