@@ -100,16 +100,18 @@ status_t FramebufferSurface::prepareFrame(CompositionType /*compositionType*/) {
 
 status_t FramebufferSurface::advanceFrame() {
 #ifdef USE_HWC2
+    uint32_t slot = 0;
     sp<GraphicBuffer> buf;
     sp<Fence> acquireFence(Fence::NO_FENCE);
     android_dataspace_t dataspace = HAL_DATASPACE_UNKNOWN;
-    status_t result = nextBuffer(buf, acquireFence, dataspace);
+    status_t result = nextBuffer(slot, buf, acquireFence, dataspace);
     if (result != NO_ERROR) {
         ALOGE("error latching next FramebufferSurface buffer: %s (%d)",
                 strerror(-result), result);
         return result;
     }
-    result = mHwc.setClientTarget(mDisplayType, acquireFence, buf, dataspace);
+    result = mHwc.setClientTarget(mDisplayType, slot,
+            acquireFence, buf, dataspace);
     if (result != NO_ERROR) {
         ALOGE("error posting framebuffer: %d", result);
     }
@@ -123,8 +125,9 @@ status_t FramebufferSurface::advanceFrame() {
 }
 
 #ifdef USE_HWC2
-status_t FramebufferSurface::nextBuffer(sp<GraphicBuffer>& outBuffer,
-        sp<Fence>& outFence, android_dataspace_t& outDataspace) {
+status_t FramebufferSurface::nextBuffer(uint32_t& outSlot,
+        sp<GraphicBuffer>& outBuffer, sp<Fence>& outFence,
+        android_dataspace_t& outDataspace) {
 #else
 status_t FramebufferSurface::nextBuffer(sp<GraphicBuffer>& outBuffer, sp<Fence>& outFence) {
 #endif
@@ -133,7 +136,12 @@ status_t FramebufferSurface::nextBuffer(sp<GraphicBuffer>& outBuffer, sp<Fence>&
     BufferItem item;
     status_t err = acquireBufferLocked(&item, 0);
     if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
+#ifdef USE_HWC2
+        mHwcBufferCache->getHwcBuffer(mCurrentBufferSlot, mCurrentBuffer,
+                &outSlot, &outBuffer);
+#else
         outBuffer = mCurrentBuffer;
+#endif
         return NO_ERROR;
     } else if (err != NO_ERROR) {
         ALOGE("error acquiring buffer: %s (%d)", strerror(-err), err);
@@ -169,9 +177,12 @@ status_t FramebufferSurface::nextBuffer(sp<GraphicBuffer>& outBuffer, sp<Fence>&
     mCurrentFence = item.mFence;
 
     outFence = item.mFence;
-    outBuffer = mCurrentBuffer;
 #ifdef USE_HWC2
+    mHwcBufferCache->getHwcBuffer(mCurrentBufferSlot, mCurrentBuffer,
+            &outSlot, &outBuffer);
     outDataspace = item.mDataSpace;
+#else
+    outBuffer = mCurrentBuffer;
 #endif
     return NO_ERROR;
 }

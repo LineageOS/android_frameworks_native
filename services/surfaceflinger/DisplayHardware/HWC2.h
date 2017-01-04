@@ -322,7 +322,7 @@ public:
     [[clang::warn_unused_result]] Error setActiveConfig(
             const std::shared_ptr<const Config>& config);
     [[clang::warn_unused_result]] Error setClientTarget(
-            buffer_handle_t target,
+            uint32_t slot, buffer_handle_t target,
             const android::sp<android::Fence>& acquireFence,
             android_dataspace_t dataspace);
     [[clang::warn_unused_result]] Error setColorMode(android_color_mode_t mode);
@@ -384,7 +384,8 @@ public:
     hwc2_layer_t getId() const { return mId; }
 
     [[clang::warn_unused_result]] Error setCursorPosition(int32_t x, int32_t y);
-    [[clang::warn_unused_result]] Error setBuffer(buffer_handle_t buffer,
+    [[clang::warn_unused_result]] Error setBuffer(uint32_t slot,
+            buffer_handle_t buffer,
             const android::sp<android::Fence>& acquireFence);
     [[clang::warn_unused_result]] Error setSurfaceDamage(
             const android::Region& damage);

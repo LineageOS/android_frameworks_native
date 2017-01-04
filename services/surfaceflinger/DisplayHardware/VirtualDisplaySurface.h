@@ -17,16 +17,19 @@
 #ifndef ANDROID_SF_VIRTUAL_DISPLAY_SURFACE_H
 #define ANDROID_SF_VIRTUAL_DISPLAY_SURFACE_H
 
+#include "DisplaySurface.h"
+
 #include <gui/ConsumerBase.h>
 #include <gui/IGraphicBufferProducer.h>
 
-#include "DisplaySurface.h"
+#include <memory>
 
 // ---------------------------------------------------------------------------
 namespace android {
 // ---------------------------------------------------------------------------
 
 class HWComposer;
+class HWComposerBufferCache;
 class IProducerListener;
 
 /* This DisplaySurface implementation supports virtual displays, where GLES
@@ -250,6 +253,11 @@ private:
     static const char* dbgSourceStr(Source s);
 
     bool mMustRecompose;
+
+#ifdef USE_HWC2
+    std::unique_ptr<HWComposerBufferCache> mHwcBufferCache =
+        std::make_unique<HWComposerBufferCache>();
+#endif
 };
 
 // ---------------------------------------------------------------------------

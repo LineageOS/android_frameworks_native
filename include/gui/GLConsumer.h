@@ -172,7 +172,9 @@ public:
     void setFilteringEnabled(bool enabled);
 
     // getCurrentBuffer returns the buffer associated with the current image.
-    sp<GraphicBuffer> getCurrentBuffer() const;
+    // When outSlot is not nullptr, the current buffer slot index is also
+    // returned.
+    sp<GraphicBuffer> getCurrentBuffer(int* outSlot = nullptr) const;
 
     // getCurrentTextureTarget returns the texture target of the current
     // texture as returned by updateTexImage().

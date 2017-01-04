@@ -26,6 +26,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <gui/BufferQueue.h>
+
 #include <ui/Fence.h>
 
 #include <utils/BitSet.h>
@@ -94,7 +96,8 @@ public:
     // Asks the HAL what it can do
     status_t prepare(DisplayDevice& displayDevice);
 
-    status_t setClientTarget(int32_t displayId, const sp<Fence>& acquireFence,
+    status_t setClientTarget(int32_t displayId, uint32_t slot,
+            const sp<Fence>& acquireFence,
             const sp<GraphicBuffer>& target, android_dataspace_t dataspace);
 
     // Present layers to the display and read releaseFences.
@@ -222,6 +225,19 @@ private:
 
     // thread-safe
     mutable Mutex mVsyncLock;
+};
+
+class HWComposerBufferCache {
+public:
+    void clear();
+
+    void getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer,
+            uint32_t* outSlot, sp<GraphicBuffer>* outBuffer);
+
+private:
+    // a vector as we expect "slot" to be in the range of [0, 63] (that is,
+    // less than BufferQueue::NUM_BUFFER_SLOTS).
+    std::vector<sp<GraphicBuffer>> mBuffers;
 };
 
 // ---------------------------------------------------------------------------

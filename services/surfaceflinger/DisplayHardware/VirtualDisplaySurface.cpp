@@ -221,9 +221,14 @@ status_t VirtualDisplaySurface::advanceFrame() {
     status_t result = NO_ERROR;
     if (fbBuffer != NULL) {
 #ifdef USE_HWC2
+        uint32_t hwcSlot = 0;
+        sp<GraphicBuffer> hwcBuffer;
+        mHwcBufferCache->getHwcBuffer(mFbProducerSlot, fbBuffer,
+                &hwcSlot, &hwcBuffer);
+
         // TODO: Correctly propagate the dataspace from GL composition
-        result = mHwc.setClientTarget(mDisplayId, mFbFence, fbBuffer,
-                HAL_DATASPACE_UNKNOWN);
+        result = mHwc.setClientTarget(mDisplayId, hwcSlot, mFbFence,
+                hwcBuffer, HAL_DATASPACE_UNKNOWN);
 #else
         result = mHwc.fbPost(mDisplayId, mFbFence, fbBuffer);
 #endif

@@ -444,7 +444,7 @@ void HWComposer::setVsyncEnabled(int32_t displayId, HWC2::Vsync enabled) {
     }
 }
 
-status_t HWComposer::setClientTarget(int32_t displayId,
+status_t HWComposer::setClientTarget(int32_t displayId, uint32_t slot,
         const sp<Fence>& acquireFence, const sp<GraphicBuffer>& target,
         android_dataspace_t dataspace) {
     if (!isValidDisplay(displayId)) {
@@ -457,7 +457,8 @@ status_t HWComposer::setClientTarget(int32_t displayId,
     if ((target != nullptr) && target->getNativeBuffer()) {
         handle = target->getNativeBuffer()->handle;
     }
-    auto error = hwcDisplay->setClientTarget(handle, acquireFence, dataspace);
+    auto error = hwcDisplay->setClientTarget(slot, handle,
+            acquireFence, dataspace);
     if (error != HWC2::Error::None) {
         ALOGE("Failed to set client target for display %d: %s (%d)", displayId,
                 to_string(error).c_str(), static_cast<int32_t>(error));
@@ -892,6 +893,37 @@ HWComposer::DisplayData::~DisplayData() {
 void HWComposer::DisplayData::reset() {
     ALOGV("DisplayData reset");
     *this = DisplayData();
+}
+
+void HWComposerBufferCache::clear()
+{
+    mBuffers.clear();
+}
+
+void HWComposerBufferCache::getHwcBuffer(int slot,
+        const sp<GraphicBuffer>& buffer,
+        uint32_t* outSlot, sp<GraphicBuffer>* outBuffer)
+{
+    if (slot == BufferQueue::INVALID_BUFFER_SLOT || slot < 0) {
+        // default to slot 0
+        slot = 0;
+    }
+
+    if (static_cast<size_t>(slot) >= mBuffers.size()) {
+        mBuffers.resize(slot + 1);
+    }
+
+    *outSlot = slot;
+
+    if (mBuffers[slot] == buffer) {
+        // already cached in HWC, skip sending the buffer
+        *outBuffer = nullptr;
+    } else {
+        *outBuffer = buffer;
+
+        // update cache
+        mBuffers[slot] = buffer;
+    }
 }
 
 // ---------------------------------------------------------------------------

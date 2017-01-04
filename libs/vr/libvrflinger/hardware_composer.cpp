@@ -1501,7 +1501,8 @@ void Layer::Prepare() {
 
   if (composition_type_ == HWC2_COMPOSITION_DEVICE) {
     ret = (int32_t)hwc2_hidl_->setLayerBuffer(HWC_DISPLAY_PRIMARY,
-                                              hardware_composer_layer_, handle,
+                                              hardware_composer_layer_, 0,
+                                              handle,
                                               acquire_fence_fd_.Get());
 
     ALOGE_IF(ret, "HardwareComposer: Error setting layer buffer : %d", ret);

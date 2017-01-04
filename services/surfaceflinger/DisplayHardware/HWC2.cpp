@@ -962,17 +962,18 @@ Error Display::setActiveConfig(const std::shared_ptr<const Config>& config)
     return static_cast<Error>(intError);
 }
 
-Error Display::setClientTarget(buffer_handle_t target,
+Error Display::setClientTarget(uint32_t slot, buffer_handle_t target,
         const sp<Fence>& acquireFence, android_dataspace_t dataspace)
 {
     // TODO: Properly encode client target surface damage
     int32_t fenceFd = acquireFence->dup();
 #ifdef BYPASS_IHWC
+    (void) slot;
     int32_t intError = mDevice.mSetClientTarget(mDevice.mHwcDevice, mId, target,
             fenceFd, static_cast<int32_t>(dataspace), {0, nullptr});
 #else
-    auto intError = mDevice.mComposer->setClientTarget(mId, target, fenceFd,
-            static_cast<Hwc2::Dataspace>(dataspace),
+    auto intError = mDevice.mComposer->setClientTarget(mId, slot, target,
+            fenceFd, static_cast<Hwc2::Dataspace>(dataspace),
             std::vector<Hwc2::IComposerClient::Rect>());
 #endif
     return static_cast<Error>(intError);
@@ -1195,16 +1196,17 @@ Error Layer::setCursorPosition(int32_t x, int32_t y)
     return static_cast<Error>(intError);
 }
 
-Error Layer::setBuffer(buffer_handle_t buffer,
+Error Layer::setBuffer(uint32_t slot, buffer_handle_t buffer,
         const sp<Fence>& acquireFence)
 {
     int32_t fenceFd = acquireFence->dup();
 #ifdef BYPASS_IHWC
+    (void) slot;
     int32_t intError = mDevice.mSetLayerBuffer(mDevice.mHwcDevice, mDisplayId,
             mId, buffer, fenceFd);
 #else
     auto intError = mDevice.mComposer->setLayerBuffer(mDisplayId,
-            mId, buffer, fenceFd);
+            mId, slot, buffer, fenceFd);
 #endif
     return static_cast<Error>(intError);
 }

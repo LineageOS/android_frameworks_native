@@ -25,6 +25,7 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
+class Fence;
 class IGraphicBufferProducer;
 class String8;
 

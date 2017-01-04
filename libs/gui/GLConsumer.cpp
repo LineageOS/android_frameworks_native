@@ -930,9 +930,14 @@ uint64_t GLConsumer::getFrameNumber() {
     return mCurrentFrameNumber;
 }
 
-sp<GraphicBuffer> GLConsumer::getCurrentBuffer() const {
+sp<GraphicBuffer> GLConsumer::getCurrentBuffer(int* outSlot) const {
     Mutex::Autolock lock(mMutex);
-    return (mCurrentTextureImage == NULL) ?
+
+    if (outSlot != nullptr) {
+        *outSlot = mCurrentTexture;
+    }
+
+    return (mCurrentTextureImage == nullptr) ?
             NULL : mCurrentTextureImage->graphicBuffer();
 }
 

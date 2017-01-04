@@ -172,7 +172,14 @@ public:
     Error presentDisplay(Display display, int* outPresentFence);
 
     Error setActiveConfig(Display display, Config config);
-    Error setClientTarget(Display display, const native_handle_t* target,
+
+    /*
+     * The composer caches client targets internally.  When target is nullptr,
+     * the composer uses slot to look up the client target from its cache.
+     * When target is not nullptr, the cache is updated with the new target.
+     */
+    Error setClientTarget(Display display, uint32_t slot,
+            const native_handle_t* target,
             int acquireFence, Dataspace dataspace,
             const std::vector<IComposerClient::Rect>& damage);
     Error setColorMode(Display display, ColorMode mode);
@@ -190,7 +197,8 @@ public:
 
     Error setCursorPosition(Display display, Layer layer,
             int32_t x, int32_t y);
-    Error setLayerBuffer(Display display, Layer layer,
+    /* see setClientTarget for the purpose of slot */
+    Error setLayerBuffer(Display display, Layer layer, uint32_t slot,
             const native_handle_t* buffer, int acquireFence);
     Error setLayerSurfaceDamage(Display display, Layer layer,
             const std::vector<IComposerClient::Rect>& damage);
