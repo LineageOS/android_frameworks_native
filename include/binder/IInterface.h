@@ -30,6 +30,8 @@ public:
             IInterface();
             static sp<IBinder>  asBinder(const IInterface*);
             static sp<IBinder>  asBinder(const sp<IInterface>&);
+            sp<IBinder>         asBinder();
+            sp<const IBinder>   asBinder() const;
 
 protected:
     virtual                     ~IInterface();

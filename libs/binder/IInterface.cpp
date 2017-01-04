@@ -43,25 +43,21 @@ sp<IBinder> IInterface::asBinder(const sp<IInterface>& iface)
     return iface->onAsBinder();
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wundefined-bool-conversion"
+
+sp<IBinder> IInterface::asBinder()
+{
+    return this ? onAsBinder() : NULL;
+}
+
+sp<const IBinder> IInterface::asBinder() const
+{
+    return this ? const_cast<IInterface*>(this)->onAsBinder() : NULL;
+}
+
+#pragma GCC diagnostic pop
 
 // ---------------------------------------------------------------------------
 
 }; // namespace android
-
-extern "C" {
-
-void _ZN7android10IInterface8asBinderEv(void *retval, void* self) {
-    ALOGW("deprecated asBinder call, please update your code");
-    //ALOGI("self: %p, retval: %p", self, retval);
-    android::sp<android::IBinder> *ret = new(retval) android::sp<android::IBinder>;
-    *ret = android::IInterface::asBinder((android::IInterface*)self);
-}
-
-void _ZNK7android10IInterface8asBinderEv(void *retval, void *self) {
-    ALOGW("deprecated asBinder call, please update your code");
-    //ALOGI("self: %p, retval: %p", self, retval);
-    android::sp<android::IBinder> *ret = new(retval) android::sp<android::IBinder>;
-    *ret = android::IInterface::asBinder((android::IInterface*)self);
-}
-
-} // extern "C"
