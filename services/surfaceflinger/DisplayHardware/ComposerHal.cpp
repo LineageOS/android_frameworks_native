@@ -91,7 +91,7 @@ constexpr Error kDefaultError = Error::NO_RESOURCES;
 template<typename T, typename U>
 T unwrapRet(Return<T>& ret, const U& default_val)
 {
-    return (ret.getStatus().isOk()) ? static_cast<T>(ret) :
+    return (ret.isOk()) ? static_cast<T>(ret) :
         static_cast<T>(default_val);
 }
 
@@ -146,7 +146,7 @@ std::string Composer::dumpDebugInfo()
 void Composer::registerCallback(const sp<IComposerCallback>& callback)
 {
     auto ret = mClient->registerCallback(callback);
-    if (!ret.getStatus().isOk()) {
+    if (!ret.isOk()) {
         ALOGE("failed to register IComposerCallback");
     }
 }
