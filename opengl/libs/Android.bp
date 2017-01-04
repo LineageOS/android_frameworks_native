@@ -44,6 +44,9 @@ ndk_library {
     name: "libGLESv3.ndk",
     symbol_file: "libGLESv3.map.txt",
     first_version: "18",
+
+    // https://github.com/android-ndk/ndk/issues/265
+    unversioned_until: "24",
 }
 
 cc_defaults {
