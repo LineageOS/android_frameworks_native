@@ -31,6 +31,7 @@
 
 #include <binder/IInterface.h>
 #include <binder/Parcelable.h>
+#include <binder/Map.h>
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -42,6 +43,10 @@ class IPCThreadState;
 class ProcessState;
 class String8;
 class TextOutput;
+
+namespace binder {
+class Value;
+};
 
 class Parcel {
     friend class IPCThreadState;
@@ -162,6 +167,8 @@ public:
 
     status_t            writeParcelable(const Parcelable& parcelable);
 
+    status_t            writeValue(const binder::Value& value);
+
     template<typename T>
     status_t            write(const Flattenable<T>& val);
 
@@ -172,6 +179,9 @@ public:
     status_t            writeVectorSize(const std::vector<T>& val);
     template<typename T>
     status_t            writeVectorSize(const std::unique_ptr<std::vector<T>>& val);
+
+    status_t            writeMap(const binder::Map& map);
+    status_t            writeNullableMap(const std::unique_ptr<binder::Map>& map);
 
     // Place a native_handle into the parcel (the native_handle's file-
     // descriptors are dup'ed, so it is safe to delete the native_handle
@@ -278,6 +288,8 @@ public:
     template<typename T>
     status_t            readParcelable(std::unique_ptr<T>* parcelable) const;
 
+    status_t            readValue(binder::Value* value) const;
+
     template<typename T>
     status_t            readStrongBinder(sp<T>* val) const;
 
@@ -320,6 +332,9 @@ public:
     status_t            resizeOutVector(std::vector<T>* val) const;
     template<typename T>
     status_t            resizeOutVector(std::unique_ptr<std::vector<T>>* val) const;
+
+    status_t            readMap(binder::Map* map)const;
+    status_t            readNullableMap(std::unique_ptr<binder::Map>* map) const;
 
     // Like Parcel.java's readExceptionCode().  Reads the first int32
     // off of a Parcel's header, returning 0 or the negative error
