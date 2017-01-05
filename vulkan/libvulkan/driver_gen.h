@@ -35,11 +35,12 @@ struct ProcHook {
     enum Extension {
         ANDROID_native_buffer,
         EXT_debug_report,
+        EXT_hdr_metadata,
+        GOOGLE_display_timing,
         KHR_android_surface,
         KHR_incremental_present,
         KHR_surface,
         KHR_swapchain,
-        GOOGLE_display_timing,
         KHR_shared_presentable_image,
 
         EXTENSION_CORE,  // valid bit

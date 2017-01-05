@@ -1351,5 +1351,18 @@ VkResult GetSwapchainStatusKHR(
     return result;
 }
 
+VKAPI_ATTR void SetHdrMetadataEXT(
+    VkDevice device,
+    uint32_t swapchainCount,
+    const VkSwapchainKHR* pSwapchains,
+    const VkHdrMetadataEXT* pHdrMetadataEXTs) {
+    // TODO: courtneygo: implement actual function
+    (void)device;
+    (void)swapchainCount;
+    (void)pSwapchains;
+    (void)pHdrMetadataEXTs;
+    return;
+}
+
 }  // namespace driver
 }  // namespace vulkan

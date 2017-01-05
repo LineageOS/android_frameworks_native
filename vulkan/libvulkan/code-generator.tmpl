@@ -682,11 +682,12 @@ bool InitDriverTable(VkDevice dev, PFN_vkGetDeviceProcAddr get_proc,
 {{define "driver.InterceptedExtensions"}}
 VK_ANDROID_native_buffer
 VK_EXT_debug_report
+VK_EXT_hdr_metadata
+VK_GOOGLE_display_timing
 VK_KHR_android_surface
 VK_KHR_incremental_present
 VK_KHR_surface
 VK_KHR_swapchain
-VK_GOOGLE_display_timing
 VK_KHR_shared_presentable_image
 {{end}}
 
@@ -1127,8 +1128,9 @@ VK_KHR_shared_presentable_image
 
 {{/*
 ------------------------------------------------------------------------------
-  Reports whether an extension is implemented entirely by the loader,
-  so drivers should not enumerate it.
+  Reports whether an extension has functions exported by the loader.
+  E.g. applications can directly link to an extension function.
+  Currently only support WSI extensions this way.
 ------------------------------------------------------------------------------
 */}}
 {{define "IsExtensionExported"}}
