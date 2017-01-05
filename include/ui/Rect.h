@@ -17,6 +17,7 @@
 #ifndef ANDROID_UI_RECT
 #define ANDROID_UI_RECT
 
+#include <gfx/FloatRect.h>
 #include <utils/Flattenable.h>
 #include <utils/Log.h>
 #include <utils/TypeHelpers.h>
@@ -177,11 +178,15 @@ public:
     // this calculates (Region(*this) - exclude).bounds() efficiently
     Rect reduce(const Rect& exclude) const;
 
-
     // for backward compatibility
     inline int32_t width() const { return getWidth(); }
     inline int32_t height() const { return getHeight(); }
     inline void set(const Rect& rhs) { operator = (rhs); }
+
+    gfx::FloatRect toFloatRect() const {
+        return {static_cast<float>(left), static_cast<float>(top),
+                static_cast<float>(right), static_cast<float>(bottom)};
+    }
 };
 
 ANDROID_BASIC_TYPES_TRAITS(Rect)

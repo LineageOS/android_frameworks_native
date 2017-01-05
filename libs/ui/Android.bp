@@ -28,6 +28,9 @@ cc_library_shared {
         // We only care about compiling as C++14
         "-Wno-c++98-compat-pedantic",
 
+        // We are aware of the risks inherent in comparing floats for equality
+        "-Wno-float-equal",
+
         // We use four-character constants for the GraphicBuffer header, and don't care
         // that they're non-portable as long as they're consistent within one execution
         "-Wno-four-char-constants",
