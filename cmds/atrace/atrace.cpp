@@ -525,8 +525,10 @@ static bool pokeBinderServices()
 // their system properties.
 static void pokeHalServices()
 {
+    using ::android::hidl::base::V1_0::IBase;
     using ::android::hidl::manager::V1_0::IServiceManager;
     using ::android::hardware::hidl_string;
+    using ::android::hardware::Return;
 
     sp<IServiceManager> sm = ::android::hardware::defaultServiceManager();
 
@@ -543,18 +545,19 @@ static void pokeHalServices()
                 continue;
             hidl_string fqInterfaceName = fqInstanceName.substr(0, n);
             hidl_string instanceName = fqInstanceName.substr(n+1, std::string::npos);
-            auto getRet = sm->get(fqInterfaceName, instanceName, [&](const auto &interface) {
-                auto notifyRet = interface->notifySyspropsChanged();
-                if (!notifyRet.isOk()) {
-                    fprintf(stderr, "failed to notifySyspropsChanged on service %s: %s\n",
-                            fqInstanceName.c_str(),
-                            notifyRet.description().c_str());
-                }
-            });
-            if (!getRet.isOk()) {
+            Return<sp<IBase>> interfaceRet = sm->get(fqInterfaceName, instanceName);
+            if (!interfaceRet.isOk()) {
                 fprintf(stderr, "failed to get service %s: %s\n",
                         fqInstanceName.c_str(),
-                        getRet.description().c_str());
+                        interfaceRet.description().c_str());
+                continue;
+            }
+            sp<IBase> interface = interfaceRet;
+            auto notifyRet = interface->notifySyspropsChanged();
+            if (!notifyRet.isOk()) {
+                fprintf(stderr, "failed to notifySyspropsChanged on service %s: %s\n",
+                        fqInstanceName.c_str(),
+                        notifyRet.description().c_str());
             }
         }
     });
