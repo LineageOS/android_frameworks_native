@@ -17,6 +17,7 @@ ndk_library {
     name: "libvulkan.ndk",
     symbol_file: "libvulkan.map.txt",
     first_version: "24",
+    unversioned_until: "current",
 }
 
 cc_library_shared {
