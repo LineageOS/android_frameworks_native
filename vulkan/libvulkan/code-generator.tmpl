@@ -697,6 +697,7 @@ bool InitDriverTable(VkDevice dev, PFN_vkGetDeviceProcAddr get_proc,
 VK_ANDROID_native_buffer
 VK_EXT_debug_report
 VK_KHR_android_surface
+VK_KHR_incremental_present
 VK_KHR_surface
 VK_KHR_swapchain
 {{end}}
@@ -1145,6 +1146,7 @@ VK_KHR_swapchain
   {{     if eq $ext "VK_KHR_surface"}}true
   {{else if eq $ext "VK_KHR_swapchain"}}true
   {{else if eq $ext "VK_KHR_android_surface"}}true
+  {{else if eq $ext "VK_KHR_incremental_present"}}true
   {{end}}
 {{end}}
 

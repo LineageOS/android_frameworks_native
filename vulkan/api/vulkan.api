@@ -75,6 +75,9 @@ define NULL_HANDLE 0
 @extension("VK_KHR_win32_surface") define VK_KHR_WIN32_SURFACE_SPEC_VERSION     5
 @extension("VK_KHR_win32_surface") define VK_KHR_WIN32_SURFACE_NAME             "VK_KHR_win32_surface"
 
+@extension("VK_KHR_incremental_present") define VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION 1
+@extension("VK_KHR_incremental_present") define VK_KHR_INCREMENTAL_PRESENT_NAME         "VK_KHR_incremental_present"
+
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_SPEC_VERSION     6
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_NAME             "VK_ANDROID_native_buffer"
 
@@ -742,6 +745,9 @@ enum VkStructureType {
 
     //@extension("VK_KHR_win32_surface")
     VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR             = 1000009000,
+
+    //@extension("VK_KHR_incremental_present")
+    VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR                       = 1000084000,
 
     //@extension("VK_ANDROID_native_buffer")
     VK_STRUCTURE_TYPE_NATIVE_BUFFER_ANDROID                     = 1000010000,
@@ -2872,6 +2878,27 @@ class VkWin32SurfaceCreateInfoKHR {
     VkWin32SurfaceCreateFlagsKHR                flags
     platform.HINSTANCE                          hinstance
     platform.HWND                               hwnd
+}
+
+@extension("VK_KHR_incremental_present")
+class VkRectLayerKHR {
+    VkOffset2D                                  offset
+    VkExtent2D                                  extent
+    uint32_t                                    layer
+}
+
+@extension("VK_KHR_incremental_present")
+class VkPresentRegionKHR {
+    uint32_t                                    rectangleCount
+    const VkRectLayerKHR*                       pRectangles
+}
+
+@extension("VK_KHR_incremental_present")
+class VkPresentRegionsKHR {
+    VkStructureType                             sType
+    const void*                                 pNext
+    uint32_t                                    swapchainCount
+    const VkPresentRegionKHR*                   pRegions
 }
 
 @extension("VK_ANDROID_native_buffer")
