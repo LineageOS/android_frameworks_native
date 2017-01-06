@@ -26,27 +26,28 @@ ndk_library {
     name: "libEGL.ndk",
     symbol_file: "libEGL.map.txt",
     first_version: "9",
+    unversioned_until: "current",
 }
 
 ndk_library {
     name: "libGLESv1_CM.ndk",
     symbol_file: "libGLESv1_CM.map.txt",
     first_version: "9",
+    unversioned_until: "current",
 }
 
 ndk_library {
     name: "libGLESv2.ndk",
     symbol_file: "libGLESv2.map.txt",
     first_version: "9",
+    unversioned_until: "current",
 }
 
 ndk_library {
     name: "libGLESv3.ndk",
     symbol_file: "libGLESv3.map.txt",
     first_version: "18",
-
-    // https://github.com/android-ndk/ndk/issues/265
-    unversioned_until: "24",
+    unversioned_until: "current",
 }
 
 cc_defaults {
