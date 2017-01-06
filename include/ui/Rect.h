@@ -22,6 +22,7 @@
 #include <utils/TypeHelpers.h>
 #include <ui/Point.h>
 
+#include <android/log.h>
 #include <android/rect.h>
 
 namespace android {
