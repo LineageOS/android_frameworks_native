@@ -2967,7 +2967,6 @@ void SurfaceFlinger::appendSfConfigString(String8& result) const
 #endif
     if (isLayerTripleBufferingDisabled())
         result.append(" DISABLE_TRIPLE_BUFFERING");
-#endif
     result.append("]");
 }
 
