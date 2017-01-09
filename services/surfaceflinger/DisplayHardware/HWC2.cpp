@@ -929,7 +929,7 @@ Error Display::getReleaseFences(
 
 Error Display::present(sp<Fence>* outPresentFence)
 {
-    int32_t presentFenceFd = 0;
+    int32_t presentFenceFd = -1;
 #ifdef BYPASS_IHWC
     int32_t intError = mDevice.mPresentDisplay(mDevice.mHwcDevice, mId,
             &presentFenceFd);
