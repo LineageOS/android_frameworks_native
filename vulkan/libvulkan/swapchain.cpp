@@ -122,10 +122,13 @@ Surface* SurfaceFromHandle(VkSurfaceKHR handle) {
 
 struct Swapchain {
     Swapchain(Surface& surface_, uint32_t num_images_)
-        : surface(surface_), num_images(num_images_) {}
+        : surface(surface_),
+          num_images(num_images_),
+          frame_timestamps_enabled(false) {}
 
     Surface& surface;
     uint32_t num_images;
+    bool frame_timestamps_enabled;
 
     struct Image {
         Image() : image(VK_NULL_HANDLE), dequeue_fence(-1), dequeued(false) {}
@@ -728,6 +731,9 @@ void DestroySwapchainKHR(VkDevice device,
     bool active = swapchain->surface.swapchain_handle == swapchain_handle;
     ANativeWindow* window = active ? swapchain->surface.window.get() : nullptr;
 
+    if (swapchain->frame_timestamps_enabled) {
+        native_window_enable_frame_timestamps(window, false);
+    }
     for (uint32_t i = 0; i < swapchain->num_images; i++)
         ReleaseSwapchainImage(device, window, -1, swapchain->images[i]);
     if (active)
@@ -868,13 +874,18 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
     VkResult final_result = VK_SUCCESS;
 
     // Look at the pNext chain for supported extension structs:
-    const VkPresentRegionsKHR* present_regions = NULL;
+    const VkPresentRegionsKHR* present_regions = nullptr;
+    const VkPresentTimesInfoGOOGLE* present_times = nullptr;
     const VkPresentRegionsKHR* next =
         reinterpret_cast<const VkPresentRegionsKHR*>(present_info->pNext);
     while (next) {
         switch (next->sType) {
             case VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR:
                 present_regions = next;
+                break;
+            case VK_STRUCTURE_TYPE_PRESENT_TIMES_GOOGLE:
+                present_times =
+                    reinterpret_cast<const VkPresentTimesInfoGOOGLE*>(next);
                 break;
             default:
                 ALOGV("QueuePresentKHR ignoring unrecognized pNext->sType = %x",
@@ -887,10 +898,16 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
         present_regions &&
             present_regions->swapchainCount != present_info->swapchainCount,
         "VkPresentRegions::swapchainCount != VkPresentInfo::swapchainCount");
+    ALOGV_IF(present_times &&
+                 present_times->swapchainCount != present_info->swapchainCount,
+             "VkPresentTimesInfoGOOGLE::swapchainCount != "
+             "VkPresentInfo::swapchainCount");
     const VkPresentRegionKHR* regions =
-        (present_regions) ? present_regions->pRegions : NULL;
+        (present_regions) ? present_regions->pRegions : nullptr;
+    const VkPresentTimeGOOGLE* times =
+        (present_times) ? present_times->pTimes : nullptr;
     const VkAllocationCallbacks* allocator = &GetData(device).allocator;
-    android_native_rect_t* rects = NULL;
+    android_native_rect_t* rects = nullptr;
     uint32_t nrects = 0;
 
     for (uint32_t sc = 0; sc < present_info->swapchainCount; sc++) {
@@ -898,7 +915,8 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
             *SwapchainFromHandle(present_info->pSwapchains[sc]);
         uint32_t image_idx = present_info->pImageIndices[sc];
         Swapchain::Image& img = swapchain.images[image_idx];
-        const VkPresentRegionKHR* region = (regions) ? &regions[sc] : NULL;
+        const VkPresentRegionKHR* region = (regions) ? &regions[sc] : nullptr;
+        const VkPresentTimeGOOGLE* time = (times) ? &times[sc] : nullptr;
         VkResult swapchain_result = VK_SUCCESS;
         VkResult result;
         int err;
@@ -955,6 +973,19 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                     }
                     native_window_set_surface_damage(window, rects, rcount);
                 }
+                if (time) {
+                    if (!swapchain.frame_timestamps_enabled) {
+                        native_window_enable_frame_timestamps(window, true);
+                        swapchain.frame_timestamps_enabled = true;
+                    }
+                    // TODO(ianelliott): need to store the presentID (and
+                    // desiredPresentTime), so it can be later correlated to
+                    // this present.  Probably modify the following function
+                    // (and below) to plumb a path to store it in FrameEvents
+                    // code, on the producer side.
+                    native_window_set_buffers_timestamp(
+                        window, static_cast<int64_t>(time->desiredPresentTime));
+                }
                 err = window->queueBuffer(window, img.buffer.get(), fence);
                 // queueBuffer always closes fence, even on error
                 if (err != 0) {
@@ -990,6 +1021,45 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
     }
 
     return final_result;
+}
+
+VKAPI_ATTR
+VkResult GetRefreshCycleDurationGOOGLE(
+    VkDevice,
+    VkSwapchainKHR,
+    VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties) {
+    VkResult result = VK_SUCCESS;
+
+    // TODO(ianelliott): FULLY IMPLEMENT THIS FUNCTION!!!
+    pDisplayTimingProperties->minRefreshDuration = 16666666666;
+    pDisplayTimingProperties->maxRefreshDuration = 16666666666;
+
+    return result;
+}
+
+VKAPI_ATTR
+VkResult GetPastPresentationTimingGOOGLE(
+    VkDevice,
+    VkSwapchainKHR swapchain_handle,
+    uint32_t* count,
+    VkPastPresentationTimingGOOGLE* timings) {
+    Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
+    ANativeWindow* window = swapchain.surface.window.get();
+    VkResult result = VK_SUCCESS;
+
+    if (!swapchain.frame_timestamps_enabled) {
+        native_window_enable_frame_timestamps(window, true);
+        swapchain.frame_timestamps_enabled = true;
+    }
+
+    // TODO(ianelliott): FULLY IMPLEMENT THIS FUNCTION!!!
+    if (timings) {
+        *count = 0;
+    } else {
+        *count = 0;
+    }
+
+    return result;
 }
 
 }  // namespace driver

@@ -38,6 +38,7 @@ struct ProcHook {
         KHR_android_surface,
         KHR_surface,
         KHR_swapchain,
+        GOOGLE_display_timing,
 
         EXTENSION_CORE,  // valid bit
         EXTENSION_COUNT,
