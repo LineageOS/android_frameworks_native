@@ -189,6 +189,10 @@ SurfaceFlinger::SurfaceFlinger()
     property_get("debug.sf.disable_hwc_vds", value, "0");
     mUseHwcVirtualDisplays = !atoi(value);
     ALOGI_IF(!mUseHwcVirtualDisplays, "Disabling HWC virtual displays");
+
+    property_get("ro.sf.disable_triple_buffer", value, "0");
+    mLayerTripleBufferingDisabled = !atoi(value);
+    ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
 }
 
 void SurfaceFlinger::onFirstRef()
@@ -2952,21 +2956,19 @@ void SurfaceFlinger::logFrameStats() {
     mAnimFrameTracker.logAndResetStats(String8("<win-anim>"));
 }
 
-/*static*/ void SurfaceFlinger::appendSfConfigString(String8& result)
+void SurfaceFlinger::appendSfConfigString(String8& result) const
 {
-    static const char* config =
-            " [sf"
+    result.append(" [sf");
 #ifdef HAS_CONTEXT_PRIORITY
-            " HAS_CONTEXT_PRIORITY"
+    result.append(" HAS_CONTEXT_PRIORITY");
 #endif
 #ifdef NEVER_DEFAULT_TO_ASYNC_MODE
-            " NEVER_DEFAULT_TO_ASYNC_MODE"
+    result.append(" NEVER_DEFAULT_TO_ASYNC_MODE");
 #endif
-#ifdef TARGET_DISABLE_TRIPLE_BUFFERING
-            " TARGET_DISABLE_TRIPLE_BUFFERING"
+    if (isLayerTripleBufferingDisabled())
+        result.append(" DISABLE_TRIPLE_BUFFERING");
 #endif
-            "]";
-    result.append(config);
+    result.append("]");
 }
 
 void SurfaceFlinger::dumpStaticScreenStats(String8& result) const
