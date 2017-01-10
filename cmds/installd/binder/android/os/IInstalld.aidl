@@ -31,9 +31,12 @@ interface IInstalld {
             int userId, int flags, long ceDataInode);
     void destroyAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, int flags, long ceDataInode);
-    long[] getAppSize(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
-            int userId, int flags, int appId, long ceDataInode, @utf8InCpp String codePath,
-            @nullable @utf8InCpp String externalUuid);
+
+    long[] getAppSize(@nullable @utf8InCpp String uuid, in @utf8InCpp String[] packageNames,
+            int userId, int flags, int appId, in long[] ceDataInodes,
+            in @utf8InCpp String[] codePaths);
+    long[] getUserSize(@nullable @utf8InCpp String uuid, int userId, int flags, in int[] appIds);
+    long[] getExternalSize(@nullable @utf8InCpp String uuid, int userId, int flags);
 
     void moveCompleteApp(@nullable @utf8InCpp String fromUuid, @nullable @utf8InCpp String toUuid,
             @utf8InCpp String packageName, @utf8InCpp String dataAppName, int appId,
