@@ -651,7 +651,9 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
-    err = surface.window->setSwapInterval(surface.window.get(), 1);
+    int swap_interval =
+        create_info->presentMode == VK_PRESENT_MODE_MAILBOX_KHR ? 0 : 1;
+    err = surface.window->setSwapInterval(surface.window.get(), swap_interval);
     if (err != 0) {
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
         // errors and translate them to valid Vulkan result codes?
@@ -763,13 +765,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_INITIALIZATION_FAILED;
     }
     uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
-    // The MIN_UNDEQUEUED_BUFFERS query doesn't know whether we'll be using
-    // async mode or not, and assumes not. But in async mode, the BufferQueue
-    // requires an extra undequeued buffer.
-    // See BufferQueueCore::getMinUndequeuedBufferCountLocked().
-    if (create_info->presentMode == VK_PRESENT_MODE_MAILBOX_KHR)
-        min_undequeued_buffers += 1;
-
     uint32_t num_images =
         (create_info->minImageCount - 1) + min_undequeued_buffers;
     err = native_window_set_buffer_count(surface.window.get(), num_images);
@@ -847,17 +842,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
         // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_usage failed: %s (%d)", strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
-    }
-
-    int swap_interval =
-        create_info->presentMode == VK_PRESENT_MODE_MAILBOX_KHR ? 0 : 1;
-    err = surface.window->setSwapInterval(surface.window.get(), swap_interval);
-    if (err != 0) {
-        // TODO(jessehall): Improve error reporting. Can we enumerate possible
-        // errors and translate them to valid Vulkan result codes?
-        ALOGE("native_window->setSwapInterval(%d) failed: %s (%d)",
-              swap_interval, strerror(-err), err);
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
