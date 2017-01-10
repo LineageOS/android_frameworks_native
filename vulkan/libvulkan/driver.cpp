@@ -660,26 +660,49 @@ VkResult EnumerateDeviceExtensionProperties(
     uint32_t* pPropertyCount,
     VkExtensionProperties* pProperties) {
     const InstanceData& data = GetData(physicalDevice);
+    static const std::array<VkExtensionProperties, 1> loader_extensions = {{
+        // WSI extensions
+        {VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
+         VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION},
+    }};
+
+    // enumerate our extensions first
+    if (!pLayerName && pProperties) {
+        uint32_t count = std::min(
+            *pPropertyCount, static_cast<uint32_t>(loader_extensions.size()));
+
+        std::copy_n(loader_extensions.begin(), count, pProperties);
+
+        if (count < loader_extensions.size()) {
+            *pPropertyCount = count;
+            return VK_INCOMPLETE;
+        }
+
+        pProperties += count;
+        *pPropertyCount -= count;
+    }
 
     VkResult result = data.driver.EnumerateDeviceExtensionProperties(
         physicalDevice, pLayerName, pPropertyCount, pProperties);
-    if (result != VK_SUCCESS && result != VK_INCOMPLETE)
-        return result;
 
-    if (!pProperties)
-        return result;
+    if (pProperties) {
+        // map VK_ANDROID_native_buffer to VK_KHR_swapchain
+        for (uint32_t i = 0; i < *pPropertyCount; i++) {
+            auto& prop = pProperties[i];
 
-    // map VK_ANDROID_native_buffer to VK_KHR_swapchain
-    for (uint32_t i = 0; i < *pPropertyCount; i++) {
-        auto& prop = pProperties[i];
+            if (strcmp(prop.extensionName,
+                       VK_ANDROID_NATIVE_BUFFER_EXTENSION_NAME) != 0)
+                continue;
 
-        if (strcmp(prop.extensionName,
-                   VK_ANDROID_NATIVE_BUFFER_EXTENSION_NAME) != 0)
-            continue;
+            memcpy(prop.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+                   sizeof(VK_KHR_SWAPCHAIN_EXTENSION_NAME));
+            prop.specVersion = VK_KHR_SWAPCHAIN_SPEC_VERSION;
+        }
+    }
 
-        memcpy(prop.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-               sizeof(VK_KHR_SWAPCHAIN_EXTENSION_NAME));
-        prop.specVersion = VK_KHR_SWAPCHAIN_SPEC_VERSION;
+    // restore loader extension count
+    if (!pLayerName && (result == VK_SUCCESS || result == VK_INCOMPLETE)) {
+        *pPropertyCount += loader_extensions.size();
     }
 
     return result;
