@@ -53,11 +53,11 @@
 #include "otapreopt_utils.h"
 #include "utils.h"
 
+#include "MatchExtensionGen.h"
+
 #ifndef LOG_TAG
 #define LOG_TAG "installd"
 #endif
-
-#define MEASURE_EXTERNAL 0
 
 using android::base::StringPrintf;
 
@@ -756,7 +756,7 @@ binder::Status InstalldNativeService::destroyUserData(const std::unique_ptr<std:
             if (delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete " + path);
             }
-            path = create_data_user_profiles_path(userId);
+            path = create_data_user_profile_path(userId);
             if (delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete " + path);
             }
@@ -849,54 +849,54 @@ binder::Status InstalldNativeService::rmdex(const std::string& codePath,
     }
 }
 
-static bool uuidEquals(const std::unique_ptr<std::string>& a,
-        const std::unique_ptr<std::string>& b) {
-    if (!a && !b) {
-        return true;
-    } else if (!a && b) {
-        return false;
-    } else if (a && !b) {
-        return false;
-    } else {
-        return *a == *b;
-    }
-}
-
 struct stats {
     int64_t codeSize;
     int64_t dataSize;
     int64_t cacheSize;
 };
 
-static void collectQuotaStats(const std::unique_ptr<std::string>& uuid, int32_t userId,
-        int32_t appId, struct stats* stats) {
-    struct dqblk dq;
+#if MEASURE_DEBUG
+static std::string toString(std::vector<int64_t> values) {
+    std::stringstream res;
+    res << "[";
+    for (size_t i = 0; i < values.size(); i++) {
+        res << values[i];
+        if (i < values.size() - 1) {
+            res << ",";
+        }
+    }
+    res << "]";
+    return res.str();
+}
+#endif
 
+static std::string findDeviceForUuid(const std::unique_ptr<std::string>& uuid) {
     auto path = create_data_path(uuid ? uuid->c_str() : nullptr);
-    std::string device;
-    {
-        std::ifstream in("/proc/mounts");
-        if (!in.is_open()) {
-            PLOG(ERROR) << "Failed to read mounts";
-            return;
-        }
-        std::string source;
-        std::string target;
-        while (!in.eof()) {
-            std::getline(in, source, ' ');
-            std::getline(in, target, ' ');
-            if (target == path) {
-                device = source;
-                break;
-            }
-            // Skip to next line
-            std::getline(in, source);
-        }
+    std::ifstream in("/proc/mounts");
+    if (!in.is_open()) {
+        PLOG(ERROR) << "Failed to read mounts";
+        return "";
     }
-    if (device.empty()) {
-        PLOG(ERROR) << "Failed to resolve block device for " << path;
-        return;
+    std::string source;
+    std::string target;
+    while (!in.eof()) {
+        std::getline(in, source, ' ');
+        std::getline(in, target, ' ');
+        if (target == path) {
+            return source;
+        }
+        // Skip to next line
+        std::getline(in, source);
     }
+    PLOG(ERROR) << "Failed to resolve block device for " << path;
+    return "";
+}
+
+static void collectQuotaStats(const std::string& device, int32_t userId,
+        int32_t appId, struct stats* stats, struct stats* extStats ATTRIBUTE_UNUSED) {
+    if (device.empty()) return;
+
+    struct dqblk dq;
 
     uid_t uid = multiuser_get_uid(userId, appId);
     if (quotactl(QCMD(Q_GETQUOTA, USRQUOTA), device.c_str(), uid,
@@ -905,6 +905,9 @@ static void collectQuotaStats(const std::unique_ptr<std::string>& uuid, int32_t 
             PLOG(ERROR) << "Failed to quotactl " << device << " for UID " << uid;
         }
     } else {
+#if MEASURE_DEBUG
+        LOG(DEBUG) << "quotactl() for UID " << uid << " " << dq.dqb_curspace;
+#endif
         stats->dataSize += dq.dqb_curspace;
     }
 
@@ -916,6 +919,9 @@ static void collectQuotaStats(const std::unique_ptr<std::string>& uuid, int32_t 
                 PLOG(ERROR) << "Failed to quotactl " << device << " for GID " << cacheGid;
             }
         } else {
+#if MEASURE_DEBUG
+        LOG(DEBUG) << "quotactl() for GID " << cacheGid << " " << dq.dqb_curspace;
+#endif
             stats->cacheSize += dq.dqb_curspace;
         }
     }
@@ -928,12 +934,24 @@ static void collectQuotaStats(const std::unique_ptr<std::string>& uuid, int32_t 
                 PLOG(ERROR) << "Failed to quotactl " << device << " for GID " << sharedGid;
             }
         } else {
+#if MEASURE_DEBUG
+        LOG(DEBUG) << "quotactl() for GID " << sharedGid << " " << dq.dqb_curspace;
+#endif
             stats->codeSize += dq.dqb_curspace;
         }
     }
+
+#if MEASURE_EXTERNAL
+    // TODO: measure using external GIDs
+#endif
 }
 
-static void collectManualStats(std::string& path, struct stats* stats) {
+static void collectQuotaStats(const std::unique_ptr<std::string>& uuid, int32_t userId,
+        int32_t appId, struct stats* stats, struct stats* extStats) {
+    collectQuotaStats(findDeviceForUuid(uuid), userId, appId, stats, extStats);
+}
+
+static void collectManualStats(const std::string& path, struct stats* stats) {
     DIR *d;
     int dfd;
     struct dirent *de;
@@ -983,80 +1001,343 @@ static void collectManualStats(std::string& path, struct stats* stats) {
     closedir(d);
 }
 
+static void collectManualStatsForUser(const std::string& path, struct stats* stats,
+        bool exclude_apps = false) {
+    DIR *d;
+    int dfd;
+    struct dirent *de;
+    struct stat s;
+
+    d = opendir(path.c_str());
+    if (d == nullptr) {
+        if (errno != ENOENT) {
+            PLOG(WARNING) << "Failed to open " << path;
+        }
+        return;
+    }
+    dfd = dirfd(d);
+    while ((de = readdir(d))) {
+        if (de->d_type == DT_DIR) {
+            const char *name = de->d_name;
+            if (fstatat(dfd, name, &s, AT_SYMLINK_NOFOLLOW) != 0) {
+                continue;
+            }
+            if (!strcmp(name, ".") || !strcmp(name, "..")) {
+                continue;
+            } else if (exclude_apps && (s.st_uid >= AID_APP_START && s.st_uid <= AID_APP_END)) {
+                continue;
+            } else {
+                collectManualStats(StringPrintf("%s/%s", path.c_str(), name), stats);
+            }
+        }
+    }
+    closedir(d);
+}
+
 binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::string>& uuid,
-        const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
-        int64_t ceDataInode, const std::string& codePath,
-        const std::unique_ptr<std::string>& externalUuid, std::vector<int64_t>* _aidl_return) {
+        const std::vector<std::string>& packageNames, int32_t userId, int32_t flags,
+        int32_t appId, const std::vector<int64_t>& ceDataInodes,
+        const std::vector<std::string>& codePaths, std::vector<int64_t>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
-    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    for (auto packageName : packageNames) {
+        CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    }
 
-    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
-    const char* extuuid_ = externalUuid ? externalUuid->c_str() : nullptr;
-    const char* pkgname = packageName.c_str();
+    // When modifying this logic, always verify using tests:
+    // runtest -x frameworks/base/services/tests/servicestests/src/com/android/server/pm/InstallerTest.java -m testGetAppSize
+
+#if MEASURE_DEBUG
+    LOG(INFO) << "Measuring user " << userId << " app " << appId;
+#endif
 
     // Here's a summary of the common storage locations across the platform,
     // and how they're each tagged:
     //
     // /data/app/com.example                           UID system
     // /data/app/com.example/oat                       UID system
-    // /data/user/0/com.example                        UID u0_a10 GID u0_a10
-    // /data/user/0/com.example/cache                  UID u0_a10 GID u0_a10_cache
-    // /data/media/0/Android/data/com.example          UID u0_a10 GID u0_a10
-    // /data/media/0/Android/data/com.example/cache    UID u0_a10 GID u0_a10_cache
-    // /data/media/0/Android/obb/com.example           UID system
+    // /data/user/0/com.example                        UID u0_a10      GID u0_a10
+    // /data/user/0/com.example/cache                  UID u0_a10      GID u0_a10_cache
+    // /data/media/0/foo.txt                           UID u0_media_rw
+    // /data/media/0/bar.jpg                           UID u0_media_rw GID u0_media_image
+    // /data/media/0/Android/data/com.example          UID u0_media_rw GID u0_a10_ext
+    // /data/media/0/Android/data/com.example/cache    UID u0_media_rw GID u0_a10_ext_cache
+    // /data/media/obb/com.example                     UID system
 
     struct stats stats;
+    struct stats extStats;
     memset(&stats, 0, sizeof(stats));
+    memset(&extStats, 0, sizeof(extStats));
 
-    auto obbCodePath = create_data_media_package_path(extuuid_, userId, pkgname, "obb");
-    calculate_tree_size(obbCodePath, &stats.codeSize);
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
 
-    if (flags & FLAG_USE_QUOTA) {
-        calculate_tree_size(codePath, &stats.codeSize,
-                0, multiuser_get_shared_gid(userId, appId));
+    for (auto packageName : packageNames) {
+        auto obbCodePath = create_data_media_obb_path(uuid_, packageName.c_str());
+        calculate_tree_size(obbCodePath, &extStats.codeSize);
+    }
 
-        collectQuotaStats(uuid, userId, appId, &stats);
-
-        // If external storage lives on a different storage device, also
-        // collect quota stats from that block device
-        if (!uuidEquals(uuid, externalUuid)) {
-            collectQuotaStats(externalUuid, userId, appId, &stats);
+    if (flags & FLAG_USE_QUOTA && appId >= AID_APP_START) {
+        for (auto codePath : codePaths) {
+            calculate_tree_size(codePath, &stats.codeSize, -1,
+                    multiuser_get_shared_gid(userId, appId));
         }
+
+        collectQuotaStats(uuid, userId, appId, &stats, &extStats);
+
     } else {
-        calculate_tree_size(codePath, &stats.codeSize);
+        for (auto codePath : codePaths) {
+            calculate_tree_size(codePath, &stats.codeSize);
+        }
 
-        auto cePath = create_data_user_ce_package_path(uuid_, userId, pkgname, ceDataInode);
-        collectManualStats(cePath, &stats);
+        for (size_t i = 0; i < packageNames.size(); i++) {
+            const char* pkgname = packageNames[i].c_str();
 
-        auto dePath = create_data_user_de_package_path(uuid_, userId, pkgname);
-        collectManualStats(dePath, &stats);
+            auto cePath = create_data_user_ce_package_path(uuid_, userId, pkgname, ceDataInodes[i]);
+            collectManualStats(cePath, &stats);
 
-        auto userProfilePath = create_data_user_profile_package_path(userId, pkgname);
-        calculate_tree_size(userProfilePath, &stats.dataSize);
+            auto dePath = create_data_user_de_package_path(uuid_, userId, pkgname);
+            collectManualStats(dePath, &stats);
 
-        auto refProfilePath = create_data_ref_profile_package_path(pkgname);
-        calculate_tree_size(refProfilePath, &stats.codeSize);
+            auto userProfilePath = create_data_user_profile_package_path(userId, pkgname);
+            calculate_tree_size(userProfilePath, &stats.dataSize);
 
-        calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
-                multiuser_get_shared_gid(userId, appId), 0);
-
-        calculate_tree_size(create_data_misc_foreign_dex_path(userId), &stats.dataSize,
-                multiuser_get_uid(userId, appId), 0);
+            auto refProfilePath = create_data_ref_profile_package_path(pkgname);
+            calculate_tree_size(refProfilePath, &stats.codeSize);
 
 #if MEASURE_EXTERNAL
-        auto extPath = create_data_media_package_path(extuuid_, userId, pkgname, "data");
-        collectManualStats(extPath, &stats);
+            auto extPath = create_data_media_package_path(uuid_, userId, pkgname, "data");
+            collectManualStats(extPath, &extStats);
 
-        auto mediaPath = create_data_media_package_path(extuuid_, userId, pkgname, "media");
-        calculate_tree_size(mediaPath, &stats.dataSize);
+            auto mediaPath = create_data_media_package_path(uuid_, userId, pkgname, "media");
+            calculate_tree_size(mediaPath, &extStats.dataSize);
 #endif
+        }
+
+        int32_t sharedGid = multiuser_get_shared_gid(userId, appId);
+        if (sharedGid != -1) {
+            calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
+                    sharedGid, -1);
+        }
+
+        calculate_tree_size(create_data_misc_foreign_dex_path(userId), &stats.dataSize,
+                multiuser_get_uid(userId, appId), -1);
     }
 
     std::vector<int64_t> ret;
     ret.push_back(stats.codeSize);
     ret.push_back(stats.dataSize);
     ret.push_back(stats.cacheSize);
+    ret.push_back(extStats.codeSize);
+    ret.push_back(extStats.dataSize);
+    ret.push_back(extStats.cacheSize);
+#if MEASURE_DEBUG
+    LOG(DEBUG) << "Final result " << toString(ret);
+#endif
+    *_aidl_return = ret;
+    return ok();
+}
+
+binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::string>& uuid,
+        int32_t userId, int32_t flags, const std::vector<int32_t>& appIds,
+        std::vector<int64_t>* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(uuid);
+
+    // When modifying this logic, always verify using tests:
+    // runtest -x frameworks/base/services/tests/servicestests/src/com/android/server/pm/InstallerTest.java -m testGetUserSize
+
+#if MEASURE_DEBUG
+    LOG(INFO) << "Measuring user " << userId;
+#endif
+
+    struct stats stats;
+    struct stats extStats;
+    memset(&stats, 0, sizeof(stats));
+    memset(&extStats, 0, sizeof(extStats));
+
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+
+    auto obbPath = create_data_path(uuid_) + "/media/obb";
+    calculate_tree_size(obbPath, &extStats.codeSize);
+
+    if (flags & FLAG_USE_QUOTA) {
+        calculate_tree_size(create_data_app_path(uuid_), &stats.codeSize, -1, -1, true);
+
+        auto cePath = create_data_user_ce_path(uuid_, userId);
+        collectManualStatsForUser(cePath, &stats, true);
+
+        auto dePath = create_data_user_de_path(uuid_, userId);
+        collectManualStatsForUser(dePath, &stats, true);
+
+        auto userProfilePath = create_data_user_profile_path(userId);
+        calculate_tree_size(userProfilePath, &stats.dataSize, -1, -1, true);
+
+        auto refProfilePath = create_data_ref_profile_path();
+        calculate_tree_size(refProfilePath, &stats.codeSize, -1, -1, true);
+
+#if MEASURE_EXTERNAL
+        // TODO: measure external storage paths
+#endif
+
+        calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
+                -1, -1, true);
+
+        calculate_tree_size(create_data_misc_foreign_dex_path(userId), &stats.dataSize,
+                -1, -1, true);
+
+        auto device = findDeviceForUuid(uuid);
+        for (auto appId : appIds) {
+            if (appId >= AID_APP_START) {
+                collectQuotaStats(device, userId, appId, &stats, &extStats);
+#if MEASURE_DEBUG
+                // Sleep to make sure we don't lose logs
+                usleep(1);
+#endif
+            }
+        }
+    } else {
+        calculate_tree_size(create_data_app_path(uuid_), &stats.codeSize);
+
+        auto cePath = create_data_user_ce_path(uuid_, userId);
+        collectManualStatsForUser(cePath, &stats);
+
+        auto dePath = create_data_user_de_path(uuid_, userId);
+        collectManualStatsForUser(dePath, &stats);
+
+        auto userProfilePath = create_data_user_profile_path(userId);
+        calculate_tree_size(userProfilePath, &stats.dataSize);
+
+        auto refProfilePath = create_data_ref_profile_path();
+        calculate_tree_size(refProfilePath, &stats.codeSize);
+
+#if MEASURE_EXTERNAL
+        // TODO: measure external storage paths
+#endif
+
+        calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize);
+
+        calculate_tree_size(create_data_misc_foreign_dex_path(userId), &stats.dataSize);
+    }
+
+    std::vector<int64_t> ret;
+    ret.push_back(stats.codeSize);
+    ret.push_back(stats.dataSize);
+    ret.push_back(stats.cacheSize);
+    ret.push_back(extStats.codeSize);
+    ret.push_back(extStats.dataSize);
+    ret.push_back(extStats.cacheSize);
+#if MEASURE_DEBUG
+    LOG(DEBUG) << "Final result " << toString(ret);
+#endif
+    *_aidl_return = ret;
+    return ok();
+}
+
+binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std::string>& uuid,
+        int32_t userId, int32_t flags, std::vector<int64_t>* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(uuid);
+
+    // When modifying this logic, always verify using tests:
+    // runtest -x frameworks/base/services/tests/servicestests/src/com/android/server/pm/InstallerTest.java -m testGetExternalSize
+
+#if MEASURE_DEBUG
+    LOG(INFO) << "Measuring external " << userId;
+#endif
+
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+
+    int64_t totalSize = 0;
+    int64_t audioSize = 0;
+    int64_t videoSize = 0;
+    int64_t imageSize = 0;
+
+    if (flags & FLAG_USE_QUOTA) {
+        struct dqblk dq;
+
+        auto device = findDeviceForUuid(uuid);
+
+        uid_t uid = multiuser_get_uid(userId, AID_MEDIA_RW);
+        if (quotactl(QCMD(Q_GETQUOTA, USRQUOTA), device.c_str(), uid,
+                reinterpret_cast<char*>(&dq)) != 0) {
+            if (errno != ESRCH) {
+                PLOG(ERROR) << "Failed to quotactl " << device << " for UID " << uid;
+            }
+        } else {
+#if MEASURE_DEBUG
+        LOG(DEBUG) << "quotactl() for UID " << uid << " " << dq.dqb_curspace;
+#endif
+            totalSize = dq.dqb_curspace;
+        }
+
+        gid_t audioGid = multiuser_get_uid(userId, AID_MEDIA_AUDIO);
+        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), device.c_str(), audioGid,
+                reinterpret_cast<char*>(&dq)) == 0) {
+#if MEASURE_DEBUG
+        LOG(DEBUG) << "quotactl() for GID " << audioGid << " " << dq.dqb_curspace;
+#endif
+            audioSize = dq.dqb_curspace;
+        }
+        gid_t videoGid = multiuser_get_uid(userId, AID_MEDIA_VIDEO);
+        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), device.c_str(), videoGid,
+                reinterpret_cast<char*>(&dq)) == 0) {
+#if MEASURE_DEBUG
+        LOG(DEBUG) << "quotactl() for GID " << videoGid << " " << dq.dqb_curspace;
+#endif
+            videoSize = dq.dqb_curspace;
+        }
+        gid_t imageGid = multiuser_get_uid(userId, AID_MEDIA_IMAGE);
+        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), device.c_str(), imageGid,
+                reinterpret_cast<char*>(&dq)) == 0) {
+#if MEASURE_DEBUG
+        LOG(DEBUG) << "quotactl() for GID " << imageGid << " " << dq.dqb_curspace;
+#endif
+            imageSize = dq.dqb_curspace;
+        }
+    } else {
+        FTS *fts;
+        FTSENT *p;
+        auto path = create_data_media_path(uuid_, userId);
+        char *argv[] = { (char*) path.c_str(), nullptr };
+        if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+            return error("Failed to fts_open " + path);
+        }
+        while ((p = fts_read(fts)) != NULL) {
+            char* ext;
+            int64_t size = (p->fts_statp->st_blocks * 512);
+            switch (p->fts_info) {
+            case FTS_F:
+                // Only categorize files not belonging to apps
+                if (p->fts_statp->st_gid < AID_APP_START) {
+                    ext = strrchr(p->fts_name, '.');
+                    if (ext != nullptr) {
+                        switch (MatchExtension(++ext)) {
+                        case AID_MEDIA_AUDIO: audioSize += size; break;
+                        case AID_MEDIA_VIDEO: videoSize += size; break;
+                        case AID_MEDIA_IMAGE: imageSize += size; break;
+                        }
+                    }
+                }
+                // Fall through to always count against total
+            case FTS_D:
+            case FTS_DEFAULT:
+            case FTS_SL:
+            case FTS_SLNONE:
+                totalSize += size;
+                break;
+            }
+        }
+        fts_close(fts);
+    }
+
+    std::vector<int64_t> ret;
+    ret.push_back(totalSize);
+    ret.push_back(audioSize);
+    ret.push_back(videoSize);
+    ret.push_back(imageSize);
+#if MEASURE_DEBUG
+    LOG(DEBUG) << "Final result " << toString(ret);
+#endif
     *_aidl_return = ret;
     return ok();
 }

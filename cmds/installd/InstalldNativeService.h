@@ -55,10 +55,16 @@ public:
             const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode);
     binder::Status destroyAppData(const std::unique_ptr<std::string>& uuid,
             const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode);
+
     binder::Status getAppSize(const std::unique_ptr<std::string>& uuid,
-            const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
-            int64_t ceDataInode, const std::string& codePath,
-            const std::unique_ptr<std::string>& externalUuid, std::vector<int64_t>* _aidl_return);
+            const std::vector<std::string>& packageNames, int32_t userId, int32_t flags,
+            int32_t appId, const std::vector<int64_t>& ceDataInodes,
+            const std::vector<std::string>& codePaths, std::vector<int64_t>* _aidl_return);
+    binder::Status getUserSize(const std::unique_ptr<std::string>& uuid,
+            int32_t userId, int32_t flags, const std::vector<int32_t>& appIds,
+            std::vector<int64_t>* _aidl_return);
+    binder::Status getExternalSize(const std::unique_ptr<std::string>& uuid,
+            int32_t userId, int32_t flags, std::vector<int64_t>* _aidl_return);
 
     binder::Status moveCompleteApp(const std::unique_ptr<std::string>& fromUuid,
             const std::unique_ptr<std::string>& toUuid, const std::string& packageName,
