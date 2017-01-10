@@ -214,7 +214,13 @@ public:
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
             uint32_t minLayerZ, uint32_t maxLayerZ,
             bool useIdentityTransform);
-
+    static status_t captureToBuffer(
+            const sp<IBinder>& display,
+            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
+            uint32_t minLayerZ, uint32_t maxLayerZ,
+            bool useIdentityTransform,
+            uint32_t rotation,
+            sp<GraphicBuffer>* outbuffer);
 private:
     mutable sp<CpuConsumer> mCpuConsumer;
     mutable sp<IGraphicBufferProducer> mProducer;
