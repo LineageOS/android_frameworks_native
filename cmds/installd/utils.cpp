@@ -199,6 +199,10 @@ std::string create_data_media_path(const char* volume_uuid, userid_t userid) {
     return StringPrintf("%s/media/%u", create_data_path(volume_uuid).c_str(), userid);
 }
 
+std::string create_data_media_obb_path(const char* volume_uuid, const char* package_name) {
+    return StringPrintf("%s/media/obb/%s", create_data_path(volume_uuid).c_str(), package_name);
+}
+
 std::string create_data_media_package_path(const char* volume_uuid, userid_t userid,
         const char* data_type, const char* package_name) {
     return StringPrintf("%s/Android/%s/%s", create_data_media_path(volume_uuid, userid).c_str(),
@@ -209,13 +213,17 @@ std::string create_data_misc_legacy_path(userid_t userid) {
     return StringPrintf("%s/misc/user/%u", create_data_path(nullptr).c_str(), userid);
 }
 
-std::string create_data_user_profiles_path(userid_t userid) {
+std::string create_data_user_profile_path(userid_t userid) {
     return StringPrintf("%s/cur/%u", android_profiles_dir.path, userid);
 }
 
 std::string create_data_user_profile_package_path(userid_t user, const char* package_name) {
     check_package_name(package_name);
-    return StringPrintf("%s/%s",create_data_user_profiles_path(user).c_str(), package_name);
+    return StringPrintf("%s/%s",create_data_user_profile_path(user).c_str(), package_name);
+}
+
+std::string create_data_ref_profile_path() {
+    return StringPrintf("%s/ref", android_profiles_dir.path);
 }
 
 std::string create_data_ref_profile_package_path(const char* package_name) {
@@ -271,9 +279,10 @@ std::vector<userid_t> get_known_users(const char* volume_uuid) {
 }
 
 int calculate_tree_size(const std::string& path, int64_t* size,
-        gid_t include_gid, gid_t exclude_gid) {
+        int32_t include_gid, int32_t exclude_gid, bool exclude_apps) {
     FTS *fts;
     FTSENT *p;
+    int64_t matchedSize = 0;
     char *argv[] = { (char*) path.c_str(), nullptr };
     if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
         if (errno != ENOENT) {
@@ -288,17 +297,37 @@ int calculate_tree_size(const std::string& path, int64_t* size,
         case FTS_F:
         case FTS_SL:
         case FTS_SLNONE:
-            if (include_gid != 0 && p->fts_statp->st_gid != include_gid) {
+            int32_t uid = p->fts_statp->st_uid;
+            int32_t gid = p->fts_statp->st_gid;
+            int32_t user_uid = multiuser_get_app_id(uid);
+            int32_t user_gid = multiuser_get_app_id(gid);
+            if (exclude_apps && ((user_uid >= AID_APP_START && user_uid <= AID_APP_END)
+                    || (user_gid >= AID_CACHE_GID_START && user_gid <= AID_CACHE_GID_END)
+                    || (user_gid >= AID_SHARED_GID_START && user_gid <= AID_SHARED_GID_END))) {
+                // Don't traverse inside or measure
+                fts_set(fts, p, FTS_SKIP);
                 break;
             }
-            if (exclude_gid != 0 && p->fts_statp->st_gid == exclude_gid) {
+            if (include_gid != -1 && gid != include_gid) {
                 break;
             }
-            *size += (p->fts_statp->st_blocks * 512);
+            if (exclude_gid != -1 && gid == exclude_gid) {
+                break;
+            }
+            matchedSize += (p->fts_statp->st_blocks * 512);
             break;
         }
     }
     fts_close(fts);
+#if MEASURE_DEBUG
+    if ((include_gid == -1) && (exclude_gid == -1)) {
+        LOG(DEBUG) << "Measured " << path << " size " << matchedSize;
+    } else {
+        LOG(DEBUG) << "Measured " << path << " size " << matchedSize << "; include " << include_gid
+                << " exclude " << exclude_gid;
+    }
+#endif
+    *size += matchedSize;
     return 0;
 }
 
