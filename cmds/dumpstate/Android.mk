@@ -21,7 +21,6 @@ COMMON_SHARED_LIBRARIES := \
         libbinder \
         libcutils \
         libdumpstateaidl \
-        libhardware_legacy \
         liblog \
         libselinux \
         libutils \

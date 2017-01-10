@@ -24,7 +24,6 @@
 #include <memory>
 #include <regex>
 #include <set>
-#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,7 +45,6 @@
 #include <android/hardware/vibrator/1.0/IVibrator.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
-#include <hardware_legacy/power.h>
 #include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
 #include <private/android_logger.h>
@@ -83,7 +81,6 @@ void add_mountinfo();
 #define TOMBSTONE_MAX_LEN (sizeof(TOMBSTONE_FILE_PREFIX) + 4)
 #define NUM_TOMBSTONES  10
 #define WLUTIL "/vendor/xbin/wlutil"
-#define WAKE_LOCK_NAME "dumpstate_wakelock"
 
 typedef struct {
   char name[TOMBSTONE_MAX_LEN];
@@ -1245,16 +1242,7 @@ static void ExitOnInvalidArgs() {
     ShowUsageAndExit();
 }
 
-static void wake_lock_releaser() {
-    if (release_wake_lock(WAKE_LOCK_NAME) < 0) {
-        MYLOGE("Failed to release wake lock: %s \n", strerror(errno));
-    } else {
-        MYLOGD("Wake lock released.\n");
-    }
-}
-
-static void sig_handler(int signo __attribute__((unused))) {
-    wake_lock_releaser();
+static void sig_handler(int) {
     _exit(EXIT_FAILURE);
 }
 
@@ -1486,13 +1474,7 @@ int main(int argc, char *argv[]) {
 
     MYLOGI("begin\n");
 
-    if (acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_NAME) < 0) {
-        MYLOGE("Failed to acquire wake lock: %s \n", strerror(errno));
-    } else {
-        MYLOGD("Wake lock acquired.\n");
-        atexit(wake_lock_releaser);
-        register_sig_handler();
-    }
+    register_sig_handler();
 
     if (do_start_service) {
         MYLOGI("Starting 'dumpstate' service\n");

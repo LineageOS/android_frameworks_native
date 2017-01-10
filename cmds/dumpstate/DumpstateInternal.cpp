@@ -52,8 +52,8 @@ bool DropRootUser() {
         return false;
     }
 
-    gid_t groups[] = {AID_LOG,          AID_SDCARD_R, AID_SDCARD_RW, AID_MOUNT,    AID_INET,
-                      AID_NET_BW_STATS, AID_READPROC, AID_WAKELOCK,  AID_BLUETOOTH};
+    gid_t groups[] = {AID_LOG,  AID_SDCARD_R,     AID_SDCARD_RW, AID_MOUNT,
+                      AID_INET, AID_NET_BW_STATS, AID_READPROC,  AID_BLUETOOTH};
     if (setgroups(sizeof(groups) / sizeof(groups[0]), groups) != 0) {
         MYLOGE("Unable to setgroups, aborting: %s\n", strerror(errno));
         return false;
@@ -74,10 +74,8 @@ bool DropRootUser() {
     capheader.version = _LINUX_CAPABILITY_VERSION_3;
     capheader.pid = 0;
 
-    capdata[CAP_TO_INDEX(CAP_SYSLOG)].permitted =
-        (CAP_TO_MASK(CAP_SYSLOG) | CAP_TO_MASK(CAP_BLOCK_SUSPEND));
-    capdata[CAP_TO_INDEX(CAP_SYSLOG)].effective =
-        (CAP_TO_MASK(CAP_SYSLOG) | CAP_TO_MASK(CAP_BLOCK_SUSPEND));
+    capdata[CAP_TO_INDEX(CAP_SYSLOG)].permitted = CAP_TO_MASK(CAP_SYSLOG);
+    capdata[CAP_TO_INDEX(CAP_SYSLOG)].effective = CAP_TO_MASK(CAP_SYSLOG);
     capdata[0].inheritable = 0;
     capdata[1].inheritable = 0;
 
