@@ -586,9 +586,17 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
+    VkSwapchainImageUsageFlagsANDROID swapchain_image_usage = 0;
     int gralloc_usage = 0;
-    // TODO(jessehall): Remove conditional once all drivers have been updated
-    if (dispatch.GetSwapchainGrallocUsageANDROID) {
+    if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
+        result = dispatch.GetSwapchainGrallocUsage2ANDROID(
+            device, create_info->imageFormat, create_info->imageUsage,
+            swapchain_image_usage, &gralloc_usage);
+        if (result != VK_SUCCESS) {
+            ALOGE("vkGetSwapchainGrallocUsage2ANDROID failed: %d", result);
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+    } else if (dispatch.GetSwapchainGrallocUsageANDROID) {
         result = dispatch.GetSwapchainGrallocUsageANDROID(
             device, create_info->imageFormat, create_info->imageUsage,
             &gralloc_usage);
