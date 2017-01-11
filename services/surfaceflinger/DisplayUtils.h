@@ -56,8 +56,13 @@ class DisplayUtils {
     Layer* getLayerInstance(SurfaceFlinger*, const sp<Client>&,
                             const String8&, uint32_t,
                             uint32_t, uint32_t);
+#ifndef USE_HWC2
     HWComposer* getHWCInstance(const sp<SurfaceFlinger>& flinger,
                             HWComposer::EventHandler& handler);
+#else
+  HWComposer* getHWCInstance(const sp<SurfaceFlinger>& flinger);
+#endif
+
     void initVDSInstance(HWComposer* hwc, int32_t hwcDisplayId,
             sp<IGraphicBufferProducer> currentStateSurface, sp<DisplaySurface> &dispSurface,
             sp<IGraphicBufferProducer> &producer, sp<IGraphicBufferProducer> bqProducer,

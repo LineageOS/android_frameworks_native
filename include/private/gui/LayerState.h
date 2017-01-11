@@ -106,9 +106,9 @@ struct layer_state_t {
             sp<IBinder>     handle;
             uint64_t        frameNumber;
             int32_t         overrideScalingMode;
+            uint32_t        color;
             // non POD must be last. see write/read
             Region          transparentRegion;
-            uint32_t        color;
 };
 
 struct ComposerState {

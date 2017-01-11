@@ -37,6 +37,7 @@
 #ifdef QTI_BSP
 #include <gralloc_priv.h>
 #include <qdMetaData.h>
+#include <color_metadata.h>
 #include <hardware/display_defs.h>
 #endif
 
@@ -45,6 +46,7 @@
 
 namespace android {
 
+#ifndef USE_HWC2
 /* Calculates the aspect ratio for external display based on the video w/h */
 static Rect getAspectRatio(const sp<const DisplayDevice>& hw,
                             const int& srcWidth, const int& srcHeight) {
@@ -69,6 +71,7 @@ static Rect getAspectRatio(const sp<const DisplayDevice>& hw,
 
     return outRect;
 }
+#endif
 
 ExLayer::ExLayer(SurfaceFlinger* flinger, const sp<Client>& client,
                  const String8& name, uint32_t w, uint32_t h, uint32_t flags)
@@ -160,6 +163,35 @@ bool ExLayer::isYuvLayer() const {
     return false;
 }
 
+bool ExLayer::isHDRLayer() const {
+    const sp<GraphicBuffer>& activeBuffer(mActiveBuffer);
+    if (activeBuffer != 0) {
+#ifdef QTI_BSP
+        ANativeWindowBuffer* buffer = activeBuffer->getNativeBuffer();
+        if(buffer) {
+            private_handle_t* hnd = static_cast<private_handle_t*>
+                (const_cast<native_handle_t*>(buffer->handle));
+            const MetaData_t *metaData = NULL;
+            if (hnd) {
+                metaData = reinterpret_cast<MetaData_t *>(hnd->base_metadata);
+#ifdef USE_COLOR_METADATA
+                if (metaData && (metaData->operation & COLOR_METADATA)) {
+                    const ColorMetaData &colorData = metaData->color;
+                    if (colorData.colorPrimaries == ColorPrimaries_BT2020 &&
+                        (colorData.transfer == Transfer_SMPTE_ST2084 ||
+                        colorData.transfer == Transfer_HLG)) {
+                            return true;
+                    }
+                }
+#endif
+            }
+        }
+#endif
+    }
+    return false;
+}
+
+#ifndef USE_HWC2
 void ExLayer::setPosition(const sp<const DisplayDevice>& hw,
                           HWComposer::HWCLayerInterface& layer, const State& state) {
     /* Set dest_rect to display width and height, if external_only flag
@@ -198,6 +230,7 @@ void ExLayer::setAcquiredFenceIfBlit(int &fenceFd,
             layer.getCompositionType(), fenceFd);
 #endif
 }
+#endif // ndef USE_HWC2
 
 bool ExLayer::canAllowGPUForProtected() const {
     if(isProtected()) {

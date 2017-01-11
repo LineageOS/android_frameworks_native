@@ -280,25 +280,26 @@ private:
     virtual void delayDPTransactionIfNeeded(
                      const Vector<DisplayState>& /*displays*/) { }
 
-    virtual bool canDrawLayerinScreenShot(
-                     const sp<const DisplayDevice>& hw,
-                     const sp<Layer>& layer);
+
 
     virtual void isfreezeSurfacePresent(
                      bool& freezeSurfacePresent,
                      const sp<const DisplayDevice>& /*hw*/,
                      const int32_t& /*id*/) { freezeSurfacePresent = false; }
 
+    virtual void updateVisibleRegionsDirty() { }
+
     virtual void setOrientationEventControl(
                      bool& /*freezeSurfacePresent*/,
                      const int32_t& /*id*/) { }
-
-    virtual void updateVisibleRegionsDirty() { }
+    virtual bool canDrawLayerinScreenShot(
+                     const sp<const DisplayDevice>& hw,
+                     const sp<Layer>& layer);
 
     virtual void  drawWormHoleIfRequired(HWComposer::LayerListIterator &cur,
-        const HWComposer::LayerListIterator &end,
-        const sp<const DisplayDevice>& hw,
-        const Region& region);
+                     const HWComposer::LayerListIterator &end,
+                     const sp<const DisplayDevice>& hw,
+                     const Region& region);
 #endif
     virtual bool isS3DLayerPresent(const sp<const DisplayDevice>& /*hw*/)
         { return false; };
