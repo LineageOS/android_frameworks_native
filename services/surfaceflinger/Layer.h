@@ -60,6 +60,7 @@ class Colorizer;
 class DisplayDevice;
 class GraphicBuffer;
 class SurfaceFlinger;
+class LayerDebugInfo;
 
 // ---------------------------------------------------------------------------
 
@@ -441,6 +442,8 @@ public:
     bool hasQueuedFrame() const { return mQueuedFrames > 0 ||
             mSidebandStreamChanged || mAutoRefresh; }
 
+    int32_t getQueuedFrameCount() const { return mQueuedFrames; }
+
 #ifdef USE_HWC2
     // -----------------------------------------------------------------------
 
@@ -489,9 +492,9 @@ public:
     inline  const State&    getCurrentState() const { return mCurrentState; }
     inline  State&          getCurrentState()       { return mCurrentState; }
 
+    LayerDebugInfo getLayerDebugInfo() const;
 
     /* always call base class first */
-    void dump(String8& result, Colorizer& colorizer) const;
 #ifdef USE_HWC2
     static void miniDumpHeader(String8& result);
     void miniDump(String8& result, int32_t hwcId) const;
@@ -689,6 +692,9 @@ public:
     sp<IGraphicBufferProducer> getProducer() const;
     const String8& getName() const;
     void notifyAvailableFrames();
+
+    PixelFormat getPixelFormat() const { return mFormat; }
+
 private:
 
     // -----------------------------------------------------------------------

@@ -90,6 +90,16 @@ public:
     status_t    setFlags(uint32_t flags, uint32_t mask);
     status_t    setTransparentRegionHint(const Region& transparent);
     status_t    setAlpha(float alpha=1.0f);
+
+    // Experimentarily it appears that the matrix transforms the
+    // on-screen rectangle and it's contents before the position is
+    // applied.
+    //
+    // TODO: Test with other combinations to find approximate transformation rules.
+    //
+    // For example:
+    // Layer sized (W,H) set to position (x,y) with matrix M=[-1, 0, 0, 1] (Horizontal flip) gives
+    // [((0, 0), (W, H)) x M] + (x,y) = ((-W, 0), (0, H)) + (x,y) = ((-W + x, y), (x, H+y))
     status_t    setMatrix(float dsdx, float dtdx, float dtdy, float dsdy);
     status_t    setCrop(const Rect& crop);
     status_t    setFinalCrop(const Rect& crop);

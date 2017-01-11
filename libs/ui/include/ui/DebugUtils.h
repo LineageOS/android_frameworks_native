@@ -21,9 +21,14 @@
 
 #include <string>
 
+namespace android {
+class Rect;
+}
+
 std::string decodeStandard(android_dataspace dataspace);
 std::string decodeTransfer(android_dataspace dataspace);
 std::string decodeRange(android_dataspace dataspace);
 std::string dataspaceDetails(android_dataspace dataspace);
 std::string decodeColorMode(android_color_mode colormode);
 std::string decodePixelFormat(android::PixelFormat format);
+std::string to_string(const android::Rect& rect);

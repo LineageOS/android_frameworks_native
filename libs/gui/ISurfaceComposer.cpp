@@ -28,6 +28,7 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
+#include <gui/LayerDebugInfo.h>
 
 #include <private/gui/LayerState.h>
 
@@ -469,6 +470,36 @@ public:
         return result;
     }
 
+    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const
+    {
+        if (!outLayers) {
+            return UNEXPECTED_NULL;
+        }
+
+        Parcel data, reply;
+
+        status_t err = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        err = remote()->transact(BnSurfaceComposer::GET_LAYER_DEBUG_INFO, data, &reply);
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        int32_t result = 0;
+        err = reply.readInt32(&result);
+        if (err != NO_ERROR) {
+            return err;
+        }
+        if (result != NO_ERROR) {
+            return result;
+        }
+
+        outLayers->clear();
+        return reply.readParcelableVector(outLayers);
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -762,6 +793,17 @@ status_t BnSurfaceComposer::onTransact(
                 return result;
             }
             return injectVSync(when);
+        }
+        case GET_LAYER_DEBUG_INFO: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            std::vector<LayerDebugInfo> outLayers;
+            status_t result = getLayerDebugInfo(&outLayers);
+            reply->writeInt32(result);
+            if (result == NO_ERROR)
+            {
+                result = reply->writeParcelableVector(outLayers);
+            }
+            return result;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);
