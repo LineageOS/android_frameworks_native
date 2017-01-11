@@ -153,57 +153,6 @@ static int split(char *buf, const char **argv)
   return count;
 }
 
-static void run_patchoat(int input_oat_fd, int input_vdex_fd, int out_oat_fd, int out_vdex_fd,
-    const char* input_oat_file_name, const char* input_vdex_file_name,
-    const char* output_oat_file_name, const char* output_vdex_file_name,
-    const char *pkgname ATTRIBUTE_UNUSED, const char *instruction_set)
-{
-    static const int MAX_INT_LEN = 12;      // '-'+10dig+'\0' -OR- 0x+8dig
-    static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
-
-    static const char* PATCHOAT_BIN = "/system/bin/patchoat";
-    if (strlen(instruction_set) >= MAX_INSTRUCTION_SET_LEN) {
-        ALOGE("Instruction set %s longer than max length of %d",
-              instruction_set, MAX_INSTRUCTION_SET_LEN);
-        return;
-    }
-
-    /* input_file_name/input_fd should be the .odex/.oat file that is precompiled. I think*/
-    char instruction_set_arg[strlen("--instruction-set=") + MAX_INSTRUCTION_SET_LEN];
-    char input_oat_fd_arg[strlen("--input-oat-fd=") + MAX_INT_LEN];
-    char input_vdex_fd_arg[strlen("--input-vdex-fd=") + MAX_INT_LEN];
-    char output_oat_fd_arg[strlen("--output-oat-fd=") + MAX_INT_LEN];
-    char output_vdex_fd_arg[strlen("--output-vdex-fd=") + MAX_INT_LEN];
-    const char* patched_image_location_arg = "--patched-image-location=/system/framework/boot.art";
-    // The caller has already gotten all the locks we need.
-    const char* no_lock_arg = "--no-lock-output";
-    sprintf(instruction_set_arg, "--instruction-set=%s", instruction_set);
-    sprintf(output_oat_fd_arg, "--output-oat-fd=%d", out_oat_fd);
-    sprintf(input_oat_fd_arg, "--input-oat-fd=%d", input_oat_fd);
-    ALOGV("Running %s isa=%s in-oat-fd=%d (%s) in-vdex-fd=%d (%s) "
-          "out-oat-fd=%d (%s) out-vdex-fd=%d (%s)\n",
-          PATCHOAT_BIN, instruction_set,
-          input_oat_fd, input_oat_file_name,
-          input_vdex_fd, input_vdex_file_name,
-          out_oat_fd, output_oat_file_name,
-          out_vdex_fd, output_vdex_file_name);
-
-    /* patchoat, patched-image-location, no-lock, isa, input-fd, output-fd */
-    char* argv[9];
-    argv[0] = (char*) PATCHOAT_BIN;
-    argv[1] = (char*) patched_image_location_arg;
-    argv[2] = (char*) no_lock_arg;
-    argv[3] = instruction_set_arg;
-    argv[4] = input_oat_fd_arg;
-    argv[5] = input_vdex_fd_arg;
-    argv[6] = output_oat_fd_arg;
-    argv[7] = output_vdex_fd_arg;
-    argv[8] = NULL;
-
-    execv(PATCHOAT_BIN, (char* const *)argv);
-    ALOGE("execv(%s) failed: %s\n", PATCHOAT_BIN, strerror(errno));
-}
-
 static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vdex_fd, int image_fd,
         const char* input_file_name, const char* output_file_name, int swap_fd,
         const char *instruction_set, const char* compiler_filter, bool vm_safe_mode,
@@ -502,7 +451,7 @@ static bool ShouldUseSwapFileForDexopt() {
     return kDefaultProvideSwapFile;
 }
 
-static void SetDex2OatAndPatchOatScheduling(bool set_to_bg) {
+static void SetDex2OatScheduling(bool set_to_bg) {
     if (set_to_bg) {
         if (set_sched_policy(0, SP_BACKGROUND) < 0) {
             ALOGE("set_sched_policy failed: %s\n", strerror(errno));
@@ -1062,40 +1011,12 @@ int dexopt(const char* apk_path, uid_t uid, const char* pkgname, const char* ins
         return false;
     }
 
-    const char *input_file;
-    char in_odex_path[PKG_PATH_MAX];
-    int dexopt_action = abs(dexopt_needed);
-    bool is_odex_location = dexopt_needed < 0;
-    switch (dexopt_action) {
-        case DEX2OAT_FROM_SCRATCH:
-        case DEX2OAT_FOR_BOOT_IMAGE:
-        case DEX2OAT_FOR_FILTER:
-        case DEX2OAT_FOR_RELOCATION:
-            input_file = apk_path;
-            break;
-
-        case PATCHOAT_FOR_RELOCATION:
-            if (is_odex_location) {
-                if (!calculate_odex_file_path(in_odex_path, apk_path, instruction_set)) {
-                    return -1;
-                }
-                input_file = in_odex_path;
-            } else {
-                input_file = out_oat_path;
-            }
-            break;
-
-        default:
-            ALOGE("Invalid dexopt needed: %d\n", dexopt_needed);
-            return 72;
-    }
-
+    const char *input_file = apk_path;
     struct stat input_stat;
     memset(&input_stat, 0, sizeof(input_stat));
     stat(input_file, &input_stat);
 
-    // Open the input file. If running dex2oat, `input_file` is the APK. If running
-    // patchoat, it is the OAT file to be relocated.
+    // Open the input file.
     base::unique_fd input_fd(open(input_file, O_RDONLY, 0));
     if (input_fd.get() < 0) {
         ALOGE("installd cannot open '%s' for input during dexopt\n", input_file);
@@ -1117,22 +1038,12 @@ int dexopt(const char* apk_path, uid_t uid, const char* pkgname, const char* ins
 
     // Open the existing VDEX. We do this before creating the new output VDEX, which will
     // unlink the old one.
+    char in_odex_path[PKG_PATH_MAX];
+    int dexopt_action = abs(dexopt_needed);
+    bool is_odex_location = dexopt_needed < 0;
     base::unique_fd in_vdex_fd;
     std::string in_vdex_path_str;
-    if (dexopt_action == PATCHOAT_FOR_RELOCATION) {
-        // `input_file` is the OAT file to be relocated. The VDEX has to be there as well.
-        in_vdex_path_str = create_vdex_filename(input_file);
-        if (in_vdex_path_str.empty()) {
-            ALOGE("installd cannot compute input vdex location for '%s'\n", input_file);
-            return -1;
-        }
-        in_vdex_fd.reset(open(in_vdex_path_str.c_str(), O_RDONLY, 0));
-        if (in_vdex_fd.get() < 0) {
-            ALOGE("installd cannot open '%s' for input during dexopt: %s\n",
-                in_vdex_path_str.c_str(), strerror(errno));
-            return -1;
-        }
-    } else if (dexopt_action != DEX2OAT_FROM_SCRATCH) {
+    if (dexopt_action != DEX2OAT_FROM_SCRATCH) {
         // Open the possibly existing vdex. If none exist, we pass -1 to dex2oat for input-vdex-fd.
         const char* path = nullptr;
         if (is_odex_location) {
@@ -1212,7 +1123,7 @@ int dexopt(const char* apk_path, uid_t uid, const char* pkgname, const char* ins
     // Avoid generating an app image for extract only since it will not contain any classes.
     Dex2oatFileWrapper<std::function<void ()>> image_fd;
     const std::string image_path = create_image_filename(out_oat_path);
-    if (dexopt_action != PATCHOAT_FOR_RELOCATION && !image_path.empty()) {
+    if (!image_path.empty()) {
         char app_image_format[kPropertyValueMax];
         bool have_app_image_format =
                 get_property("dalvik.vm.appimageformat", app_image_format, NULL) > 0;
@@ -1256,42 +1167,29 @@ int dexopt(const char* apk_path, uid_t uid, const char* pkgname, const char* ins
         /* child -- drop privileges before continuing */
         drop_capabilities(uid);
 
-        SetDex2OatAndPatchOatScheduling(boot_complete);
+        SetDex2OatScheduling(boot_complete);
         if (flock(out_oat_fd.get(), LOCK_EX | LOCK_NB) != 0) {
             ALOGE("flock(%s) failed: %s\n", out_oat_path, strerror(errno));
             _exit(67);
         }
 
-        if (dexopt_action == PATCHOAT_FOR_RELOCATION) {
-            run_patchoat(input_fd.get(),
-                         in_vdex_fd.get(),
-                         out_oat_fd.get(),
-                         out_vdex_fd,
-                         input_file,
-                         in_vdex_path_str.c_str(),
-                         out_oat_path,
-                         out_vdex_path_str.c_str(),
-                         pkgname,
-                         instruction_set);
-        } else {
-            // Pass dex2oat the relative path to the input file.
-            const char *input_file_name = get_location_from_path(input_file);
-            run_dex2oat(input_fd.get(),
-                        out_oat_fd.get(),
-                        in_vdex_fd.get(),
-                        out_vdex_fd,
-                        image_fd.get(),
-                        input_file_name,
-                        out_oat_path,
-                        swap_fd.get(),
-                        instruction_set,
-                        compiler_filter,
-                        vm_safe_mode,
-                        debuggable,
-                        boot_complete,
-                        reference_profile_fd.get(),
-                        shared_libraries);
-        }
+        // Pass dex2oat the relative path to the input file.
+        const char *input_file_name = get_location_from_path(input_file);
+        run_dex2oat(input_fd.get(),
+                    out_oat_fd.get(),
+                    in_vdex_fd.get(),
+                    out_vdex_fd,
+                    image_fd.get(),
+                    input_file_name,
+                    out_oat_path,
+                    swap_fd.get(),
+                    instruction_set,
+                    compiler_filter,
+                    vm_safe_mode,
+                    debuggable,
+                    boot_complete,
+                    reference_profile_fd.get(),
+                    shared_libraries);
         _exit(68);   /* only get here on exec failure */
     } else {
         int res = wait_child(pid);
