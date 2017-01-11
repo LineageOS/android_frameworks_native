@@ -46,3 +46,11 @@ service bugreportwear /system/bin/dumpstate -d -B -P -p -z \
     class main
     disabled
     oneshot
+
+# bugreportelefony is a lightweight version of bugreport that only includes a few, urgent
+# sections used to report telephony bugs.
+service bugreportelefony /system/bin/dumpstate -t -d -B -z \
+        -o /data/user_de/0/com.android.shell/files/bugreports/bugreport
+    class main
+    disabled
+    oneshot

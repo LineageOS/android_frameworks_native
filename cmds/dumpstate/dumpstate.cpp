@@ -820,9 +820,63 @@ static void dump_iptables() {
     run_command("IP6TABLES RAW", 10, "ip6tables", "-t", "raw", "-L", "-nvx", NULL);
 }
 
+static void do_kmsg() {
+    struct stat st;
+    if (!stat(PSTORE_LAST_KMSG, &st)) {
+        /* Also TODO: Make console-ramoops CAP_SYSLOG protected. */
+        dump_file("LAST KMSG", PSTORE_LAST_KMSG);
+    } else if (!stat(ALT_PSTORE_LAST_KMSG, &st)) {
+        dump_file("LAST KMSG", ALT_PSTORE_LAST_KMSG);
+    } else {
+        /* TODO: Make last_kmsg CAP_SYSLOG protected. b/5555691 */
+        dump_file("LAST KMSG", "/proc/last_kmsg");
+    }
+}
+
+static void do_logcat() {
+    unsigned long timeout;
+    // dump_file("EVENT LOG TAGS", "/etc/event-log-tags");
+    // calculate timeout
+    timeout = logcat_timeout("main") + logcat_timeout("system") + logcat_timeout("crash");
+    if (timeout < 20000) {
+        timeout = 20000;
+    }
+    run_command("SYSTEM LOG", timeout / 1000, "logcat", "-v", "threadtime",
+                                                        "-v", "printable",
+                                                        "-d",
+                                                        "*:v", NULL);
+    timeout = logcat_timeout("events");
+    if (timeout < 20000) {
+        timeout = 20000;
+    }
+    run_command("EVENT LOG", timeout / 1000, "logcat", "-b", "events",
+                                                       "-v", "threadtime",
+                                                       "-v", "printable",
+                                                       "-d",
+                                                       "*:v", NULL);
+    timeout = logcat_timeout("radio");
+    if (timeout < 20000) {
+        timeout = 20000;
+    }
+    run_command("RADIO LOG", timeout / 1000, "logcat", "-b", "radio",
+                                                       "-v", "threadtime",
+                                                       "-v", "printable",
+                                                       "-d",
+                                                       "*:v", NULL);
+
+    run_command("LOG STATISTICS", 10, "logcat", "-b", "all", "-S", NULL);
+
+    /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
+    run_command("LAST LOGCAT", 10, "logcat", "-L",
+                                             "-b", "all",
+                                             "-v", "threadtime",
+                                             "-v", "printable",
+                                             "-d",
+                                             "*:v", NULL);
+}
+
 static void dumpstate(const std::string& screenshot_path, const std::string& version) {
     DurationReporter duration_reporter("DUMPSTATE");
-    unsigned long timeout;
 
     dump_dev_files("TRUSTY VERSION", "/sys/bus/platform/drivers/trusty", "trusty_version");
     run_command("UPTIME", 10, "uptime", NULL);
@@ -868,36 +922,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
         MYLOGI("wrote screenshot: %s\n", screenshot_path.c_str());
     }
 
-    // dump_file("EVENT LOG TAGS", "/etc/event-log-tags");
-    // calculate timeout
-    timeout = logcat_timeout("main") + logcat_timeout("system") + logcat_timeout("crash");
-    if (timeout < 20000) {
-        timeout = 20000;
-    }
-    run_command("SYSTEM LOG", timeout / 1000, "logcat", "-v", "threadtime",
-                                                        "-v", "printable",
-                                                        "-d",
-                                                        "*:v", NULL);
-    timeout = logcat_timeout("events");
-    if (timeout < 20000) {
-        timeout = 20000;
-    }
-    run_command("EVENT LOG", timeout / 1000, "logcat", "-b", "events",
-                                                       "-v", "threadtime",
-                                                       "-v", "printable",
-                                                       "-d",
-                                                       "*:v", NULL);
-    timeout = logcat_timeout("radio");
-    if (timeout < 20000) {
-        timeout = 20000;
-    }
-    run_command("RADIO LOG", timeout / 1000, "logcat", "-b", "radio",
-                                                       "-v", "threadtime",
-                                                       "-v", "printable",
-                                                       "-d",
-                                                       "*:v", NULL);
-
-    run_command("LOG STATISTICS", 10, "logcat", "-b", "all", "-S", NULL);
+    do_logcat();
 
     /* show the traces we collected in main(), if that was done */
     if (dump_traces_path != NULL) {
@@ -965,23 +990,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     dump_file("QTAGUID CTRL INFO", "/proc/net/xt_qtaguid/ctrl");
     dump_file("QTAGUID STATS INFO", "/proc/net/xt_qtaguid/stats");
 
-    if (!stat(PSTORE_LAST_KMSG, &st)) {
-        /* Also TODO: Make console-ramoops CAP_SYSLOG protected. */
-        dump_file("LAST KMSG", PSTORE_LAST_KMSG);
-    } else if (!stat(ALT_PSTORE_LAST_KMSG, &st)) {
-        dump_file("LAST KMSG", ALT_PSTORE_LAST_KMSG);
-    } else {
-        /* TODO: Make last_kmsg CAP_SYSLOG protected. b/5555691 */
-        dump_file("LAST KMSG", "/proc/last_kmsg");
-    }
-
-    /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
-    run_command("LAST LOGCAT", 10, "logcat", "-L",
-                                             "-b", "all",
-                                             "-v", "threadtime",
-                                             "-v", "printable",
-                                             "-d",
-                                             "*:v", NULL);
+    do_kmsg();
 
     /* The following have a tendency to get wedged when wifi drivers/fw goes belly-up. */
 
@@ -1129,14 +1138,15 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
 
 static void usage() {
   fprintf(stderr,
-          "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-o file [-d] [-p] "
-          "[-z]] [-s] [-S] [-q] [-B] [-P] [-R] [-V version]\n"
+          "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-o file [-d] [-p] [-t]"
+          "[-z] [-s] [-S] [-q] [-B] [-P] [-R] [-V version]\n"
           "  -h: display this help message\n"
           "  -b: play sound file instead of vibrate, at beginning of job\n"
           "  -e: play sound file instead of vibrate, at end of job\n"
           "  -o: write to file (instead of stdout)\n"
           "  -d: append date to filename (requires -o)\n"
           "  -p: capture screenshot to filename.png (requires -o)\n"
+          "  -t: only captures telephony sections\n"
           "  -z: generate zipped file (requires -o)\n"
           "  -s: write output to control socket (for init)\n"
           "  -S: write file location to control socket (for init; requires -o and -z)"
@@ -1234,6 +1244,8 @@ int main(int argc, char *argv[]) {
     int do_broadcast = 0;
     int do_early_screenshot = 0;
     int is_remote_mode = 0;
+    bool telephony_only = false;
+
     std::string version = VERSION_DEFAULT;
 
     now = time(NULL);
@@ -1274,9 +1286,10 @@ int main(int argc, char *argv[]) {
     format_args(argc, const_cast<const char **>(argv), &args);
     MYLOGD("Dumpstate command line: %s\n", args.c_str());
     int c;
-    while ((c = getopt(argc, argv, "dho:svqzpPBRSV:")) != -1) {
+    while ((c = getopt(argc, argv, "dho:svqzptPBRSV:")) != -1) {
         switch (c) {
             case 'd': do_add_date = 1;          break;
+            case 't': telephony_only = true;    break;
             case 'z': do_zip_file = 1;          break;
             case 'o': use_outfile = optarg;     break;
             case 's': use_socket = 1;           break;
@@ -1373,6 +1386,9 @@ int main(int argc, char *argv[]) {
         char build_id[PROPERTY_VALUE_MAX];
         property_get("ro.build.id", build_id, "UNKNOWN_BUILD");
         base_name = base_name + "-" + build_id;
+        if (telephony_only) {
+            base_name = base_name + "-telephony";
+        }
         if (do_fb) {
             // TODO: if dumpstate was an object, the paths could be internal variables and then
             // we could have a function to calculate the derived values, such as:
@@ -1482,47 +1498,59 @@ int main(int argc, char *argv[]) {
     // duration is logged into MYLOG instead.
     print_header(version);
 
-    // Dumps systrace right away, otherwise it will be filled with unnecessary events.
-    // First try to dump anrd trace if the daemon is running. Otherwise, dump
-    // the raw trace.
-    if (!dump_anrd_trace()) {
-        dump_systrace();
+    if (telephony_only) {
+        dump_iptables();
+        if (!drop_root_user()) {
+            return -1;
+        }
+        do_dmesg();
+        do_logcat();
+        do_kmsg();
+        dumpstate_board();
+        dump_modem_logs();
+    } else {
+        // Dumps systrace right away, otherwise it will be filled with unnecessary events.
+        // First try to dump anrd trace if the daemon is running. Otherwise, dump
+        // the raw trace.
+        if (!dump_anrd_trace()) {
+            dump_systrace();
+        }
+
+        // TODO: Drop root user and move into dumpstate() once b/28633932 is fixed.
+        dump_raft();
+
+        // Invoking the following dumpsys calls before dump_traces() to try and
+        // keep the system stats as close to its initial state as possible.
+        run_command_as_shell("DUMPSYS MEMINFO", 30, "dumpsys", "-t", "30", "meminfo", "-a", NULL);
+        run_command_as_shell("DUMPSYS CPUINFO", 10, "dumpsys", "-t", "10", "cpuinfo", "-a", NULL);
+
+        /* collect stack traces from Dalvik and native processes (needs root) */
+        dump_traces_path = dump_traces();
+
+        /* Run some operations that require root. */
+        get_tombstone_fds(tombstone_data);
+        add_dir(RECOVERY_DIR, true);
+        add_dir(RECOVERY_DATA_DIR, true);
+        add_dir(LOGPERSIST_DATA_DIR, false);
+        if (!is_user_build()) {
+            add_dir(PROFILE_DATA_DIR_CUR, true);
+            add_dir(PROFILE_DATA_DIR_REF, true);
+        }
+        add_mountinfo();
+        dump_iptables();
+
+        // Capture any IPSec policies in play.  No keys are exposed here.
+        run_command("IP XFRM POLICY", 10, "ip", "xfrm", "policy", nullptr);
+
+        // Run ss as root so we can see socket marks.
+        run_command("DETAILED SOCKET STATE", 10, "ss", "-eionptu", NULL);
+
+        if (!drop_root_user()) {
+            return -1;
+        }
+
+        dumpstate(do_early_screenshot ? "": screenshot_path, version);
     }
-
-    // TODO: Drop root user and move into dumpstate() once b/28633932 is fixed.
-    dump_raft();
-
-    // Invoking the following dumpsys calls before dump_traces() to try and
-    // keep the system stats as close to its initial state as possible.
-    run_command_as_shell("DUMPSYS MEMINFO", 30, "dumpsys", "-t", "30", "meminfo", "-a", NULL);
-    run_command_as_shell("DUMPSYS CPUINFO", 10, "dumpsys", "-t", "10", "cpuinfo", "-a", NULL);
-
-    /* collect stack traces from Dalvik and native processes (needs root) */
-    dump_traces_path = dump_traces();
-
-    /* Run some operations that require root. */
-    get_tombstone_fds(tombstone_data);
-    add_dir(RECOVERY_DIR, true);
-    add_dir(RECOVERY_DATA_DIR, true);
-    add_dir(LOGPERSIST_DATA_DIR, false);
-    if (!is_user_build()) {
-        add_dir(PROFILE_DATA_DIR_CUR, true);
-        add_dir(PROFILE_DATA_DIR_REF, true);
-    }
-    add_mountinfo();
-    dump_iptables();
-
-    // Capture any IPSec policies in play.  No keys are exposed here.
-    run_command("IP XFRM POLICY", 10, "ip", "xfrm", "policy", nullptr);
-
-    // Run ss as root so we can see socket marks.
-    run_command("DETAILED SOCKET STATE", 10, "ss", "-eionptu", NULL);
-
-    if (!drop_root_user()) {
-        return -1;
-    }
-
-    dumpstate(do_early_screenshot ? "": screenshot_path, version);
 
     /* close output if needed */
     if (is_redirecting) {
