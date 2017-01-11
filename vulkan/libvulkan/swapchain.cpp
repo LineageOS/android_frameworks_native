@@ -330,7 +330,6 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
     // TODO(jessehall): I think these are right, but haven't thought hard about
     // it. Do we need to query the driver for support of any of these?
     // Currently not included:
-    // - VK_IMAGE_USAGE_GENERAL: maybe? does this imply cpu mappable?
     // - VK_IMAGE_USAGE_DEPTH_STENCIL_BIT: definitely not
     // - VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT: definitely not
     capabilities->supportedUsageFlags =
