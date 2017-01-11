@@ -813,7 +813,52 @@ bool Dumpstate::AddTextZipEntry(const std::string& entry_name, const std::string
     return true;
 }
 
-static void dump_iptables() {
+static void DoKmsg() {
+    struct stat st;
+    if (!stat(PSTORE_LAST_KMSG, &st)) {
+        /* Also TODO: Make console-ramoops CAP_SYSLOG protected. */
+        DumpFile("LAST KMSG", PSTORE_LAST_KMSG);
+    } else if (!stat(ALT_PSTORE_LAST_KMSG, &st)) {
+        DumpFile("LAST KMSG", ALT_PSTORE_LAST_KMSG);
+    } else {
+        /* TODO: Make last_kmsg CAP_SYSLOG protected. b/5555691 */
+        DumpFile("LAST KMSG", "/proc/last_kmsg");
+    }
+}
+
+static void DoLogcat() {
+    unsigned long timeout;
+    // DumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
+    // calculate timeout
+    timeout = logcat_timeout("main") + logcat_timeout("system") + logcat_timeout("crash");
+    if (timeout < 20000) {
+        timeout = 20000;
+    }
+    RunCommand("SYSTEM LOG", {"logcat", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
+               CommandOptions::WithTimeout(timeout / 1000).Build());
+    timeout = logcat_timeout("events");
+    if (timeout < 20000) {
+        timeout = 20000;
+    }
+    RunCommand("EVENT LOG",
+               {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
+               CommandOptions::WithTimeout(timeout / 1000).Build());
+    timeout = logcat_timeout("radio");
+    if (timeout < 20000) {
+        timeout = 20000;
+    }
+    RunCommand("RADIO LOG",
+               {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
+               CommandOptions::WithTimeout(timeout / 1000).Build());
+
+    RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
+
+    /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
+    RunCommand("LAST LOGCAT",
+               {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable", "-d", "*:v"});
+}
+
+static void DumpIpTables() {
     RunCommand("IPTABLES", {"iptables", "-L", "-nvx"});
     RunCommand("IP6TABLES", {"ip6tables", "-L", "-nvx"});
     RunCommand("IPTABLES NAT", {"iptables", "-t", "nat", "-L", "-nvx"});
@@ -907,7 +952,6 @@ static void AddAnrTraceFiles() {
 
 static void dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
-    unsigned long timeout;
 
     dump_dev_files("TRUSTY VERSION", "/sys/bus/platform/drivers/trusty", "trusty_version");
     RunCommand("UPTIME", {"uptime"});
@@ -957,30 +1001,7 @@ static void dumpstate() {
         ds.TakeScreenshot();
     }
 
-    // DumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
-    // calculate timeout
-    timeout = logcat_timeout("main") + logcat_timeout("system") + logcat_timeout("crash");
-    if (timeout < 20000) {
-        timeout = 20000;
-    }
-    RunCommand("SYSTEM LOG", {"logcat", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
-               CommandOptions::WithTimeout(timeout / 1000).Build());
-    timeout = logcat_timeout("events");
-    if (timeout < 20000) {
-        timeout = 20000;
-    }
-    RunCommand("EVENT LOG",
-               {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
-               CommandOptions::WithTimeout(timeout / 1000).Build());
-    timeout = logcat_timeout("radio");
-    if (timeout < 20000) {
-        timeout = 20000;
-    }
-    RunCommand("RADIO LOG",
-               {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
-               CommandOptions::WithTimeout(timeout / 1000).Build());
-
-    RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
+    DoLogcat();
 
     AddAnrTraceFiles();
 
@@ -1011,20 +1032,7 @@ static void dumpstate() {
     DumpFile("QTAGUID CTRL INFO", "/proc/net/xt_qtaguid/ctrl");
     DumpFile("QTAGUID STATS INFO", "/proc/net/xt_qtaguid/stats");
 
-    struct stat st;
-    if (!stat(PSTORE_LAST_KMSG, &st)) {
-        /* Also TODO: Make console-ramoops CAP_SYSLOG protected. */
-        DumpFile("LAST KMSG", PSTORE_LAST_KMSG);
-    } else if (!stat(ALT_PSTORE_LAST_KMSG, &st)) {
-        DumpFile("LAST KMSG", ALT_PSTORE_LAST_KMSG);
-    } else {
-        /* TODO: Make last_kmsg CAP_SYSLOG protected. b/5555691 */
-        DumpFile("LAST KMSG", "/proc/last_kmsg");
-    }
-
-    /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
-    RunCommand("LAST LOGCAT",
-               {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable", "-d", "*:v"});
+    DoKmsg();
 
     /* The following have a tendency to get wedged when wifi drivers/fw goes belly-up. */
 
@@ -1352,6 +1360,7 @@ int main(int argc, char *argv[]) {
     int is_remote_mode = 0;
     bool show_header_only = false;
     bool do_start_service = false;
+    bool telephony_only = false;
 
     /* set as high priority, and protect from OOM killer */
     setpriority(PRIO_PROCESS, 0, -20);
@@ -1419,6 +1428,8 @@ int main(int argc, char *argv[]) {
             do_fb = 0;
         } else if (ds.extra_options_ == "bugreportwear") {
             ds.update_progress_ = true;
+        } else if (ds.extra_options_ == "bugreporttelephony") {
+            telephony_only = true;
         } else {
             MYLOGE("Unknown extra option: %s\n", ds.extra_options_.c_str());
         }
@@ -1518,6 +1529,11 @@ int main(int argc, char *argv[]) {
             ds.name_ = "undated";
         }
         std::string buildId = android::base::GetProperty("ro.build.id", "UNKNOWN_BUILD");
+
+        if (telephony_only) {
+            ds.base_name_ += "-telephony";
+        }
+
         ds.base_name_ += "-" + buildId;
         if (do_fb) {
             ds.screenshot_path_ = ds.GetPath(".png");
@@ -1634,50 +1650,63 @@ int main(int argc, char *argv[]) {
     // duration is logged into MYLOG instead.
     ds.PrintHeader();
 
-    // Dumps systrace right away, otherwise it will be filled with unnecessary events.
-    // First try to dump anrd trace if the daemon is running. Otherwise, dump
-    // the raw trace.
-    if (!dump_anrd_trace()) {
-        dump_systrace();
+    if (telephony_only) {
+        DumpIpTables();
+        if (!DropRootUser()) {
+            return -1;
+        }
+        do_dmesg();
+        DoLogcat();
+        DoKmsg();
+        ds.DumpstateBoard();
+        DumpModemLogs();
+    } else {
+        // Dumps systrace right away, otherwise it will be filled with unnecessary events.
+        // First try to dump anrd trace if the daemon is running. Otherwise, dump
+        // the raw trace.
+        if (!dump_anrd_trace()) {
+            dump_systrace();
+        }
+
+        // Invoking the following dumpsys calls before dump_traces() to try and
+        // keep the system stats as close to its initial state as possible.
+        RunDumpsys("DUMPSYS MEMINFO", {"meminfo", "-a"},
+                   CommandOptions::WithTimeout(90).DropRoot().Build());
+        RunDumpsys("DUMPSYS CPUINFO", {"cpuinfo", "-a"},
+                   CommandOptions::WithTimeout(10).DropRoot().Build());
+
+        // TODO: Drop root user and move into dumpstate() once b/28633932 is fixed.
+        dump_raft();
+
+        /* collect stack traces from Dalvik and native processes (needs root) */
+        dump_traces_path = dump_traces();
+
+        /* Run some operations that require root. */
+        get_tombstone_fds(tombstone_data);
+        ds.AddDir(RECOVERY_DIR, true);
+        ds.AddDir(RECOVERY_DATA_DIR, true);
+        ds.AddDir(LOGPERSIST_DATA_DIR, false);
+        if (!PropertiesHelper::IsUserBuild()) {
+            ds.AddDir(PROFILE_DATA_DIR_CUR, true);
+            ds.AddDir(PROFILE_DATA_DIR_REF, true);
+        }
+        add_mountinfo();
+        DumpIpTables();
+
+        // Capture any IPSec policies in play.  No keys are exposed here.
+        RunCommand("IP XFRM POLICY", {"ip", "xfrm", "policy"},
+                   CommandOptions::WithTimeout(10).Build());
+
+        // Run ss as root so we can see socket marks.
+        RunCommand("DETAILED SOCKET STATE", {"ss", "-eionptu"},
+                   CommandOptions::WithTimeout(10).Build());
+
+        if (!DropRootUser()) {
+            return -1;
+        }
+
+        dumpstate();
     }
-
-    // Invoking the following dumpsys calls before dump_traces() to try and
-    // keep the system stats as close to its initial state as possible.
-    RunDumpsys("DUMPSYS MEMINFO", {"meminfo", "-a"},
-               CommandOptions::WithTimeout(90).DropRoot().Build());
-    RunDumpsys("DUMPSYS CPUINFO", {"cpuinfo", "-a"},
-               CommandOptions::WithTimeout(10).DropRoot().Build());
-
-    // TODO: Drop root user and move into dumpstate() once b/28633932 is fixed.
-    dump_raft();
-
-    /* collect stack traces from Dalvik and native processes (needs root) */
-    dump_traces_path = dump_traces();
-
-    /* Run some operations that require root. */
-    get_tombstone_fds(tombstone_data);
-    ds.AddDir(RECOVERY_DIR, true);
-    ds.AddDir(RECOVERY_DATA_DIR, true);
-    ds.AddDir(LOGPERSIST_DATA_DIR, false);
-    if (!PropertiesHelper::IsUserBuild()) {
-        ds.AddDir(PROFILE_DATA_DIR_CUR, true);
-        ds.AddDir(PROFILE_DATA_DIR_REF, true);
-    }
-    add_mountinfo();
-    dump_iptables();
-
-    // Capture any IPSec policies in play.  No keys are exposed here.
-    RunCommand("IP XFRM POLICY", {"ip", "xfrm", "policy"},
-               CommandOptions::WithTimeout(10).Build());
-
-    // Run ss as root so we can see socket marks.
-    RunCommand("DETAILED SOCKET STATE", {"ss", "-eionptu"}, CommandOptions::WithTimeout(10).Build());
-
-    if (!DropRootUser()) {
-        return -1;
-    }
-
-    dumpstate();
 
     /* close output if needed */
     if (is_redirecting) {
