@@ -140,7 +140,7 @@ Error Mapper::lock(buffer_handle_t handle,
 
 int Mapper::unlock(buffer_handle_t handle) const
 {
-    int releaseFence;
+    int releaseFence = -1;
 
     Error error = kDefaultError;
     mMapper->unlock(handle,
