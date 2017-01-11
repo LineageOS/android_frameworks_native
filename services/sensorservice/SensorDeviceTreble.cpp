@@ -56,6 +56,8 @@ static status_t StatusFromResult(Result result) {
             return PERMISSION_DENIED;
         case Result::INVALID_OPERATION:
             return INVALID_OPERATION;
+        case Result::NO_MEMORY:
+            return NO_MEMORY;
     }
 }
 
