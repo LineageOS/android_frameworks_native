@@ -80,8 +80,16 @@ public:
     status_t    setGeometryAppliesWithResize();
 
     // Defers applying any changes made in this transaction until the Layer
-    // identified by handle reaches the given frameNumber
+    // identified by handle reaches the given frameNumber. If the Layer identified
+    // by handle is removed, then we will apply this transaction regardless of
+    // what frame number has been reached.
     status_t deferTransactionUntil(const sp<IBinder>& handle, uint64_t frameNumber);
+
+    // A variant of deferTransactionUntil which identifies the Layer we wait for by
+    // Surface instead of Handle. Useful for clients which may not have the
+    // SurfaceControl for some of their Surfaces. Otherwise behaves identically.
+    status_t deferTransactionUntil(const sp<Surface>& barrier, uint64_t frameNumber);
+
     // Reparents all children of this layer to the new parent handle.
     status_t reparentChildren(const sp<IBinder>& newParentHandle);
 

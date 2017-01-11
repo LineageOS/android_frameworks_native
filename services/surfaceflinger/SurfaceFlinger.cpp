@@ -167,7 +167,7 @@ SurfaceFlinger::SurfaceFlinger()
         mLastTransactionTime(0),
         mBootFinished(false),
         mForceFullDamage(false),
-        mInterceptor(),
+        mInterceptor(this),
         mPrimaryDispSync("PrimaryDispSync"),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false),
@@ -629,6 +629,11 @@ size_t SurfaceFlinger::getMaxViewportDims() const {
 bool SurfaceFlinger::authenticateSurfaceTexture(
         const sp<IGraphicBufferProducer>& bufferProducer) const {
     Mutex::Autolock _l(mStateLock);
+    return authenticateSurfaceTextureLocked(bufferProducer);
+}
+
+bool SurfaceFlinger::authenticateSurfaceTextureLocked(
+        const sp<IGraphicBufferProducer>& bufferProducer) const {
     sp<IBinder> surfaceTextureBinder(IInterface::asBinder(bufferProducer));
     return mGraphicBufferProducerList.indexOf(surfaceTextureBinder) >= 0;
 }
@@ -2798,7 +2803,19 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             }
         }
         if (what & layer_state_t::eDeferTransaction) {
-            layer->deferTransactionUntil(s.handle, s.frameNumber);
+            if (s.barrierHandle != nullptr) {
+                layer->deferTransactionUntil(s.barrierHandle, s.frameNumber);
+            } else if (s.barrierGbp != nullptr) {
+                const sp<IGraphicBufferProducer>& gbp = s.barrierGbp;
+                if (authenticateSurfaceTextureLocked(gbp)) {
+                    const auto& otherLayer =
+                        (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
+                    layer->deferTransactionUntil(otherLayer, s.frameNumber);
+                } else {
+                    ALOGE("Attempt to defer transaction to to an"
+                            " unrecognized GraphicBufferProducer");
+                }
+            }
             // We don't trigger a traversal here because if no other state is
             // changed, we don't want this to cause any more work
         }

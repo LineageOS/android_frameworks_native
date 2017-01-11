@@ -28,6 +28,7 @@ namespace android {
 
 class BufferItem;
 class Layer;
+class SurfaceFlinger;
 struct DisplayState;
 struct layer_state_t;
 
@@ -39,6 +40,7 @@ constexpr auto DEFAULT_FILENAME = "/data/SurfaceTrace.dat";
  */
 class SurfaceInterceptor {
 public:
+    SurfaceInterceptor(SurfaceFlinger* const flinger);
     // Both vectors are used to capture the current state of SF as the initial snapshot in the trace
     void enable(const SortedVector<sp<Layer>>& layers,
             const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays);
@@ -102,7 +104,7 @@ private:
     void addLayerStackLocked(Transaction* transaction, int32_t layerId, uint32_t layerStack);
     void addCropLocked(Transaction* transaction, int32_t layerId, const Rect& rect);
     void addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
-            const wp<const IBinder>& weakHandle, uint64_t frameNumber);
+            const sp<const Layer>& layer, uint64_t frameNumber);
     void addFinalCropLocked(Transaction* transaction, int32_t layerId, const Rect& rect);
     void addOverrideScalingModeLocked(Transaction* transaction, int32_t layerId,
             int32_t overrideScalingMode);
@@ -129,6 +131,7 @@ private:
     std::string mOutputFileName {DEFAULT_FILENAME};
     std::mutex mTraceMutex {};
     Trace mTrace {};
+    SurfaceFlinger* const mFlinger;
 };
 
 }

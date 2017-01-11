@@ -38,6 +38,7 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
+#include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 
 #include <private/gui/ComposerService.h>
@@ -167,6 +168,9 @@ public:
             const sp<IBinder>& id, uint32_t layerStack);
     status_t deferTransactionUntil(const sp<SurfaceComposerClient>& client,
             const sp<IBinder>& id, const sp<IBinder>& handle,
+            uint64_t frameNumber);
+    status_t deferTransactionUntil(const sp<SurfaceComposerClient>& client,
+            const sp<IBinder>& id, const sp<Surface>& barrierSurface,
             uint64_t frameNumber);
     status_t reparentChildren(const sp<SurfaceComposerClient>& client,
             const sp<IBinder>& id,
@@ -439,7 +443,21 @@ status_t Composer::deferTransactionUntil(
         return BAD_INDEX;
     }
     s->what |= layer_state_t::eDeferTransaction;
-    s->handle = handle;
+    s->barrierHandle = handle;
+    s->frameNumber = frameNumber;
+    return NO_ERROR;
+}
+
+status_t Composer::deferTransactionUntil(
+        const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
+        const sp<Surface>& barrierSurface, uint64_t frameNumber) {
+    Mutex::Autolock lock(mLock);
+    layer_state_t* s = getLayerStateLocked(client, id);
+    if (!s) {
+        return BAD_INDEX;
+    }
+    s->what |= layer_state_t::eDeferTransaction;
+    s->barrierGbp = barrierSurface->getIGraphicBufferProducer();
     s->frameNumber = frameNumber;
     return NO_ERROR;
 }
@@ -775,6 +793,11 @@ status_t SurfaceComposerClient::setMatrix(const sp<IBinder>& id, float dsdx, flo
 status_t SurfaceComposerClient::deferTransactionUntil(const sp<IBinder>& id,
         const sp<IBinder>& handle, uint64_t frameNumber) {
     return getComposer().deferTransactionUntil(this, id, handle, frameNumber);
+}
+
+status_t SurfaceComposerClient::deferTransactionUntil(const sp<IBinder>& id,
+        const sp<Surface>& barrierSurface, uint64_t frameNumber) {
+    return getComposer().deferTransactionUntil(this, id, barrierSurface, frameNumber);
 }
 
 status_t SurfaceComposerClient::reparentChildren(const sp<IBinder>& id,

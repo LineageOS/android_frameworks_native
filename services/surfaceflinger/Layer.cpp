@@ -1436,29 +1436,23 @@ void Layer::pushPendingState() {
 
     // If this transaction is waiting on the receipt of a frame, generate a sync
     // point and send it to the remote layer.
-    if (mCurrentState.handle != nullptr) {
-        sp<IBinder> strongBinder = mCurrentState.handle.promote();
-        sp<Handle> handle = nullptr;
-        sp<Layer> handleLayer = nullptr;
-        if (strongBinder != nullptr) {
-            handle = static_cast<Handle*>(strongBinder.get());
-            handleLayer = handle->owner.promote();
-        }
-        if (strongBinder == nullptr || handleLayer == nullptr) {
-            ALOGE("[%s] Unable to promote Layer handle", mName.string());
+    if (mCurrentState.barrierLayer != nullptr) {
+        sp<Layer> barrierLayer = mCurrentState.barrierLayer.promote();
+        if (barrierLayer == nullptr) {
+            ALOGE("[%s] Unable to promote barrier Layer.", mName.string());
             // If we can't promote the layer we are intended to wait on,
             // then it is expired or otherwise invalid. Allow this transaction
             // to be applied as per normal (no synchronization).
-            mCurrentState.handle = nullptr;
+            mCurrentState.barrierLayer = nullptr;
         } else {
             auto syncPoint = std::make_shared<SyncPoint>(
                     mCurrentState.frameNumber);
-            if (handleLayer->addSyncPoint(syncPoint)) {
+            if (barrierLayer->addSyncPoint(syncPoint)) {
                 mRemoteSyncPoints.push_back(std::move(syncPoint));
             } else {
                 // We already missed the frame we're supposed to synchronize
                 // on, so go ahead and apply the state update
-                mCurrentState.handle = nullptr;
+                mCurrentState.barrierLayer = nullptr;
             }
         }
 
@@ -1481,7 +1475,7 @@ void Layer::popPendingState(State* stateToCommit) {
 bool Layer::applyPendingStates(State* stateToCommit) {
     bool stateUpdateAvailable = false;
     while (!mPendingStates.empty()) {
-        if (mPendingStates[0].handle != nullptr) {
+        if (mPendingStates[0].barrierLayer != nullptr) {
             if (mRemoteSyncPoints.empty()) {
                 // If we don't have a sync point for this, apply it anyway. It
                 // will be visually wrong, but it should keep us from getting
@@ -1828,17 +1822,24 @@ uint32_t Layer::getLayerStack() const {
     return p->getLayerStack();
 }
 
-void Layer::deferTransactionUntil(const sp<IBinder>& handle,
+void Layer::deferTransactionUntil(const sp<Layer>& barrierLayer,
         uint64_t frameNumber) {
-    mCurrentState.handle = handle;
+    mCurrentState.barrierLayer = barrierLayer;
     mCurrentState.frameNumber = frameNumber;
     // We don't set eTransactionNeeded, because just receiving a deferral
     // request without any other state updates shouldn't actually induce a delay
     mCurrentState.modified = true;
     pushPendingState();
-    mCurrentState.handle = nullptr;
+    mCurrentState.barrierLayer = nullptr;
     mCurrentState.frameNumber = 0;
     mCurrentState.modified = false;
+    ALOGE("Deferred transaction");
+}
+
+void Layer::deferTransactionUntil(const sp<IBinder>& barrierHandle,
+        uint64_t frameNumber) {
+    sp<Handle> handle = static_cast<Handle*>(barrierHandle.get());
+    deferTransactionUntil(handle->owner.promote(), frameNumber);
 }
 
 void Layer::useSurfaceDamage() {

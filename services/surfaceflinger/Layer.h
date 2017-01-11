@@ -128,9 +128,9 @@ public:
         // finalCrop is expressed in display space coordinate.
         Rect finalCrop;
 
-        // If set, defers this state update until the Layer identified by handle
+        // If set, defers this state update until the identified Layer
         // receives a frame with the given frameNumber
-        wp<IBinder> handle;
+        wp<Layer> barrierLayer;
         uint64_t frameNumber;
 
         // the transparentRegion hint is a bit special, it's latched only
@@ -171,7 +171,8 @@ public:
     bool setLayerStack(uint32_t layerStack);
     bool setDataSpace(android_dataspace dataSpace);
     uint32_t getLayerStack() const;
-    void deferTransactionUntil(const sp<IBinder>& handle, uint64_t frameNumber);
+    void deferTransactionUntil(const sp<IBinder>& barrierHandle, uint64_t frameNumber);
+    void deferTransactionUntil(const sp<Layer>& barrierLayer, uint64_t frameNumber);
     bool setOverrideScalingMode(int32_t overrideScalingMode);
     void setInfo(uint32_t type, uint32_t appId);
     bool reparentChildren(const sp<IBinder>& layer);

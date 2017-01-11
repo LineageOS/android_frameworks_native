@@ -24,6 +24,7 @@
 
 #include <ui/Region.h>
 #include <ui/Rect.h>
+#include <gui/IGraphicBufferProducer.h>
 
 namespace android {
 
@@ -95,10 +96,13 @@ struct layer_state_t {
             matrix22_t      matrix;
             Rect            crop;
             Rect            finalCrop;
-            sp<IBinder>     handle;
+            sp<IBinder>     barrierHandle;
             sp<IBinder>     reparentHandle;
             uint64_t        frameNumber;
             int32_t         overrideScalingMode;
+
+            sp<IGraphicBufferProducer> barrierGbp;
+
             // non POD must be last. see write/read
             Region          transparentRegion;
 };

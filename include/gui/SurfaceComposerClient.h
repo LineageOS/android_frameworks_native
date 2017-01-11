@@ -156,6 +156,8 @@ public:
     status_t    setLayerStack(const sp<IBinder>& id, uint32_t layerStack);
     status_t    deferTransactionUntil(const sp<IBinder>& id,
             const sp<IBinder>& handle, uint64_t frameNumber);
+    status_t    deferTransactionUntil(const sp<IBinder>& id,
+            const sp<Surface>& handle, uint64_t frameNumber);
     status_t    reparentChildren(const sp<IBinder>& id,
             const sp<IBinder>& newParentHandle);
     status_t    setOverrideScalingMode(const sp<IBinder>& id,

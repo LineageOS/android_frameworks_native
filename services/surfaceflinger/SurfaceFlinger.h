@@ -160,6 +160,9 @@ public:
         return *mRenderEngine;
     }
 
+    bool authenticateSurfaceTextureLocked(
+        const sp<IGraphicBufferProducer>& bufferProducer) const;
+
 private:
     friend class Client;
     friend class DisplayEventConnection;
