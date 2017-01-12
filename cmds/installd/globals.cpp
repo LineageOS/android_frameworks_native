@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <android/log.h>              // TODO: Move everything to base::logging.
+#include <log/log.h>              // TODO: Move everything to base::logging.
 
 #include <globals.h>
 #include <installd_constants.h>

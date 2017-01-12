@@ -51,7 +51,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <android/log.h>
+#include <log/log.h>
 #include <utils/Trace.h>
 #include <powermanager/PowerManager.h>
 #include <ui/Region.h>

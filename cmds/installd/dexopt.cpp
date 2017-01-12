@@ -27,13 +27,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <android/log.h>               // TODO: Move everything to base/logging.
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
+#include <log/log.h>               // TODO: Move everything to base/logging.
 #include <private/android_filesystem_config.h>
 #include <system/thread_defs.h>
 

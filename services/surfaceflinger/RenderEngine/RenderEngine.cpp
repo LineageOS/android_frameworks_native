@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <android/log.h>
+#include <log/log.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 

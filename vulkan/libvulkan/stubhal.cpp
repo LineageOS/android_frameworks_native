@@ -30,7 +30,7 @@
 #include <bitset>
 #include <mutex>
 
-#include <android/log.h>
+#include <log/log.h>
 #include <hardware/hwvulkan.h>
 
 #include "stubhal.h"
