@@ -2900,7 +2900,7 @@ class VkNativeBufferANDROID {
 class VkSwapchainImageCreateInfoANDROID {
     VkStructureType                             sType
     const void*                                 pNext
-    VkSwapchainImageUsageFlagBitsANDROID        flags
+    VkSwapchainImageUsageFlagsANDROID           flags
 }
 
 @extension("VK_GOOGLE_display_timing")

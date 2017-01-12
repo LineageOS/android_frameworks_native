@@ -32,6 +32,7 @@ extern "C" {
 
 #define VK_ANDROID_NATIVE_BUFFER_ENUM(type,id)    ((type)(1000000000 + (1000 * (VK_ANDROID_NATIVE_BUFFER_EXTENSION_NUMBER - 1)) + (id)))
 #define VK_STRUCTURE_TYPE_NATIVE_BUFFER_ANDROID   VK_ANDROID_NATIVE_BUFFER_ENUM(VkStructureType, 0)
+#define VK_STRUCTURE_TYPE_SWAPCHAIN_IMAGE_CREATE_INFO_ANDROID VK_ANDROID_NATIVE_BUFFER_ENUM(VkStructureType, 1)
 
 typedef enum VkSwapchainImageUsageFlagBitsANDROID {
     VK_SWAPCHAIN_IMAGE_USAGE_FRONT_BUFFER_BIT_ANDROID = 0x00000001,
@@ -56,7 +57,7 @@ typedef struct {
     VkStructureType                        sType; // must be VK_STRUCTURE_TYPE_SWAPCHAIN_IMAGE_CREATE_INFO_ANDROID
     const void*                            pNext;
 
-    VkSwapchainImageUsageFlagBitsANDROID   usage;
+    VkSwapchainImageUsageFlagsANDROID      usage;
 } VkSwapchainImageCreateInfoANDROID;
 
 typedef VkResult (VKAPI_PTR *PFN_vkGetSwapchainGrallocUsageANDROID)(VkDevice device, VkFormat format, VkImageUsageFlags imageUsage, int* grallocUsage);
