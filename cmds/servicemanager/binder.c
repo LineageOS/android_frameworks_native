@@ -12,7 +12,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include <android/log.h>
+#include <log/log.h>
 
 #include "binder.h"
 

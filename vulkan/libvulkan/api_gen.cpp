@@ -20,7 +20,7 @@
 
 #include <algorithm>
 
-#include <android/log.h>
+#include <log/log.h>
 
 // to catch mismatches between vulkan.h and this file
 #undef VK_NO_PROTOTYPES
