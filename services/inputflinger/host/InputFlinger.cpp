@@ -20,10 +20,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <android/log.h>
 #include <binder/IPCThreadState.h>
 #include <binder/PermissionCache.h>
 #include <hardware/input.h>
+#include <log/log.h>
 #include <private/android_filesystem_config.h>
 
 #include "InputFlinger.h"

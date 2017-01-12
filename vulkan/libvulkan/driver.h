@@ -22,7 +22,7 @@
 #include <bitset>
 #include <type_traits>
 
-#include <android/log.h>
+#include <log/log.h>
 
 #include <vulkan/vulkan.h>
 #include <hardware/hwvulkan.h>

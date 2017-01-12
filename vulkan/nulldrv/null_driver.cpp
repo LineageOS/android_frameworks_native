@@ -23,7 +23,7 @@
 #include <algorithm>
 #include <array>
 
-#include <android/log.h>
+#include <log/log.h>
 #include <utils/Errors.h>
 
 #include "null_driver_gen.h"

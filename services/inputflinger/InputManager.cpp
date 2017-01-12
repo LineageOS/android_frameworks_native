@@ -20,7 +20,7 @@
 
 #include "InputManager.h"
 
-#include <android/log.h>
+#include <log/log.h>
 
 namespace android {
 
