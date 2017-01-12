@@ -639,12 +639,20 @@ VkResult CreateSwapchainKHR(VkDevice device,
     // -- Dequeue all buffers and create a VkImage for each --
     // Any failures during or after this must cancel the dequeued buffers.
 
+    VkSwapchainImageCreateInfoANDROID swapchain_image_create = {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_IMAGE_CREATE_INFO_ANDROID,
+#pragma clang diagnostic pop
+        .pNext = nullptr,
+        .usage = swapchain_image_usage,
+    };
     VkNativeBufferANDROID image_native_buffer = {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
         .sType = VK_STRUCTURE_TYPE_NATIVE_BUFFER_ANDROID,
 #pragma clang diagnostic pop
-        .pNext = nullptr,
+        .pNext = &swapchain_image_create,
     };
     VkImageCreateInfo image_create = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
