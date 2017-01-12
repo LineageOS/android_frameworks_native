@@ -2886,27 +2886,6 @@ class VkWin32SurfaceCreateInfoKHR {
     platform.HWND                               hwnd
 }
 
-@extension("VK_KHR_incremental_present")
-class VkRectLayerKHR {
-    VkOffset2D                                  offset
-    VkExtent2D                                  extent
-    uint32_t                                    layer
-}
-
-@extension("VK_KHR_incremental_present")
-class VkPresentRegionKHR {
-    uint32_t                                    rectangleCount
-    const VkRectLayerKHR*                       pRectangles
-}
-
-@extension("VK_KHR_incremental_present")
-class VkPresentRegionsKHR {
-    VkStructureType                             sType
-    const void*                                 pNext
-    uint32_t                                    swapchainCount
-    const VkPresentRegionKHR*                   pRegions
-}
-
 @extension("VK_ANDROID_native_buffer")
 class VkNativeBufferANDROID {
     VkStructureType                             sType
@@ -2922,33 +2901,34 @@ class VkSwapchainImageCreateInfoANDROID {
     VkStructureType                             sType
     const void*                                 pNext
     VkSwapchainImageUsageFlagBitsANDROID        flags
+}
 
 @extension("VK_GOOGLE_display_timing")
 class VkRefreshCycleDurationGOOGLE {
-    uint64_t                                    minRefreshDuration
-    uint64_t                                    maxRefreshDuration
+    u64                                         minRefreshDuration
+    u64                                         maxRefreshDuration
 }
 
 @extension("VK_GOOGLE_display_timing")
 class VkPastPresentationTimingGOOGLE {
-    uint32_t                                    presentID
-    uint64_t                                    desiredPresentTime
-    uint64_t                                    actualPresentTime
-    uint64_t                                    earliestPresentTime
-    uint64_t                                    presentMargin
+    u32                                         presentID
+    u64                                         desiredPresentTime
+    u64                                         actualPresentTime
+    u64                                         earliestPresentTime
+    u64                                         presentMargin
 }
 
 @extension("VK_GOOGLE_display_timing")
 class VkPresentTimeGOOGLE {
-    uint32_t                                    presentID
-    uint64_t                                    desiredPresentTime
+    u32                                         presentID
+    u64                                         desiredPresentTime
 }
 
 @extension("VK_GOOGLE_display_timing")
 class VkPresentTimesInfoGOOGLE {
     VkStructureType                             sType
     const void*                                 pNext
-    uint32_t                                    swapchainCount
+    u32                                         swapchainCount
     const VkPresentTimeGOOGLE*                  pTimes
 }
 
@@ -5889,18 +5869,6 @@ cmd VkResult vkGetPastPresentationTimingGOOGLE(
         VkSwapchainKHR                           swapchain,
         u32*                                     pPresentationTimingCount,
         VkPastPresentationTimingGOOGLE*          pPresentationTimings) {
-    deviceObject := GetDevice(device)
-
-    count := as!u32(?)
-    pPresentationTimingCount[0] = count
-    presentationTimings := pPresentationTimings[0:count]
-
-    for i in (0 .. count) {
-        presentationTiming := ?
-        presentationTimings[i] = presentationTiming
-        State.Timings[presentationTiming] = new!PresentationTiming(device: device)
-    }
-
     return ?
 }
 
