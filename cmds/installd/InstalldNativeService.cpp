@@ -39,9 +39,9 @@
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
 #include <cutils/fs.h>
-#include <cutils/log.h>               // TODO: Move everything to base/logging.
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
+#include <log/log.h>               // TODO: Move everything to base/logging.
 #include <logwrap/logwrap.h>
 #include <private/android_filesystem_config.h>
 #include <selinux/android.h>

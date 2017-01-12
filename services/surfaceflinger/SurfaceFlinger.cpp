@@ -28,8 +28,8 @@
 
 #include <EGL/egl.h>
 
-#include <android/log.h>
 #include <cutils/properties.h>
+#include <log/log.h>
 
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>

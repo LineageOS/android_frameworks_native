@@ -18,8 +18,7 @@
 #define LOG_TAG "GraphicBufferAllocator"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <android/log.h>
-
+#include <log/log.h>
 #include <utils/Singleton.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>

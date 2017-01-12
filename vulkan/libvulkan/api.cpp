@@ -23,13 +23,14 @@
 
 #include <stdlib.h>
 #include <string.h>
+
 #include <algorithm>
 #include <mutex>
 #include <new>
 #include <utility>
 
-#include <android/log.h>
 #include <cutils/properties.h>
+#include <log/log.h>
 
 #include <vulkan/vk_layer_interface.h>
 #include "api.h"

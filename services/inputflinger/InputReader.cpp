@@ -52,7 +52,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include <android/log.h>
+#include <log/log.h>
 
 #include <input/Keyboard.h>
 #include <input/VirtualKeyMap.h>

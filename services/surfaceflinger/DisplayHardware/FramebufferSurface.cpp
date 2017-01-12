@@ -24,8 +24,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <android/log.h>
 #include <utils/String8.h>
+#include <log/log.h>
 
 #include <ui/Rect.h>
 

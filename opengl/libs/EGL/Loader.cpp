@@ -23,8 +23,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <android/log.h>
 #include <cutils/properties.h>
+#include <log/log.h>
 
 #include <EGL/egl.h>
 

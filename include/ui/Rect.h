@@ -21,9 +21,10 @@
 #include <utils/Flattenable.h>
 #include <utils/Log.h>
 #include <utils/TypeHelpers.h>
+#include <log/log.h>
+
 #include <ui/Point.h>
 
-#include <android/log.h>
 #include <android/rect.h>
 
 namespace android {

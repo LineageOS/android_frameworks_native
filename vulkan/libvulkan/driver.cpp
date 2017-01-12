@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
+#include <malloc.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/prctl.h>
+
 #include <algorithm>
 #include <array>
 #include <new>
-#include <malloc.h>
-#include <sys/prctl.h>
+
+#include <log/log.h>
 
 #include "driver.h"
 #include "stubhal.h"

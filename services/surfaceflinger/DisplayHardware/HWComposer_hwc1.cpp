@@ -39,8 +39,8 @@
 
 #include <android/configuration.h>
 
-#include <android/log.h>
 #include <cutils/properties.h>
+#include <log/log.h>
 
 #include <system/graphics.h>
 

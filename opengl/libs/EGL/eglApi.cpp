@@ -27,11 +27,11 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
-#include <android/log.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <cutils/memory.h>
 #include <cutils/properties.h>
+#include <log/log.h>
 
 #include <gui/ISurfaceComposer.h>
 
