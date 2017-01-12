@@ -137,7 +137,7 @@ const ColorSpace ColorSpace::extendedSRGB() {
         {0.3127f, 0.3290f},
         std::bind(absRcpResponse, _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.04045f),
         std::bind(absResponse,    _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.04045f),
-        std::bind(clamp<float>, _1, -0.5f, 7.5f)
+        std::bind(clamp<float>, _1, -0.799f, 2.399f)
     };
 }
 
@@ -148,7 +148,7 @@ const ColorSpace ColorSpace::linearExtendedSRGB() {
         {0.3127f, 0.3290f},
         linearReponse,
         linearReponse,
-        std::bind(clamp<float>, _1, -0.5f, 7.5f)
+        std::bind(clamp<float>, _1, -0.5f, 7.499f)
     };
 }
 
