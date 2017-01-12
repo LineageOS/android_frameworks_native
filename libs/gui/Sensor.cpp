@@ -243,6 +243,14 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
         mStringType = SENSOR_STRING_TYPE_HEART_BEAT;
         mFlags |= SENSOR_FLAG_SPECIAL_REPORTING_MODE;
         break;
+
+    // TODO:  Placeholder for LLOB sensor type
+
+
+    case SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED:
+        mStringType = SENSOR_STRING_TYPE_ACCELEROMETER_UNCALIBRATED;
+        mFlags |= SENSOR_FLAG_CONTINUOUS_MODE;
+        break;
     default:
         // Only pipe the stringType, requiredPermission and flags for custom sensors.
         if (halVersion > SENSORS_DEVICE_API_VERSION_1_0 && hwSensor.stringType) {
