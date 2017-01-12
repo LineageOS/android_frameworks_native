@@ -21,6 +21,9 @@
 
 #include <mutex>
 
+#include <utils/SortedVector.h>
+#include <utils/Vector.h>
+
 namespace android {
 
 class BufferItem;
