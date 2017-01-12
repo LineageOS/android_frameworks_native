@@ -30,10 +30,10 @@
 #include <sys/statfs.h>
 #endif
 
-#include <android/log.h>
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 #include <cutils/fs.h>
+#include <log/log.h>
 #include <private/android_filesystem_config.h>
 
 #include "globals.h"  // extern variables.

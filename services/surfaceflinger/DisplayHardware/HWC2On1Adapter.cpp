@@ -28,8 +28,8 @@
 #include <cstdlib>
 #include <sstream>
 
-#include <android/log.h>
 #include <hardware/hwcomposer.h>
+#include <log/log.h>
 #include <utils/Trace.h>
 
 using namespace std::chrono_literals;
