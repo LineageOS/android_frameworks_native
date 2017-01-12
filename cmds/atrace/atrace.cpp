@@ -551,7 +551,8 @@ static void pokeHalServices()
         }
     });
     if (!listRet.isOk()) {
-        fprintf(stderr, "failed to list services: %s\n", listRet.description().c_str());
+        // TODO(b/34242478) fix this when we determine the correct ACL
+        //fprintf(stderr, "failed to list services: %s\n", listRet.description().c_str());
     }
 }
 
