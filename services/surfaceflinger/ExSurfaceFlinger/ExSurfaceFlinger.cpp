@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -39,6 +39,7 @@
 namespace android {
 
 bool ExSurfaceFlinger::sExtendedMode = false;
+bool ExSurfaceFlinger::sAllowHDRFallBack = false;
 
 ExSurfaceFlinger::ExSurfaceFlinger() {
     char property[PROPERTY_VALUE_MAX] = {0};
@@ -61,6 +62,12 @@ ExSurfaceFlinger::ExSurfaceFlinger() {
 
     ALOGD_IF(isDebug(),"Animation on external is %s in %s",
              mDisableExtAnimation ? "disabled" : "not disabled", __FUNCTION__);
+
+    if((property_get("sys.hwc_disable_hdr", property, "0") > 0) &&
+       (!strncmp(property, "1", PROPERTY_VALUE_MAX ) ||
+        (!strncasecmp(property,"true", PROPERTY_VALUE_MAX )))) {
+        sAllowHDRFallBack = true;
+    }
 }
 
 ExSurfaceFlinger::~ExSurfaceFlinger() { }
