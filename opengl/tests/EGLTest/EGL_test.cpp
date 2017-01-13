@@ -24,6 +24,8 @@
 
 namespace android {
 
+#define EGL_UNSIGNED_TRUE static_cast<EGLBoolean>(EGL_TRUE)
+
 class EGLTest : public ::testing::Test {
 protected:
     EGLDisplay mEglDisplay;
@@ -48,7 +50,7 @@ protected:
 
     virtual void TearDown() {
         EGLBoolean success = eglTerminate(mEglDisplay);
-        ASSERT_EQ(EGL_TRUE, success);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
         ASSERT_EQ(EGL_SUCCESS, eglGetError());
     }
 };
@@ -65,20 +67,20 @@ TEST_F(EGLTest, DISABLED_EGLConfigEightBitFirst) {
     };
 
     success = eglChooseConfig(mEglDisplay, attrs, &config, 1, &numConfigs);
-    ASSERT_EQ(EGL_TRUE, success);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
     ASSERT_GE(numConfigs, 1);
 
     EGLint components[3];
 
     success = eglGetConfigAttrib(mEglDisplay, config, EGL_RED_SIZE, &components[0]);
-    ASSERT_EQ(EGL_TRUE, success);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
     success = eglGetConfigAttrib(mEglDisplay, config, EGL_GREEN_SIZE, &components[1]);
-    ASSERT_EQ(EGL_TRUE, success);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
     success = eglGetConfigAttrib(mEglDisplay, config, EGL_BLUE_SIZE, &components[2]);
-    ASSERT_EQ(EGL_TRUE, success);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
 
     EXPECT_GE(components[0], 8);
@@ -139,23 +141,23 @@ TEST_F(EGLTest, EGLConfigRGBA8888First) {
     };
 
     success = eglChooseConfig(mEglDisplay, attrs, &config, 1, &numConfigs);
-    ASSERT_EQ(EGL_TRUE, success);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
     ASSERT_GE(numConfigs, 1);
 
     EGLint components[4];
 
     success = eglGetConfigAttrib(mEglDisplay, config, EGL_RED_SIZE, &components[0]);
-    ASSERT_EQ(EGL_TRUE, success);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
     success = eglGetConfigAttrib(mEglDisplay, config, EGL_GREEN_SIZE, &components[1]);
-    ASSERT_EQ(EGL_TRUE, success);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
     success = eglGetConfigAttrib(mEglDisplay, config, EGL_BLUE_SIZE, &components[2]);
-    ASSERT_EQ(EGL_TRUE, success);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
     success = eglGetConfigAttrib(mEglDisplay, config, EGL_ALPHA_SIZE, &components[3]);
-    ASSERT_EQ(EGL_TRUE, success);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
 
     EXPECT_GE(components[0], 8);
