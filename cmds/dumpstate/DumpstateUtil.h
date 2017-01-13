@@ -174,4 +174,10 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
  */
 int DumpFileToFd(int fd, const std::string& title, const std::string& path);
 
+/*
+ * Finds the process id by process name.
+ * |ps_name| the process name we want to search for
+ */
+int GetPidByName(const std::string& ps_name);
+
 #endif  // FRAMEWORK_NATIVE_CMD_DUMPSTATE_UTIL_H_
