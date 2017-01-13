@@ -127,6 +127,9 @@ public:
     sp<const DisplayDevice> getDefaultDisplayDevice() const {
         return getDisplayDevice(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]);
     }
+#ifndef USE_HWC2
+    virtual bool IsHWCDisabled() { return false; }
+#endif
 
     // utility function to delete a texture on the main thread
     void deleteTextureAsync(uint32_t texture);
