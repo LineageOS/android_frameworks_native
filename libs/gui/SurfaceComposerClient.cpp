@@ -33,6 +33,7 @@
 
 #include <ui/DisplayInfo.h>
 
+#include <gui/BufferItemConsumer.h>
 #include <gui/CpuConsumer.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ISurfaceComposer.h>
@@ -857,6 +858,33 @@ status_t ScreenshotClient::capture(
     if (s == NULL) return NO_INIT;
     return s->captureScreen(display, producer, sourceCrop,
             reqWidth, reqHeight, minLayerZ, maxLayerZ, useIdentityTransform);
+}
+
+status_t ScreenshotClient::captureToBuffer(const sp<IBinder>& display,
+        Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
+        uint32_t minLayerZ, uint32_t maxLayerZ, bool useIdentityTransform,
+        uint32_t rotation,
+        sp<GraphicBuffer>* outBuffer) {
+    sp<ISurfaceComposer> s(ComposerService::getComposerService());
+    if (s == NULL) return NO_INIT;
+
+    sp<IGraphicBufferConsumer> gbpConsumer;
+    sp<IGraphicBufferProducer> producer;
+    BufferQueue::createBufferQueue(&producer, &gbpConsumer);
+    sp<BufferItemConsumer> consumer(new BufferItemConsumer(gbpConsumer,
+           GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_NEVER,
+           1, true));
+
+    status_t ret = s->captureScreen(display, producer, sourceCrop, reqWidth, reqHeight,
+            minLayerZ, maxLayerZ, useIdentityTransform,
+            static_cast<ISurfaceComposer::Rotation>(rotation));
+    if (ret != NO_ERROR) {
+        return ret;
+    }
+    BufferItem b;
+    consumer->acquireBuffer(&b, 0, true);
+    *outBuffer = b.mGraphicBuffer;
+    return ret;
 }
 
 ScreenshotClient::ScreenshotClient()
