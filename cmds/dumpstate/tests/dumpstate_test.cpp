@@ -37,7 +37,9 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 
-using namespace android;
+namespace android {
+namespace os {
+namespace dumpstate {
 
 using ::testing::EndsWith;
 using ::testing::HasSubstr;
@@ -51,14 +53,6 @@ using ::testing::internal::CaptureStderr;
 using ::testing::internal::CaptureStdout;
 using ::testing::internal::GetCapturedStderr;
 using ::testing::internal::GetCapturedStdout;
-
-using os::DumpstateService;
-using os::IDumpstateListener;
-using os::IDumpstateToken;
-
-// Not used on test cases yet...
-void dumpstate_board(void) {
-}
 
 class DumpstateListenerMock : public IDumpstateListener {
   public:
@@ -1157,3 +1151,7 @@ TEST_F(DumpstateUtilTest, FindingPidWithNotExistingProcess) {
     EXPECT_EQ(-1, FindPidOfProcess("abcdef12345-543"));
     EXPECT_THAT(err, StrEq("can't find the pid\n"));
 }
+
+}  // namespace dumpstate
+}  // namespace os
+}  // namespace android

@@ -36,6 +36,19 @@
 // TODO: remove once not used
 #define MAX_ARGS_ARRAY_SIZE 1000
 
+// TODO: move everything under this namespace
+// TODO: and then remove explicitly android::os::dumpstate:: prefixes
+namespace android {
+namespace os {
+namespace dumpstate {
+
+class DumpstateTest;
+class ProgressTest;
+
+}  // namespace dumpstate
+}  // namespace os
+}  // namespace android
+
 // TODO: remove once moved to HAL
 #ifdef __cplusplus
 extern "C" {
@@ -74,8 +87,8 @@ class DurationReporter {
  *
  */
 class Progress {
-    friend class ProgressTest;
-    friend class DumpstateTest;
+    friend class android::os::dumpstate::ProgressTest;
+    friend class android::os::dumpstate::DumpstateTest;
 
   public:
     /*
@@ -152,12 +165,9 @@ class Dumpstate {
     friend class DumpstateTest;
 
   public:
-    static CommandOptions DEFAULT_DUMPSYS;
+    static android::os::dumpstate::CommandOptions DEFAULT_DUMPSYS;
 
     static Dumpstate& GetInstance();
-
-    // TODO: temporary function until device code uses PropertiesHelper::IsUserBuild()
-    bool IsUserBuild();
 
     /* Checkes whether dumpstate is generating a zipped bugreport. */
     bool IsZipping() const;
@@ -172,7 +182,8 @@ class Dumpstate {
      * |options| optional argument defining the command's behavior.
      */
     int RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
-                   const CommandOptions& options = CommandOptions::DEFAULT);
+                   const android::os::dumpstate::CommandOptions& options =
+                       android::os::dumpstate::CommandOptions::DEFAULT);
 
     /*
      * Runs `dumpsys` with the given arguments, automatically setting its timeout
@@ -187,7 +198,8 @@ class Dumpstate {
      * timeout from `options`)
      */
     void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsys_args,
-                    const CommandOptions& options = DEFAULT_DUMPSYS, long dumpsys_timeout = 0);
+                    const android::os::dumpstate::CommandOptions& options = DEFAULT_DUMPSYS,
+                    long dumpsys_timeout = 0);
 
     /*
      * Prints the contents of a file.
@@ -398,9 +410,6 @@ void dump_route_tables();
 
 /* Play a sound via Stagefright */
 void play_sound(const char *path);
-
-/* Implemented by libdumpstate_board to dump board-specific info */
-void dumpstate_board();
 
 /* Checks if a given path is a directory. */
 bool is_dir(const char* pathname);

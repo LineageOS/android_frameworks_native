@@ -57,6 +57,12 @@ using ::android::hardware::dumpstate::V1_0::IDumpstateDevice;
 using ::android::hardware::vibrator::V1_0::IVibrator;
 using VibratorStatus = ::android::hardware::vibrator::V1_0::Status;
 
+// TODO: remove once moved to namespace
+using android::os::dumpstate::CommandOptions;
+using android::os::dumpstate::DumpFileToFd;
+using android::os::dumpstate::PropertiesHelper;
+using android::os::dumpstate::GetPidByName;
+
 /* read before root is shed */
 static char cmdline_buf[16384] = "(unknown)";
 static const char *dump_traces_path = NULL;
@@ -106,6 +112,9 @@ static int DumpFile(const std::string& title, const std::string& path) {
 
 // Relative directory (inside the zip) for all files copied as-is into the bugreport.
 static const std::string ZIP_ROOT_DIR = "FS";
+
+// Must be hardcoded because dumpstate HAL implementation need SELinux access to it
+static const std::string kDumpstateBoardPath = "/bugreports/dumpstate_board.txt";
 
 static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
 static constexpr char PROPERTY_LAST_ID[] = "dumpstate.last_id";
@@ -1026,11 +1035,11 @@ static void dumpstate() {
                CommandOptions::WithTimeout(20).Build());
 
 #ifdef FWDUMP_bcmdhd
-    RunCommand("ND OFFLOAD TABLE", {WLUTIL, "nd_hostip"}, CommandOptions::AS_ROOT_5);
+    RunCommand("ND OFFLOAD TABLE", {WLUTIL, "nd_hostip"}, CommandOptions::AS_ROOT);
 
     RunCommand("DUMP WIFI INTERNAL COUNTERS (1)", {WLUTIL, "counters"}, AS_ROOT_20);
 
-    RunCommand("ND OFFLOAD STATUS (1)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
+    RunCommand("ND OFFLOAD STATUS (1)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT);
 
 #endif
     DumpFile("INTERRUPTS (1)", "/proc/interrupts");
@@ -1043,7 +1052,7 @@ static void dumpstate() {
 
     RunCommand("DUMP WIFI INTERNAL COUNTERS (2)", {WLUTIL, "counters"}, AS_ROOT_20);
 
-    RunCommand("ND OFFLOAD STATUS (2)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT_5);
+    RunCommand("ND OFFLOAD STATUS (2)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT);
 #endif
     DumpFile("INTERRUPTS (2)", "/proc/interrupts");
 
@@ -1080,7 +1089,7 @@ static void dumpstate() {
 
     ds.DumpstateBoard();
 
-    /* Migrate the ril_dumpstate to a dumpstate_board()? */
+    /* Migrate the ril_dumpstate to a device specific dumpstate? */
     int rilDumpstateTimeout = android::base::GetIntProperty("ril.dumpstate.timeout", 0);
     if (rilDumpstateTimeout > 0) {
         // su does not exist on user builds, so try running without it.
@@ -1149,21 +1158,18 @@ void Dumpstate::DumpstateBoard() {
     printf("== Board\n");
     printf("========================================================\n");
 
-    ::android::sp<IDumpstateDevice> dumpstate_device(
-        IDumpstateDevice::getService("DumpstateDevice"));
+    ::android::sp<IDumpstateDevice> dumpstate_device(IDumpstateDevice::getService("dumpstate"));
     if (dumpstate_device == nullptr) {
-        // TODO: temporary workaround until devices on master implement it
-        MYLOGE("no IDumpstateDevice implementation; using legacy dumpstate_board()\n");
-        dumpstate_board();
+        MYLOGE("No IDumpstateDevice implementation\n");
         return;
     }
 
     if (!IsZipping()) {
-        MYLOGE("Not dumping board info because it's not a zipped bugreport\n");
+        MYLOGD("Not dumping board info because it's not a zipped bugreport\n");
         return;
     }
 
-    std::string path = ds.GetPath("-dumpstate-board.txt");
+    std::string path = kDumpstateBoardPath;
     MYLOGI("Calling IDumpstateDevice implementation using path %s\n", path.c_str());
 
     int fd =
@@ -1182,7 +1188,13 @@ void Dumpstate::DumpstateBoard() {
     handle->data[0] = fd;
 
     // TODO: need a timeout mechanism so dumpstate does not hang on device implementation call.
-    dumpstate_device->dumpstateBoard(handle);
+    android::hardware::Return<void> status = dumpstate_device->dumpstateBoard(handle);
+    if (!status.isOk()) {
+        MYLOGE("dumpstateBoard failed: %s\n", status.description().c_str());
+        native_handle_close(handle);
+        native_handle_delete(handle);
+        return;
+    }
 
     AddZipEntry("dumpstate-board.txt", path);
     printf("*** See dumpstate-board.txt entry ***\n");
