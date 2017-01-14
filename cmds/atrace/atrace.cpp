@@ -18,6 +18,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <ftw.h>
 #include <getopt.h>
 #include <inttypes.h>
 #include <signal.h>
@@ -41,6 +42,7 @@
 #include <hidl/ServiceManagement.h>
 #include <cutils/properties.h>
 
+#include <pdx/default_transport/service_utility.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
 #include <utils/Tokenizer.h>
@@ -48,6 +50,7 @@
 #include <android-base/file.h>
 
 using namespace android;
+using pdx::default_transport::ServiceUtility;
 
 using std::string;
 #define NELEM(x) ((int) (sizeof(x) / sizeof((x)[0])))
@@ -569,6 +572,46 @@ static void pokeHalServices()
     }
 }
 
+// Sends the sysprop_change message to the service at fpath, so it re-reads its
+// system properties. Returns 0 on success or a negated errno code on failure.
+static int pokeOnePDXService(const char *fpath, const struct stat * /*sb*/,
+                             int typeflag, struct FTW * /*ftwbuf*/)
+{
+    const bool kIgnoreErrors = true;
+
+    if (typeflag == FTW_F) {
+        int error;
+        auto utility = ServiceUtility::Create(fpath, &error);
+        if (!utility) {
+            if (error != -ECONNREFUSED) {
+                ALOGE("pokeOnePDXService: Failed to open %s, %s.", fpath,
+                      strerror(-error));
+            }
+            return kIgnoreErrors ? 0 : error;
+        }
+
+        auto status = utility->ReloadSystemProperties();
+        if (!status) {
+            ALOGE("pokeOnePDXService: Failed to send sysprop change to %s, "
+                  "error %d, %s.", fpath, status.error(),
+                  status.GetErrorMessage().c_str());
+            return kIgnoreErrors ? 0 : -status.error();
+        }
+    }
+
+    return 0;
+}
+
+// Pokes all the PDX processes in the system to get them to re-read
+// their system properties. Returns true on success, false on failure.
+static bool pokePDXServices()
+{
+    const int kMaxDepth = 16;
+    const int result = nftw(ServiceUtility::GetRootEndpointPath().c_str(),
+                            pokeOnePDXService, kMaxDepth, FTW_PHYS);
+    return result == 0 ? true : false;
+}
+
 // Set the trace tags that userland tracing uses, and poke the running
 // processes to pick up the new value.
 static bool setTagsProperty(uint64_t tags)
@@ -812,6 +855,7 @@ static bool setUpTrace()
     ok &= setAppCmdlineProperty(&packageList[0]);
     ok &= pokeBinderServices();
     pokeHalServices();
+    ok &= pokePDXServices();
 
     // Disable all the sysfs enables.  This is done as a separate loop from
     // the enables to allow the same enable to exist in multiple categories.
@@ -849,6 +893,7 @@ static void cleanUpTrace()
     setTagsProperty(0);
     clearAppProperties();
     pokeBinderServices();
+    pokePDXServices();
 
     // Set the options back to their defaults.
     setTraceOverwriteEnable(true);
