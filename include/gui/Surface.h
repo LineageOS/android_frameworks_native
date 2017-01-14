@@ -33,6 +33,8 @@ struct ANativeWindow_Buffer;
 
 namespace android {
 
+class ISurfaceComposer;
+
 /*
  * An implementation of ANativeWindow that feeds graphics buffers into a
  * BufferQueue.
@@ -66,7 +68,8 @@ public:
      * the controlledByApp flag indicates that this Surface (producer) is
      * controlled by the application. This flag is used at connect time.
      */
-    explicit Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controlledByApp = false);
+    explicit Surface(const sp<IGraphicBufferProducer>& bufferProducer,
+            bool controlledByApp = false);
 
     /* getIGraphicBufferProducer() returns the IGraphicBufferProducer this
      * Surface was created with. Usually it's an error to use the
@@ -151,6 +154,9 @@ public:
 
 protected:
     virtual ~Surface();
+
+    // Virtual for testing.
+    virtual sp<ISurfaceComposer> composerService() const;
 
 private:
     // can't be copied
@@ -245,7 +251,6 @@ protected:
     enum { NUM_BUFFER_SLOTS = BufferQueue::NUM_BUFFER_SLOTS };
     enum { DEFAULT_FORMAT = PIXEL_FORMAT_RGBA_8888 };
 
-private:
     void querySupportedTimestampsLocked() const;
 
     void freeAllBuffers();
@@ -389,7 +394,8 @@ private:
 
     Condition mQueueBufferCondition;
 
-    uint64_t mNextFrameNumber;
+    uint64_t mNextFrameNumber = 1;
+    uint64_t mLastFrameNumber = 0;
 
     // Mutable because ANativeWindow::query needs this class const.
     mutable bool mQueriedSupportedTimestamps;
@@ -398,7 +404,7 @@ private:
 
     // A cached copy of the FrameEventHistory maintained by the consumer.
     bool mEnableFrameTimestamps = false;
-    ProducerFrameEventHistory mFrameEventHistory;
+    std::unique_ptr<ProducerFrameEventHistory> mFrameEventHistory;
 };
 
 namespace view {

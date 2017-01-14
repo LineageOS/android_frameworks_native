@@ -49,11 +49,11 @@ Surface::Surface(
       mAutoRefresh(false),
       mSharedBufferSlot(BufferItem::INVALID_BUFFER_SLOT),
       mSharedBufferHasBeenQueued(false),
-      mNextFrameNumber(1),
       mQueriedSupportedTimestamps(false),
       mFrameTimestampsSupportsPresent(false),
       mFrameTimestampsSupportsRetire(false),
-      mEnableFrameTimestamps(false)
+      mEnableFrameTimestamps(false),
+      mFrameEventHistory(std::make_unique<ProducerFrameEventHistory>())
 {
     // Initialize the ANativeWindow function pointers.
     ANativeWindow::setSwapInterval  = hook_setSwapInterval;
@@ -95,6 +95,10 @@ Surface::~Surface() {
     if (mConnectedToCpu) {
         Surface::disconnect(NATIVE_WINDOW_API_CPU);
     }
+}
+
+sp<ISurfaceComposer> Surface::composerService() const {
+    return ComposerService::getComposerService();
 }
 
 sp<IGraphicBufferProducer> Surface::getIGraphicBufferProducer() const {
@@ -144,6 +148,31 @@ void Surface::enableFrameTimestamps(bool enable) {
     mEnableFrameTimestamps = enable;
 }
 
+static bool checkConsumerForUpdates(
+        const FrameEvents* e, const uint64_t lastFrameNumber,
+        const nsecs_t* outRefreshStartTime,
+        const nsecs_t* outGlCompositionDoneTime,
+        const nsecs_t* outDisplayPresentTime,
+        const nsecs_t* outDisplayRetireTime,
+        const nsecs_t* outReleaseTime) {
+    bool checkForRefreshStart = (outRefreshStartTime != nullptr) &&
+            !e->hasFirstRefreshStartInfo();
+    bool checkForGlCompositionDone = (outGlCompositionDoneTime != nullptr) &&
+            !e->hasGpuCompositionDoneInfo();
+    bool checkForDisplayPresent = (outDisplayPresentTime != nullptr) &&
+            !e->hasDisplayPresentInfo();
+
+    // DisplayRetire and Release are never available for the last frame.
+    bool checkForDisplayRetire = (outDisplayRetireTime != nullptr) &&
+            !e->hasDisplayRetireInfo() && (e->frameNumber != lastFrameNumber);
+    bool checkForRelease = (outReleaseTime != nullptr) &&
+            !e->hasReleaseInfo() && (e->frameNumber != lastFrameNumber);
+
+    // RequestedPresent and Acquire info are always available producer-side.
+    return checkForRefreshStart || checkForGlCompositionDone ||
+            checkForDisplayPresent || checkForDisplayRetire || checkForRelease;
+}
+
 static void getFrameTimestamp(nsecs_t *dst, const nsecs_t& src) {
     if (dst != nullptr) {
         *dst = Fence::isValidTimestamp(src) ? src : 0;
@@ -179,25 +208,26 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
         return BAD_VALUE;
     }
 
-    FrameEvents* events = mFrameEventHistory.getFrame(frameNumber);
-
-    // Update our cache of events if the requested events are not available.
-    if (events == nullptr ||
-        (outRequestedPresentTime && !events->hasRequestedPresentInfo()) ||
-        (outAcquireTime && !events->hasAcquireInfo()) ||
-        (outRefreshStartTime && !events->hasFirstRefreshStartInfo()) ||
-        (outGlCompositionDoneTime && !events->hasGpuCompositionDoneInfo()) ||
-        (outDisplayPresentTime && !events->hasDisplayPresentInfo()) ||
-        (outDisplayRetireTime && !events->hasDisplayRetireInfo()) ||
-        (outReleaseTime && !events->hasReleaseInfo())) {
-            FrameEventHistoryDelta delta;
-            mGraphicBufferProducer->getFrameTimestamps(&delta);
-            mFrameEventHistory.applyDelta(delta);
-            events = mFrameEventHistory.getFrame(frameNumber);
+    FrameEvents* events = mFrameEventHistory->getFrame(frameNumber);
+    if (events == nullptr) {
+        // If the entry isn't available in the producer, it's definitely not
+        // available in the consumer.
+        return NAME_NOT_FOUND;
     }
 
-    // A record for the requested frame does not exist.
+    // Update our cache of events if the requested events are not available.
+    if (checkConsumerForUpdates(events, mLastFrameNumber,
+            outRefreshStartTime, outGlCompositionDoneTime,
+            outDisplayPresentTime, outDisplayRetireTime, outReleaseTime)) {
+        FrameEventHistoryDelta delta;
+        mGraphicBufferProducer->getFrameTimestamps(&delta);
+        mFrameEventHistory->applyDelta(delta);
+        events = mFrameEventHistory->getFrame(frameNumber);
+    }
+
     if (events == nullptr) {
+        // The entry was available before the update, but was overwritten
+        // after the update. Make sure not to send the wrong frame's data.
         return NAME_NOT_FOUND;
     }
 
@@ -347,11 +377,9 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     nsecs_t now = systemTime();
 
     FrameEventHistoryDelta frameTimestamps;
-    FrameEventHistoryDelta* frameTimestampsOrNull =
-            enableFrameTimestamps ? &frameTimestamps : nullptr;
-
     status_t result = mGraphicBufferProducer->dequeueBuffer(&buf, &fence,
-            reqWidth, reqHeight, reqFormat, reqUsage, frameTimestampsOrNull);
+            reqWidth, reqHeight, reqFormat, reqUsage,
+            enableFrameTimestamps ? &frameTimestamps : nullptr);
     mLastDequeueDuration = systemTime() - now;
 
     if (result < 0) {
@@ -373,7 +401,7 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     }
 
     if (enableFrameTimestamps) {
-         mFrameEventHistory.applyDelta(frameTimestamps);
+         mFrameEventHistory->applyDelta(frameTimestamps);
     }
 
     if ((result & IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION) || gbuf == 0) {
@@ -567,17 +595,19 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
     }
 
     if (mEnableFrameTimestamps) {
-        mFrameEventHistory.applyDelta(output.frameTimestamps);
+        mFrameEventHistory->applyDelta(output.frameTimestamps);
         // Update timestamps with the local acquire fence.
         // The consumer doesn't send it back to prevent us from having two
         // file descriptors of the same fence.
-        mFrameEventHistory.updateAcquireFence(mNextFrameNumber,
+        mFrameEventHistory->updateAcquireFence(mNextFrameNumber,
                 std::make_shared<FenceTime>(std::move(fence)));
 
         // Cache timestamps of signaled fences so we can close their file
         // descriptors.
-        mFrameEventHistory.updateSignalTimes();
+        mFrameEventHistory->updateSignalTimes();
     }
+
+    mLastFrameNumber = mNextFrameNumber;
 
     mDefaultWidth = output.width;
     mDefaultHeight = output.height;
@@ -613,8 +643,7 @@ void Surface::querySupportedTimestampsLocked() const {
     mQueriedSupportedTimestamps = true;
 
     std::vector<FrameEvent> supportedFrameTimestamps;
-    sp<ISurfaceComposer> composer(ComposerService::getComposerService());
-    status_t err = composer->getSupportedFrameTimestamps(
+    status_t err = composerService()->getSupportedFrameTimestamps(
             &supportedFrameTimestamps);
 
     if (err != NO_ERROR) {
@@ -643,9 +672,8 @@ int Surface::query(int what, int* value) const {
                 }
                 break;
             case NATIVE_WINDOW_QUEUES_TO_WINDOW_COMPOSER: {
-                sp<ISurfaceComposer> composer(
-                        ComposerService::getComposerService());
-                if (composer->authenticateSurfaceTexture(mGraphicBufferProducer)) {
+                if (composerService()->authenticateSurfaceTexture(
+                        mGraphicBufferProducer)) {
                     *value = 1;
                 } else {
                     *value = 0;

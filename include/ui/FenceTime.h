@@ -24,13 +24,17 @@
 #include <atomic>
 #include <mutex>
 #include <queue>
+#include <unordered_map>
 
 namespace android {
+
+class FenceToFenceTimeMap;
 
 // A wrapper around fence that only implements isValid and getSignalTime.
 // It automatically closes the fence in a thread-safe manner once the signal
 // time is known.
 class FenceTime {
+friend class FenceToFenceTimeMap;
 public:
     // An atomic snapshot of the FenceTime that is flattenable.
     //
@@ -107,15 +111,22 @@ public:
     // Returns a snapshot of the FenceTime in its current state.
     Snapshot getSnapshot() const;
 
+    void signalForTest(nsecs_t signalTime);
+
     // Override new and delete since this needs 8-byte alignment, which
     // is not guaranteed on x86.
     static void* operator new(size_t nbytes) noexcept;
     static void operator delete(void *p);
 
 private:
+    // For tests only. If forceValidForTest is true, then getSignalTime will
+    // never return SIGNAL_TIME_INVALID and isValid will always return true.
+    FenceTime(const sp<Fence>& fence, bool forceValidForTest);
+
     enum class State {
         VALID,
         INVALID,
+        FORCED_VALID_FOR_TEST,
     };
 
     const State mState{State::INVALID};
@@ -155,6 +166,42 @@ private:
     mutable std::mutex mMutex;
     std::queue<std::weak_ptr<FenceTime>> mQueue;
 };
+
+// Used by test code to create or get FenceTimes for a given Fence.
+//
+// By design, Fences cannot be signaled from user space. However, this class
+// allows test code to set the apparent signalTime of a Fence and
+// have it be visible to all FenceTimes. Release code should not use
+// FenceToFenceTimeMap.
+//
+// FenceToFenceTimeMap keeps a weak reference to the FenceTime and automatically
+// garbage collects entries every time a new FenceTime is created to avoid
+// leaks. This prevents us from having to make the Fence destructor
+// automatically notify that the underlying fence has been destroyed, which
+// would affect release code paths. Garbage collecting so often is inefficient,
+// but acceptable for testing.
+//
+// Since FenceTimes maintain a strong reference to underlying Fences, there
+// should not be any aliasing issues where a new Fence happens to have the same
+// address as a previous Fence; the previous entry will be garbage collected
+// before the new one is added.
+class FenceToFenceTimeMap {
+public:
+    // Create a new FenceTime with that wraps the provided Fence.
+    std::shared_ptr<FenceTime> createFenceTimeForTest(const sp<Fence>& fence);
+
+    // Signals all FenceTimes created through this class that are wrappers
+    // around |fence|.
+    void signalAllForTest(const sp<Fence>& fence, nsecs_t signalTime);
+
+private:
+    // Cleans up the entries that no longer have a strong reference.
+    void garbageCollectLocked();
+
+    mutable std::mutex mMutex;
+    std::unordered_map<Fence*, std::vector<std::weak_ptr<FenceTime>>> mMap;
+};
+
 
 }; // namespace android
 
