@@ -81,8 +81,7 @@ SensorDevice::SensorDevice() {
 
                     mActivationCount.add(list[i].sensorHandle, model);
 
-                    /* auto result = */mSensors->activate(
-                        list[i].sensorHandle, 0 /* enabled */);
+                    mSensors->activate(list[i].sensorHandle, 0 /* enabled */);
                 }
             });
 }
@@ -91,7 +90,7 @@ void SensorDevice::handleDynamicSensorConnection(int handle, bool connected) {
     if (connected) {
         Info model;
         mActivationCount.add(handle, model);
-        /* auto result = */mSensors->activate(handle, 0 /* enabled */);
+        mSensors->activate(handle, 0 /* enabled */);
     } else {
         mActivationCount.removeItem(handle);
     }
@@ -99,13 +98,6 @@ void SensorDevice::handleDynamicSensorConnection(int handle, bool connected) {
 
 std::string SensorDevice::dump() const {
     if (mSensors == NULL) return "HAL not initialized\n";
-
-#if 0
-    result.appendFormat("HAL: %s (%s), version %#010x\n",
-                        mSensorModule->common.name,
-                        mSensorModule->common.author,
-                        getHalDeviceVersion());
-#endif
 
     String8 result;
     mSensors->getSensorsList([&](const auto &list) {
@@ -242,21 +234,17 @@ status_t SensorDevice::activate(void* ident, int handle, int enabled) {
                 // This is the last connection, we need to de-activate the underlying h/w sensor.
                 actuateHardware = true;
             } else {
-                const int halVersion = getHalDeviceVersion();
-                if (halVersion >= SENSORS_DEVICE_API_VERSION_1_1) {
-                    // Call batch for this sensor with the previously calculated best effort
-                    // batch_rate and timeout. One of the apps has unregistered for sensor
-                    // events, and the best effort batch parameters might have changed.
-                    ALOGD_IF(DEBUG_CONNECTIONS,
-                             "\t>>> actuating h/w batch %d %d %" PRId64 " %" PRId64, handle,
-                             info.bestBatchParams.flags, info.bestBatchParams.batchDelay,
-                             info.bestBatchParams.batchTimeout);
-                    /* auto result = */mSensors->batch(
-                            handle,
-                            info.bestBatchParams.flags,
-                            info.bestBatchParams.batchDelay,
-                            info.bestBatchParams.batchTimeout);
-                }
+                // Call batch for this sensor with the previously calculated best effort
+                // batch_rate and timeout. One of the apps has unregistered for sensor
+                // events, and the best effort batch parameters might have changed.
+                ALOGD_IF(DEBUG_CONNECTIONS,
+                         "\t>>> actuating h/w batch %d %d %" PRId64 " %" PRId64, handle,
+                         info.bestBatchParams.flags, info.bestBatchParams.batchDelay,
+                         info.bestBatchParams.batchTimeout);
+                mSensors->batch(
+                        handle,
+                        info.bestBatchParams.batchDelay,
+                        info.bestBatchParams.batchTimeout);
             }
         } else {
             // sensor wasn't enabled for this ident
@@ -280,13 +268,6 @@ status_t SensorDevice::activate(void* ident, int handle, int enabled) {
         }
     }
 
-    // On older devices which do not support batch, call setDelay().
-    if (getHalDeviceVersion() < SENSORS_DEVICE_API_VERSION_1_1 && info.numActiveClients() > 0) {
-        ALOGD_IF(DEBUG_CONNECTIONS, "\t>>> actuating h/w setDelay %d %" PRId64, handle,
-                 info.bestBatchParams.batchDelay);
-        /* auto result = */mSensors->setDelay(
-                handle, info.bestBatchParams.batchDelay);
-    }
     return err;
 }
 
@@ -300,12 +281,6 @@ status_t SensorDevice::batch(
 
     if (samplingPeriodNs < MINIMUM_EVENTS_PERIOD) {
         samplingPeriodNs = MINIMUM_EVENTS_PERIOD;
-    }
-
-    const int halVersion = getHalDeviceVersion();
-    if (halVersion < SENSORS_DEVICE_API_VERSION_1_1 && maxBatchReportLatencyNs != 0) {
-        // Batch is not supported on older devices return invalid operation.
-        return INVALID_OPERATION;
     }
 
     ALOGD_IF(DEBUG_CONNECTIONS,
@@ -336,21 +311,14 @@ status_t SensorDevice::batch(
     status_t err(NO_ERROR);
     // If the min period or min timeout has changed since the last batch call, call batch.
     if (prevBestBatchParams != info.bestBatchParams) {
-        if (halVersion >= SENSORS_DEVICE_API_VERSION_1_1) {
-            ALOGD_IF(DEBUG_CONNECTIONS, "\t>>> actuating h/w BATCH %d %d %" PRId64 " %" PRId64, handle,
-                     info.bestBatchParams.flags, info.bestBatchParams.batchDelay,
-                     info.bestBatchParams.batchTimeout);
-            err = StatusFromResult(
-                    mSensors->batch(
-                        handle,
-                        info.bestBatchParams.flags,
-                        info.bestBatchParams.batchDelay,
-                        info.bestBatchParams.batchTimeout));
-        } else {
-            // For older devices which do not support batch, call setDelay() after activate() is
-            // called. Some older devices may not support calling setDelay before activate(), so
-            // call setDelay in SensorDevice::activate() method.
-        }
+        ALOGD_IF(DEBUG_CONNECTIONS, "\t>>> actuating h/w BATCH %d %d %" PRId64 " %" PRId64, handle,
+                 info.bestBatchParams.flags, info.bestBatchParams.batchDelay,
+                 info.bestBatchParams.batchTimeout);
+        err = StatusFromResult(
+                mSensors->batch(
+                    handle,
+                    info.bestBatchParams.batchDelay,
+                    info.bestBatchParams.batchTimeout));
         if (err != NO_ERROR) {
             ALOGE("sensor batch failed %p %d %d %" PRId64 " %" PRId64 " err=%s",
                   mSensors.get(), handle,
@@ -384,7 +352,7 @@ status_t SensorDevice::setDelay(void* ident, int handle, int64_t samplingPeriodN
     info.selectBatchParams();
 
     return StatusFromResult(
-            mSensors->setDelay(handle, info.bestBatchParams.batchDelay));
+            mSensors->batch(handle, info.bestBatchParams.batchDelay, 0));
 }
 
 int SensorDevice::getHalDeviceVersion() const {
@@ -393,9 +361,6 @@ int SensorDevice::getHalDeviceVersion() const {
 }
 
 status_t SensorDevice::flush(void* ident, int handle) {
-    if (getHalDeviceVersion() < SENSORS_DEVICE_API_VERSION_1_1) {
-        return INVALID_OPERATION;
-    }
     if (isClientDisabled(ident)) return INVALID_OPERATION;
     ALOGD_IF(DEBUG_CONNECTIONS, "\t>>> actuating h/w flush %d", handle);
     return StatusFromResult(mSensors->flush(handle));
@@ -414,7 +379,6 @@ void SensorDevice::enableAllSensors() {
     Mutex::Autolock _l(mLock);
     mDisabledClients.clear();
     ALOGI("cleared mDisabledClients");
-    const int halVersion = getHalDeviceVersion();
     for (size_t i = 0; i< mActivationCount.size(); ++i) {
         Info& info = mActivationCount.editValueAt(i);
         if (info.batchParams.isEmpty()) continue;
@@ -422,28 +386,17 @@ void SensorDevice::enableAllSensors() {
         const int sensor_handle = mActivationCount.keyAt(i);
         ALOGD_IF(DEBUG_CONNECTIONS, "\t>> reenable actuating h/w sensor enable handle=%d ",
                    sensor_handle);
-        status_t err(NO_ERROR);
-        if (halVersion > SENSORS_DEVICE_API_VERSION_1_0) {
-            err = StatusFromResult(
-                    mSensors->batch(
-                        sensor_handle,
-                        info.bestBatchParams.flags,
-                        info.bestBatchParams.batchDelay,
-                        info.bestBatchParams.batchTimeout));
-            ALOGE_IF(err, "Error calling batch on sensor %d (%s)", sensor_handle, strerror(-err));
-        }
+        status_t err = StatusFromResult(
+                mSensors->batch(
+                    sensor_handle,
+                    info.bestBatchParams.batchDelay,
+                    info.bestBatchParams.batchTimeout));
+        ALOGE_IF(err, "Error calling batch on sensor %d (%s)", sensor_handle, strerror(-err));
 
         if (err == NO_ERROR) {
             err = StatusFromResult(
                     mSensors->activate(sensor_handle, 1 /* enabled */));
             ALOGE_IF(err, "Error activating sensor %d (%s)", sensor_handle, strerror(-err));
-        }
-
-        if (halVersion <= SENSORS_DEVICE_API_VERSION_1_0) {
-             err = StatusFromResult(
-                     mSensors->setDelay(
-                         sensor_handle, info.bestBatchParams.batchDelay));
-             ALOGE_IF(err, "Error calling setDelay sensor %d (%s)", sensor_handle, strerror(-err));
         }
     }
 }
@@ -457,8 +410,7 @@ void SensorDevice::disableAllSensors() {
            const int sensor_handle = mActivationCount.keyAt(i);
            ALOGD_IF(DEBUG_CONNECTIONS, "\t>> actuating h/w sensor disable handle=%d ",
                    sensor_handle);
-           /* auto result = */mSensors->activate(
-                   sensor_handle, 0 /* enabled */);
+           mSensors->activate(sensor_handle, 0 /* enabled */);
 
            // Add all the connections that were registered for this sensor to the disabled
            // clients list.
@@ -480,10 +432,6 @@ status_t SensorDevice::injectSensorData(
             injected_sensor_event->data[3], injected_sensor_event->data[4],
             injected_sensor_event->data[5]);
 
-    if (getHalDeviceVersion() < SENSORS_DEVICE_API_VERSION_1_4) {
-        return INVALID_OPERATION;
-    }
-
     Event ev;
     convertFromSensorEvent(*injected_sensor_event, &ev);
 
@@ -491,9 +439,6 @@ status_t SensorDevice::injectSensorData(
 }
 
 status_t SensorDevice::setMode(uint32_t mode) {
-     if (getHalDeviceVersion() < SENSORS_DEVICE_API_VERSION_1_4) {
-          return INVALID_OPERATION;
-     }
 
      return StatusFromResult(
              mSensors->setOperationMode(
@@ -564,7 +509,7 @@ void SensorDevice::convertToSensorEvent(
     ::android::hardware::sensors::V1_0::implementation::convertToSensorEvent(
             src, dst);
 
-    if (src.sensorType == SensorType::SENSOR_TYPE_DYNAMIC_SENSOR_META) {
+    if (src.sensorType == SensorType::DYNAMIC_SENSOR_META) {
         const DynamicSensorInfo &dyn = src.u.dynamic;
 
         dst->dynamic_sensor_meta.connected = dyn.connected;
