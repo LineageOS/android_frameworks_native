@@ -36,6 +36,7 @@ struct ProcHook {
         ANDROID_native_buffer,
         EXT_debug_report,
         KHR_android_surface,
+        KHR_incremental_present,
         KHR_surface,
         KHR_swapchain,
         GOOGLE_display_timing,

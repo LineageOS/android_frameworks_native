@@ -330,7 +330,6 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
     // TODO(jessehall): I think these are right, but haven't thought hard about
     // it. Do we need to query the driver for support of any of these?
     // Currently not included:
-    // - VK_IMAGE_USAGE_GENERAL: maybe? does this imply cpu mappable?
     // - VK_IMAGE_USAGE_DEPTH_STENCIL_BIT: definitely not
     // - VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT: definitely not
     capabilities->supportedUsageFlags =
@@ -587,9 +586,17 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
+    VkSwapchainImageUsageFlagsANDROID swapchain_image_usage = 0;
     int gralloc_usage = 0;
-    // TODO(jessehall): Remove conditional once all drivers have been updated
-    if (dispatch.GetSwapchainGrallocUsageANDROID) {
+    if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
+        result = dispatch.GetSwapchainGrallocUsage2ANDROID(
+            device, create_info->imageFormat, create_info->imageUsage,
+            swapchain_image_usage, &gralloc_usage);
+        if (result != VK_SUCCESS) {
+            ALOGE("vkGetSwapchainGrallocUsage2ANDROID failed: %d", result);
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+    } else if (dispatch.GetSwapchainGrallocUsageANDROID) {
         result = dispatch.GetSwapchainGrallocUsageANDROID(
             device, create_info->imageFormat, create_info->imageUsage,
             &gralloc_usage);
@@ -632,12 +639,20 @@ VkResult CreateSwapchainKHR(VkDevice device,
     // -- Dequeue all buffers and create a VkImage for each --
     // Any failures during or after this must cancel the dequeued buffers.
 
+    VkSwapchainImageCreateInfoANDROID swapchain_image_create = {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_IMAGE_CREATE_INFO_ANDROID,
+#pragma clang diagnostic pop
+        .pNext = nullptr,
+        .usage = swapchain_image_usage,
+    };
     VkNativeBufferANDROID image_native_buffer = {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
         .sType = VK_STRUCTURE_TYPE_NATIVE_BUFFER_ANDROID,
 #pragma clang diagnostic pop
-        .pNext = nullptr,
+        .pNext = &swapchain_image_create,
     };
     VkImageCreateInfo image_create = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,

@@ -334,6 +334,7 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
     if (strcmp(name, "VK_ANDROID_native_buffer") == 0) return ProcHook::ANDROID_native_buffer;
     if (strcmp(name, "VK_EXT_debug_report") == 0) return ProcHook::EXT_debug_report;
     if (strcmp(name, "VK_KHR_android_surface") == 0) return ProcHook::KHR_android_surface;
+    if (strcmp(name, "VK_KHR_incremental_present") == 0) return ProcHook::KHR_incremental_present;
     if (strcmp(name, "VK_KHR_surface") == 0) return ProcHook::KHR_surface;
     if (strcmp(name, "VK_KHR_swapchain") == 0) return ProcHook::KHR_swapchain;
     if (strcmp(name, "VK_GOOGLE_display_timing") == 0) return ProcHook::GOOGLE_display_timing;

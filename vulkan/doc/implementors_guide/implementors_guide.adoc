@@ -123,7 +123,7 @@ typedef struct {
     VkStructureType                        sType; // must be VK_STRUCTURE_TYPE_SWAPCHAIN_IMAGE_CREATE_INFO_ANDROID
     const void*                            pNext;
 
-    VkSwapchainImageUsageFlagBitsANDROID   usage;
+    VkSwapchainImageUsageFlagsANDROID      usage;
 } VkSwapchainImageCreateInfoANDROID;
 ----
 

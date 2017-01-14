@@ -177,8 +177,6 @@ struct DeviceDispatchTable {
     PFN_vkGetSwapchainImagesKHR GetSwapchainImagesKHR;
     PFN_vkAcquireNextImageKHR AcquireNextImageKHR;
     PFN_vkQueuePresentKHR QueuePresentKHR;
-    PFN_vkGetRefreshCycleDurationGOOGLE GetRefreshCycleDurationGOOGLE;
-    PFN_vkGetPastPresentationTimingGOOGLE GetPastPresentationTimingGOOGLE;
     // clang-format on
 };
 
