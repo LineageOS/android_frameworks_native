@@ -17,6 +17,7 @@
 #include <ui/FenceTime.h>
 
 #include <cutils/compiler.h>  // For CC_[UN]LIKELY
+#include <utils/Log.h>
 #include <inttypes.h>
 #include <stdlib.h>
 

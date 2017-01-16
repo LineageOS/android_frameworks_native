@@ -22,6 +22,7 @@
 
 #include <gui/BufferQueueDefs.h>
 #include <gui/IGraphicBufferConsumer.h>
+#include <utils/String8.h>
 
 namespace android {
 

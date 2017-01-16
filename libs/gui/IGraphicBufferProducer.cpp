@@ -20,6 +20,7 @@
 #include <utils/Errors.h>
 #include <utils/NativeHandle.h>
 #include <utils/RefBase.h>
+#include <utils/String8.h>
 #include <utils/Timers.h>
 #include <utils/Vector.h>
 

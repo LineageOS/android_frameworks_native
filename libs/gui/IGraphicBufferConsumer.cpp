@@ -19,6 +19,7 @@
 
 #include <utils/Errors.h>
 #include <utils/NativeHandle.h>
+#include <utils/String8.h>
 
 #include <binder/Parcel.h>
 #include <binder/IInterface.h>

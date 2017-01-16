@@ -18,20 +18,16 @@
 #define ANDROID_FENCE_H
 
 #include <stdint.h>
-#include <sys/types.h>
 
-#include <ui/ANativeObjectBase.h>
-#include <ui/PixelFormat.h>
-#include <ui/Rect.h>
 #include <utils/Flattenable.h>
-#include <utils/String8.h>
+#include <utils/RefBase.h>
 #include <utils/Timers.h>
 
 #include <experimental/optional>
 
-struct ANativeWindowBuffer;
-
 namespace android {
+
+class String8;
 
 // ===========================================================================
 // Fence
@@ -61,6 +57,12 @@ public:
     // When the new Fence object is destructed the file descriptor will be
     // closed.
     explicit Fence(int fenceFd);
+
+    // Not copyable or movable.
+    Fence(const Fence& rhs) = delete;
+    Fence& operator=(const Fence& rhs) = delete;
+    Fence(Fence&& rhs) = delete;
+    Fence& operator=(Fence&& rhs) = delete;
 
     // Check whether the Fence has an open fence file descriptor. Most Fence
     // methods treat an invalid file descriptor just like a valid fence that
@@ -134,11 +136,6 @@ private:
     // Only allow instantiation using ref counting.
     friend class LightRefBase<Fence>;
     ~Fence();
-
-    // Disallow copying
-    Fence(const Fence& rhs);
-    Fence& operator = (const Fence& rhs);
-    const Fence& operator = (const Fence& rhs) const;
 
     int mFenceFd;
 };
