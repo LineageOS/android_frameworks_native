@@ -25,6 +25,7 @@ namespace android {
 namespace installd {
 
 /* dexopt needed flags matching those in dalvik.system.DexFile */
+static constexpr int NO_DEXOPT_NEEDED            = 0;
 static constexpr int DEX2OAT_FROM_SCRATCH        = 1;
 static constexpr int DEX2OAT_FOR_BOOT_IMAGE      = 2;
 static constexpr int DEX2OAT_FOR_FILTER          = 3;

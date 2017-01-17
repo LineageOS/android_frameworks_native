@@ -1171,6 +1171,25 @@ int validate_system_app_path(const char* path) {
     return -1;
 }
 
+bool validate_secondary_dex_path(const char* pkgname, const char* path,
+        const char* volume_uuid, int uid, int storage_flag) {
+    CHECK(storage_flag == FLAG_STORAGE_CE || storage_flag == FLAG_STORAGE_DE);
+
+    std::string app_private_dir = storage_flag == FLAG_STORAGE_CE
+        ? create_data_user_ce_package_path(volume_uuid, multiuser_get_user_id(uid), pkgname)
+        : create_data_user_de_package_path(volume_uuid, multiuser_get_user_id(uid), pkgname);
+    dir_rec_t dir;
+    if (get_path_from_string(&dir, app_private_dir.c_str()) != 0) {
+        LOG(WARNING) << "Could not get dir rec for " << app_private_dir;
+        return false;
+    }
+    // Usually secondary dex files have a nested directory structure.
+    // Pick at most 10 subdirectories when validating (arbitrary value).
+    // If the secondary dex file is >10 directory nested then validation will
+    // fail and the file will not be compiled.
+    return validate_path(&dir, path, /*max_subdirs*/ 10) == 0;
+}
+
 /**
  * Get the contents of a environment variable that contains a path. Caller
  * owns the string that is inserted into the directory record. Returns
@@ -1368,6 +1387,74 @@ int wait_child(pid_t pid)
     } else {
         return status;      /* always nonzero */
     }
+}
+
+/**
+ * Prepare an app cache directory, which offers to fix-up the GID and
+ * directory mode flags during a platform upgrade.
+ * The app cache directory path will be 'parent'/'name'.
+ */
+int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t target_mode,
+        uid_t uid, gid_t gid) {
+    auto path = StringPrintf("%s/%s", parent.c_str(), name);
+    struct stat st;
+    if (stat(path.c_str(), &st) != 0) {
+        if (errno == ENOENT) {
+            // This is fine, just create it
+            if (fs_prepare_dir_strict(path.c_str(), target_mode, uid, gid) != 0) {
+                PLOG(ERROR) << "Failed to prepare " << path;
+                return -1;
+            } else {
+                return 0;
+            }
+        } else {
+            PLOG(ERROR) << "Failed to stat " << path;
+            return -1;
+        }
+    }
+
+    mode_t actual_mode = st.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID);
+    if (st.st_uid != uid) {
+        // Mismatched UID is real trouble; we can't recover
+        LOG(ERROR) << "Mismatched UID at " << path << ": found " << st.st_uid
+                << " but expected " << uid;
+        return -1;
+    } else if (st.st_gid == gid && actual_mode == target_mode) {
+        // Everything looks good!
+        return 0;
+    }
+
+    // Directory is owned correctly, but GID or mode mismatch means it's
+    // probably a platform upgrade so we need to fix them
+    FTS *fts;
+    FTSENT *p;
+    char *argv[] = { (char*) path.c_str(), nullptr };
+    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+        PLOG(ERROR) << "Failed to fts_open " << path;
+        return -1;
+    }
+    while ((p = fts_read(fts)) != NULL) {
+        switch (p->fts_info) {
+        case FTS_DP:
+            if (chmod(p->fts_accpath, target_mode) != 0) {
+                PLOG(WARNING) << "Failed to chmod " << p->fts_path;
+            }
+            // Intentional fall through to also set GID
+        case FTS_F:
+            if (chown(p->fts_accpath, -1, gid) != 0) {
+                PLOG(WARNING) << "Failed to chown " << p->fts_path;
+            }
+            break;
+        case FTS_SL:
+        case FTS_SLNONE:
+            if (lchown(p->fts_accpath, -1, gid) != 0) {
+                PLOG(WARNING) << "Failed to chown " << p->fts_path;
+            }
+            break;
+        }
+    }
+    fts_close(fts);
+    return 0;
 }
 
 }  // namespace installd

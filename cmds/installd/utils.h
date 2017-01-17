@@ -148,6 +148,8 @@ void clear_cache_files(const std::string& data_path, cache_t* cache, int64_t fre
 void finish_cache_collection(cache_t* cache);
 
 int validate_system_app_path(const char* path);
+bool validate_secondary_dex_path(const char* pkgname, const char* path,
+        const char* volume_uuid, int uid, int storage_flag);
 
 int get_path_from_env(dir_rec_t* rec, const char* var);
 
@@ -166,6 +168,9 @@ char *build_string3(const char *s1, const char *s2, const char *s3);
 int ensure_config_user_dirs(userid_t userid);
 
 int wait_child(pid_t pid);
+
+int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t target_mode,
+        uid_t uid, gid_t gid);
 
 }  // namespace installd
 }  // namespace android
