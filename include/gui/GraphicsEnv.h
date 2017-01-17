@@ -19,6 +19,8 @@
 
 #include <string>
 
+struct android_namespace_t;
+
 namespace android {
 
 class GraphicsEnv {
@@ -31,12 +33,27 @@ public:
     // in the search path must have a '!' after the zip filename, e.g.
     //     /data/app/com.example.driver/base.apk!/lib/arm64-v8a
     void setDriverPath(const std::string path);
+    android_namespace_t* getDriverNamespace();
 
 private:
     GraphicsEnv() = default;
     std::string mDriverPath;
+    android_namespace_t* mDriverNamespace = nullptr;
 };
 
 } // namespace android
+
+/* FIXME
+ * Export an un-mangled function that just does
+ *     return android::GraphicsEnv::getInstance().getDriverNamespace();
+ * This allows libEGL to get the function pointer via dlsym, since it can't
+ * directly link against libgui. In a future release, we'll fix this so that
+ * libgui does not depend on graphics API libraries, and libEGL can link
+ * against it. The current dependencies from libgui -> libEGL are:
+ *  - the GLConsumer class, which should be moved to its own library
+ *  - the EGLsyncKHR synchronization in BufferQueue, which is deprecated and
+ *    will be removed soon.
+ */
+extern "C" android_namespace_t* android_getDriverNamespace();
 
 #endif // ANDROID_GUI_GRAPHICS_ENV_H

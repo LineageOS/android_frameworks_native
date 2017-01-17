@@ -69,6 +69,7 @@ cc_library_shared {
         "vulkan_headers",
     ],
     shared_libs: [
+        "libgui",
         "libziparchive",
         "libhardware",
         "libsync",

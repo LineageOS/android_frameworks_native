@@ -18,7 +18,10 @@
 #define LOG_TAG "GraphicsEnv"
 #include <gui/GraphicsEnv.h>
 
+#include <mutex>
+
 #include <log/log.h>
+#include <nativeloader/dlext_namespaces.h>
 
 namespace android {
 
@@ -37,4 +40,42 @@ void GraphicsEnv::setDriverPath(const std::string path) {
     mDriverPath = path;
 }
 
+android_namespace_t* GraphicsEnv::getDriverNamespace() {
+    static std::once_flag once;
+    std::call_once(once, [this]() {
+        // TODO; In the next version of Android, all graphics drivers will be
+        // loaded into a custom namespace. To minimize risk for this release,
+        // only updated drivers use a custom namespace.
+        //
+        // Additionally, the custom namespace will be
+        // ANDROID_NAMESPACE_TYPE_ISOLATED, and will only have access to a
+        // subset of the system.
+        if (mDriverPath.empty())
+            return;
+
+        char defaultPath[PATH_MAX];
+        android_get_LD_LIBRARY_PATH(defaultPath, sizeof(defaultPath));
+        size_t defaultPathLen = strlen(defaultPath);
+
+        std::string path;
+        path.reserve(mDriverPath.size() + 1 + defaultPathLen);
+        path.append(mDriverPath);
+        path.push_back(':');
+        path.append(defaultPath, defaultPathLen);
+
+        mDriverNamespace = android_create_namespace(
+                "gfx driver",
+                nullptr,                    // ld_library_path
+                path.c_str(),               // default_library_path
+                ANDROID_NAMESPACE_TYPE_SHARED,
+                nullptr,                    // permitted_when_isolated_path
+                nullptr);                   // parent
+    });
+    return mDriverNamespace;
+}
+
 } // namespace android
+
+extern "C" android_namespace_t* android_getDriverNamespace() {
+    return android::GraphicsEnv::getInstance().getDriverNamespace();
+}
