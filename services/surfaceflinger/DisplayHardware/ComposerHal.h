@@ -47,7 +47,7 @@ using android::hardware::graphics::composer::V2_1::Display;
 using android::hardware::graphics::composer::V2_1::Layer;
 using android::hardware::graphics::composer::V2_1::Config;
 
-using android::hardware::graphics::composer::V2_1::CommandWriter;
+using android::hardware::graphics::composer::V2_1::CommandWriterBase;
 using android::hardware::graphics::composer::V2_1::CommandReaderBase;
 
 using android::hardware::kSynchronizedReadWrite;
@@ -228,7 +228,7 @@ private:
     // 64KiB minus a small space for metadata such as read/write pointers
     static constexpr size_t kWriterInitialSize =
         64 * 1024 / sizeof(uint32_t) - 16;
-    CommandWriter mWriter;
+    CommandWriterBase mWriter;
     CommandReader mReader;
 };
 
