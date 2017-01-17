@@ -337,6 +337,7 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -428,6 +429,7 @@ binder::Status InstalldNativeService::migrateAppData(const std::unique_ptr<std::
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -470,6 +472,7 @@ binder::Status InstalldNativeService::migrateAppData(const std::unique_ptr<std::
 binder::Status InstalldNativeService::clearAppProfiles(const std::string& packageName) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* pkgname = packageName.c_str();
     binder::Status res = ok();
@@ -487,6 +490,7 @@ binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::st
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -546,6 +550,7 @@ static int destroy_app_current_profiles(const char *pkgname, userid_t userid) {
 binder::Status InstalldNativeService::destroyAppProfiles(const std::string& packageName) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* pkgname = packageName.c_str();
     binder::Status res = ok();
@@ -566,6 +571,7 @@ binder::Status InstalldNativeService::destroyAppData(const std::unique_ptr<std::
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -599,6 +605,7 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std:
     CHECK_ARGUMENT_UUID(fromUuid);
     CHECK_ARGUMENT_UUID(toUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* from_uuid = fromUuid ? fromUuid->c_str() : nullptr;
     const char* to_uuid = toUuid ? toUuid->c_str() : nullptr;
@@ -733,6 +740,7 @@ binder::Status InstalldNativeService::createUserData(const std::unique_ptr<std::
         int32_t userId, int32_t userSerial ATTRIBUTE_UNUSED, int32_t flags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     if (flags & FLAG_STORAGE_DE) {
@@ -749,6 +757,7 @@ binder::Status InstalldNativeService::destroyUserData(const std::unique_ptr<std:
         int32_t userId, int32_t flags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     binder::Status res = ok();
@@ -792,6 +801,7 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
         int64_t freeStorageSize) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     cache_t* cache;
@@ -834,6 +844,8 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
 binder::Status InstalldNativeService::rmdex(const std::string& codePath,
         const std::string& instructionSet) {
     ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
     char dex_path[PKG_PATH_MAX];
 
     const char* path = codePath.c_str();
@@ -1049,6 +1061,7 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
     for (auto packageName : packageNames) {
         CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     }
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     // When modifying this logic, always verify using tests:
     // runtest -x frameworks/base/services/tests/servicestests/src/com/android/server/pm/InstallerTest.java -m testGetAppSize
@@ -1148,6 +1161,7 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         std::vector<int64_t>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     // When modifying this logic, always verify using tests:
     // runtest -x frameworks/base/services/tests/servicestests/src/com/android/server/pm/InstallerTest.java -m testGetUserSize
@@ -1243,6 +1257,7 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
         int32_t userId, int32_t flags, std::vector<int64_t>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     // When modifying this logic, always verify using tests:
     // runtest -x frameworks/base/services/tests/servicestests/src/com/android/server/pm/InstallerTest.java -m testGetExternalSize
@@ -1354,6 +1369,7 @@ binder::Status InstalldNativeService::dumpProfiles(int32_t uid, const std::strin
         const std::string& codePaths, bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* pkgname = packageName.c_str();
     const char* code_paths = codePaths.c_str();
@@ -1367,6 +1383,7 @@ binder::Status InstalldNativeService::mergeProfiles(int32_t uid, const std::stri
         bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* pkgname = packageName.c_str();
     *_aidl_return = analyse_profiles(uid, pkgname);
@@ -1383,6 +1400,7 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
     if (packageName && *packageName != "*") {
         CHECK_ARGUMENT_PACKAGE_NAME(*packageName);
     }
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* apk_path = apkPath.c_str();
     const char* pkgname = packageName ? packageName->c_str() : "*";
@@ -1399,6 +1417,8 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
 
 binder::Status InstalldNativeService::markBootComplete(const std::string& instructionSet) {
     ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
     const char* instruction_set = instructionSet.c_str();
 
     char boot_marker_path[PKG_PATH_MAX];
@@ -1442,6 +1462,7 @@ binder::Status InstalldNativeService::linkNativeLibraryDirectory(
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     const char* pkgname = packageName.c_str();
@@ -1564,6 +1585,8 @@ static int flatten_path(const char *prefix, const char *suffix,
 binder::Status InstalldNativeService::idmap(const std::string& targetApkPath,
         const std::string& overlayApkPath, int32_t uid) {
     ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
     const char* target_apk = targetApkPath.c_str();
     const char* overlay_apk = overlayApkPath.c_str();
     ALOGV("idmap target_apk=%s overlay_apk=%s uid=%d\n", target_apk, overlay_apk, uid);
@@ -1635,6 +1658,7 @@ binder::Status InstalldNativeService::restoreconAppData(const std::unique_ptr<st
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     binder::Status res = ok();
 
@@ -1663,6 +1687,8 @@ binder::Status InstalldNativeService::restoreconAppData(const std::unique_ptr<st
 binder::Status InstalldNativeService::createOatDir(const std::string& oatDir,
         const std::string& instructionSet) {
     ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
     const char* oat_dir = oatDir.c_str();
     const char* instruction_set = instructionSet.c_str();
     char oat_instr_dir[PKG_PATH_MAX];
@@ -1685,6 +1711,8 @@ binder::Status InstalldNativeService::createOatDir(const std::string& oatDir,
 
 binder::Status InstalldNativeService::rmPackageDir(const std::string& packageDir) {
     ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
     if (validate_apk_path(packageDir.c_str())) {
         return error("Invalid path " + packageDir);
     }
@@ -1697,6 +1725,8 @@ binder::Status InstalldNativeService::rmPackageDir(const std::string& packageDir
 binder::Status InstalldNativeService::linkFile(const std::string& relativePath,
         const std::string& fromBase, const std::string& toBase) {
     ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
     const char* relative_path = relativePath.c_str();
     const char* from_base = fromBase.c_str();
     const char* to_base = toBase.c_str();
@@ -1723,6 +1753,7 @@ binder::Status InstalldNativeService::linkFile(const std::string& relativePath,
 binder::Status InstalldNativeService::moveAb(const std::string& apkPath,
         const std::string& instructionSet, const std::string& outputPath) {
     ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* apk_path = apkPath.c_str();
     const char* instruction_set = instructionSet.c_str();
@@ -1735,6 +1766,7 @@ binder::Status InstalldNativeService::moveAb(const std::string& apkPath,
 binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
         const std::string& instructionSet, const std::string& outputPath) {
     ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* apk_path = apkPath.c_str();
     const char* instruction_set = instructionSet.c_str();

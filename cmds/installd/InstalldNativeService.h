@@ -99,6 +99,9 @@ public:
             const std::string& outputPath);
     binder::Status deleteOdex(const std::string& apkPath, const std::string& instructionSet,
             const std::string& outputPath);
+
+private:
+    std::recursive_mutex mLock;
 };
 
 }  // namespace installd
