@@ -68,4 +68,6 @@ interface IInstalld {
             @utf8InCpp String outputPath);
     void deleteOdex(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
             @utf8InCpp String outputPath);
+
+    void invalidateMounts();
 }
