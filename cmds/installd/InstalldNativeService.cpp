@@ -60,6 +60,7 @@
 #endif
 
 using android::base::StringPrintf;
+using std::endl;
 
 namespace android {
 namespace installd {
@@ -189,15 +190,22 @@ status_t InstalldNativeService::start() {
 }
 
 status_t InstalldNativeService::dump(int fd, const Vector<String16> & /* args */) {
+    auto out = std::fstream(StringPrintf("/proc/self/fd/%d", fd));
     const binder::Status dump_permission = checkPermission(kDump);
     if (!dump_permission.isOk()) {
-        const String8 msg(dump_permission.toString8());
-        write(fd, msg.string(), msg.size());
+        out << dump_permission.toString8() << endl;
         return PERMISSION_DENIED;
     }
+    std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    std::string msg = "installd is happy\n";
-    write(fd, msg.c_str(), strlen(msg.c_str()));
+    out << "installd is happy!" << endl << endl;
+    out << "Devices with quota support:" << endl;
+    for (const auto& n : mQuotaDevices) {
+        out << "    " << n.first << " = " << n.second << endl;
+    }
+    out << endl;
+    out.flush();
+
     return NO_ERROR;
 }
 
@@ -889,28 +897,6 @@ static std::string toString(std::vector<int64_t> values) {
 }
 #endif
 
-static std::string findDeviceForUuid(const std::unique_ptr<std::string>& uuid) {
-    auto path = create_data_path(uuid ? uuid->c_str() : nullptr);
-    std::ifstream in("/proc/mounts");
-    if (!in.is_open()) {
-        PLOG(ERROR) << "Failed to read mounts";
-        return "";
-    }
-    std::string source;
-    std::string target;
-    while (!in.eof()) {
-        std::getline(in, source, ' ');
-        std::getline(in, target, ' ');
-        if (target == path) {
-            return source;
-        }
-        // Skip to next line
-        std::getline(in, source);
-    }
-    PLOG(ERROR) << "Failed to resolve block device for " << path;
-    return "";
-}
-
 static void collectQuotaStats(const std::string& device, int32_t userId,
         int32_t appId, struct stats* stats, struct stats* extStats ATTRIBUTE_UNUSED) {
     if (device.empty()) return;
@@ -963,11 +949,6 @@ static void collectQuotaStats(const std::string& device, int32_t userId,
 #if MEASURE_EXTERNAL
     // TODO: measure using external GIDs
 #endif
-}
-
-static void collectQuotaStats(const std::unique_ptr<std::string>& uuid, int32_t userId,
-        int32_t appId, struct stats* stats, struct stats* extStats) {
-    collectQuotaStats(findDeviceForUuid(uuid), userId, appId, stats, extStats);
 }
 
 static void collectManualStats(const std::string& path, struct stats* stats) {
@@ -1091,6 +1072,11 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
 
+    auto device = findQuotaDeviceForUuid(uuid);
+    if (device.empty()) {
+        flags &= ~FLAG_USE_QUOTA;
+    }
+
     for (auto packageName : packageNames) {
         auto obbCodePath = create_data_media_obb_path(uuid_, packageName.c_str());
         calculate_tree_size(obbCodePath, &extStats.codeSize);
@@ -1102,7 +1088,7 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
                     multiuser_get_shared_gid(userId, appId));
         }
 
-        collectQuotaStats(uuid, userId, appId, &stats, &extStats);
+        collectQuotaStats(device, userId, appId, &stats, &extStats);
 
     } else {
         for (auto codePath : codePaths) {
@@ -1181,6 +1167,11 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
     auto obbPath = create_data_path(uuid_) + "/media/obb";
     calculate_tree_size(obbPath, &extStats.codeSize);
 
+    auto device = findQuotaDeviceForUuid(uuid);
+    if (device.empty()) {
+        flags &= ~FLAG_USE_QUOTA;
+    }
+
     if (flags & FLAG_USE_QUOTA) {
         calculate_tree_size(create_data_app_path(uuid_), &stats.codeSize, -1, -1, true);
 
@@ -1206,7 +1197,6 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         calculate_tree_size(create_data_misc_foreign_dex_path(userId), &stats.dataSize,
                 -1, -1, true);
 
-        auto device = findDeviceForUuid(uuid);
         for (auto appId : appIds) {
             if (appId >= AID_APP_START) {
                 collectQuotaStats(device, userId, appId, &stats, &extStats);
@@ -1274,10 +1264,13 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
     int64_t videoSize = 0;
     int64_t imageSize = 0;
 
+    auto device = findQuotaDeviceForUuid(uuid);
+    if (device.empty()) {
+        flags &= ~FLAG_USE_QUOTA;
+    }
+
     if (flags & FLAG_USE_QUOTA) {
         struct dqblk dq;
-
-        auto device = findDeviceForUuid(uuid);
 
         uid_t uid = multiuser_get_uid(userId, AID_MEDIA_RW);
         if (quotactl(QCMD(Q_GETQUOTA, USRQUOTA), device.c_str(), uid,
@@ -1775,6 +1768,43 @@ binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
 
     bool res = delete_odex(apk_path, instruction_set, oat_dir);
     return res ? ok() : error();
+}
+
+binder::Status InstalldNativeService::invalidateMounts() {
+    ENFORCE_UID(AID_SYSTEM);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    mQuotaDevices.clear();
+
+    std::ifstream in("/proc/mounts");
+    if (!in.is_open()) {
+        return error("Failed to read mounts");
+    }
+
+    std::string source;
+    std::string target;
+    std::string ignored;
+    struct dqblk dq;
+    while (!in.eof()) {
+        std::getline(in, source, ' ');
+        std::getline(in, target, ' ');
+        std::getline(in, ignored);
+
+        if (source.compare(0, 11, "/dev/block/") == 0) {
+            if (quotactl(QCMD(Q_GETQUOTA, USRQUOTA), source.c_str(), 0,
+                    reinterpret_cast<char*>(&dq)) == 0) {
+                LOG(DEBUG) << "Found " << source << " with quota";
+                mQuotaDevices[target] = source;
+            }
+        }
+    }
+    return ok();
+}
+
+std::string InstalldNativeService::findQuotaDeviceForUuid(
+        const std::unique_ptr<std::string>& uuid) {
+    auto path = create_data_path(uuid ? uuid->c_str() : nullptr);
+    return mQuotaDevices[path];
 }
 
 }  // namespace installd
