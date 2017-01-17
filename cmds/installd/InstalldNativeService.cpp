@@ -287,12 +287,13 @@ static int prepare_app_cache_dir(const std::string& parent, const char* name, mo
         }
     }
 
+    mode_t actual_mode = st.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID);
     if (st.st_uid != uid) {
         // Mismatched UID is real trouble; we can't recover
         LOG(ERROR) << "Mismatched UID at " << path << ": found " << st.st_uid
                 << " but expected " << uid;
         return -1;
-    } else if (st.st_gid == gid && st.st_mode == target_mode) {
+    } else if (st.st_gid == gid && actual_mode == target_mode) {
         // Everything looks good!
         return 0;
     }
@@ -343,9 +344,14 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
     // Assume invalid inode unless filled in below
     if (_aidl_return != nullptr) *_aidl_return = -1;
 
-    uid_t uid = multiuser_get_uid(userId, appId);
-    gid_t cacheGid = multiuser_get_cache_gid(userId, appId);
+    int32_t uid = multiuser_get_uid(userId, appId);
+    int32_t cacheGid = multiuser_get_cache_gid(userId, appId);
     mode_t targetMode = targetSdkVersion >= MIN_RESTRICTED_HOME_SDK_VERSION ? 0700 : 0751;
+
+    // If UID doesn't have a specific cache GID, use UID value
+    if (cacheGid == -1) {
+        cacheGid = uid;
+    }
 
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_package_path(uuid_, userId, pkgname);
