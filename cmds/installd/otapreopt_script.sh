@@ -86,4 +86,7 @@ fi
 print -u${STATUS_FD} "global_progress 1.0"
 cmd otadexopt cleanup
 
+/system/bin/backuptool.sh backup
+/system/bin/backuptool.sh restore
+
 exit 0
