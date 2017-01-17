@@ -150,6 +150,9 @@ define NULL_HANDLE 0
 @extension("VK_NVX_device_generated_commands") define VK_NVX_DEVICE_GENERATED_COMMANDS_SPEC_VERSION 1
 @extension("VK_NVX_device_generated_commands") define VK_NVX_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME "VK_NVX_device_generated_commands"
 
+@extension("VK_KHR_swapchain_front_buffered") define VK_KHR_SWAPCHAIN_FRONT_BUFFERED_SPEC_VERSION 2
+@extension("VK_KHR_swapchain_front_buffered") define VK_KHR_SWAPCHAIN_FRONT_BUFFERED_EXTENSION_NAME "VK_KHR_swapchain_front_buffered"
+
 
 
 /////////////
@@ -924,6 +927,10 @@ enum VkPresentModeKHR {
     VK_PRESENT_MODE_MAILBOX_KHR                             = 0x00000001,
     VK_PRESENT_MODE_FIFO_KHR                                = 0x00000002,
     VK_PRESENT_MODE_FIFO_RELAXED_KHR                        = 0x00000003,
+    //@extension("VK_KHR_swapchain_front_buffered")
+    VK_PRESENT_MODE_FRONT_BUFFERED_DEMAND_REFRESH_KHR       = 1000111000,
+    //@extension("VK_KHR_swapchain_front_buffered")
+    VK_PRESENT_MODE_FRONT_BUFFERED_CONTINUOUS_REFRESH_KHR   = 1000111001,
 }
 
 @extension("VK_KHR_surface")
@@ -6107,6 +6114,13 @@ cmd void  vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX(
         VkPhysicalDevice                            physicalDevice,
         VkDeviceGeneratedCommandsFeaturesNVX*       pFeatures,
         VkDeviceGeneratedCommandsLimitsNVX*         pLimits) {
+}
+
+@extension("VK_KHR_swapchain_front_buffered")
+cmd VkResult vkGetSwapchainStatusKHR(
+        VkDevice                                    device,
+        VkSwapchainKHR                              swapchain) {
+    return ?
 }
 
 
