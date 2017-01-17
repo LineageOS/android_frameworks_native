@@ -23,19 +23,19 @@ namespace android {
 
 #define PLAYER_PIID_INVALID -1
 
-enum {
+typedef enum {
     PLAYER_TYPE_SLES_AUDIOPLAYER_BUFFERQUEUE = 11,
     PLAYER_TYPE_SLES_AUDIOPLAYER_URI_FD = 12,
-};
+} player_type_t;
 
-enum {
+typedef enum {
     PLAYER_STATE_UNKNOWN  = -1,
     PLAYER_STATE_RELEASED = 0,
     PLAYER_STATE_IDLE     = 1,
     PLAYER_STATE_STARTED  = 2,
     PLAYER_STATE_PAUSED   = 3,
     PLAYER_STATE_STOPPED  = 4,
-};
+} player_state_t;
 
 }; // namespace android
 

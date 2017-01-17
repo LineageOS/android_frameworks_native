@@ -1,7 +1,10 @@
 cc_library_shared {
     name: "libaudiomanager",
 
-    srcs: ["IAudioManager.cpp"],
+    srcs: [
+        "IAudioManager.cpp",
+        "IPlayer.cpp",
+    ],
 
     shared_libs: [
         "libutils",

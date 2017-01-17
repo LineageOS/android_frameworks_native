@@ -35,15 +35,16 @@ public:
     {
     }
 
-    virtual audio_unique_id_t trackPlayer(int playerType, int usage, int content) {
+    virtual audio_unique_id_t trackPlayer(player_type_t playerType, audio_usage_t usage,
+            audio_content_type_t content, const sp<IBinder>& player) {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
         data.writeInt32(1); // non-null PlayerIdCard parcelable
         // marshall PlayerIdCard data
         data.writeInt32((int32_t) playerType);
         //   write attributes of PlayerIdCard
-        data.writeInt32(usage);
-        data.writeInt32(content);
+        data.writeInt32((int32_t) usage);
+        data.writeInt32((int32_t) content);
         data.writeInt32(0 /*source: none here, this is a player*/);
         data.writeInt32(0 /*flags*/);
         //   write attributes' tags
@@ -51,6 +52,8 @@ public:
         data.writeString16(String16("")); // no tags
         //   write attributes' bundle
         data.writeInt32(-1977 /*ATTR_PARCEL_IS_NULL_BUNDLE*/); // no bundle
+        //   write IPlayer
+        data.writeStrongBinder(player);
         // get new PIId in reply
         const status_t res = remote()->transact(TRACK_PLAYER, data, &reply, 0);
         if (res != OK || reply.readExceptionCode() != 0) {
@@ -63,13 +66,14 @@ public:
         }
     }
 
-    virtual status_t playerAttributes(audio_unique_id_t piid, int usage, int content) {
+    virtual status_t playerAttributes(audio_unique_id_t piid, audio_usage_t usage,
+            audio_content_type_t content) {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
-        data.writeInt32(piid);
+        data.writeInt32((int32_t) piid);
         data.writeInt32(1); // non-null AudioAttributes parcelable
-        data.writeInt32(usage);
-        data.writeInt32(content);
+        data.writeInt32((int32_t) usage);
+        data.writeInt32((int32_t) content);
         data.writeInt32(0 /*source: none here, this is a player*/);
         data.writeInt32(0 /*flags*/);
         //   write attributes' tags
@@ -80,18 +84,18 @@ public:
         return remote()->transact(PLAYER_ATTRIBUTES, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
-    virtual status_t playerEvent(int piid, int event) {
+    virtual status_t playerEvent(audio_unique_id_t piid, player_state_t event) {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
-        data.writeInt32(piid);
-        data.writeInt32(event);
+        data.writeInt32((int32_t) piid);
+        data.writeInt32((int32_t) event);
         return remote()->transact(PLAYER_EVENT, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
-    virtual status_t releasePlayer(int piid) {
+    virtual status_t releasePlayer(audio_unique_id_t piid) {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioManager::getInterfaceDescriptor());
-        data.writeInt32(piid);
+        data.writeInt32((int32_t) piid);
         return remote()->transact(RELEASE_PLAYER, data, &reply, IBinder::FLAG_ONEWAY);
     }
 };
