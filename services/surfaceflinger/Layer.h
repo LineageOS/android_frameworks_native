@@ -286,7 +286,7 @@ public:
 
 #ifdef USE_HWC2
     // If a buffer was replaced this frame, release the former buffer
-    void releasePendingBuffer();
+    void releasePendingBuffer(nsecs_t dequeueReadyTime);
 #endif
 
     /*

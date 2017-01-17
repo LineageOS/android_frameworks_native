@@ -575,10 +575,13 @@ status_t SurfaceFlinger::getSupportedFrameTimestamps(
     *outSupported = {
         FrameEvent::REQUESTED_PRESENT,
         FrameEvent::ACQUIRE,
+        FrameEvent::LATCH,
         FrameEvent::FIRST_REFRESH_START,
+        FrameEvent::LAST_REFRESH_START,
         FrameEvent::GL_COMPOSITION_DONE,
         getHwComposer().presentFenceRepresentsStartOfScanout() ?
                 FrameEvent::DISPLAY_PRESENT : FrameEvent::DISPLAY_RETIRE,
+        FrameEvent::DEQUEUE_READY,
         FrameEvent::RELEASE,
     };
     return NO_ERROR;
@@ -1226,8 +1229,9 @@ void SurfaceFlinger::postComposition()
     ALOGV("postComposition");
 
     // Release any buffers which were replaced this frame
+    nsecs_t dequeueReadyTime = systemTime();
     for (auto& layer : mLayersWithQueuedFrames) {
-        layer->releasePendingBuffer();
+        layer->releasePendingBuffer(dequeueReadyTime);
     }
 
     const sp<const DisplayDevice> hw(getDefaultDisplayDevice());

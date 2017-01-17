@@ -357,8 +357,11 @@ public:
         *outSupported = {
                 FrameEvent::REQUESTED_PRESENT,
                 FrameEvent::ACQUIRE,
+                FrameEvent::LATCH,
                 FrameEvent::FIRST_REFRESH_START,
+                FrameEvent::LAST_REFRESH_START,
                 FrameEvent::GL_COMPOSITION_DONE,
+                FrameEvent::DEQUEUE_READY,
                 FrameEvent::RELEASE
         };
         if (mSupportsPresent) {
@@ -522,8 +525,9 @@ protected:
               kProducerAcquireTime(frameStartTime + 300),
               kConsumerAcquireTime(frameStartTime + 301),
               kLatchTime(frameStartTime + 500),
-              kRetireTime(frameStartTime + 600),
-              kReleaseTime(frameStartTime + 700),
+              kDequeueReadyTime(frameStartTime + 600),
+              kRetireTime(frameStartTime + 700),
+              kReleaseTime(frameStartTime + 800),
               mRefreshes {
                     { mFenceMap, frameStartTime + 410 },
                     { mFenceMap, frameStartTime + 420 },
@@ -559,6 +563,7 @@ protected:
         const nsecs_t kProducerAcquireTime;
         const nsecs_t kConsumerAcquireTime;
         const nsecs_t kLatchTime;
+        const nsecs_t kDequeueReadyTime;
         const nsecs_t kRetireTime;
         const nsecs_t kReleaseTime;
 
@@ -589,13 +594,24 @@ protected:
         mFrameTimestampsEnabled = true;
     }
 
+    int getAllFrameTimestamps(uint32_t framesAgo) {
+        return native_window_get_frame_timestamps(mWindow.get(), framesAgo,
+                &outRequestedPresentTime, &outAcquireTime, &outLatchTime,
+                &outFirstRefreshStartTime, &outLastRefreshStartTime,
+                &outGpuCompositionDoneTime, &outDisplayPresentTime,
+                &outDisplayRetireTime, &outDequeueReadyTime, &outReleaseTime);
+    }
+
     void resetTimestamps() {
         outRequestedPresentTime = -1;
         outAcquireTime = -1;
-        outRefreshStartTime = -1;
+        outLatchTime = -1;
+        outFirstRefreshStartTime = -1;
+        outLastRefreshStartTime = -1;
         outGpuCompositionDoneTime = -1;
         outDisplayPresentTime = -1;
         outDisplayRetireTime = -1;
+        outDequeueReadyTime = -1;
         outReleaseTime = -1;
     }
 
@@ -645,6 +661,19 @@ protected:
         // that's okay for the purposes of this test.
         std::shared_ptr<FenceTime> gpuDoneFenceTime = FenceTime::NO_FENCE;
 
+        // Composite the previous frame one more time, which helps verify
+        // LastRefresh is updated properly.
+        if (oldFrame != nullptr) {
+            mCfeh->addPreComposition(nOldFrame,
+                                     oldFrame->mRefreshes[2].kStartTime);
+            gpuDoneFenceTime = gpuComposited ?
+                    oldFrame->mRefreshes[2].mGpuCompositionDone.mFenceTime :
+                    FenceTime::NO_FENCE;
+            mCfeh->addPostComposition(nOldFrame, gpuDoneFenceTime,
+                    oldFrame->mRefreshes[2].mPresent.mFenceTime);
+        }
+
+        // Latch the new frame.
         mCfeh->addLatch(nNewFrame, newFrame->kLatchTime);
 
         mCfeh->addPreComposition(nNewFrame, newFrame->mRefreshes[0].kStartTime);
@@ -654,7 +683,7 @@ protected:
         // HWC2 releases the previous buffer after a new latch just before
         // calling postComposition.
         if (oldFrame != nullptr) {
-            mCfeh->addRelease(nOldFrame,
+            mCfeh->addRelease(nOldFrame, oldFrame->kDequeueReadyTime,
                     std::shared_ptr<FenceTime>(oldFrame->mRelease.mFenceTime));
         }
         mCfeh->addPostComposition(nNewFrame, gpuDoneFenceTime,
@@ -671,12 +700,6 @@ protected:
                 FenceTime::NO_FENCE;
         mCfeh->addPostComposition(nNewFrame, gpuDoneFenceTime,
                 newFrame->mRefreshes[1].mPresent.mFenceTime);
-        mCfeh->addPreComposition(nNewFrame, newFrame->mRefreshes[2].kStartTime);
-        gpuDoneFenceTime = gpuComposited ?
-                newFrame->mRefreshes[2].mGpuCompositionDone.mFenceTime :
-                FenceTime::NO_FENCE;
-        mCfeh->addPostComposition(nNewFrame, gpuDoneFenceTime,
-                newFrame->mRefreshes[2].mPresent.mFenceTime);
     }
 
     void QueryPresentRetireSupported(
@@ -697,10 +720,13 @@ protected:
 
     int64_t outRequestedPresentTime = -1;
     int64_t outAcquireTime = -1;
-    int64_t outRefreshStartTime = -1;
+    int64_t outLatchTime = -1;
+    int64_t outFirstRefreshStartTime = -1;
+    int64_t outLastRefreshStartTime = -1;
     int64_t outGpuCompositionDoneTime = -1;
     int64_t outDisplayPresentTime = -1;
     int64_t outDisplayRetireTime = -1;
+    int64_t outDequeueReadyTime = -1;
     int64_t outReleaseTime = -1;
 
     FrameEvents mFrames[2] { { mFenceMap, 1000 }, { mFenceMap, 2000 } };
@@ -732,10 +758,7 @@ TEST_F(GetFrameTimestampsTest, DefaultDisabled) {
 
     // Verify attempts to get frame timestamps fail.
     const uint32_t framesAgo = 0;
-    int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            &outRequestedPresentTime, &outAcquireTime, &outRefreshStartTime,
-            &outGpuCompositionDoneTime, &outDisplayPresentTime,
-            &outDisplayRetireTime, &outReleaseTime);
+    int result = getAllFrameTimestamps(framesAgo);
     EXPECT_EQ(INVALID_OPERATION, result);
     EXPECT_EQ(0, mFakeConsumer->mGetFrameTimestampsCount);
 }
@@ -776,10 +799,7 @@ TEST_F(GetFrameTimestampsTest, EnabledSimple) {
     // Verify queries for timestamps that the producer doesn't know about
     // triggers a call to see if the consumer has any new timestamps.
     const uint32_t framesAgo = 0;
-    int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            &outRequestedPresentTime, &outAcquireTime, &outRefreshStartTime,
-            &outGpuCompositionDoneTime, &outDisplayPresentTime,
-            &outDisplayRetireTime, &outReleaseTime);
+    int result = getAllFrameTimestamps(framesAgo);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(3, mFakeConsumer->mGetFrameTimestampsCount);
 }
@@ -831,35 +851,35 @@ TEST_F(GetFrameTimestampsTest, TimestampsAssociatedWithCorrectFrame) {
     // Verify timestamps are correct for frame 1.
     uint32_t framesAgo = 1;
     resetTimestamps();
-    int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            &outRequestedPresentTime, &outAcquireTime, &outRefreshStartTime,
-            &outGpuCompositionDoneTime, &outDisplayPresentTime,
-            &outDisplayRetireTime, &outReleaseTime);
+    int result = getAllFrameTimestamps(framesAgo);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
     EXPECT_EQ(mFrames[0].kProducerAcquireTime, outAcquireTime);
-    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outRefreshStartTime);
+    EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kGpuCompositionDoneTime,
             outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kPresentTime, outDisplayPresentTime);
     EXPECT_EQ(mFrames[0].kRetireTime, outDisplayRetireTime);
+    EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(mFrames[0].kReleaseTime, outReleaseTime);
 
     // Verify timestamps are correct for frame 2.
     framesAgo = 0;
     resetTimestamps();
-    result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            &outRequestedPresentTime, &outAcquireTime, &outRefreshStartTime,
-            &outGpuCompositionDoneTime, &outDisplayPresentTime,
-            &outDisplayRetireTime, &outReleaseTime);
+    result = getAllFrameTimestamps(framesAgo);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[1].kRequestedPresentTime, outRequestedPresentTime);
     EXPECT_EQ(mFrames[1].kProducerAcquireTime, outAcquireTime);
-    EXPECT_EQ(mFrames[1].mRefreshes[0].kStartTime, outRefreshStartTime);
+    EXPECT_EQ(mFrames[1].kLatchTime, outLatchTime);
+    EXPECT_EQ(mFrames[1].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
+    EXPECT_EQ(mFrames[1].mRefreshes[1].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(mFrames[1].mRefreshes[0].kGpuCompositionDoneTime,
             outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[1].mRefreshes[0].kPresentTime, outDisplayPresentTime);
     EXPECT_EQ(0, outDisplayRetireTime);
+    EXPECT_EQ(0, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
 }
 
@@ -881,7 +901,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
-            nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
@@ -893,7 +913,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
-            nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
@@ -909,7 +929,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
-            nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[1].kRequestedPresentTime, outRequestedPresentTime);
@@ -921,7 +941,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
-            nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[1].kRequestedPresentTime, outRequestedPresentTime);
@@ -950,7 +970,9 @@ TEST_F(GetFrameTimestampsTest, ZeroRequestedTimestampsNoSync) {
     const uint32_t framesAgo = 0;
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr);
+    EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
 }
 
@@ -978,18 +1000,18 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     uint32_t framesAgo = 1;
     resetTimestamps();
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            &outRequestedPresentTime, &outAcquireTime, &outRefreshStartTime,
-            &outGpuCompositionDoneTime, &outDisplayPresentTime,
-            &outDisplayRetireTime, &outReleaseTime);
+    int result = getAllFrameTimestamps(framesAgo);
     EXPECT_EQ(oldCount + 1, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
     EXPECT_EQ(mFrames[0].kProducerAcquireTime, outAcquireTime);
-    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outRefreshStartTime);
+    EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(0, outDisplayPresentTime);
     EXPECT_EQ(0, outDisplayRetireTime);
+    EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
 
     // Verify available timestamps are correct for frame 1 again, before any
@@ -998,18 +1020,18 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     framesAgo = 1;
     resetTimestamps();
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            &outRequestedPresentTime, &outAcquireTime, &outRefreshStartTime,
-            &outGpuCompositionDoneTime, &outDisplayPresentTime,
-            &outDisplayRetireTime, &outReleaseTime);
+    result = getAllFrameTimestamps(framesAgo);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
     EXPECT_EQ(mFrames[0].kProducerAcquireTime, outAcquireTime);
-    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outRefreshStartTime);
+    EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(0, outDisplayPresentTime);
     EXPECT_EQ(0, outDisplayRetireTime);
+    EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
 
     // Signal the fences for frame 1.
@@ -1020,19 +1042,19 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     framesAgo = 1;
     resetTimestamps();
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            &outRequestedPresentTime, &outAcquireTime, &outRefreshStartTime,
-            &outGpuCompositionDoneTime, &outDisplayPresentTime,
-            &outDisplayRetireTime, &outReleaseTime);
+    result = getAllFrameTimestamps(framesAgo);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
     EXPECT_EQ(mFrames[0].kProducerAcquireTime, outAcquireTime);
-    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outRefreshStartTime);
+    EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kGpuCompositionDoneTime,
             outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kPresentTime, outDisplayPresentTime);
     EXPECT_EQ(mFrames[0].kRetireTime, outDisplayRetireTime);
+    EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(mFrames[0].kReleaseTime, outReleaseTime);
 }
 
@@ -1062,18 +1084,18 @@ TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
     // addFrameEvents didn't get to piggyback on the earlier queues/dequeues.
     resetTimestamps();
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            &outRequestedPresentTime, &outAcquireTime, &outRefreshStartTime,
-            &outGpuCompositionDoneTime, &outDisplayPresentTime,
-            &outDisplayRetireTime, &outReleaseTime);
+    int result = getAllFrameTimestamps(framesAgo);
     EXPECT_EQ(oldCount + 1, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
     EXPECT_EQ(mFrames[0].kProducerAcquireTime, outAcquireTime);
-    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outRefreshStartTime);
+    EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(0, outDisplayPresentTime);
     EXPECT_EQ(0, outDisplayRetireTime);
+    EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
 
     // Signal the fences for frame 1.
@@ -1084,23 +1106,23 @@ TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
     // sync call.
     resetTimestamps();
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            &outRequestedPresentTime, &outAcquireTime, &outRefreshStartTime,
-            &outGpuCompositionDoneTime, &outDisplayPresentTime,
-            &outDisplayRetireTime, &outReleaseTime);
+    result = getAllFrameTimestamps(framesAgo);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
     EXPECT_EQ(mFrames[0].kProducerAcquireTime, outAcquireTime);
-    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outRefreshStartTime);
+    EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kPresentTime, outDisplayPresentTime);
     EXPECT_EQ(mFrames[0].kRetireTime, outDisplayRetireTime);
+    EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(mFrames[0].kReleaseTime, outReleaseTime);
 }
 
-// This test verifies that if the retire/release info can't possibly exist,
-// a sync call is not done.
+// This test verifies that if the certain timestamps can't possibly exist for
+// the most recent frame, then a sync call is not done.
 TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
     enableFrameTimestamps();
     mSurface->mFakeSurfaceComposer->setSupportedTimestamps(true, true);
@@ -1123,18 +1145,18 @@ TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
     uint32_t framesAgo = 1;
     resetTimestamps();
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            &outRequestedPresentTime, &outAcquireTime, &outRefreshStartTime,
-            &outGpuCompositionDoneTime, &outDisplayPresentTime,
-            &outDisplayRetireTime, &outReleaseTime);
+    int result = getAllFrameTimestamps(framesAgo);
     EXPECT_EQ(oldCount + 1, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
     EXPECT_EQ(mFrames[0].kProducerAcquireTime, outAcquireTime);
-    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outRefreshStartTime);
+    EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
+    EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(0, outDisplayPresentTime);
     EXPECT_EQ(0, outDisplayRetireTime);
+    EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
 
     mFrames[0].signalRefreshFences();
@@ -1142,24 +1164,25 @@ TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
     mFrames[1].signalRefreshFences();
 
     // Verify querying for all timestmaps of f2 does not do a sync call.
-    // Even though the retire and release times aren't available, a sync call
-    // should not occur because it's not possible for it to be retired or
-    // released until another frame is queued.
+    // Even though the lastRefresh, retire, dequeueReady, and release times aren't
+    // available, a sync call should not occur because it's not possible for f2
+    // to encounter the final value for those events until another frame is
+    // queued.
     framesAgo = 0;
     resetTimestamps();
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            &outRequestedPresentTime, &outAcquireTime, &outRefreshStartTime,
-            &outGpuCompositionDoneTime, &outDisplayPresentTime,
-            &outDisplayRetireTime, &outReleaseTime);
+    result = getAllFrameTimestamps(framesAgo);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[1].kRequestedPresentTime, outRequestedPresentTime);
     EXPECT_EQ(mFrames[1].kProducerAcquireTime, outAcquireTime);
-    EXPECT_EQ(mFrames[1].mRefreshes[0].kStartTime, outRefreshStartTime);
+    EXPECT_EQ(mFrames[1].kLatchTime, outLatchTime);
+    EXPECT_EQ(mFrames[1].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
+    EXPECT_EQ(mFrames[1].mRefreshes[1].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[1].mRefreshes[0].kPresentTime, outDisplayPresentTime);
     EXPECT_EQ(0, outDisplayRetireTime);
+    EXPECT_EQ(0, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
 }
 
@@ -1181,10 +1204,10 @@ void GetFrameTimestampsTest::PresentOrRetireUnsupportedNoSyncTest(
     resetTimestamps();
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     int result = native_window_get_frame_timestamps(mWindow.get(), framesAgo,
-            nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
             displayPresentSupported ? nullptr : &outDisplayPresentTime,
             displayRetireSupported ? nullptr : &outDisplayRetireTime,
-            nullptr);
+            nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(BAD_VALUE, result);
     EXPECT_EQ(-1, outDisplayRetireTime);

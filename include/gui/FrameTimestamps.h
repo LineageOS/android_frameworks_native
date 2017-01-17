@@ -44,6 +44,7 @@ enum class FrameEvent {
     GL_COMPOSITION_DONE,
     DISPLAY_PRESENT,
     DISPLAY_RETIRE,
+    DEQUEUE_READY,
     RELEASE,
     EVENT_COUNT, // Not an actual event.
 };
@@ -61,6 +62,7 @@ struct FrameEvents {
     bool hasDisplayPresentInfo() const;
     bool hasDisplayRetireInfo() const;
     bool hasReleaseInfo() const;
+    bool hasDequeueReadyInfo() const;
 
     void checkFencesForCompletion();
     void dump(String8& outString) const;
@@ -84,6 +86,7 @@ struct FrameEvents {
     nsecs_t latchTime{-1};
     nsecs_t firstRefreshStartTime{-1};
     nsecs_t lastRefreshStartTime{-1};
+    nsecs_t dequeueReadyTime{-1};
 
     std::shared_ptr<FenceTime> acquireFence{FenceTime::NO_FENCE};
     std::shared_ptr<FenceTime> gpuCompositionDoneFence{FenceTime::NO_FENCE};
@@ -194,7 +197,7 @@ public:
             const std::shared_ptr<FenceTime>& displayPresent);
     void addRetire(uint64_t frameNumber,
             const std::shared_ptr<FenceTime>& displayRetire);
-    void addRelease(uint64_t frameNumber,
+    void addRelease(uint64_t frameNumber, nsecs_t dequeueReadyTime,
             std::shared_ptr<FenceTime>&& release);
 
     void getAndResetDelta(FrameEventHistoryDelta* delta);
@@ -255,6 +258,7 @@ private:
     nsecs_t mLatchTime{0};
     nsecs_t mFirstRefreshStartTime{0};
     nsecs_t mLastRefreshStartTime{0};
+    nsecs_t mDequeueReadyTime{0};
 
     FenceTime::Snapshot mGpuCompositionDoneFence;
     FenceTime::Snapshot mDisplayPresentFence;

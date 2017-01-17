@@ -146,9 +146,10 @@ public:
     // See IGraphicBufferProducer::getFrameTimestamps
     status_t getFrameTimestamps(uint64_t frameNumber,
             nsecs_t* outRequestedPresentTime, nsecs_t* outAcquireTime,
-            nsecs_t* outRefreshStartTime, nsecs_t* outGlCompositionDoneTime,
+            nsecs_t* outLatchTime, nsecs_t* outFirstRefreshStartTime,
+            nsecs_t* outLastRefreshStartTime, nsecs_t* outGlCompositionDoneTime,
             nsecs_t* outDisplayPresentTime, nsecs_t* outDisplayRetireTime,
-            nsecs_t* outReleaseTime);
+            nsecs_t* outDequeueReadyTime, nsecs_t* outReleaseTime);
 
     status_t getUniqueId(uint64_t* outId) const;
 
