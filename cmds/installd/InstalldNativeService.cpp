@@ -56,6 +56,7 @@
 #include "otapreopt_utils.h"
 #include "utils.h"
 
+#include "CacheTracker.h"
 #include "MatchExtensionGen.h"
 
 #ifndef LOG_TAG
@@ -86,6 +87,8 @@ static constexpr int FLAG_STORAGE_CE = 1 << 1;
 static constexpr int FLAG_CLEAR_CACHE_ONLY = 1 << 8;
 static constexpr int FLAG_CLEAR_CODE_CACHE_ONLY = 1 << 9;
 static constexpr int FLAG_USE_QUOTA = 1 << 12;
+static constexpr int FLAG_FREE_CACHE_V2 = 1 << 13;
+static constexpr int FLAG_FREE_CACHE_NOOP = 1 << 14;
 
 #define MIN_RESTRICTED_HOME_SDK_VERSION 24 // > M
 namespace {
@@ -200,11 +203,18 @@ status_t InstalldNativeService::dump(int fd, const Vector<String16> & /* args */
     }
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    out << "installd is happy!" << endl << endl;
-    out << "Devices with quota support:" << endl;
+    out << "installd is happy!" << endl;
+
+    out << endl << "Devices with quota support:" << endl;
     for (const auto& n : mQuotaDevices) {
         out << "    " << n.first << " = " << n.second << endl;
     }
+
+    out << endl << "Per-UID cache quotas:" << endl;
+    for (const auto& n : mCacheQuotas) {
+        out << "    " << n.first << " = " << n.second << endl;
+    }
+
     out << endl;
     out.flush();
 
@@ -809,46 +819,164 @@ binder::Status InstalldNativeService::destroyUserData(const std::unique_ptr<std:
  * when just reading from the cache, which is pretty awful.
  */
 binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::string>& uuid,
-        int64_t freeStorageSize) {
+        int64_t freeStorageSize, int32_t flags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
+    // TODO: remove this once framework is more robust
+    invalidateMounts();
+
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
-    cache_t* cache;
-    int64_t avail;
-
     auto data_path = create_data_path(uuid_);
+    auto device = findQuotaDeviceForUuid(uuid);
+    auto noop = (flags & FLAG_FREE_CACHE_NOOP);
 
-    avail = data_disk_free(data_path);
-    if (avail < 0) {
+    int64_t free = data_disk_free(data_path);
+    int64_t needed = freeStorageSize - free;
+    if (free < 0) {
         return error("Failed to determine free space for " + data_path);
-    }
-
-    ALOGI("free_cache(%" PRId64 ") avail %" PRId64 "\n", freeStorageSize, avail);
-    if (avail >= freeStorageSize) {
+    } else if (free >= freeStorageSize) {
         return ok();
     }
 
-    cache = start_cache_collection();
+    LOG(DEBUG) << "Found " << data_path << " with " << free << " free; caller requested "
+            << freeStorageSize;
 
-    auto users = get_known_users(uuid_);
-    for (auto user : users) {
-        add_cache_files(cache, create_data_user_ce_path(uuid_, user));
-        add_cache_files(cache, create_data_user_de_path(uuid_, user));
-        add_cache_files(cache,
-                StringPrintf("%s/Android/data", create_data_media_path(uuid_, user).c_str()));
+    if (flags & FLAG_FREE_CACHE_V2) {
+        // This new cache strategy fairly removes files from UIDs by deleting
+        // files from the UIDs which are most over their allocated quota
+
+        // 1. Create trackers for every known UID
+        ATRACE_BEGIN("create");
+        std::unordered_map<uid_t, std::shared_ptr<CacheTracker>> trackers;
+        for (auto user : get_known_users(uuid_)) {
+            FTS *fts;
+            FTSENT *p;
+            char *argv[] = {
+                    (char*) create_data_user_ce_path(uuid_, user).c_str(),
+                    (char*) create_data_user_de_path(uuid_, user).c_str(),
+                    nullptr
+            };
+            if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+                return error("Failed to fts_open");
+            }
+            while ((p = fts_read(fts)) != NULL) {
+                if (p->fts_info == FTS_D && p->fts_level == 1) {
+                    uid_t uid = p->fts_statp->st_uid;
+                    auto search = trackers.find(uid);
+                    if (search != trackers.end()) {
+                        search->second->addDataPath(p->fts_path);
+                    } else {
+                        auto tracker = std::shared_ptr<CacheTracker>(new CacheTracker(
+                                multiuser_get_user_id(uid), multiuser_get_app_id(uid), device));
+                        tracker->addDataPath(p->fts_path);
+                        tracker->cacheQuota = mCacheQuotas[uid];
+                        if (tracker->cacheQuota == 0) {
+                            LOG(WARNING) << "UID " << uid << " has no cache quota; assuming 64MB";
+                            tracker->cacheQuota = 67108864;
+                        }
+                        trackers[uid] = tracker;
+                    }
+                    fts_set(fts, p, FTS_SKIP);
+                }
+            }
+            fts_close(fts);
+        }
+        ATRACE_END();
+
+        // 2. Populate tracker stats and insert into priority queue
+        ATRACE_BEGIN("populate");
+        auto cmp = [](std::shared_ptr<CacheTracker> left, std::shared_ptr<CacheTracker> right) {
+            return (left->getCacheRatio() < right->getCacheRatio());
+        };
+        std::priority_queue<std::shared_ptr<CacheTracker>,
+                std::vector<std::shared_ptr<CacheTracker>>, decltype(cmp)> queue(cmp);
+        for (const auto& it : trackers) {
+            it.second->loadStats();
+            queue.push(it.second);
+        }
+        ATRACE_END();
+
+        // 3. Bounce across the queue, freeing items from whichever tracker is
+        // the most over their assigned quota
+        ATRACE_BEGIN("bounce");
+        std::shared_ptr<CacheTracker> active;
+        while (active || !queue.empty()) {
+            // Find the best tracker to work with; this might involve swapping
+            // if the active tracker is no longer the most over quota
+            bool nextBetter = active && !queue.empty()
+                    && active->getCacheRatio() < queue.top()->getCacheRatio();
+            if (!active || nextBetter) {
+                if (active) {
+                    // Current tracker still has items, so we'll consider it
+                    // again later once it bubbles up to surface
+                    queue.push(active);
+                }
+                active = queue.top(); queue.pop();
+                active->ensureItems();
+                continue;
+            }
+
+            // If no items remain, go find another tracker
+            if (active->items.empty()) {
+                active = nullptr;
+                continue;
+            } else {
+                auto item = active->items.back();
+                active->items.pop_back();
+
+                LOG(DEBUG) << "Purging " << item->toString() << " from " << active->toString();
+                if (!noop) {
+                    item->purge();
+                }
+                active->cacheUsed -= item->size;
+                needed -= item->size;
+            }
+
+            // Verify that we're actually done before bailing, since sneaky
+            // apps might be using hardlinks
+            if (needed <= 0) {
+                free = data_disk_free(data_path);
+                needed = freeStorageSize - free;
+                if (needed <= 0) {
+                    break;
+                } else {
+                    LOG(WARNING) << "Expected to be done but still need " << needed;
+                }
+            }
+        }
+        ATRACE_END();
+
+    } else {
+        ATRACE_BEGIN("start");
+        cache_t* cache = start_cache_collection();
+        ATRACE_END();
+
+        ATRACE_BEGIN("add");
+        for (auto user : get_known_users(uuid_)) {
+            add_cache_files(cache, create_data_user_ce_path(uuid_, user));
+            add_cache_files(cache, create_data_user_de_path(uuid_, user));
+            add_cache_files(cache,
+                    StringPrintf("%s/Android/data", create_data_media_path(uuid_, user).c_str()));
+        }
+        ATRACE_END();
+
+        ATRACE_BEGIN("clear");
+        clear_cache_files(data_path, cache, freeStorageSize);
+        ATRACE_END();
+
+        ATRACE_BEGIN("finish");
+        finish_cache_collection(cache);
+        ATRACE_END();
     }
 
-    clear_cache_files(data_path, cache, freeStorageSize);
-    finish_cache_collection(cache);
-
-    avail = data_disk_free(data_path);
-    if (avail >= freeStorageSize) {
+    free = data_disk_free(data_path);
+    if (free >= freeStorageSize) {
         return ok();
     } else {
         return error(StringPrintf("Failed to free up %" PRId64 " on %s; final free space %" PRId64,
-                freeStorageSize, data_path.c_str(), avail));
+                freeStorageSize, data_path.c_str(), free));
     }
 }
 
@@ -1386,6 +1514,18 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
     LOG(DEBUG) << "Final result " << toString(ret);
 #endif
     *_aidl_return = ret;
+    return ok();
+}
+
+binder::Status InstalldNativeService::setAppQuota(const std::unique_ptr<std::string>& uuid,
+        int32_t userId, int32_t appId, int64_t cacheQuota) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(uuid);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    int32_t uid = multiuser_get_uid(userId, appId);
+    mCacheQuotas[uid] = cacheQuota;
+
     return ok();
 }
 
