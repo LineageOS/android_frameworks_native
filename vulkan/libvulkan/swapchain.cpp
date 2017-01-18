@@ -592,6 +592,11 @@ VkResult CreateSwapchainKHR(VkDevice device,
     }
 
     VkSwapchainImageUsageFlagsANDROID swapchain_image_usage = 0;
+    if (create_info->presentMode == VK_PRESENT_MODE_FRONT_BUFFERED_DEMAND_REFRESH_KHR ||
+        create_info->presentMode == VK_PRESENT_MODE_FRONT_BUFFERED_CONTINUOUS_REFRESH_KHR) {
+        swapchain_image_usage |= VK_SWAPCHAIN_IMAGE_USAGE_FRONT_BUFFER_BIT_ANDROID;
+    }
+
     int gralloc_usage = 0;
     if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
         result = dispatch.GetSwapchainGrallocUsage2ANDROID(
