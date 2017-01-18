@@ -378,6 +378,9 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice /*pdev*/,
                                                  VkPresentModeKHR* modes) {
     const VkPresentModeKHR kModes[] = {
         VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_FIFO_KHR,
+        // TODO(chrisforbes): should only expose this if the driver can.
+        VK_PRESENT_MODE_FRONT_BUFFERED_DEMAND_REFRESH_KHR,
+        VK_PRESENT_MODE_FRONT_BUFFERED_CONTINUOUS_REFRESH_KHR,
     };
     const uint32_t kNumModes = sizeof(kModes) / sizeof(kModes[0]);
 
@@ -425,7 +428,9 @@ VkResult CreateSwapchainKHR(VkDevice device,
              "swapchain preTransform=%#x not supported",
              create_info->preTransform);
     ALOGV_IF(!(create_info->presentMode == VK_PRESENT_MODE_FIFO_KHR ||
-               create_info->presentMode == VK_PRESENT_MODE_MAILBOX_KHR),
+               create_info->presentMode == VK_PRESENT_MODE_MAILBOX_KHR ||
+               create_info->presentMode == VK_PRESENT_MODE_FRONT_BUFFERED_DEMAND_REFRESH_KHR ||
+               create_info->presentMode == VK_PRESENT_MODE_FRONT_BUFFERED_CONTINUOUS_REFRESH_KHR),
              "swapchain presentMode=%u not supported",
              create_info->presentMode);
 
