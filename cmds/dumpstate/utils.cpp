@@ -1021,8 +1021,10 @@ const char *dump_traces() {
     }
 
     /* create a new, empty traces.txt file to receive stack dumps */
-    int fd = TEMP_FAILURE_RETRY(open(traces_path, O_CREAT | O_WRONLY | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
-                                     0666));  /* -rw-rw-rw- */
+    int fd = TEMP_FAILURE_RETRY(
+        open(traces_path,
+             O_CREAT | O_WRONLY | O_APPEND | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
+             0666)); /* -rw-rw-rw- */
     if (fd < 0) {
         MYLOGE("%s: %s\n", traces_path, strerror(errno));
         return NULL;
