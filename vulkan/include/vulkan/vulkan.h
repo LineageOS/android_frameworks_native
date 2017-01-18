@@ -3228,6 +3228,8 @@ typedef enum VkPresentModeKHR {
     VK_PRESENT_MODE_MAILBOX_KHR = 1,
     VK_PRESENT_MODE_FIFO_KHR = 2,
     VK_PRESENT_MODE_FIFO_RELAXED_KHR = 3,
+    VK_PRESENT_MODE_FRONT_BUFFERED_DEMAND_REFRESH_KHR = 1000111000,
+    VK_PRESENT_MODE_FRONT_BUFFERED_CONTINUOUS_REFRESH_KHR = 1000111001,
     VK_PRESENT_MODE_BEGIN_RANGE_KHR = VK_PRESENT_MODE_IMMEDIATE_KHR,
     VK_PRESENT_MODE_END_RANGE_KHR = VK_PRESENT_MODE_FIFO_RELAXED_KHR,
     VK_PRESENT_MODE_RANGE_SIZE_KHR = (VK_PRESENT_MODE_FIFO_RELAXED_KHR - VK_PRESENT_MODE_IMMEDIATE_KHR + 1),
@@ -3883,6 +3885,18 @@ typedef struct VkPresentRegionsKHR {
     uint32_t swapchainCount;
     const VkPresentRegionKHR* pRegions;
 } VkPresentRegionsKHR;
+
+#define VK_KHR_swapchain_front_buffered 1
+#define VK_KHR_SWAPCHAIN_FRONT_BUFFERED_SPEC_VERSION 2
+#define VK_KHR_SWAPCHAIN_FRONT_BUFFERED_EXTENSION_NAME "VK_KHR_swapchain_front_buffered"
+
+typedef VkResult (VKAPI_PTR *PFN_vkGetSwapchainStatusKHR)(VkDevice device, VkSwapchainKHR swapchain);
+
+#ifndef VK_NO_PROTOTYPES
+VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainStatusKHR(
+    VkDevice                                    device,
+    VkSwapchainKHR                              swapchain);
+#endif
 
 #define VK_EXT_debug_report 1
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkDebugReportCallbackEXT)

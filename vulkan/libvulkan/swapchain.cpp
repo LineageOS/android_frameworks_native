@@ -1077,5 +1077,16 @@ VkResult GetPastPresentationTimingGOOGLE(
     return result;
 }
 
+VKAPI_ATTR
+VkResult GetSwapchainStatusKHR(
+    VkDevice,
+    VkSwapchainKHR) {
+    VkResult result = VK_SUCCESS;
+
+    // TODO(chrisforbes): Implement this function properly
+
+    return result;
+}
+
 }  // namespace driver
 }  // namespace vulkan
