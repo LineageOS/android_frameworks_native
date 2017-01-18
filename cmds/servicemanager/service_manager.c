@@ -363,6 +363,7 @@ static int audit_callback(void *data, __unused security_class_t cls, char *buf, 
 int main()
 {
     struct binder_state *bs;
+    union selinux_callback cb;
 
     bs = binder_open(128*1024);
     if (!bs) {
@@ -374,6 +375,11 @@ int main()
         ALOGE("cannot become context manager (%s)\n", strerror(errno));
         return -1;
     }
+
+    cb.func_audit = audit_callback;
+    selinux_set_callback(SELINUX_CB_AUDIT, cb);
+    cb.func_log = selinux_log_callback;
+    selinux_set_callback(SELINUX_CB_LOG, cb);
 
     sehandle = selinux_android_service_context_handle();
     selinux_status_open(true);
@@ -388,11 +394,6 @@ int main()
         abort();
     }
 
-    union selinux_callback cb;
-    cb.func_audit = audit_callback;
-    selinux_set_callback(SELINUX_CB_AUDIT, cb);
-    cb.func_log = selinux_log_callback;
-    selinux_set_callback(SELINUX_CB_LOG, cb);
 
     binder_loop(bs, svcmgr_handler);
 
