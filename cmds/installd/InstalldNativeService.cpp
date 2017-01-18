@@ -16,6 +16,8 @@
 
 #include "InstalldNativeService.h"
 
+#define ATRACE_TAG ATRACE_TAG_PACKAGE_MANAGER
+
 #include <errno.h>
 #include <inttypes.h>
 #include <fstream>
@@ -46,6 +48,7 @@
 #include <private/android_filesystem_config.h>
 #include <selinux/android.h>
 #include <system/thread_defs.h>
+#include <utils/Trace.h>
 
 #include "dexopt.h"
 #include "globals.h"
@@ -1077,56 +1080,68 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
         flags &= ~FLAG_USE_QUOTA;
     }
 
+    ATRACE_BEGIN("obb");
     for (auto packageName : packageNames) {
         auto obbCodePath = create_data_media_obb_path(uuid_, packageName.c_str());
         calculate_tree_size(obbCodePath, &extStats.codeSize);
     }
+    ATRACE_END();
 
     if (flags & FLAG_USE_QUOTA && appId >= AID_APP_START) {
+        ATRACE_BEGIN("code");
         for (auto codePath : codePaths) {
             calculate_tree_size(codePath, &stats.codeSize, -1,
                     multiuser_get_shared_gid(userId, appId));
         }
+        ATRACE_END();
 
+        ATRACE_BEGIN("quota");
         collectQuotaStats(device, userId, appId, &stats, &extStats);
+        ATRACE_END();
 
     } else {
+        ATRACE_BEGIN("code");
         for (auto codePath : codePaths) {
             calculate_tree_size(codePath, &stats.codeSize);
         }
+        ATRACE_END();
 
         for (size_t i = 0; i < packageNames.size(); i++) {
             const char* pkgname = packageNames[i].c_str();
 
+            ATRACE_BEGIN("data");
             auto cePath = create_data_user_ce_package_path(uuid_, userId, pkgname, ceDataInodes[i]);
             collectManualStats(cePath, &stats);
-
             auto dePath = create_data_user_de_package_path(uuid_, userId, pkgname);
             collectManualStats(dePath, &stats);
+            ATRACE_END();
 
+            ATRACE_BEGIN("profiles");
             auto userProfilePath = create_data_user_profile_package_path(userId, pkgname);
             calculate_tree_size(userProfilePath, &stats.dataSize);
-
             auto refProfilePath = create_data_ref_profile_package_path(pkgname);
             calculate_tree_size(refProfilePath, &stats.codeSize);
+            ATRACE_END();
 
 #if MEASURE_EXTERNAL
+            ATRACE_BEGIN("external");
             auto extPath = create_data_media_package_path(uuid_, userId, pkgname, "data");
             collectManualStats(extPath, &extStats);
-
             auto mediaPath = create_data_media_package_path(uuid_, userId, pkgname, "media");
             calculate_tree_size(mediaPath, &extStats.dataSize);
+            ATRACE_END();
 #endif
         }
 
+        ATRACE_BEGIN("dalvik");
         int32_t sharedGid = multiuser_get_shared_gid(userId, appId);
         if (sharedGid != -1) {
             calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
                     sharedGid, -1);
         }
-
         calculate_tree_size(create_data_misc_foreign_dex_path(userId), &stats.dataSize,
                 multiuser_get_uid(userId, appId), -1);
+        ATRACE_END();
     }
 
     std::vector<int64_t> ret;
@@ -1164,8 +1179,10 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
 
+    ATRACE_BEGIN("obb");
     auto obbPath = create_data_path(uuid_) + "/media/obb";
     calculate_tree_size(obbPath, &extStats.codeSize);
+    ATRACE_END();
 
     auto device = findQuotaDeviceForUuid(uuid);
     if (device.empty()) {
@@ -1173,30 +1190,38 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
     }
 
     if (flags & FLAG_USE_QUOTA) {
+        ATRACE_BEGIN("code");
         calculate_tree_size(create_data_app_path(uuid_), &stats.codeSize, -1, -1, true);
+        ATRACE_END();
 
+        ATRACE_BEGIN("data");
         auto cePath = create_data_user_ce_path(uuid_, userId);
         collectManualStatsForUser(cePath, &stats, true);
-
         auto dePath = create_data_user_de_path(uuid_, userId);
         collectManualStatsForUser(dePath, &stats, true);
+        ATRACE_END();
 
+        ATRACE_BEGIN("profile");
         auto userProfilePath = create_data_user_profile_path(userId);
         calculate_tree_size(userProfilePath, &stats.dataSize, -1, -1, true);
-
         auto refProfilePath = create_data_ref_profile_path();
         calculate_tree_size(refProfilePath, &stats.codeSize, -1, -1, true);
+        ATRACE_END();
 
 #if MEASURE_EXTERNAL
+        ATRACE_BEGIN("external");
         // TODO: measure external storage paths
+        ATRACE_END();
 #endif
 
+        ATRACE_BEGIN("dalvik");
         calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
                 -1, -1, true);
-
         calculate_tree_size(create_data_misc_foreign_dex_path(userId), &stats.dataSize,
                 -1, -1, true);
+        ATRACE_END();
 
+        ATRACE_BEGIN("quota");
         for (auto appId : appIds) {
             if (appId >= AID_APP_START) {
                 collectQuotaStats(device, userId, appId, &stats, &extStats);
@@ -1206,28 +1231,36 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
 #endif
             }
         }
+        ATRACE_END();
     } else {
+        ATRACE_BEGIN("code");
         calculate_tree_size(create_data_app_path(uuid_), &stats.codeSize);
+        ATRACE_END();
 
+        ATRACE_BEGIN("data");
         auto cePath = create_data_user_ce_path(uuid_, userId);
         collectManualStatsForUser(cePath, &stats);
-
         auto dePath = create_data_user_de_path(uuid_, userId);
         collectManualStatsForUser(dePath, &stats);
+        ATRACE_END();
 
+        ATRACE_BEGIN("profile");
         auto userProfilePath = create_data_user_profile_path(userId);
         calculate_tree_size(userProfilePath, &stats.dataSize);
-
         auto refProfilePath = create_data_ref_profile_path();
         calculate_tree_size(refProfilePath, &stats.codeSize);
+        ATRACE_END();
 
 #if MEASURE_EXTERNAL
+        ATRACE_BEGIN("external");
         // TODO: measure external storage paths
+        ATRACE_END();
 #endif
 
+        ATRACE_BEGIN("dalvik");
         calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize);
-
         calculate_tree_size(create_data_misc_foreign_dex_path(userId), &stats.dataSize);
+        ATRACE_END();
     }
 
     std::vector<int64_t> ret;
