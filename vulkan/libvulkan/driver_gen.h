@@ -40,6 +40,7 @@ struct ProcHook {
         KHR_surface,
         KHR_swapchain,
         GOOGLE_display_timing,
+        KHR_swapchain_front_buffered,
 
         EXTENSION_CORE,  // valid bit
         EXTENSION_COUNT,
