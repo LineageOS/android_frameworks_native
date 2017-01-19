@@ -67,9 +67,11 @@ class SensorService :
 {
     // nested class/struct for internal use
     class SensorEventConnection;
+    class SensorDirectConnection;
 
 public:
     void cleanupConnection(SensorEventConnection* connection);
+    void cleanupConnection(SensorDirectConnection* c);
 
     status_t enable(const sp<SensorEventConnection>& connection, int handle,
                     nsecs_t samplingPeriodNs,  nsecs_t maxBatchReportLatencyNs, int reservedFlags,
@@ -154,6 +156,8 @@ private:
             const String8& packageName,
             int requestedMode, const String16& opPackageName);
     virtual int isDataInjectionEnabled();
+    virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
+            uint32_t size, int32_t type, int32_t format, const native_handle *resource);
     virtual status_t dump(int fd, const Vector<String16>& args);
 
     String8 getSensorName(int handle) const;
@@ -203,6 +207,7 @@ private:
     // allowed to register for or call flush on sensors. Typically only cts test packages are
     // allowed.
     bool isWhiteListedPackage(const String8& packageName);
+    bool isOperationRestricted(const String16& opPackageName);
 
     // Reset the state of SensorService to NORMAL mode.
     status_t resetToNormalMode();
@@ -239,6 +244,7 @@ private:
     sensors_event_t *mSensorEventBuffer, *mSensorEventScratch;
     wp<const SensorEventConnection> * mMapFlushEventsToConnections;
     std::unordered_map<int, RecentEventLogger*> mRecentEvent;
+    SortedVector< wp<SensorDirectConnection> > mDirectConnections;
     Mode mCurrentOperatingMode;
 
     // This packagaName is set when SensorService is in RESTRICTED or DATA_INJECTION mode. Only

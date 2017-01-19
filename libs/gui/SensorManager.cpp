@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <cutils/native_handle.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Singleton.h>
@@ -89,7 +90,7 @@ SensorManager& SensorManager::getInstanceForPackage(const String16& packageName)
 }
 
 SensorManager::SensorManager(const String16& opPackageName)
-    : mSensorList(0), mOpPackageName(opPackageName) {
+    : mSensorList(0), mOpPackageName(opPackageName), mDirectConnectionHandle(1) {
     // okay we're not locked here, but it's not needed during construction
     assertStateLocked();
 }
@@ -235,6 +236,63 @@ bool SensorManager::isDataInjectionEnabled() {
         return mSensorServer->isDataInjectionEnabled();
     }
     return false;
+}
+
+int SensorManager::createDirectChannel(
+        size_t size, int channelType, const native_handle_t *resourceHandle) {
+    Mutex::Autolock _l(mLock);
+    if (assertStateLocked() != NO_ERROR) {
+        return NO_INIT;
+    }
+
+    switch (channelType) {
+        case SENSOR_DIRECT_MEM_TYPE_ASHMEM: {
+            sp<ISensorEventConnection> conn =
+                      mSensorServer->createSensorDirectConnection(mOpPackageName,
+                          static_cast<uint32_t>(size),
+                          static_cast<int32_t>(channelType),
+                          SENSOR_DIRECT_FMT_SENSORS_EVENT, resourceHandle);
+            if (conn == nullptr) {
+                return NO_MEMORY;
+            }
+            int nativeHandle = mDirectConnectionHandle++;
+            mDirectConnection.emplace(nativeHandle, conn);
+            return nativeHandle;
+        }
+        case SENSOR_DIRECT_MEM_TYPE_GRALLOC:
+            LOG_FATAL("%s: Finish implementation of ION and GRALLOC or remove", __FUNCTION__);
+            return BAD_VALUE;
+        default:
+            ALOGE("Bad channel shared memory type %d", channelType);
+            return BAD_VALUE;
+    }
+}
+
+void SensorManager::destroyDirectChannel(int channelNativeHandle) {
+    Mutex::Autolock _l(mLock);
+    if (assertStateLocked() == NO_ERROR) {
+        mDirectConnection.erase(channelNativeHandle);
+    }
+}
+
+int SensorManager::configureDirectChannel(int channelNativeHandle, int sensorHandle, int rateLevel) {
+    Mutex::Autolock _l(mLock);
+    if (assertStateLocked() != NO_ERROR) {
+        return NO_INIT;
+    }
+
+    auto i = mDirectConnection.find(channelNativeHandle);
+    if (i == mDirectConnection.end()) {
+        ALOGE("Cannot find the handle in client direct connection table");
+        return BAD_VALUE;
+    }
+
+    int ret;
+    ret = i->second->configureChannel(sensorHandle, rateLevel);
+    ALOGE_IF(ret < 0, "SensorManager::configureChannel (%d, %d) returns %d",
+            static_cast<int>(sensorHandle), static_cast<int>(rateLevel),
+            static_cast<int>(ret));
+    return ret;
 }
 
 // ----------------------------------------------------------------------------

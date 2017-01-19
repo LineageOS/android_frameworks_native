@@ -29,16 +29,9 @@
 
 #include <sensors/convert.h>
 
-using android::hardware::sensors::V1_0::ISensors;
 using android::hardware::hidl_vec;
 
-using Event = android::hardware::sensors::V1_0::Event;
-using SensorInfo = android::hardware::sensors::V1_0::SensorInfo;
-using SensorType = android::hardware::sensors::V1_0::SensorType;
-using DynamicSensorInfo = android::hardware::sensors::V1_0::DynamicSensorInfo;
-using SensorInfo = android::hardware::sensors::V1_0::SensorInfo;
-using Result = android::hardware::sensors::V1_0::Result;
-
+using namespace android::hardware::sensors::V1_0;
 using namespace android::hardware::sensors::V1_0::implementation;
 
 namespace android {
@@ -502,6 +495,90 @@ ssize_t SensorDevice::Info::removeBatchParamsForIdent(void* ident) {
 void SensorDevice::notifyConnectionDestroyed(void* ident) {
     Mutex::Autolock _l(mLock);
     mDisabledClients.remove(ident);
+}
+
+int32_t SensorDevice::registerDirectChannel(const sensors_direct_mem_t* memory) {
+    Mutex::Autolock _l(mLock);
+
+    SharedMemType type;
+    switch (memory->type) {
+        case SENSOR_DIRECT_MEM_TYPE_ASHMEM:
+            type = SharedMemType::ASHMEM;
+            break;
+        case SENSOR_DIRECT_MEM_TYPE_GRALLOC:
+            type = SharedMemType::GRALLOC;
+            break;
+        default:
+            return BAD_VALUE;
+    }
+
+    SharedMemFormat format;
+    if (memory->format != SENSOR_DIRECT_FMT_SENSORS_EVENT) {
+        return BAD_VALUE;
+    }
+    format = SharedMemFormat::SENSORS_EVENT;
+
+    SharedMemInfo mem = {
+        .type = type,
+        .format = format,
+        .size = static_cast<uint32_t>(memory->size),
+        .memoryHandle = memory->handle,
+    };
+
+    int32_t ret;
+    mSensors->registerDirectChannel(mem,
+            [&ret](auto result, auto channelHandle) {
+                if (result == Result::OK) {
+                    ret = channelHandle;
+                } else {
+                    ret = StatusFromResult(result);
+                }
+            });
+    return ret;
+}
+
+void SensorDevice::unregisterDirectChannel(int32_t channelHandle) {
+    Mutex::Autolock _l(mLock);
+    mSensors->unregisterDirectChannel(channelHandle);
+}
+
+int32_t SensorDevice::configureDirectChannel(int32_t sensorHandle,
+        int32_t channelHandle, const struct sensors_direct_cfg_t *config) {
+    Mutex::Autolock _l(mLock);
+
+    RateLevel rate;
+    switch(config->rate_level) {
+        case SENSOR_DIRECT_RATE_STOP:
+            rate = RateLevel::STOP;
+            break;
+        case SENSOR_DIRECT_RATE_NORMAL:
+            rate = RateLevel::NORMAL;
+            break;
+        case SENSOR_DIRECT_RATE_FAST:
+            rate = RateLevel::FAST;
+            break;
+        case SENSOR_DIRECT_RATE_VERY_FAST:
+            rate = RateLevel::VERY_FAST;
+            break;
+        default:
+            return BAD_VALUE;
+    }
+
+    int32_t ret;
+    mSensors->configDirectReport(sensorHandle, channelHandle, rate,
+            [&ret, rate] (auto result, auto token) {
+                if (rate == RateLevel::STOP) {
+                    ret = StatusFromResult(result);
+                } else {
+                    if (result == Result::OK) {
+                        ret = token;
+                    } else {
+                        ret = StatusFromResult(result);
+                    }
+                }
+            });
+
+    return ret;
 }
 
 void SensorDevice::convertToSensorEvent(
