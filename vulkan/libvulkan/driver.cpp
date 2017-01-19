@@ -467,6 +467,10 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
                 name = VK_ANDROID_NATIVE_BUFFER_EXTENSION_NAME;
                 ext_bit = ProcHook::ANDROID_native_buffer;
                 break;
+            case ProcHook::GOOGLE_display_timing:
+                hook_extensions_.set(ext_bit);
+                // return now as these extensions do not require HAL support
+                return;
             case ProcHook::EXTENSION_UNKNOWN:
                 // HAL's extensions
                 break;
@@ -725,10 +729,12 @@ VkResult EnumerateDeviceExtensionProperties(
     uint32_t* pPropertyCount,
     VkExtensionProperties* pProperties) {
     const InstanceData& data = GetData(physicalDevice);
-    static const std::array<VkExtensionProperties, 1> loader_extensions = {{
+    static const std::array<VkExtensionProperties, 2> loader_extensions = {{
         // WSI extensions
         {VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
          VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION},
+        {VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
+         VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION},
     }};
 
     // enumerate our extensions first
