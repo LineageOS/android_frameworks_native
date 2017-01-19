@@ -1578,7 +1578,7 @@ int main(int argc, char *argv[]) {
 
     ::android::sp<IVibrator> vibrator = nullptr;
     if (do_vibrate) {
-        vibrator = IVibrator::getService("vibrator");
+        vibrator = IVibrator::getService();
 
         if (vibrator != nullptr) {
             // cancel previous vibration if any
