@@ -45,9 +45,9 @@
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
-#include <cutils/debugger.h>
 #include <cutils/properties.h>
 #include <cutils/sockets.h>
+#include <debuggerd/client.h>
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
 

@@ -20,6 +20,7 @@ COMMON_SHARED_LIBRARIES := \
         libbase \
         libbinder \
         libcutils \
+        libdebuggerd_client \
         libdumpstateaidl \
         libdumpstateutil \
         liblog \
