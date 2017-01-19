@@ -1314,8 +1314,13 @@ VkResult GetPastPresentationTimingGOOGLE(
 VKAPI_ATTR
 VkResult GetSwapchainStatusKHR(
     VkDevice,
-    VkSwapchainKHR) {
+    VkSwapchainKHR swapchain_handle) {
+    Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
     VkResult result = VK_SUCCESS;
+
+    if (swapchain.surface.swapchain_handle != swapchain_handle) {
+        return VK_ERROR_OUT_OF_DATE_KHR;
+    }
 
     // TODO(chrisforbes): Implement this function properly
 
