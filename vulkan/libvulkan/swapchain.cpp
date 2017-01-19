@@ -20,6 +20,7 @@
 #include <gui/BufferQueue.h>
 #include <sync/sync.h>
 #include <utils/StrongPointer.h>
+#include <utils/SortedVector.h>
 
 #include "driver.h"
 
@@ -105,6 +106,66 @@ int InvertTransformToNative(VkSurfaceTransformFlagBitsKHR transform) {
     }
 }
 
+class TimingInfo {
+   public:
+    TimingInfo() {}
+    TimingInfo(const VkPresentTimeGOOGLE* qp) {
+        vals_.presentID = qp->presentID;
+        vals_.desiredPresentTime = qp->desiredPresentTime;
+        timestamp_desired_present_time_ = 0;
+        timestamp_actual_present_time_ = 0;
+        timestamp_render_complete_time_ = 0;
+        timestamp_composition_latch_time_ = 0;
+    }
+    bool ready() {
+        return (timestamp_desired_present_time_ &&
+                timestamp_actual_present_time_ &&
+                timestamp_render_complete_time_ &&
+                timestamp_composition_latch_time_);
+    }
+    void calculate(uint64_t rdur) {
+        vals_.actualPresentTime = timestamp_actual_present_time_;
+        uint64_t margin = (timestamp_composition_latch_time_ -
+                           timestamp_render_complete_time_);
+        // Calculate vals_.earliestPresentTime, and potentially adjust
+        // vals_.presentMargin.  The initial value of vals_.earliestPresentTime
+        // is vals_.actualPresentTime.  If we can subtract rdur (the duration
+        // of a refresh cycle) from vals_.earliestPresentTime (and also from
+        // vals_.presentMargin) and still leave a positive margin, then we can
+        // report to the application that it could have presented earlier than
+        // it did (per the extension specification).  If for some reason, we
+        // can do this subtraction repeatedly, we do, since
+        // vals_.earliestPresentTime really is supposed to be the "earliest".
+        uint64_t early_time = vals_.actualPresentTime;
+        while ((margin > rdur) &&
+               ((early_time - rdur) > timestamp_composition_latch_time_)) {
+            early_time -= rdur;
+            margin -= rdur;
+        }
+        vals_.earliestPresentTime = early_time;
+        vals_.presentMargin = margin;
+    }
+    void get_values(VkPastPresentationTimingGOOGLE* values) { *values = vals_; }
+
+   public:
+    VkPastPresentationTimingGOOGLE vals_;
+
+    uint64_t timestamp_desired_present_time_;
+    uint64_t timestamp_actual_present_time_;
+    uint64_t timestamp_render_complete_time_;
+    uint64_t timestamp_composition_latch_time_;
+};
+
+static inline int compare_type(const TimingInfo& lhs, const TimingInfo& rhs) {
+    // TODO(ianelliott): Change this from presentID to the frame ID once
+    // brianderson lands the appropriate patch:
+    if (lhs.vals_.presentID < rhs.vals_.presentID)
+        return -1;
+    if (lhs.vals_.presentID > rhs.vals_.presentID)
+        return 1;
+    return 0;
+}
+
 // ----------------------------------------------------------------------------
 
 struct Surface {
@@ -120,11 +181,19 @@ Surface* SurfaceFromHandle(VkSurfaceKHR handle) {
     return reinterpret_cast<Surface*>(handle);
 }
 
+// Maximum number of TimingInfo structs to keep per swapchain:
+enum { MAX_TIMING_INFOS = 10 };
+// Minimum number of frames to look for in the past (so we don't cause
+// syncronous requests to Surface Flinger):
+enum { MIN_NUM_FRAMES_AGO = 5 };
+
 struct Swapchain {
     Swapchain(Surface& surface_, uint32_t num_images_)
         : surface(surface_),
           num_images(num_images_),
-          frame_timestamps_enabled(false) {}
+          frame_timestamps_enabled(false) {
+        timing.clear();
+    }
 
     Surface& surface;
     uint32_t num_images;
@@ -141,6 +210,8 @@ struct Swapchain {
         int dequeue_fence;
         bool dequeued;
     } images[android::BufferQueue::NUM_BUFFER_SLOTS];
+
+    android::SortedVector<TimingInfo> timing;
 };
 
 VkSwapchainKHR HandleFromSwapchain(Swapchain* swapchain) {
@@ -208,6 +279,112 @@ void OrphanSwapchain(VkDevice device, Swapchain* swapchain) {
             ReleaseSwapchainImage(device, nullptr, -1, swapchain->images[i]);
     }
     swapchain->surface.swapchain_handle = VK_NULL_HANDLE;
+    swapchain->timing.clear();
+}
+
+uint32_t get_num_ready_timings(Swapchain& swapchain) {
+    uint32_t num_ready = 0;
+    uint32_t num_timings = static_cast<uint32_t>(swapchain.timing.size());
+    uint32_t frames_ago = num_timings;
+    for (uint32_t i = 0; i < num_timings; i++) {
+        TimingInfo* ti = &swapchain.timing.editItemAt(i);
+        if (ti) {
+            if (ti->ready()) {
+                // This TimingInfo is ready to be reported to the user.  Add it
+                // to the num_ready.
+                num_ready++;
+            } else {
+                // This TimingInfo is not yet ready to be reported to the user,
+                // and so we should look for any available timestamps that
+                // might make it ready.
+                int64_t desired_present_time = 0;
+                int64_t render_complete_time = 0;
+                int64_t composition_latch_time = 0;
+                int64_t actual_present_time = 0;
+                for (uint32_t f = MIN_NUM_FRAMES_AGO; f < frames_ago; f++) {
+                    // Obtain timestamps:
+                    int ret = native_window_get_frame_timestamps(
+                        swapchain.surface.window.get(), f,
+                        &desired_present_time, &render_complete_time,
+                        &composition_latch_time,
+                        NULL,  //&first_composition_start_time,
+                        NULL,  //&last_composition_start_time,
+                        NULL,  //&composition_finish_time,
+                        // TODO(ianelliott): Maybe ask if this one is
+                        // supported, at startup time (since it may not be
+                        // supported):
+                        &actual_present_time,
+                        NULL,  //&display_retire_time,
+                        NULL,  //&dequeue_ready_time,
+                        NULL /*&reads_done_time*/);
+                    if (ret) {
+                        break;
+                    } else if (!ret) {
+                        // We obtained at least one valid timestamp.  See if it
+                        // is for the present represented by this TimingInfo:
+                        if (static_cast<uint64_t>(desired_present_time) ==
+                            ti->vals_.desiredPresentTime) {
+                            // Record the timestamp(s) we received, and then
+                            // see if this TimingInfo is ready to be reported
+                            // to the user:
+                            ti->timestamp_desired_present_time_ =
+                                static_cast<uint64_t>(desired_present_time);
+                            ti->timestamp_actual_present_time_ =
+                                static_cast<uint64_t>(actual_present_time);
+                            ti->timestamp_render_complete_time_ =
+                                static_cast<uint64_t>(render_complete_time);
+                            ti->timestamp_composition_latch_time_ =
+                                static_cast<uint64_t>(composition_latch_time);
+
+                            if (ti->ready()) {
+                                // The TimingInfo has received enough
+                                // timestamps, and should now use those
+                                // timestamps to calculate the info that should
+                                // be reported to the user:
+                                //
+                                // FIXME: GET ACTUAL VALUE RATHER THAN HARD-CODE
+                                // IT:
+                                ti->calculate(16666666);
+                                num_ready++;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return num_ready;
+}
+
+// TODO(ianelliott): DEAL WITH RETURN VALUE (e.g. VK_INCOMPLETE)!!!
+void copy_ready_timings(Swapchain& swapchain,
+                        uint32_t* count,
+                        VkPastPresentationTimingGOOGLE* timings) {
+    uint32_t num_copied = 0;
+    uint32_t num_timings = static_cast<uint32_t>(swapchain.timing.size());
+    if (*count < num_timings) {
+        num_timings = *count;
+    }
+    for (uint32_t i = 0; i < num_timings; i++) {
+        TimingInfo* ti = &swapchain.timing.editItemAt(i);
+        if (ti && ti->ready()) {
+            ti->get_values(&timings[num_copied]);
+            num_copied++;
+            // We only report the values for a given present once, so remove
+            // them from swapchain.timing:
+            //
+            // TODO(ianelliott): SEE WHAT HAPPENS TO THE LOOP WHEN THE
+            // FOLLOWING IS DONE:
+            swapchain.timing.removeAt(i);
+            i--;
+            num_timings--;
+            if (*count == num_copied) {
+                break;
+            }
+        }
+    }
+    *count = num_copied;
 }
 
 }  // anonymous namespace
@@ -990,16 +1167,31 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                 }
                 if (time) {
                     if (!swapchain.frame_timestamps_enabled) {
+                        ALOGV(
+                            "Calling "
+                            "native_window_enable_frame_timestamps(true)");
                         native_window_enable_frame_timestamps(window, true);
                         swapchain.frame_timestamps_enabled = true;
                     }
-                    // TODO(ianelliott): need to store the presentID (and
-                    // desiredPresentTime), so it can be later correlated to
-                    // this present.  Probably modify the following function
-                    // (and below) to plumb a path to store it in FrameEvents
-                    // code, on the producer side.
-                    native_window_set_buffers_timestamp(
-                        window, static_cast<int64_t>(time->desiredPresentTime));
+                    // Record this presentID and desiredPresentTime so it can
+                    // be later correlated to this present.
+                    TimingInfo timing_record(time);
+                    swapchain.timing.add(timing_record);
+                    uint32_t num_timings =
+                        static_cast<uint32_t>(swapchain.timing.size());
+                    if (num_timings > MAX_TIMING_INFOS) {
+                        swapchain.timing.removeAt(0);
+                    }
+                    if (time->desiredPresentTime) {
+                        // Set the desiredPresentTime:
+                        ALOGV(
+                            "Calling "
+                            "native_window_set_buffers_timestamp(%" PRId64 ")",
+                            time->desiredPresentTime);
+                        native_window_set_buffers_timestamp(
+                            window,
+                            static_cast<int64_t>(time->desiredPresentTime));
+                    }
                 }
                 err = window->queueBuffer(window, img.buffer.get(), fence);
                 // queueBuffer always closes fence, even on error
@@ -1046,8 +1238,8 @@ VkResult GetRefreshCycleDurationGOOGLE(
     VkResult result = VK_SUCCESS;
 
     // TODO(ianelliott): FULLY IMPLEMENT THIS FUNCTION!!!
-    pDisplayTimingProperties->minRefreshDuration = 16666666666;
-    pDisplayTimingProperties->maxRefreshDuration = 16666666666;
+    pDisplayTimingProperties->minRefreshDuration = 16666666;
+    pDisplayTimingProperties->maxRefreshDuration = 16666666;
 
     return result;
 }
@@ -1063,15 +1255,16 @@ VkResult GetPastPresentationTimingGOOGLE(
     VkResult result = VK_SUCCESS;
 
     if (!swapchain.frame_timestamps_enabled) {
+        ALOGV("Calling native_window_enable_frame_timestamps(true)");
         native_window_enable_frame_timestamps(window, true);
         swapchain.frame_timestamps_enabled = true;
     }
 
-    // TODO(ianelliott): FULLY IMPLEMENT THIS FUNCTION!!!
     if (timings) {
-        *count = 0;
+        // TODO(ianelliott): plumb return value (e.g. VK_INCOMPLETE)
+        copy_ready_timings(swapchain, count, timings);
     } else {
-        *count = 0;
+        *count = get_num_ready_timings(swapchain);
     }
 
     return result;
