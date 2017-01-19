@@ -58,6 +58,9 @@
 #include <mutex>
 
 #define DEBUG_RESIZE    0
+#ifdef QTI_BSP
+#define NUM_PIXEL_LOW_RES_PANEL (720*1280)
+#endif
 
 namespace android {
 
@@ -1059,17 +1062,33 @@ void Layer::drawWithOpenGL(const sp<const DisplayDevice>& hw,
      * like more of a hack.
      */
 #ifdef QTI_BSP
+    const uint32_t hw_w = hw->getWidth();
+    const uint32_t hw_h = hw->getHeight();
     Rect win(s.active.w, s.active.h);
+    if((hw_w * hw_h) > NUM_PIXEL_LOW_RES_PANEL) {
+        if (!s.crop.isEmpty()) {
+            win = s.crop;
+        }
 
-    if (!s.crop.isEmpty()) {
-        win = s.crop;
+        win = s.active.transform.transform(win);
+        win.intersect(hw->getViewport(), &win);
+        win = s.active.transform.inverse().transform(win);
+        win.intersect(Rect(s.active.w, s.active.h), &win);
+        win = reduce(win, s.activeTransparentRegion);
+    } else {
+        win = computeBounds();
+
+        if (!s.finalCrop.isEmpty()) {
+            win = s.active.transform.transform(win);
+            if (!win.intersect(s.finalCrop, &win)) {
+                win.clear();
+            }
+            win = s.active.transform.inverse().transform(win);
+            if (!win.intersect(computeBounds(), &win)) {
+                win.clear();
+            }
+        }
     }
-
-    win = s.active.transform.transform(win);
-    win.intersect(hw->getViewport(), &win);
-    win = s.active.transform.inverse().transform(win);
-    win.intersect(Rect(s.active.w, s.active.h), &win);
-    win = reduce(win, s.activeTransparentRegion);
 #else
     Rect win(computeBounds());
 
@@ -1281,33 +1300,38 @@ void Layer::computeGeometry(const sp<const DisplayDevice>& hw, Mesh& mesh,
         win.intersect(s.crop, &win);
     }
 #ifdef QTI_BSP
-    win = s.active.transform.transform(win);
-    win.intersect(hw->getViewport(), &win);
-    win = s.active.transform.inverse().transform(win);
-    win.intersect(Rect(s.active.w, s.active.h), &win);
-    win = reduce(win, s.activeTransparentRegion);
+    const uint32_t hw_w = hw->getWidth();
+    uint32_t orientation = 0;
+    if((hw_w * hw_h) > NUM_PIXEL_LOW_RES_PANEL) {
+        win = s.active.transform.transform(win);
+        win.intersect(hw->getViewport(), &win);
+        win = s.active.transform.inverse().transform(win);
+        win.intersect(Rect(s.active.w, s.active.h), &win);
+        win = reduce(win, s.activeTransparentRegion);
 
-    const Transform bufferOrientation(mCurrentTransform);
-    Transform transform(tr * s.active.transform * bufferOrientation);
-    if (mSurfaceFlingerConsumer->getTransformToDisplayInverse()) {
-        uint32_t invTransform =  DisplayDevice::getPrimaryDisplayOrientationTransform();
-         if (invTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
-              invTransform ^= NATIVE_WINDOW_TRANSFORM_FLIP_V |
+        const Transform bufferOrientation(mCurrentTransform);
+        Transform transform(tr * s.active.transform * bufferOrientation);
+        if (mSurfaceFlingerConsumer->getTransformToDisplayInverse()) {
+            uint32_t invTransform =  DisplayDevice::getPrimaryDisplayOrientationTransform();
+            if (invTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
+                invTransform ^= NATIVE_WINDOW_TRANSFORM_FLIP_V |
                       NATIVE_WINDOW_TRANSFORM_FLIP_H;
-         }
-          transform = Transform(invTransform) * transform;
-    }
-    const uint32_t orientation = transform.getOrientation();
-    if (!(orientation | mCurrentTransform | mTransformHint)) {
-        if (!useIdentityTransform) {
-            win = s.active.transform.transform(win);
-            win.intersect(hw->getViewport(), &win);
+            }
+            transform = Transform(invTransform) * transform;
         }
+        orientation = transform.getOrientation();
+        if (!(orientation | mCurrentTransform | mTransformHint)) {
+            if (!useIdentityTransform) {
+                win = s.active.transform.transform(win);
+                win.intersect(hw->getViewport(), &win);
+            }
+        }
+    } else {
+        win = reduce(win, s.activeTransparentRegion);
     }
 #else
     win = reduce(win, s.activeTransparentRegion);
 #endif
-
 
 
     // subtract the transparent region and snap to the bounds
@@ -1319,17 +1343,24 @@ void Layer::computeGeometry(const sp<const DisplayDevice>& hw, Mesh& mesh,
 
     if (!useIdentityTransform) {
 #ifdef QTI_BSP
-        if (orientation | mCurrentTransform | mTransformHint) {
+        if((hw_w * hw_h) > NUM_PIXEL_LOW_RES_PANEL) {
+            if (orientation | mCurrentTransform | mTransformHint) {
+                lt = s.active.transform.transform(lt);
+                lb = s.active.transform.transform(lb);
+                rb = s.active.transform.transform(rb);
+                rt = s.active.transform.transform(rt);
+            }
+        } else {
             lt = s.active.transform.transform(lt);
             lb = s.active.transform.transform(lb);
             rb = s.active.transform.transform(rb);
             rt = s.active.transform.transform(rt);
         }
 #else
-            lt = s.active.transform.transform(lt);
-            lb = s.active.transform.transform(lb);
-            rb = s.active.transform.transform(rb);
-            rt = s.active.transform.transform(rt);
+        lt = s.active.transform.transform(lt);
+        lb = s.active.transform.transform(lb);
+        rb = s.active.transform.transform(rb);
+        rt = s.active.transform.transform(rt);
 #endif
     }
     if (!s.finalCrop.isEmpty()) {
