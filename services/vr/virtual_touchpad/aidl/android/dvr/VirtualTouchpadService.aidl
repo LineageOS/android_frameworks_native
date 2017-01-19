@@ -13,4 +13,11 @@ interface VirtualTouchpadService
    * Position values in the range [0.0, 1.0) map to the screen.
    */
   void touch(float x, float y, float pressure);
+
+  /**
+   * Generate a simulated touchpad button state event.
+   *
+   * @param buttons A union of MotionEvent BUTTON_* values.
+   */
+  void buttonState(int buttons);
 }

@@ -50,6 +50,7 @@ class ShellView : public Application, public HwcCallback::Client {
                 vec3 *hit_location);
   bool InitializeTouch();
   void Touch();
+  bool OnTouchpadButton(bool down, int button);
 
   void OnDrawFrame() override;
   void DrawWithTransform(const mat4& transform, const ShaderProgram& program);
@@ -81,6 +82,7 @@ class ShellView : public Application, public HwcCallback::Client {
 
   bool is_touching_ = false;
   bool allow_input_ = false;
+  int touchpad_buttons_ = 0;
   vec2 hit_location_in_window_coord_;
   vec2 ime_top_left_;
   vec2 ime_size_;

@@ -1,3 +1,4 @@
+#include <android/input.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -200,6 +201,28 @@ TEST_F(VirtualTouchpadTest, Goodness) {
 
   expect.Reset();
   record.Reset();
+  touch_status = touchpad.ButtonState(AMOTION_EVENT_BUTTON_BACK);
+  EXPECT_EQ(0, touch_status);
+  expect.WriteInputEvent(EV_KEY, BTN_BACK, EvdevInjector::KEY_PRESS);
+  expect.WriteInputEvent(EV_SYN, SYN_REPORT, 0);
+  EXPECT_EQ(expect.GetString(), record.GetString());
+
+  expect.Reset();
+  record.Reset();
+  touch_status = touchpad.ButtonState(AMOTION_EVENT_BUTTON_BACK);
+  EXPECT_EQ(0, touch_status);
+  EXPECT_EQ(expect.GetString(), record.GetString());
+
+  expect.Reset();
+  record.Reset();
+  touch_status = touchpad.ButtonState(0);
+  EXPECT_EQ(0, touch_status);
+  expect.WriteInputEvent(EV_KEY, BTN_BACK, EvdevInjector::KEY_RELEASE);
+  expect.WriteInputEvent(EV_SYN, SYN_REPORT, 0);
+  EXPECT_EQ(expect.GetString(), record.GetString());
+
+  expect.Reset();
+  record.Reset();
 }
 
 TEST_F(VirtualTouchpadTest, Badness) {
@@ -216,6 +239,14 @@ TEST_F(VirtualTouchpadTest, Badness) {
   EXPECT_NE(0, touch_status);
   EXPECT_EQ(expect.GetString(), record.GetString());
 
+  // Button change before initialization should return an error,
+  // and should not result in any system calls.
+  expect.Reset();
+  record.Reset();
+  touch_status = touchpad.ButtonState(AMOTION_EVENT_BUTTON_BACK);
+  EXPECT_NE(0, touch_status);
+  EXPECT_EQ(expect.GetString(), record.GetString());
+
   expect.Reset();
   record.Reset();
   touchpad.Initialize();
@@ -226,6 +257,28 @@ TEST_F(VirtualTouchpadTest, Badness) {
   record.Reset();
   const int initialization_status = touchpad.Initialize();
   EXPECT_NE(0, initialization_status);
+  EXPECT_EQ(expect.GetString(), record.GetString());
+
+  // Touch off-screen should return an error,
+  // and should not result in any system calls.
+  expect.Reset();
+  record.Reset();
+  touch_status = touchpad.Touch(-0.25f, 0.75f, 1.0f);
+  EXPECT_NE(0, touch_status);
+  touch_status = touchpad.Touch(0.25f, -0.75f, 1.0f);
+  EXPECT_NE(0, touch_status);
+  touch_status = touchpad.Touch(1.25f, 0.75f, 1.0f);
+  EXPECT_NE(0, touch_status);
+  touch_status = touchpad.Touch(0.25f, 1.75f, 1.0f);
+  EXPECT_NE(0, touch_status);
+  EXPECT_EQ(expect.GetString(), record.GetString());
+
+  // Unsupported button should return an error,
+  // and should not result in any system calls.
+  expect.Reset();
+  record.Reset();
+  touch_status = touchpad.ButtonState(AMOTION_EVENT_BUTTON_FORWARD);
+  EXPECT_NE(0, touch_status);
   EXPECT_EQ(expect.GetString(), record.GetString());
 }
 

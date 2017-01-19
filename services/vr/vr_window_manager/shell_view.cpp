@@ -1,5 +1,6 @@
 #include "shell_view.h"
 
+#include <android/input.h>
 #include <binder/IServiceManager.h>
 #include <cutils/log.h>
 #include <EGL/eglext.h>
@@ -583,6 +584,12 @@ void ShellView::DrawReticle(const mat4& perspective, const mat4& eye_matrix,
 
     if (controller_state_->GetButtonUp(gvr::kControllerButtonClick))
       OnClick(false);
+
+    if (controller_state_->GetButtonDown(gvr::kControllerButtonApp))
+      OnTouchpadButton(true, AMOTION_EVENT_BUTTON_BACK);
+
+    if (controller_state_->GetButtonUp(gvr::kControllerButtonApp))
+      OnTouchpadButton(false, AMOTION_EVENT_BUTTON_BACK);
   }
 
   vec3 view_direction = vec3(view_quaternion * vec3(0, 0, -1));
@@ -663,6 +670,33 @@ void ShellView::Touch() {
   if (!status.isOk()) {
     ALOGE("touch failed: %s", status.toString8().string());
   }
+}
+
+bool ShellView::OnTouchpadButton(bool down, int button) {
+  int buttons = touchpad_buttons_;
+  if (down) {
+    if (allow_input_) {
+      buttons |= button;
+    }
+  } else {
+    buttons &= ~button;
+  }
+  if (buttons == touchpad_buttons_) {
+    return true;
+  }
+  touchpad_buttons_ = buttons;
+  if (!virtual_touchpad_.get()) {
+    ALOGE("missing virtual touchpad");
+    return false;
+  }
+
+  const android::binder::Status status =
+      virtual_touchpad_->buttonState(touchpad_buttons_);
+  if (!status.isOk()) {
+    ALOGE("touchpad button failed: %d %s", touchpad_buttons_,
+          status.toString8().string());
+  }
+  return true;
 }
 
 }  // namespace dvr

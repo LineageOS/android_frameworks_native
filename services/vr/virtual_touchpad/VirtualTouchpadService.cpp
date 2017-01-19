@@ -13,8 +13,13 @@ int VirtualTouchpadService::Initialize() {
 }
 
 binder::Status VirtualTouchpadService::touch(float x, float y, float pressure) {
-  // Permissions check added and removed here :^)
   const int error = touchpad_.Touch(x, y, pressure);
+  return error ? binder::Status::fromServiceSpecificError(error)
+               : binder::Status::ok();
+}
+
+binder::Status VirtualTouchpadService::buttonState(int buttons) {
+  const int error = touchpad_.ButtonState(buttons);
   return error ? binder::Status::fromServiceSpecificError(error)
                : binder::Status::ok();
 }

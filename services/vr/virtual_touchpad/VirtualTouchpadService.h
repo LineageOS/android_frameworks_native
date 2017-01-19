@@ -8,6 +8,9 @@
 namespace android {
 namespace dvr {
 
+// VirtualTouchpadService implements the service side of
+// the Binder interface defined in VirtualTouchpadService.aidl.
+//
 class VirtualTouchpadService : public BnVirtualTouchpadService {
  public:
   VirtualTouchpadService(VirtualTouchpad& touchpad)
@@ -22,6 +25,7 @@ class VirtualTouchpadService : public BnVirtualTouchpadService {
  protected:
   // Implements IVirtualTouchpadService.
   ::android::binder::Status touch(float x, float y, float pressure) override;
+  ::android::binder::Status buttonState(int buttons) override;
 
  private:
   VirtualTouchpad& touchpad_;
