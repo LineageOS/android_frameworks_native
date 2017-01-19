@@ -5,10 +5,13 @@ cc_library_static {
         "-Wall",
         "-Wextra",
         "-Werror",
+        "-DLOG_TAG=\"libpdx_uds\"",
+        "-DTRACE=0",
     ],
     export_include_dirs: ["private"],
     local_include_dirs: ["private"],
     srcs: [
+        "channel_event_set.cpp",
         "channel_manager.cpp",
         "client_channel_factory.cpp",
         "client_channel.cpp",

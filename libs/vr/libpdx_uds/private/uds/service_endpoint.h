@@ -11,6 +11,7 @@
 
 #include <pdx/service.h>
 #include <pdx/service_endpoint.h>
+#include <uds/channel_event_set.h>
 #include <uds/service_dispatcher.h>
 
 namespace android {
@@ -95,8 +96,7 @@ class Endpoint : public pdx::Endpoint {
  private:
   struct ChannelData {
     LocalHandle data_fd;
-    LocalHandle event_fd;
-    uint32_t event_mask{0};
+    ChannelEventSet event_set;
     Channel* channel_state{nullptr};
   };
 
@@ -109,6 +109,8 @@ class Endpoint : public pdx::Endpoint {
   uint32_t GetNextAvailableMessageId() {
     return next_message_id_.fetch_add(1, std::memory_order_relaxed);
   }
+
+  void BuildCloseMessage(int channel_id, Message* message);
 
   Status<void> AcceptConnection(Message* message);
   Status<void> ReceiveMessageForChannel(int channel_id, Message* message);
@@ -129,9 +131,6 @@ class Endpoint : public pdx::Endpoint {
 
   mutable std::mutex channel_mutex_;
   std::map<int, ChannelData> channels_;
-
-  mutable std::mutex service_mutex_;
-  std::condition_variable condition_;
 
   Service* service_{nullptr};
   std::atomic<uint32_t> next_message_id_;

@@ -1,4 +1,3 @@
-#define LOG_TAG "ServiceDispatcher"
 #include "uds/service_dispatcher.h"
 
 #include <errno.h>
@@ -8,8 +7,6 @@
 
 #include "pdx/service.h"
 #include "uds/service_endpoint.h"
-
-#define TRACE 0
 
 static const int kMaxEventsPerLoop = 128;
 

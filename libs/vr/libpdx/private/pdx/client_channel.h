@@ -18,6 +18,8 @@ class ClientChannel {
   virtual uint32_t GetIpcTag() const = 0;
 
   virtual int event_fd() const = 0;
+  virtual Status<int> GetEventMask(int events) = 0;
+
   virtual LocalChannelHandle& GetChannelHandle() = 0;
   virtual void* AllocateTransactionState() = 0;
   virtual void FreeTransactionState(void* state) = 0;

@@ -108,8 +108,22 @@ class Client {
    */
   void DisableAutoReconnect();
 
+  /*
+   * Returns an fd that the client may use to check/wait for asynchronous
+   * notifications to the channel. It is implementation dependent how the
+   * transport backend handles this feature, however all implementations must
+   * support at least POLLIN/EPOLLIN/readable.
+   *
+   * For uses that require more than one type of event, use
+   * ClientChannel::GetEventMask() to distinguish between events.
+   */
   int event_fd() const;
+
+  /*
+   * Returns the underlying ClientChannel object.
+   */
   ClientChannel* GetChannel() const { return channel_.get(); }
+  std::unique_ptr<ClientChannel>&& TakeChannel() { return std::move(channel_); }
 
  private:
   Client(const Client&) = delete;

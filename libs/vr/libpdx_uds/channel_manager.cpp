@@ -33,11 +33,11 @@ LocalChannelHandle ChannelManager::CreateHandle(LocalHandle data_fd,
   return LocalChannelHandle(nullptr, -1);
 }
 
-int ChannelManager::GetEventFd(int32_t handle) {
+ChannelManager::ChannelData* ChannelManager::GetChannelData(int32_t handle) {
   std::lock_guard<std::mutex> autolock(mutex_);
   auto channel = channels_.find(handle);
-  return channel != channels_.end() ? channel->second.event_fd.Get() : -1;
-};
+  return channel != channels_.end() ? &channel->second : nullptr;
+}
 
 }  // namespace uds
 }  // namespace pdx

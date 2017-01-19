@@ -3,6 +3,7 @@
 
 #include <pdx/client_channel.h>
 
+#include <uds/channel_event_set.h>
 #include <uds/channel_manager.h>
 #include <uds/service_endpoint.h>
 
@@ -18,7 +19,17 @@ class ClientChannel : public pdx::ClientChannel {
       LocalChannelHandle channel_handle);
 
   uint32_t GetIpcTag() const override { return Endpoint::kIpcTag; }
-  int event_fd() const override { return epoll_fd_.Get(); }
+
+  int event_fd() const override {
+    return channel_data_ ? channel_data_->event_receiver.event_fd().Get() : -1;
+  }
+  Status<int> GetEventMask(int /*events*/) override {
+    if (channel_data_)
+      return channel_data_->event_receiver.GetPendingEvents();
+    else
+      return ErrorStatus(EINVAL);
+  }
+
   LocalChannelHandle& GetChannelHandle() override { return channel_handle_; }
   void* AllocateTransactionState() override;
   void FreeTransactionState(void* state) override;
@@ -61,7 +72,7 @@ class ClientChannel : public pdx::ClientChannel {
                              const iovec* receive_vector, size_t receive_count);
 
   LocalChannelHandle channel_handle_;
-  LocalHandle epoll_fd_;
+  ChannelManager::ChannelData* channel_data_;
 };
 
 }  // namespace uds

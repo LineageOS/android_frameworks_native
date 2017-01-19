@@ -6,6 +6,7 @@
 
 #include <pdx/channel_handle.h>
 #include <pdx/file_handle.h>
+#include <uds/channel_event_set.h>
 
 namespace android {
 namespace pdx {
@@ -16,13 +17,14 @@ class ChannelManager : public ChannelManagerInterface {
   static ChannelManager& Get();
 
   LocalChannelHandle CreateHandle(LocalHandle data_fd, LocalHandle event_fd);
-  int GetEventFd(int32_t handle);
-
- private:
   struct ChannelData {
     LocalHandle data_fd;
-    LocalHandle event_fd;
+    ChannelEventReceiver event_receiver;
   };
+
+  ChannelData* GetChannelData(int32_t handle);
+
+ private:
   ChannelManager() = default;
 
   void CloseHandle(int32_t handle) override;

@@ -134,7 +134,9 @@ Status<void> ReceivePayload::Receive(int socket_fd, ucred* cred) {
       RETRY_EINTR(recv(socket_fd, &preamble, sizeof(preamble), MSG_WAITALL));
   if (ret < 0)
     return ErrorStatus(errno);
-  if (ret != sizeof(preamble) || preamble.magic != kMagicPreamble)
+  else if (ret == 0)
+    return ErrorStatus(ESHUTDOWN);
+  else if (ret != sizeof(preamble) || preamble.magic != kMagicPreamble)
     return ErrorStatus(EIO);
 
   buffer_.resize(preamble.data_size);
@@ -157,7 +159,9 @@ Status<void> ReceivePayload::Receive(int socket_fd, ucred* cred) {
   ret = RETRY_EINTR(recvmsg(socket_fd, &msg, MSG_WAITALL));
   if (ret < 0)
     return ErrorStatus(errno);
-  if (static_cast<uint32_t>(ret) != preamble.data_size)
+  else if (ret == 0)
+    return ErrorStatus(ESHUTDOWN);
+  else if (static_cast<uint32_t>(ret) != preamble.data_size)
     return ErrorStatus(EIO);
 
   bool cred_available = false;
@@ -239,7 +243,9 @@ Status<void> ReceiveData(int socket_fd, void* data, size_t size) {
   ssize_t size_read = RETRY_EINTR(recv(socket_fd, data, size, MSG_WAITALL));
   if (size_read < 0)
     return ErrorStatus(errno);
-  if (static_cast<size_t>(size_read) != size)
+  else if (size_read == 0)
+    return ErrorStatus(ESHUTDOWN);
+  else if (static_cast<size_t>(size_read) != size)
     return ErrorStatus(EIO);
   return {};
 }
@@ -251,7 +257,9 @@ Status<void> ReceiveDataVector(int socket_fd, const iovec* data, size_t count) {
   ssize_t size_read = RETRY_EINTR(recvmsg(socket_fd, &msg, MSG_WAITALL));
   if (size_read < 0)
     return ErrorStatus(errno);
-  if (static_cast<size_t>(size_read) != CountVectorSize(data, count))
+  else if (size_read == 0)
+    return ErrorStatus(ESHUTDOWN);
+  else if (static_cast<size_t>(size_read) != CountVectorSize(data, count))
     return ErrorStatus(EIO);
   return {};
 }

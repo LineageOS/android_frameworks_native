@@ -50,12 +50,17 @@ struct TransactionState {
   ChannelReference PushChannelHandle(BorrowedChannelHandle handle) {
     if (!handle)
       return handle.value();
-    ChannelInfo<BorrowedHandle> channel_info;
-    channel_info.data_fd.Reset(handle.value());
-    channel_info.event_fd.Reset(
-        ChannelManager::Get().GetEventFd(handle.value()));
-    request.channels.push_back(std::move(channel_info));
-    return request.channels.size() - 1;
+
+    if (auto* channel_data =
+            ChannelManager::Get().GetChannelData(handle.value())) {
+      ChannelInfo<BorrowedHandle> channel_info;
+      channel_info.data_fd.Reset(handle.value());
+      channel_info.event_fd = channel_data->event_receiver.event_fd();
+      request.channels.push_back(std::move(channel_info));
+      return request.channels.size() - 1;
+    } else {
+      return -1;
+    }
   }
 
   RequestHeader<BorrowedHandle> request;
@@ -127,27 +132,7 @@ Status<void> ReceiveResponse(int socket_fd, TransactionState* transaction_state,
 
 ClientChannel::ClientChannel(LocalChannelHandle channel_handle)
     : channel_handle_{std::move(channel_handle)} {
-  int data_fd = channel_handle_.value();
-  int event_fd =
-      channel_handle_ ? ChannelManager::Get().GetEventFd(data_fd) : -1;
-
-  if (event_fd >= 0) {
-    epoll_fd_.Reset(epoll_create(1));
-    if (epoll_fd_) {
-      epoll_event data_ev;
-      data_ev.events = EPOLLHUP;
-      data_ev.data.fd = data_fd;
-
-      epoll_event event_ev;
-      event_ev.events = EPOLLIN;
-      event_ev.data.fd = event_fd;
-      if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, data_fd, &data_ev) < 0 ||
-          epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, event_fd, &event_ev) < 0) {
-        ALOGE("Failed to add fd to epoll fd because: %s\n", strerror(errno));
-        epoll_fd_.Close();
-      }
-    }
-  }
+  channel_data_ = ChannelManager::Get().GetChannelData(channel_handle_.value());
 }
 
 std::unique_ptr<pdx::ClientChannel> ClientChannel::Create(
