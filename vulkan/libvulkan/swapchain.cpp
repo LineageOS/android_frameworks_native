@@ -108,15 +108,18 @@ int InvertTransformToNative(VkSurfaceTransformFlagBitsKHR transform) {
 
 class TimingInfo {
    public:
-    TimingInfo() {}
-    TimingInfo(const VkPresentTimeGOOGLE* qp) {
-        vals_.presentID = qp->presentID;
-        vals_.desiredPresentTime = qp->desiredPresentTime;
-        timestamp_desired_present_time_ = 0;
-        timestamp_actual_present_time_ = 0;
-        timestamp_render_complete_time_ = 0;
-        timestamp_composition_latch_time_ = 0;
-    }
+    TimingInfo()
+        : vals_{0, 0, 0, 0, 0},
+          timestamp_desired_present_time_(0),
+          timestamp_actual_present_time_(0),
+          timestamp_render_complete_time_(0),
+          timestamp_composition_latch_time_(0) {}
+    TimingInfo(const VkPresentTimeGOOGLE* qp)
+        : vals_{qp->presentID, qp->desiredPresentTime, 0, 0, 0},
+          timestamp_desired_present_time_(0),
+          timestamp_actual_present_time_(0),
+          timestamp_render_complete_time_(0),
+          timestamp_composition_latch_time_(0) {}
     bool ready() {
         return (timestamp_desired_present_time_ &&
                 timestamp_actual_present_time_ &&
