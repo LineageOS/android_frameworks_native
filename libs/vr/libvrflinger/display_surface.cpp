@@ -396,6 +396,16 @@ void DisplaySurface::OnPostConsumer(
 
 void DisplaySurface::HandleConsumerEvents(
     const std::shared_ptr<BufferConsumer>& consumer, int events) {
+  auto status = consumer->GetEventMask(events);
+  if (!status) {
+    ALOGW(
+        "DisplaySurface::HandleConsumerEvents: Failed to get event mask for "
+        "consumer: %s",
+        status.GetErrorMessage().c_str());
+    return;
+  }
+
+  events = status.get();
   if (events & EPOLLHUP) {
     ALOGD_IF(TRACE,
              "DisplaySurface::HandleConsumerEvents: removing event handler for "
