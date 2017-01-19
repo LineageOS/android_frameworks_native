@@ -879,6 +879,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
             mCore->mSharedBufferCache.dataspace = dataSpace;
         }
 
+        output->bufferReplaced = false;
         if (mCore->mQueue.empty()) {
             // When the queue is empty, we can ignore mDequeueBufferCannotBlock
             // and simply queue this buffer
@@ -905,6 +906,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
                     if (!mSlots[last.mSlot].mBufferState.isShared()) {
                         mCore->mActiveBuffers.erase(last.mSlot);
                         mCore->mFreeBuffers.push_back(last.mSlot);
+                        output->bufferReplaced = true;
                     }
                 }
 
@@ -1158,6 +1160,7 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
             output->numPendingBuffers =
                     static_cast<uint32_t>(mCore->mQueue.size());
             output->nextFrameNumber = mCore->mFrameCounter + 1;
+            output->bufferReplaced = false;
 
             if (listener != NULL) {
                 // Set up a death notification so that we can disconnect

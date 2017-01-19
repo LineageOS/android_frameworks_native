@@ -1076,4 +1076,45 @@ TEST_F(BufferQueueTest, TestDiscardFreeBuffers) {
     }
 }
 
+TEST_F(BufferQueueTest, TestBufferReplacedInQueueBuffer) {
+    createBufferQueue();
+    sp<DummyConsumer> dc(new DummyConsumer);
+    ASSERT_EQ(OK, mConsumer->consumerConnect(dc, true));
+    IGraphicBufferProducer::QueueBufferOutput output;
+    ASSERT_EQ(OK, mProducer->connect(new DummyProducerListener,
+            NATIVE_WINDOW_API_CPU, true, &output));
+    ASSERT_EQ(OK, mConsumer->setMaxAcquiredBufferCount(1));
+
+    int slot = BufferQueue::INVALID_BUFFER_SLOT;
+    sp<Fence> fence = Fence::NO_FENCE;
+    sp<GraphicBuffer> buffer = nullptr;
+    IGraphicBufferProducer::QueueBufferInput input(0ull, true,
+        HAL_DATASPACE_UNKNOWN, Rect::INVALID_RECT,
+        NATIVE_WINDOW_SCALING_MODE_FREEZE, 0, Fence::NO_FENCE);
+    BufferItem item{};
+
+    // Preallocate, dequeue, request, and cancel 2 buffers so we don't get
+    // BUFFER_NEEDS_REALLOCATION below
+    int slots[2] = {};
+    ASSERT_EQ(OK, mProducer->setMaxDequeuedBufferCount(2));
+    for (size_t i = 0; i < 2; ++i) {
+        status_t result = mProducer->dequeueBuffer(&slots[i], &fence,
+                0, 0, 0, 0, nullptr);
+        ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, result);
+        ASSERT_EQ(OK, mProducer->requestBuffer(slots[i], &buffer));
+    }
+    for (size_t i = 0; i < 2; ++i) {
+        ASSERT_EQ(OK, mProducer->cancelBuffer(slots[i], Fence::NO_FENCE));
+    }
+
+    // Fill 2 buffers without consumer consuming them. Verify that all
+    // queued buffer returns proper bufferReplaced flag
+    ASSERT_EQ(OK, mProducer->dequeueBuffer(&slot, &fence, 0, 0, 0, 0, nullptr));
+    ASSERT_EQ(OK, mProducer->queueBuffer(slot, input, &output));
+    ASSERT_EQ(false, output.bufferReplaced);
+    ASSERT_EQ(OK, mProducer->dequeueBuffer(&slot, &fence, 0, 0, 0, 0, nullptr));
+    ASSERT_EQ(OK, mProducer->queueBuffer(slot, input, &output));
+    ASSERT_EQ(true, output.bufferReplaced);
+}
+
 } // namespace android
