@@ -1029,7 +1029,7 @@ static std::string toString(std::vector<int64_t> values) {
 #endif
 
 static void collectQuotaStats(const std::string& device, int32_t userId,
-        int32_t appId, struct stats* stats, struct stats* extStats ATTRIBUTE_UNUSED) {
+        int32_t appId, struct stats* stats, struct stats* extStats) {
     if (device.empty()) return;
 
     struct dqblk dq;
@@ -1056,13 +1056,28 @@ static void collectQuotaStats(const std::string& device, int32_t userId,
             }
         } else {
 #if MEASURE_DEBUG
-        LOG(DEBUG) << "quotactl() for GID " << cacheGid << " " << dq.dqb_curspace;
+            LOG(DEBUG) << "quotactl() for GID " << cacheGid << " " << dq.dqb_curspace;
 #endif
             stats->cacheSize += dq.dqb_curspace;
         }
     }
 
-    int sharedGid = multiuser_get_shared_app_gid(uid);
+    int extGid = multiuser_get_ext_gid(userId, appId);
+    if (extGid != -1) {
+        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), device.c_str(), extGid,
+                reinterpret_cast<char*>(&dq)) != 0) {
+            if (errno != ESRCH) {
+                PLOG(ERROR) << "Failed to quotactl " << device << " for GID " << extGid;
+            }
+        } else {
+#if MEASURE_DEBUG
+            LOG(DEBUG) << "quotactl() for GID " << extGid << " " << dq.dqb_curspace;
+#endif
+            extStats->dataSize += dq.dqb_curspace;
+        }
+    }
+
+    int sharedGid = multiuser_get_shared_gid(userId, appId);
     if (sharedGid != -1) {
         if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), device.c_str(), sharedGid,
                 reinterpret_cast<char*>(&dq)) != 0) {
@@ -1071,15 +1086,11 @@ static void collectQuotaStats(const std::string& device, int32_t userId,
             }
         } else {
 #if MEASURE_DEBUG
-        LOG(DEBUG) << "quotactl() for GID " << sharedGid << " " << dq.dqb_curspace;
+            LOG(DEBUG) << "quotactl() for GID " << sharedGid << " " << dq.dqb_curspace;
 #endif
             stats->codeSize += dq.dqb_curspace;
         }
     }
-
-#if MEASURE_EXTERNAL
-    // TODO: measure using external GIDs
-#endif
 }
 
 static void collectManualStats(const std::string& path, struct stats* stats) {
@@ -1163,6 +1174,40 @@ static void collectManualStatsForUser(const std::string& path, struct stats* sta
         }
     }
     closedir(d);
+}
+
+static void collectManualExternalStatsForUser(const std::string& path, struct stats* stats) {
+    FTS *fts;
+    FTSENT *p;
+    char *argv[] = { (char*) path.c_str(), nullptr };
+    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+        PLOG(ERROR) << "Failed to fts_open " << path;
+        return;
+    }
+    while ((p = fts_read(fts)) != NULL) {
+        switch (p->fts_info) {
+        case FTS_D:
+            if (p->fts_level == 4
+                    && !strcmp(p->fts_name, "cache")
+                    && !strcmp(p->fts_parent->fts_parent->fts_name, "data")
+                    && !strcmp(p->fts_parent->fts_parent->fts_parent->fts_name, "Android")) {
+                p->fts_number = 1;
+            }
+            p->fts_number = p->fts_parent->fts_number;
+            // Fall through to count the directory
+        case FTS_DEFAULT:
+        case FTS_F:
+        case FTS_SL:
+        case FTS_SLNONE:
+            int64_t size = (p->fts_statp->st_blocks * 512);
+            if (p->fts_number == 1) {
+                stats->cacheSize += size;
+            }
+            stats->dataSize += size;
+            break;
+        }
+    }
+    fts_close(fts);
 }
 
 binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::string>& uuid,
@@ -1251,14 +1296,12 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
             calculate_tree_size(refProfilePath, &stats.codeSize);
             ATRACE_END();
 
-#if MEASURE_EXTERNAL
             ATRACE_BEGIN("external");
             auto extPath = create_data_media_package_path(uuid_, userId, pkgname, "data");
             collectManualStats(extPath, &extStats);
             auto mediaPath = create_data_media_package_path(uuid_, userId, pkgname, "media");
             calculate_tree_size(mediaPath, &extStats.dataSize);
             ATRACE_END();
-#endif
         }
 
         ATRACE_BEGIN("dalvik");
@@ -1307,17 +1350,28 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
 
-    ATRACE_BEGIN("obb");
-    auto obbPath = create_data_path(uuid_) + "/media/obb";
-    calculate_tree_size(obbPath, &extStats.codeSize);
-    ATRACE_END();
-
     auto device = findQuotaDeviceForUuid(uuid);
     if (device.empty()) {
         flags &= ~FLAG_USE_QUOTA;
     }
 
     if (flags & FLAG_USE_QUOTA) {
+        struct dqblk dq;
+
+        ATRACE_BEGIN("obb");
+        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), device.c_str(), AID_MEDIA_OBB,
+                reinterpret_cast<char*>(&dq)) != 0) {
+            if (errno != ESRCH) {
+                PLOG(ERROR) << "Failed to quotactl " << device << " for GID " << AID_MEDIA_OBB;
+            }
+        } else {
+#if MEASURE_DEBUG
+            LOG(DEBUG) << "quotactl() for GID " << AID_MEDIA_OBB << " " << dq.dqb_curspace;
+#endif
+            extStats.codeSize += dq.dqb_curspace;
+        }
+        ATRACE_END();
+
         ATRACE_BEGIN("code");
         calculate_tree_size(create_data_app_path(uuid_), &stats.codeSize, -1, -1, true);
         ATRACE_END();
@@ -1336,11 +1390,20 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         calculate_tree_size(refProfilePath, &stats.codeSize, -1, -1, true);
         ATRACE_END();
 
-#if MEASURE_EXTERNAL
         ATRACE_BEGIN("external");
-        // TODO: measure external storage paths
-        ATRACE_END();
+        uid_t uid = multiuser_get_uid(userId, AID_MEDIA_RW);
+        if (quotactl(QCMD(Q_GETQUOTA, USRQUOTA), device.c_str(), uid,
+                reinterpret_cast<char*>(&dq)) != 0) {
+            if (errno != ESRCH) {
+                PLOG(ERROR) << "Failed to quotactl " << device << " for UID " << uid;
+            }
+        } else {
+#if MEASURE_DEBUG
+            LOG(DEBUG) << "quotactl() for UID " << uid << " " << dq.dqb_curspace;
 #endif
+            extStats.dataSize += dq.dqb_curspace;
+        }
+        ATRACE_END();
 
         ATRACE_BEGIN("dalvik");
         calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
@@ -1361,6 +1424,11 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         }
         ATRACE_END();
     } else {
+        ATRACE_BEGIN("obb");
+        auto obbPath = create_data_path(uuid_) + "/media/obb";
+        calculate_tree_size(obbPath, &extStats.codeSize);
+        ATRACE_END();
+
         ATRACE_BEGIN("code");
         calculate_tree_size(create_data_app_path(uuid_), &stats.codeSize);
         ATRACE_END();
@@ -1379,11 +1447,14 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         calculate_tree_size(refProfilePath, &stats.codeSize);
         ATRACE_END();
 
-#if MEASURE_EXTERNAL
         ATRACE_BEGIN("external");
-        // TODO: measure external storage paths
-        ATRACE_END();
+        auto dataMediaPath = create_data_media_path(uuid_, userId);
+        collectManualExternalStatsForUser(dataMediaPath, &extStats);
+#if MEASURE_DEBUG
+        LOG(DEBUG) << "Measured external data " << extStats.dataSize << " cache "
+                << extStats.cacheSize;
 #endif
+        ATRACE_END();
 
         ATRACE_BEGIN("dalvik");
         calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize);
