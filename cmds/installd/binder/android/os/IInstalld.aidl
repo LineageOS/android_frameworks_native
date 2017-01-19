@@ -38,6 +38,8 @@ interface IInstalld {
     long[] getUserSize(@nullable @utf8InCpp String uuid, int userId, int flags, in int[] appIds);
     long[] getExternalSize(@nullable @utf8InCpp String uuid, int userId, int flags);
 
+    void setAppQuota(@nullable @utf8InCpp String uuid, int userId, int appId, long cacheQuota);
+
     void moveCompleteApp(@nullable @utf8InCpp String fromUuid, @nullable @utf8InCpp String toUuid,
             @utf8InCpp String packageName, @utf8InCpp String dataAppName, int appId,
             @utf8InCpp String seInfo, int targetSdkVersion);
@@ -58,7 +60,7 @@ interface IInstalld {
     void idmap(@utf8InCpp String targetApkPath, @utf8InCpp String overlayApkPath, int uid);
     void rmPackageDir(@utf8InCpp String packageDir);
     void markBootComplete(@utf8InCpp String instructionSet);
-    void freeCache(@nullable @utf8InCpp String uuid, long freeStorageSize);
+    void freeCache(@nullable @utf8InCpp String uuid, long freeStorageSize, int flags);
     void linkNativeLibraryDirectory(@nullable @utf8InCpp String uuid,
             @utf8InCpp String packageName, @utf8InCpp String nativeLibPath32, int userId);
     void createOatDir(@utf8InCpp String oatDir, @utf8InCpp String instructionSet);
