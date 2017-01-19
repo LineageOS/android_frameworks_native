@@ -6,6 +6,8 @@ cc_defaults {
         "-Werror",
     ],
     srcs: [
+        "CacheItem.cpp",
+        "CacheTracker.cpp",
         "InstalldNativeService.cpp",
         "dexopt.cpp",
         "globals.cpp",
