@@ -272,6 +272,7 @@ static inline EGLContext getContext() { return egl_tls_t::getContext(); }
 
 EGLDisplay eglGetDisplay(EGLNativeDisplayType display)
 {
+    ATRACE_CALL();
     clearError();
 
     uintptr_t index = reinterpret_cast<uintptr_t>(display);
