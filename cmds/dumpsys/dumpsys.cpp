@@ -45,8 +45,7 @@ using android::base::StringPrintf;
 using android::base::unique_fd;
 using android::base::WriteFully;
 
-static int sort_func(const String16* lhs, const String16* rhs)
-{
+static int sort_func(const String16* lhs, const String16* rhs) {
     return lhs->compare(*rhs);
 }
 
@@ -55,10 +54,11 @@ static void usage() {
         "usage: dumpsys\n"
             "         To dump all services.\n"
             "or:\n"
-            "       dumpsys [-t TIMEOUT] [--help | -l | --skip SERVICES | SERVICE [ARGS]]\n"
+            "       dumpsys [-t TIMEOUT] [--help | --hw | -l | --skip SERVICES | SERVICE [ARGS]]\n"
             "         --help: shows this help\n"
             "         -l: only list services, do not dump them\n"
             "         -t TIMEOUT: TIMEOUT to use in seconds instead of default 10 seconds\n"
+            "         --hw: list all hw services running on the device\n"
             "         --skip SERVICES: dumps all services but SERVICES (comma-separated list)\n"
             "         SERVICE [ARGS]: dumps only service SERVICE, optionally passing ARGS to it\n");
 }
@@ -72,16 +72,42 @@ static bool IsSkipped(const Vector<String16>& skipped, const String16& service) 
     return false;
 }
 
+static void ListHardwareServices(android::hidl::manager::V1_0::IServiceManager* hm) {
+    using android::hardware::hidl_vec;
+    using android::hardware::hidl_string;
+    using android::hardware::Return;
+    using android::sp;
+
+    if (hm == nullptr) {
+        ALOGE("Unable to get hardware service manager!");
+        aerr << "Failed to get hardware service manager!";
+        return;
+    }
+
+    Return<void> ret = hm->list([](const hidl_vec<hidl_string> &registered){
+        aout << "Currently running hardware services:" << endl;
+        for (const auto &service : registered) {
+            aout << "  " << service << endl;
+        }
+    });
+
+    if (!ret.isOk()) {
+        aerr << "Failed to list hardware services: " << ret.description();
+    }
+}
+
 int Dumpsys::main(int argc, char* const argv[]) {
     Vector<String16> services;
     Vector<String16> args;
     Vector<String16> skippedServices;
     bool showListOnly = false;
+    bool listHwOnly = false;
     bool skipServices = false;
     int timeoutArg = 10;
     static struct option longOptions[] = {
         {"skip", no_argument, 0,  0 },
         {"help", no_argument, 0,  0 },
+        {"hw",   no_argument, 0,  0 },
         {     0,           0, 0,  0 }
     };
 
@@ -105,6 +131,8 @@ int Dumpsys::main(int argc, char* const argv[]) {
             } else if (!strcmp(longOptions[optionIndex].name, "help")) {
                 usage();
                 return 0;
+            } else if (!strcmp(longOptions[optionIndex].name, "hw")) {
+                listHwOnly = true;
             }
             break;
 
@@ -143,9 +171,15 @@ int Dumpsys::main(int argc, char* const argv[]) {
     }
 
     if ((skipServices && skippedServices.empty()) ||
-            (showListOnly && (!services.empty() || !skippedServices.empty()))) {
+            (showListOnly && (!services.empty() || !skippedServices.empty())) ||
+            (listHwOnly && (skipServices || services.size() > 0 || showListOnly))) {
         usage();
         return -1;
+    }
+
+    if (listHwOnly) {
+        ListHardwareServices(hm_);
+        return 0;
     }
 
     if (services.empty() || showListOnly) {
