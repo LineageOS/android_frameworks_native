@@ -151,6 +151,9 @@ public:
             nsecs_t* outDisplayPresentTime, nsecs_t* outDisplayRetireTime,
             nsecs_t* outDequeueReadyTime, nsecs_t* outReleaseTime);
 
+    status_t getDisplayRefreshCyclePeriod(nsecs_t* outMinRefreshDuration,
+            nsecs_t* outMaxRefreshDuration);
+
     status_t getUniqueId(uint64_t* outId) const;
 
 protected:
@@ -207,6 +210,7 @@ private:
     int dispatchSetAutoRefresh(va_list args);
     int dispatchEnableFrameTimestamps(va_list args);
     int dispatchGetFrameTimestamps(va_list args);
+    int dispatchGetDisplayRefreshCyclePeriod(va_list args);
 
 protected:
     virtual int dequeueBuffer(ANativeWindowBuffer** buffer, int* fenceFd);
