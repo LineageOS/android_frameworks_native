@@ -1116,7 +1116,7 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
             case VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR:
                 present_regions = next;
                 break;
-            case VK_STRUCTURE_TYPE_PRESENT_TIMES_GOOGLE:
+            case VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE:
                 present_times =
                     reinterpret_cast<const VkPresentTimesInfoGOOGLE*>(next);
                 break;
