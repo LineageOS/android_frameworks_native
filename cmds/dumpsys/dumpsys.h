@@ -17,18 +17,21 @@
 #ifndef FRAMEWORK_NATIVE_CMD_DUMPSYS_H_
 #define FRAMEWORK_NATIVE_CMD_DUMPSYS_H_
 
+#include <android/hidl/manager/1.0/IServiceManager.h>
 #include <binder/IServiceManager.h>
 
 namespace android {
 
 class Dumpsys {
   public:
-    Dumpsys(android::IServiceManager* sm) : sm_(sm) {
+    Dumpsys(android::IServiceManager* sm,
+            android::hidl::manager::V1_0::IServiceManager* hm) : sm_(sm), hm_(hm) {
     }
     int main(int argc, char* const argv[]);
 
   private:
     android::IServiceManager* sm_;
+    android::hidl::manager::V1_0::IServiceManager* hm_;
 };
 }
 
