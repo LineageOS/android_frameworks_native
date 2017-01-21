@@ -44,6 +44,12 @@ using ::testing::internal::CaptureStdout;
 using ::testing::internal::GetCapturedStderr;
 using ::testing::internal::GetCapturedStdout;
 
+using android::hardware::hidl_vec;
+using android::hardware::hidl_string;
+using android::hardware::Void;
+using HServiceManager = android::hidl::manager::V1_0::IServiceManager;
+using IServiceNotification = android::hidl::manager::V1_0::IServiceNotification;
+
 class ServiceManagerMock : public IServiceManager {
   public:
     MOCK_CONST_METHOD1(getService, sp<IBinder>(const String16&));
@@ -53,6 +59,26 @@ class ServiceManagerMock : public IServiceManager {
 
   protected:
     MOCK_METHOD0(onAsBinder, IBinder*());
+};
+
+class HardwareServiceManagerMock : public HServiceManager {
+  public:
+    template<typename T>
+    using R = android::hardware::Return<T>; // conflicts with ::testing::Return
+
+    MOCK_METHOD2(get, R<sp<IBase>>(const hidl_string&, const hidl_string&));
+    MOCK_METHOD3(add,
+        R<bool>(const hidl_vec<hidl_string>&,
+                const hidl_string&,
+                const sp<IBase>&));
+    MOCK_METHOD1(list, R<void>(list_cb));
+    MOCK_METHOD2(listByInterface,
+        R<void>(const hidl_string&, listByInterface_cb));
+    MOCK_METHOD3(registerForNotifications,
+        R<bool>(const hidl_string&,
+                const hidl_string&,
+                const sp<IServiceNotification>&));
+
 };
 
 class BinderMock : public BBinder {
@@ -82,6 +108,26 @@ class WriteOnFdAction : public ActionInterface<WriteOnFdFunction> {
 // Matcher used to emulate dump() by writing on its file descriptor.
 Action<WriteOnFdFunction> WriteOnFd(const std::string& output) {
     return MakeAction(new WriteOnFdAction(output));
+}
+
+// gmock black magic to provide a WithArg<0>(List(services)) matcher
+typedef void HardwareListFunction(HServiceManager::list_cb);
+
+class HardwareListAction : public ActionInterface<HardwareListFunction> {
+  public:
+    explicit HardwareListAction(const hidl_vec<hidl_string> &services) : services_(services) {
+    }
+    virtual Result Perform(const ArgumentTuple& args) {
+        auto cb = ::std::tr1::get<0>(args);
+        cb(services_);
+    }
+
+  private:
+    hidl_vec<hidl_string> services_;
+};
+
+Action<HardwareListFunction> HardwareList(const  hidl_vec<hidl_string> &services) {
+    return MakeAction(new HardwareListAction(services));
 }
 
 // Matcher for args using Android's Vector<String16> format
@@ -121,7 +167,7 @@ ACTION_P(Sleep, timeout) {
 
 class DumpsysTest : public Test {
   public:
-    DumpsysTest() : sm_(), dump_(&sm_), stdout_(), stderr_() {
+    DumpsysTest() : sm_(), hm_(), dump_(&sm_, &hm_), stdout_(), stderr_() {
     }
 
     void ExpectListServices(std::vector<std::string> services) {
@@ -129,7 +175,20 @@ class DumpsysTest : public Test {
         for (auto& service : services) {
             services16.add(String16(service.c_str()));
         }
+
         EXPECT_CALL(sm_, listServices()).WillRepeatedly(Return(services16));
+    }
+
+    void ExpectListHardwareServices(std::vector<std::string> services) {
+        hidl_vec<hidl_string> hidl_services;
+        hidl_services.resize(services.size());
+        for (size_t i = 0; i < services.size(); i++) {
+            hidl_services[i] = services[i];
+        }
+
+        EXPECT_CALL(hm_, list(_)).WillRepeatedly(DoAll(
+                WithArg<0>(HardwareList(hidl_services)),
+                Return(Void())));
     }
 
     sp<BinderMock> ExpectCheckService(const char* name, bool running = true) {
@@ -175,8 +234,10 @@ class DumpsysTest : public Test {
         EXPECT_THAT(status, Eq(0));
     }
 
-    void AssertRunningServices(const std::vector<std::string>& services) {
-        std::string expected("Currently running services:\n");
+    void AssertRunningServices(const std::vector<std::string>& services,
+                               const std::string &message = "Currently running services:") {
+        std::string expected(message);
+        expected.append("\n");
         for (const std::string& service : services) {
             expected.append("  ").append(service).append("\n");
         }
@@ -204,11 +265,20 @@ class DumpsysTest : public Test {
     }
 
     ServiceManagerMock sm_;
+    HardwareServiceManagerMock hm_;
     Dumpsys dump_;
 
   private:
     std::string stdout_, stderr_;
 };
+
+TEST_F(DumpsysTest, ListHwServices) {
+    ExpectListHardwareServices({"Locksmith", "Valet"});
+
+    CallMain({"--hw"});
+
+    AssertRunningServices({"Locksmith", "Valet"}, "Currently running hardware services:");
+}
 
 // Tests 'dumpsys -l' when all services are running
 TEST_F(DumpsysTest, ListAllServices) {
