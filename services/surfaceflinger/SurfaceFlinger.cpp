@@ -87,6 +87,7 @@
 #include <cutils/compiler.h>
 
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <configstore/Utils.h>
 
 #define DISPLAY_COUNT       1
 
@@ -100,21 +101,8 @@ EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint na
 
 namespace android {
 
+using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
-
-static sp<ISurfaceFlingerConfigs> getConfigs() {
-    static sp<ISurfaceFlingerConfigs> configs
-            = ISurfaceFlingerConfigs::getService();
-    return configs;
-}
-
-static int64_t getVsyncEventPhaseOffsetNs() {
-    int64_t ret = 1000000; // default value
-    getConfigs()->vsyncEventPhaseOffsetNs([&](OptionalInt64 value) {
-          if (value.specified) ret = value.value;
-    });
-    return ret;
-}
 
 // This is the phase offset in nanoseconds of the software vsync event
 // relative to the vsync event reported by HWComposer.  The software vsync
@@ -136,7 +124,9 @@ static int64_t getVsyncEventPhaseOffsetNs() {
 // the latency will end up being an additional vsync period, and animations
 // will hiccup.  Therefore, this latency should be tuned somewhat
 // conservatively (or at least with awareness of the trade-off being made).
-static int64_t vsyncPhaseOffsetNs = getVsyncEventPhaseOffsetNs();
+static int64_t vsyncPhaseOffsetNs = getInt64<
+        ISurfaceFlingerConfigs,
+        &ISurfaceFlingerConfigs::vsyncEventPhaseOffsetNs>(1000000);
 
 // This is the phase offset at which SurfaceFlinger's composition runs.
 static const int64_t sfVsyncPhaseOffsetNs = SF_VSYNC_EVENT_PHASE_OFFSET_NS;
