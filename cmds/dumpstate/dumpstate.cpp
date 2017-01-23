@@ -1516,13 +1516,11 @@ int main(int argc, char *argv[]) {
         } else {
             ds.name_ = "undated";
         }
-        std::string buildId = android::base::GetProperty("ro.build.id", "UNKNOWN_BUILD");
 
         if (telephony_only) {
             ds.base_name_ += "-telephony";
         }
 
-        ds.base_name_ += "-" + buildId;
         if (do_fb) {
             ds.screenshot_path_ = ds.GetPath(".png");
         }
