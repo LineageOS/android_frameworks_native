@@ -28,6 +28,7 @@
 
 #include <sys/cdefs.h>
 
+#include <android/hardware_buffer.h>
 #include <android/rect.h>
 
 #ifdef __cplusplus
@@ -35,17 +36,18 @@ extern "C" {
 #endif
 
 /**
- * Pixel formats that a window can use.
+ * Legacy window pixel format names, kept for backwards compatibility.
+ * New code and APIs should use AHARDWAREBUFFER_FORMAT_*.
  */
 enum {
     // NOTE: these values must match the values from graphics/common/x.x/types.hal
 
     /** Red: 8 bits, Green: 8 bits, Blue: 8 bits, Alpha: 8 bits. **/
-    WINDOW_FORMAT_RGBA_8888          = 1,
+    WINDOW_FORMAT_RGBA_8888          = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
     /** Red: 8 bits, Green: 8 bits, Blue: 8 bits, Unused: 8 bits. **/
-    WINDOW_FORMAT_RGBX_8888          = 2,
+    WINDOW_FORMAT_RGBX_8888          = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM,
     /** Red: 5 bits, Green: 6 bits, Blue: 5 bits. **/
-    WINDOW_FORMAT_RGB_565            = 4,
+    WINDOW_FORMAT_RGB_565            = AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM,
     /** Red: 16 bits, Green: 16 bits, Blue: 16 bits, Alpha: 16 bits. **/
     WINDOW_FORMAT_RGBA_FP16          = 0x16,
 };
