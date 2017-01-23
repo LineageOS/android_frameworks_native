@@ -474,6 +474,9 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::EXTENSION_UNKNOWN:
                 // HAL's extensions
                 break;
+            case ProcHook::KHR_swapchain_front_buffered:
+                // Exposed by HAL, but API surface is all in the loader
+                break;
             default:
                 ALOGW("Ignored invalid device extension %s", name);
                 return;
@@ -490,6 +493,10 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
         if (ext_bit != ProcHook::EXTENSION_UNKNOWN) {
             if (ext_bit == ProcHook::ANDROID_native_buffer)
                 hook_extensions_.set(ProcHook::KHR_swapchain);
+
+            // Exposed by HAL, but API surface is all in the loader
+            if (ext_bit == ProcHook::KHR_swapchain_front_buffered)
+                hook_extensions_.set(ext_bit);
 
             hal_extensions_.set(ext_bit);
         }
