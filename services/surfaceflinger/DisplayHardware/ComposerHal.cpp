@@ -723,7 +723,7 @@ Error CommandReader::parse()
 
 bool CommandReader::parseSelectDisplay(uint16_t length)
 {
-    if (length != CommandWriter::kSelectDisplayLength) {
+    if (length != CommandWriterBase::kSelectDisplayLength) {
         return false;
     }
 
@@ -734,7 +734,7 @@ bool CommandReader::parseSelectDisplay(uint16_t length)
 
 bool CommandReader::parseSetError(uint16_t length)
 {
-    if (length != CommandWriter::kSetErrorLength) {
+    if (length != CommandWriterBase::kSetErrorLength) {
         return false;
     }
 
@@ -796,7 +796,7 @@ bool CommandReader::parseSetDisplayRequests(uint16_t length)
 
 bool CommandReader::parseSetPresentFence(uint16_t length)
 {
-    if (length != CommandWriter::kSetPresentFenceLength ||
+    if (length != CommandWriterBase::kSetPresentFenceLength ||
             !mCurrentReturnData) {
         return false;
     }
