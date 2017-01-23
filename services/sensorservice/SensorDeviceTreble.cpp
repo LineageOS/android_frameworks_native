@@ -55,7 +55,7 @@ static status_t StatusFromResult(Result result) {
 }
 
 SensorDevice::SensorDevice() {
-    mSensors = ISensors::getService("sensors");
+    mSensors = ISensors::getService();
 
     if (mSensors == NULL) {
         return;
@@ -630,4 +630,3 @@ void SensorDevice::convertToSensorEvents(
 
 // ---------------------------------------------------------------------------
 }; // namespace android
-
