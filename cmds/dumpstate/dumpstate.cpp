@@ -1554,8 +1554,12 @@ int main(int argc, char *argv[]) {
         if (ds.update_progress_) {
             if (do_broadcast) {
                 // clang-format off
+
+                // NOTE: flag must be kept in sync when the value of
+                // FLAG_RECEIVER_INCLUDE_BACKGROUND is changed.
                 std::vector<std::string> am_args = {
                      "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
+                     "-f", "0x01000000",
                      "--es", "android.intent.extra.NAME", ds.name_,
                      "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
                      "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
@@ -1794,8 +1798,12 @@ int main(int argc, char *argv[]) {
         if (!ds.path_.empty()) {
             MYLOGI("Final bugreport path: %s\n", ds.path_.c_str());
             // clang-format off
+
+            // NOTE: flag must be kept in sync when the value of
+            // FLAG_RECEIVER_INCLUDE_BACKGROUND is changed.
             std::vector<std::string> am_args = {
                  "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
+                 "-f", "0x01000000",
                  "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
                  "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
                  "--ei", "android.intent.extra.MAX", std::to_string(ds.progress_->GetMax()),
