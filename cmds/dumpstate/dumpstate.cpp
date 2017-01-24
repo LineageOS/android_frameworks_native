@@ -1061,7 +1061,7 @@ static void dumpstate() {
     RunCommand("VOLD DUMP", {"vdc", "dump"});
     RunCommand("SECURE CONTAINERS", {"vdc", "asec", "list"});
 
-    RunCommand("STORAGED TASKIOINFO", {"storaged", "-d"}, CommandOptions::WithTimeout(10).Build());
+    RunCommand("STORAGED TASKIOINFO", {"storaged", "-u"}, CommandOptions::WithTimeout(10).Build());
 
     RunCommand("FILESYSTEMS & FREE SPACE", {"df"});
 
