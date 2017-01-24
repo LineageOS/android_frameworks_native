@@ -108,6 +108,9 @@ public:
         PLAYER_EVENT                          = IBinder::FIRST_CALL_TRANSACTION + 69,
         RELEASE_PLAYER                        = IBinder::FIRST_CALL_TRANSACTION + 70,
 
+        /*
+        DISABLE_RINGTONE_SYNC                 = IBinder::FIRST_CALL_TRANSACTION + 71,
+        */
     };
 
     DECLARE_META_INTERFACE(AudioManager)
