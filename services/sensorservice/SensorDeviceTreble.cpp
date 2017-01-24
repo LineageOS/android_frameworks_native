@@ -77,6 +77,9 @@ SensorDevice::SensorDevice() {
                     mSensors->activate(list[i].sensorHandle, 0 /* enabled */);
                 }
             });
+
+    mIsDirectReportSupported =
+           (mSensors->unregisterDirectChannel(-1) != Result::INVALID_OPERATION);
 }
 
 void SensorDevice::handleDynamicSensorConnection(int handle, bool connected) {
@@ -579,6 +582,10 @@ int32_t SensorDevice::configureDirectChannel(int32_t sensorHandle,
             });
 
     return ret;
+}
+
+bool SensorDevice::isDirectReportSupported() const {
+    return mIsDirectReportSupported;
 }
 
 void SensorDevice::convertToSensorEvent(

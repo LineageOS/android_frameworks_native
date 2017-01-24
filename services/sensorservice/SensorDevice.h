@@ -59,6 +59,7 @@ public:
     status_t flush(void* ident, int handle);
     status_t setMode(uint32_t mode);
 
+    bool isDirectReportSupported() const;
     int32_t registerDirectChannel(const sensors_direct_mem_t *memory);
     void unregisterDirectChannel(int32_t channelHandle);
     int32_t configureDirectChannel(int32_t sensorHandle,
@@ -147,6 +148,8 @@ private:
             const hardware::hidl_vec<Event> &src,
             const hardware::hidl_vec<SensorInfo> &dynamicSensorsAdded,
             sensors_event_t *dst);
+
+    bool mIsDirectReportSupported;
 #endif  // ENABLE_TREBLE
 };
 
