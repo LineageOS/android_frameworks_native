@@ -491,6 +491,11 @@ void SensorDevice::notifyConnectionDestroyed(void* ident) {
 }
 
 int32_t SensorDevice::registerDirectChannel(const sensors_direct_mem_t* memory) {
+
+    if (!isDirectReportSupported()) {
+        return INVALID_OPERATION;
+    }
+
     Mutex::Autolock _l(mLock);
 
     int32_t channelHandle = mSensorDevice->register_direct_channel(
@@ -506,11 +511,22 @@ void SensorDevice::unregisterDirectChannel(int32_t channelHandle) {
 
 int32_t SensorDevice::configureDirectChannel(int32_t sensorHandle, int32_t channelHandle,
         const struct sensors_direct_cfg_t *config) {
+
+    if (!isDirectReportSupported()) {
+        return INVALID_OPERATION;
+    }
+
     Mutex::Autolock _l(mLock);
 
     int32_t ret = mSensorDevice->config_direct_report(
             mSensorDevice, sensorHandle, channelHandle, config);
     ALOGE_IF(ret < 0, "SensorDevice::configureDirectChannel ret %d", ret);
+    return ret;
+}
+
+bool SensorDevice::isDirectReportSupported() const {
+    bool ret = mSensorDevice->register_direct_channel != nullptr
+            && mSensorDevice->config_direct_report != nullptr;
     return ret;
 }
 // ---------------------------------------------------------------------------
