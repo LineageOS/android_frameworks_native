@@ -936,6 +936,18 @@ enum VkPresentModeKHR {
 @extension("VK_KHR_surface")
 enum VkColorSpaceKHR {
     VK_COLORSPACE_SRGB_NONLINEAR_KHR                        = 0x00000000,
+    VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT 	 	    = 1000104001,
+    VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT                 = 1000104002,
+    VK_COLOR_SPACE_SCRGB_LINEAR_EXT                         = 1000104003,
+    VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT                      = 1000104004,
+    VK_COLOR_SPACE_DCI_P3_LINEAR_EXT                        = 1000104005,
+    VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT                     = 1000104006,
+    VK_COLOR_SPACE_BT709_LINEAR_EXT                         = 1000104007,
+    VK_COLOR_SPACE_BT709_NONLINEAR_EXT                      = 1000104008,
+    VK_COLOR_SPACE_BT2020_LINEAR_EXT                        = 1000104009,
+    VK_COLOR_SPACE_BT2020_NONLINEAR_EXT                     = 1000104010,
+    VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT                      = 1000104011,
+    VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT                   = 1000104012,
 }
 
 @extension("VK_EXT_debug_report")
