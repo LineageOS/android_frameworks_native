@@ -465,7 +465,7 @@ enum {
      * <a href="@dacRoot/guide/topics/resources/providing-resources.html#WideColorGamutQualifier">wide color gamut</a>
      * and <a href="@dacRoot/guide/topics/resources/providing-resources.html#HDRQualifier">HDR</a> configurations.
      */
-    ACONFIGURATION_COLORIMETRY = 0x10000,
+    ACONFIGURATION_COLOR_MODE = 0x10000,
     /**
      * Constant used to to represent MNC (Mobile Network Code) zero.
      * 0 cannot be used, since it is used to represent an undefined MNC.
