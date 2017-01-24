@@ -146,6 +146,10 @@ public:
     // documented by the source.
     int64_t getTimestamp();
 
+    // getDataSpace retrieves the DataSpace associated with the texture image
+    // set by the most recent call to updateTexImage.
+    android_dataspace getCurrentDataSpace();
+
     // getFrameNumber retrieves the frame number associated with the texture
     // image set by the most recent call to updateTexImage.
     //
@@ -413,6 +417,10 @@ private:
     // mCurrentTimestamp is the timestamp for the current texture. It
     // gets set each time updateTexImage is called.
     int64_t mCurrentTimestamp;
+
+    // mCurrentDataSpace is the dataspace for the current texture. It
+    // gets set each time updateTexImage is called.
+    android_dataspace mCurrentDataSpace;
 
     // mCurrentFrameNumber is the frame counter for the current texture.
     // It gets set each time updateTexImage is called.
