@@ -831,7 +831,8 @@ constexpr size_t IGraphicBufferProducer::QueueBufferOutput::minFlattenedSize() {
             sizeof(height) +
             sizeof(transformHint) +
             sizeof(numPendingBuffers) +
-            sizeof(nextFrameNumber);
+            sizeof(nextFrameNumber) +
+            sizeof(bufferReplaced);
 }
 
 size_t IGraphicBufferProducer::QueueBufferOutput::getFlattenedSize() const {
@@ -854,6 +855,7 @@ status_t IGraphicBufferProducer::QueueBufferOutput::flatten(
     FlattenableUtils::write(buffer, size, transformHint);
     FlattenableUtils::write(buffer, size, numPendingBuffers);
     FlattenableUtils::write(buffer, size, nextFrameNumber);
+    FlattenableUtils::write(buffer, size, bufferReplaced);
 
     return frameTimestamps.flatten(buffer, size, fds, count);
 }
@@ -870,6 +872,7 @@ status_t IGraphicBufferProducer::QueueBufferOutput::unflatten(
     FlattenableUtils::read(buffer, size, transformHint);
     FlattenableUtils::read(buffer, size, numPendingBuffers);
     FlattenableUtils::read(buffer, size, nextFrameNumber);
+    FlattenableUtils::read(buffer, size, bufferReplaced);
 
     return frameTimestamps.unflatten(buffer, size, fds, count);
 }
