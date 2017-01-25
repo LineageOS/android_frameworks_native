@@ -4146,8 +4146,7 @@ typedef struct VkDedicatedAllocationMemoryAllocateInfoNV {
 #define VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME "VK_GOOGLE_display_timing"
 
 typedef struct VkRefreshCycleDurationGOOGLE {
-    uint64_t    minRefreshDuration;
-    uint64_t    maxRefreshDuration;
+    uint64_t    refreshDuration;
 } VkRefreshCycleDurationGOOGLE;
 
 typedef struct VkPastPresentationTimingGOOGLE {

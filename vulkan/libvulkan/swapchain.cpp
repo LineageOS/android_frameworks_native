@@ -197,21 +197,17 @@ struct Swapchain {
           frame_timestamps_enabled(false) {
         timing.clear();
         ANativeWindow* window = surface.window.get();
-        int64_t min_rdur;
-        int64_t max_rdur;
-        native_window_get_refresh_cycle_period(
+        int64_t rdur;
+        native_window_get_refresh_cycle_duration(
             window,
-            &min_rdur,
-            &max_rdur);
-        min_refresh_duration = static_cast<uint64_t>(min_rdur);
-        max_refresh_duration = static_cast<uint64_t>(max_rdur);
+            &rdur);
+        refresh_duration = static_cast<uint64_t>(rdur);
     }
 
     Surface& surface;
     uint32_t num_images;
     bool frame_timestamps_enabled;
-    uint64_t min_refresh_duration;
-    uint64_t max_refresh_duration;
+    uint64_t refresh_duration;
 
     struct Image {
         Image() : image(VK_NULL_HANDLE), dequeue_fence(-1), dequeued(false) {}
@@ -356,7 +352,7 @@ uint32_t get_num_ready_timings(Swapchain& swapchain) {
                                 // timestamps to calculate the info that should
                                 // be reported to the user:
                                 //
-                                ti->calculate(swapchain.min_refresh_duration);
+                                ti->calculate(swapchain.refresh_duration);
                                 num_ready++;
                             }
                             break;
@@ -1288,8 +1284,7 @@ VkResult GetRefreshCycleDurationGOOGLE(
     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
     VkResult result = VK_SUCCESS;
 
-    pDisplayTimingProperties->minRefreshDuration = swapchain.min_refresh_duration;
-    pDisplayTimingProperties->maxRefreshDuration = swapchain.max_refresh_duration;
+    pDisplayTimingProperties->refreshDuration = swapchain.refresh_duration;
 
     return result;
 }
