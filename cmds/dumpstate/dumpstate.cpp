@@ -1161,7 +1161,7 @@ void Dumpstate::DumpstateBoard() {
     printf("== Board\n");
     printf("========================================================\n");
 
-    ::android::sp<IDumpstateDevice> dumpstate_device(IDumpstateDevice::getService("dumpstate"));
+    ::android::sp<IDumpstateDevice> dumpstate_device(IDumpstateDevice::getService());
     if (dumpstate_device == nullptr) {
         MYLOGE("No IDumpstateDevice implementation\n");
         return;
