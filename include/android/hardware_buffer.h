@@ -66,7 +66,13 @@ enum {
      *   Vulkan: VK_FORMAT_R16G16B16A16_SFLOAT
      *   OpenGL ES: GL_RGBA16F
      */
-    AHARDWAREBUFFER_FORMAT_R16G16B16A16_SFLOAT = 5,
+    AHARDWAREBUFFER_FORMAT_R16G16B16A16_SFLOAT = 0x16,
+
+    /**
+     * An opaque binary blob format that must have height 1, with width equal to
+     * the buffer size in bytes.
+     */
+    AHARDWAREBUFFER_FORMAT_BLOB                = 0x21,
 };
 
 enum {
