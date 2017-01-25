@@ -92,29 +92,39 @@ ConsumerQueueChannel::OnConsumerQueueImportBuffers(Message& message) {
     size_t producer_slot = pending_buffer_slots_.front().second;
     pending_buffer_slots_.pop();
 
-    // It's possible that the producer channel has expired.
+    // It's possible that the producer channel has expired. When this occurs,
+    // ignore the producer channel.
     if (producer_channel == nullptr) {
-      ALOGE(
+      ALOGW(
           "ConsumerQueueChannel::OnConsumerQueueImportBuffers: producer "
           "channel has already been expired.");
-      REPLY_ERROR_RETURN(message, ENOENT, {});
+      continue;
     }
 
     RemoteChannelHandle consumer_handle(
         producer_channel->CreateConsumer(message));
 
-    // All buffer imports should succeed together.
+    // If no buffers are imported successfully, clear available and return an
+    // error. Otherwise, return all consumer handles already imported
+    // successfully, but keep available bits on, so that the client can retry
+    // importing remaining consumer buffers.
     if (!consumer_handle.valid()) {
       ALOGE(
           "ConsumerQueueChannel::OnConsumerQueueImportBuffers: imported "
           "consumer handle is invalid.");
-      REPLY_ERROR_RETURN(message, EIO, {});
+      if (buffer_handles.empty()) {
+        ClearAvailable();
+        REPLY_ERROR_RETURN(message, EIO, {});
+      } else {
+        return buffer_handles;
+      }
     }
 
     // Move consumer_handle into buffer_handles.
     buffer_handles.emplace_back(std::move(consumer_handle), producer_slot);
   }
 
+  ClearAvailable();
   return buffer_handles;
 }
 

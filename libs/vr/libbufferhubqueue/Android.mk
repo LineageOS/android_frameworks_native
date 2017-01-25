@@ -40,6 +40,7 @@ sharedLibraries := \
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(sourceFiles)
 LOCAL_C_INCLUDES := $(includeFiles)
+LOCAL_CFLAGS := -DLOG_TAG=\"libbufferhubqueue\"
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(includeFiles)
 LOCAL_STATIC_LIBRARIES := $(staticLibraries)
 LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
