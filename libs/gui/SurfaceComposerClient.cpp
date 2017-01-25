@@ -148,7 +148,7 @@ public:
     status_t setSize(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
             uint32_t w, uint32_t h);
     status_t setLayer(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
-            uint32_t z);
+            int32_t z);
     status_t setLayerInfo(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
             uint32_t type, uint32_t appid);
     status_t setFlags(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
@@ -327,7 +327,7 @@ status_t Composer::setSize(const sp<SurfaceComposerClient>& client,
 }
 
 status_t Composer::setLayer(const sp<SurfaceComposerClient>& client,
-        const sp<IBinder>& id, uint32_t z) {
+        const sp<IBinder>& id, int32_t z) {
     Mutex::Autolock _l(mLock);
     layer_state_t* s = getLayerStateLocked(client, id);
     if (!s)
@@ -610,13 +610,19 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
         uint32_t w,
         uint32_t h,
         PixelFormat format,
-        uint32_t flags)
+        uint32_t flags,
+        SurfaceControl* parent)
 {
     sp<SurfaceControl> sur;
     if (mStatus == NO_ERROR) {
         sp<IBinder> handle;
+        sp<IBinder> parentHandle;
         sp<IGraphicBufferProducer> gbp;
-        status_t err = mClient->createSurface(name, w, h, format, flags,
+
+        if (parent != nullptr) {
+            parentHandle = parent->getHandle();
+        }
+        status_t err = mClient->createSurface(name, w, h, format, flags, parentHandle,
                 &handle, &gbp);
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
@@ -714,7 +720,7 @@ status_t SurfaceComposerClient::setSize(const sp<IBinder>& id, uint32_t w, uint3
     return getComposer().setSize(this, id, w, h);
 }
 
-status_t SurfaceComposerClient::setLayer(const sp<IBinder>& id, uint32_t z) {
+status_t SurfaceComposerClient::setLayer(const sp<IBinder>& id, int32_t z) {
     return getComposer().setLayer(this, id, z);
 }
 
@@ -871,7 +877,7 @@ status_t ScreenshotClient::capture(
         const sp<IBinder>& display,
         const sp<IGraphicBufferProducer>& producer,
         Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        uint32_t minLayerZ, uint32_t maxLayerZ, bool useIdentityTransform) {
+        int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == NULL) return NO_INIT;
     return s->captureScreen(display, producer, sourceCrop,
@@ -880,7 +886,7 @@ status_t ScreenshotClient::capture(
 
 status_t ScreenshotClient::captureToBuffer(const sp<IBinder>& display,
         Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        uint32_t minLayerZ, uint32_t maxLayerZ, bool useIdentityTransform,
+        int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
         uint32_t rotation,
         sp<GraphicBuffer>* outBuffer) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
@@ -926,7 +932,7 @@ sp<CpuConsumer> ScreenshotClient::getCpuConsumer() const {
 
 status_t ScreenshotClient::update(const sp<IBinder>& display,
         Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        uint32_t minLayerZ, uint32_t maxLayerZ,
+        int32_t minLayerZ, int32_t maxLayerZ,
         bool useIdentityTransform, uint32_t rotation) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == NULL) return NO_INIT;
@@ -953,7 +959,7 @@ status_t ScreenshotClient::update(const sp<IBinder>& display,
 
 status_t ScreenshotClient::update(const sp<IBinder>& display,
         Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        uint32_t minLayerZ, uint32_t maxLayerZ,
+        int32_t minLayerZ, int32_t maxLayerZ,
         bool useIdentityTransform) {
 
     return ScreenshotClient::update(display, sourceCrop, reqWidth, reqHeight,
@@ -962,14 +968,16 @@ status_t ScreenshotClient::update(const sp<IBinder>& display,
 
 status_t ScreenshotClient::update(const sp<IBinder>& display, Rect sourceCrop,
         bool useIdentityTransform) {
-    return ScreenshotClient::update(display, sourceCrop, 0, 0, 0, -1U,
+    return ScreenshotClient::update(display, sourceCrop, 0, 0,
+            INT32_MIN, INT32_MAX,
             useIdentityTransform, ISurfaceComposer::eRotateNone);
 }
 
 status_t ScreenshotClient::update(const sp<IBinder>& display, Rect sourceCrop,
         uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform) {
     return ScreenshotClient::update(display, sourceCrop, reqWidth, reqHeight,
-            0, -1U, useIdentityTransform, ISurfaceComposer::eRotateNone);
+            INT32_MIN, INT32_MAX,
+            useIdentityTransform, ISurfaceComposer::eRotateNone);
 }
 
 void ScreenshotClient::release() {

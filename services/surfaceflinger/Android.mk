@@ -15,6 +15,7 @@ LOCAL_SRC_FILES := \
     Layer.cpp \
     LayerDim.cpp \
     LayerRejecter.cpp \
+    LayerVector.cpp \
     MessageQueue.cpp \
     MonitoredProducer.cpp \
     SurfaceFlingerConsumer.cpp \

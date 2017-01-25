@@ -102,7 +102,7 @@ status_t SurfaceControl::setLayerStack(uint32_t layerStack) {
     if (err < 0) return err;
     return mClient->setLayerStack(mHandle, layerStack);
 }
-status_t SurfaceControl::setLayer(uint32_t layer) {
+status_t SurfaceControl::setLayer(int32_t layer) {
     status_t err = validate();
     if (err < 0) return err;
     return mClient->setLayer(mHandle, layer);

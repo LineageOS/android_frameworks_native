@@ -60,6 +60,7 @@ public:
     virtual status_t createSurface(
             const String8& name, uint32_t w, uint32_t h,
             PixelFormat format, uint32_t flags,
+            const sp<IBinder>& parent,
             sp<IBinder>* handle,
             sp<IGraphicBufferProducer>* gbp) = 0;
 

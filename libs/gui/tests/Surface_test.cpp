@@ -398,7 +398,7 @@ public:
     status_t captureScreen(const sp<IBinder>& /*display*/,
             const sp<IGraphicBufferProducer>& /*producer*/,
             Rect /*sourceCrop*/, uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
-            uint32_t /*minLayerZ*/, uint32_t /*maxLayerZ*/,
+            int32_t /*minLayerZ*/, int32_t /*maxLayerZ*/,
             bool /*useIdentityTransform*/,
             Rotation /*rotation*/) override { return NO_ERROR; }
     status_t clearAnimationFrameStats() override { return NO_ERROR; }
