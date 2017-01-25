@@ -205,5 +205,6 @@ PFN_vkVoidFunction GetInstanceProcAddr(const char* name) {«
   {{$ext := index $.Arguments 0}}
   {{     if eq $ext "VK_ANDROID_native_buffer"}}true
   {{else if eq $ext "VK_EXT_debug_report"}}true
+  {{else if eq $ext "VK_KHR_get_physical_device_properties2"}}true
   {{end}}
 {{end}}
