@@ -1189,6 +1189,7 @@ static void collectManualExternalStatsForUser(const std::string& path, struct st
         return;
     }
     while ((p = fts_read(fts)) != NULL) {
+        p->fts_number = p->fts_parent->fts_number;
         switch (p->fts_info) {
         case FTS_D:
             if (p->fts_level == 4
@@ -1197,7 +1198,6 @@ static void collectManualExternalStatsForUser(const std::string& path, struct st
                     && !strcmp(p->fts_parent->fts_parent->fts_parent->fts_name, "Android")) {
                 p->fts_number = 1;
             }
-            p->fts_number = p->fts_parent->fts_number;
             // Fall through to count the directory
         case FTS_DEFAULT:
         case FTS_F:
@@ -1301,9 +1301,9 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
             ATRACE_END();
 
             ATRACE_BEGIN("external");
-            auto extPath = create_data_media_package_path(uuid_, userId, pkgname, "data");
+            auto extPath = create_data_media_package_path(uuid_, userId, "data", pkgname);
             collectManualStats(extPath, &extStats);
-            auto mediaPath = create_data_media_package_path(uuid_, userId, pkgname, "media");
+            auto mediaPath = create_data_media_package_path(uuid_, userId, "media", pkgname);
             calculate_tree_size(mediaPath, &extStats.dataSize);
             ATRACE_END();
         }
