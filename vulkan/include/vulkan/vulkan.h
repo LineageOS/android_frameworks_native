@@ -3887,7 +3887,7 @@ typedef struct VkPresentRegionsKHR {
 } VkPresentRegionsKHR;
 
 #define VK_KHR_swapchain_front_buffered 1
-#define VK_KHR_SWAPCHAIN_FRONT_BUFFERED_SPEC_VERSION 2
+#define VK_KHR_SWAPCHAIN_FRONT_BUFFERED_SPEC_VERSION 1
 #define VK_KHR_SWAPCHAIN_FRONT_BUFFERED_EXTENSION_NAME "VK_KHR_swapchain_front_buffered"
 
 typedef VkResult (VKAPI_PTR *PFN_vkGetSwapchainStatusKHR)(VkDevice device, VkSwapchainKHR swapchain);
