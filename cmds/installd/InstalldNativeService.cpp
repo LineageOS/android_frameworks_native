@@ -961,6 +961,10 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
             add_cache_files(cache,
                     StringPrintf("%s/Android/data", create_data_media_path(uuid_, user).c_str()));
         }
+        // Add files from /data/preloads/file_cache
+        if (uuid == nullptr) {
+            add_preloads_file_cache(cache, uuid_);
+        }
         ATRACE_END();
 
         ATRACE_BEGIN("clear");

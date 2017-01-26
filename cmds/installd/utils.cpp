@@ -1003,6 +1003,21 @@ void add_cache_files(cache_t* cache, const std::string& data_path) {
     closedir(d);
 }
 
+void add_preloads_file_cache(cache_t* cache, const char* volume_uuid) {
+    char dirname[PATH_MAX];
+    DIR* subdir;
+    auto cache_path = StringPrintf("%s/preloads/file_cache", create_data_path(volume_uuid).c_str());
+    strcpy(dirname, cache_path.c_str());
+    CACHE_NOISY(ALOGI("add_preloads_file_cache: dirname=%s\n", dirname));
+    subdir = opendir(dirname);
+    if (subdir != NULL) {
+        size_t dirnameLen = strlen(dirname);
+        _add_cache_files(cache, NULL, dirname, subdir, dirname, dirname + dirnameLen,
+                PATH_MAX - dirnameLen);
+        closedir(subdir);
+    }
+}
+
 static char *create_dir_path(char path[PATH_MAX], cache_dir_t* dir)
 {
     char *pos = path;
