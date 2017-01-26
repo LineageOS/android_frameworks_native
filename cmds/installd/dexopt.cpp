@@ -235,22 +235,24 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
 
     static const int MAX_INT_LEN = 12;      // '-'+10dig+'\0' -OR- 0x+8dig
 
-    char zip_fd_arg[strlen("--zip-fd=") + MAX_INT_LEN];
-    char zip_location_arg[strlen("--zip-location=") + PKG_PATH_MAX];
-    char input_vdex_fd_arg[strlen("--input-vdex-fd=") + MAX_INT_LEN];
-    char output_vdex_fd_arg[strlen("--output-vdex-fd=") + MAX_INT_LEN];
-    char oat_fd_arg[strlen("--oat-fd=") + MAX_INT_LEN];
-    char oat_location_arg[strlen("--oat-location=") + PKG_PATH_MAX];
-    char instruction_set_arg[strlen("--instruction-set=") + MAX_INSTRUCTION_SET_LEN];
-    char instruction_set_variant_arg[strlen("--instruction-set-variant=") + kPropertyValueMax];
-    char instruction_set_features_arg[strlen("--instruction-set-features=") + kPropertyValueMax];
-    char dex2oat_Xms_arg[strlen("-Xms") + kPropertyValueMax];
-    char dex2oat_Xmx_arg[strlen("-Xmx") + kPropertyValueMax];
-    char dex2oat_compiler_filter_arg[strlen("--compiler-filter=") + kPropertyValueMax];
+    // clang FORTIFY doesn't let us use strlen in constant array bounds, so we
+    // use arraysize instead.
+    char zip_fd_arg[arraysize("--zip-fd=") + MAX_INT_LEN];
+    char zip_location_arg[arraysize("--zip-location=") + PKG_PATH_MAX];
+    char input_vdex_fd_arg[arraysize("--input-vdex-fd=") + MAX_INT_LEN];
+    char output_vdex_fd_arg[arraysize("--output-vdex-fd=") + MAX_INT_LEN];
+    char oat_fd_arg[arraysize("--oat-fd=") + MAX_INT_LEN];
+    char oat_location_arg[arraysize("--oat-location=") + PKG_PATH_MAX];
+    char instruction_set_arg[arraysize("--instruction-set=") + MAX_INSTRUCTION_SET_LEN];
+    char instruction_set_variant_arg[arraysize("--instruction-set-variant=") + kPropertyValueMax];
+    char instruction_set_features_arg[arraysize("--instruction-set-features=") + kPropertyValueMax];
+    char dex2oat_Xms_arg[arraysize("-Xms") + kPropertyValueMax];
+    char dex2oat_Xmx_arg[arraysize("-Xmx") + kPropertyValueMax];
+    char dex2oat_compiler_filter_arg[arraysize("--compiler-filter=") + kPropertyValueMax];
     bool have_dex2oat_swap_fd = false;
-    char dex2oat_swap_fd[strlen("--swap-fd=") + MAX_INT_LEN];
+    char dex2oat_swap_fd[arraysize("--swap-fd=") + MAX_INT_LEN];
     bool have_dex2oat_image_fd = false;
-    char dex2oat_image_fd[strlen("--app-image-fd=") + MAX_INT_LEN];
+    char dex2oat_image_fd[arraysize("--app-image-fd=") + MAX_INT_LEN];
 
     sprintf(zip_fd_arg, "--zip-fd=%d", zip_fd);
     sprintf(zip_location_arg, "--zip-location=%s", input_file_name);
