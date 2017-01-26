@@ -2478,6 +2478,11 @@ void CursorInputMapper::configure(nsecs_t when,
 
         // Configure device mode.
         switch (mParameters.mode) {
+        case Parameters::MODE_POINTER_RELATIVE:
+            // Should not happen during first time configuration.
+            ALOGE("Cannot start a device in MODE_POINTER_RELATIVE, starting in MODE_POINTER");
+            mParameters.mode = Parameters::MODE_POINTER;
+            // fall through.
         case Parameters::MODE_POINTER:
             mSource = AINPUT_SOURCE_MOUSE;
             mXPrecision = 1.0f;
@@ -2497,6 +2502,31 @@ void CursorInputMapper::configure(nsecs_t when,
 
         mVWheelScale = 1.0f;
         mHWheelScale = 1.0f;
+    }
+
+    if ((!changes && config->pointerCapture)
+            || (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE)) {
+        if (config->pointerCapture) {
+            if (mParameters.mode == Parameters::MODE_POINTER) {
+                mParameters.mode = Parameters::MODE_POINTER_RELATIVE;
+                mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
+                // Keep PointerController around in order to preserve the pointer position.
+                mPointerController->fade(PointerControllerInterface::TRANSITION_IMMEDIATE);
+            } else {
+                ALOGE("Cannot request pointer capture, device is not in MODE_POINTER");
+            }
+        } else {
+            if (mParameters.mode == Parameters::MODE_POINTER_RELATIVE) {
+                mParameters.mode = Parameters::MODE_POINTER;
+                mSource = AINPUT_SOURCE_MOUSE;
+            } else {
+                ALOGE("Cannot release pointer capture, device is not in MODE_POINTER_RELATIVE");
+            }
+        }
+        bumpGeneration();
+        if (changes) {
+            getDevice()->notifyReset(when);
+        }
     }
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_POINTER_SPEED)) {
@@ -2549,6 +2579,9 @@ void CursorInputMapper::dumpParameters(String8& dump) {
     switch (mParameters.mode) {
     case Parameters::MODE_POINTER:
         dump.append(INDENT4 "Mode: pointer\n");
+        break;
+    case Parameters::MODE_POINTER_RELATIVE:
+        dump.append(INDENT4 "Mode: relative pointer\n");
         break;
     case Parameters::MODE_NAVIGATION:
         dump.append(INDENT4 "Mode: navigation\n");
@@ -2636,7 +2669,7 @@ void CursorInputMapper::sync(nsecs_t when) {
     mPointerVelocityControl.move(when, &deltaX, &deltaY);
 
     int32_t displayId;
-    if (mPointerController != NULL) {
+    if (mSource == AINPUT_SOURCE_MOUSE) {
         if (moved || scrolled || buttonsChanged) {
             mPointerController->setPresentation(
                     PointerControllerInterface::PRESENTATION_POINTER);
@@ -2687,7 +2720,7 @@ void CursorInputMapper::sync(nsecs_t when) {
         int32_t motionEventAction;
         if (downChanged) {
             motionEventAction = down ? AMOTION_EVENT_ACTION_DOWN : AMOTION_EVENT_ACTION_UP;
-        } else if (down || mPointerController == NULL) {
+        } else if (down || (mSource != AINPUT_SOURCE_MOUSE)) {
             motionEventAction = AMOTION_EVENT_ACTION_MOVE;
         } else {
             motionEventAction = AMOTION_EVENT_ACTION_HOVER_MOVE;
@@ -2732,7 +2765,7 @@ void CursorInputMapper::sync(nsecs_t when) {
 
         // Send hover move after UP to tell the application that the mouse is hovering now.
         if (motionEventAction == AMOTION_EVENT_ACTION_UP
-                && mPointerController != NULL) {
+                && (mSource == AINPUT_SOURCE_MOUSE)) {
             NotifyMotionArgs hoverArgs(when, getDeviceId(), mSource, policyFlags,
                     AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
                     metaState, currentButtonState, AMOTION_EVENT_EDGE_FLAG_NONE,
@@ -5422,8 +5455,6 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when,
         mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
         mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
         mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
-        mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
-        mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
     } else if (currentFingerCount == 0) {
         // Case 3. No fingers down and button is not pressed. (NEUTRAL)
         if (mPointerGesture.lastGestureMode != PointerGesture::NEUTRAL) {
@@ -5582,10 +5613,6 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when,
         mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
         mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE,
                 down ? 1.0f : 0.0f);
-        mPointerGesture.currentGestureCoords[0].setAxisValue(
-                AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
-        mPointerGesture.currentGestureCoords[0].setAxisValue(
-                AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
 
         if (lastFingerCount == 0 && currentFingerCount != 0) {
             mPointerGesture.resetTap();
@@ -5832,10 +5859,6 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when,
                     mPointerGesture.referenceGestureX);
             mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y,
                     mPointerGesture.referenceGestureY);
-            mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X,
-                    commonDeltaX);
-            mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y,
-                    commonDeltaY);
             mPointerGesture.currentGestureCoords[0].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
         } else if (mPointerGesture.currentGestureMode == PointerGesture::FREEFORM) {
             // FREEFORM mode.
@@ -5932,10 +5955,6 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when,
                         AMOTION_EVENT_AXIS_Y, mPointerGesture.referenceGestureY + deltaY);
                 mPointerGesture.currentGestureCoords[i].setAxisValue(
                         AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
-                mPointerGesture.currentGestureCoords[i].setAxisValue(
-                        AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
-                mPointerGesture.currentGestureCoords[i].setAxisValue(
-                        AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
             }
 
             if (mPointerGesture.activeGestureId < 0) {
@@ -6058,8 +6077,6 @@ void TouchInputMapper::dispatchPointerMouse(nsecs_t when, uint32_t policyFlags) 
         mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
         mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE,
                 hovering ? 0.0f : 1.0f);
-        mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, x);
-        mPointerSimple.currentCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, y);
         mPointerSimple.currentProperties.id = 0;
         mPointerSimple.currentProperties.toolType =
                 mCurrentCookedState.cookedPointerData.pointerProperties[currentIndex].toolType;

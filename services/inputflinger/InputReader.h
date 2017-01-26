@@ -144,6 +144,9 @@ struct InputReaderConfiguration {
         // The presence of an external stylus has changed.
         CHANGE_EXTERNAL_STYLUS_PRESENCE = 1 << 7,
 
+        // The pointer capture mode has changed.
+        CHANGE_POINTER_CAPTURE = 1 << 8,
+
         // All devices must be reopened.
         CHANGE_MUST_REOPEN = 1 << 31,
     };
@@ -230,6 +233,9 @@ struct InputReaderConfiguration {
 
     // True to show the location of touches on the touch screen as spots.
     bool showTouches;
+
+    // True if pointer capture is enabled.
+    bool pointerCapture;
 
     InputReaderConfiguration() :
             virtualKeyQuietTime(0),
@@ -1200,6 +1206,7 @@ private:
     struct Parameters {
         enum Mode {
             MODE_POINTER,
+            MODE_POINTER_RELATIVE,
             MODE_NAVIGATION,
         };
 
