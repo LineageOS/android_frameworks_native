@@ -52,6 +52,9 @@ public:
     virtual bool advance() = 0;
 
     virtual std::string dump() const = 0;
+
+    /* Returns true if the container supports the given composition type */
+    virtual bool isSupported(hwc2_composition_t composition) = 0;
 };
 
 
@@ -60,12 +63,16 @@ class Hwc2TestProperty : public Hwc2TestContainer {
 public:
     Hwc2TestProperty(Hwc2TestCoverage coverage,
             const std::vector<T>& completeList, const std::vector<T>& basicList,
-            const std::vector<T>& defaultList)
+            const std::vector<T>& defaultList,
+            const std::array<bool, 6>& compositionSupport)
         : Hwc2TestProperty((coverage == Hwc2TestCoverage::Complete)? completeList:
-                (coverage == Hwc2TestCoverage::Basic)? basicList : defaultList) { }
+                (coverage == Hwc2TestCoverage::Basic)? basicList : defaultList,
+                compositionSupport) { }
 
-    Hwc2TestProperty(const std::vector<T>& list)
-        : mList(list) { }
+    Hwc2TestProperty(const std::vector<T>& list,
+            const std::array<bool, 6>& compositionSupport)
+        : mList(list),
+          mCompositionSupport(compositionSupport) { }
 
     void reset() override
     {
@@ -89,14 +96,20 @@ public:
         return mList.at(mListIdx);
     }
 
+    virtual bool isSupported(hwc2_composition_t composition)
+    {
+        return mCompositionSupport.at(composition);
+    }
+
 protected:
     /* If a derived class has dependents, override this function */
     virtual void updateDependents() { }
 
     const std::vector<T>& mList;
     size_t mListIdx = 0;
-};
 
+    const std::array<bool, 6>& mCompositionSupport;
+};
 
 class Hwc2TestBuffer;
 class Hwc2TestSourceCrop;
@@ -128,6 +141,8 @@ protected:
     Hwc2TestSurfaceDamage* mSurfaceDamage = nullptr;
 
     std::vector<Area> mBufferAreas;
+
+    static const std::array<bool, 6> mCompositionSupport;
 };
 
 
@@ -149,6 +164,8 @@ protected:
     static const std::vector<hwc2_blend_mode_t> mDefaultBlendModes;
     static const std::vector<hwc2_blend_mode_t> mBasicBlendModes;
     static const std::vector<hwc2_blend_mode_t> mCompleteBlendModes;
+
+    static const std::array<bool, 6> mCompositionSupport;
 };
 
 
@@ -172,6 +189,8 @@ protected:
     hwc2_blend_mode_t mBlendMode;
 
     std::vector<hwc_color_t> mColors;
+
+    static const std::array<bool, 6> mCompositionSupport;
 };
 
 
@@ -185,6 +204,8 @@ protected:
     static const std::vector<hwc2_composition_t> mDefaultCompositions;
     static const std::vector<hwc2_composition_t> mBasicCompositions;
     static const std::vector<hwc2_composition_t> mCompleteCompositions;
+
+    static const std::array<bool, 6> mCompositionSupport;
 };
 
 
@@ -198,6 +219,8 @@ protected:
     static const std::vector<android_dataspace_t> defaultDataspaces;
     static const std::vector<android_dataspace_t> basicDataspaces;
     static const std::vector<android_dataspace_t> completeDataspaces;
+
+    static const std::array<bool, 6> mCompositionSupport;
 };
 
 
@@ -218,6 +241,8 @@ protected:
     Area mDisplayArea;
 
     std::vector<hwc_rect_t> mDisplayFrames;
+
+    static const std::array<bool, 6> mCompositionSupport;
 };
 
 
@@ -231,6 +256,8 @@ protected:
     static const std::vector<float> mDefaultPlaneAlphas;
     static const std::vector<float> mBasicPlaneAlphas;
     static const std::vector<float> mCompletePlaneAlphas;
+
+    static const std::array<bool, 6> mCompositionSupport;
 };
 
 
@@ -253,6 +280,8 @@ protected:
     Area mBufferArea;
 
     std::vector<hwc_frect_t> mSourceCrops;
+
+    static const std::array<bool, 6> mCompositionSupport;
 };
 
 
@@ -277,6 +306,8 @@ protected:
     Area mBufferArea = {0, 0};
 
     std::vector<hwc_region_t> mSurfaceDamages;
+
+    static const std::array<bool, 6> mCompositionSupport;
 };
 
 
@@ -290,6 +321,8 @@ protected:
     static const std::vector<hwc_transform_t> mDefaultTransforms;
     static const std::vector<hwc_transform_t> mBasicTransforms;
     static const std::vector<hwc_transform_t> mCompleteTransforms;
+
+    static const std::array<bool, 6> mCompositionSupport;
 };
 
 

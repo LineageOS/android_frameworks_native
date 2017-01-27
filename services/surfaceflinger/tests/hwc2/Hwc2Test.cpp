@@ -559,6 +559,33 @@ public:
         }
     }
 
+    void validateDisplay(hwc2_display_t display, uint32_t* outNumTypes,
+            uint32_t* outNumRequests, hwc2_error_t* outErr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_VALIDATE_DISPLAY>(
+                getFunction(HWC2_FUNCTION_VALIDATE_DISPLAY));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        *outErr = static_cast<hwc2_error_t>(pfn(mHwc2Device, display,
+                outNumTypes, outNumRequests));
+    }
+
+    void validateDisplay(hwc2_display_t display, uint32_t* outNumTypes,
+            uint32_t* outNumRequests, bool* outHasChanges)
+    {
+        hwc2_error_t err = HWC2_ERROR_NONE;
+
+        EXPECT_NO_FATAL_FAILURE(validateDisplay(display, outNumTypes,
+                outNumRequests, &err));
+
+        if (err != HWC2_ERROR_HAS_CHANGES) {
+            *outHasChanges = false;
+            EXPECT_EQ(err, HWC2_ERROR_NONE) << "failed to validate display";
+        } else {
+            *outHasChanges = true;
+        }
+    }
+
 protected:
     hwc2_function_pointer_t getFunction(hwc2_function_descriptor_t descriptor)
     {
@@ -718,6 +745,12 @@ protected:
      * on hwc2_layer_t on hwc2_display_t */
     using TestLayerPropertyBadParameterFunction = void (*)(Hwc2Test* test,
             hwc2_display_t display, hwc2_layer_t layer, hwc2_error_t* outErr);
+
+    /* Is called after a display is powered on and all layer properties have
+     * been set. It should be used to test functions such as validate, accepting
+     * changes, present, etc. */
+    using TestDisplayLayersFunction = void (*)(Hwc2Test* test,
+            hwc2_display_t display, const std::vector<hwc2_layer_t>& layers);
 
     /* Advances a property of Hwc2TestLayer */
     using AdvanceProperty = bool (*)(Hwc2TestLayer* testLayer);
@@ -895,6 +928,48 @@ protected:
         }
     }
 
+    /* For each active display it powers on the display, cycles through each
+     * config and creates a set of layers with a certain amount of coverage.
+     * For each active display, for each config and for each set of layers,
+     * it calls the TestDisplayLayersFunction */
+    void displayLayers(Hwc2TestCoverage coverage, size_t layerCnt,
+            TestDisplayLayersFunction function)
+    {
+        for (auto display : mDisplays) {
+            std::vector<hwc2_config_t> configs;
+
+            ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_ON));
+
+            ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+            for (auto config : configs) {
+                Area displayArea;
+                std::vector<hwc2_layer_t> layers;
+
+                ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config));
+                ASSERT_NO_FATAL_FAILURE(getActiveDisplayArea(display, &displayArea));
+
+                ASSERT_NO_FATAL_FAILURE(createLayers(display, &layers, layerCnt));
+                Hwc2TestLayers testLayers(layers, coverage, displayArea);
+
+                do {
+                    bool skip;
+
+                    ASSERT_NO_FATAL_FAILURE(setLayerProperties(display, layers,
+                            &testLayers, &skip));
+                    if (!skip)
+                        EXPECT_NO_FATAL_FAILURE(function(this, display, layers));
+
+                } while (testLayers.advance());
+
+                ASSERT_NO_FATAL_FAILURE(destroyLayers(display,
+                        std::move(layers)));
+            }
+
+            ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_OFF));
+        }
+    }
+
     void getActiveConfigAttribute(hwc2_display_t display,
             hwc2_attribute_t attribute, int32_t* outValue)
     {
@@ -912,6 +987,74 @@ protected:
                 HWC2_ATTRIBUTE_WIDTH, &displayArea->width));
         ASSERT_NO_FATAL_FAILURE(getActiveConfigAttribute(display,
                 HWC2_ATTRIBUTE_HEIGHT, &displayArea->height));
+    }
+
+    void setLayerProperties(hwc2_display_t display, hwc2_layer_t layer,
+            Hwc2TestLayers* testLayers, bool* outSkip)
+    {
+        hwc2_composition_t composition;
+        buffer_handle_t handle = nullptr;
+        int32_t acquireFence;
+        hwc2_error_t err = HWC2_ERROR_NONE;
+        *outSkip = true;
+
+        if (!testLayers->contains(layer))
+            return;
+
+        composition = testLayers->getComposition(layer);
+
+        /* If the device cannot support a buffer format, then do not continue */
+        if ((composition == HWC2_COMPOSITION_DEVICE
+                || composition == HWC2_COMPOSITION_CURSOR)
+                && testLayers->getBuffer(layer, &handle, &acquireFence) < 0)
+            return;
+
+        EXPECT_NO_FATAL_FAILURE(setLayerCompositionType(display, layer,
+                composition, &err));
+        if (err == HWC2_ERROR_UNSUPPORTED)
+            EXPECT_TRUE(composition != HWC2_COMPOSITION_CLIENT
+                    && composition != HWC2_COMPOSITION_DEVICE);
+
+        const hwc_rect_t cursor = testLayers->getCursorPosition(layer);
+
+        EXPECT_NO_FATAL_FAILURE(setLayerBuffer(display, layer, handle,
+                acquireFence));
+        EXPECT_NO_FATAL_FAILURE(setLayerBlendMode(display, layer,
+                testLayers->getBlendMode(layer)));
+        EXPECT_NO_FATAL_FAILURE(setLayerColor(display, layer,
+                testLayers->getColor(layer)));
+        EXPECT_NO_FATAL_FAILURE(setCursorPosition(display, layer, cursor.left,
+                cursor.top));
+        EXPECT_NO_FATAL_FAILURE(setLayerDataspace(display, layer,
+                testLayers->getDataspace(layer)));
+        EXPECT_NO_FATAL_FAILURE(setLayerDisplayFrame(display, layer,
+                testLayers->getDisplayFrame(layer)));
+        EXPECT_NO_FATAL_FAILURE(setLayerPlaneAlpha(display, layer,
+                testLayers->getPlaneAlpha(layer)));
+        EXPECT_NO_FATAL_FAILURE(setLayerSourceCrop(display, layer,
+                testLayers->getSourceCrop(layer)));
+        EXPECT_NO_FATAL_FAILURE(setLayerSurfaceDamage(display, layer,
+                testLayers->getSurfaceDamage(layer)));
+        EXPECT_NO_FATAL_FAILURE(setLayerTransform(display, layer,
+                testLayers->getTransform(layer)));
+        EXPECT_NO_FATAL_FAILURE(setLayerVisibleRegion(display, layer,
+                testLayers->getVisibleRegion(layer)));
+        EXPECT_NO_FATAL_FAILURE(setLayerZOrder(display, layer,
+                testLayers->getZOrder(layer)));
+
+        *outSkip = false;
+    }
+
+    void setLayerProperties(hwc2_display_t display,
+            const std::vector<hwc2_layer_t>& layers,
+            Hwc2TestLayers* testLayers, bool* outSkip)
+    {
+        for (auto layer : layers) {
+            EXPECT_NO_FATAL_FAILURE(setLayerProperties(display, layer,
+                    testLayers, outSkip));
+            if (*outSkip)
+                return;
+        }
     }
 
     hwc2_device_t* mHwc2Device = nullptr;
@@ -2404,4 +2547,57 @@ TEST_F(Hwc2Test, SET_LAYER_Z_ORDER_bad_layer)
 {
     ASSERT_NO_FATAL_FAILURE(setLayerPropertyBadLayer(Hwc2TestCoverage::Default,
             setZOrder));
+}
+
+/* TESTCASE: Tests that the HWC2 can display a layer with basic property
+ * coverage */
+TEST_F(Hwc2Test, VALIDATE_DISPLAY_basic)
+{
+    ASSERT_NO_FATAL_FAILURE(displayLayers(Hwc2TestCoverage::Basic, 1,
+            [] (Hwc2Test* test, hwc2_display_t display,
+                    const std::vector<hwc2_layer_t>& layers) {
+
+                uint32_t numTypes, numRequests;
+                bool hasChanges = false;
+
+                EXPECT_NO_FATAL_FAILURE(test->validateDisplay(display, &numTypes,
+                        &numRequests, &hasChanges));
+                if (hasChanges)
+                    EXPECT_LE(numTypes, static_cast<uint32_t>(layers.size()))
+                            << "wrong number of requests";
+            }
+    ));
+}
+
+/* TESTCASE: Tests that the HWC2 can display 5 layers with default coverage. */
+TEST_F(Hwc2Test, VALIDATE_DISPLAY_default_5)
+{
+    ASSERT_NO_FATAL_FAILURE(displayLayers(Hwc2TestCoverage::Default, 5,
+            [] (Hwc2Test* test, hwc2_display_t display,
+                    const std::vector<hwc2_layer_t>& layers) {
+
+                uint32_t numTypes, numRequests;
+                bool hasChanges = false;
+
+                EXPECT_NO_FATAL_FAILURE(test->validateDisplay(display, &numTypes,
+                        &numRequests, &hasChanges));
+                if (hasChanges)
+                    EXPECT_LE(numTypes, static_cast<uint32_t>(layers.size()))
+                            << "wrong number of requests";
+            }
+    ));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot validate a bad display */
+TEST_F(Hwc2Test, VALIDATE_DISPLAY_bad_display)
+{
+    hwc2_display_t display;
+    uint32_t numTypes, numRequests;
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
+
+    ASSERT_NO_FATAL_FAILURE(validateDisplay(display, &numTypes, &numRequests,
+            &err));
+    EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
 }

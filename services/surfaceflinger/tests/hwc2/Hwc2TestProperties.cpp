@@ -29,7 +29,7 @@
 
 Hwc2TestBufferArea::Hwc2TestBufferArea(Hwc2TestCoverage coverage,
         const Area& displayArea)
-    : Hwc2TestProperty(mBufferAreas),
+    : Hwc2TestProperty(mBufferAreas, mCompositionSupport),
       mScalars((coverage == Hwc2TestCoverage::Complete)? mCompleteScalars:
             (coverage == Hwc2TestCoverage::Basic)? mBasicScalars:
             mDefaultScalars),
@@ -115,7 +115,7 @@ const std::vector<float> Hwc2TestBufferArea::mCompleteScalars = {
 
 Hwc2TestBlendMode::Hwc2TestBlendMode(Hwc2TestCoverage coverage)
     : Hwc2TestProperty(coverage, mCompleteBlendModes, mBasicBlendModes,
-            mDefaultBlendModes) { }
+            mDefaultBlendModes, mCompositionSupport) { }
 
 std::string Hwc2TestBlendMode::dump() const
 {
@@ -154,7 +154,7 @@ const std::vector<hwc2_blend_mode_t> Hwc2TestBlendMode::mCompleteBlendModes = {
 
 Hwc2TestColor::Hwc2TestColor(Hwc2TestCoverage coverage,
         hwc2_blend_mode_t blendMode)
-    : Hwc2TestProperty(mColors),
+    : Hwc2TestProperty(mColors, mCompositionSupport),
       mBaseColors((coverage == Hwc2TestCoverage::Complete)? mCompleteBaseColors:
             (coverage == Hwc2TestCoverage::Basic)? mBasicBaseColors:
             mDefaultBaseColors),
@@ -228,7 +228,7 @@ const std::vector<hwc_color_t> Hwc2TestColor::mCompleteBaseColors = {
 
 Hwc2TestComposition::Hwc2TestComposition(Hwc2TestCoverage coverage)
     : Hwc2TestProperty(coverage, mCompleteCompositions, mBasicCompositions,
-            mDefaultCompositions) { }
+            mDefaultCompositions, mCompositionSupport) { }
 
 std::string Hwc2TestComposition::dump() const
 {
@@ -257,7 +257,7 @@ const std::vector<hwc2_composition_t> Hwc2TestComposition::mCompleteCompositions
 
 Hwc2TestDataspace::Hwc2TestDataspace(Hwc2TestCoverage coverage)
     : Hwc2TestProperty(coverage, completeDataspaces, basicDataspaces,
-            defaultDataspaces) { }
+            defaultDataspaces, mCompositionSupport) { }
 
 std::string Hwc2TestDataspace::dump() const
 {
@@ -323,7 +323,7 @@ const std::vector<android_dataspace_t> Hwc2TestDataspace::completeDataspaces = {
 
 Hwc2TestDisplayFrame::Hwc2TestDisplayFrame(Hwc2TestCoverage coverage,
         const Area& displayArea)
-    : Hwc2TestProperty(mDisplayFrames),
+    : Hwc2TestProperty(mDisplayFrames, mCompositionSupport),
       mFrectScalars((coverage == Hwc2TestCoverage::Complete)? mCompleteFrectScalars:
             (coverage == Hwc2TestCoverage::Basic)? mBasicFrectScalars:
             mDefaultFrectScalars),
@@ -383,7 +383,7 @@ const std::vector<hwc_frect_t> Hwc2TestDisplayFrame::mCompleteFrectScalars = {
 
 Hwc2TestPlaneAlpha::Hwc2TestPlaneAlpha(Hwc2TestCoverage coverage)
     : Hwc2TestProperty(coverage, mCompletePlaneAlphas, mBasicPlaneAlphas,
-            mDefaultPlaneAlphas) { }
+            mDefaultPlaneAlphas, mCompositionSupport) { }
 
 std::string Hwc2TestPlaneAlpha::dump() const
 {
@@ -407,7 +407,7 @@ const std::vector<float> Hwc2TestPlaneAlpha::mCompletePlaneAlphas = {
 
 Hwc2TestSourceCrop::Hwc2TestSourceCrop(Hwc2TestCoverage coverage,
         const Area& bufferArea)
-    : Hwc2TestProperty(mSourceCrops),
+    : Hwc2TestProperty(mSourceCrops, mCompositionSupport),
       mFrectScalars((coverage == Hwc2TestCoverage::Complete)? mCompleteFrectScalars:
             (coverage == Hwc2TestCoverage::Basic)? mBasicFrectScalars:
             mDefaultFrectScalars),
@@ -470,7 +470,7 @@ const std::vector<hwc_frect_t> Hwc2TestSourceCrop::mCompleteFrectScalars = {
 
 
 Hwc2TestSurfaceDamage::Hwc2TestSurfaceDamage(Hwc2TestCoverage coverage)
-    : Hwc2TestProperty(mSurfaceDamages),
+    : Hwc2TestProperty(mSurfaceDamages, mCompositionSupport),
       mRegionScalars((coverage == Hwc2TestCoverage::Complete)? mCompleteRegionScalars:
             (coverage == Hwc2TestCoverage::Basic)? mBasicRegionScalars:
             mDefaultRegionScalars)
@@ -568,7 +568,7 @@ const std::vector<std::vector<hwc_frect_t>> Hwc2TestSurfaceDamage::mCompleteRegi
 
 Hwc2TestTransform::Hwc2TestTransform(Hwc2TestCoverage coverage)
     : Hwc2TestProperty(coverage, mCompleteTransforms, mBasicTransforms,
-            mDefaultTransforms) { }
+            mDefaultTransforms, mCompositionSupport) { }
 
 std::string Hwc2TestTransform::dump() const
 {
@@ -654,3 +654,67 @@ void Hwc2TestVisibleRegion::release()
     mVisibleRegion.rects = nullptr;
     mVisibleRegion.numRects = 0;
 }
+
+/* Identifies which layer properties are supported by each composition type.
+ * hwc2_composition_t values range from:
+ *  HWC2_COMPOSITION_INVALID = 0,
+ *  HWC2_COMPOSITION_CLIENT = 1,
+ *  HWC2_COMPOSITION_DEVICE = 2,
+ *  HWC2_COMPOSITION_SOLID_COLOR = 3,
+ *  HWC2_COMPOSITION_CURSOR = 4,
+ *  HWC2_COMPOSITION_SIDEBAND = 5,
+ *
+ * Each property array can be indexed by a hwc2_composition_t value.
+ * By using an array instead of a more complex data structure, runtimes for
+ * some test cases showed a noticeable improvement.
+ */
+
+/*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
+const std::array<bool, 6> Hwc2TestBufferArea::mCompositionSupport = {{
+    false,   true,    true,    false,   true,    true,
+}};
+
+/*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
+const std::array<bool, 6> Hwc2TestBlendMode::mCompositionSupport = {{
+    false,   true,    true,    false,   true,    true,
+}};
+
+/*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
+const std::array<bool, 6> Hwc2TestColor::mCompositionSupport = {{
+    false,   false,   false,   true,    false,   false,
+}};
+
+/*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
+const std::array<bool, 6> Hwc2TestComposition::mCompositionSupport = {{
+    false,   true,    true,    true,    true,    true,
+}};
+
+/*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
+const std::array<bool, 6> Hwc2TestDataspace::mCompositionSupport = {{
+    false,   true,    true,    true,    true,    false,
+}};
+
+/*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
+const std::array<bool, 6> Hwc2TestDisplayFrame::mCompositionSupport = {{
+    false,   true,    true,    true,    false,   true,
+}};
+
+/*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
+const std::array<bool, 6> Hwc2TestPlaneAlpha::mCompositionSupport = {{
+    false,   true,    true,    true,    true,    true,
+}};
+
+/*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
+const std::array<bool, 6> Hwc2TestSourceCrop::mCompositionSupport = {{
+    false,   true,    true,    false,   true,    false,
+}};
+
+/*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
+const std::array<bool, 6> Hwc2TestSurfaceDamage::mCompositionSupport = {{
+    false,   false,   true,    false,   true,    false,
+}};
+
+/*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
+const std::array<bool, 6> Hwc2TestTransform::mCompositionSupport = {{
+    false,   true,    true,    false,   true,    true,
+}};

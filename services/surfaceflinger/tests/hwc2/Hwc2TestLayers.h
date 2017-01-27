@@ -37,15 +37,34 @@ public:
 
     void reset();
 
+    bool advance();
     bool advanceVisibleRegions();
 
-    hwc_region_t    getVisibleRegion(hwc2_layer_t layer) const;
-    uint32_t        getZOrder(hwc2_layer_t layer) const;
+    bool contains(hwc2_layer_t layer) const;
+
+    int  getBuffer(hwc2_layer_t layer, buffer_handle_t* outHandle,
+            int32_t* outAcquireFence);
+
+    hwc2_blend_mode_t      getBlendMode(hwc2_layer_t layer) const;
+    hwc_color_t            getColor(hwc2_layer_t layer) const;
+    hwc2_composition_t     getComposition(hwc2_layer_t layer) const;
+    hwc_rect_t             getCursorPosition(hwc2_layer_t layer) const;
+    android_dataspace_t    getDataspace(hwc2_layer_t layer) const;
+    hwc_rect_t             getDisplayFrame(hwc2_layer_t layer) const;
+    android_pixel_format_t getFormat(hwc2_layer_t layer) const;
+    float                  getPlaneAlpha(hwc2_layer_t layer) const;
+    hwc_frect_t            getSourceCrop(hwc2_layer_t layer) const;
+    hwc_region_t           getSurfaceDamage(hwc2_layer_t layer) const;
+    hwc_transform_t        getTransform(hwc2_layer_t layer) const;
+    hwc_region_t           getVisibleRegion(hwc2_layer_t layer) const;
+    uint32_t               getZOrder(hwc2_layer_t layer) const;
 
 private:
     void setVisibleRegions();
 
     std::map<hwc2_layer_t, Hwc2TestLayer> mTestLayers;
+
+    Area mDisplayArea;
 };
 
 #endif /* ifndef _HWC2_TEST_LAYERS_H */

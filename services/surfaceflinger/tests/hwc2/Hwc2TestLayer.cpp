@@ -61,6 +61,12 @@ int Hwc2TestLayer::getBuffer(buffer_handle_t* outHandle,
     return ret;
 }
 
+int Hwc2TestLayer::getBuffer(buffer_handle_t* outHandle,
+        int32_t* outAcquireFence)
+{
+    return mBuffer.get(outHandle, outAcquireFence);
+}
+
 void Hwc2TestLayer::setZOrder(uint32_t zOrder)
 {
     mZOrder = zOrder;
@@ -78,6 +84,16 @@ void Hwc2TestLayer::reset()
     for (auto property : mProperties) {
         property->reset();
     }
+}
+
+bool Hwc2TestLayer::advance()
+{
+    for (auto property : mProperties) {
+        if (property->isSupported(mComposition.get()))
+            if (property->advance())
+                return true;
+    }
+    return false;
 }
 
 hwc2_blend_mode_t Hwc2TestLayer::getBlendMode() const
