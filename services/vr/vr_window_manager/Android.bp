@@ -1,0 +1,39 @@
+subdirs = [
+  "composer/1.0",
+]
+
+cc_library_shared {
+  name: "libvrhwc",
+
+  srcs: [
+    "composer/impl/sync_timeline.cpp",
+    "composer/impl/vr_hwc.cpp",
+    "composer/impl/vr_composer_client.cpp",
+  ],
+
+  static_libs: [
+    "libhwcomposer-client",
+  ],
+
+  shared_libs: [
+    "android.dvr.composer@1.0",
+    "android.hardware.graphics.composer@2.1",
+    "libbase",
+    "libcutils",
+    "libfmq",
+    "libhardware",
+    "libhidlbase",
+    "libhidltransport",
+    "liblog",
+    "libsync",
+    "libui",
+    "libutils",
+  ],
+
+  // Access to software sync timeline.
+  include_dirs: [ "system/core/libsync" ],
+
+  cflags: [
+    "-DLOG_TAG=\"vrhwc\"",
+  ],
+}

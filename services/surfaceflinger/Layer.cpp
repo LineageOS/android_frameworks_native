@@ -140,6 +140,8 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
     mCurrentState.sequence = 0;
     mCurrentState.requested = mCurrentState.active;
     mCurrentState.dataSpace = HAL_DATASPACE_UNKNOWN;
+    mCurrentState.appId = 0;
+    mCurrentState.type = 0;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -676,6 +678,10 @@ void Layer::setGeometry(
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set Z %u: %s (%d)",
             mName.string(), z, to_string(error).c_str(),
             static_cast<int32_t>(error));
+
+    error = hwcLayer->setInfo(s.type, s.appId);
+    ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set info (%d)",
+             mName.string(), static_cast<int32_t>(error));
 #else
     if (!frame.intersect(hw->getViewport(), &frame)) {
         frame.clear();
@@ -1745,6 +1751,13 @@ bool Layer::setOverrideScalingMode(int32_t scalingMode) {
     mOverrideScalingMode = scalingMode;
     setTransactionFlags(eTransactionNeeded);
     return true;
+}
+
+void Layer::setInfo(uint32_t type, uint32_t appId) {
+  mCurrentState.appId = appId;
+  mCurrentState.type = type;
+  mCurrentState.modified = true;
+  setTransactionFlags(eTransactionNeeded);
 }
 
 uint32_t Layer::getEffectiveScalingMode() const {
