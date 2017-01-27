@@ -58,23 +58,6 @@ enum VrManagerTransaction {
     GET_VR_MODE_STATE,
 };
 
-enum class VrDisplayStateTransaction {
-  ON_DISPLAY_STATE_CHANGED = IBinder::FIRST_CALL_TRANSACTION,
-};
-
-class IVrDisplayStateService : public IInterface {
-public:
-    DECLARE_META_INTERFACE(VrDisplayStateService)
-
-    virtual void displayAvailable(bool available) = 0;
-};
-
-class BnVrDisplayStateService : public BnInterface<IVrDisplayStateService> {
-public:
-    status_t onTransact(uint32_t code, const Parcel &data, Parcel *reply,
-                        uint32_t flags = 0) override;
-};
-
 };  // namespace android
 
 #endif // ANDROID_VR_MANAGER_H
