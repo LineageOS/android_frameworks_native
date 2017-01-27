@@ -27,6 +27,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
+#include <android/hardware_buffer.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <cutils/memory.h>
@@ -87,6 +88,7 @@ extern char const * const gBuiltinExtensionString =
         "EGL_ANDROID_presentation_time "
         "EGL_KHR_swap_buffers_with_damage "
         "EGL_ANDROID_create_native_client_buffer "
+        "EGL_ANDROID_get_native_client_buffer "
         "EGL_ANDROID_front_buffer_auto_refresh "
 #if ENABLE_EGL_ANDROID_GET_FRAME_TIMESTAMPS
         "EGL_ANDROID_get_frame_timestamps "
@@ -182,9 +184,13 @@ static const extention_map_t sExtensionMap[] = {
     { "eglSwapBuffersWithDamageKHR",
             (__eglMustCastToProperFunctionPointerType)&eglSwapBuffersWithDamageKHR },
 
-    // EGL_ANDROID_native_client_buffer
+    // EGL_ANDROID_create_native_client_buffer
     { "eglCreateNativeClientBufferANDROID",
             (__eglMustCastToProperFunctionPointerType)&eglCreateNativeClientBufferANDROID },
+
+    // EGL_ANDROID_get_native_client_buffer
+    { "eglGetNativeClientBufferANDROID",
+            (__eglMustCastToProperFunctionPointerType)&eglGetNativeClientBufferANDROID },
 
     // EGL_KHR_partial_update
     { "eglSetDamageRegionKHR",
@@ -1980,6 +1986,17 @@ error_condition:
     // Delete the buffer.
     sp<GraphicBuffer> holder(gBuffer);
     return setError(EGL_BAD_ALLOC, (EGLClientBuffer)0);
+}
+
+EGLClientBuffer eglGetNativeClientBufferANDROID(const AHardwareBuffer *buffer) {
+    clearError();
+
+    if (!buffer) return setError(EGL_BAD_PARAMETER, (EGLClientBuffer)0);
+
+    // FIXME: remove this dangerous reinterpret_cast.
+    const GraphicBuffer* graphicBuffer =
+            reinterpret_cast<const GraphicBuffer*>(buffer);
+    return static_cast<EGLClientBuffer>(graphicBuffer->getNativeBuffer());
 }
 
 // ----------------------------------------------------------------------------

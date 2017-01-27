@@ -619,6 +619,16 @@ typedef EGLClientBuffer (EGLAPIENTRYP PFNEGLCREATENATIVECLIENTBUFFERANDROID) (co
 #endif
 #endif
 
+#ifndef EGL_ANDROID_get_native_client_buffer
+#define EGL_ANDROID_get_native_client_buffer 1
+struct AHardwareBuffer;
+#ifdef EGL_EGLEXT_PROTOTYPES
+EGLAPI EGLClientBuffer eglGetNativeClientBufferANDROID (const AHardwareBuffer *buffer);
+#else
+typedef EGLClientBuffer (EGLAPIENTRYP PFNEGLGETNATIVECLIENTBUFFERANDROID) (const AHardwareBuffer *buffer);
+#endif
+#endif
+
 #ifndef EGL_ANDROID_front_buffer_auto_refresh
 #define EGL_ANDROID_front_buffer_auto_refresh 1
 #define EGL_FRONT_BUFFER_AUTO_REFRESH_ANDROID 0x314C
