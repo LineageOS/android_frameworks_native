@@ -62,7 +62,6 @@ public:
 
     status_t    setLayerStack(uint32_t layerStack);
     status_t    setLayer(int32_t layer);
-    status_t    setLayerInfo(uint32_t type, uint32_t appid);
     status_t    setPosition(float x, float y);
     status_t    setSize(uint32_t w, uint32_t h);
     status_t    hide();

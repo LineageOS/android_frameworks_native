@@ -2600,9 +2600,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             // We don't trigger a traversal here because if no other state is
             // changed, we don't want this to cause any more work
         }
-        if (what & layer_state_t::eLayerInfoChanged) {
-          layer->setInfo(s.type, s.appid);
-        }
     }
     return flags;
 }
@@ -2611,8 +2608,8 @@ status_t SurfaceFlinger::createLayer(
         const String8& name,
         const sp<Client>& client,
         uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-        sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp,
-        sp<Layer>* parent)
+        uint32_t windowType, uint32_t ownerUid, sp<IBinder>* handle,
+        sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent)
 {
     if (int32_t(w|h) < 0) {
         ALOGE("createLayer() failed, w or h is negative (w=%d, h=%d)",
@@ -2643,6 +2640,8 @@ status_t SurfaceFlinger::createLayer(
     if (result != NO_ERROR) {
         return result;
     }
+
+    layer->setInfo(windowType, ownerUid);
 
     result = addClientLayer(client, *handle, *gbp, layer, *parent);
     if (result != NO_ERROR) {

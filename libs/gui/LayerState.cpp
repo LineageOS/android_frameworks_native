@@ -43,8 +43,6 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeStrongBinder(reparentHandle);
     output.writeUint64(frameNumber);
     output.writeInt32(overrideScalingMode);
-    output.writeUint32(type);
-    output.writeUint32(appid);
     output.write(transparentRegion);
     return NO_ERROR;
 }
@@ -74,8 +72,6 @@ status_t layer_state_t::read(const Parcel& input)
     reparentHandle = input.readStrongBinder();
     frameNumber = input.readUint64();
     overrideScalingMode = input.readInt32();
-    type = input.readUint32();
-    appid = input.readUint32();
     input.read(transparentRegion);
     return NO_ERROR;
 }

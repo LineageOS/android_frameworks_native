@@ -149,8 +149,6 @@ public:
             uint32_t w, uint32_t h);
     status_t setLayer(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
             int32_t z);
-    status_t setLayerInfo(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
-            uint32_t type, uint32_t appid);
     status_t setFlags(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
             uint32_t flags, uint32_t mask);
     status_t setTransparentRegionHint(
@@ -337,18 +335,6 @@ status_t Composer::setLayer(const sp<SurfaceComposerClient>& client,
         return BAD_INDEX;
     s->what |= layer_state_t::eLayerChanged;
     s->z = z;
-    return NO_ERROR;
-}
-
-status_t Composer::setLayerInfo(const sp<SurfaceComposerClient>& client,
-        const sp<IBinder>& id, uint32_t type, uint32_t appid) {
-    Mutex::Autolock _l(mLock);
-    layer_state_t* s = getLayerStateLocked(client, id);
-    if (!s)
-        return BAD_INDEX;
-    s->what |= layer_state_t::eLayerInfoChanged;
-    s->type = type;
-    s->appid = appid;
     return NO_ERROR;
 }
 
@@ -636,7 +622,9 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
         uint32_t h,
         PixelFormat format,
         uint32_t flags,
-        SurfaceControl* parent)
+        SurfaceControl* parent,
+        uint32_t windowType,
+        uint32_t ownerUid)
 {
     sp<SurfaceControl> sur;
     if (mStatus == NO_ERROR) {
@@ -648,7 +636,7 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
             parentHandle = parent->getHandle();
         }
         status_t err = mClient->createSurface(name, w, h, format, flags, parentHandle,
-                &handle, &gbp);
+                windowType, ownerUid, &handle, &gbp);
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
             sur = new SurfaceControl(this, handle, gbp);
@@ -747,10 +735,6 @@ status_t SurfaceComposerClient::setSize(const sp<IBinder>& id, uint32_t w, uint3
 
 status_t SurfaceComposerClient::setLayer(const sp<IBinder>& id, int32_t z) {
     return getComposer().setLayer(this, id, z);
-}
-
-status_t SurfaceComposerClient::setLayerInfo(const sp<IBinder>& id, uint32_t type, uint32_t appid) {
-    return getComposer().setLayerInfo(this, id, type, appid);
 }
 
 status_t SurfaceComposerClient::hide(const sp<IBinder>& id) {
