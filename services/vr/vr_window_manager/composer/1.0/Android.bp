@@ -6,9 +6,13 @@ genrule {
     cmd: "$(location hidl-gen) -o $(genDir) -Lc++ -randroid.hidl:system/libhidl/transport -randroid.hardware:hardware/interfaces/ -randroid.dvr:frameworks/native/services/vr/vr_window_manager android.dvr.composer@1.0",
     srcs: [
         "IVrComposerClient.hal",
+        "IVrComposerView.hal",
+        "IVrComposerCallback.hal",
     ],
     out: [
         "android/dvr/composer/1.0/VrComposerClientAll.cpp",
+        "android/dvr/composer/1.0/VrComposerViewAll.cpp",
+        "android/dvr/composer/1.0/VrComposerCallbackAll.cpp",
     ],
 }
 
@@ -18,6 +22,8 @@ genrule {
     cmd: "$(location hidl-gen) -o $(genDir) -Lc++ -randroid.hidl:system/libhidl/transport -randroid.hardware:hardware/interfaces/ -randroid.dvr:frameworks/native/services/vr/vr_window_manager android.dvr.composer@1.0",
     srcs: [
         "IVrComposerClient.hal",
+        "IVrComposerView.hal",
+        "IVrComposerCallback.hal",
     ],
     out: [
         "android/dvr/composer/1.0/IVrComposerClient.h",
@@ -25,6 +31,18 @@ genrule {
         "android/dvr/composer/1.0/BnVrComposerClient.h",
         "android/dvr/composer/1.0/BpVrComposerClient.h",
         "android/dvr/composer/1.0/BsVrComposerClient.h",
+
+        "android/dvr/composer/1.0/IVrComposerView.h",
+        "android/dvr/composer/1.0/IHwVrComposerView.h",
+        "android/dvr/composer/1.0/BnVrComposerView.h",
+        "android/dvr/composer/1.0/BpVrComposerView.h",
+        "android/dvr/composer/1.0/BsVrComposerView.h",
+
+        "android/dvr/composer/1.0/IVrComposerCallback.h",
+        "android/dvr/composer/1.0/IHwVrComposerCallback.h",
+        "android/dvr/composer/1.0/BnVrComposerCallback.h",
+        "android/dvr/composer/1.0/BpVrComposerCallback.h",
+        "android/dvr/composer/1.0/BsVrComposerCallback.h",
     ],
 }
 

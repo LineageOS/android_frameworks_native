@@ -13,16 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "composer/impl/vr_hwc.h"
+#include "vr_hwc.h"
 
+#include <gralloc_priv.h>
 #include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicBufferMapper.h>
 
 #include <mutex>
 
-#include "composer/impl/sync_timeline.h"
-#include "composer/impl/vr_composer_client.h"
+#include "sync_timeline.h"
+#include "vr_composer_client.h"
 
 using namespace android::hardware::graphics::common::V1_0;
 using namespace android::hardware::graphics::composer::V2_1;
@@ -42,6 +43,21 @@ using android::hardware::graphics::common::V1_0::PixelFormat;
 const Display kDefaultDisplayId = 1;
 const Config kDefaultConfigId = 1;
 
+sp<GraphicBuffer> GetBufferFromHandle(const native_handle_t* handle) {
+  // TODO(dnicoara): Fix this once gralloc1 is available.
+  private_handle_t* private_handle = private_handle_t::dynamicCast(handle);
+  sp<GraphicBuffer> buffer = new GraphicBuffer(
+      private_handle->width, private_handle->height, private_handle->format, 1,
+      GraphicBuffer::USAGE_HW_COMPOSER | GraphicBuffer::USAGE_HW_TEXTURE,
+      private_handle->width, native_handle_clone(handle), true);
+  if (GraphicBufferMapper::get().registerBuffer(buffer.get()) != OK) {
+    ALOGE("Failed to register buffer");
+    return nullptr;
+  }
+
+  return buffer;
+}
+
 }  // namespace
 
 HwcDisplay::HwcDisplay() {}
@@ -52,17 +68,8 @@ bool HwcDisplay::Initialize() { return hwc_timeline_.Initialize(); }
 
 bool HwcDisplay::SetClientTarget(const native_handle_t* handle,
                                  base::unique_fd fence) {
-  // OK, so this is where we cheat a lot because we don't have direct access to
-  // buffer information. Everything is hardcoded, but once gralloc1 is available
-  // we should use it to read buffer properties from the handle.
-  buffer_ = new GraphicBuffer(
-      1080, 1920, PIXEL_FORMAT_RGBA_8888, 1,
-      GraphicBuffer::USAGE_HW_COMPOSER | GraphicBuffer::USAGE_HW_TEXTURE, 1088,
-      native_handle_clone(handle), true);
-  if (GraphicBufferMapper::get().registerBuffer(buffer_.get()) != OK) {
-    ALOGE("Failed to set client target");
-    return false;
-  }
+  if (handle)
+    buffer_ = GetBufferFromHandle(handle);
 
   fence_ = new Fence(fence.release());
   return true;
@@ -95,9 +102,43 @@ bool HwcDisplay::DestroyLayer(Layer id) {
 void HwcDisplay::GetChangedCompositionTypes(
     std::vector<Layer>* layer_ids,
     std::vector<IComposerClient::Composition>* types) {
-  for (const auto& layer : layers_) {
-    layer_ids->push_back(layer.id);
-    types->push_back(IComposerClient::Composition::CLIENT);
+  std::sort(layers_.begin(), layers_.end(),
+            [](const auto& lhs, const auto& rhs) {
+              return lhs.z_order < rhs.z_order;
+            });
+
+  int first_client_layer = -1, last_client_layer = -1;
+  for (size_t i = 0; i < layers_.size(); ++i) {
+    switch (layers_[i].composition_type) {
+      case IComposerClient::Composition::SOLID_COLOR:
+      case IComposerClient::Composition::CURSOR:
+      case IComposerClient::Composition::SIDEBAND:
+        if (first_client_layer < 0)
+          first_client_layer = i;
+
+        last_client_layer = i;
+        break;
+      default:
+        break;
+    }
+  }
+
+  for (size_t i = 0; i < layers_.size(); ++i) {
+    if (i >= first_client_layer && i <= last_client_layer) {
+      if (layers_[i].composition_type != IComposerClient::Composition::CLIENT) {
+        layer_ids->push_back(layers_[i].id);
+        types->push_back(IComposerClient::Composition::CLIENT);
+        layers_[i].composition_type = IComposerClient::Composition::CLIENT;
+      }
+
+      continue;
+    }
+
+    if (layers_[i].composition_type != IComposerClient::Composition::DEVICE) {
+      layer_ids->push_back(layers_[i].id);
+      types->push_back(IComposerClient::Composition::DEVICE);
+      layers_[i].composition_type = IComposerClient::Composition::DEVICE;
+    }
   }
 }
 
@@ -107,26 +148,48 @@ std::vector<ComposerView::ComposerLayer> HwcDisplay::GetFrame() {
   // the current frame.
   fence_time_++;
 
-  // TODO(dnicoara): Send the actual layers when we process layers as overlays.
-  ComposerView::ComposerLayer layer = {
-      .buffer = buffer_,
-      .fence = fence_.get() ? fence_ : new Fence(-1),
-      .display_frame = {0, 0, 1080, 1920},
-      .crop = {0.0f, 0.0f, 1080.0f, 1920.0f},
-      .blend_mode = IComposerClient::BlendMode::NONE,
-  };
-  return std::vector<ComposerView::ComposerLayer>(1, layer);
+  bool queued_client_target = false;
+  std::vector<ComposerView::ComposerLayer> frame;
+  for (const auto& layer : layers_) {
+    if (layer.composition_type == IComposerClient::Composition::CLIENT) {
+      if (!queued_client_target) {
+        ComposerView::ComposerLayer client_target_layer = {
+            .buffer = buffer_,
+            .fence = fence_.get() ? fence_ : new Fence(-1),
+            .display_frame = {0, 0, static_cast<int32_t>(buffer_->getWidth()),
+              static_cast<int32_t>(buffer_->getHeight())},
+            .crop = {0.0f, 0.0f, static_cast<float>(buffer_->getWidth()),
+              static_cast<float>(buffer_->getHeight())},
+            .blend_mode = IComposerClient::BlendMode::NONE,
+        };
+
+        frame.push_back(client_target_layer);
+        queued_client_target = true;
+      }
+    } else {
+      frame.push_back(layer.info);
+    }
+  }
+
+  return frame;
 }
 
-void HwcDisplay::GetReleaseFences(std::vector<Layer>* layer_ids,
+void HwcDisplay::GetReleaseFences(int* present_fence,
+                                  std::vector<Layer>* layer_ids,
                                   std::vector<int>* fences) {
+  *present_fence = hwc_timeline_.CreateFence(fence_time_);
   for (const auto& layer : layers_) {
     layer_ids->push_back(layer.id);
     fences->push_back(hwc_timeline_.CreateFence(fence_time_));
   }
 }
 
-void HwcDisplay::ReleaseFrame() { hwc_timeline_.IncrementTimeline(); }
+void HwcDisplay::ReleaseFrame() {
+  hwc_timeline_.IncrementTimeline();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// VrHwcClient
 
 VrHwc::VrHwc() {}
 
@@ -212,10 +275,10 @@ Error VrHwc::getDisplayAttribute(Display display, Config config,
 
   switch (attribute) {
     case IComposerClient::Attribute::WIDTH:
-      *outValue = 1080;
+      *outValue = 1920;
       break;
     case IComposerClient::Attribute::HEIGHT:
-      *outValue = 1920;
+      *outValue = 1080;
       break;
     case IComposerClient::Attribute::VSYNC_PERIOD:
       *outValue = 1000 * 1000 * 1000 / 30;  // 30fps
@@ -357,14 +420,18 @@ Error VrHwc::presentDisplay(Display display, int32_t* outPresentFence,
     return Error::BAD_DISPLAY;
   }
 
-  std::lock_guard<std::mutex> guard(mutex_);
+  std::vector<ComposerView::ComposerLayer> frame;
+  {
+    std::lock_guard<std::mutex> guard(mutex_);
+    frame = display_.GetFrame();
+    display_.GetReleaseFences(outPresentFence, outLayers, outReleaseFences);
+  }
 
   if (observer_)
-    observer_->OnNewFrame(display_.GetFrame());
+    observer_->OnNewFrame(frame);
   else
-    display_.ReleaseFrame();
+    ReleaseFrame();
 
-  display_.GetReleaseFences(outLayers, outReleaseFences);
   return Error::NONE;
 }
 
@@ -380,6 +447,12 @@ Error VrHwc::setLayerBuffer(Display display, Layer layer,
   base::unique_fd fence(acquireFence);
   if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
 
+  HwcLayer* hwc_layer = display_.GetLayer(layer);
+  if (!hwc_layer) return Error::BAD_LAYER;
+
+  hwc_layer->info.buffer = GetBufferFromHandle(buffer);
+  hwc_layer->info.fence = new Fence(fence.release());
+
   return Error::NONE;
 }
 
@@ -392,6 +465,12 @@ Error VrHwc::setLayerSurfaceDamage(Display display, Layer layer,
 
 Error VrHwc::setLayerBlendMode(Display display, Layer layer, int32_t mode) {
   if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+
+  HwcLayer* hwc_layer = display_.GetLayer(layer);
+  if (!hwc_layer) return Error::BAD_LAYER;
+
+  hwc_layer->info.blend_mode =
+      static_cast<ComposerView::ComposerLayer::BlendMode>(mode);
 
   return Error::NONE;
 }
@@ -407,6 +486,11 @@ Error VrHwc::setLayerCompositionType(Display display, Layer layer,
                                      int32_t type) {
   if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
 
+  HwcLayer* hwc_layer = display_.GetLayer(layer);
+  if (!hwc_layer) return Error::BAD_LAYER;
+
+  hwc_layer->composition_type = static_cast<HwcLayer::Composition>(type);
+
   return Error::NONE;
 }
 
@@ -421,11 +505,22 @@ Error VrHwc::setLayerDisplayFrame(Display display, Layer layer,
                                   const hwc_rect_t& frame) {
   if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
 
+  HwcLayer* hwc_layer = display_.GetLayer(layer);
+  if (!hwc_layer) return Error::BAD_LAYER;
+
+  hwc_layer->info.display_frame =
+      {frame.left, frame.top, frame.right, frame.bottom};
+
   return Error::NONE;
 }
 
 Error VrHwc::setLayerPlaneAlpha(Display display, Layer layer, float alpha) {
   if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+
+  HwcLayer* hwc_layer = display_.GetLayer(layer);
+  if (!hwc_layer) return Error::BAD_LAYER;
+
+  hwc_layer->info.alpha = alpha;
 
   return Error::NONE;
 }
@@ -440,6 +535,11 @@ Error VrHwc::setLayerSidebandStream(Display display, Layer layer,
 Error VrHwc::setLayerSourceCrop(Display display, Layer layer,
                                 const hwc_frect_t& crop) {
   if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+
+  HwcLayer* hwc_layer = display_.GetLayer(layer);
+  if (!hwc_layer) return Error::BAD_LAYER;
+
+  hwc_layer->info.crop = {crop.left, crop.top, crop.right, crop.bottom};
 
   return Error::NONE;
 }
@@ -461,12 +561,23 @@ Error VrHwc::setLayerVisibleRegion(Display display, Layer layer,
 Error VrHwc::setLayerZOrder(Display display, Layer layer, uint32_t z) {
   if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
 
+  HwcLayer* hwc_layer = display_.GetLayer(layer);
+  if (!hwc_layer) return Error::BAD_LAYER;
+
+  hwc_layer->z_order = z;
+
   return Error::NONE;
 }
 
 Error VrHwc::setLayerInfo(Display display, Layer layer, uint32_t type,
                           uint32_t appId) {
   if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+
+  HwcLayer* hwc_layer = display_.GetLayer(layer);
+  if (!hwc_layer) return Error::BAD_LAYER;
+
+  hwc_layer->info.type = type;
+  hwc_layer->info.app_id = appId;
 
   return Error::NONE;
 }

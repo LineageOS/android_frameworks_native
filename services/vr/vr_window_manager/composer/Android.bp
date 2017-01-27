@@ -1,14 +1,15 @@
 subdirs = [
-  "composer/1.0",
+  "1.0",
 ]
 
 cc_library_shared {
   name: "libvrhwc",
 
   srcs: [
-    "composer/impl/sync_timeline.cpp",
-    "composer/impl/vr_hwc.cpp",
-    "composer/impl/vr_composer_client.cpp",
+    "impl/sync_timeline.cpp",
+    "impl/vr_composer_view.cpp",
+    "impl/vr_hwc.cpp",
+    "impl/vr_composer_client.cpp",
   ],
 
   static_libs: [
@@ -30,8 +31,15 @@ cc_library_shared {
     "libutils",
   ],
 
-  // Access to software sync timeline.
-  include_dirs: [ "system/core/libsync" ],
+  export_include_dirs: ["."],
+
+  include_dirs: [
+    // Access to software sync timeline.
+    "system/core/libsync",
+
+    // Access to internal gralloc implementation.
+    "hardware/qcom/display/msm8996/libgralloc",
+  ],
 
   cflags: [
     "-DLOG_TAG=\"vrhwc\"",

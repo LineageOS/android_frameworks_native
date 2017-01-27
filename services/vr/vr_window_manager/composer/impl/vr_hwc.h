@@ -23,7 +23,7 @@
 
 #include <mutex>
 
-#include "composer/impl/sync_timeline.h"
+#include "sync_timeline.h"
 
 using namespace android::hardware::graphics::common::V1_0;
 using namespace android::hardware::graphics::composer::V2_1;
@@ -58,9 +58,12 @@ class ComposerView {
     // it going.
     sp<GraphicBuffer> buffer;
     sp<Fence> fence;
-    Recti  display_frame;
+    Recti display_frame;
     Rectf crop;
     BlendMode blend_mode;
+    float alpha;
+    uint32_t type;
+    uint32_t app_id;
   };
 
   using Frame = std::vector<ComposerLayer>;
@@ -84,9 +87,15 @@ class ComposerView {
 };
 
 struct HwcLayer {
+  using Composition =
+      hardware::graphics::composer::V2_1::IComposerClient::Composition;
+
   HwcLayer(Layer new_id) : id(new_id) {}
 
   Layer id;
+  Composition composition_type;
+  uint32_t z_order;
+  ComposerView::ComposerLayer info;
 };
 
 class HwcDisplay {
@@ -108,8 +117,8 @@ class HwcDisplay {
 
   std::vector<ComposerView::ComposerLayer> GetFrame();
 
-  void GetReleaseFences(
-      std::vector<Layer>* layer_ids, std::vector<int>* fences);
+  void GetReleaseFences(int* present_fence, std::vector<Layer>* layer_ids,
+                        std::vector<int>* fences);
 
   void ReleaseFrame();
 

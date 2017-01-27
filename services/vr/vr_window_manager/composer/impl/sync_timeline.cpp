@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "composer/impl/sync_timeline.h"
+#include "sync_timeline.h"
 
 #include <sys/cdefs.h>
 #include <sw_sync.h>
