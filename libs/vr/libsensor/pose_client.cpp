@@ -183,8 +183,6 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
         DVR_POSE_GET_CONTROLLER_RING_BUFFER, &controller_id,
         sizeof(controller_id), nullptr, 0);
     if (!status) {
-      ALOGE("Pose GetControllerRingBuffer() failed because: %s",
-            status.GetErrorMessage().c_str());
       return -status.error();
     }
 
