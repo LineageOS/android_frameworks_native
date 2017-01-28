@@ -187,6 +187,23 @@ TEST_F(VecTest, ComparisonOps) {
     EXPECT_FALSE(v0 == v1);
 }
 
+TEST_F(VecTest, ComparisonFunctions) {
+    vec4 v0(1, 2, 3, 4);
+    vec4 v1(10, 20, 30, 40);
+
+    EXPECT_TRUE(all(equal(v0, v0)));
+    EXPECT_TRUE(all(notEqual(v0, v1)));
+    EXPECT_FALSE(any(notEqual(v0, v0)));
+    EXPECT_FALSE(any(equal(v0, v1)));
+
+    EXPECT_FALSE(all(lessThan(v0, v0)));
+    EXPECT_TRUE(all(lessThanEqual(v0, v0)));
+    EXPECT_FALSE(all(greaterThan(v0, v0)));
+    EXPECT_TRUE(all(greaterThanEqual(v0, v0)));
+    EXPECT_TRUE(all(lessThan(v0, v1)));
+    EXPECT_TRUE(all(greaterThan(v1, v0)));
+}
+
 TEST_F(VecTest, ArithmeticOps) {
     vec4 v0(1, 2, 3, 4);
     vec4 v1(10, 20, 30, 40);
@@ -233,6 +250,21 @@ TEST_F(VecTest, ArithmeticFunc) {
 
     float3 vf(east);
     EXPECT_EQ(length(vf), 1);
+
+    EXPECT_TRUE(any(vec3(0, 0, 1)));
+    EXPECT_FALSE(any(vec3(0, 0, 0)));
+
+    EXPECT_TRUE(all(vec3(1, 1, 1)));
+    EXPECT_FALSE(all(vec3(0, 0, 1)));
+
+    EXPECT_TRUE(any(bool3(false, false, true)));
+    EXPECT_FALSE(any(bool3(false)));
+
+    EXPECT_TRUE(all(bool3(true)));
+    EXPECT_FALSE(all(bool3(false, false, true)));
+
+    std::function<bool(float)> p = [](auto v) -> bool { return v > 0.0f; };
+    EXPECT_TRUE(all(map(vec3(1, 2, 3), p)));
 }
 
 }; // namespace android
