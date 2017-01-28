@@ -238,11 +238,16 @@ int migrate_app_data(const char *uuid, const char *pkgname, userid_t userid, int
     auto ce_path = create_data_user_ce_package_path(uuid, userid, pkgname);
     auto de_path = create_data_user_de_package_path(uuid, userid, pkgname);
 
-    // If neither directory is marked as default, assume CE is default
+    // If neither directory is marked as default, use DE if requested by
+    // the app (and it exists), otherwise assume CE.
     if (getxattr(ce_path.c_str(), kXattrDefault, nullptr, 0) == -1
             && getxattr(de_path.c_str(), kXattrDefault, nullptr, 0) == -1) {
-        if (setxattr(ce_path.c_str(), kXattrDefault, nullptr, 0, 0) != 0) {
-            PLOG(ERROR) << "Failed to mark default storage " << ce_path;
+        struct stat s;
+        int de_exists = !stat(de_path.c_str(), &s);
+        const char *data_path = de_exists && (flags & FLAG_STORAGE_DE)
+                ? de_path.c_str() : ce_path.c_str();
+        if (setxattr(data_path, kXattrDefault, nullptr, 0, 0) != 0) {
+            PLOG(ERROR) << "Failed to mark default storage " << data_path;
             return -1;
         }
     }
