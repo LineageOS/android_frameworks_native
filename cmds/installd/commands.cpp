@@ -229,6 +229,29 @@ int create_app_data(const char *uuid, const char *pkgname, userid_t userid, int 
     return 0;
 }
 
+// Returns 1 if directory contains anything other than:
+// . .. cache code_cache
+static int dir_has_app_data(const char *path) {
+    struct dirent *entp;
+    int found = 0;
+    DIR *dirp = opendir(path);
+    if (dirp == NULL) {
+        return 0;
+    }
+    while ((entp = readdir(dirp)) != NULL) {
+        if (!strcmp(entp->d_name, ".")
+                || !strcmp(entp->d_name, "..")
+                || !strcmp(entp->d_name, "cache")
+                || !strcmp(entp->d_name, "code_cache")) {
+            continue;
+        }
+        found = 1;
+        break;
+    }
+    closedir(dirp);
+    return found;
+}
+
 int migrate_app_data(const char *uuid, const char *pkgname, userid_t userid, int flags) {
     // This method only exists to upgrade system apps that have requested
     // forceDeviceEncrypted, so their default storage always lives in a
@@ -238,11 +261,15 @@ int migrate_app_data(const char *uuid, const char *pkgname, userid_t userid, int
     auto ce_path = create_data_user_ce_package_path(uuid, userid, pkgname);
     auto de_path = create_data_user_de_package_path(uuid, userid, pkgname);
 
-    // If neither directory is marked as default, assume CE is default
+    // If neither directory is marked as default, pick the one containing
+    // existing data.  If neither or both have data, assume CE is default.
     if (getxattr(ce_path.c_str(), kXattrDefault, nullptr, 0) == -1
             && getxattr(de_path.c_str(), kXattrDefault, nullptr, 0) == -1) {
-        if (setxattr(ce_path.c_str(), kXattrDefault, nullptr, 0, 0) != 0) {
-            PLOG(ERROR) << "Failed to mark default storage " << ce_path;
+        int c = dir_has_app_data(ce_path.c_str());
+        int d = dir_has_app_data(de_path.c_str());
+        const char *data_path = (!c && d) ? de_path.c_str() : ce_path.c_str();
+        if (setxattr(data_path, kXattrDefault, nullptr, 0, 0) != 0) {
+            PLOG(ERROR) << "Failed to mark default storage " << data_path;
             return -1;
         }
     }
