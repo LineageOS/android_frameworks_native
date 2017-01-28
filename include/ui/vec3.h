@@ -124,6 +124,7 @@ typedef details::TVec3<int16_t> short3;
 typedef details::TVec3<uint16_t> ushort3;
 typedef details::TVec3<int8_t> byte3;
 typedef details::TVec3<uint8_t> ubyte3;
+typedef details::TVec3<bool> bool3;
 
 // ----------------------------------------------------------------------------------------
 }  // namespace android
