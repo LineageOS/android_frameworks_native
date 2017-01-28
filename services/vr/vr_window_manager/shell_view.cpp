@@ -573,7 +573,7 @@ void ShellView::DrawReticle(const mat4& perspective, const mat4& eye_matrix,
   vec3 pointer_location = last_pose_.GetPosition();
   quat view_quaternion = last_pose_.GetRotation();
 
-  if (controller_api_status_ == gvr::kControllerApiOk) {
+  if (controller_ && controller_api_status_ == gvr::kControllerApiOk) {
     view_quaternion = FromGvrQuatf(controller_orientation_);
     vec4 controller_location = controller_translate_ * vec4(0, 0, 0, 1);
     pointer_location = vec3(controller_location.x(), controller_location.y(),
@@ -618,6 +618,9 @@ void ShellView::DrawReticle(const mat4& perspective, const mat4& eye_matrix,
 
 void ShellView::DrawController(const mat4& perspective, const mat4& eye_matrix,
                                const mat4& head_matrix) {
+  if (!controller_)
+    return;
+
   controller_program_->Use();
   mat4 mvp = perspective * eye_matrix * head_matrix;
 

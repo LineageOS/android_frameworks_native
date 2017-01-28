@@ -100,6 +100,16 @@ int Application::AllocateResources() {
   fov_[1] = FieldOfView(lens_info.right_fov[0], lens_info.right_fov[1],
                         lens_info.right_fov[2], lens_info.right_fov[3]);
 
+  if (java_env_) {
+    int ret = InitializeController();
+    if (ret)
+      return ret;
+  }
+
+  return 0;
+}
+
+int Application::InitializeController() {
   gvr_context_ = gvr::GvrApi::Create(java_env_, app_context_, class_loader_);
   if (gvr_context_ == nullptr) {
     ALOGE("Gvr context creation failed");
@@ -170,7 +180,7 @@ void Application::DrawFrame() {
   // Thread should block if we are invisible or not fully initialized.
   std::unique_lock<std::mutex> lock(mutex_);
   wake_up_init_and_render_.wait(lock, [this]() {
-    return is_visible_ && initialized_ || !main_thread_tasks_.empty();
+    return (is_visible_ && initialized_) || !main_thread_tasks_.empty();
   });
 
   // Process main thread tasks if there are any.
@@ -245,6 +255,9 @@ void Application::DrawFrame() {
 }
 
 void Application::ProcessControllerInput() {
+  if (!controller_)
+    return;
+
   controller_state_->Update(*controller_);
   gvr::ControllerApiStatus new_api_status = controller_state_->GetApiStatus();
   gvr::ControllerConnectionState new_connection_state =
@@ -286,10 +299,12 @@ void Application::SetVisibility(bool visible) {
   if (changed) {
     is_visible_ = visible;
     dvrGraphicsSurfaceSetVisible(graphics_context_, is_visible_);
-    if (is_visible_)
-      controller_->Resume();
-    else
-      controller_->Pause();
+    if (controller_) {
+      if (is_visible_)
+        controller_->Resume();
+      else
+        controller_->Pause();
+    }
     OnVisibilityChanged(is_visible_);
   }
 }

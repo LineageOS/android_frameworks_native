@@ -54,6 +54,8 @@ class Application {
 
   void QueueTask(MainThreadTask task);
 
+  int InitializeController();
+
   DvrGraphicsContext* graphics_context_ = nullptr;
   DvrPose* pose_client_ = nullptr;
 

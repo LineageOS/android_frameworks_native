@@ -1,0 +1,9 @@
+service vr_wm /system/bin/vr_wm
+  class core
+  user system
+  group system graphics input
+  cpuset /system
+  disabled
+
+on property:persist.daydream.vr_wm=1
+  enable vr_wm
