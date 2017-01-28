@@ -14,11 +14,16 @@
 
 LOCAL_PATH := $(call my-dir)
 
+exported_include_dirs := \
+  $(LOCAL_PATH)/include
+
+include_dirs := \
+  frameworks/native/include/vr/vr_manager \
+  $(exported_include_dirs)
+
 src_files := \
   vr_manager.cpp \
-
-inc_files := \
-  frameworks/native/include/vr/vr_manager
+  trusted_uids.cpp
 
 static_libs := \
   libutils \
@@ -26,13 +31,12 @@ static_libs := \
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(src_files)
-LOCAL_C_INCLUDES := $(inc_files)
+LOCAL_C_INCLUDES := $(include_dirs)
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(exported_include_dirs)
 LOCAL_CFLAGS += -Wall
 LOCAL_CFLAGS += -Werror
 LOCAL_CFLAGS += -Wunused
 LOCAL_CFLAGS += -Wunreachable-code
-LOCAL_EXPORT_C_INCLUDE_DIRS := $(inc_files)
-#LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
 LOCAL_STATIC_LIBRARIES := $(static_libs)
 LOCAL_MODULE := libvr_manager
 include $(BUILD_STATIC_LIBRARY)

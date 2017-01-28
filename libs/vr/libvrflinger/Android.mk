@@ -45,6 +45,7 @@ staticLibraries := \
 	libperformance \
 	libsensor \
 	libpdx_default_transport \
+	libvr_manager \
 
 sharedLibraries := \
 	android.dvr.composer@1.0 \

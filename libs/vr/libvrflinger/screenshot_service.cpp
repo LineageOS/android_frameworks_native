@@ -3,7 +3,9 @@
 #include <utils/Trace.h>
 
 #include <pdx/default_transport/service_endpoint.h>
+#include <private/android_filesystem_config.h>
 #include <private/dvr/display_types.h>
+#include <private/dvr/trusted_uids.h>
 
 using android::pdx::Message;
 using android::pdx::MessageInfo;
@@ -40,6 +42,12 @@ int ScreenshotService::OnGetFormat(pdx::Message&) {
 
 ScreenshotData ScreenshotService::OnTakeScreenshot(pdx::Message& message,
                                                    int layer_index) {
+  // Also allow AID_SHELL to support vrscreencap commands.
+  if (message.GetEffectiveUserId() != AID_SHELL &&
+      !IsTrustedUid(message.GetEffectiveUserId())) {
+    REPLY_ERROR_RETURN(message, EACCES, {});
+  }
+
   AddWaiter(std::move(message), layer_index);
   return {};
 }
