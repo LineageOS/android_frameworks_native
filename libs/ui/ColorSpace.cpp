@@ -96,6 +96,47 @@ constexpr mat3 ColorSpace::computeXYZMatrix(
     };
 }
 
+static const float2 ILLUMINANT_D50_XY = {0.34567f, 0.35850f};
+static const float3 ILLUMINANT_D50_XYZ = {0.964212f, 1.0f, 0.825188f};
+static const mat3 VON_KRIES = mat3{
+    float3{ 0.8951f, -0.7502f,  0.0389f},
+    float3{ 0.2664f,  1.7135f, -0.0685f},
+    float3{-0.1614f,  0.0367f,  1.0296f}
+};
+
+static mat3 adaptation(const mat3& matrix, const float3& srcWhitePoint, const float3& dstWhitePoint) {
+    float3 srcLMS = matrix * srcWhitePoint;
+    float3 dstLMS = matrix * dstWhitePoint;
+    return inverse(matrix) * mat3{dstLMS / srcLMS} * matrix;
+}
+
+ColorSpace::Connector::Connector(
+        const ColorSpace& src,
+        const ColorSpace& dst) noexcept
+        : mSource(src)
+        , mDestination(dst) {
+
+    if (all(lessThan(abs(src.getWhitePoint() - dst.getWhitePoint()), float2{1e-3f}))) {
+        mTransform = dst.getXYZtoRGB() * src.getRGBtoXYZ();
+    } else {
+        mat3 rgbToXYZ(src.getRGBtoXYZ());
+        mat3 xyzToRGB(dst.getXYZtoRGB());
+
+        float3 srcXYZ = XYZ(float3{src.getWhitePoint(), 1});
+        float3 dstXYZ = XYZ(float3{dst.getWhitePoint(), 1});
+
+        if (any(greaterThan(abs(src.getWhitePoint() - ILLUMINANT_D50_XY), float2{1e-3f}))) {
+            rgbToXYZ = adaptation(VON_KRIES, srcXYZ, ILLUMINANT_D50_XYZ) * src.getRGBtoXYZ();
+        }
+
+        if (any(greaterThan(abs(dst.getWhitePoint() - ILLUMINANT_D50_XY), float2{1e-3f}))) {
+            xyzToRGB = inverse(adaptation(VON_KRIES, dstXYZ, ILLUMINANT_D50_XYZ) * dst.getRGBtoXYZ());
+        }
+
+        mTransform = xyzToRGB * rgbToXYZ;
+    }
+}
+
 static constexpr float rcpResponse(float x, float g,float a, float b, float c, float d) {
     return x >= d * c ? (std::pow(x, 1.0f / g) - b) / a : x / c;
 }
@@ -110,6 +151,10 @@ static float absRcpResponse(float x, float g,float a, float b, float c, float d)
 
 static float absResponse(float x, float g, float a, float b, float c, float d) {
     return std::copysign(response(std::abs(x), g, a, b, c, d), x);
+}
+
+static float safePow(float x, float e) {
+    return powf(x < 0.0f ? 0.0f : x, e);
 }
 
 const ColorSpace ColorSpace::sRGB() {
@@ -187,8 +232,8 @@ const ColorSpace ColorSpace::AdobeRGB() {
         "Adobe RGB (1998)",
         {{float2{0.64f, 0.33f}, {0.21f, 0.71f}, {0.15f, 0.06f}}},
         {0.3127f, 0.3290f},
-        std::bind(powf, _1, 1.0f / 2.2f),
-        std::bind(powf, _1, 2.2f)
+        std::bind(safePow, _1, 1.0f / 2.2f),
+        std::bind(safePow, _1, 2.2f)
     };
 }
 
@@ -196,7 +241,7 @@ const ColorSpace ColorSpace::ProPhotoRGB() {
     return {
         "ROMM RGB ISO 22028-2:2013",
         {{float2{0.7347f, 0.2653f}, {0.1596f, 0.8404f}, {0.0366f, 0.0001f}}},
-        {0.3457f, 0.3585f},
+        {0.34567f, 0.35850f},
         std::bind(rcpResponse, _1, 1.8f, 1.0f, 0.0f, 1 / 16.0f, 0.031248f),
         std::bind(response,    _1, 1.8f, 1.0f, 0.0f, 1 / 16.0f, 0.031248f)
     };
@@ -217,8 +262,8 @@ const ColorSpace ColorSpace::DCIP3() {
         "SMPTE RP 431-2-2007 DCI (P3)",
         {{float2{0.680f, 0.320f}, {0.265f, 0.690f}, {0.150f, 0.060f}}},
         {0.314f, 0.351f},
-        std::bind(powf, _1, 1.0f / 2.6f),
-        std::bind(powf, _1, 2.6f)
+        std::bind(safePow, _1, 1.0f / 2.6f),
+        std::bind(safePow, _1, 2.6f)
     };
 }
 

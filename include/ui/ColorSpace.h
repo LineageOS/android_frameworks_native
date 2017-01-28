@@ -20,6 +20,7 @@
 #include <array>
 #include <cmath>
 #include <functional>
+#include <memory>
 #include <string>
 
 #include <ui/mat3.h>
@@ -164,6 +165,30 @@ public:
     static const ColorSpace DCIP3();
     static const ColorSpace ACES();
     static const ColorSpace ACEScg();
+
+    class Connector {
+    public:
+        Connector(const ColorSpace& src, const ColorSpace& dst) noexcept;
+
+        constexpr const ColorSpace& getSource() const noexcept { return mSource; }
+        constexpr const ColorSpace& getDestination() const noexcept { return mDestination; }
+
+        constexpr const mat3& getTransform() const noexcept { return mTransform; }
+
+        constexpr float3 transform(const float3& v) const noexcept {
+            float3 linear = mSource.toLinear(apply(v, mSource.getClamper()));
+            return apply(mDestination.fromLinear(mTransform * linear), mDestination.getClamper());
+        }
+
+    private:
+        const ColorSpace& mSource;
+        const ColorSpace& mDestination;
+        mat3 mTransform;
+    };
+
+    static const Connector connect(const ColorSpace& src, const ColorSpace& dst) {
+        return Connector(src, dst);
+    }
 
 private:
     static constexpr mat3 computeXYZMatrix(
