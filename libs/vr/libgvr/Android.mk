@@ -91,8 +91,11 @@ LOCAL_MODULE := libgvr_audio
 LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 LOCAL_MODULE_SUFFIX := .so
 LOCAL_MULTILIB := both
+LOCAL_MODULE_TARGET_ARCH := arm arm64 x86 x86_64
 LOCAL_SRC_FILES_arm := prebuilt/lib/android_arm/libgvr_audio.so
 LOCAL_SRC_FILES_arm64 := prebuilt/lib/android_arm64/libgvr_audio.so
+LOCAL_SRC_FILES_x86 := prebuilt/lib/android_x86/libgvr_audio.so
+LOCAL_SRC_FILES_x86_64 := prebuilt/lib/android_x86_64/libgvr_audio.so
 include $(BUILD_PREBUILT)
 
 # Prebuilt shared library for libgvr.so
@@ -102,8 +105,11 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/prebuilt/include
 LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 LOCAL_MODULE_SUFFIX := .so
 LOCAL_MULTILIB := both
+LOCAL_MODULE_TARGET_ARCH := arm arm64 x86 x86_64
 LOCAL_SRC_FILES_arm := prebuilt/lib/android_arm/libgvr.so
 LOCAL_SRC_FILES_arm64 := prebuilt/lib/android_arm64/libgvr.so
+LOCAL_SRC_FILES_x86 := prebuilt/lib/android_x86/libgvr.so
+LOCAL_SRC_FILES_x86_64 := prebuilt/lib/android_x86_64/libgvr.so
 include $(BUILD_PREBUILT)
 
 # Prebuilt Java static library for common_library.aar

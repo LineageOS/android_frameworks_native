@@ -55,12 +55,27 @@ function build_gvr_libs() {
     //vr/gvr/platform:libgvr_audio.so \
     ${BLAZE_COMMON_OPTS[@]} --config=android_arm64 --symlink_prefix blaze-arm64-
 
+    blaze build \
+    //java/com/google/vr/sdk/release:common_library.aar \
+    //vr/gvr/platform:libgvr.so \
+    //vr/gvr/platform:libgvr_audio.so \
+    ${BLAZE_COMMON_OPTS[@]} --config=android_x86 --symlink_prefix blaze-x86-
+
+  blaze build \
+    //vr/gvr/platform:libgvr.so \
+    //vr/gvr/platform:libgvr_audio.so \
+    ${BLAZE_COMMON_OPTS[@]} --config=android_x86_64 --symlink_prefix blaze-x86_64-
+
   copy_file "blaze-arm-genfiles/java/com/google/vr/sdk/release/common_library.aar" \
     "lib/common_library.aar"
   copy_file "blaze-arm-genfiles/vr/gvr/platform/libgvr.so" "lib/android_arm"
   copy_file "blaze-arm-genfiles/vr/gvr/platform/libgvr_audio.so" "lib/android_arm"
   copy_file "blaze-arm64-genfiles/vr/gvr/platform/libgvr.so" "lib/android_arm64"
   copy_file "blaze-arm64-genfiles/vr/gvr/platform/libgvr_audio.so" "lib/android_arm64"
+  copy_file "blaze-x86-genfiles/vr/gvr/platform/libgvr.so" "lib/android_x86"
+  copy_file "blaze-x86-genfiles/vr/gvr/platform/libgvr_audio.so" "lib/android_x86"
+  copy_file "blaze-x86_64-genfiles/vr/gvr/platform/libgvr.so" "lib/android_x86_64"
+  copy_file "blaze-x86_64-genfiles/vr/gvr/platform/libgvr_audio.so" "lib/android_x86_64"
 }
 
 function main() {
