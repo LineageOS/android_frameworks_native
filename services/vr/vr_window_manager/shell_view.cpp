@@ -190,14 +190,6 @@ mat4 GetLayerTransform(const TextureLayer& texture_layer, float display_width,
   return layer_transform;
 }
 
-vec3 FromGvrVec3f(const gvr_vec3f& vec3f) {
-  return vec3(vec3f.x, vec3f.y, vec3f.z);
-}
-
-quat FromGvrQuatf(const gvr_quatf& quaternion) {
-  return quat(quaternion.qw, quaternion.qx, quaternion.qy, quaternion.qz);
-}
-
 // Determine if ths frame should be shown or hidden.
 ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
                                             uint32_t vr_app) {
@@ -302,13 +294,22 @@ void ShellView::DeallocateResources() {
 }
 
 void ShellView::EnableDebug(bool debug) {
+  ALOGI("EnableDebug(%d)", (int)debug); // XXX TODO delete
   QueueTask(debug ? MainThreadTask::EnableDebugMode
                   : MainThreadTask::DisableDebugMode);
 }
 
 void ShellView::VrMode(bool mode) {
+  ALOGI("VrMode(%d)", (int)mode); // XXX TODO delete
   QueueTask(mode ? MainThreadTask::EnteringVrMode
                  : MainThreadTask::ExitingVrMode);
+}
+
+void ShellView::dumpInternal(String8& result) {
+  result.append("[shell]\n");
+  result.appendFormat("initialized = %s\n", initialized_ ? "true" : "false");
+  result.appendFormat("is_visible = %s\n", is_visible_ ? "true" : "false");
+  result.appendFormat("debug_mode = %s\n\n", debug_mode_ ? "true" : "false");
 }
 
 void ShellView::AdvanceFrame() {
@@ -398,7 +399,11 @@ void ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
 
   if (visibility == ViewMode::Hidden && debug_mode_)
     visibility = ViewMode::VR;
-  current_vr_app_ = frame->layers().front().appid;
+
+  if (frame->layers().empty())
+    current_vr_app_ = 0;
+  else
+    current_vr_app_ = frame->layers().front().appid;
 
   std::unique_lock<std::mutex> l(pending_frame_mutex_);
 
@@ -418,7 +423,8 @@ void ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
 
   // If we are showing ourselves the main thread is not processing anything,
   // so give it a kick.
-  if (visibility != ViewMode::Hidden && current_frame_.visibility == ViewMode::Hidden) {
+  if (visibility != ViewMode::Hidden &&
+      current_frame_.visibility == ViewMode::Hidden) {
     QueueTask(MainThreadTask::EnteringVrMode);
     QueueTask(MainThreadTask::Show);
   }
@@ -598,23 +604,50 @@ void ShellView::DrawReticle(const mat4& perspective, const mat4& eye_matrix,
   vec3 pointer_location = last_pose_.GetPosition();
   quat view_quaternion = last_pose_.GetRotation();
 
-  if (controller_ && controller_api_status_ == gvr::kControllerApiOk) {
-    view_quaternion = FromGvrQuatf(controller_orientation_);
+  bool gvr_api_active =
+      controller_ && controller_api_status_ == gvr::kControllerApiOk;
+
+  if (gvr_api_active || shmem_controller_active_) {
+    view_quaternion = controller_orientation_;
     vec4 controller_location = controller_translate_ * vec4(0, 0, 0, 1);
     pointer_location = vec3(controller_location.x(), controller_location.y(),
                             controller_location.z());
 
-    if (controller_state_->GetButtonDown(gvr::kControllerButtonClick))
-      OnClick(true);
+    if (shmem_controller_active_) {
+      uint64_t buttons = shmem_controller_buttons_;
+      shmem_controller_buttons_ = 0;
+      while (buttons) {
+        switch (buttons & 0xF) {
+          case 0x1:
+            OnClick(false);
+            break;
+          case 0x3:
+            OnTouchpadButton(false, AMOTION_EVENT_BUTTON_BACK);
+            break;
+          case 0x9:
+            OnClick(true);
+            break;
+          case 0xB:
+            OnTouchpadButton(true, AMOTION_EVENT_BUTTON_BACK);
+            break;
+          default:
+            break;
+        }
+        buttons >>= 4;
+      }
+    } else if (controller_) {
+      if (controller_state_->GetButtonDown(gvr::kControllerButtonClick))
+        OnClick(true);
 
-    if (controller_state_->GetButtonUp(gvr::kControllerButtonClick))
-      OnClick(false);
+      if (controller_state_->GetButtonUp(gvr::kControllerButtonClick))
+        OnClick(false);
 
-    if (controller_state_->GetButtonDown(gvr::kControllerButtonApp))
-      OnTouchpadButton(true, AMOTION_EVENT_BUTTON_BACK);
+      if (controller_state_->GetButtonDown(gvr::kControllerButtonApp))
+        OnTouchpadButton(true, AMOTION_EVENT_BUTTON_BACK);
 
-    if (controller_state_->GetButtonUp(gvr::kControllerButtonApp))
-      OnTouchpadButton(false, AMOTION_EVENT_BUTTON_BACK);
+      if (controller_state_->GetButtonUp(gvr::kControllerButtonApp))
+        OnTouchpadButton(false, AMOTION_EVENT_BUTTON_BACK);
+    }
   }
 
   vec3 view_direction = vec3(view_quaternion * vec3(0, 0, -1));
@@ -643,7 +676,7 @@ void ShellView::DrawReticle(const mat4& perspective, const mat4& eye_matrix,
 
 void ShellView::DrawController(const mat4& perspective, const mat4& eye_matrix,
                                const mat4& head_matrix) {
-  if (!controller_)
+  if (!controller_ && !shmem_controller_active_)
     return;
 
   controller_program_->Use();
@@ -653,7 +686,7 @@ void ShellView::DrawController(const mat4& perspective, const mat4& eye_matrix,
       controller_program_->GetProgram(), "uViewProjection");
   glUniformMatrix4fv(view_projection_location, 1, 0, mvp.data());
 
-  quat view_quaternion = FromGvrQuatf(controller_orientation_);
+  quat view_quaternion = controller_orientation_;
   view_quaternion.toRotationMatrix();
 
   vec3 world_pos = last_pose_.GetPosition() + controller_position_;
