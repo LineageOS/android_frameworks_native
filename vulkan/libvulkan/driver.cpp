@@ -474,7 +474,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::EXTENSION_UNKNOWN:
                 // HAL's extensions
                 break;
-            case ProcHook::KHR_swapchain_front_buffered:
+            case ProcHook::KHR_shared_presentable_image:
                 // Exposed by HAL, but API surface is all in the loader
                 break;
             default:
@@ -495,7 +495,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
                 hook_extensions_.set(ProcHook::KHR_swapchain);
 
             // Exposed by HAL, but API surface is all in the loader
-            if (ext_bit == ProcHook::KHR_swapchain_front_buffered)
+            if (ext_bit == ProcHook::KHR_shared_presentable_image)
                 hook_extensions_.set(ext_bit);
 
             hal_extensions_.set(ext_bit);
