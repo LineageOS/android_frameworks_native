@@ -26,15 +26,18 @@ int main(int, char**) {
 
   const char instance[] = "vr_hwcomposer";
   sp<IComposer> service = HIDL_FETCH_IComposer(instance);
-  LOG_FATAL_IF(!service, "Failed to get service");
-  LOG_FATAL_IF(service->isRemote(), "Service is remote");
+  LOG_ALWAYS_FATAL_IF(!service.get(), "Failed to get service");
+  LOG_ALWAYS_FATAL_IF(service->isRemote(), "Service is remote");
 
-  service->registerAsService(instance);
+  LOG_ALWAYS_FATAL_IF(service->registerAsService(instance) != ::android::OK,
+                      "Failed to register service");
 
   sp<IVrComposerView> composer_view = HIDL_FETCH_IVrComposerView(
       "DaydreamDisplay");
-  LOG_FATAL_IF(!composer_view, "Failed to get vr_composer_view service");
-  LOG_FATAL_IF(composer_view->isRemote(), "vr_composer_view service is remote");
+  LOG_ALWAYS_FATAL_IF(!composer_view.get(),
+                      "Failed to get vr_composer_view service");
+  LOG_ALWAYS_FATAL_IF(composer_view->isRemote(),
+                      "vr_composer_view service is remote");
 
   composer_view->registerAsService("DaydreamDisplay");
 
