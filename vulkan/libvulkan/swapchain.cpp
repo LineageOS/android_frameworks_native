@@ -793,7 +793,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
     VkSwapchainImageUsageFlagsANDROID swapchain_image_usage = 0;
     if (create_info->presentMode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
         create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
-        swapchain_image_usage |= VK_SWAPCHAIN_IMAGE_USAGE_FRONT_BUFFER_BIT_ANDROID;
+        swapchain_image_usage |= VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID;
 
         err = native_window_set_shared_buffer_mode(surface.window.get(), true);
         if (err != 0) {

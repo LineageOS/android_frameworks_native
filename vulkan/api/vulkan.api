@@ -1568,7 +1568,7 @@ bitfield VkDebugReportFlagBitsEXT {
 type VkFlags VkSwapchainImageUsageFlagsANDROID
 @extension("VK_ANDROID_native_buffer")
 bitfield VkSwapchainImageUsageFlagBitsANDROID {
-    VK_SWAPCHAIN_IMAGE_USAGE_FLAGS_FRONT_BUFFER_BIT_ANDROID = 0x00000001,
+    VK_SWAPCHAIN_IMAGE_USAGE_FLAGS_SHARED_BIT_ANDROID = 0x00000001,
 }
 
 @extension("VK_NV_external_memory_capabilities")

@@ -813,7 +813,7 @@ by Lorenzo Bettini
 http://www.lorenzobettini.it
 http://www.gnu.org/software/src-highlite -->
 <pre><tt><span style="font-weight: bold"><span style="color: #0000FF">typedef</span></span> <span style="font-weight: bold"><span style="color: #0000FF">enum</span></span> VkSwapchainImageUsageFlagBitsANDROID <span style="color: #FF0000">{</span>
-    VK_SWAPCHAIN_IMAGE_USAGE_FRONT_BUFFER_BIT_ANDROID <span style="color: #990000">=</span> <span style="color: #993399">0x00000001</span><span style="color: #990000">,</span>
+    VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID <span style="color: #990000">=</span> <span style="color: #993399">0x00000001</span><span style="color: #990000">,</span>
     VK_SWAPCHAIN_IMAGE_USAGE_FLAG_BITS_MAX_ENUM <span style="color: #990000">=</span> <span style="color: #993399">0x7FFFFFFF</span>
 <span style="color: #FF0000">}</span> VkSwapchainImageUsageFlagBitsANDROID<span style="color: #990000">;</span>
 <span style="font-weight: bold"><span style="color: #0000FF">typedef</span></span> <span style="color: #008080">VkFlags</span> VkSwapchainImageUsageFlagsANDROID<span style="color: #990000">;</span></tt></pre></div></div>
@@ -922,7 +922,7 @@ http://www.gnu.org/software/src-highlite -->
     <span style="color: #009900">int</span><span style="color: #990000">*</span>                pNativeFenceFd
 <span style="color: #990000">);</span></tt></pre></div></div>
 <div class="paragraph"><p>This will be called during <span class="monospaced">vkQueuePresentWSI</span> on the provided queue. Effects are similar to <span class="monospaced">vkQueueSignalSemaphore</span>, except with a native fence instead of a semaphore. The native fence must: not signal until the <span class="monospaced">waitSemaphoreCount</span> semaphores in <span class="monospaced">pWaitSemaphores</span> have signaled. Unlike <span class="monospaced">vkQueueSignalSemaphore</span>, however, this call creates and returns the synchronization object that will be signalled rather than having it provided as input. If the queue is already idle when this function is called, it is allowed but not required to set <span class="monospaced">*pNativeFenceFd</span> to -1. The file descriptor returned in <span class="monospaced">*pNativeFenceFd</span> is owned and will be closed by the caller. Many drivers will be able to ignore the <span class="monospaced">image</span> parameter, but some may need to prepare CPU-side data structures associated with a gralloc buffer for use by external image consumers. Preparing buffer contents for use by external consumers should have been done asynchronously as part of transitioning the image to <span class="monospaced">VK_IMAGE_LAYOUT_PRESENT_SRC_KHR</span>.</p></div>
-<div class="paragraph"><p>If <span class="monospaced">image</span> was created with <span class="monospaced">VK_SWAPCHAIN_IMAGE_USAGE_FRONT_BUFFER_BIT_ANDROID</span>, then the driver must tolerate <span class="monospaced">vkQueueSignalReleaseImageANDROID</span> being called repeatedly without intervening calls to <span class="monospaced">vkAcquireImageANDROID</span>.</p></div>
+<div class="paragraph"><p>If <span class="monospaced">image</span> was created with <span class="monospaced">VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID</span>, then the driver must tolerate <span class="monospaced">vkQueueSignalReleaseImageANDROID</span> being called repeatedly without intervening calls to <span class="monospaced">vkAcquireImageANDROID</span>.</p></div>
 </div>
 </div>
 <div class="sect1">
