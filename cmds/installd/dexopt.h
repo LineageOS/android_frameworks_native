@@ -45,6 +45,11 @@ bool dump_profiles(int32_t uid, const char* pkgname, const char* code_paths);
 
 bool delete_odex(const char* apk_path, const char* instruction_set, const char* output_path);
 
+bool reconcile_secondary_dex_file(const std::string& dex_path,
+        const std::string& pkgname, int uid, const std::vector<std::string>& isas,
+        const std::unique_ptr<std::string>& volumeUuid, int storage_flag,
+        /*out*/bool* out_secondary_dex_exists);
+
 int dexopt(const char *apk_path, uid_t uid, const char *pkgName, const char *instruction_set,
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
         const char* volume_uuid, const char* shared_libraries);
