@@ -31,6 +31,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
+#include <cutils/fs.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
 #include <log/log.h>               // TODO: Move everything to base/logging.
@@ -875,7 +876,7 @@ static bool IsOutputDalvikCache(const char* oat_dir) {
 }
 
 static bool create_oat_out_path(const char* apk_path, const char* instruction_set,
-            const char* oat_dir, /*out*/ char* out_oat_path) {
+            const char* oat_dir, bool is_secondary_dex, /*out*/ char* out_oat_path) {
     // Early best-effort check whether we can fit the the path into our buffers.
     // Note: the cache path will require an additional 5 bytes for ".swap", but we'll try to run
     // without a swap file, if necessary. Reference profiles file also add an extra ".prof"
@@ -886,7 +887,8 @@ static bool create_oat_out_path(const char* apk_path, const char* instruction_se
     }
 
     if (!IsOutputDalvikCache(oat_dir)) {
-        if (validate_apk_path(oat_dir)) {
+        // Oat dirs for secondary dex files are already validated.
+        if (!is_secondary_dex && validate_apk_path(oat_dir)) {
             ALOGE("cannot validate apk path with oat_dir '%s'\n", oat_dir);
             return false;
         }
@@ -1079,10 +1081,11 @@ base::unique_fd maybe_open_dexopt_swap_file(const char* out_oat_path) {
 // Opens the reference profiles if needed.
 // Note that the reference profile might not exist so it's OK if the fd will be -1.
 Dex2oatFileWrapper maybe_open_reference_profile(const char* pkgname, bool profile_guided,
-        bool is_public, int uid) {
+        bool is_public, int uid, bool is_secondary_dex) {
     // Public apps should not be compiled with profile information ever. Same goes for the special
     // package '*' used for the system server.
-    if (profile_guided && !is_public && (pkgname[0] != '*')) {
+    // TODO(calin): add support for writing profiles for secondary dex files
+    if (profile_guided && !is_secondary_dex && !is_public && (pkgname[0] != '*')) {
         // Open reference profile in read only mode as dex2oat does not get write permissions.
         const std::string pkgname_str(pkgname);
         return Dex2oatFileWrapper(
@@ -1173,8 +1176,9 @@ bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_
 // Opens the output oat file for the given apk.
 // If successful it stores the output path into out_oat_path and returns true.
 Dex2oatFileWrapper open_oat_out_file(const char* apk_path, const char* oat_dir,
-        bool is_public, int uid, const char* instruction_set, char* out_oat_path) {
-    if (!create_oat_out_path(apk_path, instruction_set, oat_dir, out_oat_path)) {
+        bool is_public, int uid, const char* instruction_set, bool is_secondary_dex,
+        char* out_oat_path) {
+    if (!create_oat_out_path(apk_path, instruction_set, oat_dir, is_secondary_dex, out_oat_path)) {
         return Dex2oatFileWrapper();
     }
     const std::string out_oat_path_str(out_oat_path);
@@ -1182,7 +1186,7 @@ Dex2oatFileWrapper open_oat_out_file(const char* apk_path, const char* oat_dir,
             open_output_file(out_oat_path, /*recreate*/true, /*permissions*/0644),
             [out_oat_path_str]() { unlink(out_oat_path_str.c_str()); });
     if (wrapper_fd.get() < 0) {
-        ALOGE("installd cannot open '%s' for output during dexopt\n", out_oat_path);
+        PLOG(ERROR) << "installd cannot open output during dexopt" <<  out_oat_path;
     } else if (!set_permissions_and_ownership(wrapper_fd.get(), is_public, uid, out_oat_path)) {
         ALOGE("installd cannot set owner '%s' for output during dexopt\n", out_oat_path);
         wrapper_fd.reset(-1);
@@ -1207,9 +1211,188 @@ void update_out_oat_access_times(const char* apk_path, const char* out_oat_path)
     }
 }
 
+// Runs (execv) dexoptanalyzer on the given arguments.
+static void exec_dexoptanalyzer(const char* dex_file, const char* instruction_set,
+        const char* compiler_filter) {
+    static const char* DEXOPTANALYZER_BIN = "/system/bin/dexoptanalyzer";
+    static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
+
+    if (strlen(instruction_set) >= MAX_INSTRUCTION_SET_LEN) {
+        ALOGE("Instruction set %s longer than max length of %d",
+              instruction_set, MAX_INSTRUCTION_SET_LEN);
+        return;
+    }
+
+    char dex_file_arg[strlen("--dex-file=") + PKG_PATH_MAX];
+    char isa_arg[strlen("--isa=") + MAX_INSTRUCTION_SET_LEN];
+    char compiler_filter_arg[strlen("--compiler-filter=") + kPropertyValueMax];
+
+    sprintf(dex_file_arg, "--dex-file=%s", dex_file);
+    sprintf(isa_arg, "--isa=%s", instruction_set);
+    sprintf(compiler_filter_arg, "--compiler-filter=%s", compiler_filter);
+
+    // program name, dex file, isa, filter, the final NULL
+    const char* argv[5];
+    int i = 0;
+    argv[i++] = DEXOPTANALYZER_BIN;
+    argv[i++] = dex_file_arg;
+    argv[i++] = isa_arg;
+    argv[i++] = compiler_filter_arg;
+    argv[i] = NULL;
+
+    execv(DEXOPTANALYZER_BIN, (char * const *)argv);
+    ALOGE("execv(%s) failed: %s\n", DEXOPTANALYZER_BIN, strerror(errno));
+}
+
+// Prepares the oat dir for the secondary dex files.
+static bool prepare_secondary_dex_oat_dir(const char* apk_path, int uid,
+         const char* instruction_set, std::string* oat_dir_out) {
+    std::string apk_path_str(apk_path);
+    unsigned long dirIndex = apk_path_str.rfind('/');
+    if (dirIndex == std::string::npos) {
+        LOG(WARNING) << "Unexpected dir structure for secondary dex " << apk_path;
+        return false;
+    }
+    std::string apk_dir = apk_path_str.substr(0, dirIndex);
+
+    // Assign the gid to the cache gid so that the oat file storage
+    // is counted towards the app cache.
+    int32_t cache_gid = multiuser_get_cache_gid(
+            multiuser_get_user_id(uid), multiuser_get_app_id(uid));
+    // If UID doesn't have a specific cache GID, use UID value
+    if (cache_gid == -1) {
+        cache_gid = uid;
+    }
+
+    // Create oat file output directory.
+    if (prepare_app_cache_dir(apk_dir, "oat", 02711, uid, cache_gid) != 0) {
+        LOG(ERROR) << "Could not prepare oat dir for secondary dex: " << apk_path;
+        return false;
+    }
+
+    char oat_dir[PKG_PATH_MAX];
+    snprintf(oat_dir, PKG_PATH_MAX, "%s/oat", apk_dir.c_str());
+    oat_dir_out->assign(oat_dir);
+
+    // Create oat/isa output directory.
+    if (prepare_app_cache_dir(*oat_dir_out, instruction_set, 02711, uid, cache_gid) != 0) {
+        LOG(ERROR) << "Could not prepare oat/isa dir for secondary dex: " << apk_path;
+        return false;
+    }
+
+    return true;
+}
+
+static int constexpr DEXOPTANALYZER_BIN_EXEC_ERROR = 200;
+
+// Verifies the result of dexoptanalyzer executed for the apk_path.
+// If the result is valid returns true and sets dexopt_needed_out to a valid value.
+// Returns false for errors or unexpected result values.
+static bool process_dexoptanalyzer_result(const char* apk_path, int result,
+            int* dexopt_needed_out) {
+    // The result values are defined in dexoptanalyzer.
+    switch (result) {
+        case 0:  // no_dexopt_needed
+            *dexopt_needed_out = NO_DEXOPT_NEEDED; return true;
+        case 1:  // dex2oat_from_scratch
+            *dexopt_needed_out = DEX2OAT_FROM_SCRATCH; return true;
+        case 5:  // dex2oat_for_bootimage_odex
+            *dexopt_needed_out = -DEX2OAT_FOR_BOOT_IMAGE; return true;
+        case 6:  // dex2oat_for_filter_odex
+            *dexopt_needed_out = -DEX2OAT_FOR_FILTER; return true;
+        case 7:  // dex2oat_for_relocation_odex
+            *dexopt_needed_out = -DEX2OAT_FOR_RELOCATION; return true;
+        case 2:  // dex2oat_for_bootimage_oat
+        case 3:  // dex2oat_for_filter_oat
+        case 4:  // dex2oat_for_relocation_oat
+            LOG(ERROR) << "Expected odex file status for secondary dex " << apk_path
+                    << " : dexoptanalyzer result=" << result;
+            return false;
+        default:
+            LOG(ERROR) << "Unexpected result for dexoptanalyzer " << apk_path
+                    << " exec_dexoptanalyzer result=" << result;
+            return false;
+    }
+}
+
+// Processes the apk_path as a secondary dex files and return true if the path dex file should
+// be compiled. Returns false for errors (logged) or true if the secondary dex path was process
+// successfully.
+// When returning true, dexopt_needed_out is assigned a valid OatFileAsssitant::DexOptNeeded
+// code and aot_dir_out is assigned the oat dir path where the oat file should be stored.
+static bool process_secondary_dex_dexopt(const char* apk_path, const char* pkgname,
+        int dexopt_flags, const char* volume_uuid, int uid, const char* instruction_set,
+        const char* compiler_filter, int* dexopt_needed_out, std::string* aot_dir_out) {
+    int storage_flag;
+
+    if ((dexopt_flags & DEXOPT_STORAGE_CE) != 0) {
+        storage_flag = FLAG_STORAGE_CE;
+        if ((dexopt_flags & DEXOPT_STORAGE_DE) != 0) {
+            LOG(ERROR) << "Ambiguous secondary dex storage flag. Both, CE and DE, flags are set";
+            return false;
+        }
+    } else if ((dexopt_flags & DEXOPT_STORAGE_DE) != 0) {
+        storage_flag = FLAG_STORAGE_DE;
+    } else {
+        LOG(ERROR) << "Secondary dex storage flag must be set";
+        return false;
+    }
+
+    if (!validate_secondary_dex_path(pkgname, apk_path, volume_uuid, uid, storage_flag)) {
+        LOG(ERROR) << "Could not validate secondary dex path " << apk_path;
+        return false;
+    }
+
+    // Check if the path exist. If not, there's nothing to do.
+    if (access(apk_path, F_OK) != 0) {
+        if (errno == ENOENT) {
+            // Secondary dex files might be deleted any time by the app.
+            // Nothing to do if that's the case
+            ALOGV("Secondary dex does not exist %s", apk_path);
+            return NO_DEXOPT_NEEDED;
+        } else {
+            PLOG(ERROR) << "Could not access secondary dex " << apk_path;
+        }
+    }
+
+    // Prepare the oat directories.
+    if (!prepare_secondary_dex_oat_dir(apk_path, uid, instruction_set, aot_dir_out)) {
+        return false;
+    }
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        // child -- drop privileges before continuing.
+        drop_capabilities(uid);
+        // Run dexoptanalyzer to get dexopt_needed code.
+        exec_dexoptanalyzer(apk_path, instruction_set, compiler_filter);
+        exit(DEXOPTANALYZER_BIN_EXEC_ERROR);
+    }
+
+    /* parent */
+
+    int result = wait_child(pid);
+    if (!WIFEXITED(result)) {
+        LOG(ERROR) << "dexoptanalyzer failed for path " << apk_path << ": " << result;
+        return false;
+    }
+    result = WEXITSTATUS(result);
+    bool success = process_dexoptanalyzer_result(apk_path, result, dexopt_needed_out);
+    // Run dexopt only if needed or forced.
+    // Note that dexoptanalyzer is executed even if force compilation is enabled.
+    // We ignore its valid dexopNeeded result, but still check (in process_dexoptanalyzer_result)
+    // that we only get results for odex files (apk_dir/oat/isa/code.odex) and not
+    // for oat files from dalvik-cache.
+    if (success && ((dexopt_flags & DEXOPT_FORCE) != 0)) {
+        *dexopt_needed_out = DEX2OAT_FROM_SCRATCH;
+    }
+
+    return success;
+}
+
 int dexopt(const char* apk_path, uid_t uid, const char* pkgname, const char* instruction_set,
-        int dexopt_needed, const char* oat_dir, int dexopt_flags,const char* compiler_filter,
-        const char* volume_uuid ATTRIBUTE_UNUSED, const char* shared_libraries) {
+        int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
+        const char* volume_uuid, const char* shared_libraries) {
     CHECK(pkgname != nullptr);
     CHECK(pkgname[0] != 0);
     if ((dexopt_flags & ~DEXOPT_MASK) != 0) {
@@ -1221,6 +1404,26 @@ int dexopt(const char* apk_path, uid_t uid, const char* pkgname, const char* ins
     bool debuggable = (dexopt_flags & DEXOPT_DEBUGGABLE) != 0;
     bool boot_complete = (dexopt_flags & DEXOPT_BOOTCOMPLETE) != 0;
     bool profile_guided = (dexopt_flags & DEXOPT_PROFILE_GUIDED) != 0;
+    bool is_secondary_dex = (dexopt_flags & DEXOPT_SECONDARY_DEX) != 0;
+
+    // Check if we're dealing with a secondary dex file and if we need to compile it.
+    std::string oat_dir_str;
+    if (is_secondary_dex) {
+        if (process_secondary_dex_dexopt(apk_path, pkgname, dexopt_flags, volume_uuid, uid,
+                instruction_set, compiler_filter, &dexopt_needed, &oat_dir_str)) {
+            oat_dir = oat_dir_str.c_str();
+            if (dexopt_needed == NO_DEXOPT_NEEDED) {
+                return 0;  // Nothing to do, report success.
+            }
+        } else {
+            return -1;  // We had an error, logged in the process method.
+        }
+    } else {
+        // Verify that secondary dex files are not set.
+        CHECK((dexopt_flags & DEXOPT_FORCE) == 0);
+        CHECK((dexopt_flags & DEXOPT_STORAGE_CE) == 0);
+        CHECK((dexopt_flags & DEXOPT_STORAGE_DE) == 0);
+    }
 
     // Open the input file.
     base::unique_fd input_fd(open(apk_path, O_RDONLY, 0));
@@ -1232,7 +1435,7 @@ int dexopt(const char* apk_path, uid_t uid, const char* pkgname, const char* ins
     // Create the output OAT file.
     char out_oat_path[PKG_PATH_MAX];
     Dex2oatFileWrapper out_oat_fd = open_oat_out_file(apk_path, oat_dir, is_public, uid,
-            instruction_set, out_oat_path);
+            instruction_set, is_secondary_dex, out_oat_path);
     if (out_oat_fd.get() < 0) {
         return -1;
     }
@@ -1254,7 +1457,7 @@ int dexopt(const char* apk_path, uid_t uid, const char* pkgname, const char* ins
 
     // Open the reference profile if needed.
     Dex2oatFileWrapper reference_profile_fd =
-            maybe_open_reference_profile(pkgname, profile_guided, is_public, uid);
+        maybe_open_reference_profile(pkgname, profile_guided, is_public, uid, is_secondary_dex);
 
     ALOGV("DexInv: --- BEGIN '%s' ---\n", apk_path);
 
@@ -1439,7 +1642,8 @@ bool move_ab(const char* apk_path, const char* instruction_set, const char* oat_
 bool delete_odex(const char* apk_path, const char* instruction_set, const char* oat_dir) {
     // Delete the oat/odex file.
     char out_path[PKG_PATH_MAX];
-    if (!create_oat_out_path(apk_path, instruction_set, oat_dir, out_path)) {
+    if (!create_oat_out_path(apk_path, instruction_set, oat_dir,
+            /*is_secondary_dex*/ false, out_path)) {
         return false;
     }
 
