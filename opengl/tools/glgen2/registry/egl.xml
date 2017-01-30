@@ -720,6 +720,9 @@
         <enum value="0x332D" name="EGL_YUV_PLANE1_TEXTURE_UNIT_NV"/>
         <enum value="0x332E" name="EGL_YUV_PLANE2_TEXTURE_UNIT_NV"/>
             <unused start="0x332F" end="0x339F"/>
+        <enum value="0x3339" name="EGL_COLOR_COMPONENT_TYPE_EXT"/>
+        <enum value="0x333A" name="EGL_COLOR_COMPONENT_TYPE_FIXED_EXT"/>
+        <enum value="0x333B" name="EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT"/>
     </enums>
 
     <enums namespace="EGL" start="0x33A0" end="0x33AF" vendor="ANGLE" comment="Reserved for Shannon Woods (Bug 13175)">

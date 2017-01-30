@@ -118,6 +118,7 @@ extern char const * const gExtensionString  =
         "EGL_KHR_wait_sync "                    // strongly recommended
         "EGL_ANDROID_recordable "               // mandatory
         "EGL_KHR_partial_update "               // strongly recommended
+        "EGL_EXT_pixel_format_float "
         "EGL_EXT_buffer_age "                   // strongly recommended with partial_update
         "EGL_KHR_create_context_no_error "
         "EGL_KHR_mutable_render_buffer "
@@ -477,27 +478,50 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         // modify the EGLconfig's format before setting the native window's
         // format.
 
-        // TODO: Add support for HAL_PIXEL_FORMAT_RGBA_FP16
-        // by default, just pick RGBA_8888
+        EGLint componentType = EGL_COLOR_COMPONENT_TYPE_FIXED_EXT;
+        cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_COLOR_COMPONENT_TYPE_EXT,
+                                    &componentType);
+
+        // by default, just pick appropriate RGBA
         EGLint format = HAL_PIXEL_FORMAT_RGBA_8888;
+        if (dp->haveExtension("EGL_EXT_pixel_format_float") &&
+            (componentType == EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT)) {
+            format = HAL_PIXEL_FORMAT_RGBA_FP16;
+        }
         android_dataspace dataSpace = HAL_DATASPACE_UNKNOWN;
 
         EGLint a = 0;
+        EGLint r, g, b;
+        r = g = b = 0;
+        cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_RED_SIZE,   &r);
+        cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_GREEN_SIZE, &g);
+        cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_BLUE_SIZE,  &b);
         cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_ALPHA_SIZE, &a);
-        if (a > 0) {
-            // alpha-channel requested, there's really only one suitable format
-            format = HAL_PIXEL_FORMAT_RGBA_8888;
-        } else {
-            EGLint r, g, b;
-            r = g = b = 0;
-            cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_RED_SIZE,   &r);
-            cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_GREEN_SIZE, &g);
-            cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_BLUE_SIZE,  &b);
-            EGLint colorDepth = r + g + b;
+        EGLint colorDepth = r + g + b;
+
+        if (a == 0) {
             if (colorDepth <= 16) {
                 format = HAL_PIXEL_FORMAT_RGB_565;
             } else {
-                format = HAL_PIXEL_FORMAT_RGBX_8888;
+                if (componentType == EGL_COLOR_COMPONENT_TYPE_FIXED_EXT) {
+                    if (colorDepth > 24) {
+                        format = HAL_PIXEL_FORMAT_RGBA_1010102;
+                    } else {
+                        format = HAL_PIXEL_FORMAT_RGBX_8888;
+                    }
+                } else {
+                    format = HAL_PIXEL_FORMAT_RGBA_FP16;
+                }
+            }
+        } else {
+            if (componentType == EGL_COLOR_COMPONENT_TYPE_FIXED_EXT) {
+                if (colorDepth > 24) {
+                    format = HAL_PIXEL_FORMAT_RGBA_1010102;
+                } else {
+                    format = HAL_PIXEL_FORMAT_RGBA_8888;
+                }
+            } else {
+                format = HAL_PIXEL_FORMAT_RGBA_FP16;
             }
         }
 
