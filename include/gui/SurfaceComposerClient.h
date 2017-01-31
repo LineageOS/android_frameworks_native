@@ -106,8 +106,10 @@ public:
             uint32_t w,         // width in pixel
             uint32_t h,         // height in pixel
             PixelFormat format, // pixel-format desired
-            uint32_t flags = 0,  // usage flags
-            SurfaceControl* parent = nullptr // parent
+            uint32_t flags = 0, // usage flags
+            SurfaceControl* parent = nullptr, // parent
+            uint32_t windowType = 0, // from WindowManager.java (STATUS_BAR, INPUT_METHOD, etc.)
+            uint32_t ownerUid = 0 // UID of the task
     );
 
     //! Create a virtual display
@@ -145,7 +147,6 @@ public:
     status_t    setFlags(const sp<IBinder>& id, uint32_t flags, uint32_t mask);
     status_t    setTransparentRegionHint(const sp<IBinder>& id, const Region& transparent);
     status_t    setLayer(const sp<IBinder>& id, int32_t layer);
-    status_t    setLayerInfo(const sp<IBinder>& id, uint32_t type, uint32_t appid);
     status_t    setAlpha(const sp<IBinder>& id, float alpha=1.0f);
     status_t    setMatrix(const sp<IBinder>& id, float dsdx, float dtdx, float dsdy, float dtdy);
     status_t    setPosition(const sp<IBinder>& id, float x, float y);

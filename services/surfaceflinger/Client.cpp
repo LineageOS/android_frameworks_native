@@ -121,7 +121,7 @@ status_t Client::onTransact(
 status_t Client::createSurface(
         const String8& name,
         uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-        const sp<IBinder>& parentHandle,
+        const sp<IBinder>& parentHandle, uint32_t windowType, uint32_t ownerUid,
         sp<IBinder>* handle,
         sp<IGraphicBufferProducer>* gbp)
 {
@@ -156,28 +156,31 @@ status_t Client::createSurface(
         PixelFormat format;
         uint32_t flags;
         sp<Layer>* parent;
+        uint32_t windowType;
+        uint32_t ownerUid;
     public:
         MessageCreateLayer(SurfaceFlinger* flinger,
                 const String8& name, Client* client,
                 uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-                sp<IBinder>* handle,
+                sp<IBinder>* handle, uint32_t windowType, uint32_t ownerUid,
                 sp<IGraphicBufferProducer>* gbp,
                 sp<Layer>* parent)
             : flinger(flinger), client(client),
               handle(handle), gbp(gbp), result(NO_ERROR),
               name(name), w(w), h(h), format(format), flags(flags),
-              parent(parent) {
+              parent(parent), windowType(windowType), ownerUid(ownerUid) {
         }
         status_t getResult() const { return result; }
         virtual bool handler() {
             result = flinger->createLayer(name, client, w, h, format, flags,
-                    handle, gbp, parent);
+                    windowType, ownerUid, handle, gbp, parent);
             return true;
         }
     };
 
     sp<MessageBase> msg = new MessageCreateLayer(mFlinger.get(),
-            name, this, w, h, format, flags, handle, gbp, &parent);
+            name, this, w, h, format, flags, handle,
+            windowType, ownerUid, gbp, &parent);
     mFlinger->postMessageSync(msg);
     return static_cast<MessageCreateLayer*>( msg.get() )->getResult();
 }

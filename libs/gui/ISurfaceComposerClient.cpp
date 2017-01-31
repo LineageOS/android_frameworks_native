@@ -56,8 +56,8 @@ public:
 
     virtual status_t createSurface(const String8& name, uint32_t width,
             uint32_t height, PixelFormat format, uint32_t flags,
-            const sp<IBinder>& parent, sp<IBinder>* handle,
-            sp<IGraphicBufferProducer>* gbp) {
+            const sp<IBinder>& parent, uint32_t windowType, uint32_t ownerUid,
+            sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposerClient::getInterfaceDescriptor());
         data.writeString8(name);
@@ -65,6 +65,8 @@ public:
         data.writeUint32(height);
         data.writeInt32(static_cast<int32_t>(format));
         data.writeUint32(flags);
+        data.writeUint32(windowType);
+        data.writeUint32(ownerUid);
         if (parent != nullptr) {
             data.writeStrongBinder(parent);
         }
@@ -148,6 +150,8 @@ status_t BnSurfaceComposerClient::onTransact(
             uint32_t height = data.readUint32();
             PixelFormat format = static_cast<PixelFormat>(data.readInt32());
             uint32_t createFlags = data.readUint32();
+            uint32_t windowType = data.readUint32();
+            uint32_t ownerUid = data.readUint32();
             sp<IBinder> parent = nullptr;
             if (data.dataAvail() > 0) {
                 parent = data.readStrongBinder();
@@ -155,7 +159,7 @@ status_t BnSurfaceComposerClient::onTransact(
             sp<IBinder> handle;
             sp<IGraphicBufferProducer> gbp;
             status_t result = createSurface(name, width, height, format,
-                    createFlags, parent, &handle, &gbp);
+                    createFlags, parent, windowType, ownerUid, &handle, &gbp);
             reply->writeStrongBinder(handle);
             reply->writeStrongBinder(IInterface::asBinder(gbp));
             reply->writeInt32(result);
