@@ -511,6 +511,10 @@ void gvr_distort_to_screen(
   gvr_set_error(gvr, GVR_ERROR_INTERNAL);
 }
 
+bool gvr_is_feature_supported(const gvr_context* /*gvr*/, int32_t feature) {
+  return feature == GVR_FEATURE_ASYNC_REPROJECTION;
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // Viewports and viewport lists
 /////////////////////////////////////////////////////////////////////////////
@@ -1198,17 +1202,6 @@ gvr_mat4f gvr_get_head_space_from_start_space_pose(
 
 void gvr_swap_chain_set_z_order(const gvr_swap_chain* swap_chain, int z_order) {
   dvrGraphicsSurfaceSetZOrder(swap_chain->graphics_context_, z_order);
-}
-
-bool gvr_experimental_is_feature_supported(const gvr_context* /* gvr */,
-                                           int32_t feature) {
-  switch (feature) {
-    case GVR_ASYNC_REPROJECTION:
-    case GVR_6DOF_HEAD_POSE:
-      return true;
-    default:
-      return false;
-  }
 }
 
 bool gvr_experimental_register_perf_event_callback(

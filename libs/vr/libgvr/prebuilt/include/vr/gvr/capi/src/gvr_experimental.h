@@ -86,15 +86,6 @@ void* gvr_external_surface_get_surface(const gvr_external_surface* surface);
 int32_t gvr_external_surface_get_surface_id(
     const gvr_external_surface* surface);
 
-/// Queries whether a particular GVR feature is supported by the underlying
-/// platform.
-///
-/// @param gvr The context to query against.
-/// @param feature The gvr_feature type being queried.
-/// @return true if feature is supported, false otherwise.
-bool gvr_experimental_is_feature_supported(const gvr_context* gvr,
-                                           int32_t feature);
-
 /// Sets the z order of the layer to be created.
 /// Note that this API is a short-term workaround for SysUI work and is never
 /// meant to graduate as is to either gvr.h or gvr_private.h. The proper

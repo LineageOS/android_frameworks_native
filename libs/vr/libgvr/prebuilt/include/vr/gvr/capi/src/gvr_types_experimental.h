@@ -43,15 +43,13 @@ typedef enum {
   GVR_NUM_PERF_EVENT_CALLBACK_TYPES = 3,
 } gvr_perf_event_callback_type;
 
-// Types of VR-specific features which may or may not be supported on the
-// underlying platform.
+// Experimental VR-specific features which may or may not be supported on the
+// underlying platform.  These values should not overlap with current or future
+// gvr_feature values, so we're starting with 1000000 and increasing upward.
 typedef enum {
-  // Asynchronous reprojection warps the app's rendered frame using the most
-  // recent head pose just before pushing the frame to the display.
-  GVR_ASYNC_REPROJECTION = 0,
   // Head tracking with 6 degrees of freedom (position & rotation)
-  GVR_6DOF_HEAD_POSE = 1,
-} gvr_feature;
+  GVR_FEATURE_HEAD_POSE_6DOF = 1000000,
+} gvr_experimental_feature;
 
 // ************************************************************************** //
 // *                    GVR Analytics experimental APIs                     * //

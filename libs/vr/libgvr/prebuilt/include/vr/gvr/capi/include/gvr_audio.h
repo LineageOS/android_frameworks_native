@@ -441,7 +441,7 @@ void gvr_audio_unload_soundfile(gvr_audio_context* api, const char* filename);
 /// @return Id of new sound object. Returns kInvalidId if the sound file has not
 ///     been preloaded or if the number of input channels is > 1.
 gvr_audio_source_id gvr_audio_create_sound_object(gvr_audio_context* api,
-                                                 const char* filename);
+                                                  const char* filename);
 
 /// Returns a new ambisonic sound field. Note that the sample needs to be
 /// preloaded and must have 4 separate audio channels. The handle automatically
@@ -453,7 +453,7 @@ gvr_audio_source_id gvr_audio_create_sound_object(gvr_audio_context* api,
 ///     been preloaded or if the number of input channels does not match that
 ///     required.
 gvr_audio_source_id gvr_audio_create_soundfield(gvr_audio_context* api,
-                                               const char* filename);
+                                                const char* filename);
 
 /// Returns a new stereo non-spatialized source, which directly plays back mono
 /// or stereo audio. Note the sample needs to be preloaded and may contain only
@@ -465,7 +465,7 @@ gvr_audio_source_id gvr_audio_create_soundfield(gvr_audio_context* api,
 ///     sound file has not been preloaded or if the number of input channels is
 ///     > 2;
 gvr_audio_source_id gvr_audio_create_stereo_sound(gvr_audio_context* api,
-                                                 const char* filename);
+                                                  const char* filename);
 
 /// Starts the playback of a sound.
 ///
@@ -548,7 +548,6 @@ void gvr_audio_set_soundfield_rotation(gvr_audio_context* api,
 void gvr_audio_set_sound_object_distance_rolloff_model(
     gvr_audio_context* api, gvr_audio_source_id sound_object_id,
     int32_t rolloff_model, float min_distance, float max_distance);
-
 
 /// Changes the master volume.
 ///
@@ -707,7 +706,7 @@ class AudioApi {
     return gvr_audio_create_soundfield(context_, filename.c_str());
   }
 
-  /// Returns a new stereo soound.
+  /// Returns a new stereo sound.
   /// For more information, see gvr_audio_create_stereo_sound().
   AudioSourceId CreateStereoSound(const std::string& filename) {
     return gvr_audio_create_stereo_sound(context_, filename.c_str());
@@ -824,8 +823,7 @@ class AudioApi {
   /// @name Wrapper manipulation
   /// @{
   /// Creates a C++ wrapper for a C object and takes ownership.
-  explicit AudioApi(gvr_audio_context* context)
-      : context_(context) {}
+  explicit AudioApi(gvr_audio_context* context) : context_(context) {}
 
   /// Returns the wrapped C object. Does not affect ownership.
   gvr_audio_context* cobj() { return context_; }

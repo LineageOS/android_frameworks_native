@@ -338,6 +338,15 @@ void gvr_distort_to_screen(gvr_context* gvr, int32_t texture_id,
                            const gvr_buffer_viewport_list* viewport_list,
                            gvr_mat4f head_space_from_start_space,
                            gvr_clock_time_point target_presentation_time);
+
+/// Queries whether a particular GVR feature is supported by the underlying
+/// platform.
+///
+/// @param gvr The context to query against.
+/// @param feature The gvr_feature type being queried.
+/// @return true if feature is supported, false otherwise.
+bool gvr_is_feature_supported(const gvr_context* gvr, int32_t feature);
+
 /// @}
 
 /////////////////////////////////////////////////////////////////////////////
@@ -743,7 +752,7 @@ gvr_mat4f gvr_get_head_space_from_start_space_rotation(
 /// scenarios, e.g., when tracking is non-biological.
 ///
 /// @param gvr Pointer to the context instance from which the pose was obtained.
-/// @param head_rotation_in_start_space The head rotation as returned by
+/// @param head_space_from_start_space_rotation The head rotation as returned by
 ///     gvr_get_head_space_from_start_space_rotation().
 /// @param factor A scaling factor for the neck model offset, clamped from 0 to
 ///     1. This should be 1 for most scenarios, while 0 will effectively disable
@@ -1587,6 +1596,11 @@ class GvrApi {
     gvr_distort_to_screen(context_, texture_id, viewport_list.viewport_list_,
                           rendered_head_pose_in_start_space_matrix,
                           texture_presentation_time);
+  }
+
+  /// For more information, see gvr_is_feature_supported().
+  bool IsFeatureSupported(int32_t feature) {
+    return gvr_is_feature_supported(context_, feature);
   }
 
   /// For more information, see gvr_buffer_spec_create().
