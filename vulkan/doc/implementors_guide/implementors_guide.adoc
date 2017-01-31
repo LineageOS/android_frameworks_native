@@ -63,7 +63,7 @@ Implementations may further need swapchain buffers to be allocated with implemen
 [source,c]
 ----
 typedef enum VkSwapchainImageUsageFlagBitsANDROID {
-    VK_SWAPCHAIN_IMAGE_USAGE_FRONT_BUFFER_BIT_ANDROID = 0x00000001,
+    VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID = 0x00000001,
     VK_SWAPCHAIN_IMAGE_USAGE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
 } VkSwapchainImageUsageFlagBitsANDROID;
 typedef VkFlags VkSwapchainImageUsageFlagsANDROID;
@@ -173,7 +173,7 @@ VkResult VKAPI vkQueueSignalReleaseImageANDROID(
 
 This will be called during +vkQueuePresentWSI+ on the provided queue. Effects are similar to +vkQueueSignalSemaphore+, except with a native fence instead of a semaphore. The native fence must: not signal until the +waitSemaphoreCount+ semaphores in +pWaitSemaphores+ have signaled. Unlike +vkQueueSignalSemaphore+, however, this call creates and returns the synchronization object that will be signalled rather than having it provided as input. If the queue is already idle when this function is called, it is allowed but not required to set +*pNativeFenceFd+ to -1. The file descriptor returned in +*pNativeFenceFd+ is owned and will be closed by the caller. Many drivers will be able to ignore the +image+ parameter, but some may need to prepare CPU-side data structures associated with a gralloc buffer for use by external image consumers. Preparing buffer contents for use by external consumers should have been done asynchronously as part of transitioning the image to +VK_IMAGE_LAYOUT_PRESENT_SRC_KHR+.
 
-If +image+ was created with +VK_SWAPCHAIN_IMAGE_USAGE_FRONT_BUFFER_BIT_ANDROID+, then the driver must tolerate +vkQueueSignalReleaseImageANDROID+ being called repeatedly without intervening calls to +vkAcquireImageANDROID+.
+If +image+ was created with +VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID+, then the driver must tolerate +vkQueueSignalReleaseImageANDROID+ being called repeatedly without intervening calls to +vkAcquireImageANDROID+.
 
 == History ==
 

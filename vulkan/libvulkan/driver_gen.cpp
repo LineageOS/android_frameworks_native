@@ -94,10 +94,10 @@ VKAPI_ATTR VkResult checkedGetPastPresentationTimingGOOGLE(VkDevice device, VkSw
 }
 
 VKAPI_ATTR VkResult checkedGetSwapchainStatusKHR(VkDevice device, VkSwapchainKHR swapchain) {
-    if (GetData(device).hook_extensions[ProcHook::KHR_swapchain_front_buffered]) {
+    if (GetData(device).hook_extensions[ProcHook::KHR_shared_presentable_image]) {
         return GetSwapchainStatusKHR(device, swapchain);
     } else {
-        Logger(device).Err(device, "VK_KHR_swapchain_front_buffered not enabled. vkGetSwapchainStatusKHR not executed.");
+        Logger(device).Err(device, "VK_KHR_shared_presentable_image not enabled. vkGetSwapchainStatusKHR not executed.");
         return VK_SUCCESS;
     }
 }
@@ -312,7 +312,7 @@ const ProcHook g_proc_hooks[] = {
     {
         "vkGetSwapchainStatusKHR",
         ProcHook::DEVICE,
-        ProcHook::KHR_swapchain_front_buffered,
+        ProcHook::KHR_shared_presentable_image,
         reinterpret_cast<PFN_vkVoidFunction>(GetSwapchainStatusKHR),
         reinterpret_cast<PFN_vkVoidFunction>(checkedGetSwapchainStatusKHR),
     },
@@ -354,7 +354,7 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
     if (strcmp(name, "VK_KHR_surface") == 0) return ProcHook::KHR_surface;
     if (strcmp(name, "VK_KHR_swapchain") == 0) return ProcHook::KHR_swapchain;
     if (strcmp(name, "VK_GOOGLE_display_timing") == 0) return ProcHook::GOOGLE_display_timing;
-    if (strcmp(name, "VK_KHR_swapchain_front_buffered") == 0) return ProcHook::KHR_swapchain_front_buffered;
+    if (strcmp(name, "VK_KHR_shared_presentable_image") == 0) return ProcHook::KHR_shared_presentable_image;
     // clang-format on
     return ProcHook::EXTENSION_UNKNOWN;
 }

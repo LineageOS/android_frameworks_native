@@ -564,8 +564,8 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice /*pdev*/,
     const VkPresentModeKHR kModes[] = {
         VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_FIFO_KHR,
         // TODO(chrisforbes): should only expose this if the driver can.
-        VK_PRESENT_MODE_FRONT_BUFFERED_DEMAND_REFRESH_KHR,
-        VK_PRESENT_MODE_FRONT_BUFFERED_CONTINUOUS_REFRESH_KHR,
+        VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR,
+        VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR,
     };
     const uint32_t kNumModes = sizeof(kModes) / sizeof(kModes[0]);
 
@@ -614,8 +614,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
              create_info->preTransform);
     ALOGV_IF(!(create_info->presentMode == VK_PRESENT_MODE_FIFO_KHR ||
                create_info->presentMode == VK_PRESENT_MODE_MAILBOX_KHR ||
-               create_info->presentMode == VK_PRESENT_MODE_FRONT_BUFFERED_DEMAND_REFRESH_KHR ||
-               create_info->presentMode == VK_PRESENT_MODE_FRONT_BUFFERED_CONTINUOUS_REFRESH_KHR),
+               create_info->presentMode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
+               create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR),
              "swapchain presentMode=%u not supported",
              create_info->presentMode);
 
@@ -791,9 +791,9 @@ VkResult CreateSwapchainKHR(VkDevice device,
     }
 
     VkSwapchainImageUsageFlagsANDROID swapchain_image_usage = 0;
-    if (create_info->presentMode == VK_PRESENT_MODE_FRONT_BUFFERED_DEMAND_REFRESH_KHR ||
-        create_info->presentMode == VK_PRESENT_MODE_FRONT_BUFFERED_CONTINUOUS_REFRESH_KHR) {
-        swapchain_image_usage |= VK_SWAPCHAIN_IMAGE_USAGE_FRONT_BUFFER_BIT_ANDROID;
+    if (create_info->presentMode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
+        create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
+        swapchain_image_usage |= VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID;
 
         err = native_window_set_shared_buffer_mode(surface.window.get(), true);
         if (err != 0) {
@@ -802,7 +802,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         }
     }
 
-    if (create_info->presentMode == VK_PRESENT_MODE_FRONT_BUFFERED_CONTINUOUS_REFRESH_KHR) {
+    if (create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
         err = native_window_set_auto_refresh(surface.window.get(), true);
         if (err != 0) {
             ALOGE("native_window_set_auto_refresh failed: %s (%d)", strerror(-err), err);
