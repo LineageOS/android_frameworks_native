@@ -223,6 +223,9 @@ enum VkImageLayout {
 
     //@extension("VK_KHR_swapchain")
     VK_IMAGE_LAYOUT_PRESENT_SRC_KHR                         = 1000001002,
+
+    //@extension("VK_KHR_shared_presentable_image")
+    VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR                      = 1000111000,
 }
 
 enum VkAttachmentLoadOp {
