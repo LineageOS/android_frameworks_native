@@ -1295,6 +1295,7 @@ bool HWC2On1Adapter::Display::prepare()
     for (auto& layer : mLayers) {
         auto& hwc1Layer = mHwc1RequestedContents->hwLayers[layer->getHwc1Id()];
         hwc1Layer.releaseFenceFd = -1;
+        hwc1Layer.acquireFenceFd = -1;
         layer->applyState(hwc1Layer, applyAllState);
     }
 
