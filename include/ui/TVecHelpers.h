@@ -324,7 +324,7 @@ public:
 
     template<typename RT>
     friend inline
-    constexpr VECTOR<bool> PURE equal(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
+    CONSTEXPR VECTOR<bool> PURE equal(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         VECTOR<bool> r;
         for (size_t i = 0; i < lv.size(); i++) {
             r[i] = lv[i] == rv[i];
@@ -334,7 +334,7 @@ public:
 
     template<typename RT>
     friend inline
-    constexpr VECTOR<bool> PURE notEqual(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
+    CONSTEXPR VECTOR<bool> PURE notEqual(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         VECTOR<bool> r;
         for (size_t i = 0; i < lv.size(); i++) {
             r[i] = lv[i] != rv[i];
@@ -344,7 +344,7 @@ public:
 
     template<typename RT>
     friend inline
-    constexpr VECTOR<bool> PURE lessThan(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
+    CONSTEXPR VECTOR<bool> PURE lessThan(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         VECTOR<bool> r;
         for (size_t i = 0; i < lv.size(); i++) {
             r[i] = lv[i] < rv[i];
@@ -354,7 +354,7 @@ public:
 
     template<typename RT>
     friend inline
-    constexpr VECTOR<bool> PURE lessThanEqual(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
+    CONSTEXPR VECTOR<bool> PURE lessThanEqual(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         VECTOR<bool> r;
         for (size_t i = 0; i < lv.size(); i++) {
             r[i] = lv[i] <= rv[i];
@@ -364,7 +364,7 @@ public:
 
     template<typename RT>
     friend inline
-    constexpr VECTOR<bool> PURE greaterThan(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
+    CONSTEXPR VECTOR<bool> PURE greaterThan(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         VECTOR<bool> r;
         for (size_t i = 0; i < lv.size(); i++) {
             r[i] = lv[i] > rv[i];
@@ -374,7 +374,7 @@ public:
 
     template<typename RT>
     friend inline
-    constexpr VECTOR<bool> PURE greaterThanEqual(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
+    CONSTEXPR VECTOR<bool> PURE greaterThanEqual(const VECTOR<T>& lv, const VECTOR<RT>& rv) {
         VECTOR<bool> r;
         for (size_t i = 0; i < lv.size(); i++) {
             r[i] = lv[i] >= rv[i];

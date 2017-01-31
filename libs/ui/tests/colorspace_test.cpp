@@ -162,4 +162,22 @@ TEST_F(ColorSpaceTest, Connect) {
     EXPECT_TRUE(all(lessThan(abs(r - float3{0.70226f, 0.2757f, 0.1036f}), float3{1e-4f})));
 }
 
+TEST_F(ColorSpaceTest, LUT) {
+    auto lut = ColorSpace::createLUT(17, ColorSpace::sRGB(), ColorSpace::AdobeRGB());
+    EXPECT_TRUE(lut != nullptr);
+
+    // {1.0f, 0.5f, 0.0f}
+    auto r = lut.get()[0 * 17 * 17 + 8 * 17 + 16];
+    EXPECT_TRUE(all(lessThan(abs(r - float3{0.8912f, 0.4962f, 0.1164f}), float3{1e-4f})));
+
+    // {1.0f, 1.0f, 0.5f}
+    r = lut.get()[8 * 17 * 17 + 0 * 17 + 16]; // y (G) is flipped
+    EXPECT_TRUE(all(lessThan(abs(r - float3{1.0f, 1.0f, 0.5290f}), float3{1e-4f})));
+
+    // {1.0f, 1.0f, 1.0f}
+    r = lut.get()[16 * 17 * 17 + 0 * 17 + 16]; // y (G) is flipped
+    EXPECT_TRUE(all(lessThan(abs(r - float3{1.0f, 1.0f, 1.0f}), float3{1e-4f})));
+
+}
+
 }; // namespace android

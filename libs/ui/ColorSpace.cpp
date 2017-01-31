@@ -96,47 +96,6 @@ constexpr mat3 ColorSpace::computeXYZMatrix(
     };
 }
 
-static const float2 ILLUMINANT_D50_XY = {0.34567f, 0.35850f};
-static const float3 ILLUMINANT_D50_XYZ = {0.964212f, 1.0f, 0.825188f};
-static const mat3 VON_KRIES = mat3{
-    float3{ 0.8951f, -0.7502f,  0.0389f},
-    float3{ 0.2664f,  1.7135f, -0.0685f},
-    float3{-0.1614f,  0.0367f,  1.0296f}
-};
-
-static mat3 adaptation(const mat3& matrix, const float3& srcWhitePoint, const float3& dstWhitePoint) {
-    float3 srcLMS = matrix * srcWhitePoint;
-    float3 dstLMS = matrix * dstWhitePoint;
-    return inverse(matrix) * mat3{dstLMS / srcLMS} * matrix;
-}
-
-ColorSpace::Connector::Connector(
-        const ColorSpace& src,
-        const ColorSpace& dst) noexcept
-        : mSource(src)
-        , mDestination(dst) {
-
-    if (all(lessThan(abs(src.getWhitePoint() - dst.getWhitePoint()), float2{1e-3f}))) {
-        mTransform = dst.getXYZtoRGB() * src.getRGBtoXYZ();
-    } else {
-        mat3 rgbToXYZ(src.getRGBtoXYZ());
-        mat3 xyzToRGB(dst.getXYZtoRGB());
-
-        float3 srcXYZ = XYZ(float3{src.getWhitePoint(), 1});
-        float3 dstXYZ = XYZ(float3{dst.getWhitePoint(), 1});
-
-        if (any(greaterThan(abs(src.getWhitePoint() - ILLUMINANT_D50_XY), float2{1e-3f}))) {
-            rgbToXYZ = adaptation(VON_KRIES, srcXYZ, ILLUMINANT_D50_XYZ) * src.getRGBtoXYZ();
-        }
-
-        if (any(greaterThan(abs(dst.getWhitePoint() - ILLUMINANT_D50_XY), float2{1e-3f}))) {
-            xyzToRGB = inverse(adaptation(VON_KRIES, dstXYZ, ILLUMINANT_D50_XYZ) * dst.getRGBtoXYZ());
-        }
-
-        mTransform = xyzToRGB * rgbToXYZ;
-    }
-}
-
 static constexpr float rcpResponse(float x, float g,float a, float b, float c, float d) {
     return x >= d * c ? (std::pow(x, 1.0f / g) - b) / a : x / c;
 }
@@ -288,5 +247,69 @@ const ColorSpace ColorSpace::ACEScg() {
         std::bind(clamp<float>, _1, -65504.0f, 65504.0f)
     };
 }
+
+static const float2 ILLUMINANT_D50_XY = {0.34567f, 0.35850f};
+static const float3 ILLUMINANT_D50_XYZ = {0.964212f, 1.0f, 0.825188f};
+static const mat3 BRADFORD = mat3{
+    float3{ 0.8951f, -0.7502f,  0.0389f},
+    float3{ 0.2664f,  1.7135f, -0.0685f},
+    float3{-0.1614f,  0.0367f,  1.0296f}
+};
+
+static mat3 adaptation(const mat3& matrix, const float3& srcWhitePoint, const float3& dstWhitePoint) {
+    float3 srcLMS = matrix * srcWhitePoint;
+    float3 dstLMS = matrix * dstWhitePoint;
+    return inverse(matrix) * mat3{dstLMS / srcLMS} * matrix;
+}
+
+ColorSpace::Connector::Connector(
+        const ColorSpace& src,
+        const ColorSpace& dst) noexcept
+        : mSource(src)
+        , mDestination(dst) {
+
+    if (all(lessThan(abs(src.getWhitePoint() - dst.getWhitePoint()), float2{1e-3f}))) {
+        mTransform = dst.getXYZtoRGB() * src.getRGBtoXYZ();
+    } else {
+        mat3 rgbToXYZ(src.getRGBtoXYZ());
+        mat3 xyzToRGB(dst.getXYZtoRGB());
+
+        float3 srcXYZ = XYZ(float3{src.getWhitePoint(), 1});
+        float3 dstXYZ = XYZ(float3{dst.getWhitePoint(), 1});
+
+        if (any(greaterThan(abs(src.getWhitePoint() - ILLUMINANT_D50_XY), float2{1e-3f}))) {
+            rgbToXYZ = adaptation(BRADFORD, srcXYZ, ILLUMINANT_D50_XYZ) * src.getRGBtoXYZ();
+        }
+
+        if (any(greaterThan(abs(dst.getWhitePoint() - ILLUMINANT_D50_XY), float2{1e-3f}))) {
+            xyzToRGB = inverse(adaptation(BRADFORD, dstXYZ, ILLUMINANT_D50_XYZ) * dst.getRGBtoXYZ());
+        }
+
+        mTransform = xyzToRGB * rgbToXYZ;
+    }
+}
+
+std::unique_ptr<float3> ColorSpace::createLUT(uint32_t size,
+        const ColorSpace& src, const ColorSpace& dst) {
+
+    size = clamp(size, 2u, 256u);
+    float m = 1.0f / float(size - 1);
+
+    std::unique_ptr<float3> lut(new float3[size * size * size]);
+    float3* data = lut.get();
+
+    Connector connector(src, dst);
+
+    for (uint32_t z = 0; z < size; z++) {
+        for (int32_t y = int32_t(size - 1); y >= 0; y--) {
+            for (uint32_t x = 0; x < size; x++) {
+                *data++ = connector.transform({x * m, y * m, z * m});
+            }
+        }
+    }
+
+    return lut;
+}
+
 
 }; // namespace android
