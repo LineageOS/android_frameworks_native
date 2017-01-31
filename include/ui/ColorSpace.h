@@ -180,6 +180,11 @@ public:
             return apply(mDestination.fromLinear(mTransform * linear), mDestination.getClamper());
         }
 
+        constexpr float3 transformLinear(const float3& v) const noexcept {
+            float3 linear = apply(v, mSource.getClamper());
+            return apply(mTransform * linear, mDestination.getClamper());
+        }
+
     private:
         const ColorSpace& mSource;
         const ColorSpace& mDestination;
@@ -189,6 +194,15 @@ public:
     static const Connector connect(const ColorSpace& src, const ColorSpace& dst) {
         return Connector(src, dst);
     }
+
+    // Creates a NxNxN 3D LUT, where N is the specified size (min=2, max=256)
+    // The 3D lookup coordinates map to the RGB components: u=R, v=G, w=B
+    // The generated 3D LUT is meant to be used as a 3D texture and its Y
+    // axis is thus already flipped
+    // The source color space must define its values in the domain [0..1]
+    // The generated LUT transforms from gamma space to gamma space
+    static std::unique_ptr<float3> createLUT(uint32_t size,
+            const ColorSpace& src, const ColorSpace& dst);
 
 private:
     static constexpr mat3 computeXYZMatrix(
