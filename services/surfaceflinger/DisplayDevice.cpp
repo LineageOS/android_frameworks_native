@@ -47,6 +47,9 @@
 #include "SurfaceFlinger.h"
 #include "Layer.h"
 
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <configstore/Utils.h>
+
 // ----------------------------------------------------------------------------
 using namespace android;
 // ----------------------------------------------------------------------------
@@ -56,6 +59,14 @@ static constexpr bool kEGLAndroidSwapRectangle = true;
 #else
 static constexpr bool kEGLAndroidSwapRectangle = false;
 #endif
+
+// retrieve triple buffer setting from configstore
+using namespace android::hardware::configstore;
+using namespace android::hardware::configstore::V1_0;
+
+static bool useTripleFramebuffer = getBool<
+        ISurfaceFlingerConfigs,
+        &ISurfaceFlingerConfigs::useTripleFramebuffer>(false);
 
 #if !defined(EGL_EGLEXT_PROTOTYPES) || !defined(EGL_ANDROID_swap_rectangle)
 // Dummy implementation in case it is missing.
@@ -165,9 +176,9 @@ DisplayDevice::DisplayDevice(
     // initialize the display orientation transform.
     setProjection(DisplayState::eOrientationDefault, mViewport, mFrame);
 
-#ifdef NUM_FRAMEBUFFER_SURFACE_BUFFERS
-    surface->allocateBuffers();
-#endif
+    if (useTripleFramebuffer) {
+        surface->allocateBuffers();
+    }
 }
 
 DisplayDevice::~DisplayDevice() {
