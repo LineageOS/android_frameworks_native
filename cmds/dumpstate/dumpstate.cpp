@@ -431,12 +431,16 @@ static void DumpModemLogs() {
         return;
     }
 
-    // TODO: use bugreport_dir_ directly when this function is moved to Dumpstate class
-    std::string bugreport_dir = dirname(ds.GetPath("").c_str());
-    MYLOGD("DumpModemLogs: directory is %s and file_prefix is %s\n",
-           bugreport_dir.c_str(), file_prefix.c_str());
+    // TODO: b/33820081 we need to provide a right way to dump modem logs.
+    std::string radio_bugreport_dir = android::base::GetProperty("ro.radio.log_loc", "");
+    if (radio_bugreport_dir.empty()) {
+        radio_bugreport_dir = dirname(ds.GetPath("").c_str());
+    }
 
-    std::string modem_log_file = GetLastModifiedFileWithPrefix(bugreport_dir, file_prefix);
+    MYLOGD("DumpModemLogs: directory is %s and file_prefix is %s\n",
+           radio_bugreport_dir.c_str(), file_prefix.c_str());
+
+    std::string modem_log_file = GetLastModifiedFileWithPrefix(radio_bugreport_dir, file_prefix);
 
     struct stat s;
     if (modem_log_file.empty() || stat(modem_log_file.c_str(), &s) != 0) {
