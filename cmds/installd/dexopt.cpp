@@ -498,7 +498,7 @@ static fd_t open_primary_profile_file_from_dir(const std::string& profile_dir, m
     fd_t profile_fd = -1;
     std::string profile_file = create_primary_profile(profile_dir);
 
-    profile_fd = TEMP_FAILURE_RETRY(open(profile_file.c_str(), open_mode | O_NOFOLLOW));
+    profile_fd = TEMP_FAILURE_RETRY(open(profile_file.c_str(), open_mode | O_NOFOLLOW, 0600));
     if (profile_fd == -1) {
         // It's not an error if the profile file does not exist.
         if (errno != ENOENT) {
@@ -757,7 +757,7 @@ bool dump_profiles(int32_t uid, const char* pkgname, const char* code_paths) {
         return false;
     }
 
-    fd_t output_fd = open(out_file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW);
+    fd_t output_fd = open(out_file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0644);
     if (fchmod(output_fd, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH) < 0) {
         ALOGE("installd cannot chmod '%s' dump_profile\n", out_file_name.c_str());
         return false;
