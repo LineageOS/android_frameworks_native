@@ -58,6 +58,7 @@
 #include "LayerVector.h"
 #include "MessageQueue.h"
 #include "SurfaceInterceptor.h"
+#include "StartBootAnimThread.h"
 
 #include "DisplayHardware/HWComposer.h"
 #include "Effects/Daltonizer.h"
@@ -344,6 +345,8 @@ private:
             int32_t minLayerZ, int32_t maxLayerZ,
             bool useIdentityTransform, Transform::orientation_flags rotation,
             bool isLocalScreenshot);
+
+    sp<StartBootAnimThread> mStartBootAnimThread = nullptr;
 
     /* ------------------------------------------------------------------------
      * EGL
