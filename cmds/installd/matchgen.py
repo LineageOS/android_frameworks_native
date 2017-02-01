@@ -14,13 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
+import collections, sys
 
 TYPES = {
     "AID_MEDIA_AUDIO": ["aac","aac","amr","awb","snd","flac","flac","mp3","mpga","mpega","mp2","m4a","aif","aiff","aifc","gsm","mka","m3u","wma","wax","ra","rm","ram","ra","pls","sd2","wav","ogg","oga"],
     "AID_MEDIA_VIDEO": ["3gpp","3gp","3gpp2","3g2","avi","dl","dif","dv","fli","m4v","ts","mpeg","mpg","mpe","mp4","vob","qt","mov","mxu","webm","lsf","lsx","mkv","mng","asf","asx","wm","wmv","wmx","wvx","movie","wrf"],
     "AID_MEDIA_IMAGE": ["bmp","gif","jpg","jpeg","jpe","pcx","png","svg","svgz","tiff","tif","wbmp","webp","dng","cr2","ras","art","jng","nef","nrw","orf","rw2","pef","psd","pnm","pbm","pgm","ppm","srw","arw","rgb","xbm","xpm","xwd"]
 }
+
+if "--rc" in sys.argv:
+    print "on early-boot"
+    print "    mkdir /config/sdcardfs/extensions/1055"
+    print "    mkdir /config/sdcardfs/extensions/1056"
+    print "    mkdir /config/sdcardfs/extensions/1057"
+    for gid, exts in TYPES.iteritems():
+        if gid is "AID_MEDIA_AUDIO": gid = "1055"
+        if gid is "AID_MEDIA_VIDEO": gid = "1056"
+        if gid is "AID_MEDIA_IMAGE": gid = "1057"
+        for ext in exts:
+            print "    mkdir /config/sdcardfs/extensions/%s/%s" % (gid, ext)
+    exit()
 
 print """/*
  * Copyright (C) 2017 The Android Open Source Project
