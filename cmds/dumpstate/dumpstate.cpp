@@ -963,6 +963,8 @@ static void dumpstate() {
                {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy"});
     RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT);
 
+    RunCommand("HARDWARE HALS", {"lshal"});
+
     RunCommand("PRINTENV", {"printenv"});
     RunCommand("NETSTAT", {"netstat", "-nW"});
     struct stat s;
