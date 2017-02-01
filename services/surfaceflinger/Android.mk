@@ -106,6 +106,7 @@ endif
 # [1] https://developer.android.com/studio/profile/systrace.html
 # [2] https://developer.android.com/training/testing/performance.html
 
+# These are left just for non-treble devices
 ifneq ($(VSYNC_EVENT_PHASE_OFFSET_NS),)
     LOCAL_CFLAGS += -DVSYNC_EVENT_PHASE_OFFSET_NS=$(VSYNC_EVENT_PHASE_OFFSET_NS)
 else
@@ -137,6 +138,7 @@ LOCAL_SHARED_LIBRARIES := \
     android.dvr.composer@1.0 \
     android.hardware.graphics.allocator@2.0 \
     android.hardware.graphics.composer@2.1 \
+    android.hardware.configstore@1.0 \
     libcutils \
     liblog \
     libdl \

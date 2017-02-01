@@ -83,6 +83,8 @@
 #include "RenderEngine/RenderEngine.h"
 #include <cutils/compiler.h>
 
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+
 #define DISPLAY_COUNT       1
 
 /*
@@ -94,6 +96,22 @@
 EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
 namespace android {
+
+using namespace android::hardware::configstore::V1_0;
+
+static sp<ISurfaceFlingerConfigs> getConfigs() {
+    static sp<ISurfaceFlingerConfigs> configs
+            = ISurfaceFlingerConfigs::getService();
+    return configs;
+}
+
+static int64_t getVsyncEventPhaseOffsetNs() {
+    int64_t ret = 1000000; // default value
+    getConfigs()->vsyncEventPhaseOffsetNs([&](OptionalInt64 value) {
+          if (value.specified) ret = value.value;
+    });
+    return ret;
+}
 
 // This is the phase offset in nanoseconds of the software vsync event
 // relative to the vsync event reported by HWComposer.  The software vsync
@@ -115,7 +133,7 @@ namespace android {
 // the latency will end up being an additional vsync period, and animations
 // will hiccup.  Therefore, this latency should be tuned somewhat
 // conservatively (or at least with awareness of the trade-off being made).
-static const int64_t vsyncPhaseOffsetNs = VSYNC_EVENT_PHASE_OFFSET_NS;
+static int64_t vsyncPhaseOffsetNs = getVsyncEventPhaseOffsetNs();
 
 // This is the phase offset at which SurfaceFlinger's composition runs.
 static const int64_t sfVsyncPhaseOffsetNs = SF_VSYNC_EVENT_PHASE_OFFSET_NS;
@@ -502,6 +520,8 @@ void SurfaceFlinger::init() {
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
             "Initializing graphics H/W...");
 
+    ALOGI("Phase offest NS: %" PRId64 "", vsyncPhaseOffsetNs);
+
     { // Autolock scope
         Mutex::Autolock _l(mStateLock);
 
@@ -682,7 +702,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         info.xdpi = xdpi;
         info.ydpi = ydpi;
         info.fps = 1e9 / hwConfig->getVsyncPeriod();
-        info.appVsyncOffset = VSYNC_EVENT_PHASE_OFFSET_NS;
+        info.appVsyncOffset = vsyncPhaseOffsetNs;
 
         // This is how far in advance a buffer must be queued for
         // presentation at a given time.  If you want a buffer to appear
