@@ -26,7 +26,6 @@
 #include <android/hardware/graphics/composer/2.1/IComposer.h>
 #include <utils/StrongPointer.h>
 #include <IComposerCommandBuffer.h>
-#include <MessageQueue.h>
 
 namespace android {
 
@@ -128,7 +127,7 @@ private:
 // Composer is a wrapper to IComposer, a proxy to server-side composer.
 class Composer {
 public:
-    Composer();
+    Composer(bool useVrComposer);
 
     std::vector<IComposer::Capability> getCapabilities();
     std::string dumpDebugInfo();
@@ -136,6 +135,7 @@ public:
     void registerCallback(const sp<IComposerCallback>& callback);
 
     uint32_t getMaxVirtualDisplayCount();
+    bool isUsingVrComposer() const { return mIsUsingVrComposer; }
     Error createVirtualDisplay(uint32_t width, uint32_t height,
             PixelFormat* format, Display* outDisplay);
     Error destroyVirtualDisplay(Display display);
@@ -248,7 +248,9 @@ private:
     CommandWriter mWriter;
     CommandReader mReader;
 
-    bool mIsInVrMode = false;
+    // When true, the we attach to the vr_hwcomposer service instead of the
+    // hwcomposer. This allows us to redirect surfaces to 3d surfaces in vr.
+    const bool mIsUsingVrComposer;
 };
 
 } // namespace Hwc2

@@ -49,6 +49,7 @@
 #include "HWComposer.h"
 #include "HWC2On1Adapter.h"
 #include "HWC2.h"
+#include "ComposerHal.h"
 
 #include "../Layer.h"           // needed only for debugging
 #include "../SurfaceFlinger.h"
@@ -59,7 +60,7 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-HWComposer::HWComposer(const sp<SurfaceFlinger>& flinger)
+HWComposer::HWComposer(const sp<SurfaceFlinger>& flinger, bool useVrComposer)
     : mFlinger(flinger),
       mAdapter(),
       mHwcDevice(),
@@ -76,7 +77,7 @@ HWComposer::HWComposer(const sp<SurfaceFlinger>& flinger)
         mVSyncCounts[i] = 0;
     }
 
-    loadHwcModule();
+    loadHwcModule(useVrComposer);
 }
 
 HWComposer::~HWComposer() {}
@@ -105,11 +106,13 @@ void HWComposer::setEventHandler(EventHandler* handler)
 }
 
 // Load and prepare the hardware composer module.  Sets mHwc.
-void HWComposer::loadHwcModule()
+void HWComposer::loadHwcModule(bool useVrComposer)
 {
     ALOGV("loadHwcModule");
 
 #ifdef BYPASS_IHWC
+    (void)useVrComposer; // Silence unused parameter warning.
+
     hw_module_t const* module;
 
     if (hw_get_module(HWC_HARDWARE_MODULE_ID, &module) != 0) {
@@ -142,7 +145,7 @@ void HWComposer::loadHwcModule()
                 static_cast<hwc2_device_t*>(mAdapter.get()));
     }
 #else
-    mHwcDevice = std::make_unique<HWC2::Device>();
+    mHwcDevice = std::make_unique<HWC2::Device>(useVrComposer);
 #endif
 
     mRemainingHwcVirtualDisplays = mHwcDevice->getMaxVirtualDisplayCount();
@@ -866,6 +869,14 @@ static String8 getFormatStr(PixelFormat format) {
     }
 }
 */
+
+bool HWComposer::isUsingVrComposer() const {
+#ifdef BYPASS_IHWC
+    return false;
+#else
+    return getComposer()->isUsingVrComposer();
+#endif
+}
 
 void HWComposer::dump(String8& result) const {
     // TODO: In order to provide a dump equivalent to HWC1, we need to shadow

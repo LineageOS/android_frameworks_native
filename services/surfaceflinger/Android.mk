@@ -49,14 +49,11 @@ LOCAL_C_INCLUDES := \
 LOCAL_CFLAGS := -DLOG_TAG=\"SurfaceFlinger\"
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
 
-ifeq ($(TARGET_IN_VR_MODE),true)
-    LOCAL_CFLAGS += -DIN_VR_MODE
-endif
-
 ifeq ($(TARGET_USES_HWC2),true)
     LOCAL_CFLAGS += -DUSE_HWC2
     LOCAL_SRC_FILES += \
         SurfaceFlinger.cpp \
+        VrStateCallbacks.cpp \
         DisplayHardware/HWComposer.cpp
     ifeq ($(TARGET_USES_HWC2ON1ADAPTER), true)
         LOCAL_CFLAGS += -DBYPASS_IHWC
@@ -134,7 +131,13 @@ endif
 
 LOCAL_CFLAGS += -fvisibility=hidden -Werror=format
 
-LOCAL_STATIC_LIBRARIES := libhwcomposer-command-buffer libtrace_proto libvkjson
+LOCAL_STATIC_LIBRARIES := \
+    libhwcomposer-command-buffer \
+    libtrace_proto \
+    libvkjson \
+    libvr_manager \
+    libvrflinger
+
 LOCAL_SHARED_LIBRARIES := \
     android.dvr.composer@1.0 \
     android.hardware.graphics.allocator@2.0 \

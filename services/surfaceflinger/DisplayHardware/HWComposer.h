@@ -77,7 +77,10 @@ public:
         virtual ~EventHandler() {}
     };
 
-    HWComposer(const sp<SurfaceFlinger>& flinger);
+    // useVrComposer is passed to the composer HAL. When true, the composer HAL
+    // will use the vr composer service, otherwise it uses the real hardware
+    // composer.
+    HWComposer(const sp<SurfaceFlinger>& flinger, bool useVrComposer);
 
     ~HWComposer();
 
@@ -165,13 +168,16 @@ public:
 
     status_t setActiveColorMode(int32_t displayId, android_color_mode_t mode);
 
+    bool isUsingVrComposer() const;
+
     // for debugging ----------------------------------------------------------
     void dump(String8& out) const;
 
+    android::Hwc2::Composer* getComposer() const { return mHwcDevice->getComposer(); }
 private:
     static const int32_t VIRTUAL_DISPLAY_ID_BASE = 2;
 
-    void loadHwcModule();
+    void loadHwcModule(bool useVrComposer);
 
     bool isValidDisplay(int32_t displayId) const;
     static void validateChange(HWC2::Composition from, HWC2::Composition to);
