@@ -2,46 +2,46 @@ subdirs = [
   "1.0",
 ]
 
-cc_library_shared {
-  name: "libvrhwc",
-
-  srcs: [
-    "impl/sync_timeline.cpp",
-    "impl/vr_composer_view.cpp",
-    "impl/vr_hwc.cpp",
-    "impl/vr_composer_client.cpp",
-  ],
-
-  static_libs: [
-    "libhwcomposer-client",
-  ],
-
-  shared_libs: [
-    "android.dvr.composer@1.0",
-    "android.hardware.graphics.composer@2.1",
-    "libbase",
-    "libcutils",
-    "libfmq",
-    "libhardware",
-    "libhidlbase",
-    "libhidltransport",
-    "liblog",
-    "libsync",
-    "libui",
-    "libutils",
-  ],
-
-  export_include_dirs: ["."],
-
-  include_dirs: [
-    // Access to software sync timeline.
-    "system/core/libsync",
-
-    // Access to internal gralloc implementation.
-    "hardware/qcom/display/msm8996/libgralloc",
-  ],
-
-  cflags: [
-    "-DLOG_TAG=\"vrhwc\"",
-  ],
-}
+//cc_library_shared {
+//  name: "libvrhwc",
+//
+//  srcs: [
+//    "impl/sync_timeline.cpp",
+//    "impl/vr_composer_view.cpp",
+//    "impl/vr_hwc.cpp",
+//    "impl/vr_composer_client.cpp",
+//  ],
+//
+//  static_libs: [
+//    "libhwcomposer-client",
+//  ],
+//
+//  shared_libs: [
+//    "android.dvr.composer@1.0",
+//    "android.hardware.graphics.composer@2.1",
+//    "libbase",
+//    "libcutils",
+//    "libfmq",
+//    "libhardware",
+//    "libhidlbase",
+//    "libhidltransport",
+//    "liblog",
+//    "libsync",
+//    "libui",
+//    "libutils",
+//  ],
+//
+//  export_include_dirs: ["."],
+//
+//  include_dirs: [
+//    // Access to software sync timeline.
+//    "system/core/libsync",
+//
+//    // Access to internal gralloc implementation.
+//    "hardware/qcom/display/msm8996/libgralloc",
+//  ],
+//
+//  cflags: [
+//    "-DLOG_TAG=\"vrhwc\"",
+//  ],
+//}
