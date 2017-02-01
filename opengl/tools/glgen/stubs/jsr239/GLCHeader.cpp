@@ -131,6 +131,7 @@ getPointer(JNIEnv *_env, jobject buffer, jarray *array, jint *remaining, jint *o
     pointer = _env->CallStaticLongMethod(nioAccessClass,
             getBasePointerID, buffer);
     if (pointer != 0L) {
+        *offset = 0;
         *array = NULL;
         return reinterpret_cast<void *>(pointer);
     }
@@ -138,6 +139,7 @@ getPointer(JNIEnv *_env, jobject buffer, jarray *array, jint *remaining, jint *o
     *array = (jarray) _env->CallStaticObjectMethod(nioAccessClass,
             getBaseArrayID, buffer);
     if (*array == NULL) {
+        *offset = 0;
         return (void*) NULL;
     }
     *offset = _env->CallStaticIntMethod(nioAccessClass,
