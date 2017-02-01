@@ -33,6 +33,8 @@ enum {
     PAUSE      = IBinder::FIRST_CALL_TRANSACTION + 1,
     STOP       = IBinder::FIRST_CALL_TRANSACTION + 2,
     SET_VOLUME = IBinder::FIRST_CALL_TRANSACTION + 3,
+    SET_PAN    = IBinder::FIRST_CALL_TRANSACTION + 4,
+    SET_START_DELAY_MS = IBinder::FIRST_CALL_TRANSACTION + 5,
 };
 
 class BpPlayer : public BpInterface<IPlayer>
@@ -71,6 +73,21 @@ public:
         data.writeFloat(vol);
         remote()->transact(SET_VOLUME, data, &reply);
     }
+
+    virtual void setPan(float pan)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IPlayer::getInterfaceDescriptor());
+        data.writeFloat(pan);
+        remote()->transact(SET_PAN, data, &reply);
+    }
+
+    virtual void setStartDelayMs(int32_t delayMs) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IPlayer::getInterfaceDescriptor());
+        data.writeInt32(delayMs);
+        remote()->transact(SET_START_DELAY_MS, data, &reply);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(Player, "android.media.IPlayer");
@@ -100,7 +117,17 @@ status_t BnPlayer::onTransact(
             CHECK_INTERFACE(IPlayer, data, reply);
             setVolume(data.readFloat());
             return NO_ERROR;
-        }
+        } break;
+        case SET_PAN: {
+            CHECK_INTERFACE(IPlayer, data, reply);
+            setPan(data.readFloat());
+            return NO_ERROR;
+        } break;
+        case SET_START_DELAY_MS: {
+            CHECK_INTERFACE(IPlayer, data, reply);
+            setStartDelayMs(data.readInt32());
+            return NO_ERROR;
+        } break;
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }

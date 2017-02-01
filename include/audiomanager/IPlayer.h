@@ -41,6 +41,10 @@ public:
 
     virtual void setVolume(float vol) = 0;
 
+    virtual void setPan(float pan) = 0;
+
+    virtual void setStartDelayMs(int delayMs) = 0;
+
 };
 
 // ----------------------------------------------------------------------------
