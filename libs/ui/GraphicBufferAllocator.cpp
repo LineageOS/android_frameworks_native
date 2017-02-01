@@ -55,7 +55,7 @@ void GraphicBufferAllocator::dump(String8& result) const
         const alloc_rec_t& rec(list.valueAt(i));
         if (rec.size) {
             snprintf(buffer, SIZE, "%10p: %7.2f KiB | %4u (%4u) x %4u | %8X | 0x%08x | %s\n",
-                    list.keyAt(i), rec.size/1024.0f,
+                    list.keyAt(i), rec.size/1024.0,
                     rec.width, rec.stride, rec.height, rec.format, rec.usage,
                     rec.requestorName.c_str());
         } else {
@@ -67,7 +67,7 @@ void GraphicBufferAllocator::dump(String8& result) const
         result.append(buffer);
         total += rec.size;
     }
-    snprintf(buffer, SIZE, "Total allocated (estimate): %.2f KB\n", total/1024.0f);
+    snprintf(buffer, SIZE, "Total allocated (estimate): %.2f KB\n", total/1024.0);
     result.append(buffer);
     std::string deviceDump = mDevice->dump();
     result.append(deviceDump.c_str(), deviceDump.size());
