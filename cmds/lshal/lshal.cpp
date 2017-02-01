@@ -68,7 +68,7 @@ int dump() {
                     info.interfaceName,
                     info.instanceName.empty() ? "N/A" : info.instanceName,
                     mode,
-                    info.refCount == 0 ? "N/A" : std::to_string(info.refCount - 1));
+                    info.refCount < 0 ? "N/A" : std::to_string(info.refCount));
             }
         });
         if (!ret.isOk()) {
