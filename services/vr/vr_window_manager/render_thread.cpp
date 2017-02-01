@@ -75,7 +75,6 @@ void RenderThread::RunRenderLoop(
   jobject android_context = env->NewLocalRef(android_context_global_ref_);
 
   int init_result = shell_view_.Initialize(env, android_context, class_loader);
-  init_result += shell_view_.AllocateResources();
   init_result_promise->set_value(init_result);
   if (init_result == 0) {
     while (!quit_)

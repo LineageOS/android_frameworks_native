@@ -395,8 +395,10 @@ void ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
 
   // If we are showing ourselves the main thread is not processing anything,
   // so give it a kick.
-  if (visibility && !current_frame_.visibility)
+  if (visibility && !current_frame_.visibility) {
+    QueueTask(MainThreadTask::EnteringVrMode);
     QueueTask(MainThreadTask::Show);
+  }
 }
 
 bool ShellView::IsHit(const vec3& view_location, const vec3& view_direction,
