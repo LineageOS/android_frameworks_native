@@ -28,9 +28,6 @@ cc_library {
     ],
 
     clang: true,
-    sanitize: {
-        misc_undefined: ["integer"],
-    },
 
     shared_libs: [
         "liblog",
@@ -50,6 +47,10 @@ cc_library {
                 "libutils",
                 "libbinder",
             ],
+
+            sanitize: {
+                misc_undefined: ["integer"],
+            },
         },
         host: {
             shared: {
