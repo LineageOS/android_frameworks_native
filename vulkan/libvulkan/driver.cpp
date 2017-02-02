@@ -447,6 +447,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
         switch (ext_bit) {
             case ProcHook::KHR_android_surface:
             case ProcHook::KHR_surface:
+            case ProcHook::EXT_swapchain_colorspace:
                 hook_extensions_.set(ext_bit);
                 // return now as these extensions do not require HAL support
                 return;
@@ -673,11 +674,13 @@ VkResult EnumerateInstanceExtensionProperties(
     const char* pLayerName,
     uint32_t* pPropertyCount,
     VkExtensionProperties* pProperties) {
-    static const std::array<VkExtensionProperties, 2> loader_extensions = {{
+    static const std::array<VkExtensionProperties, 3> loader_extensions = {{
         // WSI extensions
         {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_SURFACE_SPEC_VERSION},
         {VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
          VK_KHR_ANDROID_SURFACE_SPEC_VERSION},
+        {VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME,
+         VK_EXT_SWAPCHAIN_COLOR_SPACE_SPEC_VERSION},
     }};
     static const VkExtensionProperties loader_debug_report_extension = {
         VK_EXT_DEBUG_REPORT_EXTENSION_NAME, VK_EXT_DEBUG_REPORT_SPEC_VERSION,
