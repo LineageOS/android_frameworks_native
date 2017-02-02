@@ -33,9 +33,10 @@ GraphicBufferAlloc::~GraphicBufferAlloc() {
 
 sp<GraphicBuffer> GraphicBufferAlloc::createGraphicBuffer(uint32_t width,
         uint32_t height, PixelFormat format, uint32_t layerCount,
-        uint32_t usage, std::string requestorName, status_t* error) {
+        uint64_t producerUsage, uint64_t consumerUsage,
+        std::string requestorName, status_t* error) {
     sp<GraphicBuffer> graphicBuffer(new GraphicBuffer(
-            width, height, format, layerCount, usage,
+            width, height, format, layerCount, producerUsage, consumerUsage,
             std::move(requestorName)));
     status_t err = graphicBuffer->initCheck();
     *error = err;

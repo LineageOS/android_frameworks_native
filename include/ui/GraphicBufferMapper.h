@@ -55,6 +55,10 @@ public:
     status_t lockAsync(buffer_handle_t handle,
             uint32_t usage, const Rect& bounds, void** vaddr, int fenceFd);
 
+    status_t lockAsync(buffer_handle_t handle,
+            uint64_t producerUsage, uint64_t consumerUsage, const Rect& bounds,
+            void** vaddr, int fenceFd);
+
     status_t lockAsyncYCbCr(buffer_handle_t handle,
             uint32_t usage, const Rect& bounds, android_ycbcr *ycbcr,
             int fenceFd);

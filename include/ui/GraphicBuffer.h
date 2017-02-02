@@ -81,6 +81,11 @@ public:
             uint32_t inLayerCount, uint32_t inUsage,
             std::string requestorName = "<Unknown>");
 
+    // creates w * h buffer with a layer count using gralloc1
+    GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
+            uint32_t inLayerCount, uint64_t inProducerUsage,
+            uint64_t inConsumerUsage, std::string requestorName = "<Unknown>");
+
     // create a buffer from an existing handle
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inLayerCount, uint32_t inUsage, uint32_t inStride,
@@ -122,6 +127,8 @@ public:
     status_t lockAsync(uint32_t inUsage, void** vaddr, int fenceFd);
     status_t lockAsync(uint32_t inUsage, const Rect& rect, void** vaddr,
             int fenceFd);
+    status_t lockAsync(uint64_t inProducerUsage, uint64_t inConsumerUsage,
+            const Rect& rect, void** vaddr, int fenceFd);
     status_t lockAsyncYCbCr(uint32_t inUsage, android_ycbcr *ycbcr,
             int fenceFd);
     status_t lockAsyncYCbCr(uint32_t inUsage, const Rect& rect,
@@ -166,7 +173,8 @@ private:
     const GraphicBuffer& operator = (const GraphicBuffer& rhs) const;
 
     status_t initSize(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
-            uint32_t inLayerCount, uint32_t inUsage, std::string requestorName);
+            uint32_t inLayerCount, uint64_t inProducerUsage,
+            uint64_t inConsumerUsage, std::string requestorName);
 
     void free_handle();
 

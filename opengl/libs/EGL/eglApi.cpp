@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <hardware/gralloc.h>
+#include <hardware/gralloc1.h>
 #include <system/window.h>
 
 #include <EGL/egl.h>
@@ -1833,7 +1833,8 @@ EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint *attrib_list)
 {
     clearError();
 
-    int usage = 0;
+    uint64_t producerUsage = 0;
+    uint64_t consumerUsage = 0;
     uint32_t width = 0;
     uint32_t height = 0;
     uint32_t format = 0;
@@ -1866,13 +1867,13 @@ EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint *attrib_list)
                 GET_NONNEGATIVE_VALUE(EGL_LAYER_COUNT_ANDROID, layer_count);
                 case EGL_NATIVE_BUFFER_USAGE_ANDROID:
                     if (value & EGL_NATIVE_BUFFER_USAGE_PROTECTED_BIT_ANDROID) {
-                        usage |= GRALLOC_USAGE_PROTECTED;
+                        producerUsage |= GRALLOC1_PRODUCER_USAGE_PROTECTED;
                     }
                     if (value & EGL_NATIVE_BUFFER_USAGE_RENDERBUFFER_BIT_ANDROID) {
-                        usage |= GRALLOC_USAGE_HW_RENDER;
+                        producerUsage |= GRALLOC1_PRODUCER_USAGE_GPU_RENDER_TARGET;
                     }
                     if (value & EGL_NATIVE_BUFFER_USAGE_TEXTURE_BIT_ANDROID) {
-                        usage |= GRALLOC_USAGE_HW_TEXTURE;
+                        consumerUsage |= GRALLOC1_CONSUMER_USAGE_GPU_TEXTURE;
                     }
                     break;
                 default:
@@ -1940,8 +1941,10 @@ EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint *attrib_list)
     CHECK_ERROR_CONDITION("Unable to write format");
     err = data.writeUint32(layer_count);
     CHECK_ERROR_CONDITION("Unable to write layer count");
-     err = data.writeUint32(usage);
-    CHECK_ERROR_CONDITION("Unable to write usage");
+    err = data.writeUint64(producerUsage);
+    CHECK_ERROR_CONDITION("Unable to write producer usage");
+    err = data.writeUint64(consumerUsage);
+    CHECK_ERROR_CONDITION("Unable to write consumer usage");
     err = data.writeUtf8AsUtf16(
             std::string("[eglCreateNativeClientBufferANDROID pid ") +
             std::to_string(getpid()) + ']');
@@ -1958,12 +1961,15 @@ EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint *attrib_list)
     err = gBuffer->initCheck();
     if (err != NO_ERROR) {
         ALOGE("Unable to create native buffer "
-                "{ w=%u, h=%u, f=%u, u=%#x, lc=%u}: %#x", width, height, format,
-                usage, layer_count, err);
+                "{ w=%u, h=%u, f=%u, pu=%" PRIx64 " cu=%" PRIx64 ", lc=%u} %#x",
+                width, height, format, producerUsage, consumerUsage,
+                layer_count, err);
         goto error_condition;
     }
-    ALOGV("Created new native buffer %p { w=%u, h=%u, f=%u, u=%#x, lc=%u}",
-            gBuffer, width, height, format, usage, layer_count);
+    ALOGV("Created new native buffer %p { w=%u, h=%u, f=%u, pu=%" PRIx64
+          " cu=%" PRIx64 ", lc=%u}",
+            gBuffer, width, height, format, producerUsage, consumerUsage,
+            layer_count);
     return static_cast<EGLClientBuffer>(gBuffer->getNativeBuffer());
 
 #undef CHECK_ERROR_CONDITION

@@ -35,8 +35,8 @@ public:
     virtual ~GraphicBufferAlloc();
     virtual sp<GraphicBuffer> createGraphicBuffer(uint32_t width,
             uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint32_t usage, std::string requestorName,
-            status_t* error) override;
+            uint64_t producerUsage, uint64_t consumerUsage,
+            std::string requestorName, status_t* error) override;
 };
 
 
