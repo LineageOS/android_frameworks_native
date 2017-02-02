@@ -43,4 +43,22 @@ IMPLEMENT_META_INTERFACE(BatteryPropertiesListener, "android.os.IBatteryProperti
 
 // ----------------------------------------------------------------------------
 
+status_t BnBatteryPropertiesListener::onTransact(uint32_t code, const Parcel& data,
+                                                 Parcel* reply, uint32_t flags)
+{
+    switch(code) {
+        case TRANSACT_BATTERYPROPERTIESCHANGED: {
+            CHECK_INTERFACE(IBatteryPropertiesListener, data, reply);
+            struct BatteryProperties props = {};
+            if (data.readInt32() != 0) {
+                props.readFromParcel((Parcel*)&data);
+            }
+            batteryPropertiesChanged(props);
+            return NO_ERROR;
+        }
+        default:
+            return BBinder::onTransact(code, data, reply, flags);
+    }
+};
+
 }; // namespace android
