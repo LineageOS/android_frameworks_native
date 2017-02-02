@@ -578,9 +578,11 @@ status_t VirtualDisplaySurface::setSidebandStream(const sp<NativeHandle>& /*stre
     return INVALID_OPERATION;
 }
 
-void VirtualDisplaySurface::allocateBuffers(uint32_t /* width */,
-        uint32_t /* height */, PixelFormat /* format */, uint32_t /* usage */) {
-    // TODO: Should we actually allocate buffers for a virtual display?
+void VirtualDisplaySurface::allocateBuffers(uint32_t width,
+        uint32_t height, PixelFormat format, uint32_t usage) {
+    if (mDisplayId < 0) {
+        mSource[SOURCE_SINK]->allocateBuffers(width, height, format, usage);
+    }
 }
 
 status_t VirtualDisplaySurface::allowAllocation(bool /* allow */) {
