@@ -317,6 +317,9 @@ sp<IGraphicBufferAlloc> SurfaceFlinger::createGraphicBufferAlloc()
 
 void SurfaceFlinger::bootFinished()
 {
+    if (mStartBootAnimThread->join() != NO_ERROR) {
+        ALOGE("Join StartBootAnimThread failed!");
+    }
     const nsecs_t now = systemTime();
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
@@ -589,8 +592,12 @@ void SurfaceFlinger::init() {
 
     mRenderEngine->primeCache();
 
-    // start boot animation
-    startBootAnim();
+    mStartBootAnimThread = new StartBootAnimThread();
+    if (mStartBootAnimThread->Start() != NO_ERROR) {
+        ALOGE("Run StartBootAnimThread failed!");
+    }
+
+    ALOGV("Done initializing");
 }
 
 int32_t SurfaceFlinger::allocateHwcDisplayId(DisplayDevice::DisplayType type) {
@@ -599,9 +606,13 @@ int32_t SurfaceFlinger::allocateHwcDisplayId(DisplayDevice::DisplayType type) {
 }
 
 void SurfaceFlinger::startBootAnim() {
-    // start boot animation
-    property_set("service.bootanim.exit", "0");
-    property_set("ctl.start", "bootanim");
+    // Start boot animation service by setting a property mailbox
+    // if property setting thread is already running, Start() will be just a NOP
+    mStartBootAnimThread->Start();
+    // Wait until property was set
+    if (mStartBootAnimThread->join() != NO_ERROR) {
+        ALOGE("Join StartBootAnimThread failed!");
+    }
 }
 
 size_t SurfaceFlinger::getMaxTextureSize() const {

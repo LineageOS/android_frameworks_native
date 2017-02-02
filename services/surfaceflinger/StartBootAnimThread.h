@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_EVENTCONTROLTHREAD_H
-#define ANDROID_EVENTCONTROLTHREAD_H
+#ifndef ANDROID_STARTBOOTANIMTHREAD_H
+#define ANDROID_STARTBOOTANIMTHREAD_H
 
 #include <stddef.h>
 
@@ -24,25 +24,19 @@
 
 namespace android {
 
-class SurfaceFlinger;
-
-class EventControlThread: public Thread {
+class StartBootAnimThread : public Thread {
+// Boot animation is triggered via calls to "property_set()" which can block
+// if init's executing slow operation such as 'mount_all --late' (currently
+// happening 1/10th with fsck)  concurrently. Running in a separate thread
+// allows to pursue the SurfaceFlinger's init process without blocking.
+// see b/34499826.
 public:
-
-    explicit EventControlThread(const sp<SurfaceFlinger>& flinger);
-    virtual ~EventControlThread() {}
-
-    void setVsyncEnabled(bool enabled);
-    virtual bool threadLoop();
-
+    StartBootAnimThread();
+    status_t Start();
 private:
-    sp<SurfaceFlinger> mFlinger;
-    bool mVsyncEnabled;
-
-    Mutex mMutex;
-    Condition mCond;
+    virtual bool threadLoop();
 };
 
 }
 
-#endif // ANDROID_EVENTCONTROLTHREAD_H
+#endif // ANDROID_STARTBOOTANIMTHREAD_H

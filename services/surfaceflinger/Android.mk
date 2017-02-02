@@ -9,6 +9,7 @@ LOCAL_SRC_FILES := \
     DisplayDevice.cpp \
     DispSync.cpp \
     EventControlThread.cpp \
+    StartBootAnimThread.cpp \
     EventThread.cpp \
     FrameTracker.cpp \
     GpuService.cpp \
