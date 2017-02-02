@@ -325,7 +325,7 @@ private:
         auto usage = GRALLOC1_CONSUMER_USAGE_NONE;
         auto error = callBufferFunction(device, bufferHandle,
                 &Buffer::getConsumerUsage, &usage);
-        if (error != GRALLOC1_ERROR_NONE) {
+        if (error == GRALLOC1_ERROR_NONE) {
             *outUsage = static_cast<uint64_t>(usage);
         }
         return error;
@@ -336,7 +336,7 @@ private:
         auto usage = GRALLOC1_PRODUCER_USAGE_NONE;
         auto error = callBufferFunction(device, bufferHandle,
                 &Buffer::getProducerUsage, &usage);
-        if (error != GRALLOC1_ERROR_NONE) {
+        if (error == GRALLOC1_ERROR_NONE) {
             *outUsage = static_cast<uint64_t>(usage);
         }
         return error;

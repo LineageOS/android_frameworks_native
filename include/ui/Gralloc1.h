@@ -88,8 +88,6 @@ public:
 
     std::shared_ptr<Descriptor> createDescriptor();
 
-    gralloc1_error_t getStride(buffer_handle_t buffer, uint32_t* outStride);
-
     gralloc1_error_t allocate(
             const std::vector<std::shared_ptr<const Descriptor>>& descriptors,
             std::vector<buffer_handle_t>* outBuffers);
@@ -102,6 +100,19 @@ public:
 
     gralloc1_error_t release(buffer_handle_t buffer);
 
+    gralloc1_error_t getDimensions(buffer_handle_t buffer,
+            uint32_t* outWidth, uint32_t* outHeight);
+    gralloc1_error_t getFormat(buffer_handle_t buffer,
+            int32_t* outFormat);
+    gralloc1_error_t getLayerCount(buffer_handle_t buffer,
+            uint32_t* outLayerCount);
+    gralloc1_error_t getProducerUsage(buffer_handle_t buffer,
+            uint64_t* outProducerUsage);
+    gralloc1_error_t getConsumerUsage(buffer_handle_t buffer,
+            uint64_t* outConsumerUsage);
+    gralloc1_error_t getBackingStore(buffer_handle_t buffer,
+            uint64_t* outBackingStore);
+    gralloc1_error_t getStride(buffer_handle_t buffer, uint32_t* outStride);
     gralloc1_error_t getNumFlexPlanes(buffer_handle_t buffer,
             uint32_t* outNumPlanes);
 

@@ -140,12 +140,6 @@ std::shared_ptr<Descriptor> Device::createDescriptor()
     return descriptor;
 }
 
-gralloc1_error_t Device::getStride(buffer_handle_t buffer, uint32_t* outStride)
-{
-    int32_t intError = mFunctions.getStride(mDevice, buffer, outStride);
-    return static_cast<gralloc1_error_t>(intError);
-}
-
 static inline bool allocationSucceded(gralloc1_error_t error)
 {
     return error == GRALLOC1_ERROR_NONE || error == GRALLOC1_ERROR_NOT_SHARED;
@@ -225,6 +219,99 @@ gralloc1_error_t Device::release(buffer_handle_t buffer)
     return static_cast<gralloc1_error_t>(intError);
 }
 
+gralloc1_error_t Device::getDimensions(buffer_handle_t buffer,
+        uint32_t* outWidth, uint32_t* outHeight)
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    int32_t intError = mFunctions.getDimensions(mDevice, buffer, &width,
+            &height);
+    auto error = static_cast<gralloc1_error_t>(intError);
+    if (error == GRALLOC1_ERROR_NONE) {
+        *outWidth = width;
+        *outHeight = height;
+    }
+    return error;
+}
+
+gralloc1_error_t Device::getFormat(buffer_handle_t buffer,
+        int32_t* outFormat)
+{
+    int32_t format = 0;
+    int32_t intError = mFunctions.getFormat(mDevice, buffer, &format);
+    auto error = static_cast<gralloc1_error_t>(intError);
+    if (error == GRALLOC1_ERROR_NONE) {
+        *outFormat = format;
+    }
+    return error;
+}
+
+gralloc1_error_t Device::getLayerCount(buffer_handle_t buffer,
+        uint32_t* outLayerCount)
+{
+    if (hasCapability(GRALLOC1_CAPABILITY_LAYERED_BUFFERS)) {
+        uint32_t layerCount = 0;
+        int32_t intError = mFunctions.getLayerCount(mDevice, buffer,
+                &layerCount);
+        auto error = static_cast<gralloc1_error_t>(intError);
+        if (error == GRALLOC1_ERROR_NONE) {
+            *outLayerCount = layerCount;
+        }
+        return error;
+    } else {
+        // Layered buffers are not supported on this device.
+        return GRALLOC1_ERROR_UNSUPPORTED;
+    }
+}
+
+gralloc1_error_t Device::getProducerUsage(buffer_handle_t buffer,
+        uint64_t* outProducerUsage)
+{
+    uint64_t usage = 0;
+    int32_t intError = mFunctions.getProducerUsage(mDevice, buffer, &usage);
+    auto error = static_cast<gralloc1_error_t>(intError);
+    if (error == GRALLOC1_ERROR_NONE) {
+        *outProducerUsage = usage;
+    }
+    return error;
+}
+
+gralloc1_error_t Device::getConsumerUsage(buffer_handle_t buffer,
+        uint64_t* outConsumerUsage)
+{
+    uint64_t usage = 0;
+    int32_t intError = mFunctions.getConsumerUsage(mDevice, buffer, &usage);
+    auto error = static_cast<gralloc1_error_t>(intError);
+    if (error == GRALLOC1_ERROR_NONE) {
+        *outConsumerUsage = usage;
+    }
+    return error;
+}
+
+gralloc1_error_t Device::getBackingStore(buffer_handle_t buffer,
+        uint64_t* outBackingStore)
+{
+    uint64_t store = 0;
+    int32_t intError = mFunctions.getBackingStore(mDevice, buffer, &store);
+    auto error = static_cast<gralloc1_error_t>(intError);
+    if (error == GRALLOC1_ERROR_NONE) {
+        *outBackingStore = store;
+    }
+    return error;
+}
+
+gralloc1_error_t Device::getStride(buffer_handle_t buffer,
+        uint32_t* outStride)
+{
+    uint32_t stride = 0;
+    int32_t intError = mFunctions.getStride(mDevice, buffer, &stride);
+    auto error = static_cast<gralloc1_error_t>(intError);
+    if (error == GRALLOC1_ERROR_NONE) {
+        *outStride = stride;
+    }
+    return error;
+}
+
 gralloc1_error_t Device::getNumFlexPlanes(buffer_handle_t buffer,
         uint32_t* outNumPlanes)
 {
@@ -244,7 +331,7 @@ gralloc1_error_t Device::lock(buffer_handle_t buffer,
         const sp<Fence>& acquireFence)
 {
     ALOGV("Calling lock(%p)", buffer);
-    return lockHelper(mFunctions.lock.pfn, buffer, producerUsage,
+    return lockHelper(mFunctions.lock, buffer, producerUsage,
             consumerUsage, accessRegion, outData, acquireFence);
 }
 
@@ -256,7 +343,7 @@ gralloc1_error_t Device::lockFlex(buffer_handle_t buffer,
         const sp<Fence>& acquireFence)
 {
     ALOGV("Calling lockFlex(%p)", buffer);
-    return lockHelper(mFunctions.lockFlex.pfn, buffer, producerUsage,
+    return lockHelper(mFunctions.lockFlex, buffer, producerUsage,
             consumerUsage, accessRegion, outData, acquireFence);
 }
 
@@ -268,7 +355,7 @@ gralloc1_error_t Device::lockYCbCr(buffer_handle_t buffer,
         const sp<Fence>& acquireFence)
 {
     ALOGV("Calling lockYCbCr(%p)", buffer);
-    return lockHelper(mFunctions.lockYCbCr.pfn, buffer, producerUsage,
+    return lockHelper(mFunctions.lockYCbCr, buffer, producerUsage,
             consumerUsage, accessRegion, outData, acquireFence);
 }
 
