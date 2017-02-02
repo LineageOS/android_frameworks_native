@@ -245,6 +245,10 @@ int ShellView::Initialize(JNIEnv* env, jobject app_context,
   if (!InitializeTouch())
     ALOGE("Failed to initialize virtual touchpad");
 
+  surface_flinger_view_.reset(new SurfaceFlingerView);
+  if (!surface_flinger_view_->Initialize(this))
+    return 1;
+
   return 0;
 }
 
@@ -260,10 +264,6 @@ int ShellView::AllocateResources() {
   controller_program_.reset(new ShaderProgram);
   controller_program_->Link(kVertexShader, kControllerFragmentShader);
   if (!program_ || !overlay_program_ || !controller_program_)
-    return 1;
-
-  surface_flinger_view_.reset(new SurfaceFlingerView);
-  if (!surface_flinger_view_->Initialize(this))
     return 1;
 
   reticle_.reset(new Reticle());
