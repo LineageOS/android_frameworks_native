@@ -18,24 +18,68 @@
 #include <getopt.h>
 
 #include <map>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <regex>
 
+#include <android-base/parseint.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <hidl/ServiceManagement.h>
 
-template <typename A, typename B, typename C, typename D>
+template <typename A, typename B, typename C, typename D, typename E>
 void printColumn(std::stringstream &stream,
-        const A &a, const B &b, const C &c, const D &d) {
+        const A &a, const B &b, const C &c, const D &d, const E &e) {
     using namespace ::std;
     stream << left
            << setw(70) << a << "\t"
            << setw(20) << b << "\t"
            << setw(10) << c << "\t"
            << setw(5)  << d << "\t"
+           << setw(0)  << e
            << endl;
 }
+
+std::string toHexString(uint64_t t) {
+    std::ostringstream os;
+    os << std::hex << std::setfill('0') << std::setw(16) << t;
+    return os.str();
+}
+
+::android::status_t getReferencedPids(
+        pid_t serverPid, std::map<uint64_t, std::string> *objects) {
+
+    std::ifstream ifs("/d/binder/proc/" + std::to_string(serverPid));
+    if (!ifs.is_open()) {
+        return ::android::PERMISSION_DENIED;
+    }
+
+    static const std::regex prefix("^\\s*node \\d+:\\s+u([0-9a-f]+)\\s+c([0-9a-f]+)\\s+");
+
+    std::string line;
+    std::smatch match;
+    while(getline(ifs, line)) {
+        if (!std::regex_search(line, match, prefix)) {
+            // the line doesn't start with the correct prefix
+            continue;
+        }
+        std::string ptrString = "0x" + match.str(2); // use number after c
+        uint64_t ptr;
+        if (!::android::base::ParseUint(ptrString.c_str(), &ptr)) {
+            // Should not reach here, but just be tolerant.
+            std::cerr << "Could not parse number " << ptrString << std::endl;
+            continue;
+        }
+        const std::string proc = " proc ";
+        auto pos = line.rfind(proc);
+        if (pos != std::string::npos) {
+            (*objects)[ptr] += line.substr(pos + proc.size());
+        }
+    }
+    return ::android::OK;
+}
+
 
 int dump() {
     using namespace ::std;
@@ -51,7 +95,7 @@ int dump() {
 
     stream << "All services:" << endl;
     stream << left;
-    printColumn(stream, "Interface", "Instance", "Transport", "Ref");
+    printColumn(stream, "Interface", "Instance", "Transport", "Server", "Clients");
 
     for (const auto &pair : mapping) {
         const std::string &mode = pair.first;
@@ -63,12 +107,29 @@ int dump() {
         }
 
         auto ret = manager->debugDump([&](const auto &registered) {
+            // server pid, .ptr value of binder object, child pids
+            std::map<pid_t, std::map<uint64_t, std::string>> allPids;
+            for (const auto &info : registered) {
+                if (info.pid < 0) {
+                    continue;
+                }
+                pid_t serverPid = info.pid;
+                allPids[serverPid].clear();
+            }
+            for (auto &pair : allPids) {
+                pid_t serverPid = pair.first;
+                if (getReferencedPids(serverPid, &allPids[serverPid]) != ::android::OK) {
+                    std::cerr << "Warning: no information for PID " << serverPid
+                              << ", are you root?" << std::endl;
+                }
+            }
             for (const auto &info : registered) {
                 printColumn(stream,
                     info.interfaceName,
                     info.instanceName.empty() ? "N/A" : info.instanceName,
                     mode,
-                    info.refCount < 0 ? "N/A" : std::to_string(info.refCount));
+                    info.pid < 0 ? "N/A" : std::to_string(info.pid),
+                    info.pid < 0 || info.ptr == 0 ? "" : allPids[info.pid][info.ptr]);
             }
         });
         if (!ret.isOk()) {
