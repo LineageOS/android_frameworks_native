@@ -211,11 +211,15 @@ bool HardwareComposer::Resume() {
     layer->Initialize(hwc2_hidl_.get(), &native_display_metrics_);
   }
 
+#if ENABLE_BACKLIGHT_BRIGHTNESS
+  // TODO(hendrikw): This isn't required at the moment. It's possible that there
+  //                 is another method to access this when needed.
   // Open the backlight brightness control sysfs node.
   backlight_brightness_fd_ = LocalHandle(kBacklightBrightnessSysFile, O_RDWR);
   ALOGW_IF(!backlight_brightness_fd_,
            "HardwareComposer: Failed to open backlight brightness control: %s",
            strerror(errno));
+#endif // ENABLE_BACKLIGHT_BRIGHTNESS
 
   // Open the vsync event node for the primary display.
   // TODO(eieio): Move this into a platform-specific class.
