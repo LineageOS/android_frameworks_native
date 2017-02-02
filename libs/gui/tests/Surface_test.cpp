@@ -19,11 +19,12 @@
 #include <gtest/gtest.h>
 
 #include <binder/ProcessState.h>
+#include <cutils/properties.h>
+#include <gui/BufferItemConsumer.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
-#include <gui/BufferItemConsumer.h>
 #include <private/gui/ComposerService.h>
 #include <ui/Rect.h>
 #include <utils/String8.h>
@@ -250,6 +251,35 @@ TEST_F(SurfaceTest, GetConsumerName) {
     native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
 
     EXPECT_STREQ("TestConsumer", surface->getConsumerName().string());
+}
+
+TEST_F(SurfaceTest, GetWideColorSupport) {
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
+    consumer->consumerConnect(dummyConsumer, false);
+    consumer->setConsumerName(String8("TestConsumer"));
+
+    sp<Surface> surface = new Surface(producer);
+    sp<ANativeWindow> window(surface);
+    native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
+
+    bool supported;
+    surface->getWideColorSupport(&supported);
+
+    // TODO(courtneygo): How can we know what device we are on to
+    // verify that this is correct?
+    char product[PROPERTY_VALUE_MAX] = "0";
+    property_get("ro.build.product", product, "0");
+    std::cerr << "[          ] product = " << product << std::endl;
+
+    if (strcmp("marlin", product) == 0 || strcmp("sailfish", product) == 0) {
+        ASSERT_EQ(true, supported);
+    } else {
+        ASSERT_EQ(false, supported);
+    }
 }
 
 TEST_F(SurfaceTest, DynamicSetBufferCount) {

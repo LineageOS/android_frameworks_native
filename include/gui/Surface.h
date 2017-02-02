@@ -155,6 +155,8 @@ public:
             nsecs_t* outDisplayPresentTime, nsecs_t* outDisplayRetireTime,
             nsecs_t* outDequeueReadyTime, nsecs_t* outReleaseTime);
 
+    status_t getWideColorSupport(bool* supported);
+
     status_t getUniqueId(uint64_t* outId) const;
 
 protected:
@@ -215,6 +217,7 @@ private:
     int dispatchEnableFrameTimestamps(va_list args);
     int dispatchGetCompositorTiming(va_list args);
     int dispatchGetFrameTimestamps(va_list args);
+    int dispatchGetWideColorSupport(va_list args);
 
 protected:
     virtual int dequeueBuffer(ANativeWindowBuffer** buffer, int* fenceFd);

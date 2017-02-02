@@ -305,6 +305,34 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
     return NO_ERROR;
 }
 
+status_t Surface::getWideColorSupport(bool* supported) {
+    ATRACE_CALL();
+
+    sp<IBinder> display(
+        composerService()->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+    Vector<android_color_mode_t> colorModes;
+    status_t err =
+        composerService()->getDisplayColorModes(display, &colorModes);
+
+    if (err)
+        return err;
+
+    *supported = false;
+    for (android_color_mode_t colorMode : colorModes) {
+        switch (colorMode) {
+            case HAL_COLOR_MODE_DISPLAY_P3:
+            case HAL_COLOR_MODE_ADOBE_RGB:
+            case HAL_COLOR_MODE_DCI_P3:
+                *supported = true;
+                break;
+            default:
+                break;
+        }
+    }
+
+    return NO_ERROR;
+}
+
 int Surface::hook_setSwapInterval(ANativeWindow* window, int interval) {
     Surface* c = getSelf(window);
     return c->setSwapInterval(interval);
@@ -880,6 +908,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_GET_FRAME_TIMESTAMPS:
         res = dispatchGetFrameTimestamps(args);
         break;
+    case NATIVE_WINDOW_GET_WIDE_COLOR_SUPPORT:
+        res = dispatchGetWideColorSupport(args);
+        break;
     default:
         res = NAME_NOT_FOUND;
         break;
@@ -1042,6 +1073,11 @@ int Surface::dispatchGetFrameTimestamps(va_list args) {
             outFirstRefreshStartTime, outLastRefreshStartTime,
             outGpuCompositionDoneTime, outDisplayPresentTime,
             outDisplayRetireTime, outDequeueReadyTime, outReleaseTime);
+}
+
+int Surface::dispatchGetWideColorSupport(va_list args) {
+    bool* outSupport = va_arg(args, bool*);
+    return getWideColorSupport(outSupport);
 }
 
 int Surface::connect(int api) {
