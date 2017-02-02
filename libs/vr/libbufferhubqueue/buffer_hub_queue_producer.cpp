@@ -1,5 +1,8 @@
 #include "include/private/dvr/buffer_hub_queue_producer.h"
 
+#include <inttypes.h>
+#include <log/log.h>
+
 namespace android {
 namespace dvr {
 
@@ -9,18 +12,17 @@ BufferHubQueueProducer::BufferHubQueueProducer(
 
 status_t BufferHubQueueProducer::requestBuffer(int slot,
                                                sp<GraphicBuffer>* buf) {
-  VLOG(1) << "requestBuffer: slot=" << slot;;
+  ALOGD("requestBuffer: slot=%d", slot);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
 
   if (slot < 0 || slot >= req_buffer_count_) {
-    LOG(ERROR) << "requestBuffer: slot index " << slot << " out of range [0, "
-               << req_buffer_count_ << ")";
+    ALOGE("requestBuffer: slot index %d out of range [0, %d)", slot,
+          req_buffer_count_);
     return BAD_VALUE;
   } else if (!core_->buffers_[slot].mBufferState.isDequeued()) {
-    LOG(ERROR) << "requestBuffer: slot " << slot
-               << " is not owned by the producer (state = "
-               << core_->buffers_[slot].mBufferState.string() << " )";
+    ALOGE("requestBuffer: slot %d is not owned by the producer (state = %s)",
+          slot, core_->buffers_[slot].mBufferState.string());
     return BAD_VALUE;
   }
 
@@ -31,17 +33,16 @@ status_t BufferHubQueueProducer::requestBuffer(int slot,
 
 status_t BufferHubQueueProducer::setMaxDequeuedBufferCount(
     int max_dequeued_buffers) {
-  VLOG(1) << "setMaxDequeuedBufferCount: max_dequeued_buffers="
-          << max_dequeued_buffers;
+  ALOGD("setMaxDequeuedBufferCount: max_dequeued_buffers=%d",
+        max_dequeued_buffers);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
 
   if (max_dequeued_buffers <= 0 ||
       max_dequeued_buffers >
           static_cast<int>(BufferHubQueue::kMaxQueueCapacity)) {
-    LOG(ERROR) << "setMaxDequeuedBufferCount: " << max_dequeued_buffers
-               << " out of range (0, " << BufferHubQueue::kMaxQueueCapacity
-               << "]";
+    ALOGE("setMaxDequeuedBufferCount: %d out of range (0, %zu]",
+          max_dequeued_buffers, BufferHubQueue::kMaxQueueCapacity);
     return BAD_VALUE;
   }
 
@@ -50,7 +51,7 @@ status_t BufferHubQueueProducer::setMaxDequeuedBufferCount(
 }
 
 status_t BufferHubQueueProducer::setAsyncMode(bool /* async */) {
-  LOG(ERROR) << "BufferHubQueueProducer::setAsyncMode not implemented.";
+  ALOGE("BufferHubQueueProducer::setAsyncMode not implemented.");
   return INVALID_OPERATION;
 }
 
@@ -60,8 +61,8 @@ status_t BufferHubQueueProducer::dequeueBuffer(int* out_slot,
                                                PixelFormat format,
                                                uint32_t usage,
                                                FrameEventHistoryDelta* /* outTimestamps */) {
-  VLOG(1) << "dequeueBuffer: w=" << width << ", h=" << height
-          << " format=" << format << ", usage=" << usage;
+  ALOGD("dequeueBuffer: w=%u, h=%u, format=%d, usage=%u", width, height, format,
+        usage);
 
   status_t ret;
   std::unique_lock<std::mutex> lock(core_->mutex_);
@@ -94,13 +95,12 @@ status_t BufferHubQueueProducer::dequeueBuffer(int* out_slot,
 
     // Needs reallocation.
     // TODO(jwcai) Consider use VLOG instead if we find this log is not useful.
-    LOG(INFO) << "dequeueBuffer,: requested buffer (w=" << width
-              << ", h=" << height << ", format=" << format
-              << ") is different from the buffer returned at slot: " << slot
-              << " (w=" << buffer_producer->width()
-              << ", h=" << buffer_producer->height()
-              << ", format=" << buffer_producer->format()
-              << "). Need re-allocattion.";
+    ALOGI(
+        "dequeueBuffer: requested buffer (w=%u, h=%u, format=%d) is different "
+        "from the buffer returned at slot: %zu (w=%d, h=%d, format=%d). Need "
+        "re-allocattion.",
+        width, height, format, slot, buffer_producer->width(),
+        buffer_producer->height(), buffer_producer->format());
     // Mark the slot as reallocating, so that later we can set
     // BUFFER_NEEDS_REALLOCATION when the buffer actually get dequeued.
     core_->buffers_[slot].mIsReallocating = true;
@@ -125,13 +125,13 @@ status_t BufferHubQueueProducer::dequeueBuffer(int* out_slot,
   // BufferHubQueue).
   // TODO(jwcai) Clean this up, make mBufferState compatible with BufferHub's
   // model.
-  CHECK(core_->buffers_[slot].mBufferState.isFree() ||
-        core_->buffers_[slot].mBufferState.isQueued())
-      << "dequeueBuffer: slot " << slot << " is not free or queued.";
+  LOG_ALWAYS_FATAL_IF(!core_->buffers_[slot].mBufferState.isFree() &&
+                          !core_->buffers_[slot].mBufferState.isQueued(),
+                      "dequeueBuffer: slot %zu is not free or queued.", slot);
 
   core_->buffers_[slot].mBufferState.freeQueued();
   core_->buffers_[slot].mBufferState.dequeue();
-  VLOG(1) << "dequeueBuffer: slot=" << slot;
+  ALOGD("dequeueBuffer: slot=%zu", slot);
 
   // TODO(jwcai) Handle fence properly. |BufferHub| has full fence support, we
   // just need to exopose that through |BufferHubQueue| once we need fence.
@@ -148,13 +148,13 @@ status_t BufferHubQueueProducer::dequeueBuffer(int* out_slot,
 }
 
 status_t BufferHubQueueProducer::detachBuffer(int /* slot */) {
-  LOG(ERROR) << "BufferHubQueueProducer::detachBuffer not implemented.";
+  ALOGE("BufferHubQueueProducer::detachBuffer not implemented.");
   return INVALID_OPERATION;
 }
 
 status_t BufferHubQueueProducer::detachNextBuffer(
     sp<GraphicBuffer>* /* out_buffer */, sp<Fence>* /* out_fence */) {
-  LOG(ERROR) << "BufferHubQueueProducer::detachNextBuffer not implemented.";
+  ALOGE("BufferHubQueueProducer::detachNextBuffer not implemented.");
   return INVALID_OPERATION;
 }
 
@@ -163,14 +163,14 @@ status_t BufferHubQueueProducer::attachBuffer(
   // With this BufferHub backed implementation, we assume (for now) all buffers
   // are allocated and owned by the BufferHub. Thus the attempt of transfering
   // ownership of a buffer to the buffer queue is intentionally unsupported.
-  LOG(FATAL) << "BufferHubQueueProducer::attachBuffer not supported.";
+  LOG_ALWAYS_FATAL("BufferHubQueueProducer::attachBuffer not supported.");
   return INVALID_OPERATION;
 }
 
 status_t BufferHubQueueProducer::queueBuffer(int slot,
                                              const QueueBufferInput& input,
                                              QueueBufferOutput* /* output */) {
-  VLOG(1) << "queueBuffer: slot " << slot;
+  ALOGD("queueBuffer: slot %d", slot);
 
   int64_t timestamp;
   sp<Fence> fence;
@@ -186,7 +186,7 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
                 &scaling_mode, &transform, &fence);
 
   if (fence == nullptr) {
-    LOG(ERROR) << "queueBuffer: fence is NULL";
+    ALOGE("queueBuffer: fence is NULL");
     return BAD_VALUE;
   }
 
@@ -194,13 +194,12 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
   std::unique_lock<std::mutex> lock(core_->mutex_);
 
   if (slot < 0 || slot >= req_buffer_count_) {
-    LOG(ERROR) << "queueBuffer: slot index " << slot << " out of range [0, "
-               << req_buffer_count_ << ")";
+    ALOGE("queueBuffer: slot index %d out of range [0, %d)", slot,
+          req_buffer_count_);
     return BAD_VALUE;
   } else if (!core_->buffers_[slot].mBufferState.isDequeued()) {
-    LOG(ERROR) << "queueBuffer: slot " << slot
-               << " is not owned by the producer (state = "
-               << core_->buffers_[slot].mBufferState.string() << " )";
+    ALOGE("queueBuffer: slot %d is not owned by the producer (state = %s)",
+          slot, core_->buffers_[slot].mBufferState.string());
     return BAD_VALUE;
   }
 
@@ -218,21 +217,20 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
 
 status_t BufferHubQueueProducer::cancelBuffer(int slot,
                                               const sp<Fence>& fence) {
-  VLOG(1) << (__FUNCTION__);
+  ALOGD(__FUNCTION__);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
 
   if (slot < 0 || slot >= req_buffer_count_) {
-    LOG(ERROR) << "cancelBuffer: slot index " << slot << " out of range [0, "
-               << req_buffer_count_ << ")";
+    ALOGE("cancelBuffer: slot index %d out of range [0, %d)", slot,
+          req_buffer_count_);
     return BAD_VALUE;
   } else if (!core_->buffers_[slot].mBufferState.isDequeued()) {
-    LOG(ERROR) << "cancelBuffer: slot " << slot
-               << " is not owned by the producer (state = "
-               << core_->buffers_[slot].mBufferState.string() << " )";
+    ALOGE("cancelBuffer: slot %d is not owned by the producer (state = %s)",
+          slot, core_->buffers_[slot].mBufferState.string());
     return BAD_VALUE;
   } else if (fence == NULL) {
-    LOG(ERROR) << "cancelBuffer: fence is NULL";
+    ALOGE("cancelBuffer: fence is NULL");
     return BAD_VALUE;
   }
 
@@ -240,18 +238,18 @@ status_t BufferHubQueueProducer::cancelBuffer(int slot,
   core_->producer_->Enqueue(buffer_producer, slot);
   core_->buffers_[slot].mBufferState.cancel();
   core_->buffers_[slot].mFence = fence;
-  VLOG(1) << "cancelBuffer: slot " << slot;
+  ALOGD("cancelBuffer: slot %d", slot);
 
   return NO_ERROR;
 }
 
 status_t BufferHubQueueProducer::query(int what, int* out_value) {
-  VLOG(1) << (__FUNCTION__);
+  ALOGD(__FUNCTION__);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
 
   if (out_value == NULL) {
-    LOG(ERROR) << "query: out_value was NULL";
+    ALOGE("query: out_value was NULL");
     return BAD_VALUE;
   }
 
@@ -277,7 +275,7 @@ status_t BufferHubQueueProducer::query(int what, int* out_value) {
       return BAD_VALUE;
   }
 
-  VLOG(1) << "query: key=" << what << ", v=" << value;
+  ALOGD("query: key=%d, v=%d", what, value);
   *out_value = value;
   return NO_ERROR;
 }
@@ -287,14 +285,14 @@ status_t BufferHubQueueProducer::connect(
     bool /* producer_controlled_by_app */, QueueBufferOutput* /* output */) {
   // Consumer interaction are actually handled by buffer hub, and we need
   // to maintain consumer operations here. Hence |connect| is a NO-OP.
-  VLOG(1) << (__FUNCTION__);
+  ALOGD(__FUNCTION__);
   return NO_ERROR;
 }
 
 status_t BufferHubQueueProducer::disconnect(int /* api */, DisconnectMode /* mode */) {
   // Consumer interaction are actually handled by buffer hub, and we need
   // to maintain consumer operations here. Hence |disconnect| is a NO-OP.
-  VLOG(1) << (__FUNCTION__);
+  ALOGD(__FUNCTION__);
   return NO_ERROR;
 }
 
@@ -303,7 +301,7 @@ status_t BufferHubQueueProducer::setSidebandStream(
   if (stream != NULL) {
     // TODO(jwcai) Investigate how is is used, maybe use BufferHubBuffer's
     // metadata.
-    LOG(ERROR) << "SidebandStream is not currently supported.";
+    ALOGE("SidebandStream is not currently supported.");
     return INVALID_OPERATION;
   }
   return NO_ERROR;
@@ -316,17 +314,17 @@ void BufferHubQueueProducer::allocateBuffers(uint32_t /* width */,
   // TODO(jwcai) |allocateBuffers| aims to preallocate up to the maximum number
   // of buffers permitted by the current BufferQueue configuration (aka
   // |req_buffer_count_|).
-  LOG(ERROR) << "BufferHubQueueProducer::allocateBuffers not implemented.";
+  ALOGE("BufferHubQueueProducer::allocateBuffers not implemented.");
 }
 
 status_t BufferHubQueueProducer::allowAllocation(bool /* allow */) {
-  LOG(ERROR) << "BufferHubQueueProducer::allowAllocation not implemented.";
+  ALOGE("BufferHubQueueProducer::allowAllocation not implemented.");
   return INVALID_OPERATION;
 }
 
 status_t BufferHubQueueProducer::setGenerationNumber(
     uint32_t generation_number) {
-  VLOG(1) << (__FUNCTION__);
+  ALOGD(__FUNCTION__);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
   core_->generation_number_ = generation_number;
@@ -337,23 +335,23 @@ String8 BufferHubQueueProducer::getConsumerName() const {
   // BufferHub based implementation could have one to many producer/consumer
   // relationship, thus |getConsumerName| from the producer side does not
   // make any sense.
-  LOG(ERROR) << "BufferHubQueueProducer::getConsumerName not supported.";
+  ALOGE("BufferHubQueueProducer::getConsumerName not supported.");
   return String8("BufferHubQueue::DummyConsumer");
 }
 
 status_t BufferHubQueueProducer::setSharedBufferMode(
     bool /* shared_buffer_mode */) {
-  LOG(ERROR) << "BufferHubQueueProducer::setSharedBufferMode not implemented.";
+  ALOGE("BufferHubQueueProducer::setSharedBufferMode not implemented.");
   return INVALID_OPERATION;
 }
 
 status_t BufferHubQueueProducer::setAutoRefresh(bool /* auto_refresh */) {
-  LOG(ERROR) << "BufferHubQueueProducer::setAutoRefresh not implemented.";
+  ALOGE("BufferHubQueueProducer::setAutoRefresh not implemented.");
   return INVALID_OPERATION;
 }
 
 status_t BufferHubQueueProducer::setDequeueTimeout(nsecs_t timeout) {
-  VLOG(1) << (__FUNCTION__);
+  ALOGD(__FUNCTION__);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
   core_->dequeue_timeout_ms_ = static_cast<int>(timeout / (1000 * 1000));
@@ -363,17 +361,17 @@ status_t BufferHubQueueProducer::setDequeueTimeout(nsecs_t timeout) {
 status_t BufferHubQueueProducer::getLastQueuedBuffer(
     sp<GraphicBuffer>* /* out_buffer */, sp<Fence>* /* out_fence */,
     float /*out_transform_matrix*/[16]) {
-  LOG(ERROR) << "BufferHubQueueProducer::getLastQueuedBuffer not implemented.";
+  ALOGE("BufferHubQueueProducer::getLastQueuedBuffer not implemented.");
   return INVALID_OPERATION;
 }
 
 void BufferHubQueueProducer::getFrameTimestamps(
     FrameEventHistoryDelta* /*outDelta*/) {
-  LOG(ERROR) << "BufferHubQueueProducer::getFrameTimestamps not implemented.";
+  ALOGE("BufferHubQueueProducer::getFrameTimestamps not implemented.");
 }
 
 status_t BufferHubQueueProducer::getUniqueId(uint64_t* out_id) const {
-  VLOG(1) << (__FUNCTION__);
+  ALOGD(__FUNCTION__);
 
   *out_id = core_->unique_id_;
   return NO_ERROR;
@@ -382,7 +380,7 @@ status_t BufferHubQueueProducer::getUniqueId(uint64_t* out_id) const {
 IBinder* BufferHubQueueProducer::onAsBinder() {
   // BufferHubQueueProducer is a non-binder implementation of
   // IGraphicBufferProducer.
-  LOG(WARNING) << "BufferHubQueueProducer::onAsBinder is not supported.";
+  ALOGW("BufferHubQueueProducer::onAsBinder is not supported.");
   return nullptr;
 }
 

@@ -1,6 +1,6 @@
 #include "cpu_set.h"
 
-#include <cutils/log.h>
+#include <log/log.h>
 
 #include <algorithm>
 #include <iomanip>

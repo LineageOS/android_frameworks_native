@@ -1,7 +1,7 @@
 #ifndef LIB_LIBIMAGEIO_PRIVATE_DREAMOS_IMAGE_IO_LOGGING_H_
 #define LIB_LIBIMAGEIO_PRIVATE_DREAMOS_IMAGE_IO_LOGGING_H_
 
-// This header acts as cutils/log.h if LOG_TO_STDERR is not defined.
+// This header acts as log/log.h if LOG_TO_STDERR is not defined.
 // If LOG_TO_STDERR is defined, then android logging macros (such as ALOGE)
 // would log to stderr. This is useful if the code is also being used/tested on
 // a desktop.
@@ -33,7 +33,7 @@ inline void LogToStderr(const char* severity, const char* fmt, ...) {
 #define ALOGV(fmt, ...) LogToStderr("VERBOSE", fmt, ##__VA_ARGS__)
 
 #else  // LOG_TO_STDERR
-#include <cutils/log.h>
+#include <log/log.h>
 #endif  // LOG_TO_STDERR
 
 #endif  // LIB_LIBIMAGEIO_PRIVATE_DREAMOS_IMAGE_IO_LOGGING_H_

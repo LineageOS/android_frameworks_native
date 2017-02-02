@@ -36,7 +36,6 @@ sharedLibraries := \
 	libhardware
 
 staticLibraries := \
-	libchrome \
 	libpdx_default_transport \
 
 include $(CLEAR_VARS)

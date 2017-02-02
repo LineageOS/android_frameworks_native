@@ -2,8 +2,8 @@
 #define ANDROID_DVR_LOG_HELPERS_H_
 
 #include <iomanip>
+#include <ostream>
 
-#include <base/logging.h>
 #include <private/dvr/eigen.h>
 #include <private/dvr/field_of_view.h>
 
@@ -32,7 +32,8 @@ inline std::ostream& operator<<(std::ostream& out,
 template <typename T>
 inline std::ostream& operator<<(std::ostream& out,
                                 const Eigen::AffineMatrix<T, 4>& mat) {
-  out << std::setfill(' ') << std::setprecision(4) << std::fixed << std::showpos;
+  out << std::setfill(' ') << std::setprecision(4) << std::fixed
+      << std::showpos;
   out << "\nmat4[";
   out << std::setw(10) << mat(0, 0) << " " << std::setw(10) << mat(0, 1) << " "
       << std::setw(10) << mat(0, 2) << " " << std::setw(10) << mat(0, 3);

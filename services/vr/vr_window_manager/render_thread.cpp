@@ -1,6 +1,6 @@
-#include <cutils/log.h>
-#include <future>
 #include <jni.h>
+#include <log/log.h>
+#include <future>
 
 #include "render_thread.h"
 #include "shell_view.h"

@@ -4,8 +4,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <android/native_window.h>
-#include <base/logging.h>
-#include <cutils/log.h>
+#include <log/log.h>
 #include <system/window.h>
 #include <ui/ANativeObjectBase.h>
 #include <utils/RefBase.h>
@@ -181,7 +180,7 @@ class NativeBufferConsumer : public android::ANativeObjectBase<
     ANativeWindowBuffer::stride = buffer_->stride();
     ANativeWindowBuffer::format = buffer_->format();
     ANativeWindowBuffer::usage = buffer_->usage();
-    CHECK(buffer_->slice_count() > index);
+    LOG_ALWAYS_FATAL_IF(buffer_->slice_count() <= index);
     handle = buffer_->slice(index)->handle();
   }
 

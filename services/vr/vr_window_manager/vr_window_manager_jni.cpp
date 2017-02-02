@@ -1,5 +1,5 @@
-#include <cutils/log.h>
 #include <jni.h>
+#include <log/log.h>
 
 #include <memory>
 

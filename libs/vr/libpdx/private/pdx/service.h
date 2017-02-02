@@ -1,8 +1,8 @@
 #ifndef ANDROID_PDX_SERVICE_H_
 #define ANDROID_PDX_SERVICE_H_
 
-#include <cutils/log.h>
 #include <errno.h>
+#include <log/log.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>

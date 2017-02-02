@@ -1,7 +1,7 @@
 #include "texture.h"
 
-#include <cutils/log.h>
 #include <GLES/glext.h>
+#include <log/log.h>
 #include <system/window.h>
 
 namespace android {

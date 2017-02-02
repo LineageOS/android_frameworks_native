@@ -1,11 +1,11 @@
 #include "shell_view.h"
 
-#include <android/input.h>
-#include <binder/IServiceManager.h>
-#include <cutils/log.h>
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
+#include <android/input.h>
+#include <binder/IServiceManager.h>
 #include <hardware/hwcomposer2.h>
+#include <log/log.h>
 
 #include "controller_mesh.h"
 #include "texture.h"

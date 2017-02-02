@@ -1,6 +1,6 @@
 #define LOG_TAG "libgvr_shim_private"
 
-#include <cutils/log.h>
+#include <log/log.h>
 #include <private/dvr/display_rpc.h>
 #include <private/dvr/internal_types.h>
 #include <vr/gvr/capi/include/gvr.h>
@@ -42,7 +42,7 @@ bool gvr_set_viewer_params(gvr_context* gvr,
       serialized_viewer_params_size_bytes);
   std::unique_ptr<proto::DeviceParams> device_params(new proto::DeviceParams);
   if (!device_params->ParseFromString(serialized_device_params_string)) {
-    LOG(ERROR) << "Invalid serialized Cardboard DeviceParams";
+    ALOGE("Invalid serialized Cardboard DeviceParams");
     return false;
   }
 

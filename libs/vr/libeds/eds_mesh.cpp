@@ -1,8 +1,8 @@
 #include "include/private/dvr/eds_mesh.h"
 
+#include <log/log.h>
 #include <math.h>
 
-#include <base/logging.h>
 #include <private/dvr/types.h>
 
 namespace {
@@ -105,7 +105,7 @@ namespace dvr {
 // provided by |hmd| for |eye|.
 EdsMesh BuildDistortionMesh(EyeType eye, int resolution,
                             const DistortionFunction& distortion_function) {
-  CHECK_GT(resolution, 2);
+  LOG_ALWAYS_FATAL_IF(resolution <= 2);
 
   // Number of indices produced by the strip method
   // (see comment in ComputeDistortionMeshIndices):

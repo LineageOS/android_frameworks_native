@@ -1,7 +1,6 @@
 #include "include/private/dvr/native_buffer_queue.h"
 
-#include <base/logging.h>
-#include <cutils/log.h>
+#include <log/log.h>
 #include <sys/epoll.h>
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #include <utils/Trace.h>
@@ -23,7 +22,7 @@ NativeBufferQueue::NativeBufferQueue(
     : surface_(surface),
       buffers_(capacity),
       buffer_queue_(capacity) {
-  CHECK(surface);
+  LOG_ALWAYS_FATAL_IF(!surface);
 
   epoll_fd_ = epoll_create(64);
   if (epoll_fd_ < 0) {
@@ -34,7 +33,7 @@ NativeBufferQueue::NativeBufferQueue(
 
   // The kSurfaceBufferMaxCount must be >= the capacity so that shader code
   // can bind surface buffer array data.
-  CHECK(kSurfaceBufferMaxCount >= capacity);
+  LOG_ALWAYS_FATAL_IF(kSurfaceBufferMaxCount < capacity);
 
   for (size_t i = 0; i < capacity; i++) {
     uint32_t buffer_index = 0;

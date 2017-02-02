@@ -1,7 +1,6 @@
 #ifndef ANDROID_DVR_VIDEO_MESH_SURFACE_CLIENT_H_
 #define ANDROID_DVR_VIDEO_MESH_SURFACE_CLIENT_H_
 
-#include <base/macros.h>
 #include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/display_client.h>
 

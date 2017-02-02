@@ -3,15 +3,14 @@
 #include <regex>
 #include <sstream>
 
-#include <base/logging.h>
-#include <base/strings/string_util.h>
+#include <log/log.h>
 
 namespace {
 
 static bool CompileShader(GLuint shader, const std::string& shader_string) {
-  std::string prefix = "";
-  if (!base::StartsWith(shader_string, "#version",
-                        base::CompareCase::SENSITIVE)) {
+  std::string prefix;
+  const std::string kVersion = "#version";
+  if (shader_string.substr(0, kVersion.size()) != kVersion) {
     prefix = "#version 310 es\n";
   }
   std::string string_with_prefix = prefix + shader_string;
@@ -24,8 +23,7 @@ static bool CompileShader(GLuint shader, const std::string& shader_string) {
   if (!success) {
     GLchar infoLog[512];
     glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-    LOG(ERROR) << "Shader Failed to compile: " << *shader_str << " -- "
-               << infoLog;
+    ALOGE("Shader Failed to compile: %s -- %s", *shader_str, infoLog);
     return false;
   }
   return true;
@@ -43,7 +41,7 @@ static bool LinkProgram(GLuint program, GLuint vertex_shader,
   if (!success) {
     GLchar infoLog[512];
     glGetProgramInfoLog(program, 512, nullptr, infoLog);
-    LOG(ERROR) << "Shader failed to link: " << infoLog;
+    ALOGE("Shader failed to link: %s", infoLog);
     return false;
   }
 
@@ -60,7 +58,7 @@ static bool LinkProgram(GLuint program, GLuint compute_shader) {
   if (!success) {
     GLchar infoLog[512];
     glGetProgramInfoLog(program, 512, nullptr, infoLog);
-    LOG(ERROR) << "Shader failed to link: " << infoLog;
+    ALOGE("Shader failed to link: %s", infoLog);
     return false;
   }
 

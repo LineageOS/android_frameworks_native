@@ -4,15 +4,15 @@
 #include <GLES3/gl3.h>
 #include <math.h>
 
-#include <base/logging.h>
+#include <log/log.h>
 
 #ifndef NDEBUG
-#define CHECK_GL()                          \
-  do {                                      \
-    const GLenum err = glGetError();        \
-    if (err != GL_NO_ERROR) {               \
-      LOG(ERROR) << "OpenGL error " << err; \
-    }                                       \
+#define CHECK_GL()                   \
+  do {                               \
+    const GLenum err = glGetError(); \
+    if (err != GL_NO_ERROR) {        \
+      ALOGE("OpenGL error %d", err); \
+    }                                \
   } while (0)
 
 #define CHECK_GL_FBO()                                        \
@@ -22,10 +22,10 @@
       case GL_FRAMEBUFFER_COMPLETE:                           \
         break;                                                \
       case GL_FRAMEBUFFER_UNSUPPORTED:                        \
-        LOG(ERROR) << "GL_FRAMEBUFFER_UNSUPPORTED";           \
+        ALOGE("GL_FRAMEBUFFER_UNSUPPORTED");                  \
         break;                                                \
       default:                                                \
-        LOG(ERROR) << "FBO user error: " << status;           \
+        ALOGE("FBO user error: %d", status);                  \
         break;                                                \
     }                                                         \
   } while (0)

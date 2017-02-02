@@ -68,14 +68,12 @@ LOCAL_SHARED_LIBRARIES := \
     libhardware \
     liblog \
     libsync \
-    libevent \
     libprotobuf-cpp-full
 
 LOCAL_STATIC_LIBRARIES := \
     libdisplay \
     libbufferhub \
     libbufferhubqueue \
-    libchrome \
     libdvrcommon \
     libeds \
     libdvrgraphics \
@@ -125,7 +123,6 @@ LOCAL_MODULE := libgvr_ext
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
 LOCAL_SRC_FILES := dummy_gvr_ext.cpp
-LOCAL_STATIC_LIBRARIES := libchrome
 LOCAL_LDLIBS := -llog
 LOCAL_MODULE_TAGS := optional
 LOCAL_SHARED_LIBRARIES += libgvr

@@ -1,9 +1,9 @@
 #include "VirtualTouchpad.h"
 
 #include <android/input.h>
-#include <cutils/log.h>
 #include <inttypes.h>
 #include <linux/input.h>
+#include <log/log.h>
 
 // References:
 //  [0] Multi-touch (MT) Protocol,

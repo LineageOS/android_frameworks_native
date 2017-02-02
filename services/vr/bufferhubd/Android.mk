@@ -23,7 +23,6 @@ sourceFiles := \
     producer_queue_channel.cpp \
 
 staticLibraries := \
-	libchrome \
 	libperformance \
 	libpdx_default_transport \
 	libbufferhub

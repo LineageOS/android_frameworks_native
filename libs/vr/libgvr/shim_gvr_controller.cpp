@@ -1,6 +1,6 @@
 #define LOG_TAG "libgvr_controller_shim"
 
-#include <cutils/log.h>
+#include <log/log.h>
 #include <vr/gvr/capi/include/gvr_controller.h>
 #include <vr/gvr/capi/include/gvr_types.h>
 

@@ -1,8 +1,8 @@
 #define LOG_TAG "ServiceFramework"
 #include "pdx/service.h"
 
-#include <cutils/log.h>
 #include <fcntl.h>
+#include <log/log.h>
 #include <utils/misc.h>
 
 #include <algorithm>

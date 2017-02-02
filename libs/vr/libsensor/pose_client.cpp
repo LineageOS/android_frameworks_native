@@ -3,8 +3,7 @@
 
 #include <stdint.h>
 
-#include <base/logging.h>
-#include <cutils/log.h>
+#include <log/log.h>
 #include <pdx/client.h>
 #include <pdx/default_transport/client_channel_factory.h>
 #include <pdx/file_handle.h>
@@ -17,6 +16,8 @@ using android::pdx::LocalHandle;
 using android::pdx::LocalChannelHandle;
 using android::pdx::Status;
 using android::pdx::Transaction;
+
+#define arraysize(x) (static_cast<int32_t>(std::extent<decltype(x)>::value))
 
 namespace android {
 namespace dvr {
@@ -64,8 +65,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
 
   int GetControllerPose(int32_t controller_id, uint32_t vsync_count,
                         DvrPoseAsync* out_pose) {
-    if (controller_id < 0 ||
-        controller_id >= static_cast<int32_t>(arraysize(controllers_))) {
+    if (controller_id < 0 || controller_id >= arraysize(controllers_)) {
       return -EINVAL;
     }
     if (!controllers_[controller_id].mapped_pose_buffer) {
@@ -154,14 +154,14 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
     }
     pose_buffer_.swap(buffer);
     mapped_pose_buffer_ = static_cast<const DvrPoseRingBuffer*>(addr);
-    LOG(INFO) << "Mapped pose data translation "
-              << mapped_pose_buffer_->ring[0].translation[0] << ','
-              << mapped_pose_buffer_->ring[0].translation[1] << ','
-              << mapped_pose_buffer_->ring[0].translation[2] << ", quat "
-              << mapped_pose_buffer_->ring[0].orientation[0] << ','
-              << mapped_pose_buffer_->ring[0].orientation[1] << ','
-              << mapped_pose_buffer_->ring[0].orientation[2] << ','
-              << mapped_pose_buffer_->ring[0].orientation[3];
+    ALOGI("Mapped pose data translation %f,%f,%f quat %f,%f,%f,%f",
+          mapped_pose_buffer_->ring[0].translation[0],
+          mapped_pose_buffer_->ring[0].translation[1],
+          mapped_pose_buffer_->ring[0].translation[2],
+          mapped_pose_buffer_->ring[0].orientation[0],
+          mapped_pose_buffer_->ring[0].orientation[1],
+          mapped_pose_buffer_->ring[0].orientation[2],
+          mapped_pose_buffer_->ring[0].orientation[3]);
     if (out_info) {
       GetPoseRingBufferInfo(out_info);
     }
@@ -169,8 +169,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
   }
 
   int GetControllerRingBuffer(int32_t controller_id) {
-    if (controller_id < 0 ||
-        controller_id >= static_cast<int32_t>(arraysize(controllers_))) {
+    if (controller_id < 0 || controller_id >= arraysize(controllers_)) {
       return -EINVAL;
     }
     ControllerClientState& client_state = controllers_[controller_id];
@@ -200,15 +199,15 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
     }
     client_state.pose_buffer.swap(buffer);
     client_state.mapped_pose_buffer = static_cast<const DvrPoseAsync*>(addr);
-    LOG(INFO) << "Mapped controller " << controller_id
-              << " pose data translation "
-              << client_state.mapped_pose_buffer[0].translation[0] << ','
-              << client_state.mapped_pose_buffer[0].translation[1] << ','
-              << client_state.mapped_pose_buffer[0].translation[2] << ", quat "
-              << client_state.mapped_pose_buffer[0].orientation[0] << ','
-              << client_state.mapped_pose_buffer[0].orientation[1] << ','
-              << client_state.mapped_pose_buffer[0].orientation[2] << ','
-              << client_state.mapped_pose_buffer[0].orientation[3];
+    ALOGI(
+        "Mapped controller %d pose data translation %f,%f,%f quat %f,%f,%f,%f",
+        controller_id, client_state.mapped_pose_buffer[0].translation[0],
+        client_state.mapped_pose_buffer[0].translation[1],
+        client_state.mapped_pose_buffer[0].translation[2],
+        client_state.mapped_pose_buffer[0].orientation[0],
+        client_state.mapped_pose_buffer[0].orientation[1],
+        client_state.mapped_pose_buffer[0].orientation[2],
+        client_state.mapped_pose_buffer[0].orientation[3]);
     return 0;
   }
 

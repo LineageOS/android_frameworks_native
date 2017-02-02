@@ -1,5 +1,7 @@
 #include "include/private/dvr/buffer_hub_queue_core.h"
 
+#include <log/log.h>
+
 namespace android {
 namespace dvr {
 
@@ -14,9 +16,9 @@ std::shared_ptr<BufferHubQueueCore> BufferHubQueueCore::Create() {
 std::shared_ptr<BufferHubQueueCore> BufferHubQueueCore::Create(
     const std::shared_ptr<ProducerQueue>& producer) {
   if (producer->metadata_size() != sizeof(BufferMetadata)) {
-    LOG(ERROR)
-        << "BufferHubQueueCore::Create producer's metadata size is "
-        << "different than the size of BufferHubQueueCore::BufferMetadata";
+    ALOGE(
+        "BufferHubQueueCore::Create producer's metadata size is different than "
+        "the size of BufferHubQueueCore::BufferMetadata");
     return nullptr;
   }
 
@@ -39,18 +41,18 @@ status_t BufferHubQueueCore::AllocateBuffer(uint32_t width, uint32_t height,
   // bookkeeping.
   if (producer_->AllocateBuffer(width, height, format, usage, slice_count,
                                 &slot) < 0) {
-    LOG(ERROR) << "Failed to allocate new buffer in BufferHub.";
+    ALOGE("Failed to allocate new buffer in BufferHub.");
     return NO_MEMORY;
   }
 
   auto buffer_producer = producer_->GetBuffer(slot);
 
-  CHECK(buffer_producer != nullptr) << "Failed to get buffer producer at slot: "
-                                    << slot;
+  LOG_ALWAYS_FATAL_IF(buffer_producer == nullptr,
+                      "Failed to get buffer producer at slot: %zu", slot);
 
   // Allocating a new buffer, |buffers_[slot]| should be in initial state.
-  CHECK(buffers_[slot].mGraphicBuffer == nullptr) << "AllocateBuffer: slot "
-                                                  << slot << " is not empty.";
+  LOG_ALWAYS_FATAL_IF(buffers_[slot].mGraphicBuffer != nullptr,
+                      "AllocateBuffer: slot %zu is not empty.", slot);
 
   // Create new GraphicBuffer based on the newly created |buffer_producer|. Here
   // we have to cast |buffer_handle_t| to |native_handle_t|, it's OK because
@@ -65,8 +67,8 @@ status_t BufferHubQueueCore::AllocateBuffer(uint32_t width, uint32_t height,
       const_cast<native_handle_t*>(buffer_producer->buffer()->handle()),
       false));
 
-  CHECK_EQ(NO_ERROR, graphic_buffer->initCheck())
-      << "Failed to init GraphicBuffer.";
+  LOG_ALWAYS_FATAL_IF(NO_ERROR != graphic_buffer->initCheck(),
+                      "Failed to init GraphicBuffer.");
   buffers_[slot].mBufferProducer = buffer_producer;
   buffers_[slot].mGraphicBuffer = graphic_buffer;
 
@@ -77,8 +79,8 @@ status_t BufferHubQueueCore::DetachBuffer(size_t slot) {
   // Detach the buffer producer via BufferHubRPC.
   int ret = producer_->DetachBuffer(slot);
   if (ret < 0) {
-    LOG(ERROR) << "BufferHubQueueCore::DetachBuffer failed through RPC, ret="
-               << strerror(-ret);
+    ALOGE("BufferHubQueueCore::DetachBuffer failed through RPC, ret=%s",
+          strerror(-ret));
     return ret;
   }
 

@@ -11,8 +11,7 @@
 
 #include <string>
 
-#include <base/logging.h>
-#include <base/strings/string_number_conversions.h>
+#include <log/log.h>
 #include <private/dvr/debug.h>
 #include <private/dvr/graphics/egl_image.h>
 #include <private/dvr/graphics/shader_program.h>
@@ -78,7 +77,7 @@ Blur::Blur(int w, int h, GLuint source_texture, GLint source_texture_target,
       width_(w),
       height_(h),
       fbo_q_free_(1 + num_blur_outputs) {
-  CHECK(num_blur_outputs > 0);
+  LOG_ALWAYS_FATAL_IF(num_blur_outputs <= 0);
   source_fbo_ =
       CreateFbo(w, h, source_texture, source_texture_target, is_external);
   fbo_half_ = CreateFbo(w / 2, h / 2, 0, target_texture_target, is_external);
@@ -113,7 +112,7 @@ void Blur::StartFrame() {
 }
 
 GLuint Blur::DrawBlur(GLuint source_texture) {
-  CHECK(fbo_q_free_.GetSize() >= 2);
+  LOG_ALWAYS_FATAL_IF(fbo_q_free_.GetSize() < 2);
 
   // Downsample to half w x half h.
   glBindFramebuffer(GL_READ_FRAMEBUFFER, source_fbo_.fbo);

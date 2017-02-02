@@ -25,7 +25,6 @@ includeFiles := \
 
 staticLibraries := \
 	libbufferhub \
-	libchrome \
 	libdvrcommon \
 	libpdx_default_transport \
 

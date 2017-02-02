@@ -1,6 +1,6 @@
 #include "include/private/dvr/graphics/gpu_profiler.h"
 
-#include <cutils/log.h>
+#include <log/log.h>
 
 #include <private/dvr/clock_ns.h>
 

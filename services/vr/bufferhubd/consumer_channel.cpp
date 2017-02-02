@@ -1,6 +1,6 @@
 #include "consumer_channel.h"
 
-#include <cutils/log.h>
+#include <log/log.h>
 #include <utils/Trace.h>
 
 #include <thread>

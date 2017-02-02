@@ -39,7 +39,6 @@ sharedLibraries := \
 	libvulkan
 
 staticLibraries := \
-	libchrome \
 	libdisplay \
 	libdvrcommon \
 	libdvrgraphics \

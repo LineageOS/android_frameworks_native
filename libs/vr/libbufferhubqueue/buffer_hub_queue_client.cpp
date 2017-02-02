@@ -1,6 +1,7 @@
 #include "include/private/dvr/buffer_hub_queue_client.h"
 
-#include <base/logging.h>
+#include <inttypes.h>
+#include <log/log.h>
 #include <sys/epoll.h>
 
 #include <array>
@@ -43,8 +44,8 @@ BufferHubQueue::BufferHubQueue(const std::string& endpoint_path,
 void BufferHubQueue::Initialize() {
   int ret = epoll_fd_.Create();
   if (ret < 0) {
-    LOG(ERROR) << "BufferHubQueue::BufferHubQueue: Failed to create epoll fd:"
-               << strerror(-ret);
+    ALOGE("BufferHubQueue::BufferHubQueue: Failed to create epoll fd: %s",
+          strerror(-ret));
     return;
   }
 
@@ -53,8 +54,8 @@ void BufferHubQueue::Initialize() {
                                     BufferHubQueue::kEpollQueueEventIndex)}};
   ret = epoll_fd_.Control(EPOLL_CTL_ADD, event_fd(), &event);
   if (ret < 0) {
-    LOG(ERROR) << "Failed to register ConsumerQueue into epoll event: "
-               << strerror(-ret);
+    ALOGE("Failed to register ConsumerQueue into epoll event: %s",
+          strerror(-ret));
   }
 }
 
@@ -63,13 +64,13 @@ std::unique_ptr<ConsumerQueue> BufferHubQueue::CreateConsumerQueue() {
       InvokeRemoteMethod<BufferHubRPC::CreateConsumerQueue>();
 
   if (!status) {
-    LOG(ERROR) << "Cannot create ConsumerQueue: " << status.GetErrorMessage();
+    ALOGE("Cannot create ConsumerQueue: %s", status.GetErrorMessage().c_str());
     return nullptr;
   }
 
   auto return_value = status.take();
 
-  VLOG(1) << "CreateConsumerQueue: meta_size_bytes=" << return_value.second;
+  ALOGD("CreateConsumerQueue: meta_size_bytes=%zu", return_value.second);
   return ConsumerQueue::Create(std::move(return_value.first),
                                return_value.second);
 }
@@ -81,12 +82,12 @@ bool BufferHubQueue::WaitForBuffers(int timeout) {
     int ret = epoll_fd_.Wait(events.data(), events.size(), timeout);
 
     if (ret == 0) {
-      VLOG(1) << "Wait on epoll returns nothing before timeout.";
+      ALOGD("Wait on epoll returns nothing before timeout.");
       return false;
     }
 
     if (ret < 0 && ret != -EINTR) {
-      LOG(ERROR) << "Failed to wait for buffers:" << strerror(-ret);
+      ALOGE("Failed to wait for buffers: %s", strerror(-ret));
       return false;
     }
 
@@ -98,13 +99,13 @@ bool BufferHubQueue::WaitForBuffers(int timeout) {
     for (int i = 0; i < num_events; i++) {
       int64_t index = static_cast<int64_t>(events[i].data.u64);
 
-      VLOG(1) << "New BufferHubQueue event " << i << ": index=" << index;
+      ALOGD("New BufferHubQueue event %d: index=%" PRId64, i, index);
 
       if (is_buffer_event_index(index) && (events[i].events & EPOLLIN)) {
         auto buffer = buffers_[index];
         ret = OnBufferReady(buffer);
         if (ret < 0) {
-          LOG(ERROR) << "Failed to set buffer ready:" << strerror(-ret);
+          ALOGE("Failed to set buffer ready: %s", strerror(-ret));
           continue;
         }
         Enqueue(buffer, index);
@@ -113,18 +114,18 @@ bool BufferHubQueue::WaitForBuffers(int timeout) {
         // This maybe caused by producer replacing an exising buffer slot.
         // Currently the epoll FD is cleaned up when the replacement consumer
         // client is imported.
-        LOG(WARNING) << "Receives EPOLLHUP at slot: " << index;
+        ALOGW("Receives EPOLLHUP at slot: %" PRId64, index);
       } else if (is_queue_event_index(index) && (events[i].events & EPOLLIN)) {
         // Note that after buffer imports, if |count()| still returns 0, epoll
         // wait will be tried again to acquire the newly imported buffer.
         ret = OnBufferAllocated();
         if (ret < 0) {
-          LOG(ERROR) << "Failed to import buffer:" << strerror(-ret);
+          ALOGE("Failed to import buffer: %s", strerror(-ret));
           continue;
         }
       } else {
-        LOG(WARNING) << "Unknown event " << i << ": u64=" << index
-                     << ": events=" << events[i].events;
+        ALOGW("Unknown event %d: u64=%" PRId64 ": events=%" PRIu32, i, index,
+              events[i].events);
       }
     }
   }
@@ -137,8 +138,8 @@ int BufferHubQueue::AddBuffer(const std::shared_ptr<BufferHubBuffer>& buf,
   if (is_full()) {
     // TODO(jwcai) Move the check into Producer's AllocateBuffer and consumer's
     // import buffer.
-    LOG(ERROR) << "BufferHubQueue::AddBuffer queue is at maximum capacity: "
-               << capacity_;
+    ALOGE("BufferHubQueue::AddBuffer queue is at maximum capacity: %zu",
+          capacity_);
     return -E2BIG;
   }
 
@@ -152,9 +153,8 @@ int BufferHubQueue::AddBuffer(const std::shared_ptr<BufferHubBuffer>& buf,
   epoll_event event = {.events = EPOLLIN | EPOLLET, .data = {.u64 = slot}};
   const int ret = epoll_fd_.Control(EPOLL_CTL_ADD, buf->event_fd(), &event);
   if (ret < 0) {
-    LOG(ERROR)
-        << "BufferHubQueue::AddBuffer: Failed to add buffer to epoll set:"
-        << strerror(-ret);
+    ALOGE("BufferHubQueue::AddBuffer: Failed to add buffer to epoll set: %s",
+          strerror(-ret));
     return ret;
   }
 
@@ -166,15 +166,16 @@ int BufferHubQueue::AddBuffer(const std::shared_ptr<BufferHubBuffer>& buf,
 int BufferHubQueue::DetachBuffer(size_t slot) {
   auto& buf = buffers_[slot];
   if (buf == nullptr) {
-    LOG(ERROR) << "BufferHubQueue::DetachBuffer: Invalid slot: " << slot;
+    ALOGE("BufferHubQueue::DetachBuffer: Invalid slot: %zu", slot);
     return -EINVAL;
   }
 
   const int ret = epoll_fd_.Control(EPOLL_CTL_DEL, buf->event_fd(), nullptr);
   if (ret < 0) {
-    LOG(ERROR) << "BufferHubQueue::DetachBuffer: Failed to detach buffer from  "
-                  "epoll set:"
-               << strerror(-ret);
+    ALOGE(
+        "BufferHubQueue::DetachBuffer: Failed to detach buffer from epoll set: "
+        "%s",
+        strerror(-ret));
     return ret;
   }
 
@@ -186,7 +187,7 @@ int BufferHubQueue::DetachBuffer(size_t slot) {
 void BufferHubQueue::Enqueue(std::shared_ptr<BufferHubBuffer> buf,
                              size_t slot) {
   if (count() == capacity_) {
-    LOG(ERROR) << "Buffer queue is full!";
+    ALOGE("Buffer queue is full!");
     return;
   }
 
@@ -206,7 +207,7 @@ void BufferHubQueue::Enqueue(std::shared_ptr<BufferHubBuffer> buf,
 std::shared_ptr<BufferHubBuffer> BufferHubQueue::Dequeue(int timeout,
                                                          size_t* slot,
                                                          void* meta) {
-  VLOG(1) << "Dequeue: count=" << count() << ", timeout=" << timeout;
+  ALOGD("Dequeue: count=%zu, timeout=%d", count(), timeout);
 
   if (count() == 0 && !WaitForBuffers(timeout))
     return nullptr;
@@ -224,7 +225,7 @@ std::shared_ptr<BufferHubBuffer> BufferHubQueue::Dequeue(int timeout,
   available_buffers_.PopFront();
 
   if (!buf) {
-    LOG(ERROR) << "Dequeue: Buffer to be dequeued is nullptr";
+    ALOGE("Dequeue: Buffer to be dequeued is nullptr");
     return nullptr;
   }
 
@@ -250,9 +251,8 @@ ProducerQueue::ProducerQueue(size_t meta_size, int usage_set_mask,
       meta_size_, usage_set_mask, usage_clear_mask, usage_deny_set_mask,
       usage_deny_clear_mask);
   if (!status) {
-    LOG(ERROR)
-        << "ProducerQueue::ProducerQueue: Failed to create producer queue: %s"
-        << status.GetErrorMessage();
+    ALOGE("ProducerQueue::ProducerQueue: Failed to create producer queue: %s",
+          status.GetErrorMessage().c_str());
     Close(-status.error());
     return;
   }
@@ -261,13 +261,13 @@ ProducerQueue::ProducerQueue(size_t meta_size, int usage_set_mask,
 int ProducerQueue::AllocateBuffer(int width, int height, int format, int usage,
                                   size_t slice_count, size_t* out_slot) {
   if (out_slot == nullptr) {
-    LOG(ERROR) << "Parameter out_slot cannot be null.";
+    ALOGE("Parameter out_slot cannot be null.");
     return -EINVAL;
   }
 
   if (is_full()) {
-    LOG(ERROR) << "ProducerQueue::AllocateBuffer queue is at maximum capacity: "
-               << capacity();
+    ALOGE("ProducerQueue::AllocateBuffer queue is at maximum capacity: %zu",
+          capacity());
     return -E2BIG;
   }
 
@@ -277,21 +277,22 @@ int ProducerQueue::AllocateBuffer(int width, int height, int format, int usage,
       InvokeRemoteMethod<BufferHubRPC::ProducerQueueAllocateBuffers>(
           width, height, format, usage, slice_count, kBufferCount);
   if (!status) {
-    LOG(ERROR) << "ProducerQueue::AllocateBuffer failed to create producer "
-                  "buffer through BufferHub.";
+    ALOGE(
+        "ProducerQueue::AllocateBuffer failed to create producer buffer "
+        "through BufferHub.");
     return -status.error();
   }
 
   auto buffer_handle_slots = status.take();
-  CHECK_EQ(buffer_handle_slots.size(), kBufferCount)
-      << "BufferHubRPC::ProducerQueueAllocateBuffers should return one and "
-         "only one buffer handle.";
+  LOG_ALWAYS_FATAL_IF(buffer_handle_slots.size() != kBufferCount,
+                      "BufferHubRPC::ProducerQueueAllocateBuffers should "
+                      "return one and only one buffer handle.");
 
   // We only allocate one buffer at a time.
   auto& buffer_handle = buffer_handle_slots[0].first;
   size_t buffer_slot = buffer_handle_slots[0].second;
-  VLOG(1) << "ProducerQueue::AllocateBuffer, new buffer, channel_handle: "
-          << buffer_handle.value();
+  ALOGD("ProducerQueue::AllocateBuffer, new buffer, channel_handle: %d",
+        buffer_handle.value());
 
   *out_slot = buffer_slot;
   return AddBuffer(BufferProducer::Import(std::move(buffer_handle)),
@@ -314,9 +315,10 @@ int ProducerQueue::DetachBuffer(size_t slot) {
   Status<int> status =
       InvokeRemoteMethod<BufferHubRPC::ProducerQueueDetachBuffer>(slot);
   if (!status) {
-    LOG(ERROR) << "ProducerQueue::DetachBuffer failed to detach producer "
-                  "buffer through BufferHub, error: "
-               << status.GetErrorMessage();
+    ALOGE(
+        "ProducerQueue::DetachBuffer failed to detach producer buffer through "
+        "BufferHub, error: %s",
+        status.GetErrorMessage().c_str());
     return -status.error();
   }
 
@@ -344,9 +346,10 @@ int ConsumerQueue::ImportBuffers() {
   Status<std::vector<std::pair<LocalChannelHandle, size_t>>> status =
       InvokeRemoteMethod<BufferHubRPC::ConsumerQueueImportBuffers>();
   if (!status) {
-    LOG(ERROR) << "ConsumerQueue::ImportBuffers failed to import consumer "
-                  "buffer through BufferBub, error: "
-               << status.GetErrorMessage();
+    ALOGE(
+        "ConsumerQueue::ImportBuffers failed to import consumer buffer through "
+        "BufferBub, error: %s",
+        status.GetErrorMessage().c_str());
     return -status.error();
   }
 
@@ -355,15 +358,15 @@ int ConsumerQueue::ImportBuffers() {
 
   auto buffer_handle_slots = status.take();
   for (auto& buffer_handle_slot : buffer_handle_slots) {
-    VLOG(1) << "ConsumerQueue::ImportBuffers, new buffer, buffer_handle: "
-            << buffer_handle_slot.first.value();
+    ALOGD("ConsumerQueue::ImportBuffers, new buffer, buffer_handle: %d",
+          buffer_handle_slot.first.value());
 
     std::unique_ptr<BufferConsumer> buffer_consumer =
         BufferConsumer::Import(std::move(buffer_handle_slot.first));
     int ret = AddBuffer(std::move(buffer_consumer), buffer_handle_slot.second);
     if (ret < 0) {
-      LOG(ERROR) << "ConsumerQueue::ImportBuffers failed to add buffer, ret: "
-                 << strerror(-ret);
+      ALOGE("ConsumerQueue::ImportBuffers failed to add buffer, ret: %s",
+            strerror(-ret));
       last_error = ret;
       continue;
     } else {
@@ -384,9 +387,10 @@ std::shared_ptr<BufferConsumer> ConsumerQueue::Dequeue(int timeout,
                                                        size_t* slot, void* meta,
                                                        size_t meta_size) {
   if (meta_size != meta_size_) {
-    LOG(ERROR) << "metadata size (" << meta_size
-               << ") for the dequeuing buffer does not match metadata size ("
-               << meta_size_ << ") for the queue.";
+    ALOGE(
+        "metadata size (%zu) for the dequeuing buffer does not match metadata "
+        "size (%zu) for the queue.",
+        meta_size, meta_size_);
     return nullptr;
   }
   auto buf = BufferHubQueue::Dequeue(timeout, slot, meta);
@@ -402,11 +406,11 @@ int ConsumerQueue::OnBufferReady(std::shared_ptr<BufferHubBuffer> buf) {
 int ConsumerQueue::OnBufferAllocated() {
   const int ret = ImportBuffers();
   if (ret == 0) {
-    LOG(WARNING) << "No new buffer can be imported on buffer allocated event.";
+    ALOGW("No new buffer can be imported on buffer allocated event.");
   } else if (ret < 0) {
-    LOG(ERROR) << "Failed to import buffers on buffer allocated event.";
+    ALOGE("Failed to import buffers on buffer allocated event.");
   }
-  VLOG(1) << "Imported " << ret << " consumer buffers.";
+  ALOGD("Imported %d consumer buffers.", ret);
   return ret;
 }
 

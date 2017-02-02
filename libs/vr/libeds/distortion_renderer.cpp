@@ -8,7 +8,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #include <utils/Trace.h>
 
-#include <base/logging.h>
+#include <log/log.h>
 #include <private/dvr/clock_ns.h>
 #include <private/dvr/composite_hmd.h>
 #include <private/dvr/debug.h>
@@ -303,12 +303,12 @@ void DistortionRenderer::EdsShader::load(const char* vertex,
     vert_builder += "#define COMPOSITE_LAYER_2\n";
     frag_builder += "#define COMPOSITE_LAYER_2\n";
   } else {
-    CHECK_EQ(num_layers, 1);
+    LOG_ALWAYS_FATAL_IF(num_layers != 1);
   }
   if (blend_with_previous_layer) {
     // Check for unsupported shader combinations:
-    CHECK_EQ(num_layers, 1);
-    CHECK_EQ(use_alpha_vignette, false);
+    LOG_ALWAYS_FATAL_IF(num_layers != 1);
+    LOG_ALWAYS_FATAL_IF(!use_alpha_vignette);
     if (kUseFramebufferReadback)
       frag_builder += "#define BLEND_WITH_PREVIOUS_LAYER\n";
   }
@@ -320,7 +320,7 @@ void DistortionRenderer::EdsShader::load(const char* vertex,
   vert_builder += vertex;
   frag_builder += fragment;
   pgm.Link(vert_builder, frag_builder);
-  CHECK(pgm.IsUsable());
+  LOG_ALWAYS_FATAL_IF(!pgm.IsUsable());
 
   pgm.Use();
 
@@ -343,7 +343,7 @@ void DistortionRenderer::EdsShader::load(const char* vertex,
   projectionMatrix =
       projectionMatrix * Eigen::AngleAxisf(rotation, vec3::UnitZ());
 
-  CHECK(sizeof(mat4) == 4 * 4 * 4);
+  LOG_ALWAYS_FATAL_IF(sizeof(mat4) != 4 * 4 * 4);
   glUniformMatrix4fv(uProjectionMatrix, 1, false, projectionMatrix.data());
 }
 
@@ -367,8 +367,7 @@ DistortionRenderer::DistortionRenderer(
   if (eds_enabled_) {
     // Late latch must be on if eds_enabled_ is true.
     if (!late_latch_enabled) {
-      LOG(ERROR) << "Cannot enable EDS without late latch. "
-                 << "Force enabling late latch.";
+      ALOGE("Cannot enable EDS without late latch. Force enabling late latch.");
       late_latch_enabled = true;
     }
   }
@@ -633,11 +632,11 @@ void DistortionRenderer::DrawEye(EyeType eye, const GLuint* texture_ids,
     PrepGlState(eye);
 
   if (num_textures > kMaxLayers) {
-    LOG(ERROR) << "Too many textures for DistortionRenderer";
+    ALOGE("Too many textures for DistortionRenderer");
     num_textures = kMaxLayers;
   }
 
-  CHECK(num_textures == 1 || num_textures == 2);
+  LOG_ALWAYS_FATAL_IF(num_textures != 1 && num_textures != 2);
 
   if (num_textures == 2) {
     if (chromatic_aberration_correction_enabled_) {
@@ -776,7 +775,7 @@ void DistortionRenderer::RecomputeDistortion(const CompositeHmd& hmd) {
 
 bool DistortionRenderer::GetLastEdsPose(LateLatchOutput* out_data, int layer_id) const {
   if (layer_id >= kMaxLayers) {
-    LOG(ERROR) << "Accessing invalid layer " << layer_id << std::endl;
+    ALOGE("Accessing invalid layer %d", layer_id);
     return false;
   }
 
@@ -784,7 +783,7 @@ bool DistortionRenderer::GetLastEdsPose(LateLatchOutput* out_data, int layer_id)
     late_latch_[layer_id]->CaptureOutputData(out_data);
     return true;
   } else {
-    LOG(ERROR) << "Late latch shader not enabled." << std::endl;
+    ALOGE("Late latch shader not enabled.");
     return false;
   }
 }

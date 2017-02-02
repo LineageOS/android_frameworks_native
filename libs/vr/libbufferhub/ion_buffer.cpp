@@ -1,6 +1,6 @@
 #include <private/dvr/ion_buffer.h>
 
-#include <cutils/log.h>
+#include <log/log.h>
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #include <utils/Trace.h>
 

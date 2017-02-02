@@ -3,9 +3,9 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 
-#include <cutils/log.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
+#include <log/log.h>
 #include <sys/resource.h>
 #include <utils/threads.h>
 

@@ -11,12 +11,12 @@
 #include <sstream>
 #include <type_traits>
 
-#include <cutils/log.h>
 #include <cutils/properties.h>
 #include <cutils/trace.h>
 #include <dvr/performance_client_api.h>
 #include <dvr/pose_client.h>
 #include <hardware/sensors.h>
+#include <log/log.h>
 #include <pdx/default_transport/service_endpoint.h>
 #include <private/dvr/benchmark.h>
 #include <private/dvr/clock_ns.h>

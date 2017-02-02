@@ -1,9 +1,9 @@
 #include "EvdevInjector.h"
 
-#include <cutils/log.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <linux/input.h>
+#include <log/log.h>
 #include <string.h>
 #include <sys/fcntl.h>
 #include <unistd.h>

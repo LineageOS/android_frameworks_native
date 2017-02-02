@@ -1,7 +1,7 @@
 #include <private/dvr/frame_history.h>
 
-#include <cutils/log.h>
 #include <errno.h>
+#include <log/log.h>
 #include <sync/sync.h>
 
 #include <pdx/file_handle.h>

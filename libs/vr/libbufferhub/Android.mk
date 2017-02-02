@@ -23,7 +23,6 @@ includeFiles := \
 	$(LOCAL_PATH)/include
 
 staticLibraries := \
-	libchrome \
 	libdvrcommon \
 	libpdx_default_transport \
 

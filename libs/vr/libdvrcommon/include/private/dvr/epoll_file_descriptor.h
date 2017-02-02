@@ -2,7 +2,7 @@
 #define LIBS_VR_LIBDVRCOMMON_INCLUDE_PRIVATE_DVR_EPOLL_FILE_DESCRIPTOR_H_
 
 #include <android-base/unique_fd.h>
-#include <base/logging.h>
+#include <log/log.h>
 #include <sys/epoll.h>
 
 namespace android {
@@ -24,7 +24,7 @@ class EpollFileDescriptor {
 
   int Create() {
     if (IsValid()) {
-      LOG(WARNING) << "epoll fd has already been created.";
+      ALOGW("epoll fd has already been created.");
       return -EALREADY;
     }
 

@@ -1,7 +1,7 @@
 #define LOG_TAG "SensorClient"
 #include <private/dvr/sensor_client.h>
 
-#include <cutils/log.h>
+#include <log/log.h>
 #include <poll.h>
 
 #include <pdx/default_transport/client_channel_factory.h>

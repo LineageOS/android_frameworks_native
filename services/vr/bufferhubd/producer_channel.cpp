@@ -1,6 +1,6 @@
 #include "producer_channel.h"
 
-#include <cutils/log.h>
+#include <log/log.h>
 #include <sync/sync.h>
 #include <sys/poll.h>
 #include <utils/Trace.h>
@@ -9,7 +9,6 @@
 #include <atomic>
 #include <thread>
 
-#include <base/logging.h>
 #include <private/dvr/bufferhub_rpc.h>
 #include "consumer_channel.h"
 

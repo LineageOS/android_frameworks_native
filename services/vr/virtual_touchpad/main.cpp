@@ -1,7 +1,7 @@
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
-#include <cutils/log.h>
+#include <log/log.h>
 
 #include "VirtualTouchpadService.h"
 

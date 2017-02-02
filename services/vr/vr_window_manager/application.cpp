@@ -1,14 +1,14 @@
 #include "application.h"
 
+#include <EGL/egl.h>
+#include <GLES3/gl3.h>
 #include <binder/IServiceManager.h>
-#include <cutils/log.h>
 #include <dvr/graphics.h>
 #include <dvr/performance_client_api.h>
 #include <dvr/pose_client.h>
-#include <EGL/egl.h>
-#include <GLES3/gl3.h>
 #include <gui/ISurfaceComposer.h>
 #include <hardware/hwcomposer_defs.h>
+#include <log/log.h>
 #include <private/dvr/graphics/vr_gl_extensions.h>
 
 #include <vector>

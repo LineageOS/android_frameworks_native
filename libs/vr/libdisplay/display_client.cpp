@@ -1,7 +1,7 @@
 #include "include/private/dvr/display_client.h"
 
-#include <cutils/log.h>
 #include <cutils/native_handle.h>
+#include <log/log.h>
 #include <pdx/default_transport/client_channel.h>
 #include <pdx/default_transport/client_channel_factory.h>
 #include <pdx/status.h>

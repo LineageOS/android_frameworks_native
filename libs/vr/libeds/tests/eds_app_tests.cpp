@@ -1,7 +1,6 @@
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 
-#include <base/logging.h>
 #include <dvr/graphics.h>
 #include <dvr/pose_client.h>
 #include <gtest/gtest.h>

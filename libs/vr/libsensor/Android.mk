@@ -23,7 +23,6 @@ includeFiles := \
 
 staticLibraries := \
 	libbufferhub \
-	libchrome \
 	libdvrcommon \
 	libpdx_default_transport \
 
@@ -33,7 +32,6 @@ sharedLibraries := \
 	libhardware \
 	liblog \
 	libutils \
-	libevent
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(sourceFiles)

@@ -1,7 +1,7 @@
 #include "sensor_hal_thread.h"
 
-#include <cutils/log.h>
 #include <dvr/performance_client_api.h>
+#include <log/log.h>
 
 namespace android {
 namespace dvr {

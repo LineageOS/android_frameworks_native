@@ -1,6 +1,7 @@
 #include "include/private/dvr/composite_hmd.h"
 
-#include <base/logging.h>
+#include <log/log.h>
+
 #include <private/dvr/numeric.h>
 
 namespace android {
@@ -113,9 +114,9 @@ void CompositeHmd::MetricsChanged() {
   float meters_per_tan_angle = virtual_eye_to_screen_dist;
   vec2 pixels_per_tan_angle = pixels_per_meter * meters_per_tan_angle;
 
-  CHECK_NE(0.0f, display_width_meters);
-  CHECK_NE(0.0f, display_height_meters);
-  CHECK_NE(0.0f, virtual_eye_to_screen_dist);
+  LOG_ALWAYS_FATAL_IF(0.0f == display_width_meters);
+  LOG_ALWAYS_FATAL_IF(0.0f == display_height_meters);
+  LOG_ALWAYS_FATAL_IF(0.0f == virtual_eye_to_screen_dist);
 
   // Height of lenses from the bottom of the screen.
   float lens_y_center = 0;

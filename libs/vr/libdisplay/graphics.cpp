@@ -1,10 +1,11 @@
 #include <dvr/graphics.h>
 
+#include <inttypes.h>
 #include <sys/timerfd.h>
 #include <array>
 #include <vector>
 
-#include <cutils/log.h>
+#include <log/log.h>
 #include <utils/Trace.h>
 
 #ifndef VK_USE_PLATFORM_ANDROID_KHR
@@ -372,8 +373,8 @@ std::shared_ptr<android::dvr::DisplaySurfaceClient> CreateDisplaySurfaceClient(
       case DVR_SURFACE_PARAMETER_VK_SWAPCHAIN_IMAGE_FORMAT_OUT:
         break;
       default:
-        ALOGE("Invalid display surface parameter: key=%d value=%ld", p->key,
-              p->value);
+        ALOGE("Invalid display surface parameter: key=%d value=%" PRId64,
+              p->key, p->value);
         return nullptr;
     }
   }
@@ -583,7 +584,8 @@ struct DvrGraphicsContext : public android::ANativeObjectBase<
   static int LockBuffer_DEPRECATED(ANativeWindow* window,
                                    ANativeWindowBuffer* buffer);
 
-  DISALLOW_COPY_AND_ASSIGN(DvrGraphicsContext);
+  DvrGraphicsContext(const DvrGraphicsContext&) = delete;
+  void operator=(const DvrGraphicsContext&) = delete;
 };
 
 DvrGraphicsContext::DvrGraphicsContext()
@@ -743,8 +745,8 @@ int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
     // so that anyone who tries to bind an FBO to context->texture_id
     // will not get an incomplete buffer.
     context->current_buffer = context->buffer_queue->Dequeue();
-    CHECK(context->gl.texture_count ==
-          context->current_buffer->buffer()->slice_count());
+    LOG_ALWAYS_FATAL_IF(context->gl.texture_count !=
+                        context->current_buffer->buffer()->slice_count());
     for (int i = 0; i < context->gl.texture_count; ++i) {
       glBindTexture(context->gl.texture_target_type, context->gl.texture_id[i]);
       glEGLImageTargetTexture2DOES(context->gl.texture_target_type,
@@ -794,12 +796,12 @@ int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
     result = vkCreateAndroidSurfaceKHR(
         context->vk.instance, &android_surface_ci,
         context->vk.allocation_callbacks, &context->vk.surface);
-    CHECK_EQ(result, VK_SUCCESS);
+    LOG_ALWAYS_FATAL_IF(result != VK_SUCCESS);
     VkBool32 surface_supports_present = VK_FALSE;
     result = vkGetPhysicalDeviceSurfaceSupportKHR(
         context->vk.physical_device, context->vk.present_queue_family,
         context->vk.surface, &surface_supports_present);
-    CHECK_EQ(result, VK_SUCCESS);
+    LOG_ALWAYS_FATAL_IF(result != VK_SUCCESS);
     if (!surface_supports_present) {
       ALOGE("Error: provided queue family (%u) does not support presentation",
             context->vk.present_queue_family);
@@ -809,21 +811,22 @@ int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
     result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
         context->vk.physical_device, context->vk.surface,
         &surface_capabilities);
-    CHECK_EQ(result, VK_SUCCESS);
+    LOG_ALWAYS_FATAL_IF(result != VK_SUCCESS);
     // Determine the swapchain image format.
     uint32_t device_surface_format_count = 0;
     result = vkGetPhysicalDeviceSurfaceFormatsKHR(
         context->vk.physical_device, context->vk.surface,
         &device_surface_format_count, nullptr);
-    CHECK_EQ(result, VK_SUCCESS);
+    LOG_ALWAYS_FATAL_IF(result != VK_SUCCESS);
     std::vector<VkSurfaceFormatKHR> device_surface_formats(
         device_surface_format_count);
     result = vkGetPhysicalDeviceSurfaceFormatsKHR(
         context->vk.physical_device, context->vk.surface,
         &device_surface_format_count, device_surface_formats.data());
-    CHECK_EQ(result, VK_SUCCESS);
-    CHECK_GT(device_surface_format_count, 0U);
-    CHECK_NE(device_surface_formats[0].format, VK_FORMAT_UNDEFINED);
+    LOG_ALWAYS_FATAL_IF(result != VK_SUCCESS);
+    LOG_ALWAYS_FATAL_IF(device_surface_format_count == 0U);
+    LOG_ALWAYS_FATAL_IF(device_surface_formats[0].format ==
+                        VK_FORMAT_UNDEFINED);
     VkSurfaceFormatKHR present_surface_format = device_surface_formats[0];
     // Determine the swapchain present mode.
     // TODO(cort): query device_present_modes to make sure MAILBOX is supported.
@@ -832,19 +835,19 @@ int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
     result = vkGetPhysicalDeviceSurfacePresentModesKHR(
         context->vk.physical_device, context->vk.surface,
         &device_present_mode_count, nullptr);
-    CHECK_EQ(result, VK_SUCCESS);
+    LOG_ALWAYS_FATAL_IF(result != VK_SUCCESS);
     std::vector<VkPresentModeKHR> device_present_modes(
         device_present_mode_count);
     result = vkGetPhysicalDeviceSurfacePresentModesKHR(
         context->vk.physical_device, context->vk.surface,
         &device_present_mode_count, device_present_modes.data());
-    CHECK_EQ(result, VK_SUCCESS);
+    LOG_ALWAYS_FATAL_IF(result != VK_SUCCESS);
     VkPresentModeKHR present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
     // Extract presentation surface extents, image count, transform, usages,
     // etc.
-    LOG_ASSERT(
-        static_cast<int>(surface_capabilities.currentExtent.width) != -1 &&
-        static_cast<int>(surface_capabilities.currentExtent.height) != -1);
+    LOG_ALWAYS_FATAL_IF(
+        static_cast<int>(surface_capabilities.currentExtent.width) == -1 ||
+        static_cast<int>(surface_capabilities.currentExtent.height) == -1);
     VkExtent2D swapchain_extent = surface_capabilities.currentExtent;
 
     uint32_t desired_image_count = surface_capabilities.minImageCount;
@@ -856,8 +859,8 @@ int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
         surface_capabilities.currentTransform;
     VkImageUsageFlags image_usage_flags =
         surface_capabilities.supportedUsageFlags;
-    CHECK_NE(surface_capabilities.supportedCompositeAlpha,
-             static_cast<VkFlags>(0));
+    LOG_ALWAYS_FATAL_IF(surface_capabilities.supportedCompositeAlpha ==
+                        static_cast<VkFlags>(0));
     VkCompositeAlphaFlagBitsKHR composite_alpha =
         VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     if (!(surface_capabilities.supportedCompositeAlpha &
@@ -889,18 +892,18 @@ int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
     result = vkCreateSwapchainKHR(context->vk.device, &swapchain_ci,
                                   context->vk.allocation_callbacks,
                                   &context->vk.swapchain);
-    CHECK_EQ(result, VK_SUCCESS);
+    LOG_ALWAYS_FATAL_IF(result != VK_SUCCESS);
     // Create swapchain image views
     uint32_t image_count = 0;
     result = vkGetSwapchainImagesKHR(context->vk.device, context->vk.swapchain,
                                      &image_count, nullptr);
-    CHECK_EQ(result, VK_SUCCESS);
-    CHECK_GT(image_count, 0U);
+    LOG_ALWAYS_FATAL_IF(result != VK_SUCCESS);
+    LOG_ALWAYS_FATAL_IF(image_count == 0U);
     context->vk.swapchain_images.resize(image_count);
     result = vkGetSwapchainImagesKHR(context->vk.device, context->vk.swapchain,
                                      &image_count,
                                      context->vk.swapchain_images.data());
-    CHECK_EQ(result, VK_SUCCESS);
+    LOG_ALWAYS_FATAL_IF(result != VK_SUCCESS);
     context->vk.swapchain_image_views.resize(image_count);
     VkImageViewCreateInfo image_view_ci = {};
     image_view_ci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -923,7 +926,7 @@ int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
       result = vkCreateImageView(context->vk.device, &image_view_ci,
                                  context->vk.allocation_callbacks,
                                  &context->vk.swapchain_image_views[i]);
-      CHECK_EQ(result, VK_SUCCESS);
+      LOG_ALWAYS_FATAL_IF(result != VK_SUCCESS);
     }
     // Fill in any requested output parameters.
     for (auto p = parameters; p && p->key != DVR_SURFACE_PARAMETER_NONE; ++p) {
@@ -950,7 +953,7 @@ void dvrGraphicsContextDestroy(DvrGraphicsContext* graphics_context) {
 // by the Vulkan path.
 int DvrGraphicsContext::Post(android::dvr::NativeBufferProducer* buffer,
                              int fence_fd) {
-  LOG_ASSERT(graphics_api == DVR_GRAPHICS_API_VULKAN);
+  LOG_ALWAYS_FATAL_IF(graphics_api != DVR_GRAPHICS_API_VULKAN);
   ATRACE_NAME(__PRETTY_FUNCTION__);
   ALOGI_IF(TRACE, "DvrGraphicsContext::Post: buffer_id=%d, fence_fd=%d",
            buffer->buffer()->id(), fence_fd);
@@ -967,7 +970,7 @@ int DvrGraphicsContext::SetSwapInterval(ANativeWindow* window, int interval) {
   ALOGI_IF(TRACE, "SetSwapInterval: window=%p interval=%d", window, interval);
   DvrGraphicsContext* self = getSelf(window);
   (void)self;
-  LOG_ASSERT(self->graphics_api == DVR_GRAPHICS_API_VULKAN);
+  LOG_ALWAYS_FATAL_IF(self->graphics_api != DVR_GRAPHICS_API_VULKAN);
   return android::NO_ERROR;
 }
 
@@ -977,7 +980,7 @@ int DvrGraphicsContext::DequeueBuffer(ANativeWindow* window,
   ATRACE_NAME(__PRETTY_FUNCTION__);
 
   DvrGraphicsContext* self = getSelf(window);
-  LOG_ASSERT(self->graphics_api == DVR_GRAPHICS_API_VULKAN);
+  LOG_ALWAYS_FATAL_IF(self->graphics_api != DVR_GRAPHICS_API_VULKAN);
   std::lock_guard<std::mutex> autolock(self->lock_);
 
   if (!self->current_buffer) {
@@ -997,7 +1000,7 @@ int DvrGraphicsContext::QueueBuffer(ANativeWindow* window,
   ALOGI_IF(TRACE, "NativeWindow::QueueBuffer: fence_fd=%d", fence_fd);
 
   DvrGraphicsContext* self = getSelf(window);
-  LOG_ASSERT(self->graphics_api == DVR_GRAPHICS_API_VULKAN);
+  LOG_ALWAYS_FATAL_IF(self->graphics_api != DVR_GRAPHICS_API_VULKAN);
   std::lock_guard<std::mutex> autolock(self->lock_);
 
   android::dvr::NativeBufferProducer* native_buffer =
@@ -1007,7 +1010,7 @@ int DvrGraphicsContext::QueueBuffer(ANativeWindow* window,
   if (self->buffer_already_posted) {
     // Check that the buffer is the one we expect, but handle it if this happens
     // in production by allowing this buffer to post on top of the previous one.
-    DCHECK(native_buffer == self->current_buffer);
+    LOG_FATAL_IF(native_buffer != self->current_buffer);
     if (native_buffer == self->current_buffer) {
       do_post = false;
       if (fence_fd >= 0)
@@ -1031,7 +1034,7 @@ int DvrGraphicsContext::CancelBuffer(ANativeWindow* window,
   ALOGI_IF(TRACE, "DvrGraphicsContext::CancelBuffer: fence_fd: %d", fence_fd);
 
   DvrGraphicsContext* self = getSelf(window);
-  LOG_ASSERT(self->graphics_api == DVR_GRAPHICS_API_VULKAN);
+  LOG_ALWAYS_FATAL_IF(self->graphics_api != DVR_GRAPHICS_API_VULKAN);
   std::lock_guard<std::mutex> autolock(self->lock_);
 
   android::dvr::NativeBufferProducer* native_buffer =
@@ -1042,7 +1045,7 @@ int DvrGraphicsContext::CancelBuffer(ANativeWindow* window,
   if (self->buffer_already_posted) {
     // Check that the buffer is the one we expect, but handle it if this happens
     // in production by returning this buffer to the buffer queue.
-    DCHECK(native_buffer == self->current_buffer);
+    LOG_FATAL_IF(native_buffer != self->current_buffer);
     if (native_buffer == self->current_buffer) {
       do_enqueue = false;
     }
@@ -1061,7 +1064,7 @@ int DvrGraphicsContext::CancelBuffer(ANativeWindow* window,
 int DvrGraphicsContext::Query(const ANativeWindow* window, int what,
                               int* value) {
   DvrGraphicsContext* self = getSelf(const_cast<ANativeWindow*>(window));
-  LOG_ASSERT(self->graphics_api == DVR_GRAPHICS_API_VULKAN);
+  LOG_ALWAYS_FATAL_IF(self->graphics_api != DVR_GRAPHICS_API_VULKAN);
   std::lock_guard<std::mutex> autolock(self->lock_);
 
   switch (what) {
@@ -1100,7 +1103,7 @@ int DvrGraphicsContext::Query(const ANativeWindow* window, int what,
 
 int DvrGraphicsContext::Perform(ANativeWindow* window, int operation, ...) {
   DvrGraphicsContext* self = getSelf(window);
-  LOG_ASSERT(self->graphics_api == DVR_GRAPHICS_API_VULKAN);
+  LOG_ALWAYS_FATAL_IF(self->graphics_api != DVR_GRAPHICS_API_VULKAN);
   std::lock_guard<std::mutex> autolock(self->lock_);
 
   va_list args;
@@ -1231,7 +1234,7 @@ int dvrBeginRenderFrameEds(DvrGraphicsContext* graphics_context,
                            float32x4_t render_pose_orientation,
                            float32x4_t render_pose_translation) {
   ATRACE_NAME("dvrBeginRenderFrameEds");
-  LOG_ASSERT(graphics_context->graphics_api == DVR_GRAPHICS_API_GLES);
+  LOG_ALWAYS_FATAL_IF(graphics_context->graphics_api != DVR_GRAPHICS_API_GLES);
   CHECK_GL();
   // Grab a buffer from the queue and set its pose.
   if (!graphics_context->current_buffer) {
@@ -1270,7 +1273,8 @@ int dvrBeginRenderFrameEdsVk(DvrGraphicsContext* graphics_context,
                              uint32_t* swapchain_image_index,
                              VkImageView* swapchain_image_view) {
   ATRACE_NAME("dvrBeginRenderFrameEds");
-  LOG_ASSERT(graphics_context->graphics_api == DVR_GRAPHICS_API_VULKAN);
+  LOG_ALWAYS_FATAL_IF(graphics_context->graphics_api !=
+                      DVR_GRAPHICS_API_VULKAN);
 
   // Acquire a swapchain image. This calls Dequeue() internally.
   VkResult result = vkAcquireNextImageKHR(
@@ -1313,7 +1317,7 @@ int dvrBeginRenderFrameLateLatch(DvrGraphicsContext* graphics_context,
     return -EPERM;
   }
   if (num_views > DVR_GRAPHICS_SURFACE_MAX_VIEWS) {
-    LOG(ERROR) << "dvrBeginRenderFrameLateLatch called with too many views.";
+    ALOGE("dvrBeginRenderFrameLateLatch called with too many views.");
     return -EINVAL;
   }
   dvrBeginRenderFrameEds(graphics_context, DVR_POSE_LATE_LATCH,
@@ -1424,7 +1428,7 @@ extern "C" void dvrGraphicsPostEarly(DvrGraphicsContext* graphics_context) {
   ATRACE_NAME("dvrGraphicsPostEarly");
   ALOGI_IF(TRACE, "dvrGraphicsPostEarly");
 
-  LOG_ASSERT(graphics_context->graphics_api == DVR_GRAPHICS_API_GLES);
+  LOG_ALWAYS_FATAL_IF(graphics_context->graphics_api != DVR_GRAPHICS_API_GLES);
 
   // Note that this function can be called before or after
   // dvrBeginRenderFrame.
@@ -1445,7 +1449,7 @@ extern "C" void dvrGraphicsPostEarly(DvrGraphicsContext* graphics_context) {
 }
 
 int dvrPresent(DvrGraphicsContext* graphics_context) {
-  LOG_ASSERT(graphics_context->graphics_api == DVR_GRAPHICS_API_GLES);
+  LOG_ALWAYS_FATAL_IF(graphics_context->graphics_api != DVR_GRAPHICS_API_GLES);
 
   std::array<char, 128> buf;
   snprintf(buf.data(), buf.size(), "dvrPresent|vsync=%d|",
@@ -1482,7 +1486,8 @@ int dvrPresent(DvrGraphicsContext* graphics_context) {
 
 int dvrPresentVk(DvrGraphicsContext* graphics_context,
                  VkSemaphore submit_semaphore, uint32_t swapchain_image_index) {
-  LOG_ASSERT(graphics_context->graphics_api == DVR_GRAPHICS_API_VULKAN);
+  LOG_ALWAYS_FATAL_IF(graphics_context->graphics_api !=
+                      DVR_GRAPHICS_API_VULKAN);
 
   std::array<char, 128> buf;
   snprintf(buf.data(), buf.size(), "dvrPresent|vsync=%d|",
@@ -1549,7 +1554,7 @@ extern "C" DvrVideoMeshSurface* dvrGraphicsVideoMeshSurfaceCreate(
   auto display_surface = graphics_context->display_surface;
   // A DisplaySurface must be created prior to the creation of a
   // VideoMeshSurface.
-  LOG_ASSERT(display_surface != nullptr);
+  LOG_ALWAYS_FATAL_IF(display_surface == nullptr);
 
   LocalChannelHandle surface_handle = display_surface->CreateVideoMeshSurface();
   if (!surface_handle.valid()) {

@@ -6,7 +6,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #include <utils/Trace.h>
 
-#include <base/logging.h>
+#include <log/log.h>
 
 using android::pdx::LocalHandle;
 
@@ -22,14 +22,14 @@ LocalHandle CreateGLSyncAndFlush(EGLDisplay display) {
       eglCreateSyncKHR(display, EGL_SYNC_NATIVE_FENCE_ANDROID, attribs);
   glFlush();
   if (sync_point == EGL_NO_SYNC_KHR) {
-    LOG(ERROR) << "sync_point == EGL_NO_SYNC_KHR";
+    ALOGE("sync_point == EGL_NO_SYNC_KHR");
     return LocalHandle();
   }
   EGLint fence_fd = eglDupNativeFenceFDANDROID(display, sync_point);
   eglDestroySyncKHR(display, sync_point);
 
   if (fence_fd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-    LOG(ERROR) << "fence_fd == EGL_NO_NATIVE_FENCE_FD_ANDROID";
+    ALOGE("fence_fd == EGL_NO_NATIVE_FENCE_FD_ANDROID");
     return LocalHandle();
   }
   return LocalHandle(fence_fd);

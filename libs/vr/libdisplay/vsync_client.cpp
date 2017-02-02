@@ -1,6 +1,6 @@
 #include "include/private/dvr/vsync_client.h"
 
-#include <cutils/log.h>
+#include <log/log.h>
 
 #include <pdx/default_transport/client_channel_factory.h>
 #include <private/dvr/display_rpc.h>

@@ -1,6 +1,6 @@
 #include "buffer_hub.h"
 
-#include <cutils/log.h>
+#include <log/log.h>
 #include <poll.h>
 #include <utils/Trace.h>
 

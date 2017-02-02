@@ -6,7 +6,7 @@
 #include <iostream>
 #include <string>
 
-#include <base/logging.h>
+#include <log/log.h>
 #include <private/dvr/clock_ns.h>
 #include <private/dvr/debug.h>
 #include <private/dvr/graphics/gpu_profiler.h>
@@ -20,7 +20,6 @@
 #ifndef LOG_TAG
 #define LOG_TAG "latelatch"
 #endif
-#include <cutils/log.h>
 
 #define PE(str, ...)                                                  \
   fprintf(stderr, "[%s:%d] " str, __FILE__, __LINE__, ##__VA_ARGS__); \
@@ -268,18 +267,18 @@ LateLatch::LateLatch(bool is_app_late_latch,
   LocalHandle pose_buffer_fd;
   pose_client_ = dvrPoseCreate();
   if (!pose_client_) {
-    LOG(ERROR) << "LateLatch Error: failed to create pose client";
+    ALOGE("LateLatch Error: failed to create pose client");
   } else {
     int ret = privateDvrPoseGetRingBufferFd(pose_client_, &pose_buffer_fd);
     if (ret < 0) {
-      LOG(ERROR) << "LateLatch Error: failed to get pose ring buffer";
+      ALOGE("LateLatch Error: failed to get pose ring buffer");
     }
   }
 
   glGenBuffers(1, &pose_buffer_object_);
   glGenBuffers(1, &metadata_buffer_id_);
   if (!glBindSharedBufferQCOM) {
-    LOG(ERROR) << "Error: Missing gralloc buffer extension, no pose data";
+    ALOGE("Error: Missing gralloc buffer extension, no pose data");
   } else {
     if (pose_buffer_fd) {
       glBindBuffer(GL_SHADER_STORAGE_BUFFER, pose_buffer_object_);
@@ -346,7 +345,7 @@ void LateLatch::CaptureOutputData(LateLatchOutput* data) const {
 }
 
 void LateLatch::AddLateLatch(const LateLatchInput& data) const {
-  CHECK(is_app_late_latch_);
+  LOG_ALWAYS_FATAL_IF(!is_app_late_latch_);
   CHECK_GL();
   late_latch_program_.Use();
 
@@ -361,7 +360,7 @@ void LateLatch::AddLateLatch(const LateLatchInput& data) const {
   if (adata)
     *adata = data;
   else
-    LOG(ERROR) << "Error: LateLatchInput gl mapping is null";
+    ALOGE("Error: LateLatchInput gl mapping is null");
   glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
   glBindBufferBase(GL_SHADER_STORAGE_BUFFER, INPUT_BINDING, input_buffer_id_);
   glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
@@ -410,7 +409,7 @@ void LateLatch::AddLateLatch(const LateLatchInput& data) const {
 
 void LateLatch::AddEdsLateLatch(const LateLatchInput& data,
                                 GLuint render_pose_buffer_object) const {
-  CHECK(!is_app_late_latch_);
+  LOG_ALWAYS_FATAL_IF(is_app_late_latch_);
   late_latch_program_.Use();
 
   // Fall back on internal buffer when none is provided.

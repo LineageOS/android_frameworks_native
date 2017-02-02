@@ -1,7 +1,7 @@
 #include "include/private/dvr/graphics/timer_query.h"
 
 #include <GLES2/gl2ext.h>
-#include <base/logging.h>
+#include <log/log.h>
 
 namespace android {
 namespace dvr {
@@ -38,7 +38,7 @@ SyncTimerQuery::SyncTimerQuery() { timer_.Begin(); }
 
 double SyncTimerQuery::FlushAndGetTimeInMS() {
   if (timer_.query_ == 0) {
-    LOG(ERROR) << "Error: Only call FlushAndGetTimeInMS() once.";
+    ALOGE("Error: Only call FlushAndGetTimeInMS() once.");
     return 0.0;
   }
   timer_.End();
@@ -51,7 +51,7 @@ double SyncTimerQuery::FlushAndGetTimeInMS() {
   GLint disjoint_occurred = 0;
   glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint_occurred);
   if (disjoint_occurred) {
-    LOG(ERROR) << "Disjoint occurred.";
+    ALOGE("Disjoint occurred.");
     timer_.Delete();
     return 0.0;
   }

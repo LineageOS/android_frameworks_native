@@ -1,10 +1,18 @@
 #include <android/native_window.h>
-#include <base/posix/eintr_wrapper.h>
 #include <gtest/gtest.h>
 #include <private/dvr/buffer_hub_client.h>
 
 #include <mutex>
 #include <thread>
+
+#define RETRY_EINTR(fnc_call)                 \
+  ([&]() -> decltype(fnc_call) {              \
+    decltype(fnc_call) result;                \
+    do {                                      \
+      result = (fnc_call);                    \
+    } while (result == -1 && errno == EINTR); \
+    return result;                            \
+  })()
 
 using android::dvr::BufferProducer;
 using android::dvr::BufferConsumer;
@@ -32,27 +40,27 @@ TEST_F(LibBufferHubTest, TestBasicUsage) {
 
   EXPECT_EQ(0, p->Post(LocalHandle(), kContext));
   // Both consumers should be triggered.
-  EXPECT_GE(0, HANDLE_EINTR(p->Poll(0)));
-  EXPECT_LT(0, HANDLE_EINTR(c->Poll(10)));
-  EXPECT_LT(0, HANDLE_EINTR(c2->Poll(10)));
+  EXPECT_GE(0, RETRY_EINTR(p->Poll(0)));
+  EXPECT_LT(0, RETRY_EINTR(c->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(c2->Poll(10)));
 
   uint64_t context;
   LocalHandle fence;
   EXPECT_LE(0, c->Acquire(&fence, &context));
   EXPECT_EQ(kContext, context);
-  EXPECT_GE(0, HANDLE_EINTR(c->Poll(0)));
+  EXPECT_GE(0, RETRY_EINTR(c->Poll(0)));
 
   EXPECT_LE(0, c2->Acquire(&fence, &context));
   EXPECT_EQ(kContext, context);
-  EXPECT_GE(0, HANDLE_EINTR(c2->Poll(0)));
+  EXPECT_GE(0, RETRY_EINTR(c2->Poll(0)));
 
   EXPECT_EQ(0, c->Release(LocalHandle()));
-  EXPECT_GE(0, HANDLE_EINTR(p->Poll(0)));
+  EXPECT_GE(0, RETRY_EINTR(p->Poll(0)));
   EXPECT_EQ(0, c2->Discard());
 
-  EXPECT_LE(0, HANDLE_EINTR(p->Poll(0)));
+  EXPECT_LE(0, RETRY_EINTR(p->Poll(0)));
   EXPECT_EQ(0, p->Gain(&fence));
-  EXPECT_GE(0, HANDLE_EINTR(p->Poll(0)));
+  EXPECT_GE(0, RETRY_EINTR(p->Poll(0)));
 }
 
 TEST_F(LibBufferHubTest, TestWithCustomMetadata) {
@@ -69,7 +77,7 @@ TEST_F(LibBufferHubTest, TestWithCustomMetadata) {
 
   Metadata m = {1, 3};
   EXPECT_EQ(0, p->Post(LocalHandle(), m));
-  EXPECT_LE(0, HANDLE_EINTR(c->Poll(10)));
+  EXPECT_LE(0, RETRY_EINTR(c->Poll(10)));
 
   LocalHandle fence;
   Metadata m2 = {};
@@ -78,7 +86,7 @@ TEST_F(LibBufferHubTest, TestWithCustomMetadata) {
   EXPECT_EQ(m.field2, m2.field2);
 
   EXPECT_EQ(0, c->Release(LocalHandle()));
-  EXPECT_LT(0, HANDLE_EINTR(p->Poll(0)));
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(0)));
 }
 
 TEST_F(LibBufferHubTest, TestPostWithWrongMetaSize) {
@@ -95,7 +103,7 @@ TEST_F(LibBufferHubTest, TestPostWithWrongMetaSize) {
 
   int64_t sequence = 3;
   EXPECT_NE(0, p->Post(LocalHandle(), sequence));
-  EXPECT_GE(0, HANDLE_EINTR(c->Poll(10)));
+  EXPECT_GE(0, RETRY_EINTR(c->Poll(10)));
 }
 
 TEST_F(LibBufferHubTest, TestAcquireWithWrongMetaSize) {

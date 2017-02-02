@@ -1,7 +1,7 @@
 #include "include/private/dvr/lucid_pose_tracker.h"
 
 #define LOG_TAG "LucidPoseTracker"
-#include <cutils/log.h>
+#include <log/log.h>
 
 #include <private/dvr/clock_ns.h>
 

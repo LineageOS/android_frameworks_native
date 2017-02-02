@@ -1,9 +1,9 @@
 #include "sensor_service.h"
 
-#include <cutils/log.h>
 #include <hardware/sensors.h>
-#include <poll.h>
+#include <log/log.h>
 #include <pdx/default_transport/service_endpoint.h>
+#include <poll.h>
 #include <private/dvr/sensor-ipc.h>
 #include <time.h>
 

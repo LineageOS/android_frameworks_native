@@ -1,8 +1,8 @@
 #include "VirtualTouchpadService.h"
 
 #include <binder/Status.h>
-#include <cutils/log.h>
 #include <linux/input.h>
+#include <log/log.h>
 #include <utils/Errors.h>
 
 namespace android {

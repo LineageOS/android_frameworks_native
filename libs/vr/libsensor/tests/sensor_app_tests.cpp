@@ -2,10 +2,10 @@
 #include <GLES2/gl2.h>
 #include <math.h>
 
-#include <base/logging.h>
 #include <dvr/graphics.h>
 #include <dvr/pose_client.h>
 #include <gtest/gtest.h>
+#include <log/log.h>
 #include <private/dvr/types.h>
 
 using android::dvr::vec4;
@@ -63,9 +63,9 @@ TEST(SensorAppTests, GetPose) {
     // startup anomalies.
     if (i > 0) {
       if (last_vsync_count == schedule.vsync_count)
-        LOG(ERROR) << "vsync did not increment: " << schedule.vsync_count;
+        ALOGE("vsync did not increment: %u", schedule.vsync_count);
       if (pose.timestamp_ns == last_pose.timestamp_ns)
-        LOG(ERROR) << "timestamp did not change: " << pose.timestamp_ns;
+        ALOGE("timestamp did not change: %" PRIu64, pose.timestamp_ns);
       // TODO(jbates) figure out why the bots are not passing this check.
       // EXPECT_NE(last_vsync_count, schedule.vsync_count);
       // EXPECT_NE(pose.timestamp_ns, last_pose.timestamp_ns);
@@ -112,9 +112,9 @@ TEST(SensorAppTests, PoseRingBuffer) {
     // startup anomalies.
     if (i > 0) {
       if (last_vsync_count == schedule.vsync_count)
-        LOG(ERROR) << "vsync did not increment: " << schedule.vsync_count;
+        ALOGE("vsync did not increment: %u", schedule.vsync_count);
       if (pose.timestamp_ns == last_pose.timestamp_ns)
-        LOG(ERROR) << "timestamp did not change: " << pose.timestamp_ns;
+        ALOGE("timestamp did not change: %" PRIu64, pose.timestamp_ns);
       // TODO(jbates) figure out why the bots are not passing this check.
       // EXPECT_NE(last_vsync_count, schedule.vsync_count);
       // EXPECT_NE(pose.timestamp_ns, last_pose.timestamp_ns);

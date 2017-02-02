@@ -1,7 +1,6 @@
 #include <EGL/egl.h>
 
 #include <android/native_window.h>
-#include <base/logging.h>
 #include <cutils/native_handle.h>
 #include <errno.h>
 #include <pthread.h>
@@ -17,7 +16,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #include <utils/Trace.h>
 
-#include <cutils/log.h>
+#include <log/log.h>
 
 #include <memory>
 #include <mutex>
@@ -177,7 +176,7 @@ int NativeWindow::QueueBuffer(ANativeWindow* window,
   if (self->next_buffer_already_posted_) {
     // Check that the buffer is the one we expect, but handle it if this happens
     // in production by allowing this buffer to post on top of the previous one.
-    DCHECK(native_buffer == self->next_post_buffer_.get());
+    LOG_FATAL_IF(native_buffer != self->next_post_buffer_.get());
     if (native_buffer == self->next_post_buffer_.get()) {
       do_post = false;
       if (fence_fd >= 0)
@@ -210,7 +209,7 @@ int NativeWindow::CancelBuffer(ANativeWindow* window,
   if (self->next_buffer_already_posted_) {
     // Check that the buffer is the one we expect, but handle it if this happens
     // in production by returning this buffer to the buffer queue.
-    DCHECK(native_buffer == self->next_post_buffer_.get());
+    LOG_FATAL_IF(native_buffer != self->next_post_buffer_.get());
     if (native_buffer == self->next_post_buffer_.get()) {
       do_enqueue = false;
     }

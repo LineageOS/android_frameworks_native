@@ -32,7 +32,6 @@ staticLibraries := \
 	libperformance \
 	libbufferhub \
 	libpdx_default_transport \
-	libchrome \
 	libposepredictor \
 
 sharedLibraries := \

@@ -49,7 +49,6 @@ sharedLibraries := \
 	libsync
 
 staticLibraries := \
-	libchrome \
 	libbufferhub \
 	libbufferhubqueue \
 	libdvrcommon \

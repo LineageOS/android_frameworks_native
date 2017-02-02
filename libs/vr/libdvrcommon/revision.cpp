@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <base/logging.h>
+#include <log/log.h>
 
 #include "revision_path.h"
 
@@ -74,16 +74,16 @@ static void process_product_revision() {
 
   fd = open(dvr_product_revision_file_path(), O_RDONLY);
   if (fd < 0) {
-    PLOG(ERROR) << "Could not open '" << dvr_product_revision_file_path()
-                << "' to get product revision";
+    ALOGE("Could not open '%s' to get product revision: %s",
+          dvr_product_revision_file_path(), strerror(errno));
     global_product_revision_processed = true;
     return;
   }
 
   read_rc = read(fd, global_product_revision_str, kProductRevisionStringSize);
   if (read_rc <= 0) {
-    PLOG(ERROR) << "Could not read from '" << dvr_product_revision_file_path()
-                << "'";
+    ALOGE("Could not read from '%s': %s", dvr_product_revision_file_path(),
+          strerror(errno));
     global_product_revision_processed = true;
     return;
   }
@@ -102,8 +102,8 @@ static void process_product_revision() {
     global_product = product_revision->product;
     global_revision = product_revision->revision;
   } else {
-    LOG(ERROR) << "Unable to match '" << global_product_revision_str
-               << "' to a product/revision.";
+    ALOGE("Unable to match '%s' to a product/revision.",
+          global_product_revision_str);
   }
 
   global_product_revision_processed = true;
