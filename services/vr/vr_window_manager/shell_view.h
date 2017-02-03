@@ -14,6 +14,12 @@
 namespace android {
 namespace dvr {
 
+enum class ViewMode {
+  Hidden,
+  VR,
+  App,
+};
+
 class ShellView : public Application, public HwcCallback::Client {
  public:
   ShellView();
@@ -64,6 +70,8 @@ class ShellView : public Application, public HwcCallback::Client {
   std::unique_ptr<ShaderProgram> overlay_program_;
   std::unique_ptr<ShaderProgram> controller_program_;
 
+  ViewMode view_mode_ = ViewMode::Hidden;
+
   uint32_t current_vr_app_;
 
   // Used to center the scene when the shell becomes visible.
@@ -92,7 +100,7 @@ class ShellView : public Application, public HwcCallback::Client {
 
   struct PendingFrame {
     PendingFrame() = default;
-    PendingFrame(std::unique_ptr<HwcCallback::Frame>&& frame, bool visibility)
+    PendingFrame(std::unique_ptr<HwcCallback::Frame>&& frame, ViewMode visibility)
         : frame(std::move(frame)), visibility(visibility) {}
     PendingFrame(PendingFrame&& r)
         : frame(std::move(r.frame)), visibility(r.visibility) {}
@@ -103,7 +111,7 @@ class ShellView : public Application, public HwcCallback::Client {
     }
 
     std::unique_ptr<HwcCallback::Frame> frame;
-    bool visibility = false;
+    ViewMode visibility = ViewMode::Hidden;
   };
   std::deque<PendingFrame> pending_frames_;
   std::mutex pending_frame_mutex_;

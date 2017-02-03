@@ -38,13 +38,13 @@ bool SurfaceFlingerView::Initialize(HwcCallback::Client *client) {
 bool SurfaceFlingerView::GetTextures(const HwcCallback::Frame& frame,
                                      std::vector<TextureLayer>* texture_layers,
                                      TextureLayer* ime_layer,
-                                     bool debug) const {
+                                     bool debug, bool skip_first_layer) const {
   auto& layers = frame.layers();
   texture_layers->clear();
 
   size_t start = 0;
   // Skip the second layer if it is from the VR app.
-  if (!debug) {
+  if (!debug && skip_first_layer) {
     start = 1;
     if (layers[0].appid && layers[0].appid == layers[1].appid)
       start = 2;

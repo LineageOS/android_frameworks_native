@@ -194,16 +194,22 @@ quat FromGvrQuatf(const gvr_quatf& quaternion) {
 }
 
 // Determine if ths frame should be shown or hidden.
-bool CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
-                                        uint32_t vr_app) {
+ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
+                                            uint32_t vr_app) {
   auto& layers = frame.layers();
 
   // We assume the first two layers are the VR app.
   if (layers.size() < kVRAppLayerCount)
-    return false;
+    return ViewMode::Hidden;
 
-  if (vr_app != layers[0].appid || layers[0].appid == 0)
-    return false;
+  if (vr_app != layers[0].appid || layers[0].appid == 0 ||
+      layers[1].appid != layers[0].appid) {
+    if (layers[1].appid != layers[0].appid && layers[0].appid) {
+      // This might be a 2D app.
+      return ViewMode::App;
+    }
+    return ViewMode::Hidden;
+  }
 
   // If a non-VR-app, non-skipped layer appears, show.
   size_t index = kVRAppLayerCount;
@@ -219,10 +225,11 @@ bool CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
   // If any non-skipped layers exist now then we show, otherwise hide.
   for (size_t i = index; i < layers.size(); i++) {
     if (!layers[i].should_skip_layer())
-      return true;
+      return ViewMode::VR;
   }
-  return false;
+  return ViewMode::Hidden;
 }
+
 
 }  // namespace
 
@@ -308,7 +315,7 @@ void ShellView::OnDrawFrame() {
     if (!pending_frames_.empty()) {
       // Check if we should advance the frame.
       auto& frame = pending_frames_.front();
-      if (!frame.visibility ||
+      if (frame.visibility == ViewMode::Hidden ||
           frame.frame->Finish() == HwcCallback::FrameStatus::kFinished) {
         current_frame_ = std::move(frame);
         pending_frames_.pop_front();
@@ -316,17 +323,20 @@ void ShellView::OnDrawFrame() {
     }
   }
 
-  if (!debug_mode_ && current_frame_.visibility != is_visible_) {
-    SetVisibility(current_frame_.visibility);
+  bool visible = current_frame_.visibility != ViewMode::Hidden;
+
+  if (!debug_mode_ && visible != is_visible_) {
+    SetVisibility(current_frame_.visibility != ViewMode::Hidden);
   }
 
-  if (!current_frame_.visibility)
+  if (!visible)
     return;
 
   ime_texture_ = TextureLayer();
 
   surface_flinger_view_->GetTextures(*current_frame_.frame.get(), &textures_,
-                                     &ime_texture_, debug_mode_);
+                                     &ime_texture_, debug_mode_,
+                                     view_mode_ == ViewMode::VR);
   has_ime_ = ime_texture_.texture != nullptr;
 }
 
@@ -373,14 +383,17 @@ void ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
   if (!frame || frame->layers().empty())
     return;
 
-  bool visibility = debug_mode_ || CalculateVisibilityFromLayerConfig(
-                                       *frame.get(), current_vr_app_);
+  ViewMode visibility =
+      CalculateVisibilityFromLayerConfig(*frame.get(), current_vr_app_);
+
+  if (visibility == ViewMode::Hidden && debug_mode_)
+    visibility = ViewMode::VR;
   current_vr_app_ = frame->layers().front().appid;
 
   // If we are not showing the frame there's no need to keep anything around.
-  if (!visibility) {
+  if (visibility == ViewMode::Hidden) {
     // Hidden, no change so drop it completely
-    if (!current_frame_.visibility)
+    if (current_frame_.visibility == ViewMode::Hidden)
       return;
 
     frame.reset(nullptr);
@@ -395,7 +408,7 @@ void ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
 
   // If we are showing ourselves the main thread is not processing anything,
   // so give it a kick.
-  if (visibility && !current_frame_.visibility) {
+  if (visibility != ViewMode::Hidden && current_frame_.visibility == ViewMode::Hidden) {
     QueueTask(MainThreadTask::EnteringVrMode);
     QueueTask(MainThreadTask::Show);
   }
