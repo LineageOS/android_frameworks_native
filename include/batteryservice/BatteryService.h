@@ -26,13 +26,15 @@ namespace android {
 
 #include "BatteryServiceConstants.h"
 
-// must be kept in sync with definitions in BatteryProperty.java
+// must be kept in sync with definitions in
+// frameworks/base/core/java/android/os/BatteryManager.java
 enum {
-    BATTERY_PROP_CHARGE_COUNTER = 1, // equals BatteryProperty.CHARGE_COUNTER constant
-    BATTERY_PROP_CURRENT_NOW = 2, // equals BatteryProperty.CURRENT_NOW constant
-    BATTERY_PROP_CURRENT_AVG = 3, // equals BatteryProperty.CURRENT_AVG constant
-    BATTERY_PROP_CAPACITY = 4, // equals BatteryProperty.CAPACITY constant
-    BATTERY_PROP_ENERGY_COUNTER = 5, // equals BatteryProperty.ENERGY_COUNTER constant
+    BATTERY_PROP_CHARGE_COUNTER = 1, // equals BATTERY_PROPERTY_CHARGE_COUNTER
+    BATTERY_PROP_CURRENT_NOW = 2, // equals BATTERY_PROPERTY_CURRENT_NOW
+    BATTERY_PROP_CURRENT_AVG = 3, // equals BATTERY_PROPERTY_CURRENT_AVERAGE
+    BATTERY_PROP_CAPACITY = 4, // equals BATTERY_PROPERTY_CAPACITY
+    BATTERY_PROP_ENERGY_COUNTER = 5, // equals BATTERY_PROPERTY_ENERGY_COUNTER
+    BATTERY_PROP_BATTERY_STATUS = 6, // equals BATTERY_PROPERTY_BATTERY_STATUS
 };
 
 struct BatteryProperties {
