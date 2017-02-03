@@ -40,6 +40,12 @@ public:
 
 // ----------------------------------------------------------------------------
 
+class BnBatteryPropertiesListener: public BnInterface<IBatteryPropertiesListener> {
+public:
+    virtual status_t onTransact(uint32_t code, const Parcel& data,
+                                Parcel* reply, uint32_t flags = 0);
+};
+
 }; // namespace android
 
 #endif // ANDROID_IBATTERYPROPERTIESLISTENER_H
