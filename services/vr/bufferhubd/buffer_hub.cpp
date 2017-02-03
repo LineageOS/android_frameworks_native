@@ -108,6 +108,7 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
         // consumer_count is tracked by producer. When it's zero, producer must
         // have already hung up and the consumer is orphaned.
         stream << std::setw(14) << "Orphaned.";
+        stream << (" channel_id=" + std::to_string(channel->channel_id()));
         stream << std::endl;
         continue;
       }
@@ -433,6 +434,9 @@ bool BufferHubService::RemoveNamedBuffer(const ProducerChannel& buffer) {
 
 void BufferHubChannel::SignalAvailable() {
   ATRACE_NAME("BufferHubChannel::SignalAvailable");
+  ALOGD_IF(TRACE,
+           "BufferHubChannel::SignalAvailable: channel_id=%d buffer_id=%d",
+           channel_id(), buffer_id());
   if (!IsDetached()) {
     const int ret = service_->ModifyChannelEvents(channel_id_, 0, POLLIN);
     ALOGE_IF(ret < 0,
@@ -446,6 +450,9 @@ void BufferHubChannel::SignalAvailable() {
 
 void BufferHubChannel::ClearAvailable() {
   ATRACE_NAME("BufferHubChannel::ClearAvailable");
+  ALOGD_IF(TRACE,
+           "BufferHubChannel::ClearAvailable: channel_id=%d buffer_id=%d",
+           channel_id(), buffer_id());
   if (!IsDetached()) {
     const int ret = service_->ModifyChannelEvents(channel_id_, POLLIN, 0);
     ALOGE_IF(ret < 0,
@@ -459,6 +466,8 @@ void BufferHubChannel::ClearAvailable() {
 
 void BufferHubChannel::Hangup() {
   ATRACE_NAME("BufferHubChannel::Hangup");
+  ALOGD_IF(TRACE, "BufferHubChannel::Hangup: channel_id=%d buffer_id=%d",
+           channel_id(), buffer_id());
   if (!IsDetached()) {
     const int ret = service_->ModifyChannelEvents(channel_id_, 0, POLLHUP);
     ALOGE_IF(

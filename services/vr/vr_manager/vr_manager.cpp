@@ -88,33 +88,4 @@ class BpVrManager : public BpInterface<IVrManager> {
 
 IMPLEMENT_META_INTERFACE(VrManager, "android.service.vr.IVrManager");
 
-class BpVrDisplayStateService : public BpInterface<IVrDisplayStateService> {
- public:
-  explicit BpVrDisplayStateService(const sp<IBinder>& impl)
-      : BpInterface<IVrDisplayStateService>(impl) {}
-
-  void displayAvailable(bool available) {
-    Parcel data, reply;
-    data.writeInterfaceToken(IVrDisplayStateService::getInterfaceDescriptor());
-    data.writeBool(available);
-    remote()->transact(static_cast<uint32_t>(
-                           VrDisplayStateTransaction::ON_DISPLAY_STATE_CHANGED),
-                       data, &reply);
-  }
-};
-
-status_t BnVrDisplayStateService::onTransact(uint32_t code, const Parcel& data,
-                                             Parcel* reply, uint32_t flags) {
-  switch (static_cast<VrDisplayStateTransaction>(code)) {
-    case VrDisplayStateTransaction::ON_DISPLAY_STATE_CHANGED:
-      CHECK_INTERFACE(IVrDisplayStateService, data, reply);
-      displayAvailable(data.readBool());
-      return OK;
-  }
-  return BBinder::onTransact(code, data, reply, flags);
-}
-
-IMPLEMENT_META_INTERFACE(VrDisplayStateService,
-                         "android.service.vr.IVrDisplayStateService");
-
 }  // namespace android

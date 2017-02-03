@@ -71,6 +71,15 @@ class BufferHubBuffer : public pdx::Client {
   }
 
   using Client::event_fd;
+
+  Status<int> GetEventMask(int events) {
+    if (auto* client_channel = GetChannel()) {
+      return client_channel->GetEventMask(events);
+    } else {
+      return pdx::ErrorStatus(EINVAL);
+    }
+  }
+
   native_handle_t* native_handle() const {
     return const_cast<native_handle_t*>(slices_[0].handle());
   }
@@ -158,8 +167,9 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
   int Post(const LocalHandle& ready_fence) {
     return Post(ready_fence, nullptr, 0);
   }
-  template <typename Meta, typename = typename std::enable_if<
-                               !std::is_void<Meta>::value>::type>
+  template <
+      typename Meta,
+      typename = typename std::enable_if<!std::is_void<Meta>::value>::type>
   int Post(const LocalHandle& ready_fence, const Meta& meta) {
     return Post(ready_fence, &meta, sizeof(meta));
   }

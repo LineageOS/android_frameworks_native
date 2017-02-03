@@ -27,8 +27,9 @@ ConsumerChannel::ConsumerChannel(BufferHubService* service, int buffer_id,
 }
 
 ConsumerChannel::~ConsumerChannel() {
-  ALOGD_IF(TRACE, "ConsumerChannel::~ConsumerChannel: channel_id=%d",
-           channel_id());
+  ALOGD_IF(TRACE,
+           "ConsumerChannel::~ConsumerChannel: channel_id=%d buffer_id=%d",
+           channel_id(), buffer_id());
 
   if (auto producer = GetProducer()) {
     if (!handled_)  // Producer is waiting for our Release.
