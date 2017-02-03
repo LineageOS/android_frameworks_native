@@ -605,7 +605,6 @@ private:
             DeferredFence mReleaseFence;
 
             size_t mHwc1Id;
-            bool mHasUnsupportedDataspace;
             bool mHasUnsupportedPlaneAlpha;
             bool mHasUnsupportedBackgroundColor;
     };

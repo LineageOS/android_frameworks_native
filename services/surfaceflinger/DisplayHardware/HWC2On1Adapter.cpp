@@ -1298,6 +1298,7 @@ bool HWC2On1Adapter::Display::prepare()
         auto& hwc1Layer = mHwc1RequestedContents->hwLayers[layer->getHwc1Id()];
         hwc1Layer.releaseFenceFd = -1;
         hwc1Layer.acquireFenceFd = -1;
+        ALOGV("Applying states for layer %" PRIu64 " ", layer->getId());
         layer->applyState(hwc1Layer, applyAllState);
     }
 
@@ -2009,7 +2010,6 @@ HWC2On1Adapter::Layer::Layer(Display& display)
     mZ(0),
     mReleaseFence(),
     mHwc1Id(0),
-    mHasUnsupportedDataspace(false),
     mHasUnsupportedPlaneAlpha(false) {}
 
 bool HWC2On1Adapter::SortLayersByZ::operator()(
@@ -2070,9 +2070,8 @@ Error HWC2On1Adapter::Layer::setCompositionType(Composition type)
     return Error::None;
 }
 
-Error HWC2On1Adapter::Layer::setDataspace(android_dataspace_t dataspace)
+Error HWC2On1Adapter::Layer::setDataspace(android_dataspace_t)
 {
-    mHasUnsupportedDataspace = (dataspace != HAL_DATASPACE_UNKNOWN);
     return Error::None;
 }
 
@@ -2318,8 +2317,13 @@ void HWC2On1Adapter::Layer::applyCompositionType(hwc_layer_1_t& hwc1Layer,
     // HWC1 never supports color transforms or dataspaces and only sometimes
     // supports plane alpha (depending on the version). These require us to drop
     // some or all layers to client composition.
-    if (mHasUnsupportedDataspace || mHasUnsupportedPlaneAlpha ||
-            mDisplay.hasColorTransform() || mHasUnsupportedBackgroundColor) {
+    ALOGV("applyCompositionType");
+    ALOGV("mHasUnsupportedPlaneAlpha = %d", mHasUnsupportedPlaneAlpha);
+    ALOGV("mDisplay.hasColorTransform() = %d", mDisplay.hasColorTransform());
+    ALOGV("mHasUnsupportedBackgroundColor = %d", mHasUnsupportedBackgroundColor);
+
+    if (mHasUnsupportedPlaneAlpha || mDisplay.hasColorTransform() ||
+        mHasUnsupportedBackgroundColor) {
         hwc1Layer.compositionType = HWC_FRAMEBUFFER;
         hwc1Layer.flags = HWC_SKIP_LAYER;
         return;
