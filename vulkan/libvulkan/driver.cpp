@@ -467,6 +467,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
                 name = VK_ANDROID_NATIVE_BUFFER_EXTENSION_NAME;
                 ext_bit = ProcHook::ANDROID_native_buffer;
                 break;
+            case ProcHook::KHR_incremental_present:
             case ProcHook::GOOGLE_display_timing:
                 hook_extensions_.set(ext_bit);
                 // return now as these extensions do not require HAL support
