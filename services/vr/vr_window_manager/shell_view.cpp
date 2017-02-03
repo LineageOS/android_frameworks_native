@@ -311,21 +311,29 @@ void ShellView::VrMode(bool mode) {
                  : MainThreadTask::ExitingVrMode);
 }
 
+void ShellView::AdvanceFrame() {
+  if (!pending_frames_.empty()) {
+    // Check if we should advance the frame.
+    auto& frame = pending_frames_.front();
+    if (frame.visibility == ViewMode::Hidden ||
+        frame.frame->Finish() == HwcCallback::FrameStatus::kFinished) {
+      current_frame_ = std::move(frame);
+      pending_frames_.pop_front();
+
+      for(int i = 0; i < skipped_frame_count_ + 1; i++)
+        surface_flinger_view_->ReleaseFrame();
+      skipped_frame_count_ = 0;
+    }
+  }
+}
+
 void ShellView::OnDrawFrame() {
   textures_.clear();
   has_ime_ = false;
 
   {
     std::unique_lock<std::mutex> l(pending_frame_mutex_);
-    if (!pending_frames_.empty()) {
-      // Check if we should advance the frame.
-      auto& frame = pending_frames_.front();
-      if (frame.visibility == ViewMode::Hidden ||
-          frame.frame->Finish() == HwcCallback::FrameStatus::kFinished) {
-        current_frame_ = std::move(frame);
-        pending_frames_.pop_front();
-      }
-    }
+    AdvanceFrame();
   }
 
   bool visible = current_frame_.visibility != ViewMode::Hidden;
@@ -334,7 +342,7 @@ void ShellView::OnDrawFrame() {
     SetVisibility(current_frame_.visibility != ViewMode::Hidden);
   }
 
-  if (!visible)
+  if (!debug_mode_ && !visible)
     return;
 
   ime_texture_ = TextureLayer();
@@ -385,9 +393,6 @@ bool ShellView::OnClick(bool down) {
 }
 
 void ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
-  if (!frame || frame->layers().empty())
-    return;
-
   ViewMode visibility =
       CalculateVisibilityFromLayerConfig(*frame.get(), current_vr_app_);
 
@@ -395,21 +400,21 @@ void ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
     visibility = ViewMode::VR;
   current_vr_app_ = frame->layers().front().appid;
 
-  // If we are not showing the frame there's no need to keep anything around.
-  if (visibility == ViewMode::Hidden) {
-    // Hidden, no change so drop it completely
-    if (current_frame_.visibility == ViewMode::Hidden)
-      return;
-
-    frame.reset(nullptr);
-  }
-
   std::unique_lock<std::mutex> l(pending_frame_mutex_);
 
   pending_frames_.emplace_back(std::move(frame), visibility);
 
-  if (pending_frames_.size() > kMaximumPendingFrames)
+  if (pending_frames_.size() > kMaximumPendingFrames) {
+    skipped_frame_count_++;
     pending_frames_.pop_front();
+  }
+
+  if (visibility == ViewMode::Hidden &&
+      current_frame_.visibility == ViewMode::Hidden) {
+    // Consume all frames while hidden.
+    while (!pending_frames_.empty())
+      AdvanceFrame();
+  }
 
   // If we are showing ourselves the main thread is not processing anything,
   // so give it a kick.
