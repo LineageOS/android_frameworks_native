@@ -349,7 +349,7 @@ void ShellView::OnDrawFrame() {
 
   surface_flinger_view_->GetTextures(*current_frame_.frame.get(), &textures_,
                                      &ime_texture_, debug_mode_,
-                                     view_mode_ == ViewMode::VR);
+                                     current_frame_.visibility == ViewMode::VR);
   has_ime_ = ime_texture_.texture != nullptr;
 }
 

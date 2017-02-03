@@ -72,7 +72,6 @@ class ShellView : public Application, public HwcCallback::Client {
   std::unique_ptr<ShaderProgram> overlay_program_;
   std::unique_ptr<ShaderProgram> controller_program_;
 
-  ViewMode view_mode_ = ViewMode::Hidden;
   // This starts at -1 so we don't call ReleaseFrame for the first frame.
   int skipped_frame_count_ = -1;
 
