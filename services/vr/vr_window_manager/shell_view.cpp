@@ -15,6 +15,8 @@ namespace dvr {
 
 namespace {
 
+constexpr float kLayerScaleFactor = 4.0f;
+
 constexpr unsigned int kVRAppLayerCount = 2;
 
 constexpr unsigned int kMaximumPendingFrames = 8;
@@ -105,6 +107,9 @@ mat4 GetScalingMatrix(float width, float height) {
   else
     xscale = ar;
 
+  xscale *= kLayerScaleFactor;
+  yscale *= kLayerScaleFactor;
+
   return mat4(Eigen::Scaling<float>(xscale, yscale, 1.0));
 }
 
@@ -126,7 +131,7 @@ mat4 GetHorizontallyAlignedMatrixFromPose(const Posef& pose) {
   m(3, 0) = 0.0f; m(3, 1) = 0.0f; m(3, 2) = 0.0f; m(3, 3) = 1.0f;
   // clang-format on
 
-  return m;
+  return m * Eigen::AngleAxisf(M_PI * 0.5f, vec3::UnitZ());
 }
 
 // Helper function that applies the crop transform to the texture layer and
