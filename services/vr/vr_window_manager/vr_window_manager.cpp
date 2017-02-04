@@ -11,11 +11,6 @@ int main(int /* argc */, char** /* argv */) {
     return 1;
   }
 
-  if (app.AllocateResources()) {
-    ALOGE("Failed to allocate resources");
-    return 1;
-  }
-
   while (true)
     app.DrawFrame();
 

@@ -142,36 +142,48 @@ void HwcDisplay::GetChangedCompositionTypes(
   }
 }
 
-std::vector<ComposerView::ComposerLayer> HwcDisplay::GetFrame() {
-  // Increment the time the fence is signalled every time we get the
-  // presentation frame. This ensures that calling ReleaseFrame() only affects
-  // the current frame.
-  fence_time_++;
-
+Error HwcDisplay::GetFrame(
+    std::vector<ComposerView::ComposerLayer>* out_frames) {
   bool queued_client_target = false;
   std::vector<ComposerView::ComposerLayer> frame;
   for (const auto& layer : layers_) {
     if (layer.composition_type == IComposerClient::Composition::CLIENT) {
-      if (!queued_client_target) {
-        ComposerView::ComposerLayer client_target_layer = {
-            .buffer = buffer_,
-            .fence = fence_.get() ? fence_ : new Fence(-1),
-            .display_frame = {0, 0, static_cast<int32_t>(buffer_->getWidth()),
-              static_cast<int32_t>(buffer_->getHeight())},
-            .crop = {0.0f, 0.0f, static_cast<float>(buffer_->getWidth()),
-              static_cast<float>(buffer_->getHeight())},
-            .blend_mode = IComposerClient::BlendMode::NONE,
-        };
+      if (queued_client_target)
+        continue;
 
-        frame.push_back(client_target_layer);
-        queued_client_target = true;
+      if (!buffer_.get()) {
+        ALOGE("Client composition requested but no client target buffer");
+        return Error::BAD_LAYER;
       }
+
+      ComposerView::ComposerLayer client_target_layer = {
+          .buffer = buffer_,
+          .fence = fence_.get() ? fence_ : new Fence(-1),
+          .display_frame = {0, 0, static_cast<int32_t>(buffer_->getWidth()),
+            static_cast<int32_t>(buffer_->getHeight())},
+          .crop = {0.0f, 0.0f, static_cast<float>(buffer_->getWidth()),
+            static_cast<float>(buffer_->getHeight())},
+          .blend_mode = IComposerClient::BlendMode::NONE,
+      };
+
+      frame.push_back(client_target_layer);
+      queued_client_target = true;
     } else {
+      if (!layer.info.buffer.get() || !layer.info.fence.get()) {
+        ALOGE("Layer requested without valid buffer");
+        return Error::BAD_LAYER;
+      }
+
       frame.push_back(layer.info);
     }
   }
 
-  return frame;
+  // Increment the time the fence is signalled every time we get the
+  // presentation frame. This ensures that calling ReleaseFrame() only affects
+  // the current frame.
+  fence_time_++;
+  out_frames->swap(frame);
+  return Error::NONE;
 }
 
 void HwcDisplay::GetReleaseFences(int* present_fence,
@@ -392,7 +404,8 @@ Error VrHwc::setOutputBuffer(Display display, buffer_handle_t buffer,
   base::unique_fd fence(releaseFence);
   if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
 
-  return Error::NONE;
+  ALOGE("Virtual display support not implemented");
+  return Error::UNSUPPORTED;
 }
 
 Error VrHwc::validateDisplay(
@@ -423,7 +436,10 @@ Error VrHwc::presentDisplay(Display display, int32_t* outPresentFence,
   std::vector<ComposerView::ComposerLayer> frame;
   {
     std::lock_guard<std::mutex> guard(mutex_);
-    frame = display_.GetFrame();
+    Error status = display_.GetFrame(&frame);
+    if (status != Error::NONE)
+      return status;
+
     display_.GetReleaseFences(outPresentFence, outLayers, outReleaseFences);
   }
 

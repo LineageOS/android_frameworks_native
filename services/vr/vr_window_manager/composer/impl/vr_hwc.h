@@ -115,7 +115,7 @@ class HwcDisplay {
       std::vector<Layer>* layer_ids,
       std::vector<IComposerClient::Composition>* composition);
 
-  std::vector<ComposerView::ComposerLayer> GetFrame();
+  Error GetFrame(std::vector<ComposerView::ComposerLayer>* out_frame);
 
   void GetReleaseFences(int* present_fence, std::vector<Layer>* layer_ids,
                         std::vector<int>* fences);
