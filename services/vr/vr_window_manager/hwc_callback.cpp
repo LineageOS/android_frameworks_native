@@ -79,8 +79,7 @@ Return<void> HwcCallback::onNewFrame(
   }
 
   std::lock_guard<std::mutex> guard(mutex_);
-  if (client_)
-    client_->OnFrame(std::make_unique<Frame>(std::move(hwc_frame)));
+  client_->OnFrame(std::make_unique<Frame>(std::move(hwc_frame)));
 
   return Void();
 }

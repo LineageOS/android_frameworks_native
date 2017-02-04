@@ -36,6 +36,8 @@ class SurfaceFlingerView {
                    TextureLayer* ime_layer, bool debug,
                    bool skip_first_layer) const;
 
+  void ReleaseFrame();
+
  private:
   sp<IVrComposerView> composer_service_;
   std::unique_ptr<HwcCallback> composer_observer_;

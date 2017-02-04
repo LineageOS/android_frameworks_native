@@ -75,5 +75,9 @@ bool SurfaceFlingerView::GetTextures(const HwcCallback::Frame& frame,
   return true;
 }
 
+void SurfaceFlingerView::ReleaseFrame() {
+  composer_service_->releaseFrame();
+}
+
 }  // namespace dvr
 }  // namespace android
