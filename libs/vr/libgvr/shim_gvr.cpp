@@ -512,7 +512,8 @@ void gvr_distort_to_screen(
 }
 
 bool gvr_is_feature_supported(const gvr_context* /*gvr*/, int32_t feature) {
-  return feature == GVR_FEATURE_ASYNC_REPROJECTION;
+  return feature == GVR_FEATURE_ASYNC_REPROJECTION ||
+      feature == GVR_FEATURE_HEAD_POSE_6DOF;
 }
 
 /////////////////////////////////////////////////////////////////////////////

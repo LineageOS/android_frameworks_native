@@ -308,7 +308,7 @@ void DistortionRenderer::EdsShader::load(const char* vertex,
   if (blend_with_previous_layer) {
     // Check for unsupported shader combinations:
     LOG_ALWAYS_FATAL_IF(num_layers != 1);
-    LOG_ALWAYS_FATAL_IF(!use_alpha_vignette);
+    LOG_ALWAYS_FATAL_IF(use_alpha_vignette);
     if (kUseFramebufferReadback)
       frag_builder += "#define BLEND_WITH_PREVIOUS_LAYER\n";
   }
