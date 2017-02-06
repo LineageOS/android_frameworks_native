@@ -77,7 +77,6 @@ cc_library_shared {
         "FrameTimestamps.cpp",
         "GLConsumer.cpp",
         "GraphicBufferAlloc.cpp",
-        "GraphicsEnv.cpp",
         "GuiConfig.cpp",
         "IDisplayEventConnection.cpp",
         "IGraphicBufferAlloc.cpp",
@@ -100,7 +99,6 @@ cc_library_shared {
     ],
 
     shared_libs: [
-        "libnativeloader",
         "libsync",
         "libbinder",
         "libcutils",

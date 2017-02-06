@@ -55,6 +55,7 @@ cc_library_shared {
         "GraphicBuffer.cpp",
         "GraphicBufferAllocator.cpp",
         "GraphicBufferMapper.cpp",
+        "GraphicsEnv.cpp",
         "HdrCapabilities.cpp",
         "PixelFormat.cpp",
         "Rect.cpp",
@@ -65,6 +66,7 @@ cc_library_shared {
     shared_libs: [
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.mapper@2.0",
+        "libnativeloader",
         "libbinder",
         "libcutils",
         "libhardware",

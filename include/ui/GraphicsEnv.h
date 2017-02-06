@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_GRAPHICS_ENV_H
-#define ANDROID_GUI_GRAPHICS_ENV_H 1
+#ifndef ANDROID_UI_GRAPHICS_ENV_H
+#define ANDROID_UI_GRAPHICS_ENV_H 1
 
 #include <string>
 
@@ -56,4 +56,4 @@ private:
  */
 extern "C" android_namespace_t* android_getDriverNamespace();
 
-#endif // ANDROID_GUI_GRAPHICS_ENV_H
+#endif // ANDROID_UI_GRAPHICS_ENV_H
