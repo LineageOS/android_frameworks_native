@@ -277,7 +277,7 @@ void HWComposer::hook_hotplug(const struct hwc_procs* procs, int disp,
 }
 
 void HWComposer::invalidate() {
-    mFlinger->repaintEverything();
+    mEventHandler.onInvalidateReceived(this);
 }
 
 void HWComposer::vsync(int disp, int64_t timestamp) {
@@ -302,7 +302,7 @@ void HWComposer::vsync(int disp, int64_t timestamp) {
         snprintf(tag, sizeof(tag), "HW_VSYNC_%1u", disp);
         ATRACE_INT(tag, ++mVSyncCounts[disp] & 1);
 
-        mEventHandler.onVSyncReceived(disp, timestamp);
+        mEventHandler.onVSyncReceived(this, disp, timestamp);
     }
 }
 
@@ -1318,7 +1318,7 @@ bool HWComposer::VSyncThread::threadLoop() {
     } while (err<0 && errno == EINTR);
 
     if (err == 0) {
-        mHwc.mEventHandler.onVSyncReceived(0, next_vsync);
+        mHwc.mEventHandler.onVSyncReceived(&mHwc, 0, next_vsync);
     }
 
     return true;

@@ -106,5 +106,13 @@ void VrFlinger::ExitVrMode() {
   }
 }
 
+void VrFlinger::OnHardwareComposerRefresh() {
+  if (display_service_) {
+    display_service_->OnHardwareComposerRefresh();
+  } else {
+    ALOGE("OnHardwareComposerRefresh failed : Display service is not started.");
+  }
+}
+
 }  // namespace dvr
 }  // namespace android

@@ -318,6 +318,10 @@ int DisplayService::UpdateActiveDisplaySurfaces() {
   return hardware_composer_.SetDisplaySurfaces(std::move(visible_surfaces));
 }
 
+void DisplayService::OnHardwareComposerRefresh() {
+  hardware_composer_.OnHardwareComposerRefresh();
+}
+
 void DisplayService::SetDisplayConfigurationUpdateNotifier(
     DisplayConfigurationUpdateNotifier update_notifier) {
   update_notifier_ = update_notifier;

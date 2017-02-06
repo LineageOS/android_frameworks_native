@@ -68,6 +68,8 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
     }
   }
 
+  void OnHardwareComposerRefresh();
+
  private:
   friend BASE;
   friend DisplaySurface;

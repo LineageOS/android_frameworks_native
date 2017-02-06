@@ -1018,7 +1018,8 @@ void SurfaceFlinger::resyncWithRateLimit() {
     }
 }
 
-void SurfaceFlinger::onVSyncReceived(int type, nsecs_t timestamp) {
+void SurfaceFlinger::onVSyncReceived(HWComposer* /*composer*/, int type,
+                                     nsecs_t timestamp) {
     bool needsHwVsync = false;
 
     { // Scope for the lock
@@ -1056,6 +1057,10 @@ void SurfaceFlinger::onHotplugReceived(int type, bool connected) {
 
         // Defer EventThread notification until SF has updated mDisplays.
     }
+}
+
+void SurfaceFlinger::onInvalidateReceived(HWComposer* /*composer*/) {
+    repaintEverything();
 }
 
 void SurfaceFlinger::eventControl(int disp, int event, int enabled) {

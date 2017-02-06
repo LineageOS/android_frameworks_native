@@ -224,6 +224,8 @@ class HardwareComposer {
 
   Compositor* GetCompositor() { return &compositor_; }
 
+  void OnHardwareComposerRefresh();
+
  private:
   int32_t EnableVsync(bool enabled);
 

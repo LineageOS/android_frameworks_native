@@ -21,6 +21,7 @@ class VrFlinger {
 
   void EnterVrMode();
   void ExitVrMode();
+  void OnHardwareComposerRefresh();
 
  private:
   std::thread displayd_thread_;
