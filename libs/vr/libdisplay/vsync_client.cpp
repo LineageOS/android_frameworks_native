@@ -26,7 +26,10 @@ int VSyncClient::Wait(int64_t* timestamp_ns) {
           status.GetErrorMessage().c_str());
     return -status.error();
   }
-  *timestamp_ns = status.get();
+
+  if (timestamp_ns != nullptr) {
+    *timestamp_ns = status.get();
+  }
   return 0;
 }
 
