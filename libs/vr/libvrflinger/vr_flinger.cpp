@@ -32,6 +32,9 @@ namespace dvr {
 VrFlinger::VrFlinger() {}
 
 int VrFlinger::Run(Hwc2::Composer* hidl) {
+  if (!hidl)
+    return EINVAL;
+
   std::shared_ptr<android::pdx::Service> service;
 
   ALOGI("Starting up VrFlinger...");
