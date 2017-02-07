@@ -108,8 +108,6 @@ cc_library_shared {
     ],
     static_libs: ["libEGL_getProcAddress"],
     ldflags: ["-Wl,--exclude-libs=ALL"],
-
-    required: ["egl.cfg"],
 }
 
 cc_defaults {
