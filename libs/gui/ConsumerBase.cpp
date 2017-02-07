@@ -114,21 +114,6 @@ void ConsumerBase::onFrameAvailable(const BufferItem& item) {
     }
 }
 
-void ConsumerBase::onFrameReplaced(const BufferItem &item) {
-    CB_LOGV("onFrameReplaced");
-
-    sp<FrameAvailableListener> listener;
-    {
-        Mutex::Autolock lock(mMutex);
-        listener = mFrameAvailableListener.promote();
-    }
-
-    if (listener != NULL) {
-        CB_LOGV("actually calling onFrameReplaced");
-        listener->onFrameReplaced(item);
-    }
-}
-
 void ConsumerBase::onBuffersReleased() {
     Mutex::Autolock lock(mMutex);
 
@@ -231,9 +216,9 @@ void ConsumerBase::dumpLocked(String8& result, const char* prefix) const {
     }
 }
 
-status_t ConsumerBase::acquireBufferLocked(BufferItem *item,
-        nsecs_t presentWhen, uint64_t maxFrameNumber) {
-    status_t err = mConsumer->acquireBuffer(item, presentWhen, maxFrameNumber);
+status_t ConsumerBase::acquireBufferLocked(BufferQueue::BufferItem *item,
+        nsecs_t presentWhen) {
+    status_t err = mConsumer->acquireBuffer(item, presentWhen);
     if (err != NO_ERROR) {
         return err;
     }

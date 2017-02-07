@@ -211,7 +211,7 @@ status_t GLConsumer::updateTexImage() {
         return err;
     }
 
-    BufferItem item;
+    BufferQueue::BufferItem item;
 
     // Acquire the next buffer.
     // In asynchronous mode the list is guaranteed to be one buffer
@@ -343,10 +343,9 @@ sp<GraphicBuffer> GLConsumer::getDebugTexImageBuffer() {
     return sReleasedTexImageBuffer;
 }
 
-status_t GLConsumer::acquireBufferLocked(BufferItem *item,
-        nsecs_t presentWhen, uint64_t maxFrameNumber) {
-    status_t err = ConsumerBase::acquireBufferLocked(item, presentWhen,
-            maxFrameNumber);
+status_t GLConsumer::acquireBufferLocked(BufferQueue::BufferItem *item,
+        nsecs_t presentWhen) {
+    status_t err = ConsumerBase::acquireBufferLocked(item, presentWhen);
     if (err != NO_ERROR) {
         return err;
     }
@@ -375,7 +374,7 @@ status_t GLConsumer::releaseBufferLocked(int buf,
     return err;
 }
 
-status_t GLConsumer::updateAndReleaseLocked(const BufferItem& item)
+status_t GLConsumer::updateAndReleaseLocked(const BufferQueue::BufferItem& item)
 {
     status_t err = NO_ERROR;
 

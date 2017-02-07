@@ -241,8 +241,7 @@ protected:
 
     // acquireBufferLocked overrides the ConsumerBase method to update the
     // mEglSlots array in addition to the ConsumerBase behavior.
-    virtual status_t acquireBufferLocked(BufferItem *item, nsecs_t presentWhen,
-            uint64_t maxFrameNumber = 0) override;
+    virtual status_t acquireBufferLocked(BufferQueue::BufferItem *item, nsecs_t presentWhen);
 
     // releaseBufferLocked overrides the ConsumerBase method to update the
     // mEglSlots array in addition to the ConsumerBase.
@@ -260,7 +259,7 @@ protected:
     // This releases the buffer in the slot referenced by mCurrentTexture,
     // then updates state to refer to the BufferItem, which must be a
     // newly-acquired buffer.
-    status_t updateAndReleaseLocked(const BufferItem& item);
+    status_t updateAndReleaseLocked(const BufferQueue::BufferItem& item);
 
     // Binds mTexName and the current buffer to mTexTarget.  Uses
     // mCurrentTexture if it's set, mCurrentTextureImage if not.  If the

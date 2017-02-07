@@ -47,7 +47,7 @@ public:
     // returned.  The presentation time is in nanoseconds, and the time base
     // is CLOCK_MONOTONIC.
     virtual status_t acquireBuffer(BufferItem* outBuffer,
-            nsecs_t expectedPresent, uint64_t maxFrameNumber = 0) override;
+            nsecs_t expectedPresent);
 
     // See IGraphicBufferConsumer::detachBuffer
     virtual status_t detachBuffer(int slot);

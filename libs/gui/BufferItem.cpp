@@ -37,30 +37,53 @@ BufferItem::BufferItem() :
     mCrop.makeInvalid();
 }
 
+BufferItem::BufferItem(const IGraphicBufferConsumer::BufferItem& item) :
+    mGraphicBuffer(item.mGraphicBuffer),
+    mFence(item.mFence),
+    mCrop(item.mCrop),
+    mTransform(item.mTransform),
+    mScalingMode(item.mScalingMode),
+    mTimestamp(item.mTimestamp),
+    mIsAutoTimestamp(item.mIsAutoTimestamp),
+    mDataSpace(item.mDataSpace),
+    mFrameNumber(item.mFrameNumber),
+    mSlot(item.mBuf),
+    mIsDroppable(item.mIsDroppable),
+    mAcquireCalled(item.mAcquireCalled),
+    mTransformToDisplayInverse(item.mTransformToDisplayInverse) {}
+
 BufferItem::~BufferItem() {}
 
-template <typename T>
-static void addAligned(size_t& size, T /* value */) {
-    size = FlattenableUtils::align<sizeof(T)>(size);
-    size += sizeof(T);
+BufferItem::operator IGraphicBufferConsumer::BufferItem() const {
+    IGraphicBufferConsumer::BufferItem bufferItem;
+    bufferItem.mGraphicBuffer = mGraphicBuffer;
+    bufferItem.mFence = mFence;
+    bufferItem.mCrop = mCrop;
+    bufferItem.mTransform = mTransform;
+    bufferItem.mScalingMode = mScalingMode;
+    bufferItem.mTimestamp = mTimestamp;
+    bufferItem.mIsAutoTimestamp = mIsAutoTimestamp;
+    bufferItem.mDataSpace = mDataSpace;
+    bufferItem.mFrameNumber = mFrameNumber;
+    bufferItem.mBuf = mSlot;
+    bufferItem.mIsDroppable = mIsDroppable;
+    bufferItem.mAcquireCalled = mAcquireCalled;
+    bufferItem.mTransformToDisplayInverse = mTransformToDisplayInverse;
+    return bufferItem;
 }
 
 size_t BufferItem::getPodSize() const {
-    size_t size = 0;
-    addAligned(size, mCrop);
-    addAligned(size, mTransform);
-    addAligned(size, mScalingMode);
-    addAligned(size, mTimestampLo);
-    addAligned(size, mTimestampHi);
-    addAligned(size, mIsAutoTimestamp);
-    addAligned(size, mDataSpace);
-    addAligned(size, mFrameNumberLo);
-    addAligned(size, mFrameNumberHi);
-    addAligned(size, mSlot);
-    addAligned(size, mIsDroppable);
-    addAligned(size, mAcquireCalled);
-    addAligned(size, mTransformToDisplayInverse);
-    return size;
+    size_t c =  sizeof(mCrop) +
+            sizeof(mTransform) +
+            sizeof(mScalingMode) +
+            sizeof(mTimestamp) +
+            sizeof(mIsAutoTimestamp) +
+            sizeof(mFrameNumber) +
+            sizeof(mSlot) +
+            sizeof(mIsDroppable) +
+            sizeof(mAcquireCalled) +
+            sizeof(mTransformToDisplayInverse);
+    return c;
 }
 
 size_t BufferItem::getFlattenedSize() const {

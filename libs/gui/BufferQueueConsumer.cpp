@@ -40,7 +40,7 @@ BufferQueueConsumer::BufferQueueConsumer(const sp<BufferQueueCore>& core) :
 BufferQueueConsumer::~BufferQueueConsumer() {}
 
 status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
-        nsecs_t expectedPresent, uint64_t maxFrameNumber) {
+        nsecs_t expectedPresent) {
     ATRACE_CALL();
 
     int numDroppedBuffers = 0;
@@ -100,12 +100,6 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
             while (mCore->mQueue.size() > 1 && !mCore->mQueue[0].mIsAutoTimestamp) {
                 const BufferItem& bufferItem(mCore->mQueue[1]);
 
-                // If dropping entry[0] would leave us with a buffer that the
-                // consumer is not yet ready for, don't drop it.
-                if (maxFrameNumber && bufferItem.mFrameNumber > maxFrameNumber) {
-                    break;
-                }
-
                 // If entry[1] is timely, drop entry[0] (and repeat). We apply an
                 // additional criterion here: we only drop the earlier buffer if our
                 // desiredPresent falls within +/- 1 second of the expected present.
@@ -147,16 +141,12 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
             nsecs_t desiredPresent = front->mTimestamp;
             bool bufferIsDue = desiredPresent <= expectedPresent ||
                     desiredPresent > expectedPresent + MAX_REASONABLE_NSEC;
-            bool consumerIsReady = maxFrameNumber > 0 ?
-                    front->mFrameNumber <= maxFrameNumber : true;
-            if (!bufferIsDue || !consumerIsReady) {
+            if (!bufferIsDue) {
                 BQ_LOGV("acquireBuffer: defer desire=%" PRId64 " expect=%" PRId64
-                        " (%" PRId64 ") now=%" PRId64 " frame=%" PRIu64
-                        " consumer=%" PRIu64,
+                        " (%" PRId64 ") now=%" PRId64,
                         desiredPresent, expectedPresent,
                         desiredPresent - expectedPresent,
-                        systemTime(CLOCK_MONOTONIC),
-                        front->mFrameNumber, maxFrameNumber);
+                        systemTime(CLOCK_MONOTONIC));
                 return PRESENT_LATER;
             }
 

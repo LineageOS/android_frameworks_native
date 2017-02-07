@@ -49,8 +49,7 @@ public:
         virtual ~BufferRejecter() { }
     };
 
-    virtual status_t acquireBufferLocked(BufferItem *item, nsecs_t presentWhen,
-            uint64_t maxFrameNumber = 0) override;
+    virtual status_t acquireBufferLocked(BufferQueue::BufferItem *item, nsecs_t presentWhen);
 
     // This version of updateTexImage() takes a functor that may be used to
     // reject the newly acquired buffer.  Unlike the GLConsumer version,

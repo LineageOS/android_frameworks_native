@@ -34,6 +34,7 @@ namespace android {
 status_t SurfaceFlingerConsumer::updateTexImage(BufferRejecter* rejecter,
         const DispSync& dispSync, uint64_t maxFrameNumber)
 {
+    (void)maxFrameNumber;
     ATRACE_CALL();
     ALOGV("updateTexImage");
     Mutex::Autolock lock(mMutex);
@@ -49,13 +50,12 @@ status_t SurfaceFlingerConsumer::updateTexImage(BufferRejecter* rejecter,
         return err;
     }
 
-    BufferItem item;
+    BufferQueue::BufferItem item;
 
     // Acquire the next buffer.
     // In asynchronous mode the list is guaranteed to be one buffer
     // deep, while in synchronous mode we use the oldest buffer.
-    err = acquireBufferLocked(&item, computeExpectedPresent(dispSync),
-            maxFrameNumber);
+    err = acquireBufferLocked(&item, computeExpectedPresent(dispSync));
     if (err != NO_ERROR) {
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
             err = NO_ERROR;
@@ -104,13 +104,11 @@ status_t SurfaceFlingerConsumer::bindTextureImage()
     return bindTextureImageLocked();
 }
 
-status_t SurfaceFlingerConsumer::acquireBufferLocked(BufferItem* item,
-        nsecs_t presentWhen, uint64_t maxFrameNumber) {
-    status_t result = GLConsumer::acquireBufferLocked(item, presentWhen,
-            maxFrameNumber);
+status_t SurfaceFlingerConsumer::acquireBufferLocked(BufferQueue::BufferItem* item,
+        nsecs_t presentWhen) {
+    status_t result = GLConsumer::acquireBufferLocked(item, presentWhen);
     if (result == NO_ERROR) {
         mTransformToDisplayInverse = item->mTransformToDisplayInverse;
-        mSurfaceDamage = item->mSurfaceDamage;
     }
     return result;
 }

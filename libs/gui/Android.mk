@@ -70,6 +70,7 @@ LOCAL_SRC_FILES := \
 	SurfaceControl.cpp \
 	SurfaceComposerClient.cpp \
 	SyncFeatures.cpp \
+	MediatekHacks.cpp
 
 LOCAL_SHARED_LIBRARIES := \
 	libbinder \

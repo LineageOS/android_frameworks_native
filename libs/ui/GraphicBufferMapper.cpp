@@ -78,12 +78,12 @@ status_t GraphicBufferMapper::unregisterBuffer(buffer_handle_t handle)
 }
 
 status_t GraphicBufferMapper::lock(buffer_handle_t handle,
-        uint32_t usage, const Rect& bounds, void** vaddr)
+        int usage, const Rect& bounds, void** vaddr)
 {
     ATRACE_CALL();
     status_t err;
 
-    err = mAllocMod->lock(mAllocMod, handle, static_cast<int>(usage),
+    err = mAllocMod->lock(mAllocMod, handle, usage,
             bounds.left, bounds.top, bounds.width(), bounds.height(),
             vaddr);
 

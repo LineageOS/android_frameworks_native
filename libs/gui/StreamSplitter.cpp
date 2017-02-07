@@ -124,7 +124,7 @@ void StreamSplitter::onFrameAvailable(const BufferItem& /* item */) {
     ++mOutstandingBuffers;
 
     // Acquire and detach the buffer from the input
-    BufferItem bufferItem;
+    IGraphicBufferConsumer::BufferItem bufferItem;
     status_t status = mInput->acquireBuffer(&bufferItem, /* presentWhen */ 0);
     LOG_ALWAYS_FATAL_IF(status != NO_ERROR,
             "acquiring buffer from input failed (%d)", status);

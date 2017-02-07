@@ -200,7 +200,7 @@ status_t GraphicBuffer::lock(uint32_t inUsage, const Rect& rect, void** vaddr)
                 width, height);
         return BAD_VALUE;
     }
-    status_t res = getBufferMapper().lock(handle, inUsage, rect, vaddr);
+    status_t res = getBufferMapper().lock(handle, static_cast<int>(inUsage), rect, vaddr);
     return res;
 }
 

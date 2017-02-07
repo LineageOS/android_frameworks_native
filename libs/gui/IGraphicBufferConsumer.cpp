@@ -33,6 +33,163 @@
 #include <system/window.h>
 
 namespace android {
+// ---------------------------------------------------------------------------
+
+IGraphicBufferConsumer::BufferItem::BufferItem() :
+    mTransform(0),
+    mScalingMode(NATIVE_WINDOW_SCALING_MODE_FREEZE),
+    mTimestamp(0),
+    mIsAutoTimestamp(false),
+    mDataSpace(HAL_DATASPACE_UNKNOWN),
+    mFrameNumber(0),
+    mBuf(INVALID_BUFFER_SLOT),
+    mIsDroppable(false),
+    mAcquireCalled(false),
+    mTransformToDisplayInverse(false) {
+    mCrop.makeInvalid();
+}
+
+size_t IGraphicBufferConsumer::BufferItem::getPodSize() const {
+    size_t c =  sizeof(mCrop) +
+            sizeof(mTransform) +
+            sizeof(mScalingMode) +
+            sizeof(mTimestamp) +
+            sizeof(mIsAutoTimestamp) +
+            sizeof(mDataSpace) +
+            sizeof(mFrameNumber) +
+            sizeof(mBuf) +
+            sizeof(mIsDroppable) +
+            sizeof(mAcquireCalled) +
+            sizeof(mTransformToDisplayInverse);
+    return c;
+}
+
+size_t IGraphicBufferConsumer::BufferItem::getFlattenedSize() const {
+    size_t c = 0;
+    if (mGraphicBuffer != 0) {
+        c += mGraphicBuffer->getFlattenedSize();
+        c = FlattenableUtils::align<4>(c);
+    }
+    if (mFence != 0) {
+        c += mFence->getFlattenedSize();
+        c = FlattenableUtils::align<4>(c);
+    }
+    return sizeof(int32_t) + c + getPodSize();
+}
+
+size_t IGraphicBufferConsumer::BufferItem::getFdCount() const {
+    size_t c = 0;
+    if (mGraphicBuffer != 0) {
+        c += mGraphicBuffer->getFdCount();
+    }
+    if (mFence != 0) {
+        c += mFence->getFdCount();
+    }
+    return c;
+}
+
+static void writeBoolAsInt(void*& buffer, size_t& size, bool b) {
+    FlattenableUtils::write(buffer, size, static_cast<int32_t>(b));
+}
+
+static bool readBoolFromInt(void const*& buffer, size_t& size) {
+    int32_t i;
+    FlattenableUtils::read(buffer, size, i);
+    return static_cast<bool>(i);
+}
+
+status_t IGraphicBufferConsumer::BufferItem::flatten(
+        void*& buffer, size_t& size, int*& fds, size_t& count) const {
+
+    // make sure we have enough space
+    if (size < BufferItem::getFlattenedSize()) {
+        return NO_MEMORY;
+    }
+
+    // content flags are stored first
+    uint32_t& flags = *static_cast<uint32_t*>(buffer);
+
+    // advance the pointer
+    FlattenableUtils::advance(buffer, size, sizeof(uint32_t));
+
+    flags = 0;
+    if (mGraphicBuffer != 0) {
+        status_t err = mGraphicBuffer->flatten(buffer, size, fds, count);
+        if (err) return err;
+        size -= FlattenableUtils::align<4>(buffer);
+        flags |= 1;
+    }
+    if (mFence != 0) {
+        status_t err = mFence->flatten(buffer, size, fds, count);
+        if (err) return err;
+        size -= FlattenableUtils::align<4>(buffer);
+        flags |= 2;
+    }
+
+    // check we have enough space (in case flattening the fence/graphicbuffer lied to us)
+    if (size < getPodSize()) {
+        return NO_MEMORY;
+    }
+
+    FlattenableUtils::write(buffer, size, mCrop);
+    FlattenableUtils::write(buffer, size, mTransform);
+    FlattenableUtils::write(buffer, size, mScalingMode);
+    FlattenableUtils::write(buffer, size, mTimestamp);
+    writeBoolAsInt(buffer, size, mIsAutoTimestamp);
+    FlattenableUtils::write(buffer, size, mDataSpace);
+    FlattenableUtils::write(buffer, size, mFrameNumber);
+    FlattenableUtils::write(buffer, size, mBuf);
+    writeBoolAsInt(buffer, size, mIsDroppable);
+    writeBoolAsInt(buffer, size, mAcquireCalled);
+    writeBoolAsInt(buffer, size, mTransformToDisplayInverse);
+
+    return NO_ERROR;
+}
+
+status_t IGraphicBufferConsumer::BufferItem::unflatten(
+        void const*& buffer, size_t& size, int const*& fds, size_t& count) {
+
+    if (size < sizeof(uint32_t))
+        return NO_MEMORY;
+
+    uint32_t flags = 0;
+    FlattenableUtils::read(buffer, size, flags);
+
+    if (flags & 1) {
+        mGraphicBuffer = new GraphicBuffer();
+        status_t err = mGraphicBuffer->unflatten(buffer, size, fds, count);
+        if (err) return err;
+        size -= FlattenableUtils::align<4>(buffer);
+    }
+
+    if (flags & 2) {
+        mFence = new Fence();
+        status_t err = mFence->unflatten(buffer, size, fds, count);
+        if (err) return err;
+        size -= FlattenableUtils::align<4>(buffer);
+    }
+
+    // check we have enough space
+    if (size < getPodSize()) {
+        return NO_MEMORY;
+    }
+
+    FlattenableUtils::read(buffer, size, mCrop);
+    FlattenableUtils::read(buffer, size, mTransform);
+    FlattenableUtils::read(buffer, size, mScalingMode);
+    FlattenableUtils::read(buffer, size, mTimestamp);
+    mIsAutoTimestamp = readBoolFromInt(buffer, size);
+    FlattenableUtils::read(buffer, size, mDataSpace);
+    FlattenableUtils::read(buffer, size, mFrameNumber);
+    FlattenableUtils::read(buffer, size, mBuf);
+    mIsDroppable = readBoolFromInt(buffer, size);
+    mAcquireCalled = readBoolFromInt(buffer, size);
+    mTransformToDisplayInverse = readBoolFromInt(buffer, size);
+
+    return NO_ERROR;
+}
+
+// ---------------------------------------------------------------------------
 
 enum {
     ACQUIRE_BUFFER = IBinder::FIRST_CALL_TRANSACTION,
@@ -66,12 +223,10 @@ public:
 
     virtual ~BpGraphicBufferConsumer();
 
-    virtual status_t acquireBuffer(BufferItem *buffer, nsecs_t presentWhen,
-            uint64_t maxFrameNumber) {
+    virtual status_t acquireBuffer(BufferItem *buffer, nsecs_t presentWhen) {
         Parcel data, reply;
         data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
         data.writeInt64(presentWhen);
-        data.writeUint64(maxFrameNumber);
         status_t result = remote()->transact(ACQUIRE_BUFFER, data, &reply);
         if (result != NO_ERROR) {
             return result;
@@ -297,8 +452,7 @@ status_t BnGraphicBufferConsumer::onTransact(
             CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
             BufferItem item;
             int64_t presentWhen = data.readInt64();
-            uint64_t maxFrameNumber = data.readUint64();
-            status_t result = acquireBuffer(&item, presentWhen, maxFrameNumber);
+            status_t result = acquireBuffer(&item, presentWhen);
             status_t err = reply->write(item);
             if (err) return err;
             reply->writeInt32(result);

@@ -43,7 +43,7 @@ public:
     status_t unregisterBuffer(buffer_handle_t handle);
 
     status_t lock(buffer_handle_t handle,
-            uint32_t usage, const Rect& bounds, void** vaddr);
+            int usage, const Rect& bounds, void** vaddr);
 
     status_t lockYCbCr(buffer_handle_t handle,
             uint32_t usage, const Rect& bounds, android_ycbcr *ycbcr);

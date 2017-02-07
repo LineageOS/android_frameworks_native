@@ -92,7 +92,7 @@ status_t CpuConsumer::lockNextBuffer(LockedBuffer *nativeBuffer) {
         return NOT_ENOUGH_DATA;
     }
 
-    BufferItem b;
+    BufferQueue::BufferItem b;
 
     Mutex::Autolock _l(mMutex);
 

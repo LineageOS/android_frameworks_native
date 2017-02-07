@@ -19,6 +19,7 @@
 
 #include <gui/BufferQueueDefs.h>
 #include <gui/IGraphicBufferProducer.h>
+#include <utils/Condition.h>
 
 namespace android {
 
