@@ -711,7 +711,8 @@ void Dumpstate::RunDumpsys(const std::string& title, const std::vector<std::stri
 }
 
 void send_broadcast(const std::string& action, const std::vector<std::string>& args) {
-    std::vector<std::string> am = {"/system/bin/am", "broadcast", "--user", "0", "-a", action};
+    std::vector<std::string> am = {
+        "/system/bin/cmd", "activity", "broadcast", "--user", "0", "-a", action};
 
     am.insert(am.end(), args.begin(), args.end());
 
