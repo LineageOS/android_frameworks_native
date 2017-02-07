@@ -162,8 +162,8 @@ void Application::ProcessTasks(const std::vector<MainThreadTask>& tasks) {
         break;
       case MainThreadTask::EnteringVrMode:
         if (!initialized_) {
-          if (AllocateResources())
-            ALOGE("Failed to allocate resources");
+          LOG_ALWAYS_FATAL_IF(AllocateResources(),
+                              "Failed to allocate resources");
         }
         break;
       case MainThreadTask::ExitingVrMode:

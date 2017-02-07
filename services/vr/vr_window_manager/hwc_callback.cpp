@@ -62,27 +62,18 @@ HwcCallback::FrameStatus GetFrameStatus(const HwcCallback::Frame& frame) {
 
 }  // namespace
 
-HwcCallback::HwcCallback(IVrComposerView* composer_view, Client* client)
-    : composer_view_(composer_view),
-      client_(client) {
-  composer_view_->registerCallback(this);
+HwcCallback::HwcCallback(Client* client) : client_(client) {
 }
 
 HwcCallback::~HwcCallback() {
-  composer_view_->registerCallback(nullptr);
 }
 
-Return<void> HwcCallback::onNewFrame(
-    const hidl_vec<IVrComposerCallback::Layer>& frame) {
-
+void HwcCallback::OnNewFrame(const ComposerView::Frame& frame) {
   std::vector<HwcLayer> hwc_frame(frame.size());
   for (size_t i = 0; i < frame.size(); ++i) {
-    int fence = frame[i].fence.getNativeHandle()->numFds ?
-        dup(frame[i].fence.getNativeHandle()->data[0]) : -1;
-
     hwc_frame[i] = HwcLayer{
-      .fence = new Fence(fence),
-      .buffer = GetBufferFromHandle(frame[i].buffer.getNativeHandle()),
+      .fence = frame[i].fence,
+      .buffer = frame[i].buffer,
       .crop = frame[i].crop,
       .display_frame = frame[i].display_frame,
       .blending = static_cast<int32_t>(frame[i].blend_mode),
@@ -92,10 +83,7 @@ Return<void> HwcCallback::onNewFrame(
     };
   }
 
-  std::lock_guard<std::mutex> guard(mutex_);
   client_->OnFrame(std::make_unique<Frame>(std::move(hwc_frame)));
-
-  return Void();
 }
 
 HwcCallback::Frame::Frame(std::vector<HwcLayer>&& layers)
