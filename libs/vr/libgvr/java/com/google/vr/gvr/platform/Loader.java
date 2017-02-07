@@ -1,32 +1,38 @@
 package com.google.vr.gvr.platform;
 
+import android.os.SystemProperties;
+
 /**
  * Auxiliary class to load the system implementation of the GVR API.
+ * @hide
  */
 public class Loader {
 
-  /**
-   * Opens a shared library containing the system implementation for the GVR
-   * API and returns the handle to it.
-   *
-   * @return A Long object describing the handle returned by dlopen.
-   */
-  public static Long loadLibrary() {
-    // Note: we cannot safely do caller verifications here, so instead we do
-    // them in the service side. This means that private API symbols will be
-    // visible to any app adding the appropriate <uses-library> in their
-    // manifest, but any requests to such APIs will fail if not done from a
-    // trusted package like VrCore.
-    //
-    // Trusted packages are defined by (package name, signature) pairs in within
-    // a system service, and both must match.
+    private static final String VR_MODE_BOOT = "ro.boot.vr";
 
-    // Load a thin JNI library that runs dlopen on request.
-    System.loadLibrary("gvr_system_loader");
+    /**
+     * Opens a shared library containing the system implementation for the GVR API and returns the
+     * handle to it.
+     *
+     * @return A Long object describing the handle returned by dlopen.
+     */
+    public static Long loadLibrary() {
+        // Note: caller verifications cannot be safely done here. Any app can find and use this API.
+        // Any sensitive functions must have appropriate checks on the service side.
 
-    // Performs dlopen on the library and returns the handle.
-    return nativeLoadLibrary("libgvr_system.so");
-  }
+        // Load a thin JNI library that runs dlopen on request.
+        System.loadLibrary("gvr_system_loader");
 
-  private static native long nativeLoadLibrary(String library);
+        // Performs dlopen on the library and returns the handle.
+        return nativeLoadLibrary("libgvr_system.so");
+    }
+
+    /**
+     * Returns true if this device boots directly in VR mode.
+     */
+    public static boolean getVrBoot() {
+        return SystemProperties.getBoolean(VR_MODE_BOOT, false);
+    }
+
+    private static native long nativeLoadLibrary(String library);
 }

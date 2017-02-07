@@ -19,10 +19,9 @@ include_dirs := \
 
 # Java platform library for the system implementation of the GVR API.
 include $(CLEAR_VARS)
-LOCAL_MODULE := gvr_platform
-LOCAL_MODULE_STEM := com.google.vr.gvr.platform
+LOCAL_MODULE := com.google.vr.gvr.platform
 LOCAL_REQUIRED_MODULES := libgvr_system_loader libgvr_system
-LOCAL_SRC_FILES := $(call all-subdir-java-files)
+LOCAL_SRC_FILES := $(call all-java-files-under, java)
 include $(BUILD_JAVA_LIBRARY)
 
 # Library to perform dlopen on the actual platform library.
