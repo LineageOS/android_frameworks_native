@@ -178,6 +178,11 @@ Error HwcDisplay::GetFrame(
     }
   }
 
+  if (frame.empty()) {
+    ALOGE("Requested frame with no layers");
+    return Error::BAD_LAYER;
+  }
+
   // Increment the time the fence is signalled every time we get the
   // presentation frame. This ensures that calling ReleaseFrame() only affects
   // the current frame.
