@@ -16,44 +16,76 @@
 
 #include <ui/HdrCapabilities.h>
 
-#include <binder/Parcel.h>
-
 namespace android {
 
-status_t HdrCapabilities::writeToParcel(Parcel* parcel) const
-{
-    status_t result = parcel->writeInt32Vector(mSupportedHdrTypes);
-    if (result != OK) {
-        return result;
-    }
-    result = parcel->writeFloat(mMaxLuminance);
-    if (result != OK) {
-        return result;
-    }
-    result = parcel->writeFloat(mMaxAverageLuminance);
-    if (result != OK) {
-        return result;
-    }
-    result = parcel->writeFloat(mMinLuminance);
-    return result;
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundefined-reinterpret-cast"
+#endif
+
+HdrCapabilities::~HdrCapabilities() = default;
+HdrCapabilities::HdrCapabilities(HdrCapabilities&& other) = default;
+HdrCapabilities& HdrCapabilities::operator=(HdrCapabilities&& other) = default;
+
+
+size_t HdrCapabilities::getFlattenedSize() const {
+    return  sizeof(mMaxLuminance) +
+            sizeof(mMaxAverageLuminance) +
+            sizeof(mMinLuminance) +
+            sizeof(int32_t) +
+            mSupportedHdrTypes.size() * sizeof(int32_t);
 }
 
-status_t HdrCapabilities::readFromParcel(const Parcel* parcel)
-{
-    status_t result = parcel->readInt32Vector(&mSupportedHdrTypes);
-    if (result != OK) {
-        return result;
+status_t HdrCapabilities::flatten(void* buffer, size_t size) const {
+
+    if (size < getFlattenedSize()) {
+        return NO_MEMORY;
     }
-    result = parcel->readFloat(&mMaxLuminance);
-    if (result != OK) {
-        return result;
+
+    int32_t* const buf = static_cast<int32_t*>(buffer);
+    reinterpret_cast<float&>(buf[0]) = mMaxLuminance;
+    reinterpret_cast<float&>(buf[1]) = mMaxAverageLuminance;
+    reinterpret_cast<float&>(buf[2]) = mMinLuminance;
+    buf[3] = static_cast<int32_t>(mSupportedHdrTypes.size());
+    for (size_t i = 0, c = mSupportedHdrTypes.size(); i < c; ++i) {
+        buf[4 + i] = mSupportedHdrTypes[i];
     }
-    result = parcel->readFloat(&mMaxAverageLuminance);
-    if (result != OK) {
-        return result;
-    }
-    result = parcel->readFloat(&mMinLuminance);
-    return result;
+    return NO_ERROR;
 }
+
+status_t HdrCapabilities::unflatten(void const* buffer, size_t size) {
+
+    size_t minSize = sizeof(mMaxLuminance) +
+                     sizeof(mMaxAverageLuminance) +
+                     sizeof(mMinLuminance) +
+                     sizeof(int32_t);
+
+    if (size < minSize) {
+        return NO_MEMORY;
+    }
+
+    int32_t const * const buf = static_cast<int32_t const *>(buffer);
+    const size_t itemCount = size_t(buf[3]);
+
+    // check the buffer is large enough
+    if (size < minSize + itemCount * sizeof(int32_t)) {
+        return BAD_VALUE;
+    }
+
+    mMaxLuminance        = reinterpret_cast<float const&>(buf[0]);
+    mMaxAverageLuminance = reinterpret_cast<float const&>(buf[1]);
+    mMinLuminance        = reinterpret_cast<float const&>(buf[2]);
+    if (itemCount) {
+        mSupportedHdrTypes.reserve(itemCount);
+        for (size_t i = 0; i < itemCount; ++i) {
+            mSupportedHdrTypes[i] = buf[4 + i];
+        }
+    }
+    return NO_ERROR;
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 } // namespace android
