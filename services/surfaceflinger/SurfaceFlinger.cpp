@@ -2275,6 +2275,7 @@ bool SurfaceFlinger::doComposeSurfaces(
                 switch (layer->getCompositionType(hwcId)) {
                     case HWC2::Composition::Cursor:
                     case HWC2::Composition::Device:
+                    case HWC2::Composition::Sideband:
                     case HWC2::Composition::SolidColor: {
                         const Layer::State& state(layer->getDrawingState());
                         if (layer->getClearClientTarget(hwcId) && !firstLayer &&
