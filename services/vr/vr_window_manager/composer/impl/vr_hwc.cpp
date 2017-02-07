@@ -15,7 +15,6 @@
  */
 #include "vr_hwc.h"
 
-#include <gralloc_priv.h>
 #include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicBufferMapper.h>
@@ -44,13 +43,28 @@ const Display kDefaultDisplayId = 1;
 const Config kDefaultConfigId = 1;
 
 sp<GraphicBuffer> GetBufferFromHandle(const native_handle_t* handle) {
-  // TODO(dnicoara): Fix this once gralloc1 is available.
-  private_handle_t* private_handle = private_handle_t::dynamicCast(handle);
+  uint32_t width = 0, height = 0, stride = 0, layer_count = 1;
+  uint64_t producer_usage = 0, consumer_usage = 0;
+  int32_t format = 0;
+
+  GraphicBufferMapper& mapper = GraphicBufferMapper::get();
+  if (mapper.getDimensions(handle, &width, &height) ||
+      mapper.getStride(handle, &stride) ||
+      mapper.getFormat(handle, &format) ||
+      mapper.getProducerUsage(handle, &producer_usage) ||
+      mapper.getConsumerUsage(handle, &consumer_usage)) {
+    ALOGE("Failed to read handle properties");
+    return nullptr;
+  }
+
+  // This will only succeed if gralloc has GRALLOC1_CAPABILITY_LAYERED_BUFFERS
+  // capability. Otherwise assume a count of 1.
+  mapper.getLayerCount(handle, &layer_count);
+
   sp<GraphicBuffer> buffer = new GraphicBuffer(
-      private_handle->width, private_handle->height, private_handle->format, 1,
-      GraphicBuffer::USAGE_HW_COMPOSER | GraphicBuffer::USAGE_HW_TEXTURE,
-      private_handle->width, native_handle_clone(handle), true);
-  if (GraphicBufferMapper::get().registerBuffer(buffer.get()) != OK) {
+      width, height, format, layer_count, producer_usage, consumer_usage,
+      stride, native_handle_clone(handle), true);
+  if (mapper.registerBuffer(buffer.get()) != OK) {
     ALOGE("Failed to register buffer");
     return nullptr;
   }

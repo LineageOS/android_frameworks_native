@@ -18,7 +18,8 @@
 
 #include <android/hardware/graphics/composer/2.1/IComposer.h>
 #include <ComposerBase.h>
-#include <ui/GraphicBufferMapper.h>
+#include <ui/Fence.h>
+#include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
 
 #include <mutex>
