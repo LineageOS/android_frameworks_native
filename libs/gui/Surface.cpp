@@ -30,12 +30,11 @@
 #include <ui/Region.h>
 #include <ui/DisplayStatInfo.h>
 
+#include <gui/BufferItem.h>
 #include <gui/IProducerListener.h>
-#include <gui/ISurfaceComposer.h>
-#include <gui/SurfaceComposerClient.h>
-#include <gui/GLConsumer.h>
 #include <gui/Surface.h>
 
+#include <gui/ISurfaceComposer.h>
 #include <private/gui/ComposerService.h>
 
 namespace android {

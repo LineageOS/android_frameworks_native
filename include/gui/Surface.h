@@ -17,17 +17,17 @@
 #ifndef ANDROID_GUI_SURFACE_H
 #define ANDROID_GUI_SURFACE_H
 
+#include <binder/Parcelable.h>
+
 #include <gui/IGraphicBufferProducer.h>
-#include <gui/BufferQueue.h>
+#include <gui/BufferQueueDefs.h>
 
 #include <ui/ANativeObjectBase.h>
 #include <ui/Region.h>
 
-#include <binder/Parcelable.h>
-
+#include <utils/Condition.h>
+#include <utils/Mutex.h>
 #include <utils/RefBase.h>
-#include <utils/threads.h>
-#include <utils/KeyedVector.h>
 
 struct ANativeWindow_Buffer;
 
@@ -251,7 +251,7 @@ public:
     virtual int attachBuffer(ANativeWindowBuffer*);
 
 protected:
-    enum { NUM_BUFFER_SLOTS = BufferQueue::NUM_BUFFER_SLOTS };
+    enum { NUM_BUFFER_SLOTS = BufferQueueDefs::NUM_BUFFER_SLOTS };
     enum { DEFAULT_FORMAT = PIXEL_FORMAT_RGBA_8888 };
 
     void querySupportedTimestampsLocked() const;

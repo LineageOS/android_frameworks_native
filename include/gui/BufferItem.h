@@ -17,9 +17,6 @@
 #ifndef ANDROID_GUI_BUFFERITEM_H
 #define ANDROID_GUI_BUFFERITEM_H
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-
 #include <ui/FenceTime.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>

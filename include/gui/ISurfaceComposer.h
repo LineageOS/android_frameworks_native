@@ -28,9 +28,7 @@
 #include <binder/IInterface.h>
 
 #include <ui/FrameStats.h>
-
-#include <gui/IGraphicBufferAlloc.h>
-#include <gui/ISurfaceComposerClient.h>
+#include <ui/PixelFormat.h>
 
 #include <vector>
 
@@ -43,7 +41,9 @@ struct DisplayInfo;
 struct DisplayStatInfo;
 class HdrCapabilities;
 class IDisplayEventConnection;
-class IMemoryHeap;
+class IGraphicBufferAlloc;
+class IGraphicBufferProducer;
+class ISurfaceComposerClient;
 class Rect;
 enum class FrameEvent;
 
