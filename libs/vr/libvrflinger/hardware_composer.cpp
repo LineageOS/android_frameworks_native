@@ -104,7 +104,6 @@ HardwareComposer::HardwareComposer(Hwc2::Composer* hwc2_hidl)
       display_transform_(HWC_TRANSFORM_NONE),
       display_surfaces_updated_(false),
       hardware_layers_need_update_(false),
-      display_on_(false),
       active_layer_count_(0),
       gpu_layer_(nullptr),
       terminate_post_thread_event_fd_(-1),
@@ -282,7 +281,6 @@ bool HardwareComposer::Suspend() {
   PausePostThread();
 
   EnableVsync(false);
-  SetPowerMode(HWC_DISPLAY_PRIMARY, HWC2_POWER_MODE_OFF);
 
   backlight_brightness_fd_.Close();
   primary_display_vsync_event_fd_.Close();
@@ -380,18 +378,6 @@ int32_t HardwareComposer::Present(hwc2_display_t display) {
   }
 
   return error;
-}
-
-int32_t HardwareComposer::SetPowerMode(hwc2_display_t display,
-                                       hwc2_power_mode_t mode) {
-  if (mode == HWC2_POWER_MODE_OFF) {
-    EnableVsync(false);
-  }
-
-  display_on_ = mode != HWC2_POWER_MODE_OFF;
-
-  return (int32_t)hwc2_hidl_->setPowerMode(
-      display, (Hwc2::IComposerClient::PowerMode)mode);
 }
 
 int32_t HardwareComposer::GetDisplayAttribute(hwc2_display_t display,
@@ -556,26 +542,15 @@ void HardwareComposer::UpdateDisplayState() {
   const bool has_display_surfaces = display_surfaces_.size() > 0;
 
   if (has_display_surfaces) {
-    int32_t ret = SetPowerMode(HWC_DISPLAY_PRIMARY, HWC2_POWER_MODE_ON);
-
-    ALOGE_IF(ret, "HardwareComposer: Could not set power mode; ret=%d", ret);
-
     EnableVsync(true);
   }
+
   // TODO(skiazyk): We need to do something about accessing this directly,
   // supposedly there is a backlight service on the way.
   SetBacklightBrightness(255);
 
-  if (!display_on_ && has_display_surfaces) {
-    const int error = ReadVSyncTimestamp(&last_vsync_timestamp_);
-    ALOGE_IF(error < 0,
-             "HardwareComposer::SetDisplaySurfaces: Failed to read vsync "
-             "timestamp: %s",
-             strerror(-error));
-  }
-
   // Trigger target-specific performance mode change.
-  property_set(kDvrPerformanceProperty, display_on_ ? "performance" : "idle");
+  property_set(kDvrPerformanceProperty, has_display_surfaces ? "performance" : "idle");
 }
 
 int HardwareComposer::SetDisplaySurfaces(

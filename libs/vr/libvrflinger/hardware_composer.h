@@ -227,7 +227,6 @@ class HardwareComposer {
 
  private:
   int32_t EnableVsync(bool enabled);
-  int32_t SetPowerMode(hwc2_display_t display, hwc2_power_mode_t mode);
 
   class ComposerCallback : public Hwc2::IComposerCallback {
    public:
@@ -328,9 +327,6 @@ class HardwareComposer {
   std::vector<std::shared_ptr<DisplaySurface>> added_display_surfaces_;
   bool display_surfaces_updated_;
   bool hardware_layers_need_update_;
-
-  // Cache whether the display was turned on by us
-  bool display_on_; // TODO(hendrikw): The display is always on. Revisit.
 
   // Layer array for handling buffer flow into hardware composer layers.
   // Note that the first array is the actual storage for the layer objects,
