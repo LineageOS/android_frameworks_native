@@ -381,6 +381,15 @@ void DisplaySurface::OnPostConsumer(
   ATRACE_NAME("DisplaySurface::OnPostConsumer");
   std::lock_guard<std::mutex> autolock(lock_);
 
+  if (!IsVisible()) {
+    ALOGD_IF(TRACE,
+             "DisplaySurface::OnPostConsumer: Discarding buffer_id=%d on "
+             "invisible surface.",
+             consumer->id());
+    consumer->Discard();
+    return;
+  }
+
   if (posted_buffers_.IsFull()) {
     ALOGE("Error: posted buffers full, overwriting");
     posted_buffers_.PopBack();
