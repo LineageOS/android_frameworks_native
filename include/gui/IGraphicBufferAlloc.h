@@ -38,14 +38,29 @@ public:
     /* Create a new GraphicBuffer for the client to use.
      */
     virtual sp<GraphicBuffer> createGraphicBuffer(uint32_t w, uint32_t h,
-            PixelFormat format, uint32_t layerCount, uint32_t usage,
-            std::string requestorName, status_t* error) = 0;
+            PixelFormat format, uint32_t layerCount, uint64_t producerUsage,
+            uint64_t consumerUsage, std::string requestorName,
+            status_t* error) = 0;
 
     sp<GraphicBuffer> createGraphicBuffer(uint32_t w, uint32_t h,
             PixelFormat format, uint32_t layerCount, uint32_t usage,
             status_t* error) {
-        return createGraphicBuffer(w, h, format, layerCount, usage, "<Unknown>",
-                error);
+        return createGraphicBuffer(w, h, format, layerCount, usage,
+                usage, "<Unknown>", error);
+    }
+
+    sp<GraphicBuffer> createGraphicBuffer(uint32_t w, uint32_t h,
+            PixelFormat format, uint32_t layerCount, uint32_t usage,
+            std::string requestorName, status_t* error) {
+        return createGraphicBuffer(w, h, format, layerCount, usage,
+                usage, requestorName, error);
+    }
+
+    sp<GraphicBuffer> createGraphicBuffer(uint32_t w, uint32_t h,
+            PixelFormat format, uint32_t layerCount, uint64_t producerUsage,
+            uint64_t consumerUsage, status_t* error) {
+        return createGraphicBuffer(w, h, format, layerCount, producerUsage,
+                consumerUsage, "<Unknown>", error);
     }
 };
 

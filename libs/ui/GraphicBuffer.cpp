@@ -67,13 +67,13 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
     layerCount =
     usage  = 0;
     handle = NULL;
-    mInitCheck = initSize(inWidth, inHeight, inFormat, 1, inUsage,
+    mInitCheck = initSize(inWidth, inHeight, inFormat, 1, inUsage, inUsage,
             std::move(requestorName));
 }
 
 GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
-        PixelFormat inFormat, uint32_t inLayerCount, uint32_t inUsage,
-        std::string requestorName)
+        PixelFormat inFormat, uint32_t inLayerCount, uint64_t producerUsage,
+        uint64_t consumerUsage, std::string requestorName)
     : BASE(), mOwner(ownData), mBufferMapper(GraphicBufferMapper::get()),
       mInitCheck(NO_ERROR), mId(getUniqueId()), mGenerationNumber(0)
 {
@@ -84,8 +84,8 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
     layerCount =
     usage  = 0;
     handle = NULL;
-    mInitCheck = initSize(inWidth, inHeight, inFormat, inLayerCount, inUsage,
-            std::move(requestorName));
+    mInitCheck = initSize(inWidth, inHeight, inFormat, inLayerCount,
+            producerUsage, consumerUsage, std::move(requestorName));
 }
 
 GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
@@ -177,7 +177,7 @@ status_t GraphicBuffer::reallocate(uint32_t inWidth, uint32_t inHeight,
         allocator.free(handle);
         handle = 0;
     }
-    return initSize(inWidth, inHeight, inFormat, inLayerCount, inUsage,
+    return initSize(inWidth, inHeight, inFormat, inLayerCount, inUsage, inUsage,
             "[Reallocation]");
 }
 
@@ -193,19 +193,20 @@ bool GraphicBuffer::needsReallocation(uint32_t inWidth, uint32_t inHeight,
 }
 
 status_t GraphicBuffer::initSize(uint32_t inWidth, uint32_t inHeight,
-        PixelFormat inFormat, uint32_t inLayerCount, uint32_t inUsage,
-        std::string requestorName)
+        PixelFormat inFormat, uint32_t inLayerCount, uint64_t inProducerUsage,
+        uint64_t inConsumerUsage, std::string requestorName)
 {
     GraphicBufferAllocator& allocator = GraphicBufferAllocator::get();
     uint32_t outStride = 0;
     status_t err = allocator.allocate(inWidth, inHeight, inFormat, inLayerCount,
-            inUsage, &handle, &outStride, mId, std::move(requestorName));
+            inProducerUsage, inConsumerUsage, &handle, &outStride, mId,
+            std::move(requestorName));
     if (err == NO_ERROR) {
         width = static_cast<int>(inWidth);
         height = static_cast<int>(inHeight);
         format = inFormat;
         layerCount = inLayerCount;
-        usage = static_cast<int>(inUsage);
+        usage = static_cast<int>(inProducerUsage | inConsumerUsage);
         stride = static_cast<int>(outStride);
     }
     return err;
@@ -268,6 +269,12 @@ status_t GraphicBuffer::lockAsync(uint32_t inUsage, void** vaddr, int fenceFd)
 status_t GraphicBuffer::lockAsync(uint32_t inUsage, const Rect& rect,
         void** vaddr, int fenceFd)
 {
+    return lockAsync(inUsage, inUsage, rect, vaddr, fenceFd);
+}
+
+status_t GraphicBuffer::lockAsync(uint64_t inProducerUsage,
+        uint64_t inConsumerUsage, const Rect& rect, void** vaddr, int fenceFd)
+{
     if (rect.left < 0 || rect.right  > width ||
         rect.top  < 0 || rect.bottom > height) {
         ALOGE("locking pixels (%d,%d,%d,%d) outside of buffer (w=%d, h=%d)",
@@ -275,8 +282,8 @@ status_t GraphicBuffer::lockAsync(uint32_t inUsage, const Rect& rect,
                 width, height);
         return BAD_VALUE;
     }
-    status_t res = getBufferMapper().lockAsync(handle, inUsage, rect, vaddr,
-            fenceFd);
+    status_t res = getBufferMapper().lockAsync(handle, inProducerUsage,
+            inConsumerUsage, rect, vaddr, fenceFd);
     return res;
 }
 

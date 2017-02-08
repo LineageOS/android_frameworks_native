@@ -143,6 +143,13 @@ status_t GraphicBufferMapper::unlock(buffer_handle_t handle)
 status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
         uint32_t usage, const Rect& bounds, void** vaddr, int fenceFd)
 {
+    return lockAsync(handle, usage, usage, bounds, vaddr, fenceFd);
+}
+
+status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
+        uint64_t producerUsage, uint64_t consumerUsage, const Rect& bounds,
+        void** vaddr, int fenceFd)
+{
     ATRACE_CALL();
 
     gralloc1_rect_t accessRegion = asGralloc1Rect(bounds);
@@ -151,12 +158,13 @@ status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
         const Gralloc2::IMapper::Rect& accessRect =
             *reinterpret_cast<Gralloc2::IMapper::Rect*>(&accessRegion);
         error = static_cast<gralloc1_error_t>(mMapper->lock(
-                    handle, usage, usage, accessRect, fenceFd, vaddr));
+                    handle, producerUsage, consumerUsage, accessRect,
+                    fenceFd, vaddr));
     } else {
         sp<Fence> fence = new Fence(fenceFd);
         error = mDevice->lock(handle,
-                static_cast<gralloc1_producer_usage_t>(usage),
-                static_cast<gralloc1_consumer_usage_t>(usage),
+                static_cast<gralloc1_producer_usage_t>(producerUsage),
+                static_cast<gralloc1_consumer_usage_t>(consumerUsage),
                 &accessRegion, vaddr, fence);
     }
 

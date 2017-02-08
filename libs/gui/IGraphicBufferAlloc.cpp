@@ -46,14 +46,16 @@ public:
 
     virtual sp<GraphicBuffer> createGraphicBuffer(uint32_t width,
             uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint32_t usage, std::string requestorName, status_t* error) {
+            uint64_t producerUsage, uint64_t consumerUsage,
+            std::string requestorName, status_t* error) {
         Parcel data, reply;
         data.writeInterfaceToken(IGraphicBufferAlloc::getInterfaceDescriptor());
         data.writeUint32(width);
         data.writeUint32(height);
         data.writeInt32(static_cast<int32_t>(format));
         data.writeUint32(layerCount);
-        data.writeUint32(usage);
+        data.writeUint64(producerUsage);
+        data.writeUint64(consumerUsage);
         if (requestorName.empty()) {
             requestorName += "[PID ";
             requestorName += std::to_string(getpid());
@@ -108,12 +110,14 @@ status_t BnGraphicBufferAlloc::onTransact(
             uint32_t height = data.readUint32();
             PixelFormat format = static_cast<PixelFormat>(data.readInt32());
             uint32_t layerCount = data.readUint32();
-            uint32_t usage = data.readUint32();
+            uint64_t producerUsage = data.readUint64();
+            uint64_t consumerUsage = data.readUint64();
             status_t error = NO_ERROR;
             std::string requestorName;
             data.readUtf8FromUtf16(&requestorName);
             sp<GraphicBuffer> result = createGraphicBuffer(width, height,
-                    format, layerCount, usage, requestorName, &error);
+                    format, layerCount, producerUsage, consumerUsage,
+                    requestorName, &error);
             reply->writeInt32(error);
             if (result != 0) {
                 reply->write(*result);
