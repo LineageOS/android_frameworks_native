@@ -1339,6 +1339,30 @@ static std::string SHA256_file_hash(std::string filepath) {
     return std::string(hash_buffer);
 }
 
+static void SendShellBroadcast(const std::string& action, const std::vector<std::string>& args) {
+    std::vector<std::string> am = {
+        "/system/bin/cmd", "activity", "broadcast", "--user", "0", "-a", action};
+
+    am.insert(am.end(), args.begin(), args.end());
+
+    // TODO: explicity setting Shell's component to allow broadcast to launch it.
+    // That might break other components that are listening to the bugreport notifications
+    // (android.intent.action.BUGREPORT_STARTED and android.intent.action.BUGREPORT_STOPED), but
+    // those should be just handled by Shell anyways.
+    // A more generic alternative would be passing the -f 0x01000000 flag (or whatever
+    // value is defined by FLAG_RECEIVER_INCLUDE_BACKGROUND), but that would reset the
+    // --receiver-foreground option
+    am.push_back("com.android.shell");
+
+    RunCommand("", am,
+               CommandOptions::WithTimeout(20)
+                   .Log("Sending broadcast: '%s'\n")
+                   .Always()
+                   .DropRoot()
+                   .RedirectStderr()
+                   .Build());
+}
+
 int main(int argc, char *argv[]) {
     int do_add_date = 0;
     int do_zip_file = 0;
@@ -1561,18 +1585,15 @@ int main(int argc, char *argv[]) {
             if (do_broadcast) {
                 // clang-format off
 
-                // NOTE: flag must be kept in sync when the value of
-                // FLAG_RECEIVER_INCLUDE_BACKGROUND is changed.
                 std::vector<std::string> am_args = {
                      "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
-                     "-f", "0x01000000",
                      "--es", "android.intent.extra.NAME", ds.name_,
                      "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
                      "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
                      "--ei", "android.intent.extra.MAX", std::to_string(ds.progress_->GetMax()),
                 };
                 // clang-format on
-                send_broadcast("android.intent.action.BUGREPORT_STARTED", am_args);
+                SendShellBroadcast("android.intent.action.BUGREPORT_STARTED", am_args);
             }
             if (use_control_socket) {
                 dprintf(ds.control_socket_fd_, "BEGIN:%s\n", ds.path_.c_str());
@@ -1805,11 +1826,8 @@ int main(int argc, char *argv[]) {
             MYLOGI("Final bugreport path: %s\n", ds.path_.c_str());
             // clang-format off
 
-            // NOTE: flag must be kept in sync when the value of
-            // FLAG_RECEIVER_INCLUDE_BACKGROUND is changed.
             std::vector<std::string> am_args = {
                  "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
-                 "-f", "0x01000000",
                  "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
                  "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
                  "--ei", "android.intent.extra.MAX", std::to_string(ds.progress_->GetMax()),
@@ -1826,9 +1844,9 @@ int main(int argc, char *argv[]) {
                 am_args.push_back("--es");
                 am_args.push_back("android.intent.extra.REMOTE_BUGREPORT_HASH");
                 am_args.push_back(SHA256_file_hash(ds.path_));
-                send_broadcast("android.intent.action.REMOTE_BUGREPORT_FINISHED", am_args);
+                SendShellBroadcast("android.intent.action.REMOTE_BUGREPORT_FINISHED", am_args);
             } else {
-                send_broadcast("android.intent.action.BUGREPORT_FINISHED", am_args);
+                SendShellBroadcast("android.intent.action.BUGREPORT_FINISHED", am_args);
             }
         } else {
             MYLOGE("Skipping finished broadcast because bugreport could not be generated\n");
