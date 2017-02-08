@@ -46,7 +46,8 @@ void DebugReportCallbackList::RemoveCallback(
         Node* prev = &head_;
         while (prev && prev->next != node)
             prev = prev->next;
-        prev->next = node->next;
+        if (prev)
+            prev->next = node->next;
     }
 
     allocator.pfnFree(allocator.pUserData, node);
