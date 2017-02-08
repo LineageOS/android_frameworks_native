@@ -28,7 +28,7 @@
 
 #include <android/dlext.h>
 #include <cutils/properties.h>
-#include <gui/GraphicsEnv.h>
+#include <ui/GraphicsEnv.h>
 
 #include "driver.h"
 #include "stubhal.h"

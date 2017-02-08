@@ -16,7 +16,7 @@
 
 //#define LOG_NDEBUG 1
 #define LOG_TAG "GraphicsEnv"
-#include <gui/GraphicsEnv.h>
+#include <ui/GraphicsEnv.h>
 
 #include <mutex>
 

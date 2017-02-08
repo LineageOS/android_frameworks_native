@@ -31,6 +31,7 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 #include <utils/Trace.h>
+#include <ui/GraphicsEnv.h>
 
 #include <EGL/egl.h>
 
@@ -147,26 +148,11 @@ status_t Loader::driver_t::set(void* hnd, int32_t api)
 // ----------------------------------------------------------------------------
 
 Loader::Loader()
-    : getProcAddress(NULL),
-      mLibGui(nullptr),
-      mGetDriverNamespace(nullptr)
+    : getProcAddress(NULL)
 {
-    // FIXME: See note in GraphicsEnv.h about android_getDriverNamespace().
-    // libgui should already be loaded in any process that uses libEGL, but
-    // if for some reason it isn't, then we're not going to get a driver
-    // namespace anyway, so don't force it to be loaded.
-    mLibGui = dlopen("libgui.so", RTLD_NOLOAD | RTLD_LOCAL | RTLD_LAZY);
-    if (!mLibGui) {
-        ALOGD("failed to load libgui: %s", dlerror());
-        return;
-    }
-    mGetDriverNamespace = reinterpret_cast<decltype(mGetDriverNamespace)>(
-            dlsym(mLibGui, "android_getDriverNamespace"));
 }
 
 Loader::~Loader() {
-    if (mLibGui)
-        dlclose(mLibGui);
 }
 
 static void* load_wrapper(const char* path) {
@@ -483,11 +469,9 @@ void *Loader::load_driver(const char* kind,
     ATRACE_CALL();
 
     void* dso = nullptr;
-    if (mGetDriverNamespace) {
-        android_namespace_t* ns = mGetDriverNamespace();
-        if (ns) {
-            dso = load_updated_driver(kind, ns);
-        }
+    android_namespace_t* ns = android_getDriverNamespace();
+    if (ns) {
+        dso = load_updated_driver(kind, ns);
     }
     if (!dso) {
         dso = load_system_driver(kind);
