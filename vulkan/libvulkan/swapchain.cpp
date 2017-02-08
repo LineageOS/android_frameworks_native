@@ -564,8 +564,8 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice /*pdev*/,
     const VkPresentModeKHR kModes[] = {
         VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_FIFO_KHR,
         // TODO(chrisforbes): should only expose this if the driver can.
-        VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR,
-        VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR,
+        // VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR,
+        // VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR,
     };
     const uint32_t kNumModes = sizeof(kModes) / sizeof(kModes[0]);
 
