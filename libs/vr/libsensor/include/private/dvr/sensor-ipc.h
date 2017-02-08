@@ -1,7 +1,7 @@
 #ifndef ANDROID_DVR_SENSOR_IPC_H_
 #define ANDROID_DVR_SENSOR_IPC_H_
 
-#define DVR_SENSOR_SERVICE_BASE "system/sensors"
+#define DVR_SENSOR_SERVICE_BASE "system/vr/sensors"
 
 #define DVR_SENSOR_SERVICE_CLIENT (DVR_SENSOR_SERVICE_BASE "/client")
 

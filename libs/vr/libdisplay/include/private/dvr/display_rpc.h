@@ -205,7 +205,7 @@ struct ViewerParams {
 
 struct DisplayRPC {
   // Service path.
-  static constexpr char kClientPath[] = "system/display/client";
+  static constexpr char kClientPath[] = "system/vr/display/client";
 
   // Op codes.
   enum {
@@ -253,7 +253,7 @@ struct DisplayRPC {
 
 struct DisplayManagerRPC {
   // Service path.
-  static constexpr char kClientPath[] = "system/display/manager";
+  static constexpr char kClientPath[] = "system/vr/display/manager";
 
   // Op codes.
   enum {
@@ -287,7 +287,7 @@ struct ScreenshotData {
 
 struct DisplayScreenshotRPC {
   // Service path.
-  static constexpr char kClientPath[] = "system/display/screenshot";
+  static constexpr char kClientPath[] = "system/vr/display/screenshot";
 
   // Op codes.
   enum {
@@ -314,7 +314,7 @@ struct VSyncSchedInfo {
 
 struct DisplayVSyncRPC {
   // Service path.
-  static constexpr char kClientPath[] = "system/display/vsync";
+  static constexpr char kClientPath[] = "system/vr/display/vsync";
 
   // Op codes.
   enum {

@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#define DVR_POSE_SERVICE_BASE "system/pose"
+#define DVR_POSE_SERVICE_BASE "system/vr/pose"
 #define DVR_POSE_SERVICE_CLIENT (DVR_POSE_SERVICE_BASE "/client")
 
 enum {
