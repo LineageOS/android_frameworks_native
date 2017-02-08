@@ -106,8 +106,8 @@ HardwareComposer::HardwareComposer(Hwc2::Composer* hwc2_hidl)
       hardware_layers_need_update_(false),
       active_layer_count_(0),
       gpu_layer_(nullptr),
+      post_thread_state_(PostThreadState::kPaused),
       terminate_post_thread_event_fd_(-1),
-      pause_post_thread_(true),
       backlight_brightness_fd_(-1),
       primary_display_vsync_event_fd_(-1),
       primary_display_wait_pp_fd_(-1),
@@ -123,18 +123,16 @@ HardwareComposer::HardwareComposer(Hwc2::Composer* hwc2_hidl)
 }
 
 HardwareComposer::~HardwareComposer(void) {
-  if (!IsSuspended()) {
-    Suspend();
-  }
+  Suspend();
 }
 
 bool HardwareComposer::Resume() {
-  std::lock_guard<std::mutex> autolock(layer_mutex_);
-
-  if (!IsSuspended()) {
-    ALOGE("HardwareComposer::Resume: HardwareComposer is already running.");
+  std::lock_guard<std::mutex> post_thread_lock(post_thread_state_mutex_);
+  if (post_thread_state_ == PostThreadState::kRunning) {
     return false;
   }
+
+  std::lock_guard<std::mutex> layer_lock(layer_mutex_);
 
   int32_t ret = HWC2_ERROR_NONE;
 
@@ -249,36 +247,47 @@ bool HardwareComposer::Resume() {
   pose_client_ = dvrPoseCreate();
   ALOGE_IF(!pose_client_, "HardwareComposer: Failed to create pose client");
 
-  // Variables used to control the post thread state
-  pause_post_thread_ = false;
-  terminate_post_thread_event_fd_.Reset(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
-
+  terminate_post_thread_event_fd_.Reset(
+      eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
   LOG_ALWAYS_FATAL_IF(
       !terminate_post_thread_event_fd_,
       "HardwareComposer: Failed to create terminate PostThread event fd : %s",
       strerror(errno));
+
+  post_thread_state_ = PostThreadState::kRunning;
+  post_thread_state_cond_var_.notify_all();
 
   // If get_id() is the default thread::id object, it has not been created yet
   if (post_thread_.get_id() == std::thread::id()) {
     post_thread_ = std::thread(&HardwareComposer::PostThread, this);
   } else {
     UpdateDisplayState();
-    thread_pause_semaphore_.notify_one();
   }
 
   return true;
 }
 
 bool HardwareComposer::Suspend() {
-  // Wait for any pending layer operations to finish
-  std::unique_lock<std::mutex> layer_lock(layer_mutex_);
-
-  if (IsSuspended()) {
-    ALOGE("HardwareComposer::Suspend: HardwareComposer is already suspended.");
+  std::unique_lock<std::mutex> post_thread_lock(post_thread_state_mutex_);
+  if (post_thread_state_ == PostThreadState::kPaused) {
     return false;
   }
 
-  PausePostThread();
+  post_thread_state_ = PostThreadState::kPauseRequested;
+
+  int error = eventfd_write(terminate_post_thread_event_fd_.Get(), 1);
+  ALOGE_IF(error,
+           "HardwareComposer::Suspend: could not write post "
+           "thread termination event fd : %d",
+           error);
+
+  post_thread_state_cond_var_.wait(
+      post_thread_lock,
+      [this] { return post_thread_state_ == PostThreadState::kPaused; });
+  terminate_post_thread_event_fd_.Close();
+
+  // Wait for any pending layer operations to finish
+  std::lock_guard<std::mutex> layer_lock(layer_mutex_);
 
   EnableVsync(false);
 
@@ -304,19 +313,6 @@ bool HardwareComposer::Suspend() {
     dvrPoseDestroy(pose_client_);
 
   return true;
-}
-
-void HardwareComposer::PausePostThread() {
-  pause_post_thread_ = true;
-
-  int error = eventfd_write(terminate_post_thread_event_fd_.Get(), 1);
-  ALOGE_IF(error,
-           "HardwareComposer::PausePostThread: could not write post "
-           "thread termination event fd : %d",
-           error);
-
-  std::unique_lock<std::mutex> wait_for_thread(thread_pause_mutex_);
-  terminate_post_thread_event_fd_.Close();
 }
 
 DisplayMetrics HardwareComposer::GetHmdDisplayMetrics() const {
@@ -555,7 +551,10 @@ void HardwareComposer::UpdateDisplayState() {
 
 int HardwareComposer::SetDisplaySurfaces(
     std::vector<std::shared_ptr<DisplaySurface>> surfaces) {
-  std::lock_guard<std::mutex> autolock(layer_mutex_);
+  // The double lock is necessary because we access both the display surfaces
+  // and post_thread_state_.
+  std::lock_guard<std::mutex> post_thread_state_lock(post_thread_state_mutex_);
+  std::lock_guard<std::mutex> layer_lock(layer_mutex_);
 
   ALOGI("HardwareComposer::SetDisplaySurfaces: surface count=%zd",
         surfaces.size());
@@ -601,7 +600,7 @@ int HardwareComposer::SetDisplaySurfaces(
 
   // TODO(skiazyk): fix this so that it is handled seamlessly with dormant/non-
   // dormant state.
-  if (!IsSuspended()) {
+  if (post_thread_state_ == PostThreadState::kRunning) {
     UpdateDisplayState();
   }
 
@@ -701,7 +700,8 @@ int HardwareComposer::ReadVSyncTimestamp(int64_t* timestamp) {
 // Blocks until the next vsync event is signaled by the display driver.
 // TODO(eieio): This is pretty driver specific, this should be moved to a
 // separate class eventually.
-int HardwareComposer::BlockUntilVSync() {
+int HardwareComposer::BlockUntilVSync(/*out*/ bool* suspend_requested) {
+  *suspend_requested = false;
   const int event_fd = primary_display_vsync_event_fd_.Get();
   pollfd pfd[2] = {
       {
@@ -726,6 +726,8 @@ int HardwareComposer::BlockUntilVSync() {
              strerror(error), error);
   } while (ret < 0 && error == EINTR);
 
+  if (ret >= 0 && pfd[1].revents != 0)
+    *suspend_requested = true;
   return ret < 0 ? -error : 0;
 }
 
@@ -748,14 +750,10 @@ int HardwareComposer::WaitForVSync(int64_t* timestamp) {
 
     if (error == -EAGAIN) {
       // Vsync was turned off, wait for the next vsync event.
-      error = BlockUntilVSync();
-      if (error < 0)
+      bool suspend_requested = false;
+      error = BlockUntilVSync(&suspend_requested);
+      if (error < 0 || suspend_requested)
         return error;
-
-      // If a request to pause the post thread was given, exit immediately
-      if (IsSuspended()) {
-        return 0;
-      }
 
       // Try again to get the timestamp for this new vsync interval.
       continue;
@@ -777,14 +775,10 @@ int HardwareComposer::WaitForVSync(int64_t* timestamp) {
 
     if (distance_to_vsync_est > threshold_ns) {
       // Wait for vsync event notification.
-      error = BlockUntilVSync();
-      if (error < 0)
+      bool suspend_requested = false;
+      error = BlockUntilVSync(&suspend_requested);
+      if (error < 0 || suspend_requested)
         return error;
-
-      // Again, exit immediately if the thread was requested to pause
-      if (IsSuspended()) {
-        return 0;
-      }
     } else {
       // Sleep for a short time before retrying.
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -822,8 +816,6 @@ int HardwareComposer::SleepUntil(int64_t wakeup_timestamp) {
 void HardwareComposer::PostThread() {
   // NOLINTNEXTLINE(runtime/int)
   prctl(PR_SET_NAME, reinterpret_cast<unsigned long>("PostThread"), 0, 0, 0);
-
-  std::unique_lock<std::mutex> thread_lock(thread_pause_mutex_);
 
   // Set the scheduler to SCHED_FIFO with high priority.
   int error = dvrSetSchedulerClass(0, "graphics:high");
@@ -878,12 +870,19 @@ void HardwareComposer::PostThread() {
   while (1) {
     ATRACE_NAME("HardwareComposer::PostThread");
 
-    while (IsSuspended()) {
-      ALOGI("HardwareComposer::PostThread: Post thread pause requested.");
-      thread_pause_semaphore_.wait(thread_lock);
-      // The layers will need to be updated since they were deleted previously
-      display_surfaces_updated_ = true;
-      hardware_layers_need_update_ = true;
+    {
+      std::unique_lock<std::mutex> post_thread_lock(post_thread_state_mutex_);
+      if (post_thread_state_ == PostThreadState::kPauseRequested) {
+        ALOGI("HardwareComposer::PostThread: Post thread pause requested.");
+        post_thread_state_ = PostThreadState::kPaused;
+        post_thread_state_cond_var_.notify_all();
+        post_thread_state_cond_var_.wait(
+            post_thread_lock,
+            [this] { return post_thread_state_ == PostThreadState::kRunning; });
+        // The layers will need to be updated since they were deleted previously
+        display_surfaces_updated_ = true;
+        hardware_layers_need_update_ = true;
+      }
     }
 
     int64_t vsync_timestamp = 0;
@@ -900,7 +899,8 @@ void HardwareComposer::PostThread() {
           strerror(-error));
 
       // Don't bother processing this frame if a pause was requested
-      if (IsSuspended()) {
+      std::lock_guard<std::mutex> post_thread_lock(post_thread_state_mutex_);
+      if (post_thread_state_ == PostThreadState::kPauseRequested) {
         continue;
       }
     }
@@ -1030,7 +1030,7 @@ void HardwareComposer::PostThread() {
 
 bool HardwareComposer::UpdateLayerConfig(
     std::vector<std::shared_ptr<DisplaySurface>>* compositor_surfaces) {
-  std::lock_guard<std::mutex> autolock(layer_mutex_);
+  std::lock_guard<std::mutex> layer_lock(layer_mutex_);
 
   if (!display_surfaces_updated_)
     return false;
