@@ -20,7 +20,10 @@
 
 #include <EGL/egl.h>
 #include <gui/Surface.h>
-
+#include <gui/IConsumerListener.h>
+#include <gui/IProducerListener.h>
+#include <gui/IGraphicBufferConsumer.h>
+#include <gui/BufferQueue.h>
 
 namespace android {
 

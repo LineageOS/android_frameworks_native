@@ -25,10 +25,11 @@
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 
-#include <gui/BitTube.h>
 #include <gui/IDisplayEventConnection.h>
-#include <gui/ISurfaceComposer.h>
+#include <gui/IGraphicBufferAlloc.h>
 #include <gui/IGraphicBufferProducer.h>
+#include <gui/ISurfaceComposer.h>
+#include <gui/ISurfaceComposerClient.h>
 
 #include <private/gui/LayerState.h>
 
@@ -43,8 +44,6 @@
 // ---------------------------------------------------------------------------
 
 namespace android {
-
-class IDisplayEventConnection;
 
 class BpSurfaceComposer : public BpInterface<ISurfaceComposer>
 {
