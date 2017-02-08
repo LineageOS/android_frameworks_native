@@ -117,6 +117,140 @@ static inline gralloc1_rect_t asGralloc1Rect(const Rect& rect) {
     return outRect;
 }
 
+
+status_t GraphicBufferMapper::getDimensions(buffer_handle_t handle,
+        uint32_t* outWidth, uint32_t* outHeight) const
+{
+    ATRACE_CALL();
+
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        mMapper->getDimensions(handle, outWidth, outHeight);
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        error = mDevice->getDimensions(handle, outWidth, outHeight);
+    }
+
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "getDimensions(%p, ...): failed %d",
+            handle, error);
+
+    return error;
+}
+
+status_t GraphicBufferMapper::getFormat(buffer_handle_t handle,
+        int32_t* outFormat) const
+{
+    ATRACE_CALL();
+
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        mMapper->getFormat(handle, outFormat);
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        error = mDevice->getFormat(handle, outFormat);
+    }
+
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "getFormat(%p, ...): failed %d",
+            handle, error);
+
+    return error;
+}
+
+status_t GraphicBufferMapper::getLayerCount(buffer_handle_t handle,
+        uint32_t* outLayerCount) const
+{
+    ATRACE_CALL();
+
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        mMapper->getLayerCount(handle, outLayerCount);
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        error = mDevice->getLayerCount(handle, outLayerCount);
+    }
+
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "getLayerCount(%p, ...): failed %d",
+            handle, error);
+
+    return error;
+}
+
+status_t GraphicBufferMapper::getProducerUsage(buffer_handle_t handle,
+        uint64_t* outProducerUsage) const
+{
+    ATRACE_CALL();
+
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        mMapper->getProducerUsage(handle, outProducerUsage);
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        error = mDevice->getProducerUsage(handle, outProducerUsage);
+    }
+
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE,
+            "getProducerUsage(%p, ...): failed %d", handle, error);
+
+    return error;
+}
+
+status_t GraphicBufferMapper::getConsumerUsage(buffer_handle_t handle,
+        uint64_t* outConsumerUsage) const
+{
+    ATRACE_CALL();
+
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        mMapper->getConsumerUsage(handle, outConsumerUsage);
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        error = mDevice->getConsumerUsage(handle, outConsumerUsage);
+    }
+
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE,
+            "getConsumerUsage(%p, ...): failed %d", handle, error);
+
+    return error;
+}
+
+status_t GraphicBufferMapper::getBackingStore(buffer_handle_t handle,
+        uint64_t* outBackingStore) const
+{
+    ATRACE_CALL();
+
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        mMapper->getBackingStore(handle, outBackingStore);
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        error = mDevice->getBackingStore(handle, outBackingStore);
+    }
+
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE,
+            "getBackingStore(%p, ...): failed %d", handle, error);
+
+    return error;
+}
+
+status_t GraphicBufferMapper::getStride(buffer_handle_t handle,
+        uint32_t* outStride) const
+{
+    ATRACE_CALL();
+
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        mMapper->getStride(handle, outStride);
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        error = mDevice->getStride(handle, outStride);
+    }
+
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "getStride(%p, ...): failed %d",
+            handle, error);
+
+    return error;
+}
+
 status_t GraphicBufferMapper::lock(buffer_handle_t handle, uint32_t usage,
         const Rect& bounds, void** vaddr)
 {

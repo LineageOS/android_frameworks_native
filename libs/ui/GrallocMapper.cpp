@@ -51,6 +51,115 @@ void Mapper::release(buffer_handle_t handle) const
             "release(%p) failed with %d", handle, error);
 }
 
+Error Mapper::getDimensions(buffer_handle_t handle,
+        uint32_t* outWidth, uint32_t* outHeight) const
+{
+    Error error = kDefaultError;
+    mMapper->getDimensions(handle,
+            [&](const auto& tmpError, const auto& tmpWidth,
+                    const auto& tmpHeight)
+            {
+                error = tmpError;
+                if (error != Error::NONE) {
+                    return;
+                }
+
+                *outWidth = tmpWidth;
+                *outHeight = tmpHeight;
+            });
+
+    return error;
+}
+
+Error Mapper::getFormat(buffer_handle_t handle, int32_t* outFormat) const
+{
+    Error error = kDefaultError;
+    mMapper->getFormat(handle,
+            [&](const auto& tmpError, const auto& tmpFormat)
+            {
+                error = tmpError;
+                if (error != Error::NONE) {
+                    return;
+                }
+
+                *outFormat = static_cast<int32_t>(tmpFormat);
+            });
+
+    return error;
+}
+
+Error Mapper::getLayerCount(buffer_handle_t handle,
+        uint32_t* outLayerCount) const
+{
+    Error error = kDefaultError;
+    mMapper->getLayerCount(handle,
+            [&](const auto& tmpError, const auto& tmpLayerCount)
+            {
+                error = tmpError;
+                if (error != Error::NONE) {
+                    return;
+                }
+
+                *outLayerCount = tmpLayerCount;
+            });
+
+    return error;
+}
+
+Error Mapper::getProducerUsage(buffer_handle_t handle,
+    uint64_t* outProducerUsage) const
+{
+    Error error = kDefaultError;
+    mMapper->getProducerUsageMask(handle,
+            [&](const auto& tmpError, const auto& tmpProducerUsage)
+            {
+                error = tmpError;
+                if (error != Error::NONE) {
+                    return;
+                }
+
+                *outProducerUsage = tmpProducerUsage;
+            });
+
+    return error;
+}
+
+Error Mapper::getConsumerUsage(buffer_handle_t handle,
+        uint64_t* outConsumerUsage) const
+{
+    Error error = kDefaultError;
+    mMapper->getConsumerUsageMask(handle,
+            [&](const auto& tmpError, const auto& tmpConsumerUsage)
+            {
+                error = tmpError;
+                if (error != Error::NONE) {
+                    return;
+                }
+
+                *outConsumerUsage = tmpConsumerUsage;
+            });
+
+    return error;
+}
+
+Error Mapper::getBackingStore(buffer_handle_t handle,
+        uint64_t* outBackingStore) const
+{
+    Error error = kDefaultError;
+    mMapper->getBackingStore(handle,
+            [&](const auto& tmpError, const auto& tmpStore)
+            {
+                error = tmpError;
+                if (error != Error::NONE) {
+                    return;
+                }
+
+                *outBackingStore = tmpStore;
+            });
+
+    return error;
+}
+
 Error Mapper::getStride(buffer_handle_t handle, uint32_t* outStride) const
 {
     Error error = kDefaultError;
@@ -69,8 +178,8 @@ Error Mapper::getStride(buffer_handle_t handle, uint32_t* outStride) const
 }
 
 Error Mapper::lock(buffer_handle_t handle,
-        uint64_t producerUsageMask,
-        uint64_t consumerUsageMask,
+        uint64_t producerUsage,
+        uint64_t consumerUsage,
         const IMapper::Rect& accessRegion,
         int acquireFence, void** outData) const
 {
@@ -84,7 +193,7 @@ Error Mapper::lock(buffer_handle_t handle,
     }
 
     Error error = kDefaultError;
-    mMapper->lock(handle, producerUsageMask, consumerUsageMask,
+    mMapper->lock(handle, producerUsage, consumerUsage,
             accessRegion, acquireFenceHandle,
             [&](const auto& tmpError, const auto& tmpData)
             {
@@ -104,8 +213,8 @@ Error Mapper::lock(buffer_handle_t handle,
 }
 
 Error Mapper::lock(buffer_handle_t handle,
-        uint64_t producerUsageMask,
-        uint64_t consumerUsageMask,
+        uint64_t producerUsage,
+        uint64_t consumerUsage,
         const IMapper::Rect& accessRegion,
         int acquireFence, FlexLayout* outLayout) const
 {
@@ -119,7 +228,7 @@ Error Mapper::lock(buffer_handle_t handle,
     }
 
     Error error = kDefaultError;
-    mMapper->lockFlex(handle, producerUsageMask, consumerUsageMask,
+    mMapper->lockFlex(handle, producerUsage, consumerUsage,
             accessRegion, acquireFenceHandle,
             [&](const auto& tmpError, const auto& tmpLayout)
             {

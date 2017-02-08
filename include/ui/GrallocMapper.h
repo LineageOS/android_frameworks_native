@@ -45,17 +45,23 @@ public:
     Error retain(buffer_handle_t handle) const;
     void release(buffer_handle_t handle) const;
 
+    Error getDimensions(buffer_handle_t handle,
+            uint32_t* outWidth, uint32_t* outHeight) const;
+    Error getFormat(buffer_handle_t handle, int32_t* outFormat) const;
+    Error getLayerCount(buffer_handle_t handle, uint32_t* outLayerCount) const;
+    Error getProducerUsage(buffer_handle_t handle,
+            uint64_t* outProducerUsage) const;
+    Error getConsumerUsage(buffer_handle_t handle,
+            uint64_t* outConsumerUsage) const;
+    Error getBackingStore(buffer_handle_t handle,
+            uint64_t* outBackingStore) const;
     Error getStride(buffer_handle_t handle, uint32_t* outStride) const;
 
-    Error lock(buffer_handle_t handle,
-            uint64_t producerUsageMask,
-            uint64_t consumerUsageMask,
-            const IMapper::Rect& accessRegion,
+    Error lock(buffer_handle_t handle, uint64_t producerUsage,
+            uint64_t consumerUsage, const IMapper::Rect& accessRegion,
             int acquireFence, void** outData) const;
-    Error lock(buffer_handle_t handle,
-            uint64_t producerUsageMask,
-            uint64_t consumerUsageMask,
-            const IMapper::Rect& accessRegion,
+    Error lock(buffer_handle_t handle, uint64_t producerUsage,
+            uint64_t consumerUsage, const IMapper::Rect& accessRegion,
             int acquireFence, FlexLayout* outLayout) const;
     int unlock(buffer_handle_t handle) const;
 
