@@ -27,7 +27,7 @@
     <service android:name=".VrWindowManagerService" />
     <receiver android:name="com.google.vr.windowmanager.BootCompletedReceiver">
       <intent-filter>
-        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <!-- action android:name="android.intent.action.BOOT_COMPLETED" / -->
       </intent-filter>
     </receiver>
   </application>

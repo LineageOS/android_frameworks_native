@@ -9,6 +9,7 @@
 
 #include "application.h"
 #include "reticle.h"
+#include "shell_view_binder_interface.h"
 #include "surface_flinger_view.h"
 
 namespace android {
@@ -20,7 +21,9 @@ enum class ViewMode {
   App,
 };
 
-class ShellView : public Application, public HwcCallback::Client {
+class ShellView : public Application,
+                  public android::dvr::ShellViewBinderInterface,
+                  public HwcCallback::Client {
  public:
   ShellView();
   virtual ~ShellView();
@@ -31,8 +34,10 @@ class ShellView : public Application, public HwcCallback::Client {
   int AllocateResources() override;
   void DeallocateResources() override;
 
-  void EnableDebug(bool debug);
-  void VrMode(bool mode);
+  // ShellViewBinderInterface:
+  void EnableDebug(bool debug) override;
+  void VrMode(bool mode) override;
+  void dumpInternal(String8& result) override;
 
  protected:
   void DrawEye(EyeType eye, const mat4& perspective, const mat4& eye_matrix,

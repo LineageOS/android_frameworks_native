@@ -226,10 +226,8 @@ void Application::DrawFrame() {
     if (fade_value_ > 1.0f)
       fade_value_ = 1.0f;
 
-    quat controller_quat(controller_orientation_.qw, controller_orientation_.qx,
-        controller_orientation_.qy, controller_orientation_.qz);
-    controller_position_ = elbow_model_.Update(
-        delta, last_pose_.GetRotation(), controller_quat, false);
+    controller_position_ = elbow_model_.Update(delta, last_pose_.GetRotation(),
+                                               controller_orientation_, false);
 
     dvrBeginRenderFrameEds(graphics_context_, pose.orientation,
                            pose.translation);
@@ -257,6 +255,61 @@ void Application::DrawFrame() {
 }
 
 void Application::ProcessControllerInput() {
+  if (controller_data_provider_) {
+    shmem_controller_active_ = false;
+    const void* data = controller_data_provider_->LockControllerData();
+    // TODO(kpschoedel): define wire format.
+    if (data) {
+      struct wire_format {
+        uint32_t version;
+        uint32_t timestamph;
+        uint32_t timestampl;
+        uint32_t quat_count;
+        float q[4];
+        uint32_t buttonsh;
+        uint32_t buttonsl;
+      } __attribute__((__aligned__(32)));
+      const wire_format* wire_data = static_cast<const wire_format*>(data);
+      static uint64_t last_timestamp = 0;
+      if (wire_data->version == 1) {
+        shmem_controller_active_ = true;
+        uint64_t timestamp =
+            (((uint64_t)wire_data->timestamph) << 32) | wire_data->timestampl;
+        if (timestamp == last_timestamp) {
+          static uint64_t last_logged_timestamp = 0;
+          if (last_logged_timestamp != last_timestamp) {
+            last_logged_timestamp = last_timestamp;
+            ALOGI("Controller shmem stale T=0x%" PRIX64, last_timestamp);
+          }
+        } else {
+          last_timestamp = timestamp;
+          controller_orientation_ = quat(wire_data->q[3], wire_data->q[0],
+                                         wire_data->q[1], wire_data->q[2]);
+          shmem_controller_buttons_ =
+              (((uint64_t)wire_data->buttonsh) << 32) | wire_data->buttonsl;
+        }
+      } else if (wire_data->version == 0xFEEDFACE) {
+        static bool logged_init = false;
+        if (!logged_init) {
+          logged_init = true;
+          ALOGI("Controller shmem waiting for data");
+        }
+      }
+    }
+    controller_data_provider_->UnlockControllerData();
+    if (shmem_controller_active_) {
+      // TODO(kpschoedel): change to ALOGV or remove.
+      ALOGI("Controller shmem orientation: %f %f %f %f",
+            controller_orientation_.x(), controller_orientation_.y(),
+            controller_orientation_.z(), controller_orientation_.w());
+      if (shmem_controller_buttons_) {
+        ALOGI("Controller shmem buttons: %017" PRIX64,
+            shmem_controller_buttons_);
+      }
+      return;
+    }
+  }
+
   if (!controller_)
     return;
 
@@ -289,8 +342,11 @@ void Application::ProcessControllerInput() {
     controller_connection_state_logged_ = false;
   }
 
-  if (new_api_status == gvr::kControllerApiOk)
-    controller_orientation_ = controller_state_->GetOrientation();
+  if (new_api_status == gvr::kControllerApiOk) {
+    gvr_quatf orientation = controller_state_->GetOrientation();
+    controller_orientation_ =
+        quat(orientation.qw, orientation.qx, orientation.qy, orientation.qz);
+  }
 
   controller_api_status_ = new_api_status;
   controller_connection_state_ = new_connection_state;

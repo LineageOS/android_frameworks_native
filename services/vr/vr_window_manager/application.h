@@ -11,6 +11,7 @@
 #include <chrono>
 #include <mutex>
 
+#include "controller_data_provider.h"
 #include "elbow_model.h"
 
 struct DvrGraphicsContext;
@@ -31,6 +32,10 @@ class Application {
   virtual void DeallocateResources();
 
   void DrawFrame();
+
+  void SetControllerDataProvider(ControllerDataProvider* provider) {
+    controller_data_provider_ = provider;
+  }
 
  protected:
   enum class MainThreadTask {
@@ -69,9 +74,11 @@ class Application {
   std::unique_ptr<gvr::ControllerState> controller_state_;
   gvr::ControllerApiStatus controller_api_status_;
   gvr::ControllerConnectionState controller_connection_state_;
-  gvr_quatf controller_orientation_;
+  quat controller_orientation_;
+  bool shmem_controller_active_ = false;
   bool controller_api_status_logged_;
   bool controller_connection_state_logged_;
+  uint64_t shmem_controller_buttons_;
 
   bool is_visible_ = false;
   std::chrono::time_point<std::chrono::system_clock> visibility_button_press_;
@@ -92,6 +99,9 @@ class Application {
   JNIEnv* java_env_;
   jobject app_context_;
   jobject class_loader_;
+
+  // Controller data provider from shared memory buffer.
+  ControllerDataProvider* controller_data_provider_ = nullptr;
 
   Application(const Application&) = delete;
   void operator=(const Application&) = delete;
