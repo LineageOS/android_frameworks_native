@@ -189,13 +189,16 @@ bool SensorService::SensorDirectConnection::isEquivalent(const sensors_direct_me
                 if (fstat(fd1, &s1) < 0 || fstat(fd2, &s2) < 0 || s1.st_ino == s2.st_ino) {
                     ret = true;
                 }
+                break;
             }
             case SENSOR_DIRECT_MEM_TYPE_GRALLOC:
                 LOG_FATAL("%s: Implement GRALLOC or remove", __FUNCTION__);
                 ret = true;
+                break;
             default:
                 ALOGE("Unexpected mem type %d", mMem.type);
                 ret = true;
+                break;
         }
     }
     return ret;
