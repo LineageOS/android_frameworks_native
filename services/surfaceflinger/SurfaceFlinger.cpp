@@ -2539,11 +2539,18 @@ status_t SurfaceFlinger::removeLayer(const wp<Layer>& weakLayer) {
     const ssize_t index = (p != nullptr) ? p->removeChild(layer) :
         mCurrentState.layersSortedByZ.remove(layer);
 
-    if (index < 0) {
+    // As a matter of normal operation, the LayerCleaner will produce a second
+    // attempt to remove the surface. The Layer will be kept alive in mDrawingState
+    // so we will succeed in promoting it, but it's already been removed
+    // from mCurrentState. As long as we can find it in mDrawingState we have no problem
+    // otherwise something has gone wrong and we are leaking the layer.
+    if (index < 0 && mDrawingState.layersSortedByZ.indexOf(layer) < 0) {
         ALOGE("Failed to find layer (%s) in layer parent (%s).",
                 layer->getName().string(),
                 (p != nullptr) ? p->getName().string() : "no-parent");
         return BAD_VALUE;
+    } else if (index < 0) {
+        return NO_ERROR;
     }
 
     mLayersPendingRemoval.add(layer);
