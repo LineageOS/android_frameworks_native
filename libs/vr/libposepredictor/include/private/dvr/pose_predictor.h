@@ -17,12 +17,25 @@ class PosePredictor {
   PosePredictor() = default;
   virtual ~PosePredictor() = default;
 
+  // The nanoseconds to use for finite differencing.
+  static constexpr int64_t kFiniteDifferenceNs = 100;
+
   // Encapsulates a pose sample.
   struct Sample {
     vec3d position = vec3d::Zero();
     quatd orientation = quatd::Identity();
     int64_t time_ns = 0;
   };
+
+  // Compute the angular velocity from orientation start_orientation to
+  // end_orientation in delta_time.
+  static vec3d AngularVelocity(const quatd& start_orientation,
+                               const quatd& end_orientation, double delta_time);
+
+  // Initialize the out pose from a sample.
+  static void InitializeFromSample(const Sample& sample, DvrPoseAsync* out_pose,
+                                   const vec3d& velocity,
+                                   const vec3d& angular_velocity);
 
   // Add a pose sample coming from the sensors.
   // Returns this sample as a dvr pose.

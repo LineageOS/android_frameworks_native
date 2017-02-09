@@ -1,5 +1,3 @@
-#include <iostream>
-
 #include <gtest/gtest.h>
 
 #include <private/dvr/linear_pose_predictor.h>

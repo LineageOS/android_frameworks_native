@@ -15,7 +15,10 @@
 LOCAL_PATH := $(call my-dir)
 
 sourceFiles := \
+        pose_predictor.cpp \
+        buffered_predictor.cpp \
         linear_pose_predictor.cpp \
+        polynomial_pose_predictor.cpp \
 
 includeFiles := \
         $(LOCAL_PATH)/include
@@ -43,7 +46,9 @@ include $(BUILD_STATIC_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := \
+        pose_predictor_tests.cpp \
         linear_pose_predictor_tests.cpp \
+        polynomial_pose_predictor_tests.cpp \
 
 LOCAL_STATIC_LIBRARIES := libposepredictor $(staticLibraries)
 LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
