@@ -363,9 +363,6 @@ int dump_file_from_fd(const char *title, const char *path, int fd);
 int dump_files(const std::string& title, const char* dir, bool (*skip)(const char* path),
                int (*dump_from_fd)(const char* title, const char* path, int fd));
 
-/* sends a broadcast using Activity Manager */
-void send_broadcast(const std::string& action, const std::vector<std::string>& args);
-
 /* prints all the system properties */
 void print_properties();
 

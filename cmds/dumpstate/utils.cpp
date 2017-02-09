@@ -710,20 +710,6 @@ void Dumpstate::RunDumpsys(const std::string& title, const std::vector<std::stri
     RunCommand(title, dumpsys, options);
 }
 
-void send_broadcast(const std::string& action, const std::vector<std::string>& args) {
-    std::vector<std::string> am = {
-        "/system/bin/cmd", "activity", "broadcast", "--user", "0", "-a", action};
-
-    am.insert(am.end(), args.begin(), args.end());
-
-    RunCommand("", am, CommandOptions::WithTimeout(20)
-                           .Log("Sending broadcast: '%s'\n")
-                           .Always()
-                           .DropRoot()
-                           .RedirectStderr()
-                           .Build());
-}
-
 size_t num_props = 0;
 static char* props[2000];
 
