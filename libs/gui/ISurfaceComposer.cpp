@@ -432,7 +432,7 @@ public:
         }
         result = reply.readInt32();
         if (result == NO_ERROR) {
-            result = reply.readParcelable(outCapabilities);
+            result = reply.read(*outCapabilities);
         }
         return result;
     }
@@ -753,7 +753,7 @@ status_t BnSurfaceComposer::onTransact(
             result = getHdrCapabilities(display, &capabilities);
             reply->writeInt32(result);
             if (result == NO_ERROR) {
-                reply->writeParcelable(capabilities);
+                reply->write(capabilities);
             }
             return NO_ERROR;
         }

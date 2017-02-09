@@ -17,11 +17,15 @@
 #ifndef ANDROID_UI_HDR_CAPABILTIES_H
 #define ANDROID_UI_HDR_CAPABILTIES_H
 
-#include <binder/Parcelable.h>
+#include <stdint.h>
+
+#include <vector>
+
+#include <utils/Flattenable.h>
 
 namespace android {
 
-class HdrCapabilities : public Parcelable
+class HdrCapabilities : public LightFlattenable<HdrCapabilities>
 {
 public:
     HdrCapabilities(const std::vector<int32_t /*android_hdr_t*/>& types,
@@ -32,8 +36,8 @@ public:
         mMinLuminance(minLuminance) {}
 
     // Make this move-constructable and move-assignable
-    HdrCapabilities(HdrCapabilities&& other) = default;
-    HdrCapabilities& operator=(HdrCapabilities&& other) = default;
+    HdrCapabilities(HdrCapabilities&& other);
+    HdrCapabilities& operator=(HdrCapabilities&& other);
 
     HdrCapabilities()
       : mSupportedHdrTypes(),
@@ -41,7 +45,7 @@ public:
         mMaxAverageLuminance(-1.0f),
         mMinLuminance(-1.0f) {}
 
-    virtual ~HdrCapabilities() = default;
+    ~HdrCapabilities();
 
     const std::vector<int32_t /*android_hdr_t*/>& getSupportedHdrTypes() const {
         return mSupportedHdrTypes;
@@ -50,9 +54,11 @@ public:
     float getDesiredMaxAverageLuminance() const { return mMaxAverageLuminance; }
     float getDesiredMinLuminance() const { return mMinLuminance; }
 
-    // Parcelable interface
-    virtual status_t writeToParcel(Parcel* parcel) const override;
-    virtual status_t readFromParcel(const Parcel* parcel) override;
+    // Flattenable protocol
+    bool isFixedSize() const { return false; }
+    size_t getFlattenedSize() const;
+    status_t flatten(void* buffer, size_t size) const;
+    status_t unflatten(void const* buffer, size_t size);
 
 private:
     std::vector<int32_t /*android_hdr_t*/> mSupportedHdrTypes;
