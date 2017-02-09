@@ -104,6 +104,24 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
     handle = inHandle;
 }
 
+GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
+        PixelFormat inFormat, uint32_t inLayerCount, uint32_t inProducerUsage,
+        uint32_t inConsumerUsage, uint32_t inStride,
+        native_handle_t* inHandle, bool keepOwnership)
+    : BASE(), mOwner(keepOwnership ? ownHandle : ownNone),
+      mBufferMapper(GraphicBufferMapper::get()),
+      mInitCheck(NO_ERROR), mId(getUniqueId()), mGenerationNumber(0)
+{
+    width  = static_cast<int>(inWidth);
+    height = static_cast<int>(inHeight);
+    stride = static_cast<int>(inStride);
+    format = inFormat;
+    layerCount = inLayerCount;
+    usage  = static_cast<int>(inConsumerUsage | inProducerUsage);
+    handle = inHandle;
+}
+
+
 GraphicBuffer::GraphicBuffer(ANativeWindowBuffer* buffer, bool keepOwnership)
     : BASE(), mOwner(keepOwnership ? ownHandle : ownNone),
       mBufferMapper(GraphicBufferMapper::get()),

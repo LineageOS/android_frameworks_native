@@ -100,7 +100,6 @@ shared_libs := \
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(src)
-LOCAL_C_INCLUDES := hardware/qcom/display/msm8996/libgralloc
 LOCAL_STATIC_LIBRARIES := $(static_libs)
 LOCAL_SHARED_LIBRARIES := $(shared_libs)
 LOCAL_SHARED_LIBRARIES += libgvr
@@ -117,7 +116,6 @@ include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(native_src)
-LOCAL_C_INCLUDES := hardware/qcom/display/msm8996/libgralloc
 LOCAL_STATIC_LIBRARIES := $(static_libs) libvrwm_binder
 LOCAL_SHARED_LIBRARIES := $(shared_libs)
 LOCAL_SHARED_LIBRARIES += libgvr
