@@ -96,6 +96,7 @@ cc_library_shared {
         "SurfaceControl.cpp",
         "SurfaceComposerClient.cpp",
         "SyncFeatures.cpp",
+        "view/Surface.cpp",
     ],
 
     shared_libs: [

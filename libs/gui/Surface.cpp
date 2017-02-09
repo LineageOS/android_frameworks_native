@@ -18,9 +18,9 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 //#define LOG_NDEBUG 0
 
-#include <android/native_window.h>
+#include <gui/Surface.h>
 
-#include <binder/Parcel.h>
+#include <android/native_window.h>
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
@@ -32,7 +32,6 @@
 
 #include <gui/BufferItem.h>
 #include <gui/IProducerListener.h>
-#include <gui/Surface.h>
 
 #include <gui/ISurfaceComposer.h>
 #include <private/gui/ComposerService.h>
@@ -1538,75 +1537,5 @@ status_t Surface::getUniqueId(uint64_t* outId) const {
     Mutex::Autolock lock(mMutex);
     return mGraphicBufferProducer->getUniqueId(outId);
 }
-
-namespace view {
-
-status_t Surface::writeToParcel(Parcel* parcel) const {
-    return writeToParcel(parcel, false);
-}
-
-status_t Surface::writeToParcel(Parcel* parcel, bool nameAlreadyWritten) const {
-    if (parcel == nullptr) return BAD_VALUE;
-
-    status_t res = OK;
-
-    if (!nameAlreadyWritten) {
-        res = parcel->writeString16(name);
-        if (res != OK) return res;
-
-        /* isSingleBuffered defaults to no */
-        res = parcel->writeInt32(0);
-        if (res != OK) return res;
-    }
-
-    res = parcel->writeStrongBinder(
-            IGraphicBufferProducer::asBinder(graphicBufferProducer));
-
-    return res;
-}
-
-status_t Surface::readFromParcel(const Parcel* parcel) {
-    return readFromParcel(parcel, false);
-}
-
-status_t Surface::readFromParcel(const Parcel* parcel, bool nameAlreadyRead) {
-    if (parcel == nullptr) return BAD_VALUE;
-
-    status_t res = OK;
-    if (!nameAlreadyRead) {
-        name = readMaybeEmptyString16(parcel);
-        // Discard this for now
-        int isSingleBuffered;
-        res = parcel->readInt32(&isSingleBuffered);
-        if (res != OK) {
-            ALOGE("Can't read isSingleBuffered");
-            return res;
-        }
-    }
-
-    sp<IBinder> binder;
-
-    res = parcel->readNullableStrongBinder(&binder);
-    if (res != OK) {
-        ALOGE("%s: Can't read strong binder", __FUNCTION__);
-        return res;
-    }
-
-    graphicBufferProducer = interface_cast<IGraphicBufferProducer>(binder);
-
-    return OK;
-}
-
-String16 Surface::readMaybeEmptyString16(const Parcel* parcel) {
-    size_t len;
-    const char16_t* str = parcel->readString16Inplace(&len);
-    if (str != nullptr) {
-        return String16(str, len);
-    } else {
-        return String16();
-    }
-}
-
-} // namespace view
 
 }; // namespace android
