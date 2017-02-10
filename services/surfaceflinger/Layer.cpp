@@ -427,7 +427,9 @@ Rect Layer::computeBounds(const Region& activeTransparentRegion) const {
     Rect bounds = win;
     const auto& p = getParent();
     if (p != nullptr) {
-        bounds = p->computeScreenBounds();
+        // Look in computeScreenBounds recursive call for explanation of
+        // why we pass false here.
+        bounds = p->computeScreenBounds(false /* reduceTransparentRegion */);
     }
 
     Transform t = getTransform();
