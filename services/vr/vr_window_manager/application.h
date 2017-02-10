@@ -1,15 +1,13 @@
 #ifndef VR_WINDOW_MANAGER_APPLICATION_H_
 #define VR_WINDOW_MANAGER_APPLICATION_H_
 
-#include <jni.h>
 #include <memory>
 #include <private/dvr/types.h>
 #include <stdint.h>
-#include <vr/gvr/capi/include/gvr.h>
-#include <vr/gvr/capi/include/gvr_controller.h>
 
 #include <chrono>
 #include <mutex>
+#include <vector>
 
 #include "controller_data_provider.h"
 #include "elbow_model.h"
@@ -25,8 +23,7 @@ class Application {
   Application();
   virtual ~Application();
 
-  virtual int Initialize(JNIEnv* env, jobject app_context,
-                         jobject class_loader);
+  virtual int Initialize();
 
   virtual int AllocateResources();
   virtual void DeallocateResources();
@@ -59,8 +56,6 @@ class Application {
 
   void QueueTask(MainThreadTask task);
 
-  int InitializeController();
-
   DvrGraphicsContext* graphics_context_ = nullptr;
   DvrPose* pose_client_ = nullptr;
 
@@ -69,15 +64,8 @@ class Application {
   FieldOfView fov_[2];
   Posef last_pose_;
 
-  std::unique_ptr<gvr::GvrApi> gvr_context_;
-  std::unique_ptr<gvr::ControllerApi> controller_;
-  std::unique_ptr<gvr::ControllerState> controller_state_;
-  gvr::ControllerApiStatus controller_api_status_;
-  gvr::ControllerConnectionState controller_connection_state_;
   quat controller_orientation_;
   bool shmem_controller_active_ = false;
-  bool controller_api_status_logged_;
-  bool controller_connection_state_logged_;
   uint64_t shmem_controller_buttons_;
 
   bool is_visible_ = false;
@@ -94,11 +82,6 @@ class Application {
   std::condition_variable wake_up_init_and_render_;
   bool initialized_ = false;
   std::vector<MainThreadTask> main_thread_tasks_;
-
-  // Java Resources.
-  JNIEnv* java_env_;
-  jobject app_context_;
-  jobject class_loader_;
 
   // Controller data provider from shared memory buffer.
   ControllerDataProvider* controller_data_provider_ = nullptr;
