@@ -46,7 +46,8 @@ sharedLibraries := \
 	libui \
 	libgui \
 	libhardware \
-	libsync
+	libsync \
+	libnativewindow \
 
 staticLibraries := \
 	libbufferhub \

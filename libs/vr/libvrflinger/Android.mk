@@ -56,6 +56,7 @@ sharedLibraries := \
 	libcutils \
 	liblog \
 	libhardware \
+	libnativewindow \
 	libutils \
 	libEGL \
 	libGLESv1_CM \

@@ -1,4 +1,3 @@
-#include <android/native_window.h>
 #include <gtest/gtest.h>
 #include <private/dvr/buffer_hub_client.h>
 

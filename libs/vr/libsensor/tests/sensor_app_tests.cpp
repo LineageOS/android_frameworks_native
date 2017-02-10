@@ -1,6 +1,7 @@
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <math.h>
+#include <inttypes.h>
 
 #include <dvr/graphics.h>
 #include <dvr/pose_client.h>

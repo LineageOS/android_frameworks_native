@@ -42,6 +42,7 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     libprotobuf-cpp-lite \
     libbase \
+    libnativewindow \
 
 LOCAL_STATIC_LIBRARIES := \
     libtrace_proto \

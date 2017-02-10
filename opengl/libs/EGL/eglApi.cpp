@@ -28,6 +28,8 @@
 #include <EGL/eglext.h>
 
 #include <android/hardware_buffer.h>
+#include <private/android/AHardwareBufferHelpers.h>
+
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <cutils/memory.h>
@@ -37,6 +39,7 @@
 #include <gui/ISurfaceComposer.h>
 
 #include <ui/GraphicBuffer.h>
+
 
 #include <utils/KeyedVector.h>
 #include <utils/SortedVector.h>
@@ -1991,9 +1994,7 @@ EGLClientBuffer eglGetNativeClientBufferANDROID(const AHardwareBuffer *buffer) {
 
     if (!buffer) return setError(EGL_BAD_PARAMETER, (EGLClientBuffer)0);
 
-    // FIXME: remove this dangerous reinterpret_cast.
-    const GraphicBuffer* graphicBuffer =
-            reinterpret_cast<const GraphicBuffer*>(buffer);
+    const GraphicBuffer* graphicBuffer = AHardwareBuffer_to_GraphicBuffer(buffer);
     return static_cast<EGLClientBuffer>(graphicBuffer->getNativeBuffer());
 }
 

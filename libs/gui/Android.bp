@@ -107,6 +107,7 @@ cc_library_shared {
         "libGLESv2",
         "libui",
         "libutils",
+        "libnativewindow",
         "liblog",
     ],
 

@@ -1,5 +1,6 @@
 #include "application.h"
 
+#include <inttypes.h>
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
 #include <binder/IServiceManager.h>
