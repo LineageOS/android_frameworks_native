@@ -413,12 +413,13 @@ bool InitDriverTable(VkDevice dev, PFN_vkGetDeviceProcAddr get_proc,
   {{AssertType $ "Function"}}
 
   {{$ext := GetAnnotation $ "extension"}}
-  {{$required := (Macro "IsRequiredFunction" $)}}
   {{if $ext}}
-    INIT_PROC_EXT({{Macro "BaseName" $ext}}, {{$required}}, §
+    INIT_PROC_EXT({{Macro "BaseName" $ext}}, §
   {{else}}
-    INIT_PROC({{$required}}, §
+    INIT_PROC(§
   {{end}}
+
+  {{if GetAnnotation $ "optional"}}false{{else}}true{{end}}, §
 
   {{if (Macro "IsInstanceDispatched" $)}}
     instance, §
@@ -427,25 +428,6 @@ bool InitDriverTable(VkDevice dev, PFN_vkGetDeviceProcAddr get_proc,
   {{end}}
 
   {{Macro "BaseName" $}});
-{{end}}
-
-
-{{/*
-------------------------------------------------------------------------------
-  Emits true if a function /must/ be resolved. The only time this is not
-  the case is for extension-added functions added in a later revision of the
-  extension, and where we have to cope with drivers written against an older
-  revision.
-------------------------------------------------------------------------------
-*/}}
-{{define "IsRequiredFunction"}}
-  {{AssertType $ "Function"}}
-
-  {{if eq $.Name "vkGetSwapchainGrallocUsage2ANDROID"}}
-    false
-  {{else}}
-    true
-  {{end}}
 {{end}}
 
 
@@ -980,6 +962,8 @@ VK_KHR_shared_presentable_image
     {{/* VK_KHR_swapchain->VK_ANDROID_native_buffer translation */}}
     {{else if eq $.Name "vkCreateImage"}}true
     {{else if eq $.Name "vkDestroyImage"}}true
+
+    {{else if eq $.Name "vkGetPhysicalDeviceProperties"}}true
 
     {{end}}
 

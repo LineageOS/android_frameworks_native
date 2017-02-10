@@ -812,13 +812,35 @@ VkResult CreateSwapchainKHR(VkDevice device,
 
     int gralloc_usage = 0;
     if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
-        result = dispatch.GetSwapchainGrallocUsage2ANDROID(
-            device, create_info->imageFormat, create_info->imageUsage,
-            swapchain_image_usage, &gralloc_usage);
+        uint64_t consumer_usage, producer_usage;
+        if (GetData(device).driver_version == 256587285) {
+            // HACK workaround for loader/driver mismatch during transition to
+            // vkGetSwapchainGrallocUsage2ANDROID.
+            typedef VkResult(VKAPI_PTR *
+                             PFN_vkGetSwapchainGrallocUsage2ANDROID_HACK)(
+                VkDevice device, VkFormat format, VkImageUsageFlags imageUsage,
+                uint64_t * grallocConsumerUsage,
+                uint64_t * grallocProducerUsage);
+            auto get_swapchain_gralloc_usage =
+                reinterpret_cast<PFN_vkGetSwapchainGrallocUsage2ANDROID_HACK>(
+                    dispatch.GetSwapchainGrallocUsage2ANDROID);
+            result = get_swapchain_gralloc_usage(
+                device, create_info->imageFormat, create_info->imageUsage,
+                &consumer_usage, &producer_usage);
+        } else {
+            result = dispatch.GetSwapchainGrallocUsage2ANDROID(
+                device, create_info->imageFormat, create_info->imageUsage,
+                swapchain_image_usage, &consumer_usage, &producer_usage);
+        }
         if (result != VK_SUCCESS) {
             ALOGE("vkGetSwapchainGrallocUsage2ANDROID failed: %d", result);
             return VK_ERROR_INITIALIZATION_FAILED;
         }
+        // TODO: This is the same translation done by Gralloc1On0Adapter.
+        // Remove it once ANativeWindow has been updated to take gralloc1-style
+        // usages.
+        gralloc_usage =
+            static_cast<int>(consumer_usage) | static_cast<int>(producer_usage);
     } else if (dispatch.GetSwapchainGrallocUsageANDROID) {
         result = dispatch.GetSwapchainGrallocUsageANDROID(
             device, create_info->imageFormat, create_info->imageUsage,
@@ -827,8 +849,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
             ALOGE("vkGetSwapchainGrallocUsageANDROID failed: %d", result);
             return VK_ERROR_INITIALIZATION_FAILED;
         }
-    } else {
-        gralloc_usage = GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
     }
     err = native_window_set_usage(surface.window.get(), gralloc_usage);
     if (err != 0) {
@@ -918,6 +938,12 @@ VkResult CreateSwapchainKHR(VkDevice device,
         image_native_buffer.stride = img.buffer->stride;
         image_native_buffer.format = img.buffer->format;
         image_native_buffer.usage = img.buffer->usage;
+        // TODO: Adjust once ANativeWindowBuffer supports gralloc1-style usage.
+        // For now, this is the same translation Gralloc1On0Adapter does.
+        image_native_buffer.usage2.consumer =
+            static_cast<uint64_t>(img.buffer->usage);
+        image_native_buffer.usage2.producer =
+            static_cast<uint64_t>(img.buffer->usage);
 
         result =
             dispatch.CreateImage(device, &image_create, nullptr, &img.image);

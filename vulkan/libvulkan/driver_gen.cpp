@@ -387,6 +387,7 @@ bool InitDriverTable(VkInstance instance,
     INIT_PROC(true, instance, DestroyInstance);
     INIT_PROC(true, instance, EnumeratePhysicalDevices);
     INIT_PROC(true, instance, GetInstanceProcAddr);
+    INIT_PROC(true, instance, GetPhysicalDeviceProperties);
     INIT_PROC(true, instance, CreateDevice);
     INIT_PROC(true, instance, EnumerateDeviceExtensionProperties);
     INIT_PROC_EXT(EXT_debug_report, true, instance, CreateDebugReportCallbackEXT);
@@ -410,7 +411,7 @@ bool InitDriverTable(VkDevice dev,
     INIT_PROC(true, dev, CreateImage);
     INIT_PROC(true, dev, DestroyImage);
     INIT_PROC(true, dev, AllocateCommandBuffers);
-    INIT_PROC_EXT(ANDROID_native_buffer, true, dev, GetSwapchainGrallocUsageANDROID);
+    INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsageANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsage2ANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, AcquireImageANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, QueueSignalReleaseImageANDROID);

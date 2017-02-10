@@ -60,6 +60,7 @@ struct InstanceDriverTable {
     PFN_vkDestroyInstance DestroyInstance;
     PFN_vkEnumeratePhysicalDevices EnumeratePhysicalDevices;
     PFN_vkGetInstanceProcAddr GetInstanceProcAddr;
+    PFN_vkGetPhysicalDeviceProperties GetPhysicalDeviceProperties;
     PFN_vkCreateDevice CreateDevice;
     PFN_vkEnumerateDeviceExtensionProperties EnumerateDeviceExtensionProperties;
     PFN_vkCreateDebugReportCallbackEXT CreateDebugReportCallbackEXT;

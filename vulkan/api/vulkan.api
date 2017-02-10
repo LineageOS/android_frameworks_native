@@ -2908,14 +2908,20 @@ class VkWin32SurfaceCreateInfoKHR {
     platform.HWND                               hwnd
 }
 
+@internal class Gralloc1Usage {
+    u64                                         consumer
+    u64                                         producer
+}
+
 @extension("VK_ANDROID_native_buffer")
 class VkNativeBufferANDROID {
     VkStructureType                             sType
     const void*                                 pNext
     platform.buffer_handle_t                    handle
-    int                                         stride
-    int                                         format
-    int                                         usage
+    s32                                         stride
+    s32                                         format
+    s32                                         usage
+    Gralloc1Usage                               usage2
 }
 
 @extension("VK_ANDROID_native_buffer")
@@ -5833,21 +5839,24 @@ cmd VkResult vkGetPhysicalDeviceWin32PresentationSupportKHR(
 }
 
 @extension("VK_ANDROID_native_buffer")
+@optional
 cmd VkResult vkGetSwapchainGrallocUsageANDROID(
         VkDevice                                device,
         VkFormat                                format,
         VkImageUsageFlags                       imageUsage,
-        int*                                    grallocUsage) {
+        s32*                                    grallocUsage) {
     return ?
 }
 
 @extension("VK_ANDROID_native_buffer")
+@optional
 cmd VkResult vkGetSwapchainGrallocUsage2ANDROID(
         VkDevice                                device,
         VkFormat                                format,
         VkImageUsageFlags                       imageUsage,
         VkSwapchainImageUsageFlagsANDROID       swapchainImageUsage,
-        int*                                    grallocUsage) {
+        u64*                                    grallocConsumerUsage,
+        u64*                                    grallocProducerUsage) {
     return ?
 }
 
