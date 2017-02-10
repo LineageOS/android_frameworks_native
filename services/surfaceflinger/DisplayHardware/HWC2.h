@@ -67,7 +67,10 @@ public:
 #ifdef BYPASS_IHWC
     explicit Device(hwc2_device_t* device);
 #else
-    Device();
+    // useVrComposer is passed to the composer HAL. When true, the composer HAL
+    // will use the vr composer service, otherwise it uses the real hardware
+    // composer.
+    Device(bool useVrComposer);
 #endif
     ~Device();
 
@@ -105,6 +108,12 @@ public:
     std::shared_ptr<Display> getDisplayById(hwc2_display_t id);
 
     bool hasCapability(HWC2::Capability capability) const;
+
+#ifdef BYPASS_IHWC
+    android::Hwc2::Composer* getComposer() { return nullptr; }
+#else
+    android::Hwc2::Composer* getComposer() { return mComposer.get(); }
+#endif
 
 private:
     // Initialization methods

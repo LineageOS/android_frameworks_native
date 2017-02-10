@@ -36,6 +36,8 @@
 #include <binder/MemoryHeapBase.h>
 #include <binder/PermissionCache.h>
 
+#include <dvr/vr_flinger.h>
+
 #include <ui/DisplayInfo.h>
 #include <ui/DisplayStatInfo.h>
 
@@ -73,6 +75,7 @@
 #include "LayerDim.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
+#include "VrStateCallbacks.h"
 
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
@@ -155,7 +158,10 @@ SurfaceFlinger::SurfaceFlinger()
         mLayersRemoved(false),
         mLayersAdded(false),
         mRepaintEverything(0),
-        mRenderEngine(NULL),
+        mHwc(nullptr),
+        mRealHwc(nullptr),
+        mVrHwc(nullptr),
+        mRenderEngine(nullptr),
         mBootTime(systemTime()),
         mBuiltinDisplays(),
         mVisibleRegionsDirty(false),
@@ -180,7 +186,8 @@ SurfaceFlinger::SurfaceFlinger()
         mFrameBuckets(),
         mTotalTime(0),
         mLastSwapTime(0),
-        mNumLayers(0)
+        mNumLayers(0),
+        mEnterVrMode(false)
 {
     ALOGI("SurfaceFlinger is starting");
 
@@ -227,6 +234,14 @@ SurfaceFlinger::~SurfaceFlinger()
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglTerminate(display);
+
+    if (mVrStateCallbacks.get()) {
+        sp<IVrManager> vrManagerService = interface_cast<IVrManager>(
+            defaultServiceManager()->checkService(String16("vrmanager")));
+        if (vrManagerService.get()) {
+            vrManagerService->unregisterListener(mVrStateCallbacks);
+        }
+    }
 }
 
 void SurfaceFlinger::binderDied(const wp<IBinder>& /* who */)
@@ -361,6 +376,13 @@ void SurfaceFlinger::bootFinished()
     const int LOGTAG_SF_STOP_BOOTANIM = 60110;
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
+
+    sp<IVrManager> vrManagerService = interface_cast<IVrManager>(
+        defaultServiceManager()->checkService(String16("vrmanager")));
+    if (vrManagerService.get()) {
+        mVrStateCallbacks = new VrStateCallbacks(*this);
+        vrManagerService->registerListener(mVrStateCallbacks);
+    }
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
@@ -556,7 +578,9 @@ void SurfaceFlinger::init() {
     // Drop the state lock while we initialize the hardware composer. We drop
     // the lock because on creation, it will call back into SurfaceFlinger to
     // initialize the primary display.
-    mHwc = new HWComposer(this);
+    LOG_ALWAYS_FATAL_IF(mEnterVrMode, "Starting in vr mode is not currently supported.");
+    mRealHwc = new HWComposer(this, false);
+    mHwc = mRealHwc;
     mHwc->setEventHandler(static_cast<HWComposer::EventHandler*>(this));
 
     Mutex::Autolock _l(mStateLock);
@@ -1104,7 +1128,13 @@ void SurfaceFlinger::onHotplugReceived(int32_t disp, bool connected) {
         bool isSecure = true;
 
         int32_t type = DisplayDevice::DISPLAY_PRIMARY;
-        createBuiltinDisplayLocked(DisplayDevice::DISPLAY_PRIMARY);
+
+        // When we're using the vr composer, the assumption is that we've
+        // already created the IBinder object for the primary display.
+        if (!mHwc->isUsingVrComposer()) {
+            createBuiltinDisplayLocked(DisplayDevice::DISPLAY_PRIMARY);
+        }
+
         wp<IBinder> token = mBuiltinDisplays[type];
 
         sp<IGraphicBufferProducer> producer;
@@ -1139,10 +1169,79 @@ void SurfaceFlinger::setVsyncEnabled(int disp, int enabled) {
             enabled ? HWC2::Vsync::Enable : HWC2::Vsync::Disable);
 }
 
+void SurfaceFlinger::clearHwcLayers(const LayerVector& layers) {
+    for (size_t i = 0; i < layers.size(); ++i) {
+        layers[i]->clearHwcLayers();
+    }
+}
+
+void SurfaceFlinger::resetHwc() {
+    disableHardwareVsync(true);
+    clearHwcLayers(mDrawingState.layersSortedByZ);
+    clearHwcLayers(mCurrentState.layersSortedByZ);
+    // Clear the drawing state so that the logic inside of
+    // handleTransactionLocked will fire. It will determine the delta between
+    // mCurrentState and mDrawingState and re-apply all changes when we make the
+    // transition.
+    mDrawingState.displays.clear();
+    mDisplays.clear();
+}
+
+void SurfaceFlinger::updateVrMode() {
+    {
+        Mutex::Autolock _l(mStateLock);
+        bool enteringVrMode = mEnterVrMode;
+        if (enteringVrMode == mHwc->isUsingVrComposer()) {
+            return;
+        }
+
+        if (enteringVrMode) {
+            // Start vrflinger thread, if it hasn't been started already.
+            if (!mVrFlinger) {
+                mVrFlinger = std::make_unique<dvr::VrFlinger>();
+                int err = mVrFlinger->Run(mHwc->getComposer());
+                if (err != NO_ERROR) {
+                    ALOGE("Failed to run vrflinger: %s (%d)", strerror(-err), err);
+                    mVrFlinger.reset();
+                    mEnterVrMode = false;
+                    return;
+                }
+            }
+
+            if (!mVrHwc) {
+                mVrHwc = new HWComposer(this, true);
+                ALOGV("Vr HWC created");
+            }
+
+            resetHwc();
+
+            mHwc = mVrHwc;
+            mVrFlinger->EnterVrMode();
+        } else {
+            mVrFlinger->ExitVrMode();
+
+            resetHwc();
+
+            mHwc = mRealHwc;
+            enableHardwareVsync();
+        }
+
+        mVisibleRegionsDirty = true;
+        invalidateHwcGeometry();
+        android_atomic_or(1, &mRepaintEverything);
+        setTransactionFlags(eDisplayTransactionNeeded);
+    }
+    if (mVrHwc) {
+        mVrHwc->setEventHandler(static_cast<HWComposer::EventHandler*>(this));
+    }
+}
+
 void SurfaceFlinger::onMessageReceived(int32_t what) {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
+            updateVrMode();
+
             bool frameMissed = !mHadClientComposition &&
                     mPreviousPresentFence != Fence::NO_FENCE &&
                     mPreviousPresentFence->getSignalTime() == INT64_MAX;
@@ -1763,16 +1862,10 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                                 "adding a supported display, but rendering "
                                 "surface is provided (%p), ignoring it",
                                 state.surface.get());
-                        if (state.type == DisplayDevice::DISPLAY_EXTERNAL) {
-                            hwcId = DisplayDevice::DISPLAY_EXTERNAL;
-                            dispSurface = new FramebufferSurface(*mHwc,
-                                    DisplayDevice::DISPLAY_EXTERNAL,
-                                    bqConsumer);
-                            producer = bqProducer;
-                        } else {
-                            ALOGE("Attempted to add non-external non-virtual"
-                                    " display");
-                        }
+
+                        hwcId = state.type;
+                        dispSurface = new FramebufferSurface(*mHwc, hwcId, bqConsumer);
+                        producer = bqProducer;
                     }
 
                     const wp<IBinder>& display(curr.keyAt(i));

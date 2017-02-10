@@ -124,13 +124,11 @@ void Composer::CommandWriter::setLayerInfo(uint32_t type, uint32_t appId)
     endCommand();
 }
 
-Composer::Composer() : mWriter(kWriterInitialSize)
+Composer::Composer(bool useVrComposer)
+    : mWriter(kWriterInitialSize),
+      mIsUsingVrComposer(useVrComposer)
 {
-#if defined(IN_VR_MODE)
-    mIsInVrMode = true;
-#endif
-
-    if (mIsInVrMode) {
+    if (mIsUsingVrComposer) {
         mComposer = IComposer::getService("vr_hwcomposer");
     } else {
         mComposer = IComposer::getService("hwcomposer");
@@ -622,8 +620,7 @@ Error Composer::setLayerZOrder(Display display, Layer layer, uint32_t z)
 Error Composer::setLayerInfo(Display display, Layer layer, uint32_t type,
                              uint32_t appId)
 {
-    if (mIsInVrMode)
-    {
+    if (mIsUsingVrComposer) {
         mWriter.selectDisplay(display);
         mWriter.selectLayer(layer);
         mWriter.setLayerInfo(type, appId);

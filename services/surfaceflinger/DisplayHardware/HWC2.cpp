@@ -135,8 +135,8 @@ Device::Device(hwc2_device_t* device)
     mSetLayerVisibleRegion(nullptr),
     mSetLayerZOrder(nullptr),
 #else
-Device::Device()
-  : mComposer(std::make_unique<Hwc2::Composer>()),
+Device::Device(bool useVrComposer)
+  : mComposer(std::make_unique<Hwc2::Composer>(useVrComposer)),
 #endif // BYPASS_IHWC
     mCapabilities(),
     mDisplays(),
