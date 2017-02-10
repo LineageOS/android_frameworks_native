@@ -47,19 +47,7 @@ Our goal is to allow layers to be ported with only build-environment changes bet
 
 The +vk_wsi_swapchin+ and +vk_wsi_device_swapchain+ extensions are primarily be implemented by the platform and live in +libvulkan.so+. The +VkSwapchain+ object and all interaction with +ANativeWindow+ will be handled by the platform and not exposed to drivers. The WSI implementation will rely on a few private interfaces to the driver for this implementation. These will be loaded through the driver's +vkGetDeviceProcAddr+ functions, after passing through any enabled layers.
 
-Implementations may need swapchain buffers to be allocated with implementation-defined private gralloc usage flags. When creating a swapchain, the platform will ask the driver to translate the requested format and image usage flags into gralloc usage flags by calling
-[source,c]
-----
-VkResult VKAPI vkGetSwapchainGrallocUsageANDROID(
-    VkDevice            device,
-    VkFormat            format,
-    VkImageUsageFlags   imageUsage,
-    int*                grallocUsage
-);
-----
-The +format+ and +imageUsage+ parameters are taken from the +VkSwapchainCreateInfoKHR+ structure. The driver should fill +*grallocUsage+ with the gralloc usage flags it requires for that format and usage. These will be combined with the usage flags requested by the swapchain consumer when allocating buffers.
-
-Implementations may further need swapchain buffers to be allocated with implementation-defined private gralloc usage flags that depend not only on +format+ and +imageUsage+, but also on the intended usage of the swapchain. The additional usage bits are defined as
+Implementations may need swapchain buffers to be allocated with implementation-defined private gralloc usage flags that depend not only on +format+ and +imageUsage+, but also on the intended usage of the swapchain. The swapchain usage bits are defined as
 [source,c]
 ----
 typedef enum VkSwapchainImageUsageFlagBitsANDROID {
@@ -69,7 +57,7 @@ typedef enum VkSwapchainImageUsageFlagBitsANDROID {
 typedef VkFlags VkSwapchainImageUsageFlagsANDROID;
 ----
 
-If the driver provides the +vkGetSwapchainGrallocUsage2ANDROID+ function, the platform will use it in preference to +vkGetSwapchainGrallocUsageANDROID+ when translating a requested format, image usage flags, and swapchain image usage flags into gralloc usage flags. +vkGetSwapchainGrallocUsage2ANDROID+ behaves in the same way as +vkGetSwapchainGrallocUsageANDROID+, and is declared as
+Implementations may need swapchain buffers to be allocated with implementation-defined private gralloc usage flags. When creating a swapchain, the platform will ask the driver to translate the requested format and image usage flags into gralloc usage flags by calling
 [source,c]
 ----
 VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainGrallocUsage2ANDROID(
@@ -77,6 +65,19 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainGrallocUsage2ANDROID(
     VkFormat            format,
     VkImageUsageFlags   imageUsage,
     VkSwapchainImageUsageFlagsANDROID swapchainImageUsage,
+    uint64_t*           grallocConsumerUsage,
+    uint64_t*           grallocProducerUsage,
+);
+----
+The +format+ and +imageUsage+ parameters are taken from the +VkSwapchainCreateInfoKHR+ structure. The driver should fill +*grallocConsumerUsage+ and +*grallocProducerUsage+ with the gralloc usage flags it requires for that format and usage. These will be combined with the usage flags requested by the swapchain consumer when allocating buffers.
+
+An older version of this function is deprecated but still supported for backwards compatibility; it will be used if +vkGetSwapchainGrallocUsage2ANDROID+ is not supported:
+[source,c]
+----
+VkResult VKAPI vkGetSwapchainGrallocUsageANDROID(
+    VkDevice            device,
+    VkFormat            format,
+    VkImageUsageFlags   imageUsage,
     int*                grallocUsage
 );
 ----
@@ -95,7 +96,11 @@ typedef struct {
 
     // Gralloc format and usage requested when the buffer was allocated.
     int                         format;
-    int                         usage;
+    int                         usage; // deprecated
+    struct {
+        uint64_t                consumer;
+        uint64_t                producer;
+    } usage2;
 } VkNativeBufferANDROID;
 ----
 
@@ -200,3 +205,5 @@ If +image+ was created with +VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID+, then 
    * Added VkSwapchainImageUsageFlagBitsANDROID
    * Added vkGetSwapchainGrallocUsage2ANDROID
    * Added VkSwapchainImageCreateInfoANDROID
+. *2017-02-09*
+   * Extended vkGetSwapchainGrallocUsage2ANDROID and VkNativeBufferANDROID to use gralloc1-style usage bitfields.
