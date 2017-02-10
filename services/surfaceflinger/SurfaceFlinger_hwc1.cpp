@@ -192,8 +192,8 @@ SurfaceFlinger::SurfaceFlinger()
     mUseHwcVirtualDisplays = atoi(value);
     ALOGI_IF(!mUseHwcVirtualDisplays, "Enabling HWC virtual displays");
 
-    property_get("ro.sf.disable_triple_buffer", value, "0");
-    mLayerTripleBufferingDisabled = !atoi(value);
+    property_get("ro.sf.disable_triple_buffer", value, "1");
+    mLayerTripleBufferingDisabled = atoi(value);
     ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
 }
 
