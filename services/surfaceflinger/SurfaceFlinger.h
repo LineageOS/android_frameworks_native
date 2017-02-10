@@ -561,7 +561,7 @@ private:
     bool mPropagateBackpressure = true;
 #endif
     SurfaceInterceptor mInterceptor;
-    bool mUseHwcVirtualDisplays = true;
+    bool mUseHwcVirtualDisplays = false;
 
     // Restrict layers to use two buffers in their bufferqueues.
     bool mLayerTripleBufferingDisabled = false;

@@ -188,9 +188,9 @@ SurfaceFlinger::SurfaceFlinger()
     ALOGI_IF(mDebugRegion, "showupdates enabled");
     ALOGI_IF(mDebugDDMS, "DDMS debugging enabled");
 
-    property_get("debug.sf.disable_hwc_vds", value, "0");
-    mUseHwcVirtualDisplays = !atoi(value);
-    ALOGI_IF(!mUseHwcVirtualDisplays, "Disabling HWC virtual displays");
+    property_get("debug.sf.enable_hwc_vds", value, "0");
+    mUseHwcVirtualDisplays = atoi(value);
+    ALOGI_IF(!mUseHwcVirtualDisplays, "Enabling HWC virtual displays");
 
     property_get("ro.sf.disable_triple_buffer", value, "0");
     mLayerTripleBufferingDisabled = !atoi(value);
