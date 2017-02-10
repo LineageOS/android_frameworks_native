@@ -39,7 +39,9 @@ class GraphicBufferMapper : public Singleton<GraphicBufferMapper>
 public:
     static inline GraphicBufferMapper& get() { return getInstance(); }
 
+    // This may NOT work on devices without a valid Gralloc2::Mapper.
     status_t registerBuffer(buffer_handle_t handle);
+
     status_t registerBuffer(const GraphicBuffer* buffer);
 
     status_t unregisterBuffer(buffer_handle_t handle);

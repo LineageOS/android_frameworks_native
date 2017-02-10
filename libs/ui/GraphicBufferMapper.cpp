@@ -63,7 +63,14 @@ status_t GraphicBufferMapper::registerBuffer(buffer_handle_t handle)
     if (mMapper->valid()) {
         error = static_cast<gralloc1_error_t>(mMapper->retain(handle));
     } else {
+        // This always returns GRALLOC1_BAD_HANDLE when handle is from a
+        // remote process and mDevice is backed by Gralloc1On0Adapter.
         error = mDevice->retain(handle);
+        if (error == GRALLOC1_ERROR_BAD_HANDLE &&
+                mDevice->hasCapability(GRALLOC1_CAPABILITY_ON_ADAPTER)) {
+            ALOGE("registerBuffer by handle is not supported with "
+                  "Gralloc1On0Adapter");
+        }
     }
 
     ALOGW_IF(error != GRALLOC1_ERROR_NONE, "registerBuffer(%p) failed: %d",
