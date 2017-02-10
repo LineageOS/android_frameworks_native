@@ -17,8 +17,6 @@
 #ifndef ANDROID_GUI_SURFACE_H
 #define ANDROID_GUI_SURFACE_H
 
-#include <binder/Parcelable.h>
-
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/BufferQueueDefs.h>
 
@@ -410,43 +408,6 @@ protected:
     std::unique_ptr<ProducerFrameEventHistory> mFrameEventHistory;
 };
 
-namespace view {
-
-/**
- * A simple holder for an IGraphicBufferProducer, to match the managed-side
- * android.view.Surface parcelable behavior.
- *
- * This implements android/view/Surface.aidl
- *
- * TODO: Convert IGraphicBufferProducer into AIDL so that it can be directly
- * used in managed Binder calls.
- */
-class Surface : public Parcelable {
-  public:
-
-    String16 name;
-    sp<IGraphicBufferProducer> graphicBufferProducer;
-
-    virtual status_t writeToParcel(Parcel* parcel) const override;
-    virtual status_t readFromParcel(const Parcel* parcel) override;
-
-    // nameAlreadyWritten set to true by Surface.java, because it splits
-    // Parceling itself between managed and native code, so it only wants a part
-    // of the full parceling to happen on its native side.
-    status_t writeToParcel(Parcel* parcel, bool nameAlreadyWritten) const;
-
-    // nameAlreadyRead set to true by Surface.java, because it splits
-    // Parceling itself between managed and native code, so it only wants a part
-    // of the full parceling to happen on its native side.
-    status_t readFromParcel(const Parcel* parcel, bool nameAlreadyRead);
-
-  private:
-
-    static String16 readMaybeEmptyString16(const Parcel* parcel);
-};
-
-} // namespace view
-
-}; // namespace android
+} // namespace android
 
 #endif  // ANDROID_GUI_SURFACE_H

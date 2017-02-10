@@ -17,4 +17,4 @@
 
 package android.view;
 
-parcelable Surface cpp_header "gui/Surface.h";
+parcelable Surface cpp_header "gui/view/Surface.h";
