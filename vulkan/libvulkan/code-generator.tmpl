@@ -443,6 +443,8 @@ bool InitDriverTable(VkDevice dev, PFN_vkGetDeviceProcAddr get_proc,
 
   {{if eq $.Name "vkGetSwapchainGrallocUsage2ANDROID"}}
     false
+  {{else if eq $.Name "vkGetSwapchainGrallocUsageANDROID"}}
+    false
   {{else}}
     true
   {{end}}
