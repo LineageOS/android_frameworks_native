@@ -963,6 +963,8 @@ VK_KHR_shared_presentable_image
     {{else if eq $.Name "vkCreateImage"}}true
     {{else if eq $.Name "vkDestroyImage"}}true
 
+    {{else if eq $.Name "vkGetPhysicalDeviceProperties"}}true
+
     {{end}}
 
     {{$ext := GetAnnotation $ "extension"}}

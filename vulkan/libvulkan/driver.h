@@ -102,6 +102,7 @@ struct DeviceData {
 
     VkDevice driver_device;
     DeviceDriverTable driver;
+    uint32_t driver_version;
 };
 
 bool Debuggable();

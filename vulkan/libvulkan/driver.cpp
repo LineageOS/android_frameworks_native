@@ -916,7 +916,12 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
         return VK_ERROR_INCOMPATIBLE_DRIVER;
     }
 
+    VkPhysicalDeviceProperties properties;
+    instance_data.driver.GetPhysicalDeviceProperties(physicalDevice,
+                                                     &properties);
+
     data->driver_device = dev;
+    data->driver_version = properties.driverVersion;
 
     *pDevice = dev;
 
