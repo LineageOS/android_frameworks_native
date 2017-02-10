@@ -110,6 +110,7 @@ LOCAL_CFLAGS += -DLOG_TAG=\"VrWindowManager\"
 LOCAL_LDLIBS := -llog
 LOCAL_MODULE := libvr_window_manager_jni
 LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_TARGET_ARCH := arm arm64 x86 x86_64
 LOCAL_MULTILIB := 64
 LOCAL_CXX_STL := libc++_static
 include $(BUILD_SHARED_LIBRARY)
@@ -126,6 +127,7 @@ LOCAL_CFLAGS += -DLOG_TAG=\"VrWindowManager\"
 LOCAL_LDLIBS := -llog
 LOCAL_MODULE := vr_wm
 LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_TARGET_ARCH := arm arm64 x86 x86_64
 LOCAL_INIT_RC := vr_wm.rc
 include $(BUILD_EXECUTABLE)
 
@@ -147,6 +149,7 @@ LOCAL_STATIC_JAVA_LIBRARIES := libprotobuf-java-nano
 LOCAL_AAPT_FLAGS += --auto-add-overlay
 LOCAL_AAPT_FLAGS += --extra-packages com.google.vr.cardboard
 LOCAL_PROGUARD_FLAG_FILES := proguard.flags
+LOCAL_MODULE_TARGET_ARCH := arm arm64 x86 x86_64
 include $(BUILD_PACKAGE)
 
 
