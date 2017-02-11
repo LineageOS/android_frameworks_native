@@ -76,11 +76,6 @@ LOCAL_CFLAGS += -DLOG_TAG=\"vr_flinger\"
 LOCAL_CFLAGS += -DTRACE=0
 LOCAL_CFLAGS += -DATRACE_TAG=ATRACE_TAG_GRAPHICS
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
-ifeq ($(TARGET_USES_QCOM_BSP), true)
-    LOCAL_C_INCLUDES += hardware/qcom/display/libgralloc
-    LOCAL_C_INCLUDES += hardware/qcom/display/libqdutils
-    LOCAL_SHARED_LIBRARIES += libqdutils
-endif
 LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
 LOCAL_WHOLE_STATIC_LIBRARIES := $(staticLibraries)
 LOCAL_MODULE := libvrflinger
