@@ -50,8 +50,8 @@ GraphicBuffer::GraphicBuffer()
     height =
     stride =
     format =
-    layerCount =
     usage  = 0;
+    layerCount = 0;
     handle = NULL;
 }
 
@@ -64,8 +64,8 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
     height =
     stride =
     format =
-    layerCount =
     usage  = 0;
+    layerCount = 0;
     handle = NULL;
     mInitCheck = initSize(inWidth, inHeight, inFormat, 1, inUsage, inUsage,
             std::move(requestorName));
@@ -81,8 +81,8 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
     height =
     stride =
     format =
-    layerCount =
     usage  = 0;
+    layerCount = 0;
     handle = NULL;
     mInitCheck = initSize(inWidth, inHeight, inFormat, inLayerCount,
             producerUsage, consumerUsage, std::move(requestorName));

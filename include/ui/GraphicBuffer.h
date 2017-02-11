@@ -76,11 +76,6 @@ public:
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inUsage, std::string requestorName = "<Unknown>");
 
-    // creates w * h buffer with a layer count
-    GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
-            uint32_t inLayerCount, uint32_t inUsage,
-            std::string requestorName = "<Unknown>");
-
     // creates w * h buffer with a layer count using gralloc1
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inLayerCount, uint64_t inProducerUsage,

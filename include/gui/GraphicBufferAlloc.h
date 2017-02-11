@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_SF_GRAPHIC_BUFFER_ALLOC_H
-#define ANDROID_SF_GRAPHIC_BUFFER_ALLOC_H
+#ifndef ANDROID_GUI_GRAPHIC_BUFFER_ALLOC_H
+#define ANDROID_GUI_GRAPHIC_BUFFER_ALLOC_H
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -25,9 +25,15 @@
 #include <utils/Errors.h>
 
 namespace android {
-// ---------------------------------------------------------------------------
 
 class GraphicBuffer;
+
+/*
+ * Concrete implementation of the IGraphicBufferAlloc interface.
+ *
+ * This can create GraphicBuffer instance across processes. This is mainly used
+ * by surfaceflinger.
+ */
 
 class GraphicBufferAlloc : public BnGraphicBufferAlloc {
 public:
@@ -40,7 +46,6 @@ public:
 };
 
 
-// ---------------------------------------------------------------------------
-}; // namespace android
+} // namespace android
 
-#endif // ANDROID_SF_GRAPHIC_BUFFER_ALLOC_H
+#endif // ANDROID_GUI_GRAPHIC_BUFFER_ALLOC_H

@@ -15,21 +15,15 @@
  ** limitations under the License.
  */
 
-#include <log/log.h>
-
-#include <ui/GraphicBuffer.h>
-
 #include <gui/GraphicBufferAlloc.h>
 
-// ----------------------------------------------------------------------------
+#include <log/log.h>
+
+
 namespace android {
-// ----------------------------------------------------------------------------
 
-GraphicBufferAlloc::GraphicBufferAlloc() {
-}
-
-GraphicBufferAlloc::~GraphicBufferAlloc() {
-}
+GraphicBufferAlloc::GraphicBufferAlloc() = default;
+GraphicBufferAlloc::~GraphicBufferAlloc() = default;
 
 sp<GraphicBuffer> GraphicBufferAlloc::createGraphicBuffer(uint32_t width,
         uint32_t height, PixelFormat format, uint32_t layerCount,
@@ -44,15 +38,12 @@ sp<GraphicBuffer> GraphicBufferAlloc::createGraphicBuffer(uint32_t width,
         if (err == NO_MEMORY) {
             GraphicBuffer::dumpAllocationsToSystemLog();
         }
-        ALOGE("GraphicBufferAlloc::createGraphicBuffer(w=%u, h=%u, lc=%u) "
-             "failed (%s), handle=%p",
+        ALOGE("GraphicBufferAlloc::createGraphicBuffer(w=%u, h=%u, lc=%u) failed (%s), handle=%p",
                 width, height, layerCount, strerror(-err),
                 graphicBuffer->handle);
-        return 0;
+        graphicBuffer.clear();
     }
     return graphicBuffer;
 }
 
-// ----------------------------------------------------------------------------
-}; // namespace android
-// ----------------------------------------------------------------------------
+} // namespace android
