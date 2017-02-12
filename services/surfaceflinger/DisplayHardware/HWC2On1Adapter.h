@@ -134,11 +134,6 @@ private:
                     const std::shared_ptr<Layer>& rhs);
     };
 
-    class DisplayContentsDeleter {
-        public:
-            void operator()(struct hwc_display_contents_1* contents);
-    };
-
     // The semantics of the fences returned by the device differ between
     // hwc1.set() and hwc2.present(). Read hwcomposer.h and hwcomposer2.h
     // for more information.
@@ -193,9 +188,6 @@ private:
 
     class Display {
         public:
-            typedef std::unique_ptr<hwc_display_contents_1,
-                    DisplayContentsDeleter> HWC1Contents;
-
             Display(HWC2On1Adapter& device, HWC2::DisplayType type);
 
             hwc2_display_t getId() const { return mId; }
@@ -205,10 +197,6 @@ private:
             // Displays to the Adapter's list of displays
             void setHwc1Id(int32_t id) { mHwc1Id = id; }
             int32_t getHwc1Id() const { return mHwc1Id; }
-
-            void incDirty() { ++mDirtyCount; }
-            void decDirty() { --mDirtyCount; }
-            bool isDirty() const { return mDirtyCount > 0 || mZIsDirty; }
 
             // HWC2 Display functions
             HWC2::Error acceptChanges();
@@ -233,7 +221,14 @@ private:
                     uint32_t* outNumElements, hwc2_layer_t* outLayers,
                     int32_t* outLayerRequests);
             HWC2::Error getType(int32_t* outType);
+
+            // Since HWC1 "presents" (called "set" in HWC1) all Displays
+            // at once, the first call to any Display::present will trigger
+            // present() on all Displays in the Device. Subsequent calls without
+            // first calling validate() are noop (except for duping/returning
+            // the retire fence).
             HWC2::Error present(int32_t* outRetireFence);
+
             HWC2::Error setActiveConfig(hwc2_config_t configId);
             HWC2::Error setClientTarget(buffer_handle_t target,
                     int32_t acquireFence, int32_t dataspace,
@@ -244,6 +239,10 @@ private:
                     int32_t releaseFence);
             HWC2::Error setPowerMode(HWC2::PowerMode mode);
             HWC2::Error setVsyncEnabled(HWC2::Vsync enabled);
+
+            // Since HWC1 "validates" (called "prepare" in HWC1) all Displays
+            // at once, the first call to any Display::validate() will trigger
+            // validate() on all other Displays in the Device.
             HWC2::Error validate(uint32_t* outNumTypes,
                     uint32_t* outNumRequests);
 
@@ -256,10 +255,9 @@ private:
             void populateConfigs(uint32_t width, uint32_t height);
 
             bool prepare();
-            HWC1Contents cloneRequestedContents() const;
 
             // Called after hwc.prepare() with responses from the device.
-            void setReceivedContents(HWC1Contents contents);
+            void generateChanges();
 
             bool hasChanges() const;
             HWC2::Error set(hwc_display_contents_1& hwcContents);
@@ -270,6 +268,13 @@ private:
 
             std::string dump() const;
 
+            // Return a rect from the pool allocated during validate()
+            hwc_rect_t* GetRects(size_t numRects);
+
+            hwc_display_contents_1* getDisplayContents();
+
+            void markGeometryChanged() { mGeometryChanged = true; }
+            void resetGeometryMarker() { mGeometryChanged = false;}
         private:
             class Config {
                 public:
@@ -314,7 +319,7 @@ private:
                     std::unordered_map<android_color_mode_t, uint32_t> mHwc1Ids;
             };
 
-            // Store changes requested from the device upon calling prepare().
+            // Stores changes requested from the device upon calling prepare().
             // Handles change request to:
             //   - Layer composition type.
             //   - Layer hints.
@@ -363,7 +368,9 @@ private:
             void populateColorModes();
             void initializeActiveConfig();
 
-            void reallocateHwc1Contents();
+            // Creates a bi-directional mapping between index in HWC1
+            // prepare/set array and Layer object. Stores mapping in
+            // mHwc1LayerMap and also updates Layer's attribute mHwc1Id.
             void assignHwc1LayerIds();
 
             // Called after a response to prepare() has been received:
@@ -376,13 +383,16 @@ private:
             void updateLayerRequests(const struct hwc_layer_1& hwc1Layer,
                     const Layer& layer);
 
+            // Set all fields in HWC1 comm array for layer containing the
+            // HWC_FRAMEBUFFER_TARGET (always the last layer).
             void prepareFramebufferTarget();
 
+            // Display ID generator.
             static std::atomic<hwc2_display_t> sNextId;
             const hwc2_display_t mId;
-            HWC2On1Adapter& mDevice;
 
-            std::atomic<size_t> mDirtyCount;
+
+            HWC2On1Adapter& mDevice;
 
             // The state of this display should only be modified from
             // SurfaceFlinger's main loop, with the exception of when dump is
@@ -395,15 +405,18 @@ private:
             // which require locking.
             mutable std::recursive_mutex mStateMutex;
 
-            bool mZIsDirty;
+            // Allocate RAM able to store all layers and rects used for
+            // communication with HWC1. Place allocated RAM in variable
+            // mHwc1RequestedContents.
+            void allocateRequestedContents();
 
             // Array of structs exchanged between client and hwc1 device.
-            HWC1Contents mHwc1RequestedContents; // Sent to device upon calling prepare().
-            HWC1Contents mHwc1ReceivedContents;  // Returned by device after prepare().
-
+            // Sent to device upon calling prepare().
+            std::unique_ptr<hwc_display_contents_1> mHwc1RequestedContents;
+    private:
             DeferredFence mRetireFence;
 
-            // Will only be non-null after the layer has been validated but
+            // Will only be non-null after the Display has been validated and
             // before it has been presented
             std::unique_ptr<Changes> mChanges;
 
@@ -418,15 +431,34 @@ private:
             HWC2::PowerMode mPowerMode;
             HWC2::Vsync mVsyncEnabled;
 
+            // Used to populate HWC1 HWC_FRAMEBUFFER_TARGET layer
             FencedBuffer mClientTarget;
+
+
             FencedBuffer mOutputBuffer;
 
             bool mHasColorTransform;
 
+            // All layers this Display is aware of.
             std::multiset<std::shared_ptr<Layer>, SortLayersByZ> mLayers;
+
+            // Mapping between layer index in array of hwc_display_contents_1*
+            // passed to HWC1 during validate/set and Layer object.
             std::unordered_map<size_t, std::shared_ptr<Layer>> mHwc1LayerMap;
+
+            // All communication with HWC1 via prepare/set is done with one
+            // alloc. This pointer is pointing to a pool of hwc_rect_t.
+            size_t mNumAvailableRects;
+            hwc_rect_t* mNextAvailableRect;
+
+            // True if any of the Layers contained in this Display have been
+            // updated with anything other than a buffer since last call to
+            // Display::set()
+            bool mGeometryChanged;
     };
 
+    // Utility template calling a Display object method directly based on the
+    // hwc2_display_t displayId parameter.
     template <typename ...Args>
     static int32_t callDisplayFunction(hwc2_device_t* device,
             hwc2_display_t displayId, HWC2::Error (Display::*member)(Args...),
@@ -468,7 +500,8 @@ private:
     static int32_t setColorModeHook(hwc2_device_t* device,
             hwc2_display_t display, int32_t /*android_color_mode_t*/ intMode) {
         auto mode = static_cast<android_color_mode_t>(intMode);
-        return callDisplayFunction(device, display, &Display::setColorMode, mode);
+        return callDisplayFunction(device, display, &Display::setColorMode,
+                mode);
     }
 
     static int32_t setPowerModeHook(hwc2_device_t* device,
@@ -485,46 +518,6 @@ private:
                 enabled);
     }
 
-    // Layer functions
-
-    template <typename T>
-    class LatchedState {
-        public:
-            LatchedState(Layer& parent, T initialValue)
-              : mParent(parent),
-                mPendingValue(initialValue),
-                mValue(initialValue) {}
-
-            void setPending(T value) {
-                if (value == mPendingValue) {
-                    return;
-                }
-                if (mPendingValue == mValue) {
-                    mParent.incDirty();
-                } else if (value == mValue) {
-                    mParent.decDirty();
-                }
-                mPendingValue = value;
-            }
-
-            T getValue() const { return mValue; }
-            T getPendingValue() const { return mPendingValue; }
-
-            bool isDirty() const { return mPendingValue != mValue; }
-
-            void latch() {
-                if (isDirty()) {
-                    mValue = mPendingValue;
-                    mParent.decDirty();
-                }
-            }
-
-        private:
-            Layer& mParent;
-            T mPendingValue;
-            T mValue;
-    };
-
     class Layer {
         public:
             explicit Layer(Display& display);
@@ -534,10 +527,6 @@ private:
 
             hwc2_layer_t getId() const { return mId; }
             Display& getDisplay() const { return mDisplay; }
-
-            void incDirty() { if (mDirtyCount++ == 0) mDisplay.incDirty(); }
-            void decDirty() { if (--mDirtyCount == 0) mDisplay.decDirty(); }
-            bool isDirty() const { return mDirtyCount > 0; }
 
             // HWC2 Layer functions
             HWC2::Error setBuffer(buffer_handle_t buffer, int32_t acquireFence);
@@ -558,7 +547,7 @@ private:
             HWC2::Error setZ(uint32_t z);
 
             HWC2::Composition getCompositionType() const {
-                return mCompositionType.getValue();
+                return mCompositionType;
             }
             uint32_t getZ() const { return mZ; }
 
@@ -568,47 +557,57 @@ private:
             void setHwc1Id(size_t id) { mHwc1Id = id; }
             size_t getHwc1Id() const { return mHwc1Id; }
 
-            void applyState(struct hwc_layer_1& hwc1Layer, bool applyAllState);
+            // Write state to HWC1 communication struct.
+            void applyState(struct hwc_layer_1& hwc1Layer);
 
             std::string dump() const;
 
+            std::size_t getNumVisibleRegions() { return mVisibleRegion.size(); }
+
+            std::size_t getNumSurfaceDamages() { return mSurfaceDamage.size(); }
+
+            // True if a layer cannot be properly rendered by the device due
+            // to usage of SolidColor (a.k.a BackgroundColor in HWC1).
+            bool hasUnsupportedBackgroundColor() {
+                return (mCompositionType == HWC2::Composition::SolidColor &&
+                        !mDisplay.getDevice().supportsBackgroundColor());
+            }
         private:
-            void applyCommonState(struct hwc_layer_1& hwc1Layer,
-                    bool applyAllState);
-            void applySolidColorState(struct hwc_layer_1& hwc1Layer,
-                    bool applyAllState);
-            void applySidebandState(struct hwc_layer_1& hwc1Layer,
-                    bool applyAllState);
+            void applyCommonState(struct hwc_layer_1& hwc1Layer);
+            void applySolidColorState(struct hwc_layer_1& hwc1Layer);
+            void applySidebandState(struct hwc_layer_1& hwc1Layer);
             void applyBufferState(struct hwc_layer_1& hwc1Layer);
-            void applyCompositionType(struct hwc_layer_1& hwc1Layer,
-                    bool applyAllState);
+            void applyCompositionType(struct hwc_layer_1& hwc1Layer);
 
             static std::atomic<hwc2_layer_t> sNextId;
             const hwc2_layer_t mId;
             Display& mDisplay;
-            size_t mDirtyCount;
 
             FencedBuffer mBuffer;
             std::vector<hwc_rect_t> mSurfaceDamage;
 
-            LatchedState<HWC2::BlendMode> mBlendMode;
-            LatchedState<hwc_color_t> mColor;
-            LatchedState<HWC2::Composition> mCompositionType;
-            LatchedState<hwc_rect_t> mDisplayFrame;
-            LatchedState<float> mPlaneAlpha;
-            LatchedState<const native_handle_t*> mSidebandStream;
-            LatchedState<hwc_frect_t> mSourceCrop;
-            LatchedState<HWC2::Transform> mTransform;
-            LatchedState<std::vector<hwc_rect_t>> mVisibleRegion;
+            HWC2::BlendMode mBlendMode;
+            hwc_color_t mColor;
+            HWC2::Composition mCompositionType;
+            hwc_rect_t mDisplayFrame;
+            float mPlaneAlpha;
+            const native_handle_t* mSidebandStream;
+            hwc_frect_t mSourceCrop;
+            HWC2::Transform mTransform;
+            std::vector<hwc_rect_t> mVisibleRegion;
+
             uint32_t mZ;
 
             DeferredFence mReleaseFence;
 
             size_t mHwc1Id;
             bool mHasUnsupportedPlaneAlpha;
-            bool mHasUnsupportedBackgroundColor;
     };
 
+    // Utility tempate calling a Layer object method based on ID parameters:
+    // hwc2_display_t displayId
+    // and
+    // hwc2_layer_t layerId
     template <typename ...Args>
     static int32_t callLayerFunction(hwc2_device_t* device,
             hwc2_display_t displayId, hwc2_layer_t layerId,
@@ -677,6 +676,7 @@ private:
     std::vector<struct hwc_display_contents_1*> mHwc1Contents;
     HWC2::Error setAllDisplays();
 
+    // Callbacks
     void hwc1Invalidate();
     void hwc1Vsync(int hwc1DisplayId, int64_t timestamp);
     void hwc1Hotplug(int hwc1DisplayId, int connected);
@@ -698,6 +698,8 @@ private:
     // callbacks or dump
 
     std::map<hwc2_layer_t, std::shared_ptr<Layer>> mLayers;
+
+    // A HWC1 supports only one virtual display.
     std::shared_ptr<Display> mHwc1VirtualDisplay;
 
     // These are potentially accessed from multiple threads, and are protected
@@ -712,10 +714,19 @@ private:
     };
     std::unordered_map<HWC2::Callback, CallbackInfo> mCallbacks;
     bool mHasPendingInvalidate;
+
+    // There is a small gap between the time the HWC1 module is started and
+    // when the callbacks for vsync and hotplugs are registered by the
+    // HWC2on1Adapter. To prevent losing events they are stored in these arrays
+    // and fed to the callback as soon as possible.
     std::vector<std::pair<int, int64_t>> mPendingVsyncs;
     std::vector<std::pair<int, int>> mPendingHotplugs;
 
+    // Mapping between HWC1 display id and Display objects.
     std::map<hwc2_display_t, std::shared_ptr<Display>> mDisplays;
+
+    // Map HWC1 display type (HWC_DISPLAY_PRIMARY, HWC_DISPLAY_EXTERNAL,
+    // HWC_DISPLAY_VIRTUAL) to Display IDs generated by HWC2on1Adapter objects.
     std::unordered_map<int, hwc2_display_t> mHwc1DisplayMap;
 };
 
