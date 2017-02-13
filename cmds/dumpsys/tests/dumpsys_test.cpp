@@ -79,6 +79,8 @@ class HardwareServiceManagerMock : public HServiceManager {
                 const hidl_string&,
                 const sp<IServiceNotification>&));
     MOCK_METHOD1(debugDump, R<void>(debugDump_cb));
+    MOCK_METHOD3(registerPassthroughClient, R<void>(
+        const hidl_string&, const hidl_string&, int32_t));
 
 };
 
