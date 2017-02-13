@@ -18,13 +18,12 @@
 #define ANDROID_SF_FRAMEBUFFER_SURFACE_H
 
 #include "DisplaySurface.h"
+#include "HWComposerBufferCache.h"
 
 #include <stdint.h>
 #include <sys/types.h>
 
 #include <gui/ConsumerBase.h>
-
-#include <memory>
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -33,7 +32,6 @@ namespace android {
 class Rect;
 class String8;
 class HWComposer;
-class HWComposerBufferCache;
 
 // ---------------------------------------------------------------------------
 
@@ -96,8 +94,7 @@ private:
     HWComposer& mHwc;
 
 #ifdef USE_HWC2
-    std::unique_ptr<HWComposerBufferCache> mHwcBufferCache =
-        std::make_unique<HWComposerBufferCache>();
+    HWComposerBufferCache mHwcBufferCache;
 
     // Previous buffer to release after getting an updated retire fence
     bool mHasPendingRelease;
