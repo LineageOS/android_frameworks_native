@@ -46,21 +46,10 @@ sharedLibraries := \
 cFlags := -DLOG_TAG=\"sensord\" \
           -DTRACE=0
 
-ifeq ($(TARGET_USES_QCOM_BSP), true)
-ifneq ($(TARGET_QCOM_DISPLAY_VARIANT),)
-    platform := .
-else
-    platform := $(TARGET_BOARD_PLATFORM)
-endif
-    cFlags += -DQCOM_B_FAMILY \
-              -DQCOM_BSP
-endif
-
 include $(CLEAR_VARS)
 # Don't strip symbols so we see stack traces in logcat.
 LOCAL_STRIP_MODULE := false
 LOCAL_SRC_FILES := $(sourceFiles)
-PLATFORM := $(platform)
 LOCAL_CFLAGS := $(cFlags)
 LOCAL_STATIC_LIBRARIES := $(staticLibraries)
 LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
