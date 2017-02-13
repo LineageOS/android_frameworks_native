@@ -739,8 +739,10 @@ VkResult EnumerateDeviceExtensionProperties(
     const InstanceData& data = GetData(physicalDevice);
     static const std::array<VkExtensionProperties, 2> loader_extensions = {{
         // WSI extensions
+#if 0 // Remove this "#if 0" once the VK_KHR_incremental_present extension is ratified
         {VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
          VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION},
+#endif
         {VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
          VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION},
     }};
