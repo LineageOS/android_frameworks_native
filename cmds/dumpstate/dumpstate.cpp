@@ -42,7 +42,6 @@
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
 #include <android/hardware/dumpstate/1.0/IDumpstateDevice.h>
-#include <android/hardware/vibrator/1.0/IVibrator.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
 #include <openssl/sha.h>
@@ -54,8 +53,6 @@
 #include "dumpstate.h"
 
 using ::android::hardware::dumpstate::V1_0::IDumpstateDevice;
-using ::android::hardware::vibrator::V1_0::IVibrator;
-using VibratorStatus = ::android::hardware::vibrator::V1_0::Status;
 
 // TODO: remove once moved to namespace
 using android::os::dumpstate::CommandOptions;
@@ -1363,6 +1360,16 @@ static void SendShellBroadcast(const std::string& action, const std::vector<std:
                    .Build());
 }
 
+static void Vibrate(int duration_ms) {
+    // clang-format off
+    RunCommand("", {"cmd", "vibrator", "vibrate", std::to_string(duration_ms), "dumpstate"},
+               CommandOptions::WithTimeout(10)
+                   .Log("Vibrate: '%s'\n")
+                   .Always()
+                   .Build());
+    // clang-format on
+}
+
 int main(int argc, char *argv[]) {
     int do_add_date = 0;
     int do_zip_file = 0;
@@ -1608,22 +1615,8 @@ int main(int argc, char *argv[]) {
         fclose(cmdline);
     }
 
-    ::android::sp<IVibrator> vibrator = nullptr;
     if (do_vibrate) {
-        vibrator = IVibrator::getService();
-
-        if (vibrator != nullptr) {
-            // cancel previous vibration if any
-            ::android::hardware::Return<VibratorStatus> offStatus = vibrator->off();
-            if (!offStatus.isOk() || offStatus != VibratorStatus::OK) {
-                MYLOGE("Vibrator off failed.");
-            } else {
-                ::android::hardware::Return<VibratorStatus> onStatus = vibrator->on(150);
-                if (!onStatus.isOk() || onStatus != VibratorStatus::OK) {
-                    MYLOGE("Vibrator on failed.");
-                }
-            }
-        }
+        Vibrate(150);
     }
 
     if (do_fb && ds.do_early_screenshot_) {
@@ -1803,21 +1796,9 @@ int main(int argc, char *argv[]) {
     }
 
     /* vibrate a few but shortly times to let user know it's finished */
-    if (vibrator != nullptr) {
-        // in case dumpstate magically completes before the above vibration
-        ::android::hardware::Return<VibratorStatus> offStatus = vibrator->off();
-        if (!offStatus.isOk() || offStatus != VibratorStatus::OK) {
-            MYLOGE("Vibrator off failed.");
-        } else {
-            for (int i = 0; i < 3; i++) {
-                ::android::hardware::Return<VibratorStatus> onStatus = vibrator->on(75);
-                if (!onStatus.isOk() || onStatus != VibratorStatus::OK) {
-                    MYLOGE("Vibrator on failed.");
-                    break;
-                }
-                usleep((75 + 50) * 1000);
-            }
-        }
+    for (int i = 0; i < 3; i++) {
+        Vibrate(75);
+        usleep((75 + 50) * 1000);
     }
 
     /* tell activity manager we're done */
