@@ -2455,6 +2455,21 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
     return true;
 }
 
+bool Layer::detachChildren() {
+    traverseInZOrder([this](Layer* child) {
+        if (child == this) {
+            return;
+        }
+
+        sp<Client> client(child->mClientRef.promote());
+        if (client != nullptr) {
+            client->detachLayer(child);
+        }
+    });
+
+    return true;
+}
+
 void Layer::setParent(const sp<Layer>& layer) {
     mParent = layer;
 }

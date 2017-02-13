@@ -58,6 +58,7 @@ struct layer_state_t {
         eOverrideScalingModeChanged = 0x00000800,
         eGeometryAppliesWithResize  = 0x00001000,
         eReparentChildren           = 0x00002000,
+        eDetachChildren             = 0x00004000
     };
 
     layer_state_t()

@@ -49,7 +49,10 @@ Client::~Client()
 {
     const size_t count = mLayers.size();
     for (size_t i=0 ; i<count ; i++) {
-        mFlinger->removeLayer(mLayers.valueAt(i));
+        sp<Layer> l = mLayers.valueAt(i).promote();
+        if (l != nullptr) {
+            mFlinger->removeLayer(l);
+        }
     }
 }
 
