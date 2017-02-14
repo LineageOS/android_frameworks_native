@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <media/VolumeShaper.h>
 #include <utils/RefBase.h>
 #include <utils/Errors.h>
 #include <binder/IInterface.h>
@@ -45,6 +46,9 @@ public:
 
     virtual void setStartDelayMs(int delayMs) = 0;
 
+    virtual void applyVolumeShaper(
+            const sp<VolumeShaper::Configuration>& configuration,
+            const sp<VolumeShaper::Operation>& operation) = 0;
 };
 
 // ----------------------------------------------------------------------------

@@ -35,6 +35,7 @@ enum {
     SET_VOLUME = IBinder::FIRST_CALL_TRANSACTION + 3,
     SET_PAN    = IBinder::FIRST_CALL_TRANSACTION + 4,
     SET_START_DELAY_MS = IBinder::FIRST_CALL_TRANSACTION + 5,
+    APPLY_VOLUME_SHAPER = IBinder::FIRST_CALL_TRANSACTION + 6,
 };
 
 class BpPlayer : public BpInterface<IPlayer>
@@ -88,6 +89,36 @@ public:
         data.writeInt32(delayMs);
         remote()->transact(SET_START_DELAY_MS, data, &reply);
     }
+
+    virtual void applyVolumeShaper(
+            const sp<VolumeShaper::Configuration>& configuration,
+            const sp<VolumeShaper::Operation>& operation) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IPlayer::getInterfaceDescriptor());
+
+        status_t status = configuration.get() == nullptr
+                ? data.writeInt32(0)
+                :  data.writeInt32(1)
+                    ?: configuration->writeToParcel(&data);
+        if (status != NO_ERROR) {
+            ALOGW("applyVolumeShaper failed configuration parceling: %d", status);
+            return; // ignore error
+        }
+
+        status = operation.get() == nullptr
+                ? status = data.writeInt32(0)
+                : data.writeInt32(1)
+                    ?: operation->writeToParcel(&data);
+        if (status != NO_ERROR) {
+            ALOGW("applyVolumeShaper failed operation parceling: %d", status);
+            return; // ignore error
+        }
+
+        status = remote()->transact(APPLY_VOLUME_SHAPER, data, &reply);
+
+        ALOGW_IF(status != NO_ERROR, "applyVolumeShaper failed transact: %d", status);
+        return; // one way transaction, ignore error
+    }
 };
 
 IMPLEMENT_META_INTERFACE(Player, "android.media.IPlayer");
@@ -126,6 +157,28 @@ status_t BnPlayer::onTransact(
         case SET_START_DELAY_MS: {
             CHECK_INTERFACE(IPlayer, data, reply);
             setStartDelayMs(data.readInt32());
+            return NO_ERROR;
+        } break;
+        case APPLY_VOLUME_SHAPER: {
+            CHECK_INTERFACE(IPlayer, data, reply);
+            sp<VolumeShaper::Configuration> configuration;
+            sp<VolumeShaper::Operation> operation;
+
+            int32_t present;
+            status_t status = data.readInt32(&present);
+            if (status == NO_ERROR && present != 0) {
+                configuration = new VolumeShaper::Configuration();
+                status = configuration->readFromParcel(data);
+            }
+            status = status ?: data.readInt32(&present);
+            if (status == NO_ERROR && present != 0) {
+                operation = new VolumeShaper::Operation();
+                status = operation->readFromParcel(data);
+            }
+            if (status == NO_ERROR) {
+                // one way transaction, no error returned
+                applyVolumeShaper(configuration, operation);
+            }
             return NO_ERROR;
         } break;
         default:
