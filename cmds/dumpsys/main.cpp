@@ -27,7 +27,6 @@
 #include <stdio.h>
 
 using namespace android;
-using HServiceManager = android::hidl::manager::V1_0::IServiceManager;
 
 int main(int argc, char* const argv[]) {
     signal(SIGPIPE, SIG_IGN);
@@ -39,8 +38,6 @@ int main(int argc, char* const argv[]) {
         return 20;
     }
 
-    sp<HServiceManager> hm = HServiceManager::getService("manager");
-
-    Dumpsys dumpsys(sm.get(), hm.get());
+    Dumpsys dumpsys(sm.get());
     return dumpsys.main(argc, argv);
 }
