@@ -643,10 +643,12 @@ typedef EGLClientBuffer (EGLAPIENTRYP PFNEGLCREATENATIVECLIENTBUFFERANDROID) (co
 #define EGL_DEQUEUE_READY_TIME_ANDROID 0x3156
 #define EGL_READS_DONE_TIME_ANDROID 0x3157
 #ifdef EGL_EGLEXT_PROTOTYPES
-EGLAPI EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface, EGLint framesAgo, EGLint numTimestamps, const EGLint *timestamps, EGLnsecsANDROID *values);
+EGLAPI EGLBoolean eglGetNextFrameIdANDROID(EGLDisplay dpy, EGLSurface surface, EGLuint64KHR *frameId);
+EGLAPI EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface, EGLuint64KHR frameId, EGLint numTimestamps, const EGLint *timestamps, EGLnsecsANDROID *values);
 EGLAPI EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy, EGLSurface surface, EGLint timestamp);
 #else
-typedef EGLBoolean (EGLAPIENTRYP PFNEGLGETFRAMETIMESTAMPSANDROID) (EGLDisplay dpy, EGLSurface surface, EGLint framesAgo, EGLint numTimestamps, const EGLint *timestamps, EGLnsecsANDROID *values);
+typedef EGLBoolean (EGLAPIENTRYP PFNEGLGETNEXTFRAMEIDANDROID) (EGLDisplay dpy, EGLSurface surface, EGLuint64KHR *frameId);
+typedef EGLBoolean (EGLAPIENTRYP PFNEGLGETFRAMETIMESTAMPSANDROID) (EGLDisplay dpy, EGLSurface surface, EGLuint64KHR frameId, EGLint numTimestamps, const EGLint *timestamps, EGLnsecsANDROID *values);
 typedef EGLBoolean (EGLAPIENTRYP PFNEGLQUERYTIMESTAMPSUPPORTEDANDROID) (EGLDisplay dpy, EGLSurface surface, EGLint timestamp);
 #endif
 #endif

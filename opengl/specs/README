@@ -1,5 +1,5 @@
 This directory contains OpenGL ES and EGL extension specifications that have
-been or are being defined for Android.  
+been or are being defined for Android.
 
 The table below tracks usage of EGL enumerant values that have been reserved
 for use by Android extensions.

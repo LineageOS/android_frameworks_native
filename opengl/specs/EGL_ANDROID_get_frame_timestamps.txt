@@ -57,9 +57,12 @@ New Types
 
 New Procedures and Functions
 
+    EGLBoolean eglGetNextFrameIdANDROID(EGLDisplay dpy, EGLSurface surface,
+            EGLuint64KHR *frameId);
+
     EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
-            EGLint framesAgo, EGLint numTimestamps, const EGLint *timestamps,
-            EGLnsecsANDROID *values);
+            EGLuint64KHR frameId, EGLint numTimestamps,
+            const EGLint *timestamps, EGLnsecsANDROID *values);
 
     EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy, EGLSurface
             surface, EGLint timestamp);
@@ -95,23 +98,31 @@ Changes to Chapter 3 of the EGL 1.5 Specification (EGL Functions and Errors)
 
     The function
 
-        EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface
-            surface, EGLint framesAgo, EGLint numTimestamps,
+        EGLBoolean eglGetNextFrameIdANDROID(EGLDisplay dpy, EGLSurface surface,
+            EGLuint64KHR *frameId);
+
+    Returns an identifier for the next frame to be swapped. The identifier can
+    be used to correlate a particular eglSwapBuffers with its timestamps in
+    eglGetFrameTimestampsANDROID. If any error is generated, the function will
+    return EGL_FALSE.
+
+    The function
+
+        EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy,
+            EGLSurface surface, EGLuint64KHR frameId, EGLint numTimestamps,
             const EGLint *timestamps, EGLnsecsANDROID *values);
 
-    allows querying various timestamps related to the composition and display of
-    a window surface.
+    allows querying various timestamps related to the composition and display
+    of specific frames of a window surface.
 
-    The framesAgo parameter indicates how many frames before the last queued
-    frame to query. So a value of zero would indicate that the query is for the
-    last queued frame. Note that the implementation maintains a limited history
-    of timestamp data. If a query is made for a frame whose timestamp history
-    no longer exists then EGL_BAD_ACCESS is generated. If timestamp collection
-    has not been enabled for the surface then EGL_BAD_SURFACE is generated.
-    Timestamps for events that will not occur or have not yet occurred will be
-    zero. Timestamp queries that are not supported will generate an
-    EGL_BAD_PARAMETER error. If any error is generated the function will return
-    EGL_FALSE.
+    The frameId indicates which frame to query. The implementation maintains a
+    limited history of timestamp data. If a query is made for a frame whose
+    timestamp history no longer exists then EGL_BAD_ACCESS is generated. If
+    timestamp collection has not been enabled for the surface then
+    EGL_BAD_SURFACE is generated.  Timestamps for events that will not occur or
+    have not yet occurred will be zero. Timestamp queries that are not
+    supported will generate an EGL_BAD_PARAMETER error. If any error is
+    generated the function will return EGL_FALSE.
 
     The eglGetFrameTimestampsANDROID function takes an array of timestamps to
     query and returns timestamps in the corresponding indices of the values
@@ -175,3 +186,6 @@ Revision History
     - Add EGL_COMPOSITION_LATCH_TIME_ANDROID,
       EGL_LAST_COMPOSITION_START_TIME_ANDROID, and
       EGL_DEQUEUE_READY_TIME_ANDROID.
+
+#4 (Brian Anderson, January 10, 2017)
+    - Use an absolute frameId rather than a relative framesAgo.

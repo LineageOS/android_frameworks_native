@@ -204,6 +204,7 @@ private:
     int dispatchSetSurfaceDamage(va_list args);
     int dispatchSetSharedBufferMode(va_list args);
     int dispatchSetAutoRefresh(va_list args);
+    int dispatchGetNextFrameId(va_list args);
     int dispatchEnableFrameTimestamps(va_list args);
     int dispatchGetFrameTimestamps(va_list args);
     int dispatchGetDisplayRefreshCycleDuration(va_list args);

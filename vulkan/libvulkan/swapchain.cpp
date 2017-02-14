@@ -20,7 +20,7 @@
 #include <gui/BufferQueue.h>
 #include <sync/sync.h>
 #include <utils/StrongPointer.h>
-#include <utils/SortedVector.h>
+#include <utils/Vector.h>
 
 #include "driver.h"
 
@@ -108,19 +108,11 @@ int InvertTransformToNative(VkSurfaceTransformFlagBitsKHR transform) {
 
 class TimingInfo {
    public:
-    TimingInfo()
-        : vals_{0, 0, 0, 0, 0},
-          timestamp_desired_present_time_(0),
-          timestamp_actual_present_time_(0),
-          timestamp_render_complete_time_(0),
-          timestamp_composition_latch_time_(0) {}
-    TimingInfo(const VkPresentTimeGOOGLE* qp)
+    TimingInfo() = default;
+    TimingInfo(const VkPresentTimeGOOGLE* qp, uint64_t nativeFrameId)
         : vals_{qp->presentID, qp->desiredPresentTime, 0, 0, 0},
-          timestamp_desired_present_time_(0),
-          timestamp_actual_present_time_(0),
-          timestamp_render_complete_time_(0),
-          timestamp_composition_latch_time_(0) {}
-    bool ready() {
+          native_frame_id_(nativeFrameId) {}
+    bool ready() const {
         return (timestamp_desired_present_time_ &&
                 timestamp_actual_present_time_ &&
                 timestamp_render_complete_time_ &&
@@ -148,26 +140,19 @@ class TimingInfo {
         vals_.earliestPresentTime = early_time;
         vals_.presentMargin = margin;
     }
-    void get_values(VkPastPresentationTimingGOOGLE* values) { *values = vals_; }
+    void get_values(VkPastPresentationTimingGOOGLE* values) const {
+        *values = vals_;
+    }
 
    public:
-    VkPastPresentationTimingGOOGLE vals_;
+    VkPastPresentationTimingGOOGLE vals_ { 0, 0, 0, 0, 0 };
 
-    uint64_t timestamp_desired_present_time_;
-    uint64_t timestamp_actual_present_time_;
-    uint64_t timestamp_render_complete_time_;
-    uint64_t timestamp_composition_latch_time_;
+    uint64_t native_frame_id_ { 0 };
+    uint64_t timestamp_desired_present_time_ { 0 };
+    uint64_t timestamp_actual_present_time_ { 0 };
+    uint64_t timestamp_render_complete_time_ { 0 };
+    uint64_t timestamp_composition_latch_time_ { 0 };
 };
-
-static inline int compare_type(const TimingInfo& lhs, const TimingInfo& rhs) {
-    // TODO(ianelliott): Change this from presentID to the frame ID once
-    // brianderson lands the appropriate patch:
-    if (lhs.vals_.presentID < rhs.vals_.presentID)
-        return -1;
-    if (lhs.vals_.presentID > rhs.vals_.presentID)
-        return 1;
-    return 0;
-}
 
 // ----------------------------------------------------------------------------
 
@@ -195,7 +180,6 @@ struct Swapchain {
         : surface(surface_),
           num_images(num_images_),
           frame_timestamps_enabled(false) {
-        timing.clear();
         ANativeWindow* window = surface.window.get();
         int64_t rdur;
         native_window_get_refresh_cycle_duration(
@@ -221,7 +205,7 @@ struct Swapchain {
         bool dequeued;
     } images[android::BufferQueue::NUM_BUFFER_SLOTS];
 
-    android::SortedVector<TimingInfo> timing;
+    android::Vector<TimingInfo> timing;
 };
 
 VkSwapchainKHR HandleFromSwapchain(Swapchain* swapchain) {
@@ -293,73 +277,64 @@ void OrphanSwapchain(VkDevice device, Swapchain* swapchain) {
 }
 
 uint32_t get_num_ready_timings(Swapchain& swapchain) {
-    uint32_t num_ready = 0;
-    uint32_t num_timings = static_cast<uint32_t>(swapchain.timing.size());
-    uint32_t frames_ago = num_timings;
-    for (uint32_t i = 0; i < num_timings; i++) {
-        TimingInfo* ti = &swapchain.timing.editItemAt(i);
-        if (ti) {
-            if (ti->ready()) {
-                // This TimingInfo is ready to be reported to the user.  Add it
-                // to the num_ready.
-                num_ready++;
-            } else {
-                // This TimingInfo is not yet ready to be reported to the user,
-                // and so we should look for any available timestamps that
-                // might make it ready.
-                int64_t desired_present_time = 0;
-                int64_t render_complete_time = 0;
-                int64_t composition_latch_time = 0;
-                int64_t actual_present_time = 0;
-                for (uint32_t f = MIN_NUM_FRAMES_AGO; f < frames_ago; f++) {
-                    // Obtain timestamps:
-                    int ret = native_window_get_frame_timestamps(
-                        swapchain.surface.window.get(), f,
-                        &desired_present_time, &render_complete_time,
-                        &composition_latch_time,
-                        NULL,  //&first_composition_start_time,
-                        NULL,  //&last_composition_start_time,
-                        NULL,  //&composition_finish_time,
-                        // TODO(ianelliott): Maybe ask if this one is
-                        // supported, at startup time (since it may not be
-                        // supported):
-                        &actual_present_time,
-                        NULL,  //&display_retire_time,
-                        NULL,  //&dequeue_ready_time,
-                        NULL /*&reads_done_time*/);
-                    if (ret) {
-                        break;
-                    } else if (!ret) {
-                        // We obtained at least one valid timestamp.  See if it
-                        // is for the present represented by this TimingInfo:
-                        if (static_cast<uint64_t>(desired_present_time) ==
-                            ti->vals_.desiredPresentTime) {
-                            // Record the timestamp(s) we received, and then
-                            // see if this TimingInfo is ready to be reported
-                            // to the user:
-                            ti->timestamp_desired_present_time_ =
-                                static_cast<uint64_t>(desired_present_time);
-                            ti->timestamp_actual_present_time_ =
-                                static_cast<uint64_t>(actual_present_time);
-                            ti->timestamp_render_complete_time_ =
-                                static_cast<uint64_t>(render_complete_time);
-                            ti->timestamp_composition_latch_time_ =
-                                static_cast<uint64_t>(composition_latch_time);
+    if (swapchain.timing.size() < MIN_NUM_FRAMES_AGO) {
+        return 0;
+    }
 
-                            if (ti->ready()) {
-                                // The TimingInfo has received enough
-                                // timestamps, and should now use those
-                                // timestamps to calculate the info that should
-                                // be reported to the user:
-                                //
-                                ti->calculate(swapchain.refresh_duration);
-                                num_ready++;
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
+    uint32_t num_ready = 0;
+    const size_t num_timings = swapchain.timing.size() - MIN_NUM_FRAMES_AGO + 1;
+    for (uint32_t i = 0; i < num_timings; i++) {
+        TimingInfo& ti = swapchain.timing.editItemAt(i);
+        if (ti.ready()) {
+            // This TimingInfo is ready to be reported to the user.  Add it
+            // to the num_ready.
+            num_ready++;
+            continue;
+        }
+        // This TimingInfo is not yet ready to be reported to the user,
+        // and so we should look for any available timestamps that
+        // might make it ready.
+        int64_t desired_present_time = 0;
+        int64_t render_complete_time = 0;
+        int64_t composition_latch_time = 0;
+        int64_t actual_present_time = 0;
+        // Obtain timestamps:
+        int ret = native_window_get_frame_timestamps(
+            swapchain.surface.window.get(), ti.native_frame_id_,
+            &desired_present_time, &render_complete_time,
+            &composition_latch_time,
+            NULL,  //&first_composition_start_time,
+            NULL,  //&last_composition_start_time,
+            NULL,  //&composition_finish_time,
+            // TODO(ianelliott): Maybe ask if this one is
+            // supported, at startup time (since it may not be
+            // supported):
+            &actual_present_time,
+            NULL,  //&display_retire_time,
+            NULL,  //&dequeue_ready_time,
+            NULL /*&reads_done_time*/);
+
+        if (ret != android::NO_ERROR) {
+            continue;
+        }
+
+        // Record the timestamp(s) we received, and then see if this TimingInfo
+        // is ready to be reported to the user:
+        ti.timestamp_desired_present_time_ =
+            static_cast<uint64_t>(desired_present_time);
+        ti.timestamp_actual_present_time_ =
+            static_cast<uint64_t>(actual_present_time);
+        ti.timestamp_render_complete_time_ =
+            static_cast<uint64_t>(render_complete_time);
+        ti.timestamp_composition_latch_time_ =
+               static_cast<uint64_t>(composition_latch_time);
+
+        if (ti.ready()) {
+            // The TimingInfo has received enough timestamps, and should now
+            // use those timestamps to calculate the info that should be
+            // reported to the user:
+            ti.calculate(swapchain.refresh_duration);
+            num_ready++;
         }
     }
     return num_ready;
@@ -369,29 +344,35 @@ uint32_t get_num_ready_timings(Swapchain& swapchain) {
 void copy_ready_timings(Swapchain& swapchain,
                         uint32_t* count,
                         VkPastPresentationTimingGOOGLE* timings) {
-    uint32_t num_copied = 0;
-    uint32_t num_timings = static_cast<uint32_t>(swapchain.timing.size());
-    if (*count < num_timings) {
-        num_timings = *count;
+    if (swapchain.timing.empty()) {
+        *count = 0;
+        return;
     }
-    for (uint32_t i = 0; i < num_timings; i++) {
-        TimingInfo* ti = &swapchain.timing.editItemAt(i);
-        if (ti && ti->ready()) {
-            ti->get_values(&timings[num_copied]);
-            num_copied++;
-            // We only report the values for a given present once, so remove
-            // them from swapchain.timing:
-            //
-            // TODO(ianelliott): SEE WHAT HAPPENS TO THE LOOP WHEN THE
-            // FOLLOWING IS DONE:
-            swapchain.timing.removeAt(i);
-            i--;
-            num_timings--;
-            if (*count == num_copied) {
-                break;
-            }
+
+    size_t last_ready = swapchain.timing.size() - 1;
+    while (!swapchain.timing[last_ready].ready()) {
+        if (last_ready == 0) {
+            *count = 0;
+            return;
         }
+        last_ready--;
     }
+
+    uint32_t num_copied = 0;
+    size_t num_to_remove = 0;
+    for (uint32_t i = 0; i <= last_ready && num_copied < *count; i++) {
+        const TimingInfo& ti = swapchain.timing[i];
+        if (ti.ready()) {
+            ti.get_values(&timings[num_copied]);
+            num_copied++;
+        }
+        num_to_remove++;
+    }
+
+    // Discard old frames that aren't ready if newer frames are ready.
+    // We don't expect to get the timing info for those old frames.
+    swapchain.timing.removeItemsAt(0, num_to_remove);
+
     *count = num_copied;
 }
 
@@ -1245,13 +1226,20 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                         native_window_enable_frame_timestamps(window, true);
                         swapchain.frame_timestamps_enabled = true;
                     }
-                    // Record this presentID and desiredPresentTime so it can
-                    // be later correlated to this present.
-                    TimingInfo timing_record(time);
-                    swapchain.timing.add(timing_record);
-                    uint32_t num_timings =
-                        static_cast<uint32_t>(swapchain.timing.size());
-                    if (num_timings > MAX_TIMING_INFOS) {
+
+                    // Record the nativeFrameId so it can be later correlated to
+                    // this present.
+                    uint64_t nativeFrameId = 0;
+                    err = native_window_get_next_frame_id(
+                            window, &nativeFrameId);
+                    if (err != android::NO_ERROR) {
+                        ALOGE("Failed to get next native frame ID.");
+                    }
+
+                    // Add a new timing record with the user's presentID and
+                    // the nativeFrameId.
+                    swapchain.timing.push_back(TimingInfo(time, nativeFrameId));
+                    while (swapchain.timing.size() > MAX_TIMING_INFOS) {
                         swapchain.timing.removeAt(0);
                     }
                     if (time->desiredPresentTime) {

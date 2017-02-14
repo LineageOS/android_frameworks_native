@@ -831,6 +831,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_SET_AUTO_REFRESH:
         res = dispatchSetAutoRefresh(args);
         break;
+    case NATIVE_WINDOW_GET_NEXT_FRAME_ID:
+        res = dispatchGetNextFrameId(args);
+        break;
     case NATIVE_WINDOW_ENABLE_FRAME_TIMESTAMPS:
         res = dispatchEnableFrameTimestamps(args);
         break;
@@ -960,6 +963,12 @@ int Surface::dispatchSetAutoRefresh(va_list args) {
     return setAutoRefresh(autoRefresh);
 }
 
+int Surface::dispatchGetNextFrameId(va_list args) {
+    uint64_t* nextFrameId = va_arg(args, uint64_t*);
+    *nextFrameId = getNextFrameNumber();
+    return NO_ERROR;
+}
+
 int Surface::dispatchEnableFrameTimestamps(va_list args) {
     bool enable = va_arg(args, int);
     enableFrameTimestamps(enable);
@@ -967,7 +976,7 @@ int Surface::dispatchEnableFrameTimestamps(va_list args) {
 }
 
 int Surface::dispatchGetFrameTimestamps(va_list args) {
-    uint32_t framesAgo = va_arg(args, uint32_t);
+    uint64_t frameId = va_arg(args, uint64_t);
     nsecs_t* outRequestedPresentTime = va_arg(args, int64_t*);
     nsecs_t* outAcquireTime = va_arg(args, int64_t*);
     nsecs_t* outLatchTime = va_arg(args, int64_t*);
@@ -978,7 +987,7 @@ int Surface::dispatchGetFrameTimestamps(va_list args) {
     nsecs_t* outDisplayRetireTime = va_arg(args, int64_t*);
     nsecs_t* outDequeueReadyTime = va_arg(args, int64_t*);
     nsecs_t* outReleaseTime = va_arg(args, int64_t*);
-    return getFrameTimestamps(getNextFrameNumber() - 1 - framesAgo,
+    return getFrameTimestamps(frameId,
             outRequestedPresentTime, outAcquireTime, outLatchTime,
             outFirstRefreshStartTime, outLastRefreshStartTime,
             outGlCompositionDoneTime, outDisplayPresentTime,
