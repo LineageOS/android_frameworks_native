@@ -27,15 +27,16 @@
 #include <utils/String8.h>
 #include <log/log.h>
 
-#include <ui/Rect.h>
-
 #include <EGL/egl.h>
 
 #include <hardware/hardware.h>
 #include <gui/BufferItem.h>
+#include <gui/BufferQueue.h>
 #include <gui/GraphicBufferAlloc.h>
 #include <gui/Surface.h>
+
 #include <ui/GraphicBuffer.h>
+#include <ui/Rect.h>
 
 #include "FramebufferSurface.h"
 #include "HWComposer.h"

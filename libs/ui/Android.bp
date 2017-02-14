@@ -75,6 +75,12 @@ cc_library_shared {
         "libutils",
         "liblog",
     ],
+
+    static_libs: [
+        "libarect",
+    ],
+
+    export_static_lib_headers: ["libarect"],
 }
 
 subdirs = ["tests"]

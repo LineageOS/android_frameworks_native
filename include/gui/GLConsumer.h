@@ -20,8 +20,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
-#include <gui/IGraphicBufferProducer.h>
-#include <gui/BufferQueue.h>
+#include <gui/BufferQueueDefs.h>
 #include <gui/ConsumerBase.h>
 
 #include <ui/GraphicBuffer.h>
@@ -489,7 +488,7 @@ private:
     // slot that has not yet been used. The buffer allocated to a slot will also
     // be replaced if the requested buffer usage or geometry differs from that
     // of the buffer allocated to a slot.
-    EglSlot mEglSlots[BufferQueue::NUM_BUFFER_SLOTS];
+    EglSlot mEglSlots[BufferQueueDefs::NUM_BUFFER_SLOTS];
 
     // mCurrentTexture is the buffer slot index of the buffer that is currently
     // bound to the OpenGL texture. It is initialized to INVALID_BUFFER_SLOT,

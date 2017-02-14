@@ -35,7 +35,7 @@
 #include <ui/Gralloc1On0Adapter.h>
 #include <ui/GrallocMapper.h>
 #include <ui/GraphicBufferMapper.h>
-#include <ui/Rect.h>
+#include <ui/GraphicBuffer.h>
 
 #include <system/graphics.h>
 

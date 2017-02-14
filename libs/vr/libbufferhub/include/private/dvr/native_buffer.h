@@ -3,7 +3,6 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <android/native_window.h>
 #include <log/log.h>
 #include <system/window.h>
 #include <ui/ANativeObjectBase.h>

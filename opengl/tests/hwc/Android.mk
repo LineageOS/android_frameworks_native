@@ -25,6 +25,8 @@ LOCAL_SRC_FILES:= hwcTestLib.cpp
 LOCAL_C_INCLUDES += system/extras/tests/include \
     $(call include-path-for, opengl-tests-includes) \
 
+LOCAL_STATIC_LIBRARIES := libarect
+
 include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)

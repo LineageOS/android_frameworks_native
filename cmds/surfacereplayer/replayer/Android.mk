@@ -61,6 +61,7 @@ LOCAL_SHARED_LIBRARIES := \
     libprotobuf-cpp-lite \
     libsurfacereplayer \
     libutils \
+    libgui \
 
 LOCAL_STATIC_LIBRARIES := \
     libtrace_proto \

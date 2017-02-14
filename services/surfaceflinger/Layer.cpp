@@ -38,6 +38,7 @@
 #include <ui/PixelFormat.h>
 
 #include <gui/BufferItem.h>
+#include <gui/BufferQueue.h>
 #include <gui/Surface.h>
 
 #include "clz.h"
@@ -76,6 +77,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
         mPendingStates(),
         mQueuedFrames(0),
         mSidebandStreamChanged(false),
+        mActiveBufferSlot(BufferQueue::INVALID_BUFFER_SLOT),
         mCurrentTransform(0),
         mCurrentScalingMode(NATIVE_WINDOW_SCALING_MODE_FREEZE),
         mOverrideScalingMode(-1),

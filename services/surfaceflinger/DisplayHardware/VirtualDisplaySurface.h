@@ -179,7 +179,7 @@ private:
     // slot. Both mProducerSlotSource and mProducerBuffers are indexed by a
     // "producer slot"; see the mapSlot*() functions.
     uint64_t mProducerSlotSource;
-    sp<GraphicBuffer> mProducerBuffers[BufferQueue::NUM_BUFFER_SLOTS];
+    sp<GraphicBuffer> mProducerBuffers[BufferQueueDefs::NUM_BUFFER_SLOTS];
 
     // The QueueBufferOutput with the latest info from the sink, and with the
     // transform hint cleared. Since we defer queueBuffer from the GLES driver

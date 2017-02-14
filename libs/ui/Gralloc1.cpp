@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 
 #include <ui/Gralloc1.h>
+#include <ui/GraphicBuffer.h>
 
 #include <vector>
 

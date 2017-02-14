@@ -18,6 +18,8 @@
 #define ANDROID_SURFACEFLINGERCONSUMER_H
 
 #include "DispSync.h"
+
+#include <ui/Region.h>
 #include <gui/GLConsumer.h>
 
 namespace android {

@@ -23,6 +23,7 @@
 #include <private/gui/SyncFeatures.h>
 
 #include <gui/BufferItem.h>
+#include <gui/BufferQueue.h>
 
 #include <utils/Errors.h>
 #include <utils/NativeHandle.h>

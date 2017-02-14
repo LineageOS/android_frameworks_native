@@ -25,8 +25,9 @@
 #include <utils/Timers.h>
 
 #include <binder/IInterface.h>
+
 #include <ui/PixelFormat.h>
-#include <ui/Rect.h>
+
 #include <gui/OccupancyTracker.h>
 
 #include <EGL/egl.h>

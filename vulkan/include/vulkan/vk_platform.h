@@ -94,7 +94,10 @@ extern "C"
 // controls inclusion of the extension interfaces in vulkan.h.
 
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-#include <android/native_window.h>
+// FIXME: this forces a dependency on libandroid.so, we can't have that right now
+// because of circular dependencies. this will be resolved at a later time.
+//#include <android/native_window.h>
+struct ANativeWindow;
 #endif
 
 #ifdef VK_USE_PLATFORM_MIR_KHR
