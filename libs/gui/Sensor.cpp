@@ -210,6 +210,10 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
             mFlags |= SENSOR_FLAG_WAKE_UP;
         }
         break;
+    case SENSOR_TYPE_LOW_LATENCY_OFFBODY_DETECT:
+        mStringType = SENSOR_STRING_TYPE_LOW_LATENCY_OFFBODY_DETECT;
+        mFlags |= SENSOR_FLAG_ON_CHANGE_MODE;
+        break;
     case SENSOR_TYPE_WRIST_TILT_GESTURE:
         mStringType = SENSOR_STRING_TYPE_WRIST_TILT_GESTURE;
         mFlags |= SENSOR_FLAG_SPECIAL_REPORTING_MODE;
