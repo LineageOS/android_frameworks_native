@@ -2466,7 +2466,7 @@ bool HWC2On1Adapter::prepareAllDisplays()
         }
     }
 
-    if (mHwc1DisplayMap.count(0) == 0) {
+    if (mHwc1DisplayMap.count(HWC_DISPLAY_PRIMARY) == 0) {
         ALOGE("prepareAllDisplays: Unable to find primary HWC1 display");
         return false;
     }
