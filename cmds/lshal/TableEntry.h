@@ -21,6 +21,7 @@
 
 #include <string>
 #include <vector>
+#include <iostream>
 
 namespace android {
 namespace lshal {
@@ -33,9 +34,27 @@ struct TableEntry {
     int32_t serverPid;
     uint64_t serverObjectAddress;
     Pids clientPids;
+
+    static bool sortByInterfaceName(const TableEntry &a, const TableEntry &b) {
+        return a.interfaceName < b.interfaceName;
+    };
+    static bool sortByServerPid(const TableEntry &a, const TableEntry &b) {
+        return a.serverPid < b.serverPid;
+    };
 };
 
 using Table = std::vector<TableEntry>;
+using TableEntryCompare = std::function<bool(const TableEntry &, const TableEntry &)>;
+
+enum : unsigned int {
+    ENABLE_INTERFACE_NAME = 1 << 0,
+    ENABLE_TRANSPORT      = 1 << 1,
+    ENABLE_SERVER_PID     = 1 << 2,
+    ENABLE_SERVER_ADDR    = 1 << 3,
+    ENABLE_CLIENT_PIDS    = 1 << 4
+};
+
+using TableEntrySelect = unsigned int;
 
 enum {
     NO_PID = -1,

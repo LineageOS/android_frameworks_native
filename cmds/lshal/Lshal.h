@@ -48,6 +48,7 @@ public:
 private:
     Status parseArgs(int argc, char **argv);
     Status fetch();
+    void postprocess();
     void dump() const;
     void usage() const;
     void putEntry(TableEntry &&entry);
@@ -56,11 +57,16 @@ private:
     Status fetchAllLibraries(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     bool getReferencedPids(
         pid_t serverPid, std::map<uint64_t, Pids> *objects) const;
+    void printLine(
+            const std::string &interfaceName,
+            const std::string &transport, const std::string &server,
+            const std::string &address, const std::string &clients) const;
 
-
-    Table mTable;
+    Table mTable{};
     std::ostream &mErr = std::cerr;
     std::ostream &mOut = std::cout;
+    TableEntryCompare mSortColumn = nullptr;
+    TableEntrySelect mSelectedColumns = 0;
 };
 
 

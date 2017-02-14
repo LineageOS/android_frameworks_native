@@ -35,20 +35,6 @@ using ::android::hidl::manager::V1_0::IServiceManager;
 namespace android {
 namespace lshal {
 
-template <typename A, typename C, typename D, typename E, typename F>
-void printColumn(std::ostream &stream,
-        const A &a, const C &c, const D &d, const E &, const F &f) {
-    using namespace ::std;
-    stream << left
-           << setw(80) << a << "\t"
-           << setw(10) << c << "\t"
-           << setw(5)  << d << "\t"
-           // TODO(b/34984175): enable selecting columns
-           // << setw(16) << e << "\t"
-           << setw(0)  << f
-           << endl;
-}
-
 template <typename A>
 std::string join(const A &components, const std::string &separator) {
     std::stringstream out;
@@ -133,11 +119,35 @@ bool Lshal::getReferencedPids(
     return true;
 }
 
+void Lshal::postprocess() {
+    if (mSortColumn) {
+        std::sort(mTable.begin(), mTable.end(), mSortColumn);
+    }
+}
+
+void Lshal::printLine(
+        const std::string &interfaceName,
+        const std::string &transport, const std::string &server,
+        const std::string &address, const std::string &clients) const {
+    if (mSelectedColumns & ENABLE_INTERFACE_NAME)
+        mOut << std::setw(80) << interfaceName << "\t";
+    if (mSelectedColumns & ENABLE_TRANSPORT)
+        mOut << std::setw(10) << transport << "\t";
+    if (mSelectedColumns & ENABLE_SERVER_PID)
+        mOut << std::setw(5)  << server << "\t";
+    if (mSelectedColumns & ENABLE_SERVER_ADDR)
+        mOut << std::setw(16) << address << "\t";
+    if (mSelectedColumns & ENABLE_CLIENT_PIDS)
+        mOut << std::setw(0)  << clients;
+    mOut << std::endl;
+}
+
 void Lshal::dump() const {
     mOut << "All services:" << std::endl;
-    printColumn(mOut, "Interface", "Transport", "Server", "PTR", "Clients");
+    mOut << std::left;
+    printLine("Interface", "Transport", "Server", "PTR", "Clients");
     for (const auto &entry : mTable) {
-        printColumn(mOut, entry.interfaceName,
+        printLine(entry.interfaceName,
                 entry.transport,
                 entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
                 entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
@@ -305,16 +315,35 @@ Status Lshal::fetch() {
 void Lshal::usage() const {
     mErr
         << "usage: lshal" << std::endl
-        << "           To dump all hals." << std::endl
-        << "or:" << std::endl
+        << "           Dump all hals with default ordering and columns [-itpc]." << std::endl
+        << "       lshal [--interface|-i] [--transport|-t]" << std::endl
+        << "             [--pid|-p] [--address|-a] [--clients|-c] [--cmdline|-m]" << std::endl
+        << "             [--sort={interface|i|pid|p}]" << std::endl
+        << "           -i, --interface: print the interface name column" << std::endl
+        << "           -n, --instance: print the instance name column" << std::endl
+        << "           -t, --transport: print the transport mode column" << std::endl
+        << "           -p, --pid: print the server PID column" << std::endl
+        << "           -a, --address: print the server object address column" << std::endl
+        << "           -c, --clients: print the client PIDs column" << std::endl
+        << "           --sort=i, --sort=interface: sort by interface name" << std::endl
+        << "           --sort=p, --sort=pid: sort by server pid" << std::endl
         << "       lshal [-h|--help]" << std::endl
         << "           -h, --help: show this help information." << std::endl;
 }
 
 Status Lshal::parseArgs(int argc, char **argv) {
     static struct option longOptions[] = {
-        {"help", no_argument, 0, 'h' },
-        { 0,               0, 0,  0  }
+        // long options with short alternatives
+        {"help",      no_argument,       0, 'h' },
+        {"interface", no_argument,       0, 'i' },
+        {"transport", no_argument,       0, 't' },
+        {"pid",       no_argument,       0, 'p' },
+        {"address",   no_argument,       0, 'a' },
+        {"clients",   no_argument,       0, 'c' },
+
+        // long options without short alternatives
+        {"sort",      required_argument, 0, 's' },
+        { 0,          0,                 0,  0  }
     };
 
     int optionIndex;
@@ -322,16 +351,53 @@ Status Lshal::parseArgs(int argc, char **argv) {
     optind = 1;
     for (;;) {
         // using getopt_long in case we want to add other options in the future
-        c = getopt_long(argc, argv, "h", longOptions, &optionIndex);
+        c = getopt_long(argc, argv, "hitpac", longOptions, &optionIndex);
         if (c == -1) {
             break;
         }
         switch (c) {
+        case 's': {
+            if (strcmp(optarg, "interface") == 0 || strcmp(optarg, "i") == 0) {
+                mSortColumn = TableEntry::sortByInterfaceName;
+            } else if (strcmp(optarg, "pid") == 0 || strcmp(optarg, "p") == 0) {
+                mSortColumn = TableEntry::sortByServerPid;
+            } else {
+                mErr << "Unrecognized sorting column: " << optarg << std::endl;
+                usage();
+                return USAGE;
+            }
+            break;
+        }
+        case 'i': {
+            mSelectedColumns |= ENABLE_INTERFACE_NAME;
+            break;
+        }
+        case 't': {
+            mSelectedColumns |= ENABLE_TRANSPORT;
+            break;
+        }
+        case 'p': {
+            mSelectedColumns |= ENABLE_SERVER_PID;
+            break;
+        }
+        case 'a': {
+            mSelectedColumns |= ENABLE_SERVER_ADDR;
+            break;
+        }
+        case 'c': {
+            mSelectedColumns |= ENABLE_CLIENT_PIDS;
+            break;
+        }
         case 'h': // falls through
         default: // see unrecognized options
             usage();
             return USAGE;
         }
+    }
+
+    if (mSelectedColumns == 0) {
+        mSelectedColumns = ENABLE_INTERFACE_NAME
+                | ENABLE_TRANSPORT | ENABLE_SERVER_PID | ENABLE_CLIENT_PIDS;
     }
     return OK;
 }
@@ -342,6 +408,7 @@ int Lshal::main(int argc, char **argv) {
         return status;
     }
     status = fetch();
+    postprocess();
     dump();
     return status;
 }
