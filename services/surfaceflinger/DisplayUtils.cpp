@@ -104,11 +104,12 @@ HWComposer* DisplayUtils::getHWCInstance(
 #else
 HWComposer* DisplayUtils::getHWCInstance(
                         const sp<SurfaceFlinger>& flinger) {
+#ifdef QTI_BSP
     if(sUseExtendedImpls) {
         return new ExHWComposer(flinger);
-    } else {
-        return new HWComposer(flinger);
     }
+#endif
+    return new HWComposer(flinger);
 }
 #endif
 
