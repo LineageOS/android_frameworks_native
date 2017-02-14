@@ -914,6 +914,10 @@ void HWComposerBufferCache::getHwcBuffer(int slot,
         const sp<GraphicBuffer>& buffer,
         uint32_t* outSlot, sp<GraphicBuffer>* outBuffer)
 {
+#ifdef BYPASS_IHWC
+    *outSlot = slot;
+    *outBuffer = buffer;
+#else
     if (slot == BufferQueue::INVALID_BUFFER_SLOT || slot < 0) {
         // default to slot 0
         slot = 0;
@@ -934,6 +938,7 @@ void HWComposerBufferCache::getHwcBuffer(int slot,
         // update cache
         mBuffers[slot] = buffer;
     }
+#endif
 }
 
 // ---------------------------------------------------------------------------
