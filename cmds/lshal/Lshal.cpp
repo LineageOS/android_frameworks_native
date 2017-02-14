@@ -29,6 +29,8 @@
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <hidl/ServiceManagement.h>
 
+#include "Timeout.h"
+
 using ::android::hardware::hidl_string;
 using ::android::hidl::manager::V1_0::IServiceManager;
 
@@ -163,7 +165,7 @@ Status Lshal::fetchAllLibraries(const sp<IServiceManager> &manager) {
     using namespace ::android::hardware;
     using namespace ::android::hidl::manager::V1_0;
     using namespace ::android::hidl::base::V1_0;
-    auto ret = manager->list([&] (const auto &fqInstanceNames) {
+    auto ret = timeoutIPC(manager, &IServiceManager::list, [&] (const auto &fqInstanceNames) {
         for (const auto &fqInstanceName : fqInstanceNames) {
             putEntry({
                 .interfaceName = fqInstanceName,
@@ -186,7 +188,7 @@ Status Lshal::fetchPassthrough(const sp<IServiceManager> &manager) {
     using namespace ::android::hardware;
     using namespace ::android::hidl::manager::V1_0;
     using namespace ::android::hidl::base::V1_0;
-    auto ret = manager->debugDump([&] (const auto &infos) {
+    auto ret = timeoutIPC(manager, &IServiceManager::debugDump, [&] (const auto &infos) {
         for (const auto &info : infos) {
             putEntry({
                 .interfaceName =
@@ -214,7 +216,7 @@ Status Lshal::fetchBinderized(const sp<IServiceManager> &manager) {
     using namespace ::android::hidl::base::V1_0;
     const std::string mode = "hwbinder";
     Status status = OK;
-    auto listRet = manager->list([&] (const auto &fqInstanceNames) {
+    auto listRet = timeoutIPC(manager, &IServiceManager::list, [&] (const auto &fqInstanceNames) {
         // server pid, .ptr value of binder object, child pids
         std::map<std::string, DebugInfo> allDebugInfos;
         std::map<pid_t, std::map<uint64_t, Pids>> allPids;
@@ -222,7 +224,7 @@ Status Lshal::fetchBinderized(const sp<IServiceManager> &manager) {
             const auto pair = split(fqInstanceName, '/');
             const auto &serviceName = pair.first;
             const auto &instanceName = pair.second;
-            auto getRet = manager->get(serviceName, instanceName);
+            auto getRet = timeoutIPC(manager, &IServiceManager::get, serviceName, instanceName);
             if (!getRet.isOk()) {
                 mErr << "Warning: Skipping \"" << fqInstanceName << "\": "
                      << "cannot be fetched from service manager:"
@@ -237,7 +239,7 @@ Status Lshal::fetchBinderized(const sp<IServiceManager> &manager) {
                 status |= DUMP_BINDERIZED_ERROR;
                 continue;
             }
-            auto debugRet = service->getDebugInfo([&] (const auto &debugInfo) {
+            auto debugRet = timeoutIPC(service, &IBase::getDebugInfo, [&] (const auto &debugInfo) {
                 allDebugInfos[fqInstanceName] = debugInfo;
                 if (debugInfo.pid >= 0) {
                     allPids[static_cast<pid_t>(debugInfo.pid)].clear();
