@@ -247,8 +247,9 @@ private:
     /* ------------------------------------------------------------------------
      * HWComposer::EventHandler interface
      */
-    virtual void onVSyncReceived(int type, nsecs_t timestamp);
+    virtual void onVSyncReceived(HWComposer* composer, int type, nsecs_t timestamp);
     virtual void onHotplugReceived(int disp, bool connected);
+    virtual void onInvalidateReceived(HWComposer* composer);
 
     /* ------------------------------------------------------------------------
      * Message handling

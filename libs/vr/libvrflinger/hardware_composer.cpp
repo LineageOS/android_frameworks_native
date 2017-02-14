@@ -1287,6 +1287,10 @@ void HardwareComposer::HwcHotplug(hwc2_callback_data_t /*callbackData*/,
   // TODO(eieio): implement display hotplug callbacks.
 }
 
+void HardwareComposer::OnHardwareComposerRefresh() {
+  // TODO(steventhomas): Handle refresh.
+}
+
 void HardwareComposer::SetBacklightBrightness(int brightness) {
   if (backlight_brightness_fd_) {
     std::array<char, 32> text;

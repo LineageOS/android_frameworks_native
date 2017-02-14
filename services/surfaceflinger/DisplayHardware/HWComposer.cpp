@@ -60,9 +60,8 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-HWComposer::HWComposer(const sp<SurfaceFlinger>& flinger, bool useVrComposer)
-    : mFlinger(flinger),
-      mAdapter(),
+HWComposer::HWComposer(bool useVrComposer)
+    : mAdapter(),
       mHwcDevice(),
       mDisplayData(2),
       mFreeDisplaySlots(),
@@ -211,7 +210,7 @@ void HWComposer::hotplug(const std::shared_ptr<HWC2::Display>& display,
 }
 
 void HWComposer::invalidate(const std::shared_ptr<HWC2::Display>& /*display*/) {
-    mFlinger->repaintEverything();
+    mEventHandler->onInvalidateReceived(this);
 }
 
 void HWComposer::vsync(const std::shared_ptr<HWC2::Display>& display,
@@ -257,7 +256,7 @@ void HWComposer::vsync(const std::shared_ptr<HWC2::Display>& display,
     snprintf(tag, sizeof(tag), "HW_VSYNC_%1u", disp);
     ATRACE_INT(tag, ++mVSyncCounts[disp] & 1);
 
-    mEventHandler->onVSyncReceived(disp, timestamp);
+    mEventHandler->onVSyncReceived(this, disp, timestamp);
 }
 
 status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,

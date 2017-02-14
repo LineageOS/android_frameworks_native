@@ -579,7 +579,7 @@ void SurfaceFlinger::init() {
     // the lock because on creation, it will call back into SurfaceFlinger to
     // initialize the primary display.
     LOG_ALWAYS_FATAL_IF(mEnterVrMode, "Starting in vr mode is not currently supported.");
-    mRealHwc = new HWComposer(this, false);
+    mRealHwc = new HWComposer(false);
     mHwc = mRealHwc;
     mHwc->setEventHandler(static_cast<HWComposer::EventHandler*>(this));
 
@@ -1102,7 +1102,14 @@ void SurfaceFlinger::resyncWithRateLimit() {
     }
 }
 
-void SurfaceFlinger::onVSyncReceived(int32_t type, nsecs_t timestamp) {
+void SurfaceFlinger::onVSyncReceived(HWComposer* composer, int32_t type,
+                                     nsecs_t timestamp) {
+    Mutex::Autolock lock(mStateLock);
+    // Ignore any vsyncs from the non-active hardware composer.
+    if (composer != mHwc) {
+        return;
+    }
+
     bool needsHwVsync = false;
 
     { // Scope for the lock
@@ -1163,6 +1170,20 @@ void SurfaceFlinger::onHotplugReceived(int32_t disp, bool connected) {
     }
 }
 
+void SurfaceFlinger::onInvalidateReceived(HWComposer* composer) {
+    Mutex::Autolock lock(mStateLock);
+    if (composer == mHwc) {
+        repaintEverything();
+    } else {
+        // This isn't from our current hardware composer. If it's a callback
+        // from the real composer, forward the refresh request to vr
+        // flinger. Otherwise ignore it.
+        if (!composer->isUsingVrComposer()) {
+            mVrFlinger->OnHardwareComposerRefresh();
+        }
+    }
+}
+
 void SurfaceFlinger::setVsyncEnabled(int disp, int enabled) {
     ATRACE_CALL();
     getHwComposer().setVsyncEnabled(disp,
@@ -1209,7 +1230,7 @@ void SurfaceFlinger::updateVrMode() {
             }
 
             if (!mVrHwc) {
-                mVrHwc = new HWComposer(this, true);
+                mVrHwc = new HWComposer(true);
                 ALOGV("Vr HWC created");
             }
 

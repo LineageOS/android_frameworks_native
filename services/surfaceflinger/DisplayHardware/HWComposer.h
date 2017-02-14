@@ -64,15 +64,16 @@ class HWC2On1Adapter;
 class NativeHandle;
 class Region;
 class String8;
-class SurfaceFlinger;
 
 class HWComposer
 {
 public:
     class EventHandler {
         friend class HWComposer;
-        virtual void onVSyncReceived(int32_t disp, nsecs_t timestamp) = 0;
+        virtual void onVSyncReceived(
+            HWComposer* composer, int32_t disp, nsecs_t timestamp) = 0;
         virtual void onHotplugReceived(int32_t disp, bool connected) = 0;
+        virtual void onInvalidateReceived(HWComposer* composer) = 0;
     protected:
         virtual ~EventHandler() {}
     };
@@ -80,7 +81,7 @@ public:
     // useVrComposer is passed to the composer HAL. When true, the composer HAL
     // will use the vr composer service, otherwise it uses the real hardware
     // composer.
-    HWComposer(const sp<SurfaceFlinger>& flinger, bool useVrComposer);
+    HWComposer(bool useVrComposer);
 
     ~HWComposer();
 
@@ -211,7 +212,6 @@ private:
         HWC2::Vsync vsyncEnabled;
     };
 
-    sp<SurfaceFlinger>              mFlinger;
     std::unique_ptr<HWC2On1Adapter> mAdapter;
     std::unique_ptr<HWC2::Device>   mHwcDevice;
     std::vector<DisplayData>        mDisplayData;
