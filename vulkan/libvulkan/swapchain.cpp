@@ -191,9 +191,12 @@ enum { MAX_TIMING_INFOS = 10 };
 enum { MIN_NUM_FRAMES_AGO = 5 };
 
 struct Swapchain {
-    Swapchain(Surface& surface_, uint32_t num_images_)
+    Swapchain(Surface& surface_,
+              uint32_t num_images_,
+              VkPresentModeKHR present_mode)
         : surface(surface_),
           num_images(num_images_),
+          mailbox_mode(present_mode == VK_PRESENT_MODE_MAILBOX_KHR),
           frame_timestamps_enabled(false) {
         timing.clear();
         ANativeWindow* window = surface.window.get();
@@ -206,6 +209,7 @@ struct Swapchain {
 
     Surface& surface;
     uint32_t num_images;
+    bool mailbox_mode;
     bool frame_timestamps_enabled;
     uint64_t refresh_duration;
 
@@ -877,7 +881,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
                                          VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
     if (!mem)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
-    Swapchain* swapchain = new (mem) Swapchain(surface, num_images);
+    Swapchain* swapchain =
+        new (mem) Swapchain(surface, num_images, create_info->presentMode);
 
     // -- Dequeue all buffers and create a VkImage for each --
     // Any failures during or after this must cancel the dequeued buffers.
@@ -1179,7 +1184,8 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
             *SwapchainFromHandle(present_info->pSwapchains[sc]);
         uint32_t image_idx = present_info->pImageIndices[sc];
         Swapchain::Image& img = swapchain.images[image_idx];
-        const VkPresentRegionKHR* region = (regions) ? &regions[sc] : nullptr;
+        const VkPresentRegionKHR* region =
+            (regions && !swapchain.mailbox_mode) ? &regions[sc] : nullptr;
         const VkPresentTimeGOOGLE* time = (times) ? &times[sc] : nullptr;
         VkResult swapchain_result = VK_SUCCESS;
         VkResult result;
