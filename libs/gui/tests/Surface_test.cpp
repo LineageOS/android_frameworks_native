@@ -479,8 +479,17 @@ public:
         return mFakeSurfaceComposer;
     }
 
+    nsecs_t now() const override {
+        return mNow;
+    }
+
+    void setNow(nsecs_t now) {
+        mNow = now;
+    }
+
 public:
     sp<FakeSurfaceComposer> mFakeSurfaceComposer;
+    nsecs_t mNow = 0;
 
     // mFrameEventHistory owns the instance of FakeProducerFrameEventHistory,
     // but this raw pointer gives access to test functionality.
@@ -500,10 +509,12 @@ protected:
 
     struct RefreshEvents {
         RefreshEvents(FenceToFenceTimeMap& fenceMap, nsecs_t refreshStart)
-            : mFenceMap(fenceMap),
-              kStartTime(refreshStart + 1),
-              kGpuCompositionDoneTime(refreshStart + 2),
-              kPresentTime(refreshStart + 3) {}
+          : mFenceMap(fenceMap),
+            kCompositorTiming(
+                {refreshStart, refreshStart + 1, refreshStart + 2 }),
+            kStartTime(refreshStart + 3),
+            kGpuCompositionDoneTime(refreshStart + 4),
+            kPresentTime(refreshStart + 5) {}
 
         void signalPostCompositeFences() {
             mFenceMap.signalAllForTest(
@@ -515,6 +526,8 @@ protected:
 
         FenceAndFenceTime mGpuCompositionDone { mFenceMap };
         FenceAndFenceTime mPresent { mFenceMap };
+
+        const CompositorTiming kCompositorTiming;
 
         const nsecs_t kStartTime;
         const nsecs_t kGpuCompositionDoneTime;
@@ -590,6 +603,12 @@ protected:
         ASSERT_EQ(NO_ERROR, native_window_api_connect(mWindow.get(),
                 NATIVE_WINDOW_API_CPU));
         native_window_set_buffer_count(mWindow.get(), 4);
+    }
+
+    void disableFrameTimestamps() {
+        mFakeConsumer->mGetFrameTimestampsEnabled = false;
+        native_window_enable_frame_timestamps(mWindow.get(), 0);
+        mFrameTimestampsEnabled = false;
     }
 
     void enableFrameTimestamps() {
@@ -681,7 +700,8 @@ protected:
                     oldFrame->mRefreshes[2].mGpuCompositionDone.mFenceTime :
                     FenceTime::NO_FENCE;
             mCfeh->addPostComposition(nOldFrame, gpuDoneFenceTime,
-                    oldFrame->mRefreshes[2].mPresent.mFenceTime);
+                    oldFrame->mRefreshes[2].mPresent.mFenceTime,
+                    oldFrame->mRefreshes[2].kCompositorTiming);
         }
 
         // Latch the new frame.
@@ -698,7 +718,8 @@ protected:
                     std::shared_ptr<FenceTime>(oldFrame->mRelease.mFenceTime));
         }
         mCfeh->addPostComposition(nNewFrame, gpuDoneFenceTime,
-                newFrame->mRefreshes[0].mPresent.mFenceTime);
+                newFrame->mRefreshes[0].mPresent.mFenceTime,
+                newFrame->mRefreshes[0].kCompositorTiming);
 
         // Retire the previous buffer just after compositing the new buffer.
         if (oldFrame != nullptr) {
@@ -710,7 +731,8 @@ protected:
                 newFrame->mRefreshes[1].mGpuCompositionDone.mFenceTime :
                 FenceTime::NO_FENCE;
         mCfeh->addPostComposition(nNewFrame, gpuDoneFenceTime,
-                newFrame->mRefreshes[1].mPresent.mFenceTime);
+                newFrame->mRefreshes[1].mPresent.mFenceTime,
+                newFrame->mRefreshes[1].kCompositorTiming);
     }
 
     void QueryPresentRetireSupported(
@@ -740,7 +762,8 @@ protected:
     int64_t outDequeueReadyTime = -1;
     int64_t outReleaseTime = -1;
 
-    FrameEvents mFrames[2] { { mFenceMap, 1000 }, { mFenceMap, 2000 } };
+    FrameEvents mFrames[3] {
+        { mFenceMap, 1000 }, { mFenceMap, 2000 }, { mFenceMap, 3000 } };
 };
 
 
@@ -773,25 +796,55 @@ TEST_F(GetFrameTimestampsTest, DefaultDisabled) {
     int result = getAllFrameTimestamps(fId);
     EXPECT_EQ(INVALID_OPERATION, result);
     EXPECT_EQ(0, mFakeConsumer->mGetFrameTimestampsCount);
+
+    // Verify compositor timing query fails.
+    nsecs_t compositeDeadline = 0;
+    nsecs_t compositeInterval = 0;
+    nsecs_t compositeToPresentLatency = 0;
+    result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(INVALID_OPERATION, result);
 }
 
 // This test verifies that the frame timestamps are retrieved if explicitly
 // enabled via native_window_enable_frame_timestamps.
 TEST_F(GetFrameTimestampsTest, EnabledSimple) {
+    CompositorTiming initialCompositorTiming {
+        1000000000, // 1s deadline
+        16666667, // 16ms interval
+        50000000, // 50ms present latency
+    };
+    mCfeh->initializeCompositorTiming(initialCompositorTiming);
+
     enableFrameTimestamps();
+
+    // Verify the compositor timing query gets the initial compositor values
+    // after timststamps are enabled; even before the first frame is queued
+    // or dequeued.
+    nsecs_t compositeDeadline = 0;
+    nsecs_t compositeInterval = 0;
+    nsecs_t compositeToPresentLatency = 0;
+    mSurface->setNow(initialCompositorTiming.deadline - 1);
+    int result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(NO_ERROR, result);
+    EXPECT_EQ(initialCompositorTiming.deadline, compositeDeadline);
+    EXPECT_EQ(initialCompositorTiming.interval, compositeInterval);
+    EXPECT_EQ(initialCompositorTiming.presentLatency,
+              compositeToPresentLatency);
 
     int fence;
     ANativeWindowBuffer* buffer;
 
     EXPECT_EQ(0, mFakeConsumer->mAddFrameTimestampsCount);
-    EXPECT_EQ(0, mFakeConsumer->mGetFrameTimestampsCount);
+    EXPECT_EQ(1, mFakeConsumer->mGetFrameTimestampsCount);
 
     const uint64_t fId1 = getNextFrameId();
 
     // Verify getFrameTimestamps is piggybacked on dequeue.
     ASSERT_EQ(NO_ERROR, mWindow->dequeueBuffer(mWindow.get(), &buffer, &fence));
     EXPECT_EQ(0, mFakeConsumer->mAddFrameTimestampsCount);
-    EXPECT_EQ(1, mFakeConsumer->mGetFrameTimestampsCount);
+    EXPECT_EQ(2, mFakeConsumer->mGetFrameTimestampsCount);
 
     NewFrameEventsEntry f1;
     f1.frameNumber = 1;
@@ -808,13 +861,13 @@ TEST_F(GetFrameTimestampsTest, EnabledSimple) {
     ASSERT_EQ(NO_ERROR, mWindow->queueBuffer(mWindow.get(), buffer, fence));
     EXPECT_EQ(1, mFakeConsumer->mAddFrameTimestampsCount);
     EXPECT_EQ(1u, mFakeConsumer->mLastAddedFrameNumber);
-    EXPECT_EQ(2, mFakeConsumer->mGetFrameTimestampsCount);
+    EXPECT_EQ(3, mFakeConsumer->mGetFrameTimestampsCount);
 
     // Verify queries for timestamps that the producer doesn't know about
     // triggers a call to see if the consumer has any new timestamps.
-    int result = getAllFrameTimestamps(fId1);
+    result = getAllFrameTimestamps(fId1);
     EXPECT_EQ(NO_ERROR, result);
-    EXPECT_EQ(3, mFakeConsumer->mGetFrameTimestampsCount);
+    EXPECT_EQ(4, mFakeConsumer->mGetFrameTimestampsCount);
 }
 
 void GetFrameTimestampsTest::QueryPresentRetireSupported(
@@ -840,6 +893,234 @@ TEST_F(GetFrameTimestampsTest, QueryPresentSupported) {
 
 TEST_F(GetFrameTimestampsTest, QueryRetireSupported) {
    QueryPresentRetireSupported(false, true);
+}
+
+TEST_F(GetFrameTimestampsTest, SnapToNextTickBasic) {
+    nsecs_t phase = 4000;
+    nsecs_t interval = 1000;
+
+    // Timestamp in previous interval.
+    nsecs_t timestamp = 3500;
+    EXPECT_EQ(4000, ProducerFrameEventHistory::snapToNextTick(
+            timestamp, phase, interval));
+
+    // Timestamp in next interval.
+    timestamp = 4500;
+    EXPECT_EQ(5000, ProducerFrameEventHistory::snapToNextTick(
+            timestamp, phase, interval));
+
+    // Timestamp multiple intervals before.
+    timestamp = 2500;
+    EXPECT_EQ(3000, ProducerFrameEventHistory::snapToNextTick(
+            timestamp, phase, interval));
+
+    // Timestamp multiple intervals after.
+    timestamp = 6500;
+    EXPECT_EQ(7000, ProducerFrameEventHistory::snapToNextTick(
+            timestamp, phase, interval));
+
+    // Timestamp on previous interval.
+    timestamp = 3000;
+    EXPECT_EQ(3000, ProducerFrameEventHistory::snapToNextTick(
+            timestamp, phase, interval));
+
+    // Timestamp on next interval.
+    timestamp = 5000;
+    EXPECT_EQ(5000, ProducerFrameEventHistory::snapToNextTick(
+            timestamp, phase, interval));
+
+    // Timestamp equal to phase.
+    timestamp = 4000;
+    EXPECT_EQ(4000, ProducerFrameEventHistory::snapToNextTick(
+            timestamp, phase, interval));
+}
+
+// int(big_timestamp / interval) < 0, which can cause a crash or invalid result
+// if the number of intervals elapsed is internally stored in an int.
+TEST_F(GetFrameTimestampsTest, SnapToNextTickOverflow) {
+      nsecs_t phase = 0;
+      nsecs_t interval = 4000;
+      nsecs_t big_timestamp = 8635916564000;
+      int32_t intervals = big_timestamp / interval;
+
+      EXPECT_LT(intervals, 0);
+      EXPECT_EQ(8635916564000, ProducerFrameEventHistory::snapToNextTick(
+            big_timestamp, phase, interval));
+      EXPECT_EQ(8635916564000, ProducerFrameEventHistory::snapToNextTick(
+            big_timestamp, big_timestamp, interval));
+}
+
+// This verifies the compositor timing is updated by refresh events
+// and piggy backed on a queue, dequeue, and enabling of timestamps..
+TEST_F(GetFrameTimestampsTest, CompositorTimingUpdatesBasic) {
+    CompositorTiming initialCompositorTiming {
+        1000000000, // 1s deadline
+        16666667, // 16ms interval
+        50000000, // 50ms present latency
+    };
+    mCfeh->initializeCompositorTiming(initialCompositorTiming);
+
+    enableFrameTimestamps();
+
+    // We get the initial values before any frames are submitted.
+    nsecs_t compositeDeadline = 0;
+    nsecs_t compositeInterval = 0;
+    nsecs_t compositeToPresentLatency = 0;
+    mSurface->setNow(initialCompositorTiming.deadline - 1);
+    int result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(NO_ERROR, result);
+    EXPECT_EQ(initialCompositorTiming.deadline, compositeDeadline);
+    EXPECT_EQ(initialCompositorTiming.interval, compositeInterval);
+    EXPECT_EQ(initialCompositorTiming.presentLatency,
+              compositeToPresentLatency);
+
+    const uint64_t fId1 = getNextFrameId();
+    dequeueAndQueue(0);
+    addFrameEvents(true, NO_FRAME_INDEX, 0);
+
+    // Still get the initial values because the frame events for frame 0
+    // didn't get a chance to piggyback on a queue or dequeue yet.
+    result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(NO_ERROR, result);
+    EXPECT_EQ(initialCompositorTiming.deadline, compositeDeadline);
+    EXPECT_EQ(initialCompositorTiming.interval, compositeInterval);
+    EXPECT_EQ(initialCompositorTiming.presentLatency,
+              compositeToPresentLatency);
+
+    const uint64_t fId2 = getNextFrameId();
+    dequeueAndQueue(1);
+    addFrameEvents(true, 0, 1);
+
+    // Now expect the composite values associated with frame 1.
+    mSurface->setNow(mFrames[0].mRefreshes[1].kCompositorTiming.deadline);
+    result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(NO_ERROR, result);
+    EXPECT_EQ(mFrames[0].mRefreshes[1].kCompositorTiming.deadline,
+            compositeDeadline);
+    EXPECT_EQ(mFrames[0].mRefreshes[1].kCompositorTiming.interval,
+            compositeInterval);
+    EXPECT_EQ(mFrames[0].mRefreshes[1].kCompositorTiming.presentLatency,
+            compositeToPresentLatency);
+
+    dequeueAndQueue(2);
+    addFrameEvents(true, 1, 2);
+
+    // Now expect the composite values associated with frame 2.
+    mSurface->setNow(mFrames[1].mRefreshes[1].kCompositorTiming.deadline);
+    result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(NO_ERROR, result);
+    EXPECT_EQ(mFrames[1].mRefreshes[1].kCompositorTiming.deadline,
+            compositeDeadline);
+    EXPECT_EQ(mFrames[1].mRefreshes[1].kCompositorTiming.interval,
+            compositeInterval);
+    EXPECT_EQ(mFrames[1].mRefreshes[1].kCompositorTiming.presentLatency,
+            compositeToPresentLatency);
+
+    // Re-enabling frame timestamps should get the latest values.
+    disableFrameTimestamps();
+    enableFrameTimestamps();
+
+    // Now expect the composite values associated with frame 3.
+    mSurface->setNow(mFrames[2].mRefreshes[1].kCompositorTiming.deadline);
+    result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(NO_ERROR, result);
+    EXPECT_EQ(mFrames[2].mRefreshes[1].kCompositorTiming.deadline,
+            compositeDeadline);
+    EXPECT_EQ(mFrames[2].mRefreshes[1].kCompositorTiming.interval,
+            compositeInterval);
+    EXPECT_EQ(mFrames[2].mRefreshes[1].kCompositorTiming.presentLatency,
+            compositeToPresentLatency);
+}
+
+// This verifies the compositor deadline properly snaps to the the next
+// deadline based on the current time.
+TEST_F(GetFrameTimestampsTest, CompositorTimingDeadlineSnaps) {
+    CompositorTiming initialCompositorTiming {
+        1000000000, // 1s deadline
+        16666667, // 16ms interval
+        50000000, // 50ms present latency
+    };
+    mCfeh->initializeCompositorTiming(initialCompositorTiming);
+
+    enableFrameTimestamps();
+
+    nsecs_t compositeDeadline = 0;
+    nsecs_t compositeInterval = 0;
+    nsecs_t compositeToPresentLatency = 0;
+
+    // A "now" just before the deadline snaps to the deadline.
+    mSurface->setNow(initialCompositorTiming.deadline - 1);
+    int result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(NO_ERROR, result);
+    EXPECT_EQ(initialCompositorTiming.deadline, compositeDeadline);
+    nsecs_t expectedDeadline = initialCompositorTiming.deadline;
+    EXPECT_EQ(expectedDeadline, compositeDeadline);
+
+    const uint64_t fId1 = getNextFrameId();
+    dequeueAndQueue(0);
+    addFrameEvents(true, NO_FRAME_INDEX, 0);
+
+    // A "now" just after the deadline snaps properly.
+    mSurface->setNow(initialCompositorTiming.deadline + 1);
+    result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(NO_ERROR, result);
+    expectedDeadline =
+            initialCompositorTiming.deadline +initialCompositorTiming.interval;
+    EXPECT_EQ(expectedDeadline, compositeDeadline);
+
+    const uint64_t fId2 = getNextFrameId();
+    dequeueAndQueue(1);
+    addFrameEvents(true, 0, 1);
+
+    // A "now" just after the next interval snaps properly.
+    mSurface->setNow(
+            mFrames[0].mRefreshes[1].kCompositorTiming.deadline +
+            mFrames[0].mRefreshes[1].kCompositorTiming.interval + 1);
+    result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(NO_ERROR, result);
+    expectedDeadline =
+            mFrames[0].mRefreshes[1].kCompositorTiming.deadline +
+            mFrames[0].mRefreshes[1].kCompositorTiming.interval * 2;
+    EXPECT_EQ(expectedDeadline, compositeDeadline);
+
+    dequeueAndQueue(2);
+    addFrameEvents(true, 1, 2);
+
+    // A "now" over 1 interval before the deadline snaps properly.
+    mSurface->setNow(
+            mFrames[1].mRefreshes[1].kCompositorTiming.deadline -
+            mFrames[1].mRefreshes[1].kCompositorTiming.interval - 1);
+    result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(NO_ERROR, result);
+    expectedDeadline =
+            mFrames[1].mRefreshes[1].kCompositorTiming.deadline -
+            mFrames[1].mRefreshes[1].kCompositorTiming.interval;
+    EXPECT_EQ(expectedDeadline, compositeDeadline);
+
+    // Re-enabling frame timestamps should get the latest values.
+    disableFrameTimestamps();
+    enableFrameTimestamps();
+
+    // A "now" over 2 intervals before the deadline snaps properly.
+    mSurface->setNow(
+            mFrames[2].mRefreshes[1].kCompositorTiming.deadline -
+            mFrames[2].mRefreshes[1].kCompositorTiming.interval * 2 - 1);
+    result = native_window_get_compositor_timing(mWindow.get(),
+        &compositeDeadline, &compositeInterval, &compositeToPresentLatency);
+    EXPECT_EQ(NO_ERROR, result);
+    expectedDeadline =
+            mFrames[2].mRefreshes[1].kCompositorTiming.deadline -
+            mFrames[2].mRefreshes[1].kCompositorTiming.interval * 2;
+    EXPECT_EQ(expectedDeadline, compositeDeadline);
 }
 
 // This verifies the timestamps recorded in the consumer's

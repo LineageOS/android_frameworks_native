@@ -235,6 +235,23 @@ void FrameEventHistory::dump(String8& outString) const {
 
 ProducerFrameEventHistory::~ProducerFrameEventHistory() = default;
 
+nsecs_t ProducerFrameEventHistory::snapToNextTick(
+        nsecs_t timestamp, nsecs_t tickPhase, nsecs_t tickInterval) {
+    nsecs_t tickOffset = (tickPhase - timestamp) % tickInterval;
+    // Integer modulo rounds towards 0 and not -inf before taking the remainder,
+    // so adjust the offset if it is negative.
+    if (tickOffset < 0) {
+        tickOffset += tickInterval;
+    }
+    return timestamp + tickOffset;
+}
+
+nsecs_t ProducerFrameEventHistory::getNextCompositeDeadline(
+        const nsecs_t now) const{
+    return snapToNextTick(
+            now, mCompositorTiming.deadline, mCompositorTiming.interval);
+}
+
 void ProducerFrameEventHistory::updateAcquireFence(
         uint64_t frameNumber, std::shared_ptr<FenceTime>&& acquire) {
     FrameEvents* frame = getFrame(frameNumber, &mAcquireOffset);
@@ -256,6 +273,8 @@ void ProducerFrameEventHistory::updateAcquireFence(
 
 void ProducerFrameEventHistory::applyDelta(
         const FrameEventHistoryDelta& delta) {
+    mCompositorTiming = delta.mCompositorTiming;
+
     for (auto& d : delta.mDeltas) {
         // Avoid out-of-bounds access.
         if (d.mIndex >= mFrames.size()) {
@@ -346,6 +365,11 @@ std::shared_ptr<FenceTime> ProducerFrameEventHistory::createFenceTime(
 
 ConsumerFrameEventHistory::~ConsumerFrameEventHistory() = default;
 
+void ConsumerFrameEventHistory::initializeCompositorTiming(
+        const CompositorTiming& compositorTiming) {
+    mCompositorTiming = compositorTiming;
+}
+
 void ConsumerFrameEventHistory::addQueue(const NewFrameEventsEntry& newEntry) {
     // Overwrite all fields of the frame with default values unless set here.
     FrameEvents newTimestamps;
@@ -393,7 +417,10 @@ void ConsumerFrameEventHistory::addPreComposition(
 
 void ConsumerFrameEventHistory::addPostComposition(uint64_t frameNumber,
         const std::shared_ptr<FenceTime>& gpuCompositionDone,
-        const std::shared_ptr<FenceTime>& displayPresent) {
+        const std::shared_ptr<FenceTime>& displayPresent,
+        const CompositorTiming& compositorTiming) {
+    mCompositorTiming = compositorTiming;
+
     FrameEvents* frame = getFrame(frameNumber, &mCompositionOffset);
     if (frame == nullptr) {
         ALOGE_IF(mProducerWantsEvents,
@@ -450,6 +477,8 @@ void ConsumerFrameEventHistory::getFrameDelta(
 
 void ConsumerFrameEventHistory::getAndResetDelta(
         FrameEventHistoryDelta* delta) {
+    delta->mCompositorTiming = mCompositorTiming;
+
     // Write these in order of frame number so that it is easy to
     // add them to a FenceTimeline in the proper order producer side.
     delta->mDeltas.reserve(mFramesDirty.size());
@@ -499,9 +528,8 @@ FrameEventsDelta::FrameEventsDelta(
     }
 }
 
-size_t FrameEventsDelta::minFlattenedSize() {
-    constexpr size_t min =
-            sizeof(FrameEventsDelta::mFrameNumber) +
+constexpr size_t FrameEventsDelta::minFlattenedSize() {
+    return sizeof(FrameEventsDelta::mFrameNumber) +
             sizeof(uint8_t) + // mIndex
             sizeof(uint8_t) + // mAddPostCompositeCalled
             sizeof(uint8_t) + // mAddRetireCalled
@@ -512,7 +540,6 @@ size_t FrameEventsDelta::minFlattenedSize() {
             sizeof(FrameEventsDelta::mFirstRefreshStartTime) +
             sizeof(FrameEventsDelta::mLastRefreshStartTime) +
             sizeof(FrameEventsDelta::mDequeueReadyTime);
-    return min;
 }
 
 // Flattenable implementation
@@ -618,6 +645,8 @@ status_t FrameEventsDelta::unflatten(void const*& buffer, size_t& size,
 
 FrameEventHistoryDelta& FrameEventHistoryDelta::operator=(
         FrameEventHistoryDelta&& src) {
+    mCompositorTiming = src.mCompositorTiming;
+
     if (CC_UNLIKELY(!mDeltas.empty())) {
         ALOGE("FrameEventHistoryDelta: Clobbering history.");
     }
@@ -626,8 +655,9 @@ FrameEventHistoryDelta& FrameEventHistoryDelta::operator=(
     return *this;
 }
 
-size_t FrameEventHistoryDelta::minFlattenedSize() {
-    return sizeof(uint32_t);
+constexpr size_t FrameEventHistoryDelta::minFlattenedSize() {
+    return sizeof(uint32_t) + // mDeltas.size()
+            sizeof(mCompositorTiming);
 }
 
 size_t FrameEventHistoryDelta::getFlattenedSize() const {
@@ -654,6 +684,8 @@ status_t FrameEventHistoryDelta::flatten(
         return NO_MEMORY;
     }
 
+    FlattenableUtils::write(buffer, size, mCompositorTiming);
+
     FlattenableUtils::write(
             buffer, size, static_cast<uint32_t>(mDeltas.size()));
     for (auto& d : mDeltas) {
@@ -670,6 +702,8 @@ status_t FrameEventHistoryDelta::unflatten(
     if (size < minFlattenedSize()) {
         return NO_MEMORY;
     }
+
+    FlattenableUtils::read(buffer, size, mCompositorTiming);
 
     uint32_t deltaCount = 0;
     FlattenableUtils::read(buffer, size, deltaCount);

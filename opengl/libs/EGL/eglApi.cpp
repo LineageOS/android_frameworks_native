@@ -218,10 +218,14 @@ static const extention_map_t sExtensionMap[] = {
     // EGL_ANDROID_get_frame_timestamps
     { "eglGetNextFrameIdANDROID",
             (__eglMustCastToProperFunctionPointerType)&eglGetNextFrameIdANDROID },
+    { "eglGetCompositorTimingANDROID",
+            (__eglMustCastToProperFunctionPointerType)&eglGetCompositorTimingANDROID },
+    { "eglGetCompositorTimingSupportedANDROID",
+            (__eglMustCastToProperFunctionPointerType)&eglGetCompositorTimingSupportedANDROID },
     { "eglGetFrameTimestampsANDROID",
             (__eglMustCastToProperFunctionPointerType)&eglGetFrameTimestampsANDROID },
-    { "eglQueryTimestampSupportedANDROID",
-            (__eglMustCastToProperFunctionPointerType)&eglQueryTimestampSupportedANDROID },
+    { "eglGetFrameTimestampSupportedANDROID",
+            (__eglMustCastToProperFunctionPointerType)&eglGetFrameTimestampSupportedANDROID },
 };
 
 /*
@@ -2084,6 +2088,97 @@ EGLBoolean eglGetNextFrameIdANDROID(EGLDisplay dpy, EGLSurface surface,
     return EGL_TRUE;
 }
 
+EGLBoolean eglGetCompositorTimingANDROID(EGLDisplay dpy, EGLSurface surface,
+        EGLint numTimestamps, const EGLint *names, EGLnsecsANDROID *values)
+{
+    clearError();
+
+    const egl_display_ptr dp = validate_display(dpy);
+    if (!dp) {
+        return setError(EGL_BAD_DISPLAY, EGL_FALSE);
+    }
+
+    SurfaceRef _s(dp.get(), surface);
+    if (!_s.get()) {
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
+    }
+
+    egl_surface_t const * const s = get_surface(surface);
+
+    if (!s->win.get()) {
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
+    }
+
+    nsecs_t* compositeDeadline = nullptr;
+    nsecs_t* compositeInterval = nullptr;
+    nsecs_t* compositeToPresentLatency = nullptr;
+
+    for (int i = 0; i < numTimestamps; i++) {
+        switch (names[i]) {
+            case EGL_COMPOSITE_DEADLINE_ANDROID:
+                compositeDeadline = &values[i];
+                break;
+            case EGL_COMPOSITE_INTERVAL_ANDROID:
+                compositeInterval = &values[i];
+                break;
+            case EGL_COMPOSITE_TO_PRESENT_LATENCY_ANDROID:
+                compositeToPresentLatency = &values[i];
+                break;
+            default:
+                return setError(EGL_BAD_PARAMETER, EGL_FALSE);
+        }
+    }
+
+    status_t ret = native_window_get_compositor_timing(s->win.get(),
+            compositeDeadline, compositeInterval, compositeToPresentLatency);
+
+    switch (ret) {
+      case NO_ERROR:
+        return EGL_TRUE;
+      case INVALID_OPERATION:
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
+      default:
+        // This should not happen. Return an error that is not in the spec
+        // so it's obvious something is very wrong.
+        ALOGE("eglGetCompositorTiming: Unexpected error.");
+        return setError(EGL_NOT_INITIALIZED, EGL_FALSE);
+    }
+}
+
+EGLBoolean eglGetCompositorTimingSupportedANDROID(
+        EGLDisplay dpy, EGLSurface surface, EGLint name)
+{
+    clearError();
+
+    const egl_display_ptr dp = validate_display(dpy);
+    if (!dp) {
+        return setError(EGL_BAD_DISPLAY, EGL_FALSE);
+    }
+
+    SurfaceRef _s(dp.get(), surface);
+    if (!_s.get()) {
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
+    }
+
+    egl_surface_t const * const s = get_surface(surface);
+
+    ANativeWindow* window = s->win.get();
+    if (!window) {
+        return setError(EGL_BAD_SURFACE, EGL_FALSE);
+    }
+
+    switch (name) {
+#if ENABLE_EGL_ANDROID_GET_FRAME_TIMESTAMPS
+        case EGL_COMPOSITE_DEADLINE_ANDROID:
+        case EGL_COMPOSITE_INTERVAL_ANDROID:
+        case EGL_COMPOSITE_TO_PRESENT_LATENCY_ANDROID:
+            return EGL_TRUE;
+#endif
+        default:
+            return EGL_FALSE;
+    }
+}
+
 EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
         EGLuint64KHR frameId, EGLint numTimestamps, const EGLint *timestamps,
         EGLnsecsANDROID *values)
@@ -2176,8 +2271,8 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
     }
 }
 
-EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy, EGLSurface surface,
-        EGLint timestamp)
+EGLBoolean eglGetFrameTimestampSupportedANDROID(
+        EGLDisplay dpy, EGLSurface surface, EGLint timestamp)
 {
     clearError();
 
@@ -2200,6 +2295,9 @@ EGLBoolean eglQueryTimestampSupportedANDROID(EGLDisplay dpy, EGLSurface surface,
 
     switch (timestamp) {
 #if ENABLE_EGL_ANDROID_GET_FRAME_TIMESTAMPS
+        case EGL_COMPOSITE_DEADLINE_ANDROID:
+        case EGL_COMPOSITE_INTERVAL_ANDROID:
+        case EGL_COMPOSITE_TO_PRESENT_LATENCY_ANDROID:
         case EGL_REQUESTED_PRESENT_TIME_ANDROID:
         case EGL_RENDERING_COMPLETE_TIME_ANDROID:
         case EGL_COMPOSITION_LATCH_TIME_ANDROID:

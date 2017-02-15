@@ -100,6 +100,10 @@ sp<ISurfaceComposer> Surface::composerService() const {
     return ComposerService::getComposerService();
 }
 
+nsecs_t Surface::now() const {
+    return systemTime();
+}
+
 sp<IGraphicBufferProducer> Surface::getIGraphicBufferProducer() const {
     return mGraphicBufferProducer;
 }
@@ -142,9 +146,49 @@ status_t Surface::getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             outTransformMatrix);
 }
 
+status_t Surface::getDisplayRefreshCycleDuration(nsecs_t* outRefreshDuration) {
+    ATRACE_CALL();
+
+    DisplayStatInfo stats;
+    status_t err = composerService()->getDisplayStats(NULL, &stats);
+
+    *outRefreshDuration = stats.vsyncPeriod;
+
+    return NO_ERROR;
+}
+
 void Surface::enableFrameTimestamps(bool enable) {
     Mutex::Autolock lock(mMutex);
+    // If going from disabled to enabled, get the initial values for
+    // compositor and display timing.
+    if (!mEnableFrameTimestamps && enable) {
+        FrameEventHistoryDelta delta;
+        mGraphicBufferProducer->getFrameTimestamps(&delta);
+        mFrameEventHistory->applyDelta(delta);
+    }
     mEnableFrameTimestamps = enable;
+}
+
+status_t Surface::getCompositorTiming(
+        nsecs_t* compositeDeadline, nsecs_t* compositeInterval,
+        nsecs_t* compositeToPresentLatency) {
+    Mutex::Autolock lock(mMutex);
+    if (!mEnableFrameTimestamps) {
+        return INVALID_OPERATION;
+    }
+
+    if (compositeDeadline != nullptr) {
+        *compositeDeadline =
+                mFrameEventHistory->getNextCompositeDeadline(now());
+    }
+    if (compositeInterval != nullptr) {
+        *compositeInterval = mFrameEventHistory->getCompositeInterval();
+    }
+    if (compositeToPresentLatency != nullptr) {
+        *compositeToPresentLatency =
+                mFrameEventHistory->getCompositeToPresentLatency();
+    }
+    return NO_ERROR;
 }
 
 static bool checkConsumerForUpdates(
@@ -257,16 +301,6 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
             outDisplayPresentTime, events->displayPresentFence);
     getFrameTimestampFence(outDisplayRetireTime, events->displayRetireFence);
     getFrameTimestampFence(outReleaseTime, events->releaseFence);
-
-    return NO_ERROR;
-}
-status_t Surface::getDisplayRefreshCycleDuration(nsecs_t* outRefreshDuration) {
-    ATRACE_CALL();
-
-    DisplayStatInfo stats;
-    status_t err = composerService()->getDisplayStats(NULL, &stats);
-
-    *outRefreshDuration = stats.vsyncPeriod;
 
     return NO_ERROR;
 }
@@ -831,17 +865,20 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_SET_AUTO_REFRESH:
         res = dispatchSetAutoRefresh(args);
         break;
+    case NATIVE_WINDOW_GET_REFRESH_CYCLE_DURATION:
+        res = dispatchGetDisplayRefreshCycleDuration(args);
+        break;
     case NATIVE_WINDOW_GET_NEXT_FRAME_ID:
         res = dispatchGetNextFrameId(args);
         break;
     case NATIVE_WINDOW_ENABLE_FRAME_TIMESTAMPS:
         res = dispatchEnableFrameTimestamps(args);
         break;
+    case NATIVE_WINDOW_GET_COMPOSITOR_TIMING:
+        res = dispatchGetCompositorTiming(args);
+        break;
     case NATIVE_WINDOW_GET_FRAME_TIMESTAMPS:
         res = dispatchGetFrameTimestamps(args);
-        break;
-    case NATIVE_WINDOW_GET_REFRESH_CYCLE_DURATION:
-        res = dispatchGetDisplayRefreshCycleDuration(args);
         break;
     default:
         res = NAME_NOT_FOUND;
@@ -963,6 +1000,11 @@ int Surface::dispatchSetAutoRefresh(va_list args) {
     return setAutoRefresh(autoRefresh);
 }
 
+int Surface::dispatchGetDisplayRefreshCycleDuration(va_list args) {
+    nsecs_t* outRefreshDuration = va_arg(args, int64_t*);
+    return getDisplayRefreshCycleDuration(outRefreshDuration);
+}
+
 int Surface::dispatchGetNextFrameId(va_list args) {
     uint64_t* nextFrameId = va_arg(args, uint64_t*);
     *nextFrameId = getNextFrameNumber();
@@ -973,6 +1015,14 @@ int Surface::dispatchEnableFrameTimestamps(va_list args) {
     bool enable = va_arg(args, int);
     enableFrameTimestamps(enable);
     return NO_ERROR;
+}
+
+int Surface::dispatchGetCompositorTiming(va_list args) {
+    nsecs_t* compositeDeadline = va_arg(args, int64_t*);
+    nsecs_t* compositeInterval = va_arg(args, int64_t*);
+    nsecs_t* compositeToPresentLatency = va_arg(args, int64_t*);
+    return getCompositorTiming(compositeDeadline, compositeInterval,
+            compositeToPresentLatency);
 }
 
 int Surface::dispatchGetFrameTimestamps(va_list args) {
@@ -992,11 +1042,6 @@ int Surface::dispatchGetFrameTimestamps(va_list args) {
             outFirstRefreshStartTime, outLastRefreshStartTime,
             outGlCompositionDoneTime, outDisplayPresentTime,
             outDisplayRetireTime, outDequeueReadyTime, outReleaseTime);
-}
-
-int Surface::dispatchGetDisplayRefreshCycleDuration(va_list args) {
-    nsecs_t* outRefreshDuration = va_arg(args, int64_t*);
-    return getDisplayRefreshCycleDuration(outRefreshDuration);
 }
 
 int Surface::connect(int api) {

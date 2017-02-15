@@ -42,6 +42,7 @@
 #include <ui/PixelFormat.h>
 #include <ui/mat4.h>
 
+#include <gui/FrameTimestamps.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/OccupancyTracker.h>
@@ -65,7 +66,10 @@
 #include "Effects/Daltonizer.h"
 
 #include <map>
+#include <mutex>
+#include <queue>
 #include <string>
+#include <utility>
 
 namespace android {
 
@@ -413,7 +417,10 @@ private:
             Region& dirtyRegion, Region& opaqueRegion);
 
     void preComposition(nsecs_t refreshStartTime);
-    void postComposition();
+    void postComposition(nsecs_t refreshStartTime);
+    void updateCompositorTiming(
+            nsecs_t vsyncPhase, nsecs_t vsyncInterval, nsecs_t compositeTime,
+            std::shared_ptr<FenceTime>& presentFenceTime);
     void rebuildLayerStacks();
     void setUpHWComposer();
     void doComposition();
@@ -434,12 +441,13 @@ private:
     /* ------------------------------------------------------------------------
      * VSync
      */
-     void enableHardwareVsync();
-     void resyncToHardwareVsync(bool makeAvailable);
-     void disableHardwareVsync(bool makeUnavailable);
+    void enableHardwareVsync();
+    void resyncToHardwareVsync(bool makeAvailable);
+    void disableHardwareVsync(bool makeUnavailable);
 
 public:
-     void resyncWithRateLimit();
+    void resyncWithRateLimit();
+    void getCompositorTiming(CompositorTiming* compositorTiming);
 private:
 
     /* ------------------------------------------------------------------------
@@ -580,6 +588,17 @@ private:
     Mutex mHWVsyncLock;
     bool mPrimaryHWVsyncEnabled;
     bool mHWVsyncAvailable;
+
+    // protected by mCompositorTimingLock;
+    mutable std::mutex mCompositeTimingLock;
+    CompositorTiming mCompositorTiming;
+
+    // Only accessed from the main thread.
+    struct CompositePresentTime {
+        nsecs_t composite { -1 };
+        std::shared_ptr<FenceTime> display { FenceTime::NO_FENCE };
+    };
+    std::queue<CompositePresentTime> mCompositePresentTimes;
 
     /* ------------------------------------------------------------------------
      * Feature prototyping

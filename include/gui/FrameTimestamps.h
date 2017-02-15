@@ -95,6 +95,11 @@ struct FrameEvents {
     std::shared_ptr<FenceTime> releaseFence{FenceTime::NO_FENCE};
 };
 
+struct CompositorTiming {
+    nsecs_t deadline{0};
+    nsecs_t interval{16666667};
+    nsecs_t presentLatency{0};
+};
 
 // A short history of frames that are synchronized between the consumer and
 // producer via deltas.
@@ -111,6 +116,8 @@ public:
 
 protected:
     std::array<FrameEvents, MAX_FRAME_HISTORY> mFrames;
+
+    CompositorTiming mCompositorTiming;
 };
 
 
@@ -118,6 +125,16 @@ protected:
 class ProducerFrameEventHistory : public FrameEventHistory {
 public:
     ~ProducerFrameEventHistory() override;
+
+    // Public for testing.
+    static nsecs_t snapToNextTick(
+            nsecs_t timestamp, nsecs_t tickPhase, nsecs_t tickInterval);
+
+    nsecs_t getNextCompositeDeadline(const nsecs_t now) const;
+    nsecs_t getCompositeInterval() const { return mCompositorTiming.interval; }
+    nsecs_t getCompositeToPresentLatency() const {
+        return mCompositorTiming.presentLatency;
+    }
 
     // virtual for testing.
     virtual void updateAcquireFence(
@@ -189,12 +206,15 @@ class ConsumerFrameEventHistory : public FrameEventHistory {
 public:
     ~ConsumerFrameEventHistory() override;
 
+    void initializeCompositorTiming(const CompositorTiming& compositorTiming);
+
     void addQueue(const NewFrameEventsEntry& newEntry);
     void addLatch(uint64_t frameNumber, nsecs_t latchTime);
     void addPreComposition(uint64_t frameNumber, nsecs_t refreshStartTime);
     void addPostComposition(uint64_t frameNumber,
             const std::shared_ptr<FenceTime>& gpuCompositionDone,
-            const std::shared_ptr<FenceTime>& displayPresent);
+            const std::shared_ptr<FenceTime>& displayPresent,
+            const CompositorTiming& compositorTiming);
     void addRetire(uint64_t frameNumber,
             const std::shared_ptr<FenceTime>& displayRetire);
     void addRelease(uint64_t frameNumber, nsecs_t dequeueReadyTime,
@@ -244,7 +264,7 @@ public:
             size_t& count);
 
 private:
-    static size_t minFlattenedSize();
+    static constexpr size_t minFlattenedSize();
 
     size_t mIndex{0};
     uint64_t mFrameNumber{0};
@@ -306,9 +326,10 @@ public:
             size_t& count);
 
 private:
-    static size_t minFlattenedSize();
+    static constexpr size_t minFlattenedSize();
 
     std::vector<FrameEventsDelta> mDeltas;
+    CompositorTiming mCompositorTiming;
 };
 
 
