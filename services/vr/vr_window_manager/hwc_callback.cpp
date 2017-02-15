@@ -12,11 +12,16 @@ namespace dvr {
 namespace {
 
 sp<GraphicBuffer> GetBufferFromHandle(const native_handle_t* handle) {
+  GraphicBufferMapper& mapper = GraphicBufferMapper::get();
+  if (mapper.registerBuffer(handle) != OK) {
+    ALOGE("Failed to register buffer");
+    return nullptr;
+  }
+
   uint32_t width = 0, height = 0, stride = 0, layer_count = 1;
   uint64_t producer_usage = 0, consumer_usage = 0;
   int32_t format = 0;
 
-  GraphicBufferMapper& mapper = GraphicBufferMapper::get();
   if (mapper.getDimensions(handle, &width, &height) ||
       mapper.getStride(handle, &stride) ||
       mapper.getFormat(handle, &format) ||
@@ -33,10 +38,6 @@ sp<GraphicBuffer> GetBufferFromHandle(const native_handle_t* handle) {
   sp<GraphicBuffer> buffer = new GraphicBuffer(
       width, height, format, layer_count, producer_usage, consumer_usage,
       stride, native_handle_clone(handle), true);
-  if (mapper.registerBuffer(buffer.get()) != OK) {
-    ALOGE("Failed to register buffer");
-    return nullptr;
-  }
 
   return buffer;
 }
