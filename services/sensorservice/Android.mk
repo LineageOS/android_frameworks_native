@@ -10,6 +10,7 @@ LOCAL_SRC_FILES:= \
     OrientationSensor.cpp \
     RecentEventLogger.cpp \
     RotationVectorSensor.cpp \
+    SensorDevice.cpp \
     SensorDirectConnection.cpp \
     SensorEventConnection.cpp \
     SensorFusion.cpp \
@@ -25,13 +26,6 @@ LOCAL_CFLAGS += -Wall -Werror -Wextra
 
 LOCAL_CFLAGS += -fvisibility=hidden
 
-ifeq ($(ENABLE_TREBLE), true)
-LOCAL_SRC_FILES += SensorDeviceTreble.cpp
-LOCAL_CFLAGS += -DENABLE_TREBLE=1
-else
-LOCAL_SRC_FILES += SensorDevice.cpp
-endif
-
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libhardware \
@@ -42,10 +36,6 @@ LOCAL_SHARED_LIBRARIES := \
     libui \
     libgui \
     libcrypto \
-
-ifeq ($(ENABLE_TREBLE), true)
-
-LOCAL_SHARED_LIBRARIES += \
     libbase \
     libhidlbase \
     libhidltransport \
@@ -54,8 +44,6 @@ LOCAL_SHARED_LIBRARIES += \
 
 LOCAL_STATIC_LIBRARIES := \
     android.hardware.sensors@1.0-convert
-
-endif  # ENABLE_TREBLE
 
 LOCAL_MODULE:= libsensorservice
 
