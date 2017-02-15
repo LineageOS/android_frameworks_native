@@ -854,13 +854,16 @@ static int open_output_file(const char* file_name, bool recreate, int permission
     return open(file_name, flags, permissions);
 }
 
-static bool set_permissions_and_ownership(int fd, bool is_public, int uid, const char* path) {
+static bool set_permissions_and_ownership(
+        int fd, bool is_public, int uid, const char* path, bool is_secondary_dex) {
+    // Primary apks are owned by the system. Secondary dex files are owned by the app.
+    int owning_uid = is_secondary_dex ? uid : AID_SYSTEM;
     if (fchmod(fd,
                S_IRUSR|S_IWUSR|S_IRGRP |
                (is_public ? S_IROTH : 0)) < 0) {
         ALOGE("installd cannot chmod '%s' during dexopt\n", path);
         return false;
-    } else if (fchown(fd, AID_SYSTEM, uid) < 0) {
+    } else if (fchown(fd, owning_uid, uid) < 0) {
         ALOGE("installd cannot chown '%s' during dexopt\n", path);
         return false;
     }
@@ -1009,10 +1012,11 @@ class Dex2oatFileWrapper {
 
 // (re)Creates the app image if needed.
 Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path, bool profile_guided,
-        bool is_public, int uid) {
+        bool is_public, int uid, bool is_secondary_dex) {
     // Use app images only if it is enabled (by a set image format) and we are compiling
     // profile-guided (so the app image doesn't conservatively contain all classes).
-    if (!profile_guided) {
+    // Note that we don't create an image for secondary dex files.
+    if (is_secondary_dex || !profile_guided) {
         return Dex2oatFileWrapper();
     }
 
@@ -1043,7 +1047,7 @@ Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path, bool profile_g
             }
         }
     } else if (!set_permissions_and_ownership(
-                wrapper_fd.get(), is_public, uid, image_path.c_str())) {
+                wrapper_fd.get(), is_public, uid, image_path.c_str(), is_secondary_dex)) {
         ALOGE("installd cannot set owner '%s' for image during dexopt\n", image_path.c_str());
         wrapper_fd.reset(-1);
     }
@@ -1101,7 +1105,7 @@ Dex2oatFileWrapper maybe_open_reference_profile(const char* pkgname, bool profil
 // Opens the vdex files and assigns the input fd to in_vdex_wrapper_fd and the output fd to
 // out_vdex_wrapper_fd. Returns true for success or false in case of errors.
 bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_needed,
-        const char* instruction_set, bool is_public, int uid,
+        const char* instruction_set, bool is_public, int uid, bool is_secondary_dex,
         Dex2oatFileWrapper* in_vdex_wrapper_fd,
         Dex2oatFileWrapper* out_vdex_wrapper_fd) {
     CHECK(in_vdex_wrapper_fd != nullptr);
@@ -1164,7 +1168,7 @@ bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_
         }
     }
     if (!set_permissions_and_ownership(out_vdex_wrapper_fd->get(), is_public, uid,
-            out_vdex_path_str.c_str())) {
+            out_vdex_path_str.c_str(), is_secondary_dex)) {
         ALOGE("installd cannot set owner '%s' for vdex during dexopt\n", out_vdex_path_str.c_str());
         return false;
     }
@@ -1187,7 +1191,8 @@ Dex2oatFileWrapper open_oat_out_file(const char* apk_path, const char* oat_dir,
             [out_oat_path_str]() { unlink(out_oat_path_str.c_str()); });
     if (wrapper_fd.get() < 0) {
         PLOG(ERROR) << "installd cannot open output during dexopt" <<  out_oat_path;
-    } else if (!set_permissions_and_ownership(wrapper_fd.get(), is_public, uid, out_oat_path)) {
+    } else if (!set_permissions_and_ownership(
+                wrapper_fd.get(), is_public, uid, out_oat_path, is_secondary_dex)) {
         ALOGE("installd cannot set owner '%s' for output during dexopt\n", out_oat_path);
         wrapper_fd.reset(-1);
     }
@@ -1445,7 +1450,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     Dex2oatFileWrapper in_vdex_fd;
     Dex2oatFileWrapper out_vdex_fd;
     if (!open_vdex_files(dex_path, out_oat_path, dexopt_needed, instruction_set, is_public, uid,
-            &in_vdex_fd, &out_vdex_fd)) {
+            is_secondary_dex, &in_vdex_fd, &out_vdex_fd)) {
         return -1;
     }
 
@@ -1454,7 +1459,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
 
     // Create the app image file if needed.
     Dex2oatFileWrapper image_fd =
-            maybe_open_app_image(out_oat_path, profile_guided, is_public, uid);
+            maybe_open_app_image(out_oat_path, profile_guided, is_public, uid, is_secondary_dex);
 
     // Open the reference profile if needed.
     Dex2oatFileWrapper reference_profile_fd =
