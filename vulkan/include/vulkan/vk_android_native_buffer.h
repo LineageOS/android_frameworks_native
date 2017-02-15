@@ -37,12 +37,13 @@ extern "C" {
  * backwards-compatibility support is temporary, and will likely be removed in
  * (along with all gralloc0 support) in a future release.
  */
-#define VK_ANDROID_NATIVE_BUFFER_SPEC_VERSION     6
+#define VK_ANDROID_NATIVE_BUFFER_SPEC_VERSION     7
 #define VK_ANDROID_NATIVE_BUFFER_EXTENSION_NAME   "VK_ANDROID_native_buffer"
 
 #define VK_ANDROID_NATIVE_BUFFER_ENUM(type,id)    ((type)(1000000000 + (1000 * (VK_ANDROID_NATIVE_BUFFER_EXTENSION_NUMBER - 1)) + (id)))
 #define VK_STRUCTURE_TYPE_NATIVE_BUFFER_ANDROID   VK_ANDROID_NATIVE_BUFFER_ENUM(VkStructureType, 0)
 #define VK_STRUCTURE_TYPE_SWAPCHAIN_IMAGE_CREATE_INFO_ANDROID VK_ANDROID_NATIVE_BUFFER_ENUM(VkStructureType, 1)
+#define VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENTATION_PROPERTIES_ANDROID VK_ANDROID_NATIVE_BUFFER_ENUM(VkStructureType, 2)
 
 typedef enum VkSwapchainImageUsageFlagBitsANDROID {
     VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID = 0x00000001,
@@ -74,6 +75,13 @@ typedef struct {
 
     VkSwapchainImageUsageFlagsANDROID      usage;
 } VkSwapchainImageCreateInfoANDROID;
+
+typedef struct {
+    VkStructureType                        sType; // must be VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENTATION_PROPERTIES_ANDROID
+    const void*                            pNext;
+
+    VkBool32                               sharedImage;
+} VkPhysicalDevicePresentationPropertiesANDROID;
 
 // -- DEPRECATED in SPEC_VERSION 6 --
 typedef VkResult (VKAPI_PTR *PFN_vkGetSwapchainGrallocUsageANDROID)(VkDevice device, VkFormat format, VkImageUsageFlags imageUsage, int* grallocUsage);
