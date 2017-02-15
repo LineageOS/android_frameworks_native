@@ -81,6 +81,32 @@ static std::vector<std::string> split(const std::string &s, char c) {
     return components;
 }
 
+std::string getCmdline(pid_t pid) {
+    std::ifstream ifs("/proc/" + std::to_string(pid) + "/cmdline");
+    std::string cmdline;
+    if (!ifs.is_open()) {
+        return "";
+    }
+    ifs >> cmdline;
+    return cmdline;
+}
+
+const std::string &Lshal::getCmdline(pid_t pid) {
+    auto pair = mCmdlines.find(pid);
+    if (pair != mCmdlines.end()) {
+        return pair->second;
+    }
+    mCmdlines[pid] = ::android::lshal::getCmdline(pid);
+    return mCmdlines[pid];
+}
+
+void Lshal::removeDeadProcesses(Pids *pids) {
+    static const pid_t myPid = getpid();
+    std::remove_if(pids->begin(), pids->end(), [this](auto pid) {
+        return pid == myPid || this->getCmdline(pid).empty();
+    });
+}
+
 bool Lshal::getReferencedPids(
         pid_t serverPid, std::map<uint64_t, Pids> *objects) const {
 
@@ -125,35 +151,56 @@ void Lshal::postprocess() {
     if (mSortColumn) {
         std::sort(mTable.begin(), mTable.end(), mSortColumn);
     }
+    for (TableEntry &entry : mTable) {
+        entry.serverCmdline = getCmdline(entry.serverPid);
+        removeDeadProcesses(&entry.clientPids);
+        for (auto pid : entry.clientPids) {
+            entry.clientCmdlines.push_back(this->getCmdline(pid));
+        }
+    }
 }
 
 void Lshal::printLine(
         const std::string &interfaceName,
         const std::string &transport, const std::string &server,
-        const std::string &address, const std::string &clients) const {
+        const std::string &serverCmdline,
+        const std::string &address, const std::string &clients,
+        const std::string &clientCmdlines) const {
     if (mSelectedColumns & ENABLE_INTERFACE_NAME)
         mOut << std::setw(80) << interfaceName << "\t";
     if (mSelectedColumns & ENABLE_TRANSPORT)
         mOut << std::setw(10) << transport << "\t";
-    if (mSelectedColumns & ENABLE_SERVER_PID)
-        mOut << std::setw(5)  << server << "\t";
+    if (mSelectedColumns & ENABLE_SERVER_PID) {
+        if (mEnableCmdlines) {
+            mOut << std::setw(15) << serverCmdline << "\t";
+        } else {
+            mOut << std::setw(5)  << server << "\t";
+        }
+    }
     if (mSelectedColumns & ENABLE_SERVER_ADDR)
         mOut << std::setw(16) << address << "\t";
-    if (mSelectedColumns & ENABLE_CLIENT_PIDS)
-        mOut << std::setw(0)  << clients;
+    if (mSelectedColumns & ENABLE_CLIENT_PIDS) {
+        if (mEnableCmdlines) {
+            mOut << std::setw(0)  << clientCmdlines;
+        } else {
+            mOut << std::setw(0)  << clients;
+        }
+    }
     mOut << std::endl;
 }
 
 void Lshal::dump() const {
     mOut << "All services:" << std::endl;
     mOut << std::left;
-    printLine("Interface", "Transport", "Server", "PTR", "Clients");
+    printLine("Interface", "Transport", "Server", "Server CMD", "PTR", "Clients", "Clients CMD");
     for (const auto &entry : mTable) {
         printLine(entry.interfaceName,
                 entry.transport,
                 entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
+                entry.serverCmdline,
                 entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
-                join(entry.clientPids, " "));
+                join(entry.clientPids, " "),
+                join(entry.clientCmdlines, ";"));
     }
 }
 
@@ -324,9 +371,11 @@ void Lshal::usage() const {
         << "           -i, --interface: print the interface name column" << std::endl
         << "           -n, --instance: print the instance name column" << std::endl
         << "           -t, --transport: print the transport mode column" << std::endl
-        << "           -p, --pid: print the server PID column" << std::endl
+        << "           -p, --pid: print the server PID, or server cmdline if -m is set" << std::endl
         << "           -a, --address: print the server object address column" << std::endl
-        << "           -c, --clients: print the client PIDs column" << std::endl
+        << "           -c, --clients: print the client PIDs, or client cmdlines if -m is set"
+                                                                              << std::endl
+        << "           -m, --cmdline: print cmdline instead of PIDs" << std::endl
         << "           --sort=i, --sort=interface: sort by interface name" << std::endl
         << "           --sort=p, --sort=pid: sort by server pid" << std::endl
         << "       lshal [-h|--help]" << std::endl
@@ -342,6 +391,7 @@ Status Lshal::parseArgs(int argc, char **argv) {
         {"pid",       no_argument,       0, 'p' },
         {"address",   no_argument,       0, 'a' },
         {"clients",   no_argument,       0, 'c' },
+        {"cmdline",   no_argument,       0, 'm' },
 
         // long options without short alternatives
         {"sort",      required_argument, 0, 's' },
@@ -353,7 +403,7 @@ Status Lshal::parseArgs(int argc, char **argv) {
     optind = 1;
     for (;;) {
         // using getopt_long in case we want to add other options in the future
-        c = getopt_long(argc, argv, "hitpac", longOptions, &optionIndex);
+        c = getopt_long(argc, argv, "hitpacm", longOptions, &optionIndex);
         if (c == -1) {
             break;
         }
@@ -388,6 +438,10 @@ Status Lshal::parseArgs(int argc, char **argv) {
         }
         case 'c': {
             mSelectedColumns |= ENABLE_CLIENT_PIDS;
+            break;
+        }
+        case 'm': {
+            mEnableCmdlines = true;
             break;
         }
         case 'h': // falls through

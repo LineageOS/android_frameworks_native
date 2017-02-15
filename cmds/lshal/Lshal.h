@@ -60,13 +60,26 @@ private:
     void printLine(
             const std::string &interfaceName,
             const std::string &transport, const std::string &server,
-            const std::string &address, const std::string &clients) const;
+            const std::string &serverCmdline,
+            const std::string &address, const std::string &clients,
+            const std::string &clientCmdlines) const ;
+    // Return /proc/{pid}/cmdline if it exists, else empty string.
+    const std::string &getCmdline(pid_t pid);
+    // Call getCmdline on all pid in pids. If it returns empty string, the process might
+    // have died, and the pid is removed from pids.
+    void removeDeadProcesses(Pids *pids);
 
     Table mTable{};
     std::ostream &mErr = std::cerr;
     std::ostream &mOut = std::cout;
     TableEntryCompare mSortColumn = nullptr;
     TableEntrySelect mSelectedColumns = 0;
+    // If true, cmdlines will be printed instead of pid.
+    bool mEnableCmdlines;
+    // If an entry does not exist, need to ask /proc/{pid}/cmdline to get it.
+    // If an entry exist but is an empty string, process might have died.
+    // If an entry exist and not empty, it contains the cached content of /proc/{pid}/cmdline.
+    std::map<pid_t, std::string> mCmdlines;
 };
 
 

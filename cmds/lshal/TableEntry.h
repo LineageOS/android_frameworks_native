@@ -32,8 +32,10 @@ struct TableEntry {
     std::string interfaceName;
     std::string transport;
     int32_t serverPid;
+    std::string serverCmdline;
     uint64_t serverObjectAddress;
     Pids clientPids;
+    std::vector<std::string> clientCmdlines;
 
     static bool sortByInterfaceName(const TableEntry &a, const TableEntry &b) {
         return a.interfaceName < b.interfaceName;
