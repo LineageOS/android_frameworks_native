@@ -1344,7 +1344,8 @@ static void SendShellBroadcast(const std::string& action, const std::vector<std:
 
     // TODO: explicity setting Shell's component to allow broadcast to launch it.
     // That might break other components that are listening to the bugreport notifications
-    // (android.intent.action.BUGREPORT_STARTED and android.intent.action.BUGREPORT_STOPED), but
+    // (com.android.internal.intent.action.BUGREPORT_STARTED and
+    // com.android.internal.intent.action.BUGREPORT_STOPED), but
     // those should be just handled by Shell anyways.
     // A more generic alternative would be passing the -f 0x01000000 flag (or whatever
     // value is defined by FLAG_RECEIVER_INCLUDE_BACKGROUND), but that would reset the
@@ -1600,7 +1601,7 @@ int main(int argc, char *argv[]) {
                      "--ei", "android.intent.extra.MAX", std::to_string(ds.progress_->GetMax()),
                 };
                 // clang-format on
-                SendShellBroadcast("android.intent.action.BUGREPORT_STARTED", am_args);
+                SendShellBroadcast("com.android.internal.intent.action.BUGREPORT_STARTED", am_args);
             }
             if (use_control_socket) {
                 dprintf(ds.control_socket_fd_, "BEGIN:%s\n", ds.path_.c_str());
@@ -1825,9 +1826,10 @@ int main(int argc, char *argv[]) {
                 am_args.push_back("--es");
                 am_args.push_back("android.intent.extra.REMOTE_BUGREPORT_HASH");
                 am_args.push_back(SHA256_file_hash(ds.path_));
-                SendShellBroadcast("android.intent.action.REMOTE_BUGREPORT_FINISHED", am_args);
+                SendShellBroadcast("com.android.internal.intent.action.REMOTE_BUGREPORT_FINISHED",
+                                   am_args);
             } else {
-                SendShellBroadcast("android.intent.action.BUGREPORT_FINISHED", am_args);
+                SendShellBroadcast("com.android.internal.intent.action.BUGREPORT_FINISHED", am_args);
             }
         } else {
             MYLOGE("Skipping finished broadcast because bugreport could not be generated\n");
