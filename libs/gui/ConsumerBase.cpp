@@ -318,16 +318,16 @@ status_t ConsumerBase::addReleaseFenceLocked(int slot,
         return OK;
     }
 
-    auto signaled = mSlots[slot].mFence->hasSignaled();
+    auto status = mSlots[slot].mFence->getStatus();
 
-    if (!signaled) {
+    if (status == Fence::Status::Invalid) {
         CB_LOGE("fence has invalid state");
         return BAD_VALUE;
     }
 
-    if (*signaled) {
+    if (status == Fence::Status::Signaled) {
         mSlots[slot].mFence = fence;
-    } else {
+    } else {  // status == Fence::Status::Unsignaled
         char fenceName[32] = {};
         snprintf(fenceName, 32, "%.28s:%d", mName.string(), slot);
         sp<Fence> mergedFence = Fence::merge(

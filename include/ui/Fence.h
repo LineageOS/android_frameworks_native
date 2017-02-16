@@ -23,8 +23,6 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
-#include <experimental/optional>
-
 namespace android {
 
 class String8;
@@ -105,26 +103,29 @@ public:
     // error occurs then SIGNAL_TIME_INVALID is returned.
     nsecs_t getSignalTime() const;
 
-#if __cplusplus > 201103L
-    // hasSignaled returns whether the fence has signaled yet. Prefer this to
+    enum class Status {
+        Invalid,     // Fence is invalid
+        Unsignaled,  // Fence is valid but has not yet signaled
+        Signaled,    // Fence is valid and has signaled
+    };
+
+    // getStatus() returns whether the fence has signaled yet. Prefer this to
     // getSignalTime() or wait() if all you care about is whether the fence has
-    // signaled. Returns an optional bool, which will have a value if there was
-    // no error.
-    inline std::experimental::optional<bool> hasSignaled() {
+    // signaled.
+    inline Status getStatus() {
         // The sync_wait call underlying wait() has been measured to be
         // significantly faster than the sync_fence_info call underlying
         // getSignalTime(), which might otherwise appear to be the more obvious
         // way to check whether a fence has signaled.
         switch (wait(0)) {
             case NO_ERROR:
-                return true;
+                return Status::Signaled;
             case -ETIME:
-                return false;
+                return Status::Unsignaled;
             default:
-                return {};
+                return Status::Invalid;
         }
     }
-#endif
 
     // Flattenable interface
     size_t getFlattenedSize() const;
