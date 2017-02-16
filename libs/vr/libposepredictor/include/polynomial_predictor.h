@@ -1,5 +1,5 @@
-#ifndef ANDROID_DVR_POLYNOMIAL_POSE_PREDICTOR_H_
-#define ANDROID_DVR_POLYNOMIAL_POSE_PREDICTOR_H_
+#ifndef POSEPREDICTOR_POLYNOMIAL_POSE_PREDICTOR_H_
+#define POSEPREDICTOR_POLYNOMIAL_POSE_PREDICTOR_H_
 
 #include <vector>
 
@@ -7,8 +7,7 @@
 
 #include "buffered_predictor.h"
 
-namespace android {
-namespace dvr {
+namespace posepredictor {
 
 // Make a polynomial prediction of the form
 // y = coefficients_[0] + coefficients_[1] * t + coefficients_[2] * t^2 + ...
@@ -18,7 +17,7 @@ namespace dvr {
 template <size_t PolynomialDegree, size_t TrainingWindow>
 class PolynomialPosePredictor : public BufferedPredictor {
  public:
-  PolynomialPosePredictor(double regularization = 1e-9)
+  PolynomialPosePredictor(real regularization = 1e-9)
       : BufferedPredictor(TrainingWindow), regularization_(regularization) {
     static_assert(PolynomialDegree + 1 >= TrainingWindow,
                   "Underconstrained polynomial regressor");
@@ -40,14 +39,14 @@ class PolynomialPosePredictor : public BufferedPredictor {
   };
 
   // Add a new sample.
-  void Add(const Sample& sample, DvrPoseAsync* out_pose) override {
+  void Add(const Pose& sample) override {
     // Add the sample to the ring buffer.
     BufferedPredictor::BufferSample(sample);
 
-    Eigen::Matrix<double, TrainingWindow, kNumComponents> values;
+    Eigen::Matrix<real, TrainingWindow, kNumComponents> values;
 
     // Get the pose samples into matrices for fitting.
-    double t_vector[TrainingWindow];
+    real t_vector[TrainingWindow];
     for (size_t i = 0; i < TrainingWindow; ++i) {
       const auto& prev_sample = PrevSample(i);
 
@@ -64,9 +63,9 @@ class PolynomialPosePredictor : public BufferedPredictor {
     }
 
     // Some transient matrices for solving for coefficient matrix.
-    Eigen::Matrix<double, PolynomialDegree + 1, PolynomialDegree + 1> M;
-    Eigen::Vector<double, PolynomialDegree + 1> d;
-    Eigen::Vector<double, PolynomialDegree + 1> p;
+    Eigen::Matrix<real, PolynomialDegree + 1, PolynomialDegree + 1> M;
+    Eigen::Matrix<real, PolynomialDegree + 1, 1> d;
+    Eigen::Matrix<real, PolynomialDegree + 1, 1> p;
 
     // Create a polynomial fit for each component.
     for (size_t component = 0; component < kNumComponents; ++component) {
@@ -104,78 +103,28 @@ class PolynomialPosePredictor : public BufferedPredictor {
       // Note: This is not the most accurate solver out there but is fast.
       coefficients_.row(component) = Eigen::LLT<Eigen::MatrixXd>(M).solve(d);
     }
-
-    // Fill out the out_pose at this sample.
-    Predict(sample.time_ns, sample.time_ns, out_pose);
   }
 
   // Predict using the polynomial coefficients.
-  void Predict(int64_t left_time_ns, int64_t right_time_ns,
-               DvrPoseAsync* out_pose) const override {
+  Pose Predict(int64_t time_ns) const override {
     // Predict the left side.
-    const auto left = SamplePolynomial(left_time_ns);
-    out_pose->translation = {static_cast<float>(left[kPositionX]),
-                             static_cast<float>(left[kPositionY]),
-                             static_cast<float>(left[kPositionZ])};
-    out_pose->orientation = normalize(left[kOrientationX], left[kOrientationY],
-                                      left[kOrientationZ], left[kOrientationW]);
+    const auto components = SamplePolynomial(time_ns);
 
-    // Predict the right side.
-    const auto right = SamplePolynomial(right_time_ns);
-    out_pose->right_translation = {static_cast<float>(right[kPositionX]),
-                                   static_cast<float>(right[kPositionY]),
-                                   static_cast<float>(right[kPositionZ])};
-    out_pose->right_orientation =
-        normalize(right[kOrientationX], right[kOrientationY],
-                  right[kOrientationZ], right[kOrientationW]);
-
-    // Finite differencing to estimate the velocities.
-    const auto a = SamplePolynomial(
-        (left_time_ns + right_time_ns - kFiniteDifferenceNs) / 2);
-    const auto b = SamplePolynomial(
-        (left_time_ns + right_time_ns + kFiniteDifferenceNs) / 2);
-
-    out_pose->velocity = {static_cast<float>((b[kPositionX] - a[kPositionX]) /
-                                             NsToSeconds(kFiniteDifferenceNs)),
-                          static_cast<float>((b[kPositionY] - a[kPositionY]) /
-                                             NsToSeconds(kFiniteDifferenceNs)),
-                          static_cast<float>((b[kPositionZ] - a[kPositionZ]) /
-                                             NsToSeconds(kFiniteDifferenceNs)),
-                          0.0f};
-
-    // Get the predicted orientations into quaternions, which are probably not
-    // quite unit.
-    const quatd a_orientation(a[kOrientationW], a[kOrientationX],
-                              a[kOrientationY], a[kOrientationZ]);
-    const quatd b_orientation(b[kOrientationW], b[kOrientationX],
-                              b[kOrientationY], b[kOrientationZ]);
-    const auto angular_velocity =
-        AngularVelocity(a_orientation.normalized(), b_orientation.normalized(),
-                        NsToSeconds(kFiniteDifferenceNs));
-
-    out_pose->angular_velocity = {static_cast<float>(angular_velocity[0]),
-                                  static_cast<float>(angular_velocity[1]),
-                                  static_cast<float>(angular_velocity[2]),
-                                  0.0f};
-    out_pose->timestamp_ns = left_time_ns;
-    out_pose->flags = DVR_POSE_FLAG_HEAD | DVR_POSE_FLAG_VALID;
-    memset(out_pose->pad, 0, sizeof(out_pose->pad));
+    return {time_ns,
+            vec3(components[kPositionX], components[kPositionY],
+                 components[kPositionZ]),
+            quat(components[kOrientationW], components[kOrientationX],
+                 components[kOrientationY], components[kOrientationZ])
+                .normalized()};
   }
 
  private:
-  // Take a quaternion and return a normalized version in a float32x4_t.
-  static float32x4_t normalize(double x, double y, double z, double w) {
-    const auto l = std::sqrt(x * x + y * y + z * z + w * w);
-    return {static_cast<float>(x / l), static_cast<float>(y / l),
-            static_cast<float>(z / l), static_cast<float>(w / l)};
-  }
-
   // Evaluate the polynomial at a particular time.
-  Eigen::Vector<double, kNumComponents> SamplePolynomial(
+  Eigen::Matrix<real, kNumComponents, 1> SamplePolynomial(
       int64_t time_ns) const {
     const auto t = NsToT(time_ns);
-    Eigen::Vector<double, PolynomialDegree + 1> polynomial;
-    double current_polynomial = t;
+    Eigen::Matrix<real, PolynomialDegree + 1, 1> polynomial;
+    real current_polynomial = t;
 
     // Compute polynomial = [ 1 t t^2 ... ]
     polynomial[0] = 1;
@@ -193,15 +142,15 @@ class PolynomialPosePredictor : public BufferedPredictor {
   // to tweak the regularization amount. So we subtract the last sample time so
   // the scale of the regularization constant doesn't change as a function of
   // time.
-  double NsToT(int64_t time_ns) const {
+  real NsToT(int64_t time_ns) const {
     return NsToSeconds(time_ns - buffer_[current_pose_index_].time_ns);
   }
 
   // The ridge regularization constant.
-  double regularization_;
+  real regularization_;
 
   // This is where we store the polynomial coefficients.
-  Eigen::Matrix<double, kNumComponents, PolynomialDegree + 1> coefficients_;
+  Eigen::Matrix<real, kNumComponents, PolynomialDegree + 1> coefficients_;
 };
 
 // Some common polynomial types.
@@ -213,7 +162,7 @@ extern template class PolynomialPosePredictor<4, 5>;
 using QuadricPosePredictor = PolynomialPosePredictor<2, 3>;
 using CubicPosePredictor = PolynomialPosePredictor<3, 4>;
 using QuarticPosePredictor = PolynomialPosePredictor<4, 5>;
-}  // namespace dvr
-}  // namespace android
 
-#endif  // ANDROID_DVR_POSE_PREDICTOR_H_
+}  // namespace posepredictor
+
+#endif  // POSEPREDICTOR_POLYNOMIAL_POSE_PREDICTOR_H_

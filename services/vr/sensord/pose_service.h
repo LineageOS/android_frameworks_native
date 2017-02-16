@@ -12,7 +12,7 @@
 #include <pdx/service.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/pose_client_internal.h>
-#include <private/dvr/pose_predictor.h>
+#include <private/dvr/dvr_pose_predictor.h>
 #include <private/dvr/ring_buffer.h>
 
 #include "sensor_fusion.h"
@@ -118,7 +118,7 @@ class PoseService : public pdx::ServiceBase<PoseService> {
   bool enable_external_pose_ = false;
 
   // The predictor to extrapolate pose samples.
-  std::unique_ptr<PosePredictor> pose_predictor_;
+  std::unique_ptr<posepredictor::Predictor> pose_predictor_;
 
   // Pose ring buffer.
   std::shared_ptr<BufferProducer> ring_buffer_;

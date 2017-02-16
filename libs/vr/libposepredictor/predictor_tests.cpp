@@ -1,36 +1,35 @@
 #include <gtest/gtest.h>
 
-#include <private/dvr/pose_predictor.h>
+#include <predictor.h>
 
-namespace android {
-namespace dvr {
+namespace posepredictor {
 
 namespace {
 
 // For comparing expected and actual.
-constexpr double kAbsErrorTolerance = 1e-4;
+constexpr real kAbsErrorTolerance = 1e-4;
 
 // Test the angular velocity computation from two orientations.
 TEST(PosePredictor, AngularVelocity) {
   // Some random rotation axis we will rotate around.
-  const vec3d kRotationAxis = vec3d(1, 2, 3).normalized();
+  const vec3 kRotationAxis = vec3(1, 2, 3).normalized();
 
   // Some random angle we will be rotating by.
-  const double kRotationAngle = M_PI / 30;
+  const real kRotationAngle = M_PI / 30;
 
   // Random start orientation we are currently at.
-  const quatd kStartOrientation = quatd(5, 3, 4, 1).normalized();
+  const quat kStartOrientation = quat(5, 3, 4, 1).normalized();
 
   // The orientation we will end up at.
-  const quatd kEndOrientation =
+  const quat kEndOrientation =
       kStartOrientation *
-      quatd(Eigen::AngleAxis<double>(kRotationAngle, kRotationAxis));
+      quat(Eigen::AngleAxis<real>(kRotationAngle, kRotationAxis));
 
   // The delta time for going from start orientation to end.
-  const float kDeltaTime = 1.0;
+  const real kDeltaTime = 1.0;
 
   // Compute the angular velocity from start orientation to end.
-  const auto angularVelocity = PosePredictor::AngularVelocity(
+  const auto angularVelocity = Predictor::AngularVelocity(
       kStartOrientation, kEndOrientation, kDeltaTime);
 
   // Extract the axis and the angular speed.
@@ -48,5 +47,4 @@ TEST(PosePredictor, AngularVelocity) {
 
 }  // namespace
 
-}  // namespace dvr
-}  // namespace android
+}  // namespace posepredictor

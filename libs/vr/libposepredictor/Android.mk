@@ -15,18 +15,18 @@
 LOCAL_PATH := $(call my-dir)
 
 sourceFiles := \
-        pose_predictor.cpp \
+        predictor.cpp \
         buffered_predictor.cpp \
-        linear_pose_predictor.cpp \
-        polynomial_pose_predictor.cpp \
+        linear_predictor.cpp \
+        polynomial_predictor.cpp \
+        dvr_pose_predictor.cpp \
 
 includeFiles := \
-        $(LOCAL_PATH)/include
+        $(LOCAL_PATH)/include \
+        external/eigen \
 
 staticLibraries := \
-        libdvrcommon \
         libsensor \
-        libpdx_default_transport \
 
 sharedLibraries := \
 
@@ -42,13 +42,12 @@ LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
 LOCAL_MODULE := libposepredictor
 include $(BUILD_STATIC_LIBRARY)
 
-
 include $(CLEAR_VARS)
 LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := \
-        pose_predictor_tests.cpp \
-        linear_pose_predictor_tests.cpp \
-        polynomial_pose_predictor_tests.cpp \
+        predictor_tests.cpp \
+        linear_predictor_tests.cpp \
+        polynomial_predictor_tests.cpp \
 
 LOCAL_STATIC_LIBRARIES := libposepredictor $(staticLibraries)
 LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
