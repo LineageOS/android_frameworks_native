@@ -56,8 +56,6 @@
 
 using namespace android;
 
-#define ENABLE_EGL_ANDROID_GET_FRAME_TIMESTAMPS 0
-
 // ----------------------------------------------------------------------------
 
 namespace android {
@@ -88,9 +86,7 @@ extern char const * const gBuiltinExtensionString =
         "EGL_KHR_swap_buffers_with_damage "
         "EGL_ANDROID_create_native_client_buffer "
         "EGL_ANDROID_front_buffer_auto_refresh "
-#if ENABLE_EGL_ANDROID_GET_FRAME_TIMESTAMPS
         "EGL_ANDROID_get_frame_timestamps "
-#endif
         ;
 extern char const * const gExtensionString  =
         "EGL_KHR_image "                        // mandatory
@@ -1246,7 +1242,6 @@ EGLBoolean eglSurfaceAttrib(
             setError(EGL_BAD_SURFACE, EGL_FALSE);
     }
 
-#if ENABLE_EGL_ANDROID_GET_FRAME_TIMESTAMPS
     if (attribute == EGL_TIMESTAMPS_ANDROID) {
         if (!s->win.get()) {
             return setError(EGL_BAD_SURFACE, EGL_FALSE);
@@ -1256,7 +1251,6 @@ EGLBoolean eglSurfaceAttrib(
         return (err == NO_ERROR) ? EGL_TRUE :
             setError(EGL_BAD_SURFACE, EGL_FALSE);
     }
-#endif
 
     if (s->cnx->egl.eglSurfaceAttrib) {
         return s->cnx->egl.eglSurfaceAttrib(
@@ -2168,12 +2162,10 @@ EGLBoolean eglGetCompositorTimingSupportedANDROID(
     }
 
     switch (name) {
-#if ENABLE_EGL_ANDROID_GET_FRAME_TIMESTAMPS
         case EGL_COMPOSITE_DEADLINE_ANDROID:
         case EGL_COMPOSITE_INTERVAL_ANDROID:
         case EGL_COMPOSITE_TO_PRESENT_LATENCY_ANDROID:
             return EGL_TRUE;
-#endif
         default:
             return EGL_FALSE;
     }
@@ -2294,7 +2286,6 @@ EGLBoolean eglGetFrameTimestampSupportedANDROID(
     }
 
     switch (timestamp) {
-#if ENABLE_EGL_ANDROID_GET_FRAME_TIMESTAMPS
         case EGL_COMPOSITE_DEADLINE_ANDROID:
         case EGL_COMPOSITE_INTERVAL_ANDROID:
         case EGL_COMPOSITE_TO_PRESENT_LATENCY_ANDROID:
@@ -2319,7 +2310,6 @@ EGLBoolean eglGetFrameTimestampSupportedANDROID(
                     NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_RETIRE, &value);
             return value == 0 ? EGL_FALSE : EGL_TRUE;
         }
-#endif
         default:
             return EGL_FALSE;
     }
