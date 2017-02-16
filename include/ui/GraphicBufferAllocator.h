@@ -20,11 +20,14 @@
 
 #include <stdint.h>
 
+#include <memory>
+#include <string>
+
 #include <cutils/native_handle.h>
 
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
-#include <utils/threads.h>
+#include <utils/Mutex.h>
 #include <utils/Singleton.h>
 
 #include <ui/Gralloc1.h>
@@ -36,7 +39,6 @@ namespace Gralloc2 {
 class Allocator;
 }
 
-class Gralloc1Loader;
 class GraphicBufferMapper;
 class String8;
 

@@ -18,6 +18,7 @@
 
 #include <ui/Gralloc1.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/Gralloc1On0Adapter.h>
 
 #include <vector>
 

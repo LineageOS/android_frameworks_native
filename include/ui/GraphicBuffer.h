@@ -20,13 +20,15 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <string>
+
 #include <ui/ANativeObjectBase.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
 #include <utils/Flattenable.h>
 #include <utils/RefBase.h>
 
-#include <string>
+#include <hardware/gralloc.h>
 
 struct ANativeWindowBuffer;
 

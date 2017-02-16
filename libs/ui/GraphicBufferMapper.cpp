@@ -18,8 +18,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 //#define LOG_NDEBUG 0
 
-#include <stdint.h>
-#include <errno.h>
+#include <ui/GraphicBufferMapper.h>
 
 // We would eliminate the non-conforming zero-length array, but we can't since
 // this is effectively included from the Linux kernel
@@ -28,13 +27,10 @@
 #include <sync/sync.h>
 #pragma clang diagnostic pop
 
-#include <utils/Errors.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
-#include <ui/Gralloc1On0Adapter.h>
 #include <ui/GrallocMapper.h>
-#include <ui/GraphicBufferMapper.h>
 #include <ui/GraphicBuffer.h>
 
 #include <system/graphics.h>

@@ -18,10 +18,13 @@
 #define LOG_TAG "Gralloc1On0Adapter"
 //#define LOG_NDEBUG 0
 
+#include <ui/Gralloc1On0Adapter.h>
+
+
 #include <hardware/gralloc.h>
 
-#include <ui/Gralloc1On0Adapter.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/Gralloc1.h>
 
 #include <utils/Log.h>
 

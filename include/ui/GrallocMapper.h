@@ -17,8 +17,6 @@
 #ifndef ANDROID_UI_GRALLOC_MAPPER_H
 #define ANDROID_UI_GRALLOC_MAPPER_H
 
-#include <memory>
-
 #include <android/hardware/graphics/mapper/2.0/IMapper.h>
 #include <system/window.h>
 
