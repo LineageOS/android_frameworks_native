@@ -22,6 +22,6 @@ cc_binary {
         "libhidltransport",
     ],
     srcs: [
-        "lshal.cpp"
+        "Lshal.cpp"
     ],
 }
