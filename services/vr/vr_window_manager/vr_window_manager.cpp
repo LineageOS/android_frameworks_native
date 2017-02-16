@@ -7,7 +7,7 @@
 
 int main(int /* argc */, char** /* argv */) {
   android::dvr::ShellView app;
-  const int app_status = app.Initialize(nullptr, nullptr, nullptr);
+  const int app_status = app.Initialize();
   LOG_ALWAYS_FATAL_IF(app_status != 0, "failed to initialize: %d", app_status);
 
   android::service::vr::VrWindowManagerBinder service(app);

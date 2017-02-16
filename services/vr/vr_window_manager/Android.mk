@@ -37,31 +37,16 @@ LOCAL_MODULE := libvrwm_binder
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_STATIC_LIBRARY)
 
-
 native_src := \
   application.cpp \
   controller_mesh.cpp \
   elbow_model.cpp \
   hwc_callback.cpp \
   reticle.cpp \
-  render_thread.cpp \
   shell_view.cpp \
   surface_flinger_view.cpp \
   texture.cpp \
   vr_window_manager.cpp \
-  ../virtual_touchpad/aidl/android/dvr/VirtualTouchpadService.aidl \
-
-src := \
-  vr_window_manager_jni.cpp \
-  application.cpp \
-  controller_mesh.cpp \
-  elbow_model.cpp \
-  hwc_callback.cpp \
-  reticle.cpp \
-  render_thread.cpp \
-  shell_view.cpp \
-  surface_flinger_view.cpp \
-  texture.cpp \
   ../virtual_touchpad/aidl/android/dvr/VirtualTouchpadService.aidl \
 
 static_libs := \
@@ -97,61 +82,18 @@ shared_libs := \
   libhidlbase \
   libhidltransport
 
-
-include $(CLEAR_VARS)
-LOCAL_SRC_FILES := $(src)
-LOCAL_STATIC_LIBRARIES := $(static_libs)
-LOCAL_SHARED_LIBRARIES := $(shared_libs)
-LOCAL_SHARED_LIBRARIES += libgvr
-LOCAL_STATIC_LIBRARIES += libgvr_ext
-LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES
-LOCAL_CFLAGS += -DEGL_EGLEXT_PROTOTYPES
-LOCAL_CFLAGS += -DLOG_TAG=\"VrWindowManager\"
-LOCAL_LDLIBS := -llog
-LOCAL_MODULE := libvr_window_manager_jni
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_TARGET_ARCH := arm arm64 x86 x86_64
-LOCAL_MULTILIB := 64
-LOCAL_CXX_STL := libc++_static
-include $(BUILD_SHARED_LIBRARY)
-
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(native_src)
 LOCAL_STATIC_LIBRARIES := $(static_libs) libvrwm_binder
 LOCAL_SHARED_LIBRARIES := $(shared_libs)
-LOCAL_SHARED_LIBRARIES += libgvr
-LOCAL_STATIC_LIBRARIES += libgvr_ext
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES
 LOCAL_CFLAGS += -DEGL_EGLEXT_PROTOTYPES
 LOCAL_CFLAGS += -DLOG_TAG=\"VrWindowManager\"
 LOCAL_LDLIBS := -llog
 LOCAL_MODULE := vr_wm
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_TARGET_ARCH := arm arm64 x86 x86_64
 LOCAL_INIT_RC := vr_wm.rc
 include $(BUILD_EXECUTABLE)
-
-include $(CLEAR_VARS)
-LOCAL_PACKAGE_NAME := VrWindowManager
-
-# We need to be priveleged to run as the system user, which is necessary for
-# getting hmd input events and doing input injection.
-LOCAL_CERTIFICATE := platform
-LOCAL_PRIVILEGED_MODULE := true
-
-LOCAL_MODULE_TAGS := optional
-LOCAL_SRC_FILES := $(call all-java-files-under, java)
-LOCAL_JNI_SHARED_LIBRARIES := libvr_window_manager_jni
-LOCAL_STATIC_JAVA_AAR_LIBRARIES := gvr_common_library_aar
-# gvr_common_library_aar depends on nano version of libprotobuf
-LOCAL_STATIC_JAVA_LIBRARIES := libprotobuf-java-nano
-# Make sure that libgvr's resources are loaded
-LOCAL_AAPT_FLAGS += --auto-add-overlay
-LOCAL_AAPT_FLAGS += --extra-packages com.google.vr.cardboard
-LOCAL_PROGUARD_FLAG_FILES := proguard.flags
-LOCAL_MODULE_TARGET_ARCH := arm arm64 x86 x86_64
-include $(BUILD_PACKAGE)
-
 
 cmd_src := \
   vr_wm_ctl.cpp \

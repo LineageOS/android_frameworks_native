@@ -28,8 +28,7 @@ class ShellView : public Application,
   ShellView();
   virtual ~ShellView();
 
-  int Initialize(JNIEnv* env, jobject app_context,
-                 jobject class_loader) override;
+  int Initialize() override;
 
   int AllocateResources() override;
   void DeallocateResources() override;

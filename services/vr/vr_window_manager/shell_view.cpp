@@ -238,9 +238,8 @@ ShellView::ShellView() {
 
 ShellView::~ShellView() {}
 
-int ShellView::Initialize(JNIEnv* env, jobject app_context,
-                          jobject class_loader) {
-  int ret = Application::Initialize(env, app_context, class_loader);
+int ShellView::Initialize() {
+  int ret = Application::Initialize();
   if (ret)
     return ret;
 
@@ -604,10 +603,7 @@ void ShellView::DrawReticle(const mat4& perspective, const mat4& eye_matrix,
   vec3 pointer_location = last_pose_.GetPosition();
   quat view_quaternion = last_pose_.GetRotation();
 
-  bool gvr_api_active =
-      controller_ && controller_api_status_ == gvr::kControllerApiOk;
-
-  if (gvr_api_active || shmem_controller_active_) {
+  if (shmem_controller_active_) {
     view_quaternion = controller_orientation_;
     vec4 controller_location = controller_translate_ * vec4(0, 0, 0, 1);
     pointer_location = vec3(controller_location.x(), controller_location.y(),
@@ -635,18 +631,6 @@ void ShellView::DrawReticle(const mat4& perspective, const mat4& eye_matrix,
         }
         buttons >>= 4;
       }
-    } else if (controller_) {
-      if (controller_state_->GetButtonDown(gvr::kControllerButtonClick))
-        OnClick(true);
-
-      if (controller_state_->GetButtonUp(gvr::kControllerButtonClick))
-        OnClick(false);
-
-      if (controller_state_->GetButtonDown(gvr::kControllerButtonApp))
-        OnTouchpadButton(true, AMOTION_EVENT_BUTTON_BACK);
-
-      if (controller_state_->GetButtonUp(gvr::kControllerButtonApp))
-        OnTouchpadButton(false, AMOTION_EVENT_BUTTON_BACK);
     }
   }
 
@@ -676,7 +660,7 @@ void ShellView::DrawReticle(const mat4& perspective, const mat4& eye_matrix,
 
 void ShellView::DrawController(const mat4& perspective, const mat4& eye_matrix,
                                const mat4& head_matrix) {
-  if (!controller_ && !shmem_controller_active_)
+  if (!shmem_controller_active_)
     return;
 
   controller_program_->Use();

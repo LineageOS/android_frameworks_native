@@ -16,24 +16,17 @@
 namespace android {
 namespace dvr {
 
-Application::Application()
-    : controller_api_status_logged_(false),
-      controller_connection_state_logged_(false) {}
+Application::Application() {}
 
 Application::~Application() {
 }
 
-int Application::Initialize(JNIEnv* env, jobject app_context,
-                            jobject class_loader) {
+int Application::Initialize() {
   dvrSetCpuPartition(0, "/application/performance");
 
   bool is_right_handed = true;  // TODO: retrieve setting from system
   elbow_model_.Enable(ElbowModel::kDefaultNeckPosition, is_right_handed);
   last_frame_time_ = std::chrono::system_clock::now();
-
-  java_env_ = env;
-  app_context_ = app_context;
-  class_loader_ = class_loader;
 
   return 0;
 }
@@ -100,42 +93,10 @@ int Application::AllocateResources() {
   fov_[1] = FieldOfView(lens_info.right_fov[0], lens_info.right_fov[1],
                         lens_info.right_fov[2], lens_info.right_fov[3]);
 
-  if (java_env_) {
-    int ret = InitializeController();
-    if (ret)
-      return ret;
-  }
-
-  return 0;
-}
-
-int Application::InitializeController() {
-  gvr_context_ = gvr::GvrApi::Create(java_env_, app_context_, class_loader_);
-  if (gvr_context_ == nullptr) {
-    ALOGE("Gvr context creation failed");
-    return 1;
-  }
-
-  int32_t options = gvr_controller_get_default_options();
-  options |= GVR_CONTROLLER_ENABLE_GYRO | GVR_CONTROLLER_ENABLE_ACCEL;
-
-  controller_.reset(new gvr::ControllerApi);
-  if (!controller_->Init(java_env_, app_context_, class_loader_, options,
-                         gvr_context_->cobj())) {
-    ALOGE("Gvr controller init failed");
-    return 1;
-  }
-
-  controller_state_.reset(new gvr::ControllerState);
-
   return 0;
 }
 
 void Application::DeallocateResources() {
-  gvr_context_.reset();
-  controller_.reset();
-  controller_state_.reset();
-
   if (graphics_context_)
     dvrGraphicsContextDestroy(graphics_context_);
 
@@ -309,47 +270,6 @@ void Application::ProcessControllerInput() {
       return;
     }
   }
-
-  if (!controller_)
-    return;
-
-  controller_state_->Update(*controller_);
-  gvr::ControllerApiStatus new_api_status = controller_state_->GetApiStatus();
-  gvr::ControllerConnectionState new_connection_state =
-      controller_state_->GetConnectionState();
-
-  if (!controller_api_status_logged_) {
-    controller_api_status_logged_ = true;
-    ALOGI("Controller api status: %s",
-          gvr::ControllerApi::ToString(new_api_status));
-  } else if (new_api_status != controller_api_status_) {
-    ALOGI("Controller api status changed: %s --> %s",
-          gvr::ControllerApi::ToString(controller_api_status_),
-          gvr::ControllerApi::ToString(new_api_status));
-  }
-
-  if (new_api_status == gvr::kControllerApiOk) {
-    if (!controller_connection_state_logged_) {
-      controller_connection_state_logged_ = true;
-      ALOGI("Controller connection state: %s",
-            gvr::ControllerApi::ToString(new_connection_state));
-    } else if (new_connection_state != controller_connection_state_) {
-      ALOGI("Controller connection state changed: %s --> %s",
-            gvr::ControllerApi::ToString(controller_connection_state_),
-            gvr::ControllerApi::ToString(new_connection_state));
-    }
-  } else {
-    controller_connection_state_logged_ = false;
-  }
-
-  if (new_api_status == gvr::kControllerApiOk) {
-    gvr_quatf orientation = controller_state_->GetOrientation();
-    controller_orientation_ =
-        quat(orientation.qw, orientation.qx, orientation.qy, orientation.qz);
-  }
-
-  controller_api_status_ = new_api_status;
-  controller_connection_state_ = new_connection_state;
 }
 
 void Application::SetVisibility(bool visible) {
@@ -357,12 +277,6 @@ void Application::SetVisibility(bool visible) {
   if (changed) {
     is_visible_ = visible;
     dvrGraphicsSurfaceSetVisible(graphics_context_, is_visible_);
-    if (controller_) {
-      if (is_visible_)
-        controller_->Resume();
-      else
-        controller_->Pause();
-    }
     OnVisibilityChanged(is_visible_);
   }
 }
