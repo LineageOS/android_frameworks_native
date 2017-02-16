@@ -27,8 +27,6 @@
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
-#include <gfx/FloatRect.h>
-
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/PixelFormat.h>
@@ -513,7 +511,7 @@ private:
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
 
-    gfx::FloatRect computeCrop(const sp<const DisplayDevice>& hw) const;
+    FloatRect computeCrop(const sp<const DisplayDevice>& hw) const;
     // Compute the initial crop as specified by parent layers and the SurfaceControl
     // for this layer. Does not include buffer crop from the IGraphicBufferProducer
     // client, as that should not affect child clipping. Returns in screen space.
@@ -694,7 +692,7 @@ private:
         HWC2::Composition compositionType;
         bool clearClientTarget;
         Rect displayFrame;
-        gfx::FloatRect sourceCrop;
+        FloatRect sourceCrop;
     };
     std::unordered_map<int32_t, HWCInfo> mHwcLayers;
 

@@ -17,10 +17,9 @@
 #pragma once
 
 namespace android {
-namespace gfx {
 
 class FloatRect {
-  public:
+public:
     FloatRect() = default;
     constexpr FloatRect(float _left, float _top, float _right, float _bottom)
       : left(_left), top(_top), right(_right), bottom(_bottom) {}
@@ -38,5 +37,4 @@ inline bool operator==(const FloatRect& a, const FloatRect& b) {
     return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
 }
 
-}  // namespace gfx
 }  // namespace android
