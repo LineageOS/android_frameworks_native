@@ -1,40 +1,36 @@
 #ifndef VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_COMPOSER_VIEW_H_
 #define VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_COMPOSER_VIEW_H_
 
-#include <android/dvr/composer/1.0/IVrComposerCallback.h>
-#include <android/dvr/composer/1.0/IVrComposerView.h>
+#include <memory>
 
 #include "vr_hwc.h"
 
 namespace android {
 namespace dvr {
 
-using composer::V1_0::IVrComposerView;
-using composer::V1_0::IVrComposerCallback;
-
-class VrComposerView : public IVrComposerView, public ComposerView::Observer {
+class VrComposerView : public ComposerView::Observer {
  public:
-  VrComposerView();
+  class Callback {
+   public:
+    virtual ~Callback() = default;
+    virtual void OnNewFrame(const ComposerView::Frame& frame) = 0;
+  };
+
+  VrComposerView(std::unique_ptr<Callback> callback);
   ~VrComposerView() override;
 
   void Initialize(ComposerView* composer_view);
 
-  // IVrComposerView
-  Return<void> registerCallback(const sp<IVrComposerCallback>& callback)
-      override;
-  Return<void> releaseFrame() override;
+  void ReleaseFrame();
 
   // ComposerView::Observer
   void OnNewFrame(const ComposerView::Frame& frame) override;
 
  private:
   ComposerView* composer_view_;
-  sp<IVrComposerCallback> callback_;
+  std::unique_ptr<Callback> callback_;
+  std::mutex mutex_;
 };
-
-VrComposerView* GetVrComposerViewFromIVrComposerView(IVrComposerView* view);
-
-IVrComposerView* HIDL_FETCH_IVrComposerView(const char* name);
 
 }  // namespace dvr
 }  // namespace android

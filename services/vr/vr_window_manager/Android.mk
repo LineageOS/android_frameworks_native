@@ -71,6 +71,7 @@ shared_libs := \
   libbinder \
   libinput \
   libhardware \
+  libhwbinder \
   libsync \
   libutils \
   libgui \

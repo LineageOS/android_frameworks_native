@@ -1,6 +1,5 @@
 #include "surface_flinger_view.h"
 
-#include <binder/IServiceManager.h>
 #include <impl/vr_composer_view.h>
 #include <private/dvr/native_buffer.h>
 
@@ -15,23 +14,20 @@ SurfaceFlingerView::SurfaceFlingerView() {}
 SurfaceFlingerView::~SurfaceFlingerView() {}
 
 bool SurfaceFlingerView::Initialize(HwcCallback::Client *client) {
-  const char instance[] = "DaydreamDisplay";
-  composer_service_ = IVrComposerView::getService(instance);
-  if (composer_service_ == nullptr) {
-    ALOGE("Failed to initialize composer service");
+  sp<IComposer> vr_hwcomposer = IComposer::getService("vr_hwcomposer");
+  if (!vr_hwcomposer.get()) {
+    ALOGE("vr_hwcomposer not registered as service");
     return false;
   }
 
-  if (!composer_service_->isRemote()) {
-    ALOGE("Composer service is not remote");
-    return false;
-  }
+  vr_composer_view_ =
+      std::make_unique<VrComposerView>(std::make_unique<HwcCallback>(client));
+  vr_composer_view_->Initialize(GetComposerViewFromIComposer(
+      vr_hwcomposer.get()));
 
   // TODO(dnicoara): Query this from the composer service.
   width_ = 1920;
   height_ = 1080;
-
-  composer_observer_.reset(new HwcCallback(composer_service_.get(), client));
   return true;
 }
 
@@ -76,7 +72,7 @@ bool SurfaceFlingerView::GetTextures(const HwcCallback::Frame& frame,
 }
 
 void SurfaceFlingerView::ReleaseFrame() {
-  composer_service_->releaseFrame();
+  vr_composer_view_->ReleaseFrame();
 }
 
 }  // namespace dvr
