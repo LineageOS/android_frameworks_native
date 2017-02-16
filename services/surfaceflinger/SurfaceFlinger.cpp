@@ -1256,7 +1256,8 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
-            updateVrMode();
+            // TODO(eieio): Disabled until SELinux issues are resolved.
+            //updateVrMode();
 
             bool frameMissed = !mHadClientComposition &&
                     mPreviousPresentFence != Fence::NO_FENCE &&
