@@ -39,6 +39,7 @@ class SurfaceFlingerView {
   void ReleaseFrame();
 
  private:
+  sp<IComposer> vr_hwcomposer_;
   std::unique_ptr<VrComposerView> vr_composer_view_;
   int width_ = 0;
   int height_ = 0;

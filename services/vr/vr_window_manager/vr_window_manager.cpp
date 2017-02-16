@@ -14,18 +14,6 @@ using namespace android::dvr;
 int main(int /* argc */, char** /* argv */) {
   android::ProcessState::self()->startThreadPool();
 
-  // Create vr_hwcomposer.
-  const char vr_hwcomposer_name[] = "vr_hwcomposer";
-  sp<IComposer> vr_hwcomposer = HIDL_FETCH_IComposer(vr_hwcomposer_name);
-  LOG_ALWAYS_FATAL_IF(!vr_hwcomposer.get(), "Failed to get vr_hwcomposer");
-  LOG_ALWAYS_FATAL_IF(vr_hwcomposer->isRemote(),
-                      "vr_hwcomposer service is remote");
-
-  const android::status_t vr_hwcomposer_status =
-      vr_hwcomposer->registerAsService(vr_hwcomposer_name);
-  LOG_ALWAYS_FATAL_IF(vr_hwcomposer_status != ::android::OK,
-                      "Failed to register vr_hwcomposer service");
-
   // ShellView needs to be created after vr_hwcomposer.
   android::dvr::ShellView app;
   const int app_status = app.Initialize();
