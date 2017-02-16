@@ -14,16 +14,29 @@ SurfaceFlingerView::SurfaceFlingerView() {}
 SurfaceFlingerView::~SurfaceFlingerView() {}
 
 bool SurfaceFlingerView::Initialize(HwcCallback::Client *client) {
-  sp<IComposer> vr_hwcomposer = IComposer::getService("vr_hwcomposer");
-  if (!vr_hwcomposer.get()) {
-    ALOGE("vr_hwcomposer not registered as service");
+  const char vr_hwcomposer_name[] = "vr_hwcomposer";
+  vr_hwcomposer_ = HIDL_FETCH_IComposer(vr_hwcomposer_name);
+  if (!vr_hwcomposer_.get()) {
+    ALOGE("Failed to get vr_hwcomposer");
+    return false;
+  }
+
+  if (vr_hwcomposer_->isRemote()) {
+    ALOGE("vr_hwcomposer service is remote");
+    return false;
+  }
+
+  const android::status_t vr_hwcomposer_status =
+      vr_hwcomposer_->registerAsService(vr_hwcomposer_name);
+  if (vr_hwcomposer_status != OK) {
+    ALOGE("Failed to register vr_hwcomposer service");
     return false;
   }
 
   vr_composer_view_ =
       std::make_unique<VrComposerView>(std::make_unique<HwcCallback>(client));
   vr_composer_view_->Initialize(GetComposerViewFromIComposer(
-      vr_hwcomposer.get()));
+      vr_hwcomposer_.get()));
 
   // TODO(dnicoara): Query this from the composer service.
   width_ = 1920;
