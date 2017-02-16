@@ -48,6 +48,11 @@ sp<GraphicBuffer> GetBufferFromHandle(const native_handle_t* handle) {
   int32_t format = 0;
 
   GraphicBufferMapper& mapper = GraphicBufferMapper::get();
+  if (mapper.registerBuffer(handle) != OK) {
+    ALOGE("Failed to register buffer");
+    return nullptr;
+  }
+
   if (mapper.getDimensions(handle, &width, &height) ||
       mapper.getStride(handle, &stride) ||
       mapper.getFormat(handle, &format) ||
@@ -64,10 +69,6 @@ sp<GraphicBuffer> GetBufferFromHandle(const native_handle_t* handle) {
   sp<GraphicBuffer> buffer = new GraphicBuffer(
       width, height, format, layer_count, producer_usage, consumer_usage,
       stride, native_handle_clone(handle), true);
-  if (mapper.registerBuffer(buffer.get()) != OK) {
-    ALOGE("Failed to register buffer");
-    return nullptr;
-  }
 
   return buffer;
 }
