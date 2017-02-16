@@ -1336,21 +1336,13 @@ static std::string SHA256_file_hash(std::string filepath) {
     return std::string(hash_buffer);
 }
 
-static void SendShellBroadcast(const std::string& action, const std::vector<std::string>& args) {
-    std::vector<std::string> am = {
-        "/system/bin/cmd", "activity", "broadcast", "--user", "0", "-a", action};
+static void SendBroadcast(const std::string& action, const std::vector<std::string>& args) {
+    // clang-format off
+    std::vector<std::string> am = {"/system/bin/cmd", "activity", "broadcast", "--user", "0",
+                    "--receiver-foreground", "--receiver-include-background", "-a", action};
+    // clang-format on
 
     am.insert(am.end(), args.begin(), args.end());
-
-    // TODO: explicity setting Shell's component to allow broadcast to launch it.
-    // That might break other components that are listening to the bugreport notifications
-    // (com.android.internal.intent.action.BUGREPORT_STARTED and
-    // com.android.internal.intent.action.BUGREPORT_STOPED), but
-    // those should be just handled by Shell anyways.
-    // A more generic alternative would be passing the -f 0x01000000 flag (or whatever
-    // value is defined by FLAG_RECEIVER_INCLUDE_BACKGROUND), but that would reset the
-    // --receiver-foreground option
-    am.push_back("com.android.shell");
 
     RunCommand("", am,
                CommandOptions::WithTimeout(20)
@@ -1594,14 +1586,14 @@ int main(int argc, char *argv[]) {
                 // clang-format off
 
                 std::vector<std::string> am_args = {
-                     "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
+                     "--receiver-permission", "android.permission.DUMP",
                      "--es", "android.intent.extra.NAME", ds.name_,
                      "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
                      "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
                      "--ei", "android.intent.extra.MAX", std::to_string(ds.progress_->GetMax()),
                 };
                 // clang-format on
-                SendShellBroadcast("com.android.internal.intent.action.BUGREPORT_STARTED", am_args);
+                SendBroadcast("com.android.internal.intent.action.BUGREPORT_STARTED", am_args);
             }
             if (use_control_socket) {
                 dprintf(ds.control_socket_fd_, "BEGIN:%s\n", ds.path_.c_str());
@@ -1809,7 +1801,7 @@ int main(int argc, char *argv[]) {
             // clang-format off
 
             std::vector<std::string> am_args = {
-                 "--receiver-permission", "android.permission.DUMP", "--receiver-foreground",
+                 "--receiver-permission", "android.permission.DUMP",
                  "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
                  "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
                  "--ei", "android.intent.extra.MAX", std::to_string(ds.progress_->GetMax()),
@@ -1826,10 +1818,10 @@ int main(int argc, char *argv[]) {
                 am_args.push_back("--es");
                 am_args.push_back("android.intent.extra.REMOTE_BUGREPORT_HASH");
                 am_args.push_back(SHA256_file_hash(ds.path_));
-                SendShellBroadcast("com.android.internal.intent.action.REMOTE_BUGREPORT_FINISHED",
-                                   am_args);
+                SendBroadcast("com.android.internal.intent.action.REMOTE_BUGREPORT_FINISHED",
+                              am_args);
             } else {
-                SendShellBroadcast("com.android.internal.intent.action.BUGREPORT_FINISHED", am_args);
+                SendBroadcast("com.android.internal.intent.action.BUGREPORT_FINISHED", am_args);
             }
         } else {
             MYLOGE("Skipping finished broadcast because bugreport could not be generated\n");
