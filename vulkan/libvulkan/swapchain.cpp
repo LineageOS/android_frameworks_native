@@ -546,7 +546,8 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         instance_data.hook_extensions.test(ProcHook::EXT_swapchain_colorspace);
 
     const VkSurfaceFormatKHR kWideColorFormats[] = {
-        {VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SCRGB_LINEAR_EXT},
+        {VK_FORMAT_R16G16B16A16_SFLOAT,
+         VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT},
         {VK_FORMAT_A2R10G10B10_UNORM_PACK32,
          VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT},
     };
