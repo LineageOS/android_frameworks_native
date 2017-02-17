@@ -11,37 +11,6 @@ namespace dvr {
 
 namespace {
 
-sp<GraphicBuffer> GetBufferFromHandle(const native_handle_t* handle) {
-  GraphicBufferMapper& mapper = GraphicBufferMapper::get();
-  if (mapper.registerBuffer(handle) != OK) {
-    ALOGE("Failed to register buffer");
-    return nullptr;
-  }
-
-  uint32_t width = 0, height = 0, stride = 0, layer_count = 1;
-  uint64_t producer_usage = 0, consumer_usage = 0;
-  int32_t format = 0;
-
-  if (mapper.getDimensions(handle, &width, &height) ||
-      mapper.getStride(handle, &stride) ||
-      mapper.getFormat(handle, &format) ||
-      mapper.getProducerUsage(handle, &producer_usage) ||
-      mapper.getConsumerUsage(handle, &consumer_usage)) {
-    ALOGE("Failed to read handle properties");
-    return nullptr;
-  }
-
-  // This will only succeed if gralloc has GRALLOC1_CAPABILITY_LAYERED_BUFFERS
-  // capability. Otherwise assume a count of 1.
-  mapper.getLayerCount(handle, &layer_count);
-
-  sp<GraphicBuffer> buffer = new GraphicBuffer(
-      width, height, format, layer_count, producer_usage, consumer_usage,
-      stride, native_handle_clone(handle), true);
-
-  return buffer;
-}
-
 HwcCallback::FrameStatus GetFrameStatus(const HwcCallback::Frame& frame) {
   for (const auto& layer : frame.layers()) {
     // If there is no fence it means the buffer is already finished.
