@@ -1271,9 +1271,9 @@ void Layer::computeGeometry(const sp<const DisplayDevice>& hw, Mesh& mesh,
 
 bool Layer::isOpaque(const Layer::State& s) const
 {
-    // if we don't have a buffer yet, we're translucent regardless of the
+    // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
-    if (mActiveBuffer == 0) {
+    if ((mSidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
         return false;
     }
 
