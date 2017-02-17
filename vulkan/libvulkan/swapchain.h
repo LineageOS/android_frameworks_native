@@ -37,6 +37,7 @@ VKAPI_ATTR VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* prese
 VKAPI_ATTR VkResult GetRefreshCycleDurationGOOGLE(VkDevice device, VkSwapchainKHR swapchain, VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties);
 VKAPI_ATTR VkResult GetPastPresentationTimingGOOGLE(VkDevice device, VkSwapchainKHR swapchain, uint32_t* pPresentationTimingCount, VkPastPresentationTimingGOOGLE* pPresentationTimings);
 VKAPI_ATTR VkResult GetSwapchainStatusKHR(VkDevice device, VkSwapchainKHR swapchain);
+VKAPI_ATTR void SetHdrMetadataEXT(VkDevice device, uint32_t swapchainCount, const VkSwapchainKHR* pSwapchains, const VkHdrMetadataEXT* pHdrMetadataEXTs);
 // clang-format on
 
 }  // namespace driver

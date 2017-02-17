@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 /*
-** Copyright (c) 2015-2016 The Khronos Group Inc.
+** Copyright (c) 2015-2017 The Khronos Group Inc.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -4606,6 +4606,39 @@ VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX(
     VkPhysicalDevice                            physicalDevice,
     VkDeviceGeneratedCommandsFeaturesNVX*       pFeatures,
     VkDeviceGeneratedCommandsLimitsNVX*         pLimits);
+#endif
+
+#define VK_EXT_hdr_metadata 1
+#define VK_EXT_HDR_METADATA_SPEC_VERSION  0
+#define VK_EXT_HDR_METADATA_EXTENSION_NAME "VK_EXT_hdr_metadata"
+
+typedef struct VkXYColorEXT {
+    float    x;
+    float    y;
+} VkXYColorEXT;
+
+typedef struct VkHdrMetadataEXT {
+    VkStructureType    sType;
+    const void*        pNext;
+    VkXYColorEXT       displayPrimaryRed;
+    VkXYColorEXT       displayPrimaryGreen;
+    VkXYColorEXT       displayPrimaryBlue;
+    VkXYColorEXT       whitePoint;
+    float              maxLuminance;
+    float              minLuminance;
+    float              maxContentLightLevel;
+    float              maxFrameAverageLightLevel;
+} VkHdrMetadataEXT;
+
+
+typedef void (VKAPI_PTR *PFN_vkSetHdrMetadataEXT)(VkDevice device, uint32_t swapchainCount, const VkSwapchainKHR* pSwapchains, const VkHdrMetadataEXT* pMetadata);
+
+#ifndef VK_NO_PROTOTYPES
+VKAPI_ATTR void VKAPI_CALL vkSetHdrMetadataEXT(
+    VkDevice                                    device,
+    uint32_t                                    swapchainCount,
+    const VkSwapchainKHR*                       pSwapchains,
+    const VkHdrMetadataEXT*                     pMetadata);
 #endif
 
 #ifdef __cplusplus

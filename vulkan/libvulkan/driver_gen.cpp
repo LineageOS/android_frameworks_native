@@ -102,6 +102,14 @@ VKAPI_ATTR VkResult checkedGetSwapchainStatusKHR(VkDevice device, VkSwapchainKHR
     }
 }
 
+VKAPI_ATTR void checkedSetHdrMetadataEXT(VkDevice device, uint32_t swapchainCount, const VkSwapchainKHR* pSwapchains, const VkHdrMetadataEXT* pMetadata) {
+    if (GetData(device).hook_extensions[ProcHook::EXT_hdr_metadata]) {
+        SetHdrMetadataEXT(device, swapchainCount, pSwapchains, pMetadata);
+    } else {
+        Logger(device).Err(device, "VK_EXT_hdr_metadata not enabled. vkSetHdrMetadataEXT not executed.");
+    }
+}
+
 // clang-format on
 
 const ProcHook g_proc_hooks[] = {
@@ -330,6 +338,13 @@ const ProcHook g_proc_hooks[] = {
         nullptr,
         nullptr,
     },
+    {
+        "vkSetHdrMetadataEXT",
+        ProcHook::DEVICE,
+        ProcHook::EXT_hdr_metadata,
+        reinterpret_cast<PFN_vkVoidFunction>(SetHdrMetadataEXT),
+        reinterpret_cast<PFN_vkVoidFunction>(checkedSetHdrMetadataEXT),
+    },
     // clang-format on
 };
 
@@ -349,11 +364,12 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
     // clang-format off
     if (strcmp(name, "VK_ANDROID_native_buffer") == 0) return ProcHook::ANDROID_native_buffer;
     if (strcmp(name, "VK_EXT_debug_report") == 0) return ProcHook::EXT_debug_report;
+    if (strcmp(name, "VK_EXT_hdr_metadata") == 0) return ProcHook::EXT_hdr_metadata;
+    if (strcmp(name, "VK_GOOGLE_display_timing") == 0) return ProcHook::GOOGLE_display_timing;
     if (strcmp(name, "VK_KHR_android_surface") == 0) return ProcHook::KHR_android_surface;
     if (strcmp(name, "VK_KHR_incremental_present") == 0) return ProcHook::KHR_incremental_present;
     if (strcmp(name, "VK_KHR_surface") == 0) return ProcHook::KHR_surface;
     if (strcmp(name, "VK_KHR_swapchain") == 0) return ProcHook::KHR_swapchain;
-    if (strcmp(name, "VK_GOOGLE_display_timing") == 0) return ProcHook::GOOGLE_display_timing;
     if (strcmp(name, "VK_KHR_shared_presentable_image") == 0) return ProcHook::KHR_shared_presentable_image;
     // clang-format on
     return ProcHook::EXTENSION_UNKNOWN;
