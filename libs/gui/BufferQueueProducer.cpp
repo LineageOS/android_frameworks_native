@@ -1222,6 +1222,9 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
         }
 
         if (api == BufferQueueCore::CURRENTLY_CONNECTED_API) {
+            if (mCore->mConnectedApi == NATIVE_WINDOW_API_MEDIA) {
+                ALOGD("About to force-disconnect API_MEDIA, mode=%d", mode);
+            }
             api = mCore->mConnectedApi;
             // If we're asked to disconnect the currently connected api but
             // nobody is connected, it's not really an error.
