@@ -61,7 +61,7 @@ Changes to Chapter 3 of the EGL 1.2 Specification (EGL Functions and Errors)
 
    "The command
 
-        EGLClientBuffer eglGeteNativeClientBufferANDROID(
+        EGLClientBuffer eglGetNativeClientBufferANDROID(
                                 AHardwareBuffer *buffer)
 
     may be used to create an EGLClientBuffer from an AHardwareBuffer object.
@@ -73,7 +73,7 @@ Changes to Chapter 3 of the EGL 1.2 Specification (EGL Functions and Errors)
 
     Errors
 
-        If eglGeteNativeClientBufferANDROID fails, NULL will be returned, no
+        If eglGetNativeClientBufferANDROID fails, NULL will be returned, no
         memory will be allocated, and the following error will be generated:
 
        * If the value of buffer is NULL, the error EGL_BAD_PARAMETER is
@@ -91,6 +91,9 @@ Issues
     Android version and implementation should be documented by that version.
 
 Revision History
+
+#2 (Craig Donner, February 17, 2017)
+    - Fix typographical errors.
 
 #1 (Craig Donner, January 27, 2017)
     - Initial draft.
