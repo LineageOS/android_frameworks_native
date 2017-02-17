@@ -17,12 +17,12 @@
 #ifndef ANDROID_UI_RECT
 #define ANDROID_UI_RECT
 
-#include <gfx/FloatRect.h>
 #include <utils/Flattenable.h>
 #include <utils/Log.h>
 #include <utils/TypeHelpers.h>
 #include <log/log.h>
 
+#include <ui/FloatRect.h>
 #include <ui/Point.h>
 
 #include <android/rect.h>
@@ -185,7 +185,7 @@ public:
     inline int32_t height() const { return getHeight(); }
     inline void set(const Rect& rhs) { operator = (rhs); }
 
-    gfx::FloatRect toFloatRect() const {
+    FloatRect toFloatRect() const {
         return {static_cast<float>(left), static_cast<float>(top),
                 static_cast<float>(right), static_cast<float>(bottom)};
     }
