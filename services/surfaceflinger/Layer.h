@@ -656,7 +656,7 @@ private:
     FenceTimeline mReleaseTimeline;
 
     // main thread
-    int mActiveBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
+    int mActiveBufferSlot;
     sp<GraphicBuffer> mActiveBuffer;
     sp<NativeHandle> mSidebandStream;
     Rect mCurrentCrop;

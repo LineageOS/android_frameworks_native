@@ -23,6 +23,7 @@
 #include <gtest/gtest.h>
 #include <gui/GLConsumer.h>
 #include <gui/Surface.h>
+#include <gui/BufferQueue.h>
 #include <system/graphics.h>
 #include <utils/Log.h>
 #include <utils/Thread.h>

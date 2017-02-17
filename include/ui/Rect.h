@@ -45,13 +45,9 @@ public:
     template <typename T>
     inline Rect(T w, T h) {
         if (w > INT32_MAX) {
-            ALOG(LOG_WARN, "Rect",
-                    "Width %u too large for Rect class, clamping", w);
             w = INT32_MAX;
         }
         if (h > INT32_MAX) {
-            ALOG(LOG_WARN, "Rect",
-                    "Height %u too large for Rect class, clamping", h);
             h = INT32_MAX;
         }
         left = top = 0;

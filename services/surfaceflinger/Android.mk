@@ -206,6 +206,7 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libbinder \
     libutils \
+    libui \
     libdl
 
 LOCAL_WHOLE_STATIC_LIBRARIES := libsigchain

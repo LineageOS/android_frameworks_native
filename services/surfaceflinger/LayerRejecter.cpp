@@ -16,6 +16,8 @@
 
 #include "LayerRejecter.h"
 
+#include <gui/BufferItem.h>
+
 #include "clz.h"
 
 #define DEBUG_RESIZE 0

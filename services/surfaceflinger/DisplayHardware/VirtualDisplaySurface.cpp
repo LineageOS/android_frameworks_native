@@ -19,6 +19,7 @@
 #include "HWComposer.h"
 
 #include <gui/BufferItem.h>
+#include <gui/BufferQueue.h>
 #include <gui/IProducerListener.h>
 
 // ---------------------------------------------------------------------------

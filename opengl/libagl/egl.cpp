@@ -33,6 +33,7 @@
 #include <ui/ANativeObjectBase.h>
 #include <ui/Fence.h>
 #include <ui/GraphicBufferMapper.h>
+#include <ui/Rect.h>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>

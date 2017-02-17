@@ -21,6 +21,7 @@
 #include <hardware/gralloc.h>
 
 #include <ui/Gralloc1On0Adapter.h>
+#include <ui/GraphicBuffer.h>
 
 #include <utils/Log.h>
 

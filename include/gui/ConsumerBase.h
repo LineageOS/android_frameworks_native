@@ -17,19 +17,23 @@
 #ifndef ANDROID_GUI_CONSUMERBASE_H
 #define ANDROID_GUI_CONSUMERBASE_H
 
-#include <gui/BufferQueue.h>
+#include <gui/BufferQueueDefs.h>
+#include <gui/IConsumerListener.h>
+#include <gui/IGraphicBufferConsumer.h>
+#include <gui/OccupancyTracker.h>
 
-#include <ui/GraphicBuffer.h>
+#include <ui/PixelFormat.h>
 
 #include <utils/String8.h>
 #include <utils/Vector.h>
 #include <utils/threads.h>
-#include <gui/IConsumerListener.h>
+
 
 namespace android {
 // ----------------------------------------------------------------------------
 
 class String8;
+class GraphicBuffer;
 
 // ConsumerBase is a base class for BufferQueue consumer end-points. It
 // handles common tasks like management of the connection to the BufferQueue
@@ -222,7 +226,7 @@ protected:
     // slot that has not yet been used. The buffer allocated to a slot will also
     // be replaced if the requested buffer usage or geometry differs from that
     // of the buffer allocated to a slot.
-    Slot mSlots[BufferQueue::NUM_BUFFER_SLOTS];
+    Slot mSlots[BufferQueueDefs::NUM_BUFFER_SLOTS];
 
     // mAbandoned indicates that the BufferQueue will no longer be used to
     // consume images buffers pushed to it using the IGraphicBufferProducer

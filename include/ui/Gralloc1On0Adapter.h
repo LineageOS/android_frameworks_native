@@ -17,15 +17,21 @@
 #ifndef ANDROID_UI_GRALLOC_1_ON_0_ADAPTER_H
 #define ANDROID_UI_GRALLOC_1_ON_0_ADAPTER_H
 
-#include <ui/Fence.h>
-#include <ui/GraphicBuffer.h>
+#include <log/log.h>
 
+#include <ui/Fence.h>
+
+#include <hardware/gralloc.h>
 #include <hardware/gralloc1.h>
 
 #include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+namespace android {
+class GraphicBuffer;
+} // namespace android
 
 struct gralloc_module_t;
 

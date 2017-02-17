@@ -33,7 +33,8 @@ sharedLibraries := \
 	libhardware \
 	liblog \
 	libsync \
-	libutils
+	libutils \
+	libgui
 
 include $(CLEAR_VARS)
 # Don't strip symbols so we see stack traces in logcat.

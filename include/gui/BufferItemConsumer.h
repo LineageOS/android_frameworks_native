@@ -18,18 +18,13 @@
 #define ANDROID_GUI_BUFFERITEMCONSUMER_H
 
 #include <gui/ConsumerBase.h>
-
-#include <ui/GraphicBuffer.h>
-
-#include <utils/String8.h>
-#include <utils/Vector.h>
-#include <utils/threads.h>
+#include <gui/BufferQueue.h>
 
 #define ANDROID_GRAPHICS_BUFFERITEMCONSUMER_JNI_ID "mBufferItemConsumer"
 
 namespace android {
 
-class BufferQueue;
+class String8;
 
 /**
  * BufferItemConsumer is a BufferQueue consumer endpoint that allows clients

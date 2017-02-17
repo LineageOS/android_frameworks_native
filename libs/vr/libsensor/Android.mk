@@ -32,6 +32,7 @@ sharedLibraries := \
 	libhardware \
 	liblog \
 	libutils \
+	libandroid \
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(sourceFiles)
