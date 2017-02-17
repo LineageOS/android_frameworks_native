@@ -82,7 +82,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
         mCurrentOpacity(true),
         mBufferLatched(false),
         mCurrentFrameNumber(0),
-        mPreviousFrameNumber(-1U),
+        mPreviousFrameNumber(0),
         mRefreshPending(false),
         mFrameLatencyNeeded(false),
         mFiltering(false),
@@ -1904,8 +1904,10 @@ bool Layer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addPostComposition(mCurrentFrameNumber,
                 glDoneFence, presentFence, compositorTiming);
-        mFrameEventHistory.addRetire(mPreviousFrameNumber,
-                retireFence);
+        if (mPreviousFrameNumber != 0) {
+            mFrameEventHistory.addRetire(mPreviousFrameNumber,
+                    retireFence);
+        }
     }
 
     // Update mFrameTracker.
@@ -1943,14 +1945,19 @@ bool Layer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
 
 #ifdef USE_HWC2
 void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
-    mSurfaceFlingerConsumer->releasePendingBuffer();
+    if (!mSurfaceFlingerConsumer->releasePendingBuffer()) {
+        return;
+    }
+
     auto releaseFenceTime = std::make_shared<FenceTime>(
             mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
     mReleaseTimeline.push(releaseFenceTime);
 
     Mutex::Autolock lock(mFrameEventHistoryMutex);
-    mFrameEventHistory.addRelease(
-            mPreviousFrameNumber, dequeueReadyTime, std::move(releaseFenceTime));
+    if (mPreviousFrameNumber != 0) {
+        mFrameEventHistory.addRelease(mPreviousFrameNumber,
+                dequeueReadyTime, std::move(releaseFenceTime));
+    }
 }
 #endif
 
@@ -2136,8 +2143,10 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime)
         auto releaseFenceTime = std::make_shared<FenceTime>(
                 mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
         mReleaseTimeline.push(releaseFenceTime);
-        mFrameEventHistory.addRelease(
-                mPreviousFrameNumber, latchTime, std::move(releaseFenceTime));
+        if (mPreviousFrameNumber != 0) {
+            mFrameEventHistory.addRelease(mPreviousFrameNumber,
+                    latchTime, std::move(releaseFenceTime));
+        }
 #endif
     }
 
@@ -2370,6 +2379,11 @@ void Layer::dumpFrameEvents(String8& result) {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.checkFencesForCompletion();
     mFrameEventHistory.dump(result);
+}
+
+void Layer::onDisconnect() {
+    Mutex::Autolock lock(mFrameEventHistoryMutex);
+    mFrameEventHistory.onDisconnect();
 }
 
 void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,

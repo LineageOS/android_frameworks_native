@@ -16,6 +16,8 @@
 
 #include <ui/FenceTime.h>
 
+#define LOG_TAG "FenceTime"
+
 #include <cutils/compiler.h>  // For CC_[UN]LIKELY
 #include <utils/Log.h>
 #include <inttypes.h>
@@ -62,8 +64,11 @@ FenceTime::FenceTime(sp<Fence>&& fence)
 FenceTime::FenceTime(nsecs_t signalTime)
   : mState(Fence::isValidTimestamp(signalTime) ? State::VALID : State::INVALID),
     mFence(nullptr),
-    mSignalTime(signalTime == Fence::SIGNAL_TIME_PENDING ?
-            Fence::SIGNAL_TIME_INVALID : signalTime) {
+    mSignalTime(signalTime) {
+    if (CC_UNLIKELY(mSignalTime == Fence::SIGNAL_TIME_PENDING)) {
+        ALOGE("Pending signal time not allowed after signal.");
+        mSignalTime = Fence::SIGNAL_TIME_INVALID;
+    }
 }
 
 void FenceTime::applyTrustedSnapshot(const Snapshot& src) {
@@ -71,7 +76,7 @@ void FenceTime::applyTrustedSnapshot(const Snapshot& src) {
         // Applying Snapshot::State::FENCE, could change the valid state of the
         // FenceTime, which is not allowed. Callers should create a new
         // FenceTime from the snapshot instead.
-        ALOGE("FenceTime::applyTrustedSnapshot: Unexpected fence.");
+        ALOGE("applyTrustedSnapshot: Unexpected fence.");
         return;
     }
 
@@ -332,16 +337,13 @@ void FenceToFenceTimeMap::signalAllForTest(
                 continue;
             }
             ALOGE_IF(!fenceTime->isValid(),
-                    "FenceToFenceTimeMap::signalAllForTest: "
-                     "Signaling invalid fence.");
+                    "signalAllForTest: Signaling invalid fence.");
             fenceTime->signalForTest(signalTime);
             signaled = true;
         }
     }
 
-    if (!signaled) {
-        ALOGE("FenceToFenceTimeMap::signalAllForTest: Nothing to signal.");
-    }
+    ALOGE_IF(!signaled, "signalAllForTest: Nothing to signal.");
 }
 
 void FenceToFenceTimeMap::garbageCollectLocked() {

@@ -364,7 +364,7 @@ public:
                 FrameEvent::LATCH,
                 FrameEvent::FIRST_REFRESH_START,
                 FrameEvent::LAST_REFRESH_START,
-                FrameEvent::GL_COMPOSITION_DONE,
+                FrameEvent::GPU_COMPOSITION_DONE,
                 FrameEvent::DEQUEUE_READY,
                 FrameEvent::RELEASE
         };

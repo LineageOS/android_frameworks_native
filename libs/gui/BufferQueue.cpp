@@ -31,6 +31,13 @@ BufferQueue::ProxyConsumerListener::ProxyConsumerListener(
 
 BufferQueue::ProxyConsumerListener::~ProxyConsumerListener() {}
 
+void BufferQueue::ProxyConsumerListener::onDisconnect() {
+    sp<ConsumerListener> listener(mConsumerListener.promote());
+    if (listener != NULL) {
+        listener->onDisconnect();
+    }
+}
+
 void BufferQueue::ProxyConsumerListener::onFrameAvailable(
         const BufferItem& item) {
     sp<ConsumerListener> listener(mConsumerListener.promote());

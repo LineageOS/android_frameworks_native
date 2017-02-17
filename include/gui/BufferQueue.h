@@ -62,11 +62,12 @@ public:
     public:
         explicit ProxyConsumerListener(const wp<ConsumerListener>& consumerListener);
         virtual ~ProxyConsumerListener();
-        virtual void onFrameAvailable(const BufferItem& item) override;
-        virtual void onFrameReplaced(const BufferItem& item) override;
-        virtual void onBuffersReleased() override;
-        virtual void onSidebandStreamChanged() override;
-        virtual void addAndGetFrameTimestamps(
+        void onDisconnect() override;
+        void onFrameAvailable(const BufferItem& item) override;
+        void onFrameReplaced(const BufferItem& item) override;
+        void onBuffersReleased() override;
+        void onSidebandStreamChanged() override;
+        void addAndGetFrameTimestamps(
                 const NewFrameEventsEntry* newTimestamps,
                 FrameEventHistoryDelta* outDelta) override;
     private:

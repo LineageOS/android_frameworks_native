@@ -43,6 +43,9 @@ public:
     ConsumerListener() { }
     virtual ~ConsumerListener();
 
+    // onDisconnect is called when a producer disconnects from the BufferQueue.
+    virtual void onDisconnect() {} /* Asynchronous */
+
     // onFrameAvailable is called from queueBuffer each time an additional
     // frame becomes available for consumption. This means that frames that
     // are queued while in asynchronous mode only trigger the callback if no

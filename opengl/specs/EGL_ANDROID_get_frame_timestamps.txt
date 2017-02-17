@@ -90,7 +90,7 @@ New Tokens
     EGL_COMPOSITION_LATCH_TIME_ANDROID 0x3153
     EGL_FIRST_COMPOSITION_START_TIME_ANDROID 0x3154
     EGL_LAST_COMPOSITION_START_TIME_ANDROID 0x3155
-    EGL_FIRST_COMPOSITION_FINISHED_TIME_ANDROID 0x3156
+    EGL_FIRST_COMPOSITION_GPU_FINISHED_TIME_ANDROID 0x3156
     EGL_DISPLAY_PRESENT_TIME_ANDROID 0x3157
     EGL_DISPLAY_RETIRE_TIME_ANDROID 0x3158
     EGL_DEQUEUE_READY_TIME_ANDROID 0x3159
@@ -189,10 +189,10 @@ Changes to Chapter 3 of the EGL 1.5 Specification (EGL Functions and Errors)
           that indicates the subsequent frame was not submitted in time to be
           latched by the compositor. Note: The value may not be updated for
           every display refresh if the compositor becomes idle.
-        - EGL_FIRST_COMPOSITION_FINISHED_TIME_ANDROID - The time at which the
-          compositor's rendering work for this frame finished. This will be zero
-          if composition was handled by the display and the compositor didn't do
-          any rendering.
+        - EGL_FIRST_COMPOSITION_GPU_FINISHED_TIME_ANDROID - The time at which
+          the compositor's rendering work for this frame finished. This will be
+          zero if composition was handled by the display and the compositor
+          didn't do any rendering.
         - EGL_DISPLAY_PRESENT_TIME_ANDROID - The time at which this frame
           started to scan out to the physical display.
         - EGL_DISPLAY_RETIRE_TIME_ANDROID - The time at which this frame was

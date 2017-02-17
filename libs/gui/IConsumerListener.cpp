@@ -28,7 +28,8 @@ namespace android {
 // ---------------------------------------------------------------------------
 
 enum {
-    ON_FRAME_AVAILABLE = IBinder::FIRST_CALL_TRANSACTION,
+    ON_DISCONNECT = IBinder::FIRST_CALL_TRANSACTION,
+    ON_FRAME_AVAILABLE,
     ON_BUFFER_RELEASED,
     ON_SIDEBAND_STREAM_CHANGED,
     GET_FRAME_TIMESTAMPS
@@ -42,6 +43,12 @@ public:
     }
 
     virtual ~BpConsumerListener();
+
+    virtual void onDisconnect() {
+        Parcel data, reply;
+        data.writeInterfaceToken(IConsumerListener::getInterfaceDescriptor());
+        remote()->transact(ON_DISCONNECT, data, &reply, IBinder::FLAG_ONEWAY);
+    }
 
     virtual void onFrameAvailable(const BufferItem& item) {
         Parcel data, reply;
@@ -75,6 +82,10 @@ status_t BnConsumerListener::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
     switch(code) {
+        case ON_DISCONNECT: {
+            CHECK_INTERFACE(IConsumerListener, data, reply);
+            onDisconnect();
+            return NO_ERROR; }
         case ON_FRAME_AVAILABLE: {
             CHECK_INTERFACE(IConsumerListener, data, reply);
             BufferItem item;

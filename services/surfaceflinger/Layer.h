@@ -444,6 +444,7 @@ public:
 
     std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush);
 
+    void onDisconnect();
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newEntry,
             FrameEventHistoryDelta* outDelta);
 

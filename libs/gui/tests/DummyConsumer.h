@@ -19,9 +19,9 @@
 namespace android {
 
 struct DummyConsumer : public BnConsumerListener {
-    virtual void onFrameAvailable(const BufferItem& /* item */) {}
-    virtual void onBuffersReleased() {}
-    virtual void onSidebandStreamChanged() {}
+    void onFrameAvailable(const BufferItem& /* item */) override {}
+    void onBuffersReleased() override {}
+    void onSidebandStreamChanged() override {}
 };
 
 } // namespace android
