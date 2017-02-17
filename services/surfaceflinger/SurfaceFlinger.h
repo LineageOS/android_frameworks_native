@@ -40,7 +40,7 @@
 
 #include <ui/FenceTime.h>
 #include <ui/PixelFormat.h>
-#include <ui/mat4.h>
+#include <math/mat4.h>
 
 #include <gui/FrameTimestamps.h>
 #include <gui/ISurfaceComposer.h>

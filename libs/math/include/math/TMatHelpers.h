@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef UI_TMATHELPERS_H_
-#define UI_TMATHELPERS_H_
+#pragma once
 
 #include <math.h>
 #include <stdint.h>
@@ -26,8 +25,8 @@
 #include <iomanip>
 #include <stdexcept>
 
-#include <ui/quat.h>
-#include <ui/TVecHelpers.h>
+#include <math/quat.h>
+#include <math/TVecHelpers.h>
 
 #include  <utils/String8.h>
 
@@ -636,5 +635,3 @@ public:
 #undef UNLIKELY
 #undef PURE
 #undef CONSTEXPR
-
-#endif  // UI_TMATHELPERS_H_

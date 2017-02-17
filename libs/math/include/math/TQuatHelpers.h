@@ -15,8 +15,7 @@
  */
 
 
-#ifndef UI_TQUATHELPERS_H_
-#define UI_TQUATHELPERS_H_
+#pragma once
 
 #include <math.h>
 #include <stdint.h>
@@ -24,7 +23,7 @@
 
 #include <iostream>
 
-#include <ui/vec3.h>
+#include <math/vec3.h>
 
 #define PURE __attribute__((pure))
 
@@ -299,6 +298,3 @@ public:
 // -------------------------------------------------------------------------------------
 }  // namespace details
 }  // namespace android
-
-
-#endif  // UI_TQUATHELPERS_H_

@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef UI_MAT3_H_
-#define UI_MAT3_H_
+#pragma once
 
-#include <ui/quat.h>
-#include <ui/TMatHelpers.h>
-#include <ui/vec3.h>
+#include <math/quat.h>
+#include <math/TMatHelpers.h>
+#include <math/vec3.h>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -439,5 +438,3 @@ typedef details::TMat33<float> mat3f;
 
 #undef PURE
 #undef CONSTEXPR
-
-#endif  // UI_MAT3_H_

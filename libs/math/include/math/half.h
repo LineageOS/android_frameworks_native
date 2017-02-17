@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef UI_HALF_H
-#define UI_HALF_H
+#pragma once
 
 #include <stdint.h>
 #include <iosfwd>
@@ -204,5 +203,3 @@ public:
 #undef LIKELY
 #undef UNLIKELY
 #undef CONSTEXPR
-
-#endif // UI_HALF_H

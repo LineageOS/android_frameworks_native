@@ -19,8 +19,8 @@
 #include <math.h>
 #include <stdlib.h>
 
-#include <ui/half.h>
-#include <ui/vec4.h>
+#include <math/half.h>
+#include <math/vec4.h>
 
 #include <gtest/gtest.h>
 

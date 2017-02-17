@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef UI_SCALAR_H
-#define UI_SCALAR_H
+#pragma once
 
 #include <algorithm>
 #include <cmath>
@@ -43,5 +42,3 @@ static constexpr T lerp(T x, T y, T a) noexcept {
 }
 
 } // namespace std
-
-#endif // UI_SCALAR_H

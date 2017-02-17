@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef UI_MAT2_H_
-#define UI_MAT2_H_
+#pragma once
 
-#include <ui/TMatHelpers.h>
-#include <ui/vec2.h>
+#include <math/TMatHelpers.h>
+#include <math/vec2.h>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -376,5 +375,3 @@ typedef details::TMat22<float> mat2f;
 
 #undef PURE
 #undef CONSTEXPR
-
-#endif  // UI_MAT2_H_

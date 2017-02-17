@@ -1,5 +1,4 @@
-//
-// Copyright (C) 2014 The Android Open Source Project
+// Copyright (C) 2017 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
 
-cc_test {
-    name: "Region_test",
-    shared_libs: ["libui"],
-    srcs: ["Region_test.cpp"],
+cc_library_static {
+    name: "libmath",
+    host_supported: true,
+    export_include_dirs: ["include"],
 }
 
-cc_test {
-    name: "colorspace_test",
-    shared_libs: ["libui"],
-    srcs: ["colorspace_test.cpp"],
-}
+subdirs = ["tests"]
