@@ -65,6 +65,7 @@ static bool isPossiblyYUV(PixelFormat format) {
         case HAL_PIXEL_FORMAT_RGBA_8888:
         case HAL_PIXEL_FORMAT_RGBX_8888:
         case HAL_PIXEL_FORMAT_RGBA_FP16:
+        case HAL_PIXEL_FORMAT_RGBA_1010102:
         case HAL_PIXEL_FORMAT_RGB_888:
         case HAL_PIXEL_FORMAT_RGB_565:
         case HAL_PIXEL_FORMAT_BGRA_8888:
