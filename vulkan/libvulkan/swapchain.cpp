@@ -380,6 +380,75 @@ void copy_ready_timings(Swapchain& swapchain,
     *count = num_copied;
 }
 
+android_pixel_format GetNativePixelFormat(VkFormat format) {
+    android_pixel_format native_format = HAL_PIXEL_FORMAT_RGBA_8888;
+    switch (format) {
+        case VK_FORMAT_R8G8B8A8_UNORM:
+        case VK_FORMAT_R8G8B8A8_SRGB:
+            native_format = HAL_PIXEL_FORMAT_RGBA_8888;
+            break;
+        case VK_FORMAT_R5G6B5_UNORM_PACK16:
+            native_format = HAL_PIXEL_FORMAT_RGB_565;
+            break;
+        case VK_FORMAT_R16G16B16A16_SFLOAT:
+            native_format = HAL_PIXEL_FORMAT_RGBA_FP16;
+            break;
+        case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+            native_format = HAL_PIXEL_FORMAT_RGBA_1010102;
+            break;
+        default:
+            ALOGV("unsupported swapchain format %d", format);
+            break;
+    }
+    return native_format;
+}
+
+android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace) {
+    switch (colorspace) {
+        case VK_COLOR_SPACE_SRGB_NONLINEAR_KHR:
+            return HAL_DATASPACE_V0_SRGB;
+        case VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT:
+            return HAL_DATASPACE_DISPLAY_P3;
+        case VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT:
+            return HAL_DATASPACE_V0_SCRGB_LINEAR;
+        case VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT:
+            return HAL_DATASPACE_V0_SCRGB;
+        case VK_COLOR_SPACE_DCI_P3_LINEAR_EXT:
+            return HAL_DATASPACE_DCI_P3_LINEAR;
+        case VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT:
+            return HAL_DATASPACE_DCI_P3;
+        case VK_COLOR_SPACE_BT709_LINEAR_EXT:
+            return HAL_DATASPACE_V0_SRGB_LINEAR;
+        case VK_COLOR_SPACE_BT709_NONLINEAR_EXT:
+            return HAL_DATASPACE_V0_SRGB;
+        case VK_COLOR_SPACE_BT2020_170M_EXT:
+            return static_cast<android_dataspace>(
+                HAL_DATASPACE_STANDARD_BT2020 |
+                HAL_DATASPACE_TRANSFER_SMPTE_170M | HAL_DATASPACE_RANGE_FULL);
+        case VK_COLOR_SPACE_BT2020_ST2084_EXT:
+            return static_cast<android_dataspace>(
+                HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_ST2084 |
+                HAL_DATASPACE_RANGE_FULL);
+        case VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT:
+            return static_cast<android_dataspace>(
+                HAL_DATASPACE_STANDARD_ADOBE_RGB |
+                HAL_DATASPACE_TRANSFER_LINEAR | HAL_DATASPACE_RANGE_FULL);
+        case VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT:
+            return HAL_DATASPACE_ADOBE_RGB;
+
+        // Pass through is intended to allow app to provide data that is passed
+        // to the display system without modification.
+        case VK_COLOR_SPACE_PASS_THROUGH_EXT:
+            return HAL_DATASPACE_ARBITRARY;
+
+        default:
+            // This indicates that we don't know about the
+            // dataspace specified and we should indicate that
+            // it's unsupported
+            return HAL_DATASPACE_UNKNOWN;
+    }
+}
+
 }  // anonymous namespace
 
 VKAPI_ATTR
@@ -632,16 +701,21 @@ VkResult CreateSwapchainKHR(VkDevice device,
     if (!allocator)
         allocator = &GetData(device).allocator;
 
+    android_pixel_format native_pixel_format =
+        GetNativePixelFormat(create_info->imageFormat);
+    android_dataspace native_dataspace =
+        GetNativeDataspace(create_info->imageColorSpace);
+    if (native_dataspace == HAL_DATASPACE_UNKNOWN) {
+        ALOGE(
+            "CreateSwapchainKHR(VkSwapchainCreateInfoKHR.imageColorSpace = %d) "
+            "failed: Unsupported color space",
+            create_info->imageColorSpace);
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
     ALOGV_IF(create_info->imageArrayLayers != 1,
              "swapchain imageArrayLayers=%u not supported",
              create_info->imageArrayLayers);
-    ALOGV_IF(
-        create_info->imageColorSpace != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
-            create_info->imageColorSpace != VK_COLOR_SPACE_SCRGB_LINEAR_EXT &&
-            create_info->imageColorSpace !=
-                VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT,
-        "swapchain imageColorSpace=%u not supported",
-        create_info->imageColorSpace);
     ALOGV_IF((create_info->preTransform & ~kSupportedTransforms) != 0,
              "swapchain preTransform=%#x not supported",
              create_info->preTransform);
@@ -720,40 +794,22 @@ VkResult CreateSwapchainKHR(VkDevice device,
 
     const auto& dispatch = GetData(device).driver;
 
-    int native_format = HAL_PIXEL_FORMAT_RGBA_8888;
-    switch (create_info->imageFormat) {
-        case VK_FORMAT_R8G8B8A8_UNORM:
-        case VK_FORMAT_R8G8B8A8_SRGB:
-            native_format = HAL_PIXEL_FORMAT_RGBA_8888;
-            break;
-        case VK_FORMAT_R5G6B5_UNORM_PACK16:
-            native_format = HAL_PIXEL_FORMAT_RGB_565;
-            break;
-        case VK_FORMAT_R16G16B16A16_SFLOAT:
-            native_format = HAL_PIXEL_FORMAT_RGBA_FP16;
-            break;
-        case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
-            native_format = HAL_PIXEL_FORMAT_RGBA_1010102;
-            break;
-        default:
-            ALOGV("unsupported swapchain format %d", create_info->imageFormat);
-            break;
-    }
-    err = native_window_set_buffers_format(surface.window.get(), native_format);
+    err = native_window_set_buffers_format(surface.window.get(),
+                                           native_pixel_format);
     if (err != 0) {
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
         // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_buffers_format(%d) failed: %s (%d)",
-              native_format, strerror(-err), err);
+              native_pixel_format, strerror(-err), err);
         return VK_ERROR_INITIALIZATION_FAILED;
     }
     err = native_window_set_buffers_data_space(surface.window.get(),
-                                               HAL_DATASPACE_SRGB_LINEAR);
+                                               native_dataspace);
     if (err != 0) {
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
         // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_buffers_data_space(%d) failed: %s (%d)",
-              HAL_DATASPACE_SRGB_LINEAR, strerror(-err), err);
+              native_dataspace, strerror(-err), err);
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
