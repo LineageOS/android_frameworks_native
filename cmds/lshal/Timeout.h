@@ -69,7 +69,7 @@ timeoutIPC(const sp<I> &interfaceObject, Function &&func, Args &&... args) {
     auto boundFunc = std::bind(std::forward<Function>(func),
             interfaceObject.get(), std::forward<Args>(args)...);
     bool success = timeout(IPC_CALL_WAIT, [&ret, &boundFunc] {
-        ret = boundFunc();
+        ret = std::move(boundFunc());
     });
     if (!success) {
         return Status::fromStatusT(TIMED_OUT);
