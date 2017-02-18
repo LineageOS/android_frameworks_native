@@ -15,6 +15,7 @@
  */
 
 #include <array>
+#include <unordered_set>
 #include <gtest/gtest.h>
 #include <dlfcn.h>
 #include <hardware/hardware.h>
@@ -24,6 +25,9 @@
 #include <hardware/hwcomposer2.h>
 #undef HWC2_INCLUDE_STRINGIFICATION
 #undef HWC2_USE_CPP11
+
+void hwc2TestHotplugCallback(hwc2_callback_data_t callbackData,
+        hwc2_display_t display, int32_t connected);
 
 class Hwc2Test : public testing::Test {
 public:
@@ -41,6 +45,8 @@ public:
         err = hwc2_open(hwc2Module, &mHwc2Device);
         ASSERT_GE(err, 0) << "failed to open hwc hardware module: "
                 << strerror(-err);
+
+        populateDisplays();
     }
 
     virtual void TearDown()
@@ -66,6 +72,37 @@ public:
         }
     }
 
+    void getDisplayType(hwc2_display_t display, hwc2_display_type_t* outType,
+            hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_GET_DISPLAY_TYPE>(
+                getFunction(HWC2_FUNCTION_GET_DISPLAY_TYPE));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display,
+                    reinterpret_cast<int32_t*>(outType)));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to get display type";
+        }
+    }
+
+    /* If the populateDisplays function is still receiving displays and the
+     * display is connected, the display handle is stored in mDisplays. */
+    void hotplugCallback(hwc2_display_t display, int32_t connected)
+    {
+        std::lock_guard<std::mutex> lock(mHotplugMutex);
+
+        if (mHotplugStatus != Hwc2TestHotplugStatus::Receiving)
+            return;
+
+        if (connected == HWC2_CONNECTION_CONNECTED)
+            mDisplays.insert(display);
+
+        mHotplugCv.notify_all();
+    }
+
 protected:
     hwc2_function_pointer_t getFunction(hwc2_function_descriptor_t descriptor)
     {
@@ -84,8 +121,69 @@ protected:
                 reinterpret_cast<int32_t*>(outCapabilities->data()));
     }
 
+    /* Registers a hotplug callback and waits for hotplug callbacks. This
+     * function will have no effect if called more than once. */
+    void populateDisplays()
+    {
+        /* Sets the hotplug status to receiving */
+        {
+            std::lock_guard<std::mutex> lock(mHotplugMutex);
+
+            if (mHotplugStatus != Hwc2TestHotplugStatus::Init)
+                return;
+            mHotplugStatus = Hwc2TestHotplugStatus::Receiving;
+        }
+
+        /* Registers the callback. This function call cannot be locked because
+         * a callback could happen on the same thread */
+        ASSERT_NO_FATAL_FAILURE(registerCallback(HWC2_CALLBACK_HOTPLUG, this,
+                reinterpret_cast<hwc2_function_pointer_t>(
+                hwc2TestHotplugCallback)));
+
+        /* Waits for hotplug events. If a hotplug event has not come within 1
+         * second, stop waiting. */
+        std::unique_lock<std::mutex> lock(mHotplugMutex);
+
+        while (mHotplugCv.wait_for(lock, std::chrono::seconds(1)) !=
+                std::cv_status::timeout) { }
+
+        /* Sets the hotplug status to done. Future calls will have no effect */
+        mHotplugStatus = Hwc2TestHotplugStatus::Done;
+    }
+
+    void getBadDisplay(hwc2_display_t* outDisplay)
+    {
+        for (hwc2_display_t display = 0; display < UINT64_MAX; display++) {
+            if (mDisplays.count(display) == 0) {
+                *outDisplay = display;
+                return;
+            }
+        }
+        ASSERT_TRUE(false) << "Unable to find bad display. UINT64_MAX displays"
+                " are registered. This should never happen.";
+    }
+
     hwc2_device_t* mHwc2Device = nullptr;
+
+    enum class Hwc2TestHotplugStatus {
+        Init = 1,
+        Receiving,
+        Done,
+    };
+
+    std::mutex mHotplugMutex;
+    std::condition_variable mHotplugCv;
+    Hwc2TestHotplugStatus mHotplugStatus = Hwc2TestHotplugStatus::Init;
+    std::unordered_set<hwc2_display_t> mDisplays;
 };
+
+void hwc2TestHotplugCallback(hwc2_callback_data_t callbackData,
+        hwc2_display_t display, int32_t connection)
+{
+    if (callbackData)
+        static_cast<Hwc2Test*>(callbackData)->hotplugCallback(display,
+                connection);
+}
 
 
 static const std::array<hwc2_function_descriptor_t, 42> requiredFunctions = {{
@@ -201,4 +299,31 @@ TEST_F(Hwc2Test, REGISTER_CALLBACK_null_data)
         ASSERT_NO_FATAL_FAILURE(registerCallback(descriptor, data,
                 []() { return; }));
     }
+}
+
+/* TESTCASE: Tests that the HWC2 returns the correct display type for each
+ * physical display. */
+TEST_F(Hwc2Test, GET_DISPLAY_TYPE)
+{
+    for (auto display : mDisplays) {
+        hwc2_display_type_t type;
+
+        ASSERT_NO_FATAL_FAILURE(getDisplayType(display, &type));
+        EXPECT_EQ(type, HWC2_DISPLAY_TYPE_PHYSICAL) << "failed to return"
+                " correct display type";
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 returns an error when the display type of a bad
+ * display is requested. */
+TEST_F(Hwc2Test, GET_DISPLAY_TYPE_bad_display)
+{
+    hwc2_display_t display;
+    hwc2_display_type_t type;
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
+
+    ASSERT_NO_FATAL_FAILURE(getDisplayType(display, &type, &err));
+    EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
 }
