@@ -1,5 +1,3 @@
-#include <log/log.h>
-
 #include <private/dvr/linear_pose_predictor.h>
 
 namespace android {
@@ -25,21 +23,14 @@ void LinearPosePredictor::Add(const Sample& sample, DvrPoseAsync* out_pose) {
   const auto pose_delta_time =
       NsToSeconds(sample.time_ns - previous_sample.time_ns);
 
-  const double inverse_dt = 1. / pose_delta_time;
   if (pose_delta_time > 0.0) {
-    velocity_ = (sample.position - previous_sample.position) * inverse_dt;
+    velocity_ = (sample.position - previous_sample.position) / pose_delta_time;
+    rotational_velocity_ = PosePredictor::AngularVelocity(
+        previous_sample.orientation, sample.orientation, pose_delta_time);
   } else {
     velocity_ = vec3d::Zero();
+    rotational_velocity_ = vec3d::Zero();
   }
-
-  quatd delta_q = sample.orientation.inverse() * previous_sample.orientation;
-  // Check that delta_q.w() == 1, Eigen doesn't respect this convention. If
-  // delta_q.w() == -1, we'll get the opposite velocity.
-  if (delta_q.w() < 0) {
-    delta_q.w() = -delta_q.w();
-    delta_q.vec() = -delta_q.vec();
-  }
-  rotational_velocity_ = -2.0 * delta_q.vec() * inverse_dt;
 
   // Temporary experiment with acceleration estimate.
   angular_speed_ = rotational_velocity_.norm();
@@ -57,36 +48,7 @@ void LinearPosePredictor::Add(const Sample& sample, DvrPoseAsync* out_pose) {
     rotational_axis_ = rotational_velocity_ / angular_speed_;
   }
 
-  out_pose->orientation = {static_cast<float>(sample.orientation.vec().x()),
-                           static_cast<float>(sample.orientation.vec().y()),
-                           static_cast<float>(sample.orientation.vec().z()),
-                           static_cast<float>(sample.orientation.w())};
-
-  out_pose->translation = {static_cast<float>(sample.position.x()),
-                           static_cast<float>(sample.position.y()),
-                           static_cast<float>(sample.position.z()), 0.0f};
-
-  out_pose->right_orientation = {
-      static_cast<float>(sample.orientation.vec().x()),
-      static_cast<float>(sample.orientation.vec().y()),
-      static_cast<float>(sample.orientation.vec().z()),
-      static_cast<float>(sample.orientation.w())};
-
-  out_pose->right_translation = {static_cast<float>(sample.position.x()),
-                                 static_cast<float>(sample.position.y()),
-                                 static_cast<float>(sample.position.z()), 0.0f};
-
-  out_pose->angular_velocity = {static_cast<float>(rotational_velocity_.x()),
-                                static_cast<float>(rotational_velocity_.y()),
-                                static_cast<float>(rotational_velocity_.z()),
-                                0.0f};
-
-  out_pose->velocity = {static_cast<float>(velocity_.x()),
-                        static_cast<float>(velocity_.y()),
-                        static_cast<float>(velocity_.z()), 0.0f};
-  out_pose->timestamp_ns = sample.time_ns;
-  out_pose->flags = DVR_POSE_FLAG_HEAD | DVR_POSE_FLAG_VALID;
-  memset(out_pose->pad, 0, sizeof(out_pose->pad));
+  InitializeFromSample(sample, out_pose, velocity_, rotational_velocity_);
 }
 
 void LinearPosePredictor::Predict(int64_t left_time_ns, int64_t right_time_ns,
