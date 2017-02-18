@@ -2046,6 +2046,10 @@ Error HWC2On1Adapter::Layer::setCursorPosition(int32_t x, int32_t y)
 
 Error HWC2On1Adapter::Layer::setSurfaceDamage(hwc_region_t damage)
 {
+    // HWC1 supports surface damage starting only with version 1.5.
+    if (mDisplay.getDevice().mHwc1MinorVersion < 5) {
+        return Error::None;
+    }
     mSurfaceDamage.resize(damage.numRects);
     std::copy_n(damage.rects, damage.numRects, mSurfaceDamage.begin());
     return Error::None;
