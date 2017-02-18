@@ -15,7 +15,7 @@
  */
 
 #include <stdint.h>
-#include <ui/mat4.h>
+#include <math/mat4.h>
 
 #ifndef SF_RENDER_ENGINE_TEXTURE_H
 #define SF_RENDER_ENGINE_TEXTURE_H

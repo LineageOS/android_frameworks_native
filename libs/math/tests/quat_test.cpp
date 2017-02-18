@@ -22,10 +22,10 @@
 #include <random>
 #include <functional>
 
-#include <ui/quat.h>
-#include <ui/mat4.h>
-#include <ui/vec3.h>
-#include <ui/vec4.h>
+#include <math/quat.h>
+#include <math/mat4.h>
+#include <math/vec3.h>
+#include <math/vec4.h>
 
 #include <gtest/gtest.h>
 

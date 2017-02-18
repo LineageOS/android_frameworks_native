@@ -23,10 +23,10 @@
 #include <memory>
 #include <string>
 
-#include <ui/mat3.h>
-#include <ui/scalar.h>
-#include <ui/vec2.h>
-#include <ui/vec3.h>
+#include <math/mat3.h>
+#include <math/scalar.h>
+#include <math/vec2.h>
+#include <math/vec3.h>
 
 namespace android {
 

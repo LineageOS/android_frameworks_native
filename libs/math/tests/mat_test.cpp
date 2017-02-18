@@ -24,8 +24,8 @@
 
 #include <gtest/gtest.h>
 
-#include <ui/mat2.h>
-#include <ui/mat4.h>
+#include <math/mat2.h>
+#include <math/mat4.h>
 
 namespace android {
 

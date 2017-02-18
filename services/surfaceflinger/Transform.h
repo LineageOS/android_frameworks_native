@@ -22,8 +22,8 @@
 
 #include <ui/Point.h>
 #include <ui/Rect.h>
-#include <ui/vec2.h>
-#include <ui/vec3.h>
+#include <math/vec2.h>
+#include <math/vec3.h>
 
 #include <hardware/hardware.h>
 

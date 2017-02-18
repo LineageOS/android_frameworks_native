@@ -23,7 +23,7 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <ui/mat4.h>
+#include <math/mat4.h>
 #include <Transform.h>
 
 #define EGL_NO_CONFIG ((EGLConfig)0)

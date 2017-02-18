@@ -15,13 +15,25 @@
 //
 
 cc_test {
-    name: "Region_test",
-    shared_libs: ["libui"],
-    srcs: ["Region_test.cpp"],
+    name: "vec_test",
+    srcs: ["vec_test.cpp"],
+    static_libs: ["libmath"],
 }
 
 cc_test {
-    name: "colorspace_test",
-    shared_libs: ["libui"],
-    srcs: ["colorspace_test.cpp"],
+    name: "mat_test",
+    srcs: ["mat_test.cpp"],
+    static_libs: ["libmath"],
+}
+
+cc_test {
+    name: "half_test",
+    srcs: ["half_test.cpp"],
+    static_libs: ["libmath"],
+}
+
+cc_test {
+    name: "quat_test",
+    srcs: ["quat_test.cpp"],
+    static_libs: ["libmath"],
 }

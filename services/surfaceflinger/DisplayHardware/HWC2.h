@@ -24,7 +24,7 @@
 #undef HWC2_USE_CPP11
 
 #include <ui/HdrCapabilities.h>
-#include <ui/mat4.h>
+#include <math/mat4.h>
 
 #include <utils/Log.h>
 #include <utils/StrongPointer.h>

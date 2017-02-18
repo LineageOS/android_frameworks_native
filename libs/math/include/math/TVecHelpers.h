@@ -15,8 +15,7 @@
  */
 
 
-#ifndef UI_TVECHELPERS_H_
-#define UI_TVECHELPERS_H_
+#pragma once
 
 #include <math.h>
 #include <stdint.h>
@@ -607,6 +606,3 @@ public:
 // -------------------------------------------------------------------------------------
 }  // namespace details
 }  // namespace android
-
-
-#endif  // UI_TVECHELPERS_H_

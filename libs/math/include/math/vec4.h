@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef UI_VEC4_H_
-#define UI_VEC4_H_
+#pragma once
 
-#include <ui/vec3.h>
-#include <ui/half.h>
+#include <math/vec3.h>
+#include <math/half.h>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -127,5 +126,3 @@ typedef details::TVec4<bool> bool4;
 }  // namespace android
 
 #pragma clang diagnostic pop
-
-#endif  // UI_VEC4_H_

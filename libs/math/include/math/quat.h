@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef UI_QUAT_H_
-#define UI_QUAT_H_
+#pragma once
 
-#include <ui/half.h>
-#include <ui/TQuatHelpers.h>
-#include <ui/vec3.h>
-#include <ui/vec4.h>
+#include <math/half.h>
+#include <math/TQuatHelpers.h>
+#include <math/vec3.h>
+#include <math/vec4.h>
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -191,5 +190,3 @@ constexpr inline quatd operator"" _kd(unsigned long long v) {  // NOLINT
 #pragma clang diagnostic pop
 
 #undef PURE
-
-#endif  // UI_QUAT_H_

@@ -19,7 +19,7 @@
 #include <math.h>
 #include <stdlib.h>
 
-#include <ui/vec4.h>
+#include <math/vec4.h>
 
 #include <gtest/gtest.h>
 

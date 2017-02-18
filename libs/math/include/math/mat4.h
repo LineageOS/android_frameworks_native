@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef UI_MAT4_H_
-#define UI_MAT4_H_
+#pragma once
 
-#include <ui/mat3.h>
-#include <ui/quat.h>
-#include <ui/TMatHelpers.h>
-#include <ui/vec3.h>
-#include <ui/vec4.h>
+#include <math/mat3.h>
+#include <math/quat.h>
+#include <math/TMatHelpers.h>
+#include <math/vec3.h>
+#include <math/vec4.h>
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -585,5 +584,3 @@ typedef details::TMat44<float> mat4f;
 
 #undef PURE
 #undef CONSTEXPR
-
-#endif  // UI_MAT4_H_

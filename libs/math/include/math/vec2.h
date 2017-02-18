@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef UI_VEC3_H_
-#define UI_VEC3_H_
+#pragma once
 
-#include <ui/vec2.h>
-#include <ui/half.h>
+#include <math/TVecHelpers.h>
+#include <math/half.h>
+#include <assert.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <type_traits>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-anonymous-struct"
@@ -32,12 +33,12 @@ namespace android {
 namespace details {
 
 template <typename T>
-class TVec3 :   public TVecProductOperators<TVec3, T>,
-                public TVecAddOperators<TVec3, T>,
-                public TVecUnaryOperators<TVec3, T>,
-                public TVecComparisonOperators<TVec3, T>,
-                public TVecFunctions<TVec3, T>,
-                public TVecDebug<TVec3, T> {
+class TVec2 :   public TVecProductOperators<TVec2, T>,
+                public TVecAddOperators<TVec2, T>,
+                public TVecUnaryOperators<TVec2, T>,
+                public TVecComparisonOperators<TVec2, T>,
+                public TVecFunctions<TVec2, T>,
+                public TVecDebug<TVec2, T> {
 public:
     enum no_init { NO_INIT };
     typedef T value_type;
@@ -46,15 +47,12 @@ public:
     typedef size_t size_type;
 
     union {
-        struct { T x, y, z; };
-        struct { T s, t, p; };
-        struct { T r, g, b; };
-        TVec2<T> xy;
-        TVec2<T> st;
-        TVec2<T> rg;
+        struct { T x, y; };
+        struct { T s, t; };
+        struct { T r, g; };
     };
 
-    static constexpr size_t SIZE = 3;
+    static constexpr size_t SIZE = 2;
     inline constexpr size_type size() const { return SIZE; }
 
     // array access
@@ -73,40 +71,35 @@ public:
 
     // -----------------------------------------------------------------------
     // we want the compiler generated versions for these...
-    TVec3(const TVec3&) = default;
-    ~TVec3() = default;
-    TVec3& operator = (const TVec3&) = default;
+    TVec2(const TVec2&) = default;
+    ~TVec2() = default;
+    TVec2& operator = (const TVec2&) = default;
 
     // constructors
+
     // leaves object uninitialized. use with caution.
     explicit
-    constexpr TVec3(no_init) { }
+    constexpr TVec2(no_init) { }
 
     // default constructor
-    constexpr TVec3() : x(0), y(0), z(0) { }
+    constexpr TVec2() : x(0), y(0) { }
 
     // handles implicit conversion to a tvec4. must not be explicit.
     template<typename A, typename = typename std::enable_if<std::is_arithmetic<A>::value >::type>
-    constexpr TVec3(A v) : x(v), y(v), z(v) { }
-
-    template<typename A, typename B, typename C>
-    constexpr TVec3(A x, B y, C z) : x(x), y(y), z(z) { }
+    constexpr TVec2(A v) : x(v), y(v) { }
 
     template<typename A, typename B>
-    constexpr TVec3(const TVec2<A>& v, B z) : x(v.x), y(v.y), z(z) { }
+    constexpr TVec2(A x, B y) : x(x), y(y) { }
 
     template<typename A>
     explicit
-    constexpr TVec3(const TVec3<A>& v) : x(v.x), y(v.y), z(v.z) { }
+    constexpr TVec2(const TVec2<A>& v) : x(v.x), y(v.y) { }
 
-    // cross product works only on vectors of size 3
-    template <typename RT>
+    // cross product works only on vectors of size 2 or 3
+    template<typename RT>
     friend inline
-    constexpr TVec3 cross(const TVec3& u, const TVec3<RT>& v) {
-        return TVec3(
-                u.y*v.z - u.z*v.y,
-                u.z*v.x - u.x*v.z,
-                u.x*v.y - u.y*v.x);
+    constexpr value_type cross(const TVec2& u, const TVec2<RT>& v) {
+        return value_type(u.x*v.y - u.y*v.x);
     }
 };
 
@@ -114,21 +107,19 @@ public:
 
 // ----------------------------------------------------------------------------------------
 
-typedef details::TVec3<double> double3;
-typedef details::TVec3<float> float3;
-typedef details::TVec3<float> vec3;
-typedef details::TVec3<half> half3;
-typedef details::TVec3<int32_t> int3;
-typedef details::TVec3<uint32_t> uint3;
-typedef details::TVec3<int16_t> short3;
-typedef details::TVec3<uint16_t> ushort3;
-typedef details::TVec3<int8_t> byte3;
-typedef details::TVec3<uint8_t> ubyte3;
-typedef details::TVec3<bool> bool3;
+typedef details::TVec2<double> double2;
+typedef details::TVec2<float> float2;
+typedef details::TVec2<float> vec2;
+typedef details::TVec2<half> half2;
+typedef details::TVec2<int32_t> int2;
+typedef details::TVec2<uint32_t> uint2;
+typedef details::TVec2<int16_t> short2;
+typedef details::TVec2<uint16_t> ushort2;
+typedef details::TVec2<int8_t> byte2;
+typedef details::TVec2<uint8_t> ubyte2;
+typedef details::TVec2<bool> bool2;
 
 // ----------------------------------------------------------------------------------------
 }  // namespace android
 
 #pragma clang diagnostic pop
-
-#endif  // UI_VEC3_H_
