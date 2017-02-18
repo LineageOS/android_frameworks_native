@@ -29,6 +29,9 @@ LOCAL_CFLAGS := -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(includeFiles)
 LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
 LOCAL_STATIC_LIBRARIES := $(staticLibraries)
+# Rather than add this header-file-only library to all users of libdvrgraphics,
+# include it here.
+LOCAL_WHOLE_STATIC_LIBRARIES := libarect
 LOCAL_MODULE := libdvrgraphics
 include $(BUILD_STATIC_LIBRARY)
 
