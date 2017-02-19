@@ -28,20 +28,20 @@ genrule {
     out: [
         "android/dvr/composer/1.0/IVrComposerClient.h",
         "android/dvr/composer/1.0/IHwVrComposerClient.h",
-        "android/dvr/composer/1.0/BnVrComposerClient.h",
-        "android/dvr/composer/1.0/BpVrComposerClient.h",
+        "android/dvr/composer/1.0/BnHwVrComposerClient.h",
+        "android/dvr/composer/1.0/BpHwVrComposerClient.h",
         "android/dvr/composer/1.0/BsVrComposerClient.h",
 
         "android/dvr/composer/1.0/IVrComposerView.h",
         "android/dvr/composer/1.0/IHwVrComposerView.h",
-        "android/dvr/composer/1.0/BnVrComposerView.h",
-        "android/dvr/composer/1.0/BpVrComposerView.h",
+        "android/dvr/composer/1.0/BnHwVrComposerView.h",
+        "android/dvr/composer/1.0/BpHwVrComposerView.h",
         "android/dvr/composer/1.0/BsVrComposerView.h",
 
         "android/dvr/composer/1.0/IVrComposerCallback.h",
         "android/dvr/composer/1.0/IHwVrComposerCallback.h",
-        "android/dvr/composer/1.0/BnVrComposerCallback.h",
-        "android/dvr/composer/1.0/BpVrComposerCallback.h",
+        "android/dvr/composer/1.0/BnHwVrComposerCallback.h",
+        "android/dvr/composer/1.0/BpHwVrComposerCallback.h",
         "android/dvr/composer/1.0/BsVrComposerCallback.h",
     ],
 }
