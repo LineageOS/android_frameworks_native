@@ -319,7 +319,7 @@ const ProcHook* GetProcHook(const char* name) {
 }
 ¶
 ProcHook::Extension GetProcHookExtension(const char* name) {
-  {{$exts := Strings (Macro "driver.InterceptedExtensions") | SplitOn "\n"}}
+  {{$exts := Strings (Macro "driver.KnownExtensions") | SplitOn "\n"}}
   // clang-format off
   {{range $e := $exts}}
     if (strcmp(name, "{{$e}}") == 0) return ProcHook::{{TrimPrefix "VK_" $e}};
@@ -694,6 +694,17 @@ VK_KHR_shared_presentable_image
 
 {{/*
 ------------------------------------------------------------------------------
+  Emits a list of extensions known to vulkan::driver.
+------------------------------------------------------------------------------
+*/}}
+{{define "driver.KnownExtensions"}}
+{{Macro "driver.InterceptedExtensions"}}
+VK_KHR_get_physical_device_properties2
+{{end}}
+
+
+{{/*
+------------------------------------------------------------------------------
   Emits true if an extension is intercepted by vulkan::driver.
 ------------------------------------------------------------------------------
 */}}
@@ -776,7 +787,7 @@ VK_KHR_shared_presentable_image
       };
 
       enum Extension {
-        {{$exts := Strings (Macro "driver.InterceptedExtensions") | SplitOn "\n"}}
+        {{$exts := Strings (Macro "driver.KnownExtensions") | SplitOn "\n"}}
         {{range $e := $exts}}
           {{TrimPrefix "VK_" $e}},
         {{end}}
@@ -965,7 +976,7 @@ VK_KHR_shared_presentable_image
     {{else if eq $.Name "vkDestroyImage"}}true
 
     {{else if eq $.Name "vkGetPhysicalDeviceProperties"}}true
-
+    {{else if eq $.Name "vkGetPhysicalDeviceProperties2KHR"}}true
     {{end}}
 
     {{$ext := GetAnnotation $ "extension"}}

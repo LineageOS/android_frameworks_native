@@ -42,6 +42,7 @@ struct ProcHook {
         KHR_surface,
         KHR_swapchain,
         KHR_shared_presentable_image,
+        KHR_get_physical_device_properties2,
 
         EXTENSION_CORE,  // valid bit
         EXTENSION_COUNT,
@@ -67,6 +68,7 @@ struct InstanceDriverTable {
     PFN_vkCreateDebugReportCallbackEXT CreateDebugReportCallbackEXT;
     PFN_vkDestroyDebugReportCallbackEXT DestroyDebugReportCallbackEXT;
     PFN_vkDebugReportMessageEXT DebugReportMessageEXT;
+    PFN_vkGetPhysicalDeviceProperties2KHR GetPhysicalDeviceProperties2KHR;
     // clang-format on
 };
 

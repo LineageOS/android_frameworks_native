@@ -371,6 +371,7 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
     if (strcmp(name, "VK_KHR_surface") == 0) return ProcHook::KHR_surface;
     if (strcmp(name, "VK_KHR_swapchain") == 0) return ProcHook::KHR_swapchain;
     if (strcmp(name, "VK_KHR_shared_presentable_image") == 0) return ProcHook::KHR_shared_presentable_image;
+    if (strcmp(name, "VK_KHR_get_physical_device_properties2") == 0) return ProcHook::KHR_get_physical_device_properties2;
     // clang-format on
     return ProcHook::EXTENSION_UNKNOWN;
 }
@@ -409,6 +410,7 @@ bool InitDriverTable(VkInstance instance,
     INIT_PROC_EXT(EXT_debug_report, true, instance, CreateDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DestroyDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DebugReportMessageEXT);
+    INIT_PROC_EXT(KHR_get_physical_device_properties2, true, instance, GetPhysicalDeviceProperties2KHR);
     // clang-format on
 
     return success;

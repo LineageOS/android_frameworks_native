@@ -454,6 +454,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
                 hook_extensions_.set(ext_bit);
                 break;
             case ProcHook::EXTENSION_UNKNOWN:
+            case ProcHook::KHR_get_physical_device_properties2:
                 // HAL's extensions
                 break;
             default:
