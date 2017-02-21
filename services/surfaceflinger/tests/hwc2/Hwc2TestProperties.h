@@ -34,6 +34,20 @@ enum class Hwc2TestCoverage {
     Complete,
 };
 
+enum class Hwc2TestPropertyName {
+    BlendMode = 1,
+    BufferArea,
+    Color,
+    Composition,
+    CursorPosition,
+    Dataspace,
+    DisplayFrame,
+    PlaneAlpha,
+    SourceCrop,
+    SurfaceDamage,
+    Transform,
+};
+
 typedef struct {
     int32_t width;
     int32_t height;

@@ -16,10 +16,12 @@
 
 #include <array>
 #include <unordered_set>
+#include <unordered_map>
 #include <gtest/gtest.h>
 #include <dlfcn.h>
 #include <android-base/unique_fd.h>
 #include <hardware/hardware.h>
+#include <sync/sync.h>
 
 #define HWC2_INCLUDE_STRINGIFICATION
 #define HWC2_USE_CPP11
@@ -808,6 +810,50 @@ public:
         }
     }
 
+    void presentDisplay(hwc2_display_t display, int32_t* outPresentFence,
+            hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_PRESENT_DISPLAY>(
+                getFunction(HWC2_FUNCTION_PRESENT_DISPLAY));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display,
+                outPresentFence));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to present display";
+        }
+    }
+
+    void getReleaseFences(hwc2_display_t display,
+            std::vector<hwc2_layer_t>* outLayers,
+            std::vector<int32_t>* outFences, hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_GET_RELEASE_FENCES>(
+                getFunction(HWC2_FUNCTION_GET_RELEASE_FENCES));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        uint32_t numElements = 0;
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display,
+                &numElements, nullptr, nullptr));
+
+        if (err == HWC2_ERROR_NONE) {
+            outLayers->resize(numElements);
+            outFences->resize(numElements);
+
+            err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display,
+                    &numElements, outLayers->data(), outFences->data()));
+        }
+
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to get release fences";
+        }
+    }
+
     void getBadDisplay(hwc2_display_t* outDisplay)
     {
         for (hwc2_display_t display = 0; display < UINT64_MAX; display++) {
@@ -818,6 +864,32 @@ public:
         }
         ASSERT_TRUE(false) << "Unable to find bad display. UINT64_MAX displays"
                 " are registered. This should never happen.";
+    }
+
+    void waitForVsync(hwc2_display_t* outDisplay = nullptr,
+            int64_t* outTimestamp = nullptr)
+    {
+        std::unique_lock<std::mutex> lock(mVsyncMutex);
+        ASSERT_EQ(mVsyncCv.wait_for(lock, std::chrono::seconds(3)),
+                std::cv_status::no_timeout) << "timed out attempting to get"
+                " vsync callback";
+        if (outDisplay)
+            *outDisplay = mVsyncDisplay;
+        if (outTimestamp)
+            *outTimestamp = mVsyncTimestamp;
+    }
+
+    void enableVsync(hwc2_display_t display)
+    {
+        ASSERT_NO_FATAL_FAILURE(registerCallback(HWC2_CALLBACK_VSYNC, this,
+                reinterpret_cast<hwc2_function_pointer_t>(
+                hwc2TestVsyncCallback)));
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_ENABLE));
+    }
+
+    void disableVsync(hwc2_display_t display)
+    {
+        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_DISABLE));
     }
 
 protected:
@@ -919,32 +991,6 @@ protected:
         *outConfig = config;
     }
 
-    void enableVsync(hwc2_display_t display)
-    {
-        ASSERT_NO_FATAL_FAILURE(registerCallback(HWC2_CALLBACK_VSYNC, this,
-                reinterpret_cast<hwc2_function_pointer_t>(
-                hwc2TestVsyncCallback)));
-        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_ENABLE));
-    }
-
-    void disableVsync(hwc2_display_t display)
-    {
-        ASSERT_NO_FATAL_FAILURE(setVsyncEnabled(display, HWC2_VSYNC_DISABLE));
-    }
-
-    void waitForVsync(hwc2_display_t* outDisplay = nullptr,
-            int64_t* outTimestamp = nullptr)
-    {
-        std::unique_lock<std::mutex> lock(mVsyncMutex);
-        ASSERT_EQ(mVsyncCv.wait_for(lock, std::chrono::seconds(3)),
-                std::cv_status::no_timeout) << "timed out attempting to get"
-                " vsync callback";
-        if (outDisplay)
-            *outDisplay = mVsyncDisplay;
-        if (outTimestamp)
-            *outTimestamp = mVsyncTimestamp;
-    }
-
     /* Calls a set property function from Hwc2Test to set a property value from
      * Hwc2TestLayer to hwc2_layer_t on hwc2_display_t */
     using TestLayerPropertyFunction = void (*)(Hwc2Test* test,
@@ -973,7 +1019,7 @@ protected:
      * changes, present, etc. */
     using TestDisplayLayersFunction = void (*)(Hwc2Test* test,
             hwc2_display_t display, const std::vector<hwc2_layer_t>& layers,
-            const Hwc2TestLayers& testLayers);
+            Hwc2TestLayers* testLayers);
 
     /* It is called on an non validated display */
     using TestDisplayNonValidatedLayersFunction = void (*)(Hwc2Test* test,
@@ -1195,7 +1241,7 @@ protected:
                             &testLayers, &skip));
                     if (!skip)
                         EXPECT_NO_FATAL_FAILURE(function(this, display, layers,
-                                testLayers));
+                                &testLayers));
 
                 } while (testLayers.advance());
 
@@ -1298,6 +1344,27 @@ protected:
                 HWC2_ATTRIBUTE_HEIGHT, &displayArea->height));
     }
 
+    void closeFences(hwc2_display_t display, int32_t presentFence)
+    {
+        std::vector<hwc2_layer_t> layers;
+        std::vector<int32_t> fences;
+        const int msWait = 3000;
+
+        if (presentFence >= 0) {
+            ASSERT_GE(sync_wait(presentFence, msWait), 0);
+            close(presentFence);
+        }
+
+        ASSERT_NO_FATAL_FAILURE(getReleaseFences(display, &layers, &fences));
+        EXPECT_EQ(layers.size(), fences.size());
+
+        for (int32_t fence : fences) {
+            EXPECT_GE(sync_wait(fence, msWait), 0);
+            if (fence >= 0)
+                close(fence);
+        }
+    }
+
     void setLayerProperties(hwc2_display_t display, hwc2_layer_t layer,
             Hwc2TestLayers* testLayers, bool* outSkip)
     {
@@ -1363,6 +1430,100 @@ protected:
                     testLayers, outSkip));
             if (*outSkip)
                 return;
+        }
+    }
+
+    void setClientTarget(hwc2_display_t display,
+            Hwc2TestClientTarget* testClientTarget,
+            const Hwc2TestLayers& testLayers,
+            const std::set<hwc2_layer_t>& clientLayers,
+            const std::set<hwc2_layer_t>& clearLayers, bool flipClientTarget,
+            const Area& displayArea)
+    {
+        android_dataspace_t dataspace = HAL_DATASPACE_UNKNOWN;
+        hwc_region_t damage = { };
+        buffer_handle_t handle;
+        int32_t acquireFence;
+
+        ASSERT_EQ(testClientTarget->getBuffer(testLayers, clientLayers,
+                clearLayers, flipClientTarget, displayArea, &handle,
+                &acquireFence), 0);
+        EXPECT_NO_FATAL_FAILURE(setClientTarget(display, handle, acquireFence,
+                dataspace, damage));
+    }
+
+    void presentDisplays(size_t layerCnt, Hwc2TestCoverage coverage,
+            const std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage>&
+            coverageExceptions, bool optimize)
+    {
+        for (auto display : mDisplays) {
+            std::vector<hwc2_config_t> configs;
+
+            ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_ON));
+            ASSERT_NO_FATAL_FAILURE(enableVsync(display));
+
+            ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+            for (auto config : configs) {
+                Area displayArea;
+                std::vector<hwc2_layer_t> layers;
+
+                ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config));
+                ASSERT_NO_FATAL_FAILURE(getActiveDisplayArea(display,
+                        &displayArea));
+
+                ASSERT_NO_FATAL_FAILURE(createLayers(display, &layers, layerCnt));
+                Hwc2TestLayers testLayers(layers, coverage, displayArea,
+                        coverageExceptions);
+
+                if (optimize && !testLayers.optimizeLayouts())
+                    continue;
+
+                std::set<hwc2_layer_t> clientLayers;
+                std::set<hwc2_layer_t> clearLayers;
+                Hwc2TestClientTarget testClientTarget;
+
+                do {
+                    uint32_t numTypes, numRequests;
+                    bool hasChanges, skip;
+                    bool flipClientTarget;
+                    int32_t presentFence;
+
+                    ASSERT_NO_FATAL_FAILURE(setLayerProperties(display, layers,
+                            &testLayers, &skip));
+                    if (skip)
+                        continue;
+
+                    ASSERT_NO_FATAL_FAILURE(validateDisplay(display, &numTypes,
+                            &numRequests, &hasChanges));
+                    if (hasChanges)
+                        EXPECT_LE(numTypes, static_cast<uint32_t>(layers.size()))
+                                << "wrong number of requests";
+
+                    ASSERT_NO_FATAL_FAILURE(handleCompositionChanges(display,
+                            testLayers, layers, numTypes, &clientLayers));
+                    ASSERT_NO_FATAL_FAILURE(handleRequests(display, layers,
+                            numRequests, &clearLayers, &flipClientTarget));
+                    ASSERT_NO_FATAL_FAILURE(setClientTarget(display,
+                            &testClientTarget, testLayers, clientLayers,
+                            clearLayers, flipClientTarget, displayArea));
+                    ASSERT_NO_FATAL_FAILURE(acceptDisplayChanges(display));
+
+                    ASSERT_NO_FATAL_FAILURE(waitForVsync());
+
+                    EXPECT_NO_FATAL_FAILURE(presentDisplay(display,
+                            &presentFence));
+
+                    ASSERT_NO_FATAL_FAILURE(closeFences(display, presentFence));
+
+                } while (testLayers.advance());
+
+                ASSERT_NO_FATAL_FAILURE(destroyLayers(display,
+                        std::move(layers)));
+            }
+
+            ASSERT_NO_FATAL_FAILURE(disableVsync(display));
+            ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_OFF));
         }
     }
 
@@ -2870,7 +3031,7 @@ TEST_F(Hwc2Test, VALIDATE_DISPLAY_basic)
     ASSERT_NO_FATAL_FAILURE(displayLayers(Hwc2TestCoverage::Basic, 1,
             [] (Hwc2Test* test, hwc2_display_t display,
                     const std::vector<hwc2_layer_t>& layers,
-                    const Hwc2TestLayers& /*testLayers*/) {
+                    Hwc2TestLayers* /*testLayers*/) {
 
                 uint32_t numTypes, numRequests;
                 bool hasChanges = false;
@@ -2890,7 +3051,7 @@ TEST_F(Hwc2Test, VALIDATE_DISPLAY_default_5)
     ASSERT_NO_FATAL_FAILURE(displayLayers(Hwc2TestCoverage::Default, 5,
             [] (Hwc2Test* test, hwc2_display_t display,
                     const std::vector<hwc2_layer_t>& layers,
-                    const Hwc2TestLayers& /*testLayers*/) {
+                    Hwc2TestLayers* /*testLayers*/) {
 
                 uint32_t numTypes, numRequests;
                 bool hasChanges = false;
@@ -2925,7 +3086,7 @@ TEST_F(Hwc2Test, GET_DISPLAY_REQUESTS_basic)
     ASSERT_NO_FATAL_FAILURE(displayLayers(Hwc2TestCoverage::Basic, 1,
             [] (Hwc2Test* test, hwc2_display_t display,
                     const std::vector<hwc2_layer_t>& layers,
-                    const Hwc2TestLayers& /*testLayers*/) {
+                    Hwc2TestLayers* /*testLayers*/) {
 
                 uint32_t numTypes, numRequests;
                 bool hasChanges = false;
@@ -2985,7 +3146,7 @@ TEST_F(Hwc2Test, GET_CHANGED_COMPOSITION_TYPES_basic)
     ASSERT_NO_FATAL_FAILURE(displayLayers(Hwc2TestCoverage::Basic, 1,
             [] (Hwc2Test* test, hwc2_display_t display,
                     const std::vector<hwc2_layer_t>& layers,
-                    const Hwc2TestLayers& testLayers) {
+                    Hwc2TestLayers* testLayers) {
 
                 uint32_t numTypes, numRequests;
                 bool hasChanges = false;
@@ -2997,7 +3158,7 @@ TEST_F(Hwc2Test, GET_CHANGED_COMPOSITION_TYPES_basic)
                             << "wrong number of requests";
 
                 EXPECT_NO_FATAL_FAILURE(test->handleCompositionChanges(display,
-                        testLayers, layers, numTypes));
+                        *testLayers, layers, numTypes));
             }
     ));
 }
@@ -3044,7 +3205,7 @@ TEST_F(Hwc2Test, ACCEPT_DISPLAY_CHANGES_basic)
     ASSERT_NO_FATAL_FAILURE(displayLayers(Hwc2TestCoverage::Basic, 1,
             [] (Hwc2Test* test, hwc2_display_t display,
                     const std::vector<hwc2_layer_t>& layers,
-                    const Hwc2TestLayers& testLayers) {
+                    Hwc2TestLayers* testLayers) {
 
                 uint32_t numTypes, numRequests;
                 bool hasChanges = false;
@@ -3056,7 +3217,7 @@ TEST_F(Hwc2Test, ACCEPT_DISPLAY_CHANGES_basic)
                             << "wrong number of requests";
 
                 ASSERT_NO_FATAL_FAILURE(test->handleCompositionChanges(display,
-                        testLayers, layers, numTypes));
+                        *testLayers, layers, numTypes));
 
                 EXPECT_NO_FATAL_FAILURE(test->acceptDisplayChanges(display));
             }
@@ -3261,5 +3422,442 @@ TEST_F(Hwc2Test, SET_CLIENT_TARGET_bad_display)
     if (acquireFence >= 0)
         close(acquireFence);
 
+    EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 default layer. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_default_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions;
+    bool optimize = false;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 2 default layers. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_default_2)
+{
+    const size_t layerCnt = 2;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions;
+    bool optimize = false;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 3 default layers. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_default_3)
+{
+    const size_t layerCnt = 3;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions;
+    bool optimize = false;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 4 default layers. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_default_4)
+{
+    const size_t layerCnt = 4;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions;
+    bool optimize = false;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 5 default layers. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_default_5)
+{
+    const size_t layerCnt = 5;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions;
+    bool optimize = false;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 6 default layers. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_default_6)
+{
+    const size_t layerCnt = 6;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions;
+    bool optimize = false;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * blend mode. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_blend_mode_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::BlendMode, Hwc2TestCoverage::Complete},
+            {Hwc2TestPropertyName::Transform, Hwc2TestCoverage::Basic},
+            {Hwc2TestPropertyName::PlaneAlpha, Hwc2TestCoverage::Basic}};
+    bool optimize = false;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 2 layers with complete coverage of
+ * blend mode. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_blend_mode_2)
+{
+    const size_t layerCnt = 2;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::BlendMode, Hwc2TestCoverage::Complete},
+            {Hwc2TestPropertyName::PlaneAlpha, Hwc2TestCoverage::Basic}};
+    bool optimize = false;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * buffer. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_buffer_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::BufferArea, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * color. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_color_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::Composition, Hwc2TestCoverage::Complete},
+            {Hwc2TestPropertyName::Color, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 2 layers with complete coverage of
+ * color. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_color_2)
+{
+    const size_t layerCnt = 2;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::Composition, Hwc2TestCoverage::Complete},
+            {Hwc2TestPropertyName::BlendMode, Hwc2TestCoverage::Basic},
+            {Hwc2TestPropertyName::PlaneAlpha, Hwc2TestCoverage::Basic},
+            {Hwc2TestPropertyName::Color, Hwc2TestCoverage::Basic}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * composition. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_composition_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::Composition, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * cursor. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_cursor_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::Composition, Hwc2TestCoverage::Complete},
+            {Hwc2TestPropertyName::CursorPosition, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 2 layers with complete coverage of
+ * cursor. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_cursor_2)
+{
+    const size_t layerCnt = 2;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::Composition, Hwc2TestCoverage::Complete},
+            {Hwc2TestPropertyName::CursorPosition, Hwc2TestCoverage::Complete},
+            {Hwc2TestPropertyName::DisplayFrame, Hwc2TestCoverage::Basic}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * dataspace. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_dataspace_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::Dataspace, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * display frame. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_display_frame_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::DisplayFrame, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 2 layers with complete coverage of
+ * display frame. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_display_frame_2)
+{
+    const size_t layerCnt = 2;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::DisplayFrame, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 3 layers with complete coverage of
+ * display frame. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_display_frame_3)
+{
+    const size_t layerCnt = 3;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::DisplayFrame, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 4 layers with complete coverage of
+ * display frame. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_display_frame_4)
+{
+    const size_t layerCnt = 4;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::DisplayFrame, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * plane alpha. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_plane_alpha_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::BlendMode, Hwc2TestCoverage::Basic},
+            {Hwc2TestPropertyName::PlaneAlpha, Hwc2TestCoverage::Complete}};
+    bool optimize = false;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 2 layers with complete coverage of
+ * plane alpha. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_plane_alpha_2)
+{
+    const size_t layerCnt = 2;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::BlendMode, Hwc2TestCoverage::Basic},
+            {Hwc2TestPropertyName::PlaneAlpha, Hwc2TestCoverage::Complete}};
+    bool optimize = false;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * source crop. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_source_crop_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::DisplayFrame, Hwc2TestCoverage::Complete},
+            {Hwc2TestPropertyName::SourceCrop, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 2 layers with complete coverage of
+ * source crop. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_source_crop_2)
+{
+    const size_t layerCnt = 2;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::DisplayFrame, Hwc2TestCoverage::Complete},
+            {Hwc2TestPropertyName::SourceCrop, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * surface damage. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_surface_damage_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::SurfaceDamage, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * transform. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_transform_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::Transform, Hwc2TestCoverage::Complete}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 2 layers with complete coverage of
+ * transform. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_transform_2)
+{
+    const size_t layerCnt = 2;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions =
+            {{Hwc2TestPropertyName::Transform, Hwc2TestCoverage::Complete},
+            {Hwc2TestPropertyName::DisplayFrame, Hwc2TestCoverage::Basic}};
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with complete coverage of
+ * basic. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_basic_1)
+{
+    const size_t layerCnt = 1;
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Basic;
+    std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage> exceptions;
+    bool optimize = true;
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplays(layerCnt, coverage, exceptions,
+            optimize));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot present a bad display.  */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_bad_display)
+{
+    hwc2_display_t display;
+    int32_t presentFence;
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
+
+    ASSERT_NO_FATAL_FAILURE(presentDisplay(display, &presentFence, &err));
+    EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
+}
+
+/* TESTCASE: Tests that the HWC2 cannot present an unvalidated display. */
+TEST_F(Hwc2Test, PRESENT_DISPLAY_not_validated)
+{
+    ASSERT_NO_FATAL_FAILURE(displayLayers(Hwc2TestCoverage::Default, 1,
+            [] (Hwc2Test* test, hwc2_display_t display,
+                    const std::vector<hwc2_layer_t>& /*layers*/,
+                    Hwc2TestLayers* /*testLayers*/) {
+
+                int32_t presentFence;
+                hwc2_error_t err = HWC2_ERROR_NONE;
+
+                ASSERT_NO_FATAL_FAILURE(test->setPowerMode(display,
+                        HWC2_POWER_MODE_ON));
+                ASSERT_NO_FATAL_FAILURE(test->enableVsync(display));
+
+                ASSERT_NO_FATAL_FAILURE(test->waitForVsync());
+
+                ASSERT_NO_FATAL_FAILURE(test->presentDisplay(display,
+                        &presentFence, &err));
+                EXPECT_EQ(err, HWC2_ERROR_NOT_VALIDATED)
+                        << "returned wrong error code";
+
+                ASSERT_NO_FATAL_FAILURE(test->disableVsync(display));
+                ASSERT_NO_FATAL_FAILURE(test->setPowerMode(display,
+                        HWC2_POWER_MODE_OFF));
+            }
+    ));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot get release fences from a bad display. */
+TEST_F(Hwc2Test, GET_RELEASE_FENCES_bad_display)
+{
+    hwc2_display_t display;
+    std::vector<hwc2_layer_t> layers;
+    std::vector<int32_t> fences;
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
+
+    ASSERT_NO_FATAL_FAILURE(getReleaseFences(display, &layers, &fences, &err));
     EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
 }

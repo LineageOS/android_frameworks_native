@@ -35,7 +35,8 @@ LOCAL_SHARED_LIBRARIES := \
     libGLESv2 \
     libui \
     libgui \
-    liblog
+    liblog \
+    libsync
 LOCAL_STATIC_LIBRARIES := \
     libbase \
     libadf \
