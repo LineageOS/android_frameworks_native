@@ -77,4 +77,5 @@ interface IInstalld {
         int storage_flag);
 
     void invalidateMounts();
+    boolean isQuotaSupported(@nullable @utf8InCpp String uuid);
 }
