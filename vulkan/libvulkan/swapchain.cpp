@@ -542,26 +542,32 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice /*pdev*/,
 }
 
 VKAPI_ATTR
-VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice /*pdev*/,
+VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
                                                  VkSurfaceKHR /*surface*/,
                                                  uint32_t* count,
                                                  VkPresentModeKHR* modes) {
-    const VkPresentModeKHR kModes[] = {
-        VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_FIFO_KHR,
-        // TODO(chrisforbes): should only expose this if the driver can.
-        // VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR,
-        // VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR,
-    };
-    const uint32_t kNumModes = sizeof(kModes) / sizeof(kModes[0]);
+    android::Vector<VkPresentModeKHR> present_modes;
+    present_modes.push_back(VK_PRESENT_MODE_MAILBOX_KHR);
+    present_modes.push_back(VK_PRESENT_MODE_FIFO_KHR);
+
+    VkPhysicalDevicePresentationPropertiesANDROID present_properties;
+    if (QueryPresentationProperties(pdev, &present_properties)) {
+        if (present_properties.sharedImage) {
+            present_modes.push_back(VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR);
+            present_modes.push_back(VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR);
+        }
+    }
+
+    uint32_t num_modes = uint32_t(present_modes.size());
 
     VkResult result = VK_SUCCESS;
     if (modes) {
-        if (*count < kNumModes)
+        if (*count < num_modes)
             result = VK_INCOMPLETE;
-        *count = std::min(*count, kNumModes);
-        std::copy(kModes, kModes + *count, modes);
+        *count = std::min(*count, num_modes);
+        std::copy(present_modes.begin(), present_modes.begin() + int(*count), modes);
     } else {
-        *count = kNumModes;
+        *count = num_modes;
     }
     return result;
 }
