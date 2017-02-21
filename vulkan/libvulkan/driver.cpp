@@ -29,6 +29,7 @@
 #include <android/dlext.h>
 #include <cutils/properties.h>
 #include <ui/GraphicsEnv.h>
+#include <utils/Vector.h>
 
 #include "driver.h"
 #include "stubhal.h"
@@ -470,6 +471,7 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
                 break;
             case ProcHook::KHR_incremental_present:
             case ProcHook::GOOGLE_display_timing:
+            case ProcHook::KHR_shared_presentable_image:
                 hook_extensions_.set(ext_bit);
                 // return now as these extensions do not require HAL support
                 return;
@@ -478,9 +480,6 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
                 break;
             case ProcHook::EXTENSION_UNKNOWN:
                 // HAL's extensions
-                break;
-            case ProcHook::KHR_shared_presentable_image:
-                // Exposed by HAL, but API surface is all in the loader
                 break;
             default:
                 ALOGW("Ignored invalid device extension %s", name);
@@ -498,10 +497,6 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
         if (ext_bit != ProcHook::EXTENSION_UNKNOWN) {
             if (ext_bit == ProcHook::ANDROID_native_buffer)
                 hook_extensions_.set(ProcHook::KHR_swapchain);
-
-            // Exposed by HAL, but API surface is all in the loader
-            if (ext_bit == ProcHook::KHR_shared_presentable_image)
-                hook_extensions_.set(ext_bit);
 
             hal_extensions_.set(ext_bit);
         }
@@ -735,21 +730,63 @@ VkResult EnumerateInstanceExtensionProperties(
     return result;
 }
 
+bool QueryPresentationProperties(
+    VkPhysicalDevice physicalDevice,
+    VkPhysicalDevicePresentationPropertiesANDROID *presentation_properties)
+{
+    const InstanceData& data = GetData(physicalDevice);
+
+    // GPDP2 must be present and enabled on the instance.
+    if (!data.driver.GetPhysicalDeviceProperties2KHR)
+        return false;
+
+    // Request the android-specific presentation properties via GPDP2
+    VkPhysicalDeviceProperties2KHR properties = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR,
+        presentation_properties,
+        {}
+    };
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+    presentation_properties->sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENTATION_PROPERTIES_ANDROID;
+#pragma clang diagnostic pop
+    presentation_properties->pNext = nullptr;
+    presentation_properties->sharedImage = VK_FALSE;
+
+    data.driver.GetPhysicalDeviceProperties2KHR(physicalDevice,
+                                                &properties);
+
+    return true;
+}
+
 VkResult EnumerateDeviceExtensionProperties(
     VkPhysicalDevice physicalDevice,
     const char* pLayerName,
     uint32_t* pPropertyCount,
     VkExtensionProperties* pProperties) {
     const InstanceData& data = GetData(physicalDevice);
-    static const std::array<VkExtensionProperties, 3> loader_extensions = {{
-        // WSI extensions
-        {VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
-         VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION},
-        {VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
-         VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION},
-        {VK_EXT_HDR_METADATA_EXTENSION_NAME,
-         VK_EXT_HDR_METADATA_SPEC_VERSION},
-    }};
+    // extensions that are unconditionally exposed by the loader
+    android::Vector<VkExtensionProperties> loader_extensions;
+    loader_extensions.push_back({
+        VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
+        VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION});
+    loader_extensions.push_back({
+        VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
+        VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION});
+    loader_extensions.push_back({
+        VK_EXT_HDR_METADATA_EXTENSION_NAME,
+        VK_EXT_HDR_METADATA_SPEC_VERSION});
+
+    // conditionally add shared_presentable_image if supportable
+    VkPhysicalDevicePresentationPropertiesANDROID presentation_properties;
+    if (QueryPresentationProperties(physicalDevice, &presentation_properties) &&
+        presentation_properties.sharedImage) {
+        loader_extensions.push_back({
+            VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME,
+            VK_KHR_SHARED_PRESENTABLE_IMAGE_SPEC_VERSION});
+    }
 
     // enumerate our extensions first
     if (!pLayerName && pProperties) {

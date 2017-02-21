@@ -109,6 +109,10 @@ bool Debuggable();
 bool OpenHAL();
 const VkAllocationCallbacks& GetDefaultAllocator();
 
+bool QueryPresentationProperties(
+    VkPhysicalDevice physicalDevice,
+    VkPhysicalDevicePresentationPropertiesANDROID *presentation_properties);
+
 // clang-format off
 VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const char* pName);
 VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pName);
