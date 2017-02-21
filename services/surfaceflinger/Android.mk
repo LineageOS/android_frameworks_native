@@ -159,10 +159,6 @@ LOCAL_CFLAGS := -DLOG_TAG=\"SurfaceFlinger\"
 
 LOCAL_INIT_RC := surfaceflinger.rc
 
-ifneq ($(ENABLE_CPUSETS),)
-    LOCAL_CFLAGS += -DENABLE_CPUSETS
-endif
-
 ifeq ($(TARGET_USES_HWC2),true)
     LOCAL_CFLAGS += -DUSE_HWC2
 endif
