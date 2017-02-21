@@ -2014,5 +2014,11 @@ std::string InstalldNativeService::findQuotaDeviceForUuid(
     return mQuotaDevices[path];
 }
 
+binder::Status InstalldNativeService::isQuotaSupported(
+        const std::unique_ptr<std::string>& volumeUuid, bool* _aidl_return) {
+    *_aidl_return = !findQuotaDeviceForUuid(volumeUuid).empty();
+    return ok();
+}
+
 }  // namespace installd
 }  // namespace android

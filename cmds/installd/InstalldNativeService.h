@@ -111,6 +111,8 @@ public:
         const std::unique_ptr<std::string>& volumeUuid, int32_t storage_flag, bool* _aidl_return);
 
     binder::Status invalidateMounts();
+    binder::Status isQuotaSupported(const std::unique_ptr<std::string>& volumeUuid,
+            bool* _aidl_return);
 
 private:
     std::recursive_mutex mLock;
