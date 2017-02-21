@@ -330,6 +330,24 @@ static void setFence(int32_t fence, void* fenceGenerator)
 }
 
 
+/* Sets the pixel of a buffer given the location, format, stride and color.
+ * Currently only supports RGBA_8888 */
+static void setColor(int32_t x, int32_t y,
+        android_pixel_format_t format, uint32_t stride, uint8_t* img, uint8_t r,
+        uint8_t g, uint8_t b, uint8_t a)
+{
+       switch (format) {
+       case HAL_PIXEL_FORMAT_RGBA_8888:
+           img[(y * stride + x) * 4 + 0] = r;
+           img[(y * stride + x) * 4 + 1] = g;
+           img[(y * stride + x) * 4 + 2] = b;
+           img[(y * stride + x) * 4 + 3] = a;
+           break;
+       default:
+           break;
+       }
+}
+
 Hwc2TestBuffer::Hwc2TestBuffer()
     : mFenceGenerator(new Hwc2TestFenceGenerator()) { }
 
@@ -433,20 +451,242 @@ int Hwc2TestBuffer::generateBuffer()
     return 0;
 }
 
-/* Sets the pixel of a buffer given the location, format, stride and color.
- * Currently only supports RGBA_8888 */
-void Hwc2TestBuffer::setColor(int32_t x, int32_t y,
-        android_pixel_format_t format, uint32_t stride, uint8_t* img, uint8_t r,
-        uint8_t g, uint8_t b, uint8_t a)
+
+Hwc2TestClientTargetBuffer::Hwc2TestClientTargetBuffer()
+    : mFenceGenerator(new Hwc2TestFenceGenerator()) { }
+
+Hwc2TestClientTargetBuffer::~Hwc2TestClientTargetBuffer() { }
+
+/* Generates a client target buffer using the layers assigned for client
+ * composition. Takes into account the individual layer properties such as
+ * transform, blend mode, source crop, etc. */
+int Hwc2TestClientTargetBuffer::get(buffer_handle_t* outHandle,
+        int32_t* outFence, const Area& bufferArea,
+        const Hwc2TestLayers* testLayers,
+        const std::set<hwc2_layer_t>* clientLayers,
+        const std::set<hwc2_layer_t>* clearLayers)
 {
-       switch (format) {
-       case HAL_PIXEL_FORMAT_RGBA_8888:
-           img[(y * stride + x) * 4 + 0] = r;
-           img[(y * stride + x) * 4 + 1] = g;
-           img[(y * stride + x) * 4 + 2] = b;
-           img[(y * stride + x) * 4 + 3] = a;
-           break;
-       default:
-           break;
-       }
+    int err;
+
+    /* Create new graphic buffer with updated size */
+    mGraphicBuffer = mGraphicBufferAlloc.createGraphicBuffer(bufferArea.width,
+            bufferArea.height, mFormat,
+            GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER,
+            "hwc2_test_buffer", &err);
+    if (err)
+        return err;
+
+    uint8_t* img;
+    mGraphicBuffer->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
+
+    uint32_t stride = mGraphicBuffer->getStride();
+
+    float bWDiv3 = bufferArea.width / 3;
+    float bW2Div3 = bufferArea.width * 2 / 3;
+    float bHDiv3 = bufferArea.height / 3;
+    float bH2Div3 = bufferArea.height * 2 / 3;
+
+    /* Cycle through every pixel in the buffer and determine what color it
+     * should be. */
+    for (int32_t y = 0; y < bufferArea.height; y++) {
+        for (int32_t x = 0; x < bufferArea.width; x++) {
+
+            uint8_t r = 0, g = 0, b = 0;
+            float a = 0.0f;
+
+            /* Cycle through each client layer from back to front and
+             * update the pixel color. */
+            for (auto layer = clientLayers->rbegin();
+                    layer != clientLayers->rend(); ++layer) {
+
+                const hwc_rect_t df = testLayers->getDisplayFrame(*layer);
+
+                float dfL = df.left;
+                float dfT = df.top;
+                float dfR = df.right;
+                float dfB = df.bottom;
+
+                /* If the pixel location falls outside of the layer display
+                 * frame, skip the layer. */
+                if (x < dfL || x >= dfR || y < dfT || y >= dfB)
+                    continue;
+
+                /* If the device has requested the layer be clear, clear
+                 * the pixel and continue. */
+                if (clearLayers->count(*layer) != 0) {
+                    r = 0;
+                    g = 0;
+                    b = 0;
+                    a = 0.0f;
+                    continue;
+                }
+
+                float planeAlpha = testLayers->getPlaneAlpha(*layer);
+
+                /* If the layer is a solid color, fill the color and
+                 * continue. */
+                if (testLayers->getComposition(*layer)
+                        == HWC2_COMPOSITION_SOLID_COLOR) {
+                    const auto color = testLayers->getColor(*layer);
+                    r = color.r;
+                    g = color.g;
+                    b = color.b;
+                    a = color.a * planeAlpha;
+                    continue;
+                }
+
+                float xPos = x;
+                float yPos = y;
+
+                hwc_transform_t transform = testLayers->getTransform(*layer);
+
+                float dfW = dfR - dfL;
+                float dfH = dfB - dfT;
+
+                /* If a layer has a transform, find which location on the
+                 * layer will end up in the current pixel location. We
+                 * can calculate the color of the current pixel using that
+                 * location. */
+                if (transform > 0) {
+                    /* Change origin to be the center of the layer. */
+                    xPos = xPos - dfL - dfW / 2.0;
+                    yPos = yPos - dfT - dfH / 2.0;
+
+                    /* Flip Horizontal by reflecting across the y axis. */
+                    if (transform & HWC_TRANSFORM_FLIP_H)
+                        xPos = -xPos;
+
+                    /* Flip vertical by reflecting across the x axis. */
+                    if (transform & HWC_TRANSFORM_FLIP_V)
+                        yPos = -yPos;
+
+                    /* Rotate 90 by using a basic linear algebra rotation
+                     * and scaling the result so the display frame remains
+                     * the same. For example, a buffer of size 100x50 should
+                     * rotate 90 degress but remain the same dimension
+                     * (100x50) at the end of the transformation. */
+                    if (transform & HWC_TRANSFORM_ROT_90) {
+                        float tmp = xPos;
+                        xPos = -yPos * dfW / dfH;
+                        yPos = tmp * dfH / dfW;
+                    }
+
+                    /* Change origin back to the top left corner of the
+                     * layer. */
+                    xPos = xPos + dfL + dfW / 2.0;
+                    yPos = yPos + dfT + dfH / 2.0;
+                }
+
+                hwc_frect_t sc = testLayers->getSourceCrop(*layer);
+                float scL = sc.left, scT = sc.top;
+
+                float dfWDivScW = dfW / (sc.right - scL);
+                float dfHDivScH = dfH / (sc.bottom - scT);
+
+                float max = 255, min = 0;
+
+                /* Choose the pixel color. Similar to generateBuffer,
+                 * each layer will be divided into 3x3 colors. Because
+                 * both the source crop and display frame must be taken into
+                 * account, the formulas are more complicated.
+                 *
+                 * If the source crop and display frame were not taken into
+                 * account, we would simply divide the buffer into three
+                 * sections by height. Each section would get one color.
+                 * For example the formula for the first section would be:
+                 *
+                 * if (yPos < bufferArea.height / 3)
+                 *        //Select first section color
+                 *
+                 * However the pixel color is chosen based on the source
+                 * crop and displayed based on the display frame.
+                 *
+                 * If the display frame top was 0 and the source crop height
+                 * and display frame height were the same. The only factor
+                 * would be the source crop top. To calculate the new
+                 * section boundary, the section boundary would be moved up
+                 * by the height of the source crop top. The formula would
+                 * be:
+                 * if (yPos < (bufferArea.height / 3 - sourceCrop.top)
+                 *        //Select first section color
+                 *
+                 * If the display frame top could also vary but source crop
+                 * and display frame heights were the same, the formula
+                 * would be:
+                 * if (yPos < (bufferArea.height / 3 - sourceCrop.top
+                 *              + displayFrameTop)
+                 *        //Select first section color
+                 *
+                 * If the heights were not the same, the conversion between
+                 * the source crop and display frame dimensions must be
+                 * taken into account. The formula would be:
+                 * if (yPos < ((bufferArea.height / 3) - sourceCrop.top)
+                 *              * displayFrameHeight / sourceCropHeight
+                 *              + displayFrameTop)
+                 *        //Select first section color
+                 */
+                if (yPos < ((bHDiv3) - scT) * dfHDivScH + dfT) {
+                    min = 255 / 2;
+                } else if (yPos >= ((bH2Div3) - scT) * dfHDivScH + dfT) {
+                    max = 255 / 2;
+                }
+
+                uint8_t rCur = min, gCur = min, bCur = min;
+                float aCur = 1.0f;
+
+                /* This further divides the color sections from 3 to 3x3.
+                 * The math behind it follows the same logic as the previous
+                 * comment */
+                if (xPos < ((bWDiv3) - scL) * (dfWDivScW) + dfL) {
+                    rCur = max;
+                } else if (xPos < ((bW2Div3) - scL) * (dfWDivScW) + dfL) {
+                    gCur = max;
+                } else {
+                    bCur = max;
+                }
+
+
+                /* Blend the pixel color with the previous layers' pixel
+                 * colors using the plane alpha and blend mode. The final
+                 * pixel color is chosen using the plane alpha and blend
+                 * mode formulas found in hwcomposer2.h */
+                hwc2_blend_mode_t blendMode = testLayers->getBlendMode(*layer);
+
+                if (blendMode == HWC2_BLEND_MODE_PREMULTIPLIED) {
+                    rCur *= planeAlpha;
+                    gCur *= planeAlpha;
+                    bCur *= planeAlpha;
+                }
+
+                aCur *= planeAlpha;
+
+                if (blendMode == HWC2_BLEND_MODE_PREMULTIPLIED) {
+                    r = rCur + r * (1.0 - aCur);
+                    g = gCur + g * (1.0 - aCur);
+                    b = bCur + b * (1.0 - aCur);
+                    a = aCur + a * (1.0 - aCur);
+                } else if (blendMode == HWC2_BLEND_MODE_COVERAGE) {
+                    r = rCur * aCur + r * (1.0 - aCur);
+                    g = gCur * aCur + g * (1.0 - aCur);
+                    b = bCur * aCur + b * (1.0 - aCur);
+                    a = aCur * aCur + a * (1.0 - aCur);
+                } else {
+                    r = rCur;
+                    g = gCur;
+                    b = bCur;
+                    a = aCur;
+                }
+            }
+
+            /* Set the pixel color */
+            setColor(x, y, mFormat, stride, img, r, g, b, a * 255);
+        }
+    }
+
+    mGraphicBuffer->unlock();
+
+    *outFence = mFenceGenerator->get();
+    *outHandle = mGraphicBuffer->handle;
+
+    return 0;
 }

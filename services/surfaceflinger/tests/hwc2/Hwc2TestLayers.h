@@ -40,12 +40,21 @@ public:
     bool advance();
     bool advanceVisibleRegions();
 
+    /* Test cases with multiple layers and property values can take quite some
+     * time to run. A significant amount of time can be spent on test cases
+     * where one layer is changing property values but is not visible. To
+     * decrease runtime, this function can be called. Removes layouts where a
+     * layer is completely blocked from view. It also removes layouts that do
+     * not cover the entire display.*/
+    bool optimizeLayouts();
+
     bool contains(hwc2_layer_t layer) const;
 
     int  getBuffer(hwc2_layer_t layer, buffer_handle_t* outHandle,
             int32_t* outAcquireFence);
 
     hwc2_blend_mode_t      getBlendMode(hwc2_layer_t layer) const;
+    Area                   getBufferArea(hwc2_layer_t layer) const;
     hwc_color_t            getColor(hwc2_layer_t layer) const;
     hwc2_composition_t     getComposition(hwc2_layer_t layer) const;
     hwc_rect_t             getCursorPosition(hwc2_layer_t layer) const;
@@ -60,11 +69,13 @@ public:
     uint32_t               getZOrder(hwc2_layer_t layer) const;
 
 private:
-    void setVisibleRegions();
+    bool setVisibleRegions();
 
     std::map<hwc2_layer_t, Hwc2TestLayer> mTestLayers;
 
     Area mDisplayArea;
+
+    bool mOptimize = false;
 };
 
 #endif /* ifndef _HWC2_TEST_LAYERS_H */

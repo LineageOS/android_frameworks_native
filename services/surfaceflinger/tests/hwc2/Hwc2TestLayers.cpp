@@ -60,26 +60,52 @@ void Hwc2TestLayers::reset()
 
 bool Hwc2TestLayers::advance()
 {
-    for (auto& testLayer : mTestLayers) {
-        if (testLayer.second.advance()) {
-            setVisibleRegions();
-            return true;
+    auto itr = mTestLayers.begin();
+    bool optimized;
+
+    while (itr != mTestLayers.end()) {
+        if (itr->second.advance()) {
+            optimized = setVisibleRegions();
+            if (!mOptimize || optimized)
+                return true;
+            itr = mTestLayers.begin();
+        } else {
+            itr->second.reset();
+            ++itr;
         }
-        testLayer.second.reset();
     }
     return false;
 }
 
 bool Hwc2TestLayers::advanceVisibleRegions()
 {
-    for (auto& testLayer : mTestLayers) {
-        if (testLayer.second.advanceVisibleRegion()) {
-            setVisibleRegions();
-            return true;
+    auto itr = mTestLayers.begin();
+    bool optimized;
+
+    while (itr != mTestLayers.end()) {
+        if (itr->second.advanceVisibleRegion()) {
+            optimized = setVisibleRegions();
+            if (!mOptimize || optimized)
+                return true;
+            itr = mTestLayers.begin();
+        } else {
+            itr->second.reset();
+            ++itr;
         }
-        testLayer.second.reset();
     }
     return false;
+}
+
+/* Removes layouts that do not cover the entire display.
+ * Also removes layouts where a layer is completely blocked from view.
+ */
+bool Hwc2TestLayers::optimizeLayouts()
+{
+    mOptimize = true;
+
+    if (setVisibleRegions())
+        return true;
+    return advance();
 }
 
 bool Hwc2TestLayers::contains(hwc2_layer_t layer) const
@@ -102,6 +128,14 @@ hwc2_blend_mode_t Hwc2TestLayers::getBlendMode(hwc2_layer_t layer) const
         []() { GTEST_FAIL(); }();
     }
     return mTestLayers.at(layer).getBlendMode();
+}
+
+Area Hwc2TestLayers::getBufferArea(hwc2_layer_t layer) const
+{
+    auto testLayer = mTestLayers.find(layer);
+    if (testLayer == mTestLayers.end())
+        [] () { GTEST_FAIL(); }();
+    return testLayer->second.getBufferArea();
 }
 
 hwc_color_t Hwc2TestLayers::getColor(hwc2_layer_t layer) const
@@ -192,11 +226,15 @@ uint32_t Hwc2TestLayers::getZOrder(hwc2_layer_t layer) const
     return mTestLayers.at(layer).getZOrder();
 }
 
-void Hwc2TestLayers::setVisibleRegions()
+/* Sets the visible regions for a display. Returns false if the layers do not
+ * cover the entire display or if a layer is not visible */
+bool Hwc2TestLayers::setVisibleRegions()
 {
     /* The region of the display that is covered by layers above the current
      * layer */
     android::Region aboveOpaqueLayers;
+
+    bool optimized = true;
 
     /* Iterate over test layers from max z order to min z order. */
     for (auto& testLayer : mTestLayers) {
@@ -214,8 +252,23 @@ void Hwc2TestLayers::setVisibleRegions()
 
         testLayer.second.setVisibleRegion(visibleRegion);
 
+        /* If a layer is not visible, return false */
+        if (visibleRegion.isEmpty())
+            optimized = false;
+
         /* If this layer is opaque, store the region it covers */
         if (testLayer.second.getPlaneAlpha() == 1.0f)
             aboveOpaqueLayers.orSelf(visibleRegion);
     }
+
+    /* If the opaque region does not cover the entire display return false */
+    if (!aboveOpaqueLayers.isRect())
+        return false;
+
+    const auto rect = aboveOpaqueLayers.begin();
+    if (rect->left != 0 || rect->top != 0 || rect->right != mDisplayArea.width
+            || rect->bottom != mDisplayArea.height)
+        return false;
+
+    return optimized;
 }
