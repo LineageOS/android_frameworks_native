@@ -32,6 +32,7 @@
 #include "Hwc2TestLayer.h"
 #include "Hwc2TestLayers.h"
 #include "Hwc2TestClientTarget.h"
+#include "Hwc2TestVirtualDisplay.h"
 
 void hwc2TestHotplugCallback(hwc2_callback_data_t callbackData,
         hwc2_display_t display, int32_t connected);
@@ -75,6 +76,13 @@ public:
             /* Sets power mode to off and removes the display from
              * mActiveDisplays */
             setPowerMode(display, HWC2_POWER_MODE_OFF);
+        }
+
+        for (auto itr = mVirtualDisplays.begin(); itr != mVirtualDisplays.end();) {
+            hwc2_display_t display = *itr;
+            itr++;
+            /* Destroys virtual displays */
+            destroyVirtualDisplay(display);
         }
 
         if (mHwc2Device)
@@ -949,6 +957,71 @@ public:
         }
     }
 
+    void createVirtualDisplay(uint32_t width, uint32_t height,
+            android_pixel_format_t* outFormat, hwc2_display_t* outDisplay,
+            hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_CREATE_VIRTUAL_DISPLAY>(
+                getFunction(HWC2_FUNCTION_CREATE_VIRTUAL_DISPLAY));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, width, height,
+                reinterpret_cast<int32_t*>(outFormat), outDisplay));
+
+        if (err == HWC2_ERROR_NONE)
+            mVirtualDisplays.insert(*outDisplay);
+
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to create virtual display";
+        }
+    }
+
+    void destroyVirtualDisplay(hwc2_display_t display,
+            hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_DESTROY_VIRTUAL_DISPLAY>(
+                getFunction(HWC2_FUNCTION_DESTROY_VIRTUAL_DISPLAY));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display));
+
+        if (err == HWC2_ERROR_NONE)
+            mVirtualDisplays.erase(display);
+
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to destroy virtual display";
+        }
+    }
+
+    void getMaxVirtualDisplayCount(uint32_t* outMaxCnt)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_GET_MAX_VIRTUAL_DISPLAY_COUNT>(
+                getFunction(HWC2_FUNCTION_GET_MAX_VIRTUAL_DISPLAY_COUNT));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        *outMaxCnt = pfn(mHwc2Device);
+    }
+
+    void setOutputBuffer(hwc2_display_t display, buffer_handle_t buffer,
+            int32_t releaseFence, hwc2_error_t* outErr = nullptr)
+    {
+        auto pfn = reinterpret_cast<HWC2_PFN_SET_OUTPUT_BUFFER>(
+                getFunction(HWC2_FUNCTION_SET_OUTPUT_BUFFER));
+        ASSERT_TRUE(pfn) << "failed to get function";
+
+        auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, buffer,
+                releaseFence));
+        if (outErr) {
+            *outErr = err;
+        } else {
+            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set output buffer";
+        }
+    }
+
     void getBadDisplay(hwc2_display_t* outDisplay)
     {
         for (hwc2_display_t display = 0; display < UINT64_MAX; display++) {
@@ -1128,6 +1201,10 @@ protected:
     /* Tests a particular active display config */
     using TestActiveDisplayConfigFunction = void (*)(Hwc2Test* test,
             hwc2_display_t display);
+
+    /* Tests a newly created virtual display */
+    using TestCreateVirtualDisplayFunction = void (*)(Hwc2Test* test,
+            hwc2_display_t display, Hwc2TestVirtualDisplay* testVirtualDisplay);
 
     /* Advances a property of Hwc2TestLayer */
     using AdvanceProperty = bool (*)(Hwc2TestLayer* testLayer);
@@ -1441,6 +1518,40 @@ protected:
         }
     }
 
+    /* Creates a virtual display for testing */
+    void createVirtualDisplay(Hwc2TestCoverage coverage,
+            TestCreateVirtualDisplayFunction function)
+    {
+        Hwc2TestVirtualDisplay testVirtualDisplay(coverage);
+
+        do {
+            hwc2_display_t display;
+            hwc2_error_t err = HWC2_ERROR_NONE;
+
+            const UnsignedArea& dimension =
+                    testVirtualDisplay.getDisplayDimension();
+            android_pixel_format_t desiredFormat = HAL_PIXEL_FORMAT_RGBA_8888;
+
+            ASSERT_NO_FATAL_FAILURE(createVirtualDisplay(dimension.width,
+                    dimension.height, &desiredFormat, &display, &err));
+
+            EXPECT_TRUE(err == HWC2_ERROR_NONE || err == HWC2_ERROR_NO_RESOURCES
+                    || err == HWC2_ERROR_UNSUPPORTED)
+                    << "returned wrong error code";
+            EXPECT_GE(desiredFormat, 0) << "invalid format";
+
+            if (err != HWC2_ERROR_NONE)
+                continue;
+
+            EXPECT_NO_FATAL_FAILURE(function(this, display,
+                    &testVirtualDisplay));
+
+            ASSERT_NO_FATAL_FAILURE(destroyVirtualDisplay(display));
+
+        } while (testVirtualDisplay.advance());
+    }
+
+
     void getActiveConfigAttribute(hwc2_display_t display,
             hwc2_attribute_t attribute, int32_t* outValue)
     {
@@ -1663,6 +1774,10 @@ protected:
     /* Store the power mode state. If it is not HWC2_POWER_MODE_OFF when
      * tearing down the test cases, change it to HWC2_POWER_MODE_OFF */
     std::set<hwc2_display_t> mActiveDisplays;
+
+    /* Store all created virtual displays that have not been destroyed. If an
+     * ASSERT_* fails, then destroy the virtual displays on exit */
+    std::set<hwc2_display_t> mVirtualDisplays;
 
     std::mutex mVsyncMutex;
     std::condition_variable mVsyncCv;
@@ -4218,4 +4333,199 @@ TEST_F(Hwc2Test, SET_COLOR_TRANSFORM_arbitrary_matrix)
                 }
             }
     ));
+}
+
+/* TESTCASE: Tests that the HWC2 create an destory virtual displays. */
+TEST_F(Hwc2Test, CREATE_DESTROY_VIRTUAL_DISPLAY)
+{
+    ASSERT_NO_FATAL_FAILURE(createVirtualDisplay(Hwc2TestCoverage::Complete,
+            [] (Hwc2Test* /*test*/, hwc2_display_t /*display*/,
+                    Hwc2TestVirtualDisplay* /*testVirtualDisplay*/) { }));
+}
+
+/* TESTCASE: Tests that the HWC2 can create and destroy multiple virtual
+ * displays. */
+TEST_F(Hwc2Test, CREATE_DESTROY_VIRTUAL_DISPLAY_multiple)
+{
+    Hwc2TestVirtualDisplay testVirtualDisplay(Hwc2TestCoverage::Complete);
+    std::vector<hwc2_display_t> displays;
+
+    do {
+        const UnsignedArea& dimension =
+                testVirtualDisplay.getDisplayDimension();
+        android_pixel_format_t desiredFormat = HAL_PIXEL_FORMAT_RGBA_8888;
+        hwc2_display_t display;
+        hwc2_error_t err = HWC2_ERROR_NONE;
+
+        ASSERT_NO_FATAL_FAILURE(createVirtualDisplay(dimension.width,
+                dimension.height, &desiredFormat, &display, &err));
+
+        EXPECT_TRUE(err == HWC2_ERROR_NONE || err == HWC2_ERROR_NO_RESOURCES
+                || err == HWC2_ERROR_UNSUPPORTED) << "returned wrong error code";
+        EXPECT_GE(desiredFormat, 0) << "invalid format";
+
+        if (err == HWC2_ERROR_NONE)
+            displays.push_back(display);
+
+    } while (testVirtualDisplay.advance());
+
+    for (hwc2_display_t display : displays) {
+        EXPECT_NO_FATAL_FAILURE(destroyVirtualDisplay(display));
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 cannot destroy a bad virtual displays.  */
+TEST_F(Hwc2Test, DESTROY_VIRTUAL_DISPLAY_bad_display)
+{
+    hwc2_display_t display;
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
+
+    ASSERT_NO_FATAL_FAILURE(destroyVirtualDisplay(display, &err));
+    EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
+}
+
+/* TESTCASE: Tests that the HWC2 cannot destroy a physical display. */
+TEST_F(Hwc2Test, DESTROY_VIRTUAL_DISPLAY_bad_parameter)
+{
+    hwc2_display_t display = HWC_DISPLAY_PRIMARY;
+    hwc2_error_t err = HWC2_ERROR_NONE;
+
+    ASSERT_NO_FATAL_FAILURE(destroyVirtualDisplay(display, &err));
+    EXPECT_EQ(err, HWC2_ERROR_BAD_PARAMETER) << "returned wrong error code";
+}
+
+/* TESTCASE: Tests that the HWC2 can get the max virtual display count. */
+TEST_F(Hwc2Test, GET_MAX_VIRTUAL_DISPLAY_COUNT)
+{
+    uint32_t maxCnt;
+
+    ASSERT_NO_FATAL_FAILURE(getMaxVirtualDisplayCount(&maxCnt));
+}
+
+/* TESTCASE: Tests that the HWC2 returns the same max virtual display count for
+ * each call. */
+TEST_F(Hwc2Test, GET_MAX_VIRTUAL_DISPLAY_COUNT_duplicate)
+{
+    uint32_t maxCnt1, maxCnt2;
+
+    ASSERT_NO_FATAL_FAILURE(getMaxVirtualDisplayCount(&maxCnt1));
+    ASSERT_NO_FATAL_FAILURE(getMaxVirtualDisplayCount(&maxCnt2));
+
+    EXPECT_EQ(maxCnt1, maxCnt2) << "returned two different max virtual display"
+            " counts";
+}
+
+/* TESTCASE: Tests that the HWC2 can create the max number of virtual displays
+ * that it reports. */
+TEST_F(Hwc2Test, GET_MAX_VIRTUAL_DISPLAY_COUNT_create_max)
+{
+    std::vector<hwc2_display_t> displays;
+    uint32_t maxCnt;
+
+    ASSERT_NO_FATAL_FAILURE(getMaxVirtualDisplayCount(&maxCnt));
+
+    while (displays.size() < maxCnt) {
+        uint32_t width = 1920, height = 1080;
+        android_pixel_format_t desiredFormat = HAL_PIXEL_FORMAT_RGBA_8888;
+        hwc2_display_t display;
+        hwc2_error_t err = HWC2_ERROR_NONE;
+
+        ASSERT_NO_FATAL_FAILURE(createVirtualDisplay(width, height,
+                    &desiredFormat, &display, &err));
+
+        EXPECT_TRUE(err == HWC2_ERROR_NONE || err == HWC2_ERROR_UNSUPPORTED)
+                << "returned wrong error code";
+        if (err != HWC2_ERROR_NONE)
+            break;
+
+        displays.push_back(display);
+    }
+
+    for (hwc2_display_t display : displays) {
+        EXPECT_NO_FATAL_FAILURE(destroyVirtualDisplay(display));
+    }
+}
+
+/* TESTCASE: Tests that the HWC2 can set an output buffer for a virtual
+ * display. */
+TEST_F(Hwc2Test, SET_OUTPUT_BUFFER)
+{
+    ASSERT_NO_FATAL_FAILURE(createVirtualDisplay(Hwc2TestCoverage::Complete,
+            [] (Hwc2Test* test, hwc2_display_t display,
+                    Hwc2TestVirtualDisplay* testVirtualDisplay) {
+
+                buffer_handle_t handle;
+                android::base::unique_fd acquireFence;
+
+                if (testVirtualDisplay->getBuffer(&handle, &acquireFence) >= 0)
+                    EXPECT_NO_FATAL_FAILURE(test->setOutputBuffer(display,
+                            handle, acquireFence));
+            }));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set an output buffer for a bad display */
+TEST_F(Hwc2Test, SET_OUTPUT_BUFFER_bad_display)
+{
+    ASSERT_NO_FATAL_FAILURE(createVirtualDisplay(Hwc2TestCoverage::Default,
+            [] (Hwc2Test* test, hwc2_display_t /*display*/,
+                    Hwc2TestVirtualDisplay* testVirtualDisplay) {
+
+                hwc2_display_t badDisplay;
+                buffer_handle_t handle;
+                android::base::unique_fd acquireFence;
+                hwc2_error_t err = HWC2_ERROR_NONE;
+
+                ASSERT_NO_FATAL_FAILURE(test->getBadDisplay(&badDisplay));
+
+                if (testVirtualDisplay->getBuffer(&handle, &acquireFence) < 0)
+                    return;
+
+                ASSERT_NO_FATAL_FAILURE(test->setOutputBuffer(badDisplay,
+                        handle, acquireFence, &err));
+                EXPECT_TRUE(err == HWC2_ERROR_BAD_DISPLAY)
+                        << "returned wrong error code";
+            }));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set an invalid output buffer. */
+TEST_F(Hwc2Test, SET_OUTPUT_BUFFER_bad_parameter)
+{
+    ASSERT_NO_FATAL_FAILURE(createVirtualDisplay(Hwc2TestCoverage::Default,
+            [] (Hwc2Test* test, hwc2_display_t display,
+                    Hwc2TestVirtualDisplay* /*testVirtualDisplay*/) {
+
+                const buffer_handle_t handle = nullptr;
+                uint32_t releaseFence = -1;
+                hwc2_error_t err = HWC2_ERROR_NONE;
+
+                ASSERT_NO_FATAL_FAILURE(test->setOutputBuffer(display, handle,
+                        releaseFence, &err));
+                EXPECT_EQ(err, HWC2_ERROR_BAD_PARAMETER)
+                        << "returned wrong error code";
+            }));
+}
+
+/* TESTCASE: Tests that the HWC2 cannot set an output buffer for non virtual
+ * display */
+TEST_F(Hwc2Test, SET_OUTPUT_BUFFER_unsupported)
+{
+    for (auto display : mDisplays) {
+        Hwc2TestVirtualDisplay testVirtualDisplay(Hwc2TestCoverage::Complete);
+
+        do {
+            buffer_handle_t handle;
+            android::base::unique_fd acquireFence;
+            hwc2_error_t err = HWC2_ERROR_NONE;
+
+            if (testVirtualDisplay.getBuffer(&handle, &acquireFence) < 0)
+                continue;
+
+            ASSERT_NO_FATAL_FAILURE(setOutputBuffer(display, handle,
+                    acquireFence, &err));
+            EXPECT_EQ(err, HWC2_ERROR_UNSUPPORTED) << "returned wrong error code";
+
+        } while (testVirtualDisplay.advance());
+    }
 }

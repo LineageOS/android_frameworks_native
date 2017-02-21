@@ -321,6 +321,63 @@ const std::vector<android_dataspace_t> Hwc2TestDataspace::completeDataspaces = {
 };
 
 
+Hwc2TestDisplayDimension::Hwc2TestDisplayDimension(Hwc2TestCoverage coverage)
+    : Hwc2TestProperty(
+            (coverage == Hwc2TestCoverage::Complete)? mCompleteDisplayDimensions:
+            (coverage == Hwc2TestCoverage::Basic)? mBasicDisplayDimensions:
+            mDefaultDisplayDimensions, mCompositionSupport) { }
+
+std::string Hwc2TestDisplayDimension::dump() const
+{
+    std::stringstream dmp;
+    const UnsignedArea& curr = get();
+    dmp << "\tdisplay dimension: " << curr.width<< " x " << curr.height<< "\n";
+    return dmp.str();
+}
+
+void Hwc2TestDisplayDimension::setDependent(Hwc2TestBuffer* buffer)
+{
+    mBuffer = buffer;
+    updateDependents();
+}
+
+void Hwc2TestDisplayDimension::updateDependents()
+{
+    const UnsignedArea& curr = get();
+
+    if (mBuffer)
+        mBuffer->updateBufferArea({static_cast<int32_t>(curr.width),
+                static_cast<int32_t>(curr.height)});
+}
+
+const std::vector<UnsignedArea>
+        Hwc2TestDisplayDimension::mDefaultDisplayDimensions = {
+    {1920, 1080},
+};
+
+const std::vector<UnsignedArea>
+        Hwc2TestDisplayDimension::mBasicDisplayDimensions = {
+    {640, 480},
+    {1280, 720},
+    {1920, 1080},
+    {1920, 1200},
+};
+
+const std::vector<UnsignedArea>
+        Hwc2TestDisplayDimension::mCompleteDisplayDimensions = {
+    {320, 240},
+    {480, 320},
+    {640, 480},
+    {1280, 720},
+    {1920, 1080},
+    {1920, 1200},
+    {2560, 1440},
+    {2560, 1600},
+    {3840, 2160},
+    {4096, 2160},
+};
+
+
 Hwc2TestDisplayFrame::Hwc2TestDisplayFrame(Hwc2TestCoverage coverage,
         const Area& displayArea)
     : Hwc2TestProperty(mDisplayFrames, mCompositionSupport),
@@ -692,6 +749,11 @@ const std::array<bool, 6> Hwc2TestComposition::mCompositionSupport = {{
 /*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
 const std::array<bool, 6> Hwc2TestDataspace::mCompositionSupport = {{
     false,   true,    true,    true,    true,    false,
+}};
+
+/*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */
+const std::array<bool, 6> Hwc2TestDisplayDimension::mCompositionSupport = {{
+    false,   true,    true,    true,    true,    true,
 }};
 
 /*  INVALID  CLIENT   DEVICE   COLOR    CURSOR   SIDEBAND */

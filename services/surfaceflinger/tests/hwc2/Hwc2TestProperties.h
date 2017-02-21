@@ -54,6 +54,12 @@ typedef struct {
 } Area;
 
 
+typedef struct {
+    uint32_t width;
+    uint32_t height;
+} UnsignedArea;
+
+
 class Hwc2TestContainer {
 public:
     virtual ~Hwc2TestContainer() = default;
@@ -233,6 +239,27 @@ protected:
     static const std::vector<android_dataspace_t> defaultDataspaces;
     static const std::vector<android_dataspace_t> basicDataspaces;
     static const std::vector<android_dataspace_t> completeDataspaces;
+
+    static const std::array<bool, 6> mCompositionSupport;
+};
+
+
+class Hwc2TestDisplayDimension : public Hwc2TestProperty<UnsignedArea> {
+public:
+    Hwc2TestDisplayDimension(Hwc2TestCoverage coverage);
+
+    std::string dump() const;
+
+    void setDependent(Hwc2TestBuffer* buffer);
+
+private:
+    void updateDependents();
+
+    Hwc2TestBuffer* mBuffer;
+
+    static const std::vector<UnsignedArea> mDefaultDisplayDimensions;
+    static const std::vector<UnsignedArea> mBasicDisplayDimensions;
+    static const std::vector<UnsignedArea> mCompleteDisplayDimensions;
 
     static const std::array<bool, 6> mCompositionSupport;
 };
