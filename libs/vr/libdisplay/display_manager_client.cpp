@@ -41,6 +41,23 @@ void dvrDisplayManagerClientDestroy(DvrDisplayManagerClient* client) {
   delete client;
 }
 
+int dvrDisplayManagerClientGetEventFd(DvrDisplayManagerClient* client) {
+  return client->client->event_fd();
+}
+
+int dvrDisplayManagerClientTranslateEpollEventMask(
+    DvrDisplayManagerClient* client, int in_events, int* out_events) {
+  auto result = client->client->GetChannel()->GetEventMask(in_events);
+
+  if (!result) {
+    return -EIO;
+  }
+
+  *out_events = result.get();
+
+  return 0;
+}
+
 int dvrDisplayManagerClientGetSurfaceList(
     DvrDisplayManagerClient* client,
     DvrDisplayManagerClientSurfaceList** surface_list) {

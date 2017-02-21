@@ -20,6 +20,9 @@ class DisplayManagerClient : public pdx::ClientBase<DisplayManagerClient> {
   int GetSurfaceBuffers(
       int surface_id, std::vector<std::unique_ptr<BufferConsumer>>* consumers);
 
+  using Client::event_fd;
+  using Client::GetChannel;
+
  private:
   friend BASE;
 

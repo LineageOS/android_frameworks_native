@@ -19,6 +19,21 @@ DvrDisplayManagerClient* dvrDisplayManagerClientCreate();
 
 void dvrDisplayManagerClientDestroy(DvrDisplayManagerClient* client);
 
+// Return an event fd for checking if there was an event on the server
+// Note that the only event which will be flagged is POLLIN. You must use
+// dvrDisplayManagerClientTranslateEpollEventMask in order to get the real
+// event flags.
+// @return the fd
+int dvrDisplayManagerClientGetEventFd(DvrDisplayManagerClient* client);
+
+// Once you have received an epoll event, you must translate it to its true
+// flags. This is a workaround for working with UDS.
+// @param in_events pass in the epoll revents that were initially returned
+// @param on success, this value will be overwritten with the true epoll values
+// @return 0 on success, non-zero otherwise
+int dvrDisplayManagerClientTranslateEpollEventMask(
+    DvrDisplayManagerClient* client, int in_events, int* out_events);
+
 // If successful, populates |surface_list| with a list of application
 // surfaces the display is currently using.
 //
