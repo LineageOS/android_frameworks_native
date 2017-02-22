@@ -25,7 +25,13 @@ DisplayService::DisplayService() : DisplayService(nullptr) {}
 
 DisplayService::DisplayService(Hwc2::Composer* hidl)
     : BASE("DisplayService", Endpoint::Create(DisplayRPC::kClientPath)),
-      hardware_composer_(hidl) {}
+      hardware_composer_(hidl) {
+  hardware_composer_.Initialize();
+}
+
+bool DisplayService::IsInitialized() const {
+  return BASE::IsInitialized() && hardware_composer_.IsInitialized();
+}
 
 std::string DisplayService::DumpState(size_t max_length) {
   std::vector<char> buffer(max_length);
