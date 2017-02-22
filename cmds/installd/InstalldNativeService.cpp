@@ -86,7 +86,8 @@ static constexpr int FLAG_CLEAR_CACHE_ONLY = 1 << 8;
 static constexpr int FLAG_CLEAR_CODE_CACHE_ONLY = 1 << 9;
 static constexpr int FLAG_USE_QUOTA = 1 << 12;
 static constexpr int FLAG_FREE_CACHE_V2 = 1 << 13;
-static constexpr int FLAG_FREE_CACHE_NOOP = 1 << 14;
+static constexpr int FLAG_FREE_CACHE_V2_DEFY_QUOTA = 1 << 14;
+static constexpr int FLAG_FREE_CACHE_NOOP = 1 << 15;
 
 namespace {
 
@@ -833,6 +834,14 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
         ATRACE_BEGIN("bounce");
         std::shared_ptr<CacheTracker> active;
         while (active || !queue.empty()) {
+            // Only look at apps under quota when explicitly requested
+            if (active && (active->getCacheRatio() < 10000)
+                    && !(flags & FLAG_FREE_CACHE_V2_DEFY_QUOTA)) {
+                LOG(DEBUG) << "Active ratio " << active->getCacheRatio()
+                        << " isn't over quota, and defy not requested";
+                break;
+            }
+
             // Find the best tracker to work with; this might involve swapping
             // if the active tracker is no longer the most over quota
             bool nextBetter = active && !queue.empty()

@@ -29,6 +29,7 @@
 #define TEST_DATA_DIR "/data/"
 #define TEST_APP_DIR "/data/app/"
 #define TEST_APP_PRIVATE_DIR "/data/app-private/"
+#define TEST_APP_EPHEMERAL_DIR "/data/app-ephemeral/"
 #define TEST_ASEC_DIR "/mnt/asec/"
 #define TEST_EXPAND_DIR "/mnt/expand/"
 
@@ -56,6 +57,9 @@ protected:
 
         android_app_private_dir.path = (char*) TEST_APP_PRIVATE_DIR;
         android_app_private_dir.len = strlen(TEST_APP_PRIVATE_DIR);
+
+        android_app_ephemeral_dir.path = (char*) TEST_APP_EPHEMERAL_DIR;
+        android_app_ephemeral_dir.len = strlen(TEST_APP_EPHEMERAL_DIR);
 
         android_data_dir.path = (char*) TEST_DATA_DIR;
         android_data_dir.len = strlen(TEST_DATA_DIR);
@@ -85,19 +89,19 @@ TEST_F(UtilsTest, IsValidApkPath_BadPrefix) {
     // Bad prefixes directories
     const char *badprefix1 = "/etc/passwd";
     EXPECT_EQ(-1, validate_apk_path(badprefix1))
-            << badprefix1 << " should be allowed as a valid path";
+            << badprefix1 << " should not be allowed as a valid path";
 
     const char *badprefix2 = "../.." TEST_APP_DIR "../../../blah";
     EXPECT_EQ(-1, validate_apk_path(badprefix2))
-            << badprefix2 << " should be allowed as a valid path";
+            << badprefix2 << " should not be allowed as a valid path";
 
     const char *badprefix3 = "init.rc";
     EXPECT_EQ(-1, validate_apk_path(badprefix3))
-            << badprefix3 << " should be allowed as a valid path";
+            << badprefix3 << " should not be allowed as a valid path";
 
     const char *badprefix4 = "/init.rc";
     EXPECT_EQ(-1, validate_apk_path(badprefix4))
-            << badprefix4 << " should be allowed as a valid path";
+            << badprefix4 << " should not be allowed as a valid path";
 }
 
 TEST_F(UtilsTest, IsValidApkPath_Internal) {

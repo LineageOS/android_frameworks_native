@@ -16,8 +16,9 @@
 
 #include "CacheItem.h"
 
-#include <stdint.h>
 #include <inttypes.h>
+#include <stdint.h>
+#include <sys/xattr.h>
 
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
@@ -29,12 +30,23 @@ using android::base::StringPrintf;
 namespace android {
 namespace installd {
 
-CacheItem::CacheItem(const std::shared_ptr<CacheItem>& parent, FTSENT* p) : mParent(parent) {
+CacheItem::CacheItem(FTSENT* p) {
     level = p->fts_level;
     directory = S_ISDIR(p->fts_statp->st_mode);
     size = p->fts_statp->st_blocks * 512;
     modified = p->fts_statp->st_mtime;
-    mName = p->fts_path;
+
+    mParent = static_cast<CacheItem*>(p->fts_parent->fts_pointer);
+    if (mParent) {
+        atomic = mParent->atomic;
+        tombstone = mParent->tombstone;
+        mName = p->fts_name;
+        mName.insert(0, "/");
+    } else {
+        atomic = false;
+        tombstone = false;
+        mName = p->fts_path;
+    }
 }
 
 CacheItem::~CacheItem() {
@@ -46,7 +58,7 @@ std::string CacheItem::toString() {
 
 std::string CacheItem::buildPath() {
     std::string res = mName;
-    std::shared_ptr<CacheItem> parent = mParent;
+    CacheItem* parent = mParent;
     while (parent) {
         res.insert(0, parent->mName);
         parent = parent->mParent;
@@ -57,13 +69,47 @@ std::string CacheItem::buildPath() {
 int CacheItem::purge() {
     auto path = buildPath();
     if (directory) {
-        return delete_dir_contents_and_dir(path, true);
-    } else {
-        int res = unlink(path.c_str());
-        if (res != 0) {
-            PLOG(WARNING) << "Failed to unlink " << path;
+        FTS *fts;
+        FTSENT *p;
+        char *argv[] = { (char*) path.c_str(), nullptr };
+        if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+            PLOG(WARNING) << "Failed to fts_open " << path;
+            return -1;
         }
-        return res;
+        while ((p = fts_read(fts)) != nullptr) {
+            switch (p->fts_info) {
+            case FTS_D:
+                if (p->fts_level == 0) {
+                    p->fts_number = tombstone;
+                } else {
+                    p->fts_number = p->fts_parent->fts_number
+                            | (getxattr(p->fts_path, kXattrCacheTombstone, nullptr, 0) >= 0);
+                }
+                break;
+            case FTS_F:
+                if (p->fts_parent->fts_number) {
+                    truncate(p->fts_path, 0);
+                } else {
+                    unlink(p->fts_path);
+                }
+                break;
+            case FTS_DEFAULT:
+            case FTS_SL:
+            case FTS_SLNONE:
+                unlink(p->fts_path);
+                break;
+            case FTS_DP:
+                rmdir(p->fts_path);
+                break;
+            }
+        }
+        return 0;
+    } else {
+        if (tombstone) {
+            return truncate(path.c_str(), 0);
+        } else {
+            return unlink(path.c_str());
+        }
     }
 }
 

@@ -36,7 +36,7 @@ namespace installd {
  */
 class CacheItem {
 public:
-    CacheItem(const std::shared_ptr<CacheItem>& parent, FTSENT* p);
+    CacheItem(FTSENT* p);
     ~CacheItem();
 
     std::string toString();
@@ -46,11 +46,13 @@ public:
 
     short level;
     bool directory;
+    bool atomic;
+    bool tombstone;
     int64_t size;
     time_t modified;
 
 private:
-    std::shared_ptr<CacheItem> mParent;
+    CacheItem* mParent;
     std::string mName;
 
     DISALLOW_COPY_AND_ASSIGN(CacheItem);

@@ -33,6 +33,7 @@
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 #include <cutils/fs.h>
+#include <cutils/properties.h>
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
 
@@ -155,6 +156,9 @@ int create_pkg_path(char path[PKG_PATH_MAX], const char *pkgname,
 std::string create_data_path(const char* volume_uuid) {
     if (volume_uuid == nullptr) {
         return "/data";
+    } else if (!strcmp(volume_uuid, "TEST")) {
+        CHECK(property_get_bool("ro.debuggable", false));
+        return "/data/local/tmp";
     } else {
         CHECK(is_valid_filename(volume_uuid));
         return StringPrintf("/mnt/expand/%s", volume_uuid);

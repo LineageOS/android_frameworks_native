@@ -20,6 +20,7 @@
 
 #include <fts.h>
 #include <sys/quota.h>
+#include <sys/xattr.h>
 #include <utils/Trace.h>
 
 #include <android-base/logging.h>
@@ -86,30 +87,59 @@ void CacheTracker::loadItemsFrom(const std::string& path) {
         PLOG(WARNING) << "Failed to fts_open " << path;
         return;
     }
-    // TODO: add support for "user.atomic" and "user.tombstone" xattrs
-    while ((p = fts_read(fts)) != NULL) {
+    while ((p = fts_read(fts)) != nullptr) {
+        if (p->fts_level == 0) continue;
+
+        // Create tracking nodes for everything we encounter
         switch (p->fts_info) {
         case FTS_D:
-            // Track the newest mtime of anything inside so we consider
-            // deleting the directory last
-            p->fts_number = p->fts_statp->st_mtime;
-            break;
-        case FTS_DP:
-            p->fts_statp->st_mtime = p->fts_number;
-
-            // Ignore the actual top-level cache directories
-            if (p->fts_level == 0) break;
         case FTS_DEFAULT:
         case FTS_F:
         case FTS_SL:
-        case FTS_SLNONE:
-            // TODO: optimize path memory footprint
-            items.push_back(std::shared_ptr<CacheItem>(new CacheItem(nullptr, p)));
+        case FTS_SLNONE: {
+            auto item = std::shared_ptr<CacheItem>(new CacheItem(p));
+            p->fts_pointer = static_cast<void*>(item.get());
+            items.push_back(item);
+        }
+        }
 
-            // Track the newest modified item under this tree
-            p->fts_parent->fts_number =
-                    std::max(p->fts_parent->fts_number, p->fts_statp->st_mtime);
-            break;
+        switch (p->fts_info) {
+        case FTS_D: {
+            auto item = static_cast<CacheItem*>(p->fts_pointer);
+            item->atomic |= (getxattr(p->fts_path, kXattrCacheAtomic, nullptr, 0) >= 0);
+            item->tombstone |= (getxattr(p->fts_path, kXattrCacheTombstone, nullptr, 0) >= 0);
+
+            // When atomic, immediately collect all files under tree
+            if (item->atomic) {
+                while ((p = fts_read(fts)) != nullptr) {
+                    if (p->fts_info == FTS_DP && p->fts_level == item->level) break;
+                    switch (p->fts_info) {
+                    case FTS_D:
+                    case FTS_DEFAULT:
+                    case FTS_F:
+                    case FTS_SL:
+                    case FTS_SLNONE:
+                        item->size += p->fts_statp->st_blocks * 512;
+                        item->modified = std::max(item->modified, p->fts_statp->st_mtime);
+                    }
+                }
+            }
+        }
+        }
+
+        // Bubble up modified time to parent
+        switch (p->fts_info) {
+        case FTS_DP:
+        case FTS_DEFAULT:
+        case FTS_F:
+        case FTS_SL:
+        case FTS_SLNONE: {
+            auto item = static_cast<CacheItem*>(p->fts_pointer);
+            auto parent = static_cast<CacheItem*>(p->fts_parent->fts_pointer);
+            if (parent) {
+                parent->modified = std::max(parent->modified, item->modified);
+            }
+        }
         }
     }
     fts_close(fts);
@@ -137,7 +167,7 @@ void CacheTracker::loadItems() {
         }
         return left->directory;
     };
-    std::sort(items.begin(), items.end(), cmp);
+    std::stable_sort(items.begin(), items.end(), cmp);
     ATRACE_END();
 }
 
