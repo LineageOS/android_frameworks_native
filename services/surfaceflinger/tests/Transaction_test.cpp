@@ -199,9 +199,9 @@ TEST_F(LayerUpdateTest, LayerMoveWorks) {
     {
         SCOPED_TRACE("before move");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel(  0,  12,  63,  63, 195);
-        sc->checkPixel( 75,  75, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(0, 12);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 
     SurfaceComposerClient::openGlobalTransaction();
@@ -211,9 +211,9 @@ TEST_F(LayerUpdateTest, LayerMoveWorks) {
         // This should reflect the new position, but not the new color.
         SCOPED_TRACE("after move, before redraw");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75,  63,  63, 195);
-        sc->checkPixel(145, 145, 195,  63,  63);
+        sc->expectBGColor(24, 24);
+        sc->expectBGColor(75, 75);
+        sc->expectFGColor(145, 145);
     }
 
     fillSurfaceRGBA8(mFGSurfaceControl, 63, 195, 63);
@@ -222,9 +222,9 @@ TEST_F(LayerUpdateTest, LayerMoveWorks) {
         // This should reflect the new position and the new color.
         SCOPED_TRACE("after redraw");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75,  63,  63, 195);
-        sc->checkPixel(145, 145,  63, 195,  63);
+        sc->expectBGColor(24, 24);
+        sc->expectBGColor(75, 75);
+        sc->checkPixel(145, 145, 63, 195, 63);
     }
 }
 
@@ -233,9 +233,9 @@ TEST_F(LayerUpdateTest, LayerResizeWorks) {
     {
         SCOPED_TRACE("before resize");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel(  0,  12,  63,  63, 195);
-        sc->checkPixel( 75,  75, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(0, 12);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 
     ALOGD("resizing");
@@ -248,9 +248,9 @@ TEST_F(LayerUpdateTest, LayerResizeWorks) {
         // has not yet received a buffer of the correct size.
         SCOPED_TRACE("after resize, before redraw");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel(  0,  12,  63,  63, 195);
-        sc->checkPixel( 75,  75, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(0, 12);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 
     ALOGD("drawing");
@@ -261,9 +261,9 @@ TEST_F(LayerUpdateTest, LayerResizeWorks) {
         // This should reflect the new size and the new color.
         SCOPED_TRACE("after redraw");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75,  63, 195,  63);
-        sc->checkPixel(145, 145,  63, 195,  63);
+        sc->expectBGColor(24, 24);
+        sc->checkPixel(75, 75, 63, 195, 63);
+        sc->checkPixel(145, 145, 63, 195, 63);
     }
 }
 
@@ -272,9 +272,9 @@ TEST_F(LayerUpdateTest, LayerCropWorks) {
     {
         SCOPED_TRACE("before crop");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 
     SurfaceComposerClient::openGlobalTransaction();
@@ -285,11 +285,11 @@ TEST_F(LayerUpdateTest, LayerCropWorks) {
         // This should crop the foreground surface.
         SCOPED_TRACE("after crop");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75,  63,  63, 195);
-        sc->checkPixel( 95,  80, 195,  63,  63);
-        sc->checkPixel( 80,  95, 195,  63,  63);
-        sc->checkPixel( 96,  96,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectBGColor(75, 75);
+        sc->expectFGColor(95, 80);
+        sc->expectFGColor(80, 95);
+        sc->expectBGColor(96, 96);
     }
 }
 
@@ -298,9 +298,9 @@ TEST_F(LayerUpdateTest, LayerFinalCropWorks) {
     {
         SCOPED_TRACE("before crop");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
     SurfaceComposerClient::openGlobalTransaction();
     Rect cropRect(16, 16, 32, 32);
@@ -310,11 +310,11 @@ TEST_F(LayerUpdateTest, LayerFinalCropWorks) {
         // This should crop the foreground surface.
         SCOPED_TRACE("after crop");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75,  63,  63, 195);
-        sc->checkPixel( 95,  80,  63,  63, 195);
-        sc->checkPixel( 80,  95,  63,  63, 195);
-        sc->checkPixel( 96,  96,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectBGColor(75, 75);
+        sc->expectBGColor(95, 80);
+        sc->expectBGColor(80, 95);
+        sc->expectBGColor(96, 96);
     }
 }
 
@@ -323,9 +323,9 @@ TEST_F(LayerUpdateTest, LayerSetLayerWorks) {
     {
         SCOPED_TRACE("before setLayer");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 
     SurfaceComposerClient::openGlobalTransaction();
@@ -335,9 +335,9 @@ TEST_F(LayerUpdateTest, LayerSetLayerWorks) {
         // This should hide the foreground surface beneath the background.
         SCOPED_TRACE("after setLayer");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75,  63,  63, 195);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectBGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 }
 
@@ -346,9 +346,9 @@ TEST_F(LayerUpdateTest, LayerShowHideWorks) {
     {
         SCOPED_TRACE("before hide");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 
     SurfaceComposerClient::openGlobalTransaction();
@@ -358,9 +358,9 @@ TEST_F(LayerUpdateTest, LayerShowHideWorks) {
         // This should hide the foreground surface.
         SCOPED_TRACE("after hide, before show");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75,  63,  63, 195);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectBGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 
     SurfaceComposerClient::openGlobalTransaction();
@@ -370,9 +370,9 @@ TEST_F(LayerUpdateTest, LayerShowHideWorks) {
         // This should show the foreground surface.
         SCOPED_TRACE("after show");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 }
 
@@ -381,9 +381,9 @@ TEST_F(LayerUpdateTest, LayerSetAlphaWorks) {
     {
         SCOPED_TRACE("before setAlpha");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 
     SurfaceComposerClient::openGlobalTransaction();
@@ -393,9 +393,9 @@ TEST_F(LayerUpdateTest, LayerSetAlphaWorks) {
         // This should set foreground to be 75% opaque.
         SCOPED_TRACE("after setAlpha");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75, 162,  63,  96);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->checkPixel(75, 75, 162, 63, 96);
+        sc->expectBGColor(145, 145);
     }
 }
 
@@ -404,9 +404,9 @@ TEST_F(LayerUpdateTest, LayerSetLayerStackWorks) {
     {
         SCOPED_TRACE("before setLayerStack");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 
     SurfaceComposerClient::openGlobalTransaction();
@@ -417,9 +417,9 @@ TEST_F(LayerUpdateTest, LayerSetLayerStackWorks) {
         // layer stack.
         SCOPED_TRACE("after setLayerStack");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75,  63,  63, 195);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectBGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 }
 
@@ -428,9 +428,9 @@ TEST_F(LayerUpdateTest, LayerSetFlagsWorks) {
     {
         SCOPED_TRACE("before setFlags");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 
     SurfaceComposerClient::openGlobalTransaction();
@@ -441,9 +441,9 @@ TEST_F(LayerUpdateTest, LayerSetFlagsWorks) {
         // This should hide the foreground surface
         SCOPED_TRACE("after setFlags");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 75,  75,  63,  63, 195);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectBGColor(75, 75);
+        sc->expectBGColor(145, 145);
     }
 }
 
@@ -452,10 +452,10 @@ TEST_F(LayerUpdateTest, LayerSetMatrixWorks) {
     {
         SCOPED_TRACE("before setMatrix");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 91,  96, 195,  63,  63);
-        sc->checkPixel( 96, 101, 195,  63,  63);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectFGColor(91, 96);
+        sc->expectFGColor(96, 101);
+        sc->expectBGColor(145, 145);
     }
 
     SurfaceComposerClient::openGlobalTransaction();
@@ -465,10 +465,10 @@ TEST_F(LayerUpdateTest, LayerSetMatrixWorks) {
     {
         SCOPED_TRACE("after setMatrix");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 24,  24,  63,  63, 195);
-        sc->checkPixel( 91,  96, 195,  63,  63);
-        sc->checkPixel( 96,  91,  63,  63, 195);
-        sc->checkPixel(145, 145,  63,  63, 195);
+        sc->expectBGColor(24, 24);
+        sc->expectFGColor(91, 96);
+        sc->expectBGColor(96, 91);
+        sc->expectBGColor(145, 145);
     }
 }
 
@@ -477,9 +477,9 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     {
         SCOPED_TRACE("before anything");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 32,  32,  63,  63, 195);
-        sc->checkPixel( 96,  96, 195,  63,  63);
-        sc->checkPixel(160, 160,  63,  63, 195);
+        sc->expectBGColor(32, 32);
+        sc->expectFGColor(96, 96);
+        sc->expectBGColor(160, 160);
     }
 
     // set up two deferred transactions on different frames
@@ -498,9 +498,9 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     {
         SCOPED_TRACE("before any trigger");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 32,  32,  63,  63, 195);
-        sc->checkPixel( 96,  96, 195,  63,  63);
-        sc->checkPixel(160, 160,  63,  63, 195);
+        sc->expectBGColor(32, 32);
+        sc->expectFGColor(96, 96);
+        sc->expectBGColor(160, 160);
     }
 
     // should trigger the first deferred transaction, but not the second one
@@ -508,9 +508,9 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     {
         SCOPED_TRACE("after first trigger");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 32,  32,  63,  63, 195);
-        sc->checkPixel( 96,  96, 162,  63,  96);
-        sc->checkPixel(160, 160,  63,  63, 195);
+        sc->expectBGColor(32, 32);
+        sc->checkPixel(96, 96, 162, 63, 96);
+        sc->expectBGColor(160, 160);
     }
 
     // should show up immediately since it's not deferred
@@ -523,9 +523,9 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     {
         SCOPED_TRACE("after second trigger");
         ScreenCapture::captureScreen(&sc);
-        sc->checkPixel( 32,  32,  63,  63, 195);
-        sc->checkPixel( 96,  96,  63,  63, 195);
-        sc->checkPixel(160, 160, 195,  63,  63);
+        sc->expectBGColor(32, 32);
+        sc->expectBGColor(96, 96);
+        sc->expectFGColor(160, 160);
     }
 }
 
