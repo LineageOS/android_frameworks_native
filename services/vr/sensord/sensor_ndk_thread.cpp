@@ -37,11 +37,10 @@ SensorNdkThread::SensorNdkThread(bool* out_success)
     // Start ALooper and initialize sensor access.
     {
       std::unique_lock<std::mutex> lock(mutex_);
-      initialization_result_ = InitializeSensors();
+      InitializeSensors();
       thread_started_ = true;
       init_condition_.notify_one();
-      if (!initialization_result_)
-        return;
+      // Continue on failure - the loop below will periodically retry.
     }
 
     EventConsumer consumer;
@@ -61,7 +60,7 @@ SensorNdkThread::SensorNdkThread(bool* out_success)
       constexpr int kMaxEvents = 100;
       sensors_event_t events[kMaxEvents];
       ssize_t event_count = 0;
-      if (looper_ && sensor_manager_) {
+      if (initialization_result_) {
         int poll_fd, poll_events;
         void* poll_source;
         // Poll for events.
@@ -79,7 +78,6 @@ SensorNdkThread::SensorNdkThread(bool* out_success)
           // This happens when sensorservice has died and restarted. To avoid
           // spinning we need to restart the sensor access.
           DestroySensors();
-          InitializeSensors();
         }
       } else {
         // When there is no sensor_device_, we still call the consumer at
@@ -114,7 +112,8 @@ SensorNdkThread::SensorNdkThread(bool* out_success)
   }
 
   // At this point, we've successfully initialized everything.
-  *out_success = initialization_result_;
+  // The NDK sensor thread will continue to retry on error, so assume success here.
+  *out_success = true;
 }
 
 SensorNdkThread::~SensorNdkThread() {
@@ -167,10 +166,13 @@ bool SensorNdkThread::InitializeSensors() {
     }
   }
 
+  initialization_result_ = true;
   return true;
 }
 
 void SensorNdkThread::DestroySensors() {
+  if (!event_queue_)
+    return;
   for (size_t sensor_index = 0; sensor_index < sensor_user_count_.size();
        ++sensor_index) {
     if (sensor_user_count_[sensor_index] > 0) {
@@ -178,9 +180,19 @@ void SensorNdkThread::DestroySensors() {
     }
   }
   ASensorManager_destroyEventQueue(sensor_manager_, event_queue_);
+  event_queue_ = nullptr;
+  initialization_result_ = false;
 }
 
 void SensorNdkThread::UpdateSensorUse() {
+  if (!initialization_result_) {
+    // Sleep for 1 second to avoid spinning during system instability.
+    usleep(1000 * 1000);
+    InitializeSensors();
+    if (!initialization_result_)
+      return;
+  }
+
   if (!enable_sensors_.empty()) {
     for (int sensor_index : enable_sensors_) {
       if (sensor_user_count_[sensor_index]++ == 0) {
