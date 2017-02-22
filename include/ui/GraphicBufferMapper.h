@@ -20,9 +20,17 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <memory>
+
 #include <ui/Gralloc1.h>
 
 #include <utils/Singleton.h>
+
+
+// Needed by code that still uses the GRALLOC_USAGE_* constants.
+// when/if we get rid of gralloc, we should provide aliases or fix call sites.
+#include <hardware/gralloc.h>
+
 
 namespace android {
 

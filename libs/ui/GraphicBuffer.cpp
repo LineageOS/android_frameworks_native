@@ -16,18 +16,10 @@
 
 #define LOG_TAG "GraphicBuffer"
 
-#include <stdlib.h>
-#include <stdint.h>
-#include <sys/types.h>
-
-#include <utils/Errors.h>
-#include <utils/Log.h>
-
-#include <ui/GrallocMapper.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/GrallocMapper.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/GraphicBufferMapper.h>
-#include <ui/PixelFormat.h>
 
 namespace android {
 

@@ -16,11 +16,9 @@
 
 #define LOG_TAG "GrallocMapper"
 
-#include <array>
-#include <string>
+#include <ui/GrallocMapper.h>
 
 #include <log/log.h>
-#include <ui/GrallocMapper.h>
 
 namespace android {
 

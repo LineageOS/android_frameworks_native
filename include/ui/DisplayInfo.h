@@ -19,9 +19,8 @@
 
 #include <stdint.h>
 #include <sys/types.h>
-#include <utils/Timers.h>
 
-#include <ui/PixelFormat.h>
+#include <utils/Timers.h>
 
 namespace android {
 

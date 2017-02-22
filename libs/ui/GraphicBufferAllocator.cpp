@@ -18,13 +18,15 @@
 #define LOG_TAG "GraphicBufferAllocator"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <ui/GraphicBufferAllocator.h>
+
+#include <stdio.h>
+
 #include <log/log.h>
 #include <utils/Singleton.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
 
-#include <ui/GraphicBufferAllocator.h>
-#include <ui/Gralloc1On0Adapter.h>
 #include <ui/GrallocAllocator.h>
 #include <ui/GrallocMapper.h>
 #include <ui/GraphicBufferMapper.h>

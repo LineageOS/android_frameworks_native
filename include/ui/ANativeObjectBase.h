@@ -18,9 +18,7 @@
 #define ANDROID_ANDROID_NATIVES_H
 
 #include <sys/types.h>
-#include <string.h>
 
-#include <hardware/gralloc.h>
 #include <system/window.h>
 
 // ---------------------------------------------------------------------------

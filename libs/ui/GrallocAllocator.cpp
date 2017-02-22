@@ -16,8 +16,9 @@
 
 #define LOG_TAG "GrallocAllocator"
 
-#include <log/log.h>
 #include <ui/GrallocAllocator.h>
+
+#include <log/log.h>
 
 namespace android {
 
