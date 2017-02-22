@@ -147,10 +147,10 @@ status_t SurfaceControl::setAlpha(float alpha) {
     if (err < 0) return err;
     return mClient->setAlpha(mHandle, alpha);
 }
-status_t SurfaceControl::setMatrix(float dsdx, float dtdx, float dsdy, float dtdy) {
+status_t SurfaceControl::setMatrix(float dsdx, float dtdx, float dtdy, float dsdy) {
     status_t err = validate();
     if (err < 0) return err;
-    return mClient->setMatrix(mHandle, dsdx, dtdx, dsdy, dtdy);
+    return mClient->setMatrix(mHandle, dsdx, dtdx, dtdy, dsdy);
 }
 status_t SurfaceControl::setCrop(const Rect& crop) {
     status_t err = validate();

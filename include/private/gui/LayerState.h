@@ -77,8 +77,8 @@ struct layer_state_t {
             struct matrix22_t {
                 float   dsdx{0};
                 float   dtdx{0};
-                float   dsdy{0};
                 float   dtdy{0};
+                float   dsdy{0};
             };
             sp<IBinder>     surface;
             uint32_t        what;
