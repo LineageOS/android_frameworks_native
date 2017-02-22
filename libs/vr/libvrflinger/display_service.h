@@ -23,6 +23,7 @@ namespace dvr {
 // DisplayService implements the displayd display service over ServiceFS.
 class DisplayService : public pdx::ServiceBase<DisplayService> {
  public:
+  bool IsInitialized() const override;
   std::string DumpState(size_t max_length) override;
 
   void OnChannelClose(pdx::Message& message,

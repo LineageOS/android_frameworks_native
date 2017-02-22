@@ -189,6 +189,10 @@ class HardwareComposer {
   HardwareComposer(Hwc2::Composer* hidl);
   ~HardwareComposer();
 
+  bool Initialize();
+
+  bool IsInitialized() const { return initialized_; }
+
   bool Suspend();
   bool Resume();
 
@@ -302,6 +306,8 @@ class HardwareComposer {
                           int64_t* timestamp);
 
   void HandlePendingScreenshots();
+
+  bool initialized_;
 
   // Hardware composer HAL device.
   std::unique_ptr<Hwc2::Composer> hwc2_hidl_;

@@ -100,7 +100,8 @@ HardwareComposer::HardwareComposer()
 }
 
 HardwareComposer::HardwareComposer(Hwc2::Composer* hwc2_hidl)
-    : hwc2_hidl_(hwc2_hidl),
+    : initialized_(false),
+      hwc2_hidl_(hwc2_hidl),
       display_transform_(HWC_TRANSFORM_NONE),
       display_surfaces_updated_(false),
       hardware_layers_need_update_(false),
@@ -126,6 +127,51 @@ HardwareComposer::~HardwareComposer(void) {
   Suspend();
 }
 
+bool HardwareComposer::Initialize() {
+  if (initialized_) {
+    ALOGE("HardwareComposer::Initialize: already initialized.");
+    return false;
+  }
+
+  int32_t ret = HWC2_ERROR_NONE;
+
+  Hwc2::Config config;
+  ret = (int32_t)hwc2_hidl_->getActiveConfig(HWC_DISPLAY_PRIMARY, &config);
+
+  if (ret != HWC2_ERROR_NONE) {
+    ALOGE("HardwareComposer: Failed to get current display config : %d",
+          config);
+    return false;
+  }
+
+  ret =
+      GetDisplayMetrics(HWC_DISPLAY_PRIMARY, config, &native_display_metrics_);
+
+  if (ret != HWC2_ERROR_NONE) {
+    ALOGE(
+        "HardwareComposer: Failed to get display attributes for current "
+        "configuration : %d",
+        ret);
+    return false;
+  }
+
+  ALOGI(
+      "HardwareComposer: primary display attributes: width=%d height=%d "
+      "vsync_period_ns=%d DPI=%dx%d",
+      native_display_metrics_.width, native_display_metrics_.height,
+      native_display_metrics_.vsync_period_ns, native_display_metrics_.dpi.x,
+      native_display_metrics_.dpi.y);
+
+  // Set the display metrics but never use rotation to avoid the long latency of
+  // rotation processing in hwc.
+  display_transform_ = HWC_TRANSFORM_NONE;
+  display_metrics_ = native_display_metrics_;
+
+  initialized_ = true;
+
+  return initialized_;
+}
+
 bool HardwareComposer::Resume() {
   std::lock_guard<std::mutex> post_thread_lock(post_thread_state_mutex_);
   if (post_thread_state_ == PostThreadState::kRunning) {
@@ -135,62 +181,6 @@ bool HardwareComposer::Resume() {
   std::lock_guard<std::mutex> layer_lock(layer_mutex_);
 
   int32_t ret = HWC2_ERROR_NONE;
-
-  static const uint32_t attributes[] = {
-      HWC_DISPLAY_WIDTH, HWC_DISPLAY_HEIGHT, HWC_DISPLAY_VSYNC_PERIOD,
-      HWC_DISPLAY_DPI_X, HWC_DISPLAY_DPI_Y,  HWC_DISPLAY_NO_ATTRIBUTE,
-  };
-
-  std::vector<Hwc2::Config> configs;
-  ret = (int32_t)hwc2_hidl_->getDisplayConfigs(HWC_DISPLAY_PRIMARY, &configs);
-
-  if (ret != HWC2_ERROR_NONE) {
-    ALOGE("HardwareComposer: Failed to get display configs");
-    return false;
-  }
-
-  uint32_t num_configs = configs.size();
-
-  for (size_t i = 0; i < num_configs; i++) {
-    ALOGI("HardwareComposer: cfg[%zd/%zd] = 0x%08x", i, num_configs,
-          configs[i]);
-
-    ret = GetDisplayMetrics(HWC_DISPLAY_PRIMARY, configs[i],
-                            &native_display_metrics_);
-
-    if (ret != HWC2_ERROR_NONE) {
-      ALOGE("HardwareComposer: Failed to get display attributes %d", ret);
-      continue;
-    } else {
-      ret =
-          (int32_t)hwc2_hidl_->setActiveConfig(HWC_DISPLAY_PRIMARY, configs[i]);
-
-      if (ret != HWC2_ERROR_NONE) {
-        ALOGE("HardwareComposer: Failed to set display configuration; ret=%d",
-              ret);
-        continue;
-      }
-
-      break;
-    }
-  }
-
-  if (ret != HWC2_ERROR_NONE) {
-    ALOGE("HardwareComposer: Could not set a valid display configuration.");
-    return false;
-  }
-
-  // Set the display metrics but never use rotation to avoid the long latency of
-  // rotation processing in hwc.
-  display_transform_ = HWC_TRANSFORM_NONE;
-  display_metrics_ = native_display_metrics_;
-
-  ALOGI(
-      "HardwareComposer: primary display attributes: width=%d height=%d "
-      "vsync_period_ns=%d DPI=%dx%d",
-      native_display_metrics_.width, native_display_metrics_.height,
-      native_display_metrics_.vsync_period_ns, native_display_metrics_.dpi.x,
-      native_display_metrics_.dpi.y);
 
   // Always turn off vsync when we start.
   EnableVsync(false);
