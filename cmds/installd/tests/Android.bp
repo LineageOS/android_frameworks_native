@@ -14,3 +14,22 @@ cc_test {
         "libdiskusage",
     ],
 }
+
+cc_test {
+    name: "installd_cache_test",
+    clang: true,
+    srcs: ["installd_cache_test.cpp"],
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libcutils",
+        "liblog",
+        "liblogwrap",
+        "libselinux",
+        "libutils",
+    ],
+    static_libs: [
+        "libinstalld",
+        "libdiskusage",
+    ],
+}
