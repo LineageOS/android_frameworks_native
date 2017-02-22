@@ -479,7 +479,7 @@ VkResult CreateAndroidSurfaceKHR(
               err);
         surface->~Surface();
         allocator->pfnFree(allocator->pUserData, surface);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_NATIVE_WINDOW_IN_USE_KHR;
     }
 
     *out_surface = HandleFromSurface(surface);
@@ -527,13 +527,13 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
     if (err != 0) {
         ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
               strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
     err = window->query(window, NATIVE_WINDOW_DEFAULT_HEIGHT, &height);
     if (err != 0) {
         ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
               strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     int transform_hint;
@@ -541,7 +541,7 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
     if (err != 0) {
         ALOGE("NATIVE_WINDOW_TRANSFORM_HINT query failed: %s (%d)",
               strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     // TODO(jessehall): Figure out what the min/max values should be.
@@ -764,7 +764,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
     if (err != 0) {
         ALOGE("native_window_set_buffer_count(0) failed: %s (%d)",
               strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     int swap_interval =
@@ -775,21 +775,21 @@ VkResult CreateSwapchainKHR(VkDevice device,
         // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window->setSwapInterval(1) failed: %s (%d)",
               strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     err = native_window_set_shared_buffer_mode(surface.window.get(), false);
     if (err != 0) {
         ALOGE("native_window_set_shared_buffer_mode(false) failed: %s (%d)",
               strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     err = native_window_set_auto_refresh(surface.window.get(), false);
     if (err != 0) {
         ALOGE("native_window_set_auto_refresh(false) failed: %s (%d)",
               strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     // -- Configure the native window --
@@ -803,7 +803,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_buffers_format(%d) failed: %s (%d)",
               native_pixel_format, strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
     err = native_window_set_buffers_data_space(surface.window.get(),
                                                native_dataspace);
@@ -812,7 +812,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_buffers_data_space(%d) failed: %s (%d)",
               native_dataspace, strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     err = native_window_set_buffers_dimensions(
@@ -824,7 +824,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         ALOGE("native_window_set_buffers_dimensions(%d,%d) failed: %s (%d)",
               create_info->imageExtent.width, create_info->imageExtent.height,
               strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     // VkSwapchainCreateInfo::preTransform indicates the transformation the app
@@ -844,7 +844,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         ALOGE("native_window_set_buffers_transform(%d) failed: %s (%d)",
               InvertTransformToNative(create_info->preTransform),
               strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     err = native_window_set_scaling_mode(
@@ -854,7 +854,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_scaling_mode(SCALE_TO_WINDOW) failed: %s (%d)",
               strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     int query_value;
@@ -866,7 +866,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         // errors and translate them to valid Vulkan result codes?
         ALOGE("window->query failed: %s (%d) value=%d", strerror(-err), err,
               query_value);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
     uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
     uint32_t num_images =
@@ -877,7 +877,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_buffer_count(%d) failed: %s (%d)", num_images,
               strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     VkSwapchainImageUsageFlagsANDROID swapchain_image_usage = 0;
@@ -888,7 +888,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         err = native_window_set_shared_buffer_mode(surface.window.get(), true);
         if (err != 0) {
             ALOGE("native_window_set_shared_buffer_mode failed: %s (%d)", strerror(-err), err);
-            return VK_ERROR_INITIALIZATION_FAILED;
+            return VK_ERROR_SURFACE_LOST_KHR;
         }
     }
 
@@ -896,7 +896,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         err = native_window_set_auto_refresh(surface.window.get(), true);
         if (err != 0) {
             ALOGE("native_window_set_auto_refresh failed: %s (%d)", strerror(-err), err);
-            return VK_ERROR_INITIALIZATION_FAILED;
+            return VK_ERROR_SURFACE_LOST_KHR;
         }
     }
 
@@ -925,7 +925,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         }
         if (result != VK_SUCCESS) {
             ALOGE("vkGetSwapchainGrallocUsage2ANDROID failed: %d", result);
-            return VK_ERROR_INITIALIZATION_FAILED;
+            return VK_ERROR_SURFACE_LOST_KHR;
         }
         // TODO: This is the same translation done by Gralloc1On0Adapter.
         // Remove it once ANativeWindow has been updated to take gralloc1-style
@@ -938,7 +938,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
             &gralloc_usage);
         if (result != VK_SUCCESS) {
             ALOGE("vkGetSwapchainGrallocUsageANDROID failed: %d", result);
-            return VK_ERROR_INITIALIZATION_FAILED;
+            return VK_ERROR_SURFACE_LOST_KHR;
         }
     }
     err = native_window_set_usage(surface.window.get(), gralloc_usage);
@@ -946,7 +946,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
         // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_usage failed: %s (%d)", strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     // -- Allocate our Swapchain object --
@@ -1005,7 +1005,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
             // TODO(jessehall): Improve error reporting. Can we enumerate
             // possible errors and translate them to valid Vulkan result codes?
             ALOGE("dequeueBuffer[%u] failed: %s (%d)", i, strerror(-err), err);
-            result = VK_ERROR_INITIALIZATION_FAILED;
+            result = VK_ERROR_SURFACE_LOST_KHR;
             break;
         }
         img.buffer = buffer;
@@ -1141,7 +1141,7 @@ VkResult AcquireNextImageKHR(VkDevice device,
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
         // errors and translate them to valid Vulkan result codes?
         ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), err);
-        return VK_ERROR_INITIALIZATION_FAILED;
+        return VK_ERROR_SURFACE_LOST_KHR;
     }
 
     uint32_t idx;
