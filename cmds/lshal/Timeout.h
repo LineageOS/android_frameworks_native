@@ -29,7 +29,8 @@ static constexpr std::chrono::milliseconds IPC_CALL_WAIT{500};
 
 class BackgroundTaskState {
 public:
-    BackgroundTaskState(){}
+    BackgroundTaskState(std::function<void(void)> &&func)
+            : mFunc(std::forward<decltype(func)>(func)) {}
     void notify() {
         std::unique_lock<std::mutex> lock(mMutex);
         mFinished = true;
@@ -42,22 +43,37 @@ public:
         mCondVar.wait_until(lock, end, [this](){ return this->mFinished; });
         return mFinished;
     }
+    void operator()() {
+        mFunc();
+    }
 private:
     std::mutex mMutex;
     std::condition_variable mCondVar;
     bool mFinished = false;
+    std::function<void(void)> mFunc;
 };
 
+void *callAndNotify(void *data) {
+    BackgroundTaskState &state = *static_cast<BackgroundTaskState *>(data);
+    state();
+    state.notify();
+    return NULL;
+}
+
 template<class R, class P>
-bool timeout(std::chrono::duration<R, P> delay, const std::function<void(void)> &func) {
+bool timeout(std::chrono::duration<R, P> delay, std::function<void(void)> &&func) {
     auto now = std::chrono::system_clock::now();
-    BackgroundTaskState state{};
-    std::thread t([&state, &func] {
-        func();
-        state.notify();
-    });
-    t.detach();
+    BackgroundTaskState state{std::forward<decltype(func)>(func)};
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, callAndNotify, &state)) {
+        std::cerr << "FATAL: could not create background thread." << std::endl;
+        return false;
+    }
     bool success = state.wait(now + delay);
+    if (!success) {
+        pthread_kill(thread, SIGINT);
+    }
+    pthread_join(thread, NULL);
     return success;
 }
 
