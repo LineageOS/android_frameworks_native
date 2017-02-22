@@ -469,9 +469,17 @@ int Lshal::main(int argc, char **argv) {
     return status;
 }
 
+void signalHandler(int sig) {
+    if (sig == SIGINT) {
+        int retVal;
+        pthread_exit(&retVal);
+    }
+}
+
 }  // namespace lshal
 }  // namespace android
 
 int main(int argc, char **argv) {
+    signal(SIGINT, ::android::lshal::signalHandler);
     return ::android::lshal::Lshal{}.main(argc, argv);
 }
