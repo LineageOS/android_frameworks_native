@@ -6,7 +6,6 @@ cc_library_shared {
   name: "libvrhwc",
 
   srcs: [
-    "impl/sync_timeline.cpp",
     "impl/vr_composer_view.cpp",
     "impl/vr_hwc.cpp",
     "impl/vr_composer_client.cpp",
@@ -32,11 +31,6 @@ cc_library_shared {
   ],
 
   export_include_dirs: ["."],
-
-  include_dirs: [
-    // Access to software sync timeline.
-    "system/core/libsync",
-  ],
 
   cflags: [
     "-DLOG_TAG=\"vrhwc\"",

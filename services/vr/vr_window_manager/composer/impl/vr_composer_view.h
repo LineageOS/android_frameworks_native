@@ -13,7 +13,7 @@ class VrComposerView : public ComposerView::Observer {
   class Callback {
    public:
     virtual ~Callback() = default;
-    virtual void OnNewFrame(const ComposerView::Frame& frame) = 0;
+    virtual base::unique_fd OnNewFrame(const ComposerView::Frame& frame) = 0;
   };
 
   VrComposerView(std::unique_ptr<Callback> callback);
@@ -21,10 +21,8 @@ class VrComposerView : public ComposerView::Observer {
 
   void Initialize(ComposerView* composer_view);
 
-  void ReleaseFrame();
-
   // ComposerView::Observer
-  void OnNewFrame(const ComposerView::Frame& frame) override;
+  base::unique_fd OnNewFrame(const ComposerView::Frame& frame) override;
 
  private:
   ComposerView* composer_view_;

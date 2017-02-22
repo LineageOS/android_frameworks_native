@@ -6,6 +6,7 @@
 #include <mutex>
 #include <vector>
 
+#include <android-base/unique_fd.h>
 #include <impl/vr_composer_view.h>
 #include <impl/vr_hwc.h>
 
@@ -79,14 +80,15 @@ class HwcCallback : public VrComposerView::Callback {
   class Client {
    public:
     virtual ~Client() {}
-    virtual void OnFrame(std::unique_ptr<Frame>) = 0;
+    virtual base::unique_fd OnFrame(std::unique_ptr<Frame>) = 0;
   };
 
   explicit HwcCallback(Client* client);
   ~HwcCallback() override;
 
  private:
-  void OnNewFrame(const ComposerView::Frame& frame) override;
+  base::unique_fd OnNewFrame(const ComposerView::Frame& frame) override;
+
   Client *client_;
 
   HwcCallback(const HwcCallback&) = delete;

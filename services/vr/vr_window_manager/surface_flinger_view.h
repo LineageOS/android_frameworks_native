@@ -36,8 +36,6 @@ class SurfaceFlingerView {
                    TextureLayer* ime_layer, bool debug,
                    bool skip_first_layer) const;
 
-  void ReleaseFrame();
-
  private:
   sp<IComposer> vr_hwcomposer_;
   std::unique_ptr<VrComposerView> vr_composer_view_;

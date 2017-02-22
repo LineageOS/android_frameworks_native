@@ -21,7 +21,6 @@
 
 #include <mutex>
 
-#include "sync_timeline.h"
 #include "vr_composer_client.h"
 
 using namespace android::hardware::graphics::common::V1_0;
@@ -86,8 +85,6 @@ HwcDisplay::HwcDisplay() {}
 
 HwcDisplay::~HwcDisplay() {}
 
-bool HwcDisplay::Initialize() { return hwc_timeline_.Initialize(); }
-
 bool HwcDisplay::SetClientTarget(const native_handle_t* handle,
                                  base::unique_fd fence) {
   if (handle)
@@ -105,14 +102,14 @@ HwcLayer* HwcDisplay::CreateLayer() {
 
 HwcLayer* HwcDisplay::GetLayer(Layer id) {
   for (size_t i = 0; i < layers_.size(); ++i)
-    if (layers_[i].id == id) return &layers_[i];
+    if (layers_[i].info.id == id) return &layers_[i];
 
   return nullptr;
 }
 
 bool HwcDisplay::DestroyLayer(Layer id) {
   for (auto it = layers_.begin(); it != layers_.end(); ++it) {
-    if (it->id == id) {
+    if (it->info.id == id) {
       layers_.erase(it);
       return true;
     }
@@ -148,7 +145,7 @@ void HwcDisplay::GetChangedCompositionTypes(
   for (size_t i = 0; i < layers_.size(); ++i) {
     if (i >= first_client_layer && i <= last_client_layer) {
       if (layers_[i].composition_type != IComposerClient::Composition::CLIENT) {
-        layer_ids->push_back(layers_[i].id);
+        layer_ids->push_back(layers_[i].info.id);
         types->push_back(IComposerClient::Composition::CLIENT);
         layers_[i].composition_type = IComposerClient::Composition::CLIENT;
       }
@@ -157,7 +154,7 @@ void HwcDisplay::GetChangedCompositionTypes(
     }
 
     if (layers_[i].composition_type != IComposerClient::Composition::DEVICE) {
-      layer_ids->push_back(layers_[i].id);
+      layer_ids->push_back(layers_[i].info.id);
       types->push_back(IComposerClient::Composition::DEVICE);
       layers_[i].composition_type = IComposerClient::Composition::DEVICE;
     }
@@ -205,26 +202,18 @@ Error HwcDisplay::GetFrame(
     return Error::BAD_LAYER;
   }
 
-  // Increment the time the fence is signalled every time we get the
-  // presentation frame. This ensures that calling ReleaseFrame() only affects
-  // the current frame.
-  fence_time_++;
   out_frames->swap(frame);
   return Error::NONE;
 }
 
-void HwcDisplay::GetReleaseFences(int* present_fence,
-                                  std::vector<Layer>* layer_ids,
-                                  std::vector<int>* fences) {
-  *present_fence = hwc_timeline_.CreateFence(fence_time_);
-  for (const auto& layer : layers_) {
-    layer_ids->push_back(layer.id);
-    fences->push_back(hwc_timeline_.CreateFence(fence_time_));
-  }
-}
+std::vector<Layer> HwcDisplay::UpdateLastFrameAndGetLastFrameLayers() {
+  std::vector<Layer> last_frame_layers;
+  last_frame_layers.swap(last_frame_layers_ids_);
 
-void HwcDisplay::ReleaseFrame() {
-  hwc_timeline_.IncrementTimeline();
+  for (const auto& layer : layers_)
+    last_frame_layers_ids_.push_back(layer.info.id);
+
+  return last_frame_layers;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -233,8 +222,6 @@ void HwcDisplay::ReleaseFrame() {
 VrHwc::VrHwc() {}
 
 VrHwc::~VrHwc() {}
-
-bool VrHwc::Initialize() { return display_.Initialize(); }
 
 bool VrHwc::hasCapability(Capability capability) const { return false; }
 
@@ -270,7 +257,7 @@ Error VrHwc::createLayer(Display display, Layer* outLayer) {
   std::lock_guard<std::mutex> guard(mutex_);
 
   HwcLayer* layer = display_.CreateLayer();
-  *outLayer = layer->id;
+  *outLayer = layer->info.id;
   return Error::NONE;
 }
 
@@ -456,24 +443,33 @@ Error VrHwc::presentDisplay(Display display, int32_t* outPresentFence,
                             std::vector<Layer>* outLayers,
                             std::vector<int32_t>* outReleaseFences) {
   *outPresentFence = -1;
+  outLayers->clear();
+  outReleaseFences->clear();
+
   if (display != kDefaultDisplayId) {
     return Error::BAD_DISPLAY;
   }
 
   std::vector<ComposerView::ComposerLayer> frame;
-  {
-    std::lock_guard<std::mutex> guard(mutex_);
-    Error status = display_.GetFrame(&frame);
-    if (status != Error::NONE)
-      return status;
+  std::vector<Layer> last_frame_layers;
+  std::lock_guard<std::mutex> guard(mutex_);
+  Error status = display_.GetFrame(&frame);
+  if (status != Error::NONE)
+    return status;
 
-    display_.GetReleaseFences(outPresentFence, outLayers, outReleaseFences);
-  }
+  last_frame_layers = display_.UpdateLastFrameAndGetLastFrameLayers();
 
+  base::unique_fd fence;
   if (observer_)
-    observer_->OnNewFrame(frame);
-  else
-    ReleaseFrame();
+    fence = observer_->OnNewFrame(frame);
+
+  if (fence.get() < 0)
+    return Error::NONE;
+
+  *outPresentFence = dup(fence.get());
+  outLayers->swap(last_frame_layers);
+  for (size_t i = 0; i < outLayers->size(); ++i)
+    outReleaseFences->push_back(dup(fence.get()));
 
   return Error::NONE;
 }
@@ -667,11 +663,6 @@ void VrHwc::UnregisterObserver(Observer* observer) {
     ALOGE("Trying to unregister unknown observer");
   else
     observer_ = nullptr;
-}
-
-void VrHwc::ReleaseFrame() {
-  std::lock_guard<std::mutex> guard(mutex_);
-  display_.ReleaseFrame();
 }
 
 ComposerView* GetComposerViewFromIComposer(

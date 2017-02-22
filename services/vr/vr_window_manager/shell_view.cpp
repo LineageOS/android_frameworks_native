@@ -319,10 +319,6 @@ void ShellView::AdvanceFrame() {
         frame.frame->Finish() == HwcCallback::FrameStatus::kFinished) {
       current_frame_ = std::move(frame);
       pending_frames_.pop_front();
-
-      for(int i = 0; i < skipped_frame_count_ + 1; i++)
-        surface_flinger_view_->ReleaseFrame();
-      skipped_frame_count_ = 0;
     }
   }
 }
@@ -392,7 +388,7 @@ bool ShellView::OnClick(bool down) {
   return true;
 }
 
-void ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
+base::unique_fd ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
   ViewMode visibility =
       CalculateVisibilityFromLayerConfig(*frame.get(), current_vr_app_);
 
@@ -409,7 +405,6 @@ void ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
   pending_frames_.emplace_back(std::move(frame), visibility);
 
   if (pending_frames_.size() > kMaximumPendingFrames) {
-    skipped_frame_count_++;
     pending_frames_.pop_front();
   }
 
@@ -427,6 +422,8 @@ void ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
     QueueTask(MainThreadTask::EnteringVrMode);
     QueueTask(MainThreadTask::Show);
   }
+
+  return base::unique_fd(dup(release_fence_.get()));
 }
 
 bool ShellView::IsHit(const vec3& view_location, const vec3& view_direction,
@@ -517,6 +514,20 @@ void ShellView::DrawOverlays(const mat4& perspective, const mat4& eye_matrix,
     DrawDimOverlay(mvp, textures_[0], ime_top_left_, ime_top_left_ + ime_size_);
 
     DrawIme();
+  }
+
+  EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+  EGLSyncKHR sync = eglCreateSyncKHR(display, EGL_SYNC_NATIVE_FENCE_ANDROID,
+                                     nullptr);
+  if (sync != EGL_NO_SYNC_KHR) {
+    // Need to flush in order to get the fence FD.
+    glFlush();
+    base::unique_fd fence(eglDupNativeFenceFDANDROID(display, sync));
+    eglDestroySyncKHR(display, sync);
+    UpdateReleaseFence(std::move(fence));
+  } else {
+    ALOGE("Failed to create sync fence");
+    UpdateReleaseFence(base::unique_fd());
   }
 }
 
@@ -742,6 +753,11 @@ bool ShellView::OnTouchpadButton(bool down, int button) {
           status.toString8().string());
   }
   return true;
+}
+
+void ShellView::UpdateReleaseFence(base::unique_fd fence) {
+  std::lock_guard<std::mutex> guard(pending_frame_mutex_);
+  release_fence_ = std::move(fence);
 }
 
 }  // namespace dvr
