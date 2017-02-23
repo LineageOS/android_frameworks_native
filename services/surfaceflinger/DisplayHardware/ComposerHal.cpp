@@ -131,7 +131,7 @@ Composer::Composer(bool useVrComposer)
     if (mIsUsingVrComposer) {
         mComposer = IComposer::getService("vr_hwcomposer");
     } else {
-        mComposer = IComposer::getService("hwcomposer");
+        mComposer = IComposer::getService(); // use default name
     }
 
     if (mComposer == nullptr) {
