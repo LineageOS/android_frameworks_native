@@ -14,6 +14,13 @@
  * limitations under the License.
  */
 
+/**
+ * @file trace.h
+ * @brief Writes trace events to the system trace buffer.
+ *
+ * These trace events can be collected and visualized using the Systrace tool.
+ * For information about using the Systrace tool, read <a href="https://developer.android.com/studio/profile/systrace.html">Analyzing UI Performance with Systrace</a>.
+ */
 
 #ifndef ANDROID_NATIVE_TRACE_H
 #define ANDROID_NATIVE_TRACE_H
