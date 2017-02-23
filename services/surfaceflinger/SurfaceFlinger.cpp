@@ -176,8 +176,10 @@ SurfaceFlinger::SurfaceFlinger()
         mFrameBuckets(),
         mTotalTime(0),
         mLastSwapTime(0),
-        mNumLayers(0),
-        mEnterVrMode(false)
+        mNumLayers(0)
+#ifdef USE_HWC2
+        ,mEnterVrMode(false)
+#endif
 {
     ALOGI("SurfaceFlinger is starting");
 
@@ -1204,12 +1206,17 @@ void SurfaceFlinger::resetHwc() {
 }
 
 void SurfaceFlinger::updateVrMode() {
+    bool enteringVrMode = mEnterVrMode;
+    if (enteringVrMode == mHwc->isUsingVrComposer()) {
+        return;
+    }
+    if (enteringVrMode && !mVrHwc) {
+        // Construct new HWComposer without holding any locks.
+        mVrHwc = new HWComposer(true);
+        ALOGV("Vr HWC created");
+    }
     {
         Mutex::Autolock _l(mStateLock);
-        bool enteringVrMode = mEnterVrMode;
-        if (enteringVrMode == mHwc->isUsingVrComposer()) {
-            return;
-        }
 
         if (enteringVrMode) {
             // Start vrflinger thread, if it hasn't been started already.
@@ -1222,11 +1229,6 @@ void SurfaceFlinger::updateVrMode() {
                     mEnterVrMode = false;
                     return;
                 }
-            }
-
-            if (!mVrHwc) {
-                mVrHwc = new HWComposer(true);
-                ALOGV("Vr HWC created");
             }
 
             resetHwc();
