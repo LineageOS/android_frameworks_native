@@ -16,19 +16,12 @@ void VrComposerView::Initialize(ComposerView* composer_view) {
   composer_view_->RegisterObserver(this);
 }
 
-void VrComposerView::ReleaseFrame() {
-  LOG_ALWAYS_FATAL_IF(!composer_view_, "VrComposerView not initialized");
-  composer_view_->ReleaseFrame();
-}
-
-void VrComposerView::OnNewFrame(const ComposerView::Frame& frame) {
+base::unique_fd VrComposerView::OnNewFrame(const ComposerView::Frame& frame) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!callback_.get()) {
-    ReleaseFrame();
-    return;
-  }
+  if (!callback_.get())
+    return base::unique_fd();
 
-  callback_->OnNewFrame(frame);
+  return callback_->OnNewFrame(frame);
 }
 
 }  // namespace dvr

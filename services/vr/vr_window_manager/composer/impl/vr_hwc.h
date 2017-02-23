@@ -16,6 +16,7 @@
 #ifndef VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_HWC_H_
 #define VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_HWC_H_
 
+#include <android-base/unique_fd.h>
 #include <android/hardware/graphics/composer/2.1/IComposer.h>
 #include <ComposerBase.h>
 #include <ui/Fence.h>
@@ -23,8 +24,6 @@
 #include <utils/StrongPointer.h>
 
 #include <mutex>
-
-#include "sync_timeline.h"
 
 using namespace android::hardware::graphics::common::V1_0;
 using namespace android::hardware::graphics::composer::V2_1;
@@ -57,6 +56,7 @@ class ComposerView {
 
     // TODO(dnicoara): Add all layer properties. For now just the basics to get
     // it going.
+    Layer id;
     sp<GraphicBuffer> buffer;
     sp<Fence> fence;
     Recti display_frame;
@@ -75,25 +75,23 @@ class ComposerView {
 
     // Returns a list of layers that need to be shown together. Layers are
     // returned in z-order, with the lowest layer first.
-    virtual void OnNewFrame(const Frame& frame) = 0;
+    virtual base::unique_fd OnNewFrame(const Frame& frame) = 0;
   };
 
   virtual ~ComposerView() {}
 
   virtual void RegisterObserver(Observer* observer) = 0;
   virtual void UnregisterObserver(Observer* observer) = 0;
-
-  // Called to release the oldest frame received by the observer.
-  virtual void ReleaseFrame() = 0;
 };
 
 struct HwcLayer {
   using Composition =
       hardware::graphics::composer::V2_1::IComposerClient::Composition;
 
-  HwcLayer(Layer new_id) : id(new_id) {}
+  HwcLayer(Layer new_id) {
+    info.id = new_id;
+  }
 
-  Layer id;
   Composition composition_type;
   uint32_t z_order;
   ComposerView::ComposerLayer info;
@@ -103,8 +101,6 @@ class HwcDisplay {
  public:
   HwcDisplay();
   ~HwcDisplay();
-
-  bool Initialize();
 
   HwcLayer* CreateLayer();
   bool DestroyLayer(Layer id);
@@ -118,10 +114,7 @@ class HwcDisplay {
 
   Error GetFrame(std::vector<ComposerView::ComposerLayer>* out_frame);
 
-  void GetReleaseFences(int* present_fence, std::vector<Layer>* layer_ids,
-                        std::vector<int>* fences);
-
-  void ReleaseFrame();
+  std::vector<Layer> UpdateLastFrameAndGetLastFrameLayers();
 
  private:
   // The client target buffer and the associated fence.
@@ -132,18 +125,10 @@ class HwcDisplay {
   // List of currently active layers.
   std::vector<HwcLayer> layers_;
 
+  std::vector<Layer> last_frame_layers_ids_;
+
   // Layer ID generator.
   uint64_t layer_ids_ = 1;
-
-  // Creates software sync fences used to signal releasing frames.
-  SyncTimeline hwc_timeline_;
-
-  // Keeps track of the current fence time. Used in conjunction with
-  // |hwc_timeline_| to properly signal frame release times. Allows the observer
-  // to receive multiple presentation frames without calling ReleaseFrame() in
-  // between each presentation. When the observer is ready to release a frame
-  // only the oldest presentation frame is affected by the release.
-  int fence_time_ = 0;
 
   HwcDisplay(const HwcDisplay&) = delete;
   void operator=(const HwcDisplay&) = delete;
@@ -153,8 +138,6 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
  public:
   VrHwc();
   ~VrHwc() override;
-
-  bool Initialize();
 
   bool hasCapability(Capability capability) const;
 
@@ -246,7 +229,6 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
   // ComposerView:
   void RegisterObserver(Observer* observer) override;
   void UnregisterObserver(Observer* observer) override;
-  void ReleaseFrame() override;
 
  private:
   wp<VrComposerClient> client_;

@@ -38,7 +38,7 @@ HwcCallback::HwcCallback(Client* client) : client_(client) {
 HwcCallback::~HwcCallback() {
 }
 
-void HwcCallback::OnNewFrame(const ComposerView::Frame& frame) {
+base::unique_fd HwcCallback::OnNewFrame(const ComposerView::Frame& frame) {
   std::vector<HwcLayer> hwc_frame(frame.size());
   for (size_t i = 0; i < frame.size(); ++i) {
     hwc_frame[i] = HwcLayer{
@@ -53,7 +53,8 @@ void HwcCallback::OnNewFrame(const ComposerView::Frame& frame) {
     };
   }
 
-  client_->OnFrame(std::make_unique<Frame>(std::move(hwc_frame)));
+  return client_->OnFrame(
+      std::make_unique<Frame>(std::move(hwc_frame)));
 }
 
 HwcCallback::Frame::Frame(std::vector<HwcLayer>&& layers)

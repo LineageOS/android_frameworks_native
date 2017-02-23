@@ -69,15 +69,14 @@ class ShellView : public Application,
 
   void AdvanceFrame();
 
+  void UpdateReleaseFence(base::unique_fd fence);
+
   // HwcCallback::Client:
-  void OnFrame(std::unique_ptr<HwcCallback::Frame> frame) override;
+  base::unique_fd OnFrame(std::unique_ptr<HwcCallback::Frame> frame) override;
 
   std::unique_ptr<ShaderProgram> program_;
   std::unique_ptr<ShaderProgram> overlay_program_;
   std::unique_ptr<ShaderProgram> controller_program_;
-
-  // This starts at -1 so we don't call ReleaseFrame for the first frame.
-  int skipped_frame_count_ = -1;
 
   uint32_t current_vr_app_;
 
@@ -125,6 +124,8 @@ class ShellView : public Application,
   PendingFrame current_frame_;
 
   mat4 controller_translate_;
+
+  base::unique_fd release_fence_;
 
   ShellView(const ShellView&) = delete;
   void operator=(const ShellView&) = delete;

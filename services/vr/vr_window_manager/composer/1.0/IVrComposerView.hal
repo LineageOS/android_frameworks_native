@@ -1,9 +1,0 @@
-package android.dvr.composer@1.0;
-
-import IVrComposerCallback;
-
-interface IVrComposerView {
-    registerCallback(IVrComposerCallback callback);
-
-    releaseFrame();
-};
