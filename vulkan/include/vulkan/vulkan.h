@@ -3702,7 +3702,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vkGetPhysicalDeviceMirPresentationSupportKHR(
 
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
 #define VK_KHR_android_surface 1
-struct ANativeWindow;
 
 #define VK_KHR_ANDROID_SURFACE_SPEC_VERSION 6
 #define VK_KHR_ANDROID_SURFACE_EXTENSION_NAME "VK_KHR_android_surface"
