@@ -29,7 +29,7 @@ constexpr Error kDefaultError = Error::NO_RESOURCES;
 
 Allocator::Allocator()
 {
-    mAllocator = IAllocator::getService("gralloc");
+    mAllocator = IAllocator::getService();
     if (mAllocator != nullptr) {
         mAllocator->createClient(
                 [&](const auto& tmpError, const auto& tmpClient) {

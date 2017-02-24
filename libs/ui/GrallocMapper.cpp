@@ -28,7 +28,7 @@ static constexpr Error kDefaultError = Error::NO_RESOURCES;
 
 Mapper::Mapper()
 {
-    mMapper = IMapper::getService("gralloc-mapper");
+    mMapper = IMapper::getService();
     if (mMapper != nullptr && mMapper->isRemote()) {
         LOG_ALWAYS_FATAL("gralloc-mapper must be in passthrough mode");
     }
