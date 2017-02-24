@@ -493,14 +493,8 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_COLOR_COMPONENT_TYPE_EXT,
                                     &componentType);
 
-        // by default, just pick appropriate RGBA
-        EGLint format = HAL_PIXEL_FORMAT_RGBA_8888;
-        if (dp->haveExtension("EGL_EXT_pixel_format_float") &&
-            (componentType == EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT)) {
-            format = HAL_PIXEL_FORMAT_RGBA_FP16;
-        }
+        EGLint format;
         android_dataspace dataSpace = HAL_DATASPACE_UNKNOWN;
-
         EGLint a = 0;
         EGLint r, g, b;
         r = g = b = 0;
