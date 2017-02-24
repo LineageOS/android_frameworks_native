@@ -13,7 +13,7 @@
 // limitations under the License.
 
 ndk_headers {
-    name: "libnativewdinwow_headers",
+    name: "libnativewindwow_headers",
     from: "include/android",
     to: "android",
     srcs: ["include/android/*.h"],
