@@ -960,7 +960,7 @@ static void dumpstate() {
                {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy"});
     RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT);
 
-    RunCommand("HARDWARE HALS", {"lshal"});
+    RunCommand("HARDWARE HALS", {"lshal"}, CommandOptions::AS_ROOT);
 
     RunCommand("PRINTENV", {"printenv"});
     RunCommand("NETSTAT", {"netstat", "-nW"});
