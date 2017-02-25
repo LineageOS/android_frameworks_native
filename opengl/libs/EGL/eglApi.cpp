@@ -33,9 +33,6 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 
-#include <ui/GraphicBuffer.h>
-
-
 #include <utils/KeyedVector.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
@@ -1835,11 +1832,8 @@ EGLBoolean eglPresentationTimeANDROID(EGLDisplay dpy, EGLSurface surface,
 
 EGLClientBuffer eglGetNativeClientBufferANDROID(const AHardwareBuffer *buffer) {
     clearError();
-
     if (!buffer) return setError(EGL_BAD_PARAMETER, (EGLClientBuffer)0);
-
-    const GraphicBuffer* graphicBuffer = AHardwareBuffer_to_GraphicBuffer(buffer);
-    return static_cast<EGLClientBuffer>(graphicBuffer->getNativeBuffer());
+    return const_cast<ANativeWindowBuffer *>(AHardwareBuffer_to_ANativeWindowBuffer(buffer));
 }
 
 // ----------------------------------------------------------------------------

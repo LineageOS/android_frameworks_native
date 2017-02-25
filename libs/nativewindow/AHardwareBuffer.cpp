@@ -428,6 +428,14 @@ GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(AHardwareBuffer* buffer) {
     return reinterpret_cast<GraphicBuffer*>(buffer);
 }
 
+const ANativeWindowBuffer* AHardwareBuffer_to_ANativeWindowBuffer(const AHardwareBuffer* buffer) {
+    return AHardwareBuffer_to_GraphicBuffer(buffer)->getNativeBuffer();
+}
+
+ANativeWindowBuffer* AHardwareBuffer_to_ANativeWindowBuffer(AHardwareBuffer* buffer) {
+    return AHardwareBuffer_to_GraphicBuffer(buffer)->getNativeBuffer();
+}
+
 AHardwareBuffer* AHardwareBuffer_from_GraphicBuffer(GraphicBuffer* buffer) {
     return reinterpret_cast<AHardwareBuffer*>(buffer);
 }
