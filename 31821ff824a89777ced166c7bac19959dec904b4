@@ -46,6 +46,30 @@
       "revId": "31821ff824a89777ced166c7bac19959dec904b4",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa5d592f_095f09e7",
+        "filename": "opengl/libs/Android.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 48,
+      "author": {
+        "id": 13026
+      },
+      "writtenOn": "2017-02-25T20:17:06Z",
+      "side": 1,
+      "message": "Of course, and I still cannot see some looming danger in h/ti/omap4; feels like a device tree would have to willingly shoot itself in the foot. I do hope our conditional BOARD_EGL_WORKAROUND_BUG_10194508 will be gone when new DDK is ready.\nBTW, I wasn\u0027t advocating for anything more complex, just akin to line 51.",
+      "parentUuid": "fa5d592f_49e74141",
+      "range": {
+        "startLine": 48,
+        "startChar": 0,
+        "endLine": 48,
+        "endChar": 48
+      },
+      "revId": "31821ff824a89777ced166c7bac19959dec904b4",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
