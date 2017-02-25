@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fa5d592f_e6874260",
+        "filename": "opengl/libs/Android.mk",
+        "patchSetId": 1
+      },
+      "lineNbr": 48,
+      "author": {
+        "id": 13026
+      },
+      "writtenOn": "2017-02-25T15:06:39Z",
+      "side": 1,
+      "message": "Ethan, sorry for more spam, but I was thinking, if something overriding this flag to false is a big concern, why not prevent it here (e.g., ifneq($(BOARD_EGL_WORKAROUND_BUG_10194508),), or maybe a simple ifdef)?",
+      "range": {
+        "startLine": 48,
+        "startChar": 0,
+        "endLine": 48,
+        "endChar": 48
+      },
+      "revId": "31821ff824a89777ced166c7bac19959dec904b4",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
