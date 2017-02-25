@@ -18,11 +18,11 @@
 #define ANDROID_PRIVATE_NATIVE_AHARDWARE_BUFFER_HELPERS_H
 
 /*
- * This file contains utility functions related to AHardwareBuffer, mostly to convert
- * to/from HAL formats.
+ * This file contains utility functions related to AHardwareBuffer, mostly to
+ * convert to/from HAL formats.
  *
- * These are PRIVATE methods, so this file can NEVER appear in a public NDK header.
- * They are used by higher level libraries such as core/jni.
+ * These are PRIVATE methods, so this file can NEVER appear in a public NDK
+ * header. They are used by higher level libraries such as core/jni.
  */
 
 #include <stdint.h>
@@ -35,12 +35,11 @@ uint32_t AHardwareBuffer_convertFromPixelFormat(uint32_t format);
 
 uint32_t AHardwareBuffer_convertToPixelFormat(uint32_t format);
 
-void AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage,
-        uint64_t* outProducerUsage, uint64_t* outConsumerUsage);
+void AHardwareBuffer_convertToGrallocUsageBits(uint64_t* outProducerUsage,
+    uint64_t* outConsumerUsage, uint64_t usage0, uint64_t usage1);
 
-uint64_t AHardwareBuffer_convertFromGrallocUsageBits(
-        uint64_t producerUsage, uint64_t consumerUsage);
-
+void AHardwareBuffer_convertFromGrallocUsageBits(uint64_t* outUsage0, uint64_t* outUsage1,
+    uint64_t producerUsage, uint64_t consumerUsage);
 
 class GraphicBuffer;
 const GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(const AHardwareBuffer* buffer);
