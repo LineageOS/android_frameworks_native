@@ -49,4 +49,5 @@ type u64 size_t
 @internal type void* HINSTANCE
 @internal type void* HWND
 @internal type void* HANDLE
+@internal type u32   DWORD
 @internal class SECURITY_ATTRIBUTES {}

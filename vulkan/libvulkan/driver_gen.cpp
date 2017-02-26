@@ -93,20 +93,20 @@ VKAPI_ATTR VkResult checkedGetPastPresentationTimingGOOGLE(VkDevice device, VkSw
     }
 }
 
+VKAPI_ATTR void checkedSetHdrMetadataEXT(VkDevice device, uint32_t swapchainCount, const VkSwapchainKHR* pSwapchains, const VkHdrMetadataEXT* pMetadata) {
+    if (GetData(device).hook_extensions[ProcHook::EXT_hdr_metadata]) {
+        SetHdrMetadataEXT(device, swapchainCount, pSwapchains, pMetadata);
+    } else {
+        Logger(device).Err(device, "VK_EXT_hdr_metadata not enabled. vkSetHdrMetadataEXT not executed.");
+    }
+}
+
 VKAPI_ATTR VkResult checkedGetSwapchainStatusKHR(VkDevice device, VkSwapchainKHR swapchain) {
     if (GetData(device).hook_extensions[ProcHook::KHR_shared_presentable_image]) {
         return GetSwapchainStatusKHR(device, swapchain);
     } else {
         Logger(device).Err(device, "VK_KHR_shared_presentable_image not enabled. vkGetSwapchainStatusKHR not executed.");
         return VK_SUCCESS;
-    }
-}
-
-VKAPI_ATTR void checkedSetHdrMetadataEXT(VkDevice device, uint32_t swapchainCount, const VkSwapchainKHR* pSwapchains, const VkHdrMetadataEXT* pMetadata) {
-    if (GetData(device).hook_extensions[ProcHook::EXT_hdr_metadata]) {
-        SetHdrMetadataEXT(device, swapchainCount, pSwapchains, pMetadata);
-    } else {
-        Logger(device).Err(device, "VK_EXT_hdr_metadata not enabled. vkSetHdrMetadataEXT not executed.");
     }
 }
 
