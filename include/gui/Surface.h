@@ -156,6 +156,7 @@ public:
             nsecs_t* outDequeueReadyTime, nsecs_t* outReleaseTime);
 
     status_t getWideColorSupport(bool* supported);
+    status_t getHdrSupport(bool* supported);
 
     status_t getUniqueId(uint64_t* outId) const;
 
@@ -218,6 +219,7 @@ private:
     int dispatchGetCompositorTiming(va_list args);
     int dispatchGetFrameTimestamps(va_list args);
     int dispatchGetWideColorSupport(va_list args);
+    int dispatchGetHdrSupport(va_list args);
 
 protected:
     virtual int dequeueBuffer(ANativeWindowBuffer** buffer, int* fenceFd);

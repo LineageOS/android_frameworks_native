@@ -26,9 +26,10 @@
 #include <utils/Trace.h>
 #include <utils/NativeHandle.h>
 
-#include <ui/Fence.h>
-#include <ui/Region.h>
 #include <ui/DisplayStatInfo.h>
+#include <ui/Fence.h>
+#include <ui/HdrCapabilities.h>
+#include <ui/Region.h>
 
 #include <gui/BufferItem.h>
 #include <gui/IProducerListener.h>
@@ -329,6 +330,23 @@ status_t Surface::getWideColorSupport(bool* supported) {
                 break;
         }
     }
+
+    return NO_ERROR;
+}
+
+status_t Surface::getHdrSupport(bool* supported) {
+    ATRACE_CALL();
+
+    sp<IBinder> display(
+        composerService()->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+    HdrCapabilities hdrCapabilities;
+    status_t err =
+        composerService()->getHdrCapabilities(display, &hdrCapabilities);
+
+    if (err)
+        return err;
+
+    *supported = !hdrCapabilities.getSupportedHdrTypes().empty();
 
     return NO_ERROR;
 }
@@ -911,6 +929,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_GET_WIDE_COLOR_SUPPORT:
         res = dispatchGetWideColorSupport(args);
         break;
+    case NATIVE_WINDOW_GET_HDR_SUPPORT:
+        res = dispatchGetHdrSupport(args);
+        break;
     default:
         res = NAME_NOT_FOUND;
         break;
@@ -1078,6 +1099,11 @@ int Surface::dispatchGetFrameTimestamps(va_list args) {
 int Surface::dispatchGetWideColorSupport(va_list args) {
     bool* outSupport = va_arg(args, bool*);
     return getWideColorSupport(outSupport);
+}
+
+int Surface::dispatchGetHdrSupport(va_list args) {
+    bool* outSupport = va_arg(args, bool*);
+    return getHdrSupport(outSupport);
 }
 
 int Surface::connect(int api) {
