@@ -1267,6 +1267,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                             Fence::SIGNAL_TIME_PENDING);
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (mPropagateBackpressure && frameMissed) {
+                ALOGD("Backpressure trigger, skipping transaction & refresh!");
                 signalLayerUpdate();
                 break;
             }

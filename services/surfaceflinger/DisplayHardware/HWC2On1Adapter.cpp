@@ -961,8 +961,6 @@ Error HWC2On1Adapter::Display::validate(uint32_t* outNumTypes,
         uint32_t* outNumRequests) {
     std::unique_lock<std::recursive_mutex> lock(mStateMutex);
 
-    ALOGV("[%" PRIu64 "] Entering validate", mId);
-
     if (!mChanges) {
         if (!mDevice.prepareAllDisplays()) {
             return Error::BadDisplay;
@@ -1188,8 +1186,6 @@ bool HWC2On1Adapter::Display::prepare() {
         ALOGE("[%" PRIu64 "] Attempted to prepare, but no config active", mId);
         return false;
     }
-
-    ALOGV("[%" PRIu64 "] Entering prepare", mId);
 
     allocateRequestedContents();
     assignHwc1LayerIds();
@@ -2207,7 +2203,6 @@ void HWC2On1Adapter::Layer::applyCompositionType(hwc_layer_1_t& hwc1Layer) {
 // Adapter helpers
 
 void HWC2On1Adapter::populateCapabilities() {
-    ALOGV("populateCapabilities");
     if (mHwc1MinorVersion >= 3U) {
         int supportedTypes = 0;
         auto result = mHwc1Device->query(mHwc1Device,
@@ -2265,8 +2260,6 @@ std::tuple<HWC2On1Adapter::Layer*, Error> HWC2On1Adapter::getLayer(
 }
 
 void HWC2On1Adapter::populatePrimary() {
-    ALOGV("populatePrimary");
-
     std::unique_lock<std::recursive_timed_mutex> lock(mStateMutex);
 
     auto display = std::make_shared<Display>(*this, HWC2::DisplayType::Physical);
@@ -2367,6 +2360,83 @@ bool HWC2On1Adapter::prepareAllDisplays() {
     return true;
 }
 
+void dumpHWC1Message(hwc_composer_device_1* device, size_t numDisplays,
+                     hwc_display_contents_1_t** displays) {
+    ALOGV("*****************************");
+    size_t displayId = 0;
+    while (displayId < numDisplays) {
+        hwc_display_contents_1_t* display = displays[displayId];
+
+        ALOGV("hwc_display_contents_1_t[%zu] @0x%p", displayId, display);
+        if (display == nullptr) {
+            displayId++;
+            continue;
+        }
+        ALOGV("  retirefd:0x%08x", display->retireFenceFd);
+        ALOGV("  outbuf  :0x%p", display->outbuf);
+        ALOGV("  outbuffd:0x%08x", display->outbufAcquireFenceFd);
+        ALOGV("  flags   :0x%08x", display->flags);
+        for(size_t layerId=0 ; layerId < display->numHwLayers ; layerId++) {
+            hwc_layer_1_t& layer = display->hwLayers[layerId];
+            ALOGV("    Layer[%zu]:", layerId);
+            ALOGV("      composition        : 0x%08x", layer.compositionType);
+            ALOGV("      hints              : 0x%08x", layer.hints);
+            ALOGV("      flags              : 0x%08x", layer.flags);
+            ALOGV("      handle             : 0x%p", layer.handle);
+            ALOGV("      transform          : 0x%08x", layer.transform);
+            ALOGV("      blending           : 0x%08x", layer.blending);
+            ALOGV("      sourceCropf        : %f, %f, %f, %f",
+                  layer.sourceCropf.left,
+                  layer.sourceCropf.top,
+                  layer.sourceCropf.right,
+                  layer.sourceCropf.bottom);
+            ALOGV("      displayFrame       : %d, %d, %d, %d",
+                  layer.displayFrame.left,
+                  layer.displayFrame.left,
+                  layer.displayFrame.left,
+                  layer.displayFrame.left);
+            hwc_region_t& visReg = layer.visibleRegionScreen;
+            ALOGV("      visibleRegionScreen: #0x%08zx[@0x%p]",
+                  visReg.numRects,
+                  visReg.rects);
+            for (size_t visRegId=0; visRegId < visReg.numRects ; visRegId++) {
+                if (layer.visibleRegionScreen.rects == nullptr) {
+                    ALOGV("        null");
+                } else {
+                    ALOGV("        visibleRegionScreen[%zu] %d, %d, %d, %d",
+                          visRegId,
+                          visReg.rects[visRegId].left,
+                          visReg.rects[visRegId].top,
+                          visReg.rects[visRegId].right,
+                          visReg.rects[visRegId].bottom);
+                }
+            }
+            ALOGV("      acquireFenceFd     : 0x%08x", layer.acquireFenceFd);
+            ALOGV("      releaseFenceFd     : 0x%08x", layer.releaseFenceFd);
+            ALOGV("      planeAlpha         : 0x%08x", layer.planeAlpha);
+            if (getMinorVersion(device) < 5)
+               continue;
+            ALOGV("      surfaceDamage      : #0x%08zx[@0x%p]",
+                  layer.surfaceDamage.numRects,
+                  layer.surfaceDamage.rects);
+            for (size_t sdId=0; sdId < layer.surfaceDamage.numRects ; sdId++) {
+                if (layer.surfaceDamage.rects == nullptr) {
+                    ALOGV("      null");
+                } else {
+                    ALOGV("      surfaceDamage[%zu] %d, %d, %d, %d",
+                          sdId,
+                          layer.surfaceDamage.rects[sdId].left,
+                          layer.surfaceDamage.rects[sdId].top,
+                          layer.surfaceDamage.rects[sdId].right,
+                          layer.surfaceDamage.rects[sdId].bottom);
+                }
+            }
+        }
+        displayId++;
+    }
+    ALOGV("-----------------------------");
+}
+
 Error HWC2On1Adapter::setAllDisplays() {
     ATRACE_CALL();
 
@@ -2391,6 +2461,7 @@ Error HWC2On1Adapter::setAllDisplays() {
     ALOGV("Calling HWC1 set");
     {
         ATRACE_NAME("HWC1 set");
+        //dumpHWC1Message(mHwc1Device, mHwc1Contents.size(), mHwc1Contents.data());
         mHwc1Device->set(mHwc1Device, mHwc1Contents.size(),
                 mHwc1Contents.data());
     }
