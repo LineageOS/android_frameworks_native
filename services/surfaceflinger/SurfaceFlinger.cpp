@@ -1552,49 +1552,46 @@ void SurfaceFlinger::rebuildLayerStacks() {
     ALOGV("rebuildLayerStacks");
 
     // rebuild the visible layer list per screen
-    if (CC_LIKELY(mVisibleRegionsDirty)) {
-        return;
-    }
+    if (CC_UNLIKELY(mVisibleRegionsDirty)) {
+        ATRACE_CALL();
+        mVisibleRegionsDirty = false;
+        invalidateHwcGeometry();
 
-    ATRACE_NAME("rebuildLayerStacks VR Dirty");
-    mVisibleRegionsDirty = false;
-    invalidateHwcGeometry();
+        for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
+            Region opaqueRegion;
+            Region dirtyRegion;
+            Vector<sp<Layer>> layersSortedByZ;
+            const sp<DisplayDevice>& displayDevice(mDisplays[dpy]);
+            const Transform& tr(displayDevice->getTransform());
+            const Rect bounds(displayDevice->getBounds());
+            if (displayDevice->isDisplayOn()) {
+                computeVisibleRegions(
+                        displayDevice->getLayerStack(), dirtyRegion,
+                        opaqueRegion);
 
-    for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
-        Region opaqueRegion;
-        Region dirtyRegion;
-        Vector<sp<Layer>> layersSortedByZ;
-        const sp<DisplayDevice>& displayDevice(mDisplays[dpy]);
-        const Transform& tr(displayDevice->getTransform());
-        const Rect bounds(displayDevice->getBounds());
-        if (displayDevice->isDisplayOn()) {
-            computeVisibleRegions(
-                    displayDevice->getLayerStack(), dirtyRegion,
-                    opaqueRegion);
-
-            mDrawingState.traverseInZOrder([&](Layer* layer) {
-                if (layer->getLayerStack() == displayDevice->getLayerStack()) {
-                    Region drawRegion(tr.transform(
-                            layer->visibleNonTransparentRegion));
-                    drawRegion.andSelf(bounds);
-                    if (!drawRegion.isEmpty()) {
-                        layersSortedByZ.add(layer);
-                    } else {
-                        // Clear out the HWC layer if this layer was
-                        // previously visible, but no longer is
-                        layer->setHwcLayer(displayDevice->getHwcDisplayId(),
-                                nullptr);
+                mDrawingState.traverseInZOrder([&](Layer* layer) {
+                    if (layer->getLayerStack() == displayDevice->getLayerStack()) {
+                        Region drawRegion(tr.transform(
+                                layer->visibleNonTransparentRegion));
+                        drawRegion.andSelf(bounds);
+                        if (!drawRegion.isEmpty()) {
+                            layersSortedByZ.add(layer);
+                        } else {
+                            // Clear out the HWC layer if this layer was
+                            // previously visible, but no longer is
+                            layer->setHwcLayer(displayDevice->getHwcDisplayId(),
+                                    nullptr);
+                        }
                     }
-                }
-            });
+                });
+            }
+            displayDevice->setVisibleLayersSortedByZ(layersSortedByZ);
+            displayDevice->undefinedRegion.set(bounds);
+            displayDevice->undefinedRegion.subtractSelf(
+                    tr.transform(opaqueRegion));
+            displayDevice->dirtyRegion.orSelf(dirtyRegion);
         }
-        displayDevice->setVisibleLayersSortedByZ(layersSortedByZ);
-        displayDevice->undefinedRegion.set(bounds);
-        displayDevice->undefinedRegion.subtractSelf(
-                tr.transform(opaqueRegion));
-        displayDevice->dirtyRegion.orSelf(dirtyRegion);
     }
-
 }
 
 void SurfaceFlinger::setUpHWComposer() {
