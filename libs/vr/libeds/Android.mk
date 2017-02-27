@@ -37,7 +37,6 @@ sharedLibraries := \
 	libGLESv1_CM \
 	libGLESv2 \
 	libvulkan \
-	libandroid
 
 staticLibraries := \
 	libdisplay \
