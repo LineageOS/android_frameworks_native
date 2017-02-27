@@ -223,7 +223,7 @@ bool SurfaceFlingerConsumer::releasePendingBuffer()
     status_t result = releaseBufferLocked(mPendingRelease.currentTexture,
             mPendingRelease.graphicBuffer, mPendingRelease.display,
             mPendingRelease.fence);
-    ALOGE_IF(result != NO_ERROR, "releasePendingBuffer failed: %s (%d)",
+    ALOGE_IF(result < NO_ERROR, "releasePendingBuffer failed: %s (%d)",
             strerror(-result), result);
     mPendingRelease = PendingRelease();
     return true;
