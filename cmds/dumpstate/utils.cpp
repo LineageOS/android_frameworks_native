@@ -76,7 +76,6 @@ static const char* native_processes_to_dump[] = {
         "/system/bin/audioserver",
         "/system/bin/cameraserver",
         "/system/bin/drmserver",
-        "/system/bin/mediacodec",     // media.codec
         "/system/bin/mediadrmserver",
         "/system/bin/mediaextractor", // media.extractor
         "/system/bin/mediaserver",
