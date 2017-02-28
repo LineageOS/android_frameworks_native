@@ -31,7 +31,6 @@
 
 #include <gui/BufferItem.h>
 #include <gui/GLConsumer.h>
-#include <gui/IGraphicBufferAlloc.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 

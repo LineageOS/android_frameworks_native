@@ -41,7 +41,6 @@ struct DisplayInfo;
 struct DisplayStatInfo;
 class HdrCapabilities;
 class IDisplayEventConnection;
-class IGraphicBufferAlloc;
 class IGraphicBufferProducer;
 class ISurfaceComposerClient;
 class Rect;
@@ -88,10 +87,6 @@ public:
      */
     virtual sp<ISurfaceComposerClient> createScopedConnection(
             const sp<IGraphicBufferProducer>& parent) = 0;
-
-    /* create a graphic buffer allocator
-     */
-    virtual sp<IGraphicBufferAlloc> createGraphicBufferAlloc() = 0;
 
     /* return an IDisplayEventConnection */
     virtual sp<IDisplayEventConnection> createDisplayEventConnection() = 0;
@@ -205,7 +200,7 @@ public:
         // Java by ActivityManagerService.
         BOOT_FINISHED = IBinder::FIRST_CALL_TRANSACTION,
         CREATE_CONNECTION,
-        CREATE_GRAPHIC_BUFFER_ALLOC,
+        UNUSED, // formerly CREATE_GRAPHIC_BUFFER_ALLOC
         CREATE_DISPLAY_EVENT_CONNECTION,
         CREATE_DISPLAY,
         DESTROY_DISPLAY,
