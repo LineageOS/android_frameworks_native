@@ -885,40 +885,6 @@ void send_broadcast(const std::string& action, const std::vector<std::string>& a
     run_command_always(NULL, DROP_ROOT, REDIRECT_TO_STDERR, 20, am_args);
 }
 
-size_t num_props = 0;
-static char* props[2000];
-
-static void print_prop(const char *key, const char *name, void *user) {
-    (void) user;
-    if (num_props < sizeof(props) / sizeof(props[0])) {
-        char buf[PROPERTY_KEY_MAX + PROPERTY_VALUE_MAX + 10];
-        snprintf(buf, sizeof(buf), "[%s]: [%s]\n", key, name);
-        props[num_props++] = strdup(buf);
-    }
-}
-
-static int compare_prop(const void *a, const void *b) {
-    return strcmp(*(char * const *) a, *(char * const *) b);
-}
-
-/* prints all the system properties */
-void print_properties() {
-    const char* title = "SYSTEM PROPERTIES";
-    DurationReporter duration_reporter(title);
-    printf("------ %s ------\n", title);
-    ON_DRY_RUN_RETURN();
-    size_t i;
-    num_props = 0;
-    property_list(print_prop, NULL);
-    qsort(&props, num_props, sizeof(props[0]), compare_prop);
-
-    for (i = 0; i < num_props; ++i) {
-        fputs(props[i], stdout);
-        free(props[i]);
-    }
-    printf("\n");
-}
-
 int open_socket(const char *service) {
     int s = android_get_control_socket(service);
     if (s < 0) {

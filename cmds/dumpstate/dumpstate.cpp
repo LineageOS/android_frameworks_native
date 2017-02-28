@@ -948,7 +948,7 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
 #endif
     dump_file("INTERRUPTS (2)", "/proc/interrupts");
 
-    print_properties();
+    run_command("SYSTEM PROPERTIES", 5, "getprop", NULL);
 
     run_command("VOLD DUMP", 10, "vdc", "dump", NULL);
     run_command("SECURE CONTAINERS", 10, "vdc", "asec", "list", NULL);
