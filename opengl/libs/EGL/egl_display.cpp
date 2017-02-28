@@ -17,16 +17,16 @@
 #define __STDC_LIMIT_MACROS 1
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <string.h>
+#include "egl_display.h"
 
 #include "../egl_impl.h"
 
 #include "egl_cache.h"
-#include "egl_display.h"
 #include "egl_object.h"
 #include "egl_tls.h"
 #include "Loader.h"
 #include <cutils/properties.h>
+
 #include <utils/Trace.h>
 
 // ----------------------------------------------------------------------------

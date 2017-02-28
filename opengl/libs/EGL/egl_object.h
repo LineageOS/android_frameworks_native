@@ -17,15 +17,13 @@
 #ifndef ANDROID_EGL_OBJECT_H
 #define ANDROID_EGL_OBJECT_H
 
-#include <atomic>
-#include <ctype.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
-#include <utils/threads.h>
+#include <utils/StrongPointer.h>
 #include <utils/String8.h>
 #include <utils/Vector.h>
 
@@ -62,8 +60,8 @@ public:
     template <typename N, typename T>
     class LocalRef {
         egl_object_t* ref;
-        LocalRef();
-        explicit LocalRef(const LocalRef* rhs);
+        LocalRef() = delete;
+        LocalRef(const LocalRef* rhs) = delete;
     public:
         ~LocalRef();
         explicit LocalRef(egl_object_t* rhs);

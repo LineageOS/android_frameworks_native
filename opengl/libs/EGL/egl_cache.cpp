@@ -14,18 +14,17 @@
  ** limitations under the License.
  */
 
+#include "egl_cache.h"
+
 #include "../egl_impl.h"
 
-#include "egl_cache.h"
 #include "egl_display.h"
-#include "egldefs.h"
 
-#include <fcntl.h>
 #include <inttypes.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+
+#include <utils/Thread.h>
 
 // Cache size limits.
 static const size_t maxKeySize = 12 * 1024;
@@ -87,7 +86,7 @@ void egl_cache_t::initialize(egl_display_t *display) {
         bool atStart = !strncmp(BC_EXT_STR " ", exts, bcExtLen+1);
         bool atEnd = (bcExtLen+1) < extsLen &&
                 !strcmp(" " BC_EXT_STR, exts + extsLen - (bcExtLen+1));
-        bool inMiddle = strstr(exts, " " BC_EXT_STR " ");
+        bool inMiddle = strstr(exts, " " BC_EXT_STR " ") != nullptr;
         if (equal || atStart || atEnd || inMiddle) {
             PFNEGLSETBLOBCACHEFUNCSANDROIDPROC eglSetBlobCacheFuncsANDROID;
             eglSetBlobCacheFuncsANDROID =

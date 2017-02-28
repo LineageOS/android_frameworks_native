@@ -14,19 +14,10 @@
  ** limitations under the License.
  */
 
-#include <string>
+#include "egl_object.h"
+
 #include <sstream>
 
-#include <ctype.h>
-#include <stdint.h>
-#include <stdlib.h>
-
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-
-#include <utils/threads.h>
-
-#include "egl_object.h"
 
 // ----------------------------------------------------------------------------
 namespace android {

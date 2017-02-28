@@ -22,7 +22,6 @@
 #include <string.h>
 
 #include <hardware/gralloc1.h>
-#include <system/window.h>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -30,9 +29,7 @@
 #include <android/hardware_buffer.h>
 #include <private/android/AHardwareBufferHelpers.h>
 
-#include <cutils/atomic.h>
 #include <cutils/compiler.h>
-#include <cutils/memory.h>
 #include <cutils/properties.h>
 #include <log/log.h>
 
@@ -44,18 +41,17 @@
 #include <utils/KeyedVector.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
+#include <utils/Thread.h>
 
 #include "binder/Binder.h"
 #include "binder/Parcel.h"
 #include "binder/IServiceManager.h"
 
 #include "../egl_impl.h"
-#include "../hooks.h"
 
 #include "egl_display.h"
 #include "egl_object.h"
 #include "egl_tls.h"
-#include "egldefs.h"
 
 using namespace android;
 
@@ -84,11 +80,10 @@ struct extention_map_t {
  * NOTE: Both strings MUST have a single space as the last character.
  */
 
-// CLion mistakenly warns about the extern keyword below.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wextern-initializer"
+extern char const * const gBuiltinExtensionString;
+extern char const * const gExtensionString;
 
-extern char const * const gBuiltinExtensionString =
+char const * const gBuiltinExtensionString =
         "EGL_KHR_get_all_proc_addresses "
         "EGL_ANDROID_presentation_time "
         "EGL_KHR_swap_buffers_with_damage "
@@ -97,7 +92,8 @@ extern char const * const gBuiltinExtensionString =
         "EGL_ANDROID_front_buffer_auto_refresh "
         "EGL_ANDROID_get_frame_timestamps "
         ;
-extern char const * const gExtensionString  =
+
+char const * const gExtensionString  =
         "EGL_KHR_image "                        // mandatory
         "EGL_KHR_image_base "                   // mandatory
         "EGL_KHR_image_pixmap "
@@ -236,8 +232,6 @@ static const extention_map_t sExtensionMap[] = {
     { "eglGetFrameTimestampSupportedANDROID",
             (__eglMustCastToProperFunctionPointerType)&eglGetFrameTimestampSupportedANDROID },
 };
-
-#pragma clang diagnostic pop
 
 /*
  * These extensions entry-points should not be exposed to applications.
