@@ -1059,7 +1059,7 @@ static void dumpstate() {
 #endif
     DumpFile("INTERRUPTS (2)", "/proc/interrupts");
 
-    print_properties();
+    RunCommand("SYSTEM PROPERTIES", {"getprop"});
 
     RunCommand("VOLD DUMP", {"vdc", "dump"});
     RunCommand("SECURE CONTAINERS", {"vdc", "asec", "list"});
