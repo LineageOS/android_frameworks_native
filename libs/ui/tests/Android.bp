@@ -25,3 +25,9 @@ cc_test {
     shared_libs: ["libui"],
     srcs: ["colorspace_test.cpp"],
 }
+
+cc_test {
+    name: "Gralloc1Mapper_test",
+    shared_libs: ["libui", "libutils"],
+    srcs: ["Gralloc1Mapper_test.cpp"],
+}
