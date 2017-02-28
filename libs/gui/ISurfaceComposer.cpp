@@ -21,7 +21,6 @@
 #include <sys/types.h>
 
 #include <binder/Parcel.h>
-#include <binder/IMemory.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 

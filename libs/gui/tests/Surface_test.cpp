@@ -18,7 +18,6 @@
 
 #include <gtest/gtest.h>
 
-#include <binder/IMemory.h>
 #include <binder/ProcessState.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/ISurfaceComposer.h>

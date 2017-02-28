@@ -22,8 +22,6 @@
 
 #include <android-base/file.h>
 
-#include <binder/IMemory.h>
-
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
