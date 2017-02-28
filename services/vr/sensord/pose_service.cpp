@@ -25,8 +25,6 @@
 #include <private/dvr/sensor_constants.h>
 #include <utils/Trace.h>
 
-#define arraysize(x) (static_cast<ssize_t>(std::extent<decltype(x)>::value))
-
 using android::pdx::LocalChannelHandle;
 using android::pdx::default_transport::Endpoint;
 using android::pdx::Status;
@@ -35,11 +33,8 @@ namespace android {
 namespace dvr {
 
 using Vector3d = vec3d;
-using Vector3f = vec3f;
 using Rotationd = quatd;
-using Rotationf = quatf;
 using AngleAxisd = Eigen::AngleAxis<double>;
-using AngleAxisf = Eigen::AngleAxis<float>;
 
 namespace {
 // Wait a few seconds before checking if we need to disable sensors.
@@ -69,21 +64,12 @@ static constexpr char kPoseRingBufferName[] = "PoseService:RingBuffer";
 
 static constexpr int kDatasetIdLength = 36;
 static constexpr char kDatasetIdChars[] = "0123456789abcdef-";
-static constexpr char kDatasetLocation[] = "/data/sdcard/datasets/";
 
 // These are the flags used by BufferProducer::CreatePersistentUncachedBlob,
 // plus PRIVATE_ADSP_HEAP to allow access from the DSP.
 static constexpr int kPoseRingBufferFlags =
     GRALLOC_USAGE_SW_READ_RARELY | GRALLOC_USAGE_SW_WRITE_RARELY |
     GRALLOC_USAGE_PRIVATE_UNCACHED | GRALLOC_USAGE_PRIVATE_ADSP_HEAP;
-
-// Extract yaw angle from a given quaternion rotation.
-// Y-axis is considered to be vertical. Result is in rad.
-template <typename T>
-T ExtractYaw(Eigen::Quaternion<T> rotation) {
-  const Eigen::Vector3<T> yaw_axis = rotation * vec3::UnitZ();
-  return std::atan2(yaw_axis.z(), yaw_axis.x());
-}
 
 std::string GetPoseModeString(DvrPoseMode mode) {
   switch (mode) {
@@ -108,19 +94,6 @@ std::string GetPoseModeString(DvrPoseMode mode) {
     default:
       return "Unknown pose mode";
   }
-}
-
-inline std::string GetVector3dString(const Vector3d& vector) {
-  std::ostringstream stream;
-  stream << "[" << vector[0] << "," << vector[1] << "," << vector[2] << "]";
-  return stream.str();
-}
-
-inline std::string GetRotationdString(const Rotationd& rotation) {
-  std::ostringstream stream;
-  stream << "[" << rotation.w() << ", " << GetVector3dString(rotation.vec())
-         << "]";
-  return stream.str();
 }
 
 }  // namespace
