@@ -131,9 +131,11 @@ endif
 
 LOCAL_CFLAGS += -fvisibility=hidden -Werror=format
 
+LOCAL_HEADER_LIBRARIES := \
+    android.hardware.configstore-utils
+
 LOCAL_STATIC_LIBRARIES := \
     libhwcomposer-command-buffer \
-    android.hardware.configstore-utils \
     libtrace_proto \
     libvkjson \
     libvr_manager \
