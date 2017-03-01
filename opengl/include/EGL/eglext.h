@@ -670,12 +670,41 @@ typedef EGLBoolean (EGLAPIENTRYP PFNEGLGETFRAMETIMESTAMPSUPPORTEDANDROID) (EGLDi
 #endif
 #endif
 
-#ifndef EGL_KHR_pixel_format_float
-#define EGL_KHR_pixel_format_float 1
-#define EGL_COLOR_COMPONENT_TYPE_EXT 0x3339  // eglChooseConfig and eglGetConfigAttrib attribute
-#define EGL_COLOR_COMPONENT_TYPE_FIXED_EXT 0x333A  // Attribute value for COLOR_COMPONENT_TYPE
-#define EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT 0x333B  // Attribute value for COLOR_COMPONENT_TYPE
-#endif
+#ifndef EGL_EXT_gl_colorspace_bt2020_linear
+#define EGL_EXT_gl_colorspace_bt2020_linear 1
+#define EGL_GL_COLORSPACE_BT2020_LINEAR_EXT 0x333F
+#endif /* EGL_EXT_gl_colorspace_bt2020_linear */
+
+#ifndef EGL_EXT_gl_colorspace_bt2020_pq
+#define EGL_EXT_gl_colorspace_bt2020_pq 1
+#define EGL_GL_COLORSPACE_BT2020_PQ_EXT   0x3340
+#endif /* EGL_EXT_gl_colorspace_bt2020_pq */
+
+#ifndef EGL_EXT_gl_colorspace_scrgb_linear
+#define EGL_EXT_gl_colorspace_scrgb_linear 1
+#define EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT 0x3350
+#endif /* EGL_EXT_gl_colorspace_scrgb_linear */
+
+#ifndef EGL_EXT_pixel_format_float
+#define EGL_EXT_pixel_format_float 1
+#define EGL_COLOR_COMPONENT_TYPE_EXT      0x3339
+#define EGL_COLOR_COMPONENT_TYPE_FIXED_EXT 0x333A
+#define EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT 0x333B
+#endif /* EGL_EXT_pixel_format_float */
+
+#ifndef EGL_EXT_surface_SMPTE2086_metadata
+#define EGL_EXT_surface_SMPTE2086_metadata 1
+#define EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT 0x3341
+#define EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT 0x3342
+#define EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT 0x3343
+#define EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT 0x3344
+#define EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT 0x3345
+#define EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT 0x3346
+#define EGL_SMPTE2086_WHITE_POINT_X_EXT   0x3347
+#define EGL_SMPTE2086_WHITE_POINT_Y_EXT   0x3348
+#define EGL_SMPTE2086_MAX_LUMINANCE_EXT   0x3349
+#define EGL_SMPTE2086_MIN_LUMINANCE_EXT   0x334A
+#endif /* EGL_EXT_surface_SMPTE2086_metadata */
 
 #ifdef __cplusplus
 }

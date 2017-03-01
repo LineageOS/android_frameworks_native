@@ -723,6 +723,22 @@
         <enum value="0x3339" name="EGL_COLOR_COMPONENT_TYPE_EXT"/>
         <enum value="0x333A" name="EGL_COLOR_COMPONENT_TYPE_FIXED_EXT"/>
         <enum value="0x333B" name="EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT"/>
+            <unused start="0x333C" end="0x333E"/>
+        <enum value="0x333F" name="EGL_GL_COLORSPACE_BT2020_LINEAR_EXT"/>
+        <enum value="0x3340" name="EGL_GL_COLORSPACE_BT2020_PQ_EXT"/>
+        <enum value="0x3341" name="EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT"/>
+        <enum value="0x3342" name="EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT"/>
+        <enum value="0x3343" name="EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT"/>
+        <enum value="0x3344" name="EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT"/>
+        <enum value="0x3345" name="EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT"/>
+        <enum value="0x3346" name="EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT"/>
+        <enum value="0x3347" name="EGL_SMPTE2086_WHITE_POINT_X_EXT"/>
+        <enum value="0x3348" name="EGL_SMPTE2086_WHITE_POINT_Y_EXT"/>
+        <enum value="0x3349" name="EGL_SMPTE2086_MAX_LUMINANCE_EXT"/>
+        <enum value="0x334A" name="EGL_SMPTE2086_MIN_LUMINANCE_EXT"/>
+            <unused start="0x334B" end="0x334F"/>
+        <enum value="0x3350" name="EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT"/>
+            <unused start="0x3351" end="0x339F"/>
     </enums>
 
     <enums namespace="EGL" start="0x33A0" end="0x33AF" vendor="ANGLE" comment="Reserved for Shannon Woods (Bug 13175)">
@@ -765,8 +781,8 @@
 
 <!-- Reservable for future use. To generate a new range, allocate multiples
      of 16 starting at the lowest available point in this block. -->
-    <enums namespace="EGL" start="0x3420" end="0x3FFF" vendor="KHR">
-            <unused start="0x3420" end="0x3FFF" comment="Reserved for future use"/>
+    <enums namespace="EGL" start="0x3470" end="0x3FFF" vendor="KHR">
+            <unused start="0x3470" end="0x3FFF" comment="Reserved for future use"/>
     </enums>
 
     <enums namespace="EGL" start="0x8F70" end="0x8F7F" vendor="HI" comment="For Mark Callow, Khronos bug 4055. Shared with GL.">
@@ -1859,6 +1875,21 @@
                 <command name="eglQueryDisplayAttribEXT"/>
             </require>
         </extension>
+        <extension name="EGL_EXT_gl_colorspace_bt2020_linear" supported="egl">
+            <require>
+                <enum name="EGL_GL_COLORSPACE_BT2020_LINEAR_EXT"/>
+            </require>
+        </extension>
+        <extension name="EGL_EXT_gl_colorspace_bt2020_pq" supported="egl">
+            <require>
+                <enum name="EGL_GL_COLORSPACE_BT2020_PQ_EXT"/>
+            </require>
+        </extension>
+        <extension name="EGL_EXT_gl_colorspace_scrgb_linear" supported="egl">
+            <require>
+                <enum name="EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT"/>
+            </require>
+        </extension>
         <extension name="EGL_EXT_image_dma_buf_import" supported="egl">
             <require>
                 <enum name="EGL_LINUX_DMA_BUF_EXT"/>
@@ -1955,6 +1986,21 @@
                 <command name="eglStreamConsumerOutputEXT"/>
             </require>
         </extension>
+        <extension name="EGL_EXT_surface_SMPTE2086_metadata" supported="egl">
+            <require>
+                <enum name="EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT"/>
+                <enum name="EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT"/>
+                <enum name="EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT"/>
+                <enum name="EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT"/>
+                <enum name="EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT"/>
+                <enum name="EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT"/>
+                <enum name="EGL_SMPTE2086_WHITE_POINT_X_EXT"/>
+                <enum name="EGL_SMPTE2086_WHITE_POINT_Y_EXT"/>
+                <enum name="EGL_SMPTE2086_MAX_LUMINANCE_EXT"/>
+                <enum name="EGL_SMPTE2086_MIN_LUMINANCE_EXT"/>
+            </require>
+        </extension>
+
         <extension name="EGL_EXT_swap_buffers_with_damage" supported="egl">
             <require>
                 <command name="eglSwapBuffersWithDamageEXT"/>
