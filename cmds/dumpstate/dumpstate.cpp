@@ -1128,7 +1128,7 @@ static void dumpstate() {
     printf("== Running Application Activities\n");
     printf("========================================================\n");
 
-    RunDumpsys("APP ACTIVITIES", {"activity", "all"});
+    RunDumpsys("APP ACTIVITIES", {"activity", "-v", "all"});
 
     printf("========================================================\n");
     printf("== Running Application Services\n");
