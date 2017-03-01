@@ -31,6 +31,11 @@ namespace android {
 
 // ----------------------------------------------------------------------------
 
+SurfaceInterceptor::SurfaceInterceptor(SurfaceFlinger* flinger)
+    :   mFlinger(flinger)
+{
+}
+
 void SurfaceInterceptor::enable(const SortedVector<sp<Layer>>& layers,
         const DefaultKeyedVector< wp<IBinder>, DisplayDeviceState>& displays)
 {
@@ -97,8 +102,8 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
     addTransparentRegionLocked(transaction, layerId, layer->mCurrentState.activeTransparentRegion);
     addLayerStackLocked(transaction, layerId, layer->mCurrentState.layerStack);
     addCropLocked(transaction, layerId, layer->mCurrentState.crop);
-    if (layer->mCurrentState.handle != nullptr) {
-        addDeferTransactionLocked(transaction, layerId, layer->mCurrentState.handle,
+    if (layer->mCurrentState.barrierLayer != nullptr) {
+        addDeferTransactionLocked(transaction, layerId, layer->mCurrentState.barrierLayer.promote(),
                 layer->mCurrentState.frameNumber);
     }
     addFinalCropLocked(transaction, layerId, layer->mCurrentState.finalCrop);
@@ -287,10 +292,9 @@ void SurfaceInterceptor::addFinalCropLocked(Transaction* transaction, int32_t la
 }
 
 void SurfaceInterceptor::addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
-        const wp<const IBinder>& weakHandle, uint64_t frameNumber)
+        const sp<const Layer>& layer, uint64_t frameNumber)
 {
     SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
-    const sp<const Layer> layer(getLayer(weakHandle));
     if (layer == nullptr) {
         ALOGE("An existing layer could not be retrieved with the handle"
                 " for the deferred transaction");
@@ -349,7 +353,18 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
         addCropLocked(transaction, layerId, state.crop);
     }
     if (state.what & layer_state_t::eDeferTransaction) {
-        addDeferTransactionLocked(transaction, layerId, state.handle, state.frameNumber);
+        sp<Layer> otherLayer = nullptr;
+        if (state.barrierHandle != nullptr) {
+            otherLayer = static_cast<Layer::Handle*>(state.barrierHandle.get())->owner.promote();
+        } else if (state.barrierGbp != nullptr) {
+            auto const& gbp = state.barrierGbp;
+            if (mFlinger->authenticateSurfaceTextureLocked(gbp)) {
+                otherLayer = (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
+            } else {
+                ALOGE("Attempt to defer transaction to to an unrecognized GraphicBufferProducer");
+            }
+        }
+        addDeferTransactionLocked(transaction, layerId, otherLayer, state.frameNumber);
     }
     if (state.what & layer_state_t::eFinalCropChanged) {
         addFinalCropLocked(transaction, layerId, state.finalCrop);

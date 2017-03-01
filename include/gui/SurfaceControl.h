@@ -80,10 +80,30 @@ public:
     status_t    setGeometryAppliesWithResize();
 
     // Defers applying any changes made in this transaction until the Layer
-    // identified by handle reaches the given frameNumber
+    // identified by handle reaches the given frameNumber. If the Layer identified
+    // by handle is removed, then we will apply this transaction regardless of
+    // what frame number has been reached.
     status_t deferTransactionUntil(const sp<IBinder>& handle, uint64_t frameNumber);
+
+    // A variant of deferTransactionUntil which identifies the Layer we wait for by
+    // Surface instead of Handle. Useful for clients which may not have the
+    // SurfaceControl for some of their Surfaces. Otherwise behaves identically.
+    status_t deferTransactionUntil(const sp<Surface>& barrier, uint64_t frameNumber);
+
     // Reparents all children of this layer to the new parent handle.
     status_t reparentChildren(const sp<IBinder>& newParentHandle);
+
+    // Detaches all child surfaces (and their children recursively)
+    // from their SurfaceControl.
+    // The child SurfaceControl's will not throw exceptions or return errors,
+    // but transactions will have no effect.
+    // The child surfaces will continue to follow their parent surfaces,
+    // and remain eligible for rendering, but their relative state will be
+    // frozen. We use this in the WindowManager, in app shutdown/relaunch
+    // scenarios, where the app would otherwise clean up its child Surfaces.
+    // Sometimes the WindowManager needs to extend their lifetime slightly
+    // in order to perform an exit animation or prevent flicker.
+    status_t detachChildren();
 
     // Set an override scaling mode as documented in <system/window.h>
     // the override scaling mode will take precedence over any client

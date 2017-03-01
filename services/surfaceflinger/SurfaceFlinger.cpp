@@ -166,7 +166,7 @@ SurfaceFlinger::SurfaceFlinger()
         mLastTransactionTime(0),
         mBootFinished(false),
         mForceFullDamage(false),
-        mInterceptor(),
+        mInterceptor(this),
         mPrimaryDispSync("PrimaryDispSync"),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false),
@@ -628,6 +628,11 @@ size_t SurfaceFlinger::getMaxViewportDims() const {
 bool SurfaceFlinger::authenticateSurfaceTexture(
         const sp<IGraphicBufferProducer>& bufferProducer) const {
     Mutex::Autolock _l(mStateLock);
+    return authenticateSurfaceTextureLocked(bufferProducer);
+}
+
+bool SurfaceFlinger::authenticateSurfaceTextureLocked(
+        const sp<IGraphicBufferProducer>& bufferProducer) const {
     sp<IBinder> surfaceTextureBinder(IInterface::asBinder(bufferProducer));
     return mGraphicBufferProducerList.indexOf(surfaceTextureBinder) >= 0;
 }
@@ -2529,14 +2534,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::removeLayer(const wp<Layer>& weakLayer) {
-    Mutex::Autolock _l(mStateLock);
-    sp<Layer> layer = weakLayer.promote();
-    if (layer == nullptr) {
-        // The layer has already been removed, carry on
-        return NO_ERROR;
-    }
-
+status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer) {
     const auto& p = layer->getParent();
     const ssize_t index = (p != nullptr) ? p->removeChild(layer) :
         mCurrentState.layersSortedByZ.remove(layer);
@@ -2798,7 +2796,19 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             }
         }
         if (what & layer_state_t::eDeferTransaction) {
-            layer->deferTransactionUntil(s.handle, s.frameNumber);
+            if (s.barrierHandle != nullptr) {
+                layer->deferTransactionUntil(s.barrierHandle, s.frameNumber);
+            } else if (s.barrierGbp != nullptr) {
+                const sp<IGraphicBufferProducer>& gbp = s.barrierGbp;
+                if (authenticateSurfaceTextureLocked(gbp)) {
+                    const auto& otherLayer =
+                        (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
+                    layer->deferTransactionUntil(otherLayer, s.frameNumber);
+                } else {
+                    ALOGE("Attempt to defer transaction to to an"
+                            " unrecognized GraphicBufferProducer");
+                }
+            }
             // We don't trigger a traversal here because if no other state is
             // changed, we don't want this to cause any more work
         }
@@ -2806,6 +2816,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             if (layer->reparentChildren(s.reparentHandle)) {
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
+        }
+        if (what & layer_state_t::eDetachChildren) {
+            layer->detachChildren();
         }
         if (what & layer_state_t::eOverrideScalingModeChanged) {
             layer->setOverrideScalingMode(s.overrideScalingMode);
@@ -2903,7 +2916,7 @@ status_t SurfaceFlinger::createDimLayer(const sp<Client>& client,
 
 status_t SurfaceFlinger::onLayerRemoved(const sp<Client>& client, const sp<IBinder>& handle)
 {
-    // called by the window manager when it wants to remove a Layer
+    // called by a client when it wants to remove a Layer
     status_t err = NO_ERROR;
     sp<Layer> l(client->getLayerUser(handle));
     if (l != NULL) {
@@ -2919,7 +2932,15 @@ status_t SurfaceFlinger::onLayerDestroyed(const wp<Layer>& layer)
 {
     // called by ~LayerCleaner() when all references to the IBinder (handle)
     // are gone
-    return removeLayer(layer);
+    sp<Layer> l = layer.promote();
+    if (l == nullptr) {
+        // The layer has already been removed, carry on
+        return NO_ERROR;
+    } if (l->getParent() != nullptr) {
+        // If we have a parent, then we can continue to live as long as it does.
+        return NO_ERROR;
+    }
+    return removeLayer(l);
 }
 
 // ---------------------------------------------------------------------------

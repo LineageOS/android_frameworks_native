@@ -158,6 +158,9 @@ public:
         return *mRenderEngine;
     }
 
+    bool authenticateSurfaceTextureLocked(
+        const sp<IGraphicBufferProducer>& bufferProducer) const;
+
 private:
     friend class Client;
     friend class DisplayEventConnection;
@@ -327,7 +330,7 @@ private:
     status_t onLayerDestroyed(const wp<Layer>& layer);
 
     // remove a layer from SurfaceFlinger immediately
-    status_t removeLayer(const wp<Layer>& layer);
+    status_t removeLayer(const sp<Layer>& layer);
 
     // add a layer to SurfaceFlinger
     status_t addClientLayer(const sp<Client>& client,
