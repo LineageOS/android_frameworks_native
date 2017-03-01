@@ -142,9 +142,6 @@ void send_broadcast(const std::string& action, const std::vector<std::string>& a
 /* updates the overall progress of dumpstate by the given weight increment */
 void update_progress(int weight);
 
-/* prints all the system properties */
-void print_properties();
-
 /** opens a socket and returns its file descriptor */
 int open_socket(const char *service);
 
