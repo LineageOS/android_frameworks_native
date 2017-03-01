@@ -262,79 +262,83 @@ Status Lshal::fetchBinderized(const sp<IServiceManager> &manager) {
     using namespace ::android::hidl::manager::V1_0;
     using namespace ::android::hidl::base::V1_0;
     const std::string mode = "hwbinder";
-    Status status = OK;
-    auto listRet = timeoutIPC(manager, &IServiceManager::list, [&] (const auto &fqInstanceNames) {
-        // server pid, .ptr value of binder object, child pids
-        std::map<std::string, DebugInfo> allDebugInfos;
-        std::map<pid_t, std::map<uint64_t, Pids>> allPids;
-        for (const auto &fqInstanceName : fqInstanceNames) {
-            const auto pair = split(fqInstanceName, '/');
-            const auto &serviceName = pair.first;
-            const auto &instanceName = pair.second;
-            auto getRet = timeoutIPC(manager, &IServiceManager::get, serviceName, instanceName);
-            if (!getRet.isOk()) {
-                mErr << "Warning: Skipping \"" << fqInstanceName << "\": "
-                     << "cannot be fetched from service manager:"
-                     << getRet.description() << std::endl;
-                status |= DUMP_BINDERIZED_ERROR;
-                continue;
-            }
-            sp<IBase> service = getRet;
-            if (service == nullptr) {
-                mErr << "Warning: Skipping \"" << fqInstanceName << "\": "
-                     << "cannot be fetched from service manager (null)";
-                status |= DUMP_BINDERIZED_ERROR;
-                continue;
-            }
-            auto debugRet = timeoutIPC(service, &IBase::getDebugInfo, [&] (const auto &debugInfo) {
-                allDebugInfos[fqInstanceName] = debugInfo;
-                if (debugInfo.pid >= 0) {
-                    allPids[static_cast<pid_t>(debugInfo.pid)].clear();
-                }
-            });
-            if (!debugRet.isOk()) {
-                mErr << "Warning: Skipping \"" << fqInstanceName << "\": "
-                     << "debugging information cannot be retrieved:"
-                     << debugRet.description() << std::endl;
-                status |= DUMP_BINDERIZED_ERROR;
-            }
-        }
-        for (auto &pair : allPids) {
-            pid_t serverPid = pair.first;
-            if (!getReferencedPids(serverPid, &allPids[serverPid])) {
-                mErr << "Warning: no information for PID " << serverPid
-                          << ", are you root?" << std::endl;
-                status |= DUMP_BINDERIZED_ERROR;
-            }
-        }
-        for (const auto &fqInstanceName : fqInstanceNames) {
-            auto it = allDebugInfos.find(fqInstanceName);
-            if (it == allDebugInfos.end()) {
-                putEntry({
-                    .interfaceName = fqInstanceName,
-                    .transport = mode,
-                    .serverPid = NO_PID,
-                    .serverObjectAddress = NO_PTR,
-                    .clientPids = {}
-                });
-                continue;
-            }
-            const DebugInfo &info = it->second;
-            putEntry({
-                .interfaceName = fqInstanceName,
-                .transport = mode,
-                .serverPid = info.pid,
-                .serverObjectAddress = info.ptr,
-                .clientPids = info.pid == NO_PID || info.ptr == NO_PTR
-                        ? Pids{} : allPids[info.pid][info.ptr]
-            });
-        }
 
+    hidl_vec<hidl_string> fqInstanceNames;
+    // copying out for timeoutIPC
+    auto listRet = timeoutIPC(manager, &IServiceManager::list, [&] (const auto &names) {
+        fqInstanceNames = names;
     });
     if (!listRet.isOk()) {
         mErr << "Error: Failed to list services for " << mode << ": "
              << listRet.description() << std::endl;
-        status |= DUMP_BINDERIZED_ERROR;
+        return DUMP_BINDERIZED_ERROR;
+    }
+
+    Status status = OK;
+    // server pid, .ptr value of binder object, child pids
+    std::map<std::string, DebugInfo> allDebugInfos;
+    std::map<pid_t, std::map<uint64_t, Pids>> allPids;
+    for (const auto &fqInstanceName : fqInstanceNames) {
+        const auto pair = split(fqInstanceName, '/');
+        const auto &serviceName = pair.first;
+        const auto &instanceName = pair.second;
+        auto getRet = timeoutIPC(manager, &IServiceManager::get, serviceName, instanceName);
+        if (!getRet.isOk()) {
+            mErr << "Warning: Skipping \"" << fqInstanceName << "\": "
+                 << "cannot be fetched from service manager:"
+                 << getRet.description() << std::endl;
+            status |= DUMP_BINDERIZED_ERROR;
+            continue;
+        }
+        sp<IBase> service = getRet;
+        if (service == nullptr) {
+            mErr << "Warning: Skipping \"" << fqInstanceName << "\": "
+                 << "cannot be fetched from service manager (null)";
+            status |= DUMP_BINDERIZED_ERROR;
+            continue;
+        }
+        auto debugRet = timeoutIPC(service, &IBase::getDebugInfo, [&] (const auto &debugInfo) {
+            allDebugInfos[fqInstanceName] = debugInfo;
+            if (debugInfo.pid >= 0) {
+                allPids[static_cast<pid_t>(debugInfo.pid)].clear();
+            }
+        });
+        if (!debugRet.isOk()) {
+            mErr << "Warning: Skipping \"" << fqInstanceName << "\": "
+                 << "debugging information cannot be retrieved:"
+                 << debugRet.description() << std::endl;
+            status |= DUMP_BINDERIZED_ERROR;
+        }
+    }
+    for (auto &pair : allPids) {
+        pid_t serverPid = pair.first;
+        if (!getReferencedPids(serverPid, &allPids[serverPid])) {
+            mErr << "Warning: no information for PID " << serverPid
+                      << ", are you root?" << std::endl;
+            status |= DUMP_BINDERIZED_ERROR;
+        }
+    }
+    for (const auto &fqInstanceName : fqInstanceNames) {
+        auto it = allDebugInfos.find(fqInstanceName);
+        if (it == allDebugInfos.end()) {
+            putEntry({
+                .interfaceName = fqInstanceName,
+                .transport = mode,
+                .serverPid = NO_PID,
+                .serverObjectAddress = NO_PTR,
+                .clientPids = {}
+            });
+            continue;
+        }
+        const DebugInfo &info = it->second;
+        putEntry({
+            .interfaceName = fqInstanceName,
+            .transport = mode,
+            .serverPid = info.pid,
+            .serverObjectAddress = info.ptr,
+            .clientPids = info.pid == NO_PID || info.ptr == NO_PTR
+                    ? Pids{} : allPids[info.pid][info.ptr]
+        });
     }
     return status;
 }
