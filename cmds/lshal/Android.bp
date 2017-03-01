@@ -18,8 +18,10 @@ cc_binary {
         "libbase",
         "libutils",
         "libhidlbase",
-        "android.hidl.manager@1.0",
         "libhidltransport",
+        "libhidl-gen-utils",
+        "libvintf",
+        "android.hidl.manager@1.0",
     ],
     srcs: [
         "Lshal.cpp"
