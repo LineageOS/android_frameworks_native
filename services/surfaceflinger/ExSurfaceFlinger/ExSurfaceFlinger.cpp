@@ -33,7 +33,7 @@
 #ifdef QTI_BSP
 #include <hardware/display_defs.h>
 #endif
-
+#include <ui/GraphicBufferAllocator.h>
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 namespace android {
@@ -307,10 +307,18 @@ status_t ExSurfaceFlinger::dump(int fd, const Vector<String16>& args) {
     // Format: adb shell dumpsys SurfaceFlinger --file --no-limit
     size_t numArgs = args.size();
     status_t err = NO_ERROR;
-
-    if (!numArgs || (args[0] != String16("--file"))) {
+    if (!numArgs || ((args[0] != String16("--file")) &&
+       (args[0] != String16("--allocated_buffers")))) {
         return SurfaceFlinger::dump(fd, args);
     }
+    if (args[0] == String16("--allocated_buffers")) {
+        String8 dumpsys;
+        GraphicBufferAllocator& alloc(GraphicBufferAllocator::get());
+        alloc.dump(dumpsys);
+        write(fd, dumpsys.string(), dumpsys.size());
+        return NO_ERROR;
+    }
+
 
     Mutex::Autolock _l(mFileDump.lock);
 
