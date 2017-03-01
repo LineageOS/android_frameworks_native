@@ -69,7 +69,7 @@ public:
     status_t    setFlags(uint32_t flags, uint32_t mask);
     status_t    setTransparentRegionHint(const Region& transparent);
     status_t    setAlpha(float alpha=1.0f);
-    status_t    setMatrix(float dsdx, float dtdx, float dsdy, float dtdy);
+    status_t    setMatrix(float dsdx, float dtdx, float dtdy, float dsdy);
     status_t    setCrop(const Rect& crop);
     status_t    setFinalCrop(const Rect& crop);
 

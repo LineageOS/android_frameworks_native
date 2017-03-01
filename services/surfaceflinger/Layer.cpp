@@ -1733,7 +1733,7 @@ bool Layer::setAlpha(uint8_t alpha) {
 bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix) {
     mCurrentState.sequence++;
     mCurrentState.requested.transform.set(
-            matrix.dsdx, matrix.dsdy, matrix.dtdx, matrix.dtdy);
+            matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;

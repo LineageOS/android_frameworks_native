@@ -156,7 +156,7 @@ public:
     status_t setAlpha(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
             float alpha);
     status_t setMatrix(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
-            float dsdx, float dtdx, float dsdy, float dtdy);
+            float dsdx, float dtdx, float dtdy, float dsdy);
     status_t setOrientation(int orientation);
     status_t setCrop(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
             const Rect& crop);
@@ -391,7 +391,7 @@ status_t Composer::setLayerStack(const sp<SurfaceComposerClient>& client,
 
 status_t Composer::setMatrix(const sp<SurfaceComposerClient>& client,
         const sp<IBinder>& id, float dsdx, float dtdx,
-        float dsdy, float dtdy) {
+        float dtdy, float dsdy) {
     Mutex::Autolock _l(mLock);
     layer_state_t* s = getLayerStateLocked(client, id);
     if (!s)
@@ -767,8 +767,8 @@ status_t SurfaceComposerClient::setLayerStack(const sp<IBinder>& id, uint32_t la
 }
 
 status_t SurfaceComposerClient::setMatrix(const sp<IBinder>& id, float dsdx, float dtdx,
-        float dsdy, float dtdy) {
-    return getComposer().setMatrix(this, id, dsdx, dtdx, dsdy, dtdy);
+        float dtdy, float dsdy) {
+    return getComposer().setMatrix(this, id, dsdx, dtdx, dtdy, dsdy);
 }
 
 status_t SurfaceComposerClient::deferTransactionUntil(const sp<IBinder>& id,
