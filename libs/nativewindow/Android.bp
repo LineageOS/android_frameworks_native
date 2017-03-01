@@ -20,6 +20,14 @@ ndk_headers {
     license: "NOTICE",
 }
 
+ndk_library {
+    name: "libnativewindow.ndk",
+    symbol_file: "libnativewindow.map.txt",
+
+    // Android O
+    first_version: "26",
+}
+
 cc_library {
     name: "libnativewindow",
     export_include_dirs: ["include"],
