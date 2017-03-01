@@ -27,6 +27,8 @@
 
 #include <hardware/hardware.h>
 
+#include <cutils/atomic.h>
+
 #include <gui/BufferItem.h>
 #include <gui/IGraphicBufferAlloc.h>
 #include <gui/ISurfaceComposer.h>
