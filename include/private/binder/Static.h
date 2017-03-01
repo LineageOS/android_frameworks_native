@@ -20,7 +20,6 @@
 #include <utils/threads.h>
 
 #include <binder/IBinder.h>
-#include <binder/IMemory.h>
 #include <binder/ProcessState.h>
 #include <binder/IPermissionController.h>
 #include <binder/IServiceManager.h>

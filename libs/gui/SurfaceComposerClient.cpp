@@ -26,7 +26,6 @@
 #include <utils/String8.h>
 #include <utils/threads.h>
 
-#include <binder/IMemory.h>
 #include <binder/IServiceManager.h>
 
 #include <system/graphics.h>

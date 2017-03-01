@@ -36,8 +36,6 @@
 #include <utils/SortedVector.h>
 #include <utils/threads.h>
 
-#include <binder/IMemory.h>
-
 #include <ui/FenceTime.h>
 #include <ui/PixelFormat.h>
 #include <math/mat4.h>

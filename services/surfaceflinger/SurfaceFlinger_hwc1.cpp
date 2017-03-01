@@ -33,7 +33,6 @@
 
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
-#include <binder/MemoryHeapBase.h>
 #include <binder/PermissionCache.h>
 
 #include <ui/DisplayInfo.h>
