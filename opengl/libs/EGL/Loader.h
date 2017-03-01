@@ -17,13 +17,10 @@
 #ifndef ANDROID_EGL_LOADER_H
 #define ANDROID_EGL_LOADER_H
 
-#include <ctype.h>
-#include <string.h>
-#include <errno.h>
+#include <stdint.h>
 
 #include <utils/Errors.h>
 #include <utils/Singleton.h>
-#include <utils/String8.h>
 
 #include <EGL/egl.h>
 
@@ -33,12 +30,10 @@ namespace android {
 
 struct egl_connection_t;
 
-class Loader : public Singleton<Loader>
-{
+class Loader : public Singleton<Loader> {
     friend class Singleton<Loader>;
 
-    typedef __eglMustCastToProperFunctionPointerType (*getProcAddressType)(
-            const char*);
+    typedef __eglMustCastToProperFunctionPointerType (* getProcAddressType)(const char*);
    
     enum {
         EGL         = 0x01,

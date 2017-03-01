@@ -14,30 +14,26 @@
  ** limitations under the License.
  */
 
-#include <ctype.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include <hardware/gralloc.h>
-#include <system/window.h>
 
 #include <EGL/egl.h>
-#include <EGL/eglext.h>
 
 #include <cutils/atomic.h>
 #include <cutils/properties.h>
+
 #include <log/log.h>
+
 #include <utils/CallStack.h>
-#include <utils/String8.h>
 
 #include "../egl_impl.h"
 
-#include "egl_tls.h"
 #include "egldefs.h"
-#include "Loader.h"
-
+#include "egl_tls.h"
 #include "egl_display.h"
 #include "egl_object.h"
+#include "Loader.h"
 
 typedef __eglMustCastToProperFunctionPointerType EGLFuncPointer;
 

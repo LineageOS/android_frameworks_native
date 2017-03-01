@@ -17,11 +17,9 @@
 #ifndef ANDROID_EGL_TLS_H
 #define ANDROID_EGL_TLS_H
 
-#include <pthread.h>
-
 #include <EGL/egl.h>
 
-#include "egldefs.h"
+#include <pthread.h>
 
 // ----------------------------------------------------------------------------
 namespace android {
@@ -36,7 +34,7 @@ class egl_tls_t {
 
     EGLint      error;
     EGLContext  ctx;
-    EGLBoolean  logCallWithNoContext;
+    bool        logCallWithNoContext;
 
     egl_tls_t();
     static void validateTLSKey();

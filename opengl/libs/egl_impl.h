@@ -17,8 +17,6 @@
 #ifndef ANDROID_EGL_IMPL_H
 #define ANDROID_EGL_IMPL_H
 
-#include <ctype.h>
-
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <EGL/eglplatform.h>
@@ -30,8 +28,7 @@ namespace android {
 // ----------------------------------------------------------------------------
 
 EGLAPI const GLubyte * egl_get_string_for_current_context(GLenum name);
-EGLAPI const GLubyte * egl_get_string_for_current_context(GLenum name,
-                                                          GLuint index);
+EGLAPI const GLubyte * egl_get_string_for_current_context(GLenum name, GLuint index);
 EGLAPI GLint egl_get_num_extensions_for_current_context();
 
 // ----------------------------------------------------------------------------

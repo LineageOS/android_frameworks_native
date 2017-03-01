@@ -17,26 +17,21 @@
 //#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <array>
-#include <ctype.h>
+#include "Loader.h"
+
 #include <dirent.h>
 #include <dlfcn.h>
-#include <errno.h>
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include <android/dlext.h>
 #include <cutils/properties.h>
 #include <log/log.h>
+
+#include <utils/String8.h>
 #include <utils/Trace.h>
+
 #include <ui/GraphicsEnv.h>
 
-#include <EGL/egl.h>
-
 #include "egldefs.h"
-#include "Loader.h"
 
 // ----------------------------------------------------------------------------
 namespace android {
@@ -437,10 +432,10 @@ static void* do_android_dlopen_ext(const char* path, int mode, const android_dle
     return android_dlopen_ext(path, mode, info);
 }
 
-static const std::array<const char*, 2> HAL_SUBNAME_KEY_PROPERTIES = {{
+static const char* HAL_SUBNAME_KEY_PROPERTIES[2] = {
     "ro.hardware.egl",
     "ro.board.platform",
-}};
+};
 
 static void* load_updated_driver(const char* kind, android_namespace_t* ns) {
     ATRACE_CALL();
@@ -454,10 +449,10 @@ static void* load_updated_driver(const char* kind, android_namespace_t* ns) {
         if (property_get(key, prop, nullptr) > 0) {
             String8 name;
             name.appendFormat("lib%s_%s.so", kind, prop);
-            so = do_android_dlopen_ext(name.string(), RTLD_LOCAL | RTLD_NOW,
-                    &dlextinfo);
-            if (so)
+            so = do_android_dlopen_ext(name.string(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
+            if (so) {
                 return so;
+            }
         }
     }
     return nullptr;

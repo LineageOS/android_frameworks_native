@@ -18,16 +18,16 @@
 #define ANDROID_EGL_DISPLAY_H
 
 
-#include <ctype.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
 #include <cutils/compiler.h>
 #include <utils/SortedVector.h>
-#include <utils/threads.h>
+#include <utils/Condition.h>
+#include <utils/Mutex.h>
 #include <utils/String8.h>
 
 #include "egldefs.h"

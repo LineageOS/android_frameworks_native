@@ -21,6 +21,7 @@
 #include <EGL/eglext.h>
 
 #include <utils/BlobCache.h>
+#include <utils/Mutex.h>
 #include <utils/String8.h>
 #include <utils/StrongPointer.h>
 
