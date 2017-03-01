@@ -56,6 +56,7 @@
 extern "C" {
 #endif
 
+typedef struct AHardwareBuffer AHardwareBuffer;
 
 /**
  * Sensor types.
@@ -142,6 +143,30 @@ enum {
     AREPORTING_MODE_ONE_SHOT = 2,
     /** special trigger reporting */
     AREPORTING_MODE_SPECIAL_TRIGGER = 3
+};
+
+/**
+ * Sensor Direct Report Rates.
+ */
+enum {
+    /** stopped */
+    ASENSOR_DIRECT_RATE_STOP = 0,
+    /** nominal 50Hz */
+    ASENSOR_DIRECT_RATE_NORMAL = 1,
+    /** nominal 200Hz */
+    ASENSOR_DIRECT_RATE_FAST = 2,
+    /** nominal 800Hz */
+    ASENSOR_DIRECT_RATE_VERY_FAST = 3
+};
+
+/**
+ * Sensor Direct Channel Type.
+ */
+enum {
+    /** shared memory created by ASharedMemory_create */
+    ASENSOR_DIRECT_CHANNEL_TYPE_SHARED_MEMORY = 1,
+    /** AHardwareBuffer */
+    ASENSOR_DIRECT_CHANNEL_TYPE_HARDWARE_BUFFER = 2
 };
 
 /*
@@ -391,6 +416,97 @@ ASensorEventQueue* ASensorManager_createEventQueue(ASensorManager* manager,
  */
 int ASensorManager_destroyEventQueue(ASensorManager* manager, ASensorEventQueue* queue);
 
+#if __ANDROID_API__ >= __ANDROID_API_O__
+/**
+ * Create direct channel based on shared memory
+ *
+ * Create a direct channel of {@link ASENSOR_DIRECT_CHANNEL_TYPE_SHARED_MEMORY} to be used
+ * for configuring sensor direct report.
+ *
+ * \param manager the {@link ASensorManager} instance obtained from
+ *                {@link ASensorManager_getInstanceForPackage}.
+ * \param fd      file descriptor representing a shared memory created by
+ *                {@link ASharedMemory_create}
+ * \param size    size to be used, must be less or equal to size of shared memory.
+ *
+ * \return a positive integer as a channel id to be used in
+ *         {@link ASensorManager_destroyDirectChannel} and
+ *         {@link ASensorManager_configureDirectReport}, or value less or equal to 0 for failures.
+ */
+int ASensorManager_createSharedMemoryDirectChannel(ASensorManager* manager, int fd, size_t size);
+
+/**
+ * Create direct channel based on AHardwareBuffer
+ *
+ * Create a direct channel of {@link ASENSOR_DIRECT_CHANNEL_TYPE_HARDWARE_BUFFER} type to be used
+ * for configuring sensor direct report.
+ *
+ * \param manager the {@link ASensorManager} instance obtained from
+ *                {@link ASensorManager_getInstanceForPackage}.
+ * \param buffer  {@link AHardwareBuffer} instance created by {@link AHardwareBuffer_allocate}.
+ * \param size    the intended size to be used, must be less or equal to size of buffer.
+ *
+ * \return a positive integer as a channel id to be used in
+ *         {@link ASensorManager_destroyDirectChannel} and
+ *         {@link ASensorManager_configureDirectReport}, or value less or equal to 0 for failures.
+ */
+int ASensorManager_createHardwareBufferDirectChannel(
+        ASensorManager* manager, AHardwareBuffer const * buffer, size_t size);
+
+/**
+ * Destroy a direct channel
+ *
+ * Destroy a direct channel previously created using {@link ASensorManager_createDirectChannel}.
+ * The buffer used for creating direct channel does not get destroyed with
+ * {@link ASensorManager_destroy} and has to be close or released separately.
+ *
+ * \param manager the {@link ASensorManager} instance obtained from
+ *                {@link ASensorManager_getInstanceForPackage}.
+ * \param channelId channel id (a positive integer) returned from
+ *                  {@link ASensorManager_createSharedMemoryDirectChannel} or
+ *                  {@link ASensorManager_createHardwareBufferDirectChannel}.
+ */
+void ASensorManager_destroyDirectChannel(ASensorManager* manager, int channelId);
+
+/**
+ * Configure direct report on channel
+ *
+ * Configure sensor direct report on a direct channel: set rate to value other than
+ * {@link ASENSOR_DIRECT_RATE_STOP} so that sensor event can be directly
+ * written into the shared memory region used for creating the buffer; set rate to
+ * {@link ASENSOR_DIRECT_RATE_STOP} will stop the sensor direct report.
+ *
+ * To stop all active sensor direct report configured to a channel, set sensor to NULL and rate to
+ * {@link ASENSOR_DIRECT_RATE_STOP}.
+ *
+ * In order to successfully configure a direct report, the sensor has to support the specified rate
+ * and the channel type, which can be checked by {@link ASensor_getHighestDirectReportRateLevel} and
+ * {@link ASensor_isDirectChannelTypeSupported}, respectively.
+ *
+ * Example:
+ * \code{.cpp}
+ *      ASensorManager *manager = ...;
+ *      ASensor *sensor = ...;
+ *      int channelId = ...;
+ *
+ *      ASensorManager_configureDirectReport(
+ *              manager, sensor, channel_id, ASENSOR_DIRECT_RATE_FAST);
+ * \endcode
+ *
+ * \param manager   the {@link ASensorManager} instance obtained from
+ *                  {@link ASensorManager_getInstanceForPackage}.
+ * \param sensor    a {@link ASensor} to denote which sensor to be operate. It can be NULL if rate
+ *                  is {@link ASENSOR_DIRECT_RATE_STOP}, denoting stopping of all active sensor
+ *                  direct report.
+ * \param channelId channel id (a positive integer) returned from
+ *                  {@link ASensorManager_createSharedMemoryDirectChannel} or
+ *                  {@link ASensorManager_createHardwareBufferDirectChannel}.
+ *
+ * \return 0 for success or negative integer for failure.
+ */
+int ASensorManager_configureDirectReport(
+        ASensorManager* manager, ASensor const* sensor, int channelId, int rate);
+#endif
 
 /*****************************************************************************/
 
@@ -501,6 +617,29 @@ int ASensor_getReportingMode(ASensor const* sensor);
  */
 bool ASensor_isWakeUpSensor(ASensor const* sensor);
 #endif /* __ANDROID_API__ >= 21 */
+
+#if __ANDROID_API__ >= __ANDROID_API_O__
+/**
+ * Test if sensor supports a certain type of direct channel.
+ *
+ * \param sensor  a {@link ASensor} to denote the sensor to be checked.
+ * \param channelType  Channel type constant, either
+ *                     {@ASENSOR_DIRECT_CHANNEL_TYPE_SHARED_MEMORY}
+ *                     or {@link ASENSOR_DIRECT_CHANNEL_TYPE_HARDWARE_BUFFER}.
+ * \returns true if sensor supports the specified direct channel type.
+ */
+bool ASensor_isDirectChannelTypeSupported(ASensor const* sensor, int channelType);
+/**
+ * Get the highest direct rate level that a sensor support.
+ *
+ * \param sensor  a {@link ASensor} to denote the sensor to be checked.
+ *
+ * \return a ASENSOR_DIRECT_RATE_... enum denoting the highest rate level supported by the sensor.
+ *         If return value is {@link ASENSOR_DIRECT_RATE_STOP}, it means the sensor
+ *         does not support direct report.
+ */
+int ASensor_getHighestDirectReportRateLevel(ASensor const* sensor);
+#endif
 
 #ifdef __cplusplus
 };
