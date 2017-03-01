@@ -28,6 +28,13 @@ namespace lshal {
 
 using Pids = std::vector<int32_t>;
 
+enum : unsigned int {
+    HWSERVICEMANAGER_LIST, // through defaultServiceManager()->list()
+    PTSERVICEMANAGER_REG_CLIENT, // through registerPassthroughClient
+    LIST_DLLIB, // through listing dynamic libraries
+};
+using TableEntrySource = unsigned int;
+
 struct TableEntry {
     std::string interfaceName;
     std::string transport;
@@ -36,6 +43,7 @@ struct TableEntry {
     uint64_t serverObjectAddress;
     Pids clientPids;
     std::vector<std::string> clientCmdlines;
+    TableEntrySource source;
 
     static bool sortByInterfaceName(const TableEntry &a, const TableEntry &b) {
         return a.interfaceName < b.interfaceName;
