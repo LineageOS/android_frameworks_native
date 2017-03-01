@@ -28,6 +28,9 @@
 #include <android-base/parseint.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <hidl/ServiceManagement.h>
+#include <hidl-util/FQName.h>
+#include <vintf/HalManifest.h>
+#include <vintf/parse_xml.h>
 
 #include "Timeout.h"
 
@@ -58,12 +61,13 @@ static std::string toHexString(uint64_t t) {
     return os.str();
 }
 
-static std::pair<hidl_string, hidl_string> split(const hidl_string &s, char c) {
+template<typename String>
+static std::pair<String, String> splitFirst(const String &s, char c) {
     const char *pos = strchr(s.c_str(), c);
     if (pos == nullptr) {
         return {s, {}};
     }
-    return {hidl_string(s.c_str(), pos - s.c_str()), hidl_string(pos + 1)};
+    return {String(s.c_str(), pos - s.c_str()), String(pos + 1)};
 }
 
 static std::vector<std::string> split(const std::string &s, char c) {
@@ -79,6 +83,14 @@ static std::vector<std::string> split(const std::string &s, char c) {
         components.push_back(s.substr(startPos));
     }
     return components;
+}
+
+static void replaceAll(std::string *s, char from, char to) {
+    for (size_t i = 0; i < s->size(); ++i) {
+        if (s->at(i) == from) {
+            s->at(i) = to;
+        }
+    }
 }
 
 std::string getCmdline(pid_t pid) {
@@ -189,7 +201,78 @@ void Lshal::printLine(
     mOut << std::endl;
 }
 
-void Lshal::dump() const {
+void Lshal::dumpVintf() const {
+    vintf::HalManifest manifest;
+    for (const TableEntry &entry : mTable) {
+
+        std::string fqInstanceName = entry.interfaceName;
+
+        if (entry.source == LIST_DLLIB) {
+            // Quick hack to work around *'s
+            replaceAll(&fqInstanceName, '*', 'D');
+        }
+        auto splittedFqInstanceName = splitFirst(fqInstanceName, '/');
+        FQName fqName(splittedFqInstanceName.first);
+        if (!fqName.isValid()) {
+            mErr << "Warning: '" << splittedFqInstanceName.first
+                 << "' is not a valid FQName." << std::endl;
+            continue;
+        }
+        // Strip out system libs.
+        // TODO(b/34772739): might want to add other framework HAL packages
+        if (fqName.inPackage("android.hidl")) {
+            continue;
+        }
+        std::string interfaceName =
+                entry.source == LIST_DLLIB ? "" : fqName.name();
+        std::string instanceName =
+                entry.source == LIST_DLLIB ? "" : splittedFqInstanceName.second;
+
+        vintf::Transport transport;
+        if (entry.transport == "hwbinder") {
+            transport = vintf::Transport::HWBINDER;
+        } else if (entry.transport == "passthrough") {
+            transport = vintf::Transport::PASSTHROUGH;
+        } else {
+            mErr << "Warning: '" << entry.transport << "' is not a valid transport." << std::endl;
+            continue;
+        }
+
+        vintf::ManifestHal *hal = manifest.getHal(fqName.package());
+        if (hal == nullptr) {
+            if (!manifest.add(vintf::ManifestHal{
+                .format = vintf::HalFormat::HIDL,
+                .name = fqName.package(),
+                .impl = {.implLevel = vintf::ImplLevel::GENERIC, .impl = ""},
+                .transport = transport
+            })) {
+                mErr << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
+                continue;
+            }
+            hal = manifest.getHal(fqName.package());
+        }
+        if (hal == nullptr) {
+            mErr << "Warning: cannot get hal '" << fqInstanceName
+                 << "' after adding it" << std::endl;
+            continue;
+        }
+        vintf::Version version{fqName.getPackageMajorVersion(), fqName.getPackageMinorVersion()};
+        if (std::find(hal->versions.begin(), hal->versions.end(), version) == hal->versions.end()) {
+            hal->versions.push_back(version);
+        }
+        if (entry.source != LIST_DLLIB) {
+            auto it = hal->interfaces.find(interfaceName);
+            if (it == hal->interfaces.end()) {
+                hal->interfaces.insert({interfaceName, {interfaceName, {{instanceName}}}});
+            } else {
+                it->second.instances.insert(instanceName);
+            }
+        }
+    }
+    mOut << vintf::gHalManifestConverter(manifest);
+}
+
+void Lshal::dumpTable() const {
     mOut << "All services:" << std::endl;
     mOut << std::left;
     printLine("Interface", "Transport", "Server", "Server CMD", "PTR", "Clients", "Clients CMD");
@@ -201,6 +284,20 @@ void Lshal::dump() const {
                 entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
                 join(entry.clientPids, " "),
                 join(entry.clientCmdlines, ";"));
+    }
+}
+
+void Lshal::dump() {
+    if (mVintf) {
+        dumpVintf();
+        if (!!mFileOutput) {
+            mFileOutput.buf().close();
+            delete &mFileOutput.buf();
+            mFileOutput = nullptr;
+        }
+        mOut = std::cout;
+    } else {
+        dumpTable();
     }
 }
 
@@ -219,7 +316,8 @@ Status Lshal::fetchAllLibraries(const sp<IServiceManager> &manager) {
                 .transport = "passthrough",
                 .serverPid = NO_PID,
                 .serverObjectAddress = NO_PTR,
-                .clientPids = {}
+                .clientPids = {},
+                .source = LIST_DLLIB
             });
         }
     });
@@ -244,7 +342,8 @@ Status Lshal::fetchPassthrough(const sp<IServiceManager> &manager) {
                 .transport = "passthrough",
                 .serverPid = info.clientPids.size() == 1 ? info.clientPids[0] : NO_PID,
                 .serverObjectAddress = NO_PTR,
-                .clientPids = info.clientPids
+                .clientPids = info.clientPids,
+                .source = PTSERVICEMANAGER_REG_CLIENT
             });
         }
     });
@@ -279,7 +378,7 @@ Status Lshal::fetchBinderized(const sp<IServiceManager> &manager) {
     std::map<std::string, DebugInfo> allDebugInfos;
     std::map<pid_t, std::map<uint64_t, Pids>> allPids;
     for (const auto &fqInstanceName : fqInstanceNames) {
-        const auto pair = split(fqInstanceName, '/');
+        const auto pair = splitFirst(fqInstanceName, '/');
         const auto &serviceName = pair.first;
         const auto &instanceName = pair.second;
         auto getRet = timeoutIPC(manager, &IServiceManager::get, serviceName, instanceName);
@@ -326,7 +425,8 @@ Status Lshal::fetchBinderized(const sp<IServiceManager> &manager) {
                 .transport = mode,
                 .serverPid = NO_PID,
                 .serverObjectAddress = NO_PTR,
-                .clientPids = {}
+                .clientPids = {},
+                .source = HWSERVICEMANAGER_LIST
             });
             continue;
         }
@@ -337,7 +437,8 @@ Status Lshal::fetchBinderized(const sp<IServiceManager> &manager) {
             .serverPid = info.pid,
             .serverObjectAddress = info.ptr,
             .clientPids = info.pid == NO_PID || info.ptr == NO_PTR
-                    ? Pids{} : allPids[info.pid][info.ptr]
+                    ? Pids{} : allPids[info.pid][info.ptr],
+            .source = HWSERVICEMANAGER_LIST
         });
     }
     return status;
@@ -371,7 +472,7 @@ void Lshal::usage() const {
         << "           Dump all hals with default ordering and columns [-itpc]." << std::endl
         << "       lshal [--interface|-i] [--transport|-t]" << std::endl
         << "             [--pid|-p] [--address|-a] [--clients|-c] [--cmdline|-m]" << std::endl
-        << "             [--sort={interface|i|pid|p}]" << std::endl
+        << "             [--sort={interface|i|pid|p}] [--init-vintf[=path]]" << std::endl
         << "           -i, --interface: print the interface name column" << std::endl
         << "           -n, --instance: print the instance name column" << std::endl
         << "           -t, --transport: print the transport mode column" << std::endl
@@ -382,6 +483,8 @@ void Lshal::usage() const {
         << "           -m, --cmdline: print cmdline instead of PIDs" << std::endl
         << "           --sort=i, --sort=interface: sort by interface name" << std::endl
         << "           --sort=p, --sort=pid: sort by server pid" << std::endl
+        << "           --init-vintf=path: form a skeleton HAL manifest to specified file " << std::endl
+        << "                         (stdout if no file specified)" << std::endl
         << "       lshal [-h|--help]" << std::endl
         << "           -h, --help: show this help information." << std::endl;
 }
@@ -399,6 +502,7 @@ Status Lshal::parseArgs(int argc, char **argv) {
 
         // long options without short alternatives
         {"sort",      required_argument, 0, 's' },
+        {"init-vintf",optional_argument, 0, 'v' },
         { 0,          0,                 0,  0  }
     };
 
@@ -423,6 +527,17 @@ Status Lshal::parseArgs(int argc, char **argv) {
                 return USAGE;
             }
             break;
+        }
+        case 'v': {
+            if (optarg) {
+                mFileOutput = new std::ofstream{optarg};
+                mOut = mFileOutput;
+                if (!mFileOutput.buf().is_open()) {
+                    mErr << "Could not open file '" << optarg << "'." << std::endl;
+                    return IO_ERROR;
+                }
+            }
+            mVintf = true;
         }
         case 'i': {
             mSelectedColumns |= ENABLE_INTERFACE_NAME;
