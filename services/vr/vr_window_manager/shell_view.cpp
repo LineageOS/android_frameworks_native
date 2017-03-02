@@ -419,7 +419,6 @@ base::unique_fd ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
   // so give it a kick.
   if (visibility != ViewMode::Hidden &&
       current_frame_.visibility == ViewMode::Hidden) {
-    QueueTask(MainThreadTask::EnteringVrMode);
     QueueTask(MainThreadTask::Show);
   }
 
