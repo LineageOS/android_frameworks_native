@@ -3712,7 +3712,7 @@ typedef struct VkAndroidSurfaceCreateInfoKHR {
     VkStructureType                   sType;
     const void*                       pNext;
     VkAndroidSurfaceCreateFlagsKHR    flags;
-    ANativeWindow*                    window;
+    struct ANativeWindow*             window;
 } VkAndroidSurfaceCreateInfoKHR;
 
 
