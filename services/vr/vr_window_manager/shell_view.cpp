@@ -195,7 +195,8 @@ ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
                                             uint32_t vr_app) {
   auto& layers = frame.layers();
 
-  // We assume the first two layers are the VR app.
+  // We assume the first two layers are the VR app. In the case of a 2D app,
+  // there will be the app + at least one system layer so this is still safe.
   if (layers.size() < kVRAppLayerCount)
     return ViewMode::Hidden;
 
@@ -203,19 +204,23 @@ ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
       layers[1].appid != layers[0].appid) {
     if (layers[1].appid != layers[0].appid && layers[0].appid) {
       // This might be a 2D app.
+      // If a dim layer exists afterwards it is much more likely that this is
+      // actually an app launch artifact.
+      for (size_t i = 2; i < layers.size(); i++) {
+        if (layers[i].is_extra_layer())
+          return ViewMode::Hidden;
+      }
       return ViewMode::App;
     }
     return ViewMode::Hidden;
   }
 
-  // If a non-VR-app, non-skipped layer appears, show.
   size_t index = kVRAppLayerCount;
   // Now, find a dim layer if it exists.
   // If it does, ignore any layers behind it for visibility determination.
   for (size_t i = index; i < layers.size(); i++) {
-    if (layers[i].appid == 0) {
+    if (layers[i].appid == HwcCallback::HwcLayer::kSurfaceFlingerLayer) {
       index = i + 1;
-      break;
     }
   }
 
@@ -419,7 +424,6 @@ base::unique_fd ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
   // so give it a kick.
   if (visibility != ViewMode::Hidden &&
       current_frame_.visibility == ViewMode::Hidden) {
-    QueueTask(MainThreadTask::EnteringVrMode);
     QueueTask(MainThreadTask::Show);
   }
 

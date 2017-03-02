@@ -61,6 +61,7 @@ static_libs := \
   libperformance \
   libpdx_default_transport \
   libcutils \
+  libvr_manager \
 
 shared_libs := \
   android.dvr.composer@1.0 \

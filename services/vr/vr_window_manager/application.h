@@ -4,6 +4,7 @@
 #include <memory>
 #include <private/dvr/types.h>
 #include <stdint.h>
+#include <vr/vr_manager/vr_manager.h>
 
 #include <chrono>
 #include <mutex>
@@ -43,6 +44,16 @@ class Application {
     Show,
   };
 
+  class VrModeListener : public BnVrStateCallbacks {
+   public:
+    VrModeListener(Application *app) : app_(app) {}
+    void onVrStateChanged(bool enabled) override;
+
+   private:
+    Application *app_;
+  };
+
+  sp<VrModeListener> vr_mode_listener_;
   virtual void OnDrawFrame() = 0;
   virtual void DrawEye(EyeType eye, const mat4& perspective,
                        const mat4& eye_matrix, const mat4& head_matrix) = 0;
