@@ -51,6 +51,18 @@ class HwcCallback : public VrComposerView::Callback {
       }
     }
 
+    // This is a layer that provides some other functionality, eg dim layer.
+    // We use this to determine the point at which layers are "on top".
+    bool is_extra_layer() const {
+      switch(type) {
+      case kSurfaceFlingerLayer:
+      case kUndefinedWindow:
+        return true;
+      default:
+        return false;
+      }
+    }
+
     sp<Fence> fence;
     sp<GraphicBuffer> buffer;
     Rectf crop;
