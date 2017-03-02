@@ -66,7 +66,6 @@ shared_libs := \
   android.dvr.composer@1.0 \
   android.hardware.graphics.composer@2.1 \
   libvrhwc \
-  libandroid \
   libbase \
   libbinder \
   libinput \
