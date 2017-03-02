@@ -21,6 +21,7 @@
 #include <ctype.h>
 
 #include <input/InputDevice.h>
+#include <input/InputEventLabels.h>
 
 namespace android {
 
@@ -87,17 +88,23 @@ String8 getInputDeviceConfigurationFilePathByName(
         const String8& name, InputDeviceConfigurationFileType type) {
     // Search system repository.
     String8 path;
-    path.setTo(getenv("ANDROID_ROOT"));
-    path.append("/usr/");
-    appendInputDeviceConfigurationFileRelativePath(path, name, type);
+
+    // Treblized input device config files will be located /odm/usr or /vendor/usr.
+    char *rootsForPartition[] {"/odm", "/vendor", getenv("ANDROID_ROOT")};
+    for (size_t i = 0; i < size(rootsForPartition); i++) {
+        path.setTo(rootsForPartition[i]);
+        path.append("/usr/");
+        appendInputDeviceConfigurationFileRelativePath(path, name, type);
 #if DEBUG_PROBE
-    ALOGD("Probing for system provided input device configuration file: path='%s'", path.string());
+        ALOGD("Probing for system provided input device configuration file: path='%s'",
+              path.string());
 #endif
-    if (!access(path.string(), R_OK)) {
+        if (!access(path.string(), R_OK)) {
 #if DEBUG_PROBE
-        ALOGD("Found");
+            ALOGD("Found");
 #endif
-        return path;
+            return path;
+        }
     }
 
     // Search user repository.
