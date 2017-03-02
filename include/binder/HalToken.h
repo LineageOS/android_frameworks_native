@@ -21,8 +21,16 @@
 #include <hidl/HidlSupport.h>
 
 /**
- * It is possible to pass a hidl interface via as a binder interface by
- * providing an appropriate "wrapper" class.
+ * Hybrid Interfaces
+ * =================
+ *
+ * A hybrid interface is a binder interface that
+ * 1. is implemented both traditionally and as a wrapper around a hidl
+ *    interface, and allows querying whether the underlying instance comes from
+ *    a hidl interface or not; and
+ * 2. allows efficient calls to a hidl interface (if the underlying instance
+ *    comes from a hidl interface) by automatically creating the wrapper in the
+ *    process that calls it.
  *
  * Terminology:
  * - `HalToken`: The type for a "token" of a hidl interface. This is defined to
@@ -31,7 +39,8 @@
  *   as `::android::hidl::base::V1_0::IBase`.
  * - `HALINTERFACE`: The hidl interface that will be sent through binders.
  * - `INTERFACE`: The binder interface that will be the wrapper of
- *   `HALINTERFACE`. `INTERFACE` is supposed to be similar to `HALINTERFACE`.
+ *   `HALINTERFACE`. `INTERFACE` is supposed to be somewhat similar to
+ *   `HALINTERFACE`.
  *
  * To demonstrate how this is done, here is an example. Suppose `INTERFACE` is
  * `IFoo` and `HALINTERFACE` is `HFoo`. The required steps are:
@@ -41,14 +50,14 @@
  *    inside the body of `IFoo`.
  * 2. Create a converter class that derives from
  *    `H2BConverter<HFoo, IFoo, BnFoo>`. Let us call this `H2BFoo`.
- * 3. Add the following constructors in `H2BFoo` that call the corresponding
+ * 3. Add the following constructor in `H2BFoo` that call the corresponding
  *    constructors in `H2BConverter`:
  *        H2BFoo(const sp<HalInterface>& base) : CBase(base) {}
  *    Note: `CBase = H2BConverter<HFoo, IFoo, BnFoo>` and `HalInterface = HFoo`
- *    are member typedefs of `CBase`, so the above line can be copied verbatim
- *    into `H2BFoo`.
- * 4. Add conversion functions inside `H2BFoo`. `H2BConverter` provides a
- *    protected `mBase` of type `sp<HFoo>` that can be used to access the HFoo
+ *    are member typedefs of `H2BConverter<HFoo, IFoo, BnFoo>`, so the above
+ *    line can be copied into `H2BFoo`.
+ * 4. Implement `IFoo` in `H2BFoo` on top of `HFoo`. `H2BConverter` provides a
+ *    protected `mBase` of type `sp<HFoo>` that can be used to access the `HFoo`
  *    instance. (There is also a public function named `getHalInterface()` that
  *    returns `mBase`.)
  * 5. Create a hardware proxy class that derives from
@@ -60,7 +69,7 @@
  *    equal to `HpInterface<BpFoo, H2BFoo>` itself, so the above line can be
  *    copied verbatim into `HpFoo`.
  * 7. Delegate all functions in `HpFoo` that come from `IFoo` except
- *    `getHalToken` and `getHalInterface` to the protected member `mBase`,
+ *    `getHalInterface` to the protected member `mBase`,
  *    which is defined in `HpInterface<BpFoo, H2BFoo>` (hence in `HpFoo`) with
  *    type `IFoo`. (There is also a public function named `getBaseInterface()`
  *    that returns `mBase`.)
@@ -97,7 +106,7 @@ template <
         uint32_t GETTOKEN = '_GTK'>
 class H2BConverter : public BNINTERFACE {
 public:
-    typedef H2BConverter<HINTERFACE, INTERFACE, BNINTERFACE, GETTOKEN> CBase;
+    typedef H2BConverter<HINTERFACE, INTERFACE, BNINTERFACE, GETTOKEN> CBase; // Converter Base
     typedef INTERFACE BaseInterface;
     typedef HINTERFACE HalInterface;
     static constexpr uint32_t GET_HAL_TOKEN = GETTOKEN;
@@ -112,8 +121,11 @@ protected:
     sp<HalInterface> mBase;
 };
 
-template <typename BPINTERFACE, typename CONVERTER, uint32_t GETTOKEN = '_GTK'>
-class HpInterface : public BPINTERFACE {
+template <
+        typename BPINTERFACE,
+        typename CONVERTER,
+        uint32_t GETTOKEN = '_GTK'>
+class HpInterface : public CONVERTER::BaseInterface {
 public:
     typedef HpInterface<BPINTERFACE, CONVERTER, GETTOKEN> PBase; // Proxy Base
     typedef typename CONVERTER::BaseInterface BaseInterface;
@@ -125,8 +137,10 @@ public:
     BaseInterface* getBaseInterface() { return mBase.get(); }
 
 protected:
+    sp<IBinder> mImpl;
     sp<BaseInterface> mBase;
     sp<HalInterface> mHal;
+    IBinder* onAsBinder() override { return mImpl.get(); }
 };
 
 // ----------------------------------------------------------------------
@@ -191,18 +205,15 @@ status_t H2BConverter<HINTERFACE, INTERFACE, BNINTERFACE, GETTOKEN>::
 
 template <typename BPINTERFACE, typename CONVERTER, uint32_t GETTOKEN>
 HpInterface<BPINTERFACE, CONVERTER, GETTOKEN>::HpInterface(
-        const sp<IBinder>& impl):
-    BPINTERFACE(impl),
-    mBase(nullptr) {
-
+        const sp<IBinder>& impl) : mImpl(impl) {
     Parcel data, reply;
     data.writeInterfaceToken(BaseInterface::getInterfaceDescriptor());
-    if (this->remote()->transact(GET_HAL_TOKEN, data, &reply) == NO_ERROR) {
+    if (impl->transact(GET_HAL_TOKEN, data, &reply) == NO_ERROR) {
         bool tokenCreated = reply.readBool();
         HalToken token = reply.readUint64();
         if (!tokenCreated) {
             ALOGE("HpInterface: Sender failed to create HAL token.");
-            mBase = this;
+            mBase = new BPINTERFACE(impl);
         } else {
             sp<HInterface> hInterface = retrieveHalInterface(token);
             deleteHalToken(token);
@@ -211,11 +222,11 @@ HpInterface<BPINTERFACE, CONVERTER, GETTOKEN>::HpInterface(
                 mBase = new CONVERTER(mHal);
             } else {
                 ALOGE("HpInterface: Cannot retrieve HAL interface from token.");
-                mBase = this;
+                mBase = new BPINTERFACE(impl);
             }
         }
     } else {
-        mBase = this;
+        mBase = new BPINTERFACE(impl);
     }
 }
 
