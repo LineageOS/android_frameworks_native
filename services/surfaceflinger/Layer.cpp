@@ -604,14 +604,15 @@ void Layer::setGeometry(
     // this gives us only the "orientation" component of the transform
     const State& s(getDrawingState());
 #ifdef USE_HWC2
+    auto blendMode = HWC2::BlendMode::None;
     if (!isOpaque(s) || s.alpha != 1.0f) {
-        auto blendMode = mPremultipliedAlpha ?
+        blendMode = mPremultipliedAlpha ?
                 HWC2::BlendMode::Premultiplied : HWC2::BlendMode::Coverage;
-        auto error = hwcLayer->setBlendMode(blendMode);
-        ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set blend mode %s:"
-                " %s (%d)", mName.string(), to_string(blendMode).c_str(),
-                to_string(error).c_str(), static_cast<int32_t>(error));
     }
+    auto error = hwcLayer->setBlendMode(blendMode);
+    ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set blend mode %s:"
+             " %s (%d)", mName.string(), to_string(blendMode).c_str(),
+             to_string(error).c_str(), static_cast<int32_t>(error));
 #else
     if (!isOpaque(s) || s.alpha != 0xFF) {
         layer.setBlending(mPremultipliedAlpha ?
@@ -666,7 +667,7 @@ void Layer::setGeometry(
     }
     const Transform& tr(displayDevice->getTransform());
     Rect transformedFrame = tr.transform(frame);
-    auto error = hwcLayer->setDisplayFrame(transformedFrame);
+    error = hwcLayer->setDisplayFrame(transformedFrame);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set display frame [%d, %d, %d, %d]: %s (%d)",
                 mName.string(), transformedFrame.left, transformedFrame.top,
