@@ -512,10 +512,12 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
 }
 
 VKAPI_ATTR
-VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice /*pdev*/,
-                                            VkSurfaceKHR /*surface*/,
+VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
+                                            VkSurfaceKHR surface_handle,
                                             uint32_t* count,
                                             VkSurfaceFormatKHR* formats) {
+    const InstanceData& instance_data = GetData(pdev);
+
     // TODO(jessehall): Fill out the set of supported formats. Longer term, add
     // a new gralloc method to query whether a (format, usage) pair is
     // supported, and check that for each gralloc format that corresponds to a
@@ -528,15 +530,50 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice /*pdev*/,
         {VK_FORMAT_R5G6B5_UNORM_PACK16, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
     };
     const uint32_t kNumFormats = sizeof(kFormats) / sizeof(kFormats[0]);
+    uint32_t total_num_formats = kNumFormats;
+
+    bool wide_color_support = false;
+    Surface& surface = *SurfaceFromHandle(surface_handle);
+    int err = native_window_get_wide_color_support(surface.window.get(),
+                                                   &wide_color_support);
+    if (err) {
+        // Not allowed to return a more sensible error code, so do this
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+    ALOGV("wide_color_support is: %d", wide_color_support);
+    wide_color_support =
+        wide_color_support &&
+        instance_data.hook_extensions.test(ProcHook::EXT_swapchain_colorspace);
+
+    const VkSurfaceFormatKHR kWideColorFormats[] = {
+        {VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SCRGB_LINEAR_EXT},
+        {VK_FORMAT_A2R10G10B10_UNORM_PACK32,
+         VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT},
+    };
+    const uint32_t kNumWideColorFormats =
+        sizeof(kWideColorFormats) / sizeof(kWideColorFormats[0]);
+    if (wide_color_support) {
+        total_num_formats += kNumWideColorFormats;
+    }
 
     VkResult result = VK_SUCCESS;
     if (formats) {
-        if (*count < kNumFormats)
+        uint32_t out_count = 0;
+        uint32_t transfer_count = 0;
+        if (*count < total_num_formats)
             result = VK_INCOMPLETE;
-        *count = std::min(*count, kNumFormats);
-        std::copy(kFormats, kFormats + *count, formats);
+        transfer_count = std::min(*count, kNumFormats);
+        std::copy(kFormats, kFormats + transfer_count, formats);
+        out_count += transfer_count;
+        if (wide_color_support) {
+            transfer_count = std::min(*count - out_count, kNumWideColorFormats);
+            std::copy(kWideColorFormats, kWideColorFormats + transfer_count,
+                      formats + out_count);
+            out_count += transfer_count;
+        }
+        *count = out_count;
     } else {
-        *count = kNumFormats;
+        *count = total_num_formats;
     }
     return result;
 }
@@ -597,9 +634,13 @@ VkResult CreateSwapchainKHR(VkDevice device,
     ALOGV_IF(create_info->imageArrayLayers != 1,
              "swapchain imageArrayLayers=%u not supported",
              create_info->imageArrayLayers);
-    ALOGV_IF(create_info->imageColorSpace != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-             "swapchain imageColorSpace=%u not supported",
-             create_info->imageColorSpace);
+    ALOGV_IF(
+        create_info->imageColorSpace != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
+            create_info->imageColorSpace != VK_COLOR_SPACE_SCRGB_LINEAR_EXT &&
+            create_info->imageColorSpace !=
+                VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT,
+        "swapchain imageColorSpace=%u not supported",
+        create_info->imageColorSpace);
     ALOGV_IF((create_info->preTransform & ~kSupportedTransforms) != 0,
              "swapchain preTransform=%#x not supported",
              create_info->preTransform);
@@ -688,6 +729,12 @@ VkResult CreateSwapchainKHR(VkDevice device,
             break;
         case VK_FORMAT_R5G6B5_UNORM_PACK16:
             native_format = HAL_PIXEL_FORMAT_RGB_565;
+            break;
+        case VK_FORMAT_R16G16B16A16_SFLOAT:
+            native_format = HAL_PIXEL_FORMAT_RGBA_FP16;
+            break;
+        case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+            native_format = HAL_PIXEL_FORMAT_RGBA_1010102;
             break;
         default:
             ALOGV("unsupported swapchain format %d", create_info->imageFormat);
