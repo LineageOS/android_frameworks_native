@@ -1422,7 +1422,6 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     } else {
         // Currently these flags are only use for secondary dex files.
         // Verify that they are not set for primary apks.
-        CHECK((dexopt_flags & DEXOPT_FORCE) == 0);
         CHECK((dexopt_flags & DEXOPT_STORAGE_CE) == 0);
         CHECK((dexopt_flags & DEXOPT_STORAGE_DE) == 0);
     }
