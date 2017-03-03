@@ -156,6 +156,7 @@ SurfaceFlinger::SurfaceFlinger()
         mVisibleRegionsDirty(false),
         mGeometryInvalid(false),
         mAnimCompositionPending(false),
+        mVrModeSupported(0),
         mDebugRegion(0),
         mDebugDDMS(0),
         mDebugDisableHWC(0),
@@ -184,6 +185,10 @@ SurfaceFlinger::SurfaceFlinger()
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
+
+    // TODO (urbanus): remove once b/35319396 is fixed.
+    property_get("ro.boot.vr", value, "0");
+    mVrModeSupported = atoi(value);
 
     property_get("ro.bq.gpu_to_cpu_unsupported", value, "0");
     mGpuToCpuSupported = !atoi(value);
@@ -1262,8 +1267,11 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
-            // TODO(eieio): Disabled until SELinux issues are resolved.
-            //updateVrMode();
+            // TODO(eieio): Tied to a conditional until SELinux issues
+            // are resolved.
+            if (mVrModeSupported) {
+                updateVrMode();
+            }
 
             bool frameMissed = !mHadClientComposition &&
                     mPreviousPresentFence != Fence::NO_FENCE &&

@@ -557,6 +557,7 @@ private:
     DefaultKeyedVector< wp<IBinder>, sp<DisplayDevice> > mDisplays;
 
     // don't use a lock for these, we don't care
+    int mVrModeSupported;
     int mDebugRegion;
     int mDebugDDMS;
     int mDebugDisableHWC;
