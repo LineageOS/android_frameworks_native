@@ -1582,6 +1582,9 @@ void SurfaceFlinger::rebuildLayerStacks() {
                             layer->setHwcLayer(displayDevice->getHwcDisplayId(),
                                     nullptr);
                         }
+                    } else {
+                        layer->setHwcLayer(displayDevice->getHwcDisplayId(),
+                                nullptr);
                     }
                 });
             }
