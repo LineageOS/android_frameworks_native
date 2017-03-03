@@ -294,7 +294,7 @@ void Lshal::dumpVintf() const {
 static const std::string &getArchString(Architecture arch) {
     static const std::string sStr64 = "64";
     static const std::string sStr32 = "32";
-    static const std::string sStrBoth = "64&32";
+    static const std::string sStrBoth = "32+64";
     static const std::string sStrUnknown = "";
     switch (arch) {
         case ARCH64:
@@ -325,12 +325,12 @@ void Lshal::dumpTable() {
     mServicesTable.description =
             "All binderized services (registered services through hwservicemanager)";
     mPassthroughRefTable.description =
-            "All interfaces that getService() has ever return a passthrough interface;\n"
+            "All interfaces that getService() has ever return as a passthrough interface;\n"
             "PIDs / processes shown below might be inaccurate because the process\n"
-            "might have relinquish the interface or might have died.\n"
+            "might have relinquished the interface or might have died.\n"
             "The Server / Server CMD column can be ignored.\n"
-            "The Clients / Clients CMD column shows all process that have ever dlopen the library\n"
-            "and successfully fetch the passthrough implementation.";
+            "The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
+            "the library and successfully fetched the passthrough implementation.";
     mImplementationsTable.description =
             "All available passthrough implementations (all -impl.so files)";
     forEachTable([this] (const Table &table) {
@@ -393,7 +393,7 @@ Status Lshal::fetchAllLibraries(const sp<IServiceManager> &manager) {
         for (const auto &info : infos) {
             std::string interfaceName = std::string{info.interfaceName.c_str()} + "/" +
                     std::string{info.instanceName.c_str()};
-            entries.emplace(std::string{interfaceName}, TableEntry{
+            entries.emplace(interfaceName, TableEntry{
                 .interfaceName = interfaceName,
                 .transport = "passthrough",
                 .serverPid = NO_PID,
