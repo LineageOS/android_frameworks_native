@@ -51,7 +51,6 @@ struct TableEntry {
     uint64_t serverObjectAddress;
     Pids clientPids;
     std::vector<std::string> clientCmdlines;
-    TableEntrySource source;
     Architecture arch;
 
     static bool sortByInterfaceName(const TableEntry &a, const TableEntry &b) {
@@ -62,7 +61,17 @@ struct TableEntry {
     };
 };
 
-using Table = std::vector<TableEntry>;
+struct Table {
+    using Entries = std::vector<TableEntry>;
+    std::string description;
+    Entries entries;
+
+    Entries::iterator begin() { return entries.begin(); }
+    Entries::const_iterator begin() const { return entries.begin(); }
+    Entries::iterator end() { return entries.end(); }
+    Entries::const_iterator end() const { return entries.end(); }
+};
+
 using TableEntryCompare = std::function<bool(const TableEntry &, const TableEntry &)>;
 
 enum : unsigned int {

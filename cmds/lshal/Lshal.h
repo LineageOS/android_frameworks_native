@@ -53,13 +53,13 @@ private:
     void postprocess();
     void dump();
     void usage() const;
-    void putEntry(TableEntry &&entry);
+    void putEntry(TableEntrySource source, TableEntry &&entry);
     Status fetchPassthrough(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchBinderized(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchAllLibraries(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     bool getReferencedPids(
         pid_t serverPid, std::map<uint64_t, Pids> *objects) const;
-    void dumpTable() const;
+    void dumpTable();
     void dumpVintf() const;
     void printLine(
             const std::string &interfaceName,
@@ -74,8 +74,13 @@ private:
     // Call getCmdline on all pid in pids. If it returns empty string, the process might
     // have died, and the pid is removed from pids.
     void removeDeadProcesses(Pids *pids);
+    void forEachTable(const std::function<void(Table &)> &f);
+    void forEachTable(const std::function<void(const Table &)> &f) const;
 
-    Table mTable{};
+    Table mServicesTable{};
+    Table mPassthroughRefTable{};
+    Table mImplementationsTable{};
+
     NullableOStream<std::ostream> mErr = std::cerr;
     NullableOStream<std::ostream> mOut = std::cout;
     NullableOStream<std::ofstream> mFileOutput = nullptr;

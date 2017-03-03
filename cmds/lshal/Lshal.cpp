@@ -159,17 +159,30 @@ bool Lshal::getReferencedPids(
     return true;
 }
 
+void Lshal::forEachTable(const std::function<void(Table &)> &f) {
+    for (const Table &table : {mServicesTable, mPassthroughRefTable, mImplementationsTable}) {
+        f(const_cast<Table &>(table));
+    }
+}
+void Lshal::forEachTable(const std::function<void(const Table &)> &f) const {
+    for (const Table &table : {mServicesTable, mPassthroughRefTable, mImplementationsTable}) {
+        f(table);
+    }
+}
+
 void Lshal::postprocess() {
-    if (mSortColumn) {
-        std::sort(mTable.begin(), mTable.end(), mSortColumn);
-    }
-    for (TableEntry &entry : mTable) {
-        entry.serverCmdline = getCmdline(entry.serverPid);
-        removeDeadProcesses(&entry.clientPids);
-        for (auto pid : entry.clientPids) {
-            entry.clientCmdlines.push_back(this->getCmdline(pid));
+    forEachTable([this](Table &table) {
+        if (mSortColumn) {
+            std::sort(table.begin(), table.end(), mSortColumn);
         }
-    }
+        for (TableEntry &entry : table) {
+            entry.serverCmdline = getCmdline(entry.serverPid);
+            removeDeadProcesses(&entry.clientPids);
+            for (auto pid : entry.clientPids) {
+                entry.clientCmdlines.push_back(this->getCmdline(pid));
+            }
+        }
+    });
 }
 
 void Lshal::printLine(
@@ -207,72 +220,74 @@ void Lshal::printLine(
 
 void Lshal::dumpVintf() const {
     vintf::HalManifest manifest;
-    for (const TableEntry &entry : mTable) {
+    forEachTable([this, &manifest] (const Table &table) {
+        for (const TableEntry &entry : table) {
 
-        std::string fqInstanceName = entry.interfaceName;
+            std::string fqInstanceName = entry.interfaceName;
 
-        if (entry.source == LIST_DLLIB) {
-            // Quick hack to work around *'s
-            replaceAll(&fqInstanceName, '*', 'D');
-        }
-        auto splittedFqInstanceName = splitFirst(fqInstanceName, '/');
-        FQName fqName(splittedFqInstanceName.first);
-        if (!fqName.isValid()) {
-            mErr << "Warning: '" << splittedFqInstanceName.first
-                 << "' is not a valid FQName." << std::endl;
-            continue;
-        }
-        // Strip out system libs.
-        // TODO(b/34772739): might want to add other framework HAL packages
-        if (fqName.inPackage("android.hidl")) {
-            continue;
-        }
-        std::string interfaceName =
-                entry.source == LIST_DLLIB ? "" : fqName.name();
-        std::string instanceName =
-                entry.source == LIST_DLLIB ? "" : splittedFqInstanceName.second;
-
-        vintf::Transport transport;
-        if (entry.transport == "hwbinder") {
-            transport = vintf::Transport::HWBINDER;
-        } else if (entry.transport == "passthrough") {
-            transport = vintf::Transport::PASSTHROUGH;
-        } else {
-            mErr << "Warning: '" << entry.transport << "' is not a valid transport." << std::endl;
-            continue;
-        }
-
-        vintf::ManifestHal *hal = manifest.getHal(fqName.package());
-        if (hal == nullptr) {
-            if (!manifest.add(vintf::ManifestHal{
-                .format = vintf::HalFormat::HIDL,
-                .name = fqName.package(),
-                .impl = {.implLevel = vintf::ImplLevel::GENERIC, .impl = ""},
-                .transport = transport
-            })) {
-                mErr << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
+            if (&table == &mImplementationsTable) {
+                // Quick hack to work around *'s
+                replaceAll(&fqInstanceName, '*', 'D');
+            }
+            auto splittedFqInstanceName = splitFirst(fqInstanceName, '/');
+            FQName fqName(splittedFqInstanceName.first);
+            if (!fqName.isValid()) {
+                mErr << "Warning: '" << splittedFqInstanceName.first
+                     << "' is not a valid FQName." << std::endl;
                 continue;
             }
-            hal = manifest.getHal(fqName.package());
-        }
-        if (hal == nullptr) {
-            mErr << "Warning: cannot get hal '" << fqInstanceName
-                 << "' after adding it" << std::endl;
-            continue;
-        }
-        vintf::Version version{fqName.getPackageMajorVersion(), fqName.getPackageMinorVersion()};
-        if (std::find(hal->versions.begin(), hal->versions.end(), version) == hal->versions.end()) {
-            hal->versions.push_back(version);
-        }
-        if (entry.source != LIST_DLLIB) {
-            auto it = hal->interfaces.find(interfaceName);
-            if (it == hal->interfaces.end()) {
-                hal->interfaces.insert({interfaceName, {interfaceName, {{instanceName}}}});
+            // Strip out system libs.
+            // TODO(b/34772739): might want to add other framework HAL packages
+            if (fqName.inPackage("android.hidl")) {
+                continue;
+            }
+            std::string interfaceName =
+                    &table == &mImplementationsTable ? "" : fqName.name();
+            std::string instanceName =
+                    &table == &mImplementationsTable ? "" : splittedFqInstanceName.second;
+
+            vintf::Transport transport;
+            if (entry.transport == "hwbinder") {
+                transport = vintf::Transport::HWBINDER;
+            } else if (entry.transport == "passthrough") {
+                transport = vintf::Transport::PASSTHROUGH;
             } else {
-                it->second.instances.insert(instanceName);
+                mErr << "Warning: '" << entry.transport << "' is not a valid transport." << std::endl;
+                continue;
+            }
+
+            vintf::ManifestHal *hal = manifest.getHal(fqName.package());
+            if (hal == nullptr) {
+                if (!manifest.add(vintf::ManifestHal{
+                    .format = vintf::HalFormat::HIDL,
+                    .name = fqName.package(),
+                    .impl = {.implLevel = vintf::ImplLevel::GENERIC, .impl = ""},
+                    .transport = transport
+                })) {
+                    mErr << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
+                    continue;
+                }
+                hal = manifest.getHal(fqName.package());
+            }
+            if (hal == nullptr) {
+                mErr << "Warning: cannot get hal '" << fqInstanceName
+                     << "' after adding it" << std::endl;
+                continue;
+            }
+            vintf::Version version{fqName.getPackageMajorVersion(), fqName.getPackageMinorVersion()};
+            if (std::find(hal->versions.begin(), hal->versions.end(), version) == hal->versions.end()) {
+                hal->versions.push_back(version);
+            }
+            if (&table != &mImplementationsTable) {
+                auto it = hal->interfaces.find(interfaceName);
+                if (it == hal->interfaces.end()) {
+                    hal->interfaces.insert({interfaceName, {interfaceName, {{instanceName}}}});
+                } else {
+                    it->second.instances.insert(instanceName);
+                }
             }
         }
-    }
+    });
     mOut << vintf::gHalManifestConverter(manifest);
 }
 
@@ -306,20 +321,36 @@ static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo:
     }
 }
 
-void Lshal::dumpTable() const {
-    mOut << "All services:" << std::endl;
-    mOut << std::left;
-    printLine("Interface", "Transport", "Arch", "Server", "Server CMD", "PTR", "Clients", "Clients CMD");
-    for (const auto &entry : mTable) {
-        printLine(entry.interfaceName,
-                entry.transport,
-                getArchString(entry.arch),
-                entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
-                entry.serverCmdline,
-                entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
-                join(entry.clientPids, " "),
-                join(entry.clientCmdlines, ";"));
-    }
+void Lshal::dumpTable() {
+    mServicesTable.description =
+            "All binderized services (registered services through hwservicemanager)";
+    mPassthroughRefTable.description =
+            "All interfaces that getService() has ever return a passthrough interface;\n"
+            "PIDs / processes shown below might be inaccurate because the process\n"
+            "might have relinquish the interface or might have died.\n"
+            "The Server / Server CMD column can be ignored.\n"
+            "The Clients / Clients CMD column shows all process that have ever dlopen the library\n"
+            "and successfully fetch the passthrough implementation.";
+    mImplementationsTable.description =
+            "All available passthrough implementations (all -impl.so files)";
+    forEachTable([this] (const Table &table) {
+        mOut << table.description << std::endl;
+        mOut << std::left;
+        printLine("Interface", "Transport", "Arch", "Server", "Server CMD",
+                  "PTR", "Clients", "Clients CMD");
+        for (const auto &entry : table) {
+            printLine(entry.interfaceName,
+                    entry.transport,
+                    getArchString(entry.arch),
+                    entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
+                    entry.serverCmdline,
+                    entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
+                    join(entry.clientPids, " "),
+                    join(entry.clientCmdlines, ";"));
+        }
+        mOut << std::endl;
+    });
+
 }
 
 void Lshal::dump() {
@@ -336,8 +367,21 @@ void Lshal::dump() {
     }
 }
 
-void Lshal::putEntry(TableEntry &&entry) {
-    mTable.push_back(std::forward<TableEntry>(entry));
+void Lshal::putEntry(TableEntrySource source, TableEntry &&entry) {
+    Table *table = nullptr;
+    switch (source) {
+        case HWSERVICEMANAGER_LIST :
+            table = &mServicesTable; break;
+        case PTSERVICEMANAGER_REG_CLIENT :
+            table = &mPassthroughRefTable; break;
+        case LIST_DLLIB :
+            table = &mImplementationsTable; break;
+        default:
+            mErr << "Error: Unknown source of entry " << source << std::endl;
+    }
+    if (table) {
+        table->entries.push_back(std::forward<TableEntry>(entry));
+    }
 }
 
 Status Lshal::fetchAllLibraries(const sp<IServiceManager> &manager) {
@@ -355,12 +399,11 @@ Status Lshal::fetchAllLibraries(const sp<IServiceManager> &manager) {
                 .serverPid = NO_PID,
                 .serverObjectAddress = NO_PTR,
                 .clientPids = {},
-                .arch = ARCH_UNKNOWN,
-                .source = LIST_DLLIB
+                .arch = ARCH_UNKNOWN
             }).first->second.arch |= fromBaseArchitecture(info.arch);
         }
         for (auto &&pair : entries) {
-            putEntry(std::move(pair.second));
+            putEntry(LIST_DLLIB, std::move(pair.second));
         }
     });
     if (!ret.isOk()) {
@@ -378,7 +421,7 @@ Status Lshal::fetchPassthrough(const sp<IServiceManager> &manager) {
     using namespace ::android::hidl::base::V1_0;
     auto ret = timeoutIPC(manager, &IServiceManager::debugDump, [&] (const auto &infos) {
         for (const auto &info : infos) {
-            putEntry({
+            putEntry(PTSERVICEMANAGER_REG_CLIENT, {
                 .interfaceName =
                         std::string{info.interfaceName.c_str()} + "/" +
                         std::string{info.instanceName.c_str()},
@@ -386,8 +429,7 @@ Status Lshal::fetchPassthrough(const sp<IServiceManager> &manager) {
                 .serverPid = info.clientPids.size() == 1 ? info.clientPids[0] : NO_PID,
                 .serverObjectAddress = NO_PTR,
                 .clientPids = info.clientPids,
-                .arch = fromBaseArchitecture(info.arch),
-                .source = PTSERVICEMANAGER_REG_CLIENT
+                .arch = fromBaseArchitecture(info.arch)
             });
         }
     });
@@ -464,19 +506,18 @@ Status Lshal::fetchBinderized(const sp<IServiceManager> &manager) {
     for (const auto &fqInstanceName : fqInstanceNames) {
         auto it = allDebugInfos.find(fqInstanceName);
         if (it == allDebugInfos.end()) {
-            putEntry({
+            putEntry(HWSERVICEMANAGER_LIST, {
                 .interfaceName = fqInstanceName,
                 .transport = mode,
                 .serverPid = NO_PID,
                 .serverObjectAddress = NO_PTR,
                 .clientPids = {},
-                .arch = ARCH_UNKNOWN,
-                .source = HWSERVICEMANAGER_LIST
+                .arch = ARCH_UNKNOWN
             });
             continue;
         }
         const DebugInfo &info = it->second;
-        putEntry({
+        putEntry(HWSERVICEMANAGER_LIST, {
             .interfaceName = fqInstanceName,
             .transport = mode,
             .serverPid = info.pid,
@@ -484,7 +525,6 @@ Status Lshal::fetchBinderized(const sp<IServiceManager> &manager) {
             .clientPids = info.pid == NO_PID || info.ptr == NO_PTR
                     ? Pids{} : allPids[info.pid][info.ptr],
             .arch = fromBaseArchitecture(info.arch),
-            .source = HWSERVICEMANAGER_LIST
         });
     }
     return status;
@@ -515,7 +555,7 @@ Status Lshal::fetch() {
 void Lshal::usage() const {
     mErr
         << "usage: lshal" << std::endl
-        << "           Dump all hals with default ordering and columns [-itpc]." << std::endl
+        << "           Dump all hals with default ordering and columns [-ipc]." << std::endl
         << "       lshal [--interface|-i] [--transport|-t] [-r|--arch]" << std::endl
         << "             [--pid|-p] [--address|-a] [--clients|-c] [--cmdline|-m]" << std::endl
         << "             [--sort={interface|i|pid|p}] [--init-vintf[=path]]" << std::endl
@@ -623,8 +663,7 @@ Status Lshal::parseArgs(int argc, char **argv) {
     }
 
     if (mSelectedColumns == 0) {
-        mSelectedColumns = ENABLE_INTERFACE_NAME
-                | ENABLE_TRANSPORT | ENABLE_SERVER_PID | ENABLE_CLIENT_PIDS;
+        mSelectedColumns = ENABLE_INTERFACE_NAME | ENABLE_SERVER_PID | ENABLE_CLIENT_PIDS;
     }
     return OK;
 }
