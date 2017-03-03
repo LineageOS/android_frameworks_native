@@ -1942,6 +1942,20 @@ binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
     return res ? ok() : error();
 }
 
+binder::Status InstalldNativeService::reconcileSecondaryDexFile(
+        const std::string& dexPath, const std::string& packageName, int32_t uid,
+        const std::vector<std::string>& isas, const std::unique_ptr<std::string>& volumeUuid,
+        int32_t storage_flag, bool* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(volumeUuid);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+    bool result = android::installd::reconcile_secondary_dex_file(
+            dexPath, packageName, uid, isas, volumeUuid, storage_flag, _aidl_return);
+    return result ? ok() : error();
+}
+
 binder::Status InstalldNativeService::invalidateMounts() {
     ENFORCE_UID(AID_SYSTEM);
     std::lock_guard<std::recursive_mutex> lock(mLock);
