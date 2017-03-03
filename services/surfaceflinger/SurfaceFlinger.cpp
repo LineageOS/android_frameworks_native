@@ -1636,7 +1636,6 @@ void SurfaceFlinger::setUpHWComposer() {
             if (hwcId >= 0) {
                 const Vector<sp<Layer>>& currentLayers(
                         displayDevice->getVisibleLayersSortedByZ());
-                bool foundLayerWithoutHwc = false;
                 for (size_t i = 0; i < currentLayers.size(); i++) {
                     const auto& layer = currentLayers[i];
                     if (!layer->hasHwcLayer(hwcId)) {
@@ -1645,7 +1644,6 @@ void SurfaceFlinger::setUpHWComposer() {
                             layer->setHwcLayer(hwcId, std::move(hwcLayer));
                         } else {
                             layer->forceClientComposition(hwcId);
-                            foundLayerWithoutHwc = true;
                             continue;
                         }
                     }
