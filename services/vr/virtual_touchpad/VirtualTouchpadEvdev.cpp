@@ -1,4 +1,4 @@
-#include "VirtualTouchpad.h"
+#include "VirtualTouchpadEvdev.h"
 
 #include <android/input.h>
 #include <inttypes.h>
@@ -30,7 +30,17 @@ static constexpr int32_t kSlots = 2;
 
 }  // anonymous namespace
 
-int VirtualTouchpad::Initialize() {
+sp<VirtualTouchpad> VirtualTouchpadEvdev::Create() {
+  VirtualTouchpadEvdev* const touchpad = new VirtualTouchpadEvdev();
+  const status_t status = touchpad->Initialize();
+  if (status) {
+    ALOGE("initialization failed: %d", status);
+    return sp<VirtualTouchpad>();
+  }
+  return sp<VirtualTouchpad>(touchpad);
+}
+
+int VirtualTouchpadEvdev::Initialize() {
   if (!injector_) {
     owned_injector_.reset(new EvdevInjector());
     injector_ = owned_injector_.get();
@@ -46,7 +56,7 @@ int VirtualTouchpad::Initialize() {
   return injector_->GetError();
 }
 
-int VirtualTouchpad::Touch(float x, float y, float pressure) {
+int VirtualTouchpadEvdev::Touch(float x, float y, float pressure) {
   if ((x < 0.0f) || (x >= 1.0f) || (y < 0.0f) || (y >= 1.0f)) {
     return EINVAL;
   }
@@ -91,7 +101,7 @@ int VirtualTouchpad::Touch(float x, float y, float pressure) {
   return injector_->GetError();
 }
 
-int VirtualTouchpad::ButtonState(int buttons) {
+int VirtualTouchpadEvdev::ButtonState(int buttons) {
   const int changes = last_motion_event_buttons_ ^ buttons;
   if (!changes) {
     return 0;

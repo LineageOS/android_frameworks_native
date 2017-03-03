@@ -14,29 +14,6 @@
 
 LOCAL_PATH := $(call my-dir)
 
-binder_src := \
-  vr_window_manager_binder.cpp \
-  aidl/android/service/vr/IVrWindowManager.aidl
-
-static_libs := \
-  libcutils
-
-shared_libs := \
-  libbase \
-  libbinder \
-  libutils
-
-include $(CLEAR_VARS)
-LOCAL_SRC_FILES := $(binder_src)
-LOCAL_STATIC_LIBRARIES := $(static_libs)
-LOCAL_SHARED_LIBRARIES := $(shared_libs)
-LOCAL_CPPFLAGS += -std=c++11
-LOCAL_CFLAGS += -DLOG_TAG=\"VrWindowManager\"
-LOCAL_LDLIBS := -llog
-LOCAL_MODULE := libvrwm_binder
-LOCAL_MODULE_TAGS := optional
-include $(BUILD_STATIC_LIBRARY)
-
 native_src := \
   application.cpp \
   controller_mesh.cpp \
@@ -47,7 +24,8 @@ native_src := \
   surface_flinger_view.cpp \
   texture.cpp \
   vr_window_manager.cpp \
-  ../virtual_touchpad/aidl/android/dvr/VirtualTouchpadService.aidl \
+  vr_window_manager_binder.cpp \
+  aidl/android/service/vr/IVrWindowManager.aidl
 
 static_libs := \
   libdisplay \
@@ -62,6 +40,7 @@ static_libs := \
   libpdx_default_transport \
   libcutils \
   libvr_manager \
+  libvirtualtouchpadclient
 
 shared_libs := \
   android.dvr.composer@1.0 \
@@ -85,7 +64,7 @@ shared_libs := \
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(native_src)
-LOCAL_STATIC_LIBRARIES := $(static_libs) libvrwm_binder
+LOCAL_STATIC_LIBRARIES := $(static_libs)
 LOCAL_SHARED_LIBRARIES := $(shared_libs)
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES
 LOCAL_CFLAGS += -DEGL_EGLEXT_PROTOTYPES

@@ -703,10 +703,7 @@ void ShellView::DrawController(const mat4& perspective, const mat4& eye_matrix,
 }
 
 bool ShellView::InitializeTouch() {
-  virtual_touchpad_ =
-      android::interface_cast<android::dvr::IVirtualTouchpadService>(
-          android::defaultServiceManager()->getService(
-              android::String16("virtual_touchpad")));
+  virtual_touchpad_ = VirtualTouchpadClient::Create();
   if (!virtual_touchpad_.get()) {
     ALOGE("Failed to connect to virtual touchpad");
     return false;
@@ -723,12 +720,12 @@ void ShellView::Touch() {
     }
   }
 
-  const android::binder::Status status = virtual_touchpad_->touch(
+  const android::status_t status = virtual_touchpad_->Touch(
       hit_location_in_window_coord_.x() / size_.x(),
       hit_location_in_window_coord_.y() / size_.y(),
       is_touching_ ? 1.0f : 0.0f);
-  if (!status.isOk()) {
-    ALOGE("touch failed: %s", status.toString8().string());
+  if (status != OK) {
+    ALOGE("touch failed: %d", status);
   }
 }
 
@@ -750,11 +747,10 @@ bool ShellView::OnTouchpadButton(bool down, int button) {
     return false;
   }
 
-  const android::binder::Status status =
-      virtual_touchpad_->buttonState(touchpad_buttons_);
-  if (!status.isOk()) {
-    ALOGE("touchpad button failed: %d %s", touchpad_buttons_,
-          status.toString8().string());
+  const android::status_t status =
+      virtual_touchpad_->ButtonState(touchpad_buttons_);
+  if (status != OK) {
+    ALOGE("touchpad button failed: %d %d", touchpad_buttons_, status);
   }
   return true;
 }

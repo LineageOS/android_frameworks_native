@@ -8,19 +8,15 @@
 namespace android {
 namespace dvr {
 
-int VirtualTouchpadService::Initialize() {
-  return touchpad_.Initialize();
-}
-
 binder::Status VirtualTouchpadService::touch(float x, float y, float pressure) {
-  const int error = touchpad_.Touch(x, y, pressure);
-  return error ? binder::Status::fromServiceSpecificError(error)
+  const status_t error = touchpad_->Touch(x, y, pressure);
+  return error ? binder::Status::fromStatusT(error)
                : binder::Status::ok();
 }
 
 binder::Status VirtualTouchpadService::buttonState(int buttons) {
-  const int error = touchpad_.ButtonState(buttons);
-  return error ? binder::Status::fromServiceSpecificError(error)
+  const status_t error = touchpad_->ButtonState(buttons);
+  return error ? binder::Status::fromStatusT(error)
                : binder::Status::ok();
 }
 

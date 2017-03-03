@@ -1,12 +1,12 @@
 #include <android/input.h>
+#include <gtest/gtest.h>
+#include <linux/input.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <gtest/gtest.h>
-#include <linux/input.h>
 
 #include "EvdevInjector.h"
-#include "VirtualTouchpad.h"
+#include "VirtualTouchpadEvdev.h"
 
 namespace android {
 namespace dvr {
@@ -21,7 +21,7 @@ class UInputForTesting : public EvdevInjector::UInput {
     event.type = type;
     event.code = code;
     event.value = value;
-    Write(&event, sizeof (event));
+    Write(&event, sizeof(event));
   }
 };
 
@@ -87,16 +87,17 @@ class UInputRecorder : public UInputForTesting {
 
 class EvdevInjectorForTesting : public EvdevInjector {
  public:
-  EvdevInjectorForTesting(UInput& uinput) {
-    SetUInputForTesting(&uinput);
-  }
+  EvdevInjectorForTesting(UInput& uinput) { SetUInputForTesting(&uinput); }
   const uinput_user_dev* GetUiDev() const { return GetUiDevForTesting(); }
 };
 
-class VirtualTouchpadForTesting : public VirtualTouchpad {
+class VirtualTouchpadForTesting : public VirtualTouchpadEvdev {
  public:
-  VirtualTouchpadForTesting(EvdevInjector& injector) {
-    SetEvdevInjectorForTesting(&injector);
+  static sp<VirtualTouchpad> Create(EvdevInjectorForTesting& injector) {
+    VirtualTouchpadForTesting* const touchpad = new VirtualTouchpadForTesting();
+    touchpad->SetEvdevInjectorForTesting(&injector);
+    touchpad->Initialize();
+    return sp<VirtualTouchpad>(touchpad);
   }
 };
 
@@ -113,17 +114,13 @@ void DumpDifference(const char* expect, const char* actual) {
 
 }  // anonymous namespace
 
-class VirtualTouchpadTest : public testing::Test {
-};
+class VirtualTouchpadTest : public testing::Test {};
 
 TEST_F(VirtualTouchpadTest, Goodness) {
   UInputRecorder expect;
   UInputRecorder record;
   EvdevInjectorForTesting injector(record);
-  VirtualTouchpadForTesting touchpad(injector);
-
-  const int initialization_status = touchpad.Initialize();
-  EXPECT_EQ(0, initialization_status);
+  sp<VirtualTouchpad> touchpad(VirtualTouchpadForTesting::Create(injector));
 
   // Check some aspects of uinput_user_dev.
   const uinput_user_dev* uidev = injector.GetUiDev();
@@ -154,13 +151,13 @@ TEST_F(VirtualTouchpadTest, Goodness) {
   expect.IoctlSetInt(UI_SET_EVBIT, EV_KEY);
   expect.IoctlSetInt(UI_SET_KEYBIT, BTN_TOUCH);
   // From ConfigureEnd():
-  expect.Write(uidev, sizeof (uinput_user_dev));
+  expect.Write(uidev, sizeof(uinput_user_dev));
   expect.IoctlVoid(UI_DEV_CREATE);
   EXPECT_EQ(expect.GetString(), record.GetString());
 
   expect.Reset();
   record.Reset();
-  int touch_status = touchpad.Touch(0, 0, 0);
+  int touch_status = touchpad->Touch(0, 0, 0);
   EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_ABS, ABS_MT_SLOT, 0);
   expect.WriteInputEvent(EV_ABS, ABS_MT_TRACKING_ID, 0);
@@ -171,7 +168,7 @@ TEST_F(VirtualTouchpadTest, Goodness) {
 
   expect.Reset();
   record.Reset();
-  touch_status = touchpad.Touch(0.25f, 0.75f, 0.5f);
+  touch_status = touchpad->Touch(0.25f, 0.75f, 0.5f);
   EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_ABS, ABS_MT_TRACKING_ID, 0);
   expect.WriteInputEvent(EV_ABS, ABS_MT_POSITION_X, 0.25f * width);
@@ -182,7 +179,7 @@ TEST_F(VirtualTouchpadTest, Goodness) {
 
   expect.Reset();
   record.Reset();
-  touch_status = touchpad.Touch(1.0f, 1.0f, 1.0f);
+  touch_status = touchpad->Touch(1.0f, 1.0f, 1.0f);
   EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_ABS, ABS_MT_TRACKING_ID, 0);
   expect.WriteInputEvent(EV_ABS, ABS_MT_POSITION_X, width);
@@ -192,7 +189,7 @@ TEST_F(VirtualTouchpadTest, Goodness) {
 
   expect.Reset();
   record.Reset();
-  touch_status = touchpad.Touch(0.25f, 0.75f, -0.01f);
+  touch_status = touchpad->Touch(0.25f, 0.75f, -0.01f);
   EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_KEY, BTN_TOUCH, EvdevInjector::KEY_RELEASE);
   expect.WriteInputEvent(EV_ABS, ABS_MT_TRACKING_ID, -1);
@@ -201,7 +198,7 @@ TEST_F(VirtualTouchpadTest, Goodness) {
 
   expect.Reset();
   record.Reset();
-  touch_status = touchpad.ButtonState(AMOTION_EVENT_BUTTON_BACK);
+  touch_status = touchpad->ButtonState(AMOTION_EVENT_BUTTON_BACK);
   EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_KEY, BTN_BACK, EvdevInjector::KEY_PRESS);
   expect.WriteInputEvent(EV_SYN, SYN_REPORT, 0);
@@ -209,13 +206,13 @@ TEST_F(VirtualTouchpadTest, Goodness) {
 
   expect.Reset();
   record.Reset();
-  touch_status = touchpad.ButtonState(AMOTION_EVENT_BUTTON_BACK);
+  touch_status = touchpad->ButtonState(AMOTION_EVENT_BUTTON_BACK);
   EXPECT_EQ(0, touch_status);
   EXPECT_EQ(expect.GetString(), record.GetString());
 
   expect.Reset();
   record.Reset();
-  touch_status = touchpad.ButtonState(0);
+  touch_status = touchpad->ButtonState(0);
   EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_KEY, BTN_BACK, EvdevInjector::KEY_RELEASE);
   expect.WriteInputEvent(EV_SYN, SYN_REPORT, 0);
@@ -229,56 +226,29 @@ TEST_F(VirtualTouchpadTest, Badness) {
   UInputRecorder expect;
   UInputRecorder record;
   EvdevInjectorForTesting injector(record);
-  VirtualTouchpadForTesting touchpad(injector);
-
-  // Touch before initialization should return an error,
-  // and should not result in any system calls.
-  expect.Reset();
-  record.Reset();
-  int touch_status = touchpad.Touch(0.25f, 0.75f, -0.01f);
-  EXPECT_NE(0, touch_status);
-  EXPECT_EQ(expect.GetString(), record.GetString());
-
-  // Button change before initialization should return an error,
-  // and should not result in any system calls.
-  expect.Reset();
-  record.Reset();
-  touch_status = touchpad.ButtonState(AMOTION_EVENT_BUTTON_BACK);
-  EXPECT_NE(0, touch_status);
-  EXPECT_EQ(expect.GetString(), record.GetString());
-
-  expect.Reset();
-  record.Reset();
-  touchpad.Initialize();
-
-  // Repeated initialization should return an error,
-  // and should not result in any system calls.
-  expect.Reset();
-  record.Reset();
-  const int initialization_status = touchpad.Initialize();
-  EXPECT_NE(0, initialization_status);
-  EXPECT_EQ(expect.GetString(), record.GetString());
+  sp<VirtualTouchpad> touchpad(
+      VirtualTouchpadForTesting::Create(injector));
 
   // Touch off-screen should return an error,
   // and should not result in any system calls.
   expect.Reset();
   record.Reset();
-  touch_status = touchpad.Touch(-0.25f, 0.75f, 1.0f);
-  EXPECT_NE(0, touch_status);
-  touch_status = touchpad.Touch(0.25f, -0.75f, 1.0f);
-  EXPECT_NE(0, touch_status);
-  touch_status = touchpad.Touch(1.25f, 0.75f, 1.0f);
-  EXPECT_NE(0, touch_status);
-  touch_status = touchpad.Touch(0.25f, 1.75f, 1.0f);
-  EXPECT_NE(0, touch_status);
+  status_t touch_status = touchpad->Touch(-0.25f, 0.75f, 1.0f);
+  EXPECT_NE(OK, touch_status);
+  touch_status = touchpad->Touch(0.25f, -0.75f, 1.0f);
+  EXPECT_NE(OK, touch_status);
+  touch_status = touchpad->Touch(1.25f, 0.75f, 1.0f);
+  EXPECT_NE(OK, touch_status);
+  touch_status = touchpad->Touch(0.25f, 1.75f, 1.0f);
+  EXPECT_NE(OK, touch_status);
   EXPECT_EQ(expect.GetString(), record.GetString());
 
   // Unsupported button should return an error,
   // and should not result in any system calls.
   expect.Reset();
   record.Reset();
-  touch_status = touchpad.ButtonState(AMOTION_EVENT_BUTTON_FORWARD);
-  EXPECT_NE(0, touch_status);
+  touch_status = touchpad->ButtonState(AMOTION_EVENT_BUTTON_FORWARD);
+  EXPECT_NE(OK, touch_status);
   EXPECT_EQ(expect.GetString(), record.GetString());
 }
 

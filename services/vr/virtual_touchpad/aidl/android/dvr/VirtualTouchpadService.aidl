@@ -3,6 +3,8 @@ package android.dvr;
 /** @hide */
 interface VirtualTouchpadService
 {
+  const String SERVICE_NAME = "virtual_touchpad";
+
   /**
    * Generate a simulated touch event.
    *
