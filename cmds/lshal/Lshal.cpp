@@ -174,7 +174,9 @@ void Lshal::postprocess() {
 
 void Lshal::printLine(
         const std::string &interfaceName,
-        const std::string &transport, const std::string &server,
+        const std::string &transport,
+        const std::string &arch,
+        const std::string &server,
         const std::string &serverCmdline,
         const std::string &address, const std::string &clients,
         const std::string &clientCmdlines) const {
@@ -182,6 +184,8 @@ void Lshal::printLine(
         mOut << std::setw(80) << interfaceName << "\t";
     if (mSelectedColumns & ENABLE_TRANSPORT)
         mOut << std::setw(10) << transport << "\t";
+    if (mSelectedColumns & ENABLE_ARCH)
+        mOut << std::setw(5) << arch << "\t";
     if (mSelectedColumns & ENABLE_SERVER_PID) {
         if (mEnableCmdlines) {
             mOut << std::setw(15) << serverCmdline << "\t";
@@ -272,13 +276,44 @@ void Lshal::dumpVintf() const {
     mOut << vintf::gHalManifestConverter(manifest);
 }
 
+static const std::string &getArchString(Architecture arch) {
+    static const std::string sStr64 = "64";
+    static const std::string sStr32 = "32";
+    static const std::string sStrBoth = "64&32";
+    static const std::string sStrUnknown = "";
+    switch (arch) {
+        case ARCH64:
+            return sStr64;
+        case ARCH32:
+            return sStr32;
+        case ARCH_BOTH:
+            return sStrBoth;
+        case ARCH_UNKNOWN: // fall through
+        default:
+            return sStrUnknown;
+    }
+}
+
+static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo::Architecture a) {
+    switch (a) {
+        case ::android::hidl::base::V1_0::DebugInfo::Architecture::IS_64BIT:
+            return ARCH64;
+        case ::android::hidl::base::V1_0::DebugInfo::Architecture::IS_32BIT:
+            return ARCH32;
+        case ::android::hidl::base::V1_0::DebugInfo::Architecture::UNKNOWN: // fallthrough
+        default:
+            return ARCH_UNKNOWN;
+    }
+}
+
 void Lshal::dumpTable() const {
     mOut << "All services:" << std::endl;
     mOut << std::left;
-    printLine("Interface", "Transport", "Server", "Server CMD", "PTR", "Clients", "Clients CMD");
+    printLine("Interface", "Transport", "Arch", "Server", "Server CMD", "PTR", "Clients", "Clients CMD");
     for (const auto &entry : mTable) {
         printLine(entry.interfaceName,
                 entry.transport,
+                getArchString(entry.arch),
                 entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
                 entry.serverCmdline,
                 entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
@@ -309,16 +344,23 @@ Status Lshal::fetchAllLibraries(const sp<IServiceManager> &manager) {
     using namespace ::android::hardware;
     using namespace ::android::hidl::manager::V1_0;
     using namespace ::android::hidl::base::V1_0;
-    auto ret = timeoutIPC(manager, &IServiceManager::list, [&] (const auto &fqInstanceNames) {
-        for (const auto &fqInstanceName : fqInstanceNames) {
-            putEntry({
-                .interfaceName = fqInstanceName,
+    auto ret = timeoutIPC(manager, &IServiceManager::debugDump, [&] (const auto &infos) {
+        std::map<std::string, TableEntry> entries;
+        for (const auto &info : infos) {
+            std::string interfaceName = std::string{info.interfaceName.c_str()} + "/" +
+                    std::string{info.instanceName.c_str()};
+            entries.emplace(std::string{interfaceName}, TableEntry{
+                .interfaceName = interfaceName,
                 .transport = "passthrough",
                 .serverPid = NO_PID,
                 .serverObjectAddress = NO_PTR,
                 .clientPids = {},
+                .arch = ARCH_UNKNOWN,
                 .source = LIST_DLLIB
-            });
+            }).first->second.arch |= fromBaseArchitecture(info.arch);
+        }
+        for (auto &&pair : entries) {
+            putEntry(std::move(pair.second));
         }
     });
     if (!ret.isOk()) {
@@ -331,6 +373,7 @@ Status Lshal::fetchAllLibraries(const sp<IServiceManager> &manager) {
 
 Status Lshal::fetchPassthrough(const sp<IServiceManager> &manager) {
     using namespace ::android::hardware;
+    using namespace ::android::hardware::details;
     using namespace ::android::hidl::manager::V1_0;
     using namespace ::android::hidl::base::V1_0;
     auto ret = timeoutIPC(manager, &IServiceManager::debugDump, [&] (const auto &infos) {
@@ -343,6 +386,7 @@ Status Lshal::fetchPassthrough(const sp<IServiceManager> &manager) {
                 .serverPid = info.clientPids.size() == 1 ? info.clientPids[0] : NO_PID,
                 .serverObjectAddress = NO_PTR,
                 .clientPids = info.clientPids,
+                .arch = fromBaseArchitecture(info.arch),
                 .source = PTSERVICEMANAGER_REG_CLIENT
             });
         }
@@ -426,6 +470,7 @@ Status Lshal::fetchBinderized(const sp<IServiceManager> &manager) {
                 .serverPid = NO_PID,
                 .serverObjectAddress = NO_PTR,
                 .clientPids = {},
+                .arch = ARCH_UNKNOWN,
                 .source = HWSERVICEMANAGER_LIST
             });
             continue;
@@ -438,6 +483,7 @@ Status Lshal::fetchBinderized(const sp<IServiceManager> &manager) {
             .serverObjectAddress = info.ptr,
             .clientPids = info.pid == NO_PID || info.ptr == NO_PTR
                     ? Pids{} : allPids[info.pid][info.ptr],
+            .arch = fromBaseArchitecture(info.arch),
             .source = HWSERVICEMANAGER_LIST
         });
     }
@@ -470,12 +516,13 @@ void Lshal::usage() const {
     mErr
         << "usage: lshal" << std::endl
         << "           Dump all hals with default ordering and columns [-itpc]." << std::endl
-        << "       lshal [--interface|-i] [--transport|-t]" << std::endl
+        << "       lshal [--interface|-i] [--transport|-t] [-r|--arch]" << std::endl
         << "             [--pid|-p] [--address|-a] [--clients|-c] [--cmdline|-m]" << std::endl
         << "             [--sort={interface|i|pid|p}] [--init-vintf[=path]]" << std::endl
         << "           -i, --interface: print the interface name column" << std::endl
         << "           -n, --instance: print the instance name column" << std::endl
         << "           -t, --transport: print the transport mode column" << std::endl
+        << "           -r, --arch: print if the HAL is in 64-bit or 32-bit" << std::endl
         << "           -p, --pid: print the server PID, or server cmdline if -m is set" << std::endl
         << "           -a, --address: print the server object address column" << std::endl
         << "           -c, --clients: print the client PIDs, or client cmdlines if -m is set"
@@ -495,6 +542,7 @@ Status Lshal::parseArgs(int argc, char **argv) {
         {"help",      no_argument,       0, 'h' },
         {"interface", no_argument,       0, 'i' },
         {"transport", no_argument,       0, 't' },
+        {"arch",      no_argument,       0, 'r' },
         {"pid",       no_argument,       0, 'p' },
         {"address",   no_argument,       0, 'a' },
         {"clients",   no_argument,       0, 'c' },
@@ -511,7 +559,7 @@ Status Lshal::parseArgs(int argc, char **argv) {
     optind = 1;
     for (;;) {
         // using getopt_long in case we want to add other options in the future
-        c = getopt_long(argc, argv, "hitpacm", longOptions, &optionIndex);
+        c = getopt_long(argc, argv, "hitrpacm", longOptions, &optionIndex);
         if (c == -1) {
             break;
         }
@@ -545,6 +593,10 @@ Status Lshal::parseArgs(int argc, char **argv) {
         }
         case 't': {
             mSelectedColumns |= ENABLE_TRANSPORT;
+            break;
+        }
+        case 'r': {
+            mSelectedColumns |= ENABLE_ARCH;
             break;
         }
         case 'p': {

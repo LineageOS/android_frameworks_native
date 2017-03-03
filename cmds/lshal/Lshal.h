@@ -63,7 +63,9 @@ private:
     void dumpVintf() const;
     void printLine(
             const std::string &interfaceName,
-            const std::string &transport, const std::string &server,
+            const std::string &transport,
+            const std::string &arch,
+            const std::string &server,
             const std::string &serverCmdline,
             const std::string &address, const std::string &clients,
             const std::string &clientCmdlines) const ;
