@@ -37,6 +37,7 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 using SensorServiceUtil::Dumpable;
+using hardware::Return;
 
 class SensorDevice : public Singleton<SensorDevice>, public Dumpable {
 public:
@@ -127,6 +128,15 @@ private:
     // Use this vector to determine which client is activated or deactivated.
     SortedVector<void *> mDisabledClients;
     SensorDevice();
+
+    static void handleHidlDeath(const std::string &detail);
+    template<typename T>
+    static Return<T> checkReturn(Return<T> &&ret) {
+        if (!ret.isOk()) {
+            handleHidlDeath(ret.description());
+        }
+        return std::move(ret);
+    }
 
     bool isClientDisabled(void* ident);
     bool isClientDisabledLocked(void* ident);
