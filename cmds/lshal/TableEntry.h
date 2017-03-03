@@ -35,6 +35,14 @@ enum : unsigned int {
 };
 using TableEntrySource = unsigned int;
 
+enum : unsigned int {
+    ARCH_UNKNOWN = 0,
+    ARCH64       = 1 << 0,
+    ARCH32       = 1 << 1,
+    ARCH_BOTH    = ARCH32 | ARCH64
+};
+using Architecture = unsigned int;
+
 struct TableEntry {
     std::string interfaceName;
     std::string transport;
@@ -43,7 +51,7 @@ struct TableEntry {
     uint64_t serverObjectAddress;
     Pids clientPids;
     std::vector<std::string> clientCmdlines;
-    TableEntrySource source;
+    Architecture arch;
 
     static bool sortByInterfaceName(const TableEntry &a, const TableEntry &b) {
         return a.interfaceName < b.interfaceName;
@@ -53,7 +61,17 @@ struct TableEntry {
     };
 };
 
-using Table = std::vector<TableEntry>;
+struct Table {
+    using Entries = std::vector<TableEntry>;
+    std::string description;
+    Entries entries;
+
+    Entries::iterator begin() { return entries.begin(); }
+    Entries::const_iterator begin() const { return entries.begin(); }
+    Entries::iterator end() { return entries.end(); }
+    Entries::const_iterator end() const { return entries.end(); }
+};
+
 using TableEntryCompare = std::function<bool(const TableEntry &, const TableEntry &)>;
 
 enum : unsigned int {
@@ -61,7 +79,8 @@ enum : unsigned int {
     ENABLE_TRANSPORT      = 1 << 1,
     ENABLE_SERVER_PID     = 1 << 2,
     ENABLE_SERVER_ADDR    = 1 << 3,
-    ENABLE_CLIENT_PIDS    = 1 << 4
+    ENABLE_CLIENT_PIDS    = 1 << 4,
+    ENABLE_ARCH           = 1 << 5
 };
 
 using TableEntrySelect = unsigned int;
