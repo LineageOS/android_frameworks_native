@@ -242,7 +242,11 @@ private:
     static status_t orientationToTransfrom(int orientation,
             int w, int h, Transform* tr);
 
+    // The identifier of the active layer stack for this display. Several displays
+    // can use the same layer stack: A z-ordered group of layers (sometimes called
+    // "surfaces"). Any given layer can only be on a single layer stack.
     uint32_t mLayerStack;
+
     int mOrientation;
     static uint32_t sPrimaryDisplayOrientation;
     // user-provided visible area of the layer stack

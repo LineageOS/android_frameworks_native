@@ -109,7 +109,14 @@ public:
         Geometry active;
         Geometry requested;
         int32_t z;
+
+        // The identifier of the layer stack this layer belongs to. A layer can
+        // only be associated to a single layer stack. A layer stack is a
+        // z-ordered group of layers which can be associated to one or more
+        // displays. Using the same layer stack on different displays is a way
+        // to achieve mirroring.
         uint32_t layerStack;
+
 #ifdef USE_HWC2
         float alpha;
 #else
@@ -697,6 +704,11 @@ private:
         Rect displayFrame;
         FloatRect sourceCrop;
     };
+
+    // A layer can be attached to multiple displays when operating in mirror mode
+    // (a.k.a: when several displays are attached with equal layerStack). In this
+    // case we need to keep track. In non-mirror mode, a layer will have only one.
+    // HWCInfo. This map key is a display layerStack.
     std::unordered_map<int32_t, HWCInfo> mHwcLayers;
 
     // We need one HWComposerBufferCache for each HWC display.  We cannot have
