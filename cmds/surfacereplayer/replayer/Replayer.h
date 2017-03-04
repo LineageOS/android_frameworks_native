@@ -29,6 +29,7 @@
 #include <utils/Errors.h>
 #include <utils/StrongPointer.h>
 
+#include <stdatomic.h>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
