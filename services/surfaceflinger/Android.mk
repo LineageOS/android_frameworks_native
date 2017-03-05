@@ -210,6 +210,12 @@ LOCAL_CPPFLAGS := -std=c++14
 
 LOCAL_INIT_RC := surfaceflinger.rc
 
+ifeq ($(TARGET_HAS_INTEL_MDS), true)
+   LOCAL_CFLAGS  += -DHAS_INTEL_MDS
+   LOCAL_LDFLAGS += -L vendor/$(PRODUCT_BRAND)/$(PRODUCT_MODEL)/proprietary/lib/
+   LOCAL_LDLIBS := -lmultidisplay
+endif
+
 ifneq ($(ENABLE_CPUSETS),)
     LOCAL_CFLAGS += -DENABLE_CPUSETS
 endif
