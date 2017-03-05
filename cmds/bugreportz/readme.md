@@ -17,3 +17,4 @@ finished, when it then prints one line with the result:
 
 - `OK:<path_to_bugreport_file>` in case of success.
 - `FAIL:<error message>` in case of failure.
+
