@@ -190,6 +190,7 @@ std::string SensorList::dump() const {
                 if (s.isDirectChannelTypeSupported(SENSOR_DIRECT_MEM_TYPE_GRALLOC)) {
                     result.append("gralloc, ");
                 }
+                result.appendFormat("flag =0x%08x", static_cast<int>(s.getFlags()));
                 result.append("\n");
             }
             return true;
