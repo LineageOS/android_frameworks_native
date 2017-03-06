@@ -24,6 +24,7 @@
 #include <utils/StrongPointer.h>
 
 #include <mutex>
+#include <unordered_map>
 
 using namespace android::hardware::graphics::common::V1_0;
 using namespace android::hardware::graphics::composer::V2_1;
@@ -67,7 +68,14 @@ class ComposerView {
     uint32_t app_id;
   };
 
-  using Frame = std::vector<ComposerLayer>;
+  struct Frame {
+    Display display_id;
+    // This is set to true to notify the upper layer that the display is
+    // being removed, or left false in the case of a normal frame. The upper
+    // layer tracks display IDs and will handle new ones showing up.
+    bool removed = false;
+    std::vector<ComposerLayer> layers;
+  };
 
   class Observer {
    public:
@@ -231,13 +239,15 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
   void UnregisterObserver(Observer* observer) override;
 
  private:
+  HwcDisplay* FindDisplay(Display display);
+
   wp<VrComposerClient> client_;
   sp<IComposerCallback> callbacks_;
 
   // Guard access to internal state from binder threads.
   std::mutex mutex_;
 
-  HwcDisplay display_;
+  std::unordered_map<Display, std::unique_ptr<HwcDisplay>> displays_;
 
   Observer* observer_ = nullptr;
 

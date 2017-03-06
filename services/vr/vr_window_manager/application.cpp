@@ -224,6 +224,8 @@ void Application::DrawFrame() {
     DrawEye(kRightEye, fov_[kRightEye].GetProjectionMatrix(0.1f, 500.0f),
             eye_from_head_[kRightEye], head_matrix);
 
+    OnEndFrame();
+
     dvrPresent(graphics_context_);
   }
 }

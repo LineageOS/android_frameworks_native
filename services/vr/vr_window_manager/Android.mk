@@ -17,6 +17,7 @@ LOCAL_PATH := $(call my-dir)
 native_src := \
   application.cpp \
   controller_mesh.cpp \
+  display_view.cpp \
   elbow_model.cpp \
   hwc_callback.cpp \
   reticle.cpp \

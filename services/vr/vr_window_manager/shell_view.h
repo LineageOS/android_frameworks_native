@@ -8,18 +8,13 @@
 
 #include "VirtualTouchpadClient.h"
 #include "application.h"
+#include "display_view.h"
 #include "reticle.h"
 #include "shell_view_binder_interface.h"
 #include "surface_flinger_view.h"
 
 namespace android {
 namespace dvr {
-
-enum class ViewMode {
-  Hidden,
-  VR,
-  App,
-};
 
 class ShellView : public Application,
                   public android::dvr::ShellViewBinderInterface,
@@ -41,90 +36,53 @@ class ShellView : public Application,
  protected:
   void DrawEye(EyeType eye, const mat4& perspective, const mat4& eye_matrix,
                const mat4& head_matrix) override;
+  void OnDrawFrame() override;
+  void OnEndFrame() override;
   void OnVisibilityChanged(bool visible) override;
 
-  void DrawOverlays(const mat4& perspective, const mat4& eye_matrix,
-                    const mat4& head_matrix);
   void DrawReticle(const mat4& perspective, const mat4& eye_matrix,
                    const mat4& head_matrix);
-  void DrawIme();
-  void DrawDimOverlay(const mat4& mvp, const TextureLayer& layer,
-                      const vec2& top_left, const vec2& bottom_right);
   void DrawController(const mat4& perspective, const mat4& eye_matrix,
                       const mat4& head_matrix);
 
-  bool IsHit(const vec3& view_location, const vec3& view_direction,
-             vec3* hit_location, vec2* hit_location_in_window_coord,
-             bool test_ime);
-  bool IsImeHit(const vec3& view_location, const vec3& view_direction,
-                vec3 *hit_location);
   void Touch();
   bool OnTouchpadButton(bool down, int button);
 
-  void OnDrawFrame() override;
-  void DrawWithTransform(const mat4& transform, const ShaderProgram& program);
-
   bool OnClick(bool down);
 
-  void AdvanceFrame();
+  DisplayView* FindActiveDisplay(const vec3& position, const quat& quaternion,
+                                 vec3* hit_location);
 
-  void UpdateReleaseFence(base::unique_fd fence);
 
   // HwcCallback::Client:
   base::unique_fd OnFrame(std::unique_ptr<HwcCallback::Frame> frame) override;
+  DisplayView* FindOrCreateDisplay(uint32_t id);
 
   std::unique_ptr<ShaderProgram> program_;
   std::unique_ptr<ShaderProgram> overlay_program_;
   std::unique_ptr<ShaderProgram> controller_program_;
 
-  uint32_t current_vr_app_;
-
-  // Used to center the scene when the shell becomes visible.
-  bool should_recenter_ = true;
-  mat4 initial_head_matrix_;
-  mat4 scale_;
-  mat4 translate_;
-  mat4 ime_translate_;
-  vec2 size_;
-
   std::unique_ptr<SurfaceFlingerView> surface_flinger_view_;
   std::unique_ptr<Reticle> reticle_;
   sp<VirtualTouchpad> virtual_touchpad_;
-  std::vector<TextureLayer> textures_;
-  TextureLayer ime_texture_;
-
-  bool is_touching_ = false;
-  bool allow_input_ = false;
-  int touchpad_buttons_ = 0;
-  vec2 hit_location_in_window_coord_;
-  vec2 ime_top_left_;
-  vec2 ime_size_;
-  bool has_ime_ = false;
 
   std::unique_ptr<Mesh<vec3, vec3, vec2>> controller_mesh_;
 
-  struct PendingFrame {
-    PendingFrame() = default;
-    PendingFrame(std::unique_ptr<HwcCallback::Frame>&& frame, ViewMode visibility)
-        : frame(std::move(frame)), visibility(visibility) {}
-    PendingFrame(PendingFrame&& r)
-        : frame(std::move(r.frame)), visibility(r.visibility) {}
+  bool is_touching_ = false;
+  int touchpad_buttons_ = 0;
+  vec2 size_;
 
-    void operator=(PendingFrame&& r) {
-      frame.reset(r.frame.release());
-      visibility = r.visibility;
-    }
+  // Used to center the scene when the shell becomes visible.
+  bool should_recenter_ = true;
 
-    std::unique_ptr<HwcCallback::Frame> frame;
-    ViewMode visibility = ViewMode::Hidden;
-  };
-  std::deque<PendingFrame> pending_frames_;
-  std::mutex pending_frame_mutex_;
-  PendingFrame current_frame_;
+  std::mutex display_frame_mutex_;
+
+  std::vector<std::unique_ptr<DisplayView>> displays_;
+  std::vector<std::unique_ptr<DisplayView>> new_displays_;
+  std::vector<DisplayView*> removed_displays_;
+  DisplayView* active_display_ = nullptr;
 
   mat4 controller_translate_;
-
-  base::unique_fd release_fence_;
 
   ShellView(const ShellView&) = delete;
   void operator=(const ShellView&) = delete;

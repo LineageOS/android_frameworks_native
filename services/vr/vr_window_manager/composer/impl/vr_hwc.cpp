@@ -102,7 +102,8 @@ HwcLayer* HwcDisplay::CreateLayer() {
 
 HwcLayer* HwcDisplay::GetLayer(Layer id) {
   for (size_t i = 0; i < layers_.size(); ++i)
-    if (layers_[i].info.id == id) return &layers_[i];
+    if (layers_[i].info.id == id)
+      return &layers_[i];
 
   return nullptr;
 }
@@ -219,7 +220,7 @@ std::vector<Layer> HwcDisplay::UpdateLastFrameAndGetLastFrameLayers() {
 ////////////////////////////////////////////////////////////////////////////////
 // VrHwcClient
 
-VrHwc::VrHwc() {}
+VrHwc::VrHwc() { displays_[kDefaultDisplayId].reset(new HwcDisplay()); }
 
 VrHwc::~VrHwc() {}
 
@@ -231,7 +232,6 @@ void VrHwc::removeClient() {
 }
 
 void VrHwc::enableCallback(bool enable) {
-  std::lock_guard<std::mutex> guard(mutex_);
   if (enable && client_ != nullptr) {
     client_.promote()->onHotplug(kDefaultDisplayId,
                                  IComposerCallback::Connection::CONNECTED);
@@ -247,31 +247,43 @@ Error VrHwc::createVirtualDisplay(uint32_t width, uint32_t height,
   return Error::NONE;
 }
 
-Error VrHwc::destroyVirtualDisplay(Display display) { return Error::NONE; }
+Error VrHwc::destroyVirtualDisplay(Display display) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (display == kDefaultDisplayId || displays_.erase(display) == 0)
+    return Error::BAD_DISPLAY;
+  ComposerView::Frame frame;
+  frame.display_id = display;
+  frame.removed = true;
+  if (observer_)
+    observer_->OnNewFrame(frame);
+  return Error::NONE;
+}
 
 Error VrHwc::createLayer(Display display, Layer* outLayer) {
-  if (display != kDefaultDisplayId) {
-    return Error::BAD_DISPLAY;
-  }
-
   std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
-  HwcLayer* layer = display_.CreateLayer();
+  HwcLayer* layer = display_ptr->CreateLayer();
   *outLayer = layer->info.id;
   return Error::NONE;
 }
 
 Error VrHwc::destroyLayer(Display display, Layer layer) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
   std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr) {
+    return Error::BAD_DISPLAY;
+  }
 
-  return display_.DestroyLayer(layer) ? Error::NONE : Error::BAD_LAYER;
+  return display_ptr->DestroyLayer(layer) ? Error::NONE : Error::BAD_LAYER;
 }
 
 Error VrHwc::getActiveConfig(Display display, Config* outConfig) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   *outConfig = kDefaultConfigId;
   return Error::NONE;
 }
@@ -291,10 +303,9 @@ Error VrHwc::getColorModes(Display display, hidl_vec<ColorMode>* outModes) {
 Error VrHwc::getDisplayAttribute(Display display, Config config,
                                  IComposerClient::Attribute attribute,
                                  int32_t* outValue) {
-  if (display != kDefaultDisplayId) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
     return Error::BAD_DISPLAY;
-  }
-
   if (config != kDefaultConfigId) {
     return Error::BAD_CONFIG;
   }
@@ -321,10 +332,9 @@ Error VrHwc::getDisplayAttribute(Display display, Config config,
 }
 
 Error VrHwc::getDisplayConfigs(Display display, hidl_vec<Config>* outConfigs) {
-  if (display != kDefaultDisplayId) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
     return Error::BAD_DISPLAY;
-  }
-
   std::vector<Config> configs(1, kDefaultConfigId);
   *outConfigs = hidl_vec<Config>(configs);
   return Error::NONE;
@@ -337,7 +347,9 @@ Error VrHwc::getDisplayName(Display display, hidl_string* outName) {
 
 Error VrHwc::getDisplayType(Display display,
                             IComposerClient::DisplayType* outType) {
-  if (display != kDefaultDisplayId) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr) {
     *outType = IComposerClient::DisplayType::INVALID;
     return Error::BAD_DISPLAY;
   }
@@ -348,10 +360,10 @@ Error VrHwc::getDisplayType(Display display,
 
 Error VrHwc::getDozeSupport(Display display, bool* outSupport) {
   *outSupport = false;
-  if (display == kDefaultDisplayId)
-    return Error::NONE;
-  else
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
     return Error::BAD_DISPLAY;
+  return Error::NONE;
 }
 
 Error VrHwc::getHdrCapabilities(Display display, hidl_vec<Hdr>* outTypes,
@@ -365,35 +377,41 @@ Error VrHwc::getHdrCapabilities(Display display, hidl_vec<Hdr>* outTypes,
 }
 
 Error VrHwc::setActiveConfig(Display display, Config config) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
-  if (config != kDefaultConfigId) return Error::BAD_CONFIG;
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
+  if (config != kDefaultConfigId)
+    return Error::BAD_CONFIG;
 
   return Error::NONE;
 }
 
 Error VrHwc::setColorMode(Display display, ColorMode mode) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   return Error::NONE;
 }
 
 Error VrHwc::setPowerMode(Display display, IComposerClient::PowerMode mode) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   return Error::NONE;
 }
 
 Error VrHwc::setVsyncEnabled(Display display, IComposerClient::Vsync enabled) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   return Error::NONE;
 }
 
 Error VrHwc::setColorTransform(Display display, const float* matrix,
                                int32_t hint) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   return Error::NONE;
 }
 
@@ -401,13 +419,15 @@ Error VrHwc::setClientTarget(Display display, buffer_handle_t target,
                              int32_t acquireFence, int32_t dataspace,
                              const std::vector<hwc_rect_t>& damage) {
   base::unique_fd fence(acquireFence);
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
-  if (target == nullptr) return Error::NONE;
-
   std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
-  if (!display_.SetClientTarget(target, std::move(fence)))
+  if (target == nullptr)
+    return Error::NONE;
+
+  if (!display_ptr->SetClientTarget(target, std::move(fence)))
     return Error::BAD_PARAMETER;
 
   return Error::NONE;
@@ -416,7 +436,10 @@ Error VrHwc::setClientTarget(Display display, buffer_handle_t target,
 Error VrHwc::setOutputBuffer(Display display, buffer_handle_t buffer,
                              int32_t releaseFence) {
   base::unique_fd fence(releaseFence);
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
   ALOGE("Virtual display support not implemented");
   return Error::UNSUPPORTED;
@@ -427,13 +450,13 @@ Error VrHwc::validateDisplay(
     std::vector<IComposerClient::Composition>* outCompositionTypes,
     uint32_t* outDisplayRequestMask, std::vector<Layer>* outRequestedLayers,
     std::vector<uint32_t>* outRequestMasks) {
-  if (display != kDefaultDisplayId) {
-    return Error::BAD_DISPLAY;
-  }
-
   std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
-  display_.GetChangedCompositionTypes(outChangedLayers, outCompositionTypes);
+  display_ptr->GetChangedCompositionTypes(outChangedLayers,
+                                          outCompositionTypes);
   return Error::NONE;
 }
 
@@ -446,18 +469,20 @@ Error VrHwc::presentDisplay(Display display, int32_t* outPresentFence,
   outLayers->clear();
   outReleaseFences->clear();
 
-  if (display != kDefaultDisplayId) {
-    return Error::BAD_DISPLAY;
-  }
-
-  std::vector<ComposerView::ComposerLayer> frame;
-  std::vector<Layer> last_frame_layers;
   std::lock_guard<std::mutex> guard(mutex_);
-  Error status = display_.GetFrame(&frame);
+  auto display_ptr = FindDisplay(display);
+
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
+
+  ComposerView::Frame frame;
+  std::vector<Layer> last_frame_layers;
+  Error status = display_ptr->GetFrame(&frame.layers);
+  frame.display_id = display;
   if (status != Error::NONE)
     return status;
 
-  last_frame_layers = display_.UpdateLastFrameAndGetLastFrameLayers();
+  last_frame_layers = display_ptr->UpdateLastFrameAndGetLastFrameLayers();
 
   base::unique_fd fence;
   if (observer_)
@@ -476,18 +501,23 @@ Error VrHwc::presentDisplay(Display display, int32_t* outPresentFence,
 
 Error VrHwc::setLayerCursorPosition(Display display, Layer layer, int32_t x,
                                     int32_t y) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   return Error::NONE;
 }
 
 Error VrHwc::setLayerBuffer(Display display, Layer layer,
                             buffer_handle_t buffer, int32_t acquireFence) {
   base::unique_fd fence(acquireFence);
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
-  HwcLayer* hwc_layer = display_.GetLayer(layer);
-  if (!hwc_layer) return Error::BAD_LAYER;
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
 
   hwc_layer->info.buffer = GetBufferFromHandle(buffer);
   hwc_layer->info.fence = new Fence(fence.release());
@@ -497,16 +527,21 @@ Error VrHwc::setLayerBuffer(Display display, Layer layer,
 
 Error VrHwc::setLayerSurfaceDamage(Display display, Layer layer,
                                    const std::vector<hwc_rect_t>& damage) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   return Error::NONE;
 }
 
 Error VrHwc::setLayerBlendMode(Display display, Layer layer, int32_t mode) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
-  HwcLayer* hwc_layer = display_.GetLayer(layer);
-  if (!hwc_layer) return Error::BAD_LAYER;
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
 
   hwc_layer->info.blend_mode =
       static_cast<ComposerView::ComposerLayer::BlendMode>(mode);
@@ -516,17 +551,22 @@ Error VrHwc::setLayerBlendMode(Display display, Layer layer, int32_t mode) {
 
 Error VrHwc::setLayerColor(Display display, Layer layer,
                            IComposerClient::Color color) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   return Error::NONE;
 }
 
 Error VrHwc::setLayerCompositionType(Display display, Layer layer,
                                      int32_t type) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
-  HwcLayer* hwc_layer = display_.GetLayer(layer);
-  if (!hwc_layer) return Error::BAD_LAYER;
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
 
   hwc_layer->composition_type = static_cast<HwcLayer::Composition>(type);
 
@@ -535,17 +575,22 @@ Error VrHwc::setLayerCompositionType(Display display, Layer layer,
 
 Error VrHwc::setLayerDataspace(Display display, Layer layer,
                                int32_t dataspace) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   return Error::NONE;
 }
 
 Error VrHwc::setLayerDisplayFrame(Display display, Layer layer,
                                   const hwc_rect_t& frame) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
-  HwcLayer* hwc_layer = display_.GetLayer(layer);
-  if (!hwc_layer) return Error::BAD_LAYER;
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
 
   hwc_layer->info.display_frame =
       {frame.left, frame.top, frame.right, frame.bottom};
@@ -554,10 +599,14 @@ Error VrHwc::setLayerDisplayFrame(Display display, Layer layer,
 }
 
 Error VrHwc::setLayerPlaneAlpha(Display display, Layer layer, float alpha) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
-  HwcLayer* hwc_layer = display_.GetLayer(layer);
-  if (!hwc_layer) return Error::BAD_LAYER;
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
 
   hwc_layer->info.alpha = alpha;
 
@@ -566,17 +615,22 @@ Error VrHwc::setLayerPlaneAlpha(Display display, Layer layer, float alpha) {
 
 Error VrHwc::setLayerSidebandStream(Display display, Layer layer,
                                     buffer_handle_t stream) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   return Error::NONE;
 }
 
 Error VrHwc::setLayerSourceCrop(Display display, Layer layer,
                                 const hwc_frect_t& crop) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
-  HwcLayer* hwc_layer = display_.GetLayer(layer);
-  if (!hwc_layer) return Error::BAD_LAYER;
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
 
   hwc_layer->info.crop = {crop.left, crop.top, crop.right, crop.bottom};
 
@@ -585,23 +639,29 @@ Error VrHwc::setLayerSourceCrop(Display display, Layer layer,
 
 Error VrHwc::setLayerTransform(Display display, Layer layer,
                                int32_t transform) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   return Error::NONE;
 }
 
 Error VrHwc::setLayerVisibleRegion(Display display, Layer layer,
                                    const std::vector<hwc_rect_t>& visible) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
-
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
   return Error::NONE;
 }
 
 Error VrHwc::setLayerZOrder(Display display, Layer layer, uint32_t z) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
-  HwcLayer* hwc_layer = display_.GetLayer(layer);
-  if (!hwc_layer) return Error::BAD_LAYER;
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
 
   hwc_layer->z_order = z;
 
@@ -610,10 +670,14 @@ Error VrHwc::setLayerZOrder(Display display, Layer layer, uint32_t z) {
 
 Error VrHwc::setLayerInfo(Display display, Layer layer, uint32_t type,
                           uint32_t appId) {
-  if (display != kDefaultDisplayId) return Error::BAD_DISPLAY;
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
 
-  HwcLayer* hwc_layer = display_.GetLayer(layer);
-  if (!hwc_layer) return Error::BAD_LAYER;
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
 
   hwc_layer->info.type = type;
   hwc_layer->info.app_id = appId;
@@ -663,6 +727,11 @@ void VrHwc::UnregisterObserver(Observer* observer) {
     ALOGE("Trying to unregister unknown observer");
   else
     observer_ = nullptr;
+}
+
+HwcDisplay* VrHwc::FindDisplay(Display display) {
+  auto iter = displays_.find(display);
+  return iter == displays_.end() ? nullptr : iter->second.get();
 }
 
 ComposerView* GetComposerViewFromIComposer(

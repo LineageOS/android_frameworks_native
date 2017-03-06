@@ -38,7 +38,8 @@ HwcCallback::HwcCallback(Client* client) : client_(client) {
 HwcCallback::~HwcCallback() {
 }
 
-base::unique_fd HwcCallback::OnNewFrame(const ComposerView::Frame& frame) {
+base::unique_fd HwcCallback::OnNewFrame(const ComposerView::Frame& display_frame) {
+  auto& frame = display_frame.layers;
   std::vector<HwcLayer> hwc_frame(frame.size());
   for (size_t i = 0; i < frame.size(); ++i) {
     hwc_frame[i] = HwcLayer{
@@ -53,12 +54,13 @@ base::unique_fd HwcCallback::OnNewFrame(const ComposerView::Frame& frame) {
     };
   }
 
-  return client_->OnFrame(
-      std::make_unique<Frame>(std::move(hwc_frame)));
+  return client_->OnFrame(std::make_unique<Frame>(
+      std::move(hwc_frame), display_frame.display_id, display_frame.removed));
 }
 
-HwcCallback::Frame::Frame(std::vector<HwcLayer>&& layers)
-    : layers_(std::move(layers)) {}
+HwcCallback::Frame::Frame(std::vector<HwcLayer>&& layers, uint32_t display_id,
+                          bool removed)
+    : display_id_(display_id), removed_(removed), layers_(std::move(layers)) {}
 
 HwcCallback::FrameStatus HwcCallback::Frame::Finish() {
   if (status_ == FrameStatus::kUnfinished)
