@@ -90,7 +90,7 @@ String8 getInputDeviceConfigurationFilePathByName(
     String8 path;
 
     // Treblized input device config files will be located /odm/usr or /vendor/usr.
-    char *rootsForPartition[] {"/odm", "/vendor", getenv("ANDROID_ROOT")};
+    const char *rootsForPartition[] {"/odm", "/vendor", getenv("ANDROID_ROOT")};
     for (size_t i = 0; i < size(rootsForPartition); i++) {
         path.setTo(rootsForPartition[i]);
         path.append("/usr/");
