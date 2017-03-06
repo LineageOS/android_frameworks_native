@@ -126,6 +126,7 @@ char const * const gExtensionString  =
         "EGL_EXT_yuv_surface "
         "EGL_EXT_protected_content "
         "EGL_IMG_context_priority "
+        "EGL_KHR_no_config_context "
         ;
 
 // extensions not exposed to applications but used by the ANDROID system
