@@ -36,7 +36,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
 
   // Updates the list of actively displayed surfaces. This must be called after
   // any change to client/manager attributes that affect visibility or z order.
-  int UpdateActiveDisplaySurfaces();
+  void UpdateActiveDisplaySurfaces();
 
   pdx::BorrowedChannelHandle SetupPoseBuffer(size_t extended_region_size,
                                              int usage);
@@ -63,13 +63,8 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
     return hardware_composer_.display_metrics();
   }
 
-  void SetActive(bool activated) {
-    if (activated) {
-      hardware_composer_.Resume();
-    } else {
-      hardware_composer_.Suspend();
-    }
-  }
+  void GrantDisplayOwnership() { hardware_composer_.Enable(); }
+  void SeizeDisplayOwnership() { hardware_composer_.Disable(); }
 
   void OnHardwareComposerRefresh();
 
@@ -88,8 +83,6 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
 
   DisplayRPC::ByteBuffer OnGetEdsCapture(pdx::Message& message);
 
-  int OnEnterVrMode(pdx::Message& message);
-  int OnExitVrMode(pdx::Message& message);
   void OnSetViewerParams(pdx::Message& message,
                          const ViewerParams& view_params);
   pdx::LocalChannelHandle OnGetPoseBuffer(pdx::Message& message);

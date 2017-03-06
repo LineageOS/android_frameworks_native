@@ -103,12 +103,13 @@ HardwareComposer::HardwareComposer(Hwc2::Composer* hwc2_hidl)
     : initialized_(false),
       hwc2_hidl_(hwc2_hidl),
       display_transform_(HWC_TRANSFORM_NONE),
-      display_surfaces_updated_(false),
-      hardware_layers_need_update_(false),
+      active_surfaces_updated_(false),
       active_layer_count_(0),
       gpu_layer_(nullptr),
-      post_thread_state_(PostThreadState::kPaused),
-      terminate_post_thread_event_fd_(-1),
+      post_thread_enabled_(false),
+      post_thread_running_(false),
+      post_thread_quit_requested_(false),
+      post_thread_interrupt_event_fd_(-1),
       backlight_brightness_fd_(-1),
       primary_display_vsync_event_fd_(-1),
       primary_display_wait_pp_fd_(-1),
@@ -124,7 +125,12 @@ HardwareComposer::HardwareComposer(Hwc2::Composer* hwc2_hidl)
 }
 
 HardwareComposer::~HardwareComposer(void) {
-  Suspend();
+  std::unique_lock<std::mutex> lock(post_thread_mutex_);
+  if (post_thread_.joinable()) {
+    post_thread_quit_requested_ = true;
+    post_thread_cond_var_.notify_all();
+    post_thread_.join();
+  }
 }
 
 bool HardwareComposer::Initialize() {
@@ -167,24 +173,56 @@ bool HardwareComposer::Initialize() {
   display_transform_ = HWC_TRANSFORM_NONE;
   display_metrics_ = native_display_metrics_;
 
+  post_thread_interrupt_event_fd_.Reset(
+      eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
+  LOG_ALWAYS_FATAL_IF(
+      !post_thread_interrupt_event_fd_,
+      "HardwareComposer: Failed to create interrupt event fd : %s",
+      strerror(errno));
+
+  post_thread_ = std::thread(&HardwareComposer::PostThread, this);
+
   initialized_ = true;
 
   return initialized_;
 }
 
-bool HardwareComposer::Resume() {
-  std::lock_guard<std::mutex> post_thread_lock(post_thread_state_mutex_);
-  if (post_thread_state_ == PostThreadState::kRunning) {
-    return false;
+void HardwareComposer::Enable() {
+  std::lock_guard<std::mutex> lock(post_thread_mutex_);
+  post_thread_enabled_ = true;
+  post_thread_cond_var_.notify_all();
+}
+
+void HardwareComposer::Disable() {
+  std::unique_lock<std::mutex> lock(post_thread_mutex_);
+  post_thread_enabled_ = false;
+  if (post_thread_running_) {
+    // Write to the interrupt fd to get fast interrupt of the post thread
+    int error = eventfd_write(post_thread_interrupt_event_fd_.Get(), 1);
+    ALOGW_IF(error,
+             "HardwareComposer::Disable: could not write post "
+             "thread interrupt event fd : %s",
+             strerror(errno));
+
+    post_thread_cond_var_.wait(lock, [this] { return !post_thread_running_; });
+
+    // Read the interrupt fd to clear its state
+    uint64_t interrupt_count= 0;
+    error = eventfd_read(post_thread_interrupt_event_fd_.Get(),
+                         &interrupt_count);
+    ALOGW_IF(error,
+             "HardwareComposer::Disable: could not read post "
+             "thread interrupt event fd : %s",
+             strerror(errno));
   }
+}
 
-  std::lock_guard<std::mutex> layer_lock(layer_mutex_);
+bool HardwareComposer::PostThreadHasWork() {
+  return !display_surfaces_.empty() ||
+      (active_surfaces_updated_ && !active_surfaces_.empty());
+}
 
-  int32_t ret = HWC2_ERROR_NONE;
-
-  // Always turn off vsync when we start.
-  EnableVsync(false);
-
+void HardwareComposer::OnPostThreadResumed() {
   constexpr int format = HAL_PIXEL_FORMAT_RGBA_8888;
   constexpr int usage =
       GRALLOC_USAGE_HW_FB | GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_RENDER;
@@ -198,97 +236,33 @@ bool HardwareComposer::Resume() {
     layer->Initialize(hwc2_hidl_.get(), &native_display_metrics_);
   }
 
-#if ENABLE_BACKLIGHT_BRIGHTNESS
-  // TODO(hendrikw): This isn't required at the moment. It's possible that there
-  //                 is another method to access this when needed.
-  // Open the backlight brightness control sysfs node.
-  backlight_brightness_fd_ = LocalHandle(kBacklightBrightnessSysFile, O_RDWR);
-  ALOGW_IF(!backlight_brightness_fd_,
-           "HardwareComposer: Failed to open backlight brightness control: %s",
-           strerror(errno));
-#endif // ENABLE_BACKLIGHT_BRIGHTNESS
-
-  // Open the vsync event node for the primary display.
-  // TODO(eieio): Move this into a platform-specific class.
-  primary_display_vsync_event_fd_ =
-      LocalHandle(kPrimaryDisplayVSyncEventFile, O_RDONLY);
-  ALOGE_IF(!primary_display_vsync_event_fd_,
-           "HardwareComposer: Failed to open vsync event node for primary "
-           "display: %s",
-           strerror(errno));
-
-  // Open the wait pingpong status node for the primary display.
-  // TODO(eieio): Move this into a platform-specific class.
-  primary_display_wait_pp_fd_ =
-      LocalHandle(kPrimaryDisplayWaitPPEventFile, O_RDONLY);
-  ALOGE_IF(
-      !primary_display_wait_pp_fd_,
-      "HardwareComposer: Failed to open wait_pp node for primary display: %s",
-      strerror(errno));
-
-  // Create a timerfd based on CLOCK_MONOTINIC.
-  vsync_sleep_timer_fd_.Reset(timerfd_create(CLOCK_MONOTONIC, 0));
-  LOG_ALWAYS_FATAL_IF(
-      !vsync_sleep_timer_fd_,
-      "HardwareComposer: Failed to create vsync sleep timerfd: %s",
-      strerror(errno));
-
   // Connect to pose service.
   pose_client_ = dvrPoseCreate();
   ALOGE_IF(!pose_client_, "HardwareComposer: Failed to create pose client");
 
-  terminate_post_thread_event_fd_.Reset(
-      eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
-  LOG_ALWAYS_FATAL_IF(
-      !terminate_post_thread_event_fd_,
-      "HardwareComposer: Failed to create terminate PostThread event fd : %s",
-      strerror(errno));
+  EnableVsync(true);
 
-  post_thread_state_ = PostThreadState::kRunning;
-  post_thread_state_cond_var_.notify_all();
+  // TODO(skiazyk): We need to do something about accessing this directly,
+  // supposedly there is a backlight service on the way.
+  // TODO(steventhomas): When we change the backlight setting, will surface
+  // flinger (or something else) set it back to its original value once we give
+  // control of the display back to surface flinger?
+  SetBacklightBrightness(255);
 
-  // If get_id() is the default thread::id object, it has not been created yet
-  if (post_thread_.get_id() == std::thread::id()) {
-    post_thread_ = std::thread(&HardwareComposer::PostThread, this);
-  } else {
-    UpdateDisplayState();
-  }
+  // Initialize the GPU compositor.
+  LOG_ALWAYS_FATAL_IF(!compositor_.Initialize(GetHmdDisplayMetrics()),
+                      "Failed to initialize the compositor");
 
-  return true;
+  // Trigger target-specific performance mode change.
+  property_set(kDvrPerformanceProperty, "performance");
 }
 
-bool HardwareComposer::Suspend() {
-  std::unique_lock<std::mutex> post_thread_lock(post_thread_state_mutex_);
-  if (post_thread_state_ == PostThreadState::kPaused) {
-    return false;
-  }
-
-  post_thread_state_ = PostThreadState::kPauseRequested;
-
-  int error = eventfd_write(terminate_post_thread_event_fd_.Get(), 1);
-  ALOGE_IF(error,
-           "HardwareComposer::Suspend: could not write post "
-           "thread termination event fd : %d",
-           error);
-
-  post_thread_state_cond_var_.wait(
-      post_thread_lock,
-      [this] { return post_thread_state_ == PostThreadState::kPaused; });
-  terminate_post_thread_event_fd_.Close();
-
-  // Wait for any pending layer operations to finish
-  std::lock_guard<std::mutex> layer_lock(layer_mutex_);
-
-  EnableVsync(false);
-
-  backlight_brightness_fd_.Close();
-  primary_display_vsync_event_fd_.Close();
-  primary_display_wait_pp_fd_.Close();
-  vsync_sleep_timer_fd_.Close();
+void HardwareComposer::OnPostThreadPaused() {
   retire_fence_fds_.clear();
   gpu_layer_ = nullptr;
 
-  // We have to destroy the layers before we close the hwc device
+  // We have to destroy the layers to fully clear hwc device state before
+  // handing off back to surface flinger
   for (size_t i = 0; i < kMaxHardwareLayers; ++i) {
     layers_[i]->Reset();
   }
@@ -297,12 +271,26 @@ bool HardwareComposer::Suspend() {
 
   framebuffer_target_.reset();
 
-  //hwc2_hidl_.reset();
+  display_surfaces_.clear();
+  compositor_surfaces_.clear();
 
-  if (pose_client_)
+  // Since we're clearing display_surfaces_ we'll need an update.
+  active_surfaces_updated_ = true;
+
+  if (pose_client_) {
     dvrPoseDestroy(pose_client_);
+    pose_client_ = nullptr;
+  }
 
-  return true;
+  EnableVsync(false);
+
+  frame_time_history_.ResetWithSeed(GuessFrameTime(0));
+  frame_time_backlog_.clear();
+
+  compositor_.Shutdown();
+
+  // Trigger target-specific performance mode change.
+  property_set(kDvrPerformanceProperty, "idle");
 }
 
 DisplayMetrics HardwareComposer::GetHmdDisplayMetrics() const {
@@ -519,82 +507,48 @@ void HardwareComposer::PostLayers(bool /*is_geometry_changed*/) {
   }
 }
 
-// TODO(skiazyk): This is a work-around for the fact that we currently do not
-// handle the case when new surfaces are introduced when displayd is not
-// in an active state. A proper-solution will require re-structuring
-// displayd a little, but hopefully this is sufficient for now.
-// For example, could this be handled in |UpdateLayerSettings| instead?
-void HardwareComposer::UpdateDisplayState() {
-  const bool has_display_surfaces = display_surfaces_.size() > 0;
-
-  if (has_display_surfaces) {
-    EnableVsync(true);
-  }
-
-  // TODO(skiazyk): We need to do something about accessing this directly,
-  // supposedly there is a backlight service on the way.
-  SetBacklightBrightness(255);
-
-  // Trigger target-specific performance mode change.
-  property_set(kDvrPerformanceProperty, has_display_surfaces ? "performance" : "idle");
-}
-
-int HardwareComposer::SetDisplaySurfaces(
+void HardwareComposer::SetDisplaySurfaces(
     std::vector<std::shared_ptr<DisplaySurface>> surfaces) {
-  // The double lock is necessary because we access both the display surfaces
-  // and post_thread_state_.
-  std::lock_guard<std::mutex> post_thread_state_lock(post_thread_state_mutex_);
-  std::lock_guard<std::mutex> layer_lock(layer_mutex_);
-
   ALOGI("HardwareComposer::SetDisplaySurfaces: surface count=%zd",
         surfaces.size());
+  std::unique_lock<std::mutex> lock(post_thread_mutex_);
+  active_surfaces_ = std::move(surfaces);
+  active_surfaces_updated_ = true;
+  if (post_thread_enabled_)
+    post_thread_cond_var_.notify_all();
+}
 
-  // Figure out whether we need to update hardware layers. If this surface
-  // change does not add or remove hardware layers we can avoid display hiccups
-  // by gracefully updating only the GPU compositor layers.
-  // hardware_layers_need_update_ is reset to false by the Post thread.
-  int old_gpu_layer_count = 0;
-  int new_gpu_layer_count = 0;
-  // Look for new hardware layers and count new GPU layers.
-  for (const auto& surface : surfaces) {
-    if (!(surface->flags() &
-          DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION))
-      ++new_gpu_layer_count;
-    else if (std::find(display_surfaces_.begin(), display_surfaces_.end(),
-                       surface) == display_surfaces_.end())
-      // This is a new hardware layer, we need to update.
-      hardware_layers_need_update_ = true;
+int HardwareComposer::PostThreadPollInterruptible(int event_fd) {
+  pollfd pfd[2] = {
+      {
+          .fd = event_fd, .events = POLLPRI | POLLIN, .revents = 0,
+      },
+      {
+          .fd = post_thread_interrupt_event_fd_.Get(),
+          .events = POLLPRI | POLLIN,
+          .revents = 0,
+      },
+  };
+  int ret, error;
+  do {
+    ret = poll(pfd, 2, -1);
+    error = errno;
+    ALOGW_IF(ret < 0,
+             "HardwareComposer::PostThreadPollInterruptible: Error during "
+             "poll(): %s (%d)",
+             strerror(error), error);
+  } while (ret < 0 && error == EINTR);
+
+  if (ret < 0) {
+    return -error;
+  } else if (pfd[0].revents != 0) {
+    return 0;
+  } else if (pfd[1].revents != 0) {
+    ALOGI("VrHwcPost thread interrupted");
+    return kPostThreadInterrupted;
+  } else {
+    return 0;
   }
-  // Look for deleted hardware layers or compositor layers.
-  for (const auto& surface : display_surfaces_) {
-    if (!(surface->flags() &
-          DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION))
-      ++old_gpu_layer_count;
-    else if (std::find(surfaces.begin(), surfaces.end(), surface) ==
-             surfaces.end())
-      // This is a deleted hardware layer, we need to update.
-      hardware_layers_need_update_ = true;
-  }
-  // Check for compositor hardware layer transition.
-  if ((!old_gpu_layer_count && new_gpu_layer_count) ||
-      (old_gpu_layer_count && !new_gpu_layer_count))
-    hardware_layers_need_update_ = true;
-
-  display_surfaces_ = std::move(surfaces);
-  display_surfaces_updated_ = true;
-
-  // Set the chosen layer order for all surfaces.
-  for (size_t i = 0; i < display_surfaces_.size(); ++i) {
-    display_surfaces_[i]->SetLayerOrder(static_cast<int>(i));
-  }
-
-  // TODO(skiazyk): fix this so that it is handled seamlessly with dormant/non-
-  // dormant state.
-  if (post_thread_state_ == PostThreadState::kRunning) {
-    UpdateDisplayState();
-  }
-
-  return 0;
 }
 
 // Reads the value of the display driver wait_pingpong state. Returns 0 or 1
@@ -690,35 +644,8 @@ int HardwareComposer::ReadVSyncTimestamp(int64_t* timestamp) {
 // Blocks until the next vsync event is signaled by the display driver.
 // TODO(eieio): This is pretty driver specific, this should be moved to a
 // separate class eventually.
-int HardwareComposer::BlockUntilVSync(/*out*/ bool* suspend_requested) {
-  *suspend_requested = false;
-  const int event_fd = primary_display_vsync_event_fd_.Get();
-  pollfd pfd[2] = {
-      {
-          .fd = event_fd, .events = POLLPRI, .revents = 0,
-      },
-      // This extra event fd is to ensure that we can break out of this loop to
-      // pause the thread even when vsync is disabled, and thus no events on the
-      // vsync fd are being generated.
-      {
-          .fd = terminate_post_thread_event_fd_.Get(),
-          .events = POLLPRI | POLLIN,
-          .revents = 0,
-      },
-  };
-  int ret, error;
-  do {
-    ret = poll(pfd, 2, -1);
-    error = errno;
-    ALOGW_IF(ret < 0,
-             "HardwareComposer::BlockUntilVSync: Error while waiting for vsync "
-             "event: %s (%d)",
-             strerror(error), error);
-  } while (ret < 0 && error == EINTR);
-
-  if (ret >= 0 && pfd[1].revents != 0)
-    *suspend_requested = true;
-  return ret < 0 ? -error : 0;
+int HardwareComposer::BlockUntilVSync() {
+  return PostThreadPollInterruptible(primary_display_vsync_event_fd_.Get());
 }
 
 // Waits for the next vsync and returns the timestamp of the vsync event. If
@@ -740,9 +667,8 @@ int HardwareComposer::WaitForVSync(int64_t* timestamp) {
 
     if (error == -EAGAIN) {
       // Vsync was turned off, wait for the next vsync event.
-      bool suspend_requested = false;
-      error = BlockUntilVSync(&suspend_requested);
-      if (error < 0 || suspend_requested)
+      error = BlockUntilVSync();
+      if (error < 0 || error == kPostThreadInterrupted)
         return error;
 
       // Try again to get the timestamp for this new vsync interval.
@@ -765,13 +691,14 @@ int HardwareComposer::WaitForVSync(int64_t* timestamp) {
 
     if (distance_to_vsync_est > threshold_ns) {
       // Wait for vsync event notification.
-      bool suspend_requested = false;
-      error = BlockUntilVSync(&suspend_requested);
-      if (error < 0 || suspend_requested)
+      error = BlockUntilVSync();
+      if (error < 0 || error == kPostThreadInterrupted)
         return error;
     } else {
-      // Sleep for a short time before retrying.
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      // Sleep for a short time (1 millisecond) before retrying.
+      error = SleepUntil(GetSystemClockNs() + 1000000);
+      if (error < 0 || error == kPostThreadInterrupted)
+        return error;
     }
   }
 }
@@ -791,21 +718,12 @@ int HardwareComposer::SleepUntil(int64_t wakeup_timestamp) {
     return -error;
   }
 
-  // Wait for the timer by reading the expiration count.
-  uint64_t expiration_count;
-  ret = read(timer_fd, &expiration_count, sizeof(expiration_count));
-  if (ret < 0) {
-    ALOGE("HardwareComposer::SleepUntil: Failed to wait for timerfd: %s",
-          strerror(error));
-    return -error;
-  }
-
-  return 0;
+  return PostThreadPollInterruptible(timer_fd);
 }
 
 void HardwareComposer::PostThread() {
   // NOLINTNEXTLINE(runtime/int)
-  prctl(PR_SET_NAME, reinterpret_cast<unsigned long>("PostThread"), 0, 0, 0);
+  prctl(PR_SET_NAME, reinterpret_cast<unsigned long>("VrHwcPost"), 0, 0, 0);
 
   // Set the scheduler to SCHED_FIFO with high priority.
   int error = dvrSetSchedulerClass(0, "graphics:high");
@@ -819,12 +737,40 @@ void HardwareComposer::PostThread() {
       "HardwareComposer::PostThread: Failed to set cpu partition: %s",
       strerror(-error));
 
-  // Force the layers to be setup at least once.
-  display_surfaces_updated_ = true;
+#if ENABLE_BACKLIGHT_BRIGHTNESS
+  // TODO(hendrikw): This isn't required at the moment. It's possible that there
+  //                 is another method to access this when needed.
+  // Open the backlight brightness control sysfs node.
+  backlight_brightness_fd_ = LocalHandle(kBacklightBrightnessSysFile, O_RDWR);
+  ALOGW_IF(!backlight_brightness_fd_,
+           "HardwareComposer: Failed to open backlight brightness control: %s",
+           strerror(errno));
+#endif // ENABLE_BACKLIGHT_BRIGHTNESS
 
-  // Initialize the GPU compositor.
-  LOG_ALWAYS_FATAL_IF(!compositor_.Initialize(GetHmdDisplayMetrics()),
-                      "Failed to initialize the compositor");
+  // Open the vsync event node for the primary display.
+  // TODO(eieio): Move this into a platform-specific class.
+  primary_display_vsync_event_fd_ =
+      LocalHandle(kPrimaryDisplayVSyncEventFile, O_RDONLY);
+  ALOGE_IF(!primary_display_vsync_event_fd_,
+           "HardwareComposer: Failed to open vsync event node for primary "
+           "display: %s",
+           strerror(errno));
+
+  // Open the wait pingpong status node for the primary display.
+  // TODO(eieio): Move this into a platform-specific class.
+  primary_display_wait_pp_fd_ =
+      LocalHandle(kPrimaryDisplayWaitPPEventFile, O_RDONLY);
+  ALOGW_IF(
+      !primary_display_wait_pp_fd_,
+      "HardwareComposer: Failed to open wait_pp node for primary display: %s",
+      strerror(errno));
+
+  // Create a timerfd based on CLOCK_MONOTINIC.
+  vsync_sleep_timer_fd_.Reset(timerfd_create(CLOCK_MONOTONIC, 0));
+  LOG_ALWAYS_FATAL_IF(
+      !vsync_sleep_timer_fd_,
+      "HardwareComposer: Failed to create vsync sleep timerfd: %s",
+      strerror(errno));
 
   const int64_t ns_per_frame = display_metrics_.vsync_period_ns;
   const int64_t photon_offset_ns = GetPosePredictionTimeOffset(ns_per_frame);
@@ -838,41 +784,48 @@ void HardwareComposer::PostThread() {
   right_eye_photon_offset_ns =
       property_get_int64(kRightEyeOffsetProperty, right_eye_photon_offset_ns);
 
-  // The list of surfaces the compositor should attempt to render. This is set
-  // at the start of each frame.
-  std::vector<std::shared_ptr<DisplaySurface>> compositor_surfaces;
-  compositor_surfaces.reserve(2);
+  compositor_surfaces_.reserve(2);
 
-  // Our history of frame times. This is used to get a better estimate of how
-  // long the next frame will take, to set a schedule for EDS.
-  FrameTimeHistory frame_time_history;
-
-  // The backlog is used to allow us to start rendering the next frame before
-  // the previous frame has finished, and still get an accurate measurement of
-  // frame duration.
-  std::vector<FrameTimeMeasurementRecord> frame_time_backlog;
   constexpr int kFrameTimeBacklogMax = 2;
-  frame_time_backlog.reserve(kFrameTimeBacklogMax);
+  frame_time_backlog_.reserve(kFrameTimeBacklogMax);
 
   // Storage for retrieving fence info.
   FenceInfoBuffer fence_info_buffer;
+
+  bool was_running = false;
 
   while (1) {
     ATRACE_NAME("HardwareComposer::PostThread");
 
     {
-      std::unique_lock<std::mutex> post_thread_lock(post_thread_state_mutex_);
-      if (post_thread_state_ == PostThreadState::kPauseRequested) {
-        ALOGI("HardwareComposer::PostThread: Post thread pause requested.");
-        post_thread_state_ = PostThreadState::kPaused;
-        post_thread_state_cond_var_.notify_all();
-        post_thread_state_cond_var_.wait(
-            post_thread_lock,
-            [this] { return post_thread_state_ == PostThreadState::kRunning; });
-        // The layers will need to be updated since they were deleted previously
-        display_surfaces_updated_ = true;
-        hardware_layers_need_update_ = true;
+      std::unique_lock<std::mutex> lock(post_thread_mutex_);
+      while (!post_thread_enabled_ || post_thread_quit_requested_ ||
+             !PostThreadHasWork()) {
+        if (was_running) {
+          const char* pause_reason = "unknown";
+          if (!post_thread_enabled_)
+            pause_reason = "disabled";
+          else if (post_thread_quit_requested_)
+            pause_reason = "quit requested";
+          else if (!PostThreadHasWork())
+            pause_reason = "no work";
+          ALOGI("VrHwcPost thread paused. Reason: %s.", pause_reason);
+          OnPostThreadPaused();
+          was_running = false;
+        }
+        post_thread_running_ = false;
+        post_thread_cond_var_.notify_all();
+        if (post_thread_quit_requested_)
+          return;
+        post_thread_cond_var_.wait(lock);
       }
+      post_thread_running_ = true;
+    }
+
+    if (!was_running) {
+      ALOGI("VrHwcPost thread resumed");
+      OnPostThreadResumed();
+      was_running = true;
     }
 
     int64_t vsync_timestamp = 0;
@@ -887,21 +840,12 @@ void HardwareComposer::PostThread() {
           error < 0,
           "HardwareComposer::PostThread: Failed to wait for vsync event: %s",
           strerror(-error));
-
       // Don't bother processing this frame if a pause was requested
-      std::lock_guard<std::mutex> post_thread_lock(post_thread_state_mutex_);
-      if (post_thread_state_ == PostThreadState::kPauseRequested) {
+      if (error == kPostThreadInterrupted)
         continue;
-      }
     }
 
     ++vsync_count_;
-
-    static double last_print_time = -1;
-    double current_time = GetSystemClockSec();
-    if (last_print_time < 0 || current_time - last_print_time > 3) {
-      last_print_time = current_time;
-    }
 
     if (pose_client_) {
       // Signal the pose service with vsync info.
@@ -911,24 +855,24 @@ void HardwareComposer::PostThread() {
                                 ns_per_frame, right_eye_photon_offset_ns);
     }
 
-    bool layer_config_changed = UpdateLayerConfig(&compositor_surfaces);
+    bool layer_config_changed = UpdateLayerConfig();
 
-    if (layer_config_changed) {
-      frame_time_history.ResetWithSeed(
-          GuessFrameTime(compositor_surfaces.size()));
-      frame_time_backlog.clear();
+    if (!was_running || layer_config_changed) {
+      frame_time_history_.ResetWithSeed(
+          GuessFrameTime(compositor_surfaces_.size()));
+      frame_time_backlog_.clear();
     } else {
-      UpdateFrameTimeHistory(&frame_time_backlog, kFrameTimeBacklogMax,
-                             &fence_info_buffer, &frame_time_history);
+      UpdateFrameTimeHistory(&frame_time_backlog_, kFrameTimeBacklogMax,
+                             &fence_info_buffer, &frame_time_history_);
     }
 
     // Get our current best estimate at how long the next frame will take to
     // render, based on how long previous frames took to render. Use this
     // estimate to decide when to wake up for EDS.
     int64_t frame_time_estimate =
-        frame_time_history.GetSampleCount() == 0
-            ? GuessFrameTime(compositor_surfaces.size())
-            : frame_time_history.GetAverage();
+        frame_time_history_.GetSampleCount() == 0
+            ? GuessFrameTime(compositor_surfaces_.size())
+            : frame_time_history_.GetAverage();
     frame_time_estimate = std::max(frame_time_estimate, kFrameTimeEstimateMin);
     DebugHudData::data.hwc_latency = frame_time_estimate;
 
@@ -958,9 +902,9 @@ void HardwareComposer::PostThread() {
 
         // There are several reasons we might skip a frame, but one possibility
         // is we mispredicted the frame time. Clear out the frame time history.
-        frame_time_history.ResetWithSeed(
-            GuessFrameTime(compositor_surfaces.size()));
-        frame_time_backlog.clear();
+        frame_time_history_.ResetWithSeed(
+            GuessFrameTime(compositor_surfaces_.size()));
+        frame_time_backlog_.clear();
         DebugHudData::data.hwc_frame_stats.SkipFrame();
 
         continue;
@@ -974,6 +918,8 @@ void HardwareComposer::PostThread() {
         error = SleepUntil(display_time_est - frame_time_estimate);
         ALOGE_IF(error < 0, "HardwareComposer::PostThread: Failed to sleep: %s",
                  strerror(-error));
+        if (error == kPostThreadInterrupted)
+          continue;
       }
     }
 
@@ -992,7 +938,7 @@ void HardwareComposer::PostThread() {
     // permanently backed up.
     PostLayers(layer_config_changed);
 
-    PostCompositorBuffers(compositor_surfaces);
+    PostCompositorBuffers();
 
     if (gpu_layer_ != nullptr) {
       // Note, with scanline racing, this draw is timed along with the post
@@ -1000,55 +946,88 @@ void HardwareComposer::PostThread() {
       LocalHandle frame_fence_fd;
       compositor_.DrawFrame(vsync_count_ + 1, &frame_fence_fd);
       if (frame_fence_fd) {
-        LOG_ALWAYS_FATAL_IF(frame_time_backlog.size() >= kFrameTimeBacklogMax,
+        LOG_ALWAYS_FATAL_IF(frame_time_backlog_.size() >= kFrameTimeBacklogMax,
                             "Frame time backlog exceeds capacity");
-        frame_time_backlog.push_back(
+        frame_time_backlog_.push_back(
             {frame_start_time, std::move(frame_fence_fd)});
       }
     } else if (!layer_config_changed) {
-      frame_time_history.AddSample(GetSystemClockNs() - frame_start_time);
+      frame_time_history_.AddSample(GetSystemClockNs() - frame_start_time);
     }
 
     HandlePendingScreenshots();
   }
-
-  // TODO(skiazyk): Currently the compositor is not fully releasing its EGL
-  // context, which seems to prevent the thread from exiting properly.
-  // This shouldn't be too hard to address, I just don't have time right now.
-  compositor_.Shutdown();
 }
 
-bool HardwareComposer::UpdateLayerConfig(
-    std::vector<std::shared_ptr<DisplaySurface>>* compositor_surfaces) {
-  std::lock_guard<std::mutex> layer_lock(layer_mutex_);
+bool HardwareComposer::UpdateLayerConfig() {
+  std::vector<std::shared_ptr<DisplaySurface>> old_display_surfaces;
+  {
+    std::lock_guard<std::mutex> lock(post_thread_mutex_);
+    if (!active_surfaces_updated_)
+      return false;
+    old_display_surfaces = display_surfaces_;
+    display_surfaces_ = active_surfaces_;
+    active_surfaces_updated_ = false;
+  }
 
-  if (!display_surfaces_updated_)
-    return false;
-
-  display_surfaces_updated_ = false;
   DebugHudData::data.ResetLayers();
+
+  // Figure out whether we need to update hardware layers. If this surface
+  // change does not add or remove hardware layers we can avoid display hiccups
+  // by gracefully updating only the GPU compositor layers.
+  int old_gpu_layer_count = 0;
+  int new_gpu_layer_count = 0;
+  bool hardware_layers_need_update = false;
+  // Look for new hardware layers and count new GPU layers.
+  for (const auto& surface : display_surfaces_) {
+    if (!(surface->flags() &
+          DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION))
+      ++new_gpu_layer_count;
+    else if (std::find(old_display_surfaces.begin(), old_display_surfaces.end(),
+                       surface) == old_display_surfaces.end())
+      // This is a new hardware layer, we need to update.
+      hardware_layers_need_update = true;
+  }
+  // Look for deleted hardware layers or compositor layers.
+  for (const auto& surface : old_display_surfaces) {
+    if (!(surface->flags() &
+          DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION))
+      ++old_gpu_layer_count;
+    else if (std::find(display_surfaces_.begin(), display_surfaces_.end(),
+                       surface) == display_surfaces_.end())
+      // This is a deleted hardware layer, we need to update.
+      hardware_layers_need_update = true;
+  }
+  // Check for compositor hardware layer transition.
+  if ((!old_gpu_layer_count && new_gpu_layer_count) ||
+      (old_gpu_layer_count && !new_gpu_layer_count))
+    hardware_layers_need_update = true;
+
+  // Set the chosen layer order for all surfaces.
+  for (size_t i = 0; i < display_surfaces_.size(); ++i) {
+    display_surfaces_[i]->SetLayerOrder(static_cast<int>(i));
+  }
 
   // Update compositor layers.
   {
     ATRACE_NAME("UpdateLayerConfig_GpuLayers");
     compositor_.UpdateSurfaces(display_surfaces_);
-    compositor_surfaces->clear();
+    compositor_surfaces_.clear();
     for (size_t i = 0; i < display_surfaces_.size(); ++i) {
       const auto& surface = display_surfaces_[i];
       if (!(surface->flags() &
             DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION)) {
-        compositor_surfaces->push_back(surface);
+        compositor_surfaces_.push_back(surface);
       }
     }
   }
 
-  if (!hardware_layers_need_update_)
+  if (!hardware_layers_need_update)
     return true;
 
   // Update hardware layers.
 
   ATRACE_NAME("UpdateLayerConfig_HwLayers");
-  hardware_layers_need_update_ = false;
 
   // Update the display layers in a non-destructive fashion.
 
@@ -1179,10 +1158,9 @@ bool HardwareComposer::UpdateLayerConfig(
   return true;
 }
 
-void HardwareComposer::PostCompositorBuffers(
-    const std::vector<std::shared_ptr<DisplaySurface>>& compositor_surfaces) {
+void HardwareComposer::PostCompositorBuffers() {
   ATRACE_NAME("PostCompositorBuffers");
-  for (const auto& surface : compositor_surfaces) {
+  for (const auto& surface : compositor_surfaces_) {
     compositor_.PostBuffer(surface);
   }
 }

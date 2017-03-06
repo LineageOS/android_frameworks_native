@@ -105,9 +105,6 @@ class DisplayClient : public pdx::ClientBase<DisplayClient> {
   // Pull the latest eds pose data from the display service renderer
   int GetLastFrameEdsTransform(LateLatchOutput* ll_out);
 
-  int EnterVrMode();
-  int ExitVrMode();
-
   std::unique_ptr<DisplaySurfaceClient> CreateDisplaySurface(
       int width, int height, int format, int usage, int flags);
 
