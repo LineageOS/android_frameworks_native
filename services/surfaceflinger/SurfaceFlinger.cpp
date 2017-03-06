@@ -102,33 +102,6 @@ namespace android {
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 
-// This is the phase offset in nanoseconds of the software vsync event
-// relative to the vsync event reported by HWComposer.  The software vsync
-// event is when SurfaceFlinger and Choreographer-based applications run each
-// frame.
-//
-// This phase offset allows adjustment of the minimum latency from application
-// wake-up (by Choregographer) time to the time at which the resulting window
-// image is displayed.  This value may be either positive (after the HW vsync)
-// or negative (before the HW vsync).  Setting it to 0 will result in a
-// minimum latency of two vsync periods because the app and SurfaceFlinger
-// will run just after the HW vsync.  Setting it to a positive number will
-// result in the minimum latency being:
-//
-//     (2 * VSYNC_PERIOD - (vsyncPhaseOffsetNs % VSYNC_PERIOD))
-//
-// Note that reducing this latency makes it more likely for the applications
-// to not have their window content image ready in time.  When this happens
-// the latency will end up being an additional vsync period, and animations
-// will hiccup.  Therefore, this latency should be tuned somewhat
-// conservatively (or at least with awareness of the trade-off being made).
-static int64_t vsyncPhaseOffsetNs = getInt64<
-        ISurfaceFlingerConfigs,
-        &ISurfaceFlingerConfigs::vsyncEventPhaseOffsetNs>(1000000);
-
-// This is the phase offset at which SurfaceFlinger's composition runs.
-static constexpr int64_t sfVsyncPhaseOffsetNs = SF_VSYNC_EVENT_PHASE_OFFSET_NS;
-
 // ---------------------------------------------------------------------------
 
 const String16 sHardwareTest("android.permission.HARDWARE_TEST");
@@ -137,6 +110,8 @@ const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sDump("android.permission.DUMP");
 
 // ---------------------------------------------------------------------------
+int64_t SurfaceFlinger::vsyncPhaseOffsetNs;
+int64_t SurfaceFlinger::sfVsyncPhaseOffsetNs;
 
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
@@ -180,6 +155,13 @@ SurfaceFlinger::SurfaceFlinger()
         ,mEnterVrMode(false)
 #endif
 {
+
+    vsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::vsyncEventPhaseOffsetNs>(1000000);
+
+    sfVsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::vsyncSfEventPhaseOffsetNs>(1000000);
+
     ALOGI("SurfaceFlinger is starting");
 
     // debugging stuff...
@@ -750,7 +732,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         // We add an additional 1ms to allow for processing time and
         // differences between the ideal and actual refresh rate.
         info.presentationDeadline = hwConfig->getVsyncPeriod() -
-                SF_VSYNC_EVENT_PHASE_OFFSET_NS + 1000000;
+                sfVsyncPhaseOffsetNs + 1000000;
 
         // All non-virtual displays are currently considered secure.
         info.secure = true;

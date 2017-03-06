@@ -183,7 +183,7 @@ nsecs_t SurfaceFlingerConsumer::computeExpectedPresent(const DispSync& dispSync)
     // we don't need to factor that in here.  Pad a little to avoid
     // weird effects if apps might be requesting times right on the edge.
     nsecs_t extraPadding = 0;
-    if (VSYNC_EVENT_PHASE_OFFSET_NS == 0) {
+    if (SurfaceFlinger::vsyncPhaseOffsetNs == 0) {
         extraPadding = 1000000;        // 1ms (6% of 60Hz)
     }
 
