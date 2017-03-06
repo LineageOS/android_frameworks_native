@@ -3,10 +3,10 @@
 
 #include <private/dvr/graphics/mesh.h>
 #include <private/dvr/graphics/shader_program.h>
-#include <android/dvr/IVirtualTouchpadService.h>
 
 #include <deque>
 
+#include "VirtualTouchpadClient.h"
 #include "application.h"
 #include "reticle.h"
 #include "shell_view_binder_interface.h"
@@ -90,7 +90,7 @@ class ShellView : public Application,
 
   std::unique_ptr<SurfaceFlingerView> surface_flinger_view_;
   std::unique_ptr<Reticle> reticle_;
-  sp<IVirtualTouchpadService> virtual_touchpad_;
+  sp<VirtualTouchpad> virtual_touchpad_;
   std::vector<TextureLayer> textures_;
   TextureLayer ime_texture_;
 
