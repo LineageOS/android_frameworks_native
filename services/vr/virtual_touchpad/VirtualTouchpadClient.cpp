@@ -12,19 +12,20 @@ class VirtualTouchpadClientImpl : public VirtualTouchpadClient {
  public:
   VirtualTouchpadClientImpl(sp<IVirtualTouchpadService> service)
       : service_(service) {}
-  ~VirtualTouchpadClientImpl() {}
+  ~VirtualTouchpadClientImpl() override {}
 
-  status_t Touch(float x, float y, float pressure) override {
+  status_t Touch(int touchpad,
+                 float x, float y, float pressure) override {
     if (service_ == nullptr) {
       return NO_INIT;
     }
-    return service_->touch(x, y, pressure).transactionError();
+    return service_->touch(touchpad, x, y, pressure).transactionError();
   }
-  status_t ButtonState(int buttons) override {
+  status_t ButtonState(int touchpad, int buttons) override {
     if (service_ == nullptr) {
       return NO_INIT;
     }
-    return service_->buttonState(buttons).transactionError();
+    return service_->buttonState(touchpad, buttons).transactionError();
   }
 
  private:

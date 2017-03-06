@@ -56,15 +56,17 @@ int VirtualTouchpadEvdev::Initialize() {
   return injector_->GetError();
 }
 
-int VirtualTouchpadEvdev::Touch(float x, float y, float pressure) {
+int VirtualTouchpadEvdev::Touch(int touchpad, float x, float y,
+                                float pressure) {
+  (void)touchpad; // TODO(b/35992608) Support multiple virtual touchpad devices.
   if ((x < 0.0f) || (x >= 1.0f) || (y < 0.0f) || (y >= 1.0f)) {
     return EINVAL;
   }
   int32_t device_x = x * kWidth;
   int32_t device_y = y * kHeight;
   touches_ = ((touches_ & 1) << 1) | (pressure > 0);
-  ALOGV("(%f,%f) %f -> (%" PRId32 ",%" PRId32 ") %d",
-        x, y, pressure, device_x, device_y, touches_);
+  ALOGV("(%f,%f) %f -> (%" PRId32 ",%" PRId32 ") %d", x, y, pressure, device_x,
+        device_y, touches_);
 
   if (!injector_) {
     return EvdevInjector::ERROR_SEQUENCING;
@@ -101,7 +103,8 @@ int VirtualTouchpadEvdev::Touch(float x, float y, float pressure) {
   return injector_->GetError();
 }
 
-int VirtualTouchpadEvdev::ButtonState(int buttons) {
+int VirtualTouchpadEvdev::ButtonState(int touchpad, int buttons) {
+  (void)touchpad; // TODO(b/35992608) Support multiple virtual touchpad devices.
   const int changes = last_motion_event_buttons_ ^ buttons;
   if (!changes) {
     return 0;
@@ -117,10 +120,9 @@ int VirtualTouchpadEvdev::ButtonState(int buttons) {
   }
   injector_->ResetError();
   if (changes & AMOTION_EVENT_BUTTON_BACK) {
-    injector_->SendKey(BTN_BACK,
-                       (buttons & AMOTION_EVENT_BUTTON_BACK)
-                           ? EvdevInjector::KEY_PRESS
-                           : EvdevInjector::KEY_RELEASE);
+    injector_->SendKey(BTN_BACK, (buttons & AMOTION_EVENT_BUTTON_BACK)
+                                     ? EvdevInjector::KEY_PRESS
+                                     : EvdevInjector::KEY_RELEASE);
   }
   last_motion_event_buttons_ = buttons;
   return injector_->GetError();

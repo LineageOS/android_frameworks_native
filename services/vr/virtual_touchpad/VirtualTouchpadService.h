@@ -15,11 +15,12 @@ class VirtualTouchpadService : public BnVirtualTouchpadService {
  public:
   VirtualTouchpadService(sp<VirtualTouchpad> touchpad)
       : touchpad_(touchpad) {}
+  ~VirtualTouchpadService() override {}
 
  protected:
   // Implements IVirtualTouchpadService.
-  binder::Status touch(float x, float y, float pressure) override;
-  binder::Status buttonState(int buttons) override;
+  binder::Status touch(int touchpad, float x, float y, float pressure) override;
+  binder::Status buttonState(int touchpad, int buttons) override;
 
  private:
   sp<VirtualTouchpad> touchpad_;

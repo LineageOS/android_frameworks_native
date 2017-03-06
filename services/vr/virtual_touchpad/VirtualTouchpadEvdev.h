@@ -18,12 +18,12 @@ class VirtualTouchpadEvdev : public VirtualTouchpad {
   static sp<VirtualTouchpad> Create();
 
   // VirtualTouchpad implementation:
-  status_t Touch(float x, float y, float pressure) override;
-  status_t ButtonState(int buttons) override;
+  status_t Touch(int touchpad, float x, float y, float pressure) override;
+  status_t ButtonState(int touchpad, int buttons) override;
 
  protected:
   VirtualTouchpadEvdev() {}
-  ~VirtualTouchpadEvdev() {}
+  ~VirtualTouchpadEvdev() override {}
   status_t Initialize();
 
   // Must be called only between construction and Initialize().
