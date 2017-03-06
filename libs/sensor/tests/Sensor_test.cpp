@@ -16,7 +16,7 @@
 
 #define LOG_TAG "Sensor_test"
 
-#include <gui/Sensor.h>
+#include <sensor/Sensor.h>
 #include <hardware/sensors.h>
 #include <utils/Errors.h>
 

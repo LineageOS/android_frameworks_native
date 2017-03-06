@@ -17,7 +17,7 @@
 #ifndef ANDROID_SENSOR_INTERFACE_H
 #define ANDROID_SENSOR_INTERFACE_H
 
-#include <gui/Sensor.h>
+#include <sensor/Sensor.h>
 #include <utils/RefBase.h>
 
 // ---------------------------------------------------------------------------

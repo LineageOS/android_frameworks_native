@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <sensor/ISensorEventConnection.h>
+
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -24,8 +26,7 @@
 #include <binder/Parcel.h>
 #include <binder/IInterface.h>
 
-#include <gui/ISensorEventConnection.h>
-#include <gui/BitTube.h>
+#include <sensor/BitTube.h>
 
 namespace android {
 // ----------------------------------------------------------------------------

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <sensor/ISensorServer.h>
+
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -26,9 +28,8 @@
 #include <binder/Parcel.h>
 #include <binder/IInterface.h>
 
-#include <gui/Sensor.h>
-#include <gui/ISensorServer.h>
-#include <gui/ISensorEventConnection.h>
+#include <sensor/Sensor.h>
+#include <sensor/ISensorEventConnection.h>
 
 namespace android {
 // ----------------------------------------------------------------------------

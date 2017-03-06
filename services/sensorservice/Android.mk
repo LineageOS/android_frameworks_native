@@ -33,8 +33,7 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     liblog \
     libbinder \
-    libui \
-    libgui \
+    libsensor \
     libcrypto \
     libbase \
     libhidlbase \
@@ -44,6 +43,10 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_STATIC_LIBRARIES := \
     android.hardware.sensors@1.0-convert
+
+# our public headers depend on libsensor
+LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := \
+    libsensor \
 
 LOCAL_MODULE:= libsensorservice
 

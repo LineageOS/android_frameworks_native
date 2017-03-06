@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <gui/Sensor.h>
+#include <sensor/Sensor.h>
 
 #include "SensorDevice.h"
 #include "SensorInterface.h"

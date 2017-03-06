@@ -20,7 +20,7 @@
 #include "SensorInterface.h"
 #include "SensorServiceUtils.h"
 
-#include <gui/Sensor.h>
+#include <sensor/Sensor.h>
 #include <utils/String8.h>
 #include <utils/Vector.h>
 

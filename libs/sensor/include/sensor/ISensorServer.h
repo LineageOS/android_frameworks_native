@@ -14,38 +14,47 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_ISENSOR_EVENT_CONNECTION_H
-#define ANDROID_GUI_ISENSOR_EVENT_CONNECTION_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
 
 #include <utils/Errors.h>
-#include <utils/RefBase.h>
+#include <utils/StrongPointer.h>
+#include <utils/Vector.h>
 
 #include <binder/IInterface.h>
 
+struct native_handle;
+typedef struct native_handle native_handle_t;
 namespace android {
 // ----------------------------------------------------------------------------
 
-class BitTube;
+class ISensorEventConnection;
+class Parcel;
+class Sensor;
+class String8;
+class String16;
 
-class ISensorEventConnection : public IInterface
+class ISensorServer : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(SensorEventConnection)
+    DECLARE_META_INTERFACE(SensorServer)
 
-    virtual sp<BitTube> getSensorChannel() const = 0;
-    virtual status_t enableDisable(int handle, bool enabled, nsecs_t samplingPeriodNs,
-                                   nsecs_t maxBatchReportLatencyNs, int reservedFlags) = 0;
-    virtual status_t setEventRate(int handle, nsecs_t ns) = 0;
-    virtual status_t flush() = 0;
-    virtual int32_t configureChannel(int32_t handle, int32_t rateLevel) = 0;
+    virtual Vector<Sensor> getSensorList(const String16& opPackageName) = 0;
+    virtual Vector<Sensor> getDynamicSensorList(const String16& opPackageName) = 0;
+
+    virtual sp<ISensorEventConnection> createSensorEventConnection(const String8& packageName,
+             int mode, const String16& opPackageName) = 0;
+    virtual int32_t isDataInjectionEnabled() = 0;
+
+    virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
+            uint32_t size, int32_t type, int32_t format, const native_handle_t *resource) = 0;
 };
 
 // ----------------------------------------------------------------------------
 
-class BnSensorEventConnection : public BnInterface<ISensorEventConnection>
+class BnSensorServer : public BnInterface<ISensorServer>
 {
 public:
     virtual status_t    onTransact( uint32_t code,
@@ -56,5 +65,3 @@ public:
 
 // ----------------------------------------------------------------------------
 }; // namespace android
-
-#endif // ANDROID_GUI_ISENSOR_EVENT_CONNECTION_H

@@ -38,10 +38,6 @@ cc_library_shared {
         // Don't warn about struct padding
         "-Wno-padded",
 
-        // android/sensors.h uses nested anonymous unions and anonymous structs
-        "-Wno-nested-anon-types",
-        "-Wno-gnu-anonymous-struct",
-
         // We are aware of the risks inherent in comparing floats for equality
         "-Wno-float-equal",
 
@@ -61,8 +57,6 @@ cc_library_shared {
     },
 
     srcs: [
-        "IGraphicBufferConsumer.cpp",
-        "IConsumerListener.cpp",
         "BitTube.cpp",
         "BufferItem.cpp",
         "BufferItemConsumer.cpp",
@@ -79,18 +73,15 @@ cc_library_shared {
         "GraphicBufferAlloc.cpp",
         "GuiConfig.cpp",
         "IDisplayEventConnection.cpp",
+        "IConsumerListener.cpp",
         "IGraphicBufferAlloc.cpp",
+        "IGraphicBufferConsumer.cpp",
         "IGraphicBufferProducer.cpp",
         "IProducerListener.cpp",
-        "ISensorEventConnection.cpp",
-        "ISensorServer.cpp",
         "ISurfaceComposer.cpp",
         "ISurfaceComposerClient.cpp",
         "LayerState.cpp",
         "OccupancyTracker.cpp",
-        "Sensor.cpp",
-        "SensorEventQueue.cpp",
-        "SensorManager.cpp",
         "StreamSplitter.cpp",
         "Surface.cpp",
         "SurfaceControl.cpp",

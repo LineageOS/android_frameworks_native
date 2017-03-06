@@ -22,7 +22,7 @@
 #include <binder/PermissionCache.h>
 
 #include <cutils/ashmem.h>
-#include <gui/SensorEventQueue.h>
+#include <sensor/SensorEventQueue.h>
 
 #include <hardware/sensors.h>
 #include <hardware_legacy/power.h>

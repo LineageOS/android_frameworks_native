@@ -25,7 +25,7 @@
 #include <utils/Log.h>
 
 #include <gui/IDisplayEventConnection.h>
-#include <gui/BitTube.h>
+#include <private/gui/BitTube.h>
 
 #include "MessageQueue.h"
 #include "EventThread.h"

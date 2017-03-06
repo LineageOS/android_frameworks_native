@@ -31,10 +31,10 @@
 
 #include <binder/BinderService.h>
 
-#include <gui/Sensor.h>
-#include <gui/BitTube.h>
-#include <gui/ISensorServer.h>
-#include <gui/ISensorEventConnection.h>
+#include <sensor/Sensor.h>
+#include <sensor/BitTube.h>
+#include <sensor/ISensorServer.h>
+#include <sensor/ISensorEventConnection.h>
 
 #include "SensorService.h"
 

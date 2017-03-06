@@ -14,45 +14,39 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_ISENSORSERVER_H
-#define ANDROID_GUI_ISENSORSERVER_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
 
 #include <utils/Errors.h>
-#include <utils/RefBase.h>
+#include <utils/StrongPointer.h>
+#include <utils/Timers.h>
 
 #include <binder/IInterface.h>
 
-struct native_handle;
-typedef struct native_handle native_handle_t;
 namespace android {
 // ----------------------------------------------------------------------------
 
-class Sensor;
-class ISensorEventConnection;
-class String8;
+class BitTube;
+class Parcel;
 
-class ISensorServer : public IInterface
+class ISensorEventConnection : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(SensorServer)
+    DECLARE_META_INTERFACE(SensorEventConnection)
 
-    virtual Vector<Sensor> getSensorList(const String16& opPackageName) = 0;
-    virtual Vector<Sensor> getDynamicSensorList(const String16& opPackageName) = 0;
-
-    virtual sp<ISensorEventConnection> createSensorEventConnection(const String8& packageName,
-             int mode, const String16& opPackageName) = 0;
-    virtual int32_t isDataInjectionEnabled() = 0;
-
-    virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
-            uint32_t size, int32_t type, int32_t format, const native_handle_t *resource) = 0;
+    virtual sp<BitTube> getSensorChannel() const = 0;
+    virtual status_t enableDisable(int handle, bool enabled, nsecs_t samplingPeriodNs,
+                                   nsecs_t maxBatchReportLatencyNs, int reservedFlags) = 0;
+    virtual status_t setEventRate(int handle, nsecs_t ns) = 0;
+    virtual status_t flush() = 0;
+    virtual int32_t configureChannel(int32_t handle, int32_t rateLevel) = 0;
 };
 
 // ----------------------------------------------------------------------------
 
-class BnSensorServer : public BnInterface<ISensorServer>
+class BnSensorEventConnection : public BnInterface<ISensorEventConnection>
 {
 public:
     virtual status_t    onTransact( uint32_t code,
@@ -63,5 +57,3 @@ public:
 
 // ----------------------------------------------------------------------------
 }; // namespace android
-
-#endif // ANDROID_GUI_ISENSORSERVER_H
