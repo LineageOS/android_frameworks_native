@@ -4,6 +4,9 @@
 #include <thread>
 #include <memory>
 
+#include <pdx/default_transport/service_dispatcher.h>
+#include <vr/vr_manager/vr_manager.h>
+
 namespace android {
 
 namespace Hwc2 {
@@ -16,16 +19,39 @@ class DisplayService;
 
 class VrFlinger {
  public:
-  VrFlinger();
-  int Run(Hwc2::Composer* hidl);
+  using RequestDisplayCallback = std::function<void(bool)>;
+  static std::unique_ptr<VrFlinger> Create(
+      Hwc2::Composer* hidl, RequestDisplayCallback request_display_callback);
+  ~VrFlinger();
 
-  void EnterVrMode();
-  void ExitVrMode();
+  // These functions are all called on surface flinger's main thread.
+  void OnBootFinished();
+  void GrantDisplayOwnership();
+  void SeizeDisplayOwnership();
+
+  // Called on a binder thread.
   void OnHardwareComposerRefresh();
 
  private:
-  std::thread displayd_thread_;
+  VrFlinger();
+  bool Init(Hwc2::Composer* hidl,
+            RequestDisplayCallback request_display_callback);
+
+  // Needs to be a separate class for binder's ref counting
+  class PersistentVrStateCallback : public BnPersistentVrStateCallbacks {
+   public:
+    PersistentVrStateCallback(RequestDisplayCallback request_display_callback)
+        : request_display_callback_(request_display_callback) {}
+    void onPersistentVrStateChanged(bool enabled) override;
+   private:
+    RequestDisplayCallback request_display_callback_;
+  };
+
+  std::thread dispatcher_thread_;
+  std::unique_ptr<android::pdx::ServiceDispatcher> dispatcher_;
   std::shared_ptr<android::dvr::DisplayService> display_service_;
+  sp<PersistentVrStateCallback> persistent_vr_state_callback_;
+  RequestDisplayCallback request_display_callback_;
 };
 
 } // namespace dvr

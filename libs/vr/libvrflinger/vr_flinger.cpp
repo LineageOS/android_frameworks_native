@@ -9,11 +9,13 @@
 #include <unistd.h>
 #include <memory>
 
+#include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
 #include <log/log.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
 #include <private/dvr/display_client.h>
+#include <sys/prctl.h>
 #include <sys/resource.h>
 
 #include <pdx/default_transport/service_dispatcher.h>
@@ -29,11 +31,37 @@
 namespace android {
 namespace dvr {
 
+std::unique_ptr<VrFlinger> VrFlinger::Create(
+    Hwc2::Composer* hidl, RequestDisplayCallback request_display_callback) {
+  std::unique_ptr<VrFlinger> vr_flinger(new VrFlinger);
+  if (vr_flinger->Init(hidl, request_display_callback))
+    return vr_flinger;
+  else
+    return nullptr;
+}
+
 VrFlinger::VrFlinger() {}
 
-int VrFlinger::Run(Hwc2::Composer* hidl) {
-  if (!hidl)
-    return EINVAL;
+VrFlinger::~VrFlinger() {
+  if (persistent_vr_state_callback_.get()) {
+    sp<IVrManager> vr_manager = interface_cast<IVrManager>(
+        defaultServiceManager()->checkService(String16("vrmanager")));
+    if (vr_manager.get()) {
+      vr_manager->unregisterPersistentVrStateListener(
+          persistent_vr_state_callback_);
+    }
+  }
+
+  if (dispatcher_)
+    dispatcher_->SetCanceled(true);
+  if (dispatcher_thread_.joinable())
+    dispatcher_thread_.join();
+}
+
+bool VrFlinger::Init(Hwc2::Composer* hidl,
+                     RequestDisplayCallback request_display_callback) {
+  if (!hidl || !request_display_callback)
+    return false;
 
   std::shared_ptr<android::pdx::Service> service;
 
@@ -47,25 +75,27 @@ int VrFlinger::Run(Hwc2::Composer* hidl) {
 
   android::ProcessState::self()->startThreadPool();
 
-  std::shared_ptr<android::pdx::ServiceDispatcher> dispatcher =
+  request_display_callback_ = request_display_callback;
+
+  dispatcher_ =
       android::pdx::default_transport::ServiceDispatcher::Create();
-  CHECK_ERROR(!dispatcher, error, "Failed to create service dispatcher.");
+  CHECK_ERROR(!dispatcher_, error, "Failed to create service dispatcher.");
 
   display_service_ = android::dvr::DisplayService::Create(hidl);
   CHECK_ERROR(!display_service_, error, "Failed to create display service.");
-  dispatcher->AddService(display_service_);
+  dispatcher_->AddService(display_service_);
 
   service = android::dvr::DisplayManagerService::Create(display_service_);
   CHECK_ERROR(!service, error, "Failed to create display manager service.");
-  dispatcher->AddService(service);
+  dispatcher_->AddService(service);
 
   service = android::dvr::ScreenshotService::Create();
   CHECK_ERROR(!service, error, "Failed to create screenshot service.");
-  dispatcher->AddService(service);
+  dispatcher_->AddService(service);
 
   service = android::dvr::VSyncService::Create();
   CHECK_ERROR(!service, error, "Failed to create vsync service.");
-  dispatcher->AddService(service);
+  dispatcher_->AddService(service);
 
   display_service_->SetVSyncCallback(
       std::bind(&android::dvr::VSyncService::VSyncEvent,
@@ -73,45 +103,51 @@ int VrFlinger::Run(Hwc2::Composer* hidl) {
                 std::placeholders::_1, std::placeholders::_2,
                 std::placeholders::_3, std::placeholders::_4));
 
-  displayd_thread_ = std::thread([this, dispatcher]() {
+  dispatcher_thread_ = std::thread([this]() {
+    prctl(PR_SET_NAME, reinterpret_cast<unsigned long>("VrDispatch"), 0, 0, 0);
     ALOGI("Entering message loop.");
 
-    int ret = dispatcher->EnterDispatchLoop();
+    int ret = dispatcher_->EnterDispatchLoop();
     if (ret < 0) {
       ALOGE("Dispatch loop exited because: %s\n", strerror(-ret));
     }
   });
 
-  return NO_ERROR;
+  return true;
 
 error:
-  display_service_.reset();
-
-  return -1;
+  return false;
 }
 
-void VrFlinger::EnterVrMode() {
-  if (display_service_) {
-    display_service_->SetActive(true);
+void VrFlinger::OnBootFinished() {
+  sp<IVrManager> vr_manager = interface_cast<IVrManager>(
+      defaultServiceManager()->checkService(String16("vrmanager")));
+  if (vr_manager.get()) {
+    persistent_vr_state_callback_ =
+        new PersistentVrStateCallback(request_display_callback_);
+    vr_manager->registerPersistentVrStateListener(
+        persistent_vr_state_callback_);
   } else {
-    ALOGE("Failed to enter VR mode : Display service is not started.");
+    ALOGE("Unable to register vr flinger for persistent vr mode changes");
   }
 }
 
-void VrFlinger::ExitVrMode() {
-  if (display_service_) {
-    display_service_->SetActive(false);
-  } else {
-    ALOGE("Failed to exit VR mode : Display service is not started.");
-  }
+void VrFlinger::GrantDisplayOwnership() {
+  display_service_->GrantDisplayOwnership();
+}
+
+void VrFlinger::SeizeDisplayOwnership() {
+  display_service_->SeizeDisplayOwnership();
 }
 
 void VrFlinger::OnHardwareComposerRefresh() {
-  if (display_service_) {
-    display_service_->OnHardwareComposerRefresh();
-  } else {
-    ALOGE("OnHardwareComposerRefresh failed : Display service is not started.");
-  }
+  display_service_->OnHardwareComposerRefresh();
+}
+
+void VrFlinger::PersistentVrStateCallback::onPersistentVrStateChanged(
+    bool enabled) {
+  ALOGV("Notified persistent vr mode is %s", enabled ? "on" : "off");
+  request_display_callback_(enabled);
 }
 
 }  // namespace dvr

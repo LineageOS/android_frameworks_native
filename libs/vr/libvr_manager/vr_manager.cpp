@@ -53,6 +53,40 @@ status_t BnVrStateCallbacks::onTransact(uint32_t code, const Parcel& data,
   return BBinder::onTransact(code, data, reply, flags);
 }
 
+// Must be kept in sync with interface defined in
+// IPersistentVrStateCallbacks.aidl.
+
+class BpPersistentVrStateCallbacks
+    : public BpInterface<IPersistentVrStateCallbacks> {
+ public:
+  explicit BpPersistentVrStateCallbacks(const sp<IBinder>& impl)
+      : BpInterface<IPersistentVrStateCallbacks>(impl) {}
+
+  void onPersistentVrStateChanged(bool enabled) {
+    Parcel data, reply;
+    data.writeInterfaceToken(
+        IPersistentVrStateCallbacks::getInterfaceDescriptor());
+    data.writeBool(enabled);
+    remote()->transact(ON_PERSISTENT_VR_STATE_CHANGED,
+                       data, &reply, IBinder::FLAG_ONEWAY);
+  }
+};
+
+IMPLEMENT_META_INTERFACE(PersistentVrStateCallbacks,
+                         "android.service.vr.IPersistentVrStateCallbacks");
+
+status_t BnPersistentVrStateCallbacks::onTransact(
+    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) {
+  switch(code) {
+    case ON_PERSISTENT_VR_STATE_CHANGED: {
+      CHECK_INTERFACE(IPersistentVrStateCallbacks, data, reply);
+      onPersistentVrStateChanged(data.readBool());
+      return OK;
+    }
+  }
+  return BBinder::onTransact(code, data, reply, flags);
+}
+
 // Must be kept in sync with interface defined in IVrManager.aidl.
 
 class BpVrManager : public BpInterface<IVrManager> {
@@ -72,6 +106,22 @@ class BpVrManager : public BpInterface<IVrManager> {
     data.writeInterfaceToken(IVrManager::getInterfaceDescriptor());
     data.writeStrongBinder(IInterface::asBinder(cb));
     remote()->transact(UNREGISTER_LISTENER, data, NULL);
+  }
+
+  void registerPersistentVrStateListener(
+      const sp<IPersistentVrStateCallbacks>& cb) override {
+    Parcel data;
+    data.writeInterfaceToken(IVrManager::getInterfaceDescriptor());
+    data.writeStrongBinder(IInterface::asBinder(cb));
+    remote()->transact(REGISTER_PERSISTENT_VR_STATE_LISTENER, data, NULL);
+  }
+
+  void unregisterPersistentVrStateListener(
+      const sp<IPersistentVrStateCallbacks>& cb) override {
+    Parcel data;
+    data.writeInterfaceToken(IVrManager::getInterfaceDescriptor());
+    data.writeStrongBinder(IInterface::asBinder(cb));
+    remote()->transact(UNREGISTER_PERSISTENT_VR_STATE_LISTENER, data, NULL);
   }
 
   bool getVrModeState() override {

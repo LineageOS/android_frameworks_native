@@ -41,6 +41,28 @@ public:
 };
 
 
+// Must be kept in sync with interface defined in
+// IPersistentVrStateCallbacks.aidl.
+
+class IPersistentVrStateCallbacks : public IInterface {
+public:
+    DECLARE_META_INTERFACE(PersistentVrStateCallbacks)
+
+    virtual void onPersistentVrStateChanged(bool enabled) = 0;
+};
+
+enum PersistentVrStateCallbacksTransaction {
+    ON_PERSISTENT_VR_STATE_CHANGED = IBinder::FIRST_CALL_TRANSACTION,
+};
+
+class BnPersistentVrStateCallbacks
+        : public BnInterface<IPersistentVrStateCallbacks> {
+public:
+    status_t onTransact(uint32_t code, const Parcel& data,
+                        Parcel* reply, uint32_t flags = 0) override;
+};
+
+
 // Must be kept in sync with interface defined in IVrManager.aidl.
 
 class IVrManager : public IInterface {
@@ -49,12 +71,18 @@ public:
 
     virtual void registerListener(const sp<IVrStateCallbacks>& cb) = 0;
     virtual void unregisterListener(const sp<IVrStateCallbacks>& cb) = 0;
+    virtual void registerPersistentVrStateListener(
+        const sp<IPersistentVrStateCallbacks>& cb) = 0;
+    virtual void unregisterPersistentVrStateListener(
+        const sp<IPersistentVrStateCallbacks>& cb) = 0;
     virtual bool getVrModeState() = 0;
 };
 
 enum VrManagerTransaction {
     REGISTER_LISTENER = IBinder::FIRST_CALL_TRANSACTION,
     UNREGISTER_LISTENER,
+    REGISTER_PERSISTENT_VR_STATE_LISTENER,
+    UNREGISTER_PERSISTENT_VR_STATE_LISTENER,
     GET_VR_MODE_STATE,
 };
 

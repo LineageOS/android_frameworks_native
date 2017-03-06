@@ -84,7 +84,6 @@ class RenderEngine;
 class EventControlThread;
 class VSyncSource;
 class InjectVSyncSource;
-class VrStateCallbacks;
 
 namespace dvr {
 class VrFlinger;
@@ -211,7 +210,6 @@ private:
     friend class EventThread;
     friend class Layer;
     friend class MonitoredProducer;
-    friend class VrStateCallbacks;
 
     // This value is specified in number of frames.  Log frame stats at most
     // every half hour.
@@ -532,9 +530,8 @@ private:
     void clearHwcLayers(const LayerVector& layers);
     void resetHwc();
 
-    // Check to see if we should change to or from vr mode, and if so, perform
-    // the handoff.
-    void updateVrMode();
+    // Check to see if we should handoff to vr flinger.
+    void updateVrFlinger();
 #endif
 
     /* ------------------------------------------------------------------------
@@ -604,7 +601,6 @@ private:
     DefaultKeyedVector< wp<IBinder>, sp<DisplayDevice> > mDisplays;
 
     // don't use a lock for these, we don't care
-    int mVrModeSupported;
     int mDebugRegion;
     int mDebugDDMS;
     int mDebugDisableHWC;
@@ -701,9 +697,8 @@ private:
     status_t CheckTransactCodeCredentials(uint32_t code);
 
 #ifdef USE_HWC2
-    sp<VrStateCallbacks> mVrStateCallbacks;
-
-    std::atomic<bool> mEnterVrMode;
+    std::atomic<bool> mVrFlingerRequestsDisplay;
+    static bool useVrFlinger;
 #endif
     };
 }; // namespace android
