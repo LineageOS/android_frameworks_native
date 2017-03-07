@@ -483,25 +483,6 @@ extern "C" int dvrGetNativeDisplayDimensions(int* native_width,
   return 0;
 }
 
-extern "C" int dvrGetDisplaySurfaceInfo(EGLNativeWindowType win, int* width,
-                                        int* height, int* format) {
-  ANativeWindow* nwin = reinterpret_cast<ANativeWindow*>(win);
-  int w, h, f;
-
-  nwin->query(nwin, NATIVE_WINDOW_DEFAULT_WIDTH, &w);
-  nwin->query(nwin, NATIVE_WINDOW_DEFAULT_HEIGHT, &h);
-  nwin->query(nwin, NATIVE_WINDOW_FORMAT, &f);
-
-  if (width)
-    *width = w;
-  if (height)
-    *height = h;
-  if (format)
-    *format = f;
-
-  return 0;
-}
-
 struct DvrGraphicsContext : public android::ANativeObjectBase<
                                 ANativeWindow, DvrGraphicsContext,
                                 android::LightRefBase<DvrGraphicsContext>> {
