@@ -26,6 +26,7 @@ LOCAL_SRC_FILES := \
     DisplayHardware/FramebufferSurface.cpp \
     DisplayHardware/HWC2.cpp \
     DisplayHardware/HWC2On1Adapter.cpp \
+    DisplayHardware/MiniFence.cpp \
     DisplayHardware/PowerHAL.cpp \
     DisplayHardware/VirtualDisplaySurface.cpp \
     Effects/Daltonizer.cpp \
