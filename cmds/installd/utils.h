@@ -101,7 +101,6 @@ std::string create_data_ref_profile_path();
 std::string create_data_ref_profile_package_path(const char* package_name);
 
 std::string create_data_dalvik_cache_path();
-std::string create_data_misc_foreign_dex_path(userid_t userid);
 
 std::string create_primary_profile(const std::string& profile_dir);
 
