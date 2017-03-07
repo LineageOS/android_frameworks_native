@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_SENSOR_H
-#define ANDROID_GUI_SENSOR_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -25,9 +24,10 @@
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
-#include <hardware/sensors.h>
-
+// FIXME: including from android/ breaks layering, as libandroid ultimately depends on libsensors
 #include <android/sensor.h>
+
+#include <hardware/sensors.h>
 
 // ----------------------------------------------------------------------------
 // Concrete types for the NDK
@@ -138,5 +138,3 @@ private:
 
 // ----------------------------------------------------------------------------
 }; // namespace android
-
-#endif // ANDROID_GUI_SENSOR_H

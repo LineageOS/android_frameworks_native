@@ -21,7 +21,7 @@
 
 #include <cutils/compiler.h>
 
-#include <gui/BitTube.h>
+#include <private/gui/BitTube.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/DisplayEventReceiver.h>
 

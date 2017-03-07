@@ -16,9 +16,9 @@
 
 #include <inttypes.h>
 #include <android/sensor.h>
-#include <gui/Sensor.h>
-#include <gui/SensorManager.h>
-#include <gui/SensorEventQueue.h>
+#include <sensor/Sensor.h>
+#include <sensor/SensorManager.h>
+#include <sensor/SensorEventQueue.h>
 #include <utils/Looper.h>
 
 using namespace android;

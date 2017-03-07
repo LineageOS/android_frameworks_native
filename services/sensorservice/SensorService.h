@@ -22,9 +22,9 @@
 
 #include <binder/BinderService.h>
 #include <cutils/compiler.h>
-#include <gui/ISensorServer.h>
-#include <gui/ISensorEventConnection.h>
-#include <gui/Sensor.h>
+#include <sensor/ISensorServer.h>
+#include <sensor/ISensorEventConnection.h>
+#include <sensor/Sensor.h>
 
 #include <utils/AndroidThreads.h>
 #include <utils/KeyedVector.h>

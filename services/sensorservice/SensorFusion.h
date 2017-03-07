@@ -24,7 +24,7 @@
 #include <utils/Singleton.h>
 #include <utils/String8.h>
 
-#include <gui/Sensor.h>
+#include <sensor/Sensor.h>
 
 #include "Fusion.h"
 

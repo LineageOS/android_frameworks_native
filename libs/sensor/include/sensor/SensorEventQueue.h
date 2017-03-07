@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_SENSOR_EVENT_QUEUE_H
-#define ANDROID_SENSOR_EVENT_QUEUE_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -23,9 +22,9 @@
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
-#include <utils/String16.h>
+#include <utils/Mutex.h>
 
-#include <gui/BitTube.h>
+#include <sensor/BitTube.h>
 
 // ----------------------------------------------------------------------------
 #define WAKE_UP_SENSOR_EVENT_NEEDS_ACK (1U << 31)
@@ -107,5 +106,3 @@ private:
 
 // ----------------------------------------------------------------------------
 }; // namespace android
-
-#endif // ANDROID_SENSOR_EVENT_QUEUE_H

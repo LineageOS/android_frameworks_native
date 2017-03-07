@@ -17,7 +17,7 @@
 #include <sys/socket.h>
 #include <utils/threads.h>
 
-#include <gui/SensorEventQueue.h>
+#include <sensor/SensorEventQueue.h>
 
 #include "vec.h"
 #include "SensorEventConnection.h"

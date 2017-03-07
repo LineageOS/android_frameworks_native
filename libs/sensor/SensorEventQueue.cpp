@@ -16,20 +16,17 @@
 
 #define LOG_TAG "Sensors"
 
-#include <algorithm>
-#include <stdint.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <linux/errno.h>
+#include <sensor/SensorEventQueue.h>
 
-#include <utils/Errors.h>
+#include <algorithm>
+#include <sys/socket.h>
+
 #include <utils/RefBase.h>
 #include <utils/Looper.h>
 
-#include <gui/Sensor.h>
-#include <gui/BitTube.h>
-#include <gui/SensorEventQueue.h>
-#include <gui/ISensorEventConnection.h>
+#include <sensor/Sensor.h>
+#include <sensor/BitTube.h>
+#include <sensor/ISensorEventConnection.h>
 
 #include <android/sensor.h>
 

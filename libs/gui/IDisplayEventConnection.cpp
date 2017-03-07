@@ -15,17 +15,15 @@
  */
 
 #include <stdint.h>
-#include <sys/types.h>
 
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
-#include <utils/Timers.h>
 
 #include <binder/Parcel.h>
-#include <binder/IInterface.h>
 
 #include <gui/IDisplayEventConnection.h>
-#include <gui/BitTube.h>
+
+#include <private/gui/BitTube.h>
 
 namespace android {
 // ----------------------------------------------------------------------------

@@ -14,19 +14,13 @@
  * limitations under the License.
  */
 
+#include <sensor/Sensor.h>
+
 #include <inttypes.h>
-#include <stdint.h>
-#include <sys/limits.h>
-#include <sys/types.h>
 
 #include <binder/AppOpsManager.h>
+#include <binder/IPermissionController.h>
 #include <binder/IServiceManager.h>
-#include <gui/Sensor.h>
-#include <hardware/sensors.h>
-#include <log/log.h>
-#include <utils/Errors.h>
-#include <utils/String8.h>
-#include <utils/Flattenable.h>
 
 // ----------------------------------------------------------------------------
 namespace android {
@@ -51,7 +45,7 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
     mHandle = hwSensor.handle;
     mType = hwSensor.type;
     mMinValue = 0;                      // FIXME: minValue
-    mMaxValue = hwSensor.maxRange;     // FIXME: maxValue
+    mMaxValue = hwSensor.maxRange;      // FIXME: maxValue
     mResolution = hwSensor.resolution;
     mPower = hwSensor.power;
     mMinDelay = hwSensor.minDelay;

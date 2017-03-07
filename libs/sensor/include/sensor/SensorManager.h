@@ -18,6 +18,7 @@
 #define ANDROID_GUI_SENSOR_MANAGER_H
 
 #include <map>
+#include <unordered_map>
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -27,14 +28,11 @@
 #include <binder/IServiceManager.h>
 
 #include <utils/Errors.h>
-#include <utils/RefBase.h>
-#include <utils/Singleton.h>
+#include <utils/StrongPointer.h>
 #include <utils/Vector.h>
 #include <utils/String8.h>
 
-#include <gui/SensorEventQueue.h>
-
-#include <unordered_map>
+#include <sensor/SensorEventQueue.h>
 
 // ----------------------------------------------------------------------------
 // Concrete types for the NDK
@@ -52,8 +50,7 @@ class Sensor;
 class SensorEventQueue;
 // ----------------------------------------------------------------------------
 
-class SensorManager :
-    public ASensorManager
+class SensorManager : public ASensorManager
 {
 public:
     static SensorManager& getInstanceForPackage(const String16& packageName);
