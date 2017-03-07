@@ -239,10 +239,6 @@ std::string create_data_dalvik_cache_path() {
     return "/data/dalvik-cache";
 }
 
-std::string create_data_misc_foreign_dex_path(userid_t userid) {
-    return StringPrintf("/data/misc/profiles/cur/%d/foreign-dex", userid);
-}
-
 // Keep profile paths in sync with ActivityThread.
 constexpr const char* PRIMARY_PROFILE_NAME = "primary.prof";
 
