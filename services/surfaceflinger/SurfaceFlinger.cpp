@@ -1594,6 +1594,9 @@ void SurfaceFlinger::rebuildLayerStacks() {
                                     nullptr);
                         }
                     } else {
+                        // WM changes displayDevice->layerStack upon sleep/awake.
+                        // Here we make sure we delete the HWC layers even if
+                        // WM changed their layer stack.
                         layer->setHwcLayer(displayDevice->getHwcDisplayId(),
                                 nullptr);
                     }
