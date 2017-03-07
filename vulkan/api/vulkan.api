@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 0
-define VERSION_PATCH 39
+define VERSION_PATCH 41
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -90,7 +90,7 @@ define NULL_HANDLE 0
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_NAME             "VK_ANDROID_native_buffer"
 
 // 12
-@extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_SPEC_VERSION       4
+@extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_SPEC_VERSION       5
 @extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_NAME               "VK_EXT_debug_report"
 
 // 13
@@ -118,7 +118,7 @@ define NULL_HANDLE 0
 @extension("VK_AMD_shader_explicit_vertex_parameter") define VK_AMD_SHADER_EXPLICIT_VERTEX_PARAMETER_EXTENSION_NAME "VK_AMD_shader_explicit_vertex_parameter"
 
 // 23
-@extension("VK_EXT_debug_marker") define VK_EXT_DEBUG_MARKER_SPEC_VERSION       3
+@extension("VK_EXT_debug_marker") define VK_EXT_DEBUG_MARKER_SPEC_VERSION       4
 @extension("VK_EXT_debug_marker") define VK_EXT_DEBUG_MARKER_NAME               "VK_EXT_debug_marker"
 
 // 26

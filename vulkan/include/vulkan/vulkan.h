@@ -43,7 +43,7 @@ extern "C" {
 #define VK_VERSION_MINOR(version) (((uint32_t)(version) >> 12) & 0x3ff)
 #define VK_VERSION_PATCH(version) ((uint32_t)(version) & 0xfff)
 // Version of this file
-#define VK_HEADER_VERSION 39
+#define VK_HEADER_VERSION 41
 
 
 #define VK_NULL_HANDLE 0
@@ -3910,7 +3910,7 @@ VKAPI_ATTR void VKAPI_CALL vkTrimCommandPoolKHR(
 #define VK_EXT_debug_report 1
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkDebugReportCallbackEXT)
 
-#define VK_EXT_DEBUG_REPORT_SPEC_VERSION  4
+#define VK_EXT_DEBUG_REPORT_SPEC_VERSION  5
 #define VK_EXT_DEBUG_REPORT_EXTENSION_NAME "VK_EXT_debug_report"
 #define VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT
 
@@ -4065,7 +4065,7 @@ typedef struct VkPipelineRasterizationStateRasterizationOrderAMD {
 
 
 #define VK_EXT_debug_marker 1
-#define VK_EXT_DEBUG_MARKER_SPEC_VERSION  3
+#define VK_EXT_DEBUG_MARKER_SPEC_VERSION  4
 #define VK_EXT_DEBUG_MARKER_EXTENSION_NAME "VK_EXT_debug_marker"
 
 typedef struct VkDebugMarkerObjectNameInfoEXT {
