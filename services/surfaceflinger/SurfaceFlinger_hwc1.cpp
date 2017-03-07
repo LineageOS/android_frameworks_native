@@ -1032,7 +1032,7 @@ void SurfaceFlinger::onVSyncReceived(HWComposer* /*composer*/, int type,
 }
 
 void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
-    std::lock_guard<std::mutex> lock(mCompositeTimingLock);
+    std::lock_guard<std::mutex> lock(mCompositorTimingLock);
     *compositorTiming = mCompositorTiming;
 }
 
@@ -1195,11 +1195,22 @@ void SurfaceFlinger::updateCompositorTiming(
         mCompositePresentTimes.pop();
     }
 
+    setCompositorTimingSnapped(
+            vsyncPhase, vsyncInterval, compositeToPresentLatency);
+}
+
+void SurfaceFlinger::setCompositorTimingSnapped(nsecs_t vsyncPhase,
+        nsecs_t vsyncInterval, nsecs_t compositeToPresentLatency) {
     // Integer division and modulo round toward 0 not -inf, so we need to
     // treat negative and positive offsets differently.
-    nsecs_t idealLatency = (sfVsyncPhaseOffsetNs >= 0) ?
+    nsecs_t idealLatency = (sfVsyncPhaseOffsetNs > 0) ?
             (vsyncInterval - (sfVsyncPhaseOffsetNs % vsyncInterval)) :
             ((-sfVsyncPhaseOffsetNs) % vsyncInterval);
+
+    // Just in case sfVsyncPhaseOffsetNs == -vsyncInterval.
+    if (idealLatency <= 0) {
+        idealLatency = vsyncInterval;
+    }
 
     // Snap the latency to a value that removes scheduling jitter from the
     // composition and present times, which often have >1ms of jitter.
@@ -1207,22 +1218,16 @@ void SurfaceFlinger::updateCompositorTiming(
     // something (such as user input) to an accurate diasplay time.
     // Snapping also allows an app to precisely calculate sfVsyncPhaseOffsetNs
     // with (presentLatency % interval).
-    nsecs_t snappedCompositeToPresentLatency = -1;
-    if (compositeToPresentLatency >= 0) {
-        nsecs_t bias = vsyncInterval / 2;
-        int64_t extraVsyncs =
-                (compositeToPresentLatency - idealLatency + bias) /
-                vsyncInterval;
-        nsecs_t extraLatency = extraVsyncs * vsyncInterval;
-        snappedCompositeToPresentLatency = idealLatency + extraLatency;
-    }
+    nsecs_t bias = vsyncInterval / 2;
+    int64_t extraVsyncs =
+            (compositeToPresentLatency - idealLatency + bias) / vsyncInterval;
+    nsecs_t snappedCompositeToPresentLatency = (extraVsyncs > 0) ?
+            idealLatency + (extraVsyncs * vsyncInterval) : idealLatency;
 
-    std::lock_guard<std::mutex> lock(mCompositeTimingLock);
+    std::lock_guard<std::mutex> lock(mCompositorTimingLock);
     mCompositorTiming.deadline = vsyncPhase - idealLatency;
     mCompositorTiming.interval = vsyncInterval;
-    if (snappedCompositeToPresentLatency >= 0) {
-        mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
-    }
+    mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
 }
 
 void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
@@ -1254,10 +1259,15 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     // since updateCompositorTiming has snapping logic.
     updateCompositorTiming(
         vsyncPhase, vsyncInterval, refreshStartTime, retireFenceTime);
+    CompositorTiming compositorTiming;
+    {
+        std::lock_guard<std::mutex> lock(mCompositorTimingLock);
+        compositorTiming = mCompositorTiming;
+    }
 
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         bool frameLatched = layer->onPostComposition(glCompositionDoneFenceTime,
-                presentFenceTime, retireFenceTime, mCompositorTiming);
+                presentFenceTime, retireFenceTime, compositorTiming);
         if (frameLatched) {
             recordBufferingStats(layer->getName().string(),
                     layer->getOccupancyHistory(false));
@@ -2742,6 +2752,10 @@ void SurfaceFlinger::onInitializeDisplays() {
     const nsecs_t period =
             getHwComposer().getRefreshPeriod(HWC_DISPLAY_PRIMARY);
     mAnimFrameTracker.setDisplayRefreshPeriod(period);
+
+    // Use phase of 0 since phase is not known.
+    // Use latency of 0, which will snap to the ideal latency.
+    setCompositorTimingSnapped(0, period, 0);
 }
 
 void SurfaceFlinger::initializeDisplays() {
