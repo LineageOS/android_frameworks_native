@@ -17,7 +17,11 @@
 cc_library {
     name: "libinput",
     host_supported: true,
-
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
     srcs: [
         "Input.cpp",
         "InputDevice.cpp",
