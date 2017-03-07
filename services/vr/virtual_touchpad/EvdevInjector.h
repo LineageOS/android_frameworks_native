@@ -3,6 +3,7 @@
 
 #include <android-base/unique_fd.h>
 #include <linux/uinput.h>
+#include <utils/String8.h>
 
 #include <cstdint>
 #include <memory>
@@ -98,6 +99,8 @@ class EvdevInjector {
   int SendMultiTouchSlot(int32_t slot);
   int SendMultiTouchXY(int32_t slot, int32_t id, int32_t x, int32_t y);
   int SendMultiTouchLift(int32_t slot);
+
+  void dumpInternal(String8& result);
 
  protected:
   // Must be called only between construction and ConfigureBegin().

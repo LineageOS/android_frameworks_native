@@ -58,7 +58,6 @@ class ShellView : public Application,
              bool test_ime);
   bool IsImeHit(const vec3& view_location, const vec3& view_direction,
                 vec3 *hit_location);
-  bool InitializeTouch();
   void Touch();
   bool OnTouchpadButton(bool down, int button);
 

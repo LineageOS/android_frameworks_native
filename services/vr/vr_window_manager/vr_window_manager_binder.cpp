@@ -16,7 +16,8 @@ namespace vr {
 
 namespace {
 const String16 kDumpPermission("android.permission.DUMP");
-const String16 kSendMeControllerInputPermission("TODO");  // TODO(kpschoedel)
+const String16 kSendMeControllerInputPermission(
+    "android.permission.RESTRICTED_VR_ACCESS");
 }  // anonymous namespace
 
 constexpr size_t AshmemControllerDataProvider::kRegionLength;
@@ -136,8 +137,8 @@ status_t VrWindowManagerBinder::dump(
     int fd, const Vector<String16>& args [[gnu::unused]]) {
   String8 result;
   const android::IPCThreadState* ipc = android::IPCThreadState::self();
-  const int pid = ipc->getCallingPid();
-  const int uid = ipc->getCallingUid();
+  const pid_t pid = ipc->getCallingPid();
+  const uid_t uid = ipc->getCallingUid();
   if ((uid != AID_SHELL) &&
       !PermissionCache::checkPermission(kDumpPermission, pid, uid)) {
     result.appendFormat("Permission denial: can't dump " LOG_TAG

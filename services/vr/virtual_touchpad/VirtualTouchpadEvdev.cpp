@@ -32,15 +32,10 @@ static constexpr int32_t kSlots = 2;
 
 sp<VirtualTouchpad> VirtualTouchpadEvdev::Create() {
   VirtualTouchpadEvdev* const touchpad = new VirtualTouchpadEvdev();
-  const status_t status = touchpad->Initialize();
-  if (status) {
-    ALOGE("initialization failed: %d", status);
-    return sp<VirtualTouchpad>();
-  }
   return sp<VirtualTouchpad>(touchpad);
 }
 
-int VirtualTouchpadEvdev::Initialize() {
+status_t VirtualTouchpadEvdev::Attach() {
   if (!injector_) {
     owned_injector_.reset(new EvdevInjector());
     injector_ = owned_injector_.get();
@@ -56,9 +51,20 @@ int VirtualTouchpadEvdev::Initialize() {
   return injector_->GetError();
 }
 
+status_t VirtualTouchpadEvdev::Detach() {
+  injector_->Close();
+  injector_ = nullptr;
+  owned_injector_.reset();
+  last_device_x_ = INT32_MIN;
+  last_device_y_ = INT32_MIN;
+  touches_ = 0;
+  last_motion_event_buttons_ = 0;
+  return OK;
+}
+
 int VirtualTouchpadEvdev::Touch(int touchpad, float x, float y,
                                 float pressure) {
-  (void)touchpad; // TODO(b/35992608) Support multiple virtual touchpad devices.
+  (void)touchpad;  // TODO(b/35992608) Support multiple touchpad devices.
   if ((x < 0.0f) || (x >= 1.0f) || (y < 0.0f) || (y >= 1.0f)) {
     return EINVAL;
   }
@@ -104,7 +110,7 @@ int VirtualTouchpadEvdev::Touch(int touchpad, float x, float y,
 }
 
 int VirtualTouchpadEvdev::ButtonState(int touchpad, int buttons) {
-  (void)touchpad; // TODO(b/35992608) Support multiple virtual touchpad devices.
+  (void)touchpad;  // TODO(b/35992608) Support multiple touchpad devices.
   const int changes = last_motion_event_buttons_ ^ buttons;
   if (!changes) {
     return 0;
@@ -123,9 +129,25 @@ int VirtualTouchpadEvdev::ButtonState(int touchpad, int buttons) {
     injector_->SendKey(BTN_BACK, (buttons & AMOTION_EVENT_BUTTON_BACK)
                                      ? EvdevInjector::KEY_PRESS
                                      : EvdevInjector::KEY_RELEASE);
+    injector_->SendSynReport();
   }
   last_motion_event_buttons_ = buttons;
   return injector_->GetError();
+}
+
+void VirtualTouchpadEvdev::dumpInternal(String8& result) {
+  result.append("[virtual touchpad]\n");
+  if (!injector_) {
+    result.append("injector = none\n");
+    return;
+  }
+  result.appendFormat("injector = %s\n", owned_injector_ ? "normal" : "test");
+  result.appendFormat("touches = %d\n", touches_);
+  result.appendFormat("last_position = (%" PRId32 ", %" PRId32 ")\n",
+                      last_device_x_, last_device_y_);
+  result.appendFormat("last_buttons = 0x%" PRIX32 "\n\n",
+                      last_motion_event_buttons_);
+  injector_->dumpInternal(result);
 }
 
 }  // namespace dvr

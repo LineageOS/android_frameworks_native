@@ -9,7 +9,8 @@ src := \
   VirtualTouchpadEvdev.cpp
 
 shared_libs := \
-  libbase
+  libbase \
+  libutils
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(src)
@@ -24,21 +25,23 @@ include $(BUILD_STATIC_LIBRARY)
 
 # Touchpad unit tests.
 
-test_src_files := \
-  tests/VirtualTouchpad_test.cpp
-
-static_libs := \
+test_static_libs := \
   libbase \
   libcutils \
-  libutils \
   libvirtualtouchpad
+
+test_shared_libs := \
+  libutils
+
+test_src_files := \
+  tests/VirtualTouchpad_test.cpp
 
 $(foreach file,$(test_src_files), \
     $(eval include $(CLEAR_VARS)) \
     $(eval LOCAL_SRC_FILES := $(file)) \
     $(eval LOCAL_C_INCLUDES := $(LOCAL_PATH)/include) \
-    $(eval LOCAL_STATIC_LIBRARIES := $(static_libs)) \
-    $(eval LOCAL_SHARED_LIBRARIES := $(shared_libs)) \
+    $(eval LOCAL_STATIC_LIBRARIES := $(test_static_libs)) \
+    $(eval LOCAL_SHARED_LIBRARIES := $(test_shared_libs)) \
     $(eval LOCAL_CPPFLAGS += -std=c++11) \
     $(eval LOCAL_LDLIBS := -llog) \
     $(eval LOCAL_MODULE := $(notdir $(file:%.cpp=%))) \
@@ -70,7 +73,7 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/include
 LOCAL_STATIC_LIBRARIES := $(static_libs)
 LOCAL_SHARED_LIBRARIES := $(shared_libs)
 LOCAL_CPPFLAGS += -std=c++11
-LOCAL_CFLAGS += -DLOG_TAG=\"VrVirtualTouchpad\"
+LOCAL_CFLAGS += -DLOG_TAG=\"VrVirtualTouchpad\" -DSELINUX_ACCESS_CONTROL
 LOCAL_LDLIBS := -llog
 LOCAL_MODULE := virtual_touchpad
 LOCAL_MODULE_TAGS := optional

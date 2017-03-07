@@ -307,5 +307,11 @@ int EvdevInjector::EnableEventType(uint16_t type) {
   return 0;
 }
 
+void EvdevInjector::dumpInternal(String8& result) {
+  result.append("[injector]\n");
+  result.appendFormat("state = %d\n", static_cast<int>(state_));
+  result.appendFormat("error = %d\n\n", error_);
+}
+
 }  // namespace dvr
 }  // namespace android

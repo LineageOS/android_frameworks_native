@@ -14,16 +14,27 @@ namespace dvr {
 class VirtualTouchpadService : public BnVirtualTouchpadService {
  public:
   VirtualTouchpadService(sp<VirtualTouchpad> touchpad)
-      : touchpad_(touchpad) {}
-  ~VirtualTouchpadService() override {}
+      : touchpad_(touchpad), client_pid_(0) {}
+  ~VirtualTouchpadService() override;
 
  protected:
   // Implements IVirtualTouchpadService.
+  binder::Status attach() override;
+  binder::Status detach() override;
   binder::Status touch(int touchpad, float x, float y, float pressure) override;
   binder::Status buttonState(int touchpad, int buttons) override;
 
+  // Implements BBinder::dump().
+  status_t dump(int fd, const Vector<String16>& args) override;
+
  private:
+  bool CheckPermissions();
+  bool CheckTouchPermission(pid_t* out_pid);
+
   sp<VirtualTouchpad> touchpad_;
+
+  // Only one client at a time can use the virtual touchpad.
+  pid_t client_pid_;
 
   VirtualTouchpadService(const VirtualTouchpadService&) = delete;
   void operator=(const VirtualTouchpadService&) = delete;

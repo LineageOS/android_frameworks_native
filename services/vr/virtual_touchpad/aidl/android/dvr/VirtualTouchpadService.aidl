@@ -6,6 +6,16 @@ interface VirtualTouchpadService
   const String SERVICE_NAME = "virtual_touchpad";
 
   /**
+   * Initialize the virtual touchpad.
+   */
+  void attach() = 0;
+
+  /**
+   * Shut down the virtual touchpad.
+   */
+  void detach() = 1;
+
+  /**
    * Generate a simulated touch event.
    *
    * @param touchpad Selects touchpad.
@@ -15,7 +25,7 @@ interface VirtualTouchpadService
    *
    * Position values in the range [0.0, 1.0) map to the screen.
    */
-  void touch(int touchpad, float x, float y, float pressure);
+  void touch(int touchpad, float x, float y, float pressure) = 2;
 
   /**
    * Generate a simulated touchpad button state event.
@@ -23,5 +33,5 @@ interface VirtualTouchpadService
    * @param touchpad Selects touchpad.
    * @param buttons A union of MotionEvent BUTTON_* values.
    */
-  void buttonState(int touchpad, int buttons);
+  void buttonState(int touchpad, int buttons) = 3;
 }
