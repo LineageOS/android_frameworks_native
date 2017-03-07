@@ -41,6 +41,15 @@ cc_library_shared {
         // We are aware of the risks inherent in comparing floats for equality
         "-Wno-float-equal",
 
+        // Pure abstract classes trigger this warning
+        "-Wno-weak-vtables",
+
+        // Allow four-character integer literals
+	"-Wno-four-char-constants",
+
+        // Allow documentation warnings
+        "-Wno-documentation",
+
         "-DDEBUG_ONLY_CODE=0",
     ],
 
@@ -88,6 +97,8 @@ cc_library_shared {
         "SurfaceComposerClient.cpp",
         "SyncFeatures.cpp",
         "view/Surface.cpp",
+        "bufferqueue/1.0/B2HProducerListener.cpp",
+        "bufferqueue/1.0/H2BGraphicBufferProducer.cpp"
     ],
 
     shared_libs: [
@@ -100,9 +111,18 @@ cc_library_shared {
         "libutils",
         "libnativewindow",
         "liblog",
+        "libhidlbase",
+        "android.hidl.base@1.0",
+        "android.hidl.token@1.0-utils",
+        "android.hardware.graphics.bufferqueue@1.0",
     ],
 
-    export_shared_lib_headers: ["libbinder", "libui"],
+    export_shared_lib_headers: [
+        "libbinder",
+        "libui",
+        "android.hidl.token@1.0-utils",
+        "android.hardware.graphics.bufferqueue@1.0",
+    ],
 }
 
 subdirs = ["tests"]

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 The Android Open Source Project
+ * Copyright 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_BUFFERQUEUECOREDEFS_H
-#define ANDROID_GUI_BUFFERQUEUECOREDEFS_H
-
-#include <gui/BufferSlot.h>
-#include <ui/BufferQueueDefs.h>
+#ifndef ANDROID_UI_BUFFERQUEUEDEFS_H
+#define ANDROID_UI_BUFFERQUEUEDEFS_H
 
 namespace android {
-    class BufferQueueCore;
-
     namespace BufferQueueDefs {
-        typedef BufferSlot SlotsType[NUM_BUFFER_SLOTS];
+        // BufferQueue will keep track of at most this value of buffers.
+        // Attempts at runtime to increase the number of buffers past this
+        // will fail.
+        static constexpr int NUM_BUFFER_SLOTS = 64;
     } // namespace BufferQueueDefs
 } // namespace android
 

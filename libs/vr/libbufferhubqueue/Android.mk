@@ -36,6 +36,7 @@ sharedLibraries := \
 	liblog \
 	libui \
 	libutils \
+        libgui \
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(sourceFiles)
