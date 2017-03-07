@@ -778,9 +778,6 @@ VkResult EnumerateDeviceExtensionProperties(
     loader_extensions.push_back({
         VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
         VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION});
-    loader_extensions.push_back({
-        VK_EXT_HDR_METADATA_EXTENSION_NAME,
-        VK_EXT_HDR_METADATA_SPEC_VERSION});
 
     // conditionally add shared_presentable_image if supportable
     VkPhysicalDevicePresentationPropertiesANDROID presentation_properties;
