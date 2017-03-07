@@ -724,7 +724,7 @@ Error HWC2On1Adapter::Display::getReleaseFences(uint32_t* outNumElements,
         }
 
         auto releaseFence = layer->getReleaseFence();
-        if (releaseFence != Fence::NO_FENCE) {
+        if (releaseFence != MiniFence::NO_FENCE) {
             if (outputsNonNull) {
                 outLayers[numWritten] = layer->getId();
                 outFences[numWritten] = releaseFence->dup();
@@ -2003,7 +2003,7 @@ void HWC2On1Adapter::Layer::addReleaseFence(int fenceFd) {
     mReleaseFence.add(fenceFd);
 }
 
-const sp<Fence>& HWC2On1Adapter::Layer::getReleaseFence() const {
+const sp<MiniFence>& HWC2On1Adapter::Layer::getReleaseFence() const {
     return mReleaseFence.get();
 }
 

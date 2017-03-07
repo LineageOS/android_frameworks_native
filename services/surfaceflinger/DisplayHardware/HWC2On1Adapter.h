@@ -23,7 +23,7 @@
 #undef HWC2_INCLUDE_STRINGIFICATION
 #undef HWC2_USE_CPP11
 
-#include <ui/Fence.h>
+#include "MiniFence.h"
 
 #include <atomic>
 #include <map>
@@ -155,35 +155,35 @@ private:
     class DeferredFence {
         public:
             DeferredFence()
-              : mFences({Fence::NO_FENCE, Fence::NO_FENCE}) {}
+              : mFences({MiniFence::NO_FENCE, MiniFence::NO_FENCE}) {}
 
             void add(int32_t fenceFd) {
-                mFences.emplace(new Fence(fenceFd));
+                mFences.emplace(new MiniFence(fenceFd));
                 mFences.pop();
             }
 
-            const sp<Fence>& get() const {
+            const sp<MiniFence>& get() const {
                 return mFences.front();
             }
 
         private:
             // There are always two fences in this queue.
-            std::queue<sp<Fence>> mFences;
+            std::queue<sp<MiniFence>> mFences;
     };
 
     class FencedBuffer {
         public:
-            FencedBuffer() : mBuffer(nullptr), mFence(Fence::NO_FENCE) {}
+            FencedBuffer() : mBuffer(nullptr), mFence(MiniFence::NO_FENCE) {}
 
             void setBuffer(buffer_handle_t buffer) { mBuffer = buffer; }
-            void setFence(int fenceFd) { mFence = new Fence(fenceFd); }
+            void setFence(int fenceFd) { mFence = new MiniFence(fenceFd); }
 
             buffer_handle_t getBuffer() const { return mBuffer; }
             int getFence() const { return mFence->dup(); }
 
         private:
             buffer_handle_t mBuffer;
-            sp<Fence> mFence;
+            sp<MiniFence> mFence;
     };
 
     class Display {
@@ -552,7 +552,7 @@ private:
             uint32_t getZ() const { return mZ; }
 
             void addReleaseFence(int fenceFd);
-            const sp<Fence>& getReleaseFence() const;
+            const sp<MiniFence>& getReleaseFence() const;
 
             void setHwc1Id(size_t id) { mHwc1Id = id; }
             size_t getHwc1Id() const { return mHwc1Id; }
