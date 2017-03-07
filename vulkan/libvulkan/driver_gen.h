@@ -19,9 +19,9 @@
 #ifndef LIBVULKAN_DRIVER_GEN_H
 #define LIBVULKAN_DRIVER_GEN_H
 
-#include <bitset>
-#include <vulkan/vulkan.h>
 #include <vulkan/vk_android_native_buffer.h>
+#include <vulkan/vulkan.h>
+#include <bitset>
 
 namespace vulkan {
 namespace driver {
