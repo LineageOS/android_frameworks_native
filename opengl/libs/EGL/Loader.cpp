@@ -19,6 +19,8 @@
 
 #include "Loader.h"
 
+#include <string>
+
 #include <dirent.h>
 #include <dlfcn.h>
 
@@ -26,11 +28,9 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 
-#include <utils/String8.h>
-#include <utils/Trace.h>
-
 #include <ui/GraphicsEnv.h>
 
+#include "egl_trace.h"
 #include "egldefs.h"
 
 // ----------------------------------------------------------------------------
@@ -61,7 +61,10 @@ namespace android {
  *
  */
 
-ANDROID_SINGLETON_STATIC_INSTANCE( Loader )
+Loader& Loader::getInstance() {
+    static Loader loader;
+    return loader;
+}
 
 /* This function is called to check whether we run inside the emulator,
  * and if this is the case whether GLES GPU emulation is supported.
@@ -122,7 +125,7 @@ Loader::driver_t::~driver_t()
     }
 }
 
-status_t Loader::driver_t::set(void* hnd, int32_t api)
+int Loader::driver_t::set(void* hnd, int32_t api)
 {
     switch (api) {
         case EGL:
@@ -135,9 +138,9 @@ status_t Loader::driver_t::set(void* hnd, int32_t api)
             dso[2] = hnd;
             break;
         default:
-            return BAD_INDEX;
+            return -EOVERFLOW;
     }
-    return NO_ERROR;
+    return 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -233,11 +236,10 @@ void* Loader::open(egl_connection_t* cnx)
     return (void*)hnd;
 }
 
-status_t Loader::close(void* driver)
+void Loader::close(void* driver)
 {
     driver_t* hnd = (driver_t*)driver;
     delete hnd;
-    return NO_ERROR;
 }
 
 void Loader::init_api(void* dso,
@@ -302,23 +304,23 @@ static void* load_system_driver(const char* kind) {
     ATRACE_CALL();
     class MatchFile {
     public:
-        static String8 find(const char* kind) {
-            String8 result;
+        static std::string find(const char* kind) {
+            std::string result;
             int emulationStatus = checkGlesEmulationStatus();
             switch (emulationStatus) {
                 case 0:
 #if defined(__LP64__)
-                    result.setTo("/system/lib64/egl/libGLES_android.so");
+                    result = "/system/lib64/egl/libGLES_android.so";
 #else
-                    result.setTo("/system/lib/egl/libGLES_android.so");
+                    result = "/system/lib/egl/libGLES_android.so";
 #endif
                     return result;
                 case 1:
                     // Use host-side OpenGL through the "emulation" library
 #if defined(__LP64__)
-                    result.appendFormat("/system/lib64/egl/lib%s_emulation.so", kind);
+                    result = std::string("/system/lib64/egl/lib") + kind + "_emulation.so";
 #else
-                    result.appendFormat("/system/lib/egl/lib%s_emulation.so", kind);
+                    result = std::string("/system/lib/egl/lib") + kind + "_emulation.so";
 #endif
                     return result;
                 default:
@@ -326,8 +328,7 @@ static void* load_system_driver(const char* kind) {
                     break;
             }
 
-            String8 pattern;
-            pattern.appendFormat("lib%s", kind);
+            std::string pattern = std::string("lib") + kind;
             const char* const searchPaths[] = {
 #if defined(__LP64__)
                     "/vendor/lib64/egl",
@@ -368,12 +369,11 @@ static void* load_system_driver(const char* kind) {
         }
 
     private:
-        static bool find(String8& result,
-                const String8& pattern, const char* const search, bool exact) {
+        static bool find(std::string& result,
+                const std::string& pattern, const char* const search, bool exact) {
             if (exact) {
-                String8 absolutePath;
-                absolutePath.appendFormat("%s/%s.so", search, pattern.string());
-                if (!access(absolutePath.string(), R_OK)) {
+                std::string absolutePath = std::string(search) + "/" + pattern;
+                if (!access(absolutePath.c_str(), R_OK)) {
                     result = absolutePath;
                     return true;
                 }
@@ -392,10 +392,9 @@ static void* load_system_driver(const char* kind) {
                         // always skip the software renderer
                         continue;
                     }
-                    if (strstr(e->d_name, pattern.string()) == e->d_name) {
+                    if (strstr(e->d_name, pattern.c_str()) == e->d_name) {
                         if (!strcmp(e->d_name + strlen(e->d_name) - 3, ".so")) {
-                            result.clear();
-                            result.appendFormat("%s/%s", search, e->d_name);
+                            result = std::string(search) + "/" + e->d_name;
                             closedir(d);
                             return true;
                         }
@@ -408,17 +407,17 @@ static void* load_system_driver(const char* kind) {
     };
 
 
-    String8 absolutePath = MatchFile::find(kind);
-    if (absolutePath.isEmpty()) {
+    std::string absolutePath = MatchFile::find(kind);
+    if (absolutePath.empty()) {
         // this happens often, we don't want to log an error
         return 0;
     }
-    const char* const driver_absolute_path = absolutePath.string();
+    const char* const driver_absolute_path = absolutePath.c_str();
 
     void* dso = do_dlopen(driver_absolute_path, RTLD_NOW | RTLD_LOCAL);
     if (dso == 0) {
         const char* err = dlerror();
-        ALOGE("load_driver(%s): %s", driver_absolute_path, err?err:"unknown");
+        ALOGE("load_driver(%s): %s", driver_absolute_path, err ? err : "unknown");
         return 0;
     }
 
@@ -447,9 +446,8 @@ static void* load_updated_driver(const char* kind, android_namespace_t* ns) {
     char prop[PROPERTY_VALUE_MAX + 1];
     for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
         if (property_get(key, prop, nullptr) > 0) {
-            String8 name;
-            name.appendFormat("lib%s_%s.so", kind, prop);
-            so = do_android_dlopen_ext(name.string(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
+            std::string name = std::string("lib") + kind + "_" + prop + ".so";
+            so = do_android_dlopen_ext(name.c_str(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
             if (so) {
                 return so;
             }

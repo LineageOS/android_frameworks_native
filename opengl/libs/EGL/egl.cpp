@@ -20,7 +20,6 @@
 
 #include <EGL/egl.h>
 
-#include <cutils/atomic.h>
 #include <cutils/properties.h>
 
 #include <log/log.h>
@@ -128,7 +127,7 @@ const GLubyte * egl_get_string_for_current_context(GLenum name) {
     if (name != GL_EXTENSIONS)
         return NULL;
 
-    return (const GLubyte *)c->gl_extensions.string();
+    return (const GLubyte *)c->gl_extensions.c_str();
 }
 
 const GLubyte * egl_get_string_for_current_context(GLenum name, GLuint index) {
@@ -151,7 +150,7 @@ const GLubyte * egl_get_string_for_current_context(GLenum name, GLuint index) {
     if (index >= c->tokenized_gl_extensions.size())
         return NULL;
 
-    return (const GLubyte *)c->tokenized_gl_extensions.itemAt(index).string();
+    return (const GLubyte *)c->tokenized_gl_extensions[index].c_str();
 }
 
 GLint egl_get_num_extensions_for_current_context() {
@@ -208,14 +207,14 @@ EGLBoolean egl_init_drivers() {
 }
 
 static pthread_mutex_t sLogPrintMutex = PTHREAD_MUTEX_INITIALIZER;
-static nsecs_t sLogPrintTime = 0;
-#define NSECS_DURATION 1000000000
+static std::chrono::steady_clock::time_point sLogPrintTime;
+static constexpr std::chrono::seconds DURATION(1);
 
 void gl_unimplemented() {
     bool printLog = false;
-    nsecs_t now = systemTime();
+    auto now = std::chrono::steady_clock::now();
     pthread_mutex_lock(&sLogPrintMutex);
-    if ((now - sLogPrintTime) > NSECS_DURATION) {
+    if ((now - sLogPrintTime) > DURATION) {
         sLogPrintTime = now;
         printLog = true;
     }

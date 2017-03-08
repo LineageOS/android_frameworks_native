@@ -21,14 +21,15 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <condition_variable>
+#include <mutex>
+#include <string>
+#include <unordered_set>
+
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
 #include <cutils/compiler.h>
-#include <utils/SortedVector.h>
-#include <utils/Condition.h>
-#include <utils/Mutex.h>
-#include <utils/String8.h>
 
 #include "egldefs.h"
 #include "../hooks.h"
@@ -80,10 +81,10 @@ public:
     inline bool isValid() const { return magic == '_dpy'; }
     inline bool isAlive() const { return isValid(); }
 
-    char const * getVendorString() const { return mVendorString.string(); }
-    char const * getVersionString() const { return mVersionString.string(); }
-    char const * getClientApiString() const { return mClientApiString.string(); }
-    char const * getExtensionString() const { return mExtensionString.string(); }
+    char const * getVendorString() const { return mVendorString.c_str(); }
+    char const * getVersionString() const { return mVersionString.c_str(); }
+    char const * getClientApiString() const { return mClientApiString.c_str(); }
+    char const * getExtensionString() const { return mExtensionString.c_str(); }
 
     bool haveExtension(const char* name, size_t nameLen = 0) const;
 
@@ -116,13 +117,14 @@ private:
 
             uint32_t                    refs;
             bool                        eglIsInitialized;
-    mutable Mutex                       lock, refLock;
-    mutable Condition                   refCond;
-            SortedVector<egl_object_t*> objects;
-            String8 mVendorString;
-            String8 mVersionString;
-            String8 mClientApiString;
-            String8 mExtensionString;
+    mutable std::mutex                  lock;
+    mutable std::mutex                  refLock;
+    mutable std::condition_variable     refCond;
+            std::unordered_set<egl_object_t*> objects;
+            std::string mVendorString;
+            std::string mVersionString;
+            std::string mClientApiString;
+            std::string mExtensionString;
 };
 
 // ----------------------------------------------------------------------------
