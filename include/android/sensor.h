@@ -70,6 +70,10 @@ typedef struct AHardwareBuffer AHardwareBuffer;
  */
 enum {
     /**
+     * Invalid sensor type. Returned by {@link ASensor_getType} as error value.
+     */
+    ASENSOR_TYPE_INVALID = -1,
+    /**
      * {@link ASENSOR_TYPE_ACCELEROMETER}
      * reporting-mode: continuous
      *
@@ -118,11 +122,7 @@ enum {
      *  All values are in SI units (m/s^2) and measure the acceleration of the
      *  device not including the force of gravity.
      */
-    ASENSOR_TYPE_LINEAR_ACCELERATION = 10,
-    /**
-     * Invalid sensor type. Returned by {@link ASensor_getType} as error value.
-     */
-    ASENSOR_TYPE_INVALID = -1
+    ASENSOR_TYPE_LINEAR_ACCELERATION = 10
 };
 
 /**
@@ -145,6 +145,8 @@ enum {
  * Sensor Reporting Modes.
  */
 enum {
+    /** invalid reporting mode */
+    AREPORTING_MODE_INVALID = -1,
     /** continuous reporting */
     AREPORTING_MODE_CONTINUOUS = 0,
     /** reporting on change */
@@ -152,9 +154,7 @@ enum {
     /** on shot reporting */
     AREPORTING_MODE_ONE_SHOT = 2,
     /** special trigger reporting */
-    AREPORTING_MODE_SPECIAL_TRIGGER = 3,
-    /** invalid reporting mode */
-    AREPORTING_MODE_INVALID = -1
+    AREPORTING_MODE_SPECIAL_TRIGGER = 3
 };
 
 /**
