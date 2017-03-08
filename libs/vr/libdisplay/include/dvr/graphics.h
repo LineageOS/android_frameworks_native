@@ -21,11 +21,6 @@ typedef struct float32x4x4_t { float32x4_t val[4]; };
 
 __BEGIN_DECLS
 
-// Create a stereo surface that will be lens-warped by the system.
-EGLNativeWindowType dvrCreateWarpedDisplaySurface(int* display_width,
-                                                  int* display_height);
-EGLNativeWindowType dvrCreateDisplaySurface(void);
-
 // Display surface parameters used to specify display surface options.
 enum {
   DVR_SURFACE_PARAMETER_NONE = 0,
@@ -163,9 +158,16 @@ struct DvrLensInfo {
   float right_fov[4];
 };
 
-// Creates a display surface with the given parameters. The list of parameters
-// is terminated with an entry where key == DVR_SURFACE_PARAMETER_NONE.
-// For example, the parameters array could be built as follows:
+int dvrGetNativeDisplayDimensions(int* native_width, int* native_height);
+
+// Opaque struct that represents a graphics context, the texture swap chain,
+// and surfaces.
+typedef struct DvrGraphicsContext DvrGraphicsContext;
+
+// Create the graphics context. with the given parameters. The list of
+// parameters is terminated with an entry where key ==
+// DVR_SURFACE_PARAMETER_NONE. For example, the parameters array could be built
+// as follows:
 //   int display_width = 0, display_height = 0;
 //   int surface_width = 0, surface_height = 0;
 //   float inter_lens_meters = 0.0f;
@@ -183,38 +185,6 @@ struct DvrLensInfo {
 //       DVR_SURFACE_PARAMETER_OUT(RIGHT_FOV_LRBT, right_fov),
 //       DVR_SURFACE_PARAMETER_LIST_END,
 //   };
-EGLNativeWindowType dvrCreateDisplaySurfaceExtended(
-    struct DvrSurfaceParameter* parameters);
-
-int dvrGetNativeDisplayDimensions(int* native_width, int* native_height);
-
-int dvrGetDisplaySurfaceInfo(EGLNativeWindowType win, int* width, int* height,
-                             int* format);
-
-// NOTE: Only call the functions below on windows created with the API above.
-
-// Sets the display surface visible based on the boolean evaluation of
-// |visible|.
-void dvrDisplaySurfaceSetVisible(EGLNativeWindowType window, int visible);
-
-// Sets the application z-order of the display surface. Higher values display on
-// top of lower values.
-void dvrDisplaySurfaceSetZOrder(EGLNativeWindowType window, int z_order);
-
-// Post the next buffer early. This allows the application to race with either
-// the async EDS process or the scanline for applications that are not using
-// system distortion. When this is called, the next buffer in the queue is
-// posted for display. It is up to the application to kick its GPU rendering
-// work in time. If the rendering is incomplete there will be significant,
-// undesirable tearing artifacts.
-// It is not recommended to use this feature with system distortion.
-void dvrDisplayPostEarly(EGLNativeWindowType window);
-
-// Opaque struct that represents a graphics context, the texture swap chain,
-// and surfaces.
-typedef struct DvrGraphicsContext DvrGraphicsContext;
-
-// Create the graphics context.
 int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
                              DvrGraphicsContext** return_graphics_context);
 
