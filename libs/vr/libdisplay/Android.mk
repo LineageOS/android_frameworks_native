@@ -15,6 +15,7 @@
 LOCAL_PATH := $(call my-dir)
 
 sourceFiles := \
+	native_window.cpp \
 	native_buffer_queue.cpp \
 	display_client.cpp \
 	display_manager_client.cpp \
