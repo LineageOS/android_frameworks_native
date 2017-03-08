@@ -330,19 +330,6 @@ TEST_F(UtilsTest, CreatePkgPath_LongPkgNameSuccess) {
              << "Package path should be a really long string of a's";
 }
 
-TEST_F(UtilsTest, CreatePkgPath_LongPkgNameFail) {
-    char path[PKG_PATH_MAX];
-
-    // Create long packagename of "aaaaa..."
-    size_t pkgnameSize = PKG_NAME_MAX + 1;
-    char pkgname[pkgnameSize + 1];
-    memset(pkgname, 'a', pkgnameSize);
-    pkgname[pkgnameSize] = '\0';
-
-    EXPECT_EQ(-1, create_pkg_path(path, pkgname, "", 0))
-            << "Should return error because package name is too long.";
-}
-
 TEST_F(UtilsTest, CreatePkgPath_LongPostfixFail) {
     char path[PKG_PATH_MAX];
 
@@ -510,6 +497,7 @@ TEST_F(UtilsTest, CreateDataUserPackagePath) {
 }
 
 TEST_F(UtilsTest, IsValidPackageName) {
+    EXPECT_EQ(true, is_valid_package_name("android"));
     EXPECT_EQ(true, is_valid_package_name("com.example"));
     EXPECT_EQ(true, is_valid_package_name("com.example-1"));
     EXPECT_EQ(true, is_valid_package_name("com.example-1024"));
@@ -518,9 +506,10 @@ TEST_F(UtilsTest, IsValidPackageName) {
 
     EXPECT_EQ(false, is_valid_package_name("1234.package"));
     EXPECT_EQ(false, is_valid_package_name("com.1234.package"));
-    EXPECT_EQ(false, is_valid_package_name("package"));
     EXPECT_EQ(false, is_valid_package_name(""));
     EXPECT_EQ(false, is_valid_package_name("."));
+    EXPECT_EQ(false, is_valid_package_name(".."));
+    EXPECT_EQ(false, is_valid_package_name("../"));
     EXPECT_EQ(false, is_valid_package_name("com.example/../com.evil/"));
     EXPECT_EQ(false, is_valid_package_name("com.example-1/../com.evil/"));
     EXPECT_EQ(false, is_valid_package_name("/com.evil"));

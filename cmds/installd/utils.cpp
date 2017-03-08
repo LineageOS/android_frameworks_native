@@ -371,7 +371,7 @@ bool is_valid_package_name(const std::string& packageName) {
         return false;
     }
 
-    if (!hasSep || front) {
+    if (front) {
         LOG(WARNING) << "Missing separator in " << packageName;
         return false;
     }
