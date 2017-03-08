@@ -12,6 +12,11 @@ namespace dvr {
 //
 class VirtualTouchpad : public RefBase {
  public:
+  enum : int {
+    PRIMARY = 0,
+    VIRTUAL = 1,
+  };
+
   // Create a virtual touchpad.
   // Implementations should provide this, and hide their constructors.
   // For the user, switching implementations should be as simple as changing
@@ -22,6 +27,7 @@ class VirtualTouchpad : public RefBase {
 
   // Generate a simulated touch event.
   //
+  // @param touchpad Touchpad selector index.
   // @param x Horizontal touch position.
   // @param y Vertical touch position.
   //            Values must be in the range [0.0, 1.0).
@@ -30,21 +36,22 @@ class VirtualTouchpad : public RefBase {
   //            is binary. Use 0.0f for no contact.
   // @returns OK on success.
   //
-  virtual status_t Touch(float x, float y, float pressure) = 0;
+  virtual status_t Touch(int touchpad, float x, float y, float pressure) = 0;
 
   // Generate a simulated touchpad button state.
   //
+  // @param touchpad Touchpad selector index.
   // @param buttons A union of MotionEvent BUTTON_* values.
   // @returns OK on success.
   //
   // Currently only BUTTON_BACK is supported, as the implementation
   // restricts itself to operations actually required by VrWindowManager.
   //
-  virtual status_t ButtonState(int buttons) = 0;
+  virtual status_t ButtonState(int touchpad, int buttons) = 0;
 
  protected:
   VirtualTouchpad() {}
-  virtual ~VirtualTouchpad() {}
+  ~VirtualTouchpad() override {}
 
  private:
   VirtualTouchpad(const VirtualTouchpad&) = delete;

@@ -721,6 +721,7 @@ void ShellView::Touch() {
   }
 
   const android::status_t status = virtual_touchpad_->Touch(
+      VirtualTouchpad::PRIMARY,
       hit_location_in_window_coord_.x() / size_.x(),
       hit_location_in_window_coord_.y() / size_.y(),
       is_touching_ ? 1.0f : 0.0f);
@@ -747,8 +748,8 @@ bool ShellView::OnTouchpadButton(bool down, int button) {
     return false;
   }
 
-  const android::status_t status =
-      virtual_touchpad_->ButtonState(touchpad_buttons_);
+  const android::status_t status = virtual_touchpad_->ButtonState(
+      VirtualTouchpad::PRIMARY, touchpad_buttons_);
   if (status != OK) {
     ALOGE("touchpad button failed: %d %d", touchpad_buttons_, status);
   }

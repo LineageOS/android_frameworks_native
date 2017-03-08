@@ -13,12 +13,12 @@ class VirtualTouchpadClient : public VirtualTouchpad {
  public:
   // VirtualTouchpad implementation:
   static sp<VirtualTouchpad> Create();
-  status_t Touch(float x, float y, float pressure) override;
-  status_t ButtonState(int buttons) override;
+  status_t Touch(int touchpad, float x, float y, float pressure) override;
+  status_t ButtonState(int touchpad, int buttons) override;
 
  protected:
   VirtualTouchpadClient() {}
-  virtual ~VirtualTouchpadClient() {}
+  ~VirtualTouchpadClient() override {}
 
  private:
   VirtualTouchpadClient(const VirtualTouchpadClient&) = delete;
