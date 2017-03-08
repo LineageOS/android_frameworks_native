@@ -317,6 +317,7 @@ TEST_F(UtilsTest, CreatePkgPath_LongPkgNameSuccess) {
     size_t pkgnameSize = PKG_NAME_MAX;
     char pkgname[pkgnameSize + 1];
     memset(pkgname, 'a', pkgnameSize);
+    pkgname[1] = '.';
     pkgname[pkgnameSize] = '\0';
 
     EXPECT_EQ(0, create_pkg_path(path, pkgname, "", 0))
@@ -506,6 +507,23 @@ TEST_F(UtilsTest, CreateDataUserPackagePath) {
             create_data_user_ce_package_path("57f8f4bc-abf4-655f-bf67-946fc0f9f25b", 0, "com.example"));
     EXPECT_EQ("/mnt/expand/57f8f4bc-abf4-655f-bf67-946fc0f9f25b/user/10/com.example",
             create_data_user_ce_package_path("57f8f4bc-abf4-655f-bf67-946fc0f9f25b", 10, "com.example"));
+}
+
+TEST_F(UtilsTest, IsValidPackageName) {
+    EXPECT_EQ(true, is_valid_package_name("com.example"));
+    EXPECT_EQ(true, is_valid_package_name("com.example-1"));
+    EXPECT_EQ(true, is_valid_package_name("com.example-1024"));
+    EXPECT_EQ(true, is_valid_package_name("com.example.foo---KiJFj4a_tePVw95pSrjg=="));
+    EXPECT_EQ(true, is_valid_package_name("really_LONG.a1234.package_name"));
+
+    EXPECT_EQ(false, is_valid_package_name("1234.package"));
+    EXPECT_EQ(false, is_valid_package_name("com.1234.package"));
+    EXPECT_EQ(false, is_valid_package_name("package"));
+    EXPECT_EQ(false, is_valid_package_name(""));
+    EXPECT_EQ(false, is_valid_package_name("."));
+    EXPECT_EQ(false, is_valid_package_name("com.example/../com.evil/"));
+    EXPECT_EQ(false, is_valid_package_name("com.example-1/../com.evil/"));
+    EXPECT_EQ(false, is_valid_package_name("/com.evil"));
 }
 
 }  // namespace installd

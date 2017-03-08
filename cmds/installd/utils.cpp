@@ -346,46 +346,42 @@ int create_move_path(char path[PKG_PATH_MAX],
  * 0 on success.
  */
 bool is_valid_package_name(const std::string& packageName) {
-    const char* pkgname = packageName.c_str();
-    const char *x = pkgname;
-    int alpha = -1;
+    // This logic is borrowed from PackageParser.java
+    bool hasSep = false;
+    bool front = true;
 
-    if (strlen(pkgname) > PKG_NAME_MAX) {
+    auto it = packageName.begin();
+    for (; it != packageName.end() && *it != '-'; it++) {
+        char c = *it;
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+            front = false;
+            continue;
+        }
+        if (!front) {
+            if ((c >= '0' && c <= '9') || c == '_') {
+                continue;
+            }
+        }
+        if (c == '.') {
+            hasSep = true;
+            front = true;
+            continue;
+        }
+        LOG(WARNING) << "Bad package character " << c << " in " << packageName;
         return false;
     }
 
-    while (*x) {
-        if (isalnum(*x) || (*x == '_')) {
-                /* alphanumeric or underscore are fine */
-        } else if (*x == '.') {
-            if ((x == pkgname) || (x[1] == '.') || (x[1] == 0)) {
-                    /* periods must not be first, last, or doubled */
-                ALOGE("invalid package name '%s'\n", pkgname);
-                return false;
-            }
-        } else if (*x == '-') {
-            /* Suffix -X is fine to let versioning of packages.
-               But whatever follows should be alphanumeric.*/
-            alpha = 1;
-        } else {
-                /* anything not A-Z, a-z, 0-9, _, or . is invalid */
-            ALOGE("invalid package name '%s'\n", pkgname);
-            return false;
-        }
-
-        x++;
+    if (!hasSep || front) {
+        LOG(WARNING) << "Missing separator in " << packageName;
+        return false;
     }
 
-    if (alpha == 1) {
-        // Skip current character
-        x++;
-        while (*x) {
-            if (!isalnum(*x)) {
-                ALOGE("invalid package name '%s' should include only numbers after -\n", pkgname);
-                return false;
-            }
-            x++;
-        }
+    for (; it != packageName.end(); it++) {
+        char c = *it;
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) continue;
+        if ((c >= '0' && c <= '9') || c == '_' || c == '-' || c == '=') continue;
+        LOG(WARNING) << "Bad suffix character " << c << " in " << packageName;
+        return false;
     }
 
     return true;
