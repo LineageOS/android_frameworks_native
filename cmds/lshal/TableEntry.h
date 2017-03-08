@@ -37,8 +37,8 @@ using TableEntrySource = unsigned int;
 
 enum : unsigned int {
     ARCH_UNKNOWN = 0,
-    ARCH64       = 1 << 0,
-    ARCH32       = 1 << 1,
+    ARCH32       = 1 << 0,
+    ARCH64       = 1 << 1,
     ARCH_BOTH    = ARCH32 | ARCH64
 };
 using Architecture = unsigned int;

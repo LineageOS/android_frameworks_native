@@ -183,6 +183,26 @@ void Lshal::postprocess() {
             }
         }
     });
+    // use a double for loop here because lshal doesn't care about efficiency.
+    for (TableEntry &packageEntry : mImplementationsTable) {
+        std::string packageName = packageEntry.interfaceName;
+        FQName fqPackageName{packageName.substr(0, packageName.find("::"))};
+        if (!fqPackageName.isValid()) {
+            continue;
+        }
+        for (TableEntry &interfaceEntry : mPassthroughRefTable) {
+            if (interfaceEntry.arch != ARCH_UNKNOWN) {
+                continue;
+            }
+            FQName interfaceName{splitFirst(interfaceEntry.interfaceName, '/').first};
+            if (!interfaceName.isValid()) {
+                continue;
+            }
+            if (interfaceName.getPackageAndVersion() == fqPackageName) {
+                interfaceEntry.arch = packageEntry.arch;
+            }
+        }
+    }
 }
 
 void Lshal::printLine(
@@ -247,10 +267,25 @@ void Lshal::dumpVintf() const {
                     &table == &mImplementationsTable ? "" : splittedFqInstanceName.second;
 
             vintf::Transport transport;
+            vintf::Arch arch;
             if (entry.transport == "hwbinder") {
                 transport = vintf::Transport::HWBINDER;
+                arch = vintf::Arch::ARCH_EMPTY;
             } else if (entry.transport == "passthrough") {
                 transport = vintf::Transport::PASSTHROUGH;
+                switch (entry.arch) {
+                    case lshal::ARCH32:
+                        arch = vintf::Arch::ARCH_32;    break;
+                    case lshal::ARCH64:
+                        arch = vintf::Arch::ARCH_64;    break;
+                    case lshal::ARCH_BOTH:
+                        arch = vintf::Arch::ARCH_32_64; break;
+                    case lshal::ARCH_UNKNOWN: // fallthrough
+                    default:
+                        mErr << "Warning: '" << fqName.package()
+                             << "' doesn't have bitness info, assuming 32+64." << std::endl;
+                        arch = vintf::Arch::ARCH_32_64;
+                }
             } else {
                 mErr << "Warning: '" << entry.transport << "' is not a valid transport." << std::endl;
                 continue;
@@ -262,7 +297,7 @@ void Lshal::dumpVintf() const {
                     .format = vintf::HalFormat::HIDL,
                     .name = fqName.package(),
                     .impl = {.implLevel = vintf::ImplLevel::GENERIC, .impl = ""},
-                    .transport = transport
+                    .transportArch = {transport, arch}
                 })) {
                     mErr << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
                     continue;
