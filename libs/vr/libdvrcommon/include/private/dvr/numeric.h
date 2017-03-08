@@ -126,12 +126,9 @@ template <typename Derived1, typename Derived2>
 Derived1 RandomInRange(
     const Eigen::MatrixBase<Derived1>& lo,
     const Eigen::MatrixBase<Derived2>& hi) {
-  using Matrix1_t = Eigen::MatrixBase<Derived1>;
-  using Matrix2_t = Eigen::MatrixBase<Derived2>;
+  EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Derived1, Derived2);
 
-  EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Matrix1_t, Matrix2_t);
-
-  Derived1 result = Matrix1_t::Zero();
+  Derived1 result = Eigen::MatrixBase<Derived1>::Zero();
 
   for (int row = 0; row < result.rows(); ++row) {
     for (int col = 0; col < result.cols(); ++col) {

@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#define EIGEN_NO_STATIC_ASSERT
 #include <private/dvr/numeric.h>
 
 using TestTypes = ::testing::Types<float, double, int>;
