@@ -135,7 +135,7 @@ status_t SensorEventQueue::disableSensor(Sensor const* sensor) const {
 }
 
 status_t SensorEventQueue::enableSensor(int32_t handle, int32_t samplingPeriodUs,
-                                        int maxBatchReportLatencyUs, int reservedFlags) const {
+                                        int64_t maxBatchReportLatencyUs, int reservedFlags) const {
     return mSensorEventConnection->enableDisable(handle, true, us2ns(samplingPeriodUs),
                                                  us2ns(maxBatchReportLatencyUs), reservedFlags);
 }

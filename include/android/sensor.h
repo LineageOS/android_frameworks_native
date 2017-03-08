@@ -48,15 +48,21 @@
  *
  */
 
-#include <sys/types.h>
-
 #include <android/looper.h>
+
+#include <sys/types.h>
+#include <math.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct AHardwareBuffer AHardwareBuffer;
+
+#define ASENSOR_RESOLUTION_INVALID     (nanf(""))
+#define ASENSOR_FIFO_COUNT_INVALID     (-1)
+#define ASENSOR_DELAY_INVALID          INT32_MIN
 
 /**
  * Sensor types.
@@ -112,7 +118,11 @@ enum {
      *  All values are in SI units (m/s^2) and measure the acceleration of the
      *  device not including the force of gravity.
      */
-    ASENSOR_TYPE_LINEAR_ACCELERATION = 10
+    ASENSOR_TYPE_LINEAR_ACCELERATION = 10,
+    /**
+     * Invalid sensor type. Returned by {@link ASensor_getType} as error value.
+     */
+    ASENSOR_TYPE_INVALID = -1
 };
 
 /**
@@ -142,7 +152,9 @@ enum {
     /** on shot reporting */
     AREPORTING_MODE_ONE_SHOT = 2,
     /** special trigger reporting */
-    AREPORTING_MODE_SPECIAL_TRIGGER = 3
+    AREPORTING_MODE_SPECIAL_TRIGGER = 3,
+    /** invalid reporting mode */
+    AREPORTING_MODE_INVALID = -1
 };
 
 /**
@@ -397,8 +409,7 @@ ASensor const* ASensorManager_getDefaultSensor(ASensorManager* manager, int type
  * Returns the default sensor with the given type and wakeUp properties or NULL if no sensor
  * of this type and wakeUp properties exists.
  */
-ASensor const* ASensorManager_getDefaultSensorEx(ASensorManager* manager, int type,
-        bool wakeUp);
+ASensor const* ASensorManager_getDefaultSensorEx(ASensorManager* manager, int type, bool wakeUp);
 #endif
 
 /**
@@ -516,7 +527,7 @@ int ASensorManager_configureDirectReport(
  * Note: To disable the selected sensor, use ASensorEventQueue_disableSensor() same as before.
  */
 int ASensorEventQueue_registerSensor(ASensorEventQueue* queue, ASensor const* sensor,
-        int32_t samplingPeriodUs, int maxBatchReportLatencyUs);
+        int32_t samplingPeriodUs, int64_t maxBatchReportLatencyUs);
 
 /**
  * Enable the selected sensor. Returns a negative error code on failure.
@@ -557,8 +568,7 @@ int ASensorEventQueue_hasEvents(ASensorEventQueue* queue);
  *   ssize_t numEvent = ASensorEventQueue_getEvents(queue, eventBuffer, 8);
  *
  */
-ssize_t ASensorEventQueue_getEvents(ASensorEventQueue* queue,
-                ASensorEvent* events, size_t count);
+ssize_t ASensorEventQueue_getEvents(ASensorEventQueue* queue, ASensorEvent* events, size_t count);
 
 
 /*****************************************************************************/
