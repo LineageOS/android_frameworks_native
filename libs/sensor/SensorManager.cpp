@@ -247,27 +247,24 @@ int SensorManager::createDirectChannel(
         return NO_INIT;
     }
 
-    switch (channelType) {
-        case SENSOR_DIRECT_MEM_TYPE_ASHMEM: {
-            sp<ISensorEventConnection> conn =
-                      mSensorServer->createSensorDirectConnection(mOpPackageName,
-                          static_cast<uint32_t>(size),
-                          static_cast<int32_t>(channelType),
-                          SENSOR_DIRECT_FMT_SENSORS_EVENT, resourceHandle);
-            if (conn == nullptr) {
-                return NO_MEMORY;
-            }
-            int nativeHandle = mDirectConnectionHandle++;
-            mDirectConnection.emplace(nativeHandle, conn);
-            return nativeHandle;
-        }
-        case SENSOR_DIRECT_MEM_TYPE_GRALLOC:
-            LOG_FATAL("%s: Finish implementation of ION and GRALLOC or remove", __FUNCTION__);
-            return BAD_VALUE;
-        default:
-            ALOGE("Bad channel shared memory type %d", channelType);
-            return BAD_VALUE;
+    if (channelType != SENSOR_DIRECT_MEM_TYPE_ASHMEM
+            && channelType != SENSOR_DIRECT_MEM_TYPE_GRALLOC) {
+        ALOGE("Bad channel shared memory type %d", channelType);
+        return BAD_VALUE;
     }
+
+    sp<ISensorEventConnection> conn =
+              mSensorServer->createSensorDirectConnection(mOpPackageName,
+                  static_cast<uint32_t>(size),
+                  static_cast<int32_t>(channelType),
+                  SENSOR_DIRECT_FMT_SENSORS_EVENT, resourceHandle);
+    if (conn == nullptr) {
+        return NO_MEMORY;
+    }
+
+    int nativeHandle = mDirectConnectionHandle++;
+    mDirectConnection.emplace(nativeHandle, conn);
+    return nativeHandle;
 }
 
 void SensorManager::destroyDirectChannel(int channelNativeHandle) {
