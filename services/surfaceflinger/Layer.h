@@ -707,7 +707,7 @@ private:
 
     // A layer can be attached to multiple displays when operating in mirror mode
     // (a.k.a: when several displays are attached with equal layerStack). In this
-    // case we need to keep track. In non-mirror mode, a layer will have only one.
+    // case we need to keep track. In non-mirror mode, a layer will have only one
     // HWCInfo. This map key is a display layerStack.
     std::unordered_map<int32_t, HWCInfo> mHwcLayers;
 
