@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "MiniFence.h"
+#include "hwc2on1adapter/MiniFence.h"
 
 #include <unistd.h>
 

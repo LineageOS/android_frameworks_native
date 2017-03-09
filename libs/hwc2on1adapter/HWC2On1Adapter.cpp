@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
+#include "hwc2on1adapter/HWC2On1Adapter.h"
+
 //#define LOG_NDEBUG 0
 
 #undef LOG_TAG
 #define LOG_TAG "HWC2On1Adapter"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "HWC2On1Adapter.h"
 
 #include <inttypes.h>
 
@@ -314,15 +315,6 @@ Error HWC2On1Adapter::createVirtualDisplay(uint32_t width,
     if (mHwc1VirtualDisplay) {
         // We have already allocated our only HWC1 virtual display
         ALOGE("createVirtualDisplay: HWC1 virtual display already allocated");
-        return Error::NoResources;
-    }
-
-    if (MAX_VIRTUAL_DISPLAY_DIMENSION != 0 &&
-            (width > MAX_VIRTUAL_DISPLAY_DIMENSION ||
-            height > MAX_VIRTUAL_DISPLAY_DIMENSION)) {
-        ALOGE("createVirtualDisplay: Can't create a virtual display with"
-                " a dimension > %u (tried %u x %u)",
-                MAX_VIRTUAL_DISPLAY_DIMENSION, width, height);
         return Error::NoResources;
     }
 

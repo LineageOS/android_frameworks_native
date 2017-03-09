@@ -47,7 +47,7 @@
 #include <log/log.h>
 
 #include "HWComposer.h"
-#include "HWC2On1Adapter.h"
+#include "hwc2on1adapter/HWC2On1Adapter.h"
 #include "HWC2.h"
 #include "ComposerHal.h"
 
@@ -265,6 +265,15 @@ status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
     if (mRemainingHwcVirtualDisplays == 0) {
         ALOGE("allocateVirtualDisplay: No remaining virtual displays");
         return NO_MEMORY;
+    }
+
+    if (MAX_VIRTUAL_DISPLAY_DIMENSION != 0 &&
+        (width > MAX_VIRTUAL_DISPLAY_DIMENSION ||
+         height > MAX_VIRTUAL_DISPLAY_DIMENSION)) {
+        ALOGE("createVirtualDisplay: Can't create a virtual display with"
+                      " a dimension > %u (tried %u x %u)",
+              MAX_VIRTUAL_DISPLAY_DIMENSION, width, height);
+        return INVALID_OPERATION;
     }
 
     std::shared_ptr<HWC2::Display> display;
