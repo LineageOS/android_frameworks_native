@@ -20,7 +20,6 @@ sourceFiles = [
     "display_manager_service.cpp",
     "display_service.cpp",
     "display_surface.cpp",
-    "epoll_event_dispatcher.cpp",
     "hardware_composer.cpp",
     "screenshot_service.cpp",
     "surface_channel.cpp",

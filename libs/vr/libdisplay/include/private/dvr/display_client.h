@@ -5,6 +5,7 @@
 #include <pdx/client.h>
 #include <pdx/file_handle.h>
 #include <private/dvr/buffer_hub_client.h>
+#include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/display_rpc.h>
 
 namespace android {
@@ -62,13 +63,9 @@ class DisplaySurfaceClient
   void SetBlurBehind(bool blur_behind);
   void SetAttributes(const DisplaySurfaceAttributes& attributes);
 
-  // |out_buffer_index| will receive a unique index for this buffer within the
-  // surface. The first buffer gets 0, second gets 1, and so on. This index
-  // can be used to deliver metadata for buffers that are queued for display.
-  std::shared_ptr<BufferProducer> AllocateBuffer(uint32_t* out_buffer_index);
-  std::shared_ptr<BufferProducer> AllocateBuffer() {
-    return AllocateBuffer(nullptr);
-  }
+  // Get the producer end of the buffer queue that transports graphics buffer
+  // from the application side to the compositor side.
+  std::shared_ptr<ProducerQueue> GetProducerQueue();
 
   // Get the shared memory metadata buffer for this display surface. If it is
   // not yet allocated, this will allocate it.
@@ -92,6 +89,9 @@ class DisplaySurfaceClient
   bool exclude_from_blur_;
   bool blur_behind_;
   DisplaySurfaceMetadata* mapped_metadata_buffer_;
+
+  // TODO(jwcai) Add support for multiple queues.
+  std::shared_ptr<ProducerQueue> producer_queue_;
 
   DisplaySurfaceClient(const DisplaySurfaceClient&) = delete;
   void operator=(const DisplaySurfaceClient&) = delete;

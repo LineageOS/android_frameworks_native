@@ -14,7 +14,6 @@
 
 #include "acquired_buffer.h"
 #include "display_surface.h"
-#include "epoll_event_dispatcher.h"
 #include "hardware_composer.h"
 
 namespace android {
@@ -99,7 +98,6 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   DisplayService(const DisplayService&) = delete;
   void operator=(const DisplayService&) = delete;
 
-  EpollEventDispatcher dispatcher_;
   HardwareComposer hardware_composer_;
   DisplayConfigurationUpdateNotifier update_notifier_;
 };

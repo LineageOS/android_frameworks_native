@@ -148,18 +148,22 @@ void DisplaySurfaceClient::SetAttributes(
   }
 }
 
-std::shared_ptr<BufferProducer> DisplaySurfaceClient::AllocateBuffer(
-    uint32_t* buffer_index) {
-  auto status = InvokeRemoteMethod<DisplayRPC::AllocateBuffer>();
-  if (!status) {
-    ALOGE("DisplaySurfaceClient::AllocateBuffer: Failed to allocate buffer: %s",
+std::shared_ptr<ProducerQueue> DisplaySurfaceClient::GetProducerQueue() {
+  if (producer_queue_ == nullptr) {
+    // Create producer queue through DisplayRPC
+    auto status = InvokeRemoteMethod<DisplayRPC::CreateBufferQueue>();
+    if (!status) {
+      ALOGE(
+          "DisplaySurfaceClient::GetProducerQueue: failed to create producer "
+          "queue: %s",
           status.GetErrorMessage().c_str());
-    return nullptr;
-  }
+      return nullptr;
+    }
 
-  if (buffer_index)
-    *buffer_index = status.get().first;
-  return BufferProducer::Import(status.take().second);
+    producer_queue_ =
+        ProducerQueue::Import<DisplaySurfaceMetadata>(status.take());
+  }
+  return producer_queue_;
 }
 
 volatile DisplaySurfaceMetadata* DisplaySurfaceClient::GetMetadataBufferPtr() {

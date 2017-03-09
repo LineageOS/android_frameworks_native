@@ -212,7 +212,7 @@ struct DisplayRPC {
     kOpGetMetrics = 0,
     kOpGetEdsCapture,
     kOpCreateSurface,
-    kOpAllocateBuffer,
+    kOpCreateBufferQueue,
     kOpSetAttributes,
     kOpGetMetadataBuffer,
     kOpCreateVideoMeshSurface,
@@ -233,8 +233,8 @@ struct DisplayRPC {
   PDX_REMOTE_METHOD(CreateSurface, kOpCreateSurface,
                     int(int width, int height, int format, int usage,
                         DisplaySurfaceFlags flags));
-  PDX_REMOTE_METHOD(AllocateBuffer, kOpAllocateBuffer,
-                    std::pair<std::uint32_t, LocalChannelHandle>(Void));
+  PDX_REMOTE_METHOD(CreateBufferQueue, kOpCreateBufferQueue,
+                    LocalChannelHandle(Void));
   PDX_REMOTE_METHOD(SetAttributes, kOpSetAttributes,
                     int(const DisplaySurfaceAttributes& attributes));
   PDX_REMOTE_METHOD(GetMetadataBuffer, kOpGetMetadataBuffer,

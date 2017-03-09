@@ -23,6 +23,7 @@ includeFiles = [
 
 staticLibraries = [
     "libbufferhub",
+    "libbufferhubqueue",
     "libdvrcommon",
     "libpdx_default_transport",
 ]

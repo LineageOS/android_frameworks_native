@@ -79,7 +79,8 @@ cc_test {
         "libgmock",
         "libeds",
     ] + staticLibraries + [
-        "libbufferhub"
+        "libbufferhub",
+        "libbufferhubqueue",
     ],
 
 }

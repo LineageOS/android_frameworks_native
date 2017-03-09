@@ -90,7 +90,7 @@ int DisplayService::HandleMessage(pdx::Message& message) {
       return 0;
 
     // Direct the surface specific messages to the surface instance.
-    case DisplayRPC::AllocateBuffer::Opcode:
+    case DisplayRPC::CreateBufferQueue::Opcode:
     case DisplayRPC::SetAttributes::Opcode:
     case DisplayRPC::GetMetadataBuffer::Opcode:
     case DisplayRPC::CreateVideoMeshSurface::Opcode:

@@ -13,7 +13,6 @@
 #include <vector>
 
 #include "acquired_buffer.h"
-#include "epoll_event_dispatcher.h"
 #include "surface_channel.h"
 #include "video_mesh_surface.h"
 
@@ -65,19 +64,8 @@ class DisplaySurface : public SurfaceChannel {
     return buffer_id_to_index_[buffer_id];
   }
 
-  // Gets a new set of consumers for all of the surface's buffers. These
-  // consumers are independent from the consumers maintained internally to the
-  // surface and may be passed to other processes over IPC.
-  int GetConsumers(std::vector<pdx::LocalChannelHandle>* consumers);
-
-  template <class A>
-  void ForEachBuffer(A action) {
-    std::lock_guard<std::mutex> autolock(lock_);
-    std::for_each(buffers_.begin(), buffers_.end(), action);
-  }
-
-  bool IsBufferAvailable() const;
-  bool IsBufferPosted() const;
+  bool IsBufferAvailable();
+  bool IsBufferPosted();
   AcquiredBuffer AcquireCurrentBuffer();
 
   // Get the newest buffer. Up to one buffer will be skipped. If a buffer is
@@ -119,12 +107,6 @@ class DisplaySurface : public SurfaceChannel {
   // Returns whether a frame is available without locking the mutex.
   bool IsFrameAvailableNoLock() const;
 
-  // Handles epoll events for BufferHub consumers. Events are mainly generated
-  // by producers posting buffers ready for display. This handler runs on the
-  // epoll event thread.
-  void HandleConsumerEvents(const std::shared_ptr<BufferConsumer>& consumer,
-                            int events);
-
   // Dispatches display surface messages to the appropriate handlers. This
   // handler runs on the displayd message dispatch thread.
   int HandleMessage(pdx::Message& message) override;
@@ -133,18 +115,13 @@ class DisplaySurface : public SurfaceChannel {
   int OnClientSetAttributes(pdx::Message& message,
                             const DisplaySurfaceAttributes& attributes);
 
-  // Allocates a buffer with the display surface geometry and settings and
-  // returns it to the client.
-  std::pair<uint32_t, pdx::LocalChannelHandle> OnAllocateBuffer(
-      pdx::Message& message);
+  // Creates a BufferHubQueue associated with this surface and returns the PDX
+  // handle of its producer side to the client.
+  pdx::LocalChannelHandle OnCreateBufferQueue(pdx::Message& message);
 
-  // Creates a video mesh surface associated with this surface and returns it
-  // to the client.
+  // Creates a video mesh surface associated with this surface and returns its
+  // PDX handle to the client.
   pdx::RemoteChannelHandle OnCreateVideoMeshSurface(pdx::Message& message);
-
-  // Sets the current buffer for the display surface, discarding the previous
-  // buffer if it is not already claimed. Runs on the epoll event thread.
-  void OnPostConsumer(const std::shared_ptr<BufferConsumer>& consumer);
 
   // Client interface (called through IPC) to set visibility and z order.
   void ClientSetVisible(bool visible);
@@ -152,14 +129,8 @@ class DisplaySurface : public SurfaceChannel {
   void ClientSetExcludeFromBlur(bool exclude_from_blur);
   void ClientSetBlurBehind(bool blur_behind);
 
-  // Runs on the displayd message dispatch thread.
-  int AddConsumer(const std::shared_ptr<BufferConsumer>& consumer);
-
-  // Runs on the epoll event thread.
-  void RemoveConsumer(const std::shared_ptr<BufferConsumer>& consumer);
-
-  // Runs on the epoll and display post thread.
-  void RemoveConsumerUnlocked(const std::shared_ptr<BufferConsumer>& consumer);
+  // Dequeue all available buffers from the consumer queue.
+  void DequeueBuffersLocked();
 
   DisplaySurface(const DisplaySurface&) = delete;
   void operator=(const DisplaySurface&) = delete;
@@ -169,11 +140,16 @@ class DisplaySurface : public SurfaceChannel {
   // Synchronizes access to mutable state below between message dispatch thread,
   // epoll event thread, and frame post thread.
   mutable std::mutex lock_;
-  std::unordered_map<int, std::shared_ptr<BufferConsumer>> buffers_;
+
+  // The consumer end of a BufferHubQueue. VrFlinger allocates and controls the
+  // buffer queue and pass producer end to the app and the consumer end to
+  // compositor.
+  // TODO(jwcai) Add support for multiple buffer queues per display surface.
+  std::shared_ptr<ConsumerQueue> consumer_queue_;
 
   // In a triple-buffered surface, up to kMaxPostedBuffers buffers may be
   // posted and pending.
-  RingBuffer<AcquiredBuffer> posted_buffers_;
+  RingBuffer<AcquiredBuffer> acquired_buffers_;
 
   // Provides access to VideoMeshSurface. Here we don't want to increase
   // the reference count immediately on allocation, will leave it into
@@ -194,8 +170,6 @@ class DisplaySurface : public SurfaceChannel {
   bool manager_visible_;
   int manager_z_order_;
   float manager_blur_;
-  // The monotonically increasing index for allocated buffers in this surface.
-  uint32_t allocated_buffer_index_;
   int layer_order_;
 
   // Maps from the buffer id to the corresponding allocated buffer index.

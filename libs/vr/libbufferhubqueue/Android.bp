@@ -45,6 +45,7 @@ cc_library {
     cflags = [ "-DLOGTAG=\"libbufferhubqueue\"" ],
     srcs: sourceFiles,
     export_include_dirs: includeFiles,
+    export_static_lib_headers: staticLibraries,
     static_libs: staticLibraries,
     shared_libs: sharedLibraries,
 }
