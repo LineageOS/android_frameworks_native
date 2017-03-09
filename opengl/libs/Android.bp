@@ -77,7 +77,6 @@ cc_defaults {
         "-DLOG_TAG=\"libEGL\"",
     ],
     shared_libs: [
-        "libbinder",
         "libutils",
         "libui",
         "libnativewindow",

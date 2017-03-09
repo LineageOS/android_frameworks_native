@@ -33,19 +33,10 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 
-#include <gui/ISurfaceComposer.h>
-
-#include <ui/GraphicBuffer.h>
-
-
 #include <utils/KeyedVector.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
 #include <utils/Thread.h>
-
-#include "binder/Binder.h"
-#include "binder/Parcel.h"
-#include "binder/IServiceManager.h"
 
 #include "../egl_impl.h"
 
@@ -87,7 +78,6 @@ char const * const gBuiltinExtensionString =
         "EGL_KHR_get_all_proc_addresses "
         "EGL_ANDROID_presentation_time "
         "EGL_KHR_swap_buffers_with_damage "
-        "EGL_ANDROID_create_native_client_buffer "
         "EGL_ANDROID_get_native_client_buffer "
         "EGL_ANDROID_front_buffer_auto_refresh "
         "EGL_ANDROID_get_frame_timestamps "
@@ -183,10 +173,6 @@ static const extention_map_t sExtensionMap[] = {
     // EGL_KHR_swap_buffers_with_damage
     { "eglSwapBuffersWithDamageKHR",
             (__eglMustCastToProperFunctionPointerType)&eglSwapBuffersWithDamageKHR },
-
-    // EGL_ANDROID_create_native_client_buffer
-    { "eglCreateNativeClientBufferANDROID",
-            (__eglMustCastToProperFunctionPointerType)&eglCreateNativeClientBufferANDROID },
 
     // EGL_ANDROID_get_native_client_buffer
     { "eglGetNativeClientBufferANDROID",
@@ -1844,164 +1830,10 @@ EGLBoolean eglPresentationTimeANDROID(EGLDisplay dpy, EGLSurface surface,
     return EGL_TRUE;
 }
 
-EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint *attrib_list)
-{
-    clearError();
-
-    uint64_t producerUsage = 0;
-    uint64_t consumerUsage = 0;
-    uint32_t width = 0;
-    uint32_t height = 0;
-    uint32_t format = 0;
-    uint32_t layer_count = 1;
-    uint32_t red_size = 0;
-    uint32_t green_size = 0;
-    uint32_t blue_size = 0;
-    uint32_t alpha_size = 0;
-
-#define GET_NONNEGATIVE_VALUE(case_name, target) \
-    case case_name: \
-        if (value >= 0) { \
-            target = value; \
-        } else { \
-            return setError(EGL_BAD_PARAMETER, (EGLClientBuffer)0); \
-        } \
-        break
-
-    if (attrib_list) {
-        while (*attrib_list != EGL_NONE) {
-            GLint attr = *attrib_list++;
-            GLint value = *attrib_list++;
-            switch (attr) {
-                GET_NONNEGATIVE_VALUE(EGL_WIDTH, width);
-                GET_NONNEGATIVE_VALUE(EGL_HEIGHT, height);
-                GET_NONNEGATIVE_VALUE(EGL_RED_SIZE, red_size);
-                GET_NONNEGATIVE_VALUE(EGL_GREEN_SIZE, green_size);
-                GET_NONNEGATIVE_VALUE(EGL_BLUE_SIZE, blue_size);
-                GET_NONNEGATIVE_VALUE(EGL_ALPHA_SIZE, alpha_size);
-                GET_NONNEGATIVE_VALUE(EGL_LAYER_COUNT_ANDROID, layer_count);
-                case EGL_NATIVE_BUFFER_USAGE_ANDROID:
-                    if (value & EGL_NATIVE_BUFFER_USAGE_PROTECTED_BIT_ANDROID) {
-                        producerUsage |= GRALLOC1_PRODUCER_USAGE_PROTECTED;
-                    }
-                    if (value & EGL_NATIVE_BUFFER_USAGE_RENDERBUFFER_BIT_ANDROID) {
-                        producerUsage |= GRALLOC1_PRODUCER_USAGE_GPU_RENDER_TARGET;
-                    }
-                    if (value & EGL_NATIVE_BUFFER_USAGE_TEXTURE_BIT_ANDROID) {
-                        consumerUsage |= GRALLOC1_CONSUMER_USAGE_GPU_TEXTURE;
-                    }
-                    break;
-                default:
-                    return setError(EGL_BAD_PARAMETER, (EGLClientBuffer)0);
-            }
-        }
-    }
-#undef GET_NONNEGATIVE_VALUE
-
-    // Validate format.
-    if (red_size == 8 && green_size == 8 && blue_size == 8) {
-        if (alpha_size == 8) {
-            format = HAL_PIXEL_FORMAT_RGBA_8888;
-        } else {
-            format = HAL_PIXEL_FORMAT_RGB_888;
-        }
-    } else if (red_size == 5 && green_size == 6 && blue_size == 5 &&
-               alpha_size == 0) {
-        format = HAL_PIXEL_FORMAT_RGB_565;
-    } else {
-        ALOGE("Invalid native pixel format { r=%u, g=%u, b=%u, a=%u }",
-                red_size, green_size, blue_size, alpha_size);
-        return setError(EGL_BAD_PARAMETER, (EGLClientBuffer)0);
-    }
-
-#define CHECK_ERROR_CONDITION(message) \
-    if (err != NO_ERROR) { \
-        ALOGE(message); \
-        goto error_condition; \
-    }
-
-    // The holder is used to destroy the buffer if an error occurs.
-    GraphicBuffer* gBuffer = new GraphicBuffer();
-    sp<IServiceManager> sm = defaultServiceManager();
-    sp<IBinder> surfaceFlinger = sm->getService(String16("SurfaceFlinger"));
-    sp<IBinder> allocator;
-    Parcel sc_data, sc_reply, data, reply;
-    status_t err = NO_ERROR;
-    if (sm == NULL) {
-        ALOGE("Unable to connect to ServiceManager");
-        goto error_condition;
-    }
-
-    // Obtain an allocator.
-    if (surfaceFlinger == NULL) {
-        ALOGE("Unable to connect to SurfaceFlinger");
-        goto error_condition;
-    }
-    sc_data.writeInterfaceToken(String16("android.ui.ISurfaceComposer"));
-    err = surfaceFlinger->transact(
-            BnSurfaceComposer::CREATE_GRAPHIC_BUFFER_ALLOC, sc_data, &sc_reply);
-    CHECK_ERROR_CONDITION("Unable to obtain allocator from SurfaceFlinger");
-    allocator = sc_reply.readStrongBinder();
-
-    if (allocator == NULL) {
-        ALOGE("Unable to obtain an ISurfaceComposer");
-        goto error_condition;
-    }
-    data.writeInterfaceToken(String16("android.ui.IGraphicBufferAlloc"));
-    err = data.writeUint32(width);
-    CHECK_ERROR_CONDITION("Unable to write width");
-    err = data.writeUint32(height);
-    CHECK_ERROR_CONDITION("Unable to write height");
-    err = data.writeInt32(static_cast<int32_t>(format));
-    CHECK_ERROR_CONDITION("Unable to write format");
-    err = data.writeUint32(layer_count);
-    CHECK_ERROR_CONDITION("Unable to write layer count");
-    err = data.writeUint64(producerUsage);
-    CHECK_ERROR_CONDITION("Unable to write producer usage");
-    err = data.writeUint64(consumerUsage);
-    CHECK_ERROR_CONDITION("Unable to write consumer usage");
-    err = data.writeUtf8AsUtf16(
-            std::string("[eglCreateNativeClientBufferANDROID pid ") +
-            std::to_string(getpid()) + ']');
-    CHECK_ERROR_CONDITION("Unable to write requestor name");
-    err = allocator->transact(IBinder::FIRST_CALL_TRANSACTION, data,
-            &reply);
-    CHECK_ERROR_CONDITION(
-            "Unable to request buffer allocation from surface composer");
-    err = reply.readInt32();
-    CHECK_ERROR_CONDITION("Unable to obtain buffer from surface composer");
-    err = reply.read(*gBuffer);
-    CHECK_ERROR_CONDITION("Unable to read buffer from surface composer");
-
-    err = gBuffer->initCheck();
-    if (err != NO_ERROR) {
-        ALOGE("Unable to create native buffer "
-                "{ w=%u, h=%u, f=%u, pu=%" PRIx64 " cu=%" PRIx64 ", lc=%u} %#x",
-                width, height, format, producerUsage, consumerUsage,
-                layer_count, err);
-        goto error_condition;
-    }
-    ALOGV("Created new native buffer %p { w=%u, h=%u, f=%u, pu=%" PRIx64
-          " cu=%" PRIx64 ", lc=%u}",
-            gBuffer, width, height, format, producerUsage, consumerUsage,
-            layer_count);
-    return static_cast<EGLClientBuffer>(gBuffer->getNativeBuffer());
-
-#undef CHECK_ERROR_CONDITION
-
-error_condition:
-    // Delete the buffer.
-    sp<GraphicBuffer> holder(gBuffer);
-    return setError(EGL_BAD_ALLOC, (EGLClientBuffer)0);
-}
-
 EGLClientBuffer eglGetNativeClientBufferANDROID(const AHardwareBuffer *buffer) {
     clearError();
-
     if (!buffer) return setError(EGL_BAD_PARAMETER, (EGLClientBuffer)0);
-
-    const GraphicBuffer* graphicBuffer = AHardwareBuffer_to_GraphicBuffer(buffer);
-    return static_cast<EGLClientBuffer>(graphicBuffer->getNativeBuffer());
+    return const_cast<ANativeWindowBuffer *>(AHardwareBuffer_to_ANativeWindowBuffer(buffer));
 }
 
 // ----------------------------------------------------------------------------

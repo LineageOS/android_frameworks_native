@@ -28,6 +28,7 @@
 #include <stdint.h>
 
 struct AHardwareBuffer;
+struct ANativeWindowBuffer;
 
 namespace android {
 
@@ -44,8 +45,11 @@ void AHardwareBuffer_convertFromGrallocUsageBits(uint64_t* outUsage0, uint64_t* 
 class GraphicBuffer;
 const GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(const AHardwareBuffer* buffer);
 GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(AHardwareBuffer* buffer);
-AHardwareBuffer* AHardwareBuffer_from_GraphicBuffer(GraphicBuffer* buffer);
 
+const ANativeWindowBuffer* AHardwareBuffer_to_ANativeWindowBuffer(const AHardwareBuffer* buffer);
+ANativeWindowBuffer* AHardwareBuffer_to_ANativeWindowBuffer(AHardwareBuffer* buffer);
+
+AHardwareBuffer* AHardwareBuffer_from_GraphicBuffer(GraphicBuffer* buffer);
 } // namespace android
 
 #endif // ANDROID_PRIVATE_NATIVE_AHARDWARE_BUFFER_HELPERS_H

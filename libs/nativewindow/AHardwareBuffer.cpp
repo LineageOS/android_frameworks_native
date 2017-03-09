@@ -69,7 +69,7 @@ int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc, AHardwareBuffer**
         if (err == NO_MEMORY) {
             GraphicBuffer::dumpAllocationsToSystemLog();
         }
-        ALOGE("GraphicBufferAlloc::createGraphicBuffer(w=%u, h=%u, lc=%u) failed (%s), handle=%p",
+        ALOGE("GraphicBuffer(w=%u, h=%u, lc=%u) failed (%s), handle=%p",
                 desc->width, desc->height, desc->layers, strerror(-err), gbuffer->handle);
         return err;
     }
@@ -426,6 +426,14 @@ const GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(const AHardwareBuffer* buf
 
 GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(AHardwareBuffer* buffer) {
     return reinterpret_cast<GraphicBuffer*>(buffer);
+}
+
+const ANativeWindowBuffer* AHardwareBuffer_to_ANativeWindowBuffer(const AHardwareBuffer* buffer) {
+    return AHardwareBuffer_to_GraphicBuffer(buffer)->getNativeBuffer();
+}
+
+ANativeWindowBuffer* AHardwareBuffer_to_ANativeWindowBuffer(AHardwareBuffer* buffer) {
+    return AHardwareBuffer_to_GraphicBuffer(buffer)->getNativeBuffer();
 }
 
 AHardwareBuffer* AHardwareBuffer_from_GraphicBuffer(GraphicBuffer* buffer) {
