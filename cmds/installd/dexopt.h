@@ -34,14 +34,14 @@ static constexpr int PATCHOAT_FOR_RELOCATION     = 5;
 
 typedef int fd_t;
 
-bool clear_reference_profile(const char* pkgname);
-bool clear_current_profile(const char* pkgname, userid_t user);
-bool clear_current_profiles(const char* pkgname);
+bool clear_reference_profile(const std::string& pkgname);
+bool clear_current_profile(const std::string& pkgname, userid_t user);
+bool clear_current_profiles(const std::string& pkgname);
 
 bool move_ab(const char* apk_path, const char* instruction_set, const char* output_path);
 
-bool analyse_profiles(uid_t uid, const char* pkgname);
-bool dump_profiles(int32_t uid, const char* pkgname, const char* code_paths);
+bool analyse_profiles(uid_t uid, const std::string& pkgname);
+bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_paths);
 
 bool delete_odex(const char* apk_path, const char* instruction_set, const char* output_path);
 

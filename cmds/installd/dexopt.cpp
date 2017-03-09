@@ -101,19 +101,19 @@ static bool clear_profile(const std::string& profile) {
     return truncated;
 }
 
-bool clear_reference_profile(const char* pkgname) {
+bool clear_reference_profile(const std::string& pkgname) {
     std::string reference_profile_dir = create_data_ref_profile_package_path(pkgname);
     std::string reference_profile = create_primary_profile(reference_profile_dir);
     return clear_profile(reference_profile);
 }
 
-bool clear_current_profile(const char* pkgname, userid_t user) {
+bool clear_current_profile(const std::string& pkgname, userid_t user) {
     std::string profile_dir = create_data_user_profile_package_path(user, pkgname);
     std::string profile = create_primary_profile(profile_dir);
     return clear_profile(profile);
 }
 
-bool clear_current_profiles(const char* pkgname) {
+bool clear_current_profiles(const std::string& pkgname) {
     bool success = true;
     std::vector<userid_t> users = get_known_users(/*volume_uuid*/ nullptr);
     for (auto user : users) {
@@ -512,12 +512,12 @@ static fd_t open_primary_profile_file_from_dir(const std::string& profile_dir, m
     return profile_fd;
 }
 
-static fd_t open_primary_profile_file(userid_t user, const char* pkgname) {
+static fd_t open_primary_profile_file(userid_t user, const std::string& pkgname) {
     std::string profile_dir = create_data_user_profile_package_path(user, pkgname);
     return open_primary_profile_file_from_dir(profile_dir, O_RDONLY);
 }
 
-static fd_t open_reference_profile(uid_t uid, const char* pkgname, bool read_write) {
+static fd_t open_reference_profile(uid_t uid, const std::string& pkgname, bool read_write) {
     std::string reference_profile_dir = create_data_ref_profile_package_path(pkgname);
     int flags = read_write ? O_RDWR | O_CREAT : O_RDONLY;
     fd_t fd = open_primary_profile_file_from_dir(reference_profile_dir, flags);
@@ -534,7 +534,7 @@ static fd_t open_reference_profile(uid_t uid, const char* pkgname, bool read_wri
     return fd;
 }
 
-static void open_profile_files(uid_t uid, const char* pkgname,
+static void open_profile_files(uid_t uid, const std::string& pkgname,
             /*out*/ std::vector<fd_t>* profiles_fd, /*out*/ fd_t* reference_profile_fd) {
     // Open the reference profile in read-write mode as profman might need to save the merge.
     *reference_profile_fd = open_reference_profile(uid, pkgname, /*read_write*/ true);
@@ -614,7 +614,7 @@ static void run_profman_merge(const std::vector<fd_t>& profiles_fd, fd_t referen
 // a re-compilation of the package.
 // If the return value is true all the current profiles would have been merged into
 // the reference profiles accessible with open_reference_profile().
-bool analyse_profiles(uid_t uid, const char* pkgname) {
+bool analyse_profiles(uid_t uid, const std::string& pkgname) {
     std::vector<fd_t> profiles_fd;
     fd_t reference_profile_fd = -1;
     open_profile_files(uid, pkgname, &profiles_fd, &reference_profile_fd);
@@ -627,8 +627,6 @@ bool analyse_profiles(uid_t uid, const char* pkgname) {
         }
         return false;
     }
-
-    ALOGV("PROFMAN (MERGE): --- BEGIN '%s' ---\n", pkgname);
 
     pid_t pid = fork();
     if (pid == 0) {
@@ -740,12 +738,10 @@ static const char* get_location_from_path(const char* path) {
     }
 }
 
-bool dump_profiles(int32_t uid, const char* pkgname, const char* code_paths) {
+bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_paths) {
     std::vector<fd_t> profile_fds;
     fd_t reference_profile_fd = -1;
-    std::string out_file_name = StringPrintf("/data/misc/profman/%s.txt", pkgname);
-
-    ALOGV("PROFMAN (DUMP): --- BEGIN '%s' ---\n", pkgname);
+    std::string out_file_name = StringPrintf("/data/misc/profman/%s.txt", pkgname.c_str());
 
     open_profile_files(uid, pkgname, &profile_fds, &reference_profile_fd);
 
@@ -753,7 +749,7 @@ bool dump_profiles(int32_t uid, const char* pkgname, const char* code_paths) {
     const bool has_profiles = !profile_fds.empty();
 
     if (!has_reference_profile && !has_profiles) {
-        ALOGE("profman dump: no profiles to dump for '%s'", pkgname);
+        LOG(ERROR)  << "profman dump: no profiles to dump for " << pkgname;
         return false;
     }
 
