@@ -105,9 +105,20 @@ cc_library_shared {
         "EGL/egl.cpp",
         "EGL/eglApi.cpp",
         "EGL/Loader.cpp",
+        "EGL/BlobCache.cpp",
     ],
     static_libs: ["libEGL_getProcAddress"],
     ldflags: ["-Wl,--exclude-libs=ALL"],
+    export_include_dirs: ["EGL/include"],
+}
+
+cc_test {
+    name: "libEGL_test",
+    defaults: ["egl_libs_defaults"],
+    srcs: [
+        "EGL/BlobCache.cpp",
+        "EGL/BlobCache_test.cpp",
+    ],
 }
 
 cc_defaults {

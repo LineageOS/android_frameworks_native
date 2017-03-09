@@ -14,15 +14,15 @@
  ** limitations under the License.
  */
 
-#define LOG_TAG "BlobCache"
 //#define LOG_NDEBUG 0
 
-#include <utils/BlobCache.h>
-#include <utils/Timers.h>
+#include "BlobCache.h"
 
 #include <inttypes.h>
 
 #include <cutils/properties.h>
+#include <log/log.h>
+#include <chrono>
 
 namespace android {
 
@@ -40,7 +40,7 @@ BlobCache::BlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize
         mMaxValueSize(maxValueSize),
         mMaxTotalSize(maxTotalSize),
         mTotalSize(0) {
-    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+    int64_t now = std::chrono::steady_clock::now().time_since_epoch().count();
 #ifdef _WIN32
     srand(now);
 #else
@@ -77,15 +77,15 @@ void BlobCache::set(const void* key, size_t keySize, const void* value,
         return;
     }
 
-    sp<Blob> dummyKey(new Blob(key, keySize, false));
+    std::shared_ptr<Blob> dummyKey(new Blob(key, keySize, false));
     CacheEntry dummyEntry(dummyKey, NULL);
 
     while (true) {
-        ssize_t index = mCacheEntries.indexOf(dummyEntry);
-        if (index < 0) {
+        auto index = std::lower_bound(mCacheEntries.begin(), mCacheEntries.end(), dummyEntry);
+        if (index == mCacheEntries.end() || dummyEntry < *index) {
             // Create a new cache entry.
-            sp<Blob> keyBlob(new Blob(key, keySize, true));
-            sp<Blob> valueBlob(new Blob(value, valueSize, true));
+            std::shared_ptr<Blob> keyBlob(new Blob(key, keySize, true));
+            std::shared_ptr<Blob> valueBlob(new Blob(value, valueSize, true));
             size_t newTotalSize = mTotalSize + keySize + valueSize;
             if (mMaxTotalSize < newTotalSize) {
                 if (isCleanable()) {
@@ -100,14 +100,14 @@ void BlobCache::set(const void* key, size_t keySize, const void* value,
                     break;
                 }
             }
-            mCacheEntries.add(CacheEntry(keyBlob, valueBlob));
+            mCacheEntries.insert(index, CacheEntry(keyBlob, valueBlob));
             mTotalSize = newTotalSize;
             ALOGV("set: created new cache entry with %zu byte key and %zu byte value",
                     keySize, valueSize);
         } else {
             // Update the existing cache entry.
-            sp<Blob> valueBlob(new Blob(value, valueSize, true));
-            sp<Blob> oldValueBlob(mCacheEntries[index].getValue());
+            std::shared_ptr<Blob> valueBlob(new Blob(value, valueSize, true));
+            std::shared_ptr<Blob> oldValueBlob(index->getValue());
             size_t newTotalSize = mTotalSize + valueSize - oldValueBlob->getSize();
             if (mMaxTotalSize < newTotalSize) {
                 if (isCleanable()) {
@@ -121,7 +121,7 @@ void BlobCache::set(const void* key, size_t keySize, const void* value,
                     break;
                 }
             }
-            mCacheEntries.editItemAt(index).setValue(valueBlob);
+            index->setValue(valueBlob);
             mTotalSize = newTotalSize;
             ALOGV("set: updated existing cache entry with %zu byte key and %zu byte "
                     "value", keySize, valueSize);
@@ -137,17 +137,17 @@ size_t BlobCache::get(const void* key, size_t keySize, void* value,
                 keySize, mMaxKeySize);
         return 0;
     }
-    sp<Blob> dummyKey(new Blob(key, keySize, false));
+    std::shared_ptr<Blob> dummyKey(new Blob(key, keySize, false));
     CacheEntry dummyEntry(dummyKey, NULL);
-    ssize_t index = mCacheEntries.indexOf(dummyEntry);
-    if (index < 0) {
+    auto index = std::lower_bound(mCacheEntries.begin(), mCacheEntries.end(), dummyEntry);
+    if (index == mCacheEntries.end() || dummyEntry < *index) {
         ALOGV("get: no cache entry found for key of size %zu", keySize);
         return 0;
     }
 
     // The key was found. Return the value if the caller's buffer is large
     // enough.
-    sp<Blob> valueBlob(mCacheEntries[index].getValue());
+    std::shared_ptr<Blob> valueBlob(index->getValue());
     size_t valueBlobSize = valueBlob->getSize();
     if (valueBlobSize <= valueSize) {
         ALOGV("get: copying %zu bytes to caller's buffer", valueBlobSize);
@@ -165,21 +165,19 @@ static inline size_t align4(size_t size) {
 
 size_t BlobCache::getFlattenedSize() const {
     size_t size = align4(sizeof(Header) + PROPERTY_VALUE_MAX);
-    for (size_t i = 0; i < mCacheEntries.size(); i++) {
-        const CacheEntry& e(mCacheEntries[i]);
-        sp<Blob> keyBlob = e.getKey();
-        sp<Blob> valueBlob = e.getValue();
-        size += align4(sizeof(EntryHeader) + keyBlob->getSize() +
-                       valueBlob->getSize());
+    for (const CacheEntry& e :  mCacheEntries) {
+        std::shared_ptr<Blob> const& keyBlob = e.getKey();
+        std::shared_ptr<Blob> const& valueBlob = e.getValue();
+        size += align4(sizeof(EntryHeader) + keyBlob->getSize() + valueBlob->getSize());
     }
     return size;
 }
 
-status_t BlobCache::flatten(void* buffer, size_t size) const {
+int BlobCache::flatten(void* buffer, size_t size) const {
     // Write the cache header
     if (size < sizeof(Header)) {
         ALOGE("flatten: not enough room for cache header");
-        return BAD_VALUE;
+        return 0;
     }
     Header* header = reinterpret_cast<Header*>(buffer);
     header->mMagicNumber = blobCacheMagic;
@@ -193,10 +191,9 @@ status_t BlobCache::flatten(void* buffer, size_t size) const {
     // Write cache entries
     uint8_t* byteBuffer = reinterpret_cast<uint8_t*>(buffer);
     off_t byteOffset = align4(sizeof(Header) + header->mBuildIdLength);
-    for (size_t i = 0; i < mCacheEntries.size(); i++) {
-        const CacheEntry& e(mCacheEntries[i]);
-        sp<Blob> keyBlob = e.getKey();
-        sp<Blob> valueBlob = e.getValue();
+    for (const CacheEntry& e :  mCacheEntries) {
+        std::shared_ptr<Blob> const& keyBlob = e.getKey();
+        std::shared_ptr<Blob> const& valueBlob = e.getValue();
         size_t keySize = keyBlob->getSize();
         size_t valueSize = valueBlob->getSize();
 
@@ -204,11 +201,10 @@ status_t BlobCache::flatten(void* buffer, size_t size) const {
         size_t totalSize = align4(entrySize);
         if (byteOffset + totalSize > size) {
             ALOGE("flatten: not enough room for cache entries");
-            return BAD_VALUE;
+            return -EINVAL;
         }
 
-        EntryHeader* eheader = reinterpret_cast<EntryHeader*>(
-            &byteBuffer[byteOffset]);
+        EntryHeader* eheader = reinterpret_cast<EntryHeader*>(&byteBuffer[byteOffset]);
         eheader->mKeySize = keySize;
         eheader->mValueSize = valueSize;
 
@@ -224,22 +220,22 @@ status_t BlobCache::flatten(void* buffer, size_t size) const {
         byteOffset += totalSize;
     }
 
-    return OK;
+    return 0;
 }
 
-status_t BlobCache::unflatten(void const* buffer, size_t size) {
+int BlobCache::unflatten(void const* buffer, size_t size) {
     // All errors should result in the BlobCache being in an empty state.
     mCacheEntries.clear();
 
     // Read the cache header
     if (size < sizeof(Header)) {
         ALOGE("unflatten: not enough room for cache header");
-        return BAD_VALUE;
+        return -EINVAL;
     }
     const Header* header = reinterpret_cast<const Header*>(buffer);
     if (header->mMagicNumber != blobCacheMagic) {
         ALOGE("unflatten: bad magic number: %" PRIu32, header->mMagicNumber);
-        return BAD_VALUE;
+        return -EINVAL;
     }
     char buildId[PROPERTY_VALUE_MAX];
     int len = property_get("ro.build.id", buildId, "");
@@ -248,7 +244,7 @@ status_t BlobCache::unflatten(void const* buffer, size_t size) {
             len != header->mBuildIdLength ||
             strncmp(buildId, header->mBuildId, len)) {
         // We treat version mismatches as an empty cache.
-        return OK;
+        return 0;
     }
 
     // Read cache entries
@@ -259,7 +255,7 @@ status_t BlobCache::unflatten(void const* buffer, size_t size) {
         if (byteOffset + sizeof(EntryHeader) > size) {
             mCacheEntries.clear();
             ALOGE("unflatten: not enough room for cache entry headers");
-            return BAD_VALUE;
+            return -EINVAL;
         }
 
         const EntryHeader* eheader = reinterpret_cast<const EntryHeader*>(
@@ -272,7 +268,7 @@ status_t BlobCache::unflatten(void const* buffer, size_t size) {
         if (byteOffset + totalSize > size) {
             mCacheEntries.clear();
             ALOGE("unflatten: not enough room for cache entry headers");
-            return BAD_VALUE;
+            return -EINVAL;
         }
 
         const uint8_t* data = eheader->mData;
@@ -281,7 +277,7 @@ status_t BlobCache::unflatten(void const* buffer, size_t size) {
         byteOffset += totalSize;
     }
 
-    return OK;
+    return 0;
 }
 
 long int BlobCache::blob_random() {
@@ -299,7 +295,7 @@ void BlobCache::clean() {
         size_t i = size_t(blob_random() % (mCacheEntries.size()));
         const CacheEntry& entry(mCacheEntries[i]);
         mTotalSize -= entry.getKey()->getSize() + entry.getValue()->getSize();
-        mCacheEntries.removeAt(i);
+        mCacheEntries.erase(mCacheEntries.begin() + i);
     }
 }
 
@@ -307,7 +303,7 @@ bool BlobCache::isCleanable() const {
     return mTotalSize > mMaxTotalSize / 2;
 }
 
-BlobCache::Blob::Blob(const void* data, size_t size, bool copyData):
+BlobCache::Blob::Blob(const void* data, size_t size, bool copyData) :
         mData(copyData ? malloc(size) : data),
         mSize(size),
         mOwnsData(copyData) {
@@ -341,7 +337,8 @@ size_t BlobCache::Blob::getSize() const {
 BlobCache::CacheEntry::CacheEntry() {
 }
 
-BlobCache::CacheEntry::CacheEntry(const sp<Blob>& key, const sp<Blob>& value):
+BlobCache::CacheEntry::CacheEntry(
+        const std::shared_ptr<Blob>& key, const std::shared_ptr<Blob>& value):
         mKey(key),
         mValue(value) {
 }
@@ -361,15 +358,15 @@ const BlobCache::CacheEntry& BlobCache::CacheEntry::operator=(const CacheEntry& 
     return *this;
 }
 
-sp<BlobCache::Blob> BlobCache::CacheEntry::getKey() const {
+std::shared_ptr<BlobCache::Blob> BlobCache::CacheEntry::getKey() const {
     return mKey;
 }
 
-sp<BlobCache::Blob> BlobCache::CacheEntry::getValue() const {
+std::shared_ptr<BlobCache::Blob> BlobCache::CacheEntry::getValue() const {
     return mValue;
 }
 
-void BlobCache::CacheEntry::setValue(const sp<Blob>& value) {
+void BlobCache::CacheEntry::setValue(const std::shared_ptr<Blob>& value) {
     mValue = value;
 }
 

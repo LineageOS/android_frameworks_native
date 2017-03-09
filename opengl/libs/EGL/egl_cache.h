@@ -20,9 +20,9 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
-#include <utils/BlobCache.h>
-#include <utils/StrongPointer.h>
+#include "BlobCache.h"
 
+#include <memory>
 #include <mutex>
 #include <string>
 
@@ -80,7 +80,7 @@ private:
     // key/value blob pairs.  If the BlobCache object has not yet been created,
     // this will do so, loading the serialized cache contents from disk if
     // possible.
-    sp<BlobCache> getBlobCacheLocked();
+    BlobCache* getBlobCacheLocked();
 
     // saveBlobCache attempts to save the current contents of mBlobCache to
     // disk.
@@ -101,7 +101,7 @@ private:
     // mBlobCache is the cache in which the key/value blob pairs are stored.  It
     // is initially NULL, and will be initialized by getBlobCacheLocked the
     // first time it's needed.
-    sp<BlobCache> mBlobCache;
+    std::unique_ptr<BlobCache> mBlobCache;
 
     // mFilename is the name of the file for storing cache contents in between
     // program invocations.  It is initialized to an empty string at

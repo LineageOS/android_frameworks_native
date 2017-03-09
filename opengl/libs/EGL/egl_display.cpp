@@ -21,6 +21,8 @@
 
 #include "../egl_impl.h"
 
+#include <private/EGL/display.h>
+
 #include "egl_cache.h"
 #include "egl_object.h"
 #include "egl_tls.h"
@@ -52,6 +54,11 @@ static bool findExtension(const char* exts, const char* name, size_t nameLen) {
         }
     }
     return false;
+}
+
+int egl_get_init_count(EGLDisplay dpy) {
+    egl_display_t* eglDisplay = egl_display_t::get(dpy);
+    return eglDisplay ? eglDisplay->getRefsCount() : 0;
 }
 
 egl_display_t egl_display_t::sDisplay[NUM_DISPLAYS];

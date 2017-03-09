@@ -20,6 +20,9 @@
 
 #include "egl_display.h"
 
+
+#include <private/EGL/cache.h>
+
 #include <inttypes.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -46,6 +49,11 @@ namespace android {
 
 #define BC_EXT_STR "EGL_ANDROID_blob_cache"
 
+// called from android_view_ThreadedRenderer.cpp
+void egl_set_cache_filename(const char* filename) {
+    egl_cache_t::get()->setCacheFilename(filename);
+}
+
 //
 // Callback functions passed to EGL.
 //
@@ -63,8 +71,7 @@ static EGLsizeiANDROID getBlob(const void* key, EGLsizeiANDROID keySize,
 // egl_cache_t definition
 //
 egl_cache_t::egl_cache_t() :
-        mInitialized(false),
-        mBlobCache(NULL) {
+        mInitialized(false) {
 }
 
 egl_cache_t::~egl_cache_t() {
@@ -130,7 +137,7 @@ void egl_cache_t::setBlob(const void* key, EGLsizeiANDROID keySize,
     }
 
     if (mInitialized) {
-        sp<BlobCache> bc = getBlobCacheLocked();
+        BlobCache* bc = getBlobCacheLocked();
         bc->set(key, keySize, value, valueSize);
 
         if (!mSavePending) {
@@ -158,7 +165,7 @@ EGLsizeiANDROID egl_cache_t::getBlob(const void* key, EGLsizeiANDROID keySize,
     }
 
     if (mInitialized) {
-        sp<BlobCache> bc = getBlobCacheLocked();
+        BlobCache* bc = getBlobCacheLocked();
         return bc->get(key, keySize, value, valueSize);
     }
     return 0;
@@ -169,12 +176,12 @@ void egl_cache_t::setCacheFilename(const char* filename) {
     mFilename = filename;
 }
 
-sp<BlobCache> egl_cache_t::getBlobCacheLocked() {
-    if (mBlobCache == NULL) {
-        mBlobCache = new BlobCache(maxKeySize, maxValueSize, maxTotalSize);
+BlobCache* egl_cache_t::getBlobCacheLocked() {
+    if (mBlobCache == nullptr) {
+        mBlobCache.reset(new BlobCache(maxKeySize, maxValueSize, maxTotalSize));
         loadBlobCacheLocked();
     }
-    return mBlobCache;
+    return mBlobCache.get();
 }
 
 static uint32_t crc32c(const uint8_t* buf, size_t len) {

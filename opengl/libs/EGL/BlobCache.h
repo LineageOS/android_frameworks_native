@@ -19,8 +19,8 @@
 
 #include <stddef.h>
 
-#include <utils/RefBase.h>
-#include <utils/SortedVector.h>
+#include <memory>
+#include <vector>
 
 namespace android {
 
@@ -31,10 +31,8 @@ namespace android {
 // and then reloaded in a subsequent execution of the program.  This
 // serialization is non-portable and the data should only be used by the device
 // that generated it.
-class BlobCache : public RefBase {
-
+class BlobCache {
 public:
-
     // Create an empty blob cache. The blob cache will cache key/value pairs
     // with key and value sizes less than or equal to maxKeySize and
     // maxValueSize, respectively. The total combined size of ALL cache entries
@@ -89,7 +87,7 @@ public:
     //
     // Preconditions:
     //   size >= this.getFlattenedSize()
-    status_t flatten(void* buffer, size_t size) const;
+    int flatten(void* buffer, size_t size) const;
 
     // unflatten replaces the contents of the cache with the serialized cache
     // contents in the memory pointed to by 'buffer'.  The previous contents of
@@ -97,7 +95,7 @@ public:
     // unflattening the serialized cache contents then the BlobCache will be
     // left in an empty state.
     //
-    status_t unflatten(void const* buffer, size_t size);
+    int unflatten(void const* buffer, size_t size);
 
 private:
     // Copying is disallowed.
@@ -116,7 +114,7 @@ private:
     bool isCleanable() const;
 
     // A Blob is an immutable sized unstructured data blob.
-    class Blob : public RefBase {
+    class Blob {
     public:
         Blob(const void* data, size_t size, bool copyData);
         ~Blob();
@@ -146,24 +144,24 @@ private:
     class CacheEntry {
     public:
         CacheEntry();
-        CacheEntry(const sp<Blob>& key, const sp<Blob>& value);
+        CacheEntry(const std::shared_ptr<Blob>& key, const std::shared_ptr<Blob>& value);
         CacheEntry(const CacheEntry& ce);
 
         bool operator<(const CacheEntry& rhs) const;
         const CacheEntry& operator=(const CacheEntry&);
 
-        sp<Blob> getKey() const;
-        sp<Blob> getValue() const;
+        std::shared_ptr<Blob> getKey() const;
+        std::shared_ptr<Blob> getValue() const;
 
-        void setValue(const sp<Blob>& value);
+        void setValue(const std::shared_ptr<Blob>& value);
 
     private:
 
         // mKey is the key that identifies the cache entry.
-        sp<Blob> mKey;
+        std::shared_ptr<Blob> mKey;
 
         // mValue is the cached data associated with the key.
-        sp<Blob> mValue;
+        std::shared_ptr<Blob> mValue;
     };
 
     // A Header is the header for the entire BlobCache serialization format. No
@@ -239,7 +237,7 @@ private:
 
     // mCacheEntries stores all the cache entries that are resident in memory.
     // Cache entries are added to it by the 'set' method.
-    SortedVector<CacheEntry> mCacheEntries;
+    std::vector<CacheEntry> mCacheEntries;
 };
 
 }
