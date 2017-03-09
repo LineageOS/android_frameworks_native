@@ -478,6 +478,16 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
     if (dp) {
         EGLDisplay iDpy = dp->disp.dpy;
 
+        if (!window) {
+            return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
+        }
+
+        int value = 0;
+        window->query(window, NATIVE_WINDOW_IS_VALID, &value);
+        if (!value) {
+            return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
+        }
+
         int result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
         if (result != OK) {
             ALOGE("eglCreateWindowSurface: native_window_api_connect (win=%p) "
