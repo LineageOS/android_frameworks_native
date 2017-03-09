@@ -1105,8 +1105,8 @@ Dex2oatFileWrapper maybe_open_reference_profile(const char* pkgname, bool profil
 // Opens the vdex files and assigns the input fd to in_vdex_wrapper_fd and the output fd to
 // out_vdex_wrapper_fd. Returns true for success or false in case of errors.
 bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_needed,
-        const char* instruction_set, bool is_public, int uid, bool is_secondary_dex,
-        Dex2oatFileWrapper* in_vdex_wrapper_fd,
+        const char* instruction_set, bool is_public, bool profile_guided,
+        int uid, bool is_secondary_dex, Dex2oatFileWrapper* in_vdex_wrapper_fd,
         Dex2oatFileWrapper* out_vdex_wrapper_fd) {
     CHECK(in_vdex_wrapper_fd != nullptr);
     CHECK(out_vdex_wrapper_fd != nullptr);
@@ -1116,7 +1116,9 @@ bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_
     int dexopt_action = abs(dexopt_needed);
     bool is_odex_location = dexopt_needed < 0;
     std::string in_vdex_path_str;
-    if (dexopt_action != DEX2OAT_FROM_SCRATCH) {
+    // Disable passing an input vdex when the compilation is profile-guided. The dexlayout
+    // optimization in dex2oat is incompatible with it. b/35872504.
+    if (dexopt_action != DEX2OAT_FROM_SCRATCH && !profile_guided) {
         // Open the possibly existing vdex. If none exist, we pass -1 to dex2oat for input-vdex-fd.
         const char* path = nullptr;
         if (is_odex_location) {
@@ -1135,7 +1137,7 @@ bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_
             return false;
         }
         if (dexopt_action == DEX2OAT_FOR_BOOT_IMAGE) {
-            // When we dex2oat because iof boot image change, we are going to update
+            // When we dex2oat because of boot image change, we are going to update
             // in-place the vdex file.
             in_vdex_wrapper_fd->reset(open(in_vdex_path_str.c_str(), O_RDWR, 0));
         } else {
@@ -1449,8 +1451,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     // Open vdex files.
     Dex2oatFileWrapper in_vdex_fd;
     Dex2oatFileWrapper out_vdex_fd;
-    if (!open_vdex_files(dex_path, out_oat_path, dexopt_needed, instruction_set, is_public, uid,
-            is_secondary_dex, &in_vdex_fd, &out_vdex_fd)) {
+    if (!open_vdex_files(dex_path, out_oat_path, dexopt_needed, instruction_set, is_public,
+            profile_guided, uid, is_secondary_dex, &in_vdex_fd, &out_vdex_fd)) {
         return -1;
     }
 
