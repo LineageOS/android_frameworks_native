@@ -88,17 +88,24 @@ class UInputRecorder : public UInputForTesting {
 
 class EvdevInjectorForTesting : public EvdevInjector {
  public:
-  EvdevInjectorForTesting(UInput& uinput) { SetUInputForTesting(&uinput); }
+  EvdevInjectorForTesting() { SetUInputForTesting(&record); }
   const uinput_user_dev* GetUiDev() const { return GetUiDevForTesting(); }
+  UInputRecorder record;
 };
 
 class VirtualTouchpadForTesting : public VirtualTouchpadEvdev {
  public:
-  static sp<VirtualTouchpad> Create(EvdevInjectorForTesting& injector) {
+  static sp<VirtualTouchpad> Create() { return sp<VirtualTouchpad>(New()); }
+  static VirtualTouchpadForTesting* New() {
     VirtualTouchpadForTesting* const touchpad = new VirtualTouchpadForTesting();
-    touchpad->SetEvdevInjectorForTesting(&injector);
-    return sp<VirtualTouchpad>(touchpad);
+    touchpad->Reset();
+    for (int t = 0; t < kTouchpads; ++t) {
+      touchpad->SetEvdevInjectorForTesting(t, &touchpad->injector[t]);
+    }
+    return touchpad;
   }
+  int GetTouchpadCount() const { return kTouchpads; }
+  EvdevInjectorForTesting injector[kTouchpads];
 };
 
 void DumpDifference(const char* expect, const char* actual) {
@@ -117,133 +124,169 @@ void DumpDifference(const char* expect, const char* actual) {
 class VirtualTouchpadTest : public testing::Test {};
 
 TEST_F(VirtualTouchpadTest, Goodness) {
+  sp<VirtualTouchpadForTesting> touchpad(VirtualTouchpadForTesting::New());
   UInputRecorder expect;
-  UInputRecorder record;
-  EvdevInjectorForTesting injector(record);
-  sp<VirtualTouchpad> touchpad(VirtualTouchpadForTesting::Create(injector));
 
   status_t touch_status = touchpad->Attach();
   EXPECT_EQ(0, touch_status);
 
   // Check some aspects of uinput_user_dev.
-  const uinput_user_dev* uidev = injector.GetUiDev();
-  for (int i = 0; i < ABS_CNT; ++i) {
-    EXPECT_EQ(0, uidev->absmin[i]);
-    EXPECT_EQ(0, uidev->absfuzz[i]);
-    EXPECT_EQ(0, uidev->absflat[i]);
-    if (i != ABS_MT_POSITION_X && i != ABS_MT_POSITION_Y && i != ABS_MT_SLOT) {
-      EXPECT_EQ(0, uidev->absmax[i]);
+  const uinput_user_dev* uidev;
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    uidev = touchpad->injector[t].GetUiDev();
+    String8 name;
+    name.appendFormat("vr virtual touchpad %d", t);
+    EXPECT_EQ(name, uidev->name);
+    for (int i = 0; i < ABS_CNT; ++i) {
+      EXPECT_EQ(0, uidev->absmin[i]);
+      EXPECT_EQ(0, uidev->absfuzz[i]);
+      EXPECT_EQ(0, uidev->absflat[i]);
+      if (i != ABS_MT_POSITION_X && i != ABS_MT_POSITION_Y &&
+          i != ABS_MT_SLOT) {
+        EXPECT_EQ(0, uidev->absmax[i]);
+      }
     }
   }
   const int32_t width = 1 + uidev->absmax[ABS_MT_POSITION_X];
   const int32_t height = 1 + uidev->absmax[ABS_MT_POSITION_Y];
   const int32_t slots = uidev->absmax[ABS_MT_SLOT];
 
-  // Check the system calls performed by initialization.
-  // From ConfigureBegin():
-  expect.Open();
-  // From ConfigureInputProperty(INPUT_PROP_DIRECT):
-  expect.IoctlSetInt(UI_SET_PROPBIT, INPUT_PROP_DIRECT);
-  // From ConfigureMultiTouchXY(0, 0, kWidth - 1, kHeight - 1):
-  expect.IoctlSetInt(UI_SET_EVBIT, EV_ABS);
-  expect.IoctlSetInt(UI_SET_ABSBIT, ABS_MT_POSITION_X);
-  expect.IoctlSetInt(UI_SET_ABSBIT, ABS_MT_POSITION_Y);
-  // From ConfigureAbsSlots(kSlots):
-  expect.IoctlSetInt(UI_SET_ABSBIT, ABS_MT_SLOT);
-  // From ConfigureKey(BTN_TOUCH):
-  expect.IoctlSetInt(UI_SET_EVBIT, EV_KEY);
-  expect.IoctlSetInt(UI_SET_KEYBIT, BTN_TOUCH);
-  expect.IoctlSetInt(UI_SET_KEYBIT, BTN_BACK);
-  // From ConfigureEnd():
-  expect.Write(uidev, sizeof(uinput_user_dev));
-  expect.IoctlVoid(UI_DEV_CREATE);
-  EXPECT_EQ(expect.GetString(), record.GetString());
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    // Check the system calls performed by initialization.
+    expect.Reset();
+    // From ConfigureBegin():
+    expect.Open();
+    // From ConfigureInputProperty(INPUT_PROP_DIRECT):
+    expect.IoctlSetInt(UI_SET_PROPBIT, INPUT_PROP_DIRECT);
+    // From ConfigureMultiTouchXY(0, 0, kWidth - 1, kHeight - 1):
+    expect.IoctlSetInt(UI_SET_EVBIT, EV_ABS);
+    expect.IoctlSetInt(UI_SET_ABSBIT, ABS_MT_POSITION_X);
+    expect.IoctlSetInt(UI_SET_ABSBIT, ABS_MT_POSITION_Y);
+    // From ConfigureAbsSlots(kSlots):
+    expect.IoctlSetInt(UI_SET_ABSBIT, ABS_MT_SLOT);
+    // From ConfigureKey(BTN_TOUCH):
+    expect.IoctlSetInt(UI_SET_EVBIT, EV_KEY);
+    expect.IoctlSetInt(UI_SET_KEYBIT, BTN_TOUCH);
+    expect.IoctlSetInt(UI_SET_KEYBIT, BTN_BACK);
+    // From ConfigureEnd():
+    expect.Write(touchpad->injector[t].GetUiDev(), sizeof(uinput_user_dev));
+    expect.IoctlVoid(UI_DEV_CREATE);
+    EXPECT_EQ(expect.GetString(), touchpad->injector[t].record.GetString());
+  }
 
   expect.Reset();
-  record.Reset();
-  touch_status = touchpad->Touch(VirtualTouchpad::PRIMARY, 0, 0, 0);
-  EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_ABS, ABS_MT_SLOT, 0);
   expect.WriteInputEvent(EV_ABS, ABS_MT_TRACKING_ID, 0);
   expect.WriteInputEvent(EV_ABS, ABS_MT_POSITION_X, 0);
   expect.WriteInputEvent(EV_ABS, ABS_MT_POSITION_Y, 0);
   expect.WriteInputEvent(EV_SYN, SYN_REPORT, 0);
-  EXPECT_EQ(expect.GetString(), record.GetString());
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    touchpad->injector[t].record.Reset();
+    touch_status = touchpad->Touch(t, 0, 0, 0);
+    EXPECT_EQ(0, touch_status);
+    EXPECT_EQ(expect.GetString(), touchpad->injector[t].record.GetString());
+  }
 
   expect.Reset();
-  record.Reset();
-  touch_status = touchpad->Touch(VirtualTouchpad::PRIMARY, 0.25f, 0.75f, 0.5f);
-  EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_ABS, ABS_MT_TRACKING_ID, 0);
   expect.WriteInputEvent(EV_ABS, ABS_MT_POSITION_X, 0.25f * width);
   expect.WriteInputEvent(EV_ABS, ABS_MT_POSITION_Y, 0.75f * height);
   expect.WriteInputEvent(EV_KEY, BTN_TOUCH, EvdevInjector::KEY_PRESS);
   expect.WriteInputEvent(EV_SYN, SYN_REPORT, 0);
-  EXPECT_EQ(expect.GetString(), record.GetString());
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    touchpad->injector[t].record.Reset();
+    touch_status = touchpad->Touch(t, 0.25f, 0.75f, 0.5f);
+    EXPECT_EQ(0, touch_status);
+    EXPECT_EQ(expect.GetString(), touchpad->injector[t].record.GetString());
+  }
 
   expect.Reset();
-  record.Reset();
-  touch_status = touchpad->Touch(VirtualTouchpad::PRIMARY, 0.99f, 0.99f, 0.99f);
-  EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_ABS, ABS_MT_TRACKING_ID, 0);
   expect.WriteInputEvent(EV_ABS, ABS_MT_POSITION_X, 0.99f * width);
   expect.WriteInputEvent(EV_ABS, ABS_MT_POSITION_Y, 0.99f * height);
   expect.WriteInputEvent(EV_SYN, SYN_REPORT, 0);
-  EXPECT_EQ(expect.GetString(), record.GetString());
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    touchpad->injector[t].record.Reset();
+    touch_status = touchpad->Touch(t, 0.99f, 0.99f, 0.99f);
+    EXPECT_EQ(0, touch_status);
+    EXPECT_EQ(expect.GetString(), touchpad->injector[t].record.GetString());
+  }
 
   expect.Reset();
-  record.Reset();
-  touch_status = touchpad->Touch(VirtualTouchpad::PRIMARY, 1.0f, 1.0f, 1.0f);
-  EXPECT_EQ(EINVAL, touch_status);
-  EXPECT_EQ(expect.GetString(), record.GetString());
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    touchpad->injector[t].record.Reset();
+    touch_status = touchpad->Touch(t, 1.0f, 1.0f, 1.0f);
+    EXPECT_EQ(EINVAL, touch_status);
+    EXPECT_EQ(expect.GetString(), touchpad->injector[t].record.GetString());
+  }
 
   expect.Reset();
-  record.Reset();
-  touch_status =
-      touchpad->Touch(VirtualTouchpad::PRIMARY, 0.25f, 0.75f, -0.01f);
-  EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_KEY, BTN_TOUCH, EvdevInjector::KEY_RELEASE);
   expect.WriteInputEvent(EV_ABS, ABS_MT_TRACKING_ID, -1);
   expect.WriteInputEvent(EV_SYN, SYN_REPORT, 0);
-  EXPECT_EQ(expect.GetString(), record.GetString());
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    touchpad->injector[t].record.Reset();
+    touch_status = touchpad->Touch(t, 0.25f, 0.75f, -0.01f);
+    EXPECT_EQ(0, touch_status);
+    EXPECT_EQ(expect.GetString(), touchpad->injector[t].record.GetString());
+  }
 
   expect.Reset();
-  record.Reset();
-  touch_status = touchpad->ButtonState(VirtualTouchpad::PRIMARY,
-                                       AMOTION_EVENT_BUTTON_BACK);
-  EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_KEY, BTN_BACK, EvdevInjector::KEY_PRESS);
   expect.WriteInputEvent(EV_SYN, SYN_REPORT, 0);
-  EXPECT_EQ(expect.GetString(), record.GetString());
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    touchpad->injector[t].record.Reset();
+    touch_status = touchpad->ButtonState(t, AMOTION_EVENT_BUTTON_BACK);
+    EXPECT_EQ(0, touch_status);
+    EXPECT_EQ(expect.GetString(), touchpad->injector[t].record.GetString());
+  }
 
   expect.Reset();
-  record.Reset();
-  touch_status = touchpad->ButtonState(VirtualTouchpad::PRIMARY,
-                                       AMOTION_EVENT_BUTTON_BACK);
-  EXPECT_EQ(0, touch_status);
-  EXPECT_EQ(expect.GetString(), record.GetString());
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    touchpad->injector[t].record.Reset();
+    touch_status = touchpad->ButtonState(t, AMOTION_EVENT_BUTTON_BACK);
+    EXPECT_EQ(0, touch_status);
+    EXPECT_EQ(expect.GetString(), touchpad->injector[t].record.GetString());
+  }
 
   expect.Reset();
-  record.Reset();
-  touch_status = touchpad->ButtonState(VirtualTouchpad::PRIMARY, 0);
-  EXPECT_EQ(0, touch_status);
   expect.WriteInputEvent(EV_KEY, BTN_BACK, EvdevInjector::KEY_RELEASE);
   expect.WriteInputEvent(EV_SYN, SYN_REPORT, 0);
-  EXPECT_EQ(expect.GetString(), record.GetString());
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    touchpad->injector[t].record.Reset();
+    touch_status = touchpad->ButtonState(t, 0);
+    EXPECT_EQ(0, touch_status);
+    EXPECT_EQ(expect.GetString(), touchpad->injector[t].record.GetString());
+  }
 
   expect.Reset();
-  record.Reset();
+  expect.Close();
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    touchpad->injector[t].record.Reset();
+  }
   touch_status = touchpad->Detach();
   EXPECT_EQ(0, touch_status);
-  expect.Close();
-  EXPECT_EQ(expect.GetString(), record.GetString());
+  for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
+    SCOPED_TRACE(t);
+    EXPECT_EQ(expect.GetString(), touchpad->injector[t].record.GetString());
+  }
 }
 
 TEST_F(VirtualTouchpadTest, Badness) {
+  sp<VirtualTouchpadForTesting> touchpad(VirtualTouchpadForTesting::New());
   UInputRecorder expect;
-  UInputRecorder record;
-  EvdevInjectorForTesting injector(record);
-  sp<VirtualTouchpad> touchpad(VirtualTouchpadForTesting::Create(injector));
+  UInputRecorder& record = touchpad->injector[VirtualTouchpad::PRIMARY].record;
 
   status_t touch_status = touchpad->Attach();
   EXPECT_EQ(0, touch_status);
@@ -252,11 +295,9 @@ TEST_F(VirtualTouchpadTest, Badness) {
   // and should not result in any system calls.
   expect.Reset();
   record.Reset();
-  touch_status =
-      touchpad->Touch(VirtualTouchpad::PRIMARY, -0.25f, 0.75f, 1.0f);
+  touch_status = touchpad->Touch(VirtualTouchpad::PRIMARY, -0.25f, 0.75f, 1.0f);
   EXPECT_NE(OK, touch_status);
-  touch_status =
-      touchpad->Touch(VirtualTouchpad::PRIMARY, 0.25f, -0.75f, 1.0f);
+  touch_status = touchpad->Touch(VirtualTouchpad::PRIMARY, 0.25f, -0.75f, 1.0f);
   EXPECT_NE(OK, touch_status);
   touch_status = touchpad->Touch(VirtualTouchpad::PRIMARY, 1.25f, 0.75f, 1.0f);
   EXPECT_NE(OK, touch_status);
