@@ -34,6 +34,14 @@ cc_library_shared {
     "libutils",
   ],
 
+  export_static_lib_headers: [
+    "libhwcomposer-client",
+  ],
+
+  export_shared_lib_headers: [
+    "android.hardware.graphics.composer@2.1",
+  ],
+
   export_include_dirs: ["."],
 
   cflags: [
