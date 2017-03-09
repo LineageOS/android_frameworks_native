@@ -30,6 +30,11 @@ DummyNativeWindow::DummyNativeWindow() {
 
 int DummyNativeWindow::Query(const ANativeWindow*, int what, int* value) {
   switch (what) {
+    // This must be 1 in order for eglCreateWindowSurface to not trigger an
+    // error
+    case NATIVE_WINDOW_IS_VALID:
+      *value = 1;
+      return NO_ERROR;
     case NATIVE_WINDOW_WIDTH:
     case NATIVE_WINDOW_HEIGHT:
     case NATIVE_WINDOW_FORMAT:

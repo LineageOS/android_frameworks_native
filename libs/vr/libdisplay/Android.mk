@@ -65,15 +65,14 @@ LOCAL_C_INCLUDES := $(includeFiles)
 LOCAL_CFLAGS += -DLOG_TAG=\"libdisplay\"
 LOCAL_CFLAGS += -DTRACE=0
 LOCAL_CFLAGS += -DATRACE_TAG=ATRACE_TAG_GRAPHICS
-LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
+LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES -g -O0
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(includeFiles)
 LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
 LOCAL_STATIC_LIBRARIES := $(staticLibraries)
 LOCAL_MODULE := libdisplay
 include $(BUILD_STATIC_LIBRARY)
 
-
-testFiles := \
+graphicsAppTestFiles := \
   tests/graphics_app_tests.cpp
 
 include $(CLEAR_VARS)
@@ -81,7 +80,7 @@ LOCAL_MODULE := graphics_app_tests
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_SRC_FILES := \
-  $(testFiles) \
+  $(graphicsAppTestFiles) \
 
 LOCAL_C_INCLUDES := \
   $(includeFiles) \
@@ -94,3 +93,25 @@ LOCAL_STATIC_LIBRARIES := \
   $(staticLibraries) \
 
 include $(BUILD_NATIVE_TEST)
+
+dummyNativeWindowTestFiles := \
+  tests/dummy_native_window_tests.cpp \
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := dummy_native_window_tests
+LOCAL_MODULE_TAGS := optional
+
+LOCAL_SRC_FILES := \
+  $(dummyNativeWindowTestFiles) \
+
+LOCAL_C_INCLUDES := \
+  $(includeFiles) \
+
+LOCAL_SHARED_LIBRARIES := \
+  $(sharedLibraries) \
+
+LOCAL_STATIC_LIBRARIES := \
+  libdisplay \
+  $(staticLibraries) \
+include $(BUILD_NATIVE_TEST)
+
