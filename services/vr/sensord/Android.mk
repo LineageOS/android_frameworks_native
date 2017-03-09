@@ -14,6 +14,8 @@
 
 LOCAL_PATH := $(call my-dir)
 
+SENSORD_EXTEND ?= libsensordextensionstub
+
 sourceFiles := \
 	pose_service.cpp \
 	sensord.cpp \
@@ -42,6 +44,7 @@ sharedLibraries := \
 	liblog \
 	libhardware \
 	libutils \
+	$(SENSORD_EXTEND) \
 
 cFlags := -DLOG_TAG=\"sensord\" \
           -DTRACE=0
@@ -67,3 +70,8 @@ LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
 LOCAL_SRC_FILES := test/poselatencytest.cpp
 LOCAL_MODULE := poselatencytest
 include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := libsensordextensionstub
+LOCAL_SRC_FILES := sensord_extension.cpp
+include $(BUILD_SHARED_LIBRARY)
