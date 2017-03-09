@@ -32,8 +32,6 @@ static constexpr int DEX2OAT_FOR_FILTER          = 3;
 static constexpr int DEX2OAT_FOR_RELOCATION      = 4;
 static constexpr int PATCHOAT_FOR_RELOCATION     = 5;
 
-typedef int fd_t;
-
 bool clear_reference_profile(const std::string& pkgname);
 bool clear_current_profile(const std::string& pkgname, userid_t user);
 bool clear_current_profiles(const std::string& pkgname);
