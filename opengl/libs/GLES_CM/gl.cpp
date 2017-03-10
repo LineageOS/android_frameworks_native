@@ -19,7 +19,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 
-#include <android/log.h>
+#include <log/log.h>
 #include <cutils/properties.h>
 
 #include <GLES/gl.h>

@@ -24,14 +24,13 @@
 
 #include <log/log.h>
 
-#include <utils/CallStack.h>
-
 #include "../egl_impl.h"
 
 #include "egldefs.h"
 #include "egl_tls.h"
 #include "egl_display.h"
 #include "egl_object.h"
+#include "CallStack.h"
 #include "Loader.h"
 
 typedef __eglMustCastToProperFunctionPointerType EGLFuncPointer;
@@ -65,7 +64,7 @@ static int gl_no_context() {
         char value[PROPERTY_VALUE_MAX];
         property_get("debug.egl.callstack", value, "0");
         if (atoi(value)) {
-            CallStack stack(LOG_TAG);
+            CallStack::log(LOG_TAG);
         }
     }
     return 0;
@@ -224,7 +223,7 @@ void gl_unimplemented() {
         char value[PROPERTY_VALUE_MAX];
         property_get("debug.egl.callstack", value, "0");
         if (atoi(value)) {
-            CallStack stack(LOG_TAG);
+            CallStack::log(LOG_TAG);
         }
     }
 }
