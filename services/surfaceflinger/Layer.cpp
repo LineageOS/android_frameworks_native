@@ -276,16 +276,6 @@ void Layer::onFrameReplaced(const BufferItem& item) {
     }
 }
 
-void Layer::onBuffersReleased() {
-#ifdef USE_HWC2
-    Mutex::Autolock lock(mHwcBufferCacheMutex);
-
-    for (auto info : mHwcBufferCaches) {
-        info.second.clear();
-    }
-#endif
-}
-
 void Layer::onSidebandStreamChanged() {
     if (android_atomic_release_cas(false, true, &mSidebandStreamChanged) == 0) {
         // mSidebandStreamChanged was false
@@ -780,7 +770,8 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     const auto& viewport = displayDevice->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
     auto hwcId = displayDevice->getHwcDisplayId();
-    auto& hwcLayer = mHwcLayers[hwcId].layer;
+    auto& hwcInfo = mHwcLayers[hwcId];
+    auto& hwcLayer = hwcInfo.layer;
     auto error = hwcLayer->setVisibleRegion(visible);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
@@ -809,7 +800,7 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     }
 
     // Client layers
-    if (mHwcLayers[hwcId].forceClientComposition ||
+    if (hwcInfo.forceClientComposition ||
             (mActiveBuffer != nullptr && mActiveBuffer->handle == nullptr)) {
         ALOGV("[%s] Requesting Client composition", mName.string());
         setCompositionType(hwcId, HWC2::Composition::Client);
@@ -858,11 +849,8 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     uint32_t hwcSlot = 0;
     buffer_handle_t hwcHandle = nullptr;
     {
-        Mutex::Autolock lock(mHwcBufferCacheMutex);
-
-        auto& hwcBufferCache = mHwcBufferCaches[hwcId];
         sp<GraphicBuffer> hwcBuffer;
-        hwcBufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer,
+        hwcInfo.bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer,
                 &hwcSlot, &hwcBuffer);
         if (hwcBuffer != nullptr) {
             hwcHandle = hwcBuffer->handle;

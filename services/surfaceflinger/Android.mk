@@ -25,6 +25,7 @@ LOCAL_SRC_FILES := \
     DisplayHardware/ComposerHal.cpp \
     DisplayHardware/FramebufferSurface.cpp \
     DisplayHardware/HWC2.cpp \
+    DisplayHardware/HWComposerBufferCache.cpp \
     DisplayHardware/PowerHAL.cpp \
     DisplayHardware/VirtualDisplaySurface.cpp \
     Effects/Daltonizer.cpp \

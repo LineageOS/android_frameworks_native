@@ -925,41 +925,5 @@ void HWComposer::DisplayData::reset() {
     *this = DisplayData();
 }
 
-void HWComposerBufferCache::clear()
-{
-    mBuffers.clear();
-}
-
-void HWComposerBufferCache::getHwcBuffer(int slot,
-        const sp<GraphicBuffer>& buffer,
-        uint32_t* outSlot, sp<GraphicBuffer>* outBuffer)
-{
-#ifdef BYPASS_IHWC
-    *outSlot = slot;
-    *outBuffer = buffer;
-#else
-    if (slot == BufferQueue::INVALID_BUFFER_SLOT || slot < 0) {
-        // default to slot 0
-        slot = 0;
-    }
-
-    if (static_cast<size_t>(slot) >= mBuffers.size()) {
-        mBuffers.resize(slot + 1);
-    }
-
-    *outSlot = slot;
-
-    if (mBuffers[slot] == buffer) {
-        // already cached in HWC, skip sending the buffer
-        *outBuffer = nullptr;
-    } else {
-        *outBuffer = buffer;
-
-        // update cache
-        mBuffers[slot] = buffer;
-    }
-#endif
-}
-
 // ---------------------------------------------------------------------------
 }; // namespace android

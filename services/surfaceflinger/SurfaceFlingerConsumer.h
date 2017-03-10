@@ -35,7 +35,6 @@ public:
     static const status_t BUFFER_REJECTED = UNKNOWN_ERROR + 8;
 
     struct ContentsChangedListener: public FrameAvailableListener {
-        virtual void onBuffersReleased() = 0;
         virtual void onSidebandStreamChanged() = 0;
     };
 
@@ -93,7 +92,6 @@ public:
             FrameEventHistoryDelta* outDelta) override;
 
 private:
-    virtual void onBuffersReleased();
     virtual void onSidebandStreamChanged();
 
     wp<ContentsChangedListener> mContentsChangedListener;

@@ -224,7 +224,7 @@ status_t VirtualDisplaySurface::advanceFrame() {
 #ifdef USE_HWC2
         uint32_t hwcSlot = 0;
         sp<GraphicBuffer> hwcBuffer;
-        mHwcBufferCache->getHwcBuffer(mFbProducerSlot, fbBuffer,
+        mHwcBufferCache.getHwcBuffer(mFbProducerSlot, fbBuffer,
                 &hwcSlot, &hwcBuffer);
 
         // TODO: Correctly propagate the dataspace from GL composition

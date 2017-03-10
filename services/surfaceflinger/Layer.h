@@ -47,6 +47,7 @@
 #include "Transform.h"
 
 #include "DisplayHardware/HWComposer.h"
+#include "DisplayHardware/HWComposerBufferCache.h"
 #include "RenderEngine/Mesh.h"
 #include "RenderEngine/Texture.h"
 
@@ -383,20 +384,13 @@ public:
 #ifdef USE_HWC2
     // -----------------------------------------------------------------------
 
-    void eraseHwcLayer(int32_t hwcId) {
-        mHwcLayers.erase(hwcId);
-
-        Mutex::Autolock lock(mHwcBufferCacheMutex);
-        mHwcBufferCaches.erase(hwcId);
-    }
-
     bool hasHwcLayer(int32_t hwcId) {
         if (mHwcLayers.count(hwcId) == 0) {
             return false;
         }
         if (mHwcLayers[hwcId].layer->isAbandoned()) {
             ALOGI("Erasing abandoned layer %s on %d", mName.string(), hwcId);
-            eraseHwcLayer(hwcId);
+            mHwcLayers.erase(hwcId);
             return false;
         }
         return true;
@@ -412,11 +406,8 @@ public:
     void setHwcLayer(int32_t hwcId, std::shared_ptr<HWC2::Layer>&& layer) {
         if (layer) {
             mHwcLayers[hwcId].layer = layer;
-
-            Mutex::Autolock lock(mHwcBufferCacheMutex);
-            mHwcBufferCaches[hwcId] = HWComposerBufferCache();
         } else {
-            eraseHwcLayer(hwcId);
+            mHwcLayers.erase(hwcId);
         }
     }
 
@@ -511,7 +502,6 @@ private:
     // Interface implementation for SurfaceFlingerConsumer::ContentsChangedListener
     virtual void onFrameAvailable(const BufferItem& item) override;
     virtual void onFrameReplaced(const BufferItem& item) override;
-    virtual void onBuffersReleased() override;
     virtual void onSidebandStreamChanged() override;
 
     void commitTransaction(const State& stateToCommit);
@@ -703,6 +693,7 @@ private:
         bool clearClientTarget;
         Rect displayFrame;
         FloatRect sourceCrop;
+        HWComposerBufferCache bufferCache;
     };
 
     // A layer can be attached to multiple displays when operating in mirror mode
@@ -710,12 +701,6 @@ private:
     // case we need to keep track. In non-mirror mode, a layer will have only one
     // HWCInfo. This map key is a display layerStack.
     std::unordered_map<int32_t, HWCInfo> mHwcLayers;
-
-    // We need one HWComposerBufferCache for each HWC display.  We cannot have
-    // HWComposerBufferCache in HWCInfo because HWCInfo can only be accessed
-    // from the main thread.
-    Mutex mHwcBufferCacheMutex;
-    std::unordered_map<int32_t, HWComposerBufferCache> mHwcBufferCaches;
 #else
     bool mIsGlesComposition;
 #endif

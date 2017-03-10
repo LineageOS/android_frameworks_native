@@ -137,7 +137,7 @@ status_t FramebufferSurface::nextBuffer(sp<GraphicBuffer>& outBuffer, sp<Fence>&
     status_t err = acquireBufferLocked(&item, 0);
     if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
 #ifdef USE_HWC2
-        mHwcBufferCache->getHwcBuffer(mCurrentBufferSlot, mCurrentBuffer,
+        mHwcBufferCache.getHwcBuffer(mCurrentBufferSlot, mCurrentBuffer,
                 &outSlot, &outBuffer);
 #else
         outBuffer = mCurrentBuffer;
@@ -178,7 +178,7 @@ status_t FramebufferSurface::nextBuffer(sp<GraphicBuffer>& outBuffer, sp<Fence>&
 
     outFence = item.mFence;
 #ifdef USE_HWC2
-    mHwcBufferCache->getHwcBuffer(mCurrentBufferSlot, mCurrentBuffer,
+    mHwcBufferCache.getHwcBuffer(mCurrentBufferSlot, mCurrentBuffer,
             &outSlot, &outBuffer);
     outDataspace = item.mDataSpace;
 #else
