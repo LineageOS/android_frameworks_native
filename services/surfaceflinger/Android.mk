@@ -64,10 +64,6 @@ else
         DisplayHardware/HWComposer_hwc1.cpp
 endif
 
-ifneq ($(NUM_FRAMEBUFFER_SURFACE_BUFFERS),)
-    LOCAL_CFLAGS += -DNUM_FRAMEBUFFER_SURFACE_BUFFERS=$(NUM_FRAMEBUFFER_SURFACE_BUFFERS)
-endif
-
 LOCAL_CFLAGS += -fvisibility=hidden -Werror=format
 
 LOCAL_HEADER_LIBRARIES := \

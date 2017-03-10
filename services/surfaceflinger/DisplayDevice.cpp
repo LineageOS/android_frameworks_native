@@ -64,9 +64,8 @@ static constexpr bool kEGLAndroidSwapRectangle = false;
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 
-static bool useTripleFramebuffer = getBool<
-        ISurfaceFlingerConfigs,
-        &ISurfaceFlingerConfigs::useTripleFramebuffer>(false);
+static bool useTripleFramebuffer = getInt64< ISurfaceFlingerConfigs,
+        &ISurfaceFlingerConfigs::maxFrameBufferAcquiredBuffers>(2) == 3;
 
 #if !defined(EGL_EGLEXT_PROTOTYPES) || !defined(EGL_ANDROID_swap_rectangle)
 // Dummy implementation in case it is missing.

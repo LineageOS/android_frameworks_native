@@ -118,6 +118,7 @@ bool SurfaceFlinger::useHwcForRgbToYuv;
 uint64_t SurfaceFlinger::maxVirtualDisplaySize;
 bool SurfaceFlinger::hasSyncFramework;
 bool SurfaceFlinger::useVrFlinger;
+int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
 
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
@@ -184,6 +185,9 @@ SurfaceFlinger::SurfaceFlinger()
     // Vr flinger is only enabled on Daydream ready devices.
     useVrFlinger = getBool< ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::useVrFlinger>(false);
+
+    maxFrameBufferAcquiredBuffers = getInt64< ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::maxFrameBufferAcquiredBuffers>(2);
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
@@ -3226,6 +3230,8 @@ void SurfaceFlinger::appendSfConfigString(String8& result) const
     result.appendFormat(" FORCE_HWC_FOR_RBG_TO_YUV=%d", useHwcForRgbToYuv);
     result.appendFormat(" MAX_VIRT_DISPLAY_DIM=%" PRIu64, maxVirtualDisplaySize);
     result.appendFormat(" RUNNING_WITHOUT_SYNC_FRAMEWORK=%d", !hasSyncFramework);
+    result.appendFormat(" NUM_FRAMEBUFFER_SURFACE_BUFFERS=%" PRId64,
+                        maxFrameBufferAcquiredBuffers);
     result.append("]");
 }
 
