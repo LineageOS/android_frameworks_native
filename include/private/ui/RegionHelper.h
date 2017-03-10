@@ -17,6 +17,7 @@
 #ifndef ANDROID_UI_PRIVATE_REGION_HELPER_H
 #define ANDROID_UI_PRIVATE_REGION_HELPER_H
 
+#include <limits>
 #include <stdint.h>
 #include <sys/types.h>
 
