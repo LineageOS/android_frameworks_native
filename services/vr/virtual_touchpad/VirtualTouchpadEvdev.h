@@ -18,15 +18,17 @@ class VirtualTouchpadEvdev : public VirtualTouchpad {
   static sp<VirtualTouchpad> Create();
 
   // VirtualTouchpad implementation:
+  status_t Attach() override;
+  status_t Detach() override;
   status_t Touch(int touchpad, float x, float y, float pressure) override;
   status_t ButtonState(int touchpad, int buttons) override;
+  void dumpInternal(String8& result) override;
 
  protected:
   VirtualTouchpadEvdev() {}
   ~VirtualTouchpadEvdev() override {}
-  status_t Initialize();
 
-  // Must be called only between construction and Initialize().
+  // Must be called only between construction and Attach().
   inline void SetEvdevInjectorForTesting(EvdevInjector* injector) {
     injector_ = injector;
   }

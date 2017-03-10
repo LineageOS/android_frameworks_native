@@ -3,6 +3,7 @@
 
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
+#include <utils/String8.h>
 #include <utils/StrongPointer.h>
 
 namespace android {
@@ -21,9 +22,17 @@ class VirtualTouchpad : public RefBase {
   // Implementations should provide this, and hide their constructors.
   // For the user, switching implementations should be as simple as changing
   // the class whose |Create()| is called.
+  // Implementations should be minimial; major resource allocation should
+  // be performed in Attach().
   static sp<VirtualTouchpad> Create() {
     return sp<VirtualTouchpad>();
   }
+
+  // Initialize a virtual touchpad.
+  virtual status_t Attach() = 0;
+
+  // Shut down a virtual touchpad.
+  virtual status_t Detach() = 0;
 
   // Generate a simulated touch event.
   //
@@ -48,6 +57,9 @@ class VirtualTouchpad : public RefBase {
   // restricts itself to operations actually required by VrWindowManager.
   //
   virtual status_t ButtonState(int touchpad, int buttons) = 0;
+
+  // Report state for 'dumpsys'.
+  virtual void dumpInternal(String8& result) = 0;
 
  protected:
   VirtualTouchpad() {}

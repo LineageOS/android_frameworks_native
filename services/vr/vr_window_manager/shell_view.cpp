@@ -250,8 +250,12 @@ int ShellView::Initialize() {
 
   translate_ = Eigen::Translation3f(0, 0, -2.5f);
 
-  if (!InitializeTouch())
-    ALOGE("Failed to initialize virtual touchpad");
+  virtual_touchpad_ = VirtualTouchpadClient::Create();
+  const status_t touchpad_status = virtual_touchpad_->Attach();
+  if (touchpad_status != OK) {
+    ALOGE("Failed to connect to virtual touchpad");
+    return touchpad_status;
+  }
 
   surface_flinger_view_.reset(new SurfaceFlingerView);
   if (!surface_flinger_view_->Initialize(this))
@@ -702,22 +706,10 @@ void ShellView::DrawController(const mat4& perspective, const mat4& eye_matrix,
   controller_mesh_->Draw();
 }
 
-bool ShellView::InitializeTouch() {
-  virtual_touchpad_ = VirtualTouchpadClient::Create();
-  if (!virtual_touchpad_.get()) {
-    ALOGE("Failed to connect to virtual touchpad");
-    return false;
-  }
-  return true;
-}
-
 void ShellView::Touch() {
   if (!virtual_touchpad_.get()) {
     ALOGE("missing virtual touchpad");
-    // Try to reconnect; useful in development.
-    if (!InitializeTouch()) {
-      return;
-    }
+    return;
   }
 
   const android::status_t status = virtual_touchpad_->Touch(
