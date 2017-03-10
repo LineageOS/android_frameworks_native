@@ -51,8 +51,6 @@ class DisplayManagerService : public pdx::ServiceBase<DisplayManagerService> {
       const std::shared_ptr<DisplayService>& display_service);
 
   std::vector<DisplaySurfaceInfo> OnGetSurfaceList(pdx::Message& message);
-  std::vector<pdx::LocalChannelHandle> OnGetSurfaceBuffers(
-      pdx::Message& message, int surface_id);
   int OnUpdateSurfaces(pdx::Message& message,
                        const std::map<int, DisplaySurfaceAttributes>& updates);
 

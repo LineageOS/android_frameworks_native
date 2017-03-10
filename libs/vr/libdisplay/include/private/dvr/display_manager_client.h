@@ -62,10 +62,8 @@ int dvrDisplayManagerClientSurfaceListGetClientZOrder(
 bool dvrDisplayManagerClientSurfaceListGetClientIsVisible(
     DvrDisplayManagerClientSurfaceList* surface_list, size_t index);
 
-// Populates |surface_buffers| with the list of buffers for |surface_id|.
-// |surface_id| should be a valid ID from the list of surfaces.
-//
-// @return Returns 0 on success. Otherwise it returns a negative error value.
+// TODO(jwcai, hendrikw) Remove this after we replacing
+// dvrDisplayManagerClientGetSurfaceBuffers is dvr_api.
 int dvrDisplayManagerClientGetSurfaceBuffers(
     DvrDisplayManagerClient* client, int surface_id,
     DvrDisplayManagerClientSurfaceBuffers** surface_buffers);

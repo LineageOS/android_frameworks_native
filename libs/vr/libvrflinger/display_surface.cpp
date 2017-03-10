@@ -84,22 +84,6 @@ void DisplaySurface::ClientSetBlurBehind(bool blur_behind) {
   client_blur_behind_ = blur_behind;
 }
 
-size_t DisplaySurface::GetBufferCount() const {
-  std::lock_guard<std::mutex> autolock(lock_);
-  return buffers_.size();
-}
-
-std::vector<std::shared_ptr<BufferConsumer>> DisplaySurface::GetBuffers() {
-  std::lock_guard<std::mutex> autolock(lock_);
-  std::vector<std::shared_ptr<BufferConsumer>> return_vector(buffers_.size());
-
-  for (const auto pair : buffers_) {
-    return_vector.push_back(pair.second);
-  }
-
-  return return_vector;
-}
-
 AcquiredBuffer DisplaySurface::AcquireNewestAvailableBuffer(
     AcquiredBuffer* skipped_buffer) {
   std::lock_guard<std::mutex> autolock(lock_);

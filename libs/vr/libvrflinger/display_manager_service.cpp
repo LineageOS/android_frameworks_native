@@ -77,11 +77,6 @@ int DisplayManagerService::HandleMessage(pdx::Message& message) {
           *this, &DisplayManagerService::OnGetSurfaceList, message);
       return 0;
 
-    case DisplayManagerRPC::GetSurfaceBuffers::Opcode:
-      DispatchRemoteMethod<DisplayManagerRPC::GetSurfaceBuffers>(
-          *this, &DisplayManagerService::OnGetSurfaceBuffers, message);
-      return 0;
-
     case DisplayManagerRPC::UpdateSurfaces::Opcode:
       DispatchRemoteMethod<DisplayManagerRPC::UpdateSurfaces>(
           *this, &DisplayManagerService::OnUpdateSurfaces, message);
@@ -126,26 +121,6 @@ std::vector<DisplaySurfaceInfo> DisplayManagerService::OnGetSurfaceList(
   display_manager_->SetNotificationsPending(false);
 
   return items;
-}
-
-std::vector<LocalChannelHandle> DisplayManagerService::OnGetSurfaceBuffers(
-    pdx::Message& message, int surface_id) {
-  std::shared_ptr<DisplaySurface> surface =
-      display_service_->GetDisplaySurface(surface_id);
-  if (!surface)
-    REPLY_ERROR_RETURN(message, ENOENT, {});
-
-  std::vector<LocalChannelHandle> consumers;
-  int ret = surface->GetConsumers(&consumers);
-  if (ret < 0) {
-    ALOGE(
-        "DisplayManagerService::OnGetDisplaySurfaceBuffers: Failed to get "
-        "consumers for surface %d: %s",
-        surface_id, strerror(-ret));
-    REPLY_ERROR_RETURN(message, -ret, {});
-  }
-
-  return consumers;
 }
 
 int DisplayManagerService::OnUpdateSurfaces(

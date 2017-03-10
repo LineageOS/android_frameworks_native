@@ -258,7 +258,6 @@ struct DisplayManagerRPC {
   // Op codes.
   enum {
     kOpGetSurfaceList = 0,
-    kOpGetSurfaceBuffers,
     kOpUpdateSurfaces,
   };
 
@@ -269,8 +268,6 @@ struct DisplayManagerRPC {
   // Methods.
   PDX_REMOTE_METHOD(GetSurfaceList, kOpGetSurfaceList,
                     std::vector<DisplaySurfaceInfo>(Void));
-  PDX_REMOTE_METHOD(GetSurfaceBuffers, kOpGetSurfaceBuffers,
-                    std::vector<LocalChannelHandle>(int surface_id));
   PDX_REMOTE_METHOD(
       UpdateSurfaces, kOpUpdateSurfaces,
       int(const std::map<int, DisplaySurfaceAttributes>& updates));
