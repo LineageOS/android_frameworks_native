@@ -2546,6 +2546,8 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
 }
 
 status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer) {
+    Mutex::Autolock _l(mStateLock);
+
     const auto& p = layer->getParent();
     const ssize_t index = (p != nullptr) ? p->removeChild(layer) :
         mCurrentState.layersSortedByZ.remove(layer);
