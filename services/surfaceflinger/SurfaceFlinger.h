@@ -105,7 +105,6 @@ class SurfaceFlinger : public BnSurfaceComposer,
 {
 public:
 
-
     // This is the phase offset in nanoseconds of the software vsync event
     // relative to the vsync event reported by HWComposer.  The software vsync
     // event is when SurfaceFlinger and Choreographer-based applications run each
@@ -141,6 +140,10 @@ public:
     // This instruct VirtualDisplaySurface to use HWC for such conversion on
     // GL composition.
     static bool useHwcForRgbToYuv;
+
+    // Maximum dimension supported by HWC for virtual display.
+    // Equal to min(max_height, max_width).
+    static uint64_t maxVirtualDisplaySize;
 
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
