@@ -103,6 +103,31 @@ class SurfaceFlinger : public BnSurfaceComposer,
                        private HWComposer::EventHandler
 {
 public:
+
+
+    // This is the phase offset in nanoseconds of the software vsync event
+    // relative to the vsync event reported by HWComposer.  The software vsync
+    // event is when SurfaceFlinger and Choreographer-based applications run each
+    // frame.
+    //
+    // This phase offset allows adjustment of the minimum latency from application
+    // wake-up time (by Choreographer) to the time at which the resulting window
+    // image is displayed.  This value may be either positive (after the HW vsync)
+    // or negative (before the HW vsync). Setting it to 0 will result in a lower
+    // latency bound of two vsync periods because the app and SurfaceFlinger
+    // will run just after the HW vsync.  Setting it to a positive number will
+    // result in the minimum latency being:
+    //
+    //     (2 * VSYNC_PERIOD - (vsyncPhaseOffsetNs % VSYNC_PERIOD))
+    //
+    // Note that reducing this latency makes it more likely for the applications
+    // to not have their window content image ready in time.  When this happens
+    // the latency will end up being an additional vsync period, and animations
+    // will hiccup.  Therefore, this latency should be tuned somewhat
+    // conservatively (or at least with awareness of the trade-off being made).
+    static int64_t vsyncPhaseOffsetNs;
+    static int64_t sfVsyncPhaseOffsetNs;
+
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
     }
@@ -657,7 +682,6 @@ private:
     std::atomic<bool> mEnterVrMode;
 #endif
     };
-
 }; // namespace android
 
 #endif // ANDROID_SURFACE_FLINGER_H

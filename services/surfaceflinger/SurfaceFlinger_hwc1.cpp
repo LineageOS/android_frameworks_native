@@ -83,6 +83,9 @@
 #include "RenderEngine/RenderEngine.h"
 #include <cutils/compiler.h>
 
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <configstore/Utils.h>
+
 #define DISPLAY_COUNT       1
 
 /*
@@ -94,33 +97,10 @@
 EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
 namespace android {
-
-// This is the phase offset in nanoseconds of the software vsync event
-// relative to the vsync event reported by HWComposer.  The software vsync
-// event is when SurfaceFlinger and Choreographer-based applications run each
-// frame.
-//
-// This phase offset allows adjustment of the minimum latency from application
-// wake-up (by Choregographer) time to the time at which the resulting window
-// image is displayed.  This value may be either positive (after the HW vsync)
-// or negative (before the HW vsync).  Setting it to 0 will result in a
-// minimum latency of two vsync periods because the app and SurfaceFlinger
-// will run just after the HW vsync.  Setting it to a positive number will
-// result in the minimum latency being:
-//
-//     (2 * VSYNC_PERIOD - (vsyncPhaseOffsetNs % VSYNC_PERIOD))
-//
-// Note that reducing this latency makes it more likely for the applications
-// to not have their window content image ready in time.  When this happens
-// the latency will end up being an additional vsync period, and animations
-// will hiccup.  Therefore, this latency should be tuned somewhat
-// conservatively (or at least with awareness of the trade-off being made).
-static const int64_t vsyncPhaseOffsetNs = VSYNC_EVENT_PHASE_OFFSET_NS;
-
-// This is the phase offset at which SurfaceFlinger's composition runs.
-static const int64_t sfVsyncPhaseOffsetNs = SF_VSYNC_EVENT_PHASE_OFFSET_NS;
-
 // ---------------------------------------------------------------------------
+
+using namespace android::hardware::configstore;
+using namespace android::hardware::configstore::V1_0;
 
 const String16 sHardwareTest("android.permission.HARDWARE_TEST");
 const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER");
@@ -128,6 +108,8 @@ const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sDump("android.permission.DUMP");
 
 // ---------------------------------------------------------------------------
+int64_t SurfaceFlinger::vsyncPhaseOffsetNs;
+int64_t SurfaceFlinger::sfVsyncPhaseOffsetNs;
 
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
@@ -164,6 +146,12 @@ SurfaceFlinger::SurfaceFlinger()
         mLastSwapTime(0),
         mNumLayers(0)
 {
+    vsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::vsyncEventPhaseOffsetNs>(1000000);
+
+    sfVsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::vsyncSfEventPhaseOffsetNs>(1000000);
+
     ALOGI("SurfaceFlinger is starting");
 
     char value[PROPERTY_VALUE_MAX];
@@ -711,7 +699,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         info.xdpi = xdpi;
         info.ydpi = ydpi;
         info.fps = float(1e9 / hwConfig.refresh);
-        info.appVsyncOffset = VSYNC_EVENT_PHASE_OFFSET_NS;
+        info.appVsyncOffset = vsyncPhaseOffsetNs;
 
         // This is how far in advance a buffer must be queued for
         // presentation at a given time.  If you want a buffer to appear
@@ -726,7 +714,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         // We add an additional 1ms to allow for processing time and
         // differences between the ideal and actual refresh rate.
         info.presentationDeadline =
-                hwConfig.refresh - SF_VSYNC_EVENT_PHASE_OFFSET_NS + 1000000;
+                hwConfig.refresh - sfVsyncPhaseOffsetNs + 1000000;
 
         // All non-virtual displays are currently considered secure.
         info.secure = true;
