@@ -8,8 +8,9 @@ LOCAL_MODULE := SurfaceFlinger_test
 LOCAL_MODULE_TAGS := tests
 
 LOCAL_SRC_FILES := \
-    Transaction_test.cpp \
-    SurfaceInterceptor_test.cpp
+   Transaction_test.cpp \
+   Stress_test.cpp \
+   SurfaceInterceptor_test.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     libEGL \
@@ -20,6 +21,7 @@ LOCAL_SHARED_LIBRARIES := \
     libprotobuf-cpp-full \
     libui \
     libutils \
+    libandroid \
     liblog
 
 LOCAL_STATIC_LIBRARIES := libtrace_proto
