@@ -23,6 +23,7 @@
 
 #include <android-base/file.h>
 #include <utils/String16.h>
+#include <utils/String8.h>
 #include <utils/Vector.h>
 
 using namespace android;
@@ -95,7 +96,7 @@ MATCHER_P(AndroidElementsAre, expected, "") {
     int i = 0;
     std::ostringstream actual_stream, expected_stream;
     for (String16 actual : arg) {
-        std::string actual_str = String16::std_string(actual);
+        std::string actual_str = String8(actual).c_str();
         std::string expected_str = expected[i];
         actual_stream << "'" << actual_str << "' ";
         expected_stream << "'" << expected_str << "' ";
