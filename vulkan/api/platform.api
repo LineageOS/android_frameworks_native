@@ -50,6 +50,7 @@ type u64 size_t
 @internal type void* HWND
 @internal type void* HANDLE
 @internal type u32   DWORD
+@internal type u16*  LPCWSTR
 @internal class SECURITY_ATTRIBUTES {}
 
 // VK_USE_PLATFORM_XLIB_XRANDR_EXT
