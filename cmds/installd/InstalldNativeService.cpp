@@ -424,12 +424,11 @@ binder::Status InstalldNativeService::clearAppProfiles(const std::string& packag
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    const char* pkgname = packageName.c_str();
     binder::Status res = ok();
-    if (!clear_reference_profile(pkgname)) {
+    if (!clear_reference_profile(packageName)) {
         res = error("Failed to clear reference profile for " + packageName);
     }
-    if (!clear_current_profiles(pkgname)) {
+    if (!clear_current_profiles(packageName)) {
         res = error("Failed to clear current profiles for " + packageName);
     }
     return res;
@@ -477,7 +476,7 @@ binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::st
             }
         }
         if (!only_cache) {
-            if (!clear_current_profile(pkgname, userId)) {
+            if (!clear_current_profile(packageName, userId)) {
                 res = error("Failed to clear current profile for " + packageName);
             }
         }
@@ -485,13 +484,13 @@ binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::st
     return res;
 }
 
-static int destroy_app_reference_profile(const char *pkgname) {
+static int destroy_app_reference_profile(const std::string& pkgname) {
     return delete_dir_contents_and_dir(
         create_data_ref_profile_package_path(pkgname),
         /*ignore_if_missing*/ true);
 }
 
-static int destroy_app_current_profiles(const char *pkgname, userid_t userid) {
+static int destroy_app_current_profiles(const std::string& pkgname, userid_t userid) {
     return delete_dir_contents_and_dir(
         create_data_user_profile_package_path(userid, pkgname),
         /*ignore_if_missing*/ true);
@@ -502,15 +501,14 @@ binder::Status InstalldNativeService::destroyAppProfiles(const std::string& pack
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    const char* pkgname = packageName.c_str();
     binder::Status res = ok();
     std::vector<userid_t> users = get_known_users(/*volume_uuid*/ nullptr);
     for (auto user : users) {
-        if (destroy_app_current_profiles(pkgname, user) != 0) {
+        if (destroy_app_current_profiles(packageName, user) != 0) {
             res = error("Failed to destroy current profiles for " + packageName);
         }
     }
-    if (destroy_app_reference_profile(pkgname) != 0) {
+    if (destroy_app_reference_profile(packageName) != 0) {
         res = error("Failed to destroy reference profile for " + packageName);
     }
     return res;
@@ -538,11 +536,11 @@ binder::Status InstalldNativeService::destroyAppData(const std::unique_ptr<std::
         if (delete_dir_contents_and_dir(path) != 0) {
             res = error("Failed to delete " + path);
         }
-        destroy_app_current_profiles(pkgname, userId);
+        destroy_app_current_profiles(packageName, userId);
         // TODO(calin): If the package is still installed by other users it's probably
         // beneficial to keep the reference profile around.
         // Verify if it's ok to do that.
-        destroy_app_reference_profile(pkgname);
+        destroy_app_reference_profile(packageName);
     }
     return res;
 }
