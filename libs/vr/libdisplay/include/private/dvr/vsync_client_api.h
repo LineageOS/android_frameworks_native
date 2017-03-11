@@ -20,22 +20,14 @@ dvr_vsync_client* dvr_vsync_client_create();
 // Destroys the vsync client.
 void dvr_vsync_client_destroy(dvr_vsync_client* client);
 
-// Blocks until the next vsync signal.
-// The timestamp (in ns) is written into |*timestamp_ns| when it is non-NULL.
-// Returns 0 upon success, or -errno.
-int dvr_vsync_client_wait(dvr_vsync_client* client, int64_t* timestamp_ns);
-
-// Returns the file descriptor used to communicate with the vsync service.
-int dvr_vsync_client_get_fd(dvr_vsync_client* client);
-
-// Clears the select/poll/epoll event so that subsequent calls to these
-// will not signal until the next vsync.
-int dvr_vsync_client_acknowledge(dvr_vsync_client* client);
-
-// Gets the timestamp of the last vsync signal in ns. This call has the
-// same side effects on events as acknowledge.
-int dvr_vsync_client_get_last_timestamp(dvr_vsync_client* client,
-                                        int64_t* timestamp_ns);
+// Get the estimated timestamp of the next GPU lens warp preemption event in
+// ns. Also returns the corresponding vsync count that the next lens warp
+// operation will target. This call has the same side effect on events as
+// Acknowledge, which saves an IPC message.
+int dvr_vsync_client_get_sched_info(dvr_vsync_client* client,
+                                    int64_t* vsync_period_ns,
+                                    int64_t* next_timestamp_ns,
+                                    uint32_t* next_vsync_count);
 
 #ifdef __cplusplus
 }  // extern "C"
