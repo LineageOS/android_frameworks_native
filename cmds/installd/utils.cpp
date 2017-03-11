@@ -217,18 +217,18 @@ std::string create_data_user_profile_path(userid_t userid) {
     return StringPrintf("%s/cur/%u", android_profiles_dir.path, userid);
 }
 
-std::string create_data_user_profile_package_path(userid_t user, const char* package_name) {
-    check_package_name(package_name);
-    return StringPrintf("%s/%s",create_data_user_profile_path(user).c_str(), package_name);
+std::string create_data_user_profile_package_path(userid_t user, const std::string& package_name) {
+    check_package_name(package_name.c_str());
+    return StringPrintf("%s/%s",create_data_user_profile_path(user).c_str(), package_name.c_str());
 }
 
 std::string create_data_ref_profile_path() {
     return StringPrintf("%s/ref", android_profiles_dir.path);
 }
 
-std::string create_data_ref_profile_package_path(const char* package_name) {
-    check_package_name(package_name);
-    return StringPrintf("%s/ref/%s", android_profiles_dir.path, package_name);
+std::string create_data_ref_profile_package_path(const std::string& package_name) {
+    check_package_name(package_name.c_str());
+    return StringPrintf("%s/ref/%s", android_profiles_dir.path, package_name.c_str());
 }
 
 std::string create_data_dalvik_cache_path() {
