@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 0
-define VERSION_PATCH 42
+define VERSION_PATCH 43
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -73,7 +73,7 @@ define NULL_HANDLE 0
 @extension("VK_KHR_xcb_surface") define VK_KHR_XCB_SURFACE_NAME                 "VK_KHR_xcb_surface"
 
 // 7
-@extension("VK_KHR_wayland_surface") define VK_KHR_WAYLAND_SURFACE_SPEC_VERSION 5
+@extension("VK_KHR_wayland_surface") define VK_KHR_WAYLAND_SURFACE_SPEC_VERSION 6
 @extension("VK_KHR_wayland_surface") define VK_KHR_WAYLAND_SURFACE_NAME         "VK_KHR_wayland_surface"
 
 // 8
@@ -276,6 +276,10 @@ define NULL_HANDLE 0
 @extension("VK_EXT_display_control") define VK_EXT_DISPLAY_CONTROL_SPEC_VERSION 1
 @extension("VK_EXT_display_control") define VK_EXT_DISPLAY_CONTROL_COUNTER_EXTENSION_NAME "VK_EXT_display_control"
 
+// 93
+@extension("VK_GOOGLE_display_timing") define VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION 1
+@extension("VK_GOOGLE_display_timing") define VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME "VK_GOOGLE_display_timing"
+
 // 95
 @extension("VK_NV_sample_mask_override_coverage") define VK_NV_SAMPLE_MASK_OVERRIDE_COVERAGE_SPEC_VERSION 1
 @extension("VK_NV_sample_mask_override_coverage") define VK_NV_SAMPLE_MASK_OVERRIDE_COVERAGE_EXTENSION_NAME "VK_NV_sample_mask_override_coverage"
@@ -299,6 +303,10 @@ define NULL_HANDLE 0
 // 100
 @extension("VK_EXT_discard_rectangles") define VK_EXT_DISCARD_RECTANGLES_SPEC_VERSION 1
 @extension("VK_EXT_discard_rectangles") define VK_EXT_DISCARD_RECTANGLES_EXTENSION_NAME "VK_EXT_discard_rectangles"
+
+// 106
+@extension("VK_EXT_hdr_metadata") define VK_EXT_HDR_METADATA_SPEC_VERSION 1
+@extension("VK_EXT_hdr_metadata") define VK_EXT_HDR_METADATA_EXTENSION_NAME "VK_EXT_hdr_metadata"
 
 // 123
 @extension("VK_MVK_ios_surface") define VK_MVK_IOS_SURFACE_SPEC_VERSION 1
@@ -1038,6 +1046,9 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_DISPLAY_EVENT_INFO_EXT                    = 1000091002,
     VK_STRUCTURE_TYPE_SWAPCHAIN_COUNTER_CREATE_INFO_EXT         = 1000091003,
 
+    //@extension("VK_GOOGLE_display_timing") // 93
+    VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE                 = 1000092000,
+
     //@extension("VK_NVX_multiview_per_view_attributes") // 98
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PER_VIEW_ATTRIBUTES_PROPERTIES_NVX  = 1000097000,
 
@@ -1047,6 +1058,9 @@ enum VkStructureType {
     //@extension("VK_EXT_discard_rectangles") // 100
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DISCARD_RECTANGLE_PROPERTIES_EXT  = 1000099000,
     VK_STRUCTURE_TYPE_PIPELINE_DISCARD_RECTANGLE_STATE_CREATE_INFO_EXT  = 1000099001,
+
+    //@extension("VK_EXT_hdr_metadata") // 106
+    VK_STRUCTURE_TYPE_HDR_METADATA_EXT                          = 1000105000,
 
     //@extension("VK_MVK_ios_surface") // 123
     VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK               = 1000122000,
@@ -3704,31 +3718,6 @@ class VkPhysicalDeviceIDPropertiesKHX {
     VkBool32                                    deviceLUIDValid
 }
 
-@extension("VK_KHX_external_memory_capabilities") // 72
-class VkPhysicalDeviceProperties2KHX {
-    VkStructureType                             sType
-    void*                                       pNext
-    VkPhysicalDeviceProperties                  properties
-}
-
-@extension("VK_KHX_external_memory_capabilities") // 72
-class VkImageFormatProperties2KHX {
-    VkStructureType                             sType
-    void*                                       pNext
-    VkImageFormatProperties                     imageFormatProperties
-}
-
-@extension("VK_KHX_external_memory_capabilities") // 72
-class VkPhysicalDeviceImageFormatInfo2KHX {
-    VkStructureType                             sType
-    const void*                                 pNext
-    VkFormat                                    format
-    VkImageType                                 type
-    VkImageTiling                               tiling
-    VkImageUsageFlags                           usage
-    VkImageCreateFlags                          flags
-}
-
 @extension("VK_KHX_external_memory") // 73
 class VkExternalMemoryImageCreateInfoKHX {
     VkStructureType                             sType
@@ -4080,6 +4069,34 @@ class VkSwapchainCounterCreateInfoEXT {
     VkSurfaceCounterFlagsEXT                    surfaceCounters
 }
 
+@extension("VK_GOOGLE_display_timing") // 93
+class VkRefreshCycleDurationGOOGLE {
+    u64                                             refreshDuration
+}
+
+@extension("VK_GOOGLE_display_timing") // 93
+class VkPastPresentationTimingGOOGLE {
+    u32                                             presentID
+    u64                                             desiredPresentTime
+    u64                                             actualPresentTime
+    u64                                             earliestPresentTime
+    u64                                             presentMargin
+}
+
+@extension("VK_GOOGLE_display_timing") // 93
+class VkPresentTimeGOOGLE {
+    u32                                             presentID
+    u64                                             desiredPresentTime
+}
+
+@extension("VK_GOOGLE_display_timing") // 93
+class VkPresentTimesInfoGOOGLE {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u32                                             swapchainCount
+    const VkPresentTimeGOOGLE*                      pTimes
+}
+
 @extension("VK_NVX_multiview_per_view_attributes") // 98
 class VkPhysicalDeviceMultiviewPerViewAttributesPropertiesNVX {
     VkStructureType                             sType
@@ -4113,12 +4130,32 @@ class VkPhysicalDeviceDiscardRectanglePropertiesEXT {
 
 @extension("VK_EXT_discard_rectangles") // 100
 class VkPipelineDiscardRectangleStateCreateInfoEXT {
-    VkStructureType                                  sType
-    const void*                                      pNext
-    VkPipelineDiscardRectangleStateCreateFlagsEXT    flags
-    VkDiscardRectangleModeEXT                        discardRectangleMode
-    u32                                              discardRectangleCount
-    const VkRect2D*                                  pDiscardRectangles
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkPipelineDiscardRectangleStateCreateFlagsEXT   flags
+    VkDiscardRectangleModeEXT                       discardRectangleMode
+    u32                                             discardRectangleCount
+    const VkRect2D*                                 pDiscardRectangles
+}
+
+@extension("VK_EXT_hdr_metadata") // 106
+class VkXYColorEXT {
+    f32                                             x
+    f32                                             y
+}
+
+@extension("VK_EXT_hdr_metadata") // 106
+class VkHdrMetadataEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkXYColorEXT                                    displayPrimaryRed
+    VkXYColorEXT                                    displayPrimaryGreen
+    VkXYColorEXT                                    displayPrimaryBlue
+    VkXYColorEXT                                    whitePoint
+    f32                                             maxLuminance
+    f32                                             minLuminance
+    f32                                             maxContentLightLevel
+    f32                                             maxFrameAverageLightLevel
 }
 
 @extension("VK_MVK_ios_surface") // 123
@@ -6970,20 +7007,6 @@ cmd void vkGetPhysicalDeviceExternalBufferPropertiesKHX(
         VkExternalBufferPropertiesKHX*                  pExternalBufferProperties) {
 }
 
-@extension("VK_KHX_external_memory_capabilities") // 72
-cmd void vkGetPhysicalDeviceProperties2KHX(
-        VkPhysicalDevice                            physicalDevice,
-        VkPhysicalDeviceProperties2KHX*             pProperties) {
-}
-
-@extension("VK_KHX_external_memory_capabilities") // 72
-cmd VkResult vkGetPhysicalDeviceImageFormatProperties2KHX(
-        VkPhysicalDevice                            physicalDevice,
-        const VkPhysicalDeviceImageFormatInfo2KHX*  pImageFormatInfo,
-        VkImageFormatProperties2KHX*                pImageFormatProperties) {
-    return ?
-}
-
 @extension("VK_KHX_external_memory_win32") // 74
 cmd VkResult vkGetMemoryWin32HandleKHX(
         VkDevice                                    device,
@@ -7249,12 +7272,37 @@ cmd VkResult vkGetSwapchainCounterEXT(
     return ?
 }
 
+@extension("VK_GOOGLE_display_timing") // 93
+cmd VkResult vkGetRefreshCycleDurationGOOGLE(
+        VkDevice                                    device,
+        VkSwapchainKHR                              swapchain,
+        VkRefreshCycleDurationGOOGLE*               pDisplayTimingProperties) {
+    return ?
+}
+
+@extension("VK_GOOGLE_display_timing") // 93
+cmd VkResult vkGetPastPresentationTimingGOOGLE(
+        VkDevice                                    device,
+        VkSwapchainKHR                              swapchain,
+        u32*                                        pPresentationTimingCount,
+        VkPastPresentationTimingGOOGLE*             pPresentationTimings) {
+    return ?
+}
+
 @extension("VK_EXT_discard_rectangles") // 100
 cmd void vkCmdSetDiscardRectangleEXT(
         VkCommandBuffer                             commandBuffer,
         u32                                         firstDiscardRectangle,
         u32                                         discardRectangleCount,
         const VkRect2D*                             pDiscardRectangles) {
+}
+
+@extension("VK_EXT_hdr_metadata") // 106
+cmd void vkSetHdrMetadataEXT(
+        VkDevice                                    device,
+        u32                                         swapchainCount,
+        const VkSwapchainKHR*                       pSwapchains,
+        const VkHdrMetadataEXT*                     pMetadata) {
 }
 
 @extension("VK_MVK_ios_surface") // 123
