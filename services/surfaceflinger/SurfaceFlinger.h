@@ -128,6 +128,9 @@ public:
     static int64_t vsyncPhaseOffsetNs;
     static int64_t sfVsyncPhaseOffsetNs;
 
+    // If fences from sync Framework are supported.
+    static bool hasSyncFramework;
+
     // Instruct the Render Engine to use EGL_IMG_context_priority is available.
     static bool useContextPriority;
 
