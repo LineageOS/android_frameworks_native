@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 0
-define VERSION_PATCH 38
+define VERSION_PATCH 39
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -173,6 +173,26 @@ define NULL_HANDLE 0
 @extension("VK_EXT_validation_flags") define VK_EXT_VALIDATION_FLAGS_SPEC_VERSION 1
 @extension("VK_EXT_validation_flags") define VK_EXT_VALIDATION_FLAGS_EXTENSION_NAME "VK_EXT_validation_flags"
 
+// 63
+@extension("VK_NN_vi_surface") define VK_NN_VI_SURFACE_SPEC_VERSION 1
+@extension("VK_NN_vi_surface") define VK_NN_VI_SURFACE_EXTENSION_NAME "VK_NN_vi_surface"
+
+// 64
+@extension("VK_KHR_shader_draw_parameters") define VK_KHR_SHADER_DRAW_PARAMETERS_SPEC_VERSION 1
+@extension("VK_KHR_shader_draw_parameters") define VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME "VK_KHR_shader_draw_parameters"
+
+// 65
+@extension("VK_EXT_shader_subgroup_ballot") define VK_EXT_SHADER_SUBGROUP_BALLOT_SPEC_VERSION 1
+@extension("VK_EXT_shader_subgroup_ballot") define VK_EXT_SHADER_SUBGROUP_BALLOT_EXTENSION_NAME "VK_EXT_shader_subgroup_ballot"
+
+// 66
+@extension("VK_EXT_shader_subgroup_vote") define VK_EXT_SHADER_SUBGROUP_VOTE_SPEC_VERSION 1
+@extension("VK_EXT_shader_subgroup_vote") define VK_EXT_SHADER_SUBGROUP_VOTE_EXTENSION_NAME "VK_EXT_shader_subgroup_vote"
+
+// 70
+@extension("VK_KHR_maintenance1") define VK_KHR_MAINTENANCE1_SPEC_VERSION 1
+@extension("VK_KHR_maintenance1") define VK_KHR_MAINTENANCE1_EXTENSION_NAME "VK_KHR_maintenance1"
+
 // 85
 @extension("VK_KHR_incremental_present") define VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION 1
 @extension("VK_KHR_incremental_present") define VK_KHR_INCREMENTAL_PRESENT_NAME "VK_KHR_incremental_present"
@@ -181,9 +201,29 @@ define NULL_HANDLE 0
 @extension("VK_NVX_device_generated_commands") define VK_NVX_DEVICE_GENERATED_COMMANDS_SPEC_VERSION 1
 @extension("VK_NVX_device_generated_commands") define VK_NVX_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME "VK_NVX_device_generated_commands"
 
+// 89
+@extension("VK_EXT_direct_mode_display") define VK_EXT_DIRECT_MODE_DISPLAY_SPEC_VERSION 1
+@extension("VK_EXT_direct_mode_display") define VK_EXT_DIRECT_MODE_DISPLAY_EXTENSION_NAME "VK_EXT_direct_mode_display"
+
+// 90
+@extension("VK_EXT_acquire_xlib_display") define VK_EXT_ACQUIRE_XLIB_DISPLAY_SPEC_VERSION 1
+@extension("VK_EXT_acquire_xlib_display") define VK_EXT_ACQUIRE_XLIB_DISPLAY_EXTENSION_NAME "VK_EXT_acquire_xlib_display"
+
+// 91
+@extension("VK_EXT_display_surface_counter") define VK_EXT_DISPLAY_SURFACE_COUNTER_SPEC_VERSION 1
+@extension("VK_EXT_display_surface_counter") define VK_EXT_DISPLAY_SURFACE_COUNTER_EXTENSION_NAME "VK_EXT_display_surface_counter"
+
+// 92
+@extension("VK_EXT_display_control") define VK_EXT_DISPLAY_CONTROL_SPEC_VERSION 1
+@extension("VK_EXT_display_control") define VK_EXT_DISPLAY_CONTROL_COUNTER_EXTENSION_NAME "VK_EXT_display_control"
+
 // 93
 @extension("VK_GOOGLE_display_timing") define VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION 1
 @extension("VK_GOOGLE_display_timing") define VK_GOOGLE_DISPLAY_TIMING_NAME "VK_GOOGLE_display_timing"
+
+// 105
+@extension("VK_EXT_swapchain_colorspace") define VK_EXT_SWAPCHAIN_COLORSPACE_SPEC_VERSION 1
+@extension("VK_EXT_swapchain_colorspace") define VK_EXT_SWAPCHAIN_COLORSPACE_COUNTER_EXTENSION_NAME "VK_EXT_swapchain_colorspace"
 
 // 106
 @extension("VK_EXT_hdr_metadata") define VK_EXT_HDR_METADATA_SPEC_VERSION 1
@@ -831,6 +871,9 @@ enum VkStructureType {
     //@extension("VK_EXT_validation_flags")
     VK_STRUCTURE_TYPE_VALIDATION_FLAGS_EXT                      = 1000061000,
 
+    //@extension("VK_NN_vi_surface")
+    VK_STRUCTURE_TYPE_VI_SURFACE_CREATE_INFO_NN                 = 1000062000,
+
     //@extension("VK_KHR_incremental_present")
     VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR                       = 1000084000,
 
@@ -841,6 +884,15 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_CMD_RESERVE_SPACE_FOR_COMMANDS_INFO_NVX   = 1000086003,
     VK_STRUCTURE_TYPE_DEVICE_GENERATED_COMMANDS_LIMITS_NVX      = 1000086004,
     VK_STRUCTURE_TYPE_DEVICE_GENERATED_COMMANDS_FEATURES_NVX    = 1000086005,
+
+    //@extension("VK_EXT_display_surface_counter")
+    VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES2_EXT                 = 1000090000,
+
+    //@extension("VK_EXT_display_control")
+    VK_STRUCTURE_TYPE_DISPLAY_POWER_INFO_EXT                    = 1000091000,
+    VK_STRUCTURE_TYPE_DEVICE_EVENT_INFO_EXT                     = 1000091001,
+    VK_STRUCTURE_TYPE_DISPLAY_EVENT_INFO_EXT                    = 1000091002,
+    VK_STRUCTURE_TYPE_SWAPCHAIN_COUNTER_CREATE_INFO_EXT         = 1000091003,
 }
 
 enum VkSubpassContents {
@@ -897,6 +949,9 @@ enum VkResult {
 
     //@extension("VK_NV_glsl_shader")
     VK_ERROR_INVALID_SHADER_NV                              = 0xC4650720, // -1000012000
+
+    //@extension("VK_KHR_maintenance1")
+    VK_ERROR_OUT_OF_POOL_MEMORY_KHR                         = 0xC4642878, // -1000069000
 }
 
 enum VkDynamicState {
@@ -917,15 +972,17 @@ enum VkPresentModeKHR {
     VK_PRESENT_MODE_MAILBOX_KHR                             = 0x00000001,
     VK_PRESENT_MODE_FIFO_KHR                                = 0x00000002,
     VK_PRESENT_MODE_FIFO_RELAXED_KHR                        = 0x00000003,
+
     //@extension("VK_KHR_shared_presentable_image")
-    VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR       = 1000111000,
-    //@extension("VK_KHR_shared_presentable_image")
-    VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR   = 1000111001,
+    VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR               = 1000111000,
+    VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR           = 1000111001,
 }
 
 @extension("VK_KHR_surface")
 enum VkColorSpaceKHR {
     VK_COLORSPACE_SRGB_NONLINEAR_KHR                        = 0x00000000,
+
+    //@extension("VK_EXT_swapchain_colorspace")
     VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT                    = 1000104001,
     VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT                 = 1000104002,
     VK_COLOR_SPACE_SCRGB_LINEAR_EXT                         = 1000104003,
@@ -1013,6 +1070,23 @@ enum VkObjectEntryTypeNVX {
     VK_OBJECT_ENTRY_INDEX_BUFFER_NVX                        = 2,
     VK_OBJECT_ENTRY_VERTEX_BUFFER_NVX                       = 3,
     VK_OBJECT_ENTRY_PUSH_CONSTANT_NVX                       = 4,
+}
+
+@extension("VK_EXT_display_control")
+enum VkDisplayPowerStateEXT {
+    VK_DISPLAY_POWER_STATE_OFF_EXT                          = 0,
+    VK_DISPLAY_POWER_STATE_SUSPEND_EXT                      = 1,
+    VK_DISPLAY_POWER_STATE_ON_EXT                           = 2,
+}
+
+@extension("VK_EXT_display_control")
+enum VkDeviceEventTypeEXT {
+    VK_DEVICE_EVENT_TYPE_DISPLAY_HOTPLUG_EXT                = 0,
+}
+
+@extension("VK_EXT_display_control")
+enum VkDisplayEventTypeEXT {
+    VK_DISPLAY_EVENT_TYPE_FIRST_PIXEL_OUT_EXT               = 0,
 }
 
 /////////////////
@@ -1138,6 +1212,9 @@ bitfield VkImageCreateFlagBits {
     VK_IMAGE_CREATE_SPARSE_ALIASED_BIT                      = 0x00000004,    /// Image should support constent data access to physical memory blocks mapped into multiple locations of sparse images
     VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT                      = 0x00000008,    /// Allows image views to have different format than the base image
     VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT                     = 0x00000010,    /// Allows creating image views with cube type from the created image
+
+    //@extension("VK_KHR_maintenance1")
+    VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT_KHR             = 0x00000020,
 }
 
 /// Image view creation flags
@@ -1192,6 +1269,10 @@ bitfield VkFormatFeatureFlagBits {
 
     //@extension("VK_IMG_filter_cubic")
     VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_CUBIC_BIT_IMG    = 0x00002000,
+
+    //@extension("VK_KHR_maintenance1")
+    VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR                  = 0x00004000,
+    VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR                  = 0x00008000,
 }
 
 /// Query control flags
@@ -1590,6 +1671,18 @@ bitfield VkExternalMemoryFeatureFlagBitsNV {
     VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT_NV            = 0x00000004,
 }
 
+@extension("VK_NN_vi_surface")
+type VkFlags VkViSurfaceCreateFlagsNN
+//@extension("VK_NN_vi_surface")
+//bitfield VkViSurfaceCreateFlagBitsNN {
+//}
+
+@extension("VK_KHR_maintenance1")
+type VkFlags VkCommandPoolTrimFlagsKHR
+//@extension("VK_KHR_maintenance1")
+//bitfield VkCommandPoolTrimFlagBitsKHR {
+//}
+
 @extension("VK_NVX_device_generated_commands")
 type VkFlags VkIndirectCommandsLayoutUsageFlagsNVX
 @extension("VK_NVX_device_generated_commands")
@@ -1606,6 +1699,13 @@ type VkFlags VkObjectEntryUsageFlagsNVX
 bitfield VkObjectEntryUsageFlagBitsNVX {
     VK_OBJECT_ENTRY_USAGE_GRAPHICS_BIT_NVX                  = 0x00000001,
     VK_OBJECT_ENTRY_USAGE_COMPUTE_BIT_NVX                   = 0x00000002,
+}
+
+@extension("VK_EXT_display_surface_counter")
+type VkFlags VkSurfaceCounterFlagsEXT
+@extension("VK_EXT_display_surface_counter")
+bitfield VkSurfaceCounterFlagBitsEXT {
+    VK_SURFACE_COUNTER_VBLANK_EXT                           = 0x00000001,
 }
 
 //////////////////
@@ -3147,6 +3247,14 @@ class VkValidationFlagsEXT {
     VkValidationCheckEXT*                       pDisabledValidationChecks
 }
 
+@extension("VK_NN_vi_surface")
+class VkViSurfaceCreateInfoNN {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkViSurfaceCreateFlagsNN                    flags
+    void*                                       window
+}
+
 @extension("VK_NVX_device_generated_commands")
 class VkDeviceGeneratedCommandsFeaturesNVX {
     VkStructureType                             sType
@@ -3263,6 +3371,7 @@ class VkObjectTableIndexBufferEntryNVX {
     VkObjectEntryTypeNVX                        type
     VkObjectEntryUsageFlagsNVX                  flags
     VkBuffer                                    buffer
+    VkIndexType                                 indexType
 }
 
 @extension("VK_NVX_device_generated_commands")
@@ -3292,6 +3401,51 @@ class VkPresentRegionsKHR {
     const void*                                 pNext
     u32                                         swapchainCount
     const VkPresentRegionKHR*                   pRegions
+}
+
+@extension("VK_EXT_display_surface_counter")
+class VkSurfaceCapabilities2EXT {
+    VkStructureType                             sType
+    void*                                       pNext
+    u32                                         minImageCount
+    u32                                         maxImageCount
+    VkExtent2D                                  currentExtent
+    VkExtent2D                                  minImageExtent
+    VkExtent2D                                  maxImageExtent
+    u32                                         maxImageArrayLayers
+    VkSurfaceTransformFlagsKHR                  supportedTransforms
+    VkSurfaceTransformFlagBitsKHR               currentTransform
+    VkCompositeAlphaFlagsKHR                    supportedCompositeAlpha
+    VkImageUsageFlags                           supportedUsageFlags
+    VkSurfaceCounterFlagsEXT                    supportedSurfaceCounters
+}
+
+@extension("VK_EXT_display_control")
+class VkDisplayPowerInfoEXT {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkDisplayPowerStateEXT                      powerState
+}
+
+@extension("VK_EXT_display_control")
+class VkDeviceEventInfoEXT {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkDeviceEventTypeEXT                        deviceEvent
+}
+
+@extension("VK_EXT_display_control")
+class VkDisplayEventInfoEXT {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkDisplayEventTypeEXT                       displayEvent
+}
+
+@extension("VK_EXT_display_control")
+class VkSwapchainCounterCreateInfoEXT {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkSurfaceCounterFlagsEXT                    surfaceCounters
 }
 
 @extension("VK_EXT_hdr_metadata")
@@ -6070,10 +6224,26 @@ cmd void vkGetPhysicalDeviceMemoryProperties2KHR(
 
 @extension("VK_KHR_get_physical_device_properties2")
 cmd void vkGetPhysicalDeviceSparseImageFormatProperties2KHR(
-        VkPhysicalDevice                            physicalDevice,
-        const VkPhysicalDeviceSparseImageFormatInfo2KHR* pFormatInfo,
-        u32*                                        pPropertyCount,
-        VkSparseImageFormatProperties2KHR*          pProperties) {
+        VkPhysicalDevice                                    physicalDevice,
+        const VkPhysicalDeviceSparseImageFormatInfo2KHR*    pFormatInfo,
+        u32*                                                pPropertyCount,
+        VkSparseImageFormatProperties2KHR*                  pProperties) {
+}
+
+@extension("VK_NN_vi_surface")
+cmd VkResult vkCreateViSurfaceNN(
+        VkInstance                                  instance,
+        const VkViSurfaceCreateInfoNN*              pCreateInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkSurfaceKHR*                               pSurface) {
+    return ?
+}
+
+@extension("VK_KHR_maintenance1")
+cmd void vkTrimCommandPoolKHR(
+        VkDevice                                    device,
+        VkCommandPool                               commandPool,
+        VkCommandPoolTrimFlagsKHR                   flags) {
 }
 
 @extension("VK_NVX_device_generated_commands")
@@ -6145,6 +6315,74 @@ cmd void vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX(
         VkPhysicalDevice                            physicalDevice,
         VkDeviceGeneratedCommandsFeaturesNVX*       pFeatures,
         VkDeviceGeneratedCommandsLimitsNVX*         pLimits) {
+}
+
+@extension("VK_EXT_direct_mode_display")
+cmd VkResult vkReleaseDisplayEXT(
+        VkPhysicalDevice                            physicalDevice,
+        VkDisplayKHR                                display) {
+    return ?
+}
+
+@extension("VK_EXT_acquire_xlib_display")
+cmd VkResult vkAcquireXlibDisplayEXT(
+        VkPhysicalDevice                            physicalDevice,
+        platform.Display*                           dpy,
+        VkDisplayKHR                                display) {
+    return ?
+}
+
+@extension("VK_EXT_acquire_xlib_display")
+cmd VkResult vkGetRandROutputDisplayEXT(
+        VkPhysicalDevice                            physicalDevice,
+        platform.Display*                           dpy,
+        platform.RROutput                           rrOutput,
+        VkDisplayKHR*                               pDisplay) {
+    return ?
+}
+
+@extension("VK_EXT_display_surface_counter")
+cmd VkResult vkGetPhysicalDeviceSurfaceCapabilities2EXT(
+        VkPhysicalDevice                            physicalDevice,
+        VkSurfaceKHR                                surface,
+        VkSurfaceCapabilities2EXT*                  pSurfaceCapabilities) {
+    return ?
+}
+
+@extension("VK_EXT_display_control")
+cmd VkResult vkDisplayPowerControlEXT(
+        VkDevice                                    device,
+        VkDisplayKHR                                display,
+        const VkDisplayPowerInfoEXT*                pDisplayPowerInfo) {
+    return ?
+}
+
+@extension("VK_EXT_display_control")
+cmd VkResult vkRegisterDeviceEventEXT(
+        VkDevice                                    device,
+        const VkDeviceEventInfoEXT*                 pDeviceEventInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkFence*                                    pFence) {
+    return ?
+}
+
+@extension("VK_EXT_display_control")
+cmd VkResult vkRegisterDisplayEventEXT(
+        VkDevice                                    device,
+        VkDisplayKHR                                display,
+        const VkDisplayEventInfoEXT*                pDisplayEventInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkFence*                                    pFence) {
+    return ?
+}
+
+@extension("VK_EXT_display_control")
+cmd VkResult vkGetSwapchainCounterEXT(
+        VkDevice                                    device,
+        VkSwapchainKHR                              swapchain,
+        VkSurfaceCounterFlagBitsEXT                 counter,
+        u64*                                        pCounterValue) {
+    return ?
 }
 
 @extension("VK_EXT_hdr_metadata")

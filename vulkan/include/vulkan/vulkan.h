@@ -43,11 +43,11 @@ extern "C" {
 #define VK_VERSION_MINOR(version) (((uint32_t)(version) >> 12) & 0x3ff)
 #define VK_VERSION_PATCH(version) ((uint32_t)(version) & 0xfff)
 // Version of this file
-#define VK_HEADER_VERSION 38
+#define VK_HEADER_VERSION 39
 
 
 #define VK_NULL_HANDLE 0
-        
+
 
 
 #define VK_DEFINE_HANDLE(object) typedef struct object##_T* object;
@@ -60,7 +60,7 @@ extern "C" {
         #define VK_DEFINE_NON_DISPATCHABLE_HANDLE(object) typedef uint64_t object;
 #endif
 #endif
-        
+
 
 
 typedef uint32_t VkFlags;
@@ -145,6 +145,7 @@ typedef enum VkResult {
     VK_ERROR_INCOMPATIBLE_DISPLAY_KHR = -1000003001,
     VK_ERROR_VALIDATION_FAILED_EXT = -1000011001,
     VK_ERROR_INVALID_SHADER_NV = -1000012000,
+    VK_ERROR_OUT_OF_POOL_MEMORY_KHR = -1000069000,
     VK_RESULT_BEGIN_RANGE = VK_ERROR_FRAGMENTED_POOL,
     VK_RESULT_END_RANGE = VK_INCOMPLETE,
     VK_RESULT_RANGE_SIZE = (VK_INCOMPLETE - VK_ERROR_FRAGMENTED_POOL + 1),
@@ -235,6 +236,7 @@ typedef enum VkStructureType {
     VK_STRUCTURE_TYPE_SPARSE_IMAGE_FORMAT_PROPERTIES_2_KHR = 1000059007,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SPARSE_IMAGE_FORMAT_INFO_2_KHR = 1000059008,
     VK_STRUCTURE_TYPE_VALIDATION_FLAGS_EXT = 1000061000,
+    VK_STRUCTURE_TYPE_VI_SURFACE_CREATE_INFO_NN = 1000062000,
     VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR = 1000084000,
     VK_STRUCTURE_TYPE_OBJECT_TABLE_CREATE_INFO_NVX = 1000086000,
     VK_STRUCTURE_TYPE_INDIRECT_COMMANDS_LAYOUT_CREATE_INFO_NVX = 1000086001,
@@ -242,6 +244,11 @@ typedef enum VkStructureType {
     VK_STRUCTURE_TYPE_CMD_RESERVE_SPACE_FOR_COMMANDS_INFO_NVX = 1000086003,
     VK_STRUCTURE_TYPE_DEVICE_GENERATED_COMMANDS_LIMITS_NVX = 1000086004,
     VK_STRUCTURE_TYPE_DEVICE_GENERATED_COMMANDS_FEATURES_NVX = 1000086005,
+    VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES2_EXT = 1000090000,
+    VK_STRUCTURE_TYPE_DISPLAY_POWER_INFO_EXT = 1000091000,
+    VK_STRUCTURE_TYPE_DEVICE_EVENT_INFO_EXT = 1000091001,
+    VK_STRUCTURE_TYPE_DISPLAY_EVENT_INFO_EXT = 1000091002,
+    VK_STRUCTURE_TYPE_SWAPCHAIN_COUNTER_CREATE_INFO_EXT = 1000091003,
     VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE = 1000092000,
     VK_STRUCTURE_TYPE_BEGIN_RANGE = VK_STRUCTURE_TYPE_APPLICATION_INFO,
     VK_STRUCTURE_TYPE_END_RANGE = VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO,
@@ -852,6 +859,8 @@ typedef enum VkFormatFeatureFlagBits {
     VK_FORMAT_FEATURE_BLIT_DST_BIT = 0x00000800,
     VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT = 0x00001000,
     VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_CUBIC_BIT_IMG = 0x00002000,
+    VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR = 0x00004000,
+    VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR = 0x00008000,
     VK_FORMAT_FEATURE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
 } VkFormatFeatureFlagBits;
 typedef VkFlags VkFormatFeatureFlags;
@@ -875,6 +884,7 @@ typedef enum VkImageCreateFlagBits {
     VK_IMAGE_CREATE_SPARSE_ALIASED_BIT = 0x00000004,
     VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT = 0x00000008,
     VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT = 0x00000010,
+    VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT_KHR = 0x00000020,
     VK_IMAGE_CREATE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
 } VkImageCreateFlagBits;
 typedef VkFlags VkImageCreateFlags;
@@ -3877,38 +3887,24 @@ VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceSparseImageFormatProperties2KHR(
     VkSparseImageFormatProperties2KHR*          pProperties);
 #endif
 
-#define VK_KHR_incremental_present 1
-#define VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION 1
-#define VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME "VK_KHR_incremental_present"
+#define VK_KHR_shader_draw_parameters 1
+#define VK_KHR_SHADER_DRAW_PARAMETERS_SPEC_VERSION 1
+#define VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME "VK_KHR_shader_draw_parameters"
 
-typedef struct VkRectLayerKHR {
-    VkOffset2D offset;
-    VkExtent2D extent;
-    uint32_t layer;
-} VkRectLayerKHR;
 
-typedef struct VkPresentRegionKHR {
-    uint32_t rectangleCount;
-    const VkRectLayerKHR* pRectangles;
-} VkPresentRegionKHR;
+#define VK_KHR_maintenance1 1
+#define VK_KHR_MAINTENANCE1_SPEC_VERSION  1
+#define VK_KHR_MAINTENANCE1_EXTENSION_NAME "VK_KHR_maintenance1"
 
-typedef struct VkPresentRegionsKHR {
-    VkStructureType sType;
-    const void* pNext;
-    uint32_t swapchainCount;
-    const VkPresentRegionKHR* pRegions;
-} VkPresentRegionsKHR;
+typedef VkFlags VkCommandPoolTrimFlagsKHR;
 
-#define VK_KHR_shared_presentable_image 1
-#define VK_KHR_SHARED_PRESENTABLE_IMAGE_SPEC_VERSION 1
-#define VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME "VK_KHR_shared_presentable_image"
-
-typedef VkResult (VKAPI_PTR *PFN_vkGetSwapchainStatusKHR)(VkDevice device, VkSwapchainKHR swapchain);
+typedef void (VKAPI_PTR *PFN_vkTrimCommandPoolKHR)(VkDevice device, VkCommandPool commandPool, VkCommandPoolTrimFlagsKHR flags);
 
 #ifndef VK_NO_PROTOTYPES
-VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainStatusKHR(
+VKAPI_ATTR void VKAPI_CALL vkTrimCommandPoolKHR(
     VkDevice                                    device,
-    VkSwapchainKHR                              swapchain);
+    VkCommandPool                               commandPool,
+    VkCommandPoolTrimFlagsKHR                   flags);
 #endif
 
 #define VK_EXT_debug_report 1
@@ -4154,6 +4150,7 @@ typedef struct VkDedicatedAllocationMemoryAllocateInfoNV {
 } VkDedicatedAllocationMemoryAllocateInfoNV;
 
 
+
 #define VK_AMD_draw_indirect_count 1
 #define VK_AMD_DRAW_INDIRECT_COUNT_SPEC_VERSION 1
 #define VK_AMD_DRAW_INDIRECT_COUNT_EXTENSION_NAME "VK_AMD_draw_indirect_count"
@@ -4336,6 +4333,64 @@ typedef struct VkValidationFlagsEXT {
 
 
 
+#ifdef VK_USE_PLATFORM_VI_NN
+#define VK_NN_vi_surface 1
+#define VK_NN_VI_SURFACE_SPEC_VERSION     1
+#define VK_NN_VI_SURFACE_EXTENSION_NAME   "VK_NN_vi_surface"
+
+typedef VkFlags VkViSurfaceCreateFlagsNN;
+
+typedef struct VkViSurfaceCreateInfoNN {
+    VkStructureType             sType;
+    const void*                 pNext;
+    VkViSurfaceCreateFlagsNN    flags;
+    void*                       window;
+} VkViSurfaceCreateInfoNN;
+
+
+typedef VkResult (VKAPI_PTR *PFN_vkCreateViSurfaceNN)(VkInstance instance, const VkViSurfaceCreateInfoNN* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface);
+
+#ifndef VK_NO_PROTOTYPES
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateViSurfaceNN(
+    VkInstance                                  instance,
+    const VkViSurfaceCreateInfoNN*              pCreateInfo,
+    const VkAllocationCallbacks*                pAllocator,
+    VkSurfaceKHR*                               pSurface);
+#endif
+#endif /* VK_USE_PLATFORM_VI_NN */
+
+#define VK_EXT_shader_subgroup_ballot 1
+#define VK_EXT_SHADER_SUBGROUP_BALLOT_SPEC_VERSION 1
+#define VK_EXT_SHADER_SUBGROUP_BALLOT_EXTENSION_NAME "VK_EXT_shader_subgroup_ballot"
+
+
+#define VK_EXT_shader_subgroup_vote 1
+#define VK_EXT_SHADER_SUBGROUP_VOTE_SPEC_VERSION 1
+#define VK_EXT_SHADER_SUBGROUP_VOTE_EXTENSION_NAME "VK_EXT_shader_subgroup_vote"
+
+
+#define VK_KHR_incremental_present 1
+#define VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION 1
+#define VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME "VK_KHR_incremental_present"
+
+typedef struct VkRectLayerKHR {
+    VkOffset2D offset;
+    VkExtent2D extent;
+    uint32_t layer;
+} VkRectLayerKHR;
+
+typedef struct VkPresentRegionKHR {
+    uint32_t rectangleCount;
+    const VkRectLayerKHR* pRectangles;
+} VkPresentRegionKHR;
+
+typedef struct VkPresentRegionsKHR {
+    VkStructureType sType;
+    const void* pNext;
+    uint32_t swapchainCount;
+    const VkPresentRegionKHR* pRegions;
+} VkPresentRegionsKHR;
+
 #define VK_NVX_device_generated_commands 1
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkObjectTableNVX)
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkIndirectCommandsLayoutNVX)
@@ -4491,6 +4546,7 @@ typedef struct VkObjectTableIndexBufferEntryNVX {
     VkObjectEntryTypeNVX          type;
     VkObjectEntryUsageFlagsNVX    flags;
     VkBuffer                      buffer;
+    VkIndexType                   indexType;
 } VkObjectTableIndexBufferEntryNVX;
 
 typedef struct VkObjectTablePushConstantEntryNVX {
@@ -4560,6 +4616,166 @@ VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX(
     VkPhysicalDevice                            physicalDevice,
     VkDeviceGeneratedCommandsFeaturesNVX*       pFeatures,
     VkDeviceGeneratedCommandsLimitsNVX*         pLimits);
+#endif
+
+#define VK_EXT_direct_mode_display 1
+#define VK_EXT_DIRECT_MODE_DISPLAY_SPEC_VERSION 1
+#define VK_EXT_DIRECT_MODE_DISPLAY_EXTENSION_NAME "VK_EXT_direct_mode_display"
+
+typedef VkResult (VKAPI_PTR *PFN_vkReleaseDisplayEXT)(VkPhysicalDevice physicalDevice, VkDisplayKHR display);
+
+#ifndef VK_NO_PROTOTYPES
+VKAPI_ATTR VkResult VKAPI_CALL vkReleaseDisplayEXT(
+    VkPhysicalDevice                            physicalDevice,
+    VkDisplayKHR                                display);
+#endif
+
+#ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
+#define VK_EXT_acquire_xlib_display 1
+#include <X11/extensions/Xrandr.h>
+
+#define VK_EXT_ACQUIRE_XLIB_DISPLAY_SPEC_VERSION 1
+#define VK_EXT_ACQUIRE_XLIB_DISPLAY_EXTENSION_NAME "VK_EXT_acquire_xlib_display"
+
+typedef VkResult (VKAPI_PTR *PFN_vkAcquireXlibDisplayEXT)(VkPhysicalDevice physicalDevice, Display* dpy, VkDisplayKHR display);
+typedef VkResult (VKAPI_PTR *PFN_vkGetRandROutputDisplayEXT)(VkPhysicalDevice physicalDevice, Display* dpy, RROutput rrOutput, VkDisplayKHR* pDisplay);
+
+#ifndef VK_NO_PROTOTYPES
+VKAPI_ATTR VkResult VKAPI_CALL vkAcquireXlibDisplayEXT(
+    VkPhysicalDevice                            physicalDevice,
+    Display*                                    dpy,
+    VkDisplayKHR                                display);
+
+VKAPI_ATTR VkResult VKAPI_CALL vkGetRandROutputDisplayEXT(
+    VkPhysicalDevice                            physicalDevice,
+    Display*                                    dpy,
+    RROutput                                    rrOutput,
+    VkDisplayKHR*                               pDisplay);
+#endif
+#endif /* VK_USE_PLATFORM_XLIB_XRANDR_EXT */
+
+#define VK_EXT_display_surface_counter 1
+#define VK_EXT_DISPLAY_SURFACE_COUNTER_SPEC_VERSION 1
+#define VK_EXT_DISPLAY_SURFACE_COUNTER_EXTENSION_NAME "VK_EXT_display_surface_counter"
+
+
+typedef enum VkSurfaceCounterFlagBitsEXT {
+    VK_SURFACE_COUNTER_VBLANK_EXT = 0x00000001,
+    VK_SURFACE_COUNTER_FLAG_BITS_MAX_ENUM_EXT = 0x7FFFFFFF
+} VkSurfaceCounterFlagBitsEXT;
+typedef VkFlags VkSurfaceCounterFlagsEXT;
+
+typedef struct VkSurfaceCapabilities2EXT {
+    VkStructureType                  sType;
+    void*                            pNext;
+    uint32_t                         minImageCount;
+    uint32_t                         maxImageCount;
+    VkExtent2D                       currentExtent;
+    VkExtent2D                       minImageExtent;
+    VkExtent2D                       maxImageExtent;
+    uint32_t                         maxImageArrayLayers;
+    VkSurfaceTransformFlagsKHR       supportedTransforms;
+    VkSurfaceTransformFlagBitsKHR    currentTransform;
+    VkCompositeAlphaFlagsKHR         supportedCompositeAlpha;
+    VkImageUsageFlags                supportedUsageFlags;
+    VkSurfaceCounterFlagsEXT         supportedSurfaceCounters;
+} VkSurfaceCapabilities2EXT;
+
+
+typedef VkResult (VKAPI_PTR *PFN_vkGetPhysicalDeviceSurfaceCapabilities2EXT)(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkSurfaceCapabilities2EXT* pSurfaceCapabilities);
+
+#ifndef VK_NO_PROTOTYPES
+VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceSurfaceCapabilities2EXT(
+    VkPhysicalDevice                            physicalDevice,
+    VkSurfaceKHR                                surface,
+    VkSurfaceCapabilities2EXT*                  pSurfaceCapabilities);
+#endif
+
+#define VK_EXT_display_control 1
+#define VK_EXT_DISPLAY_CONTROL_SPEC_VERSION 1
+#define VK_EXT_DISPLAY_CONTROL_EXTENSION_NAME "VK_EXT_display_control"
+
+
+typedef enum VkDisplayPowerStateEXT {
+    VK_DISPLAY_POWER_STATE_OFF_EXT = 0,
+    VK_DISPLAY_POWER_STATE_SUSPEND_EXT = 1,
+    VK_DISPLAY_POWER_STATE_ON_EXT = 2,
+    VK_DISPLAY_POWER_STATE_BEGIN_RANGE_EXT = VK_DISPLAY_POWER_STATE_OFF_EXT,
+    VK_DISPLAY_POWER_STATE_END_RANGE_EXT = VK_DISPLAY_POWER_STATE_ON_EXT,
+    VK_DISPLAY_POWER_STATE_RANGE_SIZE_EXT = (VK_DISPLAY_POWER_STATE_ON_EXT - VK_DISPLAY_POWER_STATE_OFF_EXT + 1),
+    VK_DISPLAY_POWER_STATE_MAX_ENUM_EXT = 0x7FFFFFFF
+} VkDisplayPowerStateEXT;
+
+typedef enum VkDeviceEventTypeEXT {
+    VK_DEVICE_EVENT_TYPE_DISPLAY_HOTPLUG_EXT = 0,
+    VK_DEVICE_EVENT_TYPE_BEGIN_RANGE_EXT = VK_DEVICE_EVENT_TYPE_DISPLAY_HOTPLUG_EXT,
+    VK_DEVICE_EVENT_TYPE_END_RANGE_EXT = VK_DEVICE_EVENT_TYPE_DISPLAY_HOTPLUG_EXT,
+    VK_DEVICE_EVENT_TYPE_RANGE_SIZE_EXT = (VK_DEVICE_EVENT_TYPE_DISPLAY_HOTPLUG_EXT - VK_DEVICE_EVENT_TYPE_DISPLAY_HOTPLUG_EXT + 1),
+    VK_DEVICE_EVENT_TYPE_MAX_ENUM_EXT = 0x7FFFFFFF
+} VkDeviceEventTypeEXT;
+
+typedef enum VkDisplayEventTypeEXT {
+    VK_DISPLAY_EVENT_TYPE_FIRST_PIXEL_OUT_EXT = 0,
+    VK_DISPLAY_EVENT_TYPE_BEGIN_RANGE_EXT = VK_DISPLAY_EVENT_TYPE_FIRST_PIXEL_OUT_EXT,
+    VK_DISPLAY_EVENT_TYPE_END_RANGE_EXT = VK_DISPLAY_EVENT_TYPE_FIRST_PIXEL_OUT_EXT,
+    VK_DISPLAY_EVENT_TYPE_RANGE_SIZE_EXT = (VK_DISPLAY_EVENT_TYPE_FIRST_PIXEL_OUT_EXT - VK_DISPLAY_EVENT_TYPE_FIRST_PIXEL_OUT_EXT + 1),
+    VK_DISPLAY_EVENT_TYPE_MAX_ENUM_EXT = 0x7FFFFFFF
+} VkDisplayEventTypeEXT;
+
+typedef struct VkDisplayPowerInfoEXT {
+    VkStructureType           sType;
+    const void*               pNext;
+    VkDisplayPowerStateEXT    powerState;
+} VkDisplayPowerInfoEXT;
+
+typedef struct VkDeviceEventInfoEXT {
+    VkStructureType         sType;
+    const void*             pNext;
+    VkDeviceEventTypeEXT    deviceEvent;
+} VkDeviceEventInfoEXT;
+
+typedef struct VkDisplayEventInfoEXT {
+    VkStructureType          sType;
+    const void*              pNext;
+    VkDisplayEventTypeEXT    displayEvent;
+} VkDisplayEventInfoEXT;
+
+typedef struct VkSwapchainCounterCreateInfoEXT {
+    VkStructureType             sType;
+    const void*                 pNext;
+    VkSurfaceCounterFlagsEXT    surfaceCounters;
+} VkSwapchainCounterCreateInfoEXT;
+
+
+typedef VkResult (VKAPI_PTR *PFN_vkDisplayPowerControlEXT)(VkDevice device, VkDisplayKHR display, const VkDisplayPowerInfoEXT* pDisplayPowerInfo);
+typedef VkResult (VKAPI_PTR *PFN_vkRegisterDeviceEventEXT)(VkDevice device, const VkDeviceEventInfoEXT* pDeviceEventInfo, const VkAllocationCallbacks* pAllocator, VkFence* pFence);
+typedef VkResult (VKAPI_PTR *PFN_vkRegisterDisplayEventEXT)(VkDevice device, VkDisplayKHR display, const VkDisplayEventInfoEXT* pDisplayEventInfo, const VkAllocationCallbacks* pAllocator, VkFence* pFence);
+typedef VkResult (VKAPI_PTR *PFN_vkGetSwapchainCounterEXT)(VkDevice device, VkSwapchainKHR swapchain, VkSurfaceCounterFlagBitsEXT counter, uint64_t* pCounterValue);
+
+#ifndef VK_NO_PROTOTYPES
+VKAPI_ATTR VkResult VKAPI_CALL vkDisplayPowerControlEXT(
+    VkDevice                                    device,
+    VkDisplayKHR                                display,
+    const VkDisplayPowerInfoEXT*                pDisplayPowerInfo);
+
+VKAPI_ATTR VkResult VKAPI_CALL vkRegisterDeviceEventEXT(
+    VkDevice                                    device,
+    const VkDeviceEventInfoEXT*                 pDeviceEventInfo,
+    const VkAllocationCallbacks*                pAllocator,
+    VkFence*                                    pFence);
+
+VKAPI_ATTR VkResult VKAPI_CALL vkRegisterDisplayEventEXT(
+    VkDevice                                    device,
+    VkDisplayKHR                                display,
+    const VkDisplayEventInfoEXT*                pDisplayEventInfo,
+    const VkAllocationCallbacks*                pAllocator,
+    VkFence*                                    pFence);
+
+VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainCounterEXT(
+    VkDevice                                    device,
+    VkSwapchainKHR                              swapchain,
+    VkSurfaceCounterFlagBitsEXT                 counter,
+    uint64_t*                                   pCounterValue);
 #endif
 
 #define VK_GOOGLE_display_timing 1
@@ -4643,6 +4859,19 @@ VKAPI_ATTR void VKAPI_CALL vkSetHdrMetadataEXT(
     const VkSwapchainKHR*                       pSwapchains,
     const VkHdrMetadataEXT*                     pMetadata);
 #endif
+
+#define VK_KHR_shared_presentable_image 1
+#define VK_KHR_SHARED_PRESENTABLE_IMAGE_SPEC_VERSION 1
+#define VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME "VK_KHR_shared_presentable_image"
+
+typedef VkResult (VKAPI_PTR *PFN_vkGetSwapchainStatusKHR)(VkDevice device, VkSwapchainKHR swapchain);
+
+#ifndef VK_NO_PROTOTYPES
+VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainStatusKHR(
+    VkDevice                                    device,
+    VkSwapchainKHR                              swapchain);
+#endif
+
 
 #ifdef __cplusplus
 }
