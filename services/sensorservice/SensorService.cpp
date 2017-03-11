@@ -480,17 +480,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                         SENSOR_REGISTRATIONS_BUF_SIZE;
                     continue;
                 }
-                if (reg_info.mActivated) {
-                   result.appendFormat("%02d:%02d:%02d activated handle=0x%08x "
-                           "samplingRate=%dus maxReportLatency=%dus package=%s\n",
-                           reg_info.mHour, reg_info.mMin, reg_info.mSec, reg_info.mSensorHandle,
-                           reg_info.mSamplingRateUs, reg_info.mMaxReportLatencyUs,
-                           reg_info.mPackageName.string());
-                } else {
-                   result.appendFormat("%02d:%02d:%02d de-activated handle=0x%08x package=%s\n",
-                           reg_info.mHour, reg_info.mMin, reg_info.mSec,
-                           reg_info.mSensorHandle, reg_info.mPackageName.string());
-                }
+                result.appendFormat("%s\n", reg_info.dump().c_str());
                 currentIndex = (currentIndex - 1 + SENSOR_REGISTRATIONS_BUF_SIZE) %
                         SENSOR_REGISTRATIONS_BUF_SIZE;
             } while(startIndex != currentIndex);
@@ -1220,18 +1210,10 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
 
     if (err == NO_ERROR) {
         connection->updateLooperRegistration(mLooper);
-        SensorRegistrationInfo &reg_info =
-            mLastNSensorRegistrations.editItemAt(mNextSensorRegIndex);
-        reg_info.mSensorHandle = handle;
-        reg_info.mSamplingRateUs = samplingPeriodNs/1000;
-        reg_info.mMaxReportLatencyUs = maxBatchReportLatencyNs/1000;
-        reg_info.mActivated = true;
-        reg_info.mPackageName = connection->getPackageName();
-        time_t rawtime = time(NULL);
-        struct tm * timeinfo = localtime(&rawtime);
-        reg_info.mHour = timeinfo->tm_hour;
-        reg_info.mMin = timeinfo->tm_min;
-        reg_info.mSec = timeinfo->tm_sec;
+
+        mLastNSensorRegistrations.editItemAt(mNextSensorRegIndex) =
+                SensorRegistrationInfo(handle, connection->getPackageName(),
+                                       samplingPeriodNs, maxBatchReportLatencyNs, true);
         mNextSensorRegIndex = (mNextSensorRegIndex + 1) % SENSOR_REGISTRATIONS_BUF_SIZE;
     }
 
@@ -1254,16 +1236,8 @@ status_t SensorService::disable(const sp<SensorEventConnection>& connection, int
 
     }
     if (err == NO_ERROR) {
-        SensorRegistrationInfo &reg_info =
-            mLastNSensorRegistrations.editItemAt(mNextSensorRegIndex);
-        reg_info.mActivated = false;
-        reg_info.mPackageName= connection->getPackageName();
-        reg_info.mSensorHandle = handle;
-        time_t rawtime = time(NULL);
-        struct tm * timeinfo = localtime(&rawtime);
-        reg_info.mHour = timeinfo->tm_hour;
-        reg_info.mMin = timeinfo->tm_min;
-        reg_info.mSec = timeinfo->tm_sec;
+        mLastNSensorRegistrations.editItemAt(mNextSensorRegIndex) =
+                SensorRegistrationInfo(handle, connection->getPackageName(), 0, 0, false);
         mNextSensorRegIndex = (mNextSensorRegIndex + 1) % SENSOR_REGISTRATIONS_BUF_SIZE;
     }
     return err;

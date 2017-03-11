@@ -17,29 +17,76 @@
 #ifndef ANDROID_SENSOR_REGISTRATION_INFO_H
 #define ANDROID_SENSOR_REGISTRATION_INFO_H
 
+#include "SensorServiceUtils.h"
+#include <utils/Thread.h>
+#include <iomanip>
+#include <sstream>
+
 namespace android {
 
 class SensorService;
 
-struct SensorService::SensorRegistrationInfo {
-    int32_t mSensorHandle;
-    String8 mPackageName;
-    bool mActivated;
-    int32_t mSamplingRateUs;
-    int32_t mMaxReportLatencyUs;
-    int32_t mHour, mMin, mSec;
-
+class SensorService::SensorRegistrationInfo : public SensorServiceUtil::Dumpable {
+public:
     SensorRegistrationInfo() : mPackageName() {
         mSensorHandle = mSamplingRateUs = mMaxReportLatencyUs = INT32_MIN;
-        mHour = mMin = mSec = INT32_MIN;
+        mHour = mMin = mSec = INT8_MIN;
         mActivated = false;
     }
 
-    static bool isSentinel(const SensorRegistrationInfo& info) {
-       return (info.mHour == INT32_MIN &&
-               info.mMin == INT32_MIN &&
-               info.mSec == INT32_MIN);
+    SensorRegistrationInfo(int32_t handle, const String8 &packageName,
+                           int32_t samplingRateNs, int32_t maxReportLatencyNs, bool activate) {
+        mSensorHandle = handle;
+        mPackageName = packageName;
+
+        mSamplingRateUs = static_cast<int32_t>(samplingRateNs/1000);
+        mMaxReportLatencyUs = static_cast<int32_t>(maxReportLatencyNs/1000);
+        mActivated = activate;
+
+        IPCThreadState *thread = IPCThreadState::self();
+        mPid = (thread != nullptr) ? thread->getCallingPid() : -1;
+        mUid = (thread != nullptr) ? thread->getCallingUid() : -1;
+
+        time_t rawtime = time(NULL);
+        struct tm * timeinfo = localtime(&rawtime);
+        mHour = static_cast<int8_t>(timeinfo->tm_hour);
+        mMin = static_cast<int8_t>(timeinfo->tm_min);
+        mSec = static_cast<int8_t>(timeinfo->tm_sec);
     }
+
+    static bool isSentinel(const SensorRegistrationInfo& info) {
+       return (info.mHour == INT8_MIN &&
+               info.mMin == INT8_MIN &&
+               info.mSec == INT8_MIN);
+    }
+
+    // Dumpable interface
+    virtual std::string dump() const override {
+        std::ostringstream ss;
+        ss << std::setfill('0') << std::setw(2) << static_cast<int>(mHour) << ":"
+           << std::setw(2) << static_cast<int>(mMin) << ":"
+           << std::setw(2) << static_cast<int>(mSec)
+           << (mActivated ? " +" : " -")
+           << " 0x" << std::hex << std::setw(8) << mSensorHandle << std::dec
+           << std::setfill(' ') << " pid=" << std::setw(5) << mPid
+           << " uid=" << std::setw(5) << mUid << " package=" << mPackageName;
+        if (mActivated) {
+           ss  << " samplingPeriod=" << mSamplingRateUs << "us"
+               << " batchingPeriod=" << mMaxReportLatencyUs << "us";
+        };
+        return ss.str();
+    }
+
+private:
+    int32_t mSensorHandle;
+    String8 mPackageName;
+    pid_t   mPid;
+    uid_t   mUid;
+    int32_t mSamplingRateUs;
+    int32_t mMaxReportLatencyUs;
+    bool mActivated;
+    int8_t mHour, mMin, mSec;
+
 };
 
 } // namespace android;

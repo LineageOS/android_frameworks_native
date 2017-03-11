@@ -91,7 +91,7 @@ private:
     // nested class/struct for internal use
     class SensorRecord;
     class SensorEventAckReceiver;
-    struct SensorRegistrationInfo;
+    class SensorRegistrationInfo;
 
     enum Mode {
        // The regular operating mode where any application can register/unregister/call flush on
