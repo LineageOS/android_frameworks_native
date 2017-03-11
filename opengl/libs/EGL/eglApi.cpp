@@ -33,22 +33,27 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 
-#include <utils/KeyedVector.h>
-#include <utils/String8.h>
-#include <utils/Trace.h>
-#include <utils/Thread.h>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <unordered_map>
+#include <string>
+#include <thread>
 
 #include "../egl_impl.h"
 
 #include "egl_display.h"
 #include "egl_object.h"
 #include "egl_tls.h"
+#include "egl_trace.h"
 
 using namespace android;
 
 // ----------------------------------------------------------------------------
 
 namespace android {
+
+using nsecs_t = int64_t;
 
 struct extention_map_t {
     const char* name;
@@ -233,7 +238,8 @@ static const extention_map_t sExtensionMap[] = {
 
 
 // accesses protected by sExtensionMapMutex
-static DefaultKeyedVector<String8, __eglMustCastToProperFunctionPointerType> sGLExtentionMap;
+static std::unordered_map<std::string, __eglMustCastToProperFunctionPointerType> sGLExtentionMap;
+
 static int sGLExtentionSlot = 0;
 static pthread_mutex_t sExtensionMapMutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -475,7 +481,7 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         }
 
         int result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
-        if (result != OK) {
+        if (result < 0) {
             ALOGE("eglCreateWindowSurface: native_window_api_connect (win=%p) "
                     "failed (%#x) (already connected to another API?)",
                     window, result);
@@ -988,8 +994,11 @@ __eglMustCastToProperFunctionPointerType eglGetProcAddress(const char *procname)
          *
          */
 
-        const String8 name(procname);
-        addr = sGLExtentionMap.valueFor(name);
+        const std::string name(procname);
+
+    auto& extentionMap = sGLExtentionMap;
+    auto pos = extentionMap.find(name);
+        addr = (pos != extentionMap.end()) ? pos->second : nullptr;
         const int slot = sGLExtentionSlot;
 
         ALOGE_IF(slot >= MAX_NUMBER_OF_GL_EXTENSIONS,
@@ -1011,7 +1020,7 @@ __eglMustCastToProperFunctionPointerType eglGetProcAddress(const char *procname)
 
             if (found) {
                 addr = gExtensionForwarders[slot];
-                sGLExtentionMap.add(name, addr);
+                extentionMap[name] = addr;
                 sGLExtentionSlot++;
             }
         }
@@ -1020,45 +1029,57 @@ __eglMustCastToProperFunctionPointerType eglGetProcAddress(const char *procname)
     return addr;
 }
 
-class FrameCompletionThread : public Thread {
+class FrameCompletionThread {
 public:
 
     static void queueSync(EGLSyncKHR sync) {
-        static sp<FrameCompletionThread> thread(new FrameCompletionThread);
-        static bool running = false;
-        if (!running) {
-            thread->run("GPUFrameCompletion");
-            running = true;
-        }
-        {
-            Mutex::Autolock lock(thread->mMutex);
-            ScopedTrace st(ATRACE_TAG, String8::format("kicked off frame %d",
-                    thread->mFramesQueued).string());
-            thread->mQueue.push_back(sync);
-            thread->mCondition.signal();
-            thread->mFramesQueued++;
-            ATRACE_INT("GPU Frames Outstanding", int32_t(thread->mQueue.size()));
-        }
+        static FrameCompletionThread thread;
+
+        char name[64];
+
+        std::lock_guard<std::mutex> lock(thread.mMutex);
+        snprintf(name, sizeof(name), "kicked off frame %u", (unsigned int)thread.mFramesQueued);
+        ATRACE_NAME(name);
+
+        thread.mQueue.push_back(sync);
+        thread.mCondition.notify_one();
+        thread.mFramesQueued++;
+        ATRACE_INT("GPU Frames Outstanding", int32_t(thread.mQueue.size()));
     }
 
 private:
-    FrameCompletionThread() : mFramesQueued(0), mFramesCompleted(0) {}
 
-    virtual bool threadLoop() {
+    FrameCompletionThread() : mFramesQueued(0), mFramesCompleted(0) {
+        std::thread thread(&FrameCompletionThread::loop, this);
+        thread.detach();
+    }
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-noreturn"
+    void loop() {
+        while (true) {
+            threadLoop();
+        }
+    }
+#pragma clang diagnostic pop
+
+    void threadLoop() {
         EGLSyncKHR sync;
         uint32_t frameNum;
         {
-            Mutex::Autolock lock(mMutex);
-            while (mQueue.isEmpty()) {
-                mCondition.wait(mMutex);
+            std::unique_lock<std::mutex> lock(mMutex);
+            while (mQueue.empty()) {
+                mCondition.wait(lock);
             }
             sync = mQueue[0];
             frameNum = mFramesCompleted;
         }
         EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
         {
-            ScopedTrace st(ATRACE_TAG, String8::format("waiting for frame %d",
-                    frameNum).string());
+            char name[64];
+            snprintf(name, sizeof(name), "waiting for frame %u", (unsigned int)frameNum);
+            ATRACE_NAME(name);
+
             EGLint result = eglClientWaitSyncKHR(dpy, sync, 0, EGL_FOREVER_KHR);
             if (result == EGL_FALSE) {
                 ALOGE("FrameCompletion: error waiting for fence: %#x", eglGetError());
@@ -1068,19 +1089,18 @@ private:
             eglDestroySyncKHR(dpy, sync);
         }
         {
-            Mutex::Autolock lock(mMutex);
-            mQueue.removeAt(0);
+            std::lock_guard<std::mutex> lock(mMutex);
+            mQueue.pop_front();
             mFramesCompleted++;
             ATRACE_INT("GPU Frames Outstanding", int32_t(mQueue.size()));
         }
-        return true;
     }
 
     uint32_t mFramesQueued;
     uint32_t mFramesCompleted;
-    Vector<EGLSyncKHR> mQueue;
-    Condition mCondition;
-    Mutex mMutex;
+    std::deque<EGLSyncKHR> mQueue;
+    std::condition_variable mCondition;
+    std::mutex mMutex;
 };
 
 EGLBoolean eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface draw,
@@ -1119,7 +1139,7 @@ EGLBoolean eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface draw,
         return s->cnx->egl.eglSwapBuffers(dp->disp.dpy, s->surface);
     }
 
-    Vector<android_native_rect_t> androidRects;
+    std::vector<android_native_rect_t> androidRects((size_t)n_rects);
     for (int r = 0; r < n_rects; ++r) {
         int offset = r * 4;
         int x = rects[offset];
@@ -1133,8 +1153,7 @@ EGLBoolean eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface draw,
         androidRect.bottom = y;
         androidRects.push_back(androidRect);
     }
-    native_window_set_surface_damage(s->win.get(), androidRects.array(),
-            androidRects.size());
+    native_window_set_surface_damage(s->getNativeWindow(), androidRects.data(), androidRects.size());
 
     if (s->cnx->egl.eglSwapBuffersWithDamageKHR) {
         return s->cnx->egl.eglSwapBuffersWithDamageKHR(dp->disp.dpy, s->surface,
@@ -1238,19 +1257,19 @@ EGLBoolean eglSurfaceAttrib(
     egl_surface_t * const s = get_surface(surface);
 
     if (attribute == EGL_FRONT_BUFFER_AUTO_REFRESH_ANDROID) {
-        if (!s->win.get()) {
+        if (!s->getNativeWindow()) {
             setError(EGL_BAD_SURFACE, EGL_FALSE);
         }
-        int err = native_window_set_auto_refresh(s->win.get(), value ? true : false);
-        return (err == NO_ERROR) ? EGL_TRUE : setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
+        int err = native_window_set_auto_refresh(s->getNativeWindow(), value != 0);
+        return (err == 0) ? EGL_TRUE : setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
     }
 
     if (attribute == EGL_TIMESTAMPS_ANDROID) {
-        if (!s->win.get()) {
+        if (!s->getNativeWindow()) {
             return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
         }
-        int err = native_window_enable_frame_timestamps(s->win.get(), value ? true : false);
-        return (err == NO_ERROR) ? EGL_TRUE : setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
+        int err = native_window_enable_frame_timestamps(s->getNativeWindow(), value != 0);
+        return (err == 0) ? EGL_TRUE : setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
     }
 
     if (s->cnx->egl.eglSurfaceAttrib) {
@@ -1825,7 +1844,7 @@ EGLBoolean eglPresentationTimeANDROID(EGLDisplay dpy, EGLSurface surface,
     }
 
     egl_surface_t const * const s = get_surface(surface);
-    native_window_set_buffers_timestamp(s->win.get(), time);
+    native_window_set_buffers_timestamp(s->getNativeWindow(), time);
 
     return EGL_TRUE;
 }
@@ -1920,14 +1939,14 @@ EGLBoolean eglGetNextFrameIdANDROID(EGLDisplay dpy, EGLSurface surface,
 
     egl_surface_t const * const s = get_surface(surface);
 
-    if (!s->win.get()) {
+    if (!s->getNativeWindow()) {
         return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
     }
 
     uint64_t nextFrameId = 0;
-    status_t ret = native_window_get_next_frame_id(s->win.get(), &nextFrameId);
+    int ret = native_window_get_next_frame_id(s->getNativeWindow(), &nextFrameId);
 
-    if (ret != NO_ERROR) {
+    if (ret != 0) {
         // This should not happen. Return an error that is not in the spec
         // so it's obvious something is very wrong.
         ALOGE("eglGetNextFrameId: Unexpected error.");
@@ -1955,7 +1974,7 @@ EGLBoolean eglGetCompositorTimingANDROID(EGLDisplay dpy, EGLSurface surface,
 
     egl_surface_t const * const s = get_surface(surface);
 
-    if (!s->win.get()) {
+    if (!s->getNativeWindow()) {
         return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
     }
 
@@ -1979,13 +1998,13 @@ EGLBoolean eglGetCompositorTimingANDROID(EGLDisplay dpy, EGLSurface surface,
         }
     }
 
-    status_t ret = native_window_get_compositor_timing(s->win.get(),
+    int ret = native_window_get_compositor_timing(s->getNativeWindow(),
             compositeDeadline, compositeInterval, compositeToPresentLatency);
 
     switch (ret) {
-      case NO_ERROR:
+      case 0:
         return EGL_TRUE;
-      case INVALID_OPERATION:
+      case -ENOSYS:
         return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
       default:
         // This should not happen. Return an error that is not in the spec
@@ -2012,7 +2031,7 @@ EGLBoolean eglGetCompositorTimingSupportedANDROID(
 
     egl_surface_t const * const s = get_surface(surface);
 
-    ANativeWindow* window = s->win.get();
+    ANativeWindow* window = s->getNativeWindow();
     if (!window) {
         return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
     }
@@ -2045,7 +2064,7 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
 
     egl_surface_t const * const s = get_surface(surface);
 
-    if (!s->win.get()) {
+    if (!s->getNativeWindow()) {
         return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
     }
 
@@ -2097,19 +2116,19 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
         }
     }
 
-    status_t ret = native_window_get_frame_timestamps(s->win.get(), frameId,
+    int ret = native_window_get_frame_timestamps(s->getNativeWindow(), frameId,
             requestedPresentTime, acquireTime, latchTime, firstRefreshStartTime,
             lastRefreshStartTime, gpuCompositionDoneTime, displayPresentTime,
             displayRetireTime, dequeueReadyTime, releaseTime);
 
     switch (ret) {
-        case NO_ERROR:
+        case 0:
             return EGL_TRUE;
-        case NAME_NOT_FOUND:
+        case -ENOENT:
             return setError(EGL_BAD_ACCESS, (EGLBoolean)EGL_FALSE);
-        case INVALID_OPERATION:
+        case -ENOSYS:
             return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
-        case BAD_VALUE:
+        case -EINVAL:
             return setError(EGL_BAD_PARAMETER, (EGLBoolean)EGL_FALSE);
         default:
             // This should not happen. Return an error that is not in the spec
@@ -2136,7 +2155,7 @@ EGLBoolean eglGetFrameTimestampSupportedANDROID(
 
     egl_surface_t const * const s = get_surface(surface);
 
-    ANativeWindow* window = s->win.get();
+    ANativeWindow* window = s->getNativeWindow();
     if (!window) {
         return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
     }

@@ -20,11 +20,16 @@
 
 #include "egl_display.h"
 
+
+#include <private/EGL/cache.h>
+
 #include <inttypes.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-#include <utils/Thread.h>
+#include <thread>
+
+#include <log/log.h>
 
 // Cache size limits.
 static const size_t maxKeySize = 12 * 1024;
@@ -44,6 +49,11 @@ namespace android {
 
 #define BC_EXT_STR "EGL_ANDROID_blob_cache"
 
+// called from android_view_ThreadedRenderer.cpp
+void egl_set_cache_filename(const char* filename) {
+    egl_cache_t::get()->setCacheFilename(filename);
+}
+
 //
 // Callback functions passed to EGL.
 //
@@ -61,8 +71,7 @@ static EGLsizeiANDROID getBlob(const void* key, EGLsizeiANDROID keySize,
 // egl_cache_t definition
 //
 egl_cache_t::egl_cache_t() :
-        mInitialized(false),
-        mBlobCache(NULL) {
+        mInitialized(false) {
 }
 
 egl_cache_t::~egl_cache_t() {
@@ -75,7 +84,7 @@ egl_cache_t* egl_cache_t::get() {
 }
 
 void egl_cache_t::initialize(egl_display_t *display) {
-    Mutex::Autolock lock(mMutex);
+    std::lock_guard<std::mutex> lock(mMutex);
 
     egl_connection_t* const cnx = &gEGLImpl;
     if (cnx->dso && cnx->major >= 0 && cnx->minor >= 0) {
@@ -113,14 +122,14 @@ void egl_cache_t::initialize(egl_display_t *display) {
 }
 
 void egl_cache_t::terminate() {
-    Mutex::Autolock lock(mMutex);
+    std::lock_guard<std::mutex> lock(mMutex);
     saveBlobCacheLocked();
     mBlobCache = NULL;
 }
 
 void egl_cache_t::setBlob(const void* key, EGLsizeiANDROID keySize,
         const void* value, EGLsizeiANDROID valueSize) {
-    Mutex::Autolock lock(mMutex);
+    std::lock_guard<std::mutex> lock(mMutex);
 
     if (keySize < 0 || valueSize < 0) {
         ALOGW("EGL_ANDROID_blob_cache set: negative sizes are not allowed");
@@ -128,38 +137,27 @@ void egl_cache_t::setBlob(const void* key, EGLsizeiANDROID keySize,
     }
 
     if (mInitialized) {
-        sp<BlobCache> bc = getBlobCacheLocked();
+        BlobCache* bc = getBlobCacheLocked();
         bc->set(key, keySize, value, valueSize);
 
         if (!mSavePending) {
-            class DeferredSaveThread : public Thread {
-            public:
-                DeferredSaveThread() : Thread(false) {}
-
-                virtual bool threadLoop() {
-                    sleep(deferredSaveDelay);
-                    egl_cache_t* c = egl_cache_t::get();
-                    Mutex::Autolock lock(c->mMutex);
-                    if (c->mInitialized) {
-                        c->saveBlobCacheLocked();
-                    }
-                    c->mSavePending = false;
-                    return false;
-                }
-            };
-
-            // The thread will hold a strong ref to itself until it has finished
-            // running, so there's no need to keep a ref around.
-            sp<Thread> deferredSaveThread(new DeferredSaveThread());
             mSavePending = true;
-            deferredSaveThread->run("DeferredSaveThread");
+            std::thread deferredSaveThread([this]() {
+                sleep(deferredSaveDelay);
+                std::lock_guard<std::mutex> lock(mMutex);
+                if (mInitialized) {
+                    saveBlobCacheLocked();
+                }
+                mSavePending = false;
+            });
+            deferredSaveThread.detach();
         }
     }
 }
 
 EGLsizeiANDROID egl_cache_t::getBlob(const void* key, EGLsizeiANDROID keySize,
         void* value, EGLsizeiANDROID valueSize) {
-    Mutex::Autolock lock(mMutex);
+    std::lock_guard<std::mutex> lock(mMutex);
 
     if (keySize < 0 || valueSize < 0) {
         ALOGW("EGL_ANDROID_blob_cache set: negative sizes are not allowed");
@@ -167,23 +165,23 @@ EGLsizeiANDROID egl_cache_t::getBlob(const void* key, EGLsizeiANDROID keySize,
     }
 
     if (mInitialized) {
-        sp<BlobCache> bc = getBlobCacheLocked();
+        BlobCache* bc = getBlobCacheLocked();
         return bc->get(key, keySize, value, valueSize);
     }
     return 0;
 }
 
 void egl_cache_t::setCacheFilename(const char* filename) {
-    Mutex::Autolock lock(mMutex);
+    std::lock_guard<std::mutex> lock(mMutex);
     mFilename = filename;
 }
 
-sp<BlobCache> egl_cache_t::getBlobCacheLocked() {
-    if (mBlobCache == NULL) {
-        mBlobCache = new BlobCache(maxKeySize, maxValueSize, maxTotalSize);
+BlobCache* egl_cache_t::getBlobCacheLocked() {
+    if (mBlobCache == nullptr) {
+        mBlobCache.reset(new BlobCache(maxKeySize, maxValueSize, maxTotalSize));
         loadBlobCacheLocked();
     }
-    return mBlobCache;
+    return mBlobCache.get();
 }
 
 static uint32_t crc32c(const uint8_t* buf, size_t len) {
@@ -206,7 +204,7 @@ void egl_cache_t::saveBlobCacheLocked() {
     if (mFilename.length() > 0 && mBlobCache != NULL) {
         size_t cacheSize = mBlobCache->getFlattenedSize();
         size_t headerSize = cacheFileHeaderSize;
-        const char* fname = mFilename.string();
+        const char* fname = mFilename.c_str();
 
         // Try to create the file with no permissions so we can write it
         // without anyone trying to read it.
@@ -241,8 +239,8 @@ void egl_cache_t::saveBlobCacheLocked() {
             return;
         }
 
-        status_t err = mBlobCache->flatten(buf + headerSize, cacheSize);
-        if (err != OK) {
+        int err = mBlobCache->flatten(buf + headerSize, cacheSize);
+        if (err < 0) {
             ALOGE("error writing cache contents: %s (%d)", strerror(-err),
                     -err);
             delete [] buf;
@@ -275,10 +273,10 @@ void egl_cache_t::loadBlobCacheLocked() {
     if (mFilename.length() > 0) {
         size_t headerSize = cacheFileHeaderSize;
 
-        int fd = open(mFilename.string(), O_RDONLY, 0);
+        int fd = open(mFilename.c_str(), O_RDONLY, 0);
         if (fd == -1) {
             if (errno != ENOENT) {
-                ALOGE("error opening cache file %s: %s (%d)", mFilename.string(),
+                ALOGE("error opening cache file %s: %s (%d)", mFilename.c_str(),
                         strerror(errno), errno);
             }
             return;
@@ -323,8 +321,8 @@ void egl_cache_t::loadBlobCacheLocked() {
             return;
         }
 
-        status_t err = mBlobCache->unflatten(buf + headerSize, cacheSize);
-        if (err != OK) {
+        int err = mBlobCache->unflatten(buf + headerSize, cacheSize);
+        if (err < 0) {
             ALOGE("error reading cache contents: %s (%d)", strerror(-err),
                     -err);
             munmap(buf, fileSize);

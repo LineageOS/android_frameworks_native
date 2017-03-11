@@ -21,14 +21,15 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <string>
+#include <vector>
+
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
-#include <utils/StrongPointer.h>
-#include <utils/String8.h>
-#include <utils/Vector.h>
-
 #include <system/window.h>
+
+#include <log/log.h>
 
 #include "egl_display.h"
 
@@ -134,9 +135,16 @@ public:
             EGLNativeWindowType win, EGLSurface surface,
             egl_connection_t const* cnx);
 
+    ANativeWindow* getNativeWindow() { return win; }
+    ANativeWindow* getNativeWindow() const { return win; }
+
+    // Try to keep the order of these fields and size unchanged. It's not public API, but
+    // it's not hard to imagine native games accessing them.
     EGLSurface surface;
     EGLConfig config;
-    sp<ANativeWindow> win;
+private:
+    ANativeWindow* win;
+public:
     egl_connection_t const* cnx;
 private:
     bool connected;
@@ -162,8 +170,8 @@ public:
     EGLSurface draw;
     egl_connection_t const* cnx;
     int version;
-    String8 gl_extensions;
-    Vector<String8> tokenized_gl_extensions;
+    std::string gl_extensions;
+    std::vector<std::string> tokenized_gl_extensions;
 };
 
 // ----------------------------------------------------------------------------

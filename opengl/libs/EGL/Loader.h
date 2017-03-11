@@ -19,9 +19,6 @@
 
 #include <stdint.h>
 
-#include <utils/Errors.h>
-#include <utils/Singleton.h>
-
 #include <EGL/egl.h>
 
 // ----------------------------------------------------------------------------
@@ -30,9 +27,7 @@ namespace android {
 
 struct egl_connection_t;
 
-class Loader : public Singleton<Loader> {
-    friend class Singleton<Loader>;
-
+class Loader {
     typedef __eglMustCastToProperFunctionPointerType (* getProcAddressType)(const char*);
    
     enum {
@@ -43,17 +38,19 @@ class Loader : public Singleton<Loader> {
     struct driver_t {
         explicit driver_t(void* gles);
         ~driver_t();
-        status_t set(void* hnd, int32_t api);
+        // returns -errno
+        int set(void* hnd, int32_t api);
         void* dso[3];
     };
     
     getProcAddressType getProcAddress;
 
 public:
+    static Loader& getInstance();
     ~Loader();
     
     void* open(egl_connection_t* cnx);
-    status_t close(void* driver);
+    void close(void* driver);
     
 private:
     Loader();
