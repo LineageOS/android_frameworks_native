@@ -43,7 +43,7 @@ extern "C" {
 #define VK_VERSION_MINOR(version) (((uint32_t)(version) >> 12) & 0x3ff)
 #define VK_VERSION_PATCH(version) ((uint32_t)(version) & 0xfff)
 // Version of this file
-#define VK_HEADER_VERSION 42
+#define VK_HEADER_VERSION 43
 
 
 #define VK_NULL_HANDLE 0
@@ -300,6 +300,7 @@ typedef enum VkStructureType {
     VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_SWIZZLE_STATE_CREATE_INFO_NV = 1000098000,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DISCARD_RECTANGLE_PROPERTIES_EXT = 1000099000,
     VK_STRUCTURE_TYPE_PIPELINE_DISCARD_RECTANGLE_STATE_CREATE_INFO_EXT = 1000099001,
+    VK_STRUCTURE_TYPE_HDR_METADATA_EXT = 1000105000,
     VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK = 1000122000,
     VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK = 1000123000,
     VK_STRUCTURE_TYPE_BEGIN_RANGE = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -3721,7 +3722,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vkGetPhysicalDeviceXcbPresentationSupportKHR(
 #define VK_KHR_wayland_surface 1
 #include <wayland-client.h>
 
-#define VK_KHR_WAYLAND_SURFACE_SPEC_VERSION 5
+#define VK_KHR_WAYLAND_SURFACE_SPEC_VERSION 6
 #define VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME "VK_KHR_wayland_surface"
 
 typedef VkFlags VkWaylandSurfaceCreateFlagsKHR;
@@ -4866,47 +4867,14 @@ typedef struct VkPhysicalDeviceIDPropertiesKHX {
     VkBool32           deviceLUIDValid;
 } VkPhysicalDeviceIDPropertiesKHX;
 
-typedef struct VkPhysicalDeviceProperties2KHX {
-    VkStructureType               sType;
-    void*                         pNext;
-    VkPhysicalDeviceProperties    properties;
-} VkPhysicalDeviceProperties2KHX;
-
-typedef struct VkImageFormatProperties2KHX {
-    VkStructureType            sType;
-    void*                      pNext;
-    VkImageFormatProperties    imageFormatProperties;
-} VkImageFormatProperties2KHX;
-
-typedef struct VkPhysicalDeviceImageFormatInfo2KHX {
-    VkStructureType       sType;
-    const void*           pNext;
-    VkFormat              format;
-    VkImageType           type;
-    VkImageTiling         tiling;
-    VkImageUsageFlags     usage;
-    VkImageCreateFlags    flags;
-} VkPhysicalDeviceImageFormatInfo2KHX;
-
 
 typedef void (VKAPI_PTR *PFN_vkGetPhysicalDeviceExternalBufferPropertiesKHX)(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceExternalBufferInfoKHX* pExternalBufferInfo, VkExternalBufferPropertiesKHX* pExternalBufferProperties);
-typedef void (VKAPI_PTR *PFN_vkGetPhysicalDeviceProperties2KHX)(VkPhysicalDevice physicalDevice, VkPhysicalDeviceProperties2KHX* pProperties);
-typedef VkResult (VKAPI_PTR *PFN_vkGetPhysicalDeviceImageFormatProperties2KHX)(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceImageFormatInfo2KHX* pImageFormatInfo, VkImageFormatProperties2KHX* pImageFormatProperties);
 
 #ifndef VK_NO_PROTOTYPES
 VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceExternalBufferPropertiesKHX(
     VkPhysicalDevice                            physicalDevice,
     const VkPhysicalDeviceExternalBufferInfoKHX* pExternalBufferInfo,
     VkExternalBufferPropertiesKHX*              pExternalBufferProperties);
-
-VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceProperties2KHX(
-    VkPhysicalDevice                            physicalDevice,
-    VkPhysicalDeviceProperties2KHX*             pProperties);
-
-VKAPI_ATTR VkResult VKAPI_CALL vkGetPhysicalDeviceImageFormatProperties2KHX(
-    VkPhysicalDevice                            physicalDevice,
-    const VkPhysicalDeviceImageFormatInfo2KHX*  pImageFormatInfo,
-    VkImageFormatProperties2KHX*                pImageFormatProperties);
 #endif
 
 #define VK_KHX_external_memory 1
@@ -5762,7 +5730,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdSetDiscardRectangleEXT(
 #define VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME "VK_EXT_swapchain_colorspace"
 
 #define VK_EXT_hdr_metadata 1
-#define VK_EXT_HDR_METADATA_SPEC_VERSION  0
+#define VK_EXT_HDR_METADATA_SPEC_VERSION  1
 #define VK_EXT_HDR_METADATA_EXTENSION_NAME "VK_EXT_hdr_metadata"
 
 typedef struct VkXYColorEXT {
