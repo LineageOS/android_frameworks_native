@@ -17,6 +17,7 @@
 #ifndef ANDROID_EGL_OBJECT_H
 #define ANDROID_EGL_OBJECT_H
 
+#include <atomic>
 #include <stdint.h>
 #include <stddef.h>
 
