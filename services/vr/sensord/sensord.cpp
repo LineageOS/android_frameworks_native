@@ -14,6 +14,7 @@
 #include "sensor_ndk_thread.h"
 #include "sensor_service.h"
 #include "sensor_thread.h"
+#include "sensord_extension.h"
 
 using android::dvr::PoseService;
 using android::dvr::SensorHalThread;
@@ -22,9 +23,12 @@ using android::dvr::SensorService;
 using android::dvr::SensorThread;
 using android::pdx::Service;
 using android::pdx::ServiceDispatcher;
+using android::dvr::SensordExtension;
 
 int main(int, char**) {
   ALOGI("Starting up...");
+
+  SensordExtension::run();
 
   // We need to be able to create endpoints with full perms.
   umask(0000);
