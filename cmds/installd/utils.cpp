@@ -284,7 +284,7 @@ int calculate_tree_size(const std::string& path, int64_t* size,
     FTSENT *p;
     int64_t matchedSize = 0;
     char *argv[] = { (char*) path.c_str(), nullptr };
-    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
         if (errno != ENOENT) {
             PLOG(ERROR) << "Failed to fts_open " << path;
         }
@@ -1440,7 +1440,7 @@ int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t ta
     FTS *fts;
     FTSENT *p;
     char *argv[] = { (char*) path.c_str(), nullptr };
-    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
         PLOG(ERROR) << "Failed to fts_open " << path;
         return -1;
     }

@@ -203,14 +203,20 @@ status_t InstalldNativeService::dump(int fd, const Vector<String16> & /* args */
 
     out << "installd is happy!" << endl;
 
-    out << endl << "Devices with quota support:" << endl;
-    for (const auto& n : mQuotaDevices) {
-        out << "    " << n.first << " = " << n.second << endl;
+    {
+        std::lock_guard<std::recursive_mutex> lock(mQuotaDevicesLock);
+        out << endl << "Devices with quota support:" << endl;
+        for (const auto& n : mQuotaDevices) {
+            out << "    " << n.first << " = " << n.second << endl;
+        }
     }
 
-    out << endl << "Per-UID cache quotas:" << endl;
-    for (const auto& n : mCacheQuotas) {
-        out << "    " << n.first << " = " << n.second << endl;
+    {
+        std::lock_guard<std::recursive_mutex> lock(mCacheQuotasLock);
+        out << endl << "Per-UID cache quotas:" << endl;
+        for (const auto& n : mCacheQuotas) {
+            out << "    " << n.first << " = " << n.second << endl;
+        }
     }
 
     out << endl;
@@ -753,9 +759,6 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
     CHECK_ARGUMENT_UUID(uuid);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    // TODO: remove this once framework is more robust
-    invalidateMounts();
-
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
     auto data_path = create_data_path(uuid_);
     auto device = findQuotaDeviceForUuid(uuid);
@@ -787,7 +790,7 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
                     (char*) create_data_user_de_path(uuid_, user).c_str(),
                     nullptr
             };
-            if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+            if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
                 return error("Failed to fts_open");
             }
             while ((p = fts_read(fts)) != NULL) {
@@ -800,7 +803,10 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
                         auto tracker = std::shared_ptr<CacheTracker>(new CacheTracker(
                                 multiuser_get_user_id(uid), multiuser_get_app_id(uid), device));
                         tracker->addDataPath(p->fts_path);
-                        tracker->cacheQuota = mCacheQuotas[uid];
+                        {
+                            std::lock_guard<std::recursive_mutex> lock(mCacheQuotasLock);
+                            tracker->cacheQuota = mCacheQuotas[uid];
+                        }
                         if (tracker->cacheQuota == 0) {
                             LOG(WARNING) << "UID " << uid << " has no cache quota; assuming 64MB";
                             tracker->cacheQuota = 67108864;
@@ -1120,7 +1126,7 @@ static void collectManualExternalStatsForUser(const std::string& path, struct st
     FTS *fts;
     FTSENT *p;
     char *argv[] = { (char*) path.c_str(), nullptr };
-    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
         PLOG(ERROR) << "Failed to fts_open " << path;
         return;
     }
@@ -1159,7 +1165,8 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
     for (auto packageName : packageNames) {
         CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     }
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    // NOTE: Locking is relaxed on this method, since it's limited to
+    // read-only measurements without mutation.
 
     // When modifying this logic, always verify using tests:
     // runtest -x frameworks/base/services/tests/servicestests/src/com/android/server/pm/InstallerTest.java -m testGetAppSize
@@ -1274,7 +1281,8 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         std::vector<int64_t>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    // NOTE: Locking is relaxed on this method, since it's limited to
+    // read-only measurements without mutation.
 
     // When modifying this logic, always verify using tests:
     // runtest -x frameworks/base/services/tests/servicestests/src/com/android/server/pm/InstallerTest.java -m testGetUserSize
@@ -1420,7 +1428,8 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
         int32_t userId, int32_t flags, std::vector<int64_t>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    // NOTE: Locking is relaxed on this method, since it's limited to
+    // read-only measurements without mutation.
 
     // When modifying this logic, always verify using tests:
     // runtest -x frameworks/base/services/tests/servicestests/src/com/android/server/pm/InstallerTest.java -m testGetExternalSize
@@ -1486,7 +1495,7 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
         FTSENT *p;
         auto path = create_data_media_path(uuid_, userId);
         char *argv[] = { (char*) path.c_str(), nullptr };
-        if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_XDEV, NULL))) {
+        if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
             return error("Failed to fts_open " + path);
         }
         while ((p = fts_read(fts)) != NULL) {
@@ -1533,7 +1542,7 @@ binder::Status InstalldNativeService::setAppQuota(const std::unique_ptr<std::str
         int32_t userId, int32_t appId, int64_t cacheQuota) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    std::lock_guard<std::recursive_mutex> lock(mCacheQuotasLock);
 
     int32_t uid = multiuser_get_uid(userId, appId);
     mCacheQuotas[uid] = cacheQuota;
@@ -1986,7 +1995,7 @@ binder::Status InstalldNativeService::reconcileSecondaryDexFile(
 
 binder::Status InstalldNativeService::invalidateMounts() {
     ENFORCE_UID(AID_SYSTEM);
-    std::lock_guard<std::recursive_mutex> lock(mLock);
+    std::lock_guard<std::recursive_mutex> lock(mQuotaDevicesLock);
 
     mQuotaDevices.clear();
 
@@ -2017,6 +2026,7 @@ binder::Status InstalldNativeService::invalidateMounts() {
 
 std::string InstalldNativeService::findQuotaDeviceForUuid(
         const std::unique_ptr<std::string>& uuid) {
+    std::lock_guard<std::recursive_mutex> lock(mQuotaDevicesLock);
     auto path = create_data_path(uuid ? uuid->c_str() : nullptr);
     return mQuotaDevices[path];
 }
