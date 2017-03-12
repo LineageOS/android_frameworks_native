@@ -117,6 +117,9 @@ public:
 private:
     std::recursive_mutex mLock;
 
+    std::recursive_mutex mQuotaDevicesLock;
+    std::recursive_mutex mCacheQuotasLock;
+
     /* Map from mount point to underlying device node */
     std::unordered_map<std::string, std::string> mQuotaDevices;
     /* Map from UID to cache quota size */
