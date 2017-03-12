@@ -1504,7 +1504,7 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
             switch (p->fts_info) {
             case FTS_F:
                 // Only categorize files not belonging to apps
-                if (p->fts_statp->st_gid < AID_APP_START) {
+                if (p->fts_parent->fts_number == 0) {
                     ext = strrchr(p->fts_name, '.');
                     if (ext != nullptr) {
                         switch (MatchExtension(++ext)) {
@@ -1516,6 +1516,11 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
                 }
                 // Fall through to always count against total
             case FTS_D:
+                // Ignore data belonging to specific apps
+                p->fts_number = p->fts_parent->fts_number;
+                if (p->fts_level == 1 && !strcmp(p->fts_name, "Android")) {
+                    p->fts_number = 1;
+                }
             case FTS_DEFAULT:
             case FTS_SL:
             case FTS_SLNONE:
