@@ -25,6 +25,7 @@
 #include <binder/IServiceManager.h>
 
 #include <gui/IDisplayEventConnection.h>
+#include <gui/IGraphicBufferAlloc.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
@@ -69,6 +70,14 @@ public:
         data.writeStrongBinder(IInterface::asBinder(parent));
         remote()->transact(BnSurfaceComposer::CREATE_SCOPED_CONNECTION, data, &reply);
         return interface_cast<ISurfaceComposerClient>(reply.readStrongBinder());
+    }
+
+    virtual sp<IGraphicBufferAlloc> createGraphicBufferAlloc()
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        remote()->transact(BnSurfaceComposer::CREATE_GRAPHIC_BUFFER_ALLOC, data, &reply);
+        return interface_cast<IGraphicBufferAlloc>(reply.readStrongBinder());
     }
 
     virtual void setTransactionState(
@@ -493,6 +502,12 @@ status_t BnSurfaceComposer::onTransact(
             sp<IGraphicBufferProducer> bufferProducer =
                 interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
             sp<IBinder> b = IInterface::asBinder(createScopedConnection(bufferProducer));
+            reply->writeStrongBinder(b);
+            return NO_ERROR;
+        }
+        case CREATE_GRAPHIC_BUFFER_ALLOC: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> b = IInterface::asBinder(createGraphicBufferAlloc());
             reply->writeStrongBinder(b);
             return NO_ERROR;
         }

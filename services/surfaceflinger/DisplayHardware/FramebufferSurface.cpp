@@ -32,6 +32,7 @@
 #include <hardware/hardware.h>
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
+#include <gui/GraphicBufferAlloc.h>
 #include <gui/Surface.h>
 
 #include <ui/GraphicBuffer.h>
