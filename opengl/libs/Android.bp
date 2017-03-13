@@ -58,6 +58,8 @@ cc_defaults {
         "-fvisibility=hidden",
     ],
     shared_libs: [
+        // ***** DO NOT ADD NEW DEPENDENCIES HERE *****
+        // In particular, DO NOT add libutils or anything "above" libcutils
         "libcutils",
         "liblog",
         "libdl",
@@ -77,9 +79,11 @@ cc_defaults {
         "-DLOG_TAG=\"libEGL\"",
     ],
     shared_libs: [
-        "libutils",
+        // ***** DO NOT ADD NEW DEPENDENCIES HERE *****
+        // In particular, DO NOT add libutils nor anything "above" libui
         "libui",
         "libnativewindow",
+        "libbacktrace",
     ],
 }
 
@@ -142,7 +146,6 @@ cc_library_shared {
     name: "libGLESv1_CM",
     defaults: ["gles_libs_defaults"],
     srcs: ["GLES_CM/gl.cpp"],
-
     cflags: ["-DLOG_TAG=\"libGLESv1\""],
 }
 
@@ -153,9 +156,6 @@ cc_library_shared {
     name: "libGLESv2",
     defaults: ["gles_libs_defaults"],
     srcs: ["GLES2/gl2.cpp"],
-
-    shared_libs: ["libutils"],
-
     cflags: ["-DLOG_TAG=\"libGLESv2\""],
 }
 
@@ -166,8 +166,5 @@ cc_library_shared {
     name: "libGLESv3",
     defaults: ["gles_libs_defaults"],
     srcs: ["GLES2/gl2.cpp"],
-
-    shared_libs: ["libutils"],
-
     cflags: ["-DLOG_TAG=\"libGLESv3\""],
 }

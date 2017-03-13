@@ -20,8 +20,7 @@
 
 #include <cutils/properties.h>
 #include <log/log.h>
-#include <utils/CallStack.h>
-
+#include "CallStack.h"
 
 namespace android {
 
@@ -74,7 +73,7 @@ void egl_tls_t::setErrorEtcImpl(
             char value[PROPERTY_VALUE_MAX];
             property_get("debug.egl.callstack", value, "0");
             if (atoi(value)) {
-                CallStack stack(LOG_TAG);
+                CallStack::log(LOG_TAG);
             }
         }
         tls->error = error;
