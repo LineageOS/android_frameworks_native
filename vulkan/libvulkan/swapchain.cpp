@@ -411,8 +411,6 @@ android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace) {
             return HAL_DATASPACE_DISPLAY_P3;
         case VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT:
             return HAL_DATASPACE_V0_SCRGB_LINEAR;
-        case VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT:
-            return HAL_DATASPACE_V0_SCRGB;
         case VK_COLOR_SPACE_DCI_P3_LINEAR_EXT:
             return HAL_DATASPACE_DCI_P3_LINEAR;
         case VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT:
@@ -421,13 +419,19 @@ android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace) {
             return HAL_DATASPACE_V0_SRGB_LINEAR;
         case VK_COLOR_SPACE_BT709_NONLINEAR_EXT:
             return HAL_DATASPACE_V0_SRGB;
-        case VK_COLOR_SPACE_BT2020_170M_EXT:
-            return static_cast<android_dataspace>(
-                HAL_DATASPACE_STANDARD_BT2020 |
-                HAL_DATASPACE_TRANSFER_SMPTE_170M | HAL_DATASPACE_RANGE_FULL);
-        case VK_COLOR_SPACE_BT2020_ST2084_EXT:
+        case VK_COLOR_SPACE_BT2020_LINEAR_EXT:
+            return HAL_DATASPACE_BT2020_LINEAR;
+        case VK_COLOR_SPACE_HDR10_ST2084_EXT:
             return static_cast<android_dataspace>(
                 HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_ST2084 |
+                HAL_DATASPACE_RANGE_FULL);
+        case VK_COLOR_SPACE_DOLBYVISION_EXT:
+            return static_cast<android_dataspace>(
+                HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_ST2084 |
+                HAL_DATASPACE_RANGE_FULL);
+        case VK_COLOR_SPACE_HDR10_HLG_EXT:
+            return static_cast<android_dataspace>(
+                HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_HLG |
                 HAL_DATASPACE_RANGE_FULL);
         case VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT:
             return static_cast<android_dataspace>(
