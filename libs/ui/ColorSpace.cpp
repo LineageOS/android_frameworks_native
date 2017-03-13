@@ -211,8 +211,8 @@ const ColorSpace ColorSpace::DisplayP3() {
         "Display P3",
         {{float2{0.680f, 0.320f}, {0.265f, 0.690f}, {0.150f, 0.060f}}},
         {0.3127f, 0.3290f},
-        std::bind(rcpResponse, _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.04045f),
-        std::bind(response,    _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.04045f)
+        std::bind(rcpResponse, _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.039f),
+        std::bind(response,    _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.039f)
     };
 }
 
