@@ -903,8 +903,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
     int gralloc_usage = 0;
     if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
         uint64_t consumer_usage, producer_usage;
-        uint32_t driver_version = GetData(device).driver_version;
-        if (driver_version == 256587285 || driver_version == 96011958) {
+        if (GetData(device).driver_version == 256587285) {
             // HACK workaround for loader/driver mismatch during transition to
             // vkGetSwapchainGrallocUsage2ANDROID.
             typedef VkResult(VKAPI_PTR *
