@@ -195,27 +195,27 @@ ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
                                             uint32_t vr_app) {
   auto& layers = frame.layers();
 
-  // We assume the first two layers are the VR app. In the case of a 2D app,
-  // there will be the app + at least one system layer so this is still safe.
-  if (layers.size() < kVRAppLayerCount)
+  // TODO(achaulk): Figure out how to identify the current VR app for 2D app
+  // detection.
+
+  size_t index;
+  // Skip all layers that we don't know about.
+  for (index = 0; index < layers.size(); index++) {
+    if (layers[index].type != 0xFFFFFFFF && layers[index].type != 0)
+      break;
+  }
+
+  if (index == layers.size())
     return ViewMode::Hidden;
 
-  if (vr_app != layers[0].appid || layers[0].appid == 0 ||
-      layers[1].appid != layers[0].appid) {
-    if (layers[1].appid != layers[0].appid && layers[0].appid) {
-      // This might be a 2D app.
-      // If a dim layer exists afterwards it is much more likely that this is
-      // actually an app launch artifact.
-      for (size_t i = 2; i < layers.size(); i++) {
-        if (layers[i].is_extra_layer())
-          return ViewMode::Hidden;
-      }
-      return ViewMode::App;
-    }
+  if (layers[index].type != 1) {
+    // We don't have a VR app layer? Abort.
     return ViewMode::Hidden;
   }
 
-  size_t index = kVRAppLayerCount;
+  // This is the VR app, ignore it.
+  index++;
+
   // Now, find a dim layer if it exists.
   // If it does, ignore any layers behind it for visibility determination.
   for (size_t i = index; i < layers.size(); i++) {
