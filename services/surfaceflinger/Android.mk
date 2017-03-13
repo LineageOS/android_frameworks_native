@@ -243,5 +243,3 @@ LOCAL_CFLAGS += -Wall -Werror -Wunused -Wunreachable-code
 
 include $(BUILD_SHARED_LIBRARY)
 endif # libnativehelper
-
-include $(call first-makefiles-under,$(LOCAL_PATH))
