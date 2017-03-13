@@ -13,22 +13,12 @@ void dvr_vsync_client_destroy(dvr_vsync_client* client) {
   delete static_cast<android::dvr::VSyncClient*>(client);
 }
 
-int dvr_vsync_client_wait(dvr_vsync_client* client, int64_t* timestamp_ns) {
-  return static_cast<android::dvr::VSyncClient*>(client)->Wait(timestamp_ns);
-}
-
-int dvr_vsync_client_get_fd(dvr_vsync_client* client) {
-  return static_cast<android::dvr::VSyncClient*>(client)->GetFd();
-}
-
-int dvr_vsync_client_acknowledge(dvr_vsync_client* client) {
-  return static_cast<android::dvr::VSyncClient*>(client)->Acknowledge();
-}
-
-int dvr_vsync_client_get_last_timestamp(dvr_vsync_client* client,
-                                        int64_t* timestamp_ns) {
-  return static_cast<android::dvr::VSyncClient*>(client)->GetLastTimestamp(
-      timestamp_ns);
+int dvr_vsync_client_get_sched_info(dvr_vsync_client* client,
+                                    int64_t* vsync_period_ns,
+                                    int64_t* next_timestamp_ns,
+                                    uint32_t* next_vsync_count) {
+  return static_cast<android::dvr::VSyncClient*>(client)->GetSchedInfo(
+      vsync_period_ns, next_timestamp_ns, next_vsync_count);
 }
 
 }  // extern "C"
