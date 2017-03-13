@@ -30,6 +30,7 @@
 #include <cutils/atomic.h>
 
 #include <gui/BufferItem.h>
+#include <gui/IGraphicBufferAlloc.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <gui/ConsumerBase.h>
