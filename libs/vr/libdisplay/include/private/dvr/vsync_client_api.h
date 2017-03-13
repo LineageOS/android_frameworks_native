@@ -12,7 +12,7 @@ extern "C" {
 // The "dvr_vsync_client" structure wraps a client connection to the
 // system vsync service. It is used to synchronize application drawing
 // with the scanout of the display.
-typedef struct dvr_vsync_client dreamos_vsync_client;
+typedef struct dvr_vsync_client dvr_vsync_client;
 
 // Creates a new client to the system vsync service.
 dvr_vsync_client* dvr_vsync_client_create();
