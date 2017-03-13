@@ -20,6 +20,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_lock;
     ANativeWindow_release;
     ANativeWindow_setBuffersGeometry;
+    ANativeWindow_setBuffersTransform;
     ANativeWindow_unlockAndPost;
   local:
     *;
