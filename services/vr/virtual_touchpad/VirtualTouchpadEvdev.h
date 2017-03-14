@@ -3,8 +3,8 @@
 
 #include <memory>
 
-#include "VirtualTouchpad.h"
 #include "EvdevInjector.h"
+#include "VirtualTouchpad.h"
 
 namespace android {
 namespace dvr {
@@ -25,31 +25,39 @@ class VirtualTouchpadEvdev : public VirtualTouchpad {
   void dumpInternal(String8& result) override;
 
  protected:
+  static constexpr int kTouchpads = 2;
+
   VirtualTouchpadEvdev() {}
   ~VirtualTouchpadEvdev() override {}
+  void Reset();
 
-  // Must be called only between construction and Attach().
-  inline void SetEvdevInjectorForTesting(EvdevInjector* injector) {
-    injector_ = injector;
+  // Must be called only between construction (or Detach()) and Attach().
+  inline void SetEvdevInjectorForTesting(int touchpad,
+                                         EvdevInjector* injector) {
+    touchpad_[touchpad].injector = injector;
   }
 
  private:
-  // Except for testing, the |EvdevInjector| used to inject evdev events.
-  std::unique_ptr<EvdevInjector> owned_injector_;
+  // Per-touchpad state.
+  struct Touchpad {
+    // Except for testing, the |EvdevInjector| used to inject evdev events.
+    std::unique_ptr<EvdevInjector> owned_injector;
 
-  // Active pointer to |owned_injector_| or to a testing injector.
-  EvdevInjector* injector_ = nullptr;
+    // Active pointer to |owned_injector_| or to a testing injector.
+    EvdevInjector* injector = nullptr;
 
-  // Previous (x, y) position in device space, to suppress redundant events.
-  int32_t last_device_x_ = INT32_MIN;
-  int32_t last_device_y_ = INT32_MIN;
+    // Previous (x, y) position in device space, to suppress redundant events.
+    int32_t last_device_x;
+    int32_t last_device_y;
 
-  // Records current touch state (0=up 1=down) in bit 0, and previous state
-  // in bit 1, to track transitions.
-  int touches_ = 0;
+    // Records current touch state (0=up 1=down) in bit 0, and previous state
+    // in bit 1, to track transitions.
+    int touches;
 
-  // Previous injected button state, to detect changes.
-  int32_t last_motion_event_buttons_ = 0;
+    // Previous injected button state, to detect changes.
+    int32_t last_motion_event_buttons;
+  };
+  Touchpad touchpad_[kTouchpads];
 
   VirtualTouchpadEvdev(const VirtualTouchpadEvdev&) = delete;
   void operator=(const VirtualTouchpadEvdev&) = delete;
