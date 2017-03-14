@@ -79,7 +79,9 @@ GLuint VideoCompositor::GetActiveTextureId(EGLDisplay display) {
     // queued in order from the producer side.
     // TODO(jwcai) Use |metadata.timestamp_ns| to schedule video frames
     // accurately.
-    auto buffer_consumer = consumer_queue_->Dequeue(0, &slot, &metadata);
+    LocalHandle acquire_fence;
+    auto buffer_consumer =
+        consumer_queue_->Dequeue(0, &slot, &metadata, &acquire_fence);
 
     if (buffer_consumer) {
       // Create a new texture if it hasn't been created yet, or the same slot

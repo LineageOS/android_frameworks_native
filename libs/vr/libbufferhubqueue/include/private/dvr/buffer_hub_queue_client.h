@@ -20,6 +20,7 @@ class ConsumerQueue;
 // automatically re-requeued when released by the remote side.
 class BufferHubQueue : public pdx::Client {
  public:
+  using LocalHandle = pdx::LocalHandle;
   using LocalChannelHandle = pdx::LocalChannelHandle;
   template <typename T>
   using Status = pdx::Status<T>;
@@ -91,14 +92,15 @@ class BufferHubQueue : public pdx::Client {
   // while specifying a timeout equal to zero cause |Dequeue()| to return
   // immediately, even if no buffers are available.
   std::shared_ptr<BufferHubBuffer> Dequeue(int timeout, size_t* slot,
-                                           void* meta);
+                                           void* meta, LocalHandle* fence);
 
   // Wait for buffers to be released and re-add them to the queue.
   bool WaitForBuffers(int timeout);
   void HandleBufferEvent(size_t slot, const epoll_event& event);
   void HandleQueueEvent(const epoll_event& event);
 
-  virtual int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf) = 0;
+  virtual int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf,
+                            LocalHandle* fence) = 0;
 
   // Called when a buffer is allocated remotely.
   virtual int OnBufferAllocated() = 0;
@@ -202,6 +204,10 @@ class BufferHubQueue : public pdx::Client {
   // prevent the buffer from being deleted.
   RingBuffer<BufferInfo> available_buffers_;
 
+  // Fences (acquire fence for consumer and release fence for consumer) , one
+  // for each buffer slot.
+  std::vector<LocalHandle> fences_;
+
   // Keep track with how many buffers have been added into the queue.
   size_t capacity_;
 
@@ -274,7 +280,8 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // Dequeue a producer buffer to write. The returned buffer in |Gain|'ed mode,
   // and caller should call Post() once it's done writing to release the buffer
   // to the consumer side.
-  std::shared_ptr<BufferProducer> Dequeue(int timeout, size_t* slot);
+  std::shared_ptr<BufferProducer> Dequeue(int timeout, size_t* slot,
+                                          LocalHandle* release_fence);
 
  private:
   friend BASE;
@@ -287,7 +294,8 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   ProducerQueue(size_t meta_size, int usage_set_mask, int usage_clear_mask,
                 int usage_deny_set_mask, int usage_deny_clear_mask);
 
-  int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf) override;
+  int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf,
+                    LocalHandle* release_fence) override;
 
   // Producer buffer is always allocated from the client (i.e. local) side.
   int OnBufferAllocated() override { return 0; }
@@ -316,13 +324,10 @@ class ConsumerQueue : public pdx::ClientBase<ConsumerQueue, BufferHubQueue> {
   // Dequeue() is done with the corect metadata type and size with those used
   // when the buffer is orignally created.
   template <typename Meta>
-  std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot,
-                                          Meta* meta) {
-    return Dequeue(timeout, slot, meta, sizeof(*meta));
+  std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot, Meta* meta,
+                                          LocalHandle* acquire_fence) {
+    return Dequeue(timeout, slot, meta, sizeof(*meta), acquire_fence);
   }
-
-  std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot, void* meta,
-                                          size_t meta_size);
 
  private:
   friend BASE;
@@ -335,9 +340,14 @@ class ConsumerQueue : public pdx::ClientBase<ConsumerQueue, BufferHubQueue> {
   // consumer.
   int AddBuffer(const std::shared_ptr<BufferConsumer>& buf, size_t slot);
 
-  int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf) override;
+  int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf,
+                    LocalHandle* acquire_fence) override;
 
   int OnBufferAllocated() override;
+
+  std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot, void* meta,
+                                          size_t meta_size,
+                                          LocalHandle* acquire_fence);
 };
 
 }  // namespace dvr

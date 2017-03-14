@@ -83,8 +83,9 @@ status_t BufferHubQueueProducer::dequeueBuffer(int* out_slot,
   std::shared_ptr<BufferProducer> buffer_producer;
 
   for (size_t retry = 0; retry < BufferHubQueue::kMaxQueueCapacity; retry++) {
+    LocalHandle fence;
     buffer_producer =
-        core_->producer_->Dequeue(core_->dequeue_timeout_ms_, &slot);
+        core_->producer_->Dequeue(core_->dequeue_timeout_ms_, &slot, &fence);
     if (!buffer_producer)
       return NO_MEMORY;
 
