@@ -34,6 +34,10 @@ cc_library {
 
     clang: true,
 
+    cppflags: [
+        "-std=c++1z"
+    ],
+
     srcs: [
         "AHardwareBuffer.cpp",
         "ANativeWindow.cpp",

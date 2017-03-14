@@ -69,3 +69,20 @@ int32_t ANativeWindow_lock(ANativeWindow* window, ANativeWindow_Buffer* outBuffe
 int32_t ANativeWindow_unlockAndPost(ANativeWindow* window) {
     return window->perform(window, NATIVE_WINDOW_UNLOCK_AND_POST);
 }
+
+int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transform) {
+    static_assert(ANATIVEWINDOW_TRANSFORM_MIRROR_HORIZONTAL == NATIVE_WINDOW_TRANSFORM_FLIP_H);
+    static_assert(ANATIVEWINDOW_TRANSFORM_MIRROR_VERTICAL == NATIVE_WINDOW_TRANSFORM_FLIP_V);
+    static_assert(ANATIVEWINDOW_TRANSFORM_ROTATE_90 == NATIVE_WINDOW_TRANSFORM_ROT_90);
+
+    constexpr int32_t kAllTransformBits =
+            ANATIVEWINDOW_TRANSFORM_MIRROR_HORIZONTAL |
+            ANATIVEWINDOW_TRANSFORM_MIRROR_VERTICAL |
+            ANATIVEWINDOW_TRANSFORM_ROTATE_90;
+    if (!window || !getWindowProp(window, NATIVE_WINDOW_IS_VALID))
+        return -EINVAL;
+    if ((transform & ~kAllTransformBits) != 0)
+        return -EINVAL;
+
+    return native_window_set_buffers_transform(window, transform);
+}
