@@ -255,6 +255,9 @@ private:
 #ifdef USE_HWC2
     HWComposerBufferCache mHwcBufferCache;
 #endif
+
+
+    bool mForceHwcCopy;
 };
 
 // ---------------------------------------------------------------------------

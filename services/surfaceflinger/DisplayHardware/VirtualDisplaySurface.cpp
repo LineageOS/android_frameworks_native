@@ -17,6 +17,7 @@
 // #define LOG_NDEBUG 0
 #include "VirtualDisplaySurface.h"
 #include "HWComposer.h"
+#include "SurfaceFlinger.h"
 
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
@@ -25,12 +26,6 @@
 // ---------------------------------------------------------------------------
 namespace android {
 // ---------------------------------------------------------------------------
-
-#if defined(FORCE_HWC_COPY_FOR_VIRTUAL_DISPLAYS)
-static const bool sForceHwcCopy = true;
-#else
-static const bool sForceHwcCopy = false;
-#endif
 
 #define VDS_LOGE(msg, ...) ALOGE("[%s] " msg, \
         mDisplayName.string(), ##__VA_ARGS__)
@@ -74,7 +69,8 @@ VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc, int32_t dispId,
     mOutputProducerSlot(BufferQueue::INVALID_BUFFER_SLOT),
     mDbgState(DBG_STATE_IDLE),
     mDbgLastCompositionType(COMPOSITION_UNKNOWN),
-    mMustRecompose(false)
+    mMustRecompose(false),
+    mForceHwcCopy(SurfaceFlinger::useHwcForRgbToYuv)
 {
     mSource[SOURCE_SINK] = sink;
     mSource[SOURCE_SCRATCH] = bqProducer;
@@ -137,7 +133,7 @@ status_t VirtualDisplaySurface::prepareFrame(CompositionType compositionType) {
     mDbgState = DBG_STATE_PREPARED;
 
     mCompositionType = compositionType;
-    if (sForceHwcCopy && mCompositionType == COMPOSITION_GLES) {
+    if (mForceHwcCopy && mCompositionType == COMPOSITION_GLES) {
         // Some hardware can do RGB->YUV conversion more efficiently in hardware
         // controlled by HWC than in hardware controlled by the video encoder.
         // Forcing GLES-composed frames to go through an extra copy by the HWC

@@ -114,6 +114,7 @@ int64_t SurfaceFlinger::vsyncPhaseOffsetNs;
 int64_t SurfaceFlinger::sfVsyncPhaseOffsetNs;
 bool SurfaceFlinger::useContextPriority;
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
+bool SurfaceFlinger::useHwcForRgbToYuv;
 
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
@@ -171,6 +172,9 @@ SurfaceFlinger::SurfaceFlinger()
 
     dispSyncPresentTimeOffset = getInt64< ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::presentTimeOffsetFromVSyncNs>(0);
+
+    useHwcForRgbToYuv = getBool< ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::useHwcForRGBtoYUV>(false);
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
@@ -3238,6 +3242,7 @@ void SurfaceFlinger::appendSfConfigString(String8& result) const
         result.append(" DISABLE_TRIPLE_BUFFERING");
 
     result.appendFormat(" PRESENT_TIME_OFFSET=%" PRId64 , dispSyncPresentTimeOffset);
+    result.appendFormat(" FORCE_HWC_FOR_RBG_TO_YUV=%d", useHwcForRgbToYuv);
     result.append("]");
 }
 

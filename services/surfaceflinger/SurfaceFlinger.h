@@ -136,6 +136,12 @@ public:
     // signaling time.
     static int64_t dispSyncPresentTimeOffset;
 
+    // Some hardware can do RGB->YUV conversion more efficiently in hardware
+    // controlled by HWC than in hardware controlled by the video encoder.
+    // This instruct VirtualDisplaySurface to use HWC for such conversion on
+    // GL composition.
+    static bool useHwcForRgbToYuv;
+
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
     }
