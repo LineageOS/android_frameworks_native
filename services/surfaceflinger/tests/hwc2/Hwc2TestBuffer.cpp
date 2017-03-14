@@ -24,7 +24,7 @@
 #include <gui/GraphicBufferAlloc.h>
 
 #include <ui/GraphicBuffer.h>
-#include <ui/vec4.h>
+#include <math/vec4.h>
 
 #include <GLES3/gl3.h>
 
