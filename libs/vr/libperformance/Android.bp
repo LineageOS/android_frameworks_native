@@ -12,24 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-ndk_headers {
-    name: "libvulkan_headers",
-    from: "include",
-    to: "",
-    srcs: [
-        "include/vulkan/vk_platform.h",
-        "include/vulkan/vulkan.h",
-    ],
-    license: "include/vulkan/NOTICE",
-}
-
-cc_library_headers {
-    name: "vulkan_headers",
-    export_include_dirs: ["include"],
-}
-
-subdirs = [
-    "nulldrv",
-    "libvulkan",
-    "tools",
+sourceFiles = [
+    "performance_client.cpp",
+    "performance_rpc.cpp",
 ]
+
+includeFiles = [ "include" ]
+
+staticLibraries = ["libpdx_default_transport"]
+
+sharedLibraries = [
+    "libbase",
+    "libcutils",
+    "liblog",
+    "libutils",
+]
+
+cc_library {
+    srcs: sourceFiles,
+    cflags: [
+        "-DLOG_TAG=\"libperformance\"",
+	"-DTRACE=0"
+    ],
+    export_include_dirs: includeFiles,
+    static_libs: staticLibraries,
+    shared_libs: sharedLibraries,
+    name: "libperformance",
+}

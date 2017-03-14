@@ -41,6 +41,7 @@ HwcCallback::~HwcCallback() {
 base::unique_fd HwcCallback::OnNewFrame(const ComposerView::Frame& display_frame) {
   auto& frame = display_frame.layers;
   std::vector<HwcLayer> hwc_frame(frame.size());
+
   for (size_t i = 0; i < frame.size(); ++i) {
     hwc_frame[i] = HwcLayer{
       .fence = frame[i].fence,

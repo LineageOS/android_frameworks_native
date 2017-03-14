@@ -30,7 +30,7 @@ includeFiles += \
 
 staticLibraries := \
 	libdvrcommon \
-	libsensor \
+	libvrsensor \
 	libperformance \
 	libbufferhub \
 	libpdx_default_transport \

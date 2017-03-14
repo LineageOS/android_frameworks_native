@@ -19,7 +19,7 @@ sourceFiles := \
 
 staticLibraries := \
   libdvrcommon \
-  libsensor \
+  libvrsensor \
   libpdx_default_transport \
 
 sharedLibraries := \
