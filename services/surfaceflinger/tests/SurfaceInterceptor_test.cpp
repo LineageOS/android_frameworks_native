@@ -15,7 +15,6 @@
  */
 
 #include <frameworks/native/cmds/surfacereplayer/proto/src/trace.pb.h>
-#include <google/protobuf/io/zero_copy_stream_impl.h>
 
 #include <gtest/gtest.h>
 
@@ -69,18 +68,11 @@ static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, uint8_t r, uint8_t g,
 }
 
 static status_t readProtoFile(Trace* trace) {
-    status_t err = NO_ERROR;
-
-    int fd = open(DEFAULT_FILENAME, O_RDONLY);
-    {
-        google::protobuf::io::FileInputStream f(fd);
-        if (fd && !trace->ParseFromZeroCopyStream(&f)) {
-            err = PERMISSION_DENIED;
-        }
+    std::ifstream input(DEFAULT_FILENAME, std::ios::in | std::ios::binary);
+    if (input && !trace->ParseFromIstream(&input)) {
+        return PERMISSION_DENIED;
     }
-    close(fd);
-
-    return err;
+    return NO_ERROR;
 }
 
 static void enableInterceptor() {
