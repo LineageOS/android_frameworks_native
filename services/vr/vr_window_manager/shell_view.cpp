@@ -15,7 +15,7 @@ namespace dvr {
 
 namespace {
 
-constexpr float kLayerScaleFactor = 4.0f;
+constexpr float kLayerScaleFactor = 3.0f;
 
 constexpr unsigned int kVRAppLayerCount = 2;
 
@@ -131,7 +131,7 @@ mat4 GetHorizontallyAlignedMatrixFromPose(const Posef& pose) {
   m(3, 0) = 0.0f; m(3, 1) = 0.0f; m(3, 2) = 0.0f; m(3, 3) = 1.0f;
   // clang-format on
 
-  return m * Eigen::AngleAxisf(M_PI * 0.5f, vec3::UnitZ());
+  return m;
 }
 
 // Helper function that applies the crop transform to the texture layer and
@@ -712,10 +712,12 @@ void ShellView::Touch() {
     return;
   }
 
+  // Device is portrait, but in landscape when in VR.
+  // Rotate touch input appropriately.
   const android::status_t status = virtual_touchpad_->Touch(
       VirtualTouchpad::PRIMARY,
+      1.0f - hit_location_in_window_coord_.y() / size_.y(),
       hit_location_in_window_coord_.x() / size_.x(),
-      hit_location_in_window_coord_.y() / size_.y(),
       is_touching_ ? 1.0f : 0.0f);
   if (status != OK) {
     ALOGE("touch failed: %d", status);

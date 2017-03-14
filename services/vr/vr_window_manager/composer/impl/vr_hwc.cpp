@@ -301,10 +301,10 @@ Error VrHwc::getDisplayAttribute(Display display, Config config,
 
   switch (attribute) {
     case IComposerClient::Attribute::WIDTH:
-      *outValue = 1920;
+      *outValue = 1080;
       break;
     case IComposerClient::Attribute::HEIGHT:
-      *outValue = 1080;
+      *outValue = 1920;
       break;
     case IComposerClient::Attribute::VSYNC_PERIOD:
       *outValue = 1000 * 1000 * 1000 / 30;  // 30fps
