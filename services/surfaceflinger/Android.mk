@@ -65,13 +65,6 @@ else
         DisplayHardware/HWComposer_hwc1.cpp
 endif
 
-ifeq ($(TARGET_BOARD_PLATFORM),omap4)
-    LOCAL_CFLAGS += -DHAS_CONTEXT_PRIORITY
-endif
-ifeq ($(TARGET_BOARD_PLATFORM),s5pc110)
-    LOCAL_CFLAGS += -DHAS_CONTEXT_PRIORITY
-endif
-
 ifeq ($(TARGET_FORCE_HWC_FOR_VIRTUAL_DISPLAYS),true)
     LOCAL_CFLAGS += -DFORCE_HWC_COPY_FOR_VIRTUAL_DISPLAYS
 endif

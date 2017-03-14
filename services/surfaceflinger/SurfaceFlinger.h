@@ -129,6 +129,9 @@ public:
     static int64_t vsyncPhaseOffsetNs;
     static int64_t sfVsyncPhaseOffsetNs;
 
+    // Instruct the Render Engine to use EGL_IMG_context_priority is available.
+    static bool useContextPriority;
+
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
     }

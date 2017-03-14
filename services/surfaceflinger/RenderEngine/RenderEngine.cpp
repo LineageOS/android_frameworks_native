@@ -23,6 +23,9 @@
 #include "GLExtensions.h"
 #include "Mesh.h"
 
+#include <vector>
+#include <SurfaceFlinger.h>
+
 EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
 // ---------------------------------------------------------------------------
@@ -76,18 +79,21 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat) {
         LOG_ALWAYS_FATAL("no supported EGL_RENDERABLE_TYPEs");
     }
 
-    // Also create our EGLContext
-    EGLint contextAttributes[] = {
-            EGL_CONTEXT_CLIENT_VERSION, contextClientVersion,      // MUST be first
+    std::vector<EGLint> contextAttributes;
+    contextAttributes.reserve(6);
+    contextAttributes.push_back(EGL_CONTEXT_CLIENT_VERSION);
+    contextAttributes.push_back(contextClientVersion);
 #ifdef EGL_IMG_context_priority
-#ifdef HAS_CONTEXT_PRIORITY
-#warning "using EGL_IMG_context_priority"
-            EGL_CONTEXT_PRIORITY_LEVEL_IMG, EGL_CONTEXT_PRIORITY_HIGH_IMG,
+    if (SurfaceFlinger::useContextPriority) {
+        contextAttributes.push_back(EGL_CONTEXT_PRIORITY_LEVEL_IMG);
+        contextAttributes.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
+    }
 #endif
-#endif
-            EGL_NONE, EGL_NONE
-    };
-    EGLContext ctxt = eglCreateContext(display, config, NULL, contextAttributes);
+    contextAttributes.push_back(EGL_NONE);
+    contextAttributes.push_back(EGL_NONE);
+
+    EGLContext ctxt = eglCreateContext(display, config, NULL,
+                                       contextAttributes.data());
 
     // if can't create a GL context, we can only abort.
     LOG_ALWAYS_FATAL_IF(ctxt==EGL_NO_CONTEXT, "EGLContext creation failed");

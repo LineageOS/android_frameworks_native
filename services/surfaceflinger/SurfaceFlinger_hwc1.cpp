@@ -111,6 +111,7 @@ const String16 sDump("android.permission.DUMP");
 // ---------------------------------------------------------------------------
 int64_t SurfaceFlinger::vsyncPhaseOffsetNs;
 int64_t SurfaceFlinger::sfVsyncPhaseOffsetNs;
+bool SurfaceFlinger::useContextPriority;
 
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
@@ -154,6 +155,9 @@ SurfaceFlinger::SurfaceFlinger()
             &ISurfaceFlingerConfigs::vsyncSfEventPhaseOffsetNs>(1000000);
 
     ALOGI("SurfaceFlinger is starting");
+
+    useContextPriority = getBool< ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::useContextPriority>(false);
 
     char value[PROPERTY_VALUE_MAX];
 
@@ -2996,9 +3000,8 @@ void SurfaceFlinger::logFrameStats() {
 void SurfaceFlinger::appendSfConfigString(String8& result) const
 {
     result.append(" [sf");
-#ifdef HAS_CONTEXT_PRIORITY
-    result.append(" HAS_CONTEXT_PRIORITY");
-#endif
+    result.appendFormat(" HAS_CONTEXT_PRIORITY=%d", useContextPriority);
+
 #ifdef NEVER_DEFAULT_TO_ASYNC_MODE
     result.append(" NEVER_DEFAULT_TO_ASYNC_MODE");
 #endif
