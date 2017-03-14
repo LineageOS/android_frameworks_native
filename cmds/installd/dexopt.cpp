@@ -45,9 +45,14 @@
 
 using android::base::StringPrintf;
 using android::base::EndsWith;
+using android::base::unique_fd;
 
 namespace android {
 namespace installd {
+
+static unique_fd invalid_unique_fd() {
+    return unique_fd(-1);
+}
 
 static const char* parse_null(const char* arg) {
     if (strcmp(arg, "!") == 0) {
@@ -58,7 +63,7 @@ static const char* parse_null(const char* arg) {
 }
 
 static bool clear_profile(const std::string& profile) {
-    base::unique_fd ufd(open(profile.c_str(), O_WRONLY | O_NOFOLLOW | O_CLOEXEC));
+    unique_fd ufd(open(profile.c_str(), O_WRONLY | O_NOFOLLOW | O_CLOEXEC));
     if (ufd.get() < 0) {
         if (errno != ENOENT) {
             PLOG(WARNING) << "Could not open profile " << profile;
@@ -467,18 +472,10 @@ static void SetDex2OatScheduling(bool set_to_bg) {
     }
 }
 
-static void close_all_fds(const std::vector<fd_t>& fds, const char* description) {
-    for (size_t i = 0; i < fds.size(); i++) {
-        if (close(fds[i]) != 0) {
-            PLOG(WARNING) << "Failed to close fd for " << description << " at index " << i;
-        }
-    }
-}
-
-static fd_t open_profile_dir(const std::string& profile_dir) {
-    fd_t profile_dir_fd = TEMP_FAILURE_RETRY(open(profile_dir.c_str(),
-            O_PATH | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW));
-    if (profile_dir_fd < 0) {
+static unique_fd open_profile_dir(const std::string& profile_dir) {
+    unique_fd profile_dir_fd(TEMP_FAILURE_RETRY(open(profile_dir.c_str(),
+            O_PATH | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW)));
+    if (profile_dir_fd.get() < 0) {
         // In a multi-user environment, these directories can be created at
         // different points and it's possible we'll attempt to open a profile
         // dir before it exists.
@@ -489,66 +486,61 @@ static fd_t open_profile_dir(const std::string& profile_dir) {
     return profile_dir_fd;
 }
 
-static fd_t open_primary_profile_file_from_dir(const std::string& profile_dir, mode_t open_mode) {
-    fd_t profile_dir_fd  = open_profile_dir(profile_dir);
-    if (profile_dir_fd < 0) {
-        return -1;
+static unique_fd open_primary_profile_file_from_dir(const std::string& profile_dir,
+        mode_t open_mode) {
+    unique_fd profile_dir_fd  = open_profile_dir(profile_dir);
+    if (profile_dir_fd.get() < 0) {
+        return invalid_unique_fd();
     }
 
-    fd_t profile_fd = -1;
     std::string profile_file = create_primary_profile(profile_dir);
-
-    profile_fd = TEMP_FAILURE_RETRY(open(profile_file.c_str(), open_mode | O_NOFOLLOW, 0600));
+    unique_fd profile_fd(TEMP_FAILURE_RETRY(open(profile_file.c_str(),
+            open_mode | O_NOFOLLOW, 0600)));
     if (profile_fd == -1) {
         // It's not an error if the profile file does not exist.
         if (errno != ENOENT) {
-            PLOG(ERROR) << "Failed to lstat profile_dir: " << profile_dir;
+            PLOG(ERROR) << "Failed to open profile : " << profile_file;
         }
-    }
-    // TODO(calin): use AutoCloseFD instead of closing the fd manually.
-    if (close(profile_dir_fd) != 0) {
-        PLOG(WARNING) << "Could not close profile dir " << profile_dir;
     }
     return profile_fd;
 }
 
-static fd_t open_primary_profile_file(userid_t user, const std::string& pkgname) {
+static unique_fd open_primary_profile_file(userid_t user, const std::string& pkgname) {
     std::string profile_dir = create_data_user_profile_package_path(user, pkgname);
     return open_primary_profile_file_from_dir(profile_dir, O_RDONLY);
 }
 
-static fd_t open_reference_profile(uid_t uid, const std::string& pkgname, bool read_write) {
+static unique_fd open_reference_profile(uid_t uid, const std::string& pkgname, bool read_write) {
     std::string reference_profile_dir = create_data_ref_profile_package_path(pkgname);
     int flags = read_write ? O_RDWR | O_CREAT : O_RDONLY;
-    fd_t fd = open_primary_profile_file_from_dir(reference_profile_dir, flags);
-    if (fd < 0) {
-        return -1;
+    unique_fd fd = open_primary_profile_file_from_dir(reference_profile_dir, flags);
+    if (fd.get() < 0) {
+        return invalid_unique_fd();
     }
     if (read_write) {
         // Fix the owner.
-        if (fchown(fd, uid, uid) < 0) {
-            close(fd);
-            return -1;
+        if (fchown(fd.get(), uid, uid) < 0) {
+            return invalid_unique_fd();
         }
     }
     return fd;
 }
 
 static void open_profile_files(uid_t uid, const std::string& pkgname,
-            /*out*/ std::vector<fd_t>* profiles_fd, /*out*/ fd_t* reference_profile_fd) {
+            /*out*/ std::vector<unique_fd>* profiles_fd, /*out*/ unique_fd* reference_profile_fd) {
     // Open the reference profile in read-write mode as profman might need to save the merge.
-    *reference_profile_fd = open_reference_profile(uid, pkgname, /*read_write*/ true);
-    if (*reference_profile_fd < 0) {
+    reference_profile_fd->reset(open_reference_profile(uid, pkgname, /*read_write*/ true));
+    if (reference_profile_fd->get() < 0) {
         // We can't access the reference profile file.
         return;
     }
 
     std::vector<userid_t> users = get_known_users(/*volume_uuid*/ nullptr);
     for (auto user : users) {
-        fd_t profile_fd = open_primary_profile_file(user, pkgname);
+        unique_fd profile_fd = open_primary_profile_file(user, pkgname);
         // Add to the lists only if both fds are valid.
-        if (profile_fd >= 0) {
-            profiles_fd->push_back(profile_fd);
+        if (profile_fd.get() >= 0) {
+            profiles_fd->push_back(std::move(profile_fd));
         }
     }
 }
@@ -580,18 +572,19 @@ static constexpr int PROFMAN_BIN_RETURN_CODE_BAD_PROFILES = 2;
 static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_IO = 3;
 static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_LOCKING = 4;
 
-static void run_profman_merge(const std::vector<fd_t>& profiles_fd, fd_t reference_profile_fd) {
+static void run_profman_merge(const std::vector<unique_fd>& profiles_fd,
+        const unique_fd& reference_profile_fd) {
     static const size_t MAX_INT_LEN = 32;
     static const char* PROFMAN_BIN = "/system/bin/profman";
 
     std::vector<std::string> profile_args(profiles_fd.size());
     char profile_buf[strlen("--profile-file-fd=") + MAX_INT_LEN];
     for (size_t k = 0; k < profiles_fd.size(); k++) {
-        sprintf(profile_buf, "--profile-file-fd=%d", profiles_fd[k]);
+        sprintf(profile_buf, "--profile-file-fd=%d", profiles_fd[k].get());
         profile_args[k].assign(profile_buf);
     }
     char reference_profile_arg[strlen("--reference-profile-file-fd=") + MAX_INT_LEN];
-    sprintf(reference_profile_arg, "--reference-profile-file-fd=%d", reference_profile_fd);
+    sprintf(reference_profile_arg, "--reference-profile-file-fd=%d", reference_profile_fd.get());
 
     // program name, reference profile fd, the final NULL and the profile fds
     const char* argv[3 + profiles_fd.size()];
@@ -615,16 +608,12 @@ static void run_profman_merge(const std::vector<fd_t>& profiles_fd, fd_t referen
 // If the return value is true all the current profiles would have been merged into
 // the reference profiles accessible with open_reference_profile().
 bool analyse_profiles(uid_t uid, const std::string& pkgname) {
-    std::vector<fd_t> profiles_fd;
-    fd_t reference_profile_fd = -1;
+    std::vector<unique_fd> profiles_fd;
+    unique_fd reference_profile_fd;
     open_profile_files(uid, pkgname, &profiles_fd, &reference_profile_fd);
-    if (profiles_fd.empty() || (reference_profile_fd == -1)) {
+    if (profiles_fd.empty() || (reference_profile_fd.get() < 0)) {
         // Skip profile guided compilation because no profiles were found.
         // Or if the reference profile info couldn't be opened.
-        close_all_fds(profiles_fd, "profiles_fd");
-        if ((reference_profile_fd != - 1) && (close(reference_profile_fd) != 0)) {
-            PLOG(WARNING) << "Failed to close fd for reference profile";
-        }
         return false;
     }
 
@@ -679,10 +668,7 @@ bool analyse_profiles(uid_t uid, const std::string& pkgname) {
                 break;
         }
     }
-    close_all_fds(profiles_fd, "profiles_fd");
-    if (close(reference_profile_fd) != 0) {
-        PLOG(WARNING) << "Failed to close fd for reference profile";
-    }
+
     if (should_clear_current_profiles) {
         clear_current_profiles(pkgname);
     }
@@ -692,28 +678,28 @@ bool analyse_profiles(uid_t uid, const std::string& pkgname) {
     return need_to_compile;
 }
 
-static void run_profman_dump(const std::vector<fd_t>& profile_fds,
-                             fd_t reference_profile_fd,
+static void run_profman_dump(const std::vector<unique_fd>& profile_fds,
+                             const unique_fd& reference_profile_fd,
                              const std::vector<std::string>& dex_locations,
-                             const std::vector<fd_t>& apk_fds,
-                             fd_t output_fd) {
+                             const std::vector<unique_fd>& apk_fds,
+                             const unique_fd& output_fd) {
     std::vector<std::string> profman_args;
     static const char* PROFMAN_BIN = "/system/bin/profman";
     profman_args.push_back(PROFMAN_BIN);
     profman_args.push_back("--dump-only");
-    profman_args.push_back(StringPrintf("--dump-output-to-fd=%d", output_fd));
+    profman_args.push_back(StringPrintf("--dump-output-to-fd=%d", output_fd.get()));
     if (reference_profile_fd != -1) {
         profman_args.push_back(StringPrintf("--reference-profile-file-fd=%d",
-                                            reference_profile_fd));
+                                            reference_profile_fd.get()));
     }
-    for (fd_t profile_fd : profile_fds) {
-        profman_args.push_back(StringPrintf("--profile-file-fd=%d", profile_fd));
+    for (size_t i = 0; i < profile_fds.size(); i++) {
+        profman_args.push_back(StringPrintf("--profile-file-fd=%d", profile_fds[i].get()));
     }
     for (const std::string& dex_location : dex_locations) {
         profman_args.push_back(StringPrintf("--dex-location=%s", dex_location.c_str()));
     }
-    for (fd_t apk_fd : apk_fds) {
-        profman_args.push_back(StringPrintf("--apk-fd=%d", apk_fd));
+    for (size_t i = 0; i < apk_fds.size(); i++) {
+        profman_args.push_back(StringPrintf("--apk-fd=%d", apk_fds[i].get()));
     }
     const char **argv = new const char*[profman_args.size() + 1];
     size_t i = 0;
@@ -739,13 +725,13 @@ static const char* get_location_from_path(const char* path) {
 }
 
 bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_paths) {
-    std::vector<fd_t> profile_fds;
-    fd_t reference_profile_fd = -1;
+    std::vector<unique_fd> profile_fds;
+    unique_fd reference_profile_fd;
     std::string out_file_name = StringPrintf("/data/misc/profman/%s.txt", pkgname.c_str());
 
     open_profile_files(uid, pkgname, &profile_fds, &reference_profile_fd);
 
-    const bool has_reference_profile = (reference_profile_fd != -1);
+    const bool has_reference_profile = (reference_profile_fd.get() != -1);
     const bool has_profiles = !profile_fds.empty();
 
     if (!has_reference_profile && !has_profiles) {
@@ -753,23 +739,23 @@ bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_pat
         return false;
     }
 
-    fd_t output_fd = open(out_file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0644);
+    unique_fd output_fd(open(out_file_name.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0644));
     if (fchmod(output_fd, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH) < 0) {
         ALOGE("installd cannot chmod '%s' dump_profile\n", out_file_name.c_str());
         return false;
     }
     std::vector<std::string> code_full_paths = base::Split(code_paths, ";");
     std::vector<std::string> dex_locations;
-    std::vector<fd_t> apk_fds;
+    std::vector<unique_fd> apk_fds;
     for (const std::string& code_full_path : code_full_paths) {
         const char* full_path = code_full_path.c_str();
-        fd_t apk_fd = open(full_path, O_RDONLY | O_NOFOLLOW);
+        unique_fd apk_fd(open(full_path, O_RDONLY | O_NOFOLLOW));
         if (apk_fd == -1) {
             ALOGE("installd cannot open '%s'\n", full_path);
             return false;
         }
         dex_locations.push_back(get_location_from_path(full_path));
-        apk_fds.push_back(apk_fd);
+        apk_fds.push_back(std::move(apk_fd));
     }
 
     pid_t pid = fork();
@@ -781,11 +767,6 @@ bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_pat
         exit(68);   /* only get here on exec failure */
     }
     /* parent */
-    close_all_fds(apk_fds, "apk_fds");
-    close_all_fds(profile_fds, "profile_fds");
-    if (close(reference_profile_fd) != 0) {
-        PLOG(WARNING) << "Failed to close fd for reference profile";
-    }
     int return_code = wait_child(pid);
     if (!WIFEXITED(return_code)) {
         LOG(WARNING) << "profman failed for package " << pkgname << ": "
@@ -1053,17 +1034,17 @@ Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path, bool profile_g
 
 // Creates the dexopt swap file if necessary and return its fd.
 // Returns -1 if there's no need for a swap or in case of errors.
-base::unique_fd maybe_open_dexopt_swap_file(const char* out_oat_path) {
+unique_fd maybe_open_dexopt_swap_file(const char* out_oat_path) {
     if (!ShouldUseSwapFileForDexopt()) {
-        return base::unique_fd();
+        return invalid_unique_fd();
     }
     // Make sure there really is enough space.
     char swap_file_name[PKG_PATH_MAX];
     strcpy(swap_file_name, out_oat_path);
     if (!add_extension_to_file_name(swap_file_name, ".swap")) {
-        return base::unique_fd();
+        return invalid_unique_fd();
     }
-    base::unique_fd swap_fd(open_output_file(
+    unique_fd swap_fd(open_output_file(
             swap_file_name, /*recreate*/true, /*permissions*/0600));
     if (swap_fd.get() < 0) {
         // Could not create swap file. Optimistically go on and hope that we can compile
@@ -1088,8 +1069,9 @@ Dex2oatFileWrapper maybe_open_reference_profile(const char* pkgname, bool profil
     if (profile_guided && !is_secondary_dex && !is_public && (pkgname[0] != '*')) {
         // Open reference profile in read only mode as dex2oat does not get write permissions.
         const std::string pkgname_str(pkgname);
+        unique_fd profile_fd = open_reference_profile(uid, pkgname, /*read_write*/ false);
         return Dex2oatFileWrapper(
-                open_reference_profile(uid, pkgname, /*read_write*/ false),
+                profile_fd.release(),
                 [pkgname_str]() {
                     clear_reference_profile(pkgname_str.c_str());
                 });
@@ -1430,7 +1412,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     }
 
     // Open the input file.
-    base::unique_fd input_fd(open(dex_path, O_RDONLY, 0));
+    unique_fd input_fd(open(dex_path, O_RDONLY, 0));
     if (input_fd.get() < 0) {
         ALOGE("installd cannot open '%s' for input during dexopt\n", dex_path);
         return -1;
@@ -1453,7 +1435,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     }
 
     // Create a swap file if necessary.
-    base::unique_fd swap_fd = maybe_open_dexopt_swap_file(out_oat_path);
+    unique_fd swap_fd = maybe_open_dexopt_swap_file(out_oat_path);
 
     // Create the app image file if needed.
     Dex2oatFileWrapper image_fd =
