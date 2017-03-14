@@ -21,7 +21,6 @@
 
 #include <gui/Surface.h>
 #include <gui/BufferItemConsumer.h>
-#include <gui/GraphicBufferAlloc.h>
 
 #include <ui/GraphicBuffer.h>
 #include <ui/vec4.h>
@@ -395,15 +394,17 @@ int Hwc2TestBuffer::get(buffer_handle_t* outHandle, int32_t* outFence)
  * devices */
 int Hwc2TestBuffer::generateBuffer()
 {
-    int ret;
-
     /* Create new graphic buffer with correct dimensions */
-    mGraphicBuffer = mGraphicBufferAlloc.createGraphicBuffer(
-            mBufferArea.width, mBufferArea.height, mFormat,
-            GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER,
-            "hwc2_test_buffer", &ret);
-    if (ret)
+    mGraphicBuffer = new GraphicBuffer(mBufferArea.width, mBufferArea.height,
+            mFormat, GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER,
+            "hwc2_test_buffer");
+    int ret = mGraphicBuffer->initCheck();
+    if (ret) {
         return ret;
+    }
+    if (!mGraphicBuffer->handle) {
+        return -EINVAL;
+    }
 
     /* Locks the buffer for writing */
     uint8_t* img;
@@ -466,15 +467,17 @@ int Hwc2TestClientTargetBuffer::get(buffer_handle_t* outHandle,
         const std::set<hwc2_layer_t>* clientLayers,
         const std::set<hwc2_layer_t>* clearLayers)
 {
-    int err;
-
-    /* Create new graphic buffer with updated size */
-    mGraphicBuffer = mGraphicBufferAlloc.createGraphicBuffer(bufferArea.width,
-            bufferArea.height, mFormat,
-            GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER,
-            "hwc2_test_buffer", &err);
-    if (err)
-        return err;
+    /* Create new graphic buffer with correct dimensions */
+    mGraphicBuffer = new GraphicBuffer(bufferArea.width, bufferArea.height,
+            mFormat, GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER,
+            "hwc2_test_buffer");
+    int ret = mGraphicBuffer->initCheck();
+    if (ret) {
+        return ret;
+    }
+    if (!mGraphicBuffer->handle) {
+        return -EINVAL;
+    }
 
     uint8_t* img;
     mGraphicBuffer->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
