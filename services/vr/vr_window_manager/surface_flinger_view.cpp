@@ -54,9 +54,7 @@ bool SurfaceFlingerView::GetTextures(const HwcCallback::Frame& frame,
   size_t start = 0;
   // Skip the second layer if it is from the VR app.
   if (!debug && skip_first_layer) {
-    start = 1;
-    if (layers[0].appid && layers[0].appid == layers[1].appid)
-      start = 2;
+    start = 2;
   }
 
   for (size_t i = start; i < layers.size(); ++i) {
