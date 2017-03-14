@@ -179,7 +179,7 @@ nsecs_t SurfaceFlingerConsumer::computeExpectedPresent(const DispSync& dispSync)
     const nsecs_t nextRefresh = dispSync.computeNextRefresh(hwcLatency);
 
     // The DispSync time is already adjusted for the difference between
-    // vsync and reported-vsync (PRESENT_TIME_OFFSET_FROM_VSYNC_NS), so
+    // vsync and reported-vsync (SurfaceFlinger::dispSyncPresentTimeOffset), so
     // we don't need to factor that in here.  Pad a little to avoid
     // weird effects if apps might be requesting times right on the edge.
     nsecs_t extraPadding = 0;
