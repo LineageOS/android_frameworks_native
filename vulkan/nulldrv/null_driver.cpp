@@ -513,6 +513,28 @@ void GetPhysicalDeviceProperties(VkPhysicalDevice,
 void GetPhysicalDeviceProperties2KHR(VkPhysicalDevice physical_device,
                                   VkPhysicalDeviceProperties2KHR* properties) {
     GetPhysicalDeviceProperties(physical_device, &properties->properties);
+
+    while (properties->pNext) {
+        properties = reinterpret_cast<VkPhysicalDeviceProperties2KHR *>(properties->pNext);
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+        switch ((VkFlags)properties->sType) {
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENTATION_PROPERTIES_ANDROID: {
+            VkPhysicalDevicePresentationPropertiesANDROID *presentation_properties =
+                reinterpret_cast<VkPhysicalDevicePresentationPropertiesANDROID *>(properties);
+#pragma clang diagnostic pop
+
+                // Claim that we do all the right things for the loader to
+                // expose KHR_shared_presentable_image on our behalf.
+                presentation_properties->sharedImage = VK_TRUE;
+            } break;
+
+        default:
+            // Silently ignore other extension query structs
+            break;
+        }
+    }
 }
 
 void GetPhysicalDeviceQueueFamilyProperties(
