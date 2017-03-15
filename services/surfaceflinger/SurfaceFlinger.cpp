@@ -3230,9 +3230,6 @@ void SurfaceFlinger::appendSfConfigString(String8& result) const
     result.append(" [sf");
     result.appendFormat(" HAS_CONTEXT_PRIORITY=%d", useContextPriority);
 
-#ifdef NEVER_DEFAULT_TO_ASYNC_MODE
-    result.append(" NEVER_DEFAULT_TO_ASYNC_MODE");
-#endif
     if (isLayerTripleBufferingDisabled())
         result.append(" DISABLE_TRIPLE_BUFFERING");
     result.append("]");
