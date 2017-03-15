@@ -1,5 +1,7 @@
 #include "include/private/dvr/buffer_hub_queue_producer.h"
 
+//#define LOG_NDEBUG 0
+
 #include <inttypes.h>
 #include <log/log.h>
 

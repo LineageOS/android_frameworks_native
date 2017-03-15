@@ -49,6 +49,14 @@ class BufferHubQueue : public pdx::Client {
     return buffers_[slot];
   }
 
+  Status<int> GetEventMask(int events) {
+    if (auto* client_channel = GetChannel()) {
+      return client_channel->GetEventMask(events);
+    } else {
+      return pdx::ErrorStatus(EINVAL);
+    }
+  }
+
   // Enqueue a buffer marks buffer to be available (|Gain|'ed for producer
   // and |Acquire|'ed for consumer. This is only used for internal bookkeeping.
   void Enqueue(std::shared_ptr<BufferHubBuffer> buf, size_t slot);
@@ -87,6 +95,9 @@ class BufferHubQueue : public pdx::Client {
 
   // Wait for buffers to be released and re-add them to the queue.
   bool WaitForBuffers(int timeout);
+  void HandleBufferEvent(size_t slot, const epoll_event& event);
+  void HandleQueueEvent(const epoll_event& event);
+
   virtual int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf) = 0;
 
   // Called when a buffer is allocated remotely.
@@ -160,6 +171,30 @@ class BufferHubQueue : public pdx::Client {
   // |buffers_| tracks all |BufferHubBuffer|s created by this |BufferHubQueue|.
   std::vector<std::shared_ptr<BufferHubBuffer>> buffers_;
 
+  // |epollhup_pending_| tracks whether a slot of |buffers_| get detached before
+  // its corresponding EPOLLHUP event got handled. This could happen as the
+  // following sequence:
+  // 1. Producer queue's client side allocates a new buffer (at slot 1).
+  // 2. Producer queue's client side replaces an existing buffer (at slot 0).
+  //    This is implemented by first detaching the buffer and then allocating a
+  //    new buffer.
+  // 3. During the same epoll_wait, Consumer queue's client side gets EPOLLIN
+  //    event on the queue which indicates a new buffer is avaiable and the
+  //    EPOLLHUP event for slot 0. Consumer handles these two events in order.
+  // 4. Consumer client calls BufferHubRPC::ConsumerQueueImportBuffers and both
+  //    slot 0 and (the new) slot 1 buffer will be imported. During the import
+  //    of the buffer at slot 1, consuemr client detaches the old buffer so that
+  //    the new buffer can be registered. At the same time
+  //    |epollhup_pending_[slot]| is marked to indicate that buffer at this slot
+  //    was detached prior to EPOLLHUP event.
+  // 5. Consumer client continues to handle the EPOLLHUP. Since
+  //    |epollhup_pending_[slot]| is marked as true, it can safely ignore the
+  //    event without detaching the newly allocated buffer at slot 1.
+  //
+  // In normal situations where the previously described sequence doesn't
+  // happen, an EPOLLHUP event should trigger a regular buffer detach.
+  std::vector<bool> epollhup_pending_;
+
   // |available_buffers_| uses |dvr::RingBuffer| to implementation queue
   // sematics. When |Dequeue|, we pop the front element from
   // |available_buffers_|, and  that buffer's reference count will decrease by
@@ -225,7 +260,7 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // Returns Zero on success and negative error code when buffer allocation
   // fails.
   int AllocateBuffer(int width, int height, int format, int usage,
-                     size_t buffer_count, size_t* out_slot);
+                     size_t slice_count, size_t* out_slot);
 
   // Add a producer buffer to populate the queue. Once added, a producer buffer
   // is available to use (i.e. in |Gain|'ed mode).
