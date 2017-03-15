@@ -31,27 +31,5 @@ int DisplayManagerClient::GetSurfaceList(
   return 0;
 }
 
-int DisplayManagerClient::GetSurfaceBuffers(
-    int surface_id, std::vector<std::unique_ptr<BufferConsumer>>* consumers) {
-  auto status =
-      InvokeRemoteMethod<DisplayManagerRPC::GetSurfaceBuffers>(surface_id);
-  if (!status) {
-    ALOGE(
-        "DisplayManagerClient::GetSurfaceBuffers: Failed to get buffers for "
-        "surface_id=%d: %s",
-        surface_id, status.GetErrorMessage().c_str());
-    return -status.error();
-  }
-
-  std::vector<std::unique_ptr<BufferConsumer>> consumer_buffers;
-  std::vector<LocalChannelHandle> channel_handles = status.take();
-  for (auto&& handle : channel_handles) {
-    consumer_buffers.push_back(BufferConsumer::Import(std::move(handle)));
-  }
-
-  *consumers = std::move(consumer_buffers);
-  return 0;
-}
-
 }  // namespace dvr
 }  // namespace android

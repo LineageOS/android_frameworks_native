@@ -98,14 +98,9 @@ bool dvrDisplayManagerClientSurfaceListGetClientIsVisible(
 int dvrDisplayManagerClientGetSurfaceBuffers(
     DvrDisplayManagerClient* client, int surface_id,
     DvrDisplayManagerClientSurfaceBuffers** surface_buffers) {
-  std::vector<std::unique_ptr<android::dvr::BufferConsumer>> buffer_list;
-  int ret = client->client->GetSurfaceBuffers(surface_id, &buffer_list);
-  if (ret < 0)
-    return ret;
-
-  *surface_buffers =
-      new DvrDisplayManagerClientSurfaceBuffers(std::move(buffer_list));
-  return ret;
+  // TODO(jwcai, hendrikw) Remove this after we replacing
+  // dvrDisplayManagerClientGetSurfaceBuffers is dvr_api.
+  return -1;
 }
 
 void dvrDisplayManagerClientSurfaceBuffersDestroy(

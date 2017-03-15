@@ -65,9 +65,6 @@ class DisplaySurface : public SurfaceChannel {
     return buffer_id_to_index_[buffer_id];
   }
 
-  size_t GetBufferCount() const;
-  std::vector<std::shared_ptr<BufferConsumer>> GetBuffers();
-
   // Gets a new set of consumers for all of the surface's buffers. These
   // consumers are independent from the consumers maintained internally to the
   // surface and may be passed to other processes over IPC.
