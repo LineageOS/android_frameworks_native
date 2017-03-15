@@ -44,7 +44,6 @@
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/Surface.h>
-#include <gui/GraphicBufferAlloc.h>
 
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/PixelFormat.h>
@@ -324,12 +323,6 @@ sp<IBinder> SurfaceFlinger::getBuiltInDisplay(int32_t id) {
         return NULL;
     }
     return mBuiltinDisplays[id];
-}
-
-sp<IGraphicBufferAlloc> SurfaceFlinger::createGraphicBufferAlloc()
-{
-    sp<GraphicBufferAlloc> gba(new GraphicBufferAlloc());
-    return gba;
 }
 
 void SurfaceFlinger::bootFinished()
@@ -1137,8 +1130,7 @@ void SurfaceFlinger::onHotplugReceived(int32_t disp, bool connected) {
 
         sp<IGraphicBufferProducer> producer;
         sp<IGraphicBufferConsumer> consumer;
-        BufferQueue::createBufferQueue(&producer, &consumer,
-                new GraphicBufferAlloc());
+        BufferQueue::createBufferQueue(&producer, &consumer);
 
         sp<FramebufferSurface> fbs = new FramebufferSurface(*mHwc,
                 DisplayDevice::DISPLAY_PRIMARY, consumer);
@@ -1899,8 +1891,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                     sp<IGraphicBufferProducer> producer;
                     sp<IGraphicBufferProducer> bqProducer;
                     sp<IGraphicBufferConsumer> bqConsumer;
-                    BufferQueue::createBufferQueue(&bqProducer, &bqConsumer,
-                            new GraphicBufferAlloc());
+                    BufferQueue::createBufferQueue(&bqProducer, &bqConsumer);
 
                     int32_t hwcId = -1;
                     if (state.isVirtualDisplay()) {

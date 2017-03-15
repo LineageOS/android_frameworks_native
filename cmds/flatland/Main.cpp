@@ -16,7 +16,6 @@
 
 #define ATRACE_TAG ATRACE_TAG_ALWAYS
 
-#include <gui/GraphicBufferAlloc.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceControl.h>
 #include <gui/GLConsumer.h>
