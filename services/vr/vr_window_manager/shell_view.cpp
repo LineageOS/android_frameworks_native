@@ -15,12 +15,6 @@ namespace dvr {
 
 namespace {
 
-constexpr float kLayerScaleFactor = 3.0f;
-
-constexpr unsigned int kVRAppLayerCount = 2;
-
-constexpr unsigned int kMaximumPendingFrames = 8;
-
 const std::string kVertexShader = SHADER0([]() {
   layout(location = 0) in vec4 aPosition;
   layout(location = 1) in vec4 aTexCoord;
@@ -79,40 +73,6 @@ const std::string kControllerFragmentShader = SHADER0([]() {
   void main() { fragColor = vec4(0.8, 0.2, 0.2, 1.0); }
 });
 
-const GLfloat kVertices[] = {
-  -1, -1, 0,
-   1, -1, 0,
-  -1,  1, 0,
-   1,  1, 0,
-};
-
-const GLfloat kTextureVertices[] = {
-  0, 1,
-  1, 1,
-  0, 0,
-  1, 0,
-};
-
-// Returns true if the given point is inside the given rect.
-bool IsInside(const vec2& pt, const vec2& tl, const vec2& br) {
-  return pt.x() >= tl.x() && pt.x() <= br.x() &&
-    pt.y() >= tl.y() && pt.y() <= br.y();
-}
-
-mat4 GetScalingMatrix(float width, float height) {
-  float xscale = 1, yscale = 1;
-  float ar = width / height;
-  if (ar > 1)
-    yscale = 1.0 / ar;
-  else
-    xscale = ar;
-
-  xscale *= kLayerScaleFactor;
-  yscale *= kLayerScaleFactor;
-
-  return mat4(Eigen::Scaling<float>(xscale, yscale, 1.0));
-}
-
 mat4 GetHorizontallyAlignedMatrixFromPose(const Posef& pose) {
   vec3 position = pose.GetPosition();
   quat view_quaternion = pose.GetRotation();
@@ -134,112 +94,13 @@ mat4 GetHorizontallyAlignedMatrixFromPose(const Posef& pose) {
   return m;
 }
 
-// Helper function that applies the crop transform to the texture layer and
-// positions (and scales) the texture layer in the appropriate location in the
-// display space.
-mat4 GetLayerTransform(const TextureLayer& texture_layer, float display_width,
-                       float display_height) {
-  // Map from vertex coordinates to [0, 1] coordinates:
-  //  1) Flip y since in vertex coordinates (-1, -1) is at the bottom left and
-  //     in texture coordinates (0, 0) is at the top left.
-  //  2) Translate by (1, 1) to map vertex coordinates to [0, 2] on x and y.
-  //  3) Scale by 1 / 2 to map coordinates to [0, 1] on x  and y.
-  mat4 unit_space(
-      Eigen::AlignedScaling3f(0.5f, 0.5f, 1.0f) *
-      Eigen::Translation3f(1.0f, 1.0f, 0.0f) *
-      Eigen::AlignedScaling3f(1.0f, -1.0f, 1.0f));
-
-  mat4 texture_space(Eigen::AlignedScaling3f(
-      texture_layer.texture->width(), texture_layer.texture->height(), 1.0f));
-
-  // 1) Translate the layer to crop the left and top edge.
-  // 2) Scale the layer such that the cropped right and bottom edges map outside
-  //    the exture region.
-  float crop_width = texture_layer.crop.right - texture_layer.crop.left;
-  float crop_height = texture_layer.crop.bottom - texture_layer.crop.top;
-  mat4 texture_crop(
-      Eigen::AlignedScaling3f(
-          texture_layer.texture->width() / crop_width,
-          texture_layer.texture->height() / crop_height,
-          1.0f) *
-      Eigen::Translation3f(
-          -texture_layer.crop.left, -texture_layer.crop.top, 0.0f));
-
-  mat4 display_space(
-      Eigen::AlignedScaling3f(display_width, display_height, 1.0f));
-
-  // 1) Scale the texture to fit the display frame.
-  // 2) Translate the texture in the display frame location.
-  float display_frame_width = texture_layer.display_frame.right -
-      texture_layer.display_frame.left;
-  float display_frame_height = texture_layer.display_frame.bottom -
-      texture_layer.display_frame.top;
-  mat4 display_frame(
-      Eigen::Translation3f(
-          texture_layer.display_frame.left,
-          texture_layer.display_frame.top,
-          0.0f) *
-      Eigen::AlignedScaling3f(
-          display_frame_width / display_width,
-          display_frame_height / display_height,
-          1.0f));
-
-  mat4 layer_transform = unit_space.inverse() * display_space.inverse() *
-      display_frame * display_space * texture_space.inverse() * texture_crop *
-      texture_space * unit_space;
-  return layer_transform;
+int GetTouchIdForDisplay(uint32_t display) {
+  return display == 1 ? VirtualTouchpad::PRIMARY : VirtualTouchpad::VIRTUAL;
 }
-
-// Determine if ths frame should be shown or hidden.
-ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
-                                            uint32_t vr_app) {
-  auto& layers = frame.layers();
-
-  // TODO(achaulk): Figure out how to identify the current VR app for 2D app
-  // detection.
-
-  size_t index;
-  // Skip all layers that we don't know about.
-  for (index = 0; index < layers.size(); index++) {
-    if (layers[index].type != 0xFFFFFFFF && layers[index].type != 0)
-      break;
-  }
-
-  if (index == layers.size())
-    return ViewMode::Hidden;
-
-  if (layers[index].type != 1) {
-    // We don't have a VR app layer? Abort.
-    return ViewMode::Hidden;
-  }
-
-  // This is the VR app, ignore it.
-  index++;
-
-  // Now, find a dim layer if it exists.
-  // If it does, ignore any layers behind it for visibility determination.
-  for (size_t i = index; i < layers.size(); i++) {
-    if (layers[i].appid == HwcCallback::HwcLayer::kSurfaceFlingerLayer) {
-      index = i + 1;
-    }
-  }
-
-  // If any non-skipped layers exist now then we show, otherwise hide.
-  for (size_t i = index; i < layers.size(); i++) {
-    if (!layers[i].should_skip_layer())
-      return ViewMode::VR;
-  }
-  return ViewMode::Hidden;
-}
-
 
 }  // namespace
 
-ShellView::ShellView() {
-  ime_translate_ = mat4(Eigen::Translation3f(0.0f, -0.5f, 0.25f));
-  ime_top_left_ = vec2(0, 0);
-  ime_size_ = vec2(0, 0);
-}
+ShellView::ShellView() {}
 
 ShellView::~ShellView() {}
 
@@ -247,8 +108,6 @@ int ShellView::Initialize() {
   int ret = Application::Initialize();
   if (ret)
     return ret;
-
-  translate_ = Eigen::Translation3f(0, 0, -2.5f);
 
   virtual_touchpad_ = VirtualTouchpadClient::Create();
   const status_t touchpad_status = virtual_touchpad_->Attach();
@@ -286,6 +145,9 @@ int ShellView::AllocateResources() {
   controller_mesh_->SetVertices(kNumControllerMeshVertices,
                                 kControllerMeshVertices);
 
+  for (auto& display : displays_)
+    display->SetPrograms(program_.get(), overlay_program_.get());
+
   initialized_ = true;
 
   return 0;
@@ -302,13 +164,13 @@ void ShellView::DeallocateResources() {
 }
 
 void ShellView::EnableDebug(bool debug) {
-  ALOGI("EnableDebug(%d)", (int)debug); // XXX TODO delete
+  ALOGI("EnableDebug(%d)", (int)debug);  // XXX TODO delete
   QueueTask(debug ? MainThreadTask::EnableDebugMode
                   : MainThreadTask::DisableDebugMode);
 }
 
 void ShellView::VrMode(bool mode) {
-  ALOGI("VrMode(%d)", (int)mode); // XXX TODO delete
+  ALOGI("VrMode(%d)", (int)mode);  // XXX TODO delete
   QueueTask(mode ? MainThreadTask::EnteringVrMode
                  : MainThreadTask::ExitingVrMode);
 }
@@ -320,63 +182,114 @@ void ShellView::dumpInternal(String8& result) {
   result.appendFormat("debug_mode = %s\n\n", debug_mode_ ? "true" : "false");
 }
 
-void ShellView::AdvanceFrame() {
-  if (!pending_frames_.empty()) {
-    // Check if we should advance the frame.
-    auto& frame = pending_frames_.front();
-    if (frame.visibility == ViewMode::Hidden ||
-        frame.frame->Finish() == HwcCallback::FrameStatus::kFinished) {
-      current_frame_ = std::move(frame);
-      pending_frames_.pop_front();
-    }
-  }
-}
-
 void ShellView::OnDrawFrame() {
-  textures_.clear();
-  has_ime_ = false;
+  bool visible = false;
 
   {
-    std::unique_lock<std::mutex> l(pending_frame_mutex_);
-    AdvanceFrame();
-  }
+    std::unique_lock<std::mutex> l(display_frame_mutex_);
 
-  bool visible = current_frame_.visibility != ViewMode::Hidden;
+    // Move any new displays into the list.
+    if (!new_displays_.empty()) {
+      for (auto& display : new_displays_) {
+        display->Recenter(GetHorizontallyAlignedMatrixFromPose(last_pose_));
+        display->SetPrograms(program_.get(), overlay_program_.get());
+        displays_.emplace_back(display.release());
+      }
+      new_displays_.clear();
+    }
+
+    // Remove any old displays from the list now.
+    if (!removed_displays_.empty()) {
+      for (auto& display : removed_displays_) {
+        displays_.erase(std::find_if(
+            displays_.begin(), displays_.end(),
+            [display](auto& ptr) { return display == ptr.get(); }));
+      }
+      removed_displays_.clear();
+    }
+
+    for (auto& display : displays_) {
+      display->AdvanceFrame();
+      visible = visible || display->visible();
+    }
+  }
 
   if (!debug_mode_ && visible != is_visible_) {
-    SetVisibility(current_frame_.visibility != ViewMode::Hidden);
+    SetVisibility(visible);
   }
 
-  if (!debug_mode_ && !visible)
-    return;
-
-  ime_texture_ = TextureLayer();
-
-  surface_flinger_view_->GetTextures(*current_frame_.frame.get(), &textures_,
-                                     &ime_texture_, debug_mode_,
-                                     current_frame_.visibility == ViewMode::VR);
-  has_ime_ = ime_texture_.texture != nullptr;
+  for (auto& display : displays_) {
+    display->OnDrawFrame(surface_flinger_view_.get(), debug_mode_);
+  }
 }
 
-void ShellView::DrawEye(EyeType /* eye */, const mat4& perspective,
+void ShellView::OnEndFrame() {
+  std::unique_lock<std::mutex> l(display_frame_mutex_);
+  for (auto& display : displays_) {
+    display->UpdateReleaseFence();
+  }
+}
+
+DisplayView* ShellView::FindOrCreateDisplay(uint32_t id) {
+  for (auto& display : displays_) {
+    if (display->id() == id) {
+      return display.get();
+    }
+  }
+
+  // It might be pending addition.
+  for (auto& display : new_displays_) {
+    if (display->id() == id) {
+      return display.get();
+    }
+  }
+
+  auto display = new DisplayView(id, GetTouchIdForDisplay(id));
+  new_displays_.emplace_back(display);
+  return display;
+}
+
+base::unique_fd ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
+  std::unique_lock<std::mutex> l(display_frame_mutex_);
+  DisplayView* display = FindOrCreateDisplay(frame->display_id());
+
+  if (frame->removed()) {
+    removed_displays_.push_back(display);
+    return base::unique_fd();
+  }
+
+  bool showing = false;
+
+  base::unique_fd fd(display->OnFrame(std::move(frame), debug_mode_, &showing));
+
+  if (showing)
+    QueueTask(MainThreadTask::Show);
+
+  return fd;
+}
+
+void ShellView::DrawEye(EyeType eye, const mat4& perspective,
                         const mat4& eye_matrix, const mat4& head_matrix) {
-  if (should_recenter_) {
+  if (should_recenter_ && !displays_.empty()) {
     // Position the quad horizontally aligned in the direction the user
     // is facing, effectively taking out head roll.
-    initial_head_matrix_ = GetHorizontallyAlignedMatrixFromPose(last_pose_);
+    displays_[0]->Recenter(GetHorizontallyAlignedMatrixFromPose(last_pose_));
     should_recenter_ = false;
   }
 
   size_ = vec2(surface_flinger_view_->width(), surface_flinger_view_->height());
-  scale_ = GetScalingMatrix(size_.x(), size_.y());
-
-  DrawOverlays(perspective, eye_matrix, head_matrix);
 
   // TODO(alexst): Replicate controller rendering from VR Home.
   // Current approach in the function below is a quick visualization.
   DrawController(perspective, eye_matrix, head_matrix);
 
-  // TODO: Make sure reticle is shown only over visible overlays.
+  for (auto& display : displays_) {
+    if (display->visible()) {
+      display->DrawEye(eye, perspective, eye_matrix, head_matrix, size_,
+                       fade_value_);
+    }
+  }
+
   DrawReticle(perspective, eye_matrix, head_matrix);
 }
 
@@ -387,7 +300,7 @@ void ShellView::OnVisibilityChanged(bool visible) {
 
 bool ShellView::OnClick(bool down) {
   if (down) {
-    if (!is_touching_ && allow_input_) {
+    if (!is_touching_ && active_display_ && active_display_->allow_input()) {
       is_touching_ = true;
     }
   } else {
@@ -395,224 +308,6 @@ bool ShellView::OnClick(bool down) {
   }
   Touch();
   return true;
-}
-
-base::unique_fd ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
-  ViewMode visibility =
-      CalculateVisibilityFromLayerConfig(*frame.get(), current_vr_app_);
-
-  if (visibility == ViewMode::Hidden && debug_mode_)
-    visibility = ViewMode::VR;
-
-  if (frame->layers().empty())
-    current_vr_app_ = 0;
-  else
-    current_vr_app_ = frame->layers().front().appid;
-
-  std::unique_lock<std::mutex> l(pending_frame_mutex_);
-
-  pending_frames_.emplace_back(std::move(frame), visibility);
-
-  if (pending_frames_.size() > kMaximumPendingFrames) {
-    pending_frames_.pop_front();
-  }
-
-  if (visibility == ViewMode::Hidden &&
-      current_frame_.visibility == ViewMode::Hidden) {
-    // Consume all frames while hidden.
-    while (!pending_frames_.empty())
-      AdvanceFrame();
-  }
-
-  // If we are showing ourselves the main thread is not processing anything,
-  // so give it a kick.
-  if (visibility != ViewMode::Hidden &&
-      current_frame_.visibility == ViewMode::Hidden) {
-    QueueTask(MainThreadTask::Show);
-  }
-
-  return base::unique_fd(dup(release_fence_.get()));
-}
-
-bool ShellView::IsHit(const vec3& view_location, const vec3& view_direction,
-                      vec3* hit_location, vec2* hit_location_in_window_coord,
-                      bool test_ime) {
-  mat4 m = initial_head_matrix_ * translate_;
-  if (test_ime)
-    m = m * ime_translate_;
-  mat4 inverse = (m * scale_).inverse();
-  vec4 transformed_loc =
-      inverse * vec4(view_location[0], view_location[1], view_location[2], 1);
-  vec4 transformed_dir = inverse * vec4(view_direction[0], view_direction[1],
-                                        view_direction[2], 0);
-
-  if (transformed_dir.z() >= 0 || transformed_loc.z() <= 0)
-    return false;
-
-  float distance = -transformed_loc.z() / transformed_dir.z();
-  vec4 transformed_hit_loc = transformed_loc + transformed_dir * distance;
-  if (transformed_hit_loc.x() < -1 || transformed_hit_loc.x() > 1)
-    return false;
-  if (transformed_hit_loc.y() < -1 || transformed_hit_loc.y() > 1)
-    return false;
-
-  hit_location_in_window_coord->x() =
-      (1 + transformed_hit_loc.x()) / 2 * size_.x();
-  hit_location_in_window_coord->y() =
-      (1 - transformed_hit_loc.y()) / 2 * size_.y();
-
-  *hit_location = view_location + view_direction * distance;
-  return true;
-}
-
-void ShellView::DrawOverlays(const mat4& perspective, const mat4& eye_matrix,
-                             const mat4& head_matrix) {
-  if (textures_.empty())
-    return;
-
-  program_->Use();
-  mat4 mvp = perspective * eye_matrix * head_matrix;
-  GLint view_projection_location =
-      glGetUniformLocation(program_->GetProgram(), "uViewProjection");
-  glUniformMatrix4fv(view_projection_location, 1, 0, mvp.data());
-
-  GLint alpha_location =
-      glGetUniformLocation(program_->GetProgram(), "uAlpha");
-
-  GLint tex_location = glGetUniformLocation(program_->GetProgram(), "tex");
-  glUniform1i(tex_location, 0);
-  glActiveTexture(GL_TEXTURE0);
-
-  for (const auto& texture_layer : textures_) {
-    switch (texture_layer.blending) {
-      case HWC2_BLEND_MODE_PREMULTIPLIED:
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-        break;
-      case HWC2_BLEND_MODE_COVERAGE:
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        break;
-      default:
-        break;
-    }
-
-    glUniform1f(alpha_location, fade_value_ * texture_layer.alpha);
-
-    glBindTexture(GL_TEXTURE_2D, texture_layer.texture->id());
-
-    mat4 layer_transform = GetLayerTransform(texture_layer, size_.x(),
-                                             size_.y());
-
-    mat4 transform = initial_head_matrix_ * translate_ * scale_ *
-        layer_transform;
-    DrawWithTransform(transform, *program_);
-
-    glDisable(GL_BLEND);
-  }
-
-  if (has_ime_) {
-    ime_top_left_ = vec2(static_cast<float>(ime_texture_.display_frame.left),
-                         static_cast<float>(ime_texture_.display_frame.top));
-    ime_size_ = vec2(static_cast<float>(ime_texture_.display_frame.right -
-                                        ime_texture_.display_frame.left),
-                     static_cast<float>(ime_texture_.display_frame.bottom -
-                                        ime_texture_.display_frame.top));
-
-    DrawDimOverlay(mvp, textures_[0], ime_top_left_, ime_top_left_ + ime_size_);
-
-    DrawIme();
-  }
-
-  EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-  EGLSyncKHR sync = eglCreateSyncKHR(display, EGL_SYNC_NATIVE_FENCE_ANDROID,
-                                     nullptr);
-  if (sync != EGL_NO_SYNC_KHR) {
-    // Need to flush in order to get the fence FD.
-    glFlush();
-    base::unique_fd fence(eglDupNativeFenceFDANDROID(display, sync));
-    eglDestroySyncKHR(display, sync);
-    UpdateReleaseFence(std::move(fence));
-  } else {
-    ALOGE("Failed to create sync fence");
-    UpdateReleaseFence(base::unique_fd());
-  }
-}
-
-void ShellView::DrawIme() {
-  program_->Use();
-  glBindTexture(GL_TEXTURE_2D, ime_texture_.texture->id());
-
-  mat4 layer_transform = GetLayerTransform(ime_texture_, size_.x(), size_.y());
-
-  mat4 transform = initial_head_matrix_ * translate_ * ime_translate_ * scale_ *
-              layer_transform;
-
-  DrawWithTransform(transform, *program_);
-}
-
-void ShellView::DrawDimOverlay(const mat4& mvp, const TextureLayer& layer, const vec2& top_left,
-                    const vec2& bottom_right) {
-  overlay_program_->Use();
-  glUniformMatrix4fv(
-      glGetUniformLocation(overlay_program_->GetProgram(), "uViewProjection"),
-      1, 0, mvp.data());
-  glUniform4f(glGetUniformLocation(overlay_program_->GetProgram(), "uCoords"),
-              top_left.x() / size_.x(), top_left.y() / size_.y(),
-              bottom_right.x() / size_.x(), bottom_right.y() / size_.y());
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  mat4 layer_transform =
-      GetLayerTransform(layer, size_.x(), size_.y());
-
-  mat4 transform =
-      initial_head_matrix_ * translate_ * scale_ * layer_transform;
-  DrawWithTransform(transform, *overlay_program_);
-  glDisable(GL_BLEND);
-}
-
-void ShellView::DrawWithTransform(const mat4& transform,
-                                  const ShaderProgram& program) {
-  GLint transform_location =
-      glGetUniformLocation(program.GetProgram(), "uTransform");
-  glUniformMatrix4fv(transform_location, 1, 0, transform.data());
-
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, kVertices);
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, kTextureVertices);
-  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-}
-
-bool ShellView::IsImeHit(const vec3& view_location, const vec3& view_direction,
-                vec3 *hit_location) {
-  // First, check if the IME window is hit.
-  bool is_hit = IsHit(view_location, view_direction, hit_location,
-                      &hit_location_in_window_coord_, true);
-  if (is_hit) {
-    // If it is, check if the window coordinate is in the IME region;
-    // if so then we are done.
-    if (IsInside(hit_location_in_window_coord_, ime_top_left_,
-                 ime_top_left_ + ime_size_)) {
-      allow_input_ = true;
-      return true;
-    }
-  }
-
-  allow_input_ = false;
-  // Check if we have hit the main window.
-  is_hit = IsHit(view_location, view_direction, hit_location,
-                 &hit_location_in_window_coord_, false);
-  if (is_hit) {
-    // Only allow input if we are not hitting the region hidden by the IME.
-    // Allowing input here would cause clicks on the main window to actually
-    // be clicks on the IME.
-    if (!IsInside(hit_location_in_window_coord_, ime_top_left_,
-                  ime_top_left_ + ime_size_)) {
-      allow_input_ = true;
-    }
-  }
-  return is_hit;
 }
 
 void ShellView::DrawReticle(const mat4& perspective, const mat4& eye_matrix,
@@ -653,28 +348,45 @@ void ShellView::DrawReticle(const mat4& perspective, const mat4& eye_matrix,
     }
   }
 
-  vec3 view_direction = vec3(view_quaternion * vec3(0, 0, -1));
-
   vec3 hit_location;
+  active_display_ =
+      FindActiveDisplay(pointer_location, view_quaternion, &hit_location);
 
-  bool is_hit;
-  if(has_ime_) {
-    // This will set allow_input_ and hit_location_in_window_coord_.
-    is_hit = IsImeHit(pointer_location, view_direction, &hit_location);
-  } else {
-    is_hit = IsHit(pointer_location, view_direction, &hit_location,
-                   &hit_location_in_window_coord_, false);
-    allow_input_ = is_hit;
-  }
-
-  if (is_hit) {
+  if (active_display_) {
     reticle_->ShowAt(
         Eigen::Translation3f(hit_location) * view_quaternion.matrix(),
-        allow_input_ ? vec3(1, 0, 0) : vec3(0, 0, 0));
+        active_display_->allow_input() ? vec3(1, 0, 0) : vec3(0, 0, 0));
     Touch();
   }
 
   reticle_->Draw(perspective, eye_matrix, head_matrix);
+}
+
+DisplayView* ShellView::FindActiveDisplay(const vec3& position,
+                                          const quat& quaternion,
+                                          vec3* hit_location) {
+  vec3 direction = vec3(quaternion * vec3(0, 0, -1));
+  vec3 temp_hit;
+
+  DisplayView* best_display = nullptr;
+  vec3 best_hit;
+
+  auto is_better = [&best_hit, &position](DisplayView*, const vec3& hit) {
+    return (hit - position).squaredNorm() < (best_hit - position).squaredNorm();
+  };
+
+  for (auto& display : displays_) {
+    if (display->UpdateHitInfo(position, direction, &temp_hit)) {
+      if (!best_display || is_better(display.get(), temp_hit)) {
+        best_display = display.get();
+        best_hit = temp_hit;
+      }
+    }
+  }
+
+  if (best_display)
+    *hit_location = best_hit;
+  return best_display;
 }
 
 void ShellView::DrawController(const mat4& perspective, const mat4& eye_matrix,
@@ -712,12 +424,16 @@ void ShellView::Touch() {
     return;
   }
 
+  if (!active_display_)
+    return;
+
+  const vec2& hit_location = active_display_->hit_location();
+
   // Device is portrait, but in landscape when in VR.
   // Rotate touch input appropriately.
   const android::status_t status = virtual_touchpad_->Touch(
-      VirtualTouchpad::PRIMARY,
-      1.0f - hit_location_in_window_coord_.y() / size_.y(),
-      hit_location_in_window_coord_.x() / size_.x(),
+      active_display_->touchpad_id(),
+      1.0f - hit_location.y() / size_.y(), hit_location.x() / size_.x(),
       is_touching_ ? 1.0f : 0.0f);
   if (status != OK) {
     ALOGE("touch failed: %d", status);
@@ -727,7 +443,7 @@ void ShellView::Touch() {
 bool ShellView::OnTouchpadButton(bool down, int button) {
   int buttons = touchpad_buttons_;
   if (down) {
-    if (allow_input_) {
+    if (active_display_ && active_display_->allow_input()) {
       buttons |= button;
     }
   } else {
@@ -742,17 +458,15 @@ bool ShellView::OnTouchpadButton(bool down, int button) {
     return false;
   }
 
+  if (!active_display_)
+    return true;
+
   const android::status_t status = virtual_touchpad_->ButtonState(
-      VirtualTouchpad::PRIMARY, touchpad_buttons_);
+      active_display_->touchpad_id(), touchpad_buttons_);
   if (status != OK) {
     ALOGE("touchpad button failed: %d %d", touchpad_buttons_, status);
   }
   return true;
-}
-
-void ShellView::UpdateReleaseFence(base::unique_fd fence) {
-  std::lock_guard<std::mutex> guard(pending_frame_mutex_);
-  release_fence_ = std::move(fence);
 }
 
 }  // namespace dvr

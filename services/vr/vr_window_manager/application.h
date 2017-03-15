@@ -57,6 +57,7 @@ class Application {
   virtual void OnDrawFrame() = 0;
   virtual void DrawEye(EyeType eye, const mat4& perspective,
                        const mat4& eye_matrix, const mat4& head_matrix) = 0;
+  virtual void OnEndFrame() = 0;
 
   void SetVisibility(bool visible);
   virtual void OnVisibilityChanged(bool visible);
