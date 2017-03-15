@@ -160,6 +160,8 @@ struct DvrLensInfo {
 
 int dvrGetNativeDisplayDimensions(int* native_width, int* native_height);
 
+typedef struct DvrReadBuffer DvrReadBuffer;
+
 // Opaque struct that represents a graphics context, the texture swap chain,
 // and surfaces.
 typedef struct DvrGraphicsContext DvrGraphicsContext;
@@ -439,6 +441,9 @@ void dvrGraphicsVideoMeshSurfacePresent(DvrGraphicsContext* graphics_context,
                                         DvrVideoMeshSurface* surface,
                                         const int eye,
                                         const float* transform);
+
+// Get a pointer to the global pose buffer.
+int dvrGetPoseBuffer(DvrReadBuffer** pose_buffer);
 
 __END_DECLS
 

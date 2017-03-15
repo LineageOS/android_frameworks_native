@@ -2,6 +2,7 @@
 
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/display_manager_client_impl.h>
+#include <private/dvr/dvr_buffer.h>
 
 using android::dvr::DisplaySurfaceAttributeEnum;
 
@@ -39,6 +40,18 @@ DvrDisplayManagerClient* dvrDisplayManagerClientCreate() {
 
 void dvrDisplayManagerClientDestroy(DvrDisplayManagerClient* client) {
   delete client;
+}
+
+DvrWriteBuffer* dvrDisplayManagerSetupPoseBuffer(
+    DvrDisplayManagerClient* client, size_t extended_region_size,
+    uint64_t usage0, uint64_t usage1) {
+  // TODO(hendrikw): When we move to gralloc1, pass both usage0 and usage1 down.
+  auto buffer_producer = client->client->SetupPoseBuffer(
+      extended_region_size, static_cast<int>(usage0));
+  if (buffer_producer) {
+    return CreateDvrWriteBufferFromBufferProducer(std::move(buffer_producer));
+  }
+  return nullptr;
 }
 
 int dvrDisplayManagerClientGetEventFd(DvrDisplayManagerClient* client) {

@@ -18,6 +18,15 @@ using android::pdx::default_transport::Endpoint;
 using android::pdx::rpc::DispatchRemoteMethod;
 using android::pdx::rpc::WrapBuffer;
 
+namespace {
+
+constexpr char kPersistentPoseBufferName[] = "DvrPersistentPoseBuffer";
+const int kPersistentPoseBufferUserId = 0;
+const int kPersistentPoseBufferGroupId = 0;
+const size_t kTimingDataSizeOffset = 128;
+
+}  // anonymous namespace
+
 namespace android {
 namespace dvr {
 
@@ -87,6 +96,11 @@ int DisplayService::HandleMessage(pdx::Message& message) {
     case DisplayRPC::SetViewerParams::Opcode:
       DispatchRemoteMethod<DisplayRPC::SetViewerParams>(
           *this, &DisplayService::OnSetViewerParams, message);
+      return 0;
+
+    case DisplayRPC::GetPoseBuffer::Opcode:
+      DispatchRemoteMethod<DisplayRPC::GetPoseBuffer>(
+          *this, &DisplayService::OnGetPoseBuffer, message);
       return 0;
 
     // Direct the surface specific messages to the surface instance.
@@ -254,6 +268,15 @@ void DisplayService::OnSetViewerParams(pdx::Message& message,
   compositor->UpdateHeadMountMetrics(head_mount_metrics);
 }
 
+pdx::LocalChannelHandle DisplayService::OnGetPoseBuffer(pdx::Message& message) {
+  if (pose_buffer_) {
+    return pose_buffer_->CreateConsumer().take();
+  }
+
+  pdx::rpc::RemoteMethodError(message, EAGAIN);
+  return {};
+}
+
 // Calls the message handler for the DisplaySurface associated with this
 // channel.
 int DisplayService::HandleSurfaceMessage(pdx::Message& message) {
@@ -322,6 +345,18 @@ int DisplayService::UpdateActiveDisplaySurfaces() {
       blur_requested = true;
   }
   return hardware_composer_.SetDisplaySurfaces(std::move(visible_surfaces));
+}
+
+pdx::BorrowedChannelHandle DisplayService::SetupPoseBuffer(
+    size_t extended_region_size, int usage) {
+  if (!pose_buffer_) {
+    pose_buffer_ = BufferProducer::Create(
+        kPersistentPoseBufferName, kPersistentPoseBufferUserId,
+        kPersistentPoseBufferGroupId, usage,
+        extended_region_size + kTimingDataSizeOffset);
+  }
+
+  return pose_buffer_->GetChannelHandle().Borrow();
 }
 
 void DisplayService::OnHardwareComposerRefresh() {

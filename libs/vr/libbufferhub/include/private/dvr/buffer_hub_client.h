@@ -70,6 +70,10 @@ class BufferHubBuffer : public pdx::Client {
     return LocalHandle(dup(native_handle()->data[0]));
   }
 
+  // Get up to |max_fds_count| file descriptors for accessing the blob shared
+  // memory. |fds_count| will contain the actual number of file descriptors.
+  void GetBlobFds(int* fds, size_t* fds_count, size_t max_fds_count) const;
+
   using Client::event_fd;
 
   Status<int> GetEventMask(int events) {

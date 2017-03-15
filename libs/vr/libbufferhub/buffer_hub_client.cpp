@@ -130,6 +130,13 @@ int BufferHubBuffer::GetBlobReadOnlyPointer(size_t size, void** addr) {
   return ret;
 }
 
+void BufferHubBuffer::GetBlobFds(int* fds, size_t* fds_count,
+                                 size_t max_fds_count) const {
+  size_t numFds = static_cast<size_t>(native_handle()->numFds);
+  *fds_count = std::min(max_fds_count, numFds);
+  std::copy(native_handle()->data, native_handle()->data + *fds_count, fds);
+}
+
 BufferConsumer::BufferConsumer(LocalChannelHandle channel)
     : BASE(std::move(channel)) {
   const int ret = ImportBuffer();

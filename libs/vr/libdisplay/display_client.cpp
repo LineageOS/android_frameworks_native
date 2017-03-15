@@ -276,5 +276,18 @@ std::unique_ptr<DisplaySurfaceClient> DisplayClient::CreateDisplaySurface(
   return DisplaySurfaceClient::Create(width, height, format, usage, flags);
 }
 
+std::unique_ptr<BufferConsumer> DisplayClient::GetPoseBuffer() {
+  auto status = InvokeRemoteMethod<DisplayRPC::GetPoseBuffer>();
+  if (!status) {
+    ALOGE(
+        "DisplayClient::GetPoseBuffer: Failed to get pose buffer %s",
+        status.GetErrorMessage().c_str());
+    return nullptr;
+  }
+
+  return BufferConsumer::Import(std::move(status));
+}
+
+
 }  // namespace dvr
 }  // namespace android

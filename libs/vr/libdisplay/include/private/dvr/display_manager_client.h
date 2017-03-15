@@ -14,10 +14,15 @@ typedef struct DvrDisplayManagerClientSurfaceList
     DvrDisplayManagerClientSurfaceList;
 typedef struct DvrDisplayManagerClientSurfaceBuffers
     DvrDisplayManagerClientSurfaceBuffers;
+typedef struct DvrWriteBuffer DvrWriteBuffer;
 
 DvrDisplayManagerClient* dvrDisplayManagerClientCreate();
 
 void dvrDisplayManagerClientDestroy(DvrDisplayManagerClient* client);
+
+DvrWriteBuffer* dvrDisplayManagerSetupPoseBuffer(
+    DvrDisplayManagerClient* client, size_t extended_region_size,
+    uint64_t usage0, uint64_t usage1);
 
 // Return an event fd for checking if there was an event on the server
 // Note that the only event which will be flagged is POLLIN. You must use

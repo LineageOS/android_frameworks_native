@@ -38,6 +38,9 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   // any change to client/manager attributes that affect visibility or z order.
   int UpdateActiveDisplaySurfaces();
 
+  pdx::BorrowedChannelHandle SetupPoseBuffer(size_t extended_region_size,
+                                             int usage);
+
   template <class A>
   void ForEachDisplaySurface(A action) const {
     ForEachChannel([action](const ChannelIterator::value_type& pair) mutable {
@@ -80,14 +83,16 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   DisplayService(android::Hwc2::Composer* hidl);
 
   SystemDisplayMetrics OnGetMetrics(pdx::Message& message);
-  int OnCreateSurface(pdx::Message& message, int width, int height,
-                      int format, int usage, DisplaySurfaceFlags flags);
+  int OnCreateSurface(pdx::Message& message, int width, int height, int format,
+                      int usage, DisplaySurfaceFlags flags);
 
   DisplayRPC::ByteBuffer OnGetEdsCapture(pdx::Message& message);
 
   int OnEnterVrMode(pdx::Message& message);
   int OnExitVrMode(pdx::Message& message);
-  void OnSetViewerParams(pdx::Message& message, const ViewerParams& view_params);
+  void OnSetViewerParams(pdx::Message& message,
+                         const ViewerParams& view_params);
+  pdx::LocalChannelHandle OnGetPoseBuffer(pdx::Message& message);
 
   // Called by DisplaySurface to signal that a surface property has changed and
   // the display manager should be notified.
@@ -100,6 +105,8 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
 
   HardwareComposer hardware_composer_;
   DisplayConfigurationUpdateNotifier update_notifier_;
+
+  std::unique_ptr<BufferProducer> pose_buffer_;
 };
 
 }  // namespace dvr

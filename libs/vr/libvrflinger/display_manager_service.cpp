@@ -82,6 +82,11 @@ int DisplayManagerService::HandleMessage(pdx::Message& message) {
           *this, &DisplayManagerService::OnUpdateSurfaces, message);
       return 0;
 
+  case DisplayManagerRPC::SetupPoseBuffer::Opcode:
+      DispatchRemoteMethod<DisplayManagerRPC::SetupPoseBuffer>(
+          *this, &DisplayManagerService::OnSetupPoseBuffer, message);
+      return 0;
+
     default:
       return Service::DefaultHandleMessage(message);
   }
@@ -91,30 +96,31 @@ std::vector<DisplaySurfaceInfo> DisplayManagerService::OnGetSurfaceList(
     pdx::Message& /*message*/) {
   std::vector<DisplaySurfaceInfo> items;
 
-  display_service_->ForEachDisplaySurface([&items](
-      const std::shared_ptr<DisplaySurface>& surface) mutable {
-    DisplaySurfaceInfo item;
+  display_service_->ForEachDisplaySurface(
+      [&items](const std::shared_ptr<DisplaySurface>& surface) mutable {
+        DisplaySurfaceInfo item;
 
-    item.surface_id = surface->surface_id();
-    item.process_id = surface->process_id();
-    item.type = surface->type();
-    item.flags = 0;  // TODO(eieio)
-    item.client_attributes = DisplaySurfaceAttributes{
-        {DisplaySurfaceAttributeEnum::Visible,
-         DisplaySurfaceAttributeValue{surface->client_visible()}},
-        {DisplaySurfaceAttributeEnum::ZOrder,
-         DisplaySurfaceAttributeValue{surface->client_z_order()}},
-        {DisplaySurfaceAttributeEnum::Blur, DisplaySurfaceAttributeValue{0.f}}};
-    item.manager_attributes = DisplaySurfaceAttributes{
-        {DisplaySurfaceAttributeEnum::Visible,
-         DisplaySurfaceAttributeValue{surface->manager_visible()}},
-        {DisplaySurfaceAttributeEnum::ZOrder,
-         DisplaySurfaceAttributeValue{surface->manager_z_order()}},
-        {DisplaySurfaceAttributeEnum::Blur,
-         DisplaySurfaceAttributeValue{surface->manager_blur()}}};
+        item.surface_id = surface->surface_id();
+        item.process_id = surface->process_id();
+        item.type = surface->type();
+        item.flags = 0;  // TODO(eieio)
+        item.client_attributes = DisplaySurfaceAttributes{
+            {DisplaySurfaceAttributeEnum::Visible,
+             DisplaySurfaceAttributeValue{surface->client_visible()}},
+            {DisplaySurfaceAttributeEnum::ZOrder,
+             DisplaySurfaceAttributeValue{surface->client_z_order()}},
+            {DisplaySurfaceAttributeEnum::Blur,
+             DisplaySurfaceAttributeValue{0.f}}};
+        item.manager_attributes = DisplaySurfaceAttributes{
+            {DisplaySurfaceAttributeEnum::Visible,
+             DisplaySurfaceAttributeValue{surface->manager_visible()}},
+            {DisplaySurfaceAttributeEnum::ZOrder,
+             DisplaySurfaceAttributeValue{surface->manager_z_order()}},
+            {DisplaySurfaceAttributeEnum::Blur,
+             DisplaySurfaceAttributeValue{surface->manager_blur()}}};
 
-    items.push_back(item);
-  });
+        items.push_back(item);
+      });
 
   // The fact that we're in the message handler implies that display_manager_ is
   // not nullptr. No check required, unless this service becomes multi-threaded.
@@ -180,6 +186,11 @@ int DisplayManagerService::OnUpdateSurfaces(
   // Reconfigure the display layers for any active surface changes.
   display_service_->UpdateActiveDisplaySurfaces();
   return 0;
+}
+
+pdx::BorrowedChannelHandle DisplayManagerService::OnSetupPoseBuffer(
+    pdx::Message& message, size_t extended_region_size, int usage) {
+  return display_service_->SetupPoseBuffer(extended_region_size, usage);
 }
 
 void DisplayManagerService::OnDisplaySurfaceChange() {
