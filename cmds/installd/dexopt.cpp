@@ -529,7 +529,7 @@ static unique_fd open_reference_profile(uid_t uid, const std::string& pkgname, b
 static void open_profile_files(uid_t uid, const std::string& pkgname,
             /*out*/ std::vector<unique_fd>* profiles_fd, /*out*/ unique_fd* reference_profile_fd) {
     // Open the reference profile in read-write mode as profman might need to save the merge.
-    reference_profile_fd->reset(open_reference_profile(uid, pkgname, /*read_write*/ true));
+    *reference_profile_fd = open_reference_profile(uid, pkgname, /*read_write*/ true);
     if (reference_profile_fd->get() < 0) {
         // We can't access the reference profile file.
         return;
