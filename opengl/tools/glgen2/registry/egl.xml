@@ -736,6 +736,7 @@
         <enum value="0x3348" name="EGL_SMPTE2086_WHITE_POINT_Y_EXT"/>
         <enum value="0x3349" name="EGL_SMPTE2086_MAX_LUMINANCE_EXT"/>
         <enum value="0x334A" name="EGL_SMPTE2086_MIN_LUMINANCE_EXT"/>
+        <enum value="50000"  name="EGL_METADATA_SCALING_EXT"/>
             <unused start="0x334B" end="0x334F"/>
         <enum value="0x3350" name="EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT"/>
             <unused start="0x3351" end="0x339F"/>
@@ -1998,6 +1999,7 @@
                 <enum name="EGL_SMPTE2086_WHITE_POINT_Y_EXT"/>
                 <enum name="EGL_SMPTE2086_MAX_LUMINANCE_EXT"/>
                 <enum name="EGL_SMPTE2086_MIN_LUMINANCE_EXT"/>
+                <enum name="EGL_METADATA_SCALING_EXT"/>
             </require>
         </extension>
 
