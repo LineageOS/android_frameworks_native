@@ -30,8 +30,13 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
 
+#include <gui/bufferqueue/1.0/H2BGraphicBufferProducer.h>
+
 namespace android {
 // ----------------------------------------------------------------------------
+
+using ::android::hardware::graphics::bufferqueue::V1_0::utils::
+        H2BGraphicBufferProducer;
 
 enum {
     REQUEST_BUFFER = IBinder::FIRST_CALL_TRANSACTION,
@@ -485,7 +490,123 @@ public:
 // translation unit (see clang warning -Wweak-vtables)
 BpGraphicBufferProducer::~BpGraphicBufferProducer() {}
 
-IMPLEMENT_META_INTERFACE(GraphicBufferProducer, "android.gui.IGraphicBufferProducer");
+class HpGraphicBufferProducer : public HpInterface<
+        BpGraphicBufferProducer, H2BGraphicBufferProducer> {
+public:
+    HpGraphicBufferProducer(const sp<IBinder>& base) : PBase(base) {}
+
+    status_t requestBuffer(int slot, sp<GraphicBuffer>* buf) override {
+        return mBase->requestBuffer(slot, buf);
+    }
+
+    status_t setMaxDequeuedBufferCount(int maxDequeuedBuffers) override {
+        return mBase->setMaxDequeuedBufferCount(maxDequeuedBuffers);
+    }
+
+    status_t setAsyncMode(bool async) override {
+        return mBase->setAsyncMode(async);
+    }
+
+    status_t dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w, uint32_t h,
+            PixelFormat format, uint32_t usage,
+            FrameEventHistoryDelta* outTimestamps) override {
+        return mBase->dequeueBuffer(
+                slot, fence, w, h, format, usage, outTimestamps);
+    }
+
+    status_t detachBuffer(int slot) override {
+        return mBase->detachBuffer(slot);
+    }
+
+    status_t detachNextBuffer(
+            sp<GraphicBuffer>* outBuffer, sp<Fence>* outFence) override {
+        return mBase->detachNextBuffer(outBuffer, outFence);
+    }
+
+    status_t attachBuffer(
+            int* outSlot, const sp<GraphicBuffer>& buffer) override {
+        return mBase->attachBuffer(outSlot, buffer);
+    }
+
+    status_t queueBuffer(
+            int slot,
+            const QueueBufferInput& input,
+            QueueBufferOutput* output) override {
+        return mBase->queueBuffer(slot, input, output);
+    }
+
+    status_t cancelBuffer(int slot, const sp<Fence>& fence) override {
+        return mBase->cancelBuffer(slot, fence);
+    }
+
+    int query(int what, int* value) override {
+        return mBase->query(what, value);
+    }
+
+    status_t connect(
+            const sp<IProducerListener>& listener,
+            int api, bool producerControlledByApp,
+            QueueBufferOutput* output) override {
+        return mBase->connect(listener, api, producerControlledByApp, output);
+    }
+
+    status_t disconnect(
+            int api, DisconnectMode mode = DisconnectMode::Api) override {
+        return mBase->disconnect(api, mode);
+    }
+
+    status_t setSidebandStream(const sp<NativeHandle>& stream) override {
+        return mBase->setSidebandStream(stream);
+    }
+
+    void allocateBuffers(uint32_t width, uint32_t height,
+            PixelFormat format, uint32_t usage) override {
+        return mBase->allocateBuffers(width, height, format, usage);
+    }
+
+    status_t allowAllocation(bool allow) override {
+        return mBase->allowAllocation(allow);
+    }
+
+    status_t setGenerationNumber(uint32_t generationNumber) override {
+        return mBase->setGenerationNumber(generationNumber);
+    }
+
+    String8 getConsumerName() const override {
+        return mBase->getConsumerName();
+    }
+
+    status_t setSharedBufferMode(bool sharedBufferMode) override {
+        return mBase->setSharedBufferMode(sharedBufferMode);
+    }
+
+    status_t setAutoRefresh(bool autoRefresh) override {
+        return mBase->setAutoRefresh(autoRefresh);
+    }
+
+    status_t setDequeueTimeout(nsecs_t timeout) override {
+        return mBase->setDequeueTimeout(timeout);
+    }
+
+    status_t getLastQueuedBuffer(
+            sp<GraphicBuffer>* outBuffer,
+            sp<Fence>* outFence,
+            float outTransformMatrix[16]) override {
+        return mBase->getLastQueuedBuffer(
+                outBuffer, outFence, outTransformMatrix);
+    }
+
+    void getFrameTimestamps(FrameEventHistoryDelta* outDelta) override {
+        return mBase->getFrameTimestamps(outDelta);
+    }
+
+    status_t getUniqueId(uint64_t* outId) const override {
+        return mBase->getUniqueId(outId);
+    }
+};
+
+IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer, HGraphicBufferProducer,
+        "android.gui.IGraphicBufferProducer");
 
 // ----------------------------------------------------------------------
 

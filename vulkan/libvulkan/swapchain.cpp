@@ -17,7 +17,7 @@
 #include <algorithm>
 
 #include <log/log.h>
-#include <gui/BufferQueue.h>
+#include <ui/BufferQueueDefs.h>
 #include <sync/sync.h>
 #include <utils/StrongPointer.h>
 #include <utils/Vector.h>
@@ -207,7 +207,7 @@ struct Swapchain {
         // or by passing ownership e.g. to ANativeWindow::cancelBuffer().
         int dequeue_fence;
         bool dequeued;
-    } images[android::BufferQueue::NUM_BUFFER_SLOTS];
+    } images[android::BufferQueueDefs::NUM_BUFFER_SLOTS];
 
     android::Vector<TimingInfo> timing;
 };

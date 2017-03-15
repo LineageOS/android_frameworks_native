@@ -21,12 +21,14 @@
 #include <limits>
 #include <type_traits>
 
+#ifndef LIKELY
 #ifdef __cplusplus
 #   define LIKELY( exp )    (__builtin_expect( !!(exp), true ))
 #   define UNLIKELY( exp )  (__builtin_expect( !!(exp), false ))
 #else
 #   define LIKELY( exp )    (__builtin_expect( !!(exp), 1 ))
 #   define UNLIKELY( exp )  (__builtin_expect( !!(exp), 0 ))
+#endif
 #endif
 
 #if __cplusplus >= 201402L

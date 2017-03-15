@@ -32,12 +32,17 @@
 
 #include <gui/FrameTimestamps.h>
 
+#include <hidl/HybridInterface.h>
+#include <android/hardware/graphics/bufferqueue/1.0/IGraphicBufferProducer.h>
+
 namespace android {
 // ----------------------------------------------------------------------------
 
 class IProducerListener;
 class NativeHandle;
 class Surface;
+typedef ::android::hardware::graphics::bufferqueue::V1_0::IGraphicBufferProducer
+        HGraphicBufferProducer;
 
 /*
  * This class defines the Binder IPC interface for the producer side of
@@ -56,7 +61,7 @@ class Surface;
 class IGraphicBufferProducer : public IInterface
 {
 public:
-    DECLARE_META_INTERFACE(GraphicBufferProducer)
+    DECLARE_HYBRID_META_INTERFACE(GraphicBufferProducer, HGraphicBufferProducer)
 
     enum {
         // A flag returned by dequeueBuffer when the client needs to call

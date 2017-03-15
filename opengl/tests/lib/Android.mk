@@ -24,6 +24,7 @@ LOCAL_C_INCLUDES += system/extras/tests/include \
 
 LOCAL_CFLAGS := -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES -Wall -Wextra -Werror
 
+LOCAL_SHARED_LIBRARIES += libgui
 LOCAL_STATIC_LIBRARIES := libarect
 
 include $(BUILD_STATIC_LIBRARY)
