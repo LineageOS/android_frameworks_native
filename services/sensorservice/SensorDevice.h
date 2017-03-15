@@ -31,6 +31,8 @@
 
 #include "android/hardware/sensors/1.0/ISensors.h"
 
+#include "RingBuffer.h"
+
 // ---------------------------------------------------------------------------
 
 namespace android {
@@ -41,6 +43,33 @@ using hardware::Return;
 
 class SensorDevice : public Singleton<SensorDevice>, public Dumpable {
 public:
+
+    class HidlTransportErrorLog {
+     public:
+
+        HidlTransportErrorLog() {
+            mTs = 0;
+            mCount = 0;
+        }
+
+        HidlTransportErrorLog(time_t ts, int count) {
+            mTs = ts;
+            mCount = count;
+        }
+
+        String8 toString() const {
+            String8 result;
+            struct tm *timeInfo = localtime(&mTs);
+            result.appendFormat("%02d:%02d:%02d :: %d", timeInfo->tm_hour, timeInfo->tm_min,
+                                timeInfo->tm_sec, mCount);
+            return result;
+        }
+
+    private:
+        time_t mTs; // timestamp of the error
+        int mCount;   // number of transport errors observed
+    };
+
     ssize_t getSensorList(sensor_t const** list);
 
     void handleDynamicSensorConnection(int handle, bool connected);
@@ -124,6 +153,10 @@ private:
         int numActiveClients();
     };
     DefaultKeyedVector<int, Info> mActivationCount;
+
+    // Keep track of any hidl transport failures
+    SensorServiceUtil::RingBuffer<HidlTransportErrorLog> mHidlTransportErrors;
+    int mTotalHidlTransportErrors;
 
     // Use this vector to determine which client is activated or deactivated.
     SortedVector<void *> mDisabledClients;
