@@ -5,6 +5,7 @@
 #include <android/input.h>
 #include <binder/IServiceManager.h>
 #include <hardware/hwcomposer2.h>
+#include <inttypes.h>
 #include <log/log.h>
 
 #include "controller_mesh.h"
@@ -180,6 +181,13 @@ void ShellView::dumpInternal(String8& result) {
   result.appendFormat("initialized = %s\n", initialized_ ? "true" : "false");
   result.appendFormat("is_visible = %s\n", is_visible_ ? "true" : "false");
   result.appendFormat("debug_mode = %s\n\n", debug_mode_ ? "true" : "false");
+
+  result.append("[displays]\n");
+  result.appendFormat("count = %zu\n", displays_.size());
+  for (size_t i = 0; i < displays_.size(); ++i)
+    result.appendFormat(" display_id = %" PRId32 "\n", displays_[i]->id());
+
+  result.append("\n");
 }
 
 void ShellView::OnDrawFrame() {
