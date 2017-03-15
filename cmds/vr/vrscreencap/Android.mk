@@ -21,8 +21,3 @@ LOCAL_MODULE := vrscreencap
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_EXECUTABLE)
-
-ifeq ($(TARGET_BUILD_VARIANT),eng)
-ALL_DEFAULT_INSTALLED_MODULES += vrscreencap
-all_modules: vrscreencap
-endif
