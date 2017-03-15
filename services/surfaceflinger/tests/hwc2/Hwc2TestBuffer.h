@@ -22,7 +22,6 @@
 
 #include <hardware/hwcomposer2.h>
 
-#include <gui/GraphicBufferAlloc.h>
 #include <ui/GraphicBuffer.h>
 
 #include "Hwc2TestProperties.h"
@@ -42,7 +41,6 @@ public:
 protected:
     int generateBuffer();
 
-    android::GraphicBufferAlloc mGraphicBufferAlloc;
     android::sp<android::GraphicBuffer> mGraphicBuffer;
 
     std::unique_ptr<Hwc2TestFenceGenerator> mFenceGenerator;
@@ -66,7 +64,6 @@ public:
             const std::set<hwc2_layer_t>* clearLayers);
 
 protected:
-    android::GraphicBufferAlloc mGraphicBufferAlloc;
     android::sp<android::GraphicBuffer> mGraphicBuffer;
 
     std::unique_ptr<Hwc2TestFenceGenerator> mFenceGenerator;
