@@ -33,7 +33,9 @@
 
 #include <gui/BufferItem.h>
 #include <gui/BufferQueueCore.h>
+#include <gui/GraphicBufferAlloc.h>
 #include <gui/IConsumerListener.h>
+#include <gui/IGraphicBufferAlloc.h>
 #include <gui/IProducerListener.h>
 #include <gui/ISurfaceComposer.h>
 #include <private/gui/ComposerService.h>
@@ -52,7 +54,8 @@ static uint64_t getUniqueId() {
     return id | counter++;
 }
 
-BufferQueueCore::BufferQueueCore() :
+BufferQueueCore::BufferQueueCore(const sp<IGraphicBufferAlloc>& allocator) :
+    mAllocator(allocator),
     mMutex(),
     mIsAbandoned(false),
     mConsumerControlledByApp(false),
@@ -94,6 +97,30 @@ BufferQueueCore::BufferQueueCore() :
     mLastQueuedSlot(INVALID_BUFFER_SLOT),
     mUniqueId(getUniqueId())
 {
+    if (allocator == NULL) {
+
+#ifdef HAVE_NO_SURFACE_FLINGER
+        // Without a SurfaceFlinger, allocate in-process.  This only makes
+        // sense in systems with static SELinux configurations and no
+        // applications (since applications need dynamic SELinux policy).
+        mAllocator = new GraphicBufferAlloc();
+#else
+        // Run time check for headless, where we also allocate in-process.
+        char value[PROPERTY_VALUE_MAX];
+        property_get("config.headless", value, "0");
+        if (atoi(value) == 1) {
+            mAllocator = new GraphicBufferAlloc();
+        } else {
+            sp<ISurfaceComposer> composer(ComposerService::getComposerService());
+            mAllocator = composer->createGraphicBufferAlloc();
+        }
+#endif  // HAVE_NO_SURFACE_FLINGER
+
+        if (mAllocator == NULL) {
+            BQ_LOGE("createGraphicBufferAlloc failed");
+        }
+    }
+
     int numStartingBuffers = getMaxBufferCountLocked();
     for (int s = 0; s < numStartingBuffers; s++) {
         mFreeSlots.insert(s);
