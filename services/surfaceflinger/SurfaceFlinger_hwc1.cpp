@@ -42,6 +42,7 @@
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/Surface.h>
+#include <gui/GraphicBufferAlloc.h>
 
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/HdrCapabilities.h>
@@ -298,6 +299,12 @@ sp<IBinder> SurfaceFlinger::getBuiltInDisplay(int32_t id) {
     return mBuiltinDisplays[id];
 }
 
+sp<IGraphicBufferAlloc> SurfaceFlinger::createGraphicBufferAlloc()
+{
+    sp<GraphicBufferAlloc> gba(new GraphicBufferAlloc());
+    return gba;
+}
+
 void SurfaceFlinger::bootFinished()
 {
     if (mStartBootAnimThread->join() != NO_ERROR) {
@@ -534,7 +541,8 @@ void SurfaceFlinger::init() {
 
             sp<IGraphicBufferProducer> producer;
             sp<IGraphicBufferConsumer> consumer;
-            BufferQueue::createBufferQueue(&producer, &consumer);
+            BufferQueue::createBufferQueue(&producer, &consumer,
+                    new GraphicBufferAlloc());
 
             sp<FramebufferSurface> fbs = new FramebufferSurface(*mHwc, i,
                     consumer);
@@ -1664,7 +1672,8 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                     sp<IGraphicBufferProducer> producer;
                     sp<IGraphicBufferProducer> bqProducer;
                     sp<IGraphicBufferConsumer> bqConsumer;
-                    BufferQueue::createBufferQueue(&bqProducer, &bqConsumer);
+                    BufferQueue::createBufferQueue(&bqProducer, &bqConsumer,
+                            new GraphicBufferAlloc());
 
                     int32_t hwcDisplayId = -1;
                     if (state.isVirtualDisplay()) {
