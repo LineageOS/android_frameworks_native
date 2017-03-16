@@ -135,6 +135,7 @@ public:
 
         // finalCrop is expressed in display space coordinate.
         Rect finalCrop;
+        Rect requestedFinalCrop;
 
         // If set, defers this state update until the identified Layer
         // receives a frame with the given frameNumber
@@ -163,7 +164,14 @@ public:
     status_t setBuffers(uint32_t w, uint32_t h, PixelFormat format, uint32_t flags);
 
     // modify current state
+
+    // These members of state (position, crop, and finalCrop)
+    // may be updated immediately or have the update delayed
+    // until a pending surface resize completes (if applicable).
     bool setPosition(float x, float y, bool immediate);
+    bool setCrop(const Rect& crop, bool immediate);
+    bool setFinalCrop(const Rect& crop, bool immediate);
+
     bool setLayer(int32_t z);
     bool setSize(uint32_t w, uint32_t h);
 #ifdef USE_HWC2
@@ -174,8 +182,6 @@ public:
     bool setMatrix(const layer_state_t::matrix22_t& matrix);
     bool setTransparentRegionHint(const Region& transparent);
     bool setFlags(uint8_t flags, uint8_t mask);
-    bool setCrop(const Rect& crop, bool immediate);
-    bool setFinalCrop(const Rect& crop);
     bool setLayerStack(uint32_t layerStack);
     bool setDataSpace(android_dataspace dataSpace);
     uint32_t getLayerStack() const;

@@ -470,6 +470,141 @@ TEST_F(LayerUpdateTest, LayerSetMatrixWorks) {
     }
 }
 
+class GeometryLatchingTest : public LayerUpdateTest {
+protected:
+    void EXPECT_INITIAL_STATE(const char * trace) {
+        SCOPED_TRACE(trace);
+        ScreenCapture::captureScreen(&sc);
+        // We find the leading edge of the FG surface.
+        sc->expectFGColor(127, 127);
+        sc->expectBGColor(128, 128);
+    }
+    void completeFGResize() {
+        fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
+        waitForPostedBuffers();
+    }
+    void restoreInitialState() {
+        SurfaceComposerClient::openGlobalTransaction();
+        mFGSurfaceControl->setSize(64, 64);
+        mFGSurfaceControl->setPosition(64, 64);
+        mFGSurfaceControl->setCrop(Rect(0, 0, 64, 64));
+        mFGSurfaceControl->setFinalCrop(Rect(0, 0, -1, -1));
+        SurfaceComposerClient::closeGlobalTransaction(true);
+
+        EXPECT_INITIAL_STATE("After restoring initial state");
+    }
+    sp<ScreenCapture> sc;
+};
+
+TEST_F(GeometryLatchingTest, SurfacePositionLatching) {
+    EXPECT_INITIAL_STATE("before anything");
+
+    // By default position can be updated even while
+    // a resize is pending.
+    SurfaceComposerClient::openGlobalTransaction();
+    mFGSurfaceControl->setSize(32, 32);
+    mFGSurfaceControl->setPosition(100, 100);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        SCOPED_TRACE("After moving surface");
+        ScreenCapture::captureScreen(&sc);
+        // If we moved, the FG Surface should cover up what was previously BG
+        // however if we didn't move the FG wouldn't be large enough now.
+        sc->expectFGColor(163, 163);
+    }
+
+    restoreInitialState();
+
+    // Now we repeat with setGeometryAppliesWithResize
+    // and verify the position DOESN'T latch.
+    SurfaceComposerClient::openGlobalTransaction();
+    mFGSurfaceControl->setGeometryAppliesWithResize();
+    mFGSurfaceControl->setSize(32, 32);
+    mFGSurfaceControl->setPosition(100, 100);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        SCOPED_TRACE("While resize is pending");
+        ScreenCapture::captureScreen(&sc);
+        // This time we shouldn't have moved, so the BG color
+        // should still be visible.
+        sc->expectBGColor(128, 128);
+    }
+
+    completeFGResize();
+
+    {
+        SCOPED_TRACE("After the resize");
+        ScreenCapture::captureScreen(&sc);
+        // But after the resize completes, we should move
+        // and the FG should be visible here.
+        sc->expectFGColor(128, 128);
+    }
+}
+
+class CropLatchingTest : public GeometryLatchingTest {
+protected:
+    void EXPECT_CROPPED_STATE(const char* trace) {
+        SCOPED_TRACE(trace);
+        ScreenCapture::captureScreen(&sc);
+        // The edge should be moved back one pixel by our crop.
+        sc->expectFGColor(126, 126);
+        sc->expectBGColor(127, 127);
+        sc->expectBGColor(128, 128);
+    }
+};
+
+TEST_F(CropLatchingTest, CropLatching) {
+    EXPECT_INITIAL_STATE("before anything");
+    // Normally the crop applies immediately even while a resize is pending.
+    SurfaceComposerClient::openGlobalTransaction();
+    mFGSurfaceControl->setSize(128, 128);
+    mFGSurfaceControl->setCrop(Rect(0, 0, 63, 63));
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    EXPECT_CROPPED_STATE("after setting crop (without geometryAppliesWithResize)");
+
+    restoreInitialState();
+
+    SurfaceComposerClient::openGlobalTransaction();
+    mFGSurfaceControl->setSize(128, 128);
+    mFGSurfaceControl->setGeometryAppliesWithResize();
+    mFGSurfaceControl->setCrop(Rect(0, 0, 63, 63));
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    EXPECT_INITIAL_STATE("after setting crop (with geometryAppliesWithResize)");
+
+    completeFGResize();
+
+    EXPECT_CROPPED_STATE("after the resize finishes");
+}
+
+TEST_F(CropLatchingTest, FinalCropLatching) {
+    EXPECT_INITIAL_STATE("before anything");
+    // Normally the crop applies immediately even while a resize is pending.
+    SurfaceComposerClient::openGlobalTransaction();
+    mFGSurfaceControl->setSize(128, 128);
+    mFGSurfaceControl->setFinalCrop(Rect(64, 64, 127, 127));
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    EXPECT_CROPPED_STATE("after setting crop (without geometryAppliesWithResize)");
+
+    restoreInitialState();
+
+    SurfaceComposerClient::openGlobalTransaction();
+    mFGSurfaceControl->setSize(128, 128);
+    mFGSurfaceControl->setGeometryAppliesWithResize();
+    mFGSurfaceControl->setFinalCrop(Rect(64, 64, 127, 127));
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    EXPECT_INITIAL_STATE("after setting crop (with geometryAppliesWithResize)");
+
+    completeFGResize();
+
+    EXPECT_CROPPED_STATE("after the resize finishes");
+}
+
 TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     sp<ScreenCapture> sc;
     {
@@ -677,11 +812,11 @@ TEST_F(ChildLayerTest, DetachChildren) {
 
     SurfaceComposerClient::openGlobalTransaction();
     mFGSurfaceControl->detachChildren();
-    SurfaceComposerClient::closeGlobalTransaction();
+    SurfaceComposerClient::closeGlobalTransaction(true);
 
     SurfaceComposerClient::openGlobalTransaction();
     mChild->hide();
-    SurfaceComposerClient::closeGlobalTransaction();
+    SurfaceComposerClient::closeGlobalTransaction(true);
 
     // Nothing should have changed.
     {

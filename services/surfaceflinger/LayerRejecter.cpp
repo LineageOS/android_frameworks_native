@@ -120,6 +120,11 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
         mCurrent.crop = mFront.requestedCrop;
         mRecomputeVisibleRegions = true;
     }
+    if (mFront.finalCrop != mFront.requestedFinalCrop) {
+        mFront.finalCrop = mFront.requestedFinalCrop;
+        mCurrent.finalCrop = mFront.requestedFinalCrop;
+        mRecomputeVisibleRegions = true;
+    }
     mFreezePositionUpdates = false;
 
     return false;

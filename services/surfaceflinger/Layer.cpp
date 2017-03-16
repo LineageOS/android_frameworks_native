@@ -1753,11 +1753,15 @@ bool Layer::setCrop(const Rect& crop, bool immediate) {
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
-bool Layer::setFinalCrop(const Rect& crop) {
+
+bool Layer::setFinalCrop(const Rect& crop, bool immediate) {
     if (mCurrentState.finalCrop == crop)
         return false;
     mCurrentState.sequence++;
-    mCurrentState.finalCrop = crop;
+    mCurrentState.requestedFinalCrop = crop;
+    if (immediate) {
+        mCurrentState.finalCrop = crop;
+    }
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;

@@ -2766,7 +2766,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 flags |= eTraversalNeeded;
         }
         if (what & layer_state_t::eFinalCropChanged) {
-            if (layer->setFinalCrop(s.finalCrop))
+            if (layer->setFinalCrop(s.finalCrop, !geometryAppliesWithResize))
                 flags |= eTraversalNeeded;
         }
         if (what & layer_state_t::eLayerStackChanged) {
