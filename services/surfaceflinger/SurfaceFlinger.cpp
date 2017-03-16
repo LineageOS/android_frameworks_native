@@ -113,6 +113,7 @@ const String16 sDump("android.permission.DUMP");
 int64_t SurfaceFlinger::vsyncPhaseOffsetNs;
 int64_t SurfaceFlinger::sfVsyncPhaseOffsetNs;
 bool SurfaceFlinger::useContextPriority;
+int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
 
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
@@ -167,6 +168,9 @@ SurfaceFlinger::SurfaceFlinger()
 
     useContextPriority = getBool< ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::useContextPriority>(false);
+
+    dispSyncPresentTimeOffset = getInt64< ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::presentTimeOffsetFromVSyncNs>(0);
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
@@ -3232,6 +3236,8 @@ void SurfaceFlinger::appendSfConfigString(String8& result) const
 
     if (isLayerTripleBufferingDisabled())
         result.append(" DISABLE_TRIPLE_BUFFERING");
+
+    result.appendFormat(" PRESENT_TIME_OFFSET=%" PRId64 , dispSyncPresentTimeOffset);
     result.append("]");
 }
 
@@ -3358,9 +3364,9 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.append("DispSync configuration: ");
     colorizer.reset(result);
     result.appendFormat("app phase %" PRId64 " ns, sf phase %" PRId64 " ns, "
-            "present offset %d ns (refresh %" PRId64 " ns)",
+            "present offset %" PRId64 " ns (refresh %" PRId64 " ns)",
         vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs,
-        PRESENT_TIME_OFFSET_FROM_VSYNC_NS, activeConfig->getVsyncPeriod());
+        dispSyncPresentTimeOffset, activeConfig->getVsyncPeriod());
     result.append("\n");
 
     // Dump static screen stats

@@ -33,6 +33,7 @@
 #include <ui/Fence.h>
 
 #include "DispSync.h"
+#include "SurfaceFlinger.h"
 #include "EventLog/EventLog.h"
 
 using std::max;
@@ -53,10 +54,6 @@ static const bool kEnableZeroPhaseTracer = false;
 // error metric used is the mean of the squared difference between each
 // present time and the nearest software-predicted vsync.
 static const nsecs_t kErrorThreshold = 160000000000;    // 400 usec squared
-
-// This is the offset from the present fence timestamps to the corresponding
-// vsync event.
-static const int64_t kPresentTimeOffset = PRESENT_TIME_OFFSET_FROM_VSYNC_NS;
 
 #undef LOG_TAG
 #define LOG_TAG "DispSyncThread"
@@ -381,6 +378,7 @@ DispSync::DispSync(const char* name) :
         mRefreshSkipCount(0),
         mThread(new DispSyncThread(name)) {
 
+    mPresentTimeOffset = SurfaceFlinger::dispSyncPresentTimeOffset;
     mThread->run("DispSync", PRIORITY_URGENT_DISPLAY + PRIORITY_MORE_FAVORABLE);
     // set DispSync to SCHED_FIFO to minimize jitter
     struct sched_param param = {0};
@@ -433,7 +431,7 @@ bool DispSync::addPresentFence(const sp<Fence>& fence) {
             nsecs_t t = f->getSignalTime();
             if (t < INT64_MAX) {
                 mPresentFences[i].clear();
-                mPresentTimes[i] = t + kPresentTimeOffset;
+                mPresentTimes[i] = t + mPresentTimeOffset;
             }
         }
     }

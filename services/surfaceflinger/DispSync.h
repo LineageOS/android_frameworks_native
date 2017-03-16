@@ -182,6 +182,10 @@ private:
 
     // mMutex is used to protect access to all member variables.
     mutable Mutex mMutex;
+
+    // This is the offset from the present fence timestamps to the corresponding
+    // vsync event.
+    int64_t mPresentTimeOffset;
 };
 
 }
