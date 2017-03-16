@@ -51,6 +51,7 @@
 namespace android {
 
 class IConsumerListener;
+class IGraphicBufferAlloc;
 class IProducerListener;
 
 class BufferQueueCore : public virtual RefBase {
@@ -78,8 +79,9 @@ public:
     typedef Vector<BufferItem> Fifo;
 
     // BufferQueueCore manages a pool of gralloc memory slots to be used by
-    // producers and consumers.
-    BufferQueueCore();
+    // producers and consumers. allocator is used to allocate all the needed
+    // gralloc buffers.
+    BufferQueueCore(const sp<IGraphicBufferAlloc>& allocator = NULL);
     virtual ~BufferQueueCore();
 
 private:
@@ -140,6 +142,10 @@ private:
     // the information stored in mSlots
     void validateConsistencyLocked() const;
 #endif
+
+    // mAllocator is the connection to SurfaceFlinger that is used to allocate
+    // new GraphicBuffer objects.
+    sp<IGraphicBufferAlloc> mAllocator;
 
     // mMutex is the mutex used to prevent concurrent access to the member
     // variables of BufferQueueCore objects. It must be locked whenever any
