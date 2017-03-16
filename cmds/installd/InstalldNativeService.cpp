@@ -351,17 +351,20 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
         }
 
         if (property_get_bool("dalvik.vm.usejitprofiles", false)) {
-            const std::string profile_path = create_data_user_profile_package_path(userId, pkgname);
+            const std::string profile_dir =
+                    create_primary_current_profile_package_dir_path(userId, pkgname);
             // read-write-execute only for the app user.
-            if (fs_prepare_dir_strict(profile_path.c_str(), 0700, uid, uid) != 0) {
-                return error("Failed to prepare " + profile_path);
+            if (fs_prepare_dir_strict(profile_dir.c_str(), 0700, uid, uid) != 0) {
+                return error("Failed to prepare " + profile_dir);
             }
-            std::string profile_file = create_primary_profile(profile_path);
+            const std::string profile_file = create_current_profile_path(userId, pkgname,
+                    /*is_secondary_dex*/false);
             // read-write only for the app user.
             if (fs_prepare_file_strict(profile_file.c_str(), 0600, uid, uid) != 0) {
-                return error("Failed to prepare " + profile_path);
+                return error("Failed to prepare " + profile_file);
             }
-            const std::string ref_profile_path = create_data_ref_profile_package_path(pkgname);
+            const std::string ref_profile_path =
+                    create_primary_reference_profile_package_dir_path(pkgname);
             // dex2oat/profman runs under the shared app gid and it needs to read/write reference
             // profiles.
             int shared_app_gid = multiuser_get_shared_gid(0, appId);
@@ -425,10 +428,10 @@ binder::Status InstalldNativeService::clearAppProfiles(const std::string& packag
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     binder::Status res = ok();
-    if (!clear_reference_profile(packageName)) {
+    if (!clear_primary_reference_profile(packageName)) {
         res = error("Failed to clear reference profile for " + packageName);
     }
-    if (!clear_current_profiles(packageName)) {
+    if (!clear_primary_current_profiles(packageName)) {
         res = error("Failed to clear current profiles for " + packageName);
     }
     return res;
@@ -476,7 +479,7 @@ binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::st
             }
         }
         if (!only_cache) {
-            if (!clear_current_profile(packageName, userId)) {
+            if (!clear_primary_current_profile(packageName, userId)) {
                 res = error("Failed to clear current profile for " + packageName);
             }
         }
@@ -486,13 +489,13 @@ binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::st
 
 static int destroy_app_reference_profile(const std::string& pkgname) {
     return delete_dir_contents_and_dir(
-        create_data_ref_profile_package_path(pkgname),
+        create_primary_reference_profile_package_dir_path(pkgname),
         /*ignore_if_missing*/ true);
 }
 
 static int destroy_app_current_profiles(const std::string& pkgname, userid_t userid) {
     return delete_dir_contents_and_dir(
-        create_data_user_profile_package_path(userid, pkgname),
+        create_primary_current_profile_package_dir_path(userid, pkgname),
         /*ignore_if_missing*/ true);
 }
 
@@ -719,7 +722,7 @@ binder::Status InstalldNativeService::destroyUserData(const std::unique_ptr<std:
             if (delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete " + path);
             }
-            path = create_data_user_profile_path(userId);
+            path = create_primary_cur_profile_dir_path(userId);
             if (delete_dir_contents_and_dir(path, true) != 0) {
                 res = error("Failed to delete " + path);
             }
@@ -1216,9 +1219,9 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
             ATRACE_END();
 
             ATRACE_BEGIN("profiles");
-            auto userProfilePath = create_data_user_profile_package_path(userId, pkgname);
+            auto userProfilePath = create_primary_current_profile_package_dir_path(userId, pkgname);
             calculate_tree_size(userProfilePath, &stats.dataSize);
-            auto refProfilePath = create_data_ref_profile_package_path(pkgname);
+            auto refProfilePath = create_primary_reference_profile_package_dir_path(pkgname);
             calculate_tree_size(refProfilePath, &stats.codeSize);
             ATRACE_END();
 
@@ -1236,7 +1239,7 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
             calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
                     sharedGid, -1);
         }
-        calculate_tree_size(create_data_user_profile_path(userId), &stats.dataSize,
+        calculate_tree_size(create_primary_cur_profile_dir_path(userId), &stats.dataSize,
                 multiuser_get_uid(userId, appId), -1);
         ATRACE_END();
     }
@@ -1310,9 +1313,9 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         ATRACE_END();
 
         ATRACE_BEGIN("profile");
-        auto userProfilePath = create_data_user_profile_path(userId);
+        auto userProfilePath = create_primary_cur_profile_dir_path(userId);
         calculate_tree_size(userProfilePath, &stats.dataSize, -1, -1, true);
-        auto refProfilePath = create_data_ref_profile_path();
+        auto refProfilePath = create_primary_ref_profile_dir_path();
         calculate_tree_size(refProfilePath, &stats.codeSize, -1, -1, true);
         ATRACE_END();
 
@@ -1334,7 +1337,7 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         ATRACE_BEGIN("dalvik");
         calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
                 -1, -1, true);
-        calculate_tree_size(create_data_user_profile_path(userId), &stats.dataSize,
+        calculate_tree_size(create_primary_cur_profile_dir_path(userId), &stats.dataSize,
                 -1, -1, true);
         ATRACE_END();
 
@@ -1367,9 +1370,9 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         ATRACE_END();
 
         ATRACE_BEGIN("profile");
-        auto userProfilePath = create_data_user_profile_path(userId);
+        auto userProfilePath = create_primary_cur_profile_dir_path(userId);
         calculate_tree_size(userProfilePath, &stats.dataSize);
-        auto refProfilePath = create_data_ref_profile_path();
+        auto refProfilePath = create_primary_ref_profile_dir_path();
         calculate_tree_size(refProfilePath, &stats.codeSize);
         ATRACE_END();
 
@@ -1384,7 +1387,7 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
 
         ATRACE_BEGIN("dalvik");
         calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize);
-        calculate_tree_size(create_data_user_profile_path(userId), &stats.dataSize);
+        calculate_tree_size(create_primary_cur_profile_dir_path(userId), &stats.dataSize);
         ATRACE_END();
     }
 
@@ -1549,8 +1552,7 @@ binder::Status InstalldNativeService::mergeProfiles(int32_t uid, const std::stri
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    const char* pkgname = packageName.c_str();
-    *_aidl_return = analyse_profiles(uid, pkgname);
+    *_aidl_return = analyze_primary_profiles(uid, packageName);
     return ok();
 }
 

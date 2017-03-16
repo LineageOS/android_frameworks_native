@@ -32,13 +32,23 @@ static constexpr int DEX2OAT_FOR_FILTER          = 3;
 static constexpr int DEX2OAT_FOR_RELOCATION      = 4;
 static constexpr int PATCHOAT_FOR_RELOCATION     = 5;
 
-bool clear_reference_profile(const std::string& pkgname);
-bool clear_current_profile(const std::string& pkgname, userid_t user);
-bool clear_current_profiles(const std::string& pkgname);
+// Clear the reference profile for the primary apk of the given package.
+bool clear_primary_reference_profile(const std::string& pkgname);
+// Clear the current profile for the primary apk of the given package and user.
+bool clear_primary_current_profile(const std::string& pkgname, userid_t user);
+// Clear all current profile for the primary apk of the given package.
+bool clear_primary_current_profiles(const std::string& pkgname);
 
 bool move_ab(const char* apk_path, const char* instruction_set, const char* output_path);
 
-bool analyse_profiles(uid_t uid, const std::string& pkgname);
+// Decide if profile guided compilation is needed or not based on existing profiles.
+// The analysis is done for the primary apks (base + splits) of the given package.
+// Returns true if there is enough information in the current profiles that makes it
+// worth to recompile the package.
+// If the return value is true all the current profiles would have been merged into
+// the reference profiles accessible with open_reference_profile().
+bool analyze_primary_profiles(uid_t uid, const std::string& pkgname);
+
 bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_paths);
 
 bool delete_odex(const char* apk_path, const char* instruction_set, const char* output_path);

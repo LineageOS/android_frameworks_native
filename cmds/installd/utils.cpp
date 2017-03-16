@@ -213,20 +213,22 @@ std::string create_data_misc_legacy_path(userid_t userid) {
     return StringPrintf("%s/misc/user/%u", create_data_path(nullptr).c_str(), userid);
 }
 
-std::string create_data_user_profile_path(userid_t userid) {
+std::string create_primary_cur_profile_dir_path(userid_t userid) {
     return StringPrintf("%s/cur/%u", android_profiles_dir.path, userid);
 }
 
-std::string create_data_user_profile_package_path(userid_t user, const std::string& package_name) {
+std::string create_primary_current_profile_package_dir_path(userid_t user,
+        const std::string& package_name) {
     check_package_name(package_name.c_str());
-    return StringPrintf("%s/%s",create_data_user_profile_path(user).c_str(), package_name.c_str());
+    return StringPrintf("%s/%s",
+            create_primary_cur_profile_dir_path(user).c_str(), package_name.c_str());
 }
 
-std::string create_data_ref_profile_path() {
+std::string create_primary_ref_profile_dir_path() {
     return StringPrintf("%s/ref", android_profiles_dir.path);
 }
 
-std::string create_data_ref_profile_package_path(const std::string& package_name) {
+std::string create_primary_reference_profile_package_dir_path(const std::string& package_name) {
     check_package_name(package_name.c_str());
     return StringPrintf("%s/ref/%s", android_profiles_dir.path, package_name.c_str());
 }
@@ -235,11 +237,38 @@ std::string create_data_dalvik_cache_path() {
     return "/data/dalvik-cache";
 }
 
-// Keep profile paths in sync with ActivityThread.
-constexpr const char* PRIMARY_PROFILE_NAME = "primary.prof";
+// Keep profile paths in sync with ActivityThread and LoadedApk.
+const std::string PROFILE_EXT = ".prof";
+const std::string PRIMARY_PROFILE_NAME = "primary" + PROFILE_EXT;
 
-std::string create_primary_profile(const std::string& profile_dir) {
-    return StringPrintf("%s/%s", profile_dir.c_str(), PRIMARY_PROFILE_NAME);
+std::string create_current_profile_path(userid_t user, const std::string& location,
+        bool is_secondary_dex) {
+    if (is_secondary_dex) {
+        // Secondary dex profiles are stored next to the dex files using .prof extension.
+        return StringPrintf("%s%s", location.c_str(), PROFILE_EXT.c_str());
+    } else {
+        // Profiles for primary apks are under /data/misc/profiles/cur.
+        std::string profile_dir = create_primary_current_profile_package_dir_path(user, location);
+        return StringPrintf("%s/%s", profile_dir.c_str(), PRIMARY_PROFILE_NAME.c_str());
+    }
+}
+
+std::string create_reference_profile_path(const std::string& location, bool is_secondary_dex) {
+    if (is_secondary_dex) {
+        // Secondary dex reference profiles are stored next to the dex files under the oat folder.
+        size_t dirIndex = location.rfind('/');
+        CHECK(dirIndex != std::string::npos)
+                << "Unexpected dir structure for secondary dex " << location;
+
+        std::string dex_dir = location.substr(0, dirIndex);
+        std::string dex_name = location.substr(dirIndex +1);
+        return StringPrintf("%s/oat/%s%s",
+                dex_dir.c_str(), dex_name.c_str(), PROFILE_EXT.c_str());
+    } else {
+        // Reference profiles for primary apks are stored in /data/misc/profile/ref.
+        std::string profile_dir = create_primary_reference_profile_package_dir_path(location);
+        return StringPrintf("%s/%s", profile_dir.c_str(), PRIMARY_PROFILE_NAME.c_str());
+    }
 }
 
 std::vector<userid_t> get_known_users(const char* volume_uuid) {
@@ -1163,13 +1192,15 @@ int validate_system_app_path(const char* path) {
     return -1;
 }
 
-bool validate_secondary_dex_path(const char* pkgname, const char* path,
+bool validate_secondary_dex_path(const std::string& pkgname, const std::string& dex_path,
         const char* volume_uuid, int uid, int storage_flag) {
     CHECK(storage_flag == FLAG_STORAGE_CE || storage_flag == FLAG_STORAGE_DE);
 
     std::string app_private_dir = storage_flag == FLAG_STORAGE_CE
-        ? create_data_user_ce_package_path(volume_uuid, multiuser_get_user_id(uid), pkgname)
-        : create_data_user_de_package_path(volume_uuid, multiuser_get_user_id(uid), pkgname);
+        ? create_data_user_ce_package_path(
+                volume_uuid, multiuser_get_user_id(uid), pkgname.c_str())
+        : create_data_user_de_package_path(
+                volume_uuid, multiuser_get_user_id(uid), pkgname.c_str());
     dir_rec_t dir;
     if (get_path_from_string(&dir, app_private_dir.c_str()) != 0) {
         LOG(WARNING) << "Could not get dir rec for " << app_private_dir;
@@ -1179,7 +1210,7 @@ bool validate_secondary_dex_path(const char* pkgname, const char* path,
     // Pick at most 10 subdirectories when validating (arbitrary value).
     // If the secondary dex file is >10 directory nested then validation will
     // fail and the file will not be compiled.
-    return validate_path(&dir, path, /*max_subdirs*/ 10) == 0;
+    return validate_path(&dir, dex_path.c_str(), /*max_subdirs*/ 10) == 0;
 }
 
 /**
