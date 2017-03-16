@@ -75,6 +75,31 @@ cc_binary {
   ],
 }
 
+cc_library_static {
+  name: "libdvr_hwc",
+  srcs: [
+    "dvr_hardware_composer_client.cpp",
+  ],
+  static_libs: [
+    "libvr_hwc-impl",
+    // NOTE: This needs to be included after the *-impl lib otherwise the
+    // symbols in the *-binder library get optimized out.
+    "libvr_hwc-binder",
+  ],
+  shared_libs: [
+    "libbase",
+    "libbinder",
+    "liblog",
+    "libnativewindow",
+    "libui",
+    "libutils",
+  ],
+  export_include_dirs: ["private"],
+  export_shared_lib_headers: [
+    "libnativewindow",
+  ],
+}
+
 cc_test {
   name: "vr_hwc_test",
   gtest: true,
