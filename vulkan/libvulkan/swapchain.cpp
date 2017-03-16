@@ -941,7 +941,13 @@ VkResult CreateSwapchainKHR(VkDevice device,
     uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
     uint32_t num_images =
         (create_info->minImageCount - 1) + min_undequeued_buffers;
-    err = native_window_set_buffer_count(surface.window.get(), num_images);
+
+    // Lower layer insists that we have at least two buffers. This is wasteful
+    // and we'd like to relax it in the shared case, but not all the pieces are
+    // in place for that to work yet. Note we only lie to the lower layer-- we
+    // don't want to give the app back a swapchain with extra images (which they
+    // can't actually use!).
+    err = native_window_set_buffer_count(surface.window.get(), std::max(2u, num_images));
     if (err != 0) {
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
         // errors and translate them to valid Vulkan result codes?
