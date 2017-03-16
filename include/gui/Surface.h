@@ -152,8 +152,8 @@ public:
             nsecs_t* outRequestedPresentTime, nsecs_t* outAcquireTime,
             nsecs_t* outLatchTime, nsecs_t* outFirstRefreshStartTime,
             nsecs_t* outLastRefreshStartTime, nsecs_t* outGlCompositionDoneTime,
-            nsecs_t* outDisplayPresentTime, nsecs_t* outDisplayRetireTime,
-            nsecs_t* outDequeueReadyTime, nsecs_t* outReleaseTime);
+            nsecs_t* outDisplayPresentTime, nsecs_t* outDequeueReadyTime,
+            nsecs_t* outReleaseTime);
 
     status_t getWideColorSupport(bool* supported);
     status_t getHdrSupport(bool* supported);
@@ -410,11 +410,6 @@ protected:
 
     uint64_t mNextFrameNumber = 1;
     uint64_t mLastFrameNumber = 0;
-
-    // Mutable because ANativeWindow::query needs this class const.
-    mutable bool mQueriedSupportedTimestamps;
-    mutable bool mFrameTimestampsSupportsPresent;
-    mutable bool mFrameTimestampsSupportsRetire;
 
     // A cached copy of the FrameEventHistory maintained by the consumer.
     bool mEnableFrameTimestamps = false;

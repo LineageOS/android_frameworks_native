@@ -306,7 +306,6 @@ public:
      */
     bool onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
             const std::shared_ptr<FenceTime>& presentFence,
-            const std::shared_ptr<FenceTime>& retireFence,
             const CompositorTiming& compositorTiming);
 
 #ifdef USE_HWC2

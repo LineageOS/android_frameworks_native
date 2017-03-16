@@ -358,11 +358,6 @@ class FakeSurfaceComposer : public ISurfaceComposer{
 public:
     ~FakeSurfaceComposer() override {}
 
-    void setSupportedTimestamps(bool supportsPresent, bool supportsRetire) {
-        mSupportsPresent = supportsPresent;
-        mSupportsRetire = supportsRetire;
-    }
-
     sp<ISurfaceComposerClient> createConnection() override { return nullptr; }
     sp<ISurfaceComposerClient> createScopedConnection(
             const sp<IGraphicBufferProducer>& /* parent */) override {
@@ -386,30 +381,6 @@ public:
             const sp<IGraphicBufferProducer>& /*surface*/) const override {
         return false;
     }
-
-    status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported)
-            const override {
-        *outSupported = {
-                FrameEvent::REQUESTED_PRESENT,
-                FrameEvent::ACQUIRE,
-                FrameEvent::LATCH,
-                FrameEvent::FIRST_REFRESH_START,
-                FrameEvent::LAST_REFRESH_START,
-                FrameEvent::GPU_COMPOSITION_DONE,
-                FrameEvent::DEQUEUE_READY,
-                FrameEvent::RELEASE
-        };
-        if (mSupportsPresent) {
-            outSupported->push_back(
-                        FrameEvent::DISPLAY_PRESENT);
-        }
-        if (mSupportsRetire) {
-            outSupported->push_back(
-                        FrameEvent::DISPLAY_RETIRE);
-        }
-        return NO_ERROR;
-    }
-
     void setPowerMode(const sp<IBinder>& /*display*/, int /*mode*/) override {}
     status_t getDisplayConfigs(const sp<IBinder>& /*display*/,
             Vector<DisplayInfo>* /*configs*/) override { return NO_ERROR; }
@@ -574,8 +545,7 @@ protected:
               kConsumerAcquireTime(frameStartTime + 301),
               kLatchTime(frameStartTime + 500),
               kDequeueReadyTime(frameStartTime + 600),
-              kRetireTime(frameStartTime + 700),
-              kReleaseTime(frameStartTime + 800),
+              kReleaseTime(frameStartTime + 700),
               mRefreshes {
                     { mFenceMap, frameStartTime + 410 },
                     { mFenceMap, frameStartTime + 420 },
@@ -595,7 +565,6 @@ protected:
         }
 
         void signalReleaseFences() {
-            mFenceMap.signalAllForTest(mRetire.mFence, kRetireTime);
             mFenceMap.signalAllForTest(mRelease.mFence, kReleaseTime);
         }
 
@@ -603,7 +572,6 @@ protected:
 
         FenceAndFenceTime mAcquireConsumer { mFenceMap };
         FenceAndFenceTime mAcquireProducer { mFenceMap };
-        FenceAndFenceTime mRetire { mFenceMap };
         FenceAndFenceTime mRelease { mFenceMap };
 
         const nsecs_t kPostedTime;
@@ -612,7 +580,6 @@ protected:
         const nsecs_t kConsumerAcquireTime;
         const nsecs_t kLatchTime;
         const nsecs_t kDequeueReadyTime;
-        const nsecs_t kRetireTime;
         const nsecs_t kReleaseTime;
 
         RefreshEvents mRefreshes[3];
@@ -651,7 +618,7 @@ protected:
                 &outRequestedPresentTime, &outAcquireTime, &outLatchTime,
                 &outFirstRefreshStartTime, &outLastRefreshStartTime,
                 &outGpuCompositionDoneTime, &outDisplayPresentTime,
-                &outDisplayRetireTime, &outDequeueReadyTime, &outReleaseTime);
+                &outDequeueReadyTime, &outReleaseTime);
     }
 
     void resetTimestamps() {
@@ -662,7 +629,6 @@ protected:
         outLastRefreshStartTime = -1;
         outGpuCompositionDoneTime = -1;
         outDisplayPresentTime = -1;
-        outDisplayRetireTime = -1;
         outDequeueReadyTime = -1;
         outReleaseTime = -1;
     }
@@ -715,8 +681,8 @@ protected:
         uint64_t nOldFrame = iOldFrame + 1;
         uint64_t nNewFrame = iNewFrame + 1;
 
-        // Latch, Composite, Retire, and Release the frames in a plausible
-        // order. Note: The timestamps won't necessarily match the order, but
+        // Latch, Composite, and Release the frames in a plausible order.
+        // Note: The timestamps won't necessarily match the order, but
         // that's okay for the purposes of this test.
         std::shared_ptr<FenceTime> gpuDoneFenceTime = FenceTime::NO_FENCE;
 
@@ -750,11 +716,6 @@ protected:
                 newFrame->mRefreshes[0].mPresent.mFenceTime,
                 newFrame->mRefreshes[0].kCompositorTiming);
 
-        // Retire the previous buffer just after compositing the new buffer.
-        if (oldFrame != nullptr) {
-            mCfeh->addRetire(nOldFrame, oldFrame->mRetire.mFenceTime);
-        }
-
         mCfeh->addPreComposition(nNewFrame, newFrame->mRefreshes[1].kStartTime);
         gpuDoneFenceTime = gpuComposited ?
                 newFrame->mRefreshes[1].mGpuCompositionDone.mFenceTime :
@@ -763,11 +724,6 @@ protected:
                 newFrame->mRefreshes[1].mPresent.mFenceTime,
                 newFrame->mRefreshes[1].kCompositorTiming);
     }
-
-    void QueryPresentRetireSupported(
-            bool displayPresentSupported, bool displayRetireSupported);
-    void PresentOrRetireUnsupportedNoSyncTest(
-            bool displayPresentSupported, bool displayRetireSupported);
 
     sp<IGraphicBufferProducer> mProducer;
     sp<IGraphicBufferConsumer> mConsumer;
@@ -787,7 +743,6 @@ protected:
     int64_t outLastRefreshStartTime = -1;
     int64_t outGpuCompositionDoneTime = -1;
     int64_t outDisplayPresentTime = -1;
-    int64_t outDisplayRetireTime = -1;
     int64_t outDequeueReadyTime = -1;
     int64_t outReleaseTime = -1;
 
@@ -897,31 +852,6 @@ TEST_F(GetFrameTimestampsTest, EnabledSimple) {
     result = getAllFrameTimestamps(fId1);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(4, mFakeConsumer->mGetFrameTimestampsCount);
-}
-
-void GetFrameTimestampsTest::QueryPresentRetireSupported(
-        bool displayPresentSupported, bool displayRetireSupported) {
-    mSurface->mFakeSurfaceComposer->setSupportedTimestamps(
-            displayPresentSupported, displayRetireSupported);
-
-    // Verify supported bits are forwarded.
-    int supportsPresent = -1;
-    mWindow.get()->query(mWindow.get(),
-            NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_PRESENT, &supportsPresent);
-    EXPECT_EQ(displayPresentSupported, supportsPresent);
-
-    int supportsRetire = -1;
-    mWindow.get()->query(mWindow.get(),
-            NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_RETIRE, &supportsRetire);
-    EXPECT_EQ(displayRetireSupported, supportsRetire);
-}
-
-TEST_F(GetFrameTimestampsTest, QueryPresentSupported) {
-   QueryPresentRetireSupported(true, false);
-}
-
-TEST_F(GetFrameTimestampsTest, QueryRetireSupported) {
-   QueryPresentRetireSupported(false, true);
 }
 
 TEST_F(GetFrameTimestampsTest, SnapToNextTickBasic) {
@@ -1184,7 +1114,6 @@ TEST_F(GetFrameTimestampsTest, TimestampsAssociatedWithCorrectFrame) {
     EXPECT_EQ(mFrames[0].mRefreshes[0].kGpuCompositionDoneTime,
             outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kPresentTime, outDisplayPresentTime);
-    EXPECT_EQ(mFrames[0].kRetireTime, outDisplayRetireTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(mFrames[0].kReleaseTime, outReleaseTime);
 
@@ -1200,7 +1129,6 @@ TEST_F(GetFrameTimestampsTest, TimestampsAssociatedWithCorrectFrame) {
     EXPECT_EQ(mFrames[1].mRefreshes[0].kGpuCompositionDoneTime,
             outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[1].mRefreshes[0].kPresentTime, outDisplayPresentTime);
-    EXPECT_EQ(0, outDisplayRetireTime);
     EXPECT_EQ(0, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
 }
@@ -1209,7 +1137,6 @@ TEST_F(GetFrameTimestampsTest, TimestampsAssociatedWithCorrectFrame) {
 // back to the producer and the producer saves its own fence.
 TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     enableFrameTimestamps();
-    mSurface->mFakeSurfaceComposer->setSupportedTimestamps(true, true);
 
     // Dequeue and queue frame 1.
     const uint64_t fId1 = getNextFrameId();
@@ -1222,7 +1149,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     int result = native_window_get_frame_timestamps(mWindow.get(), fId1,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
@@ -1234,7 +1161,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     result = native_window_get_frame_timestamps(mWindow.get(), fId1,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
@@ -1251,7 +1178,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     result = native_window_get_frame_timestamps(mWindow.get(), fId2,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[1].kRequestedPresentTime, outRequestedPresentTime);
@@ -1263,7 +1190,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     result = native_window_get_frame_timestamps(mWindow.get(), fId2,
             &outRequestedPresentTime, &outAcquireTime, nullptr, nullptr,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[1].kRequestedPresentTime, outRequestedPresentTime);
@@ -1272,7 +1199,6 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
 
 TEST_F(GetFrameTimestampsTest, ZeroRequestedTimestampsNoSync) {
     enableFrameTimestamps();
-    mSurface->mFakeSurfaceComposer->setSupportedTimestamps(true, true);
 
     // Dequeue and queue frame 1.
     dequeueAndQueue(0);
@@ -1292,7 +1218,7 @@ TEST_F(GetFrameTimestampsTest, ZeroRequestedTimestampsNoSync) {
     // Verify a request for no timestamps doesn't result in a sync call.
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     int result = native_window_get_frame_timestamps(mWindow.get(), fId2,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
             nullptr, nullptr, nullptr);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
@@ -1302,7 +1228,6 @@ TEST_F(GetFrameTimestampsTest, ZeroRequestedTimestampsNoSync) {
 // side without an additional sync call to the consumer.
 TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     enableFrameTimestamps();
-    mSurface->mFakeSurfaceComposer->setSupportedTimestamps(true, true);
 
     // Dequeue and queue frame 1.
     const uint64_t fId1 = getNextFrameId();
@@ -1332,7 +1257,6 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(0, outDisplayPresentTime);
-    EXPECT_EQ(0, outDisplayRetireTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
 
@@ -1351,7 +1275,6 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(0, outDisplayPresentTime);
-    EXPECT_EQ(0, outDisplayRetireTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
 
@@ -1373,7 +1296,6 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     EXPECT_EQ(mFrames[0].mRefreshes[0].kGpuCompositionDoneTime,
             outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kPresentTime, outDisplayPresentTime);
-    EXPECT_EQ(mFrames[0].kRetireTime, outDisplayRetireTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(mFrames[0].kReleaseTime, outReleaseTime);
 }
@@ -1383,7 +1305,6 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
 // never exist.
 TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
     enableFrameTimestamps();
-    mSurface->mFakeSurfaceComposer->setSupportedTimestamps(true, true);
 
     // Dequeue and queue frame 1.
     const uint64_t fId1 = getNextFrameId();
@@ -1413,7 +1334,6 @@ TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
     EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(0, outDisplayPresentTime);
-    EXPECT_EQ(0, outDisplayRetireTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
 
@@ -1435,7 +1355,6 @@ TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
     EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kPresentTime, outDisplayPresentTime);
-    EXPECT_EQ(mFrames[0].kRetireTime, outDisplayRetireTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(mFrames[0].kReleaseTime, outReleaseTime);
 }
@@ -1444,7 +1363,6 @@ TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
 // the most recent frame, then a sync call is not done.
 TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
     enableFrameTimestamps();
-    mSurface->mFakeSurfaceComposer->setSupportedTimestamps(true, true);
 
     // Dequeue and queue frame 1.
     const uint64_t fId1 = getNextFrameId();
@@ -1475,7 +1393,6 @@ TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
     EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(0, outDisplayPresentTime);
-    EXPECT_EQ(0, outDisplayRetireTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
 
@@ -1484,7 +1401,7 @@ TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
     mFrames[1].signalRefreshFences();
 
     // Verify querying for all timestmaps of f2 does not do a sync call. Even
-    // though the lastRefresh, retire, dequeueReady, and release times aren't
+    // though the lastRefresh, dequeueReady, and release times aren't
     // available, a sync call should not occur because it's not possible for f2
     // to encounter the final value for those events until another frame is
     // queued.
@@ -1500,45 +1417,8 @@ TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
     EXPECT_EQ(mFrames[1].mRefreshes[1].kStartTime, outLastRefreshStartTime);
     EXPECT_EQ(0, outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[1].mRefreshes[0].kPresentTime, outDisplayPresentTime);
-    EXPECT_EQ(0, outDisplayRetireTime);
     EXPECT_EQ(0, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
-}
-
-// This test verifies there are no sync calls for present or retire times
-// when they aren't supported and that an error is returned.
-void GetFrameTimestampsTest::PresentOrRetireUnsupportedNoSyncTest(
-        bool displayPresentSupported, bool displayRetireSupported) {
-
-    enableFrameTimestamps();
-    mSurface->mFakeSurfaceComposer->setSupportedTimestamps(
-        displayPresentSupported, displayRetireSupported);
-
-    // Dequeue and queue frame 1.
-    const uint64_t fId1 = getNextFrameId();
-    dequeueAndQueue(0);
-
-    // Verify a query for the Present and Retire times do not trigger
-    // a sync call if they are not supported.
-    resetTimestamps();
-    int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
-    int result = native_window_get_frame_timestamps(mWindow.get(), fId1,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-            displayPresentSupported ? nullptr : &outDisplayPresentTime,
-            displayRetireSupported ? nullptr : &outDisplayRetireTime,
-            nullptr, nullptr);
-    EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
-    EXPECT_EQ(BAD_VALUE, result);
-    EXPECT_EQ(-1, outDisplayRetireTime);
-    EXPECT_EQ(-1, outDisplayPresentTime);
-}
-
-TEST_F(GetFrameTimestampsTest, PresentUnsupportedNoSync) {
-   PresentOrRetireUnsupportedNoSyncTest(false, true);
-}
-
-TEST_F(GetFrameTimestampsTest, RetireUnsupportedNoSync) {
-   PresentOrRetireUnsupportedNoSyncTest(true, false);
 }
 
 }

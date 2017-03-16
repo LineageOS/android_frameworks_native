@@ -49,9 +49,6 @@ Surface::Surface(
       mAutoRefresh(false),
       mSharedBufferSlot(BufferItem::INVALID_BUFFER_SLOT),
       mSharedBufferHasBeenQueued(false),
-      mQueriedSupportedTimestamps(false),
-      mFrameTimestampsSupportsPresent(false),
-      mFrameTimestampsSupportsRetire(false),
       mEnableFrameTimestamps(false),
       mFrameEventHistory(std::make_unique<ProducerFrameEventHistory>())
 {
@@ -199,7 +196,6 @@ static bool checkConsumerForUpdates(
         const nsecs_t* outLastRefreshStartTime,
         const nsecs_t* outGpuCompositionDoneTime,
         const nsecs_t* outDisplayPresentTime,
-        const nsecs_t* outDisplayRetireTime,
         const nsecs_t* outDequeueReadyTime,
         const nsecs_t* outReleaseTime) {
     bool checkForLatch = (outLatchTime != nullptr) && !e->hasLatchInfo();
@@ -210,13 +206,11 @@ static bool checkConsumerForUpdates(
     bool checkForDisplayPresent = (outDisplayPresentTime != nullptr) &&
             !e->hasDisplayPresentInfo();
 
-    // LastRefreshStart, DisplayRetire, DequeueReady, and Release are never
+    // LastRefreshStart, DequeueReady, and Release are never
     // available for the last frame.
     bool checkForLastRefreshStart = (outLastRefreshStartTime != nullptr) &&
             !e->hasLastRefreshStartInfo() &&
             (e->frameNumber != lastFrameNumber);
-    bool checkForDisplayRetire = (outDisplayRetireTime != nullptr) &&
-            !e->hasDisplayRetireInfo() && (e->frameNumber != lastFrameNumber);
     bool checkForDequeueReady = (outDequeueReadyTime != nullptr) &&
             !e->hasDequeueReadyInfo() && (e->frameNumber != lastFrameNumber);
     bool checkForRelease = (outReleaseTime != nullptr) &&
@@ -225,8 +219,7 @@ static bool checkConsumerForUpdates(
     // RequestedPresent and Acquire info are always available producer-side.
     return checkForLatch || checkForFirstRefreshStart ||
             checkForLastRefreshStart || checkForGpuCompositionDone ||
-            checkForDisplayPresent || checkForDisplayRetire ||
-            checkForDequeueReady || checkForRelease;
+            checkForDisplayPresent || checkForDequeueReady || checkForRelease;
 }
 
 static void getFrameTimestamp(nsecs_t *dst, const nsecs_t& src) {
@@ -246,23 +239,14 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
         nsecs_t* outRequestedPresentTime, nsecs_t* outAcquireTime,
         nsecs_t* outLatchTime, nsecs_t* outFirstRefreshStartTime,
         nsecs_t* outLastRefreshStartTime, nsecs_t* outGpuCompositionDoneTime,
-        nsecs_t* outDisplayPresentTime, nsecs_t* outDisplayRetireTime,
-        nsecs_t* outDequeueReadyTime, nsecs_t* outReleaseTime) {
+        nsecs_t* outDisplayPresentTime, nsecs_t* outDequeueReadyTime,
+        nsecs_t* outReleaseTime) {
     ATRACE_CALL();
 
     Mutex::Autolock lock(mMutex);
 
     if (!mEnableFrameTimestamps) {
         return INVALID_OPERATION;
-    }
-
-    // Verify the requested timestamps are supported.
-    querySupportedTimestampsLocked();
-    if (outDisplayPresentTime != nullptr && !mFrameTimestampsSupportsPresent) {
-        return BAD_VALUE;
-    }
-    if (outDisplayRetireTime != nullptr && !mFrameTimestampsSupportsRetire) {
-        return BAD_VALUE;
     }
 
     FrameEvents* events = mFrameEventHistory->getFrame(frameNumber);
@@ -276,7 +260,7 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
     if (checkConsumerForUpdates(events, mLastFrameNumber,
             outLatchTime, outFirstRefreshStartTime, outLastRefreshStartTime,
             outGpuCompositionDoneTime, outDisplayPresentTime,
-            outDisplayRetireTime, outDequeueReadyTime, outReleaseTime)) {
+            outDequeueReadyTime, outReleaseTime)) {
         FrameEventHistoryDelta delta;
         mGraphicBufferProducer->getFrameTimestamps(&delta);
         mFrameEventHistory->applyDelta(delta);
@@ -300,7 +284,6 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
             outGpuCompositionDoneTime, events->gpuCompositionDoneFence);
     getFrameTimestampFence(
             outDisplayPresentTime, events->displayPresentFence);
-    getFrameTimestampFence(outDisplayRetireTime, events->displayRetireFence);
     getFrameTimestampFence(outReleaseTime, events->releaseFence);
 
     return NO_ERROR;
@@ -740,31 +723,6 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
     return err;
 }
 
-void Surface::querySupportedTimestampsLocked() const {
-    // mMutex must be locked when calling this method.
-
-    if (mQueriedSupportedTimestamps) {
-        return;
-    }
-    mQueriedSupportedTimestamps = true;
-
-    std::vector<FrameEvent> supportedFrameTimestamps;
-    status_t err = composerService()->getSupportedFrameTimestamps(
-            &supportedFrameTimestamps);
-
-    if (err != NO_ERROR) {
-        return;
-    }
-
-    for (auto sft : supportedFrameTimestamps) {
-        if (sft == FrameEvent::DISPLAY_PRESENT) {
-            mFrameTimestampsSupportsPresent = true;
-        } else if (sft == FrameEvent::DISPLAY_RETIRE) {
-            mFrameTimestampsSupportsRetire = true;
-        }
-    }
-}
-
 int Surface::query(int what, int* value) const {
     ATRACE_CALL();
     ALOGV("Surface::query");
@@ -824,16 +782,6 @@ int Surface::query(int what, int* value) const {
                 *value = durationUs > std::numeric_limits<int>::max() ?
                         std::numeric_limits<int>::max() :
                         static_cast<int>(durationUs);
-                return NO_ERROR;
-            }
-            case NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_PRESENT: {
-                querySupportedTimestampsLocked();
-                *value = mFrameTimestampsSupportsPresent ? 1 : 0;
-                return NO_ERROR;
-            }
-            case NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_RETIRE: {
-                querySupportedTimestampsLocked();
-                *value = mFrameTimestampsSupportsRetire ? 1 : 0;
                 return NO_ERROR;
             }
             case NATIVE_WINDOW_IS_VALID: {
@@ -1090,14 +1038,13 @@ int Surface::dispatchGetFrameTimestamps(va_list args) {
     nsecs_t* outLastRefreshStartTime = va_arg(args, int64_t*);
     nsecs_t* outGpuCompositionDoneTime = va_arg(args, int64_t*);
     nsecs_t* outDisplayPresentTime = va_arg(args, int64_t*);
-    nsecs_t* outDisplayRetireTime = va_arg(args, int64_t*);
     nsecs_t* outDequeueReadyTime = va_arg(args, int64_t*);
     nsecs_t* outReleaseTime = va_arg(args, int64_t*);
     return getFrameTimestamps(frameId,
             outRequestedPresentTime, outAcquireTime, outLatchTime,
             outFirstRefreshStartTime, outLastRefreshStartTime,
             outGpuCompositionDoneTime, outDisplayPresentTime,
-            outDisplayRetireTime, outDequeueReadyTime, outReleaseTime);
+            outDequeueReadyTime, outReleaseTime);
 }
 
 int Surface::dispatchGetWideColorSupport(va_list args) {

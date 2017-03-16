@@ -314,7 +314,6 @@ uint32_t get_num_ready_timings(Swapchain& swapchain) {
             // supported, at startup time (since it may not be
             // supported):
             &actual_present_time,
-            NULL,  //&display_retire_time,
             NULL,  //&dequeue_ready_time,
             NULL /*&reads_done_time*/);
 

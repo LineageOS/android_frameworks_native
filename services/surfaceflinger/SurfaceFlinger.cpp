@@ -627,23 +627,6 @@ bool SurfaceFlinger::authenticateSurfaceTextureLocked(
     return mGraphicBufferProducerList.indexOf(surfaceTextureBinder) >= 0;
 }
 
-status_t SurfaceFlinger::getSupportedFrameTimestamps(
-        std::vector<FrameEvent>* outSupported) const {
-    *outSupported = {
-        FrameEvent::REQUESTED_PRESENT,
-        FrameEvent::ACQUIRE,
-        FrameEvent::LATCH,
-        FrameEvent::FIRST_REFRESH_START,
-        FrameEvent::LAST_REFRESH_START,
-        FrameEvent::GPU_COMPOSITION_DONE,
-        getHwComposer().presentFenceRepresentsStartOfScanout() ?
-                FrameEvent::DISPLAY_PRESENT : FrameEvent::DISPLAY_RETIRE,
-        FrameEvent::DEQUEUE_READY,
-        FrameEvent::RELEASE,
-    };
-    return NO_ERROR;
-}
-
 status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         Vector<DisplayInfo>* configs) {
     if ((configs == NULL) || (display.get() == NULL)) {
@@ -1468,18 +1451,10 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     }
     mGlCompositionDoneTimeline.updateSignalTimes();
 
-    sp<Fence> displayFence = mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
-    auto displayFenceTime = std::make_shared<FenceTime>(displayFence);
-    mDisplayTimeline.push(displayFenceTime);
+    sp<Fence> presentFence = mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
+    auto presentFenceTime = std::make_shared<FenceTime>(presentFence);
+    mDisplayTimeline.push(presentFenceTime);
     mDisplayTimeline.updateSignalTimes();
-
-    const std::shared_ptr<FenceTime>* presentFenceTime = &FenceTime::NO_FENCE;
-    const std::shared_ptr<FenceTime>* retireFenceTime = &FenceTime::NO_FENCE;
-    if (mHwc->presentFenceRepresentsStartOfScanout()) {
-        presentFenceTime = &displayFenceTime;
-    } else {
-        retireFenceTime = &displayFenceTime;
-    }
 
     nsecs_t vsyncPhase = mPrimaryDispSync.computeNextRefresh(0);
     nsecs_t vsyncInterval = mPrimaryDispSync.getPeriod();
@@ -1488,7 +1463,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     // when we started doing work for this frame, but that should be okay
     // since updateCompositorTiming has snapping logic.
     updateCompositorTiming(
-        vsyncPhase, vsyncInterval, refreshStartTime, displayFenceTime);
+        vsyncPhase, vsyncInterval, refreshStartTime, presentFenceTime);
     CompositorTiming compositorTiming;
     {
         std::lock_guard<std::mutex> lock(mCompositorTimingLock);
@@ -1497,15 +1472,15 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
 
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         bool frameLatched = layer->onPostComposition(glCompositionDoneFenceTime,
-                *presentFenceTime, *retireFenceTime, compositorTiming);
+                presentFenceTime, compositorTiming);
         if (frameLatched) {
             recordBufferingStats(layer->getName().string(),
                     layer->getOccupancyHistory(false));
         }
     });
 
-    if (displayFence->isValid()) {
-        if (mPrimaryDispSync.addPresentFence(displayFence)) {
+    if (presentFence->isValid()) {
+        if (mPrimaryDispSync.addPresentFence(presentFence)) {
             enableHardwareVsync();
         } else {
             disableHardwareVsync(false);
@@ -1521,9 +1496,9 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     if (mAnimCompositionPending) {
         mAnimCompositionPending = false;
 
-        if (displayFenceTime->isValid()) {
+        if (presentFenceTime->isValid()) {
             mAnimFrameTracker.setActualPresentFence(
-                    std::move(displayFenceTime));
+                    std::move(presentFenceTime));
         } else {
             // The HWC doesn't support present fences, so use the refresh
             // timestamp instead.

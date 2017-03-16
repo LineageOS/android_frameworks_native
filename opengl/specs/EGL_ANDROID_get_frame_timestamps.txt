@@ -46,8 +46,8 @@ Overview
     and display of window surfaces.
 
     Some examples of how this might be used:
-        - The display present or retire time can be used to calculate end-to-end
-          latency of the entire graphics pipeline.
+        - The display present time can be used to calculate end-to-end latency
+          of the entire graphics pipeline.
         - The queue time and rendering complete time can be used to determine
           how long the application's rendering took to complete. Likewise, the
           composition start time and finish time can be used to determine how
@@ -92,9 +92,8 @@ New Tokens
     EGL_LAST_COMPOSITION_START_TIME_ANDROID 0x3155
     EGL_FIRST_COMPOSITION_GPU_FINISHED_TIME_ANDROID 0x3156
     EGL_DISPLAY_PRESENT_TIME_ANDROID 0x3157
-    EGL_DISPLAY_RETIRE_TIME_ANDROID 0x3158
-    EGL_DEQUEUE_READY_TIME_ANDROID 0x3159
-    EGL_READS_DONE_TIME_ANDROID 0x315A
+    EGL_DEQUEUE_READY_TIME_ANDROID 0x3158
+    EGL_READS_DONE_TIME_ANDROID 0x3159
 
 Add to the list of supported tokens for eglSurfaceAttrib in section 3.5.6
 "Surface Attributes", page 43:
@@ -195,8 +194,6 @@ Changes to Chapter 3 of the EGL 1.5 Specification (EGL Functions and Errors)
           didn't do any rendering.
         - EGL_DISPLAY_PRESENT_TIME_ANDROID - The time at which this frame
           started to scan out to the physical display.
-        - EGL_DISPLAY_RETIRE_TIME_ANDROID - The time at which this frame was
-          replaced by the next frame on-screen.
         - EGL_DEQUEUE_READY_TIME_ANDROID - The time when the buffer became
           available for reuse as a buffer the client can target without
           blocking. This is generally the point when all read commands of the
@@ -224,6 +221,9 @@ Issues
     None
 
 Revision History
+
+#6 (Brian Anderson, March 16, 2017)
+    - Remove DISPLAY_RETIRE_TIME_ANDROID.
 
 #5 (Brian Anderson, January 13, 2017)
     - Add eglGetCompositorTimingANDROID.
