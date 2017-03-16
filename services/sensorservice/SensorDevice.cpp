@@ -51,7 +51,7 @@ static status_t StatusFromResult(Result result) {
     }
 }
 
-SensorDevice::SensorDevice() {
+SensorDevice::SensorDevice() : mHidlTransportErrors(20) {
     // SensorDevice may wait upto 100ms * 10 = 1s for hidl service.
     constexpr auto RETRY_DELAY = std::chrono::milliseconds(100);
     size_t retry = 10;
@@ -118,7 +118,15 @@ std::string SensorDevice::dump() const {
     if (mSensors == NULL) return "HAL not initialized\n";
 
     String8 result;
-    checkReturn(mSensors->getSensorsList([&](const auto &list) {
+
+    result.appendFormat("Saw %d hidlTransport Errors\n", mTotalHidlTransportErrors);
+    for (auto it = mHidlTransportErrors.begin() ; it != mHidlTransportErrors.end(); it++ ) {
+        result += "\t";
+        result += it->toString();
+        result += "\n";
+    }
+
+    checkReturn(mSensors->getSensorsList([&](const auto &list){
             const size_t count = list.size();
 
             result.appendFormat(
@@ -182,19 +190,44 @@ ssize_t SensorDevice::poll(sensors_event_t* buffer, size_t count) {
     if (mSensors == NULL) return NO_INIT;
 
     ssize_t err;
+    int numHidlTransportErrors = 0;
+    bool hidlTransportError = false;
 
-    checkReturn(mSensors->poll(
-            count,
-            [&](auto result,
-                const auto &events,
-                const auto &dynamicSensorsAdded) {
-                if (result == Result::OK) {
-                    convertToSensorEvents(events, dynamicSensorsAdded, buffer);
-                    err = (ssize_t)events.size();
-                } else {
-                    err = StatusFromResult(result);
-                }
-            }));
+    do {
+        auto ret = mSensors->poll(
+                count,
+                [&](auto result,
+                    const auto &events,
+                    const auto &dynamicSensorsAdded) {
+                    if (result == Result::OK) {
+                        convertToSensorEvents(events, dynamicSensorsAdded, buffer);
+                        err = (ssize_t)events.size();
+                    } else {
+                        err = StatusFromResult(result);
+                    }
+                });
+
+        if (ret.isOk())  {
+            hidlTransportError = false;
+        } else {
+            hidlTransportError = true;
+            numHidlTransportErrors++;
+            if (numHidlTransportErrors > 50) {
+                // Log error and bail
+                ALOGE("Max Hidl transport errors this cycle : %d", numHidlTransportErrors);
+                handleHidlDeath(ret.description());
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+        }
+    } while (hidlTransportError);
+
+    if(numHidlTransportErrors > 0) {
+        ALOGE("Saw %d Hidl transport failures", numHidlTransportErrors);
+        HidlTransportErrorLog errLog(time(NULL), numHidlTransportErrors);
+        mHidlTransportErrors.add(errLog);
+        mTotalHidlTransportErrors++;
+    }
 
     return err;
 }
