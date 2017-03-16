@@ -51,8 +51,6 @@ Status<LocalChannelHandle> BufferHubBuffer::CreateConsumer() {
 
 int BufferHubBuffer::ImportBuffer() {
   ATRACE_NAME("BufferHubBuffer::ImportBuffer");
-  if (!IonBuffer::GetGrallocModule())
-    return -EIO;
 
   Status<std::vector<NativeBufferHandle<LocalHandle>>> status =
       InvokeRemoteMethod<BufferHubRPC::GetBuffers>();

@@ -2,6 +2,8 @@
 #define ANDROID_DVR_ION_BUFFER_H_
 
 #include <hardware/gralloc.h>
+#include <log/log.h>
+#include <ui/GraphicBuffer.h>
 
 namespace android {
 namespace dvr {
@@ -58,45 +60,24 @@ class IonBuffer {
   int LockYUV(int usage, int x, int y, int width, int height,
               struct android_ycbcr* yuv);
   int Unlock();
-
-  buffer_handle_t handle() const { return handle_; }
-  int width() const { return width_; }
-  int height() const { return height_; }
-  int layer_count() const { return layer_count_; }
-  int stride() const { return stride_; }
-  int layer_stride() const { return layer_stride_; }
-  int format() const { return format_; }
-  int usage() const { return usage_; }
-
-  static gralloc_module_t const* GetGrallocModule() {
-    GrallocInit();
-    return gralloc_module_;
-  }
-
-  static alloc_device_t* GetGrallocDevice() {
-    GrallocInit();
-    return gralloc_device_;
-  }
+  buffer_handle_t handle() const { if (buffer_.get()) return buffer_->handle;
+                                   else return nullptr; }
+  int width() const { if (buffer_.get()) return buffer_->getWidth();
+                      else return 0; }
+  int height() const { if (buffer_.get()) return buffer_->getHeight();
+                       else return 0; }
+  int layer_count() const { if (buffer_.get()) return buffer_->getLayerCount();
+                            else return 0; }
+  int stride() const { if (buffer_.get()) return buffer_->getStride();
+                       else return 0; }
+  int layer_stride() const { return 0; }
+  int format() const { if (buffer_.get()) return buffer_->getPixelFormat();
+                       else return 0; }
+  int usage() const { if (buffer_.get()) return buffer_->getUsage();
+                      else return 0; }
 
  private:
-  buffer_handle_t handle_;
-  int width_;
-  int height_;
-  int layer_count_;
-  int stride_;
-  int layer_stride_;
-  int format_;
-  int usage_;
-  bool locked_;
-  bool needs_unregister_;
-
-  void Replace(buffer_handle_t handle, int width, int height, int layer_count,
-               int stride, int layer_stride, int format, int usage,
-               bool needs_unregister);
-
-  static void GrallocInit();
-  static gralloc_module_t const* gralloc_module_;
-  static alloc_device_t* gralloc_device_;
+  sp<GraphicBuffer> buffer_;
 
   IonBuffer(const IonBuffer&) = delete;
   void operator=(const IonBuffer&) = delete;

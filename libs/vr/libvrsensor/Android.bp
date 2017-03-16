@@ -33,6 +33,7 @@ sharedLibraries = [
     "libhardware",
     "liblog",
     "libutils",
+    "libui",
 ]
 
 cc_library {
