@@ -56,6 +56,9 @@
     <!-- Devices with all optimizations required to be a "VR Ready" device that
          pass all CTS tests for this feature must include feature
          android.hardware.vr.high_performance -->
+    <!-- Devices that support VR headtracking features and pass all CDD
+         requirements may include
+         android.hardware.vr.headtracking -->
 
     <!-- devices with GPS must include android.hardware.location.gps.xml -->
     <!-- devices with an autofocus camera and/or flash must include either
