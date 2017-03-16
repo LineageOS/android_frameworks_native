@@ -649,6 +649,72 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
 }
 
 VKAPI_ATTR
+VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
+    VkPhysicalDevice physicalDevice,
+    const VkPhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo,
+    VkSurfaceCapabilities2KHR* pSurfaceCapabilities) {
+    VkResult result = GetPhysicalDeviceSurfaceCapabilitiesKHR(
+        physicalDevice, pSurfaceInfo->surface,
+        &pSurfaceCapabilities->surfaceCapabilities);
+
+    VkSurfaceCapabilities2KHR* caps = pSurfaceCapabilities;
+    while (caps->pNext) {
+        caps = reinterpret_cast<VkSurfaceCapabilities2KHR*>(caps->pNext);
+
+        switch (caps->sType) {
+            case VK_STRUCTURE_TYPE_SHARED_PRESENT_SURFACE_CAPABILITIES_KHR: {
+                VkSharedPresentSurfaceCapabilitiesKHR* shared_caps =
+                    reinterpret_cast<VkSharedPresentSurfaceCapabilitiesKHR*>(
+                        caps);
+                // Claim same set of usage flags are supported for
+                // shared present modes as for other modes.
+                shared_caps->sharedPresentSupportedUsageFlags =
+                    pSurfaceCapabilities->surfaceCapabilities
+                        .supportedUsageFlags;
+            } break;
+
+            default:
+                // Ignore all other extension structs
+                break;
+        }
+    }
+
+    return result;
+}
+
+VKAPI_ATTR
+VkResult GetPhysicalDeviceSurfaceFormats2KHR(
+    VkPhysicalDevice physicalDevice,
+    const VkPhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo,
+    uint32_t* pSurfaceFormatCount,
+    VkSurfaceFormat2KHR* pSurfaceFormats) {
+    if (!pSurfaceFormats) {
+        return GetPhysicalDeviceSurfaceFormatsKHR(physicalDevice,
+                                                  pSurfaceInfo->surface,
+                                                  pSurfaceFormatCount, nullptr);
+    } else {
+        // temp vector for forwarding; we'll marshal it into the pSurfaceFormats
+        // after the call.
+        android::Vector<VkSurfaceFormatKHR> surface_formats;
+        surface_formats.resize(*pSurfaceFormatCount);
+        VkResult result = GetPhysicalDeviceSurfaceFormatsKHR(
+            physicalDevice, pSurfaceInfo->surface, pSurfaceFormatCount,
+            &surface_formats.editItemAt(0));
+
+        if (result == VK_SUCCESS || result == VK_INCOMPLETE) {
+            // marshal results individually due to stride difference.
+            // completely ignore any chained extension structs.
+            uint32_t formats_to_marshal = *pSurfaceFormatCount;
+            for (uint32_t i = 0u; i < formats_to_marshal; i++) {
+                pSurfaceFormats[i].surfaceFormat = surface_formats[i];
+            }
+        }
+
+        return result;
+    }
+}
+
+VKAPI_ATTR
 VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
                                                  VkSurfaceKHR /*surface*/,
                                                  uint32_t* count,

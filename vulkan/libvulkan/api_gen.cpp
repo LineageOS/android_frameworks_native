@@ -110,7 +110,7 @@ VKAPI_ATTR VkResult disabledCreateAndroidSurfaceKHR(VkInstance instance, const V
 
 // clang-format on
 
-}  // anonymous
+}  // namespace
 
 bool InitDispatchTable(
     VkInstance instance,
@@ -473,7 +473,9 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
         "vkGetPhysicalDeviceQueueFamilyProperties2KHR",
         "vkGetPhysicalDeviceSparseImageFormatProperties",
         "vkGetPhysicalDeviceSparseImageFormatProperties2KHR",
+        "vkGetPhysicalDeviceSurfaceCapabilities2KHR",
         "vkGetPhysicalDeviceSurfaceCapabilitiesKHR",
+        "vkGetPhysicalDeviceSurfaceFormats2KHR",
         "vkGetPhysicalDeviceSurfaceFormatsKHR",
         "vkGetPhysicalDeviceSurfacePresentModesKHR",
         "vkGetPhysicalDeviceSurfaceSupportKHR",

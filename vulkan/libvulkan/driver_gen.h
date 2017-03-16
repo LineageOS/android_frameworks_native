@@ -19,9 +19,9 @@
 #ifndef LIBVULKAN_DRIVER_GEN_H
 #define LIBVULKAN_DRIVER_GEN_H
 
-#include <bitset>
-#include <vulkan/vulkan.h>
 #include <vulkan/vk_android_native_buffer.h>
+#include <vulkan/vulkan.h>
+#include <bitset>
 
 namespace vulkan {
 namespace driver {
@@ -43,6 +43,7 @@ struct ProcHook {
         KHR_shared_presentable_image,
         KHR_surface,
         KHR_swapchain,
+        KHR_get_surface_capabilities2,
         KHR_get_physical_device_properties2,
 
         EXTENSION_CORE,  // valid bit

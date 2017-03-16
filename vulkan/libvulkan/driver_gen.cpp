@@ -262,10 +262,24 @@ const ProcHook g_proc_hooks[] = {
         reinterpret_cast<PFN_vkVoidFunction>(checkedGetPastPresentationTimingGOOGLE),
     },
     {
+        "vkGetPhysicalDeviceSurfaceCapabilities2KHR",
+        ProcHook::INSTANCE,
+        ProcHook::KHR_get_surface_capabilities2,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceSurfaceCapabilities2KHR),
+        nullptr,
+    },
+    {
         "vkGetPhysicalDeviceSurfaceCapabilitiesKHR",
         ProcHook::INSTANCE,
         ProcHook::KHR_surface,
         reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceSurfaceCapabilitiesKHR),
+        nullptr,
+    },
+    {
+        "vkGetPhysicalDeviceSurfaceFormats2KHR",
+        ProcHook::INSTANCE,
+        ProcHook::KHR_get_surface_capabilities2,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDeviceSurfaceFormats2KHR),
         nullptr,
     },
     {
@@ -348,7 +362,7 @@ const ProcHook g_proc_hooks[] = {
     // clang-format on
 };
 
-}  // anonymous
+}  // namespace
 
 const ProcHook* GetProcHook(const char* name) {
     const auto& begin = g_proc_hooks;
@@ -372,6 +386,7 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
     if (strcmp(name, "VK_KHR_shared_presentable_image") == 0) return ProcHook::KHR_shared_presentable_image;
     if (strcmp(name, "VK_KHR_surface") == 0) return ProcHook::KHR_surface;
     if (strcmp(name, "VK_KHR_swapchain") == 0) return ProcHook::KHR_swapchain;
+    if (strcmp(name, "VK_KHR_get_surface_capabilities2") == 0) return ProcHook::KHR_get_surface_capabilities2;
     if (strcmp(name, "VK_KHR_get_physical_device_properties2") == 0) return ProcHook::KHR_get_physical_device_properties2;
     // clang-format on
     return ProcHook::EXTENSION_UNKNOWN;

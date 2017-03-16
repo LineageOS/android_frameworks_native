@@ -320,6 +320,10 @@ define NULL_HANDLE 0
 @extension("VK_KHR_shared_presentable_image") define VK_KHR_SHARED_PRESENTABLE_IMAGE_SPEC_VERSION 1
 @extension("VK_KHR_shared_presentable_image") define VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME "VK_KHR_shared_presentable_image"
 
+// 119
+@extension("VK_KHR_get_surface_capabilities2") define VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION 1
+@extension("VK_KHR_get_surface_capabilities2") define VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME "VK_KHR_get_surface_capabilities2"
+
 // 123
 @extension("VK_MVK_ios_surface") define VK_MVK_IOS_SURFACE_SPEC_VERSION 1
 @extension("VK_MVK_ios_surface") define VK_MVK_IOS_SURFACE_EXTENSION_NAME "VK_MVK_ios_surface"
@@ -1081,6 +1085,14 @@ enum VkStructureType {
 
     //@extension("VK_EXT_hdr_metadata") // 106
     VK_STRUCTURE_TYPE_HDR_METADATA_EXT                          = 1000105000,
+
+    //@extension("VK_KHR_shared_presentable_image") // 111
+    VK_STRUCTURE_TYPE_SHARED_PRESENT_SURFACE_CAPABILITIES_KHR   = 1000111000,
+
+    //@extension("VK_KHR_get_surface_capabilities2") // 119
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR        = 1000119000,
+    VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR                = 1000119001,
+    VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR                      = 1000119002,
 
     //@extension("VK_MVK_ios_surface") // 123
     VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK               = 1000122000,
@@ -4243,6 +4255,34 @@ class VkHdrMetadataEXT {
     f32                                             minLuminance
     f32                                             maxContentLightLevel
     f32                                             maxFrameAverageLightLevel
+}
+
+@extension("VK_KHR_shared_presentable_image") // 111
+class VkSharedPresentSurfaceCapabilitiesKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkImageUsageFlags                               sharedPresentSupportedUsageFlags
+}
+
+@extension("VK_KHR_get_surface_capabilities2") // 119
+class VkPhysicalDeviceSurfaceInfo2KHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkSurfaceKHR                                    surface
+}
+
+@extension("VK_KHR_get_surface_capabilities2") // 119
+class VkSurfaceCapabilities2KHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkSurfaceCapabilitiesKHR                        surfaceCapabilities
+}
+
+@extension("VK_KHR_get_surface_capabilities2") // 119
+class VkSurfaceFormat2KHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkSurfaceFormatKHR                              surfaceFormat
 }
 
 @extension("VK_MVK_ios_surface") // 123
@@ -7415,6 +7455,23 @@ cmd void vkSetHdrMetadataEXT(
 cmd VkResult vkGetSwapchainStatusKHR(
         VkDevice                                    device,
         VkSwapchainKHR                              swapchain) {
+    return ?
+}
+
+@extension("VK_KHR_get_surface_capabilities2") // 119
+cmd VkResult vkGetPhysicalDeviceSurfaceCapabilities2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        const VkPhysicalDeviceSurfaceInfo2KHR*      pSurfaceInfo,
+        VkSurfaceCapabilities2KHR*                  pSurfaceCapabilities) {
+    return ?
+}
+
+@extension("VK_KHR_get_surface_capabilities2") // 119
+cmd VkResult vkGetPhysicalDeviceSurfaceFormats2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        const VkPhysicalDeviceSurfaceInfo2KHR*      pSurfaceInfo,
+        u32*                                        pSurfaceFormatCount,
+        VkSurfaceFormat2KHR*                        pSurfaceFormats) {
     return ?
 }
 

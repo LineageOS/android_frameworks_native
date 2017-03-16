@@ -38,6 +38,8 @@ VKAPI_ATTR VkResult GetRefreshCycleDurationGOOGLE(VkDevice device, VkSwapchainKH
 VKAPI_ATTR VkResult GetPastPresentationTimingGOOGLE(VkDevice device, VkSwapchainKHR swapchain, uint32_t* pPresentationTimingCount, VkPastPresentationTimingGOOGLE* pPresentationTimings);
 VKAPI_ATTR VkResult GetSwapchainStatusKHR(VkDevice device, VkSwapchainKHR swapchain);
 VKAPI_ATTR void SetHdrMetadataEXT(VkDevice device, uint32_t swapchainCount, const VkSwapchainKHR* pSwapchains, const VkHdrMetadataEXT* pHdrMetadataEXTs);
+VKAPI_ATTR VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo, VkSurfaceCapabilities2KHR* pSurfaceCapabilities);
+VKAPI_ATTR VkResult GetPhysicalDeviceSurfaceFormats2KHR(VkPhysicalDevice physicalDevice, const VkPhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo, uint32_t* pSurfaceFormatCount, VkSurfaceFormat2KHR* pSurfaceFormats);
 // clang-format on
 
 }  // namespace driver
