@@ -43,6 +43,7 @@ struct ProcHook {
         KHR_shared_presentable_image,
         KHR_surface,
         KHR_swapchain,
+        KHR_get_surface_capabilities2,
         KHR_get_physical_device_properties2,
 
         EXTENSION_CORE,  // valid bit
