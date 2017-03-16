@@ -76,7 +76,6 @@ namespace android {
 class Client;
 class DisplayEventConnection;
 class EventThread;
-class IGraphicBufferAlloc;
 class Layer;
 class LayerDim;
 class Surface;
@@ -235,7 +234,6 @@ private:
      */
     virtual sp<ISurfaceComposerClient> createConnection();
     virtual sp<ISurfaceComposerClient> createScopedConnection(const sp<IGraphicBufferProducer>& gbp);
-    virtual sp<IGraphicBufferAlloc> createGraphicBufferAlloc();
     virtual sp<IBinder> createDisplay(const String8& displayName, bool secure);
     virtual void destroyDisplay(const sp<IBinder>& display);
     virtual sp<IBinder> getBuiltInDisplay(int32_t id);
