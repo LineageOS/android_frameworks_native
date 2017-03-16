@@ -33,9 +33,3 @@ LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
 LOCAL_MODULE := pose
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_EXECUTABLE)
-
-ifeq ($(TARGET_BUILD_VARIANT),eng)
-ALL_DEFAULT_INSTALLED_MODULES += pose
-all_modules: pose
-endif
-
