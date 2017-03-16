@@ -657,6 +657,28 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
         physicalDevice, pSurfaceInfo->surface,
         &pSurfaceCapabilities->surfaceCapabilities);
 
+    VkSurfaceCapabilities2KHR* caps = pSurfaceCapabilities;
+    while (caps->pNext) {
+        caps = reinterpret_cast<VkSurfaceCapabilities2KHR*>(caps->pNext);
+
+        switch (caps->sType) {
+            case VK_STRUCTURE_TYPE_SHARED_PRESENT_SURFACE_CAPABILITIES_KHR: {
+                VkSharedPresentSurfaceCapabilitiesKHR* shared_caps =
+                    reinterpret_cast<VkSharedPresentSurfaceCapabilitiesKHR*>(
+                        caps);
+                // Claim same set of usage flags are supported for
+                // shared present modes as for other modes.
+                shared_caps->sharedPresentSupportedUsageFlags =
+                    pSurfaceCapabilities->surfaceCapabilities
+                        .supportedUsageFlags;
+            } break;
+
+            default:
+                // Ignore all other extension structs
+                break;
+        }
+    }
+
     return result;
 }
 
