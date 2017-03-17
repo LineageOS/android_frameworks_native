@@ -118,6 +118,9 @@ DisplayDevice::DisplayDevice(
     mNativeWindow = surface = new Surface(producer, false);
     ANativeWindow* const window = mNativeWindow.get();
 
+#ifdef USE_HWC2
+    mActiveColorMode = static_cast<android_color_mode_t>(-1);
+#endif
     /*
      * Create our display's surface
      */
