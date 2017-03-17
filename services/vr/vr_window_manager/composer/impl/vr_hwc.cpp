@@ -312,32 +312,12 @@ Error VrHwc::getDisplayAttribute(Display display, Config config,
     return Error::BAD_CONFIG;
   }
 
-  int error = 0;
-  auto display_client = DisplayClient::Create(&error);
-  SystemDisplayMetrics metrics;
-
-  if (error) {
-    ALOGE("Could not connect to display service : %s(%d)", strerror(error), error);
-  } else {
-    error = display_client->GetDisplayMetrics(&metrics);
-
-    if (error) {
-      ALOGE("Could not get display metrics from display service : %s(%d)", strerror(error), error);
-    }
-  }
-
-  if (error) {
-    metrics.display_native_width = 1080;
-    metrics.display_native_height = 1920;
-    ALOGI("Setting display metrics to default : width=%d height=%d", metrics.display_native_width, metrics.display_native_height);
-  }
-
   switch (attribute) {
     case IComposerClient::Attribute::WIDTH:
-      *outValue = metrics.display_native_width;
+      *outValue = 1080;
       break;
     case IComposerClient::Attribute::HEIGHT:
-      *outValue = metrics.display_native_height;
+      *outValue = 1920;
       break;
     case IComposerClient::Attribute::VSYNC_PERIOD:
       *outValue = 1000 * 1000 * 1000 / 30;  // 30fps

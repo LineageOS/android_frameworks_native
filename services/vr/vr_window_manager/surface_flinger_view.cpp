@@ -39,29 +39,9 @@ bool SurfaceFlingerView::Initialize(HwcCallback::Client *client) {
   vr_composer_view_->Initialize(GetComposerViewFromIComposer(
       vr_hwcomposer_.get()));
 
-  int error = 0;
-  auto display_client = DisplayClient::Create(&error);
-  SystemDisplayMetrics metrics;
-
-  if (error) {
-    ALOGE("Could not connect to display service : %s(%d)", strerror(error), error);
-  } else {
-    error = display_client->GetDisplayMetrics(&metrics);
-
-    if (error) {
-      ALOGE("Could not get display metrics from display service : %s(%d)", strerror(error), error);
-    }
-  }
-
-  if (error) {
-    metrics.display_native_height = 1920;
-    metrics.display_native_width = 1080;
-    ALOGI("Setting display metrics to default : width=%d height=%d", metrics.display_native_height, metrics.display_native_width);
-  }
-
   // TODO(alexst): Refactor ShellView to account for orientation and change this back.
-  width_ = metrics.display_native_height;
-  height_ = metrics.display_native_width;
+  width_ = 1920;
+  height_ = 1080;
   return true;
 }
 
