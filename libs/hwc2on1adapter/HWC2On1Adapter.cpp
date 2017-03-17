@@ -245,6 +245,11 @@ hwc2_function_pointer_t HWC2On1Adapter::doGetFunction(
             return asFP<HWC2_PFN_VALIDATE_DISPLAY>(
                     displayHook<decltype(&Display::validate),
                     &Display::validate, uint32_t*, uint32_t*>);
+        case FunctionDescriptor::GetClientTargetSupport:
+            return asFP<HWC2_PFN_GET_CLIENT_TARGET_SUPPORT>(
+                    displayHook<decltype(&Display::getClientTargetSupport),
+                    &Display::getClientTargetSupport, uint32_t, uint32_t,
+                                                      int32_t, int32_t>);
 
         // Layer functions
         case FunctionDescriptor::SetCursorPosition:
@@ -1007,6 +1012,22 @@ Error HWC2On1Adapter::Display::updateLayerZ(hwc2_layer_t layerId, uint32_t z) {
     markGeometryChanged();
 
     return Error::None;
+}
+
+Error HWC2On1Adapter::Display::getClientTargetSupport(uint32_t width, uint32_t height,
+                                      int32_t format, int32_t dataspace){
+    if (mActiveConfig == nullptr) {
+        return Error::Unsupported;
+    }
+
+    if (width == mActiveConfig->getAttribute(Attribute::Width) &&
+            height == mActiveConfig->getAttribute(Attribute::Height) &&
+            format == HAL_PIXEL_FORMAT_RGBA_8888 &&
+            dataspace == HAL_DATASPACE_UNKNOWN) {
+        return Error::None;
+    }
+
+    return Error::Unsupported;
 }
 
 static constexpr uint32_t ATTRIBUTES_WITH_COLOR[] = {
