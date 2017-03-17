@@ -115,6 +115,7 @@ bool SurfaceFlinger::useContextPriority;
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
 bool SurfaceFlinger::useHwcForRgbToYuv;
 uint64_t SurfaceFlinger::maxVirtualDisplaySize;
+bool SurfaceFlinger::hasSyncFramework;
 
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
@@ -151,7 +152,6 @@ SurfaceFlinger::SurfaceFlinger()
         mLastSwapTime(0),
         mNumLayers(0)
 {
-
     ALOGI("SurfaceFlinger is starting");
 
     vsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
@@ -162,6 +162,9 @@ SurfaceFlinger::SurfaceFlinger()
 
     maxVirtualDisplaySize = getUInt64<ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::maxVirtualDisplaySize>(0);
+
+    hasSyncFramework = getBool< ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::hasSyncFramework>(true);
 
     useContextPriority = getBool< ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::useContextPriority>(false);
@@ -1285,7 +1288,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         }
     }
 
-    if (kIgnorePresentFences) {
+    if (!hasSyncFramework) {
         if (hw->isDisplayOn()) {
             enableHardwareVsync();
         }
@@ -3021,6 +3024,7 @@ void SurfaceFlinger::appendSfConfigString(String8& result) const
     result.appendFormat(" PRESENT_TIME_OFFSET=%" PRId64, dispSyncPresentTimeOffset);
     result.appendFormat(" FORCE_HWC_FOR_RBG_TO_YUV=%d", useHwcForRgbToYuv);
     result.appendFormat(" MAX_VIRT_DISPLAY_DIM=%" PRIu64, maxVirtualDisplaySize);
+    result.appendFormat(" RUNNING_WITHOUT_SYNC_FRAMEWORK=%d", !hasSyncFramework);
     result.append("]");
 }
 
