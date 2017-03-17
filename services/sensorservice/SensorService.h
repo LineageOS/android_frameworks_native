@@ -158,6 +158,8 @@ private:
     virtual int isDataInjectionEnabled();
     virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
             uint32_t size, int32_t type, int32_t format, const native_handle *resource);
+    virtual int setOperationParameter(
+            int32_t type, const Vector<float> &floats, const Vector<int32_t> &ints);
     virtual status_t dump(int fd, const Vector<String16>& args);
 
     String8 getSensorName(int handle) const;
