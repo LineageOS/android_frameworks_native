@@ -248,6 +248,9 @@ private:
 
             HWC2::Error updateLayerZ(hwc2_layer_t layerId, uint32_t z);
 
+            HWC2::Error getClientTargetSupport(uint32_t width, uint32_t height,
+                     int32_t format, int32_t dataspace);
+
             // Read configs from HWC1 device
             void populateConfigs();
 
