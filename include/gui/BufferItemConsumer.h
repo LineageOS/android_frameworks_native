@@ -37,6 +37,10 @@ class BufferItemConsumer: public ConsumerBase
   public:
     typedef ConsumerBase::FrameAvailableListener FrameAvailableListener;
 
+    struct BufferFreedListener : public virtual RefBase {
+        virtual void onBufferFreed(const wp<GraphicBuffer>& graphicBuffer) = 0;
+    };
+
     enum { DEFAULT_MAX_BUFFERS = -1 };
     enum { INVALID_BUFFER_SLOT = BufferQueue::INVALID_BUFFER_SLOT };
     enum { NO_BUFFER_AVAILABLE = BufferQueue::NO_BUFFER_AVAILABLE };
@@ -56,6 +60,10 @@ class BufferItemConsumer: public ConsumerBase
     // set the name of the BufferItemConsumer that will be used to identify it in
     // log messages.
     void setName(const String8& name);
+
+    // setBufferFreedListener sets the listener object that will be notified
+    // when an old buffer is being freed.
+    void setBufferFreedListener(const wp<BufferFreedListener>& listener);
 
     // Gets the next graphics buffer from the producer, filling out the
     // passed-in BufferItem structure. Returns NO_BUFFER_AVAILABLE if the queue
@@ -81,6 +89,13 @@ class BufferItemConsumer: public ConsumerBase
     status_t releaseBuffer(const BufferItem &item,
             const sp<Fence>& releaseFence = Fence::NO_FENCE);
 
+   private:
+    void freeBufferLocked(int slotIndex) override;
+
+    // mBufferFreedListener is the listener object that will be called when
+    // an old buffer is being freed. If it is not NULL it will be called from
+    // freeBufferLocked.
+    wp<BufferFreedListener> mBufferFreedListener;
 };
 
 } // namespace android
