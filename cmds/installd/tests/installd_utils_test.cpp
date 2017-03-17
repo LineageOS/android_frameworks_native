@@ -521,29 +521,50 @@ TEST_F(UtilsTest, IsValidPackageName) {
 }
 
 TEST_F(UtilsTest, CreateDataUserProfilePath) {
-    EXPECT_EQ("/data/misc/profiles/cur/0", create_data_user_profile_path(0));
-    EXPECT_EQ("/data/misc/profiles/cur/1", create_data_user_profile_path(1));
+    EXPECT_EQ("/data/misc/profiles/cur/0", create_primary_cur_profile_dir_path(0));
+    EXPECT_EQ("/data/misc/profiles/cur/1", create_primary_cur_profile_dir_path(1));
 }
 
 TEST_F(UtilsTest, CreateDataUserProfilePackagePath) {
     EXPECT_EQ("/data/misc/profiles/cur/0/com.example",
-            create_data_user_profile_package_path(0, "com.example"));
+            create_primary_current_profile_package_dir_path(0, "com.example"));
     EXPECT_EQ("/data/misc/profiles/cur/1/com.example",
-            create_data_user_profile_package_path(1, "com.example"));
+            create_primary_current_profile_package_dir_path(1, "com.example"));
 }
 
 TEST_F(UtilsTest, CreateDataRefProfilePath) {
-    EXPECT_EQ("/data/misc/profiles/ref", create_data_ref_profile_path());
+    EXPECT_EQ("/data/misc/profiles/ref", create_primary_ref_profile_dir_path());
 }
 
 TEST_F(UtilsTest, CreateDataRefProfilePackagePath) {
     EXPECT_EQ("/data/misc/profiles/ref/com.example",
-        create_data_ref_profile_package_path("com.example"));
+        create_primary_reference_profile_package_dir_path("com.example"));
 }
 
-TEST_F(UtilsTest, CreatePrimaryProfile) {
-    EXPECT_EQ("/data/misc/profiles/ref/com.example/primary.prof",
-        create_primary_profile("/data/misc/profiles/ref/com.example"));
+TEST_F(UtilsTest, CreatePrimaryCurrentProfile) {
+    std::string expected =
+        create_primary_current_profile_package_dir_path(1, "com.example") + "/primary.prof";
+    EXPECT_EQ(expected,
+            create_current_profile_path(/*user*/0, "com.example", /*is_secondary*/false));
+}
+
+TEST_F(UtilsTest, CreatePrimaryReferenceProfile) {
+    std::string expected =
+        create_primary_reference_profile_package_dir_path("com.example") + "/primary.prof";
+    EXPECT_EQ(expected,
+            create_reference_profile_path("com.example", /*is_secondary*/false));
+}
+
+TEST_F(UtilsTest, CreateSecondaryCurrentProfile) {
+    EXPECT_EQ("/data/user/0/com.example/secondary.dex.prof",
+            create_current_profile_path(/*user*/0,
+                    "/data/user/0/com.example/secondary.dex", /*is_secondary*/true));
+}
+
+TEST_F(UtilsTest, CreateSecondaryReferenceProfile) {
+    EXPECT_EQ("/data/user/0/com.example/oat/secondary.dex.prof",
+            create_reference_profile_path(
+                    "/data/user/0/com.example/secondary.dex", /*is_secondary*/true));
 }
 
 }  // namespace installd
