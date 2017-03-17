@@ -99,7 +99,6 @@ EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint na
 
 namespace android {
 
-
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 
@@ -116,7 +115,6 @@ int64_t SurfaceFlinger::sfVsyncPhaseOffsetNs;
 bool SurfaceFlinger::useContextPriority;
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
 bool SurfaceFlinger::useHwcForRgbToYuv;
-uint64_t SurfaceFlinger::maxVirtualDisplaySize;
 
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
@@ -177,9 +175,6 @@ SurfaceFlinger::SurfaceFlinger()
 
     useHwcForRgbToYuv = getBool< ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::useHwcForRGBtoYUV>(false);
-
-    maxVirtualDisplaySize = getUInt64<ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::maxVirtualDisplaySize>(0);
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
@@ -3248,7 +3243,6 @@ void SurfaceFlinger::appendSfConfigString(String8& result) const
 
     result.appendFormat(" PRESENT_TIME_OFFSET=%" PRId64 , dispSyncPresentTimeOffset);
     result.appendFormat(" FORCE_HWC_FOR_RBG_TO_YUV=%d", useHwcForRgbToYuv);
-    result.appendFormat(" MAX_VIRT_DISPLAY_DIM=%" PRIu64, maxVirtualDisplaySize);
     result.append("]");
 }
 
