@@ -97,8 +97,6 @@ enum {
     AHARDWAREBUFFER_USAGE0_GPU_SAMPLED_IMAGE      = 1ULL << 10,
     /* The buffer will be written to by the GPU */
     AHARDWAREBUFFER_USAGE0_GPU_COLOR_OUTPUT       = 1ULL << 11,
-    /* The buffer will be used as a cubemap texture */
-    AHARDWAREBUFFER_USAGE0_GPU_CUBEMAP            = 1ULL << 13,
     /* The buffer will be used as a shader storage or uniform buffer object*/
     AHARDWAREBUFFER_USAGE0_GPU_DATA_BUFFER        = 1ULL << 14,
     /* The buffer must not be used outside of a protected hardware path */
