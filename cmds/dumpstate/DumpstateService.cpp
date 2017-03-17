@@ -97,6 +97,8 @@ status_t DumpstateService::dump(int fd, const Vector<String16>&) {
     dprintf(fd, "now: %ld\n", ds_.now_);
     dprintf(fd, "is_zipping: %s\n", ds_.IsZipping() ? "true" : "false");
     dprintf(fd, "listener: %s\n", ds_.listener_name_.c_str());
+    dprintf(fd, "notification title: %s\n", ds_.notification_title.c_str());
+    dprintf(fd, "notification description: %s\n", ds_.notification_description.c_str());
 
     return NO_ERROR;
 }

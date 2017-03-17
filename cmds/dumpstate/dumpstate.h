@@ -333,6 +333,10 @@ class Dumpstate {
     android::sp<android::os::IDumpstateListener> listener_;
     std::string listener_name_;
 
+    // Notification title and description
+    std::string notification_title;
+    std::string notification_description;
+
   private:
     // Used by GetInstance() only.
     Dumpstate(const std::string& version = VERSION_CURRENT);

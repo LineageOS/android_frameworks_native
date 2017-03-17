@@ -116,6 +116,8 @@ static const std::string kDumpstateBoardPath = "/bugreports/dumpstate_board.txt"
 static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
 static constexpr char PROPERTY_LAST_ID[] = "dumpstate.last_id";
 static constexpr char PROPERTY_VERSION[] = "dumpstate.version";
+static constexpr char PROPERTY_EXTRA_TITLE[] = "dumpstate.options.title";
+static constexpr char PROPERTY_EXTRA_DESCRIPTION[] = "dumpstate.options.description";
 
 static const CommandOptions AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot().Build();
 
@@ -1437,6 +1439,20 @@ int main(int argc, char *argv[]) {
         android::base::SetProperty(PROPERTY_EXTRA_OPTIONS, "");
     }
 
+    ds.notification_title = android::base::GetProperty(PROPERTY_EXTRA_TITLE, "");
+    if (!ds.notification_title.empty()) {
+        // Reset the property
+        android::base::SetProperty(PROPERTY_EXTRA_TITLE, "");
+
+        ds.notification_description = android::base::GetProperty(PROPERTY_EXTRA_DESCRIPTION, "");
+        if (!ds.notification_description.empty()) {
+            // Reset the property
+            android::base::SetProperty(PROPERTY_EXTRA_DESCRIPTION, "");
+        }
+        MYLOGD("notification (title:  %s, description: %s)\n",
+               ds.notification_title.c_str(), ds.notification_description.c_str());
+    }
+
     if ((do_zip_file || do_add_date || ds.update_progress_ || do_broadcast) && !use_outfile) {
         ExitOnInvalidArgs();
     }
@@ -1798,6 +1814,16 @@ int main(int argc, char *argv[]) {
                 am_args.push_back("--es");
                 am_args.push_back("android.intent.extra.SCREENSHOT");
                 am_args.push_back(ds.screenshot_path_);
+            }
+            if (!ds.notification_title.empty()) {
+                am_args.push_back("--es");
+                am_args.push_back("android.intent.extra.TITLE");
+                am_args.push_back(ds.notification_title);
+                if (!ds.notification_description.empty()) {
+                    am_args.push_back("--es");
+                    am_args.push_back("android.intent.extra.DESCRIPTION");
+                    am_args.push_back(ds.notification_description);
+                }
             }
             if (is_remote_mode) {
                 am_args.push_back("--es");
