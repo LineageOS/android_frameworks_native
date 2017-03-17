@@ -72,8 +72,8 @@ class VirtualTouchpadClientImpl : public VirtualTouchpadClient {
 
 }  // anonymous namespace
 
-sp<VirtualTouchpad> VirtualTouchpadClient::Create() {
-  return new VirtualTouchpadClientImpl();
+std::unique_ptr<VirtualTouchpad> VirtualTouchpadClient::Create() {
+  return std::unique_ptr<VirtualTouchpad>(new VirtualTouchpadClientImpl());
 }
 
 }  // namespace dvr

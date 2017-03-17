@@ -1,8 +1,6 @@
 #ifndef ANDROID_DVR_VIRTUAL_TOUCHPAD_EVDEV_H
 #define ANDROID_DVR_VIRTUAL_TOUCHPAD_EVDEV_H
 
-#include <memory>
-
 #include "EvdevInjector.h"
 #include "VirtualTouchpad.h"
 
@@ -15,7 +13,8 @@ class EvdevInjector;
 //
 class VirtualTouchpadEvdev : public VirtualTouchpad {
  public:
-  static sp<VirtualTouchpad> Create();
+  static std::unique_ptr<VirtualTouchpad> Create();
+  ~VirtualTouchpadEvdev() override {}
 
   // VirtualTouchpad implementation:
   status_t Attach() override;
@@ -28,7 +27,6 @@ class VirtualTouchpadEvdev : public VirtualTouchpad {
   static constexpr int kTouchpads = 2;
 
   VirtualTouchpadEvdev() {}
-  ~VirtualTouchpadEvdev() override {}
   void Reset();
 
   // Must be called only between construction (or Detach()) and Attach().

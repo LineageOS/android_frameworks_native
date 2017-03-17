@@ -13,8 +13,8 @@ namespace dvr {
 //
 class VirtualTouchpadService : public BnVirtualTouchpadService {
  public:
-  VirtualTouchpadService(sp<VirtualTouchpad> touchpad)
-      : touchpad_(touchpad), client_pid_(0) {}
+  VirtualTouchpadService(std::unique_ptr<VirtualTouchpad> touchpad)
+      : touchpad_(std::move(touchpad)), client_pid_(0) {}
   ~VirtualTouchpadService() override;
 
  protected:
@@ -31,7 +31,7 @@ class VirtualTouchpadService : public BnVirtualTouchpadService {
   bool CheckPermissions();
   bool CheckTouchPermission(pid_t* out_pid);
 
-  sp<VirtualTouchpad> touchpad_;
+  std::unique_ptr<VirtualTouchpad> touchpad_;
 
   // Only one client at a time can use the virtual touchpad.
   pid_t client_pid_;
