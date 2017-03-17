@@ -114,6 +114,7 @@ int64_t SurfaceFlinger::sfVsyncPhaseOffsetNs;
 bool SurfaceFlinger::useContextPriority;
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
 bool SurfaceFlinger::useHwcForRgbToYuv;
+uint64_t SurfaceFlinger::maxVirtualDisplaySize;
 
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
@@ -150,13 +151,17 @@ SurfaceFlinger::SurfaceFlinger()
         mLastSwapTime(0),
         mNumLayers(0)
 {
+
+    ALOGI("SurfaceFlinger is starting");
+
     vsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::vsyncEventPhaseOffsetNs>(1000000);
 
     sfVsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::vsyncSfEventPhaseOffsetNs>(1000000);
 
-    ALOGI("SurfaceFlinger is starting");
+    maxVirtualDisplaySize = getUInt64<ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::maxVirtualDisplaySize>(0);
 
     useContextPriority = getBool< ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::useContextPriority>(false);
@@ -1701,9 +1706,9 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                             ALOGE_IF(status != NO_ERROR,
                                     "Unable to query height (%d)", status);
                             if (mUseHwcVirtualDisplays &&
-                                    (MAX_VIRTUAL_DISPLAY_DIMENSION == 0 ||
-                                    (width <= MAX_VIRTUAL_DISPLAY_DIMENSION &&
-                                     height <= MAX_VIRTUAL_DISPLAY_DIMENSION))) {
+                                    (SurfaceFlinger::maxVirtualDisplaySize == 0 ||
+                                    (width <= SurfaceFlinger::maxVirtualDisplaySize &&
+                                     height <= SurfaceFlinger::maxVirtualDisplaySize))) {
                                 hwcDisplayId = allocateHwcDisplayId(state.type);
                             }
 
@@ -3015,6 +3020,7 @@ void SurfaceFlinger::appendSfConfigString(String8& result) const
 
     result.appendFormat(" PRESENT_TIME_OFFSET=%" PRId64, dispSyncPresentTimeOffset);
     result.appendFormat(" FORCE_HWC_FOR_RBG_TO_YUV=%d", useHwcForRgbToYuv);
+    result.appendFormat(" MAX_VIRT_DISPLAY_DIM=%" PRIu64, maxVirtualDisplaySize);
     result.append("]");
 }
 

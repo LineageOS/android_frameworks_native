@@ -267,12 +267,12 @@ status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
         return NO_MEMORY;
     }
 
-    if (MAX_VIRTUAL_DISPLAY_DIMENSION != 0 &&
-        (width > MAX_VIRTUAL_DISPLAY_DIMENSION ||
-         height > MAX_VIRTUAL_DISPLAY_DIMENSION)) {
+    if (SurfaceFlinger::maxVirtualDisplaySize != 0 &&
+        (width > SurfaceFlinger::maxVirtualDisplaySize ||
+         height > SurfaceFlinger::maxVirtualDisplaySize)) {
         ALOGE("createVirtualDisplay: Can't create a virtual display with"
-                      " a dimension > %u (tried %u x %u)",
-              MAX_VIRTUAL_DISPLAY_DIMENSION, width, height);
+                      " a dimension > %" PRIu64 " (tried %u x %u)",
+              SurfaceFlinger::maxVirtualDisplaySize, width, height);
         return INVALID_OPERATION;
     }
 
