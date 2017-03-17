@@ -466,6 +466,9 @@ private:
     void updateCompositorTiming(
             nsecs_t vsyncPhase, nsecs_t vsyncInterval, nsecs_t compositeTime,
             std::shared_ptr<FenceTime>& presentFenceTime);
+    void setCompositorTimingSnapped(
+            nsecs_t vsyncPhase, nsecs_t vsyncInterval,
+            nsecs_t compositeToPresentLatency);
     void rebuildLayerStacks();
     void setUpHWComposer();
     void doComposition();
@@ -636,7 +639,7 @@ private:
     bool mHWVsyncAvailable;
 
     // protected by mCompositorTimingLock;
-    mutable std::mutex mCompositeTimingLock;
+    mutable std::mutex mCompositorTimingLock;
     CompositorTiming mCompositorTiming;
 
     // Only accessed from the main thread.

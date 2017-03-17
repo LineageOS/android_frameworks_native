@@ -52,6 +52,8 @@ protected:
         mComposerClient = new SurfaceComposerClient;
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
 
+        // TODO(brianderson): The following sometimes fails and is a source of
+        //   test flakiness.
         mSurfaceControl = mComposerClient->createSurface(
                 String8("Test Surface"), 32, 32, PIXEL_FORMAT_RGBA_8888, 0);
 
@@ -526,7 +528,7 @@ public:
 };
 
 
-class GetFrameTimestampsTest : public SurfaceTest {
+class GetFrameTimestampsTest : public ::testing::Test {
 protected:
     struct FenceAndFenceTime {
         explicit FenceAndFenceTime(FenceToFenceTimeMap& fenceMap)
@@ -616,11 +618,9 @@ protected:
         RefreshEvents mRefreshes[3];
     };
 
-    GetFrameTimestampsTest() : SurfaceTest() {}
+    GetFrameTimestampsTest() {}
 
     virtual void SetUp() {
-        SurfaceTest::SetUp();
-
         BufferQueue::createBufferQueue(&mProducer, &mConsumer);
         mFakeConsumer = new FakeConsumer;
         mCfeh = &mFakeConsumer->mFrameEventHistory;

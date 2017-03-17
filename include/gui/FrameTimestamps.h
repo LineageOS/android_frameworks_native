@@ -105,7 +105,7 @@ struct FrameEvents {
 struct CompositorTiming {
     nsecs_t deadline{0};
     nsecs_t interval{16666667};
-    nsecs_t presentLatency{0};
+    nsecs_t presentLatency{16666667};
 };
 
 // A short history of frames that are synchronized between the consumer and
