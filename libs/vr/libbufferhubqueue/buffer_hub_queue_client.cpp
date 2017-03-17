@@ -13,9 +13,6 @@
 #include <pdx/file_handle.h>
 #include <private/dvr/bufferhub_rpc.h>
 
-using android::pdx::LocalHandle;
-using android::pdx::LocalChannelHandle;
-
 namespace android {
 namespace dvr {
 
@@ -28,6 +25,7 @@ BufferHubQueue::BufferHubQueue(LocalChannelHandle channel_handle,
       buffers_(BufferHubQueue::kMaxQueueCapacity),
       epollhup_pending_(BufferHubQueue::kMaxQueueCapacity, false),
       available_buffers_(BufferHubQueue::kMaxQueueCapacity),
+      fences_(BufferHubQueue::kMaxQueueCapacity),
       capacity_(0) {
   Initialize();
 }
@@ -41,6 +39,7 @@ BufferHubQueue::BufferHubQueue(const std::string& endpoint_path,
       buffers_(BufferHubQueue::kMaxQueueCapacity),
       epollhup_pending_(BufferHubQueue::kMaxQueueCapacity, false),
       available_buffers_(BufferHubQueue::kMaxQueueCapacity),
+      fences_(BufferHubQueue::kMaxQueueCapacity),
       capacity_(0) {
   Initialize();
 }
@@ -134,7 +133,7 @@ void BufferHubQueue::HandleBufferEvent(size_t slot, const epoll_event& event) {
 
   int events = status.get();
   if (events & EPOLLIN) {
-    int ret = OnBufferReady(buffer);
+    int ret = OnBufferReady(buffer, &fences_[slot]);
     if (ret < 0) {
       ALOGE("Failed to set buffer ready: %s", strerror(-ret));
       return;
@@ -254,7 +253,8 @@ void BufferHubQueue::Enqueue(std::shared_ptr<BufferHubBuffer> buf,
 
 std::shared_ptr<BufferHubBuffer> BufferHubQueue::Dequeue(int timeout,
                                                          size_t* slot,
-                                                         void* meta) {
+                                                         void* meta,
+                                                         LocalHandle* fence) {
   ALOGD("Dequeue: count=%zu, timeout=%d", count(), timeout);
 
   if (count() == 0 && !WaitForBuffers(timeout))
@@ -262,6 +262,8 @@ std::shared_ptr<BufferHubBuffer> BufferHubQueue::Dequeue(int timeout,
 
   std::shared_ptr<BufferHubBuffer> buf;
   BufferInfo& buffer_info = available_buffers_.Front();
+
+  *fence = std::move(fences_[buffer_info.slot]);
 
   // Report current pos as the output slot.
   std::swap(buffer_info.slot, *slot);
@@ -373,15 +375,21 @@ int ProducerQueue::DetachBuffer(size_t slot) {
   return BufferHubQueue::DetachBuffer(slot);
 }
 
-std::shared_ptr<BufferProducer> ProducerQueue::Dequeue(int timeout,
-                                                       size_t* slot) {
-  auto buf = BufferHubQueue::Dequeue(timeout, slot, nullptr);
+std::shared_ptr<BufferProducer> ProducerQueue::Dequeue(
+    int timeout, size_t* slot, LocalHandle* release_fence) {
+  if (slot == nullptr || release_fence == nullptr) {
+    ALOGE("invalid parameter, slot=%p, release_fence=%p", slot, release_fence);
+    return nullptr;
+  }
+
+  auto buf = BufferHubQueue::Dequeue(timeout, slot, nullptr, release_fence);
   return std::static_pointer_cast<BufferProducer>(buf);
 }
 
-int ProducerQueue::OnBufferReady(std::shared_ptr<BufferHubBuffer> buf) {
+int ProducerQueue::OnBufferReady(std::shared_ptr<BufferHubBuffer> buf,
+                                 LocalHandle* release_fence) {
   auto buffer = std::static_pointer_cast<BufferProducer>(buf);
-  return buffer->GainAsync();
+  return buffer->Gain(release_fence);
 }
 
 ConsumerQueue::ConsumerQueue(LocalChannelHandle handle, size_t meta_size)
@@ -431,9 +439,9 @@ int ConsumerQueue::AddBuffer(const std::shared_ptr<BufferConsumer>& buf,
   return BufferHubQueue::AddBuffer(buf, slot);
 }
 
-std::shared_ptr<BufferConsumer> ConsumerQueue::Dequeue(int timeout,
-                                                       size_t* slot, void* meta,
-                                                       size_t meta_size) {
+std::shared_ptr<BufferConsumer> ConsumerQueue::Dequeue(
+    int timeout, size_t* slot, void* meta, size_t meta_size,
+    LocalHandle* acquire_fence) {
   if (meta_size != meta_size_) {
     ALOGE(
         "metadata size (%zu) for the dequeuing buffer does not match metadata "
@@ -441,14 +449,21 @@ std::shared_ptr<BufferConsumer> ConsumerQueue::Dequeue(int timeout,
         meta_size, meta_size_);
     return nullptr;
   }
-  auto buf = BufferHubQueue::Dequeue(timeout, slot, meta);
+
+  if (slot == nullptr || meta == nullptr || acquire_fence == nullptr) {
+    ALOGE("invalid parameter, slot=%p, meta=%p, acquire_fence=%p", slot, meta,
+          acquire_fence);
+    return nullptr;
+  }
+
+  auto buf = BufferHubQueue::Dequeue(timeout, slot, meta, acquire_fence);
   return std::static_pointer_cast<BufferConsumer>(buf);
 }
 
-int ConsumerQueue::OnBufferReady(std::shared_ptr<BufferHubBuffer> buf) {
+int ConsumerQueue::OnBufferReady(std::shared_ptr<BufferHubBuffer> buf,
+                                 LocalHandle* acquire_fence) {
   auto buffer = std::static_pointer_cast<BufferConsumer>(buf);
-  LocalHandle fence;
-  return buffer->Acquire(&fence, meta_buffer_tmp_.get(), meta_size_);
+  return buffer->Acquire(acquire_fence, meta_buffer_tmp_.get(), meta_size_);
 }
 
 int ConsumerQueue::OnBufferAllocated() {
