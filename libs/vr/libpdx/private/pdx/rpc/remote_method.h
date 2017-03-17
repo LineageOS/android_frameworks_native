@@ -25,10 +25,9 @@ struct Void {};
 // Evaluates to true if the method type is <any>(Void), false otherwise.
 template <typename RemoteMethodType>
 using IsVoidMethod = typename std::integral_constant<
-    bool,
-    RemoteMethodType::Traits::Arity == 1 &&
-        std::is_same<typename RemoteMethodType::Traits::template Arg<0>,
-                     Void>::value>;
+    bool, RemoteMethodType::Traits::Arity == 1 &&
+              std::is_same<typename RemoteMethodType::Traits::template Arg<0>,
+                           Void>::value>;
 
 // Utility to determine if a method is of type <any>(Void).
 template <typename RemoteMethodType>
@@ -274,7 +273,9 @@ template <typename RemoteMethodType, ChannelHandleMode Mode, typename Class,
 void DispatchRemoteMethod(
     Class& instance, ChannelHandle<Mode> (Class::*method)(Message&, Args...),
     Message& message, std::size_t max_capacity = InitialBufferCapacity) {
-  using Signature = typename RemoteMethodType::template RewriteArgs<Args...>;
+  using Signature =
+      typename RemoteMethodType::template RewriteSignature<ChannelHandle<Mode>,
+                                                           Args...>;
   rpc::ServicePayload<ReceiveBuffer> payload(message);
   payload.Resize(max_capacity);
 
