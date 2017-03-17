@@ -52,6 +52,31 @@ static status_t StatusFromResult(Result result) {
 }
 
 SensorDevice::SensorDevice() : mHidlTransportErrors(20) {
+    if (!connectHidlService()) {
+        return;
+    }
+    checkReturn(mSensors->getSensorsList(
+            [&](const auto &list) {
+                const size_t count = list.size();
+
+                mActivationCount.setCapacity(count);
+                Info model;
+                for (size_t i=0 ; i < count; i++) {
+                    sensor_t sensor;
+                    convertToSensor(list[i], &sensor);
+                    mSensorList.push_back(sensor);
+
+                    mActivationCount.add(list[i].sensorHandle, model);
+
+                    checkReturn(mSensors->activate(list[i].sensorHandle, 0 /* enabled */));
+                }
+            }));
+
+    mIsDirectReportSupported =
+           (checkReturn(mSensors->unregisterDirectChannel(-1)) != Result::INVALID_OPERATION);
+}
+
+bool SensorDevice::connectHidlService() {
     // SensorDevice may wait upto 100ms * 10 = 1s for hidl service.
     constexpr auto RETRY_DELAY = std::chrono::milliseconds(100);
     size_t retry = 10;
@@ -74,7 +99,7 @@ SensorDevice::SensorDevice() : mHidlTransportErrors(20) {
 
         if (--retry <= 0) {
             ALOGE("Cannot connect to ISensors hidl service!");
-            return;
+            break;
         }
         // Delay 100ms before retry, hidl service is expected to come up in short time after
         // crash.
@@ -82,29 +107,11 @@ SensorDevice::SensorDevice() : mHidlTransportErrors(20) {
                 (initStep == 0) ? "getService()" : "poll() check", retry);
         std::this_thread::sleep_for(RETRY_DELAY);
     }
-
-    checkReturn(mSensors->getSensorsList(
-            [&](const auto &list) {
-                const size_t count = list.size();
-
-                mActivationCount.setCapacity(count);
-                Info model;
-                for (size_t i=0 ; i < count; i++) {
-                    sensor_t sensor;
-                    convertToSensor(list[i], &sensor);
-                    mSensorList.push_back(sensor);
-
-                    mActivationCount.add(list[i].sensorHandle, model);
-
-                    checkReturn(mSensors->activate(list[i].sensorHandle, 0 /* enabled */));
-                }
-            }));
-
-    mIsDirectReportSupported =
-           (checkReturn(mSensors->unregisterDirectChannel(-1)) != Result::INVALID_OPERATION);
+    return (mSensors != nullptr);
 }
 
 void SensorDevice::handleDynamicSensorConnection(int handle, bool connected) {
+    // not need to check mSensors because this is is only called after successful poll()
     if (connected) {
         Info model;
         mActivationCount.add(handle, model);
@@ -115,63 +122,37 @@ void SensorDevice::handleDynamicSensorConnection(int handle, bool connected) {
 }
 
 std::string SensorDevice::dump() const {
-    if (mSensors == NULL) return "HAL not initialized\n";
+    if (mSensors == nullptr) return "HAL not initialized\n";
 
     String8 result;
+    result.appendFormat("Total %zu h/w sensors, %zu running:\n",
+                        mSensorList.size(), mActivationCount.size());
 
-    result.appendFormat("Saw %d hidlTransport Errors\n", mTotalHidlTransportErrors);
-    for (auto it = mHidlTransportErrors.begin() ; it != mHidlTransportErrors.end(); it++ ) {
-        result += "\t";
-        result += it->toString();
-        result += "\n";
+    Mutex::Autolock _l(mLock);
+    for (const auto & s : mSensorList) {
+        int32_t handle = s.handle;
+        const Info& info = mActivationCount.valueFor(handle);
+        if (info.batchParams.isEmpty()) continue;
+
+        result.appendFormat("0x%08x) active-count = %zu; ", handle, info.batchParams.size());
+
+        result.append("sampling_period(ms) = {");
+        for (size_t j = 0; j < info.batchParams.size(); j++) {
+            const BatchParams& params = info.batchParams.valueAt(j);
+            result.appendFormat("%.1f%s", params.batchDelay / 1e6f,
+                j < info.batchParams.size() - 1 ? ", " : "");
+        }
+        result.appendFormat("}, selected = %.1f ms; ", info.bestBatchParams.batchDelay / 1e6f);
+
+        result.append("batching_period(ms) = {");
+        for (size_t j = 0; j < info.batchParams.size(); j++) {
+            BatchParams params = info.batchParams.valueAt(j);
+
+            result.appendFormat("%.1f%s", params.batchTimeout / 1e6f,
+                    j < info.batchParams.size() - 1 ? ", " : "");
+        }
+        result.appendFormat("}, selected = %.1f ms\n", info.bestBatchParams.batchTimeout / 1e6f);
     }
-
-    checkReturn(mSensors->getSensorsList([&](const auto &list){
-            const size_t count = list.size();
-
-            result.appendFormat(
-                "Total %zu h/w sensors, %zu running:\n",
-                count,
-                mActivationCount.size());
-
-            Mutex::Autolock _l(mLock);
-            for (size_t i = 0 ; i < count ; i++) {
-                const Info& info = mActivationCount.valueFor(
-                    list[i].sensorHandle);
-
-                if (info.batchParams.isEmpty()) continue;
-                result.appendFormat(
-                    "0x%08x) active-count = %zu; ",
-                    list[i].sensorHandle,
-                    info.batchParams.size());
-
-                result.append("sampling_period(ms) = {");
-                for (size_t j = 0; j < info.batchParams.size(); j++) {
-                    const BatchParams& params = info.batchParams.valueAt(j);
-                    result.appendFormat(
-                        "%.1f%s",
-                        params.batchDelay / 1e6f,
-                        j < info.batchParams.size() - 1 ? ", " : "");
-                }
-                result.appendFormat(
-                        "}, selected = %.1f ms; ",
-                        info.bestBatchParams.batchDelay / 1e6f);
-
-                result.append("batching_period(ms) = {");
-                for (size_t j = 0; j < info.batchParams.size(); j++) {
-                    BatchParams params = info.batchParams.valueAt(j);
-
-                    result.appendFormat(
-                            "%.1f%s",
-                            params.batchTimeout / 1e6f,
-                            j < info.batchParams.size() - 1 ? ", " : "");
-                }
-
-                result.appendFormat(
-                        "}, selected = %.1f ms\n",
-                        info.bestBatchParams.batchTimeout / 1e6f);
-            }
-        }));
 
     return result.string();
 }
@@ -187,7 +168,7 @@ status_t SensorDevice::initCheck() const {
 }
 
 ssize_t SensorDevice::poll(sensors_event_t* buffer, size_t count) {
-    if (mSensors == NULL) return NO_INIT;
+    if (mSensors == nullptr) return NO_INIT;
 
     ssize_t err;
     int numHidlTransportErrors = 0;
@@ -239,7 +220,7 @@ void SensorDevice::autoDisable(void *ident, int handle) {
 }
 
 status_t SensorDevice::activate(void* ident, int handle, int enabled) {
-    if (mSensors == NULL) return NO_INIT;
+    if (mSensors == nullptr) return NO_INIT;
 
     status_t err(NO_ERROR);
     bool actuateHardware = false;
@@ -328,7 +309,7 @@ status_t SensorDevice::batch(
         int flags,
         int64_t samplingPeriodNs,
         int64_t maxBatchReportLatencyNs) {
-    if (mSensors == NULL) return NO_INIT;
+    if (mSensors == nullptr) return NO_INIT;
 
     if (samplingPeriodNs < MINIMUM_EVENTS_PERIOD) {
         samplingPeriodNs = MINIMUM_EVENTS_PERIOD;
@@ -382,7 +363,7 @@ status_t SensorDevice::batch(
 }
 
 status_t SensorDevice::setDelay(void* ident, int handle, int64_t samplingPeriodNs) {
-    if (mSensors == NULL) return NO_INIT;
+    if (mSensors == nullptr) return NO_INIT;
     if (samplingPeriodNs < MINIMUM_EVENTS_PERIOD) {
         samplingPeriodNs = MINIMUM_EVENTS_PERIOD;
     }
@@ -407,11 +388,12 @@ status_t SensorDevice::setDelay(void* ident, int handle, int64_t samplingPeriodN
 }
 
 int SensorDevice::getHalDeviceVersion() const {
-    if (mSensors == NULL) return -1;
+    if (mSensors == nullptr) return -1;
     return SENSORS_DEVICE_API_VERSION_1_4;
 }
 
 status_t SensorDevice::flush(void* ident, int handle) {
+    if (mSensors == nullptr) return NO_INIT;
     if (isClientDisabled(ident)) return INVALID_OPERATION;
     ALOGD_IF(DEBUG_CONNECTIONS, "\t>>> actuating h/w flush %d", handle);
     return StatusFromResult(checkReturn(mSensors->flush(handle)));
@@ -427,6 +409,7 @@ bool SensorDevice::isClientDisabledLocked(void* ident) {
 }
 
 void SensorDevice::enableAllSensors() {
+    if (mSensors == nullptr) return;
     Mutex::Autolock _l(mLock);
     mDisabledClients.clear();
     ALOGI("cleared mDisabledClients");
@@ -453,8 +436,9 @@ void SensorDevice::enableAllSensors() {
 }
 
 void SensorDevice::disableAllSensors() {
+    if (mSensors == nullptr) return;
     Mutex::Autolock _l(mLock);
-   for (size_t i = 0; i< mActivationCount.size(); ++i) {
+    for (size_t i = 0; i< mActivationCount.size(); ++i) {
         const Info& info = mActivationCount.valueAt(i);
         // Check if this sensor has been activated previously and disable it.
         if (info.batchParams.size() > 0) {
@@ -475,6 +459,7 @@ void SensorDevice::disableAllSensors() {
 
 status_t SensorDevice::injectSensorData(
         const sensors_event_t *injected_sensor_event) {
+    if (mSensors == nullptr) return NO_INIT;
     ALOGD_IF(DEBUG_CONNECTIONS,
             "sensor_event handle=%d ts=%" PRId64 " data=%.2f, %.2f, %.2f %.2f %.2f %.2f",
             injected_sensor_event->sensor,
@@ -490,10 +475,97 @@ status_t SensorDevice::injectSensorData(
 }
 
 status_t SensorDevice::setMode(uint32_t mode) {
+    if (mSensors == nullptr) return NO_INIT;
+    return StatusFromResult(
+            checkReturn(mSensors->setOperationMode(
+                    static_cast<hardware::sensors::V1_0::OperationMode>(mode))));
+}
 
-     return StatusFromResult(
-             checkReturn(mSensors->setOperationMode(
-                 static_cast<hardware::sensors::V1_0::OperationMode>(mode))));
+int32_t SensorDevice::registerDirectChannel(const sensors_direct_mem_t* memory) {
+    if (mSensors == nullptr) return NO_INIT;
+    Mutex::Autolock _l(mLock);
+
+    SharedMemType type;
+    switch (memory->type) {
+        case SENSOR_DIRECT_MEM_TYPE_ASHMEM:
+            type = SharedMemType::ASHMEM;
+            break;
+        case SENSOR_DIRECT_MEM_TYPE_GRALLOC:
+            type = SharedMemType::GRALLOC;
+            break;
+        default:
+            return BAD_VALUE;
+    }
+
+    SharedMemFormat format;
+    if (memory->format != SENSOR_DIRECT_FMT_SENSORS_EVENT) {
+        return BAD_VALUE;
+    }
+    format = SharedMemFormat::SENSORS_EVENT;
+
+    SharedMemInfo mem = {
+        .type = type,
+        .format = format,
+        .size = static_cast<uint32_t>(memory->size),
+        .memoryHandle = memory->handle,
+    };
+
+    int32_t ret;
+    checkReturn(mSensors->registerDirectChannel(mem,
+            [&ret](auto result, auto channelHandle) {
+                if (result == Result::OK) {
+                    ret = channelHandle;
+                } else {
+                    ret = StatusFromResult(result);
+                }
+            }));
+    return ret;
+}
+
+void SensorDevice::unregisterDirectChannel(int32_t channelHandle) {
+    if (mSensors == nullptr) return;
+    Mutex::Autolock _l(mLock);
+    checkReturn(mSensors->unregisterDirectChannel(channelHandle));
+}
+
+int32_t SensorDevice::configureDirectChannel(int32_t sensorHandle,
+        int32_t channelHandle, const struct sensors_direct_cfg_t *config) {
+    if (mSensors == nullptr) return NO_INIT;
+    Mutex::Autolock _l(mLock);
+
+    RateLevel rate;
+    switch(config->rate_level) {
+        case SENSOR_DIRECT_RATE_STOP:
+            rate = RateLevel::STOP;
+            break;
+        case SENSOR_DIRECT_RATE_NORMAL:
+            rate = RateLevel::NORMAL;
+            break;
+        case SENSOR_DIRECT_RATE_FAST:
+            rate = RateLevel::FAST;
+            break;
+        case SENSOR_DIRECT_RATE_VERY_FAST:
+            rate = RateLevel::VERY_FAST;
+            break;
+        default:
+            return BAD_VALUE;
+    }
+
+    int32_t ret;
+    checkReturn(mSensors->configDirectReport(sensorHandle, channelHandle, rate,
+            [&ret, rate] (auto result, auto token) {
+                if (rate == RateLevel::STOP) {
+                    ret = StatusFromResult(result);
+                } else {
+                    if (result == Result::OK) {
+                        ret = token;
+                    } else {
+                        ret = StatusFromResult(result);
+                    }
+                }
+            }));
+
+    return ret;
 }
 
 // ---------------------------------------------------------------------------
@@ -553,90 +625,6 @@ ssize_t SensorDevice::Info::removeBatchParamsForIdent(void* ident) {
 void SensorDevice::notifyConnectionDestroyed(void* ident) {
     Mutex::Autolock _l(mLock);
     mDisabledClients.remove(ident);
-}
-
-int32_t SensorDevice::registerDirectChannel(const sensors_direct_mem_t* memory) {
-    Mutex::Autolock _l(mLock);
-
-    SharedMemType type;
-    switch (memory->type) {
-        case SENSOR_DIRECT_MEM_TYPE_ASHMEM:
-            type = SharedMemType::ASHMEM;
-            break;
-        case SENSOR_DIRECT_MEM_TYPE_GRALLOC:
-            type = SharedMemType::GRALLOC;
-            break;
-        default:
-            return BAD_VALUE;
-    }
-
-    SharedMemFormat format;
-    if (memory->format != SENSOR_DIRECT_FMT_SENSORS_EVENT) {
-        return BAD_VALUE;
-    }
-    format = SharedMemFormat::SENSORS_EVENT;
-
-    SharedMemInfo mem = {
-        .type = type,
-        .format = format,
-        .size = static_cast<uint32_t>(memory->size),
-        .memoryHandle = memory->handle,
-    };
-
-    int32_t ret;
-    checkReturn(mSensors->registerDirectChannel(mem,
-            [&ret](auto result, auto channelHandle) {
-                if (result == Result::OK) {
-                    ret = channelHandle;
-                } else {
-                    ret = StatusFromResult(result);
-                }
-            }));
-    return ret;
-}
-
-void SensorDevice::unregisterDirectChannel(int32_t channelHandle) {
-    Mutex::Autolock _l(mLock);
-    checkReturn(mSensors->unregisterDirectChannel(channelHandle));
-}
-
-int32_t SensorDevice::configureDirectChannel(int32_t sensorHandle,
-        int32_t channelHandle, const struct sensors_direct_cfg_t *config) {
-    Mutex::Autolock _l(mLock);
-
-    RateLevel rate;
-    switch(config->rate_level) {
-        case SENSOR_DIRECT_RATE_STOP:
-            rate = RateLevel::STOP;
-            break;
-        case SENSOR_DIRECT_RATE_NORMAL:
-            rate = RateLevel::NORMAL;
-            break;
-        case SENSOR_DIRECT_RATE_FAST:
-            rate = RateLevel::FAST;
-            break;
-        case SENSOR_DIRECT_RATE_VERY_FAST:
-            rate = RateLevel::VERY_FAST;
-            break;
-        default:
-            return BAD_VALUE;
-    }
-
-    int32_t ret;
-    checkReturn(mSensors->configDirectReport(sensorHandle, channelHandle, rate,
-            [&ret, rate] (auto result, auto token) {
-                if (rate == RateLevel::STOP) {
-                    ret = StatusFromResult(result);
-                } else {
-                    if (result == Result::OK) {
-                        ret = token;
-                    } else {
-                        ret = StatusFromResult(result);
-                    }
-                }
-            }));
-
-    return ret;
 }
 
 bool SensorDevice::isDirectReportSupported() const {

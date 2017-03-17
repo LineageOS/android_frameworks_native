@@ -161,6 +161,7 @@ private:
     // Use this vector to determine which client is activated or deactivated.
     SortedVector<void *> mDisabledClients;
     SensorDevice();
+    bool connectHidlService();
 
     static void handleHidlDeath(const std::string &detail);
     template<typename T>
