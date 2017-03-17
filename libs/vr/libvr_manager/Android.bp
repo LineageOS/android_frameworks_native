@@ -1,4 +1,4 @@
-// Copyright (C) 2016 The Android Open Source Project
+// Copyright (C) 2017 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-ndk_headers {
-    name: "libvulkan_headers",
-    from: "include",
-    to: "",
-    srcs: [
-        "include/vulkan/vk_platform.h",
-        "include/vulkan/vulkan.h",
-    ],
-    license: "include/vulkan/NOTICE",
-}
+exported_include_dirs = [ "include" ]
 
-cc_library_headers {
-    name: "vulkan_headers",
-    export_include_dirs: ["include"],
-}
+include_dirs = ["frameworks/native/include/vr/vr_manager"]
 
-subdirs = [
-    "nulldrv",
-    "libvulkan",
-    "tools",
+src_files = [
+    "vr_manager.cpp",
+    "trusted_uids.cpp",
 ]
+
+static_libs = [
+    "libutils",
+    "libbinder",
+]
+
+cc_library_static {
+    srcs: src_files,
+    include_dirs: include_dirs,
+    export_include_dirs: exported_include_dirs,
+    cflags: ["-Wall", "-Werror", "-Wunused", "-Wunreachable-code"],
+    static_libs: static_libs,
+    name: "libvr_manager",
+}

@@ -64,8 +64,8 @@ cc_library_shared {
         "vulkan_loader_data.cpp",
     ],
 
-    export_static_lib_headers: ["vulkan_headers"],
-    static_libs: [
+    export_header_lib_headers: ["vulkan_headers"],
+    header_libs: [
         "vulkan_headers",
     ],
     shared_libs: [

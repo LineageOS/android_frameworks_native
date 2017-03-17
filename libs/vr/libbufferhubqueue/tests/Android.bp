@@ -1,0 +1,46 @@
+
+
+shared_libraries = [
+    "libbase",
+    "libbinder",
+    "libcutils",
+    "libgui",
+    "liblog",
+    "libhardware",
+    "libui",
+    "libutils",
+]
+
+static_libraries = [
+    "libbufferhubqueue",
+    "libbufferhub",
+    "libchrome",
+    "libdvrcommon",
+    "libpdx_default_transport",
+]
+
+cc_test {
+    srcs: ["buffer_hub_queue-test.cpp"],
+    static_libs: static_libraries,
+    shared_libs: shared_libraries,
+    cflags: [
+        "-DTRACE=0",
+        "-O0",
+        "-g",
+    ],
+    name: "buffer_hub_queue-test",
+    tags: ["optional"],
+}
+
+cc_test {
+    srcs: ["buffer_hub_queue_producer-test.cpp"],
+    static_libs: static_libraries,
+    shared_libs: shared_libraries,
+    cflags: [
+        "-DTRACE=0",
+        "-O0",
+        "-g",
+    ],
+    name: "buffer_hub_queue_producer-test",
+    tags: ["optional"],
+}
