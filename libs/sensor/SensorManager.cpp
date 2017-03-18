@@ -38,14 +38,15 @@
 namespace android {
 // ----------------------------------------------------------------------------
 
-android::Mutex android::SensorManager::sLock;
-std::map<String16, SensorManager*> android::SensorManager::sPackageInstances;
+Mutex SensorManager::sLock;
+std::map<String16, SensorManager*> SensorManager::sPackageInstances;
 
 SensorManager& SensorManager::getInstanceForPackage(const String16& packageName) {
+    waitForSensorService(nullptr);
+
     Mutex::Autolock _l(sLock);
     SensorManager* sensorManager;
-    std::map<String16, SensorManager*>::iterator iterator =
-        sPackageInstances.find(packageName);
+    auto iterator = sPackageInstances.find(packageName);
 
     if (iterator != sPackageInstances.end()) {
         sensorManager = iterator->second;
@@ -100,6 +101,28 @@ SensorManager::~SensorManager() {
     free(mSensorList);
 }
 
+status_t SensorManager::waitForSensorService(sp<ISensorServer> *server) {
+    // try for 300 seconds (60*5(getService() tries for 5 seconds)) before giving up ...
+    sp<ISensorServer> s;
+    const String16 name("sensorservice");
+    for (int i = 0; i < 60; i++) {
+        status_t err = getService(name, &s);
+        switch (err) {
+            case NAME_NOT_FOUND:
+                sleep(1);
+                continue;
+            case NO_ERROR:
+                if (server != nullptr) {
+                    *server = s;
+                }
+                return NO_ERROR;
+            default:
+                return err;
+        }
+    }
+    return TIMED_OUT;
+}
+
 void SensorManager::sensorManagerDied() {
     Mutex::Autolock _l(mLock);
     mSensorServer.clear();
@@ -120,19 +143,8 @@ status_t SensorManager::assertStateLocked() {
         }
     }
     if (initSensorManager) {
-        // try for 300 seconds (60*5(getService() tries for 5 seconds)) before giving up ...
-        const String16 name("sensorservice");
-        for (int i = 0; i < 60; i++) {
-            status_t err = getService(name, &mSensorServer);
-            if (err == NAME_NOT_FOUND) {
-                sleep(1);
-                continue;
-            }
-            if (err != NO_ERROR) {
-                return err;
-            }
-            break;
-        }
+        waitForSensorService(&mSensorServer);
+        LOG_ALWAYS_FATAL_IF(mSensorServer == nullptr, "getService(SensorService) NULL");
 
         class DeathObserver : public IBinder::DeathRecipient {
             SensorManager& mSensorManager;
@@ -143,8 +155,6 @@ status_t SensorManager::assertStateLocked() {
         public:
             explicit DeathObserver(SensorManager& mgr) : mSensorManager(mgr) { }
         };
-
-        LOG_ALWAYS_FATAL_IF(mSensorServer.get() == NULL, "getService(SensorService) NULL");
 
         mDeathObserver = new DeathObserver(*const_cast<SensorManager *>(this));
         IInterface::asBinder(mSensorServer)->linkToDeath(mDeathObserver);
