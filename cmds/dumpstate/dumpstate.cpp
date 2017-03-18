@@ -1536,7 +1536,7 @@ int main(int argc, char *argv[]) {
     if (is_redirecting) {
         ds.bugreport_dir_ = dirname(use_outfile);
         std::string build_id = android::base::GetProperty("ro.build.id", "UNKNOWN_BUILD");
-        std::string device_name = android::base::GetProperty("ro.product.device", "UNKNOWN_DEVICE");
+        std::string device_name = android::base::GetProperty("ro.product.name", "UNKNOWN_DEVICE");
         ds.base_name_ = android::base::StringPrintf("%s-%s-%s", basename(use_outfile),
                                                     device_name.c_str(), build_id.c_str());
         if (do_add_date) {
