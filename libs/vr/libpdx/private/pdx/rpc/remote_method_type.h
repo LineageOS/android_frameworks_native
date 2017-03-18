@@ -31,6 +31,12 @@ struct RemoteMethodType {
   using RewriteSignature =
       typename Traits::template RewriteSignature<ReturnType, Params...>;
 
+  template <template <typename> class Wrapper, typename ReturnType,
+            typename... Params>
+  using RewriteSignatureWrapReturn =
+      typename Traits::template RewriteSignatureWrapReturn<Wrapper, ReturnType,
+                                                           Params...>;
+
   template <typename ReturnType>
   using RewriteReturn = typename Traits::template RewriteReturn<ReturnType>;
 };
