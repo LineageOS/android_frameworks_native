@@ -1485,6 +1485,8 @@ void Layer::Prepare() {
     handle = acquired_buffer_.buffer()->native_handle();
     acquire_fence_fd_.Reset(acquired_buffer_.ClaimAcquireFence().Release());
   } else {
+    // TODO(jwcai) Note: this is the GPU compositor's layer, and we need the
+    // mechanism to accept distorted layers from VrCore.
     right = direct_buffer_->width();
     bottom = direct_buffer_->height();
     handle = direct_buffer_->handle();

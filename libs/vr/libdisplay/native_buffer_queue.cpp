@@ -13,138 +13,51 @@ namespace android {
 namespace dvr {
 
 NativeBufferQueue::NativeBufferQueue(
-    const std::shared_ptr<DisplaySurfaceClient>& surface, size_t capacity)
-    : NativeBufferQueue(nullptr, surface, capacity) {}
-
-NativeBufferQueue::NativeBufferQueue(
     EGLDisplay display, const std::shared_ptr<DisplaySurfaceClient>& surface,
     size_t capacity)
-    : surface_(surface),
-      buffers_(capacity),
-      buffer_queue_(capacity) {
-  LOG_ALWAYS_FATAL_IF(!surface);
-
-  epoll_fd_ = epoll_create(64);
-  if (epoll_fd_ < 0) {
-    ALOGE("NativeBufferQueue::NativeBufferQueue: Failed to create epoll fd: %s",
-          strerror(errno));
-    return;
-  }
-
-  // The kSurfaceBufferMaxCount must be >= the capacity so that shader code
-  // can bind surface buffer array data.
-  LOG_ALWAYS_FATAL_IF(kSurfaceBufferMaxCount < capacity);
+    : display_(display), buffers_(capacity) {
+  std::shared_ptr<ProducerQueue> queue = surface->GetProducerQueue();
 
   for (size_t i = 0; i < capacity; i++) {
-    uint32_t buffer_index = 0;
-    auto buffer = surface_->AllocateBuffer(&buffer_index);
-    if (!buffer) {
-      ALOGE("NativeBufferQueue::NativeBufferQueue: Failed to allocate buffer!");
-      return;
-    }
-
-    // TODO(jbates): store an index associated with each buffer so that we can
-    // determine which index in DisplaySurfaceMetadata it is associated
-    // with.
-    buffers_.push_back(new NativeBufferProducer(buffer, display, buffer_index));
-    NativeBufferProducer* native_buffer = buffers_.back().get();
-
-    epoll_event event = {.events = EPOLLIN | EPOLLET,
-                         .data = {.ptr = native_buffer}};
-    if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, buffer->event_fd(), &event) <
-        0) {
+    size_t slot;
+    // TODO(jwcai) Should change to use BufferViewPort's spec to config.
+    int ret =
+        queue->AllocateBuffer(surface->width(), surface->height(),
+                              surface->format(), surface->usage(), 1, &slot);
+    if (ret < 0) {
       ALOGE(
-          "NativeBufferQueue::NativeBufferQueue: Failed to add buffer producer "
-          "to epoll set: %s",
-          strerror(errno));
+          "NativeBufferQueue::NativeBufferQueue: Failed to allocate buffer, "
+          "error=%d",
+          ret);
       return;
     }
 
-    Enqueue(native_buffer);
-  }
-}
-
-NativeBufferQueue::~NativeBufferQueue() {
-  if (epoll_fd_ >= 0)
-    close(epoll_fd_);
-}
-
-bool NativeBufferQueue::WaitForBuffers() {
-  ATRACE_NAME("NativeBufferQueue::WaitForBuffers");
-  // Intentionally set this to one so that we don't waste time retrieving too
-  // many buffers.
-  constexpr size_t kMaxEvents = 1;
-  std::array<epoll_event, kMaxEvents> events;
-
-  while (buffer_queue_.IsEmpty()) {
-    int num_events = epoll_wait(epoll_fd_, events.data(), events.size(), -1);
-    if (num_events < 0 && errno != EINTR) {
-      ALOGE("NativeBufferQueue:WaitForBuffers: Failed to wait for buffers: %s",
-            strerror(errno));
-      return false;
-    }
-
-    ALOGD_IF(TRACE, "NativeBufferQueue::WaitForBuffers: num_events=%d",
-             num_events);
-
-    for (int i = 0; i < num_events; i++) {
-      NativeBufferProducer* buffer =
-          static_cast<NativeBufferProducer*>(events[i].data.ptr);
-      ALOGD_IF(TRACE,
-               "NativeBufferQueue::WaitForBuffers: event %d: buffer_id=%d "
-               "events=0x%x",
-               i, buffer->buffer()->id(), events[i].events);
-
-      if (events[i].events & EPOLLIN) {
-        const int ret = buffer->GainAsync();
-        if (ret < 0) {
-          ALOGE("NativeBufferQueue::WaitForBuffers: Failed to gain buffer: %s",
-                strerror(-ret));
-          continue;
-        }
-
-        Enqueue(buffer);
-      }
-    }
+    ALOGD_IF(TRACE,
+             "NativeBufferQueue::NativeBufferQueue: New buffer allocated at "
+             "slot=%zu",
+             slot);
   }
 
-  return true;
-}
-
-void NativeBufferQueue::Enqueue(NativeBufferProducer* buf) {
-  ATRACE_NAME("NativeBufferQueue::Enqueue");
-  if (buffer_queue_.IsFull()) {
-    ALOGE("NativeBufferQueue::Enqueue: Queue is full!");
-    return;
-  }
-
-  buffer_queue_.Append(buf);
+  producer_queue_ = std::move(queue);
 }
 
 NativeBufferProducer* NativeBufferQueue::Dequeue() {
   ATRACE_NAME("NativeBufferQueue::Dequeue");
-  ALOGD_IF(TRACE, "NativeBufferQueue::Dequeue: count=%zd",
-           buffer_queue_.GetSize());
 
-  if (buffer_queue_.IsEmpty() && !WaitForBuffers())
-    return nullptr;
+  // This never times out.
+  size_t slot;
+  pdx::LocalHandle fence;
+  std::shared_ptr<BufferProducer> buffer =
+      producer_queue_->Dequeue(-1, &slot, &fence);
 
-  NativeBufferProducer* buf = buffer_queue_.Front();
-  buffer_queue_.PopFront();
-  if (buf == nullptr) {
-    ALOGE("NativeBufferQueue::Dequeue: Buffer at tail was nullptr!!!");
-    return nullptr;
+  if (buffers_[slot] == nullptr) {
+    buffers_[slot] = new NativeBufferProducer(buffer, display_, slot);
   }
 
-  return buf;
-}
-
-size_t NativeBufferQueue::GetFreeBufferCount() const {
-  return buffer_queue_.GetSize();
-}
-
-size_t NativeBufferQueue::GetQueueCapacity() const {
-  return buffer_queue_.GetCapacity();
+  ALOGD_IF(TRACE,
+           "NativeBufferQueue::Dequeue: dequeue buffer at slot=%zu, buffer=%p",
+           slot, buffers_[slot].get());
+  return buffers_[slot].get();
 }
 
 }  // namespace dvr

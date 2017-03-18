@@ -14,57 +14,27 @@
 namespace android {
 namespace dvr {
 
-// NativeBufferQueue manages a queue of NativeBufferProducers allocated from a
-// DisplaySurfaceClient. Buffers are automatically re-enqueued when released by
-// the consumer side.
+// A wrapper over dvr::ProducerQueue that caches EGLImage.
 class NativeBufferQueue {
  public:
   // Create a queue with the given number of free buffers.
-  NativeBufferQueue(const std::shared_ptr<DisplaySurfaceClient>& surface,
-                    size_t capacity);
   NativeBufferQueue(EGLDisplay display,
                     const std::shared_ptr<DisplaySurfaceClient>& surface,
                     size_t capacity);
-  ~NativeBufferQueue();
 
-  std::shared_ptr<DisplaySurfaceClient> surface() const { return surface_; }
+  size_t GetQueueCapacity() const { return producer_queue_->capacity(); }
 
   // Dequeue a buffer from the free queue, blocking until one is available.
   NativeBufferProducer* Dequeue();
 
-  // Enqueue a buffer at the end of the free queue.
-  void Enqueue(NativeBufferProducer* buf);
-
-  // Get the number of free buffers in the queue.
-  size_t GetFreeBufferCount() const;
-
-  // Get the total number of buffers managed by this queue.
-  size_t GetQueueCapacity() const;
-
-  // Accessors for display surface buffer attributes.
-  int width() const { return surface_->width(); }
-  int height() const { return surface_->height(); }
-  int format() const { return surface_->format(); }
-  int usage() const { return surface_->usage(); }
+  // An noop here to keep Vulkan path in GraphicsContext happy.
+  // TODO(jwcai, cort) Move Vulkan path into GVR/Google3.
+  void Enqueue(NativeBufferProducer* buffer) {}
 
  private:
-  // Wait for buffers to be released and enqueue them.
-  bool WaitForBuffers();
-
-  std::shared_ptr<DisplaySurfaceClient> surface_;
-
-  // A list of strong pointers to the buffers, used for managing buffer
-  // lifetime.
-  std::vector<android::sp<NativeBufferProducer>> buffers_;
-
-  // Used to implement queue semantics.
-  RingBuffer<NativeBufferProducer*> buffer_queue_;
-
-  // Epoll fd used to wait for BufferHub events.
-  int epoll_fd_;
-
-  NativeBufferQueue(const NativeBufferQueue&) = delete;
-  void operator=(NativeBufferQueue&) = delete;
+  EGLDisplay display_;
+  std::shared_ptr<ProducerQueue> producer_queue_;
+  std::vector<sp<NativeBufferProducer>> buffers_;
 };
 
 }  // namespace dvr

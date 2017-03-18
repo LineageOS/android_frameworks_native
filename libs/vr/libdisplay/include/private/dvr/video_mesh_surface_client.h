@@ -25,7 +25,7 @@ class VideoMeshSurfaceClient
  private:
   friend BASE;
 
-  std::shared_ptr<android::dvr::ProducerQueue> producer_queue_;
+  std::shared_ptr<ProducerQueue> producer_queue_;
   VideoMeshSurfaceMetadata* mapped_metadata_buffer_;
 
   explicit VideoMeshSurfaceClient(LocalChannelHandle handle);
