@@ -23,6 +23,7 @@
 using android::pdx::BorrowedHandle;
 using android::pdx::Channel;
 using android::pdx::ClientBase;
+using android::pdx::ErrorStatus;
 using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
 using android::pdx::Message;
@@ -35,6 +36,20 @@ using android::pdx::uds::Endpoint;
 using namespace android::pdx::rpc;
 
 namespace {
+
+std::string Rot13(const std::string& s) {
+  std::string text = s;
+  std::transform(std::begin(text), std::end(text), std::begin(text),
+                 [](char c) -> char {
+                   if (!std::isalpha(c)) {
+                     return c;
+                   } else {
+                     const char pivot = std::isupper(c) ? 'A' : 'a';
+                     return (c - pivot + 13) % 26 + pivot;
+                   }
+                 });
+  return text;
+}
 
 // Defines a serializable user type that may be transferred between client and
 // service.
@@ -134,6 +149,7 @@ struct TestInterface final {
     kOpOpenFiles,
     kOpReadFile,
     kOpPushChannel,
+    kOpPositive,
   };
 
   // Methods.
@@ -161,10 +177,11 @@ struct TestInterface final {
                     std::pair<int, BufferWrapper<std::uint8_t*>>(
                         const std::string&, int, std::size_t));
   PDX_REMOTE_METHOD(PushChannel, kOpPushChannel, LocalChannelHandle(Void));
+  PDX_REMOTE_METHOD(Positive, kOpPositive, void(int));
 
   PDX_REMOTE_API(API, Add, Foo, Concatenate, SumVector, StringLength,
                  SendTestType, SendVector, Rot13, NoArgs, SendFile, GetFile,
-                 GetTestFdType, OpenFiles, PushChannel);
+                 GetTestFdType, OpenFiles, PushChannel, Positive);
 };
 
 constexpr char TestInterface::kClientPath[];
@@ -301,6 +318,11 @@ class TestClient : public ClientBase<TestClient> {
     return status ? 0 : -status.error();
   }
 
+  bool Positive(int test_value) {
+    auto status = InvokeRemoteMethod<TestInterface::Positive>(test_value);
+    return status.ok();
+  }
+
   int GetFd() const { return event_fd(); }
 
  private:
@@ -397,6 +419,11 @@ class TestService : public ServiceBase<TestService> {
             *this, &TestService::OnPushChannel, message);
         return 0;
 
+      case TestInterface::Positive::Opcode:
+        DispatchRemoteMethod<TestInterface::Positive>(
+            *this, &TestService::OnPositive, message);
+        return 0;
+
       default:
         return Service::DefaultHandleMessage(message);
     }
@@ -438,18 +465,8 @@ class TestService : public ServiceBase<TestService> {
     return return_value;
   }
 
-  std::string OnRot13(Message&, const std::string& s) {
-    std::string text = s;
-    std::transform(std::begin(text), std::end(text), std::begin(text),
-                   [](char c) -> char {
-                     if (!std::isalpha(c)) {
-                       return c;
-                     } else {
-                       const char pivot = std::isupper(c) ? 'A' : 'a';
-                       return (c - pivot + 13) % 26 + pivot;
-                     }
-                   });
-    return text;
+  Status<std::string> OnRot13(Message&, const std::string& s) {
+    return {Rot13(s)};
   }
 
   int OnNoArgs(Message&) { return 1; }
@@ -514,6 +531,13 @@ class TestService : public ServiceBase<TestService> {
     return status.take();
   }
 
+  Status<void> OnPositive(Message& /*message*/, int test_value) {
+    if (test_value >= 0)
+      return {};
+    else
+      return ErrorStatus(EINVAL);
+  }
+
   TestService(const TestService&) = delete;
   void operator=(const TestService&) = delete;
 };
@@ -574,6 +598,10 @@ TEST_F(RemoteMethodTest, BasicClientService) {
 
   const auto cat = client->Concatenate("This is a string", ", that it is.");
   EXPECT_EQ("This is a string, that it is.", cat);
+
+  std::string alphabet = "abcdefghijklmnopqrstuvwxyz";
+  const auto rot13_alphabet = client->Rot13(alphabet);
+  EXPECT_EQ(Rot13(alphabet), rot13_alphabet);
 
   const auto length = client->Foo(10, "123");
   EXPECT_EQ(13, length);
@@ -675,6 +703,21 @@ TEST_F(RemoteMethodTest, PushChannel) {
   // Test that the new channel works.
   const int sum = client2->Add(10, 25);
   EXPECT_GE(35, sum);
+}
+
+TEST_F(RemoteMethodTest, Positive) {
+  // Create a test service and add it to the dispatcher.
+  auto service = TestService::Create();
+  ASSERT_NE(nullptr, service);
+  ASSERT_EQ(0, dispatcher_->AddService(service));
+
+  // Create a client to service.
+  auto client = TestClient::Create();
+  ASSERT_NE(nullptr, client);
+
+  ASSERT_TRUE(client->Positive(0));
+  ASSERT_TRUE(client->Positive(1));
+  ASSERT_FALSE(client->Positive(-1));
 }
 
 TEST_F(RemoteMethodTest, AggregateLocalHandle) {
