@@ -22,7 +22,7 @@
 #include <gui/BufferItem.h>
 #include <gui/BufferItemConsumer.h>
 
-//#define BI_LOGV(x, ...) ALOGV("[%s] " x, mName.string(), ##__VA_ARGS__)
+#define BI_LOGV(x, ...) ALOGV("[%s] " x, mName.string(), ##__VA_ARGS__)
 //#define BI_LOGD(x, ...) ALOGD("[%s] " x, mName.string(), ##__VA_ARGS__)
 //#define BI_LOGI(x, ...) ALOGI("[%s] " x, mName.string(), ##__VA_ARGS__)
 //#define BI_LOGW(x, ...) ALOGW("[%s] " x, mName.string(), ##__VA_ARGS__)
@@ -55,6 +55,12 @@ void BufferItemConsumer::setName(const String8& name) {
     }
     mName = name;
     mConsumer->setConsumerName(name);
+}
+
+void BufferItemConsumer::setBufferFreedListener(
+        const wp<BufferFreedListener>& listener) {
+    Mutex::Autolock _l(mMutex);
+    mBufferFreedListener = listener;
 }
 
 status_t BufferItemConsumer::acquireBuffer(BufferItem *item,
@@ -102,6 +108,16 @@ status_t BufferItemConsumer::releaseBuffer(const BufferItem &item,
                 strerror(-err), err);
     }
     return err;
+}
+
+void BufferItemConsumer::freeBufferLocked(int slotIndex) {
+    sp<BufferFreedListener> listener = mBufferFreedListener.promote();
+    if (listener != NULL && mSlots[slotIndex].mGraphicBuffer != NULL) {
+        // Fire callback if we have a listener registered and the buffer being freed is valid.
+        BI_LOGV("actually calling onBufferFreed");
+        listener->onBufferFreed(mSlots[slotIndex].mGraphicBuffer);
+    }
+    ConsumerBase::freeBufferLocked(slotIndex);
 }
 
 } // namespace android
