@@ -8,6 +8,7 @@ cc_test {
     clang: true,
 
     srcs: [
+        "BufferItemConsumer_test.cpp",
         "BufferQueue_test.cpp",
         "CpuConsumer_test.cpp",
         "FillBuffer.cpp",
