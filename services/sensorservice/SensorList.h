@@ -100,6 +100,7 @@ private:
     T getOne(int handle, const TF& accessor, T def = T()) const;
 
     mutable std::mutex mLock;
+    mutable std::mutex mSensorsLock;
     std::map<int, Entry> mHandleMap;
     std::unordered_set<int> mUsedHandle;
 };

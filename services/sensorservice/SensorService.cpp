@@ -138,6 +138,10 @@ void SensorService::onFirstRef() {
         sensor_t const* list;
         ssize_t count = dev.getSensorList(&list);
         if (count > 0) {
+            // this is the only place besides the dynamic sensor register and unregister functions
+            // where write operation to various sensor lists has to be locked.
+            Mutex::Autolock _l(mSensorsLock);
+
             ssize_t orientationIndex = -1;
             bool hasGyro = false, hasAccel = false, hasMag = false;
             uint32_t virtualSensorsNeeds =
@@ -280,6 +284,8 @@ void SensorService::onFirstRef() {
 }
 
 const Sensor& SensorService::registerSensor(SensorInterface* s, bool isDebug, bool isVirtual) {
+    //caller of this function has to make sure mSensorsLock is locked
+    assert(mSensorsLock.tryLock() != 0);
     int handle = s->getSensor().getHandle();
     int type = s->getSensor().getType();
     if (mSensors.add(handle, s, isDebug, isVirtual)){
@@ -291,10 +297,12 @@ const Sensor& SensorService::registerSensor(SensorInterface* s, bool isDebug, bo
 }
 
 const Sensor& SensorService::registerDynamicSensorLocked(SensorInterface* s, bool isDebug) {
+    Mutex::Autolock _l(mSensorsLock);
     return registerSensor(s, isDebug);
 }
 
 bool SensorService::unregisterDynamicSensorLocked(int handle) {
+    Mutex::Autolock _l(mSensorsLock);
     bool ret = mSensors.remove(handle);
 
     const auto i = mRecentEvent.find(handle);
@@ -310,6 +318,7 @@ const Sensor& SensorService::registerVirtualSensor(SensorInterface* s, bool isDe
 }
 
 SensorService::~SensorService() {
+    Mutex::Autolock _l(mSensorsLock);
     for (auto && entry : mRecentEvent) {
         delete entry.second;
     }
@@ -385,6 +394,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             result.append(SensorDevice::getInstance().dump().c_str());
 
             result.append("Sensor List:\n");
+            Mutex::Autolock _l(mSensorsLock);
             result.append(mSensors.dump().c_str());
 
             result.append("Fusion States:\n");
@@ -767,6 +777,7 @@ void SensorService::sortEventBuffer(sensors_event_t* buffer, size_t count) {
 }
 
 String8 SensorService::getSensorName(int handle) const {
+    Mutex::Autolock _l(mSensorsLock);
     return mSensors.getName(handle);
 }
 
@@ -864,6 +875,7 @@ void SensorService::makeUuidsIntoIdsForSensorList(Vector<Sensor> &sensorList) co
 }
 
 Vector<Sensor> SensorService::getSensorList(const String16& opPackageName) {
+    Mutex::Autolock _l(mSensorsLock);
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.sensors", value, "0");
     const Vector<Sensor>& initialSensorList = (atoi(value)) ?
@@ -885,6 +897,7 @@ Vector<Sensor> SensorService::getSensorList(const String16& opPackageName) {
 }
 
 Vector<Sensor> SensorService::getDynamicSensorList(const String16& opPackageName) {
+    Mutex::Autolock _l(mSensorsLock);
     Vector<Sensor> accessibleSensorList;
     mSensors.forEachSensor(
             [&opPackageName, &accessibleSensorList] (const Sensor& sensor) -> bool {
@@ -993,6 +1006,7 @@ void SensorService::cleanupConnection(SensorEventConnection* c) {
 }
 
 sp<SensorInterface> SensorService::getSensorInterfaceFromHandle(int handle) const {
+    Mutex::Autolock _l(mSensorsLock);
     return mSensors.getInterface(handle);
 }
 

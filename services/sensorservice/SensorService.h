@@ -248,6 +248,7 @@ private:
     String8 mWhiteListedPackage;
 
     int mNextSensorRegIndex;
+    mutable Mutex mSensorsLock;
     Vector<SensorRegistrationInfo> mLastNSensorRegistrations;
 };
 
