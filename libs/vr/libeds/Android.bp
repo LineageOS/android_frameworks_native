@@ -36,6 +36,8 @@ sharedLibraries = [
     "libEGL",
     "libGLESv1_CM",
     "libGLESv2",
+    "libui",
+    "libutils",
     "libvulkan",
 ]
 

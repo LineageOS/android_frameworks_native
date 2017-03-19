@@ -34,7 +34,8 @@ sharedLibraries := \
 	liblog \
 	libsync \
 	libutils \
-	libgui
+        libgui \
+        libui
 
 include $(CLEAR_VARS)
 # Don't strip symbols so we see stack traces in logcat.

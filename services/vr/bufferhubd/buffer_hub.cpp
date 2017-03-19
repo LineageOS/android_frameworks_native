@@ -29,7 +29,7 @@ BufferHubService::BufferHubService()
 BufferHubService::~BufferHubService() {}
 
 bool BufferHubService::IsInitialized() const {
-  return BASE::IsInitialized() && IonBuffer::GetGrallocModule();
+  return BASE::IsInitialized();
 }
 
 std::string BufferHubService::DumpState(size_t /*max_length*/) {

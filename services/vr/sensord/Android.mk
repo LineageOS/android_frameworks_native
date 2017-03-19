@@ -44,6 +44,7 @@ sharedLibraries := \
 	liblog \
 	libhardware \
 	libutils \
+        libui \
 	$(SENSORD_EXTEND) \
 
 cFlags := -DLOG_TAG=\"sensord\" \
