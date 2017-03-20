@@ -26,6 +26,7 @@ using android::pdx::BorrowedChannelHandle;
 using android::pdx::Channel;
 using android::pdx::ChannelReference;
 using android::pdx::ClientBase;
+using android::pdx::ErrorStatus;
 using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
 using android::pdx::Message;
@@ -379,6 +380,14 @@ class TestClient : public ClientBase<TestClient> {
                         data_array.size() * sizeof(int), nullptr, 0));
   }
 
+  Status<int> GetEventMask(int events) {
+    if (auto* client_channel = GetChannel()) {
+      return client_channel->GetEventMask(events);
+    } else {
+      return ErrorStatus(EINVAL);
+    }
+  }
+
   using ClientBase<TestClient>::event_fd;
 
   enum : size_t { kMaxPayload = MAX_IMPULSE_LENGTH };
@@ -634,7 +643,9 @@ TEST_F(ServiceFrameworkTest, PollHup) {
 
   count = epoll_wait(client->event_fd(), &event, 1, -1);
   ASSERT_EQ(1, count);
-  ASSERT_TRUE((EPOLLHUP & event.events) != 0);
+  auto event_status = client->GetEventMask(event.events);
+  ASSERT_TRUE(event_status.ok());
+  ASSERT_TRUE((EPOLLHUP & event_status.get()) != 0);
 }
 
 TEST_F(ServiceFrameworkTest, LargeDataSum) {
