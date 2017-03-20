@@ -265,6 +265,12 @@ std::unique_ptr<BufferConsumer> DisplayClient::GetPoseBuffer() {
   return BufferConsumer::Import(std::move(status));
 }
 
+bool DisplayClient::IsVrAppRunning() {
+  auto status = InvokeRemoteMethod<DisplayRPC::IsVrAppRunning>();
+  if (!status)
+    return 0;
+  return static_cast<bool>(status.get());
+}
 
 }  // namespace dvr
 }  // namespace android

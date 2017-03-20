@@ -2,6 +2,7 @@
 #define VR_WINDOW_MANAGER_SHELL_VIEW_H_
 
 #include <dvr/virtual_touchpad_client.h>
+#include <private/dvr/display_client.h>
 #include <private/dvr/graphics/mesh.h>
 #include <private/dvr/graphics/shader_program.h>
 
@@ -65,6 +66,8 @@ class ShellView : public Application,
 
   std::unique_ptr<SurfaceFlingerView> surface_flinger_view_;
   std::unique_ptr<Reticle> reticle_;
+
+  std::unique_ptr<DisplayClient> display_client_;
 
   struct DvrVirtualTouchpadDeleter {
     void operator()(DvrVirtualTouchpad* p) {

@@ -112,6 +112,7 @@ int Application::AllocateResources() {
 void Application::DeallocateResources() {
   if (graphics_context_)
     dvrGraphicsContextDestroy(graphics_context_);
+  graphics_context_ = nullptr;
 
   if (pose_client_)
     dvrPoseDestroy(pose_client_);

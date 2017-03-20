@@ -94,6 +94,11 @@ int DisplayService::HandleMessage(pdx::Message& message) {
           *this, &DisplayService::OnGetPoseBuffer, message);
       return 0;
 
+    case DisplayRPC::IsVrAppRunning::Opcode:
+      DispatchRemoteMethod<DisplayRPC::IsVrAppRunning>(
+          *this, &DisplayService::IsVrAppRunning, message);
+      return 0;
+
     // Direct the surface specific messages to the surface instance.
     case DisplayRPC::CreateBufferQueue::Opcode:
     case DisplayRPC::SetAttributes::Opcode:
@@ -353,6 +358,16 @@ void DisplayService::SetDisplayConfigurationUpdateNotifier(
 void DisplayService::NotifyDisplayConfigurationUpdate() {
   if (update_notifier_)
     update_notifier_();
+}
+
+int DisplayService::IsVrAppRunning(pdx::Message& message) {
+  bool visible = true;
+  ForEachDisplaySurface([&visible](const std::shared_ptr<DisplaySurface>& surface) {
+    if (surface->client_z_order() == 0 && !surface->IsVisible())
+      visible = false;
+  });
+
+  REPLY_SUCCESS_RETURN(message, visible, 0);
 }
 
 }  // namespace dvr

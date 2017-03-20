@@ -23,7 +23,7 @@ class DisplayView {
 
   // Calls to these 3 functions must be synchronized.
   base::unique_fd OnFrame(std::unique_ptr<HwcCallback::Frame> frame,
-                          bool debug_mode, bool* showing);
+                          bool debug_mode, bool is_vr_active, bool* showing);
   void AdvanceFrame();
   void UpdateReleaseFence();
 

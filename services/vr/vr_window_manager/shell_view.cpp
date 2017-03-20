@@ -4,6 +4,7 @@
 #include <GLES3/gl3.h>
 #include <android/input.h>
 #include <binder/IServiceManager.h>
+#include <dvr/graphics.h>
 #include <hardware/hwcomposer2.h>
 #include <inttypes.h>
 #include <log/log.h>
@@ -124,6 +125,10 @@ int ShellView::Initialize() {
   surface_flinger_view_.reset(new SurfaceFlingerView);
   if (!surface_flinger_view_->Initialize(this))
     return 1;
+
+  // This is a temporary fix for now. These APIs will be changed when everything
+  // is moved into vrcore.
+  display_client_ = DisplayClient::Create();
 
   return 0;
 }
@@ -278,7 +283,11 @@ base::unique_fd ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
 
   bool showing = false;
 
-  base::unique_fd fd(display->OnFrame(std::move(frame), debug_mode_, &showing));
+  // TODO(achaulk): change when moved into vrcore.
+  bool vr_running = display_client_->IsVrAppRunning();
+
+  base::unique_fd fd(
+      display->OnFrame(std::move(frame), debug_mode_, vr_running, &showing));
 
   if (showing)
     QueueTask(MainThreadTask::Show);
