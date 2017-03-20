@@ -311,6 +311,14 @@ enum {
  */
 static const int64_t NATIVE_WINDOW_TIMESTAMP_AUTO = (-9223372036854775807LL-1);
 
+/* parameter for NATIVE_WINDOW_GET_FRAME_TIMESTAMPS
+ *
+ * Special timestamp value to indicate the timestamps aren't yet known or
+ * that they are invalid.
+ */
+static const int64_t NATIVE_WINDOW_TIMESTAMP_PENDING = -2;
+static const int64_t NATIVE_WINDOW_TIMESTAMP_INVALID = -1;
+
 struct ANativeWindow
 {
 #ifdef __cplusplus

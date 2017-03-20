@@ -1184,8 +1184,8 @@ TEST_F(GetFrameTimestampsTest, TimestampsAssociatedWithCorrectFrame) {
     EXPECT_EQ(mFrames[1].mRefreshes[0].kGpuCompositionDoneTime,
             outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[1].mRefreshes[0].kPresentTime, outDisplayPresentTime);
-    EXPECT_EQ(0, outDequeueReadyTime);
-    EXPECT_EQ(0, outReleaseTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outDequeueReadyTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outReleaseTime);
 }
 
 // This test verifies the acquire fence recorded by the consumer is not sent
@@ -1208,7 +1208,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[0].kRequestedPresentTime, outRequestedPresentTime);
-    EXPECT_EQ(0, outAcquireTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outAcquireTime);
 
     // Signal acquire fences. Verify a sync call still isn't necessary.
     mFrames[0].signalQueueFences();
@@ -1237,7 +1237,7 @@ TEST_F(GetFrameTimestampsTest, QueueTimestampsNoSync) {
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(mFrames[1].kRequestedPresentTime, outRequestedPresentTime);
-    EXPECT_EQ(0, outAcquireTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outAcquireTime);
 
     // Signal acquire fences. Verify a sync call still isn't necessary.
     mFrames[1].signalQueueFences();
@@ -1310,10 +1310,10 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
     EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
-    EXPECT_EQ(0, outGpuCompositionDoneTime);
-    EXPECT_EQ(0, outDisplayPresentTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outGpuCompositionDoneTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outDisplayPresentTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
-    EXPECT_EQ(0, outReleaseTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outReleaseTime);
 
     // Verify available timestamps are correct for frame 1 again, before any
     // fence has been signaled.
@@ -1328,10 +1328,10 @@ TEST_F(GetFrameTimestampsTest, FencesInProducerNoSync) {
     EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
     EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
-    EXPECT_EQ(0, outGpuCompositionDoneTime);
-    EXPECT_EQ(0, outDisplayPresentTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outGpuCompositionDoneTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outDisplayPresentTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
-    EXPECT_EQ(0, outReleaseTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outReleaseTime);
 
     // Signal the fences for frame 1.
     mFrames[0].signalRefreshFences();
@@ -1387,10 +1387,10 @@ TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
     EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
     EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
-    EXPECT_EQ(0, outGpuCompositionDoneTime);
-    EXPECT_EQ(0, outDisplayPresentTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_INVALID, outGpuCompositionDoneTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outDisplayPresentTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
-    EXPECT_EQ(0, outReleaseTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outReleaseTime);
 
     // Signal the fences for frame 1.
     mFrames[0].signalRefreshFences();
@@ -1408,7 +1408,7 @@ TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
     EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
     EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
-    EXPECT_EQ(0, outGpuCompositionDoneTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_INVALID, outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kPresentTime, outDisplayPresentTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
     EXPECT_EQ(mFrames[0].kReleaseTime, outReleaseTime);
@@ -1446,10 +1446,10 @@ TEST_F(GetFrameTimestampsTest, NoReleaseNoSync) {
     EXPECT_EQ(mFrames[0].kLatchTime, outLatchTime);
     EXPECT_EQ(mFrames[0].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
     EXPECT_EQ(mFrames[0].mRefreshes[2].kStartTime, outLastRefreshStartTime);
-    EXPECT_EQ(0, outGpuCompositionDoneTime);
-    EXPECT_EQ(0, outDisplayPresentTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_INVALID, outGpuCompositionDoneTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outDisplayPresentTime);
     EXPECT_EQ(mFrames[0].kDequeueReadyTime, outDequeueReadyTime);
-    EXPECT_EQ(0, outReleaseTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outReleaseTime);
 
     mFrames[0].signalRefreshFences();
     mFrames[0].signalReleaseFences();
@@ -1470,10 +1470,10 @@ TEST_F(GetFrameTimestampsTest, NoReleaseNoSync) {
     EXPECT_EQ(mFrames[1].kLatchTime, outLatchTime);
     EXPECT_EQ(mFrames[1].mRefreshes[0].kStartTime, outFirstRefreshStartTime);
     EXPECT_EQ(mFrames[1].mRefreshes[1].kStartTime, outLastRefreshStartTime);
-    EXPECT_EQ(0, outGpuCompositionDoneTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_INVALID, outGpuCompositionDoneTime);
     EXPECT_EQ(mFrames[1].mRefreshes[0].kPresentTime, outDisplayPresentTime);
-    EXPECT_EQ(0, outDequeueReadyTime);
-    EXPECT_EQ(0, outReleaseTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outDequeueReadyTime);
+    EXPECT_EQ(NATIVE_WINDOW_TIMESTAMP_PENDING, outReleaseTime);
 }
 
 // This test verifies there are no sync calls for present times

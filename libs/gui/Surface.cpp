@@ -229,14 +229,26 @@ static bool checkConsumerForUpdates(
 
 static void getFrameTimestamp(nsecs_t *dst, const nsecs_t& src) {
     if (dst != nullptr) {
-        *dst = FrameEvents::isValidTimestamp(src) ? src : 0;
+        // We always get valid timestamps for these eventually.
+        *dst = (src == FrameEvents::TIMESTAMP_PENDING) ?
+                NATIVE_WINDOW_TIMESTAMP_PENDING : src;
     }
 }
 
-static void getFrameTimestampFence(nsecs_t *dst, const std::shared_ptr<FenceTime>& src) {
+static void getFrameTimestampFence(nsecs_t *dst,
+        const std::shared_ptr<FenceTime>& src, bool fenceShouldBeKnown) {
     if (dst != nullptr) {
+        if (!fenceShouldBeKnown) {
+            *dst = NATIVE_WINDOW_TIMESTAMP_PENDING;
+            return;
+        }
+
         nsecs_t signalTime = src->getSignalTime();
-        *dst = Fence::isValidTimestamp(signalTime) ? signalTime : 0;
+        *dst = (signalTime == Fence::SIGNAL_TIME_PENDING) ?
+                    NATIVE_WINDOW_TIMESTAMP_PENDING :
+                (signalTime == Fence::SIGNAL_TIME_INVALID) ?
+                    NATIVE_WINDOW_TIMESTAMP_INVALID :
+                signalTime;
     }
 }
 
@@ -290,12 +302,15 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
     getFrameTimestamp(outLastRefreshStartTime, events->lastRefreshStartTime);
     getFrameTimestamp(outDequeueReadyTime, events->dequeueReadyTime);
 
-    getFrameTimestampFence(outAcquireTime, events->acquireFence);
-    getFrameTimestampFence(
-            outGpuCompositionDoneTime, events->gpuCompositionDoneFence);
-    getFrameTimestampFence(
-            outDisplayPresentTime, events->displayPresentFence);
-    getFrameTimestampFence(outReleaseTime, events->releaseFence);
+    getFrameTimestampFence(outAcquireTime, events->acquireFence,
+            events->hasAcquireInfo());
+    getFrameTimestampFence(outGpuCompositionDoneTime,
+            events->gpuCompositionDoneFence,
+            events->hasGpuCompositionDoneInfo());
+    getFrameTimestampFence(outDisplayPresentTime, events->displayPresentFence,
+            events->hasDisplayPresentInfo());
+    getFrameTimestampFence(outReleaseTime, events->releaseFence,
+            events->hasReleaseInfo());
 
     return NO_ERROR;
 }
