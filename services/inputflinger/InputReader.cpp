@@ -6630,10 +6630,7 @@ void SingleTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
         outState->rawPointerData.pointerCount = 1;
         outState->rawPointerData.idToIndex[0] = 0;
 
-        bool isHovering = mTouchButtonAccumulator.getToolType() != AMOTION_EVENT_TOOL_TYPE_MOUSE
-                && (mTouchButtonAccumulator.isHovering()
-                        || (mRawPointerAxes.pressure.valid
-                                && mSingleTouchMotionAccumulator.getAbsolutePressure() <= 0));
+        bool isHovering = false;
         outState->rawPointerData.markIdBit(0, isHovering);
 
         RawPointerData::Pointer& outPointer = outState->rawPointerData.pointers[0];
@@ -6739,9 +6736,7 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
             }
         }
 
-        bool isHovering = mTouchButtonAccumulator.getToolType() != AMOTION_EVENT_TOOL_TYPE_MOUSE
-                && (mTouchButtonAccumulator.isHovering()
-                        || (mRawPointerAxes.pressure.valid && inSlot->getPressure() <= 0));
+        bool isHovering = false;
         outPointer.isHovering = isHovering;
 
         // Assign pointer id using tracking id if available.
