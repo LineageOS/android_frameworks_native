@@ -10,6 +10,7 @@
 #include <pdx/rpc/payload.h>
 #include <pdx/rpc/remote_method_type.h>
 #include <pdx/service.h>
+#include <pdx/status.h>
 
 namespace android {
 namespace pdx {
@@ -155,6 +156,25 @@ EnableIfNotDirectReturn<typename RemoteMethodType::Return> RemoteMethodReturn(
     ret = message.Reply(0);
   ALOGE_IF(ret < 0, "RemoteMethodReturn: Failed to reply to message: %s",
            strerror(-ret));
+}
+
+// Overload for Status<void> return types.
+template <typename RemoteMethodType>
+void RemoteMethodReturn(Message& message, const Status<void>& return_value) {
+  if (return_value)
+    RemoteMethodReturn<RemoteMethodType>(message, 0);
+  else
+    RemoteMethodError(message, return_value.error());
+}
+
+// Overload for Status<T> return types. This overload forwards the underlying
+// value or error within the Status<T>.
+template <typename RemoteMethodType, typename Return>
+void RemoteMethodReturn(Message& message, const Status<Return>& return_value) {
+  if (return_value)
+    RemoteMethodReturn<RemoteMethodType, Return>(message, return_value.get());
+  else
+    RemoteMethodError(message, return_value.error());
 }
 
 // Dispatches a method by deserializing arguments from the given Message, with
@@ -340,6 +360,46 @@ void DispatchRemoteMethod(Class& instance,
     RemoteMethodReturn<RemoteMethodType>(message, return_value);
 }
 
+// Dispatches a method by deserializing arguments from the given Message, with
+// compile-time interface signature check. Overload for Status<T> return types.
+template <typename RemoteMethodType, typename Class, typename Return,
+          typename... Args, typename = EnableIfNotVoidMethod<RemoteMethodType>>
+void DispatchRemoteMethod(Class& instance,
+                          Status<Return> (Class::*method)(Message&, Args...),
+                          Message& message,
+                          std::size_t max_capacity = InitialBufferCapacity) {
+  using Signature =
+      typename RemoteMethodType::template RewriteSignature<Return, Args...>;
+  using InvokeSignature =
+      typename RemoteMethodType::template RewriteSignatureWrapReturn<
+          Status, Return, Args...>;
+  rpc::ServicePayload<ReceiveBuffer> payload(message);
+  payload.Resize(max_capacity);
+
+  auto size = message.Read(payload.Data(), payload.Size());
+  if (size < 0) {
+    RemoteMethodError(message, -size);
+    return;
+  }
+
+  payload.Resize(size);
+
+  ErrorType error;
+  auto decoder = MakeArgumentDecoder<Signature>(&payload);
+  auto arguments = decoder.DecodeArguments(&error);
+  if (error) {
+    RemoteMethodError(message, EIO);
+    return;
+  }
+
+  auto return_value = UnpackArguments<Class, InvokeSignature>(
+                          instance, method, message, arguments)
+                          .Invoke();
+  // Return the value to the caller unless the message was moved.
+  if (message)
+    RemoteMethodReturn<RemoteMethodType>(message, return_value);
+}
+
 #ifdef __clang__
 // Overloads to handle Void argument type without exploding clang.
 
@@ -393,6 +453,18 @@ void DispatchRemoteMethod(Class& instance,
 template <typename RemoteMethodType, typename Class, typename Return,
           typename = EnableIfVoidMethod<RemoteMethodType>>
 void DispatchRemoteMethod(Class& instance, Return (Class::*method)(Message&),
+                          Message& message) {
+  auto return_value = (instance.*method)(message);
+  // Return the value to the caller unless the message was moved.
+  if (message)
+    RemoteMethodReturn<RemoteMethodType>(message, return_value);
+}
+
+// Overload for Status<T> return type.
+template <typename RemoteMethodType, typename Class, typename Return,
+          typename = EnableIfVoidMethod<RemoteMethodType>>
+void DispatchRemoteMethod(Class& instance,
+                          Status<Return> (Class::*method)(Message&),
                           Message& message) {
   auto return_value = (instance.*method)(message);
   // Return the value to the caller unless the message was moved.

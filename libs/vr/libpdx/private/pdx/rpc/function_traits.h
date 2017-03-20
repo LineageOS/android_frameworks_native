@@ -43,6 +43,12 @@ struct FunctionTraits<Return_(Args_...)> {
       SignatureType<ConditionalRewrite<Return_, ReturnType>(
           ConditionalRewrite<Args_, Params>...)>;
 
+  template <template <typename> class Wrapper, typename ReturnType,
+            typename... Params>
+  using RewriteSignatureWrapReturn =
+      SignatureType<Wrapper<ConditionalRewrite<Return_, ReturnType>>(
+          ConditionalRewrite<Args_, Params>...)>;
+
   template <typename ReturnType>
   using RewriteReturn =
       SignatureType<ConditionalRewrite<Return_, ReturnType>(Args_...)>;
