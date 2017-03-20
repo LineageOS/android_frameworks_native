@@ -110,7 +110,7 @@ VKAPI_ATTR VkResult disabledCreateAndroidSurfaceKHR(VkInstance instance, const V
 
 // clang-format on
 
-}  // anonymous
+}  // namespace
 
 bool InitDispatchTable(
     VkInstance instance,
