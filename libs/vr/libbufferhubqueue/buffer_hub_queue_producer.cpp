@@ -1,7 +1,5 @@
 #include "include/private/dvr/buffer_hub_queue_producer.h"
 
-//#define LOG_NDEBUG 0
-
 #include <inttypes.h>
 #include <log/log.h>
 
@@ -14,7 +12,7 @@ BufferHubQueueProducer::BufferHubQueueProducer(
 
 status_t BufferHubQueueProducer::requestBuffer(int slot,
                                                sp<GraphicBuffer>* buf) {
-  ALOGD("requestBuffer: slot=%d", slot);
+  ALOGD_IF(TRACE, "requestBuffer: slot=%d", slot);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
 
@@ -35,8 +33,8 @@ status_t BufferHubQueueProducer::requestBuffer(int slot,
 
 status_t BufferHubQueueProducer::setMaxDequeuedBufferCount(
     int max_dequeued_buffers) {
-  ALOGD("setMaxDequeuedBufferCount: max_dequeued_buffers=%d",
-        max_dequeued_buffers);
+  ALOGD_IF(TRACE, "setMaxDequeuedBufferCount: max_dequeued_buffers=%d",
+           max_dequeued_buffers);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
 
@@ -63,8 +61,8 @@ status_t BufferHubQueueProducer::dequeueBuffer(int* out_slot,
                                                PixelFormat format,
                                                uint32_t usage,
                                                FrameEventHistoryDelta* /* outTimestamps */) {
-  ALOGD("dequeueBuffer: w=%u, h=%u, format=%d, usage=%u", width, height, format,
-        usage);
+  ALOGD_IF(TRACE, "dequeueBuffer: w=%u, h=%u, format=%d, usage=%u", width,
+           height, format, usage);
 
   status_t ret;
   std::unique_lock<std::mutex> lock(core_->mutex_);
@@ -134,7 +132,7 @@ status_t BufferHubQueueProducer::dequeueBuffer(int* out_slot,
 
   core_->buffers_[slot].mBufferState.freeQueued();
   core_->buffers_[slot].mBufferState.dequeue();
-  ALOGD("dequeueBuffer: slot=%zu", slot);
+  ALOGD_IF(TRACE, "dequeueBuffer: slot=%zu", slot);
 
   // TODO(jwcai) Handle fence properly. |BufferHub| has full fence support, we
   // just need to exopose that through |BufferHubQueue| once we need fence.
@@ -173,7 +171,7 @@ status_t BufferHubQueueProducer::attachBuffer(
 status_t BufferHubQueueProducer::queueBuffer(int slot,
                                              const QueueBufferInput& input,
                                              QueueBufferOutput* /* output */) {
-  ALOGD("queueBuffer: slot %d", slot);
+  ALOGD_IF(TRACE, "queueBuffer: slot %d", slot);
 
   int64_t timestamp;
   sp<Fence> fence;
@@ -220,7 +218,7 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
 
 status_t BufferHubQueueProducer::cancelBuffer(int slot,
                                               const sp<Fence>& fence) {
-  ALOGD(__FUNCTION__);
+  ALOGD_IF(TRACE, __FUNCTION__);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
 
@@ -241,13 +239,13 @@ status_t BufferHubQueueProducer::cancelBuffer(int slot,
   core_->producer_->Enqueue(buffer_producer, slot);
   core_->buffers_[slot].mBufferState.cancel();
   core_->buffers_[slot].mFence = fence;
-  ALOGD("cancelBuffer: slot %d", slot);
+  ALOGD_IF(TRACE, "cancelBuffer: slot %d", slot);
 
   return NO_ERROR;
 }
 
 status_t BufferHubQueueProducer::query(int what, int* out_value) {
-  ALOGD(__FUNCTION__);
+  ALOGD_IF(TRACE, __FUNCTION__);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
 
@@ -278,7 +276,7 @@ status_t BufferHubQueueProducer::query(int what, int* out_value) {
       return BAD_VALUE;
   }
 
-  ALOGD("query: key=%d, v=%d", what, value);
+  ALOGD_IF(TRACE, "query: key=%d, v=%d", what, value);
   *out_value = value;
   return NO_ERROR;
 }
@@ -288,14 +286,14 @@ status_t BufferHubQueueProducer::connect(
     bool /* producer_controlled_by_app */, QueueBufferOutput* /* output */) {
   // Consumer interaction are actually handled by buffer hub, and we need
   // to maintain consumer operations here. Hence |connect| is a NO-OP.
-  ALOGD(__FUNCTION__);
+  ALOGD_IF(TRACE, __FUNCTION__);
   return NO_ERROR;
 }
 
 status_t BufferHubQueueProducer::disconnect(int /* api */, DisconnectMode /* mode */) {
   // Consumer interaction are actually handled by buffer hub, and we need
   // to maintain consumer operations here. Hence |disconnect| is a NO-OP.
-  ALOGD(__FUNCTION__);
+  ALOGD_IF(TRACE, __FUNCTION__);
   return NO_ERROR;
 }
 
@@ -327,7 +325,7 @@ status_t BufferHubQueueProducer::allowAllocation(bool /* allow */) {
 
 status_t BufferHubQueueProducer::setGenerationNumber(
     uint32_t generation_number) {
-  ALOGD(__FUNCTION__);
+  ALOGD_IF(TRACE, __FUNCTION__);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
   core_->generation_number_ = generation_number;
@@ -354,7 +352,7 @@ status_t BufferHubQueueProducer::setAutoRefresh(bool /* auto_refresh */) {
 }
 
 status_t BufferHubQueueProducer::setDequeueTimeout(nsecs_t timeout) {
-  ALOGD(__FUNCTION__);
+  ALOGD_IF(TRACE, __FUNCTION__);
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
   core_->dequeue_timeout_ms_ = static_cast<int>(timeout / (1000 * 1000));
@@ -374,7 +372,7 @@ void BufferHubQueueProducer::getFrameTimestamps(
 }
 
 status_t BufferHubQueueProducer::getUniqueId(uint64_t* out_id) const {
-  ALOGD(__FUNCTION__);
+  ALOGD_IF(TRACE, __FUNCTION__);
 
   *out_id = core_->unique_id_;
   return NO_ERROR;

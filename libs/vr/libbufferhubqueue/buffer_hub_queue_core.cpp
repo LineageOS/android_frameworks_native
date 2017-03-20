@@ -1,8 +1,5 @@
 #include "include/private/dvr/buffer_hub_queue_core.h"
 
-//#define LOG_NDEBUG 0
-#define LOG_TAG "BufferHubQueueCore"
-
 #include <log/log.h>
 
 namespace android {

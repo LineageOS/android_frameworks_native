@@ -1,7 +1,5 @@
 #include "include/private/dvr/buffer_hub_queue_client.h"
 
-//#define LOG_NDEBUG 0
-
 #include <inttypes.h>
 #include <log/log.h>
 #include <sys/epoll.h>
@@ -73,7 +71,8 @@ std::unique_ptr<ConsumerQueue> BufferHubQueue::CreateConsumerQueue() {
 
   auto return_value = status.take();
 
-  ALOGD("CreateConsumerQueue: meta_size_bytes=%zu", return_value.second);
+  ALOGD_IF(TRACE, "BufferHubQueue::CreateConsumerQueue: meta_size_bytes=%zu",
+           return_value.second);
   return ConsumerQueue::Create(std::move(return_value.first),
                                return_value.second);
 }
@@ -85,7 +84,7 @@ bool BufferHubQueue::WaitForBuffers(int timeout) {
     int ret = epoll_fd_.Wait(events.data(), events.size(), timeout);
 
     if (ret == 0) {
-      ALOGD("Wait on epoll returns nothing before timeout.");
+      ALOGD_IF(TRACE, "Wait on epoll returns nothing before timeout.");
       return false;
     }
 
@@ -102,7 +101,7 @@ bool BufferHubQueue::WaitForBuffers(int timeout) {
     for (int i = 0; i < num_events; i++) {
       int64_t index = static_cast<int64_t>(events[i].data.u64);
 
-      ALOGD("New BufferHubQueue event %d: index=%" PRId64, i, index);
+      ALOGD_IF(TRACE, "New BufferHubQueue event %d: index=%" PRId64, i, index);
 
       if (is_buffer_event_index(index)) {
         HandleBufferEvent(static_cast<size_t>(index), events[i]);
@@ -255,7 +254,7 @@ std::shared_ptr<BufferHubBuffer> BufferHubQueue::Dequeue(int timeout,
                                                          size_t* slot,
                                                          void* meta,
                                                          LocalHandle* fence) {
-  ALOGD("Dequeue: count=%zu, timeout=%d", count(), timeout);
+  ALOGD_IF(TRACE, "Dequeue: count=%zu, timeout=%d", count(), timeout);
 
   if (count() == 0 && !WaitForBuffers(timeout))
     return nullptr;
@@ -341,8 +340,9 @@ int ProducerQueue::AllocateBuffer(int width, int height, int format, int usage,
   // We only allocate one buffer at a time.
   auto& buffer_handle = buffer_handle_slots[0].first;
   size_t buffer_slot = buffer_handle_slots[0].second;
-  ALOGD("ProducerQueue::AllocateBuffer, new buffer, channel_handle: %d",
-        buffer_handle.value());
+  ALOGD_IF(TRACE,
+           "ProducerQueue::AllocateBuffer, new buffer, channel_handle: %d",
+           buffer_handle.value());
 
   *out_slot = buffer_slot;
   return AddBuffer(BufferProducer::Import(std::move(buffer_handle)),
@@ -414,8 +414,9 @@ int ConsumerQueue::ImportBuffers() {
 
   auto buffer_handle_slots = status.take();
   for (auto& buffer_handle_slot : buffer_handle_slots) {
-    ALOGD("ConsumerQueue::ImportBuffers, new buffer, buffer_handle: %d",
-          buffer_handle_slot.first.value());
+    ALOGD_IF(TRACE,
+             "ConsumerQueue::ImportBuffers, new buffer, buffer_handle: %d",
+             buffer_handle_slot.first.value());
 
     std::unique_ptr<BufferConsumer> buffer_consumer =
         BufferConsumer::Import(std::move(buffer_handle_slot.first));
@@ -473,7 +474,7 @@ int ConsumerQueue::OnBufferAllocated() {
   } else if (ret < 0) {
     ALOGE("Failed to import buffers on buffer allocated event.");
   }
-  ALOGD("Imported %d consumer buffers.", ret);
+  ALOGD_IF(TRACE, "Imported %d consumer buffers.", ret);
   return ret;
 }
 
