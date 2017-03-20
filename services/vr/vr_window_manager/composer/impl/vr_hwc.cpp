@@ -240,12 +240,14 @@ void VrHwc::enableCallback(bool enable) {
   }
 }
 
-uint32_t VrHwc::getMaxVirtualDisplayCount() { return 0; }
+uint32_t VrHwc::getMaxVirtualDisplayCount() { return 1; }
 
 Error VrHwc::createVirtualDisplay(uint32_t width, uint32_t height,
                                   PixelFormat* format, Display* outDisplay) {
   *format = PixelFormat::RGBA_8888;
-  *outDisplay = 0;
+  *outDisplay = display_count_;
+  displays_[display_count_].reset(new HwcDisplay());
+  display_count_++;
   return Error::NONE;
 }
 
@@ -356,7 +358,11 @@ Error VrHwc::getDisplayType(Display display,
     return Error::BAD_DISPLAY;
   }
 
-  *outType = IComposerClient::DisplayType::PHYSICAL;
+  if (display == kDefaultDisplayId)
+    *outType = IComposerClient::DisplayType::PHYSICAL;
+  else
+    *outType = IComposerClient::DisplayType::VIRTUAL;
+
   return Error::NONE;
 }
 
@@ -443,8 +449,8 @@ Error VrHwc::setOutputBuffer(Display display, buffer_handle_t buffer,
   if (!display_ptr)
     return Error::BAD_DISPLAY;
 
-  ALOGE("Virtual display support not implemented");
-  return Error::UNSUPPORTED;
+  // TODO(dnicoara): Is it necessary to do anything here?
+  return Error::NONE;
 }
 
 Error VrHwc::validateDisplay(

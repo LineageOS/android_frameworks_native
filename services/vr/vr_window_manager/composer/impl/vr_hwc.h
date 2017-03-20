@@ -248,6 +248,7 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
   std::mutex mutex_;
 
   std::unordered_map<Display, std::unique_ptr<HwcDisplay>> displays_;
+  Display display_count_ = 2;
 
   Observer* observer_ = nullptr;
 
