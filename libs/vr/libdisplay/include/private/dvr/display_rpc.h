@@ -217,8 +217,6 @@ struct DisplayRPC {
     kOpGetMetadataBuffer,
     kOpCreateVideoMeshSurface,
     kOpVideoMeshSurfaceCreateProducerQueue,
-    kOpEnterVrMode,
-    kOpExitVrMode,
     kOpSetViewerParams
   };
 
@@ -245,8 +243,6 @@ struct DisplayRPC {
   PDX_REMOTE_METHOD(VideoMeshSurfaceCreateProducerQueue,
                     kOpVideoMeshSurfaceCreateProducerQueue,
                     LocalChannelHandle(Void));
-  PDX_REMOTE_METHOD(EnterVrMode, kOpEnterVrMode, int(Void));
-  PDX_REMOTE_METHOD(ExitVrMode, kOpExitVrMode, int(Void));
   PDX_REMOTE_METHOD(SetViewerParams, kOpSetViewerParams,
                     void(const ViewerParams& viewer_params));
 };

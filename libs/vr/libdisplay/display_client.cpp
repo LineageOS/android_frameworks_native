@@ -248,29 +248,6 @@ int DisplayClient::GetLastFrameEdsTransform(LateLatchOutput* ll_out) {
   return 0;
 }
 
-int DisplayClient::EnterVrMode() {
-  auto status = InvokeRemoteMethod<DisplayRPC::EnterVrMode>();
-  if (!status) {
-    ALOGE(
-        "DisplayClient::EnterVrMode: Failed to set display service to Vr mode");
-    return -status.error();
-  }
-
-  return 0;
-}
-
-int DisplayClient::ExitVrMode() {
-  auto status = InvokeRemoteMethod<DisplayRPC::ExitVrMode>();
-  if (!status) {
-    ALOGE(
-        "DisplayClient::ExitVrMode: Failed to revert display service from Vr "
-        "mode");
-    return -status.error();
-  }
-
-  return 0;
-}
-
 std::unique_ptr<DisplaySurfaceClient> DisplayClient::CreateDisplaySurface(
     int width, int height, int format, int usage, int flags) {
   return DisplaySurfaceClient::Create(width, height, format, usage, flags);
