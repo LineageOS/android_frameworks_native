@@ -68,6 +68,7 @@ public:
 private:
     // DeathRecipient interface
     void sensorManagerDied();
+    static status_t waitForSensorService(sp<ISensorServer> *server);
 
     SensorManager(const String16& opPackageName);
     status_t assertStateLocked();
