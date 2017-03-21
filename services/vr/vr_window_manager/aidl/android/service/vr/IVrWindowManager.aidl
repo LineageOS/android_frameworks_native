@@ -24,5 +24,6 @@ interface IVrWindowManager {
     void enterVrMode() = 2;
     void exitVrMode() = 3;
     void setDebugMode(int mode) = 4;
+    void set2DMode(int mode) = 5;
 }
 

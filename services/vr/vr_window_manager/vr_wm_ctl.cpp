@@ -39,6 +39,8 @@ int main(int argc, char* argv[]) {
     exit(report(vrwm->exitVrMode()));
   } else if ((argc == 3) && (strcmp(argv[1], "debug") == 0)) {
     exit(report(vrwm->setDebugMode(atoi(argv[2]))));
+  } else if ((argc == 3) && (strcmp(argv[1], "2d") == 0)) {
+    exit(report(vrwm->set2DMode(atoi(argv[2]))));
   } else {
     usage();
     exit(2);
