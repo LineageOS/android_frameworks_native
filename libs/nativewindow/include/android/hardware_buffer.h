@@ -86,13 +86,11 @@ enum {
     /* The buffer will sometimes be read by the CPU */
     AHARDWAREBUFFER_USAGE0_CPU_READ               = 1ULL << 1,
     /* The buffer will often be read by the CPU*/
-    AHARDWAREBUFFER_USAGE0_CPU_READ_OFTEN         = 1ULL << 2 |
-            AHARDWAREBUFFER_USAGE0_CPU_READ,
+    AHARDWAREBUFFER_USAGE0_CPU_READ_OFTEN         = 1ULL << 2 | AHARDWAREBUFFER_USAGE0_CPU_READ,
     /* The buffer will sometimes be written to by the CPU */
     AHARDWAREBUFFER_USAGE0_CPU_WRITE              = 1ULL << 5,
     /* The buffer will often be written to by the CPU */
-    AHARDWAREBUFFER_USAGE0_CPU_WRITE_OFTEN        = 1ULL << 6 |
-            AHARDWAREBUFFER_USAGE0_CPU_WRITE,
+    AHARDWAREBUFFER_USAGE0_CPU_WRITE_OFTEN        = 1ULL << 6 | AHARDWAREBUFFER_USAGE0_CPU_WRITE,
     /* The buffer will be read from by the GPU */
     AHARDWAREBUFFER_USAGE0_GPU_SAMPLED_IMAGE      = 1ULL << 10,
     /* The buffer will be written to by the GPU */
@@ -244,8 +242,7 @@ int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence);
  * Returns NO_ERROR on success, BAD_VALUE if the buffer is NULL, or an error
  * number of the lock fails for any reason.
  */
-int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer,
-        int socketFd);
+int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int socketFd);
 
 /*
  * Receive the AHardwareBuffer from an AF_UNIX socket.
@@ -253,15 +250,13 @@ int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer,
  * Returns NO_ERROR on success, BAD_VALUE if the buffer is NULL, or an error
  * number of the lock fails for any reason.
  */
-int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd,
-        AHardwareBuffer** outBuffer);
+int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** outBuffer);
 
 // ----------------------------------------------------------------------------
 // Everything below here is part of the public NDK API, but is intended only
 // for use by device-specific graphics drivers.
 struct native_handle;
-const struct native_handle* AHardwareBuffer_getNativeHandle(
-        const AHardwareBuffer* buffer);
+const struct native_handle* AHardwareBuffer_getNativeHandle(const AHardwareBuffer* buffer);
 
 __END_DECLS
 

@@ -93,7 +93,7 @@ typedef struct ANativeWindow_Buffer {
     // memory.  This may be >= width.
     int32_t stride;
 
-    // The format of the buffer.  One of WINDOW_FORMAT_*
+    // The format of the buffer.  One of AHARDWAREBUFFER_FORMAT_*
     int32_t format;
 
     // The actual bits.
@@ -127,13 +127,15 @@ int32_t ANativeWindow_getWidth(ANativeWindow* window);
 int32_t ANativeWindow_getHeight(ANativeWindow* window);
 
 /**
- * Return the current pixel format of the window surface.  Returns a
+ * Return the current pixel format (AHARDWAREBUFFER_FORMAT_*) of the window surface.  Returns a
  * negative value on error.
  */
 int32_t ANativeWindow_getFormat(ANativeWindow* window);
 
 /**
  * Change the format and size of the window buffers.
+ *
+ * format: one of AHARDWAREBUFFER_FORMAT_ constants
  *
  * The width and height control the number of pixels in the buffers, not the
  * dimensions of the window on screen.  If these are different than the

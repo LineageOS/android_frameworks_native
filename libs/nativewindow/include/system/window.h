@@ -56,31 +56,7 @@ __BEGIN_DECLS
 
 /*****************************************************************************/
 
-#ifdef __cplusplus
-#define ANDROID_NATIVE_UNSIGNED_CAST(x) static_cast<unsigned int>(x)
-#else
-#define ANDROID_NATIVE_UNSIGNED_CAST(x) ((unsigned int)(x))
-#endif
-
-#define ANDROID_NATIVE_MAKE_CONSTANT(a,b,c,d) \
-    ((ANDROID_NATIVE_UNSIGNED_CAST(a) << 24) | \
-     (ANDROID_NATIVE_UNSIGNED_CAST(b) << 16) | \
-     (ANDROID_NATIVE_UNSIGNED_CAST(c) << 8) | \
-     (ANDROID_NATIVE_UNSIGNED_CAST(d)))
-
-#define ANDROID_NATIVE_WINDOW_MAGIC \
-    ANDROID_NATIVE_MAKE_CONSTANT('_','w','n','d')
-
-#define ANDROID_NATIVE_BUFFER_MAGIC \
-    ANDROID_NATIVE_MAKE_CONSTANT('_','b','f','r')
-
-// ---------------------------------------------------------------------------
-
-// This #define may be used to conditionally compile device-specific code to
-// support either the prior ANativeWindow interface, which did not pass libsync
-// fences around, or the new interface that does.  This #define is only present
-// when the ANativeWindow interface does include libsync support.
-#define ANDROID_NATIVE_WINDOW_HAS_SYNC 1
+#define ANDROID_NATIVE_WINDOW_MAGIC     ANDROID_NATIVE_MAKE_CONSTANT('_','w','n','d')
 
 // ---------------------------------------------------------------------------
 
@@ -98,56 +74,6 @@ typedef struct android_native_rect_t
 
 // ---------------------------------------------------------------------------
 
-typedef struct android_native_base_t
-{
-    /* a magic value defined by the actual EGL native type */
-    int magic;
-
-    /* the sizeof() of the actual EGL native type */
-    int version;
-
-    void* reserved[4];
-
-    /* reference-counting interface */
-    void (*incRef)(struct android_native_base_t* base);
-    void (*decRef)(struct android_native_base_t* base);
-} android_native_base_t;
-
-typedef struct ANativeWindowBuffer
-{
-#ifdef __cplusplus
-    ANativeWindowBuffer() {
-        common.magic = ANDROID_NATIVE_BUFFER_MAGIC;
-        common.version = sizeof(ANativeWindowBuffer);
-        memset(common.reserved, 0, sizeof(common.reserved));
-    }
-
-    // Implement the methods that sp<ANativeWindowBuffer> expects so that it
-    // can be used to automatically refcount ANativeWindowBuffer's.
-    void incStrong(const void* /*id*/) const {
-        common.incRef(const_cast<android_native_base_t*>(&common));
-    }
-    void decStrong(const void* /*id*/) const {
-        common.decRef(const_cast<android_native_base_t*>(&common));
-    }
-#endif
-
-    struct android_native_base_t common;
-
-    int width;
-    int height;
-    int stride;
-    int format;
-    int usage;
-    uintptr_t layerCount;
-
-    void* reserved[1];
-
-    buffer_handle_t handle;
-
-    void* reserved_proc[8];
-} ANativeWindowBuffer_t;
-
 // Old typedef for backwards compatibility.
 typedef ANativeWindowBuffer_t android_native_buffer_t;
 
@@ -159,25 +85,8 @@ enum {
     NATIVE_WINDOW_HEIGHT    = 1,
     NATIVE_WINDOW_FORMAT    = 2,
 
-    /* The minimum number of buffers that must remain un-dequeued after a buffer
-     * has been queued.  This value applies only if set_buffer_count was used to
-     * override the number of buffers and if a buffer has since been queued.
-     * Users of the set_buffer_count ANativeWindow method should query this
-     * value before calling set_buffer_count.  If it is necessary to have N
-     * buffers simultaneously dequeued as part of the steady-state operation,
-     * and this query returns M then N+M buffers should be requested via
-     * native_window_set_buffer_count.
-     *
-     * Note that this value does NOT apply until a single buffer has been
-     * queued.  In particular this means that it is possible to:
-     *
-     * 1. Query M = min undequeued buffers
-     * 2. Set the buffer count to N + M
-     * 3. Dequeue all N + M buffers
-     * 4. Cancel M buffers
-     * 5. Queue, dequeue, queue, dequeue, ad infinitum
-     */
-    NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS = 3,
+    /* see ANativeWindowQuery in vndk/window.h */
+    NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS = ANATIVEWINDOW_QUERY_MIN_UNDEQUEUED_BUFFERS,
 
     /* Check whether queueBuffer operations on the ANativeWindow send the buffer
      * to the window compositor.  The query sets the returned 'value' argument
@@ -209,57 +118,11 @@ enum {
      * NATIVE_WINDOW_SET_BUFFERS_DIMENSIONS call and match the native window
      * size unless overridden by NATIVE_WINDOW_SET_BUFFERS_USER_DIMENSIONS.
      */
-    NATIVE_WINDOW_DEFAULT_WIDTH = 6,
-    NATIVE_WINDOW_DEFAULT_HEIGHT = 7,
+    NATIVE_WINDOW_DEFAULT_WIDTH = ANATIVEWINDOW_QUERY_DEFAULT_WIDTH,
+    NATIVE_WINDOW_DEFAULT_HEIGHT = ANATIVEWINDOW_QUERY_DEFAULT_HEIGHT,
 
-    /*
-     * transformation that will most-likely be applied to buffers. This is only
-     * a hint, the actual transformation applied might be different.
-     *
-     * INTENDED USE:
-     *
-     * The transform hint can be used by a producer, for instance the GLES
-     * driver, to pre-rotate the rendering such that the final transformation
-     * in the composer is identity. This can be very useful when used in
-     * conjunction with the h/w composer HAL, in situations where it
-     * cannot handle arbitrary rotations.
-     *
-     * 1. Before dequeuing a buffer, the GL driver (or any other ANW client)
-     *    queries the ANW for NATIVE_WINDOW_TRANSFORM_HINT.
-     *
-     * 2. The GL driver overrides the width and height of the ANW to
-     *    account for NATIVE_WINDOW_TRANSFORM_HINT. This is done by querying
-     *    NATIVE_WINDOW_DEFAULT_{WIDTH | HEIGHT}, swapping the dimensions
-     *    according to NATIVE_WINDOW_TRANSFORM_HINT and calling
-     *    native_window_set_buffers_dimensions().
-     *
-     * 3. The GL driver dequeues a buffer of the new pre-rotated size.
-     *
-     * 4. The GL driver renders to the buffer such that the image is
-     *    already transformed, that is applying NATIVE_WINDOW_TRANSFORM_HINT
-     *    to the rendering.
-     *
-     * 5. The GL driver calls native_window_set_transform to apply
-     *    inverse transformation to the buffer it just rendered.
-     *    In order to do this, the GL driver needs
-     *    to calculate the inverse of NATIVE_WINDOW_TRANSFORM_HINT, this is
-     *    done easily:
-     *
-     *        int hintTransform, inverseTransform;
-     *        query(..., NATIVE_WINDOW_TRANSFORM_HINT, &hintTransform);
-     *        inverseTransform = hintTransform;
-     *        if (hintTransform & HAL_TRANSFORM_ROT_90)
-     *            inverseTransform ^= HAL_TRANSFORM_ROT_180;
-     *
-     *
-     * 6. The GL driver queues the pre-transformed buffer.
-     *
-     * 7. The composer combines the buffer transform with the display
-     *    transform.  If the buffer transform happens to cancel out the
-     *    display transform then no rotation is needed.
-     *
-     */
-    NATIVE_WINDOW_TRANSFORM_HINT = 8,
+    /* see ANativeWindowQuery in vndk/window.h */
+    NATIVE_WINDOW_TRANSFORM_HINT = ANATIVEWINDOW_QUERY_TRANSFORM_HINT,
 
     /*
      * Boolean that indicates whether the consumer is running more than
@@ -298,14 +161,8 @@ enum {
      */
     NATIVE_WINDOW_DEFAULT_DATASPACE = 12,
 
-    /*
-     * Returns the age of the contents of the most recently dequeued buffer as
-     * the number of frames that have elapsed since it was last queued. For
-     * example, if the window is double-buffered, the age of any given buffer in
-     * steady state will be 2. If the dequeued buffer has never been queued, its
-     * age will be 0.
-     */
-    NATIVE_WINDOW_BUFFER_AGE = 13,
+    /* see ANativeWindowQuery in vndk/window.h */
+    NATIVE_WINDOW_BUFFER_AGE = ANATIVEWINDOW_QUERY_BUFFER_AGE,
 
     /*
      * Returns the duration of the last dequeueBuffer call in microseconds
