@@ -6,4 +6,4 @@ service sensord /system/bin/sensord
   class core
   user system
   group system camera sdcard_rw
-  cpuset /system
+  writepid /dev/cpuset/system/tasks

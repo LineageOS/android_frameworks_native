@@ -2,4 +2,4 @@ service vr_wm /system/bin/vr_wm
   class core
   user system
   group system graphics input
-  cpuset /system
+  writepid /dev/cpuset/system/tasks
