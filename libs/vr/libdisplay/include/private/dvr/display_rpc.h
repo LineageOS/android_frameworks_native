@@ -219,7 +219,8 @@ struct DisplayRPC {
     kOpVideoMeshSurfaceCreateProducerQueue,
     kOpEnterVrMode,
     kOpExitVrMode,
-    kOpSetViewerParams
+    kOpSetViewerParams,
+    kOpGetPoseBuffer,
   };
 
   // Aliases.
@@ -249,6 +250,8 @@ struct DisplayRPC {
   PDX_REMOTE_METHOD(ExitVrMode, kOpExitVrMode, int(Void));
   PDX_REMOTE_METHOD(SetViewerParams, kOpSetViewerParams,
                     void(const ViewerParams& viewer_params));
+  PDX_REMOTE_METHOD(GetPoseBuffer, kOpGetPoseBuffer,
+                    LocalChannelHandle(Void));
 };
 
 struct DisplayManagerRPC {
@@ -259,6 +262,7 @@ struct DisplayManagerRPC {
   enum {
     kOpGetSurfaceList = 0,
     kOpUpdateSurfaces,
+    kOpSetupPoseBuffer,
   };
 
   // Aliases.
@@ -271,6 +275,8 @@ struct DisplayManagerRPC {
   PDX_REMOTE_METHOD(
       UpdateSurfaces, kOpUpdateSurfaces,
       int(const std::map<int, DisplaySurfaceAttributes>& updates));
+  PDX_REMOTE_METHOD(SetupPoseBuffer, kOpSetupPoseBuffer,
+                    LocalChannelHandle(size_t extended_region_size, int usage));
 };
 
 struct ScreenshotData {

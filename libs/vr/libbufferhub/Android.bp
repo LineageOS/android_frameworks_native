@@ -15,6 +15,7 @@
 sourceFiles = [
     "buffer_hub_client.cpp",
     "buffer_hub_rpc.cpp",
+    "dvr_buffer.cpp",
     "ion_buffer.cpp",
 ]
 

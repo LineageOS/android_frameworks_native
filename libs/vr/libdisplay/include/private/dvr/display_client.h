@@ -111,6 +111,8 @@ class DisplayClient : public pdx::ClientBase<DisplayClient> {
   std::unique_ptr<DisplaySurfaceClient> CreateDisplaySurface(
       int width, int height, int format, int usage, int flags);
 
+  std::unique_ptr<BufferConsumer> GetPoseBuffer();
+
  private:
   friend BASE;
 

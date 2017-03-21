@@ -31,5 +31,20 @@ int DisplayManagerClient::GetSurfaceList(
   return 0;
 }
 
+std::unique_ptr<BufferProducer> DisplayManagerClient::SetupPoseBuffer(
+    size_t extended_region_size, int usage) {
+  auto status = InvokeRemoteMethod<DisplayManagerRPC::SetupPoseBuffer>(
+      extended_region_size, usage);
+  if (!status) {
+    ALOGE(
+        "DisplayManagerClient::SetupPoseBuffer: Failed to create the pose "
+        "buffer %s",
+        status.GetErrorMessage().c_str());
+    return {};
+  }
+
+  return BufferProducer::Import(std::move(status));
+}
+
 }  // namespace dvr
 }  // namespace android

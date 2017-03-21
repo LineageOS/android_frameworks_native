@@ -9,13 +9,16 @@
 namespace android {
 namespace dvr {
 
-class BufferConsumer;
+class BufferProducer;
 
 class DisplayManagerClient : public pdx::ClientBase<DisplayManagerClient> {
  public:
   ~DisplayManagerClient() override;
 
   int GetSurfaceList(std::vector<DisplaySurfaceInfo>* surface_list);
+
+  std::unique_ptr<BufferProducer> SetupPoseBuffer(size_t extended_region_size,
+                                                  int usage);
 
   using Client::event_fd;
   using Client::GetChannel;

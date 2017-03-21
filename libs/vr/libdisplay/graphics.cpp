@@ -17,6 +17,7 @@
 #include <private/dvr/clock_ns.h>
 #include <private/dvr/debug.h>
 #include <private/dvr/display_types.h>
+#include <private/dvr/dvr_buffer.h>
 #include <private/dvr/frame_history.h>
 #include <private/dvr/gl_fenced_flush.h>
 #include <private/dvr/graphics/vr_gl_extensions.h>
@@ -1570,4 +1571,15 @@ extern "C" void dvrGraphicsVideoMeshSurfacePresent(
         transform[i + 0], transform[i + 4], transform[i + 8], transform[i + 12],
     };
   }
+}
+
+extern "C" int dvrGetPoseBuffer(DvrReadBuffer** pose_buffer) {
+  auto client = android::dvr::DisplayClient::Create();
+  if (!client) {
+    ALOGE("Failed to create display client!");
+    return -ECOMM;
+  }
+
+  *pose_buffer = CreateDvrReadBufferFromBufferConsumer(client->GetPoseBuffer());
+  return 0;
 }
