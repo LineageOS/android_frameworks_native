@@ -72,27 +72,66 @@ public:
         USAGE_CURSOR            = GRALLOC_USAGE_CURSOR,
     };
 
+    // Create a GraphicBuffer to be unflatten'ed into or be reallocated.
     GraphicBuffer();
 
-    // creates w * h buffer
-    GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
-            uint32_t inUsage, std::string requestorName = "<Unknown>");
-
-    // creates w * h buffer with a layer count using gralloc1
+    // Create a GraphicBuffer by allocating and managing a buffer internally.
+    // This function is privileged.  See reallocate for details.
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inLayerCount, uint64_t inProducerUsage,
             uint64_t inConsumerUsage, std::string requestorName = "<Unknown>");
 
-    // create a buffer from an existing handle
+    // Create a GraphicBuffer from an existing handle.
+    enum HandleWrapMethod : uint8_t {
+        // Wrap and use the handle directly.  It assumes the handle has been
+        // registered and never fails.  The handle must have a longer lifetime
+        // than this wrapping GraphicBuffer.
+        //
+        // This can be used when, for example, you want to wrap a handle that
+        // is already managed by another GraphicBuffer.
+        WRAP_HANDLE,
+
+        // Take ownership of the handle and use it directly.  It assumes the
+        // handle has been registered and never fails.
+        //
+        // This can be used to manage an already registered handle with
+        // GraphicBuffer.
+        TAKE_HANDLE,
+
+        // Take onwership of an unregistered handle and use it directly.  It
+        // can fail when the buffer does not register.  There is no ownership
+        // transfer on failures.
+        //
+        // This can be used to, for example, create a GraphicBuffer from a
+        // handle returned by Parcel::readNativeHandle.
+        TAKE_UNREGISTERED_HANDLE,
+
+        // Make a clone of the handle and use the cloned handle.  It can fail
+        // when cloning fails or when the buffer does not register.  There is
+        // never ownership transfer.
+        //
+        // This can be used to create a GraphicBuffer from a handle that
+        // cannot be used directly, such as one from hidl_handle.
+        CLONE_HANDLE,
+    };
+    GraphicBuffer(const native_handle_t* handle, HandleWrapMethod method,
+            uint32_t width, uint32_t height,
+            PixelFormat format, uint32_t layerCount,
+            uint64_t producerUsage, uint64_t consumerUsage, uint32_t stride);
+
+    // These functions are deprecated because they do not distinguish producer
+    // and consumer usages.
+    GraphicBuffer(const native_handle_t* handle, HandleWrapMethod method,
+            uint32_t width, uint32_t height,
+            PixelFormat format, uint32_t layerCount,
+            uint32_t usage, uint32_t stride)
+        : GraphicBuffer(handle, method, width, height, format, layerCount,
+                usage, usage, stride) {}
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inLayerCount, uint32_t inUsage, uint32_t inStride,
             native_handle_t* inHandle, bool keepOwnership);
-
-    // create a buffer from an existing handle using gralloc1
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
-            uint32_t inLayerCount, uint32_t inProducerUsage,
-            uint32_t inConsumerUsage, uint32_t inStride,
-            native_handle_t* inHandle, bool keepOwnership);
+            uint32_t inUsage, std::string requestorName = "<Unknown>");
 
     // create a buffer from an existing ANativeWindowBuffer
     GraphicBuffer(ANativeWindowBuffer* buffer, bool keepOwnership);
@@ -114,6 +153,9 @@ public:
         mGenerationNumber = generation;
     }
 
+    // This function is privileged.  It requires access to the allocator
+    // device or service, which usually involves adding suitable selinux
+    // rules.
     status_t reallocate(uint32_t inWidth, uint32_t inHeight,
             PixelFormat inFormat, uint32_t inLayerCount, uint32_t inUsage);
 
@@ -175,9 +217,15 @@ private:
     GraphicBuffer& operator = (const GraphicBuffer& rhs);
     const GraphicBuffer& operator = (const GraphicBuffer& rhs) const;
 
-    status_t initSize(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
-            uint32_t inLayerCount, uint64_t inProducerUsage,
-            uint64_t inConsumerUsage, std::string requestorName);
+    status_t initWithSize(uint32_t inWidth, uint32_t inHeight,
+            PixelFormat inFormat, uint32_t inLayerCount,
+            uint64_t inProducerUsage, uint64_t inConsumerUsage,
+            std::string requestorName);
+
+    status_t initWithHandle(const native_handle_t* handle,
+            HandleWrapMethod method, uint32_t width, uint32_t height,
+            PixelFormat format, uint32_t layerCount,
+            uint64_t producerUsage, uint64_t consumerUsage, uint32_t stride);
 
     void free_handle();
 

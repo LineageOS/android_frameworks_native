@@ -69,11 +69,10 @@ sp<GraphicBuffer> GetBufferFromHandle(const native_handle_t* handle) {
   mapper.getLayerCount(handle, &layer_count);
 
   // NOTE: Can't re-use |handle| since we don't own it.
-  sp<GraphicBuffer> buffer = new GraphicBuffer(
-      width, height, format, layer_count, producer_usage, consumer_usage,
-      stride, native_handle_clone(handle), true);
-  // Need to register the cloned buffer otherwise it can't be used later on.
-  if (mapper.registerBuffer(buffer.get()) != OK) {
+  sp<GraphicBuffer> buffer = new GraphicBuffer(handle,
+      GraphicBuffer::CLONE_HANDLE, width, height, format, layer_count,
+      producer_usage, consumer_usage, stride);
+  if (buffer->initCheck() != OK) {
     ALOGE("Failed to register cloned buffer");
     return nullptr;
   }
