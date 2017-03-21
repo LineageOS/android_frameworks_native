@@ -36,7 +36,6 @@
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
 
-#include "InstalldNativeService.h"
 #include "dexopt.h"
 #include "file_parsing.h"
 #include "globals.h"
