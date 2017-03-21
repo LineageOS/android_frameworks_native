@@ -58,6 +58,8 @@ using android::os::dumpstate::CommandOptions;
 using android::os::dumpstate::DumpFileToFd;
 using android::os::dumpstate::PropertiesHelper;
 
+// Keep in sync with
+// frameworks/base/services/core/java/com/android/server/am/ActivityManagerService.java
 static const int TRACE_DUMP_TIMEOUT_MS = 10000; // 10 seconds
 
 /* Most simple commands have 10 as timeout, so 5 is a good estimate */
