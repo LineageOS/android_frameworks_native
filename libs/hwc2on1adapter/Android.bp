@@ -48,6 +48,9 @@ cc_library_shared {
         "-Wno-sign-conversion",
         "-Wno-switch-enum",
         "-Wno-float-equal",
+        "-Wno-shorten-64-to-32",
+        "-Wno-sign-compare",
+        "-Wno-missing-prototypes",
     ],
 
     srcs: [
