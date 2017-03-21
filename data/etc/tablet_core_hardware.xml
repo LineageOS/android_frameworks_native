@@ -23,6 +23,9 @@
      devices.
 -->
 <permissions>
+    <!-- This is Android and fully CTS compatible.  Basically this is for CTS tests to use. -->
+    <feature name="android.software.cts" />
+
     <feature name="android.hardware.audio.output" />
     <feature name="android.hardware.location" />
     <feature name="android.hardware.location.network" />
