@@ -77,7 +77,7 @@ LOCAL_STATIC_LIBRARIES := \
     libvrflinger
 
 LOCAL_SHARED_LIBRARIES := \
-    android.dvr.composer@1.0 \
+    android.frameworks.vr.composer@1.0 \
     android.hardware.graphics.allocator@2.0 \
     android.hardware.graphics.composer@2.1 \
     android.hardware.configstore@1.0 \
