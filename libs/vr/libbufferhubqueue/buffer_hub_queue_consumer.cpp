@@ -1,7 +1,5 @@
 #include "include/private/dvr/buffer_hub_queue_consumer.h"
 
-//#define LOG_NDEBUG 0
-
 namespace android {
 namespace dvr {
 

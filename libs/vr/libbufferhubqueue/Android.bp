@@ -42,7 +42,10 @@ sharedLibraries = [
 
 cc_library {
     name: "libbufferhubqueue",
-    cflags = [ "-DLOGTAG=\"libbufferhubqueue\"" ],
+    cflags = [
+        "-DLOGTAG=\"libbufferhubqueue\"",
+        "-DTRACE=0",
+    ],
     srcs: sourceFiles,
     export_include_dirs: includeFiles,
     export_static_lib_headers: staticLibraries,
@@ -50,3 +53,4 @@ cc_library {
     shared_libs: sharedLibraries,
 }
 
+subdirs = ["tests"]
