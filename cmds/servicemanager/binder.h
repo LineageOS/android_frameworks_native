@@ -46,7 +46,7 @@ typedef int (*binder_handler)(struct binder_state *bs,
                               struct binder_io *msg,
                               struct binder_io *reply);
 
-struct binder_state *binder_open(size_t mapsize);
+struct binder_state *binder_open(const char* driver, size_t mapsize);
 void binder_close(struct binder_state *bs);
 
 /* initiate a blocking binder call
