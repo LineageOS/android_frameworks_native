@@ -21,8 +21,7 @@ using android::pdx::rpc::WrapBuffer;
 namespace android {
 namespace dvr {
 
-DisplayService::DisplayService()
-    : DisplayService(nullptr) {}
+DisplayService::DisplayService() : DisplayService(nullptr) {}
 
 DisplayService::DisplayService(Hwc2::Composer* hidl)
     : BASE("DisplayService", Endpoint::Create(DisplayRPC::kClientPath)),
@@ -73,6 +72,16 @@ int DisplayService::HandleMessage(pdx::Message& message) {
     case DisplayRPC::CreateSurface::Opcode:
       DispatchRemoteMethod<DisplayRPC::CreateSurface>(
           *this, &DisplayService::OnCreateSurface, message);
+      return 0;
+
+    case DisplayRPC::EnterVrMode::Opcode:
+      DispatchRemoteMethod<DisplayRPC::EnterVrMode>(
+          *this, &DisplayService::OnEnterVrMode, message);
+      return 0;
+
+    case DisplayRPC::ExitVrMode::Opcode:
+      DispatchRemoteMethod<DisplayRPC::ExitVrMode>(
+          *this, &DisplayService::OnExitVrMode, message);
       return 0;
 
     case DisplayRPC::SetViewerParams::Opcode:
@@ -173,6 +182,16 @@ DisplayRPC::ByteBuffer DisplayService::OnGetEdsCapture(pdx::Message& message) {
   return WrapBuffer(std::move(buffer));
 }
 
+int DisplayService::OnEnterVrMode(pdx::Message& /*message*/) {
+  hardware_composer_.Resume();
+  return 0;
+}
+
+int DisplayService::OnExitVrMode(pdx::Message& /*message*/) {
+  hardware_composer_.Suspend();
+  return 0;
+}
+
 void DisplayService::OnSetViewerParams(pdx::Message& message,
                                        const ViewerParams& view_params) {
   Compositor* compositor = hardware_composer_.GetCompositor();
@@ -271,7 +290,7 @@ DisplayService::GetVisibleDisplaySurfaces() const {
   return visible_surfaces;
 }
 
-void DisplayService::UpdateActiveDisplaySurfaces() {
+int DisplayService::UpdateActiveDisplaySurfaces() {
   auto visible_surfaces = GetVisibleDisplaySurfaces();
 
   // Sort the surfaces based on manager z order first, then client z order.
@@ -302,8 +321,7 @@ void DisplayService::UpdateActiveDisplaySurfaces() {
     if (surface->client_blur_behind())
       blur_requested = true;
   }
-
-  hardware_composer_.SetDisplaySurfaces(std::move(visible_surfaces));
+  return hardware_composer_.SetDisplaySurfaces(std::move(visible_surfaces));
 }
 
 void DisplayService::OnHardwareComposerRefresh() {

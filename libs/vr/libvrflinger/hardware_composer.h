@@ -176,12 +176,6 @@ class Layer {
 
 // HardwareComposer encapsulates the hardware composer HAL, exposing a
 // simplified API to post buffers to the display.
-//
-// HardwareComposer is accessed by both the vr flinger dispatcher thread and the
-// surface flinger main thread, in addition to internally running a separate
-// thread for compositing/EDS and posting layers to the HAL. When changing how
-// variables are used or adding new state think carefully about which threads
-// will access the state and whether it needs to be synchronized.
 class HardwareComposer {
  public:
   // Type for vsync callback.
@@ -199,12 +193,8 @@ class HardwareComposer {
 
   bool IsInitialized() const { return initialized_; }
 
-  // Start the post thread if there's work to do (i.e. visible layers). This
-  // should only be called from surface flinger's main thread.
-  void Enable();
-  // Pause the post thread, blocking until the post thread has signaled that
-  // it's paused. This should only be called from surface flinger's main thread.
-  void Disable();
+  bool Suspend();
+  bool Resume();
 
   // Get the HMD display metrics for the current display.
   DisplayMetrics GetHmdDisplayMetrics() const;
@@ -229,9 +219,12 @@ class HardwareComposer {
     return native_display_metrics_;
   }
 
+  std::shared_ptr<IonBuffer> framebuffer_target() const {
+    return framebuffer_target_;
+  }
+
   // Set the display surface stack to compose to the display each frame.
-  void SetDisplaySurfaces(
-      std::vector<std::shared_ptr<DisplaySurface>> surfaces);
+  int SetDisplaySurfaces(std::vector<std::shared_ptr<DisplaySurface>> surfaces);
 
   Compositor* GetCompositor() { return &compositor_; }
 
@@ -273,21 +266,8 @@ class HardwareComposer {
   void PostLayers(bool is_geometry_changed);
   void PostThread();
 
-  // Check to see if we have a value written to post_thread_interrupt_event_fd_,
-  // indicating a control thread interrupted the post thread. This clears the
-  // post_thread_interrupt_event_fd_ state in the process. Returns true if an
-  // interrupt was requested.
-  bool CheckPostThreadInterruptEventFd();
-  // Blocks until either event_fd becomes readable, or we're interrupted by a
-  // control thread. Any errors are returned as negative errno values. If we're
-  // interrupted, kPostThreadInterrupted will be returned.
-  int PostThreadPollInterruptible(int event_fd);
-
-  // BlockUntilVSync, WaitForVSync, and SleepUntil are all blocking calls made
-  // on the post thread that can be interrupted by a control thread. If
-  // interrupted, these calls return kPostThreadInterrupted.
   int ReadWaitPPState();
-  int BlockUntilVSync();
+  int BlockUntilVSync(/*out*/ bool* suspend_requested);
   int ReadVSyncTimestamp(int64_t* timestamp);
   int WaitForVSync(int64_t* timestamp);
   int SleepUntil(int64_t wakeup_timestamp);
@@ -295,18 +275,12 @@ class HardwareComposer {
   bool IsFramePendingInDriver() { return ReadWaitPPState() == 1; }
 
   // Returns true if the layer config changed, false otherwise
-  bool UpdateLayerConfig();
-  void PostCompositorBuffers();
+  bool UpdateLayerConfig(
+      std::vector<std::shared_ptr<DisplaySurface>>* compositor_surfaces);
+  void PostCompositorBuffers(
+      const std::vector<std::shared_ptr<DisplaySurface>>& compositor_surfaces);
 
-  // Return true if the post thread has work to do (i.e. there are visible
-  // surfaces to post to the screen). Must be called with post_thread_mutex_
-  // locked. Called only from the post thread.
-  bool PostThreadHasWork();
-
-  // Called on the post thread when the post thread is resumed.
-  void OnPostThreadResumed();
-  // Called on the post thread when the post thread is paused or quits.
-  void OnPostThreadPaused();
+  void UpdateDisplayState();
 
   struct FrameTimeMeasurementRecord {
     int64_t start_time;
@@ -350,28 +324,14 @@ class HardwareComposer {
   // Buffer for the background layer required by hardware composer.
   std::shared_ptr<IonBuffer> framebuffer_target_;
 
-  // Protects access to variables used by the post thread and one of the control
-  // threads (either the vr flinger dispatcher thread or the surface flinger
-  // main thread). This includes active_surfaces_, active_surfaces_updated_,
-  // post_thread_enabled_, post_thread_running_, and
-  // post_thread_quit_requested_.
-  std::mutex post_thread_mutex_;
+  // Protects access to the display surfaces and logical layers.
+  std::mutex layer_mutex_;
 
-  // Surfaces configured by the display manager. Written by the vr flinger
-  // dispatcher thread, read by the post thread.
-  std::vector<std::shared_ptr<DisplaySurface>> active_surfaces_;
-  // active_surfaces_updated_ is set to true by the vr flinger dispatcher thread
-  // when the list of active surfaces changes. active_surfaces_updated_ will be
-  // set back to false by the post thread when it processes the update.
-  bool active_surfaces_updated_;
-
-  // The surfaces displayed by the post thread. Used exclusively by the post
-  // thread.
+  // Active display surfaces configured by the display manager.
   std::vector<std::shared_ptr<DisplaySurface>> display_surfaces_;
-
-  // The surfaces rendered by the compositor. Used exclusively by the post
-  // thread.
-  std::vector<std::shared_ptr<DisplaySurface>> compositor_surfaces_;
+  std::vector<std::shared_ptr<DisplaySurface>> added_display_surfaces_;
+  bool display_surfaces_updated_;
+  bool hardware_layers_need_update_;
 
   // Layer array for handling buffer flow into hardware composer layers.
   // Note that the first array is the actual storage for the layer objects,
@@ -392,22 +352,31 @@ class HardwareComposer {
   // hand buffers to post processing and the results to hardware composer.
   std::thread post_thread_;
 
-  // Set to true if the post thread is allowed to run. Surface flinger and vr
-  // flinger share access to the display, and vr flinger shouldn't use the
-  // display while surface flinger is using it. While surface flinger owns the
-  // display, post_thread_enabled_ will be set to false to indicate the post
-  // thread shouldn't run.
-  bool post_thread_enabled_;
-  // Set to true by the post thread if it's currently running.
-  bool post_thread_running_;
-  // Set to true if the post thread should quit. Only set when destroying the
-  // HardwareComposer instance.
-  bool post_thread_quit_requested_;
-  // Used to wake the post thread up while it's waiting for vsync or sleeping
-  // until EDS preemption, for faster transition to the paused state.
-  pdx::LocalHandle post_thread_interrupt_event_fd_;
+  enum class PostThreadState {
+    // post_thread_state_ starts off paused. When suspending, the control thread
+    // will block until post_thread_state_ == kPaused, indicating the post
+    // thread has completed the transition to paused (most importantly: no more
+    // hardware composer calls).
+    kPaused,
+    // post_thread_state_ is set to kRunning by the control thread (either
+    // surface flinger's main thread or the vr flinger dispatcher thread). The
+    // post thread blocks until post_thread_state_ == kRunning.
+    kRunning,
+    // Set by the control thread to indicate the post thread should pause. The
+    // post thread will change post_thread_state_ from kPauseRequested to
+    // kPaused when it stops.
+    kPauseRequested
+  };
+  // Control variables to control the state of the post thread
+  PostThreadState post_thread_state_;
+  // Used to wake the post thread up while it's waiting for vsync, for faster
+  // transition to the paused state.
+  pdx::LocalHandle terminate_post_thread_event_fd_;
+  // post_thread_state_mutex_ should be held before checking or modifying
+  // post_thread_state_.
+  std::mutex post_thread_state_mutex_;
   // Used to communicate between the control thread and the post thread.
-  std::condition_variable post_thread_cond_var_;
+  std::condition_variable post_thread_state_cond_var_;
 
   // Backlight LED brightness sysfs node.
   pdx::LocalHandle backlight_brightness_fd_;
@@ -440,17 +409,6 @@ class HardwareComposer {
   // Pose client for frame count notifications. Pose client predicts poses
   // out to display frame boundaries, so we need to tell it about vsyncs.
   DvrPose* pose_client_;
-
-  // Our history of frame times. This is used to get a better estimate of how
-  // long the next frame will take, to set a schedule for EDS.
-  FrameTimeHistory frame_time_history_;
-
-  // The backlog is used to allow us to start rendering the next frame before
-  // the previous frame has finished, and still get an accurate measurement of
-  // frame duration.
-  std::vector<FrameTimeMeasurementRecord> frame_time_backlog_;
-
-  static constexpr int kPostThreadInterrupted = 1;
 
   static void HwcRefresh(hwc2_callback_data_t data, hwc2_display_t display);
   static void HwcVSync(hwc2_callback_data_t data, hwc2_display_t display,

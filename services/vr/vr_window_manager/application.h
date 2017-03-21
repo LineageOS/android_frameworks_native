@@ -44,10 +44,10 @@ class Application {
     Show,
   };
 
-  class VrModeListener : public BnPersistentVrStateCallbacks {
+  class VrModeListener : public BnVrStateCallbacks {
    public:
     VrModeListener(Application *app) : app_(app) {}
-    void onPersistentVrStateChanged(bool enabled) override;
+    void onVrStateChanged(bool enabled) override;
 
    private:
     Application *app_;

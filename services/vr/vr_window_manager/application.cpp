@@ -25,7 +25,7 @@ Application::~Application() {
   sp<IVrManager> vrManagerService = interface_cast<IVrManager>(
       defaultServiceManager()->getService(String16("vrmanager")));
   if (vrManagerService.get()) {
-    vrManagerService->unregisterPersistentVrStateListener(vr_mode_listener_);
+    vrManagerService->unregisterListener(vr_mode_listener_);
   }
 }
 
@@ -39,7 +39,7 @@ int Application::Initialize() {
   sp<IVrManager> vrManagerService = interface_cast<IVrManager>(
       defaultServiceManager()->getService(String16("vrmanager")));
   if (vrManagerService.get()) {
-    vrManagerService->registerPersistentVrStateListener(vr_mode_listener_);
+    vrManagerService->registerListener(vr_mode_listener_);
   }
   return 0;
 }
@@ -315,7 +315,7 @@ void Application::QueueTask(MainThreadTask task) {
   wake_up_init_and_render_.notify_one();
 }
 
-void Application::VrModeListener::onPersistentVrStateChanged(bool enabled) {
+void Application::VrModeListener::onVrStateChanged(bool enabled) {
   if (!enabled)
     app_->QueueTask(MainThreadTask::ExitingVrMode);
 }
