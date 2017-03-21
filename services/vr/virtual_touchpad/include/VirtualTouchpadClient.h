@@ -12,7 +12,7 @@ namespace dvr {
 class VirtualTouchpadClient : public VirtualTouchpad {
  public:
   // VirtualTouchpad implementation:
-  static sp<VirtualTouchpad> Create();
+  static std::unique_ptr<VirtualTouchpad> Create();
   status_t Attach() override;
   status_t Detach() override;
   status_t Touch(int touchpad, float x, float y, float pressure) override;

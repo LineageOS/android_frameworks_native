@@ -9,7 +9,7 @@
 int main() {
   ALOGI("Starting");
   android::dvr::VirtualTouchpadService touchpad_service(
-      android::dvr::VirtualTouchpadEvdev::Create());
+      std::move(android::dvr::VirtualTouchpadEvdev::Create()));
 
   signal(SIGPIPE, SIG_IGN);
   android::sp<android::ProcessState> ps(android::ProcessState::self());

@@ -94,6 +94,7 @@ cc_binary {
 
 client_src = [
     "VirtualTouchpadClient.cpp",
+    "DvrVirtualTouchpadClient.cpp",
     "aidl/android/dvr/VirtualTouchpadService.aidl",
 ]
 

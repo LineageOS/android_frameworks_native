@@ -1,22 +1,25 @@
 #ifndef ANDROID_DVR_VIRTUAL_TOUCHPAD_INTERFACE_H
 #define ANDROID_DVR_VIRTUAL_TOUCHPAD_INTERFACE_H
 
+#include "dvr/virtual_touchpad_client.h"
+
+#include <memory>
 #include <utils/Errors.h>
-#include <utils/RefBase.h>
 #include <utils/String8.h>
-#include <utils/StrongPointer.h>
 
 namespace android {
 namespace dvr {
 
 // Provides a virtual touchpad for injecting events into the input system.
 //
-class VirtualTouchpad : public RefBase {
+class VirtualTouchpad {
  public:
   enum : int {
-    PRIMARY = 0,
-    VIRTUAL = 1,
+    PRIMARY = DVR_VIRTUAL_TOUCHPAD_PRIMARY,
+    VIRTUAL = DVR_VIRTUAL_TOUCHPAD_VIRTUAL,
   };
+
+  virtual ~VirtualTouchpad() {}
 
   // Create a virtual touchpad.
   // Implementations should provide this, and hide their constructors.
@@ -24,8 +27,8 @@ class VirtualTouchpad : public RefBase {
   // the class whose |Create()| is called.
   // Implementations should be minimial; major resource allocation should
   // be performed in Attach().
-  static sp<VirtualTouchpad> Create() {
-    return sp<VirtualTouchpad>();
+  static std::unique_ptr<VirtualTouchpad> Create() {
+    return nullptr;
   }
 
   // Initialize a virtual touchpad.
@@ -63,7 +66,6 @@ class VirtualTouchpad : public RefBase {
 
  protected:
   VirtualTouchpad() {}
-  ~VirtualTouchpad() override {}
 
  private:
   VirtualTouchpad(const VirtualTouchpad&) = delete;

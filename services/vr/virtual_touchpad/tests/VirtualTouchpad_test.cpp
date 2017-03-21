@@ -95,7 +95,9 @@ class EvdevInjectorForTesting : public EvdevInjector {
 
 class VirtualTouchpadForTesting : public VirtualTouchpadEvdev {
  public:
-  static sp<VirtualTouchpad> Create() { return sp<VirtualTouchpad>(New()); }
+  static std::unique_ptr<VirtualTouchpad> Create() {
+    return std::unique_ptr<VirtualTouchpad>(New());
+  }
   static VirtualTouchpadForTesting* New() {
     VirtualTouchpadForTesting* const touchpad = new VirtualTouchpadForTesting();
     touchpad->Reset();
@@ -124,7 +126,8 @@ void DumpDifference(const char* expect, const char* actual) {
 class VirtualTouchpadTest : public testing::Test {};
 
 TEST_F(VirtualTouchpadTest, Goodness) {
-  sp<VirtualTouchpadForTesting> touchpad(VirtualTouchpadForTesting::New());
+  std::unique_ptr<VirtualTouchpadForTesting> touchpad(
+      VirtualTouchpadForTesting::New());
   UInputRecorder expect;
 
   status_t touch_status = touchpad->Attach();
@@ -284,7 +287,8 @@ TEST_F(VirtualTouchpadTest, Goodness) {
 }
 
 TEST_F(VirtualTouchpadTest, Badness) {
-  sp<VirtualTouchpadForTesting> touchpad(VirtualTouchpadForTesting::New());
+  std::unique_ptr<VirtualTouchpadForTesting> touchpad(
+      VirtualTouchpadForTesting::New());
   UInputRecorder expect;
   UInputRecorder& record = touchpad->injector[VirtualTouchpad::PRIMARY].record;
 

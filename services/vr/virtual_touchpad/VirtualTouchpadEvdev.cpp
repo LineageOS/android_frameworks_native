@@ -30,10 +30,10 @@ static constexpr int32_t kSlots = 2;
 
 }  // anonymous namespace
 
-sp<VirtualTouchpad> VirtualTouchpadEvdev::Create() {
-  VirtualTouchpadEvdev* const touchpad = new VirtualTouchpadEvdev();
+std::unique_ptr<VirtualTouchpad> VirtualTouchpadEvdev::Create() {
+  std::unique_ptr<VirtualTouchpadEvdev> touchpad(new VirtualTouchpadEvdev());
   touchpad->Reset();
-  return sp<VirtualTouchpad>(touchpad);
+  return touchpad;
 }
 
 void VirtualTouchpadEvdev::Reset() {

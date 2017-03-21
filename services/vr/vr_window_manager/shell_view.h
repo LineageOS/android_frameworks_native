@@ -1,12 +1,12 @@
 #ifndef VR_WINDOW_MANAGER_SHELL_VIEW_H_
 #define VR_WINDOW_MANAGER_SHELL_VIEW_H_
 
+#include <dvr/virtual_touchpad_client.h>
 #include <private/dvr/graphics/mesh.h>
 #include <private/dvr/graphics/shader_program.h>
 
 #include <deque>
 
-#include "VirtualTouchpadClient.h"
 #include "application.h"
 #include "display_view.h"
 #include "reticle.h"
@@ -53,7 +53,6 @@ class ShellView : public Application,
   DisplayView* FindActiveDisplay(const vec3& position, const quat& quaternion,
                                  vec3* hit_location);
 
-
   // HwcCallback::Client:
   base::unique_fd OnFrame(std::unique_ptr<HwcCallback::Frame> frame) override;
   DisplayView* FindOrCreateDisplay(uint32_t id);
@@ -64,7 +63,15 @@ class ShellView : public Application,
 
   std::unique_ptr<SurfaceFlingerView> surface_flinger_view_;
   std::unique_ptr<Reticle> reticle_;
-  sp<VirtualTouchpad> virtual_touchpad_;
+
+  struct DvrVirtualTouchpadDeleter {
+    void operator()(DvrVirtualTouchpad* p) {
+      dvrVirtualTouchpadDetach(p);
+      dvrVirtualTouchpadDestroy(p);
+    }
+  };
+  std::unique_ptr<DvrVirtualTouchpad, DvrVirtualTouchpadDeleter>
+      virtual_touchpad_;
 
   std::unique_ptr<Mesh<vec3, vec3, vec2>> controller_mesh_;
 
