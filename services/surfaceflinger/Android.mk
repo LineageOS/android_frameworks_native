@@ -53,6 +53,7 @@ ifeq ($(TARGET_USES_HWC2),true)
     LOCAL_CFLAGS += -DUSE_HWC2
     LOCAL_SRC_FILES += \
         SurfaceFlinger.cpp \
+        VrStateCallbacks.cpp \
         DisplayHardware/HWComposer.cpp
     ifeq ($(TARGET_USES_HWC2ON1ADAPTER), true)
         LOCAL_CFLAGS += -DBYPASS_IHWC
