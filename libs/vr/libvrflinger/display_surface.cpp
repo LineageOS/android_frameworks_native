@@ -40,7 +40,8 @@ DisplaySurface::DisplaySurface(DisplayService* service, int surface_id,
       manager_visible_(false),
       manager_z_order_(0),
       manager_blur_(0.0f),
-      layer_order_(0) {}
+      layer_order_(0),
+      allocated_buffer_index_(0) {}
 
 DisplaySurface::~DisplaySurface() {
   ALOGD_IF(LOCAL_TRACE,
@@ -102,6 +103,14 @@ void DisplaySurface::DequeueBuffersLocked() {
                "DisplaySurface::DequeueBuffersLocked: We have dequeued all "
                "available buffers.");
       return;
+    }
+
+    // Save buffer index, associated with the buffer id so that it can be looked
+    // up later.
+    int buffer_id = buffer_consumer->id();
+    if (buffer_id_to_index_.find(buffer_id) == buffer_id_to_index_.end()) {
+      buffer_id_to_index_[buffer_id] = allocated_buffer_index_;
+      ++allocated_buffer_index_;
     }
 
     if (!IsVisible()) {
@@ -169,6 +178,17 @@ AcquiredBuffer DisplaySurface::AcquireNewestAvailableBuffer(
   ALOGD_IF(TRACE, "DisplaySurface::AcquireNewestAvailableBuffer: buffer: %p",
            buffer.buffer().get());
   return buffer;
+}
+
+uint32_t DisplaySurface::GetRenderBufferIndex(int buffer_id) {
+  std::lock_guard<std::mutex> autolock(lock_);
+
+  if (buffer_id_to_index_.find(buffer_id) == buffer_id_to_index_.end()) {
+    ALOGW("DisplaySurface::GetRenderBufferIndex: unknown buffer_id %d.",
+          buffer_id);
+    return 0;
+  }
+  return buffer_id_to_index_[buffer_id];
 }
 
 bool DisplaySurface::IsBufferAvailable() {

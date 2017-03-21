@@ -60,10 +60,7 @@ class DisplaySurface : public SurfaceChannel {
     }
   }
 
-  uint32_t GetRenderBufferIndex(int buffer_id) {
-    return buffer_id_to_index_[buffer_id];
-  }
-
+  uint32_t GetRenderBufferIndex(int buffer_id);
   bool IsBufferAvailable();
   bool IsBufferPosted();
   AcquiredBuffer AcquireCurrentBuffer();
@@ -172,6 +169,8 @@ class DisplaySurface : public SurfaceChannel {
   float manager_blur_;
   int layer_order_;
 
+  // The monotonically increasing index for allocated buffers in this surface.
+  uint32_t allocated_buffer_index_;
   // Maps from the buffer id to the corresponding allocated buffer index.
   std::unordered_map<int, uint32_t> buffer_id_to_index_;
 };
