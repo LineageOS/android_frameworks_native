@@ -617,10 +617,6 @@ sp<Fence> HWComposer::getPresentFence(int32_t displayId) const {
     return mDisplayData[displayId].lastPresentFence;
 }
 
-bool HWComposer::presentFenceRepresentsStartOfScanout() const {
-    return mAdapter ? false : true;
-}
-
 sp<Fence> HWComposer::getLayerReleaseFence(int32_t displayId,
         const std::shared_ptr<HWC2::Layer>& layer) const {
     if (!isValidDisplay(displayId)) {

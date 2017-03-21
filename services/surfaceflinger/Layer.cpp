@@ -1883,7 +1883,6 @@ bool Layer::onPreComposition(nsecs_t refreshStartTime) {
 
 bool Layer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
         const std::shared_ptr<FenceTime>& presentFence,
-        const std::shared_ptr<FenceTime>& retireFence,
         const CompositorTiming& compositorTiming) {
     mAcquireTimeline.updateSignalTimes();
     mReleaseTimeline.updateSignalTimes();
@@ -1898,10 +1897,6 @@ bool Layer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addPostComposition(mCurrentFrameNumber,
                 glDoneFence, presentFence, compositorTiming);
-        if (mPreviousFrameNumber != 0) {
-            mFrameEventHistory.addRetire(mPreviousFrameNumber,
-                    retireFence);
-        }
     }
 
     // Update mFrameTracker.
@@ -1921,9 +1916,6 @@ bool Layer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
     if (presentFence->isValid()) {
         mFrameTracker.setActualPresentFence(
                 std::shared_ptr<FenceTime>(presentFence));
-    } else if (retireFence->isValid()) {
-        mFrameTracker.setActualPresentFence(
-                std::shared_ptr<FenceTime>(retireFence));
     } else {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.

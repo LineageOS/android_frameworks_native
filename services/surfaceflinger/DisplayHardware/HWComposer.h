@@ -126,11 +126,6 @@ public:
     // get the present fence received from the last call to present.
     sp<Fence> getPresentFence(int32_t displayId) const;
 
-    // Returns true if the present fence represents the start of the display
-    // controller's scan out. This should be true for all HWC2 implementations,
-    // except for the wrapper around HWC1 implementations.
-    bool presentFenceRepresentsStartOfScanout() const;
-
     // Get last release fence for the given layer
     sp<Fence> getLayerReleaseFence(int32_t displayId,
             const std::shared_ptr<HWC2::Layer>& layer) const;

@@ -52,9 +52,8 @@ bool FrameEvents::hasFirstRefreshStartInfo() const {
 
 bool FrameEvents::hasLastRefreshStartInfo() const {
     // The last refresh start time may continue to update until a new frame
-    // is latched. We know we have the final value once the release or retire
-    // info is set. See ConsumerFrameEventHistory::addRetire/Release.
-    return addRetireCalled || addReleaseCalled;
+    // is latched. We know we have the final value once the release info is set.
+    return addReleaseCalled;
 }
 
 bool FrameEvents::hasDequeueReadyInfo() const {
@@ -76,11 +75,6 @@ bool FrameEvents::hasDisplayPresentInfo() const {
     return addPostCompositeCalled;
 }
 
-bool FrameEvents::hasDisplayRetireInfo() const {
-    // We may not get a displayRetire in addRetire for HWC2.
-    return addRetireCalled;
-}
-
 bool FrameEvents::hasReleaseInfo() const {
     return addReleaseCalled;
 }
@@ -89,7 +83,6 @@ void FrameEvents::checkFencesForCompletion() {
     acquireFence->getSignalTime();
     gpuCompositionDoneFence->getSignalTime();
     displayPresentFence->getSignalTime();
-    displayRetireFence->getSignalTime();
     releaseFence->getSignalTime();
 }
 
@@ -145,8 +138,6 @@ void FrameEvents::dump(String8& outString) const
             !addPostCompositeCalled, *gpuCompositionDoneFence);
     dumpFenceTime(outString, "Display Present   \t",
             !addPostCompositeCalled, *displayPresentFence);
-    dumpFenceTime(outString, "Display Retire    \t",
-            !addRetireCalled, *displayRetireFence);
 
     outString.appendFormat("--- DequeueReady  \t");
     if (FrameEvents::isValidTimestamp(dequeueReadyTime)) {
@@ -286,7 +277,6 @@ void ProducerFrameEventHistory::applyDelta(
         FrameEvents& frame = mFrames[d.mIndex];
 
         frame.addPostCompositeCalled = d.mAddPostCompositeCalled != 0;
-        frame.addRetireCalled = d.mAddRetireCalled != 0;
         frame.addReleaseCalled = d.mAddReleaseCalled != 0;
 
         frame.postedTime = d.mPostedTime;
@@ -302,7 +292,6 @@ void ProducerFrameEventHistory::applyDelta(
             frame.acquireFence = FenceTime::NO_FENCE;
             frame.gpuCompositionDoneFence = FenceTime::NO_FENCE;
             frame.displayPresentFence = FenceTime::NO_FENCE;
-            frame.displayRetireFence = FenceTime::NO_FENCE;
             frame.releaseFence = FenceTime::NO_FENCE;
             // The consumer only sends valid frames.
             frame.valid = true;
@@ -312,8 +301,6 @@ void ProducerFrameEventHistory::applyDelta(
                 &frame.gpuCompositionDoneFence, d.mGpuCompositionDoneFence);
         applyFenceDelta(&mPresentTimeline,
                 &frame.displayPresentFence, d.mDisplayPresentFence);
-        applyFenceDelta(&mRetireTimeline,
-                &frame.displayRetireFence, d.mDisplayRetireFence);
         applyFenceDelta(&mReleaseTimeline,
                 &frame.releaseFence, d.mReleaseFence);
     }
@@ -323,7 +310,6 @@ void ProducerFrameEventHistory::updateSignalTimes() {
     mAcquireTimeline.updateSignalTimes();
     mGpuCompositionDoneTimeline.updateSignalTimes();
     mPresentTimeline.updateSignalTimes();
-    mRetireTimeline.updateSignalTimes();
     mReleaseTimeline.updateSignalTimes();
 }
 
@@ -444,18 +430,6 @@ void ConsumerFrameEventHistory::addPostComposition(uint64_t frameNumber,
     }
 }
 
-void ConsumerFrameEventHistory::addRetire(
-        uint64_t frameNumber, const std::shared_ptr<FenceTime>& displayRetire) {
-    FrameEvents* frame = getFrame(frameNumber, &mRetireOffset);
-    if (frame == nullptr) {
-        ALOGE_IF(mProducerWantsEvents, "addRetire: Did not find frame.");
-        return;
-    }
-    frame->addRetireCalled = true;
-    frame->displayRetireFence = displayRetire;
-    mFramesDirty[mRetireOffset].setDirty<FrameEvent::DISPLAY_RETIRE>();
-}
-
 void ConsumerFrameEventHistory::addRelease(uint64_t frameNumber,
         nsecs_t dequeueReadyTime, std::shared_ptr<FenceTime>&& release) {
     FrameEvents* frame = getFrame(frameNumber, &mReleaseOffset);
@@ -515,7 +489,6 @@ FrameEventsDelta::FrameEventsDelta(
     : mIndex(index),
       mFrameNumber(frameTimestamps.frameNumber),
       mAddPostCompositeCalled(frameTimestamps.addPostCompositeCalled),
-      mAddRetireCalled(frameTimestamps.addRetireCalled),
       mAddReleaseCalled(frameTimestamps.addReleaseCalled),
       mPostedTime(frameTimestamps.postedTime),
       mRequestedPresentTime(frameTimestamps.requestedPresentTime),
@@ -531,9 +504,6 @@ FrameEventsDelta::FrameEventsDelta(
         mDisplayPresentFence =
                 frameTimestamps.displayPresentFence->getSnapshot();
     }
-    if (dirtyFields.isDirty<FrameEvent::DISPLAY_RETIRE>()) {
-        mDisplayRetireFence = frameTimestamps.displayRetireFence->getSnapshot();
-    }
     if (dirtyFields.isDirty<FrameEvent::RELEASE>()) {
         mReleaseFence = frameTimestamps.releaseFence->getSnapshot();
     }
@@ -541,9 +511,8 @@ FrameEventsDelta::FrameEventsDelta(
 
 constexpr size_t FrameEventsDelta::minFlattenedSize() {
     return sizeof(FrameEventsDelta::mFrameNumber) +
-            sizeof(uint8_t) + // mIndex
+            sizeof(uint16_t) + // mIndex
             sizeof(uint8_t) + // mAddPostCompositeCalled
-            sizeof(uint8_t) + // mAddRetireCalled
             sizeof(uint8_t) + // mAddReleaseCalled
             sizeof(FrameEventsDelta::mPostedTime) +
             sizeof(FrameEventsDelta::mRequestedPresentTime) +
@@ -578,18 +547,16 @@ status_t FrameEventsDelta::flatten(void*& buffer, size_t& size, int*& fds,
     }
 
     if (mIndex >= FrameEventHistory::MAX_FRAME_HISTORY ||
-            mIndex > std::numeric_limits<uint8_t>::max()) {
+            mIndex > std::numeric_limits<uint16_t>::max()) {
         return BAD_VALUE;
     }
 
     FlattenableUtils::write(buffer, size, mFrameNumber);
 
-    // These are static_cast to uint8_t for alignment.
-    FlattenableUtils::write(buffer, size, static_cast<uint8_t>(mIndex));
+    // These are static_cast to uint16_t/uint8_t for alignment.
+    FlattenableUtils::write(buffer, size, static_cast<uint16_t>(mIndex));
     FlattenableUtils::write(
             buffer, size, static_cast<uint8_t>(mAddPostCompositeCalled));
-    FlattenableUtils::write(
-            buffer, size, static_cast<uint8_t>(mAddRetireCalled));
     FlattenableUtils::write(
             buffer, size, static_cast<uint8_t>(mAddReleaseCalled));
 
@@ -618,19 +585,18 @@ status_t FrameEventsDelta::unflatten(void const*& buffer, size_t& size,
 
     FlattenableUtils::read(buffer, size, mFrameNumber);
 
-    // These were written as uint8_t for alignment.
-    uint8_t temp = 0;
-    FlattenableUtils::read(buffer, size, temp);
-    mIndex = temp;
+    // These were written as uint16_t/uint8_t for alignment.
+    uint16_t temp16 = 0;
+    FlattenableUtils::read(buffer, size, temp16);
+    mIndex = temp16;
     if (mIndex >= FrameEventHistory::MAX_FRAME_HISTORY) {
         return BAD_VALUE;
     }
-    FlattenableUtils::read(buffer, size, temp);
-    mAddPostCompositeCalled = static_cast<bool>(temp);
-    FlattenableUtils::read(buffer, size, temp);
-    mAddRetireCalled = static_cast<bool>(temp);
-    FlattenableUtils::read(buffer, size, temp);
-    mAddReleaseCalled = static_cast<bool>(temp);
+    uint8_t temp8 = 0;
+    FlattenableUtils::read(buffer, size, temp8);
+    mAddPostCompositeCalled = static_cast<bool>(temp8);
+    FlattenableUtils::read(buffer, size, temp8);
+    mAddReleaseCalled = static_cast<bool>(temp8);
 
     FlattenableUtils::read(buffer, size, mPostedTime);
     FlattenableUtils::read(buffer, size, mRequestedPresentTime);

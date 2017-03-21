@@ -643,22 +643,6 @@ bool SurfaceFlinger::authenticateSurfaceTextureLocked(
     return mGraphicBufferProducerList.indexOf(surfaceTextureBinder) >= 0;
 }
 
-status_t SurfaceFlinger::getSupportedFrameTimestamps(
-        std::vector<FrameEvent>* outSupported) const {
-    *outSupported = {
-        FrameEvent::REQUESTED_PRESENT,
-        FrameEvent::ACQUIRE,
-        FrameEvent::LATCH,
-        FrameEvent::FIRST_REFRESH_START,
-        FrameEvent::LAST_REFRESH_START,
-        FrameEvent::GPU_COMPOSITION_DONE,
-        FrameEvent::DISPLAY_RETIRE,
-        FrameEvent::DEQUEUE_READY,
-        FrameEvent::RELEASE,
-    };
-    return NO_ERROR;
-}
-
 status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         Vector<DisplayInfo>* configs) {
     if ((configs == NULL) || (display.get() == NULL)) {
@@ -1261,9 +1245,8 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     }
     mGlCompositionDoneTimeline.updateSignalTimes();
 
-    sp<Fence> displayFence = mHwc->getDisplayFence(HWC_DISPLAY_PRIMARY);
-    const std::shared_ptr<FenceTime>& presentFenceTime = FenceTime::NO_FENCE;
-    auto retireFenceTime = std::make_shared<FenceTime>(displayFence);
+    sp<Fence> retireFence = mHwc->getDisplayFence(HWC_DISPLAY_PRIMARY);
+    auto retireFenceTime = std::make_shared<FenceTime>(retireFence);
     mDisplayTimeline.push(retireFenceTime);
     mDisplayTimeline.updateSignalTimes();
 
@@ -1282,16 +1265,18 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     }
 
     mDrawingState.traverseInZOrder([&](Layer* layer) {
+        // TODO(brianderson): The retire fence is incorrectly passed in as the
+        // present fence. Fix this if this file lives on.
         bool frameLatched = layer->onPostComposition(glCompositionDoneFenceTime,
-                presentFenceTime, retireFenceTime, compositorTiming);
+                retireFenceTime, compositorTiming);
         if (frameLatched) {
             recordBufferingStats(layer->getName().string(),
                     layer->getOccupancyHistory(false));
         }
     });
 
-    if (displayFence->isValid()) {
-        if (mPrimaryDispSync.addPresentFence(displayFence)) {
+    if (retireFence->isValid()) {
+        if (mPrimaryDispSync.addPresentFence(retireFence)) {
             enableHardwareVsync();
         } else {
             disableHardwareVsync(false);

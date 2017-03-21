@@ -43,7 +43,6 @@ enum class FrameEvent {
     LAST_REFRESH_START,
     GPU_COMPOSITION_DONE,
     DISPLAY_PRESENT,
-    DISPLAY_RETIRE,
     DEQUEUE_READY,
     RELEASE,
     EVENT_COUNT, // Not an actual event.
@@ -70,7 +69,6 @@ struct FrameEvents {
     bool hasAcquireInfo() const;
     bool hasGpuCompositionDoneInfo() const;
     bool hasDisplayPresentInfo() const;
-    bool hasDisplayRetireInfo() const;
     bool hasReleaseInfo() const;
     bool hasDequeueReadyInfo() const;
 
@@ -85,7 +83,6 @@ struct FrameEvents {
     // encountered help us determine if timestamps aren't available because
     // a) we'll just never get them or b) they're not ready yet.
     bool addPostCompositeCalled{false};
-    bool addRetireCalled{false};
     bool addReleaseCalled{false};
 
     nsecs_t postedTime{TIMESTAMP_PENDING};
@@ -98,7 +95,6 @@ struct FrameEvents {
     std::shared_ptr<FenceTime> acquireFence{FenceTime::NO_FENCE};
     std::shared_ptr<FenceTime> gpuCompositionDoneFence{FenceTime::NO_FENCE};
     std::shared_ptr<FenceTime> displayPresentFence{FenceTime::NO_FENCE};
-    std::shared_ptr<FenceTime> displayRetireFence{FenceTime::NO_FENCE};
     std::shared_ptr<FenceTime> releaseFence{FenceTime::NO_FENCE};
 };
 
@@ -167,7 +163,6 @@ protected:
     FenceTimeline mAcquireTimeline;
     FenceTimeline mGpuCompositionDoneTimeline;
     FenceTimeline mPresentTimeline;
-    FenceTimeline mRetireTimeline;
     FenceTimeline mReleaseTimeline;
 };
 
@@ -224,8 +219,6 @@ public:
             const std::shared_ptr<FenceTime>& gpuCompositionDone,
             const std::shared_ptr<FenceTime>& displayPresent,
             const CompositorTiming& compositorTiming);
-    void addRetire(uint64_t frameNumber,
-            const std::shared_ptr<FenceTime>& displayRetire);
     void addRelease(uint64_t frameNumber, nsecs_t dequeueReadyTime,
             std::shared_ptr<FenceTime>&& release);
 
@@ -239,7 +232,6 @@ private:
 
     size_t mQueueOffset{0};
     size_t mCompositionOffset{0};
-    size_t mRetireOffset{0};
     size_t mReleaseOffset{0};
 
     int mCurrentConnectId{0};
@@ -281,7 +273,6 @@ private:
     uint64_t mFrameNumber{0};
 
     bool mAddPostCompositeCalled{0};
-    bool mAddRetireCalled{0};
     bool mAddReleaseCalled{0};
 
     nsecs_t mPostedTime{FrameEvents::TIMESTAMP_PENDING};
@@ -293,17 +284,16 @@ private:
 
     FenceTime::Snapshot mGpuCompositionDoneFence;
     FenceTime::Snapshot mDisplayPresentFence;
-    FenceTime::Snapshot mDisplayRetireFence;
     FenceTime::Snapshot mReleaseFence;
 
     // This is a static method with an auto return value so we can call
     // it without needing const and non-const versions.
     template <typename ThisT>
     static inline auto allFences(ThisT fed) ->
-            std::array<decltype(&fed->mReleaseFence), 4> {
+            std::array<decltype(&fed->mReleaseFence), 3> {
         return {{
             &fed->mGpuCompositionDoneFence, &fed->mDisplayPresentFence,
-            &fed->mDisplayRetireFence, &fed->mReleaseFence
+            &fed->mReleaseFence
         }};
     }
 };

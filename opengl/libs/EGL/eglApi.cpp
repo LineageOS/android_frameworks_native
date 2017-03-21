@@ -2075,7 +2075,6 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
     nsecs_t* gpuCompositionDoneTime = nullptr;
     nsecs_t* lastRefreshStartTime = nullptr;
     nsecs_t* displayPresentTime = nullptr;
-    nsecs_t* displayRetireTime = nullptr;
     nsecs_t* dequeueReadyTime = nullptr;
     nsecs_t* releaseTime = nullptr;
 
@@ -2102,9 +2101,6 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
             case EGL_DISPLAY_PRESENT_TIME_ANDROID:
                 displayPresentTime = &values[i];
                 break;
-            case EGL_DISPLAY_RETIRE_TIME_ANDROID:
-                displayRetireTime = &values[i];
-                break;
             case EGL_DEQUEUE_READY_TIME_ANDROID:
                 dequeueReadyTime = &values[i];
                 break;
@@ -2119,7 +2115,7 @@ EGLBoolean eglGetFrameTimestampsANDROID(EGLDisplay dpy, EGLSurface surface,
     int ret = native_window_get_frame_timestamps(s->getNativeWindow(), frameId,
             requestedPresentTime, acquireTime, latchTime, firstRefreshStartTime,
             lastRefreshStartTime, gpuCompositionDoneTime, displayPresentTime,
-            displayRetireTime, dequeueReadyTime, releaseTime);
+            dequeueReadyTime, releaseTime);
 
     switch (ret) {
         case 0:
@@ -2170,19 +2166,10 @@ EGLBoolean eglGetFrameTimestampSupportedANDROID(
         case EGL_FIRST_COMPOSITION_START_TIME_ANDROID:
         case EGL_LAST_COMPOSITION_START_TIME_ANDROID:
         case EGL_FIRST_COMPOSITION_GPU_FINISHED_TIME_ANDROID:
+        case EGL_DISPLAY_PRESENT_TIME_ANDROID:
         case EGL_DEQUEUE_READY_TIME_ANDROID:
         case EGL_READS_DONE_TIME_ANDROID:
             return EGL_TRUE;
-        case EGL_DISPLAY_PRESENT_TIME_ANDROID: {
-            int value = 0;
-            window->query(window, NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_PRESENT, &value);
-            return value == 0 ? EGL_FALSE : EGL_TRUE;
-        }
-        case EGL_DISPLAY_RETIRE_TIME_ANDROID: {
-            int value = 0;
-            window->query(window, NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_RETIRE, &value);
-            return value == 0 ? EGL_FALSE : EGL_TRUE;
-        }
         default:
             return EGL_FALSE;
     }

@@ -126,11 +126,6 @@ public:
     virtual bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& surface) const = 0;
 
-    /* Returns the frame timestamps supported by SurfaceFlinger.
-     */
-    virtual status_t getSupportedFrameTimestamps(
-            std::vector<FrameEvent>* outSupported) const = 0;
-
     /* set display power mode. depending on the mode, it can either trigger
      * screen on, off or low power mode and wait for it to complete.
      * requires ACCESS_SURFACE_FLINGER permission.

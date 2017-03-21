@@ -256,8 +256,6 @@ private:
     virtual void bootFinished();
     virtual bool authenticateSurfaceTexture(
         const sp<IGraphicBufferProducer>& bufferProducer) const;
-    virtual status_t getSupportedFrameTimestamps(
-            std::vector<FrameEvent>* outSupported) const;
     virtual sp<IDisplayEventConnection> createDisplayEventConnection();
     virtual status_t captureScreen(const sp<IBinder>& display,
             const sp<IGraphicBufferProducer>& producer,
