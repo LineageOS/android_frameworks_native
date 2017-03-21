@@ -764,6 +764,45 @@ TEST_F(ChildLayerTest, ChildLayerScaling) {
     }
 }
 
+TEST_F(ChildLayerTest, ChildLayerAlpha) {
+    fillSurfaceRGBA8(mBGSurfaceControl, 0, 0, 254);
+    fillSurfaceRGBA8(mFGSurfaceControl, 254, 0, 0);
+    fillSurfaceRGBA8(mChild, 0, 254, 0);
+    waitForPostedBuffers();
+
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->show();
+    mChild->setPosition(0, 0);
+    mFGSurfaceControl->setPosition(0, 0);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // Unblended child color
+        mCapture->checkPixel(0, 0, 0, 254, 0);
+    }
+
+    SurfaceComposerClient::openGlobalTransaction();
+    ASSERT_EQ(NO_ERROR, mChild->setAlpha(0.5));
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // Child and BG blended.
+        mCapture->checkPixel(0, 0, 127, 127, 0);
+    }
+
+    SurfaceComposerClient::openGlobalTransaction();
+    ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setAlpha(0.5));
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // Child and BG blended.
+        mCapture->checkPixel(0, 0, 95, 64, 95);
+    }
+}
+
 TEST_F(ChildLayerTest, ReparentChildren) {
     SurfaceComposerClient::openGlobalTransaction();
     mChild->show();

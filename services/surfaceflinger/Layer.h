@@ -459,6 +459,15 @@ public:
 
     Transform getTransform() const;
 
+    // Returns the Alpha of the Surface, accounting for the Alpha
+    // of parent Surfaces in the hierarchy (alpha's will be multiplied
+    // down the hierarchy).
+#ifdef USE_HWC2
+    float getAlpha() const;
+#else
+    uint8_t getAlpha() const;
+#endif
+
     void traverseInReverseZOrder(const std::function<void(Layer*)>& exec);
     void traverseInZOrder(const std::function<void(Layer*)>& exec);
 
