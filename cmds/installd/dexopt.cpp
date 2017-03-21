@@ -1564,7 +1564,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
             ALOGV("DexInv: --- END '%s' (success) ---\n", dex_path);
         } else {
             ALOGE("DexInv: --- END '%s' --- status=0x%04x, process failed\n", dex_path, res);
-            return -1;
+            return res;
         }
     }
 
