@@ -1062,12 +1062,8 @@ static void dumpstate() {
     RunCommand("WIFI NETWORKS", {"wpa_cli", "IFNAME=wlan0", "list_networks"},
                CommandOptions::WithTimeout(20).Build());
 
-    DumpFile("INTERRUPTS (1)", "/proc/interrupts");
-
     RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
                CommandOptions::WithTimeout(10).Build());
-
-    DumpFile("INTERRUPTS (2)", "/proc/interrupts");
 
     RunCommand("SYSTEM PROPERTIES", {"getprop"});
 
