@@ -3,6 +3,7 @@
 
 #include "buffer_hub.h"
 
+#include <pdx/status.h>
 #include <private/dvr/bufferhub_rpc.h>
 
 namespace android {
@@ -10,17 +11,14 @@ namespace dvr {
 
 class ProducerQueueChannel : public BufferHubChannel {
  public:
-  using Message = pdx::Message;
-  using RemoteChannelHandle = pdx::RemoteChannelHandle;
-
   static std::shared_ptr<ProducerQueueChannel> Create(
       BufferHubService* service, int channel_id, size_t meta_size_bytes,
       int usage_set_mask, int usage_clear_mask, int usage_deny_set_mask,
       int usage_deny_clear_mask, int* error);
   ~ProducerQueueChannel() override;
 
-  bool HandleMessage(Message& message) override;
-  void HandleImpulse(Message& message) override;
+  bool HandleMessage(pdx::Message& message) override;
+  void HandleImpulse(pdx::Message& message) override;
 
   BufferInfo GetBufferInfo() const override;
 
@@ -28,19 +26,22 @@ class ProducerQueueChannel : public BufferHubChannel {
   // producer queue.
   // Returns a handle for the service channel, as well as the size of the
   // metadata associated with the queue.
-  std::pair<RemoteChannelHandle, size_t> OnCreateConsumerQueue(
-      Message& message);
+  pdx::Status<pdx::RemoteChannelHandle> OnCreateConsumerQueue(
+      pdx::Message& message);
+
+  pdx::Status<QueueInfo> OnGetQueueInfo(pdx::Message& message);
 
   // Allocate a new BufferHubProducer according to the input spec. Client may
   // handle this as if a new producer is created through kOpCreateBuffer.
-  std::vector<std::pair<RemoteChannelHandle, size_t>>
-  OnProducerQueueAllocateBuffers(Message& message, int width, int height,
+  pdx::Status<std::vector<std::pair<pdx::RemoteChannelHandle, size_t>>>
+  OnProducerQueueAllocateBuffers(pdx::Message& message, int width, int height,
                                  int format, int usage, size_t slice_count,
                                  size_t buffer_count);
 
   // Detach a BufferHubProducer indicated by |slot|. Note that the buffer must
   // be in Gain'ed state for the producer queue to detach.
-  int OnProducerQueueDetachBuffer(Message& message, size_t slot);
+  pdx::Status<void> OnProducerQueueDetachBuffer(pdx::Message& message,
+                                                size_t slot);
 
   void AddConsumer(ConsumerQueueChannel* channel);
   void RemoveConsumer(ConsumerQueueChannel* channel);
@@ -56,10 +57,9 @@ class ProducerQueueChannel : public BufferHubChannel {
   // and our return type is a RemoteChannelHandle.
   // Returns the remote channdel handle and the slot number for the newly
   // allocated buffer.
-  std::pair<RemoteChannelHandle, size_t> AllocateBuffer(Message& message,
-                                                        int width, int height,
-                                                        int format, int usage,
-                                                        size_t slice_count);
+  pdx::Status<std::pair<pdx::RemoteChannelHandle, size_t>> AllocateBuffer(
+      pdx::Message& message, int width, int height, int format, int usage,
+      size_t slice_count);
 
   // Size of the meta data associated with all the buffers allocated from the
   // queue. Now we assume the metadata size is immutable once the queue is

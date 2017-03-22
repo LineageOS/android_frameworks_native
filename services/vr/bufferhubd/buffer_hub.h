@@ -7,6 +7,7 @@
 
 #include <hardware/gralloc.h>
 #include <pdx/service.h>
+#include <private/dvr/bufferhub_rpc.h>
 
 namespace android {
 namespace dvr {
@@ -73,9 +74,9 @@ class BufferHubChannel : public pdx::Channel {
           slice_count(slice_count),
           name(name) {}
 
-    BufferInfo(int id, size_t consumer_count, size_t capacity, int usage_set_mask,
-               int usage_clear_mask, int usage_deny_set_mask,
-               int usage_deny_clear_mask)
+    BufferInfo(int id, size_t consumer_count, size_t capacity,
+               int usage_set_mask, int usage_clear_mask,
+               int usage_deny_set_mask, int usage_deny_clear_mask)
         : id(id),
           type(kProducerQueueType),
           consumer_count(consumer_count),
@@ -168,9 +169,9 @@ class BufferHubService : public pdx::ServiceBase<BufferHubService> {
                                int format, int usage, size_t meta_size_bytes,
                                size_t slice_count);
   int OnGetPersistentBuffer(pdx::Message& message, const std::string& name);
-  int OnCreateProducerQueue(pdx::Message& message, size_t meta_size_bytes,
-                            int usage_set_mask, int usage_clear_mask,
-                            int usage_deny_set_mask, int usage_deny_clear_mask);
+  pdx::Status<QueueInfo> OnCreateProducerQueue(
+      pdx::Message& message, size_t meta_size_bytes, int usage_set_mask,
+      int usage_clear_mask, int usage_deny_set_mask, int usage_deny_clear_mask);
 
   BufferHubService(const BufferHubService&) = delete;
   void operator=(const BufferHubService&) = delete;
