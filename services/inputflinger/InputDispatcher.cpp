@@ -2416,7 +2416,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
             struct KeyReplacement replacement = {keyCode, args->deviceId};
             mReplacedKeys.add(replacement, newKeyCode);
             keyCode = newKeyCode;
-            metaState &= ~AMETA_META_ON;
+            metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
         }
     } else if (args->action == AKEY_EVENT_ACTION_UP) {
         // In order to maintain a consistent stream of up and down events, check to see if the key
@@ -2428,7 +2428,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
         if (index >= 0) {
             keyCode = mReplacedKeys.valueAt(index);
             mReplacedKeys.removeItemsAt(index);
-            metaState &= ~AMETA_META_ON;
+            metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
         }
     }
 
