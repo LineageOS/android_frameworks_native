@@ -2,4 +2,4 @@ service performanced /system/bin/performanced
   class core
   user root
   group system readproc
-  cpuset /
+  writepid /dev/cpuset/tasks

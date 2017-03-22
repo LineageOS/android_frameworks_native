@@ -2,4 +2,4 @@ service vr_composer_view /system/bin/vr_composer_view
   class core
   user system
   group system graphics
-  cpuset /system
+  writepid /dev/cpuset/system/tasks

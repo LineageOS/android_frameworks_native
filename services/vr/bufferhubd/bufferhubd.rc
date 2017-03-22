@@ -2,5 +2,5 @@ service bufferhubd /system/bin/bufferhubd
   class core
   user system
   group system
-  cpuset /
+  writepid /dev/cpuset/tasks
 
