@@ -147,6 +147,10 @@ public:
     // Equal to min(max_height, max_width).
     static uint64_t maxVirtualDisplaySize;
 
+    // Controls the number of buffers SurfaceFlinger will allocate for use in
+    // FramebufferSurface
+    static int64_t maxFrameBufferAcquiredBuffers;
+
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
     }

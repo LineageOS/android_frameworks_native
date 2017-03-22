@@ -40,10 +40,7 @@
 
 #include "FramebufferSurface.h"
 #include "HWComposer.h"
-
-#ifndef NUM_FRAMEBUFFER_SURFACE_BUFFERS
-#define NUM_FRAMEBUFFER_SURFACE_BUFFERS (2)
-#endif
+#include "../SurfaceFlinger.h"
 
 // ----------------------------------------------------------------------------
 namespace android {
@@ -88,7 +85,8 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, int disp,
     mConsumer->setDefaultBufferFormat(mHwc.getFormat(disp));
     mConsumer->setDefaultBufferSize(mHwc.getWidth(disp), mHwc.getHeight(disp));
 #endif
-    mConsumer->setMaxAcquiredBufferCount(NUM_FRAMEBUFFER_SURFACE_BUFFERS - 1);
+    mConsumer->setMaxAcquiredBufferCount(
+            SurfaceFlinger::maxFrameBufferAcquiredBuffers - 1);
 }
 
 status_t FramebufferSurface::beginFrame(bool /*mustRecompose*/) {
