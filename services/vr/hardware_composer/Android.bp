@@ -1,0 +1,96 @@
+cc_library_static {
+  name: "libvr_hwc-binder",
+  srcs: [
+    "aidl/android/dvr/IVrComposer.aidl",
+    "aidl/android/dvr/IVrComposerCallback.aidl",
+    "aidl/android/dvr/parcelable_composer_frame.cpp",
+    "aidl/android/dvr/parcelable_composer_layer.cpp",
+    "aidl/android/dvr/parcelable_unique_fd.cpp",
+  ],
+  aidl: {
+    include_dirs: ["frameworks/native/services/vr/hardware_composer/aidl"],
+    export_aidl_headers: true,
+  },
+  export_include_dirs: ["aidl"],
+  shared_libs: [
+    "libbinder",
+    "libui",
+    "libutils",
+    "libvrhwc",
+  ],
+}
+
+cc_library_static {
+  name: "libvr_hwc-impl",
+  srcs: [
+    "vr_composer.cpp",
+  ],
+  static_libs: [
+    "libvr_hwc-binder",
+  ],
+  shared_libs: [
+    "libbase",
+    "libbinder",
+    "liblog",
+    "libui",
+    "libutils",
+    "libvrhwc",
+  ],
+  export_shared_lib_headers: [
+    "libvrhwc",
+  ],
+  cflags: [
+    "-DLOG_TAG=\"vr_hwc\"",
+  ],
+}
+
+cc_binary {
+  name: "vr_hwc",
+  srcs: [
+    "vr_hardware_composer_service.cpp"
+  ],
+  static_libs: [
+    "libvr_hwc-impl",
+    // NOTE: This needs to be included after the *-impl lib otherwise the
+    // symbols in the *-binder library get optimized out.
+    "libvr_hwc-binder",
+  ],
+  shared_libs: [
+    "android.dvr.composer@1.0",
+    "android.hardware.graphics.composer@2.1",
+    "libbase",
+    "libbinder",
+    "liblog",
+    "libhardware",
+    "libhwbinder",
+    "libui",
+    "libutils",
+    "libvrhwc",
+  ],
+  cflags: [
+    "-DLOG_TAG=\"vr_hwc\"",
+  ],
+  init_rc: [
+    "vr_hwc.rc",
+  ],
+}
+
+cc_test {
+  name: "vr_hwc_test",
+  gtest: true,
+  srcs: ["tests/vr_composer_test.cpp"],
+  static_libs: [
+    "libgtest",
+    "libvr_hwc-impl",
+    // NOTE: This needs to be included after the *-impl lib otherwise the
+    // symbols in the *-binder library get optimized out.
+    "libvr_hwc-binder",
+  ],
+  shared_libs: [
+    "libbase",
+    "libbinder",
+    "liblog",
+    "libui",
+    "libutils",
+  ],
+}
