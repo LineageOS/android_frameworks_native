@@ -60,6 +60,12 @@ public:
                 val->readFromParcel(&reply);
             return ret;
         }
+
+        void scheduleUpdate() {
+            Parcel data;
+            data.writeInterfaceToken(IBatteryPropertiesRegistrar::getInterfaceDescriptor());
+            remote()->transact(SCHEDULE_UPDATE, data, NULL);
+        }
 };
 
 IMPLEMENT_META_INTERFACE(BatteryPropertiesRegistrar, "android.os.IBatteryPropertiesRegistrar");
@@ -95,6 +101,12 @@ status_t BnBatteryPropertiesRegistrar::onTransact(uint32_t code,
             reply->writeInt32(result);
             reply->writeInt32(1);
             val.writeToParcel(reply);
+            return OK;
+        }
+
+        case SCHEDULE_UPDATE: {
+            CHECK_INTERFACE(IBatteryPropertiesRegistrar, data, reply);
+            scheduleUpdate();
             return OK;
         }
     }
