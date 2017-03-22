@@ -360,14 +360,21 @@ static int audit_callback(void *data, __unused security_class_t cls, char *buf, 
     return 0;
 }
 
-int main()
+int main(int argc, char** argv)
 {
     struct binder_state *bs;
     union selinux_callback cb;
+    char *driver;
 
-    bs = binder_open(128*1024);
+    if (argc > 1) {
+        driver = argv[1];
+    } else {
+        driver = "/dev/binder";
+    }
+
+    bs = binder_open(driver, 128*1024);
     if (!bs) {
-        ALOGE("failed to open binder driver\n");
+        ALOGE("failed to open binder driver %s\n", driver);
         return -1;
     }
 

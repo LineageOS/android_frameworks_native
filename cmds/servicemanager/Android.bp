@@ -34,3 +34,15 @@ cc_binary {
     shared_libs: ["libcutils", "libselinux"],
     init_rc: ["servicemanager.rc"],
 }
+
+cc_binary {
+    name: "vndservicemanager",
+    defaults: ["servicemanager_flags"],
+    proprietary: true,
+    srcs: [
+        "service_manager.c",
+        "binder.c",
+    ],
+    shared_libs: ["libcutils", "libselinux"],
+    init_rc: ["vndservicemanager.rc"],
+}

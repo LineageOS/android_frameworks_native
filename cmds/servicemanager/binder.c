@@ -94,7 +94,7 @@ struct binder_state
     size_t mapsize;
 };
 
-struct binder_state *binder_open(size_t mapsize)
+struct binder_state *binder_open(const char* driver, size_t mapsize)
 {
     struct binder_state *bs;
     struct binder_version vers;
@@ -105,10 +105,10 @@ struct binder_state *binder_open(size_t mapsize)
         return NULL;
     }
 
-    bs->fd = open("/dev/binder", O_RDWR | O_CLOEXEC);
+    bs->fd = open(driver, O_RDWR | O_CLOEXEC);
     if (bs->fd < 0) {
-        fprintf(stderr,"binder: cannot open device (%s)\n",
-                strerror(errno));
+        fprintf(stderr,"binder: cannot open %s (%s)\n",
+                driver, strerror(errno));
         goto fail_open;
     }
 
