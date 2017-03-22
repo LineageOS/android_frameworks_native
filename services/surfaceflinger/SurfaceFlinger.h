@@ -151,6 +151,13 @@ public:
     // FramebufferSurface
     static int64_t maxFrameBufferAcquiredBuffers;
 
+    // Indicate if platform supports color management on its
+    // wide-color display. This is typically found on devices
+    // with wide gamut (e.g. Display-P3) display.
+    // This also allows devices with wide-color displays that don't
+    // want to support color management to disable color management.
+    static bool hasWideColorDisplay;
+
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
     }
@@ -472,6 +479,12 @@ private:
             nsecs_t vsyncPhase, nsecs_t vsyncInterval,
             nsecs_t compositeToPresentLatency);
     void rebuildLayerStacks();
+
+    // Given a dataSpace, returns the appropriate color_mode to use
+    // to display that dataSpace.
+    android_color_mode pickColorMode(android_dataspace dataSpace);
+    android_dataspace bestTargetDataSpace(android_dataspace a, android_dataspace b);
+
     void setUpHWComposer();
     void doComposition();
     void doDebugFlashRegions();
