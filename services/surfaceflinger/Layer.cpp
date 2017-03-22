@@ -595,7 +595,7 @@ void Layer::setGeometry(
     const State& s(getDrawingState());
 #ifdef USE_HWC2
     auto blendMode = HWC2::BlendMode::None;
-    if (!isOpaque(s) || s.alpha != 1.0f) {
+    if (!isOpaque(s) || getAlpha() != 1.0f) {
         blendMode = mPremultipliedAlpha ?
                 HWC2::BlendMode::Premultiplied : HWC2::BlendMode::Coverage;
     }
@@ -604,7 +604,7 @@ void Layer::setGeometry(
              " %s (%d)", mName.string(), to_string(blendMode).c_str(),
              to_string(error).c_str(), static_cast<int32_t>(error));
 #else
-    if (!isOpaque(s) || s.alpha != 0xFF) {
+    if (!isOpaque(s) || getAlpha() != 0xFF) {
         layer.setBlending(mPremultipliedAlpha ?
                 HWC_BLENDING_PREMULT :
                 HWC_BLENDING_COVERAGE);
@@ -678,9 +678,10 @@ void Layer::setGeometry(
         hwcInfo.sourceCrop = sourceCrop;
     }
 
-    error = hwcLayer->setPlaneAlpha(s.alpha);
+    float alpha = getAlpha();
+    error = hwcLayer->setPlaneAlpha(alpha);
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set plane alpha %.3f: "
-            "%s (%d)", mName.string(), s.alpha, to_string(error).c_str(),
+            "%s (%d)", mName.string(), alpha, to_string(error).c_str(),
             static_cast<int32_t>(error));
 
     error = hwcLayer->setZOrder(z);
@@ -698,7 +699,7 @@ void Layer::setGeometry(
     const Transform& tr(hw->getTransform());
     layer.setFrame(tr.transform(frame));
     layer.setCrop(computeCrop(hw));
-    layer.setPlaneAlpha(s.alpha);
+    layer.setPlaneAlpha(getAlpha());
 #endif
 
     /*
@@ -1147,7 +1148,7 @@ void Layer::drawWithOpenGL(const sp<const DisplayDevice>& hw,
     texCoords[3] = vec2(right, 1.0f - top);
 
     RenderEngine& engine(mFlinger->getRenderEngine());
-    engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), s.alpha);
+    engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), getAlpha());
     engine.drawMesh(mMesh);
     engine.disableBlending();
 }
@@ -1753,11 +1754,15 @@ bool Layer::setCrop(const Rect& crop, bool immediate) {
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
-bool Layer::setFinalCrop(const Rect& crop) {
+
+bool Layer::setFinalCrop(const Rect& crop, bool immediate) {
     if (mCurrentState.finalCrop == crop)
         return false;
     mCurrentState.sequence++;
-    mCurrentState.finalCrop = crop;
+    mCurrentState.requestedFinalCrop = crop;
+    if (immediate) {
+        mCurrentState.finalCrop = crop;
+    }
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -1957,12 +1962,11 @@ bool Layer::isHiddenByPolicy() const {
 }
 
 bool Layer::isVisible() const {
-    const Layer::State& s(mDrawingState);
 #ifdef USE_HWC2
-    return !(isHiddenByPolicy()) && s.alpha > 0.0f
+    return !(isHiddenByPolicy()) && getAlpha() > 0.0f
             && (mActiveBuffer != NULL || mSidebandStream != NULL);
 #else
-    return !(isHiddenByPolicy()) && s.alpha
+    return !(isHiddenByPolicy()) && getAlpha()
             && (mActiveBuffer != NULL || mSidebandStream != NULL);
 #endif
 }
@@ -2518,6 +2522,24 @@ Transform Layer::getTransform() const {
     }
     return t * getDrawingState().active.transform;
 }
+
+#ifdef USE_HWC2
+float Layer::getAlpha() const {
+    const auto& p = getParent();
+
+    float parentAlpha = (p != nullptr) ? p->getAlpha() : 1.0;
+    return parentAlpha * getDrawingState().alpha;
+}
+#else
+uint8_t Layer::getAlpha() const {
+    const auto& p = getParent();
+
+    float parentAlpha = (p != nullptr) ? (p->getAlpha() / 255.0f) : 1.0;
+    float drawingAlpha = getDrawingState().alpha / 255.0f;
+    drawingAlpha = drawingAlpha * parentAlpha;
+    return static_cast<uint8_t>(std::round(drawingAlpha * 255));
+}
+#endif
 
 void Layer::commitChildList() {
     for (size_t i = 0; i < mCurrentChildren.size(); i++) {

@@ -28,6 +28,8 @@ LOCAL_STATIC_LIBRARIES := libtrace_proto
 
 LOCAL_CFLAGS += -Wall -Werror -Wunused -Wunreachable-code
 
+LOCAL_TEST_DATA = SurfaceFlinger_test.filter
+
 # Build the binary to $(TARGET_OUT_DATA_NATIVE_TESTS)/$(LOCAL_MODULE)
 # to integrate with auto-test framework.
 include $(BUILD_NATIVE_TEST)
