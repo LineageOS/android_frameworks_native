@@ -45,6 +45,8 @@ binder::Status VirtualTouchpadService::attach() {
     // reported when the previous client performs any touchpad action.
     ALOGE("pid=%ld replaces %ld", static_cast<long>(pid),
           static_cast<long>(client_pid_));
+    client_pid_ = pid;
+    return binder::Status::ok();
   }
   client_pid_ = pid;
   if (const status_t error = touchpad_->Attach()) {
