@@ -261,6 +261,13 @@ void BufferQueueCore::freeAllBuffersLocked() {
 
     for (auto& b : mQueue) {
         b.mIsStale = true;
+
+        // We set this to false to force the BufferQueue to resend the buffer
+        // handle upon acquire, since if we're here due to a producer
+        // disconnect, the consumer will have been told to purge its cache of
+        // slot-to-buffer-handle mappings and will not be able to otherwise
+        // obtain a valid buffer handle.
+        b.mAcquireCalled = false;
     }
 
     VALIDATE_CONSISTENCY();

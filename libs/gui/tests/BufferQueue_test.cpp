@@ -1117,4 +1117,64 @@ TEST_F(BufferQueueTest, TestBufferReplacedInQueueBuffer) {
     ASSERT_EQ(true, output.bufferReplaced);
 }
 
+TEST_F(BufferQueueTest, TestStaleBufferHandleSentAfterDisconnect) {
+    createBufferQueue();
+    sp<DummyConsumer> dc(new DummyConsumer);
+    ASSERT_EQ(OK, mConsumer->consumerConnect(dc, true));
+    IGraphicBufferProducer::QueueBufferOutput output;
+    sp<IProducerListener> dummyListener(new DummyProducerListener);
+    ASSERT_EQ(OK, mProducer->connect(dummyListener, NATIVE_WINDOW_API_CPU,
+            true, &output));
+
+    int slot = BufferQueue::INVALID_BUFFER_SLOT;
+    sp<Fence> fence = Fence::NO_FENCE;
+    sp<GraphicBuffer> buffer = nullptr;
+    IGraphicBufferProducer::QueueBufferInput input(0ull, true,
+            HAL_DATASPACE_UNKNOWN, Rect::INVALID_RECT,
+            NATIVE_WINDOW_SCALING_MODE_FREEZE, 0, Fence::NO_FENCE);
+
+    // Dequeue, request, and queue one buffer
+    status_t result = mProducer->dequeueBuffer(&slot, &fence, 0, 0, 0, 0,
+            nullptr);
+    ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, result);
+    ASSERT_EQ(OK, mProducer->requestBuffer(slot, &buffer));
+    ASSERT_EQ(OK, mProducer->queueBuffer(slot, input, &output));
+
+    // Acquire and release the buffer. Upon acquiring, the buffer handle should
+    // be non-null since this is the first time we've acquired this slot.
+    BufferItem item;
+    ASSERT_EQ(OK, mConsumer->acquireBuffer(&item, 0));
+    ASSERT_EQ(slot, item.mSlot);
+    ASSERT_NE(nullptr, item.mGraphicBuffer.get());
+    ASSERT_EQ(OK, mConsumer->releaseBuffer(item.mSlot, item.mFrameNumber,
+            EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE));
+
+    // Dequeue and queue the buffer again
+    ASSERT_EQ(OK, mProducer->dequeueBuffer(&slot, &fence, 0, 0, 0, 0, nullptr));
+    ASSERT_EQ(OK, mProducer->queueBuffer(slot, input, &output));
+
+    // Acquire and release the buffer again. Upon acquiring, the buffer handle
+    // should be null since this is not the first time we've acquired this slot.
+    ASSERT_EQ(OK, mConsumer->acquireBuffer(&item, 0));
+    ASSERT_EQ(slot, item.mSlot);
+    ASSERT_EQ(nullptr, item.mGraphicBuffer.get());
+    ASSERT_EQ(OK, mConsumer->releaseBuffer(item.mSlot, item.mFrameNumber,
+            EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE));
+
+    // Dequeue and queue the buffer again
+    ASSERT_EQ(OK, mProducer->dequeueBuffer(&slot, &fence, 0, 0, 0, 0, nullptr));
+    ASSERT_EQ(OK, mProducer->queueBuffer(slot, input, &output));
+
+    // Disconnect the producer end. This should clear all of the slots and mark
+    // the buffer in the queue as stale.
+    ASSERT_EQ(OK, mProducer->disconnect(NATIVE_WINDOW_API_CPU));
+
+    // Acquire the buffer again. Upon acquiring, the buffer handle should not be
+    // null since the queued buffer should have been marked as stale, which
+    // should trigger the BufferQueue to resend the buffer handle.
+    ASSERT_EQ(OK, mConsumer->acquireBuffer(&item, 0));
+    ASSERT_EQ(slot, item.mSlot);
+    ASSERT_NE(nullptr, item.mGraphicBuffer.get());
+}
+
 } // namespace android
