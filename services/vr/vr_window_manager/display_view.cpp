@@ -8,7 +8,6 @@ namespace dvr {
 namespace {
 
 constexpr float kLayerScaleFactor = 3.0f;
-constexpr unsigned int kVRAppLayerCount = 2;
 constexpr unsigned int kMaximumPendingFrames = 8;
 
 // clang-format off
@@ -99,7 +98,7 @@ mat4 GetLayerTransform(const TextureLayer& texture_layer, float display_width,
 
 // Determine if ths frame should be shown or hidden.
 ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
-                                            uint32_t vr_app) {
+                                            uint32_t *appid) {
   auto& layers = frame.layers();
 
   // TODO(achaulk): Figure out how to identify the current VR app for 2D app
@@ -120,6 +119,11 @@ ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
     return ViewMode::Hidden;
   }
 
+  if(layers[index].appid != *appid) {
+    *appid = layers[index].appid;
+    return ViewMode::App;
+  }
+
   // This is the VR app, ignore it.
   index++;
 
@@ -136,6 +140,7 @@ ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
     if (!layers[i].should_skip_layer())
       return ViewMode::VR;
   }
+
   return ViewMode::Hidden;
 }
 
@@ -198,16 +203,25 @@ void DisplayView::OnDrawFrame(SurfaceFlingerView* surface_flinger_view,
 
 base::unique_fd DisplayView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame,
                                      bool debug_mode, bool* showing) {
-  ViewMode visibility =
-      CalculateVisibilityFromLayerConfig(*frame.get(), current_vr_app_);
+  uint32_t app = current_vr_app_;
+  ViewMode visibility = CalculateVisibilityFromLayerConfig(*frame.get(), &app);
 
   if (visibility == ViewMode::Hidden && debug_mode)
     visibility = ViewMode::VR;
 
-  if (frame->layers().empty())
+  if (frame->layers().empty()) {
     current_vr_app_ = 0;
-  else
-    current_vr_app_ = frame->layers().front().appid;
+  } else if (visibility == ViewMode::App) {
+    // This is either a VR app switch or a 2D app launching.
+    // If we can have VR apps, update if it's 0.
+    if (!always_2d_ && (current_vr_app_ == 0 || !use_2dmode_)) {
+      visibility = ViewMode::Hidden;
+      current_vr_app_ = app;
+    }
+  } else if (!current_vr_app_) {
+    // The VR app is running.
+    current_vr_app_ = app;
+  }
 
   pending_frames_.emplace_back(std::move(frame), visibility);
 

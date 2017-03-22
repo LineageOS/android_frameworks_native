@@ -32,6 +32,8 @@ class ShellView : public Application,
   void EnableDebug(bool debug) override;
   void VrMode(bool mode) override;
   void dumpInternal(String8& result) override;
+  void Set2DMode(bool mode) override;
+
 
  protected:
   void DrawEye(EyeType eye, const mat4& perspective, const mat4& eye_matrix,

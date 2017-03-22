@@ -44,6 +44,9 @@ class DisplayView {
   uint32_t id() const { return id_; }
   int touchpad_id() const { return touchpad_id_; }
 
+  void set_2dmode(bool mode) { use_2dmode_ = mode; }
+  void set_always_2d(bool mode) { always_2d_ = mode; }
+
  private:
   bool IsHit(const vec3& view_location, const vec3& view_direction,
              vec3* hit_location, vec2* hit_location_in_window_coord,
@@ -79,6 +82,8 @@ class DisplayView {
   vec2 ime_top_left_;
   vec2 ime_size_;
   bool has_ime_ = false;
+  bool use_2dmode_ = false;
+  bool always_2d_ = false;
 
   struct PendingFrame {
     PendingFrame() = default;

@@ -133,6 +133,11 @@ binder::Status VrWindowManagerBinder::setDebugMode(int32_t mode) {
   return binder::Status::ok();
 }
 
+binder::Status VrWindowManagerBinder::set2DMode(int32_t mode) {
+  app_.Set2DMode(static_cast<bool>(mode));
+  return binder::Status::ok();
+}
+
 status_t VrWindowManagerBinder::dump(
     int fd, const Vector<String16>& args [[gnu::unused]]) {
   String8 result;

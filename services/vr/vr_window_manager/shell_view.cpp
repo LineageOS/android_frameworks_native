@@ -16,6 +16,8 @@ namespace dvr {
 
 namespace {
 
+constexpr uint32_t kPrimaryDisplayId = 1;
+
 const std::string kVertexShader = SHADER0([]() {
   layout(location = 0) in vec4 aPosition;
   layout(location = 1) in vec4 aTexCoord;
@@ -96,8 +98,8 @@ mat4 GetHorizontallyAlignedMatrixFromPose(const Posef& pose) {
 }
 
 int GetTouchIdForDisplay(uint32_t display) {
-  return display == 1 ? DVR_VIRTUAL_TOUCHPAD_PRIMARY
-                      : DVR_VIRTUAL_TOUCHPAD_VIRTUAL;
+  return display == kPrimaryDisplayId ? DVR_VIRTUAL_TOUCHPAD_PRIMARY
+                                      : DVR_VIRTUAL_TOUCHPAD_VIRTUAL;
 }
 
 }  // namespace
@@ -190,6 +192,11 @@ void ShellView::dumpInternal(String8& result) {
   result.append("\n");
 }
 
+void ShellView::Set2DMode(bool mode) {
+  if (!displays_.empty())
+    displays_[0]->set_2dmode(mode);
+}
+
 void ShellView::OnDrawFrame() {
   bool visible = false;
 
@@ -253,6 +260,9 @@ DisplayView* ShellView::FindOrCreateDisplay(uint32_t id) {
   }
 
   auto display = new DisplayView(id, GetTouchIdForDisplay(id));
+  // Virtual displays only ever have 2D apps so force it.
+  if (id != kPrimaryDisplayId)
+    display->set_always_2d(true);
   new_displays_.emplace_back(display);
   return display;
 }
