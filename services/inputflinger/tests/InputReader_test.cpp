@@ -16,6 +16,7 @@
 
 #include "../InputReader.h"
 
+#include <inttypes.h>
 #include <utils/List.h>
 #include <gtest/gtest.h>
 #include <math.h>
@@ -161,6 +162,22 @@ public:
         mConfig.excludedDeviceNames.push(deviceName);
     }
 
+    void addDisabledDevice(int32_t deviceId) {
+        ssize_t index = mConfig.disabledDevices.indexOf(deviceId);
+        bool currentlyEnabled = index < 0;
+        if (currentlyEnabled) {
+            mConfig.disabledDevices.add(deviceId);
+        }
+    }
+
+    void removeDisabledDevice(int32_t deviceId) {
+        ssize_t index = mConfig.disabledDevices.indexOf(deviceId);
+        bool currentlyEnabled = index < 0;
+        if (!currentlyEnabled) {
+            mConfig.disabledDevices.remove(deviceId);
+        }
+    }
+
     void setPointerController(int32_t deviceId, const sp<FakePointerController>& controller) {
         mPointerControllers.add(deviceId, controller);
     }
@@ -236,6 +253,11 @@ public:
         mNotifyConfigurationChangedArgsQueue.erase(mNotifyConfigurationChangedArgsQueue.begin());
     }
 
+    void assertNotifyConfigurationChangedWasNotCalled() {
+        ASSERT_TRUE(mNotifyConfigurationChangedArgsQueue.empty())
+                << "Expected notifyConfigurationChanged() to not have been called.";
+    }
+
     void assertNotifyDeviceResetWasCalled(
             NotifyDeviceResetArgs* outEventArgs = NULL) {
         ASSERT_FALSE(mNotifyDeviceResetArgsQueue.empty())
@@ -244,6 +266,11 @@ public:
             *outEventArgs = *mNotifyDeviceResetArgsQueue.begin();
         }
         mNotifyDeviceResetArgsQueue.erase(mNotifyDeviceResetArgsQueue.begin());
+    }
+
+    void assertNotifyDeviceResetWasNotCalled() {
+        ASSERT_TRUE(mNotifyDeviceResetArgsQueue.empty())
+                << "Expected notifyDeviceReset() to not have been called.";
     }
 
     void assertNotifyKeyWasCalled(NotifyKeyArgs* outEventArgs = NULL) {
@@ -328,9 +355,20 @@ class FakeEventHub : public EventHubInterface {
         KeyedVector<int32_t, KeyInfo> keysByUsageCode;
         KeyedVector<int32_t, bool> leds;
         Vector<VirtualKeyDefinition> virtualKeys;
+        bool enabled;
+
+        status_t enable() {
+            enabled = true;
+            return OK;
+        }
+
+        status_t disable() {
+            enabled = false;
+            return OK;
+        }
 
         explicit Device(uint32_t classes) :
-                classes(classes) {
+                classes(classes), enabled(true) {
         }
     };
 
@@ -361,6 +399,43 @@ public:
         mDevices.removeItem(deviceId);
 
         enqueueEvent(ARBITRARY_TIME, deviceId, EventHubInterface::DEVICE_REMOVED, 0, 0);
+    }
+
+    bool isDeviceEnabled(int32_t deviceId) {
+        Device* device = getDevice(deviceId);
+        if (device == NULL) {
+            ALOGE("Incorrect device id=%" PRId32 " provided to %s", deviceId, __func__);
+            return false;
+        }
+        return device->enabled;
+    }
+
+    status_t enableDevice(int32_t deviceId) {
+        status_t result;
+        Device* device = getDevice(deviceId);
+        if (device == NULL) {
+            ALOGE("Incorrect device id=%" PRId32 " provided to %s", deviceId, __func__);
+            return BAD_VALUE;
+        }
+        if (device->enabled) {
+            ALOGW("Duplicate call to %s, device %" PRId32 " already enabled", __func__, deviceId);
+            return OK;
+        }
+        result = device->enable();
+        return result;
+    }
+
+    status_t disableDevice(int32_t deviceId) {
+        Device* device = getDevice(deviceId);
+        if (device == NULL) {
+            ALOGE("Incorrect device id=%" PRId32 " provided to %s", deviceId, __func__);
+            return BAD_VALUE;
+        }
+        if (!device->enabled) {
+            ALOGW("Duplicate call to %s, device %" PRId32 " already disabled", __func__, deviceId);
+            return OK;
+        }
+        return device->disable();
     }
 
     void finishDeviceScan() {
@@ -1020,6 +1095,20 @@ protected:
         mFakeEventHub->assertQueueIsEmpty();
     }
 
+    void disableDevice(int32_t deviceId, InputDevice* device) {
+        mFakePolicy->addDisabledDevice(deviceId);
+        configureDevice(InputReaderConfiguration::CHANGE_ENABLED_STATE, device);
+    }
+
+    void enableDevice(int32_t deviceId, InputDevice* device) {
+        mFakePolicy->removeDisabledDevice(deviceId);
+        configureDevice(InputReaderConfiguration::CHANGE_ENABLED_STATE, device);
+    }
+
+    void configureDevice(uint32_t changes, InputDevice* device) {
+        device->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), changes);
+    }
+
     FakeInputMapper* addDeviceWithFakeInputMapper(int32_t deviceId, int32_t controllerNumber,
             const String8& name, uint32_t classes, uint32_t sources,
             const PropertyMap* configuration) {
@@ -1056,6 +1145,46 @@ TEST_F(InputReaderTest, GetInputDevices) {
     ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, inputDevices[0].getKeyboardType());
     ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, inputDevices[0].getSources());
     ASSERT_EQ(size_t(0), inputDevices[0].getMotionRanges().size());
+}
+
+TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
+    constexpr int32_t deviceId = 1;
+    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    InputDevice* device = mReader->newDevice(deviceId, 0, String8("fake"), deviceClass);
+    // Must add at least one mapper or the device will be ignored!
+    FakeInputMapper* mapper = new FakeInputMapper(device, AINPUT_SOURCE_KEYBOARD);
+    device->addMapper(mapper);
+    mReader->setNextDevice(device);
+    addDevice(deviceId, String8("fake"), deviceClass, NULL);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyConfigurationChangedWasCalled(NULL));
+
+    NotifyDeviceResetArgs resetArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
+    ASSERT_EQ(deviceId, resetArgs.deviceId);
+
+    ASSERT_EQ(device->isEnabled(), true);
+    disableDevice(deviceId, device);
+    mReader->loopOnce();
+
+    mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs);
+    ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
+    ASSERT_EQ(deviceId, resetArgs.deviceId);
+    ASSERT_EQ(device->isEnabled(), false);
+
+    disableDevice(deviceId, device);
+    mReader->loopOnce();
+    mFakeListener->assertNotifyDeviceResetWasNotCalled();
+    mFakeListener->assertNotifyConfigurationChangedWasNotCalled();
+    ASSERT_EQ(device->isEnabled(), false);
+
+    enableDevice(deviceId, device);
+    mReader->loopOnce();
+    mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs);
+    ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
+    ASSERT_EQ(deviceId, resetArgs.deviceId);
+    ASSERT_EQ(device->isEnabled(), true);
 }
 
 TEST_F(InputReaderTest, GetKeyCodeState_ForwardsRequestsToMappers) {
@@ -1253,6 +1382,10 @@ TEST_F(InputDeviceTest, ImmutableProperties) {
     ASSERT_EQ(DEVICE_ID, mDevice->getId());
     ASSERT_STREQ(DEVICE_NAME, mDevice->getName());
     ASSERT_EQ(DEVICE_CLASSES, mDevice->getClasses());
+}
+
+TEST_F(InputDeviceTest, WhenDeviceCreated_EnabledIsTrue) {
+    ASSERT_EQ(mDevice->isEnabled(), true);
 }
 
 TEST_F(InputDeviceTest, WhenNoMappersAreRegistered_DeviceIsIgnored) {
