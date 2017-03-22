@@ -1037,26 +1037,11 @@ static void dumpstate() {
     RunCommand("WIFI NETWORKS", {"wpa_cli", "IFNAME=wlan0", "list_networks"},
                CommandOptions::WithTimeout(20).Build());
 
-#ifdef FWDUMP_bcmdhd
-    RunCommand("ND OFFLOAD TABLE", {WLUTIL, "nd_hostip"}, CommandOptions::AS_ROOT);
-
-    RunCommand("DUMP WIFI INTERNAL COUNTERS (1)", {WLUTIL, "counters"}, AS_ROOT_20);
-
-    RunCommand("ND OFFLOAD STATUS (1)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT);
-
-#endif
     DumpFile("INTERRUPTS (1)", "/proc/interrupts");
 
     RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
                CommandOptions::WithTimeout(10).Build());
 
-#ifdef FWDUMP_bcmdhd
-    RunCommand("DUMP WIFI STATUS", {"dhdutil", "-i", "wlan0", "dump"}, AS_ROOT_20);
-
-    RunCommand("DUMP WIFI INTERNAL COUNTERS (2)", {WLUTIL, "counters"}, AS_ROOT_20);
-
-    RunCommand("ND OFFLOAD STATUS (2)", {WLUTIL, "nd_status"}, CommandOptions::AS_ROOT);
-#endif
     DumpFile("INTERRUPTS (2)", "/proc/interrupts");
 
     RunCommand("SYSTEM PROPERTIES", {"getprop"});

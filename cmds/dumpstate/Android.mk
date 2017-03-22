@@ -93,10 +93,6 @@ include $(BUILD_SHARED_LIBRARY)
 # ==========#
 include $(CLEAR_VARS)
 
-ifdef BOARD_WLAN_DEVICE
-LOCAL_CFLAGS := -DFWDUMP_$(BOARD_WLAN_DEVICE)
-endif
-
 LOCAL_SRC_FILES := $(COMMON_SRC_FILES) \
         DumpstateService.cpp \
         dumpstate.cpp
