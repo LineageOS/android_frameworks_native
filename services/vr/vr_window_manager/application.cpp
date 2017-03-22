@@ -274,15 +274,13 @@ void Application::ProcessControllerInput() {
     }
     controller_data_provider_->UnlockControllerData();
     if (shmem_controller_active_) {
-      // TODO(kpschoedel): change to ALOGV or remove.
-      ALOGI("Controller shmem orientation: %f %f %f %f",
+      ALOGV("Controller shmem orientation: %f %f %f %f",
             controller_orientation_.x(), controller_orientation_.y(),
             controller_orientation_.z(), controller_orientation_.w());
       if (shmem_controller_buttons_) {
-        ALOGI("Controller shmem buttons: %017" PRIX64,
+        ALOGV("Controller shmem buttons: %017" PRIX64,
             shmem_controller_buttons_);
       }
-      return;
     }
   }
 }
