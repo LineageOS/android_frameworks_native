@@ -1,8 +1,8 @@
-#include "include/private/dvr/display_manager_client.h"
+#include "include/dvr/display_manager_client.h"
 
+#include <dvr/dvr_buffer.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/display_manager_client_impl.h>
-#include <private/dvr/dvr_buffer.h>
 
 using android::dvr::DisplaySurfaceAttributeEnum;
 

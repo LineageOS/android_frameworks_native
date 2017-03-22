@@ -1,5 +1,6 @@
+#include "include/dvr/dvr_buffer.h"
+
 #include <private/dvr/buffer_hub_client.h>
-#include <private/dvr/dvr_buffer.h>
 #include <ui/GraphicBuffer.h>
 
 using namespace android;

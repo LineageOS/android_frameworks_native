@@ -1,4 +1,4 @@
-#include "include/private/dvr/vsync_client_api.h"
+#include "include/dvr/vsync_client_api.h"
 
 #include <private/dvr/vsync_client.h>
 

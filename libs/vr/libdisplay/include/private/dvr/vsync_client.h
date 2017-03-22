@@ -4,7 +4,6 @@
 #include <stdint.h>
 
 #include <pdx/client.h>
-#include <private/dvr/vsync_client_api.h>
 
 struct dvr_vsync_client {};
 

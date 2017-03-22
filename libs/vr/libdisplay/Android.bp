@@ -15,7 +15,6 @@
 sourceFiles = [
     "native_buffer_queue.cpp",
     "display_client.cpp",
-    "display_manager_client.cpp",
     "display_manager_client_impl.cpp",
     "display_rpc.cpp",
     "dummy_native_window.cpp",
@@ -24,7 +23,6 @@ sourceFiles = [
     "late_latch.cpp",
     "video_mesh_surface_client.cpp",
     "vsync_client.cpp",
-    "vsync_client_api.cpp",
     "screenshot_client.cpp",
     "frame_history.cpp",
 ]
