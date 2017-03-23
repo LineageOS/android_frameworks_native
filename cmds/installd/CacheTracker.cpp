@@ -106,11 +106,11 @@ void CacheTracker::loadItemsFrom(const std::string& path) {
         switch (p->fts_info) {
         case FTS_D: {
             auto item = static_cast<CacheItem*>(p->fts_pointer);
-            item->atomic |= (getxattr(p->fts_path, kXattrCacheAtomic, nullptr, 0) >= 0);
+            item->group |= (getxattr(p->fts_path, kXattrCacheGroup, nullptr, 0) >= 0);
             item->tombstone |= (getxattr(p->fts_path, kXattrCacheTombstone, nullptr, 0) >= 0);
 
-            // When atomic, immediately collect all files under tree
-            if (item->atomic) {
+            // When group, immediately collect all files under tree
+            if (item->group) {
                 while ((p = fts_read(fts)) != nullptr) {
                     if (p->fts_info == FTS_DP && p->fts_level == item->level) break;
                     switch (p->fts_info) {

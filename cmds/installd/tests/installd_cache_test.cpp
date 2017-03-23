@@ -101,6 +101,7 @@ static int64_t free() {
     if (!statvfs("/data/local/tmp", &buf)) {
         return buf.f_bavail * buf.f_bsize;
     } else {
+        PLOG(ERROR) << "Failed to statvfs";
         return -1;
     }
 }
@@ -132,6 +133,8 @@ protected:
 };
 
 TEST_F(CacheTest, FreeCache_All) {
+    LOG(INFO) << "FreeCache_All";
+
     mkdir("com.example");
     touch("com.example/normal", 1 * kMbInBytes, 60);
     mkdir("com.example/cache");
@@ -152,6 +155,8 @@ TEST_F(CacheTest, FreeCache_All) {
 }
 
 TEST_F(CacheTest, FreeCache_Age) {
+    LOG(INFO) << "FreeCache_Age";
+
     mkdir("com.example");
     mkdir("com.example/cache");
     mkdir("com.example/cache/foo");
@@ -172,6 +177,8 @@ TEST_F(CacheTest, FreeCache_Age) {
 }
 
 TEST_F(CacheTest, FreeCache_Tombstone) {
+    LOG(INFO) << "FreeCache_Tombstone";
+
     mkdir("com.example");
     mkdir("com.example/cache");
     mkdir("com.example/cache/foo");
@@ -201,14 +208,16 @@ TEST_F(CacheTest, FreeCache_Tombstone) {
     EXPECT_EQ(0, size("com.example/cache/bar/bar2"));
 }
 
-TEST_F(CacheTest, FreeCache_Atomic) {
+TEST_F(CacheTest, FreeCache_Group) {
+    LOG(INFO) << "FreeCache_Group";
+
     mkdir("com.example");
     mkdir("com.example/cache");
     mkdir("com.example/cache/foo");
     touch("com.example/cache/foo/foo1", 1 * kMbInBytes, 60);
     touch("com.example/cache/foo/foo2", 1 * kMbInBytes, 120);
 
-    setxattr("com.example/cache/foo", "user.cache_atomic");
+    setxattr("com.example/cache/foo", "user.cache_group");
 
     service->freeCache(testUuid, free() + kKbInBytes,
             FLAG_FREE_CACHE_V2 | FLAG_FREE_CACHE_V2_DEFY_QUOTA);
@@ -217,25 +226,25 @@ TEST_F(CacheTest, FreeCache_Atomic) {
     EXPECT_EQ(-1, exists("com.example/cache/foo/foo2"));
 }
 
-TEST_F(CacheTest, FreeCache_AtomicTombstone) {
-    LOG(INFO) << "FreeCache_AtomicTombstone";
+TEST_F(CacheTest, FreeCache_GroupTombstone) {
+    LOG(INFO) << "FreeCache_GroupTombstone";
 
     mkdir("com.example");
     mkdir("com.example/cache");
 
     // this dir must look really old for some reason?
-    mkdir("com.example/cache/atomic");
-    touch("com.example/cache/atomic/file1", kMbInBytes, 120);
-    touch("com.example/cache/atomic/file2", kMbInBytes, 120);
-    mkdir("com.example/cache/atomic/dir");
-    touch("com.example/cache/atomic/dir/file1", kMbInBytes, 120);
-    touch("com.example/cache/atomic/dir/file2", kMbInBytes, 120);
-    mkdir("com.example/cache/atomic/tomb");
-    touch("com.example/cache/atomic/tomb/file1", kMbInBytes, 120);
-    touch("com.example/cache/atomic/tomb/file2", kMbInBytes, 120);
-    mkdir("com.example/cache/atomic/tomb/dir");
-    touch("com.example/cache/atomic/tomb/dir/file1", kMbInBytes, 120);
-    touch("com.example/cache/atomic/tomb/dir/file2", kMbInBytes, 120);
+    mkdir("com.example/cache/group");
+    touch("com.example/cache/group/file1", kMbInBytes, 120);
+    touch("com.example/cache/group/file2", kMbInBytes, 120);
+    mkdir("com.example/cache/group/dir");
+    touch("com.example/cache/group/dir/file1", kMbInBytes, 120);
+    touch("com.example/cache/group/dir/file2", kMbInBytes, 120);
+    mkdir("com.example/cache/group/tomb");
+    touch("com.example/cache/group/tomb/file1", kMbInBytes, 120);
+    touch("com.example/cache/group/tomb/file2", kMbInBytes, 120);
+    mkdir("com.example/cache/group/tomb/dir");
+    touch("com.example/cache/group/tomb/dir/file1", kMbInBytes, 120);
+    touch("com.example/cache/group/tomb/dir/file2", kMbInBytes, 120);
 
     mkdir("com.example/cache/tomb");
     touch("com.example/cache/tomb/file1", kMbInBytes, 240);
@@ -243,80 +252,80 @@ TEST_F(CacheTest, FreeCache_AtomicTombstone) {
     mkdir("com.example/cache/tomb/dir");
     touch("com.example/cache/tomb/dir/file1", kMbInBytes, 240);
     touch("com.example/cache/tomb/dir/file2", kMbInBytes, 240);
-    mkdir("com.example/cache/tomb/atomic");
-    touch("com.example/cache/tomb/atomic/file1", kMbInBytes, 60);
-    touch("com.example/cache/tomb/atomic/file2", kMbInBytes, 60);
-    mkdir("com.example/cache/tomb/atomic/dir");
-    touch("com.example/cache/tomb/atomic/dir/file1", kMbInBytes, 60);
-    touch("com.example/cache/tomb/atomic/dir/file2", kMbInBytes, 60);
+    mkdir("com.example/cache/tomb/group");
+    touch("com.example/cache/tomb/group/file1", kMbInBytes, 60);
+    touch("com.example/cache/tomb/group/file2", kMbInBytes, 60);
+    mkdir("com.example/cache/tomb/group/dir");
+    touch("com.example/cache/tomb/group/dir/file1", kMbInBytes, 60);
+    touch("com.example/cache/tomb/group/dir/file2", kMbInBytes, 60);
 
-    setxattr("com.example/cache/atomic", "user.cache_atomic");
-    setxattr("com.example/cache/atomic/tomb", "user.cache_tombstone");
+    setxattr("com.example/cache/group", "user.cache_group");
+    setxattr("com.example/cache/group/tomb", "user.cache_tombstone");
     setxattr("com.example/cache/tomb", "user.cache_tombstone");
-    setxattr("com.example/cache/tomb/atomic", "user.cache_atomic");
+    setxattr("com.example/cache/tomb/group", "user.cache_group");
 
     service->freeCache(testUuid, free() + kKbInBytes,
             FLAG_FREE_CACHE_V2 | FLAG_FREE_CACHE_V2_DEFY_QUOTA);
 
-    EXPECT_EQ(kMbInBytes, size("com.example/cache/atomic/file1"));
-    EXPECT_EQ(kMbInBytes, size("com.example/cache/atomic/file2"));
-    EXPECT_EQ(kMbInBytes, size("com.example/cache/atomic/dir/file1"));
-    EXPECT_EQ(kMbInBytes, size("com.example/cache/atomic/dir/file2"));
-    EXPECT_EQ(kMbInBytes, size("com.example/cache/atomic/tomb/file1"));
-    EXPECT_EQ(kMbInBytes, size("com.example/cache/atomic/tomb/file2"));
-    EXPECT_EQ(kMbInBytes, size("com.example/cache/atomic/tomb/dir/file1"));
-    EXPECT_EQ(kMbInBytes, size("com.example/cache/atomic/tomb/dir/file2"));
+    EXPECT_EQ(kMbInBytes, size("com.example/cache/group/file1"));
+    EXPECT_EQ(kMbInBytes, size("com.example/cache/group/file2"));
+    EXPECT_EQ(kMbInBytes, size("com.example/cache/group/dir/file1"));
+    EXPECT_EQ(kMbInBytes, size("com.example/cache/group/dir/file2"));
+    EXPECT_EQ(kMbInBytes, size("com.example/cache/group/tomb/file1"));
+    EXPECT_EQ(kMbInBytes, size("com.example/cache/group/tomb/file2"));
+    EXPECT_EQ(kMbInBytes, size("com.example/cache/group/tomb/dir/file1"));
+    EXPECT_EQ(kMbInBytes, size("com.example/cache/group/tomb/dir/file2"));
 
     EXPECT_EQ(kMbInBytes, size("com.example/cache/tomb/file1"));
     EXPECT_EQ(kMbInBytes, size("com.example/cache/tomb/file2"));
     EXPECT_EQ(kMbInBytes, size("com.example/cache/tomb/dir/file1"));
     EXPECT_EQ(kMbInBytes, size("com.example/cache/tomb/dir/file2"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/file1"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/file2"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/dir/file1"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/dir/file2"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/file1"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/file2"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/dir/file1"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/dir/file2"));
 
     service->freeCache(testUuid, free() + kKbInBytes,
             FLAG_FREE_CACHE_V2 | FLAG_FREE_CACHE_V2_DEFY_QUOTA);
 
-    EXPECT_EQ(-1, size("com.example/cache/atomic/file1"));
-    EXPECT_EQ(-1, size("com.example/cache/atomic/file2"));
-    EXPECT_EQ(-1, size("com.example/cache/atomic/dir/file1"));
-    EXPECT_EQ(-1, size("com.example/cache/atomic/dir/file2"));
-    EXPECT_EQ(0, size("com.example/cache/atomic/tomb/file1"));
-    EXPECT_EQ(0, size("com.example/cache/atomic/tomb/file2"));
-    EXPECT_EQ(0, size("com.example/cache/atomic/tomb/dir/file1"));
-    EXPECT_EQ(0, size("com.example/cache/atomic/tomb/dir/file2"));
+    EXPECT_EQ(-1, size("com.example/cache/group/file1"));
+    EXPECT_EQ(-1, size("com.example/cache/group/file2"));
+    EXPECT_EQ(-1, size("com.example/cache/group/dir/file1"));
+    EXPECT_EQ(-1, size("com.example/cache/group/dir/file2"));
+    EXPECT_EQ(0, size("com.example/cache/group/tomb/file1"));
+    EXPECT_EQ(0, size("com.example/cache/group/tomb/file2"));
+    EXPECT_EQ(0, size("com.example/cache/group/tomb/dir/file1"));
+    EXPECT_EQ(0, size("com.example/cache/group/tomb/dir/file2"));
 
     EXPECT_EQ(kMbInBytes, size("com.example/cache/tomb/file1"));
     EXPECT_EQ(kMbInBytes, size("com.example/cache/tomb/file2"));
     EXPECT_EQ(kMbInBytes, size("com.example/cache/tomb/dir/file1"));
     EXPECT_EQ(kMbInBytes, size("com.example/cache/tomb/dir/file2"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/file1"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/file2"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/dir/file1"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/dir/file2"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/file1"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/file2"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/dir/file1"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/dir/file2"));
 
     service->freeCache(testUuid, kTbInBytes,
             FLAG_FREE_CACHE_V2 | FLAG_FREE_CACHE_V2_DEFY_QUOTA);
 
-    EXPECT_EQ(-1, size("com.example/cache/atomic/file1"));
-    EXPECT_EQ(-1, size("com.example/cache/atomic/file2"));
-    EXPECT_EQ(-1, size("com.example/cache/atomic/dir/file1"));
-    EXPECT_EQ(-1, size("com.example/cache/atomic/dir/file2"));
-    EXPECT_EQ(0, size("com.example/cache/atomic/tomb/file1"));
-    EXPECT_EQ(0, size("com.example/cache/atomic/tomb/file2"));
-    EXPECT_EQ(0, size("com.example/cache/atomic/tomb/dir/file1"));
-    EXPECT_EQ(0, size("com.example/cache/atomic/tomb/dir/file2"));
+    EXPECT_EQ(-1, size("com.example/cache/group/file1"));
+    EXPECT_EQ(-1, size("com.example/cache/group/file2"));
+    EXPECT_EQ(-1, size("com.example/cache/group/dir/file1"));
+    EXPECT_EQ(-1, size("com.example/cache/group/dir/file2"));
+    EXPECT_EQ(0, size("com.example/cache/group/tomb/file1"));
+    EXPECT_EQ(0, size("com.example/cache/group/tomb/file2"));
+    EXPECT_EQ(0, size("com.example/cache/group/tomb/dir/file1"));
+    EXPECT_EQ(0, size("com.example/cache/group/tomb/dir/file2"));
 
     EXPECT_EQ(0, size("com.example/cache/tomb/file1"));
     EXPECT_EQ(0, size("com.example/cache/tomb/file2"));
     EXPECT_EQ(0, size("com.example/cache/tomb/dir/file1"));
     EXPECT_EQ(0, size("com.example/cache/tomb/dir/file2"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/file1"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/file2"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/dir/file1"));
-    EXPECT_EQ(0, size("com.example/cache/tomb/atomic/dir/file2"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/file1"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/file2"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/dir/file1"));
+    EXPECT_EQ(0, size("com.example/cache/tomb/group/dir/file2"));
 }
 
 }  // namespace installd

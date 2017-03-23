@@ -31,8 +31,8 @@ namespace installd {
 
 /**
  * Single cache item that can be purged to free up space. This may be an
- * isolated file, or an entire directory tree that should be atomically
- * deleted.
+ * isolated file, or an entire directory tree that should be deleted as a
+ * group.
  */
 class CacheItem {
 public:
@@ -46,7 +46,7 @@ public:
 
     short level;
     bool directory;
-    bool atomic;
+    bool group;
     bool tombstone;
     int64_t size;
     time_t modified;

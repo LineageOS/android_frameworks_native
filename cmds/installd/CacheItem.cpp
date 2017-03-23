@@ -38,12 +38,12 @@ CacheItem::CacheItem(FTSENT* p) {
 
     mParent = static_cast<CacheItem*>(p->fts_parent->fts_pointer);
     if (mParent) {
-        atomic = mParent->atomic;
+        group = mParent->group;
         tombstone = mParent->tombstone;
         mName = p->fts_name;
         mName.insert(0, "/");
     } else {
-        atomic = false;
+        group = false;
         tombstone = false;
         mName = p->fts_path;
     }

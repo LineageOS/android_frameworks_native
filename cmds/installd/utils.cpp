@@ -23,12 +23,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/xattr.h>
-
-#if defined(__APPLE__)
-#include <sys/mount.h>
-#else
-#include <sys/statfs.h>
-#endif
+#include <sys/statvfs.h>
 
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
@@ -637,11 +632,11 @@ int copy_dir_files(const char *srcname,
 
 int64_t data_disk_free(const std::string& data_path)
 {
-    struct statfs sfs;
-    if (statfs(data_path.c_str(), &sfs) == 0) {
+    struct statvfs sfs;
+    if (statvfs(data_path.c_str(), &sfs) == 0) {
         return sfs.f_bavail * sfs.f_bsize;
     } else {
-        PLOG(ERROR) << "Couldn't statfs " << data_path;
+        PLOG(ERROR) << "Couldn't statvfs " << data_path;
         return -1;
     }
 }
