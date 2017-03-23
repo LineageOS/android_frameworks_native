@@ -30,7 +30,6 @@ staticLibraries := \
 sharedLibraries := \
 	libbase \
 	libcutils \
-	libhardware \
 	liblog \
 	libsync \
 	libutils \
