@@ -768,15 +768,17 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
     auto noop = (flags & FLAG_FREE_CACHE_NOOP);
 
     int64_t free = data_disk_free(data_path);
-    int64_t needed = freeStorageSize - free;
     if (free < 0) {
         return error("Failed to determine free space for " + data_path);
-    } else if (free >= freeStorageSize) {
-        return ok();
     }
 
-    LOG(DEBUG) << "Found " << data_path << " with " << free << " free; caller requested "
-            << freeStorageSize;
+    int64_t needed = freeStorageSize - free;
+    LOG(DEBUG) << "Device " << data_path << " has " << free << " free; requested "
+            << freeStorageSize << "; needed " << needed;
+
+    if (free >= freeStorageSize) {
+        return ok();
+    }
 
     if (flags & FLAG_FREE_CACHE_V2) {
         // This new cache strategy fairly removes files from UIDs by deleting
@@ -811,7 +813,9 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
                             tracker->cacheQuota = mCacheQuotas[uid];
                         }
                         if (tracker->cacheQuota == 0) {
+#if MEASURE_DEBUG
                             LOG(WARNING) << "UID " << uid << " has no cache quota; assuming 64MB";
+#endif
                             tracker->cacheQuota = 67108864;
                         }
                         trackers[uid] = tracker;

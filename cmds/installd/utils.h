@@ -66,7 +66,7 @@ typedef struct {
 
 constexpr const char* kXattrInodeCache = "user.inode_cache";
 constexpr const char* kXattrInodeCodeCache = "user.inode_code_cache";
-constexpr const char* kXattrCacheAtomic = "user.cache_atomic";
+constexpr const char* kXattrCacheGroup = "user.cache_group";
 constexpr const char* kXattrCacheTombstone = "user.cache_tombstone";
 
 int create_pkg_path(char path[PKG_PATH_MAX],
