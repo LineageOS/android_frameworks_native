@@ -1,5 +1,5 @@
 service surfaceflinger /system/bin/surfaceflinger
-    class core
+    class core animation
     user system
     group graphics drmrpc readproc
     onrestart restart zygote
