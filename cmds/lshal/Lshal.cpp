@@ -257,8 +257,9 @@ void Lshal::dumpVintf() const {
                 continue;
             }
             // Strip out system libs.
-            // TODO(b/34772739): might want to add other framework HAL packages
-            if (fqName.inPackage("android.hidl")) {
+            if (fqName.inPackage("android.hidl") ||
+                fqName.inPackage("android.frameworks") ||
+                fqName.inPackage("android.system")) {
                 continue;
             }
             std::string interfaceName =
