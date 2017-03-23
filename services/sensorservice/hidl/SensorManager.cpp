@@ -30,7 +30,6 @@ namespace sensorservice {
 namespace V1_0 {
 namespace implementation {
 
-using ::android::frameworks::sensorservice::V1_0::IDirectReportChannel;
 using ::android::hardware::sensors::V1_0::SensorInfo;
 using ::android::hardware::hidl_vec;
 using ::android::hardware::Void;
@@ -109,6 +108,13 @@ Return<void> SensorManager::createGrallocDirectChannel(
     createDirectChannel(mManager, size, SENSOR_DIRECT_MEM_TYPE_GRALLOC,
             buffer.getNativeHandle(), _hidl_cb);
 
+    return Void();
+}
+
+Return<void> SensorManager::createEventQueue(
+        __unused const sp<IEventQueueCallback> &callback, createEventQueue_cb _hidl_cb) {
+    // TODO(b/35219747) Implement this
+    _hidl_cb(nullptr, Result::UNKNOWN_ERROR);
     return Void();
 }
 
