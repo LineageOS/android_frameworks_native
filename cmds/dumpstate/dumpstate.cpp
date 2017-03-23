@@ -1009,31 +1009,10 @@ static void dumpstate(const std::string& screenshot_path, const std::string& ver
     run_command("MULTICAST ADDRESSES", 10, "ip", "maddr", NULL);
     run_command("WIFI NETWORKS", 20, "wpa_cli", "IFNAME=wlan0", "list_networks", NULL);
 
-#ifdef FWDUMP_bcmdhd
-    run_command("ND OFFLOAD TABLE", 5,
-            SU_PATH, "root", WLUTIL, "nd_hostip", NULL);
-
-    run_command("DUMP WIFI INTERNAL COUNTERS (1)", 20,
-            SU_PATH, "root", WLUTIL, "counters", NULL);
-
-    run_command("ND OFFLOAD STATUS (1)", 5,
-            SU_PATH, "root", WLUTIL, "nd_status", NULL);
-
-#endif
     dump_file("INTERRUPTS (1)", "/proc/interrupts");
 
     run_command("NETWORK DIAGNOSTICS", 10, "dumpsys", "-t", "10", "connectivity", "--diag", NULL);
 
-#ifdef FWDUMP_bcmdhd
-    run_command("DUMP WIFI STATUS", 20,
-            SU_PATH, "root", "dhdutil", "-i", "wlan0", "dump", NULL);
-
-    run_command("DUMP WIFI INTERNAL COUNTERS (2)", 20,
-            SU_PATH, "root", WLUTIL, "counters", NULL);
-
-    run_command("ND OFFLOAD STATUS (2)", 5,
-            SU_PATH, "root", WLUTIL, "nd_status", NULL);
-#endif
     dump_file("INTERRUPTS (2)", "/proc/interrupts");
 
     run_command("SYSTEM PROPERTIES", 5, "getprop", NULL);
