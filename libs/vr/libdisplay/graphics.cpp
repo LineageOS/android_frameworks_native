@@ -27,6 +27,7 @@
 #include <private/dvr/sensor_constants.h>
 #include <private/dvr/video_mesh_surface_client.h>
 #include <private/dvr/vsync_client.h>
+#include <private/dvr/platform_defines.h>
 
 #include <android/native_window.h>
 
@@ -43,8 +44,10 @@ using android::dvr::DisplaySurfaceAttributeValue;
 
 namespace {
 
+// TODO(urbanus): revisit once we have per-platform usage config in place.
 constexpr int kDefaultDisplaySurfaceUsage =
-    GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
+    GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE |
+    GRALLOC_USAGE_QCOM_FRAMEBUFFER_COMPRESSION;
 constexpr int kDefaultDisplaySurfaceFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 // TODO(alexst): revisit this count when HW encode is available for casting.
 constexpr int kDefaultBufferCount = 4;
