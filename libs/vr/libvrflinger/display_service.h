@@ -87,6 +87,9 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
                          const ViewerParams& view_params);
   pdx::LocalChannelHandle OnGetPoseBuffer(pdx::Message& message);
 
+  // Temporary query for current VR status. Will be removed later.
+  int IsVrAppRunning(pdx::Message& message);
+
   // Called by DisplaySurface to signal that a surface property has changed and
   // the display manager should be notified.
   void NotifyDisplayConfigurationUpdate();

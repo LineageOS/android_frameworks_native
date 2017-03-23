@@ -110,6 +110,9 @@ class DisplayClient : public pdx::ClientBase<DisplayClient> {
 
   std::unique_ptr<BufferConsumer> GetPoseBuffer();
 
+  // Temporary query for current VR status. Will be removed later.
+  bool IsVrAppRunning();
+
  private:
   friend BASE;
 

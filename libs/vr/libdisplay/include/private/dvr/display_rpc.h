@@ -219,6 +219,7 @@ struct DisplayRPC {
     kOpVideoMeshSurfaceCreateProducerQueue,
     kOpSetViewerParams,
     kOpGetPoseBuffer,
+    kOpIsVrAppRunning,
   };
 
   // Aliases.
@@ -248,6 +249,7 @@ struct DisplayRPC {
                     void(const ViewerParams& viewer_params));
   PDX_REMOTE_METHOD(GetPoseBuffer, kOpGetPoseBuffer,
                     LocalChannelHandle(Void));
+  PDX_REMOTE_METHOD(IsVrAppRunning, kOpIsVrAppRunning, int(Void));
 };
 
 struct DisplayManagerRPC {

@@ -9,6 +9,7 @@ namespace {
 
 constexpr float kLayerScaleFactor = 3.0f;
 constexpr unsigned int kMaximumPendingFrames = 8;
+constexpr uint32_t kSystemId = 1000;
 
 // clang-format off
 const GLfloat kVertices[] = {
@@ -98,11 +99,8 @@ mat4 GetLayerTransform(const TextureLayer& texture_layer, float display_width,
 
 // Determine if ths frame should be shown or hidden.
 ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
-                                            uint32_t *appid) {
+                                            uint32_t* appid) {
   auto& layers = frame.layers();
-
-  // TODO(achaulk): Figure out how to identify the current VR app for 2D app
-  // detection.
 
   size_t index;
   // Skip all layers that we don't know about.
@@ -119,7 +117,7 @@ ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
     return ViewMode::Hidden;
   }
 
-  if(layers[index].appid != *appid) {
+  if (layers[index].appid != *appid) {
     *appid = layers[index].appid;
     return ViewMode::App;
   }
@@ -202,7 +200,8 @@ void DisplayView::OnDrawFrame(SurfaceFlingerView* surface_flinger_view,
 }
 
 base::unique_fd DisplayView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame,
-                                     bool debug_mode, bool* showing) {
+                                     bool debug_mode, bool is_vr_active,
+                                     bool* showing) {
   uint32_t app = current_vr_app_;
   ViewMode visibility = CalculateVisibilityFromLayerConfig(*frame.get(), &app);
 
@@ -214,7 +213,7 @@ base::unique_fd DisplayView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame,
   } else if (visibility == ViewMode::App) {
     // This is either a VR app switch or a 2D app launching.
     // If we can have VR apps, update if it's 0.
-    if (!always_2d_ && (current_vr_app_ == 0 || !use_2dmode_)) {
+    if (!always_2d_ && is_vr_active && !use_2dmode_ && app != kSystemId) {
       visibility = ViewMode::Hidden;
       current_vr_app_ = app;
     }
