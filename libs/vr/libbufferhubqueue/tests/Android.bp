@@ -24,6 +24,7 @@ cc_test {
     static_libs: static_libraries,
     shared_libs: shared_libraries,
     cflags: [
+        "-DLOG_TAG=\"buffer_hub_queue-test\"",
         "-DTRACE=0",
         "-O0",
         "-g",
@@ -37,6 +38,7 @@ cc_test {
     static_libs: static_libraries,
     shared_libs: shared_libraries,
     cflags: [
+        "-DLOG_TAG=\"buffer_hub_queue_producer-test\"",
         "-DTRACE=0",
         "-O0",
         "-g",

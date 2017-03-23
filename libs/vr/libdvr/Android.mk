@@ -32,6 +32,7 @@ LOCAL_SRC_FILES := \
     display_manager_client.cpp \
     dvr_api.cpp \
     dvr_buffer.cpp \
+    dvr_buffer_queue.cpp \
     dvr_surface.cpp \
     vsync_client_api.cpp \
 
@@ -49,3 +50,5 @@ LOCAL_SHARED_LIBRARIES := \
     libbase \
 
 include $(BUILD_STATIC_LIBRARY)
+
+include $(call all-makefiles-under,$(LOCAL_PATH))

@@ -5,6 +5,7 @@
 // Headers from libdvr
 #include <dvr/display_manager_client.h>
 #include <dvr/dvr_buffer.h>
+#include <dvr/dvr_buffer_queue.h>
 #include <dvr/dvr_surface.h>
 #include <dvr/vsync_client_api.h>
 
@@ -53,11 +54,26 @@ DVR_EXPORT int dvrGetApi(void* api, size_t struct_size, int version) {
     dvr_api->write_buffer_gain_ = dvrWriteBufferGain;
     dvr_api->write_buffer_gain_async_ = dvrWriteBufferGainAsync;
 
+    dvr_api->read_buffer_destroy_ = dvrReadBufferDestroy;
     dvr_api->read_buffer_get_blob_fds_ = dvrReadBufferGetBlobFds;
     dvr_api->read_buffer_get_AHardwareBuffer_ = dvrReadBufferGetAHardwareBuffer;
     dvr_api->read_buffer_acquire_ = dvrReadBufferAcquire;
     dvr_api->read_buffer_release_ = dvrReadBufferRelease;
     dvr_api->read_buffer_release_async_ = dvrReadBufferReleaseAsync;
+
+    // dvr_buffer_queue.h
+    dvr_api->write_buffer_queue_destroy_ = dvrWriteBufferQueueDestroy;
+    dvr_api->write_buffer_queue_get_capacity_ = dvrWriteBufferQueueGetCapacity;
+    dvr_api->write_buffer_queue_get_external_surface_ =
+        dvrWriteBufferQueueGetExternalSurface;
+    dvr_api->write_buffer_queue_create_read_queue_ =
+        dvrWriteBufferQueueCreateReadQueue;
+    dvr_api->write_buffer_queue_dequeue_ = dvrWriteBufferQueueDequeue;
+    dvr_api->read_buffer_queue_destroy_ = dvrReadBufferQueueDestroy;
+    dvr_api->read_buffer_queue_get_capacity_ = dvrReadBufferQueueGetCapacity;
+    dvr_api->read_buffer_queue_create_read_queue_ =
+        dvrReadBufferQueueCreateReadQueue;
+    dvr_api->read_buffer_queue_dequeue = dvrReadBufferQueueDequeue;
 
     // dvr_surface.h
     dvr_api->get_pose_buffer_ = dvrGetPoseBuffer;

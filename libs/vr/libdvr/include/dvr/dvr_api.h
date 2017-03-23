@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <jni.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,6 +28,9 @@ typedef void (*DisplayManagerClientDestroyPtr)(DvrDisplayManagerClient* client);
 typedef struct DvrWriteBuffer DvrWriteBuffer;
 typedef struct DvrReadBuffer DvrReadBuffer;
 typedef struct AHardwareBuffer AHardwareBuffer;
+
+typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
+typedef struct DvrReadBufferQueue DvrReadBufferQueue;
 
 // display_manager_client.h
 typedef int (*DisplayManagerClientGetSurfaceListPtr)(
@@ -63,6 +68,7 @@ typedef int (*DvrWriteBufferGainPtr)(DvrWriteBuffer* client,
                                      int* release_fence_fd);
 typedef int (*DvrWriteBufferGainAsyncPtr)(DvrWriteBuffer* client);
 
+typedef void (*DvrReadBufferDestroyPtr)(DvrReadBuffer* client);
 typedef void (*DvrReadBufferGetBlobFdsPtr)(DvrReadBuffer* client, int* fds,
                                            size_t* fds_count,
                                            size_t max_fds_count);
@@ -74,6 +80,29 @@ typedef int (*DvrReadBufferAcquirePtr)(DvrReadBuffer* client,
 typedef int (*DvrReadBufferReleasePtr)(DvrReadBuffer* client,
                                        int release_fence_fd);
 typedef int (*DvrReadBufferReleaseAsyncPtr)(DvrReadBuffer* client);
+
+// dvr_buffer_queue.h
+typedef void (*DvrWriteBufferQueueDestroyPtr)(DvrWriteBufferQueue* write_queue);
+typedef size_t (*DvrWriteBufferQueueGetCapacityPtr)(
+    DvrWriteBufferQueue* write_queue);
+typedef void* (*DvrWriteBufferQueueGetExternalSurfacePtr)(
+    DvrWriteBufferQueue* write_queue, JNIEnv* env);
+typedef int (*DvrWriteBufferQueueCreateReadQueuePtr)(
+    DvrWriteBufferQueue* write_queue, DvrReadBufferQueue** out_read_queue);
+typedef int (*DvrWriteBufferQueueDequeuePtr)(DvrWriteBufferQueue* write_queue,
+                                             int timeout,
+                                             DvrWriteBuffer** out_buffer,
+                                             int* out_fence_fd);
+typedef void (*DvrReadBufferQueueDestroyPtr)(DvrReadBufferQueue* read_queue);
+typedef size_t (*DvrReadBufferQueueGetCapacityPtr)(
+    DvrReadBufferQueue* read_queue);
+typedef int (*DvrReadBufferQueueCreateReadQueuePtr)(
+    DvrReadBufferQueue* read_queue, DvrReadBufferQueue** out_read_queue);
+typedef int (*DvrReadBufferQueueDequeuePtr)(DvrReadBufferQueue* read_queue,
+                                            int timeout,
+                                            DvrReadBuffer** out_buffer,
+                                            int* out_fence_fd, void* out_meta,
+                                            size_t meta_size_bytes);
 
 // dvr_surface.h
 typedef int (*DvrGetPoseBufferPtr)(DvrReadBuffer** pose_buffer);
@@ -137,11 +166,26 @@ struct DvrApi_v1 {
   DvrWriteBufferGainAsyncPtr write_buffer_gain_async_;
 
   // Read buffer
+  DvrReadBufferDestroyPtr read_buffer_destroy_;
   DvrReadBufferGetBlobFdsPtr read_buffer_get_blob_fds_;
   DvrReadBufferGetAHardwareBufferPtr read_buffer_get_AHardwareBuffer_;
   DvrReadBufferAcquirePtr read_buffer_acquire_;
   DvrReadBufferReleasePtr read_buffer_release_;
   DvrReadBufferReleaseAsyncPtr read_buffer_release_async_;
+
+  // Write buffer queue
+  DvrWriteBufferQueueDestroyPtr write_buffer_queue_destroy_;
+  DvrWriteBufferQueueGetCapacityPtr write_buffer_queue_get_capacity_;
+  DvrWriteBufferQueueGetExternalSurfacePtr
+      write_buffer_queue_get_external_surface_;
+  DvrWriteBufferQueueCreateReadQueuePtr write_buffer_queue_create_read_queue_;
+  DvrWriteBufferQueueDequeuePtr write_buffer_queue_dequeue_;
+
+  // Read buffer queue
+  DvrReadBufferQueueDestroyPtr read_buffer_queue_destroy_;
+  DvrReadBufferQueueGetCapacityPtr read_buffer_queue_get_capacity_;
+  DvrReadBufferQueueCreateReadQueuePtr read_buffer_queue_create_read_queue_;
+  DvrReadBufferQueueDequeuePtr read_buffer_queue_dequeue;
 
   // V-Sync client
   VSyncClientCreatePtr vsync_client_create_;

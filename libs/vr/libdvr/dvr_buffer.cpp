@@ -6,12 +6,12 @@
 using namespace android;
 
 struct DvrWriteBuffer {
-  std::unique_ptr<dvr::BufferProducer> write_buffer_;
+  std::shared_ptr<dvr::BufferProducer> write_buffer_;
   sp<GraphicBuffer> graphic_buffer_;
 };
 
 struct DvrReadBuffer {
-  std::unique_ptr<dvr::BufferConsumer> read_buffer_;
+  std::shared_ptr<dvr::BufferConsumer> read_buffer_;
   sp<GraphicBuffer> graphic_buffer_;
 };
 
@@ -19,14 +19,14 @@ namespace android {
 namespace dvr {
 
 DvrWriteBuffer* CreateDvrWriteBufferFromBufferProducer(
-    std::unique_ptr<dvr::BufferProducer> buffer_producer) {
+    const std::shared_ptr<dvr::BufferProducer>& buffer_producer) {
   DvrWriteBuffer* write_buffer = new DvrWriteBuffer;
   write_buffer->write_buffer_ = std::move(buffer_producer);
   return write_buffer;
 }
 
 DvrReadBuffer* CreateDvrReadBufferFromBufferConsumer(
-    std::unique_ptr<dvr::BufferConsumer> buffer_consumer) {
+    const std::shared_ptr<dvr::BufferConsumer>& buffer_consumer) {
   DvrReadBuffer* read_buffer = new DvrReadBuffer;
   read_buffer->read_buffer_ = std::move(buffer_consumer);
   return read_buffer;
@@ -85,6 +85,8 @@ int dvrWriteBufferGain(DvrWriteBuffer* client, int* release_fence_fd) {
 int dvrWriteBufferGainAsync(DvrWriteBuffer* client) {
   return client->write_buffer_->GainAsync();
 }
+
+void dvrReadBufferDestroy(DvrReadBuffer* client) { delete client; }
 
 void dvrReadBufferGetBlobFds(DvrReadBuffer* client, int* fds, size_t* fds_count,
                              size_t max_fds_count) {
