@@ -281,7 +281,7 @@ class HardwareComposer {
   // Blocks until either event_fd becomes readable, or we're interrupted by a
   // control thread. Any errors are returned as negative errno values. If we're
   // interrupted, kPostThreadInterrupted will be returned.
-  int PostThreadPollInterruptible(int event_fd);
+  int PostThreadPollInterruptible(int event_fd, int requested_events);
 
   // BlockUntilVSync, WaitForVSync, and SleepUntil are all blocking calls made
   // on the post thread that can be interrupted by a control thread. If
