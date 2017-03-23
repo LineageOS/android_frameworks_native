@@ -518,10 +518,13 @@ void HardwareComposer::SetDisplaySurfaces(
     post_thread_cond_var_.notify_all();
 }
 
-int HardwareComposer::PostThreadPollInterruptible(int event_fd) {
+int HardwareComposer::PostThreadPollInterruptible(int event_fd,
+                                                  int requested_events) {
   pollfd pfd[2] = {
       {
-          .fd = event_fd, .events = POLLPRI | POLLIN, .revents = 0,
+          .fd = event_fd,
+          .events = static_cast<short>(requested_events),
+          .revents = 0,
       },
       {
           .fd = post_thread_interrupt_event_fd_.Get(),
@@ -645,7 +648,9 @@ int HardwareComposer::ReadVSyncTimestamp(int64_t* timestamp) {
 // TODO(eieio): This is pretty driver specific, this should be moved to a
 // separate class eventually.
 int HardwareComposer::BlockUntilVSync() {
-  return PostThreadPollInterruptible(primary_display_vsync_event_fd_.Get());
+  return PostThreadPollInterruptible(primary_display_vsync_event_fd_.Get(),
+                                     // There will be a POLLPRI event on vsync
+                                     POLLPRI);
 }
 
 // Waits for the next vsync and returns the timestamp of the vsync event. If
@@ -718,7 +723,7 @@ int HardwareComposer::SleepUntil(int64_t wakeup_timestamp) {
     return -error;
   }
 
-  return PostThreadPollInterruptible(timer_fd);
+  return PostThreadPollInterruptible(timer_fd, POLLIN);
 }
 
 void HardwareComposer::PostThread() {
