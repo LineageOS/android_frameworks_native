@@ -17,6 +17,8 @@ class BufferHubQueueCore {
   friend class BufferHubQueueProducer;
 
  public:
+  static constexpr int kNoConnectedApi = -1;
+
   // Create a BufferHubQueueCore instance by creating a new producer queue.
   static std::shared_ptr<BufferHubQueueCore> Create();
 
@@ -86,6 +88,9 @@ class BufferHubQueueCore {
 
   // Mutex for thread safety.
   std::mutex mutex_;
+
+  // Connect client API, should be one of the NATIVE_WINDOW_API_* flags.
+  int connected_api_{kNoConnectedApi};
 
   // |buffers_| stores the buffers that have been dequeued from
   // |dvr::BufferHubQueue|, It is initialized to invalid buffers, and gets
