@@ -14,8 +14,6 @@
 
 sourceFiles = [
     "frame_time_history.cpp",
-    "revision.cpp",
-    "revision_path.cpp",
     "sync_util.cpp",
 ]
 
