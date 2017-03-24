@@ -129,7 +129,7 @@ FileReference Message::PushFileHandle(const LocalHandle& handle) {
   PDX_TRACE_NAME("Message::PushFileHandle");
   if (auto svc = service_.lock()) {
     ErrnoGuard errno_guard;
-    return svc->endpoint()->PushFileHandle(this, handle);
+    return ReturnCodeOrError(svc->endpoint()->PushFileHandle(this, handle));
   } else {
     return -ESHUTDOWN;
   }
@@ -139,7 +139,7 @@ FileReference Message::PushFileHandle(const BorrowedHandle& handle) {
   PDX_TRACE_NAME("Message::PushFileHandle");
   if (auto svc = service_.lock()) {
     ErrnoGuard errno_guard;
-    return svc->endpoint()->PushFileHandle(this, handle);
+    return ReturnCodeOrError(svc->endpoint()->PushFileHandle(this, handle));
   } else {
     return -ESHUTDOWN;
   }
@@ -149,7 +149,7 @@ FileReference Message::PushFileHandle(const RemoteHandle& handle) {
   PDX_TRACE_NAME("Message::PushFileHandle");
   if (auto svc = service_.lock()) {
     ErrnoGuard errno_guard;
-    return svc->endpoint()->PushFileHandle(this, handle);
+    return ReturnCodeOrError(svc->endpoint()->PushFileHandle(this, handle));
   } else {
     return -ESHUTDOWN;
   }
@@ -159,7 +159,7 @@ ChannelReference Message::PushChannelHandle(const LocalChannelHandle& handle) {
   PDX_TRACE_NAME("Message::PushChannelHandle");
   if (auto svc = service_.lock()) {
     ErrnoGuard errno_guard;
-    return svc->endpoint()->PushChannelHandle(this, handle);
+    return ReturnCodeOrError(svc->endpoint()->PushChannelHandle(this, handle));
   } else {
     return -ESHUTDOWN;
   }
@@ -170,7 +170,7 @@ ChannelReference Message::PushChannelHandle(
   PDX_TRACE_NAME("Message::PushChannelHandle");
   if (auto svc = service_.lock()) {
     ErrnoGuard errno_guard;
-    return svc->endpoint()->PushChannelHandle(this, handle);
+    return ReturnCodeOrError(svc->endpoint()->PushChannelHandle(this, handle));
   } else {
     return -ESHUTDOWN;
   }
@@ -180,7 +180,7 @@ ChannelReference Message::PushChannelHandle(const RemoteChannelHandle& handle) {
   PDX_TRACE_NAME("Message::PushChannelHandle");
   if (auto svc = service_.lock()) {
     ErrnoGuard errno_guard;
-    return svc->endpoint()->PushChannelHandle(this, handle);
+    return ReturnCodeOrError(svc->endpoint()->PushChannelHandle(this, handle));
   } else {
     return -ESHUTDOWN;
   }
