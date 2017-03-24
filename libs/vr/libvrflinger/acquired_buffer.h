@@ -43,7 +43,7 @@ class AcquiredBuffer {
 
   // Accessors for the underlying BufferConsumer, the acquire fence, and the
   // use-case specific sequence value from the acquisition (see
-  // dreamos/buffer_hub_client.h).
+  // private/dvr/buffer_hub_client.h).
   std::shared_ptr<BufferConsumer> buffer() const { return buffer_; }
   int acquire_fence() const { return acquire_fence_.Get(); }
 
