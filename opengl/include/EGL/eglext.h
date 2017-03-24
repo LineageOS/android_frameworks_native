@@ -605,20 +605,6 @@ typedef EGLBoolean (EGLAPIENTRYP PFNEGLPRESENTATIONTIMEANDROID) (EGLDisplay dpy,
 #endif
 #endif
 
-#ifndef EGL_ANDROID_create_native_client_buffer
-#define EGL_ANDROID_create_native_client_buffer 1
-#define EGL_LAYER_COUNT_ANDROID 0x3434
-#define EGL_NATIVE_BUFFER_USAGE_ANDROID   0x3143
-#define EGL_NATIVE_BUFFER_USAGE_PROTECTED_BIT_ANDROID   0x00000001
-#define EGL_NATIVE_BUFFER_USAGE_RENDERBUFFER_BIT_ANDROID   0x00000002
-#define EGL_NATIVE_BUFFER_USAGE_TEXTURE_BIT_ANDROID   0x00000004
-#ifdef EGL_EGLEXT_PROTOTYPES
-EGLAPI EGLClientBuffer eglCreateNativeClientBufferANDROID (const EGLint *attrib_list);
-#else
-typedef EGLClientBuffer (EGLAPIENTRYP PFNEGLCREATENATIVECLIENTBUFFERANDROID) (const EGLint *attrib_list);
-#endif
-#endif
-
 #ifndef EGL_ANDROID_get_native_client_buffer
 #define EGL_ANDROID_get_native_client_buffer 1
 struct AHardwareBuffer;
