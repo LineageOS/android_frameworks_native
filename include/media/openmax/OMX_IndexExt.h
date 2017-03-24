@@ -51,6 +51,7 @@ typedef enum OMX_INDEXEXTTYPE {
     OMX_IndexConfigCallbackRequest,                 /**< reference: OMX_CONFIG_CALLBACKREQUESTTYPE */
     OMX_IndexConfigCommitMode,                      /**< reference: OMX_CONFIG_COMMITMODETYPE */
     OMX_IndexConfigCommit,                          /**< reference: OMX_CONFIG_COMMITTYPE */
+    OMX_IndexConfigAndroidVendorExtension,          /**< reference: OMX_CONFIG_VENDOR_EXTENSIONTYPE */
 
     /* Port parameters and configurations */
     OMX_IndexExtPortStartUnused = OMX_IndexKhronosExtensions + 0x00200000,
@@ -102,6 +103,117 @@ typedef enum OMX_INDEXEXTTYPE {
 
     OMX_IndexExtMax = 0x7FFFFFFF
 } OMX_INDEXEXTTYPE;
+
+#define OMX_MAX_STRINGVALUE_SIZE OMX_MAX_STRINGNAME_SIZE
+#define OMX_MAX_ANDROID_VENDOR_PARAMCOUNT 32
+
+typedef enum OMX_ANDROID_VENDOR_VALUETYPE {
+    OMX_AndroidVendorValueInt32 = 0,   /*<< int32_t value */
+    OMX_AndroidVendorValueInt64,       /*<< int64_t value */
+    OMX_AndroidVendorValueString,      /*<< string value */
+    OMX_AndroidVendorValueEndUnused,
+} OMX_ANDROID_VENDOR_VALUETYPE;
+
+/**
+ * Structure describing a single value of an Android vendor extension.
+ *
+ * STRUCTURE MEMBERS:
+ *  cKey        : parameter value name.
+ *  eValueType  : parameter value type
+ *  bSet        : if false, the parameter is not set (for OMX_GetConfig) or is unset (OMX_SetConfig)
+ *                if true, the parameter is set to the corresponding value below
+ *  nInt64      : int64 value
+ *  cString     : string value
+ */
+typedef struct OMX_CONFIG_ANDROID_VENDOR_PARAMTYPE {
+    OMX_U8 cKey[OMX_MAX_STRINGNAME_SIZE];
+    OMX_ANDROID_VENDOR_VALUETYPE eValueType;
+    OMX_BOOL bSet;
+    union {
+        OMX_S32 nInt32;
+        OMX_S64 nInt64;
+        OMX_U8 cString[OMX_MAX_STRINGVALUE_SIZE];
+    };
+} OMX_CONFIG_ANDROID_VENDOR_PARAMTYPE;
+
+/**
+ * OMX_CONFIG_ANDROID_VENDOR_EXTENSIONTYPE is the structure for an Android vendor extension
+ * supported by the component. This structure enumerates the various extension parameters and their
+ * values.
+ *
+ * Android vendor extensions have a name and one or more parameter values - each with a string key -
+ * that are set together. The values are exposed to Android applications via a string key that is
+ * the concatenation of 'vendor', the extension name and the parameter key, each separated by dot
+ * (.), with any trailing '.value' suffix(es) removed (though optionally allowed).
+ *
+ * Extension names and parameter keys are subject to the following rules:
+ *   - Each SHALL contain a set of lowercase alphanumeric (underscore allowed) tags separated by
+ *     dot (.) or dash (-).
+ *   - The first character of the first tag, and any tag following a dot SHALL not start with a
+ *     digit.
+ *   - Tags 'value', 'vendor', 'omx' and 'android' (even if trailed and/or followed by any number
+ *     of underscores) are prohibited in the extension name.
+ *   - Tags 'vendor', 'omx' and 'android' (even if trailed and/or followed by any number
+ *     of underscores) are prohibited in parameter keys.
+ *   - The tag 'value' (even if trailed and/or followed by any number
+ *     of underscores) is prohibited in parameter keys with the following exception:
+ *     the parameter key may be exactly 'value'
+ *   - The parameter key for extensions with a single parameter value SHALL be 'value'
+ *   - No two extensions SHALL have the same name
+ *   - No extension's name SHALL start with another extension's NAME followed by a dot (.)
+ *   - No two parameters of an extension SHALL have the same key
+ *
+ * This config can be used with both OMX_GetConfig and OMX_SetConfig. In the OMX_GetConfig
+ * case, the caller specifies nIndex and nParamSizeUsed. The component fills in cName,
+ * eDir and nParamCount. Additionally, if nParamSizeUsed is not less than nParamCount, the
+ * component fills out the parameter values (nParam) with the current values for each parameter
+ * of the vendor extension.
+ *
+ * The value of nIndex goes from 0 to N-1, where N is the number of Android vendor extensions
+ * supported by the component. The component does not need to report N as the caller can determine
+ * N by enumerating all extensions supported by the component. The component may not support any
+ * extensions. If there are no more extensions, OMX_GetParameter returns OMX_ErrorNoMore. The
+ * component supplies extensions in the order it wants clients to set them.
+ *
+ * The component SHALL return OMX_ErrorNone for all cases where nIndex is less than N (specifically
+ * even in the case of where nParamCount is greater than nParamSizeUsed).
+ *
+ * In the OMX_SetConfig case the field nIndex is ignored. If the component supports an Android
+ * vendor extension with the name in cName, it SHALL configure the parameter values for that
+ * extension according to the parameters in nParam. nParamCount is the number of valid parameters
+ * in the nParam array, and nParamSizeUsed is the size of the nParam array. (nParamSizeUsed
+ * SHALL be at least nParamCount) Parameters that are part of a vendor extension but are not
+ * in the nParam array are assumed to be unset (this is different from not changed).
+ * All parameter values SHALL have distinct keys in nParam (the component can assume that this
+ * is the case. Otherwise, the actual value for the parameters that are multiply defined can
+ * be any of the set values.)
+ *
+ * Return values in case of OMX_SetConfig:
+ *   OMX_ErrorUnsupportedIndex: the component does not support the extension specified by cName
+ *   OMX_ErrorUnsupportedSetting: the component does not support some or any of the parameters
+ *       (names) specified in nParam
+ *   OMX_ErrorBadParameter: the parameter is invalid (e.g. nParamCount is greater than
+ *       nParamSizeUsed, or some parameter value has invalid type)
+ *
+ * STRUCTURE MEMBERS:
+ *  nSize       : size of the structure in bytes
+ *  nVersion    : OMX specification version information
+ *  cName       : name of vendor extension
+ *  nParamCount : the number of parameter values that are part of this vendor extension
+ *  nParamSizeUsed : the size of nParam
+ *                (must be at least 1 and at most OMX_MAX_ANDROID_VENDOR_PARAMCOUNT)
+ *  param       : the parameter values
+ */
+typedef struct OMX_CONFIG_ANDROID_VENDOR_EXTENSIONTYPE {
+    OMX_U32 nSize;
+    OMX_VERSIONTYPE nVersion;
+    OMX_U32 nIndex;
+    OMX_U8  cName[OMX_MAX_STRINGNAME_SIZE];
+    OMX_DIRTYPE eDir;
+    OMX_U32 nParamCount;
+    OMX_U32 nParamSizeUsed;
+    OMX_CONFIG_ANDROID_VENDOR_PARAMTYPE param[1];
+} OMX_CONFIG_ANDROID_VENDOR_EXTENSIONTYPE;
 
 #ifdef __cplusplus
 }
