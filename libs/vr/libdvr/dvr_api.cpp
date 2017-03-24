@@ -77,6 +77,8 @@ DVR_EXPORT int dvrGetApi(void* api, size_t struct_size, int version) {
 
     // dvr_surface.h
     dvr_api->get_pose_buffer_ = dvrGetPoseBuffer;
+    dvr_api->surface_create_ = dvrSurfaceCreate;
+    dvr_api->surface_get_write_buffer_queue_ = dvrSurfaceGetWriteBufferQueue;
 
     // vsync_client_api.h
     dvr_api->vsync_client_create_ = dvr_vsync_client_create;
