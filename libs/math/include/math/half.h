@@ -22,6 +22,7 @@
 #include <type_traits>
 
 #ifndef LIKELY
+#define LIKELY_DEFINED_LOCAL
 #ifdef __cplusplus
 #   define LIKELY( exp )    (__builtin_expect( !!(exp), true ))
 #   define UNLIKELY( exp )  (__builtin_expect( !!(exp), false ))
@@ -202,6 +203,10 @@ public:
 
 } // namespace std
 
+#ifdef LIKELY_DEFINED_LOCAL
+#undef LIKELY_DEFINED_LOCAL
 #undef LIKELY
 #undef UNLIKELY
+#endif // LIKELY_DEFINED_LOCAL
+
 #undef CONSTEXPR
