@@ -7,3 +7,5 @@ service sensord /system/bin/sensord
   user system
   group system camera sdcard_rw
   writepid /dev/cpuset/system/tasks
+  socket pdx/system/vr/sensors/client stream 0666 system system
+  socket pdx/system/vr/pose/client stream 0666 system system

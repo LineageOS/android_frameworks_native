@@ -57,6 +57,7 @@ cc_binary {
         "pdx_benchmarks.cpp",
     ],
     shared_libs: [
+        "libbase",
         "libchrome",
         "libcutils",
         "liblog",

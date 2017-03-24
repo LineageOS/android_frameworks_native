@@ -30,7 +30,7 @@ ServiceDispatcher::ServiceDispatcher() {
     return;
   }
 
-  epoll_fd_.Reset(epoll_create(1));  // Size arg is ignored, but must be > 0.
+  epoll_fd_.Reset(epoll_create1(EPOLL_CLOEXEC));
   if (!epoll_fd_) {
     ALOGE("Failed to create epoll fd because: %s\n", strerror(errno));
     return;

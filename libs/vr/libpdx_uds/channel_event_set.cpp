@@ -12,7 +12,7 @@ ChannelEventSet::ChannelEventSet() {
   const int flags = EFD_CLOEXEC | EFD_NONBLOCK;
   LocalHandle epoll_fd, event_fd;
 
-  if (!SetupHandle(epoll_create(1), &epoll_fd, "epoll") ||
+  if (!SetupHandle(epoll_create1(EPOLL_CLOEXEC), &epoll_fd, "epoll") ||
       !SetupHandle(eventfd(0, flags), &event_fd, "event")) {
     return;
   }

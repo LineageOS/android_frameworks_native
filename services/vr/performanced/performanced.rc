@@ -3,3 +3,4 @@ service performanced /system/bin/performanced
   user root
   group system readproc
   writepid /dev/cpuset/tasks
+  socket pdx/system/performance/client stream 0666 system system
