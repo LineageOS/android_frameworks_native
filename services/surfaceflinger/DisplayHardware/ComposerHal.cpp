@@ -129,7 +129,7 @@ Composer::Composer(bool useVrComposer)
       mIsUsingVrComposer(useVrComposer)
 {
     if (mIsUsingVrComposer) {
-        mComposer = IComposer::getService("vr_hwcomposer");
+        mComposer = IComposer::getService("vr");
     } else {
         mComposer = IComposer::getService(); // use default name
     }

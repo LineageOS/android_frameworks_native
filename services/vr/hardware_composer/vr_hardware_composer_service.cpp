@@ -26,7 +26,7 @@ int main() {
 
   // Register the hwbinder HWC HAL service used by SurfaceFlinger while in VR
   // mode.
-  const char instance[] = "vr_hwcomposer";
+  const char instance[] = "vr";
   android::sp<IComposer> service =
       android::dvr::HIDL_FETCH_IComposer(instance);
 
