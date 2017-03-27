@@ -35,6 +35,16 @@ public:
     typedef std::function<float(float)> transfer_function;
     typedef std::function<float(float)> clamping_function;
 
+    struct TransferParameters {
+        float g = 0.0f;
+        float a = 0.0f;
+        float b = 0.0f;
+        float c = 0.0f;
+        float d = 0.0f;
+        float e = 0.0f;
+        float f = 0.0f;
+    };
+
     /**
      * Creates a named color space with the specified RGB->XYZ
      * conversion matrix. The white point and primaries will be
@@ -47,8 +57,39 @@ public:
     ColorSpace(
             const std::string& name,
             const mat3& rgbToXYZ,
-            transfer_function OETF = linearReponse,
-            transfer_function EOTF = linearReponse,
+            transfer_function OETF = linearResponse,
+            transfer_function EOTF = linearResponse,
+            clamping_function clamper = saturate<float>
+    ) noexcept;
+
+    /**
+     * Creates a named color space with the specified RGB->XYZ
+     * conversion matrix. The white point and primaries will be
+     * computed from the supplied matrix.
+     *
+     * The transfer functions are defined by the set of supplied
+     * transfer parameters. The default clamping function is a
+     * simple saturate (clamp(x, 0, 1)).
+     */
+    ColorSpace(
+            const std::string& name,
+            const mat3& rgbToXYZ,
+            const TransferParameters parameters,
+            clamping_function clamper = saturate<float>
+    ) noexcept;
+
+    /**
+     * Creates a named color space with the specified RGB->XYZ
+     * conversion matrix. The white point and primaries will be
+     * computed from the supplied matrix.
+     *
+     * The transfer functions are defined by a simple gamma value.
+     * The default clamping function is a saturate (clamp(x, 0, 1)).
+     */
+    ColorSpace(
+            const std::string& name,
+            const mat3& rgbToXYZ,
+            float gamma,
             clamping_function clamper = saturate<float>
     ) noexcept;
 
@@ -65,8 +106,41 @@ public:
             const std::string& name,
             const std::array<float2, 3>& primaries,
             const float2& whitePoint,
-            transfer_function OETF = linearReponse,
-            transfer_function EOTF = linearReponse,
+            transfer_function OETF = linearResponse,
+            transfer_function EOTF = linearResponse,
+            clamping_function clamper = saturate<float>
+    ) noexcept;
+
+    /**
+     * Creates a named color space with the specified primaries
+     * and white point. The RGB<>XYZ conversion matrices are
+     * computed from the primaries and white point.
+     *
+     * The transfer functions are defined by the set of supplied
+     * transfer parameters. The default clamping function is a
+     * simple saturate (clamp(x, 0, 1)).
+     */
+    ColorSpace(
+            const std::string& name,
+            const std::array<float2, 3>& primaries,
+            const float2& whitePoint,
+            const TransferParameters parameters,
+            clamping_function clamper = saturate<float>
+    ) noexcept;
+
+    /**
+     * Creates a named color space with the specified primaries
+     * and white point. The RGB<>XYZ conversion matrices are
+     * computed from the primaries and white point.
+     *
+     * The transfer functions are defined by a single gamma value.
+     * The default clamping function is a saturate (clamp(x, 0, 1)).
+     */
+    ColorSpace(
+            const std::string& name,
+            const std::array<float2, 3>& primaries,
+            const float2& whitePoint,
+            float gamma,
             clamping_function clamper = saturate<float>
     ) noexcept;
 
@@ -138,6 +212,10 @@ public:
         return mWhitePoint;
     }
 
+    constexpr const TransferParameters& getTransferParameters() const noexcept {
+        return mParameters;
+    }
+
     /**
      * Converts the supplied XYZ value to xyY.
      */
@@ -166,35 +244,6 @@ public:
     static const ColorSpace ACES();
     static const ColorSpace ACEScg();
 
-    class Connector {
-    public:
-        Connector(const ColorSpace& src, const ColorSpace& dst) noexcept;
-
-        constexpr const ColorSpace& getSource() const noexcept { return mSource; }
-        constexpr const ColorSpace& getDestination() const noexcept { return mDestination; }
-
-        constexpr const mat3& getTransform() const noexcept { return mTransform; }
-
-        constexpr float3 transform(const float3& v) const noexcept {
-            float3 linear = mSource.toLinear(apply(v, mSource.getClamper()));
-            return apply(mDestination.fromLinear(mTransform * linear), mDestination.getClamper());
-        }
-
-        constexpr float3 transformLinear(const float3& v) const noexcept {
-            float3 linear = apply(v, mSource.getClamper());
-            return apply(mTransform * linear, mDestination.getClamper());
-        }
-
-    private:
-        const ColorSpace& mSource;
-        const ColorSpace& mDestination;
-        mat3 mTransform;
-    };
-
-    static const Connector connect(const ColorSpace& src, const ColorSpace& dst) {
-        return Connector(src, dst);
-    }
-
     // Creates a NxNxN 3D LUT, where N is the specified size (min=2, max=256)
     // The 3D lookup coordinates map to the RGB components: u=R, v=G, w=B
     // The generated 3D LUT is meant to be used as a 3D texture and its Y
@@ -208,7 +257,7 @@ private:
     static constexpr mat3 computeXYZMatrix(
             const std::array<float2, 3>& primaries, const float2& whitePoint);
 
-    static constexpr float linearReponse(float v) {
+    static constexpr float linearResponse(float v) {
         return v;
     }
 
@@ -217,12 +266,38 @@ private:
     mat3 mRGBtoXYZ;
     mat3 mXYZtoRGB;
 
+    TransferParameters mParameters;
     transfer_function mOETF;
     transfer_function mEOTF;
     clamping_function mClamper;
 
     std::array<float2, 3> mPrimaries;
     float2 mWhitePoint;
+};
+
+class ColorSpaceConnector {
+public:
+    ColorSpaceConnector(const ColorSpace& src, const ColorSpace& dst) noexcept;
+
+    constexpr const ColorSpace& getSource() const noexcept { return mSource; }
+    constexpr const ColorSpace& getDestination() const noexcept { return mDestination; }
+
+    constexpr const mat3& getTransform() const noexcept { return mTransform; }
+
+    constexpr float3 transform(const float3& v) const noexcept {
+        float3 linear = mSource.toLinear(apply(v, mSource.getClamper()));
+        return apply(mDestination.fromLinear(mTransform * linear), mDestination.getClamper());
+    }
+
+    constexpr float3 transformLinear(const float3& v) const noexcept {
+        float3 linear = apply(v, mSource.getClamper());
+        return apply(mTransform * linear, mDestination.getClamper());
+    }
+
+private:
+    ColorSpace mSource;
+    ColorSpace mDestination;
+    mat3 mTransform;
 };
 
 }; // namespace android
