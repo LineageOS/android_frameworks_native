@@ -126,10 +126,6 @@ int ShellView::Initialize() {
   if (!surface_flinger_view_->Initialize(this))
     return 1;
 
-  // This is a temporary fix for now. These APIs will be changed when everything
-  // is moved into vrcore.
-  display_client_ = DisplayClient::Create();
-
   return 0;
 }
 
@@ -164,7 +160,14 @@ int ShellView::AllocateResources() {
 }
 
 void ShellView::DeallocateResources() {
-  surface_flinger_view_.reset();
+  {
+    std::unique_lock<std::mutex> l(display_frame_mutex_);
+    removed_displays_.clear();
+    new_displays_.clear();
+    displays_.clear();
+  }
+
+  display_client_.reset();
   reticle_.reset();
   controller_mesh_.reset();
   program_.reset(new ShaderProgram);
@@ -282,6 +285,20 @@ base::unique_fd ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
   }
 
   bool showing = false;
+
+  // This is a temporary fix for now. These APIs will be changed when everything
+  // is moved into vrcore.
+  // Do this on demand in case vr_flinger crashed and we are reconnecting.
+  if (!display_client_.get()) {
+    int error = 0;
+    display_client_ = DisplayClient::Create(&error);
+
+    if (error) {
+      ALOGE("Could not connect to display service : %s(%d)", strerror(error),
+            error);
+      return base::unique_fd();
+    }
+  }
 
   // TODO(achaulk): change when moved into vrcore.
   bool vr_running = display_client_->IsVrAppRunning();
