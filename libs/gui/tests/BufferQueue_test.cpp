@@ -98,7 +98,11 @@ static const uint32_t TEST_DATA = 0x12345678u;
 
 // XXX: Tests that fork a process to hold the BufferQueue must run before tests
 // that use a local BufferQueue, or else Binder will get unhappy
-TEST_F(BufferQueueTest, BufferQueueInAnotherProcess) {
+//
+// In one instance this was a crash in the createBufferQueue where the
+// binder call to create a buffer allocator apparently got garbage back.
+// See b/36592665.
+TEST_F(BufferQueueTest, DISABLED_BufferQueueInAnotherProcess) {
     const String16 PRODUCER_NAME = String16("BQTestProducer");
     const String16 CONSUMER_NAME = String16("BQTestConsumer");
 
