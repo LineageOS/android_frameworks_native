@@ -37,33 +37,6 @@ namespace installd {
 
 struct dir_rec_t;
 
-typedef struct cache_dir_struct {
-    struct cache_dir_struct* parent;
-    int32_t childCount;
-    int32_t hiddenCount;
-    int32_t deleted;
-    char name[];
-} cache_dir_t;
-
-typedef struct {
-    cache_dir_t* dir;
-    time_t modTime;
-    char name[];
-} cache_file_t;
-
-typedef struct {
-    size_t numDirs;
-    size_t availDirs;
-    cache_dir_t** dirs;
-    size_t numFiles;
-    size_t availFiles;
-    cache_file_t** files;
-    size_t numCollected;
-    void* memBlocks;
-    int8_t* curMemBlockAvail;
-    int8_t* curMemBlockEnd;
-} cache_t;
-
 constexpr const char* kXattrInodeCache = "user.inode_cache";
 constexpr const char* kXattrInodeCodeCache = "user.inode_code_cache";
 constexpr const char* kXattrCacheGroup = "user.cache_group";
@@ -139,20 +112,10 @@ int copy_dir_files(const char *srcname, const char *dstname, uid_t owner, gid_t 
 
 int64_t data_disk_free(const std::string& data_path);
 
-cache_t* start_cache_collection();
-
 int get_path_inode(const std::string& path, ino_t *inode);
 
 int write_path_inode(const std::string& parent, const char* name, const char* inode_xattr);
 std::string read_path_inode(const std::string& parent, const char* name, const char* inode_xattr);
-
-void add_cache_files(cache_t* cache, const std::string& data_path);
-
-void add_preloads_file_cache(cache_t* cache, const char* volume_uuid);
-
-void clear_cache_files(const std::string& data_path, cache_t* cache, int64_t free_size);
-
-void finish_cache_collection(cache_t* cache);
 
 int validate_system_app_path(const char* path);
 bool validate_secondary_dex_path(const std::string& pkgname, const std::string& dex_path,
