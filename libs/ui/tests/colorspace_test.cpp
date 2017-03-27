@@ -152,12 +152,12 @@ TEST_F(ColorSpaceTest, Clamping) {
 
 TEST_F(ColorSpaceTest, Connect) {
     // No chromatic adaptation
-    auto r = ColorSpace::connect(ColorSpace::sRGB(), ColorSpace::AdobeRGB())
+    auto r = ColorSpaceConnector(ColorSpace::sRGB(), ColorSpace::AdobeRGB())
             .transform({1.0f, 0.5f, 0.0f});
     EXPECT_TRUE(all(lessThan(abs(r - float3{0.8912f, 0.4962f, 0.1164f}), float3{1e-4f})));
 
     // Test with chromatic adaptation
-    r = ColorSpace::connect(ColorSpace::sRGB(), ColorSpace::ProPhotoRGB())
+    r = ColorSpaceConnector(ColorSpace::sRGB(), ColorSpace::ProPhotoRGB())
             .transform({1.0f, 0.0f, 0.0f});
     EXPECT_TRUE(all(lessThan(abs(r - float3{0.70226f, 0.2757f, 0.1036f}), float3{1e-4f})));
 }

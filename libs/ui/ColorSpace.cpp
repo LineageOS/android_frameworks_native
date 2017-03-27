@@ -20,6 +20,83 @@ using namespace std::placeholders;
 
 namespace android {
 
+static constexpr float linearResponse(float v) {
+    return v;
+}
+
+static constexpr float rcpResponse(float x, const ColorSpace::TransferParameters& p) {
+    return x >= p.d * p.c ? (std::pow(x, 1.0f / p.g) - p.b) / p.a : x / p.c;
+}
+
+static constexpr float response(float x, const ColorSpace::TransferParameters& p) {
+    return x >= p.d ? std::pow(p.a * x + p.b, p.g) : p.c * x;
+}
+
+static constexpr float rcpFullResponse(float x, const ColorSpace::TransferParameters& p) {
+    return x >= p.d * p.c ? (std::pow(x - p.e, 1.0f / p.g) - p.b) / p.a : (x - p.f) / p.c;
+}
+
+static constexpr float fullResponse(float x, const ColorSpace::TransferParameters& p) {
+    return x >= p.d ? std::pow(p.a * x + p.b, p.g) + p.e : p.c * x + p.f;
+}
+
+static float absRcpResponse(float x, float g,float a, float b, float c, float d) {
+    float xx = std::abs(x);
+    return std::copysign(xx >= d * c ? (std::pow(xx, 1.0f / g) - b) / a : xx / c, x);
+}
+
+static float absResponse(float x, float g, float a, float b, float c, float d) {
+   float xx = std::abs(x);
+   return std::copysign(xx >= d ? std::pow(a * xx + b, g) : c * xx, x);
+}
+
+static float safePow(float x, float e) {
+    return powf(x < 0.0f ? 0.0f : x, e);
+}
+
+static ColorSpace::transfer_function toOETF(const ColorSpace::TransferParameters& parameters) {
+    if (parameters.e == 0.0f && parameters.f == 0.0f) {
+        return std::bind(rcpResponse, _1, parameters);
+    }
+    return std::bind(rcpFullResponse, _1, parameters);
+}
+
+static ColorSpace::transfer_function toEOTF( const ColorSpace::TransferParameters& parameters) {
+    if (parameters.e == 0.0f && parameters.f == 0.0f) {
+        return std::bind(response, _1, parameters);
+    }
+    return std::bind(fullResponse, _1, parameters);
+}
+
+static ColorSpace::transfer_function toOETF(float gamma) {
+    if (gamma == 1.0f) {
+        return linearResponse;
+    }
+    return std::bind(safePow, _1, 1.0f / gamma);
+}
+
+static ColorSpace::transfer_function toEOTF(float gamma) {
+    if (gamma == 1.0f) {
+        return linearResponse;
+    }
+    return std::bind(safePow, _1, gamma);
+}
+
+static constexpr std::array<float2, 3> computePrimaries(const mat3& rgbToXYZ) {
+    float3 r(rgbToXYZ * float3{1, 0, 0});
+    float3 g(rgbToXYZ * float3{0, 1, 0});
+    float3 b(rgbToXYZ * float3{0, 0, 1});
+
+    return {{r.xy / dot(r, float3{1}),
+             g.xy / dot(g, float3{1}),
+             b.xy / dot(b, float3{1})}};
+}
+
+static constexpr float2 computeWhitePoint(const mat3& rgbToXYZ) {
+    float3 w(rgbToXYZ * float3{1});
+    return w.xy / dot(w, float3{1});
+}
+
 ColorSpace::ColorSpace(
         const std::string& name,
         const mat3& rgbToXYZ,
@@ -31,18 +108,41 @@ ColorSpace::ColorSpace(
         , mXYZtoRGB(inverse(rgbToXYZ))
         , mOETF(std::move(OETF))
         , mEOTF(std::move(EOTF))
-        , mClamper(std::move(clamper)) {
+        , mClamper(std::move(clamper))
+        , mPrimaries(computePrimaries(rgbToXYZ))
+        , mWhitePoint(computeWhitePoint(rgbToXYZ)) {
+}
 
-    float3 r(rgbToXYZ * float3{1, 0, 0});
-    float3 g(rgbToXYZ * float3{0, 1, 0});
-    float3 b(rgbToXYZ * float3{0, 0, 1});
+ColorSpace::ColorSpace(
+        const std::string& name,
+        const mat3& rgbToXYZ,
+        const TransferParameters parameters,
+        clamping_function clamper) noexcept
+        : mName(name)
+        , mRGBtoXYZ(rgbToXYZ)
+        , mXYZtoRGB(inverse(rgbToXYZ))
+        , mParameters(parameters)
+        , mOETF(toOETF(mParameters))
+        , mEOTF(toEOTF(mParameters))
+        , mClamper(std::move(clamper))
+        , mPrimaries(computePrimaries(rgbToXYZ))
+        , mWhitePoint(computeWhitePoint(rgbToXYZ)) {
+}
 
-    mPrimaries[0] = r.xy / dot(r, float3{1});
-    mPrimaries[1] = g.xy / dot(g, float3{1});
-    mPrimaries[2] = b.xy / dot(b, float3{1});
-
-    float3 w(rgbToXYZ * float3{1});
-    mWhitePoint = w.xy / dot(w, float3{1});
+ColorSpace::ColorSpace(
+        const std::string& name,
+        const mat3& rgbToXYZ,
+        float gamma,
+        clamping_function clamper) noexcept
+        : mName(name)
+        , mRGBtoXYZ(rgbToXYZ)
+        , mXYZtoRGB(inverse(rgbToXYZ))
+        , mParameters({gamma, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f})
+        , mOETF(toOETF(gamma))
+        , mEOTF(toEOTF(gamma))
+        , mClamper(std::move(clamper))
+        , mPrimaries(computePrimaries(rgbToXYZ))
+        , mWhitePoint(computeWhitePoint(rgbToXYZ)) {
 }
 
 ColorSpace::ColorSpace(
@@ -57,6 +157,40 @@ ColorSpace::ColorSpace(
         , mXYZtoRGB(inverse(mRGBtoXYZ))
         , mOETF(std::move(OETF))
         , mEOTF(std::move(EOTF))
+        , mClamper(std::move(clamper))
+        , mPrimaries(primaries)
+        , mWhitePoint(whitePoint) {
+}
+
+ColorSpace::ColorSpace(
+        const std::string& name,
+        const std::array<float2, 3>& primaries,
+        const float2& whitePoint,
+        const TransferParameters parameters,
+        clamping_function clamper) noexcept
+        : mName(name)
+        , mRGBtoXYZ(computeXYZMatrix(primaries, whitePoint))
+        , mXYZtoRGB(inverse(mRGBtoXYZ))
+        , mParameters(parameters)
+        , mOETF(toOETF(mParameters))
+        , mEOTF(toEOTF(mParameters))
+        , mClamper(std::move(clamper))
+        , mPrimaries(primaries)
+        , mWhitePoint(whitePoint) {
+}
+
+ColorSpace::ColorSpace(
+        const std::string& name,
+        const std::array<float2, 3>& primaries,
+        const float2& whitePoint,
+        float gamma,
+        clamping_function clamper) noexcept
+        : mName(name)
+        , mRGBtoXYZ(computeXYZMatrix(primaries, whitePoint))
+        , mXYZtoRGB(inverse(mRGBtoXYZ))
+        , mParameters({gamma, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f})
+        , mOETF(toOETF(gamma))
+        , mEOTF(toEOTF(gamma))
         , mClamper(std::move(clamper))
         , mPrimaries(primaries)
         , mWhitePoint(whitePoint) {
@@ -96,33 +230,12 @@ constexpr mat3 ColorSpace::computeXYZMatrix(
     };
 }
 
-static constexpr float rcpResponse(float x, float g,float a, float b, float c, float d) {
-    return x >= d * c ? (std::pow(x, 1.0f / g) - b) / a : x / c;
-}
-
-static constexpr float response(float x, float g, float a, float b, float c, float d) {
-    return x >= d ? std::pow(a * x + b, g) : c * x;
-}
-
-static float absRcpResponse(float x, float g,float a, float b, float c, float d) {
-    return std::copysign(rcpResponse(std::abs(x), g, a, b, c, d), x);
-}
-
-static float absResponse(float x, float g, float a, float b, float c, float d) {
-    return std::copysign(response(std::abs(x), g, a, b, c, d), x);
-}
-
-static float safePow(float x, float e) {
-    return powf(x < 0.0f ? 0.0f : x, e);
-}
-
 const ColorSpace ColorSpace::sRGB() {
     return {
         "sRGB IEC61966-2.1",
         {{float2{0.640f, 0.330f}, {0.300f, 0.600f}, {0.150f, 0.060f}}},
         {0.3127f, 0.3290f},
-        std::bind(rcpResponse, _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.04045f),
-        std::bind(response,    _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.04045f)
+        {2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.04045f, 0.0f, 0.0f}
     };
 }
 
@@ -150,8 +263,7 @@ const ColorSpace ColorSpace::linearExtendedSRGB() {
         "scRGB IEC 61966-2-2:2003",
         {{float2{0.640f, 0.330f}, {0.300f, 0.600f}, {0.150f, 0.060f}}},
         {0.3127f, 0.3290f},
-        linearReponse,
-        linearReponse,
+        1.0f,
         std::bind(clamp<float>, _1, -0.5f, 7.499f)
     };
 }
@@ -161,8 +273,7 @@ const ColorSpace ColorSpace::NTSC() {
         "NTSC (1953)",
         {{float2{0.67f, 0.33f}, {0.21f, 0.71f}, {0.14f, 0.08f}}},
         {0.310f, 0.316f},
-        std::bind(rcpResponse, _1, 1 / 0.45f, 1 / 1.099f, 0.099f / 1.099f, 1 / 4.5f, 0.081f),
-        std::bind(response,    _1, 1 / 0.45f, 1 / 1.099f, 0.099f / 1.099f, 1 / 4.5f, 0.081f)
+        {1 / 0.45f, 1 / 1.099f, 0.099f / 1.099f, 1 / 4.5f, 0.081f, 0.0f, 0.0f}
     };
 }
 
@@ -171,8 +282,7 @@ const ColorSpace ColorSpace::BT709() {
         "Rec. ITU-R BT.709-5",
         {{float2{0.640f, 0.330f}, {0.300f, 0.600f}, {0.150f, 0.060f}}},
         {0.3127f, 0.3290f},
-        std::bind(rcpResponse, _1, 1 / 0.45f, 1 / 1.099f, 0.099f / 1.099f, 1 / 4.5f, 0.081f),
-        std::bind(response,    _1, 1 / 0.45f, 1 / 1.099f, 0.099f / 1.099f, 1 / 4.5f, 0.081f)
+        {1 / 0.45f, 1 / 1.099f, 0.099f / 1.099f, 1 / 4.5f, 0.081f, 0.0f, 0.0f}
     };
 }
 
@@ -181,8 +291,7 @@ const ColorSpace ColorSpace::BT2020() {
         "Rec. ITU-R BT.2020-1",
         {{float2{0.708f, 0.292f}, {0.170f, 0.797f}, {0.131f, 0.046f}}},
         {0.3127f, 0.3290f},
-        std::bind(rcpResponse, _1, 1 / 0.45f, 1 / 1.099f, 0.099f / 1.099f, 1 / 4.5f, 0.081f),
-        std::bind(response,    _1, 1 / 0.45f, 1 / 1.099f, 0.099f / 1.099f, 1 / 4.5f, 0.081f)
+        {1 / 0.45f, 1 / 1.099f, 0.099f / 1.099f, 1 / 4.5f, 0.081f, 0.0f, 0.0f}
     };
 }
 
@@ -191,8 +300,7 @@ const ColorSpace ColorSpace::AdobeRGB() {
         "Adobe RGB (1998)",
         {{float2{0.64f, 0.33f}, {0.21f, 0.71f}, {0.15f, 0.06f}}},
         {0.3127f, 0.3290f},
-        std::bind(safePow, _1, 1.0f / 2.2f),
-        std::bind(safePow, _1, 2.2f)
+        2.2f
     };
 }
 
@@ -201,8 +309,7 @@ const ColorSpace ColorSpace::ProPhotoRGB() {
         "ROMM RGB ISO 22028-2:2013",
         {{float2{0.7347f, 0.2653f}, {0.1596f, 0.8404f}, {0.0366f, 0.0001f}}},
         {0.34567f, 0.35850f},
-        std::bind(rcpResponse, _1, 1.8f, 1.0f, 0.0f, 1 / 16.0f, 0.031248f),
-        std::bind(response,    _1, 1.8f, 1.0f, 0.0f, 1 / 16.0f, 0.031248f)
+        {1.8f, 1.0f, 0.0f, 1 / 16.0f, 0.031248f, 0.0f, 0.0f}
     };
 }
 
@@ -211,8 +318,7 @@ const ColorSpace ColorSpace::DisplayP3() {
         "Display P3",
         {{float2{0.680f, 0.320f}, {0.265f, 0.690f}, {0.150f, 0.060f}}},
         {0.3127f, 0.3290f},
-        std::bind(rcpResponse, _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.039f),
-        std::bind(response,    _1, 2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.039f)
+        {2.4f, 1 / 1.055f, 0.055f / 1.055f, 1 / 12.92f, 0.039f, 0.0f, 0.0f}
     };
 }
 
@@ -221,8 +327,7 @@ const ColorSpace ColorSpace::DCIP3() {
         "SMPTE RP 431-2-2007 DCI (P3)",
         {{float2{0.680f, 0.320f}, {0.265f, 0.690f}, {0.150f, 0.060f}}},
         {0.314f, 0.351f},
-        std::bind(safePow, _1, 1.0f / 2.6f),
-        std::bind(safePow, _1, 2.6f)
+        2.6f
     };
 }
 
@@ -231,8 +336,7 @@ const ColorSpace ColorSpace::ACES() {
         "SMPTE ST 2065-1:2012 ACES",
         {{float2{0.73470f, 0.26530f}, {0.0f, 1.0f}, {0.00010f, -0.0770f}}},
         {0.32168f, 0.33767f},
-        linearReponse,
-        linearReponse,
+        1.0f,
         std::bind(clamp<float>, _1, -65504.0f, 65504.0f)
     };
 }
@@ -242,10 +346,31 @@ const ColorSpace ColorSpace::ACEScg() {
         "Academy S-2014-004 ACEScg",
         {{float2{0.713f, 0.293f}, {0.165f, 0.830f}, {0.128f, 0.044f}}},
         {0.32168f, 0.33767f},
-        linearReponse,
-        linearReponse,
+        1.0f,
         std::bind(clamp<float>, _1, -65504.0f, 65504.0f)
     };
+}
+
+std::unique_ptr<float3> ColorSpace::createLUT(uint32_t size,
+        const ColorSpace& src, const ColorSpace& dst) {
+
+    size = clamp(size, 2u, 256u);
+    float m = 1.0f / float(size - 1);
+
+    std::unique_ptr<float3> lut(new float3[size * size * size]);
+    float3* data = lut.get();
+
+    ColorSpaceConnector connector(src, dst);
+
+    for (uint32_t z = 0; z < size; z++) {
+        for (int32_t y = int32_t(size - 1); y >= 0; y--) {
+            for (uint32_t x = 0; x < size; x++) {
+                *data++ = connector.transform({x * m, y * m, z * m});
+            }
+        }
+    }
+
+    return lut;
 }
 
 static const float2 ILLUMINANT_D50_XY = {0.34567f, 0.35850f};
@@ -262,7 +387,7 @@ static mat3 adaptation(const mat3& matrix, const float3& srcWhitePoint, const fl
     return inverse(matrix) * mat3{dstLMS / srcLMS} * matrix;
 }
 
-ColorSpace::Connector::Connector(
+ColorSpaceConnector::ColorSpaceConnector(
         const ColorSpace& src,
         const ColorSpace& dst) noexcept
         : mSource(src)
@@ -274,8 +399,8 @@ ColorSpace::Connector::Connector(
         mat3 rgbToXYZ(src.getRGBtoXYZ());
         mat3 xyzToRGB(dst.getXYZtoRGB());
 
-        float3 srcXYZ = XYZ(float3{src.getWhitePoint(), 1});
-        float3 dstXYZ = XYZ(float3{dst.getWhitePoint(), 1});
+        float3 srcXYZ = ColorSpace::XYZ(float3{src.getWhitePoint(), 1});
+        float3 dstXYZ = ColorSpace::XYZ(float3{dst.getWhitePoint(), 1});
 
         if (any(greaterThan(abs(src.getWhitePoint() - ILLUMINANT_D50_XY), float2{1e-3f}))) {
             rgbToXYZ = adaptation(BRADFORD, srcXYZ, ILLUMINANT_D50_XYZ) * src.getRGBtoXYZ();
@@ -288,28 +413,5 @@ ColorSpace::Connector::Connector(
         mTransform = xyzToRGB * rgbToXYZ;
     }
 }
-
-std::unique_ptr<float3> ColorSpace::createLUT(uint32_t size,
-        const ColorSpace& src, const ColorSpace& dst) {
-
-    size = clamp(size, 2u, 256u);
-    float m = 1.0f / float(size - 1);
-
-    std::unique_ptr<float3> lut(new float3[size * size * size]);
-    float3* data = lut.get();
-
-    Connector connector(src, dst);
-
-    for (uint32_t z = 0; z < size; z++) {
-        for (int32_t y = int32_t(size - 1); y >= 0; y--) {
-            for (uint32_t x = 0; x < size; x++) {
-                *data++ = connector.transform({x * m, y * m, z * m});
-            }
-        }
-    }
-
-    return lut;
-}
-
 
 }; // namespace android
