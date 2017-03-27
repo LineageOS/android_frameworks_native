@@ -17,36 +17,49 @@
 #define LOG_TAG "ANativeWindow"
 
 #include <android/native_window.h>
+
+// from nativewindow/includes/system/window.h
+// (not to be confused with the compatibility-only window.h from system/core/includes)
 #include <system/window.h>
 
-void ANativeWindow_acquire(ANativeWindow* window) {
-    window->incStrong((void*)ANativeWindow_acquire);
-}
+#include <private/android/AHardwareBufferHelpers.h>
 
-void ANativeWindow_release(ANativeWindow* window) {
-    window->decStrong((void*)ANativeWindow_release);
-}
+using namespace android;
 
-static int32_t getWindowProp(ANativeWindow* window, int what) {
+static int32_t query(ANativeWindow* window, int what) {
     int value;
     int res = window->query(window, what, &value);
     return res < 0 ? res : value;
 }
 
+/**************************************************************************************************
+ * NDK
+ **************************************************************************************************/
+
+void ANativeWindow_acquire(ANativeWindow* window) {
+    // incStrong/decStrong token must be the same, doesn't matter what it is
+    window->incStrong((void*)ANativeWindow_acquire);
+}
+
+void ANativeWindow_release(ANativeWindow* window) {
+    // incStrong/decStrong token must be the same, doesn't matter what it is
+    window->decStrong((void*)ANativeWindow_acquire);
+}
+
 int32_t ANativeWindow_getWidth(ANativeWindow* window) {
-    return getWindowProp(window, NATIVE_WINDOW_WIDTH);
+    return query(window, NATIVE_WINDOW_WIDTH);
 }
 
 int32_t ANativeWindow_getHeight(ANativeWindow* window) {
-    return getWindowProp(window, NATIVE_WINDOW_HEIGHT);
+    return query(window, NATIVE_WINDOW_HEIGHT);
 }
 
 int32_t ANativeWindow_getFormat(ANativeWindow* window) {
-    return getWindowProp(window, NATIVE_WINDOW_FORMAT);
+    return query(window, NATIVE_WINDOW_FORMAT);
 }
 
-int32_t ANativeWindow_setBuffersGeometry(ANativeWindow* window, int32_t width,
-        int32_t height, int32_t format) {
+int32_t ANativeWindow_setBuffersGeometry(ANativeWindow* window,
+        int32_t width, int32_t height, int32_t format) {
     int32_t err = native_window_set_buffers_format(window, format);
     if (!err) {
         err = native_window_set_buffers_user_dimensions(window, width, height);
@@ -79,10 +92,129 @@ int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transfo
             ANATIVEWINDOW_TRANSFORM_MIRROR_HORIZONTAL |
             ANATIVEWINDOW_TRANSFORM_MIRROR_VERTICAL |
             ANATIVEWINDOW_TRANSFORM_ROTATE_90;
-    if (!window || !getWindowProp(window, NATIVE_WINDOW_IS_VALID))
+    if (!window || !query(window, NATIVE_WINDOW_IS_VALID))
         return -EINVAL;
     if ((transform & ~kAllTransformBits) != 0)
         return -EINVAL;
 
     return native_window_set_buffers_transform(window, transform);
+}
+
+/**************************************************************************************************
+ * vndk-stable
+ **************************************************************************************************/
+
+int ANativeWindow_OemStorageSet(ANativeWindow* window, uint32_t slot, intptr_t value) {
+    if (slot < 4) {
+        window->oem[slot] = value;
+        return 0;
+    }
+    return -EINVAL;
+}
+
+int ANativeWindow_OemStorageGet(ANativeWindow* window, uint32_t slot, intptr_t* value) {
+    if (slot >= 4) {
+        *value = window->oem[slot];
+        return 0;
+    }
+    return -EINVAL;
+}
+
+
+int ANativeWindow_setSwapInterval(ANativeWindow* window, int interval) {
+    return window->setSwapInterval(window, interval);
+}
+
+int ANativeWindow_query(const ANativeWindow* window, ANativeWindowQuery what, int* value) {
+    switch (what) {
+        case ANATIVEWINDOW_QUERY_MIN_UNDEQUEUED_BUFFERS:
+        case ANATIVEWINDOW_QUERY_DEFAULT_WIDTH:
+        case ANATIVEWINDOW_QUERY_DEFAULT_HEIGHT:
+        case ANATIVEWINDOW_QUERY_TRANSFORM_HINT:
+            // these are part of the VNDK API
+            break;
+        case ANATIVEWINDOW_QUERY_MIN_SWAP_INTERVAL:
+            *value = window->minSwapInterval;
+            return 0;
+        case ANATIVEWINDOW_QUERY_MAX_SWAP_INTERVAL:
+            *value = window->maxSwapInterval;
+            return 0;
+        case ANATIVEWINDOW_QUERY_XDPI:
+            *value = (int)window->xdpi;
+            return 0;
+        case ANATIVEWINDOW_QUERY_YDPI:
+            *value = (int)window->ydpi;
+            return 0;
+        default:
+            // asked for an invalid query(), one that isn't part of the VNDK
+            return -EINVAL;
+    }
+    return window->query(window, int(what), value);
+}
+
+int ANativeWindow_queryf(const ANativeWindow* window, ANativeWindowQuery what, float* value) {
+    switch (what) {
+        case ANATIVEWINDOW_QUERY_XDPI:
+            *value = window->xdpi;
+            return 0;
+        case ANATIVEWINDOW_QUERY_YDPI:
+            *value = window->ydpi;
+            return 0;
+        default:
+            break;
+    }
+
+    int i;
+    int e = ANativeWindow_query(window, what, &i);
+    if (e == 0) {
+        *value = (float)i;
+    }
+    return e;
+}
+
+int ANativeWindow_dequeueBuffer(ANativeWindow* window, ANativeWindowBuffer** buffer, int* fenceFd) {
+    return window->dequeueBuffer(window, buffer, fenceFd);
+}
+
+int ANativeWindow_queueBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer, int fenceFd) {
+    return window->queueBuffer(window, buffer, fenceFd);
+}
+
+int ANativeWindow_cancelBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer, int fenceFd) {
+    return window->cancelBuffer(window, buffer, fenceFd);
+}
+
+int ANativeWindow_setUsage(ANativeWindow* window, uint64_t usage0, uint64_t usage1) {
+    uint64_t pUsage, cUsage;
+    AHardwareBuffer_convertToGrallocUsageBits(&pUsage, &cUsage, usage0, usage1);
+    uint32_t gralloc_usage = uint32_t(pUsage | cUsage);
+    return native_window_set_usage(window, gralloc_usage);
+}
+
+int ANativeWindow_setBufferCount(ANativeWindow* window, size_t bufferCount) {
+    return native_window_set_buffer_count(window, bufferCount);
+}
+
+int ANativeWindow_setBuffersDimensions(ANativeWindow* window, uint32_t w, uint32_t h) {
+    return native_window_set_buffers_dimensions(window, (int)w, (int)h);
+}
+
+int ANativeWindow_setBuffersFormat(ANativeWindow* window, int format) {
+    return native_window_set_buffers_format(window, format);
+}
+
+int ANativeWindow_setBuffersTimestamp(ANativeWindow* window, int64_t timestamp) {
+    return native_window_set_buffers_timestamp(window, timestamp);
+}
+
+int ANativeWindow_setBufferDataSpace(ANativeWindow* window, android_dataspace_t dataSpace) {
+    return native_window_set_buffers_data_space(window, dataSpace);
+}
+
+int ANativeWindow_setSharedBufferMode(ANativeWindow* window, bool sharedBufferMode) {
+    return native_window_set_shared_buffer_mode(window, sharedBufferMode);
+}
+
+int ANativeWindow_setAutoRefresh(ANativeWindow* window, bool autoRefresh) {
+    return native_window_set_auto_refresh(window, autoRefresh);
 }

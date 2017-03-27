@@ -82,11 +82,13 @@ int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc, AHardwareBuffer**
 }
 
 void AHardwareBuffer_acquire(AHardwareBuffer* buffer) {
+    // incStrong/decStrong token must be the same, doesn't matter what it is
     AHardwareBuffer_to_GraphicBuffer(buffer)->incStrong((void*)AHardwareBuffer_acquire);
 }
 
 void AHardwareBuffer_release(AHardwareBuffer* buffer) {
-    AHardwareBuffer_to_GraphicBuffer(buffer)->decStrong((void*)AHardwareBuffer_release);
+    // incStrong/decStrong token must be the same, doesn't matter what it is
+    AHardwareBuffer_to_GraphicBuffer(buffer)->decStrong((void*)AHardwareBuffer_acquire);
 }
 
 void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
@@ -136,8 +138,7 @@ int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence) {
     return gBuffer->unlockAsync(fence);
 }
 
-int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer,
-        int socketFd) {
+int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int socketFd) {
     if (!buffer) return BAD_VALUE;
     const GraphicBuffer* gBuffer = AHardwareBuffer_to_GraphicBuffer(buffer);
 
@@ -188,8 +189,7 @@ int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer,
     return NO_ERROR;
 }
 
-int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd,
-        AHardwareBuffer** outBuffer) {
+int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** outBuffer) {
     if (!outBuffer) return BAD_VALUE;
 
     char dataBuf[CMSG_SPACE(kDataBufferSize)];
