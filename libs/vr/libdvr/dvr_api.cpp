@@ -11,6 +11,7 @@
 
 // Headers not yet moved into libdvr.
 // TODO(jwcai) Move these once their callers are moved into Google3.
+#include <dvr/dvr_hardware_composer_client.h>
 #include <dvr/pose_client.h>
 #include <dvr/virtual_touchpad_client.h>
 
@@ -99,6 +100,26 @@ DVR_EXPORT int dvrGetApi(void* api, size_t struct_size, int version) {
     dvr_api->virtual_touchpad_detach = dvrVirtualTouchpadDetach;
     dvr_api->virtual_touchpad_touch = dvrVirtualTouchpadTouch;
     dvr_api->virtual_touchpad_button_state = dvrVirtualTouchpadButtonState;
+
+    // dvr_hardware_composer_client.h
+    dvr_api->hwc_client_create = dvrHwcClientCreate;
+    dvr_api->hwc_client_destroy = dvrHwcClientDestroy;
+    dvr_api->hwc_frame_destroy = dvrHwcFrameDestroy;
+    dvr_api->hwc_frame_get_display_id = dvrHwcFrameGetDisplayId;
+    dvr_api->hwc_frame_get_display_width = dvrHwcFrameGetDisplayWidth;
+    dvr_api->hwc_frame_get_display_height = dvrHwcFrameGetDisplayHeight;
+    dvr_api->hwc_frame_get_layer_count = dvrHwcFrameGetLayerCount;
+    dvr_api->hwc_frame_get_layer_id = dvrHwcFrameGetLayerId;
+    dvr_api->hwc_frame_get_layer_buffer = dvrHwcFrameGetLayerBuffer;
+    dvr_api->hwc_frame_get_layer_fence = dvrHwcFrameGetLayerFence;
+    dvr_api->hwc_frame_get_layer_display_frame =
+        dvrHwcFrameGetLayerDisplayFrame;
+    dvr_api->hwc_frame_get_layer_crop = dvrHwcFrameGetLayerCrop;
+    dvr_api->hwc_frame_get_layer_blend_mode = dvrHwcFrameGetLayerBlendMode;
+    dvr_api->hwc_frame_get_layer_alpha = dvrHwcFrameGetLayerAlpha;
+    dvr_api->hwc_frame_get_layer_type = dvrHwcFrameGetLayerType;
+    dvr_api->hwc_frame_get_layer_application_id =
+        dvrHwcFrameGetLayerApplicationId;
 
     return 0;
   }

@@ -1,28 +1,44 @@
-#ifndef VR_HARDWARE_COMPOSER_PRIVATE_ANDROID_DVR_HARDWARE_COMPOSER_CLIENT_H
-#define VR_HARDWARE_COMPOSER_PRIVATE_ANDROID_DVR_HARDWARE_COMPOSER_CLIENT_H
+#ifndef ANDROID_DVR_HARDWARE_COMPOSER_CLIENT_H
+#define ANDROID_DVR_HARDWARE_COMPOSER_CLIENT_H
 
-#include <android/dvr_hardware_composer_defs.h>
-#include <android/hardware_buffer.h>
+#include <dvr/dvr_hardware_composer_defs.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct AHardwareBuffer AHardwareBuffer;
 typedef struct DvrHwcClient DvrHwcClient;
 typedef struct DvrHwcFrame DvrHwcFrame;
 
 // Called when a new frame has arrived.
 //
+// @param client_state Pointer to client state passed in |dvrHwcCreateClient()|.
 // @param frame New frame. Owned by the client.
 // @return fence FD for the release of the last frame.
-typedef int(*DvrHwcOnFrameCallback)(DvrHwcFrame* frame);
+typedef int(*DvrHwcOnFrameCallback)(void* client_state, DvrHwcFrame* frame);
 
-DvrHwcClient* dvrHwcCreateClient(DvrHwcOnFrameCallback callback);
+// @param callback Called when a new frame is available.
+// @param client_state Pointer to client state passed back in the callback.
+DvrHwcClient* dvrHwcClientCreate(DvrHwcOnFrameCallback callback,
+                                 void* client_state);
+
+void dvrHwcClientDestroy(DvrHwcClient* client);
 
 // Called to free the frame information.
 void dvrHwcFrameDestroy(DvrHwcFrame* frame);
 
 Display dvrHwcFrameGetDisplayId(DvrHwcFrame* frame);
+
+int32_t dvrHwcFrameGetDisplayWidth(DvrHwcFrame* frame);
+
+int32_t dvrHwcFrameGetDisplayHeight(DvrHwcFrame* frame);
+
+// @return True if the display has been removed. In this case the current frame
+// does not contain any valid layers to display. It is a signal to clean up any
+// display related state.
+bool dvrHwcFrameGetDisplayRemoved(DvrHwcFrame* frame);
 
 // @return Number of layers in the frame.
 size_t dvrHwcFrameGetLayerCount(DvrHwcFrame* frame);
@@ -59,4 +75,4 @@ uint32_t dvrHwcFrameGetLayerApplicationId(DvrHwcFrame* frame,
 }  // extern "C"
 #endif
 
-#endif  // VR_HARDWARE_COMPOSER_PRIVATE_ANDROID_DVR_HARDWARE_COMPOSER_CLIENT_H
+#endif  // ANDROID_DVR_HARDWARE_COMPOSER_CLIENT_H
