@@ -442,9 +442,6 @@ void dvrGraphicsVideoMeshSurfacePresent(DvrGraphicsContext* graphics_context,
                                         const int eye,
                                         const float* transform);
 
-// Get a pointer to the global pose buffer.
-int dvrGetPoseBuffer(DvrReadBuffer** pose_buffer);
-
 __END_DECLS
 
 #endif  // DVR_GRAPHICS_H_

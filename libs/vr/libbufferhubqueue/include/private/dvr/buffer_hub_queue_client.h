@@ -329,6 +329,9 @@ class ConsumerQueue : public pdx::ClientBase<ConsumerQueue, BufferHubQueue> {
     return Dequeue(timeout, slot, meta, sizeof(*meta), acquire_fence);
   }
 
+  std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot, void* meta,
+                                          size_t meta_size,
+                                          LocalHandle* acquire_fence);
  private:
   friend BASE;
 
@@ -344,13 +347,27 @@ class ConsumerQueue : public pdx::ClientBase<ConsumerQueue, BufferHubQueue> {
                     LocalHandle* acquire_fence) override;
 
   int OnBufferAllocated() override;
-
-  std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot, void* meta,
-                                          size_t meta_size,
-                                          LocalHandle* acquire_fence);
 };
 
 }  // namespace dvr
 }  // namespace android
+
+// Concrete C type definition for DVR API.
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct DvrWriteBufferQueue {
+  std::shared_ptr<android::dvr::ProducerQueue> producer_queue_;
+};
+
+struct DvrReadBufferQueue {
+  std::shared_ptr<android::dvr::ConsumerQueue> consumer_queue_;
+};
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif  // ANDROID_DVR_BUFFER_HUB_QUEUE_CLIENT_H_
