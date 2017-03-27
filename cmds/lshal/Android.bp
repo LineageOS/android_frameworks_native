@@ -16,6 +16,7 @@ cc_binary {
     name: "lshal",
     shared_libs: [
         "libbase",
+        "libcutils",
         "libutils",
         "libhidlbase",
         "libhidltransport",
@@ -24,6 +25,7 @@ cc_binary {
         "android.hidl.manager@1.0",
     ],
     srcs: [
-        "Lshal.cpp"
+        "Lshal.cpp",
+        "PipeRelay.cpp"
     ],
 }

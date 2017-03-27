@@ -25,13 +25,17 @@
 #include <sstream>
 #include <regex>
 
+#include <android-base/logging.h>
 #include <android-base/parseint.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <hidl/ServiceManagement.h>
 #include <hidl-util/FQName.h>
+#include <private/android_filesystem_config.h>
+#include <sys/stat.h>
 #include <vintf/HalManifest.h>
 #include <vintf/parse_xml.h>
 
+#include "PipeRelay.h"
 #include "Timeout.h"
 
 using ::android::hardware::hidl_string;
@@ -357,6 +361,52 @@ static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo:
     }
 }
 
+// A unique_ptr type using a custom deleter function.
+template<typename T>
+using deleted_unique_ptr = std::unique_ptr<T, std::function<void(T *)> >;
+
+void Lshal::emitDebugInfo(
+        const sp<IServiceManager> &serviceManager,
+        const std::string &interfaceName,
+        const std::string &instanceName) const {
+    using android::hidl::base::V1_0::IBase;
+
+    hardware::Return<sp<IBase>> retBase =
+        serviceManager->get(interfaceName, instanceName);
+
+    sp<IBase> base;
+    if (!retBase.isOk() || (base = retBase) == nullptr) {
+        // There's a small race, where a service instantiated while collecting
+        // the list of services has by now terminated, so this isn't anything
+        // to be concerned about.
+        return;
+    }
+
+    PipeRelay relay(mOut.buf());
+
+    if (relay.initCheck() != OK) {
+        LOG(ERROR) << "PipeRelay::initCheck() FAILED w/ " << relay.initCheck();
+        return;
+    }
+
+    deleted_unique_ptr<native_handle_t> fdHandle(
+        native_handle_create(1 /* numFds */, 0 /* numInts */),
+        native_handle_delete);
+
+    fdHandle->data[0] = relay.fd();
+
+    hardware::hidl_vec<hardware::hidl_string> options;
+    hardware::Return<void> ret = base->debug(fdHandle.get(), options);
+
+    if (!ret.isOk()) {
+        LOG(ERROR)
+            << interfaceName
+            << "::debug(...) FAILED. (instance "
+            << instanceName
+            << ")";
+    }
+}
+
 void Lshal::dumpTable() {
     mServicesTable.description =
             "All binderized services (registered services through hwservicemanager)";
@@ -374,6 +424,16 @@ void Lshal::dumpTable() {
         mOut << std::left;
         printLine("Interface", "Transport", "Arch", "Server", "Server CMD",
                   "PTR", "Clients", "Clients CMD");
+
+        // We're only interested in dumping debug info for already
+        // instantiated services. There's little value in dumping the
+        // debug info for a service we create on the fly, so we only operate
+        // on the "mServicesTable".
+        sp<IServiceManager> serviceManager;
+        if (mEmitDebugInfo && &table == &mServicesTable) {
+            serviceManager = ::android::hardware::defaultServiceManager();
+        }
+
         for (const auto &entry : table) {
             printLine(entry.interfaceName,
                     entry.transport,
@@ -383,6 +443,11 @@ void Lshal::dumpTable() {
                     entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
                     join(entry.clientPids, " "),
                     join(entry.clientCmdlines, ";"));
+
+            if (serviceManager != nullptr) {
+                auto pair = splitFirst(entry.interfaceName, '/');
+                emitDebugInfo(serviceManager, pair.first, pair.second);
+            }
         }
         mOut << std::endl;
     });
@@ -626,6 +691,7 @@ Status Lshal::parseArgs(int argc, char **argv) {
         {"address",   no_argument,       0, 'a' },
         {"clients",   no_argument,       0, 'c' },
         {"cmdline",   no_argument,       0, 'm' },
+        {"debug",     optional_argument, 0, 'd' },
 
         // long options without short alternatives
         {"sort",      required_argument, 0, 's' },
@@ -638,7 +704,7 @@ Status Lshal::parseArgs(int argc, char **argv) {
     optind = 1;
     for (;;) {
         // using getopt_long in case we want to add other options in the future
-        c = getopt_long(argc, argv, "hitrpacm", longOptions, &optionIndex);
+        c = getopt_long(argc, argv, "hitrpacmd", longOptions, &optionIndex);
         if (c == -1) {
             break;
         }
@@ -692,6 +758,20 @@ Status Lshal::parseArgs(int argc, char **argv) {
         }
         case 'm': {
             mEnableCmdlines = true;
+            break;
+        }
+        case 'd': {
+            mEmitDebugInfo = true;
+
+            if (optarg) {
+                mFileOutput = new std::ofstream{optarg};
+                mOut = mFileOutput;
+                if (!mFileOutput.buf().is_open()) {
+                    mErr << "Could not open file '" << optarg << "'." << std::endl;
+                    return IO_ERROR;
+                }
+                chown(optarg, AID_SHELL, AID_SHELL);
+            }
             break;
         }
         case 'h': // falls through
