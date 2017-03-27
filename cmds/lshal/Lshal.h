@@ -77,6 +77,11 @@ private:
     void forEachTable(const std::function<void(Table &)> &f);
     void forEachTable(const std::function<void(const Table &)> &f) const;
 
+    void emitDebugInfo(
+            const sp<hidl::manager::V1_0::IServiceManager> &serviceManager,
+            const std::string &interfaceName,
+            const std::string &instanceName) const;
+
     Table mServicesTable{};
     Table mPassthroughRefTable{};
     Table mImplementationsTable{};
@@ -88,6 +93,10 @@ private:
     TableEntrySelect mSelectedColumns = 0;
     // If true, cmdlines will be printed instead of pid.
     bool mEnableCmdlines = false;
+
+    // If true, calls IBase::debug(...) on each service.
+    bool mEmitDebugInfo = false;
+
     bool mVintf = false;
     // If an entry does not exist, need to ask /proc/{pid}/cmdline to get it.
     // If an entry exist but is an empty string, process might have died.
