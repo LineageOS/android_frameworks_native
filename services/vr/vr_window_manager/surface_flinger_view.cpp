@@ -15,7 +15,7 @@ SurfaceFlingerView::SurfaceFlingerView() {}
 SurfaceFlingerView::~SurfaceFlingerView() {}
 
 bool SurfaceFlingerView::Initialize(HwcCallback::Client *client) {
-  const char vr_hwcomposer_name[] = "vr_hwcomposer";
+  const char vr_hwcomposer_name[] = "vr";
   vr_hwcomposer_ = HIDL_FETCH_IComposer(vr_hwcomposer_name);
   if (!vr_hwcomposer_.get()) {
     ALOGE("Failed to get vr_hwcomposer");
