@@ -3249,6 +3249,12 @@ status_t SurfaceFlinger::dump(int fd, const Vector<String16>& args)
                 dumpFrameEventsLocked(result);
                 dumpAll = false;
             }
+
+            if ((index < numArgs) && (args[index] == String16("--wide-color"))) {
+                index++;
+                dumpWideColorInfo(result);
+                dumpAll = false;
+            }
         }
 
         if (dumpAll) {
@@ -3419,6 +3425,31 @@ void SurfaceFlinger::dumpBufferingStats(String8& result) const {
     result.append("\n");
 }
 
+void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
+    result.appendFormat("hasWideColorDisplay: %d\n", hasWideColorDisplay);
+
+    // TODO: print out if wide-color mode is active or not
+
+    for (size_t d = 0; d < mDisplays.size(); d++) {
+        const sp<const DisplayDevice>& displayDevice(mDisplays[d]);
+        int32_t hwcId = displayDevice->getHwcDisplayId();
+        if (hwcId == DisplayDevice::DISPLAY_ID_INVALID) {
+            continue;
+        }
+
+        result.appendFormat("Display %d color modes:\n", hwcId);
+        std::vector<android_color_mode_t> modes = getHwComposer().getColorModes(hwcId);
+        for (auto&& mode : modes) {
+            result.appendFormat("    %s (%d)\n", decodeColorMode(mode).c_str(), mode);
+        }
+
+        android_color_mode_t currentMode = displayDevice->getActiveColorMode();
+        result.appendFormat("    Current color mode: %s (%d)\n",
+                            decodeColorMode(currentMode).c_str(), currentMode);
+    }
+    result.append("\n");
+}
+
 void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
         String8& result) const
 {
@@ -3449,6 +3480,9 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     appendUiConfigString(result);
     appendGuiConfigString(result);
     result.append("\n");
+
+    result.append("\nWide-Color information:\n");
+    dumpWideColorInfo(result);
 
     colorizer.bold(result);
     result.append("Sync configuration: ");

@@ -412,9 +412,9 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 void GLES20RenderEngine::dump(String8& result) {
     RenderEngine::dump(result);
     if (usesWideColor()) {
-        result.append("Wide-color: On");
+        result.append("Wide-color: On\n");
     } else {
-        result.append("Wide-color: Off");
+        result.append("Wide-color: Off\n");
     }
 }
 

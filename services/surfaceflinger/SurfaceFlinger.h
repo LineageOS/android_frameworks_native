@@ -535,6 +535,7 @@ private:
     void recordBufferingStats(const char* layerName,
             std::vector<OccupancyTracker::Segment>&& history);
     void dumpBufferingStats(String8& result) const;
+    void dumpWideColorInfo(String8& result) const;
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
