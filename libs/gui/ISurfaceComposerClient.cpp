@@ -17,116 +17,64 @@
 // tag as surfaceflinger
 #define LOG_TAG "SurfaceFlinger"
 
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <sys/types.h>
 
-#include <binder/Parcel.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
+#include <binder/Parcel.h>
+#include <binder/SafeInterface.h>
 
+#include <ui/FrameStats.h>
 #include <ui/Point.h>
 #include <ui/Rect.h>
 
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ISurfaceComposerClient.h>
-#include <private/gui/LayerState.h>
-
-// ---------------------------------------------------------------------------
 
 namespace android {
 
-enum {
-    CREATE_SURFACE = IBinder::FIRST_CALL_TRANSACTION,
-    DESTROY_SURFACE,
-    CLEAR_LAYER_FRAME_STATS,
-    GET_LAYER_FRAME_STATS,
-    GET_TRANSFORM_TO_DISPLAY_INVERSE
-};
-
-class BpSurfaceComposerClient : public BpInterface<ISurfaceComposerClient>
-{
+class BpSurfaceComposerClient : public SafeBpInterface<ISurfaceComposerClient> {
 public:
     explicit BpSurfaceComposerClient(const sp<IBinder>& impl)
-        : BpInterface<ISurfaceComposerClient>(impl) {
+          : SafeBpInterface<ISurfaceComposerClient>(impl, "BpSurfaceComposerClient") {}
+
+    ~BpSurfaceComposerClient() override;
+
+    status_t createSurface(const String8& name, uint32_t width, uint32_t height, PixelFormat format,
+                           uint32_t flags, const sp<IBinder>& parent, uint32_t windowType,
+                           uint32_t ownerUid, sp<IBinder>* handle,
+                           sp<IGraphicBufferProducer>* gbp) override {
+        return callRemote<decltype(&ISurfaceComposerClient::createSurface)>(Tag::CreateSurface,
+                                                                            name, width, height,
+                                                                            format, flags, parent,
+                                                                            windowType, ownerUid,
+                                                                            handle, gbp);
     }
 
-    virtual ~BpSurfaceComposerClient();
-
-    virtual status_t createSurface(const String8& name, uint32_t width,
-            uint32_t height, PixelFormat format, uint32_t flags,
-            const sp<IBinder>& parent, uint32_t windowType, uint32_t ownerUid,
-            sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp) {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposerClient::getInterfaceDescriptor());
-        data.writeString8(name);
-        data.writeUint32(width);
-        data.writeUint32(height);
-        data.writeInt32(static_cast<int32_t>(format));
-        data.writeUint32(flags);
-        data.writeUint32(windowType);
-        data.writeUint32(ownerUid);
-        if (parent != nullptr) {
-            data.writeStrongBinder(parent);
-        }
-        remote()->transact(CREATE_SURFACE, data, &reply);
-        *handle = reply.readStrongBinder();
-        *gbp = interface_cast<IGraphicBufferProducer>(reply.readStrongBinder());
-        return reply.readInt32();
+    status_t destroySurface(const sp<IBinder>& handle) override {
+        return callRemote<decltype(&ISurfaceComposerClient::destroySurface)>(Tag::DestroySurface,
+                                                                             handle);
     }
 
-    virtual status_t destroySurface(const sp<IBinder>& handle) {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposerClient::getInterfaceDescriptor());
-        data.writeStrongBinder(handle);
-        remote()->transact(DESTROY_SURFACE, data, &reply);
-        return reply.readInt32();
+    status_t clearLayerFrameStats(const sp<IBinder>& handle) const override {
+        return callRemote<decltype(
+                &ISurfaceComposerClient::clearLayerFrameStats)>(Tag::ClearLayerFrameStats, handle);
     }
 
-    virtual status_t clearLayerFrameStats(const sp<IBinder>& handle) const {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposerClient::getInterfaceDescriptor());
-        data.writeStrongBinder(handle);
-        remote()->transact(CLEAR_LAYER_FRAME_STATS, data, &reply);
-        return reply.readInt32();
+    status_t getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const override {
+        return callRemote<decltype(
+                &ISurfaceComposerClient::getLayerFrameStats)>(Tag::GetLayerFrameStats, handle,
+                                                              outStats);
     }
 
-    virtual status_t getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposerClient::getInterfaceDescriptor());
-        data.writeStrongBinder(handle);
-        remote()->transact(GET_LAYER_FRAME_STATS, data, &reply);
-        reply.read(*outStats);
-        return reply.readInt32();
-    }
-
-    virtual status_t getTransformToDisplayInverse(const sp<IBinder>& handle,
-            bool* outTransformToDisplayInverse) const {
-        Parcel data, reply;
-        status_t result =
-                data.writeInterfaceToken(ISurfaceComposerClient::getInterfaceDescriptor());
-        if (result != NO_ERROR) {
-            return result;
-        }
-        result = data.writeStrongBinder(handle);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        result = remote()->transact(GET_TRANSFORM_TO_DISPLAY_INVERSE, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        int transformInverse;
-        result = reply.readInt32(&transformInverse);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        *outTransformToDisplayInverse = transformInverse != 0 ? true : false;
-        status_t result2 = reply.readInt32(&result);
-        if (result2 != NO_ERROR) {
-            return result2;
-        }
-        return result;
+    status_t getTransformToDisplayInverse(const sp<IBinder>& handle,
+                                          bool* outTransformToDisplayInverse) const override {
+        return callRemote<decltype(
+                &ISurfaceComposerClient::
+                        getTransformToDisplayInverse)>(Tag::GetTransformToDisplayInverse, handle,
+                                                       outTransformToDisplayInverse);
     }
 };
 
@@ -138,75 +86,32 @@ IMPLEMENT_META_INTERFACE(SurfaceComposerClient, "android.ui.ISurfaceComposerClie
 
 // ----------------------------------------------------------------------
 
-status_t BnSurfaceComposerClient::onTransact(
-    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
-     switch(code) {
-        case CREATE_SURFACE: {
-            CHECK_INTERFACE(ISurfaceComposerClient, data, reply);
-            String8 name = data.readString8();
-            uint32_t width = data.readUint32();
-            uint32_t height = data.readUint32();
-            PixelFormat format = static_cast<PixelFormat>(data.readInt32());
-            uint32_t createFlags = data.readUint32();
-            uint32_t windowType = data.readUint32();
-            uint32_t ownerUid = data.readUint32();
-            sp<IBinder> parent = nullptr;
-            if (data.dataAvail() > 0) {
-                parent = data.readStrongBinder();
-            }
-            sp<IBinder> handle;
-            sp<IGraphicBufferProducer> gbp;
-            status_t result = createSurface(name, width, height, format,
-                    createFlags, parent, windowType, ownerUid, &handle, &gbp);
-            reply->writeStrongBinder(handle);
-            reply->writeStrongBinder(IInterface::asBinder(gbp));
-            reply->writeInt32(result);
-            return NO_ERROR;
+status_t BnSurfaceComposerClient::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                             uint32_t flags) {
+    if (code < IBinder::FIRST_CALL_TRANSACTION || code >= static_cast<uint32_t>(Tag::Last)) {
+        return BBinder::onTransact(code, data, reply, flags);
+    }
+    auto tag = static_cast<Tag>(code);
+    switch (tag) {
+        case Tag::CreateSurface: {
+            return callLocal(data, reply, &ISurfaceComposerClient::createSurface);
         }
-        case DESTROY_SURFACE: {
-            CHECK_INTERFACE(ISurfaceComposerClient, data, reply);
-            reply->writeInt32(destroySurface( data.readStrongBinder() ) );
-            return NO_ERROR;
+        case Tag::DestroySurface: {
+            return callLocal(data, reply, &ISurfaceComposerClient::destroySurface);
         }
-       case CLEAR_LAYER_FRAME_STATS: {
-            CHECK_INTERFACE(ISurfaceComposerClient, data, reply);
-            sp<IBinder> handle = data.readStrongBinder();
-            status_t result = clearLayerFrameStats(handle);
-            reply->writeInt32(result);
-            return NO_ERROR;
+        case Tag::ClearLayerFrameStats: {
+            return callLocal(data, reply, &ISurfaceComposerClient::clearLayerFrameStats);
         }
-        case GET_LAYER_FRAME_STATS: {
-            CHECK_INTERFACE(ISurfaceComposerClient, data, reply);
-            sp<IBinder> handle = data.readStrongBinder();
-            FrameStats stats;
-            status_t result = getLayerFrameStats(handle, &stats);
-            reply->write(stats);
-            reply->writeInt32(result);
-            return NO_ERROR;
+        case Tag::GetLayerFrameStats: {
+            return callLocal(data, reply, &ISurfaceComposerClient::getLayerFrameStats);
         }
-        case GET_TRANSFORM_TO_DISPLAY_INVERSE: {
-            CHECK_INTERFACE(ISurfaceComposerClient, data, reply);
-            sp<IBinder> handle;
-            status_t result = data.readStrongBinder(&handle);
-            if (result != NO_ERROR) {
-                return result;
-            }
-            bool transformInverse = false;
-            result = getTransformToDisplayInverse(handle, &transformInverse);
-            if (result != NO_ERROR) {
-                return result;
-            }
-            result = reply->writeInt32(transformInverse ? 1 : 0);
-            if (result != NO_ERROR) {
-                return result;
-            }
-            result = reply->writeInt32(NO_ERROR);
-            return result;
+        case Tag::GetTransformToDisplayInverse: {
+            return callLocal(data, reply, &ISurfaceComposerClient::getTransformToDisplayInverse);
         }
-        default:
+        case Tag::Last:
+            // Should not be possible because of the check at the beginning of the method
             return BBinder::onTransact(code, data, reply, flags);
     }
 }
 
-}; // namespace android
+} // namespace android
