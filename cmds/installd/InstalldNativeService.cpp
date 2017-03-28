@@ -899,30 +899,7 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
         ATRACE_END();
 
     } else {
-        ATRACE_BEGIN("start");
-        cache_t* cache = start_cache_collection();
-        ATRACE_END();
-
-        ATRACE_BEGIN("add");
-        for (auto user : get_known_users(uuid_)) {
-            add_cache_files(cache, create_data_user_ce_path(uuid_, user));
-            add_cache_files(cache, create_data_user_de_path(uuid_, user));
-            add_cache_files(cache,
-                    StringPrintf("%s/Android/data", create_data_media_path(uuid_, user).c_str()));
-        }
-        // Add files from /data/preloads/file_cache
-        if (uuid == nullptr) {
-            add_preloads_file_cache(cache, uuid_);
-        }
-        ATRACE_END();
-
-        ATRACE_BEGIN("clear");
-        clear_cache_files(data_path, cache, freeStorageSize);
-        ATRACE_END();
-
-        ATRACE_BEGIN("finish");
-        finish_cache_collection(cache);
-        ATRACE_END();
+        return error("Legacy cache logic no longer supported");
     }
 
     free = data_disk_free(data_path);
