@@ -91,6 +91,10 @@ std::string GetPoseModeString(DvrPoseMode mode) {
       return "DVR_POSE_MODE_MOCK_ROTATE_FAST";
     case DVR_POSE_MODE_MOCK_CIRCLE_STRAFE:
       return "DVR_POSE_MODE_MOCK_CIRCLE_STRAFE";
+    case DVR_POSE_MODE_FLOAT:
+      return "DVR_POSE_MODE_FLOAT";
+    case DVR_POSE_MODE_MOCK_MOTION_SICKNESS:
+      return "DVR_POSE_MODE_MOCK_MOTION_SICKNESS";
     default:
       return "Unknown pose mode";
   }
@@ -418,7 +422,8 @@ void PoseService::UpdatePoseMode() {
                       current_time_ns);
       break;
     }
-    case DVR_POSE_MODE_3DOF: {
+    case DVR_POSE_MODE_3DOF:
+    case DVR_POSE_MODE_FLOAT: {
       // Sensor fusion provides IMU-space data, transform to world space.
 
       // Constants to perform IMU orientation adjustments. Note that these
@@ -446,13 +451,25 @@ void PoseService::UpdatePoseMode() {
       }
       start_from_head_rotation.normalize();
 
-      // Neck / head model code procedure for when no 6dof is available.
-      // To apply the neck model, first translate the head pose to the new
-      // center of eyes, then rotate around the origin (the original head
-      // pos).
-      Vector3d position =
-          start_from_head_rotation * Vector3d(0.0, kDefaultNeckVerticalOffset,
-                                              -kDefaultNeckHorizontalOffset);
+      Vector3d position;
+      switch (pose_mode_) {
+        default:
+        case DVR_POSE_MODE_3DOF:
+          // Neck / head model code procedure for when no 6dof is available.
+          // To apply the neck model, first translate the head pose to the new
+          // center of eyes, then rotate around the origin (the original head
+          // pos).
+          position = start_from_head_rotation *
+                     Vector3d(0.0, kDefaultNeckVerticalOffset,
+                              -kDefaultNeckHorizontalOffset);
+          break;
+        case DVR_POSE_MODE_FLOAT:
+          // Change position a bit in facing direction.
+          mock_pos_offset_ += start_from_head_rotation.toRotationMatrix() * Vector3d(0, 0, -0.01);
+          ResetMockDeviatedPosition();
+          position = mock_pos_offset_;
+          break;
+      }
 
       // IMU driver gives timestamps on its own clock, but we need monotonic
       // clock. Subtract 5ms to account for estimated IMU sample latency.
@@ -460,11 +477,38 @@ void PoseService::UpdatePoseMode() {
                       pose_state.timestamp_ns + 5000000);
       break;
     }
+    case DVR_POSE_MODE_MOCK_MOTION_SICKNESS: {
+      double phase = std::sin(current_time_ns / 1e9) + 1;
+      // Randomize 3rd order rotation axis on phase minimum.
+      if (phase > mock_prev_phase_ && mock_diff_phase_ < 0)
+        mock_rot_axis_2_ = RandVector();
+      mock_diff_phase_ = phase - mock_prev_phase_;
+      mock_prev_phase_ = phase;
+
+      // Rotate axes all the way down.
+      mock_rot_axis_2_ = AngleAxisd(0.004 * phase, mock_rot_axis_3_) * mock_rot_axis_2_;
+      mock_rot_axis_1_ = AngleAxisd(0.002 * (std::sin(current_time_ns / 5e8 + M_PI / 2) + 1), mock_rot_axis_2_) * mock_rot_axis_1_;
+      Rotationd rotation = Rotationd(AngleAxisd(fmod(current_time_ns / 2e9, kTwoPi), mock_rot_axis_1_));
+
+      // Change position a bit.
+      mock_pos_offset_ += rotation.toRotationMatrix() * Vector3d(0, 0, 0.003 * (std::sin(current_time_ns / 6e8) + 1));
+      ResetMockDeviatedPosition();
+
+      WriteAsyncPoses(mock_pos_offset_, rotation, current_time_ns);
+      break;
+    }
     default:
     case DVR_POSE_MODE_6DOF:
       ALOGE("ERROR: invalid pose mode");
       break;
   }
+}
+
+void PoseService::ResetMockDeviatedPosition() {
+  if (mock_pos_offset_[1] < -1) mock_pos_offset_[1] = 2;
+  if (mock_pos_offset_[1] > 30) mock_pos_offset_[1] = 2;
+  if (abs(mock_pos_offset_[0]) > 30) mock_pos_offset_[0] = mock_pos_offset_[2] = 0;
+  if (abs(mock_pos_offset_[2]) > 30) mock_pos_offset_[0] = mock_pos_offset_[2] = 0;
 }
 
 int PoseService::HandleMessage(pdx::Message& msg) {
@@ -646,6 +690,10 @@ void PoseService::SetPoseMode(DvrPoseMode mode) {
   if (mode == DVR_POSE_MODE_6DOF) {
     // Only 3DoF is currently supported.
     mode = DVR_POSE_MODE_3DOF;
+  } else if (mode == DVR_POSE_MODE_MOCK_MOTION_SICKNESS) {
+    mock_rot_axis_1_ = RandVector();
+    mock_rot_axis_2_ = RandVector();
+    mock_rot_axis_3_ = RandVector();
   }
 
   pose_mode_ = mode;

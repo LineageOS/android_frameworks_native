@@ -99,6 +99,25 @@ class PoseService : public pdx::ServiceBase<PoseService> {
   // Last known pose.
   DvrPoseAsync last_known_pose_;
 
+  // Position offset for use in pose modes.
+  Eigen::Vector3d mock_pos_offset_;
+
+  // Phase data for DVR_POSE_MODE_MOCK_MOTION_SICKNESS.
+  double mock_prev_phase_, mock_diff_phase_;
+
+  // Axis data for DVR_POSE_MODE_MOCK_MOTION_SICKNESS.
+  Eigen::Vector3d mock_rot_axis_1_, mock_rot_axis_2_, mock_rot_axis_3_;
+
+  // Return a random normalized 3d vector.
+  static Eigen::Vector3d RandVector() {
+    Eigen::Vector3d vec = Eigen::Vector3d::Random();
+    vec.normalize();
+    return vec;
+  }
+
+  // Reset mock_pos_offset_ if strayed too far
+  void ResetMockDeviatedPosition();
+
   // If this flag is true, the pose published includes a small prediction of
   // where it'll be when it's consumed.
   bool enable_pose_prediction_;

@@ -28,7 +28,7 @@ void PrintUsage(const char* executable_name) {
                " px, py, pz as position (0,0,0 if omitted).\n"
             << "  --mode=mode: sets mode to one of normal, head_turn:slow, "
                "head_turn:fast, rotate:slow, rotate:medium, rotate:fast, "
-               "circle_strafe.\n"
+               "circle_strafe, float, motion_sickness.\n"
             << "  --unfreeze: sets the mode to normal.\n"
             << "  --log_controller=[true|false]: starts and stops controller"
                " logs\n"
@@ -149,6 +149,12 @@ bool ParseSetMode(const std::string& arg, DvrPoseMode* mode) {
     return true;
   } else if (value == "circle_strafe") {
     *mode = DVR_POSE_MODE_MOCK_CIRCLE_STRAFE;
+    return true;
+  } else if (value == "float") {
+    *mode = DVR_POSE_MODE_FLOAT;
+    return true;
+  } else if (value == "motion_sickness") {
+    *mode = DVR_POSE_MODE_MOCK_MOTION_SICKNESS;
     return true;
   } else {
     return false;
