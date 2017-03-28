@@ -81,16 +81,21 @@ class HwcCallback : public VrComposerView::Callback {
 
   class Frame {
   public:
-    Frame(std::vector<HwcLayer>&& layers, uint32_t display_id, bool removed);
+    Frame(std::vector<HwcLayer>&& layers, uint32_t display_id, bool removed,
+          int32_t display_width, int32_t display_height);
 
     FrameStatus Finish();
     const std::vector<HwcLayer>& layers() const { return layers_; }
     uint32_t display_id() const { return display_id_; }
     bool removed() const { return removed_; }
+    int32_t display_width() const { return display_width_; }
+    int32_t display_height() const { return display_height_; }
 
   private:
     uint32_t display_id_;
     bool removed_;
+    int32_t display_width_;
+    int32_t display_height_;
     std::vector<HwcLayer> layers_;
     FrameStatus status_ = FrameStatus::kUnfinished;
   };

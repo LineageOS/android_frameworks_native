@@ -81,9 +81,35 @@ sp<GraphicBuffer> GetBufferFromHandle(const native_handle_t* handle) {
   return buffer;
 }
 
+void GetPrimaryDisplaySize(int32_t* width, int32_t* height) {
+  *width = 1080;
+  *height = 1920;
+
+  int error = 0;
+  auto display_client = DisplayClient::Create(&error);
+  SystemDisplayMetrics metrics;
+
+  if (error) {
+    ALOGE("Could not connect to display service : %s(%d)", strerror(error),
+          error);
+    return;
+  }
+
+  error = display_client->GetDisplayMetrics(&metrics);
+  if (error) {
+    ALOGE("Could not get display metrics from display service : %s(%d)",
+          strerror(error), error);
+    return;
+  }
+
+  *width = metrics.display_native_width;
+  *height = metrics.display_native_height;
+}
+
 }  // namespace
 
-HwcDisplay::HwcDisplay() {}
+HwcDisplay::HwcDisplay(int32_t width, int32_t height)
+    : width_(width), height_(height) {}
 
 HwcDisplay::~HwcDisplay() {}
 
@@ -222,7 +248,7 @@ std::vector<Layer> HwcDisplay::UpdateLastFrameAndGetLastFrameLayers() {
 ////////////////////////////////////////////////////////////////////////////////
 // VrHwcClient
 
-VrHwc::VrHwc() { displays_[kDefaultDisplayId].reset(new HwcDisplay()); }
+VrHwc::VrHwc() {}
 
 VrHwc::~VrHwc() {}
 
@@ -235,6 +261,14 @@ void VrHwc::removeClient() {
 
 void VrHwc::enableCallback(bool enable) {
   if (enable && client_ != nullptr) {
+    {
+      int32_t width, height;
+      GetPrimaryDisplaySize(&width, &height);
+      std::lock_guard<std::mutex> guard(mutex_);
+      // Create the primary display late to avoid initialization issues between
+      // VR HWC and SurfaceFlinger.
+      displays_[kDefaultDisplayId].reset(new HwcDisplay(width, height));
+    }
     client_.promote()->onHotplug(kDefaultDisplayId,
                                  IComposerCallback::Connection::CONNECTED);
   }
@@ -246,7 +280,7 @@ Error VrHwc::createVirtualDisplay(uint32_t width, uint32_t height,
                                   PixelFormat* format, Display* outDisplay) {
   *format = PixelFormat::RGBA_8888;
   *outDisplay = display_count_;
-  displays_[display_count_].reset(new HwcDisplay());
+  displays_[display_count_].reset(new HwcDisplay(width, height));
   display_count_++;
   return Error::NONE;
 }
@@ -308,41 +342,20 @@ Error VrHwc::getDisplayAttribute(Display display, Config config,
                                  IComposerClient::Attribute attribute,
                                  int32_t* outValue) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr) {
     return Error::BAD_DISPLAY;
+  }
   if (config != kDefaultConfigId) {
     return Error::BAD_CONFIG;
   }
 
-  int error = 0;
-  auto display_client = DisplayClient::Create(&error);
-  SystemDisplayMetrics metrics;
-
-  if (error) {
-    ALOGE("Could not connect to display service : %s(%d)", strerror(error),
-          error);
-  } else {
-    error = display_client->GetDisplayMetrics(&metrics);
-
-    if (error) {
-      ALOGE("Could not get display metrics from display service : %s(%d)",
-            strerror(error), error);
-    }
-  }
-
-  if (error) {
-    metrics.display_native_width = 1080;
-    metrics.display_native_height = 1920;
-    ALOGI("Setting display metrics to default : width=%d height=%d",
-          metrics.display_native_width, metrics.display_native_height);
-  }
-
   switch (attribute) {
     case IComposerClient::Attribute::WIDTH:
-      *outValue = metrics.display_native_width;
+      *outValue = display_ptr->width();
       break;
     case IComposerClient::Attribute::HEIGHT:
-      *outValue = metrics.display_native_height;
+      *outValue = display_ptr->height();
       break;
     case IComposerClient::Attribute::VSYNC_PERIOD:
       *outValue = 1000 * 1000 * 1000 / 30;  // 30fps
@@ -510,6 +523,8 @@ Error VrHwc::presentDisplay(Display display, int32_t* outPresentFence,
   std::vector<Layer> last_frame_layers;
   Error status = display_ptr->GetFrame(&frame.layers);
   frame.display_id = display;
+  frame.display_width = display_ptr->width();
+  frame.display_height = display_ptr->height();
   if (status != Error::NONE)
     return status;
 
