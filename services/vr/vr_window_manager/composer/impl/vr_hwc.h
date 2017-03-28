@@ -74,6 +74,8 @@ class ComposerView {
     // being removed, or left false in the case of a normal frame. The upper
     // layer tracks display IDs and will handle new ones showing up.
     bool removed = false;
+    int32_t display_width;
+    int32_t display_height;
     std::vector<ComposerLayer> layers;
   };
 
@@ -107,8 +109,11 @@ struct HwcLayer {
 
 class HwcDisplay {
  public:
-  HwcDisplay();
+  HwcDisplay(int32_t width, int32_t height);
   ~HwcDisplay();
+
+  int32_t width() const { return width_; }
+  int32_t height() const { return height_; }
 
   HwcLayer* CreateLayer();
   bool DestroyLayer(Layer id);
@@ -137,6 +142,9 @@ class HwcDisplay {
 
   // Layer ID generator.
   uint64_t layer_ids_ = 1;
+
+  int32_t width_;
+  int32_t height_;
 
   HwcDisplay(const HwcDisplay&) = delete;
   void operator=(const HwcDisplay&) = delete;

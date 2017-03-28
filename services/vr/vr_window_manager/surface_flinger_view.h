@@ -26,9 +26,6 @@ class SurfaceFlingerView {
   SurfaceFlingerView();
   ~SurfaceFlingerView();
 
-  int width() const { return width_; }
-  int height() const { return height_; }
-
   bool Initialize(HwcCallback::Client *client);
 
   bool GetTextures(const HwcCallback::Frame& layers,
@@ -39,8 +36,6 @@ class SurfaceFlingerView {
  private:
   sp<IComposer> vr_hwcomposer_;
   std::unique_ptr<VrComposerView> vr_composer_view_;
-  int width_ = 0;
-  int height_ = 0;
 
   SurfaceFlingerView(const SurfaceFlingerView&) = delete;
   void operator=(const SurfaceFlingerView&) = delete;

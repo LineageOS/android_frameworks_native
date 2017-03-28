@@ -83,7 +83,6 @@ class ShellView : public Application,
 
   bool is_touching_ = false;
   int touchpad_buttons_ = 0;
-  vec2 size_;
 
   // Used to center the scene when the shell becomes visible.
   bool should_recenter_ = true;
