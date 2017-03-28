@@ -16,11 +16,11 @@
 
 #define LOG_TAG "GraphicBuffer"
 
-#include <cutils/atomic.h>
-
 #include <ui/GraphicBuffer.h>
 
 #include <cutils/atomic.h>
+
+#include <grallocusage/GrallocUsageConversion.h>
 
 #include <ui/GrallocMapper.h>
 #include <ui/GraphicBufferAllocator.h>
@@ -114,7 +114,7 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
     stride = static_cast<int>(inStride);
     format = inFormat;
     layerCount = inLayerCount;
-    usage  = static_cast<int>(inConsumerUsage | inProducerUsage);
+    usage = android_convertGralloc1To0Usage(inProducerUsage, inConsumerUsage);
     handle = inHandle;
 }
 
@@ -221,7 +221,7 @@ status_t GraphicBuffer::initSize(uint32_t inWidth, uint32_t inHeight,
         height = static_cast<int>(inHeight);
         format = inFormat;
         layerCount = inLayerCount;
-        usage = static_cast<int>(inProducerUsage | inConsumerUsage);
+        usage = android_convertGralloc1To0Usage(inProducerUsage, inConsumerUsage);
         stride = static_cast<int>(outStride);
     }
     return err;

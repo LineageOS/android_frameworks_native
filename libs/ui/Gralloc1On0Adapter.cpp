@@ -20,6 +20,7 @@
 
 #include <ui/Gralloc1On0Adapter.h>
 
+#include <grallocusage/GrallocUsageConversion.h>
 
 #include <hardware/gralloc.h>
 
@@ -248,8 +249,8 @@ gralloc1_error_t Gralloc1On0Adapter::allocate(
     // pointer, which only occurs when mDevice has been loaded successfully and
     // we are permitted to allocate
 
-    int usage = static_cast<int>(descriptor->producerUsage) |
-            static_cast<int>(descriptor->consumerUsage);
+    int usage = android_convertGralloc1To0Usage(descriptor->producerUsage,
+            descriptor->consumerUsage);
     buffer_handle_t handle = nullptr;
     int stride = 0;
     ALOGV("Calling alloc(%p, %u, %u, %i, %u)", mDevice, descriptor->width,
@@ -374,7 +375,7 @@ gralloc1_error_t Gralloc1On0Adapter::lock(
 {
     if (mMinorVersion >= 3) {
         int result = mModule->lockAsync(mModule, buffer->getHandle(),
-                static_cast<int32_t>(producerUsage | consumerUsage),
+                android_convertGralloc1To0Usage(producerUsage, consumerUsage),
                 accessRegion.left, accessRegion.top, accessRegion.width,
                 accessRegion.height, outData, acquireFence->dup());
         if (result != 0) {
@@ -383,7 +384,7 @@ gralloc1_error_t Gralloc1On0Adapter::lock(
     } else {
         acquireFence->waitForever("Gralloc1On0Adapter::lock");
         int result = mModule->lock(mModule, buffer->getHandle(),
-                static_cast<int32_t>(producerUsage | consumerUsage),
+                android_convertGralloc1To0Usage(producerUsage, consumerUsage),
                 accessRegion.left, accessRegion.top, accessRegion.width,
                 accessRegion.height, outData);
         ALOGV("gralloc0 lock returned %d", result);
@@ -415,7 +416,7 @@ gralloc1_error_t Gralloc1On0Adapter::lockYCbCr(
 {
     if (mMinorVersion >= 3 && mModule->lockAsync_ycbcr) {
         int result = mModule->lockAsync_ycbcr(mModule, buffer->getHandle(),
-                static_cast<int>(producerUsage | consumerUsage),
+                android_convertGralloc1To0Usage(producerUsage, consumerUsage),
                 accessRegion.left, accessRegion.top, accessRegion.width,
                 accessRegion.height, outData, acquireFence->dup());
         if (result != 0) {
@@ -424,7 +425,7 @@ gralloc1_error_t Gralloc1On0Adapter::lockYCbCr(
     } else if (mModule->lock_ycbcr) {
         acquireFence->waitForever("Gralloc1On0Adapter::lockYCbCr");
         int result = mModule->lock_ycbcr(mModule, buffer->getHandle(),
-                static_cast<int>(producerUsage | consumerUsage),
+                android_convertGralloc1To0Usage(producerUsage, consumerUsage),
                 accessRegion.left, accessRegion.top, accessRegion.width,
                 accessRegion.height, outData);
         ALOGV("gralloc0 lockYCbCr returned %d", result);
