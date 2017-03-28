@@ -14,18 +14,17 @@
  * limitations under the License.
  */
 
-#include <stdint.h>
-#include <sys/types.h>
+#include <gui/IConsumerListener.h>
+
+#include <gui/BufferItem.h>
 
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
 
-#include <gui/IConsumerListener.h>
-#include <gui/BufferItem.h>
+#include <stdint.h>
+#include <sys/types.h>
 
-// ---------------------------------------------------------------------------
 namespace android {
-// ---------------------------------------------------------------------------
 
 enum {
     ON_DISCONNECT = IBinder::FIRST_CALL_TRANSACTION,
@@ -35,12 +34,9 @@ enum {
     GET_FRAME_TIMESTAMPS
 };
 
-class BpConsumerListener : public BpInterface<IConsumerListener>
-{
+class BpConsumerListener : public BpInterface<IConsumerListener> {
 public:
-    explicit BpConsumerListener(const sp<IBinder>& impl)
-        : BpInterface<IConsumerListener>(impl) {
-    }
+    explicit BpConsumerListener(const sp<IBinder>& impl) : BpInterface<IConsumerListener>(impl) {}
 
     virtual ~BpConsumerListener();
 
@@ -70,42 +66,41 @@ public:
     }
 };
 
-// Out-of-line virtual method definition to trigger vtable emission in this
-// translation unit (see clang warning -Wweak-vtables)
+// Out-of-line virtual method definition to trigger vtable emission in this translation unit (see
+// clang warning -Wweak-vtables)
 BpConsumerListener::~BpConsumerListener() {}
 
 IMPLEMENT_META_INTERFACE(ConsumerListener, "android.gui.IConsumerListener");
 
-// ----------------------------------------------------------------------
-
-status_t BnConsumerListener::onTransact(
-    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
-    switch(code) {
+status_t BnConsumerListener::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                        uint32_t flags) {
+    switch (code) {
         case ON_DISCONNECT: {
             CHECK_INTERFACE(IConsumerListener, data, reply);
             onDisconnect();
-            return NO_ERROR; }
+            return NO_ERROR;
+        }
         case ON_FRAME_AVAILABLE: {
             CHECK_INTERFACE(IConsumerListener, data, reply);
             BufferItem item;
             data.read(item);
             onFrameAvailable(item);
-            return NO_ERROR; }
+            return NO_ERROR;
+        }
         case ON_BUFFER_RELEASED: {
             CHECK_INTERFACE(IConsumerListener, data, reply);
             onBuffersReleased();
-            return NO_ERROR; }
+            return NO_ERROR;
+        }
         case ON_SIDEBAND_STREAM_CHANGED: {
             CHECK_INTERFACE(IConsumerListener, data, reply);
             onSidebandStreamChanged();
-            return NO_ERROR; }
+            return NO_ERROR;
+        }
     }
     return BBinder::onTransact(code, data, reply, flags);
 }
 
 ConsumerListener::~ConsumerListener() = default;
 
-// ---------------------------------------------------------------------------
-}; // namespace android
-// ---------------------------------------------------------------------------
+} // namespace android
