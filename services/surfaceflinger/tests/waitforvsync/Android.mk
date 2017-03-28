@@ -11,4 +11,6 @@ LOCAL_MODULE:= test-waitforvsync
 
 LOCAL_MODULE_TAGS := tests
 
+LOCAL_CFLAGS := -Werror
+
 include $(BUILD_EXECUTABLE)

@@ -15,4 +15,6 @@ LOCAL_MODULE:= test-vsync-events
 
 LOCAL_MODULE_TAGS := tests
 
+LOCAL_CFLAGS := -Werror
+
 include $(BUILD_EXECUTABLE)

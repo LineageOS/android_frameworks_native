@@ -29,7 +29,7 @@
 #define FBIO_WAITFORVSYNC   _IOW('F', 0x20, __u32)
 #endif
 
-int main(int argc, char** argv) {
+int main(int /*argc*/, char** /*argv*/) {
     int fd = open("/dev/graphics/fb0", O_RDWR);
     if (fd >= 0) {
         do {
