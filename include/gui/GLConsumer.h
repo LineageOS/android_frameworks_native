@@ -23,6 +23,7 @@
 #include <gui/BufferQueueDefs.h>
 #include <gui/ConsumerBase.h>
 
+#include <ui/FenceTime.h>
 #include <ui/GraphicBuffer.h>
 
 #include <utils/String8.h>
