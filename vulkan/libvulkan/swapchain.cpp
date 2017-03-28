@@ -16,6 +16,7 @@
 
 #include <algorithm>
 
+#include <grallocusage/GrallocUsageConversion.h>
 #include <log/log.h>
 #include <ui/BufferQueueDefs.h>
 #include <sync/sync.h>
@@ -995,11 +996,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
             ALOGE("vkGetSwapchainGrallocUsage2ANDROID failed: %d", result);
             return VK_ERROR_SURFACE_LOST_KHR;
         }
-        // TODO: This is the same translation done by Gralloc1On0Adapter.
-        // Remove it once ANativeWindow has been updated to take gralloc1-style
-        // usages.
         gralloc_usage =
-            static_cast<int>(consumer_usage) | static_cast<int>(producer_usage);
+            android_convertGralloc1To0Usage(producer_usage, consumer_usage);
     } else if (dispatch.GetSwapchainGrallocUsageANDROID) {
         result = dispatch.GetSwapchainGrallocUsageANDROID(
             device, create_info->imageFormat, create_info->imageUsage,

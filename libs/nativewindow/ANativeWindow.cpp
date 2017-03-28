@@ -18,6 +18,7 @@
 
 #include <android/native_window.h>
 
+#include <grallocusage/GrallocUsageConversion.h>
 // from nativewindow/includes/system/window.h
 // (not to be confused with the compatibility-only window.h from system/core/includes)
 #include <system/window.h>
@@ -187,8 +188,7 @@ int ANativeWindow_cancelBuffer(ANativeWindow* window, ANativeWindowBuffer* buffe
 int ANativeWindow_setUsage(ANativeWindow* window, uint64_t usage0, uint64_t usage1) {
     uint64_t pUsage, cUsage;
     AHardwareBuffer_convertToGrallocUsageBits(&pUsage, &cUsage, usage0, usage1);
-    uint32_t gralloc_usage = uint32_t(pUsage | cUsage);
-    return native_window_set_usage(window, gralloc_usage);
+    return native_window_set_usage(window, android_convertGralloc1To0Usage(pUsage, cUsage));
 }
 
 int ANativeWindow_setBufferCount(ANativeWindow* window, size_t bufferCount) {
