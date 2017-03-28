@@ -53,6 +53,7 @@ cc_library {
 
     static_libs: [
         "libarect",
+        "libgrallocusage",
     ],
 
     // headers we include in our public headers
