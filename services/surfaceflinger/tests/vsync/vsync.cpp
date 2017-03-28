@@ -20,7 +20,7 @@
 
 using namespace android;
 
-int receiver(int fd, int events, void* data)
+int receiver(int /*fd*/, int /*events*/, void* data)
 {
     DisplayEventReceiver* q = (DisplayEventReceiver*)data;
 
@@ -47,7 +47,7 @@ int receiver(int fd, int events, void* data)
     return 1;
 }
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** /*argv*/)
 {
     DisplayEventReceiver myDisplayEvent;
 
