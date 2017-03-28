@@ -16,6 +16,9 @@
 
 #include <gtest/gtest.h>
 
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+
+#include <configstore/Utils.h>
 #include <utils/String8.h>
 
 #include <EGL/egl.h>
@@ -25,9 +28,30 @@
 #include <gui/IGraphicBufferConsumer.h>
 #include <gui/BufferQueue.h>
 
+#define PIXEL_FORMAT_FLOAT "EGL_EXT_pixel_format_float"
+
+bool hasEglPixelFormatFloat() {
+    EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    const char* exts = eglQueryString(dpy, EGL_EXTENSIONS);
+    size_t cropExtLen = strlen(PIXEL_FORMAT_FLOAT);
+    size_t extsLen = strlen(exts);
+    bool equal = !strcmp(PIXEL_FORMAT_FLOAT, exts);
+    bool atStart = !strncmp(PIXEL_FORMAT_FLOAT " ", exts, cropExtLen + 1);
+    bool atEnd = (cropExtLen + 1) < extsLen &&
+            !strcmp(" " PIXEL_FORMAT_FLOAT, exts + extsLen - (cropExtLen + 1));
+    bool inMiddle = strstr(exts, " " PIXEL_FORMAT_FLOAT " ");
+    return equal || atStart || atEnd || inMiddle;
+}
+
 namespace android {
 
 #define EGL_UNSIGNED_TRUE static_cast<EGLBoolean>(EGL_TRUE)
+
+// retrieve wide-color setting from configstore
+using namespace android::hardware::configstore;
+
+static bool hasWideColorDisplay =
+        getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
 
 class EGLTest : public ::testing::Test {
 protected:
@@ -169,5 +193,75 @@ TEST_F(EGLTest, EGLConfigRGBA8888First) {
     EXPECT_GE(components[3], 8);
 }
 
+TEST_F(EGLTest, EGLConfigFP16) {
+    EGLint numConfigs;
+    EGLConfig config;
+    EGLBoolean success;
 
+    if (!hasWideColorDisplay) {
+        // skip this test if device does not have wide-color display
+        return;
+    }
+
+    ASSERT_TRUE(hasEglPixelFormatFloat());
+
+    EGLint attrs[] = {EGL_SURFACE_TYPE,
+                      EGL_WINDOW_BIT,
+                      EGL_RENDERABLE_TYPE,
+                      EGL_OPENGL_ES2_BIT,
+                      EGL_RED_SIZE,
+                      16,
+                      EGL_GREEN_SIZE,
+                      16,
+                      EGL_BLUE_SIZE,
+                      16,
+                      EGL_ALPHA_SIZE,
+                      16,
+                      EGL_COLOR_COMPONENT_TYPE_EXT,
+                      EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT,
+                      EGL_NONE};
+    success = eglChooseConfig(mEglDisplay, attrs, &config, 1, &numConfigs);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(1, numConfigs);
+
+    EGLint components[4];
+
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_RED_SIZE, &components[0]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_GREEN_SIZE, &components[1]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_BLUE_SIZE, &components[2]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_ALPHA_SIZE, &components[3]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+
+    EXPECT_GE(components[0], 16);
+    EXPECT_GE(components[1], 16);
+    EXPECT_GE(components[2], 16);
+    EXPECT_GE(components[3], 16);
+
+    struct DummyConsumer : public BnConsumerListener {
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
+    };
+
+    // Create a EGLSurface
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    consumer->consumerConnect(new DummyConsumer, false);
+    sp<Surface> mSTC = new Surface(producer);
+    sp<ANativeWindow> mANW = mSTC;
+
+    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), NULL);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    ASSERT_NE(EGL_NO_SURFACE, eglSurface);
+
+    EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
+}
 }
