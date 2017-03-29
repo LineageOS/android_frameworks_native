@@ -96,6 +96,7 @@ typedef enum OMX_INDEXEXTTYPE {
     OMX_IndexConfigPriority,                        /**< reference: OMX_PARAM_U32TYPE */
     OMX_IndexConfigOperatingRate,                   /**< reference: OMX_PARAM_U32TYPE in Q16 format for video and in Hz for audio */
     OMX_IndexParamConsumerUsageBits,                /**< reference: OMX_PARAM_U32TYPE */
+    OMX_IndexConfigLatency,                         /**< reference: OMX_PARAM_U32TYPE */
     OMX_IndexExtOtherEndUnused,
 
     /* Time configurations */
