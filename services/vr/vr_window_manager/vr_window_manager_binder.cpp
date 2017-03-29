@@ -138,6 +138,11 @@ binder::Status VrWindowManagerBinder::set2DMode(int32_t mode) {
   return binder::Status::ok();
 }
 
+binder::Status VrWindowManagerBinder::setRotation(int32_t angle) {
+  app_.SetRotation(angle);
+  return binder::Status::ok();
+}
+
 status_t VrWindowManagerBinder::dump(
     int fd, const Vector<String16>& args [[gnu::unused]]) {
   String8 result;
