@@ -146,16 +146,18 @@ ViewMode CalculateVisibilityFromLayerConfig(const HwcCallback::Frame& frame,
 
 DisplayView::DisplayView(uint32_t id, int touchpad_id)
     : id_(id), touchpad_id_(touchpad_id) {
-  translate_ = Eigen::Translation3f(0, 0, -2.5f);
+  translate_ = Eigen::Translation3f(0, 0, -5.0f);
   ime_translate_ = mat4(Eigen::Translation3f(0.0f, -0.5f, 0.25f));
   ime_top_left_ = vec2(0, 0);
   ime_size_ = vec2(0, 0);
+  rotation_ = mat4::Identity();
 }
 
 DisplayView::~DisplayView() {}
 
 void DisplayView::Recenter(const mat4& initial) {
-  initial_head_matrix_ = initial;
+  initial_head_matrix_ =
+      initial * Eigen::AngleAxisf(M_PI * 0.5f, vec3::UnitZ());
 }
 
 void DisplayView::SetPrograms(ShaderProgram* program,
@@ -248,7 +250,7 @@ base::unique_fd DisplayView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame,
 bool DisplayView::IsHit(const vec3& view_location, const vec3& view_direction,
                         vec3* hit_location, vec2* hit_location_in_window_coord,
                         bool test_ime) {
-  mat4 m = initial_head_matrix_ * translate_;
+  mat4 m = GetStandardTransform();
   if (test_ime)
     m = m * ime_translate_;
   mat4 inverse = (m * scale_).inverse();
@@ -314,8 +316,7 @@ void DisplayView::DrawOverlays(const mat4& perspective, const mat4& eye_matrix,
     mat4 layer_transform =
         GetLayerTransform(texture_layer, size_.x(), size_.y());
 
-    mat4 transform =
-        initial_head_matrix_ * translate_ * scale_ * layer_transform;
+    mat4 transform = GetStandardTransform() * scale_ * layer_transform;
     DrawWithTransform(transform, *program_);
 
     glDisable(GL_BLEND);
@@ -351,14 +352,21 @@ void DisplayView::UpdateReleaseFence() {
   }
 }
 
+mat4 DisplayView::GetStandardTransform() {
+  mat4 m = initial_head_matrix_ * rotation_ * translate_;
+  if (current_frame_.visibility == ViewMode::App)
+    m *= Eigen::AngleAxisf(M_PI * -0.5f, vec3::UnitZ());
+  return m;
+}
+
 void DisplayView::DrawIme() {
   program_->Use();
   glBindTexture(GL_TEXTURE_2D, ime_texture_.texture->id());
 
   mat4 layer_transform = GetLayerTransform(ime_texture_, size_.x(), size_.y());
 
-  mat4 transform = initial_head_matrix_ * translate_ * ime_translate_ * scale_ *
-                   layer_transform;
+  mat4 transform =
+      GetStandardTransform() * ime_translate_ * scale_ * layer_transform;
 
   DrawWithTransform(transform, *program_);
 }
@@ -377,7 +385,7 @@ void DisplayView::DrawDimOverlay(const mat4& mvp, const TextureLayer& layer,
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   mat4 layer_transform = GetLayerTransform(layer, size_.x(), size_.y());
 
-  mat4 transform = initial_head_matrix_ * translate_ * scale_ * layer_transform;
+  mat4 transform = GetStandardTransform() * scale_ * layer_transform;
   DrawWithTransform(transform, *overlay_program_);
   glDisable(GL_BLEND);
 }
