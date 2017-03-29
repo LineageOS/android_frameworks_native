@@ -17,5 +17,7 @@
 cc_test {
     name: "AHardwareBufferTest",
     shared_libs: ["libnativewindow"],
-    srcs: ["AHardwareBufferTest.cpp"],
+    srcs: [
+        "AHardwareBufferTest.cpp",
+        "c_compatibility.c"],
 }
