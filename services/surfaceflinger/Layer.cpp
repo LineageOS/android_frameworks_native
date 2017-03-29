@@ -505,7 +505,7 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
     // which means using the inverse of the current transform set on the
     // SurfaceFlingerConsumer.
     uint32_t invTransform = mCurrentTransform;
-    if (mSurfaceFlingerConsumer->getTransformToDisplayInverse()) {
+    if (getTransformToDisplayInverse()) {
         /*
          * the code below applies the primary display's inverse transform to the
          * buffer
@@ -713,7 +713,7 @@ void Layer::setGeometry(
     const Transform bufferOrientation(mCurrentTransform);
     Transform transform(tr * t * bufferOrientation);
 
-    if (mSurfaceFlingerConsumer->getTransformToDisplayInverse()) {
+    if (getTransformToDisplayInverse()) {
         /*
          * the code below applies the primary display's inverse transform to the
          * buffer
@@ -725,8 +725,14 @@ void Layer::setGeometry(
             invTransform ^= NATIVE_WINDOW_TRANSFORM_FLIP_V |
                     NATIVE_WINDOW_TRANSFORM_FLIP_H;
         }
-        // and apply to the current transform
-        transform = Transform(invTransform) * transform;
+
+        /*
+         * Here we cancel out the orientation component of the WM transform.
+         * The scaling and translate components are already included in our bounds
+         * computation so it's enough to just omit it in the composition.
+         * See comment in onDraw with ref to b/36727915 for why.
+         */
+        transform = Transform(invTransform) * tr * bufferOrientation;
     }
 
     // this gives us only the "orientation" component of the transform
@@ -987,6 +993,24 @@ void Layer::draw(const sp<const DisplayDevice>& hw) const {
     onDraw(hw, Region(hw->bounds()), false);
 }
 
+static constexpr mat4 inverseOrientation(uint32_t transform) {
+    const mat4 flipH(-1,0,0,0,  0,1,0,0, 0,0,1,0, 1,0,0,1);
+    const mat4 flipV( 1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,1,0,1);
+    const mat4 rot90( 0,1,0,0, -1,0,0,0, 0,0,1,0, 1,0,0,1);
+    mat4 tr;
+
+    if (transform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
+        tr = tr * rot90;
+    }
+    if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_H) {
+        tr = tr * flipH;
+    }
+    if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_V) {
+        tr = tr * flipV;
+    }
+    return inverse(tr);
+}
+
 void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
         bool useIdentityTransform) const
 {
@@ -1041,30 +1065,29 @@ void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
         mSurfaceFlingerConsumer->setFilteringEnabled(useFiltering);
         mSurfaceFlingerConsumer->getTransformMatrix(textureMatrix);
 
-        if (mSurfaceFlingerConsumer->getTransformToDisplayInverse()) {
+        if (getTransformToDisplayInverse()) {
 
             /*
              * the code below applies the primary display's inverse transform to
              * the texture transform
              */
-
-            // create a 4x4 transform matrix from the display transform flags
-            const mat4 flipH(-1,0,0,0,  0,1,0,0, 0,0,1,0, 1,0,0,1);
-            const mat4 flipV( 1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,1,0,1);
-            const mat4 rot90( 0,1,0,0, -1,0,0,0, 0,0,1,0, 1,0,0,1);
-
-            mat4 tr;
             uint32_t transform =
                     DisplayDevice::getPrimaryDisplayOrientationTransform();
-            if (transform & NATIVE_WINDOW_TRANSFORM_ROT_90)
-                tr = tr * rot90;
-            if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_H)
-                tr = tr * flipH;
-            if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_V)
-                tr = tr * flipV;
+            mat4 tr = inverseOrientation(transform);
 
-            // calculate the inverse
-            tr = inverse(tr);
+            /**
+             * TODO(b/36727915): This is basically a hack.
+             *
+             * Ensure that regardless of the parent transformation,
+             * this buffer is always transformed from native display
+             * orientation to display orientation. For example, in the case
+             * of a camera where the buffer remains in native orientation,
+             * we want the pixels to always be upright.
+             */
+            if (getParent() != nullptr) {
+                const auto parentTransform = getParent()->getTransform();
+                tr = tr * inverseOrientation(parentTransform.getOrientation());
+            }
 
             // and finally apply it to the original texture matrix
             const mat4 texTransform(mat4(static_cast<const float*>(textureMatrix)) * tr);

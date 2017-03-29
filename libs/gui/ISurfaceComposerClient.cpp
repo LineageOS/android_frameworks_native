@@ -68,14 +68,6 @@ public:
                 &ISurfaceComposerClient::getLayerFrameStats)>(Tag::GetLayerFrameStats, handle,
                                                               outStats);
     }
-
-    status_t getTransformToDisplayInverse(const sp<IBinder>& handle,
-                                          bool* outTransformToDisplayInverse) const override {
-        return callRemote<decltype(
-                &ISurfaceComposerClient::
-                        getTransformToDisplayInverse)>(Tag::GetTransformToDisplayInverse, handle,
-                                                       outTransformToDisplayInverse);
-    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -104,9 +96,6 @@ status_t BnSurfaceComposerClient::onTransact(uint32_t code, const Parcel& data, 
         }
         case Tag::GetLayerFrameStats: {
             return callLocal(data, reply, &ISurfaceComposerClient::getLayerFrameStats);
-        }
-        case Tag::GetTransformToDisplayInverse: {
-            return callLocal(data, reply, &ISurfaceComposerClient::getTransformToDisplayInverse);
         }
         case Tag::Last:
             // Should not be possible because of the check at the beginning of the method
