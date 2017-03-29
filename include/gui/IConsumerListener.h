@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_ICONSUMERLISTENER_H
-#define ANDROID_GUI_ICONSUMERLISTENER_H
-
-#include <gui/FrameTimestamps.h>
+#pragma once
 
 #include <binder/IInterface.h>
+#include <binder/SafeInterface.h>
 
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
-#include <stdint.h>
-#include <sys/types.h>
+#include <cstdint>
 
 namespace android {
 
 class BufferItem;
+class FrameEventHistoryDelta;
+struct NewFrameEventsEntry;
 
 // ConsumerListener is the interface through which the BufferQueue notifies the consumer of events
 // that the consumer may wish to react to. Because the consumer will generally have a mutex that is
@@ -76,6 +75,8 @@ public:
 
     // Notifies the consumer of any new producer-side timestamps and returns the combined frame
     // history that hasn't already been retrieved.
+    //
+    // WARNING: This method can only be called when the BufferQueue is in the consumer's process.
     virtual void addAndGetFrameTimestamps(const NewFrameEventsEntry* /*newTimestamps*/,
                                           FrameEventHistoryDelta* /*outDelta*/) {}
 };
@@ -85,12 +86,12 @@ public:
     DECLARE_META_INTERFACE(ConsumerListener)
 };
 
-class BnConsumerListener : public BnInterface<IConsumerListener> {
+class BnConsumerListener : public SafeBnInterface<IConsumerListener> {
 public:
-    virtual status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
-                                uint32_t flags = 0);
+    BnConsumerListener() : SafeBnInterface<IConsumerListener>("BnConsumerListener") {}
+
+    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                        uint32_t flags = 0) override;
 };
 
 } // namespace android
-
-#endif // ANDROID_GUI_ICONSUMERLISTENER_H
