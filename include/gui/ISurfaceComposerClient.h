@@ -34,7 +34,6 @@ public:
         DestroySurface,
         ClearLayerFrameStats,
         GetLayerFrameStats,
-        GetTransformToDisplayInverse,
         Last,
     };
 
@@ -76,9 +75,6 @@ public:
      * Requires ACCESS_SURFACE_FLINGER permission
      */
     virtual status_t getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const = 0;
-
-    virtual status_t getTransformToDisplayInverse(const sp<IBinder>& handle,
-                                                  bool* outTransformToDisplayInverse) const = 0;
 };
 
 class BnSurfaceComposerClient : public SafeBnInterface<ISurfaceComposerClient> {
