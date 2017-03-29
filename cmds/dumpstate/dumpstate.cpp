@@ -112,6 +112,7 @@ static const std::string ZIP_ROOT_DIR = "FS";
 
 // Must be hardcoded because dumpstate HAL implementation need SELinux access to it
 static const std::string kDumpstateBoardPath = "/bugreports/dumpstate_board.txt";
+static const std::string kLsHalDebugPath = "/bugreports/dumpstate_lshal.txt";
 
 static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
 static constexpr char PROPERTY_LAST_ID[] = "dumpstate.last_id";
@@ -962,7 +963,19 @@ static void dumpstate() {
                {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy"});
     RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT);
 
-    RunCommand("HARDWARE HALS", {"lshal"}, CommandOptions::AS_ROOT);
+    if (ds.IsZipping()) {
+        RunCommand(
+                "HARDWARE HALS",
+                {"lshal", std::string("--debug=") + kLsHalDebugPath},
+                CommandOptions::AS_ROOT);
+
+        ds.AddZipEntry("lshal-debug.txt", kLsHalDebugPath);
+
+        unlink(kLsHalDebugPath.c_str());
+    } else {
+        RunCommand(
+                "HARDWARE HALS", {"lshal", "--debug"}, CommandOptions::AS_ROOT);
+    }
 
     RunCommand("PRINTENV", {"printenv"});
     RunCommand("NETSTAT", {"netstat", "-nW"});
