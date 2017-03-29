@@ -23,8 +23,8 @@ size_t dvrWriteBufferQueueGetCapacity(DvrWriteBufferQueue* write_queue) {
   return write_queue->producer_queue_->capacity();
 }
 
-void* dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
-                                            JNIEnv* env) {
+jobject dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
+                                              JNIEnv* env) {
   CHECK_PARAM(env);
   CHECK_PARAM(write_queue);
 

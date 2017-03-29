@@ -85,7 +85,7 @@ typedef int (*DvrReadBufferReleaseAsyncPtr)(DvrReadBuffer* client);
 typedef void (*DvrWriteBufferQueueDestroyPtr)(DvrWriteBufferQueue* write_queue);
 typedef size_t (*DvrWriteBufferQueueGetCapacityPtr)(
     DvrWriteBufferQueue* write_queue);
-typedef void* (*DvrWriteBufferQueueGetExternalSurfacePtr)(
+typedef jobject (*DvrWriteBufferQueueGetExternalSurfacePtr)(
     DvrWriteBufferQueue* write_queue, JNIEnv* env);
 typedef int (*DvrWriteBufferQueueCreateReadQueuePtr)(
     DvrWriteBufferQueue* write_queue, DvrReadBufferQueue** out_read_queue);
