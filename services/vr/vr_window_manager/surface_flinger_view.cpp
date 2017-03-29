@@ -59,9 +59,8 @@ bool SurfaceFlingerView::Initialize(HwcCallback::Client *client) {
     ALOGI("Setting display metrics to default : width=%d height=%d", metrics.display_native_height, metrics.display_native_width);
   }
 
-  // TODO(alexst): Refactor ShellView to account for orientation and change this back.
-  width_ = metrics.display_native_height;
-  height_ = metrics.display_native_width;
+  width_ = metrics.display_native_width;
+  height_ = metrics.display_native_height;
   return true;
 }
 
