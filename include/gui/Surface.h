@@ -257,9 +257,24 @@ public:
     virtual int query(int what, int* value) const;
 
     virtual int connect(int api, const sp<IProducerListener>& listener);
+
+    // When reportBufferRemoval is true, clients must call getAndFlushRemovedBuffers to fetch
+    // GraphicBuffers removed from this surface after a dequeueBuffer, detachNextBuffer or
+    // attachBuffer call. This allows clients with their own buffer caches to free up buffers no
+    // longer in use by this surface.
+    virtual int connect(
+            int api, const sp<IProducerListener>& listener,
+            bool reportBufferRemoval);
     virtual int detachNextBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence);
     virtual int attachBuffer(ANativeWindowBuffer*);
+
+    // When client connects to Surface with reportBufferRemoval set to true, any buffers removed
+    // from this Surface will be collected and returned here. Once this method returns, these
+    // buffers will no longer be referenced by this Surface unless they are attached to this
+    // Surface later. The list of removed buffers will only be stored until the next dequeueBuffer,
+    // detachNextBuffer, or attachBuffer call.
+    status_t getAndFlushRemovedBuffers(std::vector<sp<GraphicBuffer>>* out);
 
 protected:
     enum { NUM_BUFFER_SLOTS = BufferQueueDefs::NUM_BUFFER_SLOTS };
@@ -414,6 +429,9 @@ protected:
     // A cached copy of the FrameEventHistory maintained by the consumer.
     bool mEnableFrameTimestamps = false;
     std::unique_ptr<ProducerFrameEventHistory> mFrameEventHistory;
+
+    bool mReportRemovedBuffers = false;
+    std::vector<sp<GraphicBuffer>> mRemovedBuffers;
 };
 
 } // namespace android
