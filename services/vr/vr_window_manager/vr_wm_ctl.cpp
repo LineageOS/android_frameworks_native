@@ -41,6 +41,8 @@ int main(int argc, char* argv[]) {
     exit(report(vrwm->setDebugMode(atoi(argv[2]))));
   } else if ((argc == 3) && (strcmp(argv[1], "2d") == 0)) {
     exit(report(vrwm->set2DMode(atoi(argv[2]))));
+  } else if ((argc == 3) && (strcmp(argv[1], "rotate") == 0)) {
+    exit(report(vrwm->setRotation(atoi(argv[2]))));
   } else {
     usage();
     exit(2);

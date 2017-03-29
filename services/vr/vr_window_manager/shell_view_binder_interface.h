@@ -13,6 +13,7 @@ class ShellViewBinderInterface {
   virtual void VrMode(bool mode) = 0;
   virtual void dumpInternal(String8& result) = 0;
   virtual void Set2DMode(bool mode) = 0;
+  virtual void SetRotation(int angle) = 0;
 };
 
 }  // namespace dvr

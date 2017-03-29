@@ -47,6 +47,8 @@ class DisplayView {
   void set_2dmode(bool mode) { use_2dmode_ = mode; }
   void set_always_2d(bool mode) { always_2d_ = mode; }
 
+  void set_rotation(const mat4& rotation) { rotation_ = rotation; }
+
  private:
   bool IsHit(const vec3& view_location, const vec3& view_direction,
              vec3* hit_location, vec2* hit_location_in_window_coord,
@@ -60,6 +62,9 @@ class DisplayView {
                       const vec2& top_left, const vec2& bottom_right);
   void DrawWithTransform(const mat4& transform, const ShaderProgram& program);
 
+  // This is the rotated, translated but unscaled transform to apply everywhere.
+  mat4 GetStandardTransform();
+
   uint32_t id_;
   int touchpad_id_;
 
@@ -72,6 +77,7 @@ class DisplayView {
   mat4 scale_;
   mat4 translate_;
   mat4 ime_translate_;
+  mat4 rotation_;
   vec2 size_;
 
   std::vector<TextureLayer> textures_;
