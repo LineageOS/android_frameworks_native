@@ -384,6 +384,9 @@ void ShellView::DrawReticle(const mat4& perspective, const mat4& eye_matrix,
           case 0x3:
             OnTouchpadButton(false, AMOTION_EVENT_BUTTON_BACK);
             break;
+          case 0x4:
+            should_recenter_ = true;
+            break;
           case 0x9:
             OnClick(true);
             break;
