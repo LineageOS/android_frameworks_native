@@ -39,18 +39,19 @@
 
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <hidl/ServiceManagement.h>
-#include <cutils/properties.h>
 
 #include <utils/String8.h>
 #include <utils/Timers.h>
 #include <utils/Tokenizer.h>
 #include <utils/Trace.h>
 #include <android-base/file.h>
+#include <android-base/macros.h>
+#include <android-base/properties.h>
+#include <android-base/stringprintf.h>
 
 using namespace android;
 
 using std::string;
-#define NELEM(x) ((int) (sizeof(x) / sizeof((x)[0])))
 
 #define MAX_SYS_FILES 10
 #define MAX_PACKAGES 16
@@ -204,7 +205,7 @@ static const char* g_outputFile = nullptr;
 
 /* Global state */
 static bool g_traceAborted = false;
-static bool g_categoryEnables[NELEM(k_categories)] = {};
+static bool g_categoryEnables[arraysize(k_categories)] = {};
 static std::string g_traceFolder;
 
 /* Sys file paths */
@@ -356,9 +357,7 @@ static bool setKernelOptionEnable(const char* filename, bool enable)
 static bool isCategorySupported(const TracingCategory& category)
 {
     if (strcmp(category.name, k_coreServiceCategory) == 0) {
-        char value[PROPERTY_VALUE_MAX];
-        property_get(k_coreServicesProp, value, "");
-        return strlen(value) != 0;
+        return !android::base::GetProperty(k_coreServicesProp, "").empty();
     }
 
     bool ok = category.tags != 0;
@@ -569,9 +568,8 @@ static void pokeHalServices()
 // processes to pick up the new value.
 static bool setTagsProperty(uint64_t tags)
 {
-    char buf[PROPERTY_VALUE_MAX];
-    snprintf(buf, sizeof(buf), "%#" PRIx64, tags);
-    if (property_set(k_traceTagsProperty, buf) < 0) {
+    std::string value = android::base::StringPrintf("%#" PRIx64, tags);
+    if (!android::base::SetProperty(k_traceTagsProperty, value)) {
         fprintf(stderr, "error setting trace tags system property\n");
         return false;
     }
@@ -580,14 +578,13 @@ static bool setTagsProperty(uint64_t tags)
 
 static void clearAppProperties()
 {
-    char buf[PROPERTY_KEY_MAX];
     for (int i = 0; i < MAX_PACKAGES; i++) {
-        snprintf(buf, sizeof(buf), k_traceAppsPropertyTemplate, i);
-        if (property_set(buf, "") < 0) {
-            fprintf(stderr, "failed to clear system property: %s\n", buf);
+        std::string key = android::base::StringPrintf(k_traceAppsPropertyTemplate, i);
+        if (!android::base::SetProperty(key, "")) {
+            fprintf(stderr, "failed to clear system property: %s\n", key.c_str());
         }
     }
-    if (property_set(k_traceAppsNumberProperty, "") < 0) {
+    if (!android::base::SetProperty(k_traceAppsNumberProperty, "")) {
         fprintf(stderr, "failed to clear system property: %s",
               k_traceAppsNumberProperty);
     }
@@ -597,7 +594,6 @@ static void clearAppProperties()
 // application-level tracing.
 static bool setAppCmdlineProperty(char* cmdline)
 {
-    char buf[PROPERTY_KEY_MAX];
     int i = 0;
     char* start = cmdline;
     while (start != NULL) {
@@ -611,9 +607,9 @@ static bool setAppCmdlineProperty(char* cmdline)
             *end = '\0';
             end++;
         }
-        snprintf(buf, sizeof(buf), k_traceAppsPropertyTemplate, i);
-        if (property_set(buf, start) < 0) {
-            fprintf(stderr, "error setting trace app %d property to %s\n", i, buf);
+        std::string key = android::base::StringPrintf(k_traceAppsPropertyTemplate, i);
+        if (!android::base::SetProperty(key, start)) {
+            fprintf(stderr, "error setting trace app %d property to %s\n", i, key.c_str());
             clearAppProperties();
             return false;
         }
@@ -621,9 +617,9 @@ static bool setAppCmdlineProperty(char* cmdline)
         i++;
     }
 
-    snprintf(buf, sizeof(buf), "%d", i);
-    if (property_set(k_traceAppsNumberProperty, buf) < 0) {
-        fprintf(stderr, "error setting trace app number property to %s\n", buf);
+    std::string value = android::base::StringPrintf("%d", i);
+    if (!android::base::SetProperty(k_traceAppsNumberProperty, value)) {
+        fprintf(stderr, "error setting trace app number property to %s\n", value.c_str());
         clearAppProperties();
         return false;
     }
@@ -633,7 +629,7 @@ static bool setAppCmdlineProperty(char* cmdline)
 // Disable all /sys/ enable files.
 static bool disableKernelTraceEvents() {
     bool ok = true;
-    for (int i = 0; i < NELEM(k_categories); i++) {
+    for (size_t i = 0; i < arraysize(k_categories); i++) {
         const TracingCategory &c = k_categories[i];
         for (int j = 0; j < MAX_SYS_FILES; j++) {
             const char* path = c.sysfiles[j].path;
@@ -721,7 +717,7 @@ static bool setKernelTraceFuncs(const char* funcs)
 
 static bool setCategoryEnable(const char* name, bool enable)
 {
-    for (int i = 0; i < NELEM(k_categories); i++) {
+    for (size_t i = 0; i < arraysize(k_categories); i++) {
         const TracingCategory& c = k_categories[i];
         if (strcmp(name, c.name) == 0) {
             if (isCategorySupported(c)) {
@@ -781,7 +777,7 @@ static bool setUpTrace()
 
     // Set up the tags property.
     uint64_t tags = 0;
-    for (int i = 0; i < NELEM(k_categories); i++) {
+    for (size_t i = 0; i < arraysize(k_categories); i++) {
         if (g_categoryEnables[i]) {
             const TracingCategory &c = k_categories[i];
             tags |= c.tags;
@@ -790,7 +786,7 @@ static bool setUpTrace()
     ok &= setTagsProperty(tags);
 
     bool coreServicesTagEnabled = false;
-    for (int i = 0; i < NELEM(k_categories); i++) {
+    for (size_t i = 0; i < arraysize(k_categories); i++) {
         if (strcmp(k_categories[i].name, k_coreServiceCategory) == 0) {
             coreServicesTagEnabled = g_categoryEnables[i];
         }
@@ -798,12 +794,10 @@ static bool setUpTrace()
 
     std::string packageList(g_debugAppCmdLine);
     if (coreServicesTagEnabled) {
-        char value[PROPERTY_VALUE_MAX];
-        property_get(k_coreServicesProp, value, "");
         if (!packageList.empty()) {
             packageList += ",";
         }
-        packageList += value;
+        packageList += android::base::GetProperty(k_coreServicesProp, "");
     }
     ok &= setAppCmdlineProperty(&packageList[0]);
     ok &= pokeBinderServices();
@@ -814,7 +808,7 @@ static bool setUpTrace()
     ok &= disableKernelTraceEvents();
 
     // Enable all the sysfs enables that are in an enabled category.
-    for (int i = 0; i < NELEM(k_categories); i++) {
+    for (size_t i = 0; i < arraysize(k_categories); i++) {
         if (g_categoryEnables[i]) {
             const TracingCategory &c = k_categories[i];
             for (int j = 0; j < MAX_SYS_FILES; j++) {
@@ -1012,7 +1006,7 @@ static void registerSigHandler()
 
 static void listSupportedCategories()
 {
-    for (int i = 0; i < NELEM(k_categories); i++) {
+    for (size_t i = 0; i < arraysize(k_categories); i++) {
         const TracingCategory& c = k_categories[i];
         if (isCategorySupported(c)) {
             printf("  %10s - %s\n", c.name, c.longname);
