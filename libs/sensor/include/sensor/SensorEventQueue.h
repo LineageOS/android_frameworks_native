@@ -83,7 +83,7 @@ public:
     status_t disableSensor(Sensor const* sensor) const;
     status_t setEventRate(Sensor const* sensor, nsecs_t ns) const;
 
-    // these are here only to support SensorManager.java
+    // these are here only to support SensorManager.java and HIDL Frameworks SensorManager.
     status_t enableSensor(int32_t handle, int32_t samplingPeriodUs, int64_t maxBatchReportLatencyUs,
                           int reservedFlags) const;
     status_t disableSensor(int32_t handle) const;

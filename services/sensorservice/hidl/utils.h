@@ -30,6 +30,8 @@ namespace implementation {
 ::android::hardware::sensors::V1_0::SensorInfo convertSensor(const ::android::Sensor &src);
 Result convertResult(status_t status);
 
+::android::hardware::sensors::V1_0::Event convertEvent(const ::ASensorEvent &event);
+
 }  // namespace implementation
 }  // namespace V1_0
 }  // namespace sensorservice
