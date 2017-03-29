@@ -22,8 +22,9 @@ typedef struct DvrPose DvrPose;
 typedef struct dvr_vsync_client dvr_vsync_client;
 typedef struct DvrVirtualTouchpad DvrVirtualTouchpad;
 
-typedef DvrDisplayManagerClient* (*DisplayManagerClientCreatePtr)(void);
-typedef void (*DisplayManagerClientDestroyPtr)(DvrDisplayManagerClient* client);
+typedef DvrDisplayManagerClient* (*DvrDisplayManagerClientCreatePtr)(void);
+typedef void (*DvrDisplayManagerClientDestroyPtr)(
+    DvrDisplayManagerClient* client);
 
 typedef struct DvrWriteBuffer DvrWriteBuffer;
 typedef struct DvrReadBuffer DvrReadBuffer;
@@ -33,26 +34,26 @@ typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
 typedef struct DvrReadBufferQueue DvrReadBufferQueue;
 
 // display_manager_client.h
-typedef int (*DisplayManagerClientGetSurfaceListPtr)(
+typedef int (*DvrDisplayManagerClientGetSurfaceListPtr)(
     DvrDisplayManagerClient* client,
     DvrDisplayManagerClientSurfaceList** surface_list);
-typedef void (*DisplayManagerClientSurfaceListDestroyPtr)(
+typedef void (*DvrDisplayManagerClientSurfaceListDestroyPtr)(
     DvrDisplayManagerClientSurfaceList* surface_list);
-typedef DvrWriteBuffer* (*DisplayManagerSetupPoseBufferPtr)(
+typedef DvrWriteBuffer* (*DvrDisplayManagerSetupPoseBufferPtr)(
     DvrDisplayManagerClient* client, size_t extended_region_size,
     uint64_t usage0, uint64_t usage1);
-typedef size_t (*DisplayManagerClientSurfaceListGetSizePtr)(
+typedef size_t (*DvrDisplayManagerClientSurfaceListGetSizePtr)(
     DvrDisplayManagerClientSurfaceList* surface_list);
-typedef int (*DisplayManagerClientSurfaceListGetSurfaceIdPtr)(
+typedef int (*DvrDisplayManagerClientSurfaceListGetSurfaceIdPtr)(
     DvrDisplayManagerClientSurfaceList* surface_list, size_t index);
-typedef int (*DisplayManagerClientGetSurfaceBufferListPtr)(
+typedef int (*DvrDisplayManagerClientGetSurfaceBufferListPtr)(
     DvrDisplayManagerClient* client, int surface_id,
     DvrDisplayManagerClientSurfaceBuffers** surface_buffers);
-typedef void (*DisplayManagerClientSurfaceBufferListDestroyPtr)(
+typedef void (*DvrDisplayManagerClientSurfaceBufferListDestroyPtr)(
     DvrDisplayManagerClientSurfaceBuffers* surface_buffers);
-typedef size_t (*DisplayManagerClientSurfaceBufferListGetSizePtr)(
+typedef size_t (*DvrDisplayManagerClientSurfaceBufferListGetSizePtr)(
     DvrDisplayManagerClientSurfaceBuffers* surface_buffers);
-typedef int (*DisplayManagerClientSurfaceBufferListGetFdPtr)(
+typedef int (*DvrDisplayManagerClientSurfaceBufferListGetFdPtr)(
     DvrDisplayManagerClientSurfaceBuffers* surface_buffers, size_t index);
 
 // dvr_buffer.h
@@ -108,53 +109,54 @@ typedef int (*DvrReadBufferQueueDequeuePtr)(DvrReadBufferQueue* read_queue,
 typedef int (*DvrGetPoseBufferPtr)(DvrReadBuffer** pose_buffer);
 
 // vsync_client_api.h
-typedef dvr_vsync_client* (*VSyncClientCreatePtr)();
-typedef void (*VSyncClientDestroyPtr)(dvr_vsync_client* client);
-typedef int (*VSyncClientGetSchedInfoPtr)(dvr_vsync_client* client,
-                                          int64_t* vsync_period_ns,
-                                          int64_t* next_timestamp_ns,
-                                          uint32_t* next_vsync_count);
+typedef dvr_vsync_client* (*DvrVSyncClientCreatePtr)();
+typedef void (*DvrVSyncClientDestroyPtr)(dvr_vsync_client* client);
+typedef int (*DvrVSyncClientGetSchedInfoPtr)(dvr_vsync_client* client,
+                                             int64_t* vsync_period_ns,
+                                             int64_t* next_timestamp_ns,
+                                             uint32_t* next_vsync_count);
 
 // pose_client.h
-typedef DvrPose* (*PoseClientCreatePtr)(void);
-typedef void (*PoseClientDestroyPtr)(DvrPose* client);
-typedef int (*PoseGetPtr)(DvrPose* client, uint32_t vsync_count,
-                          DvrPoseAsync* out_pose);
-typedef uint32_t (*PoseGetVsyncCountPtr)(DvrPose* client);
-typedef int (*PoseGetControllerPtr)(DvrPose* client, int32_t controller_id,
-                                    uint32_t vsync_count,
-                                    DvrPoseAsync* out_pose);
+typedef DvrPose* (*DvrPoseClientCreatePtr)(void);
+typedef void (*DvrPoseClientDestroyPtr)(DvrPose* client);
+typedef int (*DvrPoseGetPtr)(DvrPose* client, uint32_t vsync_count,
+                             DvrPoseAsync* out_pose);
+typedef uint32_t (*DvrPoseGetVsyncCountPtr)(DvrPose* client);
+typedef int (*DvrPoseGetControllerPtr)(DvrPose* client, int32_t controller_id,
+                                       uint32_t vsync_count,
+                                       DvrPoseAsync* out_pose);
 
 // virtual_touchpad_client.h
-typedef DvrVirtualTouchpad* (*VirtualTouchpadCreatePtr)(void);
-typedef void (*VirtualTouchpadDestroyPtr)(DvrVirtualTouchpad* client);
-typedef int (*VirtualTouchpadAttachPtr)(DvrVirtualTouchpad* client);
-typedef int (*VirtualTouchpadDetachPtr)(DvrVirtualTouchpad* client);
-typedef int (*VirtualTouchpadTouchPtr)(DvrVirtualTouchpad* client, int touchpad,
-                                       float x, float y, float pressure);
-typedef int (*VirtualTouchpadButtonStatePtr)(DvrVirtualTouchpad* client,
-                                             int touchpad, int buttons);
+typedef DvrVirtualTouchpad* (*DvrVirtualTouchpadCreatePtr)(void);
+typedef void (*DvrVirtualTouchpadDestroyPtr)(DvrVirtualTouchpad* client);
+typedef int (*DvrVirtualTouchpadAttachPtr)(DvrVirtualTouchpad* client);
+typedef int (*DvrVirtualTouchpadDetachPtr)(DvrVirtualTouchpad* client);
+typedef int (*DvrVirtualTouchpadTouchPtr)(DvrVirtualTouchpad* client,
+                                          int touchpad, float x, float y,
+                                          float pressure);
+typedef int (*DvrVirtualTouchpadButtonStatePtr)(DvrVirtualTouchpad* client,
+                                                int touchpad, int buttons);
 
 struct DvrApi_v1 {
   // Display manager client
-  DisplayManagerClientCreatePtr display_manager_client_create_;
-  DisplayManagerClientDestroyPtr display_manager_client_destroy_;
-  DisplayManagerClientGetSurfaceListPtr
+  DvrDisplayManagerClientCreatePtr display_manager_client_create_;
+  DvrDisplayManagerClientDestroyPtr display_manager_client_destroy_;
+  DvrDisplayManagerClientGetSurfaceListPtr
       display_manager_client_get_surface_list_;
-  DisplayManagerClientSurfaceListDestroyPtr
+  DvrDisplayManagerClientSurfaceListDestroyPtr
       display_manager_client_surface_list_destroy_;
-  DisplayManagerSetupPoseBufferPtr display_manager_setup_pose_buffer_;
-  DisplayManagerClientSurfaceListGetSizePtr
+  DvrDisplayManagerSetupPoseBufferPtr display_manager_setup_pose_buffer_;
+  DvrDisplayManagerClientSurfaceListGetSizePtr
       display_manager_client_surface_list_get_size_;
-  DisplayManagerClientSurfaceListGetSurfaceIdPtr
+  DvrDisplayManagerClientSurfaceListGetSurfaceIdPtr
       display_manager_client_surface_list_get_surface_id_;
-  DisplayManagerClientGetSurfaceBufferListPtr
+  DvrDisplayManagerClientGetSurfaceBufferListPtr
       display_manager_client_get_surface_buffer_list_;
-  DisplayManagerClientSurfaceBufferListDestroyPtr
+  DvrDisplayManagerClientSurfaceBufferListDestroyPtr
       display_manager_client_surface_buffer_list_destroy_;
-  DisplayManagerClientSurfaceBufferListGetSizePtr
+  DvrDisplayManagerClientSurfaceBufferListGetSizePtr
       display_manager_client_surface_buffer_list_get_size_;
-  DisplayManagerClientSurfaceBufferListGetFdPtr
+  DvrDisplayManagerClientSurfaceBufferListGetFdPtr
       display_manager_client_surface_buffer_list_get_fd_;
 
   // Write buffer
@@ -188,27 +190,27 @@ struct DvrApi_v1 {
   DvrReadBufferQueueDequeuePtr read_buffer_queue_dequeue;
 
   // V-Sync client
-  VSyncClientCreatePtr vsync_client_create_;
-  VSyncClientDestroyPtr vsync_client_destroy_;
-  VSyncClientGetSchedInfoPtr vsync_client_get_sched_info_;
+  DvrVSyncClientCreatePtr vsync_client_create_;
+  DvrVSyncClientDestroyPtr vsync_client_destroy_;
+  DvrVSyncClientGetSchedInfoPtr vsync_client_get_sched_info_;
 
   // Display surface
   DvrGetPoseBufferPtr get_pose_buffer_;
 
   // Pose client
-  PoseClientCreatePtr pose_client_create_;
-  PoseClientDestroyPtr pose_client_destroy_;
-  PoseGetPtr pose_get_;
-  PoseGetVsyncCountPtr pose_get_vsync_count_;
-  PoseGetControllerPtr pose_get_controller_;
+  DvrPoseClientCreatePtr pose_client_create_;
+  DvrPoseClientDestroyPtr pose_client_destroy_;
+  DvrPoseGetPtr pose_get_;
+  DvrPoseGetVsyncCountPtr pose_get_vsync_count_;
+  DvrPoseGetControllerPtr pose_get_controller_;
 
   // Virtual touchpad client
-  VirtualTouchpadCreatePtr virtual_touchpad_create_;
-  VirtualTouchpadDestroyPtr virtual_touchpad_destroy_;
-  VirtualTouchpadAttachPtr virtual_touchpad_attach_;
-  VirtualTouchpadDetachPtr virtual_touchpad_detach_;
-  VirtualTouchpadTouchPtr virtual_touchpad_touch_;
-  VirtualTouchpadButtonStatePtr virtual_touchpad_button_state_;
+  DvrVirtualTouchpadCreatePtr virtual_touchpad_create_;
+  DvrVirtualTouchpadDestroyPtr virtual_touchpad_destroy_;
+  DvrVirtualTouchpadAttachPtr virtual_touchpad_attach_;
+  DvrVirtualTouchpadDetachPtr virtual_touchpad_detach_;
+  DvrVirtualTouchpadTouchPtr virtual_touchpad_touch_;
+  DvrVirtualTouchpadButtonStatePtr virtual_touchpad_button_state_;
 };
 
 int dvrGetApi(void* api, size_t struct_size, int version);
