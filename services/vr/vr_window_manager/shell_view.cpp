@@ -205,6 +205,12 @@ void ShellView::Set2DMode(bool mode) {
     displays_[0]->set_2dmode(mode);
 }
 
+void ShellView::SetRotation(int angle) {
+  mat4 m(Eigen::AngleAxisf(M_PI * -0.5f * angle, vec3::UnitZ()));
+  for (auto& d: displays_)
+    d->set_rotation(m);
+}
+
 void ShellView::OnDrawFrame() {
   bool visible = false;
 
@@ -323,16 +329,16 @@ void ShellView::DrawEye(EyeType eye, const mat4& perspective,
 
   size_ = vec2(surface_flinger_view_->width(), surface_flinger_view_->height());
 
-  // TODO(alexst): Replicate controller rendering from VR Home.
-  // Current approach in the function below is a quick visualization.
-  DrawController(perspective, eye_matrix, head_matrix);
-
   for (auto& display : displays_) {
     if (display->visible()) {
       display->DrawEye(eye, perspective, eye_matrix, head_matrix, size_,
                        fade_value_);
     }
   }
+
+  // TODO(alexst): Replicate controller rendering from VR Home.
+  // Current approach in the function below is a quick visualization.
+  DrawController(perspective, eye_matrix, head_matrix);
 
   DrawReticle(perspective, eye_matrix, head_matrix);
 }
@@ -476,12 +482,14 @@ void ShellView::Touch() {
 
   const vec2& hit_location = active_display_->hit_location();
 
+  float x = hit_location.x() / size_.x();
+  float y = hit_location.y() / size_.y();
+
   // Device is portrait, but in landscape when in VR.
   // Rotate touch input appropriately.
   const android::status_t status = dvrVirtualTouchpadTouch(
       virtual_touchpad_.get(), active_display_->touchpad_id(),
-      1.0f - hit_location.y() / size_.y(), hit_location.x() / size_.x(),
-      is_touching_ ? 1.0f : 0.0f);
+      x, y, is_touching_ ? 1.0f : 0.0f);
   if (status != OK) {
     ALOGE("touch failed: %d", status);
   }

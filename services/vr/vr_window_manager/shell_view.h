@@ -34,6 +34,7 @@ class ShellView : public Application,
   void VrMode(bool mode) override;
   void dumpInternal(String8& result) override;
   void Set2DMode(bool mode) override;
+  void SetRotation(int angle) override;
 
 
  protected:

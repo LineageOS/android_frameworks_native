@@ -60,6 +60,7 @@ class VrWindowManagerBinder : public BnVrWindowManager,
   ::android::binder::Status exitVrMode() override;
   ::android::binder::Status setDebugMode(int32_t mode) override;
   ::android::binder::Status set2DMode(int32_t mode) override;
+  ::android::binder::Status setRotation(int32_t angle) override;
 
   // Implements BBinder::dump().
   status_t dump(int fd, const Vector<String16>& args) override;
