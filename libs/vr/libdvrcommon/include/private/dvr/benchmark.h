@@ -19,7 +19,7 @@
 // ... code to benchmark ...
 // Btrace("End execution");
 //
-// Use compute_benchmarks.py (currently in dreamos/system/core/applications),
+// Use compute_benchmarks.py
 // with the trace path "Start execution,End execution",
 // to report the elapsed time between the two calls.
 //
