@@ -17,8 +17,8 @@ size_t dvrWriteBufferQueueGetCapacity(DvrWriteBufferQueue* write_queue);
 
 // Returns ANativeWindow in the form of jobject. Can be casted to ANativeWindow
 // using ANativeWindow_fromSurface NDK API.
-void* dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
-                                            JNIEnv* env);
+jobject dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
+                                              JNIEnv* env);
 
 int dvrWriteBufferQueueCreateReadQueue(DvrWriteBufferQueue* write_queue,
                                        DvrReadBufferQueue** out_read_queue);
