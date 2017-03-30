@@ -104,6 +104,8 @@ TEST_F(VrComposerTest, TestWithOneLayer) {
   ComposerView::Frame frame;
   frame.display_id = 1;
   frame.removed = false;
+  frame.display_width = 600;
+  frame.display_height = 400;
   frame.layers.push_back(ComposerView::ComposerLayer{
     .id = 1,
     .buffer = CreateBuffer(),
@@ -120,6 +122,8 @@ TEST_F(VrComposerTest, TestWithOneLayer) {
 
   ComposerView::Frame received_frame = callback->last_frame();
   ASSERT_EQ(frame.display_id, received_frame.display_id);
+  ASSERT_EQ(frame.display_width, received_frame.display_width);
+  ASSERT_EQ(frame.display_height, received_frame.display_height);
   ASSERT_EQ(frame.removed, received_frame.removed);
   ASSERT_EQ(1u, received_frame.layers.size());
   ASSERT_EQ(frame.layers[0].id, received_frame.layers[0].id);

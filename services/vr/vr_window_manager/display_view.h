@@ -29,7 +29,7 @@ class DisplayView {
 
   void OnDrawFrame(SurfaceFlingerView* surface_flinger_view, bool debug_mode);
   void DrawEye(EyeType eye, const mat4& perspective, const mat4& eye_matrix,
-               const mat4& head_matrix, const vec2& size, float fade_value);
+               const mat4& head_matrix, float fade_value);
 
   void Recenter(const mat4& initial);
 
@@ -43,6 +43,7 @@ class DisplayView {
   const vec2& hit_location() const { return hit_location_in_window_coord_; }
   uint32_t id() const { return id_; }
   int touchpad_id() const { return touchpad_id_; }
+  vec2 size() const { return size_; }
 
   void set_2dmode(bool mode) { use_2dmode_ = mode; }
   void set_always_2d(bool mode) { always_2d_ = mode; }

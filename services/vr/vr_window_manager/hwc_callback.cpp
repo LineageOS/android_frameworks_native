@@ -56,12 +56,18 @@ base::unique_fd HwcCallback::OnNewFrame(const ComposerView::Frame& display_frame
   }
 
   return client_->OnFrame(std::make_unique<Frame>(
-      std::move(hwc_frame), display_frame.display_id, display_frame.removed));
+      std::move(hwc_frame), display_frame.display_id, display_frame.removed,
+      display_frame.display_width, display_frame.display_height));
 }
 
 HwcCallback::Frame::Frame(std::vector<HwcLayer>&& layers, uint32_t display_id,
-                          bool removed)
-    : display_id_(display_id), removed_(removed), layers_(std::move(layers)) {}
+                          bool removed, int32_t display_width,
+                          int32_t display_height)
+    : display_id_(display_id),
+      removed_(removed),
+      display_width_(display_width),
+      display_height_(display_height),
+      layers_(std::move(layers)) {}
 
 HwcCallback::FrameStatus HwcCallback::Frame::Finish() {
   if (status_ == FrameStatus::kUnfinished)

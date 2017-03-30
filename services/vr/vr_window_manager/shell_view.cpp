@@ -194,8 +194,11 @@ void ShellView::dumpInternal(String8& result) {
 
   result.append("[displays]\n");
   result.appendFormat("count = %zu\n", displays_.size());
-  for (size_t i = 0; i < displays_.size(); ++i)
-    result.appendFormat(" display_id = %" PRId32 "\n", displays_[i]->id());
+  for (size_t i = 0; i < displays_.size(); ++i) {
+    result.appendFormat("  display_id = %" PRId32 "\n", displays_[i]->id());
+    result.appendFormat("    size=%fx%f\n",
+                        displays_[i]->size().x(), displays_[i]->size().y());
+  }
 
   result.append("\n");
 }
@@ -327,12 +330,9 @@ void ShellView::DrawEye(EyeType eye, const mat4& perspective,
     should_recenter_ = false;
   }
 
-  size_ = vec2(surface_flinger_view_->width(), surface_flinger_view_->height());
-
   for (auto& display : displays_) {
     if (display->visible()) {
-      display->DrawEye(eye, perspective, eye_matrix, head_matrix, size_,
-                       fade_value_);
+      display->DrawEye(eye, perspective, eye_matrix, head_matrix, fade_value_);
     }
   }
 
@@ -481,9 +481,10 @@ void ShellView::Touch() {
     return;
 
   const vec2& hit_location = active_display_->hit_location();
+  const vec2 size = active_display_->size();
 
-  float x = hit_location.x() / size_.x();
-  float y = hit_location.y() / size_.y();
+  float x = hit_location.x() / size.x();
+  float y = hit_location.y() / size.y();
 
   // Device is portrait, but in landscape when in VR.
   // Rotate touch input appropriately.
