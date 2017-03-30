@@ -1440,6 +1440,7 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                             static_cast<int64_t>(time->desiredPresentTime));
                     }
                 }
+
                 err = window->queueBuffer(window, img.buffer.get(), fence);
                 // queueBuffer always closes fence, even on error
                 if (err != 0) {
@@ -1454,6 +1455,30 @@ VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
                     img.dequeue_fence = -1;
                 }
                 img.dequeued = false;
+
+                // If the swapchain is in shared mode, immediately dequeue the
+                // buffer so it can be presented again without an intervening
+                // call to AcquireNextImageKHR. We expect to get the same buffer
+                // back from every call to dequeueBuffer in this mode.
+                if (swapchain.shared && swapchain_result == VK_SUCCESS) {
+                    ANativeWindowBuffer* buffer;
+                    int fence_fd;
+                    err = window->dequeueBuffer(window, &buffer, &fence_fd);
+                    if (err != 0) {
+                        ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), err);
+                        swapchain_result = WorstPresentResult(swapchain_result,
+                            VK_ERROR_SURFACE_LOST_KHR);
+                    }
+                    else if (img.buffer != buffer) {
+                        ALOGE("got wrong image back for shared swapchain");
+                        swapchain_result = WorstPresentResult(swapchain_result,
+                            VK_ERROR_SURFACE_LOST_KHR);
+                    }
+                    else {
+                        img.dequeue_fence = fence_fd;
+                        img.dequeued = true;
+                    }
+                }
             }
             if (swapchain_result != VK_SUCCESS) {
                 ReleaseSwapchainImage(device, window, fence, img);
