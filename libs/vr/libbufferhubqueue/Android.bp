@@ -42,7 +42,7 @@ sharedLibraries = [
 
 cc_library {
     name: "libbufferhubqueue",
-    cflags = [
+    cflags: [
         "-DLOG_TAG=\"libbufferhubqueue\"",
         "-DTRACE=0",
     ],
