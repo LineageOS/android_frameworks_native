@@ -19,6 +19,12 @@ status_t ParcelableComposerFrame::writeToParcel(Parcel* parcel) const {
   status_t ret = parcel->writeUint64(frame_.display_id);
   if (ret != OK) return ret;
 
+  ret = parcel->writeInt32(frame_.display_width);
+  if (ret != OK) return ret;
+
+  ret = parcel->writeInt32(frame_.display_height);
+  if (ret != OK) return ret;
+
   ret = parcel->writeBool(frame_.removed);
   if (ret != OK) return ret;
 
@@ -33,6 +39,12 @@ status_t ParcelableComposerFrame::writeToParcel(Parcel* parcel) const {
 
 status_t ParcelableComposerFrame::readFromParcel(const Parcel* parcel) {
   status_t ret = parcel->readUint64(&frame_.display_id);
+  if (ret != OK) return ret;
+
+  ret = parcel->readInt32(&frame_.display_width);
+  if (ret != OK) return ret;
+
+  ret = parcel->readInt32(&frame_.display_height);
   if (ret != OK) return ret;
 
   ret = parcel->readBool(&frame_.removed);

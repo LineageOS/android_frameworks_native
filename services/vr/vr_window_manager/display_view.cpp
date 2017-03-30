@@ -168,8 +168,7 @@ void DisplayView::SetPrograms(ShaderProgram* program,
 
 void DisplayView::DrawEye(EyeType /* eye */, const mat4& perspective,
                           const mat4& eye_matrix, const mat4& head_matrix,
-                          const vec2& size, float fade_value) {
-  size_ = size;
+                          float fade_value) {
   scale_ = GetScalingMatrix(size_.x(), size_.y());
 
   DrawOverlays(perspective, eye_matrix, head_matrix, fade_value);
@@ -204,6 +203,7 @@ void DisplayView::OnDrawFrame(SurfaceFlingerView* surface_flinger_view,
 base::unique_fd DisplayView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame,
                                      bool debug_mode, bool is_vr_active,
                                      bool* showing) {
+  size_ = vec2(frame->display_width(), frame->display_height());
   uint32_t app = current_vr_app_;
   ViewMode visibility = CalculateVisibilityFromLayerConfig(*frame.get(), &app);
 
