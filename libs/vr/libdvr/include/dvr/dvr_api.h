@@ -33,6 +33,8 @@ typedef struct AHardwareBuffer AHardwareBuffer;
 typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
 typedef struct DvrReadBufferQueue DvrReadBufferQueue;
 
+typedef struct DvrSurface DvrSurface;
+
 // display_manager_client.h
 typedef int (*DvrDisplayManagerClientGetSurfaceListPtr)(
     DvrDisplayManagerClient* client,
@@ -107,6 +109,11 @@ typedef int (*DvrReadBufferQueueDequeuePtr)(DvrReadBufferQueue* read_queue,
 
 // dvr_surface.h
 typedef int (*DvrGetPoseBufferPtr)(DvrReadBuffer** pose_buffer);
+typedef int (*DvrSurfaceCreatePtr)(int width, int height, int format,
+                                   uint64_t usage0, uint64_t usage1, int flags,
+                                   DvrSurface** out_surface);
+typedef int (*DvrSurfaceGetWriteBufferQueuePtr)(
+    DvrSurface* surface, DvrWriteBufferQueue** out_writer);
 
 // vsync_client_api.h
 typedef dvr_vsync_client* (*DvrVSyncClientCreatePtr)();
@@ -196,6 +203,8 @@ struct DvrApi_v1 {
 
   // Display surface
   DvrGetPoseBufferPtr get_pose_buffer_;
+  DvrSurfaceCreatePtr surface_create_;
+  DvrSurfaceGetWriteBufferQueuePtr surface_get_write_buffer_queue_;
 
   // Pose client
   DvrPoseClientCreatePtr pose_client_create_;
