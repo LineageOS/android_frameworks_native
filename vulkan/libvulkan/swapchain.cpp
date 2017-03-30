@@ -183,7 +183,9 @@ struct Swapchain {
         : surface(surface_),
           num_images(num_images_),
           mailbox_mode(present_mode == VK_PRESENT_MODE_MAILBOX_KHR),
-          frame_timestamps_enabled(false) {
+          frame_timestamps_enabled(false),
+          shared(present_mode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
+                 present_mode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
         ANativeWindow* window = surface.window.get();
         int64_t rdur;
         native_window_get_refresh_cycle_duration(
@@ -197,6 +199,7 @@ struct Swapchain {
     bool mailbox_mode;
     bool frame_timestamps_enabled;
     uint64_t refresh_duration;
+    bool shared;
 
     struct Image {
         Image() : image(VK_NULL_HANDLE), dequeue_fence(-1), dequeued(false) {}
