@@ -236,6 +236,8 @@ enum ANativeWindowQuery {
     ANATIVEWINDOW_QUERY_YDPI = 0x10003,
 };
 
+typedef enum ANativeWindowQuery ANativeWindowQuery;
+
 /*
  * hook used to retrieve information about the native window.
  *
