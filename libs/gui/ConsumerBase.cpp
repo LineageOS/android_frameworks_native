@@ -287,6 +287,9 @@ status_t ConsumerBase::acquireBufferLocked(BufferItem *item,
     }
 
     if (item->mGraphicBuffer != NULL) {
+        if (mSlots[item->mSlot].mGraphicBuffer != NULL) {
+            freeBufferLocked(item->mSlot);
+        }
         mSlots[item->mSlot].mGraphicBuffer = item->mGraphicBuffer;
     }
 
