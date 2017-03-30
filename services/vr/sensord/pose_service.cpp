@@ -435,6 +435,15 @@ void PoseService::UpdatePoseMode() {
             kRotX90 * Rotationd(AngleAxisd(-k90DegInRad, kVecAxisY));
         start_from_head_rotation =
             (pose_state.sensor_from_start_rotation * kPostRotation).inverse();
+      } else if (device_orientation_type_ == kOrientationTypeLandscape180) {
+        const Rotationd kPreRotation =
+            Rotationd(AngleAxisd(k90DegInRad * 2.0, kVecAxisY)) *
+            Rotationd(AngleAxisd(k90DegInRad * 2.0, kVecAxisZ));
+        const Rotationd kPostRotation = kRotX90;
+        start_from_head_rotation =
+            (kPreRotation *
+             pose_state.sensor_from_start_rotation * kPostRotation)
+                .inverse();
       } else {
         const Rotationd kPreRotation =
             Rotationd(AngleAxisd(k90DegInRad, kVecAxisZ));
