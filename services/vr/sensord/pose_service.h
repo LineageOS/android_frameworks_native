@@ -43,6 +43,8 @@ class PoseService : public pdx::ServiceBase<PoseService> {
     kOrientationTypePortrait = 1,
     // Landscape device.
     kOrientationTypeLandscape = 2,
+    // 180 Landscape device.
+    kOrientationTypeLandscape180 = 3,
   };
 
   // Initializes the service. Keeps a reference to sensor_thread, which must be
