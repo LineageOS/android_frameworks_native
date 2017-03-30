@@ -30,7 +30,6 @@ static constexpr int DEX2OAT_FROM_SCRATCH        = 1;
 static constexpr int DEX2OAT_FOR_BOOT_IMAGE      = 2;
 static constexpr int DEX2OAT_FOR_FILTER          = 3;
 static constexpr int DEX2OAT_FOR_RELOCATION      = 4;
-static constexpr int PATCHOAT_FOR_RELOCATION     = 5;
 
 // Clear the reference profile for the primary apk of the given package.
 bool clear_primary_reference_profile(const std::string& pkgname);
