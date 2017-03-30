@@ -24,81 +24,81 @@ DVR_EXPORT int dvrGetApi(void* api, size_t struct_size, int version) {
     DvrApi_v1* dvr_api = static_cast<DvrApi_v1*>(api);
 
     // display_manager_client.h
-    dvr_api->display_manager_client_create_ = dvrDisplayManagerClientCreate;
-    dvr_api->display_manager_client_destroy_ = dvrDisplayManagerClientDestroy;
-    dvr_api->display_manager_client_get_surface_list_ =
+    dvr_api->display_manager_client_create = dvrDisplayManagerClientCreate;
+    dvr_api->display_manager_client_destroy = dvrDisplayManagerClientDestroy;
+    dvr_api->display_manager_client_get_surface_list =
         dvrDisplayManagerClientGetSurfaceList;
-    dvr_api->display_manager_client_surface_list_destroy_ =
+    dvr_api->display_manager_client_surface_list_destroy =
         dvrDisplayManagerClientSurfaceListDestroy;
-    dvr_api->display_manager_setup_pose_buffer_ =
+    dvr_api->display_manager_setup_pose_buffer =
         dvrDisplayManagerSetupPoseBuffer;
-    dvr_api->display_manager_client_surface_list_get_size_ =
+    dvr_api->display_manager_client_surface_list_get_size =
         dvrDisplayManagerClientSurfaceListGetSize;
-    dvr_api->display_manager_client_surface_list_get_surface_id_ =
+    dvr_api->display_manager_client_surface_list_get_surface_id =
         dvrDisplayManagerClientSurfaceListGetSurfaceId;
-    dvr_api->display_manager_client_get_surface_buffer_list_ =
+    dvr_api->display_manager_client_get_surface_buffer_list =
         dvrDisplayManagerClientGetSurfaceBuffers;
-    dvr_api->display_manager_client_surface_buffer_list_destroy_ =
+    dvr_api->display_manager_client_surface_buffer_list_destroy =
         dvrDisplayManagerClientSurfaceBuffersDestroy;
-    dvr_api->display_manager_client_surface_buffer_list_get_size_ =
+    dvr_api->display_manager_client_surface_buffer_list_get_size =
         dvrDisplayManagerClientSurfaceBuffersGetSize;
-    dvr_api->display_manager_client_surface_buffer_list_get_fd_ =
+    dvr_api->display_manager_client_surface_buffer_list_get_fd =
         dvrDisplayManagerClientSurfaceBuffersGetFd;
 
     // dvr_buffer.h
-    dvr_api->write_buffer_destroy_ = dvrWriteBufferDestroy;
-    dvr_api->write_buffer_get_blob_fds_ = dvrWriteBufferGetBlobFds;
-    dvr_api->write_buffer_get_AHardwareBuffer_ =
+    dvr_api->write_buffer_destroy = dvrWriteBufferDestroy;
+    dvr_api->write_buffer_get_blob_fds = dvrWriteBufferGetBlobFds;
+    dvr_api->write_buffer_get_ahardwarebuffer =
         dvrWriteBufferGetAHardwareBuffer;
-    dvr_api->write_buffer_post_ = dvrWriteBufferPost;
-    dvr_api->write_buffer_gain_ = dvrWriteBufferGain;
-    dvr_api->write_buffer_gain_async_ = dvrWriteBufferGainAsync;
+    dvr_api->write_buffer_post = dvrWriteBufferPost;
+    dvr_api->write_buffer_gain = dvrWriteBufferGain;
+    dvr_api->write_buffer_gain_async = dvrWriteBufferGainAsync;
 
-    dvr_api->read_buffer_destroy_ = dvrReadBufferDestroy;
-    dvr_api->read_buffer_get_blob_fds_ = dvrReadBufferGetBlobFds;
-    dvr_api->read_buffer_get_AHardwareBuffer_ = dvrReadBufferGetAHardwareBuffer;
-    dvr_api->read_buffer_acquire_ = dvrReadBufferAcquire;
-    dvr_api->read_buffer_release_ = dvrReadBufferRelease;
-    dvr_api->read_buffer_release_async_ = dvrReadBufferReleaseAsync;
+    dvr_api->read_buffer_destroy = dvrReadBufferDestroy;
+    dvr_api->read_buffer_get_blob_fds = dvrReadBufferGetBlobFds;
+    dvr_api->read_buffer_get_ahardwarebuffer = dvrReadBufferGetAHardwareBuffer;
+    dvr_api->read_buffer_acquire = dvrReadBufferAcquire;
+    dvr_api->read_buffer_release = dvrReadBufferRelease;
+    dvr_api->read_buffer_release_async = dvrReadBufferReleaseAsync;
 
     // dvr_buffer_queue.h
-    dvr_api->write_buffer_queue_destroy_ = dvrWriteBufferQueueDestroy;
-    dvr_api->write_buffer_queue_get_capacity_ = dvrWriteBufferQueueGetCapacity;
-    dvr_api->write_buffer_queue_get_external_surface_ =
+    dvr_api->write_buffer_queue_destroy = dvrWriteBufferQueueDestroy;
+    dvr_api->write_buffer_queue_get_capacity = dvrWriteBufferQueueGetCapacity;
+    dvr_api->write_buffer_queue_get_external_surface =
         dvrWriteBufferQueueGetExternalSurface;
-    dvr_api->write_buffer_queue_create_read_queue_ =
+    dvr_api->write_buffer_queue_create_read_queue =
         dvrWriteBufferQueueCreateReadQueue;
-    dvr_api->write_buffer_queue_dequeue_ = dvrWriteBufferQueueDequeue;
-    dvr_api->read_buffer_queue_destroy_ = dvrReadBufferQueueDestroy;
-    dvr_api->read_buffer_queue_get_capacity_ = dvrReadBufferQueueGetCapacity;
-    dvr_api->read_buffer_queue_create_read_queue_ =
+    dvr_api->write_buffer_queue_dequeue = dvrWriteBufferQueueDequeue;
+    dvr_api->read_buffer_queue_destroy = dvrReadBufferQueueDestroy;
+    dvr_api->read_buffer_queue_get_capacity = dvrReadBufferQueueGetCapacity;
+    dvr_api->read_buffer_queue_create_read_queue =
         dvrReadBufferQueueCreateReadQueue;
     dvr_api->read_buffer_queue_dequeue = dvrReadBufferQueueDequeue;
 
     // dvr_surface.h
-    dvr_api->get_pose_buffer_ = dvrGetPoseBuffer;
-    dvr_api->surface_create_ = dvrSurfaceCreate;
-    dvr_api->surface_get_write_buffer_queue_ = dvrSurfaceGetWriteBufferQueue;
+    dvr_api->get_pose_buffer = dvrGetPoseBuffer;
+    dvr_api->surface_create = dvrSurfaceCreate;
+    dvr_api->surface_get_write_buffer_queue = dvrSurfaceGetWriteBufferQueue;
 
     // vsync_client_api.h
-    dvr_api->vsync_client_create_ = dvr_vsync_client_create;
-    dvr_api->vsync_client_destroy_ = dvr_vsync_client_destroy;
-    dvr_api->vsync_client_get_sched_info_ = dvr_vsync_client_get_sched_info;
+    dvr_api->vsync_client_create = dvr_vsync_client_create;
+    dvr_api->vsync_client_destroy = dvr_vsync_client_destroy;
+    dvr_api->vsync_client_get_sched_info = dvr_vsync_client_get_sched_info;
 
     // pose_client.h
-    dvr_api->pose_client_create_ = dvrPoseCreate;
-    dvr_api->pose_client_destroy_ = dvrPoseDestroy;
-    dvr_api->pose_get_ = dvrPoseGet;
-    dvr_api->pose_get_vsync_count_ = dvrPoseGetVsyncCount;
-    dvr_api->pose_get_controller_ = dvrPoseGetController;
+    dvr_api->pose_client_create = dvrPoseCreate;
+    dvr_api->pose_client_destroy = dvrPoseDestroy;
+    dvr_api->pose_get = dvrPoseGet;
+    dvr_api->pose_get_vsync_count = dvrPoseGetVsyncCount;
+    dvr_api->pose_get_controller = dvrPoseGetController;
 
     // virtual_touchpad_client.h
-    dvr_api->virtual_touchpad_create_ = dvrVirtualTouchpadCreate;
-    dvr_api->virtual_touchpad_destroy_ = dvrVirtualTouchpadDestroy;
-    dvr_api->virtual_touchpad_attach_ = dvrVirtualTouchpadAttach;
-    dvr_api->virtual_touchpad_detach_ = dvrVirtualTouchpadDetach;
-    dvr_api->virtual_touchpad_touch_ = dvrVirtualTouchpadTouch;
-    dvr_api->virtual_touchpad_button_state_ = dvrVirtualTouchpadButtonState;
+    dvr_api->virtual_touchpad_create = dvrVirtualTouchpadCreate;
+    dvr_api->virtual_touchpad_destroy = dvrVirtualTouchpadDestroy;
+    dvr_api->virtual_touchpad_attach = dvrVirtualTouchpadAttach;
+    dvr_api->virtual_touchpad_detach = dvrVirtualTouchpadDetach;
+    dvr_api->virtual_touchpad_touch = dvrVirtualTouchpadTouch;
+    dvr_api->virtual_touchpad_button_state = dvrVirtualTouchpadButtonState;
 
     return 0;
   }
