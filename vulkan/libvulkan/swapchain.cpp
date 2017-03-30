@@ -1114,17 +1114,19 @@ VkResult CreateSwapchainKHR(VkDevice device,
     //
     // TODO(jessehall): The error path here is the same as DestroySwapchain,
     // but not the non-error path. Should refactor/unify.
-    for (uint32_t i = 0; i < num_images; i++) {
-        Swapchain::Image& img = swapchain->images[i];
-        if (img.dequeued) {
-            surface.window->cancelBuffer(surface.window.get(), img.buffer.get(),
-                                         img.dequeue_fence);
-            img.dequeue_fence = -1;
-            img.dequeued = false;
-        }
-        if (result != VK_SUCCESS) {
-            if (img.image)
-                dispatch.DestroyImage(device, img.image, nullptr);
+    if (!swapchain->shared) {
+        for (uint32_t i = 0; i < num_images; i++) {
+            Swapchain::Image& img = swapchain->images[i];
+            if (img.dequeued) {
+                surface.window->cancelBuffer(surface.window.get(), img.buffer.get(),
+                                             img.dequeue_fence);
+                img.dequeue_fence = -1;
+                img.dequeued = false;
+            }
+            if (result != VK_SUCCESS) {
+                if (img.image)
+                    dispatch.DestroyImage(device, img.image, nullptr);
+            }
         }
     }
 
