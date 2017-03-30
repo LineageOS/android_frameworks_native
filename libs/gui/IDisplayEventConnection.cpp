@@ -14,38 +14,24 @@
  * limitations under the License.
  */
 
-#include <stdint.h>
-
-#include <utils/Errors.h>
-#include <utils/RefBase.h>
-
-#include <binder/Parcel.h>
-
 #include <gui/IDisplayEventConnection.h>
 
 #include <private/gui/BitTube.h>
 
+#include <binder/Parcel.h>
+
 namespace android {
-// ----------------------------------------------------------------------------
 
-enum {
-    GET_DATA_CHANNEL = IBinder::FIRST_CALL_TRANSACTION,
-    SET_VSYNC_RATE,
-    REQUEST_NEXT_VSYNC
-};
+enum { GET_DATA_CHANNEL = IBinder::FIRST_CALL_TRANSACTION, SET_VSYNC_RATE, REQUEST_NEXT_VSYNC };
 
-class BpDisplayEventConnection : public BpInterface<IDisplayEventConnection>
-{
+class BpDisplayEventConnection : public BpInterface<IDisplayEventConnection> {
 public:
     explicit BpDisplayEventConnection(const sp<IBinder>& impl)
-        : BpInterface<IDisplayEventConnection>(impl)
-    {
-    }
+          : BpInterface<IDisplayEventConnection>(impl) {}
 
     virtual ~BpDisplayEventConnection();
 
-    virtual sp<BitTube> getDataChannel() const
-    {
+    virtual sp<BitTube> getDataChannel() const {
         Parcel data, reply;
         data.writeInterfaceToken(IDisplayEventConnection::getInterfaceDescriptor());
         remote()->transact(GET_DATA_CHANNEL, data, &reply);
@@ -66,18 +52,15 @@ public:
     }
 };
 
-// Out-of-line virtual method definition to trigger vtable emission in this
-// translation unit (see clang warning -Wweak-vtables)
+// Out-of-line virtual method definition to trigger vtable emission in this translation unit (see
+// clang warning -Wweak-vtables)
 BpDisplayEventConnection::~BpDisplayEventConnection() {}
 
 IMPLEMENT_META_INTERFACE(DisplayEventConnection, "android.gui.DisplayEventConnection");
 
-// ----------------------------------------------------------------------------
-
-status_t BnDisplayEventConnection::onTransact(
-    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
-    switch(code) {
+status_t BnDisplayEventConnection::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                              uint32_t flags) {
+    switch (code) {
         case GET_DATA_CHANNEL: {
             CHECK_INTERFACE(IDisplayEventConnection, data, reply);
             sp<BitTube> channel(getDataChannel());
@@ -98,5 +81,4 @@ status_t BnDisplayEventConnection::onTransact(
     return BBinder::onTransact(code, data, reply, flags);
 }
 
-// ----------------------------------------------------------------------------
-}; // namespace android
+} // namespace android
