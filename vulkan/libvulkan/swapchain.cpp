@@ -930,6 +930,25 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
+    VkSwapchainImageUsageFlagsANDROID swapchain_image_usage = 0;
+    if (create_info->presentMode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
+        create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
+        swapchain_image_usage |= VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID;
+        err = native_window_set_shared_buffer_mode(surface.window.get(), true);
+        if (err != 0) {
+            ALOGE("native_window_set_shared_buffer_mode failed: %s (%d)", strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+    }
+
+    if (create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
+        err = native_window_set_auto_refresh(surface.window.get(), true);
+        if (err != 0) {
+            ALOGE("native_window_set_auto_refresh failed: %s (%d)", strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+    }
+
     int query_value;
     err = surface.window->query(surface.window.get(),
                                 NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
@@ -957,26 +976,6 @@ VkResult CreateSwapchainKHR(VkDevice device,
         ALOGE("native_window_set_buffer_count(%d) failed: %s (%d)", num_images,
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
-    }
-
-    VkSwapchainImageUsageFlagsANDROID swapchain_image_usage = 0;
-    if (create_info->presentMode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
-        create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
-        swapchain_image_usage |= VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID;
-
-        err = native_window_set_shared_buffer_mode(surface.window.get(), true);
-        if (err != 0) {
-            ALOGE("native_window_set_shared_buffer_mode failed: %s (%d)", strerror(-err), err);
-            return VK_ERROR_SURFACE_LOST_KHR;
-        }
-    }
-
-    if (create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
-        err = native_window_set_auto_refresh(surface.window.get(), true);
-        if (err != 0) {
-            ALOGE("native_window_set_auto_refresh failed: %s (%d)", strerror(-err), err);
-            return VK_ERROR_SURFACE_LOST_KHR;
-        }
     }
 
     int gralloc_usage = 0;
