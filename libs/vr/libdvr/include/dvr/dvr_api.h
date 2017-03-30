@@ -146,80 +146,80 @@ typedef int (*DvrVirtualTouchpadButtonStatePtr)(DvrVirtualTouchpad* client,
 
 struct DvrApi_v1 {
   // Display manager client
-  DvrDisplayManagerClientCreatePtr display_manager_client_create_;
-  DvrDisplayManagerClientDestroyPtr display_manager_client_destroy_;
+  DvrDisplayManagerClientCreatePtr display_manager_client_create;
+  DvrDisplayManagerClientDestroyPtr display_manager_client_destroy;
   DvrDisplayManagerClientGetSurfaceListPtr
-      display_manager_client_get_surface_list_;
+      display_manager_client_get_surface_list;
   DvrDisplayManagerClientSurfaceListDestroyPtr
-      display_manager_client_surface_list_destroy_;
-  DvrDisplayManagerSetupPoseBufferPtr display_manager_setup_pose_buffer_;
+      display_manager_client_surface_list_destroy;
+  DvrDisplayManagerSetupPoseBufferPtr display_manager_setup_pose_buffer;
   DvrDisplayManagerClientSurfaceListGetSizePtr
-      display_manager_client_surface_list_get_size_;
+      display_manager_client_surface_list_get_size;
   DvrDisplayManagerClientSurfaceListGetSurfaceIdPtr
-      display_manager_client_surface_list_get_surface_id_;
+      display_manager_client_surface_list_get_surface_id;
   DvrDisplayManagerClientGetSurfaceBufferListPtr
-      display_manager_client_get_surface_buffer_list_;
+      display_manager_client_get_surface_buffer_list;
   DvrDisplayManagerClientSurfaceBufferListDestroyPtr
-      display_manager_client_surface_buffer_list_destroy_;
+      display_manager_client_surface_buffer_list_destroy;
   DvrDisplayManagerClientSurfaceBufferListGetSizePtr
-      display_manager_client_surface_buffer_list_get_size_;
+      display_manager_client_surface_buffer_list_get_size;
   DvrDisplayManagerClientSurfaceBufferListGetFdPtr
-      display_manager_client_surface_buffer_list_get_fd_;
+      display_manager_client_surface_buffer_list_get_fd;
 
   // Write buffer
-  DvrWriteBufferDestroyPtr write_buffer_destroy_;
-  DvrWriteBufferGetBlobFdsPtr write_buffer_get_blob_fds_;
-  DvrWriteBufferGetAHardwareBufferPtr write_buffer_get_AHardwareBuffer_;
-  DvrWriteBufferPostPtr write_buffer_post_;
-  DvrWriteBufferGainPtr write_buffer_gain_;
-  DvrWriteBufferGainAsyncPtr write_buffer_gain_async_;
+  DvrWriteBufferDestroyPtr write_buffer_destroy;
+  DvrWriteBufferGetBlobFdsPtr write_buffer_get_blob_fds;
+  DvrWriteBufferGetAHardwareBufferPtr write_buffer_get_ahardwarebuffer;
+  DvrWriteBufferPostPtr write_buffer_post;
+  DvrWriteBufferGainPtr write_buffer_gain;
+  DvrWriteBufferGainAsyncPtr write_buffer_gain_async;
 
   // Read buffer
-  DvrReadBufferDestroyPtr read_buffer_destroy_;
-  DvrReadBufferGetBlobFdsPtr read_buffer_get_blob_fds_;
-  DvrReadBufferGetAHardwareBufferPtr read_buffer_get_AHardwareBuffer_;
-  DvrReadBufferAcquirePtr read_buffer_acquire_;
-  DvrReadBufferReleasePtr read_buffer_release_;
-  DvrReadBufferReleaseAsyncPtr read_buffer_release_async_;
+  DvrReadBufferDestroyPtr read_buffer_destroy;
+  DvrReadBufferGetBlobFdsPtr read_buffer_get_blob_fds;
+  DvrReadBufferGetAHardwareBufferPtr read_buffer_get_ahardwarebuffer;
+  DvrReadBufferAcquirePtr read_buffer_acquire;
+  DvrReadBufferReleasePtr read_buffer_release;
+  DvrReadBufferReleaseAsyncPtr read_buffer_release_async;
 
   // Write buffer queue
-  DvrWriteBufferQueueDestroyPtr write_buffer_queue_destroy_;
-  DvrWriteBufferQueueGetCapacityPtr write_buffer_queue_get_capacity_;
+  DvrWriteBufferQueueDestroyPtr write_buffer_queue_destroy;
+  DvrWriteBufferQueueGetCapacityPtr write_buffer_queue_get_capacity;
   DvrWriteBufferQueueGetExternalSurfacePtr
-      write_buffer_queue_get_external_surface_;
-  DvrWriteBufferQueueCreateReadQueuePtr write_buffer_queue_create_read_queue_;
-  DvrWriteBufferQueueDequeuePtr write_buffer_queue_dequeue_;
+      write_buffer_queue_get_external_surface;
+  DvrWriteBufferQueueCreateReadQueuePtr write_buffer_queue_create_read_queue;
+  DvrWriteBufferQueueDequeuePtr write_buffer_queue_dequeue;
 
   // Read buffer queue
-  DvrReadBufferQueueDestroyPtr read_buffer_queue_destroy_;
-  DvrReadBufferQueueGetCapacityPtr read_buffer_queue_get_capacity_;
-  DvrReadBufferQueueCreateReadQueuePtr read_buffer_queue_create_read_queue_;
+  DvrReadBufferQueueDestroyPtr read_buffer_queue_destroy;
+  DvrReadBufferQueueGetCapacityPtr read_buffer_queue_get_capacity;
+  DvrReadBufferQueueCreateReadQueuePtr read_buffer_queue_create_read_queue;
   DvrReadBufferQueueDequeuePtr read_buffer_queue_dequeue;
 
   // V-Sync client
-  DvrVSyncClientCreatePtr vsync_client_create_;
-  DvrVSyncClientDestroyPtr vsync_client_destroy_;
-  DvrVSyncClientGetSchedInfoPtr vsync_client_get_sched_info_;
+  DvrVSyncClientCreatePtr vsync_client_create;
+  DvrVSyncClientDestroyPtr vsync_client_destroy;
+  DvrVSyncClientGetSchedInfoPtr vsync_client_get_sched_info;
 
   // Display surface
-  DvrGetPoseBufferPtr get_pose_buffer_;
-  DvrSurfaceCreatePtr surface_create_;
-  DvrSurfaceGetWriteBufferQueuePtr surface_get_write_buffer_queue_;
+  DvrGetPoseBufferPtr get_pose_buffer;
+  DvrSurfaceCreatePtr surface_create;
+  DvrSurfaceGetWriteBufferQueuePtr surface_get_write_buffer_queue;
 
   // Pose client
-  DvrPoseClientCreatePtr pose_client_create_;
-  DvrPoseClientDestroyPtr pose_client_destroy_;
-  DvrPoseGetPtr pose_get_;
-  DvrPoseGetVsyncCountPtr pose_get_vsync_count_;
-  DvrPoseGetControllerPtr pose_get_controller_;
+  DvrPoseClientCreatePtr pose_client_create;
+  DvrPoseClientDestroyPtr pose_client_destroy;
+  DvrPoseGetPtr pose_get;
+  DvrPoseGetVsyncCountPtr pose_get_vsync_count;
+  DvrPoseGetControllerPtr pose_get_controller;
 
   // Virtual touchpad client
-  DvrVirtualTouchpadCreatePtr virtual_touchpad_create_;
-  DvrVirtualTouchpadDestroyPtr virtual_touchpad_destroy_;
-  DvrVirtualTouchpadAttachPtr virtual_touchpad_attach_;
-  DvrVirtualTouchpadDetachPtr virtual_touchpad_detach_;
-  DvrVirtualTouchpadTouchPtr virtual_touchpad_touch_;
-  DvrVirtualTouchpadButtonStatePtr virtual_touchpad_button_state_;
+  DvrVirtualTouchpadCreatePtr virtual_touchpad_create;
+  DvrVirtualTouchpadDestroyPtr virtual_touchpad_destroy;
+  DvrVirtualTouchpadAttachPtr virtual_touchpad_attach;
+  DvrVirtualTouchpadDetachPtr virtual_touchpad_detach;
+  DvrVirtualTouchpadTouchPtr virtual_touchpad_touch;
+  DvrVirtualTouchpadButtonStatePtr virtual_touchpad_button_state;
 };
 
 int dvrGetApi(void* api, size_t struct_size, int version);
