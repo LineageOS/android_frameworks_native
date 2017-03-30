@@ -403,12 +403,14 @@ void EventThread::Connection::onFirstRef() {
     mEventThread->registerDisplayEventConnection(this);
 }
 
-sp<BitTube> EventThread::Connection::getDataChannel() const {
-    return mChannel;
+status_t EventThread::Connection::getDataChannel(sp<BitTube>* outChannel) const {
+    *outChannel = mChannel;
+    return NO_ERROR;
 }
 
-void EventThread::Connection::setVsyncRate(uint32_t count) {
+status_t EventThread::Connection::setVsyncRate(uint32_t count) {
     mEventThread->setVsyncRate(count, this);
+    return NO_ERROR;
 }
 
 void EventThread::Connection::requestNextVsync() {

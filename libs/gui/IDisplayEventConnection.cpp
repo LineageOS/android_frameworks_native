@@ -29,23 +29,25 @@ public:
     explicit BpDisplayEventConnection(const sp<IBinder>& impl)
           : BpInterface<IDisplayEventConnection>(impl) {}
 
-    virtual ~BpDisplayEventConnection();
+    ~BpDisplayEventConnection() override;
 
-    virtual sp<BitTube> getDataChannel() const {
+    status_t getDataChannel(sp<BitTube>* outChannel) const override {
         Parcel data, reply;
         data.writeInterfaceToken(IDisplayEventConnection::getInterfaceDescriptor());
         remote()->transact(GET_DATA_CHANNEL, data, &reply);
-        return new BitTube(reply);
+        *outChannel = new BitTube(reply);
+        return NO_ERROR;
     }
 
-    virtual void setVsyncRate(uint32_t count) {
+    status_t setVsyncRate(uint32_t count) override {
         Parcel data, reply;
         data.writeInterfaceToken(IDisplayEventConnection::getInterfaceDescriptor());
         data.writeUint32(count);
         remote()->transact(SET_VSYNC_RATE, data, &reply);
+        return NO_ERROR;
     }
 
-    virtual void requestNextVsync() {
+    void requestNextVsync() override {
         Parcel data, reply;
         data.writeInterfaceToken(IDisplayEventConnection::getInterfaceDescriptor());
         remote()->transact(REQUEST_NEXT_VSYNC, data, &reply, IBinder::FLAG_ONEWAY);
@@ -63,7 +65,8 @@ status_t BnDisplayEventConnection::onTransact(uint32_t code, const Parcel& data,
     switch (code) {
         case GET_DATA_CHANNEL: {
             CHECK_INTERFACE(IDisplayEventConnection, data, reply);
-            sp<BitTube> channel(getDataChannel());
+            sp<BitTube> channel;
+            getDataChannel(&channel);
             channel->writeToParcel(reply);
             return NO_ERROR;
         }

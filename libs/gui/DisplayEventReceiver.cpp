@@ -37,7 +37,7 @@ DisplayEventReceiver::DisplayEventReceiver() {
     if (sf != NULL) {
         mEventConnection = sf->createDisplayEventConnection();
         if (mEventConnection != NULL) {
-            mDataChannel = mEventConnection->getDataChannel();
+            mEventConnection->getDataChannel(&mDataChannel);
         }
     }
 }

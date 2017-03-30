@@ -94,7 +94,7 @@ void MessageQueue::setEventThread(const sp<EventThread>& eventThread)
 {
     mEventThread = eventThread;
     mEvents = eventThread->createEventConnection();
-    mEventTube = mEvents->getDataChannel();
+    mEvents->getDataChannel(&mEventTube);
     mLooper->addFd(mEventTube->getFd(), 0, Looper::EVENT_INPUT,
             MessageQueue::cb_eventReceiver, this);
 }
