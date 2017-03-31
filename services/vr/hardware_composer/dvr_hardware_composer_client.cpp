@@ -1,8 +1,7 @@
-#include "include/dvr/dvr_hardware_composer_client.h"
+#include "private/android/dvr_hardware_composer_client.h"
 
 #include <android/dvr/IVrComposer.h>
 #include <android/dvr/BnVrComposerCallback.h>
-#include <android/hardware_buffer.h>
 #include <binder/IServiceManager.h>
 #include <private/android/AHardwareBufferHelpers.h>
 
@@ -16,8 +15,7 @@ namespace {
 
 class HwcCallback : public android::dvr::BnVrComposerCallback {
  public:
-  explicit HwcCallback(DvrHwcOnFrameCallback callback,
-                       void* client_state);
+  explicit HwcCallback(DvrHwcOnFrameCallback callback);
   ~HwcCallback() override;
 
   std::unique_ptr<DvrHwcFrame> DequeueFrame();
@@ -29,14 +27,13 @@ class HwcCallback : public android::dvr::BnVrComposerCallback {
       android::dvr::ParcelableUniqueFd* fence) override;
 
   DvrHwcOnFrameCallback callback_;
-  void* client_state_;
 
   HwcCallback(const HwcCallback&) = delete;
   void operator=(const HwcCallback&) = delete;
 };
 
-HwcCallback::HwcCallback(DvrHwcOnFrameCallback callback, void* client_state)
-    : callback_(callback), client_state_(client_state) {}
+HwcCallback::HwcCallback(DvrHwcOnFrameCallback callback)
+    : callback_(callback) {}
 
 HwcCallback::~HwcCallback() {}
 
@@ -46,8 +43,7 @@ android::binder::Status HwcCallback::onNewFrame(
   std::unique_ptr<DvrHwcFrame> dvr_frame(new DvrHwcFrame());
   dvr_frame->frame = frame.frame();
 
-  fence->set_fence(android::base::unique_fd(callback_(client_state_,
-                                                      dvr_frame.release())));
+  fence->set_fence(android::base::unique_fd(callback_(dvr_frame.release())));
   return android::binder::Status::ok();
 }
 
@@ -58,7 +54,7 @@ struct DvrHwcClient {
   android::sp<HwcCallback> callback;
 };
 
-DvrHwcClient* dvrHwcCreateClient(DvrHwcOnFrameCallback callback, void* data) {
+DvrHwcClient* dvrHwcCreateClient(DvrHwcOnFrameCallback callback) {
   std::unique_ptr<DvrHwcClient> client(new DvrHwcClient());
 
   android::sp<android::IServiceManager> sm(android::defaultServiceManager());
@@ -67,7 +63,7 @@ DvrHwcClient* dvrHwcCreateClient(DvrHwcOnFrameCallback callback, void* data) {
   if (!client->composer.get())
     return nullptr;
 
-  client->callback = new HwcCallback(callback, data);
+  client->callback = new HwcCallback(callback);
   android::binder::Status status = client->composer->registerObserver(
       client->callback);
   if (!status.isOk())
@@ -76,28 +72,12 @@ DvrHwcClient* dvrHwcCreateClient(DvrHwcOnFrameCallback callback, void* data) {
   return client.release();
 }
 
-void dvrHwcClientDestroy(DvrHwcClient* client) {
-  delete client;
-}
-
 void dvrHwcFrameDestroy(DvrHwcFrame* frame) {
   delete frame;
 }
 
 Display dvrHwcFrameGetDisplayId(DvrHwcFrame* frame) {
   return frame->frame.display_id;
-}
-
-int32_t dvrHwcFrameGetDisplayWidth(DvrHwcFrame* frame) {
-  return frame->frame.display_width;
-}
-
-int32_t dvrHwcFrameGetDisplayHeight(DvrHwcFrame* frame) {
-  return frame->frame.display_height;
-}
-
-bool dvrHwcFrameGetDisplayRemoved(DvrHwcFrame* frame) {
-  return frame->frame.removed;
 }
 
 size_t dvrHwcFrameGetLayerCount(DvrHwcFrame* frame) {

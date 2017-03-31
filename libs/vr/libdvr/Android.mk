@@ -33,7 +33,6 @@ LOCAL_SRC_FILES := \
     dvr_api.cpp \
     dvr_buffer.cpp \
     dvr_buffer_queue.cpp \
-    dvr_hardware_composer_client.cpp \
     dvr_surface.cpp \
     vsync_client_api.cpp \
 
@@ -43,15 +42,12 @@ LOCAL_STATIC_LIBRARIES := \
     libdisplay \
     libvrsensor \
     libvirtualtouchpadclient \
-    libvr_hwc-impl \
-    libvr_hwc-binder \
 
 LOCAL_SHARED_LIBRARIES := \
     android.hardware.graphics.bufferqueue@1.0 \
     android.hidl.token@1.0-utils \
     libandroid_runtime \
     libbase \
-    libnativewindow \
 
 include $(BUILD_STATIC_LIBRARY)
 
