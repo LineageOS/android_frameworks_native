@@ -19,7 +19,7 @@ class PolynomialPosePredictor : public BufferedPredictor {
  public:
   PolynomialPosePredictor(real regularization = 1e-9)
       : BufferedPredictor(TrainingWindow), regularization_(regularization) {
-    static_assert(PolynomialDegree + 1 >= TrainingWindow,
+    static_assert(TrainingWindow >= PolynomialDegree + 1,
                   "Underconstrained polynomial regressor");
   }
 
