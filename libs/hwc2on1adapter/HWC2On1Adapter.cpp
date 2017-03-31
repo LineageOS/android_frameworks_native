@@ -538,6 +538,12 @@ Error HWC2On1Adapter::Display::acceptChanges() {
     for (auto& change : mChanges->getTypeChanges()) {
         auto layerId = change.first;
         auto type = change.second;
+        if (mDevice.mLayers.count(layerId) == 0) {
+            // This should never happen but somehow does.
+            ALOGW("Cannot accept change for unknown layer (%" PRIu64 ")",
+                  layerId);
+            continue;
+        }
         auto layer = mDevice.mLayers[layerId];
         layer->setCompositionType(type);
     }
