@@ -4,6 +4,7 @@
 // to integrate with auto-test framework.
 cc_test {
     name: "libgui_test",
+    test_suites: ["device-tests"],
 
     clang: true,
 
