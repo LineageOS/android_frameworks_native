@@ -81,7 +81,7 @@ class MessageQueue {
     sp<Looper> mLooper;
     sp<EventThread> mEventThread;
     sp<IDisplayEventConnection> mEvents;
-    sp<BitTube> mEventTube;
+    sp<gui::BitTube> mEventTube;
     sp<Handler> mHandler;
 
 

@@ -68,11 +68,11 @@ class EventThread : public Thread, private VSyncSource::Callback {
     private:
         virtual ~Connection();
         virtual void onFirstRef();
-        status_t getDataChannel(sp<BitTube>* outChannel) const override;
+        status_t getDataChannel(sp<gui::BitTube>* outChannel) const override;
         status_t setVsyncRate(uint32_t count) override;
         void requestNextVsync() override;    // asynchronous
         sp<EventThread> const mEventThread;
-        sp<BitTube> const mChannel;
+        sp<gui::BitTube> const mChannel;
     };
 
 public:

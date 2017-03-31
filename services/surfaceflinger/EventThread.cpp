@@ -389,7 +389,7 @@ void EventThread::dump(String8& result) const {
 
 EventThread::Connection::Connection(
         const sp<EventThread>& eventThread)
-    : count(-1), mEventThread(eventThread), mChannel(new BitTube())
+    : count(-1), mEventThread(eventThread), mChannel(new gui::BitTube())
 {
 }
 
@@ -403,7 +403,7 @@ void EventThread::Connection::onFirstRef() {
     mEventThread->registerDisplayEventConnection(this);
 }
 
-status_t EventThread::Connection::getDataChannel(sp<BitTube>* outChannel) const {
+status_t EventThread::Connection::getDataChannel(sp<gui::BitTube>* outChannel) const {
     *outChannel = mChannel;
     return NO_ERROR;
 }

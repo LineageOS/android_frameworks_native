@@ -83,16 +83,16 @@ ssize_t DisplayEventReceiver::getEvents(DisplayEventReceiver::Event* events,
     return DisplayEventReceiver::getEvents(mDataChannel, events, count);
 }
 
-ssize_t DisplayEventReceiver::getEvents(const sp<BitTube>& dataChannel,
+ssize_t DisplayEventReceiver::getEvents(const sp<gui::BitTube>& dataChannel,
         Event* events, size_t count)
 {
-    return BitTube::recvObjects(dataChannel, events, count);
+    return gui::BitTube::recvObjects(dataChannel, events, count);
 }
 
-ssize_t DisplayEventReceiver::sendEvents(const sp<BitTube>& dataChannel,
+ssize_t DisplayEventReceiver::sendEvents(const sp<gui::BitTube>& dataChannel,
         Event const* events, size_t count)
 {
-    return BitTube::sendObjects(dataChannel, events, count);
+    return gui::BitTube::sendObjects(dataChannel, events, count);
 }
 
 // ---------------------------------------------------------------------------

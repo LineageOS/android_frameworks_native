@@ -31,11 +31,11 @@ public:
 
     ~BpDisplayEventConnection() override;
 
-    status_t getDataChannel(sp<BitTube>* outChannel) const override {
+    status_t getDataChannel(sp<gui::BitTube>* outChannel) const override {
         Parcel data, reply;
         data.writeInterfaceToken(IDisplayEventConnection::getInterfaceDescriptor());
         remote()->transact(GET_DATA_CHANNEL, data, &reply);
-        *outChannel = new BitTube(reply);
+        *outChannel = new gui::BitTube(reply);
         return NO_ERROR;
     }
 
@@ -65,7 +65,7 @@ status_t BnDisplayEventConnection::onTransact(uint32_t code, const Parcel& data,
     switch (code) {
         case GET_DATA_CHANNEL: {
             CHECK_INTERFACE(IDisplayEventConnection, data, reply);
-            sp<BitTube> channel;
+            sp<gui::BitTube> channel;
             getDataChannel(&channel);
             channel->writeToParcel(reply);
             return NO_ERROR;

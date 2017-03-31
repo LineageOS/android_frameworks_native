@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_SENSOR_CHANNEL_H
-#define ANDROID_GUI_SENSOR_CHANNEL_H
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -25,13 +24,13 @@
 #include <utils/RefBase.h>
 
 namespace android {
-// ----------------------------------------------------------------------------
+
 class Parcel;
 
-class BitTube : public RefBase
-{
-public:
+namespace gui {
 
+class BitTube : public RefBase {
+public:
     // creates a BitTube with a default (4KB) send buffer
     BitTube();
 
@@ -52,16 +51,14 @@ public:
 
     // send objects (sized blobs). All objects are guaranteed to be written or the call fails.
     template <typename T>
-    static ssize_t sendObjects(const sp<BitTube>& tube,
-            T const* events, size_t count) {
+    static ssize_t sendObjects(const sp<BitTube>& tube, T const* events, size_t count) {
         return sendObjects(tube, events, count, sizeof(T));
     }
 
-    // receive objects (sized blobs). If the receiving buffer isn't large enough,
-    // excess messages are silently discarded.
+    // receive objects (sized blobs). If the receiving buffer isn't large enough, excess messages
+    // are silently discarded.
     template <typename T>
-    static ssize_t recvObjects(const sp<BitTube>& tube,
-            T* events, size_t count) {
+    static ssize_t recvObjects(const sp<BitTube>& tube, T* events, size_t count) {
         return recvObjects(tube, events, count, sizeof(T));
     }
 
@@ -74,21 +71,18 @@ private:
     // send a message. The write is guaranteed to send the whole message or fail.
     ssize_t write(void const* vaddr, size_t size);
 
-    // receive a message. the passed buffer must be at least as large as the
-    // write call used to send the message, excess data is silently discarded.
+    // receive a message. the passed buffer must be at least as large as the write call used to send
+    // the message, excess data is silently discarded.
     ssize_t read(void* vaddr, size_t size);
 
     int mSendFd;
     mutable int mReceiveFd;
 
-    static ssize_t sendObjects(const sp<BitTube>& tube,
-            void const* events, size_t count, size_t objSize);
+    static ssize_t sendObjects(const sp<BitTube>& tube, void const* events, size_t count,
+                               size_t objSize);
 
-    static ssize_t recvObjects(const sp<BitTube>& tube,
-            void* events, size_t count, size_t objSize);
+    static ssize_t recvObjects(const sp<BitTube>& tube, void* events, size_t count, size_t objSize);
 };
 
-// ----------------------------------------------------------------------------
-}; // namespace android
-
-#endif // ANDROID_GUI_SENSOR_CHANNEL_H
+} // namespace gui
+} // namespace android

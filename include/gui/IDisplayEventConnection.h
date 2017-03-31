@@ -25,7 +25,9 @@
 
 namespace android {
 
+namespace gui {
 class BitTube;
+} // namespace gui
 
 class IDisplayEventConnection : public IInterface {
 public:
@@ -34,7 +36,7 @@ public:
     /*
      * getDataChannel() returns a BitTube where to receive the events from
      */
-    virtual status_t getDataChannel(sp<BitTube>* outChannel) const = 0;
+    virtual status_t getDataChannel(sp<gui::BitTube>* outChannel) const = 0;
 
     /*
      * setVsyncRate() sets the vsync event delivery rate. A value of 1 returns every vsync event.
