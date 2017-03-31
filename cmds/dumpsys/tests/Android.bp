@@ -1,6 +1,7 @@
 // Build the unit tests for dumpsys
 cc_test {
     name: "dumpsys_test",
+    test_suites: ["device-tests"],
 
     srcs: ["dumpsys_test.cpp"],
 
