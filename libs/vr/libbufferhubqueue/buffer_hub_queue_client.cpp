@@ -146,7 +146,7 @@ void BufferHubQueue::HandleBufferEvent(size_t slot, const epoll_event& event) {
     ALOGW(
         "Receives EPOLLHUP at slot: %zu, buffer event fd: %d, EPOLLHUP "
         "pending: %d",
-        slot, buffer->event_fd(), epollhup_pending_[slot]);
+        slot, buffer->event_fd(), int{epollhup_pending_[slot]});
     if (epollhup_pending_[slot]) {
       epollhup_pending_[slot] = false;
     } else {
