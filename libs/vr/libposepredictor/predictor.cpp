@@ -5,7 +5,7 @@
 namespace posepredictor {
 
 vec3 Predictor::AngularVelocity(const quat& a, const quat& b, real delta_time) {
-  const auto delta_q = b.inverse() * a;
+  const auto delta_q = a.inverse() * b;
   // Check that delta_q.w() == 1, Eigen doesn't respect this convention. If
   // delta_q.w() == -1, we'll get the opposite velocity.
   return 2.0 * (delta_q.w() < 0 ? static_cast<vec3>(-delta_q.vec()) : delta_q.vec()) / delta_time;
