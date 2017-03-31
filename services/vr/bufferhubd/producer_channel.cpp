@@ -238,7 +238,7 @@ LocalFence ProducerChannel::OnProducerGain(Message& message) {
 
   ClearAvailable();
   producer_owns_ = true;
-  post_fence_.get_fd();
+  post_fence_.close();
   return std::move(returned_fence_);
 }
 
