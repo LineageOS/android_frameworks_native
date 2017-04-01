@@ -1903,7 +1903,8 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                         // etc.) but no internal state (i.e. a DisplayDevice).
                         if (state.surface != NULL) {
 
-                            if (mUseHwcVirtualDisplays) {
+                            // Allow VR composer to use virtual displays.
+                            if (mUseHwcVirtualDisplays || mHwc == mVrHwc) {
                                 int width = 0;
                                 int status = state.surface->query(
                                         NATIVE_WINDOW_WIDTH, &width);
