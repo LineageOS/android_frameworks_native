@@ -34,26 +34,14 @@ namespace gui {
 // need. So we make it smaller.
 static const size_t DEFAULT_SOCKET_BUFFER_SIZE = 4 * 1024;
 
-BitTube::BitTube() : mSendFd(-1), mReceiveFd(-1) {
-    init(DEFAULT_SOCKET_BUFFER_SIZE, DEFAULT_SOCKET_BUFFER_SIZE);
-}
-
-BitTube::BitTube(size_t bufsize) : mSendFd(-1), mReceiveFd(-1) {
+BitTube::BitTube(size_t bufsize) {
     init(bufsize, bufsize);
 }
 
-BitTube::BitTube(const Parcel& data) : mSendFd(-1), mReceiveFd(-1) {
-    mReceiveFd = dup(data.readFileDescriptor());
-    if (mReceiveFd < 0) {
-        mReceiveFd = -errno;
-        ALOGE("BitTube(Parcel): can't dup filedescriptor (%s)", strerror(-mReceiveFd));
-    }
-}
+BitTube::BitTube(DefaultSizeType) : BitTube(DEFAULT_SOCKET_BUFFER_SIZE) {}
 
-BitTube::~BitTube() {
-    if (mSendFd >= 0) close(mSendFd);
-
-    if (mReceiveFd >= 0) close(mReceiveFd);
+BitTube::BitTube(const Parcel& data) {
+    readFromParcel(&data);
 }
 
 void BitTube::init(size_t rcvbuf, size_t sndbuf) {
@@ -67,11 +55,11 @@ void BitTube::init(size_t rcvbuf, size_t sndbuf) {
         setsockopt(sockets[1], SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
         fcntl(sockets[0], F_SETFL, O_NONBLOCK);
         fcntl(sockets[1], F_SETFL, O_NONBLOCK);
-        mReceiveFd = sockets[0];
-        mSendFd = sockets[1];
+        mReceiveFd.reset(sockets[0]);
+        mSendFd.reset(sockets[1]);
     } else {
-        mReceiveFd = -errno;
-        ALOGE("BitTube: pipe creation failed (%s)", strerror(-mReceiveFd));
+        mReceiveFd.reset();
+        ALOGE("BitTube: pipe creation failed (%s)", strerror(errno));
     }
 }
 
@@ -118,9 +106,19 @@ status_t BitTube::writeToParcel(Parcel* reply) const {
     if (mReceiveFd < 0) return -EINVAL;
 
     status_t result = reply->writeDupFileDescriptor(mReceiveFd);
-    close(mReceiveFd);
-    mReceiveFd = -1;
+    mReceiveFd.reset();
     return result;
+}
+
+status_t BitTube::readFromParcel(const Parcel* parcel) {
+    mReceiveFd.reset(dup(parcel->readFileDescriptor()));
+    if (mReceiveFd < 0) {
+        mReceiveFd.reset();
+        int error = errno;
+        ALOGE("BitTube::readFromParcel: can't dup file descriptor (%s)", strerror(error));
+        return -error;
+    }
+    return NO_ERROR;
 }
 
 ssize_t BitTube::sendObjects(const sp<BitTube>& tube, void const* events, size_t count,

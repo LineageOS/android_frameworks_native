@@ -20,6 +20,8 @@
 #include <sys/types.h>
 
 #include <android/log.h>
+#include <android-base/unique_fd.h>
+#include <binder/Parcelable.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
@@ -29,16 +31,22 @@ class Parcel;
 
 namespace gui {
 
-class BitTube : public RefBase {
+class BitTube : public RefBase, public Parcelable {
 public:
-    // creates a BitTube with a default (4KB) send buffer
-    BitTube();
+    // creates an uninitialized BitTube (to unparcel into)
+    BitTube() = default;
 
     // creates a BitTube with a a specified send and receive buffer size
     explicit BitTube(size_t bufsize);
 
+    // creates a BitTube with a default (4KB) send buffer
+    struct DefaultSizeType {};
+    static constexpr DefaultSizeType DefaultSize{};
+    explicit BitTube(DefaultSizeType);
+
     explicit BitTube(const Parcel& data);
-    virtual ~BitTube();
+
+    virtual ~BitTube() = default;
 
     // check state after construction
     status_t initCheck() const;
@@ -62,8 +70,9 @@ public:
         return recvObjects(tube, events, count, sizeof(T));
     }
 
-    // parcels this BitTube
+    // implement the Parcelable protocol. Only parcels the receive file descriptor
     status_t writeToParcel(Parcel* reply) const;
+    status_t readFromParcel(const Parcel* parcel);
 
 private:
     void init(size_t rcvbuf, size_t sndbuf);
@@ -75,8 +84,8 @@ private:
     // the message, excess data is silently discarded.
     ssize_t read(void* vaddr, size_t size);
 
-    int mSendFd;
-    mutable int mReceiveFd;
+    base::unique_fd mSendFd;
+    mutable base::unique_fd mReceiveFd;
 
     static ssize_t sendObjects(const sp<BitTube>& tube, void const* events, size_t count,
                                size_t objSize);

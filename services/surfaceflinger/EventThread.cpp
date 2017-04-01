@@ -389,7 +389,7 @@ void EventThread::dump(String8& result) const {
 
 EventThread::Connection::Connection(
         const sp<EventThread>& eventThread)
-    : count(-1), mEventThread(eventThread), mChannel(new gui::BitTube())
+    : count(-1), mEventThread(eventThread), mChannel(new gui::BitTube(gui::BitTube::DefaultSize))
 {
 }
 
