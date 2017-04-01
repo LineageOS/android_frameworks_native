@@ -1210,6 +1210,16 @@ VkResult AcquireNextImageKHR(VkDevice device,
         timeout != UINT64_MAX,
         "vkAcquireNextImageKHR: non-infinite timeouts not yet implemented");
 
+    if (swapchain.shared) {
+        // In shared mode, we keep the buffer dequeued all the time, so we don't
+        // want to dequeue a buffer here. Instead, just ask the driver to ensure
+        // the semaphore and fence passed to us will be signalled.
+        *image_index = 0;
+        result = GetData(device).driver.AcquireImageANDROID(
+                device, swapchain.images[*image_index].image, -1, semaphore, vk_fence);
+        return result;
+    }
+
     ANativeWindowBuffer* buffer;
     int fence_fd;
     err = window->dequeueBuffer(window, &buffer, &fence_fd);
