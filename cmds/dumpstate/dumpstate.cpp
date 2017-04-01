@@ -820,28 +820,33 @@ static void DoLogcat() {
     if (timeout < 20000) {
         timeout = 20000;
     }
-    RunCommand("SYSTEM LOG", {"logcat", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
+    RunCommand("SYSTEM LOG",
+               {"logcat", "-v", "threadtime", "-v", "printable", "-v", "uid",
+                        "-d", "*:v"},
                CommandOptions::WithTimeout(timeout / 1000).Build());
     timeout = logcat_timeout("events");
     if (timeout < 20000) {
         timeout = 20000;
     }
     RunCommand("EVENT LOG",
-               {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
+               {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-v", "uid",
+                        "-d", "*:v"},
                CommandOptions::WithTimeout(timeout / 1000).Build());
     timeout = logcat_timeout("radio");
     if (timeout < 20000) {
         timeout = 20000;
     }
     RunCommand("RADIO LOG",
-               {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-d", "*:v"},
+               {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-v", "uid",
+                        "-d", "*:v"},
                CommandOptions::WithTimeout(timeout / 1000).Build());
 
     RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
 
     /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
     RunCommand("LAST LOGCAT",
-               {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable", "-d", "*:v"});
+                {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable", "-v", "uid",
+                        "-d", "*:v"});
 }
 
 static void DumpIpTables() {
