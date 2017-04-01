@@ -87,7 +87,7 @@ void* SendPayload::GetNextWriteBufferSection(size_t size) {
 OutputResourceMapper* SendPayload::GetOutputResourceMapper() { return this; }
 
 // OutputResourceMapper
-FileReference SendPayload::PushFileHandle(const LocalHandle& handle) {
+Status<FileReference> SendPayload::PushFileHandle(const LocalHandle& handle) {
   if (handle) {
     const int ref = file_handles_.size();
     file_handles_.push_back(handle.Get());
@@ -97,7 +97,8 @@ FileReference SendPayload::PushFileHandle(const LocalHandle& handle) {
   }
 }
 
-FileReference SendPayload::PushFileHandle(const BorrowedHandle& handle) {
+Status<FileReference> SendPayload::PushFileHandle(
+    const BorrowedHandle& handle) {
   if (handle) {
     const int ref = file_handles_.size();
     file_handles_.push_back(handle.Get());
@@ -107,21 +108,21 @@ FileReference SendPayload::PushFileHandle(const BorrowedHandle& handle) {
   }
 }
 
-FileReference SendPayload::PushFileHandle(const RemoteHandle& handle) {
+Status<FileReference> SendPayload::PushFileHandle(const RemoteHandle& handle) {
   return handle.Get();
 }
 
-ChannelReference SendPayload::PushChannelHandle(
+Status<ChannelReference> SendPayload::PushChannelHandle(
     const LocalChannelHandle& /*handle*/) {
-  return -1;
+  return ErrorStatus{EOPNOTSUPP};
 }
-ChannelReference SendPayload::PushChannelHandle(
+Status<ChannelReference> SendPayload::PushChannelHandle(
     const BorrowedChannelHandle& /*handle*/) {
-  return -1;
+  return ErrorStatus{EOPNOTSUPP};
 }
-ChannelReference SendPayload::PushChannelHandle(
+Status<ChannelReference> SendPayload::PushChannelHandle(
     const RemoteChannelHandle& /*handle*/) {
-  return -1;
+  return ErrorStatus{EOPNOTSUPP};
 }
 
 Status<void> ReceivePayload::Receive(int socket_fd) {

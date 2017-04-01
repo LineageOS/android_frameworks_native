@@ -41,6 +41,8 @@ cc_test {
         "libpdx",
     ],
     shared_libs: [
+        "libbase",
+        "libcutils",
         "liblog",
         "libutils",
     ],

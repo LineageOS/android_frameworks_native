@@ -141,7 +141,7 @@ class BufferHubService : public pdx::ServiceBase<BufferHubService> {
   BufferHubService();
   ~BufferHubService() override;
 
-  int HandleMessage(pdx::Message& message) override;
+  pdx::Status<void> HandleMessage(pdx::Message& message) override;
   void HandleImpulse(pdx::Message& message) override;
 
   void OnChannelClose(pdx::Message& message,

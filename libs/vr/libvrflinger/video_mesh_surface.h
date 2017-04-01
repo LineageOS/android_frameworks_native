@@ -12,7 +12,7 @@ class DisplayService;
 
 // VideoMeshSurface takes three inputs: 1) buffers filled by Android system
 // components (e.g. MediaCodec or camera stack) other than applications' GL
-// context; 2) a 3D mesh choosen by application to define the shape of the
+// context; 2) a 3D mesh chosen by application to define the shape of the
 // surface; 3) a transformation matrix from application to define the rotation,
 // position, and scaling of the video surface.
 class VideoMeshSurface : public SurfaceChannel {
@@ -33,7 +33,7 @@ class VideoMeshSurface : public SurfaceChannel {
     }
   }
 
-  int HandleMessage(Message& message) override;
+  pdx::Status<void> HandleMessage(Message& message) override;
 
   std::shared_ptr<ConsumerQueue> GetConsumerQueue();
 

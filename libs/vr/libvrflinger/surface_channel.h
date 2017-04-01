@@ -33,7 +33,7 @@ class SurfaceChannel : public pdx::Channel {
 
   // Dispatches surface channel messages to the appropriate handlers. This
   // handler runs on the displayd message dispatch thread.
-  virtual int HandleMessage(pdx::Message& message);
+  virtual pdx::Status<void> HandleMessage(pdx::Message& message);
 
  protected:
   // Contains the surface metadata.

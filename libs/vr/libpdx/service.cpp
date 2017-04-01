@@ -9,7 +9,6 @@
 #include <cstdint>
 
 #include <pdx/trace.h>
-#include "errno_guard.h"
 
 #define TRACE 0
 
@@ -60,7 +59,7 @@ void Message::Destroy() {
           "ERROR: Service \"%s\" failed to reply to message: op=%d pid=%d "
           "cid=%d\n",
           svc->name_.c_str(), info_.op, info_.pid, info_.cid);
-      svc->endpoint()->DefaultHandleMessage(info_);
+      svc->DefaultHandleMessage(*this);
     }
     svc->endpoint()->FreeMessageState(state_);
   }
@@ -77,112 +76,138 @@ const std::uint8_t* Message::ImpulseEnd() const {
   return ImpulseBegin() + (IsImpulse() ? GetSendLength() : 0);
 }
 
-ssize_t Message::ReadVector(const struct iovec* vector, size_t vector_length) {
+Status<size_t> Message::ReadVector(const struct iovec* vector,
+                                   size_t vector_length) {
   PDX_TRACE_NAME("Message::ReadVector");
   if (auto svc = service_.lock()) {
-    ErrnoGuard errno_guard;
-    const ssize_t ret =
-        svc->endpoint()->ReadMessageData(this, vector, vector_length);
-    return ReturnCodeOrError(ret);
+    return svc->endpoint()->ReadMessageData(this, vector, vector_length);
   } else {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 }
 
-ssize_t Message::Read(void* buffer, size_t length) {
+Status<void> Message::ReadVectorAll(const struct iovec* vector,
+                                    size_t vector_length) {
+  PDX_TRACE_NAME("Message::ReadVectorAll");
+  if (auto svc = service_.lock()) {
+    const auto status =
+        svc->endpoint()->ReadMessageData(this, vector, vector_length);
+    if (!status)
+      return status.error_status();
+    size_t size_to_read = 0;
+    for (size_t i = 0; i < vector_length; i++)
+      size_to_read += vector[i].iov_len;
+    if (status.get() < size_to_read)
+      return ErrorStatus{EIO};
+    return {};
+  } else {
+    return ErrorStatus{ESHUTDOWN};
+  }
+}
+
+Status<size_t> Message::Read(void* buffer, size_t length) {
   PDX_TRACE_NAME("Message::Read");
   if (auto svc = service_.lock()) {
-    ErrnoGuard errno_guard;
     const struct iovec vector = {buffer, length};
-    const ssize_t ret = svc->endpoint()->ReadMessageData(this, &vector, 1);
-    return ReturnCodeOrError(ret);
+    return svc->endpoint()->ReadMessageData(this, &vector, 1);
   } else {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 }
 
-ssize_t Message::WriteVector(const struct iovec* vector, size_t vector_length) {
+Status<size_t> Message::WriteVector(const struct iovec* vector,
+                                    size_t vector_length) {
   PDX_TRACE_NAME("Message::WriteVector");
   if (auto svc = service_.lock()) {
-    ErrnoGuard errno_guard;
-    const ssize_t ret =
-        svc->endpoint()->WriteMessageData(this, vector, vector_length);
-    return ReturnCodeOrError(ret);
+    return svc->endpoint()->WriteMessageData(this, vector, vector_length);
   } else {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 }
 
-ssize_t Message::Write(const void* buffer, size_t length) {
+Status<void> Message::WriteVectorAll(const struct iovec* vector,
+                                     size_t vector_length) {
+  PDX_TRACE_NAME("Message::WriteVector");
+  if (auto svc = service_.lock()) {
+    const auto status =
+        svc->endpoint()->WriteMessageData(this, vector, vector_length);
+    if (!status)
+      return status.error_status();
+    size_t size_to_write = 0;
+    for (size_t i = 0; i < vector_length; i++)
+      size_to_write += vector[i].iov_len;
+    if (status.get() < size_to_write)
+      return ErrorStatus{EIO};
+    return {};
+  } else {
+    return ErrorStatus{ESHUTDOWN};
+  }
+}
+
+Status<size_t> Message::Write(const void* buffer, size_t length) {
   PDX_TRACE_NAME("Message::Write");
   if (auto svc = service_.lock()) {
-    ErrnoGuard errno_guard;
     const struct iovec vector = {const_cast<void*>(buffer), length};
-    const ssize_t ret = svc->endpoint()->WriteMessageData(this, &vector, 1);
-    return ReturnCodeOrError(ret);
+    return svc->endpoint()->WriteMessageData(this, &vector, 1);
   } else {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 }
 
-FileReference Message::PushFileHandle(const LocalHandle& handle) {
+Status<FileReference> Message::PushFileHandle(const LocalHandle& handle) {
   PDX_TRACE_NAME("Message::PushFileHandle");
   if (auto svc = service_.lock()) {
-    ErrnoGuard errno_guard;
-    return ReturnCodeOrError(svc->endpoint()->PushFileHandle(this, handle));
+    return svc->endpoint()->PushFileHandle(this, handle);
   } else {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 }
 
-FileReference Message::PushFileHandle(const BorrowedHandle& handle) {
+Status<FileReference> Message::PushFileHandle(const BorrowedHandle& handle) {
   PDX_TRACE_NAME("Message::PushFileHandle");
   if (auto svc = service_.lock()) {
-    ErrnoGuard errno_guard;
-    return ReturnCodeOrError(svc->endpoint()->PushFileHandle(this, handle));
+    return svc->endpoint()->PushFileHandle(this, handle);
   } else {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 }
 
-FileReference Message::PushFileHandle(const RemoteHandle& handle) {
+Status<FileReference> Message::PushFileHandle(const RemoteHandle& handle) {
   PDX_TRACE_NAME("Message::PushFileHandle");
   if (auto svc = service_.lock()) {
-    ErrnoGuard errno_guard;
-    return ReturnCodeOrError(svc->endpoint()->PushFileHandle(this, handle));
+    return svc->endpoint()->PushFileHandle(this, handle);
   } else {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 }
 
-ChannelReference Message::PushChannelHandle(const LocalChannelHandle& handle) {
+Status<ChannelReference> Message::PushChannelHandle(
+    const LocalChannelHandle& handle) {
   PDX_TRACE_NAME("Message::PushChannelHandle");
   if (auto svc = service_.lock()) {
-    ErrnoGuard errno_guard;
-    return ReturnCodeOrError(svc->endpoint()->PushChannelHandle(this, handle));
+    return svc->endpoint()->PushChannelHandle(this, handle);
   } else {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 }
 
-ChannelReference Message::PushChannelHandle(
+Status<ChannelReference> Message::PushChannelHandle(
     const BorrowedChannelHandle& handle) {
   PDX_TRACE_NAME("Message::PushChannelHandle");
   if (auto svc = service_.lock()) {
-    ErrnoGuard errno_guard;
-    return ReturnCodeOrError(svc->endpoint()->PushChannelHandle(this, handle));
+    return svc->endpoint()->PushChannelHandle(this, handle);
   } else {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 }
 
-ChannelReference Message::PushChannelHandle(const RemoteChannelHandle& handle) {
+Status<ChannelReference> Message::PushChannelHandle(
+    const RemoteChannelHandle& handle) {
   PDX_TRACE_NAME("Message::PushChannelHandle");
   if (auto svc = service_.lock()) {
-    ErrnoGuard errno_guard;
-    return ReturnCodeOrError(svc->endpoint()->PushChannelHandle(this, handle));
+    return svc->endpoint()->PushChannelHandle(this, handle);
   } else {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 }
 
@@ -193,7 +218,6 @@ bool Message::GetFileHandle(FileReference ref, LocalHandle* handle) {
     return false;
 
   if (ref >= 0) {
-    ErrnoGuard errno_guard;
     *handle = svc->endpoint()->GetFileHandle(this, ref);
     if (!handle->IsValid())
       return false;
@@ -211,7 +235,6 @@ bool Message::GetChannelHandle(ChannelReference ref,
     return false;
 
   if (ref >= 0) {
-    ErrnoGuard errno_guard;
     *handle = svc->endpoint()->GetChannelHandle(this, ref);
     if (!handle->valid())
       return false;
@@ -221,141 +244,137 @@ bool Message::GetChannelHandle(ChannelReference ref,
   return true;
 }
 
-int Message::Reply(int return_code) {
+Status<void> Message::Reply(int return_code) {
   PDX_TRACE_NAME("Message::Reply");
   auto svc = service_.lock();
   if (!replied_ && svc) {
-    ErrnoGuard errno_guard;
-    const int ret = svc->endpoint()->MessageReply(this, return_code);
-    replied_ = ret == 0;
-    return ReturnCodeOrError(ret);
+    const auto ret = svc->endpoint()->MessageReply(this, return_code);
+    replied_ = ret.ok();
+    return ret;
   } else {
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
   }
 }
 
-int Message::ReplyFileDescriptor(unsigned int fd) {
+Status<void> Message::ReplyFileDescriptor(unsigned int fd) {
   PDX_TRACE_NAME("Message::ReplyFileDescriptor");
   auto svc = service_.lock();
   if (!replied_ && svc) {
-    ErrnoGuard errno_guard;
-    const int ret = svc->endpoint()->MessageReplyFd(this, fd);
-    replied_ = ret == 0;
-    return ReturnCodeOrError(ret);
+    const auto ret = svc->endpoint()->MessageReplyFd(this, fd);
+    replied_ = ret.ok();
+    return ret;
   } else {
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
   }
 }
 
-int Message::ReplyError(unsigned error) {
+Status<void> Message::ReplyError(unsigned int error) {
   PDX_TRACE_NAME("Message::ReplyError");
   auto svc = service_.lock();
   if (!replied_ && svc) {
-    ErrnoGuard errno_guard;
-    const int ret = svc->endpoint()->MessageReply(this, -error);
-    replied_ = ret == 0;
-    return ReturnCodeOrError(ret);
+    const auto ret =
+        svc->endpoint()->MessageReply(this, -static_cast<int>(error));
+    replied_ = ret.ok();
+    return ret;
   } else {
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
   }
 }
 
-int Message::Reply(const LocalHandle& handle) {
+Status<void> Message::Reply(const LocalHandle& handle) {
   PDX_TRACE_NAME("Message::ReplyFileHandle");
   auto svc = service_.lock();
   if (!replied_ && svc) {
-    ErrnoGuard errno_guard;
-    int ret;
+    Status<void> ret;
 
     if (handle)
       ret = svc->endpoint()->MessageReplyFd(this, handle.Get());
     else
       ret = svc->endpoint()->MessageReply(this, handle.Get());
 
-    replied_ = ret == 0;
-    return ReturnCodeOrError(ret);
+    replied_ = ret.ok();
+    return ret;
   } else {
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
   }
 }
 
-int Message::Reply(const BorrowedHandle& handle) {
+Status<void> Message::Reply(const BorrowedHandle& handle) {
   PDX_TRACE_NAME("Message::ReplyFileHandle");
   auto svc = service_.lock();
   if (!replied_ && svc) {
-    ErrnoGuard errno_guard;
-    int ret;
+    Status<void> ret;
 
     if (handle)
       ret = svc->endpoint()->MessageReplyFd(this, handle.Get());
     else
       ret = svc->endpoint()->MessageReply(this, handle.Get());
 
-    replied_ = ret == 0;
-    return ReturnCodeOrError(ret);
+    replied_ = ret.ok();
+    return ret;
   } else {
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
   }
 }
 
-int Message::Reply(const RemoteHandle& handle) {
+Status<void> Message::Reply(const RemoteHandle& handle) {
   PDX_TRACE_NAME("Message::ReplyFileHandle");
   auto svc = service_.lock();
   if (!replied_ && svc) {
-    ErrnoGuard errno_guard;
-    const int ret = svc->endpoint()->MessageReply(this, handle.Get());
-    replied_ = ret == 0;
-    return ReturnCodeOrError(ret);
+    Status<void> ret;
+
+    if (handle)
+      ret = svc->endpoint()->MessageReply(this, handle.Get());
+    else
+      ret = svc->endpoint()->MessageReply(this, handle.Get());
+
+    replied_ = ret.ok();
+    return ret;
   } else {
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
   }
 }
 
-int Message::Reply(const LocalChannelHandle& handle) {
+Status<void> Message::Reply(const LocalChannelHandle& handle) {
   auto svc = service_.lock();
   if (!replied_ && svc) {
-    ErrnoGuard errno_guard;
-    const int ret = svc->endpoint()->MessageReplyChannelHandle(this, handle);
-    replied_ = ret == 0;
-    return ReturnCodeOrError(ret);
+    const auto ret = svc->endpoint()->MessageReplyChannelHandle(this, handle);
+    replied_ = ret.ok();
+    return ret;
   } else {
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
   }
 }
 
-int Message::Reply(const BorrowedChannelHandle& handle) {
+Status<void> Message::Reply(const BorrowedChannelHandle& handle) {
   auto svc = service_.lock();
   if (!replied_ && svc) {
-    ErrnoGuard errno_guard;
-    const int ret = svc->endpoint()->MessageReplyChannelHandle(this, handle);
-    replied_ = ret == 0;
-    return ReturnCodeOrError(ret);
+    const auto ret = svc->endpoint()->MessageReplyChannelHandle(this, handle);
+    replied_ = ret.ok();
+    return ret;
   } else {
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
   }
 }
 
-int Message::Reply(const RemoteChannelHandle& handle) {
+Status<void> Message::Reply(const RemoteChannelHandle& handle) {
   auto svc = service_.lock();
   if (!replied_ && svc) {
-    ErrnoGuard errno_guard;
-    const int ret = svc->endpoint()->MessageReplyChannelHandle(this, handle);
-    replied_ = ret == 0;
-    return ReturnCodeOrError(ret);
+    const auto ret = svc->endpoint()->MessageReplyChannelHandle(this, handle);
+    replied_ = ret.ok();
+    return ret;
   } else {
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
   }
 }
 
-int Message::ModifyChannelEvents(int clear_mask, int set_mask) {
+Status<void> Message::ModifyChannelEvents(int clear_mask, int set_mask) {
   PDX_TRACE_NAME("Message::ModifyChannelEvents");
   if (auto svc = service_.lock()) {
-    ErrnoGuard errno_guard;
-    const int ret =
-        svc->endpoint()->ModifyChannelEvents(info_.cid, clear_mask, set_mask);
-    return ReturnCodeOrError(ret);
+    return svc->endpoint()->ModifyChannelEvents(info_.cid, clear_mask,
+                                                set_mask);
   } else {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 }
 
@@ -416,11 +435,12 @@ size_t Message::GetFileDescriptorCount() const { return info_.fd_count; }
 
 std::shared_ptr<Channel> Message::GetChannel() const { return channel_.lock(); }
 
-void Message::SetChannel(const std::shared_ptr<Channel>& chan) {
+Status<void> Message::SetChannel(const std::shared_ptr<Channel>& chan) {
   channel_ = chan;
-
+  Status<void> status;
   if (auto svc = service_.lock())
-    svc->SetChannel(info_.cid, chan);
+    status = svc->SetChannel(info_.cid, chan);
+  return status;
 }
 
 std::shared_ptr<Service> Message::GetService() const { return service_.lock(); }
@@ -432,16 +452,16 @@ Service::Service(const std::string& name, std::unique_ptr<Endpoint> endpoint)
   if (!endpoint_)
     return;
 
-  const int ret = endpoint_->SetService(this);
-  ALOGE_IF(ret < 0, "Failed to set service context because: %s",
-           strerror(-ret));
+  const auto status = endpoint_->SetService(this);
+  ALOGE_IF(!status, "Failed to set service context because: %s",
+           status.GetErrorMessage().c_str());
 }
 
 Service::~Service() {
   if (endpoint_) {
-    const int ret = endpoint_->SetService(nullptr);
-    ALOGE_IF(ret < 0, "Failed to clear service context because: %s",
-             strerror(-ret));
+    const auto status = endpoint_->SetService(nullptr);
+    ALOGE_IF(!status, "Failed to clear service context because: %s",
+             status.GetErrorMessage().c_str());
   }
 }
 
@@ -459,32 +479,28 @@ std::shared_ptr<Channel> Service::OnChannelOpen(Message& /*message*/) {
 void Service::OnChannelClose(Message& /*message*/,
                              const std::shared_ptr<Channel>& /*channel*/) {}
 
-int Service::SetChannel(int channel_id,
-                        const std::shared_ptr<Channel>& channel) {
+Status<void> Service::SetChannel(int channel_id,
+                                 const std::shared_ptr<Channel>& channel) {
   PDX_TRACE_NAME("Service::SetChannel");
-  ErrnoGuard errno_guard;
   std::lock_guard<std::mutex> autolock(channels_mutex_);
 
-  const int ret = endpoint_->SetChannel(channel_id, channel.get());
-  if (ret == -1) {
+  const auto status = endpoint_->SetChannel(channel_id, channel.get());
+  if (!status) {
     ALOGE("%s::SetChannel: Failed to set channel context: %s\n", name_.c_str(),
-          strerror(errno));
+          status.GetErrorMessage().c_str());
 
     // It's possible someone mucked with things behind our back by calling the C
     // API directly. Since we know the channel id isn't valid, make sure we
     // don't have it in the channels map.
-    if (errno == ENOENT)
+    if (status.error() == ENOENT)
       channels_.erase(channel_id);
-
-    return ReturnCodeOrError(ret);
+  } else {
+    if (channel != nullptr)
+      channels_[channel_id] = channel;
+    else
+      channels_.erase(channel_id);
   }
-
-  if (channel != nullptr)
-    channels_[channel_id] = channel;
-  else
-    channels_.erase(channel_id);
-
-  return ret;
+  return status;
 }
 
 std::shared_ptr<Channel> Service::GetChannel(int channel_id) const {
@@ -498,21 +514,21 @@ std::shared_ptr<Channel> Service::GetChannel(int channel_id) const {
     return nullptr;
 }
 
-int Service::CloseChannel(int channel_id) {
+Status<void> Service::CloseChannel(int channel_id) {
   PDX_TRACE_NAME("Service::CloseChannel");
-  ErrnoGuard errno_guard;
   std::lock_guard<std::mutex> autolock(channels_mutex_);
 
-  const int ret = endpoint_->CloseChannel(channel_id);
+  const auto status = endpoint_->CloseChannel(channel_id);
 
   // Always erase the map entry, in case someone mucked with things behind our
   // back using the C API directly.
   channels_.erase(channel_id);
 
-  return ReturnCodeOrError(ret);
+  return status;
 }
 
-int Service::ModifyChannelEvents(int channel_id, int clear_mask, int set_mask) {
+Status<void> Service::ModifyChannelEvents(int channel_id, int clear_mask,
+                                          int set_mask) {
   PDX_TRACE_NAME("Service::ModifyChannelEvents");
   return endpoint_->ModifyChannelEvents(channel_id, clear_mask, set_mask);
 }
@@ -521,7 +537,6 @@ Status<RemoteChannelHandle> Service::PushChannel(
     Message* message, int flags, const std::shared_ptr<Channel>& channel,
     int* channel_id) {
   PDX_TRACE_NAME("Service::PushChannel");
-  ErrnoGuard errno_guard;
 
   std::lock_guard<std::mutex> autolock(channels_mutex_);
 
@@ -542,7 +557,6 @@ Status<RemoteChannelHandle> Service::PushChannel(
 Status<int> Service::CheckChannel(const Message* message, ChannelReference ref,
                                   std::shared_ptr<Channel>* channel) const {
   PDX_TRACE_NAME("Service::CheckChannel");
-  ErrnoGuard errno_guard;
 
   // Synchronization to maintain consistency between the kernel's channel
   // context pointer and the userspace channels_ map. Other threads may attempt
@@ -565,13 +579,13 @@ Status<int> Service::CheckChannel(const Message* message, ChannelReference ref,
 
 std::string Service::DumpState(size_t /*max_length*/) { return ""; }
 
-int Service::HandleMessage(Message& message) {
+Status<void> Service::HandleMessage(Message& message) {
   return DefaultHandleMessage(message);
 }
 
 void Service::HandleImpulse(Message& /*impulse*/) {}
 
-bool Service::HandleSystemMessage(Message& message) {
+Status<void> Service::HandleSystemMessage(Message& message) {
   const MessageInfo& info = message.GetInfo();
 
   switch (info.op) {
@@ -579,8 +593,7 @@ bool Service::HandleSystemMessage(Message& message) {
       ALOGD("%s::OnChannelOpen: pid=%d cid=%d\n", name_.c_str(), info.pid,
             info.cid);
       message.SetChannel(OnChannelOpen(message));
-      message.Reply(0);
-      return true;
+      return message.Reply(0);
     }
 
     case opcodes::CHANNEL_CLOSE: {
@@ -588,8 +601,7 @@ bool Service::HandleSystemMessage(Message& message) {
             info.cid);
       OnChannelClose(message, Channel::GetFromMessageInfo(info));
       message.SetChannel(nullptr);
-      message.Reply(0);
-      return true;
+      return message.Reply(0);
     }
 
     case opcodes::REPORT_SYSPROP_CHANGE:
@@ -597,8 +609,7 @@ bool Service::HandleSystemMessage(Message& message) {
             info.pid, info.cid);
       OnSysPropChange();
       android::report_sysprop_change();
-      message.Reply(0);
-      return true;
+      return message.Reply(0);
 
     case opcodes::DUMP_STATE: {
       ALOGD("%s:DUMP_STATE: pid=%d cid=%d\n", name_.c_str(), info.pid,
@@ -607,21 +618,20 @@ bool Service::HandleSystemMessage(Message& message) {
       const size_t response_size = response.size() < message.GetReceiveLength()
                                        ? response.size()
                                        : message.GetReceiveLength();
-      const ssize_t bytes_written =
+      const Status<size_t> status =
           message.Write(response.data(), response_size);
-      if (bytes_written < static_cast<ssize_t>(response_size))
-        message.ReplyError(EIO);
+      if (status && status.get() < response_size)
+        return message.ReplyError(EIO);
       else
-        message.Reply(bytes_written);
-      return true;
+        return message.Reply(status);
     }
 
     default:
-      return false;
+      return ErrorStatus{EOPNOTSUPP};
   }
 }
 
-int Service::DefaultHandleMessage(Message& message) {
+Status<void> Service::DefaultHandleMessage(Message& message) {
   const MessageInfo& info = message.GetInfo();
 
   ALOGD_IF(TRACE, "Service::DefaultHandleMessage: pid=%d cid=%d op=%d\n",
@@ -632,23 +642,21 @@ int Service::DefaultHandleMessage(Message& message) {
     case opcodes::CHANNEL_CLOSE:
     case opcodes::REPORT_SYSPROP_CHANGE:
     case opcodes::DUMP_STATE:
-      HandleSystemMessage(message);
-      return 0;
+      return HandleSystemMessage(message);
 
     default:
-      return message.ReplyError(ENOTSUP);
+      return message.ReplyError(EOPNOTSUPP);
   }
 }
 
 void Service::OnSysPropChange() {}
 
-int Service::ReceiveAndDispatch() {
-  ErrnoGuard errno_guard;
+Status<void> Service::ReceiveAndDispatch() {
   Message message;
-  const int ret = endpoint_->MessageReceive(&message);
-  if (ret < 0) {
-    ALOGE("Failed to receive message: %s\n", strerror(errno));
-    return ReturnCodeOrError(ret);
+  const auto status = endpoint_->MessageReceive(&message);
+  if (!status) {
+    ALOGE("Failed to receive message: %s\n", status.GetErrorMessage().c_str());
+    return status;
   }
 
   std::shared_ptr<Service> service = message.GetService();
@@ -657,24 +665,20 @@ int Service::ReceiveAndDispatch() {
     ALOGE("Service::ReceiveAndDispatch: service context is NULL!!!\n");
     // Don't block the sender indefinitely in this error case.
     endpoint_->MessageReply(&message, -EINVAL);
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
   }
 
   if (message.IsImpulse()) {
     service->HandleImpulse(message);
-    return 0;
+    return {};
   } else if (service->HandleSystemMessage(message)) {
-    return 0;
+    return {};
   } else {
     return service->HandleMessage(message);
   }
 }
 
-int Service::Cancel() {
-  ErrnoGuard errno_guard;
-  const int ret = endpoint_->Cancel();
-  return ReturnCodeOrError(ret);
-}
+Status<void> Service::Cancel() { return endpoint_->Cancel(); }
 
 }  // namespace pdx
 }  // namespace android
