@@ -183,7 +183,9 @@ struct Swapchain {
         : surface(surface_),
           num_images(num_images_),
           mailbox_mode(present_mode == VK_PRESENT_MODE_MAILBOX_KHR),
-          frame_timestamps_enabled(false) {
+          frame_timestamps_enabled(false),
+          shared(present_mode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
+                 present_mode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
         ANativeWindow* window = surface.window.get();
         int64_t rdur;
         native_window_get_refresh_cycle_duration(
@@ -197,6 +199,7 @@ struct Swapchain {
     bool mailbox_mode;
     bool frame_timestamps_enabled;
     uint64_t refresh_duration;
+    bool shared;
 
     struct Image {
         Image() : image(VK_NULL_HANDLE), dequeue_fence(-1), dequeued(false) {}
@@ -927,6 +930,25 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
+    VkSwapchainImageUsageFlagsANDROID swapchain_image_usage = 0;
+    if (create_info->presentMode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
+        create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
+        swapchain_image_usage |= VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID;
+        err = native_window_set_shared_buffer_mode(surface.window.get(), true);
+        if (err != 0) {
+            ALOGE("native_window_set_shared_buffer_mode failed: %s (%d)", strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+    }
+
+    if (create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
+        err = native_window_set_auto_refresh(surface.window.get(), true);
+        if (err != 0) {
+            ALOGE("native_window_set_auto_refresh failed: %s (%d)", strerror(-err), err);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+    }
+
     int query_value;
     err = surface.window->query(surface.window.get(),
                                 NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
@@ -941,33 +963,19 @@ VkResult CreateSwapchainKHR(VkDevice device,
     uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
     uint32_t num_images =
         (create_info->minImageCount - 1) + min_undequeued_buffers;
-    err = native_window_set_buffer_count(surface.window.get(), num_images);
+
+    // Lower layer insists that we have at least two buffers. This is wasteful
+    // and we'd like to relax it in the shared case, but not all the pieces are
+    // in place for that to work yet. Note we only lie to the lower layer-- we
+    // don't want to give the app back a swapchain with extra images (which they
+    // can't actually use!).
+    err = native_window_set_buffer_count(surface.window.get(), std::max(2u, num_images));
     if (err != 0) {
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
         // errors and translate them to valid Vulkan result codes?
         ALOGE("native_window_set_buffer_count(%d) failed: %s (%d)", num_images,
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
-    }
-
-    VkSwapchainImageUsageFlagsANDROID swapchain_image_usage = 0;
-    if (create_info->presentMode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
-        create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
-        swapchain_image_usage |= VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID;
-
-        err = native_window_set_shared_buffer_mode(surface.window.get(), true);
-        if (err != 0) {
-            ALOGE("native_window_set_shared_buffer_mode failed: %s (%d)", strerror(-err), err);
-            return VK_ERROR_SURFACE_LOST_KHR;
-        }
-    }
-
-    if (create_info->presentMode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
-        err = native_window_set_auto_refresh(surface.window.get(), true);
-        if (err != 0) {
-            ALOGE("native_window_set_auto_refresh failed: %s (%d)", strerror(-err), err);
-            return VK_ERROR_SURFACE_LOST_KHR;
-        }
     }
 
     int gralloc_usage = 0;
@@ -1106,17 +1114,19 @@ VkResult CreateSwapchainKHR(VkDevice device,
     //
     // TODO(jessehall): The error path here is the same as DestroySwapchain,
     // but not the non-error path. Should refactor/unify.
-    for (uint32_t i = 0; i < num_images; i++) {
-        Swapchain::Image& img = swapchain->images[i];
-        if (img.dequeued) {
-            surface.window->cancelBuffer(surface.window.get(), img.buffer.get(),
-                                         img.dequeue_fence);
-            img.dequeue_fence = -1;
-            img.dequeued = false;
-        }
-        if (result != VK_SUCCESS) {
-            if (img.image)
-                dispatch.DestroyImage(device, img.image, nullptr);
+    if (!swapchain->shared) {
+        for (uint32_t i = 0; i < num_images; i++) {
+            Swapchain::Image& img = swapchain->images[i];
+            if (img.dequeued) {
+                surface.window->cancelBuffer(surface.window.get(), img.buffer.get(),
+                                             img.dequeue_fence);
+                img.dequeue_fence = -1;
+                img.dequeued = false;
+            }
+            if (result != VK_SUCCESS) {
+                if (img.image)
+                    dispatch.DestroyImage(device, img.image, nullptr);
+            }
         }
     }
 
