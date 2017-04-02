@@ -364,6 +364,8 @@ private:
             uint32_t w, uint32_t h, uint32_t flags, sp<IBinder>* outHandle,
             sp<IGraphicBufferProducer>* outGbp, sp<Layer>* outLayer);
 
+    String8 getUniqueLayerName(const String8& name);
+
     // called in response to the window-manager calling
     // ISurfaceComposerClient::destroySurface()
     status_t onLayerRemoved(const sp<Client>& client, const sp<IBinder>& handle);
