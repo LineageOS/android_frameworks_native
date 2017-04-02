@@ -2840,15 +2840,17 @@ status_t SurfaceFlinger::createLayer(
 
     sp<Layer> layer;
 
+    String8 uniqueName = getUniqueLayerName(name);
+
     switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceNormal:
             result = createNormalLayer(client,
-                    name, w, h, flags, format,
+                    uniqueName, w, h, flags, format,
                     handle, gbp, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceDim:
             result = createDimLayer(client,
-                    name, w, h, flags,
+                    uniqueName, w, h, flags,
                     handle, gbp, &layer);
             break;
         default:
@@ -2870,6 +2872,30 @@ status_t SurfaceFlinger::createLayer(
 
     setTransactionFlags(eTransactionNeeded);
     return result;
+}
+
+String8 SurfaceFlinger::getUniqueLayerName(const String8& name)
+{
+    bool matchFound = true;
+    uint32_t dupeCounter = 0;
+
+    // Tack on our counter whether there is a hit or not, so everyone gets a tag
+    String8 uniqueName = name + "#" + String8(std::to_string(dupeCounter).c_str());
+
+    // Loop over layers until we're sure there is no matching name
+    while (matchFound) {
+        matchFound = false;
+        mDrawingState.traverseInZOrder([&](Layer* layer) {
+            if (layer->getName() == uniqueName) {
+                matchFound = true;
+                uniqueName = name + "#" + String8(std::to_string(++dupeCounter).c_str());
+            }
+        });
+    }
+
+    ALOGD_IF(dupeCounter > 0, "duplicate layer name: changing %s to %s", name.c_str(), uniqueName.c_str());
+
+    return uniqueName;
 }
 
 status_t SurfaceFlinger::createNormalLayer(const sp<Client>& client,
