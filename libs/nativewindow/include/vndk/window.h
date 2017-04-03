@@ -99,8 +99,12 @@ typedef struct ANativeWindowBuffer
 
 typedef struct ANativeWindowBuffer ANativeWindowBuffer;
 
-/*****************************************************************************/
+/*
+ * Convert this ANativeWindowBuffer into a AHardwareBuffer
+ */
+AHardwareBuffer* ANativeWindowBuffer_getHardwareBuffer(ANativeWindowBuffer* anwb);
 
+/*****************************************************************************/
 
 /*
  * Stores a value into one of the 4 available slots
