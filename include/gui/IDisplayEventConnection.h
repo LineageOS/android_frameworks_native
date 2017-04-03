@@ -34,9 +34,11 @@ public:
     DECLARE_META_INTERFACE(DisplayEventConnection)
 
     /*
-     * getDataChannel() returns a BitTube where to receive the events from
+     * stealReceiveChannel() returns a BitTube to receive events from. Only the receive file
+     * descriptor of outChannel will be initialized, and this effectively "steals" the receive
+     * channel from the remote end (such that the remote end can only use its send channel).
      */
-    virtual status_t getDataChannel(sp<gui::BitTube>* outChannel) const = 0;
+    virtual status_t stealReceiveChannel(gui::BitTube* outChannel) = 0;
 
     /*
      * setVsyncRate() sets the vsync event delivery rate. A value of 1 returns every vsync event.

@@ -21,7 +21,6 @@
 
 #include <cutils/compiler.h>
 
-#include <private/gui/BitTube.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/DisplayEventReceiver.h>
 
@@ -389,7 +388,7 @@ void EventThread::dump(String8& result) const {
 
 EventThread::Connection::Connection(
         const sp<EventThread>& eventThread)
-    : count(-1), mEventThread(eventThread), mChannel(new gui::BitTube(gui::BitTube::DefaultSize))
+    : count(-1), mEventThread(eventThread), mChannel(gui::BitTube::DefaultSize)
 {
 }
 
@@ -403,8 +402,8 @@ void EventThread::Connection::onFirstRef() {
     mEventThread->registerDisplayEventConnection(this);
 }
 
-status_t EventThread::Connection::getDataChannel(sp<gui::BitTube>* outChannel) const {
-    *outChannel = mChannel;
+status_t EventThread::Connection::stealReceiveChannel(gui::BitTube* outChannel) {
+    outChannel->setReceiveFd(mChannel.moveReceiveFd());
     return NO_ERROR;
 }
 
@@ -419,7 +418,7 @@ void EventThread::Connection::requestNextVsync() {
 
 status_t EventThread::Connection::postEvent(
         const DisplayEventReceiver::Event& event) {
-    ssize_t size = DisplayEventReceiver::sendEvents(mChannel, &event, 1);
+    ssize_t size = DisplayEventReceiver::sendEvents(&mChannel, &event, 1);
     return size < 0 ? status_t(size) : status_t(NO_ERROR);
 }
 

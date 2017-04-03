@@ -16,14 +16,9 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <sys/types.h>
-
-#include <android/log.h>
 #include <android-base/unique_fd.h>
 #include <binder/Parcelable.h>
 #include <utils/Errors.h>
-#include <utils/RefBase.h>
 
 namespace android {
 
@@ -31,7 +26,7 @@ class Parcel;
 
 namespace gui {
 
-class BitTube : public RefBase, public Parcelable {
+class BitTube : public Parcelable {
 public:
     // creates an uninitialized BitTube (to unparcel into)
     BitTube() = default;
@@ -57,16 +52,22 @@ public:
     // get the send file-descriptor.
     int getSendFd() const;
 
+    // moves the receive file descriptor out of this BitTube
+    base::unique_fd moveReceiveFd();
+
+    // resets this BitTube's receive file descriptor to receiveFd
+    void setReceiveFd(base::unique_fd&& receiveFd);
+
     // send objects (sized blobs). All objects are guaranteed to be written or the call fails.
     template <typename T>
-    static ssize_t sendObjects(const sp<BitTube>& tube, T const* events, size_t count) {
+    static ssize_t sendObjects(BitTube* tube, T const* events, size_t count) {
         return sendObjects(tube, events, count, sizeof(T));
     }
 
     // receive objects (sized blobs). If the receiving buffer isn't large enough, excess messages
     // are silently discarded.
     template <typename T>
-    static ssize_t recvObjects(const sp<BitTube>& tube, T* events, size_t count) {
+    static ssize_t recvObjects(BitTube* tube, T* events, size_t count) {
         return recvObjects(tube, events, count, sizeof(T));
     }
 
@@ -87,10 +88,9 @@ private:
     base::unique_fd mSendFd;
     mutable base::unique_fd mReceiveFd;
 
-    static ssize_t sendObjects(const sp<BitTube>& tube, void const* events, size_t count,
-                               size_t objSize);
+    static ssize_t sendObjects(BitTube* tube, void const* events, size_t count, size_t objSize);
 
-    static ssize_t recvObjects(const sp<BitTube>& tube, void* events, size_t count, size_t objSize);
+    static ssize_t recvObjects(BitTube* tube, void* events, size_t count, size_t objSize);
 };
 
 } // namespace gui

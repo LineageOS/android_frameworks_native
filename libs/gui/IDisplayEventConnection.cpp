@@ -22,7 +22,11 @@
 
 namespace android {
 
-enum { GET_DATA_CHANNEL = IBinder::FIRST_CALL_TRANSACTION, SET_VSYNC_RATE, REQUEST_NEXT_VSYNC };
+enum {
+    STEAL_RECEIVE_CHANNEL = IBinder::FIRST_CALL_TRANSACTION,
+    SET_VSYNC_RATE,
+    REQUEST_NEXT_VSYNC
+};
 
 class BpDisplayEventConnection : public BpInterface<IDisplayEventConnection> {
 public:
@@ -31,11 +35,11 @@ public:
 
     ~BpDisplayEventConnection() override;
 
-    status_t getDataChannel(sp<gui::BitTube>* outChannel) const override {
+    status_t stealReceiveChannel(gui::BitTube* outChannel) override {
         Parcel data, reply;
         data.writeInterfaceToken(IDisplayEventConnection::getInterfaceDescriptor());
-        remote()->transact(GET_DATA_CHANNEL, data, &reply);
-        *outChannel = new gui::BitTube(reply);
+        remote()->transact(STEAL_RECEIVE_CHANNEL, data, &reply);
+        outChannel->readFromParcel(&reply);
         return NO_ERROR;
     }
 
@@ -63,11 +67,11 @@ IMPLEMENT_META_INTERFACE(DisplayEventConnection, "android.gui.DisplayEventConnec
 status_t BnDisplayEventConnection::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                                               uint32_t flags) {
     switch (code) {
-        case GET_DATA_CHANNEL: {
+        case STEAL_RECEIVE_CHANNEL: {
             CHECK_INTERFACE(IDisplayEventConnection, data, reply);
-            sp<gui::BitTube> channel;
-            getDataChannel(&channel);
-            channel->writeToParcel(reply);
+            gui::BitTube channel;
+            stealReceiveChannel(&channel);
+            channel.writeToParcel(reply);
             return NO_ERROR;
         }
         case SET_VSYNC_RATE: {

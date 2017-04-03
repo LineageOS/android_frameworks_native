@@ -78,6 +78,14 @@ int BitTube::getSendFd() const {
     return mSendFd;
 }
 
+base::unique_fd BitTube::moveReceiveFd() {
+    return std::move(mReceiveFd);
+}
+
+void BitTube::setReceiveFd(base::unique_fd&& receiveFd) {
+    mReceiveFd = std::move(receiveFd);
+}
+
 ssize_t BitTube::write(void const* vaddr, size_t size) {
     ssize_t err, len;
     do {
@@ -121,8 +129,7 @@ status_t BitTube::readFromParcel(const Parcel* parcel) {
     return NO_ERROR;
 }
 
-ssize_t BitTube::sendObjects(const sp<BitTube>& tube, void const* events, size_t count,
-                             size_t objSize) {
+ssize_t BitTube::sendObjects(BitTube* tube, void const* events, size_t count, size_t objSize) {
     const char* vaddr = reinterpret_cast<const char*>(events);
     ssize_t size = tube->write(vaddr, count * objSize);
 
@@ -136,7 +143,7 @@ ssize_t BitTube::sendObjects(const sp<BitTube>& tube, void const* events, size_t
     return size < 0 ? size : size / static_cast<ssize_t>(objSize);
 }
 
-ssize_t BitTube::recvObjects(const sp<BitTube>& tube, void* events, size_t count, size_t objSize) {
+ssize_t BitTube::recvObjects(BitTube* tube, void* events, size_t count, size_t objSize) {
     char* vaddr = reinterpret_cast<char*>(events);
     ssize_t size = tube->read(vaddr, count * objSize);
 

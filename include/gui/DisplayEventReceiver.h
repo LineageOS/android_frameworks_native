@@ -111,15 +111,13 @@ public:
      * should be destroyed and getEvents() shouldn't be called again.
      */
     ssize_t getEvents(Event* events, size_t count);
-    static ssize_t getEvents(const sp<gui::BitTube>& dataChannel,
-            Event* events, size_t count);
+    static ssize_t getEvents(gui::BitTube* dataChannel, Event* events, size_t count);
 
     /*
      * sendEvents write events to the queue and returns how many events were
      * written.
      */
-    static ssize_t sendEvents(const sp<gui::BitTube>& dataChannel,
-            Event const* events, size_t count);
+    static ssize_t sendEvents(gui::BitTube* dataChannel, Event const* events, size_t count);
 
     /*
      * setVsyncRate() sets the Event::VSync delivery rate. A value of
@@ -137,7 +135,7 @@ public:
 
 private:
     sp<IDisplayEventConnection> mEventConnection;
-    sp<gui::BitTube> mDataChannel;
+    std::unique_ptr<gui::BitTube> mDataChannel;
 };
 
 // ----------------------------------------------------------------------------
