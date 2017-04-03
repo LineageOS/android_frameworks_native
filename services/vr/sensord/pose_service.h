@@ -11,8 +11,9 @@
 #include <dvr/pose_client.h>
 #include <pdx/service.h>
 #include <private/dvr/buffer_hub_client.h>
-#include <private/dvr/pose_client_internal.h>
 #include <private/dvr/dvr_pose_predictor.h>
+#include <private/dvr/latency_model.h>
+#include <private/dvr/pose_client_internal.h>
 #include <private/dvr/ring_buffer.h>
 
 #include "sensor_fusion.h"
@@ -150,6 +151,9 @@ class PoseService : public pdx::ServiceBase<PoseService> {
   int64_t photon_timestamp_;
   int64_t display_period_ns_;
   int64_t right_eye_photon_offset_ns_ = 0;
+
+  // To model the measurement - arrival latency.
+  LatencyModel sensor_latency_;
 
   // Type for controlling pose orientation calculation.
   OrientationType device_orientation_type_;

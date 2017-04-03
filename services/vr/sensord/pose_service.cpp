@@ -65,6 +65,9 @@ static constexpr char kPoseRingBufferName[] = "PoseService:RingBuffer";
 static constexpr int kDatasetIdLength = 36;
 static constexpr char kDatasetIdChars[] = "0123456789abcdef-";
 
+static constexpr int kLatencyWindowSize = 100;
+static constexpr double kLatencyWindowMass = 0.5;
+
 // These are the flags used by BufferProducer::CreatePersistentUncachedBlob,
 // plus PRIVATE_ADSP_HEAP to allow access from the DSP.
 static constexpr int kPoseRingBufferFlags =
@@ -115,7 +118,8 @@ PoseService::PoseService(SensorThread* sensor_thread)
       vsync_count_(0),
       photon_timestamp_(0),
       // Will be updated by external service, but start with a non-zero value:
-      display_period_ns_(16000000) {
+      display_period_ns_(16000000),
+      sensor_latency_(kLatencyWindowSize, kLatencyWindowMass) {
   last_known_pose_ = {
       .orientation = {1.0f, 0.0f, 0.0f, 0.0f},
       .translation = {0.0f, 0.0f, 0.0f, 0.0f},
@@ -480,10 +484,13 @@ void PoseService::UpdatePoseMode() {
           break;
       }
 
-      // IMU driver gives timestamps on its own clock, but we need monotonic
-      // clock. Subtract 5ms to account for estimated IMU sample latency.
-      WriteAsyncPoses(position, start_from_head_rotation,
-                      pose_state.timestamp_ns + 5000000);
+      // Update the current latency model.
+      sensor_latency_.AddLatency(GetSystemClockNs() - pose_state.timestamp_ns);
+
+      // Update the timestamp with the expected latency.
+      WriteAsyncPoses(
+          position, start_from_head_rotation,
+          pose_state.timestamp_ns + sensor_latency_.CurrentLatencyEstimate());
       break;
     }
     case DVR_POSE_MODE_MOCK_MOTION_SICKNESS: {
