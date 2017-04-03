@@ -17,10 +17,10 @@
 #pragma once
 
 #include <binder/IInterface.h>
+#include <binder/SafeInterface.h>
 
 #include <utils/Errors.h>
 
-#include <sys/types.h>
 #include <cstdint>
 
 namespace android {
@@ -53,10 +53,13 @@ public:
     virtual void requestNextVsync() = 0; // Asynchronous
 };
 
-class BnDisplayEventConnection : public BnInterface<IDisplayEventConnection> {
+class BnDisplayEventConnection : public SafeBnInterface<IDisplayEventConnection> {
 public:
-    virtual status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
-                                uint32_t flags = 0);
+    BnDisplayEventConnection()
+          : SafeBnInterface<IDisplayEventConnection>("BnDisplayEventConnection") {}
+
+    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                        uint32_t flags = 0) override;
 };
 
 } // namespace android

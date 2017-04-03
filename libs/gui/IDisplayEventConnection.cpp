@@ -18,74 +18,63 @@
 
 #include <private/gui/BitTube.h>
 
-#include <binder/Parcel.h>
-
 namespace android {
 
-enum {
+namespace { // Anonymous
+
+enum class Tag : uint32_t {
     STEAL_RECEIVE_CHANNEL = IBinder::FIRST_CALL_TRANSACTION,
     SET_VSYNC_RATE,
-    REQUEST_NEXT_VSYNC
+    REQUEST_NEXT_VSYNC,
+    LAST = REQUEST_NEXT_VSYNC,
 };
 
-class BpDisplayEventConnection : public BpInterface<IDisplayEventConnection> {
+} // Anonymous namespace
+
+class BpDisplayEventConnection : public SafeBpInterface<IDisplayEventConnection> {
 public:
     explicit BpDisplayEventConnection(const sp<IBinder>& impl)
-          : BpInterface<IDisplayEventConnection>(impl) {}
+          : SafeBpInterface<IDisplayEventConnection>(impl, "BpDisplayEventConnection") {}
 
     ~BpDisplayEventConnection() override;
 
     status_t stealReceiveChannel(gui::BitTube* outChannel) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(IDisplayEventConnection::getInterfaceDescriptor());
-        remote()->transact(STEAL_RECEIVE_CHANNEL, data, &reply);
-        outChannel->readFromParcel(&reply);
-        return NO_ERROR;
+        return callRemote<decltype(
+                &IDisplayEventConnection::stealReceiveChannel)>(Tag::STEAL_RECEIVE_CHANNEL,
+                                                                outChannel);
     }
 
     status_t setVsyncRate(uint32_t count) override {
-        Parcel data, reply;
-        data.writeInterfaceToken(IDisplayEventConnection::getInterfaceDescriptor());
-        data.writeUint32(count);
-        remote()->transact(SET_VSYNC_RATE, data, &reply);
-        return NO_ERROR;
+        return callRemote<decltype(&IDisplayEventConnection::setVsyncRate)>(Tag::SET_VSYNC_RATE,
+                                                                            count);
     }
 
     void requestNextVsync() override {
-        Parcel data, reply;
-        data.writeInterfaceToken(IDisplayEventConnection::getInterfaceDescriptor());
-        remote()->transact(REQUEST_NEXT_VSYNC, data, &reply, IBinder::FLAG_ONEWAY);
+        callRemoteAsync<decltype(&IDisplayEventConnection::requestNextVsync)>(
+                Tag::REQUEST_NEXT_VSYNC);
     }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this translation unit (see
 // clang warning -Wweak-vtables)
-BpDisplayEventConnection::~BpDisplayEventConnection() {}
+BpDisplayEventConnection::~BpDisplayEventConnection() = default;
 
 IMPLEMENT_META_INTERFACE(DisplayEventConnection, "android.gui.DisplayEventConnection");
 
 status_t BnDisplayEventConnection::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                                               uint32_t flags) {
-    switch (code) {
-        case STEAL_RECEIVE_CHANNEL: {
-            CHECK_INTERFACE(IDisplayEventConnection, data, reply);
-            gui::BitTube channel;
-            stealReceiveChannel(&channel);
-            channel.writeToParcel(reply);
-            return NO_ERROR;
-        }
-        case SET_VSYNC_RATE: {
-            CHECK_INTERFACE(IDisplayEventConnection, data, reply);
-            setVsyncRate(data.readUint32());
-            return NO_ERROR;
-        }
-        case REQUEST_NEXT_VSYNC: {
-            CHECK_INTERFACE(IDisplayEventConnection, data, reply);
-            requestNextVsync();
-            return NO_ERROR;
-        }
+    if (code < IBinder::FIRST_CALL_TRANSACTION || code > static_cast<uint32_t>(Tag::LAST)) {
+        return BBinder::onTransact(code, data, reply, flags);
     }
-    return BBinder::onTransact(code, data, reply, flags);
+    auto tag = static_cast<Tag>(code);
+    switch (tag) {
+        case Tag::STEAL_RECEIVE_CHANNEL:
+            return callLocal(data, reply, &IDisplayEventConnection::stealReceiveChannel);
+        case Tag::SET_VSYNC_RATE:
+            return callLocal(data, reply, &IDisplayEventConnection::setVsyncRate);
+        case Tag::REQUEST_NEXT_VSYNC:
+            return callLocalAsync(data, reply, &IDisplayEventConnection::requestNextVsync);
+    }
 }
 
 } // namespace android
