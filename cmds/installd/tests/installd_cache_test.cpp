@@ -99,7 +99,7 @@ static int64_t size(const char* path) {
 static int64_t free() {
     struct statvfs buf;
     if (!statvfs("/data/local/tmp", &buf)) {
-        return buf.f_bavail * buf.f_bsize;
+        return buf.f_bavail * buf.f_frsize;
     } else {
         PLOG(ERROR) << "Failed to statvfs";
         return -1;
