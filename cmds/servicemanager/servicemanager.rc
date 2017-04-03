@@ -1,5 +1,5 @@
 service servicemanager /system/bin/servicemanager
-    class core
+    class core animation
     user system
     group system readproc
     critical
@@ -12,4 +12,3 @@ service servicemanager /system/bin/servicemanager
     onrestart restart drm
     onrestart restart cameraserver
     writepid /dev/cpuset/system-background/tasks
-
