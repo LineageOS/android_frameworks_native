@@ -1047,18 +1047,18 @@ int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t ta
     while ((p = fts_read(fts)) != NULL) {
         switch (p->fts_info) {
         case FTS_DP:
-            if (chmod(p->fts_accpath, target_mode) != 0) {
+            if (chmod(p->fts_path, target_mode) != 0) {
                 PLOG(WARNING) << "Failed to chmod " << p->fts_path;
             }
             // Intentional fall through to also set GID
         case FTS_F:
-            if (chown(p->fts_accpath, -1, gid) != 0) {
+            if (chown(p->fts_path, -1, gid) != 0) {
                 PLOG(WARNING) << "Failed to chown " << p->fts_path;
             }
             break;
         case FTS_SL:
         case FTS_SLNONE:
-            if (lchown(p->fts_accpath, -1, gid) != 0) {
+            if (lchown(p->fts_path, -1, gid) != 0) {
                 PLOG(WARNING) << "Failed to chown " << p->fts_path;
             }
             break;
