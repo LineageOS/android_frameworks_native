@@ -629,11 +629,10 @@ int copy_dir_files(const char *srcname,
     return res;
 }
 
-int64_t data_disk_free(const std::string& data_path)
-{
+int64_t data_disk_free(const std::string& data_path) {
     struct statvfs sfs;
     if (statvfs(data_path.c_str(), &sfs) == 0) {
-        return sfs.f_bavail * sfs.f_bsize;
+        return sfs.f_bavail * sfs.f_frsize;
     } else {
         PLOG(ERROR) << "Couldn't statvfs " << data_path;
         return -1;
