@@ -289,6 +289,46 @@ static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t ui
     return 0;
 }
 
+/**
+ * Ensure that we have a hard-limit quota to protect against abusive apps;
+ * they should never use more than 90% of blocks or 50% of inodes.
+ */
+static int prepare_app_quota(const std::unique_ptr<std::string>& uuid, const std::string& device,
+        uid_t uid) {
+    if (device.empty()) return 0;
+
+    struct dqblk dq;
+    if (quotactl(QCMD(Q_GETQUOTA, USRQUOTA), device.c_str(), uid,
+            reinterpret_cast<char*>(&dq)) != 0) {
+        PLOG(WARNING) << "Failed to find quota for " << uid;
+        return -1;
+    }
+
+    if ((dq.dqb_bhardlimit == 0) || (dq.dqb_ihardlimit == 0)) {
+        auto path = create_data_path(uuid ? uuid->c_str() : nullptr);
+        struct statvfs stat;
+        if (statvfs(path.c_str(), &stat) != 0) {
+            PLOG(WARNING) << "Failed to statvfs " << path;
+            return -1;
+        }
+
+        dq.dqb_valid = QIF_LIMITS;
+        dq.dqb_bhardlimit = (((stat.f_blocks * stat.f_frsize) / 10) * 9) / QIF_DQBLKSIZE;
+        dq.dqb_ihardlimit = (stat.f_files / 2);
+        if (quotactl(QCMD(Q_SETQUOTA, USRQUOTA), device.c_str(), uid,
+                reinterpret_cast<char*>(&dq)) != 0) {
+            PLOG(WARNING) << "Failed to set hard quota for " << uid;
+            return -1;
+        } else {
+            LOG(DEBUG) << "Applied hard quotas for " << uid;
+            return 0;
+        }
+    } else {
+        // Hard quota already set; assume it's reasonable
+        return 0;
+    }
+}
+
 binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::string>& uuid,
         const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
         const std::string& seInfo, int32_t targetSdkVersion, int64_t* _aidl_return) {
@@ -356,6 +396,10 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
         // Consider restorecon over contents if label changed
         if (restorecon_app_data_lazy(path, seInfo, uid, existing)) {
             return error("Failed to restorecon " + path);
+        }
+
+        if (prepare_app_quota(uuid, findQuotaDeviceForUuid(uuid), uid)) {
+            return error("Failed to set hard quota " + path);
         }
 
         if (property_get_bool("dalvik.vm.usejitprofiles", false)) {
@@ -709,6 +753,14 @@ binder::Status InstalldNativeService::createUserData(const std::unique_ptr<std::
             }
         }
     }
+
+    // Data under /data/media doesn't have an app, but we still want
+    // to limit it to prevent abuse.
+    if (prepare_app_quota(uuid, findQuotaDeviceForUuid(uuid),
+            multiuser_get_uid(userId, AID_MEDIA_RW))) {
+        return error("Failed to set hard quota for media_rw");
+    }
+
     return ok();
 }
 
@@ -2006,6 +2058,17 @@ binder::Status InstalldNativeService::invalidateMounts() {
                     reinterpret_cast<char*>(&dq)) == 0) {
                 LOG(DEBUG) << "Found " << source << " with quota";
                 mQuotaDevices[target] = source;
+
+                // ext4 only enables DQUOT_USAGE_ENABLED by default, so we
+                // need to kick it again to enable DQUOT_LIMITS_ENABLED.
+                if (quotactl(QCMD(Q_QUOTAON, USRQUOTA), source.c_str(), QFMT_VFS_V1, nullptr) != 0
+                        && errno != EBUSY) {
+                    PLOG(ERROR) << "Failed to enable USRQUOTA on " << source;
+                }
+                if (quotactl(QCMD(Q_QUOTAON, GRPQUOTA), source.c_str(), QFMT_VFS_V1, nullptr) != 0
+                        && errno != EBUSY) {
+                    PLOG(ERROR) << "Failed to enable GRPQUOTA on " << source;
+                }
             }
         }
     }
