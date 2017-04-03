@@ -35,6 +35,7 @@ namespace V1_0 {
 namespace implementation {
 
 using ::android::hardware::sensors::V1_0::SensorInfo;
+using ::android::hardware::sensors::V1_0::SensorsEventFormatOffset;
 using ::android::hardware::hidl_vec;
 using ::android::hardware::Void;
 using ::android::sp;
@@ -102,7 +103,7 @@ void createDirectChannel(::android::SensorManager& manager, size_t size, int typ
 Return<void> SensorManager::createAshmemDirectChannel(
         const hidl_memory& mem, uint64_t size,
         createAshmemDirectChannel_cb _hidl_cb) {
-    if (size > mem.size()) {
+    if (size > mem.size() || size < (uint64_t)SensorsEventFormatOffset::TOTAL_LENGTH) {
         _hidl_cb(nullptr, Result::BAD_VALUE);
         return Void();
     }
