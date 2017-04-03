@@ -17,23 +17,27 @@
 // tag as surfaceflinger
 #define LOG_TAG "SurfaceFlinger"
 
-#include <stdint.h>
-#include <stdio.h>
-#include <sys/types.h>
+#include <gui/ISurfaceComposerClient.h>
 
-#include <binder/IPCThreadState.h>
-#include <binder/IServiceManager.h>
-#include <binder/Parcel.h>
+#include <gui/IGraphicBufferProducer.h>
+
 #include <binder/SafeInterface.h>
 
 #include <ui/FrameStats.h>
-#include <ui/Point.h>
-#include <ui/Rect.h>
-
-#include <gui/IGraphicBufferProducer.h>
-#include <gui/ISurfaceComposerClient.h>
 
 namespace android {
+
+namespace { // Anonymous
+
+enum class Tag : uint32_t {
+    CREATE_SURFACE = IBinder::FIRST_CALL_TRANSACTION,
+    DESTROY_SURFACE,
+    CLEAR_LAYER_FRAME_STATS,
+    GET_LAYER_FRAME_STATS,
+    LAST = GET_LAYER_FRAME_STATS,
+};
+
+} // Anonymous namespace
 
 class BpSurfaceComposerClient : public SafeBpInterface<ISurfaceComposerClient> {
 public:
@@ -46,7 +50,7 @@ public:
                            uint32_t flags, const sp<IBinder>& parent, uint32_t windowType,
                            uint32_t ownerUid, sp<IBinder>* handle,
                            sp<IGraphicBufferProducer>* gbp) override {
-        return callRemote<decltype(&ISurfaceComposerClient::createSurface)>(Tag::CreateSurface,
+        return callRemote<decltype(&ISurfaceComposerClient::createSurface)>(Tag::CREATE_SURFACE,
                                                                             name, width, height,
                                                                             format, flags, parent,
                                                                             windowType, ownerUid,
@@ -54,18 +58,19 @@ public:
     }
 
     status_t destroySurface(const sp<IBinder>& handle) override {
-        return callRemote<decltype(&ISurfaceComposerClient::destroySurface)>(Tag::DestroySurface,
+        return callRemote<decltype(&ISurfaceComposerClient::destroySurface)>(Tag::DESTROY_SURFACE,
                                                                              handle);
     }
 
     status_t clearLayerFrameStats(const sp<IBinder>& handle) const override {
         return callRemote<decltype(
-                &ISurfaceComposerClient::clearLayerFrameStats)>(Tag::ClearLayerFrameStats, handle);
+                &ISurfaceComposerClient::clearLayerFrameStats)>(Tag::CLEAR_LAYER_FRAME_STATS,
+                                                                handle);
     }
 
     status_t getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const override {
         return callRemote<decltype(
-                &ISurfaceComposerClient::getLayerFrameStats)>(Tag::GetLayerFrameStats, handle,
+                &ISurfaceComposerClient::getLayerFrameStats)>(Tag::GET_LAYER_FRAME_STATS, handle,
                                                               outStats);
     }
 };
@@ -80,26 +85,19 @@ IMPLEMENT_META_INTERFACE(SurfaceComposerClient, "android.ui.ISurfaceComposerClie
 
 status_t BnSurfaceComposerClient::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                                              uint32_t flags) {
-    if (code < IBinder::FIRST_CALL_TRANSACTION || code >= static_cast<uint32_t>(Tag::Last)) {
+    if (code < IBinder::FIRST_CALL_TRANSACTION || code > static_cast<uint32_t>(Tag::LAST)) {
         return BBinder::onTransact(code, data, reply, flags);
     }
     auto tag = static_cast<Tag>(code);
     switch (tag) {
-        case Tag::CreateSurface: {
+        case Tag::CREATE_SURFACE:
             return callLocal(data, reply, &ISurfaceComposerClient::createSurface);
-        }
-        case Tag::DestroySurface: {
+        case Tag::DESTROY_SURFACE:
             return callLocal(data, reply, &ISurfaceComposerClient::destroySurface);
-        }
-        case Tag::ClearLayerFrameStats: {
+        case Tag::CLEAR_LAYER_FRAME_STATS:
             return callLocal(data, reply, &ISurfaceComposerClient::clearLayerFrameStats);
-        }
-        case Tag::GetLayerFrameStats: {
+        case Tag::GET_LAYER_FRAME_STATS:
             return callLocal(data, reply, &ISurfaceComposerClient::getLayerFrameStats);
-        }
-        case Tag::Last:
-            // Should not be possible because of the check at the beginning of the method
-            return BBinder::onTransact(code, data, reply, flags);
     }
 }
 
