@@ -981,25 +981,9 @@ VkResult CreateSwapchainKHR(VkDevice device,
     int gralloc_usage = 0;
     if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
         uint64_t consumer_usage, producer_usage;
-        if (GetData(device).driver_version == 256587285) {
-            // HACK workaround for loader/driver mismatch during transition to
-            // vkGetSwapchainGrallocUsage2ANDROID.
-            typedef VkResult(VKAPI_PTR *
-                             PFN_vkGetSwapchainGrallocUsage2ANDROID_HACK)(
-                VkDevice device, VkFormat format, VkImageUsageFlags imageUsage,
-                uint64_t * grallocConsumerUsage,
-                uint64_t * grallocProducerUsage);
-            auto get_swapchain_gralloc_usage =
-                reinterpret_cast<PFN_vkGetSwapchainGrallocUsage2ANDROID_HACK>(
-                    dispatch.GetSwapchainGrallocUsage2ANDROID);
-            result = get_swapchain_gralloc_usage(
-                device, create_info->imageFormat, create_info->imageUsage,
-                &consumer_usage, &producer_usage);
-        } else {
-            result = dispatch.GetSwapchainGrallocUsage2ANDROID(
-                device, create_info->imageFormat, create_info->imageUsage,
-                swapchain_image_usage, &consumer_usage, &producer_usage);
-        }
+        result = dispatch.GetSwapchainGrallocUsage2ANDROID(
+            device, create_info->imageFormat, create_info->imageUsage,
+            swapchain_image_usage, &consumer_usage, &producer_usage);
         if (result != VK_SUCCESS) {
             ALOGE("vkGetSwapchainGrallocUsage2ANDROID failed: %d", result);
             return VK_ERROR_SURFACE_LOST_KHR;
