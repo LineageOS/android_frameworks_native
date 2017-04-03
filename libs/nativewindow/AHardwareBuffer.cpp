@@ -28,6 +28,7 @@
 #include <ui/GraphicBuffer.h>
 #include <system/graphics.h>
 #include <hardware/gralloc1.h>
+#include <grallocusage/GrallocUsageConversion.h>
 
 #include <private/android/AHardwareBufferHelpers.h>
 
@@ -100,8 +101,12 @@ void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
     outDesc->width = gbuffer->getWidth();
     outDesc->height = gbuffer->getHeight();
     outDesc->layers = gbuffer->getLayerCount();
+
+    uint64_t producerUsage = 0;
+    uint64_t consumerUsage = 0;
+    android_convertGralloc0To1Usage(gbuffer->getUsage(), &producerUsage, &consumerUsage);
     AHardwareBuffer_convertFromGrallocUsageBits(&outDesc->usage0, &outDesc->usage1,
-            gbuffer->getUsage(), gbuffer->getUsage());
+            producerUsage, consumerUsage);
     outDesc->format = AHardwareBuffer_convertFromPixelFormat(
             static_cast<uint32_t>(gbuffer->getPixelFormat()));
 }
