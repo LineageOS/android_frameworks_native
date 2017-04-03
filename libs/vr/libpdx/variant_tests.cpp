@@ -368,8 +368,22 @@ TEST(Variant, Constructor) {
   }
 
   {
+    TestType<int> i(1);
+    Variant<int, bool, float> v(i.get());
+    ASSERT_TRUE(v.is<int>());
+    EXPECT_EQ(1, std::get<int>(v));
+  }
+
+  {
     TestType<bool> b(true);
     Variant<int, bool, float> v(b.take());
+    ASSERT_TRUE(v.is<bool>());
+    EXPECT_EQ(true, std::get<bool>(v));
+  }
+
+  {
+    TestType<bool> b(true);
+    Variant<int, bool, float> v(b.get());
     ASSERT_TRUE(v.is<bool>());
     EXPECT_EQ(true, std::get<bool>(v));
   }
@@ -1060,8 +1074,8 @@ TEST(Variant, HasType) {
   EXPECT_FALSE((detail::HasType<char, int, float, bool>::value));
   EXPECT_FALSE(detail::HasType<>::value);
 
-  EXPECT_TRUE((detail::HasTypeIgnoreRef<int&, int, float, bool>::value));
-  EXPECT_FALSE((detail::HasTypeIgnoreRef<char&, int, float, bool>::value));
+  EXPECT_TRUE((detail::HasType<int&, int, float, bool>::value));
+  EXPECT_FALSE((detail::HasType<char&, int, float, bool>::value));
 }
 
 TEST(Variant, Set) {
