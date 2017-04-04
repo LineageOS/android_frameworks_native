@@ -1,5 +1,4 @@
 #include <private/dvr/ion_buffer.h>
-#include <ui/GraphicBufferMapper.h>
 
 #include <log/log.h>
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -70,10 +69,9 @@ int IonBuffer::Alloc(int width, int height, int format, int usage) {
   ALOGD_IF(TRACE, "IonBuffer::Alloc: width=%d height=%d format=%d usage=%d",
            width, height, format, usage);
 
-  GraphicBufferMapper& mapper = GraphicBufferMapper::get();
   buffer_ = new GraphicBuffer(width, height, format, usage);
-  if (mapper.registerBuffer(buffer_.get()) != OK) {
-    ALOGE("IonBuffer::Aloc: Failed to register buffer");
+  if (buffer_->initCheck() != OK) {
+    ALOGE("IonBuffer::Aloc: Failed to allocate buffer");
   }
   return 0;
 }
@@ -96,11 +94,10 @@ int IonBuffer::Import(buffer_handle_t handle, int width, int height, int stride,
       "usage=%d",
       handle, width, height, stride, format, usage);
   FreeHandle();
-  GraphicBufferMapper& mapper = GraphicBufferMapper::get();
-  buffer_ = new GraphicBuffer(width, height, format, 1, usage,
-                              stride, (native_handle_t*)handle, true);
-  if (mapper.registerBuffer(buffer_.get()) != OK) {
-    ALOGE("IonBuffer::Import: Failed to register cloned buffer");
+  buffer_ = new GraphicBuffer(handle, GraphicBuffer::TAKE_UNREGISTERED_HANDLE,
+          width, height, format, 1, usage, stride);
+  if (buffer_->initCheck() != OK) {
+    ALOGE("IonBuffer::Import: Failed to import buffer");
     return -EINVAL;
   }
   return 0;
