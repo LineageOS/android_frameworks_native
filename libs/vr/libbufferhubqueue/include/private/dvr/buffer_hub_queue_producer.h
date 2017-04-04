@@ -103,13 +103,15 @@ class BufferHubQueueProducer : public IGraphicBufferProducer {
  private:
   using LocalHandle = pdx::LocalHandle;
 
-  static constexpr int kInvalidBufferCount = -1;
-
   // |core_| holds the actually buffer slots.
   std::shared_ptr<BufferHubQueueCore> core_;
 
-  // |req_buffer_count_| sets the capacity of the underlying buffer queue.
-  int32_t req_buffer_count_;
+  // |max_buffer_count_| sets the capacity of the underlying buffer queue.
+  int32_t max_buffer_count_{BufferHubQueue::kMaxQueueCapacity};
+
+  // |max_dequeued_buffer_count_| set the maximum number of buffers that can
+  // be dequeued at the same momment.
+  int32_t max_dequeued_buffer_count_{1};
 };
 
 }  // namespace dvr
