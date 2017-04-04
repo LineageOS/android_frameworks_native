@@ -114,7 +114,7 @@ void egl_context_t::onMakeCurrent(EGLSurface draw, EGLSurface read) {
         // call the implementation's glGetString(GL_EXTENSIONS)
         const char* exts = (const char *)gEGLImpl.hooks[version]->gl.glGetString(GL_EXTENSIONS);
         gl_extensions = exts;
-        if (gl_extensions.find("GL_EXT_debug_marker") != std::string::npos) {
+        if (gl_extensions.find("GL_EXT_debug_marker") == std::string::npos) {
             gl_extensions.insert(0, "GL_EXT_debug_marker ");
         }
 
