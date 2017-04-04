@@ -3,4 +3,3 @@ service vr_hwc /system/bin/vr_hwc
   user system
   group system graphics
   onrestart restart surfaceflinger
-  disabled
