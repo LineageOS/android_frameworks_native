@@ -50,27 +50,7 @@ status_t BufferHubQueueCore::AllocateBuffer(uint32_t width, uint32_t height,
   LOG_ALWAYS_FATAL_IF(buffer_producer == nullptr,
                       "Failed to get buffer producer at slot: %zu", slot);
 
-  // Allocating a new buffer, |buffers_[slot]| should be in initial state.
-  LOG_ALWAYS_FATAL_IF(buffers_[slot].mGraphicBuffer != nullptr,
-                      "AllocateBuffer: slot %zu is not empty.", slot);
-
-  // Create new GraphicBuffer based on the newly created |buffer_producer|. Here
-  // we have to cast |buffer_handle_t| to |native_handle_t|, it's OK because
-  // internally, GraphicBuffer is still an |ANativeWindowBuffer| and |handle|
-  // is still type of |buffer_handle_t| and bears const property.
-  sp<GraphicBuffer> graphic_buffer(new GraphicBuffer(
-      buffer_producer->width(), buffer_producer->height(),
-      buffer_producer->format(),
-      1, /* layer count */
-      buffer_producer->usage(),
-      buffer_producer->stride(),
-      const_cast<native_handle_t*>(buffer_producer->buffer()->handle()),
-      false));
-
-  LOG_ALWAYS_FATAL_IF(NO_ERROR != graphic_buffer->initCheck(),
-                      "Failed to init GraphicBuffer.");
   buffers_[slot].mBufferProducer = buffer_producer;
-  buffers_[slot].mGraphicBuffer = graphic_buffer;
 
   return NO_ERROR;
 }

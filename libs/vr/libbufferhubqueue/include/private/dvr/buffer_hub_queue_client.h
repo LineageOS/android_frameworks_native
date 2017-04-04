@@ -32,6 +32,15 @@ class BufferHubQueue : public pdx::Client {
   // a new consumer queue client or nullptr on failure.
   std::unique_ptr<ConsumerQueue> CreateConsumerQueue();
 
+  // Return the default buffer width of this buffer queue.
+  size_t default_width() const { return default_width_; }
+
+  // Return the default buffer height of this buffer queue.
+  size_t default_height() const { return default_height_; }
+
+  // Return the default buffer format of this buffer queue.
+  int32_t default_format() const { return default_format_; }
+
   // Return the number of buffers avaiable for dequeue.
   size_t count() const { return available_buffers_.GetSize(); }
 
@@ -168,6 +177,18 @@ class BufferHubQueue : public pdx::Client {
     BufferInfo(const BufferInfo&) = delete;
     void operator=(BufferInfo&) = delete;
   };
+
+  // Default buffer width that can be set to override the buffer width when a
+  // width and height of 0 are specified in AllocateBuffer.
+  size_t default_width_{1};
+
+  // Default buffer height that can be set to override the buffer height when a
+  // width and height of 0 are specified in AllocateBuffer.
+  size_t default_height_{1};
+
+  // Default buffer format that can be set to override the buffer format when it
+  // isn't specified in AllocateBuffer.
+  int32_t default_format_{PIXEL_FORMAT_RGBA_8888};
 
   // Buffer queue:
   // |buffers_| tracks all |BufferHubBuffer|s created by this |BufferHubQueue|.
