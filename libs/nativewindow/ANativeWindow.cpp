@@ -25,6 +25,8 @@
 
 #include <private/android/AHardwareBufferHelpers.h>
 
+#include <ui/GraphicBuffer.h>
+
 using namespace android;
 
 static int32_t query(ANativeWindow* window, int what) {
@@ -104,6 +106,10 @@ int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transfo
 /**************************************************************************************************
  * vndk-stable
  **************************************************************************************************/
+
+AHardwareBuffer* ANativeWindowBuffer_getHardwareBuffer(ANativeWindowBuffer* anwb) {
+    return AHardwareBuffer_from_GraphicBuffer(static_cast<GraphicBuffer*>(anwb));
+}
 
 int ANativeWindow_OemStorageSet(ANativeWindow* window, uint32_t slot, intptr_t value) {
     if (slot < 4) {
