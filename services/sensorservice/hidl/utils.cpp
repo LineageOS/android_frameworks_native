@@ -16,6 +16,8 @@
 
 #include "utils.h"
 
+#include <sensors/convert.h>
+
 namespace android {
 namespace frameworks {
 namespace sensorservice {
@@ -26,7 +28,7 @@ using ::android::Sensor;
 using ::android::hardware::hidl_string;
 using ::android::hardware::sensors::V1_0::SensorInfo;
 
-SensorInfo convertSensor(const Sensor &src) {
+SensorInfo convertSensor(const Sensor& src) {
     SensorInfo dst;
     const String8& name = src.getName();
     const String8& vendor = src.getVendor();
@@ -36,7 +38,7 @@ SensorInfo convertSensor(const Sensor &src) {
     dst.sensorHandle = src.getHandle();
     dst.type = static_cast<::android::hardware::sensors::V1_0::SensorType>(
             src.getType());
-    // FIXME maxRange uses maxValue because ::android::Sensor wraps the
+    // maxRange uses maxValue because ::android::Sensor wraps the
     // internal sensor_t in this way.
     dst.maxRange = src.getMaxValue();
     dst.resolution = src.getResolution();
@@ -68,6 +70,13 @@ Result convertResult(status_t status) {
         default:
             return Result::UNKNOWN_ERROR;
     }
+}
+
+::android::hardware::sensors::V1_0::Event convertEvent(const ::ASensorEvent& src) {
+    ::android::hardware::sensors::V1_0::Event dst;
+    ::android::hardware::sensors::V1_0::implementation::convertFromSensorEvent(
+            reinterpret_cast<const sensors_event_t&>(src), &dst);
+    return dst;
 }
 
 }  // namespace implementation
