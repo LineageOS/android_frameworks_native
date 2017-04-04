@@ -1147,6 +1147,13 @@ static void dumpstate() {
 
     RunDumpsys("APP PROVIDERS", {"activity", "provider", "all"});
 
+    printf("========================================================\n");
+    printf("== Dropbox crashes\n");
+    printf("========================================================\n");
+
+    RunDumpsys("DROPBOX SYSTEM SERVER CRASHES", {"dropbox", "-p", "system_server_crash"});
+    RunDumpsys("DROPBOX SYSTEM APP CRASHES", {"dropbox", "-p", "system_app_crash"});
+
     // DumpModemLogs adds the modem logs if available to the bugreport.
     // Do this at the end to allow for sufficient time for the modem logs to be
     // collected.
