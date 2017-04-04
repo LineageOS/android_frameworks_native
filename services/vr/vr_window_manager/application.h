@@ -80,6 +80,9 @@ class Application {
   bool shmem_controller_active_ = false;
   uint64_t shmem_controller_buttons_;
 
+  // Used to center the scene when the shell becomes visible.
+  bool should_recenter_ = true;
+
   bool is_visible_ = false;
   std::chrono::time_point<std::chrono::system_clock> visibility_button_press_;
   bool debug_mode_ = false;
