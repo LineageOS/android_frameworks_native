@@ -20,9 +20,13 @@
 #endif
 #include <android-base/logging.h>
 
-#include "DirectReportChannel.h"
 #include "SensorManager.h"
+
+#include "EventQueue.h"
+#include "DirectReportChannel.h"
 #include "utils.h"
+
+#include <thread>
 
 namespace android {
 namespace frameworks {
@@ -38,6 +42,14 @@ using ::android::sp;
 SensorManager::SensorManager()
         : mInternalManager{::android::SensorManager::getInstanceForPackage(
             String16(ISensorManager::descriptor))} {
+}
+
+SensorManager::~SensorManager() {
+    // Stops pollAll inside the thread.
+    std::unique_lock<std::mutex> lock(mLooperMutex);
+    if (mLooper != nullptr) {
+        mLooper->wake();
+    }
 }
 
 // Methods from ::android::frameworks::sensorservice::V1_0::ISensorManager follow.
@@ -111,10 +123,47 @@ Return<void> SensorManager::createGrallocDirectChannel(
     return Void();
 }
 
+/* One global looper for all event queues created from this SensorManager. */
+sp<::android::Looper> SensorManager::getLooper() {
+    std::unique_lock<std::mutex> lock(mLooperMutex);
+    if (mLooper == nullptr) {
+        std::condition_variable looperSet;
+
+        std::thread{[&mutex = mLooperMutex, &looper = mLooper, &looperSet] {
+            std::unique_lock<std::mutex> lock(mutex);
+            looper = Looper::prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS /* opts */);
+            lock.unlock();
+
+            looperSet.notify_one();
+            int pollResult = looper->pollAll(-1 /* timeout */);
+            if (pollResult != ALOOPER_POLL_WAKE) {
+                LOG(ERROR) << "Looper::pollAll returns unexpected " << pollResult;
+            }
+            LOG(INFO) << "Looper thread is terminated.";
+        }}.detach();
+        looperSet.wait(lock, [this]{ return this->mLooper != nullptr; });
+    }
+    return mLooper;
+}
+
 Return<void> SensorManager::createEventQueue(
-        __unused const sp<IEventQueueCallback> &callback, createEventQueue_cb _hidl_cb) {
-    // TODO(b/35219747) Implement this
-    _hidl_cb(nullptr, Result::UNKNOWN_ERROR);
+        const sp<IEventQueueCallback> &callback, createEventQueue_cb _hidl_cb) {
+    if (callback == nullptr) {
+        _hidl_cb(nullptr, Result::BAD_VALUE);
+        return Void();
+    }
+
+    sp<::android::Looper> looper = getLooper();
+    sp<::android::SensorEventQueue> internalQueue = mInternalManager.createEventQueue();
+    if (internalQueue == nullptr) {
+        LOG(WARNING) << "::android::SensorManager::createEventQueue returns nullptr.";
+        _hidl_cb(nullptr, Result::UNKNOWN_ERROR);
+        return Void();
+    }
+
+    sp<IEventQueue> queue = new EventQueue(callback, looper, internalQueue);
+    _hidl_cb(queue, Result::OK);
+
     return Void();
 }
 
