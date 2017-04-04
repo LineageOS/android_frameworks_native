@@ -45,7 +45,7 @@ struct SensorManager : public ISensorManager {
     Return<void> createGrallocDirectChannel(const hidl_handle& buffer, uint64_t size, createGrallocDirectChannel_cb _hidl_cb) override;
     Return<void> createEventQueue(const sp<IEventQueueCallback> &callback, createEventQueue_cb _hidl_cb);
 private:
-    ::android::SensorManager& mManager;
+    ::android::SensorManager& mInternalManager;
 
 };
 
