@@ -38,6 +38,7 @@
 using android::pdx::Channel;
 using android::pdx::ClientBase;
 using android::pdx::Endpoint;
+using android::pdx::ErrorStatus;
 using android::pdx::Message;
 using android::pdx::Service;
 using android::pdx::ServiceBase;
@@ -246,7 +247,7 @@ class BenchmarkService : public ServiceBase<BenchmarkService> {
             << message.GetChannelId();
   }
 
-  int HandleMessage(Message& message) override {
+  Status<void> HandleMessage(Message& message) override {
     ATRACE_NAME("BenchmarkService::HandleMessage");
 
     switch (message.GetOp()) {
@@ -254,30 +255,27 @@ class BenchmarkService : public ServiceBase<BenchmarkService> {
         VLOG(1) << "BenchmarkService::HandleMessage: op=nop";
         {
           ATRACE_NAME("Reply");
-          CHECK(message.Reply(0) == 0);
+          CHECK(message.Reply(0));
         }
-        return 0;
+        return {};
 
       case BenchmarkOps::Write: {
         VLOG(1) << "BenchmarkService::HandleMessage: op=write send_length="
                 << message.GetSendLength()
                 << " receive_length=" << message.GetReceiveLength();
 
-        const ssize_t expected_length =
-            static_cast<ssize_t>(message.GetSendLength());
-        const ssize_t actual_length =
-            expected_length > 0
-                ? message.Read(send_buffer.data(), message.GetSendLength())
-                : 0;
+        Status<void> status;
+        if (message.GetSendLength())
+          status = message.ReadAll(send_buffer.data(), message.GetSendLength());
 
         {
           ATRACE_NAME("Reply");
-          if (actual_length < expected_length)
-            CHECK(message.ReplyError(EIO) == 0);
+          if (!status)
+            CHECK(message.ReplyError(status.error()));
           else
-            CHECK(message.Reply(actual_length) == 0);
+            CHECK(message.Reply(message.GetSendLength()));
         }
-        return 0;
+        return {};
       }
 
       case BenchmarkOps::Read: {
@@ -285,22 +283,20 @@ class BenchmarkService : public ServiceBase<BenchmarkService> {
                 << message.GetSendLength()
                 << " receive_length=" << message.GetReceiveLength();
 
-        const ssize_t expected_length =
-            static_cast<ssize_t>(message.GetReceiveLength());
-        const ssize_t actual_length =
-            expected_length > 0
-                ? message.Write(receive_buffer.data(),
-                                message.GetReceiveLength())
-                : 0;
+        Status<void> status;
+        if (message.GetReceiveLength()) {
+          status = message.WriteAll(receive_buffer.data(),
+                                    message.GetReceiveLength());
+        }
 
         {
           ATRACE_NAME("Reply");
-          if (actual_length < expected_length)
-            CHECK(message.ReplyError(EIO) == 0);
+          if (!status)
+            CHECK(message.ReplyError(status.error()));
           else
-            CHECK(message.Reply(actual_length) == 0);
+            CHECK(message.Reply(message.GetReceiveLength()));
         }
-        return 0;
+        return {};
       }
 
       case BenchmarkOps::Echo: {
@@ -308,31 +304,28 @@ class BenchmarkService : public ServiceBase<BenchmarkService> {
                 << message.GetSendLength()
                 << " receive_length=" << message.GetReceiveLength();
 
-        const ssize_t expected_length =
-            static_cast<ssize_t>(message.GetSendLength());
-        ssize_t actual_length =
-            expected_length > 0
-                ? message.Read(send_buffer.data(), message.GetSendLength())
-                : 0;
+        Status<void> status;
+        if (message.GetSendLength())
+          status = message.ReadAll(send_buffer.data(), message.GetSendLength());
 
-        if (actual_length < expected_length) {
-          CHECK(message.ReplyError(EIO) == 0);
-          return 0;
+        if (!status) {
+          CHECK(message.ReplyError(status.error()));
+          return {};
         }
 
-        actual_length =
-            expected_length > 0
-                ? message.Write(send_buffer.data(), message.GetSendLength())
-                : 0;
+        if (message.GetSendLength()) {
+          status =
+              message.WriteAll(send_buffer.data(), message.GetSendLength());
+        }
 
         {
           ATRACE_NAME("Reply");
-          if (actual_length < expected_length)
-            CHECK(message.ReplyError(EIO) == 0);
+          if (!status)
+            CHECK(message.ReplyError(status.error()));
           else
-            CHECK(message.Reply(actual_length) == 0);
+            CHECK(message.Reply(message.GetSendLength()));
         }
-        return 0;
+        return {};
       }
 
       case BenchmarkOps::Stats: {
@@ -348,7 +341,7 @@ class BenchmarkService : public ServiceBase<BenchmarkService> {
         RemoteMethodReturn<BenchmarkRPC::Stats>(
             message, BenchmarkRPC::Stats::Return{receive_time_ns, GetClockNs(),
                                                  sched_stats_});
-        return 0;
+        return {};
       }
 
       case BenchmarkOps::WriteVector:
@@ -358,7 +351,7 @@ class BenchmarkService : public ServiceBase<BenchmarkService> {
 
         DispatchRemoteMethod<BenchmarkRPC::WriteVector>(
             *this, &BenchmarkService::OnWriteVector, message, kMaxMessageSize);
-        return 0;
+        return {};
 
       case BenchmarkOps::EchoVector:
         VLOG(1) << "BenchmarkService::HandleMessage: op=echovec send_length="
@@ -367,11 +360,11 @@ class BenchmarkService : public ServiceBase<BenchmarkService> {
 
         DispatchRemoteMethod<BenchmarkRPC::EchoVector>(
             *this, &BenchmarkService::OnEchoVector, message, kMaxMessageSize);
-        return 0;
+        return {};
 
       case BenchmarkOps::Quit:
         Cancel();
-        return -ESHUTDOWN;
+        return ErrorStatus{ESHUTDOWN};
 
       default:
         VLOG(1) << "BenchmarkService::HandleMessage: default case; op="
@@ -543,17 +536,17 @@ int ServiceCommand(const std::string& path) {
               const std::shared_ptr<BenchmarkService>& local_service) {
             SetThreadName("service" + std::to_string(service_id));
 
-            // Read the inital schedstats for this thread from procfs.
+            // Read the initial schedstats for this thread from procfs.
             local_service->UpdateSchedStats();
 
             ATRACE_NAME("BenchmarkService::Dispatch");
             while (!done) {
-              const int ret = local_service->ReceiveAndDispatch();
-              if (ret < 0) {
-                if (ret != -ESHUTDOWN) {
+              auto ret = local_service->ReceiveAndDispatch();
+              if (!ret) {
+                if (ret.error() != ESHUTDOWN) {
                   std::cerr << "Error while dispatching message on thread "
                             << thread_id << " service " << service_id << ": "
-                            << strerror(-ret) << std::endl;
+                            << ret.GetErrorMessage() << std::endl;
                 } else {
                   std::cerr << "Quitting thread " << thread_id << " service "
                             << service_id << std::endl;

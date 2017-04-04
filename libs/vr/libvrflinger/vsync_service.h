@@ -56,7 +56,7 @@ class VSyncService : public pdx::ServiceBase<VSyncService> {
  public:
   ~VSyncService() override;
 
-  int HandleMessage(pdx::Message& message) override;
+  pdx::Status<void> HandleMessage(pdx::Message& message) override;
 
   std::shared_ptr<pdx::Channel> OnChannelOpen(pdx::Message& message) override;
   void OnChannelClose(pdx::Message& message,

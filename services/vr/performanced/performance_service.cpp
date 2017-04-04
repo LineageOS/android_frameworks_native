@@ -170,22 +170,22 @@ std::string PerformanceService::OnGetCpuPartition(Message& message,
   return task.GetCpuSetPath();
 }
 
-int PerformanceService::HandleMessage(Message& message) {
+pdx::Status<void> PerformanceService::HandleMessage(Message& message) {
   switch (message.GetOp()) {
     case PerformanceRPC::SetCpuPartition::Opcode:
       DispatchRemoteMethod<PerformanceRPC::SetSchedulerClass>(
           *this, &PerformanceService::OnSetCpuPartition, message);
-      return 0;
+      return {};
 
     case PerformanceRPC::SetSchedulerClass::Opcode:
       DispatchRemoteMethod<PerformanceRPC::SetSchedulerClass>(
           *this, &PerformanceService::OnSetSchedulerClass, message);
-      return 0;
+      return {};
 
     case PerformanceRPC::GetCpuPartition::Opcode:
       DispatchRemoteMethod<PerformanceRPC::GetCpuPartition>(
           *this, &PerformanceService::OnGetCpuPartition, message);
-      return 0;
+      return {};
 
     default:
       return Service::HandleMessage(message);

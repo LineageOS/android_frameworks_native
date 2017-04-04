@@ -17,7 +17,7 @@ namespace dvr {
 // achieve system performance goals.
 class PerformanceService : public pdx::ServiceBase<PerformanceService> {
  public:
-  int HandleMessage(pdx::Message& message) override;
+  pdx::Status<void> HandleMessage(pdx::Message& message) override;
   bool IsInitialized() const override;
 
   std::string DumpState(size_t max_length) override;

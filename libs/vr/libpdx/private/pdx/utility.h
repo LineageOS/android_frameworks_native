@@ -150,29 +150,29 @@ inline R GetNTuple(T value) {
 
 class NoOpOutputResourceMapper : public OutputResourceMapper {
  public:
-  FileReference PushFileHandle(const LocalHandle& handle) override {
+  Status<FileReference> PushFileHandle(const LocalHandle& handle) override {
     return handle.Get();
   }
 
-  FileReference PushFileHandle(const BorrowedHandle& handle) override {
+  Status<FileReference> PushFileHandle(const BorrowedHandle& handle) override {
     return handle.Get();
   }
 
-  FileReference PushFileHandle(const RemoteHandle& handle) override {
+  Status<FileReference> PushFileHandle(const RemoteHandle& handle) override {
     return handle.Get();
   }
 
-  ChannelReference PushChannelHandle(
+  Status<ChannelReference> PushChannelHandle(
       const LocalChannelHandle& handle) override {
     return handle.value();
   }
 
-  ChannelReference PushChannelHandle(
+  Status<ChannelReference> PushChannelHandle(
       const BorrowedChannelHandle& handle) override {
     return handle.value();
   }
 
-  ChannelReference PushChannelHandle(
+  Status<ChannelReference> PushChannelHandle(
       const RemoteChannelHandle& handle) override {
     return handle.value();
   }
@@ -278,7 +278,7 @@ class Payload : public MessageWriter,
   OutputResourceMapper* GetOutputResourceMapper() override { return this; }
 
   // OutputResourceMapper
-  FileReference PushFileHandle(const LocalHandle& handle) override {
+  Status<FileReference> PushFileHandle(const LocalHandle& handle) override {
     if (handle) {
       const int ref = file_handles_.size();
       file_handles_.push_back(handle.Get());
@@ -288,7 +288,7 @@ class Payload : public MessageWriter,
     }
   }
 
-  FileReference PushFileHandle(const BorrowedHandle& handle) override {
+  Status<FileReference> PushFileHandle(const BorrowedHandle& handle) override {
     if (handle) {
       const int ref = file_handles_.size();
       file_handles_.push_back(handle.Get());
@@ -298,11 +298,11 @@ class Payload : public MessageWriter,
     }
   }
 
-  FileReference PushFileHandle(const RemoteHandle& handle) override {
+  Status<FileReference> PushFileHandle(const RemoteHandle& handle) override {
     return handle.Get();
   }
 
-  ChannelReference PushChannelHandle(
+  Status<ChannelReference> PushChannelHandle(
       const LocalChannelHandle& handle) override {
     if (handle) {
       const int ref = file_handles_.size();
@@ -313,7 +313,7 @@ class Payload : public MessageWriter,
     }
   }
 
-  ChannelReference PushChannelHandle(
+  Status<ChannelReference> PushChannelHandle(
       const BorrowedChannelHandle& handle) override {
     if (handle) {
       const int ref = file_handles_.size();
@@ -324,7 +324,7 @@ class Payload : public MessageWriter,
     }
   }
 
-  ChannelReference PushChannelHandle(
+  Status<ChannelReference> PushChannelHandle(
       const RemoteChannelHandle& handle) override {
     return handle.value();
   }

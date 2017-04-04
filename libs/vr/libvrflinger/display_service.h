@@ -27,7 +27,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
 
   void OnChannelClose(pdx::Message& message,
                       const std::shared_ptr<pdx::Channel>& channel) override;
-  int HandleMessage(pdx::Message& message) override;
+  pdx::Status<void> HandleMessage(pdx::Message& message) override;
 
   std::shared_ptr<DisplaySurface> GetDisplaySurface(int surface_id) const;
   std::vector<std::shared_ptr<DisplaySurface>> GetDisplaySurfaces() const;
@@ -94,7 +94,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   // the display manager should be notified.
   void NotifyDisplayConfigurationUpdate();
 
-  int HandleSurfaceMessage(pdx::Message& message);
+  pdx::Status<void> HandleSurfaceMessage(pdx::Message& message);
 
   DisplayService(const DisplayService&) = delete;
   void operator=(const DisplayService&) = delete;

@@ -69,8 +69,8 @@ void SensorService::RemoveSensorClient(SensorClient* client) {
   client->unset_sensor();
 }
 
-int SensorService::HandleMessage(pdx::Message& msg) {
-  int ret = 0;
+pdx::Status<void> SensorService::HandleMessage(pdx::Message& msg) {
+  pdx::Status<void> ret;
   const pdx::MessageInfo& info = msg.GetInfo();
   switch (info.op) {
     case DVR_SENSOR_START: {
@@ -82,8 +82,7 @@ int SensorService::HandleMessage(pdx::Message& msg) {
       if (client->has_sensor())
         REPLY_ERROR(msg, EINVAL, error);
       int sensor_type;
-      if (msg.Read(&sensor_type, sizeof(sensor_type)) <
-          (ssize_t)sizeof(sensor_type))
+      if (!msg.ReadAll(&sensor_type, sizeof(sensor_type)))
         REPLY_ERROR(msg, EIO, error);
 
       // Find the sensor of the requested type.
@@ -120,10 +119,8 @@ int SensorService::HandleMessage(pdx::Message& msg) {
           {.iov_base = out_buffer,
            .iov_len = num_events * sizeof(sensors_event_t)},
       };
-      ret = msg.WriteVector(svec, 2);
-      int expected_size = sizeof(int) + num_events * sizeof(sensors_event_t);
-      if (ret < expected_size) {
-        ALOGI("error: msg.WriteVector wrote too little.");
+      ret = msg.WriteVectorAll(svec, 2);
+      if (!ret) {
         REPLY_ERROR(msg, EIO, error);
       }
       REPLY_SUCCESS(msg, 0, error);

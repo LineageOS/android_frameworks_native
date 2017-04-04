@@ -7,7 +7,7 @@ using android::pdx::rpc::DispatchRemoteMethod;
 namespace android {
 namespace dvr {
 
-int SurfaceChannel::HandleMessage(Message& message) {
+pdx::Status<void> SurfaceChannel::HandleMessage(Message& message) {
   switch (message.GetOp()) {
     case DisplayRPC::GetMetadataBuffer::Opcode:
       DispatchRemoteMethod<DisplayRPC::GetMetadataBuffer>(
@@ -15,7 +15,7 @@ int SurfaceChannel::HandleMessage(Message& message) {
       break;
   }
 
-  return 0;
+  return {};
 }
 
 BorrowedChannelHandle SurfaceChannel::OnGetMetadataBuffer(Message& message) {

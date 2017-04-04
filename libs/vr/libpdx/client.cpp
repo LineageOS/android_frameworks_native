@@ -4,7 +4,6 @@
 #include <log/log.h>
 
 #include <pdx/trace.h>
-#include "errno_guard.h"
 
 namespace android {
 namespace pdx {
@@ -84,7 +83,6 @@ int Client::error() const { return error_; }
 
 Status<void> Client::SendImpulse(int opcode) {
   PDX_TRACE_NAME("Client::SendImpulse");
-  ErrnoGuard errno_guard;
 
   auto status = CheckReconnect();
   if (!status)
@@ -98,7 +96,6 @@ Status<void> Client::SendImpulse(int opcode) {
 Status<void> Client::SendImpulse(int opcode, const void* buffer,
                                  size_t length) {
   PDX_TRACE_NAME("Client::SendImpulse");
-  ErrnoGuard errno_guard;
 
   auto status = CheckReconnect();
   if (!status)
@@ -110,7 +107,6 @@ Status<void> Client::SendImpulse(int opcode, const void* buffer,
 }
 
 void Client::Close(int error) {
-  ErrnoGuard errno_guard;
   channel_.reset();
   // Normalize error codes to negative integer space.
   error_ = error <= 0 ? error : -error;
@@ -228,37 +224,38 @@ void Transaction::SendTransaction(int opcode, Status<LocalChannelHandle>* ret,
   CheckDisconnect(*ret);
 }
 
-FileReference Transaction::PushFileHandle(const LocalHandle& handle) {
-  return client_.CheckReconnect() && EnsureStateAllocated()
-             ? client_.GetChannel()->PushFileHandle(state_, handle)
-             : -1;
+Status<FileReference> Transaction::PushFileHandle(const LocalHandle& handle) {
+  if (client_.CheckReconnect() && EnsureStateAllocated())
+    return client_.GetChannel()->PushFileHandle(state_, handle);
+  return ErrorStatus{ESHUTDOWN};
 }
 
-FileReference Transaction::PushFileHandle(const BorrowedHandle& handle) {
-  return client_.CheckReconnect() && EnsureStateAllocated()
-             ? client_.GetChannel()->PushFileHandle(state_, handle)
-             : -1;
+Status<FileReference> Transaction::PushFileHandle(
+    const BorrowedHandle& handle) {
+  if (client_.CheckReconnect() && EnsureStateAllocated())
+    return client_.GetChannel()->PushFileHandle(state_, handle);
+  return ErrorStatus{ESHUTDOWN};
 }
 
-FileReference Transaction::PushFileHandle(const RemoteHandle& handle) {
+Status<FileReference> Transaction::PushFileHandle(const RemoteHandle& handle) {
   return handle.Get();
 }
 
-ChannelReference Transaction::PushChannelHandle(
+Status<ChannelReference> Transaction::PushChannelHandle(
     const LocalChannelHandle& handle) {
-  return client_.CheckReconnect() && EnsureStateAllocated()
-             ? client_.GetChannel()->PushChannelHandle(state_, handle)
-             : -1;
+  if (client_.CheckReconnect() && EnsureStateAllocated())
+    return client_.GetChannel()->PushChannelHandle(state_, handle);
+  return ErrorStatus{ESHUTDOWN};
 }
 
-ChannelReference Transaction::PushChannelHandle(
+Status<ChannelReference> Transaction::PushChannelHandle(
     const BorrowedChannelHandle& handle) {
-  return client_.CheckReconnect() && EnsureStateAllocated()
-             ? client_.GetChannel()->PushChannelHandle(state_, handle)
-             : -1;
+  if (client_.CheckReconnect() && EnsureStateAllocated())
+    return client_.GetChannel()->PushChannelHandle(state_, handle);
+  return ErrorStatus{ESHUTDOWN};
 }
 
-ChannelReference Transaction::PushChannelHandle(
+Status<ChannelReference> Transaction::PushChannelHandle(
     const RemoteChannelHandle& handle) {
   return handle.value();
 }

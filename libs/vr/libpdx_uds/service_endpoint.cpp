@@ -19,6 +19,7 @@ constexpr int kMaxBackLogForSocketListen = 1;
 using android::pdx::BorrowedChannelHandle;
 using android::pdx::BorrowedHandle;
 using android::pdx::ChannelReference;
+using android::pdx::ErrorStatus;
 using android::pdx::FileReference;
 using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
@@ -51,14 +52,14 @@ struct MessageState {
     return true;
   }
 
-  FileReference PushFileHandle(BorrowedHandle handle) {
+  Status<FileReference> PushFileHandle(BorrowedHandle handle) {
     if (!handle)
       return handle.Get();
     response.file_descriptors.push_back(std::move(handle));
     return response.file_descriptors.size() - 1;
   }
 
-  ChannelReference PushChannelHandle(BorrowedChannelHandle handle) {
+  Status<ChannelReference> PushChannelHandle(BorrowedChannelHandle handle) {
     if (!handle)
       return handle.value();
 
@@ -70,14 +71,14 @@ struct MessageState {
       response.channels.push_back(std::move(channel_info));
       return response.channels.size() - 1;
     } else {
-      return -1;
+      return ErrorStatus{EINVAL};
     }
   }
 
-  ChannelReference PushChannelHandle(BorrowedHandle data_fd,
-                                     BorrowedHandle event_fd) {
+  Status<ChannelReference> PushChannelHandle(BorrowedHandle data_fd,
+                                             BorrowedHandle event_fd) {
     if (!data_fd || !event_fd)
-      return -1;
+      return ErrorStatus{EINVAL};
     ChannelInfo<BorrowedHandle> channel_info;
     channel_info.data_fd = std::move(data_fd);
     channel_info.event_fd = std::move(event_fd);
@@ -85,8 +86,8 @@ struct MessageState {
     return response.channels.size() - 1;
   }
 
-  ssize_t WriteData(const iovec* vector, size_t vector_length) {
-    ssize_t size = 0;
+  Status<size_t> WriteData(const iovec* vector, size_t vector_length) {
+    size_t size = 0;
     for (size_t i = 0; i < vector_length; i++) {
       const auto* data = reinterpret_cast<const uint8_t*>(vector[i].iov_base);
       response_data.insert(response_data.end(), data, data + vector[i].iov_len);
@@ -95,9 +96,9 @@ struct MessageState {
     return size;
   }
 
-  ssize_t ReadData(const iovec* vector, size_t vector_length) {
+  Status<size_t> ReadData(const iovec* vector, size_t vector_length) {
     size_t size_remaining = request_data.size() - request_data_read_pos;
-    ssize_t size = 0;
+    size_t size = 0;
     for (size_t i = 0; i < vector_length && size_remaining > 0; i++) {
       size_t size_to_copy = std::min(size_remaining, vector[i].iov_len);
       memcpy(vector[i].iov_base, request_data.data() + request_data_read_pos,
@@ -214,18 +215,18 @@ Status<void> Endpoint::AcceptConnection(Message* message) {
   return status;
 }
 
-int Endpoint::SetService(Service* service) {
+Status<void> Endpoint::SetService(Service* service) {
   service_ = service;
-  return 0;
+  return {};
 }
 
-int Endpoint::SetChannel(int channel_id, Channel* channel) {
+Status<void> Endpoint::SetChannel(int channel_id, Channel* channel) {
   std::lock_guard<std::mutex> autolock(channel_mutex_);
   auto channel_data = channels_.find(channel_id);
   if (channel_data == channels_.end())
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
   channel_data->second.channel_state = channel;
-  return 0;
+  return {};
 }
 
 Status<void> Endpoint::OnNewChannel(LocalHandle channel_fd) {
@@ -269,44 +270,46 @@ Status<void> Endpoint::ReenableEpollEvent(int fd) {
   return {};
 }
 
-int Endpoint::CloseChannel(int channel_id) {
+Status<void> Endpoint::CloseChannel(int channel_id) {
   std::lock_guard<std::mutex> autolock(channel_mutex_);
   return CloseChannelLocked(channel_id);
 }
 
-int Endpoint::CloseChannelLocked(int channel_id) {
+Status<void> Endpoint::CloseChannelLocked(int channel_id) {
   ALOGD_IF(TRACE, "Endpoint::CloseChannelLocked: channel_id=%d", channel_id);
 
   auto channel_data = channels_.find(channel_id);
   if (channel_data == channels_.end())
-    return -EINVAL;
+    return ErrorStatus{EINVAL};
 
-  int ret = 0;
+  Status<void> status;
   epoll_event dummy;  // See BUGS in man 2 epoll_ctl.
   if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_DEL, channel_id, &dummy) < 0) {
-    ret = -errno;
+    status.SetError(errno);
     ALOGE(
         "Endpoint::CloseChannelLocked: Failed to remove channel from endpoint: "
         "%s\n",
         strerror(errno));
+  } else {
+    status.SetValue();
   }
 
   channels_.erase(channel_data);
-  return ret;
+  return status;
 }
 
-int Endpoint::ModifyChannelEvents(int channel_id, int clear_mask,
-                                  int set_mask) {
+Status<void> Endpoint::ModifyChannelEvents(int channel_id, int clear_mask,
+                                           int set_mask) {
   std::lock_guard<std::mutex> autolock(channel_mutex_);
 
   auto search = channels_.find(channel_id);
   if (search != channels_.end()) {
     auto& channel_data = search->second;
     channel_data.event_set.ModifyEvents(clear_mask, set_mask);
-    return 0;
+    return {};
   }
 
-  return -EINVAL;
+  return ErrorStatus{EINVAL};
 }
 
 Status<RemoteChannelHandle> Endpoint::PushChannel(Message* message,
@@ -337,17 +340,19 @@ Status<RemoteChannelHandle> Endpoint::PushChannel(Message* message,
   *channel_id = local_socket.Get();
   auto channel_data = OnNewChannelLocked(std::move(local_socket), channel);
   if (!channel_data)
-    return ErrorStatus(channel_data.error());
+    return channel_data.error_status();
 
   // Flags are ignored for now.
   // TODO(xiaohuit): Implement those.
 
   auto* state = static_cast<MessageState*>(message->GetState());
-  ChannelReference ref = state->PushChannelHandle(
+  Status<ChannelReference> ref = state->PushChannelHandle(
       remote_socket.Borrow(),
       channel_data.get()->event_set.event_fd().Borrow());
+  if (!ref)
+    return ref.error_status();
   state->sockets_to_close.push_back(std::move(remote_socket));
-  return RemoteChannelHandle{ref};
+  return RemoteChannelHandle{ref.get()};
 }
 
 Status<int> Endpoint::CheckChannel(const Message* /*message*/,
@@ -355,13 +360,6 @@ Status<int> Endpoint::CheckChannel(const Message* /*message*/,
                                    Channel** /*channel*/) {
   // TODO(xiaohuit): Implement this.
   return ErrorStatus(EFAULT);
-}
-
-int Endpoint::DefaultHandleMessage(const MessageInfo& /* info */) {
-  ALOGE(
-      "Endpoint::CheckChannel: Not implemented! Endpoint DefaultHandleMessage "
-      "does nothing!");
-  return 0;
 }
 
 Channel* Endpoint::GetChannelState(int channel_id) {
@@ -464,7 +462,7 @@ void Endpoint::BuildCloseMessage(int channel_id, Message* message) {
   *message = Message{info};
 }
 
-int Endpoint::MessageReceive(Message* message) {
+Status<void> Endpoint::MessageReceive(Message* message) {
   // Receive at most one event from the epoll set. This should prevent multiple
   // dispatch threads from attempting to handle messages on the same socket at
   // the same time.
@@ -474,40 +472,36 @@ int Endpoint::MessageReceive(Message* message) {
   if (count < 0) {
     ALOGE("Endpoint::MessageReceive: Failed to wait for epoll events: %s\n",
           strerror(errno));
-    return -errno;
+    return ErrorStatus{errno};
   } else if (count == 0) {
-    return -ETIMEDOUT;
+    return ErrorStatus{ETIMEDOUT};
   }
 
   if (event.data.fd == cancel_event_fd_.Get()) {
-    return -ESHUTDOWN;
+    return ErrorStatus{ESHUTDOWN};
   }
 
   if (event.data.fd == socket_fd_.Get()) {
     auto status = AcceptConnection(message);
     if (!status)
-      return -status.error();
-    status = ReenableEpollEvent(socket_fd_.Get());
-    return status ? 0 : -status.error();
+      return status;
+    return ReenableEpollEvent(socket_fd_.Get());
   }
 
   int channel_id = event.data.fd;
   if (event.events & (EPOLLRDHUP | EPOLLHUP)) {
     BuildCloseMessage(channel_id, message);
-    return 0;
+    return {};
   }
 
-  auto status = ReceiveMessageForChannel(channel_id, message);
-  if (!status)
-    return -status.error();
-  return 0;
+  return ReceiveMessageForChannel(channel_id, message);
 }
 
-int Endpoint::MessageReply(Message* message, int return_code) {
+Status<void> Endpoint::MessageReply(Message* message, int return_code) {
   const int channel_id = message->GetChannelId();
   const int channel_socket = GetChannelSocketFd(channel_id);
   if (channel_socket < 0)
-    return -EBADF;
+    return ErrorStatus{EBADF};
 
   auto* state = static_cast<MessageState*>(message->GetState());
   switch (message->GetOp()) {
@@ -515,12 +509,17 @@ int Endpoint::MessageReply(Message* message, int return_code) {
       return CloseChannel(channel_id);
 
     case opcodes::CHANNEL_OPEN:
-      if (return_code < 0)
+      if (return_code < 0) {
         return CloseChannel(channel_id);
-      // Reply with the event fd.
-      return_code = state->PushFileHandle(
-          BorrowedHandle{GetChannelEventFd(channel_socket)});
-      state->response_data.clear();  // Just in case...
+      } else {
+        // Reply with the event fd.
+        auto push_status = state->PushFileHandle(
+            BorrowedHandle{GetChannelEventFd(channel_socket)});
+        state->response_data.clear();  // Just in case...
+        if (!push_status)
+          return push_status.error_status();
+        return_code = push_status.get();
+      }
       break;
   }
 
@@ -535,76 +534,82 @@ int Endpoint::MessageReply(Message* message, int return_code) {
   if (status)
     status = ReenableEpollEvent(channel_socket);
 
-  return status ? 0 : -status.error();
+  return status;
 }
 
-int Endpoint::MessageReplyFd(Message* message, unsigned int push_fd) {
+Status<void> Endpoint::MessageReplyFd(Message* message, unsigned int push_fd) {
   auto* state = static_cast<MessageState*>(message->GetState());
   auto ref = state->PushFileHandle(BorrowedHandle{static_cast<int>(push_fd)});
-  return MessageReply(message, ref);
+  if (!ref)
+    return ref.error_status();
+  return MessageReply(message, ref.get());
 }
 
-int Endpoint::MessageReplyChannelHandle(Message* message,
-                                        const LocalChannelHandle& handle) {
+Status<void> Endpoint::MessageReplyChannelHandle(
+    Message* message, const LocalChannelHandle& handle) {
   auto* state = static_cast<MessageState*>(message->GetState());
   auto ref = state->PushChannelHandle(handle.Borrow());
-  return MessageReply(message, ref);
+  if (!ref)
+    return ref.error_status();
+  return MessageReply(message, ref.get());
 }
 
-int Endpoint::MessageReplyChannelHandle(Message* message,
-                                        const BorrowedChannelHandle& handle) {
+Status<void> Endpoint::MessageReplyChannelHandle(
+    Message* message, const BorrowedChannelHandle& handle) {
   auto* state = static_cast<MessageState*>(message->GetState());
   auto ref = state->PushChannelHandle(handle.Duplicate());
-  return MessageReply(message, ref);
+  if (!ref)
+    return ref.error_status();
+  return MessageReply(message, ref.get());
 }
 
-int Endpoint::MessageReplyChannelHandle(Message* message,
-                                        const RemoteChannelHandle& handle) {
+Status<void> Endpoint::MessageReplyChannelHandle(
+    Message* message, const RemoteChannelHandle& handle) {
   return MessageReply(message, handle.value());
 }
 
-ssize_t Endpoint::ReadMessageData(Message* message, const iovec* vector,
-                                  size_t vector_length) {
+Status<size_t> Endpoint::ReadMessageData(Message* message, const iovec* vector,
+                                         size_t vector_length) {
   auto* state = static_cast<MessageState*>(message->GetState());
   return state->ReadData(vector, vector_length);
 }
 
-ssize_t Endpoint::WriteMessageData(Message* message, const iovec* vector,
-                                   size_t vector_length) {
+Status<size_t> Endpoint::WriteMessageData(Message* message, const iovec* vector,
+                                          size_t vector_length) {
   auto* state = static_cast<MessageState*>(message->GetState());
   return state->WriteData(vector, vector_length);
 }
 
-FileReference Endpoint::PushFileHandle(Message* message,
-                                       const LocalHandle& handle) {
+Status<FileReference> Endpoint::PushFileHandle(Message* message,
+                                               const LocalHandle& handle) {
   auto* state = static_cast<MessageState*>(message->GetState());
   return state->PushFileHandle(handle.Borrow());
 }
 
-FileReference Endpoint::PushFileHandle(Message* message,
-                                       const BorrowedHandle& handle) {
+Status<FileReference> Endpoint::PushFileHandle(Message* message,
+                                               const BorrowedHandle& handle) {
   auto* state = static_cast<MessageState*>(message->GetState());
   return state->PushFileHandle(handle.Duplicate());
 }
 
-FileReference Endpoint::PushFileHandle(Message* /*message*/,
-                                       const RemoteHandle& handle) {
+Status<FileReference> Endpoint::PushFileHandle(Message* /*message*/,
+                                               const RemoteHandle& handle) {
   return handle.Get();
 }
 
-ChannelReference Endpoint::PushChannelHandle(Message* message,
-                                             const LocalChannelHandle& handle) {
+Status<ChannelReference> Endpoint::PushChannelHandle(
+    Message* message, const LocalChannelHandle& handle) {
   auto* state = static_cast<MessageState*>(message->GetState());
   return state->PushChannelHandle(handle.Borrow());
 }
 
-ChannelReference Endpoint::PushChannelHandle(
+Status<ChannelReference> Endpoint::PushChannelHandle(
     Message* message, const BorrowedChannelHandle& handle) {
   auto* state = static_cast<MessageState*>(message->GetState());
   return state->PushChannelHandle(handle.Duplicate());
 }
 
-ChannelReference Endpoint::PushChannelHandle(
+Status<ChannelReference> Endpoint::PushChannelHandle(
     Message* /*message*/, const RemoteChannelHandle& handle) {
   return handle.value();
 }
@@ -624,13 +629,23 @@ LocalChannelHandle Endpoint::GetChannelHandle(Message* message,
   return handle;
 }
 
-int Endpoint::Cancel() {
-  return (eventfd_write(cancel_event_fd_.Get(), 1) < 0) ? -errno : 0;
+Status<void> Endpoint::Cancel() {
+  if (eventfd_write(cancel_event_fd_.Get(), 1) < 0)
+    return ErrorStatus{errno};
+  return {};
 }
 
 std::unique_ptr<Endpoint> Endpoint::Create(const std::string& endpoint_path,
                                            mode_t /*unused_mode*/,
                                            bool blocking) {
+  return std::unique_ptr<Endpoint>(new Endpoint(endpoint_path, blocking));
+}
+
+std::unique_ptr<Endpoint> Endpoint::CreateAndBindSocket(
+    const std::string& endpoint_path, bool blocking) {
+  // TODO(avakulenko): When Endpoint can differentiate between absolute paths
+  // and relative paths/socket names created by the init process, change this
+  // code to reflect the fact that we want to use absolute paths here.
   return std::unique_ptr<Endpoint>(new Endpoint(endpoint_path, blocking));
 }
 

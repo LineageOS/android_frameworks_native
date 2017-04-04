@@ -14,7 +14,7 @@ VideoMeshSurface::VideoMeshSurface(DisplayService* service, int surface_id)
 
 VideoMeshSurface::~VideoMeshSurface() {}
 
-int VideoMeshSurface::HandleMessage(Message& message) {
+pdx::Status<void> VideoMeshSurface::HandleMessage(Message& message) {
   ATRACE_NAME("VideoMeshSurface::HandleMessage");
 
   switch (message.GetOp()) {
@@ -27,7 +27,7 @@ int VideoMeshSurface::HandleMessage(Message& message) {
       return SurfaceChannel::HandleMessage(message);
   }
 
-  return 0;
+  return {};
 }
 
 std::shared_ptr<ConsumerQueue> VideoMeshSurface::GetConsumerQueue() {

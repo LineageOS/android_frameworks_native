@@ -206,7 +206,7 @@ bool DisplaySurface::IsBufferPosted() {
   return !acquired_buffers_.IsEmpty();
 }
 
-int DisplaySurface::HandleMessage(pdx::Message& message) {
+pdx::Status<void> DisplaySurface::HandleMessage(pdx::Message& message) {
   switch (message.GetOp()) {
     case DisplayRPC::SetAttributes::Opcode:
       DispatchRemoteMethod<DisplayRPC::SetAttributes>(
@@ -227,7 +227,7 @@ int DisplaySurface::HandleMessage(pdx::Message& message) {
       return SurfaceChannel::HandleMessage(message);
   }
 
-  return 0;
+  return {};
 }
 
 int DisplaySurface::OnClientSetAttributes(
@@ -301,7 +301,7 @@ RemoteChannelHandle DisplaySurface::OnCreateVideoMeshSurface(
     pdx::Message& message) {
   if (flags_ & DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION) {
     ALOGE(
-        "DisplaySurface::OnCreateVideoMeshSurface: system distorion is "
+        "DisplaySurface::OnCreateVideoMeshSurface: system distortion is "
         "disabled on this display surface, cannot create VideoMeshSurface on "
         "top of it.");
     REPLY_ERROR_RETURN(message, EINVAL, {});
@@ -309,22 +309,21 @@ RemoteChannelHandle DisplaySurface::OnCreateVideoMeshSurface(
 
   int channel_id;
   auto status = message.PushChannel(0, nullptr, &channel_id);
-
   if (!status) {
     ALOGE(
         "DisplaySurface::OnCreateVideoMeshSurface: failed to push channel: %s",
         status.GetErrorMessage().c_str());
-    REPLY_ERROR_RETURN(message, ENOMEM, {});
+    REPLY_ERROR_RETURN(message, status.error(), {});
   }
 
   auto surface = std::make_shared<VideoMeshSurface>(service(), channel_id);
-  const int ret = service()->SetChannel(channel_id, surface);
-  if (ret < 0) {
+  auto channel_status = service()->SetChannel(channel_id, surface);
+  if (!channel_status) {
     ALOGE(
         "DisplaySurface::OnCreateVideoMeshSurface: failed to set new video "
         "mesh surface channel: %s",
-        strerror(-ret));
-    REPLY_ERROR_RETURN(message, ENOMEM, {});
+        channel_status.GetErrorMessage().c_str());
+    REPLY_ERROR_RETURN(message, channel_status.error(), {});
   }
 
   {
