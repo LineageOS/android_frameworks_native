@@ -32,8 +32,9 @@ DirectReportChannel::~DirectReportChannel() {
 
 // Methods from ::android::frameworks::sensorservice::V1_0::IDirectReportChannel follow.
 Return<Result> DirectReportChannel::configure(int32_t sensorHandle, RateLevel rate) {
-    return convertResult(mManager.configureDirectChannel(mId,
-            static_cast<int>(sensorHandle), static_cast<int>(rate)));
+    int token = mManager.configureDirectChannel(mId,
+            static_cast<int>(sensorHandle), static_cast<int>(rate));
+    return token <= 0 ? convertResult(token) : Result::OK;
 }
 
 
