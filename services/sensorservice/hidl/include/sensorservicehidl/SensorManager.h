@@ -17,11 +17,14 @@
 #ifndef ANDROID_FRAMEWORKS_SENSORSERVICE_V1_0_SENSORMANAGER_H
 #define ANDROID_FRAMEWORKS_SENSORSERVICE_V1_0_SENSORMANAGER_H
 
+#include <mutex>
+
 #include <android/frameworks/sensorservice/1.0/ISensorManager.h>
 #include <android/frameworks/sensorservice/1.0/types.h>
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
 #include <sensor/SensorManager.h>
+#include <utils/Looper.h>
 
 namespace android {
 namespace frameworks {
@@ -34,9 +37,10 @@ using ::android::hardware::hidl_handle;
 using ::android::hardware::hidl_memory;
 using ::android::hardware::Return;
 
-struct SensorManager : public ISensorManager {
+struct SensorManager final : public ISensorManager {
 
     SensorManager();
+    ~SensorManager();
 
     // Methods from ::android::frameworks::sensorservice::V1_0::ISensorManager follow.
     Return<void> getSensorList(getSensorList_cb _hidl_cb) override;
@@ -44,9 +48,13 @@ struct SensorManager : public ISensorManager {
     Return<void> createAshmemDirectChannel(const hidl_memory& mem, uint64_t size, createAshmemDirectChannel_cb _hidl_cb) override;
     Return<void> createGrallocDirectChannel(const hidl_handle& buffer, uint64_t size, createGrallocDirectChannel_cb _hidl_cb) override;
     Return<void> createEventQueue(const sp<IEventQueueCallback> &callback, createEventQueue_cb _hidl_cb);
-private:
-    ::android::SensorManager& mManager;
 
+private:
+    sp<::android::Looper> getLooper();
+
+    ::android::SensorManager& mInternalManager;
+    std::mutex mLooperMutex;
+    sp<::android::Looper> mLooper;
 };
 
 }  // namespace implementation
