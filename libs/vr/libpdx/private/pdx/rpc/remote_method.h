@@ -121,9 +121,9 @@ class UnpackArguments<Class, Return(Args...)> {
 // either during dispatch of the remote method handler or at a later time if the
 // message is moved for delayed response.
 inline void RemoteMethodError(Message& message, int error_code) {
-  const int ret = message.ReplyError(error_code);
-  ALOGE_IF(ret < 0, "RemoteMethodError: Failed to reply to message: %s",
-           strerror(-ret));
+  const auto status = message.ReplyError(error_code);
+  ALOGE_IF(!status, "RemoteMethodError: Failed to reply to message: %s",
+           status.GetErrorMessage().c_str());
 }
 
 // Returns a value from a remote method to the client. The usual method to
@@ -135,9 +135,9 @@ inline void RemoteMethodError(Message& message, int error_code) {
 template <typename RemoteMethodType, typename Return>
 EnableIfDirectReturn<typename RemoteMethodType::Return> RemoteMethodReturn(
     Message& message, const Return& return_value) {
-  const int ret = message.Reply(return_value);
-  ALOGE_IF(ret < 0, "RemoteMethodReturn: Failed to reply to message: %s",
-           strerror(-ret));
+  const auto status = message.Reply(return_value);
+  ALOGE_IF(!status, "RemoteMethodReturn: Failed to reply to message: %s",
+           status.GetErrorMessage().c_str());
 }
 
 // Overload for non-direct return types.
@@ -148,14 +148,10 @@ EnableIfNotDirectReturn<typename RemoteMethodType::Return> RemoteMethodReturn(
   rpc::ServicePayload<ReplyBuffer> payload(message);
   MakeArgumentEncoder<Signature>(&payload).EncodeReturn(return_value);
 
-  int ret;
-  auto size = message.Write(payload.Data(), payload.Size());
-  if (size < static_cast<decltype(size)>(payload.Size()))
-    ret = message.ReplyError(EIO);
-  else
-    ret = message.Reply(0);
-  ALOGE_IF(ret < 0, "RemoteMethodReturn: Failed to reply to message: %s",
-           strerror(-ret));
+  auto ret = message.WriteAll(payload.Data(), payload.Size());
+  auto status = message.Reply(ret);
+  ALOGE_IF(!status, "RemoteMethodReturn: Failed to reply to message: %s",
+           status.GetErrorMessage().c_str());
 }
 
 // Overload for Status<void> return types.
@@ -189,13 +185,13 @@ void DispatchRemoteMethod(Class& instance,
   rpc::ServicePayload<ReceiveBuffer> payload(message);
   payload.Resize(max_capacity);
 
-  auto size = message.Read(payload.Data(), payload.Size());
-  if (size < 0) {
-    RemoteMethodError(message, -size);
+  Status<size_t> read_status = message.Read(payload.Data(), payload.Size());
+  if (!read_status) {
+    RemoteMethodError(message, read_status.error());
     return;
   }
 
-  payload.Resize(size);
+  payload.Resize(read_status.get());
 
   ErrorType error;
   auto decoder = MakeArgumentDecoder<Signature>(&payload);
@@ -225,13 +221,13 @@ void DispatchRemoteMethod(Class& instance,
   rpc::ServicePayload<ReceiveBuffer> payload(message);
   payload.Resize(max_capacity);
 
-  auto size = message.Read(payload.Data(), payload.Size());
-  if (size < 0) {
-    RemoteMethodError(message, -size);
+  Status<size_t> read_status = message.Read(payload.Data(), payload.Size());
+  if (!read_status) {
+    RemoteMethodError(message, read_status.error());
     return;
   }
 
-  payload.Resize(size);
+  payload.Resize(read_status.get());
 
   ErrorType error;
   auto decoder = MakeArgumentDecoder<Signature>(&payload);
@@ -265,13 +261,13 @@ void DispatchRemoteMethod(Class& instance,
   rpc::ServicePayload<ReceiveBuffer> payload(message);
   payload.Resize(max_capacity);
 
-  auto size = message.Read(payload.Data(), payload.Size());
-  if (size < 0) {
-    RemoteMethodError(message, -size);
+  Status<size_t> read_status = message.Read(payload.Data(), payload.Size());
+  if (!read_status) {
+    RemoteMethodError(message, read_status.error());
     return;
   }
 
-  payload.Resize(size);
+  payload.Resize(read_status.get());
 
   ErrorType error;
   auto decoder = MakeArgumentDecoder<Signature>(&payload);

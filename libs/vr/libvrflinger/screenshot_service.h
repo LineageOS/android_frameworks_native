@@ -38,7 +38,7 @@ class ScreenshotService : public pdx::ServiceBase<ScreenshotService> {
  public:
   ~ScreenshotService();
 
-  int HandleMessage(pdx::Message& message) override;
+  pdx::Status<void> HandleMessage(pdx::Message& message) override;
 
   // Returns true if there is a pending screenshot request.
   bool IsScreenshotRequestPending() const {

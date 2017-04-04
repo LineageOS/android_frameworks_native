@@ -103,6 +103,17 @@ class Status {
   // is not empty nor containing a valid value).
   int error() const { return std::max(error_, 0); }
 
+  // Returns the error code as ErrorStatus object. This is a helper method
+  // to aid in propagation of error codes between Status<T> of different types
+  // as in the following example:
+  //    Status<int> foo() {
+  //      Status<void> status = bar();
+  //      if(!status)
+  //        return status.error_status();
+  //      return 12;
+  //    }
+  inline ErrorStatus error_status() const { return ErrorStatus{error()}; }
+
   // Returns the error message associated with error code stored in the object.
   // The message is the same as the string returned by strerror(status.error()).
   // Can be called only when an error is actually stored (that is, the object
@@ -142,6 +153,7 @@ class Status<void> {
   bool empty() const { return false; }
   explicit operator bool() const { return ok(); }
   int error() const { return std::max(error_, 0); }
+  inline ErrorStatus error_status() const { return ErrorStatus{error()}; }
   std::string GetErrorMessage() const {
     std::string message;
     if (error_ > 0)

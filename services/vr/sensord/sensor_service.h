@@ -22,7 +22,7 @@ class SensorClient;
  */
 class SensorService : public pdx::ServiceBase<SensorService> {
  public:
-  int HandleMessage(pdx::Message& msg) override;
+  pdx::Status<void> HandleMessage(pdx::Message& msg) override;
   std::shared_ptr<pdx::Channel> OnChannelOpen(pdx::Message& msg) override;
   void OnChannelClose(pdx::Message& msg,
                       const std::shared_ptr<pdx::Channel>& chan) override;

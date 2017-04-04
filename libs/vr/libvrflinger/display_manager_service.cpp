@@ -32,12 +32,12 @@ namespace android {
 namespace dvr {
 
 void DisplayManager::SetNotificationsPending(bool pending) {
-  int ret = service_->ModifyChannelEvents(channel_id_, pending ? 0 : POLLIN,
-                                          pending ? POLLIN : 0);
-  ALOGE_IF(ret < 0,
+  auto status = service_->ModifyChannelEvents(channel_id_, pending ? 0 : POLLIN,
+                                              pending ? POLLIN : 0);
+  ALOGE_IF(!status,
            "DisplayManager::SetNotificationPending: Failed to modify channel "
            "events: %s",
-           strerror(-ret));
+           status.GetErrorMessage().c_str());
 }
 
 DisplayManagerService::DisplayManagerService(
@@ -68,24 +68,24 @@ void DisplayManagerService::OnChannelClose(
     display_manager_ = nullptr;
 }
 
-int DisplayManagerService::HandleMessage(pdx::Message& message) {
+pdx::Status<void> DisplayManagerService::HandleMessage(pdx::Message& message) {
   auto channel = std::static_pointer_cast<DisplayManager>(message.GetChannel());
 
   switch (message.GetOp()) {
     case DisplayManagerRPC::GetSurfaceList::Opcode:
       DispatchRemoteMethod<DisplayManagerRPC::GetSurfaceList>(
           *this, &DisplayManagerService::OnGetSurfaceList, message);
-      return 0;
+      return {};
 
     case DisplayManagerRPC::UpdateSurfaces::Opcode:
       DispatchRemoteMethod<DisplayManagerRPC::UpdateSurfaces>(
           *this, &DisplayManagerService::OnUpdateSurfaces, message);
-      return 0;
+      return {};
 
   case DisplayManagerRPC::SetupPoseBuffer::Opcode:
       DispatchRemoteMethod<DisplayManagerRPC::SetupPoseBuffer>(
           *this, &DisplayManagerService::OnSetupPoseBuffer, message);
-      return 0;
+      return {};
 
     default:
       return Service::DefaultHandleMessage(message);
@@ -189,7 +189,7 @@ int DisplayManagerService::OnUpdateSurfaces(
 }
 
 pdx::BorrowedChannelHandle DisplayManagerService::OnSetupPoseBuffer(
-    pdx::Message& message, size_t extended_region_size, int usage) {
+    pdx::Message& /*message*/, size_t extended_region_size, int usage) {
   return display_service_->SetupPoseBuffer(extended_region_size, usage);
 }
 

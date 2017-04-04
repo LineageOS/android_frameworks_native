@@ -9,15 +9,18 @@ namespace pdx {
 
 class MockOutputResourceMapper : public OutputResourceMapper {
  public:
-  MOCK_METHOD1(PushFileHandle, FileReference(const LocalHandle& handle));
-  MOCK_METHOD1(PushFileHandle, FileReference(const BorrowedHandle& handle));
-  MOCK_METHOD1(PushFileHandle, FileReference(const RemoteHandle& handle));
+  MOCK_METHOD1(PushFileHandle,
+               Status<FileReference>(const LocalHandle& handle));
+  MOCK_METHOD1(PushFileHandle,
+               Status<FileReference>(const BorrowedHandle& handle));
+  MOCK_METHOD1(PushFileHandle,
+               Status<FileReference>(const RemoteHandle& handle));
   MOCK_METHOD1(PushChannelHandle,
-               ChannelReference(const LocalChannelHandle& handle));
+               Status<ChannelReference>(const LocalChannelHandle& handle));
   MOCK_METHOD1(PushChannelHandle,
-               ChannelReference(const BorrowedChannelHandle& handle));
+               Status<ChannelReference>(const BorrowedChannelHandle& handle));
   MOCK_METHOD1(PushChannelHandle,
-               ChannelReference(const RemoteChannelHandle& handle));
+               Status<ChannelReference>(const RemoteChannelHandle& handle));
 };
 
 class MockMessageWriter : public MessageWriter {

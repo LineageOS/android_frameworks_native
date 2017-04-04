@@ -253,13 +253,14 @@ class Transaction final : public OutputResourceMapper,
   }
 
   // OutputResourceMapper
-  FileReference PushFileHandle(const LocalHandle& handle) override;
-  FileReference PushFileHandle(const BorrowedHandle& handle) override;
-  FileReference PushFileHandle(const RemoteHandle& handle) override;
-  ChannelReference PushChannelHandle(const LocalChannelHandle& handle) override;
-  ChannelReference PushChannelHandle(
+  Status<FileReference> PushFileHandle(const LocalHandle& handle) override;
+  Status<FileReference> PushFileHandle(const BorrowedHandle& handle) override;
+  Status<FileReference> PushFileHandle(const RemoteHandle& handle) override;
+  Status<ChannelReference> PushChannelHandle(
+      const LocalChannelHandle& handle) override;
+  Status<ChannelReference> PushChannelHandle(
       const BorrowedChannelHandle& handle) override;
-  ChannelReference PushChannelHandle(
+  Status<ChannelReference> PushChannelHandle(
       const RemoteChannelHandle& handle) override;
 
   // InputResourceMapper
