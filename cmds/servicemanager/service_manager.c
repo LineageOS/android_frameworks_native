@@ -17,13 +17,12 @@
 
 #include "binder.h"
 
-#if 0
-#define ALOGI(x...) fprintf(stderr, "svcmgr: " x)
-#define ALOGE(x...) fprintf(stderr, "svcmgr: " x)
+#ifdef VENDORSERVICEMANAGER
+#define LOG_TAG "VendorServiceManager"
 #else
 #define LOG_TAG "ServiceManager"
-#include <log/log.h>
 #endif
+#include <log/log.h>
 
 struct audit_data {
     pid_t pid;
@@ -374,7 +373,14 @@ int main(int argc, char** argv)
 
     bs = binder_open(driver, 128*1024);
     if (!bs) {
+#ifdef VENDORSERVICEMANAGER
+        ALOGW("failed to open binder driver %s\n", driver);
+        while (true) {
+            sleep(UINT_MAX);
+        }
+#else
         ALOGE("failed to open binder driver %s\n", driver);
+#endif
         return -1;
     }
 
@@ -388,7 +394,11 @@ int main(int argc, char** argv)
     cb.func_log = selinux_log_callback;
     selinux_set_callback(SELINUX_CB_LOG, cb);
 
+#ifdef VENDORSERVICEMANAGER
+    sehandle = selinux_android_vendor_service_context_handle();
+#else
     sehandle = selinux_android_service_context_handle();
+#endif
     selinux_status_open(true);
 
     if (sehandle == NULL) {
