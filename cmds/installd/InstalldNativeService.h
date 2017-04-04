@@ -58,6 +58,8 @@ public:
     binder::Status destroyAppData(const std::unique_ptr<std::string>& uuid,
             const std::string& packageName, int32_t userId, int32_t flags, int64_t ceDataInode);
 
+    binder::Status fixupAppData(const std::unique_ptr<std::string>& uuid, int32_t flags);
+
     binder::Status getAppSize(const std::unique_ptr<std::string>& uuid,
             const std::vector<std::string>& packageNames, int32_t userId, int32_t flags,
             int32_t appId, const std::vector<int64_t>& ceDataInodes,

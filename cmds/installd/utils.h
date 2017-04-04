@@ -31,6 +31,7 @@
 #include <installd_constants.h>
 
 #define MEASURE_DEBUG 0
+#define FIXUP_DEBUG 0
 
 namespace android {
 namespace installd {

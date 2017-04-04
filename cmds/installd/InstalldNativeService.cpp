@@ -88,6 +88,7 @@ static constexpr int FLAG_USE_QUOTA = 1 << 12;
 static constexpr int FLAG_FREE_CACHE_V2 = 1 << 13;
 static constexpr int FLAG_FREE_CACHE_V2_DEFY_QUOTA = 1 << 14;
 static constexpr int FLAG_FREE_CACHE_NOOP = 1 << 15;
+static constexpr int FLAG_FORCE = 1 << 16;
 
 namespace {
 
@@ -598,6 +599,113 @@ binder::Status InstalldNativeService::destroyAppData(const std::unique_ptr<std::
         destroy_app_reference_profile(packageName);
     }
     return res;
+}
+
+static gid_t get_cache_gid(uid_t uid) {
+    int32_t gid = multiuser_get_cache_gid(multiuser_get_user_id(uid), multiuser_get_app_id(uid));
+    return (gid != -1) ? gid : uid;
+}
+
+binder::Status InstalldNativeService::fixupAppData(const std::unique_ptr<std::string>& uuid,
+        int32_t flags) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(uuid);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    const char* uuid_ = uuid ? uuid->c_str() : nullptr;
+    for (auto user : get_known_users(uuid_)) {
+        ATRACE_BEGIN("fixup user");
+        FTS* fts;
+        FTSENT* p;
+        char *argv[] = {
+                (char*) create_data_user_ce_path(uuid_, user).c_str(),
+                (char*) create_data_user_de_path(uuid_, user).c_str(),
+                nullptr
+        };
+        if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
+            return error("Failed to fts_open");
+        }
+        while ((p = fts_read(fts)) != nullptr) {
+            if (p->fts_info == FTS_D && p->fts_level == 1) {
+                // Track down inodes of cache directories
+                uint64_t raw = 0;
+                ino_t inode_cache = 0;
+                ino_t inode_code_cache = 0;
+                if (getxattr(p->fts_path, kXattrInodeCache, &raw, sizeof(raw)) == sizeof(raw)) {
+                    inode_cache = raw;
+                }
+                if (getxattr(p->fts_path, kXattrInodeCodeCache, &raw, sizeof(raw)) == sizeof(raw)) {
+                    inode_code_cache = raw;
+                }
+
+                // Figure out expected GID of each child
+                FTSENT* child = fts_children(fts, 0);
+                while (child != nullptr) {
+                    if ((child->fts_statp->st_ino == inode_cache)
+                            || (child->fts_statp->st_ino == inode_code_cache)
+                            || !strcmp(child->fts_name, "cache")
+                            || !strcmp(child->fts_name, "code_cache")) {
+                        child->fts_number = get_cache_gid(p->fts_statp->st_uid);
+                    } else {
+                        child->fts_number = p->fts_statp->st_uid;
+                    }
+                    child = child->fts_link;
+                }
+            } else if (p->fts_level >= 2) {
+                if (p->fts_level > 2) {
+                    // Inherit GID from parent once we're deeper into tree
+                    p->fts_number = p->fts_parent->fts_number;
+                }
+
+                uid_t uid = p->fts_parent->fts_statp->st_uid;
+                gid_t cache_gid = get_cache_gid(uid);
+                gid_t expected = p->fts_number;
+                gid_t actual = p->fts_statp->st_gid;
+                if (actual == expected) {
+#if FIXUP_DEBUG
+                    LOG(DEBUG) << "Ignoring " << p->fts_path << " with expected GID " << expected;
+#endif
+                    if (!(flags & FLAG_FORCE)) {
+                        fts_set(fts, p, FTS_SKIP);
+                    }
+                } else if ((actual == uid) || (actual == cache_gid)) {
+                    // Only consider fixing up when current GID belongs to app
+                    if (p->fts_info != FTS_D) {
+                        LOG(INFO) << "Fixing " << p->fts_path << " with unexpected GID " << actual
+                                << " instead of " << expected;
+                    }
+                    switch (p->fts_info) {
+                    case FTS_DP:
+                        // If we're moving towards cache GID, we need to set S_ISGID
+                        if (expected == cache_gid) {
+                            if (chmod(p->fts_path, 02771) != 0) {
+                                PLOG(WARNING) << "Failed to chmod " << p->fts_path;
+                            }
+                        }
+                        // Intentional fall through to also set GID
+                    case FTS_F:
+                        if (chown(p->fts_path, -1, expected) != 0) {
+                            PLOG(WARNING) << "Failed to chown " << p->fts_path;
+                        }
+                        break;
+                    case FTS_SL:
+                    case FTS_SLNONE:
+                        if (lchown(p->fts_path, -1, expected) != 0) {
+                            PLOG(WARNING) << "Failed to chown " << p->fts_path;
+                        }
+                        break;
+                    }
+                } else {
+                    // Ignore all other GID transitions, since they're kinda shady
+                    LOG(WARNING) << "Ignoring " << p->fts_path << " with unexpected GID " << actual
+                            << " instead of " << expected;
+                }
+            }
+        }
+        fts_close(fts);
+        ATRACE_END();
+    }
+    return ok();
 }
 
 binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std::string>& fromUuid,
