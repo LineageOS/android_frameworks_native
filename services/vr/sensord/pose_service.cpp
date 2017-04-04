@@ -527,8 +527,8 @@ void PoseService::ResetMockDeviatedPosition() {
   if (abs(mock_pos_offset_[2]) > 30) mock_pos_offset_[0] = mock_pos_offset_[2] = 0;
 }
 
-int PoseService::HandleMessage(pdx::Message& msg) {
-  int ret = 0;
+pdx::Status<void> PoseService::HandleMessage(pdx::Message& msg) {
+  pdx::Status<void> ret;
   const pdx::MessageInfo& info = msg.GetInfo();
   switch (info.op) {
     case DVR_POSE_NOTIFY_VSYNC: {
@@ -546,21 +546,13 @@ int PoseService::HandleMessage(pdx::Message& msg) {
           {.iov_base = &right_eye_photon_offset_ns_,
            .iov_len = sizeof(right_eye_photon_offset_ns_)},
       };
-      constexpr int expected_size =
-          sizeof(vsync_count_) + sizeof(photon_timestamp_) +
-          sizeof(display_period_ns_) + sizeof(right_eye_photon_offset_ns_);
-      ret = msg.ReadVector(data, sizeof(data) / sizeof(data[0]));
-      if (ret < expected_size) {
-        ALOGI("error: msg.Read read too little (%d < %d)", ret, expected_size);
-        REPLY_ERROR(msg, EIO, error);
-      }
-
-      if (!enable_external_pose_) {
+      ret = msg.ReadVectorAll(data);
+      if (ret && !enable_external_pose_) {
         mapped_pose_buffer_->vsync_count = vsync_count_;
       }
 
       // TODO(jbates, eieio): make this async, no need to reply.
-      REPLY_SUCCESS(msg, 0, error);
+      REPLY_MESSAGE(msg, ret, error);
     }
     case DVR_POSE_POLL: {
       ATRACE_NAME("pose_poll");
@@ -586,61 +578,43 @@ int PoseService::HandleMessage(pdx::Message& msg) {
 
       Btrace("Pose polled");
 
-      ret = msg.Write(&client_state, sizeof(client_state));
-      const int expected_size = sizeof(client_state);
-      if (ret < expected_size) {
-        ALOGI("error: msg.Write wrote too little (%d < %d)", ret,
-              expected_size);
-        REPLY_ERROR(msg, EIO, error);
-      }
-      REPLY_SUCCESS(msg, 0, error);
+      ret = msg.WriteAll(&client_state, sizeof(client_state));
+      REPLY_MESSAGE(msg, ret, error);
     }
     case DVR_POSE_FREEZE: {
       {
         std::lock_guard<std::mutex> guard(mutex_);
 
         DvrPoseState frozen_state;
-        const int expected_size = sizeof(frozen_state);
-        ret = msg.Read(&frozen_state, expected_size);
-        if (ret < expected_size) {
-          ALOGI("error: msg.Read read too little (%d < %d)", ret,
-                expected_size);
-          REPLY_ERROR(msg, EIO, error);
+        ret = msg.ReadAll(&frozen_state, sizeof(frozen_state));
+        if (!ret) {
+          REPLY_ERROR(msg, ret.error(), error);
         }
         frozen_state_ = frozen_state;
       }
       SetPoseMode(DVR_POSE_MODE_MOCK_FROZEN);
-      REPLY_SUCCESS(msg, 0, error);
+      REPLY_MESSAGE(msg, ret, error);
     }
     case DVR_POSE_SET_MODE: {
       int mode;
       {
         std::lock_guard<std::mutex> guard(mutex_);
-        const int expected_size = sizeof(mode);
-        ret = msg.Read(&mode, expected_size);
-        if (ret < expected_size) {
-          ALOGI("error: msg.Read read too little (%d < %d)", ret,
-                expected_size);
-          REPLY_ERROR(msg, EIO, error);
+        ret = msg.ReadAll(&mode, sizeof(mode));
+        if (!ret) {
+          REPLY_ERROR(msg, ret.error(), error);
         }
         if (mode < 0 || mode >= DVR_POSE_MODE_COUNT) {
           REPLY_ERROR(msg, EINVAL, error);
         }
       }
       SetPoseMode(DvrPoseMode(mode));
-      REPLY_SUCCESS(msg, 0, error);
+      REPLY_MESSAGE(msg, ret, error);
     }
     case DVR_POSE_GET_MODE: {
       std::lock_guard<std::mutex> guard(mutex_);
       int mode = pose_mode_;
-      ret = msg.Write(&mode, sizeof(mode));
-      const int expected_size = sizeof(mode);
-      if (ret < expected_size) {
-        ALOGI("error: msg.Write wrote too little (%d < %d)", ret,
-              expected_size);
-        REPLY_ERROR(msg, EIO, error);
-      }
-      REPLY_SUCCESS(msg, 0, error);
+      ret = msg.WriteAll(&mode, sizeof(mode));
+      REPLY_MESSAGE(msg, ret, error);
     }
     case DVR_POSE_GET_RING_BUFFER: {
       std::lock_guard<std::mutex> guard(mutex_);

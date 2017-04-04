@@ -28,7 +28,7 @@ class PoseService : public pdx::ServiceBase<PoseService> {
   ~PoseService() override;
 
   bool IsInitialized() const override;
-  int HandleMessage(pdx::Message& msg) override;
+  pdx::Status<void> HandleMessage(pdx::Message& msg) override;
   std::string DumpState(size_t max_length) override;
 
   // Handle events from the sensor HAL.

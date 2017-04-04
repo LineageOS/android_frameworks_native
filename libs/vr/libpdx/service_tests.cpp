@@ -30,7 +30,6 @@ using testing::Matcher;
 using testing::Ref;
 using testing::Return;
 using testing::SetArgPointee;
-using testing::SetErrnoAndReturn;
 using testing::WithArg;
 using testing::WithoutArgs;
 using testing::_;
@@ -91,7 +90,7 @@ class MockService : public Service {
   MOCK_METHOD1(OnChannelOpen, std::shared_ptr<Channel>(Message& message));
   MOCK_METHOD2(OnChannelClose,
                void(Message& message, const std::shared_ptr<Channel>& channel));
-  MOCK_METHOD1(HandleMessage, int(Message& message));
+  MOCK_METHOD1(HandleMessage, Status<void>(Message& message));
   MOCK_METHOD1(HandleImpulse, void(Message& impulse));
   MOCK_METHOD0(OnSysPropChange, void());
   MOCK_METHOD1(DumpState, std::string(size_t max_length));
@@ -101,7 +100,9 @@ class ServiceTest : public testing::Test {
  public:
   ServiceTest() {
     auto endpoint = std::make_unique<testing::StrictMock<MockEndpoint>>();
-    EXPECT_CALL(*endpoint, SetService(_)).Times(2).WillRepeatedly(Return(0));
+    EXPECT_CALL(*endpoint, SetService(_))
+        .Times(2)
+        .WillRepeatedly(Return(Status<void>{}));
     service_ = std::make_shared<MockService>("MockSvc", std::move(endpoint));
   }
 
@@ -134,7 +135,8 @@ class ServiceTest : public testing::Test {
   }
 
   void ExpectDefaultHandleMessage() {
-    EXPECT_CALL(*endpoint(), DefaultHandleMessage(_));
+    EXPECT_CALL(*endpoint(), MessageReply(_, -EOPNOTSUPP))
+        .WillOnce(Return(Status<void>{}));
   }
 
   std::shared_ptr<MockService> service_;
@@ -222,10 +224,11 @@ TEST_F(ServiceTest, HandleMessageChannelOpen) {
   auto channel = std::make_shared<Channel>();
   EXPECT_CALL(*service_, OnChannelOpen(Ref(message))).WillOnce(Return(channel));
   EXPECT_CALL(*endpoint(), SetChannel(kTestCid, channel.get()))
-      .WillOnce(Return(0));
-  EXPECT_CALL(*endpoint(), MessageReply(&message, 0)).WillOnce(Return(0));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_CALL(*endpoint(), MessageReply(&message, 0))
+      .WillOnce(Return(Status<void>{}));
 
-  EXPECT_EQ(0, service_->Service::HandleMessage(message));
+  EXPECT_TRUE(service_->Service::HandleMessage(message));
 }
 
 TEST_F(ServiceTest, HandleMessageChannelClose) {
@@ -237,10 +240,12 @@ TEST_F(ServiceTest, HandleMessageChannelClose) {
   Message message{info};
 
   EXPECT_CALL(*service_, OnChannelClose(Ref(message), channel));
-  EXPECT_CALL(*endpoint(), SetChannel(kTestCid, nullptr)).WillOnce(Return(0));
-  EXPECT_CALL(*endpoint(), MessageReply(&message, 0)).WillOnce(Return(0));
+  EXPECT_CALL(*endpoint(), SetChannel(kTestCid, nullptr))
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_CALL(*endpoint(), MessageReply(&message, 0))
+      .WillOnce(Return(Status<void>{}));
 
-  EXPECT_EQ(0, service_->Service::HandleMessage(message));
+  EXPECT_TRUE(service_->Service::HandleMessage(message));
 }
 
 TEST_F(ServiceTest, HandleMessageOnSysPropChange) {
@@ -250,9 +255,10 @@ TEST_F(ServiceTest, HandleMessageOnSysPropChange) {
   Message message{info};
 
   EXPECT_CALL(*service_, OnSysPropChange());
-  EXPECT_CALL(*endpoint(), MessageReply(&message, 0)).WillOnce(Return(0));
+  EXPECT_CALL(*endpoint(), MessageReply(&message, 0))
+      .WillOnce(Return(Status<void>{}));
 
-  EXPECT_EQ(0, service_->Service::HandleMessage(message));
+  EXPECT_TRUE(service_->Service::HandleMessage(message));
 }
 
 TEST_F(ServiceTest, HandleMessageOnDumpState) {
@@ -270,9 +276,9 @@ TEST_F(ServiceTest, HandleMessageOnDumpState) {
       WriteMessageData(&message, IoVecDataMatcher(IoVecData{kReply}), 1))
       .WillOnce(Return(kReply.size()));
   EXPECT_CALL(*endpoint(), MessageReply(&message, kReply.size()))
-      .WillOnce(Return(0));
+      .WillOnce(Return(Status<void>{}));
 
-  EXPECT_EQ(0, service_->Service::HandleMessage(message));
+  EXPECT_TRUE(service_->Service::HandleMessage(message));
 }
 
 TEST_F(ServiceTest, HandleMessageOnDumpStateTooLarge) {
@@ -291,9 +297,9 @@ TEST_F(ServiceTest, HandleMessageOnDumpStateTooLarge) {
       WriteMessageData(&message, IoVecDataMatcher(IoVecData{kActualReply}), 1))
       .WillOnce(Return(kActualReply.size()));
   EXPECT_CALL(*endpoint(), MessageReply(&message, kActualReply.size()))
-      .WillOnce(Return(0));
+      .WillOnce(Return(Status<void>{}));
 
-  EXPECT_EQ(0, service_->Service::HandleMessage(message));
+  EXPECT_TRUE(service_->Service::HandleMessage(message));
 }
 
 TEST_F(ServiceTest, HandleMessageOnDumpStateFail) {
@@ -310,9 +316,10 @@ TEST_F(ServiceTest, HandleMessageOnDumpStateFail) {
       *endpoint(),
       WriteMessageData(&message, IoVecDataMatcher(IoVecData{kReply}), 1))
       .WillOnce(Return(1));
-  EXPECT_CALL(*endpoint(), MessageReply(&message, -EIO)).WillOnce(Return(0));
+  EXPECT_CALL(*endpoint(), MessageReply(&message, -EIO))
+      .WillOnce(Return(Status<void>{}));
 
-  EXPECT_EQ(0, service_->Service::HandleMessage(message));
+  EXPECT_TRUE(service_->Service::HandleMessage(message));
 }
 
 TEST_F(ServiceTest, HandleMessageCustom) {
@@ -320,10 +327,10 @@ TEST_F(ServiceTest, HandleMessageCustom) {
   SetupMessageInfoAndDefaultExpectations(&info, kTestOp);
   Message message{info};
 
-  EXPECT_CALL(*endpoint(), MessageReply(&message, -ENOTSUP))
-      .WillOnce(Return(0));
+  EXPECT_CALL(*endpoint(), MessageReply(&message, -EOPNOTSUPP))
+      .WillOnce(Return(Status<void>{}));
 
-  EXPECT_EQ(0, service_->Service::HandleMessage(message));
+  EXPECT_TRUE(service_->Service::HandleMessage(message));
 }
 
 TEST_F(ServiceTest, ReplyMessageWithoutService) {
@@ -337,7 +344,7 @@ TEST_F(ServiceTest, ReplyMessageWithoutService) {
   service_.reset();
   EXPECT_TRUE(message.IsServiceExpired());
 
-  EXPECT_EQ(-EINVAL, message.Reply(12));
+  EXPECT_EQ(EINVAL, message.Reply(12).error());
 }
 
 TEST_F(ServiceTest, ReceiveAndDispatchMessage) {
@@ -345,33 +352,33 @@ TEST_F(ServiceTest, ReceiveAndDispatchMessage) {
   SetupMessageInfoAndDefaultExpectations(&info, kTestOp);
   ExpectDefaultHandleMessage();
 
-  auto on_receive = [&info](Message* message) {
+  auto on_receive = [&info](Message* message) -> Status<void> {
     *message = Message{info};
-    return 0;
+    return {};
   };
   EXPECT_CALL(*endpoint(), MessageReceive(_)).WillOnce(Invoke(on_receive));
-  EXPECT_CALL(*service_, HandleMessage(_)).WillOnce(Return(0));
+  EXPECT_CALL(*service_, HandleMessage(_)).WillOnce(Return(Status<void>{}));
 
-  EXPECT_EQ(0, service_->ReceiveAndDispatch());
+  EXPECT_TRUE(service_->ReceiveAndDispatch());
 }
 
 TEST_F(ServiceTest, ReceiveAndDispatchImpulse) {
   MessageInfo info;
   SetupMessageInfoAndDefaultExpectations(&info, kTestOp, true);
 
-  auto on_receive = [&info](Message* message) {
+  auto on_receive = [&info](Message* message) -> Status<void> {
     *message = Message{info};
-    return 0;
+    return {};
   };
   EXPECT_CALL(*endpoint(), MessageReceive(_)).WillOnce(Invoke(on_receive));
   EXPECT_CALL(*service_, HandleImpulse(_));
 
-  EXPECT_EQ(0, service_->ReceiveAndDispatch());
+  EXPECT_TRUE(service_->ReceiveAndDispatch());
 }
 
 TEST_F(ServiceTest, Cancel) {
-  EXPECT_CALL(*endpoint(), Cancel()).WillOnce(Return(0));
-  EXPECT_EQ(0, service_->Cancel());
+  EXPECT_CALL(*endpoint(), Cancel()).WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(service_->Cancel());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -380,85 +387,85 @@ TEST_F(ServiceTest, Cancel) {
 
 TEST_F(ServiceMessageTest, Reply) {
   EXPECT_CALL(*endpoint(), MessageReply(message_.get(), 12))
-      .WillOnce(Return(0));
+      .WillOnce(Return(Status<void>{}));
   EXPECT_FALSE(message_->replied());
-  EXPECT_EQ(0, message_->Reply(12));
+  EXPECT_TRUE(message_->Reply(12));
   EXPECT_TRUE(message_->replied());
 
-  EXPECT_EQ(-EINVAL, message_->Reply(12));  // Already replied.
+  EXPECT_EQ(EINVAL, message_->Reply(12).error());  // Already replied.
 }
 
 TEST_F(ServiceMessageTest, ReplyFail) {
   EXPECT_CALL(*endpoint(), MessageReply(message_.get(), 12))
-      .WillOnce(SetErrnoAndReturn(EIO, -1));
-  EXPECT_EQ(-EIO, message_->Reply(12));
+      .WillOnce(Return(ErrorStatus{EIO}));
+  EXPECT_EQ(EIO, message_->Reply(12).error());
 
   ExpectDefaultHandleMessage();
 }
 
 TEST_F(ServiceMessageTest, ReplyError) {
   EXPECT_CALL(*endpoint(), MessageReply(message_.get(), -12))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->ReplyError(12));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->ReplyError(12));
 }
 
 TEST_F(ServiceMessageTest, ReplyFileDescriptor) {
   EXPECT_CALL(*endpoint(), MessageReplyFd(message_.get(), 5))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->ReplyFileDescriptor(5));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->ReplyFileDescriptor(5));
 }
 
 TEST_F(ServiceMessageTest, ReplyLocalFileHandle) {
   const int kFakeFd = 12345;
   LocalHandle handle{kFakeFd};
   EXPECT_CALL(*endpoint(), MessageReplyFd(message_.get(), kFakeFd))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->Reply(handle));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->Reply(handle));
   handle.Release();  // Make sure we do not close the fake file descriptor.
 }
 
 TEST_F(ServiceMessageTest, ReplyLocalFileHandleError) {
   LocalHandle handle{-EINVAL};
   EXPECT_CALL(*endpoint(), MessageReply(message_.get(), -EINVAL))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->Reply(handle));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->Reply(handle));
 }
 
 TEST_F(ServiceMessageTest, ReplyBorrowedFileHandle) {
   const int kFakeFd = 12345;
   BorrowedHandle handle{kFakeFd};
   EXPECT_CALL(*endpoint(), MessageReplyFd(message_.get(), kFakeFd))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->Reply(handle));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->Reply(handle));
 }
 
 TEST_F(ServiceMessageTest, ReplyBorrowedFileHandleError) {
   BorrowedHandle handle{-EACCES};
   EXPECT_CALL(*endpoint(), MessageReply(message_.get(), -EACCES))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->Reply(handle));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->Reply(handle));
 }
 
 TEST_F(ServiceMessageTest, ReplyRemoteFileHandle) {
   RemoteHandle handle{123};
   EXPECT_CALL(*endpoint(), MessageReply(message_.get(), handle.Get()))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->Reply(handle));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->Reply(handle));
 }
 
 TEST_F(ServiceMessageTest, ReplyRemoteFileHandleError) {
   RemoteHandle handle{-EIO};
   EXPECT_CALL(*endpoint(), MessageReply(message_.get(), -EIO))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->Reply(handle));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->Reply(handle));
 }
 
 TEST_F(ServiceMessageTest, ReplyLocalChannelHandle) {
   LocalChannelHandle handle{nullptr, 12345};
   EXPECT_CALL(*endpoint(), MessageReplyChannelHandle(
                                message_.get(), A<const LocalChannelHandle&>()))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->Reply(handle));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->Reply(handle));
 }
 
 TEST_F(ServiceMessageTest, ReplyBorrowedChannelHandle) {
@@ -466,30 +473,30 @@ TEST_F(ServiceMessageTest, ReplyBorrowedChannelHandle) {
   EXPECT_CALL(*endpoint(),
               MessageReplyChannelHandle(message_.get(),
                                         A<const BorrowedChannelHandle&>()))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->Reply(handle));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->Reply(handle));
 }
 
 TEST_F(ServiceMessageTest, ReplyRemoteChannelHandle) {
   RemoteChannelHandle handle{12345};
   EXPECT_CALL(*endpoint(), MessageReplyChannelHandle(
                                message_.get(), A<const RemoteChannelHandle&>()))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->Reply(handle));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->Reply(handle));
 }
 
 TEST_F(ServiceMessageTest, ReplyStatusInt) {
   Status<int> status{123};
   EXPECT_CALL(*endpoint(), MessageReply(message_.get(), status.get()))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->Reply(status));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->Reply(status));
 }
 
 TEST_F(ServiceMessageTest, ReplyStatusError) {
   Status<int> status{ErrorStatus{EIO}};
   EXPECT_CALL(*endpoint(), MessageReply(message_.get(), -status.error()))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->Reply(status));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->Reply(status));
 }
 
 TEST_F(ServiceMessageTest, Read) {
@@ -500,9 +507,9 @@ TEST_F(ServiceMessageTest, Read) {
       *endpoint(),
       ReadMessageData(message_.get(), IoVecMatcher(kDataBuffer, kDataSize), 1))
       .WillOnce(Return(50))
-      .WillOnce(SetErrnoAndReturn(EACCES, -1));
-  EXPECT_EQ(50, message_->Read(kDataBuffer, kDataSize));
-  EXPECT_EQ(-EACCES, message_->Read(kDataBuffer, kDataSize));
+      .WillOnce(Return(ErrorStatus{EACCES}));
+  EXPECT_EQ(50u, message_->Read(kDataBuffer, kDataSize).get());
+  EXPECT_EQ(EACCES, message_->Read(kDataBuffer, kDataSize).error());
 }
 
 TEST_F(ServiceMessageTest, ReadVector) {
@@ -516,10 +523,10 @@ TEST_F(ServiceMessageTest, ReadVector) {
                   IoVecMatcher(IoVecArray{std::begin(vec), std::end(vec)}), 2))
       .WillOnce(Return(30))
       .WillOnce(Return(15))
-      .WillOnce(SetErrnoAndReturn(EBADF, -1));
-  EXPECT_EQ(30, message_->ReadVector(vec, 2));
-  EXPECT_EQ(15, message_->ReadVector(vec));
-  EXPECT_EQ(-EBADF, message_->ReadVector(vec));
+      .WillOnce(Return(ErrorStatus{EBADF}));
+  EXPECT_EQ(30u, message_->ReadVector(vec, 2).get());
+  EXPECT_EQ(15u, message_->ReadVector(vec).get());
+  EXPECT_EQ(EBADF, message_->ReadVector(vec).error());
 }
 
 TEST_F(ServiceMessageTest, Write) {
@@ -530,9 +537,9 @@ TEST_F(ServiceMessageTest, Write) {
       *endpoint(),
       WriteMessageData(message_.get(), IoVecMatcher(kDataBuffer, kDataSize), 1))
       .WillOnce(Return(50))
-      .WillOnce(SetErrnoAndReturn(EBADMSG, -1));
-  EXPECT_EQ(50, message_->Write(kDataBuffer, kDataSize));
-  EXPECT_EQ(-EBADMSG, message_->Write(kDataBuffer, kDataSize));
+      .WillOnce(Return(ErrorStatus{EBADMSG}));
+  EXPECT_EQ(50u, message_->Write(kDataBuffer, kDataSize).get());
+  EXPECT_EQ(EBADMSG, message_->Write(kDataBuffer, kDataSize).error());
 }
 
 TEST_F(ServiceMessageTest, WriteVector) {
@@ -546,10 +553,10 @@ TEST_F(ServiceMessageTest, WriteVector) {
                   IoVecMatcher(IoVecArray{std::begin(vec), std::end(vec)}), 2))
       .WillOnce(Return(30))
       .WillOnce(Return(15))
-      .WillOnce(SetErrnoAndReturn(EIO, -1));
-  EXPECT_EQ(30, message_->WriteVector(vec, 2));
-  EXPECT_EQ(15, message_->WriteVector(vec));
-  EXPECT_EQ(-EIO, message_->WriteVector(vec, 2));
+      .WillOnce(Return(ErrorStatus{EIO}));
+  EXPECT_EQ(30u, message_->WriteVector(vec, 2).get());
+  EXPECT_EQ(15u, message_->WriteVector(vec).get());
+  EXPECT_EQ(EIO, message_->WriteVector(vec, 2).error());
 }
 
 TEST_F(ServiceMessageTest, PushLocalFileHandle) {
@@ -560,9 +567,9 @@ TEST_F(ServiceMessageTest, PushLocalFileHandle) {
               PushFileHandle(message_.get(), Matcher<const LocalHandle&>(
                                                  FileHandleMatcher(kFakeFd))))
       .WillOnce(Return(12))
-      .WillOnce(SetErrnoAndReturn(EIO, -1));
-  EXPECT_EQ(12, message_->PushFileHandle(handle));
-  EXPECT_EQ(-EIO, message_->PushFileHandle(handle));
+      .WillOnce(Return(ErrorStatus{EIO}));
+  EXPECT_EQ(12, message_->PushFileHandle(handle).get());
+  EXPECT_EQ(EIO, message_->PushFileHandle(handle).error());
   handle.Release();  // Make sure we do not close the fake file descriptor.
 }
 
@@ -574,9 +581,9 @@ TEST_F(ServiceMessageTest, PushBorrowedFileHandle) {
               PushFileHandle(message_.get(), Matcher<const BorrowedHandle&>(
                                                  FileHandleMatcher(kFakeFd))))
       .WillOnce(Return(13))
-      .WillOnce(SetErrnoAndReturn(EACCES, -1));
-  EXPECT_EQ(13, message_->PushFileHandle(handle));
-  EXPECT_EQ(-EACCES, message_->PushFileHandle(handle));
+      .WillOnce(Return(ErrorStatus{EACCES}));
+  EXPECT_EQ(13, message_->PushFileHandle(handle).get());
+  EXPECT_EQ(EACCES, message_->PushFileHandle(handle).error());
 }
 
 TEST_F(ServiceMessageTest, PushRemoteFileHandle) {
@@ -587,9 +594,9 @@ TEST_F(ServiceMessageTest, PushRemoteFileHandle) {
               PushFileHandle(message_.get(), Matcher<const RemoteHandle&>(
                                                  FileHandleMatcher(kFakeFd))))
       .WillOnce(Return(kFakeFd))
-      .WillOnce(SetErrnoAndReturn(EIO, -1));
-  EXPECT_EQ(kFakeFd, message_->PushFileHandle(handle));
-  EXPECT_EQ(-EIO, message_->PushFileHandle(handle));
+      .WillOnce(Return(ErrorStatus{EIO}));
+  EXPECT_EQ(kFakeFd, message_->PushFileHandle(handle).get());
+  EXPECT_EQ(EIO, message_->PushFileHandle(handle).error());
 }
 
 TEST_F(ServiceMessageTest, PushLocalChannelHandle) {
@@ -600,9 +607,9 @@ TEST_F(ServiceMessageTest, PushLocalChannelHandle) {
                                              Matcher<const LocalChannelHandle&>(
                                                  ChannelHandleMatcher(kValue))))
       .WillOnce(Return(7))
-      .WillOnce(SetErrnoAndReturn(EIO, -1));
-  EXPECT_EQ(7, message_->PushChannelHandle(handle));
-  EXPECT_EQ(-EIO, message_->PushChannelHandle(handle));
+      .WillOnce(Return(ErrorStatus{EIO}));
+  EXPECT_EQ(7, message_->PushChannelHandle(handle).get());
+  EXPECT_EQ(EIO, message_->PushChannelHandle(handle).error());
 }
 
 TEST_F(ServiceMessageTest, PushBorrowedChannelHandle) {
@@ -614,9 +621,9 @@ TEST_F(ServiceMessageTest, PushBorrowedChannelHandle) {
       PushChannelHandle(message_.get(), Matcher<const BorrowedChannelHandle&>(
                                             ChannelHandleMatcher(kValue))))
       .WillOnce(Return(8))
-      .WillOnce(SetErrnoAndReturn(EIO, -1));
-  EXPECT_EQ(8, message_->PushChannelHandle(handle));
-  EXPECT_EQ(-EIO, message_->PushChannelHandle(handle));
+      .WillOnce(Return(ErrorStatus{EIO}));
+  EXPECT_EQ(8, message_->PushChannelHandle(handle).get());
+  EXPECT_EQ(EIO, message_->PushChannelHandle(handle).error());
 }
 
 TEST_F(ServiceMessageTest, PushRemoteChannelHandle) {
@@ -628,9 +635,9 @@ TEST_F(ServiceMessageTest, PushRemoteChannelHandle) {
       PushChannelHandle(message_.get(), Matcher<const RemoteChannelHandle&>(
                                             ChannelHandleMatcher(kValue))))
       .WillOnce(Return(kValue))
-      .WillOnce(SetErrnoAndReturn(EIO, -1));
-  EXPECT_EQ(kValue, message_->PushChannelHandle(handle));
-  EXPECT_EQ(-EIO, message_->PushChannelHandle(handle));
+      .WillOnce(Return(ErrorStatus{EIO}));
+  EXPECT_EQ(kValue, message_->PushChannelHandle(handle).get());
+  EXPECT_EQ(EIO, message_->PushChannelHandle(handle).error());
 }
 
 TEST_F(ServiceMessageTest, GetFileHandle) {
@@ -701,8 +708,8 @@ TEST_F(ServiceMessageTest, ModifyChannelEvents) {
   int kClearMask = 1;
   int kSetMask = 2;
   EXPECT_CALL(*endpoint(), ModifyChannelEvents(kTestCid, kClearMask, kSetMask))
-      .WillOnce(Return(0));
-  EXPECT_EQ(0, message_->ModifyChannelEvents(kClearMask, kSetMask));
+      .WillOnce(Return(Status<void>{}));
+  EXPECT_TRUE(message_->ModifyChannelEvents(kClearMask, kSetMask));
 }
 
 TEST_F(ServiceMessageTest, PushChannelSameService) {
@@ -733,7 +740,9 @@ TEST_F(ServiceMessageTest, PushChannelFailure) {
 TEST_F(ServiceMessageTest, PushChannelDifferentService) {
   ExpectDefaultHandleMessage();
   auto endpoint2 = std::make_unique<testing::StrictMock<MockEndpoint>>();
-  EXPECT_CALL(*endpoint2, SetService(_)).Times(2).WillRepeatedly(Return(0));
+  EXPECT_CALL(*endpoint2, SetService(_))
+      .Times(2)
+      .WillRepeatedly(Return(Status<void>{}));
   auto service2 =
       std::make_shared<MockService>("MockSvc2", std::move(endpoint2));
 
@@ -779,7 +788,9 @@ TEST_F(ServiceMessageTest, CheckChannelFailure) {
 TEST_F(ServiceMessageTest, CheckChannelDifferentService) {
   ExpectDefaultHandleMessage();
   auto endpoint2 = std::make_unique<testing::StrictMock<MockEndpoint>>();
-  EXPECT_CALL(*endpoint2, SetService(_)).Times(2).WillRepeatedly(Return(0));
+  EXPECT_CALL(*endpoint2, SetService(_))
+      .Times(2)
+      .WillRepeatedly(Return(Status<void>{}));
   auto service2 =
       std::make_shared<MockService>("MockSvc2", std::move(endpoint2));
 

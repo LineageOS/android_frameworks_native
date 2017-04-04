@@ -342,87 +342,87 @@ class TestClient : public ClientBase<TestClient> {
 // Test service that encodes/decodes messages from clients.
 class TestService : public ServiceBase<TestService> {
  public:
-  int HandleMessage(Message& message) override {
+  Status<void> HandleMessage(Message& message) override {
     switch (message.GetOp()) {
       case TestInterface::Add::Opcode:
         DispatchRemoteMethod<TestInterface::Add>(*this, &TestService::OnAdd,
                                                  message);
-        return 0;
+        return {};
 
       case TestInterface::Foo::Opcode:
         DispatchRemoteMethod<TestInterface::Foo>(*this, &TestService::OnFoo,
                                                  message);
-        return 0;
+        return {};
 
       case TestInterface::Concatenate::Opcode:
         DispatchRemoteMethod<TestInterface::Concatenate>(
             *this, &TestService::OnConcatenate, message);
-        return 0;
+        return {};
 
       case TestInterface::SumVector::Opcode:
         DispatchRemoteMethod<TestInterface::SumVector>(
             *this, &TestService::OnSumVector, message);
-        return 0;
+        return {};
 
       case TestInterface::StringLength::Opcode:
         DispatchRemoteMethod<TestInterface::StringLength>(
             *this, &TestService::OnStringLength, message);
-        return 0;
+        return {};
 
       case TestInterface::SendTestType::Opcode:
         DispatchRemoteMethod<TestInterface::SendTestType>(
             *this, &TestService::OnSendTestType, message);
-        return 0;
+        return {};
 
       case TestInterface::SendVector::Opcode:
         DispatchRemoteMethod<TestInterface::SendVector>(
             *this, &TestService::OnSendVector, message);
-        return 0;
+        return {};
 
       case TestInterface::Rot13::Opcode:
         DispatchRemoteMethod<TestInterface::Rot13>(*this, &TestService::OnRot13,
                                                    message);
-        return 0;
+        return {};
 
       case TestInterface::NoArgs::Opcode:
         DispatchRemoteMethod<TestInterface::NoArgs>(
             *this, &TestService::OnNoArgs, message);
-        return 0;
+        return {};
 
       case TestInterface::SendFile::Opcode:
         DispatchRemoteMethod<TestInterface::SendFile>(
             *this, &TestService::OnSendFile, message);
-        return 0;
+        return {};
 
       case TestInterface::GetFile::Opcode:
         DispatchRemoteMethod<TestInterface::GetFile>(
             *this, &TestService::OnGetFile, message);
-        return 0;
+        return {};
 
       case TestInterface::GetTestFdType::Opcode:
         DispatchRemoteMethod<TestInterface::GetTestFdType>(
             *this, &TestService::OnGetTestFdType, message);
-        return 0;
+        return {};
 
       case TestInterface::OpenFiles::Opcode:
         DispatchRemoteMethod<TestInterface::OpenFiles>(
             *this, &TestService::OnOpenFiles, message);
-        return 0;
+        return {};
 
       case TestInterface::ReadFile::Opcode:
         DispatchRemoteMethod<TestInterface::ReadFile>(
             *this, &TestService::OnReadFile, message);
-        return 0;
+        return {};
 
       case TestInterface::PushChannel::Opcode:
         DispatchRemoteMethod<TestInterface::PushChannel>(
             *this, &TestService::OnPushChannel, message);
-        return 0;
+        return {};
 
       case TestInterface::Positive::Opcode:
         DispatchRemoteMethod<TestInterface::Positive>(
             *this, &TestService::OnPositive, message);
-        return 0;
+        return {};
 
       default:
         return Service::DefaultHandleMessage(message);
@@ -433,7 +433,8 @@ class TestService : public ServiceBase<TestService> {
   friend BASE;
 
   TestService()
-      : BASE("TestService", Endpoint::Create(TestInterface::kClientPath)) {}
+      : BASE("TestService",
+             Endpoint::CreateAndBindSocket(TestInterface::kClientPath)) {}
 
   int OnAdd(Message&, int a, int b) { return a + b; }
 

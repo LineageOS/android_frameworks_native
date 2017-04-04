@@ -161,12 +161,12 @@ RemoteChannelHandle ProducerChannel::CreateConsumer(Message& message) {
 
   auto consumer = std::make_shared<ConsumerChannel>(
       service(), buffer_id(), channel_id, shared_from_this());
-  const int ret = service()->SetChannel(channel_id, consumer);
-  if (ret < 0) {
+  const auto channel_status = service()->SetChannel(channel_id, consumer);
+  if (!channel_status) {
     ALOGE(
         "ProducerChannel::CreateConsumer: failed to set new consumer channel: "
         "%s",
-        strerror(-ret));
+        channel_status.GetErrorMessage().c_str());
     return RemoteChannelHandle();
   }
 

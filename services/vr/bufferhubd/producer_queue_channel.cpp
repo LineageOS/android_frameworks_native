@@ -97,18 +97,18 @@ ProducerQueueChannel::OnCreateConsumerQueue(Message& message) {
         "ProducerQueueChannel::OnCreateConsumerQueue: failed to push consumer "
         "channel: %s",
         status.GetErrorMessage().c_str());
-    REPLY_ERROR_RETURN(message, ENOMEM, {});
+    REPLY_ERROR_RETURN(message, status.error(), {});
   }
 
-  const int ret = service()->SetChannel(
+  const auto channel_status = service()->SetChannel(
       channel_id, std::make_shared<ConsumerQueueChannel>(
                       service(), buffer_id(), channel_id, shared_from_this()));
-  if (ret < 0) {
+  if (!channel_status) {
     ALOGE(
         "ProducerQueueChannel::OnCreateConsumerQueue: failed to set new "
         "consumer channel: %s",
-        strerror(-ret));
-    REPLY_ERROR_RETURN(message, ENOMEM, {});
+        channel_status.GetErrorMessage().c_str());
+    REPLY_ERROR_RETURN(message, channel_status.error(), {});
   }
 
   return std::make_pair(status.take(), meta_size_bytes_);
@@ -214,12 +214,13 @@ std::pair<RemoteChannelHandle, size_t> ProducerQueueChannel::AllocateBuffer(
       "ProducerQueueChannel::AllocateBuffer: buffer_id=%d, buffer_handle=%d",
       buffer_id, buffer_handle.value());
 
-  const int ret = service()->SetChannel(buffer_id, producer_channel);
-  if (ret < 0) {
+  const auto channel_status =
+      service()->SetChannel(buffer_id, producer_channel);
+  if (!channel_status) {
     ALOGE(
-        "ProducerQueueChannel::AllocateBuffer: failed to set prodcuer channel "
+        "ProducerQueueChannel::AllocateBuffer: failed to set producer channel "
         "for new BufferHubBuffer: %s",
-        strerror(-ret));
+        channel_status.GetErrorMessage().c_str());
     return {};
   }
 
@@ -252,7 +253,7 @@ std::pair<RemoteChannelHandle, size_t> ProducerQueueChannel::AllocateBuffer(
   return {std::move(buffer_handle), slot};
 }
 
-int ProducerQueueChannel::OnProducerQueueDetachBuffer(Message& message,
+int ProducerQueueChannel::OnProducerQueueDetachBuffer(Message& /*message*/,
                                                       size_t slot) {
   if (buffers_[slot].expired()) {
     ALOGE(

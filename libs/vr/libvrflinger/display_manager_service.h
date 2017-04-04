@@ -42,7 +42,7 @@ class DisplayManagerService : public pdx::ServiceBase<DisplayManagerService> {
   std::shared_ptr<pdx::Channel> OnChannelOpen(pdx::Message& message) override;
   void OnChannelClose(pdx::Message& message,
                       const std::shared_ptr<pdx::Channel>& channel) override;
-  int HandleMessage(pdx::Message& message) override;
+  pdx::Status<void> HandleMessage(pdx::Message& message) override;
 
  private:
   friend BASE;

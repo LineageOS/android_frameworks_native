@@ -905,8 +905,9 @@ template <FileHandleMode Mode>
 inline void SerializeObject(const FileHandle<Mode>& fd, MessageWriter* writer,
                             void*& buffer) {
   SerializeType(fd, buffer);
-  const FileReference value =
+  const Status<FileReference> status =
       writer->GetOutputResourceMapper()->PushFileHandle(fd);
+  FileReference value = status ? status.get() : -status.error();
   SerializeRaw(value, buffer);
 }
 
@@ -915,8 +916,9 @@ template <ChannelHandleMode Mode>
 inline void SerializeObject(const ChannelHandle<Mode>& handle,
                             MessageWriter* writer, void*& buffer) {
   SerializeType(handle, buffer);
-  const ChannelReference value =
+  const Status<ChannelReference> status =
       writer->GetOutputResourceMapper()->PushChannelHandle(handle);
+  ChannelReference value = status ? status.get() : -status.error();
   SerializeRaw(value, buffer);
 }
 

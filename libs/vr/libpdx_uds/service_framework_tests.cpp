@@ -119,106 +119,106 @@ class TestService : public ServiceBase<TestService> {
     }
   }
 
-  int HandleMessage(Message& message) override {
+  Status<void> HandleMessage(Message& message) override {
     switch (message.GetOp()) {
       case TEST_OP_GET_SERVICE_ID:
-        REPLY_MESSAGE_RETURN(message, service_id_, 0);
+        REPLY_MESSAGE_RETURN(message, service_id_, {});
 
       // Set the test channel to the TestChannel for the current channel. Other
       // messages can use this to perform tests.
       case TEST_OP_SET_TEST_CHANNEL:
         test_channel_ = message.GetChannel<TestChannel>();
-        REPLY_MESSAGE_RETURN(message, 0, 0);
+        REPLY_MESSAGE_RETURN(message, 0, {});
 
       // Return the channel id for the current channel.
       case TEST_OP_GET_THIS_CHANNEL_ID:
-        REPLY_MESSAGE_RETURN(message, message.GetChannelId(), 0);
+        REPLY_MESSAGE_RETURN(message, message.GetChannelId(), {});
 
       // Return the channel id for the test channel.
       case TEST_OP_GET_TEST_CHANNEL_ID:
         if (test_channel_)
-          REPLY_MESSAGE_RETURN(message, test_channel_->channel_id(), 0);
+          REPLY_MESSAGE_RETURN(message, test_channel_->channel_id(), {});
         else
-          REPLY_ERROR_RETURN(message, ENOENT, 0);
+          REPLY_ERROR_RETURN(message, ENOENT, {});
 
       // Test check channel feature.
       case TEST_OP_CHECK_CHANNEL_ID: {
         ChannelReference ref = 0;
-        if (message.Read(&ref, sizeof(ref)) < static_cast<ssize_t>(sizeof(ref)))
-          REPLY_ERROR_RETURN(message, EIO, 0);
+        if (!message.ReadAll(&ref, sizeof(ref)))
+          REPLY_ERROR_RETURN(message, EIO, {});
 
         const Status<int> ret = message.CheckChannel<TestChannel>(ref, nullptr);
-        REPLY_MESSAGE_RETURN(message, ret, 0);
+        REPLY_MESSAGE_RETURN(message, ret, {});
       }
 
       case TEST_OP_CHECK_CHANNEL_OBJECT: {
         std::shared_ptr<TestChannel> channel;
         ChannelReference ref = 0;
-        if (message.Read(&ref, sizeof(ref)) < static_cast<ssize_t>(sizeof(ref)))
-          REPLY_ERROR_RETURN(message, EIO, 0);
+        if (!message.ReadAll(&ref, sizeof(ref)))
+          REPLY_ERROR_RETURN(message, EIO, {});
 
         const Status<int> ret =
             message.CheckChannel<TestChannel>(ref, &channel);
         if (!ret)
-          REPLY_MESSAGE_RETURN(message, ret, 0);
+          REPLY_MESSAGE_RETURN(message, ret, {});
 
         if (channel != nullptr)
-          REPLY_MESSAGE_RETURN(message, channel->channel_id(), 0);
+          REPLY_MESSAGE_RETURN(message, channel->channel_id(), {});
         else
-          REPLY_ERROR_RETURN(message, ENODATA, 0);
+          REPLY_ERROR_RETURN(message, ENODATA, {});
       }
 
       case TEST_OP_CHECK_CHANNEL_FROM_OTHER_SERVICE: {
         ChannelReference ref = 0;
-        if (message.Read(&ref, sizeof(ref)) < static_cast<ssize_t>(sizeof(ref)))
-          REPLY_ERROR_RETURN(message, EIO, 0);
+        if (!message.ReadAll(&ref, sizeof(ref)))
+          REPLY_ERROR_RETURN(message, EIO, {});
 
         const Status<int> ret = message.CheckChannel<TestChannel>(
             other_service_.get(), ref, nullptr);
-        REPLY_MESSAGE_RETURN(message, ret, 0);
+        REPLY_MESSAGE_RETURN(message, ret, {});
       }
 
       case TEST_OP_GET_NEW_CHANNEL: {
         auto channel = std::make_shared<TestChannel>(-1);
         Status<RemoteChannelHandle> channel_handle =
             message.PushChannel(0, channel, &channel->channel_id_);
-        REPLY_MESSAGE_RETURN(message, channel_handle, 0);
+        REPLY_MESSAGE_RETURN(message, channel_handle, {});
       }
 
       case TEST_OP_GET_NEW_CHANNEL_FROM_OTHER_SERVICE: {
         if (!other_service_)
-          REPLY_ERROR_RETURN(message, EINVAL, 0);
+          REPLY_ERROR_RETURN(message, EINVAL, {});
 
         auto channel = std::make_shared<TestChannel>(-1);
         Status<RemoteChannelHandle> channel_handle = message.PushChannel(
             other_service_.get(), 0, channel, &channel->channel_id_);
-        REPLY_MESSAGE_RETURN(message, channel_handle, 0);
+        REPLY_MESSAGE_RETURN(message, channel_handle, {});
       }
 
       case TEST_OP_GET_THIS_PROCESS_ID:
-        REPLY_MESSAGE_RETURN(message, message.GetProcessId(), 0);
+        REPLY_MESSAGE_RETURN(message, message.GetProcessId(), {});
 
       case TEST_OP_GET_THIS_THREAD_ID:
-        REPLY_MESSAGE_RETURN(message, message.GetThreadId(), 0);
+        REPLY_MESSAGE_RETURN(message, message.GetThreadId(), {});
 
       case TEST_OP_GET_THIS_EUID:
-        REPLY_MESSAGE_RETURN(message, message.GetEffectiveUserId(), 0);
+        REPLY_MESSAGE_RETURN(message, message.GetEffectiveUserId(), {});
 
       case TEST_OP_GET_THIS_EGID:
-        REPLY_MESSAGE_RETURN(message, message.GetEffectiveGroupId(), 0);
+        REPLY_MESSAGE_RETURN(message, message.GetEffectiveGroupId(), {});
 
       case TEST_OP_POLLIN_FROM_SERVICE:
         REPLY_MESSAGE_RETURN(message, message.ModifyChannelEvents(0, EPOLLIN),
-                             0);
+                             {});
 
       case TEST_OP_SEND_LARGE_DATA_RETURN_SUM: {
         std::array<int, kLargeDataSize> data_array;
-        ssize_t size_to_read = data_array.size() * sizeof(int);
-        ssize_t read = message.Read(data_array.data(), size_to_read);
-        if (read < size_to_read)
-          REPLY_ERROR_RETURN(message, EIO, 0);
+        size_t size_to_read = data_array.size() * sizeof(int);
+        if (!message.ReadAll(data_array.data(), size_to_read)) {
+          REPLY_ERROR_RETURN(message, EIO, {});
+        }
         int sum = std::accumulate(data_array.begin(), data_array.end(), 0);
-        REPLY_MESSAGE_RETURN(message, sum, 0);
+        REPLY_MESSAGE_RETURN(message, sum, {});
       }
 
       default:
@@ -245,7 +245,7 @@ class TestService : public ServiceBase<TestService> {
   TestService(const std::string& name,
               const std::shared_ptr<TestService>& other_service, bool blocking)
       : BASE(std::string("TestService") + name,
-             Endpoint::Create(kTestServicePath + name, blocking)),
+             Endpoint::CreateAndBindSocket(kTestServicePath + name, blocking)),
         other_service_(other_service),
         service_id_(service_counter_++) {}
 
@@ -300,7 +300,7 @@ class TestClient : public ClientBase<TestClient> {
   // Returns the channel id of the channel.
   int CheckChannelIdArgument(BorrowedChannelHandle channel) {
     Transaction trans{*this};
-    ChannelReference ref = trans.PushChannelHandle(channel);
+    ChannelReference ref = trans.PushChannelHandle(channel).get();
     return ReturnStatusOrError(trans.Send<int>(TEST_OP_CHECK_CHANNEL_ID, &ref,
                                                sizeof(ref), nullptr, 0));
   }
@@ -309,7 +309,7 @@ class TestClient : public ClientBase<TestClient> {
   // Returns the channel id of the channel exercising the context pointer.
   int CheckChannelObjectArgument(BorrowedChannelHandle channel) {
     Transaction trans{*this};
-    ChannelReference ref = trans.PushChannelHandle(channel);
+    ChannelReference ref = trans.PushChannelHandle(channel).get();
     return ReturnStatusOrError(trans.Send<int>(TEST_OP_CHECK_CHANNEL_OBJECT,
                                                &ref, sizeof(ref), nullptr, 0));
   }
@@ -318,7 +318,7 @@ class TestClient : public ClientBase<TestClient> {
   // Returns 0 on success.
   int CheckChannelFromOtherService(BorrowedChannelHandle channel) {
     Transaction trans{*this};
-    ChannelReference ref = trans.PushChannelHandle(channel);
+    ChannelReference ref = trans.PushChannelHandle(channel).get();
     return ReturnStatusOrError(
         trans.Send<int>(TEST_OP_CHECK_CHANNEL_FROM_OTHER_SERVICE, &ref,
                         sizeof(ref), nullptr, 0));

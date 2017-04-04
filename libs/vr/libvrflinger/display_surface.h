@@ -106,7 +106,7 @@ class DisplaySurface : public SurfaceChannel {
 
   // Dispatches display surface messages to the appropriate handlers. This
   // handler runs on the displayd message dispatch thread.
-  int HandleMessage(pdx::Message& message) override;
+  pdx::Status<void> HandleMessage(pdx::Message& message) override;
 
   // Sets display surface's client-controlled attributes.
   int OnClientSetAttributes(pdx::Message& message,

@@ -518,28 +518,29 @@ TEST_F(ClientTransactionTest, PushHandle) {
   EXPECT_CALL(*mock_channel(),
               PushFileHandle(kTransactionState, A<const LocalHandle&>()))
       .WillOnce(Return(1));
-  EXPECT_EQ(1, transaction_.PushFileHandle(LocalHandle{-1}));
+  EXPECT_EQ(1, transaction_.PushFileHandle(LocalHandle{-1}).get());
 
   EXPECT_CALL(*mock_channel(),
               PushFileHandle(kTransactionState, A<const BorrowedHandle&>()))
       .WillOnce(Return(2));
-  EXPECT_EQ(2, transaction_.PushFileHandle(BorrowedHandle{-1}));
+  EXPECT_EQ(2, transaction_.PushFileHandle(BorrowedHandle{-1}).get());
 
-  EXPECT_EQ(3, transaction_.PushFileHandle(RemoteHandle{3}));
+  EXPECT_EQ(3, transaction_.PushFileHandle(RemoteHandle{3}).get());
 
   EXPECT_CALL(
       *mock_channel(),
       PushChannelHandle(kTransactionState, A<const LocalChannelHandle&>()))
       .WillOnce(Return(11));
-  EXPECT_EQ(11, transaction_.PushChannelHandle(LocalChannelHandle{nullptr, 1}));
+  EXPECT_EQ(
+      11, transaction_.PushChannelHandle(LocalChannelHandle{nullptr, 1}).get());
 
   EXPECT_CALL(
       *mock_channel(),
       PushChannelHandle(kTransactionState, A<const BorrowedChannelHandle&>()))
       .WillOnce(Return(12));
-  EXPECT_EQ(12, transaction_.PushChannelHandle(BorrowedChannelHandle{2}));
+  EXPECT_EQ(12, transaction_.PushChannelHandle(BorrowedChannelHandle{2}).get());
 
-  EXPECT_EQ(13, transaction_.PushChannelHandle(RemoteChannelHandle{13}));
+  EXPECT_EQ(13, transaction_.PushChannelHandle(RemoteChannelHandle{13}).get());
 }
 
 TEST_F(ClientTransactionTest, GetHandle) {

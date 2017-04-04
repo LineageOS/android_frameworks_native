@@ -98,29 +98,62 @@ class Message : public OutputResourceMapper, public InputResourceMapper {
   /*
    * Read/write payload, in either single buffer or iovec form.
    */
-  ssize_t ReadVector(const iovec* vector, size_t vector_length);
-  ssize_t Read(void* buffer, size_t length);
-  ssize_t WriteVector(const iovec* vector, size_t vector_length);
-  ssize_t Write(const void* buffer, size_t length);
+  Status<size_t> ReadVector(const iovec* vector, size_t vector_length);
+  Status<size_t> Read(void* buffer, size_t length);
+  Status<size_t> WriteVector(const iovec* vector, size_t vector_length);
+  Status<size_t> Write(const void* buffer, size_t length);
 
   template <size_t N>
-  inline ssize_t ReadVector(const iovec (&vector)[N]) {
+  inline Status<size_t> ReadVector(const iovec (&vector)[N]) {
     return ReadVector(vector, N);
   }
 
   template <size_t N>
-  inline ssize_t WriteVector(const iovec (&vector)[N]) {
+  inline Status<size_t> WriteVector(const iovec (&vector)[N]) {
     return WriteVector(vector, N);
   }
 
+  // Helper functions to read/write all requested bytes, and return EIO if not
+  // all were read/written.
+  Status<void> ReadVectorAll(const iovec* vector, size_t vector_length);
+  Status<void> WriteVectorAll(const iovec* vector, size_t vector_length);
+
+  inline Status<void> ReadAll(void* buffer, size_t length) {
+    Status<size_t> status = Read(buffer, length);
+    if (status && status.get() < length)
+      status.SetError(EIO);
+    Status<void> ret;
+    ret.PropagateError(status);
+    return ret;
+  }
+  inline Status<void> WriteAll(const void* buffer, size_t length) {
+    Status<size_t> status = Write(buffer, length);
+    if (status && status.get() < length)
+      status.SetError(EIO);
+    Status<void> ret;
+    ret.PropagateError(status);
+    return ret;
+  }
+
+  template <size_t N>
+  inline Status<void> ReadVectorAll(const iovec (&vector)[N]) {
+    return ReadVectorAll(vector, N);
+  }
+
+  template <size_t N>
+  inline Status<void> WriteVectorAll(const iovec (&vector)[N]) {
+    return WriteVectorAll(vector, N);
+  }
+
   // OutputResourceMapper
-  FileReference PushFileHandle(const LocalHandle& handle) override;
-  FileReference PushFileHandle(const BorrowedHandle& handle) override;
-  FileReference PushFileHandle(const RemoteHandle& handle) override;
-  ChannelReference PushChannelHandle(const LocalChannelHandle& handle) override;
-  ChannelReference PushChannelHandle(
+  Status<FileReference> PushFileHandle(const LocalHandle& handle) override;
+  Status<FileReference> PushFileHandle(const BorrowedHandle& handle) override;
+  Status<FileReference> PushFileHandle(const RemoteHandle& handle) override;
+  Status<ChannelReference> PushChannelHandle(
+      const LocalChannelHandle& handle) override;
+  Status<ChannelReference> PushChannelHandle(
       const BorrowedChannelHandle& handle) override;
-  ChannelReference PushChannelHandle(
+  Status<ChannelReference> PushChannelHandle(
       const RemoteChannelHandle& handle) override;
 
   // InputResourceMapper
@@ -131,25 +164,29 @@ class Message : public OutputResourceMapper, public InputResourceMapper {
   /*
    * Various ways to reply to a message.
    */
-  int Reply(int return_code);
-  int ReplyError(unsigned error);
-  int ReplyFileDescriptor(unsigned int fd);
-  int Reply(const LocalHandle& handle);
-  int Reply(const BorrowedHandle& handle);
-  int Reply(const RemoteHandle& handle);
-  int Reply(const LocalChannelHandle& handle);
-  int Reply(const BorrowedChannelHandle& handle);
-  int Reply(const RemoteChannelHandle& handle);
+  Status<void> Reply(int return_code);
+  Status<void> ReplyError(unsigned int error);
+  Status<void> ReplyFileDescriptor(unsigned int fd);
+  Status<void> Reply(const LocalHandle& handle);
+  Status<void> Reply(const BorrowedHandle& handle);
+  Status<void> Reply(const RemoteHandle& handle);
+  Status<void> Reply(const LocalChannelHandle& handle);
+  Status<void> Reply(const BorrowedChannelHandle& handle);
+  Status<void> Reply(const RemoteChannelHandle& handle);
 
   template <typename T>
-  inline int Reply(const Status<T>& status) {
+  inline Status<void> Reply(const Status<T>& status) {
     return status ? Reply(status.get()) : ReplyError(status.error());
+  }
+
+  inline Status<void> Reply(const Status<void>& status) {
+    return status ? Reply(0) : ReplyError(status.error());
   }
 
   /*
    * Update the channel event bits with the given clear and set masks.
    */
-  int ModifyChannelEvents(int clear_mask, int set_mask);
+  Status<void> ModifyChannelEvents(int clear_mask, int set_mask);
 
   /*
    * Create a new channel and push it as a file descriptor to the client. See
@@ -264,7 +301,7 @@ class Message : public OutputResourceMapper, public InputResourceMapper {
    * these in multi-threaded services.
    */
   std::shared_ptr<Channel> GetChannel() const;
-  void SetChannel(const std::shared_ptr<Channel>& channnel);
+  Status<void> SetChannel(const std::shared_ptr<Channel>& channnel);
 
   /*
    * Get the Channel object for the channel associated with this message,
@@ -355,7 +392,8 @@ class Service : public std::enable_shared_from_this<Service> {
    * the Channel object until the channel is closed or another call replaces
    * the current value.
    */
-  int SetChannel(int channel_id, const std::shared_ptr<Channel>& channel);
+  Status<void> SetChannel(int channel_id,
+                          const std::shared_ptr<Channel>& channel);
 
   /*
    * Get the channel context for the given channel id. This method should be
@@ -404,7 +442,7 @@ class Service : public std::enable_shared_from_this<Service> {
    *
    * OnChannelClosed is not called in response to this method call.
    */
-  int CloseChannel(int channel_id);
+  Status<void> CloseChannel(int channel_id);
 
   /*
    * Update the event bits for the given channel (given by id), using the
@@ -413,7 +451,8 @@ class Service : public std::enable_shared_from_this<Service> {
    * This is useful for asynchronously signaling events that clients may be
    * waiting for using select/poll/epoll.
    */
-  int ModifyChannelEvents(int channel_id, int clear_mask, int set_mask);
+  Status<void> ModifyChannelEvents(int channel_id, int clear_mask,
+                                   int set_mask);
 
   /*
    * Create a new channel and push it as a file descriptor to the process
@@ -478,7 +517,7 @@ class Service : public std::enable_shared_from_this<Service> {
    * The default implementation simply calls defaultHandleMessage().
    * Subclasses should call the same for any unrecognized message opcodes.
    */
-  virtual int HandleMessage(Message& message);
+  virtual Status<void> HandleMessage(Message& message);
 
   /*
    * Handle an asynchronous message. Subclasses override this to receive
@@ -496,9 +535,9 @@ class Service : public std::enable_shared_from_this<Service> {
    * Provides default handling of CHANNEL_OPEN and CHANNEL_CLOSE, calling
    * OnChannelOpen() and OnChannelClose(), respectively.
    *
-   * For all other message opcodes, this method replies with -ENOTSUP.
+   * For all other message opcodes, this method replies with ENOTSUP.
    */
-  int DefaultHandleMessage(Message& message);
+  Status<void> DefaultHandleMessage(Message& message);
 
   /*
    * Called when system properties have changed. Subclasses should implement
@@ -515,7 +554,7 @@ class Service : public std::enable_shared_from_this<Service> {
    * Cancels the endpoint, unblocking any receiver threads waiting in
    * ReceiveAndDispatch().
    */
-  int Cancel();
+  Status<void> Cancel();
 
   /*
    * Iterator type for Channel map iterators.
@@ -564,14 +603,14 @@ class Service : public std::enable_shared_from_this<Service> {
    * If the endpoint is in blocking mode this call blocks until a message is
    * received, a signal is delivered to this thread, or the service is canceled.
    * If the endpoint is in non-blocking mode and a message is not pending this
-   * call returns immediately with -ETIMEDOUT.
+   * call returns immediately with ETIMEDOUT.
    */
-  int ReceiveAndDispatch();
+  Status<void> ReceiveAndDispatch();
 
  private:
   friend class Message;
 
-  bool HandleSystemMessage(Message& message);
+  Status<void> HandleSystemMessage(Message& message);
 
   Service(const Service&);
   void operator=(const Service&) = delete;
@@ -639,28 +678,28 @@ class ServiceBase : public Service {
 
 #define REPLY_ERROR(message, error, error_label)                              \
   do {                                                                        \
-    int __ret = message.ReplyError(error);                                    \
-    CHECK_ERROR(__ret < 0, error_label,                                       \
+    auto __status = message.ReplyError(error);                                \
+    CHECK_ERROR(!__status, error_label,                                       \
                 PDX_ERROR_PREFIX " Failed to reply to message because: %s\n", \
-                strerror(-__ret));                                            \
+                __status.GetErrorMessage().c_str());                          \
     goto error_label;                                                         \
   } while (0)
 
 #define REPLY_ERROR_RETURN(message, error, ...)                          \
   do {                                                                   \
-    int __ret = message.ReplyError(error);                               \
-    ALOGE_IF(__ret < 0,                                                  \
+    auto __status = message.ReplyError(error);                           \
+    ALOGE_IF(!__status,                                                  \
              PDX_ERROR_PREFIX " Failed to reply to message because: %s", \
-             strerror(-__ret));                                          \
+             __status.GetErrorMessage().c_str());                        \
     return __VA_ARGS__;                                                  \
   } while (0)
 
 #define REPLY_MESSAGE(message, message_return_code, error_label)              \
   do {                                                                        \
-    int __ret = message.Reply(message_return_code);                           \
-    CHECK_ERROR(__ret < 0, error_label,                                       \
+    auto __status = message.Reply(message_return_code);                       \
+    CHECK_ERROR(!__status, error_label,                                       \
                 PDX_ERROR_PREFIX " Failed to reply to message because: %s\n", \
-                strerror(-__ret));                                            \
+                __status.GetErrorMessage().c_str());                          \
     goto error_label;                                                         \
   } while (0)
 
@@ -669,10 +708,10 @@ class ServiceBase : public Service {
 
 #define REPLY_MESSAGE_RETURN(message, message_return_code, ...)          \
   do {                                                                   \
-    int __ret = message.Reply(message_return_code);                      \
-    ALOGE_IF(__ret < 0,                                                  \
+    auto __status = message.Reply(message_return_code);                  \
+    ALOGE_IF(!__status,                                                  \
              PDX_ERROR_PREFIX " Failed to reply to message because: %s", \
-             strerror(-__ret));                                          \
+             __status.GetErrorMessage().c_str());                        \
     return __VA_ARGS__;                                                  \
   } while (0)
 
@@ -681,19 +720,19 @@ class ServiceBase : public Service {
 
 #define REPLY_FD(message, push_fd, error_label)                               \
   do {                                                                        \
-    int __ret = message.ReplyFileDescriptor(push_fd);                         \
-    CHECK_ERROR(__ret < 0, error_label,                                       \
+    auto __status = message.ReplyFileDescriptor(push_fd);                     \
+    CHECK_ERROR(!__status, error_label,                                       \
                 PDX_ERROR_PREFIX " Failed to reply to message because: %s\n", \
-                strerror(-__ret));                                            \
+                __status.GetErrorMessage().c_str());                          \
     goto error_label;                                                         \
   } while (0)
 
 #define REPLY_FD_RETURN(message, push_fd, ...)                           \
   do {                                                                   \
-    int __ret = message.ReplyFileDescriptor(push_fd);                    \
-    ALOGE_IF(__ret < 0,                                                  \
+    auto __status = message.ReplyFileDescriptor(push_fd);                \
+    ALOGE_IF(__status < 0,                                               \
              PDX_ERROR_PREFIX " Failed to reply to message because: %s", \
-             strerror(-__ret));                                          \
+             __status.GetErrorMessage().c_str());                        \
     return __VA_ARGS__;                                                  \
   } while (0)
 

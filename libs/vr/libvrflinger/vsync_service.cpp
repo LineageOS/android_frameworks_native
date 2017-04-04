@@ -107,26 +107,26 @@ void VSyncService::UpdateClients() {
   }
 }
 
-int VSyncService::HandleMessage(pdx::Message& message) {
+pdx::Status<void> VSyncService::HandleMessage(pdx::Message& message) {
   switch (message.GetOp()) {
     case DisplayVSyncRPC::Wait::Opcode:
       AddWaiter(message);
-      return 0;
+      return {};
 
     case DisplayVSyncRPC::GetLastTimestamp::Opcode:
       DispatchRemoteMethod<DisplayVSyncRPC::GetLastTimestamp>(
           *this, &VSyncService::OnGetLastTimestamp, message);
-      return 0;
+      return {};
 
     case DisplayVSyncRPC::GetSchedInfo::Opcode:
       DispatchRemoteMethod<DisplayVSyncRPC::GetSchedInfo>(
           *this, &VSyncService::OnGetSchedInfo, message);
-      return 0;
+      return {};
 
     case DisplayVSyncRPC::Acknowledge::Opcode:
       DispatchRemoteMethod<DisplayVSyncRPC::Acknowledge>(
           *this, &VSyncService::OnAcknowledge, message);
-      return 0;
+      return {};
 
     default:
       return Service::HandleMessage(message);

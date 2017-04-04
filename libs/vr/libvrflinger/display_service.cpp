@@ -65,39 +65,39 @@ void DisplayService::OnChannelClose(pdx::Message& /*message*/,
 // First-level dispatch for display service messages. Directly handles messages
 // that are independent of the display surface (metrics, creation) and routes
 // surface-specific messages to the per-instance handlers.
-int DisplayService::HandleMessage(pdx::Message& message) {
+pdx::Status<void> DisplayService::HandleMessage(pdx::Message& message) {
   auto channel = message.GetChannel<SurfaceChannel>();
 
   switch (message.GetOp()) {
     case DisplayRPC::GetMetrics::Opcode:
       DispatchRemoteMethod<DisplayRPC::GetMetrics>(
           *this, &DisplayService::OnGetMetrics, message);
-      return 0;
+      return {};
 
     case DisplayRPC::GetEdsCapture::Opcode:
       DispatchRemoteMethod<DisplayRPC::GetEdsCapture>(
           *this, &DisplayService::OnGetEdsCapture, message);
-      return 0;
+      return {};
 
     case DisplayRPC::CreateSurface::Opcode:
       DispatchRemoteMethod<DisplayRPC::CreateSurface>(
           *this, &DisplayService::OnCreateSurface, message);
-      return 0;
+      return {};
 
     case DisplayRPC::SetViewerParams::Opcode:
       DispatchRemoteMethod<DisplayRPC::SetViewerParams>(
           *this, &DisplayService::OnSetViewerParams, message);
-      return 0;
+      return {};
 
     case DisplayRPC::GetPoseBuffer::Opcode:
       DispatchRemoteMethod<DisplayRPC::GetPoseBuffer>(
           *this, &DisplayService::OnGetPoseBuffer, message);
-      return 0;
+      return {};
 
     case DisplayRPC::IsVrAppRunning::Opcode:
       DispatchRemoteMethod<DisplayRPC::IsVrAppRunning>(
           *this, &DisplayService::IsVrAppRunning, message);
-      return 0;
+      return {};
 
     // Direct the surface specific messages to the surface instance.
     case DisplayRPC::CreateBufferQueue::Opcode:
@@ -265,7 +265,7 @@ pdx::LocalChannelHandle DisplayService::OnGetPoseBuffer(pdx::Message& message) {
 
 // Calls the message handler for the DisplaySurface associated with this
 // channel.
-int DisplayService::HandleSurfaceMessage(pdx::Message& message) {
+pdx::Status<void> DisplayService::HandleSurfaceMessage(pdx::Message& message) {
   auto surface = std::static_pointer_cast<SurfaceChannel>(message.GetChannel());
   ALOGW_IF(!surface,
            "DisplayService::HandleSurfaceMessage: surface is nullptr!");
@@ -273,7 +273,7 @@ int DisplayService::HandleSurfaceMessage(pdx::Message& message) {
   if (surface)
     return surface->HandleMessage(message);
   else
-    REPLY_ERROR_RETURN(message, EINVAL, 0);
+    REPLY_ERROR_RETURN(message, EINVAL, {});
 }
 
 std::shared_ptr<DisplaySurface> DisplayService::GetDisplaySurface(

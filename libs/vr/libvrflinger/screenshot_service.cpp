@@ -19,17 +19,17 @@ namespace dvr {
 
 ScreenshotService::~ScreenshotService() { instance_ = nullptr; }
 
-int ScreenshotService::HandleMessage(pdx::Message& message) {
+pdx::Status<void> ScreenshotService::HandleMessage(pdx::Message& message) {
   switch (message.GetOp()) {
     case DisplayScreenshotRPC::GetFormat::Opcode:
       DispatchRemoteMethod<DisplayScreenshotRPC::GetFormat>(
           *this, &ScreenshotService::OnGetFormat, message);
-      return 0;
+      return {};
 
     case DisplayScreenshotRPC::TakeScreenshot::Opcode:
       DispatchRemoteMethod<DisplayScreenshotRPC::TakeScreenshot>(
           *this, &ScreenshotService::OnTakeScreenshot, message);
-      return 0;
+      return {};
 
     default:
       return Service::HandleMessage(message);
