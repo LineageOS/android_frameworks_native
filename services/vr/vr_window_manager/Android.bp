@@ -41,6 +41,7 @@ static_libs = [
     "libperformance",
     "libpdx_default_transport",
     "libcutils",
+    "libvr_hwc-binder",
     "libvr_manager",
     "libvirtualtouchpadclient",
 ]

@@ -1,5 +1,7 @@
 #include "surface_flinger_view.h"
 
+#include <android/dvr/IVrComposer.h>
+#include <binder/IServiceManager.h>
 #include <impl/vr_composer_view.h>
 #include <private/dvr/native_buffer.h>
 
@@ -14,22 +16,20 @@ SurfaceFlingerView::SurfaceFlingerView() {}
 SurfaceFlingerView::~SurfaceFlingerView() {}
 
 bool SurfaceFlingerView::Initialize(HwcCallback::Client *client) {
-  const char vr_hwcomposer_name[] = "vr";
-  vr_hwcomposer_ = HIDL_FETCH_IComposer(vr_hwcomposer_name);
-  if (!vr_hwcomposer_.get()) {
-    ALOGE("Failed to get vr_hwcomposer");
+  sp<IServiceManager> sm(defaultServiceManager());
+  vr_composer_ = interface_cast<IVrComposer>(
+      sm->getService(IVrComposer::SERVICE_NAME()));
+
+  String8 service_name(IVrComposer::SERVICE_NAME().string());
+  if (!vr_composer_.get()) {
+    ALOGE("Faild to connect to %s", service_name.c_str());
     return false;
   }
 
-  if (vr_hwcomposer_->isRemote()) {
-    ALOGE("vr_hwcomposer service is remote");
-    return false;
-  }
-
-  const android::status_t vr_hwcomposer_status =
-      vr_hwcomposer_->registerAsService(vr_hwcomposer_name);
-  if (vr_hwcomposer_status != OK) {
-    ALOGE("Failed to register vr_hwcomposer service");
+  composer_callback_ = new HwcCallback(client);
+  binder::Status status = vr_composer_->registerObserver(composer_callback_);
+  if (!status.isOk()) {
+    ALOGE("Failed to register observer with %s", service_name.c_str());
     return false;
   }
 

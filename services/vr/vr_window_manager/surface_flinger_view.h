@@ -3,14 +3,13 @@
 
 #include <memory>
 
-#include <impl/vr_composer_view.h>
-
 #include "hwc_callback.h"
 
 namespace android {
 namespace dvr {
 
 class IDisplay;
+class IVrComposer;
 class Texture;
 
 struct TextureLayer {
@@ -34,8 +33,8 @@ class SurfaceFlingerView {
                    bool skip_first_layer) const;
 
  private:
-  sp<IComposer> vr_hwcomposer_;
-  std::unique_ptr<VrComposerView> vr_composer_view_;
+  sp<IVrComposer> vr_composer_;
+  sp<HwcCallback> composer_callback_;
 
   SurfaceFlingerView(const SurfaceFlingerView&) = delete;
   void operator=(const SurfaceFlingerView&) = delete;

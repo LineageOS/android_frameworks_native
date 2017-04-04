@@ -38,26 +38,29 @@ HwcCallback::HwcCallback(Client* client) : client_(client) {
 HwcCallback::~HwcCallback() {
 }
 
-base::unique_fd HwcCallback::OnNewFrame(const ComposerView::Frame& display_frame) {
-  auto& frame = display_frame.layers;
-  std::vector<HwcLayer> hwc_frame(frame.size());
-
-  for (size_t i = 0; i < frame.size(); ++i) {
+binder::Status HwcCallback::onNewFrame(
+    const ParcelableComposerFrame& parcelable_frame,
+    ParcelableUniqueFd* fence) {
+  ComposerView::Frame frame = parcelable_frame.frame();
+  std::vector<HwcLayer> hwc_frame(frame.layers.size());
+  for (size_t i = 0; i < frame.layers.size(); ++i) {
+    const ComposerView::ComposerLayer& layer = frame.layers[i];
     hwc_frame[i] = HwcLayer{
-      .fence = frame[i].fence,
-      .buffer = frame[i].buffer,
-      .crop = frame[i].crop,
-      .display_frame = frame[i].display_frame,
-      .blending = static_cast<int32_t>(frame[i].blend_mode),
-      .appid = frame[i].app_id,
-      .type = static_cast<HwcLayer::LayerType>(frame[i].type),
-      .alpha = frame[i].alpha,
+      .fence = layer.fence,
+      .buffer = layer.buffer,
+      .crop = layer.crop,
+      .display_frame = layer.display_frame,
+      .blending = static_cast<int32_t>(layer.blend_mode),
+      .appid = layer.app_id,
+      .type = static_cast<HwcLayer::LayerType>(layer.type),
+      .alpha = layer.alpha,
     };
   }
 
-  return client_->OnFrame(std::make_unique<Frame>(
-      std::move(hwc_frame), display_frame.display_id, display_frame.removed,
-      display_frame.display_width, display_frame.display_height));
+  fence->set_fence(client_->OnFrame(std::make_unique<Frame>(
+      std::move(hwc_frame), frame.display_id, frame.removed,
+      frame.display_width, frame.display_height)));
+  return binder::Status::ok();
 }
 
 HwcCallback::Frame::Frame(std::vector<HwcLayer>&& layers, uint32_t display_id,

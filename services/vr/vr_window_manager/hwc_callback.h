@@ -1,14 +1,16 @@
 #ifndef VR_WINDOW_MANAGER_HWC_CALLBACK_H_
 #define VR_WINDOW_MANAGER_HWC_CALLBACK_H_
 
+#include <android/dvr/BnVrComposerCallback.h>
+#include <android-base/unique_fd.h>
+
 #include <deque>
 #include <functional>
 #include <mutex>
 #include <vector>
 
-#include <android-base/unique_fd.h>
-#include <impl/vr_composer_view.h>
-#include <impl/vr_hwc.h>
+#include "impl/vr_composer_view.h"
+#include "impl/vr_hwc.h"
 
 namespace android {
 
@@ -20,7 +22,7 @@ namespace dvr {
 using Recti = ComposerView::ComposerLayer::Recti;
 using Rectf = ComposerView::ComposerLayer::Rectf;
 
-class HwcCallback : public VrComposerView::Callback {
+class HwcCallback : public BnVrComposerCallback {
  public:
   struct HwcLayer {
     enum LayerType : uint32_t {
@@ -110,7 +112,8 @@ class HwcCallback : public VrComposerView::Callback {
   ~HwcCallback() override;
 
  private:
-  base::unique_fd OnNewFrame(const ComposerView::Frame& frame) override;
+  binder::Status onNewFrame(const ParcelableComposerFrame& frame,
+                            ParcelableUniqueFd* fence) override;
 
   Client *client_;
 
