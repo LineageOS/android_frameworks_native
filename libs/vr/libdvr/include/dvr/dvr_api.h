@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <dvr/dvr_hardware_composer_defs.h>
 #include <jni.h>
 
 #ifdef __cplusplus
@@ -144,6 +145,37 @@ typedef int (*DvrVirtualTouchpadTouchPtr)(DvrVirtualTouchpad* client,
 typedef int (*DvrVirtualTouchpadButtonStatePtr)(DvrVirtualTouchpad* client,
                                                 int touchpad, int buttons);
 
+// dvr_hardware_composer_client.h
+typedef struct DvrHwcClient DvrHwcClient;
+typedef struct DvrHwcFrame DvrHwcFrame;
+typedef int(*DvrHwcOnFrameCallback)(void* client_state, DvrHwcFrame* frame);
+typedef DvrHwcClient* (*DvrHwcClientCreatePtr)(DvrHwcOnFrameCallback callback,
+                                               void* client_state);
+typedef void (*DvrHwcClientDestroyPtr)(DvrHwcClient* client);
+typedef void (*DvrHwcFrameDestroyPtr)(DvrHwcFrame* frame);
+typedef Display (*DvrHwcFrameGetDisplayIdPtr)(DvrHwcFrame* frame);
+typedef int32_t (*DvrHwcFrameGetDisplayWidthPtr)(DvrHwcFrame* frame);
+typedef int32_t (*DvrHwcFrameGetDisplayHeightPtr)(DvrHwcFrame* frame);
+typedef bool (*DvrHwcFrameGetDisplayRemovedPtr)(DvrHwcFrame* frame);
+typedef size_t (*DvrHwcFrameGetLayerCountPtr)(DvrHwcFrame* frame);
+typedef Layer (*DvrHwcFrameGetLayerIdPtr)(DvrHwcFrame* frame, size_t layer_index);
+typedef AHardwareBuffer* (*DvrHwcFrameGetLayerBufferPtr)(DvrHwcFrame* frame,
+                                                         size_t layer_index);
+typedef int (*DvrHwcFrameGetLayerFencePtr)(DvrHwcFrame* frame,
+                                           size_t layer_index);
+typedef Recti (*DvrHwcFrameGetLayerDisplayFramePtr)(DvrHwcFrame* frame,
+                                                    size_t layer_index);
+typedef Rectf (*DvrHwcFrameGetLayerCropPtr)(DvrHwcFrame* frame,
+                                            size_t layer_index);
+typedef BlendMode (*DvrHwcFrameGetLayerBlendModePtr)(DvrHwcFrame* frame,
+                                                     size_t layer_index);
+typedef float (*DvrHwcFrameGetLayerAlphaPtr)(DvrHwcFrame* frame,
+                                             size_t layer_index);
+typedef uint32_t (*DvrHwcFrameGetLayerTypePtr)(DvrHwcFrame* frame,
+                                               size_t layer_index);
+typedef uint32_t (*DvrHwcFrameGetLayerApplicationIdPtr)(DvrHwcFrame* frame,
+                                                        size_t layer_index);
+
 struct DvrApi_v1 {
   // Display manager client
   DvrDisplayManagerClientCreatePtr display_manager_client_create;
@@ -220,6 +252,25 @@ struct DvrApi_v1 {
   DvrVirtualTouchpadDetachPtr virtual_touchpad_detach;
   DvrVirtualTouchpadTouchPtr virtual_touchpad_touch;
   DvrVirtualTouchpadButtonStatePtr virtual_touchpad_button_state;
+
+  // VR HWComposer client
+  DvrHwcClientCreatePtr hwc_client_create;
+  DvrHwcClientDestroyPtr hwc_client_destroy;
+  DvrHwcFrameDestroyPtr hwc_frame_destroy;
+  DvrHwcFrameGetDisplayIdPtr hwc_frame_get_display_id;
+  DvrHwcFrameGetDisplayWidthPtr hwc_frame_get_display_width;
+  DvrHwcFrameGetDisplayHeightPtr hwc_frame_get_display_height;
+  DvrHwcFrameGetDisplayRemovedPtr hwc_frame_get_display_removed;
+  DvrHwcFrameGetLayerCountPtr hwc_frame_get_layer_count;
+  DvrHwcFrameGetLayerIdPtr hwc_frame_get_layer_id;
+  DvrHwcFrameGetLayerBufferPtr hwc_frame_get_layer_buffer;
+  DvrHwcFrameGetLayerFencePtr hwc_frame_get_layer_fence;
+  DvrHwcFrameGetLayerDisplayFramePtr hwc_frame_get_layer_display_frame;
+  DvrHwcFrameGetLayerCropPtr hwc_frame_get_layer_crop;
+  DvrHwcFrameGetLayerBlendModePtr hwc_frame_get_layer_blend_mode;
+  DvrHwcFrameGetLayerAlphaPtr hwc_frame_get_layer_alpha;
+  DvrHwcFrameGetLayerTypePtr hwc_frame_get_layer_type;
+  DvrHwcFrameGetLayerApplicationIdPtr hwc_frame_get_layer_application_id;
 };
 
 int dvrGetApi(void* api, size_t struct_size, int version);
