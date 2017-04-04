@@ -29,14 +29,6 @@ class ISurfaceComposerClient : public IInterface {
 public:
     DECLARE_META_INTERFACE(SurfaceComposerClient)
 
-    enum class Tag : uint32_t {
-        CreateSurface = IBinder::FIRST_CALL_TRANSACTION,
-        DestroySurface,
-        ClearLayerFrameStats,
-        GetLayerFrameStats,
-        Last,
-    };
-
     // flags for createSurface()
     enum { // (keep in sync with Surface.java)
         eHidden = 0x00000004,

@@ -14,98 +14,86 @@
  * limitations under the License.
  */
 
-#include <stdint.h>
-#include <sys/types.h>
-
-#include <binder/IInterface.h>
-#include <binder/Parcel.h>
-
 #include <gui/IConsumerListener.h>
+
 #include <gui/BufferItem.h>
 
-// ---------------------------------------------------------------------------
 namespace android {
-// ---------------------------------------------------------------------------
 
-enum {
+namespace { // Anonymous
+
+enum class Tag : uint32_t {
     ON_DISCONNECT = IBinder::FIRST_CALL_TRANSACTION,
     ON_FRAME_AVAILABLE,
-    ON_BUFFER_RELEASED,
+    ON_FRAME_REPLACED,
+    ON_BUFFERS_RELEASED,
     ON_SIDEBAND_STREAM_CHANGED,
-    GET_FRAME_TIMESTAMPS
+    LAST = ON_SIDEBAND_STREAM_CHANGED,
 };
 
-class BpConsumerListener : public BpInterface<IConsumerListener>
-{
+} // Anonymous namespace
+
+class BpConsumerListener : public SafeBpInterface<IConsumerListener> {
 public:
     explicit BpConsumerListener(const sp<IBinder>& impl)
-        : BpInterface<IConsumerListener>(impl) {
+          : SafeBpInterface<IConsumerListener>(impl, "BpConsumerListener") {}
+
+    ~BpConsumerListener() override;
+
+    void onDisconnect() override {
+        callRemoteAsync<decltype(&IConsumerListener::onDisconnect)>(Tag::ON_DISCONNECT);
     }
 
-    virtual ~BpConsumerListener();
-
-    virtual void onDisconnect() {
-        Parcel data, reply;
-        data.writeInterfaceToken(IConsumerListener::getInterfaceDescriptor());
-        remote()->transact(ON_DISCONNECT, data, &reply, IBinder::FLAG_ONEWAY);
+    void onFrameAvailable(const BufferItem& item) override {
+        callRemoteAsync<decltype(&IConsumerListener::onFrameAvailable)>(Tag::ON_FRAME_AVAILABLE,
+                                                                        item);
     }
 
-    virtual void onFrameAvailable(const BufferItem& item) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IConsumerListener::getInterfaceDescriptor());
-        data.write(item);
-        remote()->transact(ON_FRAME_AVAILABLE, data, &reply, IBinder::FLAG_ONEWAY);
+    void onFrameReplaced(const BufferItem& item) override {
+        callRemoteAsync<decltype(&IConsumerListener::onFrameReplaced)>(Tag::ON_FRAME_REPLACED,
+                                                                       item);
     }
 
-    virtual void onBuffersReleased() {
-        Parcel data, reply;
-        data.writeInterfaceToken(IConsumerListener::getInterfaceDescriptor());
-        remote()->transact(ON_BUFFER_RELEASED, data, &reply, IBinder::FLAG_ONEWAY);
+    void onBuffersReleased() override {
+        callRemoteAsync<decltype(&IConsumerListener::onBuffersReleased)>(Tag::ON_BUFFERS_RELEASED);
     }
 
-    virtual void onSidebandStreamChanged() {
-        Parcel data, reply;
-        data.writeInterfaceToken(IConsumerListener::getInterfaceDescriptor());
-        remote()->transact(ON_SIDEBAND_STREAM_CHANGED, data, &reply, IBinder::FLAG_ONEWAY);
+    void onSidebandStreamChanged() override {
+        callRemoteAsync<decltype(&IConsumerListener::onSidebandStreamChanged)>(
+                Tag::ON_SIDEBAND_STREAM_CHANGED);
+    }
+
+    void addAndGetFrameTimestamps(const NewFrameEventsEntry* /*newTimestamps*/,
+                                  FrameEventHistoryDelta* /*outDelta*/) override {
+        LOG_ALWAYS_FATAL("IConsumerListener::addAndGetFrameTimestamps cannot be proxied");
     }
 };
 
-// Out-of-line virtual method definition to trigger vtable emission in this
-// translation unit (see clang warning -Wweak-vtables)
-BpConsumerListener::~BpConsumerListener() {}
+// Out-of-line virtual method definitions to trigger vtable emission in this translation unit (see
+// clang warning -Wweak-vtables)
+BpConsumerListener::~BpConsumerListener() = default;
+ConsumerListener::~ConsumerListener() = default;
 
 IMPLEMENT_META_INTERFACE(ConsumerListener, "android.gui.IConsumerListener");
 
-// ----------------------------------------------------------------------
-
-status_t BnConsumerListener::onTransact(
-    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
-    switch(code) {
-        case ON_DISCONNECT: {
-            CHECK_INTERFACE(IConsumerListener, data, reply);
-            onDisconnect();
-            return NO_ERROR; }
-        case ON_FRAME_AVAILABLE: {
-            CHECK_INTERFACE(IConsumerListener, data, reply);
-            BufferItem item;
-            data.read(item);
-            onFrameAvailable(item);
-            return NO_ERROR; }
-        case ON_BUFFER_RELEASED: {
-            CHECK_INTERFACE(IConsumerListener, data, reply);
-            onBuffersReleased();
-            return NO_ERROR; }
-        case ON_SIDEBAND_STREAM_CHANGED: {
-            CHECK_INTERFACE(IConsumerListener, data, reply);
-            onSidebandStreamChanged();
-            return NO_ERROR; }
+status_t BnConsumerListener::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                        uint32_t flags) {
+    if (code < IBinder::FIRST_CALL_TRANSACTION || code > static_cast<uint32_t>(Tag::LAST)) {
+        return BBinder::onTransact(code, data, reply, flags);
     }
-    return BBinder::onTransact(code, data, reply, flags);
+    auto tag = static_cast<Tag>(code);
+    switch (tag) {
+        case Tag::ON_DISCONNECT:
+            return callLocalAsync(data, reply, &IConsumerListener::onDisconnect);
+        case Tag::ON_FRAME_AVAILABLE:
+            return callLocalAsync(data, reply, &IConsumerListener::onFrameAvailable);
+        case Tag::ON_FRAME_REPLACED:
+            return callLocalAsync(data, reply, &IConsumerListener::onFrameReplaced);
+        case Tag::ON_BUFFERS_RELEASED:
+            return callLocalAsync(data, reply, &IConsumerListener::onBuffersReleased);
+        case Tag::ON_SIDEBAND_STREAM_CHANGED:
+            return callLocalAsync(data, reply, &IConsumerListener::onSidebandStreamChanged);
+    }
 }
 
-ConsumerListener::~ConsumerListener() = default;
-
-// ---------------------------------------------------------------------------
-}; // namespace android
-// ---------------------------------------------------------------------------
+} // namespace android
