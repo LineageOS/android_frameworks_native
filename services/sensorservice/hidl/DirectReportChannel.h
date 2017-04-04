@@ -41,7 +41,7 @@ using ::android::hardware::Return;
 using ::android::hardware::Void;
 using ::android::sp;
 
-struct DirectReportChannel : public IDirectReportChannel {
+struct DirectReportChannel final : public IDirectReportChannel {
 
     DirectReportChannel(::android::SensorManager& manager, int channelId);
     ~DirectReportChannel();

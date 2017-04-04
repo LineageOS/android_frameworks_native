@@ -37,7 +37,7 @@ using ::android::hardware::hidl_handle;
 using ::android::hardware::hidl_memory;
 using ::android::hardware::Return;
 
-struct SensorManager : public ISensorManager {
+struct SensorManager final : public ISensorManager {
 
     SensorManager();
     ~SensorManager();
