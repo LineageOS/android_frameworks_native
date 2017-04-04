@@ -368,6 +368,10 @@ class FakeSurfaceComposer : public ISurfaceComposer{
 public:
     ~FakeSurfaceComposer() override {}
 
+    void setSupportsPresent(bool supportsPresent) {
+        mSupportsPresent = supportsPresent;
+    }
+
     sp<ISurfaceComposerClient> createConnection() override { return nullptr; }
     sp<ISurfaceComposerClient> createScopedConnection(
             const sp<IGraphicBufferProducer>& /* parent */) override {
@@ -391,6 +395,26 @@ public:
             const sp<IGraphicBufferProducer>& /*surface*/) const override {
         return false;
     }
+
+    status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported)
+            const override {
+        *outSupported = {
+                FrameEvent::REQUESTED_PRESENT,
+                FrameEvent::ACQUIRE,
+                FrameEvent::LATCH,
+                FrameEvent::FIRST_REFRESH_START,
+                FrameEvent::LAST_REFRESH_START,
+                FrameEvent::GPU_COMPOSITION_DONE,
+                FrameEvent::DEQUEUE_READY,
+                FrameEvent::RELEASE
+        };
+        if (mSupportsPresent) {
+            outSupported->push_back(
+                        FrameEvent::DISPLAY_PRESENT);
+        }
+        return NO_ERROR;
+    }
+
     void setPowerMode(const sp<IBinder>& /*display*/, int /*mode*/) override {}
     status_t getDisplayConfigs(const sp<IBinder>& /*display*/,
             Vector<DisplayInfo>* /*configs*/) override { return NO_ERROR; }
@@ -435,7 +459,6 @@ protected:
 
 private:
     bool mSupportsPresent{true};
-    bool mSupportsRetire{true};
 };
 
 class FakeProducerFrameEventHistory : public ProducerFrameEventHistory {
@@ -864,6 +887,28 @@ TEST_F(GetFrameTimestampsTest, EnabledSimple) {
     EXPECT_EQ(4, mFakeConsumer->mGetFrameTimestampsCount);
 }
 
+TEST_F(GetFrameTimestampsTest, QueryPresentSupported) {
+    bool displayPresentSupported = true;
+    mSurface->mFakeSurfaceComposer->setSupportsPresent(displayPresentSupported);
+
+    // Verify supported bits are forwarded.
+    int supportsPresent = -1;
+    mWindow.get()->query(mWindow.get(),
+            NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_PRESENT, &supportsPresent);
+    EXPECT_EQ(displayPresentSupported, supportsPresent);
+}
+
+TEST_F(GetFrameTimestampsTest, QueryPresentNotSupported) {
+    bool displayPresentSupported = false;
+    mSurface->mFakeSurfaceComposer->setSupportsPresent(displayPresentSupported);
+
+    // Verify supported bits are forwarded.
+    int supportsPresent = -1;
+    mWindow.get()->query(mWindow.get(),
+            NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_PRESENT, &supportsPresent);
+    EXPECT_EQ(displayPresentSupported, supportsPresent);
+}
+
 TEST_F(GetFrameTimestampsTest, SnapToNextTickBasic) {
     nsecs_t phase = 4000;
     nsecs_t interval = 1000;
@@ -1228,8 +1273,8 @@ TEST_F(GetFrameTimestampsTest, ZeroRequestedTimestampsNoSync) {
     // Verify a request for no timestamps doesn't result in a sync call.
     int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
     int result = native_window_get_frame_timestamps(mWindow.get(), fId2,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-            nullptr, nullptr, nullptr);
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr);
     EXPECT_EQ(NO_ERROR, result);
     EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
 }
@@ -1371,7 +1416,7 @@ TEST_F(GetFrameTimestampsTest, NoGpuNoSync) {
 
 // This test verifies that if the certain timestamps can't possibly exist for
 // the most recent frame, then a sync call is not done.
-TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
+TEST_F(GetFrameTimestampsTest, NoReleaseNoSync) {
     enableFrameTimestamps();
 
     // Dequeue and queue frame 1.
@@ -1429,6 +1474,29 @@ TEST_F(GetFrameTimestampsTest, NoRetireOrReleaseNoSync) {
     EXPECT_EQ(mFrames[1].mRefreshes[0].kPresentTime, outDisplayPresentTime);
     EXPECT_EQ(0, outDequeueReadyTime);
     EXPECT_EQ(0, outReleaseTime);
+}
+
+// This test verifies there are no sync calls for present times
+// when they aren't supported and that an error is returned.
+
+TEST_F(GetFrameTimestampsTest, PresentUnsupportedNoSync) {
+    enableFrameTimestamps();
+    mSurface->mFakeSurfaceComposer->setSupportsPresent(false);
+
+    // Dequeue and queue frame 1.
+    const uint64_t fId1 = getNextFrameId();
+    dequeueAndQueue(0);
+
+    // Verify a query for the Present times do not trigger a sync call if they
+    // are not supported.
+    resetTimestamps();
+    int oldCount = mFakeConsumer->mGetFrameTimestampsCount;
+    int result = native_window_get_frame_timestamps(mWindow.get(), fId1,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            &outDisplayPresentTime, nullptr, nullptr);
+    EXPECT_EQ(oldCount, mFakeConsumer->mGetFrameTimestampsCount);
+    EXPECT_EQ(BAD_VALUE, result);
+    EXPECT_EQ(-1, outDisplayPresentTime);
 }
 
 }

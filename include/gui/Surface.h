@@ -426,6 +426,10 @@ protected:
     uint64_t mNextFrameNumber = 1;
     uint64_t mLastFrameNumber = 0;
 
+    // Mutable because ANativeWindow::query needs this class const.
+    mutable bool mQueriedSupportedTimestamps;
+    mutable bool mFrameTimestampsSupportsPresent;
+
     // A cached copy of the FrameEventHistory maintained by the consumer.
     bool mEnableFrameTimestamps = false;
     std::unique_ptr<ProducerFrameEventHistory> mFrameEventHistory;

@@ -186,6 +186,12 @@ enum {
      * if it is safe (i.e. no crash will occur) to call any method on it.
      */
     NATIVE_WINDOW_IS_VALID = 17,
+
+    /*
+     * Returns 1 if NATIVE_WINDOW_GET_FRAME_TIMESTAMPS will return display
+     * present info, 0 if it won't.
+     */
+    NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_PRESENT = 18,
 };
 
 /* Valid operations for the (*perform)() hook.
