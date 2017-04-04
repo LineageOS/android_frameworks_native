@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 0
-define VERSION_PATCH 43
+define VERSION_PATCH 46
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -93,7 +93,7 @@ define NULL_HANDLE 0
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_NAME             "VK_ANDROID_native_buffer"
 
 // 12
-@extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_SPEC_VERSION       5
+@extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_SPEC_VERSION       6
 @extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_NAME               "VK_EXT_debug_report"
 
 // 13
@@ -248,6 +248,10 @@ define NULL_HANDLE 0
 @extension("VK_KHR_push_descriptor") define VK_KHR_PUSH_DESCRIPTOR_SPEC_VERSION 1
 @extension("VK_KHR_push_descriptor") define VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME "VK_KHR_push_descriptor"
 
+// 85
+@extension("VK_KHR_incremental_present") define VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION 1
+@extension("VK_KHR_incremental_present") define VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME "VK_KHR_incremental_present"
+
 // 86
 @extension("VK_KHR_descriptor_update_template") define VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_SPEC_VERSION 1
 @extension("VK_KHR_descriptor_update_template") define VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_EXTENSION_NAME "VK_KHR_descriptor_update_template"
@@ -303,6 +307,10 @@ define NULL_HANDLE 0
 // 100
 @extension("VK_EXT_discard_rectangles") define VK_EXT_DISCARD_RECTANGLES_SPEC_VERSION 1
 @extension("VK_EXT_discard_rectangles") define VK_EXT_DISCARD_RECTANGLES_EXTENSION_NAME "VK_EXT_discard_rectangles"
+
+// 105
+@extension("VK_EXT_swapchain_colorspace") define VK_EXT_SWAPCHAIN_COLORSPACE_SPEC_VERSION 2
+@extension("VK_EXT_swapchain_colorspace") define VK_EXT_SWAPCHAIN_COLORSPACE_EXTENSION_NAME "VK_EXT_swapchain_colorspace"
 
 // 106
 @extension("VK_EXT_hdr_metadata") define VK_EXT_HDR_METADATA_SPEC_VERSION 1
@@ -1023,6 +1031,9 @@ enum VkStructureType {
     //@extension("VK_KHR_push_descriptor") // 81
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES_KHR    = 1000080000,
 
+    //@extension("VK_KHR_incremental_present") // 85
+    VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR                       = 1000084000,
+
     //@extension("VK_KHR_descriptor_update_template") // 86
     VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO_KHR    = 1000085000,
 
@@ -1158,6 +1169,21 @@ enum VkPresentModeKHR {
 @extension("VK_KHR_surface") // 1
 enum VkColorSpaceKHR {
     VK_COLORSPACE_SRGB_NONLINEAR_KHR                        = 0x00000000,
+
+    //@extension("VK_EXT_swapchain_colorspace") // 105
+    VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT                 = 1000104001,
+    VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT                 = 1000104002,
+    VK_COLOR_SPACE_DCI_P3_LINEAR_EXT                        = 1000104003,
+    VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT                     = 1000104004,
+    VK_COLOR_SPACE_BT709_LINEAR_EXT                         = 1000104005,
+    VK_COLOR_SPACE_BT709_NONLINEAR_EXT                      = 1000104006,
+    VK_COLOR_SPACE_BT2020_LINEAR_EXT                        = 1000104007,
+    VK_COLOR_SPACE_HDR10_ST2084_EXT                         = 1000104008,
+    VK_COLOR_SPACE_DOLBYVISION_EXT                          = 1000104009,
+    VK_COLOR_SPACE_HDR10_HLG_EXT                            = 1000104010,
+    VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT                      = 1000104011,
+    VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT                   = 1000104012,
+    VK_COLOR_SPACE_PASS_THROUGH_EXT                         = 1000104013,
 }
 
 @extension("VK_EXT_debug_report") // 12
@@ -1195,6 +1221,9 @@ enum VkDebugReportObjectTypeEXT {
     VK_DEBUG_REPORT_OBJECT_TYPE_DISPLAY_MODE_KHR_EXT        = 30,
     VK_DEBUG_REPORT_OBJECT_TYPE_OBJECT_TABLE_NVX_EXT        = 31,
     VK_DEBUG_REPORT_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX_EXT = 32,
+
+    //extension("VK_KHR_descriptor_update_template") // 86
+    VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_KHR_EXT = 1000085000,
 }
 
 @extension("VK_EXT_debug_report") // 12
@@ -3657,7 +3686,7 @@ class VkViSurfaceCreateInfoNN {
 @extension("VK_KHX_device_group_creation") // 71
 class VkPhysicalDeviceGroupPropertiesKHX {
     VkStructureType                                 sType
-    const void*                                     pNext
+    void*                                           pNext
     u32                                             physicalDeviceCount
     VkPhysicalDevice[VK_MAX_DEVICE_GROUP_SIZE_KHX]  physicalDevices
     VkBool32                                        subsetAllocation
@@ -3856,6 +3885,27 @@ class VkPhysicalDevicePushDescriptorPropertiesKHR {
     VkStructureType                             sType
     void*                                       pNext
     u32                                         maxPushDescriptors
+}
+
+@extension("VK_KHR_incremental_present") // 85
+class VkRectLayerKHR {
+    VkOffset2D                                  offset
+    VkExtent2D                                  extent
+    u32                                         layer
+}
+
+@extension("VK_KHR_incremental_present") // 85
+class VkPresentRegionKHR {
+    u32                                         rectangleCount
+    const VkRectLayerKHR*                       pRectangles
+}
+
+@extension("VK_KHR_incremental_present") // 85
+class VkPresentRegionsKHR {
+    VkStructureType                             sType
+    const void*                                 pNext
+    u32                                         swapchainCount
+    const VkPresentRegionKHR*                   pRegions
 }
 
 @extension("VK_KHR_descriptor_update_template") // 86
@@ -4124,7 +4174,7 @@ class VkPipelineViewportSwizzleStateCreateInfoNV {
 @extension("VK_EXT_discard_rectangles") // 100
 class VkPhysicalDeviceDiscardRectanglePropertiesEXT {
     VkStructureType                             sType
-    const void*                                 pNext
+    void*                                       pNext
     u32                                         maxDiscardRectangles
 }
 
