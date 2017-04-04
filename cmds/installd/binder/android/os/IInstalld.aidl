@@ -32,6 +32,8 @@ interface IInstalld {
     void destroyAppData(@nullable @utf8InCpp String uuid, @utf8InCpp String packageName,
             int userId, int flags, long ceDataInode);
 
+    void fixupAppData(@nullable @utf8InCpp String uuid, int flags);
+
     long[] getAppSize(@nullable @utf8InCpp String uuid, in @utf8InCpp String[] packageNames,
             int userId, int flags, int appId, in long[] ceDataInodes,
             in @utf8InCpp String[] codePaths);
