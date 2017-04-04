@@ -60,21 +60,20 @@ class IonBuffer {
   int LockYUV(int usage, int x, int y, int width, int height,
               struct android_ycbcr* yuv);
   int Unlock();
-  buffer_handle_t handle() const { if (buffer_.get()) return buffer_->handle;
-                                   else return nullptr; }
-  int width() const { if (buffer_.get()) return buffer_->getWidth();
-                      else return 0; }
-  int height() const { if (buffer_.get()) return buffer_->getHeight();
-                       else return 0; }
-  int layer_count() const { if (buffer_.get()) return buffer_->getLayerCount();
-                            else return 0; }
-  int stride() const { if (buffer_.get()) return buffer_->getStride();
-                       else return 0; }
+
+  const sp<GraphicBuffer>& buffer() const { return buffer_; }
+  buffer_handle_t handle() const {
+    return buffer_.get() ? buffer_->handle : nullptr;
+  }
+  int width() const { return buffer_.get() ? buffer_->getWidth() : 0; }
+  int height() const { return buffer_.get() ? buffer_->getHeight() : 0; }
+  int layer_count() const {
+    return buffer_.get() ? buffer_->getLayerCount() : 0;
+  }
+  int stride() const { return buffer_.get() ? buffer_->getStride() : 0; }
   int layer_stride() const { return 0; }
-  int format() const { if (buffer_.get()) return buffer_->getPixelFormat();
-                       else return 0; }
-  int usage() const { if (buffer_.get()) return buffer_->getUsage();
-                      else return 0; }
+  int format() const { return buffer_.get() ? buffer_->getPixelFormat() : 0; }
+  int usage() const { return buffer_.get() ? buffer_->getUsage() : 0; }
 
  private:
   sp<GraphicBuffer> buffer_;
