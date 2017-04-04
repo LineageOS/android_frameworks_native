@@ -43,6 +43,9 @@ cc_binary {
         "service_manager.c",
         "binder.c",
     ],
+    cflags: [
+        "-DVENDORSERVICEMANAGER=1",
+    ],
     shared_libs: ["libcutils", "libselinux"],
     init_rc: ["vndservicemanager.rc"],
 }
