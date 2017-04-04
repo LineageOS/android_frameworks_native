@@ -278,7 +278,7 @@ const ProcHook g_proc_hooks[] = {
     // clang-format on
 };
 
-}  // anonymous
+}  // namespace
 
 const ProcHook* GetProcHook(const char* name) {
     const auto& begin = g_proc_hooks;
