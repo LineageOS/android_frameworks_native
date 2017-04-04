@@ -505,7 +505,11 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
          mFrameEventHistory->applyDelta(frameTimestamps);
     }
 
-    if ((result & IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION) || gbuf == 0) {
+    if ((result & IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION) || gbuf == nullptr) {
+        if (mReportRemovedBuffers && (gbuf != nullptr)) {
+            mRemovedBuffers.clear();
+            mRemovedBuffers.push_back(gbuf);
+        }
         result = mGraphicBufferProducer->requestBuffer(buf, &gbuf);
         if (result != NO_ERROR) {
             ALOGE("dequeueBuffer: IGraphicBufferProducer::requestBuffer failed: %d", result);
@@ -1075,10 +1079,16 @@ int Surface::connect(int api) {
 }
 
 int Surface::connect(int api, const sp<IProducerListener>& listener) {
+    return connect(api, listener, false);
+}
+
+int Surface::connect(
+        int api, const sp<IProducerListener>& listener, bool reportBufferRemoval) {
     ATRACE_CALL();
     ALOGV("Surface::connect");
     Mutex::Autolock lock(mMutex);
     IGraphicBufferProducer::QueueBufferOutput output;
+    mReportRemovedBuffers = reportBufferRemoval;
     int err = mGraphicBufferProducer->connect(listener, api, mProducerControlledByApp, &output);
     if (err == NO_ERROR) {
         mDefaultWidth = output.width;
@@ -1109,6 +1119,7 @@ int Surface::disconnect(int api, IGraphicBufferProducer::DisconnectMode mode) {
     ATRACE_CALL();
     ALOGV("Surface::disconnect");
     Mutex::Autolock lock(mMutex);
+    mRemovedBuffers.clear();
     mSharedBufferSlot = BufferItem::INVALID_BUFFER_SLOT;
     mSharedBufferHasBeenQueued = false;
     freeAllBuffers();
@@ -1156,9 +1167,16 @@ int Surface::detachNextBuffer(sp<GraphicBuffer>* outBuffer,
         *outFence = Fence::NO_FENCE;
     }
 
+    if (mReportRemovedBuffers) {
+        mRemovedBuffers.clear();
+    }
+
     for (int i = 0; i < NUM_BUFFER_SLOTS; i++) {
         if (mSlots[i].buffer != NULL &&
                 mSlots[i].buffer->handle == buffer->handle) {
+            if (mReportRemovedBuffers) {
+                mRemovedBuffers.push_back(mSlots[i].buffer);
+            }
             mSlots[i].buffer = NULL;
         }
     }
@@ -1183,6 +1201,10 @@ int Surface::attachBuffer(ANativeWindowBuffer* buffer)
         ALOGE("attachBuffer: IGraphicBufferProducer call failed (%d)", result);
         graphicBuffer->mGenerationNumber = priorGeneration;
         return result;
+    }
+    if (mReportRemovedBuffers && (mSlots[attachedSlot].buffer != nullptr)) {
+        mRemovedBuffers.clear();
+        mRemovedBuffers.push_back(mSlots[attachedSlot].buffer);
     }
     mSlots[attachedSlot].buffer = graphicBuffer;
 
@@ -1615,6 +1637,18 @@ bool Surface::waitForNextFrame(uint64_t lastFrame, nsecs_t timeout) {
 status_t Surface::getUniqueId(uint64_t* outId) const {
     Mutex::Autolock lock(mMutex);
     return mGraphicBufferProducer->getUniqueId(outId);
+}
+
+status_t Surface::getAndFlushRemovedBuffers(std::vector<sp<GraphicBuffer>>* out) {
+    if (out == nullptr) {
+        ALOGE("%s: out must not be null!", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock lock(mMutex);
+    *out = mRemovedBuffers;
+    mRemovedBuffers.clear();
+    return OK;
 }
 
 }; // namespace android
