@@ -15,6 +15,7 @@
 sourceFiles = [
     "pose_client.cpp",
     "sensor_client.cpp",
+    "latency_model.cpp",
 ]
 
 includeFiles = [
