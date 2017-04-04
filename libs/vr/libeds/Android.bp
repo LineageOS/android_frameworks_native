@@ -16,11 +16,9 @@ sourceFiles = [
     "eds.cpp",
     "eds_mesh.cpp",
     "composite_hmd.cpp",
-    "cpu_thread_pose_updater.cpp",
     "display_metrics.cpp",
     "distortion_renderer.cpp",
-    "lucid_metrics.cpp",
-    "lucid_pose_tracker.cpp",
+    "device_metrics.cpp",
     "lookup_radial_distortion.cpp",
     "polynomial_radial_distortion.cpp",
 ]

@@ -1,5 +1,5 @@
-#ifndef ANDROID_DVR_LUCID_METRICS_H_
-#define ANDROID_DVR_LUCID_METRICS_H_
+#ifndef ANDROID_DVR_DEVICE_METRICS_H_
+#define ANDROID_DVR_DEVICE_METRICS_H_
 
 #include <private/dvr/display_metrics.h>
 #include <private/dvr/head_mount_metrics.h>
@@ -19,4 +19,4 @@ DisplayMetrics CreateDisplayMetrics(vec2i screen_size);
 }  // namespace dvr
 }  // namespace android
 
-#endif  // ANDROID_DVR_LUCID_METRICS_H_
+#endif  // ANDROID_DVR_DEVICE_METRICS_H_

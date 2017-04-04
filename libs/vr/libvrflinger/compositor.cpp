@@ -13,12 +13,12 @@
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/clock_ns.h>
 #include <private/dvr/debug.h>
+#include <private/dvr/device_metrics.h>
 #include <private/dvr/display_types.h>
 #include <private/dvr/dummy_native_window.h>
 #include <private/dvr/gl_fenced_flush.h>
 #include <private/dvr/graphics/blur.h>
 #include <private/dvr/graphics/gpu_profiler.h>
-#include <private/dvr/lucid_metrics.h>
 #include <private/dvr/native_buffer.h>
 #include <private/dvr/platform_defines.h>
 #include <utils/Log.h>

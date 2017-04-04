@@ -28,7 +28,8 @@ class PolynomialRadialDistortion : public ColorChannelDistortion {
   // in the distortion equation: coefficients[0] is K1, coefficients[1] is K2,
   // etc.  Thus the polynomial used for distortion has degree
   // (2 * coefficients.size()).
-  explicit PolynomialRadialDistortion(const std::vector<float>& coefficients);
+  explicit PolynomialRadialDistortion(float polynomial_offset,
+                                      const std::vector<float>& coefficients);
 
   // Given a radius (measuring distance from the optical axis of the lens),
   // returns the distortion factor for that radius.
@@ -51,6 +52,10 @@ class PolynomialRadialDistortion : public ColorChannelDistortion {
   const std::vector<float>& GetCoefficients() const;
 
  private:
+  // This is makes the polynomial work nicer with a specific lens that doesn't
+  // fit nicely to a lower order polynomial.  It's basically piecewise
+  // line->poly.
+  float polynomial_offset_;
   std::vector<float> coefficients_;
 };
 

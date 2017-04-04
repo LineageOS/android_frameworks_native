@@ -9,7 +9,6 @@
 #include <private/dvr/eds_mesh.h>
 #include <private/dvr/graphics/shader_program.h>
 #include <private/dvr/late_latch.h>
-#include <private/dvr/lucid_pose_tracker.h>
 #include <private/dvr/render_texture_params.h>
 #include <private/dvr/types.h>
 
