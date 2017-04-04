@@ -34,9 +34,9 @@ sp<GraphicBuffer> GetBufferFromHandle(native_handle_t* handle) {
   // capability. Otherwise assume a count of 1.
   mapper.getLayerCount(handle, &layer_count);
 
-  sp<GraphicBuffer> buffer = new GraphicBuffer(
-      width, height, format, layer_count, producer_usage, consumer_usage,
-      stride, handle, true);
+  sp<GraphicBuffer> buffer = new GraphicBuffer(handle,
+      GraphicBuffer::TAKE_HANDLE, width, height, format, layer_count,
+      producer_usage, consumer_usage, stride);
 
   return buffer;
 }
