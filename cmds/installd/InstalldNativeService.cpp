@@ -1729,7 +1729,8 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
         const std::unique_ptr<std::string>& packageName, const std::string& instructionSet,
         int32_t dexoptNeeded, const std::unique_ptr<std::string>& outputPath, int32_t dexFlags,
         const std::string& compilerFilter, const std::unique_ptr<std::string>& uuid,
-        const std::unique_ptr<std::string>& sharedLibraries) {
+        const std::unique_ptr<std::string>& sharedLibraries,
+        const std::unique_ptr<std::string>& seInfo) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     if (packageName && *packageName != "*") {
@@ -1744,9 +1745,9 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
     const char* compiler_filter = compilerFilter.c_str();
     const char* volume_uuid = uuid ? uuid->c_str() : nullptr;
     const char* shared_libraries = sharedLibraries ? sharedLibraries->c_str() : nullptr;
-
+    const char* se_info = seInfo ? seInfo->c_str() : nullptr;
     int res = android::installd::dexopt(apk_path, uid, pkgname, instruction_set, dexoptNeeded,
-            oat_dir, dexFlags, compiler_filter, volume_uuid, shared_libraries);
+            oat_dir, dexFlags, compiler_filter, volume_uuid, shared_libraries, se_info);
     return res ? error(res, "Failed to dexopt") : ok();
 }
 
