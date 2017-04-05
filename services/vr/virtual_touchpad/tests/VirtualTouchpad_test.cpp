@@ -139,7 +139,7 @@ TEST_F(VirtualTouchpadTest, Goodness) {
     SCOPED_TRACE(t);
     uidev = touchpad->injector[t].GetUiDev();
     String8 name;
-    name.appendFormat("vr virtual touchpad %d", t);
+    name.appendFormat("vr-virtual-touchpad-%d", t);
     EXPECT_EQ(name, uidev->name);
     for (int i = 0; i < ABS_CNT; ++i) {
       EXPECT_EQ(0, uidev->absmin[i]);
