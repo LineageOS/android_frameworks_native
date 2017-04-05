@@ -83,6 +83,7 @@ public:
         NO_LAYER_STACK = 0xFFFFFFFF,
     };
 
+    // clang-format off
     DisplayDevice(
             const sp<SurfaceFlinger>& flinger,
             DisplayType type,
@@ -94,7 +95,9 @@ public:
             const wp<IBinder>& displayToken,
             const sp<DisplaySurface>& displaySurface,
             const sp<IGraphicBufferProducer>& producer,
-            EGLConfig config);
+            EGLConfig config,
+            bool supportWideColor);
+    // clang-format on
 
     ~DisplayDevice();
 
@@ -146,6 +149,7 @@ public:
     status_t beginFrame(bool mustRecompose) const;
 #ifdef USE_HWC2
     status_t prepareFrame(HWComposer& hwc);
+    bool getWideColorSupport() const { return mDisplayHasWideColor; }
 #else
     status_t prepareFrame(const HWComposer& hwc) const;
 #endif
@@ -264,6 +268,11 @@ private:
 #ifdef USE_HWC2
     // current active color mode
     android_color_mode_t mActiveColorMode;
+
+    // Need to know if display is wide-color capable or not.
+    // Initialized by SurfaceFlinger when the DisplayDevice is created.
+    // Fed to RenderEngine during composition.
+    bool mDisplayHasWideColor;
 #endif
 };
 
