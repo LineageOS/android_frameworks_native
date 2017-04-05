@@ -41,7 +41,7 @@ TEST_F(SurfaceTextureFBOTest, BlitFromCpuFilledBufferToFbo) {
             &anb));
     ASSERT_TRUE(anb != NULL);
 
-    sp<GraphicBuffer> buf(new GraphicBuffer(anb, false));
+    sp<GraphicBuffer> buf(GraphicBuffer::from(anb));
 
     // Fill the buffer with green
     uint8_t* img = NULL;
@@ -65,7 +65,7 @@ TEST_F(SurfaceTextureFBOTest, BlitFromCpuFilledBufferToFbo) {
                 &anb));
         ASSERT_TRUE(anb != NULL);
 
-        buf = new GraphicBuffer(anb, false);
+        buf = GraphicBuffer::from(anb);
 
         // Fill the buffer with red
         ASSERT_EQ(NO_ERROR, buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN,
