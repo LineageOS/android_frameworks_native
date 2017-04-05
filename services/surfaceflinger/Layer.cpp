@@ -1011,6 +1011,9 @@ static constexpr mat4 inverseOrientation(uint32_t transform) {
     return inverse(tr);
 }
 
+/*
+ * onDraw will draw the current layer onto the presentable buffer
+ */
 void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
         bool useIdentityTransform) const
 {
@@ -1172,6 +1175,9 @@ void Layer::drawWithOpenGL(const sp<const DisplayDevice>& hw,
 
     RenderEngine& engine(mFlinger->getRenderEngine());
     engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), getAlpha());
+#ifdef USE_HWC2
+    engine.setSourceDataSpace(mCurrentState.dataSpace);
+#endif
     engine.drawMesh(mMesh);
     engine.disableBlending();
 }

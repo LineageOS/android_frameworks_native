@@ -14,11 +14,16 @@
  * limitations under the License.
  */
 
+//#define LOG_NDEBUG 0
+#undef LOG_TAG
+#define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
+#include <ui/ColorSpace.h>
+#include <ui/DebugUtils.h>
 #include <ui/Rect.h>
 
 #include <utils/String8.h>
@@ -34,6 +39,71 @@
 #include "Description.h"
 #include "Mesh.h"
 #include "Texture.h"
+
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <configstore/Utils.h>
+
+#include <fstream>
+
+static constexpr bool outputDebugPPMs = false;
+
+// ---------------------------------------------------------------------------
+bool checkGlError(const char* op, int lineNumber) {
+    bool errorFound = false;
+    GLint error = glGetError();
+    while (error != GL_NO_ERROR) {
+        errorFound = true;
+        error = glGetError();
+        ALOGV("after %s() (line # %d) glError (0x%x)\n", op, lineNumber, error);
+    }
+    return errorFound;
+}
+
+void writePPM(const char* basename, GLuint width, GLuint height) {
+    ALOGV("writePPM #%s: %d x %d", basename, width, height);
+
+    std::vector<GLubyte> pixels(width * height * 4);
+    std::vector<GLubyte> outBuffer(width * height * 3);
+
+    // TODO(courtneygo): We can now have float formats, need
+    // to remove this code or update to support.
+    // Make returned pixels fit in uint32_t, one byte per component
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+    if (checkGlError(__FUNCTION__, __LINE__)) {
+        return;
+    }
+
+    std::string filename(basename);
+    filename.append(".ppm");
+    std::ofstream file(filename.c_str(), std::ios::binary);
+    if (!file.is_open()) {
+        ALOGE("Unable to open file: %s", filename.c_str());
+        ALOGE("You may need to do: \"adb shell setenforce 0\" to enable "
+              "surfaceflinger to write debug images");
+        return;
+    }
+
+    file << "P6\n";
+    file << width << "\n";
+    file << height << "\n";
+    file << 255 << "\n";
+
+    auto ptr = reinterpret_cast<char*>(pixels.data());
+    auto outPtr = reinterpret_cast<char*>(outBuffer.data());
+    for (int y = height - 1; y >= 0; y--) {
+        char* data = ptr + y * width * sizeof(uint32_t);
+
+        for (GLuint x = 0; x < width; x++) {
+            // Only copy R, G and B components
+            outPtr[0] = data[0];
+            outPtr[1] = data[1];
+            outPtr[2] = data[2];
+            data += sizeof(uint32_t);
+            outPtr += 3;
+        }
+    }
+    file.write(reinterpret_cast<char*>(outBuffer.data()), outBuffer.size());
+}
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -59,6 +129,26 @@ GLES20RenderEngine::GLES20RenderEngine() :
             GL_RGB, GL_UNSIGNED_SHORT_5_6_5, protTexData);
 
     //mColorBlindnessCorrection = M;
+
+    // retrieve wide-color and hdr settings from configstore
+    using namespace android::hardware::configstore;
+    using namespace android::hardware::configstore::V1_0;
+
+    mPlatformHasWideColor =
+            getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
+    if (mPlatformHasWideColor) {
+        // Compute sRGB to DisplayP3 color transform
+        // NOTE: For now, we are limiting wide-color support to
+        // Display-P3 only.
+        mat3 srgbToP3 = ColorSpace::DisplayP3().getXYZtoRGB() * ColorSpace::sRGB().getRGBtoXYZ();
+
+        // color transform needs to be transposed and expanded to 4x4
+        // to be what the shader wants
+        // mat has an initializer that expands mat3 to mat4, but
+        // not an assignment operator
+        mat4 gamutTransform(transpose(srgbToP3));
+        mSrgbToDisplayP3 = gamutTransform;
+    }
 }
 
 GLES20RenderEngine::~GLES20RenderEngine() {
@@ -170,6 +260,42 @@ void GLES20RenderEngine::setupDimLayerBlending(int alpha) {
     }
 }
 
+#ifdef USE_HWC2
+void GLES20RenderEngine::setColorMode(android_color_mode mode) {
+    ALOGV("setColorMode: %s (0x%x)", decodeColorMode(mode).c_str(), mode);
+
+    if (mColorMode == mode) return;
+
+    if (!mPlatformHasWideColor || !mDisplayHasWideColor || mode == HAL_COLOR_MODE_SRGB ||
+        mode == HAL_COLOR_MODE_NATIVE) {
+        // We are returning back to our default color_mode
+        mUseWideColor = false;
+        mWideColorFrameCount = 0;
+    } else {
+        mUseWideColor = true;
+    }
+
+    mColorMode = mode;
+}
+
+void GLES20RenderEngine::setSourceDataSpace(android_dataspace source) {
+    if (source == HAL_DATASPACE_UNKNOWN) {
+        // Treat UNKNOWN as SRGB
+        source = HAL_DATASPACE_V0_SRGB;
+    }
+    mDataSpace = source;
+}
+
+void GLES20RenderEngine::setWideColor(bool hasWideColor) {
+    ALOGV("setWideColor: %s", hasWideColor ? "true" : "false");
+    mDisplayHasWideColor = hasWideColor;
+}
+
+bool GLES20RenderEngine::usesWideColor() {
+    return mUseWideColor;
+}
+#endif
+
 void GLES20RenderEngine::setupLayerTexturing(const Texture& texture) {
     GLuint target = texture.getTextureTarget();
     glBindTexture(target, texture.getTextureName());
@@ -242,8 +368,6 @@ void GLES20RenderEngine::setupFillWithColor(float r, float g, float b, float a) 
 
 void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 
-    ProgramCache::getInstance().useProgram(mState);
-
     if (mesh.getTexCoordsSize()) {
         glEnableVertexAttribArray(Program::texCoords);
         glVertexAttribPointer(Program::texCoords,
@@ -259,7 +383,26 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
             mesh.getByteStride(),
             mesh.getPositions());
 
-    glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
+    if (usesWideColor()) {
+        Description wideColorState = mState;
+        if (mDataSpace != HAL_DATASPACE_DISPLAY_P3) {
+            wideColorState.setColorMatrix(mState.getColorMatrix() * mSrgbToDisplayP3);
+            ALOGV("drawMesh: gamut transform applied");
+        }
+        ProgramCache::getInstance().useProgram(wideColorState);
+
+        glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
+
+        if (outputDebugPPMs) {
+            std::ostringstream out;
+            out << "/data/texture_out" << mWideColorFrameCount++;
+            writePPM(out.str().c_str(), mVpWidth, mVpHeight);
+        }
+    } else {
+        ProgramCache::getInstance().useProgram(mState);
+
+        glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
+    }
 
     if (mesh.getTexCoordsSize()) {
         glDisableVertexAttribArray(Program::texCoords);
@@ -268,6 +411,11 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 
 void GLES20RenderEngine::dump(String8& result) {
     RenderEngine::dump(result);
+    if (usesWideColor()) {
+        result.append("Wide-color: On\n");
+    } else {
+        result.append("Wide-color: Off\n");
+    }
 }
 
 // ---------------------------------------------------------------------------
