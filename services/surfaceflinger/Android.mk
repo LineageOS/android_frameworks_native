@@ -66,9 +66,6 @@ endif
 
 LOCAL_CFLAGS += -fvisibility=hidden -Werror=format
 
-LOCAL_HEADER_LIBRARIES := \
-    android.hardware.configstore-utils
-
 LOCAL_STATIC_LIBRARIES := \
     libhwcomposer-command-buffer \
     libtrace_proto \
@@ -81,6 +78,7 @@ LOCAL_SHARED_LIBRARIES := \
     android.hardware.graphics.allocator@2.0 \
     android.hardware.graphics.composer@2.1 \
     android.hardware.configstore@1.0 \
+    android.hardware.configstore-utils \
     libcutils \
     liblog \
     libdl \
