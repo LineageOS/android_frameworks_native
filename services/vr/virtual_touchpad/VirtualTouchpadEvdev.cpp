@@ -18,7 +18,7 @@ namespace {
 // use it to look up device configuration, so it must be unique. Vendor and
 // product values must be 0 to indicate an internal device and prevent a
 // similar lookup that could conflict with a physical device.
-static const char* const kDeviceNameFormat = "vr virtual touchpad %d";
+static const char* const kDeviceNameFormat = "vr-virtual-touchpad-%d";
 static constexpr int16_t kDeviceBusType = BUS_VIRTUAL;
 static constexpr int16_t kDeviceVendor = 0;
 static constexpr int16_t kDeviceProduct = 0;
