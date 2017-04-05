@@ -51,8 +51,6 @@ cFlags := -DLOG_TAG=\"sensord\" \
           -DTRACE=0
 
 include $(CLEAR_VARS)
-# Don't strip symbols so we see stack traces in logcat.
-LOCAL_STRIP_MODULE := false
 LOCAL_SRC_FILES := $(sourceFiles)
 LOCAL_CFLAGS := $(cFlags)
 LOCAL_STATIC_LIBRARIES := $(staticLibraries)
