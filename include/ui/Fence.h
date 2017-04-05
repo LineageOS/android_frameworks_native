@@ -27,6 +27,8 @@
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
+#include <experimental/optional>
+
 struct ANativeWindowBuffer;
 
 namespace android {
@@ -79,6 +81,9 @@ public:
     // becomes signaled when both f1 and f2 are signaled (even if f1 or f2 is
     // destroyed before it becomes signaled).  The name argument specifies the
     // human-readable name to associated with the new Fence object.
+    static sp<Fence> merge(const char* name, const sp<Fence>& f1,
+            const sp<Fence>& f2);
+
     static sp<Fence> merge(const String8& name, const sp<Fence>& f1,
             const sp<Fence>& f2);
 
@@ -92,6 +97,27 @@ public:
     // then INT64_MAX is returned.  If the fence is invalid or if an error
     // occurs then -1 is returned.
     nsecs_t getSignalTime() const;
+
+#if __cplusplus > 201103L
+    // hasSignaled returns whether the fence has signaled yet. Prefer this to
+    // getSignalTime() or wait() if all you care about is whether the fence has
+    // signaled. Returns an optional bool, which will have a value if there was
+    // no error.
+    inline std::experimental::optional<bool> hasSignaled() {
+        // The sync_wait call underlying wait() has been measured to be
+        // significantly faster than the sync_fence_info call underlying
+        // getSignalTime(), which might otherwise appear to be the more obvious
+        // way to check whether a fence has signaled.
+        switch (wait(0)) {
+            case NO_ERROR:
+                return true;
+            case -ETIME:
+                return false;
+            default:
+                return {};
+        }
+    }
+#endif
 
     // Flattenable interface
     size_t getFlattenedSize() const;

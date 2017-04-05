@@ -43,6 +43,7 @@ public:
 
     // Dumpable interface
     virtual std::string dump() const override;
+    virtual void setFormat(std::string format) override;
 
 protected:
     struct SensorEventLog {
@@ -56,6 +57,8 @@ protected:
 
     mutable std::mutex mLock;
     RingBuffer<SensorEventLog> mRecentEvents;
+
+    bool mMaskData;
 
 private:
     static size_t logSizeBySensorType(int sensorType);

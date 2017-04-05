@@ -30,12 +30,7 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
-BatteryService::BatteryService() {
-    const sp<IServiceManager> sm(defaultServiceManager());
-    if (sm != NULL) {
-        const String16 name("batterystats");
-        mBatteryStatService = interface_cast<IBatteryStats>(sm->getService(name));
-    }
+BatteryService::BatteryService() : mBatteryStatService(nullptr) {
 }
 
 bool BatteryService::addSensor(uid_t uid, int handle) {
@@ -61,7 +56,7 @@ bool BatteryService::removeSensor(uid_t uid, int handle) {
 
 
 void BatteryService::enableSensorImpl(uid_t uid, int handle) {
-    if (mBatteryStatService != 0) {
+    if (checkService()) {
         if (addSensor(uid, handle)) {
             int64_t identity = IPCThreadState::self()->clearCallingIdentity();
             mBatteryStatService->noteStartSensor(uid, handle);
@@ -70,7 +65,7 @@ void BatteryService::enableSensorImpl(uid_t uid, int handle) {
     }
 }
 void BatteryService::disableSensorImpl(uid_t uid, int handle) {
-    if (mBatteryStatService != 0) {
+    if (checkService()) {
         if (removeSensor(uid, handle)) {
             int64_t identity = IPCThreadState::self()->clearCallingIdentity();
             mBatteryStatService->noteStopSensor(uid, handle);
@@ -80,7 +75,7 @@ void BatteryService::disableSensorImpl(uid_t uid, int handle) {
 }
 
 void BatteryService::cleanupImpl(uid_t uid) {
-    if (mBatteryStatService != 0) {
+    if (checkService()) {
         Mutex::Autolock _l(mActivationsLock);
         int64_t identity = IPCThreadState::self()->clearCallingIdentity();
         for (size_t i=0 ; i<mActivations.size() ; i++) {
@@ -93,6 +88,17 @@ void BatteryService::cleanupImpl(uid_t uid) {
         }
         IPCThreadState::self()->restoreCallingIdentity(identity);
     }
+}
+
+bool BatteryService::checkService() {
+    if (mBatteryStatService == nullptr) {
+        const sp<IServiceManager> sm(defaultServiceManager());
+        if (sm != NULL) {
+            const String16 name("batterystats");
+            mBatteryStatService = interface_cast<IBatteryStats>(sm->getService(name));
+        }
+    }
+    return mBatteryStatService != nullptr;
 }
 
 ANDROID_SINGLETON_STATIC_INSTANCE(BatteryService)

@@ -828,7 +828,8 @@ bool drop_root_user() {
     }
 
     gid_t groups[] = { AID_LOG, AID_SDCARD_R, AID_SDCARD_RW,
-            AID_MOUNT, AID_INET, AID_NET_BW_STATS, AID_READPROC };
+            AID_MOUNT, AID_INET, AID_NET_BW_STATS, AID_READPROC,
+            AID_BLUETOOTH };
     if (setgroups(sizeof(groups)/sizeof(groups[0]), groups) != 0) {
         MYLOGE("Unable to setgroups, aborting: %s\n", strerror(errno));
         return false;

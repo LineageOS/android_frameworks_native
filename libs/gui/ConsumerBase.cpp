@@ -314,10 +314,23 @@ status_t ConsumerBase::addReleaseFenceLocked(int slot,
 
     if (!mSlots[slot].mFence.get()) {
         mSlots[slot].mFence = fence;
+        return OK;
+    }
+
+    auto signaled = mSlots[slot].mFence->hasSignaled();
+
+    if (!signaled) {
+        CB_LOGE("fence has invalid state");
+        return BAD_VALUE;
+    }
+
+    if (*signaled) {
+        mSlots[slot].mFence = fence;
     } else {
+        char fenceName[32] = {};
+        snprintf(fenceName, 32, "%.28s:%d", mName.string(), slot);
         sp<Fence> mergedFence = Fence::merge(
-                String8::format("%.28s:%d", mName.string(), slot),
-                mSlots[slot].mFence, fence);
+                fenceName, mSlots[slot].mFence, fence);
         if (!mergedFence.get()) {
             CB_LOGE("failed to merge release fences");
             // synchronization is broken, the best we can do is hope fences

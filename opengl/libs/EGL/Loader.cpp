@@ -14,6 +14,10 @@
  ** limitations under the License.
  */
 
+//#define LOG_NDEBUG 0
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
+#include <array>
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -23,8 +27,10 @@
 #include <limits.h>
 #include <dirent.h>
 
+#include <android/dlext.h>
 #include <cutils/log.h>
 #include <cutils/properties.h>
+#include <utils/Trace.h>
 
 #include <EGL/egl.h>
 
@@ -119,6 +125,11 @@ static char const * getProcessCmdline() {
     return NULL;
 }
 
+static void* do_dlopen(const char* path, int mode) {
+    ATRACE_CALL();
+    return dlopen(path, mode);
+}
+
 // ----------------------------------------------------------------------------
 
 Loader::driver_t::driver_t(void* gles)
@@ -159,14 +170,30 @@ status_t Loader::driver_t::set(void* hnd, int32_t api)
 // ----------------------------------------------------------------------------
 
 Loader::Loader()
-    : getProcAddress(NULL) {
+    : getProcAddress(NULL),
+      mLibGui(nullptr),
+      mGetDriverNamespace(nullptr)
+{
+    // FIXME: See note in GraphicsEnv.h about android_getDriverNamespace().
+    // libgui should already be loaded in any process that uses libEGL, but
+    // if for some reason it isn't, then we're not going to get a driver
+    // namespace anyway, so don't force it to be loaded.
+    mLibGui = dlopen("libgui.so", RTLD_NOLOAD | RTLD_LOCAL | RTLD_LAZY);
+    if (!mLibGui) {
+        ALOGD("failed to load libgui: %s", dlerror());
+        return;
+    }
+    mGetDriverNamespace = reinterpret_cast<decltype(mGetDriverNamespace)>(
+            dlsym(mLibGui, "android_getDriverNamespace"));
 }
 
 Loader::~Loader() {
+    if (mLibGui)
+        dlclose(mLibGui);
 }
 
 static void* load_wrapper(const char* path) {
-    void* so = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+    void* so = do_dlopen(path, RTLD_NOW | RTLD_LOCAL);
     ALOGE_IF(!so, "dlopen(\"%s\") failed: %s", path, dlerror());
     return so;
 }
@@ -221,6 +248,8 @@ static void setEmulatorGlesValue(void) {
 
 void* Loader::open(egl_connection_t* cnx)
 {
+    ATRACE_CALL();
+
     void* dso;
     driver_t* hnd = 0;
 
@@ -266,6 +295,8 @@ void Loader::init_api(void* dso,
         __eglMustCastToProperFunctionPointerType* curr,
         getProcAddressType getProcAddress)
 {
+    ATRACE_CALL();
+
     const ssize_t SIZE = 256;
     char scrap[SIZE];
     while (*api) {
@@ -317,9 +348,8 @@ void Loader::init_api(void* dso,
     }
 }
 
-void *Loader::load_driver(const char* kind,
-        egl_connection_t* cnx, uint32_t mask)
-{
+static void* load_system_driver(const char* kind) {
+    ATRACE_CALL();
     class MatchFile {
     public:
         static String8 find(const char* kind) {
@@ -435,7 +465,7 @@ void *Loader::load_driver(const char* kind,
     }
     const char* const driver_absolute_path = absolutePath.string();
 
-    void* dso = dlopen(driver_absolute_path, RTLD_NOW | RTLD_LOCAL);
+    void* dso = do_dlopen(driver_absolute_path, RTLD_NOW | RTLD_LOCAL);
     if (dso == 0) {
         const char* err = dlerror();
         ALOGE("load_driver(%s): %s", driver_absolute_path, err?err:"unknown");
@@ -444,11 +474,63 @@ void *Loader::load_driver(const char* kind,
 
     ALOGD("loaded %s", driver_absolute_path);
 
+    return dso;
+}
+
+static void* do_android_dlopen_ext(const char* path, int mode, const android_dlextinfo* info) {
+    ATRACE_CALL();
+    return android_dlopen_ext(path, mode, info);
+}
+
+static const std::array<const char*, 2> HAL_SUBNAME_KEY_PROPERTIES = {{
+    "ro.hardware.egl",
+    "ro.board.platform",
+}};
+
+static void* load_updated_driver(const char* kind, android_namespace_t* ns) {
+    ATRACE_CALL();
+    const android_dlextinfo dlextinfo = {
+        .flags = ANDROID_DLEXT_USE_NAMESPACE,
+        .library_namespace = ns,
+    };
+    void* so = nullptr;
+    char prop[PROPERTY_VALUE_MAX + 1];
+    for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
+        if (property_get(key, prop, nullptr) > 0) {
+            String8 name;
+            name.appendFormat("lib%s_%s.so", kind, prop);
+            so = do_android_dlopen_ext(name.string(), RTLD_LOCAL | RTLD_NOW,
+                    &dlextinfo);
+            if (so)
+                return so;
+        }
+    }
+    return nullptr;
+}
+
+void *Loader::load_driver(const char* kind,
+        egl_connection_t* cnx, uint32_t mask)
+{
+    ATRACE_CALL();
+
+    void* dso = nullptr;
+    if (mGetDriverNamespace) {
+        android_namespace_t* ns = mGetDriverNamespace();
+        if (ns) {
+            dso = load_updated_driver(kind, ns);
+        }
+    }
+    if (!dso) {
+        dso = load_system_driver(kind);
+        if (!dso)
+            return NULL;
+    }
+
     if (mask & EGL) {
         getProcAddress = (getProcAddressType)dlsym(dso, "eglGetProcAddress");
 
         ALOGE_IF(!getProcAddress,
-                "can't find eglGetProcAddress() in %s", driver_absolute_path);
+                "can't find eglGetProcAddress() in EGL driver library");
 
         egl_t* egl = &cnx->egl;
         __eglMustCastToProperFunctionPointerType* curr =

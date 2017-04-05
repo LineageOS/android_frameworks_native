@@ -272,6 +272,7 @@ static inline EGLContext getContext() { return egl_tls_t::getContext(); }
 
 EGLDisplay eglGetDisplay(EGLNativeDisplayType display)
 {
+    ATRACE_CALL();
     clearError();
 
     uintptr_t index = reinterpret_cast<uintptr_t>(display);
@@ -1865,12 +1866,6 @@ EGLClientBuffer eglCreateNativeClientBufferANDROID(const EGLint *attrib_list)
                     }
                     if (value & EGL_NATIVE_BUFFER_USAGE_TEXTURE_BIT_ANDROID) {
                         usage |= GRALLOC_USAGE_HW_TEXTURE;
-                    }
-                    // The buffer must be used for either a texture or a
-                    // renderbuffer.
-                    if ((value & EGL_NATIVE_BUFFER_USAGE_RENDERBUFFER_BIT_ANDROID) &&
-                        (value & EGL_NATIVE_BUFFER_USAGE_TEXTURE_BIT_ANDROID)) {
-                        return setError(EGL_BAD_PARAMETER, (EGLClientBuffer)0);
                     }
                     break;
                 default:
