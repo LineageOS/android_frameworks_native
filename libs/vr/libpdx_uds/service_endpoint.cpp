@@ -7,6 +7,9 @@
 #include <sys/un.h>
 #include <algorithm>  // std::min
 
+#include <android-base/logging.h>
+#include <android-base/strings.h>
+#include <cutils/sockets.h>
 #include <pdx/service.h>
 #include <uds/channel_manager.h>
 #include <uds/client_channel_factory.h>
@@ -124,43 +127,50 @@ namespace android {
 namespace pdx {
 namespace uds {
 
-Endpoint::Endpoint(const std::string& endpoint_path, bool blocking)
+Endpoint::Endpoint(const std::string& endpoint_path, bool blocking,
+                   bool use_init_socket_fd)
     : endpoint_path_{ClientChannelFactory::GetEndpointPath(endpoint_path)},
       is_blocking_{blocking} {
-  LocalHandle fd{socket(AF_UNIX, SOCK_STREAM, 0)};
-  if (!fd) {
-    ALOGE("Endpoint::Endpoint: Failed to create socket: %s", strerror(errno));
-    return;
-  }
+  LocalHandle fd;
+  if (use_init_socket_fd) {
+    // Cut off the /dev/socket/ prefix from the full socket path and use the
+    // resulting "name" to retrieve the file descriptor for the socket created
+    // by the init process.
+    constexpr char prefix[] = "/dev/socket/";
+    CHECK(android::base::StartsWith(endpoint_path_, prefix))
+        << "Endpoint::Endpoint: Socket name '" << endpoint_path_
+        << "' must begin with '" << prefix << "'";
+    std::string socket_name = endpoint_path_.substr(sizeof(prefix) - 1);
+    fd.Reset(android_get_control_socket(socket_name.c_str()));
+    CHECK(fd.IsValid())
+        << "Endpoint::Endpoint: Unable to obtain the control socket fd for '"
+        << socket_name << "'";
+    fcntl(fd.Get(), F_SETFD, FD_CLOEXEC);
+  } else {
+    fd.Reset(socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0));
+    CHECK(fd.IsValid()) << "Endpoint::Endpoint: Failed to create socket: "
+                        << strerror(errno);
 
-  sockaddr_un local;
-  local.sun_family = AF_UNIX;
-  strncpy(local.sun_path, endpoint_path_.c_str(), sizeof(local.sun_path));
-  local.sun_path[sizeof(local.sun_path) - 1] = '\0';
+    sockaddr_un local;
+    local.sun_family = AF_UNIX;
+    strncpy(local.sun_path, endpoint_path_.c_str(), sizeof(local.sun_path));
+    local.sun_path[sizeof(local.sun_path) - 1] = '\0';
 
-  unlink(local.sun_path);
-  if (bind(fd.Get(), (struct sockaddr*)&local, sizeof(local)) == -1) {
-    ALOGE("Endpoint::Endpoint: bind error: %s", strerror(errno));
-    return;
+    unlink(local.sun_path);
+    int ret =
+        bind(fd.Get(), reinterpret_cast<sockaddr*>(&local), sizeof(local));
+    CHECK_EQ(ret, 0) << "Endpoint::Endpoint: bind error: " << strerror(errno);
   }
-  if (listen(fd.Get(), kMaxBackLogForSocketListen) == -1) {
-    ALOGE("Endpoint::Endpoint: listen error: %s", strerror(errno));
-    return;
-  }
+  CHECK_EQ(listen(fd.Get(), kMaxBackLogForSocketListen), 0)
+      << "Endpoint::Endpoint: listen error: " << strerror(errno);
 
   cancel_event_fd_.Reset(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
-  if (!cancel_event_fd_) {
-    ALOGE("Endpoint::Endpoint: Failed to create event fd: %s\n",
-          strerror(errno));
-    return;
-  }
+  CHECK(cancel_event_fd_.IsValid())
+      << "Endpoint::Endpoint: Failed to create event fd: " << strerror(errno);
 
-  epoll_fd_.Reset(epoll_create(1));  // Size arg is ignored, but must be > 0.
-  if (!epoll_fd_) {
-    ALOGE("Endpoint::Endpoint: Failed to create epoll fd: %s\n",
-          strerror(errno));
-    return;
-  }
+  epoll_fd_.Reset(epoll_create1(EPOLL_CLOEXEC));
+  CHECK(epoll_fd_.IsValid())
+      << "Endpoint::Endpoint: Failed to create epoll fd: " << strerror(errno);
 
   epoll_event socket_event;
   socket_event.events = EPOLLIN | EPOLLRDHUP | EPOLLONESHOT;
@@ -170,16 +180,16 @@ Endpoint::Endpoint(const std::string& endpoint_path, bool blocking)
   cancel_event.events = EPOLLIN;
   cancel_event.data.fd = cancel_event_fd_.Get();
 
-  if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, fd.Get(), &socket_event) < 0 ||
-      epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, cancel_event_fd_.Get(),
-                &cancel_event) < 0) {
-    ALOGE("Endpoint::Endpoint: Failed to add event fd to epoll fd: %s\n",
-          strerror(errno));
-    cancel_event_fd_.Close();
-    epoll_fd_.Close();
-  } else {
-    socket_fd_ = std::move(fd);
-  }
+  int ret = epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, fd.Get(), &socket_event);
+  CHECK_EQ(ret, 0)
+      << "Endpoint::Endpoint: Failed to add socket fd to epoll fd: "
+      << strerror(errno);
+  ret = epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, cancel_event_fd_.Get(),
+                  &cancel_event);
+  CHECK_EQ(ret, 0)
+      << "Endpoint::Endpoint: Failed to add cancel event fd to epoll fd: "
+      << strerror(errno);
+  socket_fd_ = std::move(fd);
 }
 
 void* Endpoint::AllocateMessageState() { return new MessageState; }
@@ -191,8 +201,9 @@ void Endpoint::FreeMessageState(void* state) {
 Status<void> Endpoint::AcceptConnection(Message* message) {
   sockaddr_un remote;
   socklen_t addrlen = sizeof(remote);
-  LocalHandle channel_fd{
-      accept(socket_fd_.Get(), reinterpret_cast<sockaddr*>(&remote), &addrlen)};
+  LocalHandle channel_fd{accept4(socket_fd_.Get(),
+                                 reinterpret_cast<sockaddr*>(&remote), &addrlen,
+                                 SOCK_CLOEXEC)};
   if (!channel_fd) {
     ALOGE("Endpoint::AcceptConnection: failed to accept connection: %s",
           strerror(errno));
@@ -317,7 +328,7 @@ Status<RemoteChannelHandle> Endpoint::PushChannel(Message* message,
                                                   Channel* channel,
                                                   int* channel_id) {
   int channel_pair[2] = {};
-  if (socketpair(AF_UNIX, SOCK_STREAM, 0, channel_pair) == -1) {
+  if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, channel_pair) == -1) {
     ALOGE("Endpoint::PushChannel: Failed to create a socket pair: %s",
           strerror(errno));
     return ErrorStatus(errno);
@@ -643,10 +654,8 @@ std::unique_ptr<Endpoint> Endpoint::Create(const std::string& endpoint_path,
 
 std::unique_ptr<Endpoint> Endpoint::CreateAndBindSocket(
     const std::string& endpoint_path, bool blocking) {
-  // TODO(avakulenko): When Endpoint can differentiate between absolute paths
-  // and relative paths/socket names created by the init process, change this
-  // code to reflect the fact that we want to use absolute paths here.
-  return std::unique_ptr<Endpoint>(new Endpoint(endpoint_path, blocking));
+  return std::unique_ptr<Endpoint>(
+      new Endpoint(endpoint_path, blocking, false));
 }
 
 }  // namespace uds
