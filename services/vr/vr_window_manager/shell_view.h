@@ -84,9 +84,6 @@ class ShellView : public Application,
   bool is_touching_ = false;
   int touchpad_buttons_ = 0;
 
-  // Used to center the scene when the shell becomes visible.
-  bool should_recenter_ = true;
-
   std::mutex display_frame_mutex_;
 
   std::vector<std::unique_ptr<DisplayView>> displays_;

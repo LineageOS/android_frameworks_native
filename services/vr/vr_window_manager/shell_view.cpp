@@ -327,7 +327,6 @@ void ShellView::DrawEye(EyeType eye, const mat4& perspective,
     // Position the quad horizontally aligned in the direction the user
     // is facing, effectively taking out head roll.
     displays_[0]->Recenter(GetHorizontallyAlignedMatrixFromPose(last_pose_));
-    should_recenter_ = false;
   }
 
   for (auto& display : displays_) {
