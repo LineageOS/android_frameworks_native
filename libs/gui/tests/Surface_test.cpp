@@ -18,7 +18,9 @@
 
 #include <gtest/gtest.h>
 
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <binder/ProcessState.h>
+#include <configstore/Utils.h>
 #include <cutils/properties.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/IDisplayEventConnection.h>
@@ -35,6 +37,12 @@
 namespace android {
 
 using namespace std::chrono_literals;
+// retrieve wide-color and hdr settings from configstore
+using namespace android::hardware::configstore;
+using namespace android::hardware::configstore::V1_0;
+
+static bool hasWideColorDisplay =
+        getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
 
 class FakeSurfaceComposer;
 class FakeProducerFrameEventHistory;
@@ -271,17 +279,19 @@ TEST_F(SurfaceTest, GetWideColorSupport) {
     bool supported;
     surface->getWideColorSupport(&supported);
 
-    // TODO(courtneygo): How can we know what device we are on to
-    // verify that this is correct?
-    char product[PROPERTY_VALUE_MAX] = "0";
-    property_get("ro.build.product", product, "0");
-    std::cerr << "[          ] product = " << product << std::endl;
-
-    if (strcmp("marlin", product) == 0 || strcmp("sailfish", product) == 0) {
-        ASSERT_EQ(true, supported);
-    } else {
-        ASSERT_EQ(false, supported);
-    }
+    // NOTE: This test assumes that device that supports
+    // wide-color (as indicated by BoardConfig) must also
+    // have a wide-color primary display.
+    // That assumption allows this test to cover devices
+    // that advertised a wide-color color mode without
+    // actually supporting wide-color to pass this test
+    // as well as the case of a device that does support
+    // wide-color (via BoardConfig) and has a wide-color
+    // primary display.
+    // NOT covered at this time is a device that supports
+    // wide color in the BoardConfig but does not support
+    // a wide-color color mode on the primary display.
+    ASSERT_EQ(hasWideColorDisplay, supported);
 }
 
 TEST_F(SurfaceTest, DynamicSetBufferCount) {
