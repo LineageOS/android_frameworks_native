@@ -24,7 +24,7 @@
  * 5. Exit successfully or print error statement
  */
 
-#include <replayer/Replayer.h>
+#include <Replayer.h>
 
 #include <csignal>
 #include <iostream>
