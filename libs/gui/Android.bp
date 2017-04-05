@@ -117,6 +117,7 @@ cc_library_shared {
         "android.hidl.token@1.0-utils",
         "android.hardware.graphics.bufferqueue@1.0",
         "android.hardware.configstore@1.0",
+        "android.hardware.configstore-utils",
     ],
 
     export_shared_lib_headers: [
@@ -125,8 +126,6 @@ cc_library_shared {
         "android.hidl.token@1.0-utils",
         "android.hardware.graphics.bufferqueue@1.0",
     ],
-
-    header_libs: ["android.hardware.configstore-utils"],
 }
 
 subdirs = ["tests"]
