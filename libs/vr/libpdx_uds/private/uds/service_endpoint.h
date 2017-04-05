@@ -107,7 +107,8 @@ class Endpoint : public pdx::Endpoint {
   };
 
   // This class must be instantiated using Create() static methods above.
-  Endpoint(const std::string& endpoint_path, bool blocking);
+  Endpoint(const std::string& endpoint_path, bool blocking,
+           bool use_init_socket_fd = true);
 
   Endpoint(const Endpoint&) = delete;
   void operator=(const Endpoint&) = delete;

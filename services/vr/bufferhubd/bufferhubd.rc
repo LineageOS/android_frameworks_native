@@ -3,4 +3,4 @@ service bufferhubd /system/bin/bufferhubd
   user system
   group system
   writepid /dev/cpuset/tasks
-
+  socket pdx/system/buffer_hub/client stream 0660 system system

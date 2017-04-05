@@ -20,6 +20,8 @@ cc_library_static {
         "service_endpoint.cpp",
     ],
     static_libs: [
+        "libcutils",
+        "libbase",
         "libpdx",
     ],
 }
