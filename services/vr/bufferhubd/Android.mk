@@ -37,8 +37,6 @@ sharedLibraries := \
         libui
 
 include $(CLEAR_VARS)
-# Don't strip symbols so we see stack traces in logcat.
-LOCAL_STRIP_MODULE := false
 LOCAL_SRC_FILES := $(sourceFiles)
 LOCAL_CFLAGS := -DLOG_TAG=\"bufferhubd\"
 LOCAL_CFLAGS += -DTRACE=0
