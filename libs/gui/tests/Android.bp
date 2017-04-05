@@ -27,6 +27,8 @@ cc_test {
     ],
 
     shared_libs: [
+        "android.hardware.configstore@1.0",
+        "android.hardware.configstore-utils",
         "liblog",
         "libEGL",
         "libGLESv1_CM",
@@ -34,6 +36,8 @@ cc_test {
         "libbinder",
         "libcutils",
         "libgui",
+        "libhidlbase",
+        "libhidltransport",
         "libui",
         "libutils",
         "libnativewindow"
