@@ -490,7 +490,7 @@ void produceOneFrame(const sp<ANativeWindow>& anw,
 
     ASSERT_TRUE(anb != NULL);
 
-    sp<GraphicBuffer> buf(new GraphicBuffer(anb, false));
+    sp<GraphicBuffer> buf(GraphicBuffer::from(anb));
 
     *stride = buf->getStride();
     uint8_t* img = NULL;
