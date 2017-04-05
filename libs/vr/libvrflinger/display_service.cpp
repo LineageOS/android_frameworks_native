@@ -361,10 +361,10 @@ void DisplayService::NotifyDisplayConfigurationUpdate() {
 }
 
 int DisplayService::IsVrAppRunning(pdx::Message& message) {
-  bool visible = true;
+  bool visible = false;
   ForEachDisplaySurface([&visible](const std::shared_ptr<DisplaySurface>& surface) {
-    if (surface->client_z_order() == 0 && !surface->IsVisible())
-      visible = false;
+    if (surface->client_z_order() == 0 && surface->IsVisible())
+      visible = true;
   });
 
   REPLY_SUCCESS_RETURN(message, visible, 0);
