@@ -206,8 +206,9 @@ void Application::DrawFrame() {
     if (fade_value_ > 1.0f)
       fade_value_ = 1.0f;
 
-    controller_position_ = elbow_model_.Update(delta, last_pose_.GetRotation(),
-                                               controller_orientation_, false);
+    controller_position_ =
+        elbow_model_.Update(delta, last_pose_.GetRotation(),
+                            controller_orientation_, should_recenter_);
 
     dvrBeginRenderFrameEds(graphics_context_, pose.orientation,
                            pose.translation);
@@ -233,6 +234,7 @@ void Application::DrawFrame() {
     OnEndFrame();
 
     dvrPresent(graphics_context_);
+    should_recenter_ = false;
   }
 }
 
