@@ -33,6 +33,10 @@
 #include "egl_trace.h"
 #include "egldefs.h"
 
+extern "C" {
+  android_namespace_t* android_get_exported_namespace(const char*);
+}
+
 // ----------------------------------------------------------------------------
 namespace android {
 // ----------------------------------------------------------------------------
@@ -104,6 +108,11 @@ checkGlesEmulationStatus(void)
 static void* do_dlopen(const char* path, int mode) {
     ATRACE_CALL();
     return dlopen(path, mode);
+}
+
+static void* do_android_dlopen_ext(const char* path, int mode, const android_dlextinfo* info) {
+    ATRACE_CALL();
+    return android_dlopen_ext(path, mode, info);
 }
 
 // ----------------------------------------------------------------------------
@@ -414,6 +423,27 @@ static void* load_system_driver(const char* kind) {
     }
     const char* const driver_absolute_path = absolutePath.c_str();
 
+    // Try to load drivers from the 'sphal' namespace, if it exist. Fall back to
+    // the original routine when the namespace does not exist or the load from
+    // the namespace fails.
+    // See /system/core/rootdir/etc/ld.config.txt for the configuration of the
+    // sphal namespace.
+    android_namespace_t* sphal_namespace = android_get_exported_namespace("sphal");
+    if (sphal_namespace != NULL) {
+        const android_dlextinfo dlextinfo = {
+            .flags = ANDROID_DLEXT_USE_NAMESPACE,
+            .library_namespace = sphal_namespace,
+        };
+        void* dso = do_android_dlopen_ext(driver_absolute_path, RTLD_LOCAL | RTLD_NOW, &dlextinfo);
+        if (dso) {
+            ALOGD("loaded %s from sphal namespace", driver_absolute_path);
+            return dso;
+        }
+        else {
+            ALOGW("failed to load %s from sphal namespace: %s", driver_absolute_path, dlerror());
+        }
+    }
+
     void* dso = do_dlopen(driver_absolute_path, RTLD_NOW | RTLD_LOCAL);
     if (dso == 0) {
         const char* err = dlerror();
@@ -424,11 +454,6 @@ static void* load_system_driver(const char* kind) {
     ALOGD("loaded %s", driver_absolute_path);
 
     return dso;
-}
-
-static void* do_android_dlopen_ext(const char* path, int mode, const android_dlextinfo* info) {
-    ATRACE_CALL();
-    return android_dlopen_ext(path, mode, info);
 }
 
 static const char* HAL_SUBNAME_KEY_PROPERTIES[2] = {
