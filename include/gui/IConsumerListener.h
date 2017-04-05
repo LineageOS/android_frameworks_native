@@ -14,103 +14,84 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_ICONSUMERLISTENER_H
-#define ANDROID_GUI_ICONSUMERLISTENER_H
+#pragma once
 
-#include <stdint.h>
-#include <sys/types.h>
+#include <binder/IInterface.h>
+#include <binder/SafeInterface.h>
 
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
-#include <binder/IInterface.h>
-
-#include <gui/FrameTimestamps.h>
+#include <cstdint>
 
 namespace android {
-// ----------------------------------------------------------------------------
 
 class BufferItem;
+class FrameEventHistoryDelta;
+struct NewFrameEventsEntry;
 
-// ConsumerListener is the interface through which the BufferQueue notifies
-// the consumer of events that the consumer may wish to react to.  Because
-// the consumer will generally have a mutex that is locked during calls from
-// the consumer to the BufferQueue, these calls from the BufferQueue to the
+// ConsumerListener is the interface through which the BufferQueue notifies the consumer of events
+// that the consumer may wish to react to. Because the consumer will generally have a mutex that is
+// locked during calls from the consumer to the BufferQueue, these calls from the BufferQueue to the
 // consumer *MUST* be called only when the BufferQueue mutex is NOT locked.
 
 class ConsumerListener : public virtual RefBase {
 public:
-    ConsumerListener() { }
+    ConsumerListener() {}
     virtual ~ConsumerListener();
 
     // onDisconnect is called when a producer disconnects from the BufferQueue.
     virtual void onDisconnect() {} /* Asynchronous */
 
-    // onFrameAvailable is called from queueBuffer each time an additional
-    // frame becomes available for consumption. This means that frames that
-    // are queued while in asynchronous mode only trigger the callback if no
-    // previous frames are pending. Frames queued while in synchronous mode
-    // always trigger the callback. The item passed to the callback will contain
-    // all of the information about the queued frame except for its
-    // GraphicBuffer pointer, which will always be null (except if the consumer
-    // is SurfaceFlinger).
+    // onFrameAvailable is called from queueBuffer each time an additional frame becomes available
+    // for consumption. This means that frames that are queued while in asynchronous mode only
+    // trigger the callback if no previous frames are pending. Frames queued while in synchronous
+    // mode always trigger the callback. The item passed to the callback will contain all of the
+    // information about the queued frame except for its GraphicBuffer pointer, which will always be
+    // null (except if the consumer is SurfaceFlinger).
     //
-    // This is called without any lock held and can be called concurrently
-    // by multiple threads.
+    // This is called without any lock held and can be called concurrently by multiple threads.
     virtual void onFrameAvailable(const BufferItem& item) = 0; /* Asynchronous */
 
-    // onFrameReplaced is called from queueBuffer if the frame being queued is
-    // replacing an existing slot in the queue. Any call to queueBuffer that
-    // doesn't call onFrameAvailable will call this callback instead. The item
-    // passed to the callback will contain all of the information about the
-    // queued frame except for its GraphicBuffer pointer, which will always be
-    // null.
+    // onFrameReplaced is called from queueBuffer if the frame being queued is replacing an existing
+    // slot in the queue. Any call to queueBuffer that doesn't call onFrameAvailable will call this
+    // callback instead. The item passed to the callback will contain all of the information about
+    // the queued frame except for its GraphicBuffer pointer, which will always be null.
     //
-    // This is called without any lock held and can be called concurrently
-    // by multiple threads.
+    // This is called without any lock held and can be called concurrently by multiple threads.
     virtual void onFrameReplaced(const BufferItem& /* item */) {} /* Asynchronous */
 
-    // onBuffersReleased is called to notify the buffer consumer that the
-    // BufferQueue has released its references to one or more GraphicBuffers
-    // contained in its slots.  The buffer consumer should then call
-    // BufferQueue::getReleasedBuffers to retrieve the list of buffers
+    // onBuffersReleased is called to notify the buffer consumer that the BufferQueue has released
+    // its references to one or more GraphicBuffers contained in its slots. The buffer consumer
+    // should then call BufferQueue::getReleasedBuffers to retrieve the list of buffers.
     //
-    // This is called without any lock held and can be called concurrently
-    // by multiple threads.
+    // This is called without any lock held and can be called concurrently by multiple threads.
     virtual void onBuffersReleased() = 0; /* Asynchronous */
 
-    // onSidebandStreamChanged is called to notify the buffer consumer that the
-    // BufferQueue's sideband buffer stream has changed. This is called when a
-    // stream is first attached and when it is either detached or replaced by a
-    // different stream.
+    // onSidebandStreamChanged is called to notify the buffer consumer that the BufferQueue's
+    // sideband buffer stream has changed. This is called when a stream is first attached and when
+    // it is either detached or replaced by a different stream.
     virtual void onSidebandStreamChanged() = 0; /* Asynchronous */
 
-    // Notifies the consumer of any new producer-side timestamps and
-    // returns the combined frame history that hasn't already been retrieved.
-    virtual void addAndGetFrameTimestamps(
-            const NewFrameEventsEntry* /*newTimestamps*/,
-            FrameEventHistoryDelta* /*outDelta*/) {}
+    // Notifies the consumer of any new producer-side timestamps and returns the combined frame
+    // history that hasn't already been retrieved.
+    //
+    // WARNING: This method can only be called when the BufferQueue is in the consumer's process.
+    virtual void addAndGetFrameTimestamps(const NewFrameEventsEntry* /*newTimestamps*/,
+                                          FrameEventHistoryDelta* /*outDelta*/) {}
 };
 
-
-class IConsumerListener : public ConsumerListener, public IInterface
-{
+class IConsumerListener : public ConsumerListener, public IInterface {
 public:
     DECLARE_META_INTERFACE(ConsumerListener)
 };
 
-// ----------------------------------------------------------------------------
-
-class BnConsumerListener : public BnInterface<IConsumerListener>
-{
+class BnConsumerListener : public SafeBnInterface<IConsumerListener> {
 public:
-    virtual status_t    onTransact( uint32_t code,
-                                    const Parcel& data,
-                                    Parcel* reply,
-                                    uint32_t flags = 0);
+    BnConsumerListener() : SafeBnInterface<IConsumerListener>("BnConsumerListener") {}
+
+    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                        uint32_t flags = 0) override;
 };
 
-// ----------------------------------------------------------------------------
-}; // namespace android
-
-#endif // ANDROID_GUI_ICONSUMERLISTENER_H
+} // namespace android
