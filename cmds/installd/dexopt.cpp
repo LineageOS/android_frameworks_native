@@ -1302,17 +1302,9 @@ static bool prepare_secondary_dex_oat_dir(const std::string& dex_path, int uid,
     }
     std::string dex_dir = dex_path.substr(0, dirIndex);
 
-    // Assign the gid to the cache gid so that the oat file storage
-    // is counted towards the app cache.
-    int32_t cache_gid = multiuser_get_cache_gid(
-            multiuser_get_user_id(uid), multiuser_get_app_id(uid));
-    // If UID doesn't have a specific cache GID, use UID value
-    if (cache_gid == -1) {
-        cache_gid = uid;
-    }
-
     // Create oat file output directory.
-    if (prepare_app_cache_dir(dex_dir, "oat", 02711, uid, cache_gid) != 0) {
+    mode_t oat_dir_mode = S_IRWXU | S_IRWXG | S_IXOTH;
+    if (prepare_app_cache_dir(dex_dir, "oat", oat_dir_mode, uid, uid) != 0) {
         LOG(ERROR) << "Could not prepare oat dir for secondary dex: " << dex_path;
         return false;
     }
@@ -1322,7 +1314,7 @@ static bool prepare_secondary_dex_oat_dir(const std::string& dex_path, int uid,
     oat_dir_out->assign(oat_dir);
 
     // Create oat/isa output directory.
-    if (prepare_app_cache_dir(*oat_dir_out, instruction_set, 02711, uid, cache_gid) != 0) {
+    if (prepare_app_cache_dir(*oat_dir_out, instruction_set, oat_dir_mode, uid, uid) != 0) {
         LOG(ERROR) << "Could not prepare oat/isa dir for secondary dex: " << dex_path;
         return false;
     }
@@ -1366,12 +1358,15 @@ static bool process_dexoptanalyzer_result(const std::string& dex_path, int resul
 // Processes the dex_path as a secondary dex files and return true if the path dex file should
 // be compiled. Returns false for errors (logged) or true if the secondary dex path was process
 // successfully.
-// When returning true, dexopt_needed_out is assigned a valid OatFileAsssitant::DexOptNeeded
-// code and oat_dir_out is assigned the oat dir path where the oat file should be stored.
+// When returning true, the output parameters will be:
+//   - is_public_out: whether or not the oat file should not be made public
+//   - dexopt_needed_out: valid OatFileAsssitant::DexOptNeeded
+//   - oat_dir_out: the oat dir path where the oat file should be stored
+//   - dex_path_out: the real path of the dex file
 static bool process_secondary_dex_dexopt(const char* original_dex_path, const char* pkgname,
         int dexopt_flags, const char* volume_uuid, int uid, const char* instruction_set,
-        const char* compiler_filter, int* dexopt_needed_out, std::string* oat_dir_out,
-        std::string* dex_path_out) {
+        const char* compiler_filter, bool* is_public_out, int* dexopt_needed_out,
+        std::string* oat_dir_out, std::string* dex_path_out) {
     int storage_flag;
 
     if ((dexopt_flags & DEXOPT_STORAGE_CE) != 0) {
@@ -1407,7 +1402,8 @@ static bool process_secondary_dex_dexopt(const char* original_dex_path, const ch
     }
 
     // Check if the path exist. If not, there's nothing to do.
-    if (access(dex_path.c_str(), F_OK) != 0) {
+    struct stat dex_path_stat;
+    if (stat(dex_path.c_str(), &dex_path_stat) != 0) {
         if (errno == ENOENT) {
             // Secondary dex files might be deleted any time by the app.
             // Nothing to do if that's the case
@@ -1417,6 +1413,11 @@ static bool process_secondary_dex_dexopt(const char* original_dex_path, const ch
             PLOG(ERROR) << "Could not access secondary dex " << dex_path;
         }
     }
+
+    // Check if we should make the oat file public.
+    // Note that if the dex file is not public the compiled code cannot be made public.
+    *is_public_out = ((dexopt_flags & DEXOPT_PUBLIC) != 0) &&
+            ((dex_path_stat.st_mode & S_IROTH) != 0);
 
     // Prepare the oat directories.
     if (!prepare_secondary_dex_oat_dir(dex_path, uid, instruction_set, oat_dir_out)) {
@@ -1465,7 +1466,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         LOG_FATAL("dexopt flags contains unknown fields\n");
     }
 
-    bool is_public = ((dexopt_flags & DEXOPT_PUBLIC) != 0);
+    bool is_public = (dexopt_flags & DEXOPT_PUBLIC) != 0;
     bool vm_safe_mode = (dexopt_flags & DEXOPT_SAFEMODE) != 0;
     bool debuggable = (dexopt_flags & DEXOPT_DEBUGGABLE) != 0;
     bool boot_complete = (dexopt_flags & DEXOPT_BOOTCOMPLETE) != 0;
@@ -1477,7 +1478,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     std::string dex_real_path;
     if (is_secondary_dex) {
         if (process_secondary_dex_dexopt(dex_path, pkgname, dexopt_flags, volume_uuid, uid,
-                instruction_set, compiler_filter, &dexopt_needed, &oat_dir_str, &dex_real_path)) {
+                instruction_set, compiler_filter, &is_public, &dexopt_needed, &oat_dir_str,
+                &dex_real_path)) {
             oat_dir = oat_dir_str.c_str();
             dex_path = dex_real_path.c_str();
             if (dexopt_needed == NO_DEXOPT_NEEDED) {
