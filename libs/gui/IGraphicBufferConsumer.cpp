@@ -14,24 +14,18 @@
  * limitations under the License.
  */
 
-#include <stdint.h>
-#include <sys/types.h>
-
-#include <utils/Errors.h>
-#include <utils/NativeHandle.h>
-#include <utils/String8.h>
-
-#include <binder/Parcel.h>
-#include <binder/IInterface.h>
+#include <gui/IGraphicBufferConsumer.h>
 
 #include <gui/BufferItem.h>
 #include <gui/IConsumerListener.h>
-#include <gui/IGraphicBufferConsumer.h>
 
-#include <ui/GraphicBuffer.h>
+#include <binder/Parcel.h>
+
 #include <ui/Fence.h>
+#include <ui/GraphicBuffer.h>
 
-#include <system/window.h>
+#include <utils/NativeHandle.h>
+#include <utils/String8.h>
 
 namespace android {
 
@@ -57,19 +51,15 @@ enum {
     DUMP,
 };
 
-
-class BpGraphicBufferConsumer : public BpInterface<IGraphicBufferConsumer>
-{
+class BpGraphicBufferConsumer : public BpInterface<IGraphicBufferConsumer> {
 public:
     explicit BpGraphicBufferConsumer(const sp<IBinder>& impl)
-        : BpInterface<IGraphicBufferConsumer>(impl)
-    {
-    }
+          : BpInterface<IGraphicBufferConsumer>(impl) {}
 
     virtual ~BpGraphicBufferConsumer();
 
-    virtual status_t acquireBuffer(BufferItem *buffer, nsecs_t presentWhen,
-            uint64_t maxFrameNumber) {
+    virtual status_t acquireBuffer(BufferItem* buffer, nsecs_t presentWhen,
+                                   uint64_t maxFrameNumber) {
         Parcel data, reply;
         data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
         data.writeInt64(presentWhen);
@@ -111,8 +101,9 @@ public:
     }
 
     virtual status_t releaseBuffer(int buf, uint64_t frameNumber,
-            EGLDisplay display __attribute__((unused)), EGLSyncKHR fence __attribute__((unused)),
-            const sp<Fence>& releaseFence) {
+                                   EGLDisplay display __attribute__((unused)),
+                                   EGLSyncKHR fence __attribute__((unused)),
+                                   const sp<Fence>& releaseFence) {
         Parcel data, reply;
         data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
         data.writeInt32(buf);
@@ -214,13 +205,11 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t setDefaultBufferDataSpace(
-            android_dataspace defaultDataSpace) {
+    virtual status_t setDefaultBufferDataSpace(android_dataspace defaultDataSpace) {
         Parcel data, reply;
         data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
         data.writeInt32(static_cast<int32_t>(defaultDataSpace));
-        status_t result = remote()->transact(SET_DEFAULT_BUFFER_DATA_SPACE,
-                data, &reply);
+        status_t result = remote()->transact(SET_DEFAULT_BUFFER_DATA_SPACE, data, &reply);
         if (result != NO_ERROR) {
             return result;
         }
@@ -264,15 +253,14 @@ public:
     }
 
     virtual status_t getOccupancyHistory(bool forceFlush,
-            std::vector<OccupancyTracker::Segment>* outHistory) {
+                                         std::vector<OccupancyTracker::Segment>* outHistory) {
         Parcel data, reply;
         data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
         status_t error = data.writeBool(forceFlush);
         if (error != NO_ERROR) {
             return error;
         }
-        error = remote()->transact(GET_OCCUPANCY_HISTORY, data,
-                &reply);
+        error = remote()->transact(GET_OCCUPANCY_HISTORY, data, &reply);
         if (error != NO_ERROR) {
             return error;
         }
@@ -313,18 +301,17 @@ public:
     }
 };
 
-// Out-of-line virtual method definition to trigger vtable emission in this
-// translation unit (see clang warning -Wweak-vtables)
-BpGraphicBufferConsumer::~BpGraphicBufferConsumer() {}
+// Out-of-line virtual method definition to trigger vtable emission in this translation unit
+// (see clang warning -Wweak-vtables)
+BpGraphicBufferConsumer::~BpGraphicBufferConsumer() = default;
 
 IMPLEMENT_META_INTERFACE(GraphicBufferConsumer, "android.gui.IGraphicBufferConsumer");
 
 // ----------------------------------------------------------------------
 
-status_t BnGraphicBufferConsumer::onTransact(
-        uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
-    switch(code) {
+status_t BnGraphicBufferConsumer::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                             uint32_t flags) {
+    switch (code) {
         case ACQUIRE_BUFFER: {
             CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
             BufferItem item;
@@ -360,14 +347,15 @@ status_t BnGraphicBufferConsumer::onTransact(
             sp<Fence> releaseFence = new Fence();
             status_t err = data.read(*releaseFence);
             if (err) return err;
-            status_t result = releaseBuffer(buf, frameNumber,
-                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, releaseFence);
+            status_t result =
+                    releaseBuffer(buf, frameNumber, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, releaseFence);
             reply->writeInt32(result);
             return NO_ERROR;
         }
         case CONSUMER_CONNECT: {
             CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            sp<IConsumerListener> consumer = IConsumerListener::asInterface( data.readStrongBinder() );
+            sp<IConsumerListener> consumer =
+                    IConsumerListener::asInterface(data.readStrongBinder());
             bool controlledByApp = data.readInt32();
             status_t result = consumerConnect(consumer, controlledByApp);
             reply->writeInt32(result);
@@ -411,7 +399,7 @@ status_t BnGraphicBufferConsumer::onTransact(
         }
         case SET_CONSUMER_NAME: {
             CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            setConsumerName( data.readString8() );
+            setConsumerName(data.readString8());
             return NO_ERROR;
         }
         case SET_DEFAULT_BUFFER_FORMAT: {
@@ -423,8 +411,7 @@ status_t BnGraphicBufferConsumer::onTransact(
         }
         case SET_DEFAULT_BUFFER_DATA_SPACE: {
             CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            android_dataspace defaultDataSpace =
-                    static_cast<android_dataspace>(data.readInt32());
+            android_dataspace defaultDataSpace = static_cast<android_dataspace>(data.readInt32());
             status_t result = setDefaultBufferDataSpace(defaultDataSpace);
             reply->writeInt32(result);
             return NO_ERROR;
