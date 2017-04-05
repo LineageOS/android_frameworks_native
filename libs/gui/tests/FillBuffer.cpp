@@ -95,7 +95,7 @@ void produceOneRGBA8Frame(const sp<ANativeWindow>& anw) {
             &anb));
     ASSERT_TRUE(anb != NULL);
 
-    sp<GraphicBuffer> buf(new GraphicBuffer(anb, false));
+    sp<GraphicBuffer> buf(GraphicBuffer::from(anb));
 
     uint8_t* img = NULL;
     ASSERT_EQ(NO_ERROR, buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN,
