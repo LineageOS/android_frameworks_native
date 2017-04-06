@@ -1,7 +1,3 @@
-subdirs = [
-  "1.0",
-]
-
 cc_library_shared {
   name: "libvrhwc",
 
@@ -20,7 +16,7 @@ cc_library_shared {
   ],
 
   shared_libs: [
-    "android.dvr.composer@1.0",
+    "android.frameworks.vr.composer@1.0",
     "android.hardware.graphics.composer@2.1",
     "libbase",
     "libcutils",
