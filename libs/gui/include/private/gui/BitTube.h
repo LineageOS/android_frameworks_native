@@ -14,32 +14,34 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_SENSOR_CHANNEL_H
-#define ANDROID_GUI_SENSOR_CHANNEL_H
+#pragma once
 
-#include <stdint.h>
-#include <sys/types.h>
-
-#include <android/log.h>
+#include <android-base/unique_fd.h>
+#include <binder/Parcelable.h>
 #include <utils/Errors.h>
-#include <utils/RefBase.h>
 
 namespace android {
-// ----------------------------------------------------------------------------
+
 class Parcel;
 
-class BitTube : public RefBase
-{
-public:
+namespace gui {
 
-    // creates a BitTube with a default (4KB) send buffer
-    BitTube();
+class BitTube : public Parcelable {
+public:
+    // creates an uninitialized BitTube (to unparcel into)
+    BitTube() = default;
 
     // creates a BitTube with a a specified send and receive buffer size
     explicit BitTube(size_t bufsize);
 
+    // creates a BitTube with a default (4KB) send buffer
+    struct DefaultSizeType {};
+    static constexpr DefaultSizeType DefaultSize{};
+    explicit BitTube(DefaultSizeType);
+
     explicit BitTube(const Parcel& data);
-    virtual ~BitTube();
+
+    virtual ~BitTube() = default;
 
     // check state after construction
     status_t initCheck() const;
@@ -50,23 +52,28 @@ public:
     // get the send file-descriptor.
     int getSendFd() const;
 
+    // moves the receive file descriptor out of this BitTube
+    base::unique_fd moveReceiveFd();
+
+    // resets this BitTube's receive file descriptor to receiveFd
+    void setReceiveFd(base::unique_fd&& receiveFd);
+
     // send objects (sized blobs). All objects are guaranteed to be written or the call fails.
     template <typename T>
-    static ssize_t sendObjects(const sp<BitTube>& tube,
-            T const* events, size_t count) {
+    static ssize_t sendObjects(BitTube* tube, T const* events, size_t count) {
         return sendObjects(tube, events, count, sizeof(T));
     }
 
-    // receive objects (sized blobs). If the receiving buffer isn't large enough,
-    // excess messages are silently discarded.
+    // receive objects (sized blobs). If the receiving buffer isn't large enough, excess messages
+    // are silently discarded.
     template <typename T>
-    static ssize_t recvObjects(const sp<BitTube>& tube,
-            T* events, size_t count) {
+    static ssize_t recvObjects(BitTube* tube, T* events, size_t count) {
         return recvObjects(tube, events, count, sizeof(T));
     }
 
-    // parcels this BitTube
+    // implement the Parcelable protocol. Only parcels the receive file descriptor
     status_t writeToParcel(Parcel* reply) const;
+    status_t readFromParcel(const Parcel* parcel);
 
 private:
     void init(size_t rcvbuf, size_t sndbuf);
@@ -74,21 +81,17 @@ private:
     // send a message. The write is guaranteed to send the whole message or fail.
     ssize_t write(void const* vaddr, size_t size);
 
-    // receive a message. the passed buffer must be at least as large as the
-    // write call used to send the message, excess data is silently discarded.
+    // receive a message. the passed buffer must be at least as large as the write call used to send
+    // the message, excess data is silently discarded.
     ssize_t read(void* vaddr, size_t size);
 
-    int mSendFd;
-    mutable int mReceiveFd;
+    base::unique_fd mSendFd;
+    mutable base::unique_fd mReceiveFd;
 
-    static ssize_t sendObjects(const sp<BitTube>& tube,
-            void const* events, size_t count, size_t objSize);
+    static ssize_t sendObjects(BitTube* tube, void const* events, size_t count, size_t objSize);
 
-    static ssize_t recvObjects(const sp<BitTube>& tube,
-            void* events, size_t count, size_t objSize);
+    static ssize_t recvObjects(BitTube* tube, void* events, size_t count, size_t objSize);
 };
 
-// ----------------------------------------------------------------------------
-}; // namespace android
-
-#endif // ANDROID_GUI_SENSOR_CHANNEL_H
+} // namespace gui
+} // namespace android

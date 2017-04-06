@@ -32,8 +32,11 @@ namespace android {
 
 // ----------------------------------------------------------------------------
 
-class BitTube;
 class IDisplayEventConnection;
+
+namespace gui {
+class BitTube;
+} // namespace gui
 
 static inline constexpr uint32_t fourcc(char c1, char c2, char c3, char c4) {
     return static_cast<uint32_t>(c1) << 24 |
@@ -108,15 +111,13 @@ public:
      * should be destroyed and getEvents() shouldn't be called again.
      */
     ssize_t getEvents(Event* events, size_t count);
-    static ssize_t getEvents(const sp<BitTube>& dataChannel,
-            Event* events, size_t count);
+    static ssize_t getEvents(gui::BitTube* dataChannel, Event* events, size_t count);
 
     /*
      * sendEvents write events to the queue and returns how many events were
      * written.
      */
-    static ssize_t sendEvents(const sp<BitTube>& dataChannel,
-            Event const* events, size_t count);
+    static ssize_t sendEvents(gui::BitTube* dataChannel, Event const* events, size_t count);
 
     /*
      * setVsyncRate() sets the Event::VSync delivery rate. A value of
@@ -134,7 +135,7 @@ public:
 
 private:
     sp<IDisplayEventConnection> mEventConnection;
-    sp<BitTube> mDataChannel;
+    std::unique_ptr<gui::BitTube> mDataChannel;
 };
 
 // ----------------------------------------------------------------------------

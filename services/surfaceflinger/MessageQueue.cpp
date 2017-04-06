@@ -25,7 +25,6 @@
 #include <utils/Log.h>
 
 #include <gui/IDisplayEventConnection.h>
-#include <private/gui/BitTube.h>
 
 #include "MessageQueue.h"
 #include "EventThread.h"
@@ -94,8 +93,8 @@ void MessageQueue::setEventThread(const sp<EventThread>& eventThread)
 {
     mEventThread = eventThread;
     mEvents = eventThread->createEventConnection();
-    mEventTube = mEvents->getDataChannel();
-    mLooper->addFd(mEventTube->getFd(), 0, Looper::EVENT_INPUT,
+    mEvents->stealReceiveChannel(&mEventTube);
+    mLooper->addFd(mEventTube.getFd(), 0, Looper::EVENT_INPUT,
             MessageQueue::cb_eventReceiver, this);
 }
 
@@ -150,7 +149,7 @@ int MessageQueue::cb_eventReceiver(int fd, int events, void* data) {
 int MessageQueue::eventReceiver(int /*fd*/, int /*events*/) {
     ssize_t n;
     DisplayEventReceiver::Event buffer[8];
-    while ((n = DisplayEventReceiver::getEvents(mEventTube, buffer, 8)) > 0) {
+    while ((n = DisplayEventReceiver::getEvents(&mEventTube, buffer, 8)) > 0) {
         for (int i=0 ; i<n ; i++) {
             if (buffer[i].header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
                 mHandler->dispatchInvalidate();
