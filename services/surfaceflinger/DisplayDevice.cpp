@@ -113,10 +113,7 @@ DisplayDevice::DisplayDevice(
       mLayerStack(NO_LAYER_STACK),
       mOrientation(),
       mPowerMode(HWC_POWER_MODE_OFF),
-      mActiveConfig(0),
-#ifdef USE_HWC2
-      mDisplayHasWideColor(supportWideColor)
-#endif
+      mActiveConfig(0)
 {
     // clang-format on
     Surface* surface;
@@ -125,6 +122,9 @@ DisplayDevice::DisplayDevice(
 
 #ifdef USE_HWC2
     mActiveColorMode = static_cast<android_color_mode_t>(-1);
+    mDisplayHasWideColor = supportWideColor;
+#else
+    (void) supportWideColor;
 #endif
     /*
      * Create our display's surface
