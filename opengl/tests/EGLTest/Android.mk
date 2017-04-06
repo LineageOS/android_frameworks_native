@@ -11,11 +11,9 @@ LOCAL_SRC_FILES := \
     egl_cache_test.cpp \
     EGL_test.cpp \
 
-LOCAL_HEADER_LIBRARIES := \
-    android.hardware.configstore-utils
-
 LOCAL_SHARED_LIBRARIES := \
 	android.hardware.configstore@1.0 \
+	android.hardware.configstore-utils \
 	libEGL \
 	libcutils \
 	libbinder \
