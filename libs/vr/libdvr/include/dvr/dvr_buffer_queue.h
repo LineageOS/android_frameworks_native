@@ -2,11 +2,12 @@
 #define ANDROID_DVR_BUFFER_QUEUE_H_
 
 #include <dvr/dvr_buffer.h>
-#include <jni.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct ANativeWindow ANativeWindow;
 
 typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
 typedef struct DvrReadBufferQueue DvrReadBufferQueue;
@@ -15,10 +16,12 @@ typedef struct DvrReadBufferQueue DvrReadBufferQueue;
 void dvrWriteBufferQueueDestroy(DvrWriteBufferQueue* write_queue);
 size_t dvrWriteBufferQueueGetCapacity(DvrWriteBufferQueue* write_queue);
 
-// Returns ANativeWindow in the form of jobject. Can be casted to ANativeWindow
-// using ANativeWindow_fromSurface NDK API.
-jobject dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
-                                              JNIEnv* env);
+// Returns ANativeWindow. Can be casted to a Java Surface using
+// ANativeWindow_toSurface NDK API. Note that this method does not acquire an
+// additional reference to the ANativeWindow returned, don't call
+// ANativeWindow_release on it.
+int dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
+                                          ANativeWindow** out_window);
 
 int dvrWriteBufferQueueCreateReadQueue(DvrWriteBufferQueue* write_queue,
                                        DvrReadBufferQueue** out_read_queue);

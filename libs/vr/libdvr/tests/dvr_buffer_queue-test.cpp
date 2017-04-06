@@ -1,4 +1,5 @@
 #include <dvr/dvr_buffer_queue.h>
+#include <gui/Surface.h>
 #include <private/dvr/buffer_hub_queue_client.h>
 
 #include <base/logging.h>
@@ -141,6 +142,17 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
   ASSERT_EQ(kQueueCapacity, capacity);
 
   dvrReadBufferQueueDestroy(read_queue);
+}
+
+TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
+  ANativeWindow* window = nullptr;
+  int ret = dvrWriteBufferQueueGetExternalSurface(write_queue_, &window);
+
+  ASSERT_EQ(0, ret);
+  ASSERT_NE(nullptr, window);
+
+  sp<Surface> surface = static_cast<Surface*>(window);
+  ASSERT_TRUE(Surface::isValid(surface));
 }
 
 }  // namespace

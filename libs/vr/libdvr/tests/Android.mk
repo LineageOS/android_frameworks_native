@@ -9,6 +9,7 @@ shared_libraries := \
     libhardware \
     libui \
     libutils \
+    libnativewindow \
 
 static_libraries := \
     libdvr \
