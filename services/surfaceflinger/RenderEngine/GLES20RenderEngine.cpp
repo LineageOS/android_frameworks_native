@@ -45,9 +45,8 @@
 
 #include <fstream>
 
-static constexpr bool outputDebugPPMs = false;
-
 // ---------------------------------------------------------------------------
+#ifdef USE_HWC2
 bool checkGlError(const char* op, int lineNumber) {
     bool errorFound = false;
     GLint error = glGetError();
@@ -58,6 +57,8 @@ bool checkGlError(const char* op, int lineNumber) {
     }
     return errorFound;
 }
+
+static constexpr bool outputDebugPPMs = false;
 
 void writePPM(const char* basename, GLuint width, GLuint height) {
     ALOGV("writePPM #%s: %d x %d", basename, width, height);
@@ -104,6 +105,7 @@ void writePPM(const char* basename, GLuint width, GLuint height) {
     }
     file.write(reinterpret_cast<char*>(outBuffer.data()), outBuffer.size());
 }
+#endif
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -130,6 +132,7 @@ GLES20RenderEngine::GLES20RenderEngine() :
 
     //mColorBlindnessCorrection = M;
 
+#ifdef USE_HWC2
     // retrieve wide-color and hdr settings from configstore
     using namespace android::hardware::configstore;
     using namespace android::hardware::configstore::V1_0;
@@ -149,6 +152,7 @@ GLES20RenderEngine::GLES20RenderEngine() :
         mat4 gamutTransform(transpose(srgbToP3));
         mSrgbToDisplayP3 = gamutTransform;
     }
+#endif
 }
 
 GLES20RenderEngine::~GLES20RenderEngine() {
@@ -383,6 +387,7 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
             mesh.getByteStride(),
             mesh.getPositions());
 
+#ifdef USE_HWC2
     if (usesWideColor()) {
         Description wideColorState = mState;
         if (mDataSpace != HAL_DATASPACE_DISPLAY_P3) {
@@ -403,6 +408,11 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 
         glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
     }
+#else
+    ProgramCache::getInstance().useProgram(mState);
+
+    glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
+#endif
 
     if (mesh.getTexCoordsSize()) {
         glDisableVertexAttribArray(Program::texCoords);
@@ -411,11 +421,13 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 
 void GLES20RenderEngine::dump(String8& result) {
     RenderEngine::dump(result);
+#ifdef USE_HWC2
     if (usesWideColor()) {
         result.append("Wide-color: On\n");
     } else {
         result.append("Wide-color: Off\n");
     }
+#endif
 }
 
 // ---------------------------------------------------------------------------
