@@ -570,7 +570,7 @@ void SurfaceFlinger::init() {
             sp<DisplayDevice> hw = new DisplayDevice(this,
                     type, hwcId, mHwc->getFormat(hwcId), isSecure, token,
                     fbs, producer,
-                    mRenderEngine->getEGLConfig());
+                    mRenderEngine->getEGLConfig(), false);
             if (i > DisplayDevice::DISPLAY_PRIMARY) {
                 // FIXME: currently we don't get blank/unblank requests
                 // for displays other than the main display, so we always
@@ -1740,7 +1740,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                                 state.type, hwcDisplayId,
                                 mHwc->getFormat(hwcDisplayId), state.isSecure,
                                 display, dispSurface, producer,
-                                mRenderEngine->getEGLConfig());
+                                mRenderEngine->getEGLConfig(), false);
                         hw->setLayerStack(state.layerStack);
                         hw->setProjection(state.orientation,
                                 state.viewport, state.frame);
