@@ -187,11 +187,11 @@ public:
         return reply.readInt32();
     }
 
-    virtual void setConsumerName(const String8& name) {
+    virtual status_t setConsumerName(const String8& name) {
         Parcel data, reply;
         data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
         data.writeString8(name);
-        remote()->transact(SET_CONSUMER_NAME, data, &reply);
+        return remote()->transact(SET_CONSUMER_NAME, data, &reply);
     }
 
     virtual status_t setDefaultBufferFormat(PixelFormat defaultFormat) {
@@ -238,18 +238,20 @@ public:
         return reply.readInt32();
     }
 
-    virtual sp<NativeHandle> getSidebandStream() const {
+    virtual status_t getSidebandStream(sp<NativeHandle>* outStream) const {
         Parcel data, reply;
         status_t err;
         data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
         if ((err = remote()->transact(GET_SIDEBAND_STREAM, data, &reply)) != NO_ERROR) {
-            return NULL;
+            *outStream = nullptr;
+            return err;
         }
         sp<NativeHandle> stream;
         if (reply.readInt32()) {
             stream = NativeHandle::create(reply.readNativeHandle(), true);
         }
-        return stream;
+        *outStream = std::move(stream);
+        return NO_ERROR;
     }
 
     virtual status_t getOccupancyHistory(bool forceFlush,
@@ -291,13 +293,12 @@ public:
         return result;
     }
 
-    virtual void dumpState(String8& result, const char* prefix) const {
+    virtual status_t dumpState(const String8& prefix, String8* outResult) const {
         Parcel data, reply;
         data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeString8(result);
-        data.writeString8(String8(prefix ? prefix : ""));
+        data.writeString8(prefix);
         remote()->transact(DUMP, data, &reply);
-        reply.readString8();
+        return reply.readString8(outResult);
     }
 };
 
@@ -432,7 +433,8 @@ status_t BnGraphicBufferConsumer::onTransact(uint32_t code, const Parcel& data, 
         }
         case GET_SIDEBAND_STREAM: {
             CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            sp<NativeHandle> stream = getSidebandStream();
+            sp<NativeHandle> stream;
+            getSidebandStream(&stream);
             reply->writeInt32(static_cast<int32_t>(stream != NULL));
             if (stream != NULL) {
                 reply->writeNativeHandle(stream->handle());
@@ -466,9 +468,9 @@ status_t BnGraphicBufferConsumer::onTransact(uint32_t code, const Parcel& data, 
         }
         case DUMP: {
             CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            String8 result = data.readString8();
             String8 prefix = data.readString8();
-            static_cast<IGraphicBufferConsumer*>(this)->dumpState(result, prefix);
+            String8 result;
+            static_cast<IGraphicBufferConsumer*>(this)->dumpState(prefix, &result);
             reply->writeString8(result);
             return NO_ERROR;
         }

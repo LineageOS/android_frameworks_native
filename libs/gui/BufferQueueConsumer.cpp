@@ -675,12 +675,13 @@ status_t BufferQueueConsumer::setMaxAcquiredBufferCount(
     return NO_ERROR;
 }
 
-void BufferQueueConsumer::setConsumerName(const String8& name) {
+status_t BufferQueueConsumer::setConsumerName(const String8& name) {
     ATRACE_CALL();
     BQ_LOGV("setConsumerName: '%s'", name.string());
     Mutex::Autolock lock(mCore->mMutex);
     mCore->mConsumerName = name;
     mConsumerName = name;
+    return NO_ERROR;
 }
 
 status_t BufferQueueConsumer::setDefaultBufferFormat(PixelFormat defaultFormat) {
@@ -716,9 +717,10 @@ status_t BufferQueueConsumer::setTransformHint(uint32_t hint) {
     return NO_ERROR;
 }
 
-sp<NativeHandle> BufferQueueConsumer::getSidebandStream() const {
+status_t BufferQueueConsumer::getSidebandStream(sp<NativeHandle>* outStream) const {
     Mutex::Autolock lock(mCore->mMutex);
-    return mCore->mSidebandStream;
+    *outStream = mCore->mSidebandStream;
+    return NO_ERROR;
 }
 
 status_t BufferQueueConsumer::getOccupancyHistory(bool forceFlush,
@@ -734,20 +736,22 @@ status_t BufferQueueConsumer::discardFreeBuffers() {
     return NO_ERROR;
 }
 
-void BufferQueueConsumer::dumpState(String8& result, const char* prefix) const {
+status_t BufferQueueConsumer::dumpState(const String8& prefix, String8* outResult) const {
     const IPCThreadState* ipc = IPCThreadState::self();
     const pid_t pid = ipc->getCallingPid();
     const uid_t uid = ipc->getCallingUid();
     if ((uid != AID_SHELL)
             && !PermissionCache::checkPermission(String16(
             "android.permission.DUMP"), pid, uid)) {
-        result.appendFormat("Permission Denial: can't dump BufferQueueConsumer "
+        outResult->appendFormat("Permission Denial: can't dump BufferQueueConsumer "
                 "from pid=%d, uid=%d\n", pid, uid);
         android_errorWriteWithInfoLog(0x534e4554, "27046057",
                 static_cast<int32_t>(uid), NULL, 0);
-    } else {
-        mCore->dumpState(result, prefix);
+        return PERMISSION_DENIED;
     }
+
+    mCore->dumpState(prefix, outResult);
+    return NO_ERROR;
 }
 
 } // namespace android

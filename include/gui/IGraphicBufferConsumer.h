@@ -209,7 +209,7 @@ public:
     virtual status_t setMaxAcquiredBufferCount(int maxAcquiredBuffers) = 0;
 
     // setConsumerName sets the name used in logging
-    virtual void setConsumerName(const String8& name) = 0;
+    virtual status_t setConsumerName(const String8& name) = 0;
 
     // setDefaultBufferFormat allows the BufferQueue to create GraphicBuffers of a defaultFormat if
     // no format is specified in dequeueBuffer. The initial default is PIXEL_FORMAT_RGBA_8888.
@@ -239,7 +239,7 @@ public:
     virtual status_t setTransformHint(uint32_t hint) = 0;
 
     // Retrieve the sideband buffer stream, if any.
-    virtual sp<NativeHandle> getSidebandStream() const = 0;
+    virtual status_t getSidebandStream(sp<NativeHandle>* outStream) const = 0;
 
     // Retrieves any stored segments of the occupancy history of this BufferQueue and clears them.
     // Optionally closes out the pending segment if forceFlush is true.
@@ -252,7 +252,14 @@ public:
     virtual status_t discardFreeBuffers() = 0;
 
     // dump state into a string
-    virtual void dumpState(String8& result, const char* prefix) const = 0;
+    virtual status_t dumpState(const String8& prefix, String8* outResult) const = 0;
+
+    // Provide backwards source compatibility
+    void dumpState(String8& result, const char* prefix) {
+        String8 returned;
+        dumpState(String8(prefix), &returned);
+        result.append(returned);
+    }
 };
 
 class BnGraphicBufferConsumer : public BnInterface<IGraphicBufferConsumer> {
