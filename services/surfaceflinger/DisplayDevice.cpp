@@ -114,7 +114,9 @@ DisplayDevice::DisplayDevice(
       mOrientation(),
       mPowerMode(HWC_POWER_MODE_OFF),
       mActiveConfig(0),
+#ifdef USE_HWC2
       mDisplayHasWideColor(supportWideColor)
+#endif
 {
     // clang-format on
     Surface* surface;
