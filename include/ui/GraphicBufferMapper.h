@@ -47,31 +47,15 @@ class GraphicBufferMapper : public Singleton<GraphicBufferMapper>
 public:
     static inline GraphicBufferMapper& get() { return getInstance(); }
 
-    // This may NOT work on devices without a valid Gralloc2::Mapper.
-    status_t registerBuffer(buffer_handle_t handle);
+    // The imported outHandle must be freed with freeBuffer when no longer
+    // needed. rawHandle is owned by the caller.
+    status_t importBuffer(buffer_handle_t rawHandle,
+            buffer_handle_t* outHandle);
 
-    status_t registerBuffer(const GraphicBuffer* buffer);
+    // This is temporary and will be removed soon
+    status_t importBuffer(const GraphicBuffer* buffer);
 
-    status_t unregisterBuffer(buffer_handle_t handle);
-
-    status_t getDimensions(buffer_handle_t handle,
-            uint32_t* outWidth, uint32_t* outHeight) const;
-
-    status_t getFormat(buffer_handle_t handle, int32_t* outFormat) const;
-
-    status_t getLayerCount(buffer_handle_t handle,
-            uint32_t* outLayerCount) const;
-
-    status_t getProducerUsage(buffer_handle_t handle,
-            uint64_t* outProducerUsage) const;
-
-    status_t getConsumerUsage(buffer_handle_t handle,
-            uint64_t* outConsumerUsage) const;
-
-    status_t getBackingStore(buffer_handle_t handle,
-            uint64_t* outBackingStore) const;
-
-    status_t getStride(buffer_handle_t handle, uint32_t* outStride) const;
+    status_t freeBuffer(buffer_handle_t handle);
 
     status_t lock(buffer_handle_t handle,
             uint32_t usage, const Rect& bounds, void** vaddr);

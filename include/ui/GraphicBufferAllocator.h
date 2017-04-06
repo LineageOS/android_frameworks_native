@@ -96,8 +96,8 @@ private:
     GraphicBufferAllocator();
     ~GraphicBufferAllocator();
 
-    const std::unique_ptr<const Gralloc2::Allocator> mAllocator;
     GraphicBufferMapper& mMapper;
+    const std::unique_ptr<const Gralloc2::Allocator> mAllocator;
 
     std::unique_ptr<Gralloc1::Loader> mLoader;
     std::unique_ptr<Gralloc1::Device> mDevice;
