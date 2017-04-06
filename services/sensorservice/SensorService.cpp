@@ -13,23 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#include <cutils/properties.h>
-
 #include <binder/AppOpsManager.h>
 #include <binder/BinderService.h>
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
-
 #include <cutils/ashmem.h>
-#include <sensor/SensorEventQueue.h>
-
+#include <cutils/properties.h>
 #include <hardware/sensors.h>
 #include <hardware_legacy/power.h>
-
 #include <openssl/digest.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
+#include <sensor/SensorEventQueue.h>
+#include <utils/SystemClock.h>
 
 #include "BatteryService.h"
 #include "CorrectedGyroSensor.h"
@@ -77,7 +73,8 @@ bool SensorService::sHmacGlobalKeyIsValid = false;
 #define SENSOR_SERVICE_SCHED_FIFO_PRIORITY 10
 
 // Permissions.
-static const String16 sDump("android.permission.DUMP");
+static const String16 sDumpPermission("android.permission.DUMP");
+static const String16 sLocationHardwarePermission("android.permission.LOCATION_HARDWARE");
 
 SensorService::SensorService()
     : mInitCheck(NO_INIT), mSocketBufferSize(SOCKET_BUFFER_SIZE_NON_BATCHED),
@@ -319,7 +316,7 @@ SensorService::~SensorService() {
 
 status_t SensorService::dump(int fd, const Vector<String16>& args) {
     String8 result;
-    if (!PermissionCache::checkCallingPermission(sDump)) {
+    if (!PermissionCache::checkCallingPermission(sDumpPermission)) {
         result.appendFormat("Permission Denial: can't dump SensorService from pid=%d, uid=%d\n",
                 IPCThreadState::self()->getCallingPid(),
                 IPCThreadState::self()->getCallingUid());
@@ -1030,6 +1027,84 @@ sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
         mDirectConnections.add(wp<SensorDirectConnection>(conn));
     }
     return conn;
+}
+
+int SensorService::setOperationParameter(
+            int32_t type, const Vector<float> &floats, const Vector<int32_t> &ints) {
+    Mutex::Autolock _l(mLock);
+
+    // check permission
+    int32_t uid;
+    bool hasPermission = checkCallingPermission(sLocationHardwarePermission, nullptr, &uid);
+    if (!hasPermission || (uid != 1000 && uid != 0)) {
+        return PERMISSION_DENIED;
+    }
+
+    bool isFloat = true;
+    size_t expectSize = INT32_MAX;
+    switch (type) {
+        case AINFO_LOCAL_GEOMAGNETIC_FIELD:
+            isFloat = true;
+            expectSize = 3;
+            break;
+        case AINFO_LOCAL_GRAVITY:
+            isFloat = true;
+            expectSize = 1;
+            break;
+        case AINFO_DOCK_STATE:
+        case AINFO_HIGH_PERFORMANCE_MODE:
+        case AINFO_MAGNETIC_FIELD_CALIBRATION:
+            isFloat = false;
+            expectSize = 1;
+            break;
+        default:
+            return BAD_VALUE;
+    }
+
+    // three events: first one is begin tag, last one is end tag, the one in the middle
+    // is the payload.
+    sensors_event_t event[3];
+    int64_t timestamp = elapsedRealtimeNano();
+    for (sensors_event_t* i = event; i < event + 3; i++) {
+        *i = (sensors_event_t) {
+            .version = sizeof(sensors_event_t),
+            .sensor = 0,
+            .type = SENSOR_TYPE_ADDITIONAL_INFO,
+            .timestamp = timestamp++,
+            .additional_info = (additional_info_event_t) {
+                .serial = 0
+            }
+        };
+    }
+
+    event[0].additional_info.type = AINFO_BEGIN;
+    event[1].additional_info.type = type;
+    event[2].additional_info.type = AINFO_END;
+
+    if (isFloat) {
+        if (floats.size() != expectSize) {
+            return BAD_VALUE;
+        }
+        for (size_t i = 0; i < expectSize; ++i) {
+            event[1].additional_info.data_float[i] = floats[i];
+        }
+    } else {
+        if (ints.size() != expectSize) {
+            return BAD_VALUE;
+        }
+        for (size_t i = 0; i < expectSize; ++i) {
+            event[1].additional_info.data_int32[i] = ints[i];
+        }
+    }
+
+    SensorDevice& dev(SensorDevice::getInstance());
+    for (sensors_event_t* i = event; i < event + 3; i++) {
+        int ret = dev.injectSensorData(i);
+        if (ret != NO_ERROR) {
+            return ret;
+        }
+    }
+    return NO_ERROR;
 }
 
 status_t SensorService::resetToNormalMode() {

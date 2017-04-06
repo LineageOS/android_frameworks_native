@@ -50,6 +50,9 @@ public:
 
     virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
             uint32_t size, int32_t type, int32_t format, const native_handle_t *resource) = 0;
+
+    virtual int setOperationParameter(
+            int32_t type, const Vector<float> &floats, const Vector<int32_t> &ints) = 0;
 };
 
 // ----------------------------------------------------------------------------

@@ -40,6 +40,7 @@ enum {
     ENABLE_DATA_INJECTION,
     GET_DYNAMIC_SENSOR_LIST,
     CREATE_SENSOR_DIRECT_CONNECTION,
+    SET_OPERATION_PARAMETER,
 };
 
 class BpSensorServer : public BpInterface<ISensorServer>
@@ -117,6 +118,23 @@ public:
         remote()->transact(CREATE_SENSOR_DIRECT_CONNECTION, data, &reply);
         return interface_cast<ISensorEventConnection>(reply.readStrongBinder());
     }
+
+    virtual int setOperationParameter(
+            int32_t type, const Vector<float> &floats, const Vector<int32_t> &ints) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISensorServer::getInterfaceDescriptor());
+        data.writeInt32(type);
+        data.writeUint32(static_cast<uint32_t>(floats.size()));
+        for (auto i : floats) {
+            data.writeFloat(i);
+        }
+        data.writeUint32(static_cast<uint32_t>(ints.size()));
+        for (auto i : ints) {
+            data.writeInt32(i);
+        }
+        remote()->transact(SET_OPERATION_PARAMETER, data, &reply);
+        return reply.readInt32();
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -181,6 +199,26 @@ status_t BnSensorServer::onTransact(
             native_handle_close(resource);
             native_handle_delete(resource);
             reply->writeStrongBinder(IInterface::asBinder(ch));
+            return NO_ERROR;
+        }
+        case SET_OPERATION_PARAMETER: {
+            CHECK_INTERFACE(ISensorServer, data, reply);
+            int32_t type;
+            Vector<float> floats;
+            Vector<int32_t> ints;
+
+            type = data.readInt32();
+            floats.resize(data.readUint32());
+            for (auto &i : floats) {
+                i = data.readFloat();
+            }
+            ints.resize(data.readUint32());
+            for (auto &i : ints) {
+                i = data.readInt32();
+            }
+
+            int32_t ret = setOperationParameter(type, floats, ints);
+            reply->writeInt32(ret);
             return NO_ERROR;
         }
     }
