@@ -301,7 +301,6 @@ void Lshal::dumpVintf() const {
                 if (!manifest.add(vintf::ManifestHal{
                     .format = vintf::HalFormat::HIDL,
                     .name = fqName.package(),
-                    .impl = {.implLevel = vintf::ImplLevel::GENERIC, .impl = ""},
                     .transportArch = {transport, arch}
                 })) {
                     mErr << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
