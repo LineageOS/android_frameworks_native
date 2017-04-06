@@ -29,7 +29,7 @@ void dvrHwcClientDestroy(DvrHwcClient* client);
 // Called to free the frame information.
 void dvrHwcFrameDestroy(DvrHwcFrame* frame);
 
-Display dvrHwcFrameGetDisplayId(DvrHwcFrame* frame);
+DvrHwcDisplay dvrHwcFrameGetDisplayId(DvrHwcFrame* frame);
 
 int32_t dvrHwcFrameGetDisplayWidth(DvrHwcFrame* frame);
 
@@ -43,7 +43,7 @@ bool dvrHwcFrameGetDisplayRemoved(DvrHwcFrame* frame);
 // @return Number of layers in the frame.
 size_t dvrHwcFrameGetLayerCount(DvrHwcFrame* frame);
 
-Layer dvrHwcFrameGetLayerId(DvrHwcFrame* frame, size_t layer_index);
+DvrHwcLayer dvrHwcFrameGetLayerId(DvrHwcFrame* frame, size_t layer_index);
 
 // Return the graphic buffer associated with the layer at |layer_index| in
 // |frame|.
@@ -58,11 +58,13 @@ AHardwareBuffer* dvrHwcFrameGetLayerBuffer(DvrHwcFrame* frame,
 // @return Fence FD. Caller owns the FD and is responsible for closing it.
 int dvrHwcFrameGetLayerFence(DvrHwcFrame* frame, size_t layer_index);
 
-Recti dvrHwcFrameGetLayerDisplayFrame(DvrHwcFrame* frame, size_t layer_index);
+DvrHwcRecti dvrHwcFrameGetLayerDisplayFrame(DvrHwcFrame* frame,
+                                            size_t layer_index);
 
-Rectf dvrHwcFrameGetLayerCrop(DvrHwcFrame* frame, size_t layer_index);
+DvrHwcRectf dvrHwcFrameGetLayerCrop(DvrHwcFrame* frame, size_t layer_index);
 
-BlendMode dvrHwcFrameGetLayerBlendMode(DvrHwcFrame* frame, size_t layer_index);
+DvrHwcBlendMode dvrHwcFrameGetLayerBlendMode(DvrHwcFrame* frame,
+                                             size_t layer_index);
 
 float dvrHwcFrameGetLayerAlpha(DvrHwcFrame* frame, size_t layer_index);
 

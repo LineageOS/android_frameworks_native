@@ -84,7 +84,7 @@ void dvrHwcFrameDestroy(DvrHwcFrame* frame) {
   delete frame;
 }
 
-Display dvrHwcFrameGetDisplayId(DvrHwcFrame* frame) {
+DvrHwcDisplay dvrHwcFrameGetDisplayId(DvrHwcFrame* frame) {
   return frame->frame.display_id;
 }
 
@@ -104,7 +104,7 @@ size_t dvrHwcFrameGetLayerCount(DvrHwcFrame* frame) {
   return frame->frame.layers.size();
 }
 
-Layer dvrHwcFrameGetLayerId(DvrHwcFrame* frame, size_t layer_index) {
+DvrHwcLayer dvrHwcFrameGetLayerId(DvrHwcFrame* frame, size_t layer_index) {
   return frame->frame.layers[layer_index].id;
 }
 
@@ -120,8 +120,9 @@ int dvrHwcFrameGetLayerFence(DvrHwcFrame* frame, size_t layer_index) {
   return frame->frame.layers[layer_index].fence->dup();
 }
 
-Recti dvrHwcFrameGetLayerDisplayFrame(DvrHwcFrame* frame, size_t layer_index) {
-  return Recti{
+DvrHwcRecti dvrHwcFrameGetLayerDisplayFrame(DvrHwcFrame* frame,
+                                            size_t layer_index) {
+  return DvrHwcRecti{
     frame->frame.layers[layer_index].display_frame.left,
     frame->frame.layers[layer_index].display_frame.top,
     frame->frame.layers[layer_index].display_frame.right,
@@ -129,8 +130,8 @@ Recti dvrHwcFrameGetLayerDisplayFrame(DvrHwcFrame* frame, size_t layer_index) {
   };
 }
 
-Rectf dvrHwcFrameGetLayerCrop(DvrHwcFrame* frame, size_t layer_index) {
-  return Rectf{
+DvrHwcRectf dvrHwcFrameGetLayerCrop(DvrHwcFrame* frame, size_t layer_index) {
+  return DvrHwcRectf{
     frame->frame.layers[layer_index].crop.left,
     frame->frame.layers[layer_index].crop.top,
     frame->frame.layers[layer_index].crop.right,
@@ -138,8 +139,10 @@ Rectf dvrHwcFrameGetLayerCrop(DvrHwcFrame* frame, size_t layer_index) {
   };
 }
 
-BlendMode dvrHwcFrameGetLayerBlendMode(DvrHwcFrame* frame, size_t layer_index) {
-  return static_cast<BlendMode>(frame->frame.layers[layer_index].blend_mode);
+DvrHwcBlendMode dvrHwcFrameGetLayerBlendMode(DvrHwcFrame* frame,
+                                             size_t layer_index) {
+  return static_cast<DvrHwcBlendMode>(
+      frame->frame.layers[layer_index].blend_mode);
 }
 
 float dvrHwcFrameGetLayerAlpha(DvrHwcFrame* frame, size_t layer_index) {
