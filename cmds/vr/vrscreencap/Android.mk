@@ -6,6 +6,7 @@ LOCAL_SRC_FILES := \
 	vrscreencap.cpp
 
 LOCAL_STATIC_LIBRARIES := \
+	libbufferhub \
 	libdisplay \
 	libimageio \
 	libpdx_default_transport \
@@ -14,7 +15,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libcutils \
 	liblog \
 	libpng \
-	libsync
+	libsync \
+	libui \
 
 LOCAL_MODULE := vrscreencap
 

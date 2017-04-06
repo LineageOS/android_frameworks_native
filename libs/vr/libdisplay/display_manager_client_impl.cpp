@@ -31,19 +31,22 @@ int DisplayManagerClient::GetSurfaceList(
   return 0;
 }
 
-std::unique_ptr<BufferProducer> DisplayManagerClient::SetupPoseBuffer(
-    size_t extended_region_size, int usage) {
-  auto status = InvokeRemoteMethod<DisplayManagerRPC::SetupPoseBuffer>(
-      extended_region_size, usage);
+std::unique_ptr<IonBuffer> DisplayManagerClient::SetupNamedBuffer(
+    const std::string& name, size_t size, uint64_t producer_usage,
+    uint64_t consumer_usage) {
+  auto status = InvokeRemoteMethod<DisplayManagerRPC::SetupNamedBuffer>(
+      name, size, producer_usage, consumer_usage);
   if (!status) {
     ALOGE(
-        "DisplayManagerClient::SetupPoseBuffer: Failed to create the pose "
-        "buffer %s",
-        status.GetErrorMessage().c_str());
+        "DisplayManagerClient::SetupNamedBuffer: Failed to create the named "
+        "buffer: name=%s, error=%s",
+        name.c_str(), status.GetErrorMessage().c_str());
     return {};
   }
 
-  return BufferProducer::Import(std::move(status));
+  auto ion_buffer = std::make_unique<IonBuffer>();
+  status.take().Import(ion_buffer.get());
+  return ion_buffer;
 }
 
 }  // namespace dvr

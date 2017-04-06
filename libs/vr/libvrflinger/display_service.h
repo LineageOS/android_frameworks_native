@@ -3,6 +3,7 @@
 
 #include <pdx/service.h>
 #include <private/dvr/buffer_hub_client.h>
+#include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/display_rpc.h>
 #include <private/dvr/late_latch.h>
 
@@ -38,8 +39,9 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   // any change to client/manager attributes that affect visibility or z order.
   void UpdateActiveDisplaySurfaces();
 
-  pdx::BorrowedChannelHandle SetupPoseBuffer(size_t extended_region_size,
-                                             int usage);
+  pdx::Status<BorrowedNativeBufferHandle> SetupNamedBuffer(
+      const std::string& name, size_t size, int producer_usage,
+      int consumer_usage);
 
   template <class A>
   void ForEachDisplaySurface(A action) const {
@@ -85,7 +87,8 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
 
   void OnSetViewerParams(pdx::Message& message,
                          const ViewerParams& view_params);
-  pdx::LocalChannelHandle OnGetPoseBuffer(pdx::Message& message);
+  pdx::Status<BorrowedNativeBufferHandle> OnGetNamedBuffer(
+      pdx::Message& message, const std::string& name);
 
   // Temporary query for current VR status. Will be removed later.
   int IsVrAppRunning(pdx::Message& message);
@@ -102,7 +105,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   HardwareComposer hardware_composer_;
   DisplayConfigurationUpdateNotifier update_notifier_;
 
-  std::unique_ptr<BufferProducer> pose_buffer_;
+  std::unordered_map<std::string, std::unique_ptr<IonBuffer>> named_buffers_;
 };
 
 }  // namespace dvr
