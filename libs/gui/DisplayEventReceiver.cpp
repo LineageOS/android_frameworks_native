@@ -37,7 +37,8 @@ DisplayEventReceiver::DisplayEventReceiver() {
     if (sf != NULL) {
         mEventConnection = sf->createDisplayEventConnection();
         if (mEventConnection != NULL) {
-            mDataChannel = mEventConnection->getDataChannel();
+            mDataChannel = std::make_unique<gui::BitTube>();
+            mEventConnection->stealReceiveChannel(mDataChannel.get());
         }
     }
 }
@@ -80,19 +81,19 @@ status_t DisplayEventReceiver::requestNextVsync() {
 
 ssize_t DisplayEventReceiver::getEvents(DisplayEventReceiver::Event* events,
         size_t count) {
-    return DisplayEventReceiver::getEvents(mDataChannel, events, count);
+    return DisplayEventReceiver::getEvents(mDataChannel.get(), events, count);
 }
 
-ssize_t DisplayEventReceiver::getEvents(const sp<BitTube>& dataChannel,
+ssize_t DisplayEventReceiver::getEvents(gui::BitTube* dataChannel,
         Event* events, size_t count)
 {
-    return BitTube::recvObjects(dataChannel, events, count);
+    return gui::BitTube::recvObjects(dataChannel, events, count);
 }
 
-ssize_t DisplayEventReceiver::sendEvents(const sp<BitTube>& dataChannel,
+ssize_t DisplayEventReceiver::sendEvents(gui::BitTube* dataChannel,
         Event const* events, size_t count)
 {
-    return BitTube::sendObjects(dataChannel, events, count);
+    return gui::BitTube::sendObjects(dataChannel, events, count);
 }
 
 // ---------------------------------------------------------------------------

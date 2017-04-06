@@ -25,6 +25,7 @@
 #include <utils/Timers.h>
 #include <utils/Looper.h>
 
+#include <private/gui/BitTube.h>
 #include <gui/DisplayEventReceiver.h>
 
 #include "Barrier.h"
@@ -81,7 +82,7 @@ class MessageQueue {
     sp<Looper> mLooper;
     sp<EventThread> mEventThread;
     sp<IDisplayEventConnection> mEvents;
-    sp<BitTube> mEventTube;
+    gui::BitTube mEventTube;
     sp<Handler> mHandler;
 
 

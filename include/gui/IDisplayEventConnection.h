@@ -14,60 +14,52 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_GUI_IDISPLAY_EVENT_CONNECTION_H
-#define ANDROID_GUI_IDISPLAY_EVENT_CONNECTION_H
-
-#include <stdint.h>
-#include <sys/types.h>
-
-#include <utils/Errors.h>
-#include <utils/RefBase.h>
+#pragma once
 
 #include <binder/IInterface.h>
+#include <binder/SafeInterface.h>
+
+#include <utils/Errors.h>
+
+#include <cstdint>
 
 namespace android {
-// ----------------------------------------------------------------------------
 
+namespace gui {
 class BitTube;
+} // namespace gui
 
-class IDisplayEventConnection : public IInterface
-{
+class IDisplayEventConnection : public IInterface {
 public:
-
     DECLARE_META_INTERFACE(DisplayEventConnection)
 
     /*
-     * getDataChannel() returns a BitTube where to receive the events from
+     * stealReceiveChannel() returns a BitTube to receive events from. Only the receive file
+     * descriptor of outChannel will be initialized, and this effectively "steals" the receive
+     * channel from the remote end (such that the remote end can only use its send channel).
      */
-    virtual sp<BitTube> getDataChannel() const = 0;
+    virtual status_t stealReceiveChannel(gui::BitTube* outChannel) = 0;
 
     /*
-     * setVsyncRate() sets the vsync event delivery rate. A value of
-     * 1 returns every vsync events. A value of 2 returns every other events,
-     * etc... a value of 0 returns no event unless  requestNextVsync() has
-     * been called.
+     * setVsyncRate() sets the vsync event delivery rate. A value of 1 returns every vsync event.
+     * A value of 2 returns every other event, etc. A value of 0 returns no event unless
+     * requestNextVsync() has been called.
      */
-    virtual void setVsyncRate(uint32_t count) = 0;
+    virtual status_t setVsyncRate(uint32_t count) = 0;
 
     /*
-     * requestNextVsync() schedules the next vsync event. It has no effect
-     * if the vsync rate is > 0.
+     * requestNextVsync() schedules the next vsync event. It has no effect if the vsync rate is > 0.
      */
-    virtual void requestNextVsync() = 0;    // asynchronous
+    virtual void requestNextVsync() = 0; // Asynchronous
 };
 
-// ----------------------------------------------------------------------------
-
-class BnDisplayEventConnection : public BnInterface<IDisplayEventConnection>
-{
+class BnDisplayEventConnection : public SafeBnInterface<IDisplayEventConnection> {
 public:
-    virtual status_t    onTransact( uint32_t code,
-                                    const Parcel& data,
-                                    Parcel* reply,
-                                    uint32_t flags = 0);
+    BnDisplayEventConnection()
+          : SafeBnInterface<IDisplayEventConnection>("BnDisplayEventConnection") {}
+
+    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                        uint32_t flags = 0) override;
 };
 
-// ----------------------------------------------------------------------------
-}; // namespace android
-
-#endif // ANDROID_GUI_IDISPLAY_EVENT_CONNECTION_H
+} // namespace android
