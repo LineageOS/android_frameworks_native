@@ -836,7 +836,7 @@ std::set<int> get_interesting_hal_pids() {
                 continue;
             }
 
-            if (!should_dump_hal_interface(info.interfaceName)) {
+            if (!should_dump_hal_interface(info.interfaceName.c_str())) {
                 continue;
             }
 
