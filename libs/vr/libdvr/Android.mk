@@ -49,7 +49,6 @@ LOCAL_STATIC_LIBRARIES := \
 LOCAL_SHARED_LIBRARIES := \
     android.hardware.graphics.bufferqueue@1.0 \
     android.hidl.token@1.0-utils \
-    libandroid_runtime \
     libbase \
     libnativewindow \
 

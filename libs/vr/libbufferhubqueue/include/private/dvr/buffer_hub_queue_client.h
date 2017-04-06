@@ -381,6 +381,7 @@ extern "C" {
 
 struct DvrWriteBufferQueue {
   std::shared_ptr<android::dvr::ProducerQueue> producer_queue_;
+  ANativeWindow* native_window_{nullptr};
 };
 
 struct DvrReadBufferQueue {

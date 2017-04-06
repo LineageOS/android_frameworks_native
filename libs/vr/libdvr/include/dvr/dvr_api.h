@@ -6,11 +6,12 @@
 #include <stdint.h>
 
 #include <dvr/dvr_hardware_composer_defs.h>
-#include <jni.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct ANativeWindow ANativeWindow;
 
 typedef struct DvrPoseAsync DvrPoseAsync;
 
@@ -89,8 +90,8 @@ typedef int (*DvrReadBufferReleaseAsyncPtr)(DvrReadBuffer* client);
 typedef void (*DvrWriteBufferQueueDestroyPtr)(DvrWriteBufferQueue* write_queue);
 typedef size_t (*DvrWriteBufferQueueGetCapacityPtr)(
     DvrWriteBufferQueue* write_queue);
-typedef jobject (*DvrWriteBufferQueueGetExternalSurfacePtr)(
-    DvrWriteBufferQueue* write_queue, JNIEnv* env);
+typedef int (*DvrWriteBufferQueueGetExternalSurfacePtr)(
+    DvrWriteBufferQueue* write_queue, ANativeWindow** out_window);
 typedef int (*DvrWriteBufferQueueCreateReadQueuePtr)(
     DvrWriteBufferQueue* write_queue, DvrReadBufferQueue** out_read_queue);
 typedef int (*DvrWriteBufferQueueDequeuePtr)(DvrWriteBufferQueue* write_queue,

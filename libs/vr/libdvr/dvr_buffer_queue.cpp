@@ -1,10 +1,9 @@
 #include "include/dvr/dvr_buffer_queue.h"
 
+#include <android/native_window.h>
 #include <gui/Surface.h>
 #include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/buffer_hub_queue_producer.h>
-
-#include <android_runtime/android_view_Surface.h>
 
 #define CHECK_PARAM(param)                                               \
   LOG_ALWAYS_FATAL_IF(param == nullptr, "%s: " #param "cannot be NULL.", \
@@ -15,6 +14,9 @@ using namespace android;
 extern "C" {
 
 void dvrWriteBufferQueueDestroy(DvrWriteBufferQueue* write_queue) {
+  if (write_queue != nullptr && write_queue->native_window_ != nullptr) {
+    ANativeWindow_release(write_queue->native_window_);
+  }
   delete write_queue;
 }
 
@@ -23,16 +25,30 @@ size_t dvrWriteBufferQueueGetCapacity(DvrWriteBufferQueue* write_queue) {
   return write_queue->producer_queue_->capacity();
 }
 
-jobject dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
-                                              JNIEnv* env) {
-  CHECK_PARAM(env);
+int dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
+                                          ANativeWindow** out_window) {
   CHECK_PARAM(write_queue);
+  CHECK_PARAM(out_window);
 
-  std::shared_ptr<dvr::BufferHubQueueCore> core =
-      dvr::BufferHubQueueCore::Create(write_queue->producer_queue_);
+  // Lazy creation of |native_window_|.
+  if (write_queue->native_window_ == nullptr) {
+    std::shared_ptr<dvr::BufferHubQueueCore> core =
+        dvr::BufferHubQueueCore::Create(write_queue->producer_queue_);
+    if (core == nullptr) {
+      ALOGE(
+          "dvrWriteBufferQueueGetExternalSurface: Failed to create native "
+          "window.");
+      return -ENOMEM;
+    }
 
-  return android_view_Surface_createFromIGraphicBufferProducer(
-      env, new dvr::BufferHubQueueProducer(core));
+    sp<IGraphicBufferProducer> gbp = new dvr::BufferHubQueueProducer(core);
+    sp<Surface> surface = new Surface(gbp, true);
+    write_queue->native_window_ = static_cast<ANativeWindow*>(surface.get());
+    ANativeWindow_acquire(write_queue->native_window_);
+  }
+
+  *out_window = write_queue->native_window_;
+  return 0;
 }
 
 int dvrWriteBufferQueueCreateReadQueue(DvrWriteBufferQueue* write_queue,
