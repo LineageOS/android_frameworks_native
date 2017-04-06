@@ -47,7 +47,7 @@ static_libs = [
 ]
 
 shared_libs = [
-    "android.dvr.composer@1.0",
+    "android.frameworks.vr.composer@1.0",
     "android.hardware.graphics.composer@2.1",
     "libvrhwc",
     "libbase",

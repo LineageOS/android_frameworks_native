@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <android/dvr/composer/1.0/IVrComposerClient.h>
+#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <hardware/gralloc.h>
 #include <hardware/gralloc1.h>
 #include <log/log.h>
@@ -26,7 +26,7 @@ namespace android {
 namespace dvr {
 
 using android::hardware::graphics::common::V1_0::PixelFormat;
-using android::dvr::composer::V1_0::IVrComposerClient;
+using android::frameworks::vr::composer::V1_0::IVrComposerClient;
 
 VrComposerClient::VrComposerClient(dvr::VrHwc& hal)
     : ComposerClient(hal), mVrHal(hal) {}

@@ -17,7 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "HwcComposer"
 
-#include <android/dvr/composer/1.0/IVrComposerClient.h>
+#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <inttypes.h>
 #include <log/log.h>
 #include <gui/BufferQueue.h>
@@ -26,7 +26,7 @@
 
 namespace android {
 
-using dvr::composer::V1_0::IVrComposerClient;
+using frameworks::vr::composer::V1_0::IVrComposerClient;
 using hardware::Return;
 using hardware::hidl_vec;
 using hardware::hidl_handle;

@@ -47,7 +47,6 @@ staticLibraries = [
 ]
 
 sharedLibraries = [
-    "android.dvr.composer@1.0",
     "android.hardware.graphics.allocator@2.0",
     "android.hardware.graphics.composer@2.1",
     "libbinder",
