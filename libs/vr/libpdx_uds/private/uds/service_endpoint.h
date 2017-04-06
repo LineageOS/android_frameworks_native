@@ -117,18 +117,20 @@ class Endpoint : public pdx::Endpoint {
     return next_message_id_.fetch_add(1, std::memory_order_relaxed);
   }
 
-  void BuildCloseMessage(int channel_id, Message* message);
+  void BuildCloseMessage(int32_t channel_id, Message* message);
 
   Status<void> AcceptConnection(Message* message);
-  Status<void> ReceiveMessageForChannel(int channel_id, Message* message);
+  Status<void> ReceiveMessageForChannel(const BorrowedHandle& channel_fd,
+                                        Message* message);
   Status<void> OnNewChannel(LocalHandle channel_fd);
-  Status<ChannelData*> OnNewChannelLocked(LocalHandle channel_fd,
-                                          Channel* channel_state);
-  Status<void> CloseChannelLocked(int channel_id);
-  Status<void> ReenableEpollEvent(int fd);
-  Channel* GetChannelState(int channel_id);
-  int GetChannelSocketFd(int channel_id);
-  int GetChannelEventFd(int channel_id);
+  Status<std::pair<int32_t, ChannelData*>> OnNewChannelLocked(
+      LocalHandle channel_fd, Channel* channel_state);
+  Status<void> CloseChannelLocked(int32_t channel_id);
+  Status<void> ReenableEpollEvent(const BorrowedHandle& channel_fd);
+  Channel* GetChannelState(int32_t channel_id);
+  BorrowedHandle GetChannelSocketFd(int32_t channel_id);
+  BorrowedHandle GetChannelEventFd(int32_t channel_id);
+  int32_t GetChannelId(const BorrowedHandle& channel_fd);
 
   std::string endpoint_path_;
   bool is_blocking_;
@@ -137,7 +139,9 @@ class Endpoint : public pdx::Endpoint {
   LocalHandle epoll_fd_;
 
   mutable std::mutex channel_mutex_;
-  std::map<int, ChannelData> channels_;
+  std::map<int32_t, ChannelData> channels_;
+  std::map<int, int32_t> channel_fd_to_id_;
+  int32_t last_channel_id_{0};
 
   Service* service_{nullptr};
   std::atomic<uint32_t> next_message_id_;
