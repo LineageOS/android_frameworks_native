@@ -68,18 +68,12 @@ static String8 good_old_string(const String16& src)
 
 int main(int argc, char* const argv[])
 {
-    sp<IServiceManager> sm = defaultServiceManager();
-    fflush(stdout);
-    if (sm == NULL) {
-        aerr << "service: Unable to get default service manager!" << endl;
-        return 20;
-    }
-    
     bool wantsUsage = false;
+    bool wantsVendorServices = false;
     int result = 0;
     
     while (1) {
-        int ic = getopt(argc, argv, "h?");
+        int ic = getopt(argc, argv, "vh?");
         if (ic < 0)
             break;
 
@@ -88,12 +82,25 @@ int main(int argc, char* const argv[])
         case '?':
             wantsUsage = true;
             break;
+        case 'v':
+            wantsVendorServices = true;
+            break;
         default:
             aerr << "service: Unknown option -" << ic << endl;
             wantsUsage = true;
             result = 10;
             break;
         }
+    }
+
+    if (wantsVendorServices) {
+        ProcessState::initWithDriver("/dev/vndbinder");
+    }
+    sp<IServiceManager> sm = defaultServiceManager();
+    fflush(stdout);
+    if (sm == NULL) {
+        aerr << "service: Unable to get default service manager!" << endl;
+        return 20;
     }
     
     if (optind >= argc) {
