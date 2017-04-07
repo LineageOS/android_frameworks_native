@@ -89,13 +89,13 @@ TEST(ThreadLocalBufferTest, ThreadSlots) {
   EXPECT_NE(id1, id2);
 }
 
-// TODO(b/36456321): Fix this and enable it again.
 // Tests that thread-local buffers are allocated at the first buffer request.
-TEST(ThreadLocalBufferTest, DISABLED_InitialValue) {
+TEST(ThreadLocalBufferTest, InitialValue) {
   struct TypeTagX;
   using SendSlotX = ThreadLocalSlot<TypeTagX, kSendBufferIndex>;
 
   auto value1 = ThreadLocalBufferTest::GetSlotValue<SendSlotX>();
+  MessageBuffer<SendSlotX>::GetBuffer();
   auto value2 = ThreadLocalBufferTest::GetSlotValue<SendSlotX>();
 
   EXPECT_EQ(0U, value1);
