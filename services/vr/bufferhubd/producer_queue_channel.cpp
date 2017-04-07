@@ -3,6 +3,9 @@
 #include "consumer_queue_channel.h"
 #include "producer_channel.h"
 
+using android::pdx::ErrorStatus;
+using android::pdx::Message;
+using android::pdx::Status;
 using android::pdx::RemoteChannelHandle;
 using android::pdx::rpc::DispatchRemoteMethod;
 
@@ -58,6 +61,11 @@ bool ProducerQueueChannel::HandleMessage(Message& message) {
           *this, &ProducerQueueChannel::OnCreateConsumerQueue, message);
       return true;
 
+    case BufferHubRPC::GetQueueInfo::Opcode:
+      DispatchRemoteMethod<BufferHubRPC::GetQueueInfo>(
+          *this, &ProducerQueueChannel::OnGetQueueInfo, message);
+      return true;
+
     case BufferHubRPC::ProducerQueueAllocateBuffers::Opcode:
       DispatchRemoteMethod<BufferHubRPC::ProducerQueueAllocateBuffers>(
           *this, &ProducerQueueChannel::OnProducerQueueAllocateBuffers,
@@ -84,8 +92,8 @@ BufferHubChannel::BufferInfo ProducerQueueChannel::GetBufferInfo() const {
                     usage_deny_clear_mask_);
 }
 
-std::pair<RemoteChannelHandle, size_t>
-ProducerQueueChannel::OnCreateConsumerQueue(Message& message) {
+Status<RemoteChannelHandle> ProducerQueueChannel::OnCreateConsumerQueue(
+    Message& message) {
   ATRACE_NAME("ProducerQueueChannel::OnCreateConsumerQueue");
   ALOGD_IF(TRACE, "ProducerQueueChannel::OnCreateConsumerQueue: channel_id=%d",
            channel_id());
@@ -97,7 +105,7 @@ ProducerQueueChannel::OnCreateConsumerQueue(Message& message) {
         "ProducerQueueChannel::OnCreateConsumerQueue: failed to push consumer "
         "channel: %s",
         status.GetErrorMessage().c_str());
-    REPLY_ERROR_RETURN(message, status.error(), {});
+    return ErrorStatus(ENOMEM);
   }
 
   const auto channel_status = service()->SetChannel(
@@ -108,13 +116,17 @@ ProducerQueueChannel::OnCreateConsumerQueue(Message& message) {
         "ProducerQueueChannel::OnCreateConsumerQueue: failed to set new "
         "consumer channel: %s",
         channel_status.GetErrorMessage().c_str());
-    REPLY_ERROR_RETURN(message, channel_status.error(), {});
+    return ErrorStatus(ENOMEM);
   }
 
-  return std::make_pair(status.take(), meta_size_bytes_);
+  return {status.take()};
 }
 
-std::vector<std::pair<RemoteChannelHandle, size_t>>
+Status<QueueInfo> ProducerQueueChannel::OnGetQueueInfo(Message&) {
+  return {{meta_size_bytes_, buffer_id()}};
+}
+
+Status<std::vector<std::pair<RemoteChannelHandle, size_t>>>
 ProducerQueueChannel::OnProducerQueueAllocateBuffers(Message& message,
                                                      int width, int height,
                                                      int format, int usage,
@@ -135,7 +147,7 @@ ProducerQueueChannel::OnProducerQueueAllocateBuffers(Message& message,
         "not permitted. Violating usage_deny_set_mask, the following bits "
         "shall not be set: %d.",
         usage, usage_deny_set_mask_);
-    REPLY_ERROR_RETURN(message, EINVAL, buffer_handles);
+    return ErrorStatus(EINVAL);
   }
 
   if (~usage & usage_deny_clear_mask_) {
@@ -144,7 +156,7 @@ ProducerQueueChannel::OnProducerQueueAllocateBuffers(Message& message,
         "not permitted. Violating usage_deny_clear_mask, the following bits "
         "must be set: %d.",
         usage, usage_deny_clear_mask_);
-    REPLY_ERROR_RETURN(message, EINVAL, buffer_handles);
+    return ErrorStatus(EINVAL);
   }
 
   // Force set mask and clear mask. Note that |usage_set_mask_| takes precedence
@@ -152,24 +164,24 @@ ProducerQueueChannel::OnProducerQueueAllocateBuffers(Message& message,
   int effective_usage = (usage & ~usage_clear_mask_) | usage_set_mask_;
 
   for (size_t i = 0; i < buffer_count; i++) {
-    auto buffer_handle_slot = AllocateBuffer(message, width, height, format,
-                                             effective_usage, slice_count);
-    if (!buffer_handle_slot.first) {
+    auto status = AllocateBuffer(message, width, height, format,
+                                 effective_usage, slice_count);
+    if (!status) {
       ALOGE(
-          "ProducerQueueChannel::OnProducerQueueAllocateBuffers: failed to "
+          "ProducerQueueChannel::OnProducerQueueAllocateBuffers: Failed to "
           "allocate new buffer.");
-      REPLY_ERROR_RETURN(message, ENOMEM, buffer_handles);
+      return ErrorStatus(status.error());
     }
-    buffer_handles.emplace_back(std::move(buffer_handle_slot.first),
-                                buffer_handle_slot.second);
+    buffer_handles.push_back(status.take());
   }
 
-  return buffer_handles;
+  return {std::move(buffer_handles)};
 }
 
-std::pair<RemoteChannelHandle, size_t> ProducerQueueChannel::AllocateBuffer(
-    Message& message, int width, int height, int format, int usage,
-    size_t slice_count) {
+Status<std::pair<RemoteChannelHandle, size_t>>
+ProducerQueueChannel::AllocateBuffer(Message& message, int width, int height,
+                                     int format, int usage,
+                                     size_t slice_count) {
   ATRACE_NAME("ProducerQueueChannel::AllocateBuffer");
   ALOGD_IF(TRACE,
            "ProducerQueueChannel::AllocateBuffer: producer_channel_id=%d",
@@ -177,7 +189,7 @@ std::pair<RemoteChannelHandle, size_t> ProducerQueueChannel::AllocateBuffer(
 
   if (capacity_ >= BufferHubRPC::kMaxQueueCapacity) {
     ALOGE("ProducerQueueChannel::AllocateBuffer: reaches kMaxQueueCapacity.");
-    return {};
+    return ErrorStatus(E2BIG);
   }
 
   // Here we are creating a new BufferHubBuffer, initialize the producer
@@ -189,7 +201,7 @@ std::pair<RemoteChannelHandle, size_t> ProducerQueueChannel::AllocateBuffer(
   if (!status) {
     ALOGE("ProducerQueueChannel::AllocateBuffer: failed to push channel: %s",
           status.GetErrorMessage().c_str());
-    return {};
+    return ErrorStatus(status.error());
   }
 
   ALOGD_IF(TRACE,
@@ -199,14 +211,14 @@ std::pair<RemoteChannelHandle, size_t> ProducerQueueChannel::AllocateBuffer(
   auto buffer_handle = status.take();
 
   int error;
-  const auto producer_channel = ProducerChannel::Create(
-      service(), buffer_id, width, height, format, usage,
-      meta_size_bytes_, slice_count, &error);
+  const auto producer_channel =
+      ProducerChannel::Create(service(), buffer_id, width, height, format,
+                              usage, meta_size_bytes_, slice_count, &error);
   if (!producer_channel) {
     ALOGE(
         "ProducerQueueChannel::AllocateBuffer: Failed to create "
         "BufferHubBuffer producer!!");
-    return {};
+    return ErrorStatus(ENOMEM);
   }
 
   ALOGD_IF(
@@ -221,7 +233,7 @@ std::pair<RemoteChannelHandle, size_t> ProducerQueueChannel::AllocateBuffer(
         "ProducerQueueChannel::AllocateBuffer: failed to set producer channel "
         "for new BufferHubBuffer: %s",
         channel_status.GetErrorMessage().c_str());
-    return {};
+    return ErrorStatus(ENOMEM);
   }
 
   // Register the newly allocated buffer's channel_id into the first empty
@@ -235,7 +247,7 @@ std::pair<RemoteChannelHandle, size_t> ProducerQueueChannel::AllocateBuffer(
     ALOGE(
         "ProducerQueueChannel::AllocateBuffer: Cannot find empty slot for new "
         "buffer allocation.");
-    return {};
+    return ErrorStatus(E2BIG);
   }
 
   buffers_[slot] = producer_channel;
@@ -250,29 +262,29 @@ std::pair<RemoteChannelHandle, size_t> ProducerQueueChannel::AllocateBuffer(
     consumer_channel->RegisterNewBuffer(producer_channel, slot);
   }
 
-  return {std::move(buffer_handle), slot};
+  return {{std::move(buffer_handle), slot}};
 }
 
-int ProducerQueueChannel::OnProducerQueueDetachBuffer(Message& /*message*/,
-                                                      size_t slot) {
+Status<void> ProducerQueueChannel::OnProducerQueueDetachBuffer(
+    Message& /*message*/, size_t slot) {
   if (buffers_[slot].expired()) {
     ALOGE(
         "ProducerQueueChannel::OnProducerQueueDetachBuffer: trying to detach "
         "an invalid buffer producer at slot %zu",
         slot);
-    return -EINVAL;
+    return ErrorStatus(EINVAL);
   }
 
   if (capacity_ == 0) {
     ALOGE(
         "ProducerQueueChannel::OnProducerQueueDetachBuffer: trying to detach a "
         "buffer producer while the queue's capacity is already zero.");
-    return -EINVAL;
+    return ErrorStatus(EINVAL);
   }
 
   buffers_[slot].reset();
   capacity_--;
-  return 0;
+  return {};
 }
 
 void ProducerQueueChannel::AddConsumer(ConsumerQueueChannel* channel) {

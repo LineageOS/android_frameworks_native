@@ -30,8 +30,7 @@ std::shared_ptr<ProducerQueue> VideoMeshSurfaceClient::GetProducerQueue() {
       return nullptr;
     }
 
-    producer_queue_ =
-        ProducerQueue::Import<VideoMeshSurfaceBufferMetadata>(status.take());
+    producer_queue_ = ProducerQueue::Import(status.take());
   }
   return producer_queue_;
 }

@@ -94,9 +94,12 @@ class BufferHubBuffer : public pdx::Client {
   }
 
   IonBuffer* buffer() { return &slices_[0]; }
+  const IonBuffer* buffer() const { return &slices_[0]; }
+
   // If index is greater than or equal to slice_count(), the result is
   // undefined.
   IonBuffer* slice(size_t index) { return &slices_[index]; }
+  const IonBuffer* slice(size_t index) const { return &slices_[index]; }
 
   int slice_count() const { return static_cast<int>(slices_.size()); }
   int id() const { return id_; }
@@ -171,9 +174,8 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
   int Post(const LocalHandle& ready_fence) {
     return Post(ready_fence, nullptr, 0);
   }
-  template <
-      typename Meta,
-      typename = typename std::enable_if<!std::is_void<Meta>::value>::type>
+  template <typename Meta, typename = typename std::enable_if<
+                               !std::is_void<Meta>::value>::type>
   int Post(const LocalHandle& ready_fence, const Meta& meta) {
     return Post(ready_fence, &meta, sizeof(meta));
   }

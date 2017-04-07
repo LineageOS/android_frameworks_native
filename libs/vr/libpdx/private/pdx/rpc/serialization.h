@@ -247,7 +247,7 @@ inline EnableIfEnum<T, std::size_t> GetSerializedSize(T v) {
 inline std::size_t GetSerializedSize(const EmptyVariant&);
 template <typename... Types>
 inline std::size_t GetSerializedSize(const Variant<Types...>&);
-template <typename T, typename Enabled>
+template <typename T, typename Enabled = EnableIfHasSerializableMembers<T>>
 inline constexpr std::size_t GetSerializedSize(const T&);
 template <typename T>
 inline constexpr std::size_t GetSerializedSize(const PointerWrapper<T>&);
@@ -293,7 +293,7 @@ inline std::size_t GetSerializedSize(const Variant<Types...>& variant) {
 }
 
 // Overload for structs/classes with SerializableMembers defined.
-template <typename T, typename Enabled = EnableIfHasSerializableMembers<T>>
+template <typename T, typename Enabled>
 inline constexpr std::size_t GetSerializedSize(const T& value) {
   return SerializableTraits<T>::GetSerializedSize(value);
 }
@@ -836,7 +836,7 @@ inline EnableIfEnum<T> SerializeObject(const T& value, MessageWriter* writer,
 inline void SerializeObject(const EmptyVariant&, MessageWriter*, void*&);
 template <typename... Types>
 inline void SerializeObject(const Variant<Types...>&, MessageWriter*, void*&);
-template <typename T, typename Enabled>
+template <typename T, typename Enabled = EnableIfHasSerializableMembers<T>>
 inline void SerializeObject(const T&, MessageWriter*, void*&);
 template <typename T>
 inline void SerializeObject(const PointerWrapper<T>&, MessageWriter*, void*&);
@@ -887,7 +887,7 @@ inline void SerializeObject(const Variant<Types...>& variant,
 }
 
 // Overload for serializable structure/class types.
-template <typename T, typename Enabled = EnableIfHasSerializableMembers<T>>
+template <typename T, typename Enabled>
 inline void SerializeObject(const T& value, MessageWriter* writer,
                             void*& buffer) {
   SerializableTraits<T>::SerializeObject(value, writer, buffer);
@@ -1379,7 +1379,7 @@ inline EnableIfEnum<T, ErrorType> DeserializeObject(T* value,
 }
 
 // Forward declarations for nested definitions.
-template <typename T, typename Enabled>
+template <typename T, typename Enabled = EnableIfHasSerializableMembers<T>>
 inline ErrorType DeserializeObject(T*, MessageReader*, const void*&,
                                    const void*&);
 template <typename T>
@@ -1438,7 +1438,7 @@ inline ErrorType DeserializeObject(Variant<Types...>*,
                                    const void*&);
 
 // Deserializes a Serializable type.
-template <typename T, typename Enable = EnableIfHasSerializableMembers<T>>
+template <typename T, typename Enable>
 inline ErrorType DeserializeObject(T* value, MessageReader* reader,
                                    const void*& start, const void*& end) {
   return SerializableTraits<T>::DeserializeObject(value, reader, start, end);
