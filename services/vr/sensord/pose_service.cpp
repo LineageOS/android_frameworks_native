@@ -65,8 +65,7 @@ static constexpr char kPoseRingBufferName[] = "PoseService:RingBuffer";
 static constexpr int kDatasetIdLength = 36;
 static constexpr char kDatasetIdChars[] = "0123456789abcdef-";
 
-static constexpr int kLatencyWindowSize = 100;
-static constexpr double kLatencyWindowMass = 0.5;
+static constexpr int kLatencyWindowSize = 200;
 
 // These are the flags used by BufferProducer::CreatePersistentUncachedBlob,
 // plus PRIVATE_ADSP_HEAP to allow access from the DSP.
@@ -119,7 +118,7 @@ PoseService::PoseService(SensorThread* sensor_thread)
       photon_timestamp_(0),
       // Will be updated by external service, but start with a non-zero value:
       display_period_ns_(16000000),
-      sensor_latency_(kLatencyWindowSize, kLatencyWindowMass) {
+      sensor_latency_(kLatencyWindowSize) {
   last_known_pose_ = {
       .orientation = {1.0f, 0.0f, 0.0f, 0.0f},
       .translation = {0.0f, 0.0f, 0.0f, 0.0f},
