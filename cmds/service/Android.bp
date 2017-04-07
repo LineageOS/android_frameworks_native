@@ -9,5 +9,18 @@ cc_binary {
     ],
 
     cflags: ["-DXP_UNIX"],
-    //shared_libs: ["librt"],
+}
+
+cc_binary {
+    name: "vndservice",
+
+    proprietary: true,
+    srcs: ["service.cpp"],
+
+    shared_libs: [
+        "libutils",
+        "libbinder",
+    ],
+
+    cflags: ["-DXP_UNIX", "-DVENDORSERVICES"],
 }
