@@ -6,23 +6,21 @@
 namespace android {
 namespace dvr {
 
-// This class holds a rolling average of the sensor latency.
+// This class models the latency from sensors. It will look at the first
+// window_size measurements and return their average after that.
 class LatencyModel {
  public:
-  LatencyModel(size_t window_size, double weight_mass_in_window);
+  LatencyModel(size_t window_size);
   ~LatencyModel() = default;
 
   void AddLatency(int64_t latency_ns);
-  int64_t CurrentLatencyEstimate() const {
-    return static_cast<int64_t>(rolling_average_);
-  }
+  int64_t CurrentLatencyEstimate() const { return latency_; }
 
  private:
-  // The rolling average of the latencies.
-  double rolling_average_ = 0;
-
-  // The alpha parameter for an exponential moving average.
-  double alpha_;
+  size_t window_size_;
+  int64_t latency_sum_ = 0;
+  size_t num_summed_ = 0;
+  int64_t latency_ = 0;
 };
 
 }  // namespace dvr
