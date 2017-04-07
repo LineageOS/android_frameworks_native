@@ -219,6 +219,11 @@ base::unique_fd DisplayView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame,
       visibility = ViewMode::Hidden;
       current_vr_app_ = app;
     }
+  } else if ((use_2dmode_ || !is_vr_active) && app != 0 &&
+             visibility == ViewMode::Hidden) {
+    // This is the case for the VR app launching a 2D intent of itself on some
+    // display.
+    visibility = ViewMode::App;
   } else if (!current_vr_app_) {
     // The VR app is running.
     current_vr_app_ = app;
