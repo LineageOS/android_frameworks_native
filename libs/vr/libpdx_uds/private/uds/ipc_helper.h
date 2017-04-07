@@ -25,8 +25,8 @@ namespace uds {
 
 class SendPayload : public MessageWriter, public OutputResourceMapper {
  public:
-  Status<void> Send(int socket_fd);
-  Status<void> Send(int socket_fd, const ucred* cred);
+  Status<void> Send(const BorrowedHandle& socket_fd);
+  Status<void> Send(const BorrowedHandle& socket_fd, const ucred* cred);
 
   // MessageWriter
   void* GetNextWriteBufferSection(size_t size) override;
@@ -50,8 +50,8 @@ class SendPayload : public MessageWriter, public OutputResourceMapper {
 
 class ReceivePayload : public MessageReader, public InputResourceMapper {
  public:
-  Status<void> Receive(int socket_fd);
-  Status<void> Receive(int socket_fd, ucred* cred);
+  Status<void> Receive(const BorrowedHandle& socket_fd);
+  Status<void> Receive(const BorrowedHandle& socket_fd, ucred* cred);
 
   // MessageReader
   BufferSection GetNextReadBufferSection() override;
@@ -111,25 +111,27 @@ class ResponseHeader {
 };
 
 template <typename T>
-inline Status<void> SendData(int socket_fd, const T& data) {
+inline Status<void> SendData(const BorrowedHandle& socket_fd, const T& data) {
   SendPayload payload;
   rpc::Serialize(data, &payload);
   return payload.Send(socket_fd);
 }
 
 template <typename FileHandleType>
-inline Status<void> SendData(int socket_fd,
+inline Status<void> SendData(const BorrowedHandle& socket_fd,
                              const RequestHeader<FileHandleType>& request) {
   SendPayload payload;
   rpc::Serialize(request, &payload);
   return payload.Send(socket_fd, &request.cred);
 }
 
-Status<void> SendData(int socket_fd, const void* data, size_t size);
-Status<void> SendDataVector(int socket_fd, const iovec* data, size_t count);
+Status<void> SendData(const BorrowedHandle& socket_fd, const void* data,
+                      size_t size);
+Status<void> SendDataVector(const BorrowedHandle& socket_fd, const iovec* data,
+                            size_t count);
 
 template <typename T>
-inline Status<void> ReceiveData(int socket_fd, T* data) {
+inline Status<void> ReceiveData(const BorrowedHandle& socket_fd, T* data) {
   ReceivePayload payload;
   Status<void> status = payload.Receive(socket_fd);
   if (status && rpc::Deserialize(data, &payload) != rpc::ErrorCode::NO_ERROR)
@@ -138,7 +140,7 @@ inline Status<void> ReceiveData(int socket_fd, T* data) {
 }
 
 template <typename FileHandleType>
-inline Status<void> ReceiveData(int socket_fd,
+inline Status<void> ReceiveData(const BorrowedHandle& socket_fd,
                                 RequestHeader<FileHandleType>* request) {
   ReceivePayload payload;
   Status<void> status = payload.Receive(socket_fd, &request->cred);
@@ -147,8 +149,10 @@ inline Status<void> ReceiveData(int socket_fd,
   return status;
 }
 
-Status<void> ReceiveData(int socket_fd, void* data, size_t size);
-Status<void> ReceiveDataVector(int socket_fd, const iovec* data, size_t count);
+Status<void> ReceiveData(const BorrowedHandle& socket_fd, void* data,
+                         size_t size);
+Status<void> ReceiveDataVector(const BorrowedHandle& socket_fd,
+                               const iovec* data, size_t count);
 
 size_t CountVectorSize(const iovec* data, size_t count);
 void InitRequest(android::pdx::uds::RequestHeader<BorrowedHandle>* request,
