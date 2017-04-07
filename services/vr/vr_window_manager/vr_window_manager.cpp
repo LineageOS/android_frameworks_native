@@ -20,20 +20,20 @@ int main(int /* argc */, char** /* argv */) {
   LOG_ALWAYS_FATAL_IF(app_status != 0, "failed to initialize: %d", app_status);
 
   // Create vr_wm_binder.
-  android::service::vr::VrWindowManagerBinder vr_wm_binder(app);
-  const int status = vr_wm_binder.Initialize();
+  android::sp<android::service::vr::VrWindowManagerBinder> vr_wm_binder =
+      new android::service::vr::VrWindowManagerBinder(app);
+  const int status = vr_wm_binder->Initialize();
   LOG_ALWAYS_FATAL_IF(status != 0, "initialization failed: %d", status);
 
   android::sp<android::IServiceManager> sm(android::defaultServiceManager());
-  const android::status_t vr_wm_binder_status =
-      sm->addService(
-          android::service::vr::VrWindowManagerBinder::SERVICE_NAME(),
-          &vr_wm_binder, false /*allowIsolated*/);
+  const android::status_t vr_wm_binder_status = sm->addService(
+      android::service::vr::VrWindowManagerBinder::SERVICE_NAME(),
+      vr_wm_binder, false /*allowIsolated*/);
   LOG_ALWAYS_FATAL_IF(vr_wm_binder_status != android::OK,
                       "vr_wm_binder service not added: %d",
                       static_cast<int>(vr_wm_binder_status));
 
-  app.SetControllerDataProvider(&vr_wm_binder);
+  app.SetControllerDataProvider(vr_wm_binder.get());
 
   android::hardware::ProcessState::self()->startThreadPool();
 
