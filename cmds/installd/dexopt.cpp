@@ -36,6 +36,7 @@
 #include <cutils/sched_policy.h>
 #include <log/log.h>               // TODO: Move everything to base/logging.
 #include <private/android_filesystem_config.h>
+#include <selinux/android.h>
 #include <system/thread_defs.h>
 
 #include "dexopt.h"
@@ -1459,7 +1460,7 @@ static bool process_secondary_dex_dexopt(const char* original_dex_path, const ch
 
 int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* instruction_set,
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
-        const char* volume_uuid, const char* shared_libraries) {
+        const char* volume_uuid, const char* shared_libraries, const char* se_info) {
     CHECK(pkgname != nullptr);
     CHECK(pkgname[0] != 0);
     if ((dexopt_flags & ~DEXOPT_MASK) != 0) {
@@ -1516,6 +1517,19 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     if (!open_vdex_files(dex_path, out_oat_path, dexopt_needed, instruction_set, is_public,
             profile_guided, uid, is_secondary_dex, &in_vdex_fd, &out_vdex_fd)) {
         return -1;
+    }
+
+    // Ensure that the oat dir and the compiler artifacts of secondary dex files have the correct
+    // selinux context (we generate them on the fly during the dexopt invocation and they don't
+    // fully inherit their parent context).
+    // Note that for primary apk the oat files are created before, in a separate installd
+    // call which also does the restorecon. TODO(calin): unify the paths.
+    if (is_secondary_dex) {
+        if (selinux_android_restorecon_pkgdir(oat_dir, se_info, uid,
+                SELINUX_ANDROID_RESTORECON_RECURSE)) {
+            LOG(ERROR) << "Failed to restorecon " << oat_dir;
+            return -1;
+        }
     }
 
     // Create a swap file if necessary.
@@ -1859,8 +1873,9 @@ int dexopt(const char* const params[DEXOPT_PARAM_COUNT]) {
                   atoi(params[6]),              // dexopt_flags
                   params[7],                    // compiler_filter
                   parse_null(params[8]),        // volume_uuid
-                  parse_null(params[9]));       // shared_libraries
-    static_assert(DEXOPT_PARAM_COUNT == 10U, "Unexpected dexopt param count");
+                  parse_null(params[9]),        // shared_libraries
+                  parse_null(params[10]));       // se_info
+    static_assert(DEXOPT_PARAM_COUNT == 11U, "Unexpected dexopt param count");
 }
 
 }  // namespace installd
