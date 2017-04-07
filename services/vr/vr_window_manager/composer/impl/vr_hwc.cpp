@@ -217,17 +217,12 @@ Error HwcDisplay::GetFrame(
       queued_client_target = true;
     } else {
       if (!layer.info.buffer.get() || !layer.info.fence.get()) {
-        ALOGE("Layer requested without valid buffer");
-        return Error::BAD_LAYER;
+        ALOGV("Layer requested without valid buffer");
+        continue;
       }
 
       frame.push_back(layer.info);
     }
-  }
-
-  if (frame.empty()) {
-    ALOGE("Requested frame with no layers");
-    return Error::BAD_LAYER;
   }
 
   out_frames->swap(frame);
