@@ -111,11 +111,11 @@ Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
         remote.sun_path);
   RequestHeader<BorrowedHandle> request;
   InitRequest(&request, opcodes::CHANNEL_OPEN, 0, 0, false);
-  status = SendData(socket_fd.Get(), request);
+  status = SendData(socket_fd.Borrow(), request);
   if (!status)
     return ErrorStatus(status.error());
   ResponseHeader<LocalHandle> response;
-  status = ReceiveData(socket_fd.Get(), &response);
+  status = ReceiveData(socket_fd.Borrow(), &response);
   if (!status)
     return ErrorStatus(status.error());
   int ref = response.ret_code;

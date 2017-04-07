@@ -67,7 +67,7 @@ struct TransactionState {
   ResponseHeader<LocalHandle> response;
 };
 
-Status<void> ReadAndDiscardData(int socket_fd, size_t size) {
+Status<void> ReadAndDiscardData(const BorrowedHandle& socket_fd, size_t size) {
   while (size > 0) {
     // If there is more data to read in the message than the buffers provided
     // by the caller, read and discard the extra data from the socket.
@@ -83,9 +83,10 @@ Status<void> ReadAndDiscardData(int socket_fd, size_t size) {
   return ErrorStatus(EIO);
 }
 
-Status<void> SendRequest(int socket_fd, TransactionState* transaction_state,
-                         int opcode, const iovec* send_vector,
-                         size_t send_count, size_t max_recv_len) {
+Status<void> SendRequest(const BorrowedHandle& socket_fd,
+                         TransactionState* transaction_state, int opcode,
+                         const iovec* send_vector, size_t send_count,
+                         size_t max_recv_len) {
   size_t send_len = CountVectorSize(send_vector, send_count);
   InitRequest(&transaction_state->request, opcode, send_len, max_recv_len,
               false);
@@ -95,7 +96,8 @@ Status<void> SendRequest(int socket_fd, TransactionState* transaction_state,
   return status;
 }
 
-Status<void> ReceiveResponse(int socket_fd, TransactionState* transaction_state,
+Status<void> ReceiveResponse(const BorrowedHandle& socket_fd,
+                             TransactionState* transaction_state,
                              const iovec* receive_vector, size_t receive_count,
                              size_t max_recv_len) {
   auto status = ReceiveData(socket_fd, &transaction_state->response);
@@ -164,7 +166,7 @@ Status<void> ClientChannel::SendImpulse(int opcode, const void* buffer,
 
   InitRequest(&request, opcode, length, 0, true);
   memcpy(request.impulse_payload.data(), buffer, length);
-  return SendData(channel_handle_.value(), request);
+  return SendData(BorrowedHandle{channel_handle_.value()}, request);
 }
 
 Status<int> ClientChannel::SendAndReceive(void* transaction_state, int opcode,
@@ -182,11 +184,11 @@ Status<int> ClientChannel::SendAndReceive(void* transaction_state, int opcode,
   auto* state = static_cast<TransactionState*>(transaction_state);
   size_t max_recv_len = CountVectorSize(receive_vector, receive_count);
 
-  auto status = SendRequest(channel_handle_.value(), state, opcode, send_vector,
-                            send_count, max_recv_len);
+  auto status = SendRequest(BorrowedHandle{channel_handle_.value()}, state,
+                            opcode, send_vector, send_count, max_recv_len);
   if (status) {
-    status = ReceiveResponse(channel_handle_.value(), state, receive_vector,
-                             receive_count, max_recv_len);
+    status = ReceiveResponse(BorrowedHandle{channel_handle_.value()}, state,
+                             receive_vector, receive_count, max_recv_len);
   }
   if (!result.PropagateError(status)) {
     const int return_code = state->response.ret_code;
