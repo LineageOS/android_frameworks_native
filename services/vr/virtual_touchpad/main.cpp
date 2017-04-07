@@ -8,8 +8,9 @@
 
 int main() {
   ALOGI("Starting");
-  android::dvr::VirtualTouchpadService touchpad_service(
-      std::move(android::dvr::VirtualTouchpadEvdev::Create()));
+  android::sp<android::dvr::VirtualTouchpadService> touchpad_service =
+      new android::dvr::VirtualTouchpadService(
+          android::dvr::VirtualTouchpadEvdev::Create());
 
   signal(SIGPIPE, SIG_IGN);
   android::sp<android::ProcessState> ps(android::ProcessState::self());
@@ -19,8 +20,8 @@ int main() {
 
   android::sp<android::IServiceManager> sm(android::defaultServiceManager());
   const android::status_t service_status =
-      sm->addService(android::String16(touchpad_service.SERVICE_NAME()),
-                     &touchpad_service, false /*allowIsolated*/);
+      sm->addService(android::String16(touchpad_service->SERVICE_NAME()),
+                     touchpad_service, false /*allowIsolated*/);
   if (service_status != android::OK) {
     ALOGE("virtual touchpad service not added: %d",
           static_cast<int>(service_status));
