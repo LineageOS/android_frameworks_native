@@ -44,6 +44,11 @@ static void printGLString(const char *name, GLenum s) {
     fprintf(stderr, "GL %s = %s\n", name, v);
 }
 
+static void printEGLString(EGLDisplay dpy, const char *name, GLenum s) {
+    const char *v = (const char *) eglQueryString(dpy, s);
+    fprintf(stderr, "GL %s = %s\n", name, v);
+}
+
 static void checkEglError(const char* op, EGLBoolean returnVal = EGL_TRUE) {
     if (returnVal != EGL_TRUE) {
         fprintf(stderr, "%s() returned %d\n", op, returnVal);
@@ -341,6 +346,7 @@ int main(int argc, char** argv) {
     printGLString("Vendor", GL_VENDOR);
     printGLString("Renderer", GL_RENDERER);
     printGLString("Extensions", GL_EXTENSIONS);
+    printEGLString(dpy, "EGL Extensions", EGL_EXTENSIONS);
 
     if(!setupGraphics(w, h)) {
         fprintf(stderr, "Could not set up graphics.\n");
