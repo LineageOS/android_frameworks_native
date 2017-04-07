@@ -26,18 +26,19 @@ struct MessagePreamble {
   uint32_t fd_count{0};
 };
 
-Status<void> SendPayload::Send(int socket_fd) {
+Status<void> SendPayload::Send(const BorrowedHandle& socket_fd) {
   return Send(socket_fd, nullptr);
 }
 
-Status<void> SendPayload::Send(int socket_fd, const ucred* cred) {
+Status<void> SendPayload::Send(const BorrowedHandle& socket_fd,
+                               const ucred* cred) {
   MessagePreamble preamble;
   preamble.magic = kMagicPreamble;
   preamble.data_size = buffer_.size();
   preamble.fd_count = file_handles_.size();
 
-  ssize_t ret =
-      RETRY_EINTR(send(socket_fd, &preamble, sizeof(preamble), MSG_NOSIGNAL));
+  ssize_t ret = RETRY_EINTR(
+      send(socket_fd.Get(), &preamble, sizeof(preamble), MSG_NOSIGNAL));
   if (ret < 0)
     return ErrorStatus(errno);
   if (ret != sizeof(preamble))
@@ -71,7 +72,7 @@ Status<void> SendPayload::Send(int socket_fd, const ucred* cred) {
     }
   }
 
-  ret = RETRY_EINTR(sendmsg(socket_fd, &msg, MSG_NOSIGNAL));
+  ret = RETRY_EINTR(sendmsg(socket_fd.Get(), &msg, MSG_NOSIGNAL));
   if (ret < 0)
     return ErrorStatus(errno);
   if (static_cast<size_t>(ret) != buffer_.size())
@@ -125,14 +126,15 @@ Status<ChannelReference> SendPayload::PushChannelHandle(
   return ErrorStatus{EOPNOTSUPP};
 }
 
-Status<void> ReceivePayload::Receive(int socket_fd) {
+Status<void> ReceivePayload::Receive(const BorrowedHandle& socket_fd) {
   return Receive(socket_fd, nullptr);
 }
 
-Status<void> ReceivePayload::Receive(int socket_fd, ucred* cred) {
+Status<void> ReceivePayload::Receive(const BorrowedHandle& socket_fd,
+                                     ucred* cred) {
   MessagePreamble preamble;
-  ssize_t ret =
-      RETRY_EINTR(recv(socket_fd, &preamble, sizeof(preamble), MSG_WAITALL));
+  ssize_t ret = RETRY_EINTR(
+      recv(socket_fd.Get(), &preamble, sizeof(preamble), MSG_WAITALL));
   if (ret < 0)
     return ErrorStatus(errno);
   else if (ret == 0)
@@ -157,7 +159,7 @@ Status<void> ReceivePayload::Receive(int socket_fd, ucred* cred) {
     msg.msg_control = alloca(msg.msg_controllen);
   }
 
-  ret = RETRY_EINTR(recvmsg(socket_fd, &msg, MSG_WAITALL));
+  ret = RETRY_EINTR(recvmsg(socket_fd.Get(), &msg, MSG_WAITALL));
   if (ret < 0)
     return ErrorStatus(errno);
   else if (ret == 0)
@@ -219,8 +221,10 @@ bool ReceivePayload::GetChannelHandle(ChannelReference /*ref*/,
   return false;
 }
 
-Status<void> SendData(int socket_fd, const void* data, size_t size) {
-  ssize_t size_written = RETRY_EINTR(send(socket_fd, data, size, MSG_NOSIGNAL));
+Status<void> SendData(const BorrowedHandle& socket_fd, const void* data,
+                      size_t size) {
+  ssize_t size_written =
+      RETRY_EINTR(send(socket_fd.Get(), data, size, MSG_NOSIGNAL));
   if (size_written < 0)
     return ErrorStatus(errno);
   if (static_cast<size_t>(size_written) != size)
@@ -228,11 +232,13 @@ Status<void> SendData(int socket_fd, const void* data, size_t size) {
   return {};
 }
 
-Status<void> SendDataVector(int socket_fd, const iovec* data, size_t count) {
+Status<void> SendDataVector(const BorrowedHandle& socket_fd, const iovec* data,
+                            size_t count) {
   msghdr msg = {};
   msg.msg_iov = const_cast<iovec*>(data);
   msg.msg_iovlen = count;
-  ssize_t size_written = RETRY_EINTR(sendmsg(socket_fd, &msg, MSG_NOSIGNAL));
+  ssize_t size_written =
+      RETRY_EINTR(sendmsg(socket_fd.Get(), &msg, MSG_NOSIGNAL));
   if (size_written < 0)
     return ErrorStatus(errno);
   if (static_cast<size_t>(size_written) != CountVectorSize(data, count))
@@ -240,8 +246,10 @@ Status<void> SendDataVector(int socket_fd, const iovec* data, size_t count) {
   return {};
 }
 
-Status<void> ReceiveData(int socket_fd, void* data, size_t size) {
-  ssize_t size_read = RETRY_EINTR(recv(socket_fd, data, size, MSG_WAITALL));
+Status<void> ReceiveData(const BorrowedHandle& socket_fd, void* data,
+                         size_t size) {
+  ssize_t size_read =
+      RETRY_EINTR(recv(socket_fd.Get(), data, size, MSG_WAITALL));
   if (size_read < 0)
     return ErrorStatus(errno);
   else if (size_read == 0)
@@ -251,11 +259,12 @@ Status<void> ReceiveData(int socket_fd, void* data, size_t size) {
   return {};
 }
 
-Status<void> ReceiveDataVector(int socket_fd, const iovec* data, size_t count) {
+Status<void> ReceiveDataVector(const BorrowedHandle& socket_fd,
+                               const iovec* data, size_t count) {
   msghdr msg = {};
   msg.msg_iov = const_cast<iovec*>(data);
   msg.msg_iovlen = count;
-  ssize_t size_read = RETRY_EINTR(recvmsg(socket_fd, &msg, MSG_WAITALL));
+  ssize_t size_read = RETRY_EINTR(recvmsg(socket_fd.Get(), &msg, MSG_WAITALL));
   if (size_read < 0)
     return ErrorStatus(errno);
   else if (size_read == 0)
