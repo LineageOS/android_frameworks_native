@@ -22,16 +22,20 @@ constexpr int kBufferSliceCount = 1;  // number of slices in each buffer
 class BufferHubQueueTest : public ::testing::Test {
  public:
   template <typename Meta>
-  void CreateQueues(int usage_set_mask = 0, int usage_clear_mask = 0,
+  bool CreateQueues(int usage_set_mask = 0, int usage_clear_mask = 0,
                     int usage_deny_set_mask = 0,
                     int usage_deny_clear_mask = 0) {
     producer_queue_ =
         ProducerQueue::Create<Meta>(usage_set_mask, usage_clear_mask,
                                     usage_deny_set_mask, usage_deny_clear_mask);
-    ASSERT_NE(nullptr, producer_queue_);
+    if (!producer_queue_)
+      return false;
 
     consumer_queue_ = producer_queue_->CreateConsumerQueue();
-    ASSERT_NE(nullptr, consumer_queue_);
+    if (!consumer_queue_)
+      return false;
+
+    return true;
   }
 
   void AllocateBuffer() {
@@ -51,7 +55,7 @@ class BufferHubQueueTest : public ::testing::Test {
 TEST_F(BufferHubQueueTest, TestDequeue) {
   const size_t nb_dequeue_times = 16;
 
-  CreateQueues<size_t>();
+  ASSERT_TRUE(CreateQueues<size_t>());
 
   // Allocate only one buffer.
   AllocateBuffer();
@@ -77,7 +81,7 @@ TEST_F(BufferHubQueueTest, TestProducerConsumer) {
   size_t slot;
   uint64_t seq;
 
-  CreateQueues<uint64_t>();
+  ASSERT_TRUE(CreateQueues<uint64_t>());
 
   for (size_t i = 0; i < nb_buffer; i++) {
     AllocateBuffer();
@@ -127,7 +131,7 @@ struct TestMetadata {
 };
 
 TEST_F(BufferHubQueueTest, TestMetadata) {
-  CreateQueues<TestMetadata>();
+  ASSERT_TRUE(CreateQueues<TestMetadata>());
   AllocateBuffer();
 
   std::vector<TestMetadata> ms = {
@@ -149,7 +153,7 @@ TEST_F(BufferHubQueueTest, TestMetadata) {
 }
 
 TEST_F(BufferHubQueueTest, TestMetadataMismatch) {
-  CreateQueues<int64_t>();
+  ASSERT_TRUE(CreateQueues<int64_t>());
   AllocateBuffer();
 
   int64_t mi = 3;
@@ -166,7 +170,7 @@ TEST_F(BufferHubQueueTest, TestMetadataMismatch) {
 }
 
 TEST_F(BufferHubQueueTest, TestEnqueue) {
-  CreateQueues<int64_t>();
+  ASSERT_TRUE(CreateQueues<int64_t>());
   AllocateBuffer();
 
   size_t slot;
@@ -181,7 +185,7 @@ TEST_F(BufferHubQueueTest, TestEnqueue) {
 }
 
 TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
-  CreateQueues<int64_t>();
+  ASSERT_TRUE(CreateQueues<int64_t>());
 
   size_t s1;
   AllocateBuffer();
@@ -227,7 +231,7 @@ TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
 
 TEST_F(BufferHubQueueTest, TestUsageSetMask) {
   const int set_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  CreateQueues<int64_t>(set_mask, 0, 0, 0);
+  ASSERT_TRUE(CreateQueues<int64_t>(set_mask, 0, 0, 0));
 
   // When allocation, leave out |set_mask| from usage bits on purpose.
   size_t slot;
@@ -243,7 +247,7 @@ TEST_F(BufferHubQueueTest, TestUsageSetMask) {
 
 TEST_F(BufferHubQueueTest, TestUsageClearMask) {
   const int clear_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  CreateQueues<int64_t>(0, clear_mask, 0, 0);
+  ASSERT_TRUE(CreateQueues<int64_t>(0, clear_mask, 0, 0));
 
   // When allocation, add |clear_mask| into usage bits on purpose.
   size_t slot;
@@ -259,7 +263,7 @@ TEST_F(BufferHubQueueTest, TestUsageClearMask) {
 
 TEST_F(BufferHubQueueTest, TestUsageDenySetMask) {
   const int deny_set_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  CreateQueues<int64_t>(0, 0, deny_set_mask, 0);
+  ASSERT_TRUE(CreateQueues<int64_t>(0, 0, deny_set_mask, 0));
 
   // Now that |deny_set_mask| is illegal, allocation without those bits should
   // be able to succeed.
@@ -278,7 +282,7 @@ TEST_F(BufferHubQueueTest, TestUsageDenySetMask) {
 
 TEST_F(BufferHubQueueTest, TestUsageDenyClearMask) {
   const int deny_clear_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  CreateQueues<int64_t>(0, 0, 0, deny_clear_mask);
+  ASSERT_TRUE(CreateQueues<int64_t>(0, 0, 0, deny_clear_mask));
 
   // Now that clearing |deny_clear_mask| is illegal (i.e. setting these bits are
   // mandatory), allocation with those bits should be able to succeed.

@@ -16,7 +16,9 @@
 #include "producer_queue_channel.h"
 
 using android::pdx::Channel;
+using android::pdx::ErrorStatus;
 using android::pdx::Message;
+using android::pdx::Status;
 using android::pdx::rpc::DispatchRemoteMethod;
 using android::pdx::default_transport::Endpoint;
 
@@ -28,9 +30,7 @@ BufferHubService::BufferHubService()
 
 BufferHubService::~BufferHubService() {}
 
-bool BufferHubService::IsInitialized() const {
-  return BASE::IsInitialized();
-}
+bool BufferHubService::IsInitialized() const { return BASE::IsInitialized(); }
 
 std::string BufferHubService::DumpState(size_t /*max_length*/) {
   std::ostringstream stream;
@@ -374,7 +374,7 @@ int BufferHubService::OnGetPersistentBuffer(Message& message,
   }
 }
 
-int BufferHubService::OnCreateProducerQueue(
+Status<QueueInfo> BufferHubService::OnCreateProducerQueue(
     pdx::Message& message, size_t meta_size_bytes, int usage_set_mask,
     int usage_clear_mask, int usage_deny_set_mask, int usage_deny_clear_mask) {
   // Use the producer channel id as the global queue id.
@@ -386,7 +386,7 @@ int BufferHubService::OnCreateProducerQueue(
   if (const auto channel = message.GetChannel<BufferHubChannel>()) {
     ALOGE("BufferHubService::OnCreateProducerQueue: already created: queue=%d",
           queue_id);
-    return -EALREADY;
+    return ErrorStatus(EALREADY);
   }
 
   int error;
@@ -394,10 +394,10 @@ int BufferHubService::OnCreateProducerQueue(
           this, queue_id, meta_size_bytes, usage_set_mask, usage_clear_mask,
           usage_deny_set_mask, usage_deny_clear_mask, &error)) {
     message.SetChannel(producer_channel);
-    return 0;
+    return {{meta_size_bytes, queue_id}};
   } else {
     ALOGE("BufferHubService::OnCreateBuffer: Failed to create producer!!");
-    return error;
+    return ErrorStatus(-error);
   }
 }
 

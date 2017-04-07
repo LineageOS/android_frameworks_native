@@ -160,8 +160,7 @@ std::shared_ptr<ProducerQueue> DisplaySurfaceClient::GetProducerQueue() {
       return nullptr;
     }
 
-    producer_queue_ =
-        ProducerQueue::Import<DisplaySurfaceMetadata>(status.take());
+    producer_queue_ = ProducerQueue::Import(status.take());
   }
   return producer_queue_;
 }
