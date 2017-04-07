@@ -40,6 +40,11 @@ bool ConsumerQueueChannel::HandleMessage(Message& message) {
           *producer, &ProducerQueueChannel::OnCreateConsumerQueue, message);
       return true;
 
+    case BufferHubRPC::GetQueueInfo::Opcode:
+      DispatchRemoteMethod<BufferHubRPC::GetQueueInfo>(
+          *producer, &ProducerQueueChannel::OnGetQueueInfo, message);
+      return true;
+
     case BufferHubRPC::ConsumerQueueImportBuffers::Opcode:
       DispatchRemoteMethod<BufferHubRPC::ConsumerQueueImportBuffers>(
           *this, &ConsumerQueueChannel::OnConsumerQueueImportBuffers, message);

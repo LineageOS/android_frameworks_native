@@ -4,6 +4,7 @@
 #include <gui/BufferQueueDefs.h>
 
 #include <pdx/client.h>
+#include <pdx/status.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/epoll_file_descriptor.h>
 #include <private/dvr/ring_buffer.h>
@@ -41,6 +42,9 @@ class BufferHubQueue : public pdx::Client {
   // Return the default buffer format of this buffer queue.
   int32_t default_format() const { return default_format_; }
 
+  // Create a new consumer in handle form for immediate transport over RPC.
+  Status<LocalChannelHandle> CreateConsumerQueueHandle();
+
   // Return the number of buffers avaiable for dequeue.
   size_t count() const { return available_buffers_.GetSize(); }
 
@@ -51,7 +55,7 @@ class BufferHubQueue : public pdx::Client {
   size_t metadata_size() const { return meta_size_; }
 
   // Return whether the buffer queue is alrady full.
-  bool is_full() const { return  available_buffers_.IsFull(); }
+  bool is_full() const { return available_buffers_.IsFull(); }
 
   explicit operator bool() const { return epoll_fd_.IsValid(); }
 
@@ -83,9 +87,18 @@ class BufferHubQueue : public pdx::Client {
   // timeout.
   static constexpr int kNoTimeOut = -1;
 
+  int id() const { return id_; }
+
  protected:
-  BufferHubQueue(LocalChannelHandle channel, size_t meta_size);
-  BufferHubQueue(const std::string& endpoint_path, size_t meta_size);
+  BufferHubQueue(LocalChannelHandle channel);
+  BufferHubQueue(const std::string& endpoint_path);
+
+  // Imports the queue parameters by querying BufferHub for the parameters for
+  // this channel.
+  Status<void> ImportQueue();
+
+  // Sets up the queue with the given parameters.
+  void SetupQueue(size_t meta_size_bytes_, int id);
 
   // Called by ProducerQueue::AddBuffer and ConsumerQueue::AddBuffer only. to
   // register a buffer for epoll and internal bookkeeping.
@@ -112,7 +125,7 @@ class BufferHubQueue : public pdx::Client {
                             LocalHandle* fence) = 0;
 
   // Called when a buffer is allocated remotely.
-  virtual int OnBufferAllocated() = 0;
+  virtual Status<void> OnBufferAllocated() { return {}; }
 
   // Data members to handle arbitrary metadata passed through BufferHub. It is
   // fair to enforce that all buffers in the same queue share the same metadata
@@ -235,6 +248,9 @@ class BufferHubQueue : public pdx::Client {
   // Epoll fd used to wait for BufferHub events.
   EpollFileDescriptor epoll_fd_;
 
+  // Global id for the queue that is consistent across processes.
+  int id_;
+
   BufferHubQueue(const BufferHubQueue&) = delete;
   void operator=(BufferHubQueue&) = delete;
 };
@@ -267,9 +283,8 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   }
 
   // Import a |ProducerQueue| from a channel handle.
-  template <typename Meta>
   static std::unique_ptr<ProducerQueue> Import(LocalChannelHandle handle) {
-    return BASE::Create(std::move(handle), sizeof(Meta));
+    return BASE::Create(std::move(handle));
   }
 
   // Get a buffer producer. Note that the method doesn't check whether the
@@ -311,18 +326,15 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // static template methods inherited from ClientBase, which take the same
   // arguments as the constructors.
   explicit ProducerQueue(size_t meta_size);
-  ProducerQueue(LocalChannelHandle handle, size_t meta_size);
+  ProducerQueue(LocalChannelHandle handle);
   ProducerQueue(size_t meta_size, int usage_set_mask, int usage_clear_mask,
                 int usage_deny_set_mask, int usage_deny_clear_mask);
 
   int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf,
                     LocalHandle* release_fence) override;
-
-  // Producer buffer is always allocated from the client (i.e. local) side.
-  int OnBufferAllocated() override { return 0; }
 };
 
-class ConsumerQueue : public pdx::ClientBase<ConsumerQueue, BufferHubQueue> {
+class ConsumerQueue : public BufferHubQueue {
  public:
   // Get a buffer consumer. Note that the method doesn't check whether the
   // buffer slot has a valid buffer that has been imported already. When no
@@ -333,10 +345,14 @@ class ConsumerQueue : public pdx::ClientBase<ConsumerQueue, BufferHubQueue> {
         BufferHubQueue::GetBuffer(slot));
   }
 
+  // Import a |ConsumerQueue| from a channel handle.
+  static std::unique_ptr<ConsumerQueue> Import(LocalChannelHandle handle) {
+    return std::unique_ptr<ConsumerQueue>(new ConsumerQueue(std::move(handle)));
+  }
+
   // Import newly created buffers from the service side.
-  // Returns number of buffers successfully imported; or negative error code
-  // when buffer import fails.
-  int ImportBuffers();
+  // Returns number of buffers successfully imported or an error.
+  Status<size_t> ImportBuffers();
 
   // Dequeue a consumer buffer to read. The returned buffer in |Acquired|'ed
   // mode, and caller should call Releasse() once it's done writing to release
@@ -353,10 +369,11 @@ class ConsumerQueue : public pdx::ClientBase<ConsumerQueue, BufferHubQueue> {
   std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot, void* meta,
                                           size_t meta_size,
                                           LocalHandle* acquire_fence);
- private:
-  friend BASE;
 
-  ConsumerQueue(LocalChannelHandle handle, size_t meta_size);
+ private:
+  friend BufferHubQueue;
+
+  ConsumerQueue(LocalChannelHandle handle);
 
   // Add a consumer buffer to populate the queue. Once added, a consumer buffer
   // is NOT available to use until the producer side |Post| it. |WaitForBuffers|
@@ -367,7 +384,7 @@ class ConsumerQueue : public pdx::ClientBase<ConsumerQueue, BufferHubQueue> {
   int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf,
                     LocalHandle* acquire_fence) override;
 
-  int OnBufferAllocated() override;
+  Status<void> OnBufferAllocated() override;
 };
 
 }  // namespace dvr

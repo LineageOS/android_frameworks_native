@@ -119,6 +119,14 @@ class FenceHandle {
 using LocalFence = FenceHandle<pdx::LocalHandle>;
 using BorrowedFence = FenceHandle<pdx::BorrowedHandle>;
 
+struct QueueInfo {
+  size_t meta_size_bytes;
+  int id;
+
+ private:
+  PDX_SERIALIZABLE_MEMBERS(QueueInfo, meta_size_bytes, id);
+};
+
 // BufferHub Service RPC interface. Defines the endpoints, op codes, and method
 // type signatures supported by bufferhubd.
 struct BufferHubRPC {
@@ -151,6 +159,7 @@ struct BufferHubRPC {
     kOpConsumerSetIgnore,
     kOpCreateProducerQueue,
     kOpCreateConsumerQueue,
+    kOpGetQueueInfo,
     kOpProducerQueueAllocateBuffers,
     kOpProducerQueueDetachBuffer,
     kOpConsumerQueueImportBuffers,
@@ -192,18 +201,19 @@ struct BufferHubRPC {
 
   // Buffer Queue Methods.
   PDX_REMOTE_METHOD(CreateProducerQueue, kOpCreateProducerQueue,
-                    int(size_t meta_size_bytes, int usage_set_mask,
-                        int usage_clear_mask, int usage_deny_set_mask,
-                        int usage_deny_clear_mask));
+                    QueueInfo(size_t meta_size_bytes, int usage_set_mask,
+                              int usage_clear_mask, int usage_deny_set_mask,
+                              int usage_deny_clear_mask));
   PDX_REMOTE_METHOD(CreateConsumerQueue, kOpCreateConsumerQueue,
-                    std::pair<LocalChannelHandle, size_t>(Void));
+                    LocalChannelHandle(Void));
+  PDX_REMOTE_METHOD(GetQueueInfo, kOpGetQueueInfo, QueueInfo(Void));
   PDX_REMOTE_METHOD(ProducerQueueAllocateBuffers,
                     kOpProducerQueueAllocateBuffers,
                     std::vector<std::pair<LocalChannelHandle, size_t>>(
                         int width, int height, int format, int usage,
                         size_t slice_count, size_t buffer_count));
   PDX_REMOTE_METHOD(ProducerQueueDetachBuffer, kOpProducerQueueDetachBuffer,
-                    int(size_t slot));
+                    void(size_t slot));
   PDX_REMOTE_METHOD(ConsumerQueueImportBuffers, kOpConsumerQueueImportBuffers,
                     std::vector<std::pair<LocalChannelHandle, size_t>>(Void));
 };

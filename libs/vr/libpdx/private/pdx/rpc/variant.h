@@ -39,15 +39,11 @@ using EnableIfNotConstructible =
 template <typename... Types>
 struct HasType : std::false_type {};
 template <typename T, typename U>
-struct HasType<T, U> : std::is_same<T, U> {};
+struct HasType<T, U> : std::is_same<std::decay_t<T>, std::decay_t<U>> {};
 template <typename T, typename First, typename... Rest>
 struct HasType<T, First, Rest...>
-    : std::integral_constant<
-          bool, std::is_same<T, First>::value || HasType<T, Rest...>::value> {};
-
-template <typename T, typename... Types>
-using HasTypeIgnoreRef =
-    HasType<typename std::remove_reference<T>::type, Types...>;
+    : std::integral_constant<bool, HasType<T, First>::value ||
+                                       HasType<T, Rest...>::value> {};
 
 // Defines set operations on a set of Types...
 template <typename... Types>
@@ -59,8 +55,8 @@ struct Set {
   struct IsSubset<T> : HasType<T, Types...> {};
   template <typename First, typename... Rest>
   struct IsSubset<First, Rest...>
-      : std::integral_constant<
-            bool, IsSubset<First>::value && IsSubset<Rest...>::value> {};
+      : std::integral_constant<bool, IsSubset<First>::value &&
+                                         IsSubset<Rest...>::value> {};
 };
 
 // Determines the number of elements of Types... that are constructible from
@@ -80,18 +76,18 @@ struct ConstructibleCount<From, First, Rest...>
 // Enable if T is an element of Types...
 template <typename R, typename T, typename... Types>
 using EnableIfElement =
-    typename std::enable_if<HasTypeIgnoreRef<T, Types...>::value, R>::type;
+    typename std::enable_if<HasType<T, Types...>::value, R>::type;
 // Enable if T is not an element of Types...
 template <typename R, typename T, typename... Types>
 using EnableIfNotElement =
-    typename std::enable_if<!HasTypeIgnoreRef<T, Types...>::value, R>::type;
+    typename std::enable_if<!HasType<T, Types...>::value, R>::type;
 
 // Enable if T is convertible to an element of Types... T is considered
 // convertible IIF a single element of Types... is assignable from T and T is
 // not a direct element of Types...
 template <typename R, typename T, typename... Types>
 using EnableIfConvertible =
-    typename std::enable_if<!HasTypeIgnoreRef<T, Types...>::value &&
+    typename std::enable_if<!HasType<T, Types...>::value &&
                                 ConstructibleCount<T, Types...>::value == 1,
                             R>::type;
 
@@ -102,7 +98,7 @@ using EnableIfConvertible =
 // in conversion.
 template <typename R, typename T, typename... Types>
 using EnableIfAssignable =
-    typename std::enable_if<HasTypeIgnoreRef<T, Types...>::value ||
+    typename std::enable_if<HasType<T, Types...>::value ||
                                 ConstructibleCount<T, Types...>::value == 1,
                             R>::type;
 
@@ -362,15 +358,13 @@ class Variant {
   template <typename T>
   using TypeTag = detail::TypeTag<T>;
   template <typename T>
-  using TypeTagIgnoreRef = TypeTag<typename std::remove_reference<T>::type>;
+  using DecayedTypeTag = TypeTag<std::decay_t<T>>;
   template <std::size_t I>
   using TypeForIndex = detail::TypeForIndex<I, Types...>;
   template <std::size_t I>
   using TypeTagForIndex = detail::TypeTagForIndex<I, Types...>;
   template <typename T>
   using HasType = detail::HasType<T, Types...>;
-  template <typename T>
-  using HasTypeIgnoreRef = detail::HasTypeIgnoreRef<T, Types...>;
   template <typename R, typename T>
   using EnableIfElement = detail::EnableIfElement<R, T, Types...>;
   template <typename R, typename T>
@@ -381,13 +375,12 @@ class Variant {
   struct Direct {};
   struct Convert {};
   template <typename T>
-  using SelectConstructor =
-      detail::Select<HasTypeIgnoreRef<T>::value, Direct, Convert>;
+  using SelectConstructor = detail::Select<HasType<T>::value, Direct, Convert>;
 
   // Constructs by type tag when T is an direct element of Types...
   template <typename T>
   explicit Variant(T&& value, Direct)
-      : value_(0, &index_, TypeTagIgnoreRef<T>{}, std::forward<T>(value)) {}
+      : value_(0, &index_, DecayedTypeTag<T>{}, std::forward<T>(value)) {}
   // Conversion constructor when T is not a direct element of Types...
   template <typename T>
   explicit Variant(T&& value, Convert)
@@ -421,7 +414,7 @@ class Variant {
   // convertible to multiple elements of Types.
   template <typename T>
   EnableIfElement<Variant&, T> operator=(T&& value) {
-    Assign(TypeTagIgnoreRef<T>{}, std::forward<T>(value));
+    Assign(DecayedTypeTag<T>{}, std::forward<T>(value));
     return *this;
   }
 
@@ -487,7 +480,7 @@ class Variant {
   template <typename T>
   constexpr std::int32_t index_of() const {
     static_assert(HasType<T>::value, "T is not an element type of Variant.");
-    return value_.template index(TypeTag<T>{});
+    return value_.template index(DecayedTypeTag<T>{});
   }
 
   // Returns the index of the active type. If the Variant is empty -1 is
@@ -509,14 +502,14 @@ class Variant {
   template <typename T>
   T* get() {
     if (is<T>())
-      return &value_.template get(TypeTag<T>{});
+      return &value_.template get(DecayedTypeTag<T>{});
     else
       return nullptr;
   }
   template <typename T>
   const T* get() const {
     if (is<T>())
-      return &value_.template get(TypeTag<T>{});
+      return &value_.template get(DecayedTypeTag<T>{});
     else
       return nullptr;
   }
@@ -537,7 +530,7 @@ class Variant {
 
  private:
   std::int32_t index_ = kEmptyIndex;
-  detail::Union<Types...> value_;
+  detail::Union<std::decay_t<Types>...> value_;
 
   // Constructs an element from the given arguments and sets the Variant to the
   // resulting type.
