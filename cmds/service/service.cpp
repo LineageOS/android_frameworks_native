@@ -69,11 +69,10 @@ static String8 good_old_string(const String16& src)
 int main(int argc, char* const argv[])
 {
     bool wantsUsage = false;
-    bool wantsVendorServices = false;
     int result = 0;
     
     while (1) {
-        int ic = getopt(argc, argv, "vh?");
+        int ic = getopt(argc, argv, "h?");
         if (ic < 0)
             break;
 
@@ -82,9 +81,6 @@ int main(int argc, char* const argv[])
         case '?':
             wantsUsage = true;
             break;
-        case 'v':
-            wantsVendorServices = true;
-            break;
         default:
             aerr << "service: Unknown option -" << ic << endl;
             wantsUsage = true;
@@ -92,10 +88,9 @@ int main(int argc, char* const argv[])
             break;
         }
     }
-
-    if (wantsVendorServices) {
-        ProcessState::initWithDriver("/dev/vndbinder");
-    }
+#ifdef VENDORSERVICES
+    ProcessState::initWithDriver("/dev/vndbinder");
+#endif
     sp<IServiceManager> sm = defaultServiceManager();
     fflush(stdout);
     if (sm == NULL) {
