@@ -70,7 +70,7 @@ public:
         friend class HWComposer;
         virtual void onVSyncReceived(
             HWComposer* composer, int32_t disp, nsecs_t timestamp) = 0;
-        virtual void onHotplugReceived(int32_t disp, bool connected) = 0;
+        virtual void onHotplugReceived(HWComposer* composer, int32_t disp, bool connected) = 0;
         virtual void onInvalidateReceived(HWComposer* composer) = 0;
     protected:
         virtual ~EventHandler() {}
