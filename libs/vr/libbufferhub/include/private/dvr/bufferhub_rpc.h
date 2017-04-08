@@ -24,7 +24,8 @@ class NativeBufferHandle {
         width_(buffer.width()),
         height_(buffer.height()),
         format_(buffer.format()),
-        usage_(buffer.usage()) {
+        producer_usage_(buffer.producer_usage()),
+        consumer_usage_(buffer.consumer_usage()) {
     // Populate the fd and int vectors: native_handle->data[] is an array of fds
     // followed by an array of opaque ints.
     const int fd_count = buffer.handle()->numFds;
@@ -46,9 +47,10 @@ class NativeBufferHandle {
     for (const auto& fd : fds_)
       fd_ints.push_back(fd.Get());
 
-    const int ret = buffer->Import(fd_ints.data(), fd_ints.size(),
-                                   opaque_ints_.data(), opaque_ints_.size(),
-                                   width_, height_, stride_, format_, usage_);
+    const int ret =
+        buffer->Import(fd_ints.data(), fd_ints.size(), opaque_ints_.data(),
+                       opaque_ints_.size(), width_, height_, stride_, format_,
+                       producer_usage_, consumer_usage_);
     if (ret < 0)
       return ret;
 
@@ -68,19 +70,24 @@ class NativeBufferHandle {
 
  private:
   int id_;
-  int stride_;
-  int width_;
-  int height_;
-  int format_;
-  int usage_;
+  uint32_t stride_;
+  uint32_t width_;
+  uint32_t height_;
+  uint32_t format_;
+  uint64_t producer_usage_;
+  uint64_t consumer_usage_;
   std::vector<int> opaque_ints_;
   std::vector<FileHandleType> fds_;
 
-  void Clear() { id_ = stride_ = width_ = height_ = format_ = usage_ = -1; }
+  void Clear() {
+    id_ = -1;
+    stride_ = width_ = height_ = format_ = producer_usage_ = consumer_usage_ =
+        0;
+  }
 
   PDX_SERIALIZABLE_MEMBERS(NativeBufferHandle<FileHandleType>, id_, stride_,
-                           width_, height_, format_, usage_, opaque_ints_,
-                           fds_);
+                           width_, height_, format_, producer_usage_,
+                           consumer_usage_, opaque_ints_, fds_);
 
   NativeBufferHandle(const NativeBufferHandle&) = delete;
   void operator=(const NativeBufferHandle&) = delete;
@@ -125,6 +132,23 @@ struct QueueInfo {
 
  private:
   PDX_SERIALIZABLE_MEMBERS(QueueInfo, meta_size_bytes, id);
+};
+
+struct UsagePolicy {
+  uint64_t producer_set_mask;
+  uint64_t producer_clear_mask;
+  uint64_t producer_deny_set_mask;
+  uint64_t producer_deny_clear_mask;
+  uint64_t consumer_set_mask;
+  uint64_t consumer_clear_mask;
+  uint64_t consumer_deny_set_mask;
+  uint64_t consumer_deny_clear_mask;
+
+ private:
+  PDX_SERIALIZABLE_MEMBERS(UsagePolicy, producer_set_mask, producer_clear_mask,
+                           producer_deny_set_mask, producer_deny_clear_mask,
+                           consumer_set_mask, consumer_clear_mask,
+                           consumer_deny_set_mask, consumer_deny_clear_mask);
 };
 
 // BufferHub Service RPC interface. Defines the endpoints, op codes, and method
@@ -173,44 +197,46 @@ struct BufferHubRPC {
 
   // Methods.
   PDX_REMOTE_METHOD(CreateBuffer, kOpCreateBuffer,
-                    int(int width, int height, int format, int usage,
-                        size_t meta_size_bytes, size_t slice_count));
+                    void(uint32_t width, uint32_t height, uint32_t format,
+                         uint64_t producer_usage, uint64_t consumer_usage,
+                         size_t meta_size_bytes, size_t slice_count));
   PDX_REMOTE_METHOD(CreatePersistentBuffer, kOpCreatePersistentBuffer,
-                    int(const std::string& name, int user_id, int group_id,
-                        int width, int height, int format, int usage,
-                        size_t meta_size_bytes, size_t slice_count));
+                    void(const std::string& name, int user_id, int group_id,
+                         uint32_t width, uint32_t height, uint32_t format,
+                         uint64_t producer_usage, uint64_t consumer_usage,
+                         size_t meta_size_bytes, size_t slice_count));
   PDX_REMOTE_METHOD(GetPersistentBuffer, kOpGetPersistentBuffer,
-                    int(const std::string& name));
+                    void(const std::string& name));
   PDX_REMOTE_METHOD(GetBuffer, kOpGetBuffer,
                     NativeBufferHandle<LocalHandle>(unsigned index));
   PDX_REMOTE_METHOD(GetBuffers, kOpGetBuffers,
                     std::vector<NativeBufferHandle<LocalHandle>>(Void));
   PDX_REMOTE_METHOD(NewConsumer, kOpNewConsumer, LocalChannelHandle(Void));
   PDX_REMOTE_METHOD(ProducerMakePersistent, kOpProducerMakePersistent,
-                    int(const std::string& name, int user_id, int group_id));
+                    void(const std::string& name, int user_id, int group_id));
   PDX_REMOTE_METHOD(ProducerRemovePersistence, kOpProducerRemovePersistence,
-                    int(Void));
+                    void(Void));
   PDX_REMOTE_METHOD(ProducerPost, kOpProducerPost,
-                    int(LocalFence acquire_fence, MetaData));
+                    void(LocalFence acquire_fence, MetaData));
   PDX_REMOTE_METHOD(ProducerGain, kOpProducerGain, LocalFence(Void));
   PDX_REMOTE_METHOD(ConsumerAcquire, kOpConsumerAcquire,
                     std::pair<LocalFence, MetaData>(std::size_t metadata_size));
   PDX_REMOTE_METHOD(ConsumerRelease, kOpConsumerRelease,
-                    int(LocalFence release_fence));
-  PDX_REMOTE_METHOD(ConsumerSetIgnore, kOpConsumerSetIgnore, int(bool ignore));
+                    void(LocalFence release_fence));
+  PDX_REMOTE_METHOD(ConsumerSetIgnore, kOpConsumerSetIgnore, void(bool ignore));
 
   // Buffer Queue Methods.
   PDX_REMOTE_METHOD(CreateProducerQueue, kOpCreateProducerQueue,
-                    QueueInfo(size_t meta_size_bytes, int usage_set_mask,
-                              int usage_clear_mask, int usage_deny_set_mask,
-                              int usage_deny_clear_mask));
+                    QueueInfo(size_t meta_size_bytes,
+                              const UsagePolicy& usage_policy));
   PDX_REMOTE_METHOD(CreateConsumerQueue, kOpCreateConsumerQueue,
                     LocalChannelHandle(Void));
   PDX_REMOTE_METHOD(GetQueueInfo, kOpGetQueueInfo, QueueInfo(Void));
   PDX_REMOTE_METHOD(ProducerQueueAllocateBuffers,
                     kOpProducerQueueAllocateBuffers,
                     std::vector<std::pair<LocalChannelHandle, size_t>>(
-                        int width, int height, int format, int usage,
+                        uint32_t width, uint32_t height, uint32_t format,
+                        uint64_t producer_usage, uint64_t consumer_usage,
                         size_t slice_count, size_t buffer_count));
   PDX_REMOTE_METHOD(ProducerQueueDetachBuffer, kOpProducerQueueDetachBuffer,
                     void(size_t slot));

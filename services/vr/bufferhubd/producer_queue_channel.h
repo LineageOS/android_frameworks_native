@@ -11,10 +11,9 @@ namespace dvr {
 
 class ProducerQueueChannel : public BufferHubChannel {
  public:
-  static std::shared_ptr<ProducerQueueChannel> Create(
+  static pdx::Status<std::shared_ptr<ProducerQueueChannel>> Create(
       BufferHubService* service, int channel_id, size_t meta_size_bytes,
-      int usage_set_mask, int usage_clear_mask, int usage_deny_set_mask,
-      int usage_deny_clear_mask, int* error);
+      const UsagePolicy& usage_policy);
   ~ProducerQueueChannel() override;
 
   bool HandleMessage(pdx::Message& message) override;
@@ -34,8 +33,10 @@ class ProducerQueueChannel : public BufferHubChannel {
   // Allocate a new BufferHubProducer according to the input spec. Client may
   // handle this as if a new producer is created through kOpCreateBuffer.
   pdx::Status<std::vector<std::pair<pdx::RemoteChannelHandle, size_t>>>
-  OnProducerQueueAllocateBuffers(pdx::Message& message, int width, int height,
-                                 int format, int usage, size_t slice_count,
+  OnProducerQueueAllocateBuffers(pdx::Message& message, uint32_t width,
+                                 uint32_t height, uint32_t format,
+                                 uint64_t producer_usage,
+                                 uint64_t consumer_usage, size_t slice_count,
                                  size_t buffer_count);
 
   // Detach a BufferHubProducer indicated by |slot|. Note that the buffer must
@@ -48,18 +49,17 @@ class ProducerQueueChannel : public BufferHubChannel {
 
  private:
   ProducerQueueChannel(BufferHubService* service, int channel_id,
-                       size_t meta_size_bytes, int usage_set_mask,
-                       int usage_clear_mask, int usage_deny_set_mask,
-                       int usage_deny_clear_mask, int* error);
+                       size_t meta_size_bytes, const UsagePolicy& usage_policy,
+                       int* error);
 
   // Allocate one single producer buffer by |OnProducerQueueAllocateBuffers|.
   // Note that the newly created buffer's file handle will be pushed to client
   // and our return type is a RemoteChannelHandle.
-  // Returns the remote channdel handle and the slot number for the newly
+  // Returns the remote channel handle and the slot number for the newly
   // allocated buffer.
   pdx::Status<std::pair<pdx::RemoteChannelHandle, size_t>> AllocateBuffer(
-      pdx::Message& message, int width, int height, int format, int usage,
-      size_t slice_count);
+      pdx::Message& message, uint32_t width, uint32_t height, uint32_t format,
+      uint64_t producer_usage, uint64_t consumer_usage, size_t slice_count);
 
   // Size of the meta data associated with all the buffers allocated from the
   // queue. Now we assume the metadata size is immutable once the queue is
@@ -68,10 +68,7 @@ class ProducerQueueChannel : public BufferHubChannel {
 
   // A set of variables to control what |usage| bits can this ProducerQueue
   // allocate.
-  int usage_set_mask_;
-  int usage_clear_mask_;
-  int usage_deny_set_mask_;
-  int usage_deny_clear_mask_;
+  UsagePolicy usage_policy_;
 
   // Provides access to the |channel_id| of all consumer channels associated
   // with this producer.
