@@ -109,6 +109,11 @@ DVR_EXPORT int dvrGetApi(void* api, size_t struct_size, int version) {
     dvr_api->hwc_frame_get_display_width = dvrHwcFrameGetDisplayWidth;
     dvr_api->hwc_frame_get_display_height = dvrHwcFrameGetDisplayHeight;
     dvr_api->hwc_frame_get_display_removed = dvrHwcFrameGetDisplayRemoved;
+    dvr_api->hwc_frame_get_active_config = dvrHwcFrameGetActiveConfig;
+    dvr_api->hwc_frame_get_color_mode = dvrHwcFrameGetColorMode;
+    dvr_api->hwc_frame_get_color_transform = dvrHwcFrameGetColorTransform;
+    dvr_api->hwc_frame_get_power_mode = dvrHwcFrameGetPowerMode;
+    dvr_api->hwc_frame_get_vsync_enabled = dvrHwcFrameGetVsyncEnabled;
     dvr_api->hwc_frame_get_layer_count = dvrHwcFrameGetLayerCount;
     dvr_api->hwc_frame_get_layer_id = dvrHwcFrameGetLayerId;
     dvr_api->hwc_frame_get_layer_buffer = dvrHwcFrameGetLayerBuffer;
@@ -121,6 +126,19 @@ DVR_EXPORT int dvrGetApi(void* api, size_t struct_size, int version) {
     dvr_api->hwc_frame_get_layer_type = dvrHwcFrameGetLayerType;
     dvr_api->hwc_frame_get_layer_application_id =
         dvrHwcFrameGetLayerApplicationId;
+    dvr_api->hwc_frame_get_layer_z_order = dvrHwcFrameGetLayerZOrder;
+    dvr_api->hwc_frame_get_layer_cursor = dvrHwcFrameGetLayerCursor;
+    dvr_api->hwc_frame_get_layer_transform = dvrHwcFrameGetLayerTransform;
+    dvr_api->hwc_frame_get_layer_dataspace = dvrHwcFrameGetLayerDataspace;
+    dvr_api->hwc_frame_get_layer_color = dvrHwcFrameGetLayerColor;
+    dvr_api->hwc_frame_get_layer_num_visible_regions =
+        dvrHwcFrameGetLayerNumVisibleRegions;
+    dvr_api->hwc_frame_get_layer_visible_region =
+        dvrHwcFrameGetLayerVisibleRegion;
+    dvr_api->hwc_frame_get_layer_num_damaged_regions =
+        dvrHwcFrameGetLayerNumDamagedRegions;
+    dvr_api->hwc_frame_get_layer_damaged_region =
+        dvrHwcFrameGetLayerDamagedRegion;
 
     return 0;
   }

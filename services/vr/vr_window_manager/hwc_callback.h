@@ -65,6 +65,8 @@ class HwcCallback : public BnVrComposerCallback {
       }
     }
 
+    void PrintLayer();
+
     sp<Fence> fence;
     sp<GraphicBuffer> buffer;
     Rectf crop;
@@ -73,6 +75,11 @@ class HwcCallback : public BnVrComposerCallback {
     uint32_t appid;
     LayerType type;
     float alpha;
+    int32_t cursor_x;
+    int32_t cursor_y;
+    IComposerClient::Color color;
+    int32_t dataspace;
+    int32_t transform;
   };
 
   enum class FrameStatus {
