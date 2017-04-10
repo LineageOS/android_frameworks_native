@@ -32,6 +32,7 @@
 
 #define MEASURE_DEBUG 0
 #define FIXUP_DEBUG 0
+#define HACK_FOR_37193650 1
 
 namespace android {
 namespace installd {

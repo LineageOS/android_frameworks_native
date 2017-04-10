@@ -1152,6 +1152,9 @@ static void collectQuotaStats(const std::string& device, int32_t userId,
         }
     }
 
+#if HACK_FOR_37193650
+    extStats->dataSize = extStats->dataSize;
+#else
     int extGid = multiuser_get_ext_gid(userId, appId);
     if (extGid != -1) {
         if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), device.c_str(), extGid,
@@ -1166,6 +1169,7 @@ static void collectQuotaStats(const std::string& device, int32_t userId,
             extStats->dataSize += dq.dqb_curspace;
         }
     }
+#endif
 
     int sharedGid = multiuser_get_shared_gid(userId, appId);
     if (sharedGid != -1) {
@@ -1363,6 +1367,17 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
         collectQuotaStats(device, userId, appId, &stats, &extStats);
         ATRACE_END();
 
+#if HACK_FOR_37193650
+        ATRACE_BEGIN("external");
+        for (size_t i = 0; i < packageNames.size(); i++) {
+            const char* pkgname = packageNames[i].c_str();
+            auto extPath = create_data_media_package_path(uuid_, userId, "data", pkgname);
+            calculate_tree_size(extPath, &extStats.dataSize);
+            auto mediaPath = create_data_media_package_path(uuid_, userId, "media", pkgname);
+            calculate_tree_size(mediaPath, &extStats.dataSize);
+        }
+        ATRACE_END();
+#endif
     } else {
         ATRACE_BEGIN("code");
         for (auto codePath : codePaths) {
@@ -1447,6 +1462,12 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         flags &= ~FLAG_USE_QUOTA;
     }
 
+#if HACK_FOR_37193650
+    if (userId != 0) {
+        flags &= ~FLAG_USE_QUOTA;
+    }
+#endif
+
     if (flags & FLAG_USE_QUOTA) {
         struct dqblk dq;
 
@@ -1508,6 +1529,7 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         for (auto appId : appIds) {
             if (appId >= AID_APP_START) {
                 collectQuotaStats(device, userId, appId, &stats, &extStats);
+
 #if MEASURE_DEBUG
                 // Sleep to make sure we don't lose logs
                 usleep(1);
