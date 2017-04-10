@@ -19,6 +19,7 @@
 #include <gui/OccupancyTracker.h>
 
 #include <binder/IInterface.h>
+#include <binder/SafeInterface.h>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -131,6 +132,17 @@ public:
     //               * the buffer slot specified is not in the acquired state
     virtual status_t releaseBuffer(int buf, uint64_t frameNumber, EGLDisplay display,
                                    EGLSyncKHR fence, const sp<Fence>& releaseFence) = 0;
+
+    status_t releaseHelper(int buf, uint64_t frameNumber, const sp<Fence>& releaseFence) {
+        return releaseBuffer(buf, frameNumber, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, releaseFence);
+    }
+    // This is explicitly *not* the actual signature of IGBC::releaseBuffer, but:
+    //     1) We have no easy way to send the EGL objects across Binder
+    //     2) This has always been broken, probably because
+    //     3) IGBC is rarely remoted
+    // For now, we will choose to bury our heads in the sand and ignore this problem until such time
+    // as we can finally finish converting away from EGL sync to native Android sync
+    using ReleaseBuffer = decltype(&IGraphicBufferConsumer::releaseHelper);
 
     // consumerConnect connects a consumer to the BufferQueue. Only one consumer may be connected,
     // and when that consumer disconnects the BufferQueue is placed into the "abandoned" state,
@@ -262,8 +274,11 @@ public:
     }
 };
 
-class BnGraphicBufferConsumer : public BnInterface<IGraphicBufferConsumer> {
+class BnGraphicBufferConsumer : public SafeBnInterface<IGraphicBufferConsumer> {
 public:
+    BnGraphicBufferConsumer()
+          : SafeBnInterface<IGraphicBufferConsumer>("BnGraphicBufferConsumer") {}
+
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                         uint32_t flags = 0) override;
 };
