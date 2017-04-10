@@ -50,6 +50,10 @@ bool VrComposerClient::VrCommandReader::parseCommand(
   switch (vrCommand) {
     case IVrComposerClient::VrCommand::SET_LAYER_INFO:
       return parseSetLayerInfo(length);
+    case IVrComposerClient::VrCommand::SET_CLIENT_TARGET_METADATA:
+      return parseSetClientTargetMetadata(length);
+    case IVrComposerClient::VrCommand::SET_LAYER_BUFFER_METADATA:
+      return parseSetLayerBufferMetadata(length);
     default:
       return CommandReader::parseCommand(command, length);
   }
@@ -66,6 +70,44 @@ bool VrComposerClient::VrCommandReader::parseSetLayerInfo(uint16_t length) {
   }
 
   return true;
+}
+
+bool VrComposerClient::VrCommandReader::parseSetClientTargetMetadata(
+    uint16_t length) {
+  if (length != 7)
+    return false;
+
+  auto err = mVrHal.setClientTargetMetadata(mDisplay, readBufferMetadata());
+  if (err != Error::NONE)
+    mWriter.setError(getCommandLoc(), err);
+
+  return true;
+}
+
+bool VrComposerClient::VrCommandReader::parseSetLayerBufferMetadata(
+    uint16_t length) {
+  if (length != 7)
+    return false;
+
+  auto err = mVrHal.setLayerBufferMetadata(mDisplay, mLayer,
+                                           readBufferMetadata());
+  if (err != Error::NONE)
+    mWriter.setError(getCommandLoc(), err);
+
+  return true;
+}
+
+IVrComposerClient::BufferMetadata
+VrComposerClient::VrCommandReader::readBufferMetadata() {
+  IVrComposerClient::BufferMetadata metadata = {
+    .width = read(),
+    .height = read(),
+    .stride = read(),
+    .layerCount = read(),
+    .format = static_cast<PixelFormat>(readSigned()),
+    .usage = read64(),
+  };
+  return metadata;
 }
 
 }  // namespace dvr

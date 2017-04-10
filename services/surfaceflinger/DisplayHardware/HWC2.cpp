@@ -961,14 +961,19 @@ Error Display::setActiveConfig(const std::shared_ptr<const Config>& config)
     return static_cast<Error>(intError);
 }
 
-Error Display::setClientTarget(uint32_t slot, buffer_handle_t target,
+Error Display::setClientTarget(uint32_t slot, const sp<GraphicBuffer>& target,
         const sp<Fence>& acquireFence, android_dataspace_t dataspace)
 {
     // TODO: Properly encode client target surface damage
     int32_t fenceFd = acquireFence->dup();
 #ifdef BYPASS_IHWC
     (void) slot;
-    int32_t intError = mDevice.mSetClientTarget(mDevice.mHwcDevice, mId, target,
+    buffer_handle_t handle = nullptr;
+    if (target.get() && target->getNativeBuffer()) {
+        handle = target->getNativeBuffer()->handle;
+    }
+
+    int32_t intError = mDevice.mSetClientTarget(mDevice.mHwcDevice, mId, handle,
             fenceFd, static_cast<int32_t>(dataspace), {0, nullptr});
 #else
     auto intError = mDevice.mComposer->setClientTarget(mId, slot, target,
@@ -1195,14 +1200,19 @@ Error Layer::setCursorPosition(int32_t x, int32_t y)
     return static_cast<Error>(intError);
 }
 
-Error Layer::setBuffer(uint32_t slot, buffer_handle_t buffer,
+Error Layer::setBuffer(uint32_t slot, const sp<GraphicBuffer>& buffer,
         const sp<Fence>& acquireFence)
 {
     int32_t fenceFd = acquireFence->dup();
 #ifdef BYPASS_IHWC
     (void) slot;
+    buffer_handle_t handle = nullptr;
+    if (buffer.get() && buffer->getNativeBuffer()) {
+        handle = buffer->getNativeBuffer()->handle;
+    }
+
     int32_t intError = mDevice.mSetLayerBuffer(mDevice.mHwcDevice, mDisplayId,
-            mId, buffer, fenceFd);
+            mId, handle, fenceFd);
 #else
     auto intError = mDevice.mComposer->setLayerBuffer(mDisplayId,
             mId, slot, buffer, fenceFd);

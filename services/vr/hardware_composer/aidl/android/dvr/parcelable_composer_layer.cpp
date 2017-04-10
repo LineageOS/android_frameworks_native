@@ -7,15 +7,6 @@
 
 namespace android {
 namespace dvr {
-namespace {
-
-sp<GraphicBuffer> GetBufferFromHandle(native_handle_t* handle) {
-  // Querying properties from |handle| is never properly supported.
-  ALOGE("Failed to read handle %p properties", handle);
-  return nullptr;
-}
-
-}  // namespace
 
 ParcelableComposerLayer::ParcelableComposerLayer() {}
 
@@ -28,7 +19,7 @@ status_t ParcelableComposerLayer::writeToParcel(Parcel* parcel) const {
   status_t ret = parcel->writeUint64(layer_.id);
   if (ret != OK) return ret;
 
-  ret = parcel->writeNativeHandle(layer_.buffer->getNativeBuffer()->handle);
+  ret = parcel->write(*layer_.buffer);
   if (ret != OK) return ret;
 
   ret = parcel->writeBool(layer_.fence->isValid());
@@ -82,11 +73,12 @@ status_t ParcelableComposerLayer::readFromParcel(const Parcel* parcel) {
   status_t ret = parcel->readUint64(&layer_.id);
   if (ret != OK) return ret;
 
-  native_handle* handle = parcel->readNativeHandle();
-  if (!handle) return BAD_VALUE;
-
-  layer_.buffer = GetBufferFromHandle(handle);
-  if (!layer_.buffer.get()) return BAD_VALUE;
+  layer_.buffer = new GraphicBuffer();
+  ret = parcel->read(*layer_.buffer);
+  if (ret != OK) {
+    layer_.buffer.clear();
+    return ret;
+  }
 
   bool has_fence = 0;
   ret = parcel->readBool(&has_fence);

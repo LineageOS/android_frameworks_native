@@ -1416,7 +1416,7 @@ void Layer::CommonLayerSetup() {
 
 void Layer::Prepare() {
   int right, bottom;
-  buffer_handle_t handle;
+  sp<GraphicBuffer> handle;
 
   if (surface_) {
     // Only update the acquired buffer when one is either available or this is
@@ -1465,14 +1465,14 @@ void Layer::Prepare() {
     }
     right = acquired_buffer_.buffer()->width();
     bottom = acquired_buffer_.buffer()->height();
-    handle = acquired_buffer_.buffer()->native_handle();
+    handle = acquired_buffer_.buffer()->buffer()->buffer();
     acquire_fence_fd_.Reset(acquired_buffer_.ClaimAcquireFence().Release());
   } else {
     // TODO(jwcai) Note: this is the GPU compositor's layer, and we need the
     // mechanism to accept distorted layers from VrCore.
     right = direct_buffer_->width();
     bottom = direct_buffer_->height();
-    handle = direct_buffer_->handle();
+    handle = direct_buffer_->buffer();
     acquire_fence_fd_.Close();
   }
 

@@ -17,6 +17,7 @@
 #ifndef VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H_
 #define VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H_
 
+#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <ComposerClient.h>
 #include <IComposerCommandBuffer.h>
 
@@ -44,6 +45,10 @@ class VrComposerClient : public ComposerClient {
 
    private:
     bool parseSetLayerInfo(uint16_t length);
+    bool parseSetClientTargetMetadata(uint16_t length);
+    bool parseSetLayerBufferMetadata(uint16_t length);
+
+    IVrComposerClient::BufferMetadata readBufferMetadata();
 
     VrComposerClient& mVrClient;
     android::dvr::VrHwc& mVrHal;
