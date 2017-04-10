@@ -206,7 +206,7 @@ void HWComposer::hotplug(const std::shared_ptr<HWC2::Display>& display,
         }
         disp = DisplayDevice::DISPLAY_EXTERNAL;
     }
-    mEventHandler->onHotplugReceived(this, disp,
+    mEventHandler->onHotplugReceived(disp,
             connected == HWC2::Connection::Connected);
 }
 
