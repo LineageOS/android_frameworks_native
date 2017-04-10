@@ -69,6 +69,8 @@ public:
             status_t            setThreadPoolMaxThreadCount(size_t maxThreads);
             void                giveThreadPoolName();
 
+            String8             getDriverName();
+
 private:
     friend class IPCThreadState;
     
@@ -86,6 +88,7 @@ private:
 
             handle_entry*       lookupHandleLocked(int32_t handle);
 
+            String8             mDriverName;
             int                 mDriverFD;
             void*               mVMStart;
 
