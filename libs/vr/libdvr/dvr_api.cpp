@@ -108,6 +108,7 @@ DVR_EXPORT int dvrGetApi(void* api, size_t struct_size, int version) {
     dvr_api->hwc_frame_get_display_id = dvrHwcFrameGetDisplayId;
     dvr_api->hwc_frame_get_display_width = dvrHwcFrameGetDisplayWidth;
     dvr_api->hwc_frame_get_display_height = dvrHwcFrameGetDisplayHeight;
+    dvr_api->hwc_frame_get_display_removed = dvrHwcFrameGetDisplayRemoved;
     dvr_api->hwc_frame_get_layer_count = dvrHwcFrameGetLayerCount;
     dvr_api->hwc_frame_get_layer_id = dvrHwcFrameGetLayerId;
     dvr_api->hwc_frame_get_layer_buffer = dvrHwcFrameGetLayerBuffer;
