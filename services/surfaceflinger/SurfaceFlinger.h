@@ -184,9 +184,8 @@ public:
     void repaintEverything();
 
     // returns the default Display
-    sp<const DisplayDevice> getDefaultDisplayDevice() {
-        Mutex::Autolock _l(mStateLock);
-        return getDefaultDisplayDeviceLocked();
+    sp<const DisplayDevice> getDefaultDisplayDevice() const {
+        return getDisplayDevice(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]);
     }
 
     // utility function to delete a texture on the main thread
@@ -305,7 +304,7 @@ private:
      * HWComposer::EventHandler interface
      */
     virtual void onVSyncReceived(HWComposer* composer, int type, nsecs_t timestamp);
-    virtual void onHotplugReceived(HWComposer* composer, int disp, bool connected);
+    virtual void onHotplugReceived(int disp, bool connected);
     virtual void onInvalidateReceived(HWComposer* composer);
 
     /* ------------------------------------------------------------------------
@@ -439,12 +438,6 @@ private:
     sp<DisplayDevice> getDisplayDevice(const wp<IBinder>& dpy) {
         return mDisplays.valueFor(dpy);
     }
-
-    sp<const DisplayDevice> getDefaultDisplayDeviceLocked() const {
-        return getDisplayDevice(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]);
-    }
-
-    void createDefaultDisplayDevice();
 
     int32_t getDisplayType(const sp<IBinder>& display) {
         if (!display.get()) return NAME_NOT_FOUND;
