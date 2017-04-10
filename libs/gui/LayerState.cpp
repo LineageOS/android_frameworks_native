@@ -44,6 +44,7 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeUint64(frameNumber);
     output.writeInt32(overrideScalingMode);
     output.writeStrongBinder(IInterface::asBinder(barrierGbp));
+    output.writeStrongBinder(relativeLayerHandle);
     output.write(transparentRegion);
     return NO_ERROR;
 }
@@ -75,6 +76,7 @@ status_t layer_state_t::read(const Parcel& input)
     overrideScalingMode = input.readInt32();
     barrierGbp =
         interface_cast<IGraphicBufferProducer>(input.readStrongBinder());
+    relativeLayerHandle = input.readStrongBinder();
     input.read(transparentRegion);
     return NO_ERROR;
 }

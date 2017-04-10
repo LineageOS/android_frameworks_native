@@ -2820,6 +2820,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 }
             }
         }
+        if (what & layer_state_t::eRelativeLayerChanged) {
+            if (layer->setRelativeLayer(s.relativeLayerHandle, s.z)) {
+                flags |= eTransactionNeeded|eTraversalNeeded;
+            }
+        }
         if (what & layer_state_t::eSizeChanged) {
             if (layer->setSize(s.w, s.h)) {
                 flags |= eTraversalNeeded;

@@ -662,6 +662,49 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     }
 }
 
+TEST_F(LayerUpdateTest, LayerSetRelativeLayerWorks) {
+    sp<ScreenCapture> sc;
+    {
+        SCOPED_TRACE("before adding relative surface");
+        ScreenCapture::captureScreen(&sc);
+        sc->expectBGColor(24, 24);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
+    }
+
+    auto relativeSurfaceControl = mComposerClient->createSurface(
+            String8("Test Surface"), 64, 64, PIXEL_FORMAT_RGBA_8888, 0);
+    fillSurfaceRGBA8(relativeSurfaceControl, 255, 177, 177);
+    waitForPostedBuffers();
+
+    // Now we stack the surface above the foreground surface and make sure it is visible.
+    SurfaceComposerClient::openGlobalTransaction();
+    relativeSurfaceControl->setPosition(64, 64);
+    relativeSurfaceControl->show();
+    relativeSurfaceControl->setRelativeLayer(mFGSurfaceControl->getHandle(), 1);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+
+    {
+        SCOPED_TRACE("after adding relative surface");
+        ScreenCapture::captureScreen(&sc);
+        // our relative surface should be visible now.
+        sc->checkPixel(75, 75, 255, 177, 177);
+    }
+
+    // A call to setLayer will override a call to setRelativeLayer
+    SurfaceComposerClient::openGlobalTransaction();
+    relativeSurfaceControl->setLayer(0);
+    SurfaceComposerClient::closeGlobalTransaction();
+
+    {
+        SCOPED_TRACE("after set layer");
+        ScreenCapture::captureScreen(&sc);
+        // now the FG surface should be visible again.
+        sc->expectFGColor(75, 75);
+    }
+}
+
 class ChildLayerTest : public LayerUpdateTest {
 protected:
     void SetUp() override {

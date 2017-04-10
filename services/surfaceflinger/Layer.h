@@ -151,6 +151,12 @@ public:
 
         uint32_t appId;
         uint32_t type;
+
+        // If non-null, a Surface this Surface's Z-order is interpreted relative to.
+        wp<Layer> zOrderRelativeOf;
+
+        // A list of surfaces whose Z-order is interpreted relative to ours.
+        SortedVector<wp<Layer>> zOrderRelatives;
     };
 
     // -----------------------------------------------------------------------
@@ -173,6 +179,8 @@ public:
     bool setFinalCrop(const Rect& crop, bool immediate);
 
     bool setLayer(int32_t z);
+    bool setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ);
+
     bool setSize(uint32_t w, uint32_t h);
 #ifdef USE_HWC2
     bool setAlpha(float alpha);
@@ -548,6 +556,10 @@ private:
     static bool latchUnsignaledBuffers();
 
     void setParent(const sp<Layer>& layer);
+
+    LayerVector makeTraversalList();
+    void addZOrderRelative(const wp<Layer>& relative);
+    void removeZOrderRelative(const wp<Layer>& relative);
 
     // -----------------------------------------------------------------------
 
