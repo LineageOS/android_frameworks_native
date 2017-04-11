@@ -47,7 +47,8 @@ struct DirectReportChannel final : public IDirectReportChannel {
     ~DirectReportChannel();
 
     // Methods from ::android::frameworks::sensorservice::V1_0::IDirectReportChannel follow.
-    Return<Result> configure(int32_t sensorHandle, RateLevel rate) override;
+    Return<void> configure(int32_t sensorHandle, RateLevel rate,
+            configure_cb _hidl_cb) override;
 
 private:
     ::android::SensorManager& mManager;
