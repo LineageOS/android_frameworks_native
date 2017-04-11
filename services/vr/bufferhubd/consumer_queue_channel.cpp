@@ -4,7 +4,9 @@
 
 #include "producer_channel.h"
 
+using android::pdx::ErrorStatus;
 using android::pdx::RemoteChannelHandle;
+using android::pdx::Status;
 using android::pdx::rpc::DispatchRemoteMethod;
 
 namespace android {
@@ -83,7 +85,7 @@ void ConsumerQueueChannel::RegisterNewBuffer(
   SignalAvailable();
 }
 
-std::vector<std::pair<RemoteChannelHandle, size_t>>
+Status<std::vector<std::pair<RemoteChannelHandle, size_t>>>
 ConsumerQueueChannel::OnConsumerQueueImportBuffers(Message& message) {
   std::vector<std::pair<RemoteChannelHandle, size_t>> buffer_handles;
   ATRACE_NAME("ConsumerQueueChannel::OnConsumerQueueImportBuffers");
@@ -106,31 +108,30 @@ ConsumerQueueChannel::OnConsumerQueueImportBuffers(Message& message) {
       continue;
     }
 
-    RemoteChannelHandle consumer_handle(
-        producer_channel->CreateConsumer(message));
+    auto status = producer_channel->CreateConsumer(message);
 
     // If no buffers are imported successfully, clear available and return an
     // error. Otherwise, return all consumer handles already imported
     // successfully, but keep available bits on, so that the client can retry
     // importing remaining consumer buffers.
-    if (!consumer_handle.valid()) {
+    if (!status) {
       ALOGE(
-          "ConsumerQueueChannel::OnConsumerQueueImportBuffers: imported "
-          "consumer handle is invalid.");
+          "ConsumerQueueChannel::OnConsumerQueueImportBuffers: Failed create "
+          "consumer: %s",
+          status.GetErrorMessage().c_str());
       if (buffer_handles.empty()) {
         ClearAvailable();
-        REPLY_ERROR_RETURN(message, EIO, {});
+        return status.error_status();
       } else {
-        return buffer_handles;
+        return {std::move(buffer_handles)};
       }
     }
 
-    // Move consumer_handle into buffer_handles.
-    buffer_handles.emplace_back(std::move(consumer_handle), producer_slot);
+    buffer_handles.emplace_back(status.take(), producer_slot);
   }
 
   ClearAvailable();
-  return buffer_handles;
+  return {std::move(buffer_handles)};
 }
 
 }  // namespace dvr

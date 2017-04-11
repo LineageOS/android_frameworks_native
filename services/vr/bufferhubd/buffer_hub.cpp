@@ -1,5 +1,6 @@
 #include "buffer_hub.h"
 
+#include <inttypes.h>
 #include <log/log.h>
 #include <poll.h>
 #include <utils/Trace.h>
@@ -52,7 +53,7 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
   stream << " ";
   stream << std::setw(6) << "Format";
   stream << " ";
-  stream << std::setw(10) << "Usage";
+  stream << std::setw(21) << "Usage";
   stream << " ";
   stream << "Name";
   stream << std::endl;
@@ -79,7 +80,9 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
       stream << std::setw(6) << info.format;
       stream << " ";
       stream << "0x" << std::hex << std::setfill('0');
-      stream << std::setw(8) << info.usage;
+      stream << std::setw(8) << info.producer_usage;
+      stream << "0x";
+      stream << std::setw(8) << info.consumer_usage;
       stream << std::dec << std::setfill(' ');
       stream << " ";
       stream << info.name;
@@ -137,6 +140,10 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
   stream << " UsageClearMask";
   stream << " UsageDenySetMask";
   stream << " UsageDenyClearMask";
+  stream << " UsageSetMask";
+  stream << " UsageClearMask";
+  stream << " UsageDenySetMask";
+  stream << " UsageDenyClearMask";
   stream << " ";
   stream << std::endl;
 
@@ -150,16 +157,30 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
       stream << std::right << std::setw(12) << info.consumer_count;
       stream << std::setw(5) << std::setfill(' ') << "0x";
       stream << std::hex << std::setfill('0');
-      stream << std::setw(8) << info.usage_set_mask;
+      stream << std::setw(8) << info.usage_policy.producer_set_mask;
       stream << std::setw(7) << std::setfill(' ') << "0x";
       stream << std::hex << std::setfill('0');
-      stream << std::setw(8) << info.usage_clear_mask;
+      stream << std::setw(8) << info.usage_policy.producer_clear_mask;
       stream << std::setw(9) << std::setfill(' ') << "0x";
       stream << std::hex << std::setfill('0');
-      stream << std::setw(8) << info.usage_deny_set_mask;
+      stream << std::setw(8) << info.usage_policy.producer_deny_set_mask;
       stream << std::setw(11) << std::setfill(' ') << "0x";
       stream << std::hex << std::setfill('0');
-      stream << std::setw(8) << info.usage_deny_clear_mask;
+      stream << std::setw(8) << info.usage_policy.producer_deny_clear_mask;
+      stream << std::setw(5) << std::setfill(' ') << "0x";
+      stream << std::hex << std::setfill('0');
+      stream << std::setw(8) << info.usage_policy.consumer_set_mask;
+      stream << std::setw(7) << std::setfill(' ') << "0x";
+      stream << std::hex << std::setfill('0');
+      stream << std::setw(8) << info.usage_policy.consumer_clear_mask;
+      stream << std::setw(9) << std::setfill(' ') << "0x";
+      stream << std::hex << std::setfill('0');
+      stream << std::setw(8) << info.usage_policy.consumer_deny_set_mask;
+      stream << std::setw(11) << std::setfill(' ') << "0x";
+      stream << std::hex << std::setfill('0');
+      stream << std::setw(8) << info.usage_policy.consumer_deny_clear_mask;
+      stream << std::hex << std::setfill('0');
+      stream << std::endl;
     }
   }
 
@@ -177,6 +198,7 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
 
       stream << std::right << std::setw(6) << info.id;
       stream << std::right << std::setw(12) << info.capacity;
+      stream << std::endl;
     }
   }
 
@@ -235,48 +257,53 @@ void BufferHubService::OnChannelClose(Message&,
     buffer->Detach();
 }
 
-int BufferHubService::OnCreateBuffer(Message& message, int width, int height,
-                                     int format, int usage,
-                                     size_t meta_size_bytes,
-                                     size_t slice_count) {
+Status<void> BufferHubService::OnCreateBuffer(Message& message, uint32_t width,
+                                              uint32_t height, uint32_t format,
+                                              uint64_t producer_usage,
+                                              uint64_t consumer_usage,
+                                              size_t meta_size_bytes,
+                                              size_t slice_count) {
   // Use the producer channel id as the global buffer id.
   const int buffer_id = message.GetChannelId();
   ALOGD_IF(TRACE,
-           "BufferHubService::OnCreateBuffer: buffer_id=%d width=%d height=%d "
-           "format=%d usage=%d meta_size_bytes=%zu slice_count=%zu",
-           buffer_id, width, height, format, usage, meta_size_bytes,
-           slice_count);
+           "BufferHubService::OnCreateBuffer: buffer_id=%d width=%u height=%u "
+           "format=%u producer_usage=%" PRIx64 " consumer_usage=%" PRIx64
+           " meta_size_bytes=%zu slice_count=%zu",
+           buffer_id, width, height, format, producer_usage, consumer_usage,
+           meta_size_bytes, slice_count);
 
   // See if this channel is already attached to a buffer.
   if (const auto channel = message.GetChannel<BufferHubChannel>()) {
     ALOGE("BufferHubService::OnCreateBuffer: Buffer already created: buffer=%d",
           buffer_id);
-    return -EALREADY;
+    return ErrorStatus(EALREADY);
   }
 
-  int error;
-  if (const auto producer_channel =
-          ProducerChannel::Create(this, buffer_id, width, height, format, usage,
-                                  meta_size_bytes, slice_count, &error)) {
-    message.SetChannel(producer_channel);
-    return 0;
+  auto status = ProducerChannel::Create(this, buffer_id, width, height, format,
+                                        producer_usage, consumer_usage,
+                                        meta_size_bytes, slice_count);
+  if (status) {
+    message.SetChannel(status.take());
+    return {};
   } else {
-    ALOGE("BufferHubService::OnCreateBuffer: Failed to create producer!!");
-    return error;
+    ALOGE("BufferHubService::OnCreateBuffer: Failed to create producer: %s",
+          status.GetErrorMessage().c_str());
+    return status.error_status();
   }
 }
 
-int BufferHubService::OnCreatePersistentBuffer(
+Status<void> BufferHubService::OnCreatePersistentBuffer(
     Message& message, const std::string& name, int user_id, int group_id,
-    int width, int height, int format, int usage, size_t meta_size_bytes,
-    size_t slice_count) {
+    uint32_t width, uint32_t height, uint32_t format, uint64_t producer_usage,
+    uint64_t consumer_usage, size_t meta_size_bytes, size_t slice_count) {
   const int channel_id = message.GetChannelId();
   ALOGD_IF(TRACE,
            "BufferHubService::OnCreatePersistentBuffer: channel_id=%d name=%s "
-           "user_id=%d group_id=%d width=%d height=%d format=%d usage=%d "
-           "meta_size_bytes=%zu slice_count=%zu",
+           "user_id=%d group_id=%d width=%u height=%u format=%u "
+           "producer_usage=%" PRIx64 " consumer_usage=%" PRIx64
+           " meta_size_bytes=%zu slice_count=%zu",
            channel_id, name.c_str(), user_id, group_id, width, height, format,
-           usage, meta_size_bytes, slice_count);
+           producer_usage, consumer_usage, meta_size_bytes, slice_count);
 
   // See if this channel is already attached to a buffer.
   if (const auto channel = message.GetChannel<BufferHubChannel>()) {
@@ -284,12 +311,11 @@ int BufferHubService::OnCreatePersistentBuffer(
         "BufferHubService::OnCreatePersistentBuffer: Channel already attached "
         "to buffer: channel_id=%d buffer_id=%d",
         channel_id, channel->buffer_id());
-    return -EALREADY;
+    return ErrorStatus(EALREADY);
   }
 
   const int euid = message.GetEffectiveUserId();
   const int egid = message.GetEffectiveGroupId();
-  int error;
 
   if (auto buffer = GetNamedBuffer(name)) {
     if (!buffer->CheckAccess(euid, egid)) {
@@ -297,41 +323,45 @@ int BufferHubService::OnCreatePersistentBuffer(
           "BufferHubService::OnCreatePersistentBuffer: Requesting process does "
           "not have permission to access named buffer: name=%s euid=%d egid=%d",
           name.c_str(), euid, euid);
-      return -EPERM;
-    } else if (!buffer->CheckParameters(width, height, format, usage,
-                                        meta_size_bytes, slice_count)) {
+      return ErrorStatus(EPERM);
+    } else if (!buffer->CheckParameters(width, height, format, producer_usage,
+                                        consumer_usage, meta_size_bytes,
+                                        slice_count)) {
       ALOGE(
           "BufferHubService::OnCreatePersistentBuffer: Requested an existing "
           "buffer with different parameters: name=%s",
           name.c_str());
-      return -EINVAL;
+      return ErrorStatus(EINVAL);
     } else if (!buffer->IsDetached()) {
       ALOGE(
           "BufferHubService::OnCreatePersistentBuffer: Requesting a persistent "
           "buffer that is already attached to a channel: name=%s",
           name.c_str());
-      return -EINVAL;
+      return ErrorStatus(EINVAL);
     } else {
       buffer->Attach(channel_id);
       message.SetChannel(buffer);
-      return 0;
+      return {};
     }
-  } else if (auto buffer = ProducerChannel::Create(
-                 this, channel_id, width, height, format, usage,
-                 meta_size_bytes, slice_count, &error)) {
-    const int ret =
-        buffer->OnProducerMakePersistent(message, name, user_id, group_id);
-    if (!ret)
-      message.SetChannel(buffer);
-    return ret;
   } else {
-    ALOGE("BufferHubService::OnCreateBuffer: Failed to create producer!!");
-    return error;
+    auto status = ProducerChannel::Create(
+        this, channel_id, width, height, format, producer_usage, consumer_usage,
+        meta_size_bytes, slice_count);
+    if (!status) {
+      ALOGE("BufferHubService::OnCreateBuffer: Failed to create producer!!");
+      return status.error_status();
+    }
+    auto persistent_buffer = status.take();
+    auto make_persistent_status = persistent_buffer->OnProducerMakePersistent(
+        message, name, user_id, group_id);
+    if (make_persistent_status)
+      message.SetChannel(persistent_buffer);
+    return make_persistent_status;
   }
 }
 
-int BufferHubService::OnGetPersistentBuffer(Message& message,
-                                            const std::string& name) {
+Status<void> BufferHubService::OnGetPersistentBuffer(Message& message,
+                                                     const std::string& name) {
   const int channel_id = message.GetChannelId();
   ALOGD_IF(TRACE,
            "BufferHubService::OnGetPersistentBuffer: channel_id=%d name=%s",
@@ -343,7 +373,7 @@ int BufferHubService::OnGetPersistentBuffer(Message& message,
         "BufferHubService::OnGetPersistentBuffer: Channel already attached to "
         "buffer: channel_id=%d buffer_id=%d",
         channel_id, channel->buffer_id());
-    return -EALREADY;
+    return ErrorStatus(EALREADY);
   }
 
   const int euid = message.GetEffectiveUserId();
@@ -355,28 +385,28 @@ int BufferHubService::OnGetPersistentBuffer(Message& message,
           "BufferHubService::OnGetPersistentBuffer: Requesting process does "
           "not have permission to access named buffer: name=%s euid=%d egid=%d",
           name.c_str(), euid, egid);
-      return -EPERM;
+      return ErrorStatus(EPERM);
     } else if (!buffer->IsDetached()) {
       ALOGE(
           "BufferHubService::OnGetPersistentBuffer: Requesting a persistent "
           "buffer that is already attached to a channel: name=%s",
           name.c_str());
-      return -EINVAL;
+      return ErrorStatus(EINVAL);
     } else {
       buffer->Attach(channel_id);
       message.SetChannel(buffer);
-      return 0;
+      return {};
     }
   } else {
     ALOGE("BufferHubService::OnGetPersistentBuffer: Buffer \"%s\" not found!",
           name.c_str());
-    return -ENOENT;
+    return ErrorStatus(ENOENT);
   }
 }
 
 Status<QueueInfo> BufferHubService::OnCreateProducerQueue(
-    pdx::Message& message, size_t meta_size_bytes, int usage_set_mask,
-    int usage_clear_mask, int usage_deny_set_mask, int usage_deny_clear_mask) {
+    pdx::Message& message, size_t meta_size_bytes,
+    const UsagePolicy& usage_policy) {
   // Use the producer channel id as the global queue id.
   const int queue_id = message.GetChannelId();
   ALOGD_IF(TRACE, "BufferHubService::OnCreateProducerQueue: queue_id=%d",
@@ -389,15 +419,14 @@ Status<QueueInfo> BufferHubService::OnCreateProducerQueue(
     return ErrorStatus(EALREADY);
   }
 
-  int error;
-  if (const auto producer_channel = ProducerQueueChannel::Create(
-          this, queue_id, meta_size_bytes, usage_set_mask, usage_clear_mask,
-          usage_deny_set_mask, usage_deny_clear_mask, &error)) {
-    message.SetChannel(producer_channel);
+  auto status = ProducerQueueChannel::Create(this, queue_id, meta_size_bytes,
+                                             usage_policy);
+  if (status) {
+    message.SetChannel(status.take());
     return {{meta_size_bytes, queue_id}};
   } else {
     ALOGE("BufferHubService::OnCreateBuffer: Failed to create producer!!");
-    return ErrorStatus(-error);
+    return status.error_status();
   }
 }
 

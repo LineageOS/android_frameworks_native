@@ -48,43 +48,40 @@ class BufferHubChannel : public pdx::Channel {
     size_t consumer_count = 0;
 
     // Data field for buffer producer.
-    int width = 0;
-    int height = 0;
-    int format = 0;
-    int usage = 0;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t format = 0;
+    uint64_t producer_usage = 0;
+    uint64_t consumer_usage = 0;
     size_t slice_count = 0;
     std::string name;
 
     // Data filed for producer queue.
     size_t capacity = 0;
-    int usage_set_mask = 0;
-    int usage_clear_mask = 0;
-    int usage_deny_set_mask = 0;
-    int usage_deny_clear_mask = 0;
+    UsagePolicy usage_policy{0, 0, 0, 0, 0, 0, 0, 0};
 
-    BufferInfo(int id, size_t consumer_count, int width, int height, int format,
-               int usage, size_t slice_count, const std::string& name)
+    BufferInfo(int id, size_t consumer_count, uint32_t width, uint32_t height,
+               uint32_t format, uint64_t producer_usage,
+               uint64_t consumer_usage, size_t slice_count,
+               const std::string& name)
         : id(id),
           type(kProducerType),
           consumer_count(consumer_count),
           width(width),
           height(height),
           format(format),
-          usage(usage),
+          producer_usage(producer_usage),
+          consumer_usage(consumer_usage),
           slice_count(slice_count),
           name(name) {}
 
     BufferInfo(int id, size_t consumer_count, size_t capacity,
-               int usage_set_mask, int usage_clear_mask,
-               int usage_deny_set_mask, int usage_deny_clear_mask)
+               const UsagePolicy& usage_policy)
         : id(id),
           type(kProducerQueueType),
           consumer_count(consumer_count),
           capacity(capacity),
-          usage_set_mask(usage_set_mask),
-          usage_clear_mask(usage_clear_mask),
-          usage_deny_set_mask(usage_deny_set_mask),
-          usage_deny_clear_mask(usage_deny_clear_mask) {}
+          usage_policy(usage_policy) {}
 
     BufferInfo() {}
   };
@@ -162,16 +159,19 @@ class BufferHubService : public pdx::ServiceBase<BufferHubService> {
   std::unordered_map<std::string, std::shared_ptr<ProducerChannel>>
       named_buffers_;
 
-  int OnCreateBuffer(pdx::Message& message, int width, int height, int format,
-                     int usage, size_t meta_size_bytes, size_t slice_count);
-  int OnCreatePersistentBuffer(pdx::Message& message, const std::string& name,
-                               int user_id, int group_id, int width, int height,
-                               int format, int usage, size_t meta_size_bytes,
-                               size_t slice_count);
-  int OnGetPersistentBuffer(pdx::Message& message, const std::string& name);
-  pdx::Status<QueueInfo> OnCreateProducerQueue(
-      pdx::Message& message, size_t meta_size_bytes, int usage_set_mask,
-      int usage_clear_mask, int usage_deny_set_mask, int usage_deny_clear_mask);
+  pdx::Status<void> OnCreateBuffer(pdx::Message& message, uint32_t width, uint32_t height,
+                     uint32_t format, uint64_t producer_usage,
+                     uint64_t consumer_usage, size_t meta_size_bytes,
+                     size_t slice_count);
+  pdx::Status<void> OnCreatePersistentBuffer(pdx::Message& message, const std::string& name,
+                               int user_id, int group_id, uint32_t width,
+                               uint32_t height, uint32_t format,
+                               uint64_t producer_usage, uint64_t consumer_usage,
+                               size_t meta_size_bytes, size_t slice_count);
+  pdx::Status<void> OnGetPersistentBuffer(pdx::Message& message, const std::string& name);
+  pdx::Status<QueueInfo> OnCreateProducerQueue(pdx::Message& message,
+                                               size_t meta_size_bytes,
+                                               const UsagePolicy& usage_policy);
 
   BufferHubService(const BufferHubService&) = delete;
   void operator=(const BufferHubService&) = delete;

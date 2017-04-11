@@ -32,10 +32,11 @@ class ConsumerChannel : public BufferHubChannel {
 
   std::shared_ptr<ProducerChannel> GetProducer() const;
 
-  std::pair<BorrowedFence, MetaData> OnConsumerAcquire(
+  pdx::Status<std::pair<BorrowedFence, MetaData>> OnConsumerAcquire(
       Message& message, std::size_t metadata_size);
-  int OnConsumerRelease(Message& message, LocalFence release_fence);
-  int OnConsumerSetIgnore(Message& message, bool ignore);
+  pdx::Status<void> OnConsumerRelease(Message& message,
+                                      LocalFence release_fence);
+  pdx::Status<void> OnConsumerSetIgnore(Message& message, bool ignore);
 
   bool handled_;  // True if we have processed RELEASE.
   bool ignored_;  // True if we are ignoring events.
