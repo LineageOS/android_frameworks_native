@@ -20,6 +20,8 @@
 
 #include <ui/GraphicBufferMapper.h>
 
+#include <grallocusage/GrallocUsageConversion.h>
+
 // We would eliminate the non-conforming zero-length array, but we can't since
 // this is effectively included from the Linux kernel
 #pragma clang diagnostic push
@@ -30,7 +32,7 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
-#include <ui/GrallocMapper.h>
+#include <ui/Gralloc2.h>
 #include <ui/GraphicBuffer.h>
 
 #include <system/graphics.h>
@@ -49,63 +51,82 @@ GraphicBufferMapper::GraphicBufferMapper()
     }
 }
 
-
-
-status_t GraphicBufferMapper::registerBuffer(buffer_handle_t handle)
+status_t GraphicBufferMapper::importBuffer(buffer_handle_t rawHandle,
+        buffer_handle_t* outHandle)
 {
     ATRACE_CALL();
 
+    Gralloc2::Error error;
+    if (mMapper->valid()) {
+        error = mMapper->importBuffer(hardware::hidl_handle(rawHandle),
+                outHandle);
+    } else {
+        error = Gralloc2::Error::UNSUPPORTED;
+    }
+
+    ALOGW_IF(error != Gralloc2::Error::NONE, "importBuffer(%p) failed: %d",
+            rawHandle, error);
+
+    return static_cast<status_t>(error);
+}
+
+status_t GraphicBufferMapper::importBuffer(const GraphicBuffer* buffer)
+{
+    ATRACE_CALL();
+
+    ANativeWindowBuffer* nativeBuffer = buffer->getNativeBuffer();
+    buffer_handle_t rawHandle = nativeBuffer->handle;
+
     gralloc1_error_t error;
     if (mMapper->valid()) {
-        error = static_cast<gralloc1_error_t>(mMapper->retain(handle));
+        buffer_handle_t importedHandle;
+        error = static_cast<gralloc1_error_t>(mMapper->importBuffer(
+                    hardware::hidl_handle(rawHandle), &importedHandle));
+        if (error == GRALLOC1_ERROR_NONE) {
+            nativeBuffer->handle = importedHandle;
+        }
     } else {
-        // This always returns GRALLOC1_BAD_HANDLE when handle is from a
-        // remote process and mDevice is backed by Gralloc1On0Adapter.
-        error = mDevice->retain(handle);
-        if (error == GRALLOC1_ERROR_BAD_HANDLE &&
-                mDevice->hasCapability(GRALLOC1_CAPABILITY_ON_ADAPTER)) {
-            ALOGE("registerBuffer by handle is not supported with "
-                  "Gralloc1On0Adapter");
+        native_handle_t* clonedHandle = native_handle_clone(rawHandle);
+        if (clonedHandle) {
+            nativeBuffer->handle = clonedHandle;
+            error = mDevice->retain(buffer);
+            if (error != GRALLOC1_ERROR_NONE) {
+                nativeBuffer->handle = rawHandle;
+                native_handle_close(clonedHandle);
+                native_handle_delete(clonedHandle);
+            }
+        } else {
+            error = GRALLOC1_ERROR_NO_RESOURCES;
         }
     }
 
-    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "registerBuffer(%p) failed: %d",
-            handle, error);
-
-    return error;
-}
-
-status_t GraphicBufferMapper::registerBuffer(const GraphicBuffer* buffer)
-{
-    ATRACE_CALL();
-
-    gralloc1_error_t error;
-    if (mMapper->valid()) {
-        error = static_cast<gralloc1_error_t>(
-                mMapper->retain(buffer->getNativeBuffer()->handle));
-    } else {
-        error = mDevice->retain(buffer);
+    // the raw handle is owned by GraphicBuffer and is now replaced
+    if (error == GRALLOC1_ERROR_NONE) {
+        native_handle_close(rawHandle);
+        native_handle_delete(const_cast<native_handle_t*>(rawHandle));
     }
 
-    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "registerBuffer(%p) failed: %d",
-            buffer->getNativeBuffer()->handle, error);
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "importBuffer(%p) failed: %d",
+            rawHandle, error);
 
     return error;
 }
 
-status_t GraphicBufferMapper::unregisterBuffer(buffer_handle_t handle)
+status_t GraphicBufferMapper::freeBuffer(buffer_handle_t handle)
 {
     ATRACE_CALL();
 
     gralloc1_error_t error;
     if (mMapper->valid()) {
-        mMapper->release(handle);
+        mMapper->freeBuffer(handle);
         error = GRALLOC1_ERROR_NONE;
     } else {
         error = mDevice->release(handle);
+        native_handle_close(handle);
+        native_handle_delete(const_cast<native_handle_t*>(handle));
     }
 
-    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "unregisterBuffer(%p): failed %d",
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "freeBuffer(%p): failed %d",
             handle, error);
 
     return error;
@@ -120,138 +141,13 @@ static inline gralloc1_rect_t asGralloc1Rect(const Rect& rect) {
     return outRect;
 }
 
-
-status_t GraphicBufferMapper::getDimensions(buffer_handle_t handle,
-        uint32_t* outWidth, uint32_t* outHeight) const
-{
-    ATRACE_CALL();
-
-    gralloc1_error_t error;
-    if (mMapper->valid()) {
-        mMapper->getDimensions(handle, outWidth, outHeight);
-        error = GRALLOC1_ERROR_NONE;
-    } else {
-        error = mDevice->getDimensions(handle, outWidth, outHeight);
-    }
-
-    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "getDimensions(%p, ...): failed %d",
-            handle, error);
-
-    return error;
-}
-
-status_t GraphicBufferMapper::getFormat(buffer_handle_t handle,
-        int32_t* outFormat) const
-{
-    ATRACE_CALL();
-
-    gralloc1_error_t error;
-    if (mMapper->valid()) {
-        mMapper->getFormat(handle, outFormat);
-        error = GRALLOC1_ERROR_NONE;
-    } else {
-        error = mDevice->getFormat(handle, outFormat);
-    }
-
-    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "getFormat(%p, ...): failed %d",
-            handle, error);
-
-    return error;
-}
-
-status_t GraphicBufferMapper::getLayerCount(buffer_handle_t handle,
-        uint32_t* outLayerCount) const
-{
-    ATRACE_CALL();
-
-    gralloc1_error_t error;
-    if (mMapper->valid()) {
-        mMapper->getLayerCount(handle, outLayerCount);
-        error = GRALLOC1_ERROR_NONE;
-    } else {
-        error = mDevice->getLayerCount(handle, outLayerCount);
-    }
-
-    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "getLayerCount(%p, ...): failed %d",
-            handle, error);
-
-    return error;
-}
-
-status_t GraphicBufferMapper::getProducerUsage(buffer_handle_t handle,
-        uint64_t* outProducerUsage) const
-{
-    ATRACE_CALL();
-
-    gralloc1_error_t error;
-    if (mMapper->valid()) {
-        mMapper->getProducerUsage(handle, outProducerUsage);
-        error = GRALLOC1_ERROR_NONE;
-    } else {
-        error = mDevice->getProducerUsage(handle, outProducerUsage);
-    }
-
-    ALOGW_IF(error != GRALLOC1_ERROR_NONE,
-            "getProducerUsage(%p, ...): failed %d", handle, error);
-
-    return error;
-}
-
-status_t GraphicBufferMapper::getConsumerUsage(buffer_handle_t handle,
-        uint64_t* outConsumerUsage) const
-{
-    ATRACE_CALL();
-
-    gralloc1_error_t error;
-    if (mMapper->valid()) {
-        mMapper->getConsumerUsage(handle, outConsumerUsage);
-        error = GRALLOC1_ERROR_NONE;
-    } else {
-        error = mDevice->getConsumerUsage(handle, outConsumerUsage);
-    }
-
-    ALOGW_IF(error != GRALLOC1_ERROR_NONE,
-            "getConsumerUsage(%p, ...): failed %d", handle, error);
-
-    return error;
-}
-
-status_t GraphicBufferMapper::getBackingStore(buffer_handle_t handle,
-        uint64_t* outBackingStore) const
-{
-    ATRACE_CALL();
-
-    gralloc1_error_t error;
-    if (mMapper->valid()) {
-        mMapper->getBackingStore(handle, outBackingStore);
-        error = GRALLOC1_ERROR_NONE;
-    } else {
-        error = mDevice->getBackingStore(handle, outBackingStore);
-    }
-
-    ALOGW_IF(error != GRALLOC1_ERROR_NONE,
-            "getBackingStore(%p, ...): failed %d", handle, error);
-
-    return error;
-}
-
-status_t GraphicBufferMapper::getStride(buffer_handle_t handle,
-        uint32_t* outStride) const
-{
-    ATRACE_CALL();
-
-    gralloc1_error_t error;
-    if (mMapper->valid()) {
-        mMapper->getStride(handle, outStride);
-        error = GRALLOC1_ERROR_NONE;
-    } else {
-        error = mDevice->getStride(handle, outStride);
-    }
-
-    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "getStride(%p, ...): failed %d",
-            handle, error);
-
-    return error;
+static inline Gralloc2::IMapper::Rect asGralloc2Rect(const Rect& rect) {
+    Gralloc2::IMapper::Rect outRect{};
+    outRect.left = rect.left;
+    outRect.top = rect.top;
+    outRect.width = rect.width();
+    outRect.height = rect.height();
+    return outRect;
 }
 
 status_t GraphicBufferMapper::lock(buffer_handle_t handle, uint32_t usage,
@@ -289,15 +185,15 @@ status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
 {
     ATRACE_CALL();
 
-    gralloc1_rect_t accessRegion = asGralloc1Rect(bounds);
     gralloc1_error_t error;
     if (mMapper->valid()) {
-        const Gralloc2::IMapper::Rect& accessRect =
-            *reinterpret_cast<Gralloc2::IMapper::Rect*>(&accessRegion);
-        error = static_cast<gralloc1_error_t>(mMapper->lock(
-                    handle, producerUsage, consumerUsage, accessRect,
-                    fenceFd, vaddr));
+        const uint64_t usage =
+            static_cast<uint64_t>(android_convertGralloc1To0Usage(
+                        producerUsage, consumerUsage));
+        error = static_cast<gralloc1_error_t>(mMapper->lock(handle,
+                usage, asGralloc2Rect(bounds), fenceFd, vaddr));
     } else {
+        gralloc1_rect_t accessRegion = asGralloc1Rect(bounds);
         sp<Fence> fence = new Fence(fenceFd);
         error = mDevice->lock(handle,
                 static_cast<gralloc1_producer_usage_t>(producerUsage),
@@ -346,22 +242,19 @@ status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
     gralloc1_error_t error;
 
     if (mMapper->valid()) {
-        const Gralloc2::IMapper::Rect& accessRect =
-            *reinterpret_cast<Gralloc2::IMapper::Rect*>(&accessRegion);
-        Gralloc2::FlexLayout layout{};
-        error = static_cast<gralloc1_error_t>(mMapper->lock(
-                    handle, usage, usage, accessRect, fenceFd, &layout));
-
+        Gralloc2::YCbCrLayout layout;
+        error = static_cast<gralloc1_error_t>(mMapper->lock(handle, usage,
+                asGralloc2Rect(bounds), fenceFd, &layout));
         if (error == GRALLOC1_ERROR_NONE) {
-            planes.resize(layout.planes.size());
-            memcpy(planes.data(), layout.planes.data(),
-                    sizeof(planes[0]) * planes.size());
-
-            flexLayout.format = static_cast<android_flex_format_t>(
-                    layout.format);
-            flexLayout.num_planes = static_cast<uint32_t>(planes.size());
-            flexLayout.planes = planes.data();
+            ycbcr->y = layout.y;
+            ycbcr->cb = layout.cb;
+            ycbcr->cr = layout.cr;
+            ycbcr->ystride = static_cast<size_t>(layout.yStride);
+            ycbcr->cstride = static_cast<size_t>(layout.cStride);
+            ycbcr->chroma_step = static_cast<size_t>(layout.chromaStep);
         }
+
+        return error;
     } else {
         sp<Fence> fence = new Fence(fenceFd);
 
