@@ -34,6 +34,11 @@
 #include "driver.h"
 #include "stubhal.h"
 
+// TODO(b/37049319) Get this from a header once one exists
+extern "C" {
+android_namespace_t* android_get_exported_namespace(const char*);
+}
+
 // Set to true to enable exposing unratified extensions for development
 static const bool kEnableUnratifiedExtensions = false;
 
@@ -150,14 +155,12 @@ const std::array<const char*, 2> HAL_SUBNAME_KEY_PROPERTIES = {{
     "ro.board.platform",
 }};
 
-int LoadUpdatedDriver(const hw_module_t** module) {
+int LoadDriver(android_namespace_t* library_namespace,
+               const hwvulkan_module_t** module) {
     const android_dlextinfo dlextinfo = {
         .flags = ANDROID_DLEXT_USE_NAMESPACE,
-        .library_namespace = android::GraphicsEnv::getInstance().getDriverNamespace(),
+        .library_namespace = library_namespace,
     };
-    if (!dlextinfo.library_namespace)
-        return -ENOENT;
-
     void* so = nullptr;
     char prop[PROPERTY_VALUE_MAX];
     for (auto key : HAL_SUBNAME_KEY_PROPERTIES) {
@@ -171,7 +174,7 @@ int LoadUpdatedDriver(const hw_module_t** module) {
     if (!so)
         return -ENOENT;
 
-    hw_module_t* hmi = static_cast<hw_module_t*>(dlsym(so, HAL_MODULE_INFO_SYM_AS_STR));
+    auto hmi = static_cast<hw_module_t*>(dlsym(so, HAL_MODULE_INFO_SYM_AS_STR));
     if (!hmi) {
         ALOGE("couldn't find symbol '%s' in HAL library: %s", HAL_MODULE_INFO_SYM_AS_STR, dlerror());
         dlclose(so);
@@ -183,9 +186,22 @@ int LoadUpdatedDriver(const hw_module_t** module) {
         return -EINVAL;
     }
     hmi->dso = so;
-    *module = hmi;
-    ALOGD("loaded updated driver");
+    *module = reinterpret_cast<const hwvulkan_module_t*>(hmi);
     return 0;
+}
+
+int LoadBuiltinDriver(const hwvulkan_module_t** module) {
+    auto ns = android_get_exported_namespace("sphal");
+    if (!ns)
+        return -ENOENT;
+    return LoadDriver(ns, module);
+}
+
+int LoadUpdatedDriver(const hwvulkan_module_t** module) {
+    auto ns = android::GraphicsEnv::getInstance().getDriverNamespace();
+    if (!ns)
+        return -ENOENT;
+    return LoadDriver(ns, module);
 }
 
 bool Hal::Open() {
@@ -197,9 +213,21 @@ bool Hal::Open() {
     int result;
     const hwvulkan_module_t* module = nullptr;
 
-    result = LoadUpdatedDriver(reinterpret_cast<const hw_module_t**>(&module));
+    result = LoadUpdatedDriver(&module);
     if (result == -ENOENT) {
-        result = hw_get_module(HWVULKAN_HARDWARE_MODULE_ID, reinterpret_cast<const hw_module_t**>(&module));
+        result = LoadBuiltinDriver(&module);
+        if (result != 0) {
+            // -ENOENT means the sphal namespace doesn't exist, not that there
+            // is a problem with the driver.
+            ALOGW_IF(
+                result != -ENOENT,
+                "Failed to load Vulkan driver into sphal namespace. This "
+                "usually means the driver has forbidden library dependencies."
+                "Please fix, this will soon stop working.");
+            result =
+                hw_get_module(HWVULKAN_HARDWARE_MODULE_ID,
+                              reinterpret_cast<const hw_module_t**>(&module));
+        }
     }
     if (result != 0) {
         ALOGV("unable to load Vulkan HAL, using stub HAL (result=%d)", result);
