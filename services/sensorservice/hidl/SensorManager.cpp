@@ -22,11 +22,13 @@
 
 #include "SensorManager.h"
 
+#include <sched.h>
+
+#include <thread>
+
 #include "EventQueue.h"
 #include "DirectReportChannel.h"
 #include "utils.h"
-
-#include <thread>
 
 namespace android {
 namespace frameworks {
@@ -131,6 +133,14 @@ sp<::android::Looper> SensorManager::getLooper() {
         std::condition_variable looperSet;
 
         std::thread{[&mutex = mLooperMutex, &looper = mLooper, &looperSet] {
+
+            struct sched_param p = {0};
+            p.sched_priority = 10;
+            if (sched_setscheduler(0 /* current thread*/, SCHED_FIFO, &p) != 0) {
+                LOG(WARNING) << "Could not use SCHED_FIFO for looper thread: "
+                        << strerror(errno);
+            }
+
             std::unique_lock<std::mutex> lock(mutex);
             looper = Looper::prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS /* opts */);
             lock.unlock();
