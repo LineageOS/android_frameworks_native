@@ -22,7 +22,7 @@
 
 #include <grallocusage/GrallocUsageConversion.h>
 
-#include <ui/GrallocMapper.h>
+#include <ui/Gralloc2.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/GraphicBufferMapper.h>
 
@@ -104,11 +104,7 @@ GraphicBuffer::~GraphicBuffer()
 void GraphicBuffer::free_handle()
 {
     if (mOwner == ownHandle) {
-        mBufferMapper.unregisterBuffer(handle);
-        if (!mBufferMapper.getGrallocMapper().valid()) {
-            native_handle_close(handle);
-            native_handle_delete(const_cast<native_handle*>(handle));
-        }
+        mBufferMapper.freeBuffer(handle);
     } else if (mOwner == ownData) {
         GraphicBufferAllocator& allocator(GraphicBufferAllocator::get());
         allocator.free(handle);
@@ -217,7 +213,7 @@ status_t GraphicBuffer::initWithHandle(const native_handle_t* handle,
     mOwner = (method == WRAP_HANDLE) ? ownNone : ownHandle;
 
     if (method == TAKE_UNREGISTERED_HANDLE) {
-        status_t err = mBufferMapper.registerBuffer(this);
+        status_t err = mBufferMapper.importBuffer(this);
         if (err != NO_ERROR) {
             // clean up cloned handle
             if (clone) {
@@ -451,7 +447,7 @@ status_t GraphicBuffer::unflatten(
     mOwner = ownHandle;
 
     if (handle != 0) {
-        status_t err = mBufferMapper.registerBuffer(this);
+        status_t err = mBufferMapper.importBuffer(this);
         if (err != NO_ERROR) {
             width = height = stride = format = layerCount = usage = 0;
             handle = NULL;
