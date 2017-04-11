@@ -36,7 +36,7 @@ class ConsumerQueueChannel : public BufferHubChannel {
   // allocated. Clients uses kOpConsumerQueueImportBuffers to import new
   // consumer buffers and this handler returns a vector of fd representing
   // BufferConsumers that clients can import.
-  std::vector<std::pair<RemoteChannelHandle, size_t>>
+  pdx::Status<std::vector<std::pair<RemoteChannelHandle, size_t>>>
   OnConsumerQueueImportBuffers(Message& message);
 
  private:
