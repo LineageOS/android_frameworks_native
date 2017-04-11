@@ -376,6 +376,7 @@ private:
     hwc2_display_t mId;
     bool mIsConnected;
     bool mIsVirtual;
+    DisplayType mType;
     std::unordered_map<hwc2_layer_t, std::weak_ptr<Layer>> mLayers;
     std::unordered_map<hwc2_config_t, std::shared_ptr<const Config>> mConfigs;
 };
