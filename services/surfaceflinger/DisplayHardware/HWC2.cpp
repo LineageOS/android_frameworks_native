@@ -244,7 +244,7 @@ Error Device::createVirtualDisplay(uint32_t width, uint32_t height,
         ALOGE("Failed to get display by id");
         return Error::BadDisplay;
     }
-    (*outDisplay)->setVirtual();
+    (*outDisplay)->setConnected(true);
     return Error::None;
 }
 
@@ -531,7 +531,6 @@ Display::Display(Device& device, hwc2_display_t id)
   : mDevice(device),
     mId(id),
     mIsConnected(false),
-    mIsVirtual(false),
     mType(DisplayType::Invalid)
 {
     ALOGV("Created display %" PRIu64, id);
@@ -553,7 +552,7 @@ Display::Display(Device& device, hwc2_display_t id)
 Display::~Display()
 {
     ALOGV("Destroyed display %" PRIu64, mId);
-    if (mIsVirtual) {
+    if (mType == DisplayType::Virtual) {
         mDevice.destroyVirtualDisplay(mId);
     }
 }
