@@ -22,13 +22,14 @@
 
 #include <stdio.h>
 
+#include <grallocusage/GrallocUsageConversion.h>
+
 #include <log/log.h>
 #include <utils/Singleton.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
 
-#include <ui/GrallocAllocator.h>
-#include <ui/GrallocMapper.h>
+#include <ui/Gralloc2.h>
 #include <ui/GraphicBufferMapper.h>
 
 namespace android {
@@ -41,8 +42,9 @@ KeyedVector<buffer_handle_t,
     GraphicBufferAllocator::alloc_rec_t> GraphicBufferAllocator::sAllocList;
 
 GraphicBufferAllocator::GraphicBufferAllocator()
-  : mAllocator(std::make_unique<Gralloc2::Allocator>()),
-    mMapper(GraphicBufferMapper::getInstance())
+  : mMapper(GraphicBufferMapper::getInstance()),
+    mAllocator(std::make_unique<Gralloc2::Allocator>(
+                mMapper.getGrallocMapper()))
 {
     if (!mAllocator->valid()) {
         mLoader = std::make_unique<Gralloc1::Loader>();
@@ -102,109 +104,6 @@ void GraphicBufferAllocator::dumpToSystemLog()
     ALOGD("%s", s.string());
 }
 
-namespace {
-
-class HalBuffer {
-public:
-    HalBuffer(const Gralloc2::Allocator* allocator,
-            uint32_t width, uint32_t height,
-            PixelFormat format, uint32_t layerCount, uint64_t producerUsage,
-            uint64_t consumerUsage)
-        : mAllocator(allocator), mBufferValid(false)
-    {
-        Gralloc2::IAllocatorClient::BufferDescriptorInfo info = {};
-        info.width = width;
-        info.height = height;
-        info.format = static_cast<Gralloc2::PixelFormat>(format);
-        info.layerCount = layerCount;
-        info.producerUsageMask = producerUsage;
-        info.consumerUsageMask = consumerUsage;
-
-        Gralloc2::BufferDescriptor descriptor;
-        auto error = mAllocator->createBufferDescriptor(info, &descriptor);
-        if (error != Gralloc2::Error::NONE) {
-            ALOGE("Failed to create desc (%u x %u) layerCount %u format %d producerUsage %" PRIx64
-                    " consumerUsage %" PRIx64 ": %d",
-                    width, height, layerCount, format, producerUsage,
-                    consumerUsage, error);
-            return;
-        }
-
-        error = mAllocator->allocate(descriptor, &mBuffer);
-        if (error == Gralloc2::Error::NOT_SHARED) {
-            error = Gralloc2::Error::NONE;
-        }
-
-        if (error != Gralloc2::Error::NONE) {
-            ALOGE("Failed to allocate (%u x %u) layerCount %u format %d producerUsage %" PRIx64
-                    " consumerUsage %" PRIx64 ": %d",
-                    width, height, layerCount, format, producerUsage,
-                    consumerUsage, error);
-            mAllocator->destroyBufferDescriptor(descriptor);
-            return;
-        }
-
-        error = mAllocator->exportHandle(descriptor, mBuffer, &mHandle);
-        if (error != Gralloc2::Error::NONE) {
-            ALOGE("Failed to export handle");
-            mAllocator->free(mBuffer);
-            mAllocator->destroyBufferDescriptor(descriptor);
-            return;
-        }
-
-        mAllocator->destroyBufferDescriptor(descriptor);
-
-        mBufferValid = true;
-    }
-
-    ~HalBuffer()
-    {
-        if (mBufferValid) {
-            if (mHandle) {
-                native_handle_close(mHandle);
-                native_handle_delete(mHandle);
-            }
-
-            mAllocator->free(mBuffer);
-        }
-    }
-
-    bool exportHandle(GraphicBufferMapper& mapper,
-            buffer_handle_t* handle, uint32_t* stride)
-    {
-        if (!mBufferValid) {
-            return false;
-        }
-
-        if (mapper.registerBuffer(mHandle)) {
-            return false;
-        }
-
-        *handle = mHandle;
-
-        auto error = mapper.getGrallocMapper().getStride(mHandle, stride);
-        if (error != Gralloc2::Error::NONE) {
-            ALOGW("Failed to get stride from buffer: %d", error);
-            *stride = 0;
-        }
-
-        mHandle = nullptr;
-        mAllocator->free(mBuffer);
-        mBufferValid = false;
-
-        return true;
-    }
-
-private:
-    const Gralloc2::Allocator* mAllocator;
-
-    bool mBufferValid;
-    Gralloc2::Buffer mBuffer;
-    native_handle_t* mHandle;
-};
-
-} // namespace
-
 status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
         PixelFormat format, uint32_t layerCount, uint64_t producerUsage,
         uint64_t consumerUsage, buffer_handle_t* handle, uint32_t* stride,
@@ -223,12 +122,18 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
 
     gralloc1_error_t error;
     if (mAllocator->valid()) {
-        HalBuffer buffer(mAllocator.get(), width, height, format, layerCount,
-                producerUsage, consumerUsage);
-        if (!buffer.exportHandle(mMapper, handle, stride)) {
+        Gralloc2::IMapper::BufferDescriptorInfo info = {};
+        info.width = width;
+        info.height = height;
+        info.layerCount = layerCount;
+        info.format = static_cast<Gralloc2::PixelFormat>(format);
+        info.usage = static_cast<uint64_t>(android_convertGralloc1To0Usage(
+                producerUsage, consumerUsage));
+        error = static_cast<gralloc1_error_t>(mAllocator->allocate(info,
+                    stride, handle));
+        if (error != GRALLOC1_ERROR_NONE) {
             return NO_MEMORY;
         }
-        error = GRALLOC1_ERROR_NONE;
     } else {
         auto descriptor = mDevice->createDescriptor();
         error = descriptor->setDimensions(width, height);
@@ -310,8 +215,7 @@ status_t GraphicBufferAllocator::free(buffer_handle_t handle)
 
     gralloc1_error_t error;
     if (mAllocator->valid()) {
-        error = static_cast<gralloc1_error_t>(
-                mMapper.unregisterBuffer(handle));
+        error = static_cast<gralloc1_error_t>(mMapper.freeBuffer(handle));
     } else {
         error = mDevice->release(handle);
     }

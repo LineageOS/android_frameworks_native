@@ -44,34 +44,9 @@ const Display kDefaultDisplayId = 1;
 const Config kDefaultConfigId = 1;
 
 sp<GraphicBuffer> GetBufferFromHandle(const native_handle_t* handle) {
-  uint32_t width = 0, height = 0, stride = 0, layer_count = 1;
-  uint64_t producer_usage = 0, consumer_usage = 0;
-  int32_t format = 0;
-
-  GraphicBufferMapper& mapper = GraphicBufferMapper::get();
-  if (mapper.getDimensions(handle, &width, &height) ||
-      mapper.getStride(handle, &stride) ||
-      mapper.getFormat(handle, &format) ||
-      mapper.getProducerUsage(handle, &producer_usage) ||
-      mapper.getConsumerUsage(handle, &consumer_usage)) {
-    ALOGE("Failed to read handle properties");
-    return nullptr;
-  }
-
-  // This will only succeed if gralloc has GRALLOC1_CAPABILITY_LAYERED_BUFFERS
-  // capability. Otherwise assume a count of 1.
-  mapper.getLayerCount(handle, &layer_count);
-
-  // NOTE: Can't re-use |handle| since we don't own it.
-  sp<GraphicBuffer> buffer = new GraphicBuffer(handle,
-      GraphicBuffer::CLONE_HANDLE, width, height, format, layer_count,
-      producer_usage, consumer_usage, stride);
-  if (buffer->initCheck() != OK) {
-    ALOGE("Failed to register cloned buffer");
-    return nullptr;
-  }
-
-  return buffer;
+  // Querying properties from |handle| is never properly supported.
+  ALOGE("Failed to read handle %p properties", handle);
+  return nullptr;
 }
 
 void GetPrimaryDisplaySize(int32_t* width, int32_t* height) {
