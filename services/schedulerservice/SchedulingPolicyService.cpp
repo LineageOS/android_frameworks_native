@@ -29,21 +29,35 @@ namespace schedulerservice {
 namespace V1_0 {
 namespace implementation {
 
-Return<bool> SchedulingPolicyService::requestPriority(int32_t pid, int32_t tid, int32_t priority) {
+bool SchedulingPolicyService::isAllowed() {
     using ::android::hardware::IPCThreadState;
 
+    return IPCThreadState::self()->getCallingUid() == AID_CAMERASERVER;
+}
+
+Return<bool> SchedulingPolicyService::requestPriority(int32_t pid, int32_t tid, int32_t priority) {
     if (priority < static_cast<int32_t>(Priority::MIN) ||
             priority > static_cast<int32_t>(Priority::MAX)) {
         return false;
     }
 
-    if (IPCThreadState::self()->getCallingUid() != AID_CAMERASERVER) {
+    if (!isAllowed()) {
         return false;
     }
 
+    // TODO(b/37226359): decouple from and remove AIDL service
     // this should always be allowed since we are in system_server.
     int value = ::android::requestPriority(pid, tid, priority, false /* isForApp */);
     return value == 0 /* success */;
+}
+
+Return<int32_t> SchedulingPolicyService::getMaxAllowedPriority() {
+    if (!isAllowed()) {
+        return 0;
+    }
+
+    // TODO(b/37226359): decouple from and remove AIDL service
+    return 3;
 }
 
 }  // namespace implementation
