@@ -107,11 +107,14 @@ class BufferHubBuffer : public pdx::Client {
   // The following methods return settings of the first buffer. Currently,
   // it is only possible to create multi-buffer BufferHubBuffers with the same
   // settings.
-  int width() const { return slices_[0].width(); }
-  int height() const { return slices_[0].height(); }
-  int stride() const { return slices_[0].stride(); }
-  int format() const { return slices_[0].format(); }
-  int usage() const { return slices_[0].usage(); }
+  uint32_t width() const { return slices_[0].width(); }
+  uint32_t height() const { return slices_[0].height(); }
+  uint32_t stride() const { return slices_[0].stride(); }
+  uint32_t format() const { return slices_[0].format(); }
+  uint32_t usage() const { return slices_[0].usage(); }
+  uint32_t layer_count() const { return slices_[0].layer_count(); }
+  uint64_t producer_usage() const { return slices_[0].producer_usage(); }
+  uint64_t consumer_usage() const { return slices_[0].consumer_usage(); }
 
  protected:
   explicit BufferHubBuffer(LocalChannelHandle channel);
@@ -218,8 +221,12 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
   // arguments as the constructors.
 
   // Constructs a buffer with the given geometry and parameters.
-  BufferProducer(int width, int height, int format, int usage,
-                 size_t metadata_size = 0, size_t slice_count = 1);
+  BufferProducer(uint32_t width, uint32_t height, uint32_t format,
+                 uint32_t usage, size_t metadata_size = 0,
+                 size_t slice_count = 1);
+  BufferProducer(uint32_t width, uint32_t height, uint32_t format,
+                 uint64_t producer_usage, uint64_t consumer_usage,
+                 size_t metadata_size, size_t slice_count);
 
   // Constructs a persistent buffer with the given geometry and parameters and
   // binds it to |name| in one shot. If a persistent buffer with the same name
@@ -233,16 +240,24 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
   // created and cannot be changed. A user or group id of -1 disables checks for
   // that respective id. A user or group id of 0 is substituted with the
   // effective user or group id of the calling process.
-  BufferProducer(const std::string& name, int user_id, int group_id, int width,
-                 int height, int format, int usage, size_t metadata_size = 0,
+  BufferProducer(const std::string& name, int user_id, int group_id,
+                 uint32_t width, uint32_t height, uint32_t format,
+                 uint32_t usage, size_t metadata_size = 0,
                  size_t slice_count = 1);
+  BufferProducer(const std::string& name, int user_id, int group_id,
+                 uint32_t width, uint32_t height, uint32_t format,
+                 uint64_t producer_usage, uint64_t consumer_usage,
+                 size_t metadata_size, size_t slice_count);
 
   // Constructs a blob (flat) buffer with the given usage flags.
-  BufferProducer(int usage, size_t size);
+  BufferProducer(uint32_t usage, size_t size);
+  BufferProducer(uint64_t producer_usage, uint64_t consumer_usage, size_t size);
 
   // Constructs a persistent blob (flat) buffer and binds it to |name|.
-  BufferProducer(const std::string& name, int user_id, int group_id, int usage,
-                 size_t size);
+  BufferProducer(const std::string& name, int user_id, int group_id,
+                 uint32_t usage, size_t size);
+  BufferProducer(const std::string& name, int user_id, int group_id,
+                 uint64_t producer_usage, uint64_t consumer_usage, size_t size);
 
   // Constructs a channel to persistent buffer by name only. The buffer must
   // have been previously created or made persistent.

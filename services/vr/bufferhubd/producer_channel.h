@@ -30,10 +30,10 @@ class ProducerChannel : public BufferHubChannel {
   template <typename T>
   using BufferWrapper = pdx::rpc::BufferWrapper<T>;
 
-  static std::shared_ptr<ProducerChannel> Create(
-      BufferHubService* service, int channel_id, int width, int height,
-      int format, int usage, size_t meta_size_bytes, size_t slice_count,
-      int* error);
+  static pdx::Status<std::shared_ptr<ProducerChannel>> Create(
+      BufferHubService* service, int channel_id, uint32_t width,
+      uint32_t height, uint32_t format, uint64_t producer_usage,
+      uint64_t consumer_usage, size_t meta_size_bytes, size_t slice_count);
 
   ~ProducerChannel() override;
 
@@ -42,17 +42,18 @@ class ProducerChannel : public BufferHubChannel {
 
   BufferInfo GetBufferInfo() const override;
 
-  NativeBufferHandle<BorrowedHandle> OnGetBuffer(Message& message,
-                                                 unsigned index);
-  std::vector<NativeBufferHandle<BorrowedHandle>> OnGetBuffers(
+  pdx::Status<NativeBufferHandle<BorrowedHandle>> OnGetBuffer(Message& message,
+                                                              unsigned index);
+  pdx::Status<std::vector<NativeBufferHandle<BorrowedHandle>>> OnGetBuffers(
       Message& message);
 
-  RemoteChannelHandle CreateConsumer(Message& message);
-  RemoteChannelHandle OnNewConsumer(Message& message);
+  pdx::Status<RemoteChannelHandle> CreateConsumer(Message& message);
+  pdx::Status<RemoteChannelHandle> OnNewConsumer(Message& message);
 
-  std::pair<BorrowedFence, BufferWrapper<std::uint8_t*>> OnConsumerAcquire(
-      Message& message, std::size_t metadata_size);
-  int OnConsumerRelease(Message& message, LocalFence release_fence);
+  pdx::Status<std::pair<BorrowedFence, BufferWrapper<std::uint8_t*>>>
+  OnConsumerAcquire(Message& message, std::size_t metadata_size);
+  pdx::Status<void> OnConsumerRelease(Message& message,
+                                      LocalFence release_fence);
 
   void OnConsumerIgnored();
 
@@ -60,12 +61,14 @@ class ProducerChannel : public BufferHubChannel {
   void RemoveConsumer(ConsumerChannel* channel);
 
   bool CheckAccess(int euid, int egid);
-  bool CheckParameters(int width, int height, int format, int usage,
+  bool CheckParameters(uint32_t width, uint32_t height, uint32_t format,
+                       uint64_t producer_usage, uint64_t consumer_usage,
                        size_t meta_size_bytes, size_t slice_count);
 
-  int OnProducerMakePersistent(Message& message, const std::string& name,
-                               int user_id, int group_id);
-  int OnRemovePersistence(Message& message);
+  pdx::Status<void> OnProducerMakePersistent(Message& message,
+                                             const std::string& name,
+                                             int user_id, int group_id);
+  pdx::Status<void> OnRemovePersistence(Message& message);
 
  private:
   std::vector<ConsumerChannel*> consumer_channels_;
@@ -91,13 +94,15 @@ class ProducerChannel : public BufferHubChannel {
 
   std::string name_;
 
-  ProducerChannel(BufferHubService* service, int channel, int width, int height,
-                  int format, int usage, size_t meta_size_bytes,
+  ProducerChannel(BufferHubService* service, int channel, uint32_t width,
+                  uint32_t height, uint32_t format, uint64_t producer_usage,
+                  uint64_t consumer_usage, size_t meta_size_bytes,
                   size_t slice_count, int* error);
 
-  int OnProducerPost(Message& message, LocalFence acquire_fence,
-                     BufferWrapper<std::vector<std::uint8_t>> metadata);
-  LocalFence OnProducerGain(Message& message);
+  pdx::Status<void> OnProducerPost(
+      Message& message, LocalFence acquire_fence,
+      BufferWrapper<std::vector<std::uint8_t>> metadata);
+  pdx::Status<LocalFence> OnProducerGain(Message& message);
 
   ProducerChannel(const ProducerChannel&) = delete;
   void operator=(const ProducerChannel&) = delete;

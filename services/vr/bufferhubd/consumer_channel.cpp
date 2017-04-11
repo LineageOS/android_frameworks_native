@@ -8,9 +8,11 @@
 #include <private/dvr/bufferhub_rpc.h>
 #include "producer_channel.h"
 
+using android::pdx::ErrorStatus;
 using android::pdx::BorrowedHandle;
 using android::pdx::Channel;
 using android::pdx::Message;
+using android::pdx::Status;
 using android::pdx::rpc::DispatchRemoteMethod;
 
 namespace android {
@@ -103,53 +105,53 @@ bool ConsumerChannel::HandleMessage(Message& message) {
   }
 }
 
-std::pair<BorrowedFence, ConsumerChannel::MetaData>
+Status<std::pair<BorrowedFence, ConsumerChannel::MetaData>>
 ConsumerChannel::OnConsumerAcquire(Message& message,
                                    std::size_t metadata_size) {
   ATRACE_NAME("ConsumerChannel::OnConsumerAcquire");
   auto producer = GetProducer();
   if (!producer)
-    REPLY_ERROR_RETURN(message, EPIPE, {});
+    return ErrorStatus(EPIPE);
 
   if (ignored_ || handled_) {
     ALOGE(
         "ConsumerChannel::OnConsumerAcquire: Acquire when not posted: "
         "ignored=%d handled=%d channel_id=%d buffer_id=%d",
         ignored_, handled_, message.GetChannelId(), producer->buffer_id());
-    REPLY_ERROR_RETURN(message, EBUSY, {});
+    return ErrorStatus(EBUSY);
   } else {
     ClearAvailable();
     return producer->OnConsumerAcquire(message, metadata_size);
   }
 }
 
-int ConsumerChannel::OnConsumerRelease(Message& message,
-                                       LocalFence release_fence) {
+Status<void> ConsumerChannel::OnConsumerRelease(Message& message,
+                                                LocalFence release_fence) {
   ATRACE_NAME("ConsumerChannel::OnConsumerRelease");
   auto producer = GetProducer();
   if (!producer)
-    return -EPIPE;
+    return ErrorStatus(EPIPE);
 
   if (ignored_ || handled_) {
     ALOGE(
         "ConsumerChannel::OnConsumerRelease: Release when not acquired: "
         "ignored=%d handled=%d channel_id=%d buffer_id=%d",
         ignored_, handled_, message.GetChannelId(), producer->buffer_id());
-    return -EBUSY;
+    return ErrorStatus(EBUSY);
   } else {
     ClearAvailable();
-    const int ret =
+    auto status =
         producer->OnConsumerRelease(message, std::move(release_fence));
-    handled_ = ret == 0;
-    return ret;
+    handled_ = !!status;
+    return status;
   }
 }
 
-int ConsumerChannel::OnConsumerSetIgnore(Message&, bool ignored) {
+Status<void> ConsumerChannel::OnConsumerSetIgnore(Message&, bool ignored) {
   ATRACE_NAME("ConsumerChannel::OnConsumerSetIgnore");
   auto producer = GetProducer();
   if (!producer)
-    return -EPIPE;
+    return ErrorStatus(EPIPE);
 
   ignored_ = ignored;
   if (ignored_ && !handled_) {
@@ -160,7 +162,7 @@ int ConsumerChannel::OnConsumerSetIgnore(Message&, bool ignored) {
     handled_ = false;
   }
 
-  return 0;
+  return {};
 }
 
 bool ConsumerChannel::OnProducerPosted() {

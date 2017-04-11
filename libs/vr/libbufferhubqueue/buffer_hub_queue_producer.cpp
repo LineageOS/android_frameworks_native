@@ -38,22 +38,8 @@ status_t BufferHubQueueProducer::requestBuffer(int slot,
   }
 
   const auto& buffer_producer = core_->buffers_[slot].mBufferProducer;
+  sp<GraphicBuffer> graphic_buffer = buffer_producer->buffer()->buffer();
 
-  // Create new GraphicBuffer based on the newly created |buffer_producer|. Here
-  // we have to cast |buffer_handle_t| to |native_handle_t|, it's OK because
-  // internally, GraphicBuffer is still an |ANativeWindowBuffer| and |handle|
-  // is still type of |buffer_handle_t| and bears const property.
-  sp<GraphicBuffer> graphic_buffer(new GraphicBuffer(
-      buffer_producer->width(), buffer_producer->height(),
-      buffer_producer->format(),
-      1, /* layer count */
-      buffer_producer->usage(),
-      buffer_producer->stride(),
-      const_cast<native_handle_t*>(buffer_producer->buffer()->handle()),
-      false));
-
-  LOG_ALWAYS_FATAL_IF(NO_ERROR != graphic_buffer->initCheck(),
-                      "Failed to init GraphicBuffer.");
   core_->buffers_[slot].mGraphicBuffer = graphic_buffer;
   core_->buffers_[slot].mRequestBufferCalled = true;
 
@@ -155,9 +141,9 @@ status_t BufferHubQueueProducer::dequeueBuffer(
     if (!buffer_producer)
       return NO_MEMORY;
 
-    if (static_cast<int>(width) == buffer_producer->width() &&
-        static_cast<int>(height) == buffer_producer->height() &&
-        static_cast<int>(format) == buffer_producer->format()) {
+    if (width == buffer_producer->width() &&
+        height == buffer_producer->height() &&
+        static_cast<uint32_t>(format) == buffer_producer->format()) {
       // The producer queue returns a buffer producer matches the request.
       break;
     }
@@ -165,8 +151,8 @@ status_t BufferHubQueueProducer::dequeueBuffer(
     // Needs reallocation.
     // TODO(jwcai) Consider use VLOG instead if we find this log is not useful.
     ALOGI(
-        "dequeueBuffer: requested buffer (w=%u, h=%u, format=%d) is different "
-        "from the buffer returned at slot: %zu (w=%d, h=%d, format=%d). Need "
+        "dequeueBuffer: requested buffer (w=%u, h=%u, format=%u) is different "
+        "from the buffer returned at slot: %zu (w=%u, h=%u, format=%u). Need "
         "re-allocattion.",
         width, height, format, slot, buffer_producer->width(),
         buffer_producer->height(), buffer_producer->format());
@@ -322,7 +308,7 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
 
   output->width = buffer_producer->width();
   output->height = buffer_producer->height();
-  output->transformHint = 0; // default value, we don't use it yet.
+  output->transformHint = 0;  // default value, we don't use it yet.
 
   // |numPendingBuffers| counts of the number of buffers that has been enqueued
   // by the producer but not yet acquired by the consumer. Due to the nature
@@ -456,7 +442,7 @@ status_t BufferHubQueueProducer::connect(
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::disconnect(int api, DisconnectMode mode) {
+status_t BufferHubQueueProducer::disconnect(int api, DisconnectMode /*mode*/) {
   // Consumer interaction are actually handled by buffer hub, and we need
   // to maintain consumer operations here.  We only need to perform basic input
   // parameter checks here.

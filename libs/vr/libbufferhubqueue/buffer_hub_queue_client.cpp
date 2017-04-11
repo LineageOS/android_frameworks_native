@@ -317,7 +317,7 @@ std::shared_ptr<BufferHubBuffer> BufferHubQueue::Dequeue(int timeout,
 }
 
 ProducerQueue::ProducerQueue(size_t meta_size)
-    : ProducerQueue(meta_size, 0, 0, 0, 0) {}
+    : ProducerQueue(meta_size, 0, 0, 0, 0, 0, 0, 0, 0) {}
 
 ProducerQueue::ProducerQueue(LocalChannelHandle handle)
     : BASE(std::move(handle)) {
@@ -329,13 +329,22 @@ ProducerQueue::ProducerQueue(LocalChannelHandle handle)
   }
 }
 
-ProducerQueue::ProducerQueue(size_t meta_size, int usage_set_mask,
-                             int usage_clear_mask, int usage_deny_set_mask,
-                             int usage_deny_clear_mask)
+ProducerQueue::ProducerQueue(size_t meta_size, uint64_t producer_usage_set_mask,
+                             uint64_t producer_usage_clear_mask,
+                             uint64_t producer_usage_deny_set_mask,
+                             uint64_t producer_usage_deny_clear_mask,
+                             uint64_t consumer_usage_set_mask,
+                             uint64_t consumer_usage_clear_mask,
+                             uint64_t consumer_usage_deny_set_mask,
+                             uint64_t consumer_usage_deny_clear_mask)
     : BASE(BufferHubRPC::kClientPath) {
   auto status = InvokeRemoteMethod<BufferHubRPC::CreateProducerQueue>(
-      meta_size, usage_set_mask, usage_clear_mask, usage_deny_set_mask,
-      usage_deny_clear_mask);
+      meta_size,
+      UsagePolicy{producer_usage_set_mask, producer_usage_clear_mask,
+                  producer_usage_deny_set_mask, producer_usage_deny_clear_mask,
+                  consumer_usage_set_mask, consumer_usage_clear_mask,
+                  consumer_usage_deny_set_mask,
+                  consumer_usage_deny_clear_mask});
   if (!status) {
     ALOGE("ProducerQueue::ProducerQueue: Failed to create producer queue: %s",
           status.GetErrorMessage().c_str());
@@ -346,8 +355,17 @@ ProducerQueue::ProducerQueue(size_t meta_size, int usage_set_mask,
   SetupQueue(status.get().meta_size_bytes, status.get().id);
 }
 
-int ProducerQueue::AllocateBuffer(int width, int height, int format, int usage,
+int ProducerQueue::AllocateBuffer(uint32_t width, uint32_t height,
+                                  uint32_t format, uint32_t usage,
                                   size_t slice_count, size_t* out_slot) {
+  return AllocateBuffer(width, height, format, usage, usage, slice_count,
+                        out_slot);
+}
+
+int ProducerQueue::AllocateBuffer(uint32_t width, uint32_t height,
+                                  uint32_t format, uint64_t producer_usage,
+                                  uint64_t consumer_usage, size_t slice_count,
+                                  size_t* out_slot) {
   if (out_slot == nullptr) {
     ALOGE("ProducerQueue::AllocateBuffer: Parameter out_slot cannot be null.");
     return -EINVAL;
@@ -363,7 +381,8 @@ int ProducerQueue::AllocateBuffer(int width, int height, int format, int usage,
 
   Status<std::vector<std::pair<LocalChannelHandle, size_t>>> status =
       InvokeRemoteMethod<BufferHubRPC::ProducerQueueAllocateBuffers>(
-          width, height, format, usage, slice_count, kBufferCount);
+          width, height, format, producer_usage, consumer_usage, slice_count,
+          kBufferCount);
   if (!status) {
     ALOGE(
         "ProducerQueue::AllocateBuffer failed to create producer buffer "

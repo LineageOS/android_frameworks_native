@@ -12,11 +12,20 @@ namespace dvr {
 class IonBuffer {
  public:
   IonBuffer();
-  IonBuffer(int width, int height, int format, int usage);
-  IonBuffer(buffer_handle_t handle, int width, int height, int stride,
-            int format, int usage);
-  IonBuffer(buffer_handle_t handle, int width, int height, int layer_count,
-            int stride, int layer_stride, int format, int usage);
+  IonBuffer(uint32_t width, uint32_t height, uint32_t format, uint32_t usage);
+  IonBuffer(uint32_t width, uint32_t height, uint32_t format,
+            uint64_t producer_usage, uint64_t consumer_usage);
+  IonBuffer(buffer_handle_t handle, uint32_t width, uint32_t height,
+            uint32_t stride, uint32_t format, uint32_t usage);
+  IonBuffer(buffer_handle_t handle, uint32_t width, uint32_t height,
+            uint32_t stride, uint32_t format, uint64_t producer_usage,
+            uint64_t consumer_usage);
+  IonBuffer(buffer_handle_t handle, uint32_t width, uint32_t height,
+            uint32_t layer_count, uint32_t stride, uint32_t layer_stride,
+            uint32_t format, uint32_t usage);
+  IonBuffer(buffer_handle_t handle, uint32_t width, uint32_t height,
+            uint32_t layer_count, uint32_t stride, uint32_t layer_stride,
+            uint32_t format, uint64_t producer_usage, uint64_t consumer_usage);
   ~IonBuffer();
 
   IonBuffer(IonBuffer&& other);
@@ -30,25 +39,36 @@ class IonBuffer {
   // previous native handle if necessary. Returns 0 on success or a negative
   // errno code otherwise. If allocation fails the previous native handle is
   // left intact.
-  int Alloc(int width, int height, int format, int usage);
+  int Alloc(uint32_t width, uint32_t height, uint32_t format, uint32_t usage);
+  int Alloc(uint32_t width, uint32_t height, uint32_t format,
+            uint64_t producer_usage, uint64_t consumer_usage);
 
   // Resets the underlying native handle and parameters, freeing the previous
   // native handle if necessary.
-  void Reset(buffer_handle_t handle, int width, int height, int stride,
-             int format, int usage);
+  void Reset(buffer_handle_t handle, uint32_t width, uint32_t height,
+             uint32_t stride, uint32_t format, uint32_t usage);
+  void Reset(buffer_handle_t handle, uint32_t width, uint32_t height,
+             uint32_t stride, uint32_t format, uint64_t producer_usage,
+             uint64_t consumer_usage);
 
   // Like Reset but also registers the native handle, which is necessary for
   // native handles received over IPC. Returns 0 on success or a negative errno
   // code otherwise. If import fails the previous native handle is left intact.
-  int Import(buffer_handle_t handle, int width, int height, int stride,
-             int format, int usage);
+  int Import(buffer_handle_t handle, uint32_t width, uint32_t height,
+             uint32_t stride, uint32_t format, uint32_t usage);
+  int Import(buffer_handle_t handle, uint32_t width, uint32_t height,
+             uint32_t stride, uint32_t format, uint64_t producer_usage,
+             uint64_t consumer_usage);
 
   // Like Reset but imports a native handle from raw fd and int arrays. Returns
   // 0 on success or a negative errno code otherwise. If import fails the
   // previous native handle is left intact.
   int Import(const int* fd_array, int fd_count, const int* int_array,
-             int int_count, int width, int height, int stride, int format,
-             int usage);
+             int int_count, uint32_t width, uint32_t height, uint32_t stride,
+             uint32_t format, uint32_t usage);
+  int Import(const int* fd_array, int fd_count, const int* int_array,
+             int int_count, uint32_t width, uint32_t height, uint32_t stride,
+             uint32_t format, uint64_t producer_usage, uint64_t consumer_usage);
 
   // Duplicates the native handle underlying |other| and then imports it. This
   // is useful for creating multiple, independent views of the same Ion/Gralloc
@@ -56,8 +76,8 @@ class IonBuffer {
   // duplication or import fail the previous native handle is left intact.
   int Duplicate(const IonBuffer* other);
 
-  int Lock(int usage, int x, int y, int width, int height, void** address);
-  int LockYUV(int usage, int x, int y, int width, int height,
+  int Lock(uint32_t usage, int x, int y, int width, int height, void** address);
+  int LockYUV(uint32_t usage, int x, int y, int width, int height,
               struct android_ycbcr* yuv);
   int Unlock();
 
@@ -65,18 +85,28 @@ class IonBuffer {
   buffer_handle_t handle() const {
     return buffer_.get() ? buffer_->handle : nullptr;
   }
-  int width() const { return buffer_.get() ? buffer_->getWidth() : 0; }
-  int height() const { return buffer_.get() ? buffer_->getHeight() : 0; }
-  int layer_count() const {
+  uint32_t width() const { return buffer_.get() ? buffer_->getWidth() : 0; }
+  uint32_t height() const { return buffer_.get() ? buffer_->getHeight() : 0; }
+  uint32_t layer_count() const {
     return buffer_.get() ? buffer_->getLayerCount() : 0;
   }
-  int stride() const { return buffer_.get() ? buffer_->getStride() : 0; }
-  int layer_stride() const { return 0; }
-  int format() const { return buffer_.get() ? buffer_->getPixelFormat() : 0; }
-  int usage() const { return buffer_.get() ? buffer_->getUsage() : 0; }
+  uint32_t stride() const { return buffer_.get() ? buffer_->getStride() : 0; }
+  uint32_t layer_stride() const { return 0; }
+  uint32_t format() const {
+    return buffer_.get() ? buffer_->getPixelFormat() : 0;
+  }
+  uint64_t producer_usage() const { return producer_usage_; }
+  uint64_t consumer_usage() const { return consumer_usage_; }
+  uint32_t usage() const { return buffer_.get() ? buffer_->getUsage() : 0; }
 
  private:
   sp<GraphicBuffer> buffer_;
+
+  // GraphicBuffer doesn't expose these separately. Keep these values cached for
+  // BufferHub to check policy against. Clients that import these buffers won't
+  // get the full picture, which is okay.
+  uint64_t producer_usage_;
+  uint64_t consumer_usage_;
 
   IonBuffer(const IonBuffer&) = delete;
   void operator=(const IonBuffer&) = delete;
