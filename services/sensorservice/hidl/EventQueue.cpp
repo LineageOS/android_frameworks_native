@@ -39,7 +39,8 @@ public:
 
         while ((actual = internalQueue->read(&event, 1 /* count */)) > 0) {
             internalQueue->sendAck(&event, actual);
-            mCallback->onEvent(convertEvent(event));
+            Return<void> ret = mCallback->onEvent(convertEvent(event));
+            (void)ret.isOk(); // ignored
         }
 
         return 1; // continue to receive callbacks
