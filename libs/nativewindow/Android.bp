@@ -21,7 +21,7 @@ ndk_headers {
 }
 
 ndk_library {
-    name: "libnativewindow.ndk",
+    name: "libnativewindow",
     symbol_file: "libnativewindow.map.txt",
 
     // Android O
