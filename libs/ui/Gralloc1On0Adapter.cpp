@@ -20,6 +20,9 @@
 
 #include <ui/Gralloc1On0Adapter.h>
 
+#include <algorithm>
+#include <array>
+
 #include <grallocusage/GrallocUsageConversion.h>
 
 #include <hardware/gralloc.h>
@@ -67,13 +70,18 @@ Gralloc1On0Adapter::~Gralloc1On0Adapter()
 void Gralloc1On0Adapter::doGetCapabilities(uint32_t* outCount,
         int32_t* outCapabilities)
 {
+    constexpr std::array<int32_t, 2> supportedCapabilities = {{
+        GRALLOC1_CAPABILITY_ON_ADAPTER,
+        GRALLOC1_CAPABILITY_RELEASE_IMPLY_DELETE,
+    }};
+
     if (outCapabilities == nullptr) {
-        *outCount = 1;
-        return;
-    }
-    if (*outCount >= 1) {
-        *outCapabilities = GRALLOC1_CAPABILITY_ON_ADAPTER;
-        *outCount = 1;
+        *outCount = supportedCapabilities.size();
+    } else {
+        *outCount = std::min(*outCount, static_cast<uint32_t>(
+                    supportedCapabilities.size()));
+        std::copy_n(supportedCapabilities.begin(),
+                *outCount, outCapabilities);
     }
 }
 
@@ -325,6 +333,9 @@ gralloc1_error_t Gralloc1On0Adapter::release(
         if (result != 0) {
             ALOGE("gralloc0 unregister failed: %d", result);
         }
+
+        native_handle_close(handle);
+        native_handle_delete(const_cast<native_handle_t*>(handle));
     }
 
     mBuffers.erase(handle);

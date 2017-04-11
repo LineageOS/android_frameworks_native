@@ -122,8 +122,10 @@ status_t GraphicBufferMapper::freeBuffer(buffer_handle_t handle)
         error = GRALLOC1_ERROR_NONE;
     } else {
         error = mDevice->release(handle);
-        native_handle_close(handle);
-        native_handle_delete(const_cast<native_handle_t*>(handle));
+        if (!mDevice->hasCapability(GRALLOC1_CAPABILITY_RELEASE_IMPLY_DELETE)) {
+            native_handle_close(handle);
+            native_handle_delete(const_cast<native_handle_t*>(handle));
+        }
     }
 
     ALOGW_IF(error != GRALLOC1_ERROR_NONE, "freeBuffer(%p): failed %d",
