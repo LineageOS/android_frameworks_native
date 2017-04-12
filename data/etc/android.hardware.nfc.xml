@@ -18,4 +18,5 @@
      using Near-Field Communications (NFC). -->
 <permissions>
     <feature name="android.hardware.nfc" />
+    <feature name="android.hardware.nfc.any" />
 </permissions>
