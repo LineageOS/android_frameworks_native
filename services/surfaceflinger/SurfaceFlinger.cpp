@@ -1236,6 +1236,13 @@ void SurfaceFlinger::resetHwc() {
     // mCurrentState and mDrawingState and re-apply all changes when we make the
     // transition.
     mDrawingState.displays.clear();
+    // Release virtual display hwcId during vr mode transition.
+    for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
+        const sp<DisplayDevice>& displayDevice = mDisplays[displayId];
+        if (displayDevice->getDisplayType() == DisplayDevice::DISPLAY_VIRTUAL) {
+            displayDevice->disconnect(getHwComposer());
+        }
+    }
     mDisplays.clear();
     initializeDisplays();
 }
