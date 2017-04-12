@@ -244,7 +244,7 @@ Error Device::createVirtualDisplay(uint32_t width, uint32_t height,
         ALOGE("Failed to get display by id");
         return Error::BadDisplay;
     }
-    (*outDisplay)->setVirtual();
+    (*outDisplay)->setConnected(true);
     return Error::None;
 }
 
@@ -531,15 +531,28 @@ Display::Display(Device& device, hwc2_display_t id)
   : mDevice(device),
     mId(id),
     mIsConnected(false),
-    mIsVirtual(false)
+    mType(DisplayType::Invalid)
 {
     ALOGV("Created display %" PRIu64, id);
+
+#ifdef BYPASS_IHWC
+    int32_t intError = mDevice.mGetDisplayType(mDevice.mHwcDevice, mId,
+            reinterpret_cast<int32_t *>(&mType));
+#else
+    auto intError = mDevice.mComposer->getDisplayType(mId,
+            reinterpret_cast<Hwc2::IComposerClient::DisplayType *>(&mType));
+#endif
+    auto error = static_cast<Error>(intError);
+    if (error != Error::None) {
+        ALOGE("getDisplayType(%" PRIu64 ") failed: %s (%d)",
+              id, to_string(error).c_str(), intError);
+    }
 }
 
 Display::~Display()
 {
     ALOGV("Destroyed display %" PRIu64, mId);
-    if (mIsVirtual) {
+    if (mType == DisplayType::Virtual) {
         mDevice.destroyVirtualDisplay(mId);
     }
 }
@@ -802,21 +815,7 @@ Error Display::getRequests(HWC2::DisplayRequest* outDisplayRequests,
 
 Error Display::getType(DisplayType* outType) const
 {
-#ifdef BYPASS_IHWC
-    int32_t intType = 0;
-    int32_t intError = mDevice.mGetDisplayType(mDevice.mHwcDevice, mId,
-            &intType);
-#else
-    Hwc2::IComposerClient::DisplayType intType =
-        Hwc2::IComposerClient::DisplayType::INVALID;
-    auto intError = mDevice.mComposer->getDisplayType(mId, &intType);
-#endif
-    auto error = static_cast<Error>(intError);
-    if (error != Error::None) {
-        return error;
-    }
-
-    *outType = static_cast<DisplayType>(intType);
+    *outType = mType;
     return Error::None;
 }
 
