@@ -315,7 +315,7 @@ void HWComposer::hotplug(int disp, int connected) {
     queryDisplayProperties(disp);
     // Do not teardown or recreate the primary display
     if (disp != HWC_DISPLAY_PRIMARY) {
-        mEventHandler.onHotplugReceived(disp, bool(connected));
+        mEventHandler.onHotplugReceived(this, disp, bool(connected));
     }
 }
 

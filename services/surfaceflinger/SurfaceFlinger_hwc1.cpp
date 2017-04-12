@@ -584,7 +584,7 @@ void SurfaceFlinger::init() {
 
     // make the GLContext current so that we can create textures when creating Layers
     // (which may happens before we render something)
-    getDefaultDisplayDevice()->makeCurrent(mEGLDisplay, mEGLContext);
+    getDefaultDisplayDeviceLocked()->makeCurrent(mEGLDisplay, mEGLContext);
 
     mEventControlThread = new EventControlThread(this);
     mEventControlThread->run("EventControl", PRIORITY_URGENT_DISPLAY);
@@ -1040,7 +1040,7 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     *compositorTiming = mCompositorTiming;
 }
 
-void SurfaceFlinger::onHotplugReceived(int type, bool connected) {
+void SurfaceFlinger::onHotplugReceived(HWComposer* /*composer*/, int type, bool connected) {
     if (mEventThread == NULL) {
         // This is a temporary workaround for b/7145521.  A non-null pointer
         // does not mean EventThread has finished initializing, so this
@@ -3222,7 +3222,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     colorizer.reset(result);
 
     HWComposer& hwc(getHwComposer());
-    sp<const DisplayDevice> hw(getDefaultDisplayDevice());
+    sp<const DisplayDevice> hw(getDefaultDisplayDeviceLocked());
 
     colorizer.bold(result);
     result.appendFormat("EGL implementation : %s\n",
