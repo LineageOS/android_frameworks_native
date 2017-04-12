@@ -72,6 +72,8 @@ public:
     status_t            appendFrom(const Parcel *parcel,
                                    size_t start, size_t len);
 
+    int                 compareData(const Parcel& other);
+
     bool                allowFds() const;
     bool                pushAllowFds(bool allowFds);
     void                restoreAllowFds(bool lastValue);
