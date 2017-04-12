@@ -216,7 +216,8 @@ int DisplayClient::GetDisplayMetrics(SystemDisplayMetrics* metrics) {
   return 0;
 }
 
-pdx::Status<void> DisplayClient::SetViewerParams(const ViewerParams& viewer_params) {
+pdx::Status<void> DisplayClient::SetViewerParams(
+    const ViewerParams& viewer_params) {
   auto status = InvokeRemoteMethod<DisplayRPC::SetViewerParams>(viewer_params);
   if (!status) {
     ALOGE("DisplayClient::SetViewerParams: Failed to set viewer params: %s",
@@ -252,16 +253,20 @@ std::unique_ptr<DisplaySurfaceClient> DisplayClient::CreateDisplaySurface(
   return DisplaySurfaceClient::Create(width, height, format, usage, flags);
 }
 
-std::unique_ptr<BufferConsumer> DisplayClient::GetPoseBuffer() {
-  auto status = InvokeRemoteMethod<DisplayRPC::GetPoseBuffer>();
+std::unique_ptr<IonBuffer> DisplayClient::GetNamedBuffer(
+    const std::string& name) {
+  auto status = InvokeRemoteMethod<DisplayRPC::GetNamedBuffer>(name);
   if (!status) {
     ALOGE(
-        "DisplayClient::GetPoseBuffer: Failed to get pose buffer %s",
-        status.GetErrorMessage().c_str());
+        "DisplayClient::GetNamedBuffer: Failed to get pose buffer. name=%s, "
+        "error=%s",
+        name.c_str(), status.GetErrorMessage().c_str());
     return nullptr;
   }
 
-  return BufferConsumer::Import(std::move(status));
+  auto ion_buffer = std::make_unique<IonBuffer>();
+  status.take().Import(ion_buffer.get());
+  return ion_buffer;
 }
 
 bool DisplayClient::IsVrAppRunning() {

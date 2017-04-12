@@ -17,8 +17,10 @@ class DisplayManagerClient : public pdx::ClientBase<DisplayManagerClient> {
 
   int GetSurfaceList(std::vector<DisplaySurfaceInfo>* surface_list);
 
-  std::unique_ptr<BufferProducer> SetupPoseBuffer(size_t extended_region_size,
-                                                  int usage);
+  std::unique_ptr<IonBuffer> SetupNamedBuffer(const std::string& name,
+                                              size_t size,
+                                              uint64_t producer_usage,
+                                              uint64_t consumer_usage);
 
   using Client::event_fd;
   using Client::GetChannel;

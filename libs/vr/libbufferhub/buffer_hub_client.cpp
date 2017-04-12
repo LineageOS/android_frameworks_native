@@ -20,6 +20,7 @@ using android::pdx::Status;
 
 namespace {
 
+// TODO(hendrikw): These flags can not be hard coded.
 constexpr int kUncachedBlobUsageFlags = GRALLOC_USAGE_SW_READ_RARELY |
                                         GRALLOC_USAGE_SW_WRITE_RARELY |
                                         GRALLOC_USAGE_PRIVATE_UNCACHED;
@@ -110,6 +111,7 @@ int BufferHubBuffer::Unlock(size_t index) { return slices_[index].Unlock(); }
 int BufferHubBuffer::GetBlobReadWritePointer(size_t size, void** addr) {
   int width = static_cast<int>(size);
   int height = 1;
+  // TODO(hendrikw): These flags can not be hard coded.
   constexpr int usage = GRALLOC_USAGE_SW_READ_RARELY |
                         GRALLOC_USAGE_SW_WRITE_RARELY |
                         GRALLOC_USAGE_PRIVATE_UNCACHED;

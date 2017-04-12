@@ -1,5 +1,6 @@
 #include "display_service.h"
 
+#include <unistd.h>
 #include <vector>
 
 #include <pdx/default_transport/service_endpoint.h>
@@ -18,20 +19,10 @@ using android::pdx::default_transport::Endpoint;
 using android::pdx::rpc::DispatchRemoteMethod;
 using android::pdx::rpc::WrapBuffer;
 
-namespace {
-
-constexpr char kPersistentPoseBufferName[] = "DvrPersistentPoseBuffer";
-const int kPersistentPoseBufferUserId = 0;
-const int kPersistentPoseBufferGroupId = 0;
-const size_t kTimingDataSizeOffset = 128;
-
-}  // anonymous namespace
-
 namespace android {
 namespace dvr {
 
-DisplayService::DisplayService()
-    : DisplayService(nullptr) {}
+DisplayService::DisplayService() : DisplayService(nullptr) {}
 
 DisplayService::DisplayService(Hwc2::Composer* hidl)
     : BASE("DisplayService", Endpoint::Create(DisplayRPC::kClientPath)),
@@ -89,9 +80,9 @@ pdx::Status<void> DisplayService::HandleMessage(pdx::Message& message) {
           *this, &DisplayService::OnSetViewerParams, message);
       return {};
 
-    case DisplayRPC::GetPoseBuffer::Opcode:
-      DispatchRemoteMethod<DisplayRPC::GetPoseBuffer>(
-          *this, &DisplayService::OnGetPoseBuffer, message);
+    case DisplayRPC::GetNamedBuffer::Opcode:
+      DispatchRemoteMethod<DisplayRPC::GetNamedBuffer>(
+          *this, &DisplayService::OnGetNamedBuffer, message);
       return {};
 
     case DisplayRPC::IsVrAppRunning::Opcode:
@@ -254,13 +245,14 @@ void DisplayService::OnSetViewerParams(pdx::Message& message,
   compositor->UpdateHeadMountMetrics(head_mount_metrics);
 }
 
-pdx::LocalChannelHandle DisplayService::OnGetPoseBuffer(pdx::Message& message) {
-  if (pose_buffer_) {
-    return pose_buffer_->CreateConsumer().take();
+pdx::Status<BorrowedNativeBufferHandle> DisplayService::OnGetNamedBuffer(
+    pdx::Message& /* message */, const std::string& name) {
+  auto named_buffer = named_buffers_.find(name);
+  if (named_buffer != named_buffers_.end()) {
+    return {BorrowedNativeBufferHandle(*named_buffer->second, 0)};
   }
 
-  pdx::rpc::RemoteMethodError(message, EAGAIN);
-  return {};
+  return pdx::ErrorStatus(EINVAL);
 }
 
 // Calls the message handler for the DisplaySurface associated with this
@@ -334,16 +326,22 @@ void DisplayService::UpdateActiveDisplaySurfaces() {
   hardware_composer_.SetDisplaySurfaces(std::move(visible_surfaces));
 }
 
-pdx::BorrowedChannelHandle DisplayService::SetupPoseBuffer(
-    size_t extended_region_size, int usage) {
-  if (!pose_buffer_) {
-    pose_buffer_ = BufferProducer::Create(
-        kPersistentPoseBufferName, kPersistentPoseBufferUserId,
-        kPersistentPoseBufferGroupId, usage,
-        extended_region_size + kTimingDataSizeOffset);
+pdx::Status<BorrowedNativeBufferHandle> DisplayService::SetupNamedBuffer(
+    const std::string& name, size_t size, int producer_usage,
+    int consumer_usage) {
+  auto named_buffer = named_buffers_.find(name);
+  if (named_buffer == named_buffers_.end()) {
+    // TODO(hendrikw): Update BufferProducer to take producer_usage and
+    // consumer_usage flags.
+    auto ion_buffer = std::make_unique<IonBuffer>(
+        static_cast<int>(size), 1, HAL_PIXEL_FORMAT_BLOB,
+        producer_usage | consumer_usage);
+    named_buffer =
+        named_buffers_.insert(std::make_pair(name, std::move(ion_buffer)))
+            .first;
   }
 
-  return pose_buffer_->GetChannelHandle().Borrow();
+  return {BorrowedNativeBufferHandle(*named_buffer->second, 0)};
 }
 
 void DisplayService::OnHardwareComposerRefresh() {
@@ -362,10 +360,11 @@ void DisplayService::NotifyDisplayConfigurationUpdate() {
 
 int DisplayService::IsVrAppRunning(pdx::Message& message) {
   bool visible = false;
-  ForEachDisplaySurface([&visible](const std::shared_ptr<DisplaySurface>& surface) {
-    if (surface->client_z_order() == 0 && surface->IsVisible())
-      visible = true;
-  });
+  ForEachDisplaySurface(
+      [&visible](const std::shared_ptr<DisplaySurface>& surface) {
+        if (surface->client_z_order() == 0 && surface->IsVisible())
+          visible = true;
+      });
 
   REPLY_SUCCESS_RETURN(message, visible, 0);
 }
