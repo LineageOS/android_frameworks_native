@@ -26,7 +26,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/sendfile.h>
 #include <time.h>
 #include <unistd.h>
 #include <zlib.h>
@@ -974,11 +973,16 @@ static void dumpTrace(int outFd)
             fprintf(stderr, "error cleaning up zlib: %d\n", result);
         }
     } else {
-        ssize_t sent = 0;
-        while ((sent = sendfile(outFd, traceFD, NULL, 64*1024*1024)) > 0);
-        if (sent == -1) {
-            fprintf(stderr, "error dumping trace: %s (%d)\n", strerror(errno),
-                    errno);
+        char buf[4096];
+        ssize_t rc;
+        while ((rc = TEMP_FAILURE_RETRY(read(traceFD, buf, sizeof(buf)))) > 0) {
+            if (!android::base::WriteFully(outFd, buf, rc)) {
+                fprintf(stderr, "error writing trace: %s\n", strerror(errno));
+                break;
+            }
+        }
+        if (rc == -1) {
+            fprintf(stderr, "error dumping trace: %s\n", strerror(errno));
         }
     }
 
