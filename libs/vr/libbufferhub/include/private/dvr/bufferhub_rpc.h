@@ -38,6 +38,7 @@ class NativeBufferHandle {
     }
   }
   NativeBufferHandle(NativeBufferHandle&& other) = default;
+  NativeBufferHandle& operator=(NativeBufferHandle&& other) = default;
 
   // Imports the native handle into the given IonBuffer instance.
   int Import(IonBuffer* buffer) {
@@ -92,6 +93,9 @@ class NativeBufferHandle {
   NativeBufferHandle(const NativeBufferHandle&) = delete;
   void operator=(const NativeBufferHandle&) = delete;
 };
+
+using BorrowedNativeBufferHandle = NativeBufferHandle<pdx::BorrowedHandle>;
+using LocalNativeBufferHandle = NativeBufferHandle<pdx::LocalHandle>;
 
 template <typename FileHandleType>
 class FenceHandle {

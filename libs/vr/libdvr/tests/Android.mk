@@ -17,14 +17,18 @@ static_libraries := \
     libbufferhub \
     libchrome \
     libdvrcommon \
+    libdisplay \
     libpdx_default_transport \
 
 include $(CLEAR_VARS)
-LOCAL_SRC_FILES := dvr_buffer_queue-test.cpp
+LOCAL_SRC_FILES := \
+    dvr_buffer_queue-test.cpp \
+    dvr_named_buffer-test.cpp \
+
 LOCAL_STATIC_LIBRARIES := $(static_libraries)
 LOCAL_SHARED_LIBRARIES := $(shared_libraries)
 LOCAL_EXPORT_C_INCLUDE_DIRS := ${LOCAL_C_INCLUDES}
-LOCAL_CFLAGS := -DLOG_TAG=\"dvr_buffer_queue-test\" -DTRACE=0 -O0 -g
-LOCAL_MODULE := dvr_buffer_queue-test
+LOCAL_CFLAGS := -DLOG_TAG=\"dvr_api-test\" -DTRACE=0 -O0 -g
+LOCAL_MODULE := dvr_api-test
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_NATIVE_TEST)
