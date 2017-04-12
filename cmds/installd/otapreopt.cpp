@@ -33,6 +33,7 @@
 #include <android-base/strings.h>
 #include <cutils/fs.h>
 #include <cutils/properties.h>
+#include <dex2oat_return_codes.h>
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
 
@@ -576,7 +577,11 @@ private:
         }
 
         // If the dexopt failed, we may have a stale boot image from a previous OTA run.
-        // Try to delete and retry.
+        // Then regenerate and retry.
+        if (WEXITSTATUS(dexopt_result) !=
+                static_cast<int>(art::dex2oat::ReturnCode::kCreateRuntime)) {
+            return dexopt_result;
+        }
 
         if (!PrepareBootImage(/* force */ true)) {
             LOG(ERROR) << "Forced boot image creating failed. Original error return was "
