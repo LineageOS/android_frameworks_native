@@ -30,6 +30,7 @@ typedef void (*DvrDisplayManagerClientDestroyPtr)(
 
 typedef struct DvrWriteBuffer DvrWriteBuffer;
 typedef struct DvrReadBuffer DvrReadBuffer;
+typedef struct DvrBuffer DvrBuffer;
 typedef struct AHardwareBuffer AHardwareBuffer;
 
 typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
@@ -43,9 +44,9 @@ typedef int (*DvrDisplayManagerClientGetSurfaceListPtr)(
     DvrDisplayManagerClientSurfaceList** surface_list);
 typedef void (*DvrDisplayManagerClientSurfaceListDestroyPtr)(
     DvrDisplayManagerClientSurfaceList* surface_list);
-typedef DvrWriteBuffer* (*DvrDisplayManagerSetupPoseBufferPtr)(
-    DvrDisplayManagerClient* client, size_t extended_region_size,
-    uint64_t usage0, uint64_t usage1);
+typedef DvrBuffer* (*DvrDisplayManagerSetupNamedBufferPtr)(
+    DvrDisplayManagerClient* client, const char* name, size_t size,
+    uint64_t producer_usage, uint64_t consumer_usage);
 typedef size_t (*DvrDisplayManagerClientSurfaceListGetSizePtr)(
     DvrDisplayManagerClientSurfaceList* surface_list);
 typedef int (*DvrDisplayManagerClientSurfaceListGetSurfaceIdPtr)(
@@ -62,9 +63,6 @@ typedef int (*DvrDisplayManagerClientSurfaceBufferListGetFdPtr)(
 
 // dvr_buffer.h
 typedef void (*DvrWriteBufferDestroyPtr)(DvrWriteBuffer* client);
-typedef void (*DvrWriteBufferGetBlobFdsPtr)(DvrWriteBuffer* client, int* fds,
-                                            size_t* fds_count,
-                                            size_t max_fds_count);
 typedef int (*DvrWriteBufferGetAHardwareBufferPtr)(
     DvrWriteBuffer* client, AHardwareBuffer** hardware_buffer);
 typedef int (*DvrWriteBufferPostPtr)(DvrWriteBuffer* client, int ready_fence_fd,
@@ -74,9 +72,6 @@ typedef int (*DvrWriteBufferGainPtr)(DvrWriteBuffer* client,
 typedef int (*DvrWriteBufferGainAsyncPtr)(DvrWriteBuffer* client);
 
 typedef void (*DvrReadBufferDestroyPtr)(DvrReadBuffer* client);
-typedef void (*DvrReadBufferGetBlobFdsPtr)(DvrReadBuffer* client, int* fds,
-                                           size_t* fds_count,
-                                           size_t max_fds_count);
 typedef int (*DvrReadBufferGetAHardwareBufferPtr)(
     DvrReadBuffer* client, AHardwareBuffer** hardware_buffer);
 typedef int (*DvrReadBufferAcquirePtr)(DvrReadBuffer* client,
@@ -85,6 +80,9 @@ typedef int (*DvrReadBufferAcquirePtr)(DvrReadBuffer* client,
 typedef int (*DvrReadBufferReleasePtr)(DvrReadBuffer* client,
                                        int release_fence_fd);
 typedef int (*DvrReadBufferReleaseAsyncPtr)(DvrReadBuffer* client);
+typedef void (*DvrBufferDestroy)(DvrBuffer* buffer);
+typedef int (*DvrBufferGetAHardwareBuffer)(DvrBuffer* buffer,
+                                           AHardwareBuffer** hardware_buffer);
 
 // dvr_buffer_queue.h
 typedef void (*DvrWriteBufferQueueDestroyPtr)(DvrWriteBufferQueue* write_queue);
@@ -110,7 +108,7 @@ typedef int (*DvrReadBufferQueueDequeuePtr)(DvrReadBufferQueue* read_queue,
                                             size_t meta_size_bytes);
 
 // dvr_surface.h
-typedef int (*DvrGetPoseBufferPtr)(DvrReadBuffer** pose_buffer);
+typedef int (*DvrGetNamedBufferPtr)(const char* name, DvrBuffer** out_buffer);
 typedef int (*DvrSurfaceCreatePtr)(int width, int height, int format,
                                    uint64_t usage0, uint64_t usage1, int flags,
                                    DvrSurface** out_surface);
@@ -149,7 +147,7 @@ typedef int (*DvrVirtualTouchpadButtonStatePtr)(DvrVirtualTouchpad* client,
 // dvr_hardware_composer_client.h
 typedef struct DvrHwcClient DvrHwcClient;
 typedef struct DvrHwcFrame DvrHwcFrame;
-typedef int(*DvrHwcOnFrameCallback)(void* client_state, DvrHwcFrame* frame);
+typedef int (*DvrHwcOnFrameCallback)(void* client_state, DvrHwcFrame* frame);
 typedef DvrHwcClient* (*DvrHwcClientCreatePtr)(DvrHwcOnFrameCallback callback,
                                                void* client_state);
 typedef void (*DvrHwcClientDestroyPtr)(DvrHwcClient* client);
@@ -159,7 +157,8 @@ typedef int32_t (*DvrHwcFrameGetDisplayWidthPtr)(DvrHwcFrame* frame);
 typedef int32_t (*DvrHwcFrameGetDisplayHeightPtr)(DvrHwcFrame* frame);
 typedef bool (*DvrHwcFrameGetDisplayRemovedPtr)(DvrHwcFrame* frame);
 typedef size_t (*DvrHwcFrameGetLayerCountPtr)(DvrHwcFrame* frame);
-typedef Layer (*DvrHwcFrameGetLayerIdPtr)(DvrHwcFrame* frame, size_t layer_index);
+typedef Layer (*DvrHwcFrameGetLayerIdPtr)(DvrHwcFrame* frame,
+                                          size_t layer_index);
 typedef AHardwareBuffer* (*DvrHwcFrameGetLayerBufferPtr)(DvrHwcFrame* frame,
                                                          size_t layer_index);
 typedef int (*DvrHwcFrameGetLayerFencePtr)(DvrHwcFrame* frame,
@@ -185,7 +184,7 @@ struct DvrApi_v1 {
       display_manager_client_get_surface_list;
   DvrDisplayManagerClientSurfaceListDestroyPtr
       display_manager_client_surface_list_destroy;
-  DvrDisplayManagerSetupPoseBufferPtr display_manager_setup_pose_buffer;
+  DvrDisplayManagerSetupNamedBufferPtr display_manager_setup_named_buffer;
   DvrDisplayManagerClientSurfaceListGetSizePtr
       display_manager_client_surface_list_get_size;
   DvrDisplayManagerClientSurfaceListGetSurfaceIdPtr
@@ -201,7 +200,6 @@ struct DvrApi_v1 {
 
   // Write buffer
   DvrWriteBufferDestroyPtr write_buffer_destroy;
-  DvrWriteBufferGetBlobFdsPtr write_buffer_get_blob_fds;
   DvrWriteBufferGetAHardwareBufferPtr write_buffer_get_ahardwarebuffer;
   DvrWriteBufferPostPtr write_buffer_post;
   DvrWriteBufferGainPtr write_buffer_gain;
@@ -209,11 +207,12 @@ struct DvrApi_v1 {
 
   // Read buffer
   DvrReadBufferDestroyPtr read_buffer_destroy;
-  DvrReadBufferGetBlobFdsPtr read_buffer_get_blob_fds;
   DvrReadBufferGetAHardwareBufferPtr read_buffer_get_ahardwarebuffer;
   DvrReadBufferAcquirePtr read_buffer_acquire;
   DvrReadBufferReleasePtr read_buffer_release;
   DvrReadBufferReleaseAsyncPtr read_buffer_release_async;
+  DvrBufferDestroy buffer_destroy;
+  DvrBufferGetAHardwareBuffer buffer_get_ahardwarebuffer;
 
   // Write buffer queue
   DvrWriteBufferQueueDestroyPtr write_buffer_queue_destroy;
@@ -235,7 +234,7 @@ struct DvrApi_v1 {
   DvrVSyncClientGetSchedInfoPtr vsync_client_get_sched_info;
 
   // Display surface
-  DvrGetPoseBufferPtr get_pose_buffer;
+  DvrGetNamedBufferPtr get_named_buffer;
   DvrSurfaceCreatePtr surface_create;
   DvrSurfaceGetWriteBufferQueuePtr surface_get_write_buffer_queue;
 

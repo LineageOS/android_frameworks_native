@@ -42,14 +42,16 @@ void dvrDisplayManagerClientDestroy(DvrDisplayManagerClient* client) {
   delete client;
 }
 
-DvrWriteBuffer* dvrDisplayManagerSetupPoseBuffer(
-    DvrDisplayManagerClient* client, size_t extended_region_size,
-    uint64_t usage0, uint64_t usage1) {
-  // TODO(hendrikw): When we move to gralloc1, pass both usage0 and usage1 down.
-  auto buffer_producer = client->client->SetupPoseBuffer(
-      extended_region_size, static_cast<int>(usage0));
-  if (buffer_producer) {
-    return CreateDvrWriteBufferFromBufferProducer(std::move(buffer_producer));
+DvrBuffer* dvrDisplayManagerSetupNamedBuffer(DvrDisplayManagerClient* client,
+                                             const char* name, size_t size,
+                                             uint64_t producer_usage,
+                                             uint64_t consumer_usage) {
+  // TODO(hendrikw): When we move to gralloc1, pass both producer_usage and
+  // consumer_usage down.
+  auto ion_buffer = client->client->SetupNamedBuffer(name, size, producer_usage,
+                                                     consumer_usage);
+  if (ion_buffer) {
+    return CreateDvrBufferFromIonBuffer(std::move(ion_buffer));
   }
   return nullptr;
 }

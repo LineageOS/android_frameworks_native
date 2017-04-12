@@ -2,7 +2,9 @@
 
 #include <pdx/channel_handle.h>
 #include <pdx/default_transport/service_endpoint.h>
+#include <private/android_filesystem_config.h>
 #include <private/dvr/display_rpc.h>
+#include <private/dvr/trusted_uids.h>
 #include <sys/poll.h>
 
 #include <array>
@@ -82,9 +84,9 @@ pdx::Status<void> DisplayManagerService::HandleMessage(pdx::Message& message) {
           *this, &DisplayManagerService::OnUpdateSurfaces, message);
       return {};
 
-  case DisplayManagerRPC::SetupPoseBuffer::Opcode:
-      DispatchRemoteMethod<DisplayManagerRPC::SetupPoseBuffer>(
-          *this, &DisplayManagerService::OnSetupPoseBuffer, message);
+    case DisplayManagerRPC::SetupNamedBuffer::Opcode:
+      DispatchRemoteMethod<DisplayManagerRPC::SetupNamedBuffer>(
+          *this, &DisplayManagerService::OnSetupNamedBuffer, message);
       return {};
 
     default:
@@ -188,9 +190,20 @@ int DisplayManagerService::OnUpdateSurfaces(
   return 0;
 }
 
-pdx::BorrowedChannelHandle DisplayManagerService::OnSetupPoseBuffer(
-    pdx::Message& /*message*/, size_t extended_region_size, int usage) {
-  return display_service_->SetupPoseBuffer(extended_region_size, usage);
+pdx::Status<BorrowedNativeBufferHandle>
+DisplayManagerService::OnSetupNamedBuffer(pdx::Message& message,
+                                          const std::string& name, size_t size,
+                                          uint64_t producer_usage,
+                                          uint64_t consumer_usage) {
+  if (message.GetEffectiveUserId() != AID_ROOT &&
+      !IsTrustedUid(message.GetEffectiveUserId())) {
+    // Only trusted users can setup named buffers.
+    ALOGE("DisplayService::SetupNamedBuffer: Called by untrusted user: uid=%d.",
+          message.GetEffectiveUserId());
+    return {};
+  }
+  return display_service_->SetupNamedBuffer(name, size, producer_usage,
+                                            consumer_usage);
 }
 
 void DisplayManagerService::OnDisplaySurfaceChange() {

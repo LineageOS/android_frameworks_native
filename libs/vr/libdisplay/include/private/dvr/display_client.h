@@ -108,7 +108,7 @@ class DisplayClient : public pdx::ClientBase<DisplayClient> {
   std::unique_ptr<DisplaySurfaceClient> CreateDisplaySurface(
       int width, int height, int format, int usage, int flags);
 
-  std::unique_ptr<BufferConsumer> GetPoseBuffer();
+  std::unique_ptr<IonBuffer> GetNamedBuffer(const std::string& name);
 
   // Temporary query for current VR status. Will be removed later.
   bool IsVrAppRunning();

@@ -58,14 +58,25 @@ int dvrSurfaceGetWriteBufferQueue(DvrSurface* surface,
   return 0;
 }
 
-int dvrGetPoseBuffer(DvrReadBuffer** pose_buffer) {
+int dvrGetNamedBuffer(const char* name, DvrBuffer** out_buffer) {
   auto client = android::dvr::DisplayClient::Create();
   if (!client) {
-    ALOGE("Failed to create display client!");
+    ALOGE("dvrGetNamedBuffer: Failed to create display client!");
     return -ECOMM;
   }
 
-  *pose_buffer = CreateDvrReadBufferFromBufferConsumer(client->GetPoseBuffer());
+  if (out_buffer == nullptr || name == nullptr) {
+    ALOGE("dvrGetNamedBuffer: Invalid inputs: name=%p, out_buffer=%p.", name,
+          out_buffer);
+    return -EINVAL;
+  }
+
+  auto named_buffer = client->GetNamedBuffer(name);
+  if (!named_buffer) {
+    ALOGE("dvrGetNamedBuffer: Failed to find named buffer: %s.", name);
+    return -EINVAL;
+  }
+  *out_buffer = CreateDvrBufferFromIonBuffer(std::move(named_buffer));
   return 0;
 }
 

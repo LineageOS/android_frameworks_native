@@ -12,7 +12,7 @@ typedef struct DvrSurface DvrSurface;
 typedef struct DvrSurfaceParameter DvrSurfaceParameter;
 
 // Get a pointer to the global pose buffer.
-int dvrGetPoseBuffer(DvrReadBuffer** pose_buffer);
+int dvrGetNamedBuffer(const char* name, DvrBuffer** out_buffer);
 
 int dvrSurfaceCreate(int width, int height, int format, uint64_t usage0,
                      uint64_t usage1, int flags, DvrSurface** out_surface);

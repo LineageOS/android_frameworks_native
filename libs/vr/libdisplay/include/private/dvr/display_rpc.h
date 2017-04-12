@@ -9,6 +9,7 @@
 #include <pdx/rpc/remote_method.h>
 #include <pdx/rpc/serializable.h>
 #include <pdx/rpc/variant.h>
+#include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/display_types.h>
 
 namespace android {
@@ -218,7 +219,7 @@ struct DisplayRPC {
     kOpCreateVideoMeshSurface,
     kOpVideoMeshSurfaceCreateProducerQueue,
     kOpSetViewerParams,
-    kOpGetPoseBuffer,
+    kOpGetNamedBuffer,
     kOpIsVrAppRunning,
   };
 
@@ -247,8 +248,8 @@ struct DisplayRPC {
                     LocalChannelHandle(Void));
   PDX_REMOTE_METHOD(SetViewerParams, kOpSetViewerParams,
                     void(const ViewerParams& viewer_params));
-  PDX_REMOTE_METHOD(GetPoseBuffer, kOpGetPoseBuffer,
-                    LocalChannelHandle(Void));
+  PDX_REMOTE_METHOD(GetNamedBuffer, kOpGetNamedBuffer,
+                    LocalNativeBufferHandle(const std::string& name));
   PDX_REMOTE_METHOD(IsVrAppRunning, kOpIsVrAppRunning, int(Void));
 };
 
@@ -260,7 +261,7 @@ struct DisplayManagerRPC {
   enum {
     kOpGetSurfaceList = 0,
     kOpUpdateSurfaces,
-    kOpSetupPoseBuffer,
+    kOpSetupNamedBuffer,
   };
 
   // Aliases.
@@ -273,8 +274,11 @@ struct DisplayManagerRPC {
   PDX_REMOTE_METHOD(
       UpdateSurfaces, kOpUpdateSurfaces,
       int(const std::map<int, DisplaySurfaceAttributes>& updates));
-  PDX_REMOTE_METHOD(SetupPoseBuffer, kOpSetupPoseBuffer,
-                    LocalChannelHandle(size_t extended_region_size, int usage));
+  PDX_REMOTE_METHOD(SetupNamedBuffer, kOpSetupNamedBuffer,
+                    LocalNativeBufferHandle(const std::string& name,
+                                            size_t size,
+                                            uint64_t producer_usage,
+                                            uint64_t consumer_usage));
 };
 
 struct ScreenshotData {
