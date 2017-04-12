@@ -17,6 +17,7 @@
 #define VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_HWC_H_
 
 #include <android-base/unique_fd.h>
+#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <android/hardware/graphics/composer/2.1/IComposer.h>
 #include <ComposerBase.h>
 #include <ui/Fence.h>
@@ -26,6 +27,7 @@
 #include <mutex>
 #include <unordered_map>
 
+using namespace android::frameworks::vr::composer::V1_0;
 using namespace android::hardware::graphics::common::V1_0;
 using namespace android::hardware::graphics::composer::V2_1;
 
@@ -38,7 +40,6 @@ using android::hardware::Void;
 namespace android {
 
 class Fence;
-class GraphicBuffer;
 
 namespace dvr {
 
@@ -105,6 +106,7 @@ struct HwcLayer {
   Composition composition_type;
   uint32_t z_order;
   ComposerView::ComposerLayer info;
+  IVrComposerClient::BufferMetadata buffer_metadata;
 };
 
 class HwcDisplay {
@@ -120,6 +122,8 @@ class HwcDisplay {
   HwcLayer* GetLayer(Layer id);
 
   bool SetClientTarget(const native_handle_t* handle, base::unique_fd fence);
+  void SetClientTargetMetadata(
+      const IVrComposerClient::BufferMetadata& metadata);
 
   void GetChangedCompositionTypes(
       std::vector<Layer>* layer_ids,
@@ -131,8 +135,8 @@ class HwcDisplay {
 
  private:
   // The client target buffer and the associated fence.
-  // TODO(dnicoara): Replace this with a list of ComposerView::ComposerLayer.
   sp<GraphicBuffer> buffer_;
+  IVrComposerClient::BufferMetadata buffer_metadata_;
   sp<Fence> fence_;
 
   // List of currently active layers.
@@ -159,6 +163,11 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
 
   Error setLayerInfo(Display display, Layer layer, uint32_t type,
                      uint32_t appId);
+  Error setClientTargetMetadata(
+      Display display, const IVrComposerClient::BufferMetadata& metadata);
+  Error setLayerBufferMetadata(
+      Display display, Layer layer,
+      const IVrComposerClient::BufferMetadata& metadata);
 
   // ComposerBase
   void removeClient() override;
