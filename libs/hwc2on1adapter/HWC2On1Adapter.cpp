@@ -2246,6 +2246,11 @@ void HWC2On1Adapter::populateCapabilities() {
             mHwc1SupportsBackgroundColor = true;
         }
     }
+
+    // Some devices might have HWC1 retire fences that accurately emulate
+    // HWC2 present fences when they are deferred, but it's not very reliable.
+    // To be safe, we indicate PresentFenceIsNotReliable for all HWC1 devices.
+    mCapabilities.insert(Capability::PresentFenceIsNotReliable);
 }
 
 HWC2On1Adapter::Display* HWC2On1Adapter::getDisplay(hwc2_display_t id) {

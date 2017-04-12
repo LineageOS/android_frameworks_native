@@ -28,7 +28,7 @@ Status
 
 Version
 
-    Version 1, January 13, 2017
+    Version 8, April 11, 2017
 
 Number
 
@@ -81,19 +81,21 @@ New Procedures and Functions
 
 New Tokens
 
-    EGL_TIMESTAMPS_ANDROID 0x314D
-    EGL_COMPOSITE_DEADLINE_ANDROID 0x314E
-    EGL_COMPOSITE_INTERVAL_ANDROID 0x314F
-    EGL_COMPOSITE_TO_PRESENT_LATENCY_ANDROID 0x3150
-    EGL_REQUESTED_PRESENT_TIME_ANDROID 0x3151
-    EGL_RENDERING_COMPLETE_TIME_ANDROID 0x3152
-    EGL_COMPOSITION_LATCH_TIME_ANDROID 0x3153
-    EGL_FIRST_COMPOSITION_START_TIME_ANDROID 0x3154
-    EGL_LAST_COMPOSITION_START_TIME_ANDROID 0x3155
-    EGL_FIRST_COMPOSITION_GPU_FINISHED_TIME_ANDROID 0x3156
-    EGL_DISPLAY_PRESENT_TIME_ANDROID 0x3157
-    EGL_DEQUEUE_READY_TIME_ANDROID 0x3158
-    EGL_READS_DONE_TIME_ANDROID 0x3159
+    EGL_TIMESTAMPS_ANDROID 0x3430
+    EGL_COMPOSITE_DEADLINE_ANDROID 0x3431
+    EGL_COMPOSITE_INTERVAL_ANDROID 0x3432
+    EGL_COMPOSITE_TO_PRESENT_LATENCY_ANDROID 0x3433
+    EGL_REQUESTED_PRESENT_TIME_ANDROID 0x3434
+    EGL_RENDERING_COMPLETE_TIME_ANDROID 0x3435
+    EGL_COMPOSITION_LATCH_TIME_ANDROID 0x3436
+    EGL_FIRST_COMPOSITION_START_TIME_ANDROID 0x3437
+    EGL_LAST_COMPOSITION_START_TIME_ANDROID 0x3438
+    EGL_FIRST_COMPOSITION_GPU_FINISHED_TIME_ANDROID 0x3439
+    EGL_DISPLAY_PRESENT_TIME_ANDROID 0x343A
+    EGL_DEQUEUE_READY_TIME_ANDROID 0x343B
+    EGL_READS_DONE_TIME_ANDROID 0x343C
+    EGL_TIMESTAMP_PENDING_ANDROID -2
+    EGL_TIMESTAMP_INVALID_ANDROID -1
 
 Add to the list of supported tokens for eglSurfaceAttrib in section 3.5.6
 "Surface Attributes", page 43:
@@ -155,10 +157,12 @@ Changes to Chapter 3 of the EGL 1.5 Specification (EGL Functions and Errors)
     limited history of timestamp data. If a query is made for a frame whose
     timestamp history no longer exists then EGL_BAD_ACCESS is generated. If
     timestamp collection has not been enabled for the surface then
-    EGL_BAD_SURFACE is generated.  Timestamps for events that will not occur or
-    have not yet occurred will be zero. Timestamp queries that are not
-    supported will generate an EGL_BAD_PARAMETER error. If any error is
-    generated the function will return EGL_FALSE.
+    EGL_BAD_SURFACE is generated.  Timestamps for events that might still occur
+    will have the value EGL_TIMESTAMP_PENDING_ANDROID. Timestamps for events
+    that did not occur will have the value EGL_TIMESTAMP_INVALID_ANDROID.
+    Otherwise, the timestamp will be valid and indicate the event has occured.
+    Timestamp queries that are not supported will generate an EGL_BAD_PARAMETER
+    error. If any error is generated the function will return EGL_FALSE.
 
     The application can poll for the timestamp of particular events by calling
     eglGetFrameTimestamps over and over without needing to call any other EGL
@@ -221,6 +225,12 @@ Issues
     None
 
 Revision History
+
+#8 (Brian Anderson, April 11, 2017)
+    - Use reserved enumerant values.
+
+#7 (Brian Anderson, March 21, 2017)
+    - Differentiate between pending events and events that did not occur.
 
 #6 (Brian Anderson, March 16, 2017)
     - Remove DISPLAY_RETIRE_TIME_ANDROID.

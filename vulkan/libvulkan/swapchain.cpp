@@ -114,14 +114,34 @@ class TimingInfo {
         : vals_{qp->presentID, qp->desiredPresentTime, 0, 0, 0},
           native_frame_id_(nativeFrameId) {}
     bool ready() const {
-        return (timestamp_desired_present_time_ &&
-                timestamp_actual_present_time_ &&
-                timestamp_render_complete_time_ &&
-                timestamp_composition_latch_time_);
+        return (timestamp_desired_present_time_ !=
+                        NATIVE_WINDOW_TIMESTAMP_PENDING &&
+                timestamp_actual_present_time_ !=
+                        NATIVE_WINDOW_TIMESTAMP_PENDING &&
+                timestamp_render_complete_time_ !=
+                        NATIVE_WINDOW_TIMESTAMP_PENDING &&
+                timestamp_composition_latch_time_ !=
+                        NATIVE_WINDOW_TIMESTAMP_PENDING);
     }
-    void calculate(uint64_t rdur) {
-        vals_.actualPresentTime = timestamp_actual_present_time_;
-        uint64_t margin = (timestamp_composition_latch_time_ -
+    void calculate(int64_t rdur) {
+        bool anyTimestampInvalid =
+                (timestamp_actual_present_time_ ==
+                        NATIVE_WINDOW_TIMESTAMP_INVALID) ||
+                (timestamp_render_complete_time_ ==
+                        NATIVE_WINDOW_TIMESTAMP_INVALID) ||
+                (timestamp_composition_latch_time_ ==
+                        NATIVE_WINDOW_TIMESTAMP_INVALID);
+        if (anyTimestampInvalid) {
+            ALOGE("Unexpectedly received invalid timestamp.");
+            vals_.actualPresentTime = 0;
+            vals_.earliestPresentTime = 0;
+            vals_.presentMargin = 0;
+            return;
+        }
+
+        vals_.actualPresentTime =
+                static_cast<uint64_t>(timestamp_actual_present_time_);
+        int64_t margin = (timestamp_composition_latch_time_ -
                            timestamp_render_complete_time_);
         // Calculate vals_.earliestPresentTime, and potentially adjust
         // vals_.presentMargin.  The initial value of vals_.earliestPresentTime
@@ -132,14 +152,14 @@ class TimingInfo {
         // it did (per the extension specification).  If for some reason, we
         // can do this subtraction repeatedly, we do, since
         // vals_.earliestPresentTime really is supposed to be the "earliest".
-        uint64_t early_time = vals_.actualPresentTime;
+        int64_t early_time = timestamp_actual_present_time_;
         while ((margin > rdur) &&
                ((early_time - rdur) > timestamp_composition_latch_time_)) {
             early_time -= rdur;
             margin -= rdur;
         }
-        vals_.earliestPresentTime = early_time;
-        vals_.presentMargin = margin;
+        vals_.earliestPresentTime = static_cast<uint64_t>(early_time);
+        vals_.presentMargin = static_cast<uint64_t>(margin);
     }
     void get_values(VkPastPresentationTimingGOOGLE* values) const {
         *values = vals_;
@@ -149,10 +169,11 @@ class TimingInfo {
     VkPastPresentationTimingGOOGLE vals_ { 0, 0, 0, 0, 0 };
 
     uint64_t native_frame_id_ { 0 };
-    uint64_t timestamp_desired_present_time_ { 0 };
-    uint64_t timestamp_actual_present_time_ { 0 };
-    uint64_t timestamp_render_complete_time_ { 0 };
-    uint64_t timestamp_composition_latch_time_ { 0 };
+    int64_t timestamp_desired_present_time_{ NATIVE_WINDOW_TIMESTAMP_PENDING };
+    int64_t timestamp_actual_present_time_ { NATIVE_WINDOW_TIMESTAMP_PENDING };
+    int64_t timestamp_render_complete_time_ { NATIVE_WINDOW_TIMESTAMP_PENDING };
+    int64_t timestamp_composition_latch_time_
+            { NATIVE_WINDOW_TIMESTAMP_PENDING };
 };
 
 // ----------------------------------------------------------------------------
@@ -187,18 +208,16 @@ struct Swapchain {
           shared(present_mode == VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ||
                  present_mode == VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR) {
         ANativeWindow* window = surface.window.get();
-        int64_t rdur;
         native_window_get_refresh_cycle_duration(
             window,
-            &rdur);
-        refresh_duration = static_cast<uint64_t>(rdur);
+            &refresh_duration);
     }
 
     Surface& surface;
     uint32_t num_images;
     bool mailbox_mode;
     bool frame_timestamps_enabled;
-    uint64_t refresh_duration;
+    int64_t refresh_duration;
     bool shared;
 
     struct Image {
@@ -327,14 +346,10 @@ uint32_t get_num_ready_timings(Swapchain& swapchain) {
 
         // Record the timestamp(s) we received, and then see if this TimingInfo
         // is ready to be reported to the user:
-        ti.timestamp_desired_present_time_ =
-            static_cast<uint64_t>(desired_present_time);
-        ti.timestamp_actual_present_time_ =
-            static_cast<uint64_t>(actual_present_time);
-        ti.timestamp_render_complete_time_ =
-            static_cast<uint64_t>(render_complete_time);
-        ti.timestamp_composition_latch_time_ =
-               static_cast<uint64_t>(composition_latch_time);
+        ti.timestamp_desired_present_time_ = desired_present_time;
+        ti.timestamp_actual_present_time_ = actual_present_time;
+        ti.timestamp_render_complete_time_ = render_complete_time;
+        ti.timestamp_composition_latch_time_ = composition_latch_time;
 
         if (ti.ready()) {
             // The TimingInfo has received enough timestamps, and should now
@@ -1494,7 +1509,8 @@ VkResult GetRefreshCycleDurationGOOGLE(
     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
     VkResult result = VK_SUCCESS;
 
-    pDisplayTimingProperties->refreshDuration = swapchain.refresh_duration;
+    pDisplayTimingProperties->refreshDuration =
+            static_cast<uint64_t>(swapchain.refresh_duration);
 
     return result;
 }

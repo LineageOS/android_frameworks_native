@@ -52,6 +52,8 @@ Surface::Surface(
       mAutoRefresh(false),
       mSharedBufferSlot(BufferItem::INVALID_BUFFER_SLOT),
       mSharedBufferHasBeenQueued(false),
+      mQueriedSupportedTimestamps(false),
+      mFrameTimestampsSupportsPresent(false),
       mEnableFrameTimestamps(false),
       mFrameEventHistory(std::make_unique<ProducerFrameEventHistory>())
 {
@@ -209,8 +211,8 @@ static bool checkConsumerForUpdates(
     bool checkForDisplayPresent = (outDisplayPresentTime != nullptr) &&
             !e->hasDisplayPresentInfo();
 
-    // LastRefreshStart, DequeueReady, and Release are never
-    // available for the last frame.
+    // LastRefreshStart, DequeueReady, and Release are never available for the
+    // last frame.
     bool checkForLastRefreshStart = (outLastRefreshStartTime != nullptr) &&
             !e->hasLastRefreshStartInfo() &&
             (e->frameNumber != lastFrameNumber);
@@ -227,14 +229,26 @@ static bool checkConsumerForUpdates(
 
 static void getFrameTimestamp(nsecs_t *dst, const nsecs_t& src) {
     if (dst != nullptr) {
-        *dst = FrameEvents::isValidTimestamp(src) ? src : 0;
+        // We always get valid timestamps for these eventually.
+        *dst = (src == FrameEvents::TIMESTAMP_PENDING) ?
+                NATIVE_WINDOW_TIMESTAMP_PENDING : src;
     }
 }
 
-static void getFrameTimestampFence(nsecs_t *dst, const std::shared_ptr<FenceTime>& src) {
+static void getFrameTimestampFence(nsecs_t *dst,
+        const std::shared_ptr<FenceTime>& src, bool fenceShouldBeKnown) {
     if (dst != nullptr) {
+        if (!fenceShouldBeKnown) {
+            *dst = NATIVE_WINDOW_TIMESTAMP_PENDING;
+            return;
+        }
+
         nsecs_t signalTime = src->getSignalTime();
-        *dst = Fence::isValidTimestamp(signalTime) ? signalTime : 0;
+        *dst = (signalTime == Fence::SIGNAL_TIME_PENDING) ?
+                    NATIVE_WINDOW_TIMESTAMP_PENDING :
+                (signalTime == Fence::SIGNAL_TIME_INVALID) ?
+                    NATIVE_WINDOW_TIMESTAMP_INVALID :
+                signalTime;
     }
 }
 
@@ -250,6 +264,12 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
 
     if (!mEnableFrameTimestamps) {
         return INVALID_OPERATION;
+    }
+
+    // Verify the requested timestamps are supported.
+    querySupportedTimestampsLocked();
+    if (outDisplayPresentTime != nullptr && !mFrameTimestampsSupportsPresent) {
+        return BAD_VALUE;
     }
 
     FrameEvents* events = mFrameEventHistory->getFrame(frameNumber);
@@ -282,12 +302,15 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
     getFrameTimestamp(outLastRefreshStartTime, events->lastRefreshStartTime);
     getFrameTimestamp(outDequeueReadyTime, events->dequeueReadyTime);
 
-    getFrameTimestampFence(outAcquireTime, events->acquireFence);
-    getFrameTimestampFence(
-            outGpuCompositionDoneTime, events->gpuCompositionDoneFence);
-    getFrameTimestampFence(
-            outDisplayPresentTime, events->displayPresentFence);
-    getFrameTimestampFence(outReleaseTime, events->releaseFence);
+    getFrameTimestampFence(outAcquireTime, events->acquireFence,
+            events->hasAcquireInfo());
+    getFrameTimestampFence(outGpuCompositionDoneTime,
+            events->gpuCompositionDoneFence,
+            events->hasGpuCompositionDoneInfo());
+    getFrameTimestampFence(outDisplayPresentTime, events->displayPresentFence,
+            events->hasDisplayPresentInfo());
+    getFrameTimestampFence(outReleaseTime, events->releaseFence,
+            events->hasReleaseInfo());
 
     return NO_ERROR;
 }
@@ -739,6 +762,29 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
     return err;
 }
 
+void Surface::querySupportedTimestampsLocked() const {
+    // mMutex must be locked when calling this method.
+
+    if (mQueriedSupportedTimestamps) {
+        return;
+    }
+    mQueriedSupportedTimestamps = true;
+
+    std::vector<FrameEvent> supportedFrameTimestamps;
+    status_t err = composerService()->getSupportedFrameTimestamps(
+            &supportedFrameTimestamps);
+
+    if (err != NO_ERROR) {
+        return;
+    }
+
+    for (auto sft : supportedFrameTimestamps) {
+        if (sft == FrameEvent::DISPLAY_PRESENT) {
+            mFrameTimestampsSupportsPresent = true;
+        }
+    }
+}
+
 int Surface::query(int what, int* value) const {
     ATRACE_CALL();
     ALOGV("Surface::query");
@@ -798,6 +844,11 @@ int Surface::query(int what, int* value) const {
                 *value = durationUs > std::numeric_limits<int>::max() ?
                         std::numeric_limits<int>::max() :
                         static_cast<int>(durationUs);
+                return NO_ERROR;
+            }
+            case NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_PRESENT: {
+                querySupportedTimestampsLocked();
+                *value = mFrameTimestampsSupportsPresent ? 1 : 0;
                 return NO_ERROR;
             }
             case NATIVE_WINDOW_IS_VALID: {

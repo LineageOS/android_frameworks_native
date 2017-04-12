@@ -54,8 +54,7 @@ struct FrameEvents {
     static constexpr auto EVENT_COUNT =
             static_cast<size_t>(FrameEvent::EVENT_COUNT);
     static_assert(EVENT_COUNT <= 32, "Event count sanity check failed.");
-    static constexpr nsecs_t TIMESTAMP_PENDING =
-            std::numeric_limits<nsecs_t>::max();
+    static constexpr nsecs_t TIMESTAMP_PENDING = -2;
 
     static inline bool isValidTimestamp(nsecs_t time) {
         return time != TIMESTAMP_PENDING;
