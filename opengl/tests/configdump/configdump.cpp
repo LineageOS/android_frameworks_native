@@ -66,8 +66,7 @@ Attribute attributes[] = {
 };
 // clang-format on
 
-int main(int argc, char** argv)
-{
+int main(int /*argc*/, char** /*argv*/) {
     EGLConfig* configs;
     EGLint n;
 
