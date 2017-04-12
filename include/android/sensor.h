@@ -484,8 +484,9 @@ void ASensorManager_destroyDirectChannel(ASensorManager* manager, int channelId)
  *
  * Configure sensor direct report on a direct channel: set rate to value other than
  * {@link ASENSOR_DIRECT_RATE_STOP} so that sensor event can be directly
- * written into the shared memory region used for creating the buffer; set rate to
- * {@link ASENSOR_DIRECT_RATE_STOP} will stop the sensor direct report.
+ * written into the shared memory region used for creating the buffer. It returns a positive token
+ * which can be used for identify sensor events from different sensors on success. Calling with rate
+ * {@link ASENSOR_DIRECT_RATE_STOP} will stop direct report of the sensor specified in the channel.
  *
  * To stop all active sensor direct report configured to a channel, set sensor to NULL and rate to
  * {@link ASENSOR_DIRECT_RATE_STOP}.
@@ -513,7 +514,7 @@ void ASensorManager_destroyDirectChannel(ASensorManager* manager, int channelId)
  *                  {@link ASensorManager_createSharedMemoryDirectChannel} or
  *                  {@link ASensorManager_createHardwareBufferDirectChannel}.
  *
- * \return 0 for success or negative integer for failure.
+ * \return positive token for success or negative error code.
  */
 int ASensorManager_configureDirectReport(
         ASensorManager* manager, ASensor const* sensor, int channelId, int rate);
