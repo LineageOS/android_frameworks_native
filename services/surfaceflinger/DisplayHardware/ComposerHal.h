@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <android/hardware/graphics/composer/2.1/IComposer.h>
 #include <utils/StrongPointer.h>
 #include <IComposerCommandBuffer.h>
@@ -30,6 +31,8 @@
 namespace android {
 
 namespace Hwc2 {
+
+using android::frameworks::vr::composer::V1_0::IVrComposerClient;
 
 using android::hardware::graphics::common::V1_0::ColorMode;
 using android::hardware::graphics::common::V1_0::ColorTransform;
@@ -179,7 +182,7 @@ public:
      * When target is not nullptr, the cache is updated with the new target.
      */
     Error setClientTarget(Display display, uint32_t slot,
-            const native_handle_t* target,
+            const sp<GraphicBuffer>& target,
             int acquireFence, Dataspace dataspace,
             const std::vector<IComposerClient::Rect>& damage);
     Error setColorMode(Display display, ColorMode mode);
@@ -199,7 +202,7 @@ public:
             int32_t x, int32_t y);
     /* see setClientTarget for the purpose of slot */
     Error setLayerBuffer(Display display, Layer layer, uint32_t slot,
-            const native_handle_t* buffer, int acquireFence);
+            const sp<GraphicBuffer>& buffer, int acquireFence);
     Error setLayerSurfaceDamage(Display display, Layer layer,
             const std::vector<IComposerClient::Rect>& damage);
     Error setLayerBlendMode(Display display, Layer layer,
@@ -232,6 +235,14 @@ private:
         ~CommandWriter() override;
 
         void setLayerInfo(uint32_t type, uint32_t appId);
+        void setClientTargetMetadata(
+                const IVrComposerClient::BufferMetadata& metadata);
+        void setLayerBufferMetadata(
+                const IVrComposerClient::BufferMetadata& metadata);
+
+    private:
+        void writeBufferMetadata(
+                const IVrComposerClient::BufferMetadata& metadata);
     };
 
     // Many public functions above simply write a command into the command

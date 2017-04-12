@@ -16,8 +16,6 @@
 #include "vr_hwc.h"
 
 #include <ui/Fence.h>
-#include <ui/GraphicBuffer.h>
-#include <ui/GraphicBufferMapper.h>
 
 #include <mutex>
 
@@ -43,10 +41,19 @@ using android::hardware::graphics::common::V1_0::PixelFormat;
 const Display kDefaultDisplayId = 1;
 const Config kDefaultConfigId = 1;
 
-sp<GraphicBuffer> GetBufferFromHandle(const native_handle_t* handle) {
-  // Querying properties from |handle| is never properly supported.
-  ALOGE("Failed to read handle %p properties", handle);
-  return nullptr;
+sp<GraphicBuffer> CreateGraphicBuffer(
+    const native_handle_t* handle,
+    const IVrComposerClient::BufferMetadata& metadata) {
+   sp<GraphicBuffer> buffer = new GraphicBuffer(
+      handle, GraphicBuffer::CLONE_HANDLE, metadata.width, metadata.height,
+      static_cast<int32_t>(metadata.format), metadata.layerCount,
+      metadata.usage, metadata.usage, metadata.stride);
+   if (buffer->initCheck() != OK) {
+     ALOGE("Failed to create graphic buffer");
+     return nullptr;
+   }
+
+   return buffer;
 }
 
 void GetPrimaryDisplaySize(int32_t* width, int32_t* height) {
@@ -84,10 +91,15 @@ HwcDisplay::~HwcDisplay() {}
 bool HwcDisplay::SetClientTarget(const native_handle_t* handle,
                                  base::unique_fd fence) {
   if (handle)
-    buffer_ = GetBufferFromHandle(handle);
+    buffer_ = CreateGraphicBuffer(handle, buffer_metadata_);
 
   fence_ = new Fence(fence.release());
   return true;
+}
+
+void HwcDisplay::SetClientTargetMetadata(
+    const IVrComposerClient::BufferMetadata& metadata) {
+  buffer_metadata_ = metadata;
 }
 
 HwcLayer* HwcDisplay::CreateLayer() {
@@ -528,7 +540,8 @@ Error VrHwc::setLayerBuffer(Display display, Layer layer,
   if (!hwc_layer)
     return Error::BAD_LAYER;
 
-  hwc_layer->info.buffer = GetBufferFromHandle(buffer);
+  hwc_layer->info.buffer = CreateGraphicBuffer(
+      buffer, hwc_layer->buffer_metadata);
   hwc_layer->info.fence = new Fence(fence.release());
 
   return Error::NONE;
@@ -690,6 +703,35 @@ Error VrHwc::setLayerInfo(Display display, Layer layer, uint32_t type,
 
   hwc_layer->info.type = type;
   hwc_layer->info.app_id = appId;
+
+  return Error::NONE;
+}
+
+Error VrHwc::setClientTargetMetadata(
+    Display display, const IVrComposerClient::BufferMetadata& metadata) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
+
+  display_ptr->SetClientTargetMetadata(metadata);
+
+  return Error::NONE;
+}
+
+Error VrHwc::setLayerBufferMetadata(
+    Display display, Layer layer,
+    const IVrComposerClient::BufferMetadata& metadata) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
+    return Error::BAD_DISPLAY;
+
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
+
+  hwc_layer->buffer_metadata = metadata;
 
   return Error::NONE;
 }
