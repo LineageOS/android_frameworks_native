@@ -35,6 +35,7 @@ cc_library_shared {
   ],
 
   export_shared_lib_headers: [
+    "android.frameworks.vr.composer@1.0",
     "android.hardware.graphics.composer@2.1",
   ],
 

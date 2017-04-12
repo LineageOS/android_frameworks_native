@@ -852,18 +852,12 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     }
 
     uint32_t hwcSlot = 0;
-    buffer_handle_t hwcHandle = nullptr;
-    {
-        sp<GraphicBuffer> hwcBuffer;
-        hwcInfo.bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer,
-                &hwcSlot, &hwcBuffer);
-        if (hwcBuffer != nullptr) {
-            hwcHandle = hwcBuffer->handle;
-        }
-    }
+    sp<GraphicBuffer> hwcBuffer;
+    hwcInfo.bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer,
+            &hwcSlot, &hwcBuffer);
 
     auto acquireFence = mSurfaceFlingerConsumer->getCurrentFence();
-    error = hwcLayer->setBuffer(hwcSlot, hwcHandle, acquireFence);
+    error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
                 mActiveBuffer->handle, to_string(error).c_str(),

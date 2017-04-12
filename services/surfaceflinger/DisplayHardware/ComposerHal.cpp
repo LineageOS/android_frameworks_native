@@ -17,7 +17,6 @@
 #undef LOG_TAG
 #define LOG_TAG "HwcComposer"
 
-#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <inttypes.h>
 #include <log/log.h>
 #include <gui/BufferQueue.h>
@@ -26,7 +25,6 @@
 
 namespace android {
 
-using frameworks::vr::composer::V1_0::IVrComposerClient;
 using hardware::Return;
 using hardware::hidl_vec;
 using hardware::hidl_handle;
@@ -122,6 +120,41 @@ void Composer::CommandWriter::setLayerInfo(uint32_t type, uint32_t appId)
     write(type);
     write(appId);
     endCommand();
+}
+
+void Composer::CommandWriter::setClientTargetMetadata(
+        const IVrComposerClient::BufferMetadata& metadata)
+{
+    constexpr uint16_t kSetClientTargetMetadataLength = 7;
+    beginCommand(
+        static_cast<IComposerClient::Command>(
+            IVrComposerClient::VrCommand::SET_CLIENT_TARGET_METADATA),
+        kSetClientTargetMetadataLength);
+    writeBufferMetadata(metadata);
+    endCommand();
+}
+
+void Composer::CommandWriter::setLayerBufferMetadata(
+        const IVrComposerClient::BufferMetadata& metadata)
+{
+    constexpr uint16_t kSetLayerBufferMetadataLength = 7;
+    beginCommand(
+        static_cast<IComposerClient::Command>(
+            IVrComposerClient::VrCommand::SET_LAYER_BUFFER_METADATA),
+        kSetLayerBufferMetadataLength);
+    writeBufferMetadata(metadata);
+    endCommand();
+}
+
+void Composer::CommandWriter::writeBufferMetadata(
+        const IVrComposerClient::BufferMetadata& metadata)
+{
+    write(metadata.width);
+    write(metadata.height);
+    write(metadata.stride);
+    write(metadata.layerCount);
+    writeSigned(static_cast<int32_t>(metadata.format));
+    write64(metadata.usage);
 }
 
 Composer::Composer(bool useVrComposer)
@@ -426,12 +459,29 @@ Error Composer::setActiveConfig(Display display, Config config)
 }
 
 Error Composer::setClientTarget(Display display, uint32_t slot,
-        const native_handle_t* target,
+        const sp<GraphicBuffer>& target,
         int acquireFence, Dataspace dataspace,
         const std::vector<IComposerClient::Rect>& damage)
 {
     mWriter.selectDisplay(display);
-    mWriter.setClientTarget(slot, target, acquireFence, dataspace, damage);
+    if (mIsUsingVrComposer && target.get()) {
+        IVrComposerClient::BufferMetadata metadata = {
+            .width = target->getWidth(),
+            .height = target->getHeight(),
+            .stride = target->getStride(),
+            .layerCount = target->getLayerCount(),
+            .format = static_cast<PixelFormat>(target->getPixelFormat()),
+            .usage = target->getUsage(),
+        };
+        mWriter.setClientTargetMetadata(metadata);
+    }
+
+    const native_handle_t* handle = nullptr;
+    if (target.get()) {
+        handle = target->getNativeBuffer()->handle;
+    }
+
+    mWriter.setClientTarget(slot, handle, acquireFence, dataspace, damage);
     return Error::NONE;
 }
 
@@ -502,11 +552,28 @@ Error Composer::setCursorPosition(Display display, Layer layer,
 }
 
 Error Composer::setLayerBuffer(Display display, Layer layer,
-        uint32_t slot, const native_handle_t* buffer, int acquireFence)
+        uint32_t slot, const sp<GraphicBuffer>& buffer, int acquireFence)
 {
     mWriter.selectDisplay(display);
     mWriter.selectLayer(layer);
-    mWriter.setLayerBuffer(slot, buffer, acquireFence);
+    if (mIsUsingVrComposer && buffer.get()) {
+        IVrComposerClient::BufferMetadata metadata = {
+            .width = buffer->getWidth(),
+            .height = buffer->getHeight(),
+            .stride = buffer->getStride(),
+            .layerCount = buffer->getLayerCount(),
+            .format = static_cast<PixelFormat>(buffer->getPixelFormat()),
+            .usage = buffer->getUsage(),
+        };
+        mWriter.setLayerBufferMetadata(metadata);
+    }
+
+    const native_handle_t* handle = nullptr;
+    if (buffer.get()) {
+        handle = buffer->getNativeBuffer()->handle;
+    }
+
+    mWriter.setLayerBuffer(slot, handle, acquireFence);
     return Error::NONE;
 }
 

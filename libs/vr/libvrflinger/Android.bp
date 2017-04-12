@@ -47,6 +47,7 @@ staticLibraries = [
 ]
 
 sharedLibraries = [
+    "android.frameworks.vr.composer@1.0",
     "android.hardware.graphics.allocator@2.0",
     "android.hardware.graphics.composer@2.1",
     "libbinder",
@@ -75,7 +76,7 @@ cc_library_static {
     cflags: [
         "-DLOG_TAG=\"vr_flinger\"",
         "-DTRACE=0",
-	"-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
+        "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
         "-DGL_GLEXT_PROTOTYPES",
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
