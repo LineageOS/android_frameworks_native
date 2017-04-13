@@ -146,6 +146,8 @@ public:
     status_t    setFlags(const sp<IBinder>& id, uint32_t flags, uint32_t mask);
     status_t    setTransparentRegionHint(const sp<IBinder>& id, const Region& transparent);
     status_t    setLayer(const sp<IBinder>& id, int32_t layer);
+    status_t    setRelativeLayer(const sp<IBinder>& id,
+            const sp<IBinder>& relativeTo, int32_t layer);
     status_t    setAlpha(const sp<IBinder>& id, float alpha=1.0f);
     status_t    setMatrix(const sp<IBinder>& id, float dsdx, float dtdx, float dtdy, float dsdy);
     status_t    setPosition(const sp<IBinder>& id, float x, float y);

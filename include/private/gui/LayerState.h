@@ -58,7 +58,8 @@ struct layer_state_t {
         eOverrideScalingModeChanged = 0x00000800,
         eGeometryAppliesWithResize  = 0x00001000,
         eReparentChildren           = 0x00002000,
-        eDetachChildren             = 0x00004000
+        eDetachChildren             = 0x00004000,
+        eRelativeLayerChanged       = 0x00008000
     };
 
     layer_state_t()
@@ -103,6 +104,8 @@ struct layer_state_t {
             int32_t         overrideScalingMode;
 
             sp<IGraphicBufferProducer> barrierGbp;
+
+            sp<IBinder>     relativeLayerHandle;
 
             // non POD must be last. see write/read
             Region          transparentRegion;
