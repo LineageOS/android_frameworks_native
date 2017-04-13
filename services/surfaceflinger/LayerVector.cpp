@@ -42,13 +42,21 @@ int LayerVector::do_compare(const void* lhs, const void* rhs) const
 
 void LayerVector::traverseInZOrder(const std::function<void(Layer*)>& consume) const {
     for (size_t i = 0; i < size(); i++) {
-        (*this)[i]->traverseInZOrder(consume);
+        const auto& layer = (*this)[i];
+        if (layer->getDrawingState().zOrderRelativeOf != nullptr) {
+            continue;
+        }
+        layer->traverseInZOrder(consume);
     }
 }
 
 void LayerVector::traverseInReverseZOrder(const std::function<void(Layer*)>& consume) const {
     for (auto i = static_cast<int64_t>(size()) - 1; i >= 0; i--) {
-        (*this)[i]->traverseInReverseZOrder(consume);
+        const auto& layer = (*this)[i];
+        if (layer->getDrawingState().zOrderRelativeOf != nullptr) {
+            continue;
+        }
+        layer->traverseInReverseZOrder(consume);
      }
 }
 } // namespace android

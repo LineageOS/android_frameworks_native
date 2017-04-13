@@ -62,6 +62,27 @@ public:
 
     status_t    setLayerStack(uint32_t layerStack);
     status_t    setLayer(int32_t layer);
+
+    // Sets a Z order relative to the Surface specified by "relativeTo" but
+    // without becoming a full child of the relative. Z-ordering works exactly
+    // as if it were a child however.
+    //
+    // As a nod to sanity, only non-child surfaces may have a relative Z-order.
+    //
+    // This overrides any previous and is overriden by any future calls
+    // to setLayer.
+    //
+    // If the relative dissapears, the Surface will have no layer and be
+    // invisible, until the next time set(Relative)Layer is called.
+    //
+    // TODO: This is probably a hack. Currently it exists only to work around
+    // some framework usage of the hidden APPLICATION_MEDIA_OVERLAY window type
+    // which allows inserting a window between a SurfaceView and it's main application
+    // window. However, since we are using child windows for the SurfaceView, but not using
+    // child windows elsewhere in O, the WindowManager can't set the layer appropriately.
+    // This is only used by the "TvInputService" and following the port of ViewRootImpl
+    // to child surfaces, we can then port this and remove this method.
+    status_t    setRelativeLayer(const sp<IBinder>& relativeTo, int32_t layer);
     status_t    setPosition(float x, float y);
     status_t    setSize(uint32_t w, uint32_t h);
     status_t    hide();
