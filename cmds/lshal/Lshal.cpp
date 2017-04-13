@@ -296,7 +296,7 @@ void Lshal::dumpVintf() const {
                 continue;
             }
 
-            vintf::ManifestHal *hal = manifest.getHal(fqName.package());
+            vintf::ManifestHal *hal = manifest.getAnyHal(fqName.package());
             if (hal == nullptr) {
                 if (!manifest.add(vintf::ManifestHal{
                     .format = vintf::HalFormat::HIDL,
@@ -307,7 +307,7 @@ void Lshal::dumpVintf() const {
                     mErr << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
                     continue;
                 }
-                hal = manifest.getHal(fqName.package());
+                hal = manifest.getAnyHal(fqName.package());
             }
             if (hal == nullptr) {
                 mErr << "Warning: cannot get hal '" << fqInstanceName
