@@ -1,5 +1,0 @@
-service vr_composer_view /system/bin/vr_composer_view
-  class core
-  user system
-  group system graphics
-  writepid /dev/cpuset/system/tasks

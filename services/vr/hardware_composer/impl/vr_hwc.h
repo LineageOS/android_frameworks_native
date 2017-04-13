@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_HWC_H_
-#define VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_HWC_H_
+#ifndef ANDROID_DVR_HARDWARE_COMPOSER_IMPL_VR_HWC_H
+#define ANDROID_DVR_HARDWARE_COMPOSER_IMPL_VR_HWC_H
 
 #include <android-base/unique_fd.h>
 #include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
@@ -319,4 +319,4 @@ hardware::graphics::composer::V2_1::IComposer* HIDL_FETCH_IComposer(
 }  // namespace dvr
 }  // namespace android
 
-#endif  // VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_HWC_H_
+#endif  // ANDROID_DVR_HARDWARE_COMPOSER_IMPL_VR_HWC_H

@@ -13,13 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "vr_hwc.h"
+#include "impl/vr_hwc.h"
 
+#include <private/dvr/display_client.h>
 #include <ui/Fence.h>
 
 #include <mutex>
-
-#include <private/dvr/display_client.h>
 
 #include "vr_composer_client.h"
 
