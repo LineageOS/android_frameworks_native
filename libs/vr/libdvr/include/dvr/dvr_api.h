@@ -152,23 +152,23 @@ typedef DvrHwcClient* (*DvrHwcClientCreatePtr)(DvrHwcOnFrameCallback callback,
                                                void* client_state);
 typedef void (*DvrHwcClientDestroyPtr)(DvrHwcClient* client);
 typedef void (*DvrHwcFrameDestroyPtr)(DvrHwcFrame* frame);
-typedef Display (*DvrHwcFrameGetDisplayIdPtr)(DvrHwcFrame* frame);
+typedef DvrHwcDisplay (*DvrHwcFrameGetDisplayIdPtr)(DvrHwcFrame* frame);
 typedef int32_t (*DvrHwcFrameGetDisplayWidthPtr)(DvrHwcFrame* frame);
 typedef int32_t (*DvrHwcFrameGetDisplayHeightPtr)(DvrHwcFrame* frame);
 typedef bool (*DvrHwcFrameGetDisplayRemovedPtr)(DvrHwcFrame* frame);
 typedef size_t (*DvrHwcFrameGetLayerCountPtr)(DvrHwcFrame* frame);
-typedef Layer (*DvrHwcFrameGetLayerIdPtr)(DvrHwcFrame* frame,
-                                          size_t layer_index);
+typedef DvrHwcLayer (*DvrHwcFrameGetLayerIdPtr)(DvrHwcFrame* frame,
+                                                size_t layer_index);
 typedef AHardwareBuffer* (*DvrHwcFrameGetLayerBufferPtr)(DvrHwcFrame* frame,
                                                          size_t layer_index);
 typedef int (*DvrHwcFrameGetLayerFencePtr)(DvrHwcFrame* frame,
                                            size_t layer_index);
-typedef Recti (*DvrHwcFrameGetLayerDisplayFramePtr)(DvrHwcFrame* frame,
-                                                    size_t layer_index);
-typedef Rectf (*DvrHwcFrameGetLayerCropPtr)(DvrHwcFrame* frame,
-                                            size_t layer_index);
-typedef BlendMode (*DvrHwcFrameGetLayerBlendModePtr)(DvrHwcFrame* frame,
-                                                     size_t layer_index);
+typedef DvrHwcRecti (*DvrHwcFrameGetLayerDisplayFramePtr)(DvrHwcFrame* frame,
+                                                          size_t layer_index);
+typedef DvrHwcRectf (*DvrHwcFrameGetLayerCropPtr)(DvrHwcFrame* frame,
+                                                  size_t layer_index);
+typedef DvrHwcBlendMode (*DvrHwcFrameGetLayerBlendModePtr)(DvrHwcFrame* frame,
+                                                           size_t layer_index);
 typedef float (*DvrHwcFrameGetLayerAlphaPtr)(DvrHwcFrame* frame,
                                              size_t layer_index);
 typedef uint32_t (*DvrHwcFrameGetLayerTypePtr)(DvrHwcFrame* frame,

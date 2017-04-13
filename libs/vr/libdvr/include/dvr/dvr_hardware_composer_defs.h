@@ -10,33 +10,33 @@ extern "C" {
 // NOTE: These definitions must match the ones in
 // //hardware/libhardware/include/hardware/hwcomposer2.h. They are used by the
 // client side which does not have access to hwc2 headers.
-enum BlendMode {
-  BLEND_MODE_INVALID = 0,
-  BLEND_MODE_NONE = 1,
-  BLEND_MODE_PREMULTIPLIED = 2,
-  BLEND_MODE_COVERAGE = 3,
+enum DvrHwcBlendMode {
+  DVR_HWC_BLEND_MODE_INVALID = 0,
+  DVR_HWC_BLEND_MODE_NONE = 1,
+  DVR_HWC_BLEND_MODE_PREMULTIPLIED = 2,
+  DVR_HWC_BLEND_MODE_COVERAGE = 3,
 };
 
-enum Composition {
-  COMPOSITION_INVALID = 0,
-  COMPOSITION_CLIENT = 1,
-  COMPOSITION_DEVICE = 2,
-  COMPOSITION_SOLID_COLOR = 3,
-  COMPOSITION_CURSOR = 4,
-  COMPOSITION_SIDEBAND = 5,
+enum DvrHwcComposition {
+  DVR_HWC_COMPOSITION_INVALID = 0,
+  DVR_HWC_COMPOSITION_CLIENT = 1,
+  DVR_HWC_COMPOSITION_DEVICE = 2,
+  DVR_HWC_COMPOSITION_SOLID_COLOR = 3,
+  DVR_HWC_COMPOSITION_CURSOR = 4,
+  DVR_HWC_COMPOSITION_SIDEBAND = 5,
 };
 
-typedef uint64_t Display;
-typedef uint64_t Layer;
+typedef uint64_t DvrHwcDisplay;
+typedef uint64_t DvrHwcLayer;
 
-struct Recti {
+struct DvrHwcRecti {
   int32_t left;
   int32_t top;
   int32_t right;
   int32_t bottom;
 };
 
-struct Rectf {
+struct DvrHwcRectf {
   float left;
   float top;
   float right;
