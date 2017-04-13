@@ -111,8 +111,8 @@ bool dvrDisplayManagerClientSurfaceListGetClientIsVisible(
 }
 
 int dvrDisplayManagerClientGetSurfaceBuffers(
-    DvrDisplayManagerClient* client, int surface_id,
-    DvrDisplayManagerClientSurfaceBuffers** surface_buffers) {
+    DvrDisplayManagerClient* /* client */, int /* surface_id */,
+    DvrDisplayManagerClientSurfaceBuffers** /* surface_buffers */) {
   // TODO(jwcai, hendrikw) Remove this after we replacing
   // dvrDisplayManagerClientGetSurfaceBuffers is dvr_api.
   return -1;
