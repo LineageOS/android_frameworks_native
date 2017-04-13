@@ -17,8 +17,6 @@
 
 #include "SchedulingPolicyService.h"
 
-#include <private/android_filesystem_config.h> // for AID_CAMERASERVER
-
 #include <log/log.h>
 #include <hwbinder/IPCThreadState.h>
 #include <mediautils/SchedulingPolicyService.h>
@@ -30,9 +28,8 @@ namespace V1_0 {
 namespace implementation {
 
 bool SchedulingPolicyService::isAllowed() {
-    using ::android::hardware::IPCThreadState;
-
-    return IPCThreadState::self()->getCallingUid() == AID_CAMERASERVER;
+    // TODO(b/37291237)
+    return true;
 }
 
 Return<bool> SchedulingPolicyService::requestPriority(int32_t pid, int32_t tid, int32_t priority) {
