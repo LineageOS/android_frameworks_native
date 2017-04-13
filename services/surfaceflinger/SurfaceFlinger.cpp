@@ -578,6 +578,14 @@ void SurfaceFlinger::init() {
 
     Mutex::Autolock _l(mStateLock);
 
+    // Inform native graphics APIs whether the present timestamp is supported:
+    if (getHwComposer().hasCapability(
+            HWC2::Capability::PresentFenceIsNotReliable)) {
+        property_set(kTimestampProperty, "0");
+    } else {
+        property_set(kTimestampProperty, "1");
+    }
+
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
             mVrFlingerRequestsDisplay = requestDisplay;
