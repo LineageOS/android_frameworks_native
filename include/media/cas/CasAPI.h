@@ -81,23 +81,12 @@ struct CasPlugin {
     virtual status_t setPrivateData(
             const CasData &privateData) = 0;
 
-    // Open a session for descrambling a program. The session will receive the
-    // ECM stream corresponding to the CA_PID for the program.
-    virtual status_t openSession(
-            uint16_t program_number,
-            CasSessionId *sessionId) = 0;
-
-    // Open a session for descrambling an elementary stream inside a program.
-    // The session will receive the ECM stream corresponding to the CA_PID for
-    // the stream.
-    virtual status_t openSession(
-            uint16_t program_number,
-            uint16_t elementary_PID,
-            CasSessionId *sessionId) = 0;
+    // Open a session for descrambling a program, or one or more elementary
+    // streams.
+    virtual status_t openSession(CasSessionId *sessionId) = 0;
 
     // Close a previously opened session.
-    virtual status_t closeSession(
-            const CasSessionId &sessionId) = 0;
+    virtual status_t closeSession(const CasSessionId &sessionId) = 0;
 
     // Provide the CA private data from a CA_descriptor in the program map
     // table to a CasPlugin.
