@@ -63,6 +63,8 @@ Result convertResult(status_t status) {
             return Result::NO_MEMORY;
         case NO_INIT:
             return Result::NO_INIT;
+        case PERMISSION_DENIED:
+            return Result::PERMISSION_DENIED;
         case BAD_VALUE:
             return Result::BAD_VALUE;
         case INVALID_OPERATION:
