@@ -49,6 +49,7 @@
     <feature name="android.software.activities_on_secondary_displays" />
     <feature name="android.software.print" />
     <feature name="android.software.companion_device_setup" />
+    <feature name="android.software.autofill" />
 
     <!-- Feature to specify if the device supports adding device admins. -->
     <feature name="android.software.device_admin" />
