@@ -10,9 +10,9 @@ cc_library_shared {
   static_libs: [
     "libhwcomposer-client",
     "libdisplay",
-    "libpdx_default_transport",
-    "libbufferhub",
     "libbufferhubqueue",
+    "libbufferhub",
+    "libpdx_default_transport",
   ],
 
   shared_libs: [
