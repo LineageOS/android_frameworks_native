@@ -549,6 +549,9 @@ void SurfaceFlinger::init() {
     LOG_ALWAYS_FATAL_IF(mEGLContext == EGL_NO_CONTEXT,
             "couldn't create EGLContext");
 
+    // Inform native graphics APIs that the present timestamp is NOT supported:
+    property_set(kTimestampProperty, "0");
+
     // initialize our non-virtual displays
     for (size_t i=0 ; i<DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES ; i++) {
         DisplayDevice::DisplayType type((DisplayDevice::DisplayType)i);

@@ -817,9 +817,6 @@ VkResult EnumerateDeviceExtensionProperties(
     loader_extensions.push_back({
         VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
         VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION});
-    loader_extensions.push_back({
-        VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
-        VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION});
 
     if (kEnableUnratifiedExtensions) {
         // conditionally add shared_presentable_image if supportable
@@ -830,6 +827,16 @@ VkResult EnumerateDeviceExtensionProperties(
                 VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME,
                         VK_KHR_SHARED_PRESENTABLE_IMAGE_SPEC_VERSION});
         }
+    }
+
+    // conditionally add VK_GOOGLE_display_timing if present timestamps are
+    // supported by the driver:
+    char timestamp_property[PROPERTY_VALUE_MAX];
+    property_get("service.sf.present_timestamp", timestamp_property, "1");
+    if (strcmp(timestamp_property, "1") == 0) {
+        loader_extensions.push_back({
+                VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
+                VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION});
     }
 
     // enumerate our extensions first
