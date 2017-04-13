@@ -547,7 +547,7 @@ TEST_F(UtilsTest, CreateDataRefProfilePackagePath) {
 
 TEST_F(UtilsTest, CreatePrimaryCurrentProfile) {
     std::string expected =
-        create_primary_current_profile_package_dir_path(1, "com.example") + "/primary.prof";
+        create_primary_current_profile_package_dir_path(0, "com.example") + "/primary.prof";
     EXPECT_EQ(expected,
             create_current_profile_path(/*user*/0, "com.example", /*is_secondary*/false));
 }
