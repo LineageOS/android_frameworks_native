@@ -18,17 +18,44 @@
 
 #include <sched.h>
 
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <android/hardware/graphics/allocator/2.0/IAllocator.h>
 #include <cutils/sched_policy.h>
 #include <binder/IServiceManager.h>
 #include <binder/IPCThreadState.h>
 #include <binder/ProcessState.h>
 #include <binder/IServiceManager.h>
+#include <hidl/LegacySupport.h>
+#include <configstore/Utils.h>
 #include "GpuService.h"
 #include "SurfaceFlinger.h"
 
 using namespace android;
 
+using android::hardware::graphics::allocator::V2_0::IAllocator;
+using android::hardware::configstore::V1_0::ISurfaceFlingerConfigs;
+using android::hardware::configstore::getBool;
+using android::hardware::configstore::getBool;
+
+static status_t startGraphicsAllocatorService() {
+    hardware::configureRpcThreadpool( 1 /* maxThreads */,
+            false /* callerWillJoin */);
+    status_t result =
+        hardware::registerPassthroughServiceImplementation<IAllocator>();
+    if (result != OK) {
+        ALOGE("could not start graphics allocator service");
+        return result;
+    }
+
+    return OK;
+}
+
 int main(int, char**) {
+    if (getBool<ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::startGraphicsAllocatorService>(false)) {
+        startGraphicsAllocatorService();
+    }
+
     signal(SIGPIPE, SIG_IGN);
     // When SF is launched in its own process, limit the number of
     // binder threads to 4.
