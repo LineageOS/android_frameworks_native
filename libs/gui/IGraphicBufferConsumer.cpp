@@ -14,28 +14,24 @@
  * limitations under the License.
  */
 
-#include <stdint.h>
-#include <sys/types.h>
-
-#include <utils/Errors.h>
-#include <utils/NativeHandle.h>
-#include <utils/String8.h>
-
-#include <binder/Parcel.h>
-#include <binder/IInterface.h>
+#include <gui/IGraphicBufferConsumer.h>
 
 #include <gui/BufferItem.h>
 #include <gui/IConsumerListener.h>
-#include <gui/IGraphicBufferConsumer.h>
 
-#include <ui/GraphicBuffer.h>
+#include <binder/Parcel.h>
+
 #include <ui/Fence.h>
+#include <ui/GraphicBuffer.h>
 
-#include <system/window.h>
+#include <utils/NativeHandle.h>
+#include <utils/String8.h>
 
 namespace android {
 
-enum {
+namespace { // Anonymous namespace
+
+enum class Tag : uint32_t {
     ACQUIRE_BUFFER = IBinder::FIRST_CALL_TRANSACTION,
     DETACH_BUFFER,
     ATTACH_BUFFER,
@@ -54,439 +50,173 @@ enum {
     GET_SIDEBAND_STREAM,
     GET_OCCUPANCY_HISTORY,
     DISCARD_FREE_BUFFERS,
-    DUMP,
+    DUMP_STATE,
+    LAST = DUMP_STATE,
 };
 
+} // Anonymous namespace
 
-class BpGraphicBufferConsumer : public BpInterface<IGraphicBufferConsumer>
-{
+class BpGraphicBufferConsumer : public SafeBpInterface<IGraphicBufferConsumer> {
 public:
     explicit BpGraphicBufferConsumer(const sp<IBinder>& impl)
-        : BpInterface<IGraphicBufferConsumer>(impl)
-    {
+          : SafeBpInterface<IGraphicBufferConsumer>(impl, "BpGraphicBufferConsumer") {}
+
+    ~BpGraphicBufferConsumer() override;
+
+    status_t acquireBuffer(BufferItem* buffer, nsecs_t presentWhen,
+                           uint64_t maxFrameNumber) override {
+        using Signature = decltype(&IGraphicBufferConsumer::acquireBuffer);
+        return callRemote<Signature>(Tag::ACQUIRE_BUFFER, buffer, presentWhen, maxFrameNumber);
     }
 
-    virtual ~BpGraphicBufferConsumer();
-
-    virtual status_t acquireBuffer(BufferItem *buffer, nsecs_t presentWhen,
-            uint64_t maxFrameNumber) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeInt64(presentWhen);
-        data.writeUint64(maxFrameNumber);
-        status_t result = remote()->transact(ACQUIRE_BUFFER, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        result = reply.read(*buffer);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        return reply.readInt32();
+    status_t detachBuffer(int slot) override {
+        using Signature = decltype(&IGraphicBufferConsumer::detachBuffer);
+        return callRemote<Signature>(Tag::DETACH_BUFFER, slot);
     }
 
-    virtual status_t detachBuffer(int slot) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeInt32(slot);
-        status_t result = remote()->transact(DETACH_BUFFER, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        result = reply.readInt32();
-        return result;
+    status_t attachBuffer(int* slot, const sp<GraphicBuffer>& buffer) override {
+        using Signature = decltype(&IGraphicBufferConsumer::attachBuffer);
+        return callRemote<Signature>(Tag::ATTACH_BUFFER, slot, buffer);
     }
 
-    virtual status_t attachBuffer(int* slot, const sp<GraphicBuffer>& buffer) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.write(*buffer.get());
-        status_t result = remote()->transact(ATTACH_BUFFER, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        *slot = reply.readInt32();
-        result = reply.readInt32();
-        return result;
+    status_t releaseBuffer(int buf, uint64_t frameNumber,
+                           EGLDisplay display __attribute__((unused)),
+                           EGLSyncKHR fence __attribute__((unused)),
+                           const sp<Fence>& releaseFence) override {
+        return callRemote<ReleaseBuffer>(Tag::RELEASE_BUFFER, buf, frameNumber, releaseFence);
     }
 
-    virtual status_t releaseBuffer(int buf, uint64_t frameNumber,
-            EGLDisplay display __attribute__((unused)), EGLSyncKHR fence __attribute__((unused)),
-            const sp<Fence>& releaseFence) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeInt32(buf);
-        data.writeInt64(static_cast<int64_t>(frameNumber));
-        data.write(*releaseFence);
-        status_t result = remote()->transact(RELEASE_BUFFER, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        return reply.readInt32();
+    status_t consumerConnect(const sp<IConsumerListener>& consumer, bool controlledByApp) override {
+        using Signature = decltype(&IGraphicBufferConsumer::consumerConnect);
+        return callRemote<Signature>(Tag::CONSUMER_CONNECT, consumer, controlledByApp);
     }
 
-    virtual status_t consumerConnect(const sp<IConsumerListener>& consumer, bool controlledByApp) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeStrongBinder(IInterface::asBinder(consumer));
-        data.writeInt32(controlledByApp);
-        status_t result = remote()->transact(CONSUMER_CONNECT, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        return reply.readInt32();
+    status_t consumerDisconnect() override {
+        return callRemote<decltype(&IGraphicBufferConsumer::consumerDisconnect)>(
+                Tag::CONSUMER_DISCONNECT);
     }
 
-    virtual status_t consumerDisconnect() {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        status_t result = remote()->transact(CONSUMER_DISCONNECT, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        return reply.readInt32();
+    status_t getReleasedBuffers(uint64_t* slotMask) override {
+        using Signature = decltype(&IGraphicBufferConsumer::getReleasedBuffers);
+        return callRemote<Signature>(Tag::GET_RELEASED_BUFFERS, slotMask);
     }
 
-    virtual status_t getReleasedBuffers(uint64_t* slotMask) {
-        Parcel data, reply;
-        if (slotMask == NULL) {
-            ALOGE("getReleasedBuffers: slotMask must not be NULL");
-            return BAD_VALUE;
-        }
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        status_t result = remote()->transact(GET_RELEASED_BUFFERS, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        *slotMask = static_cast<uint64_t>(reply.readInt64());
-        return reply.readInt32();
+    status_t setDefaultBufferSize(uint32_t width, uint32_t height) override {
+        using Signature = decltype(&IGraphicBufferConsumer::setDefaultBufferSize);
+        return callRemote<Signature>(Tag::SET_DEFAULT_BUFFER_SIZE, width, height);
     }
 
-    virtual status_t setDefaultBufferSize(uint32_t width, uint32_t height) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeUint32(width);
-        data.writeUint32(height);
-        status_t result = remote()->transact(SET_DEFAULT_BUFFER_SIZE, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        return reply.readInt32();
+    status_t setMaxBufferCount(int bufferCount) override {
+        using Signature = decltype(&IGraphicBufferConsumer::setMaxBufferCount);
+        return callRemote<Signature>(Tag::SET_MAX_BUFFER_COUNT, bufferCount);
     }
 
-    virtual status_t setMaxBufferCount(int bufferCount) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeInt32(bufferCount);
-        status_t result = remote()->transact(SET_MAX_BUFFER_COUNT, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        return reply.readInt32();
+    status_t setMaxAcquiredBufferCount(int maxAcquiredBuffers) override {
+        using Signature = decltype(&IGraphicBufferConsumer::setMaxAcquiredBufferCount);
+        return callRemote<Signature>(Tag::SET_MAX_ACQUIRED_BUFFER_COUNT, maxAcquiredBuffers);
     }
 
-    virtual status_t setMaxAcquiredBufferCount(int maxAcquiredBuffers) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeInt32(maxAcquiredBuffers);
-        status_t result = remote()->transact(SET_MAX_ACQUIRED_BUFFER_COUNT, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        return reply.readInt32();
+    status_t setConsumerName(const String8& name) override {
+        using Signature = decltype(&IGraphicBufferConsumer::setConsumerName);
+        return callRemote<Signature>(Tag::SET_CONSUMER_NAME, name);
     }
 
-    virtual void setConsumerName(const String8& name) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeString8(name);
-        remote()->transact(SET_CONSUMER_NAME, data, &reply);
+    status_t setDefaultBufferFormat(PixelFormat defaultFormat) override {
+        using Signature = decltype(&IGraphicBufferConsumer::setDefaultBufferFormat);
+        return callRemote<Signature>(Tag::SET_DEFAULT_BUFFER_FORMAT, defaultFormat);
     }
 
-    virtual status_t setDefaultBufferFormat(PixelFormat defaultFormat) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeInt32(static_cast<int32_t>(defaultFormat));
-        status_t result = remote()->transact(SET_DEFAULT_BUFFER_FORMAT, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        return reply.readInt32();
+    status_t setDefaultBufferDataSpace(android_dataspace defaultDataSpace) override {
+        using Signature = decltype(&IGraphicBufferConsumer::setDefaultBufferDataSpace);
+        return callRemote<Signature>(Tag::SET_DEFAULT_BUFFER_DATA_SPACE, defaultDataSpace);
     }
 
-    virtual status_t setDefaultBufferDataSpace(
-            android_dataspace defaultDataSpace) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeInt32(static_cast<int32_t>(defaultDataSpace));
-        status_t result = remote()->transact(SET_DEFAULT_BUFFER_DATA_SPACE,
-                data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        return reply.readInt32();
+    status_t setConsumerUsageBits(uint32_t usage) override {
+        using Signature = decltype(&IGraphicBufferConsumer::setConsumerUsageBits);
+        return callRemote<Signature>(Tag::SET_CONSUMER_USAGE_BITS, usage);
     }
 
-    virtual status_t setConsumerUsageBits(uint32_t usage) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeUint32(usage);
-        status_t result = remote()->transact(SET_CONSUMER_USAGE_BITS, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        return reply.readInt32();
+    status_t setTransformHint(uint32_t hint) override {
+        using Signature = decltype(&IGraphicBufferConsumer::setTransformHint);
+        return callRemote<Signature>(Tag::SET_TRANSFORM_HINT, hint);
     }
 
-    virtual status_t setTransformHint(uint32_t hint) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeUint32(hint);
-        status_t result = remote()->transact(SET_TRANSFORM_HINT, data, &reply);
-        if (result != NO_ERROR) {
-            return result;
-        }
-        return reply.readInt32();
+    status_t getSidebandStream(sp<NativeHandle>* outStream) const override {
+        using Signature = decltype(&IGraphicBufferConsumer::getSidebandStream);
+        return callRemote<Signature>(Tag::GET_SIDEBAND_STREAM, outStream);
     }
 
-    virtual sp<NativeHandle> getSidebandStream() const {
-        Parcel data, reply;
-        status_t err;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        if ((err = remote()->transact(GET_SIDEBAND_STREAM, data, &reply)) != NO_ERROR) {
-            return NULL;
-        }
-        sp<NativeHandle> stream;
-        if (reply.readInt32()) {
-            stream = NativeHandle::create(reply.readNativeHandle(), true);
-        }
-        return stream;
+    status_t getOccupancyHistory(bool forceFlush,
+                                 std::vector<OccupancyTracker::Segment>* outHistory) override {
+        using Signature = decltype(&IGraphicBufferConsumer::getOccupancyHistory);
+        return callRemote<Signature>(Tag::GET_OCCUPANCY_HISTORY, forceFlush, outHistory);
     }
 
-    virtual status_t getOccupancyHistory(bool forceFlush,
-            std::vector<OccupancyTracker::Segment>* outHistory) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        status_t error = data.writeBool(forceFlush);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        error = remote()->transact(GET_OCCUPANCY_HISTORY, data,
-                &reply);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        error = reply.readParcelableVector(outHistory);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        status_t result = NO_ERROR;
-        error = reply.readInt32(&result);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        return result;
+    status_t discardFreeBuffers() override {
+        return callRemote<decltype(&IGraphicBufferConsumer::discardFreeBuffers)>(
+                Tag::DISCARD_FREE_BUFFERS);
     }
 
-    virtual status_t discardFreeBuffers() {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        status_t error = remote()->transact(DISCARD_FREE_BUFFERS, data, &reply);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        int32_t result = NO_ERROR;
-        error = reply.readInt32(&result);
-        if (error != NO_ERROR) {
-            return error;
-        }
-        return result;
-    }
-
-    virtual void dumpState(String8& result, const char* prefix) const {
-        Parcel data, reply;
-        data.writeInterfaceToken(IGraphicBufferConsumer::getInterfaceDescriptor());
-        data.writeString8(result);
-        data.writeString8(String8(prefix ? prefix : ""));
-        remote()->transact(DUMP, data, &reply);
-        reply.readString8();
+    status_t dumpState(const String8& prefix, String8* outResult) const override {
+        using Signature = status_t (IGraphicBufferConsumer::*)(const String8&, String8*) const;
+        return callRemote<Signature>(Tag::DUMP_STATE, prefix, outResult);
     }
 };
 
-// Out-of-line virtual method definition to trigger vtable emission in this
-// translation unit (see clang warning -Wweak-vtables)
-BpGraphicBufferConsumer::~BpGraphicBufferConsumer() {}
+// Out-of-line virtual method definition to trigger vtable emission in this translation unit
+// (see clang warning -Wweak-vtables)
+BpGraphicBufferConsumer::~BpGraphicBufferConsumer() = default;
 
 IMPLEMENT_META_INTERFACE(GraphicBufferConsumer, "android.gui.IGraphicBufferConsumer");
 
-// ----------------------------------------------------------------------
-
-status_t BnGraphicBufferConsumer::onTransact(
-        uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
-    switch(code) {
-        case ACQUIRE_BUFFER: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            BufferItem item;
-            int64_t presentWhen = data.readInt64();
-            uint64_t maxFrameNumber = data.readUint64();
-            status_t result = acquireBuffer(&item, presentWhen, maxFrameNumber);
-            status_t err = reply->write(item);
-            if (err) return err;
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case DETACH_BUFFER: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            int slot = data.readInt32();
-            int result = detachBuffer(slot);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case ATTACH_BUFFER: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            sp<GraphicBuffer> buffer = new GraphicBuffer();
-            data.read(*buffer.get());
-            int slot = -1;
-            int result = attachBuffer(&slot, buffer);
-            reply->writeInt32(slot);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case RELEASE_BUFFER: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            int buf = data.readInt32();
-            uint64_t frameNumber = static_cast<uint64_t>(data.readInt64());
-            sp<Fence> releaseFence = new Fence();
-            status_t err = data.read(*releaseFence);
-            if (err) return err;
-            status_t result = releaseBuffer(buf, frameNumber,
-                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, releaseFence);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case CONSUMER_CONNECT: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            sp<IConsumerListener> consumer = IConsumerListener::asInterface( data.readStrongBinder() );
-            bool controlledByApp = data.readInt32();
-            status_t result = consumerConnect(consumer, controlledByApp);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case CONSUMER_DISCONNECT: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            status_t result = consumerDisconnect();
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case GET_RELEASED_BUFFERS: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            uint64_t slotMask = 0;
-            status_t result = getReleasedBuffers(&slotMask);
-            reply->writeInt64(static_cast<int64_t>(slotMask));
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case SET_DEFAULT_BUFFER_SIZE: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            uint32_t width = data.readUint32();
-            uint32_t height = data.readUint32();
-            status_t result = setDefaultBufferSize(width, height);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case SET_MAX_BUFFER_COUNT: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            int bufferCount = data.readInt32();
-            status_t result = setMaxBufferCount(bufferCount);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case SET_MAX_ACQUIRED_BUFFER_COUNT: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            int maxAcquiredBuffers = data.readInt32();
-            status_t result = setMaxAcquiredBufferCount(maxAcquiredBuffers);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case SET_CONSUMER_NAME: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            setConsumerName( data.readString8() );
-            return NO_ERROR;
-        }
-        case SET_DEFAULT_BUFFER_FORMAT: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            PixelFormat defaultFormat = static_cast<PixelFormat>(data.readInt32());
-            status_t result = setDefaultBufferFormat(defaultFormat);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case SET_DEFAULT_BUFFER_DATA_SPACE: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            android_dataspace defaultDataSpace =
-                    static_cast<android_dataspace>(data.readInt32());
-            status_t result = setDefaultBufferDataSpace(defaultDataSpace);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case SET_CONSUMER_USAGE_BITS: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            uint32_t usage = data.readUint32();
-            status_t result = setConsumerUsageBits(usage);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case SET_TRANSFORM_HINT: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            uint32_t hint = data.readUint32();
-            status_t result = setTransformHint(hint);
-            reply->writeInt32(result);
-            return NO_ERROR;
-        }
-        case GET_SIDEBAND_STREAM: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            sp<NativeHandle> stream = getSidebandStream();
-            reply->writeInt32(static_cast<int32_t>(stream != NULL));
-            if (stream != NULL) {
-                reply->writeNativeHandle(stream->handle());
-            }
-            return NO_ERROR;
-        }
-        case GET_OCCUPANCY_HISTORY: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            bool forceFlush = false;
-            status_t error = data.readBool(&forceFlush);
-            if (error != NO_ERROR) {
-                return error;
-            }
-            std::vector<OccupancyTracker::Segment> history;
-            status_t result = getOccupancyHistory(forceFlush, &history);
-            error = reply->writeParcelableVector(history);
-            if (error != NO_ERROR) {
-                return error;
-            }
-            error = reply->writeInt32(result);
-            if (error != NO_ERROR) {
-                return error;
-            }
-            return NO_ERROR;
-        }
-        case DISCARD_FREE_BUFFERS: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            status_t result = discardFreeBuffers();
-            status_t error = reply->writeInt32(result);
-            return error;
-        }
-        case DUMP: {
-            CHECK_INTERFACE(IGraphicBufferConsumer, data, reply);
-            String8 result = data.readString8();
-            String8 prefix = data.readString8();
-            static_cast<IGraphicBufferConsumer*>(this)->dumpState(result, prefix);
-            reply->writeString8(result);
-            return NO_ERROR;
+status_t BnGraphicBufferConsumer::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                             uint32_t flags) {
+    if (code < IBinder::FIRST_CALL_TRANSACTION || code > static_cast<uint32_t>(Tag::LAST)) {
+        return BBinder::onTransact(code, data, reply, flags);
+    }
+    auto tag = static_cast<Tag>(code);
+    switch (tag) {
+        case Tag::ACQUIRE_BUFFER:
+            return callLocal(data, reply, &IGraphicBufferConsumer::acquireBuffer);
+        case Tag::DETACH_BUFFER:
+            return callLocal(data, reply, &IGraphicBufferConsumer::detachBuffer);
+        case Tag::ATTACH_BUFFER:
+            return callLocal(data, reply, &IGraphicBufferConsumer::attachBuffer);
+        case Tag::RELEASE_BUFFER:
+            return callLocal(data, reply, &IGraphicBufferConsumer::releaseHelper);
+        case Tag::CONSUMER_CONNECT:
+            return callLocal(data, reply, &IGraphicBufferConsumer::consumerConnect);
+        case Tag::CONSUMER_DISCONNECT:
+            return callLocal(data, reply, &IGraphicBufferConsumer::consumerDisconnect);
+        case Tag::GET_RELEASED_BUFFERS:
+            return callLocal(data, reply, &IGraphicBufferConsumer::getReleasedBuffers);
+        case Tag::SET_DEFAULT_BUFFER_SIZE:
+            return callLocal(data, reply, &IGraphicBufferConsumer::setDefaultBufferSize);
+        case Tag::SET_MAX_BUFFER_COUNT:
+            return callLocal(data, reply, &IGraphicBufferConsumer::setMaxBufferCount);
+        case Tag::SET_MAX_ACQUIRED_BUFFER_COUNT:
+            return callLocal(data, reply, &IGraphicBufferConsumer::setMaxAcquiredBufferCount);
+        case Tag::SET_CONSUMER_NAME:
+            return callLocal(data, reply, &IGraphicBufferConsumer::setConsumerName);
+        case Tag::SET_DEFAULT_BUFFER_FORMAT:
+            return callLocal(data, reply, &IGraphicBufferConsumer::setDefaultBufferFormat);
+        case Tag::SET_DEFAULT_BUFFER_DATA_SPACE:
+            return callLocal(data, reply, &IGraphicBufferConsumer::setDefaultBufferDataSpace);
+        case Tag::SET_CONSUMER_USAGE_BITS:
+            return callLocal(data, reply, &IGraphicBufferConsumer::setConsumerUsageBits);
+        case Tag::SET_TRANSFORM_HINT:
+            return callLocal(data, reply, &IGraphicBufferConsumer::setTransformHint);
+        case Tag::GET_SIDEBAND_STREAM:
+            return callLocal(data, reply, &IGraphicBufferConsumer::getSidebandStream);
+        case Tag::GET_OCCUPANCY_HISTORY:
+            return callLocal(data, reply, &IGraphicBufferConsumer::getOccupancyHistory);
+        case Tag::DISCARD_FREE_BUFFERS:
+            return callLocal(data, reply, &IGraphicBufferConsumer::discardFreeBuffers);
+        case Tag::DUMP_STATE: {
+            using Signature = status_t (IGraphicBufferConsumer::*)(const String8&, String8*) const;
+            return callLocal<Signature>(data, reply, &IGraphicBufferConsumer::dumpState);
         }
     }
-    return BBinder::onTransact(code, data, reply, flags);
 }
 
-}; // namespace android
+} // namespace android
