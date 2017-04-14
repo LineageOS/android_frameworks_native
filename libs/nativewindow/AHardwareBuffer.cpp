@@ -33,7 +33,7 @@
 #include <private/android/AHardwareBufferHelpers.h>
 
 
-static constexpr int kDataBufferSize = 64 * sizeof(int);  // 64 ints
+static constexpr int kFdBufferSize = 128 * sizeof(int);  // 128 ints
 
 using namespace android;
 
@@ -169,7 +169,7 @@ int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int so
     iov[0].iov_base = data.get();
     iov[0].iov_len = flattenedSize;
 
-    char buf[CMSG_SPACE(kDataBufferSize)];
+    char buf[CMSG_SPACE(kFdBufferSize)];
     struct msghdr msg = {
             .msg_control = buf,
             .msg_controllen = sizeof(buf),
@@ -197,11 +197,13 @@ int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int so
 int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** outBuffer) {
     if (!outBuffer) return BAD_VALUE;
 
-    char dataBuf[CMSG_SPACE(kDataBufferSize)];
-    char fdBuf[CMSG_SPACE(kDataBufferSize)];
+    static constexpr int kMessageBufferSize = 4096 * sizeof(int);
+
+    std::unique_ptr<char[]> dataBuf(new char[kMessageBufferSize]);
+    char fdBuf[CMSG_SPACE(kFdBufferSize)];
     struct iovec iov[1];
-    iov[0].iov_base = dataBuf;
-    iov[0].iov_len = sizeof(dataBuf);
+    iov[0].iov_base = dataBuf.get();
+    iov[0].iov_len = kMessageBufferSize;
 
     struct msghdr msg = {
             .msg_control = fdBuf,
