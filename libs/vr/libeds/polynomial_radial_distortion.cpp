@@ -4,10 +4,13 @@ namespace android {
 namespace dvr {
 
 PolynomialRadialDistortion::PolynomialRadialDistortion(
-    const std::vector<float>& coefficients)
-    : coefficients_(coefficients) {}
+    float polynomial_offset, const std::vector<float>& coefficients)
+    : polynomial_offset_(polynomial_offset), coefficients_(coefficients) {}
 
 float PolynomialRadialDistortion::DistortionFactor(float r_squared) const {
+  if (r_squared < polynomial_offset_)
+    return 1.0f;
+
   float r_factor = 1.0f;
   float distortion_factor = 1.0f;
 
