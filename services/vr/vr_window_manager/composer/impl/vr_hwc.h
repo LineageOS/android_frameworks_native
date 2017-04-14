@@ -56,8 +56,6 @@ class ComposerView {
     using BlendMode =
         hardware::graphics::composer::V2_1::IComposerClient::BlendMode;
 
-    // TODO(dnicoara): Add all layer properties. For now just the basics to get
-    // it going.
     Layer id;
     sp<GraphicBuffer> buffer;
     sp<Fence> fence;
@@ -67,6 +65,14 @@ class ComposerView {
     float alpha;
     uint32_t type;
     uint32_t app_id;
+    uint32_t z_order;
+    int32_t cursor_x;
+    int32_t cursor_y;
+    IComposerClient::Color color;
+    int32_t dataspace;
+    int32_t transform;
+    std::vector<hwc_rect_t> visible_regions;
+    std::vector<hwc_rect_t> damaged_regions;
   };
 
   struct Frame {
@@ -77,6 +83,12 @@ class ComposerView {
     bool removed = false;
     int32_t display_width;
     int32_t display_height;
+    Config active_config;
+    ColorMode color_mode;
+    IComposerClient::PowerMode power_mode;
+    IComposerClient::Vsync vsync_enabled;
+    float color_transform[16];
+    int32_t color_transform_hint;
     std::vector<ComposerLayer> layers;
   };
 
@@ -104,7 +116,6 @@ struct HwcLayer {
   }
 
   Composition composition_type;
-  uint32_t z_order;
   ComposerView::ComposerLayer info;
   IVrComposerClient::BufferMetadata buffer_metadata;
 };
@@ -133,6 +144,24 @@ class HwcDisplay {
 
   std::vector<Layer> UpdateLastFrameAndGetLastFrameLayers();
 
+  Config active_config() const { return active_config_; }
+  void set_active_config(Config config) { active_config_ = config; }
+
+  ColorMode color_mode() const { return color_mode_; }
+  void set_color_mode(ColorMode mode) { color_mode_ = mode; }
+
+  IComposerClient::PowerMode power_mode() const { return power_mode_; }
+  void set_power_mode(IComposerClient::PowerMode mode) { power_mode_ = mode; }
+
+  IComposerClient::Vsync vsync_enabled() const { return vsync_enabled_; }
+  void set_vsync_enabled(IComposerClient::Vsync vsync) {
+    vsync_enabled_ = vsync;
+  }
+
+  const float* color_transform() const { return color_transform_; }
+  int32_t color_transform_hint() const { return color_transform_hint_; }
+  void SetColorTransform(const float* matrix, int32_t hint);
+
  private:
   // The client target buffer and the associated fence.
   sp<GraphicBuffer> buffer_;
@@ -149,6 +178,13 @@ class HwcDisplay {
 
   int32_t width_;
   int32_t height_;
+
+  Config active_config_;
+  ColorMode color_mode_;
+  IComposerClient::PowerMode power_mode_;
+  IComposerClient::Vsync vsync_enabled_;
+  float color_transform_[16];
+  int32_t color_transform_hint_;
 
   HwcDisplay(const HwcDisplay&) = delete;
   void operator=(const HwcDisplay&) = delete;

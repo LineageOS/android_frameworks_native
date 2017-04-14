@@ -104,6 +104,29 @@ size_t dvrHwcFrameGetLayerCount(DvrHwcFrame* frame) {
   return frame->frame.layers.size();
 }
 
+uint32_t dvrHwcFrameGetActiveConfig(DvrHwcFrame* frame) {
+  return static_cast<uint32_t>(frame->frame.active_config);
+}
+
+uint32_t dvrHwcFrameGetColorMode(DvrHwcFrame* frame) {
+  return static_cast<uint32_t>(frame->frame.color_mode);
+}
+
+void dvrHwcFrameGetColorTransform(DvrHwcFrame* frame, float* out_matrix,
+                                  int32_t* out_hint) {
+  *out_hint = frame->frame.color_transform_hint;
+  memcpy(out_matrix, frame->frame.color_transform,
+         sizeof(frame->frame.color_transform));
+}
+
+uint32_t dvrHwcFrameGetPowerMode(DvrHwcFrame* frame) {
+  return static_cast<uint32_t>(frame->frame.power_mode);
+}
+
+uint32_t dvrHwcFrameGetVsyncEnabled(DvrHwcFrame* frame) {
+  return static_cast<uint32_t>(frame->frame.vsync_enabled);
+}
+
 DvrHwcLayer dvrHwcFrameGetLayerId(DvrHwcFrame* frame, size_t layer_index) {
   return frame->frame.layers[layer_index].id;
 }
@@ -156,4 +179,59 @@ uint32_t dvrHwcFrameGetLayerType(DvrHwcFrame* frame, size_t layer_index) {
 uint32_t dvrHwcFrameGetLayerApplicationId(DvrHwcFrame* frame,
                                           size_t layer_index) {
   return frame->frame.layers[layer_index].app_id;
+}
+
+uint32_t dvrHwcFrameGetLayerZOrder(DvrHwcFrame* frame, size_t layer_index) {
+  return frame->frame.layers[layer_index].z_order;
+}
+
+void dvrHwcFrameGetLayerCursor(DvrHwcFrame* frame, size_t layer_index,
+                               int32_t* out_x, int32_t* out_y) {
+  *out_x = frame->frame.layers[layer_index].cursor_x;
+  *out_y = frame->frame.layers[layer_index].cursor_y;
+}
+
+uint32_t dvrHwcFrameGetLayerTransform(DvrHwcFrame* frame, size_t layer_index) {
+  return frame->frame.layers[layer_index].transform;
+}
+
+uint32_t dvrHwcFrameGetLayerDataspace(DvrHwcFrame* frame, size_t layer_index) {
+  return frame->frame.layers[layer_index].dataspace;
+}
+
+uint32_t dvrHwcFrameGetLayerColor(DvrHwcFrame* frame, size_t layer_index) {
+  const auto& color = frame->frame.layers[layer_index].color;
+  return color.r | (static_cast<uint32_t>(color.g) << 8) |
+         (static_cast<uint32_t>(color.b) << 16) |
+         (static_cast<uint32_t>(color.a) << 24);
+}
+
+uint32_t dvrHwcFrameGetLayerNumVisibleRegions(DvrHwcFrame* frame,
+                                              size_t layer_index) {
+  return frame->frame.layers[layer_index].visible_regions.size();
+}
+
+DvrHwcRecti dvrHwcFrameGetLayerVisibleRegion(DvrHwcFrame* frame,
+                                             size_t layer_index, size_t index) {
+  return DvrHwcRecti{
+      frame->frame.layers[layer_index].visible_regions[index].left,
+      frame->frame.layers[layer_index].visible_regions[index].top,
+      frame->frame.layers[layer_index].visible_regions[index].right,
+      frame->frame.layers[layer_index].visible_regions[index].bottom,
+  };
+}
+
+uint32_t dvrHwcFrameGetLayerNumDamagedRegions(DvrHwcFrame* frame,
+                                              size_t layer_index) {
+  return frame->frame.layers[layer_index].damaged_regions.size();
+}
+
+DvrHwcRecti dvrHwcFrameGetLayerDamagedRegion(DvrHwcFrame* frame,
+                                             size_t layer_index, size_t index) {
+  return DvrHwcRecti{
+      frame->frame.layers[layer_index].damaged_regions[index].left,
+      frame->frame.layers[layer_index].damaged_regions[index].top,
+      frame->frame.layers[layer_index].damaged_regions[index].right,
+      frame->frame.layers[layer_index].damaged_regions[index].bottom,
+  };
 }

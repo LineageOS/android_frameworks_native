@@ -66,6 +66,50 @@ status_t ParcelableComposerLayer::writeToParcel(Parcel* parcel) const {
   ret = parcel->writeUint32(layer_.app_id);
   if (ret != OK) return ret;
 
+  ret = parcel->writeUint32(layer_.z_order);
+  if (ret != OK) return ret;
+
+  ret = parcel->writeInt32(layer_.cursor_x);
+  if (ret != OK) return ret;
+
+  ret = parcel->writeInt32(layer_.cursor_y);
+  if (ret != OK) return ret;
+
+  uint32_t color = layer_.color.r |
+      (static_cast<uint32_t>(layer_.color.g) << 8) |
+      (static_cast<uint32_t>(layer_.color.b) << 16) |
+      (static_cast<uint32_t>(layer_.color.a) << 24);
+  ret = parcel->writeUint32(color);
+  if (ret != OK) return ret;
+
+  ret = parcel->writeInt32(layer_.dataspace);
+  if (ret != OK) return ret;
+
+  ret = parcel->writeInt32(layer_.transform);
+  if (ret != OK) return ret;
+
+  ret = parcel->writeUint32(static_cast<uint32_t>(layer_.visible_regions.size()));
+  if (ret != OK) return ret;
+
+  for (auto& rect: layer_.visible_regions) {
+    ret = parcel->writeInt32(rect.left);
+    ret = parcel->writeInt32(rect.top);
+    ret = parcel->writeInt32(rect.right);
+    ret = parcel->writeInt32(rect.bottom);
+    if (ret != OK) return ret;
+  }
+
+  ret = parcel->writeUint32(static_cast<uint32_t>(layer_.damaged_regions.size()));
+  if (ret != OK) return ret;
+
+  for (auto& rect: layer_.damaged_regions) {
+    ret = parcel->writeInt32(rect.left);
+    ret = parcel->writeInt32(rect.top);
+    ret = parcel->writeInt32(rect.right);
+    ret = parcel->writeInt32(rect.bottom);
+    if (ret != OK) return ret;
+  }
+
   return OK;
 }
 
@@ -124,6 +168,70 @@ status_t ParcelableComposerLayer::readFromParcel(const Parcel* parcel) {
 
   ret = parcel->readUint32(&layer_.app_id);
   if (ret != OK) return ret;
+
+  ret = parcel->readUint32(&layer_.z_order);
+  if (ret != OK) return ret;
+
+  ret = parcel->readInt32(&layer_.cursor_x);
+  if (ret != OK) return ret;
+
+  ret = parcel->readInt32(&layer_.cursor_y);
+  if (ret != OK) return ret;
+
+  uint32_t color;
+  ret = parcel->readUint32(&color);
+  if (ret != OK) return ret;
+  layer_.color.r = color & 0xFF;
+  layer_.color.g = (color >> 8) & 0xFF;
+  layer_.color.b = (color >> 16) & 0xFF;
+  layer_.color.a = (color >> 24) & 0xFF;
+
+  ret = parcel->readInt32(&layer_.dataspace);
+  if (ret != OK) return ret;
+
+  ret = parcel->readInt32(&layer_.transform);
+  if (ret != OK) return ret;
+
+  uint32_t size;
+  ret = parcel->readUint32(&size);
+  if (ret != OK) return ret;
+
+  for(size_t i = 0; i < size; i++) {
+    hwc_rect_t rect;
+    ret = parcel->readInt32(&rect.left);
+    if (ret != OK) return ret;
+
+    ret = parcel->readInt32(&rect.top);
+    if (ret != OK) return ret;
+
+    ret = parcel->readInt32(&rect.right);
+    if (ret != OK) return ret;
+
+    ret = parcel->readInt32(&rect.bottom);
+    if (ret != OK) return ret;
+
+    layer_.visible_regions.push_back(rect);
+  }
+
+  ret = parcel->readUint32(&size);
+  if (ret != OK) return ret;
+
+  for(size_t i = 0; i < size; i++) {
+    hwc_rect_t rect;
+    ret = parcel->readInt32(&rect.left);
+    if (ret != OK) return ret;
+
+    ret = parcel->readInt32(&rect.top);
+    if (ret != OK) return ret;
+
+    ret = parcel->readInt32(&rect.right);
+    if (ret != OK) return ret;
+
+    ret = parcel->readInt32(&rect.bottom);
+    if (ret != OK) return ret;
+
+    layer_.damaged_regions.push_back(rect);
+  }
 
   return OK;
 }
