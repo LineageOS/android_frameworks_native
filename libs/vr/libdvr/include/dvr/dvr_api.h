@@ -159,6 +159,13 @@ typedef bool (*DvrHwcFrameGetDisplayRemovedPtr)(DvrHwcFrame* frame);
 typedef size_t (*DvrHwcFrameGetLayerCountPtr)(DvrHwcFrame* frame);
 typedef DvrHwcLayer (*DvrHwcFrameGetLayerIdPtr)(DvrHwcFrame* frame,
                                                 size_t layer_index);
+typedef uint32_t (*DvrHwcFrameGetActiveConfigPtr)(DvrHwcFrame* frame);
+typedef uint32_t (*DvrHwcFrameGetColorModePtr)(DvrHwcFrame* frame);
+typedef void (*DvrHwcFrameGetColorTransformPtr)(DvrHwcFrame* frame,
+                                                float* out_matrix,
+                                                int32_t* out_hint);
+typedef uint32_t (*DvrHwcFrameGetPowerModePtr)(DvrHwcFrame* frame);
+typedef uint32_t (*DvrHwcFrameGetVsyncEnabledPtr)(DvrHwcFrame* frame);
 typedef AHardwareBuffer* (*DvrHwcFrameGetLayerBufferPtr)(DvrHwcFrame* frame,
                                                          size_t layer_index);
 typedef int (*DvrHwcFrameGetLayerFencePtr)(DvrHwcFrame* frame,
@@ -175,6 +182,33 @@ typedef uint32_t (*DvrHwcFrameGetLayerTypePtr)(DvrHwcFrame* frame,
                                                size_t layer_index);
 typedef uint32_t (*DvrHwcFrameGetLayerApplicationIdPtr)(DvrHwcFrame* frame,
                                                         size_t layer_index);
+typedef uint32_t (*DvrHwcFrameGetLayerZOrderPtr)(DvrHwcFrame* frame,
+                                                 size_t layer_index);
+
+typedef void (*DvrHwcFrameGetLayerCursorPtr)(DvrHwcFrame* frame,
+                                             size_t layer_index, int32_t* out_x,
+                                             int32_t* out_y);
+
+typedef uint32_t (*DvrHwcFrameGetLayerTransformPtr)(DvrHwcFrame* frame,
+                                                    size_t layer_index);
+
+typedef uint32_t (*DvrHwcFrameGetLayerDataspacePtr)(DvrHwcFrame* frame,
+                                                    size_t layer_index);
+
+typedef uint32_t (*DvrHwcFrameGetLayerColorPtr)(DvrHwcFrame* frame,
+                                                size_t layer_index);
+
+typedef uint32_t (*DvrHwcFrameGetLayerNumVisibleRegionsPtr)(DvrHwcFrame* frame,
+                                                            size_t layer_index);
+typedef DvrHwcRecti (*DvrHwcFrameGetLayerVisibleRegionPtr)(DvrHwcFrame* frame,
+                                                           size_t layer_index,
+                                                           size_t index);
+
+typedef uint32_t (*DvrHwcFrameGetLayerNumDamagedRegionsPtr)(DvrHwcFrame* frame,
+                                                            size_t layer_index);
+typedef DvrHwcRecti (*DvrHwcFrameGetLayerDamagedRegionPtr)(DvrHwcFrame* frame,
+                                                           size_t layer_index,
+                                                           size_t index);
 
 struct DvrApi_v1 {
   // Display manager client
@@ -261,6 +295,11 @@ struct DvrApi_v1 {
   DvrHwcFrameGetDisplayWidthPtr hwc_frame_get_display_width;
   DvrHwcFrameGetDisplayHeightPtr hwc_frame_get_display_height;
   DvrHwcFrameGetDisplayRemovedPtr hwc_frame_get_display_removed;
+  DvrHwcFrameGetActiveConfigPtr hwc_frame_get_active_config;
+  DvrHwcFrameGetColorModePtr hwc_frame_get_color_mode;
+  DvrHwcFrameGetColorTransformPtr hwc_frame_get_color_transform;
+  DvrHwcFrameGetPowerModePtr hwc_frame_get_power_mode;
+  DvrHwcFrameGetVsyncEnabledPtr hwc_frame_get_vsync_enabled;
   DvrHwcFrameGetLayerCountPtr hwc_frame_get_layer_count;
   DvrHwcFrameGetLayerIdPtr hwc_frame_get_layer_id;
   DvrHwcFrameGetLayerBufferPtr hwc_frame_get_layer_buffer;
@@ -271,6 +310,17 @@ struct DvrApi_v1 {
   DvrHwcFrameGetLayerAlphaPtr hwc_frame_get_layer_alpha;
   DvrHwcFrameGetLayerTypePtr hwc_frame_get_layer_type;
   DvrHwcFrameGetLayerApplicationIdPtr hwc_frame_get_layer_application_id;
+  DvrHwcFrameGetLayerZOrderPtr hwc_frame_get_layer_z_order;
+  DvrHwcFrameGetLayerCursorPtr hwc_frame_get_layer_cursor;
+  DvrHwcFrameGetLayerTransformPtr hwc_frame_get_layer_transform;
+  DvrHwcFrameGetLayerDataspacePtr hwc_frame_get_layer_dataspace;
+  DvrHwcFrameGetLayerColorPtr hwc_frame_get_layer_color;
+  DvrHwcFrameGetLayerNumVisibleRegionsPtr
+      hwc_frame_get_layer_num_visible_regions;
+  DvrHwcFrameGetLayerVisibleRegionPtr hwc_frame_get_layer_visible_region;
+  DvrHwcFrameGetLayerNumDamagedRegionsPtr
+      hwc_frame_get_layer_num_damaged_regions;
+  DvrHwcFrameGetLayerDamagedRegionPtr hwc_frame_get_layer_damaged_region;
 };
 
 int dvrGetApi(void* api, size_t struct_size, int version);

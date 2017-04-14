@@ -32,6 +32,15 @@ HwcCallback::FrameStatus GetFrameStatus(const HwcCallback::Frame& frame) {
 
 }  // namespace
 
+void HwcCallback::HwcLayer::PrintLayer() {
+  ALOGI("appid=%d, type=%d, alpha=%.2f, cursor=%dx%d, color=%02X%02X%02X%02X, "
+      "crop=%.1f,%.1f,%.1f,%.1f, display=%d,%d,%d,%d, dataspace=%d, "
+      "transform=%d", appid, type, alpha, cursor_x, cursor_y, color.r, color.g,
+      color.b, color.a, crop.left, crop.top, crop.right, crop.bottom,
+      display_frame.left, display_frame.right, display_frame.top,
+      display_frame.bottom, dataspace, transform);
+}
+
 HwcCallback::HwcCallback(Client* client) : client_(client) {
 }
 
@@ -54,6 +63,11 @@ binder::Status HwcCallback::onNewFrame(
       .appid = layer.app_id,
       .type = static_cast<HwcLayer::LayerType>(layer.type),
       .alpha = layer.alpha,
+      .cursor_x = layer.cursor_x,
+      .cursor_y = layer.cursor_y,
+      .color = layer.color,
+      .dataspace = layer.dataspace,
+      .transform = layer.transform,
     };
   }
 
