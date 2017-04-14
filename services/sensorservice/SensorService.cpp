@@ -978,6 +978,7 @@ sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
     for (auto &i : mDirectConnections) {
         sp<SensorDirectConnection> connection(i.promote());
         if (connection != nullptr && connection->isEquivalent(&mem)) {
+            ALOGE("Duplicate create channel request for the same share memory");
             return nullptr;
         }
     }
@@ -988,14 +989,15 @@ sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
             int fd = resource->data[0];
             int size2 = ashmem_get_size_region(fd);
             // check size consistency
-            if (size2 != static_cast<int>(size)) {
-                ALOGE("Ashmem direct channel size mismatch, %" PRIu32 " vs %d", size, size2);
+            if (size2 < static_cast<int>(size)) {
+                ALOGE("Ashmem direct channel size %" PRIu32 " greater than shared memory size %d",
+                      size, size2);
                 return nullptr;
             }
             break;
         }
         case SENSOR_DIRECT_MEM_TYPE_GRALLOC:
-            LOG_FATAL("%s: Finish implementation of ION and GRALLOC or remove", __FUNCTION__);
+            // no specific checks for gralloc
             break;
         default:
             ALOGE("Unknown direct connection memory type %d", type);
