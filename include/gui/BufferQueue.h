@@ -23,10 +23,6 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IConsumerListener.h>
 
-// These are only required to keep other parts of the framework with incomplete
-// dependencies building successfully
-#include <gui/IGraphicBufferAlloc.h>
-
 namespace android {
 
 class BufferQueue {
@@ -81,11 +77,9 @@ public:
     // needed gralloc buffers.
     static void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
             sp<IGraphicBufferConsumer>* outConsumer,
-            const sp<IGraphicBufferAlloc>& allocator = NULL,
             bool consumerIsSurfaceFlinger = false);
 
-private:
-    BufferQueue(); // Create through createBufferQueue
+    BufferQueue() = delete; // Create through createBufferQueue
 };
 
 // ----------------------------------------------------------------------------

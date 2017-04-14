@@ -377,9 +377,6 @@ public:
             const sp<IGraphicBufferProducer>& /* parent */) override {
         return nullptr;
     }
-    sp<IGraphicBufferAlloc> createGraphicBufferAlloc() override {
-        return nullptr;
-    }
     sp<IDisplayEventConnection> createDisplayEventConnection() override {
         return nullptr;
     }
