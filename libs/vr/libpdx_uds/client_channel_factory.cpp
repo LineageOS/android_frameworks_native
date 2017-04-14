@@ -65,6 +65,7 @@ Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
   auto time_end = now + std::chrono::milliseconds{timeout_ms};
 
   bool connected = false;
+  int max_eaccess = 5;  // Max number of times to retry when EACCES returned.
   while (!connected) {
     int64_t timeout = -1;
     if (use_timeout) {
@@ -84,10 +85,14 @@ Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
     if (ret == -1) {
       ALOGD("ClientChannelFactory: Connect error %d: %s", errno,
             strerror(errno));
-      if (errno == ECONNREFUSED) {
-        // Connection refused can be the result of connecting too early (the
-        // service socket is created but not being listened to yet).
-        ALOGD("ClientChannelFactory: Connection refused, waiting...");
+      // if |max_eaccess| below reaches zero when errno is EACCES, the control
+      // flows into the next "else if" statement and a permanent error is
+      // returned from this function.
+      if (errno == ECONNREFUSED || (errno == EACCES && max_eaccess-- > 0)) {
+        // Connection refused/Permission denied can be the result of connecting
+        // too early (the service socket is created but its access rights are
+        // not set or not being listened to yet).
+        ALOGD("ClientChannelFactory: %s, waiting...", strerror(errno));
         using namespace std::literals::chrono_literals;
         std::this_thread::sleep_for(100ms);
       } else if (errno != ENOENT && errno != ENOTDIR) {
