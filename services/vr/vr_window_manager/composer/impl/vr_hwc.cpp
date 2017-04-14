@@ -132,7 +132,7 @@ void HwcDisplay::GetChangedCompositionTypes(
     std::vector<IComposerClient::Composition>* types) {
   std::sort(layers_.begin(), layers_.end(),
             [](const auto& lhs, const auto& rhs) {
-              return lhs.z_order < rhs.z_order;
+              return lhs.info.z_order < rhs.info.z_order;
             });
 
   int first_client_layer = -1, last_client_layer = -1;
@@ -218,6 +218,12 @@ std::vector<Layer> HwcDisplay::UpdateLastFrameAndGetLastFrameLayers() {
     last_frame_layers_ids_.push_back(layer.info.id);
 
   return last_frame_layers;
+}
+
+void HwcDisplay::SetColorTransform(const float* matrix, int32_t hint) {
+  color_transform_hint_ = hint;
+  if (matrix)
+    memcpy(color_transform_, matrix, sizeof(color_transform_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -397,40 +403,54 @@ Error VrHwc::getHdrCapabilities(Display display, hidl_vec<Hdr>* outTypes,
 
 Error VrHwc::setActiveConfig(Display display, Config config) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
     return Error::BAD_DISPLAY;
   if (config != kDefaultConfigId)
     return Error::BAD_CONFIG;
 
+  display_ptr->set_active_config(config);
   return Error::NONE;
 }
 
 Error VrHwc::setColorMode(Display display, ColorMode mode) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  display_ptr->set_color_mode(mode);
   return Error::NONE;
 }
 
 Error VrHwc::setPowerMode(Display display, IComposerClient::PowerMode mode) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  display_ptr->set_power_mode(mode);
   return Error::NONE;
 }
 
 Error VrHwc::setVsyncEnabled(Display display, IComposerClient::Vsync enabled) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  display_ptr->set_vsync_enabled(enabled);
   return Error::NONE;
 }
 
 Error VrHwc::setColorTransform(Display display, const float* matrix,
                                int32_t hint) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  display_ptr->SetColorTransform(matrix, hint);
   return Error::NONE;
 }
 
@@ -500,6 +520,13 @@ Error VrHwc::presentDisplay(Display display, int32_t* outPresentFence,
   frame.display_id = display;
   frame.display_width = display_ptr->width();
   frame.display_height = display_ptr->height();
+  frame.active_config = display_ptr->active_config();
+  frame.power_mode = display_ptr->power_mode();
+  frame.vsync_enabled = display_ptr->vsync_enabled();
+  frame.color_transform_hint = display_ptr->color_transform_hint();
+  frame.color_mode = display_ptr->color_mode();
+  memcpy(frame.color_transform, display_ptr->color_transform(),
+         sizeof(frame.color_transform));
   if (status != Error::NONE)
     return status;
 
@@ -523,8 +550,16 @@ Error VrHwc::presentDisplay(Display display, int32_t* outPresentFence,
 Error VrHwc::setLayerCursorPosition(Display display, Layer layer, int32_t x,
                                     int32_t y) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
+
+  hwc_layer->info.cursor_x = x;
+  hwc_layer->info.cursor_y = y;
   return Error::NONE;
 }
 
@@ -550,8 +585,15 @@ Error VrHwc::setLayerBuffer(Display display, Layer layer,
 Error VrHwc::setLayerSurfaceDamage(Display display, Layer layer,
                                    const std::vector<hwc_rect_t>& damage) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
+
+  hwc_layer->info.damaged_regions = damage;
   return Error::NONE;
 }
 
@@ -574,8 +616,15 @@ Error VrHwc::setLayerBlendMode(Display display, Layer layer, int32_t mode) {
 Error VrHwc::setLayerColor(Display display, Layer layer,
                            IComposerClient::Color color) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
+
+  hwc_layer->info.color = color;
   return Error::NONE;
 }
 
@@ -598,8 +647,15 @@ Error VrHwc::setLayerCompositionType(Display display, Layer layer,
 Error VrHwc::setLayerDataspace(Display display, Layer layer,
                                int32_t dataspace) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
+
+  hwc_layer->info.dataspace = dataspace;
   return Error::NONE;
 }
 
@@ -662,16 +718,30 @@ Error VrHwc::setLayerSourceCrop(Display display, Layer layer,
 Error VrHwc::setLayerTransform(Display display, Layer layer,
                                int32_t transform) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
+
+  hwc_layer->info.transform = transform;
   return Error::NONE;
 }
 
 Error VrHwc::setLayerVisibleRegion(Display display, Layer layer,
                                    const std::vector<hwc_rect_t>& visible) {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (!FindDisplay(display))
+  auto display_ptr = FindDisplay(display);
+  if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  HwcLayer* hwc_layer = display_ptr->GetLayer(layer);
+  if (!hwc_layer)
+    return Error::BAD_LAYER;
+
+  hwc_layer->info.visible_regions = visible;
   return Error::NONE;
 }
 
@@ -685,7 +755,7 @@ Error VrHwc::setLayerZOrder(Display display, Layer layer, uint32_t z) {
   if (!hwc_layer)
     return Error::BAD_LAYER;
 
-  hwc_layer->z_order = z;
+  hwc_layer->info.z_order = z;
 
   return Error::NONE;
 }
