@@ -15,6 +15,7 @@
  */
 
 #include <ui/DebugUtils.h>
+#include <ui/PixelFormat.h>
 
 #include <android-base/stringprintf.h>
 #include <string>
@@ -145,6 +146,9 @@ std::string decodeRange(android_dataspace dataspace) {
 }
 
 std::string dataspaceDetails(android_dataspace dataspace) {
+    if (dataspace == 0) {
+        return "Default (0)";
+    }
     return android::base::StringPrintf("%s %s %s", decodeStandard(dataspace).c_str(),
                                        decodeTransfer(dataspace).c_str(),
                                        decodeRange(dataspace).c_str());
@@ -184,4 +188,37 @@ std::string decodeColorMode(android_color_mode colorMode) {
     }
 
     return android::base::StringPrintf("Unknown color mode %d", colorMode);
+}
+
+// Converts a PixelFormat to a human-readable string.  Max 11 chars.
+// (Could use a table of prefab String8 objects.)
+std::string decodePixelFormat(android::PixelFormat format) {
+    switch (format) {
+        case android::PIXEL_FORMAT_UNKNOWN:
+            return std::string("Unknown/None");
+        case android::PIXEL_FORMAT_CUSTOM:
+            return std::string("Custom");
+        case android::PIXEL_FORMAT_TRANSLUCENT:
+            return std::string("Translucent");
+        case android::PIXEL_FORMAT_TRANSPARENT:
+            return std::string("Transparent");
+        case android::PIXEL_FORMAT_OPAQUE:
+            return std::string("Opaque");
+        case android::PIXEL_FORMAT_RGBA_8888:
+            return std::string("RGBA_8888");
+        case android::PIXEL_FORMAT_RGBX_8888:
+            return std::string("RGBx_8888");
+        case android::PIXEL_FORMAT_RGBA_FP16:
+            return std::string("RGBA_FP16");
+        case android::PIXEL_FORMAT_RGBA_1010102:
+            return std::string("RGBA_1010102");
+        case android::PIXEL_FORMAT_RGB_888:
+            return std::string("RGB_888");
+        case android::PIXEL_FORMAT_RGB_565:
+            return std::string("RGB_565");
+        case android::PIXEL_FORMAT_BGRA_8888:
+            return std::string("BGRA_8888");
+        default:
+            return android::base::StringPrintf("Unknown %#08x", format);
+    }
 }
