@@ -6,9 +6,9 @@
 #include <pdx/default_transport/service_endpoint.h>
 #include <pdx/rpc/remote_method.h>
 #include <private/dvr/composite_hmd.h>
+#include <private/dvr/device_metrics.h>
 #include <private/dvr/display_rpc.h>
 #include <private/dvr/display_types.h>
-#include <private/dvr/lucid_metrics.h>
 #include <private/dvr/numeric.h>
 #include <private/dvr/polynomial_radial_distortion.h>
 #include <private/dvr/types.h>
@@ -208,16 +208,16 @@ void DisplayService::OnSetViewerParams(pdx::Message& message,
 
   // We should always have a red distortion.
   LOG_FATAL_IF(view_params.distortion_coefficients_r.empty());
-  red_distortion = std::make_shared<PolynomialRadialDistortion>(
+  red_distortion = std::make_shared<PolynomialRadialDistortion>(0.0f,
       view_params.distortion_coefficients_r);
 
   if (!view_params.distortion_coefficients_g.empty()) {
-    green_distortion = std::make_shared<PolynomialRadialDistortion>(
+    green_distortion = std::make_shared<PolynomialRadialDistortion>(0.0f,
         view_params.distortion_coefficients_g);
   }
 
   if (!view_params.distortion_coefficients_b.empty()) {
-    blue_distortion = std::make_shared<PolynomialRadialDistortion>(
+    blue_distortion = std::make_shared<PolynomialRadialDistortion>(0.0f,
         view_params.distortion_coefficients_b);
   }
 
