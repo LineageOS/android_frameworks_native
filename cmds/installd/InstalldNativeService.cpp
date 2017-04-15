@@ -617,11 +617,9 @@ binder::Status InstalldNativeService::fixupAppData(const std::unique_ptr<std::st
         ATRACE_BEGIN("fixup user");
         FTS* fts;
         FTSENT* p;
-        char *argv[] = {
-                (char*) create_data_user_ce_path(uuid_, user).c_str(),
-                (char*) create_data_user_de_path(uuid_, user).c_str(),
-                nullptr
-        };
+        auto ce_path = create_data_user_ce_path(uuid_, user);
+        auto de_path = create_data_user_de_path(uuid_, user);
+        char *argv[] = { (char*) ce_path.c_str(), (char*) de_path.c_str(), nullptr };
         if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
             return error("Failed to fts_open");
         }
@@ -950,11 +948,9 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
         for (auto user : get_known_users(uuid_)) {
             FTS *fts;
             FTSENT *p;
-            char *argv[] = {
-                    (char*) create_data_user_ce_path(uuid_, user).c_str(),
-                    (char*) create_data_user_de_path(uuid_, user).c_str(),
-                    nullptr
-            };
+            auto ce_path = create_data_user_ce_path(uuid_, user);
+            auto de_path = create_data_user_de_path(uuid_, user);
+            char *argv[] = { (char*) ce_path.c_str(), (char*) de_path.c_str(), nullptr };
             if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
                 return error("Failed to fts_open");
             }
