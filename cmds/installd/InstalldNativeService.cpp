@@ -395,7 +395,9 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
         }
 
         // Consider restorecon over contents if label changed
-        if (restorecon_app_data_lazy(path, seInfo, uid, existing)) {
+        if (restorecon_app_data_lazy(path, seInfo, uid, existing) ||
+                restorecon_app_data_lazy(path, "cache", seInfo, uid, existing) ||
+                restorecon_app_data_lazy(path, "code_cache", seInfo, uid, existing)) {
             return error("Failed to restorecon " + path);
         }
 
