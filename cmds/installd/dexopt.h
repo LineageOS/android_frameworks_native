@@ -62,12 +62,6 @@ int dexopt(const char *apk_path, uid_t uid, const char *pkgName, const char *ins
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
         const char* volume_uuid, const char* shared_libraries, const char* se_info);
 
-static constexpr size_t DEXOPT_PARAM_COUNT = 11U;
-static_assert(DEXOPT_PARAM_COUNT == 11U, "Unexpected dexopt param size");
-
-// Helper for the above, converting arguments.
-int dexopt(const char* const params[DEXOPT_PARAM_COUNT]);
-
 }  // namespace installd
 }  // namespace android
 
