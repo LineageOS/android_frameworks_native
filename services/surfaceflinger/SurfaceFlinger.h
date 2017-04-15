@@ -184,7 +184,8 @@ public:
 
     // returns the default Display
     sp<const DisplayDevice> getDefaultDisplayDevice() const {
-        return getDisplayDevice(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]);
+        Mutex::Autolock _l(mStateLock);
+        return getDefaultDisplayDeviceLocked();
     }
 
     // utility function to delete a texture on the main thread
@@ -305,7 +306,7 @@ private:
      * HWComposer::EventHandler interface
      */
     virtual void onVSyncReceived(HWComposer* composer, int type, nsecs_t timestamp);
-    virtual void onHotplugReceived(int disp, bool connected);
+    virtual void onHotplugReceived(HWComposer* composer, int disp, bool connected);
     virtual void onInvalidateReceived(HWComposer* composer);
 
     /* ------------------------------------------------------------------------
@@ -430,15 +431,32 @@ private:
     // Create an IBinder for a builtin display and add it to current state
     void createBuiltinDisplayLocked(DisplayDevice::DisplayType type);
 
-    // NOTE: can only be called from the main thread or with mStateLock held
+
     sp<const DisplayDevice> getDisplayDevice(const wp<IBinder>& dpy) const {
+      Mutex::Autolock _l(mStateLock);
+      return getDisplayDeviceLocked(dpy);
+    }
+
+    sp<DisplayDevice> getDisplayDevice(const wp<IBinder>& dpy) {
+      Mutex::Autolock _l(mStateLock);
+      return getDisplayDeviceLocked(dpy);
+    }
+
+    // NOTE: can only be called from the main thread or with mStateLock held
+    sp<const DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& dpy) const {
         return mDisplays.valueFor(dpy);
     }
 
     // NOTE: can only be called from the main thread or with mStateLock held
-    sp<DisplayDevice> getDisplayDevice(const wp<IBinder>& dpy) {
+    sp<DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& dpy) {
         return mDisplays.valueFor(dpy);
     }
+
+    sp<const DisplayDevice> getDefaultDisplayDeviceLocked() const {
+        return getDisplayDeviceLocked(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]);
+    }
+
+    void createDefaultDisplayDevice();
 
     int32_t getDisplayType(const sp<IBinder>& display) {
         if (!display.get()) return NAME_NOT_FOUND;
@@ -547,7 +565,7 @@ private:
      * VrFlinger
      */
     void clearHwcLayers(const LayerVector& layers);
-    void resetHwc();
+    void resetHwcLocked();
 
     // Check to see if we should handoff to vr flinger.
     void updateVrFlinger();
