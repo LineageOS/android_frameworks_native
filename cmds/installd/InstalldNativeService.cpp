@@ -1397,12 +1397,16 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
             collectManualStats(dePath, &stats);
             ATRACE_END();
 
-            ATRACE_BEGIN("profiles");
-            auto userProfilePath = create_primary_current_profile_package_dir_path(userId, pkgname);
-            calculate_tree_size(userProfilePath, &stats.dataSize);
-            auto refProfilePath = create_primary_reference_profile_package_dir_path(pkgname);
-            calculate_tree_size(refProfilePath, &stats.codeSize);
-            ATRACE_END();
+            if (!uuid) {
+                ATRACE_BEGIN("profiles");
+                calculate_tree_size(
+                        create_primary_current_profile_package_dir_path(userId, pkgname),
+                        &stats.dataSize);
+                calculate_tree_size(
+                        create_primary_reference_profile_package_dir_path(pkgname),
+                        &stats.codeSize);
+                ATRACE_END();
+            }
 
             ATRACE_BEGIN("external");
             auto extPath = create_data_media_package_path(uuid_, userId, "data", pkgname);
@@ -1412,15 +1416,15 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
             ATRACE_END();
         }
 
-        ATRACE_BEGIN("dalvik");
-        int32_t sharedGid = multiuser_get_shared_gid(userId, appId);
-        if (sharedGid != -1) {
-            calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
-                    sharedGid, -1);
+        if (!uuid) {
+            ATRACE_BEGIN("dalvik");
+            int32_t sharedGid = multiuser_get_shared_gid(userId, appId);
+            if (sharedGid != -1) {
+                calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
+                        sharedGid, -1);
+            }
+            ATRACE_END();
         }
-        calculate_tree_size(create_primary_cur_profile_dir_path(userId), &stats.dataSize,
-                multiuser_get_uid(userId, appId), -1);
-        ATRACE_END();
     }
 
     std::vector<int64_t> ret;
@@ -1498,12 +1502,14 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         collectManualStatsForUser(dePath, &stats, true);
         ATRACE_END();
 
-        ATRACE_BEGIN("profile");
-        auto userProfilePath = create_primary_cur_profile_dir_path(userId);
-        calculate_tree_size(userProfilePath, &stats.dataSize, -1, -1, true);
-        auto refProfilePath = create_primary_ref_profile_dir_path();
-        calculate_tree_size(refProfilePath, &stats.codeSize, -1, -1, true);
-        ATRACE_END();
+        if (!uuid) {
+            ATRACE_BEGIN("profile");
+            auto userProfilePath = create_primary_cur_profile_dir_path(userId);
+            calculate_tree_size(userProfilePath, &stats.dataSize, -1, -1, true);
+            auto refProfilePath = create_primary_ref_profile_dir_path();
+            calculate_tree_size(refProfilePath, &stats.codeSize, -1, -1, true);
+            ATRACE_END();
+        }
 
         ATRACE_BEGIN("external");
         uid_t uid = multiuser_get_uid(userId, AID_MEDIA_RW);
@@ -1520,12 +1526,14 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         }
         ATRACE_END();
 
-        ATRACE_BEGIN("dalvik");
-        calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
-                -1, -1, true);
-        calculate_tree_size(create_primary_cur_profile_dir_path(userId), &stats.dataSize,
-                -1, -1, true);
-        ATRACE_END();
+        if (!uuid) {
+            ATRACE_BEGIN("dalvik");
+            calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize,
+                    -1, -1, true);
+            calculate_tree_size(create_primary_cur_profile_dir_path(userId), &stats.dataSize,
+                    -1, -1, true);
+            ATRACE_END();
+        }
 
         ATRACE_BEGIN("quota");
         for (auto appId : appIds) {
@@ -1556,12 +1564,14 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
         collectManualStatsForUser(dePath, &stats);
         ATRACE_END();
 
-        ATRACE_BEGIN("profile");
-        auto userProfilePath = create_primary_cur_profile_dir_path(userId);
-        calculate_tree_size(userProfilePath, &stats.dataSize);
-        auto refProfilePath = create_primary_ref_profile_dir_path();
-        calculate_tree_size(refProfilePath, &stats.codeSize);
-        ATRACE_END();
+        if (!uuid) {
+            ATRACE_BEGIN("profile");
+            auto userProfilePath = create_primary_cur_profile_dir_path(userId);
+            calculate_tree_size(userProfilePath, &stats.dataSize);
+            auto refProfilePath = create_primary_ref_profile_dir_path();
+            calculate_tree_size(refProfilePath, &stats.codeSize);
+            ATRACE_END();
+        }
 
         ATRACE_BEGIN("external");
         auto dataMediaPath = create_data_media_path(uuid_, userId);
@@ -1572,10 +1582,12 @@ binder::Status InstalldNativeService::getUserSize(const std::unique_ptr<std::str
 #endif
         ATRACE_END();
 
-        ATRACE_BEGIN("dalvik");
-        calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize);
-        calculate_tree_size(create_primary_cur_profile_dir_path(userId), &stats.dataSize);
-        ATRACE_END();
+        if (!uuid) {
+            ATRACE_BEGIN("dalvik");
+            calculate_tree_size(create_data_dalvik_cache_path(), &stats.codeSize);
+            calculate_tree_size(create_primary_cur_profile_dir_path(userId), &stats.dataSize);
+            ATRACE_END();
+        }
     }
 
     std::vector<int64_t> ret;
