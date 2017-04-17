@@ -252,12 +252,6 @@ int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int so
  */
 int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** outBuffer);
 
-// ----------------------------------------------------------------------------
-// Everything below here is part of the public NDK API, but is intended only
-// for use by device-specific graphics drivers.
-struct native_handle;
-const struct native_handle* AHardwareBuffer_getNativeHandle(const AHardwareBuffer* buffer);
-
 __END_DECLS
 
 #endif // ANDROID_HARDWARE_BUFFER_H

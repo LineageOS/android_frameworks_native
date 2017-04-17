@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,18 @@
  * limitations under the License.
  */
 
-#include <android/hardware_buffer.h>
-#include <android/native_window.h>
-#include <vndk/hardware_buffer.h>
-#include <vndk/window.h>
+#ifndef ANDROID_VNDK_NATIVEWINDOW_AHARDWAREBUFFER_H
+#define ANDROID_VNDK_NATIVEWINDOW_AHARDWAREBUFFER_H
 
-// this checks that all these headers are C-compatible
+// vndk is a superset of the NDK
+#include <android/hardware_buffer.h>
+
+#include <cutils/native_handle.h>
+
+__BEGIN_DECLS
+
+const native_handle_t* AHardwareBuffer_getNativeHandle(const AHardwareBuffer* buffer);
+
+__END_DECLS
+
+#endif /* ANDROID_VNDK_NATIVEWINDOW_AHARDWAREBUFFER_H */

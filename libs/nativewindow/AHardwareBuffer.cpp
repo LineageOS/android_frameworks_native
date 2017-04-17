@@ -16,7 +16,7 @@
 
 #define LOG_TAG "AHardwareBuffer"
 
-#include <android/hardware_buffer.h>
+#include <vndk/hardware_buffer.h>
 
 #include <errno.h>
 #include <sys/socket.h>
@@ -261,7 +261,12 @@ int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** out
     return NO_ERROR;
 }
 
-const struct native_handle* AHardwareBuffer_getNativeHandle(
+
+// ----------------------------------------------------------------------------
+// VNDK functions
+// ----------------------------------------------------------------------------
+
+const native_handle_t* AHardwareBuffer_getNativeHandle(
         const AHardwareBuffer* buffer) {
     if (!buffer) return nullptr;
     const GraphicBuffer* gbuffer = AHardwareBuffer_to_GraphicBuffer(buffer);
