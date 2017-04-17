@@ -909,4 +909,36 @@ TEST_F(ChildLayerTest, DetachChildren) {
     }
 }
 
+TEST_F(ChildLayerTest, ChildrenInheritNonTransformScalingFromParent) {
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->show();
+    mChild->setPosition(0, 0);
+    mFGSurfaceControl->setPosition(0, 0);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // We've positioned the child in the top left.
+        mCapture->expectChildColor(0, 0);
+        // But it's only 10x10.
+        mCapture->expectFGColor(10, 10);
+    }
+
+    SurfaceComposerClient::openGlobalTransaction();
+    mFGSurfaceControl->setOverrideScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+    // We cause scaling by 2.
+    mFGSurfaceControl->setSize(128, 128);
+    SurfaceComposerClient::closeGlobalTransaction();
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // We've positioned the child in the top left.
+        mCapture->expectChildColor(0, 0);
+        mCapture->expectChildColor(10, 10);
+        mCapture->expectChildColor(19, 19);
+        // And now it should be scaled all the way to 20x20
+        mCapture->expectFGColor(20, 20);
+    }
+}
+
 }
