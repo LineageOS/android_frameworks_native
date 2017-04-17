@@ -260,6 +260,37 @@ TEST_F(EGLTest, EGLConfigFP16) {
     EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
 }
 
+TEST_F(EGLTest, EGL_KHR_no_config_context) {
+    if (!hasWideColorDisplay) {
+        // skip this test if device does not have wide-color display
+        return;
+    }
+
+    ASSERT_TRUE(hasEglExtension(mEglDisplay, "EGL_KHR_no_config_context"));
+
+    struct DummyConsumer : public BnConsumerListener {
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
+    };
+
+    std::vector<EGLint> contextAttributes;
+    contextAttributes.reserve(4);
+    contextAttributes.push_back(EGL_CONTEXT_CLIENT_VERSION);
+    contextAttributes.push_back(2);
+    contextAttributes.push_back(EGL_NONE);
+    contextAttributes.push_back(EGL_NONE);
+
+    EGLContext eglContext = eglCreateContext(mEglDisplay, EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT,
+                                             contextAttributes.data());
+    EXPECT_NE(EGL_NO_CONTEXT, eglContext);
+    EXPECT_EQ(EGL_SUCCESS, eglGetError());
+
+    if (eglContext != EGL_NO_CONTEXT) {
+        eglDestroyContext(mEglDisplay, eglContext);
+    }
+}
+
 // Emulate what a native application would do to create a
 // 10:10:10:2 surface.
 TEST_F(EGLTest, EGLConfig1010102) {
