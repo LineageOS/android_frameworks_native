@@ -28,18 +28,17 @@
 #include <gui/IGraphicBufferConsumer.h>
 #include <gui/BufferQueue.h>
 
-#define PIXEL_FORMAT_FLOAT "EGL_EXT_pixel_format_float"
-
-bool hasEglPixelFormatFloat() {
-    EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+bool hasEglExtension(EGLDisplay dpy, const char* extensionName) {
     const char* exts = eglQueryString(dpy, EGL_EXTENSIONS);
-    size_t cropExtLen = strlen(PIXEL_FORMAT_FLOAT);
+    size_t cropExtLen = strlen(extensionName);
     size_t extsLen = strlen(exts);
-    bool equal = !strcmp(PIXEL_FORMAT_FLOAT, exts);
-    bool atStart = !strncmp(PIXEL_FORMAT_FLOAT " ", exts, cropExtLen + 1);
+    bool equal = !strcmp(extensionName, exts);
+    android::String8 extString(extensionName);
+    android::String8 space(" ");
+    bool atStart = !strncmp(extString + space, exts, cropExtLen + 1);
     bool atEnd = (cropExtLen + 1) < extsLen &&
-            !strcmp(" " PIXEL_FORMAT_FLOAT, exts + extsLen - (cropExtLen + 1));
-    bool inMiddle = strstr(exts, " " PIXEL_FORMAT_FLOAT " ");
+            !strcmp(space + extString, exts + extsLen - (cropExtLen + 1));
+    bool inMiddle = strstr(exts, space + extString + space);
     return equal || atStart || atEnd || inMiddle;
 }
 
@@ -203,23 +202,20 @@ TEST_F(EGLTest, EGLConfigFP16) {
         return;
     }
 
-    ASSERT_TRUE(hasEglPixelFormatFloat());
+    ASSERT_TRUE(hasEglExtension(mEglDisplay, "EGL_EXT_pixel_format_float"));
 
-    EGLint attrs[] = {EGL_SURFACE_TYPE,
-                      EGL_WINDOW_BIT,
-                      EGL_RENDERABLE_TYPE,
-                      EGL_OPENGL_ES2_BIT,
-                      EGL_RED_SIZE,
-                      16,
-                      EGL_GREEN_SIZE,
-                      16,
-                      EGL_BLUE_SIZE,
-                      16,
-                      EGL_ALPHA_SIZE,
-                      16,
-                      EGL_COLOR_COMPONENT_TYPE_EXT,
-                      EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT,
-                      EGL_NONE};
+    EGLint attrs[] = {
+            // clang-format off
+            EGL_SURFACE_TYPE,             EGL_WINDOW_BIT,
+            EGL_RENDERABLE_TYPE,          EGL_OPENGL_ES2_BIT,
+            EGL_RED_SIZE,                 16,
+            EGL_GREEN_SIZE,               16,
+            EGL_BLUE_SIZE,                16,
+            EGL_ALPHA_SIZE,               16,
+            EGL_COLOR_COMPONENT_TYPE_EXT, EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT,
+            EGL_NONE,                     EGL_NONE
+            // clang-format on
+    };
     success = eglChooseConfig(mEglDisplay, attrs, &config, 1, &numConfigs);
     ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(1, numConfigs);
@@ -243,6 +239,77 @@ TEST_F(EGLTest, EGLConfigFP16) {
     EXPECT_GE(components[1], 16);
     EXPECT_GE(components[2], 16);
     EXPECT_GE(components[3], 16);
+
+    struct DummyConsumer : public BnConsumerListener {
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
+    };
+
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    consumer->consumerConnect(new DummyConsumer, false);
+    sp<Surface> mSTC = new Surface(producer);
+    sp<ANativeWindow> mANW = mSTC;
+
+    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), NULL);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    ASSERT_NE(EGL_NO_SURFACE, eglSurface);
+
+    EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
+}
+
+// Emulate what a native application would do to create a
+// 10:10:10:2 surface.
+TEST_F(EGLTest, EGLConfig1010102) {
+    EGLint numConfigs;
+    EGLConfig config;
+    EGLBoolean success;
+
+    if (!hasWideColorDisplay) {
+        // skip this test if device does not have wide-color display
+        return;
+    }
+
+    EGLint attrs[] = {
+            // clang-format off
+            EGL_SURFACE_TYPE,             EGL_WINDOW_BIT,
+            EGL_RENDERABLE_TYPE,          EGL_OPENGL_ES2_BIT,
+            EGL_SURFACE_TYPE,             EGL_WINDOW_BIT | EGL_PBUFFER_BIT,
+            EGL_RED_SIZE,                 10,
+            EGL_GREEN_SIZE,               10,
+            EGL_BLUE_SIZE,                10,
+            EGL_ALPHA_SIZE,               2,
+            EGL_COLOR_COMPONENT_TYPE_EXT, EGL_COLOR_COMPONENT_TYPE_FIXED_EXT,
+            EGL_NONE,                     EGL_NONE
+            // clang-format on
+    };
+    success = eglChooseConfig(mEglDisplay, attrs, &config, 1, &numConfigs);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(1, numConfigs);
+
+    EGLint components[4];
+    EGLint value;
+    eglGetConfigAttrib(mEglDisplay, config, EGL_CONFIG_ID, &value);
+
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_RED_SIZE, &components[0]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_GREEN_SIZE, &components[1]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_BLUE_SIZE, &components[2]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_ALPHA_SIZE, &components[3]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+
+    EXPECT_EQ(components[0], 10);
+    EXPECT_EQ(components[1], 10);
+    EXPECT_EQ(components[2], 10);
+    EXPECT_EQ(components[3], 2);
 
     struct DummyConsumer : public BnConsumerListener {
         void onFrameAvailable(const BufferItem& /* item */) override {}
