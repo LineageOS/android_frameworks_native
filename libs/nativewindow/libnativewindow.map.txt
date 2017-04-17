@@ -4,7 +4,6 @@ LIBNATIVEWINDOW {
     AHardwareBuffer_allocate;
     AHardwareBuffer_describe;
     AHardwareBuffer_fromHardwareBuffer;
-    AHardwareBuffer_getNativeHandle;
     AHardwareBuffer_lock;
     AHardwareBuffer_recvHandleFromUnixSocket;
     AHardwareBuffer_release;
