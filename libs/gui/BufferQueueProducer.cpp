@@ -721,6 +721,7 @@ status_t BufferQueueProducer::attachBuffer(int* outSlot,
     mSlots[*outSlot].mFence = Fence::NO_FENCE;
     mSlots[*outSlot].mRequestBufferCalled = true;
     mSlots[*outSlot].mAcquireCalled = false;
+    mSlots[*outSlot].mNeedsReallocation = false;
     mCore->mActiveBuffers.insert(found);
     VALIDATE_CONSISTENCY();
 
