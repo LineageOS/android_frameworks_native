@@ -108,6 +108,9 @@ public:
         // significantly faster than the sync_fence_info call underlying
         // getSignalTime(), which might otherwise appear to be the more obvious
         // way to check whether a fence has signaled.
+#ifdef EXYNOS_HWC_ARTIFACTS_FIX
+        return false;
+#endif
         switch (wait(0)) {
             case NO_ERROR:
                 return true;
