@@ -223,6 +223,10 @@ static const extention_map_t sExtensionMap[] = {
             (__eglMustCastToProperFunctionPointerType)&eglGetFrameTimestampsANDROID },
     { "eglGetFrameTimestampSupportedANDROID",
             (__eglMustCastToProperFunctionPointerType)&eglGetFrameTimestampSupportedANDROID },
+
+    // EGL_ANDROID_native_fence_sync
+    { "eglDupNativeFenceFDANDROID",
+            (__eglMustCastToProperFunctionPointerType)&eglDupNativeFenceFDANDROID },
 };
 
 /*
@@ -232,8 +236,7 @@ static const extention_map_t sExtensionMap[] = {
 #define FILTER_EXTENSIONS(procname) \
         (!strcmp((procname), "eglSetBlobCacheFuncsANDROID") ||    \
          !strcmp((procname), "eglHibernateProcessIMG")      ||    \
-         !strcmp((procname), "eglAwakenProcessIMG")         ||    \
-         !strcmp((procname), "eglDupNativeFenceFDANDROID"))
+         !strcmp((procname), "eglAwakenProcessIMG"))
 
 
 
