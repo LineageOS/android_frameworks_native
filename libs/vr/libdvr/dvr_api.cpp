@@ -53,14 +53,18 @@ DVR_EXPORT int dvrGetApi(void* api, size_t struct_size, int version) {
     dvr_api->write_buffer_post = dvrWriteBufferPost;
     dvr_api->write_buffer_gain = dvrWriteBufferGain;
     dvr_api->write_buffer_gain_async = dvrWriteBufferGainAsync;
+    dvr_api->write_buffer_get_native_handle = dvrWriteBufferGetNativeHandle;
 
     dvr_api->read_buffer_destroy = dvrReadBufferDestroy;
     dvr_api->read_buffer_get_ahardwarebuffer = dvrReadBufferGetAHardwareBuffer;
     dvr_api->read_buffer_acquire = dvrReadBufferAcquire;
     dvr_api->read_buffer_release = dvrReadBufferRelease;
     dvr_api->read_buffer_release_async = dvrReadBufferReleaseAsync;
+    dvr_api->read_buffer_get_native_handle = dvrReadBufferGetNativeHandle;
+
     dvr_api->buffer_destroy = dvrBufferDestroy;
     dvr_api->buffer_get_ahardwarebuffer = dvrBufferGetAHardwareBuffer;
+    dvr_api->buffer_get_native_handle = dvrBufferGetNativeHandle;
 
     // dvr_buffer_queue.h
     dvr_api->write_buffer_queue_destroy = dvrWriteBufferQueueDestroy;
