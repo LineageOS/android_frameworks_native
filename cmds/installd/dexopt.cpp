@@ -67,14 +67,6 @@ static unique_fd invalid_unique_fd() {
     return unique_fd(-1);
 }
 
-static const char* parse_null(const char* arg) {
-    if (strcmp(arg, "!") == 0) {
-        return nullptr;
-    } else {
-        return arg;
-    }
-}
-
 static bool clear_profile(const std::string& profile) {
     unique_fd ufd(open(profile.c_str(), O_WRONLY | O_NOFOLLOW | O_CLOEXEC));
     if (ufd.get() < 0) {
@@ -1861,21 +1853,6 @@ bool delete_odex(const char* apk_path, const char* instruction_set, const char* 
 
     // Report success.
     return return_value_oat && return_value_art;
-}
-
-int dexopt(const char* const params[DEXOPT_PARAM_COUNT]) {
-    return dexopt(params[0],                    // apk_path
-                  atoi(params[1]),              // uid
-                  params[2],                    // pkgname
-                  params[3],                    // instruction_set
-                  atoi(params[4]),              // dexopt_needed
-                  params[5],                    // oat_dir
-                  atoi(params[6]),              // dexopt_flags
-                  params[7],                    // compiler_filter
-                  parse_null(params[8]),        // volume_uuid
-                  parse_null(params[9]),        // shared_libraries
-                  parse_null(params[10]));       // se_info
-    static_assert(DEXOPT_PARAM_COUNT == 11U, "Unexpected dexopt param count");
 }
 
 }  // namespace installd
