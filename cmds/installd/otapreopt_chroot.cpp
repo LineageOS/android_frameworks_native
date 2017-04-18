@@ -27,7 +27,6 @@
 
 #include "installd_constants.h"
 #include "otapreopt_utils.h"
-#include "dexopt.h"
 
 #ifndef LOG_TAG
 #define LOG_TAG "otapreopt"
@@ -137,44 +136,18 @@ static int otapreopt_chroot(const int argc, char **arg) {
 
     // Now go on and run otapreopt.
 
-    // Incoming:  cmd + status-fd + target-slot + "dexopt" + dexopt-params + null
-    // Outgoing:  cmd             + target-slot + "dexopt" + dexopt-params + null
-    constexpr size_t kInArguments =   1                       // Binary name.
-                                    + 1                       // status file descriptor.
-                                    + 1                       // target-slot.
-                                    + 1                       // "dexopt."
-                                    + DEXOPT_PARAM_COUNT      // dexopt parameters.
-                                    + 1;                      // null termination.
-    constexpr size_t kOutArguments =   1                       // Binary name.
-                                     + 1                       // target-slot.
-                                     + 1                       // "dexopt."
-                                     + DEXOPT_PARAM_COUNT      // dexopt parameters.
-                                     + 1;                      // null termination.
-    const char* argv[kOutArguments];
-    if (static_cast<size_t>(argc) !=  kInArguments - 1 /* null termination */) {
-        LOG(ERROR) << "Unexpected argument size "
-                   << argc
-                   << " vs "
-                   << (kInArguments - 1);
-        for (size_t i = 0; i < static_cast<size_t>(argc); ++i) {
-            if (arg[i] == nullptr) {
-                LOG(ERROR) << "(null)";
-            } else {
-                LOG(ERROR) << "\"" << arg[i] << "\"";
-            }
-        }
-        exit(206);
-    }
+    // Incoming:  cmd + status-fd + target-slot + cmd... + null      | Incoming | = argc + 1
+    // Outgoing:  cmd             + target-slot + cmd... + null      | Outgoing | = argc
+    const char** argv = new const char*[argc];
+
     argv[0] = "/system/bin/otapreopt";
 
     // The first parameter is the status file descriptor, skip.
-
-    for (size_t i = 1; i <= kOutArguments - 2 /* cmd + null */; ++i) {
-        argv[i] = arg[i + 1];
+    for (size_t i = 2; i <= static_cast<size_t>(argc); ++i) {
+        argv[i - 1] = arg[i];
     }
-    argv[kOutArguments - 1] = nullptr;
 
-    execv(argv[0], (char * const *)argv);
+    execv(argv[0], static_cast<char * const *>(const_cast<char**>(argv)));
     PLOG(ERROR) << "execv(OTAPREOPT) failed.";
     exit(99);
 }
