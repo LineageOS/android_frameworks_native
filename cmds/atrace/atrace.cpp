@@ -552,7 +552,13 @@ static void pokeHalServices()
                 // ignore
                 continue;
             }
+
             sp<IBase> interface = interfaceRet;
+            if (interface == nullptr) {
+                // ignore
+                continue;
+            }
+
             auto notifyRet = interface->notifySyspropsChanged();
             if (!notifyRet.isOk()) {
                 // ignore
