@@ -136,4 +136,18 @@ int dvrBufferGetAHardwareBuffer(DvrBuffer* buffer,
   return 0;
 }
 
+const struct native_handle* dvrWriteBufferGetNativeHandle(
+    DvrWriteBuffer* write_buffer) {
+  return write_buffer->write_buffer->native_handle();
+}
+
+const struct native_handle* dvrReadBufferGetNativeHandle(
+    DvrReadBuffer* read_buffer) {
+  return read_buffer->read_buffer->native_handle();
+}
+
+const struct native_handle* dvrBufferGetNativeHandle(DvrBuffer* buffer) {
+  return buffer->buffer->handle();
+}
+
 }  // extern "C"
