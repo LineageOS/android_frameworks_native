@@ -3,14 +3,12 @@
 
 #include <android/dvr/BnVrComposerCallback.h>
 #include <android-base/unique_fd.h>
+#include <impl/vr_hwc.h>
 
 #include <deque>
 #include <functional>
 #include <mutex>
 #include <vector>
-
-#include "impl/vr_composer_view.h"
-#include "impl/vr_hwc.h"
 
 namespace android {
 

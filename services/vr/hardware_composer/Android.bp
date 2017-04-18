@@ -1,3 +1,51 @@
+cc_library_shared {
+  name: "libvr_hwc-hal",
+
+  srcs: [
+    "impl/vr_hwc.cpp",
+    "impl/vr_composer_client.cpp",
+  ],
+
+  static_libs: [
+    "libhwcomposer-client",
+    "libdisplay",
+    "libbufferhubqueue",
+    "libbufferhub",
+    "libpdx_default_transport",
+  ],
+
+  shared_libs: [
+    "android.frameworks.vr.composer@1.0",
+    "android.hardware.graphics.composer@2.1",
+    "libbase",
+    "libcutils",
+    "libfmq",
+    "libhardware",
+    "libhidlbase",
+    "libhidltransport",
+    "liblog",
+    "libsync",
+    "libui",
+    "libutils",
+  ],
+
+  export_static_lib_headers: [
+    "libhwcomposer-client",
+  ],
+
+  export_shared_lib_headers: [
+    "android.frameworks.vr.composer@1.0",
+    "android.hardware.graphics.composer@2.1",
+  ],
+
+  export_include_dirs: ["."],
+
+  cflags: [
+    "-DLOG_TAG=\"vr_hwc\"",
+  ],
+
+}
+
 cc_library_static {
   name: "libvr_hwc-binder",
   srcs: [
@@ -12,11 +60,12 @@ cc_library_static {
     export_aidl_headers: true,
   },
   export_include_dirs: ["aidl"],
+
   shared_libs: [
     "libbinder",
     "libui",
     "libutils",
-    "libvrhwc",
+    "libvr_hwc-hal",
   ],
 }
 
@@ -34,10 +83,10 @@ cc_library_static {
     "liblog",
     "libui",
     "libutils",
-    "libvrhwc",
+    "libvr_hwc-hal",
   ],
   export_shared_lib_headers: [
-    "libvrhwc",
+    "libvr_hwc-hal",
   ],
   cflags: [
     "-DLOG_TAG=\"vr_hwc\"",
@@ -65,7 +114,7 @@ cc_binary {
     "libhwbinder",
     "libui",
     "libutils",
-    "libvrhwc",
+    "libvr_hwc-hal",
   ],
   cflags: [
     "-DLOG_TAG=\"vr_hwc\"",

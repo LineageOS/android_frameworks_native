@@ -19,8 +19,8 @@
 #include <hardware/gralloc1.h>
 #include <log/log.h>
 
-#include "vr_hwc.h"
-#include "vr_composer_client.h"
+#include "impl/vr_hwc.h"
+#include "impl/vr_composer_client.h"
 
 namespace android {
 namespace dvr {
