@@ -17,4 +17,10 @@ cc_binary {
     ],
 
     init_rc: ["atrace.rc"],
+
+    product_variables: {
+        debuggable: {
+            init_rc: ["atrace_userdebug.rc"],
+        },
+    },
 }
