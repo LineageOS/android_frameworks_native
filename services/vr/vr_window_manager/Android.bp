@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-subdirs = [ "composer", ]
-
 native_src = [
     "application.cpp",
     "controller_mesh.cpp",
@@ -49,7 +47,6 @@ static_libs = [
 shared_libs = [
     "android.frameworks.vr.composer@1.0",
     "android.hardware.graphics.composer@2.1",
-    "libvrhwc",
     "libbase",
     "libbinder",
     "libinput",
@@ -66,6 +63,7 @@ shared_libs = [
     "libhidlbase",
     "libhidltransport",
     "liblog",
+    "libvr_hwc-hal",
 ]
 
 cc_binary {

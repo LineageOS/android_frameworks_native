@@ -2,7 +2,6 @@
 
 #include <android/dvr/IVrComposer.h>
 #include <binder/IServiceManager.h>
-#include <impl/vr_composer_view.h>
 #include <private/dvr/native_buffer.h>
 
 #include "hwc_callback.h"

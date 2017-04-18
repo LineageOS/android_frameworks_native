@@ -2,7 +2,6 @@
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
 #include <hwbinder/IPCThreadState.h>
-#include <impl/vr_composer_view.h>
 #include <impl/vr_hwc.h>
 
 #include "shell_view.h"

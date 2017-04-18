@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H_
-#define VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H_
+#ifndef ANDROID_DVR_HARDWARE_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H
+#define ANDROID_DVR_HARDWARE_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H
 
 #include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <ComposerClient.h>
@@ -68,4 +68,4 @@ class VrComposerClient : public ComposerClient {
 } // namespace dvr
 } // namespace android
 
-#endif  // VR_WINDOW_MANAGER_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H_
+#endif  // ANDROID_DVR_HARDWARE_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H
