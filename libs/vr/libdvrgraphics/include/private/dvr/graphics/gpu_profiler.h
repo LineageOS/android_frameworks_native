@@ -38,7 +38,7 @@ class GpuProfiler {
   // one of the TRACE_GPU* macros defined below.
   void SetEnableGpuTracing(bool enabled) { enable_gpu_tracing_ = enabled; }
 
-  bool enabled() const { return enable_gpu_tracing_; }
+  bool enabled() const { return enable_gpu_tracing_ && has_gl_context_; }
 
   // Attempt to keep the GPU times in sync with CPU times.
   void SetEnableSyncCpuTime(bool enabled) { sync_with_cpu_time_ = enabled; }
@@ -61,6 +61,14 @@ class GpuProfiler {
   // Records the end of a scoped GL trace event.
   void LeaveGlScope(const char* scope_name, std::weak_ptr<int64_t> duration_ns,
                     int print_period);
+
+  // Must be called when the GL context is created. The GpuProfiler will be
+  // inactive until this is called.
+  void OnGlContextCreated();
+
+  // Must be called before the GL context is destroyed. The GpuProfiler will be
+  // inactive until a call to OnGlContextCreated().
+  void OnGlContextDestroyed();
 
  private:
   // Data to queue the pending GPU timer queries that need to be polled
@@ -105,10 +113,19 @@ class GpuProfiler {
     void leave(int64_t timestamp_ns, const char* name,
                std::weak_ptr<int64_t> duration_ns, int print_period);
 
+    bool entered = false;
     int64_t total_elapsed_ns = 0;
     int64_t enter_timestamp_ns = 0;
     int num_events = 0;
   };
+
+  // Clear out events and free GL resources.
+  void Clear();
+
+  // Called when we detect that we've overflowed the pending query queue. This
+  // shouldn't occur in practice, and probably indicates some internal
+  // mismanagement of the gl query objects.
+  void OnPendingQueryOverflow();
 
   // Synchronises the GL timebase with the CallTraceManager timebase.
   void SyncGlTimebase();
@@ -118,6 +135,10 @@ class GpuProfiler {
 
   // Setting for enabling GPU tracing.
   bool enable_gpu_tracing_;
+
+  // True if we have a GL context, false otherwise. When the GpuProfiler is
+  // first created we assume no GL context.
+  bool has_gl_context_;
 
   // Setting for synchronizing GPU timestamps with CPU time.
   bool sync_with_cpu_time_;
