@@ -10,7 +10,6 @@
 
 namespace {
 
-static constexpr char kRGBPolynomialOffset[] = "persist.dvr.rgb_poly_offset";
 static constexpr char kRPolynomial[] = "persist.dvr.r_poly";
 static constexpr char kGPolynomial[] = "persist.dvr.g_poly";
 static constexpr char kBPolynomial[] = "persist.dvr.b_poly";
@@ -68,7 +67,9 @@ float GetInterLensDistance() { return GetProperty(kLensDistance, 0.064f); }
 
 float GetDisplayGap() { return GetProperty(kDisplayGap, 0.0f); }
 
-float GetVEyeToDisplay() { return GetProperty(kVEyeToDisplay, 0.035f); }
+float GetTrayToLensDistance() { return 0.035f; }
+
+float GetVEyeToDisplay() { return GetProperty(kVEyeToDisplay, 0.042f); }
 
 android::dvr::vec2 GetDisplaySize() {
   static const std::vector<float> default_size = {0.0742177f, 0.131943f};
@@ -110,33 +111,23 @@ namespace dvr {
 HeadMountMetrics CreateHeadMountMetrics(const FieldOfView& l_fov,
                                         const FieldOfView& r_fov) {
   static const std::vector<float> default_r = {
-      -4.08519004f,  34.70282075f, -67.37781249f, 56.97304235f,
-      -23.35768685f, 4.7199597f,   0.63198082f};
+      0.00103f, 2.63917f, -7.14427f, 8.98036f, -4.10586f, 0.83705f, 0.00130f};
   static const std::vector<float> default_g = {
-      4.43078318f, 3.47806617f, -20.58017398f, 20.85880414f,
-      -8.4046504f, 1.61284685f, 0.8881761f};
+      0.08944f, 2.26005f, -6.30924f, 7.94561f, -3.22788f, 0.45577f, 0.07300f};
   static const std::vector<float> default_b = {
-      12.04141265f, -21.98112491f, 14.06758389f, -3.15245629f,
-      0.36549102f,  0.05252705f,   0.99844279f};
-  static const std::vector<float> default_offsets = {
-      0.20971645238f, 0.15189450000f, 1.00096958278f};
-
-  std::vector<float> poly_offsets =
-      GetProperty(kRGBPolynomialOffset, default_offsets);
+      0.16364f, 1.94083f, -5.55033f, 6.89578f, -2.19053f, -0.04050f, 0.17380f};
   std::vector<float> poly_r = GetProperty(kRPolynomial, default_r);
   std::vector<float> poly_g = GetProperty(kGPolynomial, default_g);
   std::vector<float> poly_b = GetProperty(kBPolynomial, default_b);
-  if (poly_offsets.size() != 3)
-    poly_offsets = default_offsets;
 
   std::shared_ptr<ColorChannelDistortion> distortion_r(
-      new PolynomialRadialDistortion(poly_offsets[0], poly_r));
+      new PolynomialRadialDistortion(poly_r));
   std::shared_ptr<ColorChannelDistortion> distortion_g(
-      new PolynomialRadialDistortion(poly_offsets[1], poly_g));
+      new PolynomialRadialDistortion(poly_g));
   std::shared_ptr<ColorChannelDistortion> distortion_b(
-      new PolynomialRadialDistortion(poly_offsets[2], poly_b));
+      new PolynomialRadialDistortion(poly_b));
 
-  return HeadMountMetrics(GetInterLensDistance(), GetVEyeToDisplay(),
+  return HeadMountMetrics(GetInterLensDistance(), GetTrayToLensDistance(),
                           GetVEyeToDisplay(), kDefaultVerticalAlignment, l_fov,
                           r_fov, distortion_r, distortion_g, distortion_b,
                           HeadMountMetrics::EyeOrientation::kCCW0Degrees,
