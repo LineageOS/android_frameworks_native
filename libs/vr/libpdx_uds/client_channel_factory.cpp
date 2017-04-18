@@ -39,32 +39,42 @@ std::string ClientChannelFactory::GetEndpointPath(
 ClientChannelFactory::ClientChannelFactory(const std::string& endpoint_path)
     : endpoint_path_{GetEndpointPath(endpoint_path)} {}
 
+ClientChannelFactory::ClientChannelFactory(LocalHandle socket)
+    : socket_{std::move(socket)} {}
+
 std::unique_ptr<pdx::ClientChannelFactory> ClientChannelFactory::Create(
     const std::string& endpoint_path) {
   return std::unique_ptr<pdx::ClientChannelFactory>{
       new ClientChannelFactory{endpoint_path}};
 }
 
+std::unique_ptr<pdx::ClientChannelFactory> ClientChannelFactory::Create(
+    LocalHandle socket) {
+  return std::unique_ptr<pdx::ClientChannelFactory>{
+      new ClientChannelFactory{std::move(socket)}};
+}
+
 Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
     int64_t timeout_ms) const {
   Status<void> status;
 
-  LocalHandle socket_fd{socket(AF_UNIX, SOCK_STREAM, 0)};
-  if (!socket_fd) {
+  bool connected = socket_.IsValid();
+  if (!connected) {
+    socket_.Reset(socket(AF_UNIX, SOCK_STREAM, 0));
+    LOG_ALWAYS_FATAL_IF(
+        endpoint_path_.empty(),
+        "ClientChannelFactory::Connect: unspecified socket path");
+  }
+
+  if (!socket_) {
     ALOGE("ClientChannelFactory::Connect: socket error: %s", strerror(errno));
     return ErrorStatus(errno);
   }
-
-  sockaddr_un remote;
-  remote.sun_family = AF_UNIX;
-  strncpy(remote.sun_path, endpoint_path_.c_str(), sizeof(remote.sun_path));
-  remote.sun_path[sizeof(remote.sun_path) - 1] = '\0';
 
   bool use_timeout = (timeout_ms >= 0);
   auto now = steady_clock::now();
   auto time_end = now + std::chrono::milliseconds{timeout_ms};
 
-  bool connected = false;
   int max_eaccess = 5;  // Max number of times to retry when EACCES returned.
   while (!connected) {
     int64_t timeout = -1;
@@ -74,6 +84,10 @@ Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
       if (timeout < 0)
         return ErrorStatus(ETIMEDOUT);
     }
+    sockaddr_un remote;
+    remote.sun_family = AF_UNIX;
+    strncpy(remote.sun_path, endpoint_path_.c_str(), sizeof(remote.sun_path));
+    remote.sun_path[sizeof(remote.sun_path) - 1] = '\0';
     ALOGD("ClientChannelFactory: Waiting for endpoint at %s", remote.sun_path);
     status = WaitForEndpoint(endpoint_path_, timeout);
     if (!status)
@@ -81,7 +95,7 @@ Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
 
     ALOGD("ClientChannelFactory: Connecting to %s", remote.sun_path);
     int ret = RETRY_EINTR(connect(
-        socket_fd.Get(), reinterpret_cast<sockaddr*>(&remote), sizeof(remote)));
+        socket_.Get(), reinterpret_cast<sockaddr*>(&remote), sizeof(remote)));
     if (ret == -1) {
       ALOGD("ClientChannelFactory: Connect error %d: %s", errno,
             strerror(errno));
@@ -107,20 +121,20 @@ Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
       }
     } else {
       connected = true;
+      ALOGD("ClientChannelFactory: Connected successfully to %s...",
+            remote.sun_path);
     }
     if (use_timeout)
       now = steady_clock::now();
   }  // while (!connected)
 
-  ALOGD("ClientChannelFactory: Connected successfully to %s...",
-        remote.sun_path);
   RequestHeader<BorrowedHandle> request;
   InitRequest(&request, opcodes::CHANNEL_OPEN, 0, 0, false);
-  status = SendData(socket_fd.Borrow(), request);
+  status = SendData(socket_.Borrow(), request);
   if (!status)
     return ErrorStatus(status.error());
   ResponseHeader<LocalHandle> response;
-  status = ReceiveData(socket_fd.Borrow(), &response);
+  status = ReceiveData(socket_.Borrow(), &response);
   if (!status)
     return ErrorStatus(status.error());
   int ref = response.ret_code;
@@ -129,7 +143,7 @@ Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
 
   LocalHandle event_fd = std::move(response.file_descriptors[ref]);
   return ClientChannel::Create(ChannelManager::Get().CreateHandle(
-      std::move(socket_fd), std::move(event_fd)));
+      std::move(socket_), std::move(event_fd)));
 }
 
 }  // namespace uds
