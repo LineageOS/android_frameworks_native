@@ -789,40 +789,8 @@ private:
         return false;
     }
 
-    int RunPreopt() {
-        if (ShouldSkipPreopt()) {
-            return 0;
-        }
-
-        int dexopt_result = dexopt(package_parameters_.apk_path,
-                                   package_parameters_.uid,
-                                   package_parameters_.pkgName,
-                                   package_parameters_.instruction_set,
-                                   package_parameters_.dexopt_needed,
-                                   package_parameters_.oat_dir,
-                                   package_parameters_.dexopt_flags,
-                                   package_parameters_.compiler_filter,
-                                   package_parameters_.volume_uuid,
-                                   package_parameters_.shared_libraries,
-                                   package_parameters_.se_info);
-        if (dexopt_result == 0) {
-            return 0;
-        }
-
-        // If the dexopt failed, we may have a stale boot image from a previous OTA run.
-        // Then regenerate and retry.
-        if (WEXITSTATUS(dexopt_result) !=
-                static_cast<int>(art::dex2oat::ReturnCode::kCreateRuntime)) {
-            return dexopt_result;
-        }
-
-        if (!PrepareBootImage(/* force */ true)) {
-            LOG(ERROR) << "Forced boot image creating failed. Original error return was "
-                         << dexopt_result;
-            return dexopt_result;
-        }
-
-        LOG(WARNING) << "Original dexopt failed, re-trying after boot image was regenerated.";
+    // Run dexopt with the parameters of package_parameters_.
+    int Dexopt() {
         return dexopt(package_parameters_.apk_path,
                       package_parameters_.uid,
                       package_parameters_.pkgName,
@@ -834,6 +802,43 @@ private:
                       package_parameters_.volume_uuid,
                       package_parameters_.shared_libraries,
                       package_parameters_.se_info);
+    }
+
+    int RunPreopt() {
+        if (ShouldSkipPreopt()) {
+            return 0;
+        }
+
+        int dexopt_result = Dexopt();
+        if (dexopt_result == 0) {
+            return 0;
+        }
+
+        // If the dexopt failed, we may have a stale boot image from a previous OTA run.
+        // Then regenerate and retry.
+        if (WEXITSTATUS(dexopt_result) ==
+                static_cast<int>(art::dex2oat::ReturnCode::kCreateRuntime)) {
+            if (!PrepareBootImage(/* force */ true)) {
+                LOG(ERROR) << "Forced boot image creating failed. Original error return was "
+                        << dexopt_result;
+                return dexopt_result;
+            }
+
+            int dexopt_result_boot_image_retry = Dexopt();
+            if (dexopt_result_boot_image_retry == 0) {
+                return 0;
+            }
+        }
+
+        // If this was a profile-guided run, we may have profile version issues. Try to downgrade,
+        // if possible.
+        if ((package_parameters_.dexopt_flags & DEXOPT_PROFILE_GUIDED) == 0) {
+            return dexopt_result;
+        }
+
+        LOG(WARNING) << "Downgrading compiler filter in an attempt to progress compilation";
+        package_parameters_.dexopt_flags &= ~DEXOPT_PROFILE_GUIDED;
+        return Dexopt();
     }
 
     ////////////////////////////////////
