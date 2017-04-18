@@ -7,6 +7,12 @@
 namespace android {
 namespace dvr {
 
+namespace {
+
+constexpr int kMaxPendingQueries = 32;
+
+}  // anonynmous namespace
+
 static int64_t AdjustTimerQueryToNs(int64_t gpu_time) { return gpu_time; }
 
 void GpuProfiler::TimerData::reset() {
@@ -21,6 +27,7 @@ void GpuProfiler::TimerData::print(const char* name) const {
 
 // Enter a scope, records the timestamp for later matching with leave.
 void GpuProfiler::TimerData::enter(int64_t timestamp_ns) {
+  entered = true;
   enter_timestamp_ns = timestamp_ns;
 }
 
@@ -28,6 +35,15 @@ void GpuProfiler::TimerData::enter(int64_t timestamp_ns) {
 void GpuProfiler::TimerData::leave(int64_t timestamp_ns, const char* name,
                                    std::weak_ptr<int64_t> duration_ns,
                                    int print_period) {
+  if (!entered) {
+    // We got the leave event but are missing the enter. This can happen if
+    // OnPendingQueryOverflow() is called, or if the calls to enter()/leave()
+    // aren't properly balanced. Ignore the call but print a warning.
+    ALOGW("Ignoring GpuProfiler::TimerData::leave event with no enter event");
+    return;
+  }
+  entered = false;
+
   int64_t elapsed = timestamp_ns - enter_timestamp_ns;
   if (elapsed > 1000 * 1000 * 1000) {
     // More than one second, drop it as invalid data.
@@ -50,12 +66,12 @@ GpuProfiler* GpuProfiler::Get() {
 
 GpuProfiler::GpuProfiler()
     : enable_gpu_tracing_(true),
+      has_gl_context_(false),
       sync_with_cpu_time_(false),
       gl_timer_offset_ns_(0) {
-  SyncGlTimebase();
 }
 
-GpuProfiler::~GpuProfiler() {}
+GpuProfiler::~GpuProfiler() { Clear(); }
 
 bool GpuProfiler::IsGpuProfilingSupported() const {
   // TODO(jbates) check for GL_EXT_disjoint_timer_query
@@ -63,6 +79,9 @@ bool GpuProfiler::IsGpuProfilingSupported() const {
 }
 
 GLuint GpuProfiler::TryAllocateGlQueryId() {
+  if (pending_gpu_queries_.size() >= kMaxPendingQueries)
+    OnPendingQueryOverflow();
+
   GLuint query_id = 0;
   if (gl_timer_query_id_pool_.empty()) {
     glGenQueries(1, &query_id);
@@ -93,6 +112,35 @@ void GpuProfiler::LeaveGlScope(const char* scope_name,
         GpuTimerQuery(GetSystemClockNs(), scope_name, duration_ns, print_period,
                       query_id, GpuTimerQuery::kQueryEndScope));
   }
+}
+
+void GpuProfiler::OnGlContextCreated() {
+  has_gl_context_ = true;
+  gl_timer_offset_ns_ = 0;
+  SyncGlTimebase();
+}
+
+void GpuProfiler::OnGlContextDestroyed() {
+  has_gl_context_ = false;
+  Clear();
+}
+
+void GpuProfiler::Clear() {
+  events_.clear();
+  for (auto& query : pending_gpu_queries_)
+    glDeleteQueries(1, &query.query_id);
+  pending_gpu_queries_.clear();
+  while (!gl_timer_query_id_pool_.empty()) {
+    GLuint id = gl_timer_query_id_pool_.top();
+    gl_timer_query_id_pool_.pop();
+    glDeleteQueries(1, &id);
+  }
+}
+
+void GpuProfiler::OnPendingQueryOverflow() {
+  ALOGW("Reached limit of %d pending queries in GpuProfiler."
+        " Clearing all queries.", kMaxPendingQueries);
+  Clear();
 }
 
 void GpuProfiler::SyncGlTimebase() {

@@ -403,6 +403,7 @@ bool Compositor::InitializeEGL() {
   }
 
   load_gl_extensions();
+  GpuProfiler::Get()->OnGlContextCreated();
 
   glEnable(BINNING_CONTROL_HINT_QCOM);
   glHint(BINNING_CONTROL_HINT_QCOM, RENDER_DIRECT_TO_FRAMEBUFFER_QCOM);
@@ -438,6 +439,7 @@ void Compositor::Shutdown() {
   eds_renderer_.reset();
 
   if (context_) {
+    GpuProfiler::Get()->OnGlContextDestroyed();
     eglDestroyContext(display_, context_);
     context_ = 0;
   }
