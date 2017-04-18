@@ -1,6 +1,7 @@
 #include "include/dvr/display_manager_client.h"
 
 #include <dvr/dvr_buffer.h>
+#include <private/android/AHardwareBufferHelpers.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/display_manager_client_impl.h>
 
@@ -44,10 +45,11 @@ void dvrDisplayManagerClientDestroy(DvrDisplayManagerClient* client) {
 
 DvrBuffer* dvrDisplayManagerSetupNamedBuffer(DvrDisplayManagerClient* client,
                                              const char* name, size_t size,
-                                             uint64_t producer_usage,
-                                             uint64_t consumer_usage) {
-  // TODO(hendrikw): When we move to gralloc1, pass both producer_usage and
-  // consumer_usage down.
+                                             uint64_t usage0, uint64_t usage1) {
+  uint64_t producer_usage = 0;
+  uint64_t consumer_usage = 0;
+  android::AHardwareBuffer_convertToGrallocUsageBits(
+      &producer_usage, &consumer_usage, usage0, usage1);
   auto ion_buffer = client->client->SetupNamedBuffer(name, size, producer_usage,
                                                      consumer_usage);
   if (ion_buffer) {

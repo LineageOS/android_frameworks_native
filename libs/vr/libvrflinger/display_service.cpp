@@ -208,17 +208,17 @@ void DisplayService::OnSetViewerParams(pdx::Message& message,
 
   // We should always have a red distortion.
   LOG_FATAL_IF(view_params.distortion_coefficients_r.empty());
-  red_distortion = std::make_shared<PolynomialRadialDistortion>(0.0f,
-      view_params.distortion_coefficients_r);
+  red_distortion = std::make_shared<PolynomialRadialDistortion>(
+      0.0f, view_params.distortion_coefficients_r);
 
   if (!view_params.distortion_coefficients_g.empty()) {
-    green_distortion = std::make_shared<PolynomialRadialDistortion>(0.0f,
-        view_params.distortion_coefficients_g);
+    green_distortion = std::make_shared<PolynomialRadialDistortion>(
+        0.0f, view_params.distortion_coefficients_g);
   }
 
   if (!view_params.distortion_coefficients_b.empty()) {
-    blue_distortion = std::make_shared<PolynomialRadialDistortion>(0.0f,
-        view_params.distortion_coefficients_b);
+    blue_distortion = std::make_shared<PolynomialRadialDistortion>(
+        0.0f, view_params.distortion_coefficients_b);
   }
 
   HeadMountMetrics::EyeOrientation left_orientation =
@@ -331,11 +331,9 @@ pdx::Status<BorrowedNativeBufferHandle> DisplayService::SetupNamedBuffer(
     int consumer_usage) {
   auto named_buffer = named_buffers_.find(name);
   if (named_buffer == named_buffers_.end()) {
-    // TODO(hendrikw): Update BufferProducer to take producer_usage and
-    // consumer_usage flags.
     auto ion_buffer = std::make_unique<IonBuffer>(
-        static_cast<int>(size), 1, HAL_PIXEL_FORMAT_BLOB,
-        producer_usage | consumer_usage);
+        static_cast<int>(size), 1, HAL_PIXEL_FORMAT_BLOB, producer_usage,
+        consumer_usage);
     named_buffer =
         named_buffers_.insert(std::make_pair(name, std::move(ion_buffer)))
             .first;
