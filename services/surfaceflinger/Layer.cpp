@@ -2617,6 +2617,21 @@ Transform Layer::getTransform() const {
     const auto& p = getParent();
     if (p != nullptr) {
         t = p->getTransform();
+
+        // If the parent is not using NATIVE_WINDOW_SCALING_MODE_FREEZE (e.g.
+        // it isFixedSize) then there may be additional scaling not accounted
+        // for in the transform. We need to mirror this scaling in child surfaces
+        // or we will break the contract where WM can treat child surfaces as
+        // pixels in the parent surface.
+        if (p->isFixedSize()) {
+            float sx = p->getDrawingState().active.w /
+                    static_cast<float>(p->mActiveBuffer->getWidth());
+            float sy = p->getDrawingState().active.h /
+                    static_cast<float>(p->mActiveBuffer->getHeight());
+            Transform extraParentScaling;
+            extraParentScaling.set(sx, 0, 0, sy);
+            t = t * extraParentScaling;
+        }
     }
     return t * getDrawingState().active.transform;
 }
