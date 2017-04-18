@@ -22,8 +22,7 @@ void dvrDisplayManagerClientDestroy(DvrDisplayManagerClient* client);
 
 DvrBuffer* dvrDisplayManagerSetupNamedBuffer(DvrDisplayManagerClient* client,
                                              const char* name, size_t size,
-                                             uint64_t producer_usage,
-                                             uint64_t consumer_usage);
+                                             uint64_t usage0, uint64_t usage1);
 
 // Return an event fd for checking if there was an event on the server
 // Note that the only event which will be flagged is POLLIN. You must use

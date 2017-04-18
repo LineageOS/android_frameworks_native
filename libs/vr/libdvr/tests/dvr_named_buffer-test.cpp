@@ -116,6 +116,34 @@ TEST_F(DvrNamedBufferTest, TestMultipleNamedBuffers) {
   dvrBufferDestroy(buffer2);
 }
 
+TEST_F(DvrNamedBufferTest, TestNamedBufferUsage) {
+  const char* buffer_name = "buffer_usage";
+
+  // Set usage0 to AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE. We use this because
+  // internally AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE is converted to
+  // GRALLOC1_CONSUMER_USAGE_VIDEO_ENCODER, and these two values are different.
+  // If all is good, when we get the AHardwareBuffer, it should be converted
+  // back to AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE.
+  const int64_t usage0 = AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE;
+
+  DvrBuffer* setup_buffer =
+      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, usage0, 0);
+  ASSERT_NE(nullptr, setup_buffer);
+
+  AHardwareBuffer* hardware_buffer = nullptr;
+  int e2 = dvrBufferGetAHardwareBuffer(setup_buffer, &hardware_buffer);
+  ASSERT_EQ(0, e2);
+  ASSERT_NE(nullptr, hardware_buffer);
+
+  AHardwareBuffer_Desc desc = {};
+  AHardwareBuffer_describe(hardware_buffer, &desc);
+
+  ASSERT_EQ(desc.usage0, AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE);
+
+  dvrBufferDestroy(setup_buffer);
+}
+
+
 }  // namespace
 
 }  // namespace dvr
