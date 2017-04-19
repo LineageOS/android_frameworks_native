@@ -313,8 +313,7 @@ private:
                                         + 1   // filter
                                         + 1   // volume
                                         + 1   // libs
-                                        + 1   // seinfo
-                                        + 1;  // null
+                                        + 1;  // seinfo
             if (argc == kV2ArgCount) {
                 return ReadArgumentsV2(argc, argv, false);
             } else {
