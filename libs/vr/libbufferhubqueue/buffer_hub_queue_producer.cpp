@@ -450,7 +450,9 @@ status_t BufferHubQueueProducer::disconnect(int api, DisconnectMode /*mode*/) {
 
   std::unique_lock<std::mutex> lock(core_->mutex_);
 
-  if (api != core_->connected_api_) {
+  if (BufferHubQueueCore::kNoConnectedApi == core_->connected_api_) {
+    return NO_INIT;
+  } else if (api != core_->connected_api_) {
     return BAD_VALUE;
   }
 
