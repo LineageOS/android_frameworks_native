@@ -18,6 +18,7 @@ struct native_handle;
 // Write buffer
 void dvrWriteBufferDestroy(DvrWriteBuffer* write_buffer);
 int dvrWriteBufferGetId(DvrWriteBuffer* write_buffer);
+// Caller must call AHardwareBuffer_release on hardware_buffer.
 int dvrWriteBufferGetAHardwareBuffer(DvrWriteBuffer* write_buffer,
                                      AHardwareBuffer** hardware_buffer);
 int dvrWriteBufferPost(DvrWriteBuffer* write_buffer, int ready_fence_fd,
@@ -30,6 +31,7 @@ const struct native_handle* dvrWriteBufferGetNativeHandle(
 // Read buffer
 void dvrReadBufferDestroy(DvrReadBuffer* read_buffer);
 int dvrReadBufferGetId(DvrReadBuffer* read_buffer);
+// Caller must call AHardwareBuffer_release on hardware_buffer.
 int dvrReadBufferGetAHardwareBuffer(DvrReadBuffer* read_buffer,
                                     AHardwareBuffer** hardware_buffer);
 int dvrReadBufferAcquire(DvrReadBuffer* read_buffer, int* ready_fence_fd,
@@ -41,6 +43,7 @@ const struct native_handle* dvrReadBufferGetNativeHandle(
 
 // Buffer
 void dvrBufferDestroy(DvrBuffer* buffer);
+// Caller must call AHardwareBuffer_release on hardware_buffer.
 int dvrBufferGetAHardwareBuffer(DvrBuffer* buffer,
                                 AHardwareBuffer** hardware_buffer);
 const struct native_handle* dvrBufferGetNativeHandle(DvrBuffer* buffer);
