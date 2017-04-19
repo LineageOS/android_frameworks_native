@@ -19,7 +19,6 @@ sourceFiles = [
     "display_metrics.cpp",
     "distortion_renderer.cpp",
     "device_metrics.cpp",
-    "lookup_radial_distortion.cpp",
     "polynomial_radial_distortion.cpp",
 ]
 
