@@ -1,5 +1,6 @@
 #include "include/dvr/dvr_buffer.h"
 
+#include <android/hardware_buffer.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <ui/GraphicBuffer.h>
 
@@ -54,6 +55,16 @@ void InitializeGraphicBuffer(const dvr::BufferHubBuffer* buffer,
       false /* keep ownership */));
 }
 
+int ConvertToAHardwareBuffer(GraphicBuffer* graphic_buffer,
+                             AHardwareBuffer** hardware_buffer) {
+  if (!hardware_buffer || !graphic_buffer) {
+    return -EINVAL;
+  }
+  *hardware_buffer = reinterpret_cast<AHardwareBuffer*>(graphic_buffer);
+  AHardwareBuffer_acquire(*hardware_buffer);
+  return 0;
+}
+
 }  // anonymous namespace
 
 extern "C" {
@@ -68,9 +79,8 @@ int dvrWriteBufferGetId(DvrWriteBuffer* write_buffer) {
 
 int dvrWriteBufferGetAHardwareBuffer(DvrWriteBuffer* write_buffer,
                                      AHardwareBuffer** hardware_buffer) {
-  *hardware_buffer = reinterpret_cast<AHardwareBuffer*>(
-      write_buffer->write_buffer->buffer()->buffer().get());
-  return 0;
+  return ConvertToAHardwareBuffer(
+      write_buffer->write_buffer->buffer()->buffer().get(), hardware_buffer);
 }
 
 int dvrWriteBufferPost(DvrWriteBuffer* write_buffer, int ready_fence_fd,
@@ -99,9 +109,8 @@ int dvrReadBufferGetId(DvrReadBuffer* read_buffer) {
 
 int dvrReadBufferGetAHardwareBuffer(DvrReadBuffer* read_buffer,
                                     AHardwareBuffer** hardware_buffer) {
-  *hardware_buffer = reinterpret_cast<AHardwareBuffer*>(
-      read_buffer->read_buffer->buffer()->buffer().get());
-  return 0;
+  return ConvertToAHardwareBuffer(
+      read_buffer->read_buffer->buffer()->buffer().get(), hardware_buffer);
 }
 
 int dvrReadBufferAcquire(DvrReadBuffer* read_buffer, int* ready_fence_fd,
@@ -127,13 +136,8 @@ void dvrBufferDestroy(DvrBuffer* buffer) { delete buffer; }
 
 int dvrBufferGetAHardwareBuffer(DvrBuffer* buffer,
                                 AHardwareBuffer** hardware_buffer) {
-  if (!hardware_buffer) {
-    return -EINVAL;
-  }
-
-  *hardware_buffer =
-      reinterpret_cast<AHardwareBuffer*>(buffer->buffer->buffer().get());
-  return 0;
+  return ConvertToAHardwareBuffer(buffer->buffer->buffer().get(),
+                                  hardware_buffer);
 }
 
 }  // extern "C"
