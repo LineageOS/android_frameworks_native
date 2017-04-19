@@ -18,6 +18,150 @@ namespace android {
 namespace pdx {
 namespace uds {
 
+namespace {
+
+// Default implementations of Send/Receive interfaces to use standard socket
+// send/sendmsg/recv/recvmsg functions.
+class SocketSender : public SendInterface {
+ public:
+  ssize_t Send(int socket_fd, const void* data, size_t size,
+               int flags) override {
+    return send(socket_fd, data, size, flags);
+  }
+  ssize_t SendMessage(int socket_fd, const msghdr* msg, int flags) override {
+    return sendmsg(socket_fd, msg, flags);
+  }
+} g_socket_sender;
+
+class SocketReceiver : public RecvInterface {
+ public:
+  ssize_t Receive(int socket_fd, void* data, size_t size, int flags) override {
+    return recv(socket_fd, data, size, flags);
+  }
+  ssize_t ReceiveMessage(int socket_fd, msghdr* msg, int flags) override {
+    return recvmsg(socket_fd, msg, flags);
+  }
+} g_socket_receiver;
+
+}  // anonymous namespace
+
+// Helper wrappers around send()/sendmsg() which repeat send() calls on data
+// that was not sent with the initial call to send/sendmsg. This is important to
+// handle transmissions interrupted by signals.
+Status<void> SendAll(SendInterface* sender, const BorrowedHandle& socket_fd,
+                     const void* data, size_t size) {
+  Status<void> ret;
+  const uint8_t* ptr = static_cast<const uint8_t*>(data);
+  while (size > 0) {
+    ssize_t size_written =
+        RETRY_EINTR(sender->Send(socket_fd.Get(), ptr, size, MSG_NOSIGNAL));
+    if (size_written < 0) {
+      ret.SetError(errno);
+      ALOGE("SendAll: Failed to send data over socket: %s",
+            ret.GetErrorMessage().c_str());
+      break;
+    }
+    size -= size_written;
+    ptr += size_written;
+  }
+  return ret;
+}
+
+Status<void> SendMsgAll(SendInterface* sender, const BorrowedHandle& socket_fd,
+                        const msghdr* msg) {
+  Status<void> ret;
+  ssize_t sent_size =
+      RETRY_EINTR(sender->SendMessage(socket_fd.Get(), msg, MSG_NOSIGNAL));
+  if (sent_size < 0) {
+    ret.SetError(errno);
+    ALOGE("SendMsgAll: Failed to send data over socket: %s",
+          ret.GetErrorMessage().c_str());
+    return ret;
+  }
+
+  ssize_t chunk_start_offset = 0;
+  for (size_t i = 0; i < msg->msg_iovlen; i++) {
+    ssize_t chunk_end_offset = chunk_start_offset + msg->msg_iov[i].iov_len;
+    if (sent_size < chunk_end_offset) {
+      size_t offset_within_chunk = sent_size - chunk_start_offset;
+      size_t data_size = msg->msg_iov[i].iov_len - offset_within_chunk;
+      const uint8_t* chunk_base =
+          static_cast<const uint8_t*>(msg->msg_iov[i].iov_base);
+      ret = SendAll(sender, socket_fd, chunk_base + offset_within_chunk,
+                    data_size);
+      if (!ret)
+        break;
+      sent_size += data_size;
+    }
+    chunk_start_offset = chunk_end_offset;
+  }
+  return ret;
+}
+
+// Helper wrappers around recv()/recvmsg() which repeat recv() calls on data
+// that was not received with the initial call to recvmsg(). This is important
+// to handle transmissions interrupted by signals as well as the case when
+// initial data did not arrive in a single chunk over the socket (e.g. socket
+// buffer was full at the time of transmission, and only portion of initial
+// message was sent and the rest was blocked until the buffer was cleared by the
+// receiving side).
+Status<void> RecvMsgAll(RecvInterface* receiver,
+                        const BorrowedHandle& socket_fd, msghdr* msg) {
+  Status<void> ret;
+  ssize_t size_read = RETRY_EINTR(receiver->ReceiveMessage(
+      socket_fd.Get(), msg, MSG_WAITALL | MSG_CMSG_CLOEXEC));
+  if (size_read < 0) {
+    ret.SetError(errno);
+    ALOGE("RecvMsgAll: Failed to receive data from socket: %s",
+          ret.GetErrorMessage().c_str());
+    return ret;
+  } else if (size_read == 0) {
+    ret.SetError(ESHUTDOWN);
+    ALOGW("RecvMsgAll: Socket has been shut down");
+    return ret;
+  }
+
+  ssize_t chunk_start_offset = 0;
+  for (size_t i = 0; i < msg->msg_iovlen; i++) {
+    ssize_t chunk_end_offset = chunk_start_offset + msg->msg_iov[i].iov_len;
+    if (size_read < chunk_end_offset) {
+      size_t offset_within_chunk = size_read - chunk_start_offset;
+      size_t data_size = msg->msg_iov[i].iov_len - offset_within_chunk;
+      uint8_t* chunk_base = static_cast<uint8_t*>(msg->msg_iov[i].iov_base);
+      ret = RecvAll(receiver, socket_fd, chunk_base + offset_within_chunk,
+                    data_size);
+      if (!ret)
+        break;
+      size_read += data_size;
+    }
+    chunk_start_offset = chunk_end_offset;
+  }
+  return ret;
+}
+
+Status<void> RecvAll(RecvInterface* receiver, const BorrowedHandle& socket_fd,
+                     void* data, size_t size) {
+  Status<void> ret;
+  uint8_t* ptr = static_cast<uint8_t*>(data);
+  while (size > 0) {
+    ssize_t size_read = RETRY_EINTR(receiver->Receive(
+        socket_fd.Get(), ptr, size, MSG_WAITALL | MSG_CMSG_CLOEXEC));
+    if (size_read < 0) {
+      ret.SetError(errno);
+      ALOGE("RecvAll: Failed to receive data from socket: %s",
+            ret.GetErrorMessage().c_str());
+      break;
+    } else if (size_read == 0) {
+      ret.SetError(ESHUTDOWN);
+      ALOGW("RecvAll: Socket has been shut down");
+      break;
+    }
+    size -= size_read;
+    ptr += size_read;
+  }
+  return ret;
+}
+
 uint32_t kMagicPreamble = 0x7564736d;  // 'udsm'.
 
 struct MessagePreamble {
@@ -32,17 +176,14 @@ Status<void> SendPayload::Send(const BorrowedHandle& socket_fd) {
 
 Status<void> SendPayload::Send(const BorrowedHandle& socket_fd,
                                const ucred* cred) {
+  SendInterface* sender = sender_ ? sender_ : &g_socket_sender;
   MessagePreamble preamble;
   preamble.magic = kMagicPreamble;
   preamble.data_size = buffer_.size();
   preamble.fd_count = file_handles_.size();
-
-  ssize_t ret = RETRY_EINTR(
-      send(socket_fd.Get(), &preamble, sizeof(preamble), MSG_NOSIGNAL));
-  if (ret < 0)
-    return ErrorStatus(errno);
-  if (ret != sizeof(preamble))
-    return ErrorStatus(EIO);
+  Status<void> ret = SendAll(sender, socket_fd, &preamble, sizeof(preamble));
+  if (!ret)
+    return ret;
 
   msghdr msg = {};
   iovec recv_vect = {buffer_.data(), buffer_.size()};
@@ -72,12 +213,7 @@ Status<void> SendPayload::Send(const BorrowedHandle& socket_fd,
     }
   }
 
-  ret = RETRY_EINTR(sendmsg(socket_fd.Get(), &msg, MSG_NOSIGNAL));
-  if (ret < 0)
-    return ErrorStatus(errno);
-  if (static_cast<size_t>(ret) != buffer_.size())
-    return ErrorStatus(EIO);
-  return {};
+  return SendMsgAll(sender, socket_fd, &msg);
 }
 
 // MessageWriter
@@ -132,15 +268,16 @@ Status<void> ReceivePayload::Receive(const BorrowedHandle& socket_fd) {
 
 Status<void> ReceivePayload::Receive(const BorrowedHandle& socket_fd,
                                      ucred* cred) {
+  RecvInterface* receiver = receiver_ ? receiver_ : &g_socket_receiver;
   MessagePreamble preamble;
-  ssize_t ret = RETRY_EINTR(
-      recv(socket_fd.Get(), &preamble, sizeof(preamble), MSG_WAITALL));
-  if (ret < 0)
-    return ErrorStatus(errno);
-  else if (ret == 0)
-    return ErrorStatus(ESHUTDOWN);
-  else if (ret != sizeof(preamble) || preamble.magic != kMagicPreamble)
-    return ErrorStatus(EIO);
+  Status<void> ret = RecvAll(receiver, socket_fd, &preamble, sizeof(preamble));
+  if (!ret)
+    return ret;
+
+  if (preamble.magic != kMagicPreamble) {
+    ret.SetError(EIO);
+    return ret;
+  }
 
   buffer_.resize(preamble.data_size);
   file_handles_.clear();
@@ -159,13 +296,9 @@ Status<void> ReceivePayload::Receive(const BorrowedHandle& socket_fd,
     msg.msg_control = alloca(msg.msg_controllen);
   }
 
-  ret = RETRY_EINTR(recvmsg(socket_fd.Get(), &msg, MSG_WAITALL));
-  if (ret < 0)
-    return ErrorStatus(errno);
-  else if (ret == 0)
-    return ErrorStatus(ESHUTDOWN);
-  else if (static_cast<uint32_t>(ret) != preamble.data_size)
-    return ErrorStatus(EIO);
+  ret = RecvMsgAll(receiver, socket_fd, &msg);
+  if (!ret)
+    return ret;
 
   bool cred_available = false;
   file_handles_.reserve(preamble.fd_count);
@@ -186,11 +319,10 @@ Status<void> ReceivePayload::Receive(const BorrowedHandle& socket_fd,
     cmsg = CMSG_NXTHDR(&msg, cmsg);
   }
 
-  if (cred && !cred_available) {
-    return ErrorStatus(EIO);
-  }
+  if (cred && !cred_available)
+    ret.SetError(EIO);
 
-  return {};
+  return ret;
 }
 
 // MessageReader
@@ -223,13 +355,7 @@ bool ReceivePayload::GetChannelHandle(ChannelReference /*ref*/,
 
 Status<void> SendData(const BorrowedHandle& socket_fd, const void* data,
                       size_t size) {
-  ssize_t size_written =
-      RETRY_EINTR(send(socket_fd.Get(), data, size, MSG_NOSIGNAL));
-  if (size_written < 0)
-    return ErrorStatus(errno);
-  if (static_cast<size_t>(size_written) != size)
-    return ErrorStatus(EIO);
-  return {};
+  return SendAll(&g_socket_sender, socket_fd, data, size);
 }
 
 Status<void> SendDataVector(const BorrowedHandle& socket_fd, const iovec* data,
@@ -237,26 +363,12 @@ Status<void> SendDataVector(const BorrowedHandle& socket_fd, const iovec* data,
   msghdr msg = {};
   msg.msg_iov = const_cast<iovec*>(data);
   msg.msg_iovlen = count;
-  ssize_t size_written =
-      RETRY_EINTR(sendmsg(socket_fd.Get(), &msg, MSG_NOSIGNAL));
-  if (size_written < 0)
-    return ErrorStatus(errno);
-  if (static_cast<size_t>(size_written) != CountVectorSize(data, count))
-    return ErrorStatus(EIO);
-  return {};
+  return SendMsgAll(&g_socket_sender, socket_fd, &msg);
 }
 
 Status<void> ReceiveData(const BorrowedHandle& socket_fd, void* data,
                          size_t size) {
-  ssize_t size_read =
-      RETRY_EINTR(recv(socket_fd.Get(), data, size, MSG_WAITALL));
-  if (size_read < 0)
-    return ErrorStatus(errno);
-  else if (size_read == 0)
-    return ErrorStatus(ESHUTDOWN);
-  else if (static_cast<size_t>(size_read) != size)
-    return ErrorStatus(EIO);
-  return {};
+  return RecvAll(&g_socket_receiver, socket_fd, data, size);
 }
 
 Status<void> ReceiveDataVector(const BorrowedHandle& socket_fd,
@@ -264,14 +376,7 @@ Status<void> ReceiveDataVector(const BorrowedHandle& socket_fd,
   msghdr msg = {};
   msg.msg_iov = const_cast<iovec*>(data);
   msg.msg_iovlen = count;
-  ssize_t size_read = RETRY_EINTR(recvmsg(socket_fd.Get(), &msg, MSG_WAITALL));
-  if (size_read < 0)
-    return ErrorStatus(errno);
-  else if (size_read == 0)
-    return ErrorStatus(ESHUTDOWN);
-  else if (static_cast<size_t>(size_read) != CountVectorSize(data, count))
-    return ErrorStatus(EIO);
-  return {};
+  return RecvMsgAll(&g_socket_receiver, socket_fd, &msg);
 }
 
 size_t CountVectorSize(const iovec* vector, size_t count) {
