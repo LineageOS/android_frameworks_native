@@ -1267,7 +1267,10 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
                     mCore->mSidebandStream.clear();
                     mCore->mDequeueCondition.broadcast();
                     listener = mCore->mConsumerListener;
-                } else if (mCore->mConnectedApi != BufferQueueCore::NO_CONNECTED_API) {
+                } else if (mCore->mConnectedApi == BufferQueueCore::NO_CONNECTED_API) {
+                    BQ_LOGE("disconnect: not connected (req=%d)", api);
+                    status = NO_INIT;
+                } else {
                     BQ_LOGE("disconnect: still connected to another API "
                             "(cur=%d req=%d)", mCore->mConnectedApi, api);
                     status = BAD_VALUE;
