@@ -246,16 +246,17 @@ void Compositor::RenderTarget::DiscardColorAttachment() {
 
 class Compositor::RenderPoseBufferObject {
  public:
-  RenderPoseBufferObject(LocalHandle&& render_pose_buffer_fd) {
+  RenderPoseBufferObject(LocalHandle&& render_pose_buffer_fd) :
+      fd_(std::move(render_pose_buffer_fd)) {
     // Create new pose tracking buffer for this surface.
     glGenBuffers(1, &render_pose_buffer_object_);
     glBindBuffer(GL_UNIFORM_BUFFER, render_pose_buffer_object_);
-    if (render_pose_buffer_fd) {
+    if (fd_) {
       LOG_ALWAYS_FATAL_IF(!glBindSharedBufferQCOM);
       if (glBindSharedBufferQCOM)
         glBindSharedBufferQCOM(GL_UNIFORM_BUFFER,
                                sizeof(DisplaySurfaceMetadata),
-                               render_pose_buffer_fd.Get());
+                               fd_.Get());
       else
         ALOGE("Error: Missing gralloc buffer extension");
       CHECK_GL();
@@ -271,6 +272,7 @@ class Compositor::RenderPoseBufferObject {
   // Render pose buffer object. This contains an array of poses that corresponds
   // with the surface buffers.
   GLuint render_pose_buffer_object_;
+  LocalHandle fd_;
 
   RenderPoseBufferObject(const RenderPoseBufferObject&) = delete;
   void operator=(const RenderPoseBufferObject&) = delete;
@@ -429,6 +431,7 @@ bool Compositor::InitializeEGL() {
 }
 
 void Compositor::Shutdown() {
+  glFinish();
   render_target_[0].Destroy();
   render_target_[1].Destroy();
   layers_.clear();

@@ -178,6 +178,9 @@ class LateLatch {
   LateLatchOutput* eds_late_latch_output_;
 
   DvrPose* pose_client_;
+
+  pdx::LocalHandle surface_metadata_fd_;
+  pdx::LocalHandle pose_buffer_fd_;
 };
 
 }  // namespace dvr
