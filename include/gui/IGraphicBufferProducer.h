@@ -487,6 +487,7 @@ public:
     // is considered a no-op.
     //
     // Return of a value other than NO_ERROR means an error has occurred:
+    // * NO_INIT - the producer is not connected
     // * BAD_VALUE - one of the following has occurred:
     //             * the api specified does not match the one that was connected
     //             * api was out of range (see above).
