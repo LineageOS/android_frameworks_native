@@ -22,8 +22,6 @@
 
 #include <memory>
 
-#include <ui/Gralloc1.h>
-
 #include <utils/Singleton.h>
 
 
@@ -51,9 +49,6 @@ public:
     // needed. rawHandle is owned by the caller.
     status_t importBuffer(buffer_handle_t rawHandle,
             buffer_handle_t* outHandle);
-
-    // This is temporary and will be removed soon
-    status_t importBuffer(const GraphicBuffer* buffer);
 
     status_t freeBuffer(buffer_handle_t handle);
 
@@ -89,9 +84,6 @@ private:
     GraphicBufferMapper();
 
     const std::unique_ptr<const Gralloc2::Mapper> mMapper;
-
-    std::unique_ptr<Gralloc1::Loader> mLoader;
-    std::unique_ptr<Gralloc1::Device> mDevice;
 };
 
 // ---------------------------------------------------------------------------
