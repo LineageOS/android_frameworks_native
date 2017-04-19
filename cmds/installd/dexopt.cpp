@@ -184,9 +184,20 @@ static int split(char *buf, const char **argv)
   return count;
 }
 
+static const char* get_location_from_path(const char* path) {
+    static constexpr char kLocationSeparator = '/';
+    const char *location = strrchr(path, kLocationSeparator);
+    if (location == NULL) {
+        return path;
+    } else {
+        // Skip the separator character.
+        return location + 1;
+    }
+}
+
 static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vdex_fd, int image_fd,
         const char* input_file_name, const char* output_file_name, int swap_fd,
-        const char *instruction_set, const char* compiler_filter, bool vm_safe_mode,
+        const char* instruction_set, const char* compiler_filter, bool vm_safe_mode,
         bool debuggable, bool post_bootcomplete, int profile_fd, const char* shared_libraries) {
     static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
 
@@ -195,6 +206,9 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
               instruction_set, MAX_INSTRUCTION_SET_LEN);
         return;
     }
+
+    // Get the relative path to the input file.
+    const char* relative_input_file_name = get_location_from_path(input_file_name);
 
     char dex2oat_Xms_flag[kPropertyValueMax];
     bool have_dex2oat_Xms_flag = get_property("dalvik.vm.dex2oat-Xms", dex2oat_Xms_flag, NULL) > 0;
@@ -286,7 +300,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     char dex2oat_image_fd[arraysize("--app-image-fd=") + MAX_INT_LEN];
 
     sprintf(zip_fd_arg, "--zip-fd=%d", zip_fd);
-    sprintf(zip_location_arg, "--zip-location=%s", input_file_name);
+    sprintf(zip_location_arg, "--zip-location=%s", relative_input_file_name);
     sprintf(input_vdex_fd_arg, "--input-vdex-fd=%d", input_vdex_fd);
     sprintf(output_vdex_fd_arg, "--output-vdex-fd=%d", output_vdex_fd);
     sprintf(oat_fd_arg, "--oat-fd=%d", oat_fd);
@@ -348,8 +362,18 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
         sprintf(profile_arg, "--profile-file-fd=%d", profile_fd);
     }
 
+    // Get the directory of the apk to pass as a base directory.
+    char base_dir[arraysize("--base-dir=") + PKG_PATH_MAX];
+    std::string apk_dir(input_file_name);
+    unsigned long dir_index = apk_dir.rfind('/');
+    bool has_base_dir = dir_index != std::string::npos;
+    if (has_base_dir) {
+        apk_dir = apk_dir.substr(0, dir_index);
+        sprintf(base_dir, "--base-dir=%s", apk_dir.c_str());
+    }
 
-    ALOGV("Running %s in=%s out=%s\n", DEX2OAT_BIN, input_file_name, output_file_name);
+
+    ALOGV("Running %s in=%s out=%s\n", DEX2OAT_BIN, relative_input_file_name, output_file_name);
 
     const char* argv[9  // program name, mandatory arguments and the final NULL
                      + (have_dex2oat_isa_variant ? 1 : 0)
@@ -367,6 +391,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
                      + dex2oat_flags_count
                      + (profile_fd == -1 ? 0 : 1)
                      + (shared_libraries != nullptr ? 4 : 0)
+                     + (has_base_dir ? 1 : 0)
                      + (have_dex2oat_large_app_threshold ? 1 : 0)];
     int i = 0;
     argv[i++] = DEX2OAT_BIN;
@@ -430,6 +455,9 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
         argv[i++] = "-classpath";
         argv[i++] = RUNTIME_ARG;
         argv[i++] = shared_libraries;
+    }
+    if (has_base_dir) {
+        argv[i++] = base_dir;
     }
     // Do not add after dex2oat_flags, they should override others for debugging.
     argv[i] = NULL;
@@ -766,17 +794,6 @@ static void run_profman_dump(const std::vector<unique_fd>& profile_fds,
     execv(PROFMAN_BIN, (char * const *)argv);
     ALOGE("execv(%s) failed: %s\n", PROFMAN_BIN, strerror(errno));
     exit(68);   /* only get here on exec failure */
-}
-
-static const char* get_location_from_path(const char* path) {
-    static constexpr char kLocationSeparator = '/';
-    const char *location = strrchr(path, kLocationSeparator);
-    if (location == NULL) {
-        return path;
-    } else {
-        // Skip the separator character.
-        return location + 1;
-    }
 }
 
 bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_paths) {
@@ -1540,14 +1557,12 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
             _exit(67);
         }
 
-        // Pass dex2oat the relative path to the input file.
-        const char *input_file_name = get_location_from_path(dex_path);
         run_dex2oat(input_fd.get(),
                     out_oat_fd.get(),
                     in_vdex_fd.get(),
                     out_vdex_fd.get(),
                     image_fd.get(),
-                    input_file_name,
+                    dex_path,
                     out_oat_path,
                     swap_fd.get(),
                     instruction_set,
