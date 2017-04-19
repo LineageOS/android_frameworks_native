@@ -14,6 +14,38 @@ namespace android {
 namespace pdx {
 namespace uds {
 
+// Test interfaces used for unit-testing payload sending/receiving over sockets.
+class SendInterface {
+ public:
+  virtual ssize_t Send(int socket_fd, const void* data, size_t size,
+                       int flags) = 0;
+  virtual ssize_t SendMessage(int socket_fd, const msghdr* msg, int flags) = 0;
+
+ protected:
+  virtual ~SendInterface() = default;
+};
+
+class RecvInterface {
+ public:
+  virtual ssize_t Receive(int socket_fd, void* data, size_t size,
+                          int flags) = 0;
+  virtual ssize_t ReceiveMessage(int socket_fd, msghdr* msg, int flags) = 0;
+
+ protected:
+  virtual ~RecvInterface() = default;
+};
+
+// Helper methods that allow to send/receive data through abstract interfaces.
+// Useful for mocking out the underlying socket I/O.
+Status<void> SendAll(SendInterface* sender, const BorrowedHandle& socket_fd,
+                     const void* data, size_t size);
+Status<void> SendMsgAll(SendInterface* sender, const BorrowedHandle& socket_fd,
+                        const msghdr* msg);
+Status<void> RecvAll(RecvInterface* receiver, const BorrowedHandle& socket_fd,
+                     void* data, size_t size);
+Status<void> RecvMsgAll(RecvInterface* receiver,
+                        const BorrowedHandle& socket_fd, msghdr* msg);
+
 #define RETRY_EINTR(fnc_call)                 \
   ([&]() -> decltype(fnc_call) {              \
     decltype(fnc_call) result;                \
@@ -25,6 +57,7 @@ namespace uds {
 
 class SendPayload : public MessageWriter, public OutputResourceMapper {
  public:
+  SendPayload(SendInterface* sender = nullptr) : sender_{sender} {}
   Status<void> Send(const BorrowedHandle& socket_fd);
   Status<void> Send(const BorrowedHandle& socket_fd, const ucred* cred);
 
@@ -44,12 +77,14 @@ class SendPayload : public MessageWriter, public OutputResourceMapper {
       const RemoteChannelHandle& handle) override;
 
  private:
+  SendInterface* sender_;
   ByteBuffer buffer_;
   std::vector<int> file_handles_;
 };
 
 class ReceivePayload : public MessageReader, public InputResourceMapper {
  public:
+  ReceivePayload(RecvInterface* receiver = nullptr) : receiver_{receiver} {}
   Status<void> Receive(const BorrowedHandle& socket_fd);
   Status<void> Receive(const BorrowedHandle& socket_fd, ucred* cred);
 
@@ -64,6 +99,7 @@ class ReceivePayload : public MessageReader, public InputResourceMapper {
                         LocalChannelHandle* handle) override;
 
  private:
+  RecvInterface* receiver_;
   ByteBuffer buffer_;
   std::vector<LocalHandle> file_handles_;
   size_t read_pos_{0};

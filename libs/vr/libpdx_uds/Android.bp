@@ -35,10 +35,12 @@ cc_test {
         "-Werror",
     ],
     srcs: [
+        "ipc_helper_tests.cpp",
         "remote_method_tests.cpp",
         "service_framework_tests.cpp",
     ],
     static_libs: [
+        "libgmock",
         "libpdx_uds",
         "libpdx",
     ],
