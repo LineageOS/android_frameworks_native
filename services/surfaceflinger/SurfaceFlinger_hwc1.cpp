@@ -2567,6 +2567,22 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
         getHwComposer().setPowerMode(type, mode);
         mVisibleRegionsDirty = true;
         // from this point on, SF will stop drawing on this display
+    } else if (mode == HWC_POWER_MODE_DOZE) {
+        // Update display while dozing
+        getHwComposer().setPowerMode(type, mode);
+        if (type == DisplayDevice::DISPLAY_PRIMARY) {
+            // FIXME: eventthread only knows about the main display right now
+            mEventThread->onScreenAcquired();
+            resyncToHardwareVsync(true);
+        }
+    } else if (mode == HWC_POWER_MODE_DOZE_SUSPEND) {
+        // Leave display going to doze
+        if (type == DisplayDevice::DISPLAY_PRIMARY) {
+            disableHardwareVsync(true); // also cancels any in-progress resync
+            // FIXME: eventthread only knows about the main display right now
+            mEventThread->onScreenReleased();
+        }
+        getHwComposer().setPowerMode(type, mode);
     } else {
         getHwComposer().setPowerMode(type, mode);
     }
