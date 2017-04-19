@@ -362,14 +362,14 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
         sprintf(profile_arg, "--profile-file-fd=%d", profile_fd);
     }
 
-    // Get the directory of the apk to pass as a base directory.
-    char base_dir[arraysize("--base-dir=") + PKG_PATH_MAX];
+    // Get the directory of the apk to pass as a base classpath directory.
+    char base_dir[arraysize("--classpath-dir=") + PKG_PATH_MAX];
     std::string apk_dir(input_file_name);
     unsigned long dir_index = apk_dir.rfind('/');
     bool has_base_dir = dir_index != std::string::npos;
     if (has_base_dir) {
         apk_dir = apk_dir.substr(0, dir_index);
-        sprintf(base_dir, "--base-dir=%s", apk_dir.c_str());
+        sprintf(base_dir, "--classpath-dir=%s", apk_dir.c_str());
     }
 
 
