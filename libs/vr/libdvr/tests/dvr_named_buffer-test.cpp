@@ -42,11 +42,12 @@ TEST_F(DvrNamedBufferTest, TestNamedBuffersSameName) {
   AHardwareBuffer* hardware_buffer1 = nullptr;
   int e1 = dvrBufferGetAHardwareBuffer(buffer1, &hardware_buffer1);
   ASSERT_EQ(0, e1);
+  ASSERT_NE(nullptr, hardware_buffer1);
 
   AHardwareBuffer* hardware_buffer2 = nullptr;
   int e2 = dvrBufferGetAHardwareBuffer(buffer2, &hardware_buffer2);
   ASSERT_EQ(0, e2);
-  ASSERT_NE(nullptr, hardware_buffer1);
+  ASSERT_NE(nullptr, hardware_buffer2);
 
   AHardwareBuffer_Desc desc1 = {};
   AHardwareBuffer_describe(hardware_buffer1, &desc1);
@@ -88,6 +89,10 @@ TEST_F(DvrNamedBufferTest, TestNamedBuffersSameName) {
   ASSERT_EQ(desc3.usage1, 0u);
 
   dvrBufferDestroy(buffer3);
+
+  AHardwareBuffer_release(hardware_buffer1);
+  AHardwareBuffer_release(hardware_buffer2);
+  AHardwareBuffer_release(hardware_buffer3);
 }
 
 TEST_F(DvrNamedBufferTest, TestMultipleNamedBuffers) {
@@ -141,6 +146,7 @@ TEST_F(DvrNamedBufferTest, TestNamedBufferUsage) {
   ASSERT_EQ(desc.usage0, AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE);
 
   dvrBufferDestroy(setup_buffer);
+  AHardwareBuffer_release(hardware_buffer);
 }
 
 
