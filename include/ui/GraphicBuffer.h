@@ -81,8 +81,8 @@ public:
     // Create a GraphicBuffer by allocating and managing a buffer internally.
     // This function is privileged.  See reallocate for details.
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
-            uint32_t inLayerCount, uint64_t inProducerUsage,
-            uint64_t inConsumerUsage, std::string requestorName = "<Unknown>");
+            uint32_t inLayerCount, uint64_t inUsage,
+            std::string requestorName = "<Unknown>");
 
     // Create a GraphicBuffer from an existing handle.
     enum HandleWrapMethod : uint8_t {
@@ -120,16 +120,15 @@ public:
     GraphicBuffer(const native_handle_t* handle, HandleWrapMethod method,
             uint32_t width, uint32_t height,
             PixelFormat format, uint32_t layerCount,
-            uint64_t producerUsage, uint64_t consumerUsage, uint32_t stride);
+            uint64_t usage, uint32_t stride);
 
-    // These functions are deprecated because they do not distinguish producer
-    // and consumer usages.
+    // These functions are deprecated because they only take 32 bits of usage
     GraphicBuffer(const native_handle_t* handle, HandleWrapMethod method,
             uint32_t width, uint32_t height,
             PixelFormat format, uint32_t layerCount,
             uint32_t usage, uint32_t stride)
         : GraphicBuffer(handle, method, width, height, format, layerCount,
-                usage, usage, stride) {}
+                static_cast<uint64_t>(usage), stride) {}
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inLayerCount, uint32_t inUsage, uint32_t inStride,
             native_handle_t* inHandle, bool keepOwnership);
@@ -157,10 +156,10 @@ public:
     // device or service, which usually involves adding suitable selinux
     // rules.
     status_t reallocate(uint32_t inWidth, uint32_t inHeight,
-            PixelFormat inFormat, uint32_t inLayerCount, uint32_t inUsage);
+            PixelFormat inFormat, uint32_t inLayerCount, uint64_t inUsage);
 
     bool needsReallocation(uint32_t inWidth, uint32_t inHeight,
-            PixelFormat inFormat, uint32_t inLayerCount, uint32_t inUsage);
+            PixelFormat inFormat, uint32_t inLayerCount, uint64_t inUsage);
 
     status_t lock(uint32_t inUsage, void** vaddr);
     status_t lock(uint32_t inUsage, const Rect& rect, void** vaddr);
@@ -219,13 +218,12 @@ private:
 
     status_t initWithSize(uint32_t inWidth, uint32_t inHeight,
             PixelFormat inFormat, uint32_t inLayerCount,
-            uint64_t inProducerUsage, uint64_t inConsumerUsage,
-            std::string requestorName);
+            uint64_t inUsage, std::string requestorName);
 
     status_t initWithHandle(const native_handle_t* handle,
             HandleWrapMethod method, uint32_t width, uint32_t height,
             PixelFormat format, uint32_t layerCount,
-            uint64_t producerUsage, uint64_t consumerUsage, uint32_t stride);
+            uint64_t usage, uint32_t stride);
 
     void free_handle();
 
