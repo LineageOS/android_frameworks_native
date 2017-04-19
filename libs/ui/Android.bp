@@ -49,8 +49,6 @@ cc_library_shared {
         "Fence.cpp",
         "FenceTime.cpp",
         "FrameStats.cpp",
-        "Gralloc1.cpp",
-        "Gralloc1On0Adapter.cpp",
         "Gralloc2.cpp",
         "GraphicBuffer.cpp",
         "GraphicBufferAllocator.cpp",

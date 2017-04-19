@@ -33,7 +33,7 @@ static constexpr Error kTransactionError = Error::NO_RESOURCES;
 Mapper::Mapper()
 {
     mMapper = IMapper::getService();
-    if (mMapper != nullptr && mMapper->isRemote()) {
+    if (mMapper == nullptr || mMapper->isRemote()) {
         LOG_ALWAYS_FATAL("gralloc-mapper must be in passthrough mode");
     }
 }
@@ -196,8 +196,9 @@ int Mapper::unlock(buffer_handle_t bufferHandle) const
 Allocator::Allocator(const Mapper& mapper)
     : mMapper(mapper)
 {
-    if (mMapper.valid()) {
-        mAllocator = IAllocator::getService();
+    mAllocator = IAllocator::getService();
+    if (mAllocator == nullptr) {
+        LOG_ALWAYS_FATAL("gralloc-alloc is missing");
     }
 }
 
