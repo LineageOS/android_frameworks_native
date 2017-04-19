@@ -516,9 +516,8 @@ int ServiceCommand(const std::string& path) {
     std::cerr << "Starting service instance " << service_id_counter
               << std::endl;
     auto service = BenchmarkService::Create(
-        android::pdx::default_transport::Endpoint::Create(
+        android::pdx::default_transport::Endpoint::CreateAndBindSocket(
             GetServicePath(path, service_id_counter),
-            android::pdx::default_transport::Endpoint::kDefaultMode,
             android::pdx::default_transport::Endpoint::kBlocking));
     if (!service) {
       std::cerr << "Failed to create service instance!!" << std::endl;
