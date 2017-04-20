@@ -8,6 +8,7 @@ using android::pdx::ErrorStatus;
 using android::pdx::RemoteChannelHandle;
 using android::pdx::Status;
 using android::pdx::rpc::DispatchRemoteMethod;
+using android::pdx::rpc::RemoteMethodError;
 
 namespace android {
 namespace dvr {
@@ -33,8 +34,10 @@ ConsumerQueueChannel::~ConsumerQueueChannel() {
 bool ConsumerQueueChannel::HandleMessage(Message& message) {
   ATRACE_NAME("ConsumerQueueChannel::HandleMessage");
   auto producer = GetProducer();
-  if (!producer)
-    REPLY_ERROR_RETURN(message, EPIPE, true);
+  if (!producer) {
+    RemoteMethodError(message, EPIPE);
+    return true;
+  }
 
   switch (message.GetOp()) {
     case BufferHubRPC::CreateConsumerQueue::Opcode:
@@ -79,6 +82,9 @@ BufferHubChannel::BufferInfo ConsumerQueueChannel::GetBufferInfo() const {
 
 void ConsumerQueueChannel::RegisterNewBuffer(
     const std::shared_ptr<ProducerChannel>& producer_channel, size_t slot) {
+  ALOGD_IF(TRACE,
+           "ConsumerQueueChannel::RegisterNewBuffer: buffer_id=%d slot=%zu",
+           producer_channel->buffer_id(), slot);
   pending_buffer_slots_.emplace(producer_channel, slot);
 
   // Signal the client that there is new buffer available throught POLLIN.
@@ -89,7 +95,8 @@ Status<std::vector<std::pair<RemoteChannelHandle, size_t>>>
 ConsumerQueueChannel::OnConsumerQueueImportBuffers(Message& message) {
   std::vector<std::pair<RemoteChannelHandle, size_t>> buffer_handles;
   ATRACE_NAME("ConsumerQueueChannel::OnConsumerQueueImportBuffers");
-  ALOGD(
+  ALOGD_IF(
+      TRACE,
       "ConsumerQueueChannel::OnConsumerQueueImportBuffers number of buffers to "
       "import: %zu",
       pending_buffer_slots_.size());
@@ -132,6 +139,13 @@ ConsumerQueueChannel::OnConsumerQueueImportBuffers(Message& message) {
 
   ClearAvailable();
   return {std::move(buffer_handles)};
+}
+
+void ConsumerQueueChannel::OnProducerClosed() {
+  ALOGD_IF(TRACE, "ConsumerQueueChannel::OnProducerClosed: queue_id=%d",
+           buffer_id());
+  producer_.reset();
+  Hangup();
 }
 
 }  // namespace dvr

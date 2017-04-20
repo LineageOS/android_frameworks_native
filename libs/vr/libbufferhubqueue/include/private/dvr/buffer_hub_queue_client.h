@@ -33,6 +33,11 @@ class BufferHubQueue : public pdx::Client {
   // a new consumer queue client or nullptr on failure.
   std::unique_ptr<ConsumerQueue> CreateConsumerQueue();
 
+  // Create a new consumer queue that is attached to the producer. This queue
+  // sets each of its imported consumer buffers to the ignored state to avoid
+  // participation in lifecycle events.
+  std::unique_ptr<ConsumerQueue> CreateSilentConsumerQueue();
+
   // Return the default buffer width of this buffer queue.
   size_t default_width() const { return default_width_; }
 
@@ -71,9 +76,19 @@ class BufferHubQueue : public pdx::Client {
     }
   }
 
+  // Returns an fd that signals pending queue events using
+  // EPOLLIN/POLLIN/readible. Either HandleQueueEvents or WaitForBuffers may be
+  // called to handle pending queue events.
+  int queue_fd() const { return epoll_fd_.Get(); }
+
+  // Handles any pending events, returning available buffers to the queue and
+  // reaping disconnected buffers. Returns true if successful, false if an error
+  // occurred.
+  bool HandleQueueEvents() { return WaitForBuffers(0); }
+
   // Enqueue a buffer marks buffer to be available (|Gain|'ed for producer
   // and |Acquire|'ed for consumer. This is only used for internal bookkeeping.
-  void Enqueue(std::shared_ptr<BufferHubBuffer> buf, size_t slot);
+  void Enqueue(const std::shared_ptr<BufferHubBuffer>& buf, size_t slot);
 
   // |BufferHubQueue| will keep track of at most this value of buffers.
   static constexpr size_t kMaxQueueCapacity =
@@ -88,6 +103,7 @@ class BufferHubQueue : public pdx::Client {
   static constexpr int kNoTimeOut = -1;
 
   int id() const { return id_; }
+  bool hung_up() const { return hung_up_; }
 
  protected:
   BufferHubQueue(LocalChannelHandle channel);
@@ -121,7 +137,7 @@ class BufferHubQueue : public pdx::Client {
   void HandleBufferEvent(size_t slot, const epoll_event& event);
   void HandleQueueEvent(const epoll_event& event);
 
-  virtual int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf,
+  virtual int OnBufferReady(const std::shared_ptr<BufferHubBuffer>& buf,
                             LocalHandle* fence) = 0;
 
   // Called when a buffer is allocated remotely.
@@ -248,6 +264,12 @@ class BufferHubQueue : public pdx::Client {
   // Epoll fd used to wait for BufferHub events.
   EpollFileDescriptor epoll_fd_;
 
+  // Flag indicating that the other side hung up. For ProducerQueues this
+  // triggers when BufferHub dies or explicitly closes the queue channel. For
+  // ConsumerQueues this can either mean the same or that the ProducerQueue on
+  // the other end hung up.
+  bool hung_up_{false};
+
   // Global id for the queue that is consistent across processes.
   int id_;
 
@@ -260,6 +282,9 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   template <typename Meta>
   static std::unique_ptr<ProducerQueue> Create() {
     return BASE::Create(sizeof(Meta));
+  }
+  static std::unique_ptr<ProducerQueue> Create(size_t meta_size_bytes) {
+    return BASE::Create(meta_size_bytes);
   }
 
   // Usage bits in |usage_set_mask| will be automatically masked on. Usage bits
@@ -331,7 +356,7 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
                 uint64_t usage_clear_mask, uint64_t usage_deny_set_mask,
                 uint64_t usage_deny_clear_mask);
 
-  int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf,
+  int OnBufferReady(const std::shared_ptr<BufferHubBuffer>& buf,
                     LocalHandle* release_fence) override;
 };
 
@@ -339,16 +364,22 @@ class ConsumerQueue : public BufferHubQueue {
  public:
   // Get a buffer consumer. Note that the method doesn't check whether the
   // buffer slot has a valid buffer that has been imported already. When no
-  // buffer has been imported before it returns |nullptr|; otherwise it returns
-  // a shared pointer to a |BufferConsumer|.
+  // buffer has been imported before it returns nullptr; otherwise returns a
+  // shared pointer to a BufferConsumer.
   std::shared_ptr<BufferConsumer> GetBuffer(size_t slot) const {
     return std::static_pointer_cast<BufferConsumer>(
         BufferHubQueue::GetBuffer(slot));
   }
 
-  // Import a |ConsumerQueue| from a channel handle.
-  static std::unique_ptr<ConsumerQueue> Import(LocalChannelHandle handle) {
-    return std::unique_ptr<ConsumerQueue>(new ConsumerQueue(std::move(handle)));
+  // Import a ConsumerQueue from a channel handle. |ignore_on_import| controls
+  // whether or not buffers are set to be ignored when imported. This may be
+  // used to avoid participation in the buffer lifecycle by a consumer queue
+  // that is only used to spawn other consumer queues, such as in an
+  // intermediate service.
+  static std::unique_ptr<ConsumerQueue> Import(LocalChannelHandle handle,
+                                               bool ignore_on_import = false) {
+    return std::unique_ptr<ConsumerQueue>(
+        new ConsumerQueue(std::move(handle), ignore_on_import));
   }
 
   // Import newly created buffers from the service side.
@@ -366,6 +397,10 @@ class ConsumerQueue : public BufferHubQueue {
                                           LocalHandle* acquire_fence) {
     return Dequeue(timeout, slot, meta, sizeof(*meta), acquire_fence);
   }
+  std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot,
+                                          LocalHandle* acquire_fence) {
+    return Dequeue(timeout, slot, nullptr, 0, acquire_fence);
+  }
 
   std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot, void* meta,
                                           size_t meta_size,
@@ -374,7 +409,7 @@ class ConsumerQueue : public BufferHubQueue {
  private:
   friend BufferHubQueue;
 
-  ConsumerQueue(LocalChannelHandle handle);
+  ConsumerQueue(LocalChannelHandle handle, bool ignore_on_import = false);
 
   // Add a consumer buffer to populate the queue. Once added, a consumer buffer
   // is NOT available to use until the producer side |Post| it. |WaitForBuffers|
@@ -382,10 +417,14 @@ class ConsumerQueue : public BufferHubQueue {
   // consumer.
   int AddBuffer(const std::shared_ptr<BufferConsumer>& buf, size_t slot);
 
-  int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf,
+  int OnBufferReady(const std::shared_ptr<BufferHubBuffer>& buf,
                     LocalHandle* acquire_fence) override;
 
   Status<void> OnBufferAllocated() override;
+
+  // Flag indicating that imported (consumer) buffers should be ignored when
+  // imported to avoid participating in the buffer ownership flow.
+  bool ignore_on_import_;
 };
 
 }  // namespace dvr
