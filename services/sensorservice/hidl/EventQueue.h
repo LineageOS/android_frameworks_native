@@ -42,7 +42,7 @@ struct EventQueue final : public IEventQueue {
         sp<IEventQueueCallback> callback,
         sp<::android::Looper> looper,
         sp<::android::SensorEventQueue> internalQueue);
-    ~EventQueue();
+    void onLastStrongRef(const void *) override;
 
     // Methods from ::android::frameworks::sensorservice::V1_0::IEventQueue follow.
     Return<Result> enableSensor(int32_t sensorHandle, int32_t samplingPeriodUs, int64_t maxBatchReportLatencyUs) override;
