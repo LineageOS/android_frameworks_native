@@ -1,7 +1,25 @@
 #include "vr_composer.h"
 
+#include <binder/IPCThreadState.h>
+#include <binder/PermissionCache.h>
+
 namespace android {
 namespace dvr {
+namespace {
+
+bool CheckPermission() {
+  const android::IPCThreadState* ipc = android::IPCThreadState::self();
+  const pid_t pid = ipc->getCallingPid();
+  const uid_t uid = ipc->getCallingUid();
+  const bool permission = PermissionCache::checkPermission(
+      String16("android.permission.RESTRICTED_VR_ACCESS"), pid, uid);
+  if (!permission)
+    ALOGE("permission denied to pid=%d uid=%u", pid, uid);
+
+  return permission;
+}
+
+}  // namespace
 
 VrComposer::VrComposer() {}
 
@@ -10,6 +28,9 @@ VrComposer::~VrComposer() {}
 binder::Status VrComposer::registerObserver(
     const sp<IVrComposerCallback>& callback) {
   std::lock_guard<std::mutex> guard(mutex_);
+
+  if (!CheckPermission())
+    return binder::Status::fromStatusT(PERMISSION_DENIED);
 
   if (callback_.get()) {
     ALOGE("Failed to register callback, already registered");
