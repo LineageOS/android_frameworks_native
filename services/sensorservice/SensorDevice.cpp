@@ -31,6 +31,7 @@ using android::hardware::hidl_vec;
 using namespace android::hardware::sensors::V1_0;
 using namespace android::hardware::sensors::V1_0::implementation;
 
+
 namespace android {
 // ---------------------------------------------------------------------------
 
@@ -138,20 +139,19 @@ std::string SensorDevice::dump() const {
 
         result.append("sampling_period(ms) = {");
         for (size_t j = 0; j < info.batchParams.size(); j++) {
-            const BatchParams& params = info.batchParams.valueAt(j);
-            result.appendFormat("%.1f%s", params.batchDelay / 1e6f,
+            const BatchParams& params = info.batchParams[j];
+            result.appendFormat("%.1f%s", params.mTSample / 1e6f,
                 j < info.batchParams.size() - 1 ? ", " : "");
         }
-        result.appendFormat("}, selected = %.1f ms; ", info.bestBatchParams.batchDelay / 1e6f);
+        result.appendFormat("}, selected = %.2f ms; ", info.bestBatchParams.mTSample / 1e6f);
 
         result.append("batching_period(ms) = {");
         for (size_t j = 0; j < info.batchParams.size(); j++) {
-            BatchParams params = info.batchParams.valueAt(j);
-
-            result.appendFormat("%.1f%s", params.batchTimeout / 1e6f,
+            const BatchParams& params = info.batchParams[j];
+            result.appendFormat("%.1f%s", params.mTBatch / 1e6f,
                     j < info.batchParams.size() - 1 ? ", " : "");
         }
-        result.appendFormat("}, selected = %.1f ms\n", info.bestBatchParams.batchTimeout / 1e6f);
+        result.appendFormat("}, selected = %.2f ms\n", info.bestBatchParams.mTBatch / 1e6f);
     }
 
     return result.string();
@@ -270,13 +270,10 @@ status_t SensorDevice::activate(void* ident, int handle, int enabled) {
                 // batch_rate and timeout. One of the apps has unregistered for sensor
                 // events, and the best effort batch parameters might have changed.
                 ALOGD_IF(DEBUG_CONNECTIONS,
-                         "\t>>> actuating h/w batch %d %d %" PRId64 " %" PRId64, handle,
-                         info.bestBatchParams.flags, info.bestBatchParams.batchDelay,
-                         info.bestBatchParams.batchTimeout);
+                         "\t>>> actuating h/w batch 0x%08x %" PRId64 " %" PRId64, handle,
+                         info.bestBatchParams.mTSample, info.bestBatchParams.mTBatch);
                 checkReturn(mSensors->batch(
-                        handle,
-                        info.bestBatchParams.batchDelay,
-                        info.bestBatchParams.batchTimeout));
+                        handle, info.bestBatchParams.mTSample, info.bestBatchParams.mTBatch));
             }
         } else {
             // sensor wasn't enabled for this ident
@@ -314,6 +311,9 @@ status_t SensorDevice::batch(
     if (samplingPeriodNs < MINIMUM_EVENTS_PERIOD) {
         samplingPeriodNs = MINIMUM_EVENTS_PERIOD;
     }
+    if (maxBatchReportLatencyNs < 0) {
+        maxBatchReportLatencyNs = 0;
+    }
 
     ALOGD_IF(DEBUG_CONNECTIONS,
              "SensorDevice::batch: ident=%p, handle=0x%08x, flags=%d, period_ns=%" PRId64 " timeout=%" PRId64,
@@ -323,7 +323,7 @@ status_t SensorDevice::batch(
     Info& info(mActivationCount.editValueFor(handle));
 
     if (info.batchParams.indexOfKey(ident) < 0) {
-        BatchParams params(flags, samplingPeriodNs, maxBatchReportLatencyNs);
+        BatchParams params(samplingPeriodNs, maxBatchReportLatencyNs);
         info.batchParams.add(ident, params);
     } else {
         // A batch has already been called with this ident. Update the batch parameters.
@@ -337,25 +337,21 @@ status_t SensorDevice::batch(
     ALOGD_IF(DEBUG_CONNECTIONS,
              "\t>>> curr_period=%" PRId64 " min_period=%" PRId64
              " curr_timeout=%" PRId64 " min_timeout=%" PRId64,
-             prevBestBatchParams.batchDelay, info.bestBatchParams.batchDelay,
-             prevBestBatchParams.batchTimeout, info.bestBatchParams.batchTimeout);
+             prevBestBatchParams.mTSample, info.bestBatchParams.mTSample,
+             prevBestBatchParams.mTBatch, info.bestBatchParams.mTBatch);
 
     status_t err(NO_ERROR);
     // If the min period or min timeout has changed since the last batch call, call batch.
     if (prevBestBatchParams != info.bestBatchParams) {
-        ALOGD_IF(DEBUG_CONNECTIONS, "\t>>> actuating h/w BATCH %d %d %" PRId64 " %" PRId64, handle,
-                 info.bestBatchParams.flags, info.bestBatchParams.batchDelay,
-                 info.bestBatchParams.batchTimeout);
+        ALOGD_IF(DEBUG_CONNECTIONS, "\t>>> actuating h/w BATCH 0x%08x %" PRId64 " %" PRId64, handle,
+                 info.bestBatchParams.mTSample, info.bestBatchParams.mTBatch);
         err = StatusFromResult(
                 checkReturn(mSensors->batch(
-                    handle,
-                    info.bestBatchParams.batchDelay,
-                    info.bestBatchParams.batchTimeout)));
+                    handle, info.bestBatchParams.mTSample, info.bestBatchParams.mTBatch)));
         if (err != NO_ERROR) {
-            ALOGE("sensor batch failed %p %d %d %" PRId64 " %" PRId64 " err=%s",
-                  mSensors.get(), handle,
-                  info.bestBatchParams.flags, info.bestBatchParams.batchDelay,
-                  info.bestBatchParams.batchTimeout, strerror(-err));
+            ALOGE("sensor batch failed %p 0x%08x %" PRId64 " %" PRId64 " err=%s",
+                  mSensors.get(), handle, info.bestBatchParams.mTSample,
+                  info.bestBatchParams.mTBatch, strerror(-err));
             info.removeBatchParamsForIdent(ident);
         }
     }
@@ -363,28 +359,7 @@ status_t SensorDevice::batch(
 }
 
 status_t SensorDevice::setDelay(void* ident, int handle, int64_t samplingPeriodNs) {
-    if (mSensors == nullptr) return NO_INIT;
-    if (samplingPeriodNs < MINIMUM_EVENTS_PERIOD) {
-        samplingPeriodNs = MINIMUM_EVENTS_PERIOD;
-    }
-    Mutex::Autolock _l(mLock);
-    if (isClientDisabledLocked(ident)) return INVALID_OPERATION;
-    Info& info( mActivationCount.editValueFor(handle) );
-    // If the underlying sensor is NOT in continuous mode, setDelay() should return an error.
-    // Calling setDelay() in batch mode is an invalid operation.
-    if (info.bestBatchParams.batchTimeout != 0) {
-      return INVALID_OPERATION;
-    }
-    ssize_t index = info.batchParams.indexOfKey(ident);
-    if (index < 0) {
-        return BAD_INDEX;
-    }
-    BatchParams& params = info.batchParams.editValueAt(index);
-    params.batchDelay = samplingPeriodNs;
-    info.selectBatchParams();
-
-    return StatusFromResult(
-            checkReturn(mSensors->batch(handle, info.bestBatchParams.batchDelay, 0)));
+    return batch(ident, handle, 0, samplingPeriodNs, 0);
 }
 
 int SensorDevice::getHalDeviceVersion() const {
@@ -423,8 +398,8 @@ void SensorDevice::enableAllSensors() {
         status_t err = StatusFromResult(
                 checkReturn(mSensors->batch(
                     sensor_handle,
-                    info.bestBatchParams.batchDelay,
-                    info.bestBatchParams.batchTimeout)));
+                    info.bestBatchParams.mTSample,
+                    info.bestBatchParams.mTBatch)));
         ALOGE_IF(err, "Error calling batch on sensor %d (%s)", sensor_handle, strerror(-err));
 
         if (err == NO_ERROR) {
@@ -581,35 +556,35 @@ int SensorDevice::Info::numActiveClients() {
     return num;
 }
 
-status_t SensorDevice::Info::setBatchParamsForIdent(void* ident, int flags,
+status_t SensorDevice::Info::setBatchParamsForIdent(void* ident, int,
                                                     int64_t samplingPeriodNs,
                                                     int64_t maxBatchReportLatencyNs) {
     ssize_t index = batchParams.indexOfKey(ident);
     if (index < 0) {
-        ALOGE("Info::setBatchParamsForIdent(ident=%p, period_ns=%" PRId64 " timeout=%" PRId64 ") failed (%s)",
+        ALOGE("Info::setBatchParamsForIdent(ident=%p, period_ns=%" PRId64
+              " timeout=%" PRId64 ") failed (%s)",
               ident, samplingPeriodNs, maxBatchReportLatencyNs, strerror(-index));
         return BAD_INDEX;
     }
     BatchParams& params = batchParams.editValueAt(index);
-    params.flags = flags;
-    params.batchDelay = samplingPeriodNs;
-    params.batchTimeout = maxBatchReportLatencyNs;
+    params.mTSample = samplingPeriodNs;
+    params.mTBatch = maxBatchReportLatencyNs;
     return NO_ERROR;
 }
 
 void SensorDevice::Info::selectBatchParams() {
-    BatchParams bestParams(0, -1, -1);
+    BatchParams bestParams; // default to max Tsample and max Tbatch
     SensorDevice& device(SensorDevice::getInstance());
 
     for (size_t i = 0; i < batchParams.size(); ++i) {
-        if (device.isClientDisabledLocked(batchParams.keyAt(i))) continue;
-        BatchParams params = batchParams.valueAt(i);
-        if (bestParams.batchDelay == -1 || params.batchDelay < bestParams.batchDelay) {
-            bestParams.batchDelay = params.batchDelay;
+        if (device.isClientDisabledLocked(batchParams.keyAt(i))) {
+            continue;
         }
-        if (bestParams.batchTimeout == -1 || params.batchTimeout < bestParams.batchTimeout) {
-            bestParams.batchTimeout = params.batchTimeout;
-        }
+        bestParams.merge(batchParams[i]);
+    }
+    // if mTBatch <= mTSample, it is in streaming mode. set mTbatch to 0 to demand this explicitly.
+    if (bestParams.mTBatch <= bestParams.mTSample) {
+        bestParams.mTBatch = 0;
     }
     bestBatchParams = bestParams;
 }
