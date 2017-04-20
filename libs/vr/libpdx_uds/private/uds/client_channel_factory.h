@@ -13,6 +13,7 @@ class ClientChannelFactory : public pdx::ClientChannelFactory {
  public:
   static std::unique_ptr<pdx::ClientChannelFactory> Create(
       const std::string& endpoint_path);
+  static std::unique_ptr<pdx::ClientChannelFactory> Create(LocalHandle socket);
 
   Status<std::unique_ptr<pdx::ClientChannel>> Connect(
       int64_t timeout_ms) const override;
@@ -22,7 +23,9 @@ class ClientChannelFactory : public pdx::ClientChannelFactory {
 
  private:
   explicit ClientChannelFactory(const std::string& endpoint_path);
+  explicit ClientChannelFactory(LocalHandle socket);
 
+  mutable LocalHandle socket_;
   std::string endpoint_path_;
 };
 
