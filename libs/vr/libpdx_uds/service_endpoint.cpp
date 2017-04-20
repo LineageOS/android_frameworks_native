@@ -161,9 +161,16 @@ Endpoint::Endpoint(const std::string& endpoint_path, bool blocking,
         bind(fd.Get(), reinterpret_cast<sockaddr*>(&local), sizeof(local));
     CHECK_EQ(ret, 0) << "Endpoint::Endpoint: bind error: " << strerror(errno);
   }
-  CHECK_EQ(listen(fd.Get(), kMaxBackLogForSocketListen), 0)
-      << "Endpoint::Endpoint: listen error: " << strerror(errno);
+  Init(std::move(fd));
+}
 
+Endpoint::Endpoint(LocalHandle socket_fd) { Init(std::move(socket_fd)); }
+
+void Endpoint::Init(LocalHandle socket_fd) {
+  if (socket_fd) {
+    CHECK_EQ(listen(socket_fd.Get(), kMaxBackLogForSocketListen), 0)
+        << "Endpoint::Endpoint: listen error: " << strerror(errno);
+  }
   cancel_event_fd_.Reset(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
   CHECK(cancel_event_fd_.IsValid())
       << "Endpoint::Endpoint: Failed to create event fd: " << strerror(errno);
@@ -172,24 +179,27 @@ Endpoint::Endpoint(const std::string& endpoint_path, bool blocking,
   CHECK(epoll_fd_.IsValid())
       << "Endpoint::Endpoint: Failed to create epoll fd: " << strerror(errno);
 
-  epoll_event socket_event;
-  socket_event.events = EPOLLIN | EPOLLRDHUP | EPOLLONESHOT;
-  socket_event.data.fd = fd.Get();
+  if (socket_fd) {
+    epoll_event socket_event;
+    socket_event.events = EPOLLIN | EPOLLRDHUP | EPOLLONESHOT;
+    socket_event.data.fd = socket_fd.Get();
+    int ret = epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, socket_fd.Get(),
+                        &socket_event);
+    CHECK_EQ(ret, 0)
+        << "Endpoint::Endpoint: Failed to add socket fd to epoll fd: "
+        << strerror(errno);
+  }
 
   epoll_event cancel_event;
   cancel_event.events = EPOLLIN;
   cancel_event.data.fd = cancel_event_fd_.Get();
 
-  int ret = epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, fd.Get(), &socket_event);
-  CHECK_EQ(ret, 0)
-      << "Endpoint::Endpoint: Failed to add socket fd to epoll fd: "
-      << strerror(errno);
-  ret = epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, cancel_event_fd_.Get(),
-                  &cancel_event);
+  int ret = epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, cancel_event_fd_.Get(),
+                      &cancel_event);
   CHECK_EQ(ret, 0)
       << "Endpoint::Endpoint: Failed to add cancel event fd to epoll fd: "
       << strerror(errno);
-  socket_fd_ = std::move(fd);
+  socket_fd_ = std::move(socket_fd);
 }
 
 void* Endpoint::AllocateMessageState() { return new MessageState; }
@@ -199,6 +209,9 @@ void Endpoint::FreeMessageState(void* state) {
 }
 
 Status<void> Endpoint::AcceptConnection(Message* message) {
+  if (!socket_fd_)
+    return ErrorStatus(EBADF);
+
   sockaddr_un remote;
   socklen_t addrlen = sizeof(remote);
   LocalHandle channel_fd{accept4(socket_fd_.Get(),
@@ -515,7 +528,7 @@ Status<void> Endpoint::MessageReceive(Message* message) {
     return ErrorStatus{ESHUTDOWN};
   }
 
-  if (event.data.fd == socket_fd_.Get()) {
+  if (socket_fd_ && event.data.fd == socket_fd_.Get()) {
     auto status = AcceptConnection(message);
     if (!status)
       return status;
@@ -678,6 +691,23 @@ std::unique_ptr<Endpoint> Endpoint::CreateAndBindSocket(
     const std::string& endpoint_path, bool blocking) {
   return std::unique_ptr<Endpoint>(
       new Endpoint(endpoint_path, blocking, false));
+}
+
+std::unique_ptr<Endpoint> Endpoint::CreateFromSocketFd(LocalHandle socket_fd) {
+  return std::unique_ptr<Endpoint>(new Endpoint(std::move(socket_fd)));
+}
+
+Status<void> Endpoint::RegisterNewChannelForTests(LocalHandle channel_fd) {
+  int optval = 1;
+  if (setsockopt(channel_fd.Get(), SOL_SOCKET, SO_PASSCRED, &optval,
+                 sizeof(optval)) == -1) {
+    ALOGE(
+        "Endpoint::RegisterNewChannelForTests: Failed to enable the receiving"
+        "of the credentials for channel %d: %s",
+        channel_fd.Get(), strerror(errno));
+    return ErrorStatus(errno);
+  }
+  return OnNewChannel(std::move(channel_fd));
 }
 
 }  // namespace uds

@@ -275,6 +275,7 @@ Status<void> ReceivePayload::Receive(const BorrowedHandle& socket_fd,
     return ret;
 
   if (preamble.magic != kMagicPreamble) {
+    ALOGE("ReceivePayload::Receive: Message header is invalid");
     ret.SetError(EIO);
     return ret;
   }
@@ -319,8 +320,10 @@ Status<void> ReceivePayload::Receive(const BorrowedHandle& socket_fd,
     cmsg = CMSG_NXTHDR(&msg, cmsg);
   }
 
-  if (cred && !cred_available)
+  if (cred && !cred_available) {
+    ALOGE("ReceivePayload::Receive: Failed to obtain message credentials");
     ret.SetError(EIO);
+  }
 
   return ret;
 }

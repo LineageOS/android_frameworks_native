@@ -97,6 +97,14 @@ class Endpoint : public pdx::Endpoint {
   static std::unique_ptr<Endpoint> CreateAndBindSocket(
       const std::string& endpoint_path, bool blocking = kDefaultBlocking);
 
+  // Helper method to create an endpoint from an existing socket FD.
+  // Mostly helpful for tests.
+  static std::unique_ptr<Endpoint> CreateFromSocketFd(LocalHandle socket_fd);
+
+  // Test helper method to register a new channel identified by |channel_fd|
+  // socket file descriptor.
+  Status<void> RegisterNewChannelForTests(LocalHandle channel_fd);
+
   int epoll_fd() const { return epoll_fd_.Get(); }
 
  private:
@@ -109,6 +117,9 @@ class Endpoint : public pdx::Endpoint {
   // This class must be instantiated using Create() static methods above.
   Endpoint(const std::string& endpoint_path, bool blocking,
            bool use_init_socket_fd = true);
+  Endpoint(LocalHandle socket_fd);
+
+  void Init(LocalHandle socket_fd);
 
   Endpoint(const Endpoint&) = delete;
   void operator=(const Endpoint&) = delete;
