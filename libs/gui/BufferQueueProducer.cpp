@@ -503,7 +503,7 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
     if (returnFlags & BUFFER_NEEDS_REALLOCATION) {
         BQ_LOGV("dequeueBuffer: allocating a new buffer for slot %d", *outSlot);
         sp<GraphicBuffer> graphicBuffer = new GraphicBuffer(
-                width, height, format, BQ_LAYER_COUNT, usage, usage,
+                width, height, format, BQ_LAYER_COUNT, usage,
                 {mConsumerName.string(), mConsumerName.size()});
 
         status_t error = graphicBuffer->initCheck();
@@ -1342,7 +1342,7 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
         for (size_t i = 0; i <  newBufferCount; ++i) {
             sp<GraphicBuffer> graphicBuffer = new GraphicBuffer(
                     allocWidth, allocHeight, allocFormat, BQ_LAYER_COUNT,
-                    allocUsage, allocUsage, {mConsumerName.string(), mConsumerName.size()});
+                    allocUsage, {mConsumerName.string(), mConsumerName.size()});
 
             status_t result = graphicBuffer->initCheck();
 
