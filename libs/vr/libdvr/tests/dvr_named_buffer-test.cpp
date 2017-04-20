@@ -57,14 +57,12 @@ TEST_F(DvrNamedBufferTest, TestNamedBuffersSameName) {
   ASSERT_EQ(desc1.height, 1u);
   ASSERT_EQ(desc1.layers, 1u);
   ASSERT_EQ(desc1.format, HAL_PIXEL_FORMAT_BLOB);
-  ASSERT_EQ(desc1.usage0, 0u);
-  ASSERT_EQ(desc1.usage1, 0u);
+  ASSERT_EQ(desc1.usage, 0u);
   ASSERT_EQ(desc2.width, 10u);
   ASSERT_EQ(desc2.height, 1u);
   ASSERT_EQ(desc2.layers, 1u);
   ASSERT_EQ(desc2.format, HAL_PIXEL_FORMAT_BLOB);
-  ASSERT_EQ(desc2.usage0, 0u);
-  ASSERT_EQ(desc2.usage1, 0u);
+  ASSERT_EQ(desc2.usage, 0u);
 
   dvrBufferDestroy(buffer1);
   dvrBufferDestroy(buffer2);
@@ -85,8 +83,7 @@ TEST_F(DvrNamedBufferTest, TestNamedBuffersSameName) {
   ASSERT_EQ(desc3.height, 1u);
   ASSERT_EQ(desc3.layers, 1u);
   ASSERT_EQ(desc3.format, HAL_PIXEL_FORMAT_BLOB);
-  ASSERT_EQ(desc3.usage0, 0u);
-  ASSERT_EQ(desc3.usage1, 0u);
+  ASSERT_EQ(desc3.usage, 0u);
 
   dvrBufferDestroy(buffer3);
 
@@ -124,15 +121,15 @@ TEST_F(DvrNamedBufferTest, TestMultipleNamedBuffers) {
 TEST_F(DvrNamedBufferTest, TestNamedBufferUsage) {
   const char* buffer_name = "buffer_usage";
 
-  // Set usage0 to AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE. We use this because
-  // internally AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE is converted to
+  // Set usage to AHARDWAREBUFFER_USAGE_VIDEO_ENCODE. We use this because
+  // internally AHARDWAREBUFFER_USAGE_VIDEO_ENCODE is converted to
   // GRALLOC1_CONSUMER_USAGE_VIDEO_ENCODER, and these two values are different.
   // If all is good, when we get the AHardwareBuffer, it should be converted
-  // back to AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE.
-  const int64_t usage0 = AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE;
+  // back to AHARDWAREBUFFER_USAGE_VIDEO_ENCODE.
+  const int64_t usage = AHARDWAREBUFFER_USAGE_VIDEO_ENCODE;
 
   DvrBuffer* setup_buffer =
-      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, usage0, 0);
+      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, usage, 0);
   ASSERT_NE(nullptr, setup_buffer);
 
   AHardwareBuffer* hardware_buffer = nullptr;
@@ -143,7 +140,7 @@ TEST_F(DvrNamedBufferTest, TestNamedBufferUsage) {
   AHardwareBuffer_Desc desc = {};
   AHardwareBuffer_describe(hardware_buffer, &desc);
 
-  ASSERT_EQ(desc.usage0, AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE);
+  ASSERT_EQ(desc.usage, AHARDWAREBUFFER_USAGE_VIDEO_ENCODE);
 
   dvrBufferDestroy(setup_buffer);
   AHardwareBuffer_release(hardware_buffer);

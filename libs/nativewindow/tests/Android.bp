@@ -16,7 +16,10 @@
 
 cc_test {
     name: "AHardwareBufferTest",
-    shared_libs: ["libnativewindow"],
+    shared_libs: [
+        "libnativewindow",
+        "android.hardware.graphics.common@1.0",
+    ],
     srcs: [
         "AHardwareBufferTest.cpp",
         "c_compatibility.c"],
