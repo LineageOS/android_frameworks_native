@@ -65,11 +65,7 @@ static struct selabel_handle* sehandle;
 static bool check_mac_perms(pid_t spid, uid_t uid, const char *tctx, const char *perm, const char *name)
 {
     char *sctx = NULL;
-#ifdef VENDORSERVICEMANAGER
-    const char *class = "vndservice_manager";
-#else
     const char *class = "service_manager";
-#endif
     bool allowed;
     struct audit_data ad;
 
