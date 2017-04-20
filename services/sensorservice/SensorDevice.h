@@ -27,7 +27,8 @@
 #include <utils/String8.h>
 
 #include <string>
-#include <map>
+#include <unordered_map>
+#include <algorithm> //std::max std::min
 
 #include "android/hardware/sensors/1.0/ISensors.h"
 
@@ -106,7 +107,7 @@ private:
 
     sp<android::hardware::sensors::V1_0::ISensors> mSensors;
     Vector<sensor_t> mSensorList;
-    std::map<int32_t, sensor_t*> mConnectedDynamicSensors;
+    std::unordered_map<int32_t, sensor_t*> mConnectedDynamicSensors;
 
     static const nsecs_t MINIMUM_EVENTS_PERIOD =   1000000; // 1000 Hz
     mutable Mutex mLock; // protect mActivationCount[].batchParams
@@ -115,15 +116,18 @@ private:
     // Struct to store all the parameters(samplingPeriod, maxBatchReportLatency and flags) from
     // batch call. For continous mode clients, maxBatchReportLatency is set to zero.
     struct BatchParams {
-      // TODO: Get rid of flags parameter everywhere.
-      int flags;
-      nsecs_t batchDelay, batchTimeout;
-      BatchParams() : flags(0), batchDelay(0), batchTimeout(0) {}
-      BatchParams(int flag, nsecs_t delay, nsecs_t timeout): flags(flag), batchDelay(delay),
-          batchTimeout(timeout) { }
+      nsecs_t mTSample, mTBatch;
+      BatchParams() : mTSample(INT64_MAX), mTBatch(INT64_MAX) {}
+      BatchParams(nsecs_t tSample, nsecs_t tBatch): mTSample(tSample), mTBatch(tBatch) {}
       bool operator != (const BatchParams& other) {
-          return other.batchDelay != batchDelay || other.batchTimeout != batchTimeout ||
-                 other.flags != flags;
+          return !(mTSample == other.mTSample && mTBatch == other.mTBatch);
+      }
+      // Merge another parameter with this one. The updated mTSample will be the min of the two.
+      // The update mTBatch will be the min of original mTBatch and the apparent batch period
+      // of the other. the apparent batch is the maximum of mTBatch and mTSample,
+      void merge(const BatchParams &other) {
+          mTSample = std::min(mTSample, other.mTSample);
+          mTBatch = std::min(mTBatch, std::max(other.mTBatch, other.mTSample));
       }
     };
 
@@ -139,7 +143,6 @@ private:
         // requested by the client.
         KeyedVector<void*, BatchParams> batchParams;
 
-        Info() : bestBatchParams(0, -1, -1) {}
         // Sets batch parameters for this ident. Returns error if this ident is not already present
         // in the KeyedVector above.
         status_t setBatchParamsForIdent(void* ident, int flags, int64_t samplingPeriodNs,
