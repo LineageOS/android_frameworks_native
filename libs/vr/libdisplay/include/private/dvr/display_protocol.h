@@ -6,257 +6,225 @@
 #include <array>
 #include <map>
 
+#include <dvr/dvr_display_types.h>
+
 #include <pdx/rpc/remote_method.h>
 #include <pdx/rpc/serializable.h>
 #include <pdx/rpc/variant.h>
 #include <private/dvr/bufferhub_rpc.h>
-#include <private/dvr/display_types.h>
+
+// RPC protocol definitions for DVR display services (VrFlinger).
 
 namespace android {
 namespace dvr {
+namespace display {
 
-struct SystemDisplayMetrics {
-  uint32_t display_native_width;
-  uint32_t display_native_height;
+// Native display metrics.
+struct Metrics {
+  // Basic display properties.
+  uint32_t display_width;
+  uint32_t display_height;
   uint32_t display_x_dpi;
   uint32_t display_y_dpi;
+  uint32_t vsync_period_ns;
+
+  // HMD metrics.
+  // TODO(eieio): Determine how these fields should be populated. On phones
+  // these values are determined at runtime by VrCore based on which headset the
+  // phone is in. On dedicated hardware this needs to come from somewhere else.
+  // Perhaps these should be moved to a separate structure that is returned by a
+  // separate runtime call.
   uint32_t distorted_width;
   uint32_t distorted_height;
-  uint32_t vsync_period_ns;
   uint32_t hmd_ipd_mm;
   float inter_lens_distance_m;
   std::array<float, 4> left_fov_lrbt;
   std::array<float, 4> right_fov_lrbt;
 
  private:
-  PDX_SERIALIZABLE_MEMBERS(SystemDisplayMetrics, display_native_width,
-                           display_native_height, display_x_dpi, display_y_dpi,
-                           distorted_width, distorted_height, vsync_period_ns,
-                           hmd_ipd_mm, inter_lens_distance_m, left_fov_lrbt,
+  PDX_SERIALIZABLE_MEMBERS(Metrics, display_width, display_height,
+                           display_x_dpi, display_y_dpi, vsync_period_ns,
+                           distorted_width, distorted_height, hmd_ipd_mm,
+                           inter_lens_distance_m, left_fov_lrbt,
                            right_fov_lrbt);
 };
 
-using SurfaceType = uint32_t;
-struct SurfaceTypeEnum {
-  enum : SurfaceType {
-    Normal = DVR_SURFACE_TYPE_NORMAL,
-    VideoMesh = DVR_SURFACE_TYPE_VIDEO_MESH,
-    Overlay = DVR_SURFACE_TYPE_OVERLAY,
+// Serializable base type for enum structs. Enum structs are easier to use than
+// enum classes, especially for bitmasks. This base type provides common
+// utilities for flags types.
+template <typename Integer>
+class Flags {
+ public:
+  using Base = Flags<Integer>;
+  using Type = Integer;
+
+  Flags(const Integer& value) : value_{value} {}
+  Flags(const Flags&) = default;
+  Flags& operator=(const Flags&) = default;
+
+  Integer value() const { return value_; }
+  operator Integer() const { return value_; }
+
+  bool IsSet(Integer bits) const { return (value_ & bits) == bits; }
+  bool IsClear(Integer bits) const { return (value_ & bits) == 0; }
+
+  void Set(Integer bits) { value_ |= bits; }
+  void Clear(Integer bits) { value_ &= ~bits; }
+
+  Integer operator|(Integer bits) const { return value_ | bits; }
+  Integer operator&(Integer bits) const { return value_ & bits; }
+
+  Flags& operator|=(Integer bits) {
+    value_ |= bits;
+    return *this;
+  }
+  Flags& operator&=(Integer bits) {
+    value_ &= bits;
+    return *this;
+  }
+
+ private:
+  Integer value_;
+
+  PDX_SERIALIZABLE_MEMBERS(Flags<Integer>, value_);
+};
+
+// Flags indicating what changed since last update.
+struct SurfaceUpdateFlags : public Flags<uint32_t> {
+  enum : Type {
+    None = DVR_SURFACE_UPDATE_FLAGS_NONE,
+    NewSurface = DVR_SURFACE_UPDATE_FLAGS_NEW_SURFACE,
+    BuffersChanged = DVR_SURFACE_UPDATE_FLAGS_BUFFERS_CHANGED,
+    VisibilityChanged = DVR_SURFACE_UPDATE_FLAGS_VISIBILITY_CHANGED,
+    AttributesChanged = DVR_SURFACE_UPDATE_FLAGS_ATTRIBUTES_CHANGED,
   };
+
+  SurfaceUpdateFlags() : Base{None} {}
+  using Base::Base;
 };
 
-using DisplaySurfaceFlags = uint32_t;
-enum class DisplaySurfaceFlagsEnum : DisplaySurfaceFlags {
-  DisableSystemEds = DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_EDS,
-  DisableSystemDistortion = DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION,
-  VerticalFlip = DVR_DISPLAY_SURFACE_FLAGS_VERTICAL_FLIP,
-  SeparateGeometry = DVR_DISPLAY_SURFACE_FLAGS_GEOMETRY_SEPARATE_2,
-  DisableSystemCac = DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_CAC,
-};
-
-using DisplaySurfaceInfoFlags = uint32_t;
-enum class DisplaySurfaceInfoFlagsEnum : DisplaySurfaceInfoFlags {
-  BuffersChanged = DVR_DISPLAY_SURFACE_ITEM_FLAGS_BUFFERS_CHANGED,
-};
-
-using DisplaySurfaceAttributeValue =
+// Surface attribute key/value types.
+using SurfaceAttributeKey = int32_t;
+using SurfaceAttributeValue =
     pdx::rpc::Variant<int32_t, int64_t, bool, float, std::array<float, 2>,
                       std::array<float, 3>, std::array<float, 4>,
-                      std::array<float, 16>>;
-using DisplaySurfaceAttribute = uint32_t;
-struct DisplaySurfaceAttributeEnum {
-  enum : DisplaySurfaceAttribute {
-    ZOrder = DVR_DISPLAY_SURFACE_ATTRIBUTE_Z_ORDER,
-    Visible = DVR_DISPLAY_SURFACE_ATTRIBUTE_VISIBLE,
-    // Manager only.
-    Blur = DVR_DISPLAY_SURFACE_ATTRIBUTE_BLUR,
-    // Client only.
-    ExcludeFromBlur = DVR_DISPLAY_SURFACE_ATTRIBUTE_EXCLUDE_FROM_BLUR,
-    BlurBehind = DVR_DISPLAY_SURFACE_ATTRIBUTE_BLUR_BEHIND,
+                      std::array<float, 8>, std::array<float, 16>>;
+
+// Defined surface attribute keys.
+struct SurfaceAttribute : public Flags<SurfaceAttributeKey> {
+  enum : Type {
+    // Keys in the negative integer space are interpreted by VrFlinger for
+    // direct surfaces.
+    Direct = DVR_SURFACE_ATTRIBUTE_DIRECT,
+    ZOrder = DVR_SURFACE_ATTRIBUTE_Z_ORDER,
+    Visible = DVR_SURFACE_ATTRIBUTE_VISIBLE,
+
+    // Invalid key. May be used to terminate C style lists in public API code.
+    Invalid = DVR_SURFACE_ATTRIBUTE_INVALID,
+
+    // Positive keys are interpreted by the compositor only.
+    FirstUserKey = DVR_SURFACE_ATTRIBUTE_FIRST_USER_KEY,
   };
 
-  static std::string ToString(DisplaySurfaceAttribute attribute) {
-    switch (attribute) {
-      case ZOrder:
-        return "z-order";
-      case Visible:
-        return "visible";
-      case Blur:
-        return "blur";
-      case ExcludeFromBlur:
-        return "exclude-from-blur";
-      case BlurBehind:
-        return "blur-behind";
-      default:
-        return "unknown";
-    }
-  }
+  SurfaceAttribute() : Base{Invalid} {}
+  using Base::Base;
 };
 
-using DisplaySurfaceAttributes =
-    std::map<DisplaySurfaceAttribute, DisplaySurfaceAttributeValue>;
+// Collection of surface attribute key/value pairs.
+using SurfaceAttributes = std::map<SurfaceAttributeKey, SurfaceAttributeValue>;
 
-struct DisplaySurfaceInfo {
-  int surface_id;
-  int process_id;
-  SurfaceType type;
-  DisplaySurfaceFlags flags;
-  DisplaySurfaceInfoFlags info_flags;
-  DisplaySurfaceAttributes client_attributes;
-  DisplaySurfaceAttributes manager_attributes;
+struct SurfaceState {
+  int32_t surface_id;
+  int32_t process_id;
+  int32_t user_id;
+
+  SurfaceAttributes surface_attributes;
+  SurfaceUpdateFlags update_flags;
+  std::vector<int32_t> queue_ids;
 
   // Convenience accessors.
-  bool IsClientVisible() const {
-    const auto* variant =
-        FindClientAttribute(DisplaySurfaceAttributeEnum::Visible);
-    bool bool_value;
-    if (variant && pdx::rpc::IfAnyOf<int32_t, int64_t, bool, float>::Get(
-                       variant, &bool_value))
-      return bool_value;
+  bool GetVisible() const {
+    bool bool_value = false;
+    GetAttribute(SurfaceAttribute::Visible, &bool_value,
+                 ValidTypes<int32_t, int64_t, bool, float>{});
+    return bool_value;
+  }
+
+  int GetZOrder() const {
+    int int_value = 0;
+    GetAttribute(SurfaceAttribute::ZOrder, &int_value,
+                 ValidTypes<int32_t, int64_t, float>{});
+    return int_value;
+  }
+
+ private:
+  template <typename... Types>
+  struct ValidTypes {};
+
+  template <typename ReturnType, typename... Types>
+  bool GetAttribute(SurfaceAttributeKey key, ReturnType* out_value,
+                    ValidTypes<Types...>) const {
+    auto search = surface_attributes.find(key);
+    if (search != surface_attributes.end())
+      return pdx::rpc::IfAnyOf<Types...>::Get(&search->second, out_value);
     else
       return false;
   }
 
-  int ClientZOrder() const {
-    const auto* variant =
-        FindClientAttribute(DisplaySurfaceAttributeEnum::ZOrder);
-    int int_value;
-    if (variant &&
-        pdx::rpc::IfAnyOf<int32_t, int64_t, float>::Get(variant, &int_value))
-      return int_value;
-    else
-      return 0;
-  }
+  PDX_SERIALIZABLE_MEMBERS(SurfaceState, surface_id, process_id,
+                           surface_attributes, update_flags, queue_ids);
+};
+
+struct SurfaceInfo {
+  int surface_id;
+  bool visible;
+  int z_order;
 
  private:
-  const DisplaySurfaceAttributeValue* FindClientAttribute(
-      DisplaySurfaceAttribute key) const {
-    auto search = client_attributes.find(key);
-    return (search != client_attributes.end()) ? &search->second : nullptr;
-  }
-
-  PDX_SERIALIZABLE_MEMBERS(DisplaySurfaceInfo, surface_id, process_id, type,
-                           flags, info_flags, client_attributes,
-                           manager_attributes);
+  PDX_SERIALIZABLE_MEMBERS(SurfaceInfo, surface_id, visible, z_order);
 };
 
-struct AlignmentMarker {
- public:
-  float horizontal;
-  float vertical;
-
-  PDX_SERIALIZABLE_MEMBERS(AlignmentMarker, horizontal, vertical);
-};
-
-struct DaydreamInternalParams {
- public:
-  int32_t version;
-  std::vector<AlignmentMarker> alignment_markers;
-
-  PDX_SERIALIZABLE_MEMBERS(DaydreamInternalParams, version, alignment_markers);
-};
-
-struct ViewerParams {
- public:
-  // TODO(hendrikw): Do we need viewer_vendor_name and viewer_model_name?
-  float screen_to_lens_distance;
-  float inter_lens_distance;
-  float screen_center_to_lens_distance;
-  std::vector<float> left_eye_field_of_view_angles;
-
-  enum VerticalAlignmentType : int32_t {
-    BOTTOM = 0,  // phone rests against a fixed bottom tray
-    CENTER = 1,  // phone screen assumed to be centered w.r.t. lenses
-    TOP = 2      // phone rests against a fixed top tray
-  };
-
-  enum EyeOrientation : int32_t {
-    kCCW0Degrees = 0,
-    kCCW90Degrees = 1,
-    kCCW180Degrees = 2,
-    kCCW270Degrees = 3,
-    kCCW0DegreesMirrored = 4,
-    kCCW90DegreesMirrored = 5,
-    kCCW180DegreesMirrored = 6,
-    kCCW270DegreesMirrored = 7
-  };
-
-  VerticalAlignmentType vertical_alignment;
-  std::vector<EyeOrientation> eye_orientations;
-
-  float tray_to_lens_distance;
-
-  std::vector<float> distortion_coefficients_r;
-  std::vector<float> distortion_coefficients_g;
-  std::vector<float> distortion_coefficients_b;
-
-  DaydreamInternalParams daydream_internal;
-
-  PDX_SERIALIZABLE_MEMBERS(ViewerParams, screen_to_lens_distance,
-                           inter_lens_distance, screen_center_to_lens_distance,
-                           left_eye_field_of_view_angles, vertical_alignment,
-                           eye_orientations, tray_to_lens_distance,
-                           distortion_coefficients_r, distortion_coefficients_g,
-                           distortion_coefficients_b, daydream_internal);
-};
-
-struct DisplayRPC {
+struct DisplayProtocol {
   // Service path.
   static constexpr char kClientPath[] = "system/vr/display/client";
 
   // Op codes.
   enum {
     kOpGetMetrics = 0,
-    kOpGetEdsCapture,
-    kOpCreateSurface,
-    kOpCreateBufferQueue,
-    kOpSetAttributes,
-    kOpGetMetadataBuffer,
-    kOpCreateVideoMeshSurface,
-    kOpVideoMeshSurfaceCreateProducerQueue,
-    kOpSetViewerParams,
     kOpGetNamedBuffer,
     kOpIsVrAppRunning,
+    kOpCreateSurface,
+    kOpGetSurfaceInfo,
+    kOpCreateQueue,
+    kOpSetAttributes,
   };
 
   // Aliases.
-  using ByteBuffer = pdx::rpc::BufferWrapper<std::vector<uint8_t>>;
   using LocalChannelHandle = pdx::LocalChannelHandle;
   using Void = pdx::rpc::Void;
 
   // Methods.
-  PDX_REMOTE_METHOD(GetMetrics, kOpGetMetrics, SystemDisplayMetrics(Void));
-  PDX_REMOTE_METHOD(GetEdsCapture, kOpGetEdsCapture, ByteBuffer(Void));
-  PDX_REMOTE_METHOD(CreateSurface, kOpCreateSurface,
-                    int(int width, int height, int format, int usage,
-                        DisplaySurfaceFlags flags));
-  PDX_REMOTE_METHOD(CreateBufferQueue, kOpCreateBufferQueue,
-                    LocalChannelHandle(Void));
-  PDX_REMOTE_METHOD(SetAttributes, kOpSetAttributes,
-                    int(const DisplaySurfaceAttributes& attributes));
-  PDX_REMOTE_METHOD(GetMetadataBuffer, kOpGetMetadataBuffer,
-                    LocalChannelHandle(Void));
-  // VideoMeshSurface methods
-  PDX_REMOTE_METHOD(CreateVideoMeshSurface, kOpCreateVideoMeshSurface,
-                    LocalChannelHandle(Void));
-  PDX_REMOTE_METHOD(VideoMeshSurfaceCreateProducerQueue,
-                    kOpVideoMeshSurfaceCreateProducerQueue,
-                    LocalChannelHandle(Void));
-  PDX_REMOTE_METHOD(SetViewerParams, kOpSetViewerParams,
-                    void(const ViewerParams& viewer_params));
+  PDX_REMOTE_METHOD(GetMetrics, kOpGetMetrics, Metrics(Void));
   PDX_REMOTE_METHOD(GetNamedBuffer, kOpGetNamedBuffer,
-                    LocalNativeBufferHandle(const std::string& name));
-  PDX_REMOTE_METHOD(IsVrAppRunning, kOpIsVrAppRunning, int(Void));
+                    LocalNativeBufferHandle(std::string name));
+  PDX_REMOTE_METHOD(IsVrAppRunning, kOpIsVrAppRunning, bool(Void));
+  PDX_REMOTE_METHOD(CreateSurface, kOpCreateSurface,
+                    SurfaceInfo(const SurfaceAttributes& attributes));
+  PDX_REMOTE_METHOD(GetSurfaceInfo, kOpGetSurfaceInfo, SurfaceInfo(Void));
+  PDX_REMOTE_METHOD(CreateQueue, kOpCreateQueue,
+                    LocalChannelHandle(size_t meta_size_bytes));
+  PDX_REMOTE_METHOD(SetAttributes, kOpSetAttributes,
+                    void(const SurfaceAttributes& attributes));
 };
 
-struct DisplayManagerRPC {
+struct DisplayManagerProtocol {
   // Service path.
   static constexpr char kClientPath[] = "system/vr/display/manager";
 
   // Op codes.
   enum {
-    kOpGetSurfaceList = 0,
-    kOpUpdateSurfaces,
+    kOpGetSurfaceState = 0,
+    kOpGetSurfaceQueue,
     kOpSetupNamedBuffer,
   };
 
@@ -265,40 +233,13 @@ struct DisplayManagerRPC {
   using Void = pdx::rpc::Void;
 
   // Methods.
-  PDX_REMOTE_METHOD(GetSurfaceList, kOpGetSurfaceList,
-                    std::vector<DisplaySurfaceInfo>(Void));
-  PDX_REMOTE_METHOD(
-      UpdateSurfaces, kOpUpdateSurfaces,
-      int(const std::map<int, DisplaySurfaceAttributes>& updates));
+  PDX_REMOTE_METHOD(GetSurfaceState, kOpGetSurfaceState,
+                    std::vector<SurfaceState>(Void));
+  PDX_REMOTE_METHOD(GetSurfaceQueue, kOpGetSurfaceQueue,
+                    LocalChannelHandle(int surface_id, int queue_id));
   PDX_REMOTE_METHOD(SetupNamedBuffer, kOpSetupNamedBuffer,
                     LocalNativeBufferHandle(const std::string& name,
                                             size_t size, uint64_t usage));
-};
-
-struct ScreenshotData {
-  int width;
-  int height;
-  std::vector<uint8_t> buffer;
-
- private:
-  PDX_SERIALIZABLE_MEMBERS(ScreenshotData, width, height, buffer);
-};
-
-struct DisplayScreenshotRPC {
-  // Service path.
-  static constexpr char kClientPath[] = "system/vr/display/screenshot";
-
-  // Op codes.
-  enum {
-    kOpGetFormat = 0,
-    kOpTakeScreenshot,
-  };
-
-  using Void = pdx::rpc::Void;
-
-  PDX_REMOTE_METHOD(GetFormat, kOpGetFormat, int(Void));
-  PDX_REMOTE_METHOD(TakeScreenshot, kOpTakeScreenshot,
-                    ScreenshotData(int layer_index));
 };
 
 struct VSyncSchedInfo {
@@ -311,7 +252,7 @@ struct VSyncSchedInfo {
                            next_vsync_count);
 };
 
-struct DisplayVSyncRPC {
+struct VSyncProtocol {
   // Service path.
   static constexpr char kClientPath[] = "system/vr/display/vsync";
 
@@ -332,9 +273,10 @@ struct DisplayVSyncRPC {
   PDX_REMOTE_METHOD(Wait, kOpWait, Timestamp(Void));
   PDX_REMOTE_METHOD(GetLastTimestamp, kOpGetLastTimestamp, Timestamp(Void));
   PDX_REMOTE_METHOD(GetSchedInfo, kOpGetSchedInfo, VSyncSchedInfo(Void));
-  PDX_REMOTE_METHOD(Acknowledge, kOpAcknowledge, int(Void));
+  PDX_REMOTE_METHOD(Acknowledge, kOpAcknowledge, void(Void));
 };
 
+}  // namespace display
 }  // namespace dvr
 }  // namespace android
 

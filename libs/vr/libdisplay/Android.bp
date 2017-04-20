@@ -18,11 +18,11 @@ sourceFiles = [
     "display_manager_client.cpp",
     "display_protocol.cpp",
     "dummy_native_window.cpp",
+    "frame_history.cpp",
     "gl_fenced_flush.cpp",
     "graphics.cpp",
     "late_latch.cpp",
     "vsync_client.cpp",
-    "frame_history.cpp",
 ]
 
 localIncludeFiles = [

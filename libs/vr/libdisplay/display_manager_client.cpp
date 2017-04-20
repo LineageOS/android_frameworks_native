@@ -2,51 +2,77 @@
 
 #include <pdx/default_transport/client_channel_factory.h>
 #include <private/dvr/buffer_hub_client.h>
+#include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/display_protocol.h>
 #include <utils/Log.h>
 
+using android::pdx::ErrorStatus;
 using android::pdx::LocalChannelHandle;
 using android::pdx::Transaction;
 
 namespace android {
 namespace dvr {
+namespace display {
 
 DisplayManagerClient::DisplayManagerClient()
     : BASE(pdx::default_transport::ClientChannelFactory::Create(
-          DisplayManagerRPC::kClientPath)) {}
+          DisplayManagerProtocol::kClientPath)) {}
 
 DisplayManagerClient::~DisplayManagerClient() {}
 
-int DisplayManagerClient::GetSurfaceList(
-    std::vector<DisplaySurfaceInfo>* surface_list) {
-  auto status = InvokeRemoteMethod<DisplayManagerRPC::GetSurfaceList>();
+pdx::Status<std::vector<display::SurfaceState>>
+DisplayManagerClient::GetSurfaceState() {
+  auto status = InvokeRemoteMethod<DisplayManagerProtocol::GetSurfaceState>();
   if (!status) {
     ALOGE(
-        "DisplayManagerClient::GetSurfaceList: Failed to get surface info: %s",
+        "DisplayManagerClient::GetSurfaceState: Failed to get surface info: %s",
         status.GetErrorMessage().c_str());
-    return -status.error();
   }
 
-  *surface_list = status.take();
-  return 0;
+  return status;
 }
 
-std::unique_ptr<IonBuffer> DisplayManagerClient::SetupNamedBuffer(
+pdx::Status<std::unique_ptr<IonBuffer>> DisplayManagerClient::SetupNamedBuffer(
     const std::string& name, size_t size, uint64_t usage) {
-  auto status = InvokeRemoteMethod<DisplayManagerRPC::SetupNamedBuffer>(
+  auto status = InvokeRemoteMethod<DisplayManagerProtocol::SetupNamedBuffer>(
       name, size, usage);
   if (!status) {
     ALOGE(
-        "DisplayManagerClient::SetupNamedBuffer: Failed to create the named "
-        "buffer: name=%s, error=%s",
-        name.c_str(), status.GetErrorMessage().c_str());
-    return {};
+        "DisplayManagerClient::SetupPoseBuffer: Failed to create the named "
+        "buffer %s",
+        status.GetErrorMessage().c_str());
+    return status.error_status();
   }
 
   auto ion_buffer = std::make_unique<IonBuffer>();
-  status.take().Import(ion_buffer.get());
-  return ion_buffer;
+  auto native_buffer_handle = status.take();
+  const int ret = native_buffer_handle.Import(ion_buffer.get());
+  if (ret < 0) {
+    ALOGE(
+        "DisplayClient::GetNamedBuffer: Failed to import named buffer: "
+        "name=%s; error=%s",
+        name.c_str(), strerror(-ret));
+    return ErrorStatus(-ret);
+  }
+
+  return {std::move(ion_buffer)};
 }
 
+pdx::Status<std::unique_ptr<ConsumerQueue>>
+DisplayManagerClient::GetSurfaceQueue(int surface_id, int queue_id) {
+  auto status = InvokeRemoteMethod<DisplayManagerProtocol::GetSurfaceQueue>(
+      surface_id, queue_id);
+  if (!status) {
+    ALOGE(
+        "DisplayManagerClient::GetSurfaceQueue: Failed to get queue for "
+        "surface_id=%d queue_id=%d: %s",
+        surface_id, queue_id, status.GetErrorMessage().c_str());
+    return status.error_status();
+  }
+
+  return {ConsumerQueue::Import(status.take())};
+}
+
+}  // namespace display
 }  // namespace dvr
 }  // namespace android

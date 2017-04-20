@@ -9,7 +9,7 @@ namespace android {
 namespace dvr {
 
 AcquiredBuffer::AcquiredBuffer(const std::shared_ptr<BufferConsumer>& buffer,
-                               LocalHandle acquire_fence, uint64_t /*sequence*/)
+                               LocalHandle acquire_fence)
     : buffer_(buffer), acquire_fence_(std::move(acquire_fence)) {}
 
 AcquiredBuffer::AcquiredBuffer(const std::shared_ptr<BufferConsumer>& buffer,

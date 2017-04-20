@@ -2,11 +2,12 @@
 
 namespace android {
 namespace dvr {
+namespace display {
 
-constexpr char DisplayRPC::kClientPath[];
-constexpr char DisplayManagerRPC::kClientPath[];
-constexpr char DisplayScreenshotRPC::kClientPath[];
-constexpr char DisplayVSyncRPC::kClientPath[];
+constexpr char DisplayProtocol::kClientPath[];
+constexpr char DisplayManagerProtocol::kClientPath[];
+constexpr char VSyncProtocol::kClientPath[];
 
-} // namespace dvr
-} // namespace android
+}  // namespace display
+}  // namespace dvr
+}  // namespace android

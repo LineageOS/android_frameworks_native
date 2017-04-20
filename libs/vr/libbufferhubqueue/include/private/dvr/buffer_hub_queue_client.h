@@ -453,23 +453,4 @@ class ConsumerQueue : public BufferHubQueue {
 }  // namespace dvr
 }  // namespace android
 
-// Concrete C type definition for DVR API.
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-struct DvrWriteBufferQueue {
-  std::shared_ptr<android::dvr::ProducerQueue> producer_queue_;
-  ANativeWindow* native_window_{nullptr};
-};
-
-struct DvrReadBufferQueue {
-  std::shared_ptr<android::dvr::ConsumerQueue> consumer_queue_;
-};
-
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
 #endif  // ANDROID_DVR_BUFFER_HUB_QUEUE_CLIENT_H_
