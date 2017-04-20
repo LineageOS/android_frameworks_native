@@ -252,7 +252,8 @@ LateLatch::LateLatch(bool is_app_late_latch,
                      LocalHandle&& surface_metadata_fd)
     : is_app_late_latch_(is_app_late_latch),
       app_late_latch_output_(NULL),
-      eds_late_latch_output_(NULL) {
+      eds_late_latch_output_(NULL),
+      surface_metadata_fd_(std::move(surface_metadata_fd)) {
   CHECK_GL();
   glGenBuffers(1, &input_buffer_id_);
   glBindBuffer(GL_SHADER_STORAGE_BUFFER, input_buffer_id_);
@@ -264,12 +265,11 @@ LateLatch::LateLatch(bool is_app_late_latch,
                GL_DYNAMIC_COPY);
   CHECK_GL();
 
-  LocalHandle pose_buffer_fd;
   pose_client_ = dvrPoseCreate();
   if (!pose_client_) {
     ALOGE("LateLatch Error: failed to create pose client");
   } else {
-    int ret = privateDvrPoseGetRingBufferFd(pose_client_, &pose_buffer_fd);
+    int ret = privateDvrPoseGetRingBufferFd(pose_client_, &pose_buffer_fd_);
     if (ret < 0) {
       ALOGE("LateLatch Error: failed to get pose ring buffer");
     }
@@ -280,20 +280,20 @@ LateLatch::LateLatch(bool is_app_late_latch,
   if (!glBindSharedBufferQCOM) {
     ALOGE("Error: Missing gralloc buffer extension, no pose data");
   } else {
-    if (pose_buffer_fd) {
+    if (pose_buffer_fd_) {
       glBindBuffer(GL_SHADER_STORAGE_BUFFER, pose_buffer_object_);
       glBindSharedBufferQCOM(GL_SHADER_STORAGE_BUFFER,
                              kPoseAsyncBufferTotalCount * sizeof(DvrPoseAsync),
-                             pose_buffer_fd.Release());
+                             pose_buffer_fd_.Get());
     }
     CHECK_GL();
   }
 
   glBindBuffer(GL_SHADER_STORAGE_BUFFER, metadata_buffer_id_);
-  if (surface_metadata_fd && glBindSharedBufferQCOM) {
+  if (surface_metadata_fd_ && glBindSharedBufferQCOM) {
     glBindSharedBufferQCOM(GL_SHADER_STORAGE_BUFFER,
                            sizeof(DisplaySurfaceMetadata),
-                           surface_metadata_fd.Release());
+                           surface_metadata_fd_.Get());
   } else {
     // Fall back on internal metadata buffer when none provided, for example
     // when distortion is done in the application process.
