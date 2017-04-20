@@ -1,0 +1,59 @@
+cc_library_shared {
+    name: "libsensorservice",
+
+    srcs: [
+        "BatteryService.cpp",
+        "CorrectedGyroSensor.cpp",
+        "Fusion.cpp",
+        "GravitySensor.cpp",
+        "LinearAccelerationSensor.cpp",
+        "OrientationSensor.cpp",
+        "RecentEventLogger.cpp",
+        "RotationVectorSensor.cpp",
+        "SensorDevice.cpp",
+        "SensorEventConnection.cpp",
+        "SensorFusion.cpp",
+        "SensorInterface.cpp",
+        "SensorList.cpp",
+        "SensorRecord.cpp",
+        "SensorService.cpp",
+        "SensorServiceUtils.cpp",
+    ],
+
+    cflags: [
+        "-DLOG_TAG=\"SensorService\"",
+        "-Wall",
+        "-Werror",
+        "-Wextra",
+        "-fvisibility=hidden",
+    ],
+
+    shared_libs: [
+        "libcutils",
+        "libhardware",
+        "libhardware_legacy",
+        "libutils",
+        "liblog",
+        "libbinder",
+        "libui",
+        "libgui",
+        "libcrypto",
+    ],
+}
+
+cc_binary {
+    name: "sensorservice",
+    srcs: ["main_sensorservice.cpp"],
+
+    shared_libs: [
+        "libsensorservice",
+        "libbinder",
+        "libutils",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wextra",
+    ],
+}
