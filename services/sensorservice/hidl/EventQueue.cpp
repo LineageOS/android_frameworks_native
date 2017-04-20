@@ -27,7 +27,8 @@ namespace implementation {
 
 class EventQueueLooperCallback : public ::android::LooperCallback {
 public:
-    EventQueueLooperCallback(sp<EventQueue> queue, sp<IEventQueueCallback> callback)
+    EventQueueLooperCallback(sp<::android::SensorEventQueue> queue,
+                             sp<IEventQueueCallback> callback)
             : mQueue(queue), mCallback(callback) {
     }
 
@@ -35,7 +36,11 @@ public:
 
         ASensorEvent event;
         ssize_t actual;
-        const sp<::android::SensorEventQueue>& internalQueue = mQueue->mInternalQueue;
+
+        auto internalQueue = mQueue.promote();
+        if (internalQueue == nullptr) {
+            return 1;
+        }
 
         while ((actual = internalQueue->read(&event, 1 /* count */)) > 0) {
             internalQueue->sendAck(&event, actual);
@@ -47,7 +52,7 @@ public:
     }
 
 private:
-    sp<EventQueue> mQueue;
+    wp<::android::SensorEventQueue> mQueue;
     sp<IEventQueueCallback> mCallback;
 };
 
@@ -58,18 +63,18 @@ EventQueue::EventQueue(
             : mLooper(looper),
               mInternalQueue(internalQueue) {
 
-    mLooper->addFd(mInternalQueue->getFd(), ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT,
-            new EventQueueLooperCallback(this, callback), NULL /* data */);
+    mLooper->addFd(internalQueue->getFd(), ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT,
+            new EventQueueLooperCallback(internalQueue, callback), NULL /* data */);
 }
 
-EventQueue::~EventQueue() {
+void EventQueue::onLastStrongRef(const void *id) {
+    IEventQueue::onLastStrongRef(id);
     mLooper->removeFd(mInternalQueue->getFd());
 }
 
 // Methods from ::android::frameworks::sensorservice::V1_0::IEventQueue follow.
 Return<Result> EventQueue::enableSensor(int32_t sensorHandle, int32_t samplingPeriodUs,
         int64_t maxBatchReportLatencyUs) {
-    // TODO implement
     return convertResult(mInternalQueue->enableSensor(sensorHandle, samplingPeriodUs,
             maxBatchReportLatencyUs, 0 /* reserved flags */));
 }
