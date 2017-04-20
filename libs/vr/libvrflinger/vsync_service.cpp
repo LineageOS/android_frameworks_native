@@ -9,7 +9,7 @@
 
 #include <pdx/default_transport/service_endpoint.h>
 #include <private/dvr/clock_ns.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 #include <private/dvr/display_types.h>
 
 using android::pdx::Channel;

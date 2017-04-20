@@ -24,7 +24,6 @@
 #include <private/dvr/late_latch.h>
 #include <private/dvr/native_buffer_queue.h>
 #include <private/dvr/sensor_constants.h>
-#include <private/dvr/video_mesh_surface_client.h>
 #include <private/dvr/vsync_client.h>
 #include <private/dvr/platform_defines.h>
 
@@ -541,10 +540,6 @@ struct DvrGraphicsContext : public android::ANativeObjectBase<
 
   // LateLatch support.
   std::unique_ptr<android::dvr::LateLatch> late_latch;
-
-  // Video mesh support.
-  std::vector<std::shared_ptr<android::dvr::VideoMeshSurfaceClient>>
-      video_mesh_surfaces;
 
  private:
   // ANativeWindow function implementations
@@ -1533,44 +1528,3 @@ extern "C" int dvrGraphicsSurfaceGetZOrder(
   return graphics_context->display_surface->z_order();
 }
 
-extern "C" DvrVideoMeshSurface* dvrGraphicsVideoMeshSurfaceCreate(
-    DvrGraphicsContext* graphics_context) {
-  auto display_surface = graphics_context->display_surface;
-  // A DisplaySurface must be created prior to the creation of a
-  // VideoMeshSurface.
-  LOG_ALWAYS_FATAL_IF(display_surface == nullptr);
-
-  LocalChannelHandle surface_handle = display_surface->CreateVideoMeshSurface();
-  if (!surface_handle.valid()) {
-    return nullptr;
-  }
-
-  std::unique_ptr<DvrVideoMeshSurface> surface(new DvrVideoMeshSurface);
-  surface->client =
-      android::dvr::VideoMeshSurfaceClient::Import(std::move(surface_handle));
-
-  // TODO(jwcai) The next line is not needed...
-  auto producer_queue = surface->client->GetProducerQueue();
-  return surface.release();
-}
-
-extern "C" void dvrGraphicsVideoMeshSurfaceDestroy(
-    DvrVideoMeshSurface* surface) {
-  delete surface;
-}
-
-extern "C" void dvrGraphicsVideoMeshSurfacePresent(
-    DvrGraphicsContext* graphics_context, DvrVideoMeshSurface* surface,
-    const int eye, const float* transform) {
-  volatile android::dvr::VideoMeshSurfaceMetadata* metadata =
-      surface->client->GetMetadataBufferPtr();
-
-  const uint32_t graphics_buffer_index =
-      graphics_context->current_buffer->surface_buffer_index();
-
-  for (int i = 0; i < 4; ++i) {
-    metadata->transform[graphics_buffer_index][eye].val[i] = {
-        transform[i + 0], transform[i + 4], transform[i + 8], transform[i + 12],
-    };
-  }
-}

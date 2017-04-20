@@ -7,7 +7,7 @@
 #include <pdx/rpc/remote_method.h>
 #include <private/dvr/composite_hmd.h>
 #include <private/dvr/device_metrics.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 #include <private/dvr/display_types.h>
 #include <private/dvr/numeric.h>
 #include <private/dvr/polynomial_radial_distortion.h>

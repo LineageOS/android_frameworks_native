@@ -3,7 +3,7 @@
 
 #include <pdx/file_handle.h>
 #include <pdx/service.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 #include <private/dvr/ring_buffer.h>
 
 #include <functional>

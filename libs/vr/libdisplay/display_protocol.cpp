@@ -1,4 +1,4 @@
-#include "include/private/dvr/display_rpc.h"
+#include "include/private/dvr/display_protocol.h"
 
 namespace android {
 namespace dvr {

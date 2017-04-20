@@ -8,7 +8,7 @@
 
 #include <mutex>
 
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 #include <private/dvr/late_latch.h>
 #include <private/dvr/native_buffer.h>
 

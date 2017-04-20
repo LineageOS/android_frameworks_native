@@ -4,7 +4,7 @@
 #include <pdx/service.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/bufferhub_rpc.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 #include <private/dvr/late_latch.h>
 
 #include <functional>

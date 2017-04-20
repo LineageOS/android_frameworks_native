@@ -1,7 +1,7 @@
 #include "video_mesh_surface.h"
 
 #include <private/dvr/buffer_hub_queue_core.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 
 using android::pdx::LocalChannelHandle;
 using android::pdx::rpc::DispatchRemoteMethod;

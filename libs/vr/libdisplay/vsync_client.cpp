@@ -3,7 +3,7 @@
 #include <log/log.h>
 
 #include <pdx/default_transport/client_channel_factory.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 
 using android::pdx::Transaction;
 

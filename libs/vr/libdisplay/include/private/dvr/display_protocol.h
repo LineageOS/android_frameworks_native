@@ -1,5 +1,5 @@
-#ifndef ANDROID_DVR_DISPLAY_RPC_H_
-#define ANDROID_DVR_DISPLAY_RPC_H_
+#ifndef ANDROID_DVR_DISPLAY_PROTOCOL_H_
+#define ANDROID_DVR_DISPLAY_PROTOCOL_H_
 
 #include <sys/types.h>
 
@@ -338,4 +338,4 @@ struct DisplayVSyncRPC {
 }  // namespace dvr
 }  // namespace android
 
-#endif  // ANDROID_DVR_DISPLAY_RPC_H_
+#endif  // ANDROID_DVR_DISPLAY_PROTOCOL_H_

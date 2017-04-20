@@ -2,7 +2,7 @@
 #define ANDROID_DVR_SERVICES_DISPLAYD_DISPLAY_MANAGER_SERVICE_H_
 
 #include <pdx/service.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 
 #include "display_service.h"
 

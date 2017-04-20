@@ -1,10 +1,10 @@
-#ifndef ANDROID_DVR_DISPLAY_MANAGER_CLIENT_IMPL_H_
-#define ANDROID_DVR_DISPLAY_MANAGER_CLIENT_IMPL_H_
+#ifndef ANDROID_DVR_DISPLAY_MANAGER_CLIENT_H_
+#define ANDROID_DVR_DISPLAY_MANAGER_CLIENT_H_
 
 #include <vector>
 
 #include <pdx/client.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 
 namespace android {
 namespace dvr {
@@ -36,4 +36,4 @@ class DisplayManagerClient : public pdx::ClientBase<DisplayManagerClient> {
 }  // namespace dvr
 }  // namespace android
 
-#endif  // ANDROID_DVR_DISPLAY_MANAGER_CLIENT_IMPL_H_
+#endif  // ANDROID_DVR_DISPLAY_MANAGER_CLIENT_H_

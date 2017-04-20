@@ -3,7 +3,7 @@
 #include <pdx/channel_handle.h>
 #include <pdx/default_transport/service_endpoint.h>
 #include <private/android_filesystem_config.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 #include <private/dvr/trusted_uids.h>
 #include <sys/poll.h>
 

@@ -4,7 +4,7 @@
 #include <grallocusage/GrallocUsageConversion.h>
 #include <private/android/AHardwareBufferHelpers.h>
 #include <private/dvr/buffer_hub_client.h>
-#include <private/dvr/display_manager_client_impl.h>
+#include <private/dvr/display_manager_client.h>
 
 using android::dvr::DisplaySurfaceAttributeEnum;
 

@@ -4,7 +4,7 @@
 #include <GLES2/gl2ext.h>
 
 #include <private/dvr/debug.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 
 namespace android {
 namespace dvr {
