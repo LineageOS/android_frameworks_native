@@ -94,6 +94,7 @@ static const char* hal_interfaces_to_dump[] {
         "android.hardware.audio@2.0::IDevicesFactory",
         "android.hardware.bluetooth@1.0::IBluetoothHci",
         "android.hardware.camera.provider@2.4::ICameraProvider",
+        "android.hardware.graphics.composer@2.1::IComposer",
         "android.hardware.vr@1.0::IVr",
         "android.hardware.media.omx@1.0::IOmx",
         NULL,
