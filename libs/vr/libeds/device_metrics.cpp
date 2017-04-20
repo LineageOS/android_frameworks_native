@@ -3,7 +3,6 @@
 #include <cutils/properties.h>
 #include <private/dvr/head_mount_metrics.h>
 #include <private/dvr/identity_distortion.h>
-#include <private/dvr/lookup_radial_distortion.h>
 #include <private/dvr/polynomial_radial_distortion.h>
 #include <private/dvr/types.h>
 #include "include/private/dvr/display_metrics.h"
