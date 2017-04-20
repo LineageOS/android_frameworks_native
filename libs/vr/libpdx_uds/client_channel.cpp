@@ -156,6 +156,7 @@ void ClientChannel::FreeTransactionState(void* state) {
 
 Status<void> ClientChannel::SendImpulse(int opcode, const void* buffer,
                                         size_t length) {
+  std::unique_lock<std::mutex> lock(socket_mutex_);
   Status<void> status;
   android::pdx::uds::RequestHeader<BorrowedHandle> request;
   if (length > request.impulse_payload.size() ||
@@ -174,6 +175,7 @@ Status<int> ClientChannel::SendAndReceive(void* transaction_state, int opcode,
                                           size_t send_count,
                                           const iovec* receive_vector,
                                           size_t receive_count) {
+  std::unique_lock<std::mutex> lock(socket_mutex_);
   Status<int> result;
   if ((send_vector == nullptr && send_count != 0) ||
       (receive_vector == nullptr && receive_count != 0)) {

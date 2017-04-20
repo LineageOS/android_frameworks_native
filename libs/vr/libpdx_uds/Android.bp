@@ -35,6 +35,7 @@ cc_test {
         "-Werror",
     ],
     srcs: [
+        "client_channel_tests.cpp",
         "ipc_helper_tests.cpp",
         "remote_method_tests.cpp",
         "service_framework_tests.cpp",

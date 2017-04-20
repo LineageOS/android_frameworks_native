@@ -3,6 +3,8 @@
 
 #include <pdx/client_channel.h>
 
+#include <mutex>
+
 #include <uds/channel_event_set.h>
 #include <uds/channel_manager.h>
 #include <uds/service_endpoint.h>
@@ -73,6 +75,7 @@ class ClientChannel : public pdx::ClientChannel {
 
   LocalChannelHandle channel_handle_;
   ChannelManager::ChannelData* channel_data_;
+  std::mutex socket_mutex_;
 };
 
 }  // namespace uds
