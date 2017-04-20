@@ -163,6 +163,7 @@ bool Lshal::getReferencedPids(
     return true;
 }
 
+// Must process hwbinder services first, then passthrough services.
 void Lshal::forEachTable(const std::function<void(Table &)> &f) {
     f(mServicesTable);
     f(mPassthroughRefTable);
@@ -243,6 +244,18 @@ void Lshal::printLine(
 }
 
 void Lshal::dumpVintf() const {
+    mOut << "<!-- " << std::endl
+         << "    This is a skeleton device manifest. Notes: " << std::endl
+         << "    1. android.hidl.*, android.frameworks.*, android.system.* are not included." << std::endl
+         << "    2. If a HAL is supported in both hwbinder and passthrough transport, " << std::endl
+         << "       only hwbinder is shown." << std::endl
+         << "    3. It is likely that HALs in passthrough transport does not have" << std::endl
+         << "       <interface> declared; users will have to write them by hand." << std::endl
+         << "    4. sepolicy version is set to 0.0. It is recommended that the entry" << std::endl
+         << "       is removed from the manifest file and written by assemble_vintf" << std::endl
+         << "       at build time." << std::endl
+         << "-->" << std::endl;
+
     vintf::HalManifest manifest;
     forEachTable([this, &manifest] (const Table &table) {
         for (const TableEntry &entry : table) {
@@ -271,6 +284,8 @@ void Lshal::dumpVintf() const {
             std::string instanceName =
                     &table == &mImplementationsTable ? "" : splittedFqInstanceName.second;
 
+            vintf::Version version{fqName.getPackageMajorVersion(),
+                                   fqName.getPackageMinorVersion()};
             vintf::Transport transport;
             vintf::Arch arch;
             if (entry.transport == "hwbinder") {
@@ -296,34 +311,33 @@ void Lshal::dumpVintf() const {
                 continue;
             }
 
-            vintf::ManifestHal *hal = manifest.getAnyHal(fqName.package());
-            if (hal == nullptr) {
-                if (!manifest.add(vintf::ManifestHal{
+            bool done = false;
+            for (vintf::ManifestHal *hal : manifest.getHals(fqName.package())) {
+                if (hal->transport() != transport) {
+                    if (transport != vintf::Transport::PASSTHROUGH) {
+                        mErr << "Fatal: should not reach here. Generated result may be wrong."
+                             << std::endl;
+                    }
+                    done = true;
+                    break;
+                }
+                if (hal->hasVersion(version)) {
+                    hal->interfaces[interfaceName].name = interfaceName;
+                    hal->interfaces[interfaceName].instances.insert(instanceName);
+                    done = true;
+                    break;
+                }
+            }
+            if (done) {
+                continue; // to next TableEntry
+            }
+            if (!manifest.add(vintf::ManifestHal{
                     .format = vintf::HalFormat::HIDL,
                     .name = fqName.package(),
-                    .transportArch = {transport, arch}
-                })) {
-                    mErr << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
-                    continue;
-                }
-                hal = manifest.getAnyHal(fqName.package());
-            }
-            if (hal == nullptr) {
-                mErr << "Warning: cannot get hal '" << fqInstanceName
-                     << "' after adding it" << std::endl;
-                continue;
-            }
-            vintf::Version version{fqName.getPackageMajorVersion(), fqName.getPackageMinorVersion()};
-            if (std::find(hal->versions.begin(), hal->versions.end(), version) == hal->versions.end()) {
-                hal->versions.push_back(version);
-            }
-            if (&table != &mImplementationsTable) {
-                auto it = hal->interfaces.find(interfaceName);
-                if (it == hal->interfaces.end()) {
-                    hal->interfaces.insert({interfaceName, {interfaceName, {{instanceName}}}});
-                } else {
-                    it->second.instances.insert(instanceName);
-                }
+                    .versions = {version},
+                    .transportArch = {transport, arch},
+                    .interfaces = {{interfaceName, {interfaceName, {{instanceName}}}}}})) {
+                mErr << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
             }
         }
     });
