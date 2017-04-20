@@ -2,6 +2,7 @@
 
 #include <log/log.h>
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
+#include <grallocusage/GrallocUsageConversion.h>
 #include <utils/Trace.h>
 
 #include <mutex>
@@ -99,9 +100,10 @@ int IonBuffer::Alloc(uint32_t width, uint32_t height, uint32_t format,
       " consumer_usage=%" PRIx64,
       width, height, format, producer_usage, consumer_usage);
 
-  sp<GraphicBuffer> buffer =
-      new GraphicBuffer(width, height, format, kDefaultGraphicBufferLayerCount,
-                        producer_usage, consumer_usage);
+  // TODO: forget about split producer/consumer usage
+  sp<GraphicBuffer> buffer = new GraphicBuffer(
+      width, height, format, kDefaultGraphicBufferLayerCount,
+      android_convertGralloc1To0Usage(producer_usage, consumer_usage));
   if (buffer->initCheck() != OK) {
     ALOGE("IonBuffer::Aloc: Failed to allocate buffer");
     return -EINVAL;
@@ -144,9 +146,12 @@ int IonBuffer::Import(buffer_handle_t handle, uint32_t width, uint32_t height,
       "producer_usage=%" PRIx64 " consumer_usage=%" PRIx64,
       handle, width, height, stride, format, producer_usage, consumer_usage);
   FreeHandle();
-  sp<GraphicBuffer> buffer = new GraphicBuffer(
-      handle, GraphicBuffer::TAKE_UNREGISTERED_HANDLE, width, height, format,
-      kDefaultGraphicBufferLayerCount, producer_usage, consumer_usage, stride);
+  sp<GraphicBuffer> buffer =
+      new GraphicBuffer(handle, GraphicBuffer::TAKE_UNREGISTERED_HANDLE, width,
+                        height, format, kDefaultGraphicBufferLayerCount,
+                        static_cast<uint64_t>(android_convertGralloc1To0Usage(
+                            producer_usage, consumer_usage)),
+                        stride);
   if (buffer->initCheck() != OK) {
     ALOGE("IonBuffer::Import: Failed to import buffer");
     return -EINVAL;
