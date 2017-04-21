@@ -68,7 +68,8 @@ public:
             int32_t userId, int32_t flags, const std::vector<int32_t>& appIds,
             std::vector<int64_t>* _aidl_return);
     binder::Status getExternalSize(const std::unique_ptr<std::string>& uuid,
-            int32_t userId, int32_t flags, std::vector<int64_t>* _aidl_return);
+            int32_t userId, int32_t flags, const std::vector<int32_t>& appIds,
+            std::vector<int64_t>* _aidl_return);
 
     binder::Status setAppQuota(const std::unique_ptr<std::string>& uuid,
             int32_t userId, int32_t appId, int64_t cacheQuota);
