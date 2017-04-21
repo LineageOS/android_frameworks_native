@@ -484,7 +484,10 @@ void PoseService::UpdatePoseMode() {
       }
 
       // Update the current latency model.
-      sensor_latency_.AddLatency(GetSystemClockNs() - pose_state.timestamp_ns);
+      if (pose_state.timestamp_ns != 0) {
+        sensor_latency_.AddLatency(GetSystemClockNs() -
+                                   pose_state.timestamp_ns);
+      }
 
       // Update the timestamp with the expected latency.
       WriteAsyncPoses(
