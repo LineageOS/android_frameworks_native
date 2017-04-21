@@ -38,7 +38,7 @@ interface IInstalld {
             int userId, int flags, int appId, in long[] ceDataInodes,
             in @utf8InCpp String[] codePaths);
     long[] getUserSize(@nullable @utf8InCpp String uuid, int userId, int flags, in int[] appIds);
-    long[] getExternalSize(@nullable @utf8InCpp String uuid, int userId, int flags);
+    long[] getExternalSize(@nullable @utf8InCpp String uuid, int userId, int flags, in int[] appIds);
 
     void setAppQuota(@nullable @utf8InCpp String uuid, int userId, int appId, long cacheQuota);
 
