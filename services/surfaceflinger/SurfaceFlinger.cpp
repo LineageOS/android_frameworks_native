@@ -2371,6 +2371,7 @@ bool SurfaceFlinger::handlePageFlip()
 
     bool visibleRegions = false;
     bool frameQueued = false;
+    bool newDataLatched = false;
 
     // Store the set of layers that need updates. This set must not change as
     // buffers are being latched, as this could result in a deadlock.
@@ -2398,6 +2399,9 @@ bool SurfaceFlinger::handlePageFlip()
         const Region dirty(layer->latchBuffer(visibleRegions, latchTime));
         layer->useSurfaceDamage();
         invalidateLayerStack(layer->getLayerStack(), dirty);
+        if (!dirty.isEmpty()) {
+            newDataLatched = true;
+        }
     }
 
     mVisibleRegionsDirty |= visibleRegions;
@@ -2410,7 +2414,7 @@ bool SurfaceFlinger::handlePageFlip()
     }
 
     // Only continue with the refresh if there is actually new work to do
-    return !mLayersWithQueuedFrames.empty();
+    return !mLayersWithQueuedFrames.empty() && newDataLatched;
 }
 
 void SurfaceFlinger::invalidateHwcGeometry()
