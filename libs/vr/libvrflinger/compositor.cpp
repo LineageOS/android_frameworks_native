@@ -48,10 +48,10 @@ static std::shared_ptr<int64_t> eds_gpu_duration_ns =
     std::make_shared<int64_t>(0);
 
 static constexpr char kDisableLensDistortionProp[] =
-    "persist.dreamos.disable_distort";
+    "persist.dvr.disable_distort";
 
 static constexpr char kEnableEdsPoseSaveProp[] =
-    "persist.dreamos.save_eds_pose";
+    "persist.dvr.save_eds_pose";
 
 namespace android {
 namespace dvr {

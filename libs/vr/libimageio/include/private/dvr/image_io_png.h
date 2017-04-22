@@ -1,5 +1,5 @@
-#ifndef LIB_LIBIMAGEIO_PRIVATE_DREAMOS_IMAGE_IO_PNG_H_
-#define LIB_LIBIMAGEIO_PRIVATE_DREAMOS_IMAGE_IO_PNG_H_
+#ifndef LIB_LIBIMAGEIO_PRIVATE_DVR_IMAGE_IO_PNG_H_
+#define LIB_LIBIMAGEIO_PRIVATE_DVR_IMAGE_IO_PNG_H_
 
 #include <fstream>
 
@@ -21,4 +21,4 @@ class ImageIoPngWriter : public ImageIoWriter {
   friend class ImageIoWriter;
 };
 
-#endif  // LIB_LIBIMAGEIO_PRIVATE_DREAMOS_IMAGE_IO_PNG_H_
+#endif  // LIB_LIBIMAGEIO_PRIVATE_DVR_IMAGE_IO_PNG_H_

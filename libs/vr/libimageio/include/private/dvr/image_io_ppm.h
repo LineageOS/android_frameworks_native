@@ -1,5 +1,5 @@
-#ifndef LIB_LIBIMAGEIO_PRIVATE_DREAMOS_IMAGE_IO_PPM_H_
-#define LIB_LIBIMAGEIO_PRIVATE_DREAMOS_IMAGE_IO_PPM_H_
+#ifndef LIB_LIBIMAGEIO_PRIVATE_DVR_IMAGE_IO_PPM_H_
+#define LIB_LIBIMAGEIO_PRIVATE_DVR_IMAGE_IO_PPM_H_
 
 #include <private/dvr/image_io_base.h>
 
@@ -25,4 +25,4 @@ class ImageIoPpmWriter : public ImageIoWriter {
   friend class ImageIoWriter;
 };
 
-#endif  // LIB_LIBIMAGEIO_PRIVATE_DREAMOS_IMAGE_IO_PPM_H_
+#endif  // LIB_LIBIMAGEIO_PRIVATE_DVR_IMAGE_IO_PPM_H_
