@@ -172,6 +172,10 @@ private:
     // GraphicBuffers.
     uint32_t mConsumerUsageBits;
 
+    // mConsumerIsProtected indicates the consumer is ready to handle protected
+    // buffer.
+    bool mConsumerIsProtected;
+
     // mConnectedApi indicates the producer API that is currently connected
     // to this BufferQueue. It defaults to NO_CONNECTED_API, and gets updated
     // by the connect and disconnect methods.
