@@ -64,7 +64,7 @@ const char kPrimaryDisplayWaitPPEventFile[] = "/sys/class/graphics/fb0/wait_pp";
 
 const char kDvrPerformanceProperty[] = "sys.dvr.performance";
 
-const char kRightEyeOffsetProperty[] = "dreamos.right_eye_offset_ns";
+const char kRightEyeOffsetProperty[] = "dvr.right_eye_offset_ns";
 
 // Returns our best guess for the time the compositor will spend rendering the
 // next frame.
