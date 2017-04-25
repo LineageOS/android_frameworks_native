@@ -56,6 +56,9 @@ SensorDevice::SensorDevice() : mHidlTransportErrors(20) {
     if (!connectHidlService()) {
         return;
     }
+
+    float minPowerMa = 0.001; // 1 microAmp
+
     checkReturn(mSensors->getSensorsList(
             [&](const auto &list) {
                 const size_t count = list.size();
@@ -65,6 +68,12 @@ SensorDevice::SensorDevice() : mHidlTransportErrors(20) {
                 for (size_t i=0 ; i < count; i++) {
                     sensor_t sensor;
                     convertToSensor(list[i], &sensor);
+                    // Sanity check and clamp power if it is 0 (or close)
+                    if (sensor.power < minPowerMa) {
+                        ALOGE("Reported power %f not deemed sane, clamping to %f",
+                              sensor.power, minPowerMa);
+                        sensor.power = minPowerMa;
+                    }
                     mSensorList.push_back(sensor);
 
                     mActivationCount.add(list[i].sensorHandle, model);
