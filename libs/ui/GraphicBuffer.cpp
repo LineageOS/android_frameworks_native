@@ -59,18 +59,18 @@ GraphicBuffer::GraphicBuffer()
 // deprecated
 GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
         PixelFormat inFormat, uint32_t inUsage, std::string requestorName)
-    : GraphicBuffer(inWidth, inHeight, inFormat, 1, inUsage, inUsage,
+    : GraphicBuffer(inWidth, inHeight, inFormat, 1, static_cast<uint64_t>(inUsage),
             requestorName)
 {
 }
 
 GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
-        PixelFormat inFormat, uint32_t inLayerCount, uint64_t producerUsage,
-        uint64_t consumerUsage, std::string requestorName)
+        PixelFormat inFormat, uint32_t inLayerCount, uint64_t usage,
+        std::string requestorName)
     : GraphicBuffer()
 {
     mInitCheck = initWithSize(inWidth, inHeight, inFormat, inLayerCount,
-            producerUsage, consumerUsage, std::move(requestorName));
+            usage, std::move(requestorName));
 }
 
 // deprecated
@@ -78,7 +78,7 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
         PixelFormat inFormat, uint32_t inLayerCount, uint32_t inUsage,
         uint32_t inStride, native_handle_t* inHandle, bool keepOwnership)
     : GraphicBuffer(inHandle, keepOwnership ? TAKE_HANDLE : WRAP_HANDLE,
-            inWidth, inHeight, inFormat, inLayerCount, inUsage, inUsage,
+            inWidth, inHeight, inFormat, inLayerCount, static_cast<uint64_t>(inUsage),
             inStride)
 {
 }
@@ -86,12 +86,12 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
 GraphicBuffer::GraphicBuffer(const native_handle_t* handle,
         HandleWrapMethod method, uint32_t width, uint32_t height,
         PixelFormat format, uint32_t layerCount,
-        uint64_t producerUsage, uint64_t consumerUsage,
+        uint64_t usage,
         uint32_t stride)
     : GraphicBuffer()
 {
     mInitCheck = initWithHandle(handle, method, width, height, format,
-            layerCount, producerUsage, consumerUsage, stride);
+            layerCount, usage, stride);
 }
 
 GraphicBuffer::~GraphicBuffer()
@@ -129,7 +129,7 @@ ANativeWindowBuffer* GraphicBuffer::getNativeBuffer() const
 }
 
 status_t GraphicBuffer::reallocate(uint32_t inWidth, uint32_t inHeight,
-        PixelFormat inFormat, uint32_t inLayerCount, uint32_t inUsage)
+        PixelFormat inFormat, uint32_t inLayerCount, uint64_t inUsage)
 {
     if (mOwner != ownData)
         return INVALID_OPERATION;
@@ -148,11 +148,11 @@ status_t GraphicBuffer::reallocate(uint32_t inWidth, uint32_t inHeight,
         handle = 0;
     }
     return initWithSize(inWidth, inHeight, inFormat, inLayerCount,
-            inUsage, inUsage, "[Reallocation]");
+            inUsage, "[Reallocation]");
 }
 
 bool GraphicBuffer::needsReallocation(uint32_t inWidth, uint32_t inHeight,
-        PixelFormat inFormat, uint32_t inLayerCount, uint32_t inUsage)
+        PixelFormat inFormat, uint32_t inLayerCount, uint64_t inUsage)
 {
     if (static_cast<int>(inWidth) != width) return true;
     if (static_cast<int>(inHeight) != height) return true;
@@ -163,20 +163,20 @@ bool GraphicBuffer::needsReallocation(uint32_t inWidth, uint32_t inHeight,
 }
 
 status_t GraphicBuffer::initWithSize(uint32_t inWidth, uint32_t inHeight,
-        PixelFormat inFormat, uint32_t inLayerCount, uint64_t inProducerUsage,
-        uint64_t inConsumerUsage, std::string requestorName)
+        PixelFormat inFormat, uint32_t inLayerCount, uint64_t inUsage,
+        std::string requestorName)
 {
     GraphicBufferAllocator& allocator = GraphicBufferAllocator::get();
     uint32_t outStride = 0;
     status_t err = allocator.allocate(inWidth, inHeight, inFormat, inLayerCount,
-            inProducerUsage, inConsumerUsage, &handle, &outStride, mId,
+            inUsage, &handle, &outStride, mId,
             std::move(requestorName));
     if (err == NO_ERROR) {
         width = static_cast<int>(inWidth);
         height = static_cast<int>(inHeight);
         format = inFormat;
         layerCount = inLayerCount;
-        usage = android_convertGralloc1To0Usage(inProducerUsage, inConsumerUsage);
+        usage = static_cast<int>(inUsage);
         stride = static_cast<int>(outStride);
     }
     return err;
@@ -184,16 +184,14 @@ status_t GraphicBuffer::initWithSize(uint32_t inWidth, uint32_t inHeight,
 
 status_t GraphicBuffer::initWithHandle(const native_handle_t* handle,
         HandleWrapMethod method, uint32_t width, uint32_t height,
-        PixelFormat format, uint32_t layerCount,
-        uint64_t producerUsage, uint64_t consumerUsage,
+        PixelFormat format, uint32_t layerCount, uint64_t usage,
         uint32_t stride)
 {
     ANativeWindowBuffer::width  = static_cast<int>(width);
     ANativeWindowBuffer::height = static_cast<int>(height);
     ANativeWindowBuffer::stride = static_cast<int>(stride);
     ANativeWindowBuffer::format = format;
-    ANativeWindowBuffer::usage  =
-        android_convertGralloc1To0Usage(producerUsage, consumerUsage);
+    ANativeWindowBuffer::usage  = static_cast<int>(usage);
 
     ANativeWindowBuffer::layerCount = layerCount;
 
@@ -203,7 +201,7 @@ status_t GraphicBuffer::initWithHandle(const native_handle_t* handle,
         buffer_handle_t importedHandle;
         status_t err = mBufferMapper.importBuffer(handle, &importedHandle);
         if (err != NO_ERROR) {
-            initWithHandle(nullptr, WRAP_HANDLE, 0, 0, 0, 0, 0, 0, 0);
+            initWithHandle(nullptr, WRAP_HANDLE, 0, 0, 0, 0, 0, 0);
 
             return err;
         }
