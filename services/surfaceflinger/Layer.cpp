@@ -287,6 +287,14 @@ void Layer::onSidebandStreamChanged() {
 // the layer has been remove from the current state list (and just before
 // it's removed from the drawing state list)
 void Layer::onRemoved() {
+    if (mCurrentState.zOrderRelativeOf != nullptr) {
+        sp<Layer> strongRelative = mCurrentState.zOrderRelativeOf.promote();
+        if (strongRelative != nullptr) {
+            strongRelative->removeZOrderRelative(this);
+        }
+        mCurrentState.zOrderRelativeOf = nullptr;
+    }
+
     mSurfaceFlingerConsumer->abandon();
     for (const auto& child : mCurrentChildren) {
         child->onRemoved();
@@ -2555,11 +2563,6 @@ LayerVector Layer::makeTraversalList() {
         sp<Layer> strongRelative = weakRelative.promote();
         if (strongRelative != nullptr) {
             traverse.add(strongRelative);
-        } else {
-            // We need to erase from current state instead of drawing
-            // state so we don't overwrite when copying
-            // the current state to the drawing state.
-            mCurrentState.zOrderRelatives.remove(weakRelative);
         }
     }
 
