@@ -25,6 +25,7 @@ localIncludeFiles = [
 staticLibraries = [
     "libdvrcommon",
     "libpdx_default_transport",
+    "libgrallocusage",
 ]
 
 sharedLibraries = [
