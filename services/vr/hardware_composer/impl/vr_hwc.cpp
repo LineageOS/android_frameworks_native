@@ -46,7 +46,7 @@ sp<GraphicBuffer> CreateGraphicBuffer(
    sp<GraphicBuffer> buffer = new GraphicBuffer(
       handle, GraphicBuffer::CLONE_HANDLE, metadata.width, metadata.height,
       static_cast<int32_t>(metadata.format), metadata.layerCount,
-      metadata.usage, metadata.usage, metadata.stride);
+      metadata.usage, metadata.stride);
    if (buffer->initCheck() != OK) {
      ALOGE("Failed to create graphic buffer");
      return nullptr;
