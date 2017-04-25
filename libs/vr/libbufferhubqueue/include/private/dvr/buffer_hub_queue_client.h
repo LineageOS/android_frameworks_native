@@ -129,8 +129,10 @@ class BufferHubQueue : public pdx::Client {
   // block. Specifying a timeout of -1 causes |Dequeue()| to block indefinitely,
   // while specifying a timeout equal to zero cause |Dequeue()| to return
   // immediately, even if no buffers are available.
-  std::shared_ptr<BufferHubBuffer> Dequeue(int timeout, size_t* slot,
-                                           void* meta, LocalHandle* fence);
+  pdx::Status<std::shared_ptr<BufferHubBuffer>> Dequeue(int timeout,
+                                                        size_t* slot,
+                                                        void* meta,
+                                                        LocalHandle* fence);
 
   // Wait for buffers to be released and re-add them to the queue.
   bool WaitForBuffers(int timeout);
@@ -341,8 +343,8 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // Dequeue a producer buffer to write. The returned buffer in |Gain|'ed mode,
   // and caller should call Post() once it's done writing to release the buffer
   // to the consumer side.
-  std::shared_ptr<BufferProducer> Dequeue(int timeout, size_t* slot,
-                                          LocalHandle* release_fence);
+  pdx::Status<std::shared_ptr<BufferProducer>> Dequeue(
+      int timeout, size_t* slot, LocalHandle* release_fence);
 
  private:
   friend BASE;
@@ -393,18 +395,18 @@ class ConsumerQueue : public BufferHubQueue {
   // Dequeue() is done with the corect metadata type and size with those used
   // when the buffer is orignally created.
   template <typename Meta>
-  std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot, Meta* meta,
-                                          LocalHandle* acquire_fence) {
+  pdx::Status<std::shared_ptr<BufferConsumer>> Dequeue(
+      int timeout, size_t* slot, Meta* meta, LocalHandle* acquire_fence) {
     return Dequeue(timeout, slot, meta, sizeof(*meta), acquire_fence);
   }
-  std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot,
-                                          LocalHandle* acquire_fence) {
+  pdx::Status<std::shared_ptr<BufferConsumer>> Dequeue(
+      int timeout, size_t* slot, LocalHandle* acquire_fence) {
     return Dequeue(timeout, slot, nullptr, 0, acquire_fence);
   }
 
-  std::shared_ptr<BufferConsumer> Dequeue(int timeout, size_t* slot, void* meta,
-                                          size_t meta_size,
-                                          LocalHandle* acquire_fence);
+  pdx::Status<std::shared_ptr<BufferConsumer>> Dequeue(
+      int timeout, size_t* slot, void* meta, size_t meta_size,
+      LocalHandle* acquire_fence);
 
  private:
   friend BufferHubQueue;

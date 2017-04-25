@@ -64,12 +64,16 @@ TEST_F(BufferHubQueueTest, TestDequeue) {
   for (size_t i = 0; i < nb_dequeue_times; i++) {
     size_t slot;
     LocalHandle fence;
-    auto p1 = producer_queue_->Dequeue(0, &slot, &fence);
+    auto p1_status = producer_queue_->Dequeue(0, &slot, &fence);
+    ASSERT_TRUE(p1_status.ok());
+    auto p1 = p1_status.take();
     ASSERT_NE(nullptr, p1);
     size_t mi = i;
     ASSERT_EQ(p1->Post(LocalHandle(), &mi, sizeof(mi)), 0);
     size_t mo;
-    auto c1 = consumer_queue_->Dequeue(100, &slot, &mo, &fence);
+    auto c1_status = consumer_queue_->Dequeue(100, &slot, &mo, &fence);
+    ASSERT_TRUE(c1_status.ok());
+    auto c1 = c1_status.take();
     ASSERT_NE(nullptr, c1);
     ASSERT_EQ(mi, mo);
     c1->Release(LocalHandle());
@@ -94,23 +98,27 @@ TEST_F(BufferHubQueueTest, TestProducerConsumer) {
     ASSERT_EQ(consumer_queue_->count(), 0U);
     // Consumer queue does not import buffers until a dequeue is issued.
     ASSERT_EQ(consumer_queue_->capacity(), i);
-    // Dequeue returns nullptr since no buffer is ready to consumer, but
+    // Dequeue returns timeout since no buffer is ready to consumer, but
     // this implicitly triggers buffer import and bump up |capacity|.
     LocalHandle fence;
-    auto consumer_null = consumer_queue_->Dequeue(0, &slot, &seq, &fence);
-    ASSERT_EQ(nullptr, consumer_null);
+    auto status = consumer_queue_->Dequeue(0, &slot, &seq, &fence);
+    ASSERT_FALSE(status.ok());
+    ASSERT_EQ(ETIMEDOUT, status.error());
     ASSERT_EQ(consumer_queue_->capacity(), i + 1);
   }
 
   for (size_t i = 0; i < nb_buffer; i++) {
     LocalHandle fence;
     // First time, there is no buffer available to dequeue.
-    auto buffer_null = consumer_queue_->Dequeue(0, &slot, &seq, &fence);
-    ASSERT_EQ(nullptr, buffer_null);
+    auto consumer_status = consumer_queue_->Dequeue(0, &slot, &seq, &fence);
+    ASSERT_FALSE(consumer_status.ok());
+    ASSERT_EQ(ETIMEDOUT, consumer_status.error());
 
     // Make sure Producer buffer is Post()'ed so that it's ready to Accquire
     // in the consumer's Dequeue() function.
-    auto producer = producer_queue_->Dequeue(0, &slot, &fence);
+    auto producer_status = producer_queue_->Dequeue(0, &slot, &fence);
+    ASSERT_TRUE(producer_status.ok());
+    auto producer = producer_status.take();
     ASSERT_NE(nullptr, producer);
 
     uint64_t seq_in = static_cast<uint64_t>(i);
@@ -118,7 +126,9 @@ TEST_F(BufferHubQueueTest, TestProducerConsumer) {
 
     // Second time, the just |Post()|'ed buffer should be dequeued.
     uint64_t seq_out = 0;
-    auto consumer = consumer_queue_->Dequeue(0, &slot, &seq_out, &fence);
+    consumer_status = consumer_queue_->Dequeue(0, &slot, &seq_out, &fence);
+    ASSERT_TRUE(consumer_status.ok());
+    auto consumer = consumer_status.take();
     ASSERT_NE(nullptr, consumer);
     ASSERT_EQ(seq_in, seq_out);
   }
@@ -140,11 +150,15 @@ TEST_F(BufferHubQueueTest, TestMetadata) {
   for (auto mi : ms) {
     size_t slot;
     LocalHandle fence;
-    auto p1 = producer_queue_->Dequeue(0, &slot, &fence);
+    auto p1_status = producer_queue_->Dequeue(0, &slot, &fence);
+    ASSERT_TRUE(p1_status.ok());
+    auto p1 = p1_status.take();
     ASSERT_NE(nullptr, p1);
     ASSERT_EQ(p1->Post(LocalHandle(-1), &mi, sizeof(mi)), 0);
     TestMetadata mo;
-    auto c1 = consumer_queue_->Dequeue(0, &slot, &mo, &fence);
+    auto c1_status = consumer_queue_->Dequeue(0, &slot, &mo, &fence);
+    ASSERT_TRUE(c1_status.ok());
+    auto c1 = c1_status.take();
     ASSERT_EQ(mi.a, mo.a);
     ASSERT_EQ(mi.b, mo.b);
     ASSERT_EQ(mi.c, mo.c);
@@ -159,14 +173,16 @@ TEST_F(BufferHubQueueTest, TestMetadataMismatch) {
   int64_t mi = 3;
   size_t slot;
   LocalHandle fence;
-  auto p1 = producer_queue_->Dequeue(0, &slot, &fence);
+  auto p1_status = producer_queue_->Dequeue(0, &slot, &fence);
+  ASSERT_TRUE(p1_status.ok());
+  auto p1 = p1_status.take();
   ASSERT_NE(nullptr, p1);
   ASSERT_EQ(p1->Post(LocalHandle(-1), &mi, sizeof(mi)), 0);
 
   int32_t mo;
   // Acquire a buffer with mismatched metadata is not OK.
-  auto c1 = consumer_queue_->Dequeue(0, &slot, &mo, &fence);
-  ASSERT_EQ(nullptr, c1);
+  auto c1_status = consumer_queue_->Dequeue(0, &slot, &mo, &fence);
+  ASSERT_FALSE(c1_status.ok());
 }
 
 TEST_F(BufferHubQueueTest, TestEnqueue) {
@@ -175,13 +191,15 @@ TEST_F(BufferHubQueueTest, TestEnqueue) {
 
   size_t slot;
   LocalHandle fence;
-  auto p1 = producer_queue_->Dequeue(0, &slot, &fence);
+  auto p1_status = producer_queue_->Dequeue(0, &slot, &fence);
+  ASSERT_TRUE(p1_status.ok());
+  auto p1 = p1_status.take();
   ASSERT_NE(nullptr, p1);
 
   int64_t mo;
   producer_queue_->Enqueue(p1, slot);
-  auto c1 = consumer_queue_->Dequeue(0, &slot, &mo, &fence);
-  ASSERT_EQ(nullptr, c1);
+  auto c1_status = consumer_queue_->Dequeue(0, &slot, &mo, &fence);
+  ASSERT_FALSE(c1_status.ok());
 }
 
 TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
@@ -190,13 +208,16 @@ TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
   size_t s1;
   AllocateBuffer();
   LocalHandle fence;
-  auto p1 = producer_queue_->Dequeue(0, &s1, &fence);
+  auto p1_status = producer_queue_->Dequeue(0, &s1, &fence);
+  ASSERT_TRUE(p1_status.ok());
+  auto p1 = p1_status.take();
   ASSERT_NE(nullptr, p1);
 
   // producer queue is exhausted
   size_t s2;
-  auto p2_null = producer_queue_->Dequeue(0, &s2, &fence);
-  ASSERT_EQ(nullptr, p2_null);
+  auto p2_status = producer_queue_->Dequeue(0, &s2, &fence);
+  ASSERT_FALSE(p2_status.ok());
+  ASSERT_EQ(ETIMEDOUT, p2_status.error());
 
   // dynamically add buffer.
   AllocateBuffer();
@@ -204,7 +225,9 @@ TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
   ASSERT_EQ(producer_queue_->capacity(), 2U);
 
   // now we can dequeue again
-  auto p2 = producer_queue_->Dequeue(0, &s2, &fence);
+  p2_status = producer_queue_->Dequeue(0, &s2, &fence);
+  ASSERT_TRUE(p2_status.ok());
+  auto p2 = p2_status.take();
   ASSERT_NE(nullptr, p2);
   ASSERT_EQ(producer_queue_->count(), 0U);
   // p1 and p2 should have different slot number
@@ -217,20 +240,24 @@ TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
   int64_t seq = 1;
   ASSERT_EQ(p1->Post(LocalHandle(), seq), 0);
   size_t cs1, cs2;
-  auto c1 = consumer_queue_->Dequeue(0, &cs1, &seq, &fence);
+  auto c1_status = consumer_queue_->Dequeue(0, &cs1, &seq, &fence);
+  ASSERT_TRUE(c1_status.ok());
+  auto c1 = c1_status.take();
   ASSERT_NE(nullptr, c1);
   ASSERT_EQ(consumer_queue_->count(), 0U);
   ASSERT_EQ(consumer_queue_->capacity(), 2U);
   ASSERT_EQ(cs1, s1);
 
   ASSERT_EQ(p2->Post(LocalHandle(), seq), 0);
-  auto c2 = consumer_queue_->Dequeue(0, &cs2, &seq, &fence);
+  auto c2_status = consumer_queue_->Dequeue(0, &cs2, &seq, &fence);
+  ASSERT_TRUE(c2_status.ok());
+  auto c2 = c2_status.take();
   ASSERT_NE(nullptr, c2);
   ASSERT_EQ(cs2, s2);
 }
 
 TEST_F(BufferHubQueueTest, TestUsageSetMask) {
-  const int set_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
+  const uint32_t set_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
   ASSERT_TRUE(CreateQueues<int64_t>(set_mask, 0, 0, 0));
 
   // When allocation, leave out |set_mask| from usage bits on purpose.
@@ -238,15 +265,17 @@ TEST_F(BufferHubQueueTest, TestUsageSetMask) {
   int ret = producer_queue_->AllocateBuffer(
       kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage & ~set_mask,
       kBufferSliceCount, &slot);
-  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(0, ret);
 
   LocalHandle fence;
-  auto p1 = producer_queue_->Dequeue(0, &slot, &fence);
+  auto p1_status = producer_queue_->Dequeue(0, &slot, &fence);
+  ASSERT_TRUE(p1_status.ok());
+  auto p1 = p1_status.take();
   ASSERT_EQ(p1->usage() & set_mask, set_mask);
 }
 
 TEST_F(BufferHubQueueTest, TestUsageClearMask) {
-  const int clear_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
+  const uint32_t clear_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
   ASSERT_TRUE(CreateQueues<int64_t>(0, clear_mask, 0, 0));
 
   // When allocation, add |clear_mask| into usage bits on purpose.
@@ -254,15 +283,17 @@ TEST_F(BufferHubQueueTest, TestUsageClearMask) {
   int ret = producer_queue_->AllocateBuffer(
       kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage | clear_mask,
       kBufferSliceCount, &slot);
-  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(0, ret);
 
   LocalHandle fence;
-  auto p1 = producer_queue_->Dequeue(0, &slot, &fence);
-  ASSERT_EQ(p1->usage() & clear_mask, 0);
+  auto p1_status = producer_queue_->Dequeue(0, &slot, &fence);
+  ASSERT_TRUE(p1_status.ok());
+  auto p1 = p1_status.take();
+  ASSERT_EQ(0u, p1->usage() & clear_mask);
 }
 
 TEST_F(BufferHubQueueTest, TestUsageDenySetMask) {
-  const int deny_set_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
+  const uint32_t deny_set_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
   ASSERT_TRUE(CreateQueues<int64_t>(0, 0, deny_set_mask, 0));
 
   // Now that |deny_set_mask| is illegal, allocation without those bits should
@@ -281,7 +312,7 @@ TEST_F(BufferHubQueueTest, TestUsageDenySetMask) {
 }
 
 TEST_F(BufferHubQueueTest, TestUsageDenyClearMask) {
-  const int deny_clear_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
+  const uint32_t deny_clear_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
   ASSERT_TRUE(CreateQueues<int64_t>(0, 0, 0, deny_clear_mask));
 
   // Now that clearing |deny_clear_mask| is illegal (i.e. setting these bits are
