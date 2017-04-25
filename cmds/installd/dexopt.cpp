@@ -321,11 +321,11 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
 
     bool have_dex2oat_compiler_filter_flag;
     if (skip_compilation) {
-        strcpy(dex2oat_compiler_filter_arg, "--compiler-filter=verify-none");
+        strcpy(dex2oat_compiler_filter_arg, "--compiler-filter=extract");
         have_dex2oat_compiler_filter_flag = true;
         have_dex2oat_relocation_skip_flag = true;
     } else if (vm_safe_mode) {
-        strcpy(dex2oat_compiler_filter_arg, "--compiler-filter=interpret-only");
+        strcpy(dex2oat_compiler_filter_arg, "--compiler-filter=quicken");
         have_dex2oat_compiler_filter_flag = true;
     } else if (compiler_filter != nullptr &&
             strlen(compiler_filter) + strlen("--compiler-filter=") <
