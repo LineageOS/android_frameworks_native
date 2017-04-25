@@ -60,9 +60,10 @@ int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc, AHardwareBuffer**
     uint64_t consumerUsage = 0;
     AHardwareBuffer_convertToGrallocUsageBits(&producerUsage, &consumerUsage, desc->usage0,
             desc->usage1);
+    uint32_t usage = android_convertGralloc1To0Usage(producerUsage, consumerUsage);
 
     sp<GraphicBuffer> gbuffer(new GraphicBuffer(
-            desc->width, desc->height, format, desc->layers, producerUsage, consumerUsage,
+            desc->width, desc->height, format, desc->layers, usage,
             std::string("AHardwareBuffer pid [") + std::to_string(getpid()) + "]"));
 
     status_t err = gbuffer->initCheck();
