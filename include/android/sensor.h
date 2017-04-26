@@ -50,6 +50,7 @@
 
 #include <android/looper.h>
 
+#include <stdbool.h>
 #include <sys/types.h>
 #include <math.h>
 #include <stdint.h>
