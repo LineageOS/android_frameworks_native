@@ -55,12 +55,15 @@ bool egl_object_t::get(egl_display_t const* display, egl_object_t* object) {
 
 // ----------------------------------------------------------------------------
 
-egl_surface_t::egl_surface_t(egl_display_t* dpy, EGLConfig config,
-        EGLNativeWindowType win, EGLSurface surface,
-        egl_connection_t const* cnx) :
-    egl_object_t(dpy), surface(surface), config(config), win(win), cnx(cnx),
-    connected(true)
-{
+egl_surface_t::egl_surface_t(egl_display_t* dpy, EGLConfig config, EGLNativeWindowType win,
+                             EGLSurface surface, EGLint colorSpace, egl_connection_t const* cnx)
+      : egl_object_t(dpy),
+        surface(surface),
+        config(config),
+        win(win),
+        cnx(cnx),
+        connected(true),
+        colorSpace(colorSpace) {
     if (win) {
         win->incStrong(this);
     }

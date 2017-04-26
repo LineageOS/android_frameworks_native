@@ -473,6 +473,45 @@ static android_dataspace modifyBufferDataspace( android_dataspace dataSpace,
     return dataSpace;
 }
 
+static EGLBoolean getColorSpaceAttribute(egl_display_ptr dp, const EGLint* attrib_list,
+                                         EGLint& colorSpace, android_dataspace& dataSpace) {
+    colorSpace = EGL_GL_COLORSPACE_LINEAR_KHR;
+    dataSpace = HAL_DATASPACE_UNKNOWN;
+    if (attrib_list && dp->haveExtension("EGL_KHR_gl_colorspace")) {
+        for (const EGLint* attr = attrib_list; *attr != EGL_NONE; attr += 2) {
+            if (*attr == EGL_GL_COLORSPACE_KHR) {
+                colorSpace = attr[1];
+                bool found = false;
+                // Verify that color space is allowed
+                if (colorSpace == EGL_GL_COLORSPACE_SRGB_KHR ||
+                    colorSpace == EGL_GL_COLORSPACE_LINEAR_KHR) {
+                    found = true;
+                } else if (colorSpace == EGL_EXT_gl_colorspace_bt2020_linear &&
+                           dp->haveExtension("EGL_EXT_gl_colorspace_bt2020_linear")) {
+                    found = true;
+                } else if (colorSpace == EGL_EXT_gl_colorspace_bt2020_pq &&
+                           dp->haveExtension("EGL_EXT_gl_colorspace_bt2020_pq")) {
+                    found = true;
+                } else if (colorSpace == EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT &&
+                           dp->haveExtension("EGL_EXT_gl_colorspace_scrgb_linear")) {
+                    found = true;
+                } else if (colorSpace == EGL_GL_COLORSPACE_DISPLAY_P3_LINEAR_EXT &&
+                           dp->haveExtension("EGL_EXT_gl_colorspace_display_p3_linear")) {
+                    found = true;
+                } else if (colorSpace == EGL_GL_COLORSPACE_DISPLAY_P3_EXT &&
+                           dp->haveExtension("EGL_EXT_gl_colorspace_display_p3")) {
+                    found = true;
+                }
+                if (!found) {
+                    return false;
+                }
+            }
+        }
+        dataSpace = modifyBufferDataspace(dataSpace, colorSpace);
+    }
+    return true;
+}
+
 EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
                                     NativeWindowType window,
                                     const EGLint *attrib_list)
@@ -513,7 +552,8 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
                                     &componentType);
 
         EGLint format;
-        android_dataspace dataSpace = HAL_DATASPACE_UNKNOWN;
+        EGLint colorSpace;
+        android_dataspace dataSpace;
         EGLint a = 0;
         EGLint r, g, b;
         r = g = b = 0;
@@ -550,12 +590,9 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         }
 
         // now select a corresponding sRGB format if needed
-        if (attrib_list && dp->haveExtension("EGL_KHR_gl_colorspace")) {
-            for (const EGLint* attr = attrib_list; *attr != EGL_NONE; attr += 2) {
-                if (*attr == EGL_GL_COLORSPACE_KHR) {
-                    dataSpace = modifyBufferDataspace(dataSpace, *(attr+1));
-                }
-            }
+        if (!getColorSpaceAttribute(dp, attrib_list, colorSpace, dataSpace)) {
+            ALOGE("error invalid colorspace: %d", colorSpace);
+            return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
         }
 
         if (format != 0) {
@@ -586,8 +623,8 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         EGLSurface surface = cnx->egl.eglCreateWindowSurface(
                 iDpy, config, window, attrib_list);
         if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s = new egl_surface_t(dp.get(), config, window,
-                    surface, cnx);
+            egl_surface_t* s =
+                    new egl_surface_t(dp.get(), config, window, surface, colorSpace, cnx);
             return s;
         }
 
@@ -606,12 +643,19 @@ EGLSurface eglCreatePixmapSurface(  EGLDisplay dpy, EGLConfig config,
 
     egl_connection_t* cnx = NULL;
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
+    EGLint colorSpace;
+    android_dataspace dataSpace;
     if (dp) {
+        // now select a corresponding sRGB format if needed
+        if (!getColorSpaceAttribute(dp, attrib_list, colorSpace, dataSpace)) {
+            ALOGE("error invalid colorspace: %d", colorSpace);
+            return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
+        }
+
         EGLSurface surface = cnx->egl.eglCreatePixmapSurface(
                 dp->disp.dpy, config, pixmap, attrib_list);
         if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s = new egl_surface_t(dp.get(), config, NULL,
-                    surface, cnx);
+            egl_surface_t* s = new egl_surface_t(dp.get(), config, NULL, surface, colorSpace, cnx);
             return s;
         }
     }
@@ -625,12 +669,19 @@ EGLSurface eglCreatePbufferSurface( EGLDisplay dpy, EGLConfig config,
 
     egl_connection_t* cnx = NULL;
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
+    EGLint colorSpace;
+    android_dataspace dataSpace;
     if (dp) {
+        // now select a corresponding sRGB format if needed
+        if (!getColorSpaceAttribute(dp, attrib_list, colorSpace, dataSpace)) {
+            ALOGE("error invalid colorspace: %d", colorSpace);
+            return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
+        }
+
         EGLSurface surface = cnx->egl.eglCreatePbufferSurface(
                 dp->disp.dpy, config, attrib_list);
         if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s = new egl_surface_t(dp.get(), config, NULL,
-                    surface, cnx);
+            egl_surface_t* s = new egl_surface_t(dp.get(), config, NULL, surface, colorSpace, cnx);
             return s;
         }
     }
@@ -669,6 +720,10 @@ EGLBoolean eglQuerySurface( EGLDisplay dpy, EGLSurface surface,
         return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
 
     egl_surface_t const * const s = get_surface(surface);
+    if (attribute == EGL_GL_COLORSPACE_KHR) {
+        *value = s->getColorSpace();
+        return EGL_TRUE;
+    }
     return s->cnx->egl.eglQuerySurface(
             dp->disp.dpy, s->surface, attribute, value);
 }
@@ -1708,13 +1763,22 @@ EGLSurface eglCreateStreamProducerSurfaceKHR(EGLDisplay dpy, EGLConfig config,
     egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_NO_SURFACE;
 
+    EGLint colorSpace = EGL_GL_COLORSPACE_LINEAR_KHR;
+    android_dataspace dataSpace = HAL_DATASPACE_UNKNOWN;
+    // TODO: Probably need to update EGL_KHR_stream_producer_eglsurface to
+    // indicate support for EGL_GL_COLORSPACE_KHR.
+    // now select a corresponding sRGB format if needed
+    if (!getColorSpaceAttribute(dp, attrib_list, colorSpace, dataSpace)) {
+        ALOGE("error invalid colorspace: %d", colorSpace);
+        return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
+    }
+
     egl_connection_t* const cnx = &gEGLImpl;
     if (cnx->dso && cnx->egl.eglCreateStreamProducerSurfaceKHR) {
         EGLSurface surface = cnx->egl.eglCreateStreamProducerSurfaceKHR(
                 dp->disp.dpy, config, stream, attrib_list);
         if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s = new egl_surface_t(dp.get(), config, NULL,
-                    surface, cnx);
+            egl_surface_t* s = new egl_surface_t(dp.get(), config, NULL, surface, colorSpace, cnx);
             return s;
         }
     }
