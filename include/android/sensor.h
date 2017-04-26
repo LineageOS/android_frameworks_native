@@ -48,6 +48,7 @@
  *
  */
 
+#include <stdbool.h>
 #include <sys/types.h>
 
 #include <android/looper.h>
