@@ -2627,10 +2627,19 @@ Transform Layer::getTransform() const {
         // or we will break the contract where WM can treat child surfaces as
         // pixels in the parent surface.
         if (p->isFixedSize()) {
+            int bufferWidth;
+            int bufferHeight;
+            if ((p->mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) == 0) {
+                bufferWidth = p->mActiveBuffer->getWidth();
+                bufferHeight = p->mActiveBuffer->getHeight();
+            } else {
+                bufferHeight = p->mActiveBuffer->getWidth();
+                bufferWidth = p->mActiveBuffer->getHeight();
+            }
             float sx = p->getDrawingState().active.w /
-                    static_cast<float>(p->mActiveBuffer->getWidth());
+                    static_cast<float>(bufferWidth);
             float sy = p->getDrawingState().active.h /
-                    static_cast<float>(p->mActiveBuffer->getHeight());
+                    static_cast<float>(bufferHeight);
             Transform extraParentScaling;
             extraParentScaling.set(sx, 0, 0, sy);
             t = t * extraParentScaling;
