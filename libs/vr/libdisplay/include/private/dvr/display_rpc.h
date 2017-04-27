@@ -140,10 +140,6 @@ struct DisplaySurfaceInfo {
                            manager_attributes);
 };
 
-struct VideoMeshSurfaceBufferMetadata {
-  int64_t timestamp_ns;
-};
-
 struct AlignmentMarker {
  public:
   float horizontal;
