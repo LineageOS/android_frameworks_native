@@ -203,6 +203,8 @@ SurfaceFlinger::SurfaceFlinger()
     // we store the value as orientation:
     // 90 -> 1, 180 -> 2, 270 -> 3
     mHardwareRotation = property_get_int32("ro.sf.hwrotation", 0) / 90;
+
+    property_set("display.sf.hwc_version", "1");
 }
 
 void SurfaceFlinger::onFirstRef()
