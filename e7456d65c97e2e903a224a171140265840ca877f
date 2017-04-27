@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "1a486d77_5d2b9b82",
+        "filename": "services/surfaceflinger/SurfaceFlinger_hwc1.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 482,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2017-04-27T10:02:44Z",
+      "side": 0,
+      "message": "Unnecessary changes",
+      "revId": "e7456d65c97e2e903a224a171140265840ca877f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "1a486d77_3d20df9a",
+        "filename": "services/surfaceflinger/SurfaceFlinger_hwc1.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 494,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2017-04-27T10:02:44Z",
+      "side": 0,
+      "message": "Same",
+      "revId": "e7456d65c97e2e903a224a171140265840ca877f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
