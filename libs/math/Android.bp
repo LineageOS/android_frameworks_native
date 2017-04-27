@@ -15,6 +15,7 @@
 cc_library_static {
     name: "libmath",
     host_supported: true,
+    vendor_available: true,
     export_include_dirs: ["include"],
 }
 
