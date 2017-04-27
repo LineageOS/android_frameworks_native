@@ -1,5 +1,6 @@
 #include "video_mesh_surface.h"
 
+#include <private/dvr/buffer_hub_queue_core.h>
 #include <private/dvr/display_rpc.h>
 
 using android::pdx::LocalChannelHandle;
@@ -49,7 +50,8 @@ LocalChannelHandle VideoMeshSurface::OnCreateProducerQueue(Message& message) {
     REPLY_ERROR_RETURN(message, EALREADY, {});
   }
 
-  auto producer = ProducerQueue::Create<VideoMeshSurfaceBufferMetadata>();
+  auto producer =
+      ProducerQueue::Create<BufferHubQueueCore::NativeBufferMetadata>();
   consumer_queue_ = producer->CreateConsumerQueue();
 
   return std::move(producer->GetChannelHandle());

@@ -1,3 +1,4 @@
+#include <dvr/dvr_api.h>
 #include <dvr/dvr_buffer_queue.h>
 #include <gui/Surface.h>
 #include <private/dvr/buffer_hub_queue_client.h>
@@ -146,8 +147,21 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
 
 TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
   ANativeWindow* window = nullptr;
-  int ret = dvrWriteBufferQueueGetExternalSurface(write_queue_, &window);
 
+  // The |write_queue_| doesn't have proper metadata (must be
+  // DvrNativeBufferMetadata) configured during creation.
+  int ret = dvrWriteBufferQueueGetExternalSurface(write_queue_, &window);
+  ASSERT_EQ(-EINVAL, ret);
+  ASSERT_EQ(nullptr, window);
+
+  // A write queue with DvrNativeBufferMetadata should work fine.
+  std::unique_ptr<DvrWriteBufferQueue, decltype(&dvrWriteBufferQueueDestroy)>
+      write_queue(new DvrWriteBufferQueue, dvrWriteBufferQueueDestroy);
+  write_queue->producer_queue_ =
+      ProducerQueue::Create<DvrNativeBufferMetadata>(0, 0, 0, 0);
+  ASSERT_NE(nullptr, write_queue->producer_queue_);
+
+  ret = dvrWriteBufferQueueGetExternalSurface(write_queue.get(), &window);
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, window);
 

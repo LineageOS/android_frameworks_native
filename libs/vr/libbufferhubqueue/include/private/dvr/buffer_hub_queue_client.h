@@ -215,11 +215,11 @@ class BufferHubQueue : public pdx::Client {
   //    This is implemented by first detaching the buffer and then allocating a
   //    new buffer.
   // 3. During the same epoll_wait, Consumer queue's client side gets EPOLLIN
-  //    event on the queue which indicates a new buffer is avaiable and the
+  //    event on the queue which indicates a new buffer is available and the
   //    EPOLLHUP event for slot 0. Consumer handles these two events in order.
   // 4. Consumer client calls BufferHubRPC::ConsumerQueueImportBuffers and both
   //    slot 0 and (the new) slot 1 buffer will be imported. During the import
-  //    of the buffer at slot 1, consuemr client detaches the old buffer so that
+  //    of the buffer at slot 1, consumer client detaches the old buffer so that
   //    the new buffer can be registered. At the same time
   //    |epollhup_pending_[slot]| is marked to indicate that buffer at this slot
   //    was detached prior to EPOLLHUP event.

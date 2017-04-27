@@ -8,7 +8,7 @@
 namespace android {
 namespace dvr {
 
-class BufferHubQueueProducer : public IGraphicBufferProducer {
+class BufferHubQueueProducer : public BnInterface<IGraphicBufferProducer> {
  public:
   BufferHubQueueProducer(const std::shared_ptr<BufferHubQueueCore>& core);
 
