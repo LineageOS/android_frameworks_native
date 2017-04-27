@@ -238,11 +238,21 @@ private:
 
     class State {
     public:
+        explicit State(LayerVector::StateSet set) : stateSet(set) {}
+        State& operator=(const State& other) {
+            // We explicitly don't copy stateSet so that, e.g., mDrawingState
+            // always uses the Drawing StateSet.
+            layersSortedByZ = other.layersSortedByZ;
+            displays = other.displays;
+            return *this;
+        }
+
+        const LayerVector::StateSet stateSet = LayerVector::StateSet::Invalid;
         LayerVector layersSortedByZ;
         DefaultKeyedVector< wp<IBinder>, DisplayDeviceState> displays;
 
-        void traverseInZOrder(const std::function<void(Layer*)>& consume) const;
-        void traverseInReverseZOrder(const std::function<void(Layer*)>& consume) const;
+        void traverseInZOrder(const LayerVector::Visitor& visitor) const;
+        void traverseInReverseZOrder(const LayerVector::Visitor& visitor) const;
     };
 
     /* ------------------------------------------------------------------------
@@ -577,7 +587,7 @@ private:
 
     // access must be protected by mStateLock
     mutable Mutex mStateLock;
-    State mCurrentState;
+    State mCurrentState{LayerVector::StateSet::Current};
     volatile int32_t mTransactionFlags;
     Condition mTransactionCV;
     bool mTransactionPending;
@@ -617,7 +627,7 @@ private:
 
     // Can only accessed from the main thread, these members
     // don't need synchronization
-    State mDrawingState;
+    State mDrawingState{LayerVector::StateSet::Drawing};
     bool mVisibleRegionsDirty;
 #ifndef USE_HWC2
     bool mHwWorkListDirty;
