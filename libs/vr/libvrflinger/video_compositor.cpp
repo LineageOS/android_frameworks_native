@@ -71,7 +71,7 @@ VideoCompositor::VideoCompositor(
 
 GLuint VideoCompositor::GetActiveTextureId(EGLDisplay display) {
   size_t slot;
-  VideoMeshSurfaceBufferMetadata metadata;
+  BufferHubQueueCore::NativeBufferMetadata metadata;
 
   while (true) {
     // A native way to pick the active texture: always dequeue all buffers from

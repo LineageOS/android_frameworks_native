@@ -219,6 +219,43 @@ typedef DvrHwcRecti (*DvrHwcFrameGetLayerDamagedRegionPtr)(DvrHwcFrame* frame,
                                                            size_t layer_index,
                                                            size_t index);
 
+// The buffer metadata that an Android Surface (a.k.a. ANativeWindow)
+// will populate. A DvrWriteBufferQueue must be created with this metadata iff
+// ANativeWindow access is needed. Note that this struct must stay in sync with
+// BufferHubQueueCore::NativeBufferMetadata. Please do not remove, modify, or
+// reorder existing data members. If new fields need to be added, please take
+// extra care to make sure that new data field is padded properly the size of
+// the struct stays same.
+// TODO(b/37578558) Move |dvr_api.h| into a header library so that this structure
+// won't be copied between |dvr_api.h| and |buffer_hub_qeue_core.h|.
+struct DvrNativeBufferMetadata {
+  // Timestamp of the frame.
+  int64_t timestamp;
+
+  // Whether the buffer is using auto timestamp.
+  int32_t is_auto_timestamp;
+
+  // Must be one of the HAL_DATASPACE_XXX value defined in system/graphics.h
+  int32_t dataspace;
+
+  // Crop extracted from an ACrop or android::Crop object.
+  int32_t crop_left;
+  int32_t crop_top;
+  int32_t crop_right;
+  int32_t crop_bottom;
+
+  // Must be one of the NATIVE_WINDOW_SCALING_MODE_XXX value defined in
+  // system/window.h.
+  int32_t scaling_mode;
+
+  // Must be one of the ANATIVEWINDOW_TRANSFORM_XXX value defined in
+  // android/native_window.h
+  int32_t transform;
+
+  // Reserved bytes for so that the struct is forward compatible.
+  int32_t reserved[16];
+};
+
 struct DvrApi_v1 {
   // Display manager client
   DvrDisplayManagerClientCreatePtr display_manager_client_create;
