@@ -198,6 +198,12 @@ SurfaceFlinger::SurfaceFlinger()
     property_get("debug.sf.disable_hwc_vds", value, "0");
     mUseHwcVirtualDisplays = !atoi(value);
     ALOGI_IF(!mUseHwcVirtualDisplays, "Disabling HWC virtual displays");
+
+#ifdef USE_HWC2
+    property_set("ro.sf.hwc_version", "2");
+#else
+    property_set("ro.sf.hwc_version", "1");
+#endif
 }
 
 void SurfaceFlinger::onFirstRef()
