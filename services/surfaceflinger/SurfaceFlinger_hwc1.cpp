@@ -199,6 +199,8 @@ SurfaceFlinger::SurfaceFlinger()
     property_get("debug.sf.disable_hwc_vds", value, "0");
     mUseHwcVirtualDisplays = !atoi(value);
     ALOGI_IF(!mUseHwcVirtualDisplays, "Disabling HWC virtual displays");
+
+    property_set("display.sf.hwc_version", "1");
 }
 
 void SurfaceFlinger::onFirstRef()
@@ -479,7 +481,7 @@ void SurfaceFlinger::init() {
                 sfVsyncPhaseOffsetNs, true, "sf");
         mSFEventThread = new EventThread(sfVsyncSrc, *this);
         mEventQueue.setEventThread(mSFEventThread);
-		
+
        // set SFEventThread to SCHED_FIFO to minimize jitter
        struct sched_param param = {0};
        param.sched_priority = 2;
@@ -491,7 +493,7 @@ void SurfaceFlinger::init() {
                          vsyncPhaseOffsetNs, true, "sf-app");
         mEventThread = new EventThread(vsyncSrc, *this);
         mEventQueue.setEventThread(mEventThread);
-		
+
        // set EventThread to SCHED_FIFO to minimize jitter
        struct sched_param param = {0};
        param.sched_priority = 2;
