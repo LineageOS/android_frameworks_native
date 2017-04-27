@@ -998,13 +998,8 @@ static void dumpstate() {
     for_each_tid(show_wchan, "BLOCKED PROCESS WAIT-CHANNELS");
     for_each_pid(show_showtime, "PROCESS TIMES (pid cmd user system iowait+percentage)");
 
-    if (true) {
-        // TODO: temporary disabled because /data/misc/bluetooth/logs/btsnoop_hci.log can be huge
-        MYLOGD("Skipping /data/misc/bluetooth/logs");
-    } else {
-        /* Dump Bluetooth HCI logs */
-        ds.AddDir("/data/misc/bluetooth/logs", true);
-    }
+    /* Dump Bluetooth HCI logs */
+    ds.AddDir("/data/misc/bluetooth/logs", true);
 
     if (!ds.do_early_screenshot_) {
         MYLOGI("taking late screenshot\n");
