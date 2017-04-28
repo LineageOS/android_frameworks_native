@@ -79,7 +79,6 @@ cc_library_shared {
         "libsync",
         "libutils",
         "liblog",
-        "libgraphicsenv",
     ],
 
     static_libs: [
