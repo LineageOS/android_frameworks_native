@@ -191,10 +191,9 @@ int ANativeWindow_cancelBuffer(ANativeWindow* window, ANativeWindowBuffer* buffe
     return window->cancelBuffer(window, buffer, fenceFd);
 }
 
-int ANativeWindow_setUsage(ANativeWindow* window, uint64_t usage0, uint64_t usage1) {
-    uint64_t pUsage, cUsage;
-    AHardwareBuffer_convertToGrallocUsageBits(&pUsage, &cUsage, usage0, usage1);
-    return native_window_set_usage(window, android_convertGralloc1To0Usage(pUsage, cUsage));
+int ANativeWindow_setUsage(ANativeWindow* window, uint64_t usage) {
+    usage = AHardwareBuffer_convertToGrallocUsageBits(usage);
+    return native_window_set_usage(window, (uint32_t)usage); // FIXME: we need a 64-bits version
 }
 
 int ANativeWindow_setBufferCount(ANativeWindow* window, size_t bufferCount) {

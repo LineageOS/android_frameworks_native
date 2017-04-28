@@ -45,6 +45,7 @@ LOCAL_STATIC_LIBRARIES := \
     libvirtualtouchpadclient \
     libvr_hwc-impl \
     libvr_hwc-binder \
+    libgrallocusage \
 
 LOCAL_SHARED_LIBRARIES := \
     android.hardware.graphics.bufferqueue@1.0 \
