@@ -83,9 +83,17 @@ cc_library_shared {
         "libmath",
     ],
 
+    header_libs: [
+        "libnativebase_headers",
+    ],
+
     export_static_lib_headers: [
         "libarect",
         "libmath",
+    ],
+
+    export_header_lib_headers: [
+        "libnativebase_headers",
     ],
 }
 

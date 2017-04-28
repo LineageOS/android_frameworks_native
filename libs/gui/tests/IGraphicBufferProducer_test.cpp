@@ -29,6 +29,8 @@
 #include <gui/BufferQueue.h>
 #include <gui/IProducerListener.h>
 
+#include <system/window.h>
+
 #include <vector>
 
 #define ASSERT_OK(x) ASSERT_EQ(OK, (x))

@@ -40,6 +40,10 @@ sharedLibraries = [
     "libgui",
 ]
 
+headerLibraries = [
+    "libnativebase_headers",
+]
+
 cc_library {
     name: "libbufferhubqueue",
     cflags: [
@@ -51,6 +55,7 @@ cc_library {
     export_static_lib_headers: staticLibraries,
     static_libs: staticLibraries,
     shared_libs: sharedLibraries,
+    header_libs: headerLibraries,
 }
 
 subdirs = ["tests"]

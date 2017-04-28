@@ -21,7 +21,6 @@
 
 #include <android/hardware/graphics/allocator/2.0/IAllocator.h>
 #include <android/hardware/graphics/mapper/2.0/IMapper.h>
-#include <system/window.h>
 #include <utils/StrongPointer.h>
 
 namespace android {

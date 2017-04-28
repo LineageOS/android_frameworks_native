@@ -17,7 +17,7 @@
 #ifndef __VK_ANDROID_NATIVE_BUFFER_H__
 #define __VK_ANDROID_NATIVE_BUFFER_H__
 
-#include <system/window.h>
+#include <cutils/native_handle.h>
 #include <vulkan/vulkan.h>
 
 #ifdef __cplusplus

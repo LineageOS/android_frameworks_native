@@ -117,9 +117,14 @@ cc_library_shared {
         "android.hardware.configstore-utils",
     ],
 
+    header_libs: [
+        "libnativebase_headers",
+    ],
+
     export_shared_lib_headers: [
         "libbinder",
         "libui",
+        "libnativewindow",
         "android.hidl.token@1.0-utils",
         "android.hardware.graphics.bufferqueue@1.0",
     ],

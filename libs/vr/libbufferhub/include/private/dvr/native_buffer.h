@@ -4,9 +4,9 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <log/log.h>
-#include <system/window.h>
 #include <ui/ANativeObjectBase.h>
 #include <utils/RefBase.h>
+#include <nativebase/nativebase.h>
 
 #include <private/dvr/buffer_hub_client.h>
 

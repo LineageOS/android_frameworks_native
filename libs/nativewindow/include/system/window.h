@@ -60,25 +60,6 @@ __BEGIN_DECLS
 
 // ---------------------------------------------------------------------------
 
-typedef const native_handle_t* buffer_handle_t;
-
-// ---------------------------------------------------------------------------
-
-typedef struct android_native_rect_t
-{
-    int32_t left;
-    int32_t top;
-    int32_t right;
-    int32_t bottom;
-} android_native_rect_t;
-
-// ---------------------------------------------------------------------------
-
-// Old typedef for backwards compatibility.
-typedef ANativeWindowBuffer_t android_native_buffer_t;
-
-// ---------------------------------------------------------------------------
-
 /* attributes queriable with query() */
 enum {
     NATIVE_WINDOW_WIDTH     = 0,

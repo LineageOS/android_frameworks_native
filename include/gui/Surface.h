@@ -27,7 +27,7 @@
 #include <utils/Mutex.h>
 #include <utils/RefBase.h>
 
-struct ANativeWindow_Buffer;
+#include <system/window.h>
 
 namespace android {
 

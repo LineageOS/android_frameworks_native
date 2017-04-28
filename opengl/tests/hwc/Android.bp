@@ -34,6 +34,10 @@ cc_library_static {
         "libglTest",
         "libtestUtil",
     ],
+    shared_libs: [
+        "libui",
+        "libnativewindow"
+    ],
     defaults: ["hwc_tests_defaults"],
 }
 
@@ -48,6 +52,7 @@ cc_defaults {
         "liblog",
         "libui",
         "libutils",
+        "libnativewindow"
     ],
 
     static_libs: [

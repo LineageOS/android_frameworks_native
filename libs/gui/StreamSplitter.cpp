@@ -31,6 +31,8 @@
 
 #include <utils/Trace.h>
 
+#include <system/window.h>
+
 namespace android {
 
 status_t StreamSplitter::createSplitter(

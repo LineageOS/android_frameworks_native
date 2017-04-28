@@ -2,6 +2,7 @@
 
 #include <inttypes.h>
 #include <log/log.h>
+#include <system/window.h>
 
 namespace android {
 namespace dvr {

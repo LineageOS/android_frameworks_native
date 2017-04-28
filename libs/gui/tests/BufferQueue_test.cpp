@@ -32,6 +32,8 @@
 #include <utils/String8.h>
 #include <utils/threads.h>
 
+#include <system/window.h>
+
 #include <gtest/gtest.h>
 
 #include <thread>

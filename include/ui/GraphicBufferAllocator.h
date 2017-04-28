@@ -25,8 +25,6 @@
 
 #include <cutils/native_handle.h>
 
-#include <system/window.h>
-
 #include <ui/PixelFormat.h>
 
 #include <utils/Errors.h>

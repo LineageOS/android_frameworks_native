@@ -27,7 +27,7 @@
 #include <private/dvr/sensor_constants.h>
 #include <private/dvr/vsync_client.h>
 
-#include <android/native_window.h>
+#include <system/window.h>
 
 #ifndef EGL_CONTEXT_MAJOR_VERSION
 #define EGL_CONTEXT_MAJOR_VERSION 0x3098

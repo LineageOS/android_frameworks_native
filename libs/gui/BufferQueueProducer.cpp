@@ -39,6 +39,8 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
+#include <system/window.h>
+
 namespace android {
 
 static constexpr uint32_t BQ_LAYER_COUNT = 1;

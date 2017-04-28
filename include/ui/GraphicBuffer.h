@@ -28,9 +28,9 @@
 #include <utils/Flattenable.h>
 #include <utils/RefBase.h>
 
-#include <hardware/gralloc.h>
+#include <nativebase/nativebase.h>
 
-struct ANativeWindowBuffer;
+#include <hardware/gralloc.h>
 
 namespace android {
 
@@ -41,7 +41,7 @@ class GraphicBufferMapper;
 // ===========================================================================
 
 class GraphicBuffer
-    : public ANativeObjectBase< ANativeWindowBuffer, GraphicBuffer, RefBase >,
+    : public ANativeObjectBase<ANativeWindowBuffer, GraphicBuffer, RefBase>,
       public Flattenable<GraphicBuffer>
 {
     friend class Flattenable<GraphicBuffer>;

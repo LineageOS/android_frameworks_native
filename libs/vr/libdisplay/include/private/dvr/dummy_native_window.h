@@ -3,6 +3,7 @@
 
 #include <android/native_window.h>
 #include <ui/ANativeObjectBase.h>
+#include <system/window.h>
 
 namespace android {
 namespace dvr {

@@ -34,6 +34,11 @@ sharedLibraries = [
     "liblog",
     "libui",
     "libutils",
+    "libnativewindow"
+]
+
+HeaderLibraries = [
+    "libnativebase_headers",
 ]
 
 cc_library {
@@ -45,7 +50,11 @@ cc_library {
     export_include_dirs: localIncludeFiles,
     static_libs: staticLibraries,
     shared_libs: sharedLibraries,
+    header_libs: HeaderLibraries,
     name: "libbufferhub",
+    export_header_lib_headers: [
+        "libnativebase_headers",
+    ],
 }
 
 cc_test {
