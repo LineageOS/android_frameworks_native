@@ -137,12 +137,14 @@ enum {
 };
 
 typedef struct AHardwareBuffer_Desc {
-    uint32_t    width;
-    uint32_t    height;
-    uint32_t    layers;
+    uint32_t    width;      // width in pixels
+    uint32_t    height;     // height in pixels
+    uint32_t    layers;     // number of images
     uint32_t    format;     // One of AHARDWAREBUFFER_FORMAT_*
     uint64_t    usage;      // Combination of AHARDWAREBUFFER_USAGE_*
-    uint64_t    reserved;   // Initialize to zero, reserved for future use
+    uint32_t    stride;     // Stride in pixels, ignored for AHardwareBuffer_allocate()
+    uint32_t    rfu0;       // Initialize to zero, reserved for future use
+    uint64_t    rfu1;       // Initialize to zero, reserved for future use
 } AHardwareBuffer_Desc;
 
 typedef struct AHardwareBuffer AHardwareBuffer;
