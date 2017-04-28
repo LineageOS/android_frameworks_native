@@ -122,9 +122,6 @@ bool VirtualTouchpadService::CheckPermissions() {
 bool VirtualTouchpadService::CheckTouchPermission(pid_t* out_pid) {
   const android::IPCThreadState* ipc = android::IPCThreadState::self();
   *out_pid = ipc->getCallingPid();
-#ifdef SELINUX_ACCESS_CONTROL
-  return true;
-#else
   const uid_t uid = ipc->getCallingUid();
   const bool permission = PermissionCache::checkPermission(kTouchPermission, *out_pid, uid);
   if (!permission) {
@@ -132,7 +129,6 @@ bool VirtualTouchpadService::CheckTouchPermission(pid_t* out_pid) {
           static_cast<long>(uid));
   }
   return permission;
-#endif
 }
 
 }  // namespace dvr
