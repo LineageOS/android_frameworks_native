@@ -50,8 +50,8 @@ int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc, AHardwareBuffer**
         return BAD_VALUE;
     }
 
-    if (desc->reserved != 0) {
-        ALOGE("AHardwareBuffer_Desc::reserved field must be 0");
+    if (desc->rfu0 != 0 || desc->rfu1 != 0) {
+        ALOGE("AHardwareBuffer_Desc::rfu fields must be 0");
         return BAD_VALUE;
     }
 
@@ -101,10 +101,11 @@ void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
     outDesc->width = gbuffer->getWidth();
     outDesc->height = gbuffer->getHeight();
     outDesc->layers = gbuffer->getLayerCount();
-    outDesc->format = AHardwareBuffer_convertFromPixelFormat(
-            static_cast<uint32_t>(gbuffer->getPixelFormat()));
+    outDesc->format = AHardwareBuffer_convertFromPixelFormat(uint32_t(gbuffer->getPixelFormat()));
     outDesc->usage = AHardwareBuffer_convertFromGrallocUsageBits(gbuffer->getUsage());
-    outDesc->reserved = 0;
+    outDesc->stride = gbuffer->getStride();
+    outDesc->rfu0 = 0;
+    outDesc->rfu1 = 0;
 }
 
 int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
