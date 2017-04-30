@@ -941,4 +941,40 @@ TEST_F(ChildLayerTest, ChildrenInheritNonTransformScalingFromParent) {
     }
 }
 
+// Regression test for b/37673612
+TEST_F(ChildLayerTest, ChildrenWithParentBufferTransform) {
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->show();
+    mChild->setPosition(0, 0);
+    mFGSurfaceControl->setPosition(0, 0);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // We've positioned the child in the top left.
+        mCapture->expectChildColor(0, 0);
+        // But it's only 10x10.
+        mCapture->expectFGColor(10, 10);
+    }
+
+
+    // We set things up as in b/37673612 so that there is a mismatch between the buffer size and
+    // the WM specified state size.
+    mFGSurfaceControl->setSize(128, 64);
+    sp<Surface> s = mFGSurfaceControl->getSurface();
+    auto anw = static_cast<ANativeWindow*>(s.get());
+    native_window_set_buffers_transform(anw, NATIVE_WINDOW_TRANSFORM_ROT_90);
+    native_window_set_buffers_dimensions(anw, 64, 128);
+    fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
+    waitForPostedBuffers();
+
+    {
+        // The child should still be in the same place and not have any strange scaling as in
+        // b/37673612.
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->expectChildColor(0, 0);
+        mCapture->expectFGColor(10, 10);
+    }
+}
+
 }

@@ -19,11 +19,12 @@
 
 #include <android/hardware_buffer.h>
 #include <private/android/AHardwareBufferHelpers.h>
-#include <hardware/gralloc1.h>
+#include <android/hardware/graphics/common/1.0/types.h>
 
 #include <gtest/gtest.h>
 
 using namespace android;
+using android::hardware::graphics::common::V1_0::BufferUsage;
 
 static ::testing::AssertionResult BuildHexFailureMessage(uint64_t expected,
         uint64_t actual, const char* type) {
@@ -35,28 +36,14 @@ static ::testing::AssertionResult BuildHexFailureMessage(uint64_t expected,
 }
 
 static ::testing::AssertionResult TestUsageConversion(
-        uint64_t grallocProducerUsage, uint64_t grallocConsumerUsage,
-        uint64_t hardwareBufferUsage0, uint64_t hardwareBufferUsage1) {
-    uint64_t producerUsage = 0;
-    uint64_t consumerUsage = 0;
-    uint64_t usage0 = 0;
-    uint64_t usage1 = 0;
+        uint64_t grallocUsage, uint64_t hardwareBufferUsage) {
+    uint64_t convertedGrallocUsage = AHardwareBuffer_convertToGrallocUsageBits(hardwareBufferUsage);
+    if (convertedGrallocUsage != grallocUsage)
+        return BuildHexFailureMessage(grallocUsage, convertedGrallocUsage, "converToGralloc");
 
-    AHardwareBuffer_convertToGrallocUsageBits(
-            &producerUsage, &consumerUsage, hardwareBufferUsage0, hardwareBufferUsage1);
-    if (producerUsage != grallocProducerUsage)
-        return BuildHexFailureMessage(grallocProducerUsage, producerUsage,
-                "producer");
-    if (consumerUsage != grallocConsumerUsage)
-        return BuildHexFailureMessage(grallocConsumerUsage, consumerUsage,
-                "consumer");
-
-    AHardwareBuffer_convertFromGrallocUsageBits(
-            &usage0, &usage1, grallocProducerUsage, grallocConsumerUsage);
-    if (usage0 != hardwareBufferUsage0)
-        return BuildHexFailureMessage(hardwareBufferUsage0, usage0, "usage0");
-    if (usage1 != hardwareBufferUsage1)
-        return BuildHexFailureMessage(hardwareBufferUsage1, usage1, "usage1");
+    uint64_t convertedHArdwareBufferUsage = AHardwareBuffer_convertFromGrallocUsageBits(grallocUsage);
+    if (convertedHArdwareBufferUsage != grallocUsage)
+        return BuildHexFailureMessage(grallocUsage, convertedHArdwareBufferUsage, "convertFromGralloc");
 
     return testing::AssertionSuccess();
 }
@@ -64,123 +51,58 @@ static ::testing::AssertionResult TestUsageConversion(
 // This is a unit test rather than going through AHardwareBuffer because not
 // all flags may be supported by the host device.
 TEST(AHardwareBufferTest, ConvertToAndFromGrallocBits) {
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_CPU_READ,
-            AHARDWAREBUFFER_USAGE0_CPU_READ, 0));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_CPU_READ_OFTEN,
-            AHARDWAREBUFFER_USAGE0_CPU_READ_OFTEN, 0));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_CPU_WRITE, 0,
-            AHARDWAREBUFFER_USAGE0_CPU_WRITE, 0));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_CPU_WRITE_OFTEN, 0,
-            AHARDWAREBUFFER_USAGE0_CPU_WRITE_OFTEN, 0));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_GPU_TEXTURE,
-            AHARDWAREBUFFER_USAGE0_GPU_SAMPLED_IMAGE, 0));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_GPU_RENDER_TARGET,
-            0, AHARDWAREBUFFER_USAGE0_GPU_COLOR_OUTPUT, 0));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_GPU_DATA_BUFFER,
-            AHARDWAREBUFFER_USAGE0_GPU_DATA_BUFFER, 0));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PROTECTED, 0,
-            AHARDWAREBUFFER_USAGE0_PROTECTED_CONTENT, 0));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_SENSOR_DIRECT_DATA,
-            0, AHARDWAREBUFFER_USAGE0_SENSOR_DIRECT_DATA, 0));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_VIDEO_ENCODER,
-            AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE, 0));
+    EXPECT_TRUE(TestUsageConversion((uint64_t)BufferUsage::CPU_READ_RARELY,
+            AHARDWAREBUFFER_USAGE_CPU_READ_RARELY));
+    EXPECT_TRUE(TestUsageConversion((uint64_t)BufferUsage::CPU_READ_OFTEN,
+            AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN));
+    EXPECT_TRUE(TestUsageConversion((uint64_t)BufferUsage::CPU_WRITE_RARELY,
+            AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY));
+    EXPECT_TRUE(TestUsageConversion((uint64_t)BufferUsage::CPU_WRITE_OFTEN,
+            AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN));
 
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_0, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_0));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_1, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_1));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_2, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_2));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_3, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_3));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_4, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_4));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_5, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_5));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_6, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_6));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_7, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_7));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_8, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_8));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_9, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_9));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_10, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_10));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_11, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_11));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_12, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_12));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_13, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_13));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_14, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_14));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_15, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_15));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_16, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_16));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_17, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_17));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_18, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_18));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_PRIVATE_19, 0,
-            0, AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_19));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_0,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_0));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_1,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_1));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_2,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_2));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_3,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_3));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_4,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_4));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_5,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_5));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_6,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_6));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_7,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_7));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_8,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_8));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_9,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_9));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_10,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_10));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_11,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_11));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_12,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_12));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_13,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_13));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_14,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_14));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_15,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_15));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_16,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_16));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_17,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_17));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_18,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_18));
-    EXPECT_TRUE(TestUsageConversion(0, GRALLOC1_CONSUMER_USAGE_PRIVATE_19,
-            0, AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_19));
+    EXPECT_TRUE(TestUsageConversion((uint64_t)BufferUsage::GPU_TEXTURE,
+            AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE));
+    EXPECT_TRUE(TestUsageConversion((uint64_t)BufferUsage::GPU_RENDER_TARGET,
+            AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT));
+    EXPECT_TRUE(TestUsageConversion((uint64_t)BufferUsage::GPU_DATA_BUFFER,
+            AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER));
+    EXPECT_TRUE(TestUsageConversion((uint64_t)BufferUsage::PROTECTED,
+            AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT));
+    EXPECT_TRUE(TestUsageConversion((uint64_t)BufferUsage::SENSOR_DIRECT_DATA,
+            AHARDWAREBUFFER_USAGE_SENSOR_DIRECT_DATA));
+    EXPECT_TRUE(TestUsageConversion((uint64_t)BufferUsage::VIDEO_ENCODER,
+            AHARDWAREBUFFER_USAGE_VIDEO_ENCODE));
+
+    EXPECT_TRUE(TestUsageConversion(1ull<<28, AHARDWAREBUFFER_USAGE_VENDOR_0));
+    EXPECT_TRUE(TestUsageConversion(1ull<<29, AHARDWAREBUFFER_USAGE_VENDOR_1));
+    EXPECT_TRUE(TestUsageConversion(1ull<<30, AHARDWAREBUFFER_USAGE_VENDOR_2));
+    EXPECT_TRUE(TestUsageConversion(1ull<<31, AHARDWAREBUFFER_USAGE_VENDOR_3));
+    EXPECT_TRUE(TestUsageConversion(1ull<<48, AHARDWAREBUFFER_USAGE_VENDOR_4));
+    EXPECT_TRUE(TestUsageConversion(1ull<<49, AHARDWAREBUFFER_USAGE_VENDOR_5));
+    EXPECT_TRUE(TestUsageConversion(1ull<<50, AHARDWAREBUFFER_USAGE_VENDOR_6));
+    EXPECT_TRUE(TestUsageConversion(1ull<<51, AHARDWAREBUFFER_USAGE_VENDOR_7));
+    EXPECT_TRUE(TestUsageConversion(1ull<<52, AHARDWAREBUFFER_USAGE_VENDOR_8));
+    EXPECT_TRUE(TestUsageConversion(1ull<<53, AHARDWAREBUFFER_USAGE_VENDOR_9));
+    EXPECT_TRUE(TestUsageConversion(1ull<<54, AHARDWAREBUFFER_USAGE_VENDOR_10));
+    EXPECT_TRUE(TestUsageConversion(1ull<<55, AHARDWAREBUFFER_USAGE_VENDOR_11));
+    EXPECT_TRUE(TestUsageConversion(1ull<<56, AHARDWAREBUFFER_USAGE_VENDOR_12));
+    EXPECT_TRUE(TestUsageConversion(1ull<<57, AHARDWAREBUFFER_USAGE_VENDOR_13));
+    EXPECT_TRUE(TestUsageConversion(1ull<<58, AHARDWAREBUFFER_USAGE_VENDOR_14));
+    EXPECT_TRUE(TestUsageConversion(1ull<<59, AHARDWAREBUFFER_USAGE_VENDOR_15));
+    EXPECT_TRUE(TestUsageConversion(1ull<<60, AHARDWAREBUFFER_USAGE_VENDOR_16));
+    EXPECT_TRUE(TestUsageConversion(1ull<<61, AHARDWAREBUFFER_USAGE_VENDOR_17));
+    EXPECT_TRUE(TestUsageConversion(1ull<<62, AHARDWAREBUFFER_USAGE_VENDOR_18));
+    EXPECT_TRUE(TestUsageConversion(1ull<<63, AHARDWAREBUFFER_USAGE_VENDOR_19));
 
     // Test some more complex flag combinations.
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_CPU_WRITE,
-            GRALLOC1_CONSUMER_USAGE_CPU_READ,
-            AHARDWAREBUFFER_USAGE0_CPU_READ | AHARDWAREBUFFER_USAGE0_CPU_WRITE,
-            0));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_CPU_WRITE_OFTEN, 0,
-            AHARDWAREBUFFER_USAGE0_CPU_WRITE_OFTEN, 0));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_GPU_RENDER_TARGET,
-            GRALLOC1_CONSUMER_USAGE_GPU_TEXTURE |
-                    GRALLOC1_CONSUMER_USAGE_PRIVATE_17,
-            AHARDWAREBUFFER_USAGE0_GPU_COLOR_OUTPUT |
-                    AHARDWAREBUFFER_USAGE0_GPU_SAMPLED_IMAGE,
-            AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_17));
-    EXPECT_TRUE(TestUsageConversion(GRALLOC1_PRODUCER_USAGE_SENSOR_DIRECT_DATA,
-            GRALLOC1_CONSUMER_USAGE_GPU_DATA_BUFFER,
-            AHARDWAREBUFFER_USAGE0_GPU_DATA_BUFFER |
-                    AHARDWAREBUFFER_USAGE0_SENSOR_DIRECT_DATA, 0));
+    EXPECT_TRUE(TestUsageConversion(
+            (uint64_t)BufferUsage::CPU_READ_RARELY |
+            (uint64_t)BufferUsage::CPU_WRITE_RARELY,
+            AHARDWAREBUFFER_USAGE_CPU_READ_RARELY | AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY));
+
+EXPECT_TRUE(TestUsageConversion(
+        (uint64_t)BufferUsage::GPU_RENDER_TARGET | (uint64_t)BufferUsage::GPU_TEXTURE |
+            1ull << 29 | 1ull << 57,
+        AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
+        AHARDWAREBUFFER_USAGE_VENDOR_1 | AHARDWAREBUFFER_USAGE_VENDOR_13));
 }

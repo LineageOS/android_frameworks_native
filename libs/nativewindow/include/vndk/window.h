@@ -325,17 +325,16 @@ int ANativeWindow_cancelBuffer(ANativeWindow* window, ANativeWindowBuffer* buffe
 /*
  *  Sets the intended usage flags for the next buffers.
  *
- *  usage: one of AHARDWAREBUFFER_USAGE0_* constant
- *  privateUsage: one of AHARDWAREBUFFER_USAGE1_*_PRIVATE_* constant
+ *  usage: one of AHARDWAREBUFFER_USAGE_* constant
  *
  *  By default (if this function is never called), a usage of
- *      AHARDWAREBUFFER_USAGE0_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE0_GPU_COLOR_OUTPUT
+ *      AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT
  *  is assumed.
  *
  *  Calling this function will usually cause following buffers to be
  *  reallocated.
  */
-int ANativeWindow_setUsage(ANativeWindow* window, uint64_t usage0, uint64_t usage1);
+int ANativeWindow_setUsage(ANativeWindow* window, uint64_t usage);
 
 
 /*

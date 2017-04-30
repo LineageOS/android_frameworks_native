@@ -33,14 +33,9 @@ struct ANativeWindowBuffer;
 namespace android {
 
 uint32_t AHardwareBuffer_convertFromPixelFormat(uint32_t format);
-
 uint32_t AHardwareBuffer_convertToPixelFormat(uint32_t format);
-
-void AHardwareBuffer_convertToGrallocUsageBits(uint64_t* outProducerUsage,
-    uint64_t* outConsumerUsage, uint64_t usage0, uint64_t usage1);
-
-void AHardwareBuffer_convertFromGrallocUsageBits(uint64_t* outUsage0, uint64_t* outUsage1,
-    uint64_t producerUsage, uint64_t consumerUsage);
+uint64_t AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage);
+uint64_t AHardwareBuffer_convertFromGrallocUsageBits(uint64_t usage);
 
 class GraphicBuffer;
 const GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(const AHardwareBuffer* buffer);

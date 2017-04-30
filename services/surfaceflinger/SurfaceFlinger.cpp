@@ -2637,6 +2637,8 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
     {
         Mutex::Autolock _l(mStateLock);
         if (mNumLayers >= MAX_LAYERS) {
+            ALOGE("AddClientLayer failed, mNumLayers (%zu) >= MAX_LAYERS (%zu)", mNumLayers,
+                  MAX_LAYERS);
             return NO_MEMORY;
         }
         if (parent == nullptr) {

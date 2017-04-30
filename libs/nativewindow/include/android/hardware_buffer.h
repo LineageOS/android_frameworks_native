@@ -83,79 +83,68 @@ enum {
 };
 
 enum {
+    /* The buffer will never be read by the CPU */
+    AHARDWAREBUFFER_USAGE_CPU_READ_NEVER        = 0UL,
     /* The buffer will sometimes be read by the CPU */
-    AHARDWAREBUFFER_USAGE0_CPU_READ               = 1ULL << 1,
-    /* The buffer will often be read by the CPU*/
-    AHARDWAREBUFFER_USAGE0_CPU_READ_OFTEN         = 1ULL << 2 | AHARDWAREBUFFER_USAGE0_CPU_READ,
-    /* The buffer will sometimes be written to by the CPU */
-    AHARDWAREBUFFER_USAGE0_CPU_WRITE              = 1ULL << 5,
-    /* The buffer will often be written to by the CPU */
-    AHARDWAREBUFFER_USAGE0_CPU_WRITE_OFTEN        = 1ULL << 6 | AHARDWAREBUFFER_USAGE0_CPU_WRITE,
-    /* The buffer will be read from by the GPU */
-    AHARDWAREBUFFER_USAGE0_GPU_SAMPLED_IMAGE      = 1ULL << 10,
-    /* The buffer will be written to by the GPU */
-    AHARDWAREBUFFER_USAGE0_GPU_COLOR_OUTPUT       = 1ULL << 11,
-    /* The buffer will be used as a shader storage or uniform buffer object*/
-    AHARDWAREBUFFER_USAGE0_GPU_DATA_BUFFER        = 1ULL << 14,
-    /* The buffer must not be used outside of a protected hardware path */
-    AHARDWAREBUFFER_USAGE0_PROTECTED_CONTENT      = 1ULL << 18,
-    /** The buffer will be used for sensor direct data */
-    AHARDWAREBUFFER_USAGE0_SENSOR_DIRECT_DATA     = 1ULL << 29,
-    /* The buffer will be read by a hardware video encoder */
-    AHARDWAREBUFFER_USAGE0_VIDEO_ENCODE           = 1ULL << 21,
-};
+    AHARDWAREBUFFER_USAGE_CPU_READ_RARELY       = 2UL,
+    /* The buffer will often be read by the CPU */
+    AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN        = 3UL,
+    /* CPU read value mask */
+    AHARDWAREBUFFER_USAGE_CPU_READ_MASK         = 0xFUL,
 
-/* These flags are intended only for use by device-specific graphics drivers. */
-enum {
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_19 = 1ULL << 24,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_19 = 1ULL << 25,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_18 = 1ULL << 26,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_18 = 1ULL << 27,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_17 = 1ULL << 28,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_17 = 1ULL << 29,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_16 = 1ULL << 30,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_16 = 1ULL << 31,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_15 = 1ULL << 32,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_15 = 1ULL << 33,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_14 = 1ULL << 34,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_14 = 1ULL << 35,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_13 = 1ULL << 36,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_13 = 1ULL << 37,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_12 = 1ULL << 38,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_12 = 1ULL << 39,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_11 = 1ULL << 40,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_11 = 1ULL << 41,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_10 = 1ULL << 42,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_10 = 1ULL << 43,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_9 = 1ULL << 44,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_9 = 1ULL << 45,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_8 = 1ULL << 46,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_8 = 1ULL << 47,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_7 = 1ULL << 48,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_7 = 1ULL << 49,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_6 = 1ULL << 50,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_6 = 1ULL << 51,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_5 = 1ULL << 52,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_5 = 1ULL << 53,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_4 = 1ULL << 54,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_4 = 1ULL << 55,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_3 = 1ULL << 56,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_3 = 1ULL << 57,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_2 = 1ULL << 58,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_2 = 1ULL << 59,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_1 = 1ULL << 60,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_1 = 1ULL << 61,
-    AHARDWAREBUFFER_USAGE1_CONSUMER_PRIVATE_0 = 1ULL << 62,
-    AHARDWAREBUFFER_USAGE1_PRODUCER_PRIVATE_0 = 1ULL << 63,
+    /* The buffer will never be written by the CPU */
+    AHARDWAREBUFFER_USAGE_CPU_WRITE_NEVER       = 0UL << 4,
+    /* The buffer will sometimes be written to by the CPU */
+    AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY      = 2UL << 4,
+    /* The buffer will often be written to by the CPU */
+    AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN       = 3UL << 4,
+    /* CPU write value mask */
+    AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK        = 0xFUL << 4,
+
+    /* The buffer will be read from by the GPU */
+    AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE      = 1UL << 8,
+    /* The buffer will be written to by the GPU */
+    AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT       = 1UL << 9,
+    /* The buffer must not be used outside of a protected hardware path */
+    AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT      = 1UL << 14,
+    /* The buffer will be read by a hardware video encoder */
+    AHARDWAREBUFFER_USAGE_VIDEO_ENCODE           = 1UL << 16,
+    /** The buffer will be used for sensor direct data */
+    AHARDWAREBUFFER_USAGE_SENSOR_DIRECT_DATA     = 1UL << 23,
+    /* The buffer will be used as a shader storage or uniform buffer object*/
+    AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER        = 1UL << 24,
+
+    AHARDWAREBUFFER_USAGE_VENDOR_0  = 1ULL << 28,
+    AHARDWAREBUFFER_USAGE_VENDOR_1  = 1ULL << 29,
+    AHARDWAREBUFFER_USAGE_VENDOR_2  = 1ULL << 30,
+    AHARDWAREBUFFER_USAGE_VENDOR_3  = 1ULL << 31,
+    AHARDWAREBUFFER_USAGE_VENDOR_4  = 1ULL << 48,
+    AHARDWAREBUFFER_USAGE_VENDOR_5  = 1ULL << 49,
+    AHARDWAREBUFFER_USAGE_VENDOR_6  = 1ULL << 50,
+    AHARDWAREBUFFER_USAGE_VENDOR_7  = 1ULL << 51,
+    AHARDWAREBUFFER_USAGE_VENDOR_8  = 1ULL << 52,
+    AHARDWAREBUFFER_USAGE_VENDOR_9  = 1ULL << 53,
+    AHARDWAREBUFFER_USAGE_VENDOR_10 = 1ULL << 54,
+    AHARDWAREBUFFER_USAGE_VENDOR_11 = 1ULL << 55,
+    AHARDWAREBUFFER_USAGE_VENDOR_12 = 1ULL << 56,
+    AHARDWAREBUFFER_USAGE_VENDOR_13 = 1ULL << 57,
+    AHARDWAREBUFFER_USAGE_VENDOR_14 = 1ULL << 58,
+    AHARDWAREBUFFER_USAGE_VENDOR_15 = 1ULL << 59,
+    AHARDWAREBUFFER_USAGE_VENDOR_16 = 1ULL << 60,
+    AHARDWAREBUFFER_USAGE_VENDOR_17 = 1ULL << 61,
+    AHARDWAREBUFFER_USAGE_VENDOR_18 = 1ULL << 62,
+    AHARDWAREBUFFER_USAGE_VENDOR_19 = 1ULL << 63,
 };
 
 typedef struct AHardwareBuffer_Desc {
-    uint32_t    width;
-    uint32_t    height;
-    uint32_t    layers;
+    uint32_t    width;      // width in pixels
+    uint32_t    height;     // height in pixels
+    uint32_t    layers;     // number of images
     uint32_t    format;     // One of AHARDWAREBUFFER_FORMAT_*
-    uint64_t    usage0;     // Combination of AHARDWAREBUFFER_USAGE0_*
-    uint64_t    usage1;     // Initialize to zero, reserved for future use
+    uint64_t    usage;      // Combination of AHARDWAREBUFFER_USAGE_*
+    uint32_t    stride;     // Stride in pixels, ignored for AHardwareBuffer_allocate()
+    uint32_t    rfu0;       // Initialize to zero, reserved for future use
+    uint64_t    rfu1;       // Initialize to zero, reserved for future use
 } AHardwareBuffer_Desc;
 
 typedef struct AHardwareBuffer AHardwareBuffer;
@@ -203,7 +192,7 @@ void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
  * The content of the buffer outside of the specified rect is NOT modified
  * by this call.
  *
- * The buffer usage may only specify AHARDWAREBUFFER_USAGE0_CPU_*. If set, then
+ * The buffer usage may only specify AHARDWAREBUFFER_USAGE_CPU_*. If set, then
  * outVirtualAddress is filled with the address of the buffer in virtual memory,
  * otherwise this function will fail.
  *
@@ -217,11 +206,11 @@ void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
  * may return an error or leave the buffer's content into an indeterminate
  * state.
  *
- * Returns NO_ERROR on success, BAD_VALUE if the buffer is NULL or if the usage0
- * flags are not a combination of AHARDWAREBUFFER_USAGE0_CPU_*, or an error
+ * Returns NO_ERROR on success, BAD_VALUE if the buffer is NULL or if the usage
+ * flags are not a combination of AHARDWAREBUFFER_USAGE_CPU_*, or an error
  * number of the lock fails for any reason.
  */
-int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage0,
+int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
         int32_t fence, const ARect* rect, void** outVirtualAddress);
 
 /*

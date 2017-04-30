@@ -47,6 +47,6 @@ cc_binary {
         "-DVENDORSERVICEMANAGER=1",
     ],
     shared_libs: ["libcutils"],
-    static_libs: ["libselinux"],
+    static_libs: ["libselinux_vendor"],
     init_rc: ["vndservicemanager.rc"],
 }
