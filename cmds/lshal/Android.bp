@@ -22,7 +22,6 @@ cc_binary {
         "libhidltransport",
         "libhidl-gen-utils",
         "libvintf",
-        "android.hidl.manager@1.0",
     ],
     srcs: [
         "Lshal.cpp",
