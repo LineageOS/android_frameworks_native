@@ -231,6 +231,8 @@ void HardwareComposer::OnPostThreadResumed() {
       native_display_metrics_.width, native_display_metrics_.height, format,
       usage);
 
+  hwc2_hidl_->resetCommands();
+
   // Associate each Layer instance with a hardware composer layer.
   for (auto layer : layers_) {
     layer->Initialize(hwc2_hidl_.get(), &native_display_metrics_);
@@ -288,6 +290,8 @@ void HardwareComposer::OnPostThreadPaused() {
   frame_time_backlog_.clear();
 
   compositor_.Shutdown();
+
+  hwc2_hidl_->resetCommands();
 
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "idle");
@@ -427,6 +431,12 @@ void HardwareComposer::PostLayers(bool /*is_geometry_changed*/) {
     layers_[i]->Prepare();
   }
 
+  int32_t ret = Validate(HWC_DISPLAY_PRIMARY);
+  if (ret) {
+    ALOGE("HardwareComposer::Validate failed; ret=%d", ret);
+    return;
+  }
+
   // Now that we have taken in a frame from the application, we have a chance
   // to drop the frame before passing the frame along to HWC.
   // If the display driver has become backed up, we detect it here and then
@@ -466,22 +476,6 @@ void HardwareComposer::PostLayers(bool /*is_geometry_changed*/) {
     ALOGI("HardwareComposer::PostLayers: dl[%zu] ctype=0x%08x", i,
           layers_[i]->GetCompositionType());
 #endif
-
-  int32_t ret = HWC2_ERROR_NONE;
-
-  std::vector<Hwc2::IComposerClient::Rect> full_region(1);
-  full_region[0].left = 0;
-  full_region[0].top = 0;
-  full_region[0].right = framebuffer_target_->width();
-  full_region[0].bottom = framebuffer_target_->height();
-
-  ALOGE_IF(ret, "Error setting client target : %d", ret);
-
-  ret = Validate(HWC_DISPLAY_PRIMARY);
-  if (ret) {
-    ALOGE("HardwareComposer::Validate failed; ret=%d", ret);
-    return;
-  }
 
   ret = Present(HWC_DISPLAY_PRIMARY);
   if (ret) {
@@ -912,6 +906,13 @@ void HardwareComposer::PostThread() {
         frame_time_backlog_.clear();
         DebugHudData::data.hwc_frame_stats.SkipFrame();
 
+        if (layer_config_changed) {
+          // If the layer config changed we need to validateDisplay() even if
+          // we're going to drop the frame, to flush the Composer object's
+          // internal command buffer and apply our layer changes.
+          Validate(HWC_DISPLAY_PRIMARY);
+        }
+
         continue;
       } else {
         // Make the transition more obvious in systrace when the frame skip
@@ -923,8 +924,15 @@ void HardwareComposer::PostThread() {
         error = SleepUntil(display_time_est - frame_time_estimate);
         ALOGE_IF(error < 0, "HardwareComposer::PostThread: Failed to sleep: %s",
                  strerror(-error));
-        if (error == kPostThreadInterrupted)
+        if (error == kPostThreadInterrupted) {
+          if (layer_config_changed) {
+            // If the layer config changed we need to validateDisplay() even if
+            // we're going to drop the frame, to flush the Composer object's
+            // internal command buffer and apply our layer changes.
+            Validate(HWC_DISPLAY_PRIMARY);
+          }
           continue;
+        }
       }
     }
 
