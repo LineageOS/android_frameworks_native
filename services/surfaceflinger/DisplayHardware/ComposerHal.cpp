@@ -212,6 +212,10 @@ void Composer::registerCallback(const sp<IComposerCallback>& callback)
     }
 }
 
+void Composer::resetCommands() {
+    mWriter.reset();
+}
+
 uint32_t Composer::getMaxVirtualDisplayCount()
 {
     auto ret = mClient->getMaxVirtualDisplayCount();
