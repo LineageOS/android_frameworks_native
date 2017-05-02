@@ -113,8 +113,10 @@ class BufferHubBuffer : public pdx::Client {
   uint32_t format() const { return slices_[0].format(); }
   uint32_t usage() const { return slices_[0].usage(); }
   uint32_t layer_count() const { return slices_[0].layer_count(); }
-  uint64_t producer_usage() const { return slices_[0].producer_usage(); }
-  uint64_t consumer_usage() const { return slices_[0].consumer_usage(); }
+
+  // TODO(b/37881101) Clean up producer/consumer usage.
+  uint64_t producer_usage() const { return slices_[0].usage(); }
+  uint64_t consumer_usage() const { return slices_[0].usage(); }
 
  protected:
   explicit BufferHubBuffer(LocalChannelHandle channel);
