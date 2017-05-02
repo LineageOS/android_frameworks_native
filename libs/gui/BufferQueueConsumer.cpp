@@ -709,6 +709,14 @@ status_t BufferQueueConsumer::setConsumerUsageBits(uint32_t usage) {
     return NO_ERROR;
 }
 
+status_t BufferQueueConsumer::setConsumerIsProtected(bool isProtected) {
+    ATRACE_CALL();
+    BQ_LOGV("setConsumerIsProtected: %s", isProtected ? "true" : "false");
+    Mutex::Autolock lock(mCore->mMutex);
+    mCore->mConsumerIsProtected = isProtected;
+    return NO_ERROR;
+}
+
 status_t BufferQueueConsumer::setTransformHint(uint32_t hint) {
     ATRACE_CALL();
     BQ_LOGV("setTransformHint: %#x", hint);
