@@ -32,7 +32,7 @@ class GraphicBuffer;
 class GraphicBufferAlloc : public BnGraphicBufferAlloc {
 public:
     GraphicBufferAlloc();
-    virtual ~GraphicBufferAlloc();
+    ~GraphicBufferAlloc() override;
     virtual sp<GraphicBuffer> createGraphicBuffer(uint32_t width,
             uint32_t height, PixelFormat format, uint32_t usage,
             std::string requestorName, status_t* error) override;
