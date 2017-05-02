@@ -131,12 +131,12 @@ protected:
 public:
     typedef egl_object_t::LocalRef<egl_surface_t, EGLSurface> Ref;
 
-    egl_surface_t(egl_display_t* dpy, EGLConfig config,
-            EGLNativeWindowType win, EGLSurface surface,
-            egl_connection_t const* cnx);
+    egl_surface_t(egl_display_t* dpy, EGLConfig config, EGLNativeWindowType win, EGLSurface surface,
+                  EGLint colorSpace, egl_connection_t const* cnx);
 
     ANativeWindow* getNativeWindow() { return win; }
     ANativeWindow* getNativeWindow() const { return win; }
+    EGLint getColorSpace() const { return colorSpace; }
 
     // Try to keep the order of these fields and size unchanged. It's not public API, but
     // it's not hard to imagine native games accessing them.
@@ -149,6 +149,7 @@ public:
 private:
     bool connected;
     void disconnect();
+    EGLint colorSpace;
 };
 
 class egl_context_t: public egl_object_t {
