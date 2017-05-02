@@ -739,7 +739,10 @@
         <enum value="50000"  name="EGL_METADATA_SCALING_EXT"/>
             <unused start="0x334B" end="0x334F"/>
         <enum value="0x3350" name="EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT"/>
-            <unused start="0x3351" end="0x339F"/>
+            <unused start="0x3351" end="0x3361"/>
+        <enum value="0x3362" name="EGL_GL_COLORSPACE_DISPLAY_P3_LINEAR_EXT"/>
+        <enum value="0x3363" name="EGL_GL_COLORSPACE_DISPLAY_P3_EXT"/>
+            <unused start="0x3364" end="0x339F"/>
     </enums>
 
     <enums namespace="EGL" start="0x33A0" end="0x33AF" vendor="ANGLE" comment="Reserved for Shannon Woods (Bug 13175)">
@@ -1889,6 +1892,16 @@
         <extension name="EGL_EXT_gl_colorspace_scrgb_linear" supported="egl">
             <require>
                 <enum name="EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT"/>
+            </require>
+        </extension>
+        <extension name="EGL_EXT_gl_colorspace_display_p3_linear" supported="egl">
+            <require>
+                <enum name="EGL_GL_COLORSPACE_DISPLAY_P3_LINEAR_EXT"/>
+            </require>
+        </extension>
+        <extension name="EGL_EXT_gl_colorspace_display_p3" supported="egl">
+            <require>
+                <enum name="EGL_GL_COLORSPACE_DISPLAY_P3_EXT"/>
             </require>
         </extension>
         <extension name="EGL_EXT_image_dma_buf_import" supported="egl">

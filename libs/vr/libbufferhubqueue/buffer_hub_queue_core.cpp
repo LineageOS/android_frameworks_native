@@ -8,17 +8,17 @@ namespace dvr {
 /* static */
 std::shared_ptr<BufferHubQueueCore> BufferHubQueueCore::Create() {
   auto core = std::shared_ptr<BufferHubQueueCore>(new BufferHubQueueCore());
-  core->producer_ = ProducerQueue::Create<BufferMetadata>();
+  core->producer_ = ProducerQueue::Create<NativeBufferMetadata>();
   return core;
 }
 
 /* static */
 std::shared_ptr<BufferHubQueueCore> BufferHubQueueCore::Create(
     const std::shared_ptr<ProducerQueue>& producer) {
-  if (producer->metadata_size() != sizeof(BufferMetadata)) {
+  if (producer->metadata_size() != sizeof(NativeBufferMetadata)) {
     ALOGE(
         "BufferHubQueueCore::Create producer's metadata size is different than "
-        "the size of BufferHubQueueCore::BufferMetadata");
+        "the size of BufferHubQueueCore::NativeBufferMetadata");
     return nullptr;
   }
 
