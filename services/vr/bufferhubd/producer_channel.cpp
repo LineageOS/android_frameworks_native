@@ -37,8 +37,8 @@ ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
       meta_size_bytes_(meta_size_bytes),
       meta_(meta_size_bytes ? new uint8_t[meta_size_bytes] : nullptr) {
   for (auto& ion_buffer : slices_) {
-    const int ret =
-        ion_buffer.Alloc(width, height, format, producer_usage, consumer_usage);
+    const int ret = ion_buffer.Alloc(width, height, format,
+                                     (producer_usage | consumer_usage));
     if (ret < 0) {
       ALOGE("ProducerChannel::ProducerChannel: Failed to allocate buffer: %s",
             strerror(-ret));
@@ -76,7 +76,7 @@ ProducerChannel::~ProducerChannel() {
 BufferHubChannel::BufferInfo ProducerChannel::GetBufferInfo() const {
   return BufferInfo(buffer_id(), consumer_channels_.size(), slices_[0].width(),
                     slices_[0].height(), slices_[0].format(),
-                    slices_[0].producer_usage(), slices_[0].consumer_usage(),
+                    slices_[0].usage(), slices_[0].usage(),
                     slices_.size(), name_);
 }
 
@@ -376,8 +376,7 @@ bool ProducerChannel::CheckParameters(uint32_t width, uint32_t height,
   return slices_.size() == slice_count && meta_size_bytes == meta_size_bytes_ &&
          slices_[0].width() == width && slices_[0].height() == height &&
          slices_[0].format() == format &&
-         slices_[0].producer_usage() == producer_usage &&
-         slices_[0].consumer_usage() == consumer_usage;
+         slices_[0].usage() == (producer_usage | consumer_usage);
 }
 
 }  // namespace dvr

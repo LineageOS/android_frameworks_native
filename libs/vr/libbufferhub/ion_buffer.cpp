@@ -2,7 +2,6 @@
 
 #include <log/log.h>
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
-#include <grallocusage/GrallocUsageConversion.h>
 #include <utils/Trace.h>
 
 #include <mutex>
@@ -19,39 +18,26 @@ namespace dvr {
 IonBuffer::IonBuffer() : IonBuffer(nullptr, 0, 0, 0, 0, 0, 0, 0) {}
 
 IonBuffer::IonBuffer(uint32_t width, uint32_t height, uint32_t format,
-                     uint32_t usage)
-    : IonBuffer(width, height, format, usage, usage) {}
-
-IonBuffer::IonBuffer(uint32_t width, uint32_t height, uint32_t format,
-                     uint64_t producer_usage, uint64_t consumer_usage)
+                     uint64_t usage)
     : IonBuffer() {
-  Alloc(width, height, format, producer_usage, consumer_usage);
+  Alloc(width, height, format, usage);
 }
 
 IonBuffer::IonBuffer(buffer_handle_t handle, uint32_t width, uint32_t height,
-                     uint32_t stride, uint32_t format, uint32_t usage)
+                     uint32_t stride, uint32_t format, uint64_t usage)
     : IonBuffer(handle, width, height, 1, stride, 0, format, usage) {}
 
 IonBuffer::IonBuffer(buffer_handle_t handle, uint32_t width, uint32_t height,
                      uint32_t layer_count, uint32_t stride,
-                     uint32_t layer_stride, uint32_t format, uint32_t usage)
-    : IonBuffer(handle, width, height, layer_count, stride, layer_stride,
-                format, usage, usage) {}
-
-IonBuffer::IonBuffer(buffer_handle_t handle, uint32_t width, uint32_t height,
-                     uint32_t layer_count, uint32_t stride,
-                     uint32_t layer_stride, uint32_t format,
-                     uint64_t producer_usage, uint64_t consumer_usage)
+                     uint32_t layer_stride, uint32_t format, uint64_t usage)
     : buffer_(nullptr) {
   ALOGD_IF(TRACE,
            "IonBuffer::IonBuffer: handle=%p width=%u height=%u layer_count=%u "
-           "stride=%u layer stride=%u format=%u producer_usage=%" PRIx64
-           " consumer_usage=%" PRIx64,
+           "stride=%u layer stride=%u format=%u usage=%" PRIx64,
            handle, width, height, layer_count, stride, layer_stride, format,
-           producer_usage, consumer_usage);
+           usage);
   if (handle != 0) {
-    Import(handle, width, height, stride, format, producer_usage,
-           consumer_usage);
+    Import(handle, width, height, stride, format, usage);
   }
 }
 
@@ -82,105 +68,64 @@ void IonBuffer::FreeHandle() {
   if (buffer_.get()) {
     // GraphicBuffer unregisters and cleans up the handle if needed
     buffer_ = nullptr;
-    producer_usage_ = 0;
-    consumer_usage_ = 0;
   }
 }
 
 int IonBuffer::Alloc(uint32_t width, uint32_t height, uint32_t format,
-                     uint32_t usage) {
-  return Alloc(width, height, format, usage, usage);
-}
+                     uint64_t usage) {
+  ALOGD_IF(TRACE,
+           "IonBuffer::Alloc: width=%u height=%u format=%u usage=%" PRIx64,
+           width, height, format, usage);
 
-int IonBuffer::Alloc(uint32_t width, uint32_t height, uint32_t format,
-                     uint64_t producer_usage, uint64_t consumer_usage) {
-  ALOGD_IF(
-      TRACE,
-      "IonBuffer::Alloc: width=%u height=%u format=%u producer_usage=%" PRIx64
-      " consumer_usage=%" PRIx64,
-      width, height, format, producer_usage, consumer_usage);
-
-  // TODO: forget about split producer/consumer usage
   sp<GraphicBuffer> buffer = new GraphicBuffer(
-      width, height, format, kDefaultGraphicBufferLayerCount,
-      android_convertGralloc1To0Usage(producer_usage, consumer_usage));
+      width, height, format, kDefaultGraphicBufferLayerCount, usage);
   if (buffer->initCheck() != OK) {
     ALOGE("IonBuffer::Aloc: Failed to allocate buffer");
     return -EINVAL;
   } else {
     buffer_ = buffer;
-    producer_usage_ = producer_usage;
-    consumer_usage_ = consumer_usage;
     return 0;
   }
 }
 
 void IonBuffer::Reset(buffer_handle_t handle, uint32_t width, uint32_t height,
-                      uint32_t stride, uint32_t format, uint32_t usage) {
-  Reset(handle, width, height, stride, format, usage, usage);
-}
-
-void IonBuffer::Reset(buffer_handle_t handle, uint32_t width, uint32_t height,
-                      uint32_t stride, uint32_t format, uint64_t producer_usage,
-                      uint64_t consumer_usage) {
+                      uint32_t stride, uint32_t format, uint64_t usage) {
   ALOGD_IF(TRACE,
            "IonBuffer::Reset: handle=%p width=%u height=%u stride=%u format=%u "
-           "producer_usage=%" PRIx64 " consumer_usage=%" PRIx64,
-           handle, width, height, stride, format, producer_usage,
-           consumer_usage);
-  Import(handle, width, height, stride, format, producer_usage, consumer_usage);
+           "usage=%" PRIx64,
+           handle, width, height, stride, format, usage);
+  Import(handle, width, height, stride, format, usage);
 }
 
 int IonBuffer::Import(buffer_handle_t handle, uint32_t width, uint32_t height,
-                      uint32_t stride, uint32_t format, uint32_t usage) {
-  return Import(handle, width, height, stride, format, usage, usage);
-}
-
-int IonBuffer::Import(buffer_handle_t handle, uint32_t width, uint32_t height,
-                      uint32_t stride, uint32_t format, uint64_t producer_usage,
-                      uint64_t consumer_usage) {
+                      uint32_t stride, uint32_t format, uint64_t usage) {
   ATRACE_NAME("IonBuffer::Import1");
   ALOGD_IF(
       TRACE,
       "IonBuffer::Import: handle=%p width=%u height=%u stride=%u format=%u "
-      "producer_usage=%" PRIx64 " consumer_usage=%" PRIx64,
-      handle, width, height, stride, format, producer_usage, consumer_usage);
+      "usage=%" PRIx64,
+      handle, width, height, stride, format, usage);
   FreeHandle();
-  sp<GraphicBuffer> buffer =
-      new GraphicBuffer(handle, GraphicBuffer::TAKE_UNREGISTERED_HANDLE, width,
-                        height, format, kDefaultGraphicBufferLayerCount,
-                        static_cast<uint64_t>(android_convertGralloc1To0Usage(
-                            producer_usage, consumer_usage)),
-                        stride);
+  sp<GraphicBuffer> buffer = new GraphicBuffer(
+      handle, GraphicBuffer::TAKE_UNREGISTERED_HANDLE, width, height, format,
+      kDefaultGraphicBufferLayerCount, usage, stride);
   if (buffer->initCheck() != OK) {
     ALOGE("IonBuffer::Import: Failed to import buffer");
     return -EINVAL;
   } else {
     buffer_ = buffer;
-    producer_usage_ = producer_usage;
-    consumer_usage_ = consumer_usage;
     return 0;
   }
 }
 
 int IonBuffer::Import(const int* fd_array, int fd_count, const int* int_array,
                       int int_count, uint32_t width, uint32_t height,
-                      uint32_t stride, uint32_t format, uint32_t usage) {
-  return Import(fd_array, fd_count, int_array, int_count, width, height, stride,
-                format, usage, usage);
-}
-
-int IonBuffer::Import(const int* fd_array, int fd_count, const int* int_array,
-                      int int_count, uint32_t width, uint32_t height,
-                      uint32_t stride, uint32_t format, uint64_t producer_usage,
-                      uint64_t consumer_usage) {
+                      uint32_t stride, uint32_t format, uint64_t usage) {
   ATRACE_NAME("IonBuffer::Import2");
   ALOGD_IF(TRACE,
            "IonBuffer::Import: fd_count=%d int_count=%d width=%u height=%u "
-           "stride=%u format=%u producer_usage=%" PRIx64
-           " consumer_usage=%" PRIx64,
-           fd_count, int_count, width, height, stride, format, producer_usage,
-           consumer_usage);
+           "stride=%u format=%u usage=%" PRIx64,
+           fd_count, int_count, width, height, stride, format, usage);
 
   if (fd_count < 0 || int_count < 0) {
     ALOGE("IonBuffer::Import: invalid arguments.");
@@ -198,8 +143,7 @@ int IonBuffer::Import(const int* fd_array, int fd_count, const int* int_array,
   memcpy(handle->data, fd_array, sizeof(int) * fd_count);
   memcpy(handle->data + fd_count, int_array, sizeof(int) * int_count);
 
-  const int ret = Import(handle, width, height, stride, format, producer_usage,
-                         consumer_usage);
+  const int ret = Import(handle, width, height, stride, format, usage);
   if (ret < 0) {
     ALOGE("IonBuffer::Import: failed to import raw native handle: %s",
           strerror(-ret));
@@ -236,7 +180,7 @@ int IonBuffer::Duplicate(const IonBuffer* other) {
 
   const int ret =
       Import(handle, other->width(), other->height(), other->stride(),
-             other->format(), other->producer_usage(), other->consumer_usage());
+             other->format(), other->usage());
   if (ret < 0) {
     ALOGE("IonBuffer::Duplicate: Failed to import duplicate native handle: %s",
           strerror(-ret));
