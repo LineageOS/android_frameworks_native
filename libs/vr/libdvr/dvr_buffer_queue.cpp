@@ -1,3 +1,4 @@
+#include "include/dvr/dvr_api.h"
 #include "include/dvr/dvr_buffer_queue.h"
 
 #include <android/native_window.h>
@@ -29,6 +30,16 @@ int dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
                                           ANativeWindow** out_window) {
   CHECK_PARAM(write_queue);
   CHECK_PARAM(out_window);
+
+  if (write_queue->producer_queue_->metadata_size() !=
+      sizeof(DvrNativeBufferMetadata)) {
+    ALOGE(
+        "The size of buffer metadata (%u) of the write queue does not match of "
+        "size of DvrNativeBufferMetadata (%u).",
+        write_queue->producer_queue_->metadata_size(),
+        sizeof(DvrNativeBufferMetadata));
+    return -EINVAL;
+  }
 
   // Lazy creation of |native_window_|.
   if (write_queue->native_window_ == nullptr) {

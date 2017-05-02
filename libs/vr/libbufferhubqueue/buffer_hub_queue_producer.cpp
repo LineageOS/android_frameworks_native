@@ -56,7 +56,8 @@ status_t BufferHubQueueProducer::setMaxDequeuedBufferCount(
 
   if (max_dequeued_buffers <= 0 ||
       max_dequeued_buffers >
-          static_cast<int>(BufferHubQueue::kMaxQueueCapacity)) {
+          static_cast<int>(BufferHubQueue::kMaxQueueCapacity -
+                           BufferHubQueueCore::kDefaultUndequeuedBuffers)) {
     ALOGE("setMaxDequeuedBufferCount: %d out of range (0, %zu]",
           max_dequeued_buffers, BufferHubQueue::kMaxQueueCapacity);
     return BAD_VALUE;
@@ -121,7 +122,8 @@ status_t BufferHubQueueProducer::dequeueBuffer(
   }
 
   if (static_cast<int32_t>(core_->producer_->capacity()) <
-      max_dequeued_buffer_count_) {
+      max_dequeued_buffer_count_ +
+          BufferHubQueueCore::kDefaultUndequeuedBuffers) {
     // Lazy allocation. When the capacity of |core_->producer_| has not reach
     // |max_dequeued_buffer_count_|, allocate new buffer.
     // TODO(jwcai) To save memory, the really reasonable thing to do is to go
@@ -232,16 +234,14 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
   }
 
   int64_t timestamp;
-  int scaling_mode;
-  sp<Fence> fence;
-  Rect crop(Rect::EMPTY_RECT);
-
-  // TODO(jwcai) The following attributes are ignored.
   bool is_auto_timestamp;
-  android_dataspace data_space;
+  android_dataspace dataspace;
+  Rect crop(Rect::EMPTY_RECT);
+  int scaling_mode;
   uint32_t transform;
+  sp<Fence> fence;
 
-  input.deflate(&timestamp, &is_auto_timestamp, &data_space, &crop,
+  input.deflate(&timestamp, &is_auto_timestamp, &dataspace, &crop,
                 &scaling_mode, &transform, &fence);
 
   // Check input scaling mode is valid.
@@ -302,7 +302,17 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
 
   LocalHandle fence_fd(fence->isValid() ? fence->dup() : -1);
 
-  BufferHubQueueCore::BufferMetadata meta_data = {.timestamp = timestamp};
+  BufferHubQueueCore::NativeBufferMetadata meta_data = {};
+  meta_data.timestamp = timestamp;
+  meta_data.is_auto_timestamp = static_cast<int32_t>(is_auto_timestamp);
+  meta_data.dataspace = static_cast<int32_t>(dataspace);
+  meta_data.crop_left = crop.left;
+  meta_data.crop_top = crop.top;
+  meta_data.crop_right = crop.right;
+  meta_data.crop_bottom = crop.bottom;
+  meta_data.scaling_mode = static_cast<int32_t>(scaling_mode);
+  meta_data.transform = static_cast<int32_t>(transform);
+
   buffer_producer->Post(fence_fd, &meta_data, sizeof(meta_data));
   core_->buffers_[slot].mBufferState.queue();
 
@@ -369,7 +379,10 @@ status_t BufferHubQueueProducer::query(int what, int* out_value) {
   int value = 0;
   switch (what) {
     case NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS:
-      value = 0;
+      // TODO(b/36187402) This should be the maximum number of buffers that this
+      // producer queue's consumer can acquire. Set to be at least one. Need to
+      // find a way to set from the consumer side.
+      value = BufferHubQueueCore::kDefaultUndequeuedBuffers;
       break;
     case NATIVE_WINDOW_BUFFER_AGE:
       value = 0;
@@ -394,11 +407,16 @@ status_t BufferHubQueueProducer::query(int what, int* out_value) {
       // IGraphicBufferConsumer parity.
       value = 0;
       break;
-    // The following queries are currently considered as unsupported.
-    // TODO(jwcai) Need to carefully check the whether they should be
-    // supported after all.
-    case NATIVE_WINDOW_STICKY_TRANSFORM:
     case NATIVE_WINDOW_DEFAULT_DATASPACE:
+      // TODO(jwcai) Return the default value android::BufferQueue is using as
+      // there is no way dvr::ConsumerQueue can set it.
+      value = 0;  // HAL_DATASPACE_UNKNOWN
+      break;
+    case NATIVE_WINDOW_STICKY_TRANSFORM:
+      // TODO(jwcai) Return the default value android::BufferQueue is using as
+      // there is no way dvr::ConsumerQueue can set it.
+      value = 0;
+      break;
     default:
       return BAD_VALUE;
   }
@@ -432,7 +450,16 @@ status_t BufferHubQueueProducer::connect(
     case NATIVE_WINDOW_API_MEDIA:
     case NATIVE_WINDOW_API_CAMERA:
       core_->connected_api_ = api;
-      // TODO(jwcai) Fill output.
+
+      output->width = core_->producer_->default_width();
+      output->height = core_->producer_->default_height();
+
+      // default values, we don't use them yet.
+      output->transformHint = 0;
+      output->numPendingBuffers = 0;
+      output->nextFrameNumber = 0;
+      output->bufferReplaced = false;
+
       break;
     default:
       ALOGE("BufferHubQueueProducer::connect: unknow API %d", api);
@@ -503,16 +530,23 @@ String8 BufferHubQueueProducer::getConsumerName() const {
   return String8("BufferHubQueue::DummyConsumer");
 }
 
-status_t BufferHubQueueProducer::setSharedBufferMode(
-    bool /* shared_buffer_mode */) {
-  ALOGE("BufferHubQueueProducer::setSharedBufferMode not implemented.");
-  // TODO(b/36373181) Front buffer mode for buffer hub queue as ANativeWindow.
-  return INVALID_OPERATION;
+status_t BufferHubQueueProducer::setSharedBufferMode(bool shared_buffer_mode) {
+  if (shared_buffer_mode) {
+    ALOGE("BufferHubQueueProducer::setSharedBufferMode(true) is not supported.");
+    // TODO(b/36373181) Front buffer mode for buffer hub queue as ANativeWindow.
+    return INVALID_OPERATION;
+  }
+  // Setting to default should just work as a no-op.
+  return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::setAutoRefresh(bool /* auto_refresh */) {
-  ALOGE("BufferHubQueueProducer::setAutoRefresh not implemented.");
-  return INVALID_OPERATION;
+status_t BufferHubQueueProducer::setAutoRefresh(bool auto_refresh) {
+  if (auto_refresh) {
+    ALOGE("BufferHubQueueProducer::setAutoRefresh(true) is not supported.");
+    return INVALID_OPERATION;
+  }
+  // Setting to default should just work as a no-op.
+  return NO_ERROR;
 }
 
 status_t BufferHubQueueProducer::setDequeueTimeout(nsecs_t timeout) {
@@ -545,8 +579,8 @@ status_t BufferHubQueueProducer::getUniqueId(uint64_t* out_id) const {
 IBinder* BufferHubQueueProducer::onAsBinder() {
   // BufferHubQueueProducer is a non-binder implementation of
   // IGraphicBufferProducer.
-  ALOGW("BufferHubQueueProducer::onAsBinder is not supported.");
-  return nullptr;
+  ALOGW("BufferHubQueueProducer::onAsBinder is not efficiently supported.");
+  return this;
 }
 
 }  // namespace dvr
