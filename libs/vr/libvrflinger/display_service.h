@@ -40,8 +40,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   void UpdateActiveDisplaySurfaces();
 
   pdx::Status<BorrowedNativeBufferHandle> SetupNamedBuffer(
-      const std::string& name, size_t size, int producer_usage,
-      int consumer_usage);
+      const std::string& name, size_t size, int usage);
 
   template <class A>
   void ForEachDisplaySurface(A action) const {

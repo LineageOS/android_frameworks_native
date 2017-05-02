@@ -193,8 +193,7 @@ int DisplayManagerService::OnUpdateSurfaces(
 pdx::Status<BorrowedNativeBufferHandle>
 DisplayManagerService::OnSetupNamedBuffer(pdx::Message& message,
                                           const std::string& name, size_t size,
-                                          uint64_t producer_usage,
-                                          uint64_t consumer_usage) {
+                                          uint64_t usage) {
   if (message.GetEffectiveUserId() != AID_ROOT &&
       !IsTrustedUid(message.GetEffectiveUserId())) {
     // Only trusted users can setup named buffers.
@@ -202,8 +201,7 @@ DisplayManagerService::OnSetupNamedBuffer(pdx::Message& message,
           message.GetEffectiveUserId());
     return {};
   }
-  return display_service_->SetupNamedBuffer(name, size, producer_usage,
-                                            consumer_usage);
+  return display_service_->SetupNamedBuffer(name, size, usage);
 }
 
 void DisplayManagerService::OnDisplaySurfaceChange() {

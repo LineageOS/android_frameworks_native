@@ -32,10 +32,9 @@ int DisplayManagerClient::GetSurfaceList(
 }
 
 std::unique_ptr<IonBuffer> DisplayManagerClient::SetupNamedBuffer(
-    const std::string& name, size_t size, uint64_t producer_usage,
-    uint64_t consumer_usage) {
+    const std::string& name, size_t size, uint64_t usage) {
   auto status = InvokeRemoteMethod<DisplayManagerRPC::SetupNamedBuffer>(
-      name, size, producer_usage, consumer_usage);
+      name, size, usage);
   if (!status) {
     ALOGE(
         "DisplayManagerClient::SetupNamedBuffer: Failed to create the named "

@@ -279,22 +279,7 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
                                                uint32_t usage_deny_set_mask,
                                                uint32_t usage_deny_clear_mask) {
     return BASE::Create(sizeof(Meta), usage_set_mask, usage_clear_mask,
-                        usage_deny_set_mask, usage_deny_clear_mask,
-                        usage_set_mask, usage_clear_mask, usage_deny_set_mask,
-                        usage_deny_clear_mask);
-  }
-  template <typename Meta>
-  static std::unique_ptr<ProducerQueue> Create(
-      uint64_t producer_usage_set_mask, uint64_t producer_usage_clear_mask,
-      uint64_t producer_usage_deny_set_mask,
-      uint64_t producer_usage_deny_clear_mask, uint64_t consumer_usage_set_mask,
-      uint64_t consumer_usage_clear_mask, uint64_t consumer_usage_deny_set_mask,
-      uint64_t consumer_usage_deny_clear_mask) {
-    return BASE::Create(sizeof(Meta), producer_usage_set_mask,
-                        producer_usage_clear_mask, producer_usage_deny_set_mask,
-                        producer_usage_deny_clear_mask, consumer_usage_set_mask,
-                        consumer_usage_clear_mask, consumer_usage_deny_set_mask,
-                        consumer_usage_deny_clear_mask);
+                        usage_deny_set_mask, usage_deny_clear_mask);
   }
 
   // Import a |ProducerQueue| from a channel handle.
@@ -317,10 +302,7 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // Returns Zero on success and negative error code when buffer allocation
   // fails.
   int AllocateBuffer(uint32_t width, uint32_t height, uint32_t format,
-                     uint32_t usage, size_t slice_count, size_t* out_slot);
-  int AllocateBuffer(uint32_t width, uint32_t height, uint32_t format,
-                     uint64_t producer_usage, uint64_t consumer_usage,
-                     size_t slice_count, size_t* out_slot);
+                     uint64_t usage, size_t slice_count, size_t* out_slot);
 
   // Add a producer buffer to populate the queue. Once added, a producer buffer
   // is available to use (i.e. in |Gain|'ed mode).
@@ -345,14 +327,9 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // arguments as the constructors.
   explicit ProducerQueue(size_t meta_size);
   ProducerQueue(LocalChannelHandle handle);
-  ProducerQueue(size_t meta_size, uint64_t producer_usage_set_mask,
-                uint64_t producer_usage_clear_mask,
-                uint64_t producer_usage_deny_set_mask,
-                uint64_t producer_usage_deny_clear_mask,
-                uint64_t consumer_usage_set_mask,
-                uint64_t consumer_usage_clear_mask,
-                uint64_t consumer_usage_deny_set_mask,
-                uint64_t consumer_usage_deny_clear_mask);
+  ProducerQueue(size_t meta_size, uint64_t usage_set_mask,
+                uint64_t usage_clear_mask, uint64_t usage_deny_set_mask,
+                uint64_t usage_deny_clear_mask);
 
   int OnBufferReady(std::shared_ptr<BufferHubBuffer> buf,
                     LocalHandle* release_fence) override;
