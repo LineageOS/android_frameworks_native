@@ -59,6 +59,7 @@ BufferQueueCore::BufferQueueCore() :
     mConsumerName(getUniqueName()),
     mConsumerListener(),
     mConsumerUsageBits(0),
+    mConsumerIsProtected(false),
     mConnectedApi(NO_CONNECTED_API),
     mLinkedToDeath(),
     mConnectedProducerListener(),

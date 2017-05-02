@@ -243,6 +243,12 @@ public:
     // Return of a value other than NO_ERROR means an unknown error has occurred.
     virtual status_t setConsumerUsageBits(uint32_t usage) = 0;
 
+    // setConsumerIsProtected will turn on an internal bit that indicates whether
+    // the consumer can handle protected gralloc buffers (i.e. with
+    // GRALLOC_USAGE_PROTECTED set). IGraphicBufferProducer can query this
+    // capability using NATIVE_WINDOW_CONSUMER_IS_PROTECTED.
+    virtual status_t setConsumerIsProtected(bool isProtected) = 0;
+
     // setTransformHint bakes in rotation to buffers so overlays can be used. The values are
     // enumerated in window.h, e.g. NATIVE_WINDOW_TRANSFORM_ROT_90. The default is 0
     // (no transform).

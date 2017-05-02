@@ -46,6 +46,7 @@ enum class Tag : uint32_t {
     SET_DEFAULT_BUFFER_FORMAT,
     SET_DEFAULT_BUFFER_DATA_SPACE,
     SET_CONSUMER_USAGE_BITS,
+    SET_CONSUMER_IS_PROTECTED,
     SET_TRANSFORM_HINT,
     GET_SIDEBAND_STREAM,
     GET_OCCUPANCY_HISTORY,
@@ -136,6 +137,11 @@ public:
         return callRemote<Signature>(Tag::SET_CONSUMER_USAGE_BITS, usage);
     }
 
+    status_t setConsumerIsProtected(bool isProtected) override {
+        using Signature = decltype(&IGraphicBufferConsumer::setConsumerIsProtected);
+        return callRemote<Signature>(Tag::SET_CONSUMER_IS_PROTECTED, isProtected);
+    }
+
     status_t setTransformHint(uint32_t hint) override {
         using Signature = decltype(&IGraphicBufferConsumer::setTransformHint);
         return callRemote<Signature>(Tag::SET_TRANSFORM_HINT, hint);
@@ -204,6 +210,8 @@ status_t BnGraphicBufferConsumer::onTransact(uint32_t code, const Parcel& data, 
             return callLocal(data, reply, &IGraphicBufferConsumer::setDefaultBufferDataSpace);
         case Tag::SET_CONSUMER_USAGE_BITS:
             return callLocal(data, reply, &IGraphicBufferConsumer::setConsumerUsageBits);
+        case Tag::SET_CONSUMER_IS_PROTECTED:
+            return callLocal(data, reply, &IGraphicBufferConsumer::setConsumerIsProtected);
         case Tag::SET_TRANSFORM_HINT:
             return callLocal(data, reply, &IGraphicBufferConsumer::setTransformHint);
         case Tag::GET_SIDEBAND_STREAM:
