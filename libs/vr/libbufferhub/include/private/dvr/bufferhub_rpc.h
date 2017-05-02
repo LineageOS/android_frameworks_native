@@ -24,8 +24,8 @@ class NativeBufferHandle {
         width_(buffer.width()),
         height_(buffer.height()),
         format_(buffer.format()),
-        producer_usage_(buffer.producer_usage()),
-        consumer_usage_(buffer.consumer_usage()) {
+        producer_usage_(buffer.usage()),
+        consumer_usage_(buffer.usage()) {
     // Populate the fd and int vectors: native_handle->data[] is an array of fds
     // followed by an array of opaque ints.
     const int fd_count = buffer.handle()->numFds;
@@ -48,10 +48,11 @@ class NativeBufferHandle {
     for (const auto& fd : fds_)
       fd_ints.push_back(fd.Get());
 
+    // TODO(b/37881101) Get rid of producer/consumer usage.
     const int ret =
         buffer->Import(fd_ints.data(), fd_ints.size(), opaque_ints_.data(),
                        opaque_ints_.size(), width_, height_, stride_, format_,
-                       producer_usage_, consumer_usage_);
+                       (producer_usage_ | consumer_usage_));
     if (ret < 0)
       return ret;
 
