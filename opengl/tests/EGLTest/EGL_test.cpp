@@ -192,6 +192,176 @@ TEST_F(EGLTest, EGLConfigRGBA8888First) {
     EXPECT_GE(components[3], 8);
 }
 
+TEST_F(EGLTest, EGLDisplayP3) {
+    EGLint numConfigs;
+    EGLConfig config;
+    EGLBoolean success;
+
+    if (!hasWideColorDisplay) {
+        // skip this test if device does not have wide-color display
+        return;
+    }
+
+    // Test that display-p3 extensions exist
+    ASSERT_TRUE(hasEglExtension(mEglDisplay, "EGL_EXT_gl_colorspace_display_p3"));
+    ASSERT_TRUE(hasEglExtension(mEglDisplay, "EGL_EXT_gl_colorspace_display_p3_linear"));
+
+    // Use 8-bit to keep forcus on Display-P3 aspect
+    EGLint attrs[] = {
+            // clang-format off
+            EGL_SURFACE_TYPE,             EGL_WINDOW_BIT,
+            EGL_RENDERABLE_TYPE,          EGL_OPENGL_ES2_BIT,
+            EGL_SURFACE_TYPE,             EGL_WINDOW_BIT | EGL_PBUFFER_BIT,
+            EGL_RED_SIZE,                 8,
+            EGL_GREEN_SIZE,               8,
+            EGL_BLUE_SIZE,                8,
+            EGL_ALPHA_SIZE,               8,
+            EGL_COLOR_COMPONENT_TYPE_EXT, EGL_COLOR_COMPONENT_TYPE_FIXED_EXT,
+            EGL_NONE,                     EGL_NONE
+            // clang-format on
+    };
+    success = eglChooseConfig(mEglDisplay, attrs, &config, 1, &numConfigs);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(1, numConfigs);
+
+    EGLint components[4];
+    EGLint value;
+    eglGetConfigAttrib(mEglDisplay, config, EGL_CONFIG_ID, &value);
+
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_RED_SIZE, &components[0]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_GREEN_SIZE, &components[1]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_BLUE_SIZE, &components[2]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_ALPHA_SIZE, &components[3]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+
+    EXPECT_EQ(components[0], 8);
+    EXPECT_EQ(components[1], 8);
+    EXPECT_EQ(components[2], 8);
+    EXPECT_EQ(components[3], 8);
+
+    struct DummyConsumer : public BnConsumerListener {
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
+    };
+
+    // Create a EGLSurface
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    consumer->consumerConnect(new DummyConsumer, false);
+    sp<Surface> mSTC = new Surface(producer);
+    sp<ANativeWindow> mANW = mSTC;
+    EGLint winAttrs[] = {
+            // clang-format off
+            EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_DISPLAY_P3_EXT,
+            EGL_NONE,              EGL_NONE
+            // clang-format on
+    };
+
+    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), winAttrs);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    ASSERT_NE(EGL_NO_SURFACE, eglSurface);
+
+    success = eglQuerySurface(mEglDisplay, eglSurface, EGL_GL_COLORSPACE_KHR, &value);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_GL_COLORSPACE_DISPLAY_P3_EXT, value);
+
+    EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
+}
+
+TEST_F(EGLTest, EGLDisplayP31010102) {
+    EGLint numConfigs;
+    EGLConfig config;
+    EGLBoolean success;
+
+    if (!hasWideColorDisplay) {
+        // skip this test if device does not have wide-color display
+        return;
+    }
+
+    // Test that display-p3 extensions exist
+    ASSERT_TRUE(hasEglExtension(mEglDisplay, "EGL_EXT_gl_colorspace_display_p3"));
+    ASSERT_TRUE(hasEglExtension(mEglDisplay, "EGL_EXT_gl_colorspace_display_p3_linear"));
+
+    // Use 8-bit to keep forcus on Display-P3 aspect
+    EGLint attrs[] = {
+            // clang-format off
+            EGL_SURFACE_TYPE,             EGL_WINDOW_BIT,
+            EGL_RENDERABLE_TYPE,          EGL_OPENGL_ES2_BIT,
+            EGL_SURFACE_TYPE,             EGL_WINDOW_BIT | EGL_PBUFFER_BIT,
+            EGL_RED_SIZE,                 10,
+            EGL_GREEN_SIZE,               10,
+            EGL_BLUE_SIZE,                10,
+            EGL_ALPHA_SIZE,               2,
+            EGL_COLOR_COMPONENT_TYPE_EXT, EGL_COLOR_COMPONENT_TYPE_FIXED_EXT,
+            EGL_NONE,                     EGL_NONE
+            // clang-format on
+    };
+    success = eglChooseConfig(mEglDisplay, attrs, &config, 1, &numConfigs);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(1, numConfigs);
+
+    EGLint components[4];
+    EGLint value;
+    eglGetConfigAttrib(mEglDisplay, config, EGL_CONFIG_ID, &value);
+
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_RED_SIZE, &components[0]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_GREEN_SIZE, &components[1]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_BLUE_SIZE, &components[2]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_ALPHA_SIZE, &components[3]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+
+    EXPECT_EQ(components[0], 10);
+    EXPECT_EQ(components[1], 10);
+    EXPECT_EQ(components[2], 10);
+    EXPECT_EQ(components[3], 2);
+
+    struct DummyConsumer : public BnConsumerListener {
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
+    };
+
+    // Create a EGLSurface
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    consumer->consumerConnect(new DummyConsumer, false);
+    sp<Surface> mSTC = new Surface(producer);
+    sp<ANativeWindow> mANW = mSTC;
+    EGLint winAttrs[] = {
+            // clang-format off
+            EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_DISPLAY_P3_EXT,
+            EGL_NONE,              EGL_NONE
+            // clang-format on
+    };
+
+    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), winAttrs);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    ASSERT_NE(EGL_NO_SURFACE, eglSurface);
+
+    success = eglQuerySurface(mEglDisplay, eglSurface, EGL_GL_COLORSPACE_KHR, &value);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_GL_COLORSPACE_DISPLAY_P3_EXT, value);
+
+    EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
+}
+
 TEST_F(EGLTest, EGLConfigFP16) {
     EGLint numConfigs;
     EGLConfig config;
