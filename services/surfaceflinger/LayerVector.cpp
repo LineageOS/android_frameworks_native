@@ -18,8 +18,13 @@
 #include "Layer.h"
 
 namespace android {
+
+LayerVector::LayerVector() = default;
+
 LayerVector::LayerVector(const LayerVector& rhs) : SortedVector<sp<Layer>>(rhs) {
 }
+
+LayerVector::~LayerVector() = default;
 
 int LayerVector::do_compare(const void* lhs, const void* rhs) const
 {
@@ -40,23 +45,27 @@ int LayerVector::do_compare(const void* lhs, const void* rhs) const
     return l->sequence - r->sequence;
 }
 
-void LayerVector::traverseInZOrder(const std::function<void(Layer*)>& consume) const {
+void LayerVector::traverseInZOrder(StateSet stateSet, const Visitor& visitor) const {
     for (size_t i = 0; i < size(); i++) {
         const auto& layer = (*this)[i];
-        if (layer->getDrawingState().zOrderRelativeOf != nullptr) {
+        auto& state = (stateSet == StateSet::Current) ? layer->getCurrentState()
+                                                      : layer->getDrawingState();
+        if (state.zOrderRelativeOf != nullptr) {
             continue;
         }
-        layer->traverseInZOrder(consume);
+        layer->traverseInZOrder(stateSet, visitor);
     }
 }
 
-void LayerVector::traverseInReverseZOrder(const std::function<void(Layer*)>& consume) const {
+void LayerVector::traverseInReverseZOrder(StateSet stateSet, const Visitor& visitor) const {
     for (auto i = static_cast<int64_t>(size()) - 1; i >= 0; i--) {
         const auto& layer = (*this)[i];
-        if (layer->getDrawingState().zOrderRelativeOf != nullptr) {
+        auto& state = (stateSet == StateSet::Current) ? layer->getCurrentState()
+                                                      : layer->getDrawingState();
+        if (state.zOrderRelativeOf != nullptr) {
             continue;
         }
-        layer->traverseInReverseZOrder(consume);
+        layer->traverseInReverseZOrder(stateSet, visitor);
      }
 }
 } // namespace android
