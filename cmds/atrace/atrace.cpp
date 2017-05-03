@@ -1232,7 +1232,7 @@ int main(int argc, char **argv)
 
     if (ok && traceStart) {
         if (!traceStream) {
-            printf("capturing trace...\n");
+            printf("capturing trace...");
             fflush(stdout);
         }
 
