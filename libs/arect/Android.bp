@@ -23,5 +23,6 @@ ndk_headers {
 cc_library_static {
     name: "libarect",
     host_supported: true,
+    vendor_available: true,
     export_include_dirs: ["include"],
 }
