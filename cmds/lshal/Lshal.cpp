@@ -685,6 +685,7 @@ void Lshal::usage() const {
         << "           -c, --clients: print the client PIDs, or client cmdlines if -m is set"
                                                                               << std::endl
         << "           -m, --cmdline: print cmdline instead of PIDs" << std::endl
+        << "           -d, --debug: emit debug info from IBase::debug" << std::endl
         << "           --sort=i, --sort=interface: sort by interface name" << std::endl
         << "           --sort=p, --sort=pid: sort by server pid" << std::endl
         << "           --init-vintf=path: form a skeleton HAL manifest to specified file " << std::endl
