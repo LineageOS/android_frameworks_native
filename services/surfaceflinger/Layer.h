@@ -476,8 +476,9 @@ public:
     uint8_t getAlpha() const;
 #endif
 
-    void traverseInReverseZOrder(const std::function<void(Layer*)>& exec);
-    void traverseInZOrder(const std::function<void(Layer*)>& exec);
+    void traverseInReverseZOrder(LayerVector::StateSet stateSet,
+                                 const LayerVector::Visitor& visitor);
+    void traverseInZOrder(LayerVector::StateSet stateSet, const LayerVector::Visitor& visitor);
 
     void addChild(const sp<Layer>& layer);
     // Returns index if removed, or negative value otherwise
@@ -557,7 +558,7 @@ private:
 
     void setParent(const sp<Layer>& layer);
 
-    LayerVector makeTraversalList();
+    LayerVector makeTraversalList(LayerVector::StateSet stateSet);
     void addZOrderRelative(const wp<Layer>& relative);
     void removeZOrderRelative(const wp<Layer>& relative);
 

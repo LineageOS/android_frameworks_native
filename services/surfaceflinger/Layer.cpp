@@ -1033,7 +1033,7 @@ void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
         // figure out if there is something below us
         Region under;
         bool finished = false;
-        mFlinger->mDrawingState.layersSortedByZ.traverseInZOrder([&](Layer* layer) {
+        mFlinger->mDrawingState.traverseInZOrder([&](Layer* layer) {
             if (finished || layer == static_cast<Layer const*>(this)) {
                 finished = true;
                 return;
@@ -2519,7 +2519,7 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
 }
 
 bool Layer::detachChildren() {
-    traverseInZOrder([this](Layer* child) {
+    traverseInZOrder(LayerVector::StateSet::Drawing, [this](Layer* child) {
         if (child == this) {
             return;
         }
@@ -2553,20 +2553,26 @@ int32_t Layer::getZ() const {
     return mDrawingState.z;
 }
 
-LayerVector Layer::makeTraversalList() {
-    if (mDrawingState.zOrderRelatives.size() == 0) {
-        return mDrawingChildren;
+LayerVector Layer::makeTraversalList(LayerVector::StateSet stateSet) {
+    LOG_ALWAYS_FATAL_IF(stateSet == LayerVector::StateSet::Invalid,
+                        "makeTraversalList received invalid stateSet");
+    const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
+    const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
+    const State& state = useDrawing ? mDrawingState : mCurrentState;
+
+    if (state.zOrderRelatives.size() == 0) {
+        return children;
     }
     LayerVector traverse;
 
-    for (const wp<Layer>& weakRelative : mDrawingState.zOrderRelatives) {
+    for (const wp<Layer>& weakRelative : state.zOrderRelatives) {
         sp<Layer> strongRelative = weakRelative.promote();
         if (strongRelative != nullptr) {
             traverse.add(strongRelative);
         }
     }
 
-    for (const sp<Layer>& child : mDrawingChildren) {
+    for (const sp<Layer>& child : children) {
         traverse.add(child);
     }
 
@@ -2576,8 +2582,8 @@ LayerVector Layer::makeTraversalList() {
 /**
  * Negatively signed relatives are before 'this' in Z-order.
  */
-void Layer::traverseInZOrder(const std::function<void(Layer*)>& exec) {
-    LayerVector list = makeTraversalList();
+void Layer::traverseInZOrder(LayerVector::StateSet stateSet, const LayerVector::Visitor& visitor) {
+    LayerVector list = makeTraversalList(stateSet);
 
     size_t i = 0;
     for (; i < list.size(); i++) {
@@ -2585,20 +2591,21 @@ void Layer::traverseInZOrder(const std::function<void(Layer*)>& exec) {
         if (relative->getZ() >= 0) {
             break;
         }
-        relative->traverseInZOrder(exec);
+        relative->traverseInZOrder(stateSet, visitor);
     }
-    exec(this);
+    visitor(this);
     for (; i < list.size(); i++) {
         const auto& relative = list[i];
-        relative->traverseInZOrder(exec);
+        relative->traverseInZOrder(stateSet, visitor);
     }
 }
 
 /**
  * Positively signed relatives are before 'this' in reverse Z-order.
  */
-void Layer::traverseInReverseZOrder(const std::function<void(Layer*)>& exec) {
-    LayerVector list = makeTraversalList();
+void Layer::traverseInReverseZOrder(LayerVector::StateSet stateSet,
+                                    const LayerVector::Visitor& visitor) {
+    LayerVector list = makeTraversalList(stateSet);
 
     int32_t i = 0;
     for (i = list.size()-1; i>=0; i--) {
@@ -2606,12 +2613,12 @@ void Layer::traverseInReverseZOrder(const std::function<void(Layer*)>& exec) {
         if (relative->getZ() < 0) {
             break;
         }
-        relative->traverseInReverseZOrder(exec);
+        relative->traverseInReverseZOrder(stateSet, visitor);
     }
-    exec(this);
+    visitor(this);
     for (; i>=0; i--) {
         const auto& relative = list[i];
-        relative->traverseInReverseZOrder(exec);
+        relative->traverseInReverseZOrder(stateSet, visitor);
     }
 }
 

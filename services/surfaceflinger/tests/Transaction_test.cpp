@@ -977,4 +977,35 @@ TEST_F(ChildLayerTest, ChildrenWithParentBufferTransform) {
     }
 }
 
+TEST_F(ChildLayerTest, Bug36858924) {
+    // Destroy the child layer
+    mChild.clear();
+
+    // Now recreate it as hidden
+    mChild = mComposerClient->createSurface(String8("Child surface"), 10, 10,
+                                            PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eHidden,
+                                            mFGSurfaceControl.get());
+
+    // Show the child layer in a deferred transaction
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->deferTransactionUntil(mFGSurfaceControl->getHandle(),
+                                  mFGSurfaceControl->getSurface()->getNextFrameNumber());
+    mChild->show();
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    // Render the foreground surface a few times
+    //
+    // Prior to the bugfix for b/36858924, this would usually hang while trying to fill the third
+    // frame because SurfaceFlinger would never process the deferred transaction and would therefore
+    // never acquire/release the first buffer
+    ALOGI("Filling 1");
+    fillSurfaceRGBA8(mFGSurfaceControl, 0, 255, 0);
+    ALOGI("Filling 2");
+    fillSurfaceRGBA8(mFGSurfaceControl, 0, 0, 255);
+    ALOGI("Filling 3");
+    fillSurfaceRGBA8(mFGSurfaceControl, 255, 0, 0);
+    ALOGI("Filling 4");
+    fillSurfaceRGBA8(mFGSurfaceControl, 0, 255, 0);
+}
+
 }

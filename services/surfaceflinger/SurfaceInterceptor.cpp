@@ -80,7 +80,7 @@ void SurfaceInterceptor::saveExistingDisplaysLocked(
 void SurfaceInterceptor::saveExistingSurfacesLocked(const SortedVector<sp<Layer>>& layers) {
     ATRACE_CALL();
     for (const auto& l : layers) {
-        l->traverseInZOrder([this](Layer* layer) {
+        l->traverseInZOrder(LayerVector::StateSet::Drawing, [this](Layer* layer) {
             addSurfaceCreationLocked(createTraceIncrementLocked(), layer);
             addInitialSurfaceStateLocked(createTraceIncrementLocked(), layer);
         });
