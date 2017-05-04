@@ -1070,7 +1070,7 @@ int SensorService::setOperationParameter(
     for (sensors_event_t* i = event; i < event + 3; i++) {
         *i = (sensors_event_t) {
             .version = sizeof(sensors_event_t),
-            .sensor = 0,
+            .sensor = SENSORS_HANDLE_BASE - 1, // sensor that never exists
             .type = SENSOR_TYPE_ADDITIONAL_INFO,
             .timestamp = timestamp++,
             .additional_info = (additional_info_event_t) {
