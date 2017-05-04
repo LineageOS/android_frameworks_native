@@ -31,7 +31,7 @@ class BufferQueueConsumer : public BnGraphicBufferConsumer {
 
 public:
     BufferQueueConsumer(const sp<BufferQueueCore>& core);
-    virtual ~BufferQueueConsumer();
+    ~BufferQueueConsumer() override;
 
     // acquireBuffer attempts to acquire ownership of the next pending buffer in
     // the BufferQueue. If no buffer is pending then it returns
