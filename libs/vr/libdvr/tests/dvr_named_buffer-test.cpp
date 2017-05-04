@@ -73,7 +73,7 @@ TEST_F(DvrNamedBufferTest, TestNamedBuffersSameName) {
   ASSERT_EQ(0, e3);
 
   AHardwareBuffer* hardware_buffer3 = nullptr;
-  int e4 = dvrBufferGetAHardwareBuffer(buffer2, &hardware_buffer3);
+  int e4 = dvrBufferGetAHardwareBuffer(buffer3, &hardware_buffer3);
   ASSERT_EQ(0, e4);
   ASSERT_NE(nullptr, hardware_buffer3);
 

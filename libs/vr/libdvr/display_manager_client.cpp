@@ -62,8 +62,8 @@ DvrBuffer* dvrDisplayManagerSetupNamedBuffer(DvrDisplayManagerClient* client,
   android_convertGralloc0To1Usage((uint32_t)gralloc_usage, &producer_usage,
                                   &consumer_usage);
 
-  auto ion_buffer = client->client->SetupNamedBuffer(name, size, producer_usage,
-                                                     consumer_usage);
+  auto ion_buffer = client->client->SetupNamedBuffer(
+      name, size, (producer_usage | consumer_usage));
   if (ion_buffer) {
     return CreateDvrBufferFromIonBuffer(std::move(ion_buffer));
   }
