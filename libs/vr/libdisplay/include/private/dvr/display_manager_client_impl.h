@@ -19,8 +19,7 @@ class DisplayManagerClient : public pdx::ClientBase<DisplayManagerClient> {
 
   std::unique_ptr<IonBuffer> SetupNamedBuffer(const std::string& name,
                                               size_t size,
-                                              uint64_t producer_usage,
-                                              uint64_t consumer_usage);
+                                              uint64_t usage);
 
   using Client::event_fd;
   using Client::GetChannel;

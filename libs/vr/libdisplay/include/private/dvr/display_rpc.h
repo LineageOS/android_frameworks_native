@@ -272,9 +272,7 @@ struct DisplayManagerRPC {
       int(const std::map<int, DisplaySurfaceAttributes>& updates));
   PDX_REMOTE_METHOD(SetupNamedBuffer, kOpSetupNamedBuffer,
                     LocalNativeBufferHandle(const std::string& name,
-                                            size_t size,
-                                            uint64_t producer_usage,
-                                            uint64_t consumer_usage));
+                                            size_t size, uint64_t usage));
 };
 
 struct ScreenshotData {

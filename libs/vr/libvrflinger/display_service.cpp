@@ -327,13 +327,11 @@ void DisplayService::UpdateActiveDisplaySurfaces() {
 }
 
 pdx::Status<BorrowedNativeBufferHandle> DisplayService::SetupNamedBuffer(
-    const std::string& name, size_t size, int producer_usage,
-    int consumer_usage) {
+    const std::string& name, size_t size, int usage) {
   auto named_buffer = named_buffers_.find(name);
   if (named_buffer == named_buffers_.end()) {
-    auto ion_buffer = std::make_unique<IonBuffer>(
-        static_cast<int>(size), 1, HAL_PIXEL_FORMAT_BLOB,
-        (producer_usage | consumer_usage));
+    auto ion_buffer = std::make_unique<IonBuffer>(static_cast<int>(size), 1,
+                                                  HAL_PIXEL_FORMAT_BLOB, usage);
     named_buffer =
         named_buffers_.insert(std::make_pair(name, std::move(ion_buffer)))
             .first;

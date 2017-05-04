@@ -34,19 +34,14 @@ Status<std::shared_ptr<ProducerQueueChannel>> ProducerQueueChannel::Create(
     const UsagePolicy& usage_policy) {
   // Configuration between |usage_deny_set_mask| and |usage_deny_clear_mask|
   // should be mutually exclusive.
-  if ((usage_policy.producer_deny_set_mask &
-       usage_policy.producer_deny_clear_mask) ||
-      (usage_policy.consumer_deny_set_mask &
-       usage_policy.consumer_deny_clear_mask)) {
+  if ((usage_policy.usage_deny_set_mask &
+       usage_policy.usage_deny_clear_mask)) {
     ALOGE(
         "BufferHubService::OnCreateProducerQueue: illegal usage mask "
-        "configuration: producer_deny_set_mask=%" PRIx64
-        " producer_deny_clear_mask=%" PRIx64 " consumer_deny_set_mask=%" PRIx64
-        " consumer_deny_clear_mask=%" PRIx64,
-        usage_policy.producer_deny_set_mask,
-        usage_policy.producer_deny_clear_mask,
-        usage_policy.consumer_deny_set_mask,
-        usage_policy.consumer_deny_clear_mask);
+        "configuration: usage_deny_set_mask=%" PRIx64
+        " usage_deny_clear_mask=%" PRIx64,
+        usage_policy.usage_deny_set_mask,
+        usage_policy.usage_deny_clear_mask);
     return ErrorStatus(EINVAL);
   }
 
@@ -134,8 +129,7 @@ Status<QueueInfo> ProducerQueueChannel::OnGetQueueInfo(Message&) {
 Status<std::vector<std::pair<RemoteChannelHandle, size_t>>>
 ProducerQueueChannel::OnProducerQueueAllocateBuffers(
     Message& message, uint32_t width, uint32_t height, uint32_t format,
-    uint64_t producer_usage, uint64_t consumer_usage, size_t slice_count,
-    size_t buffer_count) {
+    uint64_t usage, size_t slice_count, size_t buffer_count) {
   ATRACE_NAME("ProducerQueueChannel::OnProducerQueueAllocateBuffers");
   ALOGD_IF(TRACE,
            "ProducerQueueChannel::OnProducerQueueAllocateBuffers: "
@@ -145,58 +139,32 @@ ProducerQueueChannel::OnProducerQueueAllocateBuffers(
   std::vector<std::pair<RemoteChannelHandle, size_t>> buffer_handles;
 
   // Deny buffer allocation violating preset rules.
-  if (producer_usage & usage_policy_.producer_deny_set_mask) {
+  if (usage & usage_policy_.usage_deny_set_mask) {
     ALOGE(
-        "ProducerQueueChannel::OnProducerQueueAllocateBuffers: producer_usage: "
-        "%" PRIx64
-        " is not permitted. Violating producer_deny_set_mask, the following "
-        "bits shall not be set: %" PRIx64 ".",
-        producer_usage, usage_policy_.producer_deny_set_mask);
+        "ProducerQueueChannel::OnProducerQueueAllocateBuffers: usage: %" PRIx64
+        " is not permitted. Violating usage_deny_set_mask, the following  bits "
+        "shall not be set: %" PRIx64 ".",
+        usage, usage_policy_.usage_deny_set_mask);
     return ErrorStatus(EINVAL);
   }
 
-  if (consumer_usage & usage_policy_.consumer_deny_set_mask) {
+  if (~usage & usage_policy_.usage_deny_clear_mask) {
     ALOGE(
-        "ProducerQueueChannel::OnProducerQueueAllocateBuffers: consumer_usage: "
-        "%" PRIx64
-        " is not permitted. Violating consumer_deny_set_mask, the following "
-        "bits shall not be set: %" PRIx64 ".",
-        consumer_usage, usage_policy_.consumer_deny_set_mask);
-    return ErrorStatus(EINVAL);
-  }
-
-  if (~producer_usage & usage_policy_.producer_deny_clear_mask) {
-    ALOGE(
-        "ProducerQueueChannel::OnProducerQueueAllocateBuffers: producer_usage: "
-        "%" PRIx64
-        " is not permitted. Violating producer_deny_clear_mask, the following "
+        "ProducerQueueChannel::OnProducerQueueAllocateBuffers: usage: %" PRIx64
+        " is not permitted. Violating usage_deny_clear_mask, the following "
         "bits must be set: %" PRIx64 ".",
-        producer_usage, usage_policy_.producer_deny_clear_mask);
+        usage, usage_policy_.usage_deny_clear_mask);
     return ErrorStatus(EINVAL);
   }
 
-  if (~consumer_usage & usage_policy_.consumer_deny_clear_mask) {
-    ALOGE(
-        "ProducerQueueChannel::OnProducerQueueAllocateBuffers: consumer_usage: "
-        "%" PRIx64
-        " is not permitted. Violating consumer_deny_clear_mask, the following "
-        "bits must be set: %" PRIx64 ".",
-        consumer_usage, usage_policy_.consumer_deny_clear_mask);
-    return ErrorStatus(EINVAL);
-  }
-  // Force set mask and clear mask. Note that |usage_policy_.X_set_mask_| takes
-  // precedence and will overwrite |usage_policy_.X_clear_mask|.
-  uint64_t effective_producer_usage =
-      (producer_usage & ~usage_policy_.producer_clear_mask) |
-      usage_policy_.producer_set_mask;
-  uint64_t effective_consumer_usage =
-      (consumer_usage & ~usage_policy_.consumer_clear_mask) |
-      usage_policy_.consumer_set_mask;
+  // Force set mask and clear mask. Note that |usage_policy_.usage_set_mask_|
+  // takes precedence and will overwrite |usage_policy_.usage_clear_mask|.
+  uint64_t effective_usage =
+      (usage & ~usage_policy_.usage_clear_mask) | usage_policy_.usage_set_mask;
 
   for (size_t i = 0; i < buffer_count; i++) {
-    auto status =
-        AllocateBuffer(message, width, height, format, effective_producer_usage,
-                       effective_consumer_usage, slice_count);
+    auto status = AllocateBuffer(message, width, height, format,
+                                 effective_usage, slice_count);
     if (!status) {
       ALOGE(
           "ProducerQueueChannel::OnProducerQueueAllocateBuffers: Failed to "
@@ -212,9 +180,7 @@ ProducerQueueChannel::OnProducerQueueAllocateBuffers(
 Status<std::pair<RemoteChannelHandle, size_t>>
 ProducerQueueChannel::AllocateBuffer(Message& message, uint32_t width,
                                      uint32_t height, uint32_t format,
-                                     uint64_t producer_usage,
-                                     uint64_t consumer_usage,
-                                     size_t slice_count) {
+                                     uint64_t usage, size_t slice_count) {
   ATRACE_NAME("ProducerQueueChannel::AllocateBuffer");
   ALOGD_IF(TRACE,
            "ProducerQueueChannel::AllocateBuffer: producer_channel_id=%d",
@@ -239,15 +205,13 @@ ProducerQueueChannel::AllocateBuffer(Message& message, uint32_t width,
 
   ALOGD_IF(TRACE,
            "ProducerQueueChannel::AllocateBuffer: buffer_id=%d width=%u "
-           "height=%u format=%u producer_usage=%" PRIx64
-           " consumer_usage=%" PRIx64 " slice_count=%zu",
-           buffer_id, width, height, format, producer_usage, consumer_usage,
-           slice_count);
+           "height=%u format=%u usage=%" PRIx64 " slice_count=%zu",
+           buffer_id, width, height, format, usage, slice_count);
   auto buffer_handle = status.take();
 
-  auto producer_channel_status = ProducerChannel::Create(
-      service(), buffer_id, width, height, format, producer_usage,
-      consumer_usage, meta_size_bytes_, slice_count);
+  auto producer_channel_status =
+      ProducerChannel::Create(service(), buffer_id, width, height, format,
+                              usage, meta_size_bytes_, slice_count);
   if (!producer_channel_status) {
     ALOGE(
         "ProducerQueueChannel::AllocateBuffer: Failed to create producer "
