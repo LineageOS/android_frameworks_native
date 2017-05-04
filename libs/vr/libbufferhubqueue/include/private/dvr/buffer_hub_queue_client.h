@@ -136,8 +136,8 @@ class BufferHubQueue : public pdx::Client {
 
   // Wait for buffers to be released and re-add them to the queue.
   bool WaitForBuffers(int timeout);
-  void HandleBufferEvent(size_t slot, const epoll_event& event);
-  void HandleQueueEvent(const epoll_event& event);
+  void HandleBufferEvent(size_t slot, int poll_events);
+  void HandleQueueEvent(int poll_events);
 
   virtual int OnBufferReady(const std::shared_ptr<BufferHubBuffer>& buf,
                             LocalHandle* fence) = 0;
@@ -308,6 +308,14 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
     return BASE::Create(sizeof(Meta), usage_set_mask, usage_clear_mask,
                         usage_deny_set_mask, usage_deny_clear_mask);
   }
+  static std::unique_ptr<ProducerQueue> Create(size_t meta_size_bytes,
+                                               uint32_t usage_set_mask,
+                                               uint32_t usage_clear_mask,
+                                               uint32_t usage_deny_set_mask,
+                                               uint32_t usage_deny_clear_mask) {
+    return BASE::Create(meta_size_bytes, usage_set_mask, usage_clear_mask,
+                        usage_deny_set_mask, usage_deny_clear_mask);
+  }
 
   // Import a |ProducerQueue| from a channel handle.
   static std::unique_ptr<ProducerQueue> Import(LocalChannelHandle handle) {
@@ -361,6 +369,19 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   int OnBufferReady(const std::shared_ptr<BufferHubBuffer>& buf,
                     LocalHandle* release_fence) override;
 };
+
+// Explicit specializations of ProducerQueue::Create for void metadata type.
+template <>
+inline std::unique_ptr<ProducerQueue> ProducerQueue::Create<void>() {
+  return ProducerQueue::Create(0);
+}
+template <>
+inline std::unique_ptr<ProducerQueue> ProducerQueue::Create<void>(
+    uint32_t usage_set_mask, uint32_t usage_clear_mask,
+    uint32_t usage_deny_set_mask, uint32_t usage_deny_clear_mask) {
+  return ProducerQueue::Create(0, usage_set_mask, usage_clear_mask,
+                               usage_deny_set_mask, usage_deny_clear_mask);
+}
 
 class ConsumerQueue : public BufferHubQueue {
  public:

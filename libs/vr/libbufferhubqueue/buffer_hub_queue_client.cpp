@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <log/log.h>
 #include <sys/epoll.h>
+#include <poll.h>
 
 #include <array>
 
@@ -10,6 +11,15 @@
 #include <pdx/default_transport/client_channel_factory.h>
 #include <pdx/file_handle.h>
 #include <private/dvr/bufferhub_rpc.h>
+
+#define RETRY_EINTR(fnc_call)                 \
+  ([&]() -> decltype(fnc_call) {              \
+    decltype(fnc_call) result;                \
+    do {                                      \
+      result = (fnc_call);                    \
+    } while (result == -1 && errno == EINTR); \
+    return result;                            \
+  })()
 
 using android::pdx::ErrorStatus;
 using android::pdx::LocalChannelHandle;
@@ -113,8 +123,10 @@ bool BufferHubQueue::WaitForBuffers(int timeout) {
 
   // Loop at least once to check for hangups.
   do {
-    ALOGD_IF(TRACE, "BufferHubQueue::WaitForBuffers: count=%zu capacity=%zu",
-             count(), capacity());
+    ALOGD_IF(
+        TRACE,
+        "BufferHubQueue::WaitForBuffers: queue_id=%d count=%zu capacity=%zu",
+        id(), count(), capacity());
 
     // If there is already a buffer then just check for hangup without waiting.
     const int ret = epoll_fd_.Wait(events.data(), events.size(),
@@ -122,7 +134,9 @@ bool BufferHubQueue::WaitForBuffers(int timeout) {
 
     if (ret == 0) {
       ALOGI_IF(TRACE,
-               "BufferHubQueue::WaitForBuffers: No events before timeout.");
+               "BufferHubQueue::WaitForBuffers: No events before timeout: "
+               "queue_id=%d",
+               id());
       return count() != 0;
     }
 
@@ -145,9 +159,9 @@ bool BufferHubQueue::WaitForBuffers(int timeout) {
                index);
 
       if (is_buffer_event_index(index)) {
-        HandleBufferEvent(static_cast<size_t>(index), events[i]);
+        HandleBufferEvent(static_cast<size_t>(index), events[i].events);
       } else if (is_queue_event_index(index)) {
-        HandleQueueEvent(events[i]);
+        HandleQueueEvent(events[i].events);
       } else {
         ALOGW("BufferHubQueue::WaitForBuffers: Unknown event index: %" PRId64,
               index);
@@ -158,29 +172,39 @@ bool BufferHubQueue::WaitForBuffers(int timeout) {
   return count() != 0;
 }
 
-void BufferHubQueue::HandleBufferEvent(size_t slot, const epoll_event& event) {
+void BufferHubQueue::HandleBufferEvent(size_t slot, int poll_events) {
   auto buffer = buffers_[slot];
   if (!buffer) {
     ALOGW("BufferHubQueue::HandleBufferEvent: Invalid buffer slot: %zu", slot);
     return;
   }
 
-  auto status = buffer->GetEventMask(event.events);
+  auto status = buffer->GetEventMask(poll_events);
   if (!status) {
     ALOGW("BufferHubQueue::HandleBufferEvent: Failed to get event mask: %s",
           status.GetErrorMessage().c_str());
     return;
   }
 
-  int events = status.get();
+  const int events = status.get();
   if (events & EPOLLIN) {
-    int ret = OnBufferReady(buffer, &fences_[slot]);
-    if (ret < 0) {
-      ALOGE("BufferHubQueue::HandleBufferEvent: Failed to set buffer ready: %s",
-            strerror(-ret));
-      return;
+    const int ret = OnBufferReady(buffer, &fences_[slot]);
+    if (ret == 0 || ret == -EALREADY || ret == -EBUSY) {
+      // Only enqueue the buffer if it moves to or is already in the state
+      // requested in OnBufferReady(). If the buffer is busy this means that the
+      // buffer moved from released to posted when a new consumer was created
+      // before the ProducerQueue had a chance to regain it. This is a valid
+      // transition that we have to handle because edge triggered poll events
+      // latch the ready state even if it is later de-asserted -- don't enqueue
+      // or print an error log in this case.
+      if (ret != -EBUSY)
+        Enqueue(buffer, slot);
+    } else {
+      ALOGE(
+          "BufferHubQueue::HandleBufferEvent: Failed to set buffer ready, "
+          "queue_id=%d buffer_id=%d: %s",
+          id(), buffer->id(), strerror(-ret));
     }
-    Enqueue(buffer, slot);
   } else if (events & EPOLLHUP) {
     // This might be caused by producer replacing an existing buffer slot, or
     // when BufferHubQueue is shutting down. For the first case, currently the
@@ -203,15 +227,15 @@ void BufferHubQueue::HandleBufferEvent(size_t slot, const epoll_event& event) {
   }
 }
 
-void BufferHubQueue::HandleQueueEvent(const epoll_event& event) {
-  auto status = GetEventMask(event.events);
+void BufferHubQueue::HandleQueueEvent(int poll_event) {
+  auto status = GetEventMask(poll_event);
   if (!status) {
     ALOGW("BufferHubQueue::HandleQueueEvent: Failed to get event mask: %s",
           status.GetErrorMessage().c_str());
     return;
   }
 
-  int events = status.get();
+  const int events = status.get();
   if (events & EPOLLIN) {
     // Note that after buffer imports, if |count()| still returns 0, epoll
     // wait will be tried again to acquire the newly imported buffer.
@@ -224,7 +248,7 @@ void BufferHubQueue::HandleQueueEvent(const epoll_event& event) {
     ALOGD_IF(TRACE, "BufferHubQueue::HandleQueueEvent: hang up event!");
     hung_up_ = true;
   } else {
-    ALOGW("BufferHubQueue::HandleQueueEvent: Unknown epoll events=%d", events);
+    ALOGW("BufferHubQueue::HandleQueueEvent: Unknown epoll events=%x", events);
   }
 }
 
@@ -407,6 +431,8 @@ int ProducerQueue::AllocateBuffer(uint32_t width, uint32_t height,
 
 int ProducerQueue::AddBuffer(const std::shared_ptr<BufferProducer>& buf,
                              size_t slot) {
+  ALOGD_IF(TRACE, "ProducerQueue::AddBuffer: queue_id=%d buffer_id=%d slot=%zu",
+           id(), buf->id(), slot);
   // For producer buffer, we need to enqueue the newly added buffer
   // immediately. Producer queue starts with all buffers in available state.
   const int ret = BufferHubQueue::AddBuffer(buf, slot);
@@ -447,6 +473,8 @@ Status<std::shared_ptr<BufferProducer>> ProducerQueue::Dequeue(
 
 int ProducerQueue::OnBufferReady(const std::shared_ptr<BufferHubBuffer>& buf,
                                  LocalHandle* release_fence) {
+  ALOGD_IF(TRACE, "ProducerQueue::OnBufferReady: queue_id=%d buffer_id=%d",
+           id(), buf->id());
   auto buffer = std::static_pointer_cast<BufferProducer>(buf);
   return buffer->Gain(release_fence);
 }
@@ -525,8 +553,30 @@ Status<size_t> ConsumerQueue::ImportBuffers() {
 
 int ConsumerQueue::AddBuffer(const std::shared_ptr<BufferConsumer>& buf,
                              size_t slot) {
-  // Consumer queue starts with all buffers in unavailable state.
-  return BufferHubQueue::AddBuffer(buf, slot);
+  ALOGD_IF(TRACE, "ConsumerQueue::AddBuffer: queue_id=%d buffer_id=%d slot=%zu",
+           id(), buf->id(), slot);
+  const int ret = BufferHubQueue::AddBuffer(buf, slot);
+  if (ret < 0)
+    return ret;
+
+  // Check to see if the buffer is already signaled. This is necessary to catch
+  // cases where buffers are already available; epoll edge triggered mode does
+  // not fire until and edge transition when adding new buffers to the epoll
+  // set.
+  const int kTimeoutMs = 0;
+  pollfd pfd{buf->event_fd(), POLLIN, 0};
+  const int count = RETRY_EINTR(poll(&pfd, 1, kTimeoutMs));
+  if (count < 0) {
+    const int error = errno;
+    ALOGE("ConsumerQueue::AddBuffer: Failed to poll consumer buffer: %s",
+          strerror(errno));
+    return -error;
+  }
+
+  if (count == 1)
+    HandleBufferEvent(slot, pfd.revents);
+
+  return 0;
 }
 
 Status<std::shared_ptr<BufferConsumer>> ConsumerQueue::Dequeue(
@@ -558,6 +608,8 @@ Status<std::shared_ptr<BufferConsumer>> ConsumerQueue::Dequeue(
 
 int ConsumerQueue::OnBufferReady(const std::shared_ptr<BufferHubBuffer>& buf,
                                  LocalHandle* acquire_fence) {
+  ALOGD_IF(TRACE, "ConsumerQueue::OnBufferReady: queue_id=%d buffer_id=%d",
+           id(), buf->id());
   auto buffer = std::static_pointer_cast<BufferConsumer>(buf);
   return buffer->Acquire(acquire_fence, meta_buffer_tmp_.get(), meta_size_);
 }

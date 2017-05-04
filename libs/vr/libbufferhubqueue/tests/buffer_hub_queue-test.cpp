@@ -22,20 +22,33 @@ constexpr int kBufferSliceCount = 1;  // number of slices in each buffer
 class BufferHubQueueTest : public ::testing::Test {
  public:
   template <typename Meta>
-  bool CreateQueues(int usage_set_mask = 0, int usage_clear_mask = 0,
-                    int usage_deny_set_mask = 0,
-                    int usage_deny_clear_mask = 0) {
+  bool CreateProducerQueue(uint64_t usage_set_mask = 0,
+                           uint64_t usage_clear_mask = 0,
+                           uint64_t usage_deny_set_mask = 0,
+                           uint64_t usage_deny_clear_mask = 0) {
     producer_queue_ =
         ProducerQueue::Create<Meta>(usage_set_mask, usage_clear_mask,
                                     usage_deny_set_mask, usage_deny_clear_mask);
-    if (!producer_queue_)
-      return false;
+    return producer_queue_ != nullptr;
+  }
 
-    consumer_queue_ = producer_queue_->CreateConsumerQueue();
-    if (!consumer_queue_)
+  bool CreateConsumerQueue() {
+    if (producer_queue_) {
+      consumer_queue_ = producer_queue_->CreateConsumerQueue();
+      return consumer_queue_ != nullptr;
+    } else {
       return false;
+    }
+  }
 
-    return true;
+  template <typename Meta>
+  bool CreateQueues(int usage_set_mask = 0, int usage_clear_mask = 0,
+                    int usage_deny_set_mask = 0,
+                    int usage_deny_clear_mask = 0) {
+    return CreateProducerQueue<Meta>(usage_set_mask, usage_clear_mask,
+                                     usage_deny_set_mask,
+                                     usage_deny_clear_mask) &&
+           CreateConsumerQueue();
   }
 
   void AllocateBuffer() {
@@ -132,6 +145,78 @@ TEST_F(BufferHubQueueTest, TestProducerConsumer) {
     ASSERT_NE(nullptr, consumer);
     ASSERT_EQ(seq_in, seq_out);
   }
+}
+
+TEST_F(BufferHubQueueTest, TestMultipleConsumers) {
+  ASSERT_TRUE(CreateProducerQueue<void>());
+
+  // Allocate buffers.
+  const size_t kBufferCount = 4u;
+  for (size_t i = 0; i < kBufferCount; i++) {
+    AllocateBuffer();
+  }
+  ASSERT_EQ(kBufferCount, producer_queue_->count());
+
+  // Build a silent consumer queue to test multi-consumer queue features.
+  auto silent_queue = producer_queue_->CreateSilentConsumerQueue();
+  ASSERT_NE(nullptr, silent_queue);
+
+  // Check that buffers are correctly imported on construction.
+  EXPECT_EQ(kBufferCount, silent_queue->capacity());
+
+  // Dequeue and post a buffer.
+  size_t slot;
+  LocalHandle fence;
+  auto producer_status = producer_queue_->Dequeue(0, &slot, &fence);
+  ASSERT_TRUE(producer_status.ok());
+  auto producer_buffer = producer_status.take();
+  ASSERT_NE(nullptr, producer_buffer);
+  ASSERT_EQ(0, producer_buffer->Post<void>({}));
+
+  // Currently we expect no buffer to be available prior to calling
+  // WaitForBuffers/HandleQueueEvents.
+  // TODO(eieio): Note this behavior may change in the future.
+  EXPECT_EQ(0u, silent_queue->count());
+  EXPECT_FALSE(silent_queue->HandleQueueEvents());
+  EXPECT_EQ(0u, silent_queue->count());
+
+  // Build a new consumer queue to test multi-consumer queue features.
+  consumer_queue_ = silent_queue->CreateConsumerQueue();
+  ASSERT_NE(nullptr, consumer_queue_);
+
+  // Check that buffers are correctly imported on construction.
+  EXPECT_EQ(kBufferCount, consumer_queue_->capacity());
+  EXPECT_EQ(1u, consumer_queue_->count());
+
+  // Reclaim released/ignored buffers.
+  producer_queue_->HandleQueueEvents();
+  ASSERT_EQ(kBufferCount - 1, producer_queue_->count());
+
+  // Post another buffer.
+  producer_status = producer_queue_->Dequeue(0, &slot, &fence);
+  ASSERT_TRUE(producer_status.ok());
+  producer_buffer = producer_status.take();
+  ASSERT_NE(nullptr, producer_buffer);
+  ASSERT_EQ(0, producer_buffer->Post<void>({}));
+
+  // Verify that the consumer queue receives it.
+  EXPECT_EQ(1u, consumer_queue_->count());
+  EXPECT_TRUE(consumer_queue_->HandleQueueEvents());
+  EXPECT_EQ(2u, consumer_queue_->count());
+
+  // Dequeue and acquire/release (discard) buffers on the consumer end.
+  auto consumer_status = consumer_queue_->Dequeue(0, &slot, &fence);
+  ASSERT_TRUE(consumer_status.ok());
+  auto consumer_buffer = consumer_status.take();
+  ASSERT_NE(nullptr, consumer_buffer);
+  consumer_buffer->Discard();
+
+  // Buffer should be returned to the producer queue without being handled by
+  // the silent consumer queue.
+  EXPECT_EQ(1u, consumer_queue_->count());
+  EXPECT_EQ(kBufferCount - 2, producer_queue_->count());
+  EXPECT_TRUE(producer_queue_->HandleQueueEvents());
+  EXPECT_EQ(kBufferCount - 1, producer_queue_->count());
 }
 
 struct TestMetadata {
