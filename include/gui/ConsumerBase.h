@@ -43,7 +43,7 @@ public:
         virtual void onFrameReplaced(const BufferItem& /* item */) {}
     };
 
-    virtual ~ConsumerBase();
+    ~ConsumerBase() override;
 
     // abandon frees all the buffers and puts the ConsumerBase into the
     // 'abandoned' state.  Once put in this state the ConsumerBase can never

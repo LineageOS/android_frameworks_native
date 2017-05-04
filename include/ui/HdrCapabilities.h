@@ -41,7 +41,7 @@ public:
         mMaxAverageLuminance(-1.0f),
         mMinLuminance(-1.0f) {}
 
-    virtual ~HdrCapabilities() = default;
+    ~HdrCapabilities() override = default;
 
     const std::vector<int32_t /*android_hdr_t*/>& getSupportedHdrTypes() const {
         return mSupportedHdrTypes;
