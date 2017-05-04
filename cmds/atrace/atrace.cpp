@@ -450,8 +450,8 @@ static bool isTraceClock(const char *mode)
         return false;
     }
 
-    char buf[100];
-    ssize_t n = read(fd, buf, 99);
+    char buf[4097];
+    ssize_t n = read(fd, buf, 4096);
     close(fd);
     if (n == -1) {
         fprintf(stderr, "error reading %s: %s (%d)\n", k_traceClockPath,
@@ -475,38 +475,13 @@ static bool isTraceClock(const char *mode)
     return strcmp(mode, start) == 0;
 }
 
-// Read the trace_clock sysfs file and return true if it contains the requested
-// value.  The trace_clock file format is:
-// local [global] counter uptime perf
-static bool traceClockContains(const char *mode)
-{
-    int fd = open((g_traceFolder + k_traceClockPath).c_str(), O_RDONLY);
-    if (fd == -1) {
-        fprintf(stderr, "error opening %s: %s (%d)\n", k_traceClockPath,
-            strerror(errno), errno);
-        return false;
-    }
-
-    char buf[100];
-    ssize_t n = read(fd, buf, 99);
-    close(fd);
-    if (n == -1) {
-        fprintf(stderr, "error reading %s: %s (%d)\n", k_traceClockPath,
-            strerror(errno), errno);
-        return false;
-    }
-    buf[n] = '\0';
-
-    return strstr(buf, mode) != NULL;
-}
-
-// Set the clock to the best available option while tracing. Use 'boot' if it's
-// available; otherwise, use 'mono'.
+// Enable or disable the kernel's use of the global clock.  Disabling the global
+// clock will result in the kernel using a per-CPU local clock.
 // Any write to the trace_clock sysfs file will reset the buffer, so only
 // update it if the requested value is not the current value.
-static bool setClock()
+static bool setGlobalClockEnable(bool enable)
 {
-    const char* clock = traceClockContains("boot") ? "boot" : "mono";
+    const char *clock = enable ? "global" : "local";
 
     if (isTraceClock(clock)) {
         return true;
@@ -808,7 +783,7 @@ static bool setUpTrace()
     ok &= setCategoriesEnableFromFile(g_categoriesFile);
     ok &= setTraceOverwriteEnable(g_traceOverwrite);
     ok &= setTraceBufferSizeKB(g_traceBufferSizeKB);
-    ok &= setClock();
+    ok &= setGlobalClockEnable(true);
     ok &= setPrintTgidEnableIfPresent(true);
     ok &= setKernelTraceFuncs(g_kernelTraceFuncs);
 
@@ -884,6 +859,7 @@ static void cleanUpTrace()
     // Set the options back to their defaults.
     setTraceOverwriteEnable(true);
     setTraceBufferSizeKB(1);
+    setGlobalClockEnable(false);
     setPrintTgidEnableIfPresent(false);
     setKernelTraceFuncs(NULL);
 }
