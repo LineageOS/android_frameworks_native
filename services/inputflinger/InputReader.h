@@ -26,11 +26,14 @@
 #include <input/VelocityTracker.h>
 #include <ui/DisplayInfo.h>
 #include <utils/KeyedVector.h>
-#include <utils/threads.h>
+#include <utils/Condition.h>
+#include <utils/Thread.h>
+#include <utils/Mutex.h>
 #include <utils/Timers.h>
 #include <utils/RefBase.h>
 #include <utils/String8.h>
 #include <utils/BitSet.h>
+#include <utils/SortedVector.h>
 
 #include <stddef.h>
 #include <unistd.h>
@@ -147,6 +150,9 @@ struct InputReaderConfiguration {
         // The pointer capture mode has changed.
         CHANGE_POINTER_CAPTURE = 1 << 8,
 
+        // The set of disabled input devices (disabledDevices) has changed.
+        CHANGE_ENABLED_STATE = 1 << 9,
+
         // All devices must be reopened.
         CHANGE_MUST_REOPEN = 1 << 31,
     };
@@ -236,6 +242,9 @@ struct InputReaderConfiguration {
 
     // True if pointer capture is enabled.
     bool pointerCapture;
+
+    // The set of currently disabled input devices.
+    SortedVector<int32_t> disabledDevices;
 
     InputReaderConfiguration() :
             virtualKeyQuietTime(0),
@@ -343,6 +352,9 @@ public:
 
     /* Called by the heatbeat to ensures that the reader has not deadlocked. */
     virtual void monitor() = 0;
+
+    /* Returns true if the input device is enabled. */
+    virtual bool isInputDeviceEnabled(int32_t deviceId) = 0;
 
     /* Runs a single iteration of the processing loop.
      * Nominally reads and processes one incoming message from the EventHub.
@@ -462,6 +474,8 @@ public:
     virtual void loopOnce();
 
     virtual void getInputDevices(Vector<InputDeviceInfo>& outInputDevices);
+
+    virtual bool isInputDeviceEnabled(int32_t deviceId);
 
     virtual int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask,
             int32_t scanCode);
@@ -607,6 +621,9 @@ public:
     inline bool hasMic() const { return mHasMic; }
 
     inline bool isIgnored() { return mMappers.isEmpty(); }
+
+    bool isEnabled();
+    void setEnabled(bool enabled, nsecs_t when);
 
     void dump(String8& dump);
     void addMapper(InputMapper* mapper);
