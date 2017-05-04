@@ -62,14 +62,10 @@ typedef std::function<void(std::shared_ptr<Display>, nsecs_t)> VsyncCallback;
 class Device
 {
 public:
-#ifdef BYPASS_IHWC
-    explicit Device(hwc2_device_t* device);
-#else
     // useVrComposer is passed to the composer HAL. When true, the composer HAL
     // will use the vr composer service, otherwise it uses the real hardware
     // composer.
     Device(bool useVrComposer);
-#endif
     ~Device();
 
     friend class HWC2::Display;
@@ -107,43 +103,12 @@ public:
 
     bool hasCapability(HWC2::Capability capability) const;
 
-#ifdef BYPASS_IHWC
-    android::Hwc2::Composer* getComposer() { return nullptr; }
-#else
     android::Hwc2::Composer* getComposer() { return mComposer.get(); }
-#endif
 
 private:
     // Initialization methods
 
-#ifdef BYPASS_IHWC
-    template <typename PFN>
-    [[clang::warn_unused_result]] bool loadFunctionPointer(
-            FunctionDescriptor desc, PFN& outPFN) {
-        auto intDesc = static_cast<int32_t>(desc);
-        auto pfn = mHwcDevice->getFunction(mHwcDevice, intDesc);
-        if (pfn != nullptr) {
-            outPFN = reinterpret_cast<PFN>(pfn);
-            return true;
-        } else {
-            ALOGE("Failed to load function %s", to_string(desc).c_str());
-            return false;
-        }
-    }
-
-    template <typename PFN, typename HOOK>
-    void registerCallback(Callback callback, HOOK hook) {
-        static_assert(std::is_same<PFN, HOOK>::value,
-                "Incompatible function pointer");
-        auto intCallback = static_cast<int32_t>(callback);
-        auto callbackData = static_cast<hwc2_callback_data_t>(this);
-        auto pfn = reinterpret_cast<hwc2_function_pointer_t>(hook);
-        mRegisterCallback(mHwcDevice, intCallback, callbackData, pfn);
-    }
-#endif
-
     void loadCapabilities();
-    void loadFunctionPointers();
     void registerCallbacks();
 
     // For use by Display
@@ -151,60 +116,7 @@ private:
     void destroyVirtualDisplay(hwc2_display_t display);
 
     // Member variables
-
-#ifdef BYPASS_IHWC
-    hwc2_device_t* mHwcDevice;
-
-    // Device function pointers
-    HWC2_PFN_CREATE_VIRTUAL_DISPLAY mCreateVirtualDisplay;
-    HWC2_PFN_DESTROY_VIRTUAL_DISPLAY mDestroyVirtualDisplay;
-    HWC2_PFN_DUMP mDump;
-    HWC2_PFN_GET_MAX_VIRTUAL_DISPLAY_COUNT mGetMaxVirtualDisplayCount;
-    HWC2_PFN_REGISTER_CALLBACK mRegisterCallback;
-
-    // Display function pointers
-    HWC2_PFN_ACCEPT_DISPLAY_CHANGES mAcceptDisplayChanges;
-    HWC2_PFN_CREATE_LAYER mCreateLayer;
-    HWC2_PFN_DESTROY_LAYER mDestroyLayer;
-    HWC2_PFN_GET_ACTIVE_CONFIG mGetActiveConfig;
-    HWC2_PFN_GET_CHANGED_COMPOSITION_TYPES mGetChangedCompositionTypes;
-    HWC2_PFN_GET_COLOR_MODES mGetColorModes;
-    HWC2_PFN_GET_DISPLAY_ATTRIBUTE mGetDisplayAttribute;
-    HWC2_PFN_GET_DISPLAY_CONFIGS mGetDisplayConfigs;
-    HWC2_PFN_GET_DISPLAY_NAME mGetDisplayName;
-    HWC2_PFN_GET_DISPLAY_REQUESTS mGetDisplayRequests;
-    HWC2_PFN_GET_DISPLAY_TYPE mGetDisplayType;
-    HWC2_PFN_GET_DOZE_SUPPORT mGetDozeSupport;
-    HWC2_PFN_GET_HDR_CAPABILITIES mGetHdrCapabilities;
-    HWC2_PFN_GET_RELEASE_FENCES mGetReleaseFences;
-    HWC2_PFN_PRESENT_DISPLAY mPresentDisplay;
-    HWC2_PFN_SET_ACTIVE_CONFIG mSetActiveConfig;
-    HWC2_PFN_SET_CLIENT_TARGET mSetClientTarget;
-    HWC2_PFN_SET_COLOR_MODE mSetColorMode;
-    HWC2_PFN_SET_COLOR_TRANSFORM mSetColorTransform;
-    HWC2_PFN_SET_OUTPUT_BUFFER mSetOutputBuffer;
-    HWC2_PFN_SET_POWER_MODE mSetPowerMode;
-    HWC2_PFN_SET_VSYNC_ENABLED mSetVsyncEnabled;
-    HWC2_PFN_VALIDATE_DISPLAY mValidateDisplay;
-
-    // Layer function pointers
-    HWC2_PFN_SET_CURSOR_POSITION mSetCursorPosition;
-    HWC2_PFN_SET_LAYER_BUFFER mSetLayerBuffer;
-    HWC2_PFN_SET_LAYER_SURFACE_DAMAGE mSetLayerSurfaceDamage;
-    HWC2_PFN_SET_LAYER_BLEND_MODE mSetLayerBlendMode;
-    HWC2_PFN_SET_LAYER_COLOR mSetLayerColor;
-    HWC2_PFN_SET_LAYER_COMPOSITION_TYPE mSetLayerCompositionType;
-    HWC2_PFN_SET_LAYER_DATASPACE mSetLayerDataspace;
-    HWC2_PFN_SET_LAYER_DISPLAY_FRAME mSetLayerDisplayFrame;
-    HWC2_PFN_SET_LAYER_PLANE_ALPHA mSetLayerPlaneAlpha;
-    HWC2_PFN_SET_LAYER_SIDEBAND_STREAM mSetLayerSidebandStream;
-    HWC2_PFN_SET_LAYER_SOURCE_CROP mSetLayerSourceCrop;
-    HWC2_PFN_SET_LAYER_TRANSFORM mSetLayerTransform;
-    HWC2_PFN_SET_LAYER_VISIBLE_REGION mSetLayerVisibleRegion;
-    HWC2_PFN_SET_LAYER_Z_ORDER mSetLayerZOrder;
-#else
     std::unique_ptr<android::Hwc2::Composer> mComposer;
-#endif // BYPASS_IHWC
 
     std::unordered_set<Capability> mCapabilities;
     std::unordered_map<hwc2_display_t, std::weak_ptr<Display>> mDisplays;
