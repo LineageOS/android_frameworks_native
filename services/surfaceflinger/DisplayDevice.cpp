@@ -217,7 +217,7 @@ status_t DisplayDevice::prepareFrame(HWComposer& hwc) {
 }
 
 void DisplayDevice::swapBuffers(HWComposer& hwc) const {
-    if (hwc.hasClientComposition(mHwcDisplayId)) {
+    if (hwc.hasClientComposition(mHwcDisplayId) || hwc.hasFlipClientTargetRequest(mHwcDisplayId)) {
         mSurface.swapBuffers();
     }
 
