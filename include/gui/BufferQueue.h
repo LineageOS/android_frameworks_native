@@ -57,7 +57,7 @@ public:
     class ProxyConsumerListener : public BnConsumerListener {
     public:
         explicit ProxyConsumerListener(const wp<ConsumerListener>& consumerListener);
-        ~ProxyConsumerListener() const;
+        ~ProxyConsumerListener() override;
         void onDisconnect() override;
         void onFrameAvailable(const BufferItem& item) override;
         void onFrameReplaced(const BufferItem& item) override;
