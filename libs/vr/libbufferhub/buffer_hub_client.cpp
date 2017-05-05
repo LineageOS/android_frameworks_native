@@ -199,18 +199,27 @@ int BufferConsumer::SetIgnore(bool ignore) {
 }
 
 BufferProducer::BufferProducer(uint32_t width, uint32_t height, uint32_t format,
-                               uint64_t usage, size_t metadata_size,
+                               uint32_t usage, size_t metadata_size,
                                size_t slice_count)
+    : BufferProducer(width, height, format, usage, usage, metadata_size,
+                     slice_count) {}
+
+BufferProducer::BufferProducer(uint32_t width, uint32_t height, uint32_t format,
+                               uint64_t producer_usage, uint64_t consumer_usage,
+                               size_t metadata_size, size_t slice_count)
     : BASE(BufferHubRPC::kClientPath) {
   ATRACE_NAME("BufferProducer::BufferProducer");
   ALOGD_IF(TRACE,
            "BufferProducer::BufferProducer: fd=%d width=%u height=%u format=%u "
-           "usage=%" PRIx64 " metadata_size=%zu slice_count=%zu",
-           event_fd(), width, height, format, usage, metadata_size,
-           slice_count);
+           "producer_usage=%" PRIx64 " consumer_usage=%" PRIx64
+           " metadata_size=%zu slice_count=%zu",
+           event_fd(), width, height, format, producer_usage, consumer_usage,
+           metadata_size, slice_count);
 
+  // (b/37881101) Deprecate producer/consumer usage
   auto status = InvokeRemoteMethod<BufferHubRPC::CreateBuffer>(
-      width, height, format, usage, metadata_size, slice_count);
+      width, height, format, (producer_usage | consumer_usage), metadata_size,
+      slice_count);
   if (!status) {
     ALOGE(
         "BufferProducer::BufferProducer: Failed to create producer buffer: %s",
@@ -230,20 +239,29 @@ BufferProducer::BufferProducer(uint32_t width, uint32_t height, uint32_t format,
 
 BufferProducer::BufferProducer(const std::string& name, int user_id,
                                int group_id, uint32_t width, uint32_t height,
-                               uint32_t format, uint64_t usage,
+                               uint32_t format, uint32_t usage,
                                size_t meta_size_bytes, size_t slice_count)
+    : BufferProducer(name, user_id, group_id, width, height, format, usage,
+                     usage, meta_size_bytes, slice_count) {}
+
+BufferProducer::BufferProducer(const std::string& name, int user_id,
+                               int group_id, uint32_t width, uint32_t height,
+                               uint32_t format, uint64_t producer_usage,
+                               uint64_t consumer_usage, size_t meta_size_bytes,
+                               size_t slice_count)
     : BASE(BufferHubRPC::kClientPath) {
   ATRACE_NAME("BufferProducer::BufferProducer");
   ALOGD_IF(TRACE,
            "BufferProducer::BufferProducer: fd=%d name=%s user_id=%d "
-           "group_id=%d width=%u height=%u format=%u usage=%" PRIx64
-           " meta_size_bytes=%zu slice_count=%zu",
+           "group_id=%d width=%u height=%u format=%u producer_usage=%" PRIx64
+           " consumer_usage=%" PRIx64 " meta_size_bytes=%zu slice_count=%zu",
            event_fd(), name.c_str(), user_id, group_id, width, height, format,
-           usage, meta_size_bytes, slice_count);
+           producer_usage, consumer_usage, meta_size_bytes, slice_count);
 
+  // (b/37881101) Deprecate producer/consumer usage
   auto status = InvokeRemoteMethod<BufferHubRPC::CreatePersistentBuffer>(
-      name, user_id, group_id, width, height, format, usage, meta_size_bytes,
-      slice_count);
+      name, user_id, group_id, width, height, format,
+      (producer_usage | consumer_usage), meta_size_bytes, slice_count);
   if (!status) {
     ALOGE(
         "BufferProducer::BufferProducer: Failed to create/get persistent "
@@ -263,19 +281,26 @@ BufferProducer::BufferProducer(const std::string& name, int user_id,
   }
 }
 
-BufferProducer::BufferProducer(uint64_t usage, size_t size)
+BufferProducer::BufferProducer(uint32_t usage, size_t size)
+    : BufferProducer(usage, usage, size) {}
+
+BufferProducer::BufferProducer(uint64_t producer_usage, uint64_t consumer_usage,
+                               size_t size)
     : BASE(BufferHubRPC::kClientPath) {
   ATRACE_NAME("BufferProducer::BufferProducer");
-  ALOGD_IF(TRACE, "BufferProducer::BufferProducer: usage=%" PRIx64 " size=%zu",
-           usage, size);
+  ALOGD_IF(TRACE,
+           "BufferProducer::BufferProducer: producer_usage=%" PRIx64
+           " consumer_usage=%" PRIx64 " size=%zu",
+           producer_usage, consumer_usage, size);
   const int width = static_cast<int>(size);
   const int height = 1;
   const int format = HAL_PIXEL_FORMAT_BLOB;
   const size_t meta_size_bytes = 0;
   const size_t slice_count = 1;
 
+  // (b/37881101) Deprecate producer/consumer usage
   auto status = InvokeRemoteMethod<BufferHubRPC::CreateBuffer>(
-      width, height, format, usage, meta_size_bytes,
+      width, height, format, (producer_usage | consumer_usage), meta_size_bytes,
       slice_count);
   if (!status) {
     ALOGE("BufferProducer::BufferProducer: Failed to create blob: %s",
@@ -294,22 +319,29 @@ BufferProducer::BufferProducer(uint64_t usage, size_t size)
 }
 
 BufferProducer::BufferProducer(const std::string& name, int user_id,
-                               int group_id, uint64_t usage, size_t size)
+                               int group_id, uint32_t usage, size_t size)
+    : BufferProducer(name, user_id, group_id, usage, usage, size) {}
+
+BufferProducer::BufferProducer(const std::string& name, int user_id,
+                               int group_id, uint64_t producer_usage,
+                               uint64_t consumer_usage, size_t size)
     : BASE(BufferHubRPC::kClientPath) {
   ATRACE_NAME("BufferProducer::BufferProducer");
   ALOGD_IF(TRACE,
            "BufferProducer::BufferProducer: name=%s user_id=%d group=%d "
-           "usage=%" PRIx64 " size=%zu",
-           name.c_str(), user_id, group_id, usage, size);
+           "producer_usage=%" PRIx64 " consumer_usage=%" PRIx64 " size=%zu",
+           name.c_str(), user_id, group_id, producer_usage, consumer_usage,
+           size);
   const int width = static_cast<int>(size);
   const int height = 1;
   const int format = HAL_PIXEL_FORMAT_BLOB;
   const size_t meta_size_bytes = 0;
   const size_t slice_count = 1;
 
+  // (b/37881101) Deprecate producer/consumer usage
   auto status = InvokeRemoteMethod<BufferHubRPC::CreatePersistentBuffer>(
-      name, user_id, group_id, width, height, format, usage, meta_size_bytes,
-      slice_count);
+      name, user_id, group_id, width, height, format,
+      (producer_usage | consumer_usage), meta_size_bytes, slice_count);
   if (!status) {
     ALOGE(
         "BufferProducer::BufferProducer: Failed to create persistent "
