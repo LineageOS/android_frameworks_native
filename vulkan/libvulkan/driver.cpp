@@ -39,9 +39,6 @@ extern "C" {
 android_namespace_t* android_get_exported_namespace(const char*);
 }
 
-// Set to true to enable exposing unratified extensions for development
-static const bool kEnableUnratifiedExtensions = false;
-
 // #define ENABLE_ALLOC_CALLSTACKS 1
 #if ENABLE_ALLOC_CALLSTACKS
 #include <utils/CallStack.h>
@@ -717,12 +714,9 @@ VkResult EnumerateInstanceExtensionProperties(
     loader_extensions.push_back({
         VK_EXT_SWAPCHAIN_COLOR_SPACE_EXTENSION_NAME,
         VK_EXT_SWAPCHAIN_COLOR_SPACE_SPEC_VERSION});
-
-    if (kEnableUnratifiedExtensions) {
-        loader_extensions.push_back({
-            VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
-            VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION});
-    }
+    loader_extensions.push_back({
+        VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
+        VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION});
 
     static const VkExtensionProperties loader_debug_report_extension = {
         VK_EXT_DEBUG_REPORT_EXTENSION_NAME, VK_EXT_DEBUG_REPORT_SPEC_VERSION,
@@ -818,15 +812,12 @@ VkResult EnumerateDeviceExtensionProperties(
         VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
         VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION});
 
-    if (kEnableUnratifiedExtensions) {
-        // conditionally add shared_presentable_image if supportable
-        VkPhysicalDevicePresentationPropertiesANDROID presentation_properties;
-        if (QueryPresentationProperties(physicalDevice, &presentation_properties) &&
-            presentation_properties.sharedImage) {
-            loader_extensions.push_back({
-                VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME,
-                        VK_KHR_SHARED_PRESENTABLE_IMAGE_SPEC_VERSION});
-        }
+    VkPhysicalDevicePresentationPropertiesANDROID presentation_properties;
+    if (QueryPresentationProperties(physicalDevice, &presentation_properties) &&
+        presentation_properties.sharedImage) {
+        loader_extensions.push_back({
+            VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME,
+            VK_KHR_SHARED_PRESENTABLE_IMAGE_SPEC_VERSION});
     }
 
     // conditionally add VK_GOOGLE_display_timing if present timestamps are
