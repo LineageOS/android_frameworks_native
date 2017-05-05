@@ -1,5 +1,6 @@
 #include "include/dvr/dvr_surface.h"
 
+#include <private/android/AHardwareBufferHelpers.h>
 #include <private/dvr/display_client.h>
 
 using namespace android;
@@ -10,8 +11,8 @@ struct DvrSurface {
 
 extern "C" {
 
-int dvrSurfaceCreate(int width, int height, int format, uint64_t usage0,
-                     uint64_t usage1, int flags, DvrSurface** out_surface) {
+int dvrSurfaceCreate(int width, int height, int format, uint64_t usage,
+                     int flags, DvrSurface** out_surface) {
   if (out_surface == nullptr) {
     ALOGE("dvrSurfaceCreate: invalid inputs: out_surface=%p.", out_surface);
     return -EINVAL;
@@ -24,10 +25,12 @@ int dvrSurfaceCreate(int width, int height, int format, uint64_t usage0,
     return error;
   }
 
-  // TODO(hendrikw): When we move to gralloc1, pass both usage0 and usage1 down.
+  // The following convertion is sort of unnecessary as AHARDWAREBUFFER_USAGE
+  // and BufferUsage should be synced up now.
+  uint64_t gralloc_usage = AHardwareBuffer_convertToGrallocUsageBits(usage);
   std::unique_ptr<dvr::DisplaySurfaceClient> surface =
       client->CreateDisplaySurface(
-          width, height, static_cast<int>(usage0 | usage1), format, flags);
+          width, height, static_cast<int>(gralloc_usage), format, flags);
 
   DvrSurface* dvr_surface = new DvrSurface;
   dvr_surface->display_surface_ = std::move(surface);

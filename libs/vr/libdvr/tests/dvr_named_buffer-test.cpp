@@ -32,11 +32,11 @@ class DvrNamedBufferTest : public ::testing::Test {
 TEST_F(DvrNamedBufferTest, TestNamedBuffersSameName) {
   const char* buffer_name = "same_name";
   DvrBuffer* buffer1 =
-      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, 0, 0);
+      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, 0);
   ASSERT_NE(nullptr, buffer1);
 
   DvrBuffer* buffer2 =
-      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, 0, 0);
+      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, 0);
   ASSERT_NE(nullptr, buffer2);
 
   AHardwareBuffer* hardware_buffer1 = nullptr;
@@ -96,12 +96,12 @@ TEST_F(DvrNamedBufferTest, TestMultipleNamedBuffers) {
   const char* buffer_name1 = "test1";
   const char* buffer_name2 = "test2";
   DvrBuffer* setup_buffer1 =
-      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name1, 10, 0, 0);
+      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name1, 10, 0);
   ASSERT_NE(nullptr, setup_buffer1);
   dvrBufferDestroy(setup_buffer1);
 
   DvrBuffer* setup_buffer2 =
-      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name2, 10, 0, 0);
+      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name2, 10, 0);
   ASSERT_NE(nullptr, setup_buffer2);
   dvrBufferDestroy(setup_buffer2);
 
@@ -129,7 +129,7 @@ TEST_F(DvrNamedBufferTest, TestNamedBufferUsage) {
   const int64_t usage = AHARDWAREBUFFER_USAGE_VIDEO_ENCODE;
 
   DvrBuffer* setup_buffer =
-      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, usage, 0);
+      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, usage);
   ASSERT_NE(nullptr, setup_buffer);
 
   AHardwareBuffer* hardware_buffer = nullptr;
