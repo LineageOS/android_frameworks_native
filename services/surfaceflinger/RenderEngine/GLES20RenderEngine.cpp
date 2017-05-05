@@ -143,7 +143,7 @@ GLES20RenderEngine::GLES20RenderEngine() :
         // Compute sRGB to DisplayP3 color transform
         // NOTE: For now, we are limiting wide-color support to
         // Display-P3 only.
-        mat3 srgbToP3 = ColorSpace::DisplayP3().getXYZtoRGB() * ColorSpace::sRGB().getRGBtoXYZ();
+        mat3 srgbToP3 = ColorSpaceConnector(ColorSpace::sRGB(), ColorSpace::DisplayP3()).getTransform();
 
         // color transform needs to be transposed and expanded to 4x4
         // to be what the shader wants
