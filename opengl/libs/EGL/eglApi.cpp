@@ -505,9 +505,11 @@ static EGLBoolean getColorSpaceAttribute(egl_display_ptr dp, const EGLint* attri
                 if (!found) {
                     return false;
                 }
+                // Only change the dataSpace from default if the application
+                // has explicitly set the color space with a EGL_GL_COLORSPACE_KHR attribute.
+                dataSpace = modifyBufferDataspace(dataSpace, colorSpace);
             }
         }
-        dataSpace = modifyBufferDataspace(dataSpace, colorSpace);
     }
     return true;
 }
