@@ -57,6 +57,8 @@ TEST(GraphicsAppTests, GraphicsContext) {
   dvrGraphicsContextCreate(surface_params, &context);
   EXPECT_NE(nullptr, context);
 
+  dvrGraphicsSurfaceSetVisible(context, 1);
+
   DvrFrameSchedule schedule;
   int wait_result = dvrGraphicsWaitNextFrame(context, 0, &schedule);
   EXPECT_EQ(wait_result, 0);
@@ -64,10 +66,10 @@ TEST(GraphicsAppTests, GraphicsContext) {
 
   dvrBeginRenderFrame(context);
 
-  // Check range of vsync period from 70fps to 100fps.
+  // Check range of vsync period from 60fps to 100fps.
   // TODO(jbates) Once we have stable hardware, clamp this range down further.
-  EXPECT_LT(vsync_period, 1000000000ul / 70ul);
-  EXPECT_GT(vsync_period, 1000000000ul / 100ul);
+  EXPECT_LE(vsync_period, 1000000000ul / 60ul);
+  EXPECT_GE(vsync_period, 1000000000ul / 100ul);
 
   dvrPresent(context);
   dvrGraphicsContextDestroy(context);
@@ -103,15 +105,3 @@ TEST(GraphicsAppTests, CustomSurfaceSize) {
   dvrGraphicsContextDestroy(context);
 }
 
-TEST(GraphicsAppTests, CreateVideoMeshSurface) {
-  DvrSurfaceParameter surface_params[] = {DVR_SURFACE_PARAMETER_LIST_END};
-  DvrGraphicsContext* context = nullptr;
-  int result = dvrGraphicsContextCreate(surface_params, &context);
-  EXPECT_NE(nullptr, context);
-  EXPECT_EQ(result, 0);
-
-  DvrVideoMeshSurface* surface = dvrGraphicsVideoMeshSurfaceCreate(context);
-  EXPECT_NE(nullptr, surface);
-
-  dvrGraphicsVideoMeshSurfaceDestroy(surface);
-}

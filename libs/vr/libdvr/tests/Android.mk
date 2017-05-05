@@ -23,6 +23,7 @@ static_libraries := \
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := \
     dvr_buffer_queue-test.cpp \
+    dvr_display_manager-test.cpp \
     dvr_named_buffer-test.cpp \
 
 LOCAL_STATIC_LIBRARIES := $(static_libraries)

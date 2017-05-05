@@ -196,8 +196,8 @@ void ShellView::dumpInternal(String8& result) {
   result.appendFormat("count = %zu\n", displays_.size());
   for (size_t i = 0; i < displays_.size(); ++i) {
     result.appendFormat("  display_id = %" PRId32 "\n", displays_[i]->id());
-    result.appendFormat("    size=%fx%f\n",
-                        displays_[i]->size().x(), displays_[i]->size().y());
+    result.appendFormat("    size=%fx%f\n", displays_[i]->size().x(),
+                        displays_[i]->size().y());
   }
 
   result.append("\n");
@@ -210,7 +210,7 @@ void ShellView::Set2DMode(bool mode) {
 
 void ShellView::SetRotation(int angle) {
   mat4 m(Eigen::AngleAxisf(M_PI * -0.5f * angle, vec3::UnitZ()));
-  for (auto& d: displays_)
+  for (auto& d : displays_)
     d->set_rotation(m);
 }
 
@@ -300,7 +300,7 @@ base::unique_fd ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
   // Do this on demand in case vr_flinger crashed and we are reconnecting.
   if (!display_client_.get()) {
     int error = 0;
-    display_client_ = DisplayClient::Create(&error);
+    display_client_ = display::DisplayClient::Create(&error);
 
     if (error) {
       ALOGE("Could not connect to display service : %s(%d)", strerror(error),
@@ -310,7 +310,13 @@ base::unique_fd ShellView::OnFrame(std::unique_ptr<HwcCallback::Frame> frame) {
   }
 
   // TODO(achaulk): change when moved into vrcore.
-  bool vr_running = display_client_->IsVrAppRunning();
+  auto status = display_client_->IsVrAppRunning();
+  if (!status) {
+    ALOGE("Failed to check VR running status: %s",
+          status.GetErrorMessage().c_str());
+    return base::unique_fd();
+  }
+  const bool vr_running = status.get();
 
   base::unique_fd fd(
       display->OnFrame(std::move(frame), debug_mode_, vr_running, &showing));
@@ -488,8 +494,8 @@ void ShellView::Touch() {
   // Device is portrait, but in landscape when in VR.
   // Rotate touch input appropriately.
   const android::status_t status = dvrVirtualTouchpadTouch(
-      virtual_touchpad_.get(), active_display_->touchpad_id(),
-      x, y, is_touching_ ? 1.0f : 0.0f);
+      virtual_touchpad_.get(), active_display_->touchpad_id(), x, y,
+      is_touching_ ? 1.0f : 0.0f);
   if (status != OK) {
     ALOGE("touch failed: %d", status);
   }

@@ -39,6 +39,8 @@ class ConsumerQueueChannel : public BufferHubChannel {
   pdx::Status<std::vector<std::pair<RemoteChannelHandle, size_t>>>
   OnConsumerQueueImportBuffers(Message& message);
 
+  void OnProducerClosed();
+
  private:
   std::shared_ptr<ProducerQueueChannel> GetProducer() const;
 

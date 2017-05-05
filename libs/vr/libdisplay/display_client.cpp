@@ -8,10 +8,11 @@
 
 #include <mutex>
 
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 #include <private/dvr/late_latch.h>
 #include <private/dvr/native_buffer.h>
 
+using android::pdx::ErrorStatus;
 using android::pdx::LocalHandle;
 using android::pdx::LocalChannelHandle;
 using android::pdx::Status;
@@ -20,99 +21,61 @@ using android::pdx::rpc::IfAnyOf;
 
 namespace android {
 namespace dvr {
+namespace display {
 
-SurfaceClient::SurfaceClient(LocalChannelHandle channel_handle,
-                             SurfaceType type)
-    : Client{pdx::default_transport::ClientChannel::Create(
-          std::move(channel_handle))},
-      type_(type) {}
-
-SurfaceClient::SurfaceClient(const std::string& endpoint_path, SurfaceType type)
-    : Client{pdx::default_transport::ClientChannelFactory::Create(
-                 endpoint_path),
-             kInfiniteTimeout},
-      type_(type) {}
-
-int SurfaceClient::GetMetadataBufferFd(LocalHandle* out_fd) {
-  auto buffer_producer = GetMetadataBuffer();
-  if (!buffer_producer)
-    return -ENOMEM;
-
-  *out_fd = buffer_producer->GetBlobFd();
-  return 0;
-}
-
-std::shared_ptr<BufferProducer> SurfaceClient::GetMetadataBuffer() {
-  if (!metadata_buffer_) {
-    auto status = InvokeRemoteMethod<DisplayRPC::GetMetadataBuffer>();
-    if (!status) {
-      ALOGE(
-          "SurfaceClient::AllocateMetadataBuffer: Failed to allocate buffer: "
-          "%s",
+Surface::Surface(LocalChannelHandle channel_handle, int* error)
+    : BASE{pdx::default_transport::ClientChannel::Create(
+          std::move(channel_handle))} {
+  auto status = InvokeRemoteMethod<DisplayProtocol::GetSurfaceInfo>();
+  if (!status) {
+    ALOGE("Surface::Surface: Failed to get surface info: %s",
           status.GetErrorMessage().c_str());
-      return nullptr;
-    }
-
-    metadata_buffer_ = BufferProducer::Import(status.take());
-  }
-
-  return metadata_buffer_;
-}
-
-DisplaySurfaceClient::DisplaySurfaceClient(int width, int height, int format,
-                                           int usage, int flags)
-    : BASE(DisplayRPC::kClientPath, SurfaceTypeEnum::Normal),
-      width_(width),
-      height_(height),
-      format_(format),
-      usage_(usage),
-      flags_(flags),
-      z_order_(0),
-      visible_(true),
-      exclude_from_blur_(false),
-      blur_behind_(true),
-      mapped_metadata_buffer_(nullptr) {
-  auto status = InvokeRemoteMethod<DisplayRPC::CreateSurface>(
-      width, height, format, usage, flags);
-  if (!status) {
-    ALOGE(
-        "DisplaySurfaceClient::DisplaySurfaceClient: Failed to create display "
-        "surface: %s",
-        status.GetErrorMessage().c_str());
     Close(status.error());
+    if (error)
+      *error = status.error();
   }
+
+  surface_id_ = status.get().surface_id;
+  z_order_ = status.get().z_order;
+  visible_ = status.get().visible;
 }
 
-void DisplaySurfaceClient::SetVisible(bool visible) {
-  SetAttributes({{DisplaySurfaceAttributeEnum::Visible,
-                  DisplaySurfaceAttributeValue{visible}}});
+Surface::Surface(const SurfaceAttributes& attributes, int* error)
+    : BASE{pdx::default_transport::ClientChannelFactory::Create(
+               DisplayProtocol::kClientPath),
+           kInfiniteTimeout} {
+  auto status = InvokeRemoteMethod<DisplayProtocol::CreateSurface>(attributes);
+  if (!status) {
+    ALOGE("Surface::Surface: Failed to create display surface: %s",
+          status.GetErrorMessage().c_str());
+    Close(status.error());
+    if (error)
+      *error = status.error();
+  }
+
+  surface_id_ = status.get().surface_id;
+  z_order_ = status.get().z_order;
+  visible_ = status.get().visible;
 }
 
-void DisplaySurfaceClient::SetZOrder(int z_order) {
-  SetAttributes({{DisplaySurfaceAttributeEnum::ZOrder,
-                  DisplaySurfaceAttributeValue{z_order}}});
+Status<void> Surface::SetVisible(bool visible) {
+  return SetAttributes(
+      {{SurfaceAttribute::Visible, SurfaceAttributeValue{visible}}});
 }
 
-void DisplaySurfaceClient::SetExcludeFromBlur(bool exclude_from_blur) {
-  SetAttributes({{DisplaySurfaceAttributeEnum::ExcludeFromBlur,
-                  DisplaySurfaceAttributeValue{exclude_from_blur}}});
+Status<void> Surface::SetZOrder(int z_order) {
+  return SetAttributes(
+      {{SurfaceAttribute::ZOrder, SurfaceAttributeValue{z_order}}});
 }
 
-void DisplaySurfaceClient::SetBlurBehind(bool blur_behind) {
-  SetAttributes({{DisplaySurfaceAttributeEnum::BlurBehind,
-                  DisplaySurfaceAttributeValue{blur_behind}}});
-}
-
-void DisplaySurfaceClient::SetAttributes(
-    const DisplaySurfaceAttributes& attributes) {
-  Status<int> status =
-      InvokeRemoteMethod<DisplayRPC::SetAttributes>(attributes);
+Status<void> Surface::SetAttributes(const SurfaceAttributes& attributes) {
+  auto status = InvokeRemoteMethod<DisplayProtocol::SetAttributes>(attributes);
   if (!status) {
     ALOGE(
-        "DisplaySurfaceClient::SetAttributes: Failed to set display surface "
+        "Surface::SetAttributes: Failed to set display surface "
         "attributes: %s",
         status.GetErrorMessage().c_str());
-    return;
+    return status.error_status();
   }
 
   // Set the local cached copies of the attributes we care about from the full
@@ -122,159 +85,130 @@ void DisplaySurfaceClient::SetAttributes(
     const auto* variant = &attribute.second;
     bool invalid_value = false;
     switch (key) {
-      case DisplaySurfaceAttributeEnum::Visible:
+      case SurfaceAttribute::Visible:
         invalid_value =
             !IfAnyOf<int32_t, int64_t, bool>::Get(variant, &visible_);
         break;
-      case DisplaySurfaceAttributeEnum::ZOrder:
+      case SurfaceAttribute::ZOrder:
         invalid_value = !IfAnyOf<int32_t>::Get(variant, &z_order_);
-        break;
-      case DisplaySurfaceAttributeEnum::ExcludeFromBlur:
-        invalid_value =
-            !IfAnyOf<int32_t, int64_t, bool>::Get(variant, &exclude_from_blur_);
-        break;
-      case DisplaySurfaceAttributeEnum::BlurBehind:
-        invalid_value =
-            !IfAnyOf<int32_t, int64_t, bool>::Get(variant, &blur_behind_);
         break;
     }
 
     if (invalid_value) {
       ALOGW(
-          "DisplaySurfaceClient::SetAttributes: Failed to set display "
-          "surface attribute '%s' because of incompatible type: %d",
-          DisplaySurfaceAttributeEnum::ToString(key).c_str(), variant->index());
-    }
-  }
-}
-
-std::shared_ptr<ProducerQueue> DisplaySurfaceClient::GetProducerQueue() {
-  if (producer_queue_ == nullptr) {
-    // Create producer queue through DisplayRPC
-    auto status = InvokeRemoteMethod<DisplayRPC::CreateBufferQueue>();
-    if (!status) {
-      ALOGE(
-          "DisplaySurfaceClient::GetProducerQueue: failed to create producer "
-          "queue: %s",
-          status.GetErrorMessage().c_str());
-      return nullptr;
-    }
-
-    producer_queue_ = ProducerQueue::Import(status.take());
-  }
-  return producer_queue_;
-}
-
-volatile DisplaySurfaceMetadata* DisplaySurfaceClient::GetMetadataBufferPtr() {
-  if (!mapped_metadata_buffer_) {
-    if (auto buffer_producer = GetMetadataBuffer()) {
-      void* addr = nullptr;
-      const int ret = buffer_producer->GetBlobReadWritePointer(
-          sizeof(DisplaySurfaceMetadata), &addr);
-      if (ret < 0) {
-        ALOGE(
-            "DisplaySurfaceClient::GetMetadataBufferPtr: Failed to map surface "
-            "metadata: %s",
-            strerror(-ret));
-        return nullptr;
-      }
-      mapped_metadata_buffer_ = static_cast<DisplaySurfaceMetadata*>(addr);
+          "Surface::SetAttributes: Failed to set display surface "
+          "attribute %d because of incompatible type: %d",
+          key, variant->index());
     }
   }
 
-  return mapped_metadata_buffer_;
+  return {};
 }
 
-LocalChannelHandle DisplaySurfaceClient::CreateVideoMeshSurface() {
-  auto status = InvokeRemoteMethod<DisplayRPC::CreateVideoMeshSurface>();
+Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue() {
+  ALOGD_IF(TRACE, "Surface::CreateQueue: Creating empty queue.");
+  auto status = InvokeRemoteMethod<DisplayProtocol::CreateQueue>(0);
   if (!status) {
-    ALOGE(
-        "DisplaySurfaceClient::CreateVideoMeshSurface: Failed to create "
-        "video mesh surface: %s",
-        status.GetErrorMessage().c_str());
+    ALOGE("Surface::CreateQueue: Failed to create queue: %s",
+          status.GetErrorMessage().c_str());
+    return status.error_status();
   }
-  return status.take();
+
+  auto producer_queue = ProducerQueue::Import(status.take());
+  if (!producer_queue) {
+    ALOGE("Surface::CreateQueue: Failed to import producer queue!");
+    return ErrorStatus(ENOMEM);
+  }
+
+  return {std::move(producer_queue)};
+}
+
+Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(uint32_t width,
+                                                            uint32_t height,
+                                                            uint32_t format,
+                                                            uint64_t usage,
+                                                            size_t capacity) {
+  ALOGD_IF(TRACE,
+           "Surface::CreateQueue: width=%u height=%u format=%u usage=%" PRIx64
+           " capacity=%zu",
+           width, height, format, usage, capacity);
+  auto status = CreateQueue();
+  if (!status)
+    return status.error_status();
+
+  auto producer_queue = status.take();
+
+  ALOGD_IF(TRACE, "Surface::CreateQueue: Allocating %zu buffers...", capacity);
+  for (size_t i = 0; i < capacity; i++) {
+    size_t slot;
+    const size_t kSliceCount = 1;
+    const int ret = producer_queue->AllocateBuffer(width, height, format, usage,
+                                                   kSliceCount, &slot);
+    if (ret < 0) {
+      ALOGE(
+          "Surface::CreateQueue: Failed to allocate buffer on queue_id=%d: %s",
+          producer_queue->id(), strerror(-ret));
+      return ErrorStatus(ENOMEM);
+    }
+    ALOGD_IF(
+        TRACE,
+        "Surface::CreateQueue: Allocated buffer at slot=%zu of capacity=%zu",
+        slot, capacity);
+  }
+
+  return {std::move(producer_queue)};
 }
 
 DisplayClient::DisplayClient(int* error)
     : BASE(pdx::default_transport::ClientChannelFactory::Create(
-               DisplayRPC::kClientPath),
+               DisplayProtocol::kClientPath),
            kInfiniteTimeout) {
   if (error)
     *error = Client::error();
 }
 
-int DisplayClient::GetDisplayMetrics(SystemDisplayMetrics* metrics) {
-  auto status = InvokeRemoteMethod<DisplayRPC::GetMetrics>();
-  if (!status) {
-    ALOGE("DisplayClient::GetDisplayMetrics: Failed to get metrics: %s",
-          status.GetErrorMessage().c_str());
-    return -status.error();
-  }
-
-  *metrics = status.get();
-  return 0;
+Status<Metrics> DisplayClient::GetDisplayMetrics() {
+  return InvokeRemoteMethod<DisplayProtocol::GetMetrics>();
 }
 
-pdx::Status<void> DisplayClient::SetViewerParams(
-    const ViewerParams& viewer_params) {
-  auto status = InvokeRemoteMethod<DisplayRPC::SetViewerParams>(viewer_params);
-  if (!status) {
-    ALOGE("DisplayClient::SetViewerParams: Failed to set viewer params: %s",
-          status.GetErrorMessage().c_str());
-  }
-  return status;
+Status<std::unique_ptr<Surface>> DisplayClient::CreateSurface(
+    const SurfaceAttributes& attributes) {
+  int error;
+  if (auto client = Surface::Create(attributes, &error))
+    return {std::move(client)};
+  else
+    return ErrorStatus(error);
 }
 
-int DisplayClient::GetLastFrameEdsTransform(LateLatchOutput* ll_out) {
-  auto status = InvokeRemoteMethod<DisplayRPC::GetEdsCapture>();
-  if (!status) {
-    ALOGE(
-        "DisplayClient::GetLastFrameLateLatch: Failed to get most recent late"
-        " latch: %s",
-        status.GetErrorMessage().c_str());
-    return -status.error();
-  }
-
-  if (status.get().size() != sizeof(LateLatchOutput)) {
-    ALOGE(
-        "DisplayClient::GetLastFrameLateLatch: Error expected to receive %zu "
-        "bytes but received %zu",
-        sizeof(LateLatchOutput), status.get().size());
-    return -EIO;
-  }
-
-  *ll_out = *reinterpret_cast<const LateLatchOutput*>(status.get().data());
-  return 0;
-}
-
-std::unique_ptr<DisplaySurfaceClient> DisplayClient::CreateDisplaySurface(
-    int width, int height, int format, int usage, int flags) {
-  return DisplaySurfaceClient::Create(width, height, format, usage, flags);
-}
-
-std::unique_ptr<IonBuffer> DisplayClient::GetNamedBuffer(
+Status<std::unique_ptr<IonBuffer>> DisplayClient::GetNamedBuffer(
     const std::string& name) {
-  auto status = InvokeRemoteMethod<DisplayRPC::GetNamedBuffer>(name);
+  auto status = InvokeRemoteMethod<DisplayProtocol::GetNamedBuffer>(name);
   if (!status) {
     ALOGE(
-        "DisplayClient::GetNamedBuffer: Failed to get pose buffer. name=%s, "
+        "DisplayClient::GetNamedBuffer: Failed to get named buffer: name=%s; "
         "error=%s",
         name.c_str(), status.GetErrorMessage().c_str());
-    return nullptr;
+    return status.error_status();
   }
 
   auto ion_buffer = std::make_unique<IonBuffer>();
-  status.take().Import(ion_buffer.get());
-  return ion_buffer;
+  auto native_buffer_handle = status.take();
+  const int ret = native_buffer_handle.Import(ion_buffer.get());
+  if (ret < 0) {
+    ALOGE(
+        "DisplayClient::GetNamedBuffer: Failed to import named buffer: "
+        "name=%s; error=%s",
+        name.c_str(), strerror(-ret));
+    return ErrorStatus(-ret);
+  }
+
+  return {std::move(ion_buffer)};
 }
 
-bool DisplayClient::IsVrAppRunning() {
-  auto status = InvokeRemoteMethod<DisplayRPC::IsVrAppRunning>();
-  if (!status)
-    return 0;
-  return static_cast<bool>(status.get());
+Status<bool> DisplayClient::IsVrAppRunning() {
+  return InvokeRemoteMethod<DisplayProtocol::IsVrAppRunning>();
 }
 
+}  // namespace display
 }  // namespace dvr
 }  // namespace android

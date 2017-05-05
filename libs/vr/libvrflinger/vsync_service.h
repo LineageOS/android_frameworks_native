@@ -23,7 +23,7 @@ class VSyncWaiter {
   void Notify(int64_t timestamp);
 
  private:
-  int64_t OnWait(pdx::Message& message);
+  pdx::Status<int64_t> OnWait(pdx::Message& message);
 
   pdx::Message message_;
   int64_t timestamp_ = 0;
@@ -62,10 +62,9 @@ class VSyncService : public pdx::ServiceBase<VSyncService> {
   void OnChannelClose(pdx::Message& message,
                       const std::shared_ptr<pdx::Channel>& channel) override;
 
-  // Called by the hardware composer HAL, or similar,
-  // whenever a vsync event occurs.
-  // |compositor_time_ns| is the number of ns before the next vsync when the
-  // compositor will preempt the GPU to do EDS and lens warp.
+  // Called by the hardware composer HAL, or similar, whenever a vsync event
+  // occurs. |compositor_time_ns| is the number of ns before the next vsync when
+  // the compositor will preempt the GPU to do EDS and lens warp.
   void VSyncEvent(int display, int64_t timestamp_ns, int64_t compositor_time_ns,
                   uint32_t vsync_count);
 
@@ -74,9 +73,9 @@ class VSyncService : public pdx::ServiceBase<VSyncService> {
 
   VSyncService();
 
-  int64_t OnGetLastTimestamp(pdx::Message& message);
-  VSyncSchedInfo OnGetSchedInfo(pdx::Message& message);
-  int OnAcknowledge(pdx::Message& message);
+  pdx::Status<int64_t> OnGetLastTimestamp(pdx::Message& message);
+  pdx::Status<display::VSyncSchedInfo> OnGetSchedInfo(pdx::Message& message);
+  pdx::Status<void> OnAcknowledge(pdx::Message& message);
 
   void NotifierThreadFunction();
 

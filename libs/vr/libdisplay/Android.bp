@@ -15,16 +15,14 @@
 sourceFiles = [
     "native_buffer_queue.cpp",
     "display_client.cpp",
-    "display_manager_client_impl.cpp",
-    "display_rpc.cpp",
+    "display_manager_client.cpp",
+    "display_protocol.cpp",
     "dummy_native_window.cpp",
+    "frame_history.cpp",
     "gl_fenced_flush.cpp",
     "graphics.cpp",
     "late_latch.cpp",
-    "video_mesh_surface_client.cpp",
     "vsync_client.cpp",
-    "screenshot_client.cpp",
-    "frame_history.cpp",
 ]
 
 localIncludeFiles = [
