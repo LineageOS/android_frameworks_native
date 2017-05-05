@@ -54,12 +54,16 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat) {
     // both a 16-bit primary display framebuffer and a 32-bit virtual display
     // framebuffer.
     //
+    // EGL_KHR_no_config_context is official extension to allow creating a
+    // context that works with any surface of a display.
+    //
     // The code assumes that ES2 or later is available if this extension is
     // supported.
     EGLConfig config = EGL_NO_CONFIG;
-    if (!findExtension(
-            eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS),
-            "EGL_ANDROIDX_no_config_context")) {
+    if (!findExtension(eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS),
+                       "EGL_ANDROIDX_no_config_context") &&
+        !findExtension(eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS),
+                       "EGL_KHR_no_config_context")) {
         config = chooseEglConfig(display, hwcFormat);
     }
 
