@@ -1,17 +1,19 @@
 #include "vsync_service.h"
 
-#include <log/log.h>
 #include <hardware/hwcomposer.h>
+#include <log/log.h>
 #include <poll.h>
 #include <sys/prctl.h>
 #include <time.h>
 #include <utils/Trace.h>
 
+#include <dvr/dvr_display_types.h>
 #include <pdx/default_transport/service_endpoint.h>
 #include <private/dvr/clock_ns.h>
-#include <private/dvr/display_rpc.h>
-#include <private/dvr/display_types.h>
+#include <private/dvr/display_protocol.h>
 
+using android::dvr::display::VSyncProtocol;
+using android::dvr::display::VSyncSchedInfo;
 using android::pdx::Channel;
 using android::pdx::Message;
 using android::pdx::MessageInfo;
@@ -22,7 +24,7 @@ namespace android {
 namespace dvr {
 
 VSyncService::VSyncService()
-    : BASE("VSyncService", Endpoint::Create(DisplayVSyncRPC::kClientPath)),
+    : BASE("VSyncService", Endpoint::Create(VSyncProtocol::kClientPath)),
       last_vsync_(0),
       current_vsync_(0),
       compositor_time_ns_(0),
@@ -109,22 +111,22 @@ void VSyncService::UpdateClients() {
 
 pdx::Status<void> VSyncService::HandleMessage(pdx::Message& message) {
   switch (message.GetOp()) {
-    case DisplayVSyncRPC::Wait::Opcode:
+    case VSyncProtocol::Wait::Opcode:
       AddWaiter(message);
       return {};
 
-    case DisplayVSyncRPC::GetLastTimestamp::Opcode:
-      DispatchRemoteMethod<DisplayVSyncRPC::GetLastTimestamp>(
+    case VSyncProtocol::GetLastTimestamp::Opcode:
+      DispatchRemoteMethod<VSyncProtocol::GetLastTimestamp>(
           *this, &VSyncService::OnGetLastTimestamp, message);
       return {};
 
-    case DisplayVSyncRPC::GetSchedInfo::Opcode:
-      DispatchRemoteMethod<DisplayVSyncRPC::GetSchedInfo>(
+    case VSyncProtocol::GetSchedInfo::Opcode:
+      DispatchRemoteMethod<VSyncProtocol::GetSchedInfo>(
           *this, &VSyncService::OnGetSchedInfo, message);
       return {};
 
-    case DisplayVSyncRPC::Acknowledge::Opcode:
-      DispatchRemoteMethod<DisplayVSyncRPC::Acknowledge>(
+    case VSyncProtocol::Acknowledge::Opcode:
+      DispatchRemoteMethod<VSyncProtocol::Acknowledge>(
           *this, &VSyncService::OnAcknowledge, message);
       return {};
 
@@ -133,16 +135,17 @@ pdx::Status<void> VSyncService::HandleMessage(pdx::Message& message) {
   }
 }
 
-int64_t VSyncService::OnGetLastTimestamp(pdx::Message& message) {
+pdx::Status<int64_t> VSyncService::OnGetLastTimestamp(pdx::Message& message) {
   auto client = std::static_pointer_cast<VSyncChannel>(message.GetChannel());
   std::lock_guard<std::mutex> autolock(mutex_);
 
   // Getting the timestamp has the side effect of ACKing.
   client->Ack();
-  return current_vsync_;
+  return {current_vsync_};
 }
 
-VSyncSchedInfo VSyncService::OnGetSchedInfo(pdx::Message& message) {
+pdx::Status<VSyncSchedInfo> VSyncService::OnGetSchedInfo(
+    pdx::Message& message) {
   auto client = std::static_pointer_cast<VSyncChannel>(message.GetChannel());
   std::lock_guard<std::mutex> autolock(mutex_);
 
@@ -176,23 +179,25 @@ VSyncSchedInfo VSyncService::OnGetSchedInfo(pdx::Message& message) {
     }
   }
 
-  return {vsync_period_ns, next_warp, next_vsync_count};
+  return {{vsync_period_ns, next_warp, next_vsync_count}};
 }
 
-int VSyncService::OnAcknowledge(pdx::Message& message) {
+pdx::Status<void> VSyncService::OnAcknowledge(pdx::Message& message) {
   auto client = std::static_pointer_cast<VSyncChannel>(message.GetChannel());
   std::lock_guard<std::mutex> autolock(mutex_);
   client->Ack();
-  return 0;
+  return {};
 }
 
 void VSyncWaiter::Notify(int64_t timestamp) {
   timestamp_ = timestamp;
-  DispatchRemoteMethod<DisplayVSyncRPC::Wait>(*this, &VSyncWaiter::OnWait,
-                                              message_);
+  DispatchRemoteMethod<VSyncProtocol::Wait>(*this, &VSyncWaiter::OnWait,
+                                            message_);
 }
 
-int64_t VSyncWaiter::OnWait(pdx::Message& /*message*/) { return timestamp_; }
+pdx::Status<int64_t> VSyncWaiter::OnWait(pdx::Message& /*message*/) {
+  return {timestamp_};
+}
 
 void VSyncChannel::Ack() {
   ALOGD_IF(TRACE, "VSyncChannel::Ack: pid=%d cid=%d\n", pid_, cid_);

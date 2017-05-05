@@ -5,11 +5,12 @@
 #include <thread>
 #include <vector>
 
+#include <dvr/dvr_display_types.h>
 #include <dvr/pose_client.h>
 #include <pdx/file_handle.h>
-#include <private/dvr/display_types.h>
 #include <private/dvr/graphics/shader_program.h>
 #include <private/dvr/graphics/vr_gl_extensions.h>
+#include <private/dvr/graphics_private.h>
 #include <private/dvr/types.h>
 
 struct DvrPose;

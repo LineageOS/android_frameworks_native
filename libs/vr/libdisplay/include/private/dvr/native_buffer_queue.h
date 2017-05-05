@@ -13,30 +13,43 @@
 
 namespace android {
 namespace dvr {
+namespace display {
 
 // A wrapper over dvr::ProducerQueue that caches EGLImage.
 class NativeBufferQueue {
  public:
-  // Create a queue with the given number of free buffers.
   NativeBufferQueue(EGLDisplay display,
-                    const std::shared_ptr<DisplaySurfaceClient>& surface,
-                    size_t capacity);
+                    const std::shared_ptr<ProducerQueue>& producer_queue,
+                    uint32_t width, uint32_t height, uint32_t format,
+                    uint64_t usage, size_t capacity);
 
-  size_t GetQueueCapacity() const { return producer_queue_->capacity(); }
+  uint32_t width() const { return width_; }
+  uint32_t height() const { return height_; }
+  uint32_t format() const { return format_; }
+  uint64_t usage() const { return usage_; }
+  size_t capacity() const { return producer_queue_->capacity(); }
 
   // Dequeue a buffer from the free queue, blocking until one is available.
   NativeBufferProducer* Dequeue();
 
   // An noop here to keep Vulkan path in GraphicsContext happy.
   // TODO(jwcai, cort) Move Vulkan path into GVR/Google3.
-  void Enqueue(NativeBufferProducer* buffer) {}
+  void Enqueue(NativeBufferProducer* /*buffer*/) {}
 
  private:
   EGLDisplay display_;
+  uint32_t width_;
+  uint32_t height_;
+  uint32_t format_;
+  uint64_t usage_;
   std::shared_ptr<ProducerQueue> producer_queue_;
   std::vector<sp<NativeBufferProducer>> buffers_;
+
+  NativeBufferQueue(const NativeBufferQueue&) = delete;
+  void operator=(const NativeBufferQueue&) = delete;
 };
 
+}  // namespace display
 }  // namespace dvr
 }  // namespace android
 

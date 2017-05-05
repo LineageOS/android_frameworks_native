@@ -21,7 +21,7 @@ class AcquiredBuffer {
   // this constructor; the constructor does not attempt to ACQUIRE the buffer
   // itself.
   AcquiredBuffer(const std::shared_ptr<BufferConsumer>& buffer,
-                 pdx::LocalHandle acquire_fence, uint64_t sequence);
+                 pdx::LocalHandle acquire_fence);
 
   // Constructs an AcquiredBuffer from a BufferConsumer. The BufferConsumer MUST
   // be in the POSTED state prior to calling this constructor, as this
