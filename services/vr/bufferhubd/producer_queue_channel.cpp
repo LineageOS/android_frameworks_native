@@ -26,7 +26,12 @@ ProducerQueueChannel::ProducerQueueChannel(BufferHubService* service,
   *error = 0;
 }
 
-ProducerQueueChannel::~ProducerQueueChannel() {}
+ProducerQueueChannel::~ProducerQueueChannel() {
+  ALOGD_IF(TRACE, "ProducerQueueChannel::~ProducerQueueChannel: queue_id=%d",
+           buffer_id());
+  for (auto* consumer : consumer_channels_)
+    consumer->OnProducerClosed();
+}
 
 /* static */
 Status<std::shared_ptr<ProducerQueueChannel>> ProducerQueueChannel::Create(
@@ -108,13 +113,21 @@ Status<RemoteChannelHandle> ProducerQueueChannel::OnCreateConsumerQueue(
     return ErrorStatus(ENOMEM);
   }
 
-  const auto channel_status = service()->SetChannel(
-      channel_id, std::make_shared<ConsumerQueueChannel>(
-                      service(), buffer_id(), channel_id, shared_from_this()));
+  auto consumer_queue_channel = std::make_shared<ConsumerQueueChannel>(
+      service(), buffer_id(), channel_id, shared_from_this());
+
+  // Register the existing buffers with the new consumer queue.
+  for (size_t slot = 0; slot < BufferHubRPC::kMaxQueueCapacity; slot++) {
+    if (auto buffer = buffers_[slot].lock())
+      consumer_queue_channel->RegisterNewBuffer(buffer, slot);
+  }
+
+  const auto channel_status =
+      service()->SetChannel(channel_id, consumer_queue_channel);
   if (!channel_status) {
     ALOGE(
-        "ProducerQueueChannel::OnCreateConsumerQueue: failed to set new "
-        "consumer channel: %s",
+        "ProducerQueueChannel::OnCreateConsumerQueue: Failed to set channel: "
+        "%s",
         channel_status.GetErrorMessage().c_str());
     return ErrorStatus(ENOMEM);
   }
@@ -254,7 +267,7 @@ ProducerQueueChannel::AllocateBuffer(Message& message, uint32_t width,
   capacity_++;
 
   // Notify each consumer channel about the new buffer.
-  for (auto consumer_channel : consumer_channels_) {
+  for (auto* consumer_channel : consumer_channels_) {
     ALOGD(
         "ProducerQueueChannel::AllocateBuffer: Notified consumer with new "
         "buffer, buffer_id=%d",

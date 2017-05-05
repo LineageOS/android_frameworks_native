@@ -199,10 +199,15 @@ Status<void> ProducerChannel::OnProducerPost(
     return ErrorStatus(EBUSY);
   }
 
-  if (meta_size_bytes_ != metadata.size())
+  if (meta_size_bytes_ != metadata.size()) {
+    ALOGD_IF(TRACE,
+             "ProducerChannel::OnProducerPost: Expected meta_size_bytes=%zu "
+             "got size=%zu",
+             meta_size_bytes_, metadata.size());
     return ErrorStatus(EINVAL);
-  std::copy(metadata.begin(), metadata.end(), meta_.get());
+  }
 
+  std::copy(metadata.begin(), metadata.end(), meta_.get());
   post_fence_ = std::move(acquire_fence);
   producer_owns_ = false;
 

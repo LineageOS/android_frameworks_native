@@ -20,6 +20,7 @@ LOCAL_MODULE_CLASS := STATIC_LIBRARIES
 
 LOCAL_CFLAGS += \
     -fvisibility=hidden \
+    -DLOG_TAG=\"libdvr\" \
     -D DVR_EXPORT='__attribute__ ((visibility ("default")))'
 
 LOCAL_C_INCLUDES := \
@@ -29,13 +30,13 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := \
     $(LOCAL_PATH)/include \
 
 LOCAL_SRC_FILES := \
-    display_manager_client.cpp \
     dvr_api.cpp \
     dvr_buffer.cpp \
     dvr_buffer_queue.cpp \
+    dvr_display_manager.cpp \
     dvr_hardware_composer_client.cpp \
     dvr_surface.cpp \
-    vsync_client_api.cpp \
+    dvr_vsync.cpp \
 
 LOCAL_STATIC_LIBRARIES := \
     libbufferhub \

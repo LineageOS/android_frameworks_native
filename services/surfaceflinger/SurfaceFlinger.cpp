@@ -584,6 +584,7 @@ void SurfaceFlinger::init() {
 
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
+            ALOGI("VR request display mode: requestDisplay=%d", requestDisplay);
             mVrFlingerRequestsDisplay = requestDisplay;
             signalTransaction();
         };

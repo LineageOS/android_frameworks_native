@@ -132,7 +132,7 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
   stream << std::endl;
   stream << "Active Producer Queues:\n";
   stream << std::right << std::setw(6) << "Id";
-  stream << std::right << std::setw(12) << " Allocated";
+  stream << std::right << std::setw(12) << " Capacity";
   stream << std::right << std::setw(12) << " Consumers";
   stream << " UsageSetMask";
   stream << " UsageClearMask";

@@ -6,112 +6,73 @@
 #include <pdx/file_handle.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/display_protocol.h>
 
 namespace android {
 namespace dvr {
+namespace display {
 
-struct LateLatchOutput;
-
-// Abstract base class for all surface types maintained in DVR's display
-// service.
-// TODO(jwcai) Explain more, surface is a channel...
-class SurfaceClient : public pdx::Client {
+class Surface : public pdx::ClientBase<Surface> {
  public:
-  using LocalChannelHandle = pdx::LocalChannelHandle;
-  SurfaceType type() const { return type_; }
+  // Utility named constructor. This can be removed once ClientBase::Create is
+  // refactored to return Status<T> types.
+  static pdx::Status<std::unique_ptr<Surface>> CreateSurface(
+      const SurfaceAttributes& attributes) {
+    int error;
+    pdx::Status<std::unique_ptr<Surface>> status;
+    if (auto surface = Create(attributes, &error))
+      status.SetValue(std::move(surface));
+    else
+      status.SetError(error);
+    return status;
+  }
 
-  // Get the shared memory metadata buffer fd for this display surface. If it is
-  // not yet allocated, this will allocate it.
-  int GetMetadataBufferFd(pdx::LocalHandle* out_fd);
-
-  // Allocate the single metadata buffer for providing metadata associated with
-  // posted buffers for this surface. This can be used to provide rendered poses
-  // for EDS, for example. The buffer format is defined by the struct
-  // DisplaySurfaceMetadata.
-  // The first call to this method will allocate the buffer in via IPC to the
-  // display surface.
-  std::shared_ptr<BufferProducer> GetMetadataBuffer();
-
- protected:
-  SurfaceClient(LocalChannelHandle channel_handle, SurfaceType type);
-  SurfaceClient(const std::string& endpoint_path, SurfaceType type);
-
- private:
-  SurfaceType type_;
-  std::shared_ptr<BufferProducer> metadata_buffer_;
-};
-
-// DisplaySurfaceClient represents the client interface to a displayd display
-// surface.
-class DisplaySurfaceClient
-    : public pdx::ClientBase<DisplaySurfaceClient, SurfaceClient> {
- public:
-  using LocalHandle = pdx::LocalHandle;
-
-  int width() const { return width_; }
-  int height() const { return height_; }
-  int format() const { return format_; }
-  int usage() const { return usage_; }
-  int flags() const { return flags_; }
+  int surface_id() const { return surface_id_; }
   int z_order() const { return z_order_; }
   bool visible() const { return visible_; }
 
-  void SetVisible(bool visible);
-  void SetZOrder(int z_order);
-  void SetExcludeFromBlur(bool exclude_from_blur);
-  void SetBlurBehind(bool blur_behind);
-  void SetAttributes(const DisplaySurfaceAttributes& attributes);
+  pdx::Status<void> SetVisible(bool visible);
+  pdx::Status<void> SetZOrder(int z_order);
+  pdx::Status<void> SetAttributes(const SurfaceAttributes& attributes);
 
-  // Get the producer end of the buffer queue that transports graphics buffer
-  // from the application side to the compositor side.
-  std::shared_ptr<ProducerQueue> GetProducerQueue();
+  // Creates an empty queue.
+  pdx::Status<std::unique_ptr<ProducerQueue>> CreateQueue();
 
-  // Get the shared memory metadata buffer for this display surface. If it is
-  // not yet allocated, this will allocate it.
-  volatile DisplaySurfaceMetadata* GetMetadataBufferPtr();
-
-  // Create a VideoMeshSurface that is attached to the display sruface.
-  LocalChannelHandle CreateVideoMeshSurface();
+  // Creates a queue and populates it with |capacity| buffers of the specified
+  // parameters.
+  pdx::Status<std::unique_ptr<ProducerQueue>> CreateQueue(uint32_t width,
+                                                          uint32_t height,
+                                                          uint32_t format,
+                                                          uint64_t usage,
+                                                          size_t capacity);
 
  private:
   friend BASE;
 
-  DisplaySurfaceClient(int width, int height, int format, int usage, int flags);
+  int surface_id_ = -1;
+  int z_order_ = 0;
+  bool visible_ = false;
 
-  int width_;
-  int height_;
-  int format_;
-  int usage_;
-  int flags_;
-  int z_order_;
-  bool visible_;
-  bool exclude_from_blur_;
-  bool blur_behind_;
-  DisplaySurfaceMetadata* mapped_metadata_buffer_;
+  // TODO(eieio,avakulenko): Remove error param once pdx::ClientBase::Create()
+  // returns Status<T>.
+  explicit Surface(const SurfaceAttributes& attributes, int* error = nullptr);
+  explicit Surface(pdx::LocalChannelHandle channel_handle,
+                   int* error = nullptr);
 
-  // TODO(jwcai) Add support for multiple queues.
-  std::shared_ptr<ProducerQueue> producer_queue_;
-
-  DisplaySurfaceClient(const DisplaySurfaceClient&) = delete;
-  void operator=(const DisplaySurfaceClient&) = delete;
+  Surface(const Surface&) = delete;
+  void operator=(const Surface&) = delete;
 };
 
 class DisplayClient : public pdx::ClientBase<DisplayClient> {
  public:
-  int GetDisplayMetrics(SystemDisplayMetrics* metrics);
-  pdx::Status<void> SetViewerParams(const ViewerParams& viewer_params);
-
-  // Pull the latest eds pose data from the display service renderer
-  int GetLastFrameEdsTransform(LateLatchOutput* ll_out);
-
-  std::unique_ptr<DisplaySurfaceClient> CreateDisplaySurface(
-      int width, int height, int format, int usage, int flags);
-
-  std::unique_ptr<IonBuffer> GetNamedBuffer(const std::string& name);
+  pdx::Status<Metrics> GetDisplayMetrics();
+  pdx::Status<std::unique_ptr<IonBuffer>> GetNamedBuffer(
+      const std::string& name);
+  pdx::Status<std::unique_ptr<Surface>> CreateSurface(
+      const SurfaceAttributes& attributes);
 
   // Temporary query for current VR status. Will be removed later.
-  bool IsVrAppRunning();
+  pdx::Status<bool> IsVrAppRunning();
 
  private:
   friend BASE;
@@ -122,6 +83,7 @@ class DisplayClient : public pdx::ClientBase<DisplayClient> {
   void operator=(const DisplayClient&) = delete;
 };
 
+}  // namespace display
 }  // namespace dvr
 }  // namespace android
 

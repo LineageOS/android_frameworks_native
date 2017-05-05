@@ -6,5 +6,4 @@ service surfaceflinger /system/bin/surfaceflinger
     writepid /dev/stune/foreground/tasks
     socket pdx/system/vr/display/client stream 0666 system graphics
     socket pdx/system/vr/display/manager stream 0666 system graphics
-    socket pdx/system/vr/display/screenshot stream 0660 system graphics
     socket pdx/system/vr/display/vsync stream 0666 system graphics

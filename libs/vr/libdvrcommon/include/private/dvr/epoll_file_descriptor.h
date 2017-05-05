@@ -52,6 +52,8 @@ class EpollFileDescriptor {
       return ret;
   }
 
+  int Get() const { return fd_.get(); }
+
  private:
   base::unique_fd fd_;
 };

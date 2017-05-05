@@ -7,58 +7,59 @@
 
 #include <array>
 
-#include <private/dvr/display_types.h>
+#include <dvr/dvr_display_types.h>
 
 namespace android {
 namespace dvr {
+namespace display {
 
 NativeBufferQueue::NativeBufferQueue(
-    EGLDisplay display, const std::shared_ptr<DisplaySurfaceClient>& surface,
+    EGLDisplay display, const std::shared_ptr<ProducerQueue>& producer_queue,
+    uint32_t width, uint32_t height, uint32_t format, uint64_t usage,
     size_t capacity)
-    : display_(display), buffers_(capacity) {
-  std::shared_ptr<ProducerQueue> queue = surface->GetProducerQueue();
-
+    : display_(display),
+      width_(width),
+      height_(height),
+      format_(format),
+      usage_(usage),
+      producer_queue_(producer_queue),
+      buffers_(capacity) {
   for (size_t i = 0; i < capacity; i++) {
     size_t slot;
     // TODO(jwcai) Should change to use BufferViewPort's spec to config.
-    int ret =
-        queue->AllocateBuffer(surface->width(), surface->height(),
-                              surface->format(), surface->usage(), 1, &slot);
+    const int ret = producer_queue_->AllocateBuffer(width_, height_, format_,
+                                                    usage_, 1, &slot);
     if (ret < 0) {
       ALOGE(
-          "NativeBufferQueue::NativeBufferQueue: Failed to allocate buffer, "
-          "error=%d",
-          ret);
+          "NativeBufferQueue::NativeBufferQueue: Failed to allocate buffer: %s",
+          strerror(-ret));
       return;
     }
 
-    ALOGD_IF(TRACE,
-             "NativeBufferQueue::NativeBufferQueue: New buffer allocated at "
-             "slot=%zu",
-             slot);
+    ALOGD_IF(TRACE, "NativeBufferQueue::NativeBufferQueue: slot=%zu", slot);
   }
-
-  producer_queue_ = std::move(queue);
 }
 
 NativeBufferProducer* NativeBufferQueue::Dequeue() {
   ATRACE_NAME("NativeBufferQueue::Dequeue");
-
-  // This never times out.
   size_t slot;
   pdx::LocalHandle fence;
-  std::shared_ptr<BufferProducer> buffer =
-      producer_queue_->Dequeue(-1, &slot, &fence);
-
-  if (buffers_[slot] == nullptr) {
-    buffers_[slot] = new NativeBufferProducer(buffer, display_, slot);
+  auto buffer_status = producer_queue_->Dequeue(-1, &slot, &fence);
+  if (!buffer_status) {
+    ALOGE("NativeBufferQueue::Dequeue: Failed to dequeue buffer: %s",
+          buffer_status.GetErrorMessage().c_str());
+    return nullptr;
   }
 
-  ALOGD_IF(TRACE,
-           "NativeBufferQueue::Dequeue: dequeue buffer at slot=%zu, buffer=%p",
-           slot, buffers_[slot].get());
+  if (buffers_[slot] == nullptr)
+    buffers_[slot] =
+        new NativeBufferProducer(buffer_status.take(), display_, slot);
+
+  ALOGD_IF(TRACE, "NativeBufferQueue::Dequeue: slot=%zu buffer=%p", slot,
+           buffers_[slot].get());
   return buffers_[slot].get();
 }
 
+}  // namespace display
 }  // namespace dvr
 }  // namespace android

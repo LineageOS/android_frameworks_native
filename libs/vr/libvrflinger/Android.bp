@@ -14,17 +14,11 @@
 
 sourceFiles = [
     "acquired_buffer.cpp",
-    "compositor.cpp",
-    "debug_hud_data.cpp",
-    "debug_hud_view.cpp",
+    "epoll_event_dispatcher.cpp",
     "display_manager_service.cpp",
     "display_service.cpp",
     "display_surface.cpp",
     "hardware_composer.cpp",
-    "screenshot_service.cpp",
-    "surface_channel.cpp",
-    "video_compositor.cpp",
-    "video_mesh_surface.cpp",
     "vr_flinger.cpp",
     "vsync_service.cpp",
 ]
