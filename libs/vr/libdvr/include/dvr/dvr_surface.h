@@ -14,8 +14,8 @@ typedef struct DvrSurfaceParameter DvrSurfaceParameter;
 // Get a pointer to the global pose buffer.
 int dvrGetNamedBuffer(const char* name, DvrBuffer** out_buffer);
 
-int dvrSurfaceCreate(int width, int height, int format, uint64_t usage,
-                     int flags, DvrSurface** out_surface);
+int dvrSurfaceCreate(int width, int height, int format, uint64_t usage0,
+                     uint64_t usage1, int flags, DvrSurface** out_surface);
 
 // TODO(eieio, jwcai) Change this once we have multiple buffer queue support.
 int dvrSurfaceGetWriteBufferQueue(DvrSurface* surface,

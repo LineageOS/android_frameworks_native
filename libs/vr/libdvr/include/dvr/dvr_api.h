@@ -48,7 +48,7 @@ typedef void (*DvrDisplayManagerClientSurfaceListDestroyPtr)(
     DvrDisplayManagerClientSurfaceList* surface_list);
 typedef DvrBuffer* (*DvrDisplayManagerSetupNamedBufferPtr)(
     DvrDisplayManagerClient* client, const char* name, size_t size,
-    uint64_t usage);
+    uint64_t usage0, uint64_t usage1);
 typedef size_t (*DvrDisplayManagerClientSurfaceListGetSizePtr)(
     DvrDisplayManagerClientSurfaceList* surface_list);
 typedef int (*DvrDisplayManagerClientSurfaceListGetSurfaceIdPtr)(
@@ -119,7 +119,7 @@ typedef int (*DvrReadBufferQueueDequeuePtr)(DvrReadBufferQueue* read_queue,
 // dvr_surface.h
 typedef int (*DvrGetNamedBufferPtr)(const char* name, DvrBuffer** out_buffer);
 typedef int (*DvrSurfaceCreatePtr)(int width, int height, int format,
-                                   uint64_t usage, int flags,
+                                   uint64_t usage0, uint64_t usage1, int flags,
                                    DvrSurface** out_surface);
 typedef int (*DvrSurfaceGetWriteBufferQueuePtr)(
     DvrSurface* surface, DvrWriteBufferQueue** out_writer);
