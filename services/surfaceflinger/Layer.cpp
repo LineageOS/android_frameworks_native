@@ -874,9 +874,6 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     }
 }
 
-android_dataspace Layer::getDataSpace() const {
-    return mCurrentState.dataSpace;
-}
 #else
 void Layer::setPerFrameData(const sp<const DisplayDevice>& hw,
         HWComposer::HWCLayerInterface& layer) {
@@ -1885,6 +1882,10 @@ bool Layer::setDataSpace(android_dataspace dataSpace) {
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
+}
+
+android_dataspace Layer::getDataSpace() const {
+    return mCurrentState.dataSpace;
 }
 
 uint32_t Layer::getLayerStack() const {
