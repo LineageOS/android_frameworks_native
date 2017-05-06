@@ -322,8 +322,10 @@ void Lshal::dumpVintf() const {
                     break;
                 }
                 if (hal->hasVersion(version)) {
-                    hal->interfaces[interfaceName].name = interfaceName;
-                    hal->interfaces[interfaceName].instances.insert(instanceName);
+                    if (&table != &mImplementationsTable) {
+                        hal->interfaces[interfaceName].name = interfaceName;
+                        hal->interfaces[interfaceName].instances.insert(instanceName);
+                    }
                     done = true;
                     break;
                 }
@@ -331,12 +333,17 @@ void Lshal::dumpVintf() const {
             if (done) {
                 continue; // to next TableEntry
             }
+            decltype(vintf::ManifestHal::interfaces) interfaces;
+            if (&table != &mImplementationsTable) {
+                interfaces[interfaceName].name = interfaceName;
+                interfaces[interfaceName].instances.insert(instanceName);
+            }
             if (!manifest.add(vintf::ManifestHal{
                     .format = vintf::HalFormat::HIDL,
                     .name = fqName.package(),
                     .versions = {version},
                     .transportArch = {transport, arch},
-                    .interfaces = {{interfaceName, {interfaceName, {{instanceName}}}}}})) {
+                    .interfaces = interfaces})) {
                 mErr << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
             }
         }
