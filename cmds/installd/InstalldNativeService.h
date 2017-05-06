@@ -121,14 +121,18 @@ public:
 private:
     std::recursive_mutex mLock;
 
-    std::recursive_mutex mQuotaDevicesLock;
-    std::recursive_mutex mCacheQuotasLock;
+    std::recursive_mutex mMountsLock;
+    std::recursive_mutex mQuotasLock;
 
-    /* Map from mount point to underlying device node */
-    std::unordered_map<std::string, std::string> mQuotaDevices;
+    /* Map of all storage mounts from source to target */
+    std::unordered_map<std::string, std::string> mStorageMounts;
+    /* Map of all quota mounts from target to source */
+    std::unordered_map<std::string, std::string> mQuotaReverseMounts;
+
     /* Map from UID to cache quota size */
     std::unordered_map<uid_t, int64_t> mCacheQuotas;
 
+    std::string findDataMediaPath(const std::unique_ptr<std::string>& uuid, userid_t userid);
     std::string findQuotaDeviceForUuid(const std::unique_ptr<std::string>& uuid);
 };
 

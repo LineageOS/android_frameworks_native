@@ -66,6 +66,7 @@ private:
 
     std::vector<std::string> mDataPaths;
 
+    bool loadQuotaStats();
     void loadItemsFrom(const std::string& path);
 
     DISALLOW_COPY_AND_ASSIGN(CacheTracker);
