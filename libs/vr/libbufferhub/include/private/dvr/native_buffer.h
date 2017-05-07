@@ -52,40 +52,11 @@ class NativeBuffer
   void operator=(NativeBuffer&) = delete;
 };
 
-// NativeBufferProducerSlice is an implementation of ANativeWindowBuffer backed
-// by a buffer slice of a BufferProducer.
-class NativeBufferProducerSlice
-    : public android::ANativeObjectBase<
-          ANativeWindowBuffer, NativeBufferProducerSlice,
-          android::LightRefBase<NativeBufferProducerSlice>> {
- public:
-  NativeBufferProducerSlice(const std::shared_ptr<BufferProducer>& buffer,
-                            int buffer_index)
-      : BASE(), buffer_(buffer) {
-    ANativeWindowBuffer::width = buffer_->width();
-    ANativeWindowBuffer::height = buffer_->height();
-    ANativeWindowBuffer::stride = buffer_->stride();
-    ANativeWindowBuffer::format = buffer_->format();
-    ANativeWindowBuffer::usage = buffer_->usage();
-    handle = buffer_->native_handle(buffer_index);
-  }
-
-  virtual ~NativeBufferProducerSlice() {}
-
- private:
-  friend class android::LightRefBase<NativeBufferProducerSlice>;
-
-  std::shared_ptr<BufferProducer> buffer_;
-
-  NativeBufferProducerSlice(const NativeBufferProducerSlice&) = delete;
-  void operator=(NativeBufferProducerSlice&) = delete;
-};
-
 // NativeBufferProducer is an implementation of ANativeWindowBuffer backed by a
 // BufferProducer.
 class NativeBufferProducer : public android::ANativeObjectBase<
-  ANativeWindowBuffer, NativeBufferProducer,
-  android::LightRefBase<NativeBufferProducer>> {
+                                 ANativeWindowBuffer, NativeBufferProducer,
+                                 android::LightRefBase<NativeBufferProducer>> {
  public:
   static constexpr int kEmptyFence = -1;
 
@@ -101,19 +72,6 @@ class NativeBufferProducer : public android::ANativeObjectBase<
     ANativeWindowBuffer::format = buffer_->format();
     ANativeWindowBuffer::usage = buffer_->usage();
     handle = buffer_->native_handle();
-    for (int i = 0; i < buffer->slice_count(); ++i) {
-      // display == null means don't create an EGL image. This is used by our
-      // Vulkan code.
-      slices_.push_back(new NativeBufferProducerSlice(buffer, i));
-      if (display_ != nullptr) {
-        egl_images_.push_back(eglCreateImageKHR(
-            display_, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
-            static_cast<ANativeWindowBuffer*>(slices_.back().get()), nullptr));
-        if (egl_images_.back() == EGL_NO_IMAGE_KHR) {
-          ALOGE("NativeBufferProducer: eglCreateImageKHR failed");
-        }
-      }
-    }
   }
 
   explicit NativeBufferProducer(const std::shared_ptr<BufferProducer>& buffer)
@@ -154,7 +112,6 @@ class NativeBufferProducer : public android::ANativeObjectBase<
 
   std::shared_ptr<BufferProducer> buffer_;
   pdx::LocalHandle release_fence_;
-  std::vector<android::sp<NativeBufferProducerSlice>> slices_;
   std::vector<EGLImageKHR> egl_images_;
   uint32_t surface_buffer_index_;
   EGLDisplay display_;
@@ -171,20 +128,15 @@ class NativeBufferConsumer : public android::ANativeObjectBase<
  public:
   static constexpr int kEmptyFence = -1;
 
-  explicit NativeBufferConsumer(const std::shared_ptr<BufferConsumer>& buffer,
-                                int index)
+  explicit NativeBufferConsumer(const std::shared_ptr<BufferConsumer>& buffer)
       : BASE(), buffer_(buffer), acquire_fence_(kEmptyFence), sequence_(0) {
     ANativeWindowBuffer::width = buffer_->width();
     ANativeWindowBuffer::height = buffer_->height();
     ANativeWindowBuffer::stride = buffer_->stride();
     ANativeWindowBuffer::format = buffer_->format();
     ANativeWindowBuffer::usage = buffer_->usage();
-    LOG_ALWAYS_FATAL_IF(buffer_->slice_count() <= index);
-    handle = buffer_->slice(index)->handle();
+    handle = buffer_->native_handle();
   }
-
-  explicit NativeBufferConsumer(const std::shared_ptr<BufferConsumer>& buffer)
-      : NativeBufferConsumer(buffer, 0) {}
 
   virtual ~NativeBufferConsumer() {}
 
