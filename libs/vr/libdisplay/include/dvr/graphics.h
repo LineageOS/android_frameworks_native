@@ -9,7 +9,7 @@
 #else
 #ifndef __FLOAT32X4T_86
 #define __FLOAT32X4T_86
-typedef float float32x4_t __attribute__ ((__vector_size__ (16)));
+typedef float float32x4_t __attribute__((__vector_size__(16)));
 typedef struct float32x4x4_t { float32x4_t val[4]; };
 #endif
 #endif
@@ -112,6 +112,10 @@ enum {
   // VK_SWAPCHAIN_IMAGE_FORMAT: In Vulkan mode, the VkFormat of the swapchain
   // images will be returned here.
   DVR_SURFACE_PARAMETER_VK_SWAPCHAIN_IMAGE_FORMAT_OUT,
+  // DIRECT: Whether the surface goes directly to the display or to the
+  // compositor. Default is 0 (compositor). Only processes with either uid=root
+  // (test tools) or uid validated by IsTrustedUid() may set this to 1.
+  DVR_SURFACE_PARAMETER_DIRECT_IN,
 };
 
 enum {
@@ -439,8 +443,7 @@ void dvrGraphicsVideoMeshSurfaceDestroy(DvrVideoMeshSurface* surface);
 // Present a VideoMeshSurface with the current video mesh transfromation matrix.
 void dvrGraphicsVideoMeshSurfacePresent(DvrGraphicsContext* graphics_context,
                                         DvrVideoMeshSurface* surface,
-                                        const int eye,
-                                        const float* transform);
+                                        const int eye, const float* transform);
 
 __END_DECLS
 

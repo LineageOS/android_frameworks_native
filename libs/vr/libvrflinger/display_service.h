@@ -2,10 +2,10 @@
 #define ANDROID_DVR_SERVICES_DISPLAYD_DISPLAY_SERVICE_H_
 
 #include <pdx/service.h>
+#include <pdx/status.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/bufferhub_rpc.h>
-#include <private/dvr/display_rpc.h>
-#include <private/dvr/late_latch.h>
+#include <private/dvr/display_protocol.h>
 
 #include <functional>
 #include <iterator>
@@ -15,12 +15,13 @@
 
 #include "acquired_buffer.h"
 #include "display_surface.h"
+#include "epoll_event_dispatcher.h"
 #include "hardware_composer.h"
 
 namespace android {
 namespace dvr {
 
-// DisplayService implements the displayd display service over ServiceFS.
+// DisplayService implements the display service component of VrFlinger.
 class DisplayService : public pdx::ServiceBase<DisplayService> {
  public:
   bool IsInitialized() const override;
@@ -32,7 +33,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
 
   std::shared_ptr<DisplaySurface> GetDisplaySurface(int surface_id) const;
   std::vector<std::shared_ptr<DisplaySurface>> GetDisplaySurfaces() const;
-  std::vector<std::shared_ptr<DisplaySurface>> GetVisibleDisplaySurfaces()
+  std::vector<std::shared_ptr<DirectDisplaySurface>> GetVisibleDisplaySurfaces()
       const;
 
   // Updates the list of actively displayed surfaces. This must be called after
@@ -40,15 +41,15 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   void UpdateActiveDisplaySurfaces();
 
   pdx::Status<BorrowedNativeBufferHandle> SetupNamedBuffer(
-      const std::string& name, size_t size, int producer_usage,
-      int consumer_usage);
+      const std::string& name, size_t size, uint64_t usage);
 
   template <class A>
-  void ForEachDisplaySurface(A action) const {
-    ForEachChannel([action](const ChannelIterator::value_type& pair) mutable {
-      auto surface = std::static_pointer_cast<SurfaceChannel>(pair.second);
-      if (surface->type() == SurfaceTypeEnum::Normal)
-        action(std::static_pointer_cast<DisplaySurface>(surface));
+  void ForEachDisplaySurface(SurfaceType surface_type, A action) const {
+    ForEachChannel([surface_type,
+                    action](const ChannelIterator::value_type& pair) mutable {
+      auto surface = std::static_pointer_cast<DisplaySurface>(pair.second);
+      if (surface->surface_type() == surface_type)
+        action(surface);
     });
   }
 
@@ -76,22 +77,30 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
 
   friend class VrDisplayStateService;
 
-  DisplayService();
-  DisplayService(android::Hwc2::Composer* hidl);
+  using RequestDisplayCallback = std::function<void(bool)>;
 
-  SystemDisplayMetrics OnGetMetrics(pdx::Message& message);
-  int OnCreateSurface(pdx::Message& message, int width, int height, int format,
-                      int usage, DisplaySurfaceFlags flags);
+  DisplayService(android::Hwc2::Composer* hidl,
+                 RequestDisplayCallback request_display_callback);
 
-  DisplayRPC::ByteBuffer OnGetEdsCapture(pdx::Message& message);
-
-  void OnSetViewerParams(pdx::Message& message,
-                         const ViewerParams& view_params);
   pdx::Status<BorrowedNativeBufferHandle> OnGetNamedBuffer(
       pdx::Message& message, const std::string& name);
+  pdx::Status<display::Metrics> OnGetMetrics(pdx::Message& message);
+  pdx::Status<display::SurfaceInfo> OnCreateSurface(
+      pdx::Message& message, const display::SurfaceAttributes& attributes);
 
   // Temporary query for current VR status. Will be removed later.
-  int IsVrAppRunning(pdx::Message& message);
+  pdx::Status<bool> IsVrAppRunning(pdx::Message& message);
+
+  pdx::Status<void> AddEventHandler(int fd, int events,
+                                    EpollEventDispatcher::Handler handler) {
+    return dispatcher_.AddEventHandler(fd, events, handler);
+  }
+  pdx::Status<void> RemoveEventHandler(int fd) {
+    return dispatcher_.RemoveEventHandler(fd);
+  }
+
+  void SurfaceUpdated(SurfaceType surface_type,
+                      display::SurfaceUpdateFlags update_flags);
 
   // Called by DisplaySurface to signal that a surface property has changed and
   // the display manager should be notified.
@@ -99,13 +108,15 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
 
   pdx::Status<void> HandleSurfaceMessage(pdx::Message& message);
 
-  DisplayService(const DisplayService&) = delete;
-  void operator=(const DisplayService&) = delete;
-
   HardwareComposer hardware_composer_;
+  RequestDisplayCallback request_display_callback_;
+  EpollEventDispatcher dispatcher_;
   DisplayConfigurationUpdateNotifier update_notifier_;
 
   std::unordered_map<std::string, std::unique_ptr<IonBuffer>> named_buffers_;
+
+  DisplayService(const DisplayService&) = delete;
+  void operator=(const DisplayService&) = delete;
 };
 
 }  // namespace dvr

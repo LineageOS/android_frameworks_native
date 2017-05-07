@@ -30,7 +30,7 @@ public:
     friend class BufferQueue; // Needed to access binderDied
 
     BufferQueueProducer(const sp<BufferQueueCore>& core, bool consumerIsSurfaceFlinger = false);
-    virtual ~BufferQueueProducer();
+    ~BufferQueueProducer() override;
 
     // requestBuffer returns the GraphicBuffer for slot N.
     //

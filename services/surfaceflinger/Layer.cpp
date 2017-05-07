@@ -34,6 +34,7 @@
 #include <utils/StopWatch.h>
 #include <utils/Trace.h>
 
+#include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/PixelFormat.h>
 
@@ -873,9 +874,6 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     }
 }
 
-android_dataspace Layer::getDataSpace() const {
-    return mCurrentState.dataSpace;
-}
 #else
 void Layer::setPerFrameData(const sp<const DisplayDevice>& hw,
         HWComposer::HWCLayerInterface& layer) {
@@ -1886,6 +1884,10 @@ bool Layer::setDataSpace(android_dataspace dataSpace) {
     return true;
 }
 
+android_dataspace Layer::getDataSpace() const {
+    return mCurrentState.dataSpace;
+}
+
 uint32_t Layer::getLayerStack() const {
     auto p = getParent();
     if (p == nullptr) {
@@ -2331,11 +2333,17 @@ void Layer::dump(String8& result, Colorizer& colorizer) const
     visibleRegion.dump(result, "visibleRegion");
     surfaceDamageRegion.dump(result, "surfaceDamageRegion");
     sp<Client> client(mClientRef.promote());
+    PixelFormat pf = PIXEL_FORMAT_UNKNOWN;
+    const sp<GraphicBuffer>& buffer(getActiveBuffer());
+    if (buffer != NULL) {
+        pf = buffer->getPixelFormat();
+    }
 
     result.appendFormat(            "      "
             "layerStack=%4d, z=%9d, pos=(%g,%g), size=(%4d,%4d), "
             "crop=(%4d,%4d,%4d,%4d), finalCrop=(%4d,%4d,%4d,%4d), "
             "isOpaque=%1d, invalidate=%1d, "
+            "dataspace=%s, pixelformat=%s "
 #ifdef USE_HWC2
             "alpha=%.3f, flags=0x%08x, tr=[%.2f, %.2f][%.2f, %.2f]\n"
 #else
@@ -2350,6 +2358,7 @@ void Layer::dump(String8& result, Colorizer& colorizer) const
             s.finalCrop.left, s.finalCrop.top,
             s.finalCrop.right, s.finalCrop.bottom,
             isOpaque(s), contentDirty,
+            dataspaceDetails(getDataSpace()).c_str(), decodePixelFormat(pf).c_str(),
             s.alpha, s.flags,
             s.active.transform[0][0], s.active.transform[0][1],
             s.active.transform[1][0], s.active.transform[1][1],

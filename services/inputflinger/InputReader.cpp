@@ -788,6 +788,18 @@ void InputReader::cancelVibrate(int32_t deviceId, int32_t token) {
     }
 }
 
+bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
+    AutoMutex _l(mLock);
+
+    ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
+    if (deviceIndex >= 0) {
+        InputDevice* device = mDevices.valueAt(deviceIndex);
+        return device->isEnabled();
+    }
+    ALOGW("Ignoring invalid device id %" PRId32 ".", deviceId);
+    return false;
+}
+
 void InputReader::dump(String8& dump) {
     AutoMutex _l(mLock);
 
@@ -961,6 +973,26 @@ InputDevice::~InputDevice() {
     mMappers.clear();
 }
 
+bool InputDevice::isEnabled() {
+    return getEventHub()->isDeviceEnabled(mId);
+}
+
+void InputDevice::setEnabled(bool enabled, nsecs_t when) {
+    if (isEnabled() == enabled) {
+        return;
+    }
+
+    if (enabled) {
+        getEventHub()->enableDevice(mId);
+        reset(when);
+    } else {
+        reset(when);
+        getEventHub()->disableDevice(mId);
+    }
+    // Must change generation to flag this device as changed
+    bumpGeneration();
+}
+
 void InputDevice::dump(String8& dump) {
     InputDeviceInfo deviceInfo;
     getDeviceInfo(& deviceInfo);
@@ -1030,6 +1062,12 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                     bumpGeneration();
                 }
             }
+        }
+
+        if (!changes || (changes & InputReaderConfiguration::CHANGE_ENABLED_STATE)) {
+            ssize_t index = config->disabledDevices.indexOf(mId);
+            bool enabled = index < 0;
+            setEnabled(enabled, when);
         }
 
         size_t numMappers = mMappers.size();

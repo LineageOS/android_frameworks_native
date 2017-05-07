@@ -13,20 +13,19 @@
 #endif
 #include <vulkan/vulkan.h>
 
+#include <dvr/dvr_display_types.h>
 #include <pdx/file_handle.h>
 #include <private/dvr/clock_ns.h>
 #include <private/dvr/debug.h>
-#include <private/dvr/display_types.h>
 #include <private/dvr/frame_history.h>
 #include <private/dvr/gl_fenced_flush.h>
 #include <private/dvr/graphics/vr_gl_extensions.h>
 #include <private/dvr/graphics_private.h>
 #include <private/dvr/late_latch.h>
 #include <private/dvr/native_buffer_queue.h>
-#include <private/dvr/sensor_constants.h>
-#include <private/dvr/video_mesh_surface_client.h>
-#include <private/dvr/vsync_client.h>
 #include <private/dvr/platform_defines.h>
+#include <private/dvr/sensor_constants.h>
+#include <private/dvr/vsync_client.h>
 
 #include <android/native_window.h>
 
@@ -35,21 +34,30 @@
 #define EGL_CONTEXT_MINOR_VERSION 0x30FB
 #endif
 
+using android::pdx::ErrorStatus;
 using android::pdx::LocalHandle;
 using android::pdx::LocalChannelHandle;
+using android::pdx::Status;
 
-using android::dvr::DisplaySurfaceAttributeEnum;
-using android::dvr::DisplaySurfaceAttributeValue;
+using android::dvr::display::DisplayClient;
+using android::dvr::display::Metrics;
+using android::dvr::display::NativeBufferQueue;
+using android::dvr::display::Surface;
+using android::dvr::display::SurfaceAttribute;
+using android::dvr::display::SurfaceAttributes;
+using android::dvr::display::SurfaceAttributeValue;
+using android::dvr::VSyncClient;
 
 namespace {
 
 // TODO(urbanus): revisit once we have per-platform usage config in place.
-constexpr int kDefaultDisplaySurfaceUsage =
-    GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE |
-    GRALLOC_USAGE_QCOM_FRAMEBUFFER_COMPRESSION;
-constexpr int kDefaultDisplaySurfaceFormat = HAL_PIXEL_FORMAT_RGBA_8888;
+constexpr uint64_t kDefaultDisplaySurfaceUsage =
+    GRALLOC1_PRODUCER_USAGE_GPU_RENDER_TARGET |
+    GRALLOC1_PRODUCER_USAGE_PRIVATE_1 | GRALLOC1_CONSUMER_USAGE_CLIENT_TARGET |
+    GRALLOC1_CONSUMER_USAGE_GPU_TEXTURE;
+constexpr uint32_t kDefaultDisplaySurfaceFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 // TODO(alexst): revisit this count when HW encode is available for casting.
-constexpr int kDefaultBufferCount = 4;
+constexpr size_t kDefaultBufferCount = 4;
 
 // Use with dvrBeginRenderFrame to disable EDS for the current frame.
 constexpr float32x4_t DVR_POSE_NO_EDS = {10.0f, 0.0f, 0.0f, 0.0f};
@@ -279,51 +287,119 @@ int CreateEglContext(EGLDisplay egl_display, DvrSurfaceParameter* parameters,
   return 0;
 }
 
-}  // anonymous namespace
+// Utility structure to hold info related to creating a surface.
+struct SurfaceResult {
+  std::shared_ptr<Surface> surface;
+  Metrics metrics;
+  uint32_t width;
+  uint32_t height;
+  uint32_t format;
+  uint64_t usage;
+  size_t capacity;
+  int geometry;
+  bool direct_surface;
+};
 
-// TODO(hendrikw): When we remove the calls to this in native_window.cpp, move
-// this back into the anonymous namespace
-std::shared_ptr<android::dvr::DisplaySurfaceClient> CreateDisplaySurfaceClient(
-    struct DvrSurfaceParameter* parameters,
-    /*out*/ android::dvr::SystemDisplayMetrics* metrics) {
-  auto client = android::dvr::DisplayClient::Create();
-  if (!client) {
-    ALOGE("Failed to create display client!");
-    return nullptr;
+Status<std::tuple<std::shared_ptr<android::dvr::ProducerQueue>,
+                  std::shared_ptr<android::dvr::BufferProducer>,
+                  volatile DisplaySurfaceMetadata*>>
+CreateMetadataBuffer(const std::shared_ptr<Surface>& surface,
+                     bool direct_surface) {
+  std::shared_ptr<android::dvr::ProducerQueue> queue;
+  std::shared_ptr<android::dvr::BufferProducer> buffer;
+
+  if (!direct_surface) {
+    auto queue_status = surface->CreateQueue(
+        sizeof(DisplaySurfaceMetadata), 1, HAL_PIXEL_FORMAT_BLOB,
+        GRALLOC1_PRODUCER_USAGE_GPU_RENDER_TARGET |
+            GRALLOC1_PRODUCER_USAGE_CPU_WRITE_OFTEN |
+            GRALLOC1_CONSUMER_USAGE_GPU_DATA_BUFFER,
+        1);
+    if (!queue_status) {
+      ALOGE("CreateMetadataBuffer: Failed to create queue: %s",
+            queue_status.GetErrorMessage().c_str());
+      return queue_status.error_status();
+    }
+
+    queue = queue_status.take();
+    LocalHandle fence;
+    size_t slot;
+    auto buffer_status = queue->Dequeue(-1, &slot, &fence);
+    if (!buffer_status) {
+      ALOGE("CreateMetadataBuffer: Failed to dequeue buffer: %s",
+            buffer_status.GetErrorMessage().c_str());
+      return buffer_status.error_status();
+    }
+    buffer = buffer_status.take();
+  } else {
+    buffer = android::dvr::BufferProducer::CreateUncachedBlob(
+        sizeof(DisplaySurfaceMetadata));
+    if (!buffer) {
+      ALOGE("CreateMetadataBuffer: Failed to create stand-in buffer!");
+      return ErrorStatus(ENOMEM);
+    }
   }
 
-  const int ret = client->GetDisplayMetrics(metrics);
+  void* address = nullptr;
+  int ret =
+      buffer->GetBlobReadWritePointer(sizeof(DisplaySurfaceMetadata), &address);
+
   if (ret < 0) {
-    ALOGE("Failed to get display metrics: %s", strerror(-ret));
-    return nullptr;
+    ALOGE("CreateMetadataBuffer: Failed to map buffer: %s", strerror(-ret));
+    return ErrorStatus(-ret);
+  }
+
+  // Post the buffer so that the compositor can retrieve it from the consumer
+  // queue.
+  ret = buffer->Post<void>(LocalHandle{});
+  if (ret < 0) {
+    ALOGE("CreateMetadataBuffer: Failed to post buffer: %s", strerror(-ret));
+    return ErrorStatus(-ret);
+  }
+
+  ALOGD_IF(TRACE, "CreateMetadataBuffer: queue_id=%d buffer_id=%d address=%p",
+           queue ? queue->id() : -1, buffer->id(), address);
+  return {{std::move(queue), std::move(buffer),
+           static_cast<DisplaySurfaceMetadata*>(address)}};
+}
+
+}  // anonymous namespace
+
+Status<SurfaceResult> CreateSurface(struct DvrSurfaceParameter* parameters) {
+  int error;
+  auto client = DisplayClient::Create(&error);
+  if (!client) {
+    ALOGE("CreateApplicationSurface: Failed to create display client!");
+    return ErrorStatus(error);
+  }
+
+  auto metrics_status = client->GetDisplayMetrics();
+  if (!metrics_status) {
+    ALOGE("CreateApplicationSurface: Failed to get display metrics: %s",
+          metrics_status.GetErrorMessage().c_str());
+    return metrics_status.error_status();
   }
 
   // Parameters that may be modified by the parameters array. Some of these are
   // here for future expansion.
-  int request_width = -1;
-  int request_height = -1;
-  int request_flags = 0;
+
+  uint32_t request_width = metrics_status.get().display_width;
+  uint32_t request_height = metrics_status.get().display_width;
+  uint32_t request_format = kDefaultDisplaySurfaceFormat;
+  uint64_t request_usage = kDefaultDisplaySurfaceUsage;
+  size_t request_capacity = kDefaultBufferCount;
+  int request_geometry = DVR_SURFACE_GEOMETRY_SINGLE;
   bool disable_distortion = false;
   bool disable_stabilization = false;
   bool disable_cac = false;
-  bool request_visible = true;
+  bool request_visible = false;
   bool vertical_flip = false;
+  bool direct_surface = false;
   int request_z_order = 0;
-  bool request_exclude_from_blur = false;
-  bool request_blur_behind = true;
-  int request_format = kDefaultDisplaySurfaceFormat;
-  int request_usage = kDefaultDisplaySurfaceUsage;
-  int geometry_type = DVR_SURFACE_GEOMETRY_SINGLE;
 
   // Handle parameter inputs.
   for (auto p = parameters; p && p->key != DVR_SURFACE_PARAMETER_NONE; ++p) {
     switch (p->key) {
-      case DVR_SURFACE_PARAMETER_WIDTH_IN:
-        request_width = p->value;
-        break;
-      case DVR_SURFACE_PARAMETER_HEIGHT_IN:
-        request_height = p->value;
-        break;
       case DVR_SURFACE_PARAMETER_DISABLE_DISTORTION_IN:
         disable_distortion = !!p->value;
         break;
@@ -339,20 +415,23 @@ std::shared_ptr<android::dvr::DisplaySurfaceClient> CreateDisplaySurfaceClient(
       case DVR_SURFACE_PARAMETER_Z_ORDER_IN:
         request_z_order = p->value;
         break;
-      case DVR_SURFACE_PARAMETER_EXCLUDE_FROM_BLUR_IN:
-        request_exclude_from_blur = !!p->value;
-        break;
-      case DVR_SURFACE_PARAMETER_BLUR_BEHIND_IN:
-        request_blur_behind = !!p->value;
-        break;
       case DVR_SURFACE_PARAMETER_VERTICAL_FLIP_IN:
         vertical_flip = !!p->value;
         break;
-      case DVR_SURFACE_PARAMETER_GEOMETRY_IN:
-        geometry_type = p->value;
+      case DVR_SURFACE_PARAMETER_DIRECT_IN:
+        direct_surface = !!p->value;
+        break;
+      case DVR_SURFACE_PARAMETER_WIDTH_IN:
+        request_width = p->value;
+        break;
+      case DVR_SURFACE_PARAMETER_HEIGHT_IN:
+        request_height = p->value;
         break;
       case DVR_SURFACE_PARAMETER_FORMAT_IN:
-        request_format = DvrToHalSurfaceFormat(p->value);
+        request_format = p->value;
+        break;
+      case DVR_SURFACE_PARAMETER_GEOMETRY_IN:
+        request_geometry = p->value;
         break;
       case DVR_SURFACE_PARAMETER_ENABLE_LATE_LATCH_IN:
       case DVR_SURFACE_PARAMETER_CREATE_GL_CONTEXT_IN:
@@ -376,113 +455,90 @@ std::shared_ptr<android::dvr::DisplaySurfaceClient> CreateDisplaySurfaceClient(
       case DVR_SURFACE_PARAMETER_VK_SWAPCHAIN_IMAGE_FORMAT_OUT:
         break;
       default:
-        ALOGE("Invalid display surface parameter: key=%d value=%" PRId64,
-              p->key, p->value);
-        return nullptr;
+        ALOGE(
+            "CreateSurface: Invalid display surface parameter: key=%d "
+            "value=%" PRId64,
+            p->key, p->value);
+        return ErrorStatus(EINVAL);
     }
   }
 
-  request_flags |= disable_distortion
-                       ? DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION
-                       : 0;
-  request_flags |=
-      disable_stabilization ? DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_EDS : 0;
-  request_flags |=
-      disable_cac ? DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_CAC : 0;
-  request_flags |= vertical_flip ? DVR_DISPLAY_SURFACE_FLAGS_VERTICAL_FLIP : 0;
-  request_flags |= (geometry_type == DVR_SURFACE_GEOMETRY_SEPARATE_2)
-                       ? DVR_DISPLAY_SURFACE_FLAGS_GEOMETRY_SEPARATE_2
-                       : 0;
+  // TODO(eieio): Setup a "surface flags" attribute based on the surface
+  // parameters gathered above.
+  SurfaceAttributes surface_attributes;
 
-  if (request_width == -1) {
-    request_width = disable_distortion ? metrics->display_native_width
-                                       : metrics->distorted_width;
-    if (!disable_distortion &&
-        geometry_type == DVR_SURFACE_GEOMETRY_SEPARATE_2) {
-      // The metrics always return the single wide buffer resolution.
-      // When split between eyes, we need to halve the width of the surface.
-      request_width /= 2;
-    }
-  }
-  if (request_height == -1) {
-    request_height = disable_distortion ? metrics->display_native_height
-                                        : metrics->distorted_height;
+  surface_attributes[SurfaceAttribute::Direct] = direct_surface;
+  surface_attributes[SurfaceAttribute::Visible] = request_visible;
+  surface_attributes[SurfaceAttribute::ZOrder] = request_z_order;
+
+  auto surface_status = Surface::CreateSurface(surface_attributes);
+  if (!surface_status) {
+    ALOGE("CreateSurface: Failed to create surface: %s",
+          surface_status.GetErrorMessage().c_str());
+    return surface_status.error_status();
   }
 
-  std::shared_ptr<android::dvr::DisplaySurfaceClient> surface =
-      client->CreateDisplaySurface(request_width, request_height,
-                                   request_format, request_usage,
-                                   request_flags);
-  surface->SetAttributes(
-      {{DisplaySurfaceAttributeEnum::Visible,
-        DisplaySurfaceAttributeValue{request_visible}},
-       {DisplaySurfaceAttributeEnum::ZOrder,
-        DisplaySurfaceAttributeValue{request_z_order}},
-       {DisplaySurfaceAttributeEnum::ExcludeFromBlur,
-        DisplaySurfaceAttributeValue{request_exclude_from_blur}},
-       {DisplaySurfaceAttributeEnum::BlurBehind,
-        DisplaySurfaceAttributeValue{request_blur_behind}}});
+  return {{surface_status.take(), metrics_status.get(), request_width,
+           request_height, request_format, request_usage, request_capacity,
+           request_geometry, direct_surface}};
+}
+
+// TODO(hendrikw): When we remove the calls to this in native_window.cpp, move
+// this back into the anonymous namespace
+Status<SurfaceResult> CreateApplicationSurface(
+    struct DvrSurfaceParameter* parameters) {
+  auto surface_status = CreateSurface(parameters);
+  if (!surface_status)
+    return surface_status;
 
   // Handle parameter output requests down here so we can return surface info.
   for (auto p = parameters; p && p->key != DVR_SURFACE_PARAMETER_NONE; ++p) {
     switch (p->key) {
       case DVR_SURFACE_PARAMETER_DISPLAY_WIDTH_OUT:
-        *static_cast<int32_t*>(p->value_out) = metrics->display_native_width;
+        *static_cast<int32_t*>(p->value_out) =
+            surface_status.get().metrics.display_width;
         break;
       case DVR_SURFACE_PARAMETER_DISPLAY_HEIGHT_OUT:
-        *static_cast<int32_t*>(p->value_out) = metrics->display_native_height;
-        break;
-      case DVR_SURFACE_PARAMETER_SURFACE_WIDTH_OUT:
-        *static_cast<int32_t*>(p->value_out) = surface->width();
-        break;
-      case DVR_SURFACE_PARAMETER_SURFACE_HEIGHT_OUT:
-        *static_cast<int32_t*>(p->value_out) = surface->height();
-        break;
-      case DVR_SURFACE_PARAMETER_INTER_LENS_METERS_OUT:
-        *static_cast<float*>(p->value_out) = metrics->inter_lens_distance_m;
-        break;
-      case DVR_SURFACE_PARAMETER_LEFT_FOV_LRBT_OUT:
-        for (int i = 0; i < 4; ++i) {
-          float* float_values_out = static_cast<float*>(p->value_out);
-          float_values_out[i] = metrics->left_fov_lrbt[i];
-        }
-        break;
-      case DVR_SURFACE_PARAMETER_RIGHT_FOV_LRBT_OUT:
-        for (int i = 0; i < 4; ++i) {
-          float* float_values_out = static_cast<float*>(p->value_out);
-          float_values_out[i] = metrics->right_fov_lrbt[i];
-        }
+        *static_cast<int32_t*>(p->value_out) =
+            surface_status.get().metrics.display_height;
         break;
       case DVR_SURFACE_PARAMETER_VSYNC_PERIOD_OUT:
-        *static_cast<uint64_t*>(p->value_out) = metrics->vsync_period_ns;
+        *static_cast<uint64_t*>(p->value_out) =
+            surface_status.get().metrics.vsync_period_ns;
         break;
+      case DVR_SURFACE_PARAMETER_SURFACE_WIDTH_OUT:
+        *static_cast<uint32_t*>(p->value_out) = surface_status.get().width;
+        break;
+      case DVR_SURFACE_PARAMETER_SURFACE_HEIGHT_OUT:
+        *static_cast<uint32_t*>(p->value_out) = surface_status.get().height;
+        break;
+
       default:
         break;
     }
   }
 
-  return surface;
+  return surface_status;
 }
 
-extern "C" int dvrGetNativeDisplayDimensions(int* native_width,
-                                             int* native_height) {
+extern "C" int dvrGetNativeDisplayDimensions(int* display_width,
+                                             int* display_height) {
   int error = 0;
-  auto client = android::dvr::DisplayClient::Create(&error);
+  auto client = DisplayClient::Create(&error);
   if (!client) {
-    ALOGE("Failed to create display client!");
-    return error;
+    ALOGE("dvrGetNativeDisplayDimensions: Failed to create display client!");
+    return -error;
   }
 
-  android::dvr::SystemDisplayMetrics metrics;
-  const int ret = client->GetDisplayMetrics(&metrics);
-
-  if (ret != 0) {
-    ALOGE("Failed to get display metrics!");
-    return ret;
+  auto metrics_status = client->GetDisplayMetrics();
+  if (!metrics_status) {
+    ALOGE("dvrGetNativeDisplayDimensions: Failed to get display metrics: %s",
+          metrics_status.GetErrorMessage().c_str());
+    return -metrics_status.error();
   }
 
-  *native_width = static_cast<int>(metrics.display_native_width);
-  *native_height = static_cast<int>(metrics.display_native_height);
+  *display_width = static_cast<int>(metrics_status.get().display_width);
+  *display_height = static_cast<int>(metrics_status.get().display_height);
   return 0;
 }
 
@@ -524,9 +580,12 @@ struct DvrGraphicsContext : public android::ANativeObjectBase<
   } vk;
 
   // Display surface, metrics, and buffer management members.
-  std::shared_ptr<android::dvr::DisplaySurfaceClient> display_surface;
-  android::dvr::SystemDisplayMetrics display_metrics;
-  std::unique_ptr<android::dvr::NativeBufferQueue> buffer_queue;
+  std::shared_ptr<Surface> display_surface;
+  uint32_t width;
+  uint32_t height;
+  uint32_t format;
+  Metrics display_metrics;
+  std::unique_ptr<NativeBufferQueue> buffer_queue;
   android::dvr::NativeBufferProducer* current_buffer;
   bool buffer_already_posted;
 
@@ -536,15 +595,16 @@ struct DvrGraphicsContext : public android::ANativeObjectBase<
 
   android::dvr::FrameHistory frame_history;
 
+  // Metadata queue and buffer.
+  // TODO(eieio): Remove the queue once one-off buffers are supported as a
+  // surface primitive element.
+  std::shared_ptr<android::dvr::ProducerQueue> metadata_queue;
+  std::shared_ptr<android::dvr::BufferProducer> metadata_buffer;
   // Mapped surface metadata (ie: for pose delivery with presented frames).
-  volatile android::dvr::DisplaySurfaceMetadata* surface_metadata;
+  volatile DisplaySurfaceMetadata* surface_metadata;
 
   // LateLatch support.
   std::unique_ptr<android::dvr::LateLatch> late_latch;
-
-  // Video mesh support.
-  std::vector<std::shared_ptr<android::dvr::VideoMeshSurfaceClient>>
-      video_mesh_surfaces;
 
  private:
   // ANativeWindow function implementations
@@ -616,7 +676,7 @@ DvrGraphicsContext::~DvrGraphicsContext() {
 
 int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
                              DvrGraphicsContext** return_graphics_context) {
-  std::unique_ptr<DvrGraphicsContext> context(new DvrGraphicsContext);
+  auto context = std::make_unique<DvrGraphicsContext>();
 
   // See whether we're using GL or Vulkan
   for (auto p = parameters; p && p->key != DVR_SURFACE_PARAMETER_NONE; ++p) {
@@ -681,46 +741,66 @@ int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
     return -EINVAL;
   }
 
-  context->display_surface =
-      CreateDisplaySurfaceClient(parameters, &context->display_metrics);
-  if (!context->display_surface) {
-    ALOGE("Error: failed to create display surface client");
-    return -ECOMM;
+  auto surface_status = CreateApplicationSurface(parameters);
+  if (!surface_status) {
+    ALOGE("dvrGraphicsContextCreate: Failed to create surface: %s",
+          surface_status.GetErrorMessage().c_str());
+    return -surface_status.error();
   }
 
-  context->buffer_queue.reset(new android::dvr::NativeBufferQueue(
-      context->gl.egl_display, context->display_surface, kDefaultBufferCount));
+  auto surface_result = surface_status.take();
+
+  context->display_surface = surface_result.surface;
+  context->display_metrics = surface_result.metrics;
+  context->width = surface_result.width;
+  context->height = surface_result.height;
+  context->format = surface_result.format;
+
+  // Create an empty queue. NativeBufferQueue allocates the buffers for this
+  // queue.
+  auto queue_status = context->display_surface->CreateQueue();
+  if (!queue_status) {
+    ALOGE("dvrGraphicsContextCreate: Failed to create queue: %s",
+          queue_status.GetErrorMessage().c_str());
+    return -queue_status.error();
+  }
+
+  context->buffer_queue.reset(new NativeBufferQueue(
+      context->gl.egl_display, queue_status.take(), surface_result.width,
+      surface_result.height, surface_result.format, surface_result.usage,
+      surface_result.capacity));
+
+  // Create the metadata buffer.
+  auto metadata_status = CreateMetadataBuffer(context->display_surface,
+                                              surface_result.direct_surface);
+  if (!metadata_status) {
+    ALOGE("dvrGraphicsContextCreate: Failed to create metadata buffer: %s",
+          metadata_status.GetErrorMessage().c_str());
+    return -metadata_status.error();
+  }
+  std::tie(context->metadata_queue, context->metadata_buffer,
+           context->surface_metadata) = metadata_status.take();
 
   // The way the call sequence works we need 1 more than the buffer queue
   // capacity to store data for all pending frames
-  context->frame_history.Reset(context->buffer_queue->GetQueueCapacity() + 1);
+  context->frame_history.Reset(context->buffer_queue->capacity() + 1);
 
-  context->vsync_client = android::dvr::VSyncClient::Create();
+  context->vsync_client = VSyncClient::Create();
   if (!context->vsync_client) {
-    ALOGE("Error: failed to create vsync client");
+    ALOGE("dvrGraphicsContextCreate: failed to create vsync client");
     return -ECOMM;
   }
 
   context->timerfd.Reset(timerfd_create(CLOCK_MONOTONIC, 0));
   if (!context->timerfd) {
-    ALOGE("Error: timerfd_create failed because: %s", strerror(errno));
+    ALOGE("dvrGraphicsContextCreate: timerfd_create failed because: %s",
+          strerror(errno));
     return -EPERM;
   }
 
-  context->surface_metadata = context->display_surface->GetMetadataBufferPtr();
-  if (!context->surface_metadata) {
-    ALOGE("Error: surface metadata allocation failed");
-    return -ENOMEM;
-  }
-
-  ALOGI("buffer: %d x %d\n", context->display_surface->width(),
-        context->display_surface->height());
-
   if (context->graphics_api == DVR_GRAPHICS_API_GLES) {
-    context->gl.texture_count = (context->display_surface->flags() &
-                                 DVR_DISPLAY_SURFACE_FLAGS_GEOMETRY_SEPARATE_2)
-                                    ? 2
-                                    : 1;
+    context->gl.texture_count =
+        (surface_result.geometry == DVR_SURFACE_GEOMETRY_SEPARATE_2) ? 2 : 1;
 
     // Create the GL textures.
     glGenTextures(context->gl.texture_count, context->gl.texture_id);
@@ -761,14 +841,9 @@ int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
 
     // Initialize late latch.
     if (is_late_latch) {
-      LocalHandle fd;
-      int ret = context->display_surface->GetMetadataBufferFd(&fd);
-      if (ret == 0) {
-        context->late_latch.reset(
-            new android::dvr::LateLatch(true, std::move(fd)));
-      } else {
-        ALOGE("Error: failed to get surface metadata buffer fd for late latch");
-      }
+      LocalHandle fd = context->metadata_buffer->GetBlobFd();
+      context->late_latch.reset(
+          new android::dvr::LateLatch(true, std::move(fd)));
     }
   } else if (context->graphics_api == DVR_GRAPHICS_API_VULKAN) {
     VkResult result = VK_SUCCESS;
@@ -968,7 +1043,7 @@ int DvrGraphicsContext::DequeueBuffer(ANativeWindow* window,
   std::lock_guard<std::mutex> autolock(self->lock_);
 
   if (!self->current_buffer) {
-    self->current_buffer = self->buffer_queue.get()->Dequeue();
+    self->current_buffer = self->buffer_queue->Dequeue();
   }
   ATRACE_ASYNC_BEGIN("BufferDraw", self->current_buffer->buffer()->id());
   *fence_fd = self->current_buffer->ClaimReleaseFence().Release();
@@ -1035,7 +1110,7 @@ int DvrGraphicsContext::CancelBuffer(ANativeWindow* window,
     }
   }
   if (do_enqueue) {
-    self->buffer_queue.get()->Enqueue(native_buffer);
+    self->buffer_queue->Enqueue(native_buffer);
   }
   if (fence_fd >= 0)
     close(fence_fd);
@@ -1053,13 +1128,13 @@ int DvrGraphicsContext::Query(const ANativeWindow* window, int what,
 
   switch (what) {
     case NATIVE_WINDOW_WIDTH:
-      *value = self->display_surface->width();
+      *value = self->width;
       return android::NO_ERROR;
     case NATIVE_WINDOW_HEIGHT:
-      *value = self->display_surface->height();
+      *value = self->height;
       return android::NO_ERROR;
     case NATIVE_WINDOW_FORMAT:
-      *value = self->display_surface->format();
+      *value = self->format;
       return android::NO_ERROR;
     case NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS:
       *value = 1;
@@ -1071,10 +1146,10 @@ int DvrGraphicsContext::Query(const ANativeWindow* window, int what,
       *value = 1;
       return android::NO_ERROR;
     case NATIVE_WINDOW_DEFAULT_WIDTH:
-      *value = self->display_surface->width();
+      *value = self->width;
       return android::NO_ERROR;
     case NATIVE_WINDOW_DEFAULT_HEIGHT:
-      *value = self->display_surface->height();
+      *value = self->height;
       return android::NO_ERROR;
     case NATIVE_WINDOW_TRANSFORM_HINT:
       *value = 0;
@@ -1201,8 +1276,7 @@ int dvrSetEdsPose(DvrGraphicsContext* graphics_context,
   // we don't touch it here.
   float32x4_t is_late_latch = DVR_POSE_LATE_LATCH;
   if (render_pose_orientation[0] != is_late_latch[0]) {
-    volatile android::dvr::DisplaySurfaceMetadata* data =
-        graphics_context->surface_metadata;
+    volatile DisplaySurfaceMetadata* data = graphics_context->surface_metadata;
     uint32_t buffer_index =
         graphics_context->current_buffer->surface_buffer_index();
     ALOGE_IF(TRACE, "write pose index %d %f %f", buffer_index,
@@ -1249,6 +1323,7 @@ int dvrBeginRenderFrameEds(DvrGraphicsContext* graphics_context,
   CHECK_GL();
   return 0;
 }
+
 int dvrBeginRenderFrameEdsVk(DvrGraphicsContext* graphics_context,
                              float32x4_t render_pose_orientation,
                              float32x4_t render_pose_translation,
@@ -1426,7 +1501,7 @@ extern "C" void dvrGraphicsPostEarly(DvrGraphicsContext* graphics_context) {
 
     auto buffer = graphics_context->current_buffer->buffer().get();
     ATRACE_ASYNC_BEGIN("BufferPost", buffer->id());
-    int result = buffer->Post<uint64_t>(LocalHandle(), 0);
+    int result = buffer->Post<void>(LocalHandle());
     if (result < 0)
       ALOGE("Buffer post failed: %d (%s)", result, strerror(-result));
   }
@@ -1457,7 +1532,7 @@ int dvrPresent(DvrGraphicsContext* graphics_context) {
   ATRACE_ASYNC_END("BufferDraw", buffer->id());
   if (!graphics_context->buffer_already_posted) {
     ATRACE_ASYNC_BEGIN("BufferPost", buffer->id());
-    int result = buffer->Post<uint64_t>(fence_fd, 0);
+    int result = buffer->Post<void>(fence_fd);
     if (result < 0)
       ALOGE("Buffer post failed: %d (%s)", result, strerror(-result));
   }
@@ -1520,7 +1595,7 @@ extern "C" void dvrGraphicsSurfaceSetVisible(
 
 extern "C" int dvrGraphicsSurfaceGetVisible(
     DvrGraphicsContext* graphics_context) {
-  return graphics_context->display_surface->visible() ? 1 : 0;
+  return !!graphics_context->display_surface->visible();
 }
 
 extern "C" void dvrGraphicsSurfaceSetZOrder(
@@ -1531,46 +1606,4 @@ extern "C" void dvrGraphicsSurfaceSetZOrder(
 extern "C" int dvrGraphicsSurfaceGetZOrder(
     DvrGraphicsContext* graphics_context) {
   return graphics_context->display_surface->z_order();
-}
-
-extern "C" DvrVideoMeshSurface* dvrGraphicsVideoMeshSurfaceCreate(
-    DvrGraphicsContext* graphics_context) {
-  auto display_surface = graphics_context->display_surface;
-  // A DisplaySurface must be created prior to the creation of a
-  // VideoMeshSurface.
-  LOG_ALWAYS_FATAL_IF(display_surface == nullptr);
-
-  LocalChannelHandle surface_handle = display_surface->CreateVideoMeshSurface();
-  if (!surface_handle.valid()) {
-    return nullptr;
-  }
-
-  std::unique_ptr<DvrVideoMeshSurface> surface(new DvrVideoMeshSurface);
-  surface->client =
-      android::dvr::VideoMeshSurfaceClient::Import(std::move(surface_handle));
-
-  // TODO(jwcai) The next line is not needed...
-  auto producer_queue = surface->client->GetProducerQueue();
-  return surface.release();
-}
-
-extern "C" void dvrGraphicsVideoMeshSurfaceDestroy(
-    DvrVideoMeshSurface* surface) {
-  delete surface;
-}
-
-extern "C" void dvrGraphicsVideoMeshSurfacePresent(
-    DvrGraphicsContext* graphics_context, DvrVideoMeshSurface* surface,
-    const int eye, const float* transform) {
-  volatile android::dvr::VideoMeshSurfaceMetadata* metadata =
-      surface->client->GetMetadataBufferPtr();
-
-  const uint32_t graphics_buffer_index =
-      graphics_context->current_buffer->surface_buffer_index();
-
-  for (int i = 0; i < 4; ++i) {
-    metadata->transform[graphics_buffer_index][eye].val[i] = {
-        transform[i + 0], transform[i + 4], transform[i + 8], transform[i + 12],
-    };
-  }
 }

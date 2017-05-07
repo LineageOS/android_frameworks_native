@@ -1,8 +1,9 @@
-#ifndef ANDROID_DVR_SERVICES_DISPLAYD_DISPLAY_MANAGER_SERVICE_H_
-#define ANDROID_DVR_SERVICES_DISPLAYD_DISPLAY_MANAGER_SERVICE_H_
+#ifndef ANDROID_DVR_SERVICES_VRFLINGER_DISPLAY_MANAGER_SERVICE_H_
+#define ANDROID_DVR_SERVICES_VRFLINGER_DISPLAY_MANAGER_SERVICE_H_
 
 #include <pdx/service.h>
-#include <private/dvr/display_rpc.h>
+#include <pdx/status.h>
+#include <private/dvr/display_protocol.h>
 
 #include "display_service.h"
 
@@ -50,13 +51,14 @@ class DisplayManagerService : public pdx::ServiceBase<DisplayManagerService> {
   explicit DisplayManagerService(
       const std::shared_ptr<DisplayService>& display_service);
 
-  std::vector<DisplaySurfaceInfo> OnGetSurfaceList(pdx::Message& message);
-  int OnUpdateSurfaces(pdx::Message& message,
-                       const std::map<int, DisplaySurfaceAttributes>& updates);
-
+  pdx::Status<std::vector<display::SurfaceState>> OnGetSurfaceState(
+      pdx::Message& message);
+  pdx::Status<pdx::LocalChannelHandle> OnGetSurfaceQueue(pdx::Message& message,
+                                                         int surface_id,
+                                                         int queue_id);
   pdx::Status<BorrowedNativeBufferHandle> OnSetupNamedBuffer(
       pdx::Message& message, const std::string& name, size_t size,
-      uint64_t producer_usage, uint64_t consumer_usage);
+      uint64_t usage);
 
   // Called by the display service to indicate changes to display surfaces that
   // the display manager should evaluate.
@@ -72,4 +74,4 @@ class DisplayManagerService : public pdx::ServiceBase<DisplayManagerService> {
 }  // namespace dvr
 }  // namespace android
 
-#endif  // ANDROID_DVR_SERVICES_DISPLAYD_DISPLAY_MANAGER_SERVICE_H_
+#endif  // ANDROID_DVR_SERVICES_VRFLINGER_DISPLAY_MANAGER_SERVICE_H_

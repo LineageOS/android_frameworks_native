@@ -548,11 +548,14 @@ void SurfaceFlinger::init() {
         mSFEventThread = new EventThread(sfVsyncSrc, *this, true);
         mEventQueue.setEventThread(mSFEventThread);
 
-        // set SFEventThread to SCHED_FIFO to minimize jitter
+        // set EventThread and SFEventThread to SCHED_FIFO to minimize jitter
         struct sched_param param = {0};
         param.sched_priority = 2;
         if (sched_setscheduler(mSFEventThread->getTid(), SCHED_FIFO, &param) != 0) {
             ALOGE("Couldn't set SCHED_FIFO for SFEventThread");
+        }
+        if (sched_setscheduler(mEventThread->getTid(), SCHED_FIFO, &param) != 0) {
+            ALOGE("Couldn't set SCHED_FIFO for EventThread");
         }
 
         // Get a RenderEngine for the given display / config (can't fail)
@@ -581,6 +584,7 @@ void SurfaceFlinger::init() {
 
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
+            ALOGI("VR request display mode: requestDisplay=%d", requestDisplay);
             mVrFlingerRequestsDisplay = requestDisplay;
             signalTransaction();
         };

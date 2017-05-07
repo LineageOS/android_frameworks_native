@@ -35,8 +35,7 @@ class ProducerQueueChannel : public BufferHubChannel {
   pdx::Status<std::vector<std::pair<pdx::RemoteChannelHandle, size_t>>>
   OnProducerQueueAllocateBuffers(pdx::Message& message, uint32_t width,
                                  uint32_t height, uint32_t format,
-                                 uint64_t producer_usage,
-                                 uint64_t consumer_usage, size_t slice_count,
+                                 uint64_t usage, size_t slice_count,
                                  size_t buffer_count);
 
   // Detach a BufferHubProducer indicated by |slot|. Note that the buffer must
@@ -59,7 +58,7 @@ class ProducerQueueChannel : public BufferHubChannel {
   // allocated buffer.
   pdx::Status<std::pair<pdx::RemoteChannelHandle, size_t>> AllocateBuffer(
       pdx::Message& message, uint32_t width, uint32_t height, uint32_t format,
-      uint64_t producer_usage, uint64_t consumer_usage, size_t slice_count);
+      uint64_t usage, size_t slice_count);
 
   // Size of the meta data associated with all the buffers allocated from the
   // queue. Now we assume the metadata size is immutable once the queue is

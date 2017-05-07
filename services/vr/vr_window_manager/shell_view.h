@@ -68,7 +68,7 @@ class ShellView : public Application,
   std::unique_ptr<SurfaceFlingerView> surface_flinger_view_;
   std::unique_ptr<Reticle> reticle_;
 
-  std::unique_ptr<DisplayClient> display_client_;
+  std::unique_ptr<display::DisplayClient> display_client_;
 
   struct DvrVirtualTouchpadDeleter {
     void operator()(DvrVirtualTouchpad* p) {

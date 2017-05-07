@@ -17,6 +17,19 @@ typedef struct float32x4x4_t { float32x4_t val[4]; };
 
 __BEGIN_DECLS
 
+#define kSurfaceBufferMaxCount 4
+#define kSurfaceViewMaxCount 4
+
+struct __attribute__((packed, aligned(16))) DisplaySurfaceMetadata {
+  // Array of orientations and translations corresponding with surface buffers.
+  // The index is associated with each allocated buffer by DisplaySurface and
+  // communicated to clients.
+  // The maximum number of buffers is hard coded here as 4 so that we can bind
+  // this data structure in GPU shaders.
+  float32x4_t orientation[kSurfaceBufferMaxCount];
+  float32x4_t translation[kSurfaceBufferMaxCount];
+};
+
 // Sets the pose used by the system for EDS. If dvrBeginRenderFrameEds() or
 // dvrBeginRenderFrameLateLatch() are called instead of dvrBeginRenderFrame()
 // it's not necessary to call this function. If this function is used, the call
