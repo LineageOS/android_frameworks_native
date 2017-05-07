@@ -31,7 +31,6 @@ static_libs = [
     "libdisplay",
     "libbufferhub",
     "libbufferhubqueue",
-    "libeds",
     "libdvrgraphics",
     "libdvrcommon",
     "libhwcomposer-client",
