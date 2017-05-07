@@ -60,7 +60,7 @@ Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
 
   bool connected = socket_.IsValid();
   if (!connected) {
-    socket_.Reset(socket(AF_UNIX, SOCK_STREAM, 0));
+    socket_.Reset(socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0));
     LOG_ALWAYS_FATAL_IF(
         endpoint_path_.empty(),
         "ClientChannelFactory::Connect: unspecified socket path");
@@ -123,6 +123,15 @@ Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
       connected = true;
       ALOGD("ClientChannelFactory: Connected successfully to %s...",
             remote.sun_path);
+      ChannelConnectionInfo<LocalHandle> connection_info;
+      status = ReceiveData(socket_.Borrow(), &connection_info);
+      if (!status)
+        return status.error_status();
+      socket_ = std::move(connection_info.channel_fd);
+      if (!socket_) {
+        ALOGE("ClientChannelFactory::Connect: Failed to obtain channel socket");
+        return ErrorStatus(EIO);
+      }
     }
     if (use_timeout)
       now = steady_clock::now();
@@ -132,11 +141,11 @@ Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
   InitRequest(&request, opcodes::CHANNEL_OPEN, 0, 0, false);
   status = SendData(socket_.Borrow(), request);
   if (!status)
-    return ErrorStatus(status.error());
+    return status.error_status();
   ResponseHeader<LocalHandle> response;
   status = ReceiveData(socket_.Borrow(), &response);
   if (!status)
-    return ErrorStatus(status.error());
+    return status.error_status();
   int ref = response.ret_code;
   if (ref < 0 || static_cast<size_t>(ref) > response.file_descriptors.size())
     return ErrorStatus(EIO);

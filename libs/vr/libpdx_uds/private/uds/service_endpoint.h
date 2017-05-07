@@ -142,6 +142,8 @@ class Endpoint : public pdx::Endpoint {
   BorrowedHandle GetChannelSocketFd(int32_t channel_id);
   BorrowedHandle GetChannelEventFd(int32_t channel_id);
   int32_t GetChannelId(const BorrowedHandle& channel_fd);
+  Status<void> CreateChannelSocketPair(LocalHandle* local_socket,
+                                       LocalHandle* remote_socket);
 
   std::string endpoint_path_;
   bool is_blocking_;
