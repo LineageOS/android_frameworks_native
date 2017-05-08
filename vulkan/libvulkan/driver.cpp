@@ -887,6 +887,19 @@ VkResult CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
     const VkAllocationCallbacks& data_allocator =
         (pAllocator) ? *pAllocator : GetDefaultAllocator();
 
+    if (pCreateInfo->pApplicationInfo &&
+        pCreateInfo->pApplicationInfo->apiVersion >= VK_MAKE_VERSION(1, 1, 0)) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+        ALOGI(
+            "Requested Vulkan instance version %d.%d is greater than max "
+            "supported version (1.0)",
+            VK_VERSION_MAJOR(pCreateInfo->pApplicationInfo->apiVersion),
+            VK_VERSION_MINOR(pCreateInfo->pApplicationInfo->apiVersion));
+#pragma clang diagnostic pop
+        return VK_ERROR_INCOMPATIBLE_DRIVER;
+    }
+
     CreateInfoWrapper wrapper(*pCreateInfo, data_allocator);
     VkResult result = wrapper.Validate();
     if (result != VK_SUCCESS)
