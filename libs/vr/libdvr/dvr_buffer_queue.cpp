@@ -75,16 +75,8 @@ int dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
 
   // Lazy creation of |native_window|.
   if (write_queue->native_window == nullptr) {
-    std::shared_ptr<dvr::BufferHubQueueCore> core =
-        dvr::BufferHubQueueCore::Create(write_queue->producer_queue);
-    if (core == nullptr) {
-      ALOGE(
-          "dvrWriteBufferQueueGetExternalSurface: Failed to create native "
-          "window.");
-      return -ENOMEM;
-    }
-
-    sp<IGraphicBufferProducer> gbp = new dvr::BufferHubQueueProducer(core);
+    sp<IGraphicBufferProducer> gbp =
+        dvr::BufferHubQueueProducer::Create(write_queue->producer_queue);
     sp<Surface> surface = new Surface(gbp, true);
     write_queue->native_window = static_cast<ANativeWindow*>(surface.get());
     ANativeWindow_acquire(write_queue->native_window);
