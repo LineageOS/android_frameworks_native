@@ -1,8 +1,9 @@
 #include <android/hardware_buffer.h>
 #include <dvr/dvr_buffer.h>
 #include <dvr/dvr_display_manager.h>
+#include <dvr/dvr_shared_buffers.h>
 #include <dvr/dvr_surface.h>
-#include <dvr/dvr_vrflinger_config_buffer.h>
+#include <dvr/dvr_vrflinger_config.h>
 #include <system/graphics.h>
 
 #include <base/logging.h>
@@ -275,7 +276,8 @@ TEST_F(DvrGlobalBufferTest, TestGlobalBufferZeroed) {
 }
 
 TEST_F(DvrGlobalBufferTest, TestVrflingerConfigBuffer) {
-  const DvrGlobalBufferKey buffer_name = kVrFlingerConfigBufferKey;
+  const DvrGlobalBufferKey buffer_name =
+      DvrGlobalBuffers::kVrFlingerConfigBufferKey;
 
   // First delete any existing buffer so we can test the failure case.
   dvrDisplayManagerDeleteGlobalBuffer(client_, buffer_name);

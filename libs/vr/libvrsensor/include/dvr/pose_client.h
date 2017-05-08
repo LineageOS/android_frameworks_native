@@ -14,63 +14,13 @@ typedef struct float32x4x4_t { float32x4_t val[4]; };
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <dvr/dvr_pose.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct DvrPose DvrPose;
-
-// Represents the current state provided by the pose service, containing a
-// rotation and translation.
-typedef struct __attribute__((packed, aligned(8))) DvrPoseState {
-  // A quaternion representing the rotation of the HMD in Start Space.
-  struct __attribute__((packed)) {
-    float x, y, z, w;
-  } head_from_start_rotation;
-  // The position of the HMD in Start Space.
-  struct __attribute__((packed)) {
-    float x, y, z;
-  } head_from_start_translation;
-  // Time in nanoseconds for the current pose.
-  uint64_t timestamp_ns;
-  // The rotational velocity of the HMD.
-  struct __attribute__((packed)) {
-    float x, y, z;
-  } sensor_from_start_rotation_velocity;
-} DvrPoseState;
-
-enum {
-  DVR_POSE_FLAG_VALID = (1UL << 0),       // This pose is valid.
-  DVR_POSE_FLAG_HEAD = (1UL << 1),        // This pose is the head.
-  DVR_POSE_FLAG_CONTROLLER = (1UL << 2),  // This pose is a controller.
-};
-
-// Represents an estimated pose, accessed asynchronously through a shared ring
-// buffer. No assumptions should be made about the data in padding space.
-// The size of this struct is 128 bytes.
-typedef struct __attribute__((packed, aligned(16))) DvrPoseAsync {
-  // Left eye head-from-start orientation quaternion x,y,z,w.
-  float32x4_t orientation;
-  // Left eye head-from-start translation x,y,z,pad in meters.
-  float32x4_t translation;
-  // Right eye head-from-start orientation quaternion x,y,z,w.
-  float32x4_t right_orientation;
-  // Right eye head-from-start translation x,y,z,pad in meters.
-  float32x4_t right_translation;
-  // Start-space angular velocity x,y,z,pad in radians per second.
-  float32x4_t angular_velocity;
-  // Start-space positional velocity x,y,z,pad in meters per second.
-  float32x4_t velocity;
-  // Timestamp of when this pose is predicted for, typically halfway through
-  // scanout.
-  int64_t timestamp_ns;
-  // Bitmask of DVR_POSE_FLAG_* constants that apply to this pose.
-  //
-  // If DVR_POSE_FLAG_VALID is not set, the pose is indeterminate.
-  uint64_t flags;
-  // Reserved padding to 128 bytes.
-  uint8_t pad[16];
-} DvrPoseAsync;
+typedef struct DvrPoseClient DvrPoseClient;
 
 // Returned by the async pose ring buffer access API.
 typedef struct DvrPoseRingBufferInfo {
@@ -120,12 +70,12 @@ typedef enum DvrControllerId {
 // Creates a new pose client.
 //
 // @return Pointer to the created pose client, nullptr on failure.
-DvrPose* dvrPoseCreate();
+DvrPoseClient* dvrPoseClientCreate();
 
 // Destroys a pose client.
 //
 // @param client Pointer to the pose client to be destroyed.
-void dvrPoseDestroy(DvrPose* client);
+void dvrPoseClientDestroy(DvrPoseClient* client);
 
 // Gets the pose for the given vsync count.
 //
@@ -134,10 +84,11 @@ void dvrPoseDestroy(DvrPose* client);
 //     Typically this is the count returned by dvrGetNextVsyncCount.
 // @param out_pose Struct to store pose state.
 // @return Zero on success, negative error code on failure.
-int dvrPoseGet(DvrPose* client, uint32_t vsync_count, DvrPoseAsync* out_pose);
+int dvrPoseClientGet(DvrPoseClient* client, uint32_t vsync_count,
+                     DvrPoseAsync* out_pose);
 
 // Gets the current vsync count.
-uint32_t dvrPoseGetVsyncCount(DvrPose* client);
+uint32_t dvrPoseClientGetVsyncCount(DvrPoseClient* client);
 
 // Gets the pose for the given controller at the given vsync count.
 //
@@ -147,15 +98,15 @@ uint32_t dvrPoseGetVsyncCount(DvrPose* client);
 //     Typically this is the count returned by dvrGetNextVsyncCount.
 // @param out_pose Struct to store pose state.
 // @return Zero on success, negative error code on failure.
-int dvrPoseGetController(DvrPose* client, int32_t controller_id,
-                         uint32_t vsync_count, DvrPoseAsync* out_pose);
+int dvrPoseClientGetController(DvrPoseClient* client, int32_t controller_id,
+                               uint32_t vsync_count, DvrPoseAsync* out_pose);
 
 // Enables/disables logging for the controller fusion.
 //
 // @param client Pointer to the pose client.
 // @param enable True starts logging, False stops.
 // @return Zero on success, negative error code on failure.
-int dvrPoseLogController(DvrPose* client, bool enable);
+int dvrPoseClientLogController(DvrPoseClient* client, bool enable);
 
 // DEPRECATED
 // Polls current pose state.
@@ -163,7 +114,7 @@ int dvrPoseLogController(DvrPose* client, bool enable);
 // @param client Pointer to the pose client.
 // @param state Struct to store polled state.
 // @return Zero on success, negative error code on failure.
-int dvrPosePoll(DvrPose* client, DvrPoseState* state);
+int dvrPoseClientPoll(DvrPoseClient* client, DvrPose* state);
 
 // Freezes the pose to the provided state.
 //
@@ -174,19 +125,19 @@ int dvrPosePoll(DvrPose* client, DvrPoseState* state);
 // @param client Pointer to the pose client.
 // @param frozen_state State pose to be frozen to.
 // @return Zero on success, negative error code on failure.
-int dvrPoseFreeze(DvrPose* client, const DvrPoseState* frozen_state);
+int dvrPoseClientFreeze(DvrPoseClient* client, const DvrPose* frozen_state);
 
 // Sets the pose service mode.
 //
 // @param mode The requested pose mode.
 // @return Zero on success, negative error code on failure.
-int dvrPoseSetMode(DvrPose* client, DvrPoseMode mode);
+int dvrPoseClientSetMode(DvrPoseClient* client, DvrPoseMode mode);
 
 // Gets the pose service mode.
 //
 // @param mode Return value for the current pose mode.
 // @return Zero on success, negative error code on failure.
-int dvrPoseGetMode(DvrPose* client, DvrPoseMode* mode);
+int dvrPoseClientGetMode(DvrPoseClient* client, DvrPoseMode* mode);
 
 // Get access to the shared memory pose ring buffer.
 // A future pose at vsync <current> + <offset> is accessed at index:
@@ -197,8 +148,8 @@ int dvrPoseGetMode(DvrPose* client, DvrPoseMode* mode);
 // |out_fd| will be set to the gralloc buffer file descriptor, which is
 //   required for binding this buffer for GPU use.
 // Returns 0 on success.
-int dvrPoseGetRingBuffer(DvrPose* client, DvrPoseRingBufferInfo* out_info);
-
+int dvrPoseClientGetRingBuffer(DvrPoseClient* client,
+                               DvrPoseRingBufferInfo* out_info);
 
 #ifdef __cplusplus
 }  // extern "C"
