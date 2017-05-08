@@ -28,7 +28,7 @@
 
 #include <android/dlext.h>
 #include <cutils/properties.h>
-#include <ui/GraphicsEnv.h>
+#include <graphicsenv/GraphicsEnv.h>
 #include <utils/Vector.h>
 
 #include "driver.h"

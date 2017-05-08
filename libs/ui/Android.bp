@@ -54,7 +54,6 @@ cc_library_shared {
         "GraphicBuffer.cpp",
         "GraphicBufferAllocator.cpp",
         "GraphicBufferMapper.cpp",
-        "GraphicsEnv.cpp",
         "HdrCapabilities.cpp",
         "PixelFormat.cpp",
         "Rect.cpp",
@@ -72,7 +71,6 @@ cc_library_shared {
         "android.hardware.configstore@1.0",
 	"android.hardware.configstore-utils",
         "libbase",
-        "libnativeloader",
         "libcutils",
         "libhardware",
         "libhidlbase",
@@ -81,6 +79,7 @@ cc_library_shared {
         "libsync",
         "libutils",
         "liblog",
+        "libgraphicsenv",
     ],
 
     static_libs: [
