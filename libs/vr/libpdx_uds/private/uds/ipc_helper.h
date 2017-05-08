@@ -116,6 +116,15 @@ class ChannelInfo {
 };
 
 template <typename FileHandleType>
+class ChannelConnectionInfo {
+ public:
+  FileHandleType channel_fd;
+
+ private:
+  PDX_SERIALIZABLE_MEMBERS(ChannelConnectionInfo, channel_fd);
+};
+
+template <typename FileHandleType>
 class RequestHeader {
  public:
   int32_t op{0};
