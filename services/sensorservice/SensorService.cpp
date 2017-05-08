@@ -1251,7 +1251,7 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
     }
 
     // Check maximum delay for the sensor.
-    nsecs_t maxDelayNs = sensor->getSensor().getMaxDelay() * 1000;
+    nsecs_t maxDelayNs = sensor->getSensor().getMaxDelay() * 1000LL;
     if (maxDelayNs > 0 && (samplingPeriodNs > maxDelayNs)) {
         samplingPeriodNs = maxDelayNs;
     }
@@ -1512,4 +1512,3 @@ bool SensorService::isOperationRestricted(const String16& opPackageName) {
 }
 
 }; // namespace android
-
