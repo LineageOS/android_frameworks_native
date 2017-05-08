@@ -81,7 +81,7 @@ cc_defaults {
     shared_libs: [
         // ***** DO NOT ADD NEW DEPENDENCIES HERE *****
         // In particular, DO NOT add libutils nor anything "above" libui
-        "libui",
+        "libgraphicsenv",
         "libnativewindow",
         "libbacktrace",
     ],
