@@ -1100,10 +1100,13 @@ binder::Status InstalldNativeService::rmdex(const std::string& codePath,
 
     ALOGV("unlink %s\n", dex_path);
     if (unlink(dex_path) < 0) {
-        return error(StringPrintf("Failed to unlink %s", dex_path));
-    } else {
-        return ok();
+        // It's ok if we don't have a dalvik cache path. Report error only when the path exists
+        // but could not be unlinked.
+        if (errno != ENOENT) {
+            return error(StringPrintf("Failed to unlink %s", dex_path));
+        }
     }
+    return ok();
 }
 
 struct stats {

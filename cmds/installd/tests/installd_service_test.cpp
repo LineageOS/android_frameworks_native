@@ -54,10 +54,12 @@ bool calculate_odex_file_path(char path[PKG_PATH_MAX] ATTRIBUTE_UNUSED,
     return false;
 }
 
-bool create_cache_path(char path[PKG_PATH_MAX] ATTRIBUTE_UNUSED,
-        const char *src ATTRIBUTE_UNUSED,
-        const char *instruction_set ATTRIBUTE_UNUSED) {
-    return false;
+bool create_cache_path(char path[PKG_PATH_MAX],
+        const char *src,
+        const char *instruction_set) {
+    // Not really a valid path but it's good enough for testing.
+    sprintf(path,"/data/dalvik-cache/%s/%s", instruction_set, src);
+    return true;
 }
 
 static void mkdir(const char* path, uid_t owner, gid_t group, mode_t mode) {
@@ -149,6 +151,14 @@ TEST_F(ServiceTest, FixupAppData_Moved) {
     EXPECT_EQ(10000, stat_gid("com.example/foo/file"));
     EXPECT_EQ(10000, stat_gid("com.example/bar"));
     EXPECT_EQ(10000, stat_gid("com.example/bar/file"));
+}
+
+TEST_F(ServiceTest, RmDexNoDalvikCache) {
+    LOG(INFO) << "RmDexNoDalvikCache";
+
+    // Try to remove a non existing dalvik cache dex. The call should be
+    // successful because there's nothing to remove.
+    EXPECT_TRUE(service->rmdex("com.example", "arm").isOk());
 }
 
 }  // namespace installd
