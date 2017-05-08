@@ -17,10 +17,11 @@ class IonBufferMock {
   IonBufferMock() {}
   MOCK_METHOD0(GetGrallocModuleImpl, gralloc_module_t const*());
   MOCK_METHOD6(Import, int(buffer_handle_t handle, int width, int height,
-                           int stride, int format, int usage));
-  MOCK_METHOD9(Import, int(const int* fd_array, int fd_count,
-                           const int* int_array, int int_count, int width,
-                           int height, int stride, int format, int usage));
+                           int layer_count, int stride, int format, int usage));
+  MOCK_METHOD9(Import,
+               int(const int* fd_array, int fd_count, const int* int_array,
+                   int int_count, int width, int height, int layer_count,
+                   int stride, int format, int usage));
   MOCK_METHOD6(Lock, int(int usage, int x, int y, int width, int height,
                          void** address));
   MOCK_METHOD0(Unlock, int());
@@ -29,7 +30,6 @@ class IonBufferMock {
   MOCK_CONST_METHOD0(height, int());
   MOCK_CONST_METHOD0(layer_count, int());
   MOCK_CONST_METHOD0(stride, int());
-  MOCK_CONST_METHOD0(layer_stride, int());
   MOCK_CONST_METHOD0(format, int());
   MOCK_CONST_METHOD0(usage, int());
 };
@@ -46,15 +46,16 @@ class IonBuffer {
   static gralloc_module_t const* GetGrallocModule() {
     return staticObject->GetGrallocModuleImpl();
   }
-  int Import(buffer_handle_t handle, int width, int height, int stride,
-             int format, int usage) {
-    return mock_->Import(handle, width, height, stride, format, usage);
+  int Import(buffer_handle_t handle, int width, int height, int layer_count,
+             int stride, int format, int usage) {
+    return mock_->Import(handle, width, height, layer_count, stride, format,
+                         usage);
   }
   int Import(const int* fd_array, int fd_count, const int* int_array,
-             int int_count, int width, int height, int stride, int format,
-             int usage) {
+             int int_count, int width, int height, int layer_count, int stride,
+             int format, int usage) {
     return mock_->Import(fd_array, fd_count, int_array, int_count, width,
-                         height, stride, format, usage);
+                         height, layer_count, stride, format, usage);
   }
   int Lock(int usage, int x, int y, int width, int height, void** address) {
     return mock_->Lock(usage, x, y, width, height, address);
@@ -65,7 +66,6 @@ class IonBuffer {
   int height() const { return mock_->height(); }
   int layer_count() const { return mock_->layer_count(); }
   int stride() const { return mock_->stride(); }
-  int layer_stride() const { return mock_->layer_stride(); }
   int format() const { return mock_->format(); }
   int usage() const { return mock_->usage(); }
   std::unique_ptr<IonBufferMock> mock_;

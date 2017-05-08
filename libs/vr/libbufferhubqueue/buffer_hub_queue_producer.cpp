@@ -121,6 +121,7 @@ status_t BufferHubQueueProducer::dequeueBuffer(
     return NO_INIT;
   }
 
+  const uint32_t kLayerCount = 1;
   if (static_cast<int32_t>(core_->producer_->capacity()) <
       max_dequeued_buffer_count_ +
           BufferHubQueueCore::kDefaultUndequeuedBuffers) {
@@ -128,7 +129,7 @@ status_t BufferHubQueueProducer::dequeueBuffer(
     // |max_dequeued_buffer_count_|, allocate new buffer.
     // TODO(jwcai) To save memory, the really reasonable thing to do is to go
     // over existing slots and find first existing one to dequeue.
-    ret = core_->AllocateBuffer(width, height, format, usage);
+    ret = core_->AllocateBuffer(width, height, kLayerCount, format, usage);
     if (ret < 0)
       return ret;
   }
@@ -172,7 +173,7 @@ status_t BufferHubQueueProducer::dequeueBuffer(
     // there are already multiple buffers in the queue, the next one returned
     // from |core_->producer_->Dequeue| may not be the new buffer we just
     // reallocated. Retry up to BufferHubQueue::kMaxQueueCapacity times.
-    ret = core_->AllocateBuffer(width, height, format, usage);
+    ret = core_->AllocateBuffer(width, height, kLayerCount, format, usage);
     if (ret < 0)
       return ret;
   }

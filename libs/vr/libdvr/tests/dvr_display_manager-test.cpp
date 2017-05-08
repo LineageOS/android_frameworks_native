@@ -56,10 +56,11 @@ Status<UniqueDvrSurface> CreateApplicationSurface(bool visible = false,
 
 Status<UniqueDvrWriteBufferQueue> CreateSurfaceQueue(
     const UniqueDvrSurface& surface, uint32_t width, uint32_t height,
-    uint32_t format, uint64_t usage, size_t capacity) {
+    uint32_t format, uint32_t layer_count, uint64_t usage, size_t capacity) {
   DvrWriteBufferQueue* queue;
-  const int ret = dvrSurfaceCreateWriteBufferQueue(
-      surface.get(), width, height, format, usage, capacity, &queue);
+  const int ret =
+      dvrSurfaceCreateWriteBufferQueue(surface.get(), width, height, format,
+                                       layer_count, usage, capacity, &queue);
   if (ret < 0)
     return ErrorStatus(-ret);
   else
@@ -484,7 +485,7 @@ TEST_F(DvrDisplayManagerTest, SurfaceQueueEvent) {
 
   // Create a new queue in the surface.
   auto write_queue_status = CreateSurfaceQueue(
-      surface, 320, 240, AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
+      surface, 320, 240, AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM, 1,
       AHARDWAREBUFFER_USAGE_CPU_READ_RARELY, 1);
   ASSERT_STATUS_OK(write_queue_status);
   UniqueDvrWriteBufferQueue write_queue = write_queue_status.take();
@@ -531,6 +532,45 @@ TEST_F(DvrDisplayManagerTest, SurfaceQueueEvent) {
 
   queue_ids = queue_ids_status.take();
   ASSERT_EQ(0u, queue_ids.size());
+}
+
+TEST_F(DvrDisplayManagerTest, MultiLayerBufferQueue) {
+  // Create an application surface.
+  auto surface_status = CreateApplicationSurface();
+  ASSERT_STATUS_OK(surface_status);
+  UniqueDvrSurface surface = surface_status.take();
+  ASSERT_NE(nullptr, surface.get());
+
+  // Get surface state and verify there is one surface.
+  ASSERT_STATUS_OK(manager_->WaitForUpdate());
+  ASSERT_STATUS_EQ(1u, manager_->GetSurfaceCount());
+
+  // Create a new queue in the surface.
+  const uint32_t kLayerCount = 3;
+  auto write_queue_status = CreateSurfaceQueue(
+      surface, 320, 240, AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM, kLayerCount,
+      AHARDWAREBUFFER_USAGE_CPU_READ_RARELY, 1);
+  ASSERT_STATUS_OK(write_queue_status);
+  UniqueDvrWriteBufferQueue write_queue = write_queue_status.take();
+  ASSERT_NE(nullptr, write_queue.get());
+
+  DvrWriteBuffer* buffer = nullptr;
+  dvrWriteBufferCreateEmpty(&buffer);
+  int fence_fd = -1;
+  int error =
+      dvrWriteBufferQueueDequeue(write_queue.get(), 1000, buffer, &fence_fd);
+  ASSERT_EQ(0, error);
+
+  AHardwareBuffer* hardware_buffer = nullptr;
+  error = dvrWriteBufferGetAHardwareBuffer(buffer, &hardware_buffer);
+  ASSERT_EQ(0, error);
+
+  AHardwareBuffer_Desc desc = {};
+  AHardwareBuffer_describe(hardware_buffer, &desc);
+  ASSERT_EQ(kLayerCount, desc.layers);
+
+  AHardwareBuffer_release(hardware_buffer);
+  dvrWriteBufferDestroy(buffer);
 }
 
 }  // namespace
