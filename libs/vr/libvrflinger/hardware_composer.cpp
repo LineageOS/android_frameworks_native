@@ -49,10 +49,6 @@ constexpr int kAllowedPendingFenceCount = 0;
 // Offset before vsync to submit frames to hardware composer.
 constexpr int64_t kFramePostOffsetNs = 4000000;  // 4ms
 
-constexpr size_t kDefaultDisplayConfigCount = 32;
-
-constexpr float kMetersPerInch = 0.0254f;
-
 const char kBacklightBrightnessSysFile[] =
     "/sys/class/leds/lcd-backlight/brightness";
 
@@ -64,23 +60,6 @@ const char kPrimaryDisplayWaitPPEventFile[] = "/sys/class/graphics/fb0/wait_pp";
 const char kDvrPerformanceProperty[] = "sys.dvr.performance";
 
 const char kRightEyeOffsetProperty[] = "dvr.right_eye_offset_ns";
-
-// Returns our best guess for the time the compositor will spend rendering the
-// next frame.
-int64_t GuessFrameTime(int compositor_visible_layer_count) {
-  // The cost of asynchronous EDS and lens warp is currently measured at 2.5ms
-  // for one layer and 7ms for two layers, but guess a higher frame time to
-  // account for CPU overhead. This guess is only used before we've measured the
-  // actual time to render a frame for the current compositor configuration.
-  switch (compositor_visible_layer_count) {
-    case 0:
-      return 500000;  // .5ms
-    case 1:
-      return 5000000;  // 5ms
-    default:
-      return 10500000;  // 10.5ms
-  }
-}
 
 // Get time offset from a vsync to when the pose for that vsync should be
 // predicted out to. For example, if scanout gets halfway through the frame
@@ -241,14 +220,6 @@ void HardwareComposer::UpdatePostThreadState(PostThreadStateType state,
 }
 
 void HardwareComposer::OnPostThreadResumed() {
-  constexpr int format = HAL_PIXEL_FORMAT_RGBA_8888;
-  constexpr int usage =
-      GRALLOC_USAGE_HW_FB | GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_RENDER;
-
-  framebuffer_target_ = std::make_shared<IonBuffer>(
-      native_display_metrics_.width, native_display_metrics_.height, format,
-      usage);
-
   hwc2_hidl_->resetCommands();
 
   // Connect to pose service.
@@ -275,7 +246,6 @@ void HardwareComposer::OnPostThreadResumed() {
 }
 
 void HardwareComposer::OnPostThreadPaused() {
-  framebuffer_target_.reset();
   retire_fence_fds_.clear();
   display_surfaces_.clear();
 
