@@ -52,7 +52,6 @@ class BufferHubChannel : public pdx::Channel {
     uint32_t height = 0;
     uint32_t format = 0;
     uint64_t usage = 0;
-    size_t slice_count = 0;
     std::string name;
 
     // Data filed for producer queue.
@@ -60,8 +59,7 @@ class BufferHubChannel : public pdx::Channel {
     UsagePolicy usage_policy{0, 0, 0, 0};
 
     BufferInfo(int id, size_t consumer_count, uint32_t width, uint32_t height,
-               uint32_t format, uint64_t usage, size_t slice_count,
-               const std::string& name)
+               uint32_t format, uint64_t usage, const std::string& name)
         : id(id),
           type(kProducerType),
           consumer_count(consumer_count),
@@ -69,7 +67,6 @@ class BufferHubChannel : public pdx::Channel {
           height(height),
           format(format),
           usage(usage),
-          slice_count(slice_count),
           name(name) {}
 
     BufferInfo(int id, size_t consumer_count, size_t capacity,
@@ -158,12 +155,13 @@ class BufferHubService : public pdx::ServiceBase<BufferHubService> {
 
   pdx::Status<void> OnCreateBuffer(pdx::Message& message, uint32_t width,
                                    uint32_t height, uint32_t format,
-                                   uint64_t usage, size_t meta_size_bytes,
-                                   size_t slice_count);
-  pdx::Status<void> OnCreatePersistentBuffer(
-      pdx::Message& message, const std::string& name, int user_id, int group_id,
-      uint32_t width, uint32_t height, uint32_t format, uint64_t usage,
-      size_t meta_size_bytes, size_t slice_count);
+                                   uint64_t usage, size_t meta_size_bytes);
+  pdx::Status<void> OnCreatePersistentBuffer(pdx::Message& message,
+                                             const std::string& name,
+                                             int user_id, int group_id,
+                                             uint32_t width, uint32_t height,
+                                             uint32_t format, uint64_t usage,
+                                             size_t meta_size_bytes);
   pdx::Status<void> OnGetPersistentBuffer(pdx::Message& message,
                                           const std::string& name);
   pdx::Status<QueueInfo> OnCreateProducerQueue(pdx::Message& message,

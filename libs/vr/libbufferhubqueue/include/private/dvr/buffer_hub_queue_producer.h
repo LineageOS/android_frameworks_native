@@ -29,8 +29,7 @@ class BufferHubQueueProducer : public BnInterface<IGraphicBufferProducer> {
 
   // See |IGraphicBufferProducer::dequeueBuffer|
   status_t dequeueBuffer(int* out_slot, sp<Fence>* out_fence, uint32_t width,
-                         uint32_t height, PixelFormat format,
-                         uint32_t usage,
+                         uint32_t height, PixelFormat format, uint32_t usage,
                          FrameEventHistoryDelta* outTimestamps) override;
 
   // See |IGraphicBufferProducer::detachBuffer|
@@ -41,7 +40,8 @@ class BufferHubQueueProducer : public BnInterface<IGraphicBufferProducer> {
                             sp<Fence>* out_fence) override;
 
   // See |IGraphicBufferProducer::attachBuffer|
-  status_t attachBuffer(int* out_slot, const sp<GraphicBuffer>& buffer) override;
+  status_t attachBuffer(int* out_slot,
+                        const sp<GraphicBuffer>& buffer) override;
 
   // See |IGraphicBufferProducer::queueBuffer|
   status_t queueBuffer(int slot, const QueueBufferInput& input,
@@ -59,7 +59,8 @@ class BufferHubQueueProducer : public BnInterface<IGraphicBufferProducer> {
                    QueueBufferOutput* output) override;
 
   // See |IGraphicBufferProducer::disconnect|
-  status_t disconnect(int api, DisconnectMode mode = DisconnectMode::Api) override;
+  status_t disconnect(int api,
+                      DisconnectMode mode = DisconnectMode::Api) override;
 
   // See |IGraphicBufferProducer::setSidebandStream|
   status_t setSidebandStream(const sp<NativeHandle>& stream) override;
