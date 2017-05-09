@@ -1262,7 +1262,6 @@ void SurfaceFlinger::resetHwcLocked() {
         }
     }
     mDisplays.clear();
-    initializeDisplays();
 }
 
 void SurfaceFlinger::updateVrFlinger() {
@@ -1308,6 +1307,12 @@ void SurfaceFlinger::updateVrFlinger() {
     // Explicitly re-initialize the primary display. This is because some other
     // parts of this class rely on the primary display always being available.
     createDefaultDisplayDevice();
+
+    // Reset the timing values to account for the period of the swapped in HWC
+    const auto& activeConfig = mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
+    const nsecs_t period = activeConfig->getVsyncPeriod();
+    mAnimFrameTracker.setDisplayRefreshPeriod(period);
+    setCompositorTimingSnapped(0, period, 0);
 
     android_atomic_or(1, &mRepaintEverything);
     setTransactionFlags(eDisplayTransactionNeeded);

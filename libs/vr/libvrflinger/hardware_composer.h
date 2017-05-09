@@ -383,9 +383,6 @@ class HardwareComposer {
   // Transform required to get from native to logical display orientation.
   HWC::Transform display_transform_ = HWC::Transform::None;
 
-  // Buffer for the background layer required by hardware composer.
-  std::shared_ptr<IonBuffer> framebuffer_target_;
-
   // Pending surface list. Set by the display service when DirectSurfaces are
   // added, removed, or change visibility. Written by the message dispatch
   // thread and read by the post thread.
