@@ -20,8 +20,6 @@
 #include <pdx/file_handle.h>
 #include <pdx/rpc/variant.h>
 #include <private/dvr/buffer_hub_client.h>
-#include <private/dvr/frame_time_history.h>
-#include <private/dvr/sync_util.h>
 
 #include "acquired_buffer.h"
 #include "display_surface.h"
