@@ -12,7 +12,6 @@ dirs := \
 	gl_perf \
 	gl_yuvtex \
 	gralloc \
-	hwc \
 	include \
 	lib \
 	linetex \
