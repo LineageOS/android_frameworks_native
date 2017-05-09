@@ -30,7 +30,6 @@ staticLibraries = [
     "libhwcomposer-command-buffer",
     "libbufferhub",
     "libbufferhubqueue",
-    "libeds",
     "libdisplay",
     "libdvrcommon",
     "libdvrgraphics",
