@@ -159,6 +159,8 @@ status_t BufferHubQueueProducer::dequeueBuffer(
   for (size_t retry = 0; retry < BufferHubQueue::kMaxQueueCapacity; retry++) {
     LocalHandle fence;
     auto buffer_status = queue_->Dequeue(dequeue_timeout_ms_, &slot, &fence);
+    if (!buffer_status)
+      return NO_MEMORY;
 
     buffer_producer = buffer_status.take();
     if (!buffer_producer)
@@ -608,10 +610,12 @@ status_t BufferHubQueueProducer::AllocateBuffer(uint32_t width, uint32_t height,
                                                 PixelFormat format,
                                                 uint64_t usage) {
   size_t slot;
-
-  if (queue_->AllocateBuffer(width, height, layer_count, format, usage, &slot) <
-      0) {
-    ALOGE("Failed to allocate new buffer in BufferHub.");
+  auto status =
+      queue_->AllocateBuffer(width, height, layer_count, format, usage, &slot);
+  if (!status) {
+    ALOGE(
+        "BufferHubQueueProducer::AllocateBuffer: Failed to allocate buffer: %s",
+        status.GetErrorMessage().c_str());
     return NO_MEMORY;
   }
 
@@ -626,11 +630,11 @@ status_t BufferHubQueueProducer::AllocateBuffer(uint32_t width, uint32_t height,
 }
 
 status_t BufferHubQueueProducer::RemoveBuffer(size_t slot) {
-  int ret = queue_->DetachBuffer(slot);
-  if (ret < 0) {
-    ALOGE("BufferHubQueueProducer::RemoveBuffer failed through RPC, ret=%s",
-          strerror(-ret));
-    return ret;
+  auto status = queue_->DetachBuffer(slot);
+  if (!status) {
+    ALOGE("BufferHubQueueProducer::RemoveBuffer: Failed to detach buffer: %s",
+          status.GetErrorMessage().c_str());
+    return INVALID_OPERATION;
   }
 
   // Reset in memory objects related the the buffer.

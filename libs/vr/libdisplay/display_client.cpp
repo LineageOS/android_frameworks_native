@@ -138,13 +138,13 @@ Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(
   ALOGD_IF(TRACE, "Surface::CreateQueue: Allocating %zu buffers...", capacity);
   for (size_t i = 0; i < capacity; i++) {
     size_t slot;
-    const int ret = producer_queue->AllocateBuffer(width, height, layer_count,
-                                                   format, usage, &slot);
-    if (ret < 0) {
+    auto allocate_status = producer_queue->AllocateBuffer(
+        width, height, layer_count, format, usage, &slot);
+    if (!allocate_status) {
       ALOGE(
           "Surface::CreateQueue: Failed to allocate buffer on queue_id=%d: %s",
-          producer_queue->id(), strerror(-ret));
-      return ErrorStatus(ENOMEM);
+          producer_queue->id(), allocate_status.GetErrorMessage().c_str());
+      return allocate_status.error_status();
     }
     ALOGD_IF(
         TRACE,
