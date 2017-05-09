@@ -809,8 +809,7 @@ int dvrGraphicsContextCreate(struct DvrSurfaceParameter* parameters,
     // so that anyone who tries to bind an FBO to context->texture_id
     // will not get an incomplete buffer.
     context->current_buffer = context->buffer_queue->Dequeue();
-    LOG_ALWAYS_FATAL_IF(context->gl.texture_count !=
-                        context->current_buffer->buffer()->slice_count());
+    LOG_ALWAYS_FATAL_IF(context->gl.texture_count != 1);
     for (int i = 0; i < context->gl.texture_count; ++i) {
       glBindTexture(context->gl.texture_target_type, context->gl.texture_id[i]);
       glEGLImageTargetTexture2DOES(context->gl.texture_target_type,
@@ -1277,8 +1276,7 @@ int dvrSetEdsPose(DvrGraphicsContext* graphics_context,
   float32x4_t is_late_latch = DVR_POSE_LATE_LATCH;
   if (render_pose_orientation[0] != is_late_latch[0]) {
     volatile DisplaySurfaceMetadata* data = graphics_context->surface_metadata;
-    uint32_t buffer_index =
-        graphics_context->current_buffer->surface_buffer_index();
+    uint32_t buffer_index = 0;
     ALOGE_IF(TRACE, "write pose index %d %f %f", buffer_index,
              render_pose_orientation[0], render_pose_orientation[1]);
     data->orientation[buffer_index] = render_pose_orientation;

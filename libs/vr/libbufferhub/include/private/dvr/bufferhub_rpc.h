@@ -166,7 +166,6 @@ struct BufferHubRPC {
     kOpCreatePersistentBuffer,
     kOpGetPersistentBuffer,
     kOpGetBuffer,
-    kOpGetBuffers,
     kOpNewConsumer,
     kOpProducerMakePersistent,
     kOpProducerRemovePersistence,
@@ -192,19 +191,15 @@ struct BufferHubRPC {
   // Methods.
   PDX_REMOTE_METHOD(CreateBuffer, kOpCreateBuffer,
                     void(uint32_t width, uint32_t height, uint32_t format,
-                         uint64_t usage, size_t meta_size_bytes,
-                         size_t slice_count));
+                         uint64_t usage, size_t meta_size_bytes));
   PDX_REMOTE_METHOD(CreatePersistentBuffer, kOpCreatePersistentBuffer,
                     void(const std::string& name, int user_id, int group_id,
                          uint32_t width, uint32_t height, uint32_t format,
-                         uint64_t usage, size_t meta_size_bytes,
-                         size_t slice_count));
+                         uint64_t usage, size_t meta_size_bytes));
   PDX_REMOTE_METHOD(GetPersistentBuffer, kOpGetPersistentBuffer,
                     void(const std::string& name));
   PDX_REMOTE_METHOD(GetBuffer, kOpGetBuffer,
-                    NativeBufferHandle<LocalHandle>(unsigned index));
-  PDX_REMOTE_METHOD(GetBuffers, kOpGetBuffers,
-                    std::vector<NativeBufferHandle<LocalHandle>>(Void));
+                    NativeBufferHandle<LocalHandle>(Void));
   PDX_REMOTE_METHOD(NewConsumer, kOpNewConsumer, LocalChannelHandle(Void));
   PDX_REMOTE_METHOD(ProducerMakePersistent, kOpProducerMakePersistent,
                     void(const std::string& name, int user_id, int group_id));
@@ -230,8 +225,7 @@ struct BufferHubRPC {
                     kOpProducerQueueAllocateBuffers,
                     std::vector<std::pair<LocalChannelHandle, size_t>>(
                         uint32_t width, uint32_t height, uint32_t format,
-                        uint64_t usage, size_t slice_count,
-                        size_t buffer_count));
+                        uint64_t usage, size_t buffer_count));
   PDX_REMOTE_METHOD(ProducerQueueDetachBuffer, kOpProducerQueueDetachBuffer,
                     void(size_t slot));
   PDX_REMOTE_METHOD(ConsumerQueueImportBuffers, kOpConsumerQueueImportBuffers,

@@ -141,9 +141,8 @@ Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(uint32_t width,
   ALOGD_IF(TRACE, "Surface::CreateQueue: Allocating %zu buffers...", capacity);
   for (size_t i = 0; i < capacity; i++) {
     size_t slot;
-    const size_t kSliceCount = 1;
-    const int ret = producer_queue->AllocateBuffer(width, height, format, usage,
-                                                   kSliceCount, &slot);
+    const int ret =
+        producer_queue->AllocateBuffer(width, height, format, usage, &slot);
     if (ret < 0) {
       ALOGE(
           "Surface::CreateQueue: Failed to allocate buffer on queue_id=%d: %s",
