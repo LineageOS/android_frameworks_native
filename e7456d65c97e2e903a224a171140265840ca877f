@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "1a486d77_a4b5b7ce",
+        "filename": "services/surfaceflinger/SurfaceFlinger_hwc1.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 482,
+      "author": {
+        "id": 3962
+      },
+      "writtenOn": "2017-05-09T21:17:53Z",
+      "side": 0,
+      "message": "Yes obviously. Blame Atom",
+      "parentUuid": "1a486d77_5d2b9b82",
+      "revId": "e7456d65c97e2e903a224a171140265840ca877f",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "1a486d77_3d20df9a",
         "filename": "services/surfaceflinger/SurfaceFlinger_hwc1.cpp",
         "patchSetId": 3
