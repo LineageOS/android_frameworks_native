@@ -86,21 +86,20 @@ size_t ASharedMemory_getSize(int fd);
  *
  * It is a common use case to create a shared memory region, map it read/write locally to intialize
  * content, and then send the shared memory to another process with read only access. Code example
- * as below (error handling ommited).
+ * as below (error handling omited).
  *
- * \code{.c}
- *   int fd = ASharedMemory_create("memory", 128);
  *
- *   // By default it has PROT_READ | PROT_WRITE | PROT_EXEC.
- *   char *buffer = (char *) mmap(NULL, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+ *     int fd = ASharedMemory_create("memory", 128);
  *
- *   strcpy(buffer, "This is an example."); // trivially initialize content
+ *     // By default it has PROT_READ | PROT_WRITE | PROT_EXEC.
+ *     char *buffer = (char *) mmap(NULL, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
  *
- *   // limit access to read only
- *   ASharedMemory_setProt(fd, PROT_READ);
+ *     strcpy(buffer, "This is an example."); // trivially initialize content
  *
- *   // share fd with another process here and the other process can only map with PROT_READ.
- * \endcode
+ *     // limit access to read only
+ *     ASharedMemory_setProt(fd, PROT_READ);
+ *
+ *     // share fd with another process here and the other process can only map with PROT_READ.
  *
  * \param fd   file descriptor of the shared memory region.
  * \param prot any bitwise-or'ed combination of PROT_READ, PROT_WRITE, PROT_EXEC denoting
