@@ -310,7 +310,7 @@ CreateMetadataBuffer(const std::shared_ptr<Surface>& surface,
 
   if (!direct_surface) {
     auto queue_status = surface->CreateQueue(
-        sizeof(DisplaySurfaceMetadata), 1, HAL_PIXEL_FORMAT_BLOB,
+        sizeof(DisplaySurfaceMetadata), 1, 1, HAL_PIXEL_FORMAT_BLOB,
         GRALLOC1_PRODUCER_USAGE_GPU_RENDER_TARGET |
             GRALLOC1_PRODUCER_USAGE_CPU_WRITE_OFTEN |
             GRALLOC1_CONSUMER_USAGE_GPU_DATA_BUFFER,

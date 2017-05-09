@@ -42,6 +42,7 @@ class Surface : public pdx::ClientBase<Surface> {
   // parameters.
   pdx::Status<std::unique_ptr<ProducerQueue>> CreateQueue(uint32_t width,
                                                           uint32_t height,
+                                                          uint32_t layer_count,
                                                           uint32_t format,
                                                           uint64_t usage,
                                                           size_t capacity);

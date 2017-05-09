@@ -71,8 +71,9 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
         std::string size = std::to_string(info.width) + " B";
         stream << std::setw(14) << size;
       } else {
-        std::string dimensions =
-            std::to_string(info.width) + "x" + std::to_string(info.height);
+        std::string dimensions = std::to_string(info.width) + "x" +
+                                 std::to_string(info.height) + "x" +
+                                 std::to_string(info.layer_count);
         stream << std::setw(14) << dimensions;
       }
       stream << " ";
@@ -117,8 +118,9 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
         std::string size = std::to_string(info.width) + " B";
         stream << std::setw(14) << size;
       } else {
-        std::string dimensions =
-            std::to_string(info.width) + "x" + std::to_string(info.height);
+        std::string dimensions = std::to_string(info.width) + "x" +
+                                 std::to_string(info.height) + "x" +
+                                 std::to_string(info.layer_count);
         stream << std::setw(14) << dimensions;
       }
       stream << " ";
@@ -254,9 +256,10 @@ Status<void> BufferHubService::OnCreateBuffer(Message& message, uint32_t width,
           buffer_id);
     return ErrorStatus(EALREADY);
   }
-
-  auto status = ProducerChannel::Create(this, buffer_id, width, height, format,
-                                        usage, meta_size_bytes);
+  const uint32_t kDefaultLayerCount = 1;
+  auto status = ProducerChannel::Create(this, buffer_id, width, height,
+                                        kDefaultLayerCount, format, usage,
+                                        meta_size_bytes);
   if (status) {
     message.SetChannel(status.take());
     return {};
@@ -271,6 +274,7 @@ Status<void> BufferHubService::OnCreatePersistentBuffer(
     Message& message, const std::string& name, int user_id, int group_id,
     uint32_t width, uint32_t height, uint32_t format, uint64_t usage,
     size_t meta_size_bytes) {
+  const uint32_t kDefaultLayerCount = 1;
   const int channel_id = message.GetChannelId();
   ALOGD_IF(TRACE,
            "BufferHubService::OnCreatePersistentBuffer: channel_id=%d name=%s "
@@ -298,8 +302,8 @@ Status<void> BufferHubService::OnCreatePersistentBuffer(
           "not have permission to access named buffer: name=%s euid=%d egid=%d",
           name.c_str(), euid, euid);
       return ErrorStatus(EPERM);
-    } else if (!buffer->CheckParameters(width, height, format, usage,
-                                        meta_size_bytes)) {
+    } else if (!buffer->CheckParameters(width, height, kDefaultLayerCount,
+                                        format, usage, meta_size_bytes)) {
       ALOGE(
           "BufferHubService::OnCreatePersistentBuffer: Requested an existing "
           "buffer with different parameters: name=%s",
@@ -318,7 +322,8 @@ Status<void> BufferHubService::OnCreatePersistentBuffer(
     }
   } else {
     auto status = ProducerChannel::Create(this, channel_id, width, height,
-                                          format, usage, meta_size_bytes);
+                                          kDefaultLayerCount, format, usage,
+                                          meta_size_bytes);
     if (!status) {
       ALOGE("BufferHubService::OnCreateBuffer: Failed to create producer!!");
       return status.error_status();
