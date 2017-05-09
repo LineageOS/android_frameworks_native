@@ -42,9 +42,7 @@ using ::android::hardware::hidl_vec;
 using ::android::hardware::Void;
 using ::android::sp;
 
-SensorManager::SensorManager()
-        : mInternalManager{::android::SensorManager::getInstanceForPackage(
-            String16(ISensorManager::descriptor))} {
+SensorManager::SensorManager() {
 }
 
 SensorManager::~SensorManager() {
@@ -58,7 +56,7 @@ SensorManager::~SensorManager() {
 // Methods from ::android::frameworks::sensorservice::V1_0::ISensorManager follow.
 Return<void> SensorManager::getSensorList(getSensorList_cb _hidl_cb) {
     ::android::Sensor const* const* list;
-    ssize_t count = mInternalManager.getSensorList(&list);
+    ssize_t count = getInternalManager().getSensorList(&list);
     if (count < 0 || !list) {
         LOG(ERROR) << "::android::SensorManager::getSensorList encounters " << count;
         _hidl_cb({}, Result::UNKNOWN_ERROR);
@@ -74,7 +72,7 @@ Return<void> SensorManager::getSensorList(getSensorList_cb _hidl_cb) {
 }
 
 Return<void> SensorManager::getDefaultSensor(SensorType type, getDefaultSensor_cb _hidl_cb) {
-    ::android::Sensor const* sensor = mInternalManager.getDefaultSensor(static_cast<int>(type));
+    ::android::Sensor const* sensor = getInternalManager().getDefaultSensor(static_cast<int>(type));
     if (!sensor) {
         _hidl_cb({}, Result::NOT_EXIST);
         return Void();
@@ -110,7 +108,7 @@ Return<void> SensorManager::createAshmemDirectChannel(
         return Void();
     }
 
-    createDirectChannel(mInternalManager, size, SENSOR_DIRECT_MEM_TYPE_ASHMEM,
+    createDirectChannel(getInternalManager(), size, SENSOR_DIRECT_MEM_TYPE_ASHMEM,
             mem.handle(), _hidl_cb);
 
     return Void();
@@ -120,7 +118,7 @@ Return<void> SensorManager::createGrallocDirectChannel(
         const hidl_handle& buffer, uint64_t size,
         createGrallocDirectChannel_cb _hidl_cb) {
 
-    createDirectChannel(mInternalManager, size, SENSOR_DIRECT_MEM_TYPE_GRALLOC,
+    createDirectChannel(getInternalManager(), size, SENSOR_DIRECT_MEM_TYPE_GRALLOC,
             buffer.getNativeHandle(), _hidl_cb);
 
     return Void();
@@ -157,6 +155,15 @@ sp<::android::Looper> SensorManager::getLooper() {
     return mLooper;
 }
 
+::android::SensorManager& SensorManager::getInternalManager() {
+    std::lock_guard<std::mutex> lock(mInternalManagerMutex);
+    if (mInternalManager == nullptr) {
+        mInternalManager = &::android::SensorManager::getInstanceForPackage(
+                String16(ISensorManager::descriptor));
+    }
+    return *mInternalManager;
+}
+
 Return<void> SensorManager::createEventQueue(
         const sp<IEventQueueCallback> &callback, createEventQueue_cb _hidl_cb) {
     if (callback == nullptr) {
@@ -165,7 +172,7 @@ Return<void> SensorManager::createEventQueue(
     }
 
     sp<::android::Looper> looper = getLooper();
-    sp<::android::SensorEventQueue> internalQueue = mInternalManager.createEventQueue();
+    sp<::android::SensorEventQueue> internalQueue = getInternalManager().createEventQueue();
     if (internalQueue == nullptr) {
         LOG(WARNING) << "::android::SensorManager::createEventQueue returns nullptr.";
         _hidl_cb(nullptr, Result::UNKNOWN_ERROR);
