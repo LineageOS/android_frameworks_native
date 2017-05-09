@@ -37,7 +37,7 @@ LayerRejecter::LayerRejecter(Layer::State& front,
     mStickyTransformSet(stickySet),
     mName(name),
     mOverrideScalingMode(overrideScalingMode),
-    mFreezePositionUpdates(freezePositionUpdates) {}
+    mFreezeGeometryUpdates(freezePositionUpdates) {}
 
 bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item) {
     if (buf == NULL) {
@@ -115,17 +115,7 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
         mRecomputeVisibleRegions = true;
     }
 
-    if (mFront.crop != mFront.requestedCrop) {
-        mFront.crop = mFront.requestedCrop;
-        mCurrent.crop = mFront.requestedCrop;
-        mRecomputeVisibleRegions = true;
-    }
-    if (mFront.finalCrop != mFront.requestedFinalCrop) {
-        mFront.finalCrop = mFront.requestedFinalCrop;
-        mCurrent.finalCrop = mFront.requestedFinalCrop;
-        mRecomputeVisibleRegions = true;
-    }
-    mFreezePositionUpdates = false;
+    mFreezeGeometryUpdates = false;
 
     return false;
 }
