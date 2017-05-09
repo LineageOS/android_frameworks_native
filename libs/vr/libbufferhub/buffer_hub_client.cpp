@@ -59,10 +59,8 @@ int BufferHubBuffer::ImportBuffer() {
     ALOGE("BufferHubBuffer::ImportBuffer: Failed to get buffer: %s",
           status.GetErrorMessage().c_str());
     return -status.error();
-  } else if (status.get().id() >= 0) {
-    ALOGE(
-        "BufferHubBuffer::ImportBuffer: Expected to receive a buffer handle "
-        "but got null!");
+  } else if (status.get().id() < 0) {
+    ALOGE("BufferHubBuffer::ImportBuffer: Received an invalid id!");
     return -EIO;
   }
 

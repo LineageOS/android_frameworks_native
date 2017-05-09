@@ -15,6 +15,7 @@ namespace {
 
 constexpr int kBufferWidth = 100;
 constexpr int kBufferHeight = 1;
+constexpr int kBufferLayerCount = 1;
 constexpr int kBufferFormat = HAL_PIXEL_FORMAT_BLOB;
 constexpr int kBufferUsage = GRALLOC_USAGE_SW_READ_RARELY;
 
@@ -54,7 +55,8 @@ class BufferHubQueueTest : public ::testing::Test {
     // Create producer buffer.
     size_t slot;
     int ret = producer_queue_->AllocateBuffer(kBufferWidth, kBufferHeight,
-                                              kBufferFormat, kBufferUsage, &slot);
+                                              kBufferLayerCount, kBufferFormat,
+                                              kBufferUsage, &slot);
     ASSERT_EQ(ret, 0);
   }
 
@@ -345,9 +347,9 @@ TEST_F(BufferHubQueueTest, TestUsageSetMask) {
 
   // When allocation, leave out |set_mask| from usage bits on purpose.
   size_t slot;
-  int ret = producer_queue_->AllocateBuffer(
-      kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage & ~set_mask,
-      &slot);
+  int ret = producer_queue_->AllocateBuffer(kBufferWidth, kBufferHeight,
+                                            kBufferFormat, kBufferLayerCount,
+                                            kBufferUsage & ~set_mask, &slot);
   ASSERT_EQ(0, ret);
 
   LocalHandle fence;
@@ -363,9 +365,9 @@ TEST_F(BufferHubQueueTest, TestUsageClearMask) {
 
   // When allocation, add |clear_mask| into usage bits on purpose.
   size_t slot;
-  int ret = producer_queue_->AllocateBuffer(
-      kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage | clear_mask,
-      &slot);
+  int ret = producer_queue_->AllocateBuffer(kBufferWidth, kBufferHeight,
+                                            kBufferLayerCount, kBufferFormat,
+                                            kBufferUsage | clear_mask, &slot);
   ASSERT_EQ(0, ret);
 
   LocalHandle fence;
@@ -383,14 +385,14 @@ TEST_F(BufferHubQueueTest, TestUsageDenySetMask) {
   // be able to succeed.
   size_t slot;
   int ret = producer_queue_->AllocateBuffer(
-      kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage & ~deny_set_mask,
-      &slot);
+      kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
+      kBufferUsage & ~deny_set_mask, &slot);
   ASSERT_EQ(ret, 0);
 
   // While allocation with those bits should fail.
-  ret = producer_queue_->AllocateBuffer(
-      kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage | deny_set_mask,
-      &slot);
+  ret = producer_queue_->AllocateBuffer(kBufferWidth, kBufferHeight,
+                                        kBufferLayerCount, kBufferFormat,
+                                        kBufferUsage | deny_set_mask, &slot);
   ASSERT_EQ(ret, -EINVAL);
 }
 
@@ -402,14 +404,14 @@ TEST_F(BufferHubQueueTest, TestUsageDenyClearMask) {
   // mandatory), allocation with those bits should be able to succeed.
   size_t slot;
   int ret = producer_queue_->AllocateBuffer(
-      kBufferWidth, kBufferHeight, kBufferFormat,
+      kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
       kBufferUsage | deny_clear_mask, &slot);
   ASSERT_EQ(ret, 0);
 
   // While allocation without those bits should fail.
-  ret = producer_queue_->AllocateBuffer(
-      kBufferWidth, kBufferHeight, kBufferFormat,
-      kBufferUsage & ~deny_clear_mask, &slot);
+  ret = producer_queue_->AllocateBuffer(kBufferWidth, kBufferHeight,
+                                        kBufferLayerCount, kBufferFormat,
+                                        kBufferUsage & ~deny_clear_mask, &slot);
   ASSERT_EQ(ret, -EINVAL);
 }
 
