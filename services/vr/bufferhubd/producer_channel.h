@@ -32,7 +32,8 @@ class ProducerChannel : public BufferHubChannel {
 
   static pdx::Status<std::shared_ptr<ProducerChannel>> Create(
       BufferHubService* service, int channel_id, uint32_t width,
-      uint32_t height, uint32_t format, uint64_t usage, size_t meta_size_bytes);
+      uint32_t height, uint32_t layer_count, uint32_t format, uint64_t usage,
+      size_t meta_size_bytes);
 
   ~ProducerChannel() override;
 
@@ -57,8 +58,8 @@ class ProducerChannel : public BufferHubChannel {
   void RemoveConsumer(ConsumerChannel* channel);
 
   bool CheckAccess(int euid, int egid);
-  bool CheckParameters(uint32_t width, uint32_t height, uint32_t format,
-                       uint64_t usage, size_t meta_size_bytes);
+  bool CheckParameters(uint32_t width, uint32_t height, uint32_t layer_count,
+                       uint32_t format, uint64_t usage, size_t meta_size_bytes);
 
   pdx::Status<void> OnProducerMakePersistent(Message& message,
                                              const std::string& name,
@@ -90,8 +91,8 @@ class ProducerChannel : public BufferHubChannel {
   std::string name_;
 
   ProducerChannel(BufferHubService* service, int channel, uint32_t width,
-                  uint32_t height, uint32_t format, uint64_t usage,
-                  size_t meta_size_bytes, int* error);
+                  uint32_t height, uint32_t layer_count, uint32_t format,
+                  uint64_t usage, size_t meta_size_bytes, int* error);
 
   pdx::Status<void> OnProducerPost(
       Message& message, LocalFence acquire_fence,

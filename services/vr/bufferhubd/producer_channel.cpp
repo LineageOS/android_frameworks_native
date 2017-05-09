@@ -26,14 +26,15 @@ namespace dvr {
 
 ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
                                  uint32_t width, uint32_t height,
-                                 uint32_t format, uint64_t usage,
-                                 size_t meta_size_bytes, int* error)
+                                 uint32_t layer_count, uint32_t format,
+                                 uint64_t usage, size_t meta_size_bytes,
+                                 int* error)
     : BufferHubChannel(service, channel_id, channel_id, kProducerType),
       pending_consumers_(0),
       producer_owns_(true),
       meta_size_bytes_(meta_size_bytes),
       meta_(meta_size_bytes ? new uint8_t[meta_size_bytes] : nullptr) {
-  const int ret = buffer_.Alloc(width, height, format, usage);
+  const int ret = buffer_.Alloc(width, height, layer_count, format, usage);
   if (ret < 0) {
     ALOGE("ProducerChannel::ProducerChannel: Failed to allocate buffer: %s",
           strerror(-ret));
@@ -47,11 +48,12 @@ ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
 
 Status<std::shared_ptr<ProducerChannel>> ProducerChannel::Create(
     BufferHubService* service, int channel_id, uint32_t width, uint32_t height,
-    uint32_t format, uint64_t usage, size_t meta_size_bytes) {
+    uint32_t layer_count, uint32_t format, uint64_t usage,
+    size_t meta_size_bytes) {
   int error;
   std::shared_ptr<ProducerChannel> producer(
-      new ProducerChannel(service, channel_id, width, height, format, usage,
-                          meta_size_bytes, &error));
+      new ProducerChannel(service, channel_id, width, height, layer_count,
+                          format, usage, meta_size_bytes, &error));
   if (error < 0)
     return ErrorStatus(-error);
   else
@@ -68,7 +70,8 @@ ProducerChannel::~ProducerChannel() {
 
 BufferHubChannel::BufferInfo ProducerChannel::GetBufferInfo() const {
   return BufferInfo(buffer_id(), consumer_channels_.size(), buffer_.width(),
-                    buffer_.height(), buffer_.format(), buffer_.usage(), name_);
+                    buffer_.height(), buffer_.layer_count(), buffer_.format(),
+                    buffer_.usage(), name_);
 }
 
 void ProducerChannel::HandleImpulse(Message& message) {
@@ -346,11 +349,11 @@ bool ProducerChannel::CheckAccess(int euid, int egid) {
 
 // Returns true if the given parameters match the underlying buffer parameters.
 bool ProducerChannel::CheckParameters(uint32_t width, uint32_t height,
-                                      uint32_t format, uint64_t usage,
-                                      size_t meta_size_bytes) {
+                                      uint32_t layer_count, uint32_t format,
+                                      uint64_t usage, size_t meta_size_bytes) {
   return meta_size_bytes == meta_size_bytes_ && buffer_.width() == width &&
-         buffer_.height() == height && buffer_.format() == format &&
-         buffer_.usage() == usage;
+         buffer_.height() == height && buffer_.layer_count() == layer_count &&
+         buffer_.format() == format && buffer_.usage() == usage;
 }
 
 }  // namespace dvr

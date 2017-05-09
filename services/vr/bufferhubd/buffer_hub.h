@@ -50,6 +50,7 @@ class BufferHubChannel : public pdx::Channel {
     // Data field for buffer producer.
     uint32_t width = 0;
     uint32_t height = 0;
+    uint32_t layer_count = 0;
     uint32_t format = 0;
     uint64_t usage = 0;
     std::string name;
@@ -59,12 +60,13 @@ class BufferHubChannel : public pdx::Channel {
     UsagePolicy usage_policy{0, 0, 0, 0};
 
     BufferInfo(int id, size_t consumer_count, uint32_t width, uint32_t height,
-               uint32_t format, uint64_t usage, const std::string& name)
+               uint32_t layer_count, uint32_t format, uint64_t usage, const std::string& name)
         : id(id),
           type(kProducerType),
           consumer_count(consumer_count),
           width(width),
           height(height),
+          layer_count(layer_count),
           format(format),
           usage(usage),
           name(name) {}
