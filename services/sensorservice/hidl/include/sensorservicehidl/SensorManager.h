@@ -50,9 +50,13 @@ struct SensorManager final : public ISensorManager {
     Return<void> createEventQueue(const sp<IEventQueueCallback> &callback, createEventQueue_cb _hidl_cb);
 
 private:
+    // Block until ::android::SensorManager is initialized.
+    ::android::SensorManager& getInternalManager();
     sp<::android::Looper> getLooper();
 
-    ::android::SensorManager& mInternalManager;
+    std::mutex mInternalManagerMutex;
+    ::android::SensorManager* mInternalManager = nullptr; // does not own
+
     std::mutex mLooperMutex;
     sp<::android::Looper> mLooper;
 };
