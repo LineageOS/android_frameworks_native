@@ -140,10 +140,10 @@ status_t BufferHubQueueProducer::dequeueBuffer(
     LocalHandle fence;
     auto buffer_status  =
         core_->producer_->Dequeue(core_->dequeue_timeout_ms_, &slot, &fence);
-    if (!buffer_producer)
-      return NO_MEMORY;
 
     buffer_producer = buffer_status.take();
+    if (!buffer_producer)
+      return NO_MEMORY;
 
     if (width == buffer_producer->width() &&
         height == buffer_producer->height() &&
