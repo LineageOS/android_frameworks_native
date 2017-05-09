@@ -8,6 +8,7 @@
 
 #include <dvr/dvr_display_types.h>
 
+#include <pdx/rpc/buffer_wrapper.h>
 #include <pdx/rpc/remote_method.h>
 #include <pdx/rpc/serializable.h>
 #include <pdx/rpc/variant.h>
@@ -217,6 +218,12 @@ struct DisplayProtocol {
                     void(const SurfaceAttributes& attributes));
 };
 
+enum class ConfigFileType : uint32_t {
+  kLensMetrics,
+  kDeviceMetrics,
+  kDeviceConfiguration
+};
+
 struct DisplayManagerProtocol {
   // Service path.
   static constexpr char kClientPath[] = "system/vr/display/manager";
@@ -226,6 +233,7 @@ struct DisplayManagerProtocol {
     kOpGetSurfaceState = 0,
     kOpGetSurfaceQueue,
     kOpSetupNamedBuffer,
+    kOpGetConfigurationData,
   };
 
   // Aliases.
@@ -240,6 +248,8 @@ struct DisplayManagerProtocol {
   PDX_REMOTE_METHOD(SetupNamedBuffer, kOpSetupNamedBuffer,
                     LocalNativeBufferHandle(const std::string& name,
                                             size_t size, uint64_t usage));
+  PDX_REMOTE_METHOD(GetConfigurationData, kOpGetConfigurationData,
+                    std::string(ConfigFileType config_type));
 };
 
 struct VSyncSchedInfo {
