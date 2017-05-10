@@ -152,7 +152,7 @@ status_t Fence::unflatten(void const*& buffer, size_t& size, int const*& fds, si
         return INVALID_OPERATION;
     }
 
-    if (size < 1) {
+    if (size < getFlattenedSize()) {
         return NO_MEMORY;
     }
 
