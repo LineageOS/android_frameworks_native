@@ -1198,7 +1198,11 @@ bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_
     if (dexopt_action == DEX2OAT_FOR_BOOT_IMAGE &&
             in_vdex_wrapper_fd->get() != -1 &&
             in_vdex_path_str == out_vdex_path_str) {
-        out_vdex_wrapper_fd->reset(in_vdex_wrapper_fd->get());
+        // We unlink the file in case the invocation of dex2oat fails, to ensure we don't
+        // have bogus stale vdex files.
+        out_vdex_wrapper_fd->reset(
+              in_vdex_wrapper_fd->get(),
+              [out_vdex_path_str]() { unlink(out_vdex_path_str.c_str()); });
         // Disable auto close for the in wrapper fd (it will be done when destructing the out
         // wrapper).
         in_vdex_wrapper_fd->DisableAutoClose();
