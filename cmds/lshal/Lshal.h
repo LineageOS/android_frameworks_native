@@ -33,10 +33,15 @@ namespace lshal {
 class Lshal {
 public:
     Lshal();
+    Lshal(std::ostream &out, std::ostream &err,
+            sp<hidl::manager::V1_0::IServiceManager> serviceManager,
+            sp<hidl::manager::V1_0::IServiceManager> passthroughManager);
     Status main(const Arg &arg);
     void usage(const std::string &command = "") const;
     NullableOStream<std::ostream> err() const;
     NullableOStream<std::ostream> out() const;
+    const sp<hidl::manager::V1_0::IServiceManager> &serviceManager() const;
+    const sp<hidl::manager::V1_0::IServiceManager> &passthroughManager() const;
 
     Status emitDebugInfo(
             const std::string &interfaceName,
@@ -48,8 +53,11 @@ private:
     Status parseArgs(const Arg &arg);
     std::string mCommand;
     Arg mCmdArgs;
-    NullableOStream<std::ostream> mErr = std::cerr;
-    NullableOStream<std::ostream> mOut = std::cout;
+    NullableOStream<std::ostream> mOut;
+    NullableOStream<std::ostream> mErr;
+
+    sp<hidl::manager::V1_0::IServiceManager> mServiceManager;
+    sp<hidl::manager::V1_0::IServiceManager> mPassthroughManager;
 
     DISALLOW_COPY_AND_ASSIGN(Lshal);
 };
