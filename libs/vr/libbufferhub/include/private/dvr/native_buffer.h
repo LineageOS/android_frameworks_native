@@ -52,8 +52,6 @@ class NativeBuffer
   void operator=(NativeBuffer&) = delete;
 };
 
-// NativeBufferProducer is an implementation of ANativeWindowBuffer backed by a
-// BufferProducer.
 class NativeBufferProducer : public android::ANativeObjectBase<
                                  ANativeWindowBuffer, NativeBufferProducer,
                                  android::LightRefBase<NativeBufferProducer>> {
@@ -71,20 +69,25 @@ class NativeBufferProducer : public android::ANativeObjectBase<
     ANativeWindowBuffer::stride = buffer_->stride();
     ANativeWindowBuffer::format = buffer_->format();
     ANativeWindowBuffer::usage = buffer_->usage();
-    handle = buffer_->native_handle();
+    ANativeWindowBuffer::handle = buffer_->native_handle();
+    if (display_) {
+      image_khr_ =
+          eglCreateImageKHR(display_, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
+                            static_cast<ANativeWindowBuffer*>(this), nullptr);
+    } else {
+      image_khr_ = EGL_NO_IMAGE_KHR;
+    }
   }
 
   explicit NativeBufferProducer(const std::shared_ptr<BufferProducer>& buffer)
       : NativeBufferProducer(buffer, nullptr, 0) {}
 
   virtual ~NativeBufferProducer() {
-    for (EGLImageKHR egl_image : egl_images_) {
-      if (egl_image != EGL_NO_IMAGE_KHR)
-        eglDestroyImageKHR(display_, egl_image);
-    }
+    if (image_khr_ != EGL_NO_IMAGE_KHR)
+      eglDestroyImageKHR(display_, image_khr_);
   }
 
-  EGLImageKHR image_khr(int index) const { return egl_images_[index]; }
+  EGLImageKHR image_khr() const { return image_khr_; }
   std::shared_ptr<BufferProducer> buffer() const { return buffer_; }
   int release_fence() const { return release_fence_.Get(); }
   uint32_t surface_buffer_index() const { return surface_buffer_index_; }
@@ -112,7 +115,7 @@ class NativeBufferProducer : public android::ANativeObjectBase<
 
   std::shared_ptr<BufferProducer> buffer_;
   pdx::LocalHandle release_fence_;
-  std::vector<EGLImageKHR> egl_images_;
+  EGLImageKHR image_khr_;
   uint32_t surface_buffer_index_;
   EGLDisplay display_;
 
