@@ -29,6 +29,10 @@ static const nsecs_t ARBITRARY_TIME = 1234;
 static const int32_t DISPLAY_ID = 0;
 static const int32_t DISPLAY_WIDTH = 480;
 static const int32_t DISPLAY_HEIGHT = 800;
+static const int32_t VIRTUAL_DISPLAY_ID = 1;
+static const int32_t VIRTUAL_DISPLAY_WIDTH = 400;
+static const int32_t VIRTUAL_DISPLAY_HEIGHT = 500;
+static const char* VIRTUAL_DISPLAY_UNIQUE_ID = "Vr-display-unique-ID";
 
 // Error tolerance for floating point assertions.
 static const float EPSILON = 0.001f;
@@ -136,25 +140,19 @@ public:
     FakeInputReaderPolicy() {
     }
 
-    void setDisplayInfo(int32_t displayId, int32_t width, int32_t height, int32_t orientation) {
+    void setDisplayViewport(int32_t displayId, int32_t width, int32_t height, int32_t orientation,
+            const String8& uniqueId) {
+        DisplayViewport v = createDisplayViewport(displayId, width, height, orientation, uniqueId);
         // Set the size of both the internal and external display at the same time.
-        bool isRotated = (orientation == DISPLAY_ORIENTATION_90
-                || orientation == DISPLAY_ORIENTATION_270);
-        DisplayViewport v;
-        v.displayId = displayId;
-        v.orientation = orientation;
-        v.logicalLeft = 0;
-        v.logicalTop = 0;
-        v.logicalRight = isRotated ? height : width;
-        v.logicalBottom = isRotated ? width : height;
-        v.physicalLeft = 0;
-        v.physicalTop = 0;
-        v.physicalRight = isRotated ? height : width;
-        v.physicalBottom = isRotated ? width : height;
-        v.deviceWidth = isRotated ? height : width;
-        v.deviceHeight = isRotated ? width : height;
-        mConfig.setDisplayInfo(false /*external*/, v);
-        mConfig.setDisplayInfo(true /*external*/, v);
+        mConfig.setPhysicalDisplayViewport(ViewportType::VIEWPORT_INTERNAL, v);
+        mConfig.setPhysicalDisplayViewport(ViewportType::VIEWPORT_EXTERNAL, v);
+    }
+
+    void setVirtualDisplayViewport(int32_t displayId, int32_t width, int32_t height, int32_t orientation,
+            const String8& uniqueId) {
+        Vector<DisplayViewport> viewports;
+        viewports.push_back(createDisplayViewport(displayId, width, height, orientation, uniqueId));
+        mConfig.setVirtualDisplayViewports(viewports);
     }
 
     void addExcludedDeviceName(const String8& deviceName) {
@@ -187,6 +185,27 @@ public:
     }
 
 private:
+    DisplayViewport createDisplayViewport(int32_t displayId, int32_t width, int32_t height,
+            int32_t orientation, const String8& uniqueId) {
+        bool isRotated = (orientation == DISPLAY_ORIENTATION_90
+                || orientation == DISPLAY_ORIENTATION_270);
+        DisplayViewport v;
+        v.displayId = displayId;
+        v.orientation = orientation;
+        v.logicalLeft = 0;
+        v.logicalTop = 0;
+        v.logicalRight = isRotated ? height : width;
+        v.logicalBottom = isRotated ? width : height;
+        v.physicalLeft = 0;
+        v.physicalTop = 0;
+        v.physicalRight = isRotated ? height : width;
+        v.physicalBottom = isRotated ? width : height;
+        v.deviceWidth = isRotated ? height : width;
+        v.deviceHeight = isRotated ? width : height;
+        v.uniqueId = uniqueId;
+        return v;
+    }
+
     virtual void getReaderConfiguration(InputReaderConfiguration* outConfig) {
         *outConfig = mConfig;
     }
@@ -1445,7 +1464,13 @@ protected:
 
     void setDisplayInfoAndReconfigure(int32_t displayId, int32_t width, int32_t height,
             int32_t orientation) {
-        mFakePolicy->setDisplayInfo(displayId, width, height, orientation);
+        mFakePolicy->setDisplayViewport(displayId, width, height, orientation, String8::empty());
+        configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    }
+
+    void setVirtualDisplayInfoAndReconfigure(int32_t displayId, int32_t width, int32_t height,
+            int32_t orientation, const String8& uniqueId) {
+        mFakePolicy->setVirtualDisplayViewport(displayId, width, height, orientation, uniqueId);
         configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     }
 
@@ -2751,6 +2776,8 @@ protected:
     static const int32_t RAW_SLOT_MAX;
     static const float X_PRECISION;
     static const float Y_PRECISION;
+    static const float X_PRECISION_VIRTUAL;
+    static const float Y_PRECISION_VIRTUAL;
 
     static const float GEOMETRIC_SCALE;
     static const TouchAffineTransformation AFFINE_TRANSFORM;
@@ -2772,6 +2799,7 @@ protected:
     };
 
     void prepareDisplay(int32_t orientation);
+    void prepareVirtualDisplay(int32_t orientation);
     void prepareVirtualKeys();
     void prepareLocationCalibration();
     int32_t toRawX(float displayX);
@@ -2779,7 +2807,10 @@ protected:
     float toCookedX(float rawX, float rawY);
     float toCookedY(float rawX, float rawY);
     float toDisplayX(int32_t rawX);
+    float toDisplayX(int32_t rawX, int32_t displayWidth);
     float toDisplayY(int32_t rawY);
+    float toDisplayY(int32_t rawY, int32_t displayHeight);
+
 };
 
 const int32_t TouchInputMapperTest::RAW_X_MIN = 25;
@@ -2804,6 +2835,10 @@ const int32_t TouchInputMapperTest::RAW_SLOT_MIN = 0;
 const int32_t TouchInputMapperTest::RAW_SLOT_MAX = 9;
 const float TouchInputMapperTest::X_PRECISION = float(RAW_X_MAX - RAW_X_MIN + 1) / DISPLAY_WIDTH;
 const float TouchInputMapperTest::Y_PRECISION = float(RAW_Y_MAX - RAW_Y_MIN + 1) / DISPLAY_HEIGHT;
+const float TouchInputMapperTest::X_PRECISION_VIRTUAL =
+        float(RAW_X_MAX - RAW_X_MIN + 1) / VIRTUAL_DISPLAY_WIDTH;
+const float TouchInputMapperTest::Y_PRECISION_VIRTUAL =
+        float(RAW_Y_MAX - RAW_Y_MIN + 1) / VIRTUAL_DISPLAY_HEIGHT;
 const TouchAffineTransformation TouchInputMapperTest::AFFINE_TRANSFORM =
         TouchAffineTransformation(1, -2, 3, -4, 5, -6);
 
@@ -2818,6 +2853,11 @@ const VirtualKeyDefinition TouchInputMapperTest::VIRTUAL_KEYS[2] = {
 
 void TouchInputMapperTest::prepareDisplay(int32_t orientation) {
     setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, orientation);
+}
+
+void TouchInputMapperTest::prepareVirtualDisplay(int32_t orientation) {
+    setVirtualDisplayInfoAndReconfigure(VIRTUAL_DISPLAY_ID, VIRTUAL_DISPLAY_WIDTH,
+        VIRTUAL_DISPLAY_HEIGHT, orientation, String8(VIRTUAL_DISPLAY_UNIQUE_ID));
 }
 
 void TouchInputMapperTest::prepareVirtualKeys() {
@@ -2850,11 +2890,19 @@ float TouchInputMapperTest::toCookedY(float rawX, float rawY) {
 }
 
 float TouchInputMapperTest::toDisplayX(int32_t rawX) {
-    return float(rawX - RAW_X_MIN) * DISPLAY_WIDTH / (RAW_X_MAX - RAW_X_MIN + 1);
+    return toDisplayX(rawX, DISPLAY_WIDTH);
+}
+
+float TouchInputMapperTest::toDisplayX(int32_t rawX, int32_t displayWidth) {
+    return float(rawX - RAW_X_MIN) * displayWidth / (RAW_X_MAX - RAW_X_MIN + 1);
 }
 
 float TouchInputMapperTest::toDisplayY(int32_t rawY) {
-    return float(rawY - RAW_Y_MIN) * DISPLAY_HEIGHT / (RAW_Y_MAX - RAW_Y_MIN + 1);
+    return toDisplayY(rawY, DISPLAY_HEIGHT);
+}
+
+float TouchInputMapperTest::toDisplayY(int32_t rawY, int32_t displayHeight) {
+    return float(rawY - RAW_Y_MIN) * displayHeight / (RAW_Y_MAX - RAW_Y_MIN + 1);
 }
 
 
@@ -3307,6 +3355,105 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenTouchStartsOutsideDisplayAndMoves
             toDisplayX(x), toDisplayY(y), 1, 0, 0, 0, 0, 0, 0, 0));
     ASSERT_NEAR(X_PRECISION, motionArgs.xPrecision, EPSILON);
     ASSERT_NEAR(Y_PRECISION, motionArgs.yPrecision, EPSILON);
+    ASSERT_EQ(ARBITRARY_TIME, motionArgs.downTime);
+
+    // Should not have sent any more keys or motions.
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasNotCalled());
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+}
+
+TEST_F(SingleTouchInputMapperTest, Process_NormalSingleTouchGesture_VirtualDisplay) {
+    SingleTouchInputMapper* mapper = new SingleTouchInputMapper(mDevice);
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    addConfigurationProperty("touch.displayId", VIRTUAL_DISPLAY_UNIQUE_ID);
+
+    prepareVirtualDisplay(DISPLAY_ORIENTATION_0);
+    prepareButtons();
+    prepareAxes(POSITION);
+    prepareVirtualKeys();
+    addMapperAndConfigure(mapper);
+
+    mFakeContext->setGlobalMetaState(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON);
+
+    NotifyMotionArgs motionArgs;
+
+    // Down.
+    int32_t x = 100;
+    int32_t y = 125;
+    processDown(mapper, x, y);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(ARBITRARY_TIME, motionArgs.eventTime);
+    ASSERT_EQ(DEVICE_ID, motionArgs.deviceId);
+    ASSERT_EQ(VIRTUAL_DISPLAY_ID, motionArgs.displayId);
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN, motionArgs.source);
+    ASSERT_EQ(uint32_t(0), motionArgs.policyFlags);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.flags);
+    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, motionArgs.metaState);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_EQ(0, motionArgs.edgeFlags);
+    ASSERT_EQ(size_t(1), motionArgs.pointerCount);
+    ASSERT_EQ(0, motionArgs.pointerProperties[0].id);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0],
+            toDisplayX(x, VIRTUAL_DISPLAY_WIDTH), toDisplayY(y, VIRTUAL_DISPLAY_HEIGHT),
+            1, 0, 0, 0, 0, 0, 0, 0));
+    ASSERT_NEAR(X_PRECISION_VIRTUAL, motionArgs.xPrecision, EPSILON);
+    ASSERT_NEAR(Y_PRECISION_VIRTUAL, motionArgs.yPrecision, EPSILON);
+    ASSERT_EQ(ARBITRARY_TIME, motionArgs.downTime);
+
+    // Move.
+    x += 50;
+    y += 75;
+    processMove(mapper, x, y);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(ARBITRARY_TIME, motionArgs.eventTime);
+    ASSERT_EQ(DEVICE_ID, motionArgs.deviceId);
+    ASSERT_EQ(VIRTUAL_DISPLAY_ID, motionArgs.displayId);
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN, motionArgs.source);
+    ASSERT_EQ(uint32_t(0), motionArgs.policyFlags);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.flags);
+    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, motionArgs.metaState);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_EQ(0, motionArgs.edgeFlags);
+    ASSERT_EQ(size_t(1), motionArgs.pointerCount);
+    ASSERT_EQ(0, motionArgs.pointerProperties[0].id);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0],
+            toDisplayX(x, VIRTUAL_DISPLAY_WIDTH), toDisplayY(y, VIRTUAL_DISPLAY_HEIGHT),
+            1, 0, 0, 0, 0, 0, 0, 0));
+    ASSERT_NEAR(X_PRECISION_VIRTUAL, motionArgs.xPrecision, EPSILON);
+    ASSERT_NEAR(Y_PRECISION_VIRTUAL, motionArgs.yPrecision, EPSILON);
+    ASSERT_EQ(ARBITRARY_TIME, motionArgs.downTime);
+
+    // Up.
+    processUp(mapper);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(ARBITRARY_TIME, motionArgs.eventTime);
+    ASSERT_EQ(DEVICE_ID, motionArgs.deviceId);
+    ASSERT_EQ(VIRTUAL_DISPLAY_ID, motionArgs.displayId);
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN, motionArgs.source);
+    ASSERT_EQ(uint32_t(0), motionArgs.policyFlags);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.flags);
+    ASSERT_EQ(AMETA_SHIFT_LEFT_ON | AMETA_SHIFT_ON, motionArgs.metaState);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_EQ(0, motionArgs.edgeFlags);
+    ASSERT_EQ(size_t(1), motionArgs.pointerCount);
+    ASSERT_EQ(0, motionArgs.pointerProperties[0].id);
+    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, motionArgs.pointerProperties[0].toolType);
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0],
+            toDisplayX(x, VIRTUAL_DISPLAY_WIDTH), toDisplayY(y, VIRTUAL_DISPLAY_HEIGHT),
+            1, 0, 0, 0, 0, 0, 0, 0));
+    ASSERT_NEAR(X_PRECISION_VIRTUAL, motionArgs.xPrecision, EPSILON);
+    ASSERT_NEAR(Y_PRECISION_VIRTUAL, motionArgs.yPrecision, EPSILON);
     ASSERT_EQ(ARBITRARY_TIME, motionArgs.downTime);
 
     // Should not have sent any more keys or motions.

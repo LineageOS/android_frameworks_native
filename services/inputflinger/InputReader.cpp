@@ -227,18 +227,65 @@ static void synthesizeButtonKeys(InputReaderContext* context, int32_t action,
 
 // --- InputReaderConfiguration ---
 
-bool InputReaderConfiguration::getDisplayInfo(bool external, DisplayViewport* outViewport) const {
-    const DisplayViewport& viewport = external ? mExternalDisplay : mInternalDisplay;
-    if (viewport.displayId >= 0) {
-        *outViewport = viewport;
+bool InputReaderConfiguration::getDisplayViewport(ViewportType viewportType,
+        const String8* uniqueDisplayId, DisplayViewport* outViewport) const {
+    const DisplayViewport* viewport = NULL;
+    if (viewportType == ViewportType::VIEWPORT_VIRTUAL && uniqueDisplayId != NULL) {
+        for (DisplayViewport currentViewport : mVirtualDisplays) {
+            if (currentViewport.uniqueId == *uniqueDisplayId) {
+                viewport = &currentViewport;
+                break;
+            }
+        }
+    } else if (viewportType == ViewportType::VIEWPORT_EXTERNAL) {
+        viewport = &mExternalDisplay;
+    } else if (viewportType == ViewportType::VIEWPORT_INTERNAL) {
+        viewport = &mInternalDisplay;
+    }
+
+    if (viewport != NULL && viewport->displayId >= 0) {
+        *outViewport = *viewport;
         return true;
     }
     return false;
 }
 
-void InputReaderConfiguration::setDisplayInfo(bool external, const DisplayViewport& viewport) {
-    DisplayViewport& v = external ? mExternalDisplay : mInternalDisplay;
-    v = viewport;
+void InputReaderConfiguration::setPhysicalDisplayViewport(ViewportType viewportType,
+        const DisplayViewport& viewport) {
+    if (viewportType == ViewportType::VIEWPORT_EXTERNAL) {
+        mExternalDisplay = viewport;
+    } else if (viewportType == ViewportType::VIEWPORT_INTERNAL) {
+        mInternalDisplay = viewport;
+    }
+}
+
+void InputReaderConfiguration::setVirtualDisplayViewports(
+        const Vector<DisplayViewport>& viewports) {
+    mVirtualDisplays = viewports;
+}
+
+void InputReaderConfiguration::dump(String8& dump) const {
+    dump.append(INDENT4 "ViewportInternal:\n");
+    dumpViewport(dump, mInternalDisplay);
+    dump.append(INDENT4 "ViewportExternal:\n");
+    dumpViewport(dump, mExternalDisplay);
+    dump.append(INDENT4 "ViewportVirtual:\n");
+    for (const DisplayViewport& viewport : mVirtualDisplays) {
+        dumpViewport(dump, viewport);
+    }
+}
+
+void InputReaderConfiguration::dumpViewport(String8& dump, const DisplayViewport& viewport) const {
+    dump.appendFormat(INDENT5 "Viewport: displayId=%d, orientation=%d, uniqueId='%s', "
+            "logicalFrame=[%d, %d, %d, %d], "
+            "physicalFrame=[%d, %d, %d, %d], "
+            "deviceSize=[%d, %d]\n",
+            viewport.displayId, viewport.orientation, viewport.uniqueId.c_str(),
+            viewport.logicalLeft, viewport.logicalTop,
+            viewport.logicalRight, viewport.logicalBottom,
+            viewport.physicalLeft, viewport.physicalTop,
+            viewport.physicalRight, viewport.physicalBottom,
+            viewport.deviceWidth, viewport.deviceHeight);
 }
 
 
@@ -851,6 +898,9 @@ void InputReader::dump(String8& dump) {
             mConfig.pointerGestureMovementSpeedRatio);
     dump.appendFormat(INDENT3 "ZoomSpeedRatio: %0.1f\n",
             mConfig.pointerGestureZoomSpeedRatio);
+
+    dump.append(INDENT3 "Viewports:\n");
+    mConfig.dump(dump);
 }
 
 void InputReader::monitor() {
@@ -2161,7 +2211,7 @@ void KeyboardInputMapper::configure(nsecs_t when,
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
             DisplayViewport v;
-            if (config->getDisplayInfo(false /*external*/, &v)) {
+            if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &v)) {
                 mOrientation = v.orientation;
             } else {
                 mOrientation = DISPLAY_ORIENTATION_0;
@@ -2534,7 +2584,7 @@ void CursorInputMapper::configure(nsecs_t when,
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
             DisplayViewport v;
-            if (config->getDisplayInfo(false /*external*/, &v)) {
+            if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &v)) {
                 mOrientation = v.orientation;
             } else {
                 mOrientation = DISPLAY_ORIENTATION_0;
@@ -2979,7 +3029,7 @@ void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
 }
 
 void TouchInputMapper::dump(String8& dump) {
-    dump.append(INDENT2 "Touch Input Mapper:\n");
+    dump.appendFormat(INDENT2 "Touch Input Mapper (mode - %s):\n", modeToString(mDeviceMode));
     dumpParameters(dump);
     dumpVirtualKeys(dump);
     dumpRawPointerAxes(dump);
@@ -3069,6 +3119,22 @@ void TouchInputMapper::dump(String8& dump) {
         dump.appendFormat(INDENT4 "MaxSwipeWidth: %f\n",
                 mPointerGestureMaxSwipeWidth);
     }
+}
+
+const char* TouchInputMapper::modeToString(DeviceMode deviceMode) {
+    switch (deviceMode) {
+    case DEVICE_MODE_DISABLED:
+        return "disabled";
+    case DEVICE_MODE_DIRECT:
+        return "direct";
+    case DEVICE_MODE_UNSCALED:
+        return "unscaled";
+    case DEVICE_MODE_NAVIGATION:
+        return "navigation";
+    case DEVICE_MODE_POINTER:
+        return "pointer";
+    }
+    return "unknown";
 }
 
 void TouchInputMapper::configure(nsecs_t when,
@@ -3196,9 +3262,11 @@ void TouchInputMapper::configureParameters() {
             || mParameters.deviceType == Parameters::DEVICE_TYPE_TOUCH_SCREEN
             || mParameters.deviceType == Parameters::DEVICE_TYPE_POINTER) {
         mParameters.hasAssociatedDisplay = true;
-        mParameters.associatedDisplayIsExternal =
-                mParameters.deviceType == Parameters::DEVICE_TYPE_TOUCH_SCREEN
-                        && getDevice()->isExternal();
+        if (mParameters.deviceType == Parameters::DEVICE_TYPE_TOUCH_SCREEN) {
+            mParameters.associatedDisplayIsExternal = getDevice()->isExternal();
+            getDevice()->getConfiguration().tryGetProperty(String8("touch.displayId"),
+                    mParameters.uniqueDisplayId);
+        }
     }
 
     // Initial downs on external touch devices should wake the device.
@@ -3240,9 +3308,11 @@ void TouchInputMapper::dumpParameters(String8& dump) {
         ALOG_ASSERT(false);
     }
 
-    dump.appendFormat(INDENT4 "AssociatedDisplay: hasAssociatedDisplay=%s, isExternal=%s\n",
+    dump.appendFormat(
+            INDENT4 "AssociatedDisplay: hasAssociatedDisplay=%s, isExternal=%s, displayId='%s'\n",
             toString(mParameters.hasAssociatedDisplay),
-            toString(mParameters.associatedDisplayIsExternal));
+            toString(mParameters.associatedDisplayIsExternal),
+            mParameters.uniqueDisplayId.c_str());
     dump.appendFormat(INDENT4 "OrientationAware: %s\n",
             toString(mParameters.orientationAware));
 }
@@ -3318,7 +3388,21 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     // Get associated display dimensions.
     DisplayViewport newViewport;
     if (mParameters.hasAssociatedDisplay) {
-        if (!mConfig.getDisplayInfo(mParameters.associatedDisplayIsExternal, &newViewport)) {
+        const String8* uniqueDisplayId = NULL;
+        ViewportType viewportTypeToUse;
+
+        if (mParameters.associatedDisplayIsExternal) {
+            viewportTypeToUse = ViewportType::VIEWPORT_EXTERNAL;
+        } else if (!mParameters.uniqueDisplayId.isEmpty()) {
+            // If the IDC file specified a unique display Id, then it expects to be linked to a
+            // virtual display with the same unique ID.
+            uniqueDisplayId = &mParameters.uniqueDisplayId;
+            viewportTypeToUse = ViewportType::VIEWPORT_VIRTUAL;
+        } else {
+            viewportTypeToUse = ViewportType::VIEWPORT_INTERNAL;
+        }
+
+        if (!mConfig.getDisplayViewport(viewportTypeToUse, uniqueDisplayId, &newViewport)) {
             ALOGI(INDENT "Touch device '%s' could not query the properties of its associated "
                     "display.  The device will be inoperable until the display size "
                     "becomes available.",
