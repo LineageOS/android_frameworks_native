@@ -33,13 +33,14 @@ BufferHubQueueCore::BufferHubQueueCore()
       unique_id_(getUniqueId()) {}
 
 status_t BufferHubQueueCore::AllocateBuffer(uint32_t width, uint32_t height,
-                                            PixelFormat format, uint32_t usage,
-                                            size_t slice_count) {
+                                            uint32_t layer_count,
+                                            PixelFormat format,
+                                            uint64_t usage) {
   size_t slot;
 
   // Allocate new buffer through BufferHub and add it into |producer_| queue for
   // bookkeeping.
-  if (producer_->AllocateBuffer(width, height, format, usage, slice_count,
+  if (producer_->AllocateBuffer(width, height, layer_count, format, usage,
                                 &slot) < 0) {
     ALOGE("Failed to allocate new buffer in BufferHub.");
     return NO_MEMORY;

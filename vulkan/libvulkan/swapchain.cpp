@@ -22,6 +22,7 @@
 #include <sync/sync.h>
 #include <utils/StrongPointer.h>
 #include <utils/Vector.h>
+#include <system/window.h>
 
 #include "driver.h"
 

@@ -38,6 +38,8 @@
 #include <gui/ISurfaceComposer.h>
 #include <private/gui/ComposerService.h>
 
+#include <system/window.h>
+
 namespace android {
 
 static String8 getUniqueName() {

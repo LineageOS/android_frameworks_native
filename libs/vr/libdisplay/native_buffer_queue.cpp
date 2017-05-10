@@ -27,8 +27,8 @@ NativeBufferQueue::NativeBufferQueue(
   for (size_t i = 0; i < capacity; i++) {
     size_t slot;
     // TODO(jwcai) Should change to use BufferViewPort's spec to config.
-    const int ret = producer_queue_->AllocateBuffer(width_, height_, format_,
-                                                    usage_, 1, &slot);
+    const int ret = producer_queue_->AllocateBuffer(width_, height_, 1, format_,
+                                                    usage_, &slot);
     if (ret < 0) {
       ALOGE(
           "NativeBufferQueue::NativeBufferQueue: Failed to allocate buffer: %s",

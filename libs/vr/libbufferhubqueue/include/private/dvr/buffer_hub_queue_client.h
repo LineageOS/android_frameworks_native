@@ -336,8 +336,8 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // use (i.e. in |Gain|'ed mode).
   // Returns Zero on success and negative error code when buffer allocation
   // fails.
-  int AllocateBuffer(uint32_t width, uint32_t height, uint32_t format,
-                     uint64_t usage, size_t slice_count, size_t* out_slot);
+  int AllocateBuffer(uint32_t width, uint32_t height, uint32_t layer_count,
+                     uint32_t format, uint64_t usage, size_t* out_slot);
 
   // Add a producer buffer to populate the queue. Once added, a producer buffer
   // is available to use (i.e. in |Gain|'ed mode).

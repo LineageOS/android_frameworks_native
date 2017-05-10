@@ -162,7 +162,8 @@ typedef int (*DvrSurfaceSetAttributesPtr)(DvrSurface* surface,
                                           size_t attribute_count);
 typedef int (*DvrSurfaceCreateWriteBufferQueuePtr)(
     DvrSurface* surface, uint32_t width, uint32_t height, uint32_t format,
-    uint64_t usage, size_t capacity, DvrWriteBufferQueue** queue_out);
+    uint32_t layer_count, uint64_t usage, size_t capacity,
+    DvrWriteBufferQueue** queue_out);
 
 // vsync_client_api.h
 typedef int (*DvrVSyncClientCreatePtr)(DvrVSyncClient** client_out);
@@ -261,13 +262,10 @@ typedef DvrHwcRecti (*DvrHwcFrameGetLayerDamagedRegionPtr)(DvrHwcFrame* frame,
 
 // The buffer metadata that an Android Surface (a.k.a. ANativeWindow)
 // will populate. A DvrWriteBufferQueue must be created with this metadata iff
-// ANativeWindow access is needed. Note that this struct must stay in sync with
-// BufferHubQueueCore::NativeBufferMetadata. Please do not remove, modify, or
-// reorder existing data members. If new fields need to be added, please take
-// extra care to make sure that new data field is padded properly the size of
-// the struct stays same.
-// TODO(b/37578558) Move |dvr_api.h| into a header library so that this
-// structure won't be copied between |dvr_api.h| and |buffer_hub_qeue_core.h|.
+// ANativeWindow access is needed. Please do not remove, modify, or reorder
+// existing data members. If new fields need to be added, please take extra care
+// to make sure that new data field is padded properly the size of the struct
+// stays same.
 struct DvrNativeBufferMetadata {
   // Timestamp of the frame.
   int64_t timestamp;

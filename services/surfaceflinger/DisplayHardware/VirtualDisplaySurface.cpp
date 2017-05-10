@@ -22,6 +22,7 @@
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
 #include <gui/IProducerListener.h>
+#include <system/window.h>
 
 // ---------------------------------------------------------------------------
 namespace android {

@@ -78,7 +78,8 @@ int dvrSurfaceSetAttributes(DvrSurface* surface,
 // @return 0 on success. Otherwise returns a negative error value.
 int dvrSurfaceCreateWriteBufferQueue(DvrSurface* surface, uint32_t width,
                                      uint32_t height, uint32_t format,
-                                     uint64_t usage, size_t capacity,
+                                     uint32_t layer_count, uint64_t usage,
+                                     size_t capacity,
                                      DvrWriteBufferQueue** queue_out);
 
 // Get a named buffer from the display service.

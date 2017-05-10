@@ -123,15 +123,13 @@ Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue() {
   return {std::move(producer_queue)};
 }
 
-Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(uint32_t width,
-                                                            uint32_t height,
-                                                            uint32_t format,
-                                                            uint64_t usage,
-                                                            size_t capacity) {
+Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(
+    uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
+    uint64_t usage, size_t capacity) {
   ALOGD_IF(TRACE,
-           "Surface::CreateQueue: width=%u height=%u format=%u usage=%" PRIx64
-           " capacity=%zu",
-           width, height, format, usage, capacity);
+           "Surface::CreateQueue: width=%u height=%u layer_count=%u format=%u "
+           "usage=%" PRIx64 " capacity=%zu",
+           width, height, layer_count, format, usage, capacity);
   auto status = CreateQueue();
   if (!status)
     return status.error_status();
@@ -141,9 +139,8 @@ Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(uint32_t width,
   ALOGD_IF(TRACE, "Surface::CreateQueue: Allocating %zu buffers...", capacity);
   for (size_t i = 0; i < capacity; i++) {
     size_t slot;
-    const size_t kSliceCount = 1;
-    const int ret = producer_queue->AllocateBuffer(width, height, format, usage,
-                                                   kSliceCount, &slot);
+    const int ret = producer_queue->AllocateBuffer(width, height, layer_count,
+                                                   format, usage, &slot);
     if (ret < 0) {
       ALOGE(
           "Surface::CreateQueue: Failed to allocate buffer on queue_id=%d: %s",

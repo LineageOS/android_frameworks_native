@@ -15,9 +15,9 @@ namespace {
 
 static constexpr int kBufferWidth = 100;
 static constexpr int kBufferHeight = 1;
+static constexpr int kLayerCount = 1;
 static constexpr int kBufferFormat = HAL_PIXEL_FORMAT_BLOB;
 static constexpr int kBufferUsage = GRALLOC_USAGE_SW_READ_RARELY;
-static constexpr int kBufferSliceCount = 1;  // number of slices in each buffer
 static constexpr size_t kQueueCapacity = 3;
 
 typedef uint64_t TestMeta;
@@ -40,10 +40,9 @@ class DvrBufferQueueTest : public ::testing::Test {
   void AllocateBuffers(size_t buffer_count) {
     size_t out_slot;
     for (size_t i = 0; i < buffer_count; i++) {
-      int ret =
-          GetProducerQueueFromDvrWriteBufferQueue(write_queue_)
-              ->AllocateBuffer(kBufferWidth, kBufferHeight, kBufferFormat,
-                               kBufferUsage, kBufferSliceCount, &out_slot);
+      int ret = GetProducerQueueFromDvrWriteBufferQueue(write_queue_)
+                    ->AllocateBuffer(kBufferWidth, kBufferHeight, kLayerCount,
+                                     kBufferFormat, kBufferUsage, &out_slot);
       ASSERT_EQ(0, ret);
     }
   }

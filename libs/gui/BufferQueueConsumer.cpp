@@ -36,6 +36,8 @@
 #include <binder/PermissionCache.h>
 #include <private/android_filesystem_config.h>
 
+#include <system/window.h>
+
 namespace android {
 
 BufferQueueConsumer::BufferQueueConsumer(const sp<BufferQueueCore>& core) :

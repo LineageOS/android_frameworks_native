@@ -2,8 +2,8 @@
 
 #include <inttypes.h>
 #include <log/log.h>
-#include <sys/epoll.h>
 #include <poll.h>
+#include <sys/epoll.h>
 
 #include <array>
 
@@ -389,8 +389,8 @@ ProducerQueue::ProducerQueue(size_t meta_size, uint64_t usage_set_mask,
 }
 
 int ProducerQueue::AllocateBuffer(uint32_t width, uint32_t height,
-                                  uint32_t format, uint64_t usage,
-                                  size_t slice_count, size_t* out_slot) {
+                                  uint32_t layer_count, uint32_t format,
+                                  uint64_t usage, size_t* out_slot) {
   if (out_slot == nullptr) {
     ALOGE("ProducerQueue::AllocateBuffer: Parameter out_slot cannot be null.");
     return -EINVAL;
@@ -405,7 +405,7 @@ int ProducerQueue::AllocateBuffer(uint32_t width, uint32_t height,
   const size_t kBufferCount = 1U;
   Status<std::vector<std::pair<LocalChannelHandle, size_t>>> status =
       InvokeRemoteMethod<BufferHubRPC::ProducerQueueAllocateBuffers>(
-          width, height, format, usage, slice_count, kBufferCount);
+          width, height, layer_count, format, usage, kBufferCount);
   if (!status) {
     ALOGE("ProducerQueue::AllocateBuffer failed to create producer buffer: %s",
           status.GetErrorMessage().c_str());

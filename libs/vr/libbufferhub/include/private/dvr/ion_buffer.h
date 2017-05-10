@@ -16,8 +16,8 @@ class IonBuffer {
   IonBuffer(buffer_handle_t handle, uint32_t width, uint32_t height,
             uint32_t stride, uint32_t format, uint64_t usage);
   IonBuffer(buffer_handle_t handle, uint32_t width, uint32_t height,
-            uint32_t layer_count, uint32_t stride, uint32_t layer_stride,
-            uint32_t format, uint64_t usage);
+            uint32_t layer_count, uint32_t stride, uint32_t format,
+            uint64_t usage);
   ~IonBuffer();
 
   IonBuffer(IonBuffer&& other);
@@ -31,25 +31,29 @@ class IonBuffer {
   // previous native handle if necessary. Returns 0 on success or a negative
   // errno code otherwise. If allocation fails the previous native handle is
   // left intact.
-  int Alloc(uint32_t width, uint32_t height, uint32_t format, uint64_t usage);
+  int Alloc(uint32_t width, uint32_t height, uint32_t layer_count,
+            uint32_t format, uint64_t usage);
 
   // Resets the underlying native handle and parameters, freeing the previous
   // native handle if necessary.
   void Reset(buffer_handle_t handle, uint32_t width, uint32_t height,
-             uint32_t stride, uint32_t format, uint64_t usage);
+             uint32_t layer_count, uint32_t stride, uint32_t format,
+             uint64_t usage);
 
   // Like Reset but also registers the native handle, which is necessary for
   // native handles received over IPC. Returns 0 on success or a negative errno
   // code otherwise. If import fails the previous native handle is left intact.
   int Import(buffer_handle_t handle, uint32_t width, uint32_t height,
-             uint32_t stride, uint32_t format, uint64_t usage);
+             uint32_t layer_count, uint32_t stride, uint32_t format,
+             uint64_t usage);
 
   // Like Reset but imports a native handle from raw fd and int arrays. Returns
   // 0 on success or a negative errno code otherwise. If import fails the
   // previous native handle is left intact.
   int Import(const int* fd_array, int fd_count, const int* int_array,
-             int int_count, uint32_t width, uint32_t height, uint32_t stride,
-             uint32_t format, uint64_t usage);
+             int int_count, uint32_t width, uint32_t height,
+             uint32_t layer_count, uint32_t stride, uint32_t format,
+             uint64_t usage);
 
   // Duplicates the native handle underlying |other| and then imports it. This
   // is useful for creating multiple, independent views of the same Ion/Gralloc
@@ -72,7 +76,6 @@ class IonBuffer {
     return buffer_.get() ? buffer_->getLayerCount() : 0;
   }
   uint32_t stride() const { return buffer_.get() ? buffer_->getStride() : 0; }
-  uint32_t layer_stride() const { return 0; }
   uint32_t format() const {
     return buffer_.get() ? buffer_->getPixelFormat() : 0;
   }

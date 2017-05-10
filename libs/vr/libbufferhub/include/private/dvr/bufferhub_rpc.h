@@ -23,6 +23,7 @@ class NativeBufferHandle {
         stride_(buffer.stride()),
         width_(buffer.width()),
         height_(buffer.height()),
+        layer_count_(buffer.layer_count()),
         format_(buffer.format()),
         usage_(buffer.usage()) {
     // Populate the fd and int vectors: native_handle->data[] is an array of fds
@@ -47,9 +48,10 @@ class NativeBufferHandle {
     for (const auto& fd : fds_)
       fd_ints.push_back(fd.Get());
 
-    const int ret = buffer->Import(fd_ints.data(), fd_ints.size(),
-                                   opaque_ints_.data(), opaque_ints_.size(),
-                                   width_, height_, stride_, format_, usage_);
+    const int ret =
+        buffer->Import(fd_ints.data(), fd_ints.size(), opaque_ints_.data(),
+                       opaque_ints_.size(), width_, height_, layer_count_,
+                       stride_, format_, usage_);
     if (ret < 0)
       return ret;
 
@@ -72,6 +74,7 @@ class NativeBufferHandle {
   uint32_t stride_;
   uint32_t width_;
   uint32_t height_;
+  uint32_t layer_count_;
   uint32_t format_;
   uint64_t usage_;
   std::vector<int> opaque_ints_;
@@ -83,8 +86,8 @@ class NativeBufferHandle {
   }
 
   PDX_SERIALIZABLE_MEMBERS(NativeBufferHandle<FileHandleType>, id_, stride_,
-                           width_, height_, format_, usage_, opaque_ints_,
-                           fds_);
+                           width_, height_, layer_count_, format_, usage_,
+                           opaque_ints_, fds_);
 
   NativeBufferHandle(const NativeBufferHandle&) = delete;
   void operator=(const NativeBufferHandle&) = delete;
@@ -166,7 +169,6 @@ struct BufferHubRPC {
     kOpCreatePersistentBuffer,
     kOpGetPersistentBuffer,
     kOpGetBuffer,
-    kOpGetBuffers,
     kOpNewConsumer,
     kOpProducerMakePersistent,
     kOpProducerRemovePersistence,
@@ -192,19 +194,15 @@ struct BufferHubRPC {
   // Methods.
   PDX_REMOTE_METHOD(CreateBuffer, kOpCreateBuffer,
                     void(uint32_t width, uint32_t height, uint32_t format,
-                         uint64_t usage, size_t meta_size_bytes,
-                         size_t slice_count));
+                         uint64_t usage, size_t meta_size_bytes));
   PDX_REMOTE_METHOD(CreatePersistentBuffer, kOpCreatePersistentBuffer,
                     void(const std::string& name, int user_id, int group_id,
                          uint32_t width, uint32_t height, uint32_t format,
-                         uint64_t usage, size_t meta_size_bytes,
-                         size_t slice_count));
+                         uint64_t usage, size_t meta_size_bytes));
   PDX_REMOTE_METHOD(GetPersistentBuffer, kOpGetPersistentBuffer,
                     void(const std::string& name));
   PDX_REMOTE_METHOD(GetBuffer, kOpGetBuffer,
-                    NativeBufferHandle<LocalHandle>(unsigned index));
-  PDX_REMOTE_METHOD(GetBuffers, kOpGetBuffers,
-                    std::vector<NativeBufferHandle<LocalHandle>>(Void));
+                    NativeBufferHandle<LocalHandle>(Void));
   PDX_REMOTE_METHOD(NewConsumer, kOpNewConsumer, LocalChannelHandle(Void));
   PDX_REMOTE_METHOD(ProducerMakePersistent, kOpProducerMakePersistent,
                     void(const std::string& name, int user_id, int group_id));
@@ -229,9 +227,8 @@ struct BufferHubRPC {
   PDX_REMOTE_METHOD(ProducerQueueAllocateBuffers,
                     kOpProducerQueueAllocateBuffers,
                     std::vector<std::pair<LocalChannelHandle, size_t>>(
-                        uint32_t width, uint32_t height, uint32_t format,
-                        uint64_t usage, size_t slice_count,
-                        size_t buffer_count));
+                        uint32_t width, uint32_t height, uint32_t layer_count,
+                        uint32_t format, uint64_t usage, size_t buffer_count));
   PDX_REMOTE_METHOD(ProducerQueueDetachBuffer, kOpProducerQueueDetachBuffer,
                     void(size_t slot));
   PDX_REMOTE_METHOD(ConsumerQueueImportBuffers, kOpConsumerQueueImportBuffers,

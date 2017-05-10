@@ -39,14 +39,12 @@ Status<std::shared_ptr<ProducerQueueChannel>> ProducerQueueChannel::Create(
     const UsagePolicy& usage_policy) {
   // Configuration between |usage_deny_set_mask| and |usage_deny_clear_mask|
   // should be mutually exclusive.
-  if ((usage_policy.usage_deny_set_mask &
-       usage_policy.usage_deny_clear_mask)) {
+  if ((usage_policy.usage_deny_set_mask & usage_policy.usage_deny_clear_mask)) {
     ALOGE(
         "BufferHubService::OnCreateProducerQueue: illegal usage mask "
         "configuration: usage_deny_set_mask=%" PRIx64
         " usage_deny_clear_mask=%" PRIx64,
-        usage_policy.usage_deny_set_mask,
-        usage_policy.usage_deny_clear_mask);
+        usage_policy.usage_deny_set_mask, usage_policy.usage_deny_clear_mask);
     return ErrorStatus(EINVAL);
   }
 
@@ -141,8 +139,8 @@ Status<QueueInfo> ProducerQueueChannel::OnGetQueueInfo(Message&) {
 
 Status<std::vector<std::pair<RemoteChannelHandle, size_t>>>
 ProducerQueueChannel::OnProducerQueueAllocateBuffers(
-    Message& message, uint32_t width, uint32_t height, uint32_t format,
-    uint64_t usage, size_t slice_count, size_t buffer_count) {
+    Message& message, uint32_t width, uint32_t height, uint32_t layer_count,
+    uint32_t format, uint64_t usage, size_t buffer_count) {
   ATRACE_NAME("ProducerQueueChannel::OnProducerQueueAllocateBuffers");
   ALOGD_IF(TRACE,
            "ProducerQueueChannel::OnProducerQueueAllocateBuffers: "
@@ -176,8 +174,8 @@ ProducerQueueChannel::OnProducerQueueAllocateBuffers(
       (usage & ~usage_policy_.usage_clear_mask) | usage_policy_.usage_set_mask;
 
   for (size_t i = 0; i < buffer_count; i++) {
-    auto status = AllocateBuffer(message, width, height, format,
-                                 effective_usage, slice_count);
+    auto status = AllocateBuffer(message, width, height, layer_count, format,
+                                 effective_usage);
     if (!status) {
       ALOGE(
           "ProducerQueueChannel::OnProducerQueueAllocateBuffers: Failed to "
@@ -192,8 +190,8 @@ ProducerQueueChannel::OnProducerQueueAllocateBuffers(
 
 Status<std::pair<RemoteChannelHandle, size_t>>
 ProducerQueueChannel::AllocateBuffer(Message& message, uint32_t width,
-                                     uint32_t height, uint32_t format,
-                                     uint64_t usage, size_t slice_count) {
+                                     uint32_t height, uint32_t layer_count,
+                                     uint32_t format, uint64_t usage) {
   ATRACE_NAME("ProducerQueueChannel::AllocateBuffer");
   ALOGD_IF(TRACE,
            "ProducerQueueChannel::AllocateBuffer: producer_channel_id=%d",
@@ -218,13 +216,13 @@ ProducerQueueChannel::AllocateBuffer(Message& message, uint32_t width,
 
   ALOGD_IF(TRACE,
            "ProducerQueueChannel::AllocateBuffer: buffer_id=%d width=%u "
-           "height=%u format=%u usage=%" PRIx64 " slice_count=%zu",
-           buffer_id, width, height, format, usage, slice_count);
+           "height=%u layer_count=%u format=%u usage=%" PRIx64,
+           buffer_id, width, height, layer_count, format, usage);
   auto buffer_handle = status.take();
 
   auto producer_channel_status =
-      ProducerChannel::Create(service(), buffer_id, width, height, format,
-                              usage, meta_size_bytes_, slice_count);
+      ProducerChannel::Create(service(), buffer_id, width, height, layer_count,
+                              format, usage, meta_size_bytes_);
   if (!producer_channel_status) {
     ALOGE(
         "ProducerQueueChannel::AllocateBuffer: Failed to create producer "

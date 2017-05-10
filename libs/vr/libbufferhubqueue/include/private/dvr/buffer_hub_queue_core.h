@@ -118,8 +118,8 @@ class BufferHubQueueCore {
   BufferHubQueueCore();
 
   // Allocate a new buffer producer through BufferHub.
-  int AllocateBuffer(uint32_t width, uint32_t height, PixelFormat format,
-                     uint32_t usage, size_t slice_count);
+  int AllocateBuffer(uint32_t width, uint32_t height, uint32_t layer_count,
+                     PixelFormat format, uint64_t usage);
 
   // Detach a buffer producer through BufferHub.
   int DetachBuffer(size_t slot);

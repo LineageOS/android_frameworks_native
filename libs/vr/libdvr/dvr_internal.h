@@ -44,6 +44,8 @@ ProducerQueue* GetProducerQueueFromDvrWriteBufferQueue(
 
 extern "C" {
 
+struct ANativeWindow;
+
 struct DvrWriteBuffer {
   std::shared_ptr<android::dvr::BufferProducer> write_buffer;
 };

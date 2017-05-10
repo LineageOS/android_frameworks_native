@@ -17,6 +17,7 @@
 #include "LayerRejecter.h"
 
 #include <gui/BufferItem.h>
+#include <system/window.h>
 
 #include "clz.h"
 
