@@ -847,6 +847,66 @@ bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_pat
     return true;
 }
 
+bool copy_system_profile(const std::string& system_profile,
+        uid_t packageUid, const std::string& data_profile_location) {
+    unique_fd in_fd(open(system_profile.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC));
+    unique_fd out_fd(open_reference_profile(packageUid,
+                     data_profile_location,
+                     /*read_write*/ true,
+                     /*secondary*/ false));
+    if (in_fd.get() < 0) {
+        PLOG(WARNING) << "Could not open profile " << system_profile;
+        return false;
+    }
+    if (out_fd.get() < 0) {
+        PLOG(WARNING) << "Could not open profile " << data_profile_location;
+        return false;
+    }
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        /* child -- drop privileges before continuing */
+        drop_capabilities(packageUid);
+
+        if (flock(out_fd.get(), LOCK_EX | LOCK_NB) != 0) {
+            if (errno != EWOULDBLOCK) {
+                PLOG(WARNING) << "Error locking profile " << data_profile_location;
+            }
+            // This implies that the app owning this profile is running
+            // (and has acquired the lock).
+            //
+            // The app never acquires the lock for the reference profiles of primary apks.
+            // Only dex2oat from installd will do that. Since installd is single threaded
+            // we should not see this case. Nevertheless be prepared for it.
+            PLOG(WARNING) << "Failed to flock " << data_profile_location;
+            return false;
+        }
+
+        bool truncated = ftruncate(out_fd.get(), 0) == 0;
+        if (!truncated) {
+            PLOG(WARNING) << "Could not truncate " << data_profile_location;
+        }
+
+        // Copy over data.
+        static constexpr size_t kBufferSize = 4 * 1024;
+        char buffer[kBufferSize];
+        while (true) {
+            ssize_t bytes = read(in_fd.get(), buffer, kBufferSize);
+            if (bytes == 0) {
+                break;
+            }
+            write(out_fd.get(), buffer, bytes);
+        }
+        if (flock(out_fd.get(), LOCK_UN) != 0) {
+            PLOG(WARNING) << "Error unlocking profile " << data_profile_location;
+        }
+        exit(0);
+    }
+    /* parent */
+    int return_code = wait_child(pid);
+    return return_code == 0;
+}
+
 static std::string replace_file_extension(const std::string& oat_path, const std::string& new_ext) {
   // A standard dalvik-cache entry. Replace ".dex" with `new_ext`.
   if (EndsWith(oat_path, ".dex")) {
