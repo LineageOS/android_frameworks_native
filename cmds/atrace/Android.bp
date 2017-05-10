@@ -16,9 +16,6 @@ cc_binary {
         "libz",
         "libbase",
     ],
-    static_libs: [
-        "libpdx_default_transport",
-    ],
 
     init_rc: ["atrace.rc"],
 
