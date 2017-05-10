@@ -1141,7 +1141,7 @@ status_t H2BGraphicBufferProducer::disconnect(int api, DisconnectMode mode) {
 
 status_t H2BGraphicBufferProducer::setSidebandStream(
         const sp<NativeHandle>& stream) {
-    return toStatusT(mBase->setSidebandStream(stream->handle()));
+    return toStatusT(mBase->setSidebandStream(stream == nullptr ? nullptr : stream->handle()));
 }
 
 void H2BGraphicBufferProducer::allocateBuffers(uint32_t width, uint32_t height,
