@@ -734,6 +734,10 @@ private:
     }
 
     static const char* ParseNull(const char* arg) {
+        // b/38186355. Revert soon.
+        if (strcmp(arg, "!null") == 0) {
+            return nullptr;
+        }
         return (strcmp(arg, "!") == 0) ? nullptr : arg;
     }
 
