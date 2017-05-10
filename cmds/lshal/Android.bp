@@ -24,6 +24,7 @@ cc_binary {
         "libvintf",
     ],
     srcs: [
+        "DebugCommand.cpp",
         "Lshal.cpp",
         "ListCommand.cpp",
         "PipeRelay.cpp",
