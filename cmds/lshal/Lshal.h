@@ -38,12 +38,12 @@ public:
     NullableOStream<std::ostream> err() const;
     NullableOStream<std::ostream> out() const;
 
-    static void emitDebugInfo(
-            const sp<hidl::manager::V1_0::IServiceManager> &serviceManager,
+    Status emitDebugInfo(
             const std::string &interfaceName,
             const std::string &instanceName,
             const std::vector<std::string> &options,
-            std::ostream &out);
+            std::ostream &out,
+            NullableOStream<std::ostream> err) const;
 private:
     Status parseArgs(const Arg &arg);
     std::string mCommand;

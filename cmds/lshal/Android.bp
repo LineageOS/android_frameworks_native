@@ -25,6 +25,7 @@ cc_binary {
         "android.hidl.manager@1.0",
     ],
     srcs: [
+        "DebugCommand.cpp",
         "Lshal.cpp",
         "ListCommand.cpp",
         "PipeRelay.cpp",
