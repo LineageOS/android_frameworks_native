@@ -126,6 +126,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
         mPremultipliedAlpha = false;
 
     mName = name;
+    mTransactionName = String8("TX - ") + mName;
 
     mCurrentState.active.w = w;
     mCurrentState.active.h = h;
@@ -1482,6 +1483,7 @@ void Layer::pushPendingState() {
         mFlinger->setTransactionFlags(eTraversalNeeded);
     }
     mPendingStates.push_back(mCurrentState);
+    ATRACE_INT(mTransactionName.string(), mPendingStates.size());
 }
 
 void Layer::popPendingState(State* stateToCommit) {
@@ -1491,6 +1493,7 @@ void Layer::popPendingState(State* stateToCommit) {
             (stateToCommit->flags & stateToCommit->mask);
 
     mPendingStates.removeAt(0);
+    ATRACE_INT(mTransactionName.string(), mPendingStates.size());
 }
 
 bool Layer::applyPendingStates(State* stateToCommit) {
