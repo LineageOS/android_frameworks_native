@@ -25,6 +25,8 @@ cc_binary {
     ],
     srcs: [
         "Lshal.cpp",
-        "PipeRelay.cpp"
+        "ListCommand.cpp",
+        "PipeRelay.cpp",
+        "utils.cpp",
     ],
 }
