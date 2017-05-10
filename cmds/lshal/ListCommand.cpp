@@ -27,7 +27,6 @@
 
 #include <android-base/parseint.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
-#include <hidl/ServiceManagement.h>
 #include <hidl-util/FQName.h>
 #include <private/android_filesystem_config.h>
 #include <sys/stat.h>
@@ -558,7 +557,7 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
 
 Status ListCommand::fetch() {
     Status status = OK;
-    auto bManager = ::android::hardware::defaultServiceManager();
+    auto bManager = mLshal.serviceManager();
     if (bManager == nullptr) {
         mErr << "Failed to get defaultServiceManager()!" << std::endl;
         status |= NO_BINDERIZED_MANAGER;
@@ -568,7 +567,7 @@ Status ListCommand::fetch() {
         status |= fetchPassthrough(bManager);
     }
 
-    auto pManager = ::android::hardware::getPassthroughServiceManager();
+    auto pManager = mLshal.passthroughManager();
     if (pManager == nullptr) {
         mErr << "Failed to get getPassthroughServiceManager()!" << std::endl;
         status |= NO_PASSTHROUGH_MANAGER;
