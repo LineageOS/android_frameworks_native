@@ -530,7 +530,6 @@ struct ANativeWindow
  /* Backwards compatibility: use ANativeWindow (struct ANativeWindow in C).
   * android_native_window_t is deprecated.
   */
-typedef struct ANativeWindow ANativeWindow;
 typedef struct ANativeWindow android_native_window_t __deprecated;
 
 /*
