@@ -657,6 +657,7 @@ private:
     uint32_t mTextureName;      // from GLES
     bool mPremultipliedAlpha;
     String8 mName;
+    String8 mTransactionName; // A cached version of "TX - " + mName for systraces
     PixelFormat mFormat;
 
     // these are protected by an external lock
