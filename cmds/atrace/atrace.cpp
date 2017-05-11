@@ -39,7 +39,6 @@
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <hidl/ServiceManagement.h>
 
-#include <pdx/default_transport/service_utility.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
 #include <utils/Tokenizer.h>
@@ -50,7 +49,6 @@
 #include <android-base/stringprintf.h>
 
 using namespace android;
-using pdx::default_transport::ServiceUtility;
 
 using std::string;
 
@@ -809,7 +807,6 @@ static bool setUpTrace()
     ok &= setAppCmdlineProperty(&packageList[0]);
     ok &= pokeBinderServices();
     pokeHalServices();
-    ok &= ServiceUtility::PokeServices();
 
     // Disable all the sysfs enables.  This is done as a separate loop from
     // the enables to allow the same enable to exist in multiple categories.
@@ -847,7 +844,6 @@ static void cleanUpTrace()
     setTagsProperty(0);
     clearAppProperties();
     pokeBinderServices();
-    ServiceUtility::PokeServices();
 
     // Set the options back to their defaults.
     setTraceOverwriteEnable(true);
