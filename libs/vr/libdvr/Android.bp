@@ -19,47 +19,69 @@ cc_library_headers {
     export_include_dirs: ["include"],
 }
 
-cc_library_static {
+cflags = [
+    "-DLOG_TAG=\"libdvr\"",
+]
+
+srcs = [
+    "dvr_api.cpp",
+    "dvr_buffer.cpp",
+    "dvr_buffer_queue.cpp",
+    "dvr_display_manager.cpp",
+    "dvr_hardware_composer_client.cpp",
+    "dvr_surface.cpp",
+    "dvr_vsync.cpp",
+]
+
+static_libs = [
+    "libbufferhub",
+    "libbufferhubqueue",
+    "libdisplay",
+    "libvrsensor",
+    "libvirtualtouchpadclient",
+    "libvr_hwc-impl",
+    "libvr_hwc-binder",
+    "libgrallocusage",
+    "libpdx_default_transport",
+]
+
+shared_libs = [
+    "android.hardware.graphics.bufferqueue@1.0",
+    "android.hidl.token@1.0-utils",
+    "libbase",
+    "libbinder",
+    "liblog",
+    "libcutils",
+    "libutils",
+    "libnativewindow",
+    "libgui",
+    "libui",
+]
+
+cc_library_shared {
     name: "libdvr",
     owner: "google",
-
-    cflags: [
-        "-fvisibility=hidden",
-        "-DLOG_TAG=\"libdvr\"",
-        "-DDVR_EXPORT=__attribute__((visibility(\"default\")))",
-    ],
-
+    cflags: cflags,
     header_libs: ["libdvr_headers"],
     export_header_lib_headers: ["libdvr_headers"],
+    srcs: srcs,
+    static_libs: static_libs,
+    shared_libs: shared_libs,
+    version_script: "exported_apis.lds",
+}
 
-    srcs: [
-        "dvr_api.cpp",
-        "dvr_buffer.cpp",
-        "dvr_buffer_queue.cpp",
-        "dvr_display_manager.cpp",
-        "dvr_hardware_composer_client.cpp",
-        "dvr_surface.cpp",
-        "dvr_vsync.cpp",
-    ],
-
-    static_libs: [
-        "libbufferhub",
-        "libbufferhubqueue",
-        "libdisplay",
-        "libvrsensor",
-        "libvirtualtouchpadclient",
-        "libvr_hwc-impl",
-        "libvr_hwc-binder",
-        "libgrallocusage",
-    ],
-
-    shared_libs: [
-        "android.hardware.graphics.bufferqueue@1.0",
-        "android.hidl.token@1.0-utils",
-        "libbase",
-        "libnativewindow",
-    ],
-
+// Also build a static libdvr for linking into tests. The linker script
+// restricting function access in the shared lib makes it inconvenient to use in
+// test code.
+cc_library_static {
+    name: "libdvr_static",
+    owner: "google",
+    cflags: cflags,
+    header_libs: ["libdvr_headers"],
+    export_header_lib_headers: ["libdvr_headers"],
+    srcs: srcs,
+    static_libs: static_libs,
+    shared_libs: shared_libs,
 }
 
 subdirs = [
