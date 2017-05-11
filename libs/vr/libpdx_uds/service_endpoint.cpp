@@ -11,6 +11,7 @@
 #include <android-base/strings.h>
 #include <cutils/sockets.h>
 #include <pdx/service.h>
+#include <selinux/selinux.h>
 #include <uds/channel_manager.h>
 #include <uds/client_channel_factory.h>
 #include <uds/ipc_helper.h>
@@ -364,6 +365,36 @@ Status<void> Endpoint::ModifyChannelEvents(int channel_id, int clear_mask,
 Status<void> Endpoint::CreateChannelSocketPair(LocalHandle* local_socket,
                                                LocalHandle* remote_socket) {
   Status<void> status;
+  char* endpoint_context = nullptr;
+  // Make sure the channel socket has the correct SELinux label applied.
+  // Here we get the label from the endpoint file descriptor, which should be
+  // something like "u:object_r:pdx_service_endpoint_socket:s0" and replace
+  // "endpoint" with "channel" to produce the channel label such as this:
+  // "u:object_r:pdx_service_channel_socket:s0".
+  if (fgetfilecon_raw(socket_fd_.Get(), &endpoint_context) > 0) {
+    std::string channel_context = endpoint_context;
+    freecon(endpoint_context);
+    const std::string suffix = "_endpoint_socket";
+    auto pos = channel_context.find(suffix);
+    if (pos != std::string::npos) {
+      channel_context.replace(pos, suffix.size(), "_channel_socket");
+    } else {
+      ALOGW(
+          "Endpoint::CreateChannelSocketPair: Endpoint security context '%s' "
+          "does not contain expected substring '%s'",
+          channel_context.c_str(), suffix.c_str());
+    }
+    ALOGE_IF(setsockcreatecon_raw(channel_context.c_str()) == -1,
+             "Endpoint::CreateChannelSocketPair: Failed to set channel socket "
+             "security context: %s",
+             strerror(errno));
+  } else {
+    ALOGE(
+        "Endpoint::CreateChannelSocketPair: Failed to obtain the endpoint "
+        "socket's security context: %s",
+        strerror(errno));
+  }
+
   int channel_pair[2] = {};
   if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, channel_pair) == -1) {
     ALOGE("Endpoint::CreateChannelSocketPair: Failed to create socket pair: %s",
@@ -371,6 +402,8 @@ Status<void> Endpoint::CreateChannelSocketPair(LocalHandle* local_socket,
     status.SetError(errno);
     return status;
   }
+
+  setsockcreatecon_raw(nullptr);
 
   local_socket->Reset(channel_pair[0]);
   remote_socket->Reset(channel_pair[1]);

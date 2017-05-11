@@ -24,6 +24,9 @@ cc_library_static {
         "libbase",
         "libpdx",
     ],
+    whole_static_libs: [
+        "libselinux",
+    ],
 }
 
 cc_test {
