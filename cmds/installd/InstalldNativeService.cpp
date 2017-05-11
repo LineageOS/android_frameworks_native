@@ -1782,6 +1782,16 @@ binder::Status InstalldNativeService::dumpProfiles(int32_t uid, const std::strin
     return ok();
 }
 
+// Copy the contents of a system profile over the data profile.
+binder::Status InstalldNativeService::copySystemProfile(const std::string& systemProfile,
+        int32_t packageUid, const std::string& packageName, bool* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+    *_aidl_return = copy_system_profile(systemProfile, packageUid, packageName);
+    return ok();
+}
+
 // TODO: Consider returning error codes.
 binder::Status InstalldNativeService::mergeProfiles(int32_t uid, const std::string& packageName,
         bool* _aidl_return) {
