@@ -56,8 +56,8 @@ namespace android {
  */
 class half {
     struct fp16 {
-        uint16_t bits = 0;
-        fp16() noexcept = default;
+        uint16_t bits;
+        explicit constexpr fp16() noexcept : bits(0) { }
         explicit constexpr fp16(uint16_t b) noexcept : bits(b) { }
         void setS(unsigned int s) noexcept { bits = uint16_t((bits & 0x7FFF) | (s<<15)); }
         void setE(unsigned int s) noexcept { bits = uint16_t((bits & 0xE3FF) | (s<<10)); }
@@ -68,11 +68,11 @@ class half {
     };
     struct fp32 {
         union {
-            uint32_t bits = 0;
+            uint32_t bits;
             float fp;
         };
-        fp32() noexcept = default;
-        explicit constexpr fp32(float f) : fp(f) { }
+        explicit constexpr fp32() noexcept : bits(0) { }
+        explicit constexpr fp32(float f) noexcept : fp(f) { }
         void setS(unsigned int s) noexcept { bits = uint32_t((bits & 0x7FFFFFFF) | (s<<31)); }
         void setE(unsigned int s) noexcept { bits = uint32_t((bits & 0x807FFFFF) | (s<<23)); }
         void setM(unsigned int s) noexcept { bits = uint32_t((bits & 0xFF800000) | (s<< 0)); }
