@@ -21,6 +21,7 @@
 #include "PointerControllerInterface.h"
 #include "InputListener.h"
 
+#include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <input/VelocityControl.h>
 #include <input/VelocityTracker.h>
@@ -47,70 +48,6 @@ namespace android {
 
 class InputDevice;
 class InputMapper;
-
-/*
- * Describes how coordinates are mapped on a physical display.
- * See com.android.server.display.DisplayViewport.
- */
-struct DisplayViewport {
-    int32_t displayId; // -1 if invalid
-    int32_t orientation;
-    int32_t logicalLeft;
-    int32_t logicalTop;
-    int32_t logicalRight;
-    int32_t logicalBottom;
-    int32_t physicalLeft;
-    int32_t physicalTop;
-    int32_t physicalRight;
-    int32_t physicalBottom;
-    int32_t deviceWidth;
-    int32_t deviceHeight;
-
-    DisplayViewport() :
-            displayId(ADISPLAY_ID_NONE), orientation(DISPLAY_ORIENTATION_0),
-            logicalLeft(0), logicalTop(0), logicalRight(0), logicalBottom(0),
-            physicalLeft(0), physicalTop(0), physicalRight(0), physicalBottom(0),
-            deviceWidth(0), deviceHeight(0) {
-    }
-
-    bool operator==(const DisplayViewport& other) const {
-        return displayId == other.displayId
-                && orientation == other.orientation
-                && logicalLeft == other.logicalLeft
-                && logicalTop == other.logicalTop
-                && logicalRight == other.logicalRight
-                && logicalBottom == other.logicalBottom
-                && physicalLeft == other.physicalLeft
-                && physicalTop == other.physicalTop
-                && physicalRight == other.physicalRight
-                && physicalBottom == other.physicalBottom
-                && deviceWidth == other.deviceWidth
-                && deviceHeight == other.deviceHeight;
-    }
-
-    bool operator!=(const DisplayViewport& other) const {
-        return !(*this == other);
-    }
-
-    inline bool isValid() const {
-        return displayId >= 0;
-    }
-
-    void setNonDisplayViewport(int32_t width, int32_t height) {
-        displayId = ADISPLAY_ID_NONE;
-        orientation = DISPLAY_ORIENTATION_0;
-        logicalLeft = 0;
-        logicalTop = 0;
-        logicalRight = width;
-        logicalBottom = height;
-        physicalLeft = 0;
-        physicalTop = 0;
-        physicalRight = width;
-        physicalBottom = height;
-        deviceWidth = width;
-        deviceHeight = height;
-    }
-};
 
 /*
  * Input reader configuration.
@@ -255,12 +192,19 @@ struct InputReaderConfiguration {
             pointerGestureZoomSpeedRatio(0.3f),
             showTouches(false) { }
 
-    bool getDisplayInfo(bool external, DisplayViewport* outViewport) const;
-    void setDisplayInfo(bool external, const DisplayViewport& viewport);
+    bool getDisplayViewport(ViewportType viewportType, const String8* displayId,
+            DisplayViewport* outViewport) const;
+    void setPhysicalDisplayViewport(ViewportType viewportType, const DisplayViewport& viewport);
+    void setVirtualDisplayViewports(const Vector<DisplayViewport>& viewports);
+
+
+    void dump(String8& dump) const;
+    void dumpViewport(String8& dump, const DisplayViewport& viewport) const;
 
 private:
     DisplayViewport mInternalDisplay;
     DisplayViewport mExternalDisplay;
+    Vector<DisplayViewport> mVirtualDisplays;
 };
 
 
@@ -1341,6 +1285,7 @@ protected:
         bool associatedDisplayIsExternal;
         bool orientationAware;
         bool hasButtonUnderPad;
+        String8 uniqueDisplayId;
 
         enum GestureMode {
             GESTURE_MODE_SINGLE_TOUCH,
@@ -1889,6 +1834,8 @@ private:
     const VirtualKey* findVirtualKeyHit(int32_t x, int32_t y);
 
     static void assignPointerIds(const RawState* last, RawState* current);
+
+    const char* modeToString(DeviceMode deviceMode);
 };
 
 
