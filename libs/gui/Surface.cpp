@@ -476,6 +476,9 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
 
     {
         Mutex::Autolock lock(mMutex);
+        if (mReportRemovedBuffers) {
+            mRemovedBuffers.clear();
+        }
 
         reqWidth = mReqWidth ? mReqWidth : mUserWidth;
         reqHeight = mReqHeight ? mReqHeight : mUserHeight;
@@ -530,7 +533,6 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
 
     if ((result & IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION) || gbuf == nullptr) {
         if (mReportRemovedBuffers && (gbuf != nullptr)) {
-            mRemovedBuffers.clear();
             mRemovedBuffers.push_back(gbuf);
         }
         result = mGraphicBufferProducer->requestBuffer(buf, &gbuf);
@@ -1202,6 +1204,9 @@ int Surface::detachNextBuffer(sp<GraphicBuffer>* outBuffer,
     }
 
     Mutex::Autolock lock(mMutex);
+    if (mReportRemovedBuffers) {
+        mRemovedBuffers.clear();
+    }
 
     sp<GraphicBuffer> buffer(NULL);
     sp<Fence> fence(NULL);
@@ -1216,10 +1221,6 @@ int Surface::detachNextBuffer(sp<GraphicBuffer>* outBuffer,
         *outFence = fence;
     } else {
         *outFence = Fence::NO_FENCE;
-    }
-
-    if (mReportRemovedBuffers) {
-        mRemovedBuffers.clear();
     }
 
     for (int i = 0; i < NUM_BUFFER_SLOTS; i++) {
@@ -1241,6 +1242,9 @@ int Surface::attachBuffer(ANativeWindowBuffer* buffer)
     ALOGV("Surface::attachBuffer");
 
     Mutex::Autolock lock(mMutex);
+    if (mReportRemovedBuffers) {
+        mRemovedBuffers.clear();
+    }
 
     sp<GraphicBuffer> graphicBuffer(static_cast<GraphicBuffer*>(buffer));
     uint32_t priorGeneration = graphicBuffer->mGenerationNumber;
@@ -1254,7 +1258,6 @@ int Surface::attachBuffer(ANativeWindowBuffer* buffer)
         return result;
     }
     if (mReportRemovedBuffers && (mSlots[attachedSlot].buffer != nullptr)) {
-        mRemovedBuffers.clear();
         mRemovedBuffers.push_back(mSlots[attachedSlot].buffer);
     }
     mSlots[attachedSlot].buffer = graphicBuffer;
