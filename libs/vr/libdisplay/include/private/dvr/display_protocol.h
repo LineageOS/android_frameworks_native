@@ -235,6 +235,7 @@ struct DisplayManagerProtocol {
     kOpGetSurfaceQueue,
     kOpSetupGlobalBuffer,
     kOpGetConfigurationData,
+    kOpDeleteGlobalBuffer,
   };
 
   // Aliases.
@@ -251,6 +252,8 @@ struct DisplayManagerProtocol {
                                             uint64_t usage));
   PDX_REMOTE_METHOD(GetConfigurationData, kOpGetConfigurationData,
                     std::string(ConfigFileType config_type));
+  PDX_REMOTE_METHOD(DeleteGlobalBuffer, kOpDeleteGlobalBuffer,
+                    void(DvrGlobalBufferKey key));
 };
 
 struct VSyncSchedInfo {

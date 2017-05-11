@@ -227,12 +227,29 @@ pdx::Status<BorrowedNativeBufferHandle> DisplayService::SetupGlobalBuffer(
   if (global_buffer == global_buffers_.end()) {
     auto ion_buffer = std::make_unique<IonBuffer>(static_cast<int>(size), 1,
                                                   HAL_PIXEL_FORMAT_BLOB, usage);
+
+    // Some buffers are used internally. If they were configured with an
+    // invalid size or format, this will fail.
+    int result = hardware_composer_.OnNewGlobalBuffer(key, *ion_buffer.get());
+    if (result < 0)
+      return ErrorStatus(result);
     global_buffer =
         global_buffers_.insert(std::make_pair(key, std::move(ion_buffer)))
             .first;
   }
 
   return {BorrowedNativeBufferHandle(*global_buffer->second, 0)};
+}
+
+pdx::Status<void> DisplayService::DeleteGlobalBuffer(DvrGlobalBufferKey key) {
+  auto global_buffer = global_buffers_.find(key);
+  if (global_buffer != global_buffers_.end()) {
+    // Some buffers are used internally.
+    hardware_composer_.OnDeletedGlobalBuffer(key);
+    global_buffers_.erase(global_buffer);
+  }
+
+  return {0};
 }
 
 void DisplayService::OnHardwareComposerRefresh() {

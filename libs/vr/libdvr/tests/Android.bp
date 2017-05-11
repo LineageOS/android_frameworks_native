@@ -32,6 +32,7 @@ static_libraries = [
     "libdvrcommon",
     "libdisplay",
     "libpdx_default_transport",
+    "libbroadcastring",
 ]
 
 cc_test {

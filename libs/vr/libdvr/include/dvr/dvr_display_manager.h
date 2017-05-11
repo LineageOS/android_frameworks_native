@@ -32,6 +32,14 @@ int dvrDisplayManagerSetupGlobalBuffer(DvrDisplayManager* client,
                                        DvrGlobalBufferKey key, size_t size,
                                        uint64_t usage, DvrBuffer** buffer_out);
 
+// Deletes a named buffer. WARNING: This is dangerous because any existing
+// clients of this buffer will not be notified and will remain attached to
+// the old buffer. This is useful for tests, but probably not for production
+// code.
+// @return 0 on success. Otherwise returns a negative error value.
+int dvrDisplayManagerDeleteGlobalBuffer(DvrDisplayManager* client,
+                                        DvrGlobalBufferKey key);
+
 // Device metrics data type enums.
 enum {
   DVR_CONFIGURATION_DATA_LENS_METRICS = 0,
