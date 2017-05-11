@@ -697,7 +697,16 @@ void Layer::setGeometry(
             mName.string(), z, to_string(error).c_str(),
             static_cast<int32_t>(error));
 
-    error = hwcLayer->setInfo(s.type, s.appId);
+    int type = s.type;
+    int appId = s.appId;
+    sp<Layer> parent = mParent.promote();
+    if (parent.get()) {
+        auto& parentState = parent->getDrawingState();
+        type = parentState.type;
+        appId = parentState.appId;
+    }
+
+    error = hwcLayer->setInfo(type, appId);
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set info (%d)",
              mName.string(), static_cast<int32_t>(error));
 #else
