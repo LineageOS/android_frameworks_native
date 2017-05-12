@@ -26,6 +26,7 @@ class DisplayManagerClient : public pdx::ClientBase<DisplayManagerClient> {
   pdx::Status<std::unique_ptr<ConsumerQueue>> GetSurfaceQueue(int surface_id,
                                                               int queue_id);
 
+  pdx::Status<std::string> GetConfigurationData(ConfigFileType config_type);
   using Client::event_fd;
 
   pdx::Status<int> GetEventMask(int events) {
