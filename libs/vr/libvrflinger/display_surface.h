@@ -5,7 +5,6 @@
 #include <pdx/service.h>
 #include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/display_protocol.h>
-#include <private/dvr/graphics_private.h>
 #include <private/dvr/ring_buffer.h>
 
 #include <functional>
@@ -162,6 +161,8 @@ class DirectDisplaySurface : public DisplaySurface {
   // The capacity of the pending buffer queue. Should be enough to hold all the
   // buffers of this DisplaySurface, although in practice only 1 or 2 frames
   // will be pending at a time.
+  static constexpr int kSurfaceBufferMaxCount = 4;
+  static constexpr int kSurfaceViewMaxCount = 4;
   static constexpr int kMaxPostedBuffers =
       kSurfaceBufferMaxCount * kSurfaceViewMaxCount;
 

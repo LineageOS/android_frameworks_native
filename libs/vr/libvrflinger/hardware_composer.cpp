@@ -25,7 +25,6 @@
 #include <private/dvr/clock_ns.h>
 #include <private/dvr/ion_buffer.h>
 #include <private/dvr/pose_client_internal.h>
-#include <private/dvr/sync_util.h>
 
 using android::pdx::LocalHandle;
 using android::pdx::rpc::EmptyVariant;
@@ -739,9 +738,6 @@ void HardwareComposer::PostThread() {
   // Check property for overriding right eye offset value.
   right_eye_photon_offset_ns =
       property_get_int64(kRightEyeOffsetProperty, right_eye_photon_offset_ns);
-
-  // Storage for retrieving fence info.
-  FenceInfoBuffer fence_info_buffer;
 
   bool was_running = false;
 
