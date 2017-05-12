@@ -3,7 +3,6 @@
 #include <private/android_filesystem_config.h>
 #include <utils/Trace.h>
 
-#include <private/dvr/platform_defines.h>
 #include <private/dvr/trusted_uids.h>
 
 #include "display_service.h"
