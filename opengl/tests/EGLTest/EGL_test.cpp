@@ -48,6 +48,7 @@ namespace android {
 
 // retrieve wide-color setting from configstore
 using namespace android::hardware::configstore;
+using namespace android::hardware::configstore::V1_0;
 
 static bool hasWideColorDisplay =
         getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
