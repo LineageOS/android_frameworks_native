@@ -344,10 +344,14 @@ void ListCommand::dumpTable() {
     mImplementationsTable.description =
             "All available passthrough implementations (all -impl.so files)";
     forEachTable([this] (const Table &table) {
-        mOut << table.description << std::endl;
+        if (!mNeat) {
+            mOut << table.description << std::endl;
+        }
         mOut << std::left;
-        printLine("Interface", "Transport", "Arch", "Server", "Server CMD",
-                  "PTR", "Clients", "Clients CMD");
+        if (!mNeat) {
+            printLine("Interface", "Transport", "Arch", "Server", "Server CMD",
+                      "PTR", "Clients", "Clients CMD");
+        }
 
         for (const auto &entry : table) {
             printLine(entry.interfaceName,
@@ -369,7 +373,9 @@ void ListCommand::dumpTable() {
                         NullableOStream<std::ostream>(nullptr));
             }
         }
-        mOut << std::endl;
+        if (!mNeat) {
+            mOut << std::endl;
+        }
     });
 
 }
@@ -593,6 +599,7 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
         // long options without short alternatives
         {"sort",      required_argument, 0, 's' },
         {"init-vintf",optional_argument, 0, 'v' },
+        {"neat",      no_argument,       0, 'n' },
         { 0,          0,                 0,  0  }
     };
 
@@ -670,6 +677,10 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
                 }
                 chown(optarg, AID_SHELL, AID_SHELL);
             }
+            break;
+        }
+        case 'n': {
+            mNeat = true;
             break;
         }
         case 'h': // falls through
