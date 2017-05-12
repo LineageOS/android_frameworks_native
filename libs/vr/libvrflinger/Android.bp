@@ -32,7 +32,6 @@ staticLibraries = [
     "libbufferhubqueue",
     "libdisplay",
     "libdvrcommon",
-    "libdvrgraphics",
     "libperformance",
     "libvrsensor",
     "libpdx_default_transport",
