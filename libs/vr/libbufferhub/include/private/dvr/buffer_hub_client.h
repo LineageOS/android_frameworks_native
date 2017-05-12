@@ -131,15 +131,6 @@ class BufferHubBuffer : public pdx::Client {
 // The API also assumes that metadata is a serializable type (plain old data).
 class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
  public:
-  // Create a buffer designed to hold arbitrary bytes that can be read and
-  // written from CPU, GPU and DSP. The buffer is mapped uncached so that CPU
-  // reads and writes are predictable.
-  static std::unique_ptr<BufferProducer> CreateUncachedBlob(size_t size);
-
-  // Creates a persistent uncached buffer with the given name and access.
-  static std::unique_ptr<BufferProducer> CreatePersistentUncachedBlob(
-      const std::string& name, int user_id, int group_id, size_t size);
-
   // Imports a bufferhub producer channel, assuming ownership of its handle.
   static std::unique_ptr<BufferProducer> Import(LocalChannelHandle channel);
   static std::unique_ptr<BufferProducer> Import(
