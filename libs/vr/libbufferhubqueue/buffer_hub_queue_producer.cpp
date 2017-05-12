@@ -1,22 +1,41 @@
 #include "include/private/dvr/buffer_hub_queue_producer.h"
 
+#include <dvr/dvr_api.h>
 #include <inttypes.h>
 #include <log/log.h>
 
 namespace android {
 namespace dvr {
 
-BufferHubQueueProducer::BufferHubQueueProducer(
-    const std::shared_ptr<BufferHubQueueCore>& core)
-    : core_(core) {}
+/* static */
+sp<BufferHubQueueProducer> BufferHubQueueProducer::Create() {
+  sp<BufferHubQueueProducer> producer = new BufferHubQueueProducer;
+  producer->queue_ = ProducerQueue::Create<DvrNativeBufferMetadata>();
+  return producer;
+}
+
+/* static */
+sp<BufferHubQueueProducer> BufferHubQueueProducer::Create(
+    const std::shared_ptr<ProducerQueue>& queue) {
+  if (queue->metadata_size() != sizeof(DvrNativeBufferMetadata)) {
+    ALOGE(
+        "BufferHubQueueProducer::Create producer's metadata size is different "
+        "than the size of DvrNativeBufferMetadata");
+    return nullptr;
+  }
+
+  sp<BufferHubQueueProducer> producer = new BufferHubQueueProducer;
+  producer->queue_ = queue;
+  return producer;
+}
 
 status_t BufferHubQueueProducer::requestBuffer(int slot,
                                                sp<GraphicBuffer>* buf) {
   ALOGD_IF(TRACE, "requestBuffer: slot=%d", slot);
 
-  std::unique_lock<std::mutex> lock(core_->mutex_);
+  std::unique_lock<std::mutex> lock(mutex_);
 
-  if (core_->connected_api_ == BufferHubQueueCore::kNoConnectedApi) {
+  if (connected_api_ == kNoConnectedApi) {
     ALOGE("requestBuffer: BufferHubQueueProducer has no connected producer");
     return NO_INIT;
   }
@@ -25,23 +44,23 @@ status_t BufferHubQueueProducer::requestBuffer(int slot,
     ALOGE("requestBuffer: slot index %d out of range [0, %d)", slot,
           max_buffer_count_);
     return BAD_VALUE;
-  } else if (!core_->buffers_[slot].mBufferState.isDequeued()) {
+  } else if (!buffers_[slot].mBufferState.isDequeued()) {
     ALOGE("requestBuffer: slot %d is not owned by the producer (state = %s)",
-          slot, core_->buffers_[slot].mBufferState.string());
+          slot, buffers_[slot].mBufferState.string());
     return BAD_VALUE;
-  } else if (core_->buffers_[slot].mGraphicBuffer != nullptr) {
+  } else if (buffers_[slot].mGraphicBuffer != nullptr) {
     ALOGE("requestBuffer: slot %d is not empty.", slot);
     return BAD_VALUE;
-  } else if (core_->buffers_[slot].mBufferProducer == nullptr) {
+  } else if (buffers_[slot].mBufferProducer == nullptr) {
     ALOGE("requestBuffer: slot %d is not dequeued.", slot);
     return BAD_VALUE;
   }
 
-  const auto& buffer_producer = core_->buffers_[slot].mBufferProducer;
+  const auto& buffer_producer = buffers_[slot].mBufferProducer;
   sp<GraphicBuffer> graphic_buffer = buffer_producer->buffer()->buffer();
 
-  core_->buffers_[slot].mGraphicBuffer = graphic_buffer;
-  core_->buffers_[slot].mRequestBufferCalled = true;
+  buffers_[slot].mGraphicBuffer = graphic_buffer;
+  buffers_[slot].mRequestBufferCalled = true;
 
   *buf = graphic_buffer;
   return NO_ERROR;
@@ -52,12 +71,12 @@ status_t BufferHubQueueProducer::setMaxDequeuedBufferCount(
   ALOGD_IF(TRACE, "setMaxDequeuedBufferCount: max_dequeued_buffers=%d",
            max_dequeued_buffers);
 
-  std::unique_lock<std::mutex> lock(core_->mutex_);
+  std::unique_lock<std::mutex> lock(mutex_);
 
   if (max_dequeued_buffers <= 0 ||
       max_dequeued_buffers >
           static_cast<int>(BufferHubQueue::kMaxQueueCapacity -
-                           BufferHubQueueCore::kDefaultUndequeuedBuffers)) {
+                           kDefaultUndequeuedBuffers)) {
     ALOGE("setMaxDequeuedBufferCount: %d out of range (0, %zu]",
           max_dequeued_buffers, BufferHubQueue::kMaxQueueCapacity);
     return BAD_VALUE;
@@ -66,7 +85,7 @@ status_t BufferHubQueueProducer::setMaxDequeuedBufferCount(
   // The new dequeued_buffers count should not be violated by the number
   // of currently dequeued buffers.
   int dequeued_count = 0;
-  for (const auto& buf : core_->buffers_) {
+  for (const auto& buf : buffers_) {
     if (buf.mBufferState.isDequeued()) {
       dequeued_count++;
     }
@@ -114,22 +133,21 @@ status_t BufferHubQueueProducer::dequeueBuffer(
            height, format, usage);
 
   status_t ret;
-  std::unique_lock<std::mutex> lock(core_->mutex_);
+  std::unique_lock<std::mutex> lock(mutex_);
 
-  if (core_->connected_api_ == BufferHubQueueCore::kNoConnectedApi) {
+  if (connected_api_ == kNoConnectedApi) {
     ALOGE("dequeueBuffer: BufferQueue has no connected producer");
     return NO_INIT;
   }
 
   const uint32_t kLayerCount = 1;
-  if (static_cast<int32_t>(core_->producer_->capacity()) <
-      max_dequeued_buffer_count_ +
-          BufferHubQueueCore::kDefaultUndequeuedBuffers) {
-    // Lazy allocation. When the capacity of |core_->producer_| has not reach
+  if (static_cast<int32_t>(queue_->capacity()) <
+      max_dequeued_buffer_count_ + kDefaultUndequeuedBuffers) {
+    // Lazy allocation. When the capacity of |queue_| has not reached
     // |max_dequeued_buffer_count_|, allocate new buffer.
     // TODO(jwcai) To save memory, the really reasonable thing to do is to go
     // over existing slots and find first existing one to dequeue.
-    ret = core_->AllocateBuffer(width, height, kLayerCount, format, usage);
+    ret = AllocateBuffer(width, height, kLayerCount, format, usage);
     if (ret < 0)
       return ret;
   }
@@ -139,8 +157,7 @@ status_t BufferHubQueueProducer::dequeueBuffer(
 
   for (size_t retry = 0; retry < BufferHubQueue::kMaxQueueCapacity; retry++) {
     LocalHandle fence;
-    auto buffer_status =
-        core_->producer_->Dequeue(core_->dequeue_timeout_ms_, &slot, &fence);
+    auto buffer_status = queue_->Dequeue(dequeue_timeout_ms_, &slot, &fence);
 
     buffer_producer = buffer_status.take();
     if (!buffer_producer)
@@ -163,34 +180,34 @@ status_t BufferHubQueueProducer::dequeueBuffer(
         buffer_producer->height(), buffer_producer->format());
     // Mark the slot as reallocating, so that later we can set
     // BUFFER_NEEDS_REALLOCATION when the buffer actually get dequeued.
-    core_->buffers_[slot].mIsReallocating = true;
+    buffers_[slot].mIsReallocating = true;
 
-    // Detach the old buffer once the allocation before allocating its
+    // Remove the old buffer once the allocation before allocating its
     // replacement.
-    core_->DetachBuffer(slot);
+    RemoveBuffer(slot);
 
     // Allocate a new producer buffer with new buffer configs. Note that if
     // there are already multiple buffers in the queue, the next one returned
-    // from |core_->producer_->Dequeue| may not be the new buffer we just
-    // reallocated. Retry up to BufferHubQueue::kMaxQueueCapacity times.
-    ret = core_->AllocateBuffer(width, height, kLayerCount, format, usage);
+    // from |queue_->Dequeue| may not be the new buffer we just reallocated.
+    // Retry up to BufferHubQueue::kMaxQueueCapacity times.
+    ret = AllocateBuffer(width, height, kLayerCount, format, usage);
     if (ret < 0)
       return ret;
   }
 
   // With the BufferHub backed solution. Buffer slot returned from
-  // |core_->producer_->Dequeue| is guaranteed to avaiable for producer's use.
+  // |queue_->Dequeue| is guaranteed to avaiable for producer's use.
   // It's either in free state (if the buffer has never been used before) or
   // in queued state (if the buffer has been dequeued and queued back to
   // BufferHubQueue).
   // TODO(jwcai) Clean this up, make mBufferState compatible with BufferHub's
   // model.
-  LOG_ALWAYS_FATAL_IF((!core_->buffers_[slot].mBufferState.isFree() &&
-                       !core_->buffers_[slot].mBufferState.isQueued()),
+  LOG_ALWAYS_FATAL_IF((!buffers_[slot].mBufferState.isFree() &&
+                       !buffers_[slot].mBufferState.isQueued()),
                       "dequeueBuffer: slot %zu is not free or queued.", slot);
 
-  core_->buffers_[slot].mBufferState.freeQueued();
-  core_->buffers_[slot].mBufferState.dequeue();
+  buffers_[slot].mBufferState.freeQueued();
+  buffers_[slot].mBufferState.dequeue();
   ALOGD_IF(TRACE, "dequeueBuffer: slot=%zu", slot);
 
   // TODO(jwcai) Handle fence properly. |BufferHub| has full fence support, we
@@ -199,9 +216,9 @@ status_t BufferHubQueueProducer::dequeueBuffer(
   *out_slot = slot;
   ret = NO_ERROR;
 
-  if (core_->buffers_[slot].mIsReallocating) {
+  if (buffers_[slot].mIsReallocating) {
     ret |= BUFFER_NEEDS_REALLOCATION;
-    core_->buffers_[slot].mIsReallocating = false;
+    buffers_[slot].mIsReallocating = false;
   }
 
   return ret;
@@ -266,9 +283,9 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
   }
 
   status_t ret;
-  std::unique_lock<std::mutex> lock(core_->mutex_);
+  std::unique_lock<std::mutex> lock(mutex_);
 
-  if (core_->connected_api_ == BufferHubQueueCore::kNoConnectedApi) {
+  if (connected_api_ == kNoConnectedApi) {
     ALOGE("queueBuffer: BufferQueue has no connected producer");
     return NO_INIT;
   }
@@ -277,22 +294,22 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
     ALOGE("queueBuffer: slot index %d out of range [0, %d)", slot,
           max_buffer_count_);
     return BAD_VALUE;
-  } else if (!core_->buffers_[slot].mBufferState.isDequeued()) {
+  } else if (!buffers_[slot].mBufferState.isDequeued()) {
     ALOGE("queueBuffer: slot %d is not owned by the producer (state = %s)",
-          slot, core_->buffers_[slot].mBufferState.string());
+          slot, buffers_[slot].mBufferState.string());
     return BAD_VALUE;
-  } else if ((!core_->buffers_[slot].mRequestBufferCalled ||
-              core_->buffers_[slot].mGraphicBuffer == nullptr)) {
+  } else if ((!buffers_[slot].mRequestBufferCalled ||
+              buffers_[slot].mGraphicBuffer == nullptr)) {
     ALOGE(
         "queueBuffer: slot %d is not requested (mRequestBufferCalled=%d, "
         "mGraphicBuffer=%p)",
-        slot, core_->buffers_[slot].mRequestBufferCalled,
-        core_->buffers_[slot].mGraphicBuffer.get());
+        slot, buffers_[slot].mRequestBufferCalled,
+        buffers_[slot].mGraphicBuffer.get());
     return BAD_VALUE;
   }
 
   // Post the buffer producer with timestamp in the metadata.
-  const auto& buffer_producer = core_->buffers_[slot].mBufferProducer;
+  const auto& buffer_producer = buffers_[slot].mBufferProducer;
 
   // Check input crop is not out of boundary of current buffer.
   Rect buffer_rect(buffer_producer->width(), buffer_producer->height());
@@ -305,7 +322,7 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
 
   LocalHandle fence_fd(fence->isValid() ? fence->dup() : -1);
 
-  BufferHubQueueCore::NativeBufferMetadata meta_data = {};
+  DvrNativeBufferMetadata meta_data = {};
   meta_data.timestamp = timestamp;
   meta_data.is_auto_timestamp = static_cast<int32_t>(is_auto_timestamp);
   meta_data.dataspace = static_cast<int32_t>(dataspace);
@@ -317,7 +334,7 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
   meta_data.transform = static_cast<int32_t>(transform);
 
   buffer_producer->Post(fence_fd, &meta_data, sizeof(meta_data));
-  core_->buffers_[slot].mBufferState.queue();
+  buffers_[slot].mBufferState.queue();
 
   output->width = buffer_producer->width();
   output->height = buffer_producer->height();
@@ -340,9 +357,9 @@ status_t BufferHubQueueProducer::cancelBuffer(int slot,
                                               const sp<Fence>& fence) {
   ALOGD_IF(TRACE, __FUNCTION__);
 
-  std::unique_lock<std::mutex> lock(core_->mutex_);
+  std::unique_lock<std::mutex> lock(mutex_);
 
-  if (core_->connected_api_ == BufferHubQueueCore::kNoConnectedApi) {
+  if (connected_api_ == kNoConnectedApi) {
     ALOGE("cancelBuffer: BufferQueue has no connected producer");
     return NO_INIT;
   }
@@ -351,19 +368,19 @@ status_t BufferHubQueueProducer::cancelBuffer(int slot,
     ALOGE("cancelBuffer: slot index %d out of range [0, %d)", slot,
           max_buffer_count_);
     return BAD_VALUE;
-  } else if (!core_->buffers_[slot].mBufferState.isDequeued()) {
+  } else if (!buffers_[slot].mBufferState.isDequeued()) {
     ALOGE("cancelBuffer: slot %d is not owned by the producer (state = %s)",
-          slot, core_->buffers_[slot].mBufferState.string());
+          slot, buffers_[slot].mBufferState.string());
     return BAD_VALUE;
   } else if (fence == nullptr) {
     ALOGE("cancelBuffer: fence is NULL");
     return BAD_VALUE;
   }
 
-  auto buffer_producer = core_->buffers_[slot].mBufferProducer;
-  core_->producer_->Enqueue(buffer_producer, slot);
-  core_->buffers_[slot].mBufferState.cancel();
-  core_->buffers_[slot].mFence = fence;
+  auto buffer_producer = buffers_[slot].mBufferProducer;
+  queue_->Enqueue(buffer_producer, slot);
+  buffers_[slot].mBufferState.cancel();
+  buffers_[slot].mFence = fence;
   ALOGD_IF(TRACE, "cancelBuffer: slot %d", slot);
 
   return NO_ERROR;
@@ -372,7 +389,7 @@ status_t BufferHubQueueProducer::cancelBuffer(int slot,
 status_t BufferHubQueueProducer::query(int what, int* out_value) {
   ALOGD_IF(TRACE, __FUNCTION__);
 
-  std::unique_lock<std::mutex> lock(core_->mutex_);
+  std::unique_lock<std::mutex> lock(mutex_);
 
   if (out_value == nullptr) {
     ALOGE("query: out_value was NULL");
@@ -385,19 +402,19 @@ status_t BufferHubQueueProducer::query(int what, int* out_value) {
       // TODO(b/36187402) This should be the maximum number of buffers that this
       // producer queue's consumer can acquire. Set to be at least one. Need to
       // find a way to set from the consumer side.
-      value = BufferHubQueueCore::kDefaultUndequeuedBuffers;
+      value = kDefaultUndequeuedBuffers;
       break;
     case NATIVE_WINDOW_BUFFER_AGE:
       value = 0;
       break;
     case NATIVE_WINDOW_WIDTH:
-      value = core_->producer_->default_width();
+      value = queue_->default_width();
       break;
     case NATIVE_WINDOW_HEIGHT:
-      value = core_->producer_->default_height();
+      value = queue_->default_height();
       break;
     case NATIVE_WINDOW_FORMAT:
-      value = core_->producer_->default_format();
+      value = queue_->default_format();
       break;
     case NATIVE_WINDOW_CONSUMER_RUNNING_BEHIND:
       // BufferHubQueue is always operating in async mode, thus semantically
@@ -420,6 +437,11 @@ status_t BufferHubQueueProducer::query(int what, int* out_value) {
       // there is no way dvr::ConsumerQueue can set it.
       value = 0;
       break;
+    case NATIVE_WINDOW_CONSUMER_IS_PROTECTED:
+      // In Daydream's implementation, the consumer end (i.e. VR Compostior)
+      // knows how to handle protected buffers.
+      value = 1;
+      break;
     default:
       return BAD_VALUE;
   }
@@ -441,9 +463,9 @@ status_t BufferHubQueueProducer::connect(
     return BAD_VALUE;
   }
 
-  std::unique_lock<std::mutex> lock(core_->mutex_);
+  std::unique_lock<std::mutex> lock(mutex_);
 
-  if (core_->connected_api_ != BufferHubQueueCore::kNoConnectedApi) {
+  if (connected_api_ != kNoConnectedApi) {
     return BAD_VALUE;
   }
 
@@ -452,10 +474,10 @@ status_t BufferHubQueueProducer::connect(
     case NATIVE_WINDOW_API_CPU:
     case NATIVE_WINDOW_API_MEDIA:
     case NATIVE_WINDOW_API_CAMERA:
-      core_->connected_api_ = api;
+      connected_api_ = api;
 
-      output->width = core_->producer_->default_width();
-      output->height = core_->producer_->default_height();
+      output->width = queue_->default_width();
+      output->height = queue_->default_height();
 
       // default values, we don't use them yet.
       output->transformHint = 0;
@@ -478,15 +500,15 @@ status_t BufferHubQueueProducer::disconnect(int api, DisconnectMode /*mode*/) {
   // parameter checks here.
   ALOGD_IF(TRACE, __FUNCTION__);
 
-  std::unique_lock<std::mutex> lock(core_->mutex_);
+  std::unique_lock<std::mutex> lock(mutex_);
 
-  if (BufferHubQueueCore::kNoConnectedApi == core_->connected_api_) {
+  if (kNoConnectedApi == connected_api_) {
     return NO_INIT;
-  } else if (api != core_->connected_api_) {
+  } else if (api != connected_api_) {
     return BAD_VALUE;
   }
 
-  core_->connected_api_ = BufferHubQueueCore::kNoConnectedApi;
+  connected_api_ = kNoConnectedApi;
   return NO_ERROR;
 }
 
@@ -520,8 +542,8 @@ status_t BufferHubQueueProducer::setGenerationNumber(
     uint32_t generation_number) {
   ALOGD_IF(TRACE, __FUNCTION__);
 
-  std::unique_lock<std::mutex> lock(core_->mutex_);
-  core_->generation_number_ = generation_number;
+  std::unique_lock<std::mutex> lock(mutex_);
+  generation_number_ = generation_number;
   return NO_ERROR;
 }
 
@@ -556,8 +578,8 @@ status_t BufferHubQueueProducer::setAutoRefresh(bool auto_refresh) {
 status_t BufferHubQueueProducer::setDequeueTimeout(nsecs_t timeout) {
   ALOGD_IF(TRACE, __FUNCTION__);
 
-  std::unique_lock<std::mutex> lock(core_->mutex_);
-  core_->dequeue_timeout_ms_ = static_cast<int>(timeout / (1000 * 1000));
+  std::unique_lock<std::mutex> lock(mutex_);
+  dequeue_timeout_ms_ = static_cast<int>(timeout / (1000 * 1000));
   return NO_ERROR;
 }
 
@@ -576,15 +598,45 @@ void BufferHubQueueProducer::getFrameTimestamps(
 status_t BufferHubQueueProducer::getUniqueId(uint64_t* out_id) const {
   ALOGD_IF(TRACE, __FUNCTION__);
 
-  *out_id = core_->unique_id_;
+  *out_id = unique_id_;
   return NO_ERROR;
 }
 
-IBinder* BufferHubQueueProducer::onAsBinder() {
-  // BufferHubQueueProducer is a non-binder implementation of
-  // IGraphicBufferProducer.
-  ALOGW("BufferHubQueueProducer::onAsBinder is not efficiently supported.");
-  return this;
+status_t BufferHubQueueProducer::AllocateBuffer(uint32_t width, uint32_t height,
+                                                uint32_t layer_count,
+                                                PixelFormat format,
+                                                uint64_t usage) {
+  size_t slot;
+
+  if (queue_->AllocateBuffer(width, height, layer_count, format, usage, &slot) <
+      0) {
+    ALOGE("Failed to allocate new buffer in BufferHub.");
+    return NO_MEMORY;
+  }
+
+  auto buffer_producer = queue_->GetBuffer(slot);
+
+  LOG_ALWAYS_FATAL_IF(buffer_producer == nullptr,
+                      "Failed to get buffer producer at slot: %zu", slot);
+
+  buffers_[slot].mBufferProducer = buffer_producer;
+
+  return NO_ERROR;
+}
+
+status_t BufferHubQueueProducer::RemoveBuffer(size_t slot) {
+  int ret = queue_->DetachBuffer(slot);
+  if (ret < 0) {
+    ALOGE("BufferHubQueueProducer::RemoveBuffer failed through RPC, ret=%s",
+          strerror(-ret));
+    return ret;
+  }
+
+  // Reset in memory objects related the the buffer.
+  buffers_[slot].mBufferProducer = nullptr;
+  buffers_[slot].mGraphicBuffer = nullptr;
+  buffers_[slot].mBufferState.detachProducer();
+  return NO_ERROR;
 }
 
 }  // namespace dvr
