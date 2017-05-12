@@ -224,9 +224,6 @@ private:
 
     // thread-safe
     mutable Mutex mVsyncLock;
-
-    // XXX temporary workaround for b/35806047
-    mutable std::atomic<bool> mDumpMayLockUp;
 };
 
 // ---------------------------------------------------------------------------
