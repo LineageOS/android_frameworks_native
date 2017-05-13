@@ -68,9 +68,9 @@ const std::string &ListCommand::getCmdline(pid_t pid) {
 
 void ListCommand::removeDeadProcesses(Pids *pids) {
     static const pid_t myPid = getpid();
-    std::remove_if(pids->begin(), pids->end(), [this](auto pid) {
+    pids->erase(std::remove_if(pids->begin(), pids->end(), [this](auto pid) {
         return pid == myPid || this->getCmdline(pid).empty();
-    });
+    }), pids->end());
 }
 
 bool ListCommand::getReferencedPids(
