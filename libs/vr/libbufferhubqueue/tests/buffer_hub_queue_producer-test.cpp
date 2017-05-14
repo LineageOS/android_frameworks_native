@@ -92,8 +92,7 @@ class BufferHubQueueProducerTest : public ::testing::Test {
     ALOGD_IF(TRACE, "Begin test: %s.%s", testInfo->test_case_name(),
              testInfo->name());
 
-    auto core = BufferHubQueueCore::Create();
-    mProducer = new BufferHubQueueProducer(core);
+    mProducer = BufferHubQueueProducer::Create();
     ASSERT_TRUE(mProducer != nullptr);
     mSurface = new Surface(mProducer, true);
     ASSERT_TRUE(mSurface != nullptr);

@@ -14,13 +14,15 @@
 
 sourceFiles = [
     "buffer_hub_queue_client.cpp",
-    "buffer_hub_queue_core.cpp",
-    "buffer_hub_queue_consumer.cpp",
     "buffer_hub_queue_producer.cpp",
 ]
 
 includeFiles = [
     "include",
+]
+
+headerLibraries = [
+    "libdvr_headers",
 ]
 
 staticLibraries = [
@@ -49,6 +51,7 @@ cc_library {
     srcs: sourceFiles,
     export_include_dirs: includeFiles,
     export_static_lib_headers: staticLibraries,
+    header_libs: headerLibraries,
     static_libs: staticLibraries,
     shared_libs: sharedLibraries,
 }

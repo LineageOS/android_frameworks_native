@@ -69,8 +69,7 @@ HWComposer::HWComposer(bool useVrComposer)
       mCBContext(),
       mEventHandler(nullptr),
       mVSyncCounts(),
-      mRemainingHwcVirtualDisplays(0),
-      mDumpMayLockUp(false)
+      mRemainingHwcVirtualDisplays(0)
 {
     for (size_t i=0 ; i<HWC_NUM_PHYSICAL_DISPLAY_TYPES ; i++) {
         mLastHwVSync[i] = 0;
@@ -494,8 +493,6 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
         return NO_ERROR;
     }
 
-    mDumpMayLockUp = true;
-
     uint32_t numTypes = 0;
     uint32_t numRequests = 0;
     auto error = hwcDisplay->validate(&numTypes, &numRequests);
@@ -636,9 +633,6 @@ status_t HWComposer::presentAndGetReleaseFences(int32_t displayId) {
     auto& displayData = mDisplayData[displayId];
     auto& hwcDisplay = displayData.hwcDisplay;
     auto error = hwcDisplay->present(&displayData.lastPresentFence);
-
-    mDumpMayLockUp = false;
-
     if (error != HWC2::Error::None) {
         ALOGE("presentAndGetReleaseFences: failed for display %d: %s (%d)",
               displayId, to_string(error).c_str(), static_cast<int32_t>(error));
@@ -884,11 +878,6 @@ bool HWComposer::isUsingVrComposer() const {
 }
 
 void HWComposer::dump(String8& result) const {
-    if (mDumpMayLockUp) {
-        result.append("HWComposer dump skipped because present in progress");
-        return;
-    }
-
     // TODO: In order to provide a dump equivalent to HWC1, we need to shadow
     // all the state going into the layers. This is probably better done in
     // Layer itself, but it's going to take a bit of work to get there.

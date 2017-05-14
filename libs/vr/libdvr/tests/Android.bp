@@ -25,7 +25,7 @@ shared_libraries = [
 ]
 
 static_libraries = [
-    "libdvr",
+    "libdvr_static",
     "libbufferhubqueue",
     "libbufferhub",
     "libchrome",
