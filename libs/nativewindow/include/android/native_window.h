@@ -21,6 +21,7 @@
 
 /**
  * @file native_window.h
+ * @brief API for accessing a native window.
  */
 
 #ifndef ANDROID_NATIVE_WINDOW_H
@@ -71,16 +72,16 @@ enum ANativeWindowTransform {
 
 struct ANativeWindow;
 /**
- * {@link ANativeWindow} is opaque type that provides access to a native window.
+ * Opaque type that provides access to a native window.
  *
- * A pointer can be obtained using ANativeWindow_fromSurface().
+ * A pointer can be obtained using {@link ANativeWindow_fromSurface()}.
  */
 typedef struct ANativeWindow ANativeWindow;
 
 /**
- * {@link ANativeWindow} is a struct that represents a windows buffer.
+ * Struct that represents a windows buffer.
  *
- * A pointer can be obtained using ANativeWindow_lock().
+ * A pointer can be obtained using {@link ANativeWindow_lock()}.
  */
 typedef struct ANativeWindow_Buffer {
     // The number of pixels that are show horizontally.
@@ -90,10 +91,10 @@ typedef struct ANativeWindow_Buffer {
     int32_t height;
 
     // The number of *pixels* that a line in the buffer takes in
-    // memory.  This may be >= width.
+    // memory. This may be >= width.
     int32_t stride;
 
-    // The format of the buffer.  One of AHARDWAREBUFFER_FORMAT_*
+    // The format of the buffer. One of AHARDWAREBUFFER_FORMAT_*
     int32_t format;
 
     // The actual bits.
@@ -104,49 +105,53 @@ typedef struct ANativeWindow_Buffer {
 } ANativeWindow_Buffer;
 
 /**
- * Acquire a reference on the given ANativeWindow object.  This prevents the object
+ * Acquire a reference on the given {@link ANativeWindow} object. This prevents the object
  * from being deleted until the reference is removed.
  */
 void ANativeWindow_acquire(ANativeWindow* window);
 
 /**
- * Remove a reference that was previously acquired with ANativeWindow_acquire().
+ * Remove a reference that was previously acquired with {@link ANativeWindow_acquire()}.
  */
 void ANativeWindow_release(ANativeWindow* window);
 
 /**
- * Return the current width in pixels of the window surface.  Returns a
- * negative value on error.
+ * Return the current width in pixels of the window surface.
+ *
+ * \return negative value on error.
  */
 int32_t ANativeWindow_getWidth(ANativeWindow* window);
 
 /**
- * Return the current height in pixels of the window surface.  Returns a
- * negative value on error.
+ * Return the current height in pixels of the window surface.
+ *
+ * \return a negative value on error.
  */
 int32_t ANativeWindow_getHeight(ANativeWindow* window);
 
 /**
- * Return the current pixel format (AHARDWAREBUFFER_FORMAT_*) of the window surface.  Returns a
- * negative value on error.
+ * Return the current pixel format (AHARDWAREBUFFER_FORMAT_*) of the window surface.
+ *
+ * \return a negative value on error.
  */
 int32_t ANativeWindow_getFormat(ANativeWindow* window);
 
 /**
  * Change the format and size of the window buffers.
  *
- * format: one of AHARDWAREBUFFER_FORMAT_ constants
- *
  * The width and height control the number of pixels in the buffers, not the
- * dimensions of the window on screen.  If these are different than the
- * window's physical size, then it buffer will be scaled to match that size
- * when compositing it to the screen.
+ * dimensions of the window on screen. If these are different than the
+ * window's physical size, then its buffer will be scaled to match that size
+ * when compositing it to the screen. The width and height must be either both zero
+ * or both non-zero.
  *
  * For all of these parameters, if 0 is supplied then the window's base
  * value will come back in force.
  *
- * width and height must be either both zero or both non-zero.
- *
+ * \param width width of the buffers in pixels.
+ * \param height height of the buffers in pixels.
+ * \param format one of AHARDWAREBUFFER_FORMAT_* constants.
+ * \return 0 for success, or a negative value on error.
  */
 int32_t ANativeWindow_setBuffersGeometry(ANativeWindow* window,
         int32_t width, int32_t height, int32_t format);
@@ -157,7 +162,9 @@ int32_t ANativeWindow_setBuffersGeometry(ANativeWindow* window,
  * function, it contains the dirty region, that is, the region the caller
  * intends to redraw. When the function returns, inOutDirtyBounds is updated
  * with the actual area the caller needs to redraw -- this region is often
- * extended by ANativeWindow_lock.
+ * extended by {@link ANativeWindow_lock}.
+ *
+ * \return 0 for success, or a negative value on error.
  */
 int32_t ANativeWindow_lock(ANativeWindow* window, ANativeWindow_Buffer* outBuffer,
         ARect* inOutDirtyBounds);
@@ -165,6 +172,8 @@ int32_t ANativeWindow_lock(ANativeWindow* window, ANativeWindow_Buffer* outBuffe
 /**
  * Unlock the window's drawing surface after previously locking it,
  * posting the new buffer to the display.
+ *
+ * \return 0 for success, or a negative value on error.
  */
 int32_t ANativeWindow_unlockAndPost(ANativeWindow* window);
 
@@ -173,9 +182,8 @@ int32_t ANativeWindow_unlockAndPost(ANativeWindow* window);
 /**
  * Set a transform that will be applied to future buffers posted to the window.
  *
- * @param transform combination of {@link ANativeWindowTransform} flags
- * @return 0 if successful
- * @return -EINVAL if @param transform is invalid
+ * \param transform combination of {@link ANativeWindowTransform} flags
+ * \return 0 for success, or -EINVAL if \p transform is invalid
  */
 int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transform);
 

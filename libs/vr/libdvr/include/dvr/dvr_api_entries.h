@@ -16,6 +16,8 @@ DVR_V1_API_ENTRY(DisplayManagerGetEventFd);
 DVR_V1_API_ENTRY(DisplayManagerTranslateEpollEventMask);
 DVR_V1_API_ENTRY(DisplayManagerGetSurfaceState);
 DVR_V1_API_ENTRY(DisplayManagerGetReadBufferQueue);
+DVR_V1_API_ENTRY(ConfigurationDataGet);
+DVR_V1_API_ENTRY(ConfigurationDataDestroy);
 DVR_V1_API_ENTRY(SurfaceStateCreate);
 DVR_V1_API_ENTRY(SurfaceStateDestroy);
 DVR_V1_API_ENTRY(SurfaceStateGetSurfaceCount);

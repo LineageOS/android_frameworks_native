@@ -1116,9 +1116,14 @@ void SurfaceFlinger::disableHardwareVsync(bool makeUnavailable) {
 
 void SurfaceFlinger::resyncWithRateLimit() {
     static constexpr nsecs_t kIgnoreDelay = ms2ns(500);
-    if (systemTime() - mLastSwapTime > kIgnoreDelay) {
+
+    // No explicit locking is needed here since EventThread holds a lock while calling this method
+    static nsecs_t sLastResyncAttempted = 0;
+    const nsecs_t now = systemTime();
+    if (now - sLastResyncAttempted > kIgnoreDelay) {
         resyncToHardwareVsync(false);
     }
+    sLastResyncAttempted = now;
 }
 
 void SurfaceFlinger::onVSyncReceived(HWComposer* composer, int32_t type,

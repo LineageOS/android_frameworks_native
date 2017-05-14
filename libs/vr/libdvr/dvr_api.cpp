@@ -18,7 +18,7 @@
 
 extern "C" {
 
-DVR_EXPORT int dvrGetApi(void* api, size_t struct_size, int version) {
+int dvrGetApi(void* api, size_t struct_size, int version) {
   ALOGI("dvrGetApi: api=%p struct_size=%zu version=%d", api, struct_size,
         version);
   if (version == 1) {

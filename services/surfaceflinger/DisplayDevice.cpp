@@ -121,8 +121,7 @@ DisplayDevice::DisplayDevice(
     ANativeWindow* const window = mNativeWindow.get();
 
 #ifdef USE_HWC2
-    // Set defaultColorMode to SRGB if this device supports wide-color
-    mActiveColorMode = (supportWideColor) ? HAL_COLOR_MODE_SRGB : HAL_COLOR_MODE_NATIVE;
+    mActiveColorMode = HAL_COLOR_MODE_NATIVE;
     mDisplayHasWideColor = supportWideColor;
 #else
     (void) supportWideColor;

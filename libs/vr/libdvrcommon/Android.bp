@@ -12,11 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-sourceFiles = [
-    "frame_time_history.cpp",
-    "sync_util.cpp",
-]
-
 localIncludeFiles = [
     "include",
 ]
@@ -40,7 +35,6 @@ headerLibraries = [
 ]
 
 cc_library {
-    srcs: sourceFiles,
     local_include_dirs: localIncludeFiles,
 
     cflags: [
@@ -49,8 +43,6 @@ cc_library {
     ],
     export_include_dirs: localIncludeFiles,
 
-    shared_libs: sharedLibraries,
-    static_libs: staticLibraries,
     header_libs: headerLibraries,
     export_header_lib_headers: headerLibraries,
 

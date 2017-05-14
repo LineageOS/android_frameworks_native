@@ -1,5 +1,7 @@
 #include "display_manager_service.h"
 
+#include <android-base/file.h>
+#include <android-base/properties.h>
 #include <pdx/channel_handle.h>
 #include <pdx/default_transport/service_endpoint.h>
 #include <private/android_filesystem_config.h>
@@ -18,6 +20,14 @@ using android::pdx::ErrorStatus;
 using android::pdx::rpc::DispatchRemoteMethod;
 using android::pdx::rpc::IfAnyOf;
 using android::pdx::rpc::RemoteMethodError;
+
+namespace {
+
+const char kDvrLensMetricsProperty[] = "ro.dvr.lens_metrics";
+const char kDvrDeviceMetricsProperty[] = "ro.dvr.device_metrics";
+const char kDvrDeviceConfigProperty[] = "ro.dvr.device_configuration";
+
+}  // namespace
 
 namespace android {
 namespace dvr {
@@ -83,6 +93,11 @@ pdx::Status<void> DisplayManagerService::HandleMessage(pdx::Message& message) {
           *this, &DisplayManagerService::OnSetupNamedBuffer, message);
       return {};
 
+    case DisplayManagerProtocol::GetConfigurationData::Opcode:
+      DispatchRemoteMethod<DisplayManagerProtocol::GetConfigurationData>(
+          *this, &DisplayManagerService::OnGetConfigurationData, message);
+      return {};
+
     default:
       return Service::DefaultHandleMessage(message);
   }
@@ -144,6 +159,35 @@ DisplayManagerService::OnSetupNamedBuffer(pdx::Message& message,
     return ErrorStatus(EPERM);
   }
   return display_service_->SetupNamedBuffer(name, size, usage);
+}
+
+pdx::Status<std::string> DisplayManagerService::OnGetConfigurationData(
+    pdx::Message& message, display::ConfigFileType config_type) {
+  std::string property_name;
+  switch (config_type) {
+    case display::ConfigFileType::kLensMetrics:
+      property_name = kDvrLensMetricsProperty;
+      break;
+    case display::ConfigFileType::kDeviceMetrics:
+      property_name = kDvrDeviceMetricsProperty;
+      break;
+    case display::ConfigFileType::kDeviceConfiguration:
+      property_name = kDvrDeviceConfigProperty;
+      break;
+    default:
+      return ErrorStatus(EINVAL);
+  }
+  std::string file_path = base::GetProperty(property_name, "");
+  if (file_path.empty()) {
+    return ErrorStatus(ENOENT);
+  }
+
+  std::string data;
+  if (!base::ReadFileToString(file_path, &data)) {
+    return ErrorStatus(errno);
+  }
+
+  return std::move(data);
 }
 
 void DisplayManagerService::OnDisplaySurfaceChange() {

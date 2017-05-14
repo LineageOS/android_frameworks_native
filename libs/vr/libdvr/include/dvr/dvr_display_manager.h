@@ -32,6 +32,21 @@ int dvrDisplayManagerSetupNamedBuffer(DvrDisplayManager* client,
                                       const char* name, size_t size,
                                       uint64_t usage, DvrBuffer** buffer_out);
 
+// Device metrics data type enums.
+enum {
+  DVR_CONFIGURATION_DATA_LENS_METRICS = 0,
+  DVR_CONFIGURATION_DATA_DEVICE_METRICS = 1,
+  DVR_CONFIGURATION_DATA_DEVICE_CONFIG = 2,
+};
+
+// Loads device configuration data of DVR_CONFIGURATION_DATA_*.
+// @return 0 on success. Otherwise returns a negative error value.
+int dvrConfigurationDataGet(DvrDisplayManager* client, int config_type,
+                            uint8_t** data, size_t* data_size);
+
+// Destroy the configuration data returned from dvrGetConfigurationData.
+void dvrConfigurationDataDestroy(DvrDisplayManager* client, uint8_t* data);
+
 // Returns an fd used to signal when surface updates occur. Note that depending
 // on the underlying transport, only a subset of the real event bits may be
 // supported. Use dvrDisplayManagerClientTranslateEpollEventMask to get the real
