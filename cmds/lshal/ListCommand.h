@@ -85,7 +85,12 @@ private:
     // If true, calls IBase::debug(...) on each service.
     bool mEmitDebugInfo = false;
 
+    // If true, output in VINTF format.
     bool mVintf = false;
+
+    // If true, explanatory text are not emitted.
+    bool mNeat = false;
+
     // If an entry does not exist, need to ask /proc/{pid}/cmdline to get it.
     // If an entry exist but is an empty string, process might have died.
     // If an entry exist and not empty, it contains the cached content of /proc/{pid}/cmdline.
