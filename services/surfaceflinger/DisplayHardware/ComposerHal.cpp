@@ -181,6 +181,13 @@ Composer::Composer(bool useVrComposer)
     if (mClient == nullptr) {
         LOG_ALWAYS_FATAL("failed to create composer client");
     }
+
+    if (mIsUsingVrComposer) {
+        sp<IVrComposerClient> vrClient = IVrComposerClient::castFrom(mClient);
+        if (vrClient == nullptr) {
+            LOG_ALWAYS_FATAL("failed to create vr composer client");
+        }
+    }
 }
 
 std::vector<IComposer::Capability> Composer::getCapabilities()
