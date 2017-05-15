@@ -130,6 +130,16 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
     return ReturnStatusOrError(status);
   }
 
+  // Enables or disables all pose processing from sensors
+  int EnableSensors(bool enabled) {
+    Transaction trans{*this};
+    Status<int> status = trans.Send<int>(DVR_POSE_SENSORS_ENABLE, &enabled,
+                                         sizeof(enabled), nullptr, 0);
+    ALOGE_IF(!status, "Pose EnableSensors() failed because: %s\n",
+             status.GetErrorMessage().c_str());
+    return ReturnStatusOrError(status);
+  }
+
   int GetRingBuffer(DvrPoseRingBufferInfo* out_info) {
     // First time mapping the buffer?
     const auto vsync_buffer = GetVsyncBuffer();
@@ -277,17 +287,17 @@ int dvrPoseClientFreeze(DvrPoseClient* client, const DvrPose* frozen_state) {
   return PoseClient::FromC(client)->Freeze(*frozen_state);
 }
 
-int dvrPoseClientSetMode(DvrPoseClient* client, DvrPoseMode mode) {
+int dvrPoseClientModeSet(DvrPoseClient* client, DvrPoseMode mode) {
   return PoseClient::FromC(client)->SetMode(mode);
 }
 
-int dvrPoseClientGetMode(DvrPoseClient* client, DvrPoseMode* mode) {
+int dvrPoseClientModeGet(DvrPoseClient* client, DvrPoseMode* mode) {
   return PoseClient::FromC(client)->GetMode(mode);
 }
 
-int dvrPoseClientGetRingBuffer(DvrPoseClient* client,
-                               DvrPoseRingBufferInfo* out_info) {
-  return PoseClient::FromC(client)->GetRingBuffer(out_info);
+
+int dvrPoseClientSensorsEnable(DvrPoseClient* client, bool enabled) {
+  return PoseClient::FromC(client)->EnableSensors(enabled);
 }
 
 }  // extern "C"
