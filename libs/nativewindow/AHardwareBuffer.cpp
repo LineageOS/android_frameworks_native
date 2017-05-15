@@ -179,12 +179,17 @@ int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int so
     memcpy(fdData, fds.get(), sizeof(int) * fdCount);
     msg.msg_controllen = cmsg->cmsg_len;
 
-    int result = sendmsg(socketFd, &msg, 0);
-    if (result <= 0) {
+    int result;
+    do {
+        result = sendmsg(socketFd, &msg, 0);
+    } while (result == -1 && errno == EINTR);
+    if (result == -1) {
+        result = errno;
         ALOGE("Error writing AHardwareBuffer to socket: error %#x (%s)",
-                result, strerror(errno));
-        return result;
+                result, strerror(result));
+        return -result;
     }
+
     return NO_ERROR;
 }
 
@@ -206,11 +211,15 @@ int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** out
             .msg_iovlen = 1,
     };
 
-    int result = recvmsg(socketFd, &msg, 0);
-    if (result <= 0) {
+    int result;
+    do {
+        result = recvmsg(socketFd, &msg, 0);
+    } while (result == -1 && errno == EINTR);
+    if (result == -1) {
+        result = errno;
         ALOGE("Error reading AHardwareBuffer from socket: error %#x (%s)",
-                result, strerror(errno));
-        return result;
+                result, strerror(result));
+        return -result;
     }
 
     if (msg.msg_iovlen != 1) {
