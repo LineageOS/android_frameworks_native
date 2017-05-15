@@ -156,22 +156,22 @@ int dvrSurfaceCreateWriteBufferQueue(DvrSurface* surface, uint32_t width,
   return 0;
 }
 
-int dvrGetNamedBuffer(const char* name, DvrBuffer** out_buffer) {
+int dvrGetGlobalBuffer(DvrGlobalBufferKey key, DvrBuffer** out_buffer) {
   auto client = DisplayClient::Create();
   if (!client) {
-    ALOGE("dvrGetNamedBuffer: Failed to create display client!");
+    ALOGE("dvrGetGlobalBuffer: Failed to create display client!");
     return -ECOMM;
   }
 
-  if (out_buffer == nullptr || name == nullptr) {
-    ALOGE("dvrGetNamedBuffer: Invalid inputs: name=%p, out_buffer=%p.", name,
+  if (out_buffer == nullptr) {
+    ALOGE("dvrGetGlobalBuffer: Invalid inputs: key=%d, out_buffer=%p.", key,
           out_buffer);
     return -EINVAL;
   }
 
-  auto status = client->GetNamedBuffer(name);
+  auto status = client->GetGlobalBuffer(key);
   if (!status) {
-    ALOGE("dvrGetNamedBuffer: Failed to find named buffer name=%s: %s", name,
+    ALOGE("dvrGetGlobalBuffer: Failed to find named buffer key=%d: %s", key,
           status.GetErrorMessage().c_str());
     return -status.error();
   }

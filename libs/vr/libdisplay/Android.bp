@@ -45,6 +45,7 @@ staticLibraries = [
 
 headerLibraries = [
     "vulkan_headers",
+    "libdvr_headers",
 ]
 
 cc_library {

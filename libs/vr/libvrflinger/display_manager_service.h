@@ -56,8 +56,8 @@ class DisplayManagerService : public pdx::ServiceBase<DisplayManagerService> {
   pdx::Status<pdx::LocalChannelHandle> OnGetSurfaceQueue(pdx::Message& message,
                                                          int surface_id,
                                                          int queue_id);
-  pdx::Status<BorrowedNativeBufferHandle> OnSetupNamedBuffer(
-      pdx::Message& message, const std::string& name, size_t size,
+  pdx::Status<BorrowedNativeBufferHandle> OnSetupGlobalBuffer(
+      pdx::Message& message, DvrGlobalBufferKey key, size_t size,
       uint64_t usage);
   pdx::Status<std::string> OnGetConfigurationData(
       pdx::Message& message, display::ConfigFileType config_type);

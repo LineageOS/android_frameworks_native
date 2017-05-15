@@ -1,6 +1,7 @@
 #ifndef ANDROID_DVR_DISPLAY_CLIENT_H_
 #define ANDROID_DVR_DISPLAY_CLIENT_H_
 
+#include <dvr/dvr_api.h>
 #include <hardware/hwcomposer.h>
 #include <pdx/client.h>
 #include <pdx/file_handle.h>
@@ -67,8 +68,8 @@ class Surface : public pdx::ClientBase<Surface> {
 class DisplayClient : public pdx::ClientBase<DisplayClient> {
  public:
   pdx::Status<Metrics> GetDisplayMetrics();
-  pdx::Status<std::unique_ptr<IonBuffer>> GetNamedBuffer(
-      const std::string& name);
+  pdx::Status<std::unique_ptr<IonBuffer>> GetGlobalBuffer(
+      DvrGlobalBufferKey key);
   pdx::Status<std::unique_ptr<Surface>> CreateSurface(
       const SurfaceAttributes& attributes);
 
