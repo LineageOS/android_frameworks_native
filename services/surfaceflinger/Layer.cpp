@@ -103,7 +103,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
         mLastFrameNumberReceived(0),
         mUpdateTexImageFailed(false),
         mAutoRefresh(false),
-        mFreezeGeometryUpdates(false)
+        mFreezePositionUpdates(false)
 {
 #ifdef USE_HWC2
     ALOGV("Creating Layer %s", name.string());
@@ -131,8 +131,6 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
     mCurrentState.active.transform.set(0, 0);
     mCurrentState.crop.makeInvalid();
     mCurrentState.finalCrop.makeInvalid();
-    mCurrentState.requestedFinalCrop = mCurrentState.finalCrop;
-    mCurrentState.requestedCrop = mCurrentState.crop;
     mCurrentState.z = 0;
 #ifdef USE_HWC2
     mCurrentState.alpha = 1.0f;
@@ -1638,25 +1636,12 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         }
     }
 
-    // Here we apply various requested geometry states, depending on our
-    // latching configuration. See Layer.h for a detailed discussion of
-    // how geometry latching is controlled.
-    if (!(flags & eDontUpdateGeometryState)) {
+    // always set active to requested, unless we're asked not to
+    // this is used by Layer, which special cases resizes.
+    if (flags & eDontUpdateGeometryState)  {
+    } else {
         Layer::State& editCurrentState(getCurrentState());
-
-        // If mFreezeGeometryUpdates is true we are in the setGeometryAppliesWithResize
-        // mode, which causes attributes which normally latch regardless of scaling mode,
-        // to be delayed. We copy the requested state to the active state making sure
-        // to respect these rules (again see Layer.h for a detailed discussion).
-        //
-        // There is an awkward asymmetry in the handling of the crop states in the position
-        // states, as can be seen below. Largely this arises from position and transform
-        // being stored in the same data structure while having different latching rules.
-        // b/38182305
-        //
-        // Careful that "c" and editCurrentState may not begin as equivalent due to
-        // applyPendingStates in the presence of deferred transactions.
-        if (mFreezeGeometryUpdates) {
+        if (mFreezePositionUpdates) {
             float tx = c.active.transform.tx();
             float ty = c.active.transform.ty();
             c.active = c.requested;
@@ -1665,14 +1650,6 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         } else {
             editCurrentState.active = editCurrentState.requested;
             c.active = c.requested;
-            if (c.crop != c.requestedCrop ||
-                    c.finalCrop != c.requestedFinalCrop) {
-                c.sequence++;
-                c.crop = c.requestedCrop;
-                c.finalCrop = c.requestedFinalCrop;
-                editCurrentState.crop = c.crop;
-                editCurrentState.finalCrop = c.finalCrop;
-            }
         }
     }
 
@@ -1725,14 +1702,10 @@ bool Layer::setPosition(float x, float y, bool immediate) {
     // we want to apply the position portion of the transform matrix immediately,
     // but still delay scaling when resizing a SCALING_MODE_FREEZE layer.
     mCurrentState.requested.transform.set(x, y);
-    if (immediate && !mFreezeGeometryUpdates) {
-        // Here we directly update the active state
-        // unlike other setters, because we store it within
-        // the transform, but use different latching rules.
-        // b/38182305
+    if (immediate && !mFreezePositionUpdates) {
         mCurrentState.active.transform.set(x, y);
     }
-    mFreezeGeometryUpdates = mFreezeGeometryUpdates || !immediate;
+    mFreezePositionUpdates = mFreezePositionUpdates || !immediate;
 
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -1855,30 +1828,26 @@ bool Layer::setFlags(uint8_t flags, uint8_t mask) {
 }
 
 bool Layer::setCrop(const Rect& crop, bool immediate) {
-    if (mCurrentState.requestedCrop == crop)
+    if (mCurrentState.crop == crop)
         return false;
     mCurrentState.sequence++;
     mCurrentState.requestedCrop = crop;
-    if (immediate && !mFreezeGeometryUpdates) {
+    if (immediate) {
         mCurrentState.crop = crop;
     }
-    mFreezeGeometryUpdates = mFreezeGeometryUpdates || !immediate;
-
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
 
 bool Layer::setFinalCrop(const Rect& crop, bool immediate) {
-    if (mCurrentState.requestedFinalCrop == crop)
+    if (mCurrentState.finalCrop == crop)
         return false;
     mCurrentState.sequence++;
     mCurrentState.requestedFinalCrop = crop;
-    if (immediate && !mFreezeGeometryUpdates) {
+    if (immediate) {
         mCurrentState.finalCrop = crop;
     }
-    mFreezeGeometryUpdates = mFreezeGeometryUpdates || !immediate;
-
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -2168,7 +2137,7 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime)
     bool queuedBuffer = false;
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
                     getProducerStickyTransform() != 0, mName.string(),
-                    mOverrideScalingMode, mFreezeGeometryUpdates);
+                    mOverrideScalingMode, mFreezePositionUpdates);
     status_t updateResult = mSurfaceFlingerConsumer->updateTexImage(&r,
             mFlinger->mPrimaryDispSync, &mAutoRefresh, &queuedBuffer,
             mLastFrameNumberReceived);
