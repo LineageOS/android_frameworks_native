@@ -50,6 +50,10 @@ bool analyze_primary_profiles(uid_t uid, const std::string& pkgname);
 
 bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_paths);
 
+bool copy_system_profile(const std::string& system_profile,
+                         uid_t packageUid,
+                         const std::string& data_profile_location);
+
 bool delete_odex(const char* apk_path, const char* instruction_set, const char* output_path);
 
 bool reconcile_secondary_dex_file(const std::string& dex_path,

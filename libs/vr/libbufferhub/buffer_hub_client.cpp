@@ -9,7 +9,6 @@
 
 #include <pdx/default_transport/client_channel.h>
 #include <pdx/default_transport/client_channel_factory.h>
-#include <private/dvr/platform_defines.h>
 
 #include "include/private/dvr/bufferhub_rpc.h"
 
@@ -17,15 +16,6 @@ using android::pdx::LocalHandle;
 using android::pdx::LocalChannelHandle;
 using android::pdx::rpc::WrapBuffer;
 using android::pdx::Status;
-
-namespace {
-
-// TODO(hendrikw): These flags can not be hard coded.
-constexpr int kUncachedBlobUsageFlags = GRALLOC_USAGE_SW_READ_RARELY |
-                                        GRALLOC_USAGE_SW_WRITE_RARELY |
-                                        GRALLOC_USAGE_PRIVATE_UNCACHED;
-
-}  // anonymous namespace
 
 namespace android {
 namespace dvr {
@@ -101,25 +91,14 @@ int BufferHubBuffer::Unlock() { return buffer_.Unlock(); }
 int BufferHubBuffer::GetBlobReadWritePointer(size_t size, void** addr) {
   int width = static_cast<int>(size);
   int height = 1;
-  // TODO(hendrikw): These flags can not be hard coded.
-  constexpr int usage = GRALLOC_USAGE_SW_READ_RARELY |
-                        GRALLOC_USAGE_SW_WRITE_RARELY |
-                        GRALLOC_USAGE_PRIVATE_UNCACHED;
-  int ret = Lock(usage, 0, 0, width, height, addr);
+  int ret = Lock(usage(), 0, 0, width, height, addr);
   if (ret == 0)
     Unlock();
   return ret;
 }
 
 int BufferHubBuffer::GetBlobReadOnlyPointer(size_t size, void** addr) {
-  int width = static_cast<int>(size);
-  int height = 1;
-  constexpr int usage =
-      GRALLOC_USAGE_SW_READ_RARELY | GRALLOC_USAGE_PRIVATE_UNCACHED;
-  int ret = Lock(usage, 0, 0, width, height, addr);
-  if (ret == 0)
-    Unlock();
-  return ret;
+  return GetBlobReadWritePointer(size, addr);
 }
 
 void BufferHubBuffer::GetBlobFds(int* fds, size_t* fds_count,
@@ -427,17 +406,6 @@ int BufferProducer::RemovePersistence() {
   ATRACE_NAME("BufferProducer::RemovePersistence");
   return ReturnStatusOrError(
       InvokeRemoteMethod<BufferHubRPC::ProducerRemovePersistence>());
-}
-
-std::unique_ptr<BufferProducer> BufferProducer::CreateUncachedBlob(
-    size_t size) {
-  return BufferProducer::Create(kUncachedBlobUsageFlags, size);
-}
-
-std::unique_ptr<BufferProducer> BufferProducer::CreatePersistentUncachedBlob(
-    const std::string& name, int user_id, int group_id, size_t size) {
-  return BufferProducer::Create(name, user_id, group_id,
-                                kUncachedBlobUsageFlags, size);
 }
 
 }  // namespace dvr

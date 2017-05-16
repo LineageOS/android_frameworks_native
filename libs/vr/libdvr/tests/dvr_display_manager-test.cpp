@@ -1,3 +1,4 @@
+#include <android-base/properties.h>
 #include <base/logging.h>
 #include <gtest/gtest.h>
 #include <poll.h>
@@ -198,6 +199,24 @@ class TestDisplayManager {
     }
 
     return {std::move(queue_ids)};
+  }
+
+  Status<std::vector<uint8_t>> GetConfigData(int config_type) {
+    uint8_t* data = nullptr;
+    size_t data_size = 0;
+    int error = dvrConfigurationDataGet(display_manager_.get(), config_type,
+                                        &data, &data_size);
+    if (error < 0) {
+      return ErrorStatus(-error);
+    }
+
+    if (!data || data_size == 0) {
+      return ErrorStatus(EINVAL);
+    }
+    std::vector<uint8_t> data_result(data, data + data_size);
+    dvrConfigurationDataDestroy(display_manager_.get(), data);
+    std::string s(data, data + data_size);
+    return {std::move(data_result)};
   }
 
  private:
@@ -571,6 +590,23 @@ TEST_F(DvrDisplayManagerTest, MultiLayerBufferQueue) {
 
   AHardwareBuffer_release(hardware_buffer);
   dvrWriteBufferDestroy(buffer);
+}
+
+TEST_F(DvrDisplayManagerTest, ConfigurationData) {
+  auto data1 = manager_->GetConfigData(-1);
+  ASSERT_STATUS_ERROR(data1);
+
+  const char kDvrLensMetricsProperty[] = "ro.dvr.lens_metrics";
+
+  // This should be run on devices with and without built in metrics.
+  bool has_metric = !base::GetProperty(kDvrLensMetricsProperty, "").empty();
+  auto data2 = manager_->GetConfigData(DVR_CONFIGURATION_DATA_LENS_METRICS);
+  if (has_metric) {
+    ASSERT_STATUS_OK(data2);
+    ASSERT_NE(0u, data2.get().size());
+  } else {
+    ASSERT_STATUS_ERROR(data2);
+  }
 }
 
 }  // namespace

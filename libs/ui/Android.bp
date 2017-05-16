@@ -14,6 +14,7 @@
 
 cc_library_shared {
     name: "libui",
+    vendor_available: true,
 
     clang: true,
     cppflags: [
@@ -60,6 +61,10 @@ cc_library_shared {
         "UiConfig.cpp",
     ],
 
+    include_dirs: [
+        "frameworks/native/include",
+    ],
+
     shared_libs: [
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.mapper@2.0",
@@ -73,7 +78,6 @@ cc_library_shared {
         "libsync",
         "libutils",
         "liblog",
-        "libgraphicsenv",
     ],
 
     static_libs: [

@@ -40,10 +40,11 @@ class DvrBufferQueueTest : public ::testing::Test {
   void AllocateBuffers(size_t buffer_count) {
     size_t out_slot;
     for (size_t i = 0; i < buffer_count; i++) {
-      int ret = GetProducerQueueFromDvrWriteBufferQueue(write_queue_)
-                    ->AllocateBuffer(kBufferWidth, kBufferHeight, kLayerCount,
-                                     kBufferFormat, kBufferUsage, &out_slot);
-      ASSERT_EQ(0, ret);
+      auto status =
+          GetProducerQueueFromDvrWriteBufferQueue(write_queue_)
+              ->AllocateBuffer(kBufferWidth, kBufferHeight, kLayerCount,
+                               kBufferFormat, kBufferUsage, &out_slot);
+      ASSERT_TRUE(status.ok());
     }
   }
 

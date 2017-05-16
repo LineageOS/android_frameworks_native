@@ -14,8 +14,6 @@
 
 sourceFiles = [
     "buffer_hub_queue_client.cpp",
-    "buffer_hub_queue_core.cpp",
-    "buffer_hub_queue_consumer.cpp",
     "buffer_hub_queue_producer.cpp",
 ]
 
@@ -41,6 +39,7 @@ sharedLibraries = [
 ]
 
 headerLibraries = [
+    "libdvr_headers",
     "libnativebase_headers",
 ]
 

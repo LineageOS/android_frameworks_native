@@ -59,6 +59,8 @@ class DisplayManagerService : public pdx::ServiceBase<DisplayManagerService> {
   pdx::Status<BorrowedNativeBufferHandle> OnSetupNamedBuffer(
       pdx::Message& message, const std::string& name, size_t size,
       uint64_t usage);
+  pdx::Status<std::string> OnGetConfigurationData(
+      pdx::Message& message, display::ConfigFileType config_type);
 
   // Called by the display service to indicate changes to display surfaces that
   // the display manager should evaluate.

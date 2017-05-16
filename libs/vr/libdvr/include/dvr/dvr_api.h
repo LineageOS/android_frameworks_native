@@ -54,6 +54,11 @@ typedef int (*DvrDisplayManagerGetSurfaceStatePtr)(
 typedef int (*DvrDisplayManagerGetReadBufferQueuePtr)(
     DvrDisplayManager* client, int surface_id, int queue_id,
     DvrReadBufferQueue** queue_out);
+typedef int (*DvrConfigurationDataGetPtr)(DvrDisplayManager* client,
+                                          int config_type, uint8_t** data,
+                                          size_t* data_size);
+typedef void (*DvrConfigurationDataDestroyPtr)(DvrDisplayManager* client,
+                                               uint8_t* data);
 typedef int (*DvrSurfaceStateCreatePtr)(DvrSurfaceState** surface_state);
 typedef void (*DvrSurfaceStateDestroyPtr)(DvrSurfaceState* surface_state);
 typedef int (*DvrSurfaceStateGetSurfaceCountPtr)(DvrSurfaceState* surface_state,

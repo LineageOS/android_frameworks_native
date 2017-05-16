@@ -91,6 +91,8 @@ public:
     binder::Status mergeProfiles(int32_t uid, const std::string& packageName, bool* _aidl_return);
     binder::Status dumpProfiles(int32_t uid, const std::string& packageName,
             const std::string& codePaths, bool* _aidl_return);
+    binder::Status copySystemProfile(const std::string& systemProfile,
+            int32_t uid, const std::string& packageName, bool* _aidl_return);
     binder::Status clearAppProfiles(const std::string& packageName);
     binder::Status destroyAppProfiles(const std::string& packageName);
 
