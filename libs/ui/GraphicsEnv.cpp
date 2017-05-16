@@ -23,6 +23,11 @@
 #include <log/log.h>
 #include <nativeloader/dlext_namespaces.h>
 
+// TODO(b/37049319) Get this from a header once one exists
+extern "C" {
+  android_namespace_t* android_get_exported_namespace(const char*);
+}
+
 namespace android {
 
 /*static*/ GraphicsEnv& GraphicsEnv::getInstance() {
@@ -43,33 +48,19 @@ void GraphicsEnv::setDriverPath(const std::string path) {
 android_namespace_t* GraphicsEnv::getDriverNamespace() {
     static std::once_flag once;
     std::call_once(once, [this]() {
-        // TODO; In the next version of Android, all graphics drivers will be
-        // loaded into a custom namespace. To minimize risk for this release,
-        // only updated drivers use a custom namespace.
-        //
-        // Additionally, the custom namespace will be
-        // ANDROID_NAMESPACE_TYPE_ISOLATED, and will only have access to a
-        // subset of the system.
         if (mDriverPath.empty())
             return;
-
-        char defaultPath[PATH_MAX];
-        android_get_LD_LIBRARY_PATH(defaultPath, sizeof(defaultPath));
-        size_t defaultPathLen = strlen(defaultPath);
-
-        std::string path;
-        path.reserve(mDriverPath.size() + 1 + defaultPathLen);
-        path.append(mDriverPath);
-        path.push_back(':');
-        path.append(defaultPath, defaultPathLen);
-
-        mDriverNamespace = android_create_namespace(
-                "gfx driver",
-                nullptr,                    // ld_library_path
-                path.c_str(),               // default_library_path
-                ANDROID_NAMESPACE_TYPE_SHARED,
-                nullptr,                    // permitted_when_isolated_path
-                nullptr);                   // parent
+        // If the sphal namespace isn't configured for a device, don't support updatable drivers.
+        // We need a parent namespace to inherit the default search path from.
+        auto sphalNamespace = android_get_exported_namespace("sphal");
+        if (!sphalNamespace) return;
+        mDriverNamespace = android_create_namespace("gfx driver",
+                                                    nullptr,             // ld_library_path
+                                                    mDriverPath.c_str(), // default_library_path
+                                                    ANDROID_NAMESPACE_TYPE_SHARED |
+                                                            ANDROID_NAMESPACE_TYPE_ISOLATED,
+                                                    nullptr, // permitted_when_isolated_path
+                                                    sphalNamespace);
     });
     return mDriverNamespace;
 }
