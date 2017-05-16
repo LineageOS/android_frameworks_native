@@ -72,6 +72,7 @@ cc_library_shared {
         "libhardware",
         "libhidlbase",
         "libhidltransport",
+        "libhwbinder",
         "libsync",
         "libutils",
         "liblog",
