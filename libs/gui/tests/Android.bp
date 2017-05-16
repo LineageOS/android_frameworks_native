@@ -14,6 +14,7 @@ cc_test {
         "FillBuffer.cpp",
         "GLTest.cpp",
         "IGraphicBufferProducer_test.cpp",
+        "Malicious.cpp",
         "MultiTextureConsumer_test.cpp",
         "StreamSplitter_test.cpp",
         "SurfaceTextureClient_test.cpp",
