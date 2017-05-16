@@ -40,7 +40,7 @@ namespace android {
         bool mStickyTransformSet;
         const char *mName;
         int32_t mOverrideScalingMode;
-        bool &mFreezeGeometryUpdates;
+        bool &mFreezePositionUpdates;
     };
 }  // namespace android
 
