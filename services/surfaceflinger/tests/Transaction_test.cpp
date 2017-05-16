@@ -605,27 +605,6 @@ TEST_F(CropLatchingTest, FinalCropLatching) {
     EXPECT_CROPPED_STATE("after the resize finishes");
 }
 
-TEST_F(CropLatchingTest, FinalCropLatchingRegressionForb37531386) {
-    EXPECT_INITIAL_STATE("before anything");
-    // In this scenario, we attempt to set the final crop a second time while the resize
-    // is still pending, and ensure we are successful.
-    SurfaceComposerClient::openGlobalTransaction();
-    mFGSurfaceControl->setSize(128, 128);
-    mFGSurfaceControl->setGeometryAppliesWithResize();
-    mFGSurfaceControl->setFinalCrop(Rect(64, 64, 127, 127));
-    SurfaceComposerClient::closeGlobalTransaction(true);
-
-    SurfaceComposerClient::openGlobalTransaction();
-    mFGSurfaceControl->setFinalCrop(Rect(0, 0, -1, -1));
-    SurfaceComposerClient::closeGlobalTransaction(true);
-
-    EXPECT_INITIAL_STATE("after setting crops with geometryAppliesWithResize");
-
-    completeFGResize();
-
-    EXPECT_INITIAL_STATE("after the resize finishes");
-}
-
 TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     sp<ScreenCapture> sc;
     {
