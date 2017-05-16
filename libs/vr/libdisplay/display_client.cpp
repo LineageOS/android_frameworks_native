@@ -176,14 +176,14 @@ Status<std::unique_ptr<Surface>> DisplayClient::CreateSurface(
     return ErrorStatus(error);
 }
 
-Status<std::unique_ptr<IonBuffer>> DisplayClient::GetNamedBuffer(
-    const std::string& name) {
-  auto status = InvokeRemoteMethod<DisplayProtocol::GetNamedBuffer>(name);
+Status<std::unique_ptr<IonBuffer>> DisplayClient::GetGlobalBuffer(
+    DvrGlobalBufferKey key) {
+  auto status = InvokeRemoteMethod<DisplayProtocol::GetGlobalBuffer>(key);
   if (!status) {
     ALOGE(
-        "DisplayClient::GetNamedBuffer: Failed to get named buffer: name=%s; "
+        "DisplayClient::GetGlobalBuffer: Failed to get named buffer: key=%d; "
         "error=%s",
-        name.c_str(), status.GetErrorMessage().c_str());
+        key, status.GetErrorMessage().c_str());
     return status.error_status();
   }
 
@@ -192,9 +192,9 @@ Status<std::unique_ptr<IonBuffer>> DisplayClient::GetNamedBuffer(
   const int ret = native_buffer_handle.Import(ion_buffer.get());
   if (ret < 0) {
     ALOGE(
-        "DisplayClient::GetNamedBuffer: Failed to import named buffer: "
-        "name=%s; error=%s",
-        name.c_str(), strerror(-ret));
+        "DisplayClient::GetGlobalBuffer: Failed to import global buffer: "
+        "key=%d; error=%s",
+        key, strerror(-ret));
     return ErrorStatus(-ret);
   }
 

@@ -11,7 +11,7 @@
 // Display manager client
 DVR_V1_API_ENTRY(DisplayManagerCreate);
 DVR_V1_API_ENTRY(DisplayManagerDestroy);
-DVR_V1_API_ENTRY(DisplayManagerSetupNamedBuffer);
+DVR_V1_API_ENTRY(DisplayManagerSetupGlobalBuffer);
 DVR_V1_API_ENTRY(DisplayManagerGetEventFd);
 DVR_V1_API_ENTRY(DisplayManagerTranslateEpollEventMask);
 DVR_V1_API_ENTRY(DisplayManagerGetSurfaceState);
@@ -86,7 +86,7 @@ DVR_V1_API_ENTRY(SurfaceDestroy);
 DVR_V1_API_ENTRY(SurfaceGetId);
 DVR_V1_API_ENTRY(SurfaceSetAttributes);
 DVR_V1_API_ENTRY(SurfaceCreateWriteBufferQueue);
-DVR_V1_API_ENTRY(GetNamedBuffer);
+DVR_V1_API_ENTRY(GetGlobalBuffer);
 
 // Pose client
 DVR_V1_API_ENTRY(PoseCreate);

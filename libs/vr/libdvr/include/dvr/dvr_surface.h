@@ -6,15 +6,12 @@
 #include <stdint.h>
 #include <sys/cdefs.h>
 
+#include <dvr/dvr_api.h>
 #include <dvr/dvr_buffer.h>
 #include <dvr/dvr_buffer_queue.h>
 #include <dvr/dvr_display_types.h>
 
 __BEGIN_DECLS
-
-typedef struct DvrBuffer DvrBuffer;
-typedef struct DvrSurface DvrSurface;
-typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
 
 // Attribute types. The values are one-hot encoded to support singluar types or
 // masks of supported types.
@@ -82,9 +79,9 @@ int dvrSurfaceCreateWriteBufferQueue(DvrSurface* surface, uint32_t width,
                                      size_t capacity,
                                      DvrWriteBufferQueue** queue_out);
 
-// Get a named buffer from the display service.
+// Get a global buffer from the display service.
 // @return 0 on success. Otherwise returns a negative error value.
-int dvrGetNamedBuffer(const char* name, DvrBuffer** out_buffer);
+int dvrGetGlobalBuffer(DvrGlobalBufferKey key, DvrBuffer** out_buffer);
 
 __END_DECLS
 

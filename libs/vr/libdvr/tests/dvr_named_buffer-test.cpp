@@ -29,16 +29,16 @@ class DvrNamedBufferTest : public ::testing::Test {
 };
 
 TEST_F(DvrNamedBufferTest, TestNamedBuffersSameName) {
-  const char* buffer_name = "same_name";
+  const DvrGlobalBufferKey buffer_key = 101;
   DvrBuffer* buffer1 = nullptr;
   int ret1 =
-      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, 0, &buffer1);
+      dvrDisplayManagerSetupGlobalBuffer(client_, buffer_key, 10, 0, &buffer1);
   ASSERT_EQ(0, ret1);
   ASSERT_NE(nullptr, buffer1);
 
   DvrBuffer* buffer2 = nullptr;
   int ret2 =
-      dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, 0, &buffer2);
+      dvrDisplayManagerSetupGlobalBuffer(client_, buffer_key, 10, 0, &buffer2);
   ASSERT_EQ(0, ret1);
   ASSERT_NE(nullptr, buffer2);
 
@@ -71,7 +71,7 @@ TEST_F(DvrNamedBufferTest, TestNamedBuffersSameName) {
   dvrBufferDestroy(buffer2);
 
   DvrBuffer* buffer3 = nullptr;
-  int e3 = dvrGetNamedBuffer(buffer_name, &buffer3);
+  int e3 = dvrGetGlobalBuffer(buffer_key, &buffer3);
   ASSERT_NE(nullptr, buffer3);
   ASSERT_EQ(0, e3);
 
@@ -96,37 +96,37 @@ TEST_F(DvrNamedBufferTest, TestNamedBuffersSameName) {
 }
 
 TEST_F(DvrNamedBufferTest, TestMultipleNamedBuffers) {
-  const char* buffer_name1 = "test1";
-  const char* buffer_name2 = "test2";
+  const DvrGlobalBufferKey buffer_key1 = 102;
+  const DvrGlobalBufferKey buffer_key2 = 103;
   DvrBuffer* setup_buffer1 = nullptr;
-  int ret1 = dvrDisplayManagerSetupNamedBuffer(client_, buffer_name1, 10, 0,
-                                               &setup_buffer1);
+  int ret1 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_key1, 10, 0,
+                                                &setup_buffer1);
   ASSERT_EQ(0, ret1);
   ASSERT_NE(nullptr, setup_buffer1);
   dvrBufferDestroy(setup_buffer1);
 
   DvrBuffer* setup_buffer2 = nullptr;
-  int ret2 = dvrDisplayManagerSetupNamedBuffer(client_, buffer_name2, 10, 0,
-                                               &setup_buffer2);
+  int ret2 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_key2, 10, 0,
+                                                &setup_buffer2);
   ASSERT_EQ(0, ret2);
   ASSERT_NE(nullptr, setup_buffer2);
   dvrBufferDestroy(setup_buffer2);
 
   DvrBuffer* buffer1 = nullptr;
-  int e1 = dvrGetNamedBuffer(buffer_name1, &buffer1);
+  int e1 = dvrGetGlobalBuffer(buffer_key1, &buffer1);
   ASSERT_NE(nullptr, buffer1);
   ASSERT_EQ(0, e1);
   dvrBufferDestroy(buffer1);
 
   DvrBuffer* buffer2 = nullptr;
-  int e2 = dvrGetNamedBuffer(buffer_name2, &buffer2);
+  int e2 = dvrGetGlobalBuffer(buffer_key2, &buffer2);
   ASSERT_NE(nullptr, buffer2);
   ASSERT_EQ(0, e2);
   dvrBufferDestroy(buffer2);
 }
 
 TEST_F(DvrNamedBufferTest, TestNamedBufferUsage) {
-  const char* buffer_name = "buffer_usage";
+  const DvrGlobalBufferKey buffer_key = 100;
 
   // Set usage to AHARDWAREBUFFER_USAGE_VIDEO_ENCODE. We use this because
   // internally AHARDWAREBUFFER_USAGE_VIDEO_ENCODE is converted to
@@ -136,8 +136,8 @@ TEST_F(DvrNamedBufferTest, TestNamedBufferUsage) {
   const uint64_t usage = AHARDWAREBUFFER_USAGE_VIDEO_ENCODE;
 
   DvrBuffer* setup_buffer = nullptr;
-  int e1 = dvrDisplayManagerSetupNamedBuffer(client_, buffer_name, 10, usage,
-                                             &setup_buffer);
+  int e1 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_key, 10, usage,
+                                              &setup_buffer);
   ASSERT_NE(nullptr, setup_buffer);
   ASSERT_EQ(0, e1);
 

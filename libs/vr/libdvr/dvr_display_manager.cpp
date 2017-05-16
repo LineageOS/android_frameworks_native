@@ -112,19 +112,20 @@ int dvrDisplayManagerCreate(DvrDisplayManager** client_out) {
 
 void dvrDisplayManagerDestroy(DvrDisplayManager* client) { delete client; }
 
-int dvrDisplayManagerSetupNamedBuffer(DvrDisplayManager* client,
-                                      const char* name, size_t size,
-                                      uint64_t usage, DvrBuffer** buffer_out) {
-  if (!client || !name || !buffer_out)
+int dvrDisplayManagerSetupGlobalBuffer(DvrDisplayManager* client,
+                                       DvrGlobalBufferKey key, size_t size,
+                                       uint64_t usage, DvrBuffer** buffer_out) {
+  if (!client || !buffer_out)
     return -EINVAL;
 
   uint64_t gralloc_usage = AHardwareBuffer_convertToGrallocUsageBits(usage);
 
   auto buffer_status =
-      client->client->SetupNamedBuffer(name, size, gralloc_usage);
+      client->client->SetupGlobalBuffer(key, size, gralloc_usage);
   if (!buffer_status) {
-    ALOGE("dvrDisplayManagerSetupPoseBuffer: Failed to setup named buffer: %s",
-          buffer_status.GetErrorMessage().c_str());
+    ALOGE(
+        "dvrDisplayManagerSetupGlobalBuffer: Failed to setup global buffer: %s",
+        buffer_status.GetErrorMessage().c_str());
     return -buffer_status.error();
   }
 

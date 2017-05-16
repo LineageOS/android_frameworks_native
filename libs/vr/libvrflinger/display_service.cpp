@@ -65,9 +65,9 @@ Status<void> DisplayService::HandleMessage(pdx::Message& message) {
           *this, &DisplayService::OnCreateSurface, message);
       return {};
 
-    case DisplayProtocol::GetNamedBuffer::Opcode:
-      DispatchRemoteMethod<DisplayProtocol::GetNamedBuffer>(
-          *this, &DisplayService::OnGetNamedBuffer, message);
+    case DisplayProtocol::GetGlobalBuffer::Opcode:
+      DispatchRemoteMethod<DisplayProtocol::GetGlobalBuffer>(
+          *this, &DisplayService::OnGetGlobalBuffer, message);
       return {};
 
     case DisplayProtocol::IsVrAppRunning::Opcode:
@@ -155,12 +155,12 @@ void DisplayService::SurfaceUpdated(SurfaceType surface_type,
   }
 }
 
-pdx::Status<BorrowedNativeBufferHandle> DisplayService::OnGetNamedBuffer(
-    pdx::Message& /* message */, const std::string& name) {
-  ALOGD_IF(TRACE, "displayService::OnGetNamedBuffer: name=%s", name.c_str());
-  auto named_buffer = named_buffers_.find(name);
-  if (named_buffer != named_buffers_.end())
-    return {BorrowedNativeBufferHandle(*named_buffer->second, 0)};
+pdx::Status<BorrowedNativeBufferHandle> DisplayService::OnGetGlobalBuffer(
+    pdx::Message& /* message */, DvrGlobalBufferKey key) {
+  ALOGD_IF(TRACE, "DisplayService::OnGetGlobalBuffer: key=%d", key);
+  auto global_buffer = global_buffers_.find(key);
+  if (global_buffer != global_buffers_.end())
+    return {BorrowedNativeBufferHandle(*global_buffer->second, 0)};
   else
     return pdx::ErrorStatus(EINVAL);
 }
@@ -221,18 +221,18 @@ void DisplayService::UpdateActiveDisplaySurfaces() {
   hardware_composer_.SetDisplaySurfaces(std::move(visible_surfaces));
 }
 
-pdx::Status<BorrowedNativeBufferHandle> DisplayService::SetupNamedBuffer(
-    const std::string& name, size_t size, uint64_t usage) {
-  auto named_buffer = named_buffers_.find(name);
-  if (named_buffer == named_buffers_.end()) {
+pdx::Status<BorrowedNativeBufferHandle> DisplayService::SetupGlobalBuffer(
+    DvrGlobalBufferKey key, size_t size, uint64_t usage) {
+  auto global_buffer = global_buffers_.find(key);
+  if (global_buffer == global_buffers_.end()) {
     auto ion_buffer = std::make_unique<IonBuffer>(static_cast<int>(size), 1,
                                                   HAL_PIXEL_FORMAT_BLOB, usage);
-    named_buffer =
-        named_buffers_.insert(std::make_pair(name, std::move(ion_buffer)))
+    global_buffer =
+        global_buffers_.insert(std::make_pair(key, std::move(ion_buffer)))
             .first;
   }
 
-  return {BorrowedNativeBufferHandle(*named_buffer->second, 0)};
+  return {BorrowedNativeBufferHandle(*global_buffer->second, 0)};
 }
 
 void DisplayService::OnHardwareComposerRefresh() {
