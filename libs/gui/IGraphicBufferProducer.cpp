@@ -26,6 +26,7 @@
 #include <binder/Parcel.h>
 #include <binder/IInterface.h>
 
+#include <gui/BufferQueueDefs.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
 
@@ -170,8 +171,16 @@ public:
         if (result != NO_ERROR) {
             return result;
         }
+
         *slot = reply.readInt32();
         result = reply.readInt32();
+        if (result == NO_ERROR &&
+                (*slot < 0 || *slot >= BufferQueueDefs::NUM_BUFFER_SLOTS)) {
+            ALOGE("attachBuffer returned invalid slot %d", *slot);
+            android_errorWriteLog(0x534e4554, "37478824");
+            return UNKNOWN_ERROR;
+        }
+
         return result;
     }
 
