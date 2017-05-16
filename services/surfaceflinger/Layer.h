@@ -169,25 +169,64 @@ public:
     // the this layer's size and format
     status_t setBuffers(uint32_t w, uint32_t h, PixelFormat format, uint32_t flags);
 
-    // modify current state
+    // ------------------------------------------------------------------------
+    // Geometry setting functions.
+    //
+    // The following group of functions are used to specify the layers
+    // bounds, and the mapping of the texture on to those bounds. According
+    // to various settings changes to them may apply immediately, or be delayed until
+    // a pending resize is completed by the producer submitting a buffer. For example
+    // if we were to change the buffer size, and update the matrix ahead of the
+    // new buffer arriving, then we would be stretching the buffer to a different
+    // aspect before and after the buffer arriving, which probably isn't what we wanted.
+    //
+    // The first set of geometry functions are controlled by the scaling mode, described
+    // in window.h. The scaling mode may be set by the client, as it submits buffers.
+    // This value may be overriden through SurfaceControl, with setOverrideScalingMode.
+    //
+    // Put simply, if our scaling mode is SCALING_MODE_FREEZE, then
+    // matrix updates will not be applied while a resize is pending
+    // and the size and transform will remain in their previous state
+    // until a new buffer is submitted. If the scaling mode is another value
+    // then the old-buffer will immediately be scaled to the pending size
+    // and the new matrix will be immediately applied following this scaling
+    // transformation.
 
-    // These members of state (position, crop, and finalCrop)
-    // may be updated immediately or have the update delayed
-    // until a pending surface resize completes (if applicable).
+    // Set the default buffer size for the assosciated Producer, in pixels. This is
+    // also the rendered size of the layer prior to any transformations. Parent
+    // or local matrix transformations will not affect the size of the buffer,
+    // but may affect it's on-screen size or clipping.
+    bool setSize(uint32_t w, uint32_t h);
+    // Set a 2x2 transformation matrix on the layer. This transform
+    // will be applied after parent transforms, but before any final
+    // producer specified transform.
+    bool setMatrix(const layer_state_t::matrix22_t& matrix);
+
+    // This second set of geometry attributes are controlled by
+    // setGeometryAppliesWithResize, and their default mode is to be
+    // immediate. If setGeometryAppliesWithResize is specified
+    // while a resize is pending, then update of these attributes will
+    // be delayed until the resize completes.
+    
+    // setPosition operates in parent buffer space (pre parent-transform) or display
+    // space for top-level layers.
     bool setPosition(float x, float y, bool immediate);
+    // Buffer space
     bool setCrop(const Rect& crop, bool immediate);
+    // Parent buffer space/display space
     bool setFinalCrop(const Rect& crop, bool immediate);
 
+    // TODO(b/38182121): Could we eliminate the various latching modes by
+    // using the layer hierarchy?
+    // -----------------------------------------------------------------------
     bool setLayer(int32_t z);
     bool setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ);
 
-    bool setSize(uint32_t w, uint32_t h);
 #ifdef USE_HWC2
     bool setAlpha(float alpha);
 #else
     bool setAlpha(uint8_t alpha);
 #endif
-    bool setMatrix(const layer_state_t::matrix22_t& matrix);
     bool setTransparentRegionHint(const Region& transparent);
     bool setFlags(uint8_t flags, uint8_t mask);
     bool setLayerStack(uint32_t layerStack);
@@ -754,7 +793,7 @@ private:
     bool mUpdateTexImageFailed; // This is only accessed on the main thread.
 
     bool mAutoRefresh;
-    bool mFreezePositionUpdates;
+    bool mFreezeGeometryUpdates;
 
     // Child list about to be committed/used for editing.
     LayerVector mCurrentChildren;
