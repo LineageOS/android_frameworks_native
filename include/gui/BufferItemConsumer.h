@@ -55,7 +55,7 @@ class BufferItemConsumer: public ConsumerBase
             uint32_t consumerUsage, int bufferCount = DEFAULT_MAX_BUFFERS,
             bool controlledByApp = false);
 
-    virtual ~BufferItemConsumer();
+    ~BufferItemConsumer() override;
 
     // set the name of the BufferItemConsumer that will be used to identify it in
     // log messages.

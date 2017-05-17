@@ -211,7 +211,14 @@ status_t flatten_binder(const sp<ProcessState>& /*proc*/,
 {
     flat_binder_object obj;
 
-    obj.flags = 0x7f | FLAT_BINDER_FLAG_ACCEPTS_FDS;
+    if (IPCThreadState::self()->backgroundSchedulingDisabled()) {
+        /* minimum priority for all nodes is nice 0 */
+        obj.flags = FLAT_BINDER_FLAG_ACCEPTS_FDS;
+    } else {
+        /* minimum priority for all nodes is MAX_NICE(19) */
+        obj.flags = 0x13 | FLAT_BINDER_FLAG_ACCEPTS_FDS;
+    }
+
     if (binder != NULL) {
         IBinder *local = binder->localBinder();
         if (!local) {
@@ -2540,8 +2547,16 @@ status_t Parcel::continueWrite(size_t desired)
             objectsSize = 0;
         } else {
             while (objectsSize > 0) {
-                if (mObjects[objectsSize-1] < desired)
+                if (mObjects[objectsSize-1] < desired) {
+                    // Check for an object being sliced
+                    if (desired < mObjects[objectsSize-1] + sizeof(flat_binder_object)) {
+                        ALOGE("Attempt to shrink Parcel would slice an objects allocated memory");
+                        return UNKNOWN_ERROR + 0xBADF10;
+                    }
                     break;
+                }
+                // STOPSHIP: Above code to be replaced with following commented code:
+                // if (mObjects[objectsSize-1] + sizeof(flat_binder_object) <= desired) break;
                 objectsSize--;
             }
         }

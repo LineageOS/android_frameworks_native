@@ -10,7 +10,6 @@ cc_library_shared {
         "libmediautils",
         "liblog",
         "libutils",
-        "android.hidl.base@1.0",
         "android.frameworks.schedulerservice@1.0",
     ],
     header_libs: [

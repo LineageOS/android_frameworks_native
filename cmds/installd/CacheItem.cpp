@@ -67,6 +67,7 @@ std::string CacheItem::buildPath() {
 }
 
 int CacheItem::purge() {
+    int res = 0;
     auto path = buildPath();
     if (directory) {
         FTS *fts;
@@ -88,29 +89,47 @@ int CacheItem::purge() {
                 break;
             case FTS_F:
                 if (p->fts_parent->fts_number) {
-                    truncate(p->fts_path, 0);
+                    if (truncate(p->fts_path, 0) != 0) {
+                        PLOG(WARNING) << "Failed to truncate " << p->fts_path;
+                        res = -1;
+                    }
                 } else {
-                    unlink(p->fts_path);
+                    if (unlink(p->fts_path) != 0) {
+                        PLOG(WARNING) << "Failed to unlink " << p->fts_path;
+                        res = -1;
+                    }
                 }
                 break;
             case FTS_DEFAULT:
             case FTS_SL:
             case FTS_SLNONE:
-                unlink(p->fts_path);
+                if (unlink(p->fts_path) != 0) {
+                    PLOG(WARNING) << "Failed to unlink " << p->fts_path;
+                    res = -1;
+                }
                 break;
             case FTS_DP:
-                rmdir(p->fts_path);
+                if (rmdir(p->fts_path) != 0) {
+                    PLOG(WARNING) << "Failed to rmdir " << p->fts_path;
+                    res = -1;
+                }
                 break;
             }
         }
-        return 0;
     } else {
         if (tombstone) {
-            return truncate(path.c_str(), 0);
+            if (truncate(path.c_str(), 0) != 0) {
+                PLOG(WARNING) << "Failed to truncate " << path;
+                res = -1;
+            }
         } else {
-            return unlink(path.c_str());
+            if (unlink(path.c_str()) != 0) {
+                PLOG(WARNING) << "Failed to unlink " << path;
+                res = -1;
+            }
         }
     }
+    return res;
 }
 
 }  // namespace installd

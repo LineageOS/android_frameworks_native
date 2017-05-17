@@ -1,16 +1,20 @@
 #include "display_surface.h"
 
+#include <private/android_filesystem_config.h>
 #include <utils/Trace.h>
 
-#include <private/dvr/platform_defines.h>
+#include <private/dvr/trusted_uids.h>
 
 #include "display_service.h"
 #include "hardware_composer.h"
 
 #define LOCAL_TRACE 1
 
+using android::dvr::display::DisplayProtocol;
 using android::pdx::BorrowedChannelHandle;
+using android::pdx::ErrorStatus;
 using android::pdx::LocalChannelHandle;
+using android::pdx::LocalHandle;
 using android::pdx::Message;
 using android::pdx::RemoteChannelHandle;
 using android::pdx::Status;
@@ -20,104 +24,320 @@ using android::pdx::rpc::IfAnyOf;
 namespace android {
 namespace dvr {
 
-DisplaySurface::DisplaySurface(DisplayService* service, int surface_id,
-                               int process_id, int width, int height,
-                               int format, int usage, int flags)
-    : SurfaceChannel(service, surface_id, SurfaceTypeEnum::Normal,
-                     sizeof(DisplaySurfaceMetadata)),
+DisplaySurface::DisplaySurface(DisplayService* service,
+                               SurfaceType surface_type, int surface_id,
+                               int process_id, int user_id,
+                               const display::SurfaceAttributes& attributes)
+    : service_(service),
+      surface_type_(surface_type),
+      surface_id_(surface_id),
       process_id_(process_id),
-      acquired_buffers_(kMaxPostedBuffers),
-      video_mesh_surfaces_updated_(false),
-      width_(width),
-      height_(height),
-      format_(format),
-      usage_(usage),
-      flags_(flags),
-      client_visible_(false),
-      client_z_order_(0),
-      client_exclude_from_blur_(false),
-      client_blur_behind_(false),
-      manager_visible_(false),
-      manager_z_order_(0),
-      manager_blur_(0.0f),
-      layer_order_(0),
-      allocated_buffer_index_(0) {}
+      user_id_(user_id),
+      attributes_(attributes),
+      update_flags_(display::SurfaceUpdateFlags::NewSurface) {}
 
 DisplaySurface::~DisplaySurface() {
   ALOGD_IF(LOCAL_TRACE,
            "DisplaySurface::~DisplaySurface: surface_id=%d process_id=%d",
-           surface_id(), process_id_);
+           surface_id(), process_id());
 }
 
-void DisplaySurface::ManagerSetVisible(bool visible) {
+Status<void> DisplaySurface::HandleMessage(pdx::Message& message) {
+  switch (message.GetOp()) {
+    case DisplayProtocol::SetAttributes::Opcode:
+      DispatchRemoteMethod<DisplayProtocol::SetAttributes>(
+          *this, &DisplaySurface::OnSetAttributes, message);
+      break;
+
+    case DisplayProtocol::GetSurfaceInfo::Opcode:
+      DispatchRemoteMethod<DisplayProtocol::GetSurfaceInfo>(
+          *this, &DisplaySurface::OnGetSurfaceInfo, message);
+      break;
+
+    case DisplayProtocol::CreateQueue::Opcode:
+      DispatchRemoteMethod<DisplayProtocol::CreateQueue>(
+          *this, &DisplaySurface::OnCreateQueue, message);
+      break;
+  }
+
+  return {};
+}
+
+Status<void> DisplaySurface::OnSetAttributes(
+    pdx::Message& /*message*/, const display::SurfaceAttributes& attributes) {
+  display::SurfaceUpdateFlags update_flags;
+
+  for (const auto& attribute : attributes) {
+    const auto& key = attribute.first;
+    const auto* variant = &attribute.second;
+    bool invalid_value = false;
+    bool visibility_changed = false;
+
+    // Catch attributes that have significance to the display service.
+    switch (key) {
+      case display::SurfaceAttribute::ZOrder:
+        invalid_value = !IfAnyOf<int32_t, int64_t, float>::Call(
+            variant, [&](const auto& value) {
+              if (z_order_ != value) {
+                visibility_changed = true;
+                z_order_ = value;
+              }
+            });
+        break;
+      case display::SurfaceAttribute::Visible:
+        invalid_value = !IfAnyOf<int32_t, int64_t, bool>::Call(
+            variant, [&](const auto& value) {
+              if (visible_ != value) {
+                visibility_changed = true;
+                visible_ = value;
+              }
+            });
+        break;
+    }
+
+    if (invalid_value) {
+      ALOGW(
+          "DisplaySurface::OnClientSetAttributes: Failed to set display "
+          "surface attribute '%d' because of incompatible type: %d",
+          key, variant->index());
+    } else {
+      // Only update the attribute map with valid values.
+      attributes_[attribute.first] = attribute.second;
+
+      // All attribute changes generate a notification, even if the value
+      // doesn't change. Visibility attributes set a flag only if the value
+      // changes.
+      update_flags.Set(display::SurfaceUpdateFlags::AttributesChanged);
+      if (visibility_changed)
+        update_flags.Set(display::SurfaceUpdateFlags::VisibilityChanged);
+    }
+  }
+
+  SurfaceUpdated(update_flags);
+  return {};
+}
+
+void DisplaySurface::SurfaceUpdated(display::SurfaceUpdateFlags update_flags) {
+  ALOGD_IF(TRACE,
+           "DisplaySurface::SurfaceUpdated: surface_id=%d update_flags=0x%x",
+           surface_id(), update_flags.value());
+
+  update_flags_.Set(update_flags);
+  service()->SurfaceUpdated(surface_type(), update_flags_);
+}
+
+void DisplaySurface::ClearUpdate() {
+  ALOGD_IF(TRACE, "DisplaySurface::ClearUpdate: surface_id=%d", surface_id());
+  update_flags_ = display::SurfaceUpdateFlags::None;
+}
+
+Status<display::SurfaceInfo> DisplaySurface::OnGetSurfaceInfo(
+    Message& /*message*/) {
+  ALOGD_IF(
+      TRACE,
+      "DisplaySurface::OnGetSurfaceInfo: surface_id=%d visible=%d z_order=%d",
+      surface_id(), visible(), z_order());
+  return {{surface_id(), visible(), z_order()}};
+}
+
+Status<void> DisplaySurface::RegisterQueue(
+    const std::shared_ptr<ConsumerQueue>& consumer_queue) {
+  ALOGD_IF(TRACE, "DisplaySurface::RegisterQueue: surface_id=%d queue_id=%d",
+           surface_id(), consumer_queue->id());
+  // Capture references for the lambda to work around apparent clang bug.
+  // TODO(eieio): Figure out if there is a clang bug or C++11 ambiguity when
+  // capturing self and consumer_queue by copy in the following case:
+  //    auto self = Self();
+  //    [self, consumer_queue](int events) {
+  //        self->OnQueueEvent(consuemr_queue, events); }
+  //
+  struct State {
+    std::shared_ptr<DisplaySurface> surface;
+    std::shared_ptr<ConsumerQueue> queue;
+  };
+  State state{Self(), consumer_queue};
+
+  return service()->AddEventHandler(
+      consumer_queue->queue_fd(), EPOLLIN | EPOLLHUP | EPOLLET,
+      [state](int events) {
+        state.surface->OnQueueEvent(state.queue, events);
+      });
+}
+
+Status<void> DisplaySurface::UnregisterQueue(
+    const std::shared_ptr<ConsumerQueue>& consumer_queue) {
+  ALOGD_IF(TRACE, "DisplaySurface::UnregisterQueue: surface_id=%d queue_id=%d",
+           surface_id(), consumer_queue->id());
+  return service()->RemoveEventHandler(consumer_queue->queue_fd());
+}
+
+void DisplaySurface::OnQueueEvent(
+    const std::shared_ptr<ConsumerQueue>& /*consumer_queue*/, int /*events*/) {
+  ALOGE(
+      "DisplaySurface::OnQueueEvent: ERROR base virtual method should not be "
+      "called!!!");
+}
+
+std::shared_ptr<ConsumerQueue> ApplicationDisplaySurface::GetQueue(
+    int32_t queue_id) {
+  ALOGD_IF(TRACE,
+           "ApplicationDisplaySurface::GetQueue: surface_id=%d queue_id=%d",
+           surface_id(), queue_id);
+
+  auto search = consumer_queues_.find(queue_id);
+  if (search != consumer_queues_.end())
+    return search->second;
+  else
+    return nullptr;
+}
+
+std::vector<int32_t> ApplicationDisplaySurface::GetQueueIds() const {
+  std::vector<int32_t> queue_ids;
+  for (const auto& entry : consumer_queues_)
+    queue_ids.push_back(entry.first);
+  return queue_ids;
+}
+
+Status<LocalChannelHandle> ApplicationDisplaySurface::OnCreateQueue(
+    Message& /*message*/, size_t meta_size_bytes) {
+  ATRACE_NAME("ApplicationDisplaySurface::OnCreateQueue");
+  ALOGD_IF(TRACE,
+           "ApplicationDisplaySurface::OnCreateQueue: surface_id=%d, "
+           "meta_size_bytes=%zu",
+           surface_id(), meta_size_bytes);
+
   std::lock_guard<std::mutex> autolock(lock_);
-  manager_visible_ = visible;
-}
-
-void DisplaySurface::ManagerSetZOrder(int z_order) {
-  std::lock_guard<std::mutex> autolock(lock_);
-  manager_z_order_ = z_order;
-}
-
-void DisplaySurface::ManagerSetBlur(float blur) {
-  std::lock_guard<std::mutex> autolock(lock_);
-  manager_blur_ = blur;
-}
-
-void DisplaySurface::ClientSetVisible(bool visible) {
-  std::lock_guard<std::mutex> autolock(lock_);
-  client_visible_ = visible;
-}
-
-void DisplaySurface::ClientSetZOrder(int z_order) {
-  std::lock_guard<std::mutex> autolock(lock_);
-  client_z_order_ = z_order;
-}
-
-void DisplaySurface::ClientSetExcludeFromBlur(bool exclude_from_blur) {
-  std::lock_guard<std::mutex> autolock(lock_);
-  client_exclude_from_blur_ = exclude_from_blur;
-}
-
-void DisplaySurface::ClientSetBlurBehind(bool blur_behind) {
-  std::lock_guard<std::mutex> autolock(lock_);
-  client_blur_behind_ = blur_behind;
-}
-
-void DisplaySurface::DequeueBuffersLocked() {
-  if (consumer_queue_ == nullptr) {
+  auto producer = ProducerQueue::Create(meta_size_bytes);
+  if (!producer) {
     ALOGE(
-        "DisplaySurface::DequeueBuffersLocked: Consumer queue is not "
+        "ApplicationDisplaySurface::OnCreateQueue: Failed to create producer "
+        "queue!");
+    return ErrorStatus(ENOMEM);
+  }
+
+  std::shared_ptr<ConsumerQueue> consumer =
+      producer->CreateSilentConsumerQueue();
+  auto status = RegisterQueue(consumer);
+  if (!status) {
+    ALOGE(
+        "ApplicationDisplaySurface::OnCreateQueue: Failed to register consumer "
+        "queue: %s",
+        status.GetErrorMessage().c_str());
+    return status.error_status();
+  }
+
+  consumer_queues_[consumer->id()] = std::move(consumer);
+
+  SurfaceUpdated(display::SurfaceUpdateFlags::BuffersChanged);
+  return std::move(producer->GetChannelHandle());
+}
+
+void ApplicationDisplaySurface::OnQueueEvent(
+    const std::shared_ptr<ConsumerQueue>& consumer_queue, int events) {
+  ALOGD_IF(TRACE,
+           "ApplicationDisplaySurface::OnQueueEvent: queue_id=%d events=%x",
+           consumer_queue->id(), events);
+
+  // Always give the queue a chance to handle its internal bookkeeping.
+  consumer_queue->HandleQueueEvents();
+
+  // Check for hangup and remove a queue that is no longer needed.
+  std::lock_guard<std::mutex> autolock(lock_);
+  if (consumer_queue->hung_up()) {
+    ALOGD_IF(TRACE, "ApplicationDisplaySurface::OnQueueEvent: Removing queue.");
+    UnregisterQueue(consumer_queue);
+    auto search = consumer_queues_.find(consumer_queue->id());
+    if (search != consumer_queues_.end()) {
+      consumer_queues_.erase(search);
+    } else {
+      ALOGE(
+          "ApplicationDisplaySurface::OnQueueEvent: Failed to find queue_id=%d",
+          consumer_queue->id());
+    }
+    SurfaceUpdated(display::SurfaceUpdateFlags::BuffersChanged);
+  }
+}
+
+Status<LocalChannelHandle> DirectDisplaySurface::OnCreateQueue(
+    Message& /*message*/, size_t meta_size_bytes) {
+  ATRACE_NAME("DirectDisplaySurface::OnCreateQueue");
+  ALOGD_IF(
+      TRACE,
+      "DirectDisplaySurface::OnCreateQueue: surface_id=%d meta_size_bytes=%zu",
+      surface_id(), meta_size_bytes);
+
+  std::lock_guard<std::mutex> autolock(lock_);
+  if (!direct_queue_) {
+    auto producer = ProducerQueue::Create(meta_size_bytes);
+    if (!producer) {
+      ALOGE(
+          "DirectDisplaySurface::OnCreateQueue: Failed to create producer "
+          "queue!");
+      return ErrorStatus(ENOMEM);
+    }
+
+    direct_queue_ = producer->CreateConsumerQueue();
+    auto status = RegisterQueue(direct_queue_);
+    if (!status) {
+      ALOGE(
+          "DirectDisplaySurface::OnCreateQueue: Failed to register consumer "
+          "queue: %s",
+          status.GetErrorMessage().c_str());
+      return status.error_status();
+    }
+
+    return std::move(producer->GetChannelHandle());
+  } else {
+    return ErrorStatus(EALREADY);
+  }
+}
+
+void DirectDisplaySurface::OnQueueEvent(
+    const std::shared_ptr<ConsumerQueue>& consumer_queue, int events) {
+  ALOGD_IF(TRACE, "DirectDisplaySurface::OnQueueEvent: queue_id=%d events=%x",
+           consumer_queue->id(), events);
+
+  // Always give the queue a chance to handle its internal bookkeeping.
+  consumer_queue->HandleQueueEvents();
+
+  // Check for hangup and remove a queue that is no longer needed.
+  std::lock_guard<std::mutex> autolock(lock_);
+  if (consumer_queue->hung_up()) {
+    ALOGD_IF(TRACE, "DirectDisplaySurface::OnQueueEvent: Removing queue.");
+    UnregisterQueue(consumer_queue);
+    direct_queue_ = nullptr;
+  }
+}
+
+void DirectDisplaySurface::DequeueBuffersLocked() {
+  if (direct_queue_ == nullptr) {
+    ALOGE(
+        "DirectDisplaySurface::DequeueBuffersLocked: Consumer queue is not "
         "initialized.");
     return;
   }
 
-  size_t slot;
-  uint64_t sequence;
   while (true) {
     LocalHandle acquire_fence;
-    auto buffer_consumer =
-        consumer_queue_->Dequeue(0, &slot, &sequence, &acquire_fence);
-    if (!buffer_consumer) {
-      ALOGD_IF(TRACE,
-               "DisplaySurface::DequeueBuffersLocked: We have dequeued all "
-               "available buffers.");
+    size_t slot;
+    auto buffer_status = direct_queue_->Dequeue(0, &slot, &acquire_fence);
+    if (!buffer_status) {
+      ALOGD_IF(
+          TRACE && buffer_status.error() == ETIMEDOUT,
+          "DirectDisplaySurface::DequeueBuffersLocked: All buffers dequeued.");
+      ALOGE_IF(buffer_status.error() != ETIMEDOUT,
+               "DirectDisplaySurface::DequeueBuffersLocked: Failed to dequeue "
+               "buffer: %s",
+               buffer_status.GetErrorMessage().c_str());
       return;
     }
+    auto buffer_consumer = buffer_status.take();
 
-    // Save buffer index, associated with the buffer id so that it can be looked
-    // up later.
-    int buffer_id = buffer_consumer->id();
-    if (buffer_id_to_index_.find(buffer_id) == buffer_id_to_index_.end()) {
-      buffer_id_to_index_[buffer_id] = allocated_buffer_index_;
-      ++allocated_buffer_index_;
-    }
-
-    if (!IsVisible()) {
+    if (!visible()) {
       ATRACE_NAME("DropFrameOnInvisibleSurface");
       ALOGD_IF(TRACE,
-               "DisplaySurface::DequeueBuffersLocked: Discarding buffer_id=%d "
-               "on invisible surface.",
+               "DirectDisplaySurface::DequeueBuffersLocked: Discarding "
+               "buffer_id=%d on invisible surface.",
                buffer_consumer->id());
       buffer_consumer->Discard();
       continue;
@@ -125,34 +345,34 @@ void DisplaySurface::DequeueBuffersLocked() {
 
     if (acquired_buffers_.IsFull()) {
       ALOGE(
-          "DisplaySurface::DequeueBuffersLocked: Posted buffers full, "
+          "DirectDisplaySurface::DequeueBuffersLocked: Posted buffers full, "
           "overwriting.");
       acquired_buffers_.PopBack();
     }
 
     acquired_buffers_.Append(
-        AcquiredBuffer(buffer_consumer, std::move(acquire_fence), sequence));
+        AcquiredBuffer(buffer_consumer, std::move(acquire_fence)));
   }
 }
 
-AcquiredBuffer DisplaySurface::AcquireCurrentBuffer() {
+AcquiredBuffer DirectDisplaySurface::AcquireCurrentBuffer() {
   std::lock_guard<std::mutex> autolock(lock_);
   DequeueBuffersLocked();
 
   if (acquired_buffers_.IsEmpty()) {
     ALOGE(
-        "DisplaySurface::AcquireCurrentBuffer: attempt to acquire buffer when "
-        "none are posted.");
+        "DirectDisplaySurface::AcquireCurrentBuffer: attempt to acquire buffer "
+        "when none are posted.");
     return AcquiredBuffer();
   }
   AcquiredBuffer buffer = std::move(acquired_buffers_.Front());
   acquired_buffers_.PopFront();
-  ALOGD_IF(TRACE, "DisplaySurface::AcquireCurrentBuffer: buffer: %p",
+  ALOGD_IF(TRACE, "DirectDisplaySurface::AcquireCurrentBuffer: buffer: %p",
            buffer.buffer().get());
   return buffer;
 }
 
-AcquiredBuffer DisplaySurface::AcquireNewestAvailableBuffer(
+AcquiredBuffer DirectDisplaySurface::AcquireNewestAvailableBuffer(
     AcquiredBuffer* skipped_buffer) {
   std::lock_guard<std::mutex> autolock(lock_);
   DequeueBuffersLocked();
@@ -175,23 +395,13 @@ AcquiredBuffer DisplaySurface::AcquireNewestAvailableBuffer(
     if (frames == 2)
       break;
   }
-  ALOGD_IF(TRACE, "DisplaySurface::AcquireNewestAvailableBuffer: buffer: %p",
+  ALOGD_IF(TRACE,
+           "DirectDisplaySurface::AcquireNewestAvailableBuffer: buffer: %p",
            buffer.buffer().get());
   return buffer;
 }
 
-uint32_t DisplaySurface::GetRenderBufferIndex(int buffer_id) {
-  std::lock_guard<std::mutex> autolock(lock_);
-
-  if (buffer_id_to_index_.find(buffer_id) == buffer_id_to_index_.end()) {
-    ALOGW("DisplaySurface::GetRenderBufferIndex: unknown buffer_id %d.",
-          buffer_id);
-    return 0;
-  }
-  return buffer_id_to_index_[buffer_id];
-}
-
-bool DisplaySurface::IsBufferAvailable() {
+bool DirectDisplaySurface::IsBufferAvailable() {
   std::lock_guard<std::mutex> autolock(lock_);
   DequeueBuffersLocked();
 
@@ -199,158 +409,48 @@ bool DisplaySurface::IsBufferAvailable() {
          acquired_buffers_.Front().IsAvailable();
 }
 
-bool DisplaySurface::IsBufferPosted() {
+bool DirectDisplaySurface::IsBufferPosted() {
   std::lock_guard<std::mutex> autolock(lock_);
   DequeueBuffersLocked();
 
   return !acquired_buffers_.IsEmpty();
 }
 
-pdx::Status<void> DisplaySurface::HandleMessage(pdx::Message& message) {
-  switch (message.GetOp()) {
-    case DisplayRPC::SetAttributes::Opcode:
-      DispatchRemoteMethod<DisplayRPC::SetAttributes>(
-          *this, &DisplaySurface::OnClientSetAttributes, message);
-      break;
-
-    case DisplayRPC::CreateBufferQueue::Opcode:
-      DispatchRemoteMethod<DisplayRPC::CreateBufferQueue>(
-          *this, &DisplaySurface::OnCreateBufferQueue, message);
-      break;
-
-    case DisplayRPC::CreateVideoMeshSurface::Opcode:
-      DispatchRemoteMethod<DisplayRPC::CreateVideoMeshSurface>(
-          *this, &DisplaySurface::OnCreateVideoMeshSurface, message);
-      break;
-
-    default:
-      return SurfaceChannel::HandleMessage(message);
-  }
-
-  return {};
-}
-
-int DisplaySurface::OnClientSetAttributes(
-    pdx::Message& /*message*/, const DisplaySurfaceAttributes& attributes) {
-  for (const auto& attribute : attributes) {
-    const auto& key = attribute.first;
-    const auto* variant = &attribute.second;
-    bool invalid_value = false;
-    switch (key) {
-      case DisplaySurfaceAttributeEnum::ZOrder:
-        invalid_value = !IfAnyOf<int32_t, int64_t, float>::Call(
-            variant, [this](const auto& value) {
-              DisplaySurface::ClientSetZOrder(value);
-            });
-        break;
-      case DisplaySurfaceAttributeEnum::Visible:
-        invalid_value = !IfAnyOf<int32_t, int64_t, bool>::Call(
-            variant, [this](const auto& value) {
-              DisplaySurface::ClientSetVisible(value);
-            });
-        break;
-      case DisplaySurfaceAttributeEnum::ExcludeFromBlur:
-        invalid_value = !IfAnyOf<int32_t, int64_t, bool>::Call(
-            variant, [this](const auto& value) {
-              DisplaySurface::ClientSetExcludeFromBlur(value);
-            });
-        break;
-      case DisplaySurfaceAttributeEnum::BlurBehind:
-        invalid_value = !IfAnyOf<int32_t, int64_t, bool>::Call(
-            variant, [this](const auto& value) {
-              DisplaySurface::ClientSetBlurBehind(value);
-            });
-        break;
-      default:
-        ALOGW(
-            "DisplaySurface::OnClientSetAttributes: Unrecognized attribute %d "
-            "surface_id=%d",
-            key, surface_id());
-        break;
-    }
-
-    if (invalid_value) {
-      ALOGW(
-          "DisplaySurface::OnClientSetAttributes: Failed to set display "
-          "surface attribute '%s' because of incompatible type: %d",
-          DisplaySurfaceAttributeEnum::ToString(key).c_str(), variant->index());
+Status<std::shared_ptr<DisplaySurface>> DisplaySurface::Create(
+    DisplayService* service, int surface_id, int process_id, int user_id,
+    const display::SurfaceAttributes& attributes) {
+  bool direct = false;
+  auto search = attributes.find(display::SurfaceAttribute::Direct);
+  if (search != attributes.end()) {
+    if (!IfAnyOf<int32_t, int64_t, bool, float>::Get(&search->second,
+                                                     &direct)) {
+      ALOGE(
+          "DisplaySurface::Create: Invalid type for SurfaceAttribute::Direct!");
+      return ErrorStatus(EINVAL);
     }
   }
 
-  service()->NotifyDisplayConfigurationUpdate();
-  return 0;
-}
+  ALOGD_IF(TRACE,
+           "DisplaySurface::Create: surface_id=%d process_id=%d user_id=%d "
+           "direct=%d",
+           surface_id, process_id, user_id, direct);
 
-LocalChannelHandle DisplaySurface::OnCreateBufferQueue(Message& message) {
-  ATRACE_NAME("DisplaySurface::OnCreateBufferQueue");
-
-  if (consumer_queue_ != nullptr) {
-    ALOGE(
-        "DisplaySurface::OnCreateBufferQueue: A ProdcuerQueue has already been "
-        "created and transported to DisplayClient.");
-    REPLY_ERROR_RETURN(message, EALREADY, {});
-  }
-
-  auto producer = ProducerQueue::Create<uint64_t>();
-  consumer_queue_ = producer->CreateConsumerQueue();
-
-  return std::move(producer->GetChannelHandle());
-}
-
-RemoteChannelHandle DisplaySurface::OnCreateVideoMeshSurface(
-    pdx::Message& message) {
-  if (flags_ & DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION) {
-    ALOGE(
-        "DisplaySurface::OnCreateVideoMeshSurface: system distortion is "
-        "disabled on this display surface, cannot create VideoMeshSurface on "
-        "top of it.");
-    REPLY_ERROR_RETURN(message, EINVAL, {});
-  }
-
-  int channel_id;
-  auto status = message.PushChannel(0, nullptr, &channel_id);
-  if (!status) {
-    ALOGE(
-        "DisplaySurface::OnCreateVideoMeshSurface: failed to push channel: %s",
-        status.GetErrorMessage().c_str());
-    REPLY_ERROR_RETURN(message, status.error(), {});
-  }
-
-  auto surface = std::make_shared<VideoMeshSurface>(service(), channel_id);
-  auto channel_status = service()->SetChannel(channel_id, surface);
-  if (!channel_status) {
-    ALOGE(
-        "DisplaySurface::OnCreateVideoMeshSurface: failed to set new video "
-        "mesh surface channel: %s",
-        channel_status.GetErrorMessage().c_str());
-    REPLY_ERROR_RETURN(message, channel_status.error(), {});
-  }
-
-  {
-    std::lock_guard<std::mutex> autolock(lock_);
-    pending_video_mesh_surfaces_.push_back(surface);
-    video_mesh_surfaces_updated_ = true;
-  }
-
-  return status.take();
-}
-
-std::vector<std::shared_ptr<VideoMeshSurface>>
-DisplaySurface::GetVideoMeshSurfaces() {
-  std::lock_guard<std::mutex> autolock(lock_);
-  std::vector<std::shared_ptr<VideoMeshSurface>> surfaces;
-
-  for (auto& surface : pending_video_mesh_surfaces_) {
-    if (auto video_surface = surface.lock()) {
-      surfaces.push_back(video_surface);
+  if (direct) {
+    const bool trusted = user_id == AID_ROOT || IsTrustedUid(user_id);
+    if (trusted) {
+      return {std::shared_ptr<DisplaySurface>{new DirectDisplaySurface(
+          service, surface_id, process_id, user_id, attributes)}};
     } else {
-      ALOGE("Unable to lock video mesh surface.");
+      ALOGE(
+          "DisplaySurface::Create: Direct surfaces may only be created by "
+          "trusted UIDs: user_id=%d",
+          user_id);
+      return ErrorStatus(EPERM);
     }
+  } else {
+    return {std::shared_ptr<DisplaySurface>{new ApplicationDisplaySurface(
+        service, surface_id, process_id, user_id, attributes)}};
   }
-
-  pending_video_mesh_surfaces_.clear();
-  video_mesh_surfaces_updated_ = false;
-  return surfaces;
 }
 
 }  // namespace dvr

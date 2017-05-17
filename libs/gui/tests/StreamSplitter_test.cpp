@@ -24,6 +24,8 @@
 #include <gui/StreamSplitter.h>
 #include <private/gui/ComposerService.h>
 
+#include <system/window.h>
+
 #include <gtest/gtest.h>
 
 namespace android {

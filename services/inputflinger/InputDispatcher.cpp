@@ -1172,10 +1172,11 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
     bool wrongDevice = false;
     if (newGesture) {
         bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
-        if (switchedDevice && mTempTouchState.down && !down) {
+        if (switchedDevice && mTempTouchState.down && !down && !isHoverAction) {
 #if DEBUG_FOCUS
             ALOGD("Dropping event because a pointer for a different device is already down.");
 #endif
+            // TODO: test multiple simultaneous input streams.
             injectionResult = INPUT_EVENT_INJECTION_FAILED;
             switchedDevice = false;
             wrongDevice = true;
@@ -1187,6 +1188,15 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         mTempTouchState.source = entry->source;
         mTempTouchState.displayId = displayId;
         isSplit = false;
+    } else if (switchedDevice && maskedAction == AMOTION_EVENT_ACTION_MOVE) {
+#if DEBUG_FOCUS
+        ALOGI("Dropping move event because a pointer for a different device is already active.");
+#endif
+        // TODO: test multiple simultaneous input streams.
+        injectionResult = INPUT_EVENT_INJECTION_PERMISSION_DENIED;
+        switchedDevice = false;
+        wrongDevice = true;
+        goto Failed;
     }
 
     if (newGesture || (isSplit && maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN)) {

@@ -16,8 +16,6 @@
 
 #define LOG_TAG "ANativeWindow"
 
-#include <android/native_window.h>
-
 #include <grallocusage/GrallocUsageConversion.h>
 // from nativewindow/includes/system/window.h
 // (not to be confused with the compatibility-only window.h from system/core/includes)

@@ -26,25 +26,20 @@ namespace dvr {
 
 ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
                                  uint32_t width, uint32_t height,
-                                 uint32_t format, uint64_t producer_usage,
-                                 uint64_t consumer_usage,
-                                 size_t meta_size_bytes, size_t slice_count,
+                                 uint32_t layer_count, uint32_t format,
+                                 uint64_t usage, size_t meta_size_bytes,
                                  int* error)
     : BufferHubChannel(service, channel_id, channel_id, kProducerType),
       pending_consumers_(0),
-      slices_(std::max(static_cast<size_t>(1), slice_count)),
       producer_owns_(true),
       meta_size_bytes_(meta_size_bytes),
       meta_(meta_size_bytes ? new uint8_t[meta_size_bytes] : nullptr) {
-  for (auto& ion_buffer : slices_) {
-    const int ret =
-        ion_buffer.Alloc(width, height, format, producer_usage, consumer_usage);
-    if (ret < 0) {
-      ALOGE("ProducerChannel::ProducerChannel: Failed to allocate buffer: %s",
-            strerror(-ret));
-      *error = ret;
-      return;
-    }
+  const int ret = buffer_.Alloc(width, height, layer_count, format, usage);
+  if (ret < 0) {
+    ALOGE("ProducerChannel::ProducerChannel: Failed to allocate buffer: %s",
+          strerror(-ret));
+    *error = ret;
+    return;
   }
 
   // Success.
@@ -53,12 +48,12 @@ ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
 
 Status<std::shared_ptr<ProducerChannel>> ProducerChannel::Create(
     BufferHubService* service, int channel_id, uint32_t width, uint32_t height,
-    uint32_t format, uint64_t producer_usage, uint64_t consumer_usage,
-    size_t meta_size_bytes, size_t slice_count) {
+    uint32_t layer_count, uint32_t format, uint64_t usage,
+    size_t meta_size_bytes) {
   int error;
-  std::shared_ptr<ProducerChannel> producer(new ProducerChannel(
-      service, channel_id, width, height, format, producer_usage,
-      consumer_usage, meta_size_bytes, slice_count, &error));
+  std::shared_ptr<ProducerChannel> producer(
+      new ProducerChannel(service, channel_id, width, height, layer_count,
+                          format, usage, meta_size_bytes, &error));
   if (error < 0)
     return ErrorStatus(-error);
   else
@@ -74,10 +69,9 @@ ProducerChannel::~ProducerChannel() {
 }
 
 BufferHubChannel::BufferInfo ProducerChannel::GetBufferInfo() const {
-  return BufferInfo(buffer_id(), consumer_channels_.size(), slices_[0].width(),
-                    slices_[0].height(), slices_[0].format(),
-                    slices_[0].producer_usage(), slices_[0].consumer_usage(),
-                    slices_.size(), name_);
+  return BufferInfo(buffer_id(), consumer_channels_.size(), buffer_.width(),
+                    buffer_.height(), buffer_.layer_count(), buffer_.format(),
+                    buffer_.usage(), name_);
 }
 
 void ProducerChannel::HandleImpulse(Message& message) {
@@ -95,11 +89,6 @@ bool ProducerChannel::HandleMessage(Message& message) {
     case BufferHubRPC::GetBuffer::Opcode:
       DispatchRemoteMethod<BufferHubRPC::GetBuffer>(
           *this, &ProducerChannel::OnGetBuffer, message);
-      return true;
-
-    case BufferHubRPC::GetBuffers::Opcode:
-      DispatchRemoteMethod<BufferHubRPC::GetBuffers>(
-          *this, &ProducerChannel::OnGetBuffers, message);
       return true;
 
     case BufferHubRPC::NewConsumer::Opcode:
@@ -133,24 +122,10 @@ bool ProducerChannel::HandleMessage(Message& message) {
 }
 
 Status<NativeBufferHandle<BorrowedHandle>> ProducerChannel::OnGetBuffer(
-    Message& message, unsigned index) {
+    Message& message) {
   ATRACE_NAME("ProducerChannel::OnGetBuffer");
   ALOGD_IF(TRACE, "ProducerChannel::OnGetBuffer: buffer=%d", buffer_id());
-  if (index < slices_.size()) {
-    return {NativeBufferHandle<BorrowedHandle>(slices_[index], buffer_id())};
-  } else {
-    return ErrorStatus(EINVAL);
-  }
-}
-
-Status<std::vector<NativeBufferHandle<BorrowedHandle>>>
-ProducerChannel::OnGetBuffers(Message&) {
-  ATRACE_NAME("ProducerChannel::OnGetBuffers");
-  ALOGD_IF(TRACE, "ProducerChannel::OnGetBuffers: buffer_id=%d", buffer_id());
-  std::vector<NativeBufferHandle<BorrowedHandle>> buffer_handles;
-  for (const auto& buffer : slices_)
-    buffer_handles.emplace_back(buffer, buffer_id());
-  return {std::move(buffer_handles)};
+  return {NativeBufferHandle<BorrowedHandle>(buffer_, buffer_id())};
 }
 
 Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(Message& message) {
@@ -202,10 +177,15 @@ Status<void> ProducerChannel::OnProducerPost(
     return ErrorStatus(EBUSY);
   }
 
-  if (meta_size_bytes_ != metadata.size())
+  if (meta_size_bytes_ != metadata.size()) {
+    ALOGD_IF(TRACE,
+             "ProducerChannel::OnProducerPost: Expected meta_size_bytes=%zu "
+             "got size=%zu",
+             meta_size_bytes_, metadata.size());
     return ErrorStatus(EINVAL);
-  std::copy(metadata.begin(), metadata.end(), meta_.get());
+  }
 
+  std::copy(metadata.begin(), metadata.end(), meta_.get());
   post_fence_ = std::move(acquire_fence);
   producer_owns_ = false;
 
@@ -369,15 +349,11 @@ bool ProducerChannel::CheckAccess(int euid, int egid) {
 
 // Returns true if the given parameters match the underlying buffer parameters.
 bool ProducerChannel::CheckParameters(uint32_t width, uint32_t height,
-                                      uint32_t format, uint64_t producer_usage,
-                                      uint64_t consumer_usage,
-                                      size_t meta_size_bytes,
-                                      size_t slice_count) {
-  return slices_.size() == slice_count && meta_size_bytes == meta_size_bytes_ &&
-         slices_[0].width() == width && slices_[0].height() == height &&
-         slices_[0].format() == format &&
-         slices_[0].producer_usage() == producer_usage &&
-         slices_[0].consumer_usage() == consumer_usage;
+                                      uint32_t layer_count, uint32_t format,
+                                      uint64_t usage, size_t meta_size_bytes) {
+  return meta_size_bytes == meta_size_bytes_ && buffer_.width() == width &&
+         buffer_.height() == height && buffer_.layer_count() == layer_count &&
+         buffer_.format() == format && buffer_.usage() == usage;
 }
 
 }  // namespace dvr

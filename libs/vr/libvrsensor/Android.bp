@@ -46,29 +46,3 @@ cc_library {
     name: "libvrsensor",
 }
 
-testFiles = ["tests/sensor_app_tests.cpp"]
-
-cc_test {
-    name: "sensor_app_tests",
-    tags: ["optional"],
-
-    srcs: testFiles,
-
-    shared_libs: [
-        "libEGL",
-        "libGLESv1_CM",
-        "libGLESv2",
-        "libvulkan",
-        "libsync",
-    ] + sharedLibraries,
-
-    static_libs: [
-        "libgmock_main",
-        "libgmock",
-        "libdisplay",
-        "libeds",
-        "libvrsensor",
-        "libdvrgraphics",
-    ] + staticLibraries,
-
-}

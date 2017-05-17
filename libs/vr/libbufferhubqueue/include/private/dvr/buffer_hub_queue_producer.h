@@ -1,16 +1,29 @@
 #ifndef ANDROID_DVR_BUFFER_HUB_QUEUE_PRODUCER_H_
 #define ANDROID_DVR_BUFFER_HUB_QUEUE_PRODUCER_H_
 
-#include <private/dvr/buffer_hub_queue_core.h>
-
 #include <gui/IGraphicBufferProducer.h>
+#include <private/dvr/buffer_hub_queue_client.h>
 
 namespace android {
 namespace dvr {
 
-class BufferHubQueueProducer : public BnInterface<IGraphicBufferProducer> {
+class BufferHubQueueProducer : public BnGraphicBufferProducer {
  public:
-  BufferHubQueueProducer(const std::shared_ptr<BufferHubQueueCore>& core);
+  static constexpr int kNoConnectedApi = -1;
+
+  // TODO(b/36187402) The actual implementation of BufferHubQueue's consumer
+  // side logic doesn't limit the number of buffer it can acquire
+  // simultaneously. We need a way for consumer logic to configure and enforce
+  // that.
+  static constexpr int kDefaultUndequeuedBuffers = 1;
+
+  // Create a BufferHubQueueProducer instance by creating a new producer queue.
+  static sp<BufferHubQueueProducer> Create();
+
+  // Create a BufferHubQueueProducer instance by importing an existing prodcuer
+  // queue.
+  static sp<BufferHubQueueProducer> Create(
+      const std::shared_ptr<ProducerQueue>& producer);
 
   // See |IGraphicBufferProducer::requestBuffer|
   status_t requestBuffer(int slot, sp<GraphicBuffer>* buf) override;
@@ -29,8 +42,7 @@ class BufferHubQueueProducer : public BnInterface<IGraphicBufferProducer> {
 
   // See |IGraphicBufferProducer::dequeueBuffer|
   status_t dequeueBuffer(int* out_slot, sp<Fence>* out_fence, uint32_t width,
-                         uint32_t height, PixelFormat format,
-                         uint32_t usage,
+                         uint32_t height, PixelFormat format, uint32_t usage,
                          FrameEventHistoryDelta* outTimestamps) override;
 
   // See |IGraphicBufferProducer::detachBuffer|
@@ -41,7 +53,8 @@ class BufferHubQueueProducer : public BnInterface<IGraphicBufferProducer> {
                             sp<Fence>* out_fence) override;
 
   // See |IGraphicBufferProducer::attachBuffer|
-  status_t attachBuffer(int* out_slot, const sp<GraphicBuffer>& buffer) override;
+  status_t attachBuffer(int* out_slot,
+                        const sp<GraphicBuffer>& buffer) override;
 
   // See |IGraphicBufferProducer::queueBuffer|
   status_t queueBuffer(int slot, const QueueBufferInput& input,
@@ -59,7 +72,8 @@ class BufferHubQueueProducer : public BnInterface<IGraphicBufferProducer> {
                    QueueBufferOutput* output) override;
 
   // See |IGraphicBufferProducer::disconnect|
-  status_t disconnect(int api, DisconnectMode mode = DisconnectMode::Api) override;
+  status_t disconnect(int api,
+                      DisconnectMode mode = DisconnectMode::Api) override;
 
   // See |IGraphicBufferProducer::setSidebandStream|
   status_t setSidebandStream(const sp<NativeHandle>& stream) override;
@@ -97,14 +111,34 @@ class BufferHubQueueProducer : public BnInterface<IGraphicBufferProducer> {
   // See |IGraphicBufferProducer::getUniqueId|
   status_t getUniqueId(uint64_t* out_id) const override;
 
- protected:
-  IBinder* onAsBinder() override;
-
  private:
   using LocalHandle = pdx::LocalHandle;
 
-  // |core_| holds the actually buffer slots.
-  std::shared_ptr<BufferHubQueueCore> core_;
+  // Private constructor to force use of |Create|.
+  BufferHubQueueProducer() {}
+
+  static uint64_t genUniqueId() {
+    static std::atomic<uint32_t> counter{0};
+    static uint64_t id = static_cast<uint64_t>(getpid()) << 32;
+    return id | counter++;
+  }
+
+  // Allocate new buffer through BufferHub and add it into |queue_| for
+  // bookkeeping.
+  status_t AllocateBuffer(uint32_t width, uint32_t height, uint32_t layer_count,
+                          PixelFormat format, uint64_t usage);
+
+  // Remove a buffer via BufferHubRPC.
+  status_t RemoveBuffer(size_t slot);
+
+  // Concreate implementation backed by BufferHubBuffer.
+  std::shared_ptr<ProducerQueue> queue_;
+
+  // Mutex for thread safety.
+  std::mutex mutex_;
+
+  // Connect client API, should be one of the NATIVE_WINDOW_API_* flags.
+  int connected_api_{kNoConnectedApi};
 
   // |max_buffer_count_| sets the capacity of the underlying buffer queue.
   int32_t max_buffer_count_{BufferHubQueue::kMaxQueueCapacity};
@@ -112,6 +146,35 @@ class BufferHubQueueProducer : public BnInterface<IGraphicBufferProducer> {
   // |max_dequeued_buffer_count_| set the maximum number of buffers that can
   // be dequeued at the same momment.
   int32_t max_dequeued_buffer_count_{1};
+
+  // Sets how long dequeueBuffer or attachBuffer will block if a buffer or
+  // slot is not yet available. The timeout is stored in milliseconds.
+  int dequeue_timeout_ms_{BufferHubQueue::kNoTimeOut};
+
+  // |generation_number_| stores the current generation number of the attached
+  // producer. Any attempt to attach a buffer with a different generation
+  // number will fail.
+  // TOOD(b/38137191) Currently not used as we don't support
+  // IGraphicBufferProducer::detachBuffer.
+  uint32_t generation_number_{0};
+
+  // |buffers_| stores the buffers that have been dequeued from
+  // |dvr::BufferHubQueue|, It is initialized to invalid buffers, and gets
+  // filled in with the result of |Dequeue|.
+  // TODO(jwcai) The buffer allocated to a slot will also be replaced if the
+  // requested buffer usage or geometry differs from that of the buffer
+  // allocated to a slot.
+  struct BufferHubSlot : public BufferSlot {
+    BufferHubSlot() : mBufferProducer(nullptr), mIsReallocating(false) {}
+    // BufferSlot comes from android framework, using m prefix to comply with
+    // the name convention with the reset of data fields from BufferSlot.
+    std::shared_ptr<BufferProducer> mBufferProducer;
+    bool mIsReallocating;
+  };
+  BufferHubSlot buffers_[BufferHubQueue::kMaxQueueCapacity];
+
+  // A uniqueId used by IGraphicBufferProducer interface.
+  const uint64_t unique_id_{genUniqueId()};
 };
 
 }  // namespace dvr

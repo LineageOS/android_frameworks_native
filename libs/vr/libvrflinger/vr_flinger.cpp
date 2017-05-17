@@ -11,9 +11,9 @@
 
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
-#include <log/log.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
+#include <log/log.h>
 #include <private/dvr/display_client.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
@@ -25,7 +25,6 @@
 #include "DisplayHardware/ComposerHal.h"
 #include "display_manager_service.h"
 #include "display_service.h"
-#include "screenshot_service.h"
 #include "vsync_service.h"
 
 namespace android {
@@ -77,20 +76,16 @@ bool VrFlinger::Init(Hwc2::Composer* hidl,
 
   request_display_callback_ = request_display_callback;
 
-  dispatcher_ =
-      android::pdx::default_transport::ServiceDispatcher::Create();
+  dispatcher_ = android::pdx::default_transport::ServiceDispatcher::Create();
   CHECK_ERROR(!dispatcher_, error, "Failed to create service dispatcher.");
 
-  display_service_ = android::dvr::DisplayService::Create(hidl);
+  display_service_ =
+      android::dvr::DisplayService::Create(hidl, request_display_callback);
   CHECK_ERROR(!display_service_, error, "Failed to create display service.");
   dispatcher_->AddService(display_service_);
 
   service = android::dvr::DisplayManagerService::Create(display_service_);
   CHECK_ERROR(!service, error, "Failed to create display manager service.");
-  dispatcher_->AddService(service);
-
-  service = android::dvr::ScreenshotService::Create();
-  CHECK_ERROR(!service, error, "Failed to create screenshot service.");
   dispatcher_->AddService(service);
 
   service = android::dvr::VSyncService::Create();
@@ -147,7 +142,9 @@ void VrFlinger::OnHardwareComposerRefresh() {
 void VrFlinger::PersistentVrStateCallback::onPersistentVrStateChanged(
     bool enabled) {
   ALOGV("Notified persistent vr mode is %s", enabled ? "on" : "off");
-  request_display_callback_(enabled);
+  // TODO(eieio): Determine the correct signal to request display control.
+  // Persistent VR mode is not enough.
+  // request_display_callback_(enabled);
 }
 
 }  // namespace dvr

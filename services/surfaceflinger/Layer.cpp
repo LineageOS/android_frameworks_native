@@ -34,6 +34,7 @@
 #include <utils/StopWatch.h>
 #include <utils/Trace.h>
 
+#include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/PixelFormat.h>
 
@@ -125,6 +126,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
         mPremultipliedAlpha = false;
 
     mName = name;
+    mTransactionName = String8("TX - ") + mName;
 
     mCurrentState.active.w = w;
     mCurrentState.active.h = h;
@@ -697,7 +699,16 @@ void Layer::setGeometry(
             mName.string(), z, to_string(error).c_str(),
             static_cast<int32_t>(error));
 
-    error = hwcLayer->setInfo(s.type, s.appId);
+    int type = s.type;
+    int appId = s.appId;
+    sp<Layer> parent = mParent.promote();
+    if (parent.get()) {
+        auto& parentState = parent->getDrawingState();
+        type = parentState.type;
+        appId = parentState.appId;
+    }
+
+    error = hwcLayer->setInfo(type, appId);
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set info (%d)",
              mName.string(), static_cast<int32_t>(error));
 #else
@@ -873,9 +884,6 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     }
 }
 
-android_dataspace Layer::getDataSpace() const {
-    return mCurrentState.dataSpace;
-}
 #else
 void Layer::setPerFrameData(const sp<const DisplayDevice>& hw,
         HWComposer::HWCLayerInterface& layer) {
@@ -1033,7 +1041,7 @@ void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
         // figure out if there is something below us
         Region under;
         bool finished = false;
-        mFlinger->mDrawingState.layersSortedByZ.traverseInZOrder([&](Layer* layer) {
+        mFlinger->mDrawingState.traverseInZOrder([&](Layer* layer) {
             if (finished || layer == static_cast<Layer const*>(this)) {
                 finished = true;
                 return;
@@ -1484,6 +1492,7 @@ void Layer::pushPendingState() {
         mFlinger->setTransactionFlags(eTraversalNeeded);
     }
     mPendingStates.push_back(mCurrentState);
+    ATRACE_INT(mTransactionName.string(), mPendingStates.size());
 }
 
 void Layer::popPendingState(State* stateToCommit) {
@@ -1493,6 +1502,7 @@ void Layer::popPendingState(State* stateToCommit) {
             (stateToCommit->flags & stateToCommit->mask);
 
     mPendingStates.removeAt(0);
+    ATRACE_INT(mTransactionName.string(), mPendingStates.size());
 }
 
 bool Layer::applyPendingStates(State* stateToCommit) {
@@ -1884,6 +1894,10 @@ bool Layer::setDataSpace(android_dataspace dataSpace) {
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
+}
+
+android_dataspace Layer::getDataSpace() const {
+    return mCurrentState.dataSpace;
 }
 
 uint32_t Layer::getLayerStack() const {
@@ -2331,11 +2345,17 @@ void Layer::dump(String8& result, Colorizer& colorizer) const
     visibleRegion.dump(result, "visibleRegion");
     surfaceDamageRegion.dump(result, "surfaceDamageRegion");
     sp<Client> client(mClientRef.promote());
+    PixelFormat pf = PIXEL_FORMAT_UNKNOWN;
+    const sp<GraphicBuffer>& buffer(getActiveBuffer());
+    if (buffer != NULL) {
+        pf = buffer->getPixelFormat();
+    }
 
     result.appendFormat(            "      "
             "layerStack=%4d, z=%9d, pos=(%g,%g), size=(%4d,%4d), "
             "crop=(%4d,%4d,%4d,%4d), finalCrop=(%4d,%4d,%4d,%4d), "
             "isOpaque=%1d, invalidate=%1d, "
+            "dataspace=%s, pixelformat=%s "
 #ifdef USE_HWC2
             "alpha=%.3f, flags=0x%08x, tr=[%.2f, %.2f][%.2f, %.2f]\n"
 #else
@@ -2350,6 +2370,7 @@ void Layer::dump(String8& result, Colorizer& colorizer) const
             s.finalCrop.left, s.finalCrop.top,
             s.finalCrop.right, s.finalCrop.bottom,
             isOpaque(s), contentDirty,
+            dataspaceDetails(getDataSpace()).c_str(), decodePixelFormat(pf).c_str(),
             s.alpha, s.flags,
             s.active.transform[0][0], s.active.transform[0][1],
             s.active.transform[1][0], s.active.transform[1][1],
@@ -2519,7 +2540,7 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
 }
 
 bool Layer::detachChildren() {
-    traverseInZOrder([this](Layer* child) {
+    traverseInZOrder(LayerVector::StateSet::Drawing, [this](Layer* child) {
         if (child == this) {
             return;
         }
@@ -2553,20 +2574,26 @@ int32_t Layer::getZ() const {
     return mDrawingState.z;
 }
 
-LayerVector Layer::makeTraversalList() {
-    if (mDrawingState.zOrderRelatives.size() == 0) {
-        return mDrawingChildren;
+LayerVector Layer::makeTraversalList(LayerVector::StateSet stateSet) {
+    LOG_ALWAYS_FATAL_IF(stateSet == LayerVector::StateSet::Invalid,
+                        "makeTraversalList received invalid stateSet");
+    const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
+    const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
+    const State& state = useDrawing ? mDrawingState : mCurrentState;
+
+    if (state.zOrderRelatives.size() == 0) {
+        return children;
     }
     LayerVector traverse;
 
-    for (const wp<Layer>& weakRelative : mDrawingState.zOrderRelatives) {
+    for (const wp<Layer>& weakRelative : state.zOrderRelatives) {
         sp<Layer> strongRelative = weakRelative.promote();
         if (strongRelative != nullptr) {
             traverse.add(strongRelative);
         }
     }
 
-    for (const sp<Layer>& child : mDrawingChildren) {
+    for (const sp<Layer>& child : children) {
         traverse.add(child);
     }
 
@@ -2576,8 +2603,8 @@ LayerVector Layer::makeTraversalList() {
 /**
  * Negatively signed relatives are before 'this' in Z-order.
  */
-void Layer::traverseInZOrder(const std::function<void(Layer*)>& exec) {
-    LayerVector list = makeTraversalList();
+void Layer::traverseInZOrder(LayerVector::StateSet stateSet, const LayerVector::Visitor& visitor) {
+    LayerVector list = makeTraversalList(stateSet);
 
     size_t i = 0;
     for (; i < list.size(); i++) {
@@ -2585,20 +2612,21 @@ void Layer::traverseInZOrder(const std::function<void(Layer*)>& exec) {
         if (relative->getZ() >= 0) {
             break;
         }
-        relative->traverseInZOrder(exec);
+        relative->traverseInZOrder(stateSet, visitor);
     }
-    exec(this);
+    visitor(this);
     for (; i < list.size(); i++) {
         const auto& relative = list[i];
-        relative->traverseInZOrder(exec);
+        relative->traverseInZOrder(stateSet, visitor);
     }
 }
 
 /**
  * Positively signed relatives are before 'this' in reverse Z-order.
  */
-void Layer::traverseInReverseZOrder(const std::function<void(Layer*)>& exec) {
-    LayerVector list = makeTraversalList();
+void Layer::traverseInReverseZOrder(LayerVector::StateSet stateSet,
+                                    const LayerVector::Visitor& visitor) {
+    LayerVector list = makeTraversalList(stateSet);
 
     int32_t i = 0;
     for (i = list.size()-1; i>=0; i--) {
@@ -2606,12 +2634,12 @@ void Layer::traverseInReverseZOrder(const std::function<void(Layer*)>& exec) {
         if (relative->getZ() < 0) {
             break;
         }
-        relative->traverseInReverseZOrder(exec);
+        relative->traverseInReverseZOrder(stateSet, visitor);
     }
-    exec(this);
+    visitor(this);
     for (; i>=0; i--) {
         const auto& relative = list[i];
-        relative->traverseInReverseZOrder(exec);
+        relative->traverseInReverseZOrder(stateSet, visitor);
     }
 }
 

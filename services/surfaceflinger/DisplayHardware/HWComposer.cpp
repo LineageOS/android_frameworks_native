@@ -47,7 +47,6 @@
 #include <log/log.h>
 
 #include "HWComposer.h"
-#include "hwc2on1adapter/HWC2On1Adapter.h"
 #include "HWC2.h"
 #include "ComposerHal.h"
 
@@ -61,16 +60,14 @@ namespace android {
 // ---------------------------------------------------------------------------
 
 HWComposer::HWComposer(bool useVrComposer)
-    : mAdapter(),
-      mHwcDevice(),
+    : mHwcDevice(),
       mDisplayData(2),
       mFreeDisplaySlots(),
       mHwcDisplaySlots(),
       mCBContext(),
       mEventHandler(nullptr),
       mVSyncCounts(),
-      mRemainingHwcVirtualDisplays(0),
-      mDumpMayLockUp(false)
+      mRemainingHwcVirtualDisplays(0)
 {
     for (size_t i=0 ; i<HWC_NUM_PHYSICAL_DISPLAY_TYPES ; i++) {
         mLastHwVSync[i] = 0;
@@ -109,45 +106,7 @@ void HWComposer::setEventHandler(EventHandler* handler)
 void HWComposer::loadHwcModule(bool useVrComposer)
 {
     ALOGV("loadHwcModule");
-
-#ifdef BYPASS_IHWC
-    (void)useVrComposer; // Silence unused parameter warning.
-
-    hw_module_t const* module;
-
-    if (hw_get_module(HWC_HARDWARE_MODULE_ID, &module) != 0) {
-        ALOGE("%s module not found, aborting", HWC_HARDWARE_MODULE_ID);
-        abort();
-    }
-
-    hw_device_t* device = nullptr;
-    int error = module->methods->open(module, HWC_HARDWARE_COMPOSER, &device);
-    if (error != 0) {
-        ALOGE("Failed to open HWC device (%s), aborting", strerror(-error));
-        abort();
-    }
-
-    uint32_t majorVersion = (device->version >> 24) & 0xF;
-    if (majorVersion == 2) {
-        mHwcDevice = std::make_unique<HWC2::Device>(
-                reinterpret_cast<hwc2_device_t*>(device));
-    } else {
-        mAdapter = std::make_unique<HWC2On1Adapter>(
-                reinterpret_cast<hwc_composer_device_1_t*>(device));
-        uint8_t minorVersion = mAdapter->getHwc1MinorVersion();
-        if (minorVersion < 1) {
-            ALOGE("Cannot adapt to HWC version %d.%d",
-                    static_cast<int32_t>((minorVersion >> 8) & 0xF),
-                    static_cast<int32_t>(minorVersion & 0xF));
-            abort();
-        }
-        mHwcDevice = std::make_unique<HWC2::Device>(
-                static_cast<hwc2_device_t*>(mAdapter.get()));
-    }
-#else
     mHwcDevice = std::make_unique<HWC2::Device>(useVrComposer);
-#endif
-
     mRemainingHwcVirtualDisplays = mHwcDevice->getMaxVirtualDisplayCount();
 }
 
@@ -494,8 +453,6 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
         return NO_ERROR;
     }
 
-    mDumpMayLockUp = true;
-
     uint32_t numTypes = 0;
     uint32_t numRequests = 0;
     auto error = hwcDisplay->validate(&numTypes, &numRequests);
@@ -636,9 +593,6 @@ status_t HWComposer::presentAndGetReleaseFences(int32_t displayId) {
     auto& displayData = mDisplayData[displayId];
     auto& hwcDisplay = displayData.hwcDisplay;
     auto error = hwcDisplay->present(&displayData.lastPresentFence);
-
-    mDumpMayLockUp = false;
-
     if (error != HWC2::Error::None) {
         ALOGE("presentAndGetReleaseFences: failed for display %d: %s (%d)",
               displayId, to_string(error).c_str(), static_cast<int32_t>(error));
@@ -876,19 +830,10 @@ static String8 getFormatStr(PixelFormat format) {
 */
 
 bool HWComposer::isUsingVrComposer() const {
-#ifdef BYPASS_IHWC
-    return false;
-#else
     return getComposer()->isUsingVrComposer();
-#endif
 }
 
 void HWComposer::dump(String8& result) const {
-    if (mDumpMayLockUp) {
-        result.append("HWComposer dump skipped because present in progress");
-        return;
-    }
-
     // TODO: In order to provide a dump equivalent to HWC1, we need to shadow
     // all the state going into the layers. This is probably better done in
     // Layer itself, but it's going to take a bit of work to get there.

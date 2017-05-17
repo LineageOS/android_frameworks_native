@@ -14,6 +14,7 @@
 
 cc_library_shared {
     name: "libui",
+    vendor_available: true,
 
     clang: true,
     cppflags: [
@@ -53,7 +54,6 @@ cc_library_shared {
         "GraphicBuffer.cpp",
         "GraphicBufferAllocator.cpp",
         "GraphicBufferMapper.cpp",
-        "GraphicsEnv.cpp",
         "HdrCapabilities.cpp",
         "PixelFormat.cpp",
         "Rect.cpp",
@@ -61,13 +61,16 @@ cc_library_shared {
         "UiConfig.cpp",
     ],
 
+    include_dirs: [
+        "frameworks/native/include",
+    ],
+
     shared_libs: [
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.mapper@2.0",
         "android.hardware.configstore@1.0",
-	"android.hardware.configstore-utils",
+        "android.hardware.configstore-utils",
         "libbase",
-        "libnativeloader",
         "libcutils",
         "libhardware",
         "libhidlbase",
@@ -83,9 +86,17 @@ cc_library_shared {
         "libmath",
     ],
 
+    header_libs: [
+        "libnativebase_headers",
+    ],
+
     export_static_lib_headers: [
         "libarect",
         "libmath",
+    ],
+
+    export_header_lib_headers: [
+        "libnativebase_headers",
     ],
 }
 

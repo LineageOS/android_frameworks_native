@@ -32,8 +32,8 @@ class ProducerChannel : public BufferHubChannel {
 
   static pdx::Status<std::shared_ptr<ProducerChannel>> Create(
       BufferHubService* service, int channel_id, uint32_t width,
-      uint32_t height, uint32_t format, uint64_t producer_usage,
-      uint64_t consumer_usage, size_t meta_size_bytes, size_t slice_count);
+      uint32_t height, uint32_t layer_count, uint32_t format, uint64_t usage,
+      size_t meta_size_bytes);
 
   ~ProducerChannel() override;
 
@@ -42,10 +42,7 @@ class ProducerChannel : public BufferHubChannel {
 
   BufferInfo GetBufferInfo() const override;
 
-  pdx::Status<NativeBufferHandle<BorrowedHandle>> OnGetBuffer(Message& message,
-                                                              unsigned index);
-  pdx::Status<std::vector<NativeBufferHandle<BorrowedHandle>>> OnGetBuffers(
-      Message& message);
+  pdx::Status<NativeBufferHandle<BorrowedHandle>> OnGetBuffer(Message& message);
 
   pdx::Status<RemoteChannelHandle> CreateConsumer(Message& message);
   pdx::Status<RemoteChannelHandle> OnNewConsumer(Message& message);
@@ -61,9 +58,8 @@ class ProducerChannel : public BufferHubChannel {
   void RemoveConsumer(ConsumerChannel* channel);
 
   bool CheckAccess(int euid, int egid);
-  bool CheckParameters(uint32_t width, uint32_t height, uint32_t format,
-                       uint64_t producer_usage, uint64_t consumer_usage,
-                       size_t meta_size_bytes, size_t slice_count);
+  bool CheckParameters(uint32_t width, uint32_t height, uint32_t layer_count,
+                       uint32_t format, uint64_t usage, size_t meta_size_bytes);
 
   pdx::Status<void> OnProducerMakePersistent(Message& message,
                                              const std::string& name,
@@ -76,7 +72,7 @@ class ProducerChannel : public BufferHubChannel {
   // zero then the producer can re-acquire ownership.
   int pending_consumers_;
 
-  std::vector<IonBuffer> slices_;
+  IonBuffer buffer_;
 
   bool producer_owns_;
   LocalFence post_fence_;
@@ -95,9 +91,8 @@ class ProducerChannel : public BufferHubChannel {
   std::string name_;
 
   ProducerChannel(BufferHubService* service, int channel, uint32_t width,
-                  uint32_t height, uint32_t format, uint64_t producer_usage,
-                  uint64_t consumer_usage, size_t meta_size_bytes,
-                  size_t slice_count, int* error);
+                  uint32_t height, uint32_t layer_count, uint32_t format,
+                  uint64_t usage, size_t meta_size_bytes, int* error);
 
   pdx::Status<void> OnProducerPost(
       Message& message, LocalFence acquire_fence,

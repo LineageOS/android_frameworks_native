@@ -150,7 +150,8 @@ EventHub::Device::Device(int fd, int32_t id, const String8& path,
         fd(fd), id(id), path(path), identifier(identifier),
         classes(0), configuration(NULL), virtualKeyMap(NULL),
         ffEffectPlaying(false), ffEffectId(-1), controllerNumber(0),
-        timestampOverrideSec(0), timestampOverrideUsec(0) {
+        timestampOverrideSec(0), timestampOverrideUsec(0), enabled(true),
+        isVirtual(fd < 0) {
     memset(keyBitmask, 0, sizeof(keyBitmask));
     memset(absBitmask, 0, sizeof(absBitmask));
     memset(relBitmask, 0, sizeof(relBitmask));
@@ -173,6 +174,25 @@ void EventHub::Device::close() {
     }
 }
 
+status_t EventHub::Device::enable() {
+    fd = open(path, O_RDWR | O_CLOEXEC | O_NONBLOCK);
+    if(fd < 0) {
+        ALOGE("could not open %s, %s\n", path.string(), strerror(errno));
+        return -errno;
+    }
+    enabled = true;
+    return OK;
+}
+
+status_t EventHub::Device::disable() {
+    close();
+    enabled = false;
+    return OK;
+}
+
+bool EventHub::Device::hasValidFd() {
+    return !isVirtual && enabled;
+}
 
 // --- EventHub ---
 
@@ -286,7 +306,7 @@ status_t EventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,
         AutoMutex _l(mLock);
 
         Device* device = getDeviceLocked(deviceId);
-        if (device && !device->isVirtual() && test_bit(axis, device->absBitmask)) {
+        if (device && device->hasValidFd() && test_bit(axis, device->absBitmask)) {
             struct input_absinfo info;
             if(ioctl(device->fd, EVIOCGABS(axis), &info)) {
                 ALOGW("Error reading absolute controller %d for device %s fd %d, errno=%d",
@@ -337,7 +357,7 @@ int32_t EventHub::getScanCodeState(int32_t deviceId, int32_t scanCode) const {
         AutoMutex _l(mLock);
 
         Device* device = getDeviceLocked(deviceId);
-        if (device && !device->isVirtual() && test_bit(scanCode, device->keyBitmask)) {
+        if (device && device->hasValidFd() && test_bit(scanCode, device->keyBitmask)) {
             uint8_t keyState[sizeof_bit_array(KEY_MAX + 1)];
             memset(keyState, 0, sizeof(keyState));
             if (ioctl(device->fd, EVIOCGKEY(sizeof(keyState)), keyState) >= 0) {
@@ -352,7 +372,7 @@ int32_t EventHub::getKeyCodeState(int32_t deviceId, int32_t keyCode) const {
     AutoMutex _l(mLock);
 
     Device* device = getDeviceLocked(deviceId);
-    if (device && !device->isVirtual() && device->keyMap.haveKeyLayout()) {
+    if (device && device->hasValidFd() && device->keyMap.haveKeyLayout()) {
         Vector<int32_t> scanCodes;
         device->keyMap.keyLayoutMap->findScanCodesForKey(keyCode, &scanCodes);
         if (scanCodes.size() != 0) {
@@ -377,7 +397,7 @@ int32_t EventHub::getSwitchState(int32_t deviceId, int32_t sw) const {
         AutoMutex _l(mLock);
 
         Device* device = getDeviceLocked(deviceId);
-        if (device && !device->isVirtual() && test_bit(sw, device->swBitmask)) {
+        if (device && device->hasValidFd() && test_bit(sw, device->swBitmask)) {
             uint8_t swState[sizeof_bit_array(SW_MAX + 1)];
             memset(swState, 0, sizeof(swState));
             if (ioctl(device->fd, EVIOCGSW(sizeof(swState)), swState) >= 0) {
@@ -395,7 +415,7 @@ status_t EventHub::getAbsoluteAxisValue(int32_t deviceId, int32_t axis, int32_t*
         AutoMutex _l(mLock);
 
         Device* device = getDeviceLocked(deviceId);
-        if (device && !device->isVirtual() && test_bit(axis, device->absBitmask)) {
+        if (device && device->hasValidFd() && test_bit(axis, device->absBitmask)) {
             struct input_absinfo info;
             if(ioctl(device->fd, EVIOCGABS(axis), &info)) {
                 ALOGW("Error reading absolute controller %d for device %s fd %d, errno=%d",
@@ -532,7 +552,7 @@ void EventHub::setLedState(int32_t deviceId, int32_t led, bool on) {
 
 void EventHub::setLedStateLocked(Device* device, int32_t led, bool on) {
     int32_t sc;
-    if (device && !device->isVirtual() && mapLed(device, led, &sc) != NAME_NOT_FOUND) {
+    if (device && device->hasValidFd() && mapLed(device, led, &sc) != NAME_NOT_FOUND) {
         struct input_event ev;
         ev.time.tv_sec = 0;
         ev.time.tv_usec = 0;
@@ -636,7 +656,7 @@ void EventHub::assignDescriptorLocked(InputDeviceIdentifier& identifier) {
 void EventHub::vibrate(int32_t deviceId, nsecs_t duration) {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device && !device->isVirtual()) {
+    if (device && device->hasValidFd()) {
         ff_effect effect;
         memset(&effect, 0, sizeof(effect));
         effect.type = FF_RUMBLE;
@@ -670,7 +690,7 @@ void EventHub::vibrate(int32_t deviceId, nsecs_t duration) {
 void EventHub::cancelVibrate(int32_t deviceId) {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device && !device->isVirtual()) {
+    if (device && device->hasValidFd()) {
         if (device->ffEffectPlaying) {
             device->ffEffectPlaying = false;
 
@@ -1065,12 +1085,37 @@ static const int32_t GAMEPAD_KEYCODES[] = {
         AKEYCODE_BUTTON_START, AKEYCODE_BUTTON_SELECT, AKEYCODE_BUTTON_MODE,
 };
 
+status_t EventHub::registerDeviceForEpollLocked(Device* device) {
+    struct epoll_event eventItem;
+    memset(&eventItem, 0, sizeof(eventItem));
+    eventItem.events = EPOLLIN;
+    if (mUsingEpollWakeup) {
+        eventItem.events |= EPOLLWAKEUP;
+    }
+    eventItem.data.u32 = device->id;
+    if (epoll_ctl(mEpollFd, EPOLL_CTL_ADD, device->fd, &eventItem)) {
+        ALOGE("Could not add device fd to epoll instance.  errno=%d", errno);
+        return -errno;
+    }
+    return OK;
+}
+
+status_t EventHub::unregisterDeviceFromEpollLocked(Device* device) {
+    if (device->hasValidFd()) {
+        if (epoll_ctl(mEpollFd, EPOLL_CTL_DEL, device->fd, NULL)) {
+            ALOGW("Could not remove device fd from epoll instance.  errno=%d", errno);
+            return -errno;
+        }
+    }
+    return OK;
+}
+
 status_t EventHub::openDeviceLocked(const char *devicePath) {
     char buffer[80];
 
     ALOGV("Opening device: %s", devicePath);
 
-    int fd = open(devicePath, O_RDWR | O_CLOEXEC);
+    int fd = open(devicePath, O_RDWR | O_CLOEXEC | O_NONBLOCK);
     if(fd < 0) {
         ALOGE("could not open %s, %s\n", devicePath, strerror(errno));
         return -1;
@@ -1134,13 +1179,6 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
 
     // Fill in the descriptor.
     assignDescriptorLocked(identifier);
-
-    // Make file descriptor non-blocking for use with poll().
-    if (fcntl(fd, F_SETFL, O_NONBLOCK)) {
-        ALOGE("Error %d making device file descriptor non-blocking.", errno);
-        close(fd);
-        return -1;
-    }
 
     // Allocate device.  (The device object takes ownership of the fd at this point.)
     int32_t deviceId = mNextDeviceId++;
@@ -1303,12 +1341,6 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
                 break;
             }
         }
-
-        // Disable kernel key repeat since we handle it ourselves
-        unsigned int repeatRate[] = {0,0};
-        if (ioctl(fd, EVIOCSREP, repeatRate)) {
-            ALOGW("Unable to disable kernel key repeat for %s: %s", devicePath, strerror(errno));
-        }
     }
 
     // If the device isn't recognized as something we handle, don't monitor it.
@@ -1332,21 +1364,39 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
     if (device->classes & (INPUT_DEVICE_CLASS_JOYSTICK | INPUT_DEVICE_CLASS_DPAD)
             && device->classes & INPUT_DEVICE_CLASS_GAMEPAD) {
         device->controllerNumber = getNextControllerNumberLocked(device);
-        setLedForController(device);
+        setLedForControllerLocked(device);
     }
 
-    // Register with epoll.
-    struct epoll_event eventItem;
-    memset(&eventItem, 0, sizeof(eventItem));
-    eventItem.events = EPOLLIN;
-    if (mUsingEpollWakeup) {
-        eventItem.events |= EPOLLWAKEUP;
-    }
-    eventItem.data.u32 = deviceId;
-    if (epoll_ctl(mEpollFd, EPOLL_CTL_ADD, fd, &eventItem)) {
-        ALOGE("Could not add device fd to epoll instance.  errno=%d", errno);
+
+    if (registerDeviceForEpollLocked(device) != OK) {
         delete device;
         return -1;
+    }
+
+    configureFd(device);
+
+    ALOGI("New device: id=%d, fd=%d, path='%s', name='%s', classes=0x%x, "
+            "configuration='%s', keyLayout='%s', keyCharacterMap='%s', builtinKeyboard=%s, ",
+         deviceId, fd, devicePath, device->identifier.name.string(),
+         device->classes,
+         device->configurationFile.string(),
+         device->keyMap.keyLayoutFile.string(),
+         device->keyMap.keyCharacterMapFile.string(),
+         toString(mBuiltInKeyboardId == deviceId));
+
+    addDeviceLocked(device);
+    return OK;
+}
+
+void EventHub::configureFd(Device* device) {
+    // Set fd parameters with ioctl, such as key repeat, suspend block, and clock type
+    if (device->classes & INPUT_DEVICE_CLASS_KEYBOARD) {
+        // Disable kernel key repeat since we handle it ourselves
+        unsigned int repeatRate[] = {0, 0};
+        if (ioctl(device->fd, EVIOCSREP, repeatRate)) {
+            ALOGW("Unable to disable kernel key repeat for %s: %s",
+                  device->path.string(), strerror(errno));
+        }
     }
 
     String8 wakeMechanism("EPOLLWAKEUP");
@@ -1357,44 +1407,67 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
         // this feature, we need to be prepared to define the ioctl ourselves.
 #define EVIOCSSUSPENDBLOCK _IOW('E', 0x91, int)
 #endif
-        if (ioctl(fd, EVIOCSSUSPENDBLOCK, 1)) {
+        if (ioctl(device->fd, EVIOCSSUSPENDBLOCK, 1)) {
             wakeMechanism = "<none>";
         } else {
             wakeMechanism = "EVIOCSSUSPENDBLOCK";
         }
     }
-
     // Tell the kernel that we want to use the monotonic clock for reporting timestamps
     // associated with input events.  This is important because the input system
     // uses the timestamps extensively and assumes they were recorded using the monotonic
     // clock.
-    //
-    // In older kernel, before Linux 3.4, there was no way to tell the kernel which
-    // clock to use to input event timestamps.  The standard kernel behavior was to
-    // record a real time timestamp, which isn't what we want.  Android kernels therefore
-    // contained a patch to the evdev_event() function in drivers/input/evdev.c to
-    // replace the call to do_gettimeofday() with ktime_get_ts() to cause the monotonic
-    // clock to be used instead of the real time clock.
-    //
-    // As of Linux 3.4, there is a new EVIOCSCLOCKID ioctl to set the desired clock.
-    // Therefore, we no longer require the Android-specific kernel patch described above
-    // as long as we make sure to set select the monotonic clock.  We do that here.
     int clockId = CLOCK_MONOTONIC;
-    bool usingClockIoctl = !ioctl(fd, EVIOCSCLOCKID, &clockId);
+    bool usingClockIoctl = !ioctl(device->fd, EVIOCSCLOCKID, &clockId);
+    ALOGI("wakeMechanism=%s, usingClockIoctl=%s", wakeMechanism.string(),
+          toString(usingClockIoctl));
+}
 
-    ALOGI("New device: id=%d, fd=%d, path='%s', name='%s', classes=0x%x, "
-            "configuration='%s', keyLayout='%s', keyCharacterMap='%s', builtinKeyboard=%s, "
-            "wakeMechanism=%s, usingClockIoctl=%s",
-         deviceId, fd, devicePath, device->identifier.name.string(),
-         device->classes,
-         device->configurationFile.string(),
-         device->keyMap.keyLayoutFile.string(),
-         device->keyMap.keyCharacterMapFile.string(),
-         toString(mBuiltInKeyboardId == deviceId),
-         wakeMechanism.string(), toString(usingClockIoctl));
+bool EventHub::isDeviceEnabled(int32_t deviceId) {
+    AutoMutex _l(mLock);
+    Device* device = getDeviceLocked(deviceId);
+    if (device == NULL) {
+        ALOGE("Invalid device id=%" PRId32 " provided to %s", deviceId, __func__);
+        return false;
+    }
+    return device->enabled;
+}
 
-    addDeviceLocked(device);
-    return 0;
+status_t EventHub::enableDevice(int32_t deviceId) {
+    AutoMutex _l(mLock);
+    Device* device = getDeviceLocked(deviceId);
+    if (device == NULL) {
+        ALOGE("Invalid device id=%" PRId32 " provided to %s", deviceId, __func__);
+        return BAD_VALUE;
+    }
+    if (device->enabled) {
+        ALOGW("Duplicate call to %s, input device %" PRId32 " already enabled", __func__, deviceId);
+        return OK;
+    }
+    status_t result = device->enable();
+    if (result != OK) {
+        ALOGE("Failed to enable device %" PRId32, deviceId);
+        return result;
+    }
+
+    configureFd(device);
+
+    return registerDeviceForEpollLocked(device);
+}
+
+status_t EventHub::disableDevice(int32_t deviceId) {
+    AutoMutex _l(mLock);
+    Device* device = getDeviceLocked(deviceId);
+    if (device == NULL) {
+        ALOGE("Invalid device id=%" PRId32 " provided to %s", deviceId, __func__);
+        return BAD_VALUE;
+    }
+    if (!device->enabled) {
+        ALOGW("Duplicate call to %s, input device already disabled", __func__);
+        return OK;
+    }
+    unregisterDeviceFromEpollLocked(device);
+    return device->disable();
 }
 
 void EventHub::createVirtualKeyboardLocked() {
@@ -1490,7 +1563,7 @@ void EventHub::releaseControllerNumberLocked(Device* device) {
     mControllerNumbers.clearBit(static_cast<uint32_t>(num - 1));
 }
 
-void EventHub::setLedForController(Device* device) {
+void EventHub::setLedForControllerLocked(Device* device) {
     for (int i = 0; i < MAX_CONTROLLER_LEDS; i++) {
         setLedStateLocked(device, ALED_CONTROLLER_1 + i, device->controllerNumber == i + 1);
     }
@@ -1500,7 +1573,7 @@ bool EventHub::hasKeycodeLocked(Device* device, int keycode) const {
     if (!device->keyMap.haveKeyLayout()) {
         return false;
     }
-    
+
     Vector<int32_t> scanCodes;
     device->keyMap.keyLayoutMap->findScanCodesForKey(keycode, &scanCodes);
     const size_t N = scanCodes.size();
@@ -1510,7 +1583,7 @@ bool EventHub::hasKeycodeLocked(Device* device, int keycode) const {
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -1556,11 +1629,7 @@ void EventHub::closeDeviceLocked(Device* device) {
         mBuiltInKeyboardId = NO_BUILT_IN_KEYBOARD;
     }
 
-    if (!device->isVirtual()) {
-        if (epoll_ctl(mEpollFd, EPOLL_CTL_DEL, device->fd, NULL)) {
-            ALOGW("Could not remove device fd from epoll instance.  errno=%d", errno);
-        }
-    }
+    unregisterDeviceFromEpollLocked(device);
 
     releaseControllerNumberLocked(device);
 
@@ -1691,6 +1760,7 @@ void EventHub::dump(String8& dump) {
             }
             dump.appendFormat(INDENT3 "Classes: 0x%08x\n", device->classes);
             dump.appendFormat(INDENT3 "Path: %s\n", device->path.string());
+            dump.appendFormat(INDENT3 "Enabled: %s\n", toString(device->enabled));
             dump.appendFormat(INDENT3 "Descriptor: %s\n", device->identifier.descriptor.string());
             dump.appendFormat(INDENT3 "Location: %s\n", device->identifier.location.string());
             dump.appendFormat(INDENT3 "ControllerNumber: %d\n", device->controllerNumber);

@@ -51,22 +51,12 @@ void CacheTracker::addDataPath(const std::string& dataPath) {
 }
 
 void CacheTracker::loadStats() {
-    int cacheGid = multiuser_get_cache_gid(mUserId, mAppId);
-    if (cacheGid != -1 && !mQuotaDevice.empty()) {
-        ATRACE_BEGIN("loadStats quota");
-        struct dqblk dq;
-        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), mQuotaDevice.c_str(), cacheGid,
-                reinterpret_cast<char*>(&dq)) != 0) {
-            ATRACE_END();
-            if (errno != ESRCH) {
-                PLOG(ERROR) << "Failed to quotactl " << mQuotaDevice << " for GID " << cacheGid;
-            }
-        } else {
-            cacheUsed = dq.dqb_curspace;
-            ATRACE_END();
-            return;
-        }
+    ATRACE_BEGIN("loadStats quota");
+    cacheUsed = 0;
+    if (loadQuotaStats()) {
+        return;
     }
+    ATRACE_END();
 
     ATRACE_BEGIN("loadStats tree");
     cacheUsed = 0;
@@ -77,6 +67,36 @@ void CacheTracker::loadStats() {
         calculate_tree_size(codeCachePath, &cacheUsed);
     }
     ATRACE_END();
+}
+
+bool CacheTracker::loadQuotaStats() {
+    int cacheGid = multiuser_get_cache_gid(mUserId, mAppId);
+    int extCacheGid = multiuser_get_ext_cache_gid(mUserId, mAppId);
+    if (!mQuotaDevice.empty() && cacheGid != -1 && extCacheGid != -1) {
+        struct dqblk dq;
+        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), mQuotaDevice.c_str(), cacheGid,
+                reinterpret_cast<char*>(&dq)) != 0) {
+            if (errno != ESRCH) {
+                PLOG(ERROR) << "Failed to quotactl " << mQuotaDevice << " for GID " << cacheGid;
+            }
+            return false;
+        } else {
+            cacheUsed += dq.dqb_curspace;
+        }
+
+        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), mQuotaDevice.c_str(), extCacheGid,
+                reinterpret_cast<char*>(&dq)) != 0) {
+            if (errno != ESRCH) {
+                PLOG(ERROR) << "Failed to quotactl " << mQuotaDevice << " for GID " << cacheGid;
+            }
+            return false;
+        } else {
+            cacheUsed += dq.dqb_curspace;
+        }
+        return true;
+    } else {
+        return false;
+    }
 }
 
 void CacheTracker::loadItemsFrom(const std::string& path) {

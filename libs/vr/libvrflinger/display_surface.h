@@ -3,7 +3,8 @@
 
 #include <pdx/file_handle.h>
 #include <pdx/service.h>
-#include <private/dvr/display_rpc.h>
+#include <private/dvr/buffer_hub_queue_client.h>
+#include <private/dvr/display_protocol.h>
 #include <private/dvr/ring_buffer.h>
 
 #include <functional>
@@ -13,54 +14,136 @@
 #include <vector>
 
 #include "acquired_buffer.h"
-#include "surface_channel.h"
-#include "video_mesh_surface.h"
 
 namespace android {
 namespace dvr {
 
 class DisplayService;
 
-// DisplaySurface is the service-side notion of a client display context. It is
-// responsible for managing display buffer format, geometry, and state, and
-// maintains the buffer consumers connected to the client.
-class DisplaySurface : public SurfaceChannel {
+enum class SurfaceType {
+  Direct,
+  Application,
+};
+
+class DisplaySurface : public pdx::Channel {
  public:
-  DisplaySurface(DisplayService* service, int surface_id, int process_id,
-                 int width, int height, int format, int usage, int flags);
+  static pdx::Status<std::shared_ptr<DisplaySurface>> Create(
+      DisplayService* service, int surface_id, int process_id, int user_id,
+      const display::SurfaceAttributes& attributes);
+
   ~DisplaySurface() override;
 
+  DisplayService* service() const { return service_; }
+  SurfaceType surface_type() const { return surface_type_; }
+  int surface_id() const { return surface_id_; }
   int process_id() const { return process_id_; }
-  int width() const { return width_; }
-  int height() const { return height_; }
-  int format() const { return format_; }
-  int usage() const { return usage_; }
-  int flags() const { return flags_; }
+  int user_id() const { return user_id_; }
 
-  bool client_visible() const { return client_visible_; }
-  int client_z_order() const { return client_z_order_; }
-  bool client_exclude_from_blur() const { return client_exclude_from_blur_; }
-  bool client_blur_behind() const { return client_blur_behind_; }
+  bool visible() const { return visible_; }
+  int z_order() const { return z_order_; }
 
-  bool manager_visible() const { return manager_visible_; }
-  int manager_z_order() const { return manager_z_order_; }
-  float manager_blur() const { return manager_blur_; }
+  const display::SurfaceAttributes& attributes() const { return attributes_; }
+  display::SurfaceUpdateFlags update_flags() const { return update_flags_; }
 
-  bool video_mesh_surfaces_updated() const {
-    return video_mesh_surfaces_updated_;
+  virtual std::vector<int32_t> GetQueueIds() const { return {}; }
+
+  bool IsUpdatePending() const {
+    return update_flags_.value() != display::SurfaceUpdateFlags::None;
   }
 
-  volatile const DisplaySurfaceMetadata* GetMetadataBufferPtr() {
-    if (EnsureMetadataBuffer()) {
-      void* addr = nullptr;
-      metadata_buffer_->GetBlobReadWritePointer(metadata_size(), &addr);
-      return static_cast<const volatile DisplaySurfaceMetadata*>(addr);
-    } else {
-      return nullptr;
-    }
+ protected:
+  DisplaySurface(DisplayService* service, SurfaceType surface_type,
+                 int surface_id, int process_id, int user_id,
+                 const display::SurfaceAttributes& attributes);
+
+  // Utility to retrieve a shared pointer to this channel as the desired derived
+  // type.
+  template <
+      typename T = DisplaySurface,
+      typename = std::enable_if_t<std::is_base_of<DisplaySurface, T>::value>>
+  std::shared_ptr<T> Self() {
+    return std::static_pointer_cast<T>(shared_from_this());
   }
 
-  uint32_t GetRenderBufferIndex(int buffer_id);
+  virtual pdx::Status<pdx::LocalChannelHandle> OnCreateQueue(
+      pdx::Message& message, size_t meta_size_bytes) = 0;
+
+  // Registers a consumer queue with the event dispatcher in DisplayService. The
+  // OnQueueEvent callback below is called to handle queue events.
+  pdx::Status<void> RegisterQueue(
+      const std::shared_ptr<ConsumerQueue>& consumer_queue);
+  pdx::Status<void> UnregisterQueue(
+      const std::shared_ptr<ConsumerQueue>& consumer_queue);
+
+  // Called by the event dispatcher in DisplayService when a registered queue
+  // event triggers. Executes on the event dispatcher thread.
+  virtual void OnQueueEvent(
+      const std::shared_ptr<ConsumerQueue>& consumer_queue, int events);
+
+  void SurfaceUpdated(display::SurfaceUpdateFlags update_flags);
+  void ClearUpdate();
+
+  // Synchronizes access to mutable state below between message dispatch thread
+  // and frame post thread.
+  mutable std::mutex lock_;
+
+ private:
+  friend class DisplayService;
+  friend class DisplayManagerService;
+
+  // Dispatches display surface messages to the appropriate handlers. This
+  // handler runs on the VrFlinger message dispatch thread.
+  pdx::Status<void> HandleMessage(pdx::Message& message);
+
+  pdx::Status<void> OnSetAttributes(
+      pdx::Message& message, const display::SurfaceAttributes& attributes);
+  pdx::Status<display::SurfaceInfo> OnGetSurfaceInfo(pdx::Message& message);
+
+  DisplayService* service_;
+  SurfaceType surface_type_;
+  int surface_id_;
+  int process_id_;
+  int user_id_;
+
+  display::SurfaceAttributes attributes_;
+  display::SurfaceUpdateFlags update_flags_ = display::SurfaceUpdateFlags::None;
+
+  // Subset of attributes that may be interpreted by the display service.
+  bool visible_ = false;
+  int z_order_ = 0;
+
+  DisplaySurface(const DisplaySurface&) = delete;
+  void operator=(const DisplaySurface&) = delete;
+};
+
+class ApplicationDisplaySurface : public DisplaySurface {
+ public:
+  ApplicationDisplaySurface(DisplayService* service, int surface_id,
+                            int process_id, int user_id,
+                            const display::SurfaceAttributes& attributes)
+      : DisplaySurface(service, SurfaceType::Application, surface_id,
+                       process_id, user_id, attributes) {}
+
+  std::shared_ptr<ConsumerQueue> GetQueue(int32_t queue_id);
+  std::vector<int32_t> GetQueueIds() const override;
+
+ private:
+  pdx::Status<pdx::LocalChannelHandle> OnCreateQueue(
+      pdx::Message& message, size_t meta_size_bytes) override;
+  void OnQueueEvent(const std::shared_ptr<ConsumerQueue>& consumer_queue,
+                    int events) override;
+
+  std::unordered_map<int32_t, std::shared_ptr<ConsumerQueue>> consumer_queues_;
+};
+
+class DirectDisplaySurface : public DisplaySurface {
+ public:
+  DirectDisplaySurface(DisplayService* service, int surface_id, int process_id,
+                       int user_id,
+                       const display::SurfaceAttributes& attributes)
+      : DisplaySurface(service, SurfaceType::Direct, surface_id, process_id,
+                       user_id, attributes),
+        acquired_buffers_(kMaxPostedBuffers) {}
   bool IsBufferAvailable();
   bool IsBufferPosted();
   AcquiredBuffer AcquireCurrentBuffer();
@@ -69,110 +152,31 @@ class DisplaySurface : public SurfaceChannel {
   // skipped, it will be stored in skipped_buffer if non null.
   AcquiredBuffer AcquireNewestAvailableBuffer(AcquiredBuffer* skipped_buffer);
 
-  // Display manager interface to control visibility and z order.
-  void ManagerSetVisible(bool visible);
-  void ManagerSetZOrder(int z_order);
-  void ManagerSetBlur(float blur);
-
-  // A surface must be set visible by both the client and the display manager to
-  // be visible on screen.
-  bool IsVisible() const { return client_visible_ && manager_visible_; }
-
-  // A surface is blurred if the display manager requests it.
-  bool IsBlurred() const { return manager_blur_ > 0.0f; }
-
-  // Set by HardwareComposer to the current logical layer order of this surface.
-  void SetLayerOrder(int layer_order) { layer_order_ = layer_order; }
-  // Gets the unique z-order index of this surface among other visible surfaces.
-  // This is not the same as the hardware layer index, as not all display
-  // surfaces map directly to hardware layers. Lower layer orders should be
-  // composited underneath higher layer orders.
-  int layer_order() const { return layer_order_; }
-
-  // Lock all video mesh surfaces so that VideoMeshCompositor can access them.
-  std::vector<std::shared_ptr<VideoMeshSurface>> GetVideoMeshSurfaces();
-
  private:
-  friend class DisplayService;
+  pdx::Status<pdx::LocalChannelHandle> OnCreateQueue(
+      pdx::Message& message, size_t meta_size_bytes) override;
+  void OnQueueEvent(const std::shared_ptr<ConsumerQueue>& consumer_queue,
+                    int events) override;
 
   // The capacity of the pending buffer queue. Should be enough to hold all the
   // buffers of this DisplaySurface, although in practice only 1 or 2 frames
   // will be pending at a time.
+  static constexpr int kSurfaceBufferMaxCount = 4;
+  static constexpr int kSurfaceViewMaxCount = 4;
   static constexpr int kMaxPostedBuffers =
       kSurfaceBufferMaxCount * kSurfaceViewMaxCount;
 
   // Returns whether a frame is available without locking the mutex.
   bool IsFrameAvailableNoLock() const;
 
-  // Dispatches display surface messages to the appropriate handlers. This
-  // handler runs on the displayd message dispatch thread.
-  pdx::Status<void> HandleMessage(pdx::Message& message) override;
-
-  // Sets display surface's client-controlled attributes.
-  int OnClientSetAttributes(pdx::Message& message,
-                            const DisplaySurfaceAttributes& attributes);
-
-  // Creates a BufferHubQueue associated with this surface and returns the PDX
-  // handle of its producer side to the client.
-  pdx::LocalChannelHandle OnCreateBufferQueue(pdx::Message& message);
-
-  // Creates a video mesh surface associated with this surface and returns its
-  // PDX handle to the client.
-  pdx::RemoteChannelHandle OnCreateVideoMeshSurface(pdx::Message& message);
-
-  // Client interface (called through IPC) to set visibility and z order.
-  void ClientSetVisible(bool visible);
-  void ClientSetZOrder(int z_order);
-  void ClientSetExcludeFromBlur(bool exclude_from_blur);
-  void ClientSetBlurBehind(bool blur_behind);
-
   // Dequeue all available buffers from the consumer queue.
   void DequeueBuffersLocked();
-
-  DisplaySurface(const DisplaySurface&) = delete;
-  void operator=(const DisplaySurface&) = delete;
-
-  int process_id_;
-
-  // Synchronizes access to mutable state below between message dispatch thread,
-  // epoll event thread, and frame post thread.
-  mutable std::mutex lock_;
-
-  // The consumer end of a BufferHubQueue. VrFlinger allocates and controls the
-  // buffer queue and pass producer end to the app and the consumer end to
-  // compositor.
-  // TODO(jwcai) Add support for multiple buffer queues per display surface.
-  std::shared_ptr<ConsumerQueue> consumer_queue_;
 
   // In a triple-buffered surface, up to kMaxPostedBuffers buffers may be
   // posted and pending.
   RingBuffer<AcquiredBuffer> acquired_buffers_;
 
-  // Provides access to VideoMeshSurface. Here we don't want to increase
-  // the reference count immediately on allocation, will leave it into
-  // compositor's hand.
-  std::vector<std::weak_ptr<VideoMeshSurface>> pending_video_mesh_surfaces_;
-  volatile bool video_mesh_surfaces_updated_;
-
-  // Surface parameters.
-  int width_;
-  int height_;
-  int format_;
-  int usage_;
-  int flags_;
-  bool client_visible_;
-  int client_z_order_;
-  bool client_exclude_from_blur_;
-  bool client_blur_behind_;
-  bool manager_visible_;
-  int manager_z_order_;
-  float manager_blur_;
-  int layer_order_;
-
-  // The monotonically increasing index for allocated buffers in this surface.
-  uint32_t allocated_buffer_index_;
-  // Maps from the buffer id to the corresponding allocated buffer index.
-  std::unordered_map<int, uint32_t> buffer_id_to_index_;
+  std::shared_ptr<ConsumerQueue> direct_queue_;
 };
 
 }  // namespace dvr

@@ -1,9 +1,9 @@
 #include "hardware_composer.h"
 
-#include <log/log.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
 #include <fcntl.h>
+#include <log/log.h>
 #include <poll.h>
 #include <sync/sync.h>
 #include <sys/eventfd.h>
@@ -11,23 +11,26 @@
 #include <sys/resource.h>
 #include <sys/system_properties.h>
 #include <sys/timerfd.h>
+#include <time.h>
 #include <unistd.h>
 #include <utils/Trace.h>
 
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <map>
 
+#include <dvr/dvr_display_types.h>
 #include <dvr/performance_client_api.h>
 #include <private/dvr/clock_ns.h>
-#include <private/dvr/display_types.h>
+#include <private/dvr/ion_buffer.h>
 #include <private/dvr/pose_client_internal.h>
-#include <private/dvr/sync_util.h>
-
-#include "debug_hud_data.h"
-#include "screenshot_service.h"
 
 using android::pdx::LocalHandle;
+using android::pdx::rpc::EmptyVariant;
+using android::pdx::rpc::IfAnyOf;
+
+using namespace std::chrono_literals;
 
 namespace android {
 namespace dvr {
@@ -42,17 +45,8 @@ namespace {
 // display and the EDS timing coincides with zero pending fences, so this is 0.
 constexpr int kAllowedPendingFenceCount = 0;
 
-// If we think we're going to miss vsync by more than this amount, skip the
-// frame.
-constexpr int64_t kFrameSkipThresholdNs = 4000000;  // 4ms
-
-// Counter PostLayers() deficiency by requiring apps to produce a frame at least
-// 2.5ms before vsync. See b/28881672.
-constexpr int64_t kFrameTimeEstimateMin = 2500000;  // 2.5ms
-
-constexpr size_t kDefaultDisplayConfigCount = 32;
-
-constexpr float kMetersPerInch = 0.0254f;
+// Offset before vsync to submit frames to hardware composer.
+constexpr int64_t kFramePostOffsetNs = 4000000;  // 4ms
 
 const char kBacklightBrightnessSysFile[] =
     "/sys/class/leds/lcd-backlight/brightness";
@@ -66,23 +60,6 @@ const char kDvrPerformanceProperty[] = "sys.dvr.performance";
 
 const char kRightEyeOffsetProperty[] = "dvr.right_eye_offset_ns";
 
-// Returns our best guess for the time the compositor will spend rendering the
-// next frame.
-int64_t GuessFrameTime(int compositor_visible_layer_count) {
-  // The cost of asynchronous EDS and lens warp is currently measured at 2.5ms
-  // for one layer and 7ms for two layers, but guess a higher frame time to
-  // account for CPU overhead. This guess is only used before we've measured the
-  // actual time to render a frame for the current compositor configuration.
-  switch (compositor_visible_layer_count) {
-    case 0:
-      return 500000;  // .5ms
-    case 1:
-      return 5000000;  // 5ms
-    default:
-      return 10500000;  // 10.5ms
-  }
-}
-
 // Get time offset from a vsync to when the pose for that vsync should be
 // predicted out to. For example, if scanout gets halfway through the frame
 // at the halfway point between vsyncs, then this could be half the period.
@@ -93,44 +70,52 @@ inline int64_t GetPosePredictionTimeOffset(int64_t vsync_period_ns) {
   return (vsync_period_ns * 150) / 100;
 }
 
+// Attempts to set the scheduler class and partiton for the current thread.
+// Returns true on success or false on failure.
+bool SetThreadPolicy(const std::string& scheduler_class,
+                     const std::string& partition) {
+  int error = dvrSetSchedulerClass(0, scheduler_class.c_str());
+  if (error < 0) {
+    ALOGE(
+        "SetThreadPolicy: Failed to set scheduler class \"%s\" for "
+        "thread_id=%d: %s",
+        scheduler_class.c_str(), gettid(), strerror(-error));
+    return false;
+  }
+  error = dvrSetCpuPartition(0, partition.c_str());
+  if (error < 0) {
+    ALOGE(
+        "SetThreadPolicy: Failed to set cpu partiton \"%s\" for thread_id=%d: "
+        "%s",
+        partition.c_str(), gettid(), strerror(-error));
+    return false;
+  }
+  return true;
+}
+
 }  // anonymous namespace
 
-HardwareComposer::HardwareComposer()
-  : HardwareComposer(nullptr) {
-}
+// Layer static data.
+Hwc2::Composer* Layer::hwc2_hidl_;
+const HWCDisplayMetrics* Layer::display_metrics_;
 
-HardwareComposer::HardwareComposer(Hwc2::Composer* hwc2_hidl)
+// HardwareComposer static data;
+constexpr size_t HardwareComposer::kMaxHardwareLayers;
+
+HardwareComposer::HardwareComposer()
+    : HardwareComposer(nullptr, RequestDisplayCallback()) {}
+
+HardwareComposer::HardwareComposer(
+    Hwc2::Composer* hwc2_hidl, RequestDisplayCallback request_display_callback)
     : initialized_(false),
       hwc2_hidl_(hwc2_hidl),
-      display_transform_(HWC_TRANSFORM_NONE),
-      active_surfaces_updated_(false),
-      active_layer_count_(0),
-      gpu_layer_(nullptr),
-      post_thread_enabled_(false),
-      post_thread_running_(false),
-      post_thread_quit_requested_(false),
-      post_thread_interrupt_event_fd_(-1),
-      backlight_brightness_fd_(-1),
-      primary_display_vsync_event_fd_(-1),
-      primary_display_wait_pp_fd_(-1),
-      vsync_sleep_timer_fd_(-1),
-      last_vsync_timestamp_(0),
-      vsync_count_(0),
-      frame_skip_count_(0),
-      pose_client_(nullptr) {
-  std::transform(layer_storage_.begin(), layer_storage_.end(), layers_.begin(),
-                 [](auto& layer) { return &layer; });
-
-  callbacks_ = new ComposerCallback;
-}
+      request_display_callback_(request_display_callback),
+      callbacks_(new ComposerCallback) {}
 
 HardwareComposer::~HardwareComposer(void) {
-  std::unique_lock<std::mutex> lock(post_thread_mutex_);
-  if (post_thread_.joinable()) {
-    post_thread_quit_requested_ = true;
-    post_thread_cond_var_.notify_all();
+  UpdatePostThreadState(PostThreadState::Quit, true);
+  if (post_thread_.joinable())
     post_thread_.join();
-  }
 }
 
 bool HardwareComposer::Initialize() {
@@ -139,25 +124,25 @@ bool HardwareComposer::Initialize() {
     return false;
   }
 
-  int32_t ret = HWC2_ERROR_NONE;
+  HWC::Error error = HWC::Error::None;
 
   Hwc2::Config config;
-  ret = (int32_t)hwc2_hidl_->getActiveConfig(HWC_DISPLAY_PRIMARY, &config);
+  error = hwc2_hidl_->getActiveConfig(HWC_DISPLAY_PRIMARY, &config);
 
-  if (ret != HWC2_ERROR_NONE) {
+  if (error != HWC::Error::None) {
     ALOGE("HardwareComposer: Failed to get current display config : %d",
           config);
     return false;
   }
 
-  ret =
+  error =
       GetDisplayMetrics(HWC_DISPLAY_PRIMARY, config, &native_display_metrics_);
 
-  if (ret != HWC2_ERROR_NONE) {
+  if (error != HWC::Error::None) {
     ALOGE(
         "HardwareComposer: Failed to get display attributes for current "
         "configuration : %d",
-        ret);
+        error.value);
     return false;
   }
 
@@ -173,10 +158,12 @@ bool HardwareComposer::Initialize() {
   display_transform_ = HWC_TRANSFORM_NONE;
   display_metrics_ = native_display_metrics_;
 
-  post_thread_interrupt_event_fd_.Reset(
-      eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
+  // Pass hwc instance and metrics to setup globals for Layer.
+  Layer::InitializeGlobals(hwc2_hidl_, &native_display_metrics_);
+
+  post_thread_event_fd_.Reset(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
   LOG_ALWAYS_FATAL_IF(
-      !post_thread_interrupt_event_fd_,
+      !post_thread_event_fd_,
       "HardwareComposer: Failed to create interrupt event fd : %s",
       strerror(errno));
 
@@ -188,59 +175,63 @@ bool HardwareComposer::Initialize() {
 }
 
 void HardwareComposer::Enable() {
-  std::lock_guard<std::mutex> lock(post_thread_mutex_);
-  post_thread_enabled_ = true;
-  post_thread_cond_var_.notify_all();
+  UpdatePostThreadState(PostThreadState::Suspended, false);
 }
 
 void HardwareComposer::Disable() {
-  std::unique_lock<std::mutex> lock(post_thread_mutex_);
-  post_thread_enabled_ = false;
-  if (post_thread_running_) {
-    // Write to the interrupt fd to get fast interrupt of the post thread
-    int error = eventfd_write(post_thread_interrupt_event_fd_.Get(), 1);
-    ALOGW_IF(error,
-             "HardwareComposer::Disable: could not write post "
-             "thread interrupt event fd : %s",
-             strerror(errno));
-
-    post_thread_cond_var_.wait(lock, [this] { return !post_thread_running_; });
-
-    // Read the interrupt fd to clear its state
-    uint64_t interrupt_count= 0;
-    error = eventfd_read(post_thread_interrupt_event_fd_.Get(),
-                         &interrupt_count);
-    ALOGW_IF(error,
-             "HardwareComposer::Disable: could not read post "
-             "thread interrupt event fd : %s",
-             strerror(errno));
-  }
+  UpdatePostThreadState(PostThreadState::Suspended, true);
 }
 
-bool HardwareComposer::PostThreadHasWork() {
-  return !display_surfaces_.empty() ||
-      (active_surfaces_updated_ && !active_surfaces_.empty());
+// Update the post thread quiescent state based on idle and suspended inputs.
+void HardwareComposer::UpdatePostThreadState(PostThreadStateType state,
+                                             bool suspend) {
+  std::unique_lock<std::mutex> lock(post_thread_mutex_);
+
+  // Update the votes in the state variable before evaluating the effective
+  // quiescent state. Any bits set in post_thread_state_ indicate that the post
+  // thread should be suspended.
+  if (suspend) {
+    post_thread_state_ |= state;
+  } else {
+    post_thread_state_ &= ~state;
+  }
+
+  const bool quit = post_thread_state_ & PostThreadState::Quit;
+  const bool effective_suspend = post_thread_state_ != PostThreadState::Active;
+  if (quit) {
+    post_thread_quiescent_ = true;
+    eventfd_write(post_thread_event_fd_.Get(), 1);
+    post_thread_wait_.notify_one();
+  } else if (effective_suspend && !post_thread_quiescent_) {
+    post_thread_quiescent_ = true;
+    eventfd_write(post_thread_event_fd_.Get(), 1);
+  } else if (!effective_suspend && post_thread_quiescent_) {
+    post_thread_quiescent_ = false;
+    eventfd_t value;
+    eventfd_read(post_thread_event_fd_.Get(), &value);
+    post_thread_wait_.notify_one();
+  }
+
+  // Wait until the post thread is in the requested state.
+  post_thread_ready_.wait(lock, [this, effective_suspend] {
+    return effective_suspend != post_thread_resumed_;
+  });
 }
 
 void HardwareComposer::OnPostThreadResumed() {
-  constexpr int format = HAL_PIXEL_FORMAT_RGBA_8888;
-  constexpr int usage =
-      GRALLOC_USAGE_HW_FB | GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_RENDER;
-
-  framebuffer_target_ = std::make_shared<IonBuffer>(
-      native_display_metrics_.width, native_display_metrics_.height, format,
-      usage);
-
-  // Associate each Layer instance with a hardware composer layer.
-  for (auto layer : layers_) {
-    layer->Initialize(hwc2_hidl_.get(), &native_display_metrics_);
-  }
+  hwc2_hidl_->resetCommands();
 
   // Connect to pose service.
   pose_client_ = dvrPoseCreate();
   ALOGE_IF(!pose_client_, "HardwareComposer: Failed to create pose client");
 
+  // HIDL HWC seems to have an internal race condition. If we submit a frame too
+  // soon after turning on VSync we don't get any VSync signals. Give poor HWC
+  // implementations a chance to enable VSync before we continue.
+  EnableVsync(false);
+  std::this_thread::sleep_for(100ms);
   EnableVsync(true);
+  std::this_thread::sleep_for(100ms);
 
   // TODO(skiazyk): We need to do something about accessing this directly,
   // supposedly there is a backlight service on the way.
@@ -249,33 +240,18 @@ void HardwareComposer::OnPostThreadResumed() {
   // control of the display back to surface flinger?
   SetBacklightBrightness(255);
 
-  // Initialize the GPU compositor.
-  LOG_ALWAYS_FATAL_IF(!compositor_.Initialize(GetHmdDisplayMetrics()),
-                      "Failed to initialize the compositor");
-
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "performance");
 }
 
 void HardwareComposer::OnPostThreadPaused() {
   retire_fence_fds_.clear();
-  gpu_layer_ = nullptr;
-
-  // We have to destroy the layers to fully clear hwc device state before
-  // handing off back to surface flinger
-  for (size_t i = 0; i < kMaxHardwareLayers; ++i) {
-    layers_[i]->Reset();
-  }
-
-  active_layer_count_ = 0;
-
-  framebuffer_target_.reset();
-
   display_surfaces_.clear();
-  compositor_surfaces_.clear();
 
-  // Since we're clearing display_surfaces_ we'll need an update.
-  active_surfaces_updated_ = true;
+  for (size_t i = 0; i < kMaxHardwareLayers; ++i) {
+    layers_[i].Reset();
+  }
+  active_layer_count_ = 0;
 
   if (pose_client_) {
     dvrPoseDestroy(pose_client_);
@@ -284,48 +260,24 @@ void HardwareComposer::OnPostThreadPaused() {
 
   EnableVsync(false);
 
-  frame_time_history_.ResetWithSeed(GuessFrameTime(0));
-  frame_time_backlog_.clear();
-
-  compositor_.Shutdown();
+  hwc2_hidl_->resetCommands();
 
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "idle");
 }
 
-DisplayMetrics HardwareComposer::GetHmdDisplayMetrics() const {
-  vec2i screen_size(display_metrics_.width, display_metrics_.height);
-  DisplayOrientation orientation =
-      (display_metrics_.width > display_metrics_.height
-           ? DisplayOrientation::kLandscape
-           : DisplayOrientation::kPortrait);
-  float dpi_x = static_cast<float>(display_metrics_.dpi.x) / 1000.0f;
-  float dpi_y = static_cast<float>(display_metrics_.dpi.y) / 1000.0f;
-  float meters_per_pixel_x = kMetersPerInch / dpi_x;
-  float meters_per_pixel_y = kMetersPerInch / dpi_y;
-  vec2 meters_per_pixel(meters_per_pixel_x, meters_per_pixel_y);
-  double frame_duration_s =
-      static_cast<double>(display_metrics_.vsync_period_ns) / 1000000000.0;
-  // TODO(hendrikw): Hard coding to 3mm.  The Pixel is actually 4mm, but it
-  //                 seems that their tray to lens distance is wrong too, which
-  //                 offsets this, at least for the pixel.
-  float border_size = 0.003f;
-  return DisplayMetrics(screen_size, meters_per_pixel, border_size,
-                        static_cast<float>(frame_duration_s), orientation);
-}
-
-int32_t HardwareComposer::Validate(hwc2_display_t display) {
+HWC::Error HardwareComposer::Validate(hwc2_display_t display) {
   uint32_t num_types;
   uint32_t num_requests;
-  int32_t error =
-      (int32_t)hwc2_hidl_->validateDisplay(display, &num_types, &num_requests);
+  HWC::Error error =
+      hwc2_hidl_->validateDisplay(display, &num_types, &num_requests);
 
   if (error == HWC2_ERROR_HAS_CHANGES) {
     // TODO(skiazyk): We might need to inspect the requested changes first, but
     // so far it seems like we shouldn't ever hit a bad state.
     // error = hwc2_funcs_.accept_display_changes_fn_(hardware_composer_device_,
     //                                               display);
-    error = (int32_t)hwc2_hidl_->acceptDisplayChanges(display);
+    error = hwc2_hidl_->acceptDisplayChanges(display);
   }
 
   return error;
@@ -338,13 +290,13 @@ int32_t HardwareComposer::EnableVsync(bool enabled) {
                                              : HWC2_VSYNC_DISABLE));
 }
 
-int32_t HardwareComposer::Present(hwc2_display_t display) {
+HWC::Error HardwareComposer::Present(hwc2_display_t display) {
   int32_t present_fence;
-  int32_t error = (int32_t)hwc2_hidl_->presentDisplay(display, &present_fence);
+  HWC::Error error = hwc2_hidl_->presentDisplay(display, &present_fence);
 
   // According to the documentation, this fence is signaled at the time of
   // vsync/DMA for physical displays.
-  if (error == HWC2_ERROR_NONE) {
+  if (error == HWC::Error::None) {
     ATRACE_INT("HardwareComposer: VsyncFence", present_fence);
     retire_fence_fds_.emplace_back(present_fence);
   } else {
@@ -354,77 +306,82 @@ int32_t HardwareComposer::Present(hwc2_display_t display) {
   return error;
 }
 
-int32_t HardwareComposer::GetDisplayAttribute(hwc2_display_t display,
-                                              hwc2_config_t config,
-                                              hwc2_attribute_t attribute,
-                                              int32_t* out_value) const {
-  return (int32_t)hwc2_hidl_->getDisplayAttribute(
+HWC::Error HardwareComposer::GetDisplayAttribute(hwc2_display_t display,
+                                                 hwc2_config_t config,
+                                                 hwc2_attribute_t attribute,
+                                                 int32_t* out_value) const {
+  return hwc2_hidl_->getDisplayAttribute(
       display, config, (Hwc2::IComposerClient::Attribute)attribute, out_value);
 }
 
-int32_t HardwareComposer::GetDisplayMetrics(
+HWC::Error HardwareComposer::GetDisplayMetrics(
     hwc2_display_t display, hwc2_config_t config,
     HWCDisplayMetrics* out_metrics) const {
-  int32_t ret = HWC2_ERROR_NONE;
+  HWC::Error error;
 
-  ret = GetDisplayAttribute(display, config, HWC2_ATTRIBUTE_WIDTH,
-                            &out_metrics->width);
-  if (ret != HWC2_ERROR_NONE) {
-    ALOGE("HardwareComposer: Failed to get display width");
-    return ret;
+  error = GetDisplayAttribute(display, config, HWC2_ATTRIBUTE_WIDTH,
+                              &out_metrics->width);
+  if (error != HWC::Error::None) {
+    ALOGE(
+        "HardwareComposer::GetDisplayMetrics: Failed to get display width: %s",
+        error.to_string().c_str());
+    return error;
   }
 
-  ret = GetDisplayAttribute(display, config, HWC2_ATTRIBUTE_HEIGHT,
-                            &out_metrics->height);
-  if (ret != HWC2_ERROR_NONE) {
-    ALOGE("HardwareComposer: Failed to get display height");
-    return ret;
+  error = GetDisplayAttribute(display, config, HWC2_ATTRIBUTE_HEIGHT,
+                              &out_metrics->height);
+  if (error != HWC::Error::None) {
+    ALOGE(
+        "HardwareComposer::GetDisplayMetrics: Failed to get display height: %s",
+        error.to_string().c_str());
+    return error;
   }
 
-  ret = GetDisplayAttribute(display, config, HWC2_ATTRIBUTE_VSYNC_PERIOD,
-                            &out_metrics->vsync_period_ns);
-  if (ret != HWC2_ERROR_NONE) {
-    ALOGE("HardwareComposer: Failed to get display height");
-    return ret;
+  error = GetDisplayAttribute(display, config, HWC2_ATTRIBUTE_VSYNC_PERIOD,
+                              &out_metrics->vsync_period_ns);
+  if (error != HWC::Error::None) {
+    ALOGE(
+        "HardwareComposer::GetDisplayMetrics: Failed to get display height: %s",
+        error.to_string().c_str());
+    return error;
   }
 
-  ret = GetDisplayAttribute(display, config, HWC2_ATTRIBUTE_DPI_X,
-                            &out_metrics->dpi.x);
-  if (ret != HWC2_ERROR_NONE) {
-    ALOGE("HardwareComposer: Failed to get display DPI X");
-    return ret;
+  error = GetDisplayAttribute(display, config, HWC2_ATTRIBUTE_DPI_X,
+                              &out_metrics->dpi.x);
+  if (error != HWC::Error::None) {
+    ALOGE(
+        "HardwareComposer::GetDisplayMetrics: Failed to get display DPI X: %s",
+        error.to_string().c_str());
+    return error;
   }
 
-  ret = GetDisplayAttribute(display, config, HWC2_ATTRIBUTE_DPI_Y,
-                            &out_metrics->dpi.y);
-  if (ret != HWC2_ERROR_NONE) {
-    ALOGE("HardwareComposer: Failed to get display DPI Y");
-    return ret;
+  error = GetDisplayAttribute(display, config, HWC2_ATTRIBUTE_DPI_Y,
+                              &out_metrics->dpi.y);
+  if (error != HWC::Error::None) {
+    ALOGE(
+        "HardwareComposer::GetDisplayMetrics: Failed to get display DPI Y: %s",
+        error.to_string().c_str());
+    return error;
   }
 
-  return HWC2_ERROR_NONE;
+  return HWC::Error::None;
 }
 
-void HardwareComposer::Dump(char* buffer, uint32_t* out_size) {
-  std::string debug_str = hwc2_hidl_->dumpDebugInfo();
-  ALOGI("%s", debug_str.c_str());
+std::string HardwareComposer::Dump() { return hwc2_hidl_->dumpDebugInfo(); }
 
-  if (buffer == nullptr) {
-    *out_size = debug_str.size();
-  } else {
-    std::copy(debug_str.begin(), debug_str.begin() + *out_size, buffer);
-  }
-}
-
-// TODO(skiazyk): Figure out what to do with `is_geometry_changed`. There does
-// not seem to be any equivalent in the HWC2 API, but that doesn't mean its not
-// there.
-void HardwareComposer::PostLayers(bool /*is_geometry_changed*/) {
+void HardwareComposer::PostLayers() {
   ATRACE_NAME("HardwareComposer::PostLayers");
 
   // Setup the hardware composer layers with current buffers.
   for (size_t i = 0; i < active_layer_count_; i++) {
-    layers_[i]->Prepare();
+    layers_[i].Prepare();
+  }
+
+  HWC::Error error = Validate(HWC_DISPLAY_PRIMARY);
+  if (error != HWC::Error::None) {
+    ALOGE("HardwareComposer::PostLayers: Validate failed: %s",
+          error.to_string().c_str());
+    return;
   }
 
   // Now that we have taken in a frame from the application, we have a chance
@@ -452,7 +409,7 @@ void HardwareComposer::PostLayers(bool /*is_geometry_changed*/) {
              retire_fence_fds_.size());
 
     for (size_t i = 0; i < active_layer_count_; i++) {
-      layers_[i]->Drop();
+      layers_[i].Drop();
     }
     return;
   } else {
@@ -463,71 +420,71 @@ void HardwareComposer::PostLayers(bool /*is_geometry_changed*/) {
 
 #if TRACE
   for (size_t i = 0; i < active_layer_count_; i++)
-    ALOGI("HardwareComposer::PostLayers: dl[%zu] ctype=0x%08x", i,
-          layers_[i]->GetCompositionType());
+    ALOGI("HardwareComposer::PostLayers: layer=%zu composition=%s", i,
+          layers_[i].GetCompositionType().to_string().c_str());
 #endif
 
-  int32_t ret = HWC2_ERROR_NONE;
-
-  std::vector<Hwc2::IComposerClient::Rect> full_region(1);
-  full_region[0].left = 0;
-  full_region[0].top = 0;
-  full_region[0].right = framebuffer_target_->width();
-  full_region[0].bottom = framebuffer_target_->height();
-
-  ALOGE_IF(ret, "Error setting client target : %d", ret);
-
-  ret = Validate(HWC_DISPLAY_PRIMARY);
-  if (ret) {
-    ALOGE("HardwareComposer::Validate failed; ret=%d", ret);
-    return;
-  }
-
-  ret = Present(HWC_DISPLAY_PRIMARY);
-  if (ret) {
-    ALOGE("HardwareComposer::Present failed; ret=%d", ret);
+  error = Present(HWC_DISPLAY_PRIMARY);
+  if (error != HWC::Error::None) {
+    ALOGE("HardwareComposer::PostLayers: Present failed: %s",
+          error.to_string().c_str());
     return;
   }
 
   std::vector<Hwc2::Layer> out_layers;
   std::vector<int> out_fences;
-  ret = (int32_t)hwc2_hidl_->getReleaseFences(HWC_DISPLAY_PRIMARY, &out_layers,
-                                              &out_fences);
-  uint32_t num_elements = out_layers.size();
-
-  ALOGE_IF(ret, "HardwareComposer: GetReleaseFences failed; ret=%d", ret);
+  error = hwc2_hidl_->getReleaseFences(HWC_DISPLAY_PRIMARY, &out_layers,
+                                       &out_fences);
+  ALOGE_IF(error != HWC::Error::None,
+           "HardwareComposer::PostLayers: Failed to get release fences: %s",
+           error.to_string().c_str());
 
   // Perform post-frame bookkeeping. Unused layers are a no-op.
+  uint32_t num_elements = out_layers.size();
   for (size_t i = 0; i < num_elements; ++i) {
     for (size_t j = 0; j < active_layer_count_; ++j) {
-      if (layers_[j]->GetLayerHandle() == out_layers[i]) {
-        layers_[j]->Finish(out_fences[i]);
+      if (layers_[j].GetLayerHandle() == out_layers[i]) {
+        layers_[j].Finish(out_fences[i]);
       }
     }
   }
 }
 
 void HardwareComposer::SetDisplaySurfaces(
-    std::vector<std::shared_ptr<DisplaySurface>> surfaces) {
+    std::vector<std::shared_ptr<DirectDisplaySurface>> surfaces) {
   ALOGI("HardwareComposer::SetDisplaySurfaces: surface count=%zd",
         surfaces.size());
-  std::unique_lock<std::mutex> lock(post_thread_mutex_);
-  active_surfaces_ = std::move(surfaces);
-  active_surfaces_updated_ = true;
-  if (post_thread_enabled_)
-    post_thread_cond_var_.notify_all();
+  const bool display_idle = surfaces.size() == 0;
+  {
+    std::unique_lock<std::mutex> lock(post_thread_mutex_);
+    pending_surfaces_ = std::move(surfaces);
+  }
+
+  // Set idle state based on whether there are any surfaces to handle.
+  UpdatePostThreadState(PostThreadState::Idle, display_idle);
+
+  // XXX: TEMPORARY
+  // Request control of the display based on whether there are any surfaces to
+  // handle. This callback sets the post thread active state once the transition
+  // is complete in SurfaceFlinger.
+  // TODO(eieio): Unify the control signal used to move SurfaceFlinger into VR
+  // mode. Currently this is hooked up to persistent VR mode, but perhaps this
+  // makes more sense to control it from VrCore, which could in turn base its
+  // decision on persistent VR mode.
+  if (request_display_callback_)
+    request_display_callback_(!display_idle);
 }
 
-int HardwareComposer::PostThreadPollInterruptible(int event_fd,
-                                                  int requested_events) {
+int HardwareComposer::PostThreadPollInterruptible(
+    const pdx::LocalHandle& event_fd, int requested_events) {
   pollfd pfd[2] = {
       {
-          .fd = event_fd,
+          .fd = event_fd.Get(),
           .events = static_cast<short>(requested_events),
           .revents = 0,
       },
       {
-          .fd = post_thread_interrupt_event_fd_.Get(),
+          .fd = post_thread_event_fd_.Get(),
           .events = POLLPRI | POLLIN,
           .revents = 0,
       },
@@ -648,9 +605,8 @@ int HardwareComposer::ReadVSyncTimestamp(int64_t* timestamp) {
 // TODO(eieio): This is pretty driver specific, this should be moved to a
 // separate class eventually.
 int HardwareComposer::BlockUntilVSync() {
-  return PostThreadPollInterruptible(primary_display_vsync_event_fd_.Get(),
-                                     // There will be a POLLPRI event on vsync
-                                     POLLPRI);
+  // Vsync is signaled by POLLPRI on the fb vsync node.
+  return PostThreadPollInterruptible(primary_display_vsync_event_fd_, POLLPRI);
 }
 
 // Waits for the next vsync and returns the timestamp of the vsync event. If
@@ -689,7 +645,7 @@ int HardwareComposer::WaitForVSync(int64_t* timestamp) {
     // See how close we are to the next expected vsync. If we're within 1ms,
     // sleep for 1ms and try again.
     const int64_t ns_per_frame = display_metrics_.vsync_period_ns;
-    const int64_t threshold_ns = 1000000;
+    const int64_t threshold_ns = 1000000;  // 1ms
 
     const int64_t next_vsync_est = last_vsync_timestamp_ + ns_per_frame;
     const int64_t distance_to_vsync_est = next_vsync_est - GetSystemClockNs();
@@ -701,7 +657,7 @@ int HardwareComposer::WaitForVSync(int64_t* timestamp) {
         return error;
     } else {
       // Sleep for a short time (1 millisecond) before retrying.
-      error = SleepUntil(GetSystemClockNs() + 1000000);
+      error = SleepUntil(GetSystemClockNs() + threshold_ns);
       if (error < 0 || error == kPostThreadInterrupted)
         return error;
     }
@@ -723,24 +679,18 @@ int HardwareComposer::SleepUntil(int64_t wakeup_timestamp) {
     return -error;
   }
 
-  return PostThreadPollInterruptible(timer_fd, POLLIN);
+  return PostThreadPollInterruptible(vsync_sleep_timer_fd_, POLLIN);
 }
 
 void HardwareComposer::PostThread() {
   // NOLINTNEXTLINE(runtime/int)
   prctl(PR_SET_NAME, reinterpret_cast<unsigned long>("VrHwcPost"), 0, 0, 0);
 
-  // Set the scheduler to SCHED_FIFO with high priority.
-  int error = dvrSetSchedulerClass(0, "graphics:high");
-  LOG_ALWAYS_FATAL_IF(
-      error < 0,
-      "HardwareComposer::PostThread: Failed to set scheduler class: %s",
-      strerror(-error));
-  error = dvrSetCpuPartition(0, "/system/performance");
-  LOG_ALWAYS_FATAL_IF(
-      error < 0,
-      "HardwareComposer::PostThread: Failed to set cpu partition: %s",
-      strerror(-error));
+  // Set the scheduler to SCHED_FIFO with high priority. If this fails here
+  // there may have been a startup timing issue between this thread and
+  // performanced. Try again later when this thread becomes active.
+  bool thread_policy_setup =
+      SetThreadPolicy("graphics:high", "/system/performance");
 
 #if ENABLE_BACKLIGHT_BRIGHTNESS
   // TODO(hendrikw): This isn't required at the moment. It's possible that there
@@ -750,7 +700,7 @@ void HardwareComposer::PostThread() {
   ALOGW_IF(!backlight_brightness_fd_,
            "HardwareComposer: Failed to open backlight brightness control: %s",
            strerror(errno));
-#endif // ENABLE_BACKLIGHT_BRIGHTNESS
+#endif  // ENABLE_BACKLIGHT_BRIGHTNESS
 
   // Open the vsync event node for the primary display.
   // TODO(eieio): Move this into a platform-specific class.
@@ -789,48 +739,47 @@ void HardwareComposer::PostThread() {
   right_eye_photon_offset_ns =
       property_get_int64(kRightEyeOffsetProperty, right_eye_photon_offset_ns);
 
-  compositor_surfaces_.reserve(2);
-
-  constexpr int kFrameTimeBacklogMax = 2;
-  frame_time_backlog_.reserve(kFrameTimeBacklogMax);
-
-  // Storage for retrieving fence info.
-  FenceInfoBuffer fence_info_buffer;
-
   bool was_running = false;
 
   while (1) {
     ATRACE_NAME("HardwareComposer::PostThread");
 
-    {
+    while (post_thread_quiescent_) {
       std::unique_lock<std::mutex> lock(post_thread_mutex_);
-      while (!post_thread_enabled_ || post_thread_quit_requested_ ||
-             !PostThreadHasWork()) {
-        if (was_running) {
-          const char* pause_reason = "unknown";
-          if (!post_thread_enabled_)
-            pause_reason = "disabled";
-          else if (post_thread_quit_requested_)
-            pause_reason = "quit requested";
-          else if (!PostThreadHasWork())
-            pause_reason = "no work";
-          ALOGI("VrHwcPost thread paused. Reason: %s.", pause_reason);
-          OnPostThreadPaused();
-          was_running = false;
-        }
-        post_thread_running_ = false;
-        post_thread_cond_var_.notify_all();
-        if (post_thread_quit_requested_)
-          return;
-        post_thread_cond_var_.wait(lock);
+      ALOGI("HardwareComposer::PostThread: Entering quiescent state.");
+
+      // Tear down resources.
+      OnPostThreadPaused();
+
+      was_running = false;
+      post_thread_resumed_ = false;
+      post_thread_ready_.notify_all();
+
+      if (post_thread_state_ & PostThreadState::Quit) {
+        ALOGI("HardwareComposer::PostThread: Quitting.");
+        return;
       }
-      post_thread_running_ = true;
+
+      post_thread_wait_.wait(lock, [this] { return !post_thread_quiescent_; });
+
+      post_thread_resumed_ = true;
+      post_thread_ready_.notify_all();
+
+      ALOGI("HardwareComposer::PostThread: Exiting quiescent state.");
     }
 
     if (!was_running) {
-      ALOGI("VrHwcPost thread resumed");
+      // Setup resources.
       OnPostThreadResumed();
       was_running = true;
+
+      // Try to setup the scheduler policy if it failed during startup. Only
+      // attempt to do this on transitions from inactive to active to avoid
+      // spamming the system with RPCs and log messages.
+      if (!thread_policy_setup) {
+        thread_policy_setup =
+            SetThreadPolicy("graphics:high", "/system/performance");
+      }
     }
 
     int64_t vsync_timestamp = 0;
@@ -840,7 +789,7 @@ void HardwareComposer::PostThread() {
                vsync_count_ + 1);
       ATRACE_NAME(buf.data());
 
-      error = WaitForVSync(&vsync_timestamp);
+      const int error = WaitForVSync(&vsync_timestamp);
       ALOGE_IF(
           error < 0,
           "HardwareComposer::PostThread: Failed to wait for vsync event: %s",
@@ -860,380 +809,91 @@ void HardwareComposer::PostThread() {
                                 ns_per_frame, right_eye_photon_offset_ns);
     }
 
-    bool layer_config_changed = UpdateLayerConfig();
-
-    if (!was_running || layer_config_changed) {
-      frame_time_history_.ResetWithSeed(
-          GuessFrameTime(compositor_surfaces_.size()));
-      frame_time_backlog_.clear();
-    } else {
-      UpdateFrameTimeHistory(&frame_time_backlog_, kFrameTimeBacklogMax,
-                             &fence_info_buffer, &frame_time_history_);
-    }
-
-    // Get our current best estimate at how long the next frame will take to
-    // render, based on how long previous frames took to render. Use this
-    // estimate to decide when to wake up for EDS.
-    int64_t frame_time_estimate =
-        frame_time_history_.GetSampleCount() == 0
-            ? GuessFrameTime(compositor_surfaces_.size())
-            : frame_time_history_.GetAverage();
-    frame_time_estimate = std::max(frame_time_estimate, kFrameTimeEstimateMin);
-    DebugHudData::data.hwc_latency = frame_time_estimate;
+    const bool layer_config_changed = UpdateLayerConfig();
 
     // Signal all of the vsync clients. Because absolute time is used for the
     // wakeup time below, this can take a little time if necessary.
     if (vsync_callback_)
-      vsync_callback_(HWC_DISPLAY_PRIMARY, vsync_timestamp, frame_time_estimate,
-                      vsync_count_);
+      vsync_callback_(HWC_DISPLAY_PRIMARY, vsync_timestamp,
+                      /*frame_time_estimate*/ 0, vsync_count_);
 
     {
-      // Sleep until async EDS wakeup time.
+      // Sleep until shortly before vsync.
       ATRACE_NAME("sleep");
 
-      int64_t display_time_est = vsync_timestamp + ns_per_frame;
-      int64_t now = GetSystemClockNs();
-      int64_t frame_finish_time_est = now + frame_time_estimate;
-      int64_t sleep_time_ns = display_time_est - now - frame_time_estimate;
+      const int64_t display_time_est_ns = vsync_timestamp + ns_per_frame;
+      const int64_t now_ns = GetSystemClockNs();
+      const int64_t sleep_time_ns =
+          display_time_est_ns - now_ns - kFramePostOffsetNs;
+      const int64_t wakeup_time_ns = display_time_est_ns - kFramePostOffsetNs;
 
       ATRACE_INT64("sleep_time_ns", sleep_time_ns);
-      if (frame_finish_time_est - display_time_est >= kFrameSkipThresholdNs) {
-        ATRACE_INT("frame_skip_count", ++frame_skip_count_);
-        ALOGE(
-            "HardwareComposer::PostThread: Missed frame schedule, drop "
-            "frame. Expected frame miss: %.1fms",
-            static_cast<double>(frame_finish_time_est - display_time_est) /
-                1000000);
-
-        // There are several reasons we might skip a frame, but one possibility
-        // is we mispredicted the frame time. Clear out the frame time history.
-        frame_time_history_.ResetWithSeed(
-            GuessFrameTime(compositor_surfaces_.size()));
-        frame_time_backlog_.clear();
-        DebugHudData::data.hwc_frame_stats.SkipFrame();
-
-        continue;
-      } else {
-        // Make the transition more obvious in systrace when the frame skip
-        // happens above.
-        ATRACE_INT("frame_skip_count", 0);
-      }
-
       if (sleep_time_ns > 0) {
-        error = SleepUntil(display_time_est - frame_time_estimate);
+        int error = SleepUntil(wakeup_time_ns);
         ALOGE_IF(error < 0, "HardwareComposer::PostThread: Failed to sleep: %s",
                  strerror(-error));
-        if (error == kPostThreadInterrupted)
+        if (error == kPostThreadInterrupted) {
+          if (layer_config_changed) {
+            // If the layer config changed we need to validateDisplay() even if
+            // we're going to drop the frame, to flush the Composer object's
+            // internal command buffer and apply our layer changes.
+            Validate(HWC_DISPLAY_PRIMARY);
+          }
           continue;
+        }
       }
     }
 
-    DebugHudData::data.hwc_frame_stats.AddFrame();
-
-    int64_t frame_start_time = GetSystemClockNs();
-
-    // Setup the output buffer for the compositor. This needs to happen before
-    // you draw with the compositor.
-    if (gpu_layer_ != nullptr) {
-      gpu_layer_->UpdateDirectBuffer(compositor_.GetBuffer());
-    }
-
-    // Call PostLayers now before performing the GL code for the compositor to
-    // avoid missing the deadline that can cause the lower-level hwc to get
-    // permanently backed up.
-    PostLayers(layer_config_changed);
-
-    PostCompositorBuffers();
-
-    if (gpu_layer_ != nullptr) {
-      // Note, with scanline racing, this draw is timed along with the post
-      // layers to finish just in time.
-      LocalHandle frame_fence_fd;
-      compositor_.DrawFrame(vsync_count_ + 1, &frame_fence_fd);
-      if (frame_fence_fd) {
-        LOG_ALWAYS_FATAL_IF(frame_time_backlog_.size() >= kFrameTimeBacklogMax,
-                            "Frame time backlog exceeds capacity");
-        frame_time_backlog_.push_back(
-            {frame_start_time, std::move(frame_fence_fd)});
-      }
-    } else if (!layer_config_changed) {
-      frame_time_history_.AddSample(GetSystemClockNs() - frame_start_time);
-    }
-
-    HandlePendingScreenshots();
+    PostLayers();
   }
 }
 
+// Checks for changes in the surface stack and updates the layer config to
+// accomodate the new stack.
 bool HardwareComposer::UpdateLayerConfig() {
-  std::vector<std::shared_ptr<DisplaySurface>> old_display_surfaces;
+  std::vector<std::shared_ptr<DirectDisplaySurface>> surfaces;
   {
-    std::lock_guard<std::mutex> lock(post_thread_mutex_);
-    if (!active_surfaces_updated_)
+    std::unique_lock<std::mutex> lock(post_thread_mutex_);
+    if (pending_surfaces_.empty())
       return false;
-    old_display_surfaces = display_surfaces_;
-    display_surfaces_ = active_surfaces_;
-    active_surfaces_updated_ = false;
+
+    surfaces = std::move(pending_surfaces_);
   }
-
-  DebugHudData::data.ResetLayers();
-
-  // Figure out whether we need to update hardware layers. If this surface
-  // change does not add or remove hardware layers we can avoid display hiccups
-  // by gracefully updating only the GPU compositor layers.
-  int old_gpu_layer_count = 0;
-  int new_gpu_layer_count = 0;
-  bool hardware_layers_need_update = false;
-  // Look for new hardware layers and count new GPU layers.
-  for (const auto& surface : display_surfaces_) {
-    if (!(surface->flags() &
-          DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION))
-      ++new_gpu_layer_count;
-    else if (std::find(old_display_surfaces.begin(), old_display_surfaces.end(),
-                       surface) == old_display_surfaces.end())
-      // This is a new hardware layer, we need to update.
-      hardware_layers_need_update = true;
-  }
-  // Look for deleted hardware layers or compositor layers.
-  for (const auto& surface : old_display_surfaces) {
-    if (!(surface->flags() &
-          DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION))
-      ++old_gpu_layer_count;
-    else if (std::find(display_surfaces_.begin(), display_surfaces_.end(),
-                       surface) == display_surfaces_.end())
-      // This is a deleted hardware layer, we need to update.
-      hardware_layers_need_update = true;
-  }
-  // Check for compositor hardware layer transition.
-  if ((!old_gpu_layer_count && new_gpu_layer_count) ||
-      (old_gpu_layer_count && !new_gpu_layer_count))
-    hardware_layers_need_update = true;
-
-  // Set the chosen layer order for all surfaces.
-  for (size_t i = 0; i < display_surfaces_.size(); ++i) {
-    display_surfaces_[i]->SetLayerOrder(static_cast<int>(i));
-  }
-
-  // Update compositor layers.
-  {
-    ATRACE_NAME("UpdateLayerConfig_GpuLayers");
-    compositor_.UpdateSurfaces(display_surfaces_);
-    compositor_surfaces_.clear();
-    for (size_t i = 0; i < display_surfaces_.size(); ++i) {
-      const auto& surface = display_surfaces_[i];
-      if (!(surface->flags() &
-            DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION)) {
-        compositor_surfaces_.push_back(surface);
-      }
-    }
-  }
-
-  if (!hardware_layers_need_update)
-    return true;
-
-  // Update hardware layers.
 
   ATRACE_NAME("UpdateLayerConfig_HwLayers");
 
-  // Update the display layers in a non-destructive fashion.
+  display_surfaces_.clear();
 
-  // Create a map from surface id to hardware layer
-  std::map<int, Layer*> display_surface_layers;
-
-  for (size_t i = 0; i < active_layer_count_; ++i) {
-    auto layer = layers_[i];
-    int surface_id = layer->GetSurfaceId();
-
-    auto found =
-        std::find_if(display_surfaces_.begin(), display_surfaces_.end(),
-                     [surface_id](const auto& surface) {
-                       return surface->surface_id() == surface_id;
-                     });
-
-    if (found != display_surfaces_.end()) {
-      display_surface_layers[surface_id] = layer;
-    }
+  Layer* target_layer;
+  size_t layer_index;
+  for (layer_index = 0;
+       layer_index < std::min(surfaces.size(), kMaxHardwareLayers);
+       layer_index++) {
+    // The bottom layer is opaque, other layers blend.
+    HWC::BlendMode blending =
+        layer_index == 0 ? HWC::BlendMode::None : HWC::BlendMode::Coverage;
+    layers_[layer_index].Setup(surfaces[layer_index], blending,
+                               display_transform_, HWC::Composition::Device,
+                               layer_index);
+    display_surfaces_.push_back(surfaces[layer_index]);
   }
 
-  bool has_gpu_layer = std::any_of(
-      display_surfaces_.begin(), display_surfaces_.end(),
-      [](const auto& surface) {
-        return !(surface->flags() &
-                 DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION);
-      });
+  // Clear unused layers.
+  for (size_t i = layer_index; i < kMaxHardwareLayers; i++)
+    layers_[i].Reset();
 
-  if (!has_gpu_layer) {
-    gpu_layer_ = nullptr;
-  }
-
-  auto is_layer_active = [&display_surface_layers, has_gpu_layer](auto layer) {
-    int surface_id = layer->GetSurfaceId();
-    if (surface_id >= 0) {
-      return display_surface_layers.count(surface_id) > 0;
-    } else {
-      return has_gpu_layer;
-    }
-  };
-
-  // Compress the in-use layers to the top of the list
-  auto part = std::partition(
-      layers_.begin(), layers_.begin() + active_layer_count_, is_layer_active);
-
-  size_t new_active_layer_count = part - layers_.begin();
-
-  // Clear any unused layers
-  for (size_t i = new_active_layer_count; i < active_layer_count_; ++i) {
-    layers_[i]->Reset();
-  }
-
-  active_layer_count_ = new_active_layer_count;
-
-  bool gpu_layer_applied = false;
-
-  // Create/update all of the hardware layers
-  for (size_t i = 0; i < display_surfaces_.size(); ++i) {
-    const auto& surface = display_surfaces_[i];
-    bool is_hw_surface =
-        surface->flags() & DVR_DISPLAY_SURFACE_FLAGS_DISABLE_SYSTEM_DISTORTION;
-    hwc2_blend_mode_t blending =
-        i == 0 ? HWC2_BLEND_MODE_NONE : HWC2_BLEND_MODE_COVERAGE;
-
-    DebugHudData::data.SetLayerInfo(
-        i, surface->width(), surface->height(),
-        !!(surface->flags() & DVR_DISPLAY_SURFACE_FLAGS_GEOMETRY_SEPARATE_2));
-
-    if (!is_hw_surface && gpu_layer_applied) {
-      continue;
-    }
-
-    Layer* target_layer;
-    bool existing_layer = false;
-
-    if (is_hw_surface) {
-      auto it = display_surface_layers.find(surface->surface_id());
-
-      if (it != display_surface_layers.end()) {
-        target_layer = it->second;
-        existing_layer = true;
-      }
-    } else if (gpu_layer_ != nullptr) {
-      target_layer = gpu_layer_;
-      existing_layer = true;
-    }
-
-    if (!existing_layer) {
-      if (active_layer_count_ >= kMaxHardwareLayers) {
-        ALOGI("HardwareComposer: More than %d hardware layers requested.",
-              kMaxHardwareLayers);
-        break;
-      } else {
-        target_layer = layers_[active_layer_count_];
-        ++active_layer_count_;
-      }
-
-      ALOGD_IF(TRACE,
-               "HardwareComposer::UpdateLayerConfig: (new) surface_id=%d -> "
-               "layer=%zd",
-               surface->surface_id(), i);
-
-      if (is_hw_surface) {
-        target_layer->Setup(surface, blending, display_transform_,
-                            HWC2_COMPOSITION_DEVICE, i);
-      } else {
-        gpu_layer_ = target_layer;
-        target_layer->Setup(compositor_.GetBuffer(), blending,
-                            display_transform_, HWC2_COMPOSITION_DEVICE, i);
-      }
-    } else {
-      ALOGD_IF(TRACE,
-               "HardwareComposer::UpdateLayerConfig: (retained) surface_id=%d "
-               "-> layer=%zd",
-               surface->surface_id(), i);
-
-      target_layer->SetBlending(blending);
-      target_layer->SetZOrderIndex(i);
-      target_layer->UpdateLayerSettings();
-    }
-
-    gpu_layer_applied = !is_hw_surface;
-  }
-
+  active_layer_count_ = layer_index;
   ALOGD_IF(TRACE, "HardwareComposer::UpdateLayerConfig: %zd active layers",
            active_layer_count_);
 
+  // Any surfaces left over could not be assigned a hardware layer and will
+  // not be displayed.
+  ALOGW_IF(surfaces.size() != display_surfaces_.size(),
+           "HardwareComposer::UpdateLayerConfig: More surfaces than layers: "
+           "pending_surfaces=%zu display_surfaces=%zu",
+           surfaces.size(), display_surfaces_.size());
+
   return true;
-}
-
-void HardwareComposer::PostCompositorBuffers() {
-  ATRACE_NAME("PostCompositorBuffers");
-  for (const auto& surface : compositor_surfaces_) {
-    compositor_.PostBuffer(surface);
-  }
-}
-
-void HardwareComposer::UpdateFrameTimeHistory(
-    std::vector<FrameTimeMeasurementRecord>* backlog, int backlog_max,
-    FenceInfoBuffer* fence_info_buffer, FrameTimeHistory* history) {
-  while (!backlog->empty()) {
-    const auto& frame_time_record = backlog->front();
-    int64_t end_time = 0;
-    bool frame_finished = CheckFrameFinished(frame_time_record.fence.Get(),
-                                             fence_info_buffer, &end_time);
-    if (frame_finished) {
-      int64_t frame_duration = end_time - frame_time_record.start_time;
-      history->AddSample(frame_duration);
-      // Our backlog is tiny (2 elements), so erasing from the front is ok
-      backlog->erase(backlog->begin());
-    } else {
-      break;
-    }
-  }
-
-  if (backlog->size() == static_cast<size_t>(backlog_max)) {
-    // Yikes, something must've gone wrong if our oldest frame hasn't finished
-    // yet. Give up on waiting for it.
-    const auto& stale_frame_time_record = backlog->front();
-    int64_t frame_duration =
-        GetSystemClockNs() - stale_frame_time_record.start_time;
-    backlog->erase(backlog->begin());
-    history->AddSample(frame_duration);
-    ALOGW("Frame didn't finish after %.1fms",
-          static_cast<double>(frame_duration) / 1000000);
-  }
-}
-
-bool HardwareComposer::CheckFrameFinished(int frame_fence_fd,
-                                          FenceInfoBuffer* fence_info_buffer,
-                                          int64_t* timestamp) {
-  int result = -1;
-  int sync_result = sync_wait(frame_fence_fd, 0);
-  if (sync_result == 0) {
-    result =
-        GetFenceSignaledTimestamp(frame_fence_fd, fence_info_buffer, timestamp);
-    if (result < 0) {
-      ALOGE("Failed getting signaled timestamp from fence");
-    }
-  } else if (errno != ETIME) {
-    ALOGE("sync_wait on frame fence failed");
-  }
-  return result >= 0;
-}
-
-void HardwareComposer::HandlePendingScreenshots() {
-  // Take a screenshot of the requested layer, if available.
-  // TODO(eieio): Look into using virtual displays to composite the layer stack
-  // into a single output buffer that can be returned to the screenshot clients.
-  if (active_layer_count_ > 0) {
-    if (auto screenshot_service = ScreenshotService::GetInstance()) {
-      if (screenshot_service->IsScreenshotRequestPending()) {
-        ATRACE_NAME("screenshot");
-        screenshot_service->TakeIfNeeded(layers_, compositor_);
-      }
-    } else {
-      ALOGW(
-          "HardwareComposer::HandlePendingScreenshots: Failed to get "
-          "screenshot service!");
-    }
-  }
 }
 
 void HardwareComposer::SetVSyncCallback(VSyncCallback callback) {
@@ -1272,145 +932,133 @@ void HardwareComposer::SetBacklightBrightness(int brightness) {
   }
 }
 
-Layer::Layer()
-    : hwc2_hidl_(nullptr),
-      surface_index_(-1),
-      hardware_composer_layer_(0),
-      display_metrics_(nullptr),
-      blending_(HWC2_BLEND_MODE_NONE),
-      transform_(HWC_TRANSFORM_NONE),
-      composition_type_(HWC2_COMPOSITION_DEVICE),
-      surface_rect_functions_applied_(false) {}
-
-void Layer::Initialize(Hwc2::Composer* hwc2_hidl, HWCDisplayMetrics* metrics) {
+void Layer::InitializeGlobals(Hwc2::Composer* hwc2_hidl,
+                              const HWCDisplayMetrics* metrics) {
   hwc2_hidl_ = hwc2_hidl;
   display_metrics_ = metrics;
 }
 
 void Layer::Reset() {
-  const int ret = acquired_buffer_.Release(std::move(release_fence_));
-  ALOGE_IF(ret < 0, "Layer::Reset: failed to release buffer: %s",
-           strerror(-ret));
-
   if (hwc2_hidl_ != nullptr && hardware_composer_layer_) {
     hwc2_hidl_->destroyLayer(HWC_DISPLAY_PRIMARY, hardware_composer_layer_);
     hardware_composer_layer_ = 0;
   }
 
-  surface_index_ = static_cast<size_t>(-1);
-  blending_ = HWC2_BLEND_MODE_NONE;
-  transform_ = HWC_TRANSFORM_NONE;
-  composition_type_ = HWC2_COMPOSITION_DEVICE;
-  direct_buffer_ = nullptr;
-  surface_ = nullptr;
-  acquire_fence_fd_.Close();
+  z_order_ = 0;
+  blending_ = HWC::BlendMode::None;
+  transform_ = HWC::Transform::None;
+  composition_type_ = HWC::Composition::Invalid;
+  target_composition_type_ = composition_type_;
+  source_ = EmptyVariant{};
+  acquire_fence_.Close();
   surface_rect_functions_applied_ = false;
 }
 
-void Layer::Setup(const std::shared_ptr<DisplaySurface>& surface,
-                  hwc2_blend_mode_t blending, hwc_transform_t transform,
-                  hwc2_composition_t composition_type, size_t index) {
+void Layer::Setup(const std::shared_ptr<DirectDisplaySurface>& surface,
+                  HWC::BlendMode blending, HWC::Transform transform,
+                  HWC::Composition composition_type, size_t z_order) {
   Reset();
-  surface_index_ = index;
-  surface_ = surface;
+  z_order_ = z_order;
   blending_ = blending;
   transform_ = transform;
-  composition_type_ = composition_type;
+  composition_type_ = HWC::Composition::Invalid;
+  target_composition_type_ = composition_type;
+  source_ = SourceSurface{surface};
   CommonLayerSetup();
 }
 
 void Layer::Setup(const std::shared_ptr<IonBuffer>& buffer,
-                  hwc2_blend_mode_t blending, hwc_transform_t transform,
-                  hwc2_composition_t composition_type, size_t z_order) {
+                  HWC::BlendMode blending, HWC::Transform transform,
+                  HWC::Composition composition_type, size_t z_order) {
   Reset();
-  surface_index_ = z_order;
-  direct_buffer_ = buffer;
+  z_order_ = z_order;
   blending_ = blending;
   transform_ = transform;
-  composition_type_ = composition_type;
+  composition_type_ = HWC::Composition::Invalid;
+  target_composition_type_ = composition_type;
+  source_ = SourceBuffer{buffer};
   CommonLayerSetup();
 }
 
-void Layer::UpdateDirectBuffer(const std::shared_ptr<IonBuffer>& buffer) {
-  direct_buffer_ = buffer;
+void Layer::UpdateBuffer(const std::shared_ptr<IonBuffer>& buffer) {
+  if (source_.is<SourceBuffer>())
+    std::get<SourceBuffer>(source_) = {buffer};
 }
 
-void Layer::SetBlending(hwc2_blend_mode_t blending) { blending_ = blending; }
-
-void Layer::SetZOrderIndex(int z_index) { surface_index_ = z_index; }
+void Layer::SetBlending(HWC::BlendMode blending) { blending_ = blending; }
+void Layer::SetZOrder(size_t z_order) { z_order_ = z_order; }
 
 IonBuffer* Layer::GetBuffer() {
-  if (direct_buffer_)
-    return direct_buffer_.get();
-  else if (acquired_buffer_.IsAvailable())
-    return acquired_buffer_.buffer()->buffer();
-  else
-    return nullptr;
+  struct Visitor {
+    IonBuffer* operator()(SourceSurface& source) { return source.GetBuffer(); }
+    IonBuffer* operator()(SourceBuffer& source) { return source.GetBuffer(); }
+    IonBuffer* operator()(EmptyVariant) { return nullptr; }
+  };
+  return source_.Visit(Visitor{});
 }
 
 void Layer::UpdateLayerSettings() {
   if (!IsLayerSetup()) {
-    ALOGE("HardwareComposer: Trying to update layers data on an unused layer.");
+    ALOGE(
+        "HardwareComposer::Layer::UpdateLayerSettings: Attempt to update "
+        "unused Layer!");
     return;
   }
 
-  int32_t ret = HWC2_ERROR_NONE;
-
+  HWC::Error error;
   hwc2_display_t display = HWC_DISPLAY_PRIMARY;
 
-  ret = (int32_t)hwc2_hidl_->setLayerCompositionType(
+  error = hwc2_hidl_->setLayerCompositionType(
       display, hardware_composer_layer_,
-      (Hwc2::IComposerClient::Composition)composition_type_);
-  ALOGE_IF(ret, "HardwareComposer: Error setting layer composition type : %d",
-           ret);
-  // ret = (int32_t) hwc2_hidl_->setLayerTransform(display,
-  // hardware_composer_layer_,
-  //                                    (Hwc2::IComposerClient::Transform)
-  //                                    transform_);
-  // ALOGE_IF(ret, "HardwareComposer: Error setting layer transform : %d", ret);
+      composition_type_.cast<Hwc2::IComposerClient::Composition>());
+  ALOGE_IF(
+      error != HWC::Error::None,
+      "Layer::UpdateLayerSettings: Error setting layer composition type: %s",
+      error.to_string().c_str());
 
-  // ret = hwc2_funcs_->set_layer_blend_mode_fn_(
-  //    hardware_composer_device_, display, hardware_composer_layer_,
-  //    blending_);
-  ret = (int32_t)hwc2_hidl_->setLayerBlendMode(
+  error = hwc2_hidl_->setLayerBlendMode(
       display, hardware_composer_layer_,
-      (Hwc2::IComposerClient::BlendMode)blending_);
-  ALOGE_IF(ret, "HardwareComposer: Error setting layer blend mode : %d", ret);
+      blending_.cast<Hwc2::IComposerClient::BlendMode>());
+  ALOGE_IF(error != HWC::Error::None,
+           "Layer::UpdateLayerSettings: Error setting layer blend mode: %s",
+           error.to_string().c_str());
 
-  Hwc2::IComposerClient::Rect display_frame;
-  display_frame.left = 0;
-  display_frame.top = 0;
-  display_frame.right = display_metrics_->width;
-  display_frame.bottom = display_metrics_->height;
-  ret = (int32_t)hwc2_hidl_->setLayerDisplayFrame(
-      display, hardware_composer_layer_, display_frame);
-  ALOGE_IF(ret, "HardwareComposer: Error setting layer display frame : %d",
-           ret);
+  // TODO(eieio): Use surface attributes or some other mechanism to control
+  // the layer display frame.
+  error = hwc2_hidl_->setLayerDisplayFrame(
+      display, hardware_composer_layer_,
+      {0, 0, display_metrics_->width, display_metrics_->height});
+  ALOGE_IF(error != HWC::Error::None,
+           "Layer::UpdateLayerSettings: Error setting layer display frame: %s",
+           error.to_string().c_str());
 
-  std::vector<Hwc2::IComposerClient::Rect> visible_region(1);
-  visible_region[0] = display_frame;
-  ret = (int32_t)hwc2_hidl_->setLayerVisibleRegion(
-      display, hardware_composer_layer_, visible_region);
-  ALOGE_IF(ret, "HardwareComposer: Error setting layer visible region : %d",
-           ret);
+  error = hwc2_hidl_->setLayerVisibleRegion(
+      display, hardware_composer_layer_,
+      {{0, 0, display_metrics_->width, display_metrics_->height}});
+  ALOGE_IF(error != HWC::Error::None,
+           "Layer::UpdateLayerSettings: Error setting layer visible region: %s",
+           error.to_string().c_str());
 
-  ret = (int32_t)hwc2_hidl_->setLayerPlaneAlpha(display,
-                                                hardware_composer_layer_, 1.0f);
-  ALOGE_IF(ret, "HardwareComposer: Error setting layer plane alpha : %d", ret);
+  error =
+      hwc2_hidl_->setLayerPlaneAlpha(display, hardware_composer_layer_, 1.0f);
+  ALOGE_IF(error != HWC::Error::None,
+           "Layer::UpdateLayerSettings: Error setting layer plane alpha: %s",
+           error.to_string().c_str());
 
-  ret = (int32_t)hwc2_hidl_->setLayerZOrder(display, hardware_composer_layer_,
-                                            surface_index_);
-  ALOGE_IF(ret, "HardwareComposer: Error, setting z order index : %d", ret);
+  error =
+      hwc2_hidl_->setLayerZOrder(display, hardware_composer_layer_, z_order_);
+  ALOGE_IF(error != HWC::Error::None,
+           "Layer::UpdateLayerSettings: Error setting z_ order: %s",
+           error.to_string().c_str());
 }
 
 void Layer::CommonLayerSetup() {
-  int32_t ret = (int32_t)hwc2_hidl_->createLayer(HWC_DISPLAY_PRIMARY,
-                                                 &hardware_composer_layer_);
-
-  ALOGE_IF(ret,
-           "HardwareComposer: Failed to create layer on primary display : %d",
-           ret);
-
+  HWC::Error error =
+      hwc2_hidl_->createLayer(HWC_DISPLAY_PRIMARY, &hardware_composer_layer_);
+  ALOGE_IF(
+      error != HWC::Error::None,
+      "Layer::CommonLayerSetup: Failed to create layer on primary display: %s",
+      error.to_string().c_str());
   UpdateLayerSettings();
 }
 
@@ -1418,114 +1066,69 @@ void Layer::Prepare() {
   int right, bottom;
   sp<GraphicBuffer> handle;
 
-  if (surface_) {
-    // Only update the acquired buffer when one is either available or this is
-    // the first time through.
-    if (surface_->IsBufferAvailable()) {
-      // If we previously set this to a solid color layer to stall for time,
-      // revert it to a device layer.
-      if (acquired_buffer_.IsEmpty() &&
-          composition_type_ != HWC2_COMPOSITION_DEVICE) {
-        composition_type_ = HWC2_COMPOSITION_DEVICE;
-        hwc2_hidl_->setLayerCompositionType(
-            HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
-            (Hwc2::IComposerClient::Composition)HWC2_COMPOSITION_DEVICE);
-      }
+  // Acquire the next buffer according to the type of source.
+  IfAnyOf<SourceSurface, SourceBuffer>::Call(&source_, [&](auto& source) {
+    std::tie(right, bottom, handle, acquire_fence_) = source.Acquire();
+  });
 
-      DebugHudData::data.AddLayerFrame(surface_index_);
-      acquired_buffer_.Release(std::move(release_fence_));
-      acquired_buffer_ = surface_->AcquireCurrentBuffer();
-
-      // Basic latency stopgap for when the application misses a frame:
-      // If the application recovers on the 2nd or 3rd (etc) frame after
-      // missing, this code will skip a frame to catch up by checking if
-      // the next frame is also available.
-      if (surface_->IsBufferAvailable()) {
-        DebugHudData::data.SkipLayerFrame(surface_index_);
-        ATRACE_NAME("DropToCatchUp");
-        ATRACE_ASYNC_END("BufferPost", acquired_buffer_.buffer()->id());
-        acquired_buffer_ = surface_->AcquireCurrentBuffer();
-      }
-      ATRACE_ASYNC_END("BufferPost", acquired_buffer_.buffer()->id());
-    } else if (acquired_buffer_.IsEmpty()) {
-      // While we are waiting for a buffer, set this to be an empty layer
-      if (composition_type_ != HWC2_COMPOSITION_SOLID_COLOR) {
-        composition_type_ = HWC2_COMPOSITION_SOLID_COLOR;
-        hwc2_hidl_->setLayerCompositionType(
-            HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
-            (Hwc2::IComposerClient::Composition)HWC2_COMPOSITION_SOLID_COLOR);
-
-        Hwc2::IComposerClient::Color layer_color = {
-            0, 0, 0, 0,
-        };
-        hwc2_hidl_->setLayerColor(HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
-                                  layer_color);
-      }
-      return;
+  // When a layer is first setup there may be some time before the first buffer
+  // arrives. Setup the HWC layer as a solid color to stall for time until the
+  // first buffer arrives. Once the first buffer arrives there will always be a
+  // buffer for the frame even if it is old.
+  if (!handle.get()) {
+    if (composition_type_ == HWC::Composition::Invalid) {
+      composition_type_ = HWC::Composition::SolidColor;
+      hwc2_hidl_->setLayerCompositionType(
+          HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+          composition_type_.cast<Hwc2::IComposerClient::Composition>());
+      Hwc2::IComposerClient::Color layer_color = {0, 0, 0, 0};
+      hwc2_hidl_->setLayerColor(HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+                                layer_color);
+    } else {
+      // The composition type is already set. Nothing else to do until a
+      // buffer arrives.
     }
-    right = acquired_buffer_.buffer()->width();
-    bottom = acquired_buffer_.buffer()->height();
-    handle = acquired_buffer_.buffer()->buffer()->buffer();
-    acquire_fence_fd_.Reset(acquired_buffer_.ClaimAcquireFence().Release());
   } else {
-    // TODO(jwcai) Note: this is the GPU compositor's layer, and we need the
-    // mechanism to accept distorted layers from VrCore.
-    right = direct_buffer_->width();
-    bottom = direct_buffer_->height();
-    handle = direct_buffer_->buffer();
-    acquire_fence_fd_.Close();
-  }
+    if (composition_type_ != target_composition_type_) {
+      composition_type_ = target_composition_type_;
+      hwc2_hidl_->setLayerCompositionType(
+          HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+          composition_type_.cast<Hwc2::IComposerClient::Composition>());
+    }
 
-  int32_t ret = HWC2_ERROR_NONE;
+    HWC::Error error{HWC::Error::None};
+    error = hwc2_hidl_->setLayerBuffer(HWC_DISPLAY_PRIMARY,
+                                       hardware_composer_layer_, 0, handle,
+                                       acquire_fence_.Get());
 
-  if (composition_type_ == HWC2_COMPOSITION_DEVICE) {
-    ret = (int32_t)hwc2_hidl_->setLayerBuffer(HWC_DISPLAY_PRIMARY,
-                                              hardware_composer_layer_, 0,
-                                              handle,
-                                              acquire_fence_fd_.Get());
+    ALOGE_IF(error != HWC::Error::None,
+             "Layer::Prepare: Error setting layer buffer: %s",
+             error.to_string().c_str());
 
-    ALOGE_IF(ret, "HardwareComposer: Error setting layer buffer : %d", ret);
-  }
+    if (!surface_rect_functions_applied_) {
+      const float float_right = right;
+      const float float_bottom = bottom;
+      error = hwc2_hidl_->setLayerSourceCrop(HWC_DISPLAY_PRIMARY,
+                                             hardware_composer_layer_,
+                                             {0, 0, float_right, float_bottom});
 
-  if (!surface_rect_functions_applied_) {
-    Hwc2::IComposerClient::FRect crop_rect = {
-        0, 0, static_cast<float>(right), static_cast<float>(bottom),
-    };
-    hwc2_hidl_->setLayerSourceCrop(HWC_DISPLAY_PRIMARY,
-                                   hardware_composer_layer_, crop_rect);
+      ALOGE_IF(error != HWC::Error::None,
+               "Layer::Prepare: Error setting layer source crop: %s",
+               error.to_string().c_str());
 
-    ALOGE_IF(ret, "HardwareComposer: Error setting layer source crop : %d",
-             ret);
-
-// TODO(skiazyk): why is this ifdef'd out. Is if a driver-specific issue where
-// it must/cannot be called?
-#ifdef QCOM_BSP
-    hwc_rect_t damage_rect = {
-        0, 0, right, bottom,
-    };
-    hwc_region_t damage = {
-        1, &damage_rect,
-    };
-    // ret = hwc2_funcs_->set_layer_surface_damage(
-    //    hardware_composer_device_, HWC_DISPLAY_PRIMARY,
-    //    hardware_composer_layer_, damage);
-    // uses a std::vector as the listing
-    // hwc2_hidl_->setLayerSurfaceDamage(HWC_DISPLAY_PRIMARY,
-    // hardware_composer_layer_, vector here);
-
-    ALOGE_IF(ret, "HardwareComposer: Error settings layer surface damage : %d",
-             ret);
-#endif
-
-    surface_rect_functions_applied_ = true;
+      surface_rect_functions_applied_ = true;
+    }
   }
 }
 
 void Layer::Finish(int release_fence_fd) {
-  release_fence_.Reset(release_fence_fd);
+  IfAnyOf<SourceSurface, SourceBuffer>::Call(
+      &source_, [release_fence_fd](auto& source) {
+        source.Finish(LocalHandle(release_fence_fd));
+      });
 }
 
-void Layer::Drop() { acquire_fence_fd_.Close(); }
+void Layer::Drop() { acquire_fence_.Close(); }
 
 }  // namespace dvr
 }  // namespace android

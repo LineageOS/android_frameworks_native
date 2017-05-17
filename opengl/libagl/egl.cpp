@@ -56,6 +56,24 @@
 EGLBoolean EGLAPI eglSetSwapRectangleANDROID(EGLDisplay dpy, EGLSurface draw,
         EGLint left, EGLint top, EGLint width, EGLint height);
 
+
+typedef struct egl_native_pixmap_t
+{
+    int32_t     version;    /* must be 32 */
+    int32_t     width;
+    int32_t     height;
+    int32_t     stride;
+    uint8_t*    data;
+    uint8_t     format;
+    uint8_t     rfu[3];
+    union {
+        uint32_t    compressedFormat;
+        int32_t     vstride;
+    };
+    int32_t     reserved;
+} egl_native_pixmap_t;
+
+
 // ----------------------------------------------------------------------------
 namespace android {
 

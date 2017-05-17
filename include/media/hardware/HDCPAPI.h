@@ -15,11 +15,10 @@
  */
 
 #ifndef HDCP_API_H_
-
 #define HDCP_API_H_
 
 #include <utils/Errors.h>
-#include <system/window.h>
+#include <cutils/native_handle.h>
 
 namespace android {
 

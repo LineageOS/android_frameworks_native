@@ -18,7 +18,6 @@ cc_library_shared {
         "libsensor",
         "android.frameworks.sensorservice@1.0",
         "android.hardware.sensors@1.0",
-        "android.hidl.base@1.0",
     ],
     static_libs: [
         "android.hardware.sensors@1.0-convert",

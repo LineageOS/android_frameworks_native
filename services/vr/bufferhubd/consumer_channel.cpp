@@ -75,11 +75,6 @@ bool ConsumerChannel::HandleMessage(Message& message) {
           *producer, &ProducerChannel::OnGetBuffer, message);
       return true;
 
-    case BufferHubRPC::GetBuffers::Opcode:
-      DispatchRemoteMethod<BufferHubRPC::GetBuffers>(
-          *producer, &ProducerChannel::OnGetBuffers, message);
-      return true;
-
     case BufferHubRPC::NewConsumer::Opcode:
       DispatchRemoteMethod<BufferHubRPC::NewConsumer>(
           *producer, &ProducerChannel::OnNewConsumer, message);

@@ -20,12 +20,14 @@
 
 #include <media/hardware/OMXPluginBase.h>
 #include <media/hardware/MetadataBufferType.h>
-#include <system/window.h>
+#include <cutils/native_handle.h>
 #include <utils/RefBase.h>
 
 #include "VideoAPI.h"
 
 #include <OMX_Component.h>
+
+struct ANativeWindowBuffer;
 
 namespace android {
 

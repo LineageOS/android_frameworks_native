@@ -60,25 +60,6 @@ __BEGIN_DECLS
 
 // ---------------------------------------------------------------------------
 
-typedef const native_handle_t* buffer_handle_t;
-
-// ---------------------------------------------------------------------------
-
-typedef struct android_native_rect_t
-{
-    int32_t left;
-    int32_t top;
-    int32_t right;
-    int32_t bottom;
-} android_native_rect_t;
-
-// ---------------------------------------------------------------------------
-
-// Old typedef for backwards compatibility.
-typedef ANativeWindowBuffer_t android_native_buffer_t;
-
-// ---------------------------------------------------------------------------
-
 /* attributes queriable with query() */
 enum {
     NATIVE_WINDOW_WIDTH     = 0,
@@ -192,6 +173,12 @@ enum {
      * present info, 0 if it won't.
      */
     NATIVE_WINDOW_FRAME_TIMESTAMPS_SUPPORTS_PRESENT = 18,
+
+    /*
+     * The consumer end is capable of handling protected buffers, i.e. buffer
+     * with GRALLOC_USAGE_PROTECTED usage bits on.
+     */
+    NATIVE_WINDOW_CONSUMER_IS_PROTECTED = 19,
 };
 
 /* Valid operations for the (*perform)() hook.
@@ -543,7 +530,6 @@ struct ANativeWindow
  /* Backwards compatibility: use ANativeWindow (struct ANativeWindow in C).
   * android_native_window_t is deprecated.
   */
-typedef struct ANativeWindow ANativeWindow;
 typedef struct ANativeWindow android_native_window_t __deprecated;
 
 /*

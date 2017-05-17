@@ -9,7 +9,6 @@
 
 #include <pdx/default_transport/client_channel.h>
 #include <pdx/default_transport/client_channel_factory.h>
-#include <private/dvr/platform_defines.h>
 
 #include "include/private/dvr/bufferhub_rpc.h"
 
@@ -17,15 +16,6 @@ using android::pdx::LocalHandle;
 using android::pdx::LocalChannelHandle;
 using android::pdx::rpc::WrapBuffer;
 using android::pdx::Status;
-
-namespace {
-
-// TODO(hendrikw): These flags can not be hard coded.
-constexpr int kUncachedBlobUsageFlags = GRALLOC_USAGE_SW_READ_RARELY |
-                                        GRALLOC_USAGE_SW_WRITE_RARELY |
-                                        GRALLOC_USAGE_PRIVATE_UNCACHED;
-
-}  // anonymous namespace
 
 namespace android {
 namespace dvr {
@@ -53,44 +43,34 @@ Status<LocalChannelHandle> BufferHubBuffer::CreateConsumer() {
 int BufferHubBuffer::ImportBuffer() {
   ATRACE_NAME("BufferHubBuffer::ImportBuffer");
 
-  Status<std::vector<NativeBufferHandle<LocalHandle>>> status =
-      InvokeRemoteMethod<BufferHubRPC::GetBuffers>();
+  Status<NativeBufferHandle<LocalHandle>> status =
+      InvokeRemoteMethod<BufferHubRPC::GetBuffer>();
   if (!status) {
-    ALOGE("BufferHubBuffer::ImportBuffer: Failed to get buffers: %s",
+    ALOGE("BufferHubBuffer::ImportBuffer: Failed to get buffer: %s",
           status.GetErrorMessage().c_str());
     return -status.error();
-  } else if (status.get().empty()) {
-    ALOGE(
-        "BufferHubBuffer::ImportBuffer: Expected to receive at least one "
-        "buffer handle but got zero!");
+  } else if (status.get().id() < 0) {
+    ALOGE("BufferHubBuffer::ImportBuffer: Received an invalid id!");
     return -EIO;
   }
 
-  auto buffer_handles = status.take();
+  auto buffer_handle = status.take();
 
-  // Stash the buffer id to replace the value in id_. All sub-buffers of a
-  // buffer hub buffer have the same id.
-  const int new_id = buffer_handles[0].id();
+  // Stash the buffer id to replace the value in id_.
+  const int new_id = buffer_handle.id();
 
-  // Import all of the buffers.
-  std::vector<IonBuffer> ion_buffers;
-  for (auto& handle : buffer_handles) {
-    const size_t i = &handle - buffer_handles.data();
-    ALOGD_IF(
-        TRACE,
-        "BufferHubBuffer::ImportBuffer: i=%zu id=%d FdCount=%zu IntCount=%zu",
-        i, handle.id(), handle.FdCount(), handle.IntCount());
+  // Import the buffer.
+  IonBuffer ion_buffer;
+  ALOGD_IF(
+      TRACE, "BufferHubBuffer::ImportBuffer: id=%d FdCount=%zu IntCount=%zu",
+      buffer_handle.id(), buffer_handle.FdCount(), buffer_handle.IntCount());
 
-    IonBuffer buffer;
-    const int ret = handle.Import(&buffer);
-    if (ret < 0)
-      return ret;
+  const int ret = buffer_handle.Import(&ion_buffer);
+  if (ret < 0)
+    return ret;
 
-    ion_buffers.emplace_back(std::move(buffer));
-  }
-
-  // If all imports succeed, replace the previous buffers and id.
-  slices_ = std::move(ion_buffers);
+  // If the import succeeds, replace the previous buffer and id.
+  buffer_ = std::move(ion_buffer);
   id_ = new_id;
   return 0;
 }
@@ -102,34 +82,23 @@ int BufferHubBuffer::Poll(int timeout_ms) {
 }
 
 int BufferHubBuffer::Lock(int usage, int x, int y, int width, int height,
-                          void** address, size_t index) {
-  return slices_[index].Lock(usage, x, y, width, height, address);
+                          void** address) {
+  return buffer_.Lock(usage, x, y, width, height, address);
 }
 
-int BufferHubBuffer::Unlock(size_t index) { return slices_[index].Unlock(); }
+int BufferHubBuffer::Unlock() { return buffer_.Unlock(); }
 
 int BufferHubBuffer::GetBlobReadWritePointer(size_t size, void** addr) {
   int width = static_cast<int>(size);
   int height = 1;
-  // TODO(hendrikw): These flags can not be hard coded.
-  constexpr int usage = GRALLOC_USAGE_SW_READ_RARELY |
-                        GRALLOC_USAGE_SW_WRITE_RARELY |
-                        GRALLOC_USAGE_PRIVATE_UNCACHED;
-  int ret = Lock(usage, 0, 0, width, height, addr);
+  int ret = Lock(usage(), 0, 0, width, height, addr);
   if (ret == 0)
     Unlock();
   return ret;
 }
 
 int BufferHubBuffer::GetBlobReadOnlyPointer(size_t size, void** addr) {
-  int width = static_cast<int>(size);
-  int height = 1;
-  constexpr int usage =
-      GRALLOC_USAGE_SW_READ_RARELY | GRALLOC_USAGE_PRIVATE_UNCACHED;
-  int ret = Lock(usage, 0, 0, width, height, addr);
-  if (ret == 0)
-    Unlock();
-  return ret;
+  return GetBlobReadWritePointer(size, addr);
 }
 
 void BufferHubBuffer::GetBlobFds(int* fds, size_t* fds_count,
@@ -199,26 +168,24 @@ int BufferConsumer::SetIgnore(bool ignore) {
 }
 
 BufferProducer::BufferProducer(uint32_t width, uint32_t height, uint32_t format,
-                               uint32_t usage, size_t metadata_size,
-                               size_t slice_count)
-    : BufferProducer(width, height, format, usage, usage, metadata_size,
-                     slice_count) {}
+                               uint32_t usage, size_t metadata_size)
+    : BufferProducer(width, height, format, usage, usage, metadata_size) {}
 
 BufferProducer::BufferProducer(uint32_t width, uint32_t height, uint32_t format,
                                uint64_t producer_usage, uint64_t consumer_usage,
-                               size_t metadata_size, size_t slice_count)
+                               size_t metadata_size)
     : BASE(BufferHubRPC::kClientPath) {
   ATRACE_NAME("BufferProducer::BufferProducer");
   ALOGD_IF(TRACE,
            "BufferProducer::BufferProducer: fd=%d width=%u height=%u format=%u "
            "producer_usage=%" PRIx64 " consumer_usage=%" PRIx64
-           " metadata_size=%zu slice_count=%zu",
+           " metadata_size=%zu",
            event_fd(), width, height, format, producer_usage, consumer_usage,
-           metadata_size, slice_count);
+           metadata_size);
 
+  // (b/37881101) Deprecate producer/consumer usage
   auto status = InvokeRemoteMethod<BufferHubRPC::CreateBuffer>(
-      width, height, format, producer_usage, consumer_usage, metadata_size,
-      slice_count);
+      width, height, format, (producer_usage | consumer_usage), metadata_size);
   if (!status) {
     ALOGE(
         "BufferProducer::BufferProducer: Failed to create producer buffer: %s",
@@ -239,27 +206,27 @@ BufferProducer::BufferProducer(uint32_t width, uint32_t height, uint32_t format,
 BufferProducer::BufferProducer(const std::string& name, int user_id,
                                int group_id, uint32_t width, uint32_t height,
                                uint32_t format, uint32_t usage,
-                               size_t meta_size_bytes, size_t slice_count)
+                               size_t meta_size_bytes)
     : BufferProducer(name, user_id, group_id, width, height, format, usage,
-                     usage, meta_size_bytes, slice_count) {}
+                     usage, meta_size_bytes) {}
 
 BufferProducer::BufferProducer(const std::string& name, int user_id,
                                int group_id, uint32_t width, uint32_t height,
                                uint32_t format, uint64_t producer_usage,
-                               uint64_t consumer_usage, size_t meta_size_bytes,
-                               size_t slice_count)
+                               uint64_t consumer_usage, size_t meta_size_bytes)
     : BASE(BufferHubRPC::kClientPath) {
   ATRACE_NAME("BufferProducer::BufferProducer");
   ALOGD_IF(TRACE,
            "BufferProducer::BufferProducer: fd=%d name=%s user_id=%d "
            "group_id=%d width=%u height=%u format=%u producer_usage=%" PRIx64
-           " consumer_usage=%" PRIx64 " meta_size_bytes=%zu slice_count=%zu",
+           " consumer_usage=%" PRIx64 " meta_size_bytes=%zu",
            event_fd(), name.c_str(), user_id, group_id, width, height, format,
-           producer_usage, consumer_usage, meta_size_bytes, slice_count);
+           producer_usage, consumer_usage, meta_size_bytes);
 
+  // (b/37881101) Deprecate producer/consumer usage
   auto status = InvokeRemoteMethod<BufferHubRPC::CreatePersistentBuffer>(
-      name, user_id, group_id, width, height, format, producer_usage,
-      consumer_usage, meta_size_bytes, slice_count);
+      name, user_id, group_id, width, height, format,
+      (producer_usage | consumer_usage), meta_size_bytes);
   if (!status) {
     ALOGE(
         "BufferProducer::BufferProducer: Failed to create/get persistent "
@@ -294,10 +261,11 @@ BufferProducer::BufferProducer(uint64_t producer_usage, uint64_t consumer_usage,
   const int height = 1;
   const int format = HAL_PIXEL_FORMAT_BLOB;
   const size_t meta_size_bytes = 0;
-  const size_t slice_count = 1;
+
+  // (b/37881101) Deprecate producer/consumer usage
   auto status = InvokeRemoteMethod<BufferHubRPC::CreateBuffer>(
-      width, height, format, producer_usage, consumer_usage, meta_size_bytes,
-      slice_count);
+      width, height, format, (producer_usage | consumer_usage),
+      meta_size_bytes);
   if (!status) {
     ALOGE("BufferProducer::BufferProducer: Failed to create blob: %s",
           status.GetErrorMessage().c_str());
@@ -332,10 +300,11 @@ BufferProducer::BufferProducer(const std::string& name, int user_id,
   const int height = 1;
   const int format = HAL_PIXEL_FORMAT_BLOB;
   const size_t meta_size_bytes = 0;
-  const size_t slice_count = 1;
+
+  // (b/37881101) Deprecate producer/consumer usage
   auto status = InvokeRemoteMethod<BufferHubRPC::CreatePersistentBuffer>(
-      name, user_id, group_id, width, height, format, producer_usage,
-      consumer_usage, meta_size_bytes, slice_count);
+      name, user_id, group_id, width, height, format,
+      (producer_usage | consumer_usage), meta_size_bytes);
   if (!status) {
     ALOGE(
         "BufferProducer::BufferProducer: Failed to create persistent "
@@ -437,17 +406,6 @@ int BufferProducer::RemovePersistence() {
   ATRACE_NAME("BufferProducer::RemovePersistence");
   return ReturnStatusOrError(
       InvokeRemoteMethod<BufferHubRPC::ProducerRemovePersistence>());
-}
-
-std::unique_ptr<BufferProducer> BufferProducer::CreateUncachedBlob(
-    size_t size) {
-  return BufferProducer::Create(kUncachedBlobUsageFlags, size);
-}
-
-std::unique_ptr<BufferProducer> BufferProducer::CreatePersistentUncachedBlob(
-    const std::string& name, int user_id, int group_id, size_t size) {
-  return BufferProducer::Create(name, user_id, group_id,
-                                kUncachedBlobUsageFlags, size);
 }
 
 }  // namespace dvr

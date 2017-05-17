@@ -11,6 +11,7 @@
 #include <android-base/strings.h>
 #include <cutils/sockets.h>
 #include <pdx/service.h>
+#include <selinux/selinux.h>
 #include <uds/channel_manager.h>
 #include <uds/client_channel_factory.h>
 #include <uds/ipc_helper.h>
@@ -214,30 +215,42 @@ Status<void> Endpoint::AcceptConnection(Message* message) {
 
   sockaddr_un remote;
   socklen_t addrlen = sizeof(remote);
-  LocalHandle channel_fd{accept4(socket_fd_.Get(),
-                                 reinterpret_cast<sockaddr*>(&remote), &addrlen,
-                                 SOCK_CLOEXEC)};
-  if (!channel_fd) {
+  LocalHandle connection_fd{accept4(socket_fd_.Get(),
+                                    reinterpret_cast<sockaddr*>(&remote),
+                                    &addrlen, SOCK_CLOEXEC)};
+  if (!connection_fd) {
     ALOGE("Endpoint::AcceptConnection: failed to accept connection: %s",
           strerror(errno));
     return ErrorStatus(errno);
   }
 
-  int optval = 1;
-  if (setsockopt(channel_fd.Get(), SOL_SOCKET, SO_PASSCRED, &optval,
-                 sizeof(optval)) == -1) {
-    ALOGE(
-        "Endpoint::AcceptConnection: Failed to enable the receiving of the "
-        "credentials for channel %d: %s",
-        channel_fd.Get(), strerror(errno));
-    return ErrorStatus(errno);
+  LocalHandle local_socket;
+  LocalHandle remote_socket;
+  auto status = CreateChannelSocketPair(&local_socket, &remote_socket);
+  if (!status)
+    return status;
+
+  // Borrow the local channel handle before we move it into OnNewChannel().
+  BorrowedHandle channel_handle = local_socket.Borrow();
+  status = OnNewChannel(std::move(local_socket));
+  if (!status)
+    return status;
+
+  // Send the channel socket fd to the client.
+  ChannelConnectionInfo<LocalHandle> connection_info;
+  connection_info.channel_fd = std::move(remote_socket);
+  status = SendData(connection_fd.Borrow(), connection_info);
+
+  if (status) {
+    // Get the CHANNEL_OPEN message from client over the channel socket.
+    status = ReceiveMessageForChannel(channel_handle, message);
+  } else {
+    CloseChannel(GetChannelId(channel_handle));
   }
 
-  // Borrow the channel handle before we pass (move) it into OnNewChannel().
-  BorrowedHandle borrowed_channel_handle = channel_fd.Borrow();
-  auto status = OnNewChannel(std::move(channel_fd));
-  if (status)
-    status = ReceiveMessageForChannel(borrowed_channel_handle, message);
+  // Don't need the connection socket anymore. Further communication should
+  // happen over the channel socket.
+  shutdown(connection_fd.Get(), SHUT_WR);
   return status;
 }
 
@@ -349,29 +362,73 @@ Status<void> Endpoint::ModifyChannelEvents(int channel_id, int clear_mask,
   return ErrorStatus{EINVAL};
 }
 
+Status<void> Endpoint::CreateChannelSocketPair(LocalHandle* local_socket,
+                                               LocalHandle* remote_socket) {
+  Status<void> status;
+  char* endpoint_context = nullptr;
+  // Make sure the channel socket has the correct SELinux label applied.
+  // Here we get the label from the endpoint file descriptor, which should be
+  // something like "u:object_r:pdx_service_endpoint_socket:s0" and replace
+  // "endpoint" with "channel" to produce the channel label such as this:
+  // "u:object_r:pdx_service_channel_socket:s0".
+  if (fgetfilecon_raw(socket_fd_.Get(), &endpoint_context) > 0) {
+    std::string channel_context = endpoint_context;
+    freecon(endpoint_context);
+    const std::string suffix = "_endpoint_socket";
+    auto pos = channel_context.find(suffix);
+    if (pos != std::string::npos) {
+      channel_context.replace(pos, suffix.size(), "_channel_socket");
+    } else {
+      ALOGW(
+          "Endpoint::CreateChannelSocketPair: Endpoint security context '%s' "
+          "does not contain expected substring '%s'",
+          channel_context.c_str(), suffix.c_str());
+    }
+    ALOGE_IF(setsockcreatecon_raw(channel_context.c_str()) == -1,
+             "Endpoint::CreateChannelSocketPair: Failed to set channel socket "
+             "security context: %s",
+             strerror(errno));
+  } else {
+    ALOGE(
+        "Endpoint::CreateChannelSocketPair: Failed to obtain the endpoint "
+        "socket's security context: %s",
+        strerror(errno));
+  }
+
+  int channel_pair[2] = {};
+  if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, channel_pair) == -1) {
+    ALOGE("Endpoint::CreateChannelSocketPair: Failed to create socket pair: %s",
+          strerror(errno));
+    status.SetError(errno);
+    return status;
+  }
+
+  setsockcreatecon_raw(nullptr);
+
+  local_socket->Reset(channel_pair[0]);
+  remote_socket->Reset(channel_pair[1]);
+
+  int optval = 1;
+  if (setsockopt(local_socket->Get(), SOL_SOCKET, SO_PASSCRED, &optval,
+                 sizeof(optval)) == -1) {
+    ALOGE(
+        "Endpoint::CreateChannelSocketPair: Failed to enable the receiving of "
+        "the credentials for channel %d: %s",
+        local_socket->Get(), strerror(errno));
+    status.SetError(errno);
+  }
+  return status;
+}
+
 Status<RemoteChannelHandle> Endpoint::PushChannel(Message* message,
                                                   int /*flags*/,
                                                   Channel* channel,
                                                   int* channel_id) {
-  int channel_pair[2] = {};
-  if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, channel_pair) == -1) {
-    ALOGE("Endpoint::PushChannel: Failed to create a socket pair: %s",
-          strerror(errno));
-    return ErrorStatus(errno);
-  }
-
-  LocalHandle local_socket{channel_pair[0]};
-  LocalHandle remote_socket{channel_pair[1]};
-
-  int optval = 1;
-  if (setsockopt(local_socket.Get(), SOL_SOCKET, SO_PASSCRED, &optval,
-                 sizeof(optval)) == -1) {
-    ALOGE(
-        "Endpoint::PushChannel: Failed to enable the receiving of the "
-        "credentials for channel %d: %s",
-        local_socket.Get(), strerror(errno));
-    return ErrorStatus(errno);
-  }
+  LocalHandle local_socket;
+  LocalHandle remote_socket;
+  auto status = CreateChannelSocketPair(&local_socket, &remote_socket);
+  if (!status)
+    return status.error_status();
 
   std::lock_guard<std::mutex> autolock(channel_mutex_);
   auto channel_data = OnNewChannelLocked(std::move(local_socket), channel);

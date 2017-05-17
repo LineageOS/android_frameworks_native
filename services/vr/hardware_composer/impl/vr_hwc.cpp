@@ -60,24 +60,22 @@ void GetPrimaryDisplaySize(int32_t* width, int32_t* height) {
   *height = 1920;
 
   int error = 0;
-  auto display_client = DisplayClient::Create(&error);
-  SystemDisplayMetrics metrics;
-
-  if (error) {
+  auto display_client = display::DisplayClient::Create(&error);
+  if (!display_client) {
     ALOGE("Could not connect to display service : %s(%d)", strerror(error),
           error);
     return;
   }
 
-  error = display_client->GetDisplayMetrics(&metrics);
-  if (error) {
+  auto status = display_client->GetDisplayMetrics();
+  if (!status) {
     ALOGE("Could not get display metrics from display service : %s(%d)",
-          strerror(error), error);
+          status.GetErrorMessage().c_str(), status.error());
     return;
   }
 
-  *width = metrics.display_native_width;
-  *height = metrics.display_native_height;
+  *width = status.get().display_width;
+  *height = status.get().display_height;
 }
 
 }  // namespace

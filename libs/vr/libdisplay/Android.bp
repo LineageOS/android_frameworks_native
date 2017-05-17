@@ -13,18 +13,10 @@
 // limitations under the License.
 
 sourceFiles = [
-    "native_buffer_queue.cpp",
     "display_client.cpp",
-    "display_manager_client_impl.cpp",
-    "display_rpc.cpp",
-    "dummy_native_window.cpp",
-    "gl_fenced_flush.cpp",
-    "graphics.cpp",
-    "late_latch.cpp",
-    "video_mesh_surface_client.cpp",
+    "display_manager_client.cpp",
+    "display_protocol.cpp",
     "vsync_client.cpp",
-    "screenshot_client.cpp",
-    "frame_history.cpp",
 ]
 
 localIncludeFiles = [
@@ -36,9 +28,6 @@ sharedLibraries = [
     "libcutils",
     "liblog",
     "libutils",
-    "libEGL",
-    "libGLESv2",
-    "libvulkan",
     "libui",
     "libgui",
     "libhardware",
@@ -47,16 +36,16 @@ sharedLibraries = [
 ]
 
 staticLibraries = [
-    "libbufferhub",
-    "libbufferhubqueue",
     "libdvrcommon",
-    "libdvrgraphics",
+    "libbufferhubqueue",
+    "libbufferhub",
     "libvrsensor",
     "libpdx_default_transport",
 ]
 
 headerLibraries = [
     "vulkan_headers",
+    "libdvr_headers",
 ]
 
 cc_library {
@@ -76,27 +65,3 @@ cc_library {
 
     name: "libdisplay",
 }
-
-graphicsAppTestFiles = ["tests/graphics_app_tests.cpp"]
-
-cc_test {
-    name: "graphics_app_tests",
-    tags: ["optional"],
-
-    srcs: graphicsAppTestFiles,
-
-    shared_libs: sharedLibraries,
-
-    static_libs: ["libdisplay"] + staticLibraries,
-}
-
-dummyNativeWindowTestFiles = ["tests/dummy_native_window_tests.cpp"]
-
-cc_test {
-    name: "dummy_native_window_tests",
-    tags: [ "optional" ],
-    srcs: dummyNativeWindowTestFiles,
-    shared_libs: sharedLibraries,
-    static_libs: [ "libdisplay" ] + staticLibraries,
-}
-

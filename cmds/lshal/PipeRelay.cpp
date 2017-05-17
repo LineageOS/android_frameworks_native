@@ -70,7 +70,6 @@ PipeRelay::PipeRelay(std::ostream &os)
     mInitCheck = mThread->run("RelayThread");
 }
 
-// static
 void PipeRelay::CloseFd(int *fd) {
     if (*fd >= 0) {
         close(*fd);

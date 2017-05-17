@@ -1,13 +1,12 @@
 #ifndef ANDROID_DVR_SERVICES_DISPLAYD_HARDWARE_COMPOSER_H_
 #define ANDROID_DVR_SERVICES_DISPLAYD_HARDWARE_COMPOSER_H_
 
-#include <log/log.h>
-#include <hardware/gralloc.h>
-#include <hardware/hardware.h>
-#include <hardware/hwcomposer2.h>
+#include <ui/GraphicBuffer.h>
+#include "DisplayHardware/ComposerHal.h"
+#include "hwc_types.h"
 
-#include <private/dvr/buffer_hub_client.h>
-#include <private/dvr/sync_util.h>
+#include <hardware/gralloc.h>
+#include <log/log.h>
 
 #include <array>
 #include <condition_variable>
@@ -17,16 +16,13 @@
 #include <tuple>
 #include <vector>
 
+#include <dvr/pose_client.h>
 #include <pdx/file_handle.h>
+#include <pdx/rpc/variant.h>
 #include <private/dvr/buffer_hub_client.h>
-#include <private/dvr/frame_time_history.h>
-#include <private/dvr/sync_util.h>
 
 #include "acquired_buffer.h"
-#include "compositor.h"
 #include "display_surface.h"
-
-#include "DisplayHardware/ComposerHal.h"
 
 // Hardware composer HAL doesn't define HWC_TRANSFORM_NONE as of this writing.
 #ifndef HWC_TRANSFORM_NONE
@@ -53,29 +49,28 @@ struct HWCDisplayMetrics {
 // source supplying buffers for the layer's contents.
 class Layer {
  public:
-  Layer();
+  Layer() {}
 
-  // Sets the hardware composer layer and display metrics that this Layer should
-  // use each Prepare cycle. This class does not own either of these pointers,
-  // which MUST remain valid for its lifetime. This method MUST be called once
-  // in the life of the instance before any other method is valid to call.
-  void Initialize(Hwc2::Composer* hwc2_hidl, HWCDisplayMetrics* metrics);
+  // Sets up the global state used by all Layer instances. This must be called
+  // before using any Layer methods.
+  static void InitializeGlobals(Hwc2::Composer* hwc2_hidl,
+                                const HWCDisplayMetrics* metrics);
 
   // Releases any shared pointers and fence handles held by this instance.
   void Reset();
 
   // Sets up the layer to use a display surface as its content source. The Layer
-  // will automatically handle ACQUIRE/RELEASE phases for the surface's buffer
-  // train every frame.
+  // automatically handles ACQUIRE/RELEASE phases for the surface's buffer train
+  // every frame.
   //
   // |blending| receives HWC_BLENDING_* values.
   // |transform| receives HWC_TRANSFORM_* values.
   // |composition_type| receives either HWC_FRAMEBUFFER for most layers or
   // HWC_FRAMEBUFFER_TARGET (unless you know what you are doing).
-  // |index| is the index of this surface in the DisplaySurface array.
-  void Setup(const std::shared_ptr<DisplaySurface>& surface,
-             hwc2_blend_mode_t blending, hwc_transform_t transform,
-             hwc2_composition_t composition_type, size_t index);
+  // |index| is the index of this surface in the DirectDisplaySurface array.
+  void Setup(const std::shared_ptr<DirectDisplaySurface>& surface,
+             HWC::BlendMode blending, HWC::Transform transform,
+             HWC::Composition composition_type, size_t z_roder);
 
   // Sets up the layer to use a direct buffer as its content source. No special
   // handling of the buffer is performed; responsibility for updating or
@@ -85,13 +80,13 @@ class Layer {
   // |transform| receives HWC_TRANSFORM_* values.
   // |composition_type| receives either HWC_FRAMEBUFFER for most layers or
   // HWC_FRAMEBUFFER_TARGET (unless you know what you are doing).
-  void Setup(const std::shared_ptr<IonBuffer>& buffer,
-             hwc2_blend_mode_t blending, hwc_transform_t transform,
-             hwc2_composition_t composition_type, size_t z_order);
+  void Setup(const std::shared_ptr<IonBuffer>& buffer, HWC::BlendMode blending,
+             HWC::Transform transform, HWC::Composition composition_type,
+             size_t z_order);
 
   // Layers that use a direct IonBuffer should call this each frame to update
   // which buffer will be used for the next PostLayers.
-  void UpdateDirectBuffer(const std::shared_ptr<IonBuffer>& buffer);
+  void UpdateBuffer(const std::shared_ptr<IonBuffer>& buffer);
 
   // Sets up the hardware composer layer for the next frame. When the layer is
   // associated with a display surface, this method automatically ACQUIRES a new
@@ -107,10 +102,10 @@ class Layer {
   void Finish(int release_fence_fd);
 
   // Sets the blending for the layer. |blending| receives HWC_BLENDING_* values.
-  void SetBlending(hwc2_blend_mode_t blending);
+  void SetBlending(HWC::BlendMode blending);
 
-  // Sets the Z-order of this layer
-  void SetZOrderIndex(int surface_index);
+  // Sets the z-order of this layer
+  void SetZOrder(size_t z_order);
 
   // Gets the current IonBuffer associated with this layer. Ownership of the
   // buffer DOES NOT pass to the caller and the pointer is not guaranteed to
@@ -118,57 +113,111 @@ class Layer {
   // Layer::Reset(). YOU HAVE BEEN WARNED.
   IonBuffer* GetBuffer();
 
-  hwc2_composition_t GetCompositionType() const { return composition_type_; }
-
-  hwc2_layer_t GetLayerHandle() const { return hardware_composer_layer_; }
-
-  bool UsesDirectBuffer() const { return direct_buffer_ != nullptr; }
-
-  bool IsLayerSetup() const {
-    return direct_buffer_ != nullptr || surface_ != nullptr;
-  }
+  HWC::Composition GetCompositionType() const { return composition_type_; }
+  HWC::Layer GetLayerHandle() const { return hardware_composer_layer_; }
+  bool IsLayerSetup() const { return !source_.empty(); }
 
   // Applies all of the settings to this layer using the hwc functions
   void UpdateLayerSettings();
 
   int GetSurfaceId() const {
-    if (surface_ != nullptr) {
-      return surface_->surface_id();
-    } else {
-      return -1;
-    }
+    int surface_id = -1;
+    pdx::rpc::IfAnyOf<SourceSurface>::Call(
+        &source_, [&surface_id](const SourceSurface& surface_source) {
+          surface_id = surface_source.surface->surface_id();
+        });
+    return surface_id;
   }
 
  private:
   void CommonLayerSetup();
 
-  Hwc2::Composer* hwc2_hidl_;
-
-  // Original display surface array index for tracking purposes.
-  size_t surface_index_;
+  static Hwc2::Composer* hwc2_hidl_;
+  static const HWCDisplayMetrics* display_metrics_;
 
   // The hardware composer layer and metrics to use during the prepare cycle.
-  hwc2_layer_t hardware_composer_layer_;
-  HWCDisplayMetrics* display_metrics_;
+  hwc2_layer_t hardware_composer_layer_ = 0;
 
   // Layer properties used to setup the hardware composer layer during the
   // Prepare phase.
-  hwc2_blend_mode_t blending_;
-  hwc_transform_t transform_;
-  hwc2_composition_t composition_type_;
+  size_t z_order_ = 0;
+  HWC::BlendMode blending_ = HWC::BlendMode::None;
+  HWC::Transform transform_ = HWC::Transform::None;
+  HWC::Composition composition_type_ = HWC::Composition::Invalid;
+  HWC::Composition target_composition_type_ = HWC::Composition::Device;
 
-  // These two members are mutually exclusive. When direct_buffer_ is set the
-  // Layer gets its contents directly from that buffer; when surface_ is set the
-  // Layer gets it contents from the surface's buffer train.
-  std::shared_ptr<IonBuffer> direct_buffer_;
-  std::shared_ptr<DisplaySurface> surface_;
+  // State when the layer is connected to a surface. Provides the same interface
+  // as SourceBuffer to simplify internal use by Layer.
+  struct SourceSurface {
+    std::shared_ptr<DirectDisplaySurface> surface;
+    AcquiredBuffer acquired_buffer;
+    pdx::LocalHandle release_fence;
 
-  // State when associated with a display surface.
-  AcquiredBuffer acquired_buffer_;
-  pdx::LocalHandle release_fence_;
+    SourceSurface(const std::shared_ptr<DirectDisplaySurface>& surface)
+        : surface(surface) {}
 
-  pdx::LocalHandle acquire_fence_fd_;
-  bool surface_rect_functions_applied_;
+    // Attempts to acquire a new buffer from the surface and return a tuple with
+    // width, height, buffer handle, and fence. If a new buffer is not available
+    // the previous buffer is returned or an empty value if no buffer has ever
+    // been posted. When a new buffer is acquired the previous buffer's release
+    // fence is passed out automatically.
+    std::tuple<int, int, sp<GraphicBuffer>, pdx::LocalHandle> Acquire() {
+      if (surface->IsBufferAvailable()) {
+        acquired_buffer.Release(std::move(release_fence));
+        acquired_buffer = surface->AcquireCurrentBuffer();
+        ATRACE_ASYNC_END("BufferPost", acquired_buffer.buffer()->id());
+      }
+      if (!acquired_buffer.IsEmpty()) {
+        return std::make_tuple(acquired_buffer.buffer()->width(),
+                               acquired_buffer.buffer()->height(),
+                               acquired_buffer.buffer()->buffer()->buffer(),
+                               acquired_buffer.ClaimAcquireFence());
+      } else {
+        return std::make_tuple(0, 0, nullptr, pdx::LocalHandle{});
+      }
+    }
+
+    void Finish(pdx::LocalHandle fence) { release_fence = std::move(fence); }
+
+    // Gets a pointer to the current acquired buffer or returns nullptr if there
+    // isn't one.
+    IonBuffer* GetBuffer() {
+      if (acquired_buffer.IsAvailable())
+        return acquired_buffer.buffer()->buffer();
+      else
+        return nullptr;
+    }
+
+    // Returns the surface id of the surface.
+    int GetSurfaceId() { return surface->surface_id(); }
+  };
+
+  // State when the layer is connected to a buffer. Provides the same interface
+  // as SourceSurface to simplify internal use by Layer.
+  struct SourceBuffer {
+    std::shared_ptr<IonBuffer> buffer;
+
+    std::tuple<int, int, sp<GraphicBuffer>, pdx::LocalHandle> Acquire() {
+      if (buffer)
+        return std::make_tuple(buffer->width(), buffer->height(),
+                               buffer->buffer(), pdx::LocalHandle{});
+      else
+        return std::make_tuple(0, 0, nullptr, pdx::LocalHandle{});
+    }
+
+    void Finish(pdx::LocalHandle /*fence*/) {}
+
+    IonBuffer* GetBuffer() { return buffer.get(); }
+
+    int GetSurfaceId() const { return -1; }
+  };
+
+  // The underlying hardware composer layer is supplied buffers either from a
+  // surface buffer train or from a buffer directly.
+  pdx::rpc::Variant<SourceSurface, SourceBuffer> source_;
+
+  pdx::LocalHandle acquire_fence_;
+  bool surface_rect_functions_applied_ = false;
 
   Layer(const Layer&) = delete;
   void operator=(const Layer&) = delete;
@@ -186,13 +235,15 @@ class HardwareComposer {
  public:
   // Type for vsync callback.
   using VSyncCallback = std::function<void(int, int64_t, int64_t, uint32_t)>;
+  using RequestDisplayCallback = std::function<void(bool)>;
 
   // Since there is no universal way to query the number of hardware layers,
   // just set it to 4 for now.
-  static constexpr int kMaxHardwareLayers = 4;
+  static constexpr size_t kMaxHardwareLayers = 4;
 
   HardwareComposer();
-  HardwareComposer(Hwc2::Composer* hidl);
+  HardwareComposer(Hwc2::Composer* hidl,
+                   RequestDisplayCallback request_display_callback);
   ~HardwareComposer();
 
   bool Initialize();
@@ -207,14 +258,14 @@ class HardwareComposer {
   void Disable();
 
   // Get the HMD display metrics for the current display.
-  DisplayMetrics GetHmdDisplayMetrics() const;
+  display::Metrics GetHmdDisplayMetrics() const;
 
-  int32_t GetDisplayAttribute(hwc2_display_t display, hwc2_config_t config,
-                              hwc2_attribute_t attributes,
-                              int32_t* out_value) const;
-  int32_t GetDisplayMetrics(hwc2_display_t display, hwc2_config_t config,
-                            HWCDisplayMetrics* out_metrics) const;
-  void Dump(char* buffer, uint32_t* out_size);
+  HWC::Error GetDisplayAttribute(hwc2_display_t display, hwc2_config_t config,
+                                 hwc2_attribute_t attributes,
+                                 int32_t* out_value) const;
+  HWC::Error GetDisplayMetrics(hwc2_display_t display, hwc2_config_t config,
+                               HWCDisplayMetrics* out_metrics) const;
+  std::string Dump();
 
   void SetVSyncCallback(VSyncCallback callback);
 
@@ -229,11 +280,9 @@ class HardwareComposer {
     return native_display_metrics_;
   }
 
-  // Set the display surface stack to compose to the display each frame.
+  // Sets the display surfaces to compose the hardware layer stack.
   void SetDisplaySurfaces(
-      std::vector<std::shared_ptr<DisplaySurface>> surfaces);
-
-  Compositor* GetCompositor() { return &compositor_; }
+      std::vector<std::shared_ptr<DirectDisplaySurface>> surfaces);
 
   void OnHardwareComposerRefresh();
 
@@ -265,23 +314,36 @@ class HardwareComposer {
     }
   };
 
-  int32_t Validate(hwc2_display_t display);
-  int32_t Present(hwc2_display_t display);
+  HWC::Error Validate(hwc2_display_t display);
+  HWC::Error Present(hwc2_display_t display);
 
   void SetBacklightBrightness(int brightness);
 
-  void PostLayers(bool is_geometry_changed);
+  void PostLayers();
   void PostThread();
 
-  // Check to see if we have a value written to post_thread_interrupt_event_fd_,
-  // indicating a control thread interrupted the post thread. This clears the
-  // post_thread_interrupt_event_fd_ state in the process. Returns true if an
-  // interrupt was requested.
-  bool CheckPostThreadInterruptEventFd();
+  // The post thread has two controlling states:
+  // 1. Idle: no work to do (no visible surfaces).
+  // 2. Suspended: explicitly halted (system is not in VR mode).
+  // When either #1 or #2 is true then the post thread is quiescent, otherwise
+  // it is active.
+  using PostThreadStateType = uint32_t;
+  struct PostThreadState {
+    enum : PostThreadStateType {
+      Active = 0,
+      Idle = (1 << 0),
+      Suspended = (1 << 1),
+      Quit = (1 << 2),
+    };
+  };
+
+  void UpdatePostThreadState(uint32_t state, bool suspend);
+
   // Blocks until either event_fd becomes readable, or we're interrupted by a
   // control thread. Any errors are returned as negative errno values. If we're
   // interrupted, kPostThreadInterrupted will be returned.
-  int PostThreadPollInterruptible(int event_fd, int requested_events);
+  int PostThreadPollInterruptible(const pdx::LocalHandle& event_fd,
+                                  int requested_events);
 
   // BlockUntilVSync, WaitForVSync, and SleepUntil are all blocking calls made
   // on the post thread that can be interrupted by a control thread. If
@@ -294,49 +356,21 @@ class HardwareComposer {
 
   bool IsFramePendingInDriver() { return ReadWaitPPState() == 1; }
 
-  // Returns true if the layer config changed, false otherwise
+  // Reconfigures the layer stack if the display surfaces changed since the last
+  // frame. Called only from the post thread.
   bool UpdateLayerConfig();
-  void PostCompositorBuffers();
-
-  // Return true if the post thread has work to do (i.e. there are visible
-  // surfaces to post to the screen). Must be called with post_thread_mutex_
-  // locked. Called only from the post thread.
-  bool PostThreadHasWork();
 
   // Called on the post thread when the post thread is resumed.
   void OnPostThreadResumed();
   // Called on the post thread when the post thread is paused or quits.
   void OnPostThreadPaused();
 
-  struct FrameTimeMeasurementRecord {
-    int64_t start_time;
-    pdx::LocalHandle fence;
-
-    FrameTimeMeasurementRecord(FrameTimeMeasurementRecord&&) = default;
-    FrameTimeMeasurementRecord& operator=(FrameTimeMeasurementRecord&&) =
-        default;
-    FrameTimeMeasurementRecord(const FrameTimeMeasurementRecord&) = delete;
-    FrameTimeMeasurementRecord& operator=(const FrameTimeMeasurementRecord&) =
-        delete;
-  };
-
-  void UpdateFrameTimeHistory(std::vector<FrameTimeMeasurementRecord>* backlog,
-                              int backlog_max,
-                              FenceInfoBuffer* fence_info_buffer,
-                              FrameTimeHistory* history);
-
-  // Returns true if the frame finished rendering, false otherwise. If the frame
-  // finished the frame end time is stored in timestamp. Doesn't block.
-  bool CheckFrameFinished(int frame_fence_fd,
-                          FenceInfoBuffer* fence_info_buffer,
-                          int64_t* timestamp);
-
-  void HandlePendingScreenshots();
-
   bool initialized_;
 
-  // Hardware composer HAL device.
-  std::unique_ptr<Hwc2::Composer> hwc2_hidl_;
+  // Hardware composer HAL device from SurfaceFlinger. VrFlinger does not own
+  // this pointer.
+  Hwc2::Composer* hwc2_hidl_;
+  RequestDisplayCallback request_display_callback_;
   sp<ComposerCallback> callbacks_;
 
   // Display metrics of the physical display.
@@ -345,69 +379,36 @@ class HardwareComposer {
   // landscape.
   HWCDisplayMetrics display_metrics_;
   // Transform required to get from native to logical display orientation.
-  hwc_transform_t display_transform_;
+  HWC::Transform display_transform_ = HWC::Transform::None;
 
-  // Buffer for the background layer required by hardware composer.
-  std::shared_ptr<IonBuffer> framebuffer_target_;
-
-  // Protects access to variables used by the post thread and one of the control
-  // threads (either the vr flinger dispatcher thread or the surface flinger
-  // main thread). This includes active_surfaces_, active_surfaces_updated_,
-  // post_thread_enabled_, post_thread_running_, and
-  // post_thread_quit_requested_.
-  std::mutex post_thread_mutex_;
-
-  // Surfaces configured by the display manager. Written by the vr flinger
-  // dispatcher thread, read by the post thread.
-  std::vector<std::shared_ptr<DisplaySurface>> active_surfaces_;
-  // active_surfaces_updated_ is set to true by the vr flinger dispatcher thread
-  // when the list of active surfaces changes. active_surfaces_updated_ will be
-  // set back to false by the post thread when it processes the update.
-  bool active_surfaces_updated_;
+  // Pending surface list. Set by the display service when DirectSurfaces are
+  // added, removed, or change visibility. Written by the message dispatch
+  // thread and read by the post thread.
+  std::vector<std::shared_ptr<DirectDisplaySurface>> pending_surfaces_;
 
   // The surfaces displayed by the post thread. Used exclusively by the post
   // thread.
-  std::vector<std::shared_ptr<DisplaySurface>> display_surfaces_;
-
-  // The surfaces rendered by the compositor. Used exclusively by the post
-  // thread.
-  std::vector<std::shared_ptr<DisplaySurface>> compositor_surfaces_;
+  std::vector<std::shared_ptr<DirectDisplaySurface>> display_surfaces_;
 
   // Layer array for handling buffer flow into hardware composer layers.
-  // Note that the first array is the actual storage for the layer objects,
-  // and the latter is an array of pointers, which can be freely re-arranged
-  // without messing up the underlying objects.
-  std::array<Layer, kMaxHardwareLayers> layer_storage_;
-  std::array<Layer*, kMaxHardwareLayers> layers_;
-  size_t active_layer_count_;
-
-  // Set by the Post thread to the index of the GPU compositing output
-  // buffer in the layers_ array.
-  Layer* gpu_layer_;
+  std::array<Layer, kMaxHardwareLayers> layers_;
+  size_t active_layer_count_ = 0;
 
   // Handler to hook vsync events outside of this class.
   VSyncCallback vsync_callback_;
 
   // The layer posting thread. This thread wakes up a short time before vsync to
-  // hand buffers to post processing and the results to hardware composer.
+  // hand buffers to hardware composer.
   std::thread post_thread_;
 
-  // Set to true if the post thread is allowed to run. Surface flinger and vr
-  // flinger share access to the display, and vr flinger shouldn't use the
-  // display while surface flinger is using it. While surface flinger owns the
-  // display, post_thread_enabled_ will be set to false to indicate the post
-  // thread shouldn't run.
-  bool post_thread_enabled_;
-  // Set to true by the post thread if it's currently running.
-  bool post_thread_running_;
-  // Set to true if the post thread should quit. Only set when destroying the
-  // HardwareComposer instance.
-  bool post_thread_quit_requested_;
-  // Used to wake the post thread up while it's waiting for vsync or sleeping
-  // until EDS preemption, for faster transition to the paused state.
-  pdx::LocalHandle post_thread_interrupt_event_fd_;
-  // Used to communicate between the control thread and the post thread.
-  std::condition_variable post_thread_cond_var_;
+  // Post thread state machine and synchronization primitives.
+  PostThreadStateType post_thread_state_{PostThreadState::Idle};
+  std::atomic<bool> post_thread_quiescent_{true};
+  bool post_thread_resumed_{false};
+  pdx::LocalHandle post_thread_event_fd_;
+  std::mutex post_thread_mutex_;
+  std::condition_variable post_thread_wait_;
+  std::condition_variable post_thread_ready_;
 
   // Backlight LED brightness sysfs node.
   pdx::LocalHandle backlight_brightness_fd_;
@@ -422,16 +423,13 @@ class HardwareComposer {
   pdx::LocalHandle vsync_sleep_timer_fd_;
 
   // The timestamp of the last vsync.
-  int64_t last_vsync_timestamp_;
+  int64_t last_vsync_timestamp_ = 0;
 
   // Vsync count since display on.
-  uint32_t vsync_count_;
+  uint32_t vsync_count_ = 0;
 
   // Counter tracking the number of skipped frames.
-  int frame_skip_count_;
-
-  // After construction, only accessed on post_thread_.
-  Compositor compositor_;
+  int frame_skip_count_ = 0;
 
   // Fd array for tracking retire fences that are returned by hwc. This allows
   // us to detect when the display driver begins queuing frames.
@@ -439,16 +437,7 @@ class HardwareComposer {
 
   // Pose client for frame count notifications. Pose client predicts poses
   // out to display frame boundaries, so we need to tell it about vsyncs.
-  DvrPose* pose_client_;
-
-  // Our history of frame times. This is used to get a better estimate of how
-  // long the next frame will take, to set a schedule for EDS.
-  FrameTimeHistory frame_time_history_;
-
-  // The backlog is used to allow us to start rendering the next frame before
-  // the previous frame has finished, and still get an accurate measurement of
-  // frame duration.
-  std::vector<FrameTimeMeasurementRecord> frame_time_backlog_;
+  DvrPose* pose_client_ = nullptr;
 
   static constexpr int kPostThreadInterrupted = 1;
 

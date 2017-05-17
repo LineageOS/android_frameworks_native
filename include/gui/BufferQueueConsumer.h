@@ -32,7 +32,7 @@ class BufferQueueConsumer : public BnGraphicBufferConsumer {
 
 public:
     BufferQueueConsumer(const sp<BufferQueueCore>& core);
-    virtual ~BufferQueueConsumer();
+    ~BufferQueueConsumer() override;
 
     // acquireBuffer attempts to acquire ownership of the next pending buffer in
     // the BufferQueue. If no buffer is pending then it returns
@@ -128,6 +128,12 @@ public:
     // These are merged with the bits passed to dequeueBuffer.  The values are
     // enumerated in gralloc.h, e.g. GRALLOC_USAGE_HW_RENDER; the default is 0.
     virtual status_t setConsumerUsageBits(uint32_t usage);
+
+    // setConsumerIsProtected will turn on an internal bit that indicates whether
+    // the consumer can handle protected gralloc buffers (i.e. with
+    // GRALLOC_USAGE_PROTECTED set). IGraphicBufferProducer can query this
+    // capability using NATIVE_WINDOW_CONSUMER_IS_PROTECTED.
+    virtual status_t setConsumerIsProtected(bool isProtected);
 
     // setTransformHint bakes in rotation to buffers so overlays can be used.
     // The values are enumerated in window.h, e.g.

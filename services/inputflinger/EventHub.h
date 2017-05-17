@@ -25,9 +25,8 @@
 #include <input/KeyCharacterMap.h>
 #include <input/VirtualKeyMap.h>
 #include <utils/String8.h>
-#include <utils/threads.h>
+#include <utils/Mutex.h>
 #include <utils/Log.h>
-#include <utils/threads.h>
 #include <utils/List.h>
 #include <utils/Errors.h>
 #include <utils/PropertyMap.h>
@@ -267,6 +266,15 @@ public:
 
     /* Called by the heatbeat to ensures that the reader has not deadlocked. */
     virtual void monitor() = 0;
+
+    /* Return true if the device is enabled. */
+    virtual bool isDeviceEnabled(int32_t deviceId) = 0;
+
+    /* Enable an input device */
+    virtual status_t enableDevice(int32_t deviceId) = 0;
+
+    /* Disable an input device. Closes file descriptor to that device. */
+    virtual status_t disableDevice(int32_t deviceId) = 0;
 };
 
 class EventHub : public EventHubInterface
@@ -335,7 +343,7 @@ private:
     struct Device {
         Device* next;
 
-        int fd; // may be -1 if device is virtual
+        int fd; // may be -1 if device is closed
         const int32_t id;
         const String8 path;
         const InputDeviceIdentifier identifier;
@@ -371,7 +379,11 @@ private:
 
         void close();
 
-        inline bool isVirtual() const { return fd < 0; }
+        bool enabled; // initially true
+        status_t enable();
+        status_t disable();
+        bool hasValidFd();
+        const bool isVirtual; // set if fd < 0 is passed to constructor
 
         const sp<KeyCharacterMap>& getKeyCharacterMap() const {
             if (combinedKeyMap != NULL) {
@@ -389,6 +401,14 @@ private:
     status_t closeDeviceByPathLocked(const char *devicePath);
     void closeDeviceLocked(Device* device);
     void closeAllDevicesLocked();
+
+    void configureFd(Device* device);
+
+    bool isDeviceEnabled(int32_t deviceId);
+    status_t enableDevice(int32_t deviceId);
+    status_t disableDevice(int32_t deviceId);
+    status_t registerDeviceForEpollLocked(Device* device);
+    status_t unregisterDeviceFromEpollLocked(Device* device);
 
     status_t scanDirLocked(const char *dirname);
     void scanDevicesLocked();
@@ -409,7 +429,7 @@ private:
 
     int32_t getNextControllerNumberLocked(Device* device);
     void releaseControllerNumberLocked(Device* device);
-    void setLedForController(Device* device);
+    void setLedForControllerLocked(Device* device);
 
     status_t mapLed(Device* device, int32_t led, int32_t* outScanCode) const;
     void setLedStateLocked(Device* device, int32_t led, bool on);

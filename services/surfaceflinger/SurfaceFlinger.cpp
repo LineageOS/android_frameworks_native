@@ -548,11 +548,14 @@ void SurfaceFlinger::init() {
         mSFEventThread = new EventThread(sfVsyncSrc, *this, true);
         mEventQueue.setEventThread(mSFEventThread);
 
-        // set SFEventThread to SCHED_FIFO to minimize jitter
+        // set EventThread and SFEventThread to SCHED_FIFO to minimize jitter
         struct sched_param param = {0};
         param.sched_priority = 2;
         if (sched_setscheduler(mSFEventThread->getTid(), SCHED_FIFO, &param) != 0) {
             ALOGE("Couldn't set SCHED_FIFO for SFEventThread");
+        }
+        if (sched_setscheduler(mEventThread->getTid(), SCHED_FIFO, &param) != 0) {
+            ALOGE("Couldn't set SCHED_FIFO for EventThread");
         }
 
         // Get a RenderEngine for the given display / config (can't fail)
@@ -581,6 +584,7 @@ void SurfaceFlinger::init() {
 
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
+            ALOGI("VR request display mode: requestDisplay=%d", requestDisplay);
             mVrFlingerRequestsDisplay = requestDisplay;
             signalTransaction();
         };
@@ -1112,9 +1116,14 @@ void SurfaceFlinger::disableHardwareVsync(bool makeUnavailable) {
 
 void SurfaceFlinger::resyncWithRateLimit() {
     static constexpr nsecs_t kIgnoreDelay = ms2ns(500);
-    if (systemTime() - mLastSwapTime > kIgnoreDelay) {
+
+    // No explicit locking is needed here since EventThread holds a lock while calling this method
+    static nsecs_t sLastResyncAttempted = 0;
+    const nsecs_t now = systemTime();
+    if (now - sLastResyncAttempted > kIgnoreDelay) {
         resyncToHardwareVsync(false);
     }
+    sLastResyncAttempted = now;
 }
 
 void SurfaceFlinger::onVSyncReceived(HWComposer* composer, int32_t type,
@@ -1258,7 +1267,6 @@ void SurfaceFlinger::resetHwcLocked() {
         }
     }
     mDisplays.clear();
-    initializeDisplays();
 }
 
 void SurfaceFlinger::updateVrFlinger() {
@@ -1304,6 +1312,12 @@ void SurfaceFlinger::updateVrFlinger() {
     // Explicitly re-initialize the primary display. This is because some other
     // parts of this class rely on the primary display always being available.
     createDefaultDisplayDevice();
+
+    // Reset the timing values to account for the period of the swapped in HWC
+    const auto& activeConfig = mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
+    const nsecs_t period = activeConfig->getVsyncPeriod();
+    mAnimFrameTracker.setDisplayRefreshPeriod(period);
+    setCompositorTimingSnapped(0, period, 0);
 
     android_atomic_or(1, &mRepaintEverything);
     setTransactionFlags(eDisplayTransactionNeeded);
@@ -3172,7 +3186,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
     if (currentMode == HWC_POWER_MODE_OFF) {
         // Turn on the display
         getHwComposer().setPowerMode(type, mode);
-        if (type == DisplayDevice::DISPLAY_PRIMARY) {
+        if (type == DisplayDevice::DISPLAY_PRIMARY &&
+            mode != HWC_POWER_MODE_DOZE_SUSPEND) {
             // FIXME: eventthread only knows about the main display right now
             mEventThread->onScreenAcquired();
             resyncToHardwareVsync(true);
@@ -3204,7 +3219,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
         getHwComposer().setPowerMode(type, mode);
         mVisibleRegionsDirty = true;
         // from this point on, SF will stop drawing on this display
-    } else if (mode == HWC_POWER_MODE_DOZE) {
+    } else if (mode == HWC_POWER_MODE_DOZE ||
+               mode == HWC_POWER_MODE_NORMAL) {
         // Update display while dozing
         getHwComposer().setPowerMode(type, mode);
         if (type == DisplayDevice::DISPLAY_PRIMARY) {
@@ -3221,6 +3237,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
         }
         getHwComposer().setPowerMode(type, mode);
     } else {
+        ALOGE("Attempting to set unknown power mode: %d\n", mode);
         getHwComposer().setPowerMode(type, mode);
     }
 }
@@ -4213,7 +4230,7 @@ void SurfaceFlinger::renderScreenImplLocked(
         if (state.z < minLayerZ || state.z > maxLayerZ) {
             continue;
         }
-        layer->traverseInZOrder([&](Layer* layer) {
+        layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
             if (!layer->isVisible()) {
                 return;
             }
@@ -4261,7 +4278,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(
                 (state.z < minLayerZ || state.z > maxLayerZ)) {
             continue;
         }
-        layer->traverseInZOrder([&](Layer *layer) {
+        layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer *layer) {
             secureLayerIsVisible = secureLayerIsVisible || (layer->isVisible() &&
                     layer->isSecure());
         });
@@ -4409,7 +4426,7 @@ void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* v
             const Layer::State& state(layer->getDrawingState());
             if (layer->getLayerStack() == hw->getLayerStack() && state.z >= minLayerZ &&
                     state.z <= maxLayerZ) {
-                layer->traverseInZOrder([&](Layer* layer) {
+                layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
                     ALOGE("%c index=%zu, name=%s, layerStack=%d, z=%d, visible=%d, flags=%x, alpha=%.3f",
                             layer->isVisible() ? '+' : '-',
                             i, layer->getName().string(), layer->getLayerStack(), state.z,
@@ -4423,12 +4440,12 @@ void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* v
 
 // ---------------------------------------------------------------------------
 
-void SurfaceFlinger::State::traverseInZOrder(const std::function<void(Layer*)>& consume) const {
-    layersSortedByZ.traverseInZOrder(consume);
+void SurfaceFlinger::State::traverseInZOrder(const LayerVector::Visitor& visitor) const {
+    layersSortedByZ.traverseInZOrder(stateSet, visitor);
 }
 
-void SurfaceFlinger::State::traverseInReverseZOrder(const std::function<void(Layer*)>& consume) const {
-    layersSortedByZ.traverseInReverseZOrder(consume);
+void SurfaceFlinger::State::traverseInReverseZOrder(const LayerVector::Visitor& visitor) const {
+    layersSortedByZ.traverseInReverseZOrder(stateSet, visitor);
 }
 
 }; // namespace android

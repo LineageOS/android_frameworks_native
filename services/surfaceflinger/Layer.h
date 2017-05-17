@@ -192,6 +192,7 @@ public:
     bool setFlags(uint8_t flags, uint8_t mask);
     bool setLayerStack(uint32_t layerStack);
     bool setDataSpace(android_dataspace dataSpace);
+    android_dataspace getDataSpace() const;
     uint32_t getLayerStack() const;
     void deferTransactionUntil(const sp<IBinder>& barrierHandle, uint64_t frameNumber);
     void deferTransactionUntil(const sp<Layer>& barrierLayer, uint64_t frameNumber);
@@ -274,8 +275,6 @@ public:
     void setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z);
     void forceClientComposition(int32_t hwcId);
     void setPerFrameData(const sp<const DisplayDevice>& displayDevice);
-
-    android_dataspace getDataSpace() const;
 
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state
@@ -476,8 +475,9 @@ public:
     uint8_t getAlpha() const;
 #endif
 
-    void traverseInReverseZOrder(const std::function<void(Layer*)>& exec);
-    void traverseInZOrder(const std::function<void(Layer*)>& exec);
+    void traverseInReverseZOrder(LayerVector::StateSet stateSet,
+                                 const LayerVector::Visitor& visitor);
+    void traverseInZOrder(LayerVector::StateSet stateSet, const LayerVector::Visitor& visitor);
 
     void addChild(const sp<Layer>& layer);
     // Returns index if removed, or negative value otherwise
@@ -557,7 +557,7 @@ private:
 
     void setParent(const sp<Layer>& layer);
 
-    LayerVector makeTraversalList();
+    LayerVector makeTraversalList(LayerVector::StateSet stateSet);
     void addZOrderRelative(const wp<Layer>& relative);
     void removeZOrderRelative(const wp<Layer>& relative);
 
@@ -657,6 +657,7 @@ private:
     uint32_t mTextureName;      // from GLES
     bool mPremultipliedAlpha;
     String8 mName;
+    String8 mTransactionName; // A cached version of "TX - " + mName for systraces
     PixelFormat mFormat;
 
     // these are protected by an external lock

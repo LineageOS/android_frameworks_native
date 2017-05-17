@@ -472,7 +472,8 @@ private:
                 case 6: {
                     // Version 1 had:
                     constexpr int OLD_DEXOPT_PUBLIC         = 1 << 1;
-                    constexpr int OLD_DEXOPT_SAFEMODE       = 1 << 2;
+                    // Note: DEXOPT_SAFEMODE has been removed.
+                    // constexpr int OLD_DEXOPT_SAFEMODE       = 1 << 2;
                     constexpr int OLD_DEXOPT_DEBUGGABLE     = 1 << 3;
                     constexpr int OLD_DEXOPT_BOOTCOMPLETE   = 1 << 4;
                     constexpr int OLD_DEXOPT_PROFILE_GUIDED = 1 << 5;
@@ -480,7 +481,6 @@ private:
                     int input = atoi(param);
                     package_parameters_.dexopt_flags =
                             ReplaceMask(input, OLD_DEXOPT_PUBLIC, DEXOPT_PUBLIC) |
-                            ReplaceMask(input, OLD_DEXOPT_SAFEMODE, DEXOPT_SAFEMODE) |
                             ReplaceMask(input, OLD_DEXOPT_DEBUGGABLE, DEXOPT_DEBUGGABLE) |
                             ReplaceMask(input, OLD_DEXOPT_BOOTCOMPLETE, DEXOPT_BOOTCOMPLETE) |
                             ReplaceMask(input, OLD_DEXOPT_PROFILE_GUIDED, DEXOPT_PROFILE_GUIDED) |
@@ -734,6 +734,10 @@ private:
     }
 
     static const char* ParseNull(const char* arg) {
+        // b/38186355. Revert soon.
+        if (strcmp(arg, "!null") == 0) {
+            return nullptr;
+        }
         return (strcmp(arg, "!") == 0) ? nullptr : arg;
     }
 

@@ -36,6 +36,8 @@
 #include <binder/PermissionCache.h>
 #include <private/android_filesystem_config.h>
 
+#include <system/window.h>
+
 namespace android {
 
 BufferQueueConsumer::BufferQueueConsumer(const sp<BufferQueueCore>& core) :
@@ -706,6 +708,14 @@ status_t BufferQueueConsumer::setConsumerUsageBits(uint32_t usage) {
     BQ_LOGV("setConsumerUsageBits: %#x", usage);
     Mutex::Autolock lock(mCore->mMutex);
     mCore->mConsumerUsageBits = usage;
+    return NO_ERROR;
+}
+
+status_t BufferQueueConsumer::setConsumerIsProtected(bool isProtected) {
+    ATRACE_CALL();
+    BQ_LOGV("setConsumerIsProtected: %s", isProtected ? "true" : "false");
+    Mutex::Autolock lock(mCore->mMutex);
+    mCore->mConsumerIsProtected = isProtected;
     return NO_ERROR;
 }
 

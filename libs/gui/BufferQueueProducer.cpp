@@ -39,6 +39,8 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
+#include <system/window.h>
+
 namespace android {
 
 static constexpr uint32_t BQ_LAYER_COUNT = 1;
@@ -1105,6 +1107,9 @@ int BufferQueueProducer::query(int what, int *outValue) {
             } else {
                 value = static_cast<int32_t>(mCore->mBufferAge);
             }
+            break;
+        case NATIVE_WINDOW_CONSUMER_IS_PROTECTED:
+            value = static_cast<int32_t>(mCore->mConsumerIsProtected);
             break;
         default:
             return BAD_VALUE;

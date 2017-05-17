@@ -32,20 +32,11 @@ class BufferHubBuffer : public pdx::Client {
   // the usage is software then |addr| will be updated to point to the address
   // of the buffer in virtual memory. The caller should only access/modify the
   // pixels in the specified area. anything else is undefined behavior.
-  int Lock(int usage, int x, int y, int width, int height, void** addr,
-           size_t index);
+  int Lock(int usage, int x, int y, int width, int height, void** addr);
 
   // Must be called after Lock() when the caller has finished changing the
   // buffer.
-  int Unlock(size_t index);
-
-  // Helper for when index is 0.
-  int Lock(int usage, int x, int y, int width, int height, void** addr) {
-    return Lock(usage, x, y, width, height, addr, 0);
-  }
-
-  // Helper for when index is 0.
-  int Unlock() { return Unlock(0); }
+  int Unlock();
 
   // Gets a blob buffer that was created with BufferProducer::CreateBlob.
   // Locking and Unlocking is handled internally. There's no need to Unlock
@@ -85,36 +76,27 @@ class BufferHubBuffer : public pdx::Client {
   }
 
   native_handle_t* native_handle() const {
-    return const_cast<native_handle_t*>(slices_[0].handle());
-  }
-  // If index is greater than or equal to slice_count(), the result is
-  // undefined.
-  native_handle_t* native_handle(size_t index) const {
-    return const_cast<native_handle_t*>(slices_[index].handle());
+    return const_cast<native_handle_t*>(buffer_.handle());
   }
 
-  IonBuffer* buffer() { return &slices_[0]; }
-  const IonBuffer* buffer() const { return &slices_[0]; }
+  IonBuffer* buffer() { return &buffer_; }
+  const IonBuffer* buffer() const { return &buffer_; }
 
-  // If index is greater than or equal to slice_count(), the result is
-  // undefined.
-  IonBuffer* slice(size_t index) { return &slices_[index]; }
-  const IonBuffer* slice(size_t index) const { return &slices_[index]; }
-
-  int slice_count() const { return static_cast<int>(slices_.size()); }
   int id() const { return id_; }
 
   // The following methods return settings of the first buffer. Currently,
   // it is only possible to create multi-buffer BufferHubBuffers with the same
   // settings.
-  uint32_t width() const { return slices_[0].width(); }
-  uint32_t height() const { return slices_[0].height(); }
-  uint32_t stride() const { return slices_[0].stride(); }
-  uint32_t format() const { return slices_[0].format(); }
-  uint32_t usage() const { return slices_[0].usage(); }
-  uint32_t layer_count() const { return slices_[0].layer_count(); }
-  uint64_t producer_usage() const { return slices_[0].producer_usage(); }
-  uint64_t consumer_usage() const { return slices_[0].consumer_usage(); }
+  uint32_t width() const { return buffer_.width(); }
+  uint32_t height() const { return buffer_.height(); }
+  uint32_t stride() const { return buffer_.stride(); }
+  uint32_t format() const { return buffer_.format(); }
+  uint32_t usage() const { return buffer_.usage(); }
+  uint32_t layer_count() const { return buffer_.layer_count(); }
+
+  // TODO(b/37881101) Clean up producer/consumer usage.
+  uint64_t producer_usage() const { return buffer_.usage(); }
+  uint64_t consumer_usage() const { return buffer_.usage(); }
 
  protected:
   explicit BufferHubBuffer(LocalChannelHandle channel);
@@ -133,9 +115,7 @@ class BufferHubBuffer : public pdx::Client {
   // or any other functional purpose as a security precaution.
   int id_;
 
-  // A BufferHubBuffer may contain multiple slices of IonBuffers with same
-  // configurations.
-  std::vector<IonBuffer> slices_;
+  IonBuffer buffer_;
 };
 
 // This represents a writable buffer. Calling Post notifies all clients and
@@ -151,15 +131,6 @@ class BufferHubBuffer : public pdx::Client {
 // The API also assumes that metadata is a serializable type (plain old data).
 class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
  public:
-  // Create a buffer designed to hold arbitrary bytes that can be read and
-  // written from CPU, GPU and DSP. The buffer is mapped uncached so that CPU
-  // reads and writes are predictable.
-  static std::unique_ptr<BufferProducer> CreateUncachedBlob(size_t size);
-
-  // Creates a persistent uncached buffer with the given name and access.
-  static std::unique_ptr<BufferProducer> CreatePersistentUncachedBlob(
-      const std::string& name, int user_id, int group_id, size_t size);
-
   // Imports a bufferhub producer channel, assuming ownership of its handle.
   static std::unique_ptr<BufferProducer> Import(LocalChannelHandle channel);
   static std::unique_ptr<BufferProducer> Import(
@@ -222,11 +193,10 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
 
   // Constructs a buffer with the given geometry and parameters.
   BufferProducer(uint32_t width, uint32_t height, uint32_t format,
-                 uint32_t usage, size_t metadata_size = 0,
-                 size_t slice_count = 1);
+                 uint32_t usage, size_t metadata_size = 0);
   BufferProducer(uint32_t width, uint32_t height, uint32_t format,
                  uint64_t producer_usage, uint64_t consumer_usage,
-                 size_t metadata_size, size_t slice_count);
+                 size_t metadata_size);
 
   // Constructs a persistent buffer with the given geometry and parameters and
   // binds it to |name| in one shot. If a persistent buffer with the same name
@@ -242,12 +212,11 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
   // effective user or group id of the calling process.
   BufferProducer(const std::string& name, int user_id, int group_id,
                  uint32_t width, uint32_t height, uint32_t format,
-                 uint32_t usage, size_t metadata_size = 0,
-                 size_t slice_count = 1);
+                 uint32_t usage, size_t metadata_size = 0);
   BufferProducer(const std::string& name, int user_id, int group_id,
                  uint32_t width, uint32_t height, uint32_t format,
                  uint64_t producer_usage, uint64_t consumer_usage,
-                 size_t metadata_size, size_t slice_count);
+                 size_t meta_size_bytes);
 
   // Constructs a blob (flat) buffer with the given usage flags.
   BufferProducer(uint32_t usage, size_t size);

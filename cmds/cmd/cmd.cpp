@@ -123,6 +123,13 @@ int main(int argc, char* const argv[])
 {
     signal(SIGPIPE, SIG_IGN);
     sp<ProcessState> proc = ProcessState::self();
+    // setThreadPoolMaxThreadCount(0) actually tells the kernel it's
+    // not allowed to spawn any additional threads, but we still spawn
+    // a binder thread from userspace when we call startThreadPool().
+    // This is safe because we only have 2 callbacks, neither of which
+    // block.
+    // See b/36066697 for rationale
+    proc->setThreadPoolMaxThreadCount(0);
     proc->startThreadPool();
 
     sp<IServiceManager> sm = defaultServiceManager();
