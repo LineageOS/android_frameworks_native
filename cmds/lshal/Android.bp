@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-cc_binary {
-    name: "lshal",
+cc_library_shared {
+    name: "liblshal",
     shared_libs: [
         "libbase",
         "libcutils",
@@ -25,7 +25,44 @@ cc_binary {
         "android.hidl.manager@1.0",
     ],
     srcs: [
+        "DebugCommand.cpp",
         "Lshal.cpp",
-        "PipeRelay.cpp"
+        "ListCommand.cpp",
+        "PipeRelay.cpp",
+        "utils.cpp",
     ],
+}
+
+cc_defaults {
+    name: "lshal_defaults",
+    shared_libs: [
+        "libbase",
+        "libhidlbase",
+        "libhidltransport",
+        "liblshal",
+        "libutils",
+    ]
+}
+
+cc_binary {
+    name: "lshal",
+    defaults: ["lshal_defaults"],
+    srcs: [
+        "main.cpp"
+    ]
+}
+
+cc_test {
+    name: "lshal_test",
+    defaults: ["lshal_defaults"],
+    gtest: true,
+    static_libs: [
+        "libgmock"
+    ],
+    shared_libs: [
+        "android.hardware.tests.baz@1.0"
+    ],
+    srcs: [
+        "test.cpp"
+    ]
 }

@@ -1997,8 +1997,6 @@ binder::Status InstalldNativeService::idmap(const std::string& targetApkPath,
 
     int idmap_fd = -1;
     char idmap_path[PATH_MAX];
-    struct stat target_apk_stat, overlay_apk_stat, idmap_stat;
-    bool outdated = false;
 
     if (flatten_path(IDMAP_PREFIX, IDMAP_SUFFIX, overlay_apk,
                 idmap_path, sizeof(idmap_path)) == -1) {
@@ -2006,22 +2004,8 @@ binder::Status InstalldNativeService::idmap(const std::string& targetApkPath,
         goto fail;
     }
 
-    if (stat(idmap_path, &idmap_stat) < 0 ||
-            stat(target_apk, &target_apk_stat) < 0 ||
-            stat(overlay_apk, &overlay_apk_stat) < 0) {
-        outdated = true;
-    } else if (idmap_stat.st_mtime < target_apk_stat.st_mtime ||
-            idmap_stat.st_mtime < overlay_apk_stat.st_mtime) {
-        outdated = true;
-    }
-
-    if (outdated) {
-        unlink(idmap_path);
-        idmap_fd = open(idmap_path, O_RDWR | O_CREAT | O_EXCL, 0644);
-    } else {
-        idmap_fd = open(idmap_path, O_RDWR);
-    }
-
+    unlink(idmap_path);
+    idmap_fd = open(idmap_path, O_RDWR | O_CREAT | O_EXCL, 0644);
     if (idmap_fd < 0) {
         ALOGE("idmap cannot open '%s' for output: %s\n", idmap_path, strerror(errno));
         goto fail;
@@ -2033,11 +2017,6 @@ binder::Status InstalldNativeService::idmap(const std::string& targetApkPath,
     if (fchmod(idmap_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) < 0) {
         ALOGE("idmap cannot chmod '%s'\n", idmap_path);
         goto fail;
-    }
-
-    if (!outdated) {
-        close(idmap_fd);
-        return ok();
     }
 
     pid_t pid;
