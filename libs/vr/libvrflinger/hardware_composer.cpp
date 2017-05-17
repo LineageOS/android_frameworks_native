@@ -19,6 +19,7 @@
 #include <chrono>
 #include <functional>
 #include <map>
+#include <tuple>
 
 #include <dvr/dvr_display_types.h>
 #include <dvr/performance_client_api.h>
@@ -36,17 +37,6 @@ namespace android {
 namespace dvr {
 
 namespace {
-
-// If the number of pending fences goes over this count at the point when we
-// are about to submit a new frame to HWC, we will drop the frame. This should
-// be a signal that the display driver has begun queuing frames. Note that with
-// smart displays (with RAM), the fence is signaled earlier than the next vsync,
-// at the point when the DMA to the display completes. Currently we use a smart
-// display and the EDS timing coincides with zero pending fences, so this is 0.
-constexpr int kAllowedPendingFenceCount = 0;
-
-// Offset before vsync to submit frames to hardware composer.
-constexpr int64_t kFramePostOffsetNs = 4000000;  // 4ms
 
 const char kBacklightBrightnessSysFile[] =
     "/sys/class/leds/lcd-backlight/brightness";
@@ -397,8 +387,8 @@ void HardwareComposer::PostLayers() {
   }
 
   const bool is_frame_pending = IsFramePendingInDriver();
-  const bool is_fence_pending =
-      retire_fence_fds_.size() > kAllowedPendingFenceCount;
+  const bool is_fence_pending = retire_fence_fds_.size() >
+                                post_thread_config_.allowed_pending_fence_count;
 
   if (is_fence_pending || is_frame_pending) {
     ATRACE_INT("frame_skip_count", ++frame_skip_count_);
@@ -473,6 +463,62 @@ void HardwareComposer::SetDisplaySurfaces(
   // decision on persistent VR mode.
   if (request_display_callback_)
     request_display_callback_(!display_idle);
+}
+
+int HardwareComposer::OnNewGlobalBuffer(DvrGlobalBufferKey key,
+                                        IonBuffer& ion_buffer) {
+  if (key == kVrFlingerConfigBufferKey) {
+    return MapConfigBuffer(ion_buffer);
+  }
+
+  return 0;
+}
+
+void HardwareComposer::OnDeletedGlobalBuffer(DvrGlobalBufferKey key) {
+  if (key == kVrFlingerConfigBufferKey) {
+    ConfigBufferDeleted();
+  }
+}
+
+int HardwareComposer::MapConfigBuffer(IonBuffer& ion_buffer) {
+  std::lock_guard<std::mutex> lock(shared_config_mutex_);
+  shared_config_ring_ = DvrVrFlingerConfigRing();
+
+  if (ion_buffer.width() < DvrVrFlingerConfigRing::MemorySize()) {
+    ALOGE("HardwareComposer::MapConfigBuffer: invalid buffer size.");
+    return -EINVAL;
+  }
+
+  void* buffer_base = 0;
+  int result = ion_buffer.Lock(ion_buffer.usage(), 0, 0, ion_buffer.width(),
+                               ion_buffer.height(), &buffer_base);
+  if (result != 0) {
+    ALOGE("HardwareComposer::MapConfigBuffer: Failed to map vrflinger config "
+          "buffer.");
+    return -EPERM;
+  }
+
+  shared_config_ring_ =
+      DvrVrFlingerConfigRing::Create(buffer_base, ion_buffer.width());
+  ion_buffer.Unlock();
+
+  return 0;
+}
+
+void HardwareComposer::ConfigBufferDeleted() {
+  std::lock_guard<std::mutex> lock(shared_config_mutex_);
+  shared_config_ring_ = DvrVrFlingerConfigRing();
+}
+
+void HardwareComposer::UpdateConfigBuffer() {
+  std::lock_guard<std::mutex> lock(shared_config_mutex_);
+  if (!shared_config_ring_.is_valid())
+    return;
+  // Copy from latest record in shared_config_ring_ to local copy.
+  DvrVrFlingerConfigBuffer record;
+  if (shared_config_ring_.GetNewest(&shared_config_ring_sequence_, &record)) {
+    post_thread_config_ = record;
+  }
 }
 
 int HardwareComposer::PostThreadPollInterruptible(
@@ -744,6 +790,9 @@ void HardwareComposer::PostThread() {
   while (1) {
     ATRACE_NAME("HardwareComposer::PostThread");
 
+    // Check for updated config once per vsync.
+    UpdateConfigBuffer();
+
     while (post_thread_quiescent_) {
       std::unique_lock<std::mutex> lock(post_thread_mutex_);
       ALOGI("HardwareComposer::PostThread: Entering quiescent state.");
@@ -823,9 +872,10 @@ void HardwareComposer::PostThread() {
 
       const int64_t display_time_est_ns = vsync_timestamp + ns_per_frame;
       const int64_t now_ns = GetSystemClockNs();
-      const int64_t sleep_time_ns =
-          display_time_est_ns - now_ns - kFramePostOffsetNs;
-      const int64_t wakeup_time_ns = display_time_est_ns - kFramePostOffsetNs;
+      const int64_t sleep_time_ns = display_time_est_ns - now_ns -
+                                    post_thread_config_.frame_post_offset_ns;
+      const int64_t wakeup_time_ns =
+          display_time_est_ns - post_thread_config_.frame_post_offset_ns;
 
       ATRACE_INT64("sleep_time_ns", sleep_time_ns);
       if (sleep_time_ns > 0) {

@@ -2,6 +2,7 @@
 #include <dvr/dvr_buffer.h>
 #include <dvr/dvr_display_manager.h>
 #include <dvr/dvr_surface.h>
+#include <dvr/dvr_vrflinger_config_buffer.h>
 #include <system/graphics.h>
 
 #include <base/logging.h>
@@ -12,7 +13,7 @@ namespace dvr {
 
 namespace {
 
-class DvrNamedBufferTest : public ::testing::Test {
+class DvrGlobalBufferTest : public ::testing::Test {
  protected:
   void SetUp() override {
     const int ret = dvrDisplayManagerCreate(&client_);
@@ -28,7 +29,7 @@ class DvrNamedBufferTest : public ::testing::Test {
   DvrDisplayManager* client_ = nullptr;
 };
 
-TEST_F(DvrNamedBufferTest, TestNamedBuffersSameName) {
+TEST_F(DvrGlobalBufferTest, TestGlobalBuffersSameName) {
   const DvrGlobalBufferKey buffer_key = 101;
   DvrBuffer* buffer1 = nullptr;
   int ret1 =
@@ -95,7 +96,7 @@ TEST_F(DvrNamedBufferTest, TestNamedBuffersSameName) {
   AHardwareBuffer_release(hardware_buffer3);
 }
 
-TEST_F(DvrNamedBufferTest, TestMultipleNamedBuffers) {
+TEST_F(DvrGlobalBufferTest, TestMultipleGlobalBuffers) {
   const DvrGlobalBufferKey buffer_key1 = 102;
   const DvrGlobalBufferKey buffer_key2 = 103;
   DvrBuffer* setup_buffer1 = nullptr;
@@ -125,7 +126,7 @@ TEST_F(DvrNamedBufferTest, TestMultipleNamedBuffers) {
   dvrBufferDestroy(buffer2);
 }
 
-TEST_F(DvrNamedBufferTest, TestNamedBufferUsage) {
+TEST_F(DvrGlobalBufferTest, TestGlobalBufferUsage) {
   const DvrGlobalBufferKey buffer_key = 100;
 
   // Set usage to AHARDWAREBUFFER_USAGE_VIDEO_ENCODE. We use this because
@@ -152,6 +153,153 @@ TEST_F(DvrNamedBufferTest, TestNamedBufferUsage) {
 
   dvrBufferDestroy(setup_buffer);
   AHardwareBuffer_release(hardware_buffer);
+}
+
+TEST_F(DvrGlobalBufferTest, TestGlobalBufferCarriesData) {
+  const DvrGlobalBufferKey buffer_name = 110;
+
+  uint64_t usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
+                   AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
+  constexpr size_t size = 1024 * sizeof(uint64_t);
+  constexpr uint64_t value = 0x123456787654321;
+
+  {
+    // Allocate some data and set it to something.
+    DvrBuffer* setup_buffer = nullptr;
+    int e1 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_name, size,
+                                                usage, &setup_buffer);
+    ASSERT_NE(nullptr, setup_buffer);
+    ASSERT_EQ(0, e1);
+
+    AHardwareBuffer* hardware_buffer = nullptr;
+    int e2 = dvrBufferGetAHardwareBuffer(setup_buffer, &hardware_buffer);
+    ASSERT_EQ(0, e2);
+    ASSERT_NE(nullptr, hardware_buffer);
+
+    void* buffer;
+    int e3 = AHardwareBuffer_lock(hardware_buffer, usage, -1, nullptr, &buffer);
+    ASSERT_EQ(0, e3);
+    ASSERT_NE(nullptr, buffer);
+    // Verify that the buffer pointer is at least 16 byte aligned.
+    ASSERT_EQ(0, reinterpret_cast<uintptr_t>(buffer) & (16 - 1));
+
+    uint64_t* data = static_cast<uint64_t*>(buffer);
+    constexpr size_t num_values = size / sizeof(uint64_t);
+    for (size_t i = 0; i < num_values; ++i) {
+      data[i] = value;
+    }
+
+    int32_t fence = -1;
+    int e4 = AHardwareBuffer_unlock(hardware_buffer, &fence);
+    ASSERT_EQ(0, e4);
+
+    dvrBufferDestroy(setup_buffer);
+    AHardwareBuffer_release(hardware_buffer);
+  }
+
+  {
+    // Get the buffer and check that all the data is still present.
+    DvrBuffer* setup_buffer = nullptr;
+    int e1 = dvrGetGlobalBuffer(buffer_name, &setup_buffer);
+    ASSERT_NE(nullptr, setup_buffer);
+    ASSERT_EQ(0, e1);
+
+    AHardwareBuffer* hardware_buffer = nullptr;
+    int e2 = dvrBufferGetAHardwareBuffer(setup_buffer, &hardware_buffer);
+    ASSERT_EQ(0, e2);
+    ASSERT_NE(nullptr, hardware_buffer);
+
+    void* buffer;
+    int e3 = AHardwareBuffer_lock(hardware_buffer, usage, -1, nullptr, &buffer);
+    ASSERT_EQ(0, e3);
+    ASSERT_NE(nullptr, buffer);
+    // Verify that the buffer pointer is at least 16 byte aligned.
+    ASSERT_EQ(0, reinterpret_cast<uintptr_t>(buffer) & (16 - 1));
+
+    uint64_t* data = static_cast<uint64_t*>(buffer);
+    constexpr size_t num_values = size / sizeof(uint64_t);
+    bool is_equal = true;
+    for (size_t i = 0; i < num_values; ++i) {
+      is_equal &= (data[i] == value);
+    }
+    ASSERT_TRUE(is_equal);
+
+    int32_t fence = -1;
+    int e4 = AHardwareBuffer_unlock(hardware_buffer, &fence);
+    ASSERT_EQ(0, e4);
+
+    dvrBufferDestroy(setup_buffer);
+    AHardwareBuffer_release(hardware_buffer);
+  }
+}
+
+TEST_F(DvrGlobalBufferTest, TestGlobalBufferZeroed) {
+  const DvrGlobalBufferKey buffer_name = 120;
+
+  // Allocate 1MB and check that it is all zeros.
+  uint64_t usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
+                   AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
+  constexpr size_t size = 1024 * 1024;
+  DvrBuffer* setup_buffer = nullptr;
+  int e1 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_name, size, usage,
+                                              &setup_buffer);
+  ASSERT_NE(nullptr, setup_buffer);
+  ASSERT_EQ(0, e1);
+
+  AHardwareBuffer* hardware_buffer = nullptr;
+  int e2 = dvrBufferGetAHardwareBuffer(setup_buffer, &hardware_buffer);
+  ASSERT_EQ(0, e2);
+  ASSERT_NE(nullptr, hardware_buffer);
+
+  void* buffer;
+  int e3 = AHardwareBuffer_lock(hardware_buffer, usage, -1, nullptr, &buffer);
+  ASSERT_EQ(0, e3);
+  ASSERT_NE(nullptr, buffer);
+  // Verify that the buffer pointer is at least 16 byte aligned.
+  ASSERT_EQ(0, reinterpret_cast<uintptr_t>(buffer) & (16 - 1));
+
+  uint64_t* data = static_cast<uint64_t*>(buffer);
+  constexpr size_t num_values = size / sizeof(uint64_t);
+  uint64_t zero = 0;
+  for (size_t i = 0; i < num_values; ++i) {
+    zero |= data[i];
+  }
+  ASSERT_EQ(0, zero);
+
+  int32_t fence = -1;
+  int e4 = AHardwareBuffer_unlock(hardware_buffer, &fence);
+  ASSERT_EQ(0, e4);
+
+  dvrBufferDestroy(setup_buffer);
+  AHardwareBuffer_release(hardware_buffer);
+}
+
+TEST_F(DvrGlobalBufferTest, TestVrflingerConfigBuffer) {
+  const DvrGlobalBufferKey buffer_name = kVrFlingerConfigBufferKey;
+
+  // First delete any existing buffer so we can test the failure case.
+  dvrDisplayManagerDeleteGlobalBuffer(client_, buffer_name);
+
+  const uint64_t usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
+                         AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY;
+
+  size_t correct_size = DvrVrFlingerConfigRing::MemorySize();
+  size_t wrong_size = DvrVrFlingerConfigRing::MemorySize(0);
+
+  // Setup an invalid config buffer (too small) and assert that it fails.
+  DvrBuffer* setup_buffer = nullptr;
+  int e1 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_name, wrong_size,
+                                              usage, &setup_buffer);
+  ASSERT_EQ(nullptr, setup_buffer);
+  ASSERT_GT(0, e1);
+
+  // Setup a correct config buffer.
+  int e2 = dvrDisplayManagerSetupGlobalBuffer(
+      client_, buffer_name, correct_size, usage, &setup_buffer);
+  ASSERT_NE(nullptr, setup_buffer);
+  ASSERT_EQ(0, e2);
+
+  dvrBufferDestroy(setup_buffer);
 }
 
 }  // namespace

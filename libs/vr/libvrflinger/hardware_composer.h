@@ -16,6 +16,7 @@
 #include <tuple>
 #include <vector>
 
+#include <dvr/dvr_vrflinger_config_buffer.h>
 #include <dvr/pose_client.h>
 #include <pdx/file_handle.h>
 #include <pdx/rpc/variant.h>
@@ -284,6 +285,9 @@ class HardwareComposer {
   void SetDisplaySurfaces(
       std::vector<std::shared_ptr<DirectDisplaySurface>> surfaces);
 
+  int OnNewGlobalBuffer(DvrGlobalBufferKey key, IonBuffer& ion_buffer);
+  void OnDeletedGlobalBuffer(DvrGlobalBufferKey key);
+
   void OnHardwareComposerRefresh();
 
  private:
@@ -365,6 +369,13 @@ class HardwareComposer {
   // Called on the post thread when the post thread is paused or quits.
   void OnPostThreadPaused();
 
+  // Map the given shared memory buffer to our broadcast ring to track updates
+  // to the config parameters.
+  int MapConfigBuffer(IonBuffer& ion_buffer);
+  void ConfigBufferDeleted();
+  // Poll for config udpates.
+  void UpdateConfigBuffer();
+
   bool initialized_;
 
   // Hardware composer HAL device from SurfaceFlinger. VrFlinger does not own
@@ -438,6 +449,13 @@ class HardwareComposer {
   // Pose client for frame count notifications. Pose client predicts poses
   // out to display frame boundaries, so we need to tell it about vsyncs.
   DvrPose* pose_client_ = nullptr;
+
+  // Broadcast ring for receiving config data from the DisplayManager.
+  DvrVrFlingerConfigRing shared_config_ring_;
+  uint32_t shared_config_ring_sequence_{0};
+  // Config buffer for reading from the post thread.
+  DvrVrFlingerConfigBuffer post_thread_config_;
+  std::mutex shared_config_mutex_;
 
   static constexpr int kPostThreadInterrupted = 1;
 

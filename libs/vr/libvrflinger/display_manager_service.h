@@ -59,6 +59,8 @@ class DisplayManagerService : public pdx::ServiceBase<DisplayManagerService> {
   pdx::Status<BorrowedNativeBufferHandle> OnSetupGlobalBuffer(
       pdx::Message& message, DvrGlobalBufferKey key, size_t size,
       uint64_t usage);
+  pdx::Status<void> OnDeleteGlobalBuffer(pdx::Message& message,
+                                         DvrGlobalBufferKey key);
   pdx::Status<std::string> OnGetConfigurationData(
       pdx::Message& message, display::ConfigFileType config_type);
 
