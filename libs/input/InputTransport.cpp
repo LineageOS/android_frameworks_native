@@ -843,15 +843,14 @@ status_t InputConsumer::sendFinishedSignal(uint32_t seq, bool handled) {
         }
         if (status) {
             // An error occurred so at least one signal was not sent, reconstruct the chain.
-            do {
+            for (;;) {
                 SeqChain seqChain;
                 seqChain.seq = chainIndex != 0 ? chainSeqs[chainIndex - 1] : seq;
                 seqChain.chain = chainSeqs[chainIndex];
                 mSeqChains.push(seqChain);
-                if (chainIndex != 0) {
-                    chainIndex--;
-                }
-            } while (chainIndex > 0);
+                if (!chainIndex) break;
+                chainIndex--;
+            }
             return status;
         }
     }
