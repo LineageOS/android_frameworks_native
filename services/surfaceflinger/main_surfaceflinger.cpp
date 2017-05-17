@@ -18,6 +18,7 @@
 
 #include <sched.h>
 
+#include <android/frameworks/displayservice/1.0/IDisplayService.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/graphics/allocator/2.0/IAllocator.h>
 #include <cutils/sched_policy.h>
@@ -25,6 +26,7 @@
 #include <binder/IPCThreadState.h>
 #include <binder/ProcessState.h>
 #include <binder/IServiceManager.h>
+#include <displayservice/DisplayService.h>
 #include <hidl/LegacySupport.h>
 #include <configstore/Utils.h>
 #include "GpuService.h"
@@ -32,14 +34,9 @@
 
 using namespace android;
 
-using android::hardware::graphics::allocator::V2_0::IAllocator;
-using android::hardware::configstore::V1_0::ISurfaceFlingerConfigs;
-using android::hardware::configstore::getBool;
-using android::hardware::configstore::getBool;
-
 static status_t startGraphicsAllocatorService() {
-    hardware::configureRpcThreadpool( 1 /* maxThreads */,
-            false /* callerWillJoin */);
+    using android::hardware::graphics::allocator::V2_0::IAllocator;
+
     status_t result =
         hardware::registerPassthroughServiceImplementation<IAllocator>();
     if (result != OK) {
@@ -50,11 +47,37 @@ static status_t startGraphicsAllocatorService() {
     return OK;
 }
 
-int main(int, char**) {
+static status_t startHidlServices() {
+    using android::frameworks::displayservice::V1_0::implementation::DisplayService;
+    using android::frameworks::displayservice::V1_0::IDisplayService;
+    using android::hardware::configstore::getBool;
+    using android::hardware::configstore::getBool;
+    using android::hardware::configstore::V1_0::ISurfaceFlingerConfigs;
+    hardware::configureRpcThreadpool(1 /* maxThreads */,
+            false /* callerWillJoin */);
+
+    status_t err;
+
     if (getBool<ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::startGraphicsAllocatorService>(false)) {
-        startGraphicsAllocatorService();
+        err = startGraphicsAllocatorService();
+        if (err != OK) {
+           return err;
+        }
     }
+
+    sp<IDisplayService> displayservice = new DisplayService();
+    err = displayservice->registerAsService();
+
+    if (err != OK) {
+        ALOGE("Could not register IDisplayService service.");
+    }
+
+    return err;
+}
+
+int main(int, char**) {
+    startHidlServices();
 
     signal(SIGPIPE, SIG_IGN);
     // When SF is launched in its own process, limit the number of
