@@ -133,11 +133,13 @@ LOCAL_SRC_FILES := \
     main_surfaceflinger.cpp
 
 LOCAL_SHARED_LIBRARIES := \
+    android.frameworks.displayservice@1.0 \
     android.hardware.configstore@1.0 \
     android.hardware.configstore-utils \
     android.hardware.graphics.allocator@2.0 \
     libsurfaceflinger \
     libcutils \
+    libdisplayservicehidl \
     liblog \
     libbinder \
     libhidlbase \
