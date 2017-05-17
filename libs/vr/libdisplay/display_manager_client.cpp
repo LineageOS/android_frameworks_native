@@ -32,13 +32,13 @@ DisplayManagerClient::GetSurfaceState() {
   return status;
 }
 
-pdx::Status<std::unique_ptr<IonBuffer>> DisplayManagerClient::SetupNamedBuffer(
-    const std::string& name, size_t size, uint64_t usage) {
-  auto status = InvokeRemoteMethod<DisplayManagerProtocol::SetupNamedBuffer>(
-      name, size, usage);
+pdx::Status<std::unique_ptr<IonBuffer>> DisplayManagerClient::SetupGlobalBuffer(
+    DvrGlobalBufferKey key, size_t size, uint64_t usage) {
+  auto status = InvokeRemoteMethod<DisplayManagerProtocol::SetupGlobalBuffer>(
+      key, size, usage);
   if (!status) {
     ALOGE(
-        "DisplayManagerClient::SetupPoseBuffer: Failed to create the named "
+        "DisplayManagerClient::SetupGlobalBuffer: Failed to create the global "
         "buffer %s",
         status.GetErrorMessage().c_str());
     return status.error_status();
@@ -49,9 +49,9 @@ pdx::Status<std::unique_ptr<IonBuffer>> DisplayManagerClient::SetupNamedBuffer(
   const int ret = native_buffer_handle.Import(ion_buffer.get());
   if (ret < 0) {
     ALOGE(
-        "DisplayClient::GetNamedBuffer: Failed to import named buffer: "
-        "name=%s; error=%s",
-        name.c_str(), strerror(-ret));
+        "DisplayClient::GetGlobalBuffer: Failed to import global buffer: "
+        "key=%d; error=%s",
+        key, strerror(-ret));
     return ErrorStatus(-ret);
   }
 

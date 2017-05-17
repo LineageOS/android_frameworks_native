@@ -28,9 +28,9 @@ void dvrDisplayManagerDestroy(DvrDisplayManager* client);
 // Sets up a named buffer for shared memory data transfer between display
 // clients and the display manager.
 // @return 0 on success. Otherwise returns a negative error value.
-int dvrDisplayManagerSetupNamedBuffer(DvrDisplayManager* client,
-                                      const char* name, size_t size,
-                                      uint64_t usage, DvrBuffer** buffer_out);
+int dvrDisplayManagerSetupGlobalBuffer(DvrDisplayManager* client,
+                                       DvrGlobalBufferKey key, size_t size,
+                                       uint64_t usage, DvrBuffer** buffer_out);
 
 // Device metrics data type enums.
 enum {

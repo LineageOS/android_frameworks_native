@@ -33,6 +33,7 @@ typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
 typedef struct DvrSurface DvrSurface;
 typedef uint64_t DvrSurfaceAttributeType;
 typedef int32_t DvrSurfaceAttributeKey;
+typedef int32_t DvrGlobalBufferKey;
 
 typedef struct DvrSurfaceAttributeValue DvrSurfaceAttributeValue;
 typedef struct DvrSurfaceAttribute DvrSurfaceAttribute;
@@ -42,10 +43,11 @@ struct native_handle;
 // dvr_display_manager.h
 typedef int (*DvrDisplayManagerCreatePtr)(DvrDisplayManager** client_out);
 typedef void (*DvrDisplayManagerDestroyPtr)(DvrDisplayManager* client);
-typedef int (*DvrDisplayManagerSetupNamedBufferPtr)(DvrDisplayManager* client,
-                                                    const char* name,
-                                                    size_t size, uint64_t usage,
-                                                    DvrBuffer** buffer_out);
+typedef int (*DvrDisplayManagerSetupGlobalBufferPtr)(DvrDisplayManager* client,
+                                                     DvrGlobalBufferKey key,
+                                                     size_t size,
+                                                     uint64_t usage,
+                                                     DvrBuffer** buffer_out);
 typedef int (*DvrDisplayManagerGetEventFdPtr)(DvrDisplayManager* client);
 typedef int (*DvrDisplayManagerTranslateEpollEventMaskPtr)(
     DvrDisplayManager* client, int in_events, int* out_events);
@@ -156,7 +158,8 @@ typedef int (*DvrReadBufferQueueDequeuePtr)(DvrReadBufferQueue* read_queue,
                                             size_t meta_size_bytes);
 
 // dvr_surface.h
-typedef int (*DvrGetNamedBufferPtr)(const char* name, DvrBuffer** out_buffer);
+typedef int (*DvrGetGlobalBufferPtr)(DvrGlobalBufferKey key,
+                                     DvrBuffer** out_buffer);
 typedef int (*DvrSurfaceCreatePtr)(const DvrSurfaceAttribute* attributes,
                                    size_t attribute_count,
                                    DvrSurface** surface_out);

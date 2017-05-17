@@ -8,6 +8,7 @@
 
 #include <dvr/dvr_display_types.h>
 
+#include <dvr/dvr_api.h>
 #include <pdx/rpc/buffer_wrapper.h>
 #include <pdx/rpc/remote_method.h>
 #include <pdx/rpc/serializable.h>
@@ -192,7 +193,7 @@ struct DisplayProtocol {
   // Op codes.
   enum {
     kOpGetMetrics = 0,
-    kOpGetNamedBuffer,
+    kOpGetGlobalBuffer,
     kOpIsVrAppRunning,
     kOpCreateSurface,
     kOpGetSurfaceInfo,
@@ -206,8 +207,8 @@ struct DisplayProtocol {
 
   // Methods.
   PDX_REMOTE_METHOD(GetMetrics, kOpGetMetrics, Metrics(Void));
-  PDX_REMOTE_METHOD(GetNamedBuffer, kOpGetNamedBuffer,
-                    LocalNativeBufferHandle(std::string name));
+  PDX_REMOTE_METHOD(GetGlobalBuffer, kOpGetGlobalBuffer,
+                    LocalNativeBufferHandle(DvrGlobalBufferKey key));
   PDX_REMOTE_METHOD(IsVrAppRunning, kOpIsVrAppRunning, bool(Void));
   PDX_REMOTE_METHOD(CreateSurface, kOpCreateSurface,
                     SurfaceInfo(const SurfaceAttributes& attributes));
@@ -232,7 +233,7 @@ struct DisplayManagerProtocol {
   enum {
     kOpGetSurfaceState = 0,
     kOpGetSurfaceQueue,
-    kOpSetupNamedBuffer,
+    kOpSetupGlobalBuffer,
     kOpGetConfigurationData,
   };
 
@@ -245,9 +246,9 @@ struct DisplayManagerProtocol {
                     std::vector<SurfaceState>(Void));
   PDX_REMOTE_METHOD(GetSurfaceQueue, kOpGetSurfaceQueue,
                     LocalChannelHandle(int surface_id, int queue_id));
-  PDX_REMOTE_METHOD(SetupNamedBuffer, kOpSetupNamedBuffer,
-                    LocalNativeBufferHandle(const std::string& name,
-                                            size_t size, uint64_t usage));
+  PDX_REMOTE_METHOD(SetupGlobalBuffer, kOpSetupGlobalBuffer,
+                    LocalNativeBufferHandle(DvrGlobalBufferKey key, size_t size,
+                                            uint64_t usage));
   PDX_REMOTE_METHOD(GetConfigurationData, kOpGetConfigurationData,
                     std::string(ConfigFileType config_type));
 };

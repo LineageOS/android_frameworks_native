@@ -88,9 +88,9 @@ pdx::Status<void> DisplayManagerService::HandleMessage(pdx::Message& message) {
           *this, &DisplayManagerService::OnGetSurfaceQueue, message);
       return {};
 
-    case DisplayManagerProtocol::SetupNamedBuffer::Opcode:
-      DispatchRemoteMethod<DisplayManagerProtocol::SetupNamedBuffer>(
-          *this, &DisplayManagerService::OnSetupNamedBuffer, message);
+    case DisplayManagerProtocol::SetupGlobalBuffer::Opcode:
+      DispatchRemoteMethod<DisplayManagerProtocol::SetupGlobalBuffer>(
+          *this, &DisplayManagerService::OnSetupGlobalBuffer, message);
       return {};
 
     case DisplayManagerProtocol::GetConfigurationData::Opcode:
@@ -145,20 +145,20 @@ pdx::Status<pdx::LocalChannelHandle> DisplayManagerService::OnGetSurfaceQueue(
 }
 
 pdx::Status<BorrowedNativeBufferHandle>
-DisplayManagerService::OnSetupNamedBuffer(pdx::Message& message,
-                                          const std::string& name, size_t size,
-                                          uint64_t usage) {
+DisplayManagerService::OnSetupGlobalBuffer(pdx::Message& message,
+                                           DvrGlobalBufferKey key, size_t size,
+                                           uint64_t usage) {
   const int user_id = message.GetEffectiveUserId();
   const bool trusted = user_id == AID_ROOT || IsTrustedUid(user_id);
 
   if (!trusted) {
     ALOGE(
-        "DisplayService::SetupNamedBuffer: Named buffers may only be created "
+        "DisplayService::SetupGlobalBuffer: Global buffers may only be created "
         "by trusted UIDs: user_id=%d",
         user_id);
     return ErrorStatus(EPERM);
   }
-  return display_service_->SetupNamedBuffer(name, size, usage);
+  return display_service_->SetupGlobalBuffer(key, size, usage);
 }
 
 pdx::Status<std::string> DisplayManagerService::OnGetConfigurationData(

@@ -73,7 +73,7 @@ cc_library {
 
 llndk_library {
     name: "libnativewindow",
-    symbol_file: "libnativewindow.map.vndk.txt",
+    symbol_file: "libnativewindow.map.txt",
     unversioned: true,
     export_include_dirs: ["include"],
 }
