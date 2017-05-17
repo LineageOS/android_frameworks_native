@@ -181,9 +181,9 @@ static const TracingCategory k_categories[] = {
         { REQ,      "events/binder/binder_transaction_received/enable" },
     } },
     { "binder_lock", "Binder global lock trace", 0, {
-        { REQ,      "events/binder/binder_lock/enable" },
-        { REQ,      "events/binder/binder_locked/enable" },
-        { REQ,      "events/binder/binder_unlock/enable" },
+        { OPT,      "events/binder/binder_lock/enable" },
+        { OPT,      "events/binder/binder_locked/enable" },
+        { OPT,      "events/binder/binder_unlock/enable" },
     } },
     { "pagecache",  "Page cache", 0, {
         { REQ,      "events/filemap/enable" },
@@ -371,7 +371,7 @@ static bool isCategorySupported(const TracingCategory& category)
                     ok = true;
                 }
             } else {
-                ok |= fileIsWritable(path);
+                ok = true;
             }
         }
     }
