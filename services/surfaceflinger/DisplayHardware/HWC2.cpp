@@ -917,6 +917,9 @@ Error Display::getReleaseFences(
         } else {
             ALOGE("getReleaseFences: invalid layer %" PRIu64
                     " found on display %" PRIu64, layerIds[element], mId);
+            for (; element < numElements; ++element) {
+                close(fenceFds[element]);
+            }
             return Error::BadLayer;
         }
     }
