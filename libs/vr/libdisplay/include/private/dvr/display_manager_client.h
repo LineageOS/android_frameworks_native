@@ -23,6 +23,7 @@ class DisplayManagerClient : public pdx::ClientBase<DisplayManagerClient> {
   pdx::Status<std::vector<SurfaceState>> GetSurfaceState();
   pdx::Status<std::unique_ptr<IonBuffer>> SetupGlobalBuffer(
       DvrGlobalBufferKey key, size_t size, uint64_t usage);
+  pdx::Status<void> DeleteGlobalBuffer(DvrGlobalBufferKey key);
   pdx::Status<std::unique_ptr<ConsumerQueue>> GetSurfaceQueue(int surface_id,
                                                               int queue_id);
 

@@ -49,13 +49,25 @@ pdx::Status<std::unique_ptr<IonBuffer>> DisplayManagerClient::SetupGlobalBuffer(
   const int ret = native_buffer_handle.Import(ion_buffer.get());
   if (ret < 0) {
     ALOGE(
-        "DisplayClient::GetGlobalBuffer: Failed to import global buffer: "
-        "key=%d; error=%s",
+        "DisplayManagerClient::GetGlobalBuffer: Failed to import global "
+        "buffer: key=%d; error=%s",
         key, strerror(-ret));
     return ErrorStatus(-ret);
   }
 
   return {std::move(ion_buffer)};
+}
+
+pdx::Status<void> DisplayManagerClient::DeleteGlobalBuffer(
+    DvrGlobalBufferKey key) {
+  auto status =
+      InvokeRemoteMethod<DisplayManagerProtocol::DeleteGlobalBuffer>(key);
+  if (!status) {
+    ALOGE("DisplayManagerClient::DeleteGlobalBuffer Failed: %s",
+          status.GetErrorMessage().c_str());
+  }
+
+  return status;
 }
 
 pdx::Status<std::string> DisplayManagerClient::GetConfigurationData(

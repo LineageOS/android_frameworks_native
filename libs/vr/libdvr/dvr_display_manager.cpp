@@ -133,6 +133,23 @@ int dvrDisplayManagerSetupGlobalBuffer(DvrDisplayManager* client,
   return 0;
 }
 
+int dvrDisplayManagerDeleteGlobalBuffer(DvrDisplayManager* client,
+                                        DvrGlobalBufferKey key) {
+  if (!client)
+    return -EINVAL;
+
+  auto buffer_status = client->client->DeleteGlobalBuffer(key);
+  if (!buffer_status) {
+    ALOGE(
+        "dvrDisplayManagerDeleteGlobalBuffer: Failed to delete named buffer: "
+        "%s",
+        buffer_status.GetErrorMessage().c_str());
+    return -buffer_status.error();
+  }
+
+  return 0;
+}
+
 int dvrConfigurationDataGet(DvrDisplayManager* client, int config_type,
                             uint8_t** data, size_t* data_size) {
   if (!client || !data || !data_size) {

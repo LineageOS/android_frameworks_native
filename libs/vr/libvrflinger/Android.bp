@@ -36,6 +36,7 @@ staticLibraries = [
     "libvrsensor",
     "libpdx_default_transport",
     "libvr_manager",
+    "libbroadcastring",
 ]
 
 sharedLibraries = [
@@ -77,7 +78,7 @@ cc_library_static {
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
     shared_libs: sharedLibraries,
-    header_libs: headerLibraries,
     whole_static_libs: staticLibraries,
+    header_libs: headerLibraries,
     name: "libvrflinger",
 }
