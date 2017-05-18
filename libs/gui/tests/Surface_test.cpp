@@ -24,6 +24,7 @@
 #include <cutils/properties.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/IDisplayEventConnection.h>
+#include <gui/IProducerListener.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
@@ -320,6 +321,77 @@ TEST_F(SurfaceTest, DynamicSetBufferCount) {
     ASSERT_EQ(NO_ERROR, window->queueBuffer(window.get(), buffer, fence));
 }
 
+TEST_F(SurfaceTest, GetAndFlushRemovedBuffers) {
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
+    consumer->consumerConnect(dummyConsumer, false);
+    consumer->setConsumerName(String8("TestConsumer"));
+
+    sp<Surface> surface = new Surface(producer);
+    sp<ANativeWindow> window(surface);
+    sp<DummyProducerListener> listener = new DummyProducerListener();
+    ASSERT_EQ(OK, surface->connect(
+            NATIVE_WINDOW_API_CPU,
+            /*listener*/listener,
+            /*reportBufferRemoval*/true));
+    const int BUFFER_COUNT = 4;
+    ASSERT_EQ(NO_ERROR, native_window_set_buffer_count(window.get(), BUFFER_COUNT));
+
+    sp<GraphicBuffer> detachedBuffer;
+    sp<Fence> outFence;
+    int fences[BUFFER_COUNT];
+    ANativeWindowBuffer* buffers[BUFFER_COUNT];
+    // Allocate buffers because detachNextBuffer requires allocated buffers
+    for (int i = 0; i < BUFFER_COUNT; i++) {
+        ASSERT_EQ(NO_ERROR, window->dequeueBuffer(window.get(), &buffers[i], &fences[i]));
+    }
+    for (int i = 0; i < BUFFER_COUNT; i++) {
+        ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffers[i], fences[i]));
+    }
+
+    // Test detached buffer is correctly reported
+    ASSERT_EQ(NO_ERROR, surface->detachNextBuffer(&detachedBuffer, &outFence));
+    std::vector<sp<GraphicBuffer>> removedBuffers;
+    ASSERT_EQ(OK, surface->getAndFlushRemovedBuffers(&removedBuffers));
+    ASSERT_EQ(1u, removedBuffers.size());
+    ASSERT_EQ(detachedBuffer->handle, removedBuffers.at(0)->handle);
+    // Test the list is flushed one getAndFlushRemovedBuffers returns
+    ASSERT_EQ(OK, surface->getAndFlushRemovedBuffers(&removedBuffers));
+    ASSERT_EQ(0u, removedBuffers.size());
+
+
+    // Test removed buffer list is cleanup after next dequeueBuffer call
+    ASSERT_EQ(NO_ERROR, surface->detachNextBuffer(&detachedBuffer, &outFence));
+    ASSERT_EQ(NO_ERROR, window->dequeueBuffer(window.get(), &buffers[0], &fences[0]));
+    ASSERT_EQ(OK, surface->getAndFlushRemovedBuffers(&removedBuffers));
+    ASSERT_EQ(0u, removedBuffers.size());
+    ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffers[0], fences[0]));
+
+    // Test removed buffer list is cleanup after next detachNextBuffer call
+    ASSERT_EQ(NO_ERROR, surface->detachNextBuffer(&detachedBuffer, &outFence));
+    ASSERT_EQ(NO_ERROR, surface->detachNextBuffer(&detachedBuffer, &outFence));
+    ASSERT_EQ(OK, surface->getAndFlushRemovedBuffers(&removedBuffers));
+    ASSERT_EQ(1u, removedBuffers.size());
+    ASSERT_EQ(detachedBuffer->handle, removedBuffers.at(0)->handle);
+
+    // Re-allocate buffers since all buffers are detached up to now
+    for (int i = 0; i < BUFFER_COUNT; i++) {
+        ASSERT_EQ(NO_ERROR, window->dequeueBuffer(window.get(), &buffers[i], &fences[i]));
+    }
+    for (int i = 0; i < BUFFER_COUNT; i++) {
+        ASSERT_EQ(NO_ERROR, window->cancelBuffer(window.get(), buffers[i], fences[i]));
+    }
+
+    ASSERT_EQ(NO_ERROR, surface->detachNextBuffer(&detachedBuffer, &outFence));
+    ASSERT_EQ(NO_ERROR, surface->attachBuffer(detachedBuffer.get()));
+    ASSERT_EQ(OK, surface->getAndFlushRemovedBuffers(&removedBuffers));
+    // Depends on which slot GraphicBufferProducer impl pick, the attach call might
+    // get 0 or 1 buffer removed.
+    ASSERT_LE(removedBuffers.size(), 1u);
+}
 
 class FakeConsumer : public BnConsumerListener {
 public:
