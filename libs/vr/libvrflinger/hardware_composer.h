@@ -5,6 +5,7 @@
 #include "DisplayHardware/ComposerHal.h"
 #include "hwc_types.h"
 
+#include <dvr/dvr_shared_buffers.h>
 #include <hardware/gralloc.h>
 #include <log/log.h>
 
@@ -16,11 +17,12 @@
 #include <tuple>
 #include <vector>
 
-#include <dvr/dvr_vrflinger_config_buffer.h>
-#include <dvr/pose_client.h>
+#include <dvr/dvr_vrflinger_config.h>
+#include <dvr/dvr_vsync.h>
 #include <pdx/file_handle.h>
 #include <pdx/rpc/variant.h>
 #include <private/dvr/buffer_hub_client.h>
+#include <private/dvr/shared_buffer_helpers.h>
 
 #include "acquired_buffer.h"
 #include "display_surface.h"
@@ -446,15 +448,14 @@ class HardwareComposer {
   // us to detect when the display driver begins queuing frames.
   std::vector<pdx::LocalHandle> retire_fence_fds_;
 
-  // Pose client for frame count notifications. Pose client predicts poses
-  // out to display frame boundaries, so we need to tell it about vsyncs.
-  DvrPose* pose_client_ = nullptr;
+  // If we are publishing vsync data, we will put it here.
+  std::unique_ptr<CPUMappedBroadcastRing<DvrVsyncRing>> vsync_ring_;
 
   // Broadcast ring for receiving config data from the DisplayManager.
   DvrVrFlingerConfigRing shared_config_ring_;
   uint32_t shared_config_ring_sequence_{0};
   // Config buffer for reading from the post thread.
-  DvrVrFlingerConfigBuffer post_thread_config_;
+  DvrVrFlingerConfig post_thread_config_;
   std::mutex shared_config_mutex_;
 
   static constexpr int kPostThreadInterrupted = 1;

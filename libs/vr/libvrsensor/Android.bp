@@ -23,9 +23,11 @@ includeFiles = [
 ]
 
 staticLibraries = [
+    "libdisplay",
     "libbufferhub",
     "libbufferhubqueue",
     "libdvrcommon",
+    "libbroadcastring",
     "libpdx_default_transport",
 ]
 
@@ -43,6 +45,7 @@ cc_library {
     export_include_dirs: includeFiles,
     static_libs: staticLibraries,
     shared_libs: sharedLibraries,
+    header_libs: ["libdvr_headers"],
     name: "libvrsensor",
 }
 

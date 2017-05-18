@@ -174,8 +174,6 @@ class BroadcastRing {
   //
   // There must be at least |MemorySize(record_count)| bytes of space already
   // allocated at |mmap|. The ring does not take ownership.
-  //
-  // Use this function for dynamically sized rings.
   static BroadcastRing Create(void* mmap, size_t mmap_size,
                               uint32_t record_count) {
     BroadcastRing ring(mmap);
@@ -188,12 +186,11 @@ class BroadcastRing {
   //
   // There must be at least |MemorySize()| bytes of space already allocated at
   // |mmap|. The ring does not take ownership.
-  //
-  // Use this function for statically sized rings.
   static BroadcastRing Create(void* mmap, size_t mmap_size) {
-    static_assert(Traits::kUseStaticRecordCount,
-                  "Wrong Create() function called for dynamic record count");
-    return Create(mmap, mmap_size, Traits::kStaticRecordCount);
+    return Create(mmap, mmap_size,
+                  Traits::kUseStaticRecordCount
+                      ? Traits::kStaticRecordCount
+                      : BroadcastRing::GetRecordCount(mmap_size));
   }
 
   // Imports an existing ring at |mmap|.
@@ -231,6 +228,30 @@ class BroadcastRing {
         Traits::kUseStaticRecordCount,
         "Wrong MemorySize() function called for dynamic record count");
     return MemorySize(Traits::kStaticRecordCount);
+  }
+
+  static uint32_t NextPowerOf2(uint32_t n) {
+    if (n == 0)
+      return 0;
+    n -= 1;
+    n |= n >> 16;
+    n |= n >> 8;
+    n |= n >> 4;
+    n |= n >> 2;
+    n |= n >> 1;
+    return n + 1;
+  }
+
+  // Gets the biggest power of 2 record count that can fit into this mmap.
+  //
+  // The header size has been taken into account.
+  static uint32_t GetRecordCount(size_t mmap_size) {
+    if (mmap_size <= sizeof(Header)) {
+      return 0;
+    }
+    uint32_t count =
+        static_cast<uint32_t>((mmap_size - sizeof(Header)) / sizeof(Record));
+    return IsPowerOfTwo(count) ? count : (NextPowerOf2(count) / 2);
   }
 
   // Writes a record to the ring.
