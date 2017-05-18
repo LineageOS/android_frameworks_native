@@ -115,7 +115,6 @@ private:
                                            void* cookie);
     
     const   sp<ProcessState>    mProcess;
-    const   pid_t               mMyThreadId;
             Vector<BBinder*>    mPendingStrongDerefs;
             Vector<RefBase::weakref_type*> mPendingWeakDerefs;
 
