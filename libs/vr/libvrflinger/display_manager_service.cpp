@@ -98,6 +98,11 @@ pdx::Status<void> DisplayManagerService::HandleMessage(pdx::Message& message) {
           *this, &DisplayManagerService::OnGetConfigurationData, message);
       return {};
 
+    case DisplayManagerProtocol::DeleteGlobalBuffer::Opcode:
+      DispatchRemoteMethod<DisplayManagerProtocol::DeleteGlobalBuffer>(
+          *this, &DisplayManagerService::OnDeleteGlobalBuffer, message);
+      return {};
+
     default:
       return Service::DefaultHandleMessage(message);
   }
@@ -159,6 +164,19 @@ DisplayManagerService::OnSetupGlobalBuffer(pdx::Message& message,
     return ErrorStatus(EPERM);
   }
   return display_service_->SetupGlobalBuffer(key, size, usage);
+}
+
+pdx::Status<void> DisplayManagerService::OnDeleteGlobalBuffer(
+    pdx::Message& message, DvrGlobalBufferKey key) {
+  const int user_id = message.GetEffectiveUserId();
+  const bool trusted = (user_id == AID_ROOT) || IsTrustedUid(user_id);
+
+  if (!trusted) {
+    ALOGE("DisplayService::DeleteGlobalBuffer: Untrusted user_id (%d)",
+          user_id);
+    return ErrorStatus(EPERM);
+  }
+  return display_service_->DeleteGlobalBuffer(key);
 }
 
 pdx::Status<std::string> DisplayManagerService::OnGetConfigurationData(

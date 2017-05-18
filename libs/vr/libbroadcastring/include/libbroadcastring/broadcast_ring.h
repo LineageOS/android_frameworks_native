@@ -348,6 +348,9 @@ class BroadcastRing {
     return Get(sequence, record);
   }
 
+  // Returns true if this instance has been created or imported.
+  bool is_valid() const { return !!data_.mmap; }
+
   uint32_t record_count() const { return record_count_internal(); }
   uint32_t record_size() const { return record_size_internal(); }
   static constexpr uint32_t mmap_alignment() { return alignof(Mmap); }

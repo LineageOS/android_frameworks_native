@@ -44,6 +44,8 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   pdx::Status<BorrowedNativeBufferHandle> SetupGlobalBuffer(
       DvrGlobalBufferKey key, size_t size, uint64_t usage);
 
+  pdx::Status<void> DeleteGlobalBuffer(DvrGlobalBufferKey key);
+
   template <class A>
   void ForEachDisplaySurface(SurfaceType surface_type, A action) const {
     ForEachChannel([surface_type,
