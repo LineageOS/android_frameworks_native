@@ -4,12 +4,15 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <sys/cdefs.h>
-#include <unistd.h>
+#include <cstdio>
 
+#include <dvr/dvr_display_types.h>
 #include <dvr/dvr_hardware_composer_defs.h>
+#include <dvr/dvr_pose.h>
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct ANativeWindow ANativeWindow;
 
@@ -38,6 +41,11 @@ typedef int32_t DvrGlobalBufferKey;
 typedef struct DvrSurfaceAttributeValue DvrSurfaceAttributeValue;
 typedef struct DvrSurfaceAttribute DvrSurfaceAttribute;
 
+// native_handle contains the fds for the underlying ION allocations inside
+// the gralloc buffer. This is needed temporarily while GPU vendors work on
+// better support for AHardwareBuffer via glBindSharedBuffer APIs. See
+// b/37207909. For now we can declare the native_handle struct where it is
+// used for GPU late latching. See cutils/native_handle.h for the struct layout.
 struct native_handle;
 
 // dvr_display_manager.h
@@ -173,7 +181,7 @@ typedef int (*DvrSurfaceCreateWriteBufferQueuePtr)(
     uint32_t layer_count, uint64_t usage, size_t capacity,
     DvrWriteBufferQueue** queue_out);
 
-// vsync_client_api.h
+// dvr_vsync.h
 typedef int (*DvrVSyncClientCreatePtr)(DvrVSyncClient** client_out);
 typedef void (*DvrVSyncClientDestroyPtr)(DvrVSyncClient* client);
 typedef int (*DvrVSyncClientGetSchedInfoPtr)(DvrVSyncClient* client,
@@ -316,6 +324,8 @@ struct DvrApi_v1 {
 
 int dvrGetApi(void* api, size_t struct_size, int version);
 
-__END_DECLS
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif  // ANDROID_DVR_API_H_
