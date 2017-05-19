@@ -1703,9 +1703,19 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
             result = false;
             continue;
         }
+
+        // Delete oat/vdex/art files.
         result = unlink_if_exists(oat_path) && result;
         result = unlink_if_exists(create_vdex_filename(oat_path)) && result;
         result = unlink_if_exists(create_image_filename(oat_path)) && result;
+
+        // Delete profiles.
+        std::string current_profile = create_current_profile_path(
+                multiuser_get_user_id(uid), dex_path, /*is_secondary*/true);
+        std::string reference_profile = create_reference_profile_path(
+                dex_path, /*is_secondary*/true);
+        result = unlink_if_exists(current_profile) && result;
+        result = unlink_if_exists(reference_profile) && result;
 
         // Try removing the directories as well, they might be empty.
         result = rmdir_if_empty(oat_isa_dir) && result;
