@@ -58,7 +58,6 @@ class DisplayDevice;
 class Fence;
 class FloatRect;
 class GraphicBuffer;
-class HWC2On1Adapter;
 class NativeHandle;
 class Region;
 class String8;
@@ -205,7 +204,6 @@ private:
         HWC2::Vsync vsyncEnabled;
     };
 
-    std::unique_ptr<HWC2On1Adapter> mAdapter;
     std::unique_ptr<HWC2::Device>   mHwcDevice;
     std::vector<DisplayData>        mDisplayData;
     std::set<size_t>                mFreeDisplaySlots;

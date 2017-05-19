@@ -84,7 +84,6 @@ LOCAL_SHARED_LIBRARIES := \
     libdl \
     libfmq \
     libhardware \
-    libhwc2on1adapter \
     libhidlbase \
     libhidltransport \
     libhwbinder \
