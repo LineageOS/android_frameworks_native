@@ -134,7 +134,7 @@ Status<RemoteChannelHandle> ProducerQueueChannel::OnCreateConsumerQueue(
 }
 
 Status<QueueInfo> ProducerQueueChannel::OnGetQueueInfo(Message&) {
-  return {{meta_size_bytes_, buffer_id()}};
+  return {{{meta_size_bytes_}, buffer_id()}};
 }
 
 Status<std::vector<std::pair<RemoteChannelHandle, size_t>>>

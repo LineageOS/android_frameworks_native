@@ -26,7 +26,7 @@ class DvrBufferQueueTest : public ::testing::Test {
  protected:
   void SetUp() override {
     write_queue_ = CreateDvrWriteBufferQueueFromProducerQueue(
-        ProducerQueue::Create<TestMeta>(0, 0, 0, 0));
+        ProducerQueue::Create<TestMeta>(UsagePolicy{}));
     ASSERT_NE(nullptr, write_queue_);
   }
 
@@ -200,7 +200,7 @@ TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
   std::unique_ptr<DvrWriteBufferQueue, decltype(&dvrWriteBufferQueueDestroy)>
       write_queue(
           CreateDvrWriteBufferQueueFromProducerQueue(
-              ProducerQueue::Create<DvrNativeBufferMetadata>(0, 0, 0, 0)),
+              ProducerQueue::Create<DvrNativeBufferMetadata>(UsagePolicy{})),
           dvrWriteBufferQueueDestroy);
   ASSERT_NE(nullptr, write_queue.get());
 

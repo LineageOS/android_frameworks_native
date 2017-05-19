@@ -25,13 +25,8 @@ constexpr int kBufferUsage = GRALLOC_USAGE_SW_READ_RARELY;
 class BufferHubQueueTest : public ::testing::Test {
  public:
   template <typename Meta>
-  bool CreateProducerQueue(uint64_t usage_set_mask = 0,
-                           uint64_t usage_clear_mask = 0,
-                           uint64_t usage_deny_set_mask = 0,
-                           uint64_t usage_deny_clear_mask = 0) {
-    producer_queue_ =
-        ProducerQueue::Create<Meta>(usage_set_mask, usage_clear_mask,
-                                    usage_deny_set_mask, usage_deny_clear_mask);
+  bool CreateProducerQueue(const UsagePolicy& usage) {
+    producer_queue_ = ProducerQueue::Create<Meta>(usage);
     return producer_queue_ != nullptr;
   }
 
@@ -45,13 +40,8 @@ class BufferHubQueueTest : public ::testing::Test {
   }
 
   template <typename Meta>
-  bool CreateQueues(int usage_set_mask = 0, int usage_clear_mask = 0,
-                    int usage_deny_set_mask = 0,
-                    int usage_deny_clear_mask = 0) {
-    return CreateProducerQueue<Meta>(usage_set_mask, usage_clear_mask,
-                                     usage_deny_set_mask,
-                                     usage_deny_clear_mask) &&
-           CreateConsumerQueue();
+  bool CreateQueues(const UsagePolicy& usage) {
+    return CreateProducerQueue<Meta>(usage) && CreateConsumerQueue();
   }
 
   void AllocateBuffer(size_t* slot_out = nullptr) {
@@ -74,7 +64,7 @@ class BufferHubQueueTest : public ::testing::Test {
 TEST_F(BufferHubQueueTest, TestDequeue) {
   const size_t nb_dequeue_times = 16;
 
-  ASSERT_TRUE(CreateQueues<size_t>());
+  ASSERT_TRUE(CreateQueues<size_t>(UsagePolicy{}));
 
   // Allocate only one buffer.
   AllocateBuffer();
@@ -104,7 +94,7 @@ TEST_F(BufferHubQueueTest, TestProducerConsumer) {
   size_t slot;
   uint64_t seq;
 
-  ASSERT_TRUE(CreateQueues<uint64_t>());
+  ASSERT_TRUE(CreateQueues<uint64_t>(UsagePolicy{}));
 
   for (size_t i = 0; i < kBufferCount; i++) {
     AllocateBuffer();
@@ -175,7 +165,7 @@ TEST_F(BufferHubQueueTest, TestProducerConsumer) {
 }
 
 TEST_F(BufferHubQueueTest, TestDetach) {
-  ASSERT_TRUE(CreateProducerQueue<void>());
+  ASSERT_TRUE(CreateProducerQueue<void>(UsagePolicy{}));
 
   // Allocate buffers.
   const size_t kBufferCount = 4u;
@@ -278,7 +268,7 @@ TEST_F(BufferHubQueueTest, TestDetach) {
 }
 
 TEST_F(BufferHubQueueTest, TestMultipleConsumers) {
-  ASSERT_TRUE(CreateProducerQueue<void>());
+  ASSERT_TRUE(CreateProducerQueue<void>(UsagePolicy{}));
 
   // Allocate buffers.
   const size_t kBufferCount = 4u;
@@ -356,7 +346,7 @@ struct TestMetadata {
 };
 
 TEST_F(BufferHubQueueTest, TestMetadata) {
-  ASSERT_TRUE(CreateQueues<TestMetadata>());
+  ASSERT_TRUE(CreateQueues<TestMetadata>(UsagePolicy{}));
   AllocateBuffer();
 
   std::vector<TestMetadata> ms = {
@@ -382,7 +372,7 @@ TEST_F(BufferHubQueueTest, TestMetadata) {
 }
 
 TEST_F(BufferHubQueueTest, TestMetadataMismatch) {
-  ASSERT_TRUE(CreateQueues<int64_t>());
+  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{}));
   AllocateBuffer();
 
   int64_t mi = 3;
@@ -401,7 +391,7 @@ TEST_F(BufferHubQueueTest, TestMetadataMismatch) {
 }
 
 TEST_F(BufferHubQueueTest, TestEnqueue) {
-  ASSERT_TRUE(CreateQueues<int64_t>());
+  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{}));
   AllocateBuffer();
 
   size_t slot;
@@ -418,7 +408,7 @@ TEST_F(BufferHubQueueTest, TestEnqueue) {
 }
 
 TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
-  ASSERT_TRUE(CreateQueues<int64_t>());
+  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{}));
 
   size_t s1;
   AllocateBuffer();
@@ -473,7 +463,7 @@ TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
 
 TEST_F(BufferHubQueueTest, TestUsageSetMask) {
   const uint32_t set_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  ASSERT_TRUE(CreateQueues<int64_t>(set_mask, 0, 0, 0));
+  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{set_mask, 0, 0, 0}));
 
   // When allocation, leave out |set_mask| from usage bits on purpose.
   size_t slot;
@@ -491,7 +481,7 @@ TEST_F(BufferHubQueueTest, TestUsageSetMask) {
 
 TEST_F(BufferHubQueueTest, TestUsageClearMask) {
   const uint32_t clear_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  ASSERT_TRUE(CreateQueues<int64_t>(0, clear_mask, 0, 0));
+  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{0, clear_mask, 0, 0}));
 
   // When allocation, add |clear_mask| into usage bits on purpose.
   size_t slot;
@@ -509,7 +499,7 @@ TEST_F(BufferHubQueueTest, TestUsageClearMask) {
 
 TEST_F(BufferHubQueueTest, TestUsageDenySetMask) {
   const uint32_t deny_set_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  ASSERT_TRUE(CreateQueues<int64_t>(0, 0, deny_set_mask, 0));
+  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{0, 0, deny_set_mask, 0}));
 
   // Now that |deny_set_mask| is illegal, allocation without those bits should
   // be able to succeed.
@@ -529,7 +519,7 @@ TEST_F(BufferHubQueueTest, TestUsageDenySetMask) {
 
 TEST_F(BufferHubQueueTest, TestUsageDenyClearMask) {
   const uint32_t deny_clear_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  ASSERT_TRUE(CreateQueues<int64_t>(0, 0, 0, deny_clear_mask));
+  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{0, 0, 0, deny_clear_mask}));
 
   // Now that clearing |deny_clear_mask| is illegal (i.e. setting these bits are
   // mandatory), allocation with those bits should be able to succeed.
