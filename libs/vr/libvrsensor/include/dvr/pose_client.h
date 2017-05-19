@@ -119,7 +119,7 @@ int dvrPoseClientPoll(DvrPoseClient* client, DvrPose* state);
 // Freezes the pose to the provided state.
 //
 // Future poll operations will return this state until a different state is
-// frozen or dvrPoseSetMode() is called with a different mode. The timestamp is
+// frozen or dvrPoseClientModeSet() is called with a different mode. The timestamp is
 // not frozen.
 //
 // @param client Pointer to the pose client.
@@ -131,13 +131,13 @@ int dvrPoseClientFreeze(DvrPoseClient* client, const DvrPose* frozen_state);
 //
 // @param mode The requested pose mode.
 // @return Zero on success, negative error code on failure.
-int dvrPoseClientSetMode(DvrPoseClient* client, DvrPoseMode mode);
+int dvrPoseClientModeSet(DvrPoseClient* client, DvrPoseMode mode);
 
 // Gets the pose service mode.
 //
 // @param mode Return value for the current pose mode.
 // @return Zero on success, negative error code on failure.
-int dvrPoseClientGetMode(DvrPoseClient* client, DvrPoseMode* mode);
+int dvrPoseClientModeGet(DvrPoseClient* client, DvrPoseMode* mode);
 
 // Get access to the shared memory pose ring buffer.
 // A future pose at vsync <current> + <offset> is accessed at index:
@@ -150,6 +150,12 @@ int dvrPoseClientGetMode(DvrPoseClient* client, DvrPoseMode* mode);
 // Returns 0 on success.
 int dvrPoseClientGetRingBuffer(DvrPoseClient* client,
                                DvrPoseRingBufferInfo* out_info);
+
+// Sets enabled state for sensors pose processing.
+//
+// @param enabled Whether sensors are enabled or disabled.
+// @return Zero on success
+int dvrPoseClientSensorsEnable(DvrPoseClient* client, bool enabled);
 
 #ifdef __cplusplus
 }  // extern "C"
