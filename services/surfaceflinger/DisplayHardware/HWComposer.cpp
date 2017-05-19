@@ -47,7 +47,6 @@
 #include <log/log.h>
 
 #include "HWComposer.h"
-#include "hwc2on1adapter/HWC2On1Adapter.h"
 #include "HWC2.h"
 #include "ComposerHal.h"
 
@@ -61,8 +60,7 @@ namespace android {
 // ---------------------------------------------------------------------------
 
 HWComposer::HWComposer(bool useVrComposer)
-    : mAdapter(),
-      mHwcDevice(),
+    : mHwcDevice(),
       mDisplayData(2),
       mFreeDisplaySlots(),
       mHwcDisplaySlots(),
