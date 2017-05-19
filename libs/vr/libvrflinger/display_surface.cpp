@@ -268,7 +268,10 @@ Status<LocalChannelHandle> DirectDisplaySurface::OnCreateQueue(
 
   std::lock_guard<std::mutex> autolock(lock_);
   if (!direct_queue_) {
-    auto producer = ProducerQueue::Create(meta_size_bytes);
+    // Inject the hw composer usage flag to enable the display to read the
+    // buffers.
+    auto producer = ProducerQueue::Create(
+        meta_size_bytes, GraphicBuffer::USAGE_HW_COMPOSER, 0, 0, 0);
     if (!producer) {
       ALOGE(
           "DirectDisplaySurface::OnCreateQueue: Failed to create producer "
