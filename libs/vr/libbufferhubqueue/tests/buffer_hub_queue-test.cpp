@@ -16,17 +16,17 @@ using pdx::LocalHandle;
 
 namespace {
 
-constexpr int kBufferWidth = 100;
-constexpr int kBufferHeight = 1;
-constexpr int kBufferLayerCount = 1;
-constexpr int kBufferFormat = HAL_PIXEL_FORMAT_BLOB;
-constexpr int kBufferUsage = GRALLOC_USAGE_SW_READ_RARELY;
+constexpr uint32_t kBufferWidth = 100;
+constexpr uint32_t kBufferHeight = 1;
+constexpr uint32_t kBufferLayerCount = 1;
+constexpr uint32_t kBufferFormat = HAL_PIXEL_FORMAT_BLOB;
+constexpr uint64_t kBufferUsage = GRALLOC_USAGE_SW_READ_RARELY;
 
 class BufferHubQueueTest : public ::testing::Test {
  public:
-  template <typename Meta>
-  bool CreateProducerQueue(const UsagePolicy& usage) {
-    producer_queue_ = ProducerQueue::Create<Meta>(usage);
+  bool CreateProducerQueue(const ProducerQueueConfig& config,
+                           const UsagePolicy& usage) {
+    producer_queue_ = ProducerQueue::Create(config, usage);
     return producer_queue_ != nullptr;
   }
 
@@ -39,9 +39,9 @@ class BufferHubQueueTest : public ::testing::Test {
     }
   }
 
-  template <typename Meta>
-  bool CreateQueues(const UsagePolicy& usage) {
-    return CreateProducerQueue<Meta>(usage) && CreateConsumerQueue();
+  bool CreateQueues(const ProducerQueueConfig& config,
+                    const UsagePolicy& usage) {
+    return CreateProducerQueue(config, usage) && CreateConsumerQueue();
   }
 
   void AllocateBuffer(size_t* slot_out = nullptr) {
@@ -57,6 +57,7 @@ class BufferHubQueueTest : public ::testing::Test {
   }
 
  protected:
+  ProducerQueueConfigBuilder config_builder_;
   std::unique_ptr<ProducerQueue> producer_queue_;
   std::unique_ptr<ConsumerQueue> consumer_queue_;
 };
@@ -64,7 +65,8 @@ class BufferHubQueueTest : public ::testing::Test {
 TEST_F(BufferHubQueueTest, TestDequeue) {
   const size_t nb_dequeue_times = 16;
 
-  ASSERT_TRUE(CreateQueues<size_t>(UsagePolicy{}));
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<size_t>().Build(),
+                           UsagePolicy{}));
 
   // Allocate only one buffer.
   AllocateBuffer();
@@ -94,7 +96,8 @@ TEST_F(BufferHubQueueTest, TestProducerConsumer) {
   size_t slot;
   uint64_t seq;
 
-  ASSERT_TRUE(CreateQueues<uint64_t>(UsagePolicy{}));
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<uint64_t>().Build(),
+                           UsagePolicy{}));
 
   for (size_t i = 0; i < kBufferCount; i++) {
     AllocateBuffer();
@@ -165,7 +168,7 @@ TEST_F(BufferHubQueueTest, TestProducerConsumer) {
 }
 
 TEST_F(BufferHubQueueTest, TestDetach) {
-  ASSERT_TRUE(CreateProducerQueue<void>(UsagePolicy{}));
+  ASSERT_TRUE(CreateProducerQueue(config_builder_.Build(), UsagePolicy{}));
 
   // Allocate buffers.
   const size_t kBufferCount = 4u;
@@ -268,7 +271,9 @@ TEST_F(BufferHubQueueTest, TestDetach) {
 }
 
 TEST_F(BufferHubQueueTest, TestMultipleConsumers) {
-  ASSERT_TRUE(CreateProducerQueue<void>(UsagePolicy{}));
+  // ProducerConfigureBuilder doesn't set Metadata{size}, which means there
+  // is no metadata associated with this BufferQueue's buffer.
+  ASSERT_TRUE(CreateProducerQueue(config_builder_.Build(), UsagePolicy{}));
 
   // Allocate buffers.
   const size_t kBufferCount = 4u;
@@ -346,7 +351,9 @@ struct TestMetadata {
 };
 
 TEST_F(BufferHubQueueTest, TestMetadata) {
-  ASSERT_TRUE(CreateQueues<TestMetadata>(UsagePolicy{}));
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<TestMetadata>().Build(),
+                           UsagePolicy{}));
+
   AllocateBuffer();
 
   std::vector<TestMetadata> ms = {
@@ -372,7 +379,9 @@ TEST_F(BufferHubQueueTest, TestMetadata) {
 }
 
 TEST_F(BufferHubQueueTest, TestMetadataMismatch) {
-  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{}));
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<int64_t>().Build(),
+                           UsagePolicy{}));
+
   AllocateBuffer();
 
   int64_t mi = 3;
@@ -391,7 +400,8 @@ TEST_F(BufferHubQueueTest, TestMetadataMismatch) {
 }
 
 TEST_F(BufferHubQueueTest, TestEnqueue) {
-  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{}));
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<int64_t>().Build(),
+                           UsagePolicy{}));
   AllocateBuffer();
 
   size_t slot;
@@ -408,7 +418,8 @@ TEST_F(BufferHubQueueTest, TestEnqueue) {
 }
 
 TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
-  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{}));
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<int64_t>().Build(),
+                           UsagePolicy{}));
 
   size_t s1;
   AllocateBuffer();
@@ -463,7 +474,8 @@ TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
 
 TEST_F(BufferHubQueueTest, TestUsageSetMask) {
   const uint32_t set_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{set_mask, 0, 0, 0}));
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<int64_t>().Build(),
+                           UsagePolicy{set_mask, 0, 0, 0}));
 
   // When allocation, leave out |set_mask| from usage bits on purpose.
   size_t slot;
@@ -481,7 +493,8 @@ TEST_F(BufferHubQueueTest, TestUsageSetMask) {
 
 TEST_F(BufferHubQueueTest, TestUsageClearMask) {
   const uint32_t clear_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{0, clear_mask, 0, 0}));
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<int64_t>().Build(),
+                           UsagePolicy{0, clear_mask, 0, 0}));
 
   // When allocation, add |clear_mask| into usage bits on purpose.
   size_t slot;
@@ -499,7 +512,8 @@ TEST_F(BufferHubQueueTest, TestUsageClearMask) {
 
 TEST_F(BufferHubQueueTest, TestUsageDenySetMask) {
   const uint32_t deny_set_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{0, 0, deny_set_mask, 0}));
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<int64_t>().Build(),
+                           UsagePolicy{0, 0, deny_set_mask, 0}));
 
   // Now that |deny_set_mask| is illegal, allocation without those bits should
   // be able to succeed.
@@ -519,7 +533,8 @@ TEST_F(BufferHubQueueTest, TestUsageDenySetMask) {
 
 TEST_F(BufferHubQueueTest, TestUsageDenyClearMask) {
   const uint32_t deny_clear_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
-  ASSERT_TRUE(CreateQueues<int64_t>(UsagePolicy{0, 0, 0, deny_clear_mask}));
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<int64_t>().Build(),
+                           UsagePolicy{0, 0, 0, deny_clear_mask}));
 
   // Now that clearing |deny_clear_mask| is illegal (i.e. setting these bits are
   // mandatory), allocation with those bits should be able to succeed.
@@ -535,6 +550,26 @@ TEST_F(BufferHubQueueTest, TestUsageDenyClearMask) {
       kBufferUsage & ~deny_clear_mask, &slot);
   ASSERT_FALSE(status.ok());
   ASSERT_EQ(EINVAL, status.error());
+}
+
+TEST_F(BufferHubQueueTest, TestQueueInfo) {
+  static const bool kIsAsync = true;
+  ASSERT_TRUE(CreateQueues(config_builder_.SetIsAsync(kIsAsync)
+                               .SetDefaultWidth(kBufferWidth)
+                               .SetDefaultHeight(kBufferHeight)
+                               .SetDefaultFormat(kBufferFormat)
+                               .Build(),
+                           UsagePolicy{}));
+
+  EXPECT_EQ(producer_queue_->default_width(), kBufferWidth);
+  EXPECT_EQ(producer_queue_->default_height(), kBufferHeight);
+  EXPECT_EQ(producer_queue_->default_format(), kBufferFormat);
+  EXPECT_EQ(producer_queue_->is_async(), kIsAsync);
+
+  EXPECT_EQ(consumer_queue_->default_width(), kBufferWidth);
+  EXPECT_EQ(consumer_queue_->default_height(), kBufferHeight);
+  EXPECT_EQ(consumer_queue_->default_format(), kBufferFormat);
+  EXPECT_EQ(consumer_queue_->is_async(), kIsAsync);
 }
 
 }  // namespace
