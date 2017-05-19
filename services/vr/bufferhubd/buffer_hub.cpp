@@ -400,7 +400,7 @@ Status<QueueInfo> BufferHubService::OnCreateProducerQueue(
                                              usage_policy);
   if (status) {
     message.SetChannel(status.take());
-    return {{meta_size_bytes, queue_id}};
+    return {{{meta_size_bytes}, queue_id}};
   } else {
     ALOGE("BufferHubService::OnCreateBuffer: Failed to create producer!!");
     return status.error_status();

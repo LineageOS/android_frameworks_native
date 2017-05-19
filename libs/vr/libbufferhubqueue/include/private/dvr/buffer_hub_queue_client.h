@@ -5,6 +5,7 @@
 
 #include <pdx/client.h>
 #include <pdx/status.h>
+#include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/epoll_file_descriptor.h>
 #include <private/dvr/ring_buffer.h>
@@ -222,14 +223,6 @@ class BufferHubQueue : public pdx::Client {
 
 class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
  public:
-  template <typename Meta>
-  static std::unique_ptr<ProducerQueue> Create() {
-    return BASE::Create(sizeof(Meta));
-  }
-  static std::unique_ptr<ProducerQueue> Create(size_t meta_size_bytes) {
-    return BASE::Create(meta_size_bytes);
-  }
-
   // Usage bits in |usage_set_mask| will be automatically masked on. Usage bits
   // in |usage_clear_mask| will be automatically masked off. Note that
   // |usage_set_mask| and |usage_clear_mask| may conflict with each other, but
@@ -242,20 +235,12 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // |usage_deny_clear_mask| shall not conflict with each other. Such
   // configuration will be treated as invalid input on creation.
   template <typename Meta>
-  static std::unique_ptr<ProducerQueue> Create(uint32_t usage_set_mask,
-                                               uint32_t usage_clear_mask,
-                                               uint32_t usage_deny_set_mask,
-                                               uint32_t usage_deny_clear_mask) {
-    return BASE::Create(sizeof(Meta), usage_set_mask, usage_clear_mask,
-                        usage_deny_set_mask, usage_deny_clear_mask);
+  static std::unique_ptr<ProducerQueue> Create(const UsagePolicy& usage) {
+    return BASE::Create(sizeof(Meta), usage);
   }
   static std::unique_ptr<ProducerQueue> Create(size_t meta_size_bytes,
-                                               uint32_t usage_set_mask,
-                                               uint32_t usage_clear_mask,
-                                               uint32_t usage_deny_set_mask,
-                                               uint32_t usage_deny_clear_mask) {
-    return BASE::Create(meta_size_bytes, usage_set_mask, usage_clear_mask,
-                        usage_deny_set_mask, usage_deny_clear_mask);
+                                               const UsagePolicy& usage) {
+    return BASE::Create(meta_size_bytes, usage);
   }
 
   // Import a ProducerQueue from a channel handle.
@@ -305,11 +290,8 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // Constructors are automatically exposed through ProducerQueue::Create(...)
   // static template methods inherited from ClientBase, which take the same
   // arguments as the constructors.
-  explicit ProducerQueue(size_t meta_size);
   explicit ProducerQueue(pdx::LocalChannelHandle handle);
-  ProducerQueue(size_t meta_size, uint64_t usage_set_mask,
-                uint64_t usage_clear_mask, uint64_t usage_deny_set_mask,
-                uint64_t usage_deny_clear_mask);
+  ProducerQueue(size_t meta_size, const UsagePolicy& usage);
 
   pdx::Status<Entry> OnBufferReady(
       const std::shared_ptr<BufferHubBuffer>& buffer, size_t slot) override;
@@ -317,15 +299,9 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
 
 // Explicit specializations of ProducerQueue::Create for void metadata type.
 template <>
-inline std::unique_ptr<ProducerQueue> ProducerQueue::Create<void>() {
-  return ProducerQueue::Create(0);
-}
-template <>
 inline std::unique_ptr<ProducerQueue> ProducerQueue::Create<void>(
-    uint32_t usage_set_mask, uint32_t usage_clear_mask,
-    uint32_t usage_deny_set_mask, uint32_t usage_deny_clear_mask) {
-  return ProducerQueue::Create(0, usage_set_mask, usage_clear_mask,
-                               usage_deny_set_mask, usage_deny_clear_mask);
+    const UsagePolicy& usage) {
+  return ProducerQueue::Create(0, usage);
 }
 
 class ConsumerQueue : public BufferHubQueue {

@@ -129,19 +129,26 @@ class FenceHandle {
 using LocalFence = FenceHandle<pdx::LocalHandle>;
 using BorrowedFence = FenceHandle<pdx::BorrowedHandle>;
 
-struct QueueInfo {
+struct ProducerQueueConfig {
   size_t meta_size_bytes;
+
+ private:
+  PDX_SERIALIZABLE_MEMBERS(ProducerQueueConfig, meta_size_bytes);
+};
+
+struct QueueInfo {
+  ProducerQueueConfig producer_config;
   int id;
 
  private:
-  PDX_SERIALIZABLE_MEMBERS(QueueInfo, meta_size_bytes, id);
+  PDX_SERIALIZABLE_MEMBERS(QueueInfo, producer_config, id);
 };
 
 struct UsagePolicy {
-  uint64_t usage_set_mask;
-  uint64_t usage_clear_mask;
-  uint64_t usage_deny_set_mask;
-  uint64_t usage_deny_clear_mask;
+  uint64_t usage_set_mask{0};
+  uint64_t usage_clear_mask{0};
+  uint64_t usage_deny_set_mask{0};
+  uint64_t usage_deny_clear_mask{0};
 
  private:
   PDX_SERIALIZABLE_MEMBERS(UsagePolicy, usage_set_mask, usage_clear_mask,

@@ -11,7 +11,8 @@ namespace dvr {
 /* static */
 sp<BufferHubQueueProducer> BufferHubQueueProducer::Create() {
   sp<BufferHubQueueProducer> producer = new BufferHubQueueProducer;
-  producer->queue_ = ProducerQueue::Create<DvrNativeBufferMetadata>();
+  producer->queue_ =
+      ProducerQueue::Create<DvrNativeBufferMetadata>(UsagePolicy{});
   return producer;
 }
 
