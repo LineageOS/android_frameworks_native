@@ -258,6 +258,13 @@ void ApplicationDisplaySurface::OnQueueEvent(
   }
 }
 
+std::vector<int32_t> DirectDisplaySurface::GetQueueIds() const {
+  std::vector<int32_t> queue_ids;
+  if (direct_queue_)
+    queue_ids.push_back(direct_queue_->id());
+  return queue_ids;
+}
+
 Status<LocalChannelHandle> DirectDisplaySurface::OnCreateQueue(
     Message& /*message*/, const ProducerQueueConfig& config) {
   ATRACE_NAME("DirectDisplaySurface::OnCreateQueue");
@@ -370,8 +377,8 @@ AcquiredBuffer DirectDisplaySurface::AcquireCurrentBuffer() {
   }
   AcquiredBuffer buffer = std::move(acquired_buffers_.Front());
   acquired_buffers_.PopFront();
-  ALOGD_IF(TRACE, "DirectDisplaySurface::AcquireCurrentBuffer: buffer: %p",
-           buffer.buffer().get());
+  ALOGD_IF(TRACE, "DirectDisplaySurface::AcquireCurrentBuffer: buffer_id=%d",
+           buffer.buffer()->id());
   return buffer;
 }
 
@@ -399,8 +406,8 @@ AcquiredBuffer DirectDisplaySurface::AcquireNewestAvailableBuffer(
       break;
   }
   ALOGD_IF(TRACE,
-           "DirectDisplaySurface::AcquireNewestAvailableBuffer: buffer: %p",
-           buffer.buffer().get());
+           "DirectDisplaySurface::AcquireNewestAvailableBuffer: buffer_id=%d",
+           buffer.buffer()->id());
   return buffer;
 }
 

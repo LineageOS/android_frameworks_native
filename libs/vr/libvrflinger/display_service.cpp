@@ -1,6 +1,10 @@
 #include "display_service.h"
 
 #include <unistd.h>
+
+#include <algorithm>
+#include <sstream>
+#include <string>
 #include <vector>
 
 #include <android-base/file.h>
@@ -45,7 +49,65 @@ bool DisplayService::IsInitialized() const {
 }
 
 std::string DisplayService::DumpState(size_t /*max_length*/) {
-  return hardware_composer_.Dump();
+  std::ostringstream stream;
+
+  auto surfaces = GetDisplaySurfaces();
+  std::sort(surfaces.begin(), surfaces.end(), [](const auto& a, const auto& b) {
+    return a->surface_id() < b->surface_id();
+  });
+
+  stream << "Application Surfaces:" << std::endl;
+
+  size_t count = 0;
+  for (const auto& surface : surfaces) {
+    if (surface->surface_type() == SurfaceType::Application) {
+      stream << "Surface " << count++ << ":";
+      stream << " surface_id=" << surface->surface_id()
+             << " process_id=" << surface->process_id()
+             << " user_id=" << surface->user_id()
+             << " visible=" << surface->visible()
+             << " z_order=" << surface->z_order();
+
+      stream << " queue_ids=";
+      auto queue_ids = surface->GetQueueIds();
+      std::sort(queue_ids.begin(), queue_ids.end());
+      for (int32_t id : queue_ids) {
+        if (id != queue_ids[0])
+          stream << ",";
+        stream << id;
+      }
+      stream << std::endl;
+    }
+  }
+  stream << std::endl;
+
+  stream << "Direct Surfaces:" << std::endl;
+
+  count = 0;
+  for (const auto& surface : surfaces) {
+    if (surface->surface_type() == SurfaceType::Direct) {
+      stream << "Surface " << count++ << ":";
+      stream << " surface_id=" << surface->surface_id()
+             << " process_id=" << surface->process_id()
+             << " user_id=" << surface->user_id()
+             << " visible=" << surface->visible()
+             << " z_order=" << surface->z_order();
+
+      stream << " queue_ids=";
+      auto queue_ids = surface->GetQueueIds();
+      std::sort(queue_ids.begin(), queue_ids.end());
+      for (int32_t id : queue_ids) {
+        if (id != queue_ids[0])
+          stream << ",";
+        stream << id;
+      }
+      stream << std::endl;
+    }
+  }
+  stream << std::endl;
+
+  stream << hardware_composer_.Dump();
+  return stream.str();
 }
 
 void DisplayService::OnChannelClose(pdx::Message& message,

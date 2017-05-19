@@ -19,6 +19,8 @@
 #include <chrono>
 #include <functional>
 #include <map>
+#include <sstream>
+#include <string>
 #include <tuple>
 
 #include <dvr/dvr_display_types.h>
@@ -347,7 +349,36 @@ HWC::Error HardwareComposer::GetDisplayMetrics(
   return HWC::Error::None;
 }
 
-std::string HardwareComposer::Dump() { return hwc2_hidl_->dumpDebugInfo(); }
+std::string HardwareComposer::Dump() {
+  std::unique_lock<std::mutex> lock(post_thread_mutex_);
+  std::ostringstream stream;
+
+  stream << "Display metrics:     " << display_metrics_.width << "x"
+         << display_metrics_.height << " " << (display_metrics_.dpi.x / 1000.0)
+         << "x" << (display_metrics_.dpi.y / 1000.0) << " dpi @ "
+         << (1000000000.0 / display_metrics_.vsync_period_ns) << " Hz"
+         << std::endl;
+
+  stream << "Post thread resumed: " << post_thread_resumed_ << std::endl;
+  stream << "Active layers:       " << active_layer_count_ << std::endl;
+  stream << std::endl;
+
+  for (size_t i = 0; i < active_layer_count_; i++) {
+    stream << "Layer " << i << ":";
+    stream << " type=" << layers_[i].GetCompositionType().to_string();
+    stream << " surface_id=" << layers_[i].GetSurfaceId();
+    stream << " buffer_id=" << layers_[i].GetBufferId();
+    stream << std::endl;
+  }
+  stream << std::endl;
+
+  if (post_thread_resumed_) {
+    stream << "Hardware Composer Debug Info:" << std::endl;
+    stream << hwc2_hidl_->dumpDebugInfo();
+  }
+
+  return stream.str();
+}
 
 void HardwareComposer::PostLayers() {
   ATRACE_NAME("HardwareComposer::PostLayers");
@@ -399,9 +430,11 @@ void HardwareComposer::PostLayers() {
   }
 
 #if TRACE
-  for (size_t i = 0; i < active_layer_count_; i++)
-    ALOGI("HardwareComposer::PostLayers: layer=%zu composition=%s", i,
+  for (size_t i = 0; i < active_layer_count_; i++) {
+    ALOGI("HardwareComposer::PostLayers: layer=%zu buffer_id=%d composition=%s",
+          i, layers_[i].GetBufferId(),
           layers_[i].GetCompositionType().to_string().c_str());
+  }
 #endif
 
   error = Present(HWC_DISPLAY_PRIMARY);
@@ -492,8 +525,9 @@ int HardwareComposer::MapConfigBuffer(IonBuffer& ion_buffer) {
   int result = ion_buffer.Lock(ion_buffer.usage(), 0, 0, ion_buffer.width(),
                                ion_buffer.height(), &buffer_base);
   if (result != 0) {
-    ALOGE("HardwareComposer::MapConfigBuffer: Failed to map vrflinger config "
-          "buffer.");
+    ALOGE(
+        "HardwareComposer::MapConfigBuffer: Failed to map vrflinger config "
+        "buffer.");
     return -EPERM;
   }
 
