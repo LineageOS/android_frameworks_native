@@ -31,6 +31,7 @@
 #include <unistd.h>
 #include <zlib.h>
 
+#include <fstream>
 #include <memory>
 
 #include <binder/IBinder.h>
@@ -436,56 +437,31 @@ static bool setTraceBufferSizeKB(int size)
     return writeStr(k_traceBufferSizePath, str);
 }
 
-// Read the trace_clock sysfs file and return true if it matches the requested
-// value.  The trace_clock file format is:
-// local [global] counter uptime perf
-static bool isTraceClock(const char *mode)
-{
-    int fd = open((g_traceFolder + k_traceClockPath).c_str(), O_RDONLY);
-    if (fd == -1) {
-        fprintf(stderr, "error opening %s: %s (%d)\n", k_traceClockPath,
-            strerror(errno), errno);
-        return false;
-    }
-
-    char buf[4097];
-    ssize_t n = read(fd, buf, 4096);
-    close(fd);
-    if (n == -1) {
-        fprintf(stderr, "error reading %s: %s (%d)\n", k_traceClockPath,
-            strerror(errno), errno);
-        return false;
-    }
-    buf[n] = '\0';
-
-    char *start = strchr(buf, '[');
-    if (start == NULL) {
-        return false;
-    }
-    start++;
-
-    char *end = strchr(start, ']');
-    if (end == NULL) {
-        return false;
-    }
-    *end = '\0';
-
-    return strcmp(mode, start) == 0;
-}
-
-// Enable or disable the kernel's use of the global clock.  Disabling the global
-// clock will result in the kernel using a per-CPU local clock.
+// Set the clock to the best available option while tracing. Use 'boot' if it's
+// available; otherwise, use 'mono'. If neither are available use 'global'.
 // Any write to the trace_clock sysfs file will reset the buffer, so only
 // update it if the requested value is not the current value.
-static bool setGlobalClockEnable(bool enable)
+static bool setClock()
 {
-    const char *clock = enable ? "global" : "local";
+    std::ifstream clockFile((g_traceFolder + k_traceClockPath).c_str(), O_RDONLY);
+    std::string clockStr((std::istreambuf_iterator<char>(clockFile)),
+        std::istreambuf_iterator<char>());
 
-    if (isTraceClock(clock)) {
-        return true;
+    std::string newClock;
+    if (clockStr.find("boot") != std::string::npos) {
+        newClock = "boot";
+    } else if (clockStr.find("mono") != std::string::npos) {
+        newClock = "mono";
+    } else {
+        newClock = "global";
     }
 
-    return writeStr(k_traceClockPath, clock);
+    size_t begin = clockStr.find("[") + 1;
+    size_t end = clockStr.find("]");
+    if (newClock.compare(0, std::string::npos, clockStr, begin, end-begin) == 0) {
+        return true;
+    }
+    return writeStr(k_traceClockPath, newClock.c_str());
 }
 
 static bool setPrintTgidEnableIfPresent(bool enable)
@@ -781,7 +757,7 @@ static bool setUpTrace()
     ok &= setCategoriesEnableFromFile(g_categoriesFile);
     ok &= setTraceOverwriteEnable(g_traceOverwrite);
     ok &= setTraceBufferSizeKB(g_traceBufferSizeKB);
-    ok &= setGlobalClockEnable(true);
+    ok &= setClock();
     ok &= setPrintTgidEnableIfPresent(true);
     ok &= setKernelTraceFuncs(g_kernelTraceFuncs);
 
@@ -855,7 +831,6 @@ static void cleanUpTrace()
     // Set the options back to their defaults.
     setTraceOverwriteEnable(true);
     setTraceBufferSizeKB(1);
-    setGlobalClockEnable(false);
     setPrintTgidEnableIfPresent(false);
     setKernelTraceFuncs(NULL);
 }
