@@ -487,7 +487,7 @@ do {                                                            \
         for (size_t i = 0; i < v1.size(); ++i) {                \
             EXPECT_FLOAT_EQ(v1[i], v2[i]);                      \
         }                                                       \
-    } else if (std::is_same<TypeParam,float>::value) {          \
+    } else if (std::is_same<TypeParam,double>::value) {         \
         for (size_t i = 0; i < v1.size(); ++i) {                \
             EXPECT_DOUBLE_EQ(v1[i], v2[i]);                     \
         }                                                       \
@@ -506,7 +506,7 @@ do {                                                            \
     const decltype(T2) t2 = T2;                                 \
     if (std::is_same<TypeParam,float>::value) {                 \
         ASSERT_FLOAT_EQ(t1, t2);                                \
-    } else if (std::is_same<TypeParam,float>::value) {         \
+    } else if (std::is_same<TypeParam,double>::value) {         \
         ASSERT_DOUBLE_EQ(t1, t2);                               \
     } else {                                                    \
         ASSERT_EQ(t1, t2);                                      \
