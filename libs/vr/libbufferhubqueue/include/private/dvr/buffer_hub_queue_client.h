@@ -33,14 +33,17 @@ class BufferHubQueue : public pdx::Client {
   // participation in lifecycle events.
   std::unique_ptr<ConsumerQueue> CreateSilentConsumerQueue();
 
+  // Returns whether the buffer queue is in async mode.
+  bool is_async() const { return is_async_; }
+
   // Returns the default buffer width of this buffer queue.
-  size_t default_width() const { return default_width_; }
+  uint32_t default_width() const { return default_width_; }
 
   // Returns the default buffer height of this buffer queue.
-  size_t default_height() const { return default_height_; }
+  uint32_t default_height() const { return default_height_; }
 
   // Returns the default buffer format of this buffer queue.
-  int32_t default_format() const { return default_format_; }
+  uint32_t default_format() const { return default_format_; }
 
   // Creates a new consumer in handle form for immediate transport over RPC.
   pdx::Status<pdx::LocalChannelHandle> CreateConsumerQueueHandle();
@@ -99,7 +102,7 @@ class BufferHubQueue : public pdx::Client {
   pdx::Status<void> ImportQueue();
 
   // Sets up the queue with the given parameters.
-  void SetupQueue(size_t meta_size_bytes_, int id);
+  void SetupQueue(const QueueInfo& queue_info);
 
   // Register a buffer for management by the queue. Used by subclasses to add a
   // buffer to internal bookkeeping.
@@ -182,17 +185,22 @@ class BufferHubQueue : public pdx::Client {
     return index == BufferHubQueue::kEpollQueueEventIndex;
   }
 
-  // Default buffer width that can be set to override the buffer width when a
-  // width and height of 0 are specified in AllocateBuffer.
+  // Whether the buffer queue is operating in Async mode.
+  // From GVR's perspective of view, this means a buffer can be acquired
+  // asynchronously by the compositor.
+  // From Android Surface's perspective of view, this is equivalent to
+  // IGraphicBufferProducer's async mode. When in async mode, a producer
+  // will never block even if consumer is running slow.
+  bool is_async_{false};
+
+  // Default buffer width that is set during ProducerQueue's creation.
   size_t default_width_{1};
 
-  // Default buffer height that can be set to override the buffer height when a
-  // width and height of 0 are specified in AllocateBuffer.
+  // Default buffer height that is set during ProducerQueue's creation.
   size_t default_height_{1};
 
-  // Default buffer format that can be set to override the buffer format when it
-  // isn't specified in AllocateBuffer.
-  int32_t default_format_{PIXEL_FORMAT_RGBA_8888};
+  // Default buffer format that is set during ProducerQueue's creation.
+  int32_t default_format_{1};  // PIXEL_FORMAT_RGBA_8888
 
   // Tracks the buffers belonging to this queue. Buffers are stored according to
   // "slot" in this vector. Each slot is a logical id of the buffer within this
@@ -234,13 +242,9 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // this will be rejected. Note that |usage_deny_set_mask| and
   // |usage_deny_clear_mask| shall not conflict with each other. Such
   // configuration will be treated as invalid input on creation.
-  template <typename Meta>
-  static std::unique_ptr<ProducerQueue> Create(const UsagePolicy& usage) {
-    return BASE::Create(sizeof(Meta), usage);
-  }
-  static std::unique_ptr<ProducerQueue> Create(size_t meta_size_bytes,
-                                               const UsagePolicy& usage) {
-    return BASE::Create(meta_size_bytes, usage);
+  static std::unique_ptr<ProducerQueue> Create(
+      const ProducerQueueConfig& config, const UsagePolicy& usage) {
+    return BASE::Create(config, usage);
   }
 
   // Import a ProducerQueue from a channel handle.
@@ -291,18 +295,11 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   // static template methods inherited from ClientBase, which take the same
   // arguments as the constructors.
   explicit ProducerQueue(pdx::LocalChannelHandle handle);
-  ProducerQueue(size_t meta_size, const UsagePolicy& usage);
+  ProducerQueue(const ProducerQueueConfig& config, const UsagePolicy& usage);
 
   pdx::Status<Entry> OnBufferReady(
       const std::shared_ptr<BufferHubBuffer>& buffer, size_t slot) override;
 };
-
-// Explicit specializations of ProducerQueue::Create for void metadata type.
-template <>
-inline std::unique_ptr<ProducerQueue> ProducerQueue::Create<void>(
-    const UsagePolicy& usage) {
-  return ProducerQueue::Create(0, usage);
-}
 
 class ConsumerQueue : public BufferHubQueue {
  public:

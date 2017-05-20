@@ -16,11 +16,11 @@ namespace dvr {
 
 ProducerQueueChannel::ProducerQueueChannel(BufferHubService* service,
                                            int channel_id,
-                                           size_t meta_size_bytes,
+                                           const ProducerQueueConfig& config,
                                            const UsagePolicy& usage_policy,
                                            int* error)
     : BufferHubChannel(service, channel_id, channel_id, kProducerQueueType),
-      meta_size_bytes_(meta_size_bytes),
+      config_(config),
       usage_policy_(usage_policy),
       capacity_(0) {
   *error = 0;
@@ -35,8 +35,8 @@ ProducerQueueChannel::~ProducerQueueChannel() {
 
 /* static */
 Status<std::shared_ptr<ProducerQueueChannel>> ProducerQueueChannel::Create(
-    BufferHubService* service, int channel_id, size_t meta_size_bytes,
-    const UsagePolicy& usage_policy) {
+    BufferHubService* service, int channel_id,
+    const ProducerQueueConfig& config, const UsagePolicy& usage_policy) {
   // Configuration between |usage_deny_set_mask| and |usage_deny_clear_mask|
   // should be mutually exclusive.
   if ((usage_policy.usage_deny_set_mask & usage_policy.usage_deny_clear_mask)) {
@@ -50,7 +50,7 @@ Status<std::shared_ptr<ProducerQueueChannel>> ProducerQueueChannel::Create(
 
   int error = 0;
   std::shared_ptr<ProducerQueueChannel> producer(new ProducerQueueChannel(
-      service, channel_id, meta_size_bytes, usage_policy, &error));
+      service, channel_id, config, usage_policy, &error));
   if (error < 0)
     return ErrorStatus(-error);
   else
@@ -134,7 +134,7 @@ Status<RemoteChannelHandle> ProducerQueueChannel::OnCreateConsumerQueue(
 }
 
 Status<QueueInfo> ProducerQueueChannel::OnGetQueueInfo(Message&) {
-  return {{{meta_size_bytes_}, buffer_id()}};
+  return {{config_, buffer_id()}};
 }
 
 Status<std::vector<std::pair<RemoteChannelHandle, size_t>>>
@@ -222,7 +222,7 @@ ProducerQueueChannel::AllocateBuffer(Message& message, uint32_t width,
 
   auto producer_channel_status =
       ProducerChannel::Create(service(), buffer_id, width, height, layer_count,
-                              format, usage, meta_size_bytes_);
+                              format, usage, config_.meta_size_bytes);
   if (!producer_channel_status) {
     ALOGE(
         "ProducerQueueChannel::AllocateBuffer: Failed to create producer "

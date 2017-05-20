@@ -166,9 +166,9 @@ class BufferHubService : public pdx::ServiceBase<BufferHubService> {
                                              size_t meta_size_bytes);
   pdx::Status<void> OnGetPersistentBuffer(pdx::Message& message,
                                           const std::string& name);
-  pdx::Status<QueueInfo> OnCreateProducerQueue(pdx::Message& message,
-                                               size_t meta_size_bytes,
-                                               const UsagePolicy& usage_policy);
+  pdx::Status<QueueInfo> OnCreateProducerQueue(
+      pdx::Message& message, const ProducerQueueConfig& producer_config,
+      const UsagePolicy& usage_policy);
 
   BufferHubService(const BufferHubService&) = delete;
   void operator=(const BufferHubService&) = delete;

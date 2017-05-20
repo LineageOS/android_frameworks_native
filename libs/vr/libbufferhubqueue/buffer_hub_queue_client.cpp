@@ -105,14 +105,18 @@ Status<void> BufferHubQueue::ImportQueue() {
           status.GetErrorMessage().c_str());
     return ErrorStatus(status.error());
   } else {
-    SetupQueue(status.get().producer_config.meta_size_bytes, status.get().id);
+    SetupQueue(status.get());
     return {};
   }
 }
 
-void BufferHubQueue::SetupQueue(size_t meta_size_bytes, int id) {
-  meta_size_ = meta_size_bytes;
-  id_ = id;
+void BufferHubQueue::SetupQueue(const QueueInfo& queue_info) {
+  is_async_ = queue_info.producer_config.is_async;
+  default_width_ = queue_info.producer_config.default_width;
+  default_height_ = queue_info.producer_config.default_height;
+  default_format_ = queue_info.producer_config.default_format;
+  meta_size_ = queue_info.producer_config.meta_size_bytes;
+  id_ = queue_info.id;
 }
 
 std::unique_ptr<ConsumerQueue> BufferHubQueue::CreateConsumerQueue() {
@@ -405,10 +409,11 @@ ProducerQueue::ProducerQueue(LocalChannelHandle handle)
   }
 }
 
-ProducerQueue::ProducerQueue(size_t meta_size, const UsagePolicy& usage)
+ProducerQueue::ProducerQueue(const ProducerQueueConfig& config,
+                             const UsagePolicy& usage)
     : BASE(BufferHubRPC::kClientPath) {
   auto status =
-      InvokeRemoteMethod<BufferHubRPC::CreateProducerQueue>(meta_size, usage);
+      InvokeRemoteMethod<BufferHubRPC::CreateProducerQueue>(config, usage);
   if (!status) {
     ALOGE("ProducerQueue::ProducerQueue: Failed to create producer queue: %s",
           status.GetErrorMessage().c_str());
@@ -416,7 +421,7 @@ ProducerQueue::ProducerQueue(size_t meta_size, const UsagePolicy& usage)
     return;
   }
 
-  SetupQueue(status.get().producer_config.meta_size_bytes, status.get().id);
+  SetupQueue(status.get());
 }
 
 Status<void> ProducerQueue::AllocateBuffer(uint32_t width, uint32_t height,
