@@ -20,8 +20,6 @@
 
 #include <gui/Surface.h>
 
-#include <inttypes.h>
-
 #include <android/native_window.h>
 
 #include <utils/Log.h>
@@ -473,7 +471,7 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     uint32_t reqWidth;
     uint32_t reqHeight;
     PixelFormat reqFormat;
-    uint64_t reqUsage;
+    uint32_t reqUsage;
     bool enableFrameTimestamps;
 
     {
@@ -513,8 +511,8 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
 
     if (result < 0) {
         ALOGV("dequeueBuffer: IGraphicBufferProducer::dequeueBuffer"
-                "(%d, %d, %d, %#" PRIx64 ") failed: %d",
-                reqWidth, reqHeight, reqFormat, reqUsage, result);
+                "(%d, %d, %d, %d) failed: %d", reqWidth, reqHeight, reqFormat,
+                reqUsage, result);
         return result;
     }
 
@@ -961,9 +959,6 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_GET_HDR_SUPPORT:
         res = dispatchGetHdrSupport(args);
         break;
-    case NATIVE_WINDOW_SET_USAGE64:
-        res = dispatchSetUsage64(args);
-        break;
     default:
         res = NAME_NOT_FOUND;
         break;
@@ -982,13 +977,8 @@ int Surface::dispatchDisconnect(va_list args) {
 }
 
 int Surface::dispatchSetUsage(va_list args) {
-    uint64_t usage = va_arg(args, uint32_t);
-    return setUsage(usage);
-}
-
-int Surface::dispatchSetUsage64(va_list args) {
-    uint64_t usage = va_arg(args, uint64_t);
-    return setUsage(usage);
+    int usage = va_arg(args, int);
+    return setUsage(static_cast<uint32_t>(usage));
 }
 
 int Surface::dispatchSetCrop(va_list args) {
@@ -1266,7 +1256,8 @@ int Surface::attachBuffer(ANativeWindowBuffer* buffer)
     uint32_t priorGeneration = graphicBuffer->mGenerationNumber;
     graphicBuffer->mGenerationNumber = mGenerationNumber;
     int32_t attachedSlot = -1;
-    status_t result = mGraphicBufferProducer->attachBuffer(&attachedSlot, graphicBuffer);
+    status_t result = mGraphicBufferProducer->attachBuffer(
+            &attachedSlot, graphicBuffer);
     if (result != NO_ERROR) {
         ALOGE("attachBuffer: IGraphicBufferProducer call failed (%d)", result);
         graphicBuffer->mGenerationNumber = priorGeneration;
@@ -1280,7 +1271,7 @@ int Surface::attachBuffer(ANativeWindowBuffer* buffer)
     return NO_ERROR;
 }
 
-int Surface::setUsage(uint64_t reqUsage)
+int Surface::setUsage(uint32_t reqUsage)
 {
     ALOGV("Surface::setUsage");
     Mutex::Autolock lock(mMutex);
