@@ -297,7 +297,9 @@ void Layer::onRemoved() {
 
     mSurfaceFlingerConsumer->abandon();
 
+#ifdef USE_HWC2
     clearHwcLayers();
+#endif
 
     for (const auto& child : mCurrentChildren) {
         child->onRemoved();
