@@ -129,19 +129,102 @@ class FenceHandle {
 using LocalFence = FenceHandle<pdx::LocalHandle>;
 using BorrowedFence = FenceHandle<pdx::BorrowedHandle>;
 
-struct QueueInfo {
+struct ProducerQueueConfig {
+  // Whether the buffer queue is operating in Async mode.
+  // From GVR's perspective of view, this means a buffer can be acquired
+  // asynchronously by the compositor.
+  // From Android Surface's perspective of view, this is equivalent to
+  // IGraphicBufferProducer's async mode. When in async mode, a producer
+  // will never block even if consumer is running slow.
+  bool is_async;
+
+  // Default buffer width that is set during ProducerQueue's creation.
+  uint32_t default_width;
+
+  // Default buffer height that is set during ProducerQueue's creation.
+  uint32_t default_height;
+
+  // Default buffer format that is set during ProducerQueue's creation.
+  uint32_t default_format;
+
+  // Size of the meta data associated with all the buffers allocated from the
+  // queue.
   size_t meta_size_bytes;
+
+ private:
+  PDX_SERIALIZABLE_MEMBERS(ProducerQueueConfig, is_async, default_width,
+                           default_height, default_format, meta_size_bytes);
+};
+
+class ProducerQueueConfigBuilder {
+ public:
+  // Build a ProducerQueueConfig object.
+  ProducerQueueConfig Build() {
+    return {is_async_, default_width_, default_height_, default_format_,
+            meta_size_bytes_};
+  }
+
+  ProducerQueueConfigBuilder& SetIsAsync(bool is_async) {
+    is_async_ = is_async;
+    return *this;
+  }
+
+  ProducerQueueConfigBuilder& SetDefaultWidth(uint32_t width) {
+    default_width_ = width;
+    return *this;
+  }
+
+  ProducerQueueConfigBuilder& SetDefaultHeight(uint32_t height) {
+    default_height_ = height;
+    return *this;
+  }
+
+  ProducerQueueConfigBuilder& SetDefaultFormat(uint32_t format) {
+    default_format_ = format;
+    return *this;
+  }
+
+  template <typename Meta>
+  ProducerQueueConfigBuilder& SetMetadata() {
+    meta_size_bytes_ = sizeof(Meta);
+    return *this;
+  }
+
+  ProducerQueueConfigBuilder& SetMetadataSize(size_t meta_size_bytes) {
+    meta_size_bytes_ = meta_size_bytes;
+    return *this;
+  }
+
+ private:
+  bool is_async_{false};
+  uint32_t default_width_{1};
+  uint32_t default_height_{1};
+  uint32_t default_format_{1};  // PIXEL_FORMAT_RGBA_8888
+  size_t meta_size_bytes_{0};
+};
+
+// Explicit specializations of ProducerQueueConfigBuilder::Build for void
+// metadata type.
+template <>
+inline ProducerQueueConfigBuilder&
+ProducerQueueConfigBuilder::SetMetadata<void>() {
+  meta_size_bytes_ = 0;
+  return *this;
+}
+
+struct QueueInfo {
+  ProducerQueueConfig producer_config;
   int id;
 
  private:
-  PDX_SERIALIZABLE_MEMBERS(QueueInfo, meta_size_bytes, id);
+  PDX_SERIALIZABLE_MEMBERS(QueueInfo, producer_config, id);
 };
 
 struct UsagePolicy {
-  uint64_t usage_set_mask;
-  uint64_t usage_clear_mask;
-  uint64_t usage_deny_set_mask;
-  uint64_t usage_deny_clear_mask;
+  uint64_t usage_set_mask{0};
+  uint64_t usage_clear_mask{0};
+  uint64_t usage_deny_set_mask{0};
+  uint64_t usage_deny_clear_mask{0};
 
  private:
   PDX_SERIALIZABLE_MEMBERS(UsagePolicy, usage_set_mask, usage_clear_mask,
@@ -219,7 +302,7 @@ struct BufferHubRPC {
 
   // Buffer Queue Methods.
   PDX_REMOTE_METHOD(CreateProducerQueue, kOpCreateProducerQueue,
-                    QueueInfo(size_t meta_size_bytes,
+                    QueueInfo(const ProducerQueueConfig& producer_config,
                               const UsagePolicy& usage_policy));
   PDX_REMOTE_METHOD(CreateConsumerQueue, kOpCreateConsumerQueue,
                     LocalChannelHandle(Void));

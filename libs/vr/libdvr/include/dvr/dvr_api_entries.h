@@ -89,11 +89,11 @@ DVR_V1_API_ENTRY(SurfaceCreateWriteBufferQueue);
 DVR_V1_API_ENTRY(GetGlobalBuffer);
 
 // Pose client
-DVR_V1_API_ENTRY(PoseCreate);
-DVR_V1_API_ENTRY(PoseDestroy);
-DVR_V1_API_ENTRY(PoseGet);
-DVR_V1_API_ENTRY(PoseGetVsyncCount);
-DVR_V1_API_ENTRY(PoseGetController);
+DVR_V1_API_ENTRY(PoseClientCreate);
+DVR_V1_API_ENTRY(PoseClientDestroy);
+DVR_V1_API_ENTRY(PoseClientGet);
+DVR_V1_API_ENTRY(PoseClientGetVsyncCount);
+DVR_V1_API_ENTRY(PoseClientGetController);
 
 // Virtual touchpad client
 DVR_V1_API_ENTRY(VirtualTouchpadCreate);

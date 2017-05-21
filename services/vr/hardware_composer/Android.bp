@@ -7,6 +7,7 @@ cc_library_shared {
   ],
 
   static_libs: [
+    "libbroadcastring",
     "libhwcomposer-client",
     "libdisplay",
     "libbufferhubqueue",

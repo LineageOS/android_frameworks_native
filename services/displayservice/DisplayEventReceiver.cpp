@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #define LOG_TAG "libdisplayservicehidl"
 
 #include <displayservice/DisplayEventReceiver.h>
@@ -43,12 +44,14 @@ sp<Looper> getLooper() {
     return looper;
 }
 
-DisplayEventReceiver::AttachedEvent::AttachedEvent(const sp<IEventCallback> &callback) : mCallback(callback) {
+DisplayEventReceiver::AttachedEvent::AttachedEvent(const sp<IEventCallback> &callback)
+    : mCallback(callback)
+{
     mLooperAttached = getLooper()->addFd(mFwkReceiver.getFd(),
-                                         Looper::POLL_CALLBACK,
-                                         Looper::EVENT_INPUT,
-                                         this,
-                                         nullptr);
+            Looper::POLL_CALLBACK,
+            Looper::EVENT_INPUT,
+            this,
+            nullptr);
 }
 
 DisplayEventReceiver::AttachedEvent::~AttachedEvent() {
@@ -86,7 +89,7 @@ int DisplayEventReceiver::AttachedEvent::handleEvent(int fd, int events, void* /
         return 1; // keep the callback
     }
 
-    const static size_t SIZE = 1;
+    constexpr size_t SIZE = 1;
 
     ssize_t n;
     FwkReceiver::Event buf[SIZE];
@@ -149,11 +152,11 @@ Return<Status> DisplayEventReceiver::requestNextVsync() {
 }
 
 Return<Status> DisplayEventReceiver::close() {
+    std::unique_lock<std::mutex> lock(mMutex);
     if (mAttached == nullptr) {
         return Status::BAD_VALUE;
     }
 
-    std::unique_lock<std::mutex> lock(mMutex);
     bool success = mAttached->detach();
     mAttached = nullptr;
 
