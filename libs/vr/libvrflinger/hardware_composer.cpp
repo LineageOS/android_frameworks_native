@@ -25,7 +25,6 @@
 #include <dvr/performance_client_api.h>
 #include <private/dvr/clock_ns.h>
 #include <private/dvr/ion_buffer.h>
-#include <private/dvr/pose_client_internal.h>
 
 using android::pdx::LocalHandle;
 using android::pdx::rpc::EmptyVariant;
@@ -211,10 +210,6 @@ void HardwareComposer::UpdatePostThreadState(PostThreadStateType state,
 void HardwareComposer::OnPostThreadResumed() {
   hwc2_hidl_->resetCommands();
 
-  // Connect to pose service.
-  pose_client_ = dvrPoseCreate();
-  ALOGE_IF(!pose_client_, "HardwareComposer: Failed to create pose client");
-
   // HIDL HWC seems to have an internal race condition. If we submit a frame too
   // soon after turning on VSync we don't get any VSync signals. Give poor HWC
   // implementations a chance to enable VSync before we continue.
@@ -242,11 +237,6 @@ void HardwareComposer::OnPostThreadPaused() {
     layers_[i].Reset();
   }
   active_layer_count_ = 0;
-
-  if (pose_client_) {
-    dvrPoseDestroy(pose_client_);
-    pose_client_ = nullptr;
-  }
 
   EnableVsync(false);
 
@@ -467,7 +457,16 @@ void HardwareComposer::SetDisplaySurfaces(
 
 int HardwareComposer::OnNewGlobalBuffer(DvrGlobalBufferKey key,
                                         IonBuffer& ion_buffer) {
-  if (key == kVrFlingerConfigBufferKey) {
+  if (key == DvrGlobalBuffers::kVsyncBuffer) {
+    vsync_ring_ = std::make_unique<CPUMappedBroadcastRing<DvrVsyncRing>>(
+        &ion_buffer, CPUUsageMode::WRITE_OFTEN);
+
+    if (vsync_ring_->IsMapped() == false) {
+      return -EPERM;
+    }
+  }
+
+  if (key == DvrGlobalBuffers::kVrFlingerConfigBufferKey) {
     return MapConfigBuffer(ion_buffer);
   }
 
@@ -475,7 +474,7 @@ int HardwareComposer::OnNewGlobalBuffer(DvrGlobalBufferKey key,
 }
 
 void HardwareComposer::OnDeletedGlobalBuffer(DvrGlobalBufferKey key) {
-  if (key == kVrFlingerConfigBufferKey) {
+  if (key == DvrGlobalBuffers::kVrFlingerConfigBufferKey) {
     ConfigBufferDeleted();
   }
 }
@@ -515,7 +514,7 @@ void HardwareComposer::UpdateConfigBuffer() {
   if (!shared_config_ring_.is_valid())
     return;
   // Copy from latest record in shared_config_ring_ to local copy.
-  DvrVrFlingerConfigBuffer record;
+  DvrVrFlingerConfig record;
   if (shared_config_ring_.GetNewest(&shared_config_ring_sequence_, &record)) {
     post_thread_config_ = record;
   }
@@ -850,15 +849,19 @@ void HardwareComposer::PostThread() {
 
     ++vsync_count_;
 
-    if (pose_client_) {
-      // Signal the pose service with vsync info.
-      // Display timestamp is in the middle of scanout.
-      privateDvrPoseNotifyVsync(pose_client_, vsync_count_,
-                                vsync_timestamp + photon_offset_ns,
-                                ns_per_frame, right_eye_photon_offset_ns);
-    }
-
     const bool layer_config_changed = UpdateLayerConfig();
+
+    // Publish the vsync event.
+    if (vsync_ring_) {
+      DvrVsync vsync;
+      vsync.vsync_count = vsync_count_;
+      vsync.vsync_timestamp_ns = vsync_timestamp;
+      vsync.vsync_left_eye_offset_ns = photon_offset_ns;
+      vsync.vsync_right_eye_offset_ns = right_eye_photon_offset_ns;
+      vsync.vsync_period_ns = ns_per_frame;
+
+      vsync_ring_->Publish(vsync);
+    }
 
     // Signal all of the vsync clients. Because absolute time is used for the
     // wakeup time below, this can take a little time if necessary.

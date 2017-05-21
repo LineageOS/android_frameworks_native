@@ -1,4 +1,5 @@
 #define LOG_TAG "PoseClient"
+#include <dvr/dvr_shared_buffers.h>
 #include <dvr/pose_client.h>
 
 #include <stdint.h>
@@ -8,9 +9,9 @@
 #include <pdx/default_transport/client_channel_factory.h>
 #include <pdx/file_handle.h>
 #include <private/dvr/buffer_hub_client.h>
+#include <private/dvr/display_client.h>
 #include <private/dvr/pose-ipc.h>
-#include <private/dvr/pose_client_internal.h>
-#include <private/dvr/sensor_constants.h>
+#include <private/dvr/shared_buffer_helpers.h>
 
 using android::pdx::LocalHandle;
 using android::pdx::LocalChannelHandle;
@@ -28,39 +29,44 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
   ~PoseClient() override {}
 
   // Casts C handle into an instance of this class.
-  static PoseClient* FromC(DvrPose* client) {
+  static PoseClient* FromC(DvrPoseClient* client) {
     return reinterpret_cast<PoseClient*>(client);
   }
 
   // Polls the pose service for the current state and stores it in *state.
   // Returns zero on success, a negative error code otherwise.
-  int Poll(DvrPoseState* state) {
-    Transaction trans{*this};
-    Status<int> status =
-        trans.Send<int>(DVR_POSE_POLL, nullptr, 0, state, sizeof(*state));
-    ALOGE_IF(!status, "Pose poll() failed because: %s\n",
-             status.GetErrorMessage().c_str());
-    return ReturnStatusOrError(status);
+  int Poll(DvrPose* state) {
+    const auto vsync_buffer = GetVsyncBuffer();
+    if (vsync_buffer) {
+      if (state) {
+        // Fill the state
+        *state = vsync_buffer->current_pose;
+      }
+      return -EINVAL;
+    }
+
+    return -EAGAIN;
   }
 
   int GetPose(uint32_t vsync_count, DvrPoseAsync* out_pose) {
-    if (!mapped_pose_buffer_) {
-      int ret = GetRingBuffer(nullptr);
-      if (ret < 0)
-        return ret;
+    const auto vsync_buffer = GetVsyncBuffer();
+    if (vsync_buffer) {
+      *out_pose =
+          vsync_buffer
+              ->vsync_poses[vsync_count & DvrVsyncPoseBuffer::kIndexMask];
+      return 0;
+    } else {
+      return -EAGAIN;
     }
-    *out_pose =
-        mapped_pose_buffer_->ring[vsync_count & kPoseAsyncBufferIndexMask];
-    return 0;
   }
 
   uint32_t GetVsyncCount() {
-    if (!mapped_pose_buffer_) {
-      int ret = GetRingBuffer(nullptr);
-      if (ret < 0)
-        return 0;
+    const auto vsync_buffer = GetVsyncBuffer();
+    if (vsync_buffer) {
+      return vsync_buffer->vsync_count;
     }
-    return mapped_pose_buffer_->vsync_count;
+
+    return 0;
   }
 
   int GetControllerPose(int32_t controller_id, uint32_t vsync_count,
@@ -75,7 +81,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
     }
     *out_pose =
         controllers_[controller_id]
-            .mapped_pose_buffer[vsync_count & kPoseAsyncBufferIndexMask];
+            .mapped_pose_buffer[vsync_count & DvrVsyncPoseBuffer::kIndexMask];
     return 0;
   }
 
@@ -92,7 +98,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
   // this state until a different state is frozen or SetMode() is called with a
   // different mode.
   // Returns zero on success, a negative error code otherwise.
-  int Freeze(const DvrPoseState& frozen_state) {
+  int Freeze(const DvrPose& frozen_state) {
     Transaction trans{*this};
     Status<int> status = trans.Send<int>(DVR_POSE_FREEZE, &frozen_state,
                                          sizeof(frozen_state), nullptr, 0);
@@ -124,48 +130,29 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
     return ReturnStatusOrError(status);
   }
 
-  int GetRingBuffer(DvrPoseRingBufferInfo* out_info) {
-    if (pose_buffer_.get()) {
-      if (out_info) {
-        GetPoseRingBufferInfo(out_info);
-      }
-      return 0;
-    }
-
+  // Enables or disables all pose processing from sensors
+  int EnableSensors(bool enabled) {
     Transaction trans{*this};
-    Status<LocalChannelHandle> status =
-        trans.Send<LocalChannelHandle>(DVR_POSE_GET_RING_BUFFER);
-    if (!status) {
-      ALOGE("Pose GetRingBuffer() failed because: %s",
-            status.GetErrorMessage().c_str());
-      return -status.error();
+    Status<int> status = trans.Send<int>(DVR_POSE_SENSORS_ENABLE, &enabled,
+                                         sizeof(enabled), nullptr, 0);
+    ALOGE_IF(!status, "Pose EnableSensors() failed because: %s\n",
+             status.GetErrorMessage().c_str());
+    return ReturnStatusOrError(status);
+  }
+
+  int GetRingBuffer(DvrPoseRingBufferInfo* out_info) {
+    // First time mapping the buffer?
+    const auto vsync_buffer = GetVsyncBuffer();
+    if (vsync_buffer) {
+      if (out_info) {
+        out_info->min_future_count = DvrVsyncPoseBuffer::kMinFutureCount;
+        out_info->total_count = DvrVsyncPoseBuffer::kSize;
+        out_info->buffer = vsync_buffer->vsync_poses;
+      }
+      return -EINVAL;
     }
 
-    auto buffer = BufferConsumer::Import(status.take());
-    if (!buffer) {
-      ALOGE("Pose failed to import ring buffer");
-      return -EIO;
-    }
-    void* addr = nullptr;
-    int ret = buffer->GetBlobReadOnlyPointer(sizeof(DvrPoseRingBuffer), &addr);
-    if (ret < 0 || !addr) {
-      ALOGE("Pose failed to map ring buffer: ret:%d, addr:%p", ret, addr);
-      return -EIO;
-    }
-    pose_buffer_.swap(buffer);
-    mapped_pose_buffer_ = static_cast<const DvrPoseRingBuffer*>(addr);
-    ALOGI("Mapped pose data translation %f,%f,%f quat %f,%f,%f,%f",
-          mapped_pose_buffer_->ring[0].translation[0],
-          mapped_pose_buffer_->ring[0].translation[1],
-          mapped_pose_buffer_->ring[0].translation[2],
-          mapped_pose_buffer_->ring[0].orientation[0],
-          mapped_pose_buffer_->ring[0].orientation[1],
-          mapped_pose_buffer_->ring[0].orientation[2],
-          mapped_pose_buffer_->ring[0].orientation[3]);
-    if (out_info) {
-      GetPoseRingBufferInfo(out_info);
-    }
-    return 0;
+    return -EAGAIN;
   }
 
   int GetControllerRingBuffer(int32_t controller_id) {
@@ -190,7 +177,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
       ALOGE("Pose failed to import ring buffer");
       return -EIO;
     }
-    constexpr size_t size = kPoseAsyncBufferTotalCount * sizeof(DvrPoseAsync);
+    constexpr size_t size = DvrVsyncPoseBuffer::kSize * sizeof(DvrPoseAsync);
     void* addr = nullptr;
     int ret = buffer->GetBlobReadOnlyPointer(size, &addr);
     if (ret < 0 || !addr) {
@@ -201,39 +188,13 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
     client_state.mapped_pose_buffer = static_cast<const DvrPoseAsync*>(addr);
     ALOGI(
         "Mapped controller %d pose data translation %f,%f,%f quat %f,%f,%f,%f",
-        controller_id, client_state.mapped_pose_buffer[0].translation[0],
-        client_state.mapped_pose_buffer[0].translation[1],
-        client_state.mapped_pose_buffer[0].translation[2],
+        controller_id, client_state.mapped_pose_buffer[0].position[0],
+        client_state.mapped_pose_buffer[0].position[1],
+        client_state.mapped_pose_buffer[0].position[2],
         client_state.mapped_pose_buffer[0].orientation[0],
         client_state.mapped_pose_buffer[0].orientation[1],
         client_state.mapped_pose_buffer[0].orientation[2],
         client_state.mapped_pose_buffer[0].orientation[3]);
-    return 0;
-  }
-
-  int NotifyVsync(uint32_t vsync_count, int64_t display_timestamp,
-                  int64_t display_period_ns,
-                  int64_t right_eye_photon_offset_ns) {
-    const struct iovec data[] = {
-        {.iov_base = &vsync_count, .iov_len = sizeof(vsync_count)},
-        {.iov_base = &display_timestamp, .iov_len = sizeof(display_timestamp)},
-        {.iov_base = &display_period_ns, .iov_len = sizeof(display_period_ns)},
-        {.iov_base = &right_eye_photon_offset_ns,
-         .iov_len = sizeof(right_eye_photon_offset_ns)},
-    };
-    Transaction trans{*this};
-    Status<int> status =
-        trans.SendVector<int>(DVR_POSE_NOTIFY_VSYNC, data, nullptr);
-    ALOGE_IF(!status, "Pose NotifyVsync() failed because: %s\n",
-             status.GetErrorMessage().c_str());
-    return ReturnStatusOrError(status);
-  }
-
-  int GetRingBufferFd(LocalHandle* fd) {
-    int ret = GetRingBuffer(nullptr);
-    if (ret < 0)
-      return ret;
-    *fd = pose_buffer_->GetBlobFd();
     return 0;
   }
 
@@ -252,14 +213,29 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
   PoseClient(const PoseClient&) = delete;
   PoseClient& operator=(const PoseClient&) = delete;
 
-  void GetPoseRingBufferInfo(DvrPoseRingBufferInfo* out_info) const {
-    out_info->min_future_count = kPoseAsyncBufferMinFutureCount;
-    out_info->total_count = kPoseAsyncBufferTotalCount;
-    out_info->buffer = mapped_pose_buffer_->ring;
+  const DvrVsyncPoseBuffer* GetVsyncBuffer() {
+    if (mapped_vsync_pose_buffer_ == nullptr) {
+      if (vsync_pose_buffer_ == nullptr) {
+        // The constructor tries mapping it so we do not need TryMapping after.
+        vsync_pose_buffer_ = std::make_unique<CPUMappedBuffer>(
+            DvrGlobalBuffers::kVsyncPoseBuffer, CPUUsageMode::READ_OFTEN);
+      } else if (vsync_pose_buffer_->IsMapped() == false) {
+        vsync_pose_buffer_->TryMapping();
+      }
+
+      if (vsync_pose_buffer_->IsMapped()) {
+        mapped_vsync_pose_buffer_ =
+            static_cast<DvrVsyncPoseBuffer*>(vsync_pose_buffer_->Address());
+      }
+    }
+
+    return mapped_vsync_pose_buffer_;
   }
 
-  std::unique_ptr<BufferConsumer> pose_buffer_;
-  const DvrPoseRingBuffer* mapped_pose_buffer_ = nullptr;
+  // The vsync pose buffer if already mapped.
+  std::unique_ptr<CPUMappedBuffer> vsync_pose_buffer_;
+
+  const DvrVsyncPoseBuffer* mapped_vsync_pose_buffer_ = nullptr;
 
   struct ControllerClientState {
     std::unique_ptr<BufferConsumer> pose_buffer;
@@ -273,66 +249,55 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
 
 using android::dvr::PoseClient;
 
-struct DvrPose {};
-
 extern "C" {
 
-DvrPose* dvrPoseCreate() {
-  PoseClient* client = PoseClient::Create().release();
-  return reinterpret_cast<DvrPose*>(client);
+DvrPoseClient* dvrPoseClientCreate() {
+  auto* client = PoseClient::Create().release();
+  return reinterpret_cast<DvrPoseClient*>(client);
 }
 
-void dvrPoseDestroy(DvrPose* client) { delete PoseClient::FromC(client); }
+void dvrPoseClientDestroy(DvrPoseClient* client) {
+  delete PoseClient::FromC(client);
+}
 
-int dvrPoseGet(DvrPose* client, uint32_t vsync_count, DvrPoseAsync* out_pose) {
+int dvrPoseClientGet(DvrPoseClient* client, uint32_t vsync_count,
+                     DvrPoseAsync* out_pose) {
   return PoseClient::FromC(client)->GetPose(vsync_count, out_pose);
 }
 
-uint32_t dvrPoseGetVsyncCount(DvrPose* client) {
+uint32_t dvrPoseClientGetVsyncCount(DvrPoseClient* client) {
   return PoseClient::FromC(client)->GetVsyncCount();
 }
 
-int dvrPoseGetController(DvrPose* client, int32_t controller_id,
-                         uint32_t vsync_count, DvrPoseAsync* out_pose) {
+int dvrPoseClientGetController(DvrPoseClient* client, int32_t controller_id,
+                               uint32_t vsync_count, DvrPoseAsync* out_pose) {
   return PoseClient::FromC(client)->GetControllerPose(controller_id,
                                                       vsync_count, out_pose);
 }
 
-int dvrPoseLogController(DvrPose* client, bool enable) {
+int dvrPoseClientLogController(DvrPoseClient* client, bool enable) {
   return PoseClient::FromC(client)->LogController(enable);
 }
 
-int dvrPosePoll(DvrPose* client, DvrPoseState* state) {
+int dvrPoseClientPoll(DvrPoseClient* client, DvrPose* state) {
   return PoseClient::FromC(client)->Poll(state);
 }
 
-int dvrPoseFreeze(DvrPose* client, const DvrPoseState* frozen_state) {
+int dvrPoseClientFreeze(DvrPoseClient* client, const DvrPose* frozen_state) {
   return PoseClient::FromC(client)->Freeze(*frozen_state);
 }
 
-int dvrPoseSetMode(DvrPose* client, DvrPoseMode mode) {
+int dvrPoseClientModeSet(DvrPoseClient* client, DvrPoseMode mode) {
   return PoseClient::FromC(client)->SetMode(mode);
 }
 
-int dvrPoseGetMode(DvrPose* client, DvrPoseMode* mode) {
+int dvrPoseClientModeGet(DvrPoseClient* client, DvrPoseMode* mode) {
   return PoseClient::FromC(client)->GetMode(mode);
 }
 
-int dvrPoseGetRingBuffer(DvrPose* client, DvrPoseRingBufferInfo* out_info) {
-  return PoseClient::FromC(client)->GetRingBuffer(out_info);
-}
 
-int privateDvrPoseNotifyVsync(DvrPose* client, uint32_t vsync_count,
-                              int64_t display_timestamp,
-                              int64_t display_period_ns,
-                              int64_t right_eye_photon_offset_ns) {
-  return PoseClient::FromC(client)->NotifyVsync(vsync_count, display_timestamp,
-                                                display_period_ns,
-                                                right_eye_photon_offset_ns);
-}
-
-int privateDvrPoseGetRingBufferFd(DvrPose* client, LocalHandle* fd) {
-  return PoseClient::FromC(client)->GetRingBufferFd(fd);
+int dvrPoseClientSensorsEnable(DvrPoseClient* client, bool enabled) {
+  return PoseClient::FromC(client)->EnableSensors(enabled);
 }
 
 }  // extern "C"

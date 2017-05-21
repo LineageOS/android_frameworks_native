@@ -12,8 +12,8 @@ namespace dvr {
 class ProducerQueueChannel : public BufferHubChannel {
  public:
   static pdx::Status<std::shared_ptr<ProducerQueueChannel>> Create(
-      BufferHubService* service, int channel_id, size_t meta_size_bytes,
-      const UsagePolicy& usage_policy);
+      BufferHubService* service, int channel_id,
+      const ProducerQueueConfig& config, const UsagePolicy& usage_policy);
   ~ProducerQueueChannel() override;
 
   bool HandleMessage(pdx::Message& message) override;
@@ -48,8 +48,8 @@ class ProducerQueueChannel : public BufferHubChannel {
 
  private:
   ProducerQueueChannel(BufferHubService* service, int channel_id,
-                       size_t meta_size_bytes, const UsagePolicy& usage_policy,
-                       int* error);
+                       const ProducerQueueConfig& config,
+                       const UsagePolicy& usage_policy, int* error);
 
   // Allocate one single producer buffer by |OnProducerQueueAllocateBuffers|.
   // Note that the newly created buffer's file handle will be pushed to client
@@ -60,10 +60,9 @@ class ProducerQueueChannel : public BufferHubChannel {
       pdx::Message& message, uint32_t width, uint32_t height,
       uint32_t layer_count, uint32_t format, uint64_t usage);
 
-  // Size of the meta data associated with all the buffers allocated from the
-  // queue. Now we assume the metadata size is immutable once the queue is
-  // created.
-  size_t meta_size_bytes_;
+  // The producer queue's configuration. Now we assume the configuration is
+  // immutable once the queue is created.
+  ProducerQueueConfig config_;
 
   // A set of variables to control what |usage| bits can this ProducerQueue
   // allocate.

@@ -28,7 +28,7 @@ sharedLibraries = [
     "libhardware",
 ]
 
-staticLibraries = ["libpdx_default_transport"]
+staticLibraries = ["libpdx_default_transport", "libbroadcastring"]
 
 headerLibraries = [
     "libeigen",

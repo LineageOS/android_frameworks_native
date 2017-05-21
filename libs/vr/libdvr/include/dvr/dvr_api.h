@@ -18,7 +18,7 @@ typedef struct DvrPoseAsync DvrPoseAsync;
 typedef uint64_t DvrSurfaceUpdateFlags;
 typedef struct DvrDisplayManager DvrDisplayManager;
 typedef struct DvrSurfaceState DvrSurfaceState;
-typedef struct DvrPose DvrPose;
+typedef struct DvrPoseClient DvrPoseClient;
 typedef struct DvrVSyncClient DvrVSyncClient;
 typedef struct DvrVirtualTouchpad DvrVirtualTouchpad;
 
@@ -182,14 +182,15 @@ typedef int (*DvrVSyncClientGetSchedInfoPtr)(DvrVSyncClient* client,
                                              uint32_t* next_vsync_count);
 
 // pose_client.h
-typedef DvrPose* (*DvrPoseCreatePtr)(void);
-typedef void (*DvrPoseDestroyPtr)(DvrPose* client);
-typedef int (*DvrPoseGetPtr)(DvrPose* client, uint32_t vsync_count,
-                             DvrPoseAsync* out_pose);
-typedef uint32_t (*DvrPoseGetVsyncCountPtr)(DvrPose* client);
-typedef int (*DvrPoseGetControllerPtr)(DvrPose* client, int32_t controller_id,
-                                       uint32_t vsync_count,
-                                       DvrPoseAsync* out_pose);
+typedef DvrPoseClient* (*DvrPoseClientCreatePtr)(void);
+typedef void (*DvrPoseClientDestroyPtr)(DvrPoseClient* client);
+typedef int (*DvrPoseClientGetPtr)(DvrPoseClient* client, uint32_t vsync_count,
+                                   DvrPoseAsync* out_pose);
+typedef uint32_t (*DvrPoseClientGetVsyncCountPtr)(DvrPoseClient* client);
+typedef int (*DvrPoseClientGetControllerPtr)(DvrPoseClient* client,
+                                             int32_t controller_id,
+                                             uint32_t vsync_count,
+                                             DvrPoseAsync* out_pose);
 
 // virtual_touchpad_client.h
 typedef DvrVirtualTouchpad* (*DvrVirtualTouchpadCreatePtr)(void);

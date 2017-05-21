@@ -42,7 +42,7 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
 
   // See |IGraphicBufferProducer::dequeueBuffer|
   status_t dequeueBuffer(int* out_slot, sp<Fence>* out_fence, uint32_t width,
-                         uint32_t height, PixelFormat format, uint32_t usage,
+                         uint32_t height, PixelFormat format, uint64_t usage,
                          FrameEventHistoryDelta* outTimestamps) override;
 
   // See |IGraphicBufferProducer::detachBuffer|
@@ -80,7 +80,7 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
 
   // See |IGraphicBufferProducer::allocateBuffers|
   void allocateBuffers(uint32_t width, uint32_t height, PixelFormat format,
-                       uint32_t usage) override;
+                       uint64_t usage) override;
 
   // See |IGraphicBufferProducer::allowAllocation|
   status_t allowAllocation(bool allow) override;

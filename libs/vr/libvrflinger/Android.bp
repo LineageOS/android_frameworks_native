@@ -34,6 +34,7 @@ staticLibraries = [
     "libdvrcommon",
     "libperformance",
     "libvrsensor",
+    "libbroadcastring",
     "libpdx_default_transport",
     "libvr_manager",
     "libbroadcastring",

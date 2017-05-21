@@ -17,6 +17,7 @@ sourceFiles = [
     "display_manager_client.cpp",
     "display_protocol.cpp",
     "vsync_client.cpp",
+    "shared_buffer_helpers.cpp",
 ]
 
 localIncludeFiles = [
@@ -39,7 +40,7 @@ staticLibraries = [
     "libdvrcommon",
     "libbufferhubqueue",
     "libbufferhub",
-    "libvrsensor",
+    "libbroadcastring",
     "libpdx_default_transport",
 ]
 

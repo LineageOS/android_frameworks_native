@@ -25,8 +25,9 @@ typedef uint64_t TestMeta;
 class DvrBufferQueueTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    auto config = ProducerQueueConfigBuilder().SetMetadata<TestMeta>().Build();
     write_queue_ = CreateDvrWriteBufferQueueFromProducerQueue(
-        ProducerQueue::Create<TestMeta>(0, 0, 0, 0));
+        ProducerQueue::Create(config, UsagePolicy{}));
     ASSERT_NE(nullptr, write_queue_);
   }
 
@@ -197,11 +198,13 @@ TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
   ASSERT_EQ(nullptr, window);
 
   // A write queue with DvrNativeBufferMetadata should work fine.
+  auto config = ProducerQueueConfigBuilder()
+                    .SetMetadata<DvrNativeBufferMetadata>()
+                    .Build();
   std::unique_ptr<DvrWriteBufferQueue, decltype(&dvrWriteBufferQueueDestroy)>
-      write_queue(
-          CreateDvrWriteBufferQueueFromProducerQueue(
-              ProducerQueue::Create<DvrNativeBufferMetadata>(0, 0, 0, 0)),
-          dvrWriteBufferQueueDestroy);
+      write_queue(CreateDvrWriteBufferQueueFromProducerQueue(
+                      ProducerQueue::Create(config, UsagePolicy{})),
+                  dvrWriteBufferQueueDestroy);
   ASSERT_NE(nullptr, write_queue.get());
 
   ret = dvrWriteBufferQueueGetExternalSurface(write_queue.get(), &window);

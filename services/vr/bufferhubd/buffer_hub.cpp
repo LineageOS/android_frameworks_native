@@ -382,7 +382,7 @@ Status<void> BufferHubService::OnGetPersistentBuffer(Message& message,
 }
 
 Status<QueueInfo> BufferHubService::OnCreateProducerQueue(
-    pdx::Message& message, size_t meta_size_bytes,
+    pdx::Message& message, const ProducerQueueConfig& producer_config,
     const UsagePolicy& usage_policy) {
   // Use the producer channel id as the global queue id.
   const int queue_id = message.GetChannelId();
@@ -396,11 +396,11 @@ Status<QueueInfo> BufferHubService::OnCreateProducerQueue(
     return ErrorStatus(EALREADY);
   }
 
-  auto status = ProducerQueueChannel::Create(this, queue_id, meta_size_bytes,
+  auto status = ProducerQueueChannel::Create(this, queue_id, producer_config,
                                              usage_policy);
   if (status) {
     message.SetChannel(status.take());
-    return {{meta_size_bytes, queue_id}};
+    return {{producer_config, queue_id}};
   } else {
     ALOGE("BufferHubService::OnCreateBuffer: Failed to create producer!!");
     return status.error_status();
