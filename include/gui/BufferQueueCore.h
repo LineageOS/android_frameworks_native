@@ -170,7 +170,7 @@ private:
 
     // mConsumerUsageBits contains flags that the consumer wants for
     // GraphicBuffers.
-    uint64_t mConsumerUsageBits;
+    uint32_t mConsumerUsageBits;
 
     // mConsumerIsProtected indicates the consumer is ready to handle protected
     // buffer.

@@ -88,18 +88,14 @@ typedef struct ANativeWindowBuffer
     int height;
     int stride;
     int format;
-    int usage_deprecated;
+    int usage;
     uintptr_t layerCount;
 
     void* reserved[1];
 
     const native_handle_t* handle;
-    uint64_t usage;
 
-    // we needed extra space for storing the 64-bits usage flags
-    // the number of slots to use from reserved_proc depends on the
-    // architecture.
-    void* reserved_proc[8 - (sizeof(uint64_t) / sizeof(void*))];
+    void* reserved_proc[8];
 } ANativeWindowBuffer_t;
 
 typedef struct ANativeWindowBuffer ANativeWindowBuffer;

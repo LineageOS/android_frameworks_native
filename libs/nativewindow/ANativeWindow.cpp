@@ -190,7 +190,8 @@ int ANativeWindow_cancelBuffer(ANativeWindow* window, ANativeWindowBuffer* buffe
 }
 
 int ANativeWindow_setUsage(ANativeWindow* window, uint64_t usage) {
-    return native_window_set_usage(window, usage);
+    usage = AHardwareBuffer_convertToGrallocUsageBits(usage);
+    return native_window_set_usage(window, (uint32_t)usage); // FIXME: we need a 64-bits version
 }
 
 int ANativeWindow_setBufferCount(ANativeWindow* window, size_t bufferCount) {
