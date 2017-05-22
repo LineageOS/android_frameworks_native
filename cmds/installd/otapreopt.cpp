@@ -64,6 +64,25 @@ using android::base::StringPrintf;
 namespace android {
 namespace installd {
 
+// Check expected values for dexopt flags. If you need to change this:
+//
+//   RUN AN A/B OTA TO MAKE SURE THINGS STILL WORK!
+//
+// You most likely need to increase the protocol version and all that entails!
+
+static_assert(DEXOPT_PUBLIC         == 1 << 1, "DEXOPT_PUBLIC unexpected.");
+static_assert(DEXOPT_DEBUGGABLE     == 1 << 2, "DEXOPT_DEBUGGABLE unexpected.");
+static_assert(DEXOPT_BOOTCOMPLETE   == 1 << 3, "DEXOPT_BOOTCOMPLETE unexpected.");
+static_assert(DEXOPT_PROFILE_GUIDED == 1 << 4, "DEXOPT_PROFILE_GUIDED unexpected.");
+static_assert(DEXOPT_SECONDARY_DEX  == 1 << 5, "DEXOPT_SECONDARY_DEX unexpected.");
+static_assert(DEXOPT_FORCE          == 1 << 6, "DEXOPT_FORCE unexpected.");
+static_assert(DEXOPT_STORAGE_CE     == 1 << 7, "DEXOPT_STORAGE_CE unexpected.");
+static_assert(DEXOPT_STORAGE_DE     == 1 << 8, "DEXOPT_STORAGE_DE unexpected.");
+
+static_assert(DEXOPT_MASK           == 0x1fe, "DEXOPT_MASK unexpected.");
+
+
+
 template<typename T>
 static constexpr T RoundDown(T x, typename std::decay<T>::type n) {
     return DCHECK_CONSTEXPR(IsPowerOfTwo(n), , T(0))(x & -n);
