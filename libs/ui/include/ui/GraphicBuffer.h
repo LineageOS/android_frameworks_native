@@ -141,7 +141,7 @@ public:
     uint32_t getWidth() const           { return static_cast<uint32_t>(width); }
     uint32_t getHeight() const          { return static_cast<uint32_t>(height); }
     uint32_t getStride() const          { return static_cast<uint32_t>(stride); }
-    uint32_t getUsage() const           { return static_cast<uint32_t>(usage); }
+    uint64_t getUsage() const           { return usage; }
     PixelFormat getPixelFormat() const  { return format; }
     uint32_t getLayerCount() const      { return static_cast<uint32_t>(layerCount); }
     Rect getBounds() const              { return Rect(width, height); }
