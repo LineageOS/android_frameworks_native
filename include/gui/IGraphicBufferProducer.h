@@ -195,7 +195,7 @@ public:
     // All other negative values are an unknown error returned downstream
     // from the graphics allocator (typically errno).
     virtual status_t dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w,
-            uint32_t h, PixelFormat format, uint64_t usage,
+            uint32_t h, PixelFormat format, uint32_t usage,
             FrameEventHistoryDelta* outTimestamps) = 0;
 
     // detachBuffer attempts to remove all ownership of the buffer in the given
@@ -517,7 +517,7 @@ public:
     // dequeueBuffer. If there are already the maximum number of buffers
     // allocated, this function has no effect.
     virtual void allocateBuffers(uint32_t width, uint32_t height,
-            PixelFormat format, uint64_t usage) = 0;
+            PixelFormat format, uint32_t usage) = 0;
 
     // Sets whether dequeueBuffer is allowed to allocate new buffers.
     //

@@ -121,12 +121,13 @@ public:
     // GraphicBuffers of a defaultDataSpace if no data space is specified
     // in queueBuffer.
     // The initial default is HAL_DATASPACE_UNKNOWN
-    virtual status_t setDefaultBufferDataSpace(android_dataspace defaultDataSpace);
+    virtual status_t setDefaultBufferDataSpace(
+            android_dataspace defaultDataSpace);
 
     // setConsumerUsageBits will turn on additional usage bits for dequeueBuffer.
     // These are merged with the bits passed to dequeueBuffer.  The values are
     // enumerated in gralloc.h, e.g. GRALLOC_USAGE_HW_RENDER; the default is 0.
-    virtual status_t setConsumerUsageBits(uint64_t usage) override;
+    virtual status_t setConsumerUsageBits(uint32_t usage);
 
     // setConsumerIsProtected will turn on an internal bit that indicates whether
     // the consumer can handle protected gralloc buffers (i.e. with

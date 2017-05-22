@@ -16,9 +16,6 @@
 
 // #define LOG_NDEBUG 0
 #include "VirtualDisplaySurface.h"
-
-#include <inttypes.h>
-
 #include "HWComposer.h"
 #include "SurfaceFlinger.h"
 
@@ -342,7 +339,7 @@ status_t VirtualDisplaySurface::setAsyncMode(bool async) {
 }
 
 status_t VirtualDisplaySurface::dequeueBuffer(Source source,
-        PixelFormat format, uint64_t usage, int* sslot, sp<Fence>* fence) {
+        PixelFormat format, uint32_t usage, int* sslot, sp<Fence>* fence) {
     LOG_FATAL_IF(mDisplayId < 0, "mDisplayId=%d but should not be < 0.", mDisplayId);
 
     status_t result = mSource[source]->dequeueBuffer(sslot, fence,
@@ -375,7 +372,7 @@ status_t VirtualDisplaySurface::dequeueBuffer(Source source,
             mSource[source]->cancelBuffer(*sslot, *fence);
             return result;
         }
-        VDS_LOGV("dequeueBuffer(%s): buffers[%d]=%p fmt=%d usage=%#" PRIx64,
+        VDS_LOGV("dequeueBuffer(%s): buffers[%d]=%p fmt=%d usage=%#x",
                 dbgSourceStr(source), pslot, mProducerBuffers[pslot].get(),
                 mProducerBuffers[pslot]->getPixelFormat(),
                 mProducerBuffers[pslot]->getUsage());
@@ -385,7 +382,7 @@ status_t VirtualDisplaySurface::dequeueBuffer(Source source,
 }
 
 status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence,
-        uint32_t w, uint32_t h, PixelFormat format, uint64_t usage,
+        uint32_t w, uint32_t h, PixelFormat format, uint32_t usage,
         FrameEventHistoryDelta* outTimestamps) {
     if (mDisplayId < 0) {
         return mSource[SOURCE_SINK]->dequeueBuffer(
@@ -396,7 +393,7 @@ status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence,
             "Unexpected dequeueBuffer() in %s state", dbgStateStr());
     mDbgState = DBG_STATE_GLES;
 
-    VDS_LOGV("dequeueBuffer %dx%d fmt=%d usage=%#" PRIx64, w, h, format, usage);
+    VDS_LOGV("dequeueBuffer %dx%d fmt=%d usage=%#x", w, h, format, usage);
 
     status_t result = NO_ERROR;
     Source source = fbSourceForCompositionType(mCompositionType);
@@ -426,8 +423,8 @@ status_t VirtualDisplaySurface::dequeueBuffer(int* pslot, sp<Fence>* fence,
                 (w != 0 && w != mSinkBufferWidth) ||
                 (h != 0 && h != mSinkBufferHeight)) {
             VDS_LOGV("dequeueBuffer: dequeueing new output buffer: "
-                    "want %dx%d fmt=%d use=%#" PRIx64 ", "
-                    "have %dx%d fmt=%d use=%#" PRIx64,
+                    "want %dx%d fmt=%d use=%#x, "
+                    "have %dx%d fmt=%d use=%#x",
                     w, h, format, usage,
                     mSinkBufferWidth, mSinkBufferHeight,
                     buf->getPixelFormat(), buf->getUsage());
@@ -578,7 +575,7 @@ status_t VirtualDisplaySurface::setSidebandStream(const sp<NativeHandle>& /*stre
 }
 
 void VirtualDisplaySurface::allocateBuffers(uint32_t /* width */,
-        uint32_t /* height */, PixelFormat /* format */, uint64_t /* usage */) {
+        uint32_t /* height */, PixelFormat /* format */, uint32_t /* usage */) {
     // TODO: Should we actually allocate buffers for a virtual display?
 }
 
