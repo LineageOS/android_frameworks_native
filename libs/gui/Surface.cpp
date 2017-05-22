@@ -1518,6 +1518,9 @@ static status_t copyBlt(
         const Region& reg,
         int *dstFenceFd)
 {
+    if (dst->getId() == src->getId())
+        return OK;
+
     // src and dst with, height and format must be identical. no verification
     // is done here.
     status_t err;
