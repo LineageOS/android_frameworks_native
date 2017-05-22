@@ -1015,7 +1015,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
             return VK_ERROR_SURFACE_LOST_KHR;
         }
     }
-    err = native_window_set_usage(surface.window.get(), uint64_t(gralloc_usage));
+    err = native_window_set_usage(surface.window.get(), gralloc_usage);
     if (err != 0) {
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
         // errors and translate them to valid Vulkan result codes?
@@ -1092,7 +1092,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         image_native_buffer.handle = img.buffer->handle;
         image_native_buffer.stride = img.buffer->stride;
         image_native_buffer.format = img.buffer->format;
-        image_native_buffer.usage = int(img.buffer->usage);
+        image_native_buffer.usage = img.buffer->usage;
         // TODO: Adjust once ANativeWindowBuffer supports gralloc1-style usage.
         // For now, this is the same translation Gralloc1On0Adapter does.
         image_native_buffer.usage2.consumer =

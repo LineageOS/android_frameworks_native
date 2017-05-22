@@ -21,8 +21,6 @@
 #define GL_GLEXT_PROTOTYPES
 #define EGL_EGLEXT_PROTOTYPES
 
-#include <inttypes.h>
-
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
@@ -1221,7 +1219,7 @@ status_t GLConsumer::EglImage::createIfNeeded(EGLDisplay eglDisplay,
         mEglDisplay = EGL_NO_DISPLAY;
         mCropRect.makeInvalid();
         const sp<GraphicBuffer>& buffer = mGraphicBuffer;
-        ALOGE("Failed to create image. size=%ux%u st=%u usage=%#" PRIx64 " fmt=%d",
+        ALOGE("Failed to create image. size=%ux%u st=%u usage=0x%x fmt=%d",
             buffer->getWidth(), buffer->getHeight(), buffer->getStride(),
             buffer->getUsage(), buffer->getPixelFormat());
         return UNKNOWN_ERROR;
