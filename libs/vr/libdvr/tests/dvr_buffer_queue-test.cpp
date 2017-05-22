@@ -7,17 +7,18 @@
 #include <gtest/gtest.h>
 
 #include "../dvr_internal.h"
+#include "../dvr_buffer_queue_internal.h"
 
 namespace android {
 namespace dvr {
 
 namespace {
 
-static constexpr int kBufferWidth = 100;
-static constexpr int kBufferHeight = 1;
-static constexpr int kLayerCount = 1;
-static constexpr int kBufferFormat = HAL_PIXEL_FORMAT_BLOB;
-static constexpr int kBufferUsage = GRALLOC_USAGE_SW_READ_RARELY;
+static constexpr uint32_t kBufferWidth = 100;
+static constexpr uint32_t kBufferHeight = 1;
+static constexpr uint32_t kLayerCount = 1;
+static constexpr uint32_t kBufferFormat = HAL_PIXEL_FORMAT_BLOB;
+static constexpr uint64_t kBufferUsage = GRALLOC_USAGE_SW_READ_RARELY;
 static constexpr size_t kQueueCapacity = 3;
 
 typedef uint64_t TestMeta;
@@ -25,9 +26,14 @@ typedef uint64_t TestMeta;
 class DvrBufferQueueTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    auto config = ProducerQueueConfigBuilder().SetMetadata<TestMeta>().Build();
-    write_queue_ = CreateDvrWriteBufferQueueFromProducerQueue(
-        ProducerQueue::Create(config, UsagePolicy{}));
+    auto config = ProducerQueueConfigBuilder()
+                      .SetDefaultWidth(kBufferWidth)
+                      .SetDefaultHeight(kBufferHeight)
+                      .SetDefaultFormat(kBufferFormat)
+                      .SetMetadata<TestMeta>()
+                      .Build();
+    write_queue_ =
+        new DvrWriteBufferQueue(ProducerQueue::Create(config, UsagePolicy{}));
     ASSERT_NE(nullptr, write_queue_);
   }
 
@@ -41,10 +47,9 @@ class DvrBufferQueueTest : public ::testing::Test {
   void AllocateBuffers(size_t buffer_count) {
     size_t out_slot;
     for (size_t i = 0; i < buffer_count; i++) {
-      auto status =
-          GetProducerQueueFromDvrWriteBufferQueue(write_queue_)
-              ->AllocateBuffer(kBufferWidth, kBufferHeight, kLayerCount,
-                               kBufferFormat, kBufferUsage, &out_slot);
+      auto status = write_queue_->producer_queue()->AllocateBuffer(
+          kBufferWidth, kBufferHeight, kLayerCount, kBufferFormat, kBufferUsage,
+          &out_slot);
       ASSERT_TRUE(status.ok());
     }
   }
@@ -202,9 +207,9 @@ TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
                     .SetMetadata<DvrNativeBufferMetadata>()
                     .Build();
   std::unique_ptr<DvrWriteBufferQueue, decltype(&dvrWriteBufferQueueDestroy)>
-      write_queue(CreateDvrWriteBufferQueueFromProducerQueue(
-                      ProducerQueue::Create(config, UsagePolicy{})),
-                  dvrWriteBufferQueueDestroy);
+      write_queue(
+          new DvrWriteBufferQueue(ProducerQueue::Create(config, UsagePolicy{})),
+          dvrWriteBufferQueueDestroy);
   ASSERT_NE(nullptr, write_queue.get());
 
   ret = dvrWriteBufferQueueGetExternalSurface(write_queue.get(), &window);
@@ -213,6 +218,90 @@ TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
 
   sp<Surface> surface = static_cast<Surface*>(window);
   ASSERT_TRUE(Surface::isValid(surface));
+}
+
+// Create buffer queue of three buffers and dequeue three buffers out of it.
+// Before each dequeue operation, we resize the buffer queue and expect the
+// queue always return buffer with desired dimension.
+TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
+  static constexpr int kTimeout = 0;
+  int fence_fd = -1;
+
+  DvrWriteBuffer* wb1 = nullptr;
+  DvrWriteBuffer* wb2 = nullptr;
+  DvrWriteBuffer* wb3 = nullptr;
+  AHardwareBuffer* ahb1 = nullptr;
+  AHardwareBuffer* ahb2 = nullptr;
+  AHardwareBuffer* ahb3 = nullptr;
+  AHardwareBuffer_Desc buffer_desc;
+
+  dvrWriteBufferCreateEmpty(&wb1);
+  ASSERT_NE(nullptr, wb1);
+  dvrWriteBufferCreateEmpty(&wb2);
+  ASSERT_NE(nullptr, wb2);
+  dvrWriteBufferCreateEmpty(&wb3);
+  ASSERT_NE(nullptr, wb3);
+
+  AllocateBuffers(kQueueCapacity);
+
+  // Resize before dequeuing.
+  constexpr int w1 = 10;
+  int ret = dvrWriteBufferQueueResizeBuffer(write_queue_, w1, kBufferHeight);
+
+  // Gain first buffer for writing. All buffers will be resized.
+  ret = dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wb1, &fence_fd);
+  ASSERT_EQ(0, ret);
+  ASSERT_TRUE(dvrWriteBufferIsValid(wb1));
+  ALOGD_IF(TRACE, "TestResiveBuffer, gain buffer %p", wb1);
+  pdx::LocalHandle release_fence1(fence_fd);
+
+  // Check the buffer dimension.
+  ret = dvrWriteBufferGetAHardwareBuffer(wb1, &ahb1);
+  ASSERT_EQ(0, ret);
+  AHardwareBuffer_describe(ahb1, &buffer_desc);
+  ASSERT_EQ(w1, buffer_desc.width);
+  ASSERT_EQ(kBufferHeight, buffer_desc.height);
+  AHardwareBuffer_release(ahb1);
+
+  // Resize the queue. We are testing with blob format, keep height to be 1.
+  constexpr int w2 = 20;
+  ret = dvrWriteBufferQueueResizeBuffer(write_queue_, w2, kBufferHeight);
+  ASSERT_EQ(0, ret);
+
+  // The next buffer we dequeued should have new width.
+  ret = dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wb2, &fence_fd);
+  ASSERT_EQ(0, ret);
+  ASSERT_TRUE(dvrWriteBufferIsValid(wb2));
+  ALOGD_IF(TRACE, "TestResiveBuffer, gain buffer %p, fence_fd=%d", wb2,
+           fence_fd);
+  pdx::LocalHandle release_fence2(fence_fd);
+
+  // Check the buffer dimension, should be new width
+  ret = dvrWriteBufferGetAHardwareBuffer(wb2, &ahb2);
+  ASSERT_EQ(0, ret);
+  AHardwareBuffer_describe(ahb2, &buffer_desc);
+  ASSERT_EQ(w2, buffer_desc.width);
+  AHardwareBuffer_release(ahb2);
+
+  // Resize the queue for the third time.
+  constexpr int w3 = 30;
+  ret = dvrWriteBufferQueueResizeBuffer(write_queue_, w3, kBufferHeight);
+  ASSERT_EQ(0, ret);
+
+  // The next buffer we dequeued should have new width.
+  ret = dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wb3, &fence_fd);
+  ASSERT_EQ(0, ret);
+  ASSERT_TRUE(dvrWriteBufferIsValid(wb3));
+  ALOGD_IF(TRACE, "TestResiveBuffer, gain buffer %p, fence_fd=%d", wb3,
+           fence_fd);
+  pdx::LocalHandle release_fence3(fence_fd);
+
+  // Check the buffer dimension, should be new width
+  ret = dvrWriteBufferGetAHardwareBuffer(wb3, &ahb3);
+  ASSERT_EQ(0, ret);
+  AHardwareBuffer_describe(ahb3, &buffer_desc);
+  ASSERT_EQ(w3, buffer_desc.width);
+  AHardwareBuffer_release(ahb3);
 }
 
 }  // namespace

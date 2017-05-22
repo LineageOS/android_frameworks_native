@@ -8,6 +8,7 @@
 #include <private/dvr/display_manager_client.h>
 
 #include "dvr_internal.h"
+#include "dvr_buffer_queue_internal.h"
 
 using android::AHardwareBuffer_convertToGrallocUsageBits;
 using android::dvr::BufferConsumer;
@@ -16,7 +17,6 @@ using android::dvr::display::DisplayManagerClient;
 using android::dvr::display::SurfaceAttributes;
 using android::dvr::display::SurfaceAttribute;
 using android::dvr::display::SurfaceState;
-using android::dvr::CreateDvrReadBufferQueueFromConsumerQueue;
 using android::pdx::rpc::EmptyVariant;
 
 namespace {
@@ -220,7 +220,7 @@ int dvrDisplayManagerGetReadBufferQueue(DvrDisplayManager* client,
     return -status.error();
   }
 
-  *queue_out = CreateDvrReadBufferQueueFromConsumerQueue(status.take());
+  *queue_out = new DvrReadBufferQueue(status.take());
   return 0;
 }
 

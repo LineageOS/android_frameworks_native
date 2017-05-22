@@ -199,16 +199,14 @@ std::vector<int32_t> ApplicationDisplaySurface::GetQueueIds() const {
 }
 
 Status<LocalChannelHandle> ApplicationDisplaySurface::OnCreateQueue(
-    Message& /*message*/, size_t meta_size_bytes) {
+    Message& /*message*/, const ProducerQueueConfig& config) {
   ATRACE_NAME("ApplicationDisplaySurface::OnCreateQueue");
   ALOGD_IF(TRACE,
            "ApplicationDisplaySurface::OnCreateQueue: surface_id=%d, "
            "meta_size_bytes=%zu",
-           surface_id(), meta_size_bytes);
+           surface_id(), config.meta_size_bytes);
 
   std::lock_guard<std::mutex> autolock(lock_);
-  auto config =
-      ProducerQueueConfigBuilder().SetMetadataSize(meta_size_bytes).Build();
   auto producer = ProducerQueue::Create(config, UsagePolicy{});
   if (!producer) {
     ALOGE(
@@ -261,19 +259,17 @@ void ApplicationDisplaySurface::OnQueueEvent(
 }
 
 Status<LocalChannelHandle> DirectDisplaySurface::OnCreateQueue(
-    Message& /*message*/, size_t meta_size_bytes) {
+    Message& /*message*/, const ProducerQueueConfig& config) {
   ATRACE_NAME("DirectDisplaySurface::OnCreateQueue");
   ALOGD_IF(
       TRACE,
       "DirectDisplaySurface::OnCreateQueue: surface_id=%d meta_size_bytes=%zu",
-      surface_id(), meta_size_bytes);
+      surface_id(), config.meta_size_bytes);
 
   std::lock_guard<std::mutex> autolock(lock_);
   if (!direct_queue_) {
     // Inject the hw composer usage flag to enable the display to read the
     // buffers.
-    auto config =
-        ProducerQueueConfigBuilder().SetMetadataSize(meta_size_bytes).Build();
     auto producer = ProducerQueue::Create(
         config, UsagePolicy{GraphicBuffer::USAGE_HW_COMPOSER, 0, 0, 0});
     if (!producer) {
