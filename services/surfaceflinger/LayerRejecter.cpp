@@ -37,7 +37,7 @@ LayerRejecter::LayerRejecter(Layer::State& front,
     mStickyTransformSet(stickySet),
     mName(name),
     mOverrideScalingMode(overrideScalingMode),
-    mFreezePositionUpdates(freezePositionUpdates) {}
+    mFreezeGeometryUpdates(freezePositionUpdates) {}
 
 bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item) {
     if (buf == NULL) {
@@ -73,6 +73,19 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
 
             // recompute visible region
             mRecomputeVisibleRegions = true;
+
+            mFreezeGeometryUpdates = false;
+
+            if (mFront.crop != mFront.requestedCrop) {
+                mFront.crop = mFront.requestedCrop;
+                mCurrent.crop = mFront.requestedCrop;
+                mRecomputeVisibleRegions = true;
+            }
+            if (mFront.finalCrop != mFront.requestedFinalCrop) {
+                mFront.finalCrop = mFront.requestedFinalCrop;
+                mCurrent.finalCrop = mFront.requestedFinalCrop;
+                mRecomputeVisibleRegions = true;
+            }
         }
 
         ALOGD_IF(DEBUG_RESIZE,
@@ -100,6 +113,10 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
     // conservative, but that's fine, worst case we're doing
     // a bit of extra work), we latch the new one and we
     // trigger a visible-region recompute.
+    //
+    // We latch the transparent region here, instead of above where we latch
+    // the rest of the geometry because it is only content but not necessarily
+    // resize dependent.
     if (!mFront.activeTransparentRegion.isTriviallyEqual(mFront.requestedTransparentRegion)) {
         mFront.activeTransparentRegion = mFront.requestedTransparentRegion;
 
@@ -114,18 +131,6 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
         // recompute visible region
         mRecomputeVisibleRegions = true;
     }
-
-    if (mFront.crop != mFront.requestedCrop) {
-        mFront.crop = mFront.requestedCrop;
-        mCurrent.crop = mFront.requestedCrop;
-        mRecomputeVisibleRegions = true;
-    }
-    if (mFront.finalCrop != mFront.requestedFinalCrop) {
-        mFront.finalCrop = mFront.requestedFinalCrop;
-        mCurrent.finalCrop = mFront.requestedFinalCrop;
-        mRecomputeVisibleRegions = true;
-    }
-    mFreezePositionUpdates = false;
 
     return false;
 }
