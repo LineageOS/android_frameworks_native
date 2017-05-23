@@ -49,6 +49,9 @@ class CPUMappedBuffer {
   // If we just own the IonBuffer outright, it's here.
   std::unique_ptr<IonBuffer> owned_buffer_ = nullptr;
 
+  // The last time we connected to the display service.
+  int64_t last_display_service_connection_ns_ = 0;
+
   // If we do not own the IonBuffer, it's here
   IonBuffer* buffer_ = nullptr;
 
