@@ -124,11 +124,6 @@ on post-fs
     write /sys/kernel/debug/tracing/tracing_on 0
     write /sys/kernel/tracing/tracing_on 0
 
-    # Set the trace clock to boot; falling back to mono or boot
-    write /d/tracing/trace_clock global
-    write /d/tracing/trace_clock mono
-    write /d/tracing/trace_clock boot
-
 # Allow only the shell group to read and truncate the kernel trace.
     chown root shell /sys/kernel/debug/tracing/trace
     chown root shell /sys/kernel/tracing/trace
