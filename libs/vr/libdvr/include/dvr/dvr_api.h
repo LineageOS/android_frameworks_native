@@ -40,6 +40,16 @@ typedef struct DvrSurfaceAttribute DvrSurfaceAttribute;
 
 struct native_handle;
 
+// Device metrics data type enums.
+enum {
+  // Request the device lens metrics protobuf. This matches cardboard protos.
+  DVR_CONFIGURATION_DATA_LENS_METRICS = 0,
+  // Request the device metrics protobuf.
+  DVR_CONFIGURATION_DATA_DEVICE_METRICS = 1,
+  // Request the per device configuration data file.
+  DVR_CONFIGURATION_DATA_DEVICE_CONFIG = 2,
+};
+
 // dvr_display_manager.h
 typedef int (*DvrDisplayManagerCreatePtr)(DvrDisplayManager** client_out);
 typedef void (*DvrDisplayManagerDestroyPtr)(DvrDisplayManager* client);
@@ -56,11 +66,9 @@ typedef int (*DvrDisplayManagerGetSurfaceStatePtr)(
 typedef int (*DvrDisplayManagerGetReadBufferQueuePtr)(
     DvrDisplayManager* client, int surface_id, int queue_id,
     DvrReadBufferQueue** queue_out);
-typedef int (*DvrConfigurationDataGetPtr)(DvrDisplayManager* client,
-                                          int config_type, uint8_t** data,
+typedef int (*DvrConfigurationDataGetPtr)(int config_type, uint8_t** data,
                                           size_t* data_size);
-typedef void (*DvrConfigurationDataDestroyPtr)(DvrDisplayManager* client,
-                                               uint8_t* data);
+typedef void (*DvrConfigurationDataDestroyPtr)(uint8_t* data);
 typedef int (*DvrSurfaceStateCreatePtr)(DvrSurfaceState** surface_state);
 typedef void (*DvrSurfaceStateDestroyPtr)(DvrSurfaceState* surface_state);
 typedef int (*DvrSurfaceStateGetSurfaceCountPtr)(DvrSurfaceState* surface_state,

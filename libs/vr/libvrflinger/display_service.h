@@ -88,6 +88,8 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   pdx::Status<BorrowedNativeBufferHandle> OnGetGlobalBuffer(
       pdx::Message& message, DvrGlobalBufferKey key);
   pdx::Status<display::Metrics> OnGetMetrics(pdx::Message& message);
+  pdx::Status<std::string> OnGetConfigurationData(
+      pdx::Message& message, display::ConfigFileType config_type);
   pdx::Status<display::SurfaceInfo> OnCreateSurface(
       pdx::Message& message, const display::SurfaceAttributes& attributes);
 

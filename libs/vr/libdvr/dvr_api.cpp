@@ -6,6 +6,7 @@
 // Headers from libdvr
 #include <dvr/dvr_buffer.h>
 #include <dvr/dvr_buffer_queue.h>
+#include <dvr/dvr_configuration_data.h>
 #include <dvr/dvr_display_manager.h>
 #include <dvr/dvr_surface.h>
 #include <dvr/dvr_vsync.h>

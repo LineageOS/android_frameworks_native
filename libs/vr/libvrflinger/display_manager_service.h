@@ -61,8 +61,6 @@ class DisplayManagerService : public pdx::ServiceBase<DisplayManagerService> {
       uint64_t usage);
   pdx::Status<void> OnDeleteGlobalBuffer(pdx::Message& message,
                                          DvrGlobalBufferKey key);
-  pdx::Status<std::string> OnGetConfigurationData(
-      pdx::Message& message, display::ConfigFileType config_type);
 
   // Called by the display service to indicate changes to display surfaces that
   // the display manager should evaluate.
