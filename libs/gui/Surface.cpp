@@ -1231,7 +1231,7 @@ int Surface::detachNextBuffer(sp<GraphicBuffer>* outBuffer,
 
     for (int i = 0; i < NUM_BUFFER_SLOTS; i++) {
         if (mSlots[i].buffer != NULL &&
-                mSlots[i].buffer->handle == buffer->handle) {
+                mSlots[i].buffer->getId() == buffer->getId()) {
             if (mReportRemovedBuffers) {
                 mRemovedBuffers.push_back(mSlots[i].buffer);
             }
