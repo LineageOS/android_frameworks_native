@@ -633,9 +633,9 @@ status_t BufferHubQueueProducer::AllocateBuffer(uint32_t width, uint32_t height,
 }
 
 status_t BufferHubQueueProducer::RemoveBuffer(size_t slot) {
-  auto status = queue_->DetachBuffer(slot);
+  auto status = queue_->RemoveBuffer(slot);
   if (!status) {
-    ALOGE("BufferHubQueueProducer::RemoveBuffer: Failed to detach buffer: %s",
+    ALOGE("BufferHubQueueProducer::RemoveBuffer: Failed to remove buffer: %s",
           status.GetErrorMessage().c_str());
     return INVALID_OPERATION;
   }
