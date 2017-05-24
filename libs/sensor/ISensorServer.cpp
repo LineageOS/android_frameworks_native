@@ -119,10 +119,12 @@ public:
         return interface_cast<ISensorEventConnection>(reply.readStrongBinder());
     }
 
-    virtual int setOperationParameter(
-            int32_t type, const Vector<float> &floats, const Vector<int32_t> &ints) {
+    virtual int setOperationParameter(int32_t handle, int32_t type,
+                                      const Vector<float> &floats,
+                                      const Vector<int32_t> &ints) {
         Parcel data, reply;
         data.writeInterfaceToken(ISensorServer::getInterfaceDescriptor());
+        data.writeInt32(handle);
         data.writeInt32(type);
         data.writeUint32(static_cast<uint32_t>(floats.size()));
         for (auto i : floats) {
@@ -203,10 +205,12 @@ status_t BnSensorServer::onTransact(
         }
         case SET_OPERATION_PARAMETER: {
             CHECK_INTERFACE(ISensorServer, data, reply);
+            int32_t handle;
             int32_t type;
             Vector<float> floats;
             Vector<int32_t> ints;
 
+            handle = data.readInt32();
             type = data.readInt32();
             floats.resize(data.readUint32());
             for (auto &i : floats) {
@@ -217,7 +221,7 @@ status_t BnSensorServer::onTransact(
                 i = data.readInt32();
             }
 
-            int32_t ret = setOperationParameter(type, floats, ints);
+            int32_t ret = setOperationParameter(handle, type, floats, ints);
             reply->writeInt32(ret);
             return NO_ERROR;
         }
