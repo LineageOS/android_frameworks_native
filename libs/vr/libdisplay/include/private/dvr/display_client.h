@@ -37,7 +37,9 @@ class Surface : public pdx::ClientBase<Surface> {
   pdx::Status<void> SetAttributes(const SurfaceAttributes& attributes);
 
   // Creates an empty queue.
-  pdx::Status<std::unique_ptr<ProducerQueue>> CreateQueue();
+  pdx::Status<std::unique_ptr<ProducerQueue>> CreateQueue(uint32_t width,
+                                                          uint32_t height,
+                                                          uint32_t format);
 
   // Creates a queue and populates it with |capacity| buffers of the specified
   // parameters.
@@ -68,6 +70,7 @@ class Surface : public pdx::ClientBase<Surface> {
 class DisplayClient : public pdx::ClientBase<DisplayClient> {
  public:
   pdx::Status<Metrics> GetDisplayMetrics();
+  pdx::Status<std::string> GetConfigurationData(ConfigFileType config_type);
   pdx::Status<std::unique_ptr<IonBuffer>> GetGlobalBuffer(
       DvrGlobalBufferKey key);
   pdx::Status<std::unique_ptr<Surface>> CreateSurface(

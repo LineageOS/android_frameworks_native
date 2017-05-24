@@ -104,9 +104,16 @@ Status<void> Surface::SetAttributes(const SurfaceAttributes& attributes) {
   return {};
 }
 
-Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue() {
+Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(uint32_t width,
+                                                            uint32_t height,
+                                                            uint32_t format) {
   ALOGD_IF(TRACE, "Surface::CreateQueue: Creating empty queue.");
-  auto status = InvokeRemoteMethod<DisplayProtocol::CreateQueue>(0);
+  auto status = InvokeRemoteMethod<DisplayProtocol::CreateQueue>(
+      ProducerQueueConfigBuilder()
+          .SetDefaultWidth(width)
+          .SetDefaultHeight(height)
+          .SetDefaultFormat(format)
+          .Build());
   if (!status) {
     ALOGE("Surface::CreateQueue: Failed to create queue: %s",
           status.GetErrorMessage().c_str());
@@ -129,7 +136,7 @@ Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(
            "Surface::CreateQueue: width=%u height=%u layer_count=%u format=%u "
            "usage=%" PRIx64 " capacity=%zu",
            width, height, layer_count, format, usage, capacity);
-  auto status = CreateQueue();
+  auto status = CreateQueue(width, height, format);
   if (!status)
     return status.error_status();
 
@@ -165,6 +172,19 @@ DisplayClient::DisplayClient(int* error)
 
 Status<Metrics> DisplayClient::GetDisplayMetrics() {
   return InvokeRemoteMethod<DisplayProtocol::GetMetrics>();
+}
+
+Status<std::string> DisplayClient::GetConfigurationData(
+    ConfigFileType config_type) {
+  auto status =
+      InvokeRemoteMethod<DisplayProtocol::GetConfigurationData>(config_type);
+  if (!status && status.error() != ENOENT) {
+    ALOGE(
+        "DisplayClient::GetConfigurationData: Unable to get"
+        "configuration data. Error: %s",
+        status.GetErrorMessage().c_str());
+  }
+  return status;
 }
 
 Status<std::unique_ptr<Surface>> DisplayClient::CreateSurface(

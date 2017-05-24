@@ -4,12 +4,15 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <sys/cdefs.h>
-#include <unistd.h>
+#include <cstdio>
 
+#include <dvr/dvr_display_types.h>
 #include <dvr/dvr_hardware_composer_defs.h>
+#include <dvr/dvr_pose.h>
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct ANativeWindow ANativeWindow;
 
@@ -38,7 +41,22 @@ typedef int32_t DvrGlobalBufferKey;
 typedef struct DvrSurfaceAttributeValue DvrSurfaceAttributeValue;
 typedef struct DvrSurfaceAttribute DvrSurfaceAttribute;
 
+// native_handle contains the fds for the underlying ION allocations inside
+// the gralloc buffer. This is needed temporarily while GPU vendors work on
+// better support for AHardwareBuffer via glBindSharedBuffer APIs. See
+// b/37207909. For now we can declare the native_handle struct where it is
+// used for GPU late latching. See cutils/native_handle.h for the struct layout.
 struct native_handle;
+
+// Device metrics data type enums.
+enum {
+  // Request the device lens metrics protobuf. This matches cardboard protos.
+  DVR_CONFIGURATION_DATA_LENS_METRICS = 0,
+  // Request the device metrics protobuf.
+  DVR_CONFIGURATION_DATA_DEVICE_METRICS = 1,
+  // Request the per device configuration data file.
+  DVR_CONFIGURATION_DATA_DEVICE_CONFIG = 2,
+};
 
 // dvr_display_manager.h
 typedef int (*DvrDisplayManagerCreatePtr)(DvrDisplayManager** client_out);
@@ -56,11 +74,9 @@ typedef int (*DvrDisplayManagerGetSurfaceStatePtr)(
 typedef int (*DvrDisplayManagerGetReadBufferQueuePtr)(
     DvrDisplayManager* client, int surface_id, int queue_id,
     DvrReadBufferQueue** queue_out);
-typedef int (*DvrConfigurationDataGetPtr)(DvrDisplayManager* client,
-                                          int config_type, uint8_t** data,
+typedef int (*DvrConfigurationDataGetPtr)(int config_type, uint8_t** data,
                                           size_t* data_size);
-typedef void (*DvrConfigurationDataDestroyPtr)(DvrDisplayManager* client,
-                                               uint8_t* data);
+typedef void (*DvrConfigurationDataDestroyPtr)(uint8_t* data);
 typedef int (*DvrSurfaceStateCreatePtr)(DvrSurfaceState** surface_state);
 typedef void (*DvrSurfaceStateDestroyPtr)(DvrSurfaceState* surface_state);
 typedef int (*DvrSurfaceStateGetSurfaceCountPtr)(DvrSurfaceState* surface_state,
@@ -173,7 +189,7 @@ typedef int (*DvrSurfaceCreateWriteBufferQueuePtr)(
     uint32_t layer_count, uint64_t usage, size_t capacity,
     DvrWriteBufferQueue** queue_out);
 
-// vsync_client_api.h
+// dvr_vsync.h
 typedef int (*DvrVSyncClientCreatePtr)(DvrVSyncClient** client_out);
 typedef void (*DvrVSyncClientDestroyPtr)(DvrVSyncClient* client);
 typedef int (*DvrVSyncClientGetSchedInfoPtr)(DvrVSyncClient* client,
@@ -316,6 +332,8 @@ struct DvrApi_v1 {
 
 int dvrGetApi(void* api, size_t struct_size, int version);
 
-__END_DECLS
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif  // ANDROID_DVR_API_H_

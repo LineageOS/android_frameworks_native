@@ -186,6 +186,12 @@ struct SurfaceInfo {
   PDX_SERIALIZABLE_MEMBERS(SurfaceInfo, surface_id, visible, z_order);
 };
 
+enum class ConfigFileType : uint32_t {
+  kLensMetrics,
+  kDeviceMetrics,
+  kDeviceConfiguration
+};
+
 struct DisplayProtocol {
   // Service path.
   static constexpr char kClientPath[] = "system/vr/display/client";
@@ -193,6 +199,7 @@ struct DisplayProtocol {
   // Op codes.
   enum {
     kOpGetMetrics = 0,
+    kOpGetConfigurationData,
     kOpGetGlobalBuffer,
     kOpIsVrAppRunning,
     kOpCreateSurface,
@@ -207,22 +214,19 @@ struct DisplayProtocol {
 
   // Methods.
   PDX_REMOTE_METHOD(GetMetrics, kOpGetMetrics, Metrics(Void));
+  PDX_REMOTE_METHOD(GetConfigurationData, kOpGetConfigurationData,
+                    std::string(ConfigFileType config_type));
   PDX_REMOTE_METHOD(GetGlobalBuffer, kOpGetGlobalBuffer,
                     LocalNativeBufferHandle(DvrGlobalBufferKey key));
   PDX_REMOTE_METHOD(IsVrAppRunning, kOpIsVrAppRunning, bool(Void));
   PDX_REMOTE_METHOD(CreateSurface, kOpCreateSurface,
                     SurfaceInfo(const SurfaceAttributes& attributes));
   PDX_REMOTE_METHOD(GetSurfaceInfo, kOpGetSurfaceInfo, SurfaceInfo(Void));
-  PDX_REMOTE_METHOD(CreateQueue, kOpCreateQueue,
-                    LocalChannelHandle(size_t meta_size_bytes));
+  PDX_REMOTE_METHOD(
+      CreateQueue, kOpCreateQueue,
+      LocalChannelHandle(const ProducerQueueConfig& producer_config));
   PDX_REMOTE_METHOD(SetAttributes, kOpSetAttributes,
                     void(const SurfaceAttributes& attributes));
-};
-
-enum class ConfigFileType : uint32_t {
-  kLensMetrics,
-  kDeviceMetrics,
-  kDeviceConfiguration
 };
 
 struct DisplayManagerProtocol {
@@ -234,7 +238,6 @@ struct DisplayManagerProtocol {
     kOpGetSurfaceState = 0,
     kOpGetSurfaceQueue,
     kOpSetupGlobalBuffer,
-    kOpGetConfigurationData,
     kOpDeleteGlobalBuffer,
   };
 
@@ -250,8 +253,6 @@ struct DisplayManagerProtocol {
   PDX_REMOTE_METHOD(SetupGlobalBuffer, kOpSetupGlobalBuffer,
                     LocalNativeBufferHandle(DvrGlobalBufferKey key, size_t size,
                                             uint64_t usage));
-  PDX_REMOTE_METHOD(GetConfigurationData, kOpGetConfigurationData,
-                    std::string(ConfigFileType config_type));
   PDX_REMOTE_METHOD(DeleteGlobalBuffer, kOpDeleteGlobalBuffer,
                     void(DvrGlobalBufferKey key));
 };

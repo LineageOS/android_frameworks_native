@@ -1,5 +1,5 @@
-#ifndef DVR_DISPLAY_MANAGER_CLIENT_H_
-#define DVR_DISPLAY_MANAGER_CLIENT_H_
+#ifndef ANDROID_DVR_DISPLAY_MANAGER_H_
+#define ANDROID_DVR_DISPLAY_MANAGER_H_
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -39,21 +39,6 @@ int dvrDisplayManagerSetupGlobalBuffer(DvrDisplayManager* client,
 // @return 0 on success. Otherwise returns a negative error value.
 int dvrDisplayManagerDeleteGlobalBuffer(DvrDisplayManager* client,
                                         DvrGlobalBufferKey key);
-
-// Device metrics data type enums.
-enum {
-  DVR_CONFIGURATION_DATA_LENS_METRICS = 0,
-  DVR_CONFIGURATION_DATA_DEVICE_METRICS = 1,
-  DVR_CONFIGURATION_DATA_DEVICE_CONFIG = 2,
-};
-
-// Loads device configuration data of DVR_CONFIGURATION_DATA_*.
-// @return 0 on success. Otherwise returns a negative error value.
-int dvrConfigurationDataGet(DvrDisplayManager* client, int config_type,
-                            uint8_t** data, size_t* data_size);
-
-// Destroy the configuration data returned from dvrGetConfigurationData.
-void dvrConfigurationDataDestroy(DvrDisplayManager* client, uint8_t* data);
 
 // Returns an fd used to signal when surface updates occur. Note that depending
 // on the underlying transport, only a subset of the real event bits may be
@@ -160,4 +145,4 @@ ssize_t dvrSurfaceStateGetAttributes(DvrSurfaceState* surface_state,
 
 __END_DECLS
 
-#endif  // DVR_DISPLAY_MANAGER_CLIENT_H_
+#endif  // ANDROID_DVR_DISPLAY_MANAGER_H_
