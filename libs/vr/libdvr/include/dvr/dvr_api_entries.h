@@ -75,6 +75,9 @@ DVR_V1_API_ENTRY(ReadBufferQueueGetCapacity);
 DVR_V1_API_ENTRY(ReadBufferQueueGetId);
 DVR_V1_API_ENTRY(ReadBufferQueueCreateReadQueue);
 DVR_V1_API_ENTRY(ReadBufferQueueDequeue);
+DVR_V1_API_ENTRY(ReadBufferQueueSetBufferAvailableCallback);
+DVR_V1_API_ENTRY(ReadBufferQueueSetBufferRemovedCallback);
+DVR_V1_API_ENTRY(ReadBufferQueueHandleEvents);
 
 // V-Sync client
 DVR_V1_API_ENTRY(VSyncClientCreate);
