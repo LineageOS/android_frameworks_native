@@ -7,7 +7,7 @@
 #include <cstdio>
 
 #include <dvr/dvr_display_types.h>
-#include <dvr/dvr_hardware_composer_defs.h>
+#include <dvr/dvr_hardware_composer_types.h>
 #include <dvr/dvr_pose.h>
 
 #ifdef __cplusplus
@@ -199,7 +199,7 @@ typedef int (*DvrVSyncClientGetSchedInfoPtr)(DvrVSyncClient* client,
                                              int64_t* next_timestamp_ns,
                                              uint32_t* next_vsync_count);
 
-// pose_client.h
+// libs/vr/libvrsensor/include/dvr/pose_client.h
 typedef DvrPoseClient* (*DvrPoseClientCreatePtr)(void);
 typedef void (*DvrPoseClientDestroyPtr)(DvrPoseClient* client);
 typedef int (*DvrPoseClientGetPtr)(DvrPoseClient* client, uint32_t vsync_count,
@@ -210,7 +210,7 @@ typedef int (*DvrPoseClientGetControllerPtr)(DvrPoseClient* client,
                                              uint32_t vsync_count,
                                              DvrPoseAsync* out_pose);
 
-// virtual_touchpad_client.h
+// services/vr/virtual_touchpad/include/dvr/virtual_touchpad_client.h
 typedef DvrVirtualTouchpad* (*DvrVirtualTouchpadCreatePtr)(void);
 typedef void (*DvrVirtualTouchpadDestroyPtr)(DvrVirtualTouchpad* client);
 typedef int (*DvrVirtualTouchpadAttachPtr)(DvrVirtualTouchpad* client);
@@ -325,7 +325,6 @@ struct DvrApi_v1 {
 // Defines an API entry for V1 (no version suffix).
 #define DVR_V1_API_ENTRY(name) Dvr##name##Ptr name
 
-// Include file with API entries.
 #include "dvr_api_entries.h"
 
 // Undefine macro definitions to play nice with Google3 style rules.

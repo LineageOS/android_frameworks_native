@@ -1,7 +1,7 @@
 #ifndef ANDROID_DVR_HARDWARE_COMPOSER_CLIENT_H
 #define ANDROID_DVR_HARDWARE_COMPOSER_CLIENT_H
 
-#include <dvr/dvr_hardware_composer_defs.h>
+#include <dvr/dvr_hardware_composer_types.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
