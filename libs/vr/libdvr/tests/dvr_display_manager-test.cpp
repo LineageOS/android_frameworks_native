@@ -10,6 +10,7 @@
 #include <thread>
 #include <vector>
 
+#include <dvr/dvr_configuration_data.h>
 #include <dvr/dvr_deleter.h>
 #include <dvr/dvr_display_manager.h>
 #include <dvr/dvr_surface.h>
@@ -204,8 +205,7 @@ class TestDisplayManager {
   Status<std::vector<uint8_t>> GetConfigData(int config_type) {
     uint8_t* data = nullptr;
     size_t data_size = 0;
-    int error = dvrConfigurationDataGet(display_manager_.get(), config_type,
-                                        &data, &data_size);
+    int error = dvrConfigurationDataGet(config_type, &data, &data_size);
     if (error < 0) {
       return ErrorStatus(-error);
     }
@@ -214,7 +214,7 @@ class TestDisplayManager {
       return ErrorStatus(EINVAL);
     }
     std::vector<uint8_t> data_result(data, data + data_size);
-    dvrConfigurationDataDestroy(display_manager_.get(), data);
+    dvrConfigurationDataDestroy(data);
     std::string s(data, data + data_size);
     return {std::move(data_result)};
   }
@@ -593,6 +593,7 @@ TEST_F(DvrDisplayManagerTest, MultiLayerBufferQueue) {
 }
 
 TEST_F(DvrDisplayManagerTest, ConfigurationData) {
+  // TODO(hendrikw): Move this out of the display manager tests.
   auto data1 = manager_->GetConfigData(-1);
   ASSERT_STATUS_ERROR(data1);
 

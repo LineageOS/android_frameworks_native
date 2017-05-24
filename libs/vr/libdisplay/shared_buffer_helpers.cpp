@@ -1,7 +1,13 @@
+#include <private/dvr/clock_ns.h>
 #include <private/dvr/shared_buffer_helpers.h>
 
 namespace android {
 namespace dvr {
+namespace {
+
+// We will not poll the display service for buffers more frequently than this.
+constexpr size_t kDisplayServiceTriesPerSecond = 2;
+}  // namespace
 
 CPUMappedBuffer::CPUMappedBuffer(DvrGlobalBufferKey key, CPUUsageMode mode)
     : buffer_key_(key), usage_mode_(mode) {
@@ -30,8 +36,16 @@ CPUMappedBuffer::~CPUMappedBuffer() {
 void CPUMappedBuffer::TryMapping() {
   // Do we have an IonBuffer for this shared memory object?
   if (buffer_ == nullptr) {
+    // Has it been too long since we last connected to the display service?
+    const auto current_time_ns = GetSystemClockNs();
+    if ((current_time_ns - last_display_service_connection_ns_) <
+        (1e9 / kDisplayServiceTriesPerSecond)) {
+      // Early exit.
+      return;
+    }
+    last_display_service_connection_ns_ = current_time_ns;
+
     // Create a display client and get the buffer.
-    // TODO(okana): We might want to throttle this.
     auto display_client = display::DisplayClient::Create();
     if (display_client) {
       auto get_result = display_client->GetGlobalBuffer(buffer_key_);
@@ -39,8 +53,8 @@ void CPUMappedBuffer::TryMapping() {
         owned_buffer_ = get_result.take();
         buffer_ = owned_buffer_.get();
       } else {
-        ALOGW("Could not get named buffer from pose service : %s(%d)",
-              get_result.GetErrorMessage().c_str(), get_result.error());
+        // The buffer has not been created yet. This is OK, we will keep
+        // retrying.
       }
     } else {
       ALOGE("Unable to create display client for shared buffer access");
