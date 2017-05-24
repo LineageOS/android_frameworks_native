@@ -67,6 +67,7 @@ DVR_V1_API_ENTRY(WriteBufferQueueGetId);
 DVR_V1_API_ENTRY(WriteBufferQueueGetExternalSurface);
 DVR_V1_API_ENTRY(WriteBufferQueueCreateReadQueue);
 DVR_V1_API_ENTRY(WriteBufferQueueDequeue);
+DVR_V1_API_ENTRY(WriteBufferQueueResizeBuffer);
 
 // Read buffer queue
 DVR_V1_API_ENTRY(ReadBufferQueueDestroy);

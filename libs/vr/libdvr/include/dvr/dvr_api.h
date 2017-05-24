@@ -161,6 +161,8 @@ typedef int (*DvrWriteBufferQueueDequeuePtr)(DvrWriteBufferQueue* write_queue,
                                              int timeout,
                                              DvrWriteBuffer* out_buffer,
                                              int* out_fence_fd);
+typedef int (*DvrWriteBufferQueueResizeBufferPtr)(
+    DvrWriteBufferQueue* write_queue, uint32_t width, uint32_t height);
 typedef void (*DvrReadBufferQueueDestroyPtr)(DvrReadBufferQueue* read_queue);
 typedef ssize_t (*DvrReadBufferQueueGetCapacityPtr)(
     DvrReadBufferQueue* read_queue);
