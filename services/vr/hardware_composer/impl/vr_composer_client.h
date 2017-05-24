@@ -29,37 +29,59 @@ class VrHwc;
 using hardware::graphics::common::V1_0::PixelFormat;
 using hardware::graphics::composer::V2_1::implementation::ComposerClient;
 
-class VrComposerClient : public ComposerClient {
+class VrComposerClient : public IVrComposerClient {
  public:
   VrComposerClient(android::dvr::VrHwc& hal);
   virtual ~VrComposerClient();
 
+  void onHotplug(Display display, IComposerCallback::Connection connected);
+
+  // IComposerClient
+  Return<void> registerCallback(const sp<IComposerCallback>& callback) override;
+  Return<uint32_t> getMaxVirtualDisplayCount() override;
+  Return<void> createVirtualDisplay(
+      uint32_t width, uint32_t height, PixelFormat formatHint,
+      uint32_t outputBufferSlotCount, createVirtualDisplay_cb hidl_cb) override;
+  Return<Error> destroyVirtualDisplay(Display display) override;
+  Return<void> createLayer(Display display, uint32_t bufferSlotCount,
+                           createLayer_cb hidl_cb) override;
+  Return<Error> destroyLayer(Display display, Layer layer) override;
+  Return<void> getActiveConfig(Display display,
+                               getActiveConfig_cb hidl_cb) override;
+  Return<Error> getClientTargetSupport(
+      Display display, uint32_t width, uint32_t height, PixelFormat format,
+      Dataspace dataspace) override;
+  Return<void> getColorModes(Display display,
+                             getColorModes_cb hidl_cb) override;
+  Return<void> getDisplayAttribute(
+      Display display, Config config, Attribute attribute,
+      getDisplayAttribute_cb hidl_cb) override;
+  Return<void> getDisplayConfigs(Display display,
+                                 getDisplayConfigs_cb hidl_cb) override;
+  Return<void> getDisplayName(Display display,
+                              getDisplayName_cb hidl_cb) override;
+  Return<void> getDisplayType(Display display,
+                              getDisplayType_cb hidl_cb) override;
+  Return<void> getDozeSupport(Display display,
+                              getDozeSupport_cb hidl_cb) override;
+  Return<void> getHdrCapabilities(Display display,
+                                  getHdrCapabilities_cb hidl_cb) override;
+  Return<Error> setActiveConfig(Display display, Config config) override;
+  Return<Error> setColorMode(Display display, ColorMode mode) override;
+  Return<Error> setPowerMode(Display display, PowerMode mode) override;
+  Return<Error> setVsyncEnabled(Display display, Vsync enabled) override;
+  Return<Error> setClientTargetSlotCount(
+      Display display, uint32_t clientTargetSlotCount) override;
+  Return<Error> setInputCommandQueue(
+      const hardware::MQDescriptorSync<uint32_t>& descriptor) override;
+  Return<void> getOutputCommandQueue(
+      getOutputCommandQueue_cb hidl_cb) override;
+  Return<void> executeCommands(
+      uint32_t inLength, const hidl_vec<hidl_handle>& inHandles,
+      executeCommands_cb hidl_cb) override;
+
  private:
-  class VrCommandReader : public ComposerClient::CommandReader {
-   public:
-    VrCommandReader(VrComposerClient& client);
-    ~VrCommandReader() override;
-
-    bool parseCommand(IComposerClient::Command command,
-                      uint16_t length) override;
-
-   private:
-    bool parseSetLayerInfo(uint16_t length);
-    bool parseSetClientTargetMetadata(uint16_t length);
-    bool parseSetLayerBufferMetadata(uint16_t length);
-
-    IVrComposerClient::BufferMetadata readBufferMetadata();
-
-    VrComposerClient& mVrClient;
-    android::dvr::VrHwc& mVrHal;
-
-    VrCommandReader(const VrCommandReader&) = delete;
-    void operator=(const VrCommandReader&) = delete;
-  };
-
-  std::unique_ptr<CommandReader> createCommandReader() override;
-
-  dvr::VrHwc& mVrHal;
+  std::unique_ptr<ComposerClient> client_;
 
   VrComposerClient(const VrComposerClient&) = delete;
   void operator=(const VrComposerClient&) = delete;
