@@ -1,5 +1,5 @@
-#ifndef DVR_DISPLAY_MANAGER_CLIENT_H_
-#define DVR_DISPLAY_MANAGER_CLIENT_H_
+#ifndef ANDROID_DVR_DISPLAY_MANAGER_H_
+#define ANDROID_DVR_DISPLAY_MANAGER_H_
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -145,4 +145,4 @@ ssize_t dvrSurfaceStateGetAttributes(DvrSurfaceState* surface_state,
 
 __END_DECLS
 
-#endif  // DVR_DISPLAY_MANAGER_CLIENT_H_
+#endif  // ANDROID_DVR_DISPLAY_MANAGER_H_
