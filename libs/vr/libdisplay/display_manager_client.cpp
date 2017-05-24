@@ -70,20 +70,6 @@ pdx::Status<void> DisplayManagerClient::DeleteGlobalBuffer(
   return status;
 }
 
-pdx::Status<std::string> DisplayManagerClient::GetConfigurationData(
-    ConfigFileType config_type) {
-  auto status =
-      InvokeRemoteMethod<DisplayManagerProtocol::GetConfigurationData>(
-          config_type);
-  if (!status && status.error() != ENOENT) {
-    ALOGE(
-        "DisplayManagerClient::GetConfigurationData: Unable to get "
-        "configuration data. Error: %s",
-        status.GetErrorMessage().c_str());
-  }
-  return status;
-}
-
 pdx::Status<std::unique_ptr<ConsumerQueue>>
 DisplayManagerClient::GetSurfaceQueue(int surface_id, int queue_id) {
   auto status = InvokeRemoteMethod<DisplayManagerProtocol::GetSurfaceQueue>(

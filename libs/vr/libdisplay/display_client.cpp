@@ -167,6 +167,19 @@ Status<Metrics> DisplayClient::GetDisplayMetrics() {
   return InvokeRemoteMethod<DisplayProtocol::GetMetrics>();
 }
 
+Status<std::string> DisplayClient::GetConfigurationData(
+    ConfigFileType config_type) {
+  auto status =
+      InvokeRemoteMethod<DisplayProtocol::GetConfigurationData>(config_type);
+  if (!status && status.error() != ENOENT) {
+    ALOGE(
+        "DisplayClient::GetConfigurationData: Unable to get"
+        "configuration data. Error: %s",
+        status.GetErrorMessage().c_str());
+  }
+  return status;
+}
+
 Status<std::unique_ptr<Surface>> DisplayClient::CreateSurface(
     const SurfaceAttributes& attributes) {
   int error;

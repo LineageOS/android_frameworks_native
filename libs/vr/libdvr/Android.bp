@@ -27,6 +27,7 @@ srcs = [
     "dvr_api.cpp",
     "dvr_buffer.cpp",
     "dvr_buffer_queue.cpp",
+    "dvr_configuration_data.cpp",
     "dvr_display_manager.cpp",
     "dvr_hardware_composer_client.cpp",
     "dvr_surface.cpp",

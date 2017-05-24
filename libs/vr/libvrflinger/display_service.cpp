@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include <vector>
 
+#include <android-base/file.h>
+#include <android-base/properties.h>
 #include <dvr/dvr_display_types.h>
 #include <pdx/default_transport/service_endpoint.h>
 #include <pdx/rpc/remote_method.h>
@@ -17,6 +19,14 @@ using android::pdx::Message;
 using android::pdx::Status;
 using android::pdx::default_transport::Endpoint;
 using android::pdx::rpc::DispatchRemoteMethod;
+
+namespace {
+
+const char kDvrLensMetricsProperty[] = "ro.dvr.lens_metrics";
+const char kDvrDeviceMetricsProperty[] = "ro.dvr.device_metrics";
+const char kDvrDeviceConfigProperty[] = "ro.dvr.device_configuration";
+
+}  // namespace
 
 namespace android {
 namespace dvr {
@@ -60,6 +70,11 @@ Status<void> DisplayService::HandleMessage(pdx::Message& message) {
           *this, &DisplayService::OnGetMetrics, message);
       return {};
 
+    case DisplayProtocol::GetConfigurationData::Opcode:
+      DispatchRemoteMethod<DisplayProtocol::GetConfigurationData>(
+          *this, &DisplayService::OnGetConfigurationData, message);
+      return {};
+
     case DisplayProtocol::CreateSurface::Opcode:
       DispatchRemoteMethod<DisplayProtocol::CreateSurface>(
           *this, &DisplayService::OnCreateSurface, message);
@@ -100,6 +115,35 @@ Status<display::Metrics> DisplayService::OnGetMetrics(
            0.0,
            {},
            {}}};
+}
+
+pdx::Status<std::string> DisplayService::OnGetConfigurationData(
+    pdx::Message& /*message*/, display::ConfigFileType config_type) {
+  std::string property_name;
+  switch (config_type) {
+    case display::ConfigFileType::kLensMetrics:
+      property_name = kDvrLensMetricsProperty;
+      break;
+    case display::ConfigFileType::kDeviceMetrics:
+      property_name = kDvrDeviceMetricsProperty;
+      break;
+    case display::ConfigFileType::kDeviceConfiguration:
+      property_name = kDvrDeviceConfigProperty;
+      break;
+    default:
+      return ErrorStatus(EINVAL);
+  }
+  std::string file_path = base::GetProperty(property_name, "");
+  if (file_path.empty()) {
+    return ErrorStatus(ENOENT);
+  }
+
+  std::string data;
+  if (!base::ReadFileToString(file_path, &data)) {
+    return ErrorStatus(errno);
+  }
+
+  return std::move(data);
 }
 
 // Creates a new DisplaySurface and associates it with this channel. This may

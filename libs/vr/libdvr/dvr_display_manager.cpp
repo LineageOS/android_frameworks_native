@@ -5,13 +5,13 @@
 #include <private/android/AHardwareBufferHelpers.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
+#include <private/dvr/display_client.h>
 #include <private/dvr/display_manager_client.h>
 
 #include "dvr_internal.h"
 
 using android::AHardwareBuffer_convertToGrallocUsageBits;
 using android::dvr::BufferConsumer;
-using android::dvr::display::ConfigFileType;
 using android::dvr::display::DisplayManagerClient;
 using android::dvr::display::SurfaceAttributes;
 using android::dvr::display::SurfaceAttribute;
@@ -148,30 +148,6 @@ int dvrDisplayManagerDeleteGlobalBuffer(DvrDisplayManager* client,
   }
 
   return 0;
-}
-
-int dvrConfigurationDataGet(DvrDisplayManager* client, int config_type,
-                            uint8_t** data, size_t* data_size) {
-  if (!client || !data || !data_size) {
-    return -EINVAL;
-  }
-
-  ConfigFileType config_file_type = static_cast<ConfigFileType>(config_type);
-  auto config_data_status =
-      client->client->GetConfigurationData(config_file_type);
-
-  if (!config_data_status) {
-    return -config_data_status.error();
-  }
-
-  *data_size = config_data_status.get().size();
-  *data = new uint8_t[*data_size];
-  std::copy_n(config_data_status.get().begin(), *data_size, *data);
-  return 0;
-}
-
-void dvrConfigurationDataDestroy(DvrDisplayManager*, uint8_t* data) {
-  delete[] data;
 }
 
 int dvrDisplayManagerGetEventFd(DvrDisplayManager* client) {
