@@ -88,55 +88,8 @@ namespace Hwc2 = android::Hwc2;
 
 // Device methods
 
-#ifdef BYPASS_IHWC
-Device::Device(hwc2_device_t* device)
-  : mHwcDevice(device),
-    mCreateVirtualDisplay(nullptr),
-    mDestroyVirtualDisplay(nullptr),
-    mDump(nullptr),
-    mGetMaxVirtualDisplayCount(nullptr),
-    mRegisterCallback(nullptr),
-    mAcceptDisplayChanges(nullptr),
-    mCreateLayer(nullptr),
-    mDestroyLayer(nullptr),
-    mGetActiveConfig(nullptr),
-    mGetChangedCompositionTypes(nullptr),
-    mGetColorModes(nullptr),
-    mGetDisplayAttribute(nullptr),
-    mGetDisplayConfigs(nullptr),
-    mGetDisplayName(nullptr),
-    mGetDisplayRequests(nullptr),
-    mGetDisplayType(nullptr),
-    mGetDozeSupport(nullptr),
-    mGetHdrCapabilities(nullptr),
-    mGetReleaseFences(nullptr),
-    mPresentDisplay(nullptr),
-    mSetActiveConfig(nullptr),
-    mSetClientTarget(nullptr),
-    mSetColorMode(nullptr),
-    mSetColorTransform(nullptr),
-    mSetOutputBuffer(nullptr),
-    mSetPowerMode(nullptr),
-    mSetVsyncEnabled(nullptr),
-    mValidateDisplay(nullptr),
-    mSetCursorPosition(nullptr),
-    mSetLayerBuffer(nullptr),
-    mSetLayerSurfaceDamage(nullptr),
-    mSetLayerBlendMode(nullptr),
-    mSetLayerColor(nullptr),
-    mSetLayerCompositionType(nullptr),
-    mSetLayerDataspace(nullptr),
-    mSetLayerDisplayFrame(nullptr),
-    mSetLayerPlaneAlpha(nullptr),
-    mSetLayerSidebandStream(nullptr),
-    mSetLayerSourceCrop(nullptr),
-    mSetLayerTransform(nullptr),
-    mSetLayerVisibleRegion(nullptr),
-    mSetLayerZOrder(nullptr),
-#else
 Device::Device(bool useVrComposer)
   : mComposer(std::make_unique<Hwc2::Composer>(useVrComposer)),
-#endif // BYPASS_IHWC
     mCapabilities(),
     mDisplays(),
     mHotplug(),
@@ -147,18 +100,11 @@ Device::Device(bool useVrComposer)
     mPendingVsyncs()
 {
     loadCapabilities();
-    loadFunctionPointers();
     registerCallbacks();
 }
 
 Device::~Device()
 {
-#ifdef BYPASS_IHWC
-    if (mHwcDevice == nullptr) {
-        return;
-    }
-#endif
-
     for (auto element : mDisplays) {
         auto display = element.second.lock();
         if (!display) {
@@ -185,36 +131,18 @@ Device::~Device()
             }
         }
     }
-
-#ifdef BYPASS_IHWC
-    hwc2_close(mHwcDevice);
-#endif
 }
 
 // Required by HWC2 device
 
 std::string Device::dump() const
 {
-#ifdef BYPASS_IHWC
-    uint32_t numBytes = 0;
-    mDump(mHwcDevice, &numBytes, nullptr);
-
-    std::vector<char> buffer(numBytes);
-    mDump(mHwcDevice, &numBytes, buffer.data());
-
-    return std::string(buffer.data(), buffer.size());
-#else
     return mComposer->dumpDebugInfo();
-#endif
 }
 
 uint32_t Device::getMaxVirtualDisplayCount() const
 {
-#ifdef BYPASS_IHWC
-    return mGetMaxVirtualDisplayCount(mHwcDevice);
-#else
     return mComposer->getMaxVirtualDisplayCount();
-#endif
 }
 
 Error Device::createVirtualDisplay(uint32_t width, uint32_t height,
@@ -223,15 +151,9 @@ Error Device::createVirtualDisplay(uint32_t width, uint32_t height,
     ALOGI("Creating virtual display");
 
     hwc2_display_t displayId = 0;
-#ifdef BYPASS_IHWC
-    int32_t intFormat = static_cast<int32_t>(*format);
-    int32_t intError = mCreateVirtualDisplay(mHwcDevice, width, height,
-            &intFormat, &displayId);
-#else
     auto intFormat = static_cast<Hwc2::PixelFormat>(*format);
     auto intError = mComposer->createVirtualDisplay(width, height,
             &intFormat, &displayId);
-#endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
         return error;
@@ -285,9 +207,7 @@ void Device::callHotplug(std::shared_ptr<Display> display, Connection connected)
 {
     if (connected == Connection::Connected) {
         if (!display->isConnected()) {
-#ifndef BYPASS_IHWC
             mComposer->setClientTargetSlotCount(display->getId());
-#endif
             display->loadConfigs();
             display->setConnected(true);
         }
@@ -345,126 +265,16 @@ void Device::loadCapabilities()
 {
     static_assert(sizeof(Capability) == sizeof(int32_t),
             "Capability size has changed");
-#ifdef BYPASS_IHWC
-    uint32_t numCapabilities = 0;
-    mHwcDevice->getCapabilities(mHwcDevice, &numCapabilities, nullptr);
-    std::vector<Capability> capabilities(numCapabilities);
-    auto asInt = reinterpret_cast<int32_t*>(capabilities.data());
-    mHwcDevice->getCapabilities(mHwcDevice, &numCapabilities, asInt);
-    for (auto capability : capabilities) {
-        mCapabilities.emplace(capability);
-    }
-#else
     auto capabilities = mComposer->getCapabilities();
     for (auto capability : capabilities) {
         mCapabilities.emplace(static_cast<Capability>(capability));
     }
-#endif
 }
 
 bool Device::hasCapability(HWC2::Capability capability) const
 {
     return std::find(mCapabilities.cbegin(), mCapabilities.cend(),
             capability) != mCapabilities.cend();
-}
-
-void Device::loadFunctionPointers()
-{
-#ifdef BYPASS_IHWC
-    // For all of these early returns, we log an error message inside
-    // loadFunctionPointer specifying which function failed to load
-
-    // Display function pointers
-    if (!loadFunctionPointer(FunctionDescriptor::CreateVirtualDisplay,
-            mCreateVirtualDisplay)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::DestroyVirtualDisplay,
-            mDestroyVirtualDisplay)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::Dump, mDump)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetMaxVirtualDisplayCount,
-            mGetMaxVirtualDisplayCount)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::RegisterCallback,
-            mRegisterCallback)) return;
-
-    // Device function pointers
-    if (!loadFunctionPointer(FunctionDescriptor::AcceptDisplayChanges,
-            mAcceptDisplayChanges)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::CreateLayer,
-            mCreateLayer)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::DestroyLayer,
-            mDestroyLayer)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetActiveConfig,
-            mGetActiveConfig)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetChangedCompositionTypes,
-            mGetChangedCompositionTypes)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetColorModes,
-            mGetColorModes)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetDisplayAttribute,
-            mGetDisplayAttribute)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetDisplayConfigs,
-            mGetDisplayConfigs)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetDisplayName,
-            mGetDisplayName)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetDisplayRequests,
-            mGetDisplayRequests)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetDisplayType,
-            mGetDisplayType)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetDozeSupport,
-            mGetDozeSupport)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetHdrCapabilities,
-            mGetHdrCapabilities)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::GetReleaseFences,
-            mGetReleaseFences)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::PresentDisplay,
-            mPresentDisplay)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetActiveConfig,
-            mSetActiveConfig)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetClientTarget,
-            mSetClientTarget)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetColorMode,
-            mSetColorMode)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetColorTransform,
-            mSetColorTransform)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetOutputBuffer,
-            mSetOutputBuffer)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetPowerMode,
-            mSetPowerMode)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetVsyncEnabled,
-            mSetVsyncEnabled)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::ValidateDisplay,
-            mValidateDisplay)) return;
-
-    // Layer function pointers
-    if (!loadFunctionPointer(FunctionDescriptor::SetCursorPosition,
-            mSetCursorPosition)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerBuffer,
-            mSetLayerBuffer)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerSurfaceDamage,
-            mSetLayerSurfaceDamage)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerBlendMode,
-            mSetLayerBlendMode)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerColor,
-            mSetLayerColor)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerCompositionType,
-            mSetLayerCompositionType)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerDataspace,
-            mSetLayerDataspace)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerDisplayFrame,
-            mSetLayerDisplayFrame)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerPlaneAlpha,
-            mSetLayerPlaneAlpha)) return;
-    if (hasCapability(Capability::SidebandStream)) {
-        if (!loadFunctionPointer(FunctionDescriptor::SetLayerSidebandStream,
-                mSetLayerSidebandStream)) return;
-    }
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerSourceCrop,
-            mSetLayerSourceCrop)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerTransform,
-            mSetLayerTransform)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerVisibleRegion,
-            mSetLayerVisibleRegion)) return;
-    if (!loadFunctionPointer(FunctionDescriptor::SetLayerZOrder,
-            mSetLayerZOrder)) return;
-#endif // BYPASS_IHWC
 }
 
 namespace {
@@ -498,14 +308,8 @@ private:
 
 void Device::registerCallbacks()
 {
-#ifdef BYPASS_IHWC
-    registerCallback<HWC2_PFN_HOTPLUG>(Callback::Hotplug, hotplug_hook);
-    registerCallback<HWC2_PFN_REFRESH>(Callback::Refresh, refresh_hook);
-    registerCallback<HWC2_PFN_VSYNC>(Callback::Vsync, vsync_hook);
-#else
     sp<ComposerCallback> callback = new ComposerCallback(this);
     mComposer->registerCallback(callback);
-#endif
 }
 
 
@@ -514,11 +318,7 @@ void Device::registerCallbacks()
 void Device::destroyVirtualDisplay(hwc2_display_t display)
 {
     ALOGI("Destroying virtual display");
-#ifdef BYPASS_IHWC
-    int32_t intError = mDestroyVirtualDisplay(mHwcDevice, display);
-#else
     auto intError = mComposer->destroyVirtualDisplay(display);
-#endif
     auto error = static_cast<Error>(intError);
     ALOGE_IF(error != Error::None, "destroyVirtualDisplay(%" PRIu64 ") failed:"
             " %s (%d)", display, to_string(error).c_str(), intError);
@@ -535,13 +335,8 @@ Display::Display(Device& device, hwc2_display_t id)
 {
     ALOGV("Created display %" PRIu64, id);
 
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mGetDisplayType(mDevice.mHwcDevice, mId,
-            reinterpret_cast<int32_t *>(&mType));
-#else
     auto intError = mDevice.mComposer->getDisplayType(mId,
             reinterpret_cast<Hwc2::IComposerClient::DisplayType *>(&mType));
-#endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
         ALOGE("getDisplayType(%" PRIu64 ") failed: %s (%d)",
@@ -588,22 +383,14 @@ float Display::Config::Builder::getDefaultDensity() {
 
 Error Display::acceptChanges()
 {
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mAcceptDisplayChanges(mDevice.mHwcDevice, mId);
-#else
     auto intError = mDevice.mComposer->acceptDisplayChanges(mId);
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Display::createLayer(std::shared_ptr<Layer>* outLayer)
 {
     hwc2_layer_t layerId = 0;
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mCreateLayer(mDevice.mHwcDevice, mId, &layerId);
-#else
     auto intError = mDevice.mComposer->createLayer(mId, &layerId);
-#endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
         return error;
@@ -620,12 +407,7 @@ Error Display::getActiveConfig(
 {
     ALOGV("[%" PRIu64 "] getActiveConfig", mId);
     hwc2_config_t configId = 0;
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mGetActiveConfig(mDevice.mHwcDevice, mId,
-            &configId);
-#else
     auto intError = mDevice.mComposer->getActiveConfig(mId, &configId);
-#endif
     auto error = static_cast<Error>(intError);
 
     if (error != Error::None) {
@@ -650,27 +432,12 @@ Error Display::getActiveConfig(
 Error Display::getChangedCompositionTypes(
         std::unordered_map<std::shared_ptr<Layer>, Composition>* outTypes)
 {
-#ifdef BYPASS_IHWC
-    uint32_t numElements = 0;
-    int32_t intError = mDevice.mGetChangedCompositionTypes(mDevice.mHwcDevice,
-            mId, &numElements, nullptr, nullptr);
-    auto error = static_cast<Error>(intError);
-    if (error != Error::None) {
-        return error;
-    }
-
-    std::vector<hwc2_layer_t> layerIds(numElements);
-    std::vector<int32_t> types(numElements);
-    intError = mDevice.mGetChangedCompositionTypes(mDevice.mHwcDevice, mId,
-            &numElements, layerIds.data(), types.data());
-#else
     std::vector<Hwc2::Layer> layerIds;
     std::vector<Hwc2::IComposerClient::Composition> types;
     auto intError = mDevice.mComposer->getChangedCompositionTypes(mId,
             &layerIds, &types);
     uint32_t numElements = layerIds.size();
     auto error = static_cast<Error>(intError);
-#endif
     error = static_cast<Error>(intError);
     if (error != Error::None) {
         return error;
@@ -696,25 +463,10 @@ Error Display::getChangedCompositionTypes(
 
 Error Display::getColorModes(std::vector<android_color_mode_t>* outModes) const
 {
-#ifdef BYPASS_IHWC
-    uint32_t numModes = 0;
-    int32_t intError = mDevice.mGetColorModes(mDevice.mHwcDevice, mId,
-            &numModes, nullptr);
-    auto error = static_cast<Error>(intError);
-    if (error != Error::None)  {
-        return error;
-    }
-
-    std::vector<int32_t> modes(numModes);
-    intError = mDevice.mGetColorModes(mDevice.mHwcDevice, mId, &numModes,
-            modes.data());
-    error = static_cast<Error>(intError);
-#else
     std::vector<Hwc2::ColorMode> modes;
     auto intError = mDevice.mComposer->getColorModes(mId, &modes);
     uint32_t numModes = modes.size();
     auto error = static_cast<Error>(intError);
-#endif
     if (error != Error::None) {
         return error;
     }
@@ -737,52 +489,14 @@ std::vector<std::shared_ptr<const Display::Config>> Display::getConfigs() const
 
 Error Display::getName(std::string* outName) const
 {
-#ifdef BYPASS_IHWC
-    uint32_t size;
-    int32_t intError = mDevice.mGetDisplayName(mDevice.mHwcDevice, mId, &size,
-            nullptr);
-    auto error = static_cast<Error>(intError);
-    if (error != Error::None) {
-        return error;
-    }
-
-    std::vector<char> rawName(size);
-    intError = mDevice.mGetDisplayName(mDevice.mHwcDevice, mId, &size,
-            rawName.data());
-    error = static_cast<Error>(intError);
-    if (error != Error::None) {
-        return error;
-    }
-
-    *outName = std::string(rawName.cbegin(), rawName.cend());
-    return Error::None;
-#else
     auto intError = mDevice.mComposer->getDisplayName(mId, outName);
     return static_cast<Error>(intError);
-#endif
 }
 
 Error Display::getRequests(HWC2::DisplayRequest* outDisplayRequests,
         std::unordered_map<std::shared_ptr<Layer>, LayerRequest>*
                 outLayerRequests)
 {
-#ifdef BYPASS_IHWC
-    int32_t intDisplayRequests = 0;
-    uint32_t numElements = 0;
-    int32_t intError = mDevice.mGetDisplayRequests(mDevice.mHwcDevice, mId,
-            &intDisplayRequests, &numElements, nullptr, nullptr);
-    auto error = static_cast<Error>(intError);
-    if (error != Error::None) {
-        return error;
-    }
-
-    std::vector<hwc2_layer_t> layerIds(numElements);
-    std::vector<int32_t> layerRequests(numElements);
-    intError = mDevice.mGetDisplayRequests(mDevice.mHwcDevice, mId,
-            &intDisplayRequests, &numElements, layerIds.data(),
-            layerRequests.data());
-    error = static_cast<Error>(intError);
-#else
     uint32_t intDisplayRequests;
     std::vector<Hwc2::Layer> layerIds;
     std::vector<uint32_t> layerRequests;
@@ -790,7 +504,6 @@ Error Display::getRequests(HWC2::DisplayRequest* outDisplayRequests,
             &intDisplayRequests, &layerIds, &layerRequests);
     uint32_t numElements = layerIds.size();
     auto error = static_cast<Error>(intError);
-#endif
     if (error != Error::None) {
         return error;
     }
@@ -821,14 +534,8 @@ Error Display::getType(DisplayType* outType) const
 
 Error Display::supportsDoze(bool* outSupport) const
 {
-#ifdef BYPASS_IHWC
-    int32_t intSupport = 0;
-    int32_t intError = mDevice.mGetDozeSupport(mDevice.mHwcDevice, mId,
-            &intSupport);
-#else
     bool intSupport = false;
     auto intError = mDevice.mComposer->getDozeSupport(mId, &intSupport);
-#endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
         return error;
@@ -844,20 +551,6 @@ Error Display::getHdrCapabilities(
     float maxLuminance = -1.0f;
     float maxAverageLuminance = -1.0f;
     float minLuminance = -1.0f;
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mGetHdrCapabilities(mDevice.mHwcDevice, mId,
-            &numTypes, nullptr, &maxLuminance, &maxAverageLuminance,
-            &minLuminance);
-    auto error = static_cast<HWC2::Error>(intError);
-    if (error != Error::None) {
-        return error;
-    }
-
-    std::vector<int32_t> types(numTypes);
-    intError = mDevice.mGetHdrCapabilities(mDevice.mHwcDevice, mId, &numTypes,
-            types.data(), &maxLuminance, &maxAverageLuminance, &minLuminance);
-    error = static_cast<HWC2::Error>(intError);
-#else
     std::vector<Hwc2::Hdr> intTypes;
     auto intError = mDevice.mComposer->getHdrCapabilities(mId, &intTypes,
             &maxLuminance, &maxAverageLuminance, &minLuminance);
@@ -868,7 +561,6 @@ Error Display::getHdrCapabilities(
         types.push_back(static_cast<int32_t>(type));
     }
     numTypes = types.size();
-#endif
     if (error != Error::None) {
         return error;
     }
@@ -881,28 +573,12 @@ Error Display::getHdrCapabilities(
 Error Display::getReleaseFences(
         std::unordered_map<std::shared_ptr<Layer>, sp<Fence>>* outFences) const
 {
-#ifdef BYPASS_IHWC
-    uint32_t numElements = 0;
-    int32_t intError = mDevice.mGetReleaseFences(mDevice.mHwcDevice, mId,
-            &numElements, nullptr, nullptr);
-    auto error = static_cast<Error>(intError);
-    if (error != Error::None) {
-        return error;
-    }
-
-    std::vector<hwc2_layer_t> layerIds(numElements);
-    std::vector<int32_t> fenceFds(numElements);
-    intError = mDevice.mGetReleaseFences(mDevice.mHwcDevice, mId, &numElements,
-            layerIds.data(), fenceFds.data());
-    error = static_cast<Error>(intError);
-#else
     std::vector<Hwc2::Layer> layerIds;
     std::vector<int> fenceFds;
     auto intError = mDevice.mComposer->getReleaseFences(mId,
             &layerIds, &fenceFds);
     auto error = static_cast<Error>(intError);
     uint32_t numElements = layerIds.size();
-#endif
     if (error != Error::None) {
         return error;
     }
@@ -931,12 +607,7 @@ Error Display::getReleaseFences(
 Error Display::present(sp<Fence>* outPresentFence)
 {
     int32_t presentFenceFd = -1;
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mPresentDisplay(mDevice.mHwcDevice, mId,
-            &presentFenceFd);
-#else
     auto intError = mDevice.mComposer->presentDisplay(mId, &presentFenceFd);
-#endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
         return error;
@@ -954,12 +625,7 @@ Error Display::setActiveConfig(const std::shared_ptr<const Config>& config)
                 config->getDisplayId(), mId);
         return Error::BadConfig;
     }
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mSetActiveConfig(mDevice.mHwcDevice, mId,
-            config->getId());
-#else
     auto intError = mDevice.mComposer->setActiveConfig(mId, config->getId());
-#endif
     return static_cast<Error>(intError);
 }
 
@@ -968,44 +634,24 @@ Error Display::setClientTarget(uint32_t slot, const sp<GraphicBuffer>& target,
 {
     // TODO: Properly encode client target surface damage
     int32_t fenceFd = acquireFence->dup();
-#ifdef BYPASS_IHWC
-    (void) slot;
-    buffer_handle_t handle = nullptr;
-    if (target.get() && target->getNativeBuffer()) {
-        handle = target->getNativeBuffer()->handle;
-    }
-
-    int32_t intError = mDevice.mSetClientTarget(mDevice.mHwcDevice, mId, handle,
-            fenceFd, static_cast<int32_t>(dataspace), {0, nullptr});
-#else
     auto intError = mDevice.mComposer->setClientTarget(mId, slot, target,
             fenceFd, static_cast<Hwc2::Dataspace>(dataspace),
             std::vector<Hwc2::IComposerClient::Rect>());
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Display::setColorMode(android_color_mode_t mode)
 {
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mSetColorMode(mDevice.mHwcDevice, mId, mode);
-#else
     auto intError = mDevice.mComposer->setColorMode(mId,
             static_cast<Hwc2::ColorMode>(mode));
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Display::setColorTransform(const android::mat4& matrix,
         android_color_transform_t hint)
 {
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mSetColorTransform(mDevice.mHwcDevice, mId,
-            matrix.asArray(), static_cast<int32_t>(hint));
-#else
     auto intError = mDevice.mComposer->setColorTransform(mId,
             matrix.asArray(), static_cast<Hwc2::ColorTransform>(hint));
-#endif
     return static_cast<Error>(intError);
 }
 
@@ -1014,38 +660,22 @@ Error Display::setOutputBuffer(const sp<GraphicBuffer>& buffer,
 {
     int32_t fenceFd = releaseFence->dup();
     auto handle = buffer->getNativeBuffer()->handle;
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mSetOutputBuffer(mDevice.mHwcDevice, mId, handle,
-            fenceFd);
-#else
     auto intError = mDevice.mComposer->setOutputBuffer(mId, handle, fenceFd);
-#endif
     close(fenceFd);
     return static_cast<Error>(intError);
 }
 
 Error Display::setPowerMode(PowerMode mode)
 {
-#ifdef BYPASS_IHWC
-    auto intMode = static_cast<int32_t>(mode);
-    int32_t intError = mDevice.mSetPowerMode(mDevice.mHwcDevice, mId, intMode);
-#else
     auto intMode = static_cast<Hwc2::IComposerClient::PowerMode>(mode);
     auto intError = mDevice.mComposer->setPowerMode(mId, intMode);
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Display::setVsyncEnabled(Vsync enabled)
 {
-#ifdef BYPASS_IHWC
-    auto intEnabled = static_cast<int32_t>(enabled);
-    int32_t intError = mDevice.mSetVsyncEnabled(mDevice.mHwcDevice, mId,
-            intEnabled);
-#else
     auto intEnabled = static_cast<Hwc2::IComposerClient::Vsync>(enabled);
     auto intError = mDevice.mComposer->setVsyncEnabled(mId, intEnabled);
-#endif
     return static_cast<Error>(intError);
 }
 
@@ -1053,13 +683,8 @@ Error Display::validate(uint32_t* outNumTypes, uint32_t* outNumRequests)
 {
     uint32_t numTypes = 0;
     uint32_t numRequests = 0;
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mValidateDisplay(mDevice.mHwcDevice, mId,
-            &numTypes, &numRequests);
-#else
     auto intError = mDevice.mComposer->validateDisplay(mId,
             &numTypes, &numRequests);
-#endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None && error != Error::HasChanges) {
         return error;
@@ -1075,14 +700,9 @@ Error Display::validate(uint32_t* outNumTypes, uint32_t* outNumRequests)
 int32_t Display::getAttribute(hwc2_config_t configId, Attribute attribute)
 {
     int32_t value = 0;
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mGetDisplayAttribute(mDevice.mHwcDevice, mId,
-            configId, static_cast<int32_t>(attribute), &value);
-#else
     auto intError = mDevice.mComposer->getDisplayAttribute(mId, configId,
             static_cast<Hwc2::IComposerClient::Attribute>(attribute),
             &value);
-#endif
     auto error = static_cast<Error>(intError);
     if (error != Error::None) {
         ALOGE("getDisplayAttribute(%" PRIu64 ", %u, %s) failed: %s (%d)", mId,
@@ -1111,26 +731,9 @@ void Display::loadConfigs()
 {
     ALOGV("[%" PRIu64 "] loadConfigs", mId);
 
-#ifdef BYPASS_IHWC
-    uint32_t numConfigs = 0;
-    int32_t intError = mDevice.mGetDisplayConfigs(mDevice.mHwcDevice, mId,
-            &numConfigs, nullptr);
-    auto error = static_cast<Error>(intError);
-    if (error != Error::None) {
-        ALOGE("[%" PRIu64 "] getDisplayConfigs [1] failed: %s (%d)", mId,
-                to_string(error).c_str(), intError);
-        return;
-    }
-
-    std::vector<hwc2_config_t> configIds(numConfigs);
-    intError = mDevice.mGetDisplayConfigs(mDevice.mHwcDevice, mId, &numConfigs,
-            configIds.data());
-    error = static_cast<Error>(intError);
-#else
     std::vector<Hwc2::Config> configIds;
     auto intError = mDevice.mComposer->getDisplayConfigs(mId, &configIds);
     auto error = static_cast<Error>(intError);
-#endif
     if (error != Error::None) {
         ALOGE("[%" PRIu64 "] getDisplayConfigs [2] failed: %s (%d)", mId,
                 to_string(error).c_str(), intError);
@@ -1146,11 +749,7 @@ void Display::loadConfigs()
 
 void Display::destroyLayer(hwc2_layer_t layerId)
 {
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mDestroyLayer(mDevice.mHwcDevice, mId, layerId);
-#else
     auto intError =mDevice.mComposer->destroyLayer(mId, layerId);
-#endif
     auto error = static_cast<Error>(intError);
     ALOGE_IF(error != Error::None, "destroyLayer(%" PRIu64 ", %" PRIu64 ")"
             " failed: %s (%d)", mId, layerId, to_string(error).c_str(),
@@ -1192,13 +791,8 @@ Layer::~Layer()
 
 Error Layer::setCursorPosition(int32_t x, int32_t y)
 {
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mSetCursorPosition(mDevice.mHwcDevice,
-            mDisplayId, mId, x, y);
-#else
     auto intError = mDevice.mComposer->setCursorPosition(mDisplayId,
             mId, x, y);
-#endif
     return static_cast<Error>(intError);
 }
 
@@ -1206,19 +800,8 @@ Error Layer::setBuffer(uint32_t slot, const sp<GraphicBuffer>& buffer,
         const sp<Fence>& acquireFence)
 {
     int32_t fenceFd = acquireFence->dup();
-#ifdef BYPASS_IHWC
-    (void) slot;
-    buffer_handle_t handle = nullptr;
-    if (buffer.get() && buffer->getNativeBuffer()) {
-        handle = buffer->getNativeBuffer()->handle;
-    }
-
-    int32_t intError = mDevice.mSetLayerBuffer(mDevice.mHwcDevice, mDisplayId,
-            mId, handle, fenceFd);
-#else
     auto intError = mDevice.mComposer->setLayerBuffer(mDisplayId,
             mId, slot, buffer, fenceFd);
-#endif
     return static_cast<Error>(intError);
 }
 
@@ -1226,44 +809,22 @@ Error Layer::setSurfaceDamage(const Region& damage)
 {
     // We encode default full-screen damage as INVALID_RECT upstream, but as 0
     // rects for HWC
-#ifdef BYPASS_IHWC
-    int32_t intError = 0;
-#else
     Hwc2::Error intError = Hwc2::Error::NONE;
-#endif
     if (damage.isRect() && damage.getBounds() == Rect::INVALID_RECT) {
-#ifdef BYPASS_IHWC
-        intError = mDevice.mSetLayerSurfaceDamage(mDevice.mHwcDevice,
-                mDisplayId, mId, {0, nullptr});
-#else
         intError = mDevice.mComposer->setLayerSurfaceDamage(mDisplayId,
                 mId, std::vector<Hwc2::IComposerClient::Rect>());
-#endif
     } else {
         size_t rectCount = 0;
         auto rectArray = damage.getArray(&rectCount);
 
-#ifdef BYPASS_IHWC
-        std::vector<hwc_rect_t> hwcRects;
-#else
         std::vector<Hwc2::IComposerClient::Rect> hwcRects;
-#endif
         for (size_t rect = 0; rect < rectCount; ++rect) {
             hwcRects.push_back({rectArray[rect].left, rectArray[rect].top,
                     rectArray[rect].right, rectArray[rect].bottom});
         }
 
-#ifdef BYPASS_IHWC
-        hwc_region_t hwcRegion = {};
-        hwcRegion.numRects = rectCount;
-        hwcRegion.rects = hwcRects.data();
-
-        intError = mDevice.mSetLayerSurfaceDamage(mDevice.mHwcDevice,
-                mDisplayId, mId, hwcRegion);
-#else
         intError = mDevice.mComposer->setLayerSurfaceDamage(mDisplayId,
                 mId, hwcRects);
-#endif
     }
 
     return static_cast<Error>(intError);
@@ -1271,83 +832,49 @@ Error Layer::setSurfaceDamage(const Region& damage)
 
 Error Layer::setBlendMode(BlendMode mode)
 {
-#ifdef BYPASS_IHWC
-    auto intMode = static_cast<int32_t>(mode);
-    int32_t intError = mDevice.mSetLayerBlendMode(mDevice.mHwcDevice,
-            mDisplayId, mId, intMode);
-#else
     auto intMode = static_cast<Hwc2::IComposerClient::BlendMode>(mode);
     auto intError = mDevice.mComposer->setLayerBlendMode(mDisplayId,
             mId, intMode);
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Layer::setColor(hwc_color_t color)
 {
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mSetLayerColor(mDevice.mHwcDevice, mDisplayId,
-            mId, color);
-#else
     Hwc2::IComposerClient::Color hwcColor{color.r, color.g, color.b, color.a};
     auto intError = mDevice.mComposer->setLayerColor(mDisplayId,
             mId, hwcColor);
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Layer::setCompositionType(Composition type)
 {
-#ifdef BYPASS_IHWC
-    auto intType = static_cast<int32_t>(type);
-    int32_t intError = mDevice.mSetLayerCompositionType(mDevice.mHwcDevice,
-            mDisplayId, mId, intType);
-#else
     auto intType = static_cast<Hwc2::IComposerClient::Composition>(type);
     auto intError = mDevice.mComposer->setLayerCompositionType(mDisplayId,
             mId, intType);
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Layer::setDataspace(android_dataspace_t dataspace)
 {
-#ifdef BYPASS_IHWC
-    auto intDataspace = static_cast<int32_t>(dataspace);
-    int32_t intError = mDevice.mSetLayerDataspace(mDevice.mHwcDevice,
-            mDisplayId, mId, intDataspace);
-#else
     auto intDataspace = static_cast<Hwc2::Dataspace>(dataspace);
     auto intError = mDevice.mComposer->setLayerDataspace(mDisplayId,
             mId, intDataspace);
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Layer::setDisplayFrame(const Rect& frame)
 {
-#ifdef BYPASS_IHWC
-    hwc_rect_t hwcRect{frame.left, frame.top, frame.right, frame.bottom};
-    int32_t intError = mDevice.mSetLayerDisplayFrame(mDevice.mHwcDevice,
-            mDisplayId, mId, hwcRect);
-#else
     Hwc2::IComposerClient::Rect hwcRect{frame.left, frame.top,
         frame.right, frame.bottom};
     auto intError = mDevice.mComposer->setLayerDisplayFrame(mDisplayId,
             mId, hwcRect);
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Layer::setPlaneAlpha(float alpha)
 {
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mSetLayerPlaneAlpha(mDevice.mHwcDevice,
-            mDisplayId, mId, alpha);
-#else
     auto intError = mDevice.mComposer->setLayerPlaneAlpha(mDisplayId,
             mId, alpha);
-#endif
     return static_cast<Error>(intError);
 }
 
@@ -1358,42 +885,25 @@ Error Layer::setSidebandStream(const native_handle_t* stream)
                 "device supports sideband streams");
         return Error::Unsupported;
     }
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mSetLayerSidebandStream(mDevice.mHwcDevice,
-            mDisplayId, mId, stream);
-#else
     auto intError = mDevice.mComposer->setLayerSidebandStream(mDisplayId,
             mId, stream);
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Layer::setSourceCrop(const FloatRect& crop)
 {
-#ifdef BYPASS_IHWC
-    hwc_frect_t hwcRect{crop.left, crop.top, crop.right, crop.bottom};
-    int32_t intError = mDevice.mSetLayerSourceCrop(mDevice.mHwcDevice,
-            mDisplayId, mId, hwcRect);
-#else
     Hwc2::IComposerClient::FRect hwcRect{
         crop.left, crop.top, crop.right, crop.bottom};
     auto intError = mDevice.mComposer->setLayerSourceCrop(mDisplayId,
             mId, hwcRect);
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Layer::setTransform(Transform transform)
 {
-#ifdef BYPASS_IHWC
-    auto intTransform = static_cast<int32_t>(transform);
-    int32_t intError = mDevice.mSetLayerTransform(mDevice.mHwcDevice,
-            mDisplayId, mId, intTransform);
-#else
     auto intTransform = static_cast<Hwc2::Transform>(transform);
     auto intError = mDevice.mComposer->setLayerTransform(mDisplayId,
             mId, intTransform);
-#endif
     return static_cast<Error>(intError);
 }
 
@@ -1402,50 +912,26 @@ Error Layer::setVisibleRegion(const Region& region)
     size_t rectCount = 0;
     auto rectArray = region.getArray(&rectCount);
 
-#ifdef BYPASS_IHWC
-    std::vector<hwc_rect_t> hwcRects;
-#else
     std::vector<Hwc2::IComposerClient::Rect> hwcRects;
-#endif
     for (size_t rect = 0; rect < rectCount; ++rect) {
         hwcRects.push_back({rectArray[rect].left, rectArray[rect].top,
                 rectArray[rect].right, rectArray[rect].bottom});
     }
 
-#ifdef BYPASS_IHWC
-    hwc_region_t hwcRegion = {};
-    hwcRegion.numRects = rectCount;
-    hwcRegion.rects = hwcRects.data();
-
-    int32_t intError = mDevice.mSetLayerVisibleRegion(mDevice.mHwcDevice,
-            mDisplayId, mId, hwcRegion);
-#else
     auto intError = mDevice.mComposer->setLayerVisibleRegion(mDisplayId,
             mId, hwcRects);
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Layer::setZOrder(uint32_t z)
 {
-#ifdef BYPASS_IHWC
-    int32_t intError = mDevice.mSetLayerZOrder(mDevice.mHwcDevice, mDisplayId,
-            mId, z);
-#else
     auto intError = mDevice.mComposer->setLayerZOrder(mDisplayId, mId, z);
-#endif
     return static_cast<Error>(intError);
 }
 
 Error Layer::setInfo(uint32_t type, uint32_t appId)
 {
-#ifdef BYPASS_IHWC
-  (void)type;
-  (void)appId;
-  int32_t intError = 0;
-#else
   auto intError = mDevice.mComposer->setLayerInfo(mDisplayId, mId, type, appId);
-#endif
   return static_cast<Error>(intError);
 }
 
