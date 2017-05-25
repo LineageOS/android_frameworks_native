@@ -274,12 +274,20 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
         BufferHubQueue::GetBuffer(slot));
   }
 
+  // Batch allocate buffers. Once allocated, producer buffers are automatically
+  // enqueue'd into the ProducerQueue and available to use (i.e. in GAINED
+  // state). Upon success, returns a list of slots for each buffer allocated.
+  pdx::Status<std::vector<size_t>> AllocateBuffers(
+      uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
+      uint64_t usage, size_t buffer_count);
+
   // Allocate producer buffer to populate the queue. Once allocated, a producer
   // buffer is automatically enqueue'd into the ProducerQueue and available to
-  // use (i.e. in GAINED state).
-  pdx::Status<void> AllocateBuffer(uint32_t width, uint32_t height,
-                                   uint32_t layer_count, uint32_t format,
-                                   uint64_t usage, size_t* out_slot);
+  // use (i.e. in GAINED state). Upon success, returns the slot number for the
+  // buffer allocated.
+  pdx::Status<size_t> AllocateBuffer(uint32_t width, uint32_t height,
+                                     uint32_t layer_count, uint32_t format,
+                                     uint64_t usage);
 
   // Add a producer buffer to populate the queue. Once added, a producer buffer
   // is available to use (i.e. in GAINED state).

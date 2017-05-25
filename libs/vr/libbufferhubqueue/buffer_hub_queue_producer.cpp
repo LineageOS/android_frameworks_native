@@ -612,9 +612,8 @@ status_t BufferHubQueueProducer::AllocateBuffer(uint32_t width, uint32_t height,
                                                 uint32_t layer_count,
                                                 PixelFormat format,
                                                 uint64_t usage) {
-  size_t slot;
   auto status =
-      queue_->AllocateBuffer(width, height, layer_count, format, usage, &slot);
+      queue_->AllocateBuffer(width, height, layer_count, format, usage);
   if (!status) {
     ALOGE(
         "BufferHubQueueProducer::AllocateBuffer: Failed to allocate buffer: %s",
@@ -622,6 +621,7 @@ status_t BufferHubQueueProducer::AllocateBuffer(uint32_t width, uint32_t height,
     return NO_MEMORY;
   }
 
+  size_t slot = status.get();
   auto buffer_producer = queue_->GetBuffer(slot);
 
   LOG_ALWAYS_FATAL_IF(buffer_producer == nullptr,
