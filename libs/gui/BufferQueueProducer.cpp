@@ -511,7 +511,7 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
         { // Autolock scope
             Mutex::Autolock lock(mCore->mMutex);
 
-            if (graphicBuffer != NULL && !mCore->mIsAbandoned) {
+            if (error == NO_ERROR && !mCore->mIsAbandoned) {
                 graphicBuffer->setGenerationNumber(mCore->mGenerationNumber);
                 mSlots[*outSlot].mGraphicBuffer = graphicBuffer;
             }
@@ -519,7 +519,7 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
             mCore->mIsAllocating = false;
             mCore->mIsAllocatingCondition.broadcast();
 
-            if (graphicBuffer == NULL) {
+            if (error != NO_ERROR) {
                 mCore->mFreeSlots.insert(*outSlot);
                 mCore->clearBufferSlotLocked(*outSlot);
                 BQ_LOGE("dequeueBuffer: createGraphicBuffer failed");
