@@ -112,11 +112,11 @@ int DvrWriteBufferQueue::Dequeue(int timeout, DvrWriteBuffer* write_buffer,
     // returned from |queue_->Dequeue| may still have the old buffer dimension
     // or format. Retry up to BufferHubQueue::kMaxQueueCapacity times or until
     // we dequeued a buffer with new configuration.
-    auto detach_status = producer_queue_->DetachBuffer(slot);
-    if (!detach_status) {
-      ALOGE("DvrWriteBufferQueue::Dequeue: Failed to detach buffer: %s",
-            detach_status.GetErrorMessage().c_str());
-      return -detach_status.error();
+    auto remove_status = producer_queue_->RemoveBuffer(slot);
+    if (!remove_status) {
+      ALOGE("DvrWriteBufferQueue::Dequeue: Failed to remove buffer: %s",
+            remove_status.GetErrorMessage().c_str());
+      return -remove_status.error();
     }
 
     auto allocate_status = producer_queue_->AllocateBuffer(
