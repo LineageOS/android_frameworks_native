@@ -32,6 +32,12 @@
     ALOGI(__VA_ARGS__);
 #endif
 
+#ifndef MYLOGW
+#define MYLOGW(...)               \
+    fprintf(stderr, __VA_ARGS__); \
+    ALOGW(__VA_ARGS__);
+#endif
+
 #ifndef MYLOGE
 #define MYLOGE(...)               \
     fprintf(stderr, __VA_ARGS__); \
