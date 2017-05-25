@@ -73,44 +73,90 @@ void ListCommand::removeDeadProcesses(Pids *pids) {
     }), pids->end());
 }
 
-bool ListCommand::getReferencedPids(
-        pid_t serverPid, std::map<uint64_t, Pids> *objects) const {
-
-    std::ifstream ifs("/d/binder/proc/" + std::to_string(serverPid));
+bool scanBinderContext(pid_t pid,
+        const std::string &contextName,
+        std::function<void(const std::string&)> eachLine) {
+    std::ifstream ifs("/d/binder/proc/" + std::to_string(pid));
     if (!ifs.is_open()) {
         return false;
     }
 
-    static const std::regex prefix("^\\s*node \\d+:\\s+u([0-9a-f]+)\\s+c([0-9a-f]+)\\s+");
+    static const std::regex kContextLine("^context (\\w+)$");
 
+    bool isDesiredContext = false;
     std::string line;
     std::smatch match;
     while(getline(ifs, line)) {
-        if (!std::regex_search(line, match, prefix)) {
-            // the line doesn't start with the correct prefix
+        if (std::regex_search(line, match, kContextLine)) {
+            isDesiredContext = match.str(1) == contextName;
             continue;
         }
-        std::string ptrString = "0x" + match.str(2); // use number after c
-        uint64_t ptr;
-        if (!::android::base::ParseUint(ptrString.c_str(), &ptr)) {
-            // Should not reach here, but just be tolerant.
-            mErr << "Could not parse number " << ptrString << std::endl;
+
+        if (!isDesiredContext) {
             continue;
         }
-        const std::string proc = " proc ";
-        auto pos = line.rfind(proc);
-        if (pos != std::string::npos) {
-            for (const std::string &pidStr : split(line.substr(pos + proc.size()), ' ')) {
-                int32_t pid;
-                if (!::android::base::ParseInt(pidStr, &pid)) {
-                    mErr << "Could not parse number " << pidStr << std::endl;
-                    continue;
-                }
-                (*objects)[ptr].push_back(pid);
-            }
-        }
+
+        eachLine(line);
     }
     return true;
+}
+
+bool ListCommand::getPidInfo(
+        pid_t serverPid, PidInfo *pidInfo) const {
+    static const std::regex kReferencePrefix("^\\s*node \\d+:\\s+u([0-9a-f]+)\\s+c([0-9a-f]+)\\s+");
+    static const std::regex kThreadPrefix("^\\s*thread \\d+:\\s+l\\s+(\\d)(\\d)");
+
+    std::smatch match;
+    return scanBinderContext(serverPid, "hwbinder", [&](const std::string& line) {
+        if (std::regex_search(line, match, kReferencePrefix)) {
+            const std::string &ptrString = "0x" + match.str(2); // use number after c
+            uint64_t ptr;
+            if (!::android::base::ParseUint(ptrString.c_str(), &ptr)) {
+                // Should not reach here, but just be tolerant.
+                mErr << "Could not parse number " << ptrString << std::endl;
+                return;
+            }
+            const std::string proc = " proc ";
+            auto pos = line.rfind(proc);
+            if (pos != std::string::npos) {
+                for (const std::string &pidStr : split(line.substr(pos + proc.size()), ' ')) {
+                    int32_t pid;
+                    if (!::android::base::ParseInt(pidStr, &pid)) {
+                        mErr << "Could not parse number " << pidStr << std::endl;
+                        return;
+                    }
+                    pidInfo->refPids[ptr].push_back(pid);
+                }
+            }
+
+            return;
+        }
+
+        if (std::regex_search(line, match, kThreadPrefix)) {
+            // "1" is waiting in binder driver
+            // "2" is poll. It's impossible to tell if these are in use.
+            //     and HIDL default code doesn't use it.
+            bool isInUse = match.str(1) != "1";
+            // "0" is a thread that has called into binder
+            // "1" is looper thread
+            // "2" is main looper thread
+            bool isHwbinderThread = match.str(2) != "0";
+
+            if (!isHwbinderThread) {
+                return;
+            }
+
+            if (isInUse) {
+                pidInfo->threadUsage++;
+            }
+
+            pidInfo->threadCount++;
+            return;
+        }
+
+        // not reference or thread line
+        return;
+    });
 }
 
 // Must process hwbinder services first, then passthrough services.
@@ -164,9 +210,11 @@ void ListCommand::printLine(
         const std::string &interfaceName,
         const std::string &transport,
         const std::string &arch,
+        const std::string &threadUsage,
         const std::string &server,
         const std::string &serverCmdline,
-        const std::string &address, const std::string &clients,
+        const std::string &address,
+        const std::string &clients,
         const std::string &clientCmdlines) const {
     if (mSelectedColumns & ENABLE_INTERFACE_NAME)
         mOut << std::setw(80) << interfaceName << "\t";
@@ -174,6 +222,9 @@ void ListCommand::printLine(
         mOut << std::setw(10) << transport << "\t";
     if (mSelectedColumns & ENABLE_ARCH)
         mOut << std::setw(5) << arch << "\t";
+    if (mSelectedColumns & ENABLE_THREADS) {
+        mOut << std::setw(8) << threadUsage << "\t";
+    }
     if (mSelectedColumns & ENABLE_SERVER_PID) {
         if (mEnableCmdlines) {
             mOut << std::setw(15) << serverCmdline << "\t";
@@ -349,14 +400,15 @@ void ListCommand::dumpTable() {
         }
         mOut << std::left;
         if (!mNeat) {
-            printLine("Interface", "Transport", "Arch", "Server", "Server CMD",
-                      "PTR", "Clients", "Clients CMD");
+            printLine("Interface", "Transport", "Arch", "Thread Use", "Server",
+                      "Server CMD", "PTR", "Clients", "Clients CMD");
         }
 
         for (const auto &entry : table) {
             printLine(entry.interfaceName,
                     entry.transport,
                     getArchString(entry.arch),
+                    entry.getThreadUsage(),
                     entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
                     entry.serverCmdline,
                     entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
@@ -492,7 +544,7 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
     Status status = OK;
     // server pid, .ptr value of binder object, child pids
     std::map<std::string, DebugInfo> allDebugInfos;
-    std::map<pid_t, std::map<uint64_t, Pids>> allPids;
+    std::map<pid_t, PidInfo> allPids;
     for (const auto &fqInstanceName : fqInstanceNames) {
         const auto pair = splitFirst(fqInstanceName, '/');
         const auto &serviceName = pair.first;
@@ -516,7 +568,7 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
         auto debugRet = timeoutIPC(service, &IBase::getDebugInfo, [&] (const auto &debugInfo) {
             allDebugInfos[fqInstanceName] = debugInfo;
             if (debugInfo.pid >= 0) {
-                allPids[static_cast<pid_t>(debugInfo.pid)].clear();
+                allPids[static_cast<pid_t>(debugInfo.pid)] = PidInfo();
             }
         });
         if (!debugRet.isOk()) {
@@ -526,9 +578,10 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
             status |= DUMP_BINDERIZED_ERROR;
         }
     }
+
     for (auto &pair : allPids) {
         pid_t serverPid = pair.first;
-        if (!getReferencedPids(serverPid, &allPids[serverPid])) {
+        if (!getPidInfo(serverPid, &allPids[serverPid])) {
             mErr << "Warning: no information for PID " << serverPid
                       << ", are you root?" << std::endl;
             status |= DUMP_BINDERIZED_ERROR;
@@ -543,18 +596,23 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
                 .serverPid = NO_PID,
                 .serverObjectAddress = NO_PTR,
                 .clientPids = {},
+                .threadUsage = 0,
+                .threadCount = 0,
                 .arch = ARCH_UNKNOWN
             });
             continue;
         }
         const DebugInfo &info = it->second;
+        bool writePidInfo = info.pid != NO_PID && info.ptr != NO_PTR;
+
         putEntry(HWSERVICEMANAGER_LIST, {
             .interfaceName = fqInstanceName,
             .transport = mode,
             .serverPid = info.pid,
             .serverObjectAddress = info.ptr,
-            .clientPids = info.pid == NO_PID || info.ptr == NO_PTR
-                    ? Pids{} : allPids[info.pid][info.ptr],
+            .clientPids = writePidInfo ? allPids[info.pid].refPids[info.ptr] : Pids{},
+            .threadUsage = writePidInfo ? allPids[info.pid].threadUsage : 0,
+            .threadCount = writePidInfo ? allPids[info.pid].threadCount : 0,
             .arch = fromBaseArchitecture(info.arch),
         });
     }
@@ -593,6 +651,7 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
         {"pid",       no_argument,       0, 'p' },
         {"address",   no_argument,       0, 'a' },
         {"clients",   no_argument,       0, 'c' },
+        {"threads",   no_argument,       0, 'e' },
         {"cmdline",   no_argument,       0, 'm' },
         {"debug",     optional_argument, 0, 'd' },
 
@@ -609,7 +668,7 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
     for (;;) {
         // using getopt_long in case we want to add other options in the future
         c = getopt_long(arg.argc, arg.argv,
-                "hitrpacmd", longOptions, &optionIndex);
+                "hitrpacmde", longOptions, &optionIndex);
         if (c == -1) {
             break;
         }
@@ -661,6 +720,10 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
             mSelectedColumns |= ENABLE_CLIENT_PIDS;
             break;
         }
+        case 'e': {
+            mSelectedColumns |= ENABLE_THREADS;
+            break;
+        }
         case 'm': {
             mEnableCmdlines = true;
             break;
@@ -695,7 +758,7 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
     }
 
     if (mSelectedColumns == 0) {
-        mSelectedColumns = ENABLE_INTERFACE_NAME | ENABLE_SERVER_PID | ENABLE_CLIENT_PIDS;
+        mSelectedColumns = ENABLE_INTERFACE_NAME | ENABLE_SERVER_PID | ENABLE_CLIENT_PIDS | ENABLE_THREADS;
     }
     return OK;
 }
