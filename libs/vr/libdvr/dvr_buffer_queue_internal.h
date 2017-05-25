@@ -54,6 +54,11 @@ struct DvrReadBufferQueue {
   int CreateReadQueue(DvrReadBufferQueue** out_read_queue);
   int Dequeue(int timeout, DvrReadBuffer* read_buffer, int* out_fence_fd,
               void* out_meta, size_t meta_size_bytes);
+  void SetBufferAvailableCallback(
+      DvrReadBufferQueueBufferAvailableCallback callback, void* context);
+  void SetBufferRemovedCallback(
+      DvrReadBufferQueueBufferRemovedCallback callback, void* context);
+  int HandleEvents();
 
  private:
   std::shared_ptr<ConsumerQueue> consumer_queue_;

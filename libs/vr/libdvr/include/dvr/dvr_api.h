@@ -174,6 +174,17 @@ typedef int (*DvrReadBufferQueueDequeuePtr)(DvrReadBufferQueue* read_queue,
                                             DvrReadBuffer* out_buffer,
                                             int* out_fence_fd, void* out_meta,
                                             size_t meta_size_bytes);
+typedef void (*DvrReadBufferQueueBufferAvailableCallback)(void* context);
+typedef int (*DvrReadBufferQueueSetBufferAvailableCallbackPtr)(
+    DvrReadBufferQueue* read_queue,
+    DvrReadBufferQueueBufferAvailableCallback callback, void* context);
+typedef void (*DvrReadBufferQueueBufferRemovedCallback)(DvrReadBuffer* buffer,
+                                                        void* context);
+typedef int (*DvrReadBufferQueueSetBufferRemovedCallbackPtr)(
+    DvrReadBufferQueue* read_queue,
+    DvrReadBufferQueueBufferRemovedCallback callback, void* context);
+typedef int (*DvrReadBufferQueueHandleEventsPtr)(
+    DvrReadBufferQueue* read_queue);
 
 // dvr_surface.h
 typedef int (*DvrGetGlobalBufferPtr)(DvrGlobalBufferKey key,

@@ -132,6 +132,61 @@ int dvrReadBufferQueueDequeue(DvrReadBufferQueue* read_queue, int timeout,
                               DvrReadBuffer* out_buffer, int* out_fence_fd,
                               void* out_meta, size_t meta_size_bytes);
 
+// Callback function which will be called when a buffer is avaiable.
+//
+// Note that there is no guarantee of thread safety and on which thread the
+// callback will be fired.
+//
+// @param context User provided opaque pointer.
+typedef void (*DvrReadBufferQueueBufferAvailableCallback)(void* context);
+
+// Set buffer avaiable callback.
+//
+// @param read_queue The DvrReadBufferQueue of interest.
+// @param callback The callback function. Set this to NULL if caller no longer
+//     needs to listen to new buffer available events.
+// @param context User provided opaque pointer, will be passed back during
+//     callback. The caller is responsible for ensuring the validity of the
+//     context through the life cycle of the DvrReadBufferQueue.
+// @return Zero on success, or negative error code.
+int dvrReadBufferQueueSetBufferAvailableCallback(
+    DvrReadBufferQueue* read_queue,
+    DvrReadBufferQueueBufferAvailableCallback callback, void* context);
+
+// Callback function which will be called when a buffer is about to be removed.
+//
+// Note that there is no guarantee of thread safety and on which thread the
+// callback will be fired.
+//
+// @param buffer The buffer being removed. Once the callbacks returns, this
+//     buffer will be dereferenced from the buffer queue. If user has ever
+//     cached other DvrReadBuffer/AHardwareBuffer/EglImageKHR objects derived
+//     from this buffer, it's the user's responsibility to clean them up.
+//     Note that the ownership of the read buffer is not passed to this
+//     callback, so it should call dvrReadBufferDestroy on the buffer.
+// @param context User provided opaque pointer.
+typedef void (*DvrReadBufferQueueBufferRemovedCallback)(DvrReadBuffer* buffer,
+                                                        void* context);
+
+// Set buffer removed callback.
+//
+// @param read_queue The DvrReadBufferQueue of interest.
+// @param callback The callback function. Set this to NULL if caller no longer
+//     needs to listen to buffer removed events.
+// @param context User provided opaque pointer, will be passed back during
+//     callback. The caller is responsible for ensuring the validity of the
+//     context through the life cycle of the DvrReadBufferQueue.
+// @return Zero on success, or negative error code.
+int dvrReadBufferQueueSetBufferRemovedCallback(
+    DvrReadBufferQueue* read_queue,
+    DvrReadBufferQueueBufferRemovedCallback callback, void* context);
+
+// Handle all pending events on the read queue.
+//
+// @param read_queue The DvrReadBufferQueue of interest.
+// @return Zero on success, or negative error code.
+int dvrReadBufferQueueHandleEvents(DvrReadBufferQueue* read_queue);
+
 __END_DECLS
 
 #endif  // ANDROID_DVR_BUFFER_QUEUE_H_

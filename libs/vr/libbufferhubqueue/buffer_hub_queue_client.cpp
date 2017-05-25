@@ -359,6 +359,10 @@ Status<void> BufferHubQueue::RemoveBuffer(size_t slot) {
       return ErrorStatus(-ret);
     }
 
+    // Trigger OnBufferRemoved callback if registered.
+    if (on_buffer_removed_)
+      on_buffer_removed_(buffers_[slot]);
+
     buffers_[slot] = nullptr;
     capacity_--;
   }
@@ -369,6 +373,11 @@ Status<void> BufferHubQueue::RemoveBuffer(size_t slot) {
 Status<void> BufferHubQueue::Enqueue(Entry entry) {
   if (!is_full()) {
     available_buffers_.Append(std::move(entry));
+
+    // Trigger OnBufferAvailable callback if registered.
+    if (on_buffer_available_)
+      on_buffer_available_();
+
     return {};
   } else {
     ALOGE("BufferHubQueue::Enqueue: Buffer queue is full!");
@@ -397,6 +406,15 @@ Status<std::shared_ptr<BufferHubBuffer>> BufferHubQueue::Dequeue(
   available_buffers_.PopFront();
 
   return {std::move(buffer)};
+}
+
+void BufferHubQueue::SetBufferAvailableCallback(
+    BufferAvailableCallback callback) {
+  on_buffer_available_ = callback;
+}
+
+void BufferHubQueue::SetBufferRemovedCallback(BufferRemovedCallback callback) {
+  on_buffer_removed_ = callback;
 }
 
 ProducerQueue::ProducerQueue(LocalChannelHandle handle)
