@@ -89,7 +89,9 @@ struct TracingCategory {
 
 /* Tracing categories */
 static const TracingCategory k_categories[] = {
-    { "gfx",        "Graphics",         ATRACE_TAG_GRAPHICS, { } },
+    { "gfx",        "Graphics",         ATRACE_TAG_GRAPHICS, {
+        { OPT,      "events/mdss/enable" },
+    } },
     { "input",      "Input",            ATRACE_TAG_INPUT, { } },
     { "view",       "View System",      ATRACE_TAG_VIEW, { } },
     { "webview",    "WebView",          ATRACE_TAG_WEBVIEW, { } },
