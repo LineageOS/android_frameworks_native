@@ -415,7 +415,8 @@ Status ListCommand::fetchAllLibraries(const sp<IServiceManager> &manager) {
     using namespace ::android::hardware;
     using namespace ::android::hidl::manager::V1_0;
     using namespace ::android::hidl::base::V1_0;
-    auto ret = timeoutIPC(manager, &IServiceManager::debugDump, [&] (const auto &infos) {
+    using std::literals::chrono_literals::operator""s;
+    auto ret = timeoutIPC(2s, manager, &IServiceManager::debugDump, [&] (const auto &infos) {
         std::map<std::string, TableEntry> entries;
         for (const auto &info : infos) {
             std::string interfaceName = std::string{info.interfaceName.c_str()} + "/" +
@@ -425,7 +426,7 @@ Status ListCommand::fetchAllLibraries(const sp<IServiceManager> &manager) {
                 .transport = "passthrough",
                 .serverPid = NO_PID,
                 .serverObjectAddress = NO_PTR,
-                .clientPids = {},
+                .clientPids = info.clientPids,
                 .arch = ARCH_UNKNOWN
             }).first->second.arch |= fromBaseArchitecture(info.arch);
         }
