@@ -264,7 +264,7 @@ struct BufferHubRPC {
     kOpCreateConsumerQueue,
     kOpGetQueueInfo,
     kOpProducerQueueAllocateBuffers,
-    kOpProducerQueueDetachBuffer,
+    kOpProducerQueueRemoveBuffer,
     kOpConsumerQueueImportBuffers,
   };
 
@@ -312,7 +312,7 @@ struct BufferHubRPC {
                     std::vector<std::pair<LocalChannelHandle, size_t>>(
                         uint32_t width, uint32_t height, uint32_t layer_count,
                         uint32_t format, uint64_t usage, size_t buffer_count));
-  PDX_REMOTE_METHOD(ProducerQueueDetachBuffer, kOpProducerQueueDetachBuffer,
+  PDX_REMOTE_METHOD(ProducerQueueRemoveBuffer, kOpProducerQueueRemoveBuffer,
                     void(size_t slot));
   PDX_REMOTE_METHOD(ConsumerQueueImportBuffers, kOpConsumerQueueImportBuffers,
                     std::vector<std::pair<LocalChannelHandle, size_t>>(Void));
