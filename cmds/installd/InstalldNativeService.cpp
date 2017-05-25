@@ -78,6 +78,7 @@ static constexpr const char* PKG_LIB_POSTFIX = "/lib";
 static constexpr const char* CACHE_DIR_POSTFIX = "/cache";
 static constexpr const char* CODE_CACHE_DIR_POSTFIX = "/code_cache";
 
+static constexpr const char *kIdMapPath = "/system/bin/idmap";
 static constexpr const char* IDMAP_PREFIX = "/data/resource-cache/";
 static constexpr const char* IDMAP_SUFFIX = "@idmap";
 
@@ -1941,14 +1942,58 @@ out:
 
 static void run_idmap(const char *target_apk, const char *overlay_apk, int idmap_fd)
 {
-    static const char *IDMAP_BIN = "/system/bin/idmap";
-    static const size_t MAX_INT_LEN = 32;
-    char idmap_str[MAX_INT_LEN];
+    execl(kIdMapPath, kIdMapPath, "--fd", target_apk, overlay_apk,
+            StringPrintf("%d", idmap_fd).c_str(), (char*)NULL);
+    PLOG(ERROR) << "execl (" << kIdMapPath << ") failed";
+}
 
-    snprintf(idmap_str, sizeof(idmap_str), "%d", idmap_fd);
+static void run_verify_idmap(const char *target_apk, const char *overlay_apk, int idmap_fd)
+{
+    execl(kIdMapPath, kIdMapPath, "--verify", target_apk, overlay_apk,
+            StringPrintf("%d", idmap_fd).c_str(), (char*)NULL);
+    PLOG(ERROR) << "execl (" << kIdMapPath << ") failed";
+}
 
-    execl(IDMAP_BIN, IDMAP_BIN, "--fd", target_apk, overlay_apk, idmap_str, (char*)NULL);
-    ALOGE("execl(%s) failed: %s\n", IDMAP_BIN, strerror(errno));
+static bool delete_stale_idmap(const char* target_apk, const char* overlay_apk,
+        const char* idmap_path, int32_t uid) {
+    int idmap_fd = open(idmap_path, O_RDWR);
+    if (idmap_fd < 0) {
+        PLOG(ERROR) << "idmap open failed: " << idmap_path;
+        unlink(idmap_path);
+        return true;
+    }
+
+    pid_t pid;
+    pid = fork();
+    if (pid == 0) {
+        /* child -- drop privileges before continuing */
+        if (setgid(uid) != 0) {
+            LOG(ERROR) << "setgid(" << uid << ") failed during idmap";
+            exit(1);
+        }
+        if (setuid(uid) != 0) {
+            LOG(ERROR) << "setuid(" << uid << ") failed during idmap";
+            exit(1);
+        }
+        if (flock(idmap_fd, LOCK_EX | LOCK_NB) != 0) {
+            PLOG(ERROR) << "flock(" << idmap_path << ") failed during idmap";
+            exit(1);
+        }
+
+        run_verify_idmap(target_apk, overlay_apk, idmap_fd);
+        exit(1); /* only if exec call to deleting stale idmap failed */
+    } else {
+        int status = wait_child(pid);
+        close(idmap_fd);
+
+        if (status != 0) {
+            // Failed on verifying if idmap is made from target_apk and overlay_apk.
+            LOG(DEBUG) << "delete stale idmap: " << idmap_path;
+            unlink(idmap_path);
+            return true;
+        }
+    }
+    return false;
 }
 
 // Transform string /a/b/c.apk to (prefix)/a@b@c.apk@(suffix)
@@ -1997,6 +2042,8 @@ binder::Status InstalldNativeService::idmap(const std::string& targetApkPath,
 
     int idmap_fd = -1;
     char idmap_path[PATH_MAX];
+    struct stat idmap_stat;
+    bool outdated = false;
 
     if (flatten_path(IDMAP_PREFIX, IDMAP_SUFFIX, overlay_apk,
                 idmap_path, sizeof(idmap_path)) == -1) {
@@ -2004,8 +2051,18 @@ binder::Status InstalldNativeService::idmap(const std::string& targetApkPath,
         goto fail;
     }
 
-    unlink(idmap_path);
-    idmap_fd = open(idmap_path, O_RDWR | O_CREAT | O_EXCL, 0644);
+    if (stat(idmap_path, &idmap_stat) < 0) {
+        outdated = true;
+    } else {
+        outdated = delete_stale_idmap(target_apk, overlay_apk, idmap_path, uid);
+    }
+
+    if (outdated) {
+        idmap_fd = open(idmap_path, O_RDWR | O_CREAT | O_EXCL, 0644);
+    } else {
+        idmap_fd = open(idmap_path, O_RDWR);
+    }
+
     if (idmap_fd < 0) {
         ALOGE("idmap cannot open '%s' for output: %s\n", idmap_path, strerror(errno));
         goto fail;
@@ -2017,6 +2074,11 @@ binder::Status InstalldNativeService::idmap(const std::string& targetApkPath,
     if (fchmod(idmap_fd, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) < 0) {
         ALOGE("idmap cannot chmod '%s'\n", idmap_path);
         goto fail;
+    }
+
+    if (!outdated) {
+        close(idmap_fd);
+        return ok();
     }
 
     pid_t pid;
