@@ -59,7 +59,7 @@ class GLES20RenderEngine : public RenderEngine {
     virtual void unbindFramebuffer(uint32_t texName, uint32_t fbName);
 
 public:
-    GLES20RenderEngine();
+    GLES20RenderEngine(uint32_t featureFlags); // See RenderEngine::FeatureFlag
 
 protected:
     virtual ~GLES20RenderEngine();
@@ -86,7 +86,6 @@ protected:
     android_dataspace mDataSpace = HAL_DATASPACE_V0_SRGB;
 
     // Indicate if wide-color mode is needed or not
-    bool mPlatformHasWideColor = false;
     bool mDisplayHasWideColor = false;
     bool mUseWideColor = false;
     uint64_t mWideColorFrameCount = 0;
@@ -98,6 +97,8 @@ protected:
             int alpha);
     virtual void setupDimLayerBlending(int alpha);
 #endif
+    bool mPlatformHasWideColor = false;
+
     virtual void setupLayerTexturing(const Texture& texture);
     virtual void setupLayerBlackedOut();
     virtual void setupFillWithColor(float r, float g, float b, float a);
