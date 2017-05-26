@@ -77,14 +77,15 @@ bool timeout(std::chrono::duration<R, P> delay, std::function<void(void)> &&func
     return success;
 }
 
-template<class Function, class I, class... Args>
+template<class R, class P, class Function, class I, class... Args>
 typename std::result_of<Function(I *, Args...)>::type
-timeoutIPC(const sp<I> &interfaceObject, Function &&func, Args &&... args) {
+timeoutIPC(std::chrono::duration<R, P> wait, const sp<I> &interfaceObject, Function &&func,
+           Args &&... args) {
     using ::android::hardware::Status;
     typename std::result_of<Function(I *, Args...)>::type ret{Status::ok()};
     auto boundFunc = std::bind(std::forward<Function>(func),
             interfaceObject.get(), std::forward<Args>(args)...);
-    bool success = timeout(IPC_CALL_WAIT, [&ret, &boundFunc] {
+    bool success = timeout(wait, [&ret, &boundFunc] {
         ret = std::move(boundFunc());
     });
     if (!success) {
@@ -92,6 +93,13 @@ timeoutIPC(const sp<I> &interfaceObject, Function &&func, Args &&... args) {
     }
     return ret;
 }
+
+template<class Function, class I, class... Args>
+typename std::result_of<Function(I *, Args...)>::type
+timeoutIPC(const sp<I> &interfaceObject, Function &&func, Args &&... args) {
+    return timeoutIPC(IPC_CALL_WAIT, interfaceObject, func, args...);
+}
+
 
 }  // namespace lshal
 }  // namespace android
