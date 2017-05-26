@@ -84,7 +84,7 @@ int dvrSurfaceStateGetSurfaceCount(DvrSurfaceState* surface_state,
                                    size_t* count_out);
 
 // Returns the update flags for the surface at |surface_index| in the state
-// object. The flags may be used to determine what changes, if any, occured to
+// object. The flags may be used to determine what changes, if any, occurred to
 // the surface since the last state update.
 // @return 0 on success. Otherwise returns a negative error value.
 int dvrSurfaceStateGetUpdateFlags(DvrSurfaceState* surface_state,

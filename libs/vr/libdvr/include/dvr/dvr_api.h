@@ -211,7 +211,7 @@ typedef int (*DvrVSyncClientGetSchedInfoPtr)(DvrVSyncClient* client,
                                              uint32_t* next_vsync_count);
 
 // libs/vr/libvrsensor/include/dvr/pose_client.h
-typedef DvrPoseClient* (*DvrPoseClientCreatePtr)(void);
+typedef DvrPoseClient* (*DvrPoseClientCreatePtr)();
 typedef void (*DvrPoseClientDestroyPtr)(DvrPoseClient* client);
 typedef int (*DvrPoseClientGetPtr)(DvrPoseClient* client, uint32_t vsync_count,
                                    DvrPoseAsync* out_pose);
@@ -222,7 +222,13 @@ typedef int (*DvrPoseClientGetControllerPtr)(DvrPoseClient* client,
                                              DvrPoseAsync* out_pose);
 
 // services/vr/virtual_touchpad/include/dvr/virtual_touchpad_client.h
-typedef DvrVirtualTouchpad* (*DvrVirtualTouchpadCreatePtr)(void);
+
+// Touchpad IDs for *Touch*() and *ButtonState*() calls.
+enum {
+  DVR_VIRTUAL_TOUCHPAD_PRIMARY = 0,
+  DVR_VIRTUAL_TOUCHPAD_VIRTUAL = 1,
+};
+typedef DvrVirtualTouchpad* (*DvrVirtualTouchpadCreatePtr)();
 typedef void (*DvrVirtualTouchpadDestroyPtr)(DvrVirtualTouchpad* client);
 typedef int (*DvrVirtualTouchpadAttachPtr)(DvrVirtualTouchpad* client);
 typedef int (*DvrVirtualTouchpadDetachPtr)(DvrVirtualTouchpad* client);
