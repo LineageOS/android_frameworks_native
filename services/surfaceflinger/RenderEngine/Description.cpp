@@ -26,8 +26,7 @@
 
 namespace android {
 
-Description::Description() :
-    mUniformsDirty(true) {
+Description::Description() {
     mPlaneAlpha = 1.0f;
     mPremultipliedAlpha = false;
     mOpaque = true;
@@ -41,28 +40,20 @@ Description::~Description() {
 }
 
 void Description::setPlaneAlpha(GLclampf planeAlpha) {
-    if (planeAlpha != mPlaneAlpha) {
-        mUniformsDirty = true;
-        mPlaneAlpha = planeAlpha;
-    }
+    mPlaneAlpha = planeAlpha;
 }
 
 void Description::setPremultipliedAlpha(bool premultipliedAlpha) {
-    if (premultipliedAlpha != mPremultipliedAlpha) {
-        mPremultipliedAlpha = premultipliedAlpha;
-    }
+    mPremultipliedAlpha = premultipliedAlpha;
 }
 
 void Description::setOpaque(bool opaque) {
-    if (opaque != mOpaque) {
-        mOpaque = opaque;
-    }
+    mOpaque = opaque;
 }
 
 void Description::setTexture(const Texture& texture) {
     mTexture = texture;
     mTextureEnabled = true;
-    mUniformsDirty = true;
 }
 
 void Description::disableTexture() {
@@ -74,12 +65,10 @@ void Description::setColor(GLclampf red, GLclampf green, GLclampf blue, GLclampf
     mColor[1] = green;
     mColor[2] = blue;
     mColor[3] = alpha;
-    mUniformsDirty = true;
 }
 
 void Description::setProjectionMatrix(const mat4& mtx) {
     mProjectionMatrix = mtx;
-    mUniformsDirty = true;
 }
 
 void Description::setColorMatrix(const mat4& mtx) {
@@ -92,5 +81,8 @@ const mat4& Description::getColorMatrix() const {
     return mColorMatrix;
 }
 
+void Description::setWideGamut(bool wideGamut) {
+    mIsWideGamut = wideGamut;
+}
 
 } /* namespace android */
