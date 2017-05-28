@@ -24,6 +24,17 @@ static constexpr size_t kQueueCapacity = 3;
 typedef uint64_t TestMeta;
 
 class DvrBufferQueueTest : public ::testing::Test {
+ public:
+  static void BufferAvailableCallback(void* context) {
+    DvrBufferQueueTest* thiz = static_cast<DvrBufferQueueTest*>(context);
+    thiz->HandleBufferAvailable();
+  }
+
+  static void BufferRemovedCallback(DvrReadBuffer* buffer, void* context) {
+    DvrBufferQueueTest* thiz = static_cast<DvrBufferQueueTest*>(context);
+    thiz->HandleBufferRemoved(buffer);
+  }
+
  protected:
   void SetUp() override {
     auto config = ProducerQueueConfigBuilder()
@@ -54,7 +65,20 @@ class DvrBufferQueueTest : public ::testing::Test {
     }
   }
 
+  void HandleBufferAvailable() {
+    buffer_available_count_ += 1;
+    ALOGD_IF(TRACE, "Buffer avaiable, count=%d", buffer_available_count_);
+  }
+
+  void HandleBufferRemoved(DvrReadBuffer* buffer) {
+    buffer_removed_count_ += 1;
+    ALOGD_IF(TRACE, "Buffer removed, buffer=%p, count=%d", buffer,
+             buffer_removed_count_);
+  }
+
   DvrWriteBufferQueue* write_queue_{nullptr};
+  int buffer_available_count_{0};
+  int buffer_removed_count_{0};
 };
 
 TEST_F(DvrBufferQueueTest, TestWrite_QueueDestroy) {
@@ -142,6 +166,9 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, read_queue);
 
+  dvrReadBufferQueueSetBufferAvailableCallback(read_queue,
+                                               &BufferAvailableCallback, this);
+
   dvrWriteBufferCreateEmpty(&wb);
   ASSERT_NE(nullptr, wb);
 
@@ -170,6 +197,9 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
   ret = dvrReadBufferQueueDequeue(read_queue, kTimeout, rb, &fence_fd,
                                   &acquired_seq, sizeof(acquired_seq));
   ASSERT_EQ(0, ret);
+
+  // Dequeue is successfully, BufferAvailableCallback should be fired once.
+  ASSERT_EQ(1, buffer_available_count_);
   ASSERT_TRUE(dvrReadBufferIsValid(rb));
   ASSERT_EQ(seq, acquired_seq);
   ALOGD_IF(TRACE,
@@ -227,6 +257,7 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   static constexpr int kTimeout = 0;
   int fence_fd = -1;
 
+  DvrReadBufferQueue* read_queue = nullptr;
   DvrWriteBuffer* wb1 = nullptr;
   DvrWriteBuffer* wb2 = nullptr;
   DvrWriteBuffer* wb3 = nullptr;
@@ -234,6 +265,14 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   AHardwareBuffer* ahb2 = nullptr;
   AHardwareBuffer* ahb3 = nullptr;
   AHardwareBuffer_Desc buffer_desc;
+
+  int ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
+
+  ASSERT_EQ(0, ret);
+  ASSERT_NE(nullptr, read_queue);
+
+  dvrReadBufferQueueSetBufferRemovedCallback(read_queue, &BufferRemovedCallback,
+                                             this);
 
   dvrWriteBufferCreateEmpty(&wb1);
   ASSERT_NE(nullptr, wb1);
@@ -244,15 +283,24 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
 
   AllocateBuffers(kQueueCapacity);
 
+  // Handle all pending events on the read queue.
+  ret = dvrReadBufferQueueHandleEvents(read_queue);
+  ASSERT_EQ(0, ret);
+
+  size_t capacity = dvrReadBufferQueueGetCapacity(read_queue);
+  ALOGD_IF(TRACE, "TestResizeBuffer, capacity=%zu", capacity);
+  ASSERT_EQ(kQueueCapacity, capacity);
+
   // Resize before dequeuing.
-  constexpr int w1 = 10;
-  int ret = dvrWriteBufferQueueResizeBuffer(write_queue_, w1, kBufferHeight);
+  constexpr uint32_t w1 = 10;
+  ret = dvrWriteBufferQueueResizeBuffer(write_queue_, w1, kBufferHeight);
+  ASSERT_EQ(0, ret);
 
   // Gain first buffer for writing. All buffers will be resized.
   ret = dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wb1, &fence_fd);
   ASSERT_EQ(0, ret);
   ASSERT_TRUE(dvrWriteBufferIsValid(wb1));
-  ALOGD_IF(TRACE, "TestResiveBuffer, gain buffer %p", wb1);
+  ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p", wb1);
   pdx::LocalHandle release_fence1(fence_fd);
 
   // Check the buffer dimension.
@@ -263,8 +311,14 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ASSERT_EQ(kBufferHeight, buffer_desc.height);
   AHardwareBuffer_release(ahb1);
 
+  // For the first resize, all buffers are reallocated.
+  int expected_buffer_removed_count = kQueueCapacity;
+  ret = dvrReadBufferQueueHandleEvents(read_queue);
+  ASSERT_EQ(0, ret);
+  ASSERT_EQ(expected_buffer_removed_count, buffer_removed_count_);
+
   // Resize the queue. We are testing with blob format, keep height to be 1.
-  constexpr int w2 = 20;
+  constexpr uint32_t w2 = 20;
   ret = dvrWriteBufferQueueResizeBuffer(write_queue_, w2, kBufferHeight);
   ASSERT_EQ(0, ret);
 
@@ -272,7 +326,7 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ret = dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wb2, &fence_fd);
   ASSERT_EQ(0, ret);
   ASSERT_TRUE(dvrWriteBufferIsValid(wb2));
-  ALOGD_IF(TRACE, "TestResiveBuffer, gain buffer %p, fence_fd=%d", wb2,
+  ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p, fence_fd=%d", wb2,
            fence_fd);
   pdx::LocalHandle release_fence2(fence_fd);
 
@@ -283,8 +337,14 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ASSERT_EQ(w2, buffer_desc.width);
   AHardwareBuffer_release(ahb2);
 
+  // For the second resize, all but one buffers are reallocated.
+  expected_buffer_removed_count += (kQueueCapacity - 1);
+  ret = dvrReadBufferQueueHandleEvents(read_queue);
+  ASSERT_EQ(0, ret);
+  ASSERT_EQ(expected_buffer_removed_count, buffer_removed_count_);
+
   // Resize the queue for the third time.
-  constexpr int w3 = 30;
+  constexpr uint32_t w3 = 30;
   ret = dvrWriteBufferQueueResizeBuffer(write_queue_, w3, kBufferHeight);
   ASSERT_EQ(0, ret);
 
@@ -292,7 +352,7 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ret = dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wb3, &fence_fd);
   ASSERT_EQ(0, ret);
   ASSERT_TRUE(dvrWriteBufferIsValid(wb3));
-  ALOGD_IF(TRACE, "TestResiveBuffer, gain buffer %p, fence_fd=%d", wb3,
+  ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p, fence_fd=%d", wb3,
            fence_fd);
   pdx::LocalHandle release_fence3(fence_fd);
 
@@ -302,6 +362,14 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   AHardwareBuffer_describe(ahb3, &buffer_desc);
   ASSERT_EQ(w3, buffer_desc.width);
   AHardwareBuffer_release(ahb3);
+
+  // For the third resize, all but two buffers are reallocated.
+  expected_buffer_removed_count += (kQueueCapacity - 2);
+  ret = dvrReadBufferQueueHandleEvents(read_queue);
+  ASSERT_EQ(0, ret);
+  ASSERT_EQ(expected_buffer_removed_count, buffer_removed_count_);
+
+  dvrReadBufferQueueDestroy(read_queue);
 }
 
 }  // namespace

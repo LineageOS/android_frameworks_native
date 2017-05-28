@@ -47,6 +47,8 @@ struct TableEntry {
     std::string interfaceName;
     std::string transport;
     int32_t serverPid;
+    uint32_t threadUsage;
+    uint32_t threadCount;
     std::string serverCmdline;
     uint64_t serverObjectAddress;
     Pids clientPids;
@@ -59,6 +61,14 @@ struct TableEntry {
     static bool sortByServerPid(const TableEntry &a, const TableEntry &b) {
         return a.serverPid < b.serverPid;
     };
+
+    std::string getThreadUsage() const {
+        if (threadCount == 0) {
+            return "N/A";
+        }
+
+        return std::to_string(threadUsage) + "/" + std::to_string(threadCount);
+    }
 };
 
 struct Table {
@@ -80,7 +90,8 @@ enum : unsigned int {
     ENABLE_SERVER_PID     = 1 << 2,
     ENABLE_SERVER_ADDR    = 1 << 3,
     ENABLE_CLIENT_PIDS    = 1 << 4,
-    ENABLE_ARCH           = 1 << 5
+    ENABLE_ARCH           = 1 << 5,
+    ENABLE_THREADS        = 1 << 6,
 };
 
 using TableEntrySelect = unsigned int;

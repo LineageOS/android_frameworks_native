@@ -8,6 +8,8 @@
 #include "dvr_buffer_queue_internal.h"
 
 using namespace android;
+using android::dvr::BufferConsumer;
+using android::dvr::BufferHubBuffer;
 using android::dvr::BufferHubQueueProducer;
 using android::dvr::BufferProducer;
 using android::dvr::ConsumerQueue;
@@ -252,6 +254,36 @@ int DvrReadBufferQueue::Dequeue(int timeout, DvrReadBuffer* read_buffer,
   return 0;
 }
 
+void DvrReadBufferQueue::SetBufferAvailableCallback(
+    DvrReadBufferQueueBufferAvailableCallback callback, void* context) {
+  if (callback == nullptr) {
+    consumer_queue_->SetBufferAvailableCallback(nullptr);
+  } else {
+    consumer_queue_->SetBufferAvailableCallback(
+        [callback, context]() { callback(context); });
+  }
+}
+
+void DvrReadBufferQueue::SetBufferRemovedCallback(
+    DvrReadBufferQueueBufferRemovedCallback callback, void* context) {
+  if (callback == nullptr) {
+    consumer_queue_->SetBufferRemovedCallback(nullptr);
+  } else {
+    consumer_queue_->SetBufferRemovedCallback(
+        [callback, context](const std::shared_ptr<BufferHubBuffer>& buffer) {
+          DvrReadBuffer read_buffer{
+              std::static_pointer_cast<BufferConsumer>(buffer)};
+          callback(&read_buffer, context);
+        });
+  }
+}
+
+int DvrReadBufferQueue::HandleEvents() {
+  // TODO(jwcai) Probably should change HandleQueueEvents to return Status.
+  consumer_queue_->HandleQueueEvents();
+  return 0;
+}
+
 void dvrReadBufferQueueDestroy(DvrReadBufferQueue* read_queue) {
   delete read_queue;
 }
@@ -286,6 +318,33 @@ int dvrReadBufferQueueDequeue(DvrReadBufferQueue* read_queue, int timeout,
 
   return read_queue->Dequeue(timeout, read_buffer, out_fence_fd, out_meta,
                              meta_size_bytes);
+}
+
+int dvrReadBufferQueueSetBufferAvailableCallback(
+    DvrReadBufferQueue* read_queue,
+    DvrReadBufferQueueBufferAvailableCallback callback, void* context) {
+  if (!read_queue)
+    return -EINVAL;
+
+  read_queue->SetBufferAvailableCallback(callback, context);
+  return 0;
+}
+
+int dvrReadBufferQueueSetBufferRemovedCallback(
+    DvrReadBufferQueue* read_queue,
+    DvrReadBufferQueueBufferRemovedCallback callback, void* context) {
+  if (!read_queue)
+    return -EINVAL;
+
+  read_queue->SetBufferRemovedCallback(callback, context);
+  return 0;
+}
+
+int dvrReadBufferQueueHandleEvents(DvrReadBufferQueue* read_queue) {
+  if (!read_queue)
+    return -EINVAL;
+
+  return read_queue->HandleEvents();
 }
 
 }  // extern "C"

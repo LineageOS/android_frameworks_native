@@ -536,7 +536,8 @@ void SurfaceFlinger::init() {
             *static_cast<HWComposer::EventHandler *>(this));
 
     // get a RenderEngine for the given display / config (can't fail)
-    mRenderEngine = RenderEngine::create(mEGLDisplay, mHwc->getVisualID());
+    mRenderEngine = RenderEngine::create(mEGLDisplay,
+            mHwc->getVisualID(), 0);
 
     // retrieve the EGL context that was selected/created
     mEGLContext = mRenderEngine->getEGLContext();

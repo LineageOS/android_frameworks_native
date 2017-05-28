@@ -7,7 +7,7 @@
 #include <cstdio>
 
 #include <dvr/dvr_display_types.h>
-#include <dvr/dvr_hardware_composer_defs.h>
+#include <dvr/dvr_hardware_composer_types.h>
 #include <dvr/dvr_pose.h>
 
 #ifdef __cplusplus
@@ -174,6 +174,17 @@ typedef int (*DvrReadBufferQueueDequeuePtr)(DvrReadBufferQueue* read_queue,
                                             DvrReadBuffer* out_buffer,
                                             int* out_fence_fd, void* out_meta,
                                             size_t meta_size_bytes);
+typedef void (*DvrReadBufferQueueBufferAvailableCallback)(void* context);
+typedef int (*DvrReadBufferQueueSetBufferAvailableCallbackPtr)(
+    DvrReadBufferQueue* read_queue,
+    DvrReadBufferQueueBufferAvailableCallback callback, void* context);
+typedef void (*DvrReadBufferQueueBufferRemovedCallback)(DvrReadBuffer* buffer,
+                                                        void* context);
+typedef int (*DvrReadBufferQueueSetBufferRemovedCallbackPtr)(
+    DvrReadBufferQueue* read_queue,
+    DvrReadBufferQueueBufferRemovedCallback callback, void* context);
+typedef int (*DvrReadBufferQueueHandleEventsPtr)(
+    DvrReadBufferQueue* read_queue);
 
 // dvr_surface.h
 typedef int (*DvrGetGlobalBufferPtr)(DvrGlobalBufferKey key,
@@ -199,8 +210,8 @@ typedef int (*DvrVSyncClientGetSchedInfoPtr)(DvrVSyncClient* client,
                                              int64_t* next_timestamp_ns,
                                              uint32_t* next_vsync_count);
 
-// pose_client.h
-typedef DvrPoseClient* (*DvrPoseClientCreatePtr)(void);
+// libs/vr/libvrsensor/include/dvr/pose_client.h
+typedef DvrPoseClient* (*DvrPoseClientCreatePtr)();
 typedef void (*DvrPoseClientDestroyPtr)(DvrPoseClient* client);
 typedef int (*DvrPoseClientGetPtr)(DvrPoseClient* client, uint32_t vsync_count,
                                    DvrPoseAsync* out_pose);
@@ -210,8 +221,14 @@ typedef int (*DvrPoseClientGetControllerPtr)(DvrPoseClient* client,
                                              uint32_t vsync_count,
                                              DvrPoseAsync* out_pose);
 
-// virtual_touchpad_client.h
-typedef DvrVirtualTouchpad* (*DvrVirtualTouchpadCreatePtr)(void);
+// services/vr/virtual_touchpad/include/dvr/virtual_touchpad_client.h
+
+// Touchpad IDs for *Touch*() and *ButtonState*() calls.
+enum {
+  DVR_VIRTUAL_TOUCHPAD_PRIMARY = 0,
+  DVR_VIRTUAL_TOUCHPAD_VIRTUAL = 1,
+};
+typedef DvrVirtualTouchpad* (*DvrVirtualTouchpadCreatePtr)();
 typedef void (*DvrVirtualTouchpadDestroyPtr)(DvrVirtualTouchpad* client);
 typedef int (*DvrVirtualTouchpadAttachPtr)(DvrVirtualTouchpad* client);
 typedef int (*DvrVirtualTouchpadDetachPtr)(DvrVirtualTouchpad* client);
@@ -325,7 +342,6 @@ struct DvrApi_v1 {
 // Defines an API entry for V1 (no version suffix).
 #define DVR_V1_API_ENTRY(name) Dvr##name##Ptr name
 
-// Include file with API entries.
 #include "dvr_api_entries.h"
 
 // Undefine macro definitions to play nice with Google3 style rules.

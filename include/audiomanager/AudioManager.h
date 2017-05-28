@@ -26,6 +26,9 @@ namespace android {
 typedef enum {
     PLAYER_TYPE_SLES_AUDIOPLAYER_BUFFERQUEUE = 11,
     PLAYER_TYPE_SLES_AUDIOPLAYER_URI_FD = 12,
+    PLAYER_TYPE_AAUDIO = 13,
+    PLAYER_TYPE_HW_SOURCE = 14,
+    PLAYER_TYPE_EXTERNAL_PROXY = 15,
 } player_type_t;
 
 typedef enum {

@@ -51,6 +51,7 @@ GraphicBuffer::GraphicBuffer()
     height =
     stride =
     format =
+    usage_deprecated = 0;
     usage  = 0;
     layerCount = 0;
     handle = NULL;
@@ -59,14 +60,12 @@ GraphicBuffer::GraphicBuffer()
 // deprecated
 GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
         PixelFormat inFormat, uint32_t inUsage, std::string requestorName)
-    : GraphicBuffer(inWidth, inHeight, inFormat, 1, static_cast<uint64_t>(inUsage),
-            requestorName)
+    : GraphicBuffer(inWidth, inHeight, inFormat, 1, static_cast<uint64_t>(inUsage), requestorName)
 {
 }
 
 GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
-        PixelFormat inFormat, uint32_t inLayerCount, uint64_t usage,
-        std::string requestorName)
+        PixelFormat inFormat, uint32_t inLayerCount, uint64_t usage, std::string requestorName)
     : GraphicBuffer()
 {
     mInitCheck = initWithSize(inWidth, inHeight, inFormat, inLayerCount,
@@ -139,7 +138,7 @@ status_t GraphicBuffer::reallocate(uint32_t inWidth, uint32_t inHeight,
             static_cast<int>(inHeight) == height &&
             inFormat == format &&
             inLayerCount == layerCount &&
-            static_cast<int>(inUsage) == usage)
+            inUsage == usage)
         return NO_ERROR;
 
     if (handle) {
@@ -147,8 +146,7 @@ status_t GraphicBuffer::reallocate(uint32_t inWidth, uint32_t inHeight,
         allocator.free(handle);
         handle = 0;
     }
-    return initWithSize(inWidth, inHeight, inFormat, inLayerCount,
-            inUsage, "[Reallocation]");
+    return initWithSize(inWidth, inHeight, inFormat, inLayerCount, inUsage, "[Reallocation]");
 }
 
 bool GraphicBuffer::needsReallocation(uint32_t inWidth, uint32_t inHeight,
@@ -158,7 +156,7 @@ bool GraphicBuffer::needsReallocation(uint32_t inWidth, uint32_t inHeight,
     if (static_cast<int>(inHeight) != height) return true;
     if (inFormat != format) return true;
     if (inLayerCount != layerCount) return true;
-    if ((static_cast<uint32_t>(usage) & inUsage) != inUsage) return true;
+    if ((usage & inUsage) != inUsage) return true;
     return false;
 }
 
@@ -176,7 +174,8 @@ status_t GraphicBuffer::initWithSize(uint32_t inWidth, uint32_t inHeight,
         height = static_cast<int>(inHeight);
         format = inFormat;
         layerCount = inLayerCount;
-        usage = static_cast<int>(inUsage);
+        usage = inUsage;
+        usage_deprecated = int(usage);
         stride = static_cast<int>(outStride);
     }
     return err;
@@ -191,7 +190,8 @@ status_t GraphicBuffer::initWithHandle(const native_handle_t* handle,
     ANativeWindowBuffer::height = static_cast<int>(height);
     ANativeWindowBuffer::stride = static_cast<int>(stride);
     ANativeWindowBuffer::format = format;
-    ANativeWindowBuffer::usage  = static_cast<int>(usage);
+    ANativeWindowBuffer::usage  = usage;
+    ANativeWindowBuffer::usage_deprecated = int(usage);
 
     ANativeWindowBuffer::layerCount = layerCount;
 
@@ -312,8 +312,7 @@ status_t GraphicBuffer::lockAsyncYCbCr(uint32_t inUsage, const Rect& rect,
                 width, height);
         return BAD_VALUE;
     }
-    status_t res = getBufferMapper().lockAsyncYCbCr(handle, inUsage, rect,
-            ycbcr, fenceFd);
+    status_t res = getBufferMapper().lockAsyncYCbCr(handle, inUsage, rect, ycbcr, fenceFd);
     return res;
 }
 
@@ -324,7 +323,7 @@ status_t GraphicBuffer::unlockAsync(int *fenceFd)
 }
 
 size_t GraphicBuffer::getFlattenedSize() const {
-    return static_cast<size_t>(12 + (handle ? handle->numInts : 0)) * sizeof(int);
+    return static_cast<size_t>(13 + (handle ? handle->numInts : 0)) * sizeof(int);
 }
 
 size_t GraphicBuffer::getFdCount() const {
@@ -339,25 +338,25 @@ status_t GraphicBuffer::flatten(void*& buffer, size_t& size, int*& fds, size_t& 
     if (count < fdCountNeeded) return NO_MEMORY;
 
     int32_t* buf = static_cast<int32_t*>(buffer);
-    buf[0] = 'GBFR';
+    buf[0] = 'GB01';
     buf[1] = width;
     buf[2] = height;
     buf[3] = stride;
     buf[4] = format;
     buf[5] = static_cast<int32_t>(layerCount);
-    buf[6] = usage;
+    buf[6] = int(usage); // low 32-bits
     buf[7] = static_cast<int32_t>(mId >> 32);
     buf[8] = static_cast<int32_t>(mId & 0xFFFFFFFFull);
     buf[9] = static_cast<int32_t>(mGenerationNumber);
     buf[10] = 0;
     buf[11] = 0;
+    buf[12] = int(usage >> 32); // high 32-bits
 
     if (handle) {
         buf[10] = handle->numFds;
         buf[11] = handle->numInts;
-        memcpy(fds, handle->data,
-                static_cast<size_t>(handle->numFds) * sizeof(int));
-        memcpy(&buf[12], handle->data + handle->numFds,
+        memcpy(fds, handle->data, static_cast<size_t>(handle->numFds) * sizeof(int));
+        memcpy(buf + 13, handle->data + handle->numFds,
                 static_cast<size_t>(handle->numInts) * sizeof(int));
     }
 
@@ -373,10 +372,21 @@ status_t GraphicBuffer::flatten(void*& buffer, size_t& size, int*& fds, size_t& 
 
 status_t GraphicBuffer::unflatten(
         void const*& buffer, size_t& size, int const*& fds, size_t& count) {
-    if (size < 12 * sizeof(int)) return NO_MEMORY;
 
     int const* buf = static_cast<int const*>(buffer);
-    if (buf[0] != 'GBFR') return BAD_TYPE;
+
+    // NOTE: it turns out that some media code generates a flattened GraphicBuffer manually!!!!!
+    // see H2BGraphicBufferProducer.cpp
+    uint32_t flattenWordCount = 0;
+    if (buf[0] == 'GB01') {
+        // new version with 64-bits usage bits
+        flattenWordCount = 13;
+    } else if (buf[0] == 'GBFR') {
+        // old version, when usage bits were 32-bits
+        flattenWordCount = 12;
+    } else {
+        return BAD_TYPE;
+    }
 
     const size_t numFds  = static_cast<size_t>(buf[10]);
     const size_t numInts = static_cast<size_t>(buf[11]);
@@ -386,15 +396,16 @@ status_t GraphicBuffer::unflatten(
     // chosen to be high enough to not cause issues and low enough to prevent
     // overflow problems.
     const size_t maxNumber = 4096;
-    if (numFds >= maxNumber || numInts >= (maxNumber - 12)) {
-        width = height = stride = format = layerCount = usage = 0;
+    if (numFds >= maxNumber || numInts >= (maxNumber - flattenWordCount)) {
+        width = height = stride = format = usage_deprecated = 0;
+        layerCount = 0;
+        usage = 0;
         handle = NULL;
-        ALOGE("unflatten: numFds or numInts is too large: %zd, %zd",
-                numFds, numInts);
+        ALOGE("unflatten: numFds or numInts is too large: %zd, %zd", numFds, numInts);
         return BAD_VALUE;
     }
 
-    const size_t sizeNeeded = (12 + numInts) * sizeof(int);
+    const size_t sizeNeeded = (flattenWordCount + numInts) * sizeof(int);
     if (size < sizeNeeded) return NO_MEMORY;
 
     size_t fdCountNeeded = numFds;
@@ -411,20 +422,29 @@ status_t GraphicBuffer::unflatten(
         stride = buf[3];
         format = buf[4];
         layerCount = static_cast<uintptr_t>(buf[5]);
-        usage  = buf[6];
+        usage_deprecated = buf[6];
+        if (flattenWordCount == 13) {
+            usage = (uint64_t(buf[12]) << 32) | uint32_t(buf[6]);
+        } else {
+            usage = uint64_t(usage_deprecated);
+        }
         native_handle* h = native_handle_create(
                 static_cast<int>(numFds), static_cast<int>(numInts));
         if (!h) {
-            width = height = stride = format = layerCount = usage = 0;
+            width = height = stride = format = usage_deprecated = 0;
+            layerCount = 0;
+            usage = 0;
             handle = NULL;
             ALOGE("unflatten: native_handle_create failed");
             return NO_MEMORY;
         }
         memcpy(h->data, fds, numFds * sizeof(int));
-        memcpy(h->data + numFds, &buf[12], numInts * sizeof(int));
+        memcpy(h->data + numFds, buf + flattenWordCount, numInts * sizeof(int));
         handle = h;
     } else {
-        width = height = stride = format = layerCount = usage = 0;
+        width = height = stride = format = usage_deprecated = 0;
+        layerCount = 0;
+        usage = 0;
         handle = NULL;
     }
 
@@ -439,10 +459,11 @@ status_t GraphicBuffer::unflatten(
         buffer_handle_t importedHandle;
         status_t err = mBufferMapper.importBuffer(handle, &importedHandle);
         if (err != NO_ERROR) {
-            width = height = stride = format = layerCount = usage = 0;
+            width = height = stride = format = usage_deprecated = 0;
+            layerCount = 0;
+            usage = 0;
             handle = NULL;
-            ALOGE("unflatten: registerBuffer failed: %s (%d)",
-                    strerror(-err), err);
+            ALOGE("unflatten: registerBuffer failed: %s (%d)", strerror(-err), err);
             return err;
         }
 
