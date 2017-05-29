@@ -132,7 +132,7 @@ public:
         return callRemote<Signature>(Tag::SET_DEFAULT_BUFFER_DATA_SPACE, defaultDataSpace);
     }
 
-    status_t setConsumerUsageBits(uint32_t usage) override {
+    status_t setConsumerUsageBits(uint64_t usage) override {
         using Signature = decltype(&IGraphicBufferConsumer::setConsumerUsageBits);
         return callRemote<Signature>(Tag::SET_CONSUMER_USAGE_BITS, usage);
     }

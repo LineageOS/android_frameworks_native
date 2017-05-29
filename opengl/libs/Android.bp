@@ -111,6 +111,7 @@ cc_library_shared {
         "EGL/Loader.cpp",
         "EGL/BlobCache.cpp",
     ],
+    shared_libs: ["libvndksupport"],
     static_libs: ["libEGL_getProcAddress"],
     ldflags: ["-Wl,--exclude-libs=ALL"],
     export_include_dirs: ["EGL/include"],

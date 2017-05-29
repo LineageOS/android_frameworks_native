@@ -131,9 +131,9 @@ status_t BufferHubQueueProducer::setAsyncMode(bool async) {
 
 status_t BufferHubQueueProducer::dequeueBuffer(
     int* out_slot, sp<Fence>* out_fence, uint32_t width, uint32_t height,
-    PixelFormat format, uint32_t usage,
+    PixelFormat format, uint64_t usage,
     FrameEventHistoryDelta* /* out_timestamps */) {
-  ALOGD_IF(TRACE, "dequeueBuffer: w=%u, h=%u, format=%d, usage=%u", width,
+  ALOGD_IF(TRACE, "dequeueBuffer: w=%u, h=%u, format=%d, usage=%llu", width,
            height, format, usage);
 
   status_t ret;
@@ -532,7 +532,7 @@ status_t BufferHubQueueProducer::setSidebandStream(
 void BufferHubQueueProducer::allocateBuffers(uint32_t /* width */,
                                              uint32_t /* height */,
                                              PixelFormat /* format */,
-                                             uint32_t /* usage */) {
+                                             uint64_t /* usage */) {
   // TODO(jwcai) |allocateBuffers| aims to preallocate up to the maximum number
   // of buffers permitted by the current BufferQueue configuration (aka
   // |max_buffer_count_|).
@@ -633,9 +633,9 @@ status_t BufferHubQueueProducer::AllocateBuffer(uint32_t width, uint32_t height,
 }
 
 status_t BufferHubQueueProducer::RemoveBuffer(size_t slot) {
-  auto status = queue_->DetachBuffer(slot);
+  auto status = queue_->RemoveBuffer(slot);
   if (!status) {
-    ALOGE("BufferHubQueueProducer::RemoveBuffer: Failed to detach buffer: %s",
+    ALOGE("BufferHubQueueProducer::RemoveBuffer: Failed to remove buffer: %s",
           status.GetErrorMessage().c_str());
     return INVALID_OPERATION;
   }

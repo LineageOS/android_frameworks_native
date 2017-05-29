@@ -40,9 +40,7 @@
 #include "Mesh.h"
 #include "Texture.h"
 
-#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
-#include <configstore/Utils.h>
-
+#include <sstream>
 #include <fstream>
 
 // ---------------------------------------------------------------------------
@@ -111,8 +109,10 @@ void writePPM(const char* basename, GLuint width, GLuint height) {
 namespace android {
 // ---------------------------------------------------------------------------
 
-GLES20RenderEngine::GLES20RenderEngine() :
-        mVpWidth(0), mVpHeight(0) {
+GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags) :
+         mVpWidth(0),
+         mVpHeight(0),
+         mPlatformHasWideColor((featureFlags & WIDE_COLOR_SUPPORT) != 0) {
 
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
     glGetIntegerv(GL_MAX_VIEWPORT_DIMS, mMaxViewportDims);
@@ -133,12 +133,6 @@ GLES20RenderEngine::GLES20RenderEngine() :
     //mColorBlindnessCorrection = M;
 
 #ifdef USE_HWC2
-    // retrieve wide-color and hdr settings from configstore
-    using namespace android::hardware::configstore;
-    using namespace android::hardware::configstore::V1_0;
-
-    mPlatformHasWideColor =
-            getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
     if (mPlatformHasWideColor) {
         // Compute sRGB to DisplayP3 color transform
         // NOTE: For now, we are limiting wide-color support to

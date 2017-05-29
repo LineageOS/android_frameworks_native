@@ -5,13 +5,13 @@
 #include <private/dvr/display_client.h>
 
 #include "dvr_internal.h"
+#include "dvr_buffer_queue_internal.h"
 
 using android::dvr::display::DisplayClient;
 using android::dvr::display::Surface;
 using android::dvr::display::SurfaceAttributes;
 using android::dvr::display::SurfaceAttributeValue;
 using android::dvr::CreateDvrReadBufferFromBufferConsumer;
-using android::dvr::CreateDvrWriteBufferQueueFromProducerQueue;
 
 namespace {
 
@@ -152,7 +152,7 @@ int dvrSurfaceCreateWriteBufferQueue(DvrSurface* surface, uint32_t width,
     return -status.error();
   }
 
-  *out_writer = CreateDvrWriteBufferQueueFromProducerQueue(status.take());
+  *out_writer = new DvrWriteBufferQueue(status.take());
   return 0;
 }
 

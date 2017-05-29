@@ -560,7 +560,8 @@ void SurfaceFlinger::init() {
 
         // Get a RenderEngine for the given display / config (can't fail)
         mRenderEngine = RenderEngine::create(mEGLDisplay,
-                HAL_PIXEL_FORMAT_RGBA_8888);
+                HAL_PIXEL_FORMAT_RGBA_8888,
+                hasWideColorDisplay ? RenderEngine::WIDE_COLOR_SUPPORT : 0);
     }
 
     // Drop the state lock while we initialize the hardware composer. We drop

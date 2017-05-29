@@ -1,16 +1,13 @@
 #ifndef ANDROID_DVR_VIRTUAL_TOUCHPAD_C_CLIENT_H
 #define ANDROID_DVR_VIRTUAL_TOUCHPAD_C_CLIENT_H
 
+#include <dvr/dvr_api.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct DvrVirtualTouchpad DvrVirtualTouchpad;
-
-enum {
-  DVR_VIRTUAL_TOUCHPAD_PRIMARY = 0,
-  DVR_VIRTUAL_TOUCHPAD_VIRTUAL = 1,
-};
 
 // Creates a new virtual touchpad client.
 //

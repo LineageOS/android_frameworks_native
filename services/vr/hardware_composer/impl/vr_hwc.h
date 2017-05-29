@@ -309,13 +309,6 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
   void operator=(const VrHwc&) = delete;
 };
 
-
-ComposerView* GetComposerViewFromIComposer(
-    hardware::graphics::composer::V2_1::IComposer* composer);
-
-hardware::graphics::composer::V2_1::IComposer* HIDL_FETCH_IComposer(
-    const char* name);
-
 }  // namespace dvr
 }  // namespace android
 

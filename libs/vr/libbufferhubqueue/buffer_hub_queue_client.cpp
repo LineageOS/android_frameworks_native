@@ -259,7 +259,7 @@ Status<void> BufferHubQueue::HandleBufferEvent(size_t slot, int event_fd,
         poll_status.get());
 
     if (hangup_pending) {
-      return DetachBuffer(slot);
+      return RemoveBuffer(slot);
     } else {
       // Clean up the bookkeeping for the event fd. This is a bit of paranoia to
       // deal with the epoll set getting out of sync with the buffer slots.
@@ -323,11 +323,11 @@ Status<void> BufferHubQueue::AddBuffer(
 
   if (buffers_[slot]) {
     // Replace the buffer if the slot is occupied. This could happen when the
-    // producer side replaced the slot with a newly allocated buffer. Detach the
+    // producer side replaced the slot with a newly allocated buffer. Remove the
     // buffer before setting up with the new one.
-    auto detach_status = DetachBuffer(slot);
-    if (!detach_status)
-      return detach_status.error_status();
+    auto remove_status = RemoveBuffer(slot);
+    if (!remove_status)
+      return remove_status.error_status();
   }
 
   epoll_event event = {.events = EPOLLIN | EPOLLET,
@@ -344,20 +344,24 @@ Status<void> BufferHubQueue::AddBuffer(
   return {};
 }
 
-Status<void> BufferHubQueue::DetachBuffer(size_t slot) {
-  ALOGD_IF(TRACE, "BufferHubQueue::DetachBuffer: slot=%zu", slot);
+Status<void> BufferHubQueue::RemoveBuffer(size_t slot) {
+  ALOGD_IF(TRACE, "BufferHubQueue::RemoveBuffer: slot=%zu", slot);
 
   if (buffers_[slot]) {
     const int ret =
         epoll_fd_.Control(EPOLL_CTL_DEL, buffers_[slot]->event_fd(), nullptr);
     if (ret < 0) {
       ALOGE(
-          "BufferHubQueue::DetachBuffer: Failed to detach buffer from epoll "
+          "BufferHubQueue::RemoveBuffer: Failed to remove buffer from epoll "
           "set: "
           "%s",
           strerror(-ret));
       return ErrorStatus(-ret);
     }
+
+    // Trigger OnBufferRemoved callback if registered.
+    if (on_buffer_removed_)
+      on_buffer_removed_(buffers_[slot]);
 
     buffers_[slot] = nullptr;
     capacity_--;
@@ -369,6 +373,11 @@ Status<void> BufferHubQueue::DetachBuffer(size_t slot) {
 Status<void> BufferHubQueue::Enqueue(Entry entry) {
   if (!is_full()) {
     available_buffers_.Append(std::move(entry));
+
+    // Trigger OnBufferAvailable callback if registered.
+    if (on_buffer_available_)
+      on_buffer_available_();
+
     return {};
   } else {
     ALOGE("BufferHubQueue::Enqueue: Buffer queue is full!");
@@ -397,6 +406,15 @@ Status<std::shared_ptr<BufferHubBuffer>> BufferHubQueue::Dequeue(
   available_buffers_.PopFront();
 
   return {std::move(buffer)};
+}
+
+void BufferHubQueue::SetBufferAvailableCallback(
+    BufferAvailableCallback callback) {
+  on_buffer_available_ = callback;
+}
+
+void BufferHubQueue::SetBufferRemovedCallback(BufferRemovedCallback callback) {
+  on_buffer_removed_ = callback;
 }
 
 ProducerQueue::ProducerQueue(LocalChannelHandle handle)
@@ -479,16 +497,16 @@ Status<void> ProducerQueue::AddBuffer(
   return Enqueue(buffer, slot);
 }
 
-Status<void> ProducerQueue::DetachBuffer(size_t slot) {
+Status<void> ProducerQueue::RemoveBuffer(size_t slot) {
   auto status =
-      InvokeRemoteMethod<BufferHubRPC::ProducerQueueDetachBuffer>(slot);
+      InvokeRemoteMethod<BufferHubRPC::ProducerQueueRemoveBuffer>(slot);
   if (!status) {
-    ALOGE("ProducerQueue::DetachBuffer: Failed to detach producer buffer: %s",
+    ALOGE("ProducerQueue::RemoveBuffer: Failed to remove producer buffer: %s",
           status.GetErrorMessage().c_str());
     return status.error_status();
   }
 
-  return BufferHubQueue::DetachBuffer(slot);
+  return BufferHubQueue::RemoveBuffer(slot);
 }
 
 Status<std::shared_ptr<BufferProducer>> ProducerQueue::Dequeue(

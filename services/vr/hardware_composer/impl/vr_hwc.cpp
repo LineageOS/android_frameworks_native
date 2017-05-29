@@ -820,7 +820,6 @@ Return<void> VrHwc::createClient(createClient_cb hidl_cb) {
   sp<VrComposerClient> client;
   if (client_ == nullptr) {
     client = new VrComposerClient(*this);
-    client->initialize();
   } else {
     ALOGE("Already have a client");
     status = Error::NO_RESOURCES;
@@ -851,13 +850,6 @@ HwcDisplay* VrHwc::FindDisplay(Display display) {
   auto iter = displays_.find(display);
   return iter == displays_.end() ? nullptr : iter->second.get();
 }
-
-ComposerView* GetComposerViewFromIComposer(
-    hardware::graphics::composer::V2_1::IComposer* composer) {
-  return static_cast<VrHwc*>(composer);
-}
-
-IComposer* HIDL_FETCH_IComposer(const char*) { return new VrHwc(); }
 
 }  // namespace dvr
 }  // namespace android

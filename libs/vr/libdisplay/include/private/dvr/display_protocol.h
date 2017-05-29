@@ -222,8 +222,9 @@ struct DisplayProtocol {
   PDX_REMOTE_METHOD(CreateSurface, kOpCreateSurface,
                     SurfaceInfo(const SurfaceAttributes& attributes));
   PDX_REMOTE_METHOD(GetSurfaceInfo, kOpGetSurfaceInfo, SurfaceInfo(Void));
-  PDX_REMOTE_METHOD(CreateQueue, kOpCreateQueue,
-                    LocalChannelHandle(size_t meta_size_bytes));
+  PDX_REMOTE_METHOD(
+      CreateQueue, kOpCreateQueue,
+      LocalChannelHandle(const ProducerQueueConfig& producer_config));
   PDX_REMOTE_METHOD(SetAttributes, kOpSetAttributes,
                     void(const SurfaceAttributes& attributes));
 };
