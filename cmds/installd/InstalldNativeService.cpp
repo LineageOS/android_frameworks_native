@@ -915,15 +915,8 @@ binder::Status InstalldNativeService::destroyUserData(const std::unique_ptr<std:
     return res;
 }
 
-/* Try to ensure free_size bytes of storage are available.
- * Returns 0 on success.
- * This is rather simple-minded because doing a full LRU would
- * be potentially memory-intensive, and without atime it would
- * also require that apps constantly modify file metadata even
- * when just reading from the cache, which is pretty awful.
- */
 binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::string>& uuid,
-        int64_t freeStorageSize, int32_t flags) {
+        int64_t targetFreeBytes, int64_t cacheReservedBytes, int32_t flags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     std::lock_guard<std::recursive_mutex> lock(mLock);
@@ -938,11 +931,12 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
         return error("Failed to determine free space for " + data_path);
     }
 
-    int64_t needed = freeStorageSize - free;
+    int64_t cleared = 0;
+    int64_t needed = targetFreeBytes - free;
     LOG(DEBUG) << "Device " << data_path << " has " << free << " free; requested "
-            << freeStorageSize << "; needed " << needed;
+            << targetFreeBytes << "; needed " << needed;
 
-    if (free >= freeStorageSize) {
+    if (free >= targetFreeBytes) {
         return ok();
     }
 
@@ -999,6 +993,7 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
 
         // 2. Populate tracker stats and insert into priority queue
         ATRACE_BEGIN("populate");
+        int64_t cacheTotal = 0;
         auto cmp = [](std::shared_ptr<CacheTracker> left, std::shared_ptr<CacheTracker> right) {
             return (left->getCacheRatio() < right->getCacheRatio());
         };
@@ -1007,6 +1002,7 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
         for (const auto& it : trackers) {
             it.second->loadStats();
             queue.push(it.second);
+            cacheTotal += it.second->cacheUsed;
         }
         ATRACE_END();
 
@@ -1020,6 +1016,12 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
                     && !(flags & FLAG_FREE_CACHE_V2_DEFY_QUOTA)) {
                 LOG(DEBUG) << "Active ratio " << active->getCacheRatio()
                         << " isn't over quota, and defy not requested";
+                break;
+            }
+
+            // Only keep clearing when we haven't pushed into reserved area
+            if (cacheReservedBytes > 0 && cleared >= (cacheTotal - cacheReservedBytes)) {
+                LOG(DEBUG) << "Refusing to clear cached data in reserved space";
                 break;
             }
 
@@ -1052,13 +1054,14 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
                 }
                 active->cacheUsed -= item->size;
                 needed -= item->size;
+                cleared += item->size;
             }
 
             // Verify that we're actually done before bailing, since sneaky
             // apps might be using hardlinks
             if (needed <= 0) {
                 free = data_disk_free(data_path);
-                needed = freeStorageSize - free;
+                needed = targetFreeBytes - free;
                 if (needed <= 0) {
                     break;
                 } else {
@@ -1073,11 +1076,11 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
     }
 
     free = data_disk_free(data_path);
-    if (free >= freeStorageSize) {
+    if (free >= targetFreeBytes) {
         return ok();
     } else {
         return error(StringPrintf("Failed to free up %" PRId64 " on %s; final free space %" PRId64,
-                freeStorageSize, data_path.c_str(), free));
+                targetFreeBytes, data_path.c_str(), free));
     }
 }
 
