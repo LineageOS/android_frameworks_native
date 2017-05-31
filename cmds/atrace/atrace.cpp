@@ -40,6 +40,7 @@
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <hidl/ServiceManagement.h>
 
+#include <pdx/default_transport/service_utility.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
 #include <utils/Tokenizer.h>
@@ -50,6 +51,7 @@
 #include <android-base/stringprintf.h>
 
 using namespace android;
+using pdx::default_transport::ServiceUtility;
 
 using std::string;
 
@@ -61,6 +63,7 @@ const char* k_traceTagsProperty = "debug.atrace.tags.enableflags";
 const char* k_traceAppsNumberProperty = "debug.atrace.app_number";
 const char* k_traceAppsPropertyTemplate = "debug.atrace.app_%d";
 const char* k_coreServiceCategory = "core_services";
+const char* k_pdxServiceCategory = "pdx";
 const char* k_coreServicesProp = "ro.atrace.core.services";
 
 typedef enum { OPT, REQ } requiredness  ;
@@ -114,6 +117,7 @@ static const TracingCategory k_categories[] = {
     { "network",    "Network",          ATRACE_TAG_NETWORK, { } },
     { "adb",        "ADB",              ATRACE_TAG_ADB, { } },
     { k_coreServiceCategory, "Core services", 0, { } },
+    { k_pdxServiceCategory, "PDX services", 0, { } },
     { "sched",      "CPU Scheduling",   0, {
         { REQ,      "events/sched/sched_switch/enable" },
         { REQ,      "events/sched/sched_wakeup/enable" },
@@ -209,6 +213,7 @@ static const char* g_debugAppCmdLine = "";
 static const char* g_outputFile = nullptr;
 
 /* Global state */
+static bool g_tracePdx = false;
 static bool g_traceAborted = false;
 static bool g_categoryEnables[arraysize(k_categories)] = {};
 static std::string g_traceFolder;
@@ -366,6 +371,10 @@ static bool isCategorySupported(const TracingCategory& category)
 {
     if (strcmp(category.name, k_coreServiceCategory) == 0) {
         return !android::base::GetProperty(k_coreServicesProp, "").empty();
+    }
+
+    if (strcmp(category.name, k_pdxServiceCategory) == 0) {
+        return true;
     }
 
     bool ok = category.tags != 0;
@@ -790,6 +799,11 @@ static bool setUpTrace()
         if (strcmp(k_categories[i].name, k_coreServiceCategory) == 0) {
             coreServicesTagEnabled = g_categoryEnables[i];
         }
+
+        // Set whether to poke PDX services in this session.
+        if (strcmp(k_categories[i].name, k_pdxServiceCategory) == 0) {
+            g_tracePdx = g_categoryEnables[i];
+        }
     }
 
     std::string packageList(g_debugAppCmdLine);
@@ -802,6 +816,10 @@ static bool setUpTrace()
     ok &= setAppCmdlineProperty(&packageList[0]);
     ok &= pokeBinderServices();
     pokeHalServices();
+
+    if (g_tracePdx) {
+        ok &= ServiceUtility::PokeServices();
+    }
 
     // Disable all the sysfs enables.  This is done as a separate loop from
     // the enables to allow the same enable to exist in multiple categories.
@@ -839,6 +857,10 @@ static void cleanUpTrace()
     setTagsProperty(0);
     clearAppProperties();
     pokeBinderServices();
+
+    if (g_tracePdx) {
+        ServiceUtility::PokeServices();
+    }
 
     // Set the options back to their defaults.
     setTraceOverwriteEnable(true);
