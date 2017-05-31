@@ -342,9 +342,9 @@ TQuaternion<typename MATRIX::value_type> extractQuat(const MATRIX& mat) {
 template <typename MATRIX>
 String8 asString(const MATRIX& m) {
     String8 s;
-    for (size_t c = 0; c < MATRIX::col_size(); c++) {
+    for (size_t c = 0; c < MATRIX::COL_SIZE; c++) {
         s.append("|  ");
-        for (size_t r = 0; r < MATRIX::row_size(); r++) {
+        for (size_t r = 0; r < MATRIX::ROW_SIZE; r++) {
             s.appendFormat("%7.2f  ", m[r][c]);
         }
         s.append("|\n");

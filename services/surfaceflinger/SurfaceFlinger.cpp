@@ -1705,6 +1705,13 @@ android_dataspace SurfaceFlinger::bestTargetDataSpace(android_dataspace a, andro
     if (a == HAL_DATASPACE_DISPLAY_P3 || b == HAL_DATASPACE_DISPLAY_P3) {
         return HAL_DATASPACE_DISPLAY_P3;
     }
+    if (a == HAL_DATASPACE_V0_SCRGB_LINEAR || b == HAL_DATASPACE_V0_SCRGB_LINEAR) {
+        return HAL_DATASPACE_DISPLAY_P3;
+    }
+    if (a == HAL_DATASPACE_V0_SCRGB || b == HAL_DATASPACE_V0_SCRGB) {
+        return HAL_DATASPACE_DISPLAY_P3;
+    }
+
     return HAL_DATASPACE_V0_SRGB;
 }
 
@@ -2508,8 +2515,8 @@ bool SurfaceFlinger::doComposeSurfaces(
         ALOGV("hasClientComposition");
 
 #ifdef USE_HWC2
-        mRenderEngine->setColorMode(displayDevice->getActiveColorMode());
         mRenderEngine->setWideColor(displayDevice->getWideColorSupport());
+        mRenderEngine->setColorMode(displayDevice->getActiveColorMode());
 #endif
         if (!displayDevice->makeCurrent(mEGLDisplay, mEGLContext)) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
@@ -3893,9 +3900,7 @@ status_t SurfaceFlinger::onTransact(
                 // apply a color matrix
                 n = data.readInt32();
                 if (n) {
-                    // color matrix is sent as mat3 matrix followed by vec3
-                    // offset, then packed into a mat4 where the last row is
-                    // the offset and extra values are 0
+                    // color matrix is sent as a row-major mat4 matrix
                     for (size_t i = 0 ; i < 4; i++) {
                         for (size_t j = 0; j < 4; j++) {
                             mColorMatrix[i][j] = data.readFloat();
@@ -3904,6 +3909,14 @@ status_t SurfaceFlinger::onTransact(
                 } else {
                     mColorMatrix = mat4();
                 }
+
+                // Check that supplied matrix's last row is {0,0,0,1} so we can avoid
+                // the division by w in the fragment shader
+                float4 lastRow(transpose(mColorMatrix)[3]);
+                if (any(greaterThan(abs(lastRow - float4{0, 0, 0, 1}), float4{1e-4f}))) {
+                    ALOGE("The color transform's last row must be (0, 0, 0, 1)");
+                }
+
                 invalidateHwcGeometry();
                 repaintEverything();
                 return NO_ERROR;
@@ -4210,6 +4223,11 @@ void SurfaceFlinger::renderScreenImplLocked(
         ALOGE("Invalid crop rect: b = %d (> %d)", sourceCrop.bottom, hw_h);
     }
 
+#ifdef USE_HWC2
+     engine.setWideColor(hw->getWideColorSupport());
+     engine.setColorMode(hw->getActiveColorMode());
+#endif
+
     // make sure to clear all GL error flags
     engine.checkErrors();
 
@@ -4313,6 +4331,8 @@ status_t SurfaceFlinger::captureScreenImplLocked(
         err |= native_window_set_scaling_mode(window, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
         err |= native_window_set_buffers_format(window, HAL_PIXEL_FORMAT_RGBA_8888);
         err |= native_window_set_usage(window, usage);
+        err |= native_window_set_buffers_data_space(window, hw->getWideColorSupport()
+                ? HAL_DATASPACE_DISPLAY_P3 : HAL_DATASPACE_V0_SRGB);
 
         if (err == NO_ERROR) {
             ANativeWindowBuffer* buffer;
