@@ -171,8 +171,6 @@ int dvrGetGlobalBuffer(DvrGlobalBufferKey key, DvrBuffer** out_buffer) {
 
   auto status = client->GetGlobalBuffer(key);
   if (!status) {
-    ALOGE("dvrGetGlobalBuffer: Failed to find named buffer key=%d: %s", key,
-          status.GetErrorMessage().c_str());
     return -status.error();
   }
   *out_buffer = CreateDvrBufferFromIonBuffer(status.take());
