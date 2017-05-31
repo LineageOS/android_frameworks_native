@@ -26,6 +26,15 @@ enum DvrHwcComposition {
   DVR_HWC_COMPOSITION_SIDEBAND = 5,
 };
 
+enum DvrHwcTransform {
+  DVR_HWC_TRANSFORM_NONE = 0,
+  DVR_HWC_TRANSFORM_FLIP_H = 1,
+  DVR_HWC_TRANSFORM_FLIP_V = 2,
+  DVR_HWC_TRANSFORM_ROT_90 = 4,
+  DVR_HWC_TRANSFORM_ROT_180 = 3,
+  DVR_HWC_TRANSFORM_ROT_270 = 7,
+};
+
 typedef uint64_t DvrHwcDisplay;
 typedef uint64_t DvrHwcLayer;
 
