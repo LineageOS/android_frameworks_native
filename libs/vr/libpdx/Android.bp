@@ -37,6 +37,7 @@ cc_test {
         "libpdx",
         "liblog",
         "libutils",
+        "libvndksupport",
     ],
 }
 

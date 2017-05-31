@@ -349,7 +349,7 @@ status_t BufferQueueProducer::waitForFreeSlotThenRelock(FreeSlotCaller caller,
 
 status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
         sp<android::Fence> *outFence, uint32_t width, uint32_t height,
-        PixelFormat format, uint32_t usage,
+        PixelFormat format, uint64_t usage,
         FrameEventHistoryDelta* outTimestamps) {
     ATRACE_CALL();
     { // Autolock scope
@@ -367,8 +367,7 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
         }
     } // Autolock scope
 
-    BQ_LOGV("dequeueBuffer: w=%u h=%u format=%#x, usage=%#x", width, height,
-            format, usage);
+    BQ_LOGV("dequeueBuffer: w=%u h=%u format=%#x, usage=%#" PRIx64, width, height, format, usage);
 
     if ((width && !height) || (!width && height)) {
         BQ_LOGE("dequeueBuffer: invalid size: w=%u h=%u", width, height);
@@ -418,11 +417,9 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
             // buffer. If this buffer would require reallocation to meet the
             // requested attributes, we free it and attempt to get another one.
             if (!mCore->mAllowAllocation) {
-                if (buffer->needsReallocation(width, height, format,
-                        BQ_LAYER_COUNT, usage)) {
+                if (buffer->needsReallocation(width, height, format, BQ_LAYER_COUNT, usage)) {
                     if (mCore->mSharedBufferSlot == found) {
-                        BQ_LOGE("dequeueBuffer: cannot re-allocate a shared"
-                                "buffer");
+                        BQ_LOGE("dequeueBuffer: cannot re-allocate a sharedbuffer");
                         return BAD_VALUE;
                     }
                     mCore->mFreeSlots.insert(found);
@@ -435,8 +432,7 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
 
         const sp<GraphicBuffer>& buffer(mSlots[found].mGraphicBuffer);
         if (mCore->mSharedBufferSlot == found &&
-                buffer->needsReallocation(width, height, format,
-                        BQ_LAYER_COUNT, usage)) {
+                buffer->needsReallocation(width, height, format, BQ_LAYER_COUNT, usage)) {
             BQ_LOGE("dequeueBuffer: cannot re-allocate a shared"
                     "buffer");
 
@@ -470,8 +466,7 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
         } else {
             // We add 1 because that will be the frame number when this buffer
             // is queued
-            mCore->mBufferAge =
-                    mCore->mFrameCounter + 1 - mSlots[found].mFrameNumber;
+            mCore->mBufferAge = mCore->mFrameCounter + 1 - mSlots[found].mFrameNumber;
         }
 
         BQ_LOGV("dequeueBuffer: setting buffer age to %" PRIu64,
@@ -513,7 +508,7 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
         { // Autolock scope
             Mutex::Autolock lock(mCore->mMutex);
 
-            if (graphicBuffer != NULL && !mCore->mIsAbandoned) {
+            if (error == NO_ERROR && !mCore->mIsAbandoned) {
                 graphicBuffer->setGenerationNumber(mCore->mGenerationNumber);
                 mSlots[*outSlot].mGraphicBuffer = graphicBuffer;
             }
@@ -521,7 +516,7 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
             mCore->mIsAllocating = false;
             mCore->mIsAllocatingCondition.broadcast();
 
-            if (graphicBuffer == NULL) {
+            if (error != NO_ERROR) {
                 mCore->mFreeSlots.insert(*outSlot);
                 mCore->clearBufferSlotLocked(*outSlot);
                 BQ_LOGE("dequeueBuffer: createGraphicBuffer failed");
@@ -1313,14 +1308,14 @@ status_t BufferQueueProducer::setSidebandStream(const sp<NativeHandle>& stream) 
 }
 
 void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
-        PixelFormat format, uint32_t usage) {
+        PixelFormat format, uint64_t usage) {
     ATRACE_CALL();
     while (true) {
         size_t newBufferCount = 0;
         uint32_t allocWidth = 0;
         uint32_t allocHeight = 0;
         PixelFormat allocFormat = PIXEL_FORMAT_UNKNOWN;
-        uint32_t allocUsage = 0;
+        uint64_t allocUsage = 0;
         { // Autolock scope
             Mutex::Autolock lock(mCore->mMutex);
             mCore->waitWhileAllocatingLocked();
@@ -1354,7 +1349,7 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
 
             if (result != NO_ERROR) {
                 BQ_LOGE("allocateBuffers: failed to allocate buffer (%u x %u, format"
-                        " %u, usage %u)", width, height, format, usage);
+                        " %u, usage %#" PRIx64 ")", width, height, format, usage);
                 Mutex::Autolock lock(mCore->mMutex);
                 mCore->mIsAllocating = false;
                 mCore->mIsAllocatingCondition.broadcast();
@@ -1369,7 +1364,7 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
             uint32_t checkHeight = height > 0 ? height : mCore->mDefaultHeight;
             PixelFormat checkFormat = format != 0 ?
                     format : mCore->mDefaultBufferFormat;
-            uint32_t checkUsage = usage | mCore->mConsumerUsageBits;
+            uint64_t checkUsage = usage | mCore->mConsumerUsageBits;
             if (checkWidth != allocWidth || checkHeight != allocHeight ||
                 checkFormat != allocFormat || checkUsage != allocUsage) {
                 // Something changed while we released the lock. Retry.

@@ -21,6 +21,7 @@ cc_library_headers {
 
 cflags = [
     "-DLOG_TAG=\"libdvr\"",
+    "-DTRACE=0",
 ]
 
 srcs = [

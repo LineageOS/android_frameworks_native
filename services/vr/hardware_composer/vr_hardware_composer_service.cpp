@@ -26,22 +26,18 @@ int main() {
 
   // Register the hwbinder HWC HAL service used by SurfaceFlinger while in VR
   // mode.
-  const char instance[] = "vr";
-  android::sp<IComposer> service =
-      android::dvr::HIDL_FETCH_IComposer(instance);
+  android::sp<android::dvr::VrHwc> service = new android::dvr::VrHwc();
 
   LOG_ALWAYS_FATAL_IF(!service.get(), "Failed to get service");
   LOG_ALWAYS_FATAL_IF(service->isRemote(), "Service is remote");
 
+  const char instance[] = "vr";
   LOG_ALWAYS_FATAL_IF(service->registerAsService(instance) != android::OK,
                       "Failed to register service");
 
   android::sp<android::dvr::VrComposer> composer =
       new android::dvr::VrComposer();
-
-  android::dvr::ComposerView* composer_view =
-      android::dvr::GetComposerViewFromIComposer(service.get());
-  composer_view->RegisterObserver(composer.get());
+  service->RegisterObserver(composer.get());
 
   android::sp<android::IServiceManager> sm(android::defaultServiceManager());
 
@@ -56,7 +52,7 @@ int main() {
   android::hardware::ProcessState::self()->startThreadPool();
   android::hardware::IPCThreadState::self()->joinThreadPool();
 
-  composer_view->UnregisterObserver(composer.get());
+  service->UnregisterObserver(composer.get());
 
   return 0;
 }

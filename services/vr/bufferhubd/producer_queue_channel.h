@@ -40,7 +40,7 @@ class ProducerQueueChannel : public BufferHubChannel {
 
   // Detach a BufferHubProducer indicated by |slot|. Note that the buffer must
   // be in Gain'ed state for the producer queue to detach.
-  pdx::Status<void> OnProducerQueueDetachBuffer(pdx::Message& message,
+  pdx::Status<void> OnProducerQueueRemoveBuffer(pdx::Message& message,
                                                 size_t slot);
 
   void AddConsumer(ConsumerQueueChannel* channel);

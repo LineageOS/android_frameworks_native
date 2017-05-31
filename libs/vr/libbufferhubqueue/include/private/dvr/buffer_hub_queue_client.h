@@ -22,6 +22,10 @@ class ConsumerQueue;
 // automatically re-requeued when released by the remote side.
 class BufferHubQueue : public pdx::Client {
  public:
+  using BufferAvailableCallback = std::function<void()>;
+  using BufferRemovedCallback =
+      std::function<void(const std::shared_ptr<BufferHubBuffer>&)>;
+
   virtual ~BufferHubQueue() {}
 
   // Creates a new consumer queue that is attached to the producer. Returns
@@ -84,6 +88,11 @@ class BufferHubQueue : public pdx::Client {
   // occurred.
   bool HandleQueueEvents() { return WaitForBuffers(0); }
 
+  // Set buffer event callbacks, which are std::function wrappers. The caller is
+  // responsible for ensuring the validity of these callbacks' callable targets.
+  void SetBufferAvailableCallback(BufferAvailableCallback callback);
+  void SetBufferRemovedCallback(BufferRemovedCallback callback);
+
   // The queue tracks at most this many buffers.
   static constexpr size_t kMaxQueueCapacity =
       android::BufferQueueDefs::NUM_BUFFER_SLOTS;
@@ -109,9 +118,9 @@ class BufferHubQueue : public pdx::Client {
   pdx::Status<void> AddBuffer(const std::shared_ptr<BufferHubBuffer>& buffer,
                               size_t slot);
 
-  // Called by ProducerQueue::DetachBuffer and ConsumerQueue::DetachBuffer only
+  // Called by ProducerQueue::RemoveBuffer and ConsumerQueue::RemoveBuffer only
   // to deregister a buffer for epoll and internal bookkeeping.
-  virtual pdx::Status<void> DetachBuffer(size_t slot);
+  virtual pdx::Status<void> RemoveBuffer(size_t slot);
 
   // Dequeue a buffer from the free queue, blocking until one is available. The
   // timeout argument specifies the number of milliseconds that |Dequeue()| will
@@ -225,6 +234,10 @@ class BufferHubQueue : public pdx::Client {
   // Global id for the queue that is consistent across processes.
   int id_{-1};
 
+  // Buffer event callbacks
+  BufferAvailableCallback on_buffer_available_;
+  BufferRemovedCallback on_buffer_removed_;
+
   BufferHubQueue(const BufferHubQueue&) = delete;
   void operator=(BufferHubQueue&) = delete;
 };
@@ -273,8 +286,8 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   pdx::Status<void> AddBuffer(const std::shared_ptr<BufferProducer>& buffer,
                               size_t slot);
 
-  // Detach producer buffer from the queue.
-  pdx::Status<void> DetachBuffer(size_t slot) override;
+  // Remove producer buffer from the queue.
+  pdx::Status<void> RemoveBuffer(size_t slot) override;
 
   // Dequeue a producer buffer to write. The returned buffer in |Gain|'ed mode,
   // and caller should call Post() once it's done writing to release the buffer

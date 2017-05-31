@@ -89,7 +89,9 @@ struct TracingCategory {
 
 /* Tracing categories */
 static const TracingCategory k_categories[] = {
-    { "gfx",        "Graphics",         ATRACE_TAG_GRAPHICS, { } },
+    { "gfx",        "Graphics",         ATRACE_TAG_GRAPHICS, {
+        { OPT,      "events/mdss/enable" },
+    } },
     { "input",      "Input",            ATRACE_TAG_INPUT, { } },
     { "view",       "View System",      ATRACE_TAG_VIEW, { } },
     { "webview",    "WebView",          ATRACE_TAG_WEBVIEW, { } },
@@ -181,6 +183,7 @@ static const TracingCategory k_categories[] = {
     { "binder_driver", "Binder Kernel driver", 0, {
         { REQ,      "events/binder/binder_transaction/enable" },
         { REQ,      "events/binder/binder_transaction_received/enable" },
+        { OPT,      "events/binder/binder_set_priority/enable" },
     } },
     { "binder_lock", "Binder global lock trace", 0, {
         { OPT,      "events/binder/binder_lock/enable" },

@@ -167,7 +167,7 @@ TEST_F(BufferHubQueueTest, TestProducerConsumer) {
   }
 }
 
-TEST_F(BufferHubQueueTest, TestDetach) {
+TEST_F(BufferHubQueueTest, TestRemoveBuffer) {
   ASSERT_TRUE(CreateProducerQueue(config_builder_.Build(), UsagePolicy{}));
 
   // Allocate buffers.
@@ -204,17 +204,17 @@ TEST_F(BufferHubQueueTest, TestDetach) {
     EXPECT_EQ(i, entry->slot);
   }
 
-  // Detach a buffer and make sure both queues reflect the change.
-  ASSERT_TRUE(producer_queue_->DetachBuffer(buffers[0].slot));
+  // Remove a buffer and make sure both queues reflect the change.
+  ASSERT_TRUE(producer_queue_->RemoveBuffer(buffers[0].slot));
   EXPECT_EQ(kBufferCount - 1, producer_queue_->capacity());
 
-  // As long as the detached buffer is still alive the consumer queue won't know
+  // As long as the removed buffer is still alive the consumer queue won't know
   // its gone.
   EXPECT_EQ(kBufferCount, consumer_queue_->capacity());
   EXPECT_FALSE(consumer_queue_->HandleQueueEvents());
   EXPECT_EQ(kBufferCount, consumer_queue_->capacity());
 
-  // Release the detached buffer.
+  // Release the removed buffer.
   buffers[0].buffer = nullptr;
 
   // Now the consumer queue should know it's gone.
@@ -233,8 +233,8 @@ TEST_F(BufferHubQueueTest, TestDetach) {
   EXPECT_FALSE(consumer_queue_->HandleQueueEvents());
   EXPECT_EQ(kBufferCount, consumer_queue_->capacity());
 
-  // Detach and allocate a buffer.
-  ASSERT_TRUE(producer_queue_->DetachBuffer(buffers[1].slot));
+  // Remove and allocate a buffer.
+  ASSERT_TRUE(producer_queue_->RemoveBuffer(buffers[1].slot));
   EXPECT_EQ(kBufferCount - 1, producer_queue_->capacity());
   buffers[1].buffer = nullptr;
 
@@ -249,8 +249,8 @@ TEST_F(BufferHubQueueTest, TestDetach) {
   EXPECT_FALSE(consumer_queue_->HandleQueueEvents());
   EXPECT_EQ(kBufferCount, consumer_queue_->capacity());
 
-  // Detach and allocate a buffer, but don't free the buffer right away.
-  ASSERT_TRUE(producer_queue_->DetachBuffer(buffers[2].slot));
+  // Remove and allocate a buffer, but don't free the buffer right away.
+  ASSERT_TRUE(producer_queue_->RemoveBuffer(buffers[2].slot));
   EXPECT_EQ(kBufferCount - 1, producer_queue_->capacity());
 
   AllocateBuffer(&slot);
@@ -263,7 +263,7 @@ TEST_F(BufferHubQueueTest, TestDetach) {
   EXPECT_EQ(kBufferCount, consumer_queue_->capacity());
 
   // Release the producer buffer to trigger a POLLHUP event for an already
-  // detached buffer.
+  // removed buffer.
   buffers[2].buffer = nullptr;
   EXPECT_EQ(kBufferCount, consumer_queue_->capacity());
   EXPECT_FALSE(consumer_queue_->HandleQueueEvents());

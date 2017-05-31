@@ -76,9 +76,9 @@ bool ProducerQueueChannel::HandleMessage(Message& message) {
           message);
       return true;
 
-    case BufferHubRPC::ProducerQueueDetachBuffer::Opcode:
-      DispatchRemoteMethod<BufferHubRPC::ProducerQueueDetachBuffer>(
-          *this, &ProducerQueueChannel::OnProducerQueueDetachBuffer, message);
+    case BufferHubRPC::ProducerQueueRemoveBuffer::Opcode:
+      DispatchRemoteMethod<BufferHubRPC::ProducerQueueRemoveBuffer>(
+          *this, &ProducerQueueChannel::OnProducerQueueRemoveBuffer, message);
       return true;
 
     default:
@@ -276,11 +276,11 @@ ProducerQueueChannel::AllocateBuffer(Message& message, uint32_t width,
   return {{std::move(buffer_handle), slot}};
 }
 
-Status<void> ProducerQueueChannel::OnProducerQueueDetachBuffer(
+Status<void> ProducerQueueChannel::OnProducerQueueRemoveBuffer(
     Message& /*message*/, size_t slot) {
   if (buffers_[slot].expired()) {
     ALOGE(
-        "ProducerQueueChannel::OnProducerQueueDetachBuffer: trying to detach "
+        "ProducerQueueChannel::OnProducerQueueRemoveBuffer: trying to remove "
         "an invalid buffer producer at slot %zu",
         slot);
     return ErrorStatus(EINVAL);
@@ -288,7 +288,7 @@ Status<void> ProducerQueueChannel::OnProducerQueueDetachBuffer(
 
   if (capacity_ == 0) {
     ALOGE(
-        "ProducerQueueChannel::OnProducerQueueDetachBuffer: trying to detach a "
+        "ProducerQueueChannel::OnProducerQueueRemoveBuffer: trying to remove a "
         "buffer producer while the queue's capacity is already zero.");
     return ErrorStatus(EINVAL);
   }

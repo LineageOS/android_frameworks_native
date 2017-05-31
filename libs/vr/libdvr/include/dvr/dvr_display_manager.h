@@ -1,5 +1,5 @@
-#ifndef DVR_DISPLAY_MANAGER_CLIENT_H_
-#define DVR_DISPLAY_MANAGER_CLIENT_H_
+#ifndef ANDROID_DVR_DISPLAY_MANAGER_H_
+#define ANDROID_DVR_DISPLAY_MANAGER_H_
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -84,7 +84,7 @@ int dvrSurfaceStateGetSurfaceCount(DvrSurfaceState* surface_state,
                                    size_t* count_out);
 
 // Returns the update flags for the surface at |surface_index| in the state
-// object. The flags may be used to determine what changes, if any, occured to
+// object. The flags may be used to determine what changes, if any, occurred to
 // the surface since the last state update.
 // @return 0 on success. Otherwise returns a negative error value.
 int dvrSurfaceStateGetUpdateFlags(DvrSurfaceState* surface_state,
@@ -145,4 +145,4 @@ ssize_t dvrSurfaceStateGetAttributes(DvrSurfaceState* surface_state,
 
 __END_DECLS
 
-#endif  // DVR_DISPLAY_MANAGER_CLIENT_H_
+#endif  // ANDROID_DVR_DISPLAY_MANAGER_H_

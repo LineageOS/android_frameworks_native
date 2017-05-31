@@ -125,7 +125,7 @@ inline void wrapAs(AnwBuffer* t, GraphicBuffer const& l) {
     t->attr.stride = l.getStride();
     t->attr.format = static_cast<PixelFormat>(l.getPixelFormat());
     t->attr.layerCount = l.getLayerCount();
-    t->attr.usage = l.getUsage();
+    t->attr.usage = uint32_t(l.getUsage());     // FIXME: need 64-bits usage version
     t->attr.id = l.getId();
     t->attr.generationNumber = l.getGenerationNumber();
     t->nativeHandle = hidl_handle(l.handle);
@@ -988,14 +988,15 @@ status_t H2BGraphicBufferProducer::setAsyncMode(bool async) {
     return toStatusT(mBase->setAsyncMode(async));
 }
 
+// FIXME: usage bits truncated -- needs a 64-bits usage version
 status_t H2BGraphicBufferProducer::dequeueBuffer(
         int* slot, sp<Fence>* fence,
         uint32_t w, uint32_t h, ::android::PixelFormat format,
-        uint32_t usage, FrameEventHistoryDelta* outTimestamps) {
+        uint64_t usage, FrameEventHistoryDelta* outTimestamps) {
     *fence = new Fence();
     status_t fnStatus;
     status_t transStatus = toStatusT(mBase->dequeueBuffer(
-            w, h, static_cast<PixelFormat>(format), usage,
+            w, h, static_cast<PixelFormat>(format), uint32_t(usage),
             outTimestamps != nullptr,
             [&fnStatus, slot, fence, outTimestamps] (
                     Status status,
@@ -1144,10 +1145,11 @@ status_t H2BGraphicBufferProducer::setSidebandStream(
     return toStatusT(mBase->setSidebandStream(stream == nullptr ? nullptr : stream->handle()));
 }
 
+// FIXME: usage bits truncated -- needs a 64-bits usage version
 void H2BGraphicBufferProducer::allocateBuffers(uint32_t width, uint32_t height,
-        ::android::PixelFormat format, uint32_t usage) {
+        ::android::PixelFormat format, uint64_t usage) {
     mBase->allocateBuffers(
-            width, height, static_cast<PixelFormat>(format), usage);
+            width, height, static_cast<PixelFormat>(format), uint32_t(usage));
 }
 
 status_t H2BGraphicBufferProducer::allowAllocation(bool allow) {
