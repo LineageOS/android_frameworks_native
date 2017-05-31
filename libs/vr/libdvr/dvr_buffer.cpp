@@ -1,6 +1,7 @@
 #include "include/dvr/dvr_buffer.h"
 
 #include <android/hardware_buffer.h>
+#include <dvr/dvr_shared_buffers.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <ui/GraphicBuffer.h>
 
@@ -174,6 +175,11 @@ int dvrBufferGetAHardwareBuffer(DvrBuffer* buffer,
 
   return ConvertToAHardwareBuffer(buffer->buffer->buffer().get(),
                                   hardware_buffer);
+}
+
+// Retrieve the shared buffer layout version defined in dvr_shared_buffers.h.
+int dvrBufferGlobalLayoutVersionGet() {
+  return android::dvr::kSharedBufferLayoutVersion;
 }
 
 const struct native_handle* dvrWriteBufferGetNativeHandle(

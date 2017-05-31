@@ -60,6 +60,7 @@ DVR_V1_API_ENTRY(ReadBufferGetNativeHandle);
 DVR_V1_API_ENTRY(BufferDestroy);
 DVR_V1_API_ENTRY(BufferGetAHardwareBuffer);
 DVR_V1_API_ENTRY(BufferGetNativeHandle);
+DVR_V1_API_ENTRY(BufferGlobalLayoutVersionGet);
 
 // Write buffer queue
 DVR_V1_API_ENTRY(WriteBufferQueueDestroy);
