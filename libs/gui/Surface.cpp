@@ -501,13 +501,13 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
 
     int buf = -1;
     sp<Fence> fence;
-    nsecs_t now = systemTime();
+    nsecs_t startTime = systemTime();
 
     FrameEventHistoryDelta frameTimestamps;
     status_t result = mGraphicBufferProducer->dequeueBuffer(&buf, &fence,
             reqWidth, reqHeight, reqFormat, reqUsage,
             enableFrameTimestamps ? &frameTimestamps : nullptr);
-    mLastDequeueDuration = systemTime() - now;
+    mLastDequeueDuration = systemTime() - startTime;
 
     if (result < 0) {
         ALOGV("dequeueBuffer: IGraphicBufferProducer::dequeueBuffer"
@@ -523,6 +523,9 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     }
 
     Mutex::Autolock lock(mMutex);
+
+    // Write this while holding the mutex
+    mLastDequeueStartTime = startTime;
 
     sp<GraphicBuffer>& gbuf(mSlots[buf].buffer);
 
@@ -1697,6 +1700,11 @@ bool Surface::waitForNextFrame(uint64_t lastFrame, nsecs_t timeout) {
 status_t Surface::getUniqueId(uint64_t* outId) const {
     Mutex::Autolock lock(mMutex);
     return mGraphicBufferProducer->getUniqueId(outId);
+}
+
+nsecs_t Surface::getLastDequeueStartTime() const {
+    Mutex::Autolock lock(mMutex);
+    return mLastDequeueStartTime;
 }
 
 status_t Surface::getAndFlushRemovedBuffers(std::vector<sp<GraphicBuffer>>* out) {
