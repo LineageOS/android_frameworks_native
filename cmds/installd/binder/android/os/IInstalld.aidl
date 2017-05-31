@@ -74,7 +74,7 @@ interface IInstalld {
     void moveAb(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
             @utf8InCpp String outputPath);
     void deleteOdex(@utf8InCpp String apkPath, @utf8InCpp String instructionSet,
-            @utf8InCpp String outputPath);
+            @nullable @utf8InCpp String outputPath);
 
     boolean reconcileSecondaryDexFile(@utf8InCpp String dexPath, @utf8InCpp String pkgName,
         int uid, in @utf8InCpp String[] isas, @nullable @utf8InCpp String volume_uuid,
