@@ -1189,13 +1189,7 @@ bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_
             ALOGE("installd cannot compute input vdex location for '%s'\n", path);
             return false;
         }
-        if (dexopt_action == DEX2OAT_FOR_BOOT_IMAGE) {
-            // When we dex2oat because of boot image change, we are going to update
-            // in-place the vdex file.
-            in_vdex_wrapper_fd->reset(open(in_vdex_path_str.c_str(), O_RDWR, 0));
-        } else {
-            in_vdex_wrapper_fd->reset(open(in_vdex_path_str.c_str(), O_RDONLY, 0));
-        }
+        in_vdex_wrapper_fd->reset(open(in_vdex_path_str.c_str(), O_RDONLY, 0));
     }
 
     // Infer the name of the output VDEX and create it.
@@ -1204,27 +1198,12 @@ bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_
         return false;
     }
 
-    // If we are compiling because the boot image is out of date, we do not
-    // need to recreate a vdex, and can use the same existing one.
-    if (dexopt_action == DEX2OAT_FOR_BOOT_IMAGE &&
-            in_vdex_wrapper_fd->get() != -1 &&
-            in_vdex_path_str == out_vdex_path_str) {
-        // We unlink the file in case the invocation of dex2oat fails, to ensure we don't
-        // have bogus stale vdex files.
-        out_vdex_wrapper_fd->reset(
-              in_vdex_wrapper_fd->get(),
-              [out_vdex_path_str]() { unlink(out_vdex_path_str.c_str()); });
-        // Disable auto close for the in wrapper fd (it will be done when destructing the out
-        // wrapper).
-        in_vdex_wrapper_fd->DisableAutoClose();
-    } else {
-        out_vdex_wrapper_fd->reset(
-              open_output_file(out_vdex_path_str.c_str(), /*recreate*/true, /*permissions*/0644),
-              [out_vdex_path_str]() { unlink(out_vdex_path_str.c_str()); });
-        if (out_vdex_wrapper_fd->get() < 0) {
-            ALOGE("installd cannot open vdex'%s' during dexopt\n", out_vdex_path_str.c_str());
-            return false;
-        }
+    out_vdex_wrapper_fd->reset(
+          open_output_file(out_vdex_path_str.c_str(), /*recreate*/true, /*permissions*/0644),
+          [out_vdex_path_str]() { unlink(out_vdex_path_str.c_str()); });
+    if (out_vdex_wrapper_fd->get() < 0) {
+        ALOGE("installd cannot open vdex'%s' during dexopt\n", out_vdex_path_str.c_str());
+        return false;
     }
     if (!set_permissions_and_ownership(out_vdex_wrapper_fd->get(), is_public, uid,
             out_vdex_path_str.c_str(), is_secondary_dex)) {
