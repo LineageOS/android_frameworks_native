@@ -101,8 +101,8 @@ public:
     binder::Status removeIdmap(const std::string& overlayApkPath);
     binder::Status rmPackageDir(const std::string& packageDir);
     binder::Status markBootComplete(const std::string& instructionSet);
-    binder::Status freeCache(const std::unique_ptr<std::string>& uuid, int64_t freeStorageSize,
-            int32_t flags);
+    binder::Status freeCache(const std::unique_ptr<std::string>& uuid, int64_t targetFreeBytes,
+            int64_t cacheReservedBytes, int32_t flags);
     binder::Status linkNativeLibraryDirectory(const std::unique_ptr<std::string>& uuid,
             const std::string& packageName, const std::string& nativeLibPath32, int32_t userId);
     binder::Status createOatDir(const std::string& oatDir, const std::string& instructionSet);

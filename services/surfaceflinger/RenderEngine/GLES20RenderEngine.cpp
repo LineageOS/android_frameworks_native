@@ -139,11 +139,10 @@ GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags) :
         // Display-P3 only.
         mat3 srgbToP3 = ColorSpaceConnector(ColorSpace::sRGB(), ColorSpace::DisplayP3()).getTransform();
 
-        // color transform needs to be transposed and expanded to 4x4
-        // to be what the shader wants
+        // color transform needs to be expanded to 4x4 to be what the shader wants
         // mat has an initializer that expands mat3 to mat4, but
         // not an assignment operator
-        mat4 gamutTransform(transpose(srgbToP3));
+        mat4 gamutTransform(srgbToP3);
         mSrgbToDisplayP3 = gamutTransform;
     }
 #endif
@@ -386,6 +385,7 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
         Description wideColorState = mState;
         if (mDataSpace != HAL_DATASPACE_DISPLAY_P3) {
             wideColorState.setColorMatrix(mState.getColorMatrix() * mSrgbToDisplayP3);
+            wideColorState.setWideGamut(true);
             ALOGV("drawMesh: gamut transform applied");
         }
         ProgramCache::getInstance().useProgram(wideColorState);

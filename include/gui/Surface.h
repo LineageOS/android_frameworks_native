@@ -160,6 +160,9 @@ public:
 
     status_t getUniqueId(uint64_t* outId) const;
 
+    // Returns the CLOCK_MONOTONIC start time of the last dequeueBuffer call
+    nsecs_t getLastDequeueStartTime() const;
+
 protected:
     virtual ~Surface();
 
@@ -420,6 +423,9 @@ protected:
     // These are used to satisfy the NATIVE_WINDOW_LAST_*_DURATION queries
     nsecs_t mLastDequeueDuration = 0;
     nsecs_t mLastQueueDuration = 0;
+
+    // Stores the time right before we call IGBP::dequeueBuffer
+    nsecs_t mLastDequeueStartTime = 0;
 
     Condition mQueueBufferCondition;
 

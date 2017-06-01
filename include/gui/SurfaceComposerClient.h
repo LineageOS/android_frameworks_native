@@ -271,6 +271,7 @@ public:
     uint32_t getStride() const;
     // size of allocated memory in bytes
     size_t getSize() const;
+    android_dataspace getDataSpace() const;
 };
 
 // ---------------------------------------------------------------------------

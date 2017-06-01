@@ -1080,5 +1080,9 @@ size_t ScreenshotClient::getSize() const {
     return mBuffer.stride * mBuffer.height * bytesPerPixel(mBuffer.format);
 }
 
+android_dataspace ScreenshotClient::getDataSpace() const {
+    return mBuffer.dataSpace;
+}
+
 // ----------------------------------------------------------------------------
 }; // namespace android
