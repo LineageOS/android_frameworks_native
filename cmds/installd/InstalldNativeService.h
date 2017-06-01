@@ -109,7 +109,7 @@ public:
     binder::Status moveAb(const std::string& apkPath, const std::string& instructionSet,
             const std::string& outputPath);
     binder::Status deleteOdex(const std::string& apkPath, const std::string& instructionSet,
-            const std::string& outputPath);
+            const std::unique_ptr<std::string>& outputPath);
     binder::Status reconcileSecondaryDexFile(const std::string& dexPath,
         const std::string& packageName, int32_t uid, const std::vector<std::string>& isa,
         const std::unique_ptr<std::string>& volumeUuid, int32_t storage_flag, bool* _aidl_return);
