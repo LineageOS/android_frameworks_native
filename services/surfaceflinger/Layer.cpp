@@ -399,6 +399,10 @@ Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
     Transform t = getTransform();
     win = t.transform(win);
 
+    if (!s.finalCrop.isEmpty()) {
+        win.intersect(s.finalCrop, &win);
+    }
+
     const sp<Layer>& p = getParent();
     // Now we need to calculate the parent bounds, so we can clip ourselves to those.
     // When calculating the parent bounds for purposes of clipping,
