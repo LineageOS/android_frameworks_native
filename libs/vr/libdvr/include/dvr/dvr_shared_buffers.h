@@ -1,8 +1,8 @@
 #ifndef ANDROID_DVR_SHARED_BUFFERS_H_
 #define ANDROID_DVR_SHARED_BUFFERS_H_
 
+#include <dvr/dvr_config.h>
 #include <dvr/dvr_pose.h>
-#include <dvr/dvr_vrflinger_config.h>
 #include <dvr/dvr_vsync.h>
 #include <libbroadcastring/broadcast_ring.h>
 
@@ -11,7 +11,7 @@ namespace android {
 namespace dvr {
 
 // Increment when the layout for the buffers change.
-constexpr uint32_t kSharedBufferLayoutVersion = 1;
+enum : uint32_t { kSharedBufferLayoutVersion = 1 };
 
 // Note: These buffers will be mapped from various system processes as well
 // as VrCore and the application processes in a r/w manner.
@@ -26,6 +26,7 @@ constexpr uint32_t kSharedBufferLayoutVersion = 1;
 static_assert(sizeof(DvrPoseAsync) == 128, "Unexpected size for DvrPoseAsync");
 static_assert(sizeof(DvrPose) == 96, "Unexpected size for DvrPose");
 static_assert(sizeof(DvrVsync) == 32, "Unexpected size for DvrVsync");
+static_assert(sizeof(DvrConfig) == 16, "Unexpected size for DvrConfig");
 
 // A helper class that provides compile time sized traits for the BroadcastRing.
 template <class DvrType, size_t StaticCount>
@@ -41,13 +42,12 @@ class DvrRingBufferTraits {
 // Traits classes.
 using DvrPoseTraits = DvrRingBufferTraits<DvrPose, 0>;
 using DvrVsyncTraits = DvrRingBufferTraits<DvrVsync, 2>;
-using DvrVrFlingerConfigTraits = DvrRingBufferTraits<DvrVrFlingerConfig, 2>;
+using DvrConfigTraits = DvrRingBufferTraits<DvrConfig, 2>;
 
 // The broadcast ring classes that will expose the data.
 using DvrPoseRing = BroadcastRing<DvrPose, DvrPoseTraits>;
 using DvrVsyncRing = BroadcastRing<DvrVsync, DvrVsyncTraits>;
-using DvrVrFlingerConfigRing =
-    BroadcastRing<DvrVrFlingerConfig, DvrVrFlingerConfigTraits>;
+using DvrConfigRing = BroadcastRing<DvrConfig, DvrConfigTraits>;
 
 // This is a shared memory buffer for passing pose data estimated at vsyncs.
 //
