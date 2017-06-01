@@ -4346,6 +4346,26 @@ private:
     const int mApi;
 };
 
+// A simple RAII class that holds an EGLImage and destroys it either:
+//   a) When the destroy() method is called
+//   b) When the object goes out of scope
+class ImageHolder {
+public:
+    ImageHolder(EGLDisplay display, EGLImageKHR image) : mDisplay(display), mImage(image) {}
+    ~ImageHolder() { destroy(); }
+
+    void destroy() {
+        if (mImage != EGL_NO_IMAGE_KHR) {
+            eglDestroyImageKHR(mDisplay, mImage);
+            mImage = EGL_NO_IMAGE_KHR;
+        }
+    }
+
+private:
+    const EGLDisplay mDisplay;
+    EGLImageKHR mImage;
+};
+
 status_t SurfaceFlinger::captureScreenImplLocked(
         const sp<const DisplayDevice>& hw,
         const sp<IGraphicBufferProducer>& producer,
@@ -4443,82 +4463,82 @@ status_t SurfaceFlinger::captureScreenImplLocked(
         return BAD_VALUE;
     }
 
+    // This will automatically destroy the image if we return before calling its destroy method
+    ImageHolder imageHolder(mEGLDisplay, image);
+
     // this binds the given EGLImage as a framebuffer for the
     // duration of this scope.
     RenderEngine::BindImageAsFramebuffer imageBond(getRenderEngine(), image);
-    if (imageBond.getStatus() == NO_ERROR) {
-        // this will in fact render into our dequeued buffer
-        // via an FBO, which means we didn't have to create
-        // an EGLSurface and therefore we're not
-        // dependent on the context's EGLConfig.
-        renderScreenImplLocked(
-            hw, sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ, true,
-            useIdentityTransform, rotation);
+    if (imageBond.getStatus() != NO_ERROR) {
+        ALOGE("got GL_FRAMEBUFFER_COMPLETE_OES error while taking screenshot");
+        window->cancelBuffer(window, buffer, syncFd);
+        return INVALID_OPERATION;
+    }
 
-        if (hasWideColorDisplay) {
-            native_window_set_buffers_data_space(window,
-                getRenderEngine().usesWideColor() ?
-                    HAL_DATASPACE_DISPLAY_P3 : HAL_DATASPACE_V0_SRGB);
-        }
+    // this will in fact render into our dequeued buffer
+    // via an FBO, which means we didn't have to create
+    // an EGLSurface and therefore we're not
+    // dependent on the context's EGLConfig.
+    renderScreenImplLocked(
+        hw, sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ, true,
+        useIdentityTransform, rotation);
 
-        // Attempt to create a sync khr object that can produce a sync point. If that
-        // isn't available, create a non-dupable sync object in the fallback path and
-        // wait on it directly.
-        EGLSyncKHR sync;
-        if (!DEBUG_SCREENSHOTS) {
-           sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
-           // native fence fd will not be populated until flush() is done.
-           getRenderEngine().flush();
-        } else {
-            sync = EGL_NO_SYNC_KHR;
+    if (hasWideColorDisplay) {
+        native_window_set_buffers_data_space(window,
+            getRenderEngine().usesWideColor() ?
+                HAL_DATASPACE_DISPLAY_P3 : HAL_DATASPACE_V0_SRGB);
+    }
+
+    // Attempt to create a sync khr object that can produce a sync point. If that
+    // isn't available, create a non-dupable sync object in the fallback path and
+    // wait on it directly.
+    EGLSyncKHR sync = EGL_NO_SYNC_KHR;
+    if (!DEBUG_SCREENSHOTS) {
+       sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
+       // native fence fd will not be populated until flush() is done.
+       getRenderEngine().flush();
+    }
+
+    if (sync != EGL_NO_SYNC_KHR) {
+        // get the sync fd
+        syncFd = eglDupNativeFenceFDANDROID(mEGLDisplay, sync);
+        if (syncFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+            ALOGW("captureScreen: failed to dup sync khr object");
+            syncFd = -1;
         }
+        eglDestroySyncKHR(mEGLDisplay, sync);
+    } else {
+        // fallback path
+        sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
         if (sync != EGL_NO_SYNC_KHR) {
-            // get the sync fd
-            syncFd = eglDupNativeFenceFDANDROID(mEGLDisplay, sync);
-            if (syncFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-                ALOGW("captureScreen: failed to dup sync khr object");
-                syncFd = -1;
+            EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync,
+                EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, 2000000000 /*2 sec*/);
+            EGLint eglErr = eglGetError();
+            if (result == EGL_TIMEOUT_EXPIRED_KHR) {
+                ALOGW("captureScreen: fence wait timed out");
+            } else {
+                ALOGW_IF(eglErr != EGL_SUCCESS,
+                        "captureScreen: error waiting on EGL fence: %#x", eglErr);
             }
             eglDestroySyncKHR(mEGLDisplay, sync);
         } else {
-            // fallback path
-            sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
-            if (sync != EGL_NO_SYNC_KHR) {
-                EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync,
-                    EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, 2000000000 /*2 sec*/);
-                EGLint eglErr = eglGetError();
-                if (result == EGL_TIMEOUT_EXPIRED_KHR) {
-                    ALOGW("captureScreen: fence wait timed out");
-                } else {
-                    ALOGW_IF(eglErr != EGL_SUCCESS,
-                            "captureScreen: error waiting on EGL fence: %#x", eglErr);
-                }
-                eglDestroySyncKHR(mEGLDisplay, sync);
-            } else {
-                ALOGW("captureScreen: error creating EGL fence: %#x", eglGetError());
-            }
+            ALOGW("captureScreen: error creating EGL fence: %#x", eglGetError());
         }
-        if (DEBUG_SCREENSHOTS) {
-            uint32_t* pixels = new uint32_t[reqWidth*reqHeight];
-            getRenderEngine().readPixels(0, 0, reqWidth, reqHeight, pixels);
-            checkScreenshot(reqWidth, reqHeight, reqWidth, pixels,
-                    hw, minLayerZ, maxLayerZ);
-            delete [] pixels;
-        }
-
-    } else {
-        ALOGE("got GL_FRAMEBUFFER_COMPLETE_OES error while taking screenshot");
-        result = INVALID_OPERATION;
-        window->cancelBuffer(window, buffer, syncFd);
-        buffer = NULL;
     }
+
+    if (DEBUG_SCREENSHOTS) {
+        uint32_t* pixels = new uint32_t[reqWidth*reqHeight];
+        getRenderEngine().readPixels(0, 0, reqWidth, reqHeight, pixels);
+        checkScreenshot(reqWidth, reqHeight, reqWidth, pixels,
+                hw, minLayerZ, maxLayerZ);
+        delete [] pixels;
+    }
+
     // destroy our image
-    eglDestroyImageKHR(mEGLDisplay, image);
+    imageHolder.destroy();
 
-    if (buffer) {
-        // queueBuffer takes ownership of syncFd
-        result = window->queueBuffer(window, buffer, syncFd);
-    }
+    // queueBuffer takes ownership of syncFd
+    result = window->queueBuffer(window, buffer, syncFd);
 
     return result;
 }
