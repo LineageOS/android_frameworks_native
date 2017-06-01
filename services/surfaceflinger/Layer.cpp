@@ -2531,6 +2531,14 @@ bool Layer::getTransformToDisplayInverse() const {
     return mSurfaceFlingerConsumer->getTransformToDisplayInverse();
 }
 
+size_t Layer::getChildrenCount() const {
+    size_t count = 0;
+    for (const sp<Layer>& child : mCurrentChildren) {
+        count += 1 + child->getChildrenCount();
+    }
+    return count;
+}
+
 void Layer::addChild(const sp<Layer>& layer) {
     mCurrentChildren.add(layer);
     layer->setParent(this);
