@@ -393,6 +393,22 @@ TEST_F(SurfaceTest, GetAndFlushRemovedBuffers) {
     ASSERT_LE(removedBuffers.size(), 1u);
 }
 
+TEST_F(SurfaceTest, TestGetLastDequeueStartTime) {
+    sp<ANativeWindow> anw(mSurface);
+    ASSERT_EQ(NO_ERROR, native_window_api_connect(anw.get(), NATIVE_WINDOW_API_CPU));
+
+    ANativeWindowBuffer* buffer = nullptr;
+    int32_t fenceFd = -1;
+
+    nsecs_t before = systemTime(CLOCK_MONOTONIC);
+    anw->dequeueBuffer(anw.get(), &buffer, &fenceFd);
+    nsecs_t after = systemTime(CLOCK_MONOTONIC);
+
+    nsecs_t lastDequeueTime = mSurface->getLastDequeueStartTime();
+    ASSERT_LE(before, lastDequeueTime);
+    ASSERT_GE(after, lastDequeueTime);
+}
+
 class FakeConsumer : public BnConsumerListener {
 public:
     void onFrameAvailable(const BufferItem& /*item*/) override {}
@@ -1568,4 +1584,4 @@ TEST_F(GetFrameTimestampsTest, PresentUnsupportedNoSync) {
     EXPECT_EQ(-1, outDisplayPresentTime);
 }
 
-}
+} // namespace android
