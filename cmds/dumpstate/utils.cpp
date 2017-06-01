@@ -973,7 +973,8 @@ const char *dump_traces() {
                 /* If 3 backtrace dumps fail in a row, consider debuggerd dead. */
                 if (timeout_failures == 3) {
                     dprintf(fd, "too many stack dump failures, skipping...\n");
-                } else if (dump_backtrace_to_file_timeout(pid, fd, 20) == -1) {
+                } else if (dump_backtrace_to_file_timeout(
+                        pid, kDebuggerdNativeBacktrace, 20, fd) == -1) {
                     dprintf(fd, "dumping failed, likely due to a timeout\n");
                     timeout_failures++;
                 } else {
