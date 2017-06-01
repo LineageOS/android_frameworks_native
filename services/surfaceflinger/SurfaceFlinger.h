@@ -705,7 +705,6 @@ private:
 
     mat4 mPreviousColorMatrix;
     mat4 mColorMatrix;
-    bool mHasColorMatrix;
 
     // Static screen stats
     bool mHasPoweredOff;
