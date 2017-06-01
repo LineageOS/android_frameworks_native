@@ -152,7 +152,6 @@ SurfaceFlinger::SurfaceFlinger()
         mPrimaryDispSync("PrimaryDispSync"),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false),
-        mHasColorMatrix(false),
         mHasPoweredOff(false),
         mFrameBuckets(),
         mTotalTime(0),
@@ -4331,8 +4330,6 @@ status_t SurfaceFlinger::captureScreenImplLocked(
         err |= native_window_set_scaling_mode(window, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
         err |= native_window_set_buffers_format(window, HAL_PIXEL_FORMAT_RGBA_8888);
         err |= native_window_set_usage(window, usage);
-        err |= native_window_set_buffers_data_space(window, hw->getWideColorSupport()
-                ? HAL_DATASPACE_DISPLAY_P3 : HAL_DATASPACE_V0_SRGB);
 
         if (err == NO_ERROR) {
             ANativeWindowBuffer* buffer;
@@ -4358,6 +4355,14 @@ status_t SurfaceFlinger::captureScreenImplLocked(
                         renderScreenImplLocked(
                             hw, sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ, true,
                             useIdentityTransform, rotation);
+
+#ifdef USE_HWC2
+                        if (hasWideColorDisplay) {
+                            native_window_set_buffers_data_space(window,
+                                getRenderEngine().usesWideColor() ?
+                                    HAL_DATASPACE_DISPLAY_P3 : HAL_DATASPACE_V0_SRGB);
+                        }
+#endif
 
                         // Attempt to create a sync khr object that can produce a sync point. If that
                         // isn't available, create a non-dupable sync object in the fallback path and
