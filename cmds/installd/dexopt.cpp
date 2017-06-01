@@ -1880,8 +1880,11 @@ bool delete_odex(const char* apk_path, const char* instruction_set, const char* 
     // Derive and delete the app image.
     bool return_value_art = unlink_and_check(create_image_filename(out_path).c_str());
 
+    // Derive and delete the vdex file.
+    bool return_value_vdex = unlink_and_check(create_vdex_filename(out_path).c_str());
+
     // Report success.
-    return return_value_oat && return_value_art;
+    return return_value_oat && return_value_art && return_value_vdex;
 }
 
 }  // namespace installd
