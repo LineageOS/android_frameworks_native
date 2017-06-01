@@ -95,6 +95,9 @@ void dvrBufferDestroy(DvrBuffer* buffer);
 int dvrBufferGetAHardwareBuffer(DvrBuffer* buffer,
                                 AHardwareBuffer** hardware_buffer);
 
+// Retrieve the shared buffer layout version defined in dvr_shared_buffers.h.
+int dvrBufferGlobalLayoutVersionGet();
+
 // TODO(eieio): Switch to return int and take an out parameter for the native
 // handle.
 const struct native_handle* dvrBufferGetNativeHandle(DvrBuffer* buffer);

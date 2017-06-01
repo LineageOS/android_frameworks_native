@@ -145,6 +145,7 @@ typedef const struct native_handle* (*DvrReadBufferGetNativeHandlePtr)(
 typedef void (*DvrBufferDestroyPtr)(DvrBuffer* buffer);
 typedef int (*DvrBufferGetAHardwareBufferPtr)(
     DvrBuffer* buffer, AHardwareBuffer** hardware_buffer);
+typedef int (*DvrBufferGlobalLayoutVersionGetPtr)();
 typedef const struct native_handle* (*DvrBufferGetNativeHandlePtr)(
     DvrBuffer* buffer);
 
