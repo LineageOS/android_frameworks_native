@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <algorithm>
 #include <errno.h>
 #include <math.h>
 #include <mutex>
@@ -1675,9 +1676,25 @@ void SurfaceFlinger::rebuildLayerStacks() {
     }
 }
 
+mat4 SurfaceFlinger::computeSaturationMatrix() const {
+    if (mSaturation == 1.0f) {
+        return mat4();
+    }
+
+    // Rec.709 luma coefficients
+    float3 luminance{0.213f, 0.715f, 0.072f};
+    luminance *= 1.0f - mSaturation;
+    return mat4(
+        vec4{luminance.r + mSaturation, luminance.r, luminance.r, 0.0f},
+        vec4{luminance.g, luminance.g + mSaturation, luminance.g, 0.0f},
+        vec4{luminance.b, luminance.b, luminance.b + mSaturation, 0.0f},
+        vec4{0.0f, 0.0f, 0.0f, 1.0f}
+    );
+}
+
 // pickColorMode translates a given dataspace into the best available color mode.
 // Currently only support sRGB and Display-P3.
-android_color_mode SurfaceFlinger::pickColorMode(android_dataspace dataSpace) {
+android_color_mode SurfaceFlinger::pickColorMode(android_dataspace dataSpace) const {
     switch (dataSpace) {
         // treat Unknown as regular SRGB buffer, since that's what the rest of the
         // system expects.
@@ -1700,7 +1717,8 @@ android_color_mode SurfaceFlinger::pickColorMode(android_dataspace dataSpace) {
     }
 }
 
-android_dataspace SurfaceFlinger::bestTargetDataSpace(android_dataspace a, android_dataspace b) {
+android_dataspace SurfaceFlinger::bestTargetDataSpace(
+        android_dataspace a, android_dataspace b) const {
     // Only support sRGB and Display-P3 right now.
     if (a == HAL_DATASPACE_DISPLAY_P3 || b == HAL_DATASPACE_DISPLAY_P3) {
         return HAL_DATASPACE_DISPLAY_P3;
@@ -1779,7 +1797,7 @@ void SurfaceFlinger::setUpHWComposer() {
     }
 
 
-    mat4 colorMatrix = mColorMatrix * mDaltonizer();
+    mat4 colorMatrix = mColorMatrix * computeSaturationMatrix() * mDaltonizer();
 
     // Set the per-frame data
     for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
@@ -3916,7 +3934,7 @@ status_t SurfaceFlinger::onTransact(
                 // apply a color matrix
                 n = data.readInt32();
                 if (n) {
-                    // color matrix is sent as a row-major mat4 matrix
+                    // color matrix is sent as a column-major mat4 matrix
                     for (size_t i = 0 ; i < 4; i++) {
                         for (size_t j = 0; j < 4; j++) {
                             mColorMatrix[i][j] = data.readFloat();
@@ -3974,6 +3992,13 @@ status_t SurfaceFlinger::onTransact(
             case 1021: { // Disable HWC virtual displays
                 n = data.readInt32();
                 mUseHwcVirtualDisplays = !n;
+                return NO_ERROR;
+            }
+            case 1022: { // Set saturation boost
+                mSaturation = std::max(0.0f, std::min(data.readFloat(), 2.0f));
+
+                invalidateHwcGeometry();
+                repaintEverything();
                 return NO_ERROR;
             }
         }
