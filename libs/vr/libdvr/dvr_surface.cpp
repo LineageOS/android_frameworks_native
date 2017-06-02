@@ -134,7 +134,7 @@ int dvrSurfaceSetAttributes(DvrSurface* surface,
 int dvrSurfaceCreateWriteBufferQueue(DvrSurface* surface, uint32_t width,
                                      uint32_t height, uint32_t format,
                                      uint32_t layer_count, uint64_t usage,
-                                     size_t capacity,
+                                     size_t capacity, size_t metadata_size,
                                      DvrWriteBufferQueue** out_writer) {
   if (surface == nullptr || out_writer == nullptr) {
     ALOGE(
@@ -145,7 +145,7 @@ int dvrSurfaceCreateWriteBufferQueue(DvrSurface* surface, uint32_t width,
   }
 
   auto status = surface->surface->CreateQueue(width, height, layer_count,
-                                              format, usage, capacity);
+                                              format, usage, capacity, metadata_size);
   if (!status) {
     ALOGE("dvrSurfaceCreateWriteBufferQueue: Failed to create queue: %s",
           status.GetErrorMessage().c_str());

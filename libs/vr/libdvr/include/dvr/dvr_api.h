@@ -199,7 +199,7 @@ typedef int (*DvrSurfaceSetAttributesPtr)(DvrSurface* surface,
                                           size_t attribute_count);
 typedef int (*DvrSurfaceCreateWriteBufferQueuePtr)(
     DvrSurface* surface, uint32_t width, uint32_t height, uint32_t format,
-    uint32_t layer_count, uint64_t usage, size_t capacity,
+    uint32_t layer_count, uint64_t usage, size_t capacity, size_t metadata_size,
     DvrWriteBufferQueue** queue_out);
 
 // dvr_vsync.h

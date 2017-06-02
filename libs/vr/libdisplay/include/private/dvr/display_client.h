@@ -39,7 +39,8 @@ class Surface : public pdx::ClientBase<Surface> {
   // Creates an empty queue.
   pdx::Status<std::unique_ptr<ProducerQueue>> CreateQueue(uint32_t width,
                                                           uint32_t height,
-                                                          uint32_t format);
+                                                          uint32_t format,
+                                                          size_t metadata_size);
 
   // Creates a queue and populates it with |capacity| buffers of the specified
   // parameters.
@@ -48,7 +49,8 @@ class Surface : public pdx::ClientBase<Surface> {
                                                           uint32_t layer_count,
                                                           uint32_t format,
                                                           uint64_t usage,
-                                                          size_t capacity);
+                                                          size_t capacity,
+                                                          size_t metadata_size);
 
  private:
   friend BASE;
