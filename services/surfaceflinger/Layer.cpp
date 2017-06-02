@@ -401,6 +401,10 @@ Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
     Transform t = getTransform();
     win = t.transform(win);
 
+    if (!s.finalCrop.isEmpty()) {
+        win.intersect(s.finalCrop, &win);
+    }
+
     const sp<Layer>& p = getParent();
     // Now we need to calculate the parent bounds, so we can clip ourselves to those.
     // When calculating the parent bounds for purposes of clipping,
@@ -2563,7 +2567,25 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
     }
 
     for (const sp<Layer>& child : mCurrentChildren) {
-        newParent->addChild(child);
+        // We don't call addChild as we need to delay updating the child's parent pointer until
+        // a transaction occurs. Remember a refresh could occur in between now and the next
+        // transaction, in which case the Layer's parent pointer would be updated, but changes
+        // made to the parent in the same transaction would not have applied.
+        // This means that the following kind of scenario wont work:
+        //
+        // 1. Existing and visible child and parent surface exist
+        // 2. Create new surface hidden
+        // 3. Open transaction
+        // 4. Show the new surface, and reparent the old surface's children to it.
+        // 5. Close transaction.
+        //
+        // If we were to update the parent pointer immediately, then the child surface
+        // could disappear for one frame as it pointed at the new parent which
+        // hasn't yet become visible as the transaction hasn't yet occurred.
+        //
+        // Instead we defer the reparenting to commitChildList which happens as part
+        // of the global transaction.
+        newParent->mCurrentChildren.add(child);
 
         sp<Client> client(child->mClientRef.promote());
         if (client != nullptr) {
@@ -2733,6 +2755,8 @@ uint8_t Layer::getAlpha() const {
 void Layer::commitChildList() {
     for (size_t i = 0; i < mCurrentChildren.size(); i++) {
         const auto& child = mCurrentChildren[i];
+        child->setParent(this);
+
         child->commitChildList();
     }
     mDrawingChildren = mCurrentChildren;
