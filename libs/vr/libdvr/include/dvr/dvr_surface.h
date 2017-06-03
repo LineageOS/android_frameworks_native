@@ -76,7 +76,7 @@ int dvrSurfaceSetAttributes(DvrSurface* surface,
 int dvrSurfaceCreateWriteBufferQueue(DvrSurface* surface, uint32_t width,
                                      uint32_t height, uint32_t format,
                                      uint32_t layer_count, uint64_t usage,
-                                     size_t capacity,
+                                     size_t capacity, size_t metadata_size,
                                      DvrWriteBufferQueue** queue_out);
 
 // Get a global buffer from the display service.
