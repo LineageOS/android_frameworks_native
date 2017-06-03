@@ -86,6 +86,7 @@ static const char* native_processes_to_dump[] = {
         "/system/bin/sdcard",
         "/system/bin/surfaceflinger",
         "/system/bin/vehicle_network_service",
+        "/vendor/bin/hw/android.hardware.media.omx@1.0-service", // media.codec
         NULL,
 };
 
