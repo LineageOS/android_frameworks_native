@@ -326,6 +326,7 @@ private:
     hwc2_display_t mDisplayId;
     Device& mDevice;
     hwc2_layer_t mId;
+    android_dataspace mDataSpace = HAL_DATASPACE_UNKNOWN;
 };
 
 } // namespace HWC2

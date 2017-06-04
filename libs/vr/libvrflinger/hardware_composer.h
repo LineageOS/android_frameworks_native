@@ -17,7 +17,7 @@
 #include <tuple>
 #include <vector>
 
-#include <dvr/dvr_vrflinger_config.h>
+#include <dvr/dvr_config.h>
 #include <dvr/dvr_vsync.h>
 #include <pdx/file_handle.h>
 #include <pdx/rpc/variant.h>
@@ -452,10 +452,10 @@ class HardwareComposer {
   std::unique_ptr<CPUMappedBroadcastRing<DvrVsyncRing>> vsync_ring_;
 
   // Broadcast ring for receiving config data from the DisplayManager.
-  DvrVrFlingerConfigRing shared_config_ring_;
+  DvrConfigRing shared_config_ring_;
   uint32_t shared_config_ring_sequence_{0};
   // Config buffer for reading from the post thread.
-  DvrVrFlingerConfig post_thread_config_;
+  DvrConfig post_thread_config_;
   std::mutex shared_config_mutex_;
 
   static constexpr int kPostThreadInterrupted = 1;

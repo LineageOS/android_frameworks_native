@@ -58,11 +58,12 @@ Status<UniqueDvrSurface> CreateApplicationSurface(bool visible = false,
 
 Status<UniqueDvrWriteBufferQueue> CreateSurfaceQueue(
     const UniqueDvrSurface& surface, uint32_t width, uint32_t height,
-    uint32_t format, uint32_t layer_count, uint64_t usage, size_t capacity) {
+    uint32_t format, uint32_t layer_count, uint64_t usage, size_t capacity,
+    size_t metadata_size) {
   DvrWriteBufferQueue* queue;
-  const int ret =
-      dvrSurfaceCreateWriteBufferQueue(surface.get(), width, height, format,
-                                       layer_count, usage, capacity, &queue);
+  const int ret = dvrSurfaceCreateWriteBufferQueue(
+      surface.get(), width, height, format, layer_count, usage, capacity,
+      metadata_size, &queue);
   if (ret < 0)
     return ErrorStatus(-ret);
   else
@@ -505,7 +506,7 @@ TEST_F(DvrDisplayManagerTest, SurfaceQueueEvent) {
   // Create a new queue in the surface.
   auto write_queue_status = CreateSurfaceQueue(
       surface, 320, 240, AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM, 1,
-      AHARDWAREBUFFER_USAGE_CPU_READ_RARELY, 1);
+      AHARDWAREBUFFER_USAGE_CPU_READ_RARELY, 1, 0);
   ASSERT_STATUS_OK(write_queue_status);
   UniqueDvrWriteBufferQueue write_queue = write_queue_status.take();
   ASSERT_NE(nullptr, write_queue.get());
@@ -568,7 +569,7 @@ TEST_F(DvrDisplayManagerTest, MultiLayerBufferQueue) {
   const uint32_t kLayerCount = 3;
   auto write_queue_status = CreateSurfaceQueue(
       surface, 320, 240, AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM, kLayerCount,
-      AHARDWAREBUFFER_USAGE_CPU_READ_RARELY, 1);
+      AHARDWAREBUFFER_USAGE_CPU_READ_RARELY, 1, 0);
   ASSERT_STATUS_OK(write_queue_status);
   UniqueDvrWriteBufferQueue write_queue = write_queue_status.take();
   ASSERT_NE(nullptr, write_queue.get());
