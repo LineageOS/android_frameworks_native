@@ -22,6 +22,11 @@ using android::pdx::Transaction;
 
 namespace android {
 namespace dvr {
+namespace {
+
+typedef CPUMappedBroadcastRing<DvrPoseRing> SensorPoseRing;
+
+}  // namespace
 
 // PoseClient is a remote interface to the pose service in sensord.
 class PoseClient : public pdx::ClientBase<PoseClient> {
@@ -36,16 +41,21 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
   // Polls the pose service for the current state and stores it in *state.
   // Returns zero on success, a negative error code otherwise.
   int Poll(DvrPose* state) {
-    const auto vsync_buffer = GetVsyncBuffer();
-    if (vsync_buffer) {
-      if (state) {
-        // Fill the state
-        *state = vsync_buffer->current_pose;
-      }
-      return -EINVAL;
+    // Allocate the helper class to access the sensor pose buffer.
+    if (sensor_pose_buffer_ == nullptr) {
+      sensor_pose_buffer_ = std::make_unique<SensorPoseRing>(
+          DvrGlobalBuffers::kSensorPoseBuffer, CPUUsageMode::READ_RARELY);
     }
 
-    return -EAGAIN;
+    if (state) {
+      if (sensor_pose_buffer_->GetNewest(state)) {
+        return 0;
+      } else {
+        return -EAGAIN;
+      }
+    }
+
+    return -EINVAL;
   }
 
   int GetPose(uint32_t vsync_count, DvrPoseAsync* out_pose) {
@@ -234,6 +244,9 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
 
   // The vsync pose buffer if already mapped.
   std::unique_ptr<CPUMappedBuffer> vsync_pose_buffer_;
+
+  // The direct sensor pose buffer.
+  std::unique_ptr<SensorPoseRing> sensor_pose_buffer_;
 
   const DvrVsyncPoseBuffer* mapped_vsync_pose_buffer_ = nullptr;
 
