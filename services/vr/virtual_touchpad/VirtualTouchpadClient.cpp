@@ -60,6 +60,13 @@ class VirtualTouchpadClientImpl : public VirtualTouchpadClient {
     return service_->buttonState(touchpad, buttons).transactionError();
   }
 
+  status_t Scroll(int touchpad, float x, float y) override {
+    if (service_ == nullptr) {
+      return NO_INIT;
+    }
+    return service_->scroll(touchpad, x, y).transactionError();
+  }
+
   void dumpInternal(String8& result) override {
     result.append("[virtual touchpad]\n");
     result.appendFormat("connected = %s\n\n",

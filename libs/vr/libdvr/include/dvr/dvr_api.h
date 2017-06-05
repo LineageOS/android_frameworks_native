@@ -238,6 +238,8 @@ typedef int (*DvrVirtualTouchpadTouchPtr)(DvrVirtualTouchpad* client,
                                           float pressure);
 typedef int (*DvrVirtualTouchpadButtonStatePtr)(DvrVirtualTouchpad* client,
                                                 int touchpad, int buttons);
+typedef int (*DvrVirtualTouchpadScrollPtr)(DvrVirtualTouchpad* client,
+                                           int touchpad, float x, float y);
 
 // dvr_hardware_composer_client.h
 typedef struct DvrHwcClient DvrHwcClient;
