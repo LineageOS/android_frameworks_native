@@ -39,6 +39,9 @@
     <!-- device administration -->
     <feature name="android.software.device_admin" />
 
+    <!-- input management and third-party input method editors -->
+    <feature name="android.software.input_methods" />
+
     <!-- devices with GPS must include device/google/clockwork/gps.xml -->
     <!-- devices with an autofocus camera and/or flash must include either
          android.hardware.camera.autofocus.xml or
