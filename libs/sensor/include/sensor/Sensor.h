@@ -90,6 +90,7 @@ public:
     uint32_t getFlags() const;
     bool isWakeUpSensor() const;
     bool isDynamicSensor() const;
+    bool isDataInjectionSupported() const;
     bool hasAdditionalInfo() const;
     int32_t getHighestDirectReportRateLevel() const;
     bool isDirectChannelTypeSupported(int32_t sharedMemType) const;
