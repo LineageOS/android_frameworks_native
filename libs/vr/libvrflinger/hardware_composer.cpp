@@ -481,9 +481,9 @@ void HardwareComposer::OnDeletedGlobalBuffer(DvrGlobalBufferKey key) {
 
 int HardwareComposer::MapConfigBuffer(IonBuffer& ion_buffer) {
   std::lock_guard<std::mutex> lock(shared_config_mutex_);
-  shared_config_ring_ = DvrVrFlingerConfigRing();
+  shared_config_ring_ = DvrConfigRing();
 
-  if (ion_buffer.width() < DvrVrFlingerConfigRing::MemorySize()) {
+  if (ion_buffer.width() < DvrConfigRing::MemorySize()) {
     ALOGE("HardwareComposer::MapConfigBuffer: invalid buffer size.");
     return -EINVAL;
   }
@@ -497,8 +497,7 @@ int HardwareComposer::MapConfigBuffer(IonBuffer& ion_buffer) {
     return -EPERM;
   }
 
-  shared_config_ring_ =
-      DvrVrFlingerConfigRing::Create(buffer_base, ion_buffer.width());
+  shared_config_ring_ = DvrConfigRing::Create(buffer_base, ion_buffer.width());
   ion_buffer.Unlock();
 
   return 0;
@@ -506,7 +505,7 @@ int HardwareComposer::MapConfigBuffer(IonBuffer& ion_buffer) {
 
 void HardwareComposer::ConfigBufferDeleted() {
   std::lock_guard<std::mutex> lock(shared_config_mutex_);
-  shared_config_ring_ = DvrVrFlingerConfigRing();
+  shared_config_ring_ = DvrConfigRing();
 }
 
 void HardwareComposer::UpdateConfigBuffer() {
@@ -514,7 +513,7 @@ void HardwareComposer::UpdateConfigBuffer() {
   if (!shared_config_ring_.is_valid())
     return;
   // Copy from latest record in shared_config_ring_ to local copy.
-  DvrVrFlingerConfig record;
+  DvrConfig record;
   if (shared_config_ring_.GetNewest(&shared_config_ring_sequence_, &record)) {
     post_thread_config_ = record;
   }

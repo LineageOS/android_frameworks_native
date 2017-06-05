@@ -59,24 +59,20 @@ std::string decodeStandard(android_dataspace dataspace) {
         case 0:
             switch (dataspace & 0xffff) {
                 case HAL_DATASPACE_JFIF:
-                    return std::string("(deprecated) JFIF (BT601_625, SMPTE_170M Full range)");
+                    return std::string("(deprecated) JFIF (BT601_625)");
 
                 case HAL_DATASPACE_BT601_625:
-                    return std::string("(deprecated) BT601_625 (BT601_625, SMPTE_170M Limited "
-                                       "range)");
+                    return std::string("(deprecated) BT601_625");
 
                 case HAL_DATASPACE_BT601_525:
-                    return std::string("(deprecated) BT601_525 (BT601_525, SMPTE_170M Limited "
-                                       "range)");
+                    return std::string("(deprecated) BT601_525");
 
                 case HAL_DATASPACE_SRGB_LINEAR:
-                    return std::string("(deprecated) SRGB Linear Full range");
-
                 case HAL_DATASPACE_SRGB:
                     return std::string("(deprecated) sRGB");
 
                 case HAL_DATASPACE_V0_BT709:
-                    return std::string("(deprecated) BT709 (BT709, SMPTE_170M Limited range)");
+                    return std::string("(deprecated) BT709");
 
                 case HAL_DATASPACE_ARBITRARY:
                     return std::string("ARBITRARY");
@@ -93,6 +89,29 @@ std::string decodeStandard(android_dataspace dataspace) {
 }
 
 std::string decodeTransfer(android_dataspace dataspace) {
+    const uint32_t dataspaceSelect = (dataspace & HAL_DATASPACE_STANDARD_MASK);
+    if (dataspaceSelect == 0) {
+        switch (dataspace & 0xffff) {
+            case HAL_DATASPACE_JFIF:
+            case HAL_DATASPACE_BT601_625:
+            case HAL_DATASPACE_BT601_525:
+            case HAL_DATASPACE_V0_BT709:
+                return std::string("SMPTE_170M");
+
+            case HAL_DATASPACE_SRGB_LINEAR:
+            case HAL_DATASPACE_ARBITRARY:
+                return std::string("Linear");
+
+            case HAL_DATASPACE_SRGB:
+                return std::string("sRGB");
+
+            case HAL_DATASPACE_UNKNOWN:
+            // Fallthrough
+            default:
+                return std::string("");
+        }
+    }
+
     const uint32_t dataspaceTransfer = (dataspace & HAL_DATASPACE_TRANSFER_MASK);
     switch (dataspaceTransfer) {
         case HAL_DATASPACE_TRANSFER_UNSPECIFIED:
@@ -127,6 +146,27 @@ std::string decodeTransfer(android_dataspace dataspace) {
 }
 
 std::string decodeRange(android_dataspace dataspace) {
+    const uint32_t dataspaceSelect = (dataspace & HAL_DATASPACE_STANDARD_MASK);
+    if (dataspaceSelect == 0) {
+        switch (dataspace & 0xffff) {
+            case HAL_DATASPACE_JFIF:
+            case HAL_DATASPACE_SRGB_LINEAR:
+            case HAL_DATASPACE_SRGB:
+                return std::string("Full range");
+
+            case HAL_DATASPACE_BT601_625:
+            case HAL_DATASPACE_BT601_525:
+            case HAL_DATASPACE_V0_BT709:
+                return std::string("Limited range)");
+
+            case HAL_DATASPACE_ARBITRARY:
+            case HAL_DATASPACE_UNKNOWN:
+            // Fallthrough
+            default:
+                return std::string("unspecified range");
+        }
+    }
+
     const uint32_t dataspaceRange = (dataspace & HAL_DATASPACE_RANGE_MASK);
     switch (dataspaceRange) {
         case HAL_DATASPACE_RANGE_UNSPECIFIED:

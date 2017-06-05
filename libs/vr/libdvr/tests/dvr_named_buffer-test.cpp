@@ -1,9 +1,9 @@
 #include <android/hardware_buffer.h>
 #include <dvr/dvr_buffer.h>
+#include <dvr/dvr_config.h>
 #include <dvr/dvr_display_manager.h>
 #include <dvr/dvr_shared_buffers.h>
 #include <dvr/dvr_surface.h>
-#include <dvr/dvr_vrflinger_config.h>
 #include <system/graphics.h>
 
 #include <base/logging.h>
@@ -285,8 +285,8 @@ TEST_F(DvrGlobalBufferTest, TestVrflingerConfigBuffer) {
   const uint64_t usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
                          AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY;
 
-  size_t correct_size = DvrVrFlingerConfigRing::MemorySize();
-  size_t wrong_size = DvrVrFlingerConfigRing::MemorySize(0);
+  size_t correct_size = DvrConfigRing::MemorySize();
+  size_t wrong_size = DvrConfigRing::MemorySize(0);
 
   // Setup an invalid config buffer (too small) and assert that it fails.
   DvrBuffer* setup_buffer = nullptr;

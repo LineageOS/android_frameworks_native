@@ -511,8 +511,10 @@ private:
 
     // Given a dataSpace, returns the appropriate color_mode to use
     // to display that dataSpace.
-    android_color_mode pickColorMode(android_dataspace dataSpace);
-    android_dataspace bestTargetDataSpace(android_dataspace a, android_dataspace b);
+    android_color_mode pickColorMode(android_dataspace dataSpace) const;
+    android_dataspace bestTargetDataSpace(android_dataspace a, android_dataspace b) const;
+
+    mat4 computeSaturationMatrix() const;
 
     void setUpHWComposer();
     void doComposition();
@@ -747,7 +749,9 @@ private:
     std::atomic<bool> mVrFlingerRequestsDisplay;
     static bool useVrFlinger;
 #endif
-    };
+
+    float mSaturation = 1.0f;
+};
 }; // namespace android
 
 #endif // ANDROID_SURFACE_FLINGER_H

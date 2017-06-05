@@ -134,7 +134,10 @@ int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence) {
     if (!buffer) return BAD_VALUE;
 
     GraphicBuffer* gBuffer = AHardwareBuffer_to_GraphicBuffer(buffer);
-    return gBuffer->unlockAsync(fence);
+    if (fence == nullptr)
+        return gBuffer->unlock();
+    else
+        return gBuffer->unlockAsync(fence);
 }
 
 int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int socketFd) {

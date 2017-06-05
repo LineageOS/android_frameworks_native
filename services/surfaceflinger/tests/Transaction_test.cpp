@@ -834,6 +834,38 @@ TEST_F(ChildLayerTest, ChildLayerPositioning) {
     }
 }
 
+TEST_F(ChildLayerTest, ChildLayerCropping) {
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->show();
+    mChild->setPosition(0, 0);
+    mFGSurfaceControl->setPosition(0, 0);
+    mFGSurfaceControl->setCrop(Rect(0, 0, 5, 5));
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->expectChildColor(0, 0);
+        mCapture->expectChildColor(4, 4);
+        mCapture->expectBGColor(5, 5);
+    }
+}
+
+TEST_F(ChildLayerTest, ChildLayerFinalCropping) {
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->show();
+    mChild->setPosition(0, 0);
+    mFGSurfaceControl->setPosition(0, 0);
+    mFGSurfaceControl->setFinalCrop(Rect(0, 0, 5, 5));
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->expectChildColor(0, 0);
+        mCapture->expectChildColor(4, 4);
+        mCapture->expectBGColor(5, 5);
+    }
+}
+
 TEST_F(ChildLayerTest, ChildLayerConstraints) {
     SurfaceComposerClient::openGlobalTransaction();
     mChild->show();

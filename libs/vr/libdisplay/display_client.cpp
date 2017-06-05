@@ -106,13 +106,15 @@ Status<void> Surface::SetAttributes(const SurfaceAttributes& attributes) {
 
 Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(uint32_t width,
                                                             uint32_t height,
-                                                            uint32_t format) {
+                                                            uint32_t format,
+                                                            size_t metadata_size) {
   ALOGD_IF(TRACE, "Surface::CreateQueue: Creating empty queue.");
   auto status = InvokeRemoteMethod<DisplayProtocol::CreateQueue>(
       ProducerQueueConfigBuilder()
           .SetDefaultWidth(width)
           .SetDefaultHeight(height)
           .SetDefaultFormat(format)
+          .SetMetadataSize(metadata_size)
           .Build());
   if (!status) {
     ALOGE("Surface::CreateQueue: Failed to create queue: %s",
@@ -131,12 +133,12 @@ Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(uint32_t width,
 
 Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(
     uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
-    uint64_t usage, size_t capacity) {
+    uint64_t usage, size_t capacity, size_t metadata_size) {
   ALOGD_IF(TRACE,
            "Surface::CreateQueue: width=%u height=%u layer_count=%u format=%u "
            "usage=%" PRIx64 " capacity=%zu",
            width, height, layer_count, format, usage, capacity);
-  auto status = CreateQueue(width, height, format);
+  auto status = CreateQueue(width, height, format, metadata_size);
   if (!status)
     return status.error_status();
 
