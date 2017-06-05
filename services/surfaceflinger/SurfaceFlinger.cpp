@@ -1315,11 +1315,21 @@ void SurfaceFlinger::updateVrFlinger() {
     // parts of this class rely on the primary display always being available.
     createDefaultDisplayDevice();
 
-    // Reset the timing values to account for the period of the swapped in HWC
-    const auto& activeConfig = mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
-    const nsecs_t period = activeConfig->getVsyncPeriod();
-    mAnimFrameTracker.setDisplayRefreshPeriod(period);
-    setCompositorTimingSnapped(0, period, 0);
+    // Re-enable default display.
+    sp<LambdaMessage> requestMessage = new LambdaMessage([&]() {
+        sp<DisplayDevice> hw(getDisplayDevice(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]));
+        setPowerModeInternal(hw, HWC_POWER_MODE_NORMAL);
+
+        // Reset the timing values to account for the period of the swapped in HWC
+        const auto& activeConfig = mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
+        const nsecs_t period = activeConfig->getVsyncPeriod();
+        mAnimFrameTracker.setDisplayRefreshPeriod(period);
+
+        // Use phase of 0 since phase is not known.
+        // Use latency of 0, which will snap to the ideal latency.
+        setCompositorTimingSnapped(0, period, 0);
+    });
+    postMessageAsync(requestMessage);
 
     android_atomic_or(1, &mRepaintEverything);
     setTransactionFlags(eDisplayTransactionNeeded);
