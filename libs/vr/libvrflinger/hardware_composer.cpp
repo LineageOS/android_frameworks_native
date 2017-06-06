@@ -429,7 +429,7 @@ void HardwareComposer::PostLayers() {
     ATRACE_INT("frame_skip_count", 0);
   }
 
-#if TRACE
+#if TRACE > 1
   for (size_t i = 0; i < active_layer_count_; i++) {
     ALOGI("HardwareComposer::PostLayers: layer=%zu buffer_id=%d composition=%s",
           i, layers_[i].GetBufferId(),

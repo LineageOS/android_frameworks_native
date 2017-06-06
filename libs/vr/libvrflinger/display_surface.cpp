@@ -127,7 +127,8 @@ void DisplaySurface::SurfaceUpdated(display::SurfaceUpdateFlags update_flags) {
 }
 
 void DisplaySurface::ClearUpdate() {
-  ALOGD_IF(TRACE, "DisplaySurface::ClearUpdate: surface_id=%d", surface_id());
+  ALOGD_IF(TRACE > 1, "DisplaySurface::ClearUpdate: surface_id=%d",
+           surface_id());
   update_flags_ = display::SurfaceUpdateFlags::None;
 }
 
@@ -333,7 +334,7 @@ void DirectDisplaySurface::DequeueBuffersLocked() {
     auto buffer_status = direct_queue_->Dequeue(0, &slot, &acquire_fence);
     if (!buffer_status) {
       ALOGD_IF(
-          TRACE && buffer_status.error() == ETIMEDOUT,
+          TRACE > 1 && buffer_status.error() == ETIMEDOUT,
           "DirectDisplaySurface::DequeueBuffersLocked: All buffers dequeued.");
       ALOGE_IF(buffer_status.error() != ETIMEDOUT,
                "DirectDisplaySurface::DequeueBuffersLocked: Failed to dequeue "
