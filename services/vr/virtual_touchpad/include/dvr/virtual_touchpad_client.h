@@ -61,6 +61,17 @@ int dvrVirtualTouchpadTouch(DvrVirtualTouchpad* client, int touchpad, float x,
 int dvrVirtualTouchpadButtonState(DvrVirtualTouchpad* client, int touchpad,
                                   int buttons);
 
+// Generate a simulated scroll event.
+//
+// @param client Pointer to the virtual touchpad client.
+// @param touchpad Selects touchpad.
+// @param x Horizontal scroll increment.
+// @param y Vertical scroll increment.
+// @return Zero on success, status_t-style error code on failure.
+//
+int dvrVirtualTouchpadScroll(DvrVirtualTouchpad* client, int touchpad, float x,
+                             float y);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

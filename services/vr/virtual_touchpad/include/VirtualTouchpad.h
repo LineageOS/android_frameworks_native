@@ -61,6 +61,16 @@ class VirtualTouchpad {
   //
   virtual status_t ButtonState(int touchpad, int buttons) = 0;
 
+  // Generate a simulated scroll event.
+  //
+  // @param touchpad Touchpad selector index.
+  // @param x Horizontal scroll increment.
+  // @param y Vertical scroll increment.
+  //            Values must be in the range [-1.0, 1.0].
+  // @returns OK on success.
+  //
+  virtual status_t Scroll(int touchpad, float x, float y) = 0;
+
   // Report state for 'dumpsys'.
   virtual void dumpInternal(String8& result) = 0;
 

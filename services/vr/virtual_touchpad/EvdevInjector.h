@@ -30,6 +30,7 @@ class EvdevInjector {
     ERROR_KEY_RANGE = -3,       // |KEY_*|/|BTN_*| code out of range.
     ERROR_ABS_RANGE = -4,       // |ABS_*| code out of range.
     ERROR_SEQUENCING = -5,      // Configure/Send out of order.
+    ERROR_REL_RANGE = -6,       // |REL_*| code out of range.
   };
 
   // Key event |value| is not defined in <linux/input.h>.
@@ -87,6 +88,10 @@ class EvdevInjector {
   // Configure multitouch coordinate range.
   int ConfigureMultiTouchXY(int32_t x0, int32_t y0, int32_t x1, int32_t y1);
 
+  // Configure a relative axis.
+  // @param rel_type One of the |REL_*| constants from <linux/input.h>.
+  int ConfigureRel(uint16_t rel_type);
+
   // Complete configuration and create the input device.
   int ConfigureEnd();
 
@@ -96,6 +101,7 @@ class EvdevInjector {
   int SendSynReport();
   int SendKey(uint16_t code, int32_t value);
   int SendAbs(uint16_t code, int32_t value);
+  int SendRel(uint16_t code, int32_t value);
   int SendMultiTouchSlot(int32_t slot);
   int SendMultiTouchXY(int32_t slot, int32_t id, int32_t x, int32_t y);
   int SendMultiTouchLift(int32_t slot);
