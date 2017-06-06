@@ -921,7 +921,11 @@ status_t BufferQueueProducer::queueBuffer(int slot,
 
     // Call back without the main BufferQueue lock held, but with the callback
     // lock held so we can ensure that callbacks occur in order
-    {
+
+    int connectedApi;
+    sp<Fence> lastQueuedFence;
+
+    { // scope for the lock
         Mutex::Autolock lock(mCallbackMutex);
         while (callbackTicket != mCurrentCallbackTicket) {
             mCallbackCondition.wait(mCallbackMutex);
@@ -933,20 +937,24 @@ status_t BufferQueueProducer::queueBuffer(int slot,
             frameReplacedListener->onFrameReplaced(item);
         }
 
+        connectedApi = mCore->mConnectedApi;
+        lastQueuedFence = std::move(mLastQueueBufferFence);
+
+        mLastQueueBufferFence = std::move(fence);
+        mLastQueuedCrop = item.mCrop;
+        mLastQueuedTransform = item.mTransform;
+
         ++mCurrentCallbackTicket;
         mCallbackCondition.broadcast();
     }
 
     // Wait without lock held
-    if (mCore->mConnectedApi == NATIVE_WINDOW_API_EGL) {
+    if (connectedApi == NATIVE_WINDOW_API_EGL) {
         // Waiting here allows for two full buffers to be queued but not a
         // third. In the event that frames take varying time, this makes a
         // small trade-off in favor of latency rather than throughput.
-        mLastQueueBufferFence->waitForever("Throttling EGL Production");
+        lastQueuedFence->waitForever("Throttling EGL Production");
     }
-    mLastQueueBufferFence = fence;
-    mLastQueuedCrop = item.mCrop;
-    mLastQueuedTransform = item.mTransform;
 
     return NO_ERROR;
 }
