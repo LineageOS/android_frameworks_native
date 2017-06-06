@@ -1214,7 +1214,7 @@ Dex2oatFileWrapper maybe_open_reference_profile(const std::string& pkgname,
 // out_vdex_wrapper_fd. Returns true for success or false in case of errors.
 bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_needed,
         const char* instruction_set, bool is_public, int uid, bool is_secondary_dex,
-        Dex2oatFileWrapper* in_vdex_wrapper_fd,
+        bool profile_guided, Dex2oatFileWrapper* in_vdex_wrapper_fd,
         Dex2oatFileWrapper* out_vdex_wrapper_fd) {
     CHECK(in_vdex_wrapper_fd != nullptr);
     CHECK(out_vdex_wrapper_fd != nullptr);
@@ -1224,6 +1224,14 @@ bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_
     int dexopt_action = abs(dexopt_needed);
     bool is_odex_location = dexopt_needed < 0;
     std::string in_vdex_path_str;
+
+    // Infer the name of the output VDEX.
+    const std::string out_vdex_path_str = create_vdex_filename(out_oat_path);
+    if (out_vdex_path_str.empty()) {
+        return false;
+    }
+
+    bool update_vdex_in_place = false;
     if (dexopt_action != DEX2OAT_FROM_SCRATCH) {
         // Open the possibly existing vdex. If none exist, we pass -1 to dex2oat for input-vdex-fd.
         const char* path = nullptr;
@@ -1242,21 +1250,48 @@ bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_
             ALOGE("installd cannot compute input vdex location for '%s'\n", path);
             return false;
         }
-        in_vdex_wrapper_fd->reset(open(in_vdex_path_str.c_str(), O_RDONLY, 0));
+        // We can update in place when all these conditions are met:
+        // 1) The vdex location to write to is the same as the vdex location to read (vdex files
+        //    on /system typically cannot be updated in place).
+        // 2) We dex2oat due to boot image change, because we then know the existing vdex file
+        //    cannot be currently used by a running process.
+        // 3) We are not doing a profile guided compilation, because dexlayout requires two
+        //    different vdex files to operate.
+        update_vdex_in_place =
+            (in_vdex_path_str == out_vdex_path_str) &&
+            (dexopt_action == DEX2OAT_FOR_BOOT_IMAGE) &&
+            !profile_guided;
+        if (update_vdex_in_place) {
+            // Open the file read-write to be able to update it.
+            in_vdex_wrapper_fd->reset(open(in_vdex_path_str.c_str(), O_RDWR, 0));
+            if (in_vdex_wrapper_fd->get() == -1) {
+                // If we failed to open the file, we cannot update it in place.
+                update_vdex_in_place = false;
+            }
+        } else {
+            in_vdex_wrapper_fd->reset(open(in_vdex_path_str.c_str(), O_RDONLY, 0));
+        }
     }
 
-    // Infer the name of the output VDEX and create it.
-    const std::string out_vdex_path_str = create_vdex_filename(out_oat_path);
-    if (out_vdex_path_str.empty()) {
-        return false;
-    }
-
-    out_vdex_wrapper_fd->reset(
-          open_output_file(out_vdex_path_str.c_str(), /*recreate*/true, /*permissions*/0644),
-          [out_vdex_path_str]() { unlink(out_vdex_path_str.c_str()); });
-    if (out_vdex_wrapper_fd->get() < 0) {
-        ALOGE("installd cannot open vdex'%s' during dexopt\n", out_vdex_path_str.c_str());
-        return false;
+    // If we are updating the vdex in place, we do not need to recreate a vdex,
+    // and can use the same existing one.
+    if (update_vdex_in_place) {
+        // We unlink the file in case the invocation of dex2oat fails, to ensure we don't
+        // have bogus stale vdex files.
+        out_vdex_wrapper_fd->reset(
+              in_vdex_wrapper_fd->get(),
+              [out_vdex_path_str]() { unlink(out_vdex_path_str.c_str()); });
+        // Disable auto close for the in wrapper fd (it will be done when destructing the out
+        // wrapper).
+        in_vdex_wrapper_fd->DisableAutoClose();
+    } else {
+        out_vdex_wrapper_fd->reset(
+              open_output_file(out_vdex_path_str.c_str(), /*recreate*/true, /*permissions*/0644),
+              [out_vdex_path_str]() { unlink(out_vdex_path_str.c_str()); });
+        if (out_vdex_wrapper_fd->get() < 0) {
+            ALOGE("installd cannot open vdex'%s' during dexopt\n", out_vdex_path_str.c_str());
+            return false;
+        }
     }
     if (!set_permissions_and_ownership(out_vdex_wrapper_fd->get(), is_public, uid,
             out_vdex_path_str.c_str(), is_secondary_dex)) {
@@ -1568,7 +1603,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     Dex2oatFileWrapper in_vdex_fd;
     Dex2oatFileWrapper out_vdex_fd;
     if (!open_vdex_files(dex_path, out_oat_path, dexopt_needed, instruction_set, is_public, uid,
-            is_secondary_dex, &in_vdex_fd, &out_vdex_fd)) {
+            is_secondary_dex, profile_guided, &in_vdex_fd, &out_vdex_fd)) {
         return -1;
     }
 
