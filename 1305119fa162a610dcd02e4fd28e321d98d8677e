@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da87b5cf_2f22e8b9",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 203,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2017-06-06T14:38:27Z",
+      "side": 1,
+      "message": "You can remove the macros because this is only compiled if TARGET_USES_HWC2 flag is true: \n\nhttps://github.com/LineageOS/android_frameworks_native/blob/cm-14.1/services/surfaceflinger/Android.mk#L55-L64",
+      "range": {
+        "startLine": 203,
+        "startChar": 4,
+        "endLine": 203,
+        "endChar": 48
+      },
+      "revId": "1305119fa162a610dcd02e4fd28e321d98d8677e",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
