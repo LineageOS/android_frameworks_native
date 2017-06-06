@@ -122,7 +122,7 @@ int DvrWriteBufferQueue::Dequeue(int timeout, DvrWriteBuffer* write_buffer,
     }
 
     auto allocate_status = producer_queue_->AllocateBuffer(
-        width_, height_, old_layer_count, format_, old_usage, &slot);
+        width_, height_, old_layer_count, format_, old_usage);
     if (!allocate_status) {
       ALOGE("DvrWriteBufferQueue::Dequeue: Failed to allocate buffer: %s",
             allocate_status.GetErrorMessage().c_str());

@@ -442,46 +442,78 @@ ProducerQueue::ProducerQueue(const ProducerQueueConfig& config,
   SetupQueue(status.get());
 }
 
-Status<void> ProducerQueue::AllocateBuffer(uint32_t width, uint32_t height,
-                                           uint32_t layer_count,
-                                           uint32_t format, uint64_t usage,
-                                           size_t* out_slot) {
-  if (out_slot == nullptr) {
-    ALOGE("ProducerQueue::AllocateBuffer: Parameter out_slot cannot be null.");
-    return ErrorStatus(EINVAL);
-  }
-
-  if (is_full()) {
-    ALOGE("ProducerQueue::AllocateBuffer queue is at maximum capacity: %zu",
-          capacity());
+Status<std::vector<size_t>> ProducerQueue::AllocateBuffers(
+    uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
+    uint64_t usage, size_t buffer_count) {
+  if (capacity() + buffer_count > kMaxQueueCapacity) {
+    ALOGE(
+        "ProducerQueue::AllocateBuffers: queue is at capacity: %zu, cannot "
+        "allocate %zu more buffer(s).",
+        capacity(), buffer_count);
     return ErrorStatus(E2BIG);
   }
 
-  const size_t kBufferCount = 1u;
   Status<std::vector<std::pair<LocalChannelHandle, size_t>>> status =
       InvokeRemoteMethod<BufferHubRPC::ProducerQueueAllocateBuffers>(
-          width, height, layer_count, format, usage, kBufferCount);
+          width, height, layer_count, format, usage, buffer_count);
   if (!status) {
-    ALOGE("ProducerQueue::AllocateBuffer failed to create producer buffer: %s",
+    ALOGE("ProducerQueue::AllocateBuffers: failed to allocate buffers: %s",
           status.GetErrorMessage().c_str());
     return status.error_status();
   }
 
   auto buffer_handle_slots = status.take();
-  LOG_ALWAYS_FATAL_IF(buffer_handle_slots.size() != kBufferCount,
+  LOG_ALWAYS_FATAL_IF(buffer_handle_slots.size() != buffer_count,
                       "BufferHubRPC::ProducerQueueAllocateBuffers should "
-                      "return one and only one buffer handle.");
+                      "return %zu buffer handle(s), but returned %zu instead.",
+                      buffer_count, buffer_handle_slots.size());
 
+  std::vector<size_t> buffer_slots;
+  buffer_slots.reserve(buffer_count);
+
+  // Bookkeeping for each buffer.
+  for (auto& hs : buffer_handle_slots) {
+    auto& buffer_handle = hs.first;
+    size_t buffer_slot = hs.second;
+
+    // Note that import might (though very unlikely) fail. If so, buffer_handle
+    // will be closed and included in returned buffer_slots.
+    if (AddBuffer(BufferProducer::Import(std::move(buffer_handle)),
+                  buffer_slot)) {
+      ALOGD_IF(TRACE, "ProducerQueue::AllocateBuffers: new buffer at slot: %zu",
+               buffer_slot);
+      buffer_slots.push_back(buffer_slot);
+    }
+  }
+
+  if (buffer_slots.size() == 0) {
+    // Error out if no buffer is allocated and improted.
+    ALOGE(TRACE, "ProducerQueue::AllocateBuffers: no buffer allocated.");
+    ErrorStatus(ENOMEM);
+  }
+
+  return {std::move(buffer_slots)};
+}
+
+Status<size_t> ProducerQueue::AllocateBuffer(uint32_t width, uint32_t height,
+                                             uint32_t layer_count,
+                                             uint32_t format, uint64_t usage) {
   // We only allocate one buffer at a time.
-  auto& buffer_handle = buffer_handle_slots[0].first;
-  size_t buffer_slot = buffer_handle_slots[0].second;
-  ALOGD_IF(TRACE,
-           "ProducerQueue::AllocateBuffer, new buffer, channel_handle: %d",
-           buffer_handle.value());
+  constexpr size_t buffer_count = 1;
+  auto status =
+      AllocateBuffers(width, height, layer_count, format, usage, buffer_count);
+  if (!status) {
+    ALOGE("ProducerQueue::AllocateBuffer: Failed to allocate buffer: %s",
+          status.GetErrorMessage().c_str());
+    return status.error_status();
+  }
 
-  *out_slot = buffer_slot;
-  return AddBuffer(BufferProducer::Import(std::move(buffer_handle)),
-                   buffer_slot);
+  if (status.get().size() == 0) {
+    ALOGE(TRACE, "ProducerQueue::AllocateBuffer: no buffer allocated.");
+    ErrorStatus(ENOMEM);
+  }
+
+  return {status.get()[0]};
 }
 
 Status<void> ProducerQueue::AddBuffer(
