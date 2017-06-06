@@ -116,8 +116,6 @@ void DisplayService::OnChannelClose(pdx::Message& message,
     surface->OnSetAttributes(message,
                              {{display::SurfaceAttribute::Visible,
                                display::SurfaceAttributeValue{false}}});
-    SurfaceUpdated(surface->surface_type(),
-                   display::SurfaceUpdateFlags::VisibilityChanged);
   }
 }
 
