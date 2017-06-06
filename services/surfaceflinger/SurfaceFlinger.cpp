@@ -3846,10 +3846,11 @@ status_t SurfaceFlinger::onTransact(
     status_t err = BnSurfaceComposer::onTransact(code, data, reply, flags);
     if (err == UNKNOWN_TRANSACTION || err == PERMISSION_DENIED) {
         CHECK_INTERFACE(ISurfaceComposer, data, reply);
-        if (CC_UNLIKELY(!PermissionCache::checkCallingPermission(sHardwareTest))) {
-            IPCThreadState* ipc = IPCThreadState::self();
+        IPCThreadState* ipc = IPCThreadState::self();
+        const int uid = ipc->getCallingUid();
+        if (CC_UNLIKELY(uid != AID_SYSTEM
+                && !PermissionCache::checkCallingPermission(sHardwareTest))) {
             const int pid = ipc->getCallingPid();
-            const int uid = ipc->getCallingUid();
             ALOGE("Permission Denial: "
                     "can't access SurfaceFlinger pid=%d, uid=%d", pid, uid);
             return PERMISSION_DENIED;

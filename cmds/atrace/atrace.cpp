@@ -117,6 +117,7 @@ static const TracingCategory k_categories[] = {
     { "sched",      "CPU Scheduling",   0, {
         { REQ,      "events/sched/sched_switch/enable" },
         { REQ,      "events/sched/sched_wakeup/enable" },
+        { OPT,      "events/sched/sched_waking/enable" },
         { OPT,      "events/sched/sched_blocked_reason/enable" },
         { OPT,      "events/sched/sched_cpu_hotplug/enable" },
     } },
