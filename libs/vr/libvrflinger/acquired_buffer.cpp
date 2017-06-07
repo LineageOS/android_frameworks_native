@@ -55,9 +55,9 @@ bool AcquiredBuffer::IsAvailable() const {
   if (acquire_fence_) {
     const int ret = sync_wait(acquire_fence_.Get(), 0);
     ALOGD_IF(TRACE || (ret < 0 && errno != ETIME),
-             "AcquiredBuffer::IsAvailable: acquire_fence_=%d sync_wait()=%d "
-             "errno=%d.",
-             acquire_fence_.Get(), ret, ret < 0 ? errno : 0);
+             "AcquiredBuffer::IsAvailable: buffer_id=%d acquire_fence=%d "
+             "sync_wait()=%d errno=%d.",
+             buffer_->id(), acquire_fence_.Get(), ret, ret < 0 ? errno : 0);
     if (ret == 0) {
       // The fence is completed, so to avoid further calls to sync_wait we close
       // it here.
@@ -78,6 +78,8 @@ std::shared_ptr<BufferConsumer> AcquiredBuffer::ClaimBuffer() {
 }
 
 int AcquiredBuffer::Release(LocalHandle release_fence) {
+  ALOGD_IF(TRACE, "AcquiredBuffer::Release: buffer_id=%d release_fence=%d",
+           buffer_ ? buffer_->id() : -1, release_fence.Get());
   if (buffer_) {
     // Close the release fence since we can't transfer it with an async release.
     release_fence.Close();

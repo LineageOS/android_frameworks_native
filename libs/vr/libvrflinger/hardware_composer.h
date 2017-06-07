@@ -127,9 +127,18 @@ class Layer {
     int surface_id = -1;
     pdx::rpc::IfAnyOf<SourceSurface>::Call(
         &source_, [&surface_id](const SourceSurface& surface_source) {
-          surface_id = surface_source.surface->surface_id();
+          surface_id = surface_source.GetSurfaceId();
         });
     return surface_id;
+  }
+
+  int GetBufferId() const {
+    int buffer_id = -1;
+    pdx::rpc::IfAnyOf<SourceSurface>::Call(
+        &source_, [&buffer_id](const SourceSurface& surface_source) {
+          buffer_id = surface_source.GetBufferId();
+        });
+    return buffer_id;
   }
 
  private:
@@ -192,7 +201,15 @@ class Layer {
     }
 
     // Returns the surface id of the surface.
-    int GetSurfaceId() { return surface->surface_id(); }
+    int GetSurfaceId() const { return surface->surface_id(); }
+
+    // Returns the buffer id for the current buffer.
+    int GetBufferId() const {
+      if (acquired_buffer.IsAvailable())
+        return acquired_buffer.buffer()->id();
+      else
+        return -1;
+    }
   };
 
   // State when the layer is connected to a buffer. Provides the same interface
@@ -213,6 +230,7 @@ class Layer {
     IonBuffer* GetBuffer() { return buffer.get(); }
 
     int GetSurfaceId() const { return -1; }
+    int GetBufferId() const { return -1; }
   };
 
   // The underlying hardware composer layer is supplied buffers either from a

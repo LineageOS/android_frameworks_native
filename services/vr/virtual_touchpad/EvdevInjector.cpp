@@ -168,6 +168,25 @@ int EvdevInjector::ConfigureAbsSlots(int slots) {
   return ConfigureAbs(ABS_MT_SLOT, 0, slots, 0, 0);
 }
 
+int EvdevInjector::ConfigureRel(uint16_t rel_type) {
+  ALOGV("ConfigureRel 0x%" PRIX16 "", rel_type);
+  if (rel_type < 0 || rel_type >= REL_CNT) {
+    ALOGE("EV_REL type 0x%" PRIX16 " out of range [0,0x%X)", rel_type, REL_CNT);
+    return Error(ERROR_REL_RANGE);
+  }
+  if (const int status = RequireState(State::CONFIGURING)) {
+    return status;
+  }
+  if (const int status = EnableEventType(EV_REL)) {
+    return status;
+  }
+  if (const int status = uinput_->IoctlSetInt(UI_SET_RELBIT, rel_type)) {
+    ALOGE("failed to enable EV_REL 0x%" PRIX16 "", rel_type);
+    return Error(status);
+  }
+  return 0;
+}
+
 int EvdevInjector::ConfigureEnd() {
   ALOGV("ConfigureEnd:");
   ALOGV("  name=\"%s\"", uidev_.name);
@@ -234,6 +253,10 @@ int EvdevInjector::SendKey(uint16_t code, int32_t value) {
 
 int EvdevInjector::SendAbs(uint16_t code, int32_t value) {
   return Send(EV_ABS, code, value);
+}
+
+int EvdevInjector::SendRel(uint16_t code, int32_t value) {
+  return Send(EV_REL, code, value);
 }
 
 int EvdevInjector::SendMultiTouchSlot(int32_t slot) {

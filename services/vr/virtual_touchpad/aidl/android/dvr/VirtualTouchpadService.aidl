@@ -34,4 +34,15 @@ interface VirtualTouchpadService
    * @param buttons A union of MotionEvent BUTTON_* values.
    */
   void buttonState(int touchpad, int buttons) = 3;
+
+  /**
+   * Generate a simulated scroll event.
+   *
+   * @param touchpad Selects touchpad.
+   * @param x Horizontal scroll increment.
+   * @param y Vertical scroll increment.
+   *
+   * Scroll values are in the range [-1.0, 1.0].
+   */
+  void scroll(int touchpad, float x, float y) = 4;
 }

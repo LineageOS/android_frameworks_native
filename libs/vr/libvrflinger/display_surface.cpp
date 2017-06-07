@@ -127,7 +127,8 @@ void DisplaySurface::SurfaceUpdated(display::SurfaceUpdateFlags update_flags) {
 }
 
 void DisplaySurface::ClearUpdate() {
-  ALOGD_IF(TRACE, "DisplaySurface::ClearUpdate: surface_id=%d", surface_id());
+  ALOGD_IF(TRACE > 1, "DisplaySurface::ClearUpdate: surface_id=%d",
+           surface_id());
   update_flags_ = display::SurfaceUpdateFlags::None;
 }
 
@@ -258,6 +259,13 @@ void ApplicationDisplaySurface::OnQueueEvent(
   }
 }
 
+std::vector<int32_t> DirectDisplaySurface::GetQueueIds() const {
+  std::vector<int32_t> queue_ids;
+  if (direct_queue_)
+    queue_ids.push_back(direct_queue_->id());
+  return queue_ids;
+}
+
 Status<LocalChannelHandle> DirectDisplaySurface::OnCreateQueue(
     Message& /*message*/, const ProducerQueueConfig& config) {
   ATRACE_NAME("DirectDisplaySurface::OnCreateQueue");
@@ -326,7 +334,7 @@ void DirectDisplaySurface::DequeueBuffersLocked() {
     auto buffer_status = direct_queue_->Dequeue(0, &slot, &acquire_fence);
     if (!buffer_status) {
       ALOGD_IF(
-          TRACE && buffer_status.error() == ETIMEDOUT,
+          TRACE > 1 && buffer_status.error() == ETIMEDOUT,
           "DirectDisplaySurface::DequeueBuffersLocked: All buffers dequeued.");
       ALOGE_IF(buffer_status.error() != ETIMEDOUT,
                "DirectDisplaySurface::DequeueBuffersLocked: Failed to dequeue "
@@ -370,8 +378,8 @@ AcquiredBuffer DirectDisplaySurface::AcquireCurrentBuffer() {
   }
   AcquiredBuffer buffer = std::move(acquired_buffers_.Front());
   acquired_buffers_.PopFront();
-  ALOGD_IF(TRACE, "DirectDisplaySurface::AcquireCurrentBuffer: buffer: %p",
-           buffer.buffer().get());
+  ALOGD_IF(TRACE, "DirectDisplaySurface::AcquireCurrentBuffer: buffer_id=%d",
+           buffer.buffer()->id());
   return buffer;
 }
 
@@ -399,8 +407,8 @@ AcquiredBuffer DirectDisplaySurface::AcquireNewestAvailableBuffer(
       break;
   }
   ALOGD_IF(TRACE,
-           "DirectDisplaySurface::AcquireNewestAvailableBuffer: buffer: %p",
-           buffer.buffer().get());
+           "DirectDisplaySurface::AcquireNewestAvailableBuffer: buffer_id=%d",
+           buffer.buffer()->id());
   return buffer;
 }
 

@@ -3,6 +3,8 @@
 #include <errno.h>
 #include <utils/Log.h>
 
+#include <algorithm>
+
 // Headers from libdvr
 #include <dvr/dvr_buffer.h>
 #include <dvr/dvr_buffer_queue.h>
@@ -23,15 +25,20 @@ int dvrGetApi(void* api, size_t struct_size, int version) {
   ALOGI("dvrGetApi: api=%p struct_size=%zu version=%d", api, struct_size,
         version);
   if (version == 1) {
-    if (struct_size != sizeof(DvrApi_v1)) {
-      ALOGE("dvrGetApi: Size mismatch: expected %zu; actual %zu",
-            sizeof(DvrApi_v1), struct_size);
-      return -EINVAL;
-    }
+    // New entry points are added at the end. If the caller's struct and
+    // this library have different sizes, we define the entry points in common.
+    // The caller is expected to handle unset entry points if necessary.
+    size_t clamped_struct_size = std::min(struct_size, sizeof(DvrApi_v1));
     DvrApi_v1* dvr_api = static_cast<DvrApi_v1*>(api);
 
 // Defines an API entry for V1 (no version suffix).
-#define DVR_V1_API_ENTRY(name) dvr_api->name = dvr##name
+#define DVR_V1_API_ENTRY(name)                                 \
+  do {                                                         \
+    if ((offsetof(DvrApi_v1, name) + sizeof(dvr_api->name)) <= \
+        clamped_struct_size) {                                 \
+      dvr_api->name = dvr##name;                               \
+    }                                                          \
+  } while (0)
 
 #include "include/dvr/dvr_api_entries.h"
 

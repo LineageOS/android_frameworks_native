@@ -67,13 +67,13 @@ class AcquiredBuffer {
   int Release(pdx::LocalHandle release_fence);
 
  private:
-  AcquiredBuffer(const AcquiredBuffer&) = delete;
-  void operator=(const AcquiredBuffer&) = delete;
-
   std::shared_ptr<BufferConsumer> buffer_;
   // Mutable so that the fence can be closed when it is determined to be
   // signaled during IsAvailable().
   mutable pdx::LocalHandle acquire_fence_;
+
+  AcquiredBuffer(const AcquiredBuffer&) = delete;
+  void operator=(const AcquiredBuffer&) = delete;
 };
 
 }  // namespace dvr

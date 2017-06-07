@@ -144,6 +144,7 @@ class DirectDisplaySurface : public DisplaySurface {
       : DisplaySurface(service, SurfaceType::Direct, surface_id, process_id,
                        user_id, attributes),
         acquired_buffers_(kMaxPostedBuffers) {}
+  std::vector<int32_t> GetQueueIds() const override;
   bool IsBufferAvailable();
   bool IsBufferPosted();
   AcquiredBuffer AcquireCurrentBuffer();

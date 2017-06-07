@@ -124,14 +124,15 @@ std::string SensorList::dump() const {
     forEachSensor([&result] (const Sensor& s) -> bool {
             result.appendFormat(
                     "%#010x) %-25s | %-15s | ver: %" PRId32 " | type: %20s(%" PRId32
-                        ") | perm: %s\n",
+                        ") | perm: %s | flags: 0x%08x\n",
                     s.getHandle(),
                     s.getName().string(),
                     s.getVendor().string(),
                     s.getVersion(),
                     s.getStringType().string(),
                     s.getType(),
-                    s.getRequiredPermission().size() ? s.getRequiredPermission().string() : "n/a");
+                    s.getRequiredPermission().size() ? s.getRequiredPermission().string() : "n/a",
+                    static_cast<int>(s.getFlags()));
 
             result.append("\t");
             const int reportingMode = s.getReportingMode();
@@ -173,9 +174,14 @@ std::string SensorList::dump() const {
                 result.appendFormat("non-wakeUp | ");
             }
 
+            if (s.isDataInjectionSupported()) {
+                result.appendFormat("data-injection, ");
+            }
+
             if (s.isDynamicSensor()) {
                 result.appendFormat("dynamic, ");
             }
+
             if (s.hasAdditionalInfo()) {
                 result.appendFormat("has-additional-info, ");
             }
@@ -190,7 +196,6 @@ std::string SensorList::dump() const {
                 if (s.isDirectChannelTypeSupported(SENSOR_DIRECT_MEM_TYPE_GRALLOC)) {
                     result.append("gralloc, ");
                 }
-                result.appendFormat("flag =0x%08x", static_cast<int>(s.getFlags()));
                 result.append("\n");
             }
             return true;

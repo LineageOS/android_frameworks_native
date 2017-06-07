@@ -21,6 +21,7 @@ class VirtualTouchpadEvdev : public VirtualTouchpad {
   status_t Detach() override;
   status_t Touch(int touchpad, float x, float y, float pressure) override;
   status_t ButtonState(int touchpad, int buttons) override;
+  status_t Scroll(int touchpad, float x, float y) override;
   void dumpInternal(String8& result) override;
 
  protected:
