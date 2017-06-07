@@ -444,7 +444,10 @@ static bool setTraceBufferSizeKB(int size)
 // Set the default size of cmdline hashtable
 static bool setCmdlineSize()
 {
-    return writeStr(k_traceCmdlineSizePath, "8192");
+    if (fileExists(k_traceCmdlineSizePath)) {
+        return writeStr(k_traceCmdlineSizePath, "8192");
+    }
+    return true;
 }
 
 // Set the clock to the best available option while tracing. Use 'boot' if it's
