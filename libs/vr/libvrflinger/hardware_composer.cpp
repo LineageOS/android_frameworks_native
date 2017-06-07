@@ -19,6 +19,8 @@
 #include <chrono>
 #include <functional>
 #include <map>
+#include <sstream>
+#include <string>
 #include <tuple>
 
 #include <dvr/dvr_display_types.h>
@@ -208,6 +210,9 @@ void HardwareComposer::UpdatePostThreadState(PostThreadStateType state,
 }
 
 void HardwareComposer::OnPostThreadResumed() {
+  if (request_display_callback_)
+    request_display_callback_(true);
+
   hwc2_hidl_->resetCommands();
 
   // HIDL HWC seems to have an internal race condition. If we submit a frame too
@@ -244,6 +249,9 @@ void HardwareComposer::OnPostThreadPaused() {
 
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "idle");
+
+  if (request_display_callback_)
+    request_display_callback_(false);
 }
 
 HWC::Error HardwareComposer::Validate(hwc2_display_t display) {
@@ -347,7 +355,36 @@ HWC::Error HardwareComposer::GetDisplayMetrics(
   return HWC::Error::None;
 }
 
-std::string HardwareComposer::Dump() { return hwc2_hidl_->dumpDebugInfo(); }
+std::string HardwareComposer::Dump() {
+  std::unique_lock<std::mutex> lock(post_thread_mutex_);
+  std::ostringstream stream;
+
+  stream << "Display metrics:     " << display_metrics_.width << "x"
+         << display_metrics_.height << " " << (display_metrics_.dpi.x / 1000.0)
+         << "x" << (display_metrics_.dpi.y / 1000.0) << " dpi @ "
+         << (1000000000.0 / display_metrics_.vsync_period_ns) << " Hz"
+         << std::endl;
+
+  stream << "Post thread resumed: " << post_thread_resumed_ << std::endl;
+  stream << "Active layers:       " << active_layer_count_ << std::endl;
+  stream << std::endl;
+
+  for (size_t i = 0; i < active_layer_count_; i++) {
+    stream << "Layer " << i << ":";
+    stream << " type=" << layers_[i].GetCompositionType().to_string();
+    stream << " surface_id=" << layers_[i].GetSurfaceId();
+    stream << " buffer_id=" << layers_[i].GetBufferId();
+    stream << std::endl;
+  }
+  stream << std::endl;
+
+  if (post_thread_resumed_) {
+    stream << "Hardware Composer Debug Info:" << std::endl;
+    stream << hwc2_hidl_->dumpDebugInfo();
+  }
+
+  return stream.str();
+}
 
 void HardwareComposer::PostLayers() {
   ATRACE_NAME("HardwareComposer::PostLayers");
@@ -398,10 +435,12 @@ void HardwareComposer::PostLayers() {
     ATRACE_INT("frame_skip_count", 0);
   }
 
-#if TRACE
-  for (size_t i = 0; i < active_layer_count_; i++)
-    ALOGI("HardwareComposer::PostLayers: layer=%zu composition=%s", i,
+#if TRACE > 1
+  for (size_t i = 0; i < active_layer_count_; i++) {
+    ALOGI("HardwareComposer::PostLayers: layer=%zu buffer_id=%d composition=%s",
+          i, layers_[i].GetBufferId(),
           layers_[i].GetCompositionType().to_string().c_str());
+  }
 #endif
 
   error = Present(HWC_DISPLAY_PRIMARY);
@@ -442,17 +481,6 @@ void HardwareComposer::SetDisplaySurfaces(
 
   // Set idle state based on whether there are any surfaces to handle.
   UpdatePostThreadState(PostThreadState::Idle, display_idle);
-
-  // XXX: TEMPORARY
-  // Request control of the display based on whether there are any surfaces to
-  // handle. This callback sets the post thread active state once the transition
-  // is complete in SurfaceFlinger.
-  // TODO(eieio): Unify the control signal used to move SurfaceFlinger into VR
-  // mode. Currently this is hooked up to persistent VR mode, but perhaps this
-  // makes more sense to control it from VrCore, which could in turn base its
-  // decision on persistent VR mode.
-  if (request_display_callback_)
-    request_display_callback_(!display_idle);
 }
 
 int HardwareComposer::OnNewGlobalBuffer(DvrGlobalBufferKey key,
@@ -492,8 +520,9 @@ int HardwareComposer::MapConfigBuffer(IonBuffer& ion_buffer) {
   int result = ion_buffer.Lock(ion_buffer.usage(), 0, 0, ion_buffer.width(),
                                ion_buffer.height(), &buffer_base);
   if (result != 0) {
-    ALOGE("HardwareComposer::MapConfigBuffer: Failed to map vrflinger config "
-          "buffer.");
+    ALOGE(
+        "HardwareComposer::MapConfigBuffer: Failed to map vrflinger config "
+        "buffer.");
     return -EPERM;
   }
 
