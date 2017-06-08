@@ -35,6 +35,8 @@ enum {
     BATTERY_PROP_CAPACITY = 4, // equals BATTERY_PROPERTY_CAPACITY
     BATTERY_PROP_ENERGY_COUNTER = 5, // equals BATTERY_PROPERTY_ENERGY_COUNTER
     BATTERY_PROP_BATTERY_STATUS = 6, // equals BATTERY_PROPERTY_BATTERY_STATUS
+    BATTERY_PROP_CHARGE_FULL = 7,
+    BATTERY_PROP_MOD_CHARGE_FULL = 8,
 };
 
 struct BatteryProperties {
@@ -54,6 +56,11 @@ struct BatteryProperties {
     int batteryFullCharge;
     int batteryChargeCounter;
     String8 batteryTechnology;
+
+    int modLevel;
+    int modStatus;
+    int modType;
+    int modFlag;
 
     status_t writeToParcel(Parcel* parcel) const;
     status_t readFromParcel(Parcel* parcel);
