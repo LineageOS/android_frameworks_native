@@ -101,12 +101,12 @@ void EpollEventDispatcher::EventThread() {
     if (num_events < 0 && errno != EINTR)
       break;
 
-    ALOGD_IF(TRACE, "EpollEventDispatcher::EventThread: num_events=%d",
+    ALOGD_IF(TRACE > 1, "EpollEventDispatcher::EventThread: num_events=%d",
              num_events);
 
     for (int i = 0; i < num_events; i++) {
       ALOGD_IF(
-          TRACE,
+          TRACE > 1,
           "EpollEventDispatcher::EventThread: event %d: handler=%p events=0x%x",
           i, events[i].data.ptr, events[i].events);
 

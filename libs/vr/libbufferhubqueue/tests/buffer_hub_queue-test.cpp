@@ -46,12 +46,12 @@ class BufferHubQueueTest : public ::testing::Test {
 
   void AllocateBuffer(size_t* slot_out = nullptr) {
     // Create producer buffer.
-    size_t slot;
     auto status = producer_queue_->AllocateBuffer(
         kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
-        kBufferUsage, &slot);
-    ASSERT_TRUE(status.ok());
+        kBufferUsage);
 
+    ASSERT_TRUE(status.ok());
+    size_t slot = status.take();
     if (slot_out)
       *slot_out = slot;
   }
@@ -478,13 +478,13 @@ TEST_F(BufferHubQueueTest, TestUsageSetMask) {
                            UsagePolicy{set_mask, 0, 0, 0}));
 
   // When allocation, leave out |set_mask| from usage bits on purpose.
-  size_t slot;
   auto status = producer_queue_->AllocateBuffer(
       kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
-      kBufferUsage & ~set_mask, &slot);
+      kBufferUsage & ~set_mask);
   ASSERT_TRUE(status.ok());
 
   LocalHandle fence;
+  size_t slot;
   auto p1_status = producer_queue_->Dequeue(0, &slot, &fence);
   ASSERT_TRUE(p1_status.ok());
   auto p1 = p1_status.take();
@@ -497,13 +497,13 @@ TEST_F(BufferHubQueueTest, TestUsageClearMask) {
                            UsagePolicy{0, clear_mask, 0, 0}));
 
   // When allocation, add |clear_mask| into usage bits on purpose.
-  size_t slot;
   auto status = producer_queue_->AllocateBuffer(
       kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
-      kBufferUsage | clear_mask, &slot);
+      kBufferUsage | clear_mask);
   ASSERT_TRUE(status.ok());
 
   LocalHandle fence;
+  size_t slot;
   auto p1_status = producer_queue_->Dequeue(0, &slot, &fence);
   ASSERT_TRUE(p1_status.ok());
   auto p1 = p1_status.take();
@@ -517,16 +517,15 @@ TEST_F(BufferHubQueueTest, TestUsageDenySetMask) {
 
   // Now that |deny_set_mask| is illegal, allocation without those bits should
   // be able to succeed.
-  size_t slot;
   auto status = producer_queue_->AllocateBuffer(
       kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
-      kBufferUsage & ~deny_set_mask, &slot);
+      kBufferUsage & ~deny_set_mask);
   ASSERT_TRUE(status.ok());
 
   // While allocation with those bits should fail.
   status = producer_queue_->AllocateBuffer(kBufferWidth, kBufferHeight,
                                            kBufferLayerCount, kBufferFormat,
-                                           kBufferUsage | deny_set_mask, &slot);
+                                           kBufferUsage | deny_set_mask);
   ASSERT_FALSE(status.ok());
   ASSERT_EQ(EINVAL, status.error());
 }
@@ -538,16 +537,15 @@ TEST_F(BufferHubQueueTest, TestUsageDenyClearMask) {
 
   // Now that clearing |deny_clear_mask| is illegal (i.e. setting these bits are
   // mandatory), allocation with those bits should be able to succeed.
-  size_t slot;
   auto status = producer_queue_->AllocateBuffer(
       kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
-      kBufferUsage | deny_clear_mask, &slot);
+      kBufferUsage | deny_clear_mask);
   ASSERT_TRUE(status.ok());
 
   // While allocation without those bits should fail.
   status = producer_queue_->AllocateBuffer(
       kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
-      kBufferUsage & ~deny_clear_mask, &slot);
+      kBufferUsage & ~deny_clear_mask);
   ASSERT_FALSE(status.ok());
   ASSERT_EQ(EINVAL, status.error());
 }

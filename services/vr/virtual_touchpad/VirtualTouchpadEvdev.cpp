@@ -28,6 +28,22 @@ static constexpr int32_t kWidth = 0x10000;
 static constexpr int32_t kHeight = 0x10000;
 static constexpr int32_t kSlots = 2;
 
+int32_t scale_relative_scroll(float x) {
+  // Guilty with an explanation, your honor.
+  // Ideally we should be able to communicate the full incoming precision
+  // to InputFlinger, through the evdev int32_t value, by scaling by a
+  // large factor, i.e. 2²³ for IEEE single precision floating point.
+  // However, although InputFlinger has |wheelVelocityControlParameters|,
+  // those parameters are currently hard coded, with a scale factor of 1.0.
+  // The observed evdev value for a physical mouse scroll wheel is usually
+  // ±1, with higher values up to ±4 for a very fast spin. So we imitate
+  // that. If the incoming value is not actually 0, the resulting magnitude
+  // should be at least 1, so that small movements are not lost.
+  // Adding IDC configurability of |VelocityControlParameters| may be
+  // desirable in the future.
+  return copysignf(ceilf(fabs(4.0f * x)), x);
+}
+
 }  // anonymous namespace
 
 std::unique_ptr<VirtualTouchpad> VirtualTouchpadEvdev::Create() {
@@ -159,6 +175,32 @@ int VirtualTouchpadEvdev::ButtonState(int touchpad_id, int buttons) {
     touchpad.injector->SendSynReport();
   }
   touchpad.last_motion_event_buttons = buttons;
+  return touchpad.injector->GetError();
+}
+
+int VirtualTouchpadEvdev::Scroll(int touchpad_id, float x, float y) {
+  if (touchpad_id < 0 || touchpad_id >= kTouchpads) {
+    return EINVAL;
+  }
+  if ((x < -1.0f) || (x > 1.0f) || (y < -1.0f) || (y > 1.0f)) {
+    return EINVAL;
+  }
+  Touchpad& touchpad = touchpad_[touchpad_id];
+  if (!touchpad.injector) {
+    return EvdevInjector::ERROR_SEQUENCING;
+  }
+  touchpad.injector->ResetError();
+  const int32_t scaled_x = scale_relative_scroll(x);
+  const int32_t scaled_y = scale_relative_scroll(y);
+  if (scaled_x) {
+    touchpad.injector->SendRel(REL_HWHEEL, scaled_x);
+  }
+  if (scaled_y) {
+    touchpad.injector->SendRel(REL_WHEEL, scaled_y);
+  }
+  if (scaled_x || scaled_y) {
+    touchpad.injector->SendSynReport();
+  }
   return touchpad.injector->GetError();
 }
 

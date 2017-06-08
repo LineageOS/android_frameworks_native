@@ -40,6 +40,11 @@ int dvrVirtualTouchpadButtonState(DvrVirtualTouchpad* client, int touchpad,
   return FromC(client)->ButtonState(touchpad, buttons);
 }
 
+int dvrVirtualTouchpadScroll(DvrVirtualTouchpad* client, int touchpad, float x,
+                             float y) {
+  return FromC(client)->Scroll(touchpad, x, y);
+}
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

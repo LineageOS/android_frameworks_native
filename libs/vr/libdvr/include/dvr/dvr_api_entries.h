@@ -141,3 +141,9 @@ DVR_V1_API_ENTRY(HwcFrameGetLayerNumVisibleRegions);
 DVR_V1_API_ENTRY(HwcFrameGetLayerVisibleRegion);
 DVR_V1_API_ENTRY(HwcFrameGetLayerNumDamagedRegions);
 DVR_V1_API_ENTRY(HwcFrameGetLayerDamagedRegion);
+
+// New entries added at the end to allow the DVR platform library API
+// to be updated before updating VrCore.
+
+// Virtual touchpad client
+DVR_V1_API_ENTRY(VirtualTouchpadScroll);

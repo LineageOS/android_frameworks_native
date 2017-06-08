@@ -87,6 +87,16 @@ binder::Status VirtualTouchpadService::buttonState(int touchpad, int buttons) {
   return binder::Status::ok();
 }
 
+binder::Status VirtualTouchpadService::scroll(int touchpad, float x, float y) {
+  if (!CheckPermissions()) {
+    return binder::Status::fromStatusT(PERMISSION_DENIED);
+  }
+  if (const status_t error = touchpad_->Scroll(touchpad, x, y)) {
+    return binder::Status::fromStatusT(error);
+  }
+  return binder::Status::ok();
+}
+
 status_t VirtualTouchpadService::dump(
     int fd, const Vector<String16>& args[[gnu::unused]]) {
   String8 result;

@@ -225,6 +225,9 @@ SurfaceFlinger::SurfaceFlinger()
     property_get("ro.sf.disable_triple_buffer", value, "1");
     mLayerTripleBufferingDisabled = atoi(value);
     ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
+
+    property_get("persist.sys.sf.color_saturation", value, "1.0");
+    mSaturation = atof(value);
 }
 
 void SurfaceFlinger::onFirstRef()
