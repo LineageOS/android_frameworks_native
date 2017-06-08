@@ -41,6 +41,13 @@ DvrSurfaceAttribute GetAttribute(DvrSurfaceAttributeKey key, int32_t value) {
   return attribute;
 }
 
+DvrSurfaceAttribute GetAttribute(DvrSurfaceAttributeKey key, nullptr_t) {
+  DvrSurfaceAttribute attribute;
+  attribute.key = key;
+  attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_NONE;
+  return attribute;
+}
+
 Status<UniqueDvrSurface> CreateApplicationSurface(bool visible = false,
                                                   int32_t z_order = 0) {
   DvrSurface* surface = nullptr;
@@ -101,13 +108,14 @@ class TestDisplayManager {
       return {};
   }
 
-  Status<void> WaitForUpdate() {
+  enum : int { kTimeoutMs = 10000 };  // 10s
+
+  Status<void> WaitForUpdate(int timeout_ms = kTimeoutMs) {
     if (display_manager_event_fd_ < 0)
       return ErrorStatus(-display_manager_event_fd_);
 
-    const int kTimeoutMs = 10000;  // 10s
     pollfd pfd = {display_manager_event_fd_, POLLIN, 0};
-    const int count = poll(&pfd, 1, kTimeoutMs);
+    const int count = poll(&pfd, 1, timeout_ms);
     if (count < 0)
       return ErrorStatus(errno);
     else if (count == 0)
@@ -471,19 +479,118 @@ TEST_F(DvrDisplayManagerTest, SurfaceAttributeEvent) {
   auto attributes = attribute_status.take();
   EXPECT_GE(attributes.size(), 2u);
 
-  const std::set<int32_t> expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER,
-                                           DVR_SURFACE_ATTRIBUTE_VISIBLE};
+  std::set<int32_t> actual_keys;
+  std::set<int32_t> expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER,
+                                     DVR_SURFACE_ATTRIBUTE_VISIBLE};
 
   // Collect all the keys in attributes that match the expected keys.
-  std::set<int32_t> actual_keys;
-  std::for_each(attributes.begin(), attributes.end(),
-                [&expected_keys, &actual_keys](const auto& attribute) {
-                  if (expected_keys.find(attribute.key) != expected_keys.end())
-                    actual_keys.emplace(attribute.key);
-                });
+  auto compare_keys = [](const auto& attributes, const auto& expected_keys) {
+    std::set<int32_t> keys;
+    for (const auto& attribute : attributes) {
+      if (expected_keys.find(attribute.key) != expected_keys.end())
+        keys.emplace(attribute.key);
+    }
+    return keys;
+  };
 
   // If the sets match then attributes contained at least the expected keys,
   // even if other keys were also present.
+  actual_keys = compare_keys(attributes, expected_keys);
+  EXPECT_EQ(expected_keys, actual_keys);
+
+  std::vector<DvrSurfaceAttribute> attributes_to_set = {
+      GetAttribute(DVR_SURFACE_ATTRIBUTE_Z_ORDER, 0)};
+
+  // Test invalid args.
+  EXPECT_EQ(-EINVAL, dvrSurfaceSetAttributes(nullptr, attributes_to_set.data(),
+                                             attributes_to_set.size()));
+  EXPECT_EQ(-EINVAL, dvrSurfaceSetAttributes(surface.get(), nullptr,
+                                             attributes_to_set.size()));
+
+  // Test attribute change events.
+  ASSERT_EQ(0, dvrSurfaceSetAttributes(surface.get(), attributes_to_set.data(),
+                                       attributes_to_set.size()));
+  ASSERT_STATUS_OK(manager_->WaitForUpdate());
+
+  // Verify the attributes changed flag is set.
+  auto check_flags = [](const auto& value) {
+    return value & DVR_SURFACE_UPDATE_FLAGS_ATTRIBUTES_CHANGED;
+  };
+  EXPECT_STATUS_PRED(check_flags, manager_->GetUpdateFlags(0));
+
+  attribute_status = manager_->GetAttributes(0);
+  ASSERT_STATUS_OK(attribute_status);
+  attributes = attribute_status.take();
+  EXPECT_GE(attributes.size(), 2u);
+
+  expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER,
+                   DVR_SURFACE_ATTRIBUTE_VISIBLE};
+
+  actual_keys.clear();
+  actual_keys = compare_keys(attributes, expected_keys);
+  EXPECT_EQ(expected_keys, actual_keys);
+
+  // Test setting and then deleting an attribute.
+  const DvrSurfaceAttributeKey kUserKey = 1;
+  attributes_to_set = {GetAttribute(kUserKey, 1024)};
+
+  ASSERT_EQ(0, dvrSurfaceSetAttributes(surface.get(), attributes_to_set.data(),
+                                       attributes_to_set.size()));
+  ASSERT_STATUS_OK(manager_->WaitForUpdate());
+  EXPECT_STATUS_PRED(check_flags, manager_->GetUpdateFlags(0));
+
+  attribute_status = manager_->GetAttributes(0);
+  ASSERT_STATUS_OK(attribute_status);
+  attributes = attribute_status.take();
+  EXPECT_GE(attributes.size(), 2u);
+
+  expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER, DVR_SURFACE_ATTRIBUTE_VISIBLE,
+                   kUserKey};
+
+  actual_keys.clear();
+  actual_keys = compare_keys(attributes, expected_keys);
+  EXPECT_EQ(expected_keys, actual_keys);
+
+  // Delete the attribute.
+  attributes_to_set = {GetAttribute(kUserKey, nullptr)};
+
+  ASSERT_EQ(0, dvrSurfaceSetAttributes(surface.get(), attributes_to_set.data(),
+                                       attributes_to_set.size()));
+  ASSERT_STATUS_OK(manager_->WaitForUpdate());
+  EXPECT_STATUS_PRED(check_flags, manager_->GetUpdateFlags(0));
+
+  attribute_status = manager_->GetAttributes(0);
+  ASSERT_STATUS_OK(attribute_status);
+  attributes = attribute_status.take();
+  EXPECT_GE(attributes.size(), 2u);
+
+  expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER, DVR_SURFACE_ATTRIBUTE_VISIBLE,
+                   kUserKey};
+
+  actual_keys.clear();
+  actual_keys = compare_keys(attributes, expected_keys);
+  EXPECT_NE(expected_keys, actual_keys);
+
+  // Test deleting a reserved attribute.
+  attributes_to_set = {GetAttribute(DVR_SURFACE_ATTRIBUTE_VISIBLE, nullptr)};
+
+  EXPECT_EQ(0, dvrSurfaceSetAttributes(surface.get(), attributes_to_set.data(),
+                                       attributes_to_set.size()));
+
+  // Failed attribute operations should not trigger update events.
+  const int kTimeoutMs = 100;  // 0.1s
+  EXPECT_STATUS_ERROR_VALUE(ETIMEDOUT, manager_->WaitForUpdate(kTimeoutMs));
+
+  attribute_status = manager_->GetAttributes(0);
+  ASSERT_STATUS_OK(attribute_status);
+  attributes = attribute_status.take();
+  EXPECT_GE(attributes.size(), 2u);
+
+  expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER,
+                   DVR_SURFACE_ATTRIBUTE_VISIBLE};
+
+  actual_keys.clear();
+  actual_keys = compare_keys(attributes, expected_keys);
   EXPECT_EQ(expected_keys, actual_keys);
 }
 

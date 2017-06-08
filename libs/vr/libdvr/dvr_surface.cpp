@@ -2,6 +2,7 @@
 
 #include <inttypes.h>
 
+#include <pdx/rpc/variant.h>
 #include <private/android/AHardwareBufferHelpers.h>
 #include <private/dvr/display_client.h>
 
@@ -14,6 +15,7 @@ using android::dvr::display::Surface;
 using android::dvr::display::SurfaceAttributes;
 using android::dvr::display::SurfaceAttributeValue;
 using android::dvr::CreateDvrReadBufferFromBufferConsumer;
+using android::pdx::rpc::EmptyVariant;
 
 namespace {
 
@@ -50,6 +52,9 @@ bool ConvertSurfaceAttributes(const DvrSurfaceAttribute* attributes,
         break;
       case DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT16:
         value = attributes[i].value.float16_value;
+        break;
+      case DVR_SURFACE_ATTRIBUTE_TYPE_NONE:
+        value = EmptyVariant{};
         break;
       default:
         *error_index = i;
