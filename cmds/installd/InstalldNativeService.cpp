@@ -1698,7 +1698,7 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
                 collectQuotaStats(device, userId, appId, nullptr, &extStats);
             }
         }
-        appSize = extStats.dataSize + extStats.cacheSize;
+        appSize = extStats.dataSize;
         ATRACE_END();
     } else {
         ATRACE_BEGIN("manual");
