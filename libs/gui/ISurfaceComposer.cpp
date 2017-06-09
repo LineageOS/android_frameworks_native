@@ -201,7 +201,7 @@ public:
         return NO_ERROR;
     }
 
-    virtual sp<IDisplayEventConnection> createDisplayEventConnection()
+    virtual sp<IDisplayEventConnection> createDisplayEventConnection(VsyncSource vsyncSource)
     {
         Parcel data, reply;
         sp<IDisplayEventConnection> result;
@@ -210,6 +210,7 @@ public:
         if (err != NO_ERROR) {
             return result;
         }
+        data.writeInt32(static_cast<int32_t>(vsyncSource));
         err = remote()->transact(
                 BnSurfaceComposer::CREATE_DISPLAY_EVENT_CONNECTION,
                 data, &reply);
@@ -586,7 +587,8 @@ status_t BnSurfaceComposer::onTransact(
         }
         case CREATE_DISPLAY_EVENT_CONNECTION: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IDisplayEventConnection> connection(createDisplayEventConnection());
+            sp<IDisplayEventConnection> connection(createDisplayEventConnection(
+                    static_cast<ISurfaceComposer::VsyncSource>(data.readInt32())));
             reply->writeStrongBinder(IInterface::asBinder(connection));
             return NO_ERROR;
         }
