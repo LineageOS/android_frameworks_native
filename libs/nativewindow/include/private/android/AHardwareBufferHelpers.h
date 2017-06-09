@@ -32,10 +32,20 @@ struct ANativeWindowBuffer;
 
 namespace android {
 
+// whether this AHardwareBuffer format is valid
+bool AHardwareBuffer_isValidPixelFormat(uint32_t ahardwarebuffer_format);
+
+// convert AHardwareBuffer format to HAL format (note: this is a no-op)
 uint32_t AHardwareBuffer_convertFromPixelFormat(uint32_t format);
+
+// convert HAL format to AHardwareBuffer format (note: this is a no-op)
 uint32_t AHardwareBuffer_convertToPixelFormat(uint32_t format);
-uint64_t AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage);
+
+// convert AHardwareBuffer usage bits to HAL usage bits (note: this is a no-op)
 uint64_t AHardwareBuffer_convertFromGrallocUsageBits(uint64_t usage);
+
+// convert HAL usage bits to AHardwareBuffer usage bits  (note: this is a no-op)
+uint64_t AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage);
 
 class GraphicBuffer;
 const GraphicBuffer* AHardwareBuffer_to_GraphicBuffer(const AHardwareBuffer* buffer);
