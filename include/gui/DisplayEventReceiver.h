@@ -25,6 +25,7 @@
 #include <utils/Timers.h>
 
 #include <binder/IInterface.h>
+#include <gui/ISurfaceComposer.h>
 
 // ----------------------------------------------------------------------------
 
@@ -83,7 +84,8 @@ public:
      * or requestNextVsync to receive them.
      * Other events start being delivered immediately.
      */
-    DisplayEventReceiver();
+    DisplayEventReceiver(
+            ISurfaceComposer::VsyncSource vsyncSource = ISurfaceComposer::eVsyncSourceApp);
 
     /*
      * ~DisplayEventReceiver severs the connection with SurfaceFlinger, new events

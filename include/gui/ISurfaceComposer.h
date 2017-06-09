@@ -72,6 +72,11 @@ public:
         eRotate270  = 3
     };
 
+    enum VsyncSource {
+        eVsyncSourceApp = 0,
+        eVsyncSourceSurfaceFlinger = 1
+    };
+
     /* create connection with surface flinger, requires
      * ACCESS_SURFACE_FLINGER permission
      */
@@ -89,7 +94,8 @@ public:
             const sp<IGraphicBufferProducer>& parent) = 0;
 
     /* return an IDisplayEventConnection */
-    virtual sp<IDisplayEventConnection> createDisplayEventConnection() = 0;
+    virtual sp<IDisplayEventConnection> createDisplayEventConnection(
+            VsyncSource vsyncSource = eVsyncSourceApp) = 0;
 
     /* create a virtual display
      * requires ACCESS_SURFACE_FLINGER permission.
