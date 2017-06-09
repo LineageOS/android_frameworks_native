@@ -97,6 +97,17 @@ int dvrDeleteGlobalBuffer(DvrGlobalBufferKey key);
 // @return 0 on success. Otherwise returns a negative error value.
 int dvrGetGlobalBuffer(DvrGlobalBufferKey key, DvrBuffer** out_buffer);
 
+// Read the native device display metrics as reported by the hardware composer.
+// This is useful as otherwise the device metrics are only reported as
+// relative to the current device orientation.
+// @param sizeof_metrics the size of the passed in metrics struct. This is used
+//   to ensure we don't break each other during active development.
+// @param metrics on success holds the retrieved device metrics.
+// @return 0 on success. Otherwise returns a negative error value (typically
+//   this means the display service is not available).
+int dvrGetNativeDisplayMetrics(size_t metrics_struct_size,
+                               DvrNativeDisplayMetrics* metrics);
+
 __END_DECLS
 
 #endif  // ANDROID_DVR_SURFACE_H_
