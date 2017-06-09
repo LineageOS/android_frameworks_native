@@ -277,7 +277,8 @@ private:
         const sp<IGraphicBufferProducer>& bufferProducer) const;
     virtual status_t getSupportedFrameTimestamps(
             std::vector<FrameEvent>* outSupported) const;
-    virtual sp<IDisplayEventConnection> createDisplayEventConnection();
+    virtual sp<IDisplayEventConnection> createDisplayEventConnection(
+            ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp);
     virtual status_t captureScreen(const sp<IBinder>& display,
             const sp<IGraphicBufferProducer>& producer,
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
