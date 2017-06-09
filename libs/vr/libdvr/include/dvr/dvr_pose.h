@@ -36,16 +36,23 @@ typedef struct __attribute__((packed, aligned(16))) DvrPoseAsync {
   int64_t timestamp_ns;
   // Bitmask of DVR_POSE_FLAG_* constants that apply to this pose.
   //
-  // If DVR_POSE_FLAG_VALID is not set, the pose is indeterminate.
+  // If DVR_POSE_FLAG_INVALID is set, the pose is indeterminate.
   uint64_t flags;
   // Reserved padding to 128 bytes.
   uint8_t pad[16];
 } DvrPoseAsync;
 
 enum {
-  DVR_POSE_FLAG_VALID = (1UL << 0),       // This pose is valid.
-  DVR_POSE_FLAG_HEAD = (1UL << 1),        // This pose is the head.
-  DVR_POSE_FLAG_CONTROLLER = (1UL << 2),  // This pose is a controller.
+  DVR_POSE_FLAG_INVALID = (1UL << 0),       // This pose is invalid.
+  DVR_POSE_FLAG_INITIALIZING = (1UL << 1),  // The pose delivered during
+                                            // initialization and it may not be
+                                            // correct.
+  DVR_POSE_FLAG_3DOF =
+      (1UL << 2),  // This pose is derived from 3Dof sensors. If
+                   // this is not set, pose is derived using
+                   // 3Dof and 6Dof sensors.
+  DVR_POSE_FLAG_FLOOR_HEIGHT_INVALID =
+      (1UL << 3),  // If set the floor height is invalid.
 };
 
 // Represents a sensor pose sample.
@@ -70,8 +77,14 @@ typedef struct __attribute__((packed, aligned(16))) DvrPose {
   // Timestamp for the measurement in nanoseconds.
   int64_t timestamp_ns;
 
-  // Padding to 96 bytes so the size is a multiple of 16.
-  uint8_t padding[8];
+  // The combination of flags above.
+  uint64_t flags;
+
+  // The current floor height. May be updated at a lower cadence than pose.
+  float floor_height;
+
+  // Padding to 112 bytes so the size is a multiple of 16.
+  uint8_t padding[12];
 } DvrPose;
 
 __END_DECLS
