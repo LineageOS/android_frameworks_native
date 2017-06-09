@@ -12,8 +12,10 @@
 #include <dvr/dvr_display_types.h>
 #include <pdx/default_transport/service_endpoint.h>
 #include <pdx/rpc/remote_method.h>
+#include <private/android_filesystem_config.h>
 #include <private/dvr/display_protocol.h>
 #include <private/dvr/numeric.h>
+#include <private/dvr/trusted_uids.h>
 #include <private/dvr/types.h>
 
 using android::dvr::display::DisplayProtocol;
@@ -140,6 +142,16 @@ Status<void> DisplayService::HandleMessage(pdx::Message& message) {
           *this, &DisplayService::OnCreateSurface, message);
       return {};
 
+    case DisplayProtocol::SetupGlobalBuffer::Opcode:
+      DispatchRemoteMethod<DisplayProtocol::SetupGlobalBuffer>(
+          *this, &DisplayService::OnSetupGlobalBuffer, message);
+      return {};
+
+    case DisplayProtocol::DeleteGlobalBuffer::Opcode:
+      DispatchRemoteMethod<DisplayProtocol::DeleteGlobalBuffer>(
+          *this, &DisplayService::OnDeleteGlobalBuffer, message);
+      return {};
+
     case DisplayProtocol::GetGlobalBuffer::Opcode:
       DispatchRemoteMethod<DisplayProtocol::GetGlobalBuffer>(
           *this, &DisplayService::OnGetGlobalBuffer, message);
@@ -257,6 +269,36 @@ void DisplayService::SurfaceUpdated(SurfaceType surface_type,
     else
       UpdateActiveDisplaySurfaces();
   }
+}
+
+pdx::Status<BorrowedNativeBufferHandle> DisplayService::OnSetupGlobalBuffer(
+    pdx::Message& message, DvrGlobalBufferKey key, size_t size,
+    uint64_t usage) {
+  const int user_id = message.GetEffectiveUserId();
+  const bool trusted = user_id == AID_ROOT || IsTrustedUid(user_id);
+
+  if (!trusted) {
+    ALOGE(
+        "DisplayService::OnSetupGlobalBuffer: Permission denied for user_id=%d",
+        user_id);
+    return ErrorStatus(EPERM);
+  }
+  return SetupGlobalBuffer(key, size, usage);
+}
+
+pdx::Status<void> DisplayService::OnDeleteGlobalBuffer(pdx::Message& message,
+                                                       DvrGlobalBufferKey key) {
+  const int user_id = message.GetEffectiveUserId();
+  const bool trusted = (user_id == AID_ROOT) || IsTrustedUid(user_id);
+
+  if (!trusted) {
+    ALOGE(
+        "DisplayService::OnDeleteGlobalBuffer: Permission denied for "
+        "user_id=%d",
+        user_id);
+    return ErrorStatus(EPERM);
+  }
+  return DeleteGlobalBuffer(key);
 }
 
 pdx::Status<BorrowedNativeBufferHandle> DisplayService::OnGetGlobalBuffer(

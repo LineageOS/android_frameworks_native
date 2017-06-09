@@ -61,11 +61,6 @@ enum {
 // dvr_display_manager.h
 typedef int (*DvrDisplayManagerCreatePtr)(DvrDisplayManager** client_out);
 typedef void (*DvrDisplayManagerDestroyPtr)(DvrDisplayManager* client);
-typedef int (*DvrDisplayManagerSetupGlobalBufferPtr)(DvrDisplayManager* client,
-                                                     DvrGlobalBufferKey key,
-                                                     size_t size,
-                                                     uint64_t usage,
-                                                     DvrBuffer** buffer_out);
 typedef int (*DvrDisplayManagerGetEventFdPtr)(DvrDisplayManager* client);
 typedef int (*DvrDisplayManagerTranslateEpollEventMaskPtr)(
     DvrDisplayManager* client, int in_events, int* out_events);
@@ -188,6 +183,9 @@ typedef int (*DvrReadBufferQueueHandleEventsPtr)(
     DvrReadBufferQueue* read_queue);
 
 // dvr_surface.h
+typedef int (*DvrSetupGlobalBufferPtr)(DvrGlobalBufferKey key, size_t size,
+                                       uint64_t usage, DvrBuffer** buffer_out);
+typedef int (*DvrDeleteGlobalBufferPtr)(DvrGlobalBufferKey key);
 typedef int (*DvrGetGlobalBufferPtr)(DvrGlobalBufferKey key,
                                      DvrBuffer** out_buffer);
 typedef int (*DvrSurfaceCreatePtr)(const DvrSurfaceAttribute* attributes,
