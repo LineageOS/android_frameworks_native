@@ -73,6 +73,9 @@ class DisplayClient : public pdx::ClientBase<DisplayClient> {
  public:
   pdx::Status<Metrics> GetDisplayMetrics();
   pdx::Status<std::string> GetConfigurationData(ConfigFileType config_type);
+  pdx::Status<std::unique_ptr<IonBuffer>> SetupGlobalBuffer(
+      DvrGlobalBufferKey key, size_t size, uint64_t usage);
+  pdx::Status<void> DeleteGlobalBuffer(DvrGlobalBufferKey key);
   pdx::Status<std::unique_ptr<IonBuffer>> GetGlobalBuffer(
       DvrGlobalBufferKey key);
   pdx::Status<std::unique_ptr<Surface>> CreateSurface(

@@ -79,6 +79,20 @@ int dvrSurfaceCreateWriteBufferQueue(DvrSurface* surface, uint32_t width,
                                      size_t capacity, size_t metadata_size,
                                      DvrWriteBufferQueue** queue_out);
 
+// Sets up a named buffer for shared memory data transfer between display
+// clients and the system. Protected API that may only be called with sufficient
+// privilege.
+// @return 0 on success. Otherwise returns a negative error value.
+int dvrSetupGlobalBuffer(DvrGlobalBufferKey key, size_t size, uint64_t usage,
+                         DvrBuffer** buffer_out);
+
+// Deletes a named buffer. WARNING: This is dangerous because any existing
+// clients of this buffer will not be notified and will remain attached to
+// the old buffer. This is useful for tests, but probably not for production
+// code.
+// @return 0 on success. Otherwise returns a negative error value.
+int dvrDeleteGlobalBuffer(DvrGlobalBufferKey key);
+
 // Get a global buffer from the display service.
 // @return 0 on success. Otherwise returns a negative error value.
 int dvrGetGlobalBuffer(DvrGlobalBufferKey key, DvrBuffer** out_buffer);

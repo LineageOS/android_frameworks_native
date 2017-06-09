@@ -1,7 +1,6 @@
 #include <android/hardware_buffer.h>
 #include <dvr/dvr_buffer.h>
 #include <dvr/dvr_config.h>
-#include <dvr/dvr_display_manager.h>
 #include <dvr/dvr_shared_buffers.h>
 #include <dvr/dvr_surface.h>
 #include <system/graphics.h>
@@ -14,33 +13,15 @@ namespace dvr {
 
 namespace {
 
-class DvrGlobalBufferTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    const int ret = dvrDisplayManagerCreate(&client_);
-    ASSERT_EQ(0, ret);
-    ASSERT_NE(nullptr, client_);
-  }
-
-  void TearDown() override {
-    dvrDisplayManagerDestroy(client_);
-    client_ = nullptr;
-  }
-
-  DvrDisplayManager* client_ = nullptr;
-};
-
-TEST_F(DvrGlobalBufferTest, TestGlobalBuffersSameName) {
+TEST(DvrGlobalBufferTest, TestGlobalBuffersSameName) {
   const DvrGlobalBufferKey buffer_key = 101;
   DvrBuffer* buffer1 = nullptr;
-  int ret1 =
-      dvrDisplayManagerSetupGlobalBuffer(client_, buffer_key, 10, 0, &buffer1);
+  int ret1 = dvrSetupGlobalBuffer(buffer_key, 10, 0, &buffer1);
   ASSERT_EQ(0, ret1);
   ASSERT_NE(nullptr, buffer1);
 
   DvrBuffer* buffer2 = nullptr;
-  int ret2 =
-      dvrDisplayManagerSetupGlobalBuffer(client_, buffer_key, 10, 0, &buffer2);
+  int ret2 = dvrSetupGlobalBuffer(buffer_key, 10, 0, &buffer2);
   ASSERT_EQ(0, ret1);
   ASSERT_NE(nullptr, buffer2);
 
@@ -97,19 +78,17 @@ TEST_F(DvrGlobalBufferTest, TestGlobalBuffersSameName) {
   AHardwareBuffer_release(hardware_buffer3);
 }
 
-TEST_F(DvrGlobalBufferTest, TestMultipleGlobalBuffers) {
+TEST(DvrGlobalBufferTest, TestMultipleGlobalBuffers) {
   const DvrGlobalBufferKey buffer_key1 = 102;
   const DvrGlobalBufferKey buffer_key2 = 103;
   DvrBuffer* setup_buffer1 = nullptr;
-  int ret1 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_key1, 10, 0,
-                                                &setup_buffer1);
+  int ret1 = dvrSetupGlobalBuffer(buffer_key1, 10, 0, &setup_buffer1);
   ASSERT_EQ(0, ret1);
   ASSERT_NE(nullptr, setup_buffer1);
   dvrBufferDestroy(setup_buffer1);
 
   DvrBuffer* setup_buffer2 = nullptr;
-  int ret2 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_key2, 10, 0,
-                                                &setup_buffer2);
+  int ret2 = dvrSetupGlobalBuffer(buffer_key2, 10, 0, &setup_buffer2);
   ASSERT_EQ(0, ret2);
   ASSERT_NE(nullptr, setup_buffer2);
   dvrBufferDestroy(setup_buffer2);
@@ -127,7 +106,7 @@ TEST_F(DvrGlobalBufferTest, TestMultipleGlobalBuffers) {
   dvrBufferDestroy(buffer2);
 }
 
-TEST_F(DvrGlobalBufferTest, TestGlobalBufferUsage) {
+TEST(DvrGlobalBufferTest, TestGlobalBufferUsage) {
   const DvrGlobalBufferKey buffer_key = 100;
 
   // Set usage to AHARDWAREBUFFER_USAGE_VIDEO_ENCODE. We use this because
@@ -138,8 +117,7 @@ TEST_F(DvrGlobalBufferTest, TestGlobalBufferUsage) {
   const uint64_t usage = AHARDWAREBUFFER_USAGE_VIDEO_ENCODE;
 
   DvrBuffer* setup_buffer = nullptr;
-  int e1 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_key, 10, usage,
-                                              &setup_buffer);
+  int e1 = dvrSetupGlobalBuffer(buffer_key, 10, usage, &setup_buffer);
   ASSERT_NE(nullptr, setup_buffer);
   ASSERT_EQ(0, e1);
 
@@ -156,7 +134,7 @@ TEST_F(DvrGlobalBufferTest, TestGlobalBufferUsage) {
   AHardwareBuffer_release(hardware_buffer);
 }
 
-TEST_F(DvrGlobalBufferTest, TestGlobalBufferCarriesData) {
+TEST(DvrGlobalBufferTest, TestGlobalBufferCarriesData) {
   const DvrGlobalBufferKey buffer_name = 110;
 
   uint64_t usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
@@ -167,8 +145,7 @@ TEST_F(DvrGlobalBufferTest, TestGlobalBufferCarriesData) {
   {
     // Allocate some data and set it to something.
     DvrBuffer* setup_buffer = nullptr;
-    int e1 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_name, size,
-                                                usage, &setup_buffer);
+    int e1 = dvrSetupGlobalBuffer(buffer_name, size, usage, &setup_buffer);
     ASSERT_NE(nullptr, setup_buffer);
     ASSERT_EQ(0, e1);
 
@@ -234,7 +211,7 @@ TEST_F(DvrGlobalBufferTest, TestGlobalBufferCarriesData) {
   }
 }
 
-TEST_F(DvrGlobalBufferTest, TestGlobalBufferZeroed) {
+TEST(DvrGlobalBufferTest, TestGlobalBufferZeroed) {
   const DvrGlobalBufferKey buffer_name = 120;
 
   // Allocate 1MB and check that it is all zeros.
@@ -242,8 +219,7 @@ TEST_F(DvrGlobalBufferTest, TestGlobalBufferZeroed) {
                    AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
   constexpr size_t size = 1024 * 1024;
   DvrBuffer* setup_buffer = nullptr;
-  int e1 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_name, size, usage,
-                                              &setup_buffer);
+  int e1 = dvrSetupGlobalBuffer(buffer_name, size, usage, &setup_buffer);
   ASSERT_NE(nullptr, setup_buffer);
   ASSERT_EQ(0, e1);
 
@@ -275,12 +251,12 @@ TEST_F(DvrGlobalBufferTest, TestGlobalBufferZeroed) {
   AHardwareBuffer_release(hardware_buffer);
 }
 
-TEST_F(DvrGlobalBufferTest, TestVrflingerConfigBuffer) {
+TEST(DvrGlobalBufferTest, TestVrflingerConfigBuffer) {
   const DvrGlobalBufferKey buffer_name =
       DvrGlobalBuffers::kVrFlingerConfigBufferKey;
 
   // First delete any existing buffer so we can test the failure case.
-  dvrDisplayManagerDeleteGlobalBuffer(client_, buffer_name);
+  dvrDeleteGlobalBuffer(buffer_name);
 
   const uint64_t usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
                          AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY;
@@ -290,14 +266,13 @@ TEST_F(DvrGlobalBufferTest, TestVrflingerConfigBuffer) {
 
   // Setup an invalid config buffer (too small) and assert that it fails.
   DvrBuffer* setup_buffer = nullptr;
-  int e1 = dvrDisplayManagerSetupGlobalBuffer(client_, buffer_name, wrong_size,
-                                              usage, &setup_buffer);
+  int e1 = dvrSetupGlobalBuffer(buffer_name, wrong_size, usage, &setup_buffer);
   ASSERT_EQ(nullptr, setup_buffer);
   ASSERT_GT(0, e1);
 
   // Setup a correct config buffer.
-  int e2 = dvrDisplayManagerSetupGlobalBuffer(
-      client_, buffer_name, correct_size, usage, &setup_buffer);
+  int e2 =
+      dvrSetupGlobalBuffer(buffer_name, correct_size, usage, &setup_buffer);
   ASSERT_NE(nullptr, setup_buffer);
   ASSERT_EQ(0, e2);
 
