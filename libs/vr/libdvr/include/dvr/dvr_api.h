@@ -41,6 +41,19 @@ typedef int32_t DvrGlobalBufferKey;
 typedef struct DvrSurfaceAttributeValue DvrSurfaceAttributeValue;
 typedef struct DvrSurfaceAttribute DvrSurfaceAttribute;
 
+// Note: To avoid breaking others during active development, only modify this
+// struct by appending elements to the end.
+// If you do feel we should to re-arrange or remove elements, please make a
+// note of it, and wait until we're about to finalize for an API release to do
+// so.
+typedef struct DvrNativeDisplayMetrics {
+  uint32_t display_width;
+  uint32_t display_height;
+  uint32_t display_x_dpi;
+  uint32_t display_y_dpi;
+  uint32_t vsync_period_ns;
+} DvrNativeDisplayMetrics;
+
 // native_handle contains the fds for the underlying ION allocations inside
 // the gralloc buffer. This is needed temporarily while GPU vendors work on
 // better support for AHardwareBuffer via glBindSharedBuffer APIs. See
@@ -200,6 +213,8 @@ typedef int (*DvrSurfaceCreateWriteBufferQueuePtr)(
     DvrSurface* surface, uint32_t width, uint32_t height, uint32_t format,
     uint32_t layer_count, uint64_t usage, size_t capacity, size_t metadata_size,
     DvrWriteBufferQueue** queue_out);
+typedef int (*DvrGetNativeDisplayMetricsPtr)(size_t sizeof_metrics,
+                                             DvrNativeDisplayMetrics* metrics);
 
 // dvr_vsync.h
 typedef int (*DvrVSyncClientCreatePtr)(DvrVSyncClient** client_out);
