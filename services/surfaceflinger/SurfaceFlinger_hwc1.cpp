@@ -932,8 +932,13 @@ status_t SurfaceFlinger::injectVSync(nsecs_t when) {
 
 // ----------------------------------------------------------------------------
 
-sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection() {
-    return mEventThread->createEventConnection();
+sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
+        ISurfaceComposer::VsyncSource vsyncSource) {
+    if (vsyncSource == eVsyncSourceSurfaceFlinger) {
+        return mSFEventThread->createEventConnection();
+    } else {
+        return mEventThread->createEventConnection();
+    }
 }
 
 // ----------------------------------------------------------------------------
