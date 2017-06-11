@@ -104,10 +104,8 @@ Status<void> Surface::SetAttributes(const SurfaceAttributes& attributes) {
   return {};
 }
 
-Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(uint32_t width,
-                                                            uint32_t height,
-                                                            uint32_t format,
-                                                            size_t metadata_size) {
+Status<std::unique_ptr<ProducerQueue>> Surface::CreateQueue(
+    uint32_t width, uint32_t height, uint32_t format, size_t metadata_size) {
   ALOGD_IF(TRACE, "Surface::CreateQueue: Creating empty queue.");
   auto status = InvokeRemoteMethod<DisplayProtocol::CreateQueue>(
       ProducerQueueConfigBuilder()
@@ -188,6 +186,42 @@ Status<std::unique_ptr<Surface>> DisplayClient::CreateSurface(
     return {std::move(client)};
   else
     return ErrorStatus(error);
+}
+
+pdx::Status<std::unique_ptr<IonBuffer>> DisplayClient::SetupGlobalBuffer(
+    DvrGlobalBufferKey key, size_t size, uint64_t usage) {
+  auto status =
+      InvokeRemoteMethod<DisplayProtocol::SetupGlobalBuffer>(key, size, usage);
+  if (!status) {
+    ALOGE(
+        "DisplayClient::SetupGlobalBuffer: Failed to create the global buffer "
+        "%s",
+        status.GetErrorMessage().c_str());
+    return status.error_status();
+  }
+
+  auto ion_buffer = std::make_unique<IonBuffer>();
+  auto native_buffer_handle = status.take();
+  const int ret = native_buffer_handle.Import(ion_buffer.get());
+  if (ret < 0) {
+    ALOGE(
+        "DisplayClient::GetGlobalBuffer: Failed to import global buffer: "
+        "key=%d; error=%s",
+        key, strerror(-ret));
+    return ErrorStatus(-ret);
+  }
+
+  return {std::move(ion_buffer)};
+}
+
+pdx::Status<void> DisplayClient::DeleteGlobalBuffer(DvrGlobalBufferKey key) {
+  auto status = InvokeRemoteMethod<DisplayProtocol::DeleteGlobalBuffer>(key);
+  if (!status) {
+    ALOGE("DisplayClient::DeleteGlobalBuffer Failed: %s",
+          status.GetErrorMessage().c_str());
+  }
+
+  return status;
 }
 
 Status<std::unique_ptr<IonBuffer>> DisplayClient::GetGlobalBuffer(

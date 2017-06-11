@@ -2,7 +2,6 @@
 
 #include <dvr/dvr_buffer.h>
 #include <pdx/rpc/variant.h>
-#include <private/android/AHardwareBufferHelpers.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/display_client.h>
@@ -11,7 +10,6 @@
 #include "dvr_internal.h"
 #include "dvr_buffer_queue_internal.h"
 
-using android::AHardwareBuffer_convertToGrallocUsageBits;
 using android::dvr::BufferConsumer;
 using android::dvr::display::DisplayManagerClient;
 using android::dvr::display::SurfaceAttributes;
@@ -111,44 +109,6 @@ int dvrDisplayManagerCreate(DvrDisplayManager** client_out) {
 }
 
 void dvrDisplayManagerDestroy(DvrDisplayManager* client) { delete client; }
-
-int dvrDisplayManagerSetupGlobalBuffer(DvrDisplayManager* client,
-                                       DvrGlobalBufferKey key, size_t size,
-                                       uint64_t usage, DvrBuffer** buffer_out) {
-  if (!client || !buffer_out)
-    return -EINVAL;
-
-  uint64_t gralloc_usage = AHardwareBuffer_convertToGrallocUsageBits(usage);
-
-  auto buffer_status =
-      client->client->SetupGlobalBuffer(key, size, gralloc_usage);
-  if (!buffer_status) {
-    ALOGE(
-        "dvrDisplayManagerSetupGlobalBuffer: Failed to setup global buffer: %s",
-        buffer_status.GetErrorMessage().c_str());
-    return -buffer_status.error();
-  }
-
-  *buffer_out = CreateDvrBufferFromIonBuffer(buffer_status.take());
-  return 0;
-}
-
-int dvrDisplayManagerDeleteGlobalBuffer(DvrDisplayManager* client,
-                                        DvrGlobalBufferKey key) {
-  if (!client)
-    return -EINVAL;
-
-  auto buffer_status = client->client->DeleteGlobalBuffer(key);
-  if (!buffer_status) {
-    ALOGE(
-        "dvrDisplayManagerDeleteGlobalBuffer: Failed to delete named buffer: "
-        "%s",
-        buffer_status.GetErrorMessage().c_str());
-    return -buffer_status.error();
-  }
-
-  return 0;
-}
 
 int dvrDisplayManagerGetEventFd(DvrDisplayManager* client) {
   if (!client)
