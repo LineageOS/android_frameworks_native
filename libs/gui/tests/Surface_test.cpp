@@ -465,7 +465,8 @@ public:
             const sp<IGraphicBufferProducer>& /* parent */) override {
         return nullptr;
     }
-    sp<IDisplayEventConnection> createDisplayEventConnection() override {
+    sp<IDisplayEventConnection> createDisplayEventConnection(ISurfaceComposer::VsyncSource)
+            override {
         return nullptr;
     }
     sp<IBinder> createDisplay(const String8& /*displayName*/,

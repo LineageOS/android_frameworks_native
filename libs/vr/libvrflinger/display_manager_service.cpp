@@ -78,16 +78,6 @@ pdx::Status<void> DisplayManagerService::HandleMessage(pdx::Message& message) {
           *this, &DisplayManagerService::OnGetSurfaceQueue, message);
       return {};
 
-    case DisplayManagerProtocol::SetupGlobalBuffer::Opcode:
-      DispatchRemoteMethod<DisplayManagerProtocol::SetupGlobalBuffer>(
-          *this, &DisplayManagerService::OnSetupGlobalBuffer, message);
-      return {};
-
-    case DisplayManagerProtocol::DeleteGlobalBuffer::Opcode:
-      DispatchRemoteMethod<DisplayManagerProtocol::DeleteGlobalBuffer>(
-          *this, &DisplayManagerService::OnDeleteGlobalBuffer, message);
-      return {};
-
     default:
       return Service::DefaultHandleMessage(message);
   }
@@ -132,36 +122,6 @@ pdx::Status<pdx::LocalChannelHandle> DisplayManagerService::OnGetSurfaceQueue(
       queue->id(), status.GetErrorMessage().c_str());
 
   return status;
-}
-
-pdx::Status<BorrowedNativeBufferHandle>
-DisplayManagerService::OnSetupGlobalBuffer(pdx::Message& message,
-                                           DvrGlobalBufferKey key, size_t size,
-                                           uint64_t usage) {
-  const int user_id = message.GetEffectiveUserId();
-  const bool trusted = user_id == AID_ROOT || IsTrustedUid(user_id);
-
-  if (!trusted) {
-    ALOGE(
-        "DisplayService::SetupGlobalBuffer: Global buffers may only be created "
-        "by trusted UIDs: user_id=%d",
-        user_id);
-    return ErrorStatus(EPERM);
-  }
-  return display_service_->SetupGlobalBuffer(key, size, usage);
-}
-
-pdx::Status<void> DisplayManagerService::OnDeleteGlobalBuffer(
-    pdx::Message& message, DvrGlobalBufferKey key) {
-  const int user_id = message.GetEffectiveUserId();
-  const bool trusted = (user_id == AID_ROOT) || IsTrustedUid(user_id);
-
-  if (!trusted) {
-    ALOGE("DisplayService::DeleteGlobalBuffer: Untrusted user_id (%d)",
-          user_id);
-    return ErrorStatus(EPERM);
-  }
-  return display_service_->DeleteGlobalBuffer(key);
 }
 
 void DisplayManagerService::OnDisplaySurfaceChange() {

@@ -44,12 +44,12 @@ int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc, AHardwareBuffer**
     if (!outBuffer || !desc)
         return BAD_VALUE;
 
-    int format = AHardwareBuffer_convertToPixelFormat(desc->format);
-    if (format == 0) {
-        ALOGE("Invalid pixel format %u", desc->format);
+    if (!AHardwareBuffer_isValidPixelFormat(desc->format)) {
+        ALOGE("Invalid AHardwareBuffer pixel format %u (%#x))", desc->format, desc->format);
         return BAD_VALUE;
     }
 
+    int format = AHardwareBuffer_convertToPixelFormat(desc->format);
     if (desc->rfu0 != 0 || desc->rfu1 != 0) {
         ALOGE("AHardwareBuffer_Desc::rfu fields must be 0");
         return BAD_VALUE;
@@ -296,32 +296,95 @@ static inline bool containsBits(uint64_t mask, uint64_t bitsToCheck) {
     return (mask & bitsToCheck) == bitsToCheck && bitsToCheck;
 }
 
-uint32_t AHardwareBuffer_convertFromPixelFormat(uint32_t format) {
+bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
+    static_assert(HAL_PIXEL_FORMAT_RGBA_8888 == AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_RGBX_8888 == AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_RGB_565 == AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_RGB_888 == AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_RGBA_FP16 == AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_RGBA_1010102 == AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_BLOB == AHARDWAREBUFFER_FORMAT_BLOB,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_BGRA_8888 == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_YV12 == AHARDWAREBUFFER_FORMAT_YV12,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_Y8 == AHARDWAREBUFFER_FORMAT_Y8,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_Y16 == AHARDWAREBUFFER_FORMAT_Y16,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_RAW16 == AHARDWAREBUFFER_FORMAT_RAW16,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_RAW10 == AHARDWAREBUFFER_FORMAT_RAW10,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_RAW12 == AHARDWAREBUFFER_FORMAT_RAW12,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_RAW_OPAQUE == AHARDWAREBUFFER_FORMAT_RAW_OPAQUE,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED == AHARDWAREBUFFER_FORMAT_IMPLEMENTATION_DEFINED,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_YCBCR_420_888 == AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_YCBCR_422_888 == AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_422,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_YCBCR_444_888 == AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_444,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_FLEX_RGB_888 == AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_FLEX_RGBA_8888 == AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8A8,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_YCBCR_422_SP == AHARDWAREBUFFER_FORMAT_YCbCr_422_SP,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_YCRCB_420_SP == AHARDWAREBUFFER_FORMAT_YCrCb_420_SP,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_YCBCR_422_I == AHARDWAREBUFFER_FORMAT_YCbCr_422_I,
+            "HAL and AHardwareBuffer pixel format don't match");
+
     switch (format) {
-        case HAL_PIXEL_FORMAT_RGBA_8888:    return AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
-        case HAL_PIXEL_FORMAT_RGBX_8888:    return AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
-        case HAL_PIXEL_FORMAT_RGB_565:      return AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM;
-        case HAL_PIXEL_FORMAT_RGB_888:      return AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM;
-        case HAL_PIXEL_FORMAT_RGBA_FP16:    return AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT;
-        case HAL_PIXEL_FORMAT_RGBA_1010102: return AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM;
-        case HAL_PIXEL_FORMAT_BLOB:         return AHARDWAREBUFFER_FORMAT_BLOB;
-        default:ALOGE("Unknown pixel format %u", format);
-            return 0;
+        case AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM:
+        case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:
+        case AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM:
+        case AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM:
+        case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:
+        case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
+        case AHARDWAREBUFFER_FORMAT_BLOB:
+            // VNDK formats only -- unfortunately we can't differentiate from where we're called
+        case AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM:
+        case AHARDWAREBUFFER_FORMAT_YV12:
+        case AHARDWAREBUFFER_FORMAT_Y8:
+        case AHARDWAREBUFFER_FORMAT_Y16:
+        case AHARDWAREBUFFER_FORMAT_RAW16:
+        case AHARDWAREBUFFER_FORMAT_RAW10:
+        case AHARDWAREBUFFER_FORMAT_RAW12:
+        case AHARDWAREBUFFER_FORMAT_RAW_OPAQUE:
+        case AHARDWAREBUFFER_FORMAT_IMPLEMENTATION_DEFINED:
+        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
+        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_422:
+        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_444:
+        case AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8:
+        case AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8A8:
+        case AHARDWAREBUFFER_FORMAT_YCbCr_422_SP:
+        case AHARDWAREBUFFER_FORMAT_YCrCb_420_SP:
+        case AHARDWAREBUFFER_FORMAT_YCbCr_422_I:
+            return true;
+
+        default:
+            return false;
     }
 }
 
-uint32_t AHardwareBuffer_convertToPixelFormat(uint32_t format) {
-    switch (format) {
-        case AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM:         return HAL_PIXEL_FORMAT_RGBA_8888;
-        case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:         return HAL_PIXEL_FORMAT_RGBX_8888;
-        case AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM:           return HAL_PIXEL_FORMAT_RGB_565;
-        case AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM:           return HAL_PIXEL_FORMAT_RGB_888;
-        case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:     return HAL_PIXEL_FORMAT_RGBA_FP16;
-        case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:      return HAL_PIXEL_FORMAT_RGBA_1010102;
-        case AHARDWAREBUFFER_FORMAT_BLOB:                   return HAL_PIXEL_FORMAT_BLOB;
-        default:ALOGE("Unknown AHardwareBuffer format %u", format);
-            return 0;
-    }
+uint32_t AHardwareBuffer_convertFromPixelFormat(uint32_t hal_format) {
+    return hal_format;
+}
+
+uint32_t AHardwareBuffer_convertToPixelFormat(uint32_t ahardwarebuffer_format) {
+    return ahardwarebuffer_format;
 }
 
 uint64_t AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage) {

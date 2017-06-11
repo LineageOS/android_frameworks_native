@@ -11,7 +11,7 @@ namespace android {
 namespace dvr {
 
 // Increment when the layout for the buffers change.
-enum : uint32_t { kSharedBufferLayoutVersion = 1 };
+enum : uint32_t { kSharedBufferLayoutVersion = 2 };
 
 // Note: These buffers will be mapped from various system processes as well
 // as VrCore and the application processes in a r/w manner.
@@ -24,7 +24,7 @@ enum : uint32_t { kSharedBufferLayoutVersion = 1 };
 
 // Sanity check for basic type sizes.
 static_assert(sizeof(DvrPoseAsync) == 128, "Unexpected size for DvrPoseAsync");
-static_assert(sizeof(DvrPose) == 96, "Unexpected size for DvrPose");
+static_assert(sizeof(DvrPose) == 112, "Unexpected size for DvrPose");
 static_assert(sizeof(DvrVsync) == 32, "Unexpected size for DvrVsync");
 static_assert(sizeof(DvrConfig) == 16, "Unexpected size for DvrConfig");
 
@@ -85,7 +85,7 @@ struct __attribute__((packed, aligned(16))) DvrVsyncPoseBuffer {
   uint8_t padding[12];
 };
 
-static_assert(sizeof(DvrVsyncPoseBuffer) == 1136,
+static_assert(sizeof(DvrVsyncPoseBuffer) == 1152,
               "Unexpected size for DvrVsyncPoseBuffer");
 
 // The keys for the dvr global buffers.

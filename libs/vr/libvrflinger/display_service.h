@@ -92,6 +92,11 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
       pdx::Message& message, display::ConfigFileType config_type);
   pdx::Status<display::SurfaceInfo> OnCreateSurface(
       pdx::Message& message, const display::SurfaceAttributes& attributes);
+  pdx::Status<BorrowedNativeBufferHandle> OnSetupGlobalBuffer(
+      pdx::Message& message, DvrGlobalBufferKey key, size_t size,
+      uint64_t usage);
+  pdx::Status<void> OnDeleteGlobalBuffer(pdx::Message& message,
+                                         DvrGlobalBufferKey key);
 
   // Temporary query for current VR status. Will be removed later.
   pdx::Status<bool> IsVrAppRunning(pdx::Message& message);

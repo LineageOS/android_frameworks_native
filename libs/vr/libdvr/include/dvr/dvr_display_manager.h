@@ -25,21 +25,6 @@ int dvrDisplayManagerCreate(DvrDisplayManager** client_out);
 // Destroys the display manager client object.
 void dvrDisplayManagerDestroy(DvrDisplayManager* client);
 
-// Sets up a named buffer for shared memory data transfer between display
-// clients and the display manager.
-// @return 0 on success. Otherwise returns a negative error value.
-int dvrDisplayManagerSetupGlobalBuffer(DvrDisplayManager* client,
-                                       DvrGlobalBufferKey key, size_t size,
-                                       uint64_t usage, DvrBuffer** buffer_out);
-
-// Deletes a named buffer. WARNING: This is dangerous because any existing
-// clients of this buffer will not be notified and will remain attached to
-// the old buffer. This is useful for tests, but probably not for production
-// code.
-// @return 0 on success. Otherwise returns a negative error value.
-int dvrDisplayManagerDeleteGlobalBuffer(DvrDisplayManager* client,
-                                        DvrGlobalBufferKey key);
-
 // Returns an fd used to signal when surface updates occur. Note that depending
 // on the underlying transport, only a subset of the real event bits may be
 // supported. Use dvrDisplayManagerClientTranslateEpollEventMask to get the real

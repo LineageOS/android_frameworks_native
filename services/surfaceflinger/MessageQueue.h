@@ -30,6 +30,8 @@
 
 #include "Barrier.h"
 
+#include <functional>
+
 namespace android {
 
 class IDisplayEventConnection;
@@ -56,6 +58,21 @@ private:
     virtual void handleMessage(const Message& message);
 
     mutable Barrier barrier;
+};
+
+class LambdaMessage : public MessageBase {
+public:
+    explicit LambdaMessage(std::function<void()> handler)
+          : MessageBase(), mHandler(std::move(handler)) {}
+
+    bool handler() override {
+        mHandler();
+        // This return value is no longer checked, so it's always safe to return true
+        return true;
+    }
+
+private:
+    const std::function<void()> mHandler;
 };
 
 // ---------------------------------------------------------------------------

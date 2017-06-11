@@ -200,6 +200,8 @@ struct DisplayProtocol {
   enum {
     kOpGetMetrics = 0,
     kOpGetConfigurationData,
+    kOpSetupGlobalBuffer,
+    kOpDeleteGlobalBuffer,
     kOpGetGlobalBuffer,
     kOpIsVrAppRunning,
     kOpCreateSurface,
@@ -216,6 +218,11 @@ struct DisplayProtocol {
   PDX_REMOTE_METHOD(GetMetrics, kOpGetMetrics, Metrics(Void));
   PDX_REMOTE_METHOD(GetConfigurationData, kOpGetConfigurationData,
                     std::string(ConfigFileType config_type));
+  PDX_REMOTE_METHOD(SetupGlobalBuffer, kOpSetupGlobalBuffer,
+                    LocalNativeBufferHandle(DvrGlobalBufferKey key, size_t size,
+                                            uint64_t usage));
+  PDX_REMOTE_METHOD(DeleteGlobalBuffer, kOpDeleteGlobalBuffer,
+                    void(DvrGlobalBufferKey key));
   PDX_REMOTE_METHOD(GetGlobalBuffer, kOpGetGlobalBuffer,
                     LocalNativeBufferHandle(DvrGlobalBufferKey key));
   PDX_REMOTE_METHOD(IsVrAppRunning, kOpIsVrAppRunning, bool(Void));
@@ -237,8 +244,6 @@ struct DisplayManagerProtocol {
   enum {
     kOpGetSurfaceState = 0,
     kOpGetSurfaceQueue,
-    kOpSetupGlobalBuffer,
-    kOpDeleteGlobalBuffer,
   };
 
   // Aliases.
@@ -250,11 +255,6 @@ struct DisplayManagerProtocol {
                     std::vector<SurfaceState>(Void));
   PDX_REMOTE_METHOD(GetSurfaceQueue, kOpGetSurfaceQueue,
                     LocalChannelHandle(int surface_id, int queue_id));
-  PDX_REMOTE_METHOD(SetupGlobalBuffer, kOpSetupGlobalBuffer,
-                    LocalNativeBufferHandle(DvrGlobalBufferKey key, size_t size,
-                                            uint64_t usage));
-  PDX_REMOTE_METHOD(DeleteGlobalBuffer, kOpDeleteGlobalBuffer,
-                    void(DvrGlobalBufferKey key));
 };
 
 struct VSyncSchedInfo {

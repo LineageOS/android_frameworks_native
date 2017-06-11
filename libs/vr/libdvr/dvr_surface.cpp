@@ -2,11 +2,13 @@
 
 #include <inttypes.h>
 
+#include <private/android/AHardwareBufferHelpers.h>
 #include <private/dvr/display_client.h>
 
-#include "dvr_internal.h"
 #include "dvr_buffer_queue_internal.h"
+#include "dvr_internal.h"
 
+using android::AHardwareBuffer_convertToGrallocUsageBits;
 using android::dvr::display::DisplayClient;
 using android::dvr::display::Surface;
 using android::dvr::display::SurfaceAttributes;
@@ -144,8 +146,8 @@ int dvrSurfaceCreateWriteBufferQueue(DvrSurface* surface, uint32_t width,
     return -EINVAL;
   }
 
-  auto status = surface->surface->CreateQueue(width, height, layer_count,
-                                              format, usage, capacity, metadata_size);
+  auto status = surface->surface->CreateQueue(
+      width, height, layer_count, format, usage, capacity, metadata_size);
   if (!status) {
     ALOGE("dvrSurfaceCreateWriteBufferQueue: Failed to create queue: %s",
           status.GetErrorMessage().c_str());
@@ -156,17 +158,61 @@ int dvrSurfaceCreateWriteBufferQueue(DvrSurface* surface, uint32_t width,
   return 0;
 }
 
-int dvrGetGlobalBuffer(DvrGlobalBufferKey key, DvrBuffer** out_buffer) {
-  auto client = DisplayClient::Create();
+int dvrSetupGlobalBuffer(DvrGlobalBufferKey key, size_t size, uint64_t usage,
+                         DvrBuffer** buffer_out) {
+  if (!buffer_out)
+    return -EINVAL;
+
+  int error;
+  auto client = DisplayClient::Create(&error);
   if (!client) {
-    ALOGE("dvrGetGlobalBuffer: Failed to create display client!");
-    return -ECOMM;
+    ALOGE("dvrSetupGlobalBuffer: Failed to create display client: %s",
+          strerror(-error));
+    return error;
   }
 
-  if (out_buffer == nullptr) {
-    ALOGE("dvrGetGlobalBuffer: Invalid inputs: key=%d, out_buffer=%p.", key,
-          out_buffer);
+  uint64_t gralloc_usage = AHardwareBuffer_convertToGrallocUsageBits(usage);
+
+  auto buffer_status = client->SetupGlobalBuffer(key, size, gralloc_usage);
+  if (!buffer_status) {
+    ALOGE("dvrSetupGlobalBuffer: Failed to setup global buffer: %s",
+          buffer_status.GetErrorMessage().c_str());
+    return -buffer_status.error();
+  }
+
+  *buffer_out = CreateDvrBufferFromIonBuffer(buffer_status.take());
+  return 0;
+}
+
+int dvrDeleteGlobalBuffer(DvrGlobalBufferKey key) {
+  int error;
+  auto client = DisplayClient::Create(&error);
+  if (!client) {
+    ALOGE("dvrDeleteGlobalBuffer: Failed to create display client: %s",
+          strerror(-error));
+    return error;
+  }
+
+  auto buffer_status = client->DeleteGlobalBuffer(key);
+  if (!buffer_status) {
+    ALOGE("dvrDeleteGlobalBuffer: Failed to delete named buffer: %s",
+          buffer_status.GetErrorMessage().c_str());
+    return -buffer_status.error();
+  }
+
+  return 0;
+}
+
+int dvrGetGlobalBuffer(DvrGlobalBufferKey key, DvrBuffer** out_buffer) {
+  if (!out_buffer)
     return -EINVAL;
+
+  int error;
+  auto client = DisplayClient::Create(&error);
+  if (!client) {
+    ALOGE("dvrGetGlobalBuffer: Failed to create display client: %s",
+          strerror(-error));
+    return error;
   }
 
   auto status = client->GetGlobalBuffer(key);
