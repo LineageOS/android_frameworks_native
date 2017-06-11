@@ -26,6 +26,49 @@ __BEGIN_DECLS
 
 const native_handle_t* AHardwareBuffer_getNativeHandle(const AHardwareBuffer* buffer);
 
+
+/**
+ * Buffer pixel formats.
+ */
+enum {
+    /* for future proofing, keep these in sync with system/graphics-base.h */
+
+    /* same as HAL_PIXEL_FORMAT_BGRA_8888 */
+    AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM           = 5,
+    /* same as HAL_PIXEL_FORMAT_YV12 */
+    AHARDWAREBUFFER_FORMAT_YV12                     = 0x32315659,
+    /* same as HAL_PIXEL_FORMAT_Y8 */
+    AHARDWAREBUFFER_FORMAT_Y8                       = 0x20203859,
+    /* same as HAL_PIXEL_FORMAT_Y16 */
+    AHARDWAREBUFFER_FORMAT_Y16                      = 0x20363159,
+    /* same as HAL_PIXEL_FORMAT_RAW16 */
+    AHARDWAREBUFFER_FORMAT_RAW16                    = 0x20,
+    /* same as HAL_PIXEL_FORMAT_RAW10 */
+    AHARDWAREBUFFER_FORMAT_RAW10                    = 0x25,
+    /* same as HAL_PIXEL_FORMAT_RAW12 */
+    AHARDWAREBUFFER_FORMAT_RAW12                    = 0x26,
+    /* same as HAL_PIXEL_FORMAT_RAW_OPAQUE */
+    AHARDWAREBUFFER_FORMAT_RAW_OPAQUE               = 0x24,
+    /* same as HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED */
+    AHARDWAREBUFFER_FORMAT_IMPLEMENTATION_DEFINED   = 0x22,
+    /* same as HAL_PIXEL_FORMAT_YCBCR_420_888 */
+    AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420             = 0x23,
+    /* same as HAL_PIXEL_FORMAT_YCBCR_422_888 */
+    AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_422             = 0x27,
+    /* same as HAL_PIXEL_FORMAT_YCBCR_444_888 */
+    AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_444             = 0x28,
+    /* same as HAL_PIXEL_FORMAT_FLEX_RGB_888 */
+    AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8              = 0x29,
+    /* same as HAL_PIXEL_FORMAT_FLEX_RGBA_8888 */
+    AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8A8            = 0x2A,
+    /* same as HAL_PIXEL_FORMAT_YCBCR_422_SP */
+    AHARDWAREBUFFER_FORMAT_YCbCr_422_SP             = 0x10,
+    /* same as HAL_PIXEL_FORMAT_YCRCB_420_SP */
+    AHARDWAREBUFFER_FORMAT_YCrCb_420_SP             = 0x11,
+    /* same as HAL_PIXEL_FORMAT_YCBCR_422_I */
+    AHARDWAREBUFFER_FORMAT_YCbCr_422_I              = 0x14,
+};
+
 __END_DECLS
 
 #endif /* ANDROID_VNDK_NATIVEWINDOW_AHARDWAREBUFFER_H */
