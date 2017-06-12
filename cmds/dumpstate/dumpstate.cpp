@@ -72,6 +72,7 @@ void add_mountinfo();
 
 #define PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops"
 #define ALT_PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops-0"
+#define BLK_DEV_SYS_DIR "/sys/block"
 
 #define RAFT_DIR "/data/misc/raft"
 #define RECOVERY_DIR "/cache/recovery"
@@ -539,7 +540,6 @@ static bool skip_none(const char* path __attribute__((unused))) {
     return false;
 }
 
-static const char mmcblk0[] = "/sys/block/mmcblk0/";
 unsigned long worst_write_perf = 20000; /* in KB/s */
 
 //
@@ -653,11 +653,11 @@ static int dump_stat_from_fd(const char *title __unused, const char *path, int f
         return 0;
     }
 
-    if (!strncmp(path, mmcblk0, sizeof(mmcblk0) - 1)) {
-        path += sizeof(mmcblk0) - 1;
+    if (!strncmp(path, BLK_DEV_SYS_DIR, sizeof(BLK_DEV_SYS_DIR) - 1)) {
+        path += sizeof(BLK_DEV_SYS_DIR) - 1;
     }
-
-    printf("%s: %s\n", path, buffer);
+    printf("Block-Dev:\tR-IOs\tR-merg\tR-sect\tR-wait\tW-IOs\tW-merg\tW-sect\tW-wait"
+           "\tin-fli\tactiv\tT-wait\n%s:\t%s\n", path, buffer);
     free(buffer);
 
     if (fields[__STAT_IO_TICKS]) {
@@ -1061,12 +1061,38 @@ static void AddAnrTraceFiles() {
     }
 }
 
+static void DumpBlockStatFiles() {
+    DurationReporter duration_reporter("DUMP BLOCK STAT");
+    struct dirent *d;
+
+    DIR *dirp = opendir(BLK_DEV_SYS_DIR);
+    if (dirp == NULL) {
+        MYLOGE("Failed to open %s: %s\n", BLK_DEV_SYS_DIR, strerror(errno));
+        return;
+    }
+
+    printf("------ DUMP BLOCK STAT ------\n\n");
+    while ((d = readdir(dirp))) {
+        if ((d->d_name[0] == '.')
+         && (((d->d_name[1] == '.') && (d->d_name[2] == '\0'))
+          || (d->d_name[1] == '\0'))) {
+            continue;
+        }
+        const std::string new_path =
+            android::base::StringPrintf("%s/%s", BLK_DEV_SYS_DIR, d->d_name);
+        printf("------ BLOCK STAT (%s) ------\n", new_path.c_str());
+        dump_files("", new_path.c_str(), skip_not_stat, dump_stat_from_fd);
+        printf("\n");
+    }
+    closedir(dirp);
+    return;
+}
 static void dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
 
     dump_dev_files("TRUSTY VERSION", "/sys/bus/platform/drivers/trusty", "trusty_version");
     RunCommand("UPTIME", {"uptime"});
-    dump_files("UPTIME MMC PERF", mmcblk0, skip_not_stat, dump_stat_from_fd);
+    DumpBlockStatFiles();
     dump_emmc_ecsd("/d/mmc0/mmc0:0001/ext_csd");
     DumpFile("MEMORY INFO", "/proc/meminfo");
     RunCommand("CPU INFO", {"top", "-b", "-n", "1", "-H", "-s", "6", "-o",
