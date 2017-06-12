@@ -3,7 +3,6 @@
 #include <pdx/mock_client_channel_factory.h>
 #include <pdx/mock_message_reader.h>
 #include <pdx/mock_message_writer.h>
-#include <pdx/mock_service_dispatcher.h>
 #include <pdx/mock_service_endpoint.h>
 
 TEST(MockTypes, Instantiation) {
@@ -15,6 +14,5 @@ TEST(MockTypes, Instantiation) {
   android::pdx::MockMessageReader message_reader;
   android::pdx::MockOutputResourceMapper output_resource_mapper;
   android::pdx::MockMessageWriter message_writer;
-  android::pdx::MockServiceDispatcher service_dispatcher;
   android::pdx::MockEndpoint endpoint;
 }
