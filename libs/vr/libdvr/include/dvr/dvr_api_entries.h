@@ -148,3 +148,6 @@ DVR_V1_API_ENTRY(HwcFrameGetLayerDamagedRegion);
 
 // Virtual touchpad client
 DVR_V1_API_ENTRY(VirtualTouchpadScroll);
+
+// Read the native display metrics from the hardware composer
+DVR_V1_API_ENTRY(GetNativeDisplayMetrics);
