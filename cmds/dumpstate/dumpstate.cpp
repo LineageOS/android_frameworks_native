@@ -1187,8 +1187,6 @@ static void dumpstate() {
     RunCommand("ARP CACHE", {"ip", "-4", "neigh", "show"});
     RunCommand("IPv6 ND CACHE", {"ip", "-6", "neigh", "show"});
     RunCommand("MULTICAST ADDRESSES", {"ip", "maddr"});
-    RunCommand("WIFI NETWORKS", {"wpa_cli", "IFNAME=wlan0", "list_networks"},
-               CommandOptions::WithTimeout(20).Build());
 
     RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
                CommandOptions::WithTimeout(10).Build());
