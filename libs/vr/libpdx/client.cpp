@@ -1,6 +1,5 @@
 #include "pdx/client.h"
 
-#define LOG_TAG "ServiceFramework"
 #include <log/log.h>
 
 #include <pdx/trace.h>

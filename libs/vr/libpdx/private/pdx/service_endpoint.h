@@ -136,6 +136,10 @@ class Endpoint {
   // Cancels the endpoint, unblocking any receiver threads waiting for a
   // message.
   virtual Status<void> Cancel() = 0;
+
+  // Returns an fd that can be used with epoll() to wait for incoming messages
+  // from this endpoint.
+  virtual int epoll_fd() const = 0;
 };
 
 }  // namespace pdx

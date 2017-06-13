@@ -4,7 +4,7 @@
 #include <log/log.h>
 
 #include <dvr/performance_client_api.h>
-#include <pdx/default_transport/service_dispatcher.h>
+#include <pdx/service_dispatcher.h>
 
 #include "buffer_hub.h"
 
@@ -16,7 +16,7 @@ int main(int, char**) {
   // We need to be able to create endpoints with full perms.
   umask(0000);
 
-  dispatcher = android::pdx::default_transport::ServiceDispatcher::Create();
+  dispatcher = android::pdx::ServiceDispatcher::Create();
   CHECK_ERROR(!dispatcher, error, "Failed to create service dispatcher\n");
 
   service = android::dvr::BufferHubService::Create();
