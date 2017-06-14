@@ -143,6 +143,10 @@ sp<::android::Looper> SensorManager::getLooper() {
             }
 
             std::unique_lock<std::mutex> lock(mutex);
+            if (looper != nullptr) {
+                LOG(INFO) << "Another thread has already set the looper, exiting this one.";
+                return;
+            }
             looper = Looper::prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS /* opts */);
             lock.unlock();
 
