@@ -253,7 +253,18 @@ status_t ConsumerBase::discardFreeBuffers() {
         CB_LOGE("discardFreeBuffers: ConsumerBase is abandoned!");
         return NO_INIT;
     }
-    return mConsumer->discardFreeBuffers();
+    status_t err = mConsumer->discardFreeBuffers();
+    if (err != OK) {
+        return err;
+    }
+    uint64_t mask;
+    mConsumer->getReleasedBuffers(&mask);
+    for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
+        if (mask & (1ULL << i)) {
+            freeBufferLocked(i);
+        }
+    }
+    return OK;
 }
 
 void ConsumerBase::dumpState(String8& result) const {

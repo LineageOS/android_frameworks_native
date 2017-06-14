@@ -632,40 +632,48 @@ status_t BufferQueueProducer::detachNextBuffer(sp<GraphicBuffer>* outBuffer,
         return BAD_VALUE;
     }
 
-    Mutex::Autolock lock(mCore->mMutex);
+    sp<IConsumerListener> listener;
+    {
+        Mutex::Autolock lock(mCore->mMutex);
 
-    if (mCore->mIsAbandoned) {
-        BQ_LOGE("detachNextBuffer: BufferQueue has been abandoned");
-        return NO_INIT;
+        if (mCore->mIsAbandoned) {
+            BQ_LOGE("detachNextBuffer: BufferQueue has been abandoned");
+            return NO_INIT;
+        }
+
+        if (mCore->mConnectedApi == BufferQueueCore::NO_CONNECTED_API) {
+            BQ_LOGE("detachNextBuffer: BufferQueue has no connected producer");
+            return NO_INIT;
+        }
+
+        if (mCore->mSharedBufferMode) {
+            BQ_LOGE("detachNextBuffer: cannot detach a buffer in shared buffer "
+                    "mode");
+            return BAD_VALUE;
+        }
+
+        mCore->waitWhileAllocatingLocked();
+
+        if (mCore->mFreeBuffers.empty()) {
+            return NO_MEMORY;
+        }
+
+        int found = mCore->mFreeBuffers.front();
+        mCore->mFreeBuffers.remove(found);
+        mCore->mFreeSlots.insert(found);
+
+        BQ_LOGV("detachNextBuffer detached slot %d", found);
+
+        *outBuffer = mSlots[found].mGraphicBuffer;
+        *outFence = mSlots[found].mFence;
+        mCore->clearBufferSlotLocked(found);
+        VALIDATE_CONSISTENCY();
+        listener = mCore->mConsumerListener;
     }
 
-    if (mCore->mConnectedApi == BufferQueueCore::NO_CONNECTED_API) {
-        BQ_LOGE("detachNextBuffer: BufferQueue has no connected producer");
-        return NO_INIT;
+    if (listener != NULL) {
+        listener->onBuffersReleased();
     }
-
-    if (mCore->mSharedBufferMode) {
-        BQ_LOGE("detachNextBuffer: cannot detach a buffer in shared buffer "
-            "mode");
-        return BAD_VALUE;
-    }
-
-    mCore->waitWhileAllocatingLocked();
-
-    if (mCore->mFreeBuffers.empty()) {
-        return NO_MEMORY;
-    }
-
-    int found = mCore->mFreeBuffers.front();
-    mCore->mFreeBuffers.remove(found);
-    mCore->mFreeSlots.insert(found);
-
-    BQ_LOGV("detachNextBuffer detached slot %d", found);
-
-    *outBuffer = mSlots[found].mGraphicBuffer;
-    *outFence = mSlots[found].mFence;
-    mCore->clearBufferSlotLocked(found);
-    VALIDATE_CONSISTENCY();
 
     return NO_ERROR;
 }
