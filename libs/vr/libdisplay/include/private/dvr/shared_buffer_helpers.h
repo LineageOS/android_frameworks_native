@@ -103,9 +103,14 @@ class CPUMappedBroadcastRing : public CPUMappedBuffer {
   // Try obtaining the ring. If the named buffer has not been created yet, it
   // will return nullptr.
   RingType* Ring() {
-    if (IsMapped() == false) {
-      TryMapping();
+    // No ring created yet?
+    if (ring_ == nullptr) {
+      // Not mapped the memory yet?
+      if (IsMapped() == false) {
+        TryMapping();
+      }
 
+      // If have the memory mapped, allocate the ring.
       if (IsMapped()) {
         switch (usage_mode_) {
           case CPUUsageMode::READ_OFTEN:
