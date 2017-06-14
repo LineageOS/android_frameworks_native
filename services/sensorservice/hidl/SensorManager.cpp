@@ -30,6 +30,9 @@
 #include "DirectReportChannel.h"
 #include "utils.h"
 
+#include <hwbinder/IPCThreadState.h>
+#include <utils/String8.h>
+
 namespace android {
 namespace frameworks {
 namespace sensorservice {
@@ -42,7 +45,10 @@ using ::android::hardware::hidl_vec;
 using ::android::hardware::Void;
 using ::android::sp;
 
-SensorManager::SensorManager() {
+static const char* POLL_THREAD_NAME = "hidl_ssvc_poll";
+
+SensorManager::SensorManager(JavaVM* vm)
+        : mJavaVm(vm) {
 }
 
 SensorManager::~SensorManager() {
@@ -130,7 +136,7 @@ sp<::android::Looper> SensorManager::getLooper() {
     if (mLooper == nullptr) {
         std::condition_variable looperSet;
 
-        std::thread{[&mutex = mLooperMutex, &looper = mLooper, &looperSet] {
+        std::thread{[&mutex = mLooperMutex, &looper = mLooper, &looperSet, javaVm = mJavaVm] {
 
             struct sched_param p = {0};
             p.sched_priority = 10;
@@ -140,14 +146,35 @@ sp<::android::Looper> SensorManager::getLooper() {
             }
 
             std::unique_lock<std::mutex> lock(mutex);
+            if (looper != nullptr) {
+                LOG(INFO) << "Another thread has already set the looper, exiting this one.";
+                return;
+            }
             looper = Looper::prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS /* opts */);
             lock.unlock();
+
+            // Attach the thread to JavaVM so that pollAll do not crash if the event
+            // is from Java.
+            JavaVMAttachArgs args{
+                .version = JNI_VERSION_1_2,
+                .name = POLL_THREAD_NAME,
+                .group = NULL
+            };
+            JNIEnv* env;
+            if (javaVm->AttachCurrentThread(&env, &args) != JNI_OK) {
+                LOG(FATAL) << "Cannot attach SensorManager looper thread to Java VM.";
+            }
 
             looperSet.notify_one();
             int pollResult = looper->pollAll(-1 /* timeout */);
             if (pollResult != ALOOPER_POLL_WAKE) {
                 LOG(ERROR) << "Looper::pollAll returns unexpected " << pollResult;
             }
+
+            if (javaVm->DetachCurrentThread() != JNI_OK) {
+                LOG(ERROR) << "Cannot detach SensorManager looper thread from Java VM.";
+            }
+
             LOG(INFO) << "Looper thread is terminated.";
         }}.detach();
         looperSet.wait(lock, [this]{ return this->mLooper != nullptr; });
@@ -172,7 +199,9 @@ Return<void> SensorManager::createEventQueue(
     }
 
     sp<::android::Looper> looper = getLooper();
-    sp<::android::SensorEventQueue> internalQueue = getInternalManager().createEventQueue();
+    String8 package(String8::format("hidl_client_pid_%d",
+                                    android::hardware::IPCThreadState::self()->getCallingPid()));
+    sp<::android::SensorEventQueue> internalQueue = getInternalManager().createEventQueue(package);
     if (internalQueue == nullptr) {
         LOG(WARNING) << "::android::SensorManager::createEventQueue returns nullptr.";
         _hidl_cb(nullptr, Result::UNKNOWN_ERROR);

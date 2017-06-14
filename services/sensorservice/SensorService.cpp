@@ -933,8 +933,14 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
     }
 
     uid_t uid = IPCThreadState::self()->getCallingUid();
-    sp<SensorEventConnection> result(new SensorEventConnection(this, uid, packageName,
-            requestedMode == DATA_INJECTION, opPackageName));
+    pid_t pid = IPCThreadState::self()->getCallingPid();
+
+    String8 connPackageName =
+            (packageName == "") ? String8::format("unknown_package_pid_%d", pid) : packageName;
+    String16 connOpPackageName =
+            (opPackageName == String16("")) ? String16(connPackageName) : opPackageName;
+    sp<SensorEventConnection> result(new SensorEventConnection(this, uid, connPackageName,
+            requestedMode == DATA_INJECTION, connOpPackageName));
     if (requestedMode == DATA_INJECTION) {
         if (mActiveConnections.indexOf(result) < 0) {
             mActiveConnections.add(result);

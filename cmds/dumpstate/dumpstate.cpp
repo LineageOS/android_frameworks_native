@@ -656,8 +656,10 @@ static int dump_stat_from_fd(const char *title __unused, const char *path, int f
     if (!strncmp(path, BLK_DEV_SYS_DIR, sizeof(BLK_DEV_SYS_DIR) - 1)) {
         path += sizeof(BLK_DEV_SYS_DIR) - 1;
     }
-    printf("Block-Dev:\tR-IOs\tR-merg\tR-sect\tR-wait\tW-IOs\tW-merg\tW-sect\tW-wait"
-           "\tin-fli\tactiv\tT-wait\n%s:\t%s\n", path, buffer);
+
+    printf("%-30s:%9s%9s%9s%9s%9s%9s%9s%9s%9s%9s%9s\n%-30s:\t%s\n", "Block-Dev",
+           "R-IOs", "R-merg", "R-sect", "R-wait", "W-IOs", "W-merg", "W-sect",
+           "W-wait", "in-fli", "activ", "T-wait", path, buffer);
     free(buffer);
 
     if (fields[__STAT_IO_TICKS]) {
@@ -694,9 +696,9 @@ static int dump_stat_from_fd(const char *title __unused, const char *path, int f
                                  / fields[__STAT_IO_TICKS];
 
         if (!write_perf && !write_ios) {
-            printf("%s: perf(ios) rd: %luKB/s(%lu/s) q: %u\n", path, read_perf, read_ios, queue);
+            printf("%-30s: perf(ios) rd: %luKB/s(%lu/s) q: %u\n", path, read_perf, read_ios, queue);
         } else {
-            printf("%s: perf(ios) rd: %luKB/s(%lu/s) wr: %luKB/s(%lu/s) q: %u\n", path, read_perf,
+            printf("%-30s: perf(ios) rd: %luKB/s(%lu/s) wr: %luKB/s(%lu/s) q: %u\n", path, read_perf,
                    read_ios, write_perf, write_ios, queue);
         }
 
@@ -1063,16 +1065,16 @@ static void AddAnrTraceFiles() {
 
 static void DumpBlockStatFiles() {
     DurationReporter duration_reporter("DUMP BLOCK STAT");
-    struct dirent *d;
 
-    DIR *dirp = opendir(BLK_DEV_SYS_DIR);
-    if (dirp == NULL) {
+    std::unique_ptr<DIR, std::function<int(DIR*)>> dirptr(opendir(BLK_DEV_SYS_DIR), closedir);
+
+    if (dirptr == nullptr) {
         MYLOGE("Failed to open %s: %s\n", BLK_DEV_SYS_DIR, strerror(errno));
         return;
     }
 
     printf("------ DUMP BLOCK STAT ------\n\n");
-    while ((d = readdir(dirp))) {
+    while (struct dirent *d = readdir(dirptr.get())) {
         if ((d->d_name[0] == '.')
          && (((d->d_name[1] == '.') && (d->d_name[2] == '\0'))
           || (d->d_name[1] == '\0'))) {
@@ -1084,8 +1086,7 @@ static void DumpBlockStatFiles() {
         dump_files("", new_path.c_str(), skip_not_stat, dump_stat_from_fd);
         printf("\n");
     }
-    closedir(dirp);
-    return;
+     return;
 }
 static void dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
