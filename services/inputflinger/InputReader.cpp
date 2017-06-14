@@ -2897,7 +2897,7 @@ void CursorInputMapper::fadePointer() {
 // --- RotaryEncoderInputMapper ---
 
 RotaryEncoderInputMapper::RotaryEncoderInputMapper(InputDevice* device) :
-        InputMapper(device) {
+        InputMapper(device), mOrientation(DISPLAY_ORIENTATION_0) {
     mSource = AINPUT_SOURCE_ROTARY_ENCODER;
 }
 
@@ -2939,6 +2939,14 @@ void RotaryEncoderInputMapper::configure(nsecs_t when,
     if (!changes) {
         mRotaryEncoderScrollAccumulator.configure(getDevice());
     }
+    if (!changes || (InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+        DisplayViewport v;
+        if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &v)) {
+            mOrientation = v.orientation;
+        } else {
+            mOrientation = DISPLAY_ORIENTATION_0;
+        }
+    }
 }
 
 void RotaryEncoderInputMapper::reset(nsecs_t when) {
@@ -2974,6 +2982,10 @@ void RotaryEncoderInputMapper::sync(nsecs_t when) {
     uint32_t policyFlags = 0;
     if (scrolled && getDevice()->isExternal()) {
         policyFlags |= POLICY_FLAG_WAKE;
+    }
+
+    if (mOrientation == DISPLAY_ORIENTATION_180) {
+        scroll = -scroll;
     }
 
     // Send motion event.
