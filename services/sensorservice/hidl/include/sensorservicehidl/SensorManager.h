@@ -17,6 +17,8 @@
 #ifndef ANDROID_FRAMEWORKS_SENSORSERVICE_V1_0_SENSORMANAGER_H
 #define ANDROID_FRAMEWORKS_SENSORSERVICE_V1_0_SENSORMANAGER_H
 
+#include <jni.h>
+
 #include <mutex>
 
 #include <android/frameworks/sensorservice/1.0/ISensorManager.h>
@@ -39,7 +41,7 @@ using ::android::hardware::Return;
 
 struct SensorManager final : public ISensorManager {
 
-    SensorManager();
+    SensorManager(JavaVM* vm);
     ~SensorManager();
 
     // Methods from ::android::frameworks::sensorservice::V1_0::ISensorManager follow.
@@ -59,6 +61,8 @@ private:
 
     std::mutex mLooperMutex;
     sp<::android::Looper> mLooper;
+
+    JavaVM* mJavaVm;
 };
 
 }  // namespace implementation
