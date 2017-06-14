@@ -42,7 +42,10 @@ using ::android::hardware::hidl_vec;
 using ::android::hardware::Void;
 using ::android::sp;
 
-SensorManager::SensorManager() {
+static const char* POLL_THREAD_NAME = "hidl_ssvc_poll";
+
+SensorManager::SensorManager(JavaVM* vm)
+        : mJavaVm(vm) {
 }
 
 SensorManager::~SensorManager() {
@@ -130,7 +133,7 @@ sp<::android::Looper> SensorManager::getLooper() {
     if (mLooper == nullptr) {
         std::condition_variable looperSet;
 
-        std::thread{[&mutex = mLooperMutex, &looper = mLooper, &looperSet] {
+        std::thread{[&mutex = mLooperMutex, &looper = mLooper, &looperSet, javaVm = mJavaVm] {
 
             struct sched_param p = {0};
             p.sched_priority = 10;
@@ -143,11 +146,28 @@ sp<::android::Looper> SensorManager::getLooper() {
             looper = Looper::prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS /* opts */);
             lock.unlock();
 
+            // Attach the thread to JavaVM so that pollAll do not crash if the event
+            // is from Java.
+            JavaVMAttachArgs args{
+                .version = JNI_VERSION_1_2,
+                .name = POLL_THREAD_NAME,
+                .group = NULL
+            };
+            JNIEnv* env;
+            if (javaVm->AttachCurrentThread(&env, &args) != JNI_OK) {
+                LOG(FATAL) << "Cannot attach SensorManager looper thread to Java VM.";
+            }
+
             looperSet.notify_one();
             int pollResult = looper->pollAll(-1 /* timeout */);
             if (pollResult != ALOOPER_POLL_WAKE) {
                 LOG(ERROR) << "Looper::pollAll returns unexpected " << pollResult;
             }
+
+            if (javaVm->DetachCurrentThread() != JNI_OK) {
+                LOG(ERROR) << "Cannot detach SensorManager looper thread from Java VM.";
+            }
+
             LOG(INFO) << "Looper thread is terminated.";
         }}.detach();
         looperSet.wait(lock, [this]{ return this->mLooper != nullptr; });
