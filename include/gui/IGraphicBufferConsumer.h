@@ -267,6 +267,8 @@ public:
     // discardFreeBuffers releases all currently-free buffers held by the BufferQueue, in order to
     // reduce the memory consumption of the BufferQueue to the minimum possible without
     // discarding data.
+    // The consumer invoking this method is responsible for calling getReleasedBuffers() after this
+    // call to free up any of its locally cached buffers.
     virtual status_t discardFreeBuffers() = 0;
 
     // dump state into a string
