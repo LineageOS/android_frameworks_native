@@ -2689,8 +2689,6 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) 
             return NO_ERROR;
         }
 
-        index = p->removeChild(layer);
-
         sp<Layer> ancestor = p;
         while (ancestor->getParent() != nullptr) {
             ancestor = ancestor->getParent();
@@ -2699,6 +2697,8 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) 
             ALOGE("removeLayer called with a layer whose parent has been removed");
             return NAME_NOT_FOUND;
         }
+
+        index = p->removeChild(layer);
     } else {
         index = mCurrentState.layersSortedByZ.remove(layer);
     }
