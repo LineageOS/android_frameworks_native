@@ -210,9 +210,6 @@ void HardwareComposer::UpdatePostThreadState(PostThreadStateType state,
 }
 
 void HardwareComposer::OnPostThreadResumed() {
-  if (request_display_callback_)
-    request_display_callback_(true);
-
   hwc2_hidl_->resetCommands();
 
   // HIDL HWC seems to have an internal race condition. If we submit a frame too
@@ -249,9 +246,6 @@ void HardwareComposer::OnPostThreadPaused() {
 
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "idle");
-
-  if (request_display_callback_)
-    request_display_callback_(false);
 }
 
 HWC::Error HardwareComposer::Validate(hwc2_display_t display) {
@@ -478,6 +472,9 @@ void HardwareComposer::SetDisplaySurfaces(
     std::unique_lock<std::mutex> lock(post_thread_mutex_);
     pending_surfaces_ = std::move(surfaces);
   }
+
+  if (request_display_callback_)
+    request_display_callback_(!display_idle);
 
   // Set idle state based on whether there are any surfaces to handle.
   UpdatePostThreadState(PostThreadState::Idle, display_idle);
