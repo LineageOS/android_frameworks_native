@@ -863,6 +863,8 @@ bool copy_system_profile(const std::string& system_profile,
         return false;
     }
 
+    // As a security measure we want to write the profile information with the reduced capabilities
+    // of the package user id. So we fork and drop capabilities in the child.
     pid_t pid = fork();
     if (pid == 0) {
         /* child -- drop privileges before continuing */
@@ -900,7 +902,9 @@ bool copy_system_profile(const std::string& system_profile,
         if (flock(out_fd.get(), LOCK_UN) != 0) {
             PLOG(WARNING) << "Error unlocking profile " << data_profile_location;
         }
-        exit(0);
+        // Use _exit since we don't want to run the global destructors in the child.
+        // b/62597429
+        _exit(0);
     }
     /* parent */
     int return_code = wait_child(pid);
