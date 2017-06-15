@@ -35,6 +35,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <map>
 
 namespace android {
     class Fence;
@@ -283,7 +284,9 @@ private:
     bool mIsConnected;
     DisplayType mType;
     std::unordered_map<hwc2_layer_t, std::weak_ptr<Layer>> mLayers;
-    std::unordered_map<hwc2_config_t, std::shared_ptr<const Config>> mConfigs;
+    // The ordering in this map matters, for getConfigs(), when it is
+    // converted to a vector
+    std::map<hwc2_config_t, std::shared_ptr<const Config>> mConfigs;
 };
 
 // Convenience C++ class to access hwc2_device_t Layer functions directly.
