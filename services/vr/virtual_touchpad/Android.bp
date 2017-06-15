@@ -33,9 +33,6 @@ cc_library {
 test_static_libs = [
     "libcutils",
     "libvirtualtouchpad",
-]
-
-test_shared_libs = [
     "libbase",
     "liblog",
     "libutils",
@@ -46,7 +43,6 @@ test_src_files = ["tests/VirtualTouchpad_test.cpp"]
 cc_test {
     srcs: test_src_files,
     static_libs: test_static_libs,
-    shared_libs: test_shared_libs,
     header_libs: header_libraries,
     cppflags = [
         "-std=c++11",

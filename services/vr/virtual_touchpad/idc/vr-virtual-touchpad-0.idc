@@ -13,7 +13,7 @@
 # limitations under the License.
 
 #
-# Virtual touchpad for the VR virtual display
+# Virtual touchpad for the primary display
 device.internal = 1
 
 touch.deviceType = touchScreen
@@ -24,8 +24,3 @@ touch.deviceType = touchScreen
 device.type = rotaryEncoder
 device.res = 1.0e+2
 device.scalingFactor = 1.0e-2
-
-# This displayID matches the unique ID of the virtual display created for VR.
-# This will indicate to input flinger than it should link this input device
-# with the virtual display.
-touch.displayId = virtual:android:277f1a09-b88d-4d1e-8716-796f114d080b
