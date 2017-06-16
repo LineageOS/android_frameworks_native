@@ -336,7 +336,19 @@ Error VrHwc::getDisplayAttribute(Display display, Config config,
       *outValue = display_ptr->height();
       break;
     case IComposerClient::Attribute::VSYNC_PERIOD:
-      *outValue = 1000 * 1000 * 1000 / 30;  // 30fps
+      {
+        int error = 0;
+        auto display_client = display::DisplayClient::Create(&error);
+        if (!display_client) {
+          ALOGE("Could not connect to display service : %s(%d)",
+                strerror(error), error);
+          // Return a default value of 30 fps
+          *outValue = 1000 * 1000 * 1000 / 30;
+        } else {
+          auto metrics = display_client->GetDisplayMetrics();
+          *outValue = metrics.get().vsync_period_ns;
+        }
+      }
       break;
     case IComposerClient::Attribute::DPI_X:
     case IComposerClient::Attribute::DPI_Y:
