@@ -169,6 +169,11 @@ TEST_F(VirtualTouchpadTest, Goodness) {
     expect.IoctlSetInt(UI_SET_ABSBIT, ABS_MT_POSITION_Y);
     // From ConfigureAbsSlots(kSlots):
     expect.IoctlSetInt(UI_SET_ABSBIT, ABS_MT_SLOT);
+    // From ConfigureRel(REL_WHEEL):
+    expect.IoctlSetInt(UI_SET_EVBIT, EV_REL);
+    expect.IoctlSetInt(UI_SET_RELBIT, REL_WHEEL);
+    // From ConfigureRel(REL_HWHEEL):
+    expect.IoctlSetInt(UI_SET_RELBIT, REL_HWHEEL);
     // From ConfigureKey(BTN_TOUCH):
     expect.IoctlSetInt(UI_SET_EVBIT, EV_KEY);
     expect.IoctlSetInt(UI_SET_KEYBIT, BTN_TOUCH);
