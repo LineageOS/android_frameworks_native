@@ -396,7 +396,7 @@ private:
     status_t onLayerDestroyed(const wp<Layer>& layer);
 
     // remove a layer from SurfaceFlinger immediately
-    status_t removeLayer(const sp<Layer>& layer);
+    status_t removeLayer(const sp<Layer>& layer, bool topLevelOnly = false);
 
     // add a layer to SurfaceFlinger
     status_t addClientLayer(const sp<Client>& client,
