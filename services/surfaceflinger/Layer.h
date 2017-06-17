@@ -524,7 +524,7 @@ public:
     // Returns index if removed, or negative value otherwise
     // for symmetry with Vector::remove
     ssize_t removeChild(const sp<Layer>& layer);
-    sp<Layer> getParent() const { return mParent.promote(); }
+    sp<Layer> getParent() const { return mCurrentParent.promote(); }
     bool hasParent() const { return getParent() != nullptr; }
 
     Rect computeScreenBounds(bool reduceTransparentRegion = true) const;
@@ -801,7 +801,8 @@ private:
     // Child list used for rendering.
     LayerVector mDrawingChildren;
 
-    wp<Layer> mParent;
+    wp<Layer> mCurrentParent;
+    wp<Layer> mDrawingParent;
 };
 
 // ---------------------------------------------------------------------------
