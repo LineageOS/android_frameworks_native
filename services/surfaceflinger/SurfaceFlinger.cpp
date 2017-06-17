@@ -2679,14 +2679,18 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer) {
+status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) {
     Mutex::Autolock _l(mStateLock);
 
     const auto& p = layer->getParent();
-    const ssize_t index = (p != nullptr) ? p->removeChild(layer) :
-        mCurrentState.layersSortedByZ.remove(layer);
-
+    ssize_t index;
     if (p != nullptr) {
+        if (topLevelOnly) {
+            return NO_ERROR;
+        }
+
+        index = p->removeChild(layer);
+
         sp<Layer> ancestor = p;
         while (ancestor->getParent() != nullptr) {
             ancestor = ancestor->getParent();
@@ -2695,6 +2699,8 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer) {
             ALOGE("removeLayer called with a layer whose parent has been removed");
             return NAME_NOT_FOUND;
         }
+    } else {
+        index = mCurrentState.layersSortedByZ.remove(layer);
     }
 
     // As a matter of normal operation, the LayerCleaner will produce a second
@@ -3125,11 +3131,9 @@ status_t SurfaceFlinger::onLayerDestroyed(const wp<Layer>& layer)
     if (l == nullptr) {
         // The layer has already been removed, carry on
         return NO_ERROR;
-    } if (l->getParent() != nullptr) {
-        // If we have a parent, then we can continue to live as long as it does.
-        return NO_ERROR;
     }
-    return removeLayer(l);
+    // If we have a parent, then we can continue to live as long as it does.
+    return removeLayer(l, true);
 }
 
 // ---------------------------------------------------------------------------
