@@ -57,7 +57,17 @@ Client::~Client()
 }
 
 void Client::setParentLayer(const sp<Layer>& parentLayer) {
+    Mutex::Autolock _l(mLock);
     mParentLayer = parentLayer;
+}
+
+sp<Layer> Client::getParentLayer(bool* outParentDied) const {
+    Mutex::Autolock _l(mLock);
+    sp<Layer> parent = mParentLayer.promote();
+    if (outParentDied != nullptr) {
+        *outParentDied = (mParentLayer != nullptr && parent == nullptr);
+    }
+    return parent;
 }
 
 status_t Client::initCheck() const {
@@ -108,7 +118,7 @@ status_t Client::onTransact(
      // We grant an exception in the case that the Client has a "parent layer", as its
      // effects will be scoped to that layer.
      if (CC_UNLIKELY(pid != self_pid && uid != AID_GRAPHICS && uid != AID_SYSTEM && uid != 0)
-             && (mParentLayer.promote() == nullptr)) {
+             && (getParentLayer() == nullptr)) {
          // we're called from a different process, do the real check
          if (!PermissionCache::checkCallingPermission(sAccessSurfaceFlinger))
          {
@@ -135,11 +145,12 @@ status_t Client::createSurface(
             return NAME_NOT_FOUND;
         }
     }
-    if (parent == nullptr && mParentLayer != nullptr) {
-        parent = mParentLayer.promote();
+    if (parent == nullptr) {
+        bool parentDied;
+        parent = getParentLayer(&parentDied);
         // If we had a parent, but it died, we've lost all
         // our capabilities.
-        if (parent == nullptr) {
+        if (parentDied) {
             return NAME_NOT_FOUND;
         }
     }

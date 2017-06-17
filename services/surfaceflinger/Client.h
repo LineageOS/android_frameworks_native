@@ -71,12 +71,13 @@ private:
     virtual status_t onTransact(
         uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
 
+    sp<Layer> getParentLayer(bool* outParentDied = nullptr) const;
+
     // constant
     sp<SurfaceFlinger> mFlinger;
 
     // protected by mLock
     DefaultKeyedVector< wp<IBinder>, wp<Layer> > mLayers;
-
     wp<Layer> mParentLayer;
 
     // thread-safe
