@@ -135,6 +135,7 @@ public:
             const sp<SurfaceControl>& control, Parcel* parcel);
 
     sp<Surface> getSurface() const;
+    sp<Surface> createSurface() const;
     sp<IBinder> getHandle() const;
 
     status_t clearLayerFrameStats() const;
@@ -155,6 +156,7 @@ private:
 
     ~SurfaceControl();
 
+    sp<Surface> generateSurfaceLocked() const;
     status_t validate() const;
     void destroy();
 
