@@ -403,7 +403,7 @@ Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
         win.intersect(s.finalCrop, &win);
     }
 
-    const sp<Layer>& p = getParent();
+    const sp<Layer>& p = mDrawingParent.promote();
     // Now we need to calculate the parent bounds, so we can clip ourselves to those.
     // When calculating the parent bounds for purposes of clipping,
     // we don't need to constrain the parent to its transparent region.
@@ -440,7 +440,7 @@ Rect Layer::computeBounds(const Region& activeTransparentRegion) const {
     }
 
     Rect bounds = win;
-    const auto& p = getParent();
+    const auto& p = mDrawingParent.promote();
     if (p != nullptr) {
         // Look in computeScreenBounds recursive call for explanation of
         // why we pass false here.
@@ -498,7 +498,7 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
 
     // Screen space to make reduction to parent crop clearer.
     Rect activeCrop = computeInitialCrop(hw);
-    const auto& p = getParent();
+    const auto& p = mDrawingParent.promote();
     if (p != nullptr) {
         auto parentCrop = p->computeInitialCrop(hw);
         activeCrop.intersect(parentCrop, &activeCrop);
@@ -710,7 +710,7 @@ void Layer::setGeometry(
 
     int type = s.type;
     int appId = s.appId;
-    sp<Layer> parent = mParent.promote();
+    sp<Layer> parent = mDrawingParent.promote();
     if (parent.get()) {
         auto& parentState = parent->getDrawingState();
         type = parentState.type;
@@ -1109,8 +1109,9 @@ void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
              * of a camera where the buffer remains in native orientation,
              * we want the pixels to always be upright.
              */
-            if (getParent() != nullptr) {
-                const auto parentTransform = getParent()->getTransform();
+            sp<Layer> p = mDrawingParent.promote();
+            if (p != nullptr) {
+                const auto parentTransform = p->getTransform();
                 tr = tr * inverseOrientation(parentTransform.getOrientation());
             }
 
@@ -1928,7 +1929,7 @@ bool Layer::setDataSpace(android_dataspace dataSpace) {
 }
 
 uint32_t Layer::getLayerStack() const {
-    auto p = getParent();
+    auto p = mDrawingParent.promote();
     if (p == nullptr) {
         return getDrawingState().layerStack;
     }
@@ -2071,7 +2072,7 @@ void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
 
 bool Layer::isHiddenByPolicy() const {
     const Layer::State& s(mDrawingState);
-    const auto& parent = getParent();
+    const auto& parent = mDrawingParent.promote();
     if (parent != nullptr && parent->isHiddenByPolicy()) {
         return true;
     }
@@ -2555,25 +2556,7 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
     }
 
     for (const sp<Layer>& child : mCurrentChildren) {
-        // We don't call addChild as we need to delay updating the child's parent pointer until
-        // a transaction occurs. Remember a refresh could occur in between now and the next
-        // transaction, in which case the Layer's parent pointer would be updated, but changes
-        // made to the parent in the same transaction would not have applied.
-        // This means that the following kind of scenario wont work:
-        //
-        // 1. Existing and visible child and parent surface exist
-        // 2. Create new surface hidden
-        // 3. Open transaction
-        // 4. Show the new surface, and reparent the old surface's children to it.
-        // 5. Close transaction.
-        //
-        // If we were to update the parent pointer immediately, then the child surface
-        // could disappear for one frame as it pointed at the new parent which
-        // hasn't yet become visible as the transaction hasn't yet occurred.
-        //
-        // Instead we defer the reparenting to commitChildList which happens as part
-        // of the global transaction.
-        newParent->mCurrentChildren.add(child);
+        newParent->addChild(child);
 
         sp<Client> client(child->mClientRef.promote());
         if (client != nullptr) {
@@ -2601,7 +2584,7 @@ bool Layer::detachChildren() {
 }
 
 void Layer::setParent(const sp<Layer>& layer) {
-    mParent = layer;
+    mCurrentParent = layer;
 }
 
 void Layer::clearSyncPoints() {
@@ -2691,7 +2674,7 @@ void Layer::traverseInReverseZOrder(LayerVector::StateSet stateSet,
 
 Transform Layer::getTransform() const {
     Transform t;
-    const auto& p = getParent();
+    const auto& p = mDrawingParent.promote();
     if (p != nullptr) {
         t = p->getTransform();
 
@@ -2724,14 +2707,14 @@ Transform Layer::getTransform() const {
 
 #ifdef USE_HWC2
 float Layer::getAlpha() const {
-    const auto& p = getParent();
+    const auto& p = mDrawingParent.promote();
 
     float parentAlpha = (p != nullptr) ? p->getAlpha() : 1.0;
     return parentAlpha * getDrawingState().alpha;
 }
 #else
 uint8_t Layer::getAlpha() const {
-    const auto& p = getParent();
+    const auto& p = mDrawingParent.promote();
 
     float parentAlpha = (p != nullptr) ? (p->getAlpha() / 255.0f) : 1.0;
     float drawingAlpha = getDrawingState().alpha / 255.0f;
@@ -2743,11 +2726,10 @@ uint8_t Layer::getAlpha() const {
 void Layer::commitChildList() {
     for (size_t i = 0; i < mCurrentChildren.size(); i++) {
         const auto& child = mCurrentChildren[i];
-        child->setParent(this);
-
         child->commitChildList();
     }
     mDrawingChildren = mCurrentChildren;
+    mDrawingParent = mCurrentParent;
 }
 
 // ---------------------------------------------------------------------------
