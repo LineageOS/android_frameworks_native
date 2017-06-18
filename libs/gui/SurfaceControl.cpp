@@ -237,15 +237,28 @@ status_t SurfaceControl::writeSurfaceToParcel(
     return parcel->writeStrongBinder(IInterface::asBinder(bp));
 }
 
+sp<Surface> SurfaceControl::generateSurfaceLocked() const
+{
+    // This surface is always consumed by SurfaceFlinger, so the
+    // producerControlledByApp value doesn't matter; using false.
+    mSurfaceData = new Surface(mGraphicBufferProducer, false);
+
+    return mSurfaceData;
+}
+
 sp<Surface> SurfaceControl::getSurface() const
 {
     Mutex::Autolock _l(mLock);
     if (mSurfaceData == 0) {
-        // This surface is always consumed by SurfaceFlinger, so the
-        // producerControlledByApp value doesn't matter; using false.
-        mSurfaceData = new Surface(mGraphicBufferProducer, false);
+        return generateSurfaceLocked();
     }
     return mSurfaceData;
+}
+
+sp<Surface> SurfaceControl::createSurface() const
+{
+    Mutex::Autolock _l(mLock);
+    return generateSurfaceLocked();
 }
 
 sp<IBinder> SurfaceControl::getHandle() const
