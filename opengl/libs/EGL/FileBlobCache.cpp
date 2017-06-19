@@ -144,7 +144,7 @@ void FileBlobCache::writeToFile() {
 
         size_t fileSize = headerSize + cacheSize;
 
-        uint8_t* buf = new uint8_t [fileSize];
+        uint8_t* buf = new (std::nothrow) uint8_t [fileSize];
         if (!buf) {
             ALOGE("error allocating buffer for cache contents: %s (%d)",
                     strerror(errno), errno);

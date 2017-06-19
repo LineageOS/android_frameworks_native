@@ -78,15 +78,14 @@ void BlobCache::set(const void* key, size_t keySize, const void* value,
         return;
     }
 
-    std::shared_ptr<Blob> dummyKey(new Blob(key, keySize, false));
-    CacheEntry dummyEntry(dummyKey, NULL);
+    std::shared_ptr<Blob> dummyKey = std::make_shared<Blob>(key, keySize, false);
 
     while (true) {
-        auto index = std::lower_bound(mCacheEntries.begin(), mCacheEntries.end(), dummyEntry);
-        if (index == mCacheEntries.end() || dummyEntry < *index) {
+        cache_entries_map_const_iterator found = mCacheEntries.find(dummyKey);
+        if (found == mCacheEntries.end()) {
             // Create a new cache entry.
-            std::shared_ptr<Blob> keyBlob(new Blob(key, keySize, true));
-            std::shared_ptr<Blob> valueBlob(new Blob(value, valueSize, true));
+            std::shared_ptr<Blob> keyBlob = std::make_shared<Blob>(key, keySize, true);
+            std::shared_ptr<Blob> valueBlob = std::make_shared<Blob>(value, valueSize, true);
             size_t newTotalSize = mTotalSize + keySize + valueSize;
             if (mMaxTotalSize < newTotalSize) {
                 if (isCleanable()) {
@@ -101,14 +100,15 @@ void BlobCache::set(const void* key, size_t keySize, const void* value,
                     break;
                 }
             }
-            mCacheEntries.insert(index, CacheEntry(keyBlob, valueBlob));
+            mCacheEntries[keyBlob] = CacheEntry(keyBlob, valueBlob);
             mTotalSize = newTotalSize;
             ALOGV("set: created new cache entry with %zu byte key and %zu byte value",
                     keySize, valueSize);
         } else {
             // Update the existing cache entry.
-            std::shared_ptr<Blob> valueBlob(new Blob(value, valueSize, true));
-            std::shared_ptr<Blob> oldValueBlob(index->getValue());
+            std::shared_ptr<Blob> keyBlob = std::make_shared<Blob>(key, keySize, true);
+            std::shared_ptr<Blob> valueBlob = std::make_shared<Blob>(value, valueSize, true);
+            std::shared_ptr<Blob> oldValueBlob(mCacheEntries[keyBlob].getValue());
             size_t newTotalSize = mTotalSize + valueSize - oldValueBlob->getSize();
             if (mMaxTotalSize < newTotalSize) {
                 if (isCleanable()) {
@@ -122,7 +122,7 @@ void BlobCache::set(const void* key, size_t keySize, const void* value,
                     break;
                 }
             }
-            index->setValue(valueBlob);
+            mCacheEntries[keyBlob] = CacheEntry(keyBlob, valueBlob);
             mTotalSize = newTotalSize;
             ALOGV("set: updated existing cache entry with %zu byte key and %zu byte "
                     "value", keySize, valueSize);
@@ -138,17 +138,16 @@ size_t BlobCache::get(const void* key, size_t keySize, void* value,
                 keySize, mMaxKeySize);
         return 0;
     }
-    std::shared_ptr<Blob> dummyKey(new Blob(key, keySize, false));
-    CacheEntry dummyEntry(dummyKey, NULL);
-    auto index = std::lower_bound(mCacheEntries.begin(), mCacheEntries.end(), dummyEntry);
-    if (index == mCacheEntries.end() || dummyEntry < *index) {
+    std::shared_ptr<Blob> dummyKey = std::make_shared<Blob>(key, keySize, false);
+    cache_entries_map_const_iterator found = mCacheEntries.find(dummyKey);
+    if (found == mCacheEntries.end()) {
         ALOGV("get: no cache entry found for key of size %zu", keySize);
         return 0;
     }
 
     // The key was found. Return the value if the caller's buffer is large
     // enough.
-    std::shared_ptr<Blob> valueBlob(index->getValue());
+    std::shared_ptr<Blob> valueBlob = found->second.getValue();
     size_t valueBlobSize = valueBlob->getSize();
     if (valueBlobSize <= valueSize) {
         ALOGV("get: copying %zu bytes to caller's buffer", valueBlobSize);
@@ -166,9 +165,11 @@ static inline size_t align4(size_t size) {
 
 size_t BlobCache::getFlattenedSize() const {
     size_t size = align4(sizeof(Header) + PROPERTY_VALUE_MAX);
-    for (const CacheEntry& e :  mCacheEntries) {
-        std::shared_ptr<Blob> const& keyBlob = e.getKey();
-        std::shared_ptr<Blob> const& valueBlob = e.getValue();
+    cache_entries_map_const_iterator entries;
+    for(entries = mCacheEntries.begin(); entries != mCacheEntries.end(); entries++) {
+        const CacheEntry& entry = entries->second;
+        std::shared_ptr<Blob> keyBlob = entry.getKey();
+        std::shared_ptr<Blob> valueBlob = entry.getValue();
         size += align4(sizeof(EntryHeader) + keyBlob->getSize() + valueBlob->getSize());
     }
     return size;
@@ -192,7 +193,8 @@ int BlobCache::flatten(void* buffer, size_t size) const {
     // Write cache entries
     uint8_t* byteBuffer = reinterpret_cast<uint8_t*>(buffer);
     off_t byteOffset = align4(sizeof(Header) + header->mBuildIdLength);
-    for (const CacheEntry& e :  mCacheEntries) {
+    for (std::pair<std::shared_ptr<Blob>, CacheEntry> entries :  mCacheEntries) {
+        const CacheEntry& e = entries.second;
         std::shared_ptr<Blob> const& keyBlob = e.getKey();
         std::shared_ptr<Blob> const& valueBlob = e.getValue();
         size_t keySize = keyBlob->getSize();
@@ -290,49 +292,23 @@ long int BlobCache::blob_random() {
 }
 
 void BlobCache::clean() {
-    // Remove a random cache entry until the total cache size gets below half
+    // Remove entries until the total cache size gets below half
     // the maximum total cache size.
-    while (mTotalSize > mMaxTotalSize / 2) {
-        size_t i = size_t(blob_random() % (mCacheEntries.size()));
-        const CacheEntry& entry(mCacheEntries[i]);
+    cache_entries_map_iterator entries;
+    for(entries = mCacheEntries.begin(); entries != mCacheEntries.end(); entries++) {
+        const CacheEntry& entry = entries->second;
+        std::shared_ptr<Blob> keyBlob = entry.getKey();
+        std::shared_ptr<Blob> valueBlob = entry.getValue();
         mTotalSize -= entry.getKey()->getSize() + entry.getValue()->getSize();
-        mCacheEntries.erase(mCacheEntries.begin() + i);
+        mCacheEntries.erase(entries);
+        if (mTotalSize <= mMaxTotalSize / 2) {
+            break;
+        }
     }
 }
 
 bool BlobCache::isCleanable() const {
     return mTotalSize > mMaxTotalSize / 2;
-}
-
-BlobCache::Blob::Blob(const void* data, size_t size, bool copyData) :
-        mData(copyData ? malloc(size) : data),
-        mSize(size),
-        mOwnsData(copyData) {
-    if (data != NULL && copyData) {
-        memcpy(const_cast<void*>(mData), data, size);
-    }
-}
-
-BlobCache::Blob::~Blob() {
-    if (mOwnsData) {
-        free(const_cast<void*>(mData));
-    }
-}
-
-bool BlobCache::Blob::operator<(const Blob& rhs) const {
-    if (mSize == rhs.mSize) {
-        return memcmp(mData, rhs.mData, mSize) < 0;
-    } else {
-        return mSize < rhs.mSize;
-    }
-}
-
-const void* BlobCache::Blob::getData() const {
-    return mData;
-}
-
-size_t BlobCache::Blob::getSize() const {
-    return mSize;
 }
 
 BlobCache::CacheEntry::CacheEntry() {
@@ -359,11 +335,11 @@ const BlobCache::CacheEntry& BlobCache::CacheEntry::operator=(const CacheEntry& 
     return *this;
 }
 
-std::shared_ptr<BlobCache::Blob> BlobCache::CacheEntry::getKey() const {
+std::shared_ptr<Blob> BlobCache::CacheEntry::getKey() const {
     return mKey;
 }
 
-std::shared_ptr<BlobCache::Blob> BlobCache::CacheEntry::getValue() const {
+std::shared_ptr<Blob> BlobCache::CacheEntry::getValue() const {
     return mValue;
 }
 
