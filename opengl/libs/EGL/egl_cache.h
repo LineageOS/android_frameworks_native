@@ -1,5 +1,5 @@
 /*
- ** Copyright 2011, The Android Open Source Project
+ ** Copyright 2011-2017, The Android Open Source Project
  **
  ** Licensed under the Apache License, Version 2.0 (the "License");
  ** you may not use this file except in compliance with the License.
@@ -22,12 +22,29 @@
 
 #include "FileBlobCache.h"
 
+#include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 #include <string>
+#include <pthread.h>
+#include <log/log.h>
+
+#include "BlobCache.h"
+
+// for wait_until
+using namespace std::chrono_literals;
+
+// The time in seconds to wait before writing to disk
+static const unsigned int deferredSaveDelay = 5;
 
 // ----------------------------------------------------------------------------
 namespace android {
+
+// blobEntry is the key_value_pair we store for the Blob HashTable
+typedef key_value_pair_t< std::shared_ptr<Blob>, std::shared_ptr<Blob> > blobEntry;
+
 // ----------------------------------------------------------------------------
 
 class egl_display_t;
@@ -95,6 +112,13 @@ private:
     // first time it's needed.
     std::unique_ptr<FileBlobCache> mBlobCache;
 
+    // mPendingWrites is the hashtable which will store pending writes when the blobcache
+    // is locked for whatever reason. This will prevent glCompile from blocking
+    // when BlobCache is being written to disk
+    std::unordered_map<std::shared_ptr<Blob>, blobEntry> mPendingWrites;
+
+    mutable std::mutex mPendingWritesMutex;
+
     // mFilename is the name of the file for storing cache contents in between
     // program invocations.  It is initialized to an empty string at
     // construction time, and can be set with the setCacheFilename method.  An
@@ -102,12 +126,11 @@ private:
     // from disk.
     std::string mFilename;
 
-    // mSavePending indicates whether or not a deferred save operation is
-    // pending.  Each time a key/value pair is inserted into the cache via
-    // setBlob, a deferred save is initiated if one is not already pending.
-    // This will wait some amount of time and then trigger a save of the cache
-    // contents to disk.
-    bool mSavePending;
+    // READ_ONLY: so that we can read from the blobcache
+    // even when it is being written to disk
+    bool READ_ONLY;
+    mutable volatile bool mYieldBlobCache; // just a hint for DeferredSaveThread
+    mutable std::mutex readOnlyMutex;  // TODO: Use RWLock instead?
 
     // mMutex is the mutex used to prevent concurrent access to the member
     // variables. It must be locked whenever the member variables are accessed.
@@ -115,6 +138,83 @@ private:
 
     // sCache is the singleton egl_cache_t object.
     static egl_cache_t sCache;
+
+    // deferredSaveThread variables
+    const char* deferredSaveThreadName = "EGLSave";
+    pthread_t deferredSaveThread;
+    std::condition_variable mCondition;
+    std::mutex mDelayMutex;
+    std::mutex saveThreadCheckMutex;
+    std::mutex saveThreadExitMutex;
+    bool isSaveThreadRunning = false;
+    bool saveThreadExit = false;
+
+    static void *saveThread(void*) {
+        egl_cache_t* c = egl_cache_t::get();
+        while(1) {
+            // Wait a bit for more pending entries to the cache
+            // but allow the sleep to be cut short by termination
+            std::unique_lock<std::mutex> lock(c->mDelayMutex);
+            c->mCondition.wait_until(lock, std::chrono::system_clock::now() + 1ms);//deferredSaveDelay * 1000ms);
+            lock.unlock();
+
+            if (c->mInitialized) {
+                c->mPendingWritesMutex.lock();
+                if (c->mPendingWrites.size() == 0) {
+                    c->mPendingWritesMutex.unlock();
+                    c->saveThreadCheckMutex.lock();
+                    c->isSaveThreadRunning = false;
+                    c->saveThreadCheckMutex.unlock();
+                    return NULL;
+                }
+
+                // move entries to another hashtable
+                std::unordered_map<std::shared_ptr<Blob>, blobEntry> mPendingWritesCopy = std::move(c->mPendingWrites);
+                c->mPendingWritesMutex.unlock();
+
+                // transfer entries from hashtable to blobcache
+                // TODO: if getBlob() gets the mMutex before this does,
+                //       it might miss the cache stored in mPendingWrites
+                //       and mBlobCache
+
+                for (auto entries = mPendingWritesCopy.begin(); entries != mPendingWritesCopy.end(); ++entries) {
+                    blobEntry entry = entries->second;
+                    std::shared_ptr<Blob> key = entry.getKey();
+                    std::shared_ptr<Blob> value = entry.getValue();
+                    c->mMutex.lock();
+                    BlobCache* bc = c->getBlobCacheLocked();
+                    bc->set(key->getData(), key->getSize(), value->getData(), value->getSize());
+                    c->mMutex.unlock(); // to prevent deadlock with getBlob
+
+                    if (c->mYieldBlobCache) {
+                        sched_yield();
+                    }
+                }
+
+                c->readOnlyMutex.lock();
+                c->READ_ONLY = true;
+                c->readOnlyMutex.unlock();
+
+                c->mMutex.lock();
+                c->saveBlobCacheLocked();
+                c->mMutex.unlock();
+
+                c->readOnlyMutex.lock();
+                c->READ_ONLY = false;
+                c->readOnlyMutex.unlock();
+
+                // Check if thread should exit
+                c->saveThreadExitMutex.lock();
+                if (c->saveThreadExit) {
+                    c->isSaveThreadRunning = false;
+                    c->saveThreadExitMutex.unlock();
+                    break;
+                }
+                c->saveThreadExitMutex.unlock();
+            }
+        }
+        return NULL;
+    }
 };
 
 // ----------------------------------------------------------------------------
