@@ -245,6 +245,7 @@ void ListCommand::printLine(
 }
 
 void ListCommand::dumpVintf() const {
+    using vintf::operator|=;
     mOut << "<!-- " << std::endl
          << "    This is a skeleton device manifest. Notes: " << std::endl
          << "    1. android.hidl.*, android.frameworks.*, android.system.* are not included." << std::endl
@@ -316,7 +317,8 @@ void ListCommand::dumpVintf() const {
             for (vintf::ManifestHal *hal : manifest.getHals(fqName.package())) {
                 if (hal->transport() != transport) {
                     if (transport != vintf::Transport::PASSTHROUGH) {
-                        mErr << "Fatal: should not reach here. Generated result may be wrong."
+                        mErr << "Fatal: should not reach here. Generated result may be wrong for '"
+                             << hal->name << "'."
                              << std::endl;
                     }
                     done = true;
@@ -327,6 +329,7 @@ void ListCommand::dumpVintf() const {
                         hal->interfaces[interfaceName].name = interfaceName;
                         hal->interfaces[interfaceName].instances.insert(instanceName);
                     }
+                    hal->transportArch.arch |= arch;
                     done = true;
                     break;
                 }
