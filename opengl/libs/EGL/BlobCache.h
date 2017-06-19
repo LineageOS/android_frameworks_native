@@ -20,7 +20,9 @@
 #include <stddef.h>
 
 #include <memory>
-#include <vector>
+#include <unordered_map>
+
+#include "Blob.h"
 
 namespace android {
 
@@ -121,33 +123,6 @@ private:
     // to have some effect, and false otherwise.
     bool isCleanable() const;
 
-    // A Blob is an immutable sized unstructured data blob.
-    class Blob {
-    public:
-        Blob(const void* data, size_t size, bool copyData);
-        ~Blob();
-
-        bool operator<(const Blob& rhs) const;
-
-        const void* getData() const;
-        size_t getSize() const;
-
-    private:
-        // Copying is not allowed.
-        Blob(const Blob&);
-        void operator=(const Blob&);
-
-        // mData points to the buffer containing the blob data.
-        const void* mData;
-
-        // mSize is the size of the blob data in bytes.
-        size_t mSize;
-
-        // mOwnsData indicates whether or not this Blob object should free the
-        // memory pointed to by mData when the Blob gets destructed.
-        bool mOwnsData;
-    };
-
     // A CacheEntry is a single key/value pair in the cache.
     class CacheEntry {
     public:
@@ -238,7 +213,11 @@ private:
 
     // mCacheEntries stores all the cache entries that are resident in memory.
     // Cache entries are added to it by the 'set' method.
-    std::vector<CacheEntry> mCacheEntries;
+    std::unordered_map<std::shared_ptr<Blob>, CacheEntry> mCacheEntries;
+
+    // iterator helpers
+    typedef std::unordered_map<std::shared_ptr<Blob>, CacheEntry>::iterator cache_entries_map_iterator;
+    typedef std::unordered_map<std::shared_ptr<Blob>, CacheEntry>::const_iterator cache_entries_map_const_iterator;
 };
 
 }
