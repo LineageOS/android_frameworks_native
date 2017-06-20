@@ -244,7 +244,18 @@ void ListCommand::printLine(
     mOut << std::endl;
 }
 
+static inline bool findAndBumpVersion(vintf::ManifestHal* hal, const vintf::Version& version) {
+    for (vintf::Version& v : hal->versions) {
+        if (v.majorVer == version.majorVer) {
+            v.minorVer = std::max(v.minorVer, version.minorVer);
+            return true;
+        }
+    }
+    return false;
+}
+
 void ListCommand::dumpVintf() const {
+    using vintf::operator|=;
     mOut << "<!-- " << std::endl
          << "    This is a skeleton device manifest. Notes: " << std::endl
          << "    1. android.hidl.*, android.frameworks.*, android.system.* are not included." << std::endl
@@ -252,7 +263,9 @@ void ListCommand::dumpVintf() const {
          << "       only hwbinder is shown." << std::endl
          << "    3. It is likely that HALs in passthrough transport does not have" << std::endl
          << "       <interface> declared; users will have to write them by hand." << std::endl
-         << "    4. sepolicy version is set to 0.0. It is recommended that the entry" << std::endl
+         << "    4. A HAL with lower minor version can be overridden by a HAL with" << std::endl
+         << "       higher minor version if they have the same name and major version." << std::endl
+         << "    5. sepolicy version is set to 0.0. It is recommended that the entry" << std::endl
          << "       is removed from the manifest file and written by assemble_vintf" << std::endl
          << "       at build time." << std::endl
          << "-->" << std::endl;
@@ -316,17 +329,19 @@ void ListCommand::dumpVintf() const {
             for (vintf::ManifestHal *hal : manifest.getHals(fqName.package())) {
                 if (hal->transport() != transport) {
                     if (transport != vintf::Transport::PASSTHROUGH) {
-                        mErr << "Fatal: should not reach here. Generated result may be wrong."
+                        mErr << "Fatal: should not reach here. Generated result may be wrong for '"
+                             << hal->name << "'."
                              << std::endl;
                     }
                     done = true;
                     break;
                 }
-                if (hal->hasVersion(version)) {
+                if (findAndBumpVersion(hal, version)) {
                     if (&table != &mImplementationsTable) {
                         hal->interfaces[interfaceName].name = interfaceName;
                         hal->interfaces[interfaceName].instances.insert(instanceName);
                     }
+                    hal->transportArch.arch |= arch;
                     done = true;
                     break;
                 }
