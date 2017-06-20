@@ -1553,6 +1553,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     // |mStateLock| not needed as we are on the main thread
     const sp<const DisplayDevice> hw(getDefaultDisplayDeviceLocked());
 
+    mGlCompositionDoneTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
     if (mHwc->hasClientComposition(HWC_DISPLAY_PRIMARY)) {
         glCompositionDoneFenceTime =
@@ -1561,12 +1562,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     } else {
         glCompositionDoneFenceTime = FenceTime::NO_FENCE;
     }
-    mGlCompositionDoneTimeline.updateSignalTimes();
 
+    mDisplayTimeline.updateSignalTimes();
     sp<Fence> presentFence = mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
     auto presentFenceTime = std::make_shared<FenceTime>(presentFence);
     mDisplayTimeline.push(presentFenceTime);
-    mDisplayTimeline.updateSignalTimes();
 
     nsecs_t vsyncPhase = mPrimaryDispSync.computeNextRefresh(0);
     nsecs_t vsyncInterval = mPrimaryDispSync.getPeriod();
@@ -1591,8 +1591,8 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         }
     });
 
-    if (presentFence->isValid()) {
-        if (mPrimaryDispSync.addPresentFence(presentFence)) {
+    if (presentFenceTime->isValid()) {
+        if (mPrimaryDispSync.addPresentFence(presentFenceTime)) {
             enableHardwareVsync();
         } else {
             disableHardwareVsync(false);

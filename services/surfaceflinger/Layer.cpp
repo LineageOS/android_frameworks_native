@@ -1309,7 +1309,8 @@ bool Layer::headFenceHasSignaled() const {
         // able to be latched. To avoid this, grab this buffer anyway.
         return true;
     }
-    return mQueueItems[0].mFence->getSignalTime() != INT64_MAX;
+    return mQueueItems[0].mFenceTime->getSignalTime() !=
+            Fence::SIGNAL_TIME_PENDING;
 #else
     return true;
 #endif
@@ -2012,9 +2013,6 @@ bool Layer::onPreComposition(nsecs_t refreshStartTime) {
 bool Layer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
         const std::shared_ptr<FenceTime>& presentFence,
         const CompositorTiming& compositorTiming) {
-    mAcquireTimeline.updateSignalTimes();
-    mReleaseTimeline.updateSignalTimes();
-
     // mFrameLatencyNeeded is true when a new frame was latched for the
     // composition.
     if (!mFrameLatencyNeeded)
@@ -2065,6 +2063,7 @@ void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
 
     auto releaseFenceTime = std::make_shared<FenceTime>(
             mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
+    mReleaseTimeline.updateSignalTimes();
     mReleaseTimeline.push(releaseFenceTime);
 
     Mutex::Autolock lock(mFrameEventHistoryMutex);
@@ -2255,6 +2254,7 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime)
 #ifndef USE_HWC2
         auto releaseFenceTime = std::make_shared<FenceTime>(
                 mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
+        mReleaseTimeline.updateSignalTimes();
         mReleaseTimeline.push(releaseFenceTime);
         if (mPreviousFrameNumber != 0) {
             mFrameEventHistory.addRelease(mPreviousFrameNumber,
@@ -2510,6 +2510,12 @@ void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
         FrameEventHistoryDelta *outDelta) {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     if (newTimestamps) {
+        // If there are any unsignaled fences in the aquire timeline at this
+        // point, the previously queued frame hasn't been latched yet. Go ahead
+        // and try to get the signal time here so the syscall is taken out of
+        // the main thread's critical path.
+        mAcquireTimeline.updateSignalTimes();
+        // Push the new fence after updating since it's likely still pending.
         mAcquireTimeline.push(newTimestamps->acquireFence);
         mFrameEventHistory.addQueue(*newTimestamps);
     }
