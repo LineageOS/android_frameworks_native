@@ -89,6 +89,7 @@ cc_library_shared {
 
     header_libs: [
         "libnativebase_headers",
+        "libhardware_headers",
     ],
 
     export_include_dirs: ["include"],
@@ -100,6 +101,7 @@ cc_library_shared {
 
     export_header_lib_headers: [
         "libnativebase_headers",
+        "libhardware_headers",
     ],
 }
 
