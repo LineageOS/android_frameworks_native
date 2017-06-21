@@ -148,6 +148,7 @@ void CacheTracker::loadItemsFrom(const std::string& path) {
         }
 
         // Bubble up modified time to parent
+        CHECK(p != nullptr);
         switch (p->fts_info) {
         case FTS_DP:
         case FTS_DEFAULT:

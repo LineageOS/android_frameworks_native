@@ -1257,6 +1257,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     const HWComposer& hwc = getHwComposer();
     const sp<const DisplayDevice> hw(getDefaultDisplayDevice());
 
+    mGlCompositionDoneTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
     if (getHwComposer().hasGlesComposition(hw->getHwcDisplayId())) {
         glCompositionDoneFenceTime =
@@ -1265,12 +1266,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     } else {
         glCompositionDoneFenceTime = FenceTime::NO_FENCE;
     }
-    mGlCompositionDoneTimeline.updateSignalTimes();
 
+    mDisplayTimeline.updateSignalTimes();
     sp<Fence> retireFence = mHwc->getDisplayFence(HWC_DISPLAY_PRIMARY);
     auto retireFenceTime = std::make_shared<FenceTime>(retireFence);
     mDisplayTimeline.push(retireFenceTime);
-    mDisplayTimeline.updateSignalTimes();
 
     nsecs_t vsyncPhase = mPrimaryDispSync.computeNextRefresh(0);
     nsecs_t vsyncInterval = mPrimaryDispSync.getPeriod();
@@ -1298,7 +1298,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     });
 
     if (retireFence->isValid()) {
-        if (mPrimaryDispSync.addPresentFence(retireFence)) {
+        if (mPrimaryDispSync.addPresentFence(retireFenceTime)) {
             enableHardwareVsync();
         } else {
             disableHardwareVsync(false);
@@ -2327,8 +2327,13 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
         if (parent == nullptr) {
             mCurrentState.layersSortedByZ.add(lbc);
         } else {
+            if (mCurrentState.layersSortedByZ.indexOf(parent) < 0) {
+                ALOGE("addClientLayer called with a removed parent");
+                return NAME_NOT_FOUND;
+            }
             parent->addChild(lbc);
         }
+
         mGraphicBufferProducerList.add(IInterface::asBinder(gbc));
         mLayersAdded = true;
         mNumLayers++;
@@ -2348,6 +2353,15 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) 
     if (p != nullptr) {
         if (topLevelOnly) {
             return NO_ERROR;
+        }
+
+        sp<Layer> ancestor = p;
+        while (ancestor->getParent() != nullptr) {
+            ancestor = ancestor->getParent();
+        }
+        if (mCurrentState.layersSortedByZ.indexOf(ancestor) < 0) {
+            ALOGE("removeLayer called with a layer whose parent has been removed");
+            return NAME_NOT_FOUND;
         }
 
         index = p->removeChild(layer);
@@ -2371,7 +2385,7 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) 
 
     mLayersPendingRemoval.add(layer);
     mLayersRemoved = true;
-    mNumLayers--;
+    mNumLayers -= 1 + layer->getChildrenCount();
     setTransactionFlags(eTransactionNeeded);
     return NO_ERROR;
 }

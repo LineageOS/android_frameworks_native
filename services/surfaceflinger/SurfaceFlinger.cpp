@@ -1353,7 +1353,6 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                             Fence::SIGNAL_TIME_PENDING);
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (mPropagateBackpressure && frameMissed) {
-                ALOGD("Backpressure trigger, skipping transaction & refresh!");
                 signalLayerUpdate();
                 break;
             }
@@ -1553,6 +1552,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     // |mStateLock| not needed as we are on the main thread
     const sp<const DisplayDevice> hw(getDefaultDisplayDeviceLocked());
 
+    mGlCompositionDoneTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
     if (mHwc->hasClientComposition(HWC_DISPLAY_PRIMARY)) {
         glCompositionDoneFenceTime =
@@ -1561,12 +1561,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     } else {
         glCompositionDoneFenceTime = FenceTime::NO_FENCE;
     }
-    mGlCompositionDoneTimeline.updateSignalTimes();
 
+    mDisplayTimeline.updateSignalTimes();
     sp<Fence> presentFence = mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
     auto presentFenceTime = std::make_shared<FenceTime>(presentFence);
     mDisplayTimeline.push(presentFenceTime);
-    mDisplayTimeline.updateSignalTimes();
 
     nsecs_t vsyncPhase = mPrimaryDispSync.computeNextRefresh(0);
     nsecs_t vsyncInterval = mPrimaryDispSync.getPeriod();
@@ -1591,8 +1590,8 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         }
     });
 
-    if (presentFence->isValid()) {
-        if (mPrimaryDispSync.addPresentFence(presentFence)) {
+    if (presentFenceTime->isValid()) {
+        if (mPrimaryDispSync.addPresentFence(presentFenceTime)) {
             enableHardwareVsync();
         } else {
             disableHardwareVsync(false);
@@ -2730,8 +2729,6 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) 
             return NO_ERROR;
         }
 
-        index = p->removeChild(layer);
-
         sp<Layer> ancestor = p;
         while (ancestor->getParent() != nullptr) {
             ancestor = ancestor->getParent();
@@ -2740,6 +2737,8 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) 
             ALOGE("removeLayer called with a layer whose parent has been removed");
             return NAME_NOT_FOUND;
         }
+
+        index = p->removeChild(layer);
     } else {
         index = mCurrentState.layersSortedByZ.remove(layer);
     }
