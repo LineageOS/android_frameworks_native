@@ -87,11 +87,19 @@ cc_library_shared {
         "libmath",
     ],
 
+    header_libs: [
+        "libhardware_headers",
+    ],
+
     export_include_dirs: ["include"],
 
     export_static_lib_headers: [
         "libarect",
         "libmath",
+    ],
+
+    export_header_lib_headers: [
+        "libhardware_headers",
     ],
 }
 

@@ -11,9 +11,15 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+cc_library_headers {
+    name: "libgui_headers",
+    vendor_available: true,
+    export_include_dirs: ["include"],
+}
 
 cc_library_shared {
     name: "libgui",
+    vendor_available: true,
 
     clang: true,
     cppflags: [
@@ -117,11 +123,19 @@ cc_library_shared {
         "android.hardware.configstore-utils",
     ],
 
+    header_libs: [
+        "libgui_headers",
+    ],
+
     export_shared_lib_headers: [
         "libbinder",
         "libui",
         "android.hidl.token@1.0-utils",
         "android.hardware.graphics.bufferqueue@1.0",
+    ],
+
+    export_header_lib_headers: [
+        "libgui_headers",
     ],
 
     export_include_dirs: [
