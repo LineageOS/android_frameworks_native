@@ -477,7 +477,14 @@ void SensorService::SensorEventConnection::countFlushCompleteEventsLocked(
     // separately before the next batch of events.
     for (int j = 0; j < numEventsDropped; ++j) {
         if (scratch[j].type == SENSOR_TYPE_META_DATA) {
-            FlushInfo& flushInfo = mSensorInfo.editValueFor(scratch[j].meta_data.sensor);
+            ssize_t index = mSensorInfo.indexOfKey(scratch[j].meta_data.sensor);
+            if (index < 0) {
+                ALOGW("%s: sensor 0x%x is not found in connection",
+                      __func__, scratch[j].meta_data.sensor);
+                continue;
+            }
+
+            FlushInfo& flushInfo = mSensorInfo.editValueAt(index);
             flushInfo.mPendingFlushEventsToSend++;
             ALOGD_IF(DEBUG_CONNECTIONS, "increment pendingFlushCount %d",
                      flushInfo.mPendingFlushEventsToSend);
