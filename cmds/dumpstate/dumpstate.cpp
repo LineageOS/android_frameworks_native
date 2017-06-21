@@ -123,7 +123,13 @@ static int DumpFile(const std::string& title, const std::string& path) {
 static const std::string ZIP_ROOT_DIR = "FS";
 
 // Must be hardcoded because dumpstate HAL implementation need SELinux access to it
-static const std::string kDumpstateBoardPath = "/bugreports/dumpstate_board.txt";
+static const std::string kDumpstateBoardPath = "/bugreports/";
+static const std::string kDumpstateBoardFiles[] = {
+    "dumpstate_board.txt",
+    "dumpstate_board.bin"
+};
+static const int NUM_OF_DUMPS = arraysize(kDumpstateBoardFiles);
+
 static const std::string kLsHalDebugPath = "/bugreports/dumpstate_lshal.txt";
 
 static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
@@ -441,88 +447,6 @@ static void dump_raft() {
     } else {
         if (remove(raft_path.c_str())) {
             MYLOGE("Error removing raft file %s: %s\n", raft_path.c_str(), strerror(errno));
-        }
-    }
-}
-
-/**
- * Finds the last modified file in the directory dir whose name starts with file_prefix.
- *
- * Function returns empty string when it does not find a file
- */
-static std::string GetLastModifiedFileWithPrefix(const std::string& dir,
-                                                 const std::string& file_prefix) {
-    std::unique_ptr<DIR, decltype(&closedir)> d(opendir(dir.c_str()), closedir);
-    if (d == nullptr) {
-        MYLOGD("Error %d opening %s\n", errno, dir.c_str());
-        return "";
-    }
-
-    // Find the newest file matching the file_prefix in dir
-    struct dirent *de;
-    time_t last_modified_time = 0;
-    std::string last_modified_file = "";
-    struct stat s;
-
-    while ((de = readdir(d.get()))) {
-        std::string file = std::string(de->d_name);
-        if (!file_prefix.empty()) {
-            if (!android::base::StartsWith(file, file_prefix.c_str())) continue;
-        }
-        file = dir + "/" + file;
-        int ret = stat(file.c_str(), &s);
-
-        if ((ret == 0) && (s.st_mtime > last_modified_time)) {
-            last_modified_file = file;
-            last_modified_time = s.st_mtime;
-        }
-    }
-
-    return last_modified_file;
-}
-
-static void DumpModemLogs() {
-    DurationReporter durationReporter("DUMP MODEM LOGS");
-    if (PropertiesHelper::IsUserBuild()) {
-        return;
-    }
-
-    if (!ds.IsZipping()) {
-        MYLOGD("Not dumping modem logs. dumpstate is not generating a zipping bugreport\n");
-        return;
-    }
-
-    std::string file_prefix = android::base::GetProperty("ro.radio.log_prefix", "");
-
-    if(file_prefix.empty()) {
-        MYLOGD("No modem log : file_prefix is empty\n");
-        return;
-    }
-
-    // TODO: b/33820081 we need to provide a right way to dump modem logs.
-    std::string radio_bugreport_dir = android::base::GetProperty("ro.radio.log_loc", "");
-    if (radio_bugreport_dir.empty()) {
-        radio_bugreport_dir = dirname(ds.GetPath("").c_str());
-    }
-
-    MYLOGD("DumpModemLogs: directory is %s and file_prefix is %s\n",
-           radio_bugreport_dir.c_str(), file_prefix.c_str());
-
-    std::string modem_log_file = GetLastModifiedFileWithPrefix(radio_bugreport_dir, file_prefix);
-
-    struct stat s;
-    if (modem_log_file.empty() || stat(modem_log_file.c_str(), &s) != 0) {
-        MYLOGD("Modem log %s does not exist\n", modem_log_file.c_str());
-        return;
-    }
-
-    std::string filename = basename(modem_log_file.c_str());
-    if (!ds.AddZipEntry(filename, modem_log_file)) {
-        MYLOGE("Unable to add modem log %s to zip file\n", modem_log_file.c_str());
-    } else {
-        MYLOGD("Modem Log %s is added to zip\n", modem_log_file.c_str());
-        if (remove(modem_log_file.c_str())) {
-            MYLOGE("Error removing modem log %s\n", modem_log_file.c_str());
         }
     }
 }
@@ -1282,11 +1206,6 @@ static void dumpstate() {
     RunDumpsys("DROPBOX SYSTEM SERVER CRASHES", {"dropbox", "-p", "system_server_crash"});
     RunDumpsys("DROPBOX SYSTEM APP CRASHES", {"dropbox", "-p", "system_app_crash"});
 
-    // DumpModemLogs adds the modem logs if available to the bugreport.
-    // Do this at the end to allow for sufficient time for the modem logs to be
-    // collected.
-    DumpModemLogs();
-
     printf("========================================================\n");
     printf("== Final progress (pid %d): %d/%d (estimated %d)\n", ds.pid_, ds.progress_->Get(),
            ds.progress_->GetMax(), ds.progress_->GetInitialMax());
@@ -1312,23 +1231,35 @@ void Dumpstate::DumpstateBoard() {
         return;
     }
 
-    std::string path = kDumpstateBoardPath;
-    MYLOGI("Calling IDumpstateDevice implementation using path %s\n", path.c_str());
+    std::string path[NUM_OF_DUMPS];
+    android::base::unique_fd fd[NUM_OF_DUMPS];
+    int numFds = 0;
 
-    int fd =
-        TEMP_FAILURE_RETRY(open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
-                                S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
-    if (fd < 0) {
-        MYLOGE("Could not open file %s: %s\n", path.c_str(), strerror(errno));
-        return;
+    for (int i = 0; i < NUM_OF_DUMPS; i++) {
+        path[i] = kDumpstateBoardPath + kDumpstateBoardFiles[i];
+        MYLOGI("Calling IDumpstateDevice implementation using path %s\n", path[i].c_str());
+
+        fd[i] = android::base::unique_fd(
+            TEMP_FAILURE_RETRY(open(path[i].c_str(),
+            O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)));
+        if (fd[i] < 0) {
+            MYLOGE("Could not open file %s: %s\n", path[i].c_str(), strerror(errno));
+            return;
+        } else {
+            numFds++;
+        }
     }
 
-    native_handle_t* handle = native_handle_create(1, 0);
+    native_handle_t *handle = native_handle_create(numFds, 0);
     if (handle == nullptr) {
         MYLOGE("Could not create native_handle\n");
         return;
     }
-    handle->data[0] = fd;
+
+    for (int i = 0; i < numFds; i++) {
+        handle->data[i] = fd[i].release();
+    }
 
     // TODO: need a timeout mechanism so dumpstate does not hang on device implementation call.
     android::hardware::Return<void> status = dumpstate_device->dumpstateBoard(handle);
@@ -1339,14 +1270,26 @@ void Dumpstate::DumpstateBoard() {
         return;
     }
 
-    AddZipEntry("dumpstate-board.txt", path);
+    for (int i = 0; i < numFds; i++) {
+        struct stat s;
+        if (fstat(handle->data[i], &s) == -1) {
+            MYLOGE("Failed to fstat %s: %d\n", kDumpstateBoardFiles[i].c_str(), errno);
+        } else if (s.st_size > 0) {
+            AddZipEntry(kDumpstateBoardFiles[i], path[i]);
+        } else {
+            MYLOGE("Ignoring empty %s\n", kDumpstateBoardFiles[i].c_str());
+        }
+    }
+
     printf("*** See dumpstate-board.txt entry ***\n");
 
     native_handle_close(handle);
     native_handle_delete(handle);
 
-    if (remove(path.c_str()) != 0) {
-        MYLOGE("Could not remove(%s): %s\n", path.c_str(), strerror(errno));
+    for (int i = 0; i < numFds; i++) {
+        if (remove(path[i].c_str()) != 0) {
+            MYLOGE("Could not remove(%s): %s\n", path[i].c_str(), strerror(errno));
+        }
     }
 }
 
@@ -1816,7 +1759,6 @@ int main(int argc, char *argv[]) {
         DoLogcat();
         DoKmsg();
         ds.DumpstateBoard();
-        DumpModemLogs();
     } else {
         // Dumps systrace right away, otherwise it will be filled with unnecessary events.
         // First try to dump anrd trace if the daemon is running. Otherwise, dump
