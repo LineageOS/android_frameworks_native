@@ -52,6 +52,12 @@ ndk_headers {
     license: "include/KHR/NOTICE",
 }
 
+cc_library_headers {
+    name: "gl_headers",
+    vendor_available: true,
+    export_include_dirs: ["include"],
+}
+
 subdirs = [
     "*",
 ]
