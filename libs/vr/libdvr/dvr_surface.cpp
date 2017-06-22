@@ -223,4 +223,38 @@ int dvrGetGlobalBuffer(DvrGlobalBufferKey key, DvrBuffer** out_buffer) {
   return 0;
 }
 
+int dvrGetNativeDisplayMetrics(size_t sizeof_metrics,
+                               DvrNativeDisplayMetrics* metrics) {
+  ALOGE_IF(sizeof_metrics != sizeof(DvrNativeDisplayMetrics),
+           "dvrGetNativeDisplayMetrics: metrics struct mismatch, your dvr api "
+           "header is out of date.");
+
+  auto client = DisplayClient::Create();
+  if (!client) {
+    ALOGE("dvrGetNativeDisplayMetrics: Failed to create display client!");
+    return -ECOMM;
+  }
+
+  if (metrics == nullptr) {
+    ALOGE("dvrGetNativeDisplayMetrics: output metrics buffer must be non-null");
+    return -EINVAL;
+  }
+
+  auto status = client->GetDisplayMetrics();
+
+  if (!status) {
+    return -status.error();
+  }
+
+  if (sizeof_metrics >= 20) {
+    metrics->display_width = status.get().display_width;
+    metrics->display_height = status.get().display_height;
+    metrics->display_x_dpi = status.get().display_x_dpi;
+    metrics->display_y_dpi = status.get().display_y_dpi;
+    metrics->vsync_period_ns = status.get().vsync_period_ns;
+  }
+
+  return 0;
+}
+
 }  // extern "C"
