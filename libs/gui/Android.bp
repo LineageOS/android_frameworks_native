@@ -57,7 +57,7 @@ cc_library_shared {
         brillo: {
             cflags: ["-DHAVE_NO_SURFACE_FLINGER"],
         },
-        debuggable: {
+        eng: {
             cppflags: [
                 "-UDEBUG_ONLY_CODE",
                 "-DDEBUG_ONLY_CODE=1",
