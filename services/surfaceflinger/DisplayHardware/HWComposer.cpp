@@ -460,7 +460,8 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
 
     // First try to skip validate altogether if the HWC supports it.
     displayData.validateWasSkipped = false;
-    if (hasCapability(HWC2::Capability::SkipValidate)) {
+    if (hasCapability(HWC2::Capability::SkipValidate) &&
+            !displayData.hasClientComposition) {
         sp<android::Fence> outPresentFence;
         uint32_t state = UINT32_MAX;
         error = hwcDisplay->presentOrValidate(&numTypes, &numRequests, &outPresentFence , &state);
