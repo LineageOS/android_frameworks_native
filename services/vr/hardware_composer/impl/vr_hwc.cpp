@@ -132,13 +132,14 @@ void HwcDisplay::GetChangedCompositionTypes(
               return lhs.info.z_order < rhs.info.z_order;
             });
 
-  int first_client_layer = -1, last_client_layer = -1;
+  const size_t no_layer = std::numeric_limits<size_t>::max();
+  size_t first_client_layer = no_layer, last_client_layer = no_layer;
   for (size_t i = 0; i < layers_.size(); ++i) {
     switch (layers_[i].composition_type) {
       case IComposerClient::Composition::SOLID_COLOR:
       case IComposerClient::Composition::CURSOR:
       case IComposerClient::Composition::SIDEBAND:
-        if (first_client_layer < 0)
+        if (first_client_layer == no_layer)
           first_client_layer = i;
 
         last_client_layer = i;
