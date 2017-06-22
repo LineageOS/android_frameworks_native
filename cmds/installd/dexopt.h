@@ -63,7 +63,8 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
 
 int dexopt(const char *apk_path, uid_t uid, const char *pkgName, const char *instruction_set,
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
-        const char* volume_uuid, const char* shared_libraries, const char* se_info);
+        const char* volume_uuid, const char* shared_libraries, const char* se_info,
+        bool downgrade);
 
 }  // namespace installd
 }  // namespace android

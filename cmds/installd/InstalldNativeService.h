@@ -84,7 +84,7 @@ public:
             int32_t dexoptNeeded, const std::unique_ptr<std::string>& outputPath, int32_t dexFlags,
             const std::string& compilerFilter, const std::unique_ptr<std::string>& uuid,
             const std::unique_ptr<std::string>& sharedLibraries,
-            const std::unique_ptr<std::string>& seInfo);
+            const std::unique_ptr<std::string>& seInfo, bool downgrade);
 
     binder::Status rmdex(const std::string& codePath, const std::string& instructionSet);
 
