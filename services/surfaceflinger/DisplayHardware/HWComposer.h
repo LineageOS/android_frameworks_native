@@ -202,6 +202,9 @@ private:
 
         // protected by mVsyncLock
         HWC2::Vsync vsyncEnabled;
+
+        bool validateWasSkipped;
+        HWC2::Error presentError;
     };
 
     std::unique_ptr<HWC2::Device>   mHwcDevice;

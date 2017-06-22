@@ -93,6 +93,9 @@ public:
     // Get and clear saved present fence.
     void takePresentFence(Display display, int* outPresentFence);
 
+    // Get what stage succeeded during PresentOrValidate: Present or Validate
+    void takePresentOrValidateStage(Display display, uint32_t * state);
+
 private:
     void resetData();
 
@@ -102,6 +105,7 @@ private:
     bool parseSetDisplayRequests(uint16_t length);
     bool parseSetPresentFence(uint16_t length);
     bool parseSetReleaseFences(uint16_t length);
+    bool parseSetPresentOrValidateDisplayResult(uint16_t length);
 
     struct ReturnData {
         uint32_t displayRequests = 0;
@@ -116,6 +120,8 @@ private:
 
         std::vector<Layer> releasedLayers;
         std::vector<int> releaseFences;
+
+        uint32_t presentOrValidateState;
     };
 
     std::vector<CommandError> mErrors;
@@ -201,6 +207,11 @@ public:
 
     Error validateDisplay(Display display, uint32_t* outNumTypes,
             uint32_t* outNumRequests);
+
+    Error presentOrValidateDisplay(Display display, uint32_t* outNumTypes,
+                                   uint32_t* outNumRequests,
+                                   int* outPresentFence,
+                                   uint32_t* state);
 
     Error setCursorPosition(Display display, Layer layer,
             int32_t x, int32_t y);
