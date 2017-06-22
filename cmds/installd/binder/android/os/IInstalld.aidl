@@ -51,7 +51,7 @@ interface IInstalld {
             @nullable @utf8InCpp String outputPath, int dexFlags,
             @utf8InCpp String compilerFilter, @nullable @utf8InCpp String uuid,
             @nullable @utf8InCpp String sharedLibraries,
-            @nullable @utf8InCpp String seInfo);
+            @nullable @utf8InCpp String seInfo, boolean downgrade);
 
     void rmdex(@utf8InCpp String codePath, @utf8InCpp String instructionSet);
 
