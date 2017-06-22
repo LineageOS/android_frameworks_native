@@ -621,6 +621,7 @@ status_t HWComposer::presentAndGetReleaseFences(int32_t displayId) {
     auto& hwcDisplay = displayData.hwcDisplay;
 
     if (displayData.validateWasSkipped) {
+        hwcDisplay->discardCommands();
         auto error = displayData.presentError;
         if (error != HWC2::Error::None) {
             ALOGE("skipValidate: failed for display %d: %s (%d)",
