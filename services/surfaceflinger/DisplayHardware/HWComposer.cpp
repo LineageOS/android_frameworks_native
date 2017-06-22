@@ -455,7 +455,33 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
 
     uint32_t numTypes = 0;
     uint32_t numRequests = 0;
-    auto error = hwcDisplay->validate(&numTypes, &numRequests);
+
+    HWC2::Error error = HWC2::Error::None;
+
+    // First try to skip validate altogether if the HWC supports it.
+    displayData.validateWasSkipped = false;
+    if (hasCapability(HWC2::Capability::SkipValidate)) {
+        sp<android::Fence> outPresentFence;
+        uint32_t state = UINT32_MAX;
+        error = hwcDisplay->presentOrValidate(&numTypes, &numRequests, &outPresentFence , &state);
+        if (error != HWC2::Error::None && error != HWC2::Error::HasChanges) {
+            ALOGV("skipValidate: Failed to Present or Validate");
+            return UNKNOWN_ERROR;
+        }
+        if (state == 1) { //Present Succeeded.
+            std::unordered_map<std::shared_ptr<HWC2::Layer>, sp<Fence>> releaseFences;
+            error = hwcDisplay->getReleaseFences(&releaseFences);
+            displayData.releaseFences = std::move(releaseFences);
+            displayData.lastPresentFence = outPresentFence;
+            displayData.validateWasSkipped = true;
+            displayData.presentError = error;
+            return NO_ERROR;
+        }
+        // Present failed but Validate ran.
+    } else {
+        error = hwcDisplay->validate(&numTypes, &numRequests);
+    }
+    ALOGV("SkipValidate failed, Falling back to SLOW validate/present");
     if (error != HWC2::Error::None && error != HWC2::Error::HasChanges) {
         ALOGE("prepare: validate failed for display %d: %s (%d)", displayId,
                 to_string(error).c_str(), static_cast<int32_t>(error));
@@ -592,6 +618,17 @@ status_t HWComposer::presentAndGetReleaseFences(int32_t displayId) {
 
     auto& displayData = mDisplayData[displayId];
     auto& hwcDisplay = displayData.hwcDisplay;
+
+    if (displayData.validateWasSkipped) {
+        auto error = displayData.presentError;
+        if (error != HWC2::Error::None) {
+            ALOGE("skipValidate: failed for display %d: %s (%d)",
+                  displayId, to_string(error).c_str(), static_cast<int32_t>(error));
+            return UNKNOWN_ERROR;
+        }
+        return NO_ERROR;
+    }
+
     auto error = hwcDisplay->present(&displayData.lastPresentFence);
     if (error != HWC2::Error::None) {
         ALOGE("presentAndGetReleaseFences: failed for display %d: %s (%d)",
