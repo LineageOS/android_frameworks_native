@@ -546,6 +546,29 @@ Error Composer::validateDisplay(Display display, uint32_t* outNumTypes,
     return Error::NONE;
 }
 
+Error Composer::presentOrValidateDisplay(Display display, uint32_t* outNumTypes,
+                               uint32_t* outNumRequests, int* outPresentFence, uint32_t* state) {
+   mWriter.selectDisplay(display);
+   mWriter.presentOrvalidateDisplay();
+
+   Error error = execute();
+   if (error != Error::NONE) {
+       return error;
+   }
+
+   mReader.takePresentOrValidateStage(display, state);
+
+   if (*state == 1) { // Present succeeded
+       mReader.takePresentFence(display, outPresentFence);
+   }
+
+   if (*state == 0) { // Validate succeeded.
+       mReader.hasChanges(display, outNumTypes, outNumRequests);
+   }
+
+   return Error::NONE;
+}
+
 Error Composer::setCursorPosition(Display display, Layer layer,
         int32_t x, int32_t y)
 {
@@ -763,7 +786,8 @@ Error Composer::execute()
             auto command = mWriter.getCommand(cmdErr.location);
 
             if (command == IComposerClient::Command::VALIDATE_DISPLAY ||
-                command == IComposerClient::Command::PRESENT_DISPLAY) {
+                command == IComposerClient::Command::PRESENT_DISPLAY ||
+                command == IComposerClient::Command::PRESENT_OR_VALIDATE_DISPLAY) {
                 error = cmdErr.error;
             } else {
                 ALOGW("command 0x%x generated error %d",
@@ -813,6 +837,9 @@ Error CommandReader::parse()
             break;
         case IComposerClient::Command::SET_RELEASE_FENCES:
             parsed = parseSetReleaseFences(length);
+            break;
+        case IComposerClient::Command ::SET_PRESENT_OR_VALIDATE_DISPLAY_RESULT:
+            parsed = parseSetPresentOrValidateDisplayResult(length);
             break;
         default:
             parsed = false;
@@ -942,6 +969,15 @@ bool CommandReader::parseSetReleaseFences(uint16_t length)
     return true;
 }
 
+bool CommandReader::parseSetPresentOrValidateDisplayResult(uint16_t length)
+{
+    if (length != CommandWriterBase::kPresentOrValidateDisplayResultLength || !mCurrentReturnData) {
+        return false;
+    }
+    mCurrentReturnData->presentOrValidateState = read();
+    return true;
+}
+
 void CommandReader::resetData()
 {
     mErrors.clear();
@@ -1049,6 +1085,16 @@ void CommandReader::takePresentFence(Display display, int* outPresentFence)
 
     *outPresentFence = data.presentFence;
     data.presentFence = -1;
+}
+
+void CommandReader::takePresentOrValidateStage(Display display, uint32_t* state) {
+    auto found = mReturnData.find(display);
+    if (found == mReturnData.end()) {
+        *state= -1;
+        return;
+    }
+    ReturnData& data = found->second;
+    *state = data.presentOrValidateState;
 }
 
 } // namespace Hwc2
