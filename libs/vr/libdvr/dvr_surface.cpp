@@ -19,6 +19,16 @@ using android::pdx::rpc::EmptyVariant;
 
 namespace {
 
+// Sets the Variant |destination| to the target std::array type and copies the C
+// array into it. Unsupported std::array configurations will fail to compile.
+template <typename T, std::size_t N>
+void ArrayCopy(SurfaceAttributeValue* destination, const T (&source)[N]) {
+  using ArrayType = std::array<T, N>;
+  *destination = ArrayType{};
+  std::copy(std::begin(source), std::end(source),
+            std::get<ArrayType>(*destination).begin());
+}
+
 bool ConvertSurfaceAttributes(const DvrSurfaceAttribute* attributes,
                               size_t attribute_count,
                               SurfaceAttributes* surface_attributes,
@@ -33,25 +43,28 @@ bool ConvertSurfaceAttributes(const DvrSurfaceAttribute* attributes,
         value = attributes[i].value.int64_value;
         break;
       case DVR_SURFACE_ATTRIBUTE_TYPE_BOOL:
-        value = attributes[i].value.bool_value;
+        // bool_value is defined in an extern "C" block, which makes it look
+        // like an int to C++. Use a cast to assign the correct type to the
+        // Variant type SurfaceAttributeValue.
+        value = static_cast<bool>(attributes[i].value.bool_value);
         break;
       case DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT:
         value = attributes[i].value.float_value;
         break;
       case DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT2:
-        value = attributes[i].value.float2_value;
+        ArrayCopy(&value, attributes[i].value.float2_value);
         break;
       case DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT3:
-        value = attributes[i].value.float3_value;
+        ArrayCopy(&value, attributes[i].value.float3_value);
         break;
       case DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT4:
-        value = attributes[i].value.float4_value;
+        ArrayCopy(&value, attributes[i].value.float4_value);
         break;
       case DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT8:
-        value = attributes[i].value.float8_value;
+        ArrayCopy(&value, attributes[i].value.float8_value);
         break;
       case DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT16:
-        value = attributes[i].value.float16_value;
+        ArrayCopy(&value, attributes[i].value.float16_value);
         break;
       case DVR_SURFACE_ATTRIBUTE_TYPE_NONE:
         value = EmptyVariant{};

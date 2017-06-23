@@ -1,3 +1,4 @@
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -1095,6 +1096,29 @@ TEST(Variant, HasType) {
 
   EXPECT_TRUE((detail::HasType<int&, int, float, bool>::value));
   EXPECT_FALSE((detail::HasType<char&, int, float, bool>::value));
+}
+
+TEST(Variant, IsConstructible) {
+  using ArrayType = const float[3];
+  struct ImplicitBool {
+    operator bool() const { return true; }
+  };
+  struct ExplicitBool {
+    explicit operator bool() const { return true; }
+  };
+  struct NonBool {};
+  struct TwoArgs {
+    TwoArgs(int, bool) {}
+  };
+
+  EXPECT_FALSE((detail::IsConstructible<bool, ArrayType>::value));
+  EXPECT_TRUE((detail::IsConstructible<bool, int>::value));
+  EXPECT_TRUE((detail::IsConstructible<bool, ImplicitBool>::value));
+  EXPECT_TRUE((detail::IsConstructible<bool, ExplicitBool>::value));
+  EXPECT_FALSE((detail::IsConstructible<bool, NonBool>::value));
+  EXPECT_TRUE((detail::IsConstructible<TwoArgs, int, bool>::value));
+  EXPECT_FALSE((detail::IsConstructible<TwoArgs, int, std::string>::value));
+  EXPECT_FALSE((detail::IsConstructible<TwoArgs, int>::value));
 }
 
 TEST(Variant, Set) {
