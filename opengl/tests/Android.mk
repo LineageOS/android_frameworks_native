@@ -1,19 +1,4 @@
 dirs := \
-	angeles \
-	configdump \
-	EGLTest \
-	fillrate \
-	filter \
-	finish \
-	gl2_basic \
-	gl2_copyTexImage \
-	gl2_yuvtex \
-	gl_basic \
-	gl_perf \
-	gl_yuvtex \
-	gralloc \
-	include \
-	lib \
 	linetex \
 	swapinterval \
 	textures \

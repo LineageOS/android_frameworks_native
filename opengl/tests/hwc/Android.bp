@@ -55,6 +55,8 @@ cc_defaults {
         "libnativewindow"
     ],
 
+    gtest: false,
+
     static_libs: [
         "libglTest",
         "libhwcTest",
