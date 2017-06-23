@@ -15,6 +15,7 @@
  */
 #include "impl/vr_hwc.h"
 
+#include <cutils/properties.h>
 #include <private/dvr/display_client.h>
 #include <ui/Fence.h>
 
@@ -352,7 +353,14 @@ Error VrHwc::getDisplayAttribute(Display display, Config config,
       break;
     case IComposerClient::Attribute::DPI_X:
     case IComposerClient::Attribute::DPI_Y:
-      *outValue = 300 * 1000;  // 300dpi
+      {
+        constexpr int32_t kDefaultDPI = 300;
+        int32_t dpi = property_get_int32("ro.vr.hwc.dpi", kDefaultDPI);
+        if (dpi <= 0) {
+          dpi = kDefaultDPI;
+        }
+        *outValue = 1000 * dpi;
+      }
       break;
     default:
       return Error::BAD_PARAMETER;
