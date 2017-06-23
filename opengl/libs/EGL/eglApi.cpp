@@ -87,6 +87,7 @@ char const * const gBuiltinExtensionString =
         "EGL_ANDROID_get_native_client_buffer "
         "EGL_ANDROID_front_buffer_auto_refresh "
         "EGL_ANDROID_get_frame_timestamps "
+        "EGL_EXT_gl_colorspace_scrgb "
         "EGL_EXT_gl_colorspace_scrgb_linear "
         "EGL_EXT_gl_colorspace_display_p3_linear "
         "EGL_EXT_gl_colorspace_display_p3 "
@@ -467,6 +468,8 @@ static android_dataspace modifyBufferDataspace(android_dataspace dataSpace,
         return HAL_DATASPACE_DISPLAY_P3;
     } else if (colorspace == EGL_GL_COLORSPACE_DISPLAY_P3_LINEAR_EXT) {
         return HAL_DATASPACE_DISPLAY_P3_LINEAR;
+    } else if (colorspace == EGL_GL_COLORSPACE_SCRGB_EXT) {
+        return HAL_DATASPACE_V0_SCRGB;
     } else if (colorspace == EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT) {
         return HAL_DATASPACE_V0_SCRGB_LINEAR;
     }
@@ -544,6 +547,9 @@ static EGLBoolean getColorSpaceAttribute(egl_display_ptr dp, const EGLint* attri
                     found = true;
                 } else if (colorSpace == EGL_EXT_gl_colorspace_bt2020_pq &&
                            dp->haveExtension("EGL_EXT_gl_colorspace_bt2020_pq")) {
+                    found = true;
+                } else if (colorSpace == EGL_GL_COLORSPACE_SCRGB_EXT &&
+                           dp->haveExtension("EGL_EXT_gl_colorspace_scrgb")) {
                     found = true;
                 } else if (colorSpace == EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT &&
                            dp->haveExtension("EGL_EXT_gl_colorspace_scrgb_linear")) {
