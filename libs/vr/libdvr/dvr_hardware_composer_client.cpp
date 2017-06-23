@@ -6,7 +6,9 @@
 #include <binder/IServiceManager.h>
 #include <private/android/AHardwareBufferHelpers.h>
 
+#include <functional>
 #include <memory>
+#include <mutex>
 
 struct DvrHwcFrame {
   android::dvr::ComposerView::Frame frame;
@@ -16,9 +18,14 @@ namespace {
 
 class HwcCallback : public android::dvr::BnVrComposerCallback {
  public:
-  explicit HwcCallback(DvrHwcOnFrameCallback callback,
-                       void* client_state);
+  using CallbackFunction = std::function<int(DvrHwcFrame*)>;
+
+  explicit HwcCallback(const CallbackFunction& callback);
   ~HwcCallback() override;
+
+  // Reset the callback. This needs to be done early to avoid use after free
+  // accesses from binder thread callbacks.
+  void Shutdown();
 
   std::unique_ptr<DvrHwcFrame> DequeueFrame();
 
@@ -28,26 +35,41 @@ class HwcCallback : public android::dvr::BnVrComposerCallback {
       const android::dvr::ParcelableComposerFrame& frame,
       android::dvr::ParcelableUniqueFd* fence) override;
 
-  DvrHwcOnFrameCallback callback_;
-  void* client_state_;
+  // Protects the |callback_| from uses from multiple threads. During shutdown
+  // there may be in-flight frame update events. In those cases the callback
+  // access needs to be protected otherwise binder threads may access an invalid
+  // callback.
+  std::mutex mutex_;
+  CallbackFunction callback_;
 
   HwcCallback(const HwcCallback&) = delete;
   void operator=(const HwcCallback&) = delete;
 };
 
-HwcCallback::HwcCallback(DvrHwcOnFrameCallback callback, void* client_state)
-    : callback_(callback), client_state_(client_state) {}
+HwcCallback::HwcCallback(const CallbackFunction& callback)
+    : callback_(callback) {}
 
 HwcCallback::~HwcCallback() {}
+
+void HwcCallback::Shutdown() {
+  std::lock_guard<std::mutex> guard(mutex_);
+  callback_ = nullptr;
+}
 
 android::binder::Status HwcCallback::onNewFrame(
     const android::dvr::ParcelableComposerFrame& frame,
     android::dvr::ParcelableUniqueFd* fence) {
+  std::lock_guard<std::mutex> guard(mutex_);
+
+  if (!callback_) {
+    fence->set_fence(android::base::unique_fd());
+    return android::binder::Status::ok();
+  }
+
   std::unique_ptr<DvrHwcFrame> dvr_frame(new DvrHwcFrame());
   dvr_frame->frame = frame.frame();
 
-  fence->set_fence(android::base::unique_fd(callback_(client_state_,
-                                                      dvr_frame.release())));
+  fence->set_fence(android::base::unique_fd(callback_(dvr_frame.release())));
   return android::binder::Status::ok();
 }
 
@@ -67,7 +89,8 @@ DvrHwcClient* dvrHwcClientCreate(DvrHwcOnFrameCallback callback, void* data) {
   if (!client->composer.get())
     return nullptr;
 
-  client->callback = new HwcCallback(callback, data);
+  client->callback = new HwcCallback(std::bind(callback, data,
+                                               std::placeholders::_1));
   android::binder::Status status = client->composer->registerObserver(
       client->callback);
   if (!status.isOk())
@@ -77,6 +100,10 @@ DvrHwcClient* dvrHwcClientCreate(DvrHwcOnFrameCallback callback, void* data) {
 }
 
 void dvrHwcClientDestroy(DvrHwcClient* client) {
+  // NOTE: Deleting DvrHwcClient* isn't enough since DvrHwcClient::callback is a
+  // shared pointer that could be referenced from a binder thread. But the
+  // client callback isn't valid past this calls so that needs to be reset.
+  client->callback->Shutdown();
   delete client;
 }
 
