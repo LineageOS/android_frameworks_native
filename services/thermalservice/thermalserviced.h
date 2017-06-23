@@ -18,16 +18,23 @@
 #define ANDROID_THERMALSERVICE_THERMALSERVICED_H
 
 #include "ThermalService.h"
+#include "libthermalcallback/ThermalCallback.h"
 
 using namespace android;
+using ::android::hardware::thermal::V1_0::Temperature;
+using ::android::hardware::thermal::V1_1::implementation::ThermalCallback;
+using ::android::os::ThermalService;
 
 class ThermalServiceDaemon {
  public:
     void thermalServiceStartup();
+    void thermalCallbackStartup();
+    void getThermalHal();
     ThermalServiceDaemon() {};
 
  private:
-    sp<android::os::ThermalService> mThermalService;
+    sp<ThermalService> mThermalService;
+    sp<ThermalCallback> mThermalCallback;
 };
 
 #endif  // ANDROID_THERMALSERVICE_THERMALSERVICED_H

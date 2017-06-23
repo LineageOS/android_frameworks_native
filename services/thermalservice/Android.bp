@@ -1,3 +1,7 @@
+subdirs = [
+    "libthermalcallback"
+]
+
 cc_library {
     name: "libthermalservice",
 
@@ -33,10 +37,17 @@ cc_binary {
         "thermalserviced.cpp",
     ],
 
+    include_dirs: ["frameworks/native"],
+
     shared_libs: [
         "libthermalservice",
         "libbinder",
         "libutils",
+        "libthermalcallback",
+        "android.hardware.thermal@1.1",
+        "libhidlbase",
+        "libhidltransport",
+        "liblog",
     ],
 
     cflags: [
