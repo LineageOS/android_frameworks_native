@@ -23,8 +23,10 @@ sourceFiles := \
 staticLibraries := \
 	libperformance \
 	libpdx_default_transport \
+	libvr_manager
 
 sharedLibraries := \
+	libbinder \
 	libbase \
 	libcutils \
 	liblog \

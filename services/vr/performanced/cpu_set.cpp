@@ -15,6 +15,9 @@
 #include "task.h"
 #include "unique_file.h"
 
+using android::pdx::ErrorStatus;
+using android::pdx::Status;
+
 namespace {
 
 constexpr int kDirectoryFlags = O_RDONLY | O_DIRECTORY | O_CLOEXEC;
@@ -176,11 +179,11 @@ void CpuSetManager::MoveUnboundTasks(const std::string& target_set) {
                task_id, task.name().c_str(), target_set.c_str(),
                task.thread_group_id(), task.parent_process_id());
 
-      const int ret = target->AttachTask(task_id);
-      ALOGW_IF(ret < 0 && ret != -EINVAL,
+      auto status = target->AttachTask(task_id);
+      ALOGW_IF(!status && status.error() != EINVAL,
                "CpuSetManager::MoveUnboundTasks: Failed to attach task_id=%d "
                "to cpuset=%s: %s",
-               task_id, target_set.c_str(), strerror(-ret));
+               task_id, target_set.c_str(), status.GetErrorMessage().c_str());
     } else {
       ALOGD_IF(TRACE,
                "CpuSet::MoveUnboundTasks: Skipping task_id=%d name=%s cpus=%s.",
@@ -233,7 +236,7 @@ UniqueFile CpuSet::OpenFilePointer(const std::string& name, int flags) const {
   return fp;
 }
 
-int CpuSet::AttachTask(pid_t task_id) const {
+Status<void> CpuSet::AttachTask(pid_t task_id) const {
   auto file = OpenFile("tasks", O_RDWR);
   if (file.get() >= 0) {
     std::ostringstream stream;
@@ -241,11 +244,15 @@ int CpuSet::AttachTask(pid_t task_id) const {
     std::string value = stream.str();
 
     const bool ret = base::WriteStringToFd(value, file.get());
-    return !ret ? -errno : 0;
+    if (!ret)
+      return ErrorStatus(errno);
+    else
+      return {};
   } else {
+    const int error = errno;
     ALOGE("CpuSet::AttachTask: Failed to open %s/tasks: %s", path_.c_str(),
-          strerror(errno));
-    return -errno;
+          strerror(error));
+    return ErrorStatus(error);
   }
 }
 

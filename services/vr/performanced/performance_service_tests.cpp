@@ -1,12 +1,22 @@
 #include <errno.h>
 #include <sched.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <condition_variable>
+#include <cstdlib>
 #include <mutex>
 #include <thread>
 
 #include <dvr/performance_client_api.h>
 #include <gtest/gtest.h>
+#include <private/android_filesystem_config.h>
+
+namespace {
+
+const char kTrustedUidEnvironmentVariable[] = "GTEST_TRUSTED_UID";
+
+}  // anonymous namespace
 
 TEST(DISABLED_PerformanceTest, SetCpuPartition) {
   int error;
@@ -86,6 +96,27 @@ TEST(PerformanceTest, SetSchedulerClass) {
   EXPECT_EQ(-EINVAL, error);
 }
 
+// This API mirrors SetSchedulerClass for now. Replace with with a more specific
+// test once the policy API is fully implemented.
+TEST(PerformanceTest, SetSchedulerPolicy) {
+  int error;
+
+  error = dvrSetSchedulerPolicy(0, "background");
+  EXPECT_EQ(0, error);
+  EXPECT_EQ(SCHED_BATCH, sched_getscheduler(0));
+
+  error = dvrSetSchedulerPolicy(0, "audio:low");
+  EXPECT_EQ(0, error);
+  EXPECT_EQ(SCHED_FIFO | SCHED_RESET_ON_FORK, sched_getscheduler(0));
+
+  error = dvrSetSchedulerPolicy(0, "normal");
+  EXPECT_EQ(0, error);
+  EXPECT_EQ(SCHED_NORMAL, sched_getscheduler(0));
+
+  error = dvrSetSchedulerPolicy(0, "foobar");
+  EXPECT_EQ(-EINVAL, error);
+}
+
 TEST(PerformanceTest, SchedulerClassResetOnFork) {
   int error;
 
@@ -134,4 +165,274 @@ TEST(PerformanceTest, GetCpuPartition) {
   // Test passing a nullptr value for partition buffer.
   error = dvrGetCpuPartition(0, nullptr, sizeof(partition));
   EXPECT_EQ(-EINVAL, error);
+}
+
+TEST(PerformanceTest, Permissions) {
+  int error;
+
+  const int original_uid = getuid();
+  const int original_gid = getgid();
+  int trusted_uid = -1;
+
+  // See if the environment variable GTEST_TRUSTED_UID is set. If it is enable
+  // testing the ActivityManager trusted uid permission checks using that uid.
+  const char* trusted_uid_env = std::getenv(kTrustedUidEnvironmentVariable);
+  if (trusted_uid_env)
+    trusted_uid = std::atoi(trusted_uid_env);
+
+  ASSERT_EQ(AID_ROOT, original_uid)
+      << "This test must run as root to function correctly!";
+
+  // Switch the uid/gid to an id that should not have permission to access any
+  // privileged actions.
+  ASSERT_EQ(0, setresgid(AID_NOBODY, AID_NOBODY, -1))
+      << "Failed to set gid: " << strerror(errno);
+  ASSERT_EQ(0, setresuid(AID_NOBODY, AID_NOBODY, -1))
+      << "Failed to set uid: " << strerror(errno);
+
+  // Unprivileged policies.
+  error = dvrSetSchedulerPolicy(0, "batch");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "background");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "foreground");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "normal");
+  EXPECT_EQ(0, error);
+
+  // Privileged policies.
+  error = dvrSetSchedulerPolicy(0, "audio:low");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "audio:high");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "graphics");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "graphics:low");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "graphics:high");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "sensors");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "sensors:low");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "sensors:high");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "vr:system:arp");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "vr:app:render");
+  EXPECT_EQ(-EINVAL, error);
+
+  // uid=AID_SYSTEM / gid=AID_NOBODY
+  ASSERT_EQ(0, setresuid(original_uid, original_uid, -1))
+      << "Failed to restore uid: " << strerror(errno);
+  ASSERT_EQ(0, setresuid(AID_SYSTEM, AID_SYSTEM, -1))
+      << "Failed to set uid: " << strerror(errno);
+
+  // Unprivileged policies.
+  error = dvrSetSchedulerPolicy(0, "batch");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "background");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "foreground");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "normal");
+  EXPECT_EQ(0, error);
+
+  // Privileged policies.
+  error = dvrSetSchedulerPolicy(0, "audio:low");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "audio:high");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "graphics");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "graphics:low");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "graphics:high");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "sensors");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "sensors:low");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "sensors:high");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "vr:system:arp");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "vr:app:render");
+  EXPECT_EQ(0, error);
+
+  // uid=AID_NOBODY / gid=AID_SYSTEM
+  ASSERT_EQ(0, setresuid(original_uid, original_uid, -1))
+      << "Failed to restore uid: " << strerror(errno);
+  ASSERT_EQ(0, setresgid(original_gid, original_gid, -1))
+      << "Failed to restore gid: " << strerror(errno);
+  ASSERT_EQ(0, setresgid(AID_SYSTEM, AID_SYSTEM, -1))
+      << "Failed to set gid: " << strerror(errno);
+  ASSERT_EQ(0, setresuid(AID_SYSTEM, AID_NOBODY, -1))
+      << "Failed to set uid: " << strerror(errno);
+
+  // Unprivileged policies.
+  error = dvrSetSchedulerPolicy(0, "batch");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "background");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "foreground");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "normal");
+  EXPECT_EQ(0, error);
+
+  // Privileged policies.
+  error = dvrSetSchedulerPolicy(0, "audio:low");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "audio:high");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "graphics");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "graphics:low");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "graphics:high");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "sensors");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "sensors:low");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "sensors:high");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "vr:system:arp");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "vr:app:render");
+  EXPECT_EQ(0, error);
+
+  // uid=AID_GRAPHICS / gid=AID_NOBODY
+  ASSERT_EQ(0, setresuid(original_uid, original_uid, -1))
+      << "Failed to restore uid: " << strerror(errno);
+  ASSERT_EQ(0, setresgid(original_gid, original_gid, -1))
+      << "Failed to restore gid: " << strerror(errno);
+  ASSERT_EQ(0, setresgid(AID_NOBODY, AID_NOBODY, -1))
+      << "Failed to set gid: " << strerror(errno);
+  ASSERT_EQ(0, setresuid(AID_GRAPHICS, AID_GRAPHICS, -1))
+      << "Failed to set uid: " << strerror(errno);
+
+  // Unprivileged policies.
+  error = dvrSetSchedulerPolicy(0, "batch");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "background");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "foreground");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "normal");
+  EXPECT_EQ(0, error);
+
+  // Privileged policies.
+  error = dvrSetSchedulerPolicy(0, "audio:low");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "audio:high");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "graphics");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "graphics:low");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "graphics:high");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "sensors");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "sensors:low");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "sensors:high");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "vr:system:arp");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "vr:app:render");
+  EXPECT_EQ(-EINVAL, error);
+
+  // uid=AID_NOBODY / gid=AID_GRAPHICS
+  ASSERT_EQ(0, setresuid(original_uid, original_uid, -1))
+      << "Failed to restore uid: " << strerror(errno);
+  ASSERT_EQ(0, setresgid(original_gid, original_gid, -1))
+      << "Failed to restore gid: " << strerror(errno);
+  ASSERT_EQ(0, setresgid(AID_GRAPHICS, AID_GRAPHICS, -1))
+      << "Failed to set gid: " << strerror(errno);
+  ASSERT_EQ(0, setresuid(AID_NOBODY, AID_NOBODY, -1))
+      << "Failed to set uid: " << strerror(errno);
+
+  // Unprivileged policies.
+  error = dvrSetSchedulerPolicy(0, "batch");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "background");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "foreground");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "normal");
+  EXPECT_EQ(0, error);
+
+  // Privileged policies.
+  error = dvrSetSchedulerPolicy(0, "audio:low");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "audio:high");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "graphics");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "graphics:low");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "graphics:high");
+  EXPECT_EQ(0, error);
+  error = dvrSetSchedulerPolicy(0, "sensors");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "sensors:low");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "sensors:high");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "vr:system:arp");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(0, "vr:app:render");
+  EXPECT_EQ(-EINVAL, error);
+
+  if (trusted_uid != -1) {
+    // uid=<trusted uid> / gid=AID_NOBODY
+    ASSERT_EQ(0, setresuid(original_uid, original_uid, -1))
+        << "Failed to restore uid: " << strerror(errno);
+    ASSERT_EQ(0, setresgid(original_gid, original_gid, -1))
+        << "Failed to restore gid: " << strerror(errno);
+    ASSERT_EQ(0, setresgid(AID_NOBODY, AID_NOBODY, -1))
+        << "Failed to set gid: " << strerror(errno);
+    ASSERT_EQ(0, setresuid(trusted_uid, trusted_uid, -1))
+        << "Failed to set uid: " << strerror(errno);
+
+    // Unprivileged policies.
+    error = dvrSetSchedulerPolicy(0, "batch");
+    EXPECT_EQ(0, error);
+    error = dvrSetSchedulerPolicy(0, "background");
+    EXPECT_EQ(0, error);
+    error = dvrSetSchedulerPolicy(0, "foreground");
+    EXPECT_EQ(0, error);
+    error = dvrSetSchedulerPolicy(0, "normal");
+    EXPECT_EQ(0, error);
+
+    // Privileged policies.
+    error = dvrSetSchedulerPolicy(0, "audio:low");
+    EXPECT_EQ(-EINVAL, error);
+    error = dvrSetSchedulerPolicy(0, "audio:high");
+    EXPECT_EQ(-EINVAL, error);
+    error = dvrSetSchedulerPolicy(0, "graphics");
+    EXPECT_EQ(0, error);
+    error = dvrSetSchedulerPolicy(0, "graphics:low");
+    EXPECT_EQ(0, error);
+    error = dvrSetSchedulerPolicy(0, "graphics:high");
+    EXPECT_EQ(0, error);
+    error = dvrSetSchedulerPolicy(0, "sensors");
+    EXPECT_EQ(-EINVAL, error);
+    error = dvrSetSchedulerPolicy(0, "sensors:low");
+    EXPECT_EQ(-EINVAL, error);
+    error = dvrSetSchedulerPolicy(0, "sensors:high");
+    EXPECT_EQ(-EINVAL, error);
+    error = dvrSetSchedulerPolicy(0, "vr:system:arp");
+    EXPECT_EQ(0, error);
+    error = dvrSetSchedulerPolicy(0, "vr:app:render");
+    EXPECT_EQ(0, error);
+  }
+
+  // Restore original effective uid/gid.
+  ASSERT_EQ(0, setresgid(original_gid, original_gid, -1))
+      << "Failed to restore gid: " << strerror(errno);
+  ASSERT_EQ(0, setresuid(original_uid, original_uid, -1))
+      << "Failed to restore uid: " << strerror(errno);
 }
