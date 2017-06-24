@@ -16,7 +16,6 @@
 
 #define LOG_TAG "Gralloc2"
 
-#include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
 #include <ui/Gralloc2.h>
 
@@ -250,18 +249,5 @@ Error Allocator::allocate(BufferDescriptor descriptor, uint32_t count,
 }
 
 } // namespace Gralloc2
-
-namespace {
-// Load the IMapper implementation library when this shared library is loaded, rather than when
-// we (lazily) create the Gralloc2::Mapper instance. Since these libraries will all be needed by
-// nearly all apps, this allows us to load them in Zygote rather than on each app launch.
-class PreloadMapperImpl {
-public:
-    PreloadMapperImpl() {
-        android::hardware::preloadPassthroughService<hardware::graphics::mapper::V2_0::IMapper>();
-    }
-};
-static PreloadMapperImpl preloadMapperImpl;
-} // namespace
 
 } // namespace android
