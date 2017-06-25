@@ -120,6 +120,7 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/sched/sched_waking/enable" },
         { OPT,      "events/sched/sched_blocked_reason/enable" },
         { OPT,      "events/sched/sched_cpu_hotplug/enable" },
+        { OPT,      "events/cgroup/enable" },
     } },
     { "irq",        "IRQ Events",   0, {
         { REQ,      "events/irq/enable" },
@@ -769,7 +770,8 @@ static bool setUpTrace()
     ok &= setCategoriesEnableFromFile(g_categoriesFile);
     ok &= setTraceOverwriteEnable(g_traceOverwrite);
     ok &= setTraceBufferSizeKB(g_traceBufferSizeKB);
-    ok &= setCmdlineSize();
+    // TODO: Re-enable after stabilization
+    //ok &= setCmdlineSize();
     ok &= setClock();
     ok &= setPrintTgidEnableIfPresent(true);
     ok &= setKernelTraceFuncs(g_kernelTraceFuncs);

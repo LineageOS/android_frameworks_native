@@ -717,6 +717,12 @@ Error Display::presentOrValidate(uint32_t* outNumTypes, uint32_t* outNumRequests
     }
     return error;
 }
+
+void Display::discardCommands()
+{
+    mDevice.mComposer->resetCommands();
+}
+
 // For use by Device
 
 int32_t Display::getAttribute(hwc2_config_t configId, Attribute attribute)
