@@ -24,7 +24,6 @@
 
 #include <sched.h>
 
-#include <thread>
 
 #include "EventQueue.h"
 #include "DirectReportChannel.h"
@@ -40,19 +39,23 @@ using ::android::hardware::sensors::V1_0::SensorInfo;
 using ::android::hardware::sensors::V1_0::SensorsEventFormatOffset;
 using ::android::hardware::hidl_vec;
 using ::android::hardware::Void;
-using ::android::sp;
 
 static const char* POLL_THREAD_NAME = "hidl_ssvc_poll";
 
 SensorManager::SensorManager(JavaVM* vm)
-        : mJavaVm(vm) {
+        : mLooper(new Looper(false /*allowNonCallbacks*/)), mStopThread(true), mJavaVm(vm) {
 }
 
 SensorManager::~SensorManager() {
     // Stops pollAll inside the thread.
-    std::unique_lock<std::mutex> lock(mLooperMutex);
+    std::lock_guard<std::mutex> lock(mThreadMutex);
+
+    mStopThread = true;
     if (mLooper != nullptr) {
         mLooper->wake();
+    }
+    if (mPollThread.joinable()) {
+        mPollThread.join();
     }
 }
 
@@ -128,12 +131,13 @@ Return<void> SensorManager::createGrallocDirectChannel(
 }
 
 /* One global looper for all event queues created from this SensorManager. */
-sp<::android::Looper> SensorManager::getLooper() {
-    std::unique_lock<std::mutex> lock(mLooperMutex);
-    if (mLooper == nullptr) {
-        std::condition_variable looperSet;
+sp<Looper> SensorManager::getLooper() {
+    std::lock_guard<std::mutex> lock(mThreadMutex);
 
-        std::thread{[&mutex = mLooperMutex, &looper = mLooper, &looperSet, javaVm = mJavaVm] {
+    if (!mPollThread.joinable()) {
+        // if thread not initialized, start thread
+        mStopThread = false;
+        std::thread pollThread{[&stopThread = mStopThread, looper = mLooper, javaVm = mJavaVm] {
 
             struct sched_param p = {0};
             p.sched_priority = 10;
@@ -142,16 +146,11 @@ sp<::android::Looper> SensorManager::getLooper() {
                         << strerror(errno);
             }
 
-            std::unique_lock<std::mutex> lock(mutex);
-            if (looper != nullptr) {
-                LOG(INFO) << "Another thread has already set the looper, exiting this one.";
-                return;
-            }
-            looper = Looper::prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS /* opts */);
-            lock.unlock();
+            // set looper
+            Looper::setForThread(looper);
 
-            // Attach the thread to JavaVM so that pollAll do not crash if the event
-            // is from Java.
+            // Attach the thread to JavaVM so that pollAll do not crash if the thread
+            // eventually calls into Java.
             JavaVMAttachArgs args{
                 .version = JNI_VERSION_1_2,
                 .name = POLL_THREAD_NAME,
@@ -162,19 +161,30 @@ sp<::android::Looper> SensorManager::getLooper() {
                 LOG(FATAL) << "Cannot attach SensorManager looper thread to Java VM.";
             }
 
-            looperSet.notify_one();
-            int pollResult = looper->pollAll(-1 /* timeout */);
-            if (pollResult != ALOOPER_POLL_WAKE) {
-                LOG(ERROR) << "Looper::pollAll returns unexpected " << pollResult;
+            LOG(INFO) << POLL_THREAD_NAME << " started.";
+            for (;;) {
+                int pollResult = looper->pollAll(-1 /* timeout */);
+                if (pollResult == Looper::POLL_WAKE) {
+                    if (stopThread == true) {
+                        LOG(INFO) << POLL_THREAD_NAME << ": requested to stop";
+                        break;
+                    } else {
+                        LOG(INFO) << POLL_THREAD_NAME << ": spurious wake up, back to work";
+                    }
+                } else {
+                    LOG(ERROR) << POLL_THREAD_NAME << ": Looper::pollAll returns unexpected "
+                               << pollResult;
+                    break;
+                }
             }
 
             if (javaVm->DetachCurrentThread() != JNI_OK) {
                 LOG(ERROR) << "Cannot detach SensorManager looper thread from Java VM.";
             }
 
-            LOG(INFO) << "Looper thread is terminated.";
-        }}.detach();
-        looperSet.wait(lock, [this]{ return this->mLooper != nullptr; });
+            LOG(INFO) << POLL_THREAD_NAME << " is terminated.";
+        }};
+        mPollThread = std::move(pollThread);
     }
     return mLooper;
 }
@@ -196,6 +206,12 @@ Return<void> SensorManager::createEventQueue(
     }
 
     sp<::android::Looper> looper = getLooper();
+    if (looper == nullptr) {
+        LOG(ERROR) << "::android::SensorManager::createEventQueue cannot initialize looper";
+        _hidl_cb(nullptr, Result::UNKNOWN_ERROR);
+        return Void();
+    }
+
     sp<::android::SensorEventQueue> internalQueue = getInternalManager().createEventQueue();
     if (internalQueue == nullptr) {
         LOG(WARNING) << "::android::SensorManager::createEventQueue returns nullptr.";
