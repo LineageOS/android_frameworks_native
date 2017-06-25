@@ -457,8 +457,8 @@ EGLBoolean eglGetConfigAttrib(EGLDisplay dpy, EGLConfig config,
 // EGL_GL_COLORSPACE_SRGB_KHR, or turn sRGB formats into corresponding linear
 // formats when colorspace is EGL_GL_COLORSPACE_LINEAR_KHR. In any cases where
 // the modification isn't possible, the original dataSpace is returned.
-static android_dataspace modifyBufferDataspace( android_dataspace dataSpace,
-                                                EGLint colorspace) {
+static android_dataspace modifyBufferDataspace(android_dataspace dataSpace,
+                                               EGLint colorspace) {
     if (colorspace == EGL_GL_COLORSPACE_LINEAR_KHR) {
         return HAL_DATASPACE_SRGB_LINEAR;
     } else if (colorspace == EGL_GL_COLORSPACE_SRGB_KHR) {
@@ -471,6 +471,59 @@ static android_dataspace modifyBufferDataspace( android_dataspace dataSpace,
         return HAL_DATASPACE_V0_SCRGB_LINEAR;
     }
     return dataSpace;
+}
+
+// Return true if we stripped any EGL_GL_COLORSPACE_KHR attributes.
+static EGLBoolean stripColorSpaceAttribute(egl_display_ptr dp, const EGLint* attrib_list,
+                                           EGLint format,
+                                           std::vector<EGLint>& stripped_attrib_list) {
+    std::vector<EGLint> allowedColorSpaces;
+    switch (format) {
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+        case HAL_PIXEL_FORMAT_RGB_565:
+            // driver okay with linear & sRGB for 8888, but can't handle
+            // Display-P3 or other spaces.
+            allowedColorSpaces.push_back(EGL_GL_COLORSPACE_SRGB_KHR);
+            allowedColorSpaces.push_back(EGL_GL_COLORSPACE_LINEAR_KHR);
+            break;
+
+        case HAL_PIXEL_FORMAT_RGBA_FP16:
+        case HAL_PIXEL_FORMAT_RGBA_1010102:
+        default:
+            // driver does not want to see colorspace attributes for 1010102 or fp16.
+            // Future: if driver supports XXXX extension, we can pass down that colorspace
+            break;
+    }
+
+    bool stripped = false;
+    if (attrib_list && dp->haveExtension("EGL_KHR_gl_colorspace")) {
+        for (const EGLint* attr = attrib_list; attr[0] != EGL_NONE; attr += 2) {
+            if (attr[0] == EGL_GL_COLORSPACE_KHR) {
+                EGLint colorSpace = attr[1];
+                bool found = false;
+                // Verify that color space is allowed
+                for (auto it : allowedColorSpaces) {
+                    if (colorSpace == it) {
+                        found = true;
+                    }
+                }
+                if (!found) {
+                    stripped = true;
+                } else {
+                    stripped_attrib_list.push_back(attr[0]);
+                    stripped_attrib_list.push_back(attr[1]);
+                }
+            } else {
+                stripped_attrib_list.push_back(attr[0]);
+                stripped_attrib_list.push_back(attr[1]);
+            }
+        }
+    }
+    if (stripped) {
+        stripped_attrib_list.push_back(EGL_NONE);
+        stripped_attrib_list.push_back(EGL_NONE);
+    }
+    return stripped;
 }
 
 static EGLBoolean getColorSpaceAttribute(egl_display_ptr dp, const EGLint* attrib_list,
@@ -514,6 +567,65 @@ static EGLBoolean getColorSpaceAttribute(egl_display_ptr dp, const EGLint* attri
     return true;
 }
 
+void getNativePixelFormat(EGLDisplay dpy, egl_connection_t* cnx, EGLConfig config, EGLint& format) {
+    // Set the native window's buffers format to match what this config requests.
+    // Whether to use sRGB gamma is not part of the EGLconfig, but is part
+    // of our native format. So if sRGB gamma is requested, we have to
+    // modify the EGLconfig's format before setting the native window's
+    // format.
+
+    EGLint componentType = EGL_COLOR_COMPONENT_TYPE_FIXED_EXT;
+    cnx->egl.eglGetConfigAttrib(dpy, config, EGL_COLOR_COMPONENT_TYPE_EXT, &componentType);
+
+    EGLint a = 0;
+    EGLint r, g, b;
+    r = g = b = 0;
+    cnx->egl.eglGetConfigAttrib(dpy, config, EGL_RED_SIZE, &r);
+    cnx->egl.eglGetConfigAttrib(dpy, config, EGL_GREEN_SIZE, &g);
+    cnx->egl.eglGetConfigAttrib(dpy, config, EGL_BLUE_SIZE, &b);
+    cnx->egl.eglGetConfigAttrib(dpy, config, EGL_ALPHA_SIZE, &a);
+    EGLint colorDepth = r + g + b;
+
+    // Today, the driver only understands sRGB and linear on 888X
+    // formats. Strip other colorspaces from the attribute list and
+    // only use them to set the dataspace via
+    // native_window_set_buffers_dataspace
+    // if pixel format is RGBX 8888
+    //    TBD: Can test for future extensions that indicate that driver
+    //    handles requested color space and we can let it through.
+    //    allow SRGB and LINEAR. All others need to be stripped.
+    // else if 565, 4444
+    //    TBD: Can we assume these are supported if 8888 is?
+    // else if FP16 or 1010102
+    //    strip colorspace from attribs.
+    // endif
+    if (a == 0) {
+        if (colorDepth <= 16) {
+            format = HAL_PIXEL_FORMAT_RGB_565;
+        } else {
+            if (componentType == EGL_COLOR_COMPONENT_TYPE_FIXED_EXT) {
+                if (colorDepth > 24) {
+                    format = HAL_PIXEL_FORMAT_RGBA_1010102;
+                } else {
+                    format = HAL_PIXEL_FORMAT_RGBX_8888;
+                }
+            } else {
+                format = HAL_PIXEL_FORMAT_RGBA_FP16;
+            }
+        }
+    } else {
+        if (componentType == EGL_COLOR_COMPONENT_TYPE_FIXED_EXT) {
+            if (colorDepth > 24) {
+                format = HAL_PIXEL_FORMAT_RGBA_1010102;
+            } else {
+                format = HAL_PIXEL_FORMAT_RGBA_8888;
+            }
+        } else {
+            format = HAL_PIXEL_FORMAT_RGBA_FP16;
+        }
+    }
+}
+
 EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
                                     NativeWindowType window,
                                     const EGLint *attrib_list)
@@ -543,58 +655,22 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
             return setError(EGL_BAD_ALLOC, EGL_NO_SURFACE);
         }
 
-        // Set the native window's buffers format to match what this config requests.
-        // Whether to use sRGB gamma is not part of the EGLconfig, but is part
-        // of our native format. So if sRGB gamma is requested, we have to
-        // modify the EGLconfig's format before setting the native window's
-        // format.
-
-        EGLint componentType = EGL_COLOR_COMPONENT_TYPE_FIXED_EXT;
-        cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_COLOR_COMPONENT_TYPE_EXT,
-                                    &componentType);
-
         EGLint format;
+        getNativePixelFormat(iDpy, cnx, config, format);
+
+        // now select correct colorspace and dataspace based on user's attribute list
         EGLint colorSpace;
         android_dataspace dataSpace;
-        EGLint a = 0;
-        EGLint r, g, b;
-        r = g = b = 0;
-        cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_RED_SIZE,   &r);
-        cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_GREEN_SIZE, &g);
-        cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_BLUE_SIZE,  &b);
-        cnx->egl.eglGetConfigAttrib(iDpy, config, EGL_ALPHA_SIZE, &a);
-        EGLint colorDepth = r + g + b;
-
-        if (a == 0) {
-            if (colorDepth <= 16) {
-                format = HAL_PIXEL_FORMAT_RGB_565;
-            } else {
-                if (componentType == EGL_COLOR_COMPONENT_TYPE_FIXED_EXT) {
-                    if (colorDepth > 24) {
-                        format = HAL_PIXEL_FORMAT_RGBA_1010102;
-                    } else {
-                        format = HAL_PIXEL_FORMAT_RGBX_8888;
-                    }
-                } else {
-                    format = HAL_PIXEL_FORMAT_RGBA_FP16;
-                }
-            }
-        } else {
-            if (componentType == EGL_COLOR_COMPONENT_TYPE_FIXED_EXT) {
-                if (colorDepth > 24) {
-                    format = HAL_PIXEL_FORMAT_RGBA_1010102;
-                } else {
-                    format = HAL_PIXEL_FORMAT_RGBA_8888;
-                }
-            } else {
-                format = HAL_PIXEL_FORMAT_RGBA_FP16;
-            }
-        }
-
-        // now select a corresponding sRGB format if needed
         if (!getColorSpaceAttribute(dp, attrib_list, colorSpace, dataSpace)) {
             ALOGE("error invalid colorspace: %d", colorSpace);
             return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
+        }
+
+        std::vector<EGLint> strippedAttribList;
+        if (stripColorSpaceAttribute(dp, attrib_list, format, strippedAttribList)) {
+            // Had to modify the attribute list due to use of color space.
+            // Use modified list from here on.
+            attrib_list = strippedAttribList.data();
         }
 
         if (format != 0) {
@@ -671,13 +747,27 @@ EGLSurface eglCreatePbufferSurface( EGLDisplay dpy, EGLConfig config,
 
     egl_connection_t* cnx = NULL;
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
-    EGLint colorSpace;
-    android_dataspace dataSpace;
     if (dp) {
-        // now select a corresponding sRGB format if needed
+        EGLDisplay iDpy = dp->disp.dpy;
+        EGLint format;
+        getNativePixelFormat(iDpy, cnx, config, format);
+
+        // now select correct colorspace and dataspace based on user's attribute list
+        EGLint colorSpace;
+        android_dataspace dataSpace;
         if (!getColorSpaceAttribute(dp, attrib_list, colorSpace, dataSpace)) {
             ALOGE("error invalid colorspace: %d", colorSpace);
             return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
+        }
+
+        // Pbuffers are not displayed so we don't need to store the
+        // colorspace. We do need to filter out color spaces the
+        // driver doesn't know how to process.
+        std::vector<EGLint> strippedAttribList;
+        if (stripColorSpaceAttribute(dp, attrib_list, format, strippedAttribList)) {
+            // Had to modify the attribute list due to use of color space.
+            // Use modified list from here on.
+            attrib_list = strippedAttribList.data();
         }
 
         EGLSurface surface = cnx->egl.eglCreatePbufferSurface(
