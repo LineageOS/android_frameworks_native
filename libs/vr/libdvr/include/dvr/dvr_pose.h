@@ -43,16 +43,24 @@ typedef struct __attribute__((packed, aligned(16))) DvrPoseAsync {
 } DvrPoseAsync;
 
 enum {
-  DVR_POSE_FLAG_INVALID = (1UL << 0),       // This pose is invalid.
-  DVR_POSE_FLAG_INITIALIZING = (1UL << 1),  // The pose delivered during
-                                            // initialization and it may not be
-                                            // correct.
+  DVR_POSE_FLAG_INVALID = (1ULL << 0),       // This pose is invalid.
+  DVR_POSE_FLAG_INITIALIZING = (1ULL << 1),  // The pose delivered during
+                                             // initialization and it may not be
+                                             // correct.
   DVR_POSE_FLAG_3DOF =
-      (1UL << 2),  // This pose is derived from 3Dof sensors. If
-                   // this is not set, pose is derived using
-                   // 3Dof and 6Dof sensors.
+      (1ULL << 2),  // This pose is derived from 3Dof sensors. If
+                    // this is not set, pose is derived using
+                    // 3Dof and 6Dof sensors.
   DVR_POSE_FLAG_FLOOR_HEIGHT_INVALID =
-      (1UL << 3),  // If set the floor height is invalid.
+      (1ULL << 3),  // If set the floor height is invalid.
+
+  // Bits that indicate the tracking system state.
+  DVR_POSE_FLAG_SERVICE_EXCEPTION = (1ULL << 32),
+  DVR_POSE_FLAG_FISHEYE_OVER_EXPOSED = (1ULL << 33),
+  DVR_POSE_FLAG_FISHEYE_UNDER_EXPOSED = (1ULL << 34),
+  DVR_POSE_FLAG_COLOR_OVER_EXPOSED = (1ULL << 35),
+  DVR_POSE_FLAG_COLOR_UNDER_EXPOSED = (1ULL << 36),
+  DVR_POSE_FLAG_TOO_FEW_FEATURES_TRACKED = (1ULL << 37)
 };
 
 // Represents a sensor pose sample.
