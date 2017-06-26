@@ -30,7 +30,7 @@
 
 using namespace android;
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** /*argv*/)
 {
     EGLint configAttribs[] = {
          EGL_DEPTH_SIZE, 0,
@@ -153,7 +153,7 @@ int main(int argc, char** argv)
 
      for (int c=1, j=0 ; c<32 ; c++, j++) {
          nsecs_t t = times[j];
-         printf("%lld\t%d\t%f\n", t, c, (double(t)/c)/1000000.0);
+         printf("%ld\t%d\t%f\n", t, c, (double(t)/c)/1000000.0);
      }
 
 

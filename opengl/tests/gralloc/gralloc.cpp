@@ -37,7 +37,7 @@ void* lamecpy(void* d, void const* s, size_t size) {
     return d;
 }
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** /*argv*/)
 {
     size_t size = 128*256*4;
     void* temp = malloc(size);
