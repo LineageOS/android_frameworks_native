@@ -100,6 +100,9 @@ Status<int> ChannelEventReceiver::GetPendingEvents() const {
     ALOGE("ChannelEventReceiver::GetPendingEvents: Failed to get events: %s",
           status.GetErrorMessage().c_str());
     return status;
+  } else if (count == 0) {
+    status.SetError(ETIMEDOUT);
+    return status;
   }
 
   const int mask_out = event.data.u32;
