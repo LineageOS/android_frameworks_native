@@ -408,7 +408,7 @@ void HardwareComposer::PostLayers() {
   }
 
   const bool is_frame_pending = IsFramePendingInDriver();
-  const bool is_fence_pending = retire_fence_fds_.size() >
+  const bool is_fence_pending = static_cast<int32_t>(retire_fence_fds_.size()) >
                                 post_thread_config_.allowed_pending_fence_count;
 
   if (is_fence_pending || is_frame_pending) {

@@ -29,7 +29,7 @@
 
 using namespace android;
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** /*argv*/)
 {
     EGLint configAttribs[] = {
          EGL_DEPTH_SIZE, 0,
