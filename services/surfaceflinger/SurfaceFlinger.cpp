@@ -73,7 +73,7 @@
 #include "EventThread.h"
 #include "Layer.h"
 #include "LayerVector.h"
-#include "LayerDim.h"
+#include "ColorLayer.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 
@@ -2725,7 +2725,7 @@ bool SurfaceFlinger::doComposeSurfaces(
                     case HWC2::Composition::SolidColor: {
                         const Layer::State& state(layer->getDrawingState());
                         if (layer->getClearClientTarget(hwcId) && !firstLayer &&
-                                layer->isOpaque(state) && (state.alpha == 1.0f)
+                                layer->isOpaque(state) && (state.color.a == 1.0f)
                                 && hasClientComposition) {
                             // never clear the very first layer since we're
                             // guaranteed the FB is already cleared
@@ -3065,6 +3065,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             if (layer->setAlpha(s.alpha))
                 flags |= eTraversalNeeded;
         }
+        if (what & layer_state_t::eColorChanged) {
+            if (layer->setColor(s.color))
+                flags |= eTraversalNeeded;
+        }
         if (what & layer_state_t::eMatrixChanged) {
             if (layer->setMatrix(s.matrix))
                 flags |= eTraversalNeeded;
@@ -3168,8 +3172,8 @@ status_t SurfaceFlinger::createLayer(
                     uniqueName, w, h, flags, format,
                     handle, gbp, &layer);
             break;
-        case ISurfaceComposerClient::eFXSurfaceDim:
-            result = createDimLayer(client,
+        case ISurfaceComposerClient::eFXSurfaceColor:
+            result = createColorLayer(client,
                     uniqueName, w, h, flags,
                     handle, gbp, &layer);
             break;
@@ -3251,11 +3255,11 @@ status_t SurfaceFlinger::createNormalLayer(const sp<Client>& client,
     return err;
 }
 
-status_t SurfaceFlinger::createDimLayer(const sp<Client>& client,
+status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* outLayer)
 {
-    *outLayer = new LayerDim(this, client, name, w, h, flags);
+    *outLayer = new ColorLayer(this, client, name, w, h, flags);
     *handle = (*outLayer)->getHandle();
     *gbp = (*outLayer)->getProducer();
     return NO_ERROR;
@@ -4594,7 +4598,7 @@ void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* v
                     ALOGE("%c index=%zu, name=%s, layerStack=%d, z=%d, visible=%d, flags=%x, alpha=%.3f",
                             layer->isVisible() ? '+' : '-',
                             i, layer->getName().string(), layer->getLayerStack(), state.z,
-                            layer->isVisible(), state.flags, state.alpha);
+                            layer->isVisible(), state.flags, static_cast<float>(state.color.a));
                     i++;
                 });
             }

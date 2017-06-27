@@ -28,6 +28,7 @@
 #include <ui/DisplayInfo.h>
 
 #include <math.h>
+#include <math/vec3.h>
 
 namespace android {
 
@@ -1273,6 +1274,99 @@ TEST_F(ChildLayerTest, NestedChildren) {
         // Expect the grandchild to begin at 64, 64 because it's a child of mChild layer
         // which begins at 64, 64
         mCapture->checkPixel(64, 64, 50, 50, 50);
+    }
+}
+
+class LayerColorTest : public LayerUpdateTest {
+ protected:
+    void SetUp() override {
+        LayerUpdateTest::SetUp();
+
+        mLayerColorControl = mComposerClient->createSurface(
+            String8("Layer color surface"),
+            128, 128, PIXEL_FORMAT_RGBA_8888,
+            ISurfaceComposerClient::eFXSurfaceColor);
+
+        ASSERT_TRUE(mLayerColorControl != NULL);
+        ASSERT_TRUE(mLayerColorControl->isValid());
+
+        SurfaceComposerClient::openGlobalTransaction();
+        ASSERT_EQ(NO_ERROR, mLayerColorControl->setLayer(INT32_MAX-1));
+        ASSERT_EQ(NO_ERROR, mLayerColorControl->setPosition(140, 140));
+        ASSERT_EQ(NO_ERROR, mLayerColorControl->hide());
+        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->hide());
+        SurfaceComposerClient::closeGlobalTransaction(true);
+    }
+
+    void TearDown() override {
+        LayerUpdateTest::TearDown();
+        mLayerColorControl = 0;
+    }
+
+    sp<SurfaceControl> mLayerColorControl;
+};
+
+TEST_F(LayerColorTest, ColorLayerNoAlpha) {
+    sp<ScreenCapture> sc;
+
+    {
+        SCOPED_TRACE("before setColor");
+        ScreenCapture::captureScreen(&sc);
+        sc->expectBGColor(145, 145);
+    }
+
+
+    SurfaceComposerClient::openGlobalTransaction();
+    half3 color(43.0f/255.0f, 207.0f/255.0f, 131.0f/255.0f);
+    mLayerColorControl->setColor(color);
+    mLayerColorControl->show();
+    SurfaceComposerClient::closeGlobalTransaction(true);
+    {
+        // There should now be a color
+        SCOPED_TRACE("after setColor");
+        ScreenCapture::captureScreen(&sc);
+        sc->checkPixel(145, 145, 43, 207, 131);
+    }
+}
+
+TEST_F(LayerColorTest, ColorLayerWithAlpha) {
+    sp<ScreenCapture> sc;
+    {
+        SCOPED_TRACE("before setColor");
+        ScreenCapture::captureScreen(&sc);
+        sc->expectBGColor(145, 145);
+    }
+
+    SurfaceComposerClient::openGlobalTransaction();
+    half3 color(43.0f/255.0f, 207.0f/255.0f, 131.0f/255.0f);
+    mLayerColorControl->setColor(color);
+    mLayerColorControl->setAlpha(.75f);
+    mLayerColorControl->show();
+    SurfaceComposerClient::closeGlobalTransaction(true);
+    {
+        // There should now be a color with .75 alpha
+        SCOPED_TRACE("after setColor");
+        ScreenCapture::captureScreen(&sc);
+        sc->checkPixel(145, 145, 48, 171, 147);
+    }
+}
+
+TEST_F(LayerColorTest, ColorLayerWithNoColor) {
+    sp<ScreenCapture> sc;
+    {
+        SCOPED_TRACE("before setColor");
+        ScreenCapture::captureScreen(&sc);
+        sc->expectBGColor(145, 145);
+    }
+
+    SurfaceComposerClient::openGlobalTransaction();
+    mLayerColorControl->show();
+    SurfaceComposerClient::closeGlobalTransaction(true);
+    {
+        // There should now be set to 0,0,0 (black) as default.
+        SCOPED_TRACE("after setColor");
+        ScreenCapture::captureScreen(&sc);
+        sc->checkPixel(145, 145, 0, 0, 0);
     }
 }
 

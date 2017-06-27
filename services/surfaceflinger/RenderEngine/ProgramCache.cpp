@@ -89,7 +89,7 @@ ProgramCache::~ProgramCache() {
 void ProgramCache::primeCache() {
     uint32_t shaderCount = 0;
     uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK |
-                       Key::PLANE_ALPHA_MASK | Key::TEXTURE_MASK;
+                       Key::ALPHA_MASK | Key::TEXTURE_MASK;
     // Prime the cache for all combinations of the above masks,
     // leaving off the experimental color matrix mask options.
 
@@ -122,8 +122,8 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
             description.mTexture.getTextureTarget() == GL_TEXTURE_EXTERNAL_OES ? Key::TEXTURE_EXT :
             description.mTexture.getTextureTarget() == GL_TEXTURE_2D           ? Key::TEXTURE_2D :
             Key::TEXTURE_OFF)
-    .set(Key::PLANE_ALPHA_MASK,
-            (description.mPlaneAlpha < 1) ? Key::PLANE_ALPHA_LT_ONE : Key::PLANE_ALPHA_EQ_ONE)
+    .set(Key::ALPHA_MASK,
+            (description.mColor.a < 1) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE)
     .set(Key::BLEND_MASK,
             description.mPremultipliedAlpha ? Key::BLEND_PREMULT : Key::BLEND_NORMAL)
     .set(Key::OPACITY_MASK,
@@ -168,12 +168,12 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     } else if (needs.getTextureTarget() == Key::TEXTURE_2D) {
         fs << "uniform sampler2D sampler;"
            << "varying vec2 outTexCoords;";
-    } else if (needs.getTextureTarget() == Key::TEXTURE_OFF) {
+    }
+
+    if (needs.getTextureTarget() == Key::TEXTURE_OFF || needs.hasAlpha()) {
         fs << "uniform vec4 color;";
     }
-    if (needs.hasPlaneAlpha()) {
-        fs << "uniform float alphaPlane;";
-    }
+
     if (needs.hasColorMatrix()) {
         fs << "uniform mat4 colorMatrix;";
     }
@@ -225,18 +225,19 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     if (needs.isTexturing()) {
         fs << "gl_FragColor = texture2D(sampler, outTexCoords);";
     } else {
-        fs << "gl_FragColor = color;";
+        fs << "gl_FragColor.rgb = color.rgb;";
+        fs << "gl_FragColor.a = 1.0;";
     }
     if (needs.isOpaque()) {
         fs << "gl_FragColor.a = 1.0;";
     }
-    if (needs.hasPlaneAlpha()) {
-        // modulate the alpha value with planeAlpha
+    if (needs.hasAlpha()) {
+        // modulate the current alpha value with alpha set
         if (needs.isPremultiplied()) {
             // ... and the color too if we're premultiplied
-            fs << "gl_FragColor *= alphaPlane;";
+            fs << "gl_FragColor *= color.a;";
         } else {
-            fs << "gl_FragColor.a *= alphaPlane;";
+            fs << "gl_FragColor.a *= color.a;";
         }
     }
 

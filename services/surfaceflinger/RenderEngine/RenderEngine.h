@@ -25,6 +25,7 @@
 #include <EGL/eglext.h>
 #include <math/mat4.h>
 #include <Transform.h>
+#include <gui/SurfaceControl.h>
 
 #define EGL_NO_CONFIG ((EGLConfig)0)
 
@@ -98,16 +99,13 @@ public:
     virtual void checkErrors() const;
     virtual void setViewportAndProjection(size_t vpw, size_t vph,
             Rect sourceCrop, size_t hwh, bool yswap, Transform::orientation_flags rotation) = 0;
+    virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque,
+            bool disableTexture, const half4& color) = 0;
 #ifdef USE_HWC2
-    virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, float alpha) = 0;
-    virtual void setupDimLayerBlending(float alpha) = 0;
     virtual void setColorMode(android_color_mode mode) = 0;
     virtual void setSourceDataSpace(android_dataspace source) = 0;
     virtual void setWideColor(bool hasWideColor) = 0;
     virtual bool usesWideColor() = 0;
-#else
-    virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, int alpha) = 0;
-    virtual void setupDimLayerBlending(int alpha) = 0;
 #endif
     virtual void setupLayerTexturing(const Texture& texture) = 0;
     virtual void setupLayerBlackedOut() = 0;

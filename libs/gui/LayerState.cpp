@@ -46,6 +46,9 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeStrongBinder(IInterface::asBinder(barrierGbp));
     output.writeStrongBinder(relativeLayerHandle);
     output.writeStrongBinder(parentHandleForChild);
+    output.writeFloat(color.r);
+    output.writeFloat(color.g);
+    output.writeFloat(color.b);
     output.write(transparentRegion);
     return NO_ERROR;
 }
@@ -79,6 +82,9 @@ status_t layer_state_t::read(const Parcel& input)
         interface_cast<IGraphicBufferProducer>(input.readStrongBinder());
     relativeLayerHandle = input.readStrongBinder();
     parentHandleForChild = input.readStrongBinder();
+    color.r = input.readFloat();
+    color.g = input.readFloat();
+    color.b = input.readFloat();
     input.read(transparentRegion);
     return NO_ERROR;
 }

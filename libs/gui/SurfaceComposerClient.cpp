@@ -158,6 +158,8 @@ public:
             const Region& transparentRegion);
     status_t setAlpha(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
             float alpha);
+    status_t setColor(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
+            const half3& color);
     status_t setMatrix(const sp<SurfaceComposerClient>& client, const sp<IBinder>& id,
             float dsdx, float dtdx, float dtdy, float dsdy);
     status_t setOrientation(int orientation);
@@ -399,6 +401,17 @@ status_t Composer::setAlpha(const sp<SurfaceComposerClient>& client,
         return BAD_INDEX;
     s->what |= layer_state_t::eAlphaChanged;
     s->alpha = alpha;
+    return NO_ERROR;
+}
+
+status_t Composer::setColor(const sp<SurfaceComposerClient>& client,
+        const sp<IBinder>& id, const half3& color) {
+    Mutex::Autolock _l(mLock);
+    layer_state_t* s = getLayerStateLocked(client, id);
+    if (!s)
+        return BAD_INDEX;
+    s->what |= layer_state_t::eColorChanged;
+    s->color = color;
     return NO_ERROR;
 }
 
@@ -820,6 +833,10 @@ status_t SurfaceComposerClient::setTransparentRegionHint(const sp<IBinder>& id,
 
 status_t SurfaceComposerClient::setAlpha(const sp<IBinder>& id, float alpha) {
     return getComposer().setAlpha(this, id, alpha);
+}
+
+status_t SurfaceComposerClient::setColor(const sp<IBinder>& id, const half3& color) {
+    return getComposer().setColor(this, id, color);
 }
 
 status_t SurfaceComposerClient::setLayerStack(const sp<IBinder>& id, uint32_t layerStack) {

@@ -79,9 +79,6 @@ private:
     /* location of the sampler uniform */
     GLint mSamplerLoc;
 
-    /* location of the alpha plane uniform */
-    GLint mAlphaPlaneLoc;
-
     /* location of the color uniform */
     GLint mColorLoc;
 };

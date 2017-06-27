@@ -137,11 +137,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
     mCurrentState.requestedFinalCrop = mCurrentState.finalCrop;
     mCurrentState.requestedCrop = mCurrentState.crop;
     mCurrentState.z = 0;
-#ifdef USE_HWC2
-    mCurrentState.alpha = 1.0f;
-#else
-    mCurrentState.alpha = 0xFF;
-#endif
+    mCurrentState.color.a = 1.0f;
     mCurrentState.layerStack = 0;
     mCurrentState.flags = layerFlags;
     mCurrentState.sequence = 0;
@@ -332,6 +328,10 @@ void Layer::onRemoved() {
 
 const String8& Layer::getName() const {
     return mName;
+}
+
+bool Layer::getPremultipledAlpha() const {
+    return mPremultipliedAlpha;
 }
 
 status_t Layer::setBuffers( uint32_t w, uint32_t h,
@@ -683,7 +683,7 @@ void Layer::setGeometry(
              " %s (%d)", mName.string(), to_string(blendMode).c_str(),
              to_string(error).c_str(), static_cast<int32_t>(error));
 #else
-    if (!isOpaque(s) || getAlpha() != 0xFF) {
+    if (!isOpaque(s) || getAlpha() != 1.0f) {
         layer.setBlending(mPremultipliedAlpha ?
                 HWC_BLENDING_PREMULT :
                 HWC_BLENDING_COVERAGE);
@@ -757,7 +757,7 @@ void Layer::setGeometry(
         hwcInfo.sourceCrop = sourceCrop;
     }
 
-    float alpha = getAlpha();
+    float alpha = static_cast<float>(getAlpha());
     error = hwcLayer->setPlaneAlpha(alpha);
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set plane alpha %.3f: "
             "%s (%d)", mName.string(), alpha, to_string(error).c_str(),
@@ -787,7 +787,7 @@ void Layer::setGeometry(
     const Transform& tr(hw->getTransform());
     layer.setFrame(tr.transform(frame));
     layer.setCrop(computeCrop(hw));
-    layer.setPlaneAlpha(getAlpha());
+    layer.setPlaneAlpha(static_cast<uint8_t>(std::round(255.0f*getAlpha())));
 #endif
 
     /*
@@ -904,8 +904,11 @@ void Layer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     if (mActiveBuffer == nullptr) {
         setCompositionType(hwcId, HWC2::Composition::SolidColor);
 
-        // For now, we only support black for DimLayer
-        error = hwcLayer->setColor({0, 0, 0, 255});
+        half4 color = getColor();
+        error = hwcLayer->setColor({static_cast<uint8_t>(std::round(255.0f*color.r)),
+                    static_cast<uint8_t>(std::round(255.0f * color.g)),
+                    static_cast<uint8_t>(std::round(255.0f * color.b)),
+                    255});
         if (error != HWC2::Error::None) {
             ALOGE("[%s] Failed to set color: %s (%d)", mName.string(),
                     to_string(error).c_str(), static_cast<int32_t>(error));
@@ -1254,7 +1257,8 @@ void Layer::drawWithOpenGL(const sp<const DisplayDevice>& hw,
     texCoords[3] = vec2(right, 1.0f - top);
 
     RenderEngine& engine(mFlinger->getRenderEngine());
-    engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), getAlpha());
+    engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s),
+        false /* disableTexture */, getColor());
 #ifdef USE_HWC2
     engine.setSourceDataSpace(mCurrentState.dataSpace);
 #endif
@@ -1877,19 +1881,30 @@ bool Layer::setSize(uint32_t w, uint32_t h) {
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
-#ifdef USE_HWC2
 bool Layer::setAlpha(float alpha) {
-#else
-bool Layer::setAlpha(uint8_t alpha) {
-#endif
-    if (mCurrentState.alpha == alpha)
+    if (mCurrentState.color.a == alpha)
         return false;
     mCurrentState.sequence++;
-    mCurrentState.alpha = alpha;
+    mCurrentState.color.a = alpha;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
+
+bool Layer::setColor(const half3& color) {
+    if (color.r == mCurrentState.color.r && color.g == mCurrentState.color.g
+        && color.b == mCurrentState.color.b)
+        return false;
+
+    mCurrentState.sequence++;
+    mCurrentState.color.r = color.r;
+    mCurrentState.color.g = color.g;
+    mCurrentState.color.b = color.b;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
 bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix) {
     mCurrentState.sequence++;
     mCurrentState.requested.transform.set(
@@ -2141,13 +2156,8 @@ bool Layer::isHiddenByPolicy() const {
 }
 
 bool Layer::isVisible() const {
-#ifdef USE_HWC2
     return !(isHiddenByPolicy()) && getAlpha() > 0.0f
             && (mActiveBuffer != NULL || mSidebandStream != NULL);
-#else
-    return !(isHiddenByPolicy()) && getAlpha()
-            && (mActiveBuffer != NULL || mSidebandStream != NULL);
-#endif
 }
 
 bool Layer::allTransactionsSignaled() {
@@ -2439,7 +2449,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mHeight = ds.active.h;
     info.mCrop = ds.crop;
     info.mFinalCrop = ds.finalCrop;
-    info.mAlpha = ds.alpha;
+    info.mColor = ds.color;
     info.mFlags = ds.flags;
     info.mPixelFormat = getPixelFormat();
     info.mDataSpace = getDataSpace();
@@ -2467,7 +2477,6 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mContentDirty = contentDirty;
     return info;
 }
-
 #ifdef USE_HWC2
 void Layer::miniDumpHeader(String8& result) {
     result.append("----------------------------------------");
@@ -2791,23 +2800,17 @@ Transform Layer::getTransform() const {
     return t * getDrawingState().active.transform;
 }
 
-#ifdef USE_HWC2
-float Layer::getAlpha() const {
+half Layer::getAlpha() const {
     const auto& p = mDrawingParent.promote();
 
-    float parentAlpha = (p != nullptr) ? p->getAlpha() : 1.0;
-    return parentAlpha * getDrawingState().alpha;
+    half parentAlpha = (p != nullptr) ? p->getAlpha() : 1.0_hf;
+    return parentAlpha * getDrawingState().color.a;
 }
-#else
-uint8_t Layer::getAlpha() const {
-    const auto& p = mDrawingParent.promote();
 
-    float parentAlpha = (p != nullptr) ? (p->getAlpha() / 255.0f) : 1.0;
-    float drawingAlpha = getDrawingState().alpha / 255.0f;
-    drawingAlpha = drawingAlpha * parentAlpha;
-    return static_cast<uint8_t>(std::round(drawingAlpha * 255));
+half4 Layer::getColor() const {
+    const half4 color(getDrawingState().color);
+    return half4(color.r, color.g, color.b, getAlpha());
 }
-#endif
 
 void Layer::commitChildList() {
     for (size_t i = 0; i < mCurrentChildren.size(); i++) {

@@ -84,7 +84,7 @@ class Client;
 class DisplayEventConnection;
 class EventThread;
 class Layer;
-class LayerDim;
+class ColorLayer;
 class Surface;
 class RenderEngine;
 class EventControlThread;
@@ -410,7 +410,7 @@ private:
             sp<IBinder>* outHandle, sp<IGraphicBufferProducer>* outGbp,
             sp<Layer>* outLayer);
 
-    status_t createDimLayer(const sp<Client>& client, const String8& name,
+    status_t createColorLayer(const sp<Client>& client, const String8& name,
             uint32_t w, uint32_t h, uint32_t flags, sp<IBinder>* outHandle,
             sp<IGraphicBufferProducer>* outGbp, sp<Layer>* outLayer);
 
