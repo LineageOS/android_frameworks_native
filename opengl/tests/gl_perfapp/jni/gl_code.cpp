@@ -61,7 +61,7 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_android_glperf_GLPerfLib_step(JNIEnv * env, jobject obj);
 };
 
-JNIEXPORT void JNICALL Java_com_android_glperf_GLPerfLib_init(JNIEnv * env, jobject obj,  jint width, jint height)
+JNIEXPORT void JNICALL Java_com_android_glperf_GLPerfLib_init(JNIEnv * /*env*/, jobject /*obj*/,  jint width, jint height)
 {
     gWidth = width;
     gHeight = height;
@@ -87,7 +87,7 @@ JNIEXPORT void JNICALL Java_com_android_glperf_GLPerfLib_init(JNIEnv * env, jobj
     }
 }
 
-JNIEXPORT void JNICALL Java_com_android_glperf_GLPerfLib_step(JNIEnv * env, jobject obj)
+JNIEXPORT void JNICALL Java_com_android_glperf_GLPerfLib_step(JNIEnv * /*env*/, jobject /*obj*/)
 {
     if (! done) {
         if (stateClock > 0 && ((stateClock & 1) == 0)) {

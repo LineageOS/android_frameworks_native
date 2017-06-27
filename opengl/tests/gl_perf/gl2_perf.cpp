@@ -56,7 +56,7 @@ bool doTest(uint32_t w, uint32_t h);
 static EGLDisplay dpy;
 static EGLSurface surface;
 
-int main(int argc, char** argv) {
+int main(int /*argc*/, char** /*argv*/) {
     EGLBoolean returnValue;
     EGLConfig myConfig = {0};
 

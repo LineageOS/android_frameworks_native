@@ -28,7 +28,7 @@
 
 using namespace android;
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** /*argv*/)
 {
     EGLint configAttribs[] = {
             EGL_SURFACE_TYPE,   EGL_WINDOW_BIT,
