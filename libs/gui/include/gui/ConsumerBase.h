@@ -241,7 +241,9 @@ protected:
 
     // mFrameAvailableListener is the listener object that will be called when a
     // new frame becomes available. If it is not NULL it will be called from
-    // queueBuffer.
+    // queueBuffer. The listener object is protected by mFrameAvailableMutex
+    // (not mMutex).
+    Mutex mFrameAvailableMutex;
     wp<FrameAvailableListener> mFrameAvailableListener;
 
     // The ConsumerBase has-a BufferQueue and is responsible for creating this object
