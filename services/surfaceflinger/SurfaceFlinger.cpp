@@ -3770,6 +3770,15 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
      */
     const GraphicBufferAllocator& alloc(GraphicBufferAllocator::get());
     alloc.dump(result);
+
+    /*
+     * Dump VrFlinger state if in use.
+     */
+    if (mVrFlingerRequestsDisplay && mVrFlinger) {
+        result.append("VrFlinger state:\n");
+        result.append(mVrFlinger->Dump().c_str());
+        result.append("\n");
+    }
 }
 
 const Vector< sp<Layer> >&
