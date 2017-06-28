@@ -1947,7 +1947,6 @@ void Layer::deferTransactionUntil(const sp<Layer>& barrierLayer,
     mCurrentState.barrierLayer = nullptr;
     mCurrentState.frameNumber = 0;
     mCurrentState.modified = false;
-    ALOGE("Deferred transaction");
 }
 
 void Layer::deferTransactionUntil(const sp<IBinder>& barrierHandle,
