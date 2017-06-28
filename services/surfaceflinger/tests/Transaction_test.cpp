@@ -566,6 +566,15 @@ protected:
         sc->expectBGColor(127, 127);
         sc->expectBGColor(128, 128);
     }
+
+    void EXPECT_RESIZE_STATE(const char* trace) {
+        SCOPED_TRACE(trace);
+        ScreenCapture::captureScreen(&sc);
+        // The FG is now resized too 128,128 at 64,64
+        sc->expectFGColor(64, 64);
+        sc->expectFGColor(191, 191);
+        sc->expectBGColor(192, 192);
+    }
 };
 
 TEST_F(CropLatchingTest, CropLatching) {
@@ -666,15 +675,17 @@ TEST_F(CropLatchingTest, FinalCropLatchingRegressionForb37531386) {
     mFGSurfaceControl->setFinalCrop(Rect(64, 64, 127, 127));
     SurfaceComposerClient::closeGlobalTransaction(true);
 
+    EXPECT_INITIAL_STATE("after setting crops with geometryAppliesWithResize");
+
     SurfaceComposerClient::openGlobalTransaction();
     mFGSurfaceControl->setFinalCrop(Rect(0, 0, -1, -1));
     SurfaceComposerClient::closeGlobalTransaction(true);
 
-    EXPECT_INITIAL_STATE("after setting crops with geometryAppliesWithResize");
+    EXPECT_INITIAL_STATE("after setting another crop");
 
     completeFGResize();
 
-    EXPECT_INITIAL_STATE("after the resize finishes");
+    EXPECT_RESIZE_STATE("after the resize finishes");
 }
 
 TEST_F(LayerUpdateTest, DeferredTransactionTest) {
