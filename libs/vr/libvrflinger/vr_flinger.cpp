@@ -137,6 +137,11 @@ void VrFlinger::OnHardwareComposerRefresh() {
   display_service_->OnHardwareComposerRefresh();
 }
 
+std::string VrFlinger::Dump() {
+  // TODO(karthikrs): Add more state information here.
+  return display_service_->DumpState(0/*unused*/);
+}
+
 void VrFlinger::PersistentVrStateCallback::onPersistentVrStateChanged(
     bool enabled) {
   ALOGV("Notified persistent vr mode is %s", enabled ? "on" : "off");
@@ -144,6 +149,5 @@ void VrFlinger::PersistentVrStateCallback::onPersistentVrStateChanged(
   // Persistent VR mode is not enough.
   // request_display_callback_(enabled);
 }
-
 }  // namespace dvr
 }  // namespace android
