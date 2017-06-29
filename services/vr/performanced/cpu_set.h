@@ -11,6 +11,8 @@
 
 #include <android-base/unique_fd.h>
 
+#include <pdx/status.h>
+
 #include "unique_file.h"
 
 namespace android {
@@ -28,7 +30,7 @@ class CpuSet {
 
   std::string GetCpuList() const;
 
-  int AttachTask(pid_t task_id) const;
+  pdx::Status<void> AttachTask(pid_t task_id) const;
   std::vector<pid_t> GetTasks() const;
 
  private:
