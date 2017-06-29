@@ -21,14 +21,17 @@ struct PerformanceRPC {
     kOpSetCpuPartition = 0,
     kOpSetSchedulerClass,
     kOpGetCpuPartition,
+    kOpSetSchedulerPolicy,
   };
 
   // Methods.
   PDX_REMOTE_METHOD(SetCpuPartition, kOpSetCpuPartition,
-                    int(pid_t, const std::string&));
+                    void(pid_t, const std::string&));
   PDX_REMOTE_METHOD(SetSchedulerClass, kOpSetSchedulerClass,
-                    int(pid_t, const std::string&));
+                    void(pid_t, const std::string&));
   PDX_REMOTE_METHOD(GetCpuPartition, kOpGetCpuPartition, std::string(pid_t));
+  PDX_REMOTE_METHOD(SetSchedulerPolicy, kOpSetSchedulerPolicy,
+                    void(pid_t, const std::string&));
 };
 
 }  // namespace dvr

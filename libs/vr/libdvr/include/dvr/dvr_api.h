@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <cstdio>
 
 #include <dvr/dvr_display_types.h>
@@ -319,6 +320,10 @@ typedef uint32_t (*DvrHwcFrameGetLayerNumDamagedRegionsPtr)(DvrHwcFrame* frame,
 typedef DvrHwcRecti (*DvrHwcFrameGetLayerDamagedRegionPtr)(DvrHwcFrame* frame,
                                                            size_t layer_index,
                                                            size_t index);
+
+// dvr_performance.h
+typedef int (*DvrPerformanceSetSchedulerPolicyPtr)(
+    pid_t task_id, const char* scheduler_policy);
 
 // The buffer metadata that an Android Surface (a.k.a. ANativeWindow)
 // will populate. A DvrWriteBufferQueue must be created with this metadata iff
