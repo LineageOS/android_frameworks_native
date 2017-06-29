@@ -14,6 +14,10 @@ namespace dvr {
 
 class PerformanceClient : public pdx::ClientBase<PerformanceClient> {
  public:
+  int SetSchedulerPolicy(pid_t task_id, const std::string& scheduler_policy);
+  int SetSchedulerPolicy(pid_t task_id, const char* scheduler_policy);
+
+  // TODO(eieio): Consider deprecating this API.
   int SetCpuPartition(pid_t task_id, const std::string& partition);
   int SetCpuPartition(pid_t task_id, const char* partition);
   int SetSchedulerClass(pid_t task_id, const std::string& scheduler_class);
