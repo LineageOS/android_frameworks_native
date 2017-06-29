@@ -32,6 +32,9 @@ class VrFlinger {
   // Called on a binder thread.
   void OnHardwareComposerRefresh();
 
+  // dump all vr flinger state.
+  std::string Dump();
+
  private:
   VrFlinger();
   bool Init(Hwc2::Composer* hidl,
