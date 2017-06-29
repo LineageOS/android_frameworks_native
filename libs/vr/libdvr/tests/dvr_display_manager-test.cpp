@@ -1,11 +1,13 @@
 #include <android-base/properties.h>
 #include <base/logging.h>
 #include <gtest/gtest.h>
+#include <log/log.h>
 #include <poll.h>
 
 #include <android/hardware_buffer.h>
 
 #include <algorithm>
+#include <array>
 #include <set>
 #include <thread>
 #include <vector>
@@ -25,7 +27,30 @@ namespace dvr {
 
 namespace {
 
-DvrSurfaceAttribute GetAttribute(DvrSurfaceAttributeKey key, bool value) {
+DvrSurfaceAttribute MakeAttribute(DvrSurfaceAttributeKey key, nullptr_t) {
+  DvrSurfaceAttribute attribute;
+  attribute.key = key;
+  attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_NONE;
+  return attribute;
+}
+
+DvrSurfaceAttribute MakeAttribute(DvrSurfaceAttributeKey key, int32_t value) {
+  DvrSurfaceAttribute attribute;
+  attribute.key = key;
+  attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_INT32;
+  attribute.value.int32_value = value;
+  return attribute;
+}
+
+DvrSurfaceAttribute MakeAttribute(DvrSurfaceAttributeKey key, int64_t value) {
+  DvrSurfaceAttribute attribute;
+  attribute.key = key;
+  attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_INT64;
+  attribute.value.int64_value = value;
+  return attribute;
+}
+
+DvrSurfaceAttribute MakeAttribute(DvrSurfaceAttributeKey key, bool value) {
   DvrSurfaceAttribute attribute;
   attribute.key = key;
   attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_BOOL;
@@ -33,11 +58,56 @@ DvrSurfaceAttribute GetAttribute(DvrSurfaceAttributeKey key, bool value) {
   return attribute;
 }
 
-DvrSurfaceAttribute GetAttribute(DvrSurfaceAttributeKey key, int32_t value) {
+DvrSurfaceAttribute MakeAttribute(DvrSurfaceAttributeKey key, float value) {
   DvrSurfaceAttribute attribute;
   attribute.key = key;
-  attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_INT32;
-  attribute.value.bool_value = value;
+  attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT;
+  attribute.value.float_value = value;
+  return attribute;
+}
+
+DvrSurfaceAttribute MakeAttribute(DvrSurfaceAttributeKey key,
+                                  const std::array<float, 2>& value) {
+  DvrSurfaceAttribute attribute;
+  attribute.key = key;
+  attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT2;
+  std::copy(value.begin(), value.end(), attribute.value.float2_value);
+  return attribute;
+}
+
+DvrSurfaceAttribute MakeAttribute(DvrSurfaceAttributeKey key,
+                                  const std::array<float, 3>& value) {
+  DvrSurfaceAttribute attribute;
+  attribute.key = key;
+  attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT3;
+  std::copy(value.begin(), value.end(), attribute.value.float3_value);
+  return attribute;
+}
+
+DvrSurfaceAttribute MakeAttribute(DvrSurfaceAttributeKey key,
+                                  const std::array<float, 4>& value) {
+  DvrSurfaceAttribute attribute;
+  attribute.key = key;
+  attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT4;
+  std::copy(value.begin(), value.end(), attribute.value.float4_value);
+  return attribute;
+}
+
+DvrSurfaceAttribute MakeAttribute(DvrSurfaceAttributeKey key,
+                                  const std::array<float, 8>& value) {
+  DvrSurfaceAttribute attribute;
+  attribute.key = key;
+  attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT8;
+  std::copy(value.begin(), value.end(), attribute.value.float8_value);
+  return attribute;
+}
+
+DvrSurfaceAttribute MakeAttribute(DvrSurfaceAttributeKey key,
+                                  const std::array<float, 16>& value) {
+  DvrSurfaceAttribute attribute;
+  attribute.key = key;
+  attribute.value.type = DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT16;
+  std::copy(value.begin(), value.end(), attribute.value.float16_value);
   return attribute;
 }
 
@@ -45,8 +115,8 @@ Status<UniqueDvrSurface> CreateApplicationSurface(bool visible = false,
                                                   int32_t z_order = 0) {
   DvrSurface* surface = nullptr;
   DvrSurfaceAttribute attributes[] = {
-      GetAttribute(DVR_SURFACE_ATTRIBUTE_Z_ORDER, z_order),
-      GetAttribute(DVR_SURFACE_ATTRIBUTE_VISIBLE, visible)};
+      MakeAttribute(DVR_SURFACE_ATTRIBUTE_Z_ORDER, z_order),
+      MakeAttribute(DVR_SURFACE_ATTRIBUTE_VISIBLE, visible)};
 
   const int ret = dvrSurfaceCreate(
       attributes, std::extent<decltype(attributes)>::value, &surface);
@@ -101,13 +171,14 @@ class TestDisplayManager {
       return {};
   }
 
-  Status<void> WaitForUpdate() {
+  enum : int { kTimeoutMs = 10000 };  // 10s
+
+  Status<void> WaitForUpdate(int timeout_ms = kTimeoutMs) {
     if (display_manager_event_fd_ < 0)
       return ErrorStatus(-display_manager_event_fd_);
 
-    const int kTimeoutMs = 10000;  // 10s
     pollfd pfd = {display_manager_event_fd_, POLLIN, 0};
-    const int count = poll(&pfd, 1, kTimeoutMs);
+    const int count = poll(&pfd, 1, timeout_ms);
     if (count < 0)
       return ErrorStatus(errno);
     else if (count == 0)
@@ -471,20 +542,218 @@ TEST_F(DvrDisplayManagerTest, SurfaceAttributeEvent) {
   auto attributes = attribute_status.take();
   EXPECT_GE(attributes.size(), 2u);
 
-  const std::set<int32_t> expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER,
-                                           DVR_SURFACE_ATTRIBUTE_VISIBLE};
+  std::set<int32_t> actual_keys;
+  std::set<int32_t> expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER,
+                                     DVR_SURFACE_ATTRIBUTE_VISIBLE};
 
   // Collect all the keys in attributes that match the expected keys.
-  std::set<int32_t> actual_keys;
-  std::for_each(attributes.begin(), attributes.end(),
-                [&expected_keys, &actual_keys](const auto& attribute) {
-                  if (expected_keys.find(attribute.key) != expected_keys.end())
-                    actual_keys.emplace(attribute.key);
-                });
+  auto compare_keys = [](const auto& attributes, const auto& expected_keys) {
+    std::set<int32_t> keys;
+    for (const auto& attribute : attributes) {
+      if (expected_keys.find(attribute.key) != expected_keys.end())
+        keys.emplace(attribute.key);
+    }
+    return keys;
+  };
 
   // If the sets match then attributes contained at least the expected keys,
   // even if other keys were also present.
+  actual_keys = compare_keys(attributes, expected_keys);
   EXPECT_EQ(expected_keys, actual_keys);
+
+  std::vector<DvrSurfaceAttribute> attributes_to_set = {
+      MakeAttribute(DVR_SURFACE_ATTRIBUTE_Z_ORDER, 0)};
+
+  // Test invalid args.
+  EXPECT_EQ(-EINVAL, dvrSurfaceSetAttributes(nullptr, attributes_to_set.data(),
+                                             attributes_to_set.size()));
+  EXPECT_EQ(-EINVAL, dvrSurfaceSetAttributes(surface.get(), nullptr,
+                                             attributes_to_set.size()));
+
+  // Test attribute change events.
+  ASSERT_EQ(0, dvrSurfaceSetAttributes(surface.get(), attributes_to_set.data(),
+                                       attributes_to_set.size()));
+  ASSERT_STATUS_OK(manager_->WaitForUpdate());
+
+  // Verify the attributes changed flag is set.
+  auto check_flags = [](const auto& value) {
+    return value & DVR_SURFACE_UPDATE_FLAGS_ATTRIBUTES_CHANGED;
+  };
+  EXPECT_STATUS_PRED(check_flags, manager_->GetUpdateFlags(0));
+
+  attribute_status = manager_->GetAttributes(0);
+  ASSERT_STATUS_OK(attribute_status);
+  attributes = attribute_status.take();
+  EXPECT_GE(attributes.size(), 2u);
+
+  expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER,
+                   DVR_SURFACE_ATTRIBUTE_VISIBLE};
+
+  actual_keys.clear();
+  actual_keys = compare_keys(attributes, expected_keys);
+  EXPECT_EQ(expected_keys, actual_keys);
+
+  // Test setting and then deleting an attribute.
+  const DvrSurfaceAttributeKey kUserKey = 1;
+  attributes_to_set = {MakeAttribute(kUserKey, 1024)};
+
+  ASSERT_EQ(0, dvrSurfaceSetAttributes(surface.get(), attributes_to_set.data(),
+                                       attributes_to_set.size()));
+  ASSERT_STATUS_OK(manager_->WaitForUpdate());
+  EXPECT_STATUS_PRED(check_flags, manager_->GetUpdateFlags(0));
+
+  attribute_status = manager_->GetAttributes(0);
+  ASSERT_STATUS_OK(attribute_status);
+  attributes = attribute_status.take();
+  EXPECT_GE(attributes.size(), 2u);
+
+  expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER, DVR_SURFACE_ATTRIBUTE_VISIBLE,
+                   kUserKey};
+
+  actual_keys.clear();
+  actual_keys = compare_keys(attributes, expected_keys);
+  EXPECT_EQ(expected_keys, actual_keys);
+
+  // Delete the attribute.
+  attributes_to_set = {MakeAttribute(kUserKey, nullptr)};
+
+  ASSERT_EQ(0, dvrSurfaceSetAttributes(surface.get(), attributes_to_set.data(),
+                                       attributes_to_set.size()));
+  ASSERT_STATUS_OK(manager_->WaitForUpdate());
+  EXPECT_STATUS_PRED(check_flags, manager_->GetUpdateFlags(0));
+
+  attribute_status = manager_->GetAttributes(0);
+  ASSERT_STATUS_OK(attribute_status);
+  attributes = attribute_status.take();
+  EXPECT_GE(attributes.size(), 2u);
+
+  expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER, DVR_SURFACE_ATTRIBUTE_VISIBLE,
+                   kUserKey};
+
+  actual_keys.clear();
+  actual_keys = compare_keys(attributes, expected_keys);
+  EXPECT_NE(expected_keys, actual_keys);
+
+  // Test deleting a reserved attribute.
+  attributes_to_set = {MakeAttribute(DVR_SURFACE_ATTRIBUTE_VISIBLE, nullptr)};
+
+  EXPECT_EQ(0, dvrSurfaceSetAttributes(surface.get(), attributes_to_set.data(),
+                                       attributes_to_set.size()));
+
+  // Failed attribute operations should not trigger update events.
+  const int kTimeoutMs = 100;  // 0.1s
+  EXPECT_STATUS_ERROR_VALUE(ETIMEDOUT, manager_->WaitForUpdate(kTimeoutMs));
+
+  attribute_status = manager_->GetAttributes(0);
+  ASSERT_STATUS_OK(attribute_status);
+  attributes = attribute_status.take();
+  EXPECT_GE(attributes.size(), 2u);
+
+  expected_keys = {DVR_SURFACE_ATTRIBUTE_Z_ORDER,
+                   DVR_SURFACE_ATTRIBUTE_VISIBLE};
+
+  actual_keys.clear();
+  actual_keys = compare_keys(attributes, expected_keys);
+  EXPECT_EQ(expected_keys, actual_keys);
+}
+
+TEST_F(DvrDisplayManagerTest, SurfaceAttributeTypes) {
+  // Create an application surface.
+  auto surface_status = CreateApplicationSurface();
+  ASSERT_STATUS_OK(surface_status);
+  UniqueDvrSurface surface = surface_status.take();
+  ASSERT_NE(nullptr, surface.get());
+
+  enum : std::int32_t {
+    kInt32Key = 1,
+    kInt64Key,
+    kBoolKey,
+    kFloatKey,
+    kFloat2Key,
+    kFloat3Key,
+    kFloat4Key,
+    kFloat8Key,
+    kFloat16Key,
+  };
+
+  const std::vector<DvrSurfaceAttribute> attributes_to_set = {
+      MakeAttribute(kInt32Key, int32_t{0}),
+      MakeAttribute(kInt64Key, int64_t{0}),
+      MakeAttribute(kBoolKey, false),
+      MakeAttribute(kFloatKey, 0.0f),
+      MakeAttribute(kFloat2Key, std::array<float, 2>{{1.0f, 2.0f}}),
+      MakeAttribute(kFloat3Key, std::array<float, 3>{{3.0f, 4.0f, 5.0f}}),
+      MakeAttribute(kFloat4Key, std::array<float, 4>{{6.0f, 7.0f, 8.0f, 9.0f}}),
+      MakeAttribute(kFloat8Key,
+                    std::array<float, 8>{{10.0f, 11.0f, 12.0f, 13.0f, 14.0f,
+                                          15.0f, 16.0f, 17.0f}}),
+      MakeAttribute(kFloat16Key, std::array<float, 16>{
+                                     {18.0f, 19.0f, 20.0f, 21.0f, 22.0f, 23.0f,
+                                      24.0f, 25.0f, 26.0f, 27.0f, 28.0f, 29.0f,
+                                      30.0f, 31.0f, 32.0f, 33.0f}})};
+
+  EXPECT_EQ(0, dvrSurfaceSetAttributes(surface.get(), attributes_to_set.data(),
+                                       attributes_to_set.size()));
+
+  ASSERT_STATUS_OK(manager_->WaitForUpdate());
+  auto attribute_status = manager_->GetAttributes(0);
+  ASSERT_STATUS_OK(attribute_status);
+  auto attributes = attribute_status.take();
+  EXPECT_GE(attributes.size(), attributes_to_set.size());
+
+  auto HasAttribute = [](const auto& attributes,
+                         DvrSurfaceAttributeKey key) -> bool {
+    for (const auto& attribute : attributes) {
+      if (attribute.key == key)
+        return true;
+    }
+    return false;
+  };
+  auto AttributeType =
+      [](const auto& attributes,
+         DvrSurfaceAttributeKey key) -> DvrSurfaceAttributeType {
+    for (const auto& attribute : attributes) {
+      if (attribute.key == key)
+        return attribute.value.type;
+    }
+    return DVR_SURFACE_ATTRIBUTE_TYPE_NONE;
+  };
+
+  ASSERT_TRUE(HasAttribute(attributes, kInt32Key));
+  EXPECT_EQ(DVR_SURFACE_ATTRIBUTE_TYPE_INT32,
+            AttributeType(attributes, kInt32Key));
+
+  ASSERT_TRUE(HasAttribute(attributes, kInt64Key));
+  EXPECT_EQ(DVR_SURFACE_ATTRIBUTE_TYPE_INT64,
+            AttributeType(attributes, kInt64Key));
+
+  ASSERT_TRUE(HasAttribute(attributes, kBoolKey));
+  EXPECT_EQ(DVR_SURFACE_ATTRIBUTE_TYPE_BOOL,
+            AttributeType(attributes, kBoolKey));
+
+  ASSERT_TRUE(HasAttribute(attributes, kFloatKey));
+  EXPECT_EQ(DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT,
+            AttributeType(attributes, kFloatKey));
+
+  ASSERT_TRUE(HasAttribute(attributes, kFloat2Key));
+  EXPECT_EQ(DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT2,
+            AttributeType(attributes, kFloat2Key));
+
+  ASSERT_TRUE(HasAttribute(attributes, kFloat3Key));
+  EXPECT_EQ(DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT3,
+            AttributeType(attributes, kFloat3Key));
+
+  ASSERT_TRUE(HasAttribute(attributes, kFloat4Key));
+  EXPECT_EQ(DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT4,
+            AttributeType(attributes, kFloat4Key));
+
+  ASSERT_TRUE(HasAttribute(attributes, kFloat8Key));
+  EXPECT_EQ(DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT8,
+            AttributeType(attributes, kFloat8Key));
+
+  ASSERT_TRUE(HasAttribute(attributes, kFloat16Key));
+  EXPECT_EQ(DVR_SURFACE_ATTRIBUTE_TYPE_FLOAT16,
+            AttributeType(attributes, kFloat16Key));
 }
 
 TEST_F(DvrDisplayManagerTest, SurfaceQueueEvent) {
@@ -500,7 +769,8 @@ TEST_F(DvrDisplayManagerTest, SurfaceQueueEvent) {
   ASSERT_STATUS_OK(manager_->WaitForUpdate());
   ASSERT_STATUS_EQ(1u, manager_->GetSurfaceCount());
 
-  // Verify there are no queues for the surface recorded in the state snapshot.
+  // Verify there are no queues for the surface recorded in the state
+  // snapshot.
   EXPECT_STATUS_EQ(std::vector<int>{}, manager_->GetQueueIds(0));
 
   // Create a new queue in the surface.
