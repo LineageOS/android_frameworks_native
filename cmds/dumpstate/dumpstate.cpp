@@ -843,7 +843,7 @@ static void DoLogcat() {
                         "-d", "*:v"});
 }
 
-static void DumpIpTables() {
+static void DumpIpTablesAsRoot() {
     RunCommand("IPTABLES", {"iptables", "-L", "-nvx"});
     RunCommand("IP6TABLES", {"ip6tables", "-L", "-nvx"});
     RunCommand("IPTABLES NAT", {"iptables", "-t", "nat", "-L", "-nvx"});
@@ -1013,6 +1013,24 @@ static void DumpBlockStatFiles() {
     }
      return;
 }
+
+static void DumpPacketStats() {
+    DumpFile("NETWORK DEV INFO", "/proc/net/dev");
+    DumpFile("QTAGUID NETWORK INTERFACES INFO", "/proc/net/xt_qtaguid/iface_stat_all");
+    DumpFile("QTAGUID NETWORK INTERFACES INFO (xt)", "/proc/net/xt_qtaguid/iface_stat_fmt");
+    DumpFile("QTAGUID CTRL INFO", "/proc/net/xt_qtaguid/ctrl");
+    DumpFile("QTAGUID STATS INFO", "/proc/net/xt_qtaguid/stats");
+}
+
+static void DumpIpAddrAndRules() {
+    /* The following have a tendency to get wedged when wifi drivers/fw goes belly-up. */
+    RunCommand("NETWORK INTERFACES", {"ip", "link"});
+    RunCommand("IPv4 ADDRESSES", {"ip", "-4", "addr", "show"});
+    RunCommand("IPv6 ADDRESSES", {"ip", "-6", "addr", "show"});
+    RunCommand("IP RULES", {"ip", "rule", "show"});
+    RunCommand("IP RULES v6", {"ip", "-6", "rule", "show"});
+}
+
 static void dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
 
@@ -1090,23 +1108,11 @@ static void dumpstate() {
         printf("*** NO TOMBSTONES to dump in %s\n\n", TOMBSTONE_DIR.c_str());
     }
 
-    DumpFile("NETWORK DEV INFO", "/proc/net/dev");
-    DumpFile("QTAGUID NETWORK INTERFACES INFO", "/proc/net/xt_qtaguid/iface_stat_all");
-    DumpFile("QTAGUID NETWORK INTERFACES INFO (xt)", "/proc/net/xt_qtaguid/iface_stat_fmt");
-    DumpFile("QTAGUID CTRL INFO", "/proc/net/xt_qtaguid/ctrl");
-    DumpFile("QTAGUID STATS INFO", "/proc/net/xt_qtaguid/stats");
+    DumpPacketStats();
 
     DoKmsg();
 
-    /* The following have a tendency to get wedged when wifi drivers/fw goes belly-up. */
-
-    RunCommand("NETWORK INTERFACES", {"ip", "link"});
-
-    RunCommand("IPv4 ADDRESSES", {"ip", "-4", "addr", "show"});
-    RunCommand("IPv6 ADDRESSES", {"ip", "-6", "addr", "show"});
-
-    RunCommand("IP RULES", {"ip", "rule", "show"});
-    RunCommand("IP RULES v6", {"ip", "-6", "rule", "show"});
+    DumpIpAddrAndRules();
 
     dump_route_tables();
 
@@ -1210,6 +1216,46 @@ static void dumpstate() {
     printf("========================================================\n");
     printf("== Final progress (pid %d): %d/%d (estimated %d)\n", ds.pid_, ds.progress_->Get(),
            ds.progress_->GetMax(), ds.progress_->GetInitialMax());
+    printf("========================================================\n");
+    printf("== dumpstate: done (id %d)\n", ds.id_);
+    printf("========================================================\n");
+}
+
+// This method collects dumpsys for telephony debugging only
+static void DumpstateTelephonyOnly() {
+    DurationReporter duration_reporter("DUMPSTATE");
+
+    DumpIpTablesAsRoot();
+
+    if (!DropRootUser()) {
+        return;
+    }
+
+    do_dmesg();
+    DoLogcat();
+    DumpPacketStats();
+    DoKmsg();
+    DumpIpAddrAndRules();
+    dump_route_tables();
+
+    RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
+               CommandOptions::WithTimeout(10).Build());
+
+    RunCommand("SYSTEM PROPERTIES", {"getprop"});
+
+    printf("========================================================\n");
+    printf("== Android Framework Services\n");
+    printf("========================================================\n");
+
+    RunDumpsys("DUMPSYS", {"connectivity"}, CommandOptions::WithTimeout(90).Build(), 10);
+    RunDumpsys("DUMPSYS", {"carrier_config"}, CommandOptions::WithTimeout(90).Build(), 10);
+
+    printf("========================================================\n");
+    printf("== Running Application Services\n");
+    printf("========================================================\n");
+
+    RunDumpsys("TELEPHONY SERVICES", {"activity", "service", "TelephonyDebugService"});
+
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
     printf("========================================================\n");
@@ -1752,13 +1798,7 @@ int main(int argc, char *argv[]) {
     ds.PrintHeader();
 
     if (telephony_only) {
-        DumpIpTables();
-        if (!DropRootUser()) {
-            return -1;
-        }
-        do_dmesg();
-        DoLogcat();
-        DoKmsg();
+        DumpstateTelephonyOnly();
         ds.DumpstateBoard();
     } else {
         // Dumps systrace right away, otherwise it will be filled with unnecessary events.
@@ -1793,7 +1833,7 @@ int main(int argc, char *argv[]) {
             ds.AddDir(PROFILE_DATA_DIR_REF, true);
         }
         add_mountinfo();
-        DumpIpTables();
+        DumpIpTablesAsRoot();
 
         // Capture any IPSec policies in play.  No keys are exposed here.
         RunCommand("IP XFRM POLICY", {"ip", "xfrm", "policy"},
