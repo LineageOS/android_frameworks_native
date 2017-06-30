@@ -183,6 +183,17 @@ TEST(PerformanceTest, Permissions) {
   ASSERT_EQ(AID_ROOT, original_uid)
       << "This test must run as root to function correctly!";
 
+  // Test unprivileged policies on a task that does not belong to this process.
+  // Use the init process (task_id=1) as the target.
+  error = dvrSetSchedulerPolicy(1, "batch");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(1, "background");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(1, "foreground");
+  EXPECT_EQ(-EINVAL, error);
+  error = dvrSetSchedulerPolicy(1, "normal");
+  EXPECT_EQ(-EINVAL, error);
+
   // Switch the uid/gid to an id that should not have permission to access any
   // privileged actions.
   ASSERT_EQ(0, setresgid(AID_NOBODY, AID_NOBODY, -1))
