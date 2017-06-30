@@ -235,6 +235,8 @@ typedef int (*DvrPoseClientGetControllerPtr)(DvrPoseClient* client,
                                              int32_t controller_id,
                                              uint32_t vsync_count,
                                              DvrPoseAsync* out_pose);
+typedef int (*DvrPoseClientSensorsEnablePtr)(DvrPoseClient* client,
+                                             bool enabled);
 
 // services/vr/virtual_touchpad/include/dvr/virtual_touchpad_client.h
 
