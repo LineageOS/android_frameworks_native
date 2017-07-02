@@ -408,6 +408,7 @@ public:
      * to figure out if the content or size of a surface has changed.
      */
     Region latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime);
+    bool isBufferLatched() const { return mRefreshPending; }
 
     bool isPotentialCursor() const { return mPotentialCursor;}
 

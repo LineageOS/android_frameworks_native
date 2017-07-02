@@ -2456,7 +2456,7 @@ bool SurfaceFlinger::handlePageFlip()
         const Region dirty(layer->latchBuffer(visibleRegions, latchTime));
         layer->useSurfaceDamage();
         invalidateLayerStack(layer->getLayerStack(), dirty);
-        if (!dirty.isEmpty()) {
+        if (layer->isBufferLatched()) {
             newDataLatched = true;
         }
     }
@@ -2466,7 +2466,7 @@ bool SurfaceFlinger::handlePageFlip()
     // If we will need to wake up at some time in the future to deal with a
     // queued frame that shouldn't be displayed during this vsync period, wake
     // up during the next vsync period to check again.
-    if (frameQueued && mLayersWithQueuedFrames.empty()) {
+    if (frameQueued && (mLayersWithQueuedFrames.empty() || !newDataLatched)) {
         signalLayerUpdate();
     }
 

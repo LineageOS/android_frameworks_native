@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <cstdio>
 
 #include <dvr/dvr_display_types.h>
@@ -234,6 +235,8 @@ typedef int (*DvrPoseClientGetControllerPtr)(DvrPoseClient* client,
                                              int32_t controller_id,
                                              uint32_t vsync_count,
                                              DvrPoseAsync* out_pose);
+typedef int (*DvrPoseClientSensorsEnablePtr)(DvrPoseClient* client,
+                                             bool enabled);
 
 // services/vr/virtual_touchpad/include/dvr/virtual_touchpad_client.h
 
@@ -319,6 +322,10 @@ typedef uint32_t (*DvrHwcFrameGetLayerNumDamagedRegionsPtr)(DvrHwcFrame* frame,
 typedef DvrHwcRecti (*DvrHwcFrameGetLayerDamagedRegionPtr)(DvrHwcFrame* frame,
                                                            size_t layer_index,
                                                            size_t index);
+
+// dvr_performance.h
+typedef int (*DvrPerformanceSetSchedulerPolicyPtr)(
+    pid_t task_id, const char* scheduler_policy);
 
 // The buffer metadata that an Android Surface (a.k.a. ANativeWindow)
 // will populate. A DvrWriteBufferQueue must be created with this metadata iff
