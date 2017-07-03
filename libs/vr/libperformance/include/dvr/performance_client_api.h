@@ -8,6 +8,20 @@
 extern "C" {
 #endif
 
+/// Sets the scheduler policy for a task.
+///
+/// Sets the scheduler policy for a task to the class described by a semantic
+/// string.
+///
+/// Supported policies are device-specific.
+///
+/// @param task_id The task id of task to set the policy for. When task_id is 0
+/// the current task id is substituted.
+/// @param scheduler_policy NULL-terminated ASCII string containing the desired
+/// scheduler policy.
+/// @returns Returns 0 on success or a negative errno error code on error.
+int dvrSetSchedulerPolicy(pid_t task_id, const char* scheduler_policy);
+
 /// Sets the CPU partition for a task.
 ///
 /// Sets the CPU partition for a task to the partition described by a CPU

@@ -31,6 +31,7 @@ srcs = [
     "dvr_configuration_data.cpp",
     "dvr_display_manager.cpp",
     "dvr_hardware_composer_client.cpp",
+    "dvr_performance.cpp",
     "dvr_surface.cpp",
     "dvr_vsync.cpp",
 ]
@@ -45,6 +46,7 @@ static_libs = [
     "libvr_hwc-impl",
     "libvr_hwc-binder",
     "libgrallocusage",
+    "libperformance",
     "libpdx_default_transport",
 ]
 

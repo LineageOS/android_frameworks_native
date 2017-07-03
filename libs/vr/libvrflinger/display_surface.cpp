@@ -68,7 +68,7 @@ Status<void> DisplaySurface::OnSetAttributes(
   display::SurfaceUpdateFlags update_flags;
 
   for (const auto& attribute : attributes) {
-    const auto& key = attribute.first;
+    const auto key = attribute.first;
     const auto* variant = &attribute.second;
     bool invalid_value = false;
     bool visibility_changed = false;
@@ -95,14 +95,23 @@ Status<void> DisplaySurface::OnSetAttributes(
         break;
     }
 
+    // Only update the attribute map with valid values. This check also has the
+    // effect of preventing special attributes handled above from being deleted
+    // by an empty value.
     if (invalid_value) {
       ALOGW(
           "DisplaySurface::OnClientSetAttributes: Failed to set display "
           "surface attribute '%d' because of incompatible type: %d",
           key, variant->index());
     } else {
-      // Only update the attribute map with valid values.
-      attributes_[attribute.first] = attribute.second;
+      // An empty value indicates the attribute should be deleted.
+      if (variant->empty()) {
+        auto search = attributes_.find(key);
+        if (search != attributes_.end())
+          attributes_.erase(search);
+      } else {
+        attributes_[key] = *variant;
+      }
 
       // All attribute changes generate a notification, even if the value
       // doesn't change. Visibility attributes set a flag only if the value

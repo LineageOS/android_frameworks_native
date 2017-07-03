@@ -37,6 +37,26 @@ int PerformanceClient::SetCpuPartition(pid_t task_id, const char* partition) {
           task_id, WrapString(partition)));
 }
 
+int PerformanceClient::SetSchedulerPolicy(pid_t task_id,
+                                          const std::string& scheduler_policy) {
+  if (task_id == 0)
+    task_id = gettid();
+
+  return ReturnStatusOrError(
+      InvokeRemoteMethod<PerformanceRPC::SetSchedulerPolicy>(task_id,
+                                                             scheduler_policy));
+}
+
+int PerformanceClient::SetSchedulerPolicy(pid_t task_id,
+                                          const char* scheduler_policy) {
+  if (task_id == 0)
+    task_id = gettid();
+
+  return ReturnStatusOrError(
+      InvokeRemoteMethod<PerformanceRPC::SetSchedulerPolicy>(
+          task_id, WrapString(scheduler_policy)));
+}
+
 int PerformanceClient::SetSchedulerClass(pid_t task_id,
                                          const std::string& scheduler_class) {
   if (task_id == 0)
@@ -97,6 +117,15 @@ extern "C" int dvrSetCpuPartition(pid_t task_id, const char* partition) {
   int error;
   if (auto client = android::dvr::PerformanceClient::Create(&error))
     return client->SetCpuPartition(task_id, partition);
+  else
+    return error;
+}
+
+extern "C" int dvrSetSchedulerPolicy(pid_t task_id,
+                                     const char* scheduler_policy) {
+  int error;
+  if (auto client = android::dvr::PerformanceClient::Create(&error))
+    return client->SetSchedulerPolicy(task_id, scheduler_policy);
   else
     return error;
 }
