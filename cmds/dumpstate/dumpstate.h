@@ -26,10 +26,11 @@
 #include <vector>
 
 #include <android-base/macros.h>
+#include <android/os/IDumpstateListener.h>
+#include <utils/StrongPointer.h>
 #include <ziparchive/zip_writer.h>
 
 #include "DumpstateUtil.h"
-#include "android/os/BnDumpstate.h"
 
 // Workaround for const char *args[MAX_ARGS_ARRAY_SIZE] variables until they're converted to
 // std::vector<std::string>
@@ -48,6 +49,8 @@ class ProgressTest;
 }  // namespace dumpstate
 }  // namespace os
 }  // namespace android
+
+class ZipWriter;
 
 // TODO: remove once moved to HAL
 #ifdef __cplusplus
