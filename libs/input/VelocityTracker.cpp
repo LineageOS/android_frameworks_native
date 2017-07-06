@@ -23,8 +23,9 @@
 // Log debug messages about the progress of the algorithm itself.
 #define DEBUG_STRATEGY 0
 
-#include <math.h>
+#include <inttypes.h>
 #include <limits.h>
+#include <math.h>
 
 #include <cutils/properties.h>
 #include <input/VelocityTracker.h>
@@ -46,8 +47,7 @@ static const nsecs_t ASSUME_POINTER_STOPPED_TIME = 40 * NANOS_PER_MS;
 
 static float vectorDot(const float* a, const float* b, uint32_t m) {
     float r = 0;
-    while (m) {
-        m--;
+    for (size_t i = 0; i < m; i++) {
         r += *(a++) * *(b++);
     }
     return r;
@@ -55,8 +55,7 @@ static float vectorDot(const float* a, const float* b, uint32_t m) {
 
 static float vectorNorm(const float* a, uint32_t m) {
     float r = 0;
-    while (m) {
-        m--;
+    for (size_t i = 0; i < m; i++) {
         float t = *(a++);
         r += t * t;
     }
@@ -67,11 +66,11 @@ static float vectorNorm(const float* a, uint32_t m) {
 static String8 vectorToString(const float* a, uint32_t m) {
     String8 str;
     str.append("[");
-    while (m--) {
-        str.appendFormat(" %f", *(a++));
-        if (m) {
+    for (size_t i = 0; i < m; i++) {
+        if (i) {
             str.append(",");
         }
+        str.appendFormat(" %f", *(a++));
     }
     str.append(" ]");
     return str;
@@ -244,7 +243,7 @@ void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits, const Posi
     mStrategy->addMovement(eventTime, idBits, positions);
 
 #if DEBUG_VELOCITY
-    ALOGD("VelocityTracker: addMovement eventTime=%lld, idBits=0x%08x, activePointerId=%d",
+    ALOGD("VelocityTracker: addMovement eventTime=%" PRId64 ", idBits=0x%08x, activePointerId=%d",
             eventTime, idBits.value, mActivePointerId);
     for (BitSet32 iterBits(idBits); !iterBits.isEmpty(); ) {
         uint32_t id = iterBits.firstMarkedBit();
