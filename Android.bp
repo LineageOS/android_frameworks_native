@@ -8,6 +8,7 @@ ndk_headers {
 
 subdirs = [
     "cmds/*",
+    "headers",
     "libs/*",
     "opengl",
     "services/*",
