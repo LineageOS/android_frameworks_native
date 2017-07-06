@@ -42,6 +42,10 @@ namespace android {
 
 ANDROID_SINGLETON_STATIC_INSTANCE( GraphicBufferMapper )
 
+void GraphicBufferMapper::preloadHal() {
+    Gralloc2::Mapper::preload();
+}
+
 GraphicBufferMapper::GraphicBufferMapper()
   : mMapper(std::make_unique<const Gralloc2::Mapper>())
 {
