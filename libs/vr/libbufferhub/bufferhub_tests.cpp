@@ -62,6 +62,57 @@ TEST_F(LibBufferHubTest, TestBasicUsage) {
   EXPECT_GE(0, RETRY_EINTR(p->Poll(0)));
 }
 
+TEST_F(LibBufferHubTest, TestStateTransitions) {
+  std::unique_ptr<BufferProducer> p = BufferProducer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  ASSERT_TRUE(p.get() != nullptr);
+  std::unique_ptr<BufferConsumer> c =
+      BufferConsumer::Import(p->CreateConsumer());
+  ASSERT_TRUE(c.get() != nullptr);
+
+  uint64_t context;
+  LocalHandle fence;
+
+  // The producer buffer starts in gained state.
+
+  // Acquire, release, and gain in gained state should fail.
+  EXPECT_EQ(-EBUSY, c->Acquire(&fence, &context));
+  EXPECT_EQ(-EBUSY, c->Release(LocalHandle()));
+  EXPECT_EQ(-EALREADY, p->Gain(&fence));
+
+  // Post in gained state should succeed.
+  EXPECT_EQ(0, p->Post(LocalHandle(), kContext));
+
+  // Post, release, and gain in posted state should fail.
+  EXPECT_EQ(-EBUSY, p->Post(LocalHandle(), kContext));
+  EXPECT_EQ(-EBUSY, c->Release(LocalHandle()));
+  EXPECT_EQ(-EBUSY, p->Gain(&fence));
+
+  // Acquire in posted state should succeed.
+  EXPECT_LE(0, c->Acquire(&fence, &context));
+
+  // Acquire, post, and gain in acquired state should fail.
+  EXPECT_EQ(-EBUSY, c->Acquire(&fence, &context));
+  EXPECT_EQ(-EBUSY, p->Post(LocalHandle(), kContext));
+  EXPECT_EQ(-EBUSY, p->Gain(&fence));
+
+  // Release in acquired state should succeed.
+  EXPECT_EQ(0, c->Release(LocalHandle()));
+
+  // Release, acquire, and post in released state should fail.
+  EXPECT_EQ(-EBUSY, c->Release(LocalHandle()));
+  EXPECT_EQ(-EBUSY, c->Acquire(&fence, &context));
+  EXPECT_EQ(-EBUSY, p->Post(LocalHandle(), kContext));
+
+  // Gain in released state should succeed.
+  EXPECT_EQ(0, p->Gain(&fence));
+
+  // Acquire, release, and gain in gained state should fail.
+  EXPECT_EQ(-EBUSY, c->Acquire(&fence, &context));
+  EXPECT_EQ(-EBUSY, c->Release(LocalHandle()));
+  EXPECT_EQ(-EALREADY, p->Gain(&fence));
+}
+
 TEST_F(LibBufferHubTest, TestWithCustomMetadata) {
   struct Metadata {
     int64_t field1;

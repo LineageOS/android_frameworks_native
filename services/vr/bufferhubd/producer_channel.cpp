@@ -122,7 +122,7 @@ bool ProducerChannel::HandleMessage(Message& message) {
 }
 
 Status<NativeBufferHandle<BorrowedHandle>> ProducerChannel::OnGetBuffer(
-    Message& message) {
+    Message& /*message*/) {
   ATRACE_NAME("ProducerChannel::OnGetBuffer");
   ALOGD_IF(TRACE, "ProducerChannel::OnGetBuffer: buffer=%d", buffer_id());
   return {NativeBufferHandle<BorrowedHandle>(buffer_, buffer_id())};
@@ -204,7 +204,7 @@ Status<void> ProducerChannel::OnProducerPost(
   return {};
 }
 
-Status<LocalFence> ProducerChannel::OnProducerGain(Message& message) {
+Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
   ATRACE_NAME("ProducerChannel::OnGain");
   ALOGD_IF(TRACE, "ProducerChannel::OnGain: buffer_id=%d", buffer_id());
   if (producer_owns_) {
@@ -224,7 +224,7 @@ Status<LocalFence> ProducerChannel::OnProducerGain(Message& message) {
 }
 
 Status<std::pair<BorrowedFence, BufferWrapper<std::uint8_t*>>>
-ProducerChannel::OnConsumerAcquire(Message& message,
+ProducerChannel::OnConsumerAcquire(Message& /*message*/,
                                    std::size_t metadata_size) {
   ATRACE_NAME("ProducerChannel::OnConsumerAcquire");
   ALOGD_IF(TRACE, "ProducerChannel::OnConsumerAcquire: buffer_id=%d",
