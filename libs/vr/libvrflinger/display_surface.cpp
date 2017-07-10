@@ -248,11 +248,12 @@ void ApplicationDisplaySurface::OnQueueEvent(
            "ApplicationDisplaySurface::OnQueueEvent: queue_id=%d events=%x",
            consumer_queue->id(), events);
 
+  std::lock_guard<std::mutex> autolock(lock_);
+
   // Always give the queue a chance to handle its internal bookkeeping.
   consumer_queue->HandleQueueEvents();
 
   // Check for hangup and remove a queue that is no longer needed.
-  std::lock_guard<std::mutex> autolock(lock_);
   if (consumer_queue->hung_up()) {
     ALOGD_IF(TRACE, "ApplicationDisplaySurface::OnQueueEvent: Removing queue.");
     UnregisterQueue(consumer_queue);
@@ -317,11 +318,12 @@ void DirectDisplaySurface::OnQueueEvent(
   ALOGD_IF(TRACE, "DirectDisplaySurface::OnQueueEvent: queue_id=%d events=%x",
            consumer_queue->id(), events);
 
+  std::lock_guard<std::mutex> autolock(lock_);
+
   // Always give the queue a chance to handle its internal bookkeeping.
   consumer_queue->HandleQueueEvents();
 
   // Check for hangup and remove a queue that is no longer needed.
-  std::lock_guard<std::mutex> autolock(lock_);
   if (consumer_queue->hung_up()) {
     ALOGD_IF(TRACE, "DirectDisplaySurface::OnQueueEvent: Removing queue.");
     UnregisterQueue(consumer_queue);
