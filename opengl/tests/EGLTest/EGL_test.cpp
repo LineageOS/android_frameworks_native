@@ -200,6 +200,7 @@ TEST_F(EGLTest, EGLDisplayP3) {
 
     if (!hasWideColorDisplay) {
         // skip this test if device does not have wide-color display
+        std::cerr << "[          ] Device does not support wide-color, test skipped" << std::endl;
         return;
     }
 
@@ -285,6 +286,7 @@ TEST_F(EGLTest, EGLDisplayP31010102) {
 
     if (!hasWideColorDisplay) {
         // skip this test if device does not have wide-color display
+        std::cerr << "[          ] Device does not support wide-color, test skipped" << std::endl;
         return;
     }
 
@@ -370,6 +372,7 @@ TEST_F(EGLTest, EGLConfigFP16) {
 
     if (!hasWideColorDisplay) {
         // skip this test if device does not have wide-color display
+        std::cerr << "[          ] Device does not support wide-color, test skipped" << std::endl;
         return;
     }
 
@@ -434,6 +437,7 @@ TEST_F(EGLTest, EGLConfigFP16) {
 TEST_F(EGLTest, EGLNoConfigContext) {
     if (!hasWideColorDisplay) {
         // skip this test if device does not have wide-color display
+        std::cerr << "[          ] Device does not support wide-color, test skipped" << std::endl;
         return;
     }
 
@@ -471,6 +475,7 @@ TEST_F(EGLTest, EGLConfig1010102) {
 
     if (!hasWideColorDisplay) {
         // skip this test if device does not have wide-color display
+        std::cerr << "[          ] Device does not support wide-color, test skipped" << std::endl;
         return;
     }
 
