@@ -27,12 +27,21 @@ SensorService::SensorDirectConnection::SensorDirectConnection(const sp<SensorSer
         const String16& opPackageName)
         : mService(service), mUid(uid), mMem(*mem),
         mHalChannelHandle(halChannelHandle),
-        mOpPackageName(opPackageName) {
+        mOpPackageName(opPackageName), mDestroyed(false) {
     ALOGD_IF(DEBUG_CONNECTIONS, "Created SensorDirectConnection");
 }
 
 SensorService::SensorDirectConnection::~SensorDirectConnection() {
     ALOGD_IF(DEBUG_CONNECTIONS, "~SensorDirectConnection %p", this);
+    destroy();
+}
+
+void SensorService::SensorDirectConnection::destroy() {
+    Mutex::Autolock _l(mDestroyLock);
+    // destroy once only
+    if (mDestroyed) {
+        return;
+    }
 
     stopAll();
     mService->cleanupConnection(this);
@@ -40,6 +49,7 @@ SensorService::SensorDirectConnection::~SensorDirectConnection() {
         native_handle_close(mMem.handle);
         native_handle_delete(const_cast<struct native_handle*>(mMem.handle));
     }
+    mDestroyed = true;
 }
 
 void SensorService::SensorDirectConnection::onFirstRef() {
