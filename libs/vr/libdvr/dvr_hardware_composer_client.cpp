@@ -100,10 +100,13 @@ DvrHwcClient* dvrHwcClientCreate(DvrHwcOnFrameCallback callback, void* data) {
 }
 
 void dvrHwcClientDestroy(DvrHwcClient* client) {
+  client->composer->clearObserver();
+
   // NOTE: Deleting DvrHwcClient* isn't enough since DvrHwcClient::callback is a
   // shared pointer that could be referenced from a binder thread. But the
   // client callback isn't valid past this calls so that needs to be reset.
   client->callback->Shutdown();
+
   delete client;
 }
 
