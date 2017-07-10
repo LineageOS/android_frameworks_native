@@ -27,6 +27,8 @@ class VrComposer
   binder::Status registerObserver(
       const sp<IVrComposerCallback>& callback) override;
 
+  binder::Status clearObserver() override;
+
   // ComposerView::Observer:
   base::unique_fd OnNewFrame(const ComposerView::Frame& frame) override;
 
