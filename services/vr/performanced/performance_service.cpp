@@ -63,7 +63,7 @@ struct GroupId {
 // Returns true if the sender's euid is trusted according to VR manager service.
 struct Trusted {
   static bool Check(const Message& sender, const Task&) {
-    return IsTrustedUid(sender.GetEffectiveUserId(), false);
+    return IsTrustedUid(sender.GetEffectiveUserId());
   }
 };
 
