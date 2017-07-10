@@ -31,7 +31,7 @@ constexpr const char* SECONDARY_USER_PREFIX = "user/";
 constexpr const char* DALVIK_CACHE_POSTFIX = "@classes.dex";
 
 constexpr size_t PKG_NAME_MAX = 128u;   /* largest allowed package name */
-constexpr size_t PKG_PATH_MAX = 256u;   /* max size of any path we use */
+constexpr size_t PKG_PATH_MAX = 1024u;  /* max size of any path we use */
 
 /****************************************************************************
  * IMPORTANT: These values are passed from Java code. Keep them in sync with
