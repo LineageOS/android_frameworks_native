@@ -313,7 +313,10 @@ int dvrReadBufferQueueCreateReadQueue(DvrReadBufferQueue* read_queue,
 int dvrReadBufferQueueDequeue(DvrReadBufferQueue* read_queue, int timeout,
                               DvrReadBuffer* read_buffer, int* out_fence_fd,
                               void* out_meta, size_t meta_size_bytes) {
-  if (!read_queue || !read_buffer || !out_fence_fd || !out_meta)
+  if (!read_queue || !read_buffer || !out_fence_fd)
+    return -EINVAL;
+
+  if (meta_size_bytes != 0 && !out_meta)
     return -EINVAL;
 
   return read_queue->Dequeue(timeout, read_buffer, out_fence_fd, out_meta,
