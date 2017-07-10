@@ -42,6 +42,12 @@ binder::Status VrComposer::registerObserver(
   return binder::Status::ok();
 }
 
+binder::Status VrComposer::clearObserver() {
+  std::lock_guard<std::mutex> guard(mutex_);
+  callback_ = nullptr;
+  return binder::Status::ok();
+}
+
 base::unique_fd VrComposer::OnNewFrame(const ComposerView::Frame& frame) {
   std::lock_guard<std::mutex> guard(mutex_);
 
