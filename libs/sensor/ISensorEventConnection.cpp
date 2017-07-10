@@ -36,7 +36,8 @@ enum {
     ENABLE_DISABLE,
     SET_EVENT_RATE,
     FLUSH_SENSOR,
-    CONFIGURE_CHANNEL
+    CONFIGURE_CHANNEL,
+    DESTROY,
 };
 
 class BpSensorEventConnection : public BpInterface<ISensorEventConnection>
@@ -96,11 +97,22 @@ public:
         remote()->transact(CONFIGURE_CHANNEL, data, &reply);
         return reply.readInt32();
     }
+
+    virtual void onLastStrongRef(const void* id) {
+        destroy();
+        BpInterface<ISensorEventConnection>::onLastStrongRef(id);
+    }
+
+protected:
+    virtual void destroy() {
+        Parcel data, reply;
+        remote()->transact(DESTROY, data, &reply);
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
 // translation unit (see clang warning -Wweak-vtables)
-BpSensorEventConnection::~BpSensorEventConnection() {}
+BpSensorEventConnection::~BpSensorEventConnection() { }
 
 IMPLEMENT_META_INTERFACE(SensorEventConnection, "android.gui.SensorEventConnection");
 
@@ -148,6 +160,10 @@ status_t BnSensorEventConnection::onTransact(
             int rateLevel = data.readInt32();
             status_t result = configureChannel(handle, rateLevel);
             reply->writeInt32(result);
+            return NO_ERROR;
+        }
+        case DESTROY: {
+            destroy();
             return NO_ERROR;
         }
 

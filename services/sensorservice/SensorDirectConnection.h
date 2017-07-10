@@ -47,7 +47,7 @@ public:
     // stop all active sensor report. if backupRecord is set to false,
     // those report can be recovered by recoverAll
     // called by SensorService when enter restricted mode
-    void stopAll(bool clearRecord = false);
+    void stopAll(bool backupRecord = false);
 
     // recover sensor reports previously stopped by stopAll(true)
     // called by SensorService when return to NORMAL mode.
@@ -63,7 +63,7 @@ protected:
     virtual status_t setEventRate(int handle, nsecs_t samplingPeriodNs);
     virtual status_t flush();
     virtual int32_t configureChannel(int handle, int rateLevel);
-
+    virtual void destroy();
 private:
     const sp<SensorService> mService;
     const uid_t mUid;
@@ -74,6 +74,9 @@ private:
     mutable Mutex mConnectionLock;
     std::unordered_map<int, int> mActivated;
     std::unordered_map<int, int> mActivatedBackup;
+
+    mutable Mutex mDestroyLock;
+    bool mDestroyed;
 };
 
 } // namepsace android
