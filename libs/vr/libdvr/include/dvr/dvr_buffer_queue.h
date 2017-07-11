@@ -124,6 +124,8 @@ int dvrReadBufferQueueCreateReadQueue(DvrReadBufferQueue* read_queue,
 //     signals the release of underlying buffer. The consumer should wait until
 //     this fence clears before reading data from it.
 // @param out_meta The memory area where a metadata object will be filled.
+//     Can be nullptr iff |meta_size_bytes| is zero (i.e., there is no
+//     metadata).
 // @param meta_size_bytes Size of the metadata object caller expects. If it
 //     doesn't match the size of actually metadata transported by the buffer
 //     queue, the method returns -EINVAL.
