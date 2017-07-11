@@ -16,5 +16,5 @@
 
 <!-- This is the standard set of features for a broadcast radio. -->
 <permissions>
-    <feature name="android.hardware.radio" />
+    <feature name="android.hardware.broadcastradio" />
 </permissions>
