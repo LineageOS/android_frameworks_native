@@ -17,4 +17,9 @@ interface IVrComposer
    * Registers a callback used to receive frame notifications.
    */
   void registerObserver(in IVrComposerCallback callback);
+
+  /**
+   * Clears a previously registered frame notification callback.
+   */
+  void clearObserver();
 }

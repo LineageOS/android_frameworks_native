@@ -37,15 +37,11 @@ class DvrBufferQueueTest : public ::testing::Test {
 
  protected:
   void SetUp() override {
-    auto config = ProducerQueueConfigBuilder()
-                      .SetDefaultWidth(kBufferWidth)
-                      .SetDefaultHeight(kBufferHeight)
-                      .SetDefaultFormat(kBufferFormat)
-                      .SetMetadata<TestMeta>()
-                      .Build();
-    write_queue_ =
-        new DvrWriteBufferQueue(ProducerQueue::Create(config, UsagePolicy{}));
-    ASSERT_NE(nullptr, write_queue_);
+    config_builder_ = ProducerQueueConfigBuilder()
+                          .SetDefaultWidth(kBufferWidth)
+                          .SetDefaultHeight(kBufferHeight)
+                          .SetDefaultFormat(kBufferFormat)
+                          .SetMetadata<TestMeta>();
   }
 
   void TearDown() override {
@@ -53,6 +49,12 @@ class DvrBufferQueueTest : public ::testing::Test {
       dvrWriteBufferQueueDestroy(write_queue_);
       write_queue_ = nullptr;
     }
+  }
+
+  void CreateWriteBufferQueue() {
+    write_queue_ = new DvrWriteBufferQueue(
+        ProducerQueue::Create(config_builder_.Build(), UsagePolicy{}));
+    ASSERT_NE(nullptr, write_queue_);
   }
 
   void AllocateBuffers(size_t buffer_count) {
@@ -73,18 +75,23 @@ class DvrBufferQueueTest : public ::testing::Test {
              buffer_removed_count_);
   }
 
+  ProducerQueueConfigBuilder config_builder_;
   DvrWriteBufferQueue* write_queue_{nullptr};
   int buffer_available_count_{0};
   int buffer_removed_count_{0};
 };
 
-TEST_F(DvrBufferQueueTest, TestWrite_QueueDestroy) {
+TEST_F(DvrBufferQueueTest, TestWrite_QueueCreateDestroy) {
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+
   dvrWriteBufferQueueDestroy(write_queue_);
   write_queue_ = nullptr;
 }
 
 TEST_F(DvrBufferQueueTest, TestWrite_QueueGetCapacity) {
-  AllocateBuffers(kQueueCapacity);
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(kQueueCapacity));
+
   size_t capacity = dvrWriteBufferQueueGetCapacity(write_queue_);
 
   ALOGD_IF(TRACE, "TestWrite_QueueGetCapacity, capacity=%zu", capacity);
@@ -92,6 +99,8 @@ TEST_F(DvrBufferQueueTest, TestWrite_QueueGetCapacity) {
 }
 
 TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromWriteQueue) {
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+
   DvrReadBufferQueue* read_queue = nullptr;
   int ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
 
@@ -102,6 +111,8 @@ TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromWriteQueue) {
 }
 
 TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromReadQueue) {
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+
   DvrReadBufferQueue* read_queue1 = nullptr;
   DvrReadBufferQueue* read_queue2 = nullptr;
   int ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue1);
@@ -119,7 +130,8 @@ TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromReadQueue) {
 }
 
 TEST_F(DvrBufferQueueTest, CreateEmptyBuffer) {
-  AllocateBuffers(3);
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(3));
 
   DvrReadBuffer* read_buffer = nullptr;
   DvrWriteBuffer* write_buffer = nullptr;
@@ -152,6 +164,9 @@ TEST_F(DvrBufferQueueTest, CreateEmptyBuffer) {
 }
 
 TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(kQueueCapacity));
+
   static constexpr int kTimeout = 0;
   DvrReadBufferQueue* read_queue = nullptr;
   DvrReadBuffer* rb = nullptr;
@@ -171,8 +186,6 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
 
   dvrReadBufferCreateEmpty(&rb);
   ASSERT_NE(nullptr, rb);
-
-  AllocateBuffers(kQueueCapacity);
 
   // Gain buffer for writing.
   ret = dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wb, &fence_fd);
@@ -221,6 +234,8 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
 }
 
 TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+
   ANativeWindow* window = nullptr;
 
   // The |write_queue_| doesn't have proper metadata (must be
@@ -251,6 +266,9 @@ TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
 // Before each dequeue operation, we resize the buffer queue and expect the
 // queue always return buffer with desired dimension.
 TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(kQueueCapacity));
+
   static constexpr int kTimeout = 0;
   int fence_fd = -1;
 
@@ -277,8 +295,6 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ASSERT_NE(nullptr, wb2);
   dvrWriteBufferCreateEmpty(&wb3);
   ASSERT_NE(nullptr, wb3);
-
-  AllocateBuffers(kQueueCapacity);
 
   // Handle all pending events on the read queue.
   ret = dvrReadBufferQueueHandleEvents(read_queue);
@@ -367,6 +383,71 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ASSERT_EQ(expected_buffer_removed_count, buffer_removed_count_);
 
   dvrReadBufferQueueDestroy(read_queue);
+}
+
+TEST_F(DvrBufferQueueTest, DequeueEmptyMetadata) {
+  // Overrides default queue parameters: Empty metadata.
+  config_builder_.SetMetadata<void>();
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(1));
+
+  DvrReadBuffer* rb = nullptr;
+  DvrWriteBuffer* wb = nullptr;
+  dvrReadBufferCreateEmpty(&rb);
+  dvrWriteBufferCreateEmpty(&wb);
+
+  DvrReadBufferQueue* read_queue = nullptr;
+  EXPECT_EQ(0, dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue));
+
+  const int kTimeoutMs = 0;
+  int fence_fd = -1;
+  EXPECT_EQ(0, dvrWriteBufferQueueDequeue(write_queue_, 0, wb, &fence_fd));
+
+  EXPECT_EQ(0, dvrWriteBufferPost(wb, /*fence=*/-1, nullptr, 0));
+  EXPECT_EQ(0, dvrWriteBufferClear(wb));
+  dvrWriteBufferDestroy(wb);
+  wb = nullptr;
+
+  // When acquire buffer, it's legit to pass nullptr as out_meta iff metadata
+  // size is Zero.
+  EXPECT_EQ(0, dvrReadBufferQueueDequeue(read_queue, kTimeoutMs, rb, &fence_fd,
+                                         nullptr, 0));
+  EXPECT_TRUE(dvrReadBufferIsValid(rb));
+}
+
+TEST_F(DvrBufferQueueTest, DequeueMismatchMetadata) {
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(1));
+
+  DvrReadBuffer* rb = nullptr;
+  DvrWriteBuffer* wb = nullptr;
+  dvrReadBufferCreateEmpty(&rb);
+  dvrWriteBufferCreateEmpty(&wb);
+
+  DvrReadBufferQueue* read_queue = nullptr;
+  EXPECT_EQ(0, dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue));
+
+  const int kTimeoutMs = 0;
+  int fence_fd = -1;
+  EXPECT_EQ(0, dvrWriteBufferQueueDequeue(write_queue_, 0, wb, &fence_fd));
+
+  TestMeta seq = 42U;
+  EXPECT_EQ(0, dvrWriteBufferPost(wb, /*fence=*/-1, &seq, sizeof(seq)));
+  EXPECT_EQ(0, dvrWriteBufferClear(wb));
+  dvrWriteBufferDestroy(wb);
+  wb = nullptr;
+
+  // Dequeue with wrong metadata will cause EINVAL.
+  int8_t wrong_metadata;
+  EXPECT_EQ(-EINVAL,
+            dvrReadBufferQueueDequeue(read_queue, kTimeoutMs, rb, &fence_fd,
+                                      &wrong_metadata, sizeof(wrong_metadata)));
+  EXPECT_FALSE(dvrReadBufferIsValid(rb));
+
+  // Dequeue with empty metadata will cause EINVAL.
+  EXPECT_EQ(-EINVAL, dvrReadBufferQueueDequeue(read_queue, kTimeoutMs, rb,
+                                               &fence_fd, nullptr, 0));
+  EXPECT_FALSE(dvrReadBufferIsValid(rb));
 }
 
 }  // namespace

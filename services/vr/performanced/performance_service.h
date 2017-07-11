@@ -53,10 +53,13 @@ class PerformanceService : public pdx::ServiceBase<PerformanceService> {
         permission_check;
 
     // Check the permisison of the given task to use this scheduler class. If a
-    // permission check function is not set then all tasks are allowed.
-    bool IsAllowed(const pdx::Message& message, const Task& task) const {
+    // permission check function is not set then operations are only allowed on
+    // tasks in the sender's process.
+    bool IsAllowed(const pdx::Message& sender, const Task& task) const {
       if (permission_check)
-        return permission_check(message, task);
+        return permission_check(sender, task);
+      else if (!task || task.thread_group_id() != sender.GetProcessId())
+        return false;
       else
         return true;
     }

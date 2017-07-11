@@ -990,14 +990,22 @@ static bool IsOutputDalvikCache(const char* oat_dir) {
   return oat_dir == nullptr || oat_dir[0] == '!';
 }
 
+// Best-effort check whether we can fit the the path into our buffers.
+// Note: the cache path will require an additional 5 bytes for ".swap", but we'll try to run
+// without a swap file, if necessary. Reference profiles file also add an extra ".prof"
+// extension to the cache path (5 bytes).
+// TODO(calin): move away from char* buffers and PKG_PATH_MAX.
+static bool validate_dex_path_size(const std::string& dex_path) {
+    if (dex_path.size() >= (PKG_PATH_MAX - 8)) {
+        LOG(ERROR) << "dex_path too long: " << dex_path;
+        return false;
+    }
+    return true;
+}
+
 static bool create_oat_out_path(const char* apk_path, const char* instruction_set,
             const char* oat_dir, bool is_secondary_dex, /*out*/ char* out_oat_path) {
-    // Early best-effort check whether we can fit the the path into our buffers.
-    // Note: the cache path will require an additional 5 bytes for ".swap", but we'll try to run
-    // without a swap file, if necessary. Reference profiles file also add an extra ".prof"
-    // extension to the cache path (5 bytes).
-    if (strlen(apk_path) >= (PKG_PATH_MAX - 8)) {
-        ALOGE("apk_path too long '%s'\n", apk_path);
+    if (!validate_dex_path_size(apk_path)) {
         return false;
     }
 
@@ -1350,33 +1358,29 @@ void update_out_oat_access_times(const char* apk_path, const char* out_oat_path)
 // The analyzer will check if the dex_file needs to be (re)compiled to match the compiler_filter.
 // If this is for a profile guided compilation, profile_was_updated will tell whether or not
 // the profile has changed.
-static void exec_dexoptanalyzer(const std::string& dex_file, const char* instruction_set,
-        const char* compiler_filter, bool profile_was_updated) {
+static void exec_dexoptanalyzer(const std::string& dex_file, const std::string& instruction_set,
+        const std::string& compiler_filter, bool profile_was_updated) {
     static const char* DEXOPTANALYZER_BIN = "/system/bin/dexoptanalyzer";
     static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
 
-    if (strlen(instruction_set) >= MAX_INSTRUCTION_SET_LEN) {
-        ALOGE("Instruction set %s longer than max length of %d",
-              instruction_set, MAX_INSTRUCTION_SET_LEN);
+    if (instruction_set.size() >= MAX_INSTRUCTION_SET_LEN) {
+        LOG(ERROR) << "Instruction set " << instruction_set
+                << " longer than max length of " << MAX_INSTRUCTION_SET_LEN;
         return;
     }
 
-    char dex_file_arg[strlen("--dex-file=") + PKG_PATH_MAX];
-    char isa_arg[strlen("--isa=") + MAX_INSTRUCTION_SET_LEN];
-    char compiler_filter_arg[strlen("--compiler-filter=") + kPropertyValueMax];
+    std::string dex_file_arg = "--dex-file=" + dex_file;
+    std::string isa_arg = "--isa=" + instruction_set;
+    std::string compiler_filter_arg = "--compiler-filter=" + compiler_filter;
     const char* assume_profile_changed = "--assume-profile-changed";
-
-    sprintf(dex_file_arg, "--dex-file=%s", dex_file.c_str());
-    sprintf(isa_arg, "--isa=%s", instruction_set);
-    sprintf(compiler_filter_arg, "--compiler-filter=%s", compiler_filter);
 
     // program name, dex file, isa, filter, the final NULL
     const char* argv[5 + (profile_was_updated ? 1 : 0)];
     int i = 0;
     argv[i++] = DEXOPTANALYZER_BIN;
-    argv[i++] = dex_file_arg;
-    argv[i++] = isa_arg;
-    argv[i++] = compiler_filter_arg;
+    argv[i++] = dex_file_arg.c_str();
+    argv[i++] = isa_arg.c_str();
+    argv[i++] = compiler_filter_arg.c_str();
     if (profile_was_updated) {
         argv[i++] = assume_profile_changed;
     }
@@ -1490,6 +1494,9 @@ static bool process_secondary_dex_dexopt(const char* original_dex_path, const ch
         }
     }
     const std::string& dex_path = *dex_path_out;
+    if (!validate_dex_path_size(dex_path)) {
+        return false;
+    }
     if (!validate_secondary_dex_path(pkgname, dex_path, volume_uuid, uid, storage_flag)) {
         LOG(ERROR) << "Could not validate secondary dex path " << dex_path;
         return false;
@@ -1558,6 +1565,10 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     CHECK(pkgname[0] != 0);
     if ((dexopt_flags & ~DEXOPT_MASK) != 0) {
         LOG_FATAL("dexopt flags contains unknown fields\n");
+    }
+
+    if (!validate_dex_path_size(dex_path)) {
+        return false;
     }
 
     bool is_public = (dexopt_flags & DEXOPT_PUBLIC) != 0;
@@ -1749,6 +1760,10 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
         /*out*/bool* out_secondary_dex_exists) {
     // Set out to false to start with, just in case we have validation errors.
     *out_secondary_dex_exists = false;
+    if (!validate_dex_path_size(dex_path)) {
+        return false;
+    }
+
     if (isas.size() == 0) {
         LOG(ERROR) << "reconcile_secondary_dex_file called with empty isas vector";
         return false;
