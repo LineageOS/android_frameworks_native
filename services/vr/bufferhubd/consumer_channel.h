@@ -38,8 +38,9 @@ class ConsumerChannel : public BufferHubChannel {
                                       LocalFence release_fence);
   pdx::Status<void> OnConsumerSetIgnore(Message& message, bool ignore);
 
-  bool handled_;  // True if we have processed RELEASE.
-  bool ignored_;  // True if we are ignoring events.
+  bool acquired_{false};
+  bool released_{true};
+  bool ignored_{false};  // True if we are ignoring events.
   std::weak_ptr<Channel> producer_;
 
   ConsumerChannel(const ConsumerChannel&) = delete;
