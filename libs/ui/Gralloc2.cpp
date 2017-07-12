@@ -16,6 +16,7 @@
 
 #define LOG_TAG "Gralloc2"
 
+#include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
 #include <ui/Gralloc2.h>
 
@@ -30,6 +31,10 @@ namespace android {
 namespace Gralloc2 {
 
 static constexpr Error kTransactionError = Error::NO_RESOURCES;
+
+void Mapper::preload() {
+    android::hardware::preloadPassthroughService<hardware::graphics::mapper::V2_0::IMapper>();
+}
 
 Mapper::Mapper()
 {
