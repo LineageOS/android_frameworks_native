@@ -8,9 +8,9 @@
 #include <private/dvr/bufferhub_rpc.h>
 #include "producer_channel.h"
 
-using android::pdx::ErrorStatus;
 using android::pdx::BorrowedHandle;
 using android::pdx::Channel;
+using android::pdx::ErrorStatus;
 using android::pdx::Message;
 using android::pdx::Status;
 using android::pdx::rpc::DispatchRemoteMethod;
@@ -22,8 +22,6 @@ ConsumerChannel::ConsumerChannel(BufferHubService* service, int buffer_id,
                                  int channel_id,
                                  const std::shared_ptr<Channel> producer)
     : BufferHubChannel(service, buffer_id, channel_id, kConsumerType),
-      handled_(true),
-      ignored_(false),
       producer_(producer) {
   GetProducer()->AddConsumer(this);
 }
@@ -34,7 +32,7 @@ ConsumerChannel::~ConsumerChannel() {
            channel_id(), buffer_id());
 
   if (auto producer = GetProducer()) {
-    if (!handled_)  // Producer is waiting for our Release.
+    if (!released_)  // Producer is waiting for our Release.
       producer->OnConsumerIgnored();
     producer->RemoveConsumer(this);
   }
@@ -108,15 +106,20 @@ ConsumerChannel::OnConsumerAcquire(Message& message,
   if (!producer)
     return ErrorStatus(EPIPE);
 
-  if (ignored_ || handled_) {
+  if (acquired_ || released_) {
     ALOGE(
         "ConsumerChannel::OnConsumerAcquire: Acquire when not posted: "
-        "ignored=%d handled=%d channel_id=%d buffer_id=%d",
-        ignored_, handled_, message.GetChannelId(), producer->buffer_id());
+        "ignored=%d acquired=%d released=%d channel_id=%d buffer_id=%d",
+        ignored_, acquired_, released_, message.GetChannelId(),
+        producer->buffer_id());
     return ErrorStatus(EBUSY);
   } else {
-    ClearAvailable();
-    return producer->OnConsumerAcquire(message, metadata_size);
+    auto status = producer->OnConsumerAcquire(message, metadata_size);
+    if (status) {
+      ClearAvailable();
+      acquired_ = true;
+    }
+    return status;
   }
 }
 
@@ -127,17 +130,21 @@ Status<void> ConsumerChannel::OnConsumerRelease(Message& message,
   if (!producer)
     return ErrorStatus(EPIPE);
 
-  if (ignored_ || handled_) {
+  if (!acquired_ || released_) {
     ALOGE(
         "ConsumerChannel::OnConsumerRelease: Release when not acquired: "
-        "ignored=%d handled=%d channel_id=%d buffer_id=%d",
-        ignored_, handled_, message.GetChannelId(), producer->buffer_id());
+        "ignored=%d acquired=%d released=%d channel_id=%d buffer_id=%d",
+        ignored_, acquired_, released_, message.GetChannelId(),
+        producer->buffer_id());
     return ErrorStatus(EBUSY);
   } else {
-    ClearAvailable();
     auto status =
         producer->OnConsumerRelease(message, std::move(release_fence));
-    handled_ = !!status;
+    if (status) {
+      ClearAvailable();
+      acquired_ = false;
+      released_ = true;
+    }
     return status;
   }
 }
@@ -149,12 +156,13 @@ Status<void> ConsumerChannel::OnConsumerSetIgnore(Message&, bool ignored) {
     return ErrorStatus(EPIPE);
 
   ignored_ = ignored;
-  if (ignored_ && !handled_) {
+  if (ignored_ && acquired_) {
     // Update the producer if ignore is set after the consumer acquires the
     // buffer.
     ClearAvailable();
     producer->OnConsumerIgnored();
-    handled_ = false;
+    acquired_ = false;
+    released_ = true;
   }
 
   return {};
@@ -162,10 +170,12 @@ Status<void> ConsumerChannel::OnConsumerSetIgnore(Message&, bool ignored) {
 
 bool ConsumerChannel::OnProducerPosted() {
   if (ignored_) {
-    handled_ = true;
+    acquired_ = false;
+    released_ = true;
     return false;
   } else {
-    handled_ = false;
+    acquired_ = false;
+    released_ = false;
     SignalAvailable();
     return true;
   }
