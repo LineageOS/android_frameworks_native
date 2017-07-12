@@ -1060,14 +1060,6 @@ void Layer::UpdateLayerSettings() {
 
   UpdateVisibilitySettings();
 
-  error = composer_->setLayerCompositionType(
-      display, hardware_composer_layer_,
-      composition_type_.cast<Hwc2::IComposerClient::Composition>());
-  ALOGE_IF(
-      error != HWC::Error::None,
-      "Layer::UpdateLayerSettings: Error setting layer composition type: %s",
-      error.to_string().c_str());
-
   // TODO(eieio): Use surface attributes or some other mechanism to control
   // the layer display frame.
   error = composer_->setLayerDisplayFrame(
