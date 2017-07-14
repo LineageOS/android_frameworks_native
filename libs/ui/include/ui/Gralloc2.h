@@ -38,6 +38,8 @@ using hardware::graphics::mapper::V2_0::YCbCrLayout;
 // A wrapper to IMapper
 class Mapper {
 public:
+    static void preload();
+
     Mapper();
 
     Error createDescriptor(
