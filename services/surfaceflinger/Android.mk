@@ -104,7 +104,7 @@ LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := \
     libhidltransport \
     libhwbinder
 
-LOCAL_CFLAGS += -Wall -Werror -Wunused -Wunreachable-code
+LOCAL_CFLAGS += -Wall -Werror -Wunused -Wunreachable-code -std=c++1z
 
 include $(BUILD_SHARED_LIBRARY)
 
