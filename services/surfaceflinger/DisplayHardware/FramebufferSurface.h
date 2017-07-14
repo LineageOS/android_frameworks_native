@@ -83,6 +83,13 @@ private:
     // or the buffer is not associated with a slot.
     int mCurrentBufferSlot;
 
+    // mDataSpace is the dataspace of the current composition buffer for
+    // this FramebufferSurface. It will be 0 when HWC is doing the
+    // compositing. Otherwise it will display the dataspace of the buffer
+    // use for compositing which can change as wide-color content is
+    // on/off.
+    android_dataspace mDataSpace;
+
     // mCurrentBuffer is the current buffer or NULL to indicate that there is
     // no current buffer.
     sp<GraphicBuffer> mCurrentBuffer;
