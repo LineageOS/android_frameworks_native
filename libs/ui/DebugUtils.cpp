@@ -187,7 +187,7 @@ std::string decodeRange(android_dataspace dataspace) {
 
 std::string dataspaceDetails(android_dataspace dataspace) {
     if (dataspace == 0) {
-        return "Default (0)";
+        return "Default";
     }
     return android::base::StringPrintf("%s %s %s", decodeStandard(dataspace).c_str(),
                                        decodeTransfer(dataspace).c_str(),
