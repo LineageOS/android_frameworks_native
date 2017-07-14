@@ -417,6 +417,14 @@ private:
             int32_t minLayerZ, int32_t maxLayerZ,
             bool yswap, bool useIdentityTransform, Transform::orientation_flags rotation);
 
+#ifdef USE_HWC2
+    status_t captureScreenImplLocked(const sp<const DisplayDevice>& device,
+                                     ANativeWindowBuffer* buffer, Rect sourceCrop,
+                                     uint32_t reqWidth, uint32_t reqHeight, int32_t minLayerZ,
+                                     int32_t maxLayerZ, bool useIdentityTransform,
+                                     Transform::orientation_flags rotation, bool isLocalScreenshot,
+                                     int* outSyncFd);
+#else
     status_t captureScreenImplLocked(
             const sp<const DisplayDevice>& hw,
             const sp<IGraphicBufferProducer>& producer,
@@ -424,6 +432,7 @@ private:
             int32_t minLayerZ, int32_t maxLayerZ,
             bool useIdentityTransform, Transform::orientation_flags rotation,
             bool isLocalScreenshot);
+#endif
 
     sp<StartBootAnimThread> mStartBootAnimThread = nullptr;
 
@@ -694,6 +703,8 @@ private:
         std::shared_ptr<FenceTime> display { FenceTime::NO_FENCE };
     };
     std::queue<CompositePresentTime> mCompositePresentTimes;
+
+    std::atomic<bool> mRefreshPending{false};
 
     /* ------------------------------------------------------------------------
      * Feature prototyping

@@ -26,6 +26,7 @@
 #include <dlfcn.h>
 #include <inttypes.h>
 #include <stdatomic.h>
+#include <optional>
 
 #include <EGL/egl.h>
 
@@ -1053,6 +1054,7 @@ void SurfaceFlinger::signalLayerUpdate() {
 }
 
 void SurfaceFlinger::signalRefresh() {
+    mRefreshPending = true;
     mEventQueue.refresh();
 }
 
@@ -1396,6 +1398,8 @@ bool SurfaceFlinger::handleMessageInvalidate() {
 
 void SurfaceFlinger::handleMessageRefresh() {
     ATRACE_CALL();
+
+    mRefreshPending = false;
 
     nsecs_t refreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
@@ -4042,128 +4046,88 @@ void SurfaceFlinger::repaintEverything() {
     signalTransaction();
 }
 
-// ---------------------------------------------------------------------------
-// Capture screen into an IGraphiBufferProducer
-// ---------------------------------------------------------------------------
+// Checks that the requested width and height are valid and updates them to the display dimensions
+// if they are set to 0
+static status_t updateDimensionsLocked(const sp<const DisplayDevice>& displayDevice,
+                                       Transform::orientation_flags rotation,
+                                       uint32_t* requestedWidth, uint32_t* requestedHeight) {
+    // get screen geometry
+    uint32_t displayWidth = displayDevice->getWidth();
+    uint32_t displayHeight = displayDevice->getHeight();
 
-/* The code below is here to handle b/8734824
- *
- * We create a IGraphicBufferProducer wrapper that forwards all calls
- * from the surfaceflinger thread to the calling binder thread, where they
- * are executed. This allows the calling thread in the calling process to be
- * reused and not depend on having "enough" binder threads to handle the
- * requests.
- */
-class GraphicProducerWrapper : public BBinder, public MessageHandler {
-    /* Parts of GraphicProducerWrapper are run on two different threads,
-     * communicating by sending messages via Looper but also by shared member
-     * data. Coherence maintenance is subtle and in places implicit (ugh).
-     *
-     * Don't rely on Looper's sendMessage/handleMessage providing
-     * release/acquire semantics for any data not actually in the Message.
-     * Data going from surfaceflinger to binder threads needs to be
-     * synchronized explicitly.
-     *
-     * Barrier open/wait do provide release/acquire semantics. This provides
-     * implicit synchronization for data coming back from binder to
-     * surfaceflinger threads.
-     */
-
-    sp<IGraphicBufferProducer> impl;
-    sp<Looper> looper;
-    status_t result;
-    bool exitPending;
-    bool exitRequested;
-    Barrier barrier;
-    uint32_t code;
-    Parcel const* data;
-    Parcel* reply;
-
-    enum {
-        MSG_API_CALL,
-        MSG_EXIT
-    };
-
-    /*
-     * Called on surfaceflinger thread. This is called by our "fake"
-     * BpGraphicBufferProducer. We package the data and reply Parcel and
-     * forward them to the binder thread.
-     */
-    virtual status_t transact(uint32_t code,
-            const Parcel& data, Parcel* reply, uint32_t /* flags */) {
-        this->code = code;
-        this->data = &data;
-        this->reply = reply;
-        if (exitPending) {
-            // if we've exited, we run the message synchronously right here.
-            // note (JH): as far as I can tell from looking at the code, this
-            // never actually happens. if it does, i'm not sure if it happens
-            // on the surfaceflinger or binder thread.
-            handleMessage(Message(MSG_API_CALL));
-        } else {
-            barrier.close();
-            // Prevent stores to this->{code, data, reply} from being
-            // reordered later than the construction of Message.
-            atomic_thread_fence(memory_order_release);
-            looper->sendMessage(this, Message(MSG_API_CALL));
-            barrier.wait();
-        }
-        return result;
+    if (rotation & Transform::ROT_90) {
+        std::swap(displayWidth, displayHeight);
     }
 
-    /*
-     * here we run on the binder thread. All we've got to do is
-     * call the real BpGraphicBufferProducer.
-     */
-    virtual void handleMessage(const Message& message) {
-        int what = message.what;
-        // Prevent reads below from happening before the read from Message
-        atomic_thread_fence(memory_order_acquire);
-        if (what == MSG_API_CALL) {
-            result = IInterface::asBinder(impl)->transact(code, data[0], reply);
-            barrier.open();
-        } else if (what == MSG_EXIT) {
-            exitRequested = true;
-        }
+    if ((*requestedWidth > displayWidth) || (*requestedHeight > displayHeight)) {
+        ALOGE("size mismatch (%d, %d) > (%d, %d)",
+                *requestedWidth, *requestedHeight, displayWidth, displayHeight);
+        return BAD_VALUE;
     }
 
+    if (*requestedWidth == 0) {
+        *requestedWidth = displayWidth;
+    }
+    if (*requestedHeight == 0) {
+        *requestedHeight = displayHeight;
+    }
+
+    return NO_ERROR;
+}
+
+// A simple RAII class to disconnect from an ANativeWindow* when it goes out of scope
+class WindowDisconnector {
 public:
-    explicit GraphicProducerWrapper(const sp<IGraphicBufferProducer>& impl)
-    :   impl(impl),
-        looper(new Looper(true)),
-        result(NO_ERROR),
-        exitPending(false),
-        exitRequested(false),
-        code(0),
-        data(NULL),
-        reply(NULL)
-    {}
-
-    // Binder thread
-    status_t waitForResponse() {
-        do {
-            looper->pollOnce(-1);
-        } while (!exitRequested);
-        return result;
+    WindowDisconnector(ANativeWindow* window, int api) : mWindow(window), mApi(api) {}
+    ~WindowDisconnector() {
+        native_window_api_disconnect(mWindow, mApi);
     }
 
-    // Client thread
-    void exit(status_t result) {
-        this->result = result;
-        exitPending = true;
-        // Ensure this->result is visible to the binder thread before it
-        // handles the message.
-        atomic_thread_fence(memory_order_release);
-        looper->sendMessage(this, Message(MSG_EXIT));
-    }
+private:
+    ANativeWindow* mWindow;
+    const int mApi;
 };
 
+static status_t getWindowBuffer(ANativeWindow* window, uint32_t requestedWidth,
+                                uint32_t requestedHeight, bool hasWideColorDisplay,
+                                bool renderEngineUsesWideColor, ANativeWindowBuffer** outBuffer) {
+    const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
+            GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
+
+    int err = 0;
+    err = native_window_set_buffers_dimensions(window, requestedWidth, requestedHeight);
+    err |= native_window_set_scaling_mode(window, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+    err |= native_window_set_buffers_format(window, HAL_PIXEL_FORMAT_RGBA_8888);
+    err |= native_window_set_usage(window, usage);
+
+    if (hasWideColorDisplay) {
+        err |= native_window_set_buffers_data_space(window,
+                                                    renderEngineUsesWideColor
+                                                            ? HAL_DATASPACE_DISPLAY_P3
+                                                            : HAL_DATASPACE_V0_SRGB);
+    }
+
+    if (err != NO_ERROR) {
+        return BAD_VALUE;
+    }
+
+    /* TODO: Once we have the sync framework everywhere this can use
+     * server-side waits on the fence that dequeueBuffer returns.
+     */
+    err = native_window_dequeue_buffer_and_wait(window, outBuffer);
+    if (err != NO_ERROR) {
+        return err;
+    }
+
+    return NO_ERROR;
+}
 
 status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
         const sp<IGraphicBufferProducer>& producer,
         Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
         int32_t minLayerZ, int32_t maxLayerZ,
         bool useIdentityTransform, ISurfaceComposer::Rotation rotation) {
+    ATRACE_CALL();
 
     if (CC_UNLIKELY(display == 0))
         return BAD_VALUE;
@@ -4197,65 +4161,95 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
             break;
     }
 
-    class MessageCaptureScreen : public MessageBase {
-        SurfaceFlinger* flinger;
-        sp<IBinder> display;
-        sp<IGraphicBufferProducer> producer;
-        Rect sourceCrop;
-        uint32_t reqWidth, reqHeight;
-        uint32_t minLayerZ,maxLayerZ;
-        bool useIdentityTransform;
-        Transform::orientation_flags rotation;
-        status_t result;
-        bool isLocalScreenshot;
-    public:
-        MessageCaptureScreen(SurfaceFlinger* flinger,
-                const sp<IBinder>& display,
-                const sp<IGraphicBufferProducer>& producer,
-                Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                int32_t minLayerZ, int32_t maxLayerZ,
-                bool useIdentityTransform,
-                Transform::orientation_flags rotation,
-                bool isLocalScreenshot)
-            : flinger(flinger), display(display), producer(producer),
-              sourceCrop(sourceCrop), reqWidth(reqWidth), reqHeight(reqHeight),
-              minLayerZ(minLayerZ), maxLayerZ(maxLayerZ),
-              useIdentityTransform(useIdentityTransform),
-              rotation(rotation), result(PERMISSION_DENIED),
-              isLocalScreenshot(isLocalScreenshot)
-        {
-        }
-        status_t getResult() const {
-            return result;
-        }
-        virtual bool handler() {
-            Mutex::Autolock _l(flinger->mStateLock);
-            sp<const DisplayDevice> hw(flinger->getDisplayDeviceLocked(display));
-            result = flinger->captureScreenImplLocked(hw, producer,
-                    sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ,
-                    useIdentityTransform, rotation, isLocalScreenshot);
-            static_cast<GraphicProducerWrapper*>(IInterface::asBinder(producer).get())->exit(result);
-            return true;
-        }
-    };
-
-    // this creates a "fake" BBinder which will serve as a "fake" remote
-    // binder to receive the marshaled calls and forward them to the
-    // real remote (a BpGraphicBufferProducer)
-    sp<GraphicProducerWrapper> wrapper = new GraphicProducerWrapper(producer);
-
-    // the asInterface() call below creates our "fake" BpGraphicBufferProducer
-    // which does the marshaling work forwards to our "fake remote" above.
-    sp<MessageBase> msg = new MessageCaptureScreen(this,
-            display, IGraphicBufferProducer::asInterface( wrapper ),
-            sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ,
-            useIdentityTransform, rotationFlags, isLocalScreenshot);
-
-    status_t res = postMessageAsync(msg);
-    if (res == NO_ERROR) {
-        res = wrapper->waitForResponse();
+    { // Autolock scope
+        Mutex::Autolock lock(mStateLock);
+        sp<const DisplayDevice> displayDevice(getDisplayDeviceLocked(display));
+        updateDimensionsLocked(displayDevice, rotationFlags, &reqWidth, &reqHeight);
     }
-    return res;
+
+    // create a surface (because we're a producer, and we need to
+    // dequeue/queue a buffer)
+    sp<Surface> surface = new Surface(producer, false);
+
+    // Put the screenshot Surface into async mode so that
+    // Layer::headFenceHasSignaled will always return true and we'll latch the
+    // first buffer regardless of whether or not its acquire fence has
+    // signaled. This is needed to avoid a race condition in the rotation
+    // animation. See b/30209608
+    surface->setAsyncMode(true);
+
+    ANativeWindow* window = surface.get();
+
+    status_t result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
+    if (result != NO_ERROR) {
+        return result;
+    }
+    WindowDisconnector disconnector(window, NATIVE_WINDOW_API_EGL);
+
+    ANativeWindowBuffer* buffer = nullptr;
+    result = getWindowBuffer(window, reqWidth, reqHeight, hasWideColorDisplay,
+                                      getRenderEngine().usesWideColor(), &buffer);
+    if (result != NO_ERROR) {
+        return result;
+    }
+
+    // This mutex protects syncFd and captureResult for communication of the return values from the
+    // main thread back to this Binder thread
+    std::mutex captureMutex;
+    std::condition_variable captureCondition;
+    std::unique_lock<std::mutex> captureLock(captureMutex);
+    int syncFd = -1;
+    std::optional<status_t> captureResult;
+
+    sp<LambdaMessage> message = new LambdaMessage([&]() {
+        // If there is a refresh pending, bug out early and tell the binder thread to try again
+        // after the refresh.
+        if (mRefreshPending) {
+            ATRACE_NAME("Skipping screenshot for now");
+            std::unique_lock<std::mutex> captureLock(captureMutex);
+            captureResult = std::make_optional<status_t>(EAGAIN);
+            captureCondition.notify_one();
+            return;
+        }
+
+        status_t result = NO_ERROR;
+        int fd = -1;
+        {
+            Mutex::Autolock _l(mStateLock);
+            sp<const DisplayDevice> device(getDisplayDeviceLocked(display));
+            result = captureScreenImplLocked(device, buffer, sourceCrop, reqWidth, reqHeight,
+                                             minLayerZ, maxLayerZ, useIdentityTransform,
+                                             rotationFlags, isLocalScreenshot, &fd);
+        }
+
+        {
+            std::unique_lock<std::mutex> captureLock(captureMutex);
+            syncFd = fd;
+            captureResult = std::make_optional<status_t>(result);
+            captureCondition.notify_one();
+        }
+    });
+
+    result = postMessageAsync(message);
+    if (result == NO_ERROR) {
+        captureCondition.wait(captureLock, [&]() { return captureResult; });
+        while (*captureResult == EAGAIN) {
+            captureResult.reset();
+            result = postMessageAsync(message);
+            if (result != NO_ERROR) {
+                return result;
+            }
+            captureCondition.wait(captureLock, [&]() { return captureResult; });
+        }
+        result = *captureResult;
+    }
+
+    if (result == NO_ERROR) {
+        // queueBuffer takes ownership of syncFd
+        result = window->queueBuffer(window, buffer, syncFd);
+    }
+
+    return result;
 }
 
 
@@ -4334,33 +4328,34 @@ void SurfaceFlinger::renderScreenImplLocked(
     hw->setViewportAndProjection();
 }
 
+// A simple RAII class that holds an EGLImage and destroys it either:
+//   a) When the destroy() method is called
+//   b) When the object goes out of scope
+class ImageHolder {
+public:
+    ImageHolder(EGLDisplay display, EGLImageKHR image) : mDisplay(display), mImage(image) {}
+    ~ImageHolder() { destroy(); }
 
-status_t SurfaceFlinger::captureScreenImplLocked(
-        const sp<const DisplayDevice>& hw,
-        const sp<IGraphicBufferProducer>& producer,
-        Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        int32_t minLayerZ, int32_t maxLayerZ,
-        bool useIdentityTransform, Transform::orientation_flags rotation,
-        bool isLocalScreenshot)
-{
+    void destroy() {
+        if (mImage != EGL_NO_IMAGE_KHR) {
+            eglDestroyImageKHR(mDisplay, mImage);
+            mImage = EGL_NO_IMAGE_KHR;
+        }
+    }
+
+private:
+    const EGLDisplay mDisplay;
+    EGLImageKHR mImage;
+};
+
+status_t SurfaceFlinger::captureScreenImplLocked(const sp<const DisplayDevice>& hw,
+                                                 ANativeWindowBuffer* buffer, Rect sourceCrop,
+                                                 uint32_t reqWidth, uint32_t reqHeight,
+                                                 int32_t minLayerZ, int32_t maxLayerZ,
+                                                 bool useIdentityTransform,
+                                                 Transform::orientation_flags rotation,
+                                                 bool isLocalScreenshot, int* outSyncFd) {
     ATRACE_CALL();
-
-    // get screen geometry
-    uint32_t hw_w = hw->getWidth();
-    uint32_t hw_h = hw->getHeight();
-
-    if (rotation & Transform::ROT_90) {
-        std::swap(hw_w, hw_h);
-    }
-
-    if ((reqWidth > hw_w) || (reqHeight > hw_h)) {
-        ALOGE("size mismatch (%d, %d) > (%d, %d)",
-                reqWidth, reqHeight, hw_w, hw_h);
-        return BAD_VALUE;
-    }
-
-    reqWidth  = (!reqWidth)  ? hw_w : reqWidth;
-    reqHeight = (!reqHeight) ? hw_h : reqHeight;
 
     bool secureLayerIsVisible = false;
     for (const auto& layer : mDrawingState.layersSortedByZ) {
@@ -4380,131 +4375,84 @@ status_t SurfaceFlinger::captureScreenImplLocked(
         return PERMISSION_DENIED;
     }
 
-    // create a surface (because we're a producer, and we need to
-    // dequeue/queue a buffer)
-    sp<Surface> sur = new Surface(producer, false);
-
-    // Put the screenshot Surface into async mode so that
-    // Layer::headFenceHasSignaled will always return true and we'll latch the
-    // first buffer regardless of whether or not its acquire fence has
-    // signaled. This is needed to avoid a race condition in the rotation
-    // animation. See b/30209608
-    sur->setAsyncMode(true);
-
-    ANativeWindow* window = sur.get();
-
-    status_t result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
-    if (result == NO_ERROR) {
-        uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
-                        GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
-
-        int err = 0;
-        err = native_window_set_buffers_dimensions(window, reqWidth, reqHeight);
-        err |= native_window_set_scaling_mode(window, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-        err |= native_window_set_buffers_format(window, HAL_PIXEL_FORMAT_RGBA_8888);
-        err |= native_window_set_usage(window, usage);
-
-        if (err == NO_ERROR) {
-            ANativeWindowBuffer* buffer;
-            /* TODO: Once we have the sync framework everywhere this can use
-             * server-side waits on the fence that dequeueBuffer returns.
-             */
-            result = native_window_dequeue_buffer_and_wait(window,  &buffer);
-            if (result == NO_ERROR) {
-                int syncFd = -1;
-                // create an EGLImage from the buffer so we can later
-                // turn it into a texture
-                EGLImageKHR image = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT,
-                        EGL_NATIVE_BUFFER_ANDROID, buffer, NULL);
-                if (image != EGL_NO_IMAGE_KHR) {
-                    // this binds the given EGLImage as a framebuffer for the
-                    // duration of this scope.
-                    RenderEngine::BindImageAsFramebuffer imageBond(getRenderEngine(), image);
-                    if (imageBond.getStatus() == NO_ERROR) {
-                        // this will in fact render into our dequeued buffer
-                        // via an FBO, which means we didn't have to create
-                        // an EGLSurface and therefore we're not
-                        // dependent on the context's EGLConfig.
-                        renderScreenImplLocked(
-                            hw, sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ, true,
-                            useIdentityTransform, rotation);
-
-#ifdef USE_HWC2
-                        if (hasWideColorDisplay) {
-                            native_window_set_buffers_data_space(window,
-                                getRenderEngine().usesWideColor() ?
-                                    HAL_DATASPACE_DISPLAY_P3 : HAL_DATASPACE_V0_SRGB);
-                        }
-#endif
-
-                        // Attempt to create a sync khr object that can produce a sync point. If that
-                        // isn't available, create a non-dupable sync object in the fallback path and
-                        // wait on it directly.
-                        EGLSyncKHR sync;
-                        if (!DEBUG_SCREENSHOTS) {
-                           sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
-                           // native fence fd will not be populated until flush() is done.
-                           getRenderEngine().flush();
-                        } else {
-                            sync = EGL_NO_SYNC_KHR;
-                        }
-                        if (sync != EGL_NO_SYNC_KHR) {
-                            // get the sync fd
-                            syncFd = eglDupNativeFenceFDANDROID(mEGLDisplay, sync);
-                            if (syncFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-                                ALOGW("captureScreen: failed to dup sync khr object");
-                                syncFd = -1;
-                            }
-                            eglDestroySyncKHR(mEGLDisplay, sync);
-                        } else {
-                            // fallback path
-                            sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
-                            if (sync != EGL_NO_SYNC_KHR) {
-                                EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync,
-                                    EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, 2000000000 /*2 sec*/);
-                                EGLint eglErr = eglGetError();
-                                if (result == EGL_TIMEOUT_EXPIRED_KHR) {
-                                    ALOGW("captureScreen: fence wait timed out");
-                                } else {
-                                    ALOGW_IF(eglErr != EGL_SUCCESS,
-                                            "captureScreen: error waiting on EGL fence: %#x", eglErr);
-                                }
-                                eglDestroySyncKHR(mEGLDisplay, sync);
-                            } else {
-                                ALOGW("captureScreen: error creating EGL fence: %#x", eglGetError());
-                            }
-                        }
-                        if (DEBUG_SCREENSHOTS) {
-                            uint32_t* pixels = new uint32_t[reqWidth*reqHeight];
-                            getRenderEngine().readPixels(0, 0, reqWidth, reqHeight, pixels);
-                            checkScreenshot(reqWidth, reqHeight, reqWidth, pixels,
-                                    hw, minLayerZ, maxLayerZ);
-                            delete [] pixels;
-                        }
-
-                    } else {
-                        ALOGE("got GL_FRAMEBUFFER_COMPLETE_OES error while taking screenshot");
-                        result = INVALID_OPERATION;
-                        window->cancelBuffer(window, buffer, syncFd);
-                        buffer = NULL;
-                    }
-                    // destroy our image
-                    eglDestroyImageKHR(mEGLDisplay, image);
-                } else {
-                    result = BAD_VALUE;
-                }
-                if (buffer) {
-                    // queueBuffer takes ownership of syncFd
-                    result = window->queueBuffer(window, buffer, syncFd);
-                }
-            }
-        } else {
-            result = BAD_VALUE;
-        }
-        native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+    int syncFd = -1;
+    // create an EGLImage from the buffer so we can later
+    // turn it into a texture
+    EGLImageKHR image = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT,
+            EGL_NATIVE_BUFFER_ANDROID, buffer, NULL);
+    if (image == EGL_NO_IMAGE_KHR) {
+        return BAD_VALUE;
     }
 
-    return result;
+    // This will automatically destroy the image if we return before calling its destroy method
+    ImageHolder imageHolder(mEGLDisplay, image);
+
+    // this binds the given EGLImage as a framebuffer for the
+    // duration of this scope.
+    RenderEngine::BindImageAsFramebuffer imageBond(getRenderEngine(), image);
+    if (imageBond.getStatus() != NO_ERROR) {
+        ALOGE("got GL_FRAMEBUFFER_COMPLETE_OES error while taking screenshot");
+        return INVALID_OPERATION;
+    }
+
+    // this will in fact render into our dequeued buffer
+    // via an FBO, which means we didn't have to create
+    // an EGLSurface and therefore we're not
+    // dependent on the context's EGLConfig.
+    renderScreenImplLocked(
+        hw, sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ, true,
+        useIdentityTransform, rotation);
+
+    // Attempt to create a sync khr object that can produce a sync point. If that
+    // isn't available, create a non-dupable sync object in the fallback path and
+    // wait on it directly.
+    EGLSyncKHR sync = EGL_NO_SYNC_KHR;
+    if (!DEBUG_SCREENSHOTS) {
+       sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
+       // native fence fd will not be populated until flush() is done.
+       getRenderEngine().flush();
+    }
+
+    if (sync != EGL_NO_SYNC_KHR) {
+        // get the sync fd
+        syncFd = eglDupNativeFenceFDANDROID(mEGLDisplay, sync);
+        if (syncFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+            ALOGW("captureScreen: failed to dup sync khr object");
+            syncFd = -1;
+        }
+        eglDestroySyncKHR(mEGLDisplay, sync);
+    } else {
+        // fallback path
+        sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
+        if (sync != EGL_NO_SYNC_KHR) {
+            EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync,
+                EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, 2000000000 /*2 sec*/);
+            EGLint eglErr = eglGetError();
+            if (result == EGL_TIMEOUT_EXPIRED_KHR) {
+                ALOGW("captureScreen: fence wait timed out");
+            } else {
+                ALOGW_IF(eglErr != EGL_SUCCESS,
+                        "captureScreen: error waiting on EGL fence: %#x", eglErr);
+            }
+            eglDestroySyncKHR(mEGLDisplay, sync);
+        } else {
+            ALOGW("captureScreen: error creating EGL fence: %#x", eglGetError());
+        }
+    }
+    *outSyncFd = syncFd;
+
+    if (DEBUG_SCREENSHOTS) {
+        uint32_t* pixels = new uint32_t[reqWidth*reqHeight];
+        getRenderEngine().readPixels(0, 0, reqWidth, reqHeight, pixels);
+        checkScreenshot(reqWidth, reqHeight, reqWidth, pixels,
+                hw, minLayerZ, maxLayerZ);
+        delete [] pixels;
+    }
+
+    // destroy our image
+    imageHolder.destroy();
+
+    return NO_ERROR;
 }
 
 void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* vaddr,
