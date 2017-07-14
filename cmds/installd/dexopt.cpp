@@ -196,7 +196,7 @@ static const char* get_location_from_path(const char* path) {
 static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vdex_fd, int image_fd,
         const char* input_file_name, const char* output_file_name, int swap_fd,
         const char* instruction_set, const char* compiler_filter,
-        bool debuggable, bool post_bootcomplete, int profile_fd, const char* shared_libraries) {
+        bool debuggable, bool post_bootcomplete, int profile_fd, const char* class_loader_context) {
     static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
 
     if (strlen(instruction_set) >= MAX_INSTRUCTION_SET_LEN) {
@@ -297,6 +297,12 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     char dex2oat_swap_fd[arraysize("--swap-fd=") + MAX_INT_LEN];
     bool have_dex2oat_image_fd = false;
     char dex2oat_image_fd[arraysize("--app-image-fd=") + MAX_INT_LEN];
+    size_t class_loader_context_size = arraysize("--class-loader-context=") + PKG_PATH_MAX;
+    char class_loader_context_arg[class_loader_context_size];
+    if (class_loader_context != nullptr) {
+        snprintf(class_loader_context_arg, class_loader_context_size, "--class-loader-context=%s",
+            class_loader_context);
+    }
 
     sprintf(zip_fd_arg, "--zip-fd=%d", zip_fd);
     sprintf(zip_location_arg, "--zip-location=%s", relative_input_file_name);
@@ -393,7 +399,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
                      + (have_app_image_format ? 1 : 0)
                      + dex2oat_flags_count
                      + (profile_fd == -1 ? 0 : 1)
-                     + (shared_libraries != nullptr ? 4 : 0)
+                     + (class_loader_context != nullptr ? 1 : 0)
                      + (has_base_dir ? 1 : 0)
                      + (have_dex2oat_large_app_threshold ? 1 : 0)];
     int i = 0;
@@ -453,15 +459,13 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     if (profile_fd != -1) {
         argv[i++] = profile_arg;
     }
-    if (shared_libraries != nullptr) {
-        argv[i++] = RUNTIME_ARG;
-        argv[i++] = "-classpath";
-        argv[i++] = RUNTIME_ARG;
-        argv[i++] = shared_libraries;
-    }
     if (has_base_dir) {
         argv[i++] = base_dir;
     }
+    if (class_loader_context != nullptr) {
+        argv[i++] = class_loader_context_arg;
+    }
+
     // Do not add after dex2oat_flags, they should override others for debugging.
     argv[i] = NULL;
 
@@ -1584,7 +1588,7 @@ static bool process_secondary_dex_dexopt(const char* original_dex_path, const ch
 
 int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* instruction_set,
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
-        const char* volume_uuid, const char* shared_libraries, const char* se_info,
+        const char* volume_uuid, const char* class_loader_context, const char* se_info,
         bool downgrade) {
     CHECK(pkgname != nullptr);
     CHECK(pkgname[0] != 0);
@@ -1593,7 +1597,12 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     }
 
     if (!validate_dex_path_size(dex_path)) {
-        return false;
+        return -1;
+    }
+
+    if (class_loader_context != nullptr && strlen(class_loader_context) > PKG_PATH_MAX) {
+        LOG(ERROR) << "Class loader context exceeds the allowed size: " << class_loader_context;
+        return -1;
     }
 
     bool is_public = (dexopt_flags & DEXOPT_PUBLIC) != 0;
@@ -1698,7 +1707,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                     debuggable,
                     boot_complete,
                     reference_profile_fd.get(),
-                    shared_libraries);
+                    class_loader_context);
         _exit(68);   /* only get here on exec failure */
     } else {
         int res = wait_child(pid);
