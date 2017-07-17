@@ -1253,17 +1253,14 @@ void SurfaceFlinger::setVsyncEnabled(int disp, int enabled) {
             enabled ? HWC2::Vsync::Enable : HWC2::Vsync::Disable);
 }
 
-void SurfaceFlinger::clearHwcLayers(const LayerVector& layers) {
-    for (size_t i = 0; i < layers.size(); ++i) {
-        layers[i]->clearHwcLayers();
-    }
-}
-
 // Note: it is assumed the caller holds |mStateLock| when this is called
 void SurfaceFlinger::resetHwcLocked() {
     disableHardwareVsync(true);
     clearHwcLayers(mDrawingState.layersSortedByZ);
     clearHwcLayers(mCurrentState.layersSortedByZ);
+    for (size_t disp = 0; disp < mDisplays.size(); ++disp) {
+        clearHwcLayers(mDisplays[disp]->getVisibleLayersSortedByZ());
+    }
     // Clear the drawing state so that the logic inside of
     // handleTransactionLocked will fire. It will determine the delta between
     // mCurrentState and mDrawingState and re-apply all changes when we make the

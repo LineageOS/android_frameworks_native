@@ -577,7 +577,12 @@ private:
     /* ------------------------------------------------------------------------
      * VrFlinger
      */
-    void clearHwcLayers(const LayerVector& layers);
+    template<typename T>
+    void clearHwcLayers(const T& layers) {
+        for (size_t i = 0; i < layers.size(); ++i) {
+            layers[i]->clearHwcLayers();
+        }
+    }
     void resetHwcLocked();
 
     // Check to see if we should handoff to vr flinger.
