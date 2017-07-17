@@ -869,10 +869,7 @@ bool InputDispatcher::dispatchMotionLocked(
         return true;
     }
 
-    // TODO: support sending secondary display events to input monitors
-    if (isMainDisplay(entry->displayId)) {
-        addMonitoringTargetsLocked(inputTargets);
-    }
+    addMonitoringTargetsLocked(inputTargets);
 
     // Dispatch the motion.
     if (conflictingPointerActions) {
