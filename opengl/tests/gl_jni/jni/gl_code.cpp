@@ -1,6 +1,6 @@
 // OpenGL ES 1.0 code
 
-#include <nativehelper/jni.h>
+#include <jni.h>
 #define LOG_TAG "GLJNI gl_code.cpp"
 #include <utils/Log.h>
 
