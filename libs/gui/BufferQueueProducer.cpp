@@ -347,10 +347,10 @@ status_t BufferQueueProducer::waitForFreeSlotThenRelock(FreeSlotCaller caller,
     return NO_ERROR;
 }
 
-status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
-        sp<android::Fence> *outFence, uint32_t width, uint32_t height,
-        PixelFormat format, uint64_t usage,
-        FrameEventHistoryDelta* outTimestamps) {
+status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* outFence,
+                                            uint32_t width, uint32_t height, PixelFormat format,
+                                            uint64_t usage, uint64_t* outBufferAge,
+                                            FrameEventHistoryDelta* outTimestamps) {
     ATRACE_CALL();
     { // Autolock scope
         Mutex::Autolock lock(mCore->mMutex);
@@ -558,6 +558,9 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
             mSlots[*outSlot].mFrameNumber,
             mSlots[*outSlot].mGraphicBuffer->handle, returnFlags);
 
+    if (outBufferAge) {
+        *outBufferAge = mCore->mBufferAge;
+    }
     addAndGetFrameTimestamps(nullptr, outTimestamps);
 
     return returnFlags;
