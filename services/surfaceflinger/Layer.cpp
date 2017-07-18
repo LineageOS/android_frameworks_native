@@ -2682,7 +2682,7 @@ Transform Layer::getTransform() const {
         // for in the transform. We need to mirror this scaling in child surfaces
         // or we will break the contract where WM can treat child surfaces as
         // pixels in the parent surface.
-        if (p->isFixedSize()) {
+        if (p->isFixedSize() && p->mActiveBuffer != nullptr) {
             int bufferWidth;
             int bufferHeight;
             if ((p->mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) == 0) {
