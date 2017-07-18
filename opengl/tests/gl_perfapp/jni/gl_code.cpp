@@ -1,6 +1,6 @@
 // OpenGL ES 2.0 code
 
-#include <nativehelper/jni.h>
+#include <jni.h>
 #define LOG_TAG "GLPerf gl_code.cpp"
 #include <utils/Log.h>
 
