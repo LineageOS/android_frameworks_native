@@ -33,6 +33,7 @@
 #include <utils/Mutex.h>
 #include <utils/Condition.h>
 
+#include <vector>
 #define CPU_CONSUMER_TEST_FORMAT_RAW 0
 #define CPU_CONSUMER_TEST_FORMAT_Y8 0
 #define CPU_CONSUMER_TEST_FORMAT_Y16 0
@@ -635,7 +636,7 @@ TEST_P(CpuConsumerTest, FromCpuLockMax) {
 
     // Consume
 
-    CpuConsumer::LockedBuffer *b = new CpuConsumer::LockedBuffer[params.maxLockedBuffers];
+    std::vector<CpuConsumer::LockedBuffer> b(params.maxLockedBuffers);
     for (int i = 0; i < params.maxLockedBuffers; i++) {
         ALOGV("Locking frame %d", i);
         err = mCC->lockNextBuffer(&b[i]);
@@ -684,9 +685,6 @@ TEST_P(CpuConsumerTest, FromCpuLockMax) {
     for (int i = 1; i < params.maxLockedBuffers; i++) {
         mCC->unlockBuffer(b[i]);
     }
-
-    delete[] b;
-
 }
 
 CpuConsumerTestParams y8TestSets[] = {
