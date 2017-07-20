@@ -394,7 +394,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             }
         } else if (!mSensors.hasAnySensor()) {
             result.append("No Sensors on the device\n");
-            result.append("devInitCheck : %d\n", SensorDevice::getInstance().initCheck());
+            result.appendFormat("devInitCheck : %d\n", SensorDevice::getInstance().initCheck());
         } else {
             // Default dump the sensor list and debugging information.
             //
