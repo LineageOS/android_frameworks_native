@@ -227,8 +227,10 @@ SurfaceFlinger::SurfaceFlinger()
     mLayerTripleBufferingDisabled = atoi(value);
     ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
 
-    property_get("persist.sys.sf.color_saturation", value, "1.0");
-    mSaturation = atof(value);
+    // We should be reading 'persist.sys.sf.color_saturation' here
+    // but since /data may be encrypted, we need to wait until after vold
+    // comes online to attempt to read the property. The property is
+    // instead read after the boot animation
 }
 
 void SurfaceFlinger::onFirstRef()
@@ -373,6 +375,11 @@ void SurfaceFlinger::bootFinished()
     const int LOGTAG_SF_STOP_BOOTANIM = 60110;
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
+
+    sp<LambdaMessage> readProperties = new LambdaMessage([&]() {
+        readPersistentProperties();
+    });
+    postMessageAsync(readProperties);
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
@@ -628,6 +635,14 @@ void SurfaceFlinger::init() {
     }
 
     ALOGV("Done initializing");
+}
+
+void SurfaceFlinger::readPersistentProperties() {
+    char value[PROPERTY_VALUE_MAX];
+
+    property_get("persist.sys.sf.color_saturation", value, "1.0");
+    mSaturation = atof(value);
+    ALOGV("Saturation is set to %.2f", mSaturation);
 }
 
 void SurfaceFlinger::startBootAnim() {
