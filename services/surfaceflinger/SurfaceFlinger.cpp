@@ -195,6 +195,8 @@ SurfaceFlinger::SurfaceFlinger()
     hasWideColorDisplay =
             getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
 
+    mPrimaryDispSync.init(hasSyncFramework, dispSyncPresentTimeOffset);
+
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
 
