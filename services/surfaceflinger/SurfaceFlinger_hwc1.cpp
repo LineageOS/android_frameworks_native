@@ -320,8 +320,8 @@ sp<IBinder> SurfaceFlinger::getBuiltInDisplay(int32_t id) {
 
 void SurfaceFlinger::bootFinished()
 {
-    if (mStartBootAnimThread->join() != NO_ERROR) {
-        ALOGE("Join StartBootAnimThread failed!");
+    if (mStartPropertySetThread->join() != NO_ERROR) {
+        ALOGE("Join StartPropertySetThread failed!");
     }
     const nsecs_t now = systemTime();
     const nsecs_t duration = now - mBootTime;
@@ -501,6 +501,8 @@ private:
     sp<VSyncSource::Callback> mCallback;
 };
 
+// Do not call property_set on main thread which will be blocked by init
+// Use StartPropertySetThread instead.
 void SurfaceFlinger::init() {
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
             "Initializing graphics H/W...");
@@ -544,9 +546,6 @@ void SurfaceFlinger::init() {
 
     LOG_ALWAYS_FATAL_IF(mEGLContext == EGL_NO_CONTEXT,
             "couldn't create EGLContext");
-
-    // Inform native graphics APIs that the present timestamp is NOT supported:
-    property_set(kTimestampProperty, "0");
 
     // initialize our non-virtual displays
     for (size_t i=0 ; i<DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES ; i++) {
@@ -600,9 +599,10 @@ void SurfaceFlinger::init() {
 
     mRenderEngine->primeCache();
 
-    mStartBootAnimThread = new StartBootAnimThread();
-    if (mStartBootAnimThread->Start() != NO_ERROR) {
-        ALOGE("Run StartBootAnimThread failed!");
+    // Inform native graphics APIs that the present timestamp is NOT supported:
+    mStartPropertySetThread = new StartPropertySetThread(false);
+    if (mStartPropertySetThread->Start() != NO_ERROR) {
+        ALOGE("Run StartPropertySetThread failed!");
     }
 
     ALOGV("Done initializing");
@@ -616,10 +616,10 @@ int32_t SurfaceFlinger::allocateHwcDisplayId(DisplayDevice::DisplayType type) {
 void SurfaceFlinger::startBootAnim() {
     // Start boot animation service by setting a property mailbox
     // if property setting thread is already running, Start() will be just a NOP
-    mStartBootAnimThread->Start();
+    mStartPropertySetThread->Start();
     // Wait until property was set
-    if (mStartBootAnimThread->join() != NO_ERROR) {
-        ALOGE("Join StartBootAnimThread failed!");
+    if (mStartPropertySetThread->join() != NO_ERROR) {
+        ALOGE("Join StartPropertySetThread failed!");
     }
 }
 
