@@ -348,8 +348,8 @@ sp<IBinder> SurfaceFlinger::getBuiltInDisplay(int32_t id) {
 
 void SurfaceFlinger::bootFinished()
 {
-    if (mStartBootAnimThread->join() != NO_ERROR) {
-        ALOGE("Join StartBootAnimThread failed!");
+    if (mStartPropertySetThread->join() != NO_ERROR) {
+        ALOGE("Join StartPropertySetThread failed!");
     }
     const nsecs_t now = systemTime();
     const nsecs_t duration = now - mBootTime;
@@ -533,6 +533,8 @@ private:
     sp<VSyncSource::Callback> mCallback;
 };
 
+// Do not call property_set on main thread which will be blocked by init
+// Use StartPropertySetThread instead.
 void SurfaceFlinger::init() {
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
             "Initializing graphics H/W...");
@@ -582,14 +584,6 @@ void SurfaceFlinger::init() {
 
     Mutex::Autolock _l(mStateLock);
 
-    // Inform native graphics APIs whether the present timestamp is supported:
-    if (getHwComposer().hasCapability(
-            HWC2::Capability::PresentFenceIsNotReliable)) {
-        property_set(kTimestampProperty, "0");
-    } else {
-        property_set(kTimestampProperty, "1");
-    }
-
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
             ALOGI("VR request display mode: requestDisplay=%d", requestDisplay);
@@ -624,9 +618,16 @@ void SurfaceFlinger::init() {
 
     mRenderEngine->primeCache();
 
-    mStartBootAnimThread = new StartBootAnimThread();
-    if (mStartBootAnimThread->Start() != NO_ERROR) {
-        ALOGE("Run StartBootAnimThread failed!");
+    // Inform native graphics APIs whether the present timestamp is supported:
+    if (getHwComposer().hasCapability(
+            HWC2::Capability::PresentFenceIsNotReliable)) {
+        mStartPropertySetThread = new StartPropertySetThread(false);
+    } else {
+        mStartPropertySetThread = new StartPropertySetThread(true);
+    }
+
+    if (mStartPropertySetThread->Start() != NO_ERROR) {
+        ALOGE("Run StartPropertySetThread failed!");
     }
 
     ALOGV("Done initializing");
@@ -635,10 +636,10 @@ void SurfaceFlinger::init() {
 void SurfaceFlinger::startBootAnim() {
     // Start boot animation service by setting a property mailbox
     // if property setting thread is already running, Start() will be just a NOP
-    mStartBootAnimThread->Start();
+    mStartPropertySetThread->Start();
     // Wait until property was set
-    if (mStartBootAnimThread->join() != NO_ERROR) {
-        ALOGE("Join StartBootAnimThread failed!");
+    if (mStartPropertySetThread->join() != NO_ERROR) {
+        ALOGE("Join StartPropertySetThread failed!");
     }
 }
 
