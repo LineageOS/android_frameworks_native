@@ -354,7 +354,6 @@ void SurfaceFlinger::bootFinished()
     const nsecs_t now = systemTime();
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
-    mBootFinished = true;
 
     // wait patiently for the window manager death
     const String16 name("window");
@@ -376,10 +375,19 @@ void SurfaceFlinger::bootFinished()
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
 
-    sp<LambdaMessage> readProperties = new LambdaMessage([&]() {
+    sp<LambdaMessage> bootFinished = new LambdaMessage([&]() {
+        mBootFinished = true;
+
         readPersistentProperties();
+
+#ifdef USE_HWC2
+        sp<DisplayDevice> hw(getDisplayDevice(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]));
+        if (hw->getWideColorSupport()) {
+            setActiveColorModeInternal(hw, HAL_COLOR_MODE_SRGB);
+        }
+#endif
     });
-    postMessageAsync(readProperties);
+    postMessageAsync(bootFinished);
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
@@ -544,7 +552,7 @@ void SurfaceFlinger::init() {
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
             "Initializing graphics H/W...");
 
-    ALOGI("Phase offest NS: %" PRId64 "", vsyncPhaseOffsetNs);
+    ALOGI("Phase offset NS: %" PRId64 "", vsyncPhaseOffsetNs);
 
     { // Autolock scope
         Mutex::Autolock _l(mStateLock);
@@ -1213,11 +1221,7 @@ void SurfaceFlinger::createDefaultDisplayDevice() {
                                              token, fbs, producer, mRenderEngine->getEGLConfig(),
                                              hasWideColorModes && hasWideColorDisplay);
     mDisplays.add(token, hw);
-    android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
-    if (hasWideColorModes && hasWideColorDisplay) {
-        defaultColorMode = HAL_COLOR_MODE_SRGB;
-    }
-    setActiveColorModeInternal(hw, defaultColorMode);
+    setActiveColorModeInternal(hw, HAL_COLOR_MODE_NATIVE);
 }
 
 void SurfaceFlinger::onHotplugReceived(HWComposer* composer, int32_t disp, bool connected) {
@@ -1863,7 +1867,11 @@ void SurfaceFlinger::setUpHWComposer() {
             }
             newColorMode = pickColorMode(newDataSpace);
 
-            setActiveColorModeInternal(displayDevice, newColorMode);
+            // We want the color mode of the boot animation to match that of the bootloader
+            // To achieve this we suppress color mode changes until after the boot animation
+            if (mBootFinished) {
+                setActiveColorModeInternal(displayDevice, newColorMode);
+            }
         }
     }
 
