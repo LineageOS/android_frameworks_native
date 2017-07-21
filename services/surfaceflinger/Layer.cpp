@@ -474,7 +474,7 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& hw) const {
 
     Rect activeCrop(s.active.w, s.active.h);
     if (!s.crop.isEmpty()) {
-        activeCrop = s.crop;
+        activeCrop.intersect(s.crop, &activeCrop);
     }
 
     Transform t = getTransform();
