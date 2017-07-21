@@ -436,6 +436,11 @@ private:
     sp<StartPropertySetThread> mStartPropertySetThread = nullptr;
 
     /* ------------------------------------------------------------------------
+     * Properties
+     */
+    void readPersistentProperties();
+
+    /* ------------------------------------------------------------------------
      * EGL
      */
     size_t getMaxTextureSize() const;
