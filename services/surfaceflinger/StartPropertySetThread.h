@@ -24,17 +24,21 @@
 
 namespace android {
 
-class StartBootAnimThread : public Thread {
+class StartPropertySetThread : public Thread {
 // Boot animation is triggered via calls to "property_set()" which can block
 // if init's executing slow operation such as 'mount_all --late' (currently
 // happening 1/10th with fsck)  concurrently. Running in a separate thread
 // allows to pursue the SurfaceFlinger's init process without blocking.
 // see b/34499826.
+// Any property_set() will block during init stage so need to be offloaded
+// to this thread. see b/63844978.
 public:
-    StartBootAnimThread();
+    StartPropertySetThread(bool timestampPropertyValue);
     status_t Start();
 private:
     virtual bool threadLoop();
+    static constexpr const char* kTimestampProperty = "service.sf.present_timestamp";
+    const bool mTimestampPropertyValue;
 };
 
 }

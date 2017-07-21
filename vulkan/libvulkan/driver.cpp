@@ -31,6 +31,8 @@
 #include <graphicsenv/GraphicsEnv.h>
 #include <utils/Vector.h>
 
+#include "android-base/properties.h"
+
 #include "driver.h"
 #include "stubhal.h"
 
@@ -822,9 +824,9 @@ VkResult EnumerateDeviceExtensionProperties(
 
     // conditionally add VK_GOOGLE_display_timing if present timestamps are
     // supported by the driver:
-    char timestamp_property[PROPERTY_VALUE_MAX];
-    property_get("service.sf.present_timestamp", timestamp_property, "1");
-    if (strcmp(timestamp_property, "1") == 0) {
+    const std::string timestamp_property("service.sf.present_timestamp");
+    android::base::WaitForPropertyCreation(timestamp_property);
+    if (android::base::GetBoolProperty(timestamp_property, true)) {
         loader_extensions.push_back({
                 VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME,
                 VK_GOOGLE_DISPLAY_TIMING_SPEC_VERSION});
