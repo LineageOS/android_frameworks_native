@@ -157,3 +157,6 @@ DVR_V1_API_ENTRY(PerformanceSetSchedulerPolicy);
 
 // Pose client
 DVR_V1_API_ENTRY(PoseClientSensorsEnable);
+
+// Read buffer queue
+DVR_V1_API_ENTRY(ReadBufferQueueGetEventFd);

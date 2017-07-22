@@ -102,6 +102,14 @@ ssize_t dvrReadBufferQueueGetCapacity(DvrReadBufferQueue* read_queue);
 // @return Queue id on success; or negative error code.
 int dvrReadBufferQueueGetId(DvrReadBufferQueue* read_queue);
 
+// Get the event fd that signals when queue updates occur.
+//
+// Use ReadBufferQueueHandleEvents to trigger registered event callbacks.
+//
+// @param read_queue The DvrReadBufferQueue of interest.
+// @return Fd on success; or negative error code.
+int dvrReadBufferQueueGetEventFd(DvrReadBufferQueue* read_queue);
+
 // Create a read buffer queue from an existing read buffer queue.
 //
 // @param read_queue The DvrReadBufferQueue of interest.
