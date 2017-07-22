@@ -450,6 +450,20 @@ TEST_F(DvrBufferQueueTest, DequeueMismatchMetadata) {
   EXPECT_FALSE(dvrReadBufferIsValid(rb));
 }
 
+TEST_F(DvrBufferQueueTest, TestReadQueueEventFd) {
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(kQueueCapacity));
+
+  DvrReadBufferQueue* read_queue = nullptr;
+  int ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
+
+  ASSERT_EQ(0, ret);
+  ASSERT_NE(nullptr, read_queue);
+
+  int event_fd = dvrReadBufferQueueGetEventFd(read_queue);
+  ASSERT_GT(event_fd, 0);
+}
+
 }  // namespace
 
 }  // namespace dvr
