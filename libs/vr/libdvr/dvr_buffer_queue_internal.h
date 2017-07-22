@@ -49,6 +49,7 @@ struct DvrReadBufferQueue {
       const std::shared_ptr<ConsumerQueue>& consumer_queue);
 
   int id() const { return consumer_queue_->id(); }
+  int event_fd() const { return consumer_queue_->queue_fd(); }
   size_t capacity() const { return consumer_queue_->capacity(); }
 
   int CreateReadQueue(DvrReadBufferQueue** out_read_queue);
