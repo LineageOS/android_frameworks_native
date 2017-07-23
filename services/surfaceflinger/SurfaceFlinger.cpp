@@ -229,8 +229,10 @@ SurfaceFlinger::SurfaceFlinger()
     mLayerTripleBufferingDisabled = atoi(value);
     ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
 
-    property_get("persist.sys.sf.color_saturation", value, "1.0");
-    mSaturation = atof(value);
+    // We should be reading 'persist.sys.sf.color_saturation' here
+    // but since /data may be encrypted, we need to wait until after vold
+    // comes online to attempt to read the property. The property is
+    // instead read after the boot animation
 }
 
 void SurfaceFlinger::onFirstRef()
@@ -348,13 +350,12 @@ sp<IBinder> SurfaceFlinger::getBuiltInDisplay(int32_t id) {
 
 void SurfaceFlinger::bootFinished()
 {
-    if (mStartBootAnimThread->join() != NO_ERROR) {
-        ALOGE("Join StartBootAnimThread failed!");
+    if (mStartPropertySetThread->join() != NO_ERROR) {
+        ALOGE("Join StartPropertySetThread failed!");
     }
     const nsecs_t now = systemTime();
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
-    mBootFinished = true;
 
     // wait patiently for the window manager death
     const String16 name("window");
@@ -375,6 +376,20 @@ void SurfaceFlinger::bootFinished()
     const int LOGTAG_SF_STOP_BOOTANIM = 60110;
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
+
+    sp<LambdaMessage> bootFinished = new LambdaMessage([&]() {
+        mBootFinished = true;
+
+        readPersistentProperties();
+
+#ifdef USE_HWC2
+        sp<DisplayDevice> hw(getDisplayDevice(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]));
+        if (hw->getWideColorSupport()) {
+            setActiveColorModeInternal(hw, HAL_COLOR_MODE_SRGB);
+        }
+#endif
+    });
+    postMessageAsync(bootFinished);
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
@@ -533,11 +548,13 @@ private:
     sp<VSyncSource::Callback> mCallback;
 };
 
+// Do not call property_set on main thread which will be blocked by init
+// Use StartPropertySetThread instead.
 void SurfaceFlinger::init() {
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
             "Initializing graphics H/W...");
 
-    ALOGI("Phase offest NS: %" PRId64 "", vsyncPhaseOffsetNs);
+    ALOGI("Phase offset NS: %" PRId64 "", vsyncPhaseOffsetNs);
 
     { // Autolock scope
         Mutex::Autolock _l(mStateLock);
@@ -582,14 +599,6 @@ void SurfaceFlinger::init() {
 
     Mutex::Autolock _l(mStateLock);
 
-    // Inform native graphics APIs whether the present timestamp is supported:
-    if (getHwComposer().hasCapability(
-            HWC2::Capability::PresentFenceIsNotReliable)) {
-        property_set(kTimestampProperty, "0");
-    } else {
-        property_set(kTimestampProperty, "1");
-    }
-
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
             ALOGI("VR request display mode: requestDisplay=%d", requestDisplay);
@@ -624,21 +633,36 @@ void SurfaceFlinger::init() {
 
     mRenderEngine->primeCache();
 
-    mStartBootAnimThread = new StartBootAnimThread();
-    if (mStartBootAnimThread->Start() != NO_ERROR) {
-        ALOGE("Run StartBootAnimThread failed!");
+    // Inform native graphics APIs whether the present timestamp is supported:
+    if (getHwComposer().hasCapability(
+            HWC2::Capability::PresentFenceIsNotReliable)) {
+        mStartPropertySetThread = new StartPropertySetThread(false);
+    } else {
+        mStartPropertySetThread = new StartPropertySetThread(true);
+    }
+
+    if (mStartPropertySetThread->Start() != NO_ERROR) {
+        ALOGE("Run StartPropertySetThread failed!");
     }
 
     ALOGV("Done initializing");
 }
 
+void SurfaceFlinger::readPersistentProperties() {
+    char value[PROPERTY_VALUE_MAX];
+
+    property_get("persist.sys.sf.color_saturation", value, "1.0");
+    mSaturation = atof(value);
+    ALOGV("Saturation is set to %.2f", mSaturation);
+}
+
 void SurfaceFlinger::startBootAnim() {
     // Start boot animation service by setting a property mailbox
     // if property setting thread is already running, Start() will be just a NOP
-    mStartBootAnimThread->Start();
+    mStartPropertySetThread->Start();
     // Wait until property was set
-    if (mStartBootAnimThread->join() != NO_ERROR) {
-        ALOGE("Join StartBootAnimThread failed!");
+    if (mStartPropertySetThread->join() != NO_ERROR) {
+        ALOGE("Join StartPropertySetThread failed!");
     }
 }
 
@@ -1199,11 +1223,7 @@ void SurfaceFlinger::createDefaultDisplayDevice() {
                                              token, fbs, producer, mRenderEngine->getEGLConfig(),
                                              hasWideColorModes && hasWideColorDisplay);
     mDisplays.add(token, hw);
-    android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
-    if (hasWideColorModes && hasWideColorDisplay) {
-        defaultColorMode = HAL_COLOR_MODE_SRGB;
-    }
-    setActiveColorModeInternal(hw, defaultColorMode);
+    setActiveColorModeInternal(hw, HAL_COLOR_MODE_NATIVE);
 }
 
 void SurfaceFlinger::onHotplugReceived(HWComposer* composer, int32_t disp, bool connected) {
@@ -1848,7 +1868,11 @@ void SurfaceFlinger::setUpHWComposer() {
             }
             newColorMode = pickColorMode(newDataSpace);
 
-            setActiveColorModeInternal(displayDevice, newColorMode);
+            // We want the color mode of the boot animation to match that of the bootloader
+            // To achieve this we suppress color mode changes until after the boot animation
+            if (mBootFinished) {
+                setActiveColorModeInternal(displayDevice, newColorMode);
+            }
         }
     }
 

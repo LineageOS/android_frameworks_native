@@ -15,20 +15,23 @@
  */
 
 #include <cutils/properties.h>
-#include "StartBootAnimThread.h"
+#include "StartPropertySetThread.h"
 
 namespace android {
 
-StartBootAnimThread::StartBootAnimThread():
-        Thread(false) {
+StartPropertySetThread::StartPropertySetThread(bool timestampPropertyValue):
+        Thread(false), mTimestampPropertyValue(timestampPropertyValue) {}
+
+status_t StartPropertySetThread::Start() {
+    return run("SurfaceFlinger::StartPropertySetThread", PRIORITY_NORMAL);
 }
 
-status_t StartBootAnimThread::Start() {
-    return run("SurfaceFlinger::StartBootAnimThread", PRIORITY_NORMAL);
-}
-
-bool StartBootAnimThread::threadLoop() {
+bool StartPropertySetThread::threadLoop() {
+    // Set property service.sf.present_timestamp, consumer need check its readiness
+    property_set(kTimestampProperty, mTimestampPropertyValue ? "1" : "0");
+    // Clear BootAnimation exit flag
     property_set("service.bootanim.exit", "0");
+    // Start BootAnimation if not started
     property_set("ctl.start", "bootanim");
     // Exit immediately
     return false;
