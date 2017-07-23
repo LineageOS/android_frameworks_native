@@ -302,6 +302,13 @@ int dvrReadBufferQueueGetId(DvrReadBufferQueue* read_queue) {
   return read_queue->id();
 }
 
+int dvrReadBufferQueueGetEventFd(DvrReadBufferQueue* read_queue) {
+  if (!read_queue)
+    return -EINVAL;
+
+  return read_queue->event_fd();
+}
+
 int dvrReadBufferQueueCreateReadQueue(DvrReadBufferQueue* read_queue,
                                       DvrReadBufferQueue** out_read_queue) {
   if (!read_queue || !out_read_queue)

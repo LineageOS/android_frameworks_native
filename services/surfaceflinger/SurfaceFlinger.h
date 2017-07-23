@@ -58,7 +58,7 @@
 #include "LayerVector.h"
 #include "MessageQueue.h"
 #include "SurfaceInterceptor.h"
-#include "StartBootAnimThread.h"
+#include "StartPropertySetThread.h"
 
 #include "DisplayHardware/HWComposer.h"
 #include "Effects/Daltonizer.h"
@@ -227,7 +227,6 @@ private:
     enum { LOG_FRAME_STATS_PERIOD =  30*60*60 };
 
     static const size_t MAX_LAYERS = 4096;
-    static constexpr const char* kTimestampProperty = "service.sf.present_timestamp";
 
     // We're reference counted, never destroy SurfaceFlinger directly
     virtual ~SurfaceFlinger();
@@ -434,7 +433,7 @@ private:
             bool isLocalScreenshot);
 #endif
 
-    sp<StartBootAnimThread> mStartBootAnimThread = nullptr;
+    sp<StartPropertySetThread> mStartPropertySetThread = nullptr;
 
     /* ------------------------------------------------------------------------
      * Properties
