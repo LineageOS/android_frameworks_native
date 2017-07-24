@@ -20,6 +20,9 @@ cc_library_headers {
 cc_library_shared {
     name: "libgui",
     vendor_available: true,
+    vndk: {
+        enabled: true,
+    },
 
     clang: true,
     cppflags: [
