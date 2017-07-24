@@ -15,6 +15,9 @@
 cc_library_shared {
     name: "libui",
     vendor_available: true,
+    vndk: {
+        enabled: true,
+    },
 
     clang: true,
     cppflags: [
