@@ -28,6 +28,7 @@
 #include <unistd.h>
 
 #include <android-base/logging.h>
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
@@ -64,6 +65,10 @@ using UniqueCPtr = std::unique_ptr<T, FreeDelete>;
 
 static unique_fd invalid_unique_fd() {
     return unique_fd(-1);
+}
+
+static bool is_debug_runtime() {
+    return android::base::GetProperty("persist.sys.dalvik.vm.lib.2", "") == "libartd.so";
 }
 
 static const char* parse_null(const char* arg) {
@@ -274,7 +279,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
                 dex2oat_large_app_threshold);
     }
 
-    static const char* DEX2OAT_BIN = "/system/bin/dex2oat";
+    // If the runtime was requested to use libartd.so, we'll run dex2oatd, otherwise dex2oat.
+    const char* dex2oat_bin = is_debug_runtime() ? "/system/bin/dex2oatd" : "/system/bin/dex2oat";
 
     static const char* RUNTIME_ARG = "--runtime-arg";
 
@@ -377,7 +383,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     }
 
 
-    ALOGV("Running %s in=%s out=%s\n", DEX2OAT_BIN, relative_input_file_name, output_file_name);
+    ALOGV("Running %s in=%s out=%s\n", dex2oat_bin, relative_input_file_name, output_file_name);
 
     const char* argv[9  // program name, mandatory arguments and the final NULL
                      + (have_dex2oat_isa_variant ? 1 : 0)
@@ -398,7 +404,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
                      + (has_base_dir ? 1 : 0)
                      + (have_dex2oat_large_app_threshold ? 1 : 0)];
     int i = 0;
-    argv[i++] = DEX2OAT_BIN;
+    argv[i++] = dex2oat_bin;
     argv[i++] = zip_fd_arg;
     argv[i++] = zip_location_arg;
     argv[i++] = input_vdex_fd_arg;
@@ -466,8 +472,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     // Do not add after dex2oat_flags, they should override others for debugging.
     argv[i] = NULL;
 
-    execv(DEX2OAT_BIN, (char * const *)argv);
-    ALOGE("execv(%s) failed: %s\n", DEX2OAT_BIN, strerror(errno));
+    execv(dex2oat_bin, (char * const *)argv);
+    ALOGE("execv(%s) failed: %s\n", dex2oat_bin, strerror(errno));
 }
 
 /*
@@ -646,7 +652,7 @@ static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_LOCKING = 4;
 static void run_profman_merge(const std::vector<unique_fd>& profiles_fd,
         const unique_fd& reference_profile_fd) {
     static const size_t MAX_INT_LEN = 32;
-    static const char* PROFMAN_BIN = "/system/bin/profman";
+    const char* profman_bin = is_debug_runtime() ? "/system/bin/profmand" : "/system/bin/profman";
 
     std::vector<std::string> profile_args(profiles_fd.size());
     char profile_buf[strlen("--profile-file-fd=") + MAX_INT_LEN];
@@ -660,7 +666,7 @@ static void run_profman_merge(const std::vector<unique_fd>& profiles_fd,
     // program name, reference profile fd, the final NULL and the profile fds
     const char* argv[3 + profiles_fd.size()];
     int i = 0;
-    argv[i++] = PROFMAN_BIN;
+    argv[i++] = profman_bin;
     argv[i++] = reference_profile_arg;
     for (size_t k = 0; k < profile_args.size(); k++) {
         argv[i++] = profile_args[k].c_str();
@@ -668,8 +674,8 @@ static void run_profman_merge(const std::vector<unique_fd>& profiles_fd,
     // Do not add after dex2oat_flags, they should override others for debugging.
     argv[i] = NULL;
 
-    execv(PROFMAN_BIN, (char * const *)argv);
-    ALOGE("execv(%s) failed: %s\n", PROFMAN_BIN, strerror(errno));
+    execv(profman_bin, (char * const *)argv);
+    ALOGE("execv(%s) failed: %s\n", profman_bin, strerror(errno));
     exit(68);   /* only get here on exec failure */
 }
 
@@ -1295,7 +1301,10 @@ void update_out_oat_access_times(const char* apk_path, const char* out_oat_path)
 // the profile has changed.
 static void exec_dexoptanalyzer(const std::string& dex_file, const char* instruction_set,
         const char* compiler_filter, bool profile_was_updated) {
-    static const char* DEXOPTANALYZER_BIN = "/system/bin/dexoptanalyzer";
+    const char* dexoptanalyzer_bin =
+            is_debug_runtime()
+                    ? "/system/bin/dexoptanalyzerd"
+                    : "/system/bin/dexoptanalyzer";
     static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
 
     if (strlen(instruction_set) >= MAX_INSTRUCTION_SET_LEN) {
@@ -1316,7 +1325,7 @@ static void exec_dexoptanalyzer(const std::string& dex_file, const char* instruc
     // program name, dex file, isa, filter, the final NULL
     const char* argv[5 + (profile_was_updated ? 1 : 0)];
     int i = 0;
-    argv[i++] = DEXOPTANALYZER_BIN;
+    argv[i++] = dexoptanalyzer_bin;
     argv[i++] = dex_file_arg;
     argv[i++] = isa_arg;
     argv[i++] = compiler_filter_arg;
@@ -1325,8 +1334,8 @@ static void exec_dexoptanalyzer(const std::string& dex_file, const char* instruc
     }
     argv[i] = NULL;
 
-    execv(DEXOPTANALYZER_BIN, (char * const *)argv);
-    ALOGE("execv(%s) failed: %s\n", DEXOPTANALYZER_BIN, strerror(errno));
+    execv(dexoptanalyzer_bin, (char * const *)argv);
+    ALOGE("execv(%s) failed: %s\n", dexoptanalyzer_bin, strerror(errno));
 }
 
 // Prepares the oat dir for the secondary dex files.
