@@ -38,7 +38,8 @@ Sensor::Sensor(struct sensor_t const* hwSensor, int halVersion) :
         Sensor(*hwSensor, uuid_t(), halVersion) {
 }
 
-Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersion) {
+Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersion) :
+        Sensor("") {
     mName = hwSensor.name;
     mVendor = hwSensor.vendor;
     mVersion = hwSensor.version;
