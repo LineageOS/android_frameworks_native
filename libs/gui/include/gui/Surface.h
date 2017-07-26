@@ -403,10 +403,6 @@ protected:
     // (the change since the previous frame) passed in by the producer.
     Region mDirtyRegion;
 
-    // mBufferAge tracks the age of the contents of the most recently dequeued
-    // buffer as the number of frames that have elapsed since it was last queued
-    uint64_t mBufferAge;
-
     // Stores the current generation number. See setGenerationNumber and
     // IGraphicBufferProducer::setGenerationNumber for more information.
     uint32_t mGenerationNumber;
