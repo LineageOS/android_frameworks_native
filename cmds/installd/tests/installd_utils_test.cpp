@@ -38,16 +38,6 @@
 
 #define TEST_PROFILE_DIR "/data/misc/profiles"
 
-#define REALLY_LONG_APP_NAME "com.example." \
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa." \
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa." \
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-
-#define REALLY_LONG_LEAF_NAME "shared_prefs_shared_prefs_shared_prefs_shared_prefs_shared_prefs_" \
-        "shared_prefs_shared_prefs_shared_prefs_shared_prefs_shared_prefs_shared_prefs_" \
-        "shared_prefs_shared_prefs_shared_prefs_shared_prefs_shared_prefs_shared_prefs_" \
-        "shared_prefs_shared_prefs_shared_prefs_shared_prefs_shared_prefs_shared_prefs_"
-
 namespace android {
 namespace installd {
 
@@ -87,6 +77,14 @@ protected:
 
     virtual void TearDown() {
         free(android_system_dirs.dirs);
+    }
+
+    std::string create_too_long_path(const std::string& seed) {
+        std::string result = seed;
+        for (size_t i = seed.size(); i < PKG_PATH_MAX; i++) {
+            result += "a";
+        }
+        return result;
     }
 };
 
@@ -388,17 +386,18 @@ TEST_F(UtilsTest, CreateMovePath_Primary) {
             << "Primary user package directory should be created correctly";
 }
 
+
 TEST_F(UtilsTest, CreateMovePath_Fail_AppTooLong) {
     char path[PKG_PATH_MAX];
-
-    EXPECT_EQ(-1, create_move_path(path, REALLY_LONG_APP_NAME, "shared_prefs", 0))
+    std::string really_long_app_name = create_too_long_path("com.example");
+    EXPECT_EQ(-1, create_move_path(path, really_long_app_name.c_str(), "shared_prefs", 0))
             << "Should fail to create move path for primary user";
 }
 
 TEST_F(UtilsTest, CreateMovePath_Fail_LeafTooLong) {
     char path[PKG_PATH_MAX];
-
-    EXPECT_EQ(-1, create_move_path(path, "com.android.test", REALLY_LONG_LEAF_NAME, 0))
+    std::string really_long_leaf_name = create_too_long_path("leaf_");
+    EXPECT_EQ(-1, create_move_path(path, "com.android.test", really_long_leaf_name.c_str(), 0))
             << "Should fail to create move path for primary user";
 }
 
@@ -560,7 +559,7 @@ TEST_F(UtilsTest, CreatePrimaryReferenceProfile) {
 }
 
 TEST_F(UtilsTest, CreateSecondaryCurrentProfile) {
-    EXPECT_EQ("/data/user/0/com.example/secondary.dex.prof",
+    EXPECT_EQ("/data/user/0/com.example/oat/secondary.dex.cur.prof",
             create_current_profile_path(/*user*/0,
                     "/data/user/0/com.example/secondary.dex", /*is_secondary*/true));
 }
@@ -569,6 +568,89 @@ TEST_F(UtilsTest, CreateSecondaryReferenceProfile) {
     EXPECT_EQ("/data/user/0/com.example/oat/secondary.dex.prof",
             create_reference_profile_path(
                     "/data/user/0/com.example/secondary.dex", /*is_secondary*/true));
+}
+
+static void pass_secondary_dex_validation(const std::string& package_name,
+        const std::string& dex_path, int uid, int storage_flag) {
+    EXPECT_TRUE(validate_secondary_dex_path(package_name, dex_path, /*volume_uuid*/ nullptr, uid,
+            storage_flag))
+            << dex_path << " should be allowed as a valid secondary dex path";
+}
+
+static void fail_secondary_dex_validation(const std::string& package_name,
+        const std::string& dex_path, int uid, int storage_flag) {
+    EXPECT_FALSE(validate_secondary_dex_path(package_name, dex_path, /*volume_uuid*/ nullptr, uid,
+            storage_flag))
+            << dex_path << " should not be allowed as a valid secondary dex path";
+}
+
+TEST_F(UtilsTest, ValidateSecondaryDexFilesPath) {
+    std::string package_name = "com.test.app";
+    std::string app_dir_ce_user_0 = "/data/data/" + package_name;
+    std::string app_dir_ce_user_10 = "/data/user/10/" + package_name;
+
+    std::string app_dir_de_user_0 = "/data/user_de/0/" + package_name;
+    std::string app_dir_de_user_10 = "/data/user_de/10/" + package_name;
+
+    EXPECT_EQ(app_dir_ce_user_0,
+            create_data_user_ce_package_path(nullptr, 0, package_name.c_str()));
+    EXPECT_EQ(app_dir_ce_user_10,
+            create_data_user_ce_package_path(nullptr, 10, package_name.c_str()));
+
+    EXPECT_EQ(app_dir_de_user_0,
+            create_data_user_de_package_path(nullptr, 0, package_name.c_str()));
+    EXPECT_EQ(app_dir_de_user_10,
+            create_data_user_de_package_path(nullptr, 10, package_name.c_str()));
+
+    uid_t app_uid_for_user_0 = multiuser_get_uid(/*user_id*/0, /*app_id*/ 1234);
+    uid_t app_uid_for_user_10 = multiuser_get_uid(/*user_id*/10, /*app_id*/ 1234);
+
+    // Standard path for user 0 on CE storage.
+    pass_secondary_dex_validation(
+        package_name, app_dir_ce_user_0 + "/ce0.dex", app_uid_for_user_0, FLAG_STORAGE_CE);
+    // Standard path for user 10 on CE storage.
+    pass_secondary_dex_validation(
+        package_name, app_dir_ce_user_10 + "/ce10.dex", app_uid_for_user_10, FLAG_STORAGE_CE);
+
+    // Standard path for user 0 on DE storage.
+    pass_secondary_dex_validation(
+        package_name, app_dir_de_user_0 + "/de0.dex", app_uid_for_user_0, FLAG_STORAGE_DE);
+    // Standard path for user 10 on DE storage.
+    pass_secondary_dex_validation(
+        package_name, app_dir_de_user_10 + "/de0.dex", app_uid_for_user_10, FLAG_STORAGE_DE);
+
+    // Dex path for user 0 accessed from user 10.
+    fail_secondary_dex_validation(
+        package_name, app_dir_ce_user_0 + "/path0_from10.dex",
+        app_uid_for_user_10, FLAG_STORAGE_CE);
+
+    // Dex path for CE storage accessed with DE.
+    fail_secondary_dex_validation(
+        package_name, app_dir_ce_user_0 + "/ce_from_de.dex", app_uid_for_user_0, FLAG_STORAGE_DE);
+
+    // Dex path for DE storage accessed with CE.
+    fail_secondary_dex_validation(
+        package_name, app_dir_de_user_0 + "/de_from_ce.dex", app_uid_for_user_0, FLAG_STORAGE_CE);
+
+    // Location which does not start with '/'.
+    fail_secondary_dex_validation(
+        package_name, "without_slash.dex", app_uid_for_user_10, FLAG_STORAGE_DE);
+
+    // The dex file is not in the specified package directory.
+    fail_secondary_dex_validation(
+        "another.package", app_dir_ce_user_0 + "/for_another_package.dex",
+        app_uid_for_user_0, FLAG_STORAGE_DE);
+
+    // The dex path contains indirect directories.
+    fail_secondary_dex_validation(
+        package_name, app_dir_ce_user_0 + "/1/../foo.dex", app_uid_for_user_0, FLAG_STORAGE_CE);
+    fail_secondary_dex_validation(
+        package_name, app_dir_ce_user_0 + "/1/./foo.dex", app_uid_for_user_0, FLAG_STORAGE_CE);
+
+    // Super long path.
+    std::string too_long = create_too_long_path("too_long_");
+    fail_secondary_dex_validation(
+        package_name, app_dir_ce_user_10 + "/" + too_long, app_uid_for_user_10, FLAG_STORAGE_CE);
 }
 
 }  // namespace installd
