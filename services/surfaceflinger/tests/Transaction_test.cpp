@@ -990,7 +990,7 @@ TEST_F(ChildLayerTest, ReparentChildren) {
     }
 }
 
-TEST_F(ChildLayerTest, DetachChildren) {
+TEST_F(ChildLayerTest, DetachChildrenSameClient) {
     SurfaceComposerClient::openGlobalTransaction();
     mChild->show();
     mChild->setPosition(10, 10);
@@ -1013,6 +1013,52 @@ TEST_F(ChildLayerTest, DetachChildren) {
 
     SurfaceComposerClient::openGlobalTransaction();
     mChild->hide();
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    // Since the child has the same client as the parent, it will not get
+    // detached and will be hidden.
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->expectFGColor(64, 64);
+        mCapture->expectFGColor(74, 74);
+        mCapture->expectFGColor(84, 84);
+    }
+}
+
+TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
+    sp<SurfaceComposerClient> mNewComposerClient = new SurfaceComposerClient;
+    sp<SurfaceControl> mChildNewClient = mNewComposerClient->createSurface(
+        String8("New Child Test Surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+        0, mFGSurfaceControl.get());
+
+    ASSERT_TRUE(mChildNewClient != NULL);
+    ASSERT_TRUE(mChildNewClient->isValid());
+
+    fillSurfaceRGBA8(mChildNewClient, 200, 200, 200);
+
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->hide();
+    mChildNewClient->show();
+    mChildNewClient->setPosition(10, 10);
+    mFGSurfaceControl->setPosition(64, 64);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // Top left of foreground must now be visible
+        mCapture->expectFGColor(64, 64);
+        // But 10 pixels in we should see the child surface
+        mCapture->expectChildColor(74, 74);
+        // And 10 more pixels we should be back to the foreground surface
+        mCapture->expectFGColor(84, 84);
+    }
+
+    SurfaceComposerClient::openGlobalTransaction();
+    mFGSurfaceControl->detachChildren();
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    SurfaceComposerClient::openGlobalTransaction();
+    mChildNewClient->hide();
     SurfaceComposerClient::closeGlobalTransaction(true);
 
     // Nothing should have changed.
