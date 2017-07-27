@@ -1128,6 +1128,7 @@ private:
     void dumpParameters(String8& dump);
 
     bool isKeyboardOrGamepadKey(int32_t scanCode);
+    bool isMediaKey(int32_t keyCode);
 
     void processKey(nsecs_t when, bool down, int32_t scanCode, int32_t usageCode);
 
