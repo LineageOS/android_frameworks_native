@@ -72,8 +72,6 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   void GrantDisplayOwnership() { hardware_composer_.Enable(); }
   void SeizeDisplayOwnership() { hardware_composer_.Disable(); }
 
-  void OnHardwareComposerRefresh();
-
  private:
   friend BASE;
   friend DisplaySurface;
@@ -119,7 +117,6 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   pdx::Status<void> HandleSurfaceMessage(pdx::Message& message);
 
   HardwareComposer hardware_composer_;
-  RequestDisplayCallback request_display_callback_;
   EpollEventDispatcher dispatcher_;
   DisplayConfigurationUpdateNotifier update_notifier_;
 

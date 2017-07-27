@@ -54,11 +54,6 @@ class Layer {
  public:
   Layer() {}
 
-  // Sets up the global state used by all Layer instances. This must be called
-  // before using any Layer methods.
-  static void InitializeGlobals(Hwc2::Composer* hwc2_hidl,
-                                const HWCDisplayMetrics* metrics);
-
   // Releases any shared pointers and fence handles held by this instance.
   void Reset();
 
@@ -72,6 +67,7 @@ class Layer {
   // HWC_FRAMEBUFFER_TARGET (unless you know what you are doing).
   // |index| is the index of this surface in the DirectDisplaySurface array.
   void Setup(const std::shared_ptr<DirectDisplaySurface>& surface,
+             const HWCDisplayMetrics& display_metrics, Hwc2::Composer* hidl,
              HWC::BlendMode blending, HWC::Transform transform,
              HWC::Composition composition_type, size_t z_roder);
 
@@ -83,9 +79,10 @@ class Layer {
   // |transform| receives HWC_TRANSFORM_* values.
   // |composition_type| receives either HWC_FRAMEBUFFER for most layers or
   // HWC_FRAMEBUFFER_TARGET (unless you know what you are doing).
-  void Setup(const std::shared_ptr<IonBuffer>& buffer, HWC::BlendMode blending,
-             HWC::Transform transform, HWC::Composition composition_type,
-             size_t z_order);
+  void Setup(const std::shared_ptr<IonBuffer>& buffer,
+             const HWCDisplayMetrics& display_metrics, Hwc2::Composer* hidl,
+             HWC::BlendMode blending, HWC::Transform transform,
+             HWC::Composition composition_type, size_t z_order);
 
   // Layers that use a direct IonBuffer should call this each frame to update
   // which buffer will be used for the next PostLayers.
@@ -121,7 +118,7 @@ class Layer {
   bool IsLayerSetup() const { return !source_.empty(); }
 
   // Applies all of the settings to this layer using the hwc functions
-  void UpdateLayerSettings();
+  void UpdateLayerSettings(const HWCDisplayMetrics& display_metrics);
 
   int GetSurfaceId() const {
     int surface_id = -1;
@@ -142,10 +139,9 @@ class Layer {
   }
 
  private:
-  void CommonLayerSetup();
+  void CommonLayerSetup(const HWCDisplayMetrics& display_metrics);
 
-  static Hwc2::Composer* hwc2_hidl_;
-  static const HWCDisplayMetrics* display_metrics_;
+  Hwc2::Composer* hidl_ = nullptr;
 
   // The hardware composer layer and metrics to use during the prepare cycle.
   hwc2_layer_t hardware_composer_layer_ = 0;
@@ -263,11 +259,10 @@ class HardwareComposer {
   static constexpr size_t kMaxHardwareLayers = 4;
 
   HardwareComposer();
-  HardwareComposer(Hwc2::Composer* hidl,
-                   RequestDisplayCallback request_display_callback);
   ~HardwareComposer();
 
-  bool Initialize();
+  bool Initialize(Hwc2::Composer* hidl,
+                  RequestDisplayCallback request_display_callback);
 
   bool IsInitialized() const { return initialized_; }
 
@@ -281,11 +276,6 @@ class HardwareComposer {
   // Get the HMD display metrics for the current display.
   display::Metrics GetHmdDisplayMetrics() const;
 
-  HWC::Error GetDisplayAttribute(hwc2_display_t display, hwc2_config_t config,
-                                 hwc2_attribute_t attributes,
-                                 int32_t* out_value) const;
-  HWC::Error GetDisplayMetrics(hwc2_display_t display, hwc2_config_t config,
-                               HWCDisplayMetrics* out_metrics) const;
   std::string Dump();
 
   void SetVSyncCallback(VSyncCallback callback);
@@ -308,34 +298,31 @@ class HardwareComposer {
   int OnNewGlobalBuffer(DvrGlobalBufferKey key, IonBuffer& ion_buffer);
   void OnDeletedGlobalBuffer(DvrGlobalBufferKey key);
 
-  void OnHardwareComposerRefresh();
-
  private:
-  int32_t EnableVsync(bool enabled);
+  HWC::Error GetDisplayAttribute(Hwc2::Composer* hidl, hwc2_display_t display,
+                                 hwc2_config_t config,
+                                 hwc2_attribute_t attributes,
+                                 int32_t* out_value) const;
+  HWC::Error GetDisplayMetrics(Hwc2::Composer* hidl, hwc2_display_t display,
+                               hwc2_config_t config,
+                               HWCDisplayMetrics* out_metrics) const;
+
+  HWC::Error EnableVsync(bool enabled);
 
   class ComposerCallback : public Hwc2::IComposerCallback {
    public:
-    ComposerCallback() {}
-
-    hardware::Return<void> onHotplug(Hwc2::Display /*display*/,
-                                     Connection /*connected*/) override {
-      // TODO(skiazyk): depending on how the server is implemented, we might
-      // have to set it up to synchronize with receiving this event, as it can
-      // potentially be a critical event for setting up state within the
-      // hwc2 module. That is, we (technically) should not call any other hwc
-      // methods until this method has been called after registering the
-      // callbacks.
-      return hardware::Void();
-    }
-
-    hardware::Return<void> onRefresh(Hwc2::Display /*display*/) override {
-      return hardware::Void();
-    }
-
-    hardware::Return<void> onVsync(Hwc2::Display /*display*/,
-                                   int64_t /*timestamp*/) override {
-      return hardware::Void();
-    }
+    ComposerCallback();
+    hardware::Return<void> onHotplug(Hwc2::Display display,
+                                     Connection conn) override;
+    hardware::Return<void> onRefresh(Hwc2::Display display) override;
+    hardware::Return<void> onVsync(Hwc2::Display display,
+                                   int64_t timestamp) override;
+    const pdx::LocalHandle& GetVsyncEventFd() const;
+    int64_t GetVsyncTime();
+   private:
+    std::mutex vsync_mutex_;
+    pdx::LocalHandle vsync_event_fd_;
+    int64_t vsync_time_ = -1;
   };
 
   HWC::Error Validate(hwc2_display_t display);
@@ -364,17 +351,18 @@ class HardwareComposer {
   void UpdatePostThreadState(uint32_t state, bool suspend);
 
   // Blocks until either event_fd becomes readable, or we're interrupted by a
-  // control thread. Any errors are returned as negative errno values. If we're
-  // interrupted, kPostThreadInterrupted will be returned.
+  // control thread, or timeout_ms is reached before any events occur. Any
+  // errors are returned as negative errno values, with -ETIMEDOUT returned in
+  // the case of a timeout. If we're interrupted, kPostThreadInterrupted will be
+  // returned.
   int PostThreadPollInterruptible(const pdx::LocalHandle& event_fd,
-                                  int requested_events);
+                                  int requested_events,
+                                  int timeout_ms);
 
-  // BlockUntilVSync, WaitForVSync, and SleepUntil are all blocking calls made
-  // on the post thread that can be interrupted by a control thread. If
-  // interrupted, these calls return kPostThreadInterrupted.
+  // WaitForVSync and SleepUntil are blocking calls made on the post thread that
+  // can be interrupted by a control thread. If interrupted, these calls return
+  // kPostThreadInterrupted.
   int ReadWaitPPState();
-  int BlockUntilVSync();
-  int ReadVSyncTimestamp(int64_t* timestamp);
   int WaitForVSync(int64_t* timestamp);
   int SleepUntil(int64_t wakeup_timestamp);
 
@@ -398,11 +386,9 @@ class HardwareComposer {
 
   bool initialized_;
 
-  // Hardware composer HAL device from SurfaceFlinger. VrFlinger does not own
-  // this pointer.
-  Hwc2::Composer* hwc2_hidl_;
+  std::unique_ptr<Hwc2::Composer> hidl_;
+  sp<ComposerCallback> hidl_callback_;
   RequestDisplayCallback request_display_callback_;
-  sp<ComposerCallback> callbacks_;
 
   // Display metrics of the physical display.
   HWCDisplayMetrics native_display_metrics_;
@@ -433,7 +419,8 @@ class HardwareComposer {
   std::thread post_thread_;
 
   // Post thread state machine and synchronization primitives.
-  PostThreadStateType post_thread_state_{PostThreadState::Idle};
+  PostThreadStateType post_thread_state_{
+      PostThreadState::Idle | PostThreadState::Suspended};
   std::atomic<bool> post_thread_quiescent_{true};
   bool post_thread_resumed_{false};
   pdx::LocalHandle post_thread_event_fd_;
@@ -443,9 +430,6 @@ class HardwareComposer {
 
   // Backlight LED brightness sysfs node.
   pdx::LocalHandle backlight_brightness_fd_;
-
-  // Primary display vsync event sysfs node.
-  pdx::LocalHandle primary_display_vsync_event_fd_;
 
   // Primary display wait_pingpong state sysfs node.
   pdx::LocalHandle primary_display_wait_pp_fd_;
@@ -477,12 +461,6 @@ class HardwareComposer {
   std::mutex shared_config_mutex_;
 
   static constexpr int kPostThreadInterrupted = 1;
-
-  static void HwcRefresh(hwc2_callback_data_t data, hwc2_display_t display);
-  static void HwcVSync(hwc2_callback_data_t data, hwc2_display_t display,
-                       int64_t timestamp);
-  static void HwcHotplug(hwc2_callback_data_t callbackData,
-                         hwc2_display_t display, hwc2_connection_t connected);
 
   HardwareComposer(const HardwareComposer&) = delete;
   void operator=(const HardwareComposer&) = delete;
