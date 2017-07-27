@@ -201,6 +201,12 @@ Layer::~Layer() {
     }
     mFlinger->deleteTextureAsync(mTextureName);
     mFrameTracker.logAndResetStats(mName);
+
+#ifdef USE_HWC2
+    ALOGE_IF(!mHwcLayers.empty(),
+            "Found stale hardware composer layers when destroying "
+            "surface flinger layer");
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -303,7 +309,7 @@ void Layer::onRemoved() {
     mSurfaceFlingerConsumer->abandon();
 
 #ifdef USE_HWC2
-    clearHwcLayers();
+    destroyAllHwcLayers();
 #endif
 
     for (const auto& child : mCurrentChildren) {
@@ -363,6 +369,48 @@ sp<IGraphicBufferProducer> Layer::getProducer() const {
 // ---------------------------------------------------------------------------
 // h/w composer set-up
 // ---------------------------------------------------------------------------
+
+#ifdef USE_HWC2
+bool Layer::createHwcLayer(HWComposer* hwc, int32_t hwcId) {
+    LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0,
+                "Already have a layer for hwcId %d", hwcId);
+    HWC2::Layer* layer = hwc->createLayer(hwcId);
+    if (!layer) {
+        return false;
+    }
+    HWCInfo& hwcInfo = mHwcLayers[hwcId];
+    hwcInfo.hwc = hwc;
+    hwcInfo.layer = layer;
+    layer->setLayerDestroyedListener(
+            [this, hwcId] (HWC2::Layer* /*layer*/){mHwcLayers.erase(hwcId);});
+    return true;
+}
+
+void Layer::destroyHwcLayer(int32_t hwcId) {
+    if (mHwcLayers.count(hwcId) == 0) {
+        return;
+    }
+    auto& hwcInfo = mHwcLayers[hwcId];
+    LOG_ALWAYS_FATAL_IF(hwcInfo.layer == nullptr,
+            "Attempt to destroy null layer");
+    LOG_ALWAYS_FATAL_IF(hwcInfo.hwc == nullptr, "Missing HWComposer");
+    hwcInfo.hwc->destroyLayer(hwcId, hwcInfo.layer);
+    // The layer destroyed listener should have cleared the entry from
+    // mHwcLayers. Verify that.
+    LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0,
+            "Stale layer entry in mHwcLayers");
+}
+
+void Layer::destroyAllHwcLayers() {
+    size_t numLayers = mHwcLayers.size();
+    for (size_t i = 0; i < numLayers; ++i) {
+        LOG_ALWAYS_FATAL_IF(mHwcLayers.empty(), "destroyAllHwcLayers failed");
+        destroyHwcLayer(mHwcLayers.begin()->first);
+    }
+    LOG_ALWAYS_FATAL_IF(!mHwcLayers.empty(),
+            "All hardware composer layers should have been destroyed");
+}
+#endif
 
 Rect Layer::getContentCrop() const {
     // this is the crop rectangle that applies to the buffer

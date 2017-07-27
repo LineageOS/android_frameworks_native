@@ -60,13 +60,20 @@
 #include "SurfaceInterceptor.h"
 #include "StartPropertySetThread.h"
 
+#ifdef USE_HWC2
+#include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/HWComposer.h"
+#else
+#include "DisplayHardware/HWComposer_hwc1.h"
+#endif
+
 #include "Effects/Daltonizer.h"
 
 #include <map>
 #include <mutex>
 #include <queue>
 #include <string>
+#include <thread>
 #include <utility>
 
 namespace android {
@@ -99,7 +106,11 @@ enum {
 
 class SurfaceFlinger : public BnSurfaceComposer,
                        private IBinder::DeathRecipient,
+#ifdef USE_HWC2
+                       private HWC2::ComposerCallback
+#else
                        private HWComposer::EventHandler
+#endif
 {
 public:
 
@@ -314,11 +325,20 @@ private:
     virtual void onFirstRef();
 
     /* ------------------------------------------------------------------------
-     * HWComposer::EventHandler interface
+     * HWC2::ComposerCallback / HWComposer::EventHandler interface
      */
-    virtual void onVSyncReceived(HWComposer* composer, int type, nsecs_t timestamp);
-    virtual void onHotplugReceived(HWComposer* composer, int disp, bool connected);
-    virtual void onInvalidateReceived(HWComposer* composer);
+#ifdef USE_HWC2
+    void onVsyncReceived(int32_t sequenceId, hwc2_display_t display,
+                         int64_t timestamp) override;
+    void onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
+                           HWC2::Connection connection,
+                           bool primaryDisplay) override;
+    void onRefreshReceived(int32_t sequenceId, hwc2_display_t display) override;
+#else
+    void onVSyncReceived(HWComposer* composer, int type, nsecs_t timestamp) override;
+    void onHotplugReceived(HWComposer* composer, int disp, bool connected) override;
+    void onInvalidateReceived(HWComposer* composer) override;
+#endif
 
     /* ------------------------------------------------------------------------
      * Message handling
@@ -333,7 +353,12 @@ private:
     // called on the main thread in response to setActiveConfig()
     void setActiveConfigInternal(const sp<DisplayDevice>& hw, int mode);
     // called on the main thread in response to setPowerMode()
+#ifdef USE_HWC2
+    void setPowerModeInternal(const sp<DisplayDevice>& hw, int mode,
+                              bool stateLockHeld);
+#else
     void setPowerModeInternal(const sp<DisplayDevice>& hw, int mode);
+#endif
 
     // Called on the main thread in response to setActiveColorMode()
     void setActiveColorModeInternal(const sp<DisplayDevice>& hw, android_color_mode_t colorMode);
@@ -591,13 +616,7 @@ private:
     /* ------------------------------------------------------------------------
      * VrFlinger
      */
-    template<typename T>
-    void clearHwcLayers(const T& layers) {
-        for (size_t i = 0; i < layers.size(); ++i) {
-            layers[i]->clearHwcLayers();
-        }
-    }
-    void resetHwcLocked();
+    void resetDisplayState();
 
     // Check to see if we should handoff to vr flinger.
     void updateVrFlinger();
@@ -624,13 +643,14 @@ private:
     // access must be protected by mInvalidateLock
     volatile int32_t mRepaintEverything;
 
-    // current, real and vr hardware composers.
-    HWComposer* mHwc;
+    // The current hardware composer interface. When switching into and out of
+    // vr, our HWComposer instance will be recreated.
+    std::unique_ptr<HWComposer> mHwc;
+
 #ifdef USE_HWC2
-    HWComposer* mRealHwc;
-    HWComposer* mVrHwc;
     const std::string mHwcServiceName; // "default" for real use, something else for testing.
 #endif
+
     // constant members (no synchronization needed for access)
     RenderEngine* mRenderEngine;
     nsecs_t mBootTime;
@@ -643,10 +663,6 @@ private:
     EGLContext mEGLContext;
     EGLDisplay mEGLDisplay;
     sp<IBinder> mBuiltinDisplays[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES];
-
-#ifdef USE_HWC2
-    std::unique_ptr<dvr::VrFlinger> mVrFlinger;
-#endif
 
     // Can only accessed from the main thread, these members
     // don't need synchronization
@@ -769,8 +785,14 @@ private:
     status_t CheckTransactCodeCredentials(uint32_t code);
 
 #ifdef USE_HWC2
+    std::unique_ptr<dvr::VrFlinger> mVrFlinger;
     std::atomic<bool> mVrFlingerRequestsDisplay;
     static bool useVrFlinger;
+    std::thread::id mMainThreadId;
+    // The composer sequence id is a monotonically increasing integer that we
+    // use to differentiate callbacks from different hardware composer
+    // instances. Each hardware composer instance gets a different sequence id.
+    int32_t mComposerSequenceId;
 #endif
 
     float mSaturation = 1.0f;

@@ -215,6 +215,10 @@ void Composer::registerCallback(const sp<IComposerCallback>& callback)
     }
 }
 
+bool Composer::isRemote() {
+    return mClient->isRemote();
+}
+
 void Composer::resetCommands() {
     mWriter.reset();
 }

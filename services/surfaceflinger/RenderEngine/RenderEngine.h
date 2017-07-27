@@ -64,7 +64,7 @@ public:
     };
     static RenderEngine* create(EGLDisplay display, int hwcFormat, uint32_t featureFlags);
 
-    static EGLConfig chooseEglConfig(EGLDisplay display, int format);
+    static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
 
     void primeCache() const;
 
