@@ -2679,6 +2679,13 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             // We don't trigger a traversal here because if no other state is
             // changed, we don't want this to cause any more work
         }
+        // Always re-parent the children that explicitly requested to get
+        // re-parented before the general re-parent of all children.
+        if (what & layer_state_t::eReparentChild) {
+            if (layer->reparentChild(s.parentHandleForChild, s.childHandle)) {
+                flags |= eTransactionNeeded|eTraversalNeeded;
+            }
+        }
         if (what & layer_state_t::eReparentChildren) {
             if (layer->reparentChildren(s.reparentHandle)) {
                 flags |= eTransactionNeeded|eTraversalNeeded;

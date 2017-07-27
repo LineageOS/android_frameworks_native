@@ -45,6 +45,8 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeInt32(overrideScalingMode);
     output.writeStrongBinder(IInterface::asBinder(barrierGbp));
     output.writeStrongBinder(relativeLayerHandle);
+    output.writeStrongBinder(parentHandleForChild);
+    output.writeStrongBinder(childHandle);
     output.write(transparentRegion);
     return NO_ERROR;
 }
@@ -77,6 +79,8 @@ status_t layer_state_t::read(const Parcel& input)
     barrierGbp =
         interface_cast<IGraphicBufferProducer>(input.readStrongBinder());
     relativeLayerHandle = input.readStrongBinder();
+    parentHandleForChild = input.readStrongBinder();
+    childHandle = input.readStrongBinder();
     input.read(transparentRegion);
     return NO_ERROR;
 }
