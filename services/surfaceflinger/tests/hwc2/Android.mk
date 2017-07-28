@@ -36,7 +36,9 @@ LOCAL_SHARED_LIBRARIES := \
     libui \
     libgui \
     liblog \
-    libsync
+    libsync \
+    libskia \
+    android.hardware.graphics.common@1.0
 LOCAL_STATIC_LIBRARIES := \
     libbase \
     libadf \
@@ -49,6 +51,7 @@ LOCAL_SRC_FILES := \
     Hwc2TestLayers.cpp \
     Hwc2TestBuffer.cpp \
     Hwc2TestClientTarget.cpp \
-    Hwc2TestVirtualDisplay.cpp
+    Hwc2TestVirtualDisplay.cpp \
+    Hwc2TestPixelComparator.cpp
 
 include $(BUILD_NATIVE_TEST)
