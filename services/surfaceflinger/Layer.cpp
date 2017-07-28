@@ -2383,6 +2383,8 @@ void Layer::dump(String8& result, Colorizer& colorizer) const
         pf = buffer->getPixelFormat();
     }
 
+    sp<Layer> parent = getParent();
+
     result.appendFormat(            "      "
             "layerStack=%4d, z=%9d, pos=(%g,%g), size=(%4d,%4d), "
             "crop=(%4d,%4d,%4d,%4d), finalCrop=(%4d,%4d,%4d,%4d), "
@@ -2393,7 +2395,7 @@ void Layer::dump(String8& result, Colorizer& colorizer) const
 #else
             "alpha=0x%02x, flags=0x%08x, tr=[%.2f, %.2f][%.2f, %.2f]\n"
 #endif
-            "      client=%p\n",
+            "      client=%p parent=%s\n",
             getLayerStack(), s.z,
             s.active.transform.tx(), s.active.transform.ty(),
             s.active.w, s.active.h,
@@ -2406,7 +2408,7 @@ void Layer::dump(String8& result, Colorizer& colorizer) const
             s.alpha, s.flags,
             s.active.transform[0][0], s.active.transform[0][1],
             s.active.transform[1][0], s.active.transform[1][1],
-            client.get());
+            client.get(), parent == nullptr ? "none" : parent->getName().string());
 
     sp<const GraphicBuffer> buf0(mActiveBuffer);
     uint32_t w0=0, h0=0, s0=0, f0=0;
