@@ -866,6 +866,15 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& display,
         return BAD_VALUE;
     }
 
+    ALOGD("HDR support on display: %p", displayDevice.get());
+    for (auto hdrtype : outCapabilities->getSupportedHdrTypes()) {
+        ALOGD(" HDR type: %d", hdrtype);
+    }
+    ALOGD(" HDR max luminance: %f", outCapabilities->getDesiredMaxLuminance());
+    ALOGD(" HDR max avg luminance: %f",
+          outCapabilities->getDesiredMaxAverageLuminance());
+    ALOGD(" HDR min luminance: %f", outCapabilities->getDesiredMinLuminance());
+
     std::unique_ptr<HdrCapabilities> capabilities =
             mHwc->getHdrCapabilities(displayDevice->getHwcDisplayId());
     if (capabilities) {
