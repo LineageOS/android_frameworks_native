@@ -55,6 +55,8 @@ public:
     explicit DispSync(const char* name);
     ~DispSync();
 
+    void init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset);
+
     // reset clears the resync samples and error value.
     void reset();
 
