@@ -126,8 +126,7 @@ static const std::string ZIP_ROOT_DIR = "FS";
 static const std::string kDumpstateBoardPath = "/bugreports/";
 static const std::string kDumpstateBoardFiles[] = {
     "dumpstate_board.txt",
-    // TODO: rename to dumpstate_board.bin once vendors can handle it
-    "modem_log_all.tar"
+    "dumpstate_board.bin"
 };
 static const int NUM_OF_DUMPS = arraysize(kDumpstateBoardFiles);
 
