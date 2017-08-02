@@ -1352,6 +1352,7 @@ enum VkColorSpaceKHR {
     VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT                      = 1000104011,
     VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT                   = 1000104012,
     VK_COLOR_SPACE_PASS_THROUGH_EXT                         = 1000104013,
+    VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT              = 1000104014,
 }
 
 @extension("VK_EXT_debug_report") // 12

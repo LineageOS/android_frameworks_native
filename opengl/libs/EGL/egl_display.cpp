@@ -30,6 +30,12 @@
 #include "Loader.h"
 #include <cutils/properties.h>
 
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <configstore/Utils.h>
+
+using namespace android::hardware::configstore;
+using namespace android::hardware::configstore::V1_0;
+
 // ----------------------------------------------------------------------------
 namespace android {
 // ----------------------------------------------------------------------------
@@ -192,6 +198,18 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
         mClientApiString = sClientApiString;
 
         mExtensionString = gBuiltinExtensionString;
+
+        bool wideColorBoardConfig =
+                getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(
+                        false);
+
+        // Add wide-color extensions if device can support wide-color
+        if (wideColorBoardConfig) {
+            mExtensionString.append(
+                    "EGL_EXT_gl_colorspace_scrgb EGL_EXT_gl_colorspace_scrgb_linear "
+                    "EGL_EXT_gl_colorspace_display_p3_linear EGL_EXT_gl_colorspace_display_p3 ");
+        }
+
         char const* start = gExtensionString;
         do {
             // length of the extension name
