@@ -94,9 +94,6 @@ int VirtualTouchpadEvdev::Touch(int touchpad_id, float x, float y,
   if (touchpad_id < 0 || touchpad_id >= kTouchpads) {
     return EINVAL;
   }
-  if ((x < 0.0f) || (x >= 1.0f) || (y < 0.0f) || (y >= 1.0f)) {
-    return EINVAL;
-  }
   int32_t device_x = x * kWidth;
   int32_t device_y = y * kHeight;
   Touchpad& touchpad = touchpad_[touchpad_id];
