@@ -385,6 +385,7 @@ void SurfaceFlinger::bootFinished()
 #ifdef USE_HWC2
         sp<DisplayDevice> hw(getDisplayDevice(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]));
         if (hw->getWideColorSupport()) {
+            hw->setCompositionDataSpace(HAL_DATASPACE_V0_SRGB);
             setActiveColorModeInternal(hw, HAL_COLOR_MODE_SRGB);
         }
 #endif
@@ -1224,6 +1225,7 @@ void SurfaceFlinger::createDefaultDisplayDevice() {
                                              hasWideColorModes && hasWideColorDisplay);
     mDisplays.add(token, hw);
     setActiveColorModeInternal(hw, HAL_COLOR_MODE_NATIVE);
+    hw->setCompositionDataSpace(HAL_DATASPACE_UNKNOWN);
 }
 
 void SurfaceFlinger::onHotplugReceived(HWComposer* composer, int32_t disp, bool connected) {
@@ -1873,6 +1875,7 @@ void SurfaceFlinger::setUpHWComposer() {
             // To achieve this we suppress color mode changes until after the boot animation
             if (mBootFinished) {
                 setActiveColorModeInternal(displayDevice, newColorMode);
+                displayDevice->setCompositionDataSpace(newDataSpace);
             }
         }
     }
