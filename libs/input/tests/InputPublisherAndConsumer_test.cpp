@@ -89,7 +89,8 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
 
     uint32_t consumeSeq;
     InputEvent* event;
-    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event,
+            0);
     ASSERT_EQ(OK, status)
             << "consumer consume should return OK";
 
@@ -132,6 +133,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     const uint32_t seq = 15;
     const int32_t deviceId = 1;
     const int32_t source = AINPUT_SOURCE_TOUCHSCREEN;
+    const int32_t displayId = 0;
     const int32_t action = AMOTION_EVENT_ACTION_MOVE;
     const int32_t actionButton = 0;
     const int32_t flags = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
@@ -164,7 +166,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 3.5 * i);
     }
 
-    status = mPublisher->publishMotionEvent(seq, deviceId, source, action, actionButton,
+    status = mPublisher->publishMotionEvent(seq, deviceId, source, displayId, action, actionButton,
             flags, edgeFlags, metaState, buttonState, xOffset, yOffset, xPrecision, yPrecision,
             downTime, eventTime, pointerCount,
             pointerProperties, pointerCoords);
@@ -173,7 +175,8 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
 
     uint32_t consumeSeq;
     InputEvent* event;
-    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event,
+            0);
     ASSERT_EQ(OK, status)
             << "consumer consume should return OK";
 
@@ -256,7 +259,7 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountLessTha
     PointerProperties pointerProperties[pointerCount];
     PointerCoords pointerCoords[pointerCount];
 
-    status = mPublisher->publishMotionEvent(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    status = mPublisher->publishMotionEvent(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
@@ -272,7 +275,7 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountGreater
         pointerCoords[i].clear();
     }
 
-    status = mPublisher->publishMotionEvent(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    status = mPublisher->publishMotionEvent(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";
