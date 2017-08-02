@@ -189,6 +189,7 @@ public:
 #ifdef USE_HWC2
     android_color_mode_t getActiveColorMode() const;
     void setActiveColorMode(android_color_mode_t mode);
+    void setCompositionDataSpace(android_dataspace dataspace);
 #endif
 
     /* ------------------------------------------------------------------------
