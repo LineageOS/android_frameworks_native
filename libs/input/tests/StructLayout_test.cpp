@@ -38,31 +38,33 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Key, eventTime, 8);
   CHECK_OFFSET(InputMessage::Body::Key, deviceId, 16);
   CHECK_OFFSET(InputMessage::Body::Key, source, 20);
-  CHECK_OFFSET(InputMessage::Body::Key, action, 24);
-  CHECK_OFFSET(InputMessage::Body::Key, flags, 28);
-  CHECK_OFFSET(InputMessage::Body::Key, keyCode, 32);
-  CHECK_OFFSET(InputMessage::Body::Key, scanCode, 36);
-  CHECK_OFFSET(InputMessage::Body::Key, metaState, 40);
-  CHECK_OFFSET(InputMessage::Body::Key, repeatCount, 44);
-  CHECK_OFFSET(InputMessage::Body::Key, downTime, 48);
+  CHECK_OFFSET(InputMessage::Body::Key, displayId, 24);
+  CHECK_OFFSET(InputMessage::Body::Key, action, 28);
+  CHECK_OFFSET(InputMessage::Body::Key, flags, 32);
+  CHECK_OFFSET(InputMessage::Body::Key, keyCode, 36);
+  CHECK_OFFSET(InputMessage::Body::Key, scanCode, 40);
+  CHECK_OFFSET(InputMessage::Body::Key, metaState, 44);
+  CHECK_OFFSET(InputMessage::Body::Key, repeatCount, 48);
+  CHECK_OFFSET(InputMessage::Body::Key, downTime, 56);
 
   CHECK_OFFSET(InputMessage::Body::Motion, seq, 0);
   CHECK_OFFSET(InputMessage::Body::Motion, eventTime, 8);
   CHECK_OFFSET(InputMessage::Body::Motion, deviceId, 16);
   CHECK_OFFSET(InputMessage::Body::Motion, source, 20);
-  CHECK_OFFSET(InputMessage::Body::Motion, action, 24);
-  CHECK_OFFSET(InputMessage::Body::Motion, actionButton, 28);
-  CHECK_OFFSET(InputMessage::Body::Motion, flags, 32);
-  CHECK_OFFSET(InputMessage::Body::Motion, metaState, 36);
-  CHECK_OFFSET(InputMessage::Body::Motion, buttonState, 40);
-  CHECK_OFFSET(InputMessage::Body::Motion, edgeFlags, 44);
-  CHECK_OFFSET(InputMessage::Body::Motion, downTime, 48);
-  CHECK_OFFSET(InputMessage::Body::Motion, xOffset, 56);
-  CHECK_OFFSET(InputMessage::Body::Motion, yOffset, 60);
-  CHECK_OFFSET(InputMessage::Body::Motion, xPrecision, 64);
-  CHECK_OFFSET(InputMessage::Body::Motion, yPrecision, 68);
-  CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 72);
-  CHECK_OFFSET(InputMessage::Body::Motion, pointers, 80);
+  CHECK_OFFSET(InputMessage::Body::Motion, displayId, 24);
+  CHECK_OFFSET(InputMessage::Body::Motion, action, 28);
+  CHECK_OFFSET(InputMessage::Body::Motion, actionButton, 32);
+  CHECK_OFFSET(InputMessage::Body::Motion, flags, 36);
+  CHECK_OFFSET(InputMessage::Body::Motion, metaState, 40);
+  CHECK_OFFSET(InputMessage::Body::Motion, buttonState, 44);
+  CHECK_OFFSET(InputMessage::Body::Motion, edgeFlags, 48);
+  CHECK_OFFSET(InputMessage::Body::Motion, downTime, 56);
+  CHECK_OFFSET(InputMessage::Body::Motion, xOffset, 64);
+  CHECK_OFFSET(InputMessage::Body::Motion, yOffset, 68);
+  CHECK_OFFSET(InputMessage::Body::Motion, xPrecision, 72);
+  CHECK_OFFSET(InputMessage::Body::Motion, yPrecision, 76);
+  CHECK_OFFSET(InputMessage::Body::Motion, pointerCount, 80);
+  CHECK_OFFSET(InputMessage::Body::Motion, pointers, 88);
 }
 
 } // namespace android
