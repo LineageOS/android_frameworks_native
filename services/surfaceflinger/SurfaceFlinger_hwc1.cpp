@@ -1361,8 +1361,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
             const Transform& tr(hw->getTransform());
             const Rect bounds(hw->getBounds());
             if (hw->isDisplayOn()) {
-                computeVisibleRegions(hw->getLayerStack(), dirtyRegion,
-                        opaqueRegion);
+                computeVisibleRegions(hw, dirtyRegion, opaqueRegion);
 
                 mDrawingState.traverseInZOrder([&](Layer* layer) {
                     if (layer->getLayerStack() == hw->getLayerStack()) {
@@ -1863,7 +1862,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 // TODO: we could cache the transformed region
                 Region visibleReg;
                 visibleReg.set(layer->computeScreenBounds());
-                invalidateLayerStack(layer->getLayerStack(), visibleReg);
+                invalidateLayerStack(layer, visibleReg);
             }
         });
     }
@@ -1924,7 +1923,7 @@ void SurfaceFlinger::commitTransaction()
     mTransactionCV.broadcast();
 }
 
-void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
+void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
         Region& outDirtyRegion, Region& outOpaqueRegion)
 {
     ATRACE_CALL();
@@ -1940,7 +1939,7 @@ void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
         const Layer::State& s(layer->getDrawingState());
 
         // only consider the layers on the given layer stack
-        if (layer->getLayerStack() != layerStack)
+        if (layer->getLayerStack() != displayDevice->getLayerStack())
             return;
 
         /*
@@ -2055,8 +2054,8 @@ void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
     outOpaqueRegion = aboveOpaqueLayers;
 }
 
-void SurfaceFlinger::invalidateLayerStack(uint32_t layerStack,
-        const Region& dirty) {
+void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty) {
+    uint32_t layerStack = layer->getLayerStack();
     for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
         const sp<DisplayDevice>& hw(mDisplays[dpy]);
         if (hw->getLayerStack() == layerStack) {
@@ -2099,7 +2098,7 @@ bool SurfaceFlinger::handlePageFlip()
         Layer* layer = layersWithQueuedFrames[i];
         const Region dirty(layer->latchBuffer(visibleRegions, latchTime));
         layer->useSurfaceDamage();
-        invalidateLayerStack(layer->getLayerStack(), dirty);
+        invalidateLayerStack(layer, dirty);
     }
 
     mVisibleRegionsDirty |= visibleRegions;
