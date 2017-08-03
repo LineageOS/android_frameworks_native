@@ -442,6 +442,11 @@ void DisplayDevice::setActiveColorMode(android_color_mode_t mode) {
 android_color_mode_t DisplayDevice::getActiveColorMode() const {
     return mActiveColorMode;
 }
+
+void DisplayDevice::setCompositionDataSpace(android_dataspace dataspace) {
+    ANativeWindow* const window = mNativeWindow.get();
+    native_window_set_buffers_data_space(window, dataspace);
+}
 #endif
 
 // ----------------------------------------------------------------------------

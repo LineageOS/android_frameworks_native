@@ -869,10 +869,7 @@ bool InputDispatcher::dispatchMotionLocked(
         return true;
     }
 
-    // TODO: support sending secondary display events to input monitors
-    if (isMainDisplay(entry->displayId)) {
-        addMonitoringTargetsLocked(inputTargets);
-    }
+    addMonitoringTargetsLocked(inputTargets);
 
     // Dispatch the motion.
     if (conflictingPointerActions) {
@@ -2026,7 +2023,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
 
             // Publish the motion event.
             status = connection->inputPublisher.publishMotionEvent(dispatchEntry->seq,
-                    motionEntry->deviceId, motionEntry->source,
+                    motionEntry->deviceId, motionEntry->source, motionEntry->displayId,
                     dispatchEntry->resolvedAction, motionEntry->actionButton,
                     dispatchEntry->resolvedFlags, motionEntry->edgeFlags,
                     motionEntry->metaState, motionEntry->buttonState,
@@ -2600,8 +2597,9 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t displ
         uint32_t policyFlags) {
 #if DEBUG_INBOUND_EVENT_DETAILS
     ALOGD("injectInputEvent - eventType=%d, injectorPid=%d, injectorUid=%d, "
-            "syncMode=%d, timeoutMillis=%d, policyFlags=0x%08x",
-            event->getType(), injectorPid, injectorUid, syncMode, timeoutMillis, policyFlags);
+            "syncMode=%d, timeoutMillis=%d, policyFlags=0x%08x, displayId=%d",
+            event->getType(), injectorPid, injectorUid, syncMode, timeoutMillis, policyFlags,
+            displayId);
 #endif
 
     nsecs_t endTime = now() + milliseconds_to_nanoseconds(timeoutMillis);

@@ -106,12 +106,6 @@ status_t FramebufferSurface::advanceFrame() {
     if (result != NO_ERROR) {
         ALOGE("error latching next FramebufferSurface buffer: %s (%d)",
                 strerror(-result), result);
-        return result;
-    }
-    result = mHwc.setClientTarget(mDisplayType, slot,
-            acquireFence, buf, dataspace);
-    if (result != NO_ERROR) {
-        ALOGE("error posting framebuffer: %d", result);
     }
     return result;
 #else
@@ -182,7 +176,13 @@ status_t FramebufferSurface::nextBuffer(sp<GraphicBuffer>& outBuffer, sp<Fence>&
 #else
     outBuffer = mCurrentBuffer;
 #endif
-    return NO_ERROR;
+    status_t result =
+            mHwc.setClientTarget(mDisplayType, outSlot, outFence, outBuffer, outDataspace);
+    if (result != NO_ERROR) {
+        ALOGE("error posting framebuffer: %d", result);
+    }
+
+    return result;
 }
 
 #ifndef USE_HWC2
