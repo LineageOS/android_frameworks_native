@@ -494,7 +494,7 @@ private:
 
     // mark a region of a layer stack dirty. this updates the dirty
     // region of all screens presenting this layer stack.
-    void invalidateLayerStack(uint32_t layerStack, const Region& dirty);
+    void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
 
 #ifndef USE_HWC2
     int32_t allocateHwcDisplayId(DisplayDevice::DisplayType type);
@@ -510,7 +510,7 @@ private:
      * Compositing
      */
     void invalidateHwcGeometry();
-    void computeVisibleRegions(uint32_t layerStack,
+    void computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
             Region& dirtyRegion, Region& opaqueRegion);
 
     void preComposition(nsecs_t refreshStartTime);
