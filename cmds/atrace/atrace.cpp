@@ -481,8 +481,8 @@ static bool setClock()
         newClock = "global";
     }
 
-    size_t begin = clockStr.find("[") + 1;
-    size_t end = clockStr.find("]");
+    size_t begin = clockStr.find('[') + 1;
+    size_t end = clockStr.find(']');
     if (newClock.compare(0, std::string::npos, clockStr, begin, end-begin) == 0) {
         return true;
     }
@@ -543,7 +543,7 @@ static void pokeHalServices()
     auto listRet = sm->list([&](const auto &interfaces) {
         for (size_t i = 0; i < interfaces.size(); i++) {
             string fqInstanceName = interfaces[i];
-            string::size_type n = fqInstanceName.find("/");
+            string::size_type n = fqInstanceName.find('/');
             if (n == std::string::npos || interfaces[i].size() == n+1)
                 continue;
             hidl_string fqInterfaceName = fqInstanceName.substr(0, n);
