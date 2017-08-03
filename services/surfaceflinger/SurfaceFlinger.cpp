@@ -1684,12 +1684,11 @@ void SurfaceFlinger::rebuildLayerStacks() {
             const Transform& tr(displayDevice->getTransform());
             const Rect bounds(displayDevice->getBounds());
             if (displayDevice->isDisplayOn()) {
-                computeVisibleRegions(
-                        displayDevice->getLayerStack(), dirtyRegion,
-                        opaqueRegion);
+                computeVisibleRegions(displayDevice, dirtyRegion, opaqueRegion);
 
                 mDrawingState.traverseInZOrder([&](Layer* layer) {
-                    if (layer->getLayerStack() == displayDevice->getLayerStack()) {
+                    if (layer->belongsToDisplay(displayDevice->getLayerStack(),
+                                displayDevice->isPrimary())) {
                         Region drawRegion(tr.transform(
                                 layer->visibleNonTransparentRegion));
                         drawRegion.andSelf(bounds);
@@ -2211,7 +2210,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 disp.clear();
                 for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
                     sp<const DisplayDevice> hw(mDisplays[dpy]);
-                    if (hw->getLayerStack() == currentlayerStack) {
+                    if (layer->belongsToDisplay(hw->getLayerStack(), hw->isPrimary())) {
                         if (disp == NULL) {
                             disp = hw;
                         } else {
@@ -2260,7 +2259,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 // TODO: we could cache the transformed region
                 Region visibleReg;
                 visibleReg.set(layer->computeScreenBounds());
-                invalidateLayerStack(layer->getLayerStack(), visibleReg);
+                invalidateLayerStack(layer, visibleReg);
             }
         });
     }
@@ -2309,7 +2308,7 @@ void SurfaceFlinger::commitTransaction()
     mTransactionCV.broadcast();
 }
 
-void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
+void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
         Region& outDirtyRegion, Region& outOpaqueRegion)
 {
     ATRACE_CALL();
@@ -2326,7 +2325,7 @@ void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
         const Layer::State& s(layer->getDrawingState());
 
         // only consider the layers on the given layer stack
-        if (layer->getLayerStack() != layerStack)
+        if (!layer->belongsToDisplay(displayDevice->getLayerStack(), displayDevice->isPrimary()))
             return;
 
         /*
@@ -2441,11 +2440,10 @@ void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
     outOpaqueRegion = aboveOpaqueLayers;
 }
 
-void SurfaceFlinger::invalidateLayerStack(uint32_t layerStack,
-        const Region& dirty) {
+void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty) {
     for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
         const sp<DisplayDevice>& hw(mDisplays[dpy]);
-        if (hw->getLayerStack() == layerStack) {
+        if (layer->belongsToDisplay(hw->getLayerStack(), hw->isPrimary())) {
             hw->dirtyRegion.orSelf(dirty);
         }
     }
@@ -2486,7 +2484,7 @@ bool SurfaceFlinger::handlePageFlip()
     for (auto& layer : mLayersWithQueuedFrames) {
         const Region dirty(layer->latchBuffer(visibleRegions, latchTime));
         layer->useSurfaceDamage();
-        invalidateLayerStack(layer->getLayerStack(), dirty);
+        invalidateLayerStack(layer, dirty);
         if (layer->isBufferLatched()) {
             newDataLatched = true;
         }
@@ -3106,6 +3104,13 @@ status_t SurfaceFlinger::createLayer(
 
     if (result != NO_ERROR) {
         return result;
+    }
+
+    // window type is WINDOW_TYPE_DONT_SCREENSHOT from SurfaceControl.java
+    // TODO b/64227542
+    if (windowType == 441731) {
+        windowType = 2024; // TYPE_NAVIGATION_BAR_PANEL
+        layer->setPrimaryDisplayOnly();
     }
 
     layer->setInfo(windowType, ownerUid);
@@ -4335,7 +4340,7 @@ void SurfaceFlinger::renderScreenImplLocked(
     // We loop through the first level of layers without traversing,
     // as we need to interpret min/max layer Z in the top level Z space.
     for (const auto& layer : mDrawingState.layersSortedByZ) {
-        if (layer->getLayerStack() != hw->getLayerStack()) {
+        if (!layer->belongsToDisplay(hw->getLayerStack(), false)) {
             continue;
         }
         const Layer::State& state(layer->getDrawingState());
@@ -4387,7 +4392,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const sp<const DisplayDevice>& 
     bool secureLayerIsVisible = false;
     for (const auto& layer : mDrawingState.layersSortedByZ) {
         const Layer::State& state(layer->getDrawingState());
-        if ((layer->getLayerStack() != hw->getLayerStack()) ||
+        if (layer->belongsToDisplay(hw->getLayerStack(), false) ||
                 (state.z < minLayerZ || state.z > maxLayerZ)) {
             continue;
         }
@@ -4498,7 +4503,7 @@ void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* v
         size_t i = 0;
         for (const auto& layer : mDrawingState.layersSortedByZ) {
             const Layer::State& state(layer->getDrawingState());
-            if (layer->getLayerStack() == hw->getLayerStack() && state.z >= minLayerZ &&
+            if (layer->belongsToDisplay(hw->getLayerStack(), false) && state.z >= minLayerZ &&
                     state.z <= maxLayerZ) {
                 layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
                     ALOGE("%c index=%zu, name=%s, layerStack=%d, z=%d, visible=%d, flags=%x, alpha=%.3f",
