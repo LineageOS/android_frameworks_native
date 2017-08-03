@@ -174,6 +174,7 @@ status_t FramebufferSurface::nextBuffer(sp<GraphicBuffer>& outBuffer, sp<Fence>&
 #ifdef USE_HWC2
     mHwcBufferCache.getHwcBuffer(mCurrentBufferSlot, mCurrentBuffer,
             &outSlot, &outBuffer);
+    outDataspace = item.mDataSpace;
     status_t result =
             mHwc.setClientTarget(mDisplayType, outSlot, outFence, outBuffer, outDataspace);
     if (result != NO_ERROR) {
@@ -183,6 +184,7 @@ status_t FramebufferSurface::nextBuffer(sp<GraphicBuffer>& outBuffer, sp<Fence>&
 #else
     outBuffer = mCurrentBuffer;
 #endif
+
     return NO_ERROR;
 }
 
