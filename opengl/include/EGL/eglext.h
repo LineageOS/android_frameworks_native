@@ -682,6 +682,11 @@ typedef EGLBoolean (EGLAPIENTRYP PFNEGLGETFRAMETIMESTAMPSUPPORTEDANDROID) (EGLDi
 #define EGL_GL_COLORSPACE_DISPLAY_P3_LINEAR_EXT 0x3362
 #endif /* EGL_EXT_gl_colorspace_display_p3_linear */
 
+#ifndef EGL_EXT_gl_colorspace_scrgb
+#define EGL_EXT_gl_colorspace_scrgb 1
+#define EGL_GL_COLORSPACE_SCRGB_EXT       0x3351
+#endif /* EGL_EXT_gl_colorspace_scrgb */
+
 #ifndef EGL_EXT_gl_colorspace_scrgb_linear
 #define EGL_EXT_gl_colorspace_scrgb_linear 1
 #define EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT 0x3350
