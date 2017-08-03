@@ -194,6 +194,7 @@ std::shared_ptr<ConsumerQueue> ApplicationDisplaySurface::GetQueue(
            "ApplicationDisplaySurface::GetQueue: surface_id=%d queue_id=%d",
            surface_id(), queue_id);
 
+  std::lock_guard<std::mutex> autolock(lock_);
   auto search = consumer_queues_.find(queue_id);
   if (search != consumer_queues_.end())
     return search->second;
@@ -202,6 +203,7 @@ std::shared_ptr<ConsumerQueue> ApplicationDisplaySurface::GetQueue(
 }
 
 std::vector<int32_t> ApplicationDisplaySurface::GetQueueIds() const {
+  std::lock_guard<std::mutex> autolock(lock_);
   std::vector<int32_t> queue_ids;
   for (const auto& entry : consumer_queues_)
     queue_ids.push_back(entry.first);
@@ -270,6 +272,7 @@ void ApplicationDisplaySurface::OnQueueEvent(
 }
 
 std::vector<int32_t> DirectDisplaySurface::GetQueueIds() const {
+  std::lock_guard<std::mutex> autolock(lock_);
   std::vector<int32_t> queue_ids;
   if (direct_queue_)
     queue_ids.push_back(direct_queue_->id());
