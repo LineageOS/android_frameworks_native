@@ -133,6 +133,7 @@ class ApplicationDisplaySurface : public DisplaySurface {
   void OnQueueEvent(const std::shared_ptr<ConsumerQueue>& consumer_queue,
                     int events) override;
 
+  // Accessed by both message dispatch thread and epoll event thread.
   std::unordered_map<int32_t, std::shared_ptr<ConsumerQueue>> consumer_queues_;
 };
 
