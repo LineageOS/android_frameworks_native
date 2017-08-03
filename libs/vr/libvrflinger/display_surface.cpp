@@ -301,6 +301,9 @@ Status<LocalChannelHandle> DirectDisplaySurface::OnCreateQueue(
     }
 
     direct_queue_ = producer->CreateConsumerQueue();
+    if (direct_queue_->metadata_size() > 0) {
+      metadata_.reset(new uint8_t[direct_queue_->metadata_size()]);
+    }
     auto status = RegisterQueue(direct_queue_);
     if (!status) {
       ALOGE(
@@ -345,7 +348,12 @@ void DirectDisplaySurface::DequeueBuffersLocked() {
   while (true) {
     LocalHandle acquire_fence;
     size_t slot;
-    auto buffer_status = direct_queue_->Dequeue(0, &slot, &acquire_fence);
+    auto buffer_status = direct_queue_->Dequeue(
+        0, &slot, metadata_.get(),
+        direct_queue_->metadata_size(), &acquire_fence);
+    ALOGD_IF(TRACE,
+             "DirectDisplaySurface::DequeueBuffersLocked: Dequeue with metadata_size: %zu",
+             direct_queue_->metadata_size());
     if (!buffer_status) {
       ALOGD_IF(
           TRACE > 1 && buffer_status.error() == ETIMEDOUT,
