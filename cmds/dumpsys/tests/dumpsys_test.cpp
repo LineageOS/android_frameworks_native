@@ -95,7 +95,7 @@ MATCHER_P(AndroidElementsAre, expected, "") {
     }
     int i = 0;
     std::ostringstream actual_stream, expected_stream;
-    for (String16 actual : arg) {
+    for (const String16& actual : arg) {
         std::string actual_str = String8(actual).c_str();
         std::string expected_str = expected[i];
         actual_stream << "'" << actual_str << "' ";
