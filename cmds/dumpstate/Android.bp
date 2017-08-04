@@ -42,6 +42,9 @@ cc_library_shared {
     name: "libdumpstateutil",
     defaults: ["dumpstate_defaults"],
     vendor_available: true,
+    vndk: {
+        enabled: true,
+    },
     header_libs: ["dumpstate_headers"],
     export_header_lib_headers: ["dumpstate_headers"],
     srcs: [
