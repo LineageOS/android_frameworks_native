@@ -613,6 +613,12 @@ Status<size_t> ConsumerQueue::ImportBuffers() {
 
     std::unique_ptr<BufferConsumer> buffer_consumer =
         BufferConsumer::Import(std::move(buffer_handle_slot.first));
+    if (!buffer_consumer) {
+      ALOGE("ConsumerQueue::ImportBuffers: Failed to import buffer: slot=%zu",
+            buffer_handle_slot.second);
+      last_error = ErrorStatus(EPIPE);
+      continue;
+    }
 
     // Setup ignore state before adding buffer to the queue.
     if (ignore_on_import_) {

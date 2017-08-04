@@ -166,6 +166,8 @@ public:
 
     virtual ~Layer();
 
+    void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
+
     // the this layer's size and format
     status_t setBuffers(uint32_t w, uint32_t h, PixelFormat format, uint32_t flags);
 
@@ -248,6 +250,10 @@ public:
 
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t setTransactionFlags(uint32_t flags);
+
+    bool belongsToDisplay(uint32_t layerStack, bool isPrimaryDisplay) const {
+        return getLayerStack() == layerStack && (!mPrimaryDisplayOnly || isPrimaryDisplay);
+    }
 
     void computeGeometry(const sp<const DisplayDevice>& hw, Mesh& mesh,
             bool useIdentityTransform) const;
@@ -700,6 +706,8 @@ private:
     String8 mName;
     String8 mTransactionName; // A cached version of "TX - " + mName for systraces
     PixelFormat mFormat;
+
+    bool mPrimaryDisplayOnly = false;
 
     // these are protected by an external lock
     State mCurrentState;
