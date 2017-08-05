@@ -508,6 +508,44 @@ TEST_F(BufferHubQueueProducerTest,
   ASSERT_EQ(NO_INIT, mProducer->cancelBuffer(slot, Fence::NO_FENCE));
 }
 
+TEST_F(BufferHubQueueProducerTest, ConnectDisconnectReconnect) {
+  int slot = -1;
+  sp<GraphicBuffer> buffer;
+  IGraphicBufferProducer::QueueBufferInput input = CreateBufferInput();
+  IGraphicBufferProducer::QueueBufferOutput output;
+
+  EXPECT_NO_FATAL_FAILURE(ConnectProducer());
+
+  constexpr int maxDequeuedBuffers = 1;
+  int minUndequeuedBuffers;
+  EXPECT_EQ(NO_ERROR, mProducer->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
+                                       &minUndequeuedBuffers));
+  EXPECT_EQ(NO_ERROR, mProducer->setAsyncMode(false));
+  EXPECT_EQ(NO_ERROR, mProducer->setMaxDequeuedBufferCount(maxDequeuedBuffers));
+
+  int maxCapacity = maxDequeuedBuffers + minUndequeuedBuffers;
+
+  // Dequeue, request, and queue all buffers.
+  for (int i = 0; i < maxCapacity; i++) {
+    EXPECT_NO_FATAL_FAILURE(DequeueBuffer(&slot));
+    EXPECT_EQ(NO_ERROR, mProducer->requestBuffer(slot, &buffer));
+    EXPECT_EQ(NO_ERROR, mProducer->queueBuffer(slot, input, &output));
+  }
+
+  // Disconnect then reconnect.
+  EXPECT_EQ(NO_ERROR, mProducer->disconnect(kTestApi));
+  EXPECT_NO_FATAL_FAILURE(ConnectProducer());
+
+  // Dequeue, request, and queue all buffers.
+  for (int i = 0; i < maxCapacity; i++) {
+    EXPECT_NO_FATAL_FAILURE(DequeueBuffer(&slot));
+    EXPECT_EQ(NO_ERROR, mProducer->requestBuffer(slot, &buffer));
+    EXPECT_EQ(NO_ERROR, mProducer->queueBuffer(slot, input, &output));
+  }
+
+  EXPECT_EQ(NO_ERROR, mProducer->disconnect(kTestApi));
+}
+
 }  // namespace
 
 }  // namespace dvr

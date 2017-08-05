@@ -570,6 +570,103 @@ TEST_F(BufferHubQueueTest, TestQueueInfo) {
   EXPECT_EQ(consumer_queue_->is_async(), kIsAsync);
 }
 
+TEST_F(BufferHubQueueTest, TestFreeAllBuffers) {
+  constexpr size_t kBufferCount = 2;
+
+#define CHECK_NO_BUFFER_THEN_ALLOCATE(num_buffers)  \
+  EXPECT_EQ(consumer_queue_->count(), 0U);          \
+  EXPECT_EQ(consumer_queue_->capacity(), 0U);       \
+  EXPECT_EQ(producer_queue_->count(), 0U);          \
+  EXPECT_EQ(producer_queue_->capacity(), 0U);       \
+  for (size_t i = 0; i < num_buffers; i++) {        \
+    AllocateBuffer();                               \
+  }                                                 \
+  EXPECT_EQ(producer_queue_->count(), num_buffers); \
+  EXPECT_EQ(producer_queue_->capacity(), num_buffers);
+
+  size_t slot;
+  uint64_t seq;
+  LocalHandle fence;
+  pdx::Status<void> status;
+  pdx::Status<std::shared_ptr<BufferConsumer>> consumer_status;
+  pdx::Status<std::shared_ptr<BufferProducer>> producer_status;
+  std::shared_ptr<BufferConsumer> consumer_buffer;
+  std::shared_ptr<BufferProducer> producer_buffer;
+
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<uint64_t>().Build(),
+                           UsagePolicy{}));
+
+  // Free all buffers when buffers are avaible for dequeue.
+  CHECK_NO_BUFFER_THEN_ALLOCATE(kBufferCount);
+  status = producer_queue_->FreeAllBuffers();
+  EXPECT_TRUE(status.ok());
+
+  // Free all buffers when one buffer is dequeued.
+  CHECK_NO_BUFFER_THEN_ALLOCATE(kBufferCount);
+  producer_status = producer_queue_->Dequeue(0, &slot, &fence);
+  ASSERT_TRUE(producer_status.ok());
+  status = producer_queue_->FreeAllBuffers();
+  EXPECT_TRUE(status.ok());
+
+  // Free all buffers when all buffers are dequeued.
+  CHECK_NO_BUFFER_THEN_ALLOCATE(kBufferCount);
+  for (size_t i = 0; i < kBufferCount; i++) {
+    producer_status = producer_queue_->Dequeue(0, &slot, &fence);
+    ASSERT_TRUE(producer_status.ok());
+  }
+  status = producer_queue_->FreeAllBuffers();
+  EXPECT_TRUE(status.ok());
+
+  // Free all buffers when one buffer is posted.
+  CHECK_NO_BUFFER_THEN_ALLOCATE(kBufferCount);
+  producer_status = producer_queue_->Dequeue(0, &slot, &fence);
+  ASSERT_TRUE(producer_status.ok());
+  producer_buffer = producer_status.take();
+  ASSERT_NE(nullptr, producer_buffer);
+  ASSERT_EQ(0, producer_buffer->Post(fence, &seq, sizeof(seq)));
+  status = producer_queue_->FreeAllBuffers();
+  EXPECT_TRUE(status.ok());
+
+  // Free all buffers when all buffers are posted.
+  CHECK_NO_BUFFER_THEN_ALLOCATE(kBufferCount);
+  for (size_t i = 0; i < kBufferCount; i++) {
+    producer_status = producer_queue_->Dequeue(0, &slot, &fence);
+    ASSERT_TRUE(producer_status.ok());
+    producer_buffer = producer_status.take();
+    ASSERT_NE(nullptr, producer_buffer);
+    ASSERT_EQ(0, producer_buffer->Post(fence, &seq, sizeof(seq)));
+  }
+  status = producer_queue_->FreeAllBuffers();
+  EXPECT_TRUE(status.ok());
+
+  // Free all buffers when all buffers are acquired.
+  CHECK_NO_BUFFER_THEN_ALLOCATE(kBufferCount);
+  for (size_t i = 0; i < kBufferCount; i++) {
+    producer_status = producer_queue_->Dequeue(0, &slot, &fence);
+    ASSERT_TRUE(producer_status.ok());
+    producer_buffer = producer_status.take();
+    ASSERT_NE(nullptr, producer_buffer);
+    ASSERT_EQ(0, producer_buffer->Post(fence, &seq, sizeof(seq)));
+    consumer_status = consumer_queue_->Dequeue(0, &slot, &seq, &fence);
+    ASSERT_TRUE(consumer_status.ok());
+  }
+
+  status = producer_queue_->FreeAllBuffers();
+  EXPECT_TRUE(status.ok());
+
+  // In addition to FreeAllBuffers() from the queue, it is also required to
+  // delete all references to the ProducerBuffer (i.e. the PDX client).
+  producer_buffer = nullptr;
+
+  // Crank consumer queue events to pickup EPOLLHUP events on the queue.
+  consumer_queue_->HandleQueueEvents();
+
+  // One last check.
+  CHECK_NO_BUFFER_THEN_ALLOCATE(kBufferCount);
+
+#undef CHECK_NO_BUFFER_THEN_ALLOCATE
+}
+
 }  // namespace
 
 }  // namespace dvr
