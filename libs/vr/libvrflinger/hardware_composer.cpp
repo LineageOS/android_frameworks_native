@@ -821,8 +821,9 @@ void HardwareComposer::PostThread() {
       std::unique_lock<std::mutex> lock(post_thread_mutex_);
       ALOGI("HardwareComposer::PostThread: Entering quiescent state.");
 
-      // Tear down resources.
-      OnPostThreadPaused();
+      // Tear down resources if necessary.
+      if (was_running)
+        OnPostThreadPaused();
 
       was_running = false;
       post_thread_resumed_ = false;
