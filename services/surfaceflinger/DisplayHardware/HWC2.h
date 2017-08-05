@@ -63,10 +63,9 @@ typedef std::function<void(std::shared_ptr<Display>, nsecs_t)> VsyncCallback;
 class Device
 {
 public:
-    // useVrComposer is passed to the composer HAL. When true, the composer HAL
-    // will use the vr composer service, otherwise it uses the real hardware
-    // composer.
-    Device(bool useVrComposer);
+    // Service name is expected to be 'default' or 'vr' for normal use.
+    // 'vr' will slightly modify the behavior of the mComposer.
+    Device(const std::string& serviceName);
     ~Device();
 
     friend class HWC2::Display;

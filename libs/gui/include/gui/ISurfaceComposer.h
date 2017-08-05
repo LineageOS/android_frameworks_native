@@ -39,6 +39,7 @@ struct ComposerState;
 struct DisplayState;
 struct DisplayInfo;
 struct DisplayStatInfo;
+class LayerDebugInfo;
 class HdrCapabilities;
 class IDisplayEventConnection;
 class IGraphicBufferProducer;
@@ -195,6 +196,12 @@ public:
     virtual status_t enableVSyncInjections(bool enable) = 0;
 
     virtual status_t injectVSync(nsecs_t when) = 0;
+
+    /* Gets the list of active layers in Z order for debugging purposes
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -229,6 +236,7 @@ public:
         SET_ACTIVE_COLOR_MODE,
         ENABLE_VSYNC_INJECTIONS,
         INJECT_VSYNC,
+        GET_LAYER_DEBUG_INFO,
         CREATE_SCOPED_CONNECTION
     };
 
