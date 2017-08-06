@@ -1,0 +1,35 @@
+cc_test {
+    name: "sffakehwc_test",
+    srcs: [
+         "FakeComposerClient.cpp",
+         "FakeComposerService.cpp",
+         "FakeComposerUtils.cpp",
+         "SFFakeHwc_test.cpp"
+    ],
+    shared_libs: [
+        "libcutils",
+        "libutils",
+        "libbinder",
+        "libui",
+        "libgui",
+        "liblog",
+        "libnativewindow",
+        "android.hardware.graphics.composer@2.1",
+        "android.hardware.graphics.mapper@2.0",
+        "libhwbinder",
+        "libhardware",
+        "libhidlbase",
+        "libsync",
+        "libfmq",
+        "libbase",
+        "libhidltransport"
+    ],
+    static_libs: [
+        "libhwcomposer-client",
+        "libsurfaceflingerincludes",
+        "libtrace_proto",
+        "libgmock"
+    ],
+    tags: ["tests"],
+    test_suites: ["device-tests"]
+}

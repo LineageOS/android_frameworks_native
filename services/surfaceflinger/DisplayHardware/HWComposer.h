@@ -75,10 +75,9 @@ public:
         virtual ~EventHandler() {}
     };
 
-    // useVrComposer is passed to the composer HAL. When true, the composer HAL
-    // will use the vr composer service, otherwise it uses the real hardware
-    // composer.
-    HWComposer(bool useVrComposer);
+    // Uses the named composer service. Valid choices for normal use
+    // are 'default' and 'vr'.
+    HWComposer(const std::string& serviceName);
 
     ~HWComposer();
 
@@ -170,7 +169,7 @@ public:
 private:
     static const int32_t VIRTUAL_DISPLAY_ID_BASE = 2;
 
-    void loadHwcModule(bool useVrComposer);
+    void loadHwcModule(const std::string& serviceName);
 
     bool isValidDisplay(int32_t displayId) const;
     static void validateChange(HWC2::Composition from, HWC2::Composition to);

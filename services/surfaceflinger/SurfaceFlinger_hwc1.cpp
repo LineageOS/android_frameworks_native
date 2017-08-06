@@ -41,6 +41,7 @@
 #include <gui/BufferQueue.h>
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
+#include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 
 #include <ui/GraphicBufferAllocator.h>
@@ -931,6 +932,34 @@ status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    if ((uid != AID_SHELL) &&
+            !PermissionCache::checkPermission(sDump, pid, uid)) {
+        ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
+        return PERMISSION_DENIED;
+    }
+
+    // Try to acquire a lock for 1s, fail gracefully
+    status_t err = mStateLock.timedLock(s2ns(1));
+    bool locked = (err == NO_ERROR);
+    if (!locked) {
+        ALOGE("LayerDebugInfo: SurfaceFlinger unresponsive (%s [%d]) - exit", strerror(-err), err);
+        return TIMED_OUT;
+    }
+
+    outLayers->clear();
+    mCurrentState.traverseInZOrder([&](Layer* layer) {
+            outLayers->push_back(layer->getLayerDebugInfo());
+        });
+
+    mStateLock.unlock();
+
+    return NO_ERROR;
+}
+
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -1361,8 +1390,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
             const Transform& tr(hw->getTransform());
             const Rect bounds(hw->getBounds());
             if (hw->isDisplayOn()) {
-                computeVisibleRegions(hw->getLayerStack(), dirtyRegion,
-                        opaqueRegion);
+                computeVisibleRegions(hw, dirtyRegion, opaqueRegion);
 
                 mDrawingState.traverseInZOrder([&](Layer* layer) {
                     if (layer->getLayerStack() == hw->getLayerStack()) {
@@ -1863,7 +1891,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 // TODO: we could cache the transformed region
                 Region visibleReg;
                 visibleReg.set(layer->computeScreenBounds());
-                invalidateLayerStack(layer->getLayerStack(), visibleReg);
+                invalidateLayerStack(layer, visibleReg);
             }
         });
     }
@@ -1924,7 +1952,7 @@ void SurfaceFlinger::commitTransaction()
     mTransactionCV.broadcast();
 }
 
-void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
+void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
         Region& outDirtyRegion, Region& outOpaqueRegion)
 {
     ATRACE_CALL();
@@ -1940,7 +1968,7 @@ void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
         const Layer::State& s(layer->getDrawingState());
 
         // only consider the layers on the given layer stack
-        if (layer->getLayerStack() != layerStack)
+        if (layer->getLayerStack() != displayDevice->getLayerStack())
             return;
 
         /*
@@ -2055,8 +2083,8 @@ void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
     outOpaqueRegion = aboveOpaqueLayers;
 }
 
-void SurfaceFlinger::invalidateLayerStack(uint32_t layerStack,
-        const Region& dirty) {
+void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty) {
+    uint32_t layerStack = layer->getLayerStack();
     for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
         const sp<DisplayDevice>& hw(mDisplays[dpy]);
         if (hw->getLayerStack() == layerStack) {
@@ -2099,7 +2127,7 @@ bool SurfaceFlinger::handlePageFlip()
         Layer* layer = layersWithQueuedFrames[i];
         const Region dirty(layer->latchBuffer(visibleRegions, latchTime));
         layer->useSurfaceDamage();
-        invalidateLayerStack(layer->getLayerStack(), dirty);
+        invalidateLayerStack(layer, dirty);
     }
 
     mVisibleRegionsDirty |= visibleRegions;
@@ -3262,7 +3290,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.appendFormat("Visible layers (count = %zu)\n", mNumLayers);
     colorizer.reset(result);
     mCurrentState.traverseInZOrder([&](Layer* layer) {
-        layer->dump(result, colorizer);
+        result.append(to_string(layer->getLayerDebugInfo()).c_str());
     });
 
     /*

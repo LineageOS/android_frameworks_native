@@ -194,6 +194,7 @@ std::shared_ptr<ConsumerQueue> ApplicationDisplaySurface::GetQueue(
            "ApplicationDisplaySurface::GetQueue: surface_id=%d queue_id=%d",
            surface_id(), queue_id);
 
+  std::lock_guard<std::mutex> autolock(lock_);
   auto search = consumer_queues_.find(queue_id);
   if (search != consumer_queues_.end())
     return search->second;
@@ -202,6 +203,7 @@ std::shared_ptr<ConsumerQueue> ApplicationDisplaySurface::GetQueue(
 }
 
 std::vector<int32_t> ApplicationDisplaySurface::GetQueueIds() const {
+  std::lock_guard<std::mutex> autolock(lock_);
   std::vector<int32_t> queue_ids;
   for (const auto& entry : consumer_queues_)
     queue_ids.push_back(entry.first);
@@ -270,6 +272,7 @@ void ApplicationDisplaySurface::OnQueueEvent(
 }
 
 std::vector<int32_t> DirectDisplaySurface::GetQueueIds() const {
+  std::lock_guard<std::mutex> autolock(lock_);
   std::vector<int32_t> queue_ids;
   if (direct_queue_)
     queue_ids.push_back(direct_queue_->id());
@@ -298,6 +301,9 @@ Status<LocalChannelHandle> DirectDisplaySurface::OnCreateQueue(
     }
 
     direct_queue_ = producer->CreateConsumerQueue();
+    if (direct_queue_->metadata_size() > 0) {
+      metadata_.reset(new uint8_t[direct_queue_->metadata_size()]);
+    }
     auto status = RegisterQueue(direct_queue_);
     if (!status) {
       ALOGE(
@@ -342,7 +348,12 @@ void DirectDisplaySurface::DequeueBuffersLocked() {
   while (true) {
     LocalHandle acquire_fence;
     size_t slot;
-    auto buffer_status = direct_queue_->Dequeue(0, &slot, &acquire_fence);
+    auto buffer_status = direct_queue_->Dequeue(
+        0, &slot, metadata_.get(),
+        direct_queue_->metadata_size(), &acquire_fence);
+    ALOGD_IF(TRACE,
+             "DirectDisplaySurface::DequeueBuffersLocked: Dequeue with metadata_size: %zu",
+             direct_queue_->metadata_size());
     if (!buffer_status) {
       ALOGD_IF(
           TRACE > 1 && buffer_status.error() == ETIMEDOUT,

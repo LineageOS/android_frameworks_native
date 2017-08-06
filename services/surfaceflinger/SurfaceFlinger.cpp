@@ -46,6 +46,7 @@
 #include <gui/BufferQueue.h>
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
+#include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 
 #include <ui/GraphicBufferAllocator.h>
@@ -123,6 +124,21 @@ bool SurfaceFlinger::useVrFlinger;
 int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
 bool SurfaceFlinger::hasWideColorDisplay;
 
+
+std::string getHwcServiceName() {
+    char value[PROPERTY_VALUE_MAX] = {};
+    property_get("debug.sf.hwc_service_name", value, "default");
+    ALOGI("Using HWComposer service: '%s'", value);
+    return std::string(value);
+}
+
+bool useTrebleTestingOverride() {
+    char value[PROPERTY_VALUE_MAX] = {};
+    property_get("debug.sf.treble_testing_override", value, "false");
+    ALOGI("Treble testing override: '%s'", value);
+    return std::string(value) == "true";
+}
+
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
         mTransactionFlags(0),
@@ -134,6 +150,7 @@ SurfaceFlinger::SurfaceFlinger()
         mHwc(nullptr),
         mRealHwc(nullptr),
         mVrHwc(nullptr),
+        mHwcServiceName(getHwcServiceName()),
         mRenderEngine(nullptr),
         mBootTime(systemTime()),
         mBuiltinDisplays(),
@@ -233,6 +250,15 @@ SurfaceFlinger::SurfaceFlinger()
     // but since /data may be encrypted, we need to wait until after vold
     // comes online to attempt to read the property. The property is
     // instead read after the boot animation
+
+    if (useTrebleTestingOverride()) {
+        // Without the override SurfaceFlinger cannot connect to HIDL
+        // services that are not listed in the manifests.  Considered
+        // deriving the setting from the set service name, but it
+        // would be brittle if the name that's not 'default' is used
+        // for production purposes later on.
+        setenv("TREBLE_TESTING_OVERRIDE", "true", true);
+    }
 }
 
 void SurfaceFlinger::onFirstRef()
@@ -594,7 +620,7 @@ void SurfaceFlinger::init() {
     // initialize the primary display.
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
         "Starting with vr flinger active is not currently supported.");
-    mRealHwc = new HWComposer(false);
+    mRealHwc = new HWComposer(mHwcServiceName);
     mHwc = mRealHwc;
     mHwc->setEventHandler(static_cast<HWComposer::EventHandler*>(this));
 
@@ -1055,6 +1081,33 @@ status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    if ((uid != AID_SHELL) &&
+            !PermissionCache::checkPermission(sDump, pid, uid)) {
+        ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
+        return PERMISSION_DENIED;
+    }
+
+    // Try to acquire a lock for 1s, fail gracefully
+    const status_t err = mStateLock.timedLock(s2ns(1));
+    const bool locked = (err == NO_ERROR);
+    if (!locked) {
+        ALOGE("LayerDebugInfo: SurfaceFlinger unresponsive (%s [%d]) - exit", strerror(-err), err);
+        return TIMED_OUT;
+    }
+
+    outLayers->clear();
+    mCurrentState.traverseInZOrder([&](Layer* layer) {
+        outLayers->push_back(layer->getLayerDebugInfo());
+    });
+
+    mStateLock.unlock();
+    return NO_ERROR;
+}
+
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -1312,7 +1365,7 @@ void SurfaceFlinger::updateVrFlinger() {
 
     if (vrFlingerRequestsDisplay && !mVrHwc) {
         // Construct new HWComposer without holding any locks.
-        mVrHwc = new HWComposer(true);
+        mVrHwc = new HWComposer("vr");
 
         // Set up the event handlers. This step is neccessary to initialize the internal state of
         // the hardware composer object properly. Our callbacks are designed such that if they are
@@ -1683,12 +1736,11 @@ void SurfaceFlinger::rebuildLayerStacks() {
             const Transform& tr(displayDevice->getTransform());
             const Rect bounds(displayDevice->getBounds());
             if (displayDevice->isDisplayOn()) {
-                computeVisibleRegions(
-                        displayDevice->getLayerStack(), dirtyRegion,
-                        opaqueRegion);
+                computeVisibleRegions(displayDevice, dirtyRegion, opaqueRegion);
 
                 mDrawingState.traverseInZOrder([&](Layer* layer) {
-                    if (layer->getLayerStack() == displayDevice->getLayerStack()) {
+                    if (layer->belongsToDisplay(displayDevice->getLayerStack(),
+                                displayDevice->isPrimary())) {
                         Region drawRegion(tr.transform(
                                 layer->visibleNonTransparentRegion));
                         drawRegion.andSelf(bounds);
@@ -2210,7 +2262,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 disp.clear();
                 for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
                     sp<const DisplayDevice> hw(mDisplays[dpy]);
-                    if (hw->getLayerStack() == currentlayerStack) {
+                    if (layer->belongsToDisplay(hw->getLayerStack(), hw->isPrimary())) {
                         if (disp == NULL) {
                             disp = hw;
                         } else {
@@ -2259,7 +2311,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 // TODO: we could cache the transformed region
                 Region visibleReg;
                 visibleReg.set(layer->computeScreenBounds());
-                invalidateLayerStack(layer->getLayerStack(), visibleReg);
+                invalidateLayerStack(layer, visibleReg);
             }
         });
     }
@@ -2308,7 +2360,7 @@ void SurfaceFlinger::commitTransaction()
     mTransactionCV.broadcast();
 }
 
-void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
+void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
         Region& outDirtyRegion, Region& outOpaqueRegion)
 {
     ATRACE_CALL();
@@ -2325,7 +2377,7 @@ void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
         const Layer::State& s(layer->getDrawingState());
 
         // only consider the layers on the given layer stack
-        if (layer->getLayerStack() != layerStack)
+        if (!layer->belongsToDisplay(displayDevice->getLayerStack(), displayDevice->isPrimary()))
             return;
 
         /*
@@ -2440,11 +2492,10 @@ void SurfaceFlinger::computeVisibleRegions(uint32_t layerStack,
     outOpaqueRegion = aboveOpaqueLayers;
 }
 
-void SurfaceFlinger::invalidateLayerStack(uint32_t layerStack,
-        const Region& dirty) {
+void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty) {
     for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
         const sp<DisplayDevice>& hw(mDisplays[dpy]);
-        if (hw->getLayerStack() == layerStack) {
+        if (layer->belongsToDisplay(hw->getLayerStack(), hw->isPrimary())) {
             hw->dirtyRegion.orSelf(dirty);
         }
     }
@@ -2485,7 +2536,7 @@ bool SurfaceFlinger::handlePageFlip()
     for (auto& layer : mLayersWithQueuedFrames) {
         const Region dirty(layer->latchBuffer(visibleRegions, latchTime));
         layer->useSurfaceDamage();
-        invalidateLayerStack(layer->getLayerStack(), dirty);
+        invalidateLayerStack(layer, dirty);
         if (layer->isBufferLatched()) {
             newDataLatched = true;
         }
@@ -3110,6 +3161,13 @@ status_t SurfaceFlinger::createLayer(
         return result;
     }
 
+    // window type is WINDOW_TYPE_DONT_SCREENSHOT from SurfaceControl.java
+    // TODO b/64227542
+    if (windowType == 441731) {
+        windowType = 2024; // TYPE_NAVIGATION_BAR_PANEL
+        layer->setPrimaryDisplayOnly();
+    }
+
     layer->setInfo(windowType, ownerUid);
 
     result = addClientLayer(client, *handle, *gbp, layer, *parent);
@@ -3701,7 +3759,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.appendFormat("Visible layers (count = %zu)\n", mNumLayers);
     colorizer.reset(result);
     mCurrentState.traverseInZOrder([&](Layer* layer) {
-        layer->dump(result, colorizer);
+        result.append(to_string(layer->getLayerDebugInfo()).c_str());
     });
 
     /*
@@ -4337,7 +4395,7 @@ void SurfaceFlinger::renderScreenImplLocked(
     // We loop through the first level of layers without traversing,
     // as we need to interpret min/max layer Z in the top level Z space.
     for (const auto& layer : mDrawingState.layersSortedByZ) {
-        if (layer->getLayerStack() != hw->getLayerStack()) {
+        if (!layer->belongsToDisplay(hw->getLayerStack(), false)) {
             continue;
         }
         const Layer::State& state(layer->getDrawingState());
@@ -4389,7 +4447,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const sp<const DisplayDevice>& 
     bool secureLayerIsVisible = false;
     for (const auto& layer : mDrawingState.layersSortedByZ) {
         const Layer::State& state(layer->getDrawingState());
-        if ((layer->getLayerStack() != hw->getLayerStack()) ||
+        if (layer->belongsToDisplay(hw->getLayerStack(), false) ||
                 (state.z < minLayerZ || state.z > maxLayerZ)) {
             continue;
         }
@@ -4500,7 +4558,7 @@ void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* v
         size_t i = 0;
         for (const auto& layer : mDrawingState.layersSortedByZ) {
             const Layer::State& state(layer->getDrawingState());
-            if (layer->getLayerStack() == hw->getLayerStack() && state.z >= minLayerZ &&
+            if (layer->belongsToDisplay(hw->getLayerStack(), false) && state.z >= minLayerZ &&
                     state.z <= maxLayerZ) {
                 layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
                     ALOGE("%c index=%zu, name=%s, layerStack=%d, z=%d, visible=%d, flags=%x, alpha=%.3f",

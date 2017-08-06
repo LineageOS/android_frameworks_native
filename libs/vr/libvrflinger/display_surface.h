@@ -133,6 +133,7 @@ class ApplicationDisplaySurface : public DisplaySurface {
   void OnQueueEvent(const std::shared_ptr<ConsumerQueue>& consumer_queue,
                     int events) override;
 
+  // Accessed by both message dispatch thread and epoll event thread.
   std::unordered_map<int32_t, std::shared_ptr<ConsumerQueue>> consumer_queues_;
 };
 
@@ -143,7 +144,8 @@ class DirectDisplaySurface : public DisplaySurface {
                        const display::SurfaceAttributes& attributes)
       : DisplaySurface(service, SurfaceType::Direct, surface_id, process_id,
                        user_id, attributes),
-        acquired_buffers_(kMaxPostedBuffers) {}
+        acquired_buffers_(kMaxPostedBuffers),
+        metadata_(nullptr){}
   std::vector<int32_t> GetQueueIds() const override;
   bool IsBufferAvailable();
   bool IsBufferPosted();
@@ -178,6 +180,9 @@ class DirectDisplaySurface : public DisplaySurface {
   RingBuffer<AcquiredBuffer> acquired_buffers_;
 
   std::shared_ptr<ConsumerQueue> direct_queue_;
+
+  // Stores metadata when it dequeue buffers from consumer queue.
+  std::unique_ptr<uint8_t[]> metadata_;
 };
 
 }  // namespace dvr

@@ -300,6 +300,7 @@ private:
             HdrCapabilities* outCapabilities) const;
     virtual status_t enableVSyncInjections(bool enable);
     virtual status_t injectVSync(nsecs_t when);
+    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const;
 
 
     /* ------------------------------------------------------------------------
@@ -494,7 +495,7 @@ private:
 
     // mark a region of a layer stack dirty. this updates the dirty
     // region of all screens presenting this layer stack.
-    void invalidateLayerStack(uint32_t layerStack, const Region& dirty);
+    void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
 
 #ifndef USE_HWC2
     int32_t allocateHwcDisplayId(DisplayDevice::DisplayType type);
@@ -510,7 +511,7 @@ private:
      * Compositing
      */
     void invalidateHwcGeometry();
-    void computeVisibleRegions(uint32_t layerStack,
+    void computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
             Region& dirtyRegion, Region& opaqueRegion);
 
     void preComposition(nsecs_t refreshStartTime);
@@ -628,6 +629,7 @@ private:
 #ifdef USE_HWC2
     HWComposer* mRealHwc;
     HWComposer* mVrHwc;
+    const std::string mHwcServiceName; // "default" for real use, something else for testing.
 #endif
     // constant members (no synchronization needed for access)
     RenderEngine* mRenderEngine;
