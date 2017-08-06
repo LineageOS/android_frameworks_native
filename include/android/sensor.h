@@ -388,13 +388,13 @@ ASensorManager* ASensorManager_getInstance();
 #endif
 
 #if __ANDROID_API__ >= __ANDROID_API_O__
-/*
+/**
  * Get a reference to the sensor manager. ASensorManager is a singleton
  * per package as different packages may have access to different sensors.
  *
  * Example:
  *
- *    ASensorManager* sensorManager = ASensorManager_getInstanceForPackage("foo.bar.baz");
+ *     ASensorManager* sensorManager = ASensorManager_getInstanceForPackage("foo.bar.baz");
  *
  */
 ASensorManager* ASensorManager_getInstanceForPackage(const char* packageName);
@@ -503,14 +503,12 @@ void ASensorManager_destroyDirectChannel(ASensorManager* manager, int channelId)
  * {@link ASensor_isDirectChannelTypeSupported}, respectively.
  *
  * Example:
- * \code{.cpp}
- *      ASensorManager *manager = ...;
- *      ASensor *sensor = ...;
- *      int channelId = ...;
  *
- *      ASensorManager_configureDirectReport(
- *              manager, sensor, channel_id, ASENSOR_DIRECT_RATE_FAST);
- * \endcode
+ *     ASensorManager *manager = ...;
+ *     ASensor *sensor = ...;
+ *     int channelId = ...;
+ *
+ *     ASensorManager_configureDirectReport(manager, sensor, channel_id, ASENSOR_DIRECT_RATE_FAST);
  *
  * \param manager   the {@link ASensorManager} instance obtained from
  *                  {@link ASensorManager_getInstanceForPackage}.
@@ -530,50 +528,86 @@ int ASensorManager_configureDirectReport(
 /*****************************************************************************/
 
 /**
- * Enable the selected sensor with a specified sampling period and max batch report latency.
- * Returns a negative error code on failure.
- * Note: To disable the selected sensor, use ASensorEventQueue_disableSensor() same as before.
+ * Enable the selected sensor with sampling and report parameters
+ *
+ * Enable the selected sensor at a specified sampling period and max batch report latency.
+ * To disable  sensor, use {@link ASensorEventQueue_disableSensor}.
+ *
+ * \param queue {@link ASensorEventQueue} for sensor event to be report to.
+ * \param sensor {@link ASensor} to be enabled.
+ * \param samplingPeriodUs sampling period of sensor in microseconds.
+ * \param maxBatchReportLatencyus maximum time interval between two batch of sensor events are
+ *                                delievered in microseconds. For sensor streaming, set to 0.
+ * \return 0 on success or a negative error code on failure.
  */
 int ASensorEventQueue_registerSensor(ASensorEventQueue* queue, ASensor const* sensor,
         int32_t samplingPeriodUs, int64_t maxBatchReportLatencyUs);
 
 /**
- * Enable the selected sensor. Returns a negative error code on failure.
+ * Enable the selected sensor at default sampling rate.
+ *
+ * Start event reports of a sensor to specified sensor event queue at a default rate.
+ *
+ * \param queue {@link ASensorEventQueue} for sensor event to be report to.
+ * \param sensor {@link ASensor} to be enabled.
+ *
+ * \return 0 on success or a negative error code on failure.
  */
 int ASensorEventQueue_enableSensor(ASensorEventQueue* queue, ASensor const* sensor);
 
 /**
- * Disable the selected sensor. Returns a negative error code on failure.
+ * Disable the selected sensor.
+ *
+ * Stop event reports from the sensor to specified sensor event queue.
+ *
+ * \param queue {@link ASensorEventQueue} to be changed
+ * \param sensor {@link ASensor} to be disabled
+ * \return 0 on success or a negative error code on failure.
  */
 int ASensorEventQueue_disableSensor(ASensorEventQueue* queue, ASensor const* sensor);
 
 /**
  * Sets the delivery rate of events in microseconds for the given sensor.
+ *
+ * This function has to be called after {@link ASensorEventQueue_enableSensor}.
  * Note that this is a hint only, generally event will arrive at a higher
  * rate. It is an error to set a rate inferior to the value returned by
  * ASensor_getMinDelay().
- * Returns a negative error code on failure.
+ *
+ * \param queue {@link ASensorEventQueue} to which sensor event is delivered.
+ * \param sensor {@link ASensor} of which sampling rate to be updated.
+ * \param usec sensor sampling period (1/sampling rate) in microseconds
+ * \return 0 on sucess or a negative error code on failure.
  */
 int ASensorEventQueue_setEventRate(ASensorEventQueue* queue, ASensor const* sensor, int32_t usec);
 
 /**
- * Returns true if there are one or more events available in the
- * sensor queue.  Returns 1 if the queue has events; 0 if
- * it does not have events; and a negative value if there is an error.
+ * Determine if a sensor event queue has pending event to be processed.
+ *
+ * \param queue {@link ASensorEventQueue} to be queried
+ * \return 1 if the queue has events; 0 if it does not have events;
+ *         or a negative value if there is an error.
  */
 int ASensorEventQueue_hasEvents(ASensorEventQueue* queue);
 
 /**
- * Returns the next available events from the queue.  Returns a negative
- * value if no events are available or an error has occurred, otherwise
- * the number of events returned.
+ * Retrieve pending events in sensor event queue
+ *
+ * Retrieve next available events from the queue to a specified event array.
+ *
+ * \param queue {@link ASensorEventQueue} to get events from
+ * \param events pointer to an array of {@link ASensorEvents}.
+ * \param count max number of event that can be filled into array event.
+ * \return number of events returned on success; negative error code when
+ *         no events are pending or an error has occurred.
  *
  * Examples:
- *   ASensorEvent event;
- *   ssize_t numEvent = ASensorEventQueue_getEvents(queue, &event, 1);
  *
- *   ASensorEvent eventBuffer[8];
- *   ssize_t numEvent = ASensorEventQueue_getEvents(queue, eventBuffer, 8);
+ *     ASensorEvent event;
+ *     ssize_t numEvent = ASensorEventQueue_getEvents(queue, &event, 1);
+ *
+ *     ASensorEvent eventBuffer[8];
+ *     ssize_t numEvent = ASensorEventQueue_getEvents(queue, eventBuffer, 8);
  *
  */
 ssize_t ASensorEventQueue_getEvents(ASensorEventQueue* queue, ASensorEvent* events, size_t count);
