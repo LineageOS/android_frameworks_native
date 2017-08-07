@@ -35,11 +35,10 @@
 #include <fcntl.h>
 #include <sys/time.h>
 #include <errno.h>
+#include <memory>
 
 #include "selinux/selinux.h"
 #include "selinux/android.h"
-
-#include <UniquePtr.h>
 
 #define DEBUG 0
 
@@ -55,7 +54,7 @@ struct SecurityContext_Delete {
         freecon(p);
     }
 };
-typedef UniquePtr<char[], SecurityContext_Delete> Unique_SecurityContext;
+typedef std::unique_ptr<char[], SecurityContext_Delete> Unique_SecurityContext;
 
 class MyShellCallback : public BnShellCallback
 {
