@@ -1344,7 +1344,7 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
         const std::vector<std::string>& codePaths, std::vector<int64_t>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
-    for (auto packageName : packageNames) {
+    for (const auto& packageName : packageNames) {
         CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     }
     // NOTE: Locking is relaxed on this method, since it's limited to
@@ -1383,7 +1383,7 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
     }
 
     ATRACE_BEGIN("obb");
-    for (auto packageName : packageNames) {
+    for (const auto& packageName : packageNames) {
         auto obbCodePath = create_data_media_obb_path(uuid_, packageName.c_str());
         calculate_tree_size(obbCodePath, &extStats.codeSize);
     }
@@ -1391,7 +1391,7 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
 
     if (flags & FLAG_USE_QUOTA && appId >= AID_APP_START) {
         ATRACE_BEGIN("code");
-        for (auto codePath : codePaths) {
+        for (const auto& codePath : codePaths) {
             calculate_tree_size(codePath, &stats.codeSize, -1,
                     multiuser_get_shared_gid(0, appId));
         }
@@ -1402,7 +1402,7 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
         ATRACE_END();
     } else {
         ATRACE_BEGIN("code");
-        for (auto codePath : codePaths) {
+        for (const auto& codePath : codePaths) {
             calculate_tree_size(codePath, &stats.codeSize);
         }
         ATRACE_END();

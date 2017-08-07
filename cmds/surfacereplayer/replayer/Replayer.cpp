@@ -505,7 +505,7 @@ status_t Replayer::setTransparentRegionHint(layer_id id, const TransparentRegion
     ALOGV("Setting Transparent Region Hint");
     Region re = Region();
 
-    for (auto r : trhc.region()) {
+    for (const auto& r : trhc.region()) {
         Rect rect = Rect(r.left(), r.top(), r.right(), r.bottom());
         re.merge(rect);
     }
