@@ -335,16 +335,25 @@ status_t ConsumerBase::addReleaseFenceLocked(int slot,
         return OK;
     }
 
-    auto status = mSlots[slot].mFence->getStatus();
-
-    if (status == Fence::Status::Invalid) {
-        CB_LOGE("fence has invalid state");
+    // Check status of fences first because merging is expensive.
+    // Merging an invalid fence with any other fence results in an
+    // invalid fence.
+    auto currentStatus = mSlots[slot].mFence->getStatus();
+    if (currentStatus == Fence::Status::Invalid) {
+        CB_LOGE("Existing fence has invalid state");
         return BAD_VALUE;
     }
 
-    if (status == Fence::Status::Signaled) {
+    auto incomingStatus = fence->getStatus();
+    if (incomingStatus == Fence::Status::Invalid) {
+        CB_LOGE("New fence has invalid state");
         mSlots[slot].mFence = fence;
-    } else {  // status == Fence::Status::Unsignaled
+        return BAD_VALUE;
+    }
+
+    // If both fences are signaled or both are unsignaled, we need to merge
+    // them to get an accurate timestamp.
+    if (currentStatus == incomingStatus) {
         char fenceName[32] = {};
         snprintf(fenceName, 32, "%.28s:%d", mName.string(), slot);
         sp<Fence> mergedFence = Fence::merge(
@@ -357,7 +366,17 @@ status_t ConsumerBase::addReleaseFenceLocked(int slot,
             return BAD_VALUE;
         }
         mSlots[slot].mFence = mergedFence;
+    } else if (incomingStatus == Fence::Status::Unsignaled) {
+        // If one fence has signaled and the other hasn't, the unsignaled
+        // fence will approximately correspond with the correct timestamp.
+        // There's a small race if both fences signal at about the same time
+        // and their statuses are retrieved with unfortunate timing. However,
+        // by this point, they will have both signaled and only the timestamp
+        // will be slightly off; any dependencies after this point will
+        // already have been met.
+        mSlots[slot].mFence = fence;
     }
+    // else if (currentStatus == Fence::Status::Unsignaled) is a no-op.
 
     return OK;
 }
