@@ -40,10 +40,8 @@ namespace dvr {
 DisplayService::DisplayService(Hwc2::Composer* hidl,
                                RequestDisplayCallback request_display_callback)
     : BASE("DisplayService",
-           Endpoint::Create(display::DisplayProtocol::kClientPath)),
-      hardware_composer_(hidl, request_display_callback),
-      request_display_callback_(request_display_callback) {
-  hardware_composer_.Initialize();
+           Endpoint::Create(display::DisplayProtocol::kClientPath)) {
+  hardware_composer_.Initialize(hidl, request_display_callback);
 }
 
 bool DisplayService::IsInitialized() const {
@@ -396,10 +394,6 @@ pdx::Status<void> DisplayService::DeleteGlobalBuffer(DvrGlobalBufferKey key) {
   }
 
   return {0};
-}
-
-void DisplayService::OnHardwareComposerRefresh() {
-  hardware_composer_.OnHardwareComposerRefresh();
 }
 
 void DisplayService::SetDisplayConfigurationUpdateNotifier(
