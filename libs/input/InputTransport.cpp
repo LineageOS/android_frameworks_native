@@ -446,7 +446,7 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
             break;
         }
 
-        case AINPUT_EVENT_TYPE_MOTION: {
+        case InputMessage::TYPE_MOTION: {
             ssize_t batchIndex = findBatch(mMsg.body.motion.deviceId, mMsg.body.motion.source);
             if (batchIndex >= 0) {
                 Batch& batch = mBatches.editItemAt(batchIndex);
