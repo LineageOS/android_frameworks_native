@@ -556,6 +556,46 @@ static bool solveLeastSquares(const float* x, const float* y,
     return true;
 }
 
+/*
+ * Optimized unweighted second-order least squares fit. About 2x speed improvement compared to
+ * the default implementation
+ */
+static float solveUnweightedLeastSquaresDeg2(const float* x, const float* y, size_t count) {
+    float sxi = 0, sxiyi = 0, syi = 0, sxi2 = 0, sxi3 = 0, sxi2yi = 0, sxi4 = 0;
+
+    for (size_t i = 0; i < count; i++) {
+        float xi = x[i];
+        float yi = y[i];
+        float xi2 = xi*xi;
+        float xi3 = xi2*xi;
+        float xi4 = xi3*xi;
+        float xi2yi = xi2*yi;
+        float xiyi = xi*yi;
+
+        sxi += xi;
+        sxi2 += xi2;
+        sxiyi += xiyi;
+        sxi2yi += xi2yi;
+        syi += yi;
+        sxi3 += xi3;
+        sxi4 += xi4;
+    }
+
+    float Sxx = sxi2 - sxi*sxi / count;
+    float Sxy = sxiyi - sxi*syi / count;
+    float Sxx2 = sxi3 - sxi*sxi2 / count;
+    float Sx2y = sxi2yi - sxi2*syi / count;
+    float Sx2x2 = sxi4 - sxi2*sxi2 / count;
+
+    float numerator = Sxy*Sx2x2 - Sx2y*Sxx2;
+    float denominator = Sxx*Sx2x2 - Sxx2*Sxx2;
+    if (denominator == 0) {
+        ALOGW("division by 0 when computing velocity, Sxx=%f, Sx2x2=%f, Sxx2=%f", Sxx, Sx2x2, Sxx2);
+        return 0;
+    }
+    return numerator/denominator;
+}
+
 bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
         VelocityTracker::Estimator* outEstimator) const {
     outEstimator->clear();
@@ -597,6 +637,19 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
         degree = m - 1;
     }
     if (degree >= 1) {
+        if (degree == 2 && mWeighting == WEIGHTING_NONE) { // optimize unweighted, degree=2 fit
+            outEstimator->time = newestMovement.eventTime;
+            outEstimator->degree = 2;
+            outEstimator->confidence = 1;
+            outEstimator->xCoeff[0] = 0; // only slope is calculated, set rest of coefficients = 0
+            outEstimator->yCoeff[0] = 0;
+            outEstimator->xCoeff[1] = solveUnweightedLeastSquaresDeg2(time, x, m);
+            outEstimator->yCoeff[1] = solveUnweightedLeastSquaresDeg2(time, y, m);
+            outEstimator->xCoeff[2] = 0;
+            outEstimator->yCoeff[2] = 0;
+            return true;
+        }
+
         float xdet, ydet;
         uint32_t n = degree + 1;
         if (solveLeastSquares(time, x, w, m, n, outEstimator->xCoeff, &xdet)
