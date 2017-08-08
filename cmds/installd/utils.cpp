@@ -238,13 +238,38 @@ std::string create_data_dalvik_cache_path() {
 
 // Keep profile paths in sync with ActivityThread and LoadedApk.
 const std::string PROFILE_EXT = ".prof";
+const std::string CURRENT_PROFILE_EXT = ".cur";
 const std::string PRIMARY_PROFILE_NAME = "primary" + PROFILE_EXT;
+
+// Gets the parent directory and the file name for the given secondary dex path.
+// Returns true on success, false on failure (if the dex_path does not have the expected
+// structure).
+static bool get_secondary_dex_location(const std::string& dex_path,
+        std::string* out_dir_name, std::string* out_file_name) {
+   size_t dirIndex = dex_path.rfind('/');
+   if (dirIndex == std::string::npos) {
+        return false;
+   }
+   if (dirIndex == dex_path.size() - 1) {
+        return false;
+   }
+   *out_dir_name = dex_path.substr(0, dirIndex);
+   *out_file_name = dex_path.substr(dirIndex + 1);
+
+   return true;
+}
 
 std::string create_current_profile_path(userid_t user, const std::string& location,
         bool is_secondary_dex) {
     if (is_secondary_dex) {
-        // Secondary dex profiles are stored next to the dex files using .prof extension.
-        return StringPrintf("%s%s", location.c_str(), PROFILE_EXT.c_str());
+        // Secondary dex current profiles are stored next to the dex files under the oat folder.
+        std::string dex_dir;
+        std::string dex_name;
+        CHECK(get_secondary_dex_location(location, &dex_dir, &dex_name))
+                << "Unexpected dir structure for secondary dex " << location;
+        return StringPrintf("%s/oat/%s%s%s",
+                dex_dir.c_str(), dex_name.c_str(), CURRENT_PROFILE_EXT.c_str(),
+                PROFILE_EXT.c_str());
     } else {
         // Profiles for primary apks are under /data/misc/profiles/cur.
         std::string profile_dir = create_primary_current_profile_package_dir_path(user, location);
@@ -255,12 +280,10 @@ std::string create_current_profile_path(userid_t user, const std::string& locati
 std::string create_reference_profile_path(const std::string& location, bool is_secondary_dex) {
     if (is_secondary_dex) {
         // Secondary dex reference profiles are stored next to the dex files under the oat folder.
-        size_t dirIndex = location.rfind('/');
-        CHECK(dirIndex != std::string::npos)
+        std::string dex_dir;
+        std::string dex_name;
+        CHECK(get_secondary_dex_location(location, &dex_dir, &dex_name))
                 << "Unexpected dir structure for secondary dex " << location;
-
-        std::string dex_dir = location.substr(0, dirIndex);
-        std::string dex_name = location.substr(dirIndex +1);
         return StringPrintf("%s/oat/%s%s",
                 dex_dir.c_str(), dex_name.c_str(), PROFILE_EXT.c_str());
     } else {
@@ -781,21 +804,30 @@ bool validate_secondary_dex_path(const std::string& pkgname, const std::string& 
         const char* volume_uuid, int uid, int storage_flag) {
     CHECK(storage_flag == FLAG_STORAGE_CE || storage_flag == FLAG_STORAGE_DE);
 
+    // Empty paths are not allowed.
+    if (dex_path.empty()) { return false; }
+    // First character should always be '/'. No relative paths.
+    if (dex_path[0] != '/') { return false; }
+    // The last character should not be '/'.
+    if (dex_path[dex_path.size() - 1] == '/') { return false; }
+    // There should be no '.' after the directory marker.
+    if (dex_path.find("/.") != std::string::npos) { return false; }
+    // The path should be at most PKG_PATH_MAX long.
+    if (dex_path.size() > PKG_PATH_MAX) { return false; }
+
+    // The dex_path should be under the app data directory.
     std::string app_private_dir = storage_flag == FLAG_STORAGE_CE
         ? create_data_user_ce_package_path(
                 volume_uuid, multiuser_get_user_id(uid), pkgname.c_str())
         : create_data_user_de_package_path(
                 volume_uuid, multiuser_get_user_id(uid), pkgname.c_str());
-    dir_rec_t dir;
-    if (get_path_from_string(&dir, app_private_dir.c_str()) != 0) {
-        LOG(WARNING) << "Could not get dir rec for " << app_private_dir;
+
+    if (strncmp(dex_path.c_str(), app_private_dir.c_str(), app_private_dir.size()) != 0) {
         return false;
     }
-    // Usually secondary dex files have a nested directory structure.
-    // Pick at most 10 subdirectories when validating (arbitrary value).
-    // If the secondary dex file is >10 directory nested then validation will
-    // fail and the file will not be compiled.
-    return validate_path(&dir, dex_path.c_str(), /*max_subdirs*/ 10) == 0;
+
+    // If we got here we have a valid path.
+    return true;
 }
 
 /**
