@@ -44,8 +44,8 @@ cc_library_shared {
 
   cflags: [
     "-DLOG_TAG=\"vr_hwc\"",
+    "-Werror",
   ],
-
 }
 
 cc_library_static {
@@ -68,6 +68,9 @@ cc_library_static {
     "libui",
     "libutils",
     "libvr_hwc-hal",
+  ],
+  cflags: [
+    "-Werror",
   ],
 }
 
@@ -92,6 +95,7 @@ cc_library_static {
   ],
   cflags: [
     "-DLOG_TAG=\"vr_hwc\"",
+    "-Werror",
   ],
 }
 
@@ -120,6 +124,7 @@ cc_binary {
   ],
   cflags: [
     "-DLOG_TAG=\"vr_hwc\"",
+    "-Werror",
   ],
   init_rc: [
     "vr_hwc.rc",
@@ -143,5 +148,8 @@ cc_test {
     "liblog",
     "libui",
     "libutils",
+  ],
+  cflags: [
+    "-Werror",
   ],
 }
