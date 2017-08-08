@@ -989,10 +989,10 @@ status_t H2BGraphicBufferProducer::setAsyncMode(bool async) {
 }
 
 // FIXME: usage bits truncated -- needs a 64-bits usage version
-status_t H2BGraphicBufferProducer::dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w,
-                                                 uint32_t h, ::android::PixelFormat format,
-                                                 uint64_t usage, uint64_t* outBufferAge,
-                                                 FrameEventHistoryDelta* outTimestamps) {
+status_t H2BGraphicBufferProducer::dequeueBuffer(
+        int* slot, sp<Fence>* fence,
+        uint32_t w, uint32_t h, ::android::PixelFormat format,
+        uint64_t usage, FrameEventHistoryDelta* outTimestamps) {
     *fence = new Fence();
     status_t fnStatus;
     status_t transStatus = toStatusT(mBase->dequeueBuffer(
@@ -1016,10 +1016,6 @@ status_t H2BGraphicBufferProducer::dequeueBuffer(int* slot, sp<Fence>* fence, ui
                     fnStatus = fnStatus == NO_ERROR ? BAD_VALUE : fnStatus;
                 }
             }));
-    if (outBufferAge) {
-        // Since the HAL version doesn't return the buffer age, set it to 0:
-        *outBufferAge = 0;
-    }
     return transStatus == NO_ERROR ? fnStatus : transStatus;
 }
 

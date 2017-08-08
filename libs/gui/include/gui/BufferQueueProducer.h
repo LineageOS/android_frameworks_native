@@ -80,10 +80,9 @@ public:
     //
     // In both cases, the producer will need to call requestBuffer to get a
     // GraphicBuffer handle for the returned slot.
-    virtual status_t dequeueBuffer(int* outSlot, sp<Fence>* outFence, uint32_t width,
-                                   uint32_t height, PixelFormat format, uint64_t usage,
-                                   uint64_t* outBufferAge,
-                                   FrameEventHistoryDelta* outTimestamps) override;
+    virtual status_t dequeueBuffer(int *outSlot, sp<Fence>* outFence,
+            uint32_t width, uint32_t height, PixelFormat format,
+            uint64_t usage, FrameEventHistoryDelta* outTimestamps) override;
 
     // See IGraphicBufferProducer::detachBuffer
     virtual status_t detachBuffer(int slot);

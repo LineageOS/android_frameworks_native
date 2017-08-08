@@ -117,9 +117,9 @@ class BufferHubQueueProducerTest : public ::testing::Test {
     ASSERT_NE(nullptr, outSlot);
     ASSERT_NE(nullptr, outFence);
 
-    int ret = mProducer->dequeueBuffer(
-        outSlot, outFence, kDefaultWidth, kDefaultHeight, kDefaultFormat,
-        kTestProducerUsageBits, nullptr, nullptr);
+    int ret = mProducer->dequeueBuffer(outSlot, outFence, kDefaultWidth,
+                                       kDefaultHeight, kDefaultFormat,
+                                       kTestProducerUsageBits, nullptr);
     // BUFFER_NEEDS_REALLOCATION can be either on or off.
     ASSERT_EQ(0, ~IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION & ret);
 
@@ -440,10 +440,9 @@ TEST_F(BufferHubQueueProducerTest, SetMaxDequeuedBufferCount_Fails) {
   sp<Fence> fence;
   for (int i = 0; i < 2; i++) {
     ASSERT_EQ(OK, ~IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION &
-                      (mProducer->dequeueBuffer(&slot, &fence, kDefaultWidth,
-                                                kDefaultHeight, kDefaultFormat,
-                                                kTestProducerUsageBits,
-                                                nullptr, nullptr)))
+                      (mProducer->dequeueBuffer(
+                          &slot, &fence, kDefaultWidth, kDefaultHeight,
+                          kDefaultFormat, kTestProducerUsageBits, nullptr)))
         << "slot: " << slot;
   }
 
@@ -459,8 +458,7 @@ TEST_F(BufferHubQueueProducerTest,
 
   ASSERT_EQ(NO_INIT, mProducer->dequeueBuffer(&slot, &fence, kDefaultWidth,
                                               kDefaultHeight, kDefaultFormat,
-                                              kTestProducerUsageBits,
-                                              nullptr, nullptr));
+                                              kTestProducerUsageBits, nullptr));
 }
 
 TEST_F(BufferHubQueueProducerTest,

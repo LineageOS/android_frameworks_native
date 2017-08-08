@@ -43,7 +43,6 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
   // See |IGraphicBufferProducer::dequeueBuffer|
   status_t dequeueBuffer(int* out_slot, sp<Fence>* out_fence, uint32_t width,
                          uint32_t height, PixelFormat format, uint64_t usage,
-                         uint64_t* outBufferAge,
                          FrameEventHistoryDelta* outTimestamps) override;
 
   // See |IGraphicBufferProducer::detachBuffer|
