@@ -691,7 +691,7 @@ bool Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd) {
     std::string valid_name = entry_name;
 
     // Rename extension if necessary.
-    size_t idx = entry_name.rfind(".");
+    size_t idx = entry_name.rfind('.');
     if (idx != std::string::npos) {
         std::string extension = entry_name.substr(idx);
         std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
@@ -1432,7 +1432,7 @@ bool Dumpstate::FinishZipFile() {
     return true;
 }
 
-static std::string SHA256_file_hash(std::string filepath) {
+static std::string SHA256_file_hash(const std::string& filepath) {
     android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(filepath.c_str(), O_RDONLY | O_NONBLOCK
             | O_CLOEXEC | O_NOFOLLOW)));
     if (fd == -1) {

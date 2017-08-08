@@ -29,9 +29,6 @@ class VrFlinger {
   void GrantDisplayOwnership();
   void SeizeDisplayOwnership();
 
-  // Called on a binder thread.
-  void OnHardwareComposerRefresh();
-
   // dump all vr flinger state.
   std::string Dump();
 

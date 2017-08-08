@@ -170,7 +170,7 @@ static EGLSurface surface;
 static EGLint width, height;
 
 // Function prototypes
-static Rectangle parseRect(string rectStr);
+static Rectangle parseRect(const string& rectStr);
 void init(void);
 void printSyntax(const char *cmd);
 
@@ -358,7 +358,7 @@ main(int argc, char *argv[])
 
 // Parse string description of rectangle and add it to list of rectangles
 // to be rendered.
-static Rectangle parseRect(string rectStr)
+static Rectangle parseRect(const string& rectStr)
 {
     int rv;
     string str;
