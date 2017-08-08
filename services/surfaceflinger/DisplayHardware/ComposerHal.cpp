@@ -157,15 +157,11 @@ void Composer::CommandWriter::writeBufferMetadata(
     write64(metadata.usage);
 }
 
-Composer::Composer(bool useVrComposer)
+Composer::Composer(const std::string& serviceName)
     : mWriter(kWriterInitialSize),
-      mIsUsingVrComposer(useVrComposer)
+      mIsUsingVrComposer(serviceName == std::string("vr"))
 {
-    if (mIsUsingVrComposer) {
-        mComposer = IComposer::getService("vr");
-    } else {
-        mComposer = IComposer::getService(); // use default name
-    }
+    mComposer = IComposer::getService(serviceName);
 
     if (mComposer == nullptr) {
         LOG_ALWAYS_FATAL("failed to get hwcomposer service");

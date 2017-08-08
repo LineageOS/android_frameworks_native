@@ -300,6 +300,7 @@ private:
             HdrCapabilities* outCapabilities) const;
     virtual status_t enableVSyncInjections(bool enable);
     virtual status_t injectVSync(nsecs_t when);
+    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const;
 
 
     /* ------------------------------------------------------------------------
@@ -628,6 +629,7 @@ private:
 #ifdef USE_HWC2
     HWComposer* mRealHwc;
     HWComposer* mVrHwc;
+    const std::string mHwcServiceName; // "default" for real use, something else for testing.
 #endif
     // constant members (no synchronization needed for access)
     RenderEngine* mRenderEngine;

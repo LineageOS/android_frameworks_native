@@ -539,6 +539,9 @@ public:
         return NO_ERROR;
     }
     status_t injectVSync(nsecs_t /*when*/) override { return NO_ERROR; }
+    status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* /*layers*/) const override {
+        return NO_ERROR;
+    }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }
