@@ -3,7 +3,6 @@ cc_library_shared {
 
     srcs: [
         "IAudioManager.cpp",
-        "IPlayer.cpp",
     ],
 
     shared_libs: [
