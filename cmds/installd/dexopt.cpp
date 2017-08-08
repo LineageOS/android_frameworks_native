@@ -1838,6 +1838,11 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
         result = unlink_if_exists(current_profile) && result;
         result = unlink_if_exists(reference_profile) && result;
 
+        // We upgraded once the location of current profile for secondary dex files.
+        // Check for any previous left-overs and remove them as well.
+        std::string old_current_profile = dex_path + ".prof";
+        result = unlink_if_exists(old_current_profile);
+
         // Try removing the directories as well, they might be empty.
         result = rmdir_if_empty(oat_isa_dir) && result;
         result = rmdir_if_empty(oat_dir) && result;
