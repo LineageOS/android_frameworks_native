@@ -168,17 +168,15 @@ void DisplayTest::SetUp() {
     android::hardware::ProcessState::self()->startThreadPool();
     android::ProcessState::self()->startThreadPool();
 
-    EXPECT_CALL(*mMockComposer, getDisplayType(1, _))
+    EXPECT_CALL(*mMockComposer, getDisplayType(PRIMARY_DISPLAY, _))
             .WillOnce(DoAll(SetArgPointee<1>(IComposerClient::DisplayType::PHYSICAL),
                             Return(Error::NONE)));
-    // Seems to be doubled right now, once for display ID 1 and once for 0. This sounds fishy
-    // but encoding that here exactly.
-    EXPECT_CALL(*mMockComposer, getDisplayAttribute(1, 1, _, _))
-            .Times(5)
-            .WillRepeatedly(Invoke(mMockComposer, &MockComposerClient::getDisplayAttributeFake));
-    // TODO: Find out what code is generating the ID 0.
-    EXPECT_CALL(*mMockComposer, getDisplayAttribute(0, 1, _, _))
-            .Times(5)
+    // Primary display will be queried twice for all 5 attributes. One
+    // set of queries comes from the SurfaceFlinger proper an the
+    // other set from the VR composer.
+    // TODO: Is VR composer always present? Change to atLeast(5)?
+    EXPECT_CALL(*mMockComposer, getDisplayAttribute(PRIMARY_DISPLAY, 1, _, _))
+            .Times(2 * 5)
             .WillRepeatedly(Invoke(mMockComposer, &MockComposerClient::getDisplayAttributeFake));
 
     startSurfaceFlinger();
@@ -207,31 +205,32 @@ void DisplayTest::TearDown() {
 TEST_F(DisplayTest, Hotplug) {
     ALOGD("DisplayTest::Hotplug");
 
-    EXPECT_CALL(*mMockComposer, getDisplayType(2, _))
+    EXPECT_CALL(*mMockComposer, getDisplayType(EXTERNAL_DISPLAY, _))
             .Times(2)
             .WillRepeatedly(DoAll(SetArgPointee<1>(IComposerClient::DisplayType::PHYSICAL),
                                   Return(Error::NONE)));
     // The attribute queries will get done twice. This is for defaults
-    EXPECT_CALL(*mMockComposer, getDisplayAttribute(2, 1, _, _))
+    EXPECT_CALL(*mMockComposer, getDisplayAttribute(EXTERNAL_DISPLAY, 1, _, _))
             .Times(2 * 3)
             .WillRepeatedly(Invoke(mMockComposer, &MockComposerClient::getDisplayAttributeFake));
     // ... and then special handling for dimensions. Specifying this
     // rules later means that gmock will try them first, i.e.,
     // ordering of width/height vs. the default implementation for
     // other queries is significant.
-    EXPECT_CALL(*mMockComposer, getDisplayAttribute(2, 1, IComposerClient::Attribute::WIDTH, _))
+    EXPECT_CALL(*mMockComposer,
+                getDisplayAttribute(EXTERNAL_DISPLAY, 1, IComposerClient::Attribute::WIDTH, _))
             .Times(2)
             .WillRepeatedly(DoAll(SetArgPointee<3>(400), Return(Error::NONE)));
 
-    EXPECT_CALL(*mMockComposer, getDisplayAttribute(2, 1, IComposerClient::Attribute::HEIGHT, _))
+    EXPECT_CALL(*mMockComposer,
+                getDisplayAttribute(EXTERNAL_DISPLAY, 1, IComposerClient::Attribute::HEIGHT, _))
             .Times(2)
             .WillRepeatedly(DoAll(SetArgPointee<3>(200), Return(Error::NONE)));
 
     // TODO: Width and height queries are not actually called. Display
     // info returns dimensions 0x0 in display info. Why?
 
-    mMockComposer->hotplugDisplay(static_cast<Display>(2),
-                                  IComposerCallback::Connection::CONNECTED);
+    mMockComposer->hotplugDisplay(EXTERNAL_DISPLAY, IComposerCallback::Connection::CONNECTED);
 
     {
         sp<android::IBinder> display(
@@ -257,13 +256,11 @@ TEST_F(DisplayTest, Hotplug) {
         }
     }
 
-    mMockComposer->hotplugDisplay(static_cast<Display>(2),
-                                  IComposerCallback::Connection::DISCONNECTED);
+    mMockComposer->hotplugDisplay(EXTERNAL_DISPLAY, IComposerCallback::Connection::DISCONNECTED);
 
     mMockComposer->clearFrames();
 
-    mMockComposer->hotplugDisplay(static_cast<Display>(2),
-                                  IComposerCallback::Connection::CONNECTED);
+    mMockComposer->hotplugDisplay(EXTERNAL_DISPLAY, IComposerCallback::Connection::CONNECTED);
 
     {
         sp<android::IBinder> display(
@@ -288,8 +285,7 @@ TEST_F(DisplayTest, Hotplug) {
             ASSERT_EQ(NO_ERROR, surfaceControl->show());
         }
     }
-    mMockComposer->hotplugDisplay(static_cast<Display>(2),
-                                  IComposerCallback::Connection::DISCONNECTED);
+    mMockComposer->hotplugDisplay(EXTERNAL_DISPLAY, IComposerCallback::Connection::DISCONNECTED);
 }
 
 ////////////////////////////////////////////////
@@ -664,7 +660,7 @@ TEST_F(TransactionTest, LayerSetMatrix) {
              {{0.f, 1.f, 1.f, 0.f},     HWC_TRANSFORM_FLIP_H_ROT_90,    {64, 64, 128, 128}},
              {{0.f, 1.f, 1.f, 0.f},     HWC_TRANSFORM_FLIP_V_ROT_90,    {64, 64, 128, 128}}};
     // clang-format on
-    constexpr int TEST_COUNT = sizeof(MATRIX_TESTS)/sizeof(matrixTestData);
+    constexpr int TEST_COUNT = sizeof(MATRIX_TESTS) / sizeof(matrixTestData);
 
     for (int i = 0; i < TEST_COUNT; i++) {
         // TODO: How to leverage the HWC2 stringifiers?
