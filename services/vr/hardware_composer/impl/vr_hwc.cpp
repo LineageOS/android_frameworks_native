@@ -851,6 +851,14 @@ Return<void> VrHwc::createClient(createClient_cb hidl_cb) {
   return Void();
 }
 
+void VrHwc::ForceDisplaysRefresh() {
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (client_ != nullptr) {
+    for (const auto& pair : displays_)
+      client_.promote()->onRefresh(pair.first);
+  }
+}
+
 void VrHwc::RegisterObserver(Observer* observer) {
   std::lock_guard<std::mutex> guard(mutex_);
   if (observer_)

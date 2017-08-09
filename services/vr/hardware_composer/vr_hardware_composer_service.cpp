@@ -36,8 +36,7 @@ int main() {
                       "Failed to register service");
 
   android::sp<android::dvr::VrComposer> composer =
-      new android::dvr::VrComposer();
-  service->RegisterObserver(composer.get());
+      new android::dvr::VrComposer(service.get());
 
   android::sp<android::IServiceManager> sm(android::defaultServiceManager());
 
@@ -51,8 +50,6 @@ int main() {
 
   android::hardware::ProcessState::self()->startThreadPool();
   android::hardware::IPCThreadState::self()->joinThreadPool();
-
-  service->UnregisterObserver(composer.get());
 
   return 0;
 }
