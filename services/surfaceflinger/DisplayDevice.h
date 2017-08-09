@@ -261,6 +261,8 @@ private:
     int mPowerMode;
     // Current active config
     int mActiveConfig;
+    // Panel hardware rotation
+    int32_t mHardwareRotation;
     // Panel's mount flip, H, V or 180 (HV)
     uint32_t mPanelMountFlip;
 #ifdef USE_HWC2

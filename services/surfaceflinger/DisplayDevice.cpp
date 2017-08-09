@@ -163,6 +163,10 @@ DisplayDevice::DisplayDevice(
             break;
     }
 
+    // we store the value as orientation:
+    // 90 -> 1, 180 -> 2, 270 -> 3
+    mHardwareRotation = property_get_int32("ro.sf.hwrotation", 0) / 90;
+
     mPanelMountFlip = 0;
     // 1: H-Flip, 2: V-Flip, 3: 180 (HV Flip)
     property_get("ro.panel.mountflip", property, "0");
@@ -463,18 +467,10 @@ status_t DisplayDevice::orientationToTransfrom(
         int orientation, int w, int h, Transform* tr)
 {
     uint32_t flags = 0;
-    char value[PROPERTY_VALUE_MAX];
-    property_get("ro.sf.hwrotation", value, "0");
-    int additionalRot = atoi(value);
 
-    if (additionalRot && mType == DISPLAY_PRIMARY) {
-        additionalRot /= 90;
-        if (orientation == DisplayState::eOrientationUnchanged) {
-            orientation = additionalRot;
-        } else {
-            orientation += additionalRot;
-            orientation %= 4;
-        }
+    if (mHardwareRotation && mType == DISPLAY_PRIMARY) {
+        orientation += mHardwareRotation;
+        orientation %= 4;
     }
 
     switch (orientation) {
@@ -537,11 +533,7 @@ void DisplayDevice::setProjection(int orientation,
     if (!frame.isValid()) {
         // the destination frame can be invalid if it has never been set,
         // in that case we assume the whole display frame.
-        char value[PROPERTY_VALUE_MAX];
-        property_get("ro.sf.hwrotation", value, "0");
-        int additionalRot = atoi(value);
-
-        if (additionalRot == 90 || additionalRot == 270) {
+        if (mHardwareRotation == 1 || mHardwareRotation == 3) {
             frame = Rect(h, w);
         } else {
             frame = Rect(w, h);

@@ -601,6 +601,9 @@ private:
     bool mPrimaryHWVsyncEnabled;
     bool mHWVsyncAvailable;
 
+    // Panel hardware rotation
+    int32_t mHardwareRotation;
+
     /* ------------------------------------------------------------------------
      * Feature prototyping
      */
