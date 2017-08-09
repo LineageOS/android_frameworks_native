@@ -4447,7 +4447,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const sp<const DisplayDevice>& 
     bool secureLayerIsVisible = false;
     for (const auto& layer : mDrawingState.layersSortedByZ) {
         const Layer::State& state(layer->getDrawingState());
-        if (layer->belongsToDisplay(hw->getLayerStack(), false) ||
+        if (!layer->belongsToDisplay(hw->getLayerStack(), false) ||
                 (state.z < minLayerZ || state.z > maxLayerZ)) {
             continue;
         }
