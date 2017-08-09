@@ -444,35 +444,19 @@ public:
 #ifdef USE_HWC2
     // -----------------------------------------------------------------------
 
+    bool createHwcLayer(HWComposer* hwc, int32_t hwcId);
+    void destroyHwcLayer(int32_t hwcId);
+    void destroyAllHwcLayers();
+
     bool hasHwcLayer(int32_t hwcId) {
-        if (mHwcLayers.count(hwcId) == 0) {
-            return false;
-        }
-        if (mHwcLayers[hwcId].layer->isAbandoned()) {
-            ALOGI("Erasing abandoned layer %s on %d", mName.string(), hwcId);
-            mHwcLayers.erase(hwcId);
-            return false;
-        }
-        return true;
+        return mHwcLayers.count(hwcId) > 0;
     }
 
-    std::shared_ptr<HWC2::Layer> getHwcLayer(int32_t hwcId) {
+    HWC2::Layer* getHwcLayer(int32_t hwcId) {
         if (mHwcLayers.count(hwcId) == 0) {
             return nullptr;
         }
         return mHwcLayers[hwcId].layer;
-    }
-
-    void setHwcLayer(int32_t hwcId, std::shared_ptr<HWC2::Layer>&& layer) {
-        if (layer) {
-            mHwcLayers[hwcId].layer = layer;
-        } else {
-            mHwcLayers.erase(hwcId);
-        }
-    }
-
-    void clearHwcLayers() {
-        mHwcLayers.clear();
     }
 
 #endif
@@ -760,12 +744,14 @@ private:
     // HWC items, accessed from the main thread
     struct HWCInfo {
         HWCInfo()
-          : layer(),
+          : hwc(nullptr),
+            layer(nullptr),
             forceClientComposition(false),
             compositionType(HWC2::Composition::Invalid),
             clearClientTarget(false) {}
 
-        std::shared_ptr<HWC2::Layer> layer;
+        HWComposer* hwc;
+        HWC2::Layer* layer;
         bool forceClientComposition;
         HWC2::Composition compositionType;
         bool clearClientTarget;
