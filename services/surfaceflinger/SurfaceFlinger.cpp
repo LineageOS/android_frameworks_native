@@ -77,6 +77,7 @@
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 
+#include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
@@ -101,9 +102,23 @@ EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint na
 
 namespace android {
 
-
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+
+namespace {
+class ConditionalLock {
+public:
+    ConditionalLock(Mutex& mutex, bool lock) : mMutex(mutex), mLocked(lock) {
+        if (lock) {
+            mMutex.lock();
+        }
+    }
+    ~ConditionalLock() { if (mLocked) mMutex.unlock(); }
+private:
+    Mutex& mMutex;
+    bool mLocked;
+};
+}  // namespace anonymous
 
 // ---------------------------------------------------------------------------
 
@@ -147,9 +162,6 @@ SurfaceFlinger::SurfaceFlinger()
         mLayersRemoved(false),
         mLayersAdded(false),
         mRepaintEverything(0),
-        mHwc(nullptr),
-        mRealHwc(nullptr),
-        mVrHwc(nullptr),
         mHwcServiceName(getHwcServiceName()),
         mRenderEngine(nullptr),
         mBootTime(systemTime()),
@@ -177,7 +189,9 @@ SurfaceFlinger::SurfaceFlinger()
         mTotalTime(0),
         mLastSwapTime(0),
         mNumLayers(0),
-        mVrFlingerRequestsDisplay(false)
+        mVrFlingerRequestsDisplay(false),
+        mMainThreadId(std::this_thread::get_id()),
+        mComposerSequenceId(0)
 {
     ALOGI("SurfaceFlinger is starting");
 
@@ -583,48 +597,46 @@ void SurfaceFlinger::init() {
 
     ALOGI("Phase offset NS: %" PRId64 "", vsyncPhaseOffsetNs);
 
-    { // Autolock scope
-        Mutex::Autolock _l(mStateLock);
+    Mutex::Autolock _l(mStateLock);
 
-        // initialize EGL for the default display
-        mEGLDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-        eglInitialize(mEGLDisplay, NULL, NULL);
+    // initialize EGL for the default display
+    mEGLDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    eglInitialize(mEGLDisplay, NULL, NULL);
 
-        // start the EventThread
-        sp<VSyncSource> vsyncSrc = new DispSyncSource(&mPrimaryDispSync,
-                vsyncPhaseOffsetNs, true, "app");
-        mEventThread = new EventThread(vsyncSrc, *this, false);
-        sp<VSyncSource> sfVsyncSrc = new DispSyncSource(&mPrimaryDispSync,
-                sfVsyncPhaseOffsetNs, true, "sf");
-        mSFEventThread = new EventThread(sfVsyncSrc, *this, true);
-        mEventQueue.setEventThread(mSFEventThread);
+    // start the EventThread
+    sp<VSyncSource> vsyncSrc = new DispSyncSource(&mPrimaryDispSync,
+            vsyncPhaseOffsetNs, true, "app");
+    mEventThread = new EventThread(vsyncSrc, *this, false);
+    sp<VSyncSource> sfVsyncSrc = new DispSyncSource(&mPrimaryDispSync,
+            sfVsyncPhaseOffsetNs, true, "sf");
+    mSFEventThread = new EventThread(sfVsyncSrc, *this, true);
+    mEventQueue.setEventThread(mSFEventThread);
 
-        // set EventThread and SFEventThread to SCHED_FIFO to minimize jitter
-        struct sched_param param = {0};
-        param.sched_priority = 2;
-        if (sched_setscheduler(mSFEventThread->getTid(), SCHED_FIFO, &param) != 0) {
-            ALOGE("Couldn't set SCHED_FIFO for SFEventThread");
-        }
-        if (sched_setscheduler(mEventThread->getTid(), SCHED_FIFO, &param) != 0) {
-            ALOGE("Couldn't set SCHED_FIFO for EventThread");
-        }
-
-        // Get a RenderEngine for the given display / config (can't fail)
-        mRenderEngine = RenderEngine::create(mEGLDisplay,
-                HAL_PIXEL_FORMAT_RGBA_8888,
-                hasWideColorDisplay ? RenderEngine::WIDE_COLOR_SUPPORT : 0);
+    // set EventThread and SFEventThread to SCHED_FIFO to minimize jitter
+    struct sched_param param = {0};
+    param.sched_priority = 2;
+    if (sched_setscheduler(mSFEventThread->getTid(), SCHED_FIFO, &param) != 0) {
+        ALOGE("Couldn't set SCHED_FIFO for SFEventThread");
+    }
+    if (sched_setscheduler(mEventThread->getTid(), SCHED_FIFO, &param) != 0) {
+        ALOGE("Couldn't set SCHED_FIFO for EventThread");
     }
 
-    // Drop the state lock while we initialize the hardware composer. We drop
-    // the lock because on creation, it will call back into SurfaceFlinger to
-    // initialize the primary display.
-    LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
-        "Starting with vr flinger active is not currently supported.");
-    mRealHwc = new HWComposer(mHwcServiceName);
-    mHwc = mRealHwc;
-    mHwc->setEventHandler(static_cast<HWComposer::EventHandler*>(this));
+    // Get a RenderEngine for the given display / config (can't fail)
+    mRenderEngine = RenderEngine::create(mEGLDisplay,
+            HAL_PIXEL_FORMAT_RGBA_8888,
+            hasWideColorDisplay ? RenderEngine::WIDE_COLOR_SUPPORT : 0);
 
-    Mutex::Autolock _l(mStateLock);
+    // retrieve the EGL context that was selected/created
+    mEGLContext = mRenderEngine->getEGLContext();
+
+    LOG_ALWAYS_FATAL_IF(mEGLContext == EGL_NO_CONTEXT,
+            "couldn't create EGLContext");
+
+    LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
+            "Starting with vr flinger active is not currently supported.");
+    mHwc.reset(new HWComposer(mHwcServiceName));
+    mHwc->registerCallback(this, mComposerSequenceId);
 
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
@@ -638,16 +650,6 @@ void SurfaceFlinger::init() {
             ALOGE("Failed to start vrflinger");
         }
     }
-
-    // retrieve the EGL context that was selected/created
-    mEGLContext = mRenderEngine->getEGLContext();
-
-    LOG_ALWAYS_FATAL_IF(mEGLContext == EGL_NO_CONTEXT,
-            "couldn't create EGLContext");
-
-    // make the GLContext current so that we can create textures when creating
-    // Layers (which may happens before we render something)
-    getDefaultDisplayDeviceLocked()->makeCurrent(mEGLDisplay, mEGLContext);
 
     mEventControlThread = new EventControlThread(this);
     mEventControlThread->run("EventControl", PRIORITY_URGENT_DISPLAY);
@@ -1218,11 +1220,16 @@ void SurfaceFlinger::resyncWithRateLimit() {
     sLastResyncAttempted = now;
 }
 
-void SurfaceFlinger::onVSyncReceived(HWComposer* composer, int32_t type,
-                                     nsecs_t timestamp) {
+void SurfaceFlinger::onVsyncReceived(int32_t sequenceId,
+        hwc2_display_t displayId, int64_t timestamp) {
     Mutex::Autolock lock(mStateLock);
-    // Ignore any vsyncs from the non-active hardware composer.
-    if (composer != mHwc) {
+    // Ignore any vsyncs from a previous hardware composer.
+    if (sequenceId != mComposerSequenceId) {
+        return;
+    }
+
+    int32_t type;
+    if (!mHwc->onVsync(displayId, timestamp, &type)) {
         return;
     }
 
@@ -1230,7 +1237,7 @@ void SurfaceFlinger::onVSyncReceived(HWComposer* composer, int32_t type,
 
     { // Scope for the lock
         Mutex::Autolock _l(mHWVsyncLock);
-        if (type == 0 && mPrimaryHWVsyncEnabled) {
+        if (type == DisplayDevice::DISPLAY_PRIMARY && mPrimaryHWVsyncEnabled) {
             needsHwVsync = mPrimaryDispSync.addResyncSample(timestamp);
         }
     }
@@ -1248,7 +1255,7 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
 }
 
 void SurfaceFlinger::createDefaultDisplayDevice() {
-    const int32_t type = DisplayDevice::DISPLAY_PRIMARY;
+    const DisplayDevice::DisplayType type = DisplayDevice::DISPLAY_PRIMARY;
     wp<IBinder> token = mBuiltinDisplays[type];
 
     // All non-virtual displays are currently considered secure.
@@ -1279,28 +1286,49 @@ void SurfaceFlinger::createDefaultDisplayDevice() {
     mDisplays.add(token, hw);
     setActiveColorModeInternal(hw, HAL_COLOR_MODE_NATIVE);
     hw->setCompositionDataSpace(HAL_DATASPACE_UNKNOWN);
+
+    // Add the primary display token to mDrawingState so we don't try to
+    // recreate the DisplayDevice for the primary display.
+    mDrawingState.displays.add(token, DisplayDeviceState(type, true));
+
+    // make the GLContext current so that we can create textures when creating
+    // Layers (which may happens before we render something)
+    hw->makeCurrent(mEGLDisplay, mEGLContext);
 }
 
-void SurfaceFlinger::onHotplugReceived(HWComposer* composer, int32_t disp, bool connected) {
-    ALOGV("onHotplugReceived(%d, %s)", disp, connected ? "true" : "false");
+void SurfaceFlinger::onHotplugReceived(int32_t sequenceId,
+        hwc2_display_t display, HWC2::Connection connection,
+        bool primaryDisplay) {
+    ALOGV("onHotplugReceived(%d, %" PRIu64 ", %s, %s)",
+          sequenceId, display,
+          connection == HWC2::Connection::Connected ?
+                  "connected" : "disconnected",
+          primaryDisplay ? "primary" : "external");
 
-    if (composer->isUsingVrComposer()) {
-        // We handle initializing the primary display device for the VR
-        // window manager hwc explicitly at the time of transition.
-        if (disp != DisplayDevice::DISPLAY_PRIMARY) {
-            ALOGE("External displays are not supported by the vr hardware composer.");
+    // Only lock if we're not on the main thread. This function is normally
+    // called on a hwbinder thread, but for the primary display it's called on
+    // the main thread with the state lock already held, so don't attempt to
+    // acquire it here.
+    ConditionalLock lock(mStateLock,
+            std::this_thread::get_id() != mMainThreadId);
+
+    if (primaryDisplay) {
+        mHwc->onHotplug(display, connection);
+        if (!mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY].get()) {
+            createBuiltinDisplayLocked(DisplayDevice::DISPLAY_PRIMARY);
         }
-        return;
-    }
-
-    if (disp == DisplayDevice::DISPLAY_PRIMARY) {
-        Mutex::Autolock lock(mStateLock);
-        createBuiltinDisplayLocked(DisplayDevice::DISPLAY_PRIMARY);
         createDefaultDisplayDevice();
     } else {
+        if (sequenceId != mComposerSequenceId) {
+            return;
+        }
+        if (mHwc->isUsingVrComposer()) {
+            ALOGE("External displays are not supported by the vr hardware composer.");
+            return;
+        }
+        mHwc->onHotplug(display, connection);
         auto type = DisplayDevice::DISPLAY_EXTERNAL;
-        Mutex::Autolock _l(mStateLock);
-        if (connected) {
+        if (connection == HWC2::Connection::Connected) {
             createBuiltinDisplayLocked(type);
         } else {
             mCurrentState.displays.removeItem(mBuiltinDisplays[type]);
@@ -1312,46 +1340,31 @@ void SurfaceFlinger::onHotplugReceived(HWComposer* composer, int32_t disp, bool 
     }
 }
 
-void SurfaceFlinger::onInvalidateReceived(HWComposer* composer) {
+void SurfaceFlinger::onRefreshReceived(int sequenceId,
+                                       hwc2_display_t /*display*/) {
     Mutex::Autolock lock(mStateLock);
-    if (composer == mHwc) {
-        repaintEverything();
-    } else {
-        // This isn't from our current hardware composer. If it's a callback
-        // from the real composer, forward the refresh request to vr
-        // flinger. Otherwise ignore it.
-        if (!composer->isUsingVrComposer()) {
-            mVrFlinger->OnHardwareComposerRefresh();
-        }
+    if (sequenceId != mComposerSequenceId) {
+        return;
     }
+    repaintEverything();
 }
 
 void SurfaceFlinger::setVsyncEnabled(int disp, int enabled) {
     ATRACE_CALL();
+    Mutex::Autolock lock(mStateLock);
     getHwComposer().setVsyncEnabled(disp,
             enabled ? HWC2::Vsync::Enable : HWC2::Vsync::Disable);
 }
 
 // Note: it is assumed the caller holds |mStateLock| when this is called
-void SurfaceFlinger::resetHwcLocked() {
+void SurfaceFlinger::resetDisplayState() {
     disableHardwareVsync(true);
-    clearHwcLayers(mDrawingState.layersSortedByZ);
-    clearHwcLayers(mCurrentState.layersSortedByZ);
-    for (size_t disp = 0; disp < mDisplays.size(); ++disp) {
-        clearHwcLayers(mDisplays[disp]->getVisibleLayersSortedByZ());
-    }
     // Clear the drawing state so that the logic inside of
     // handleTransactionLocked will fire. It will determine the delta between
     // mCurrentState and mDrawingState and re-apply all changes when we make the
     // transition.
     mDrawingState.displays.clear();
-    // Release virtual display hwcId during vr mode transition.
-    for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
-        const sp<DisplayDevice>& displayDevice = mDisplays[displayId];
-        if (displayDevice->getDisplayType() == DisplayDevice::DISPLAY_VIRTUAL) {
-            displayDevice->disconnect(getHwComposer());
-        }
-    }
+    eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     mDisplays.clear();
 }
 
@@ -1363,57 +1376,54 @@ void SurfaceFlinger::updateVrFlinger() {
         return;
     }
 
-    if (vrFlingerRequestsDisplay && !mVrHwc) {
-        // Construct new HWComposer without holding any locks.
-        mVrHwc = new HWComposer("vr");
-
-        // Set up the event handlers. This step is neccessary to initialize the internal state of
-        // the hardware composer object properly. Our callbacks are designed such that if they are
-        // triggered between now and the point where the display is properly re-initialized, they
-        // will not have any effect, so this is safe to do here, before the lock is aquired.
-        mVrHwc->setEventHandler(static_cast<HWComposer::EventHandler*>(this));
-        ALOGV("Vr HWC created");
+    if (vrFlingerRequestsDisplay && !mHwc->getComposer()->isRemote()) {
+        ALOGE("Vr flinger is only supported for remote hardware composer"
+              " service connections. Ignoring request to transition to vr"
+              " flinger.");
+        mVrFlingerRequestsDisplay = false;
+        return;
     }
 
     Mutex::Autolock _l(mStateLock);
 
-    if (vrFlingerRequestsDisplay) {
-        resetHwcLocked();
+    int currentDisplayPowerMode = getDisplayDeviceLocked(
+            mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY])->getPowerMode();
 
-        mHwc = mVrHwc;
-        mVrFlinger->GrantDisplayOwnership();
-
-    } else {
+    if (!vrFlingerRequestsDisplay) {
         mVrFlinger->SeizeDisplayOwnership();
+    }
 
-        resetHwcLocked();
+    resetDisplayState();
+    mHwc.reset();  // Delete the current instance before creating the new one
+    mHwc.reset(new HWComposer(
+            vrFlingerRequestsDisplay ? "vr" : mHwcServiceName));
+    mHwc->registerCallback(this, ++mComposerSequenceId);
 
-        mHwc = mRealHwc;
+    LOG_ALWAYS_FATAL_IF(!mHwc->getComposer()->isRemote(),
+            "Switched to non-remote hardware composer");
+
+    if (vrFlingerRequestsDisplay) {
+        mVrFlinger->GrantDisplayOwnership();
+    } else {
         enableHardwareVsync();
     }
 
     mVisibleRegionsDirty = true;
     invalidateHwcGeometry();
 
-    // Explicitly re-initialize the primary display. This is because some other
-    // parts of this class rely on the primary display always being available.
-    createDefaultDisplayDevice();
-
     // Re-enable default display.
-    sp<LambdaMessage> requestMessage = new LambdaMessage([&]() {
-        sp<DisplayDevice> hw(getDisplayDevice(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]));
-        setPowerModeInternal(hw, HWC_POWER_MODE_NORMAL);
+    sp<DisplayDevice> hw(getDisplayDeviceLocked(
+            mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]));
+    setPowerModeInternal(hw, currentDisplayPowerMode, /*stateLockHeld*/ true);
 
-        // Reset the timing values to account for the period of the swapped in HWC
-        const auto& activeConfig = mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
-        const nsecs_t period = activeConfig->getVsyncPeriod();
-        mAnimFrameTracker.setDisplayRefreshPeriod(period);
+    // Reset the timing values to account for the period of the swapped in HWC
+    const auto& activeConfig = mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
+    const nsecs_t period = activeConfig->getVsyncPeriod();
+    mAnimFrameTracker.setDisplayRefreshPeriod(period);
 
-        // Use phase of 0 since phase is not known.
-        // Use latency of 0, which will snap to the ideal latency.
-        setCompositorTimingSnapped(0, period, 0);
-    });
-    postMessageAsync(requestMessage);
+    // Use phase of 0 since phase is not known.
+    // Use latency of 0, which will snap to the ideal latency.
+    setCompositorTimingSnapped(0, period, 0);
 
     android_atomic_or(1, &mRepaintEverything);
     setTransactionFlags(eDisplayTransactionNeeded);
@@ -1749,15 +1759,14 @@ void SurfaceFlinger::rebuildLayerStacks() {
                         } else {
                             // Clear out the HWC layer if this layer was
                             // previously visible, but no longer is
-                            layer->setHwcLayer(displayDevice->getHwcDisplayId(),
-                                    nullptr);
+                            layer->destroyHwcLayer(
+                                    displayDevice->getHwcDisplayId());
                         }
                     } else {
                         // WM changes displayDevice->layerStack upon sleep/awake.
                         // Here we make sure we delete the HWC layers even if
                         // WM changed their layer stack.
-                        layer->setHwcLayer(displayDevice->getHwcDisplayId(),
-                                nullptr);
+                        layer->destroyHwcLayer(displayDevice->getHwcDisplayId());
                     }
                 });
             }
@@ -1872,10 +1881,7 @@ void SurfaceFlinger::setUpHWComposer() {
                 for (size_t i = 0; i < currentLayers.size(); i++) {
                     const auto& layer = currentLayers[i];
                     if (!layer->hasHwcLayer(hwcId)) {
-                        auto hwcLayer = mHwc->createLayer(hwcId);
-                        if (hwcLayer) {
-                            layer->setHwcLayer(hwcId, std::move(hwcLayer));
-                        } else {
+                        if (!layer->createHwcLayer(mHwc.get(), hwcId)) {
                             layer->forceClientComposition(hwcId);
                             continue;
                         }
@@ -2161,7 +2167,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                         if (state.surface != NULL) {
 
                             // Allow VR composer to use virtual displays.
-                            if (mUseHwcVirtualDisplays || mHwc == mVrHwc) {
+                            if (mUseHwcVirtualDisplays || mHwc->isUsingVrComposer()) {
                                 int width = 0;
                                 int status = state.surface->query(
                                         NATIVE_WINDOW_WIDTH, &width);
@@ -3287,7 +3293,8 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.height = 0;
     displays.add(d);
     setTransactionState(state, displays, 0);
-    setPowerModeInternal(getDisplayDevice(d.token), HWC_POWER_MODE_NORMAL);
+    setPowerModeInternal(getDisplayDevice(d.token), HWC_POWER_MODE_NORMAL,
+                         /*stateLockHeld*/ false);
 
     const auto& activeConfig = mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
     const nsecs_t period = activeConfig->getVsyncPeriod();
@@ -3313,7 +3320,7 @@ void SurfaceFlinger::initializeDisplays() {
 }
 
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
-        int mode) {
+             int mode, bool stateLockHeld) {
     ALOGD("Set power mode=%d, type=%d flinger=%p", mode, hw->getDisplayType(),
             this);
     int32_t type = hw->getDisplayType();
@@ -3330,7 +3337,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
     }
 
     if (mInterceptor.isEnabled()) {
-        Mutex::Autolock _l(mStateLock);
+        ConditionalLock lock(mStateLock, !stateLockHeld);
         ssize_t idx = mCurrentState.displays.indexOfKey(hw->getDisplayToken());
         if (idx < 0) {
             ALOGW("Surface Interceptor SavePowerMode: invalid display token");
@@ -3416,7 +3423,8 @@ void SurfaceFlinger::setPowerMode(const sp<IBinder>& display, int mode) {
                 ALOGW("Attempt to set power mode = %d for virtual display",
                         mMode);
             } else {
-                mFlinger.setPowerModeInternal(hw, mMode);
+                mFlinger.setPowerModeInternal(
+                        hw, mMode, /*stateLockHeld*/ false);
             }
             return true;
         }

@@ -133,10 +133,6 @@ void VrFlinger::SeizeDisplayOwnership() {
   display_service_->SeizeDisplayOwnership();
 }
 
-void VrFlinger::OnHardwareComposerRefresh() {
-  display_service_->OnHardwareComposerRefresh();
-}
-
 std::string VrFlinger::Dump() {
   // TODO(karthikrs): Add more state information here.
   return display_service_->DumpState(0/*unused*/);
