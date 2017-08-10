@@ -27,10 +27,6 @@
 #include <EGL/egl.h>
 #include <utils/Log.h>
 
-
-using namespace android;
-
-
 #include "fill_common.cpp"
 
 
