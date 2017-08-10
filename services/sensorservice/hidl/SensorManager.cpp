@@ -29,6 +29,9 @@
 #include "DirectReportChannel.h"
 #include "utils.h"
 
+#include <hwbinder/IPCThreadState.h>
+#include <utils/String8.h>
+
 namespace android {
 namespace frameworks {
 namespace sensorservice {
@@ -212,7 +215,9 @@ Return<void> SensorManager::createEventQueue(
         return Void();
     }
 
-    sp<::android::SensorEventQueue> internalQueue = getInternalManager().createEventQueue();
+    String8 package(String8::format("hidl_client_pid_%d",
+                                    android::hardware::IPCThreadState::self()->getCallingPid()));
+    sp<::android::SensorEventQueue> internalQueue = getInternalManager().createEventQueue(package);
     if (internalQueue == nullptr) {
         LOG(WARNING) << "::android::SensorManager::createEventQueue returns nullptr.";
         _hidl_cb(nullptr, Result::UNKNOWN_ERROR);

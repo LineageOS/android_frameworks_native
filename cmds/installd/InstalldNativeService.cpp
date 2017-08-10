@@ -320,7 +320,8 @@ static int prepare_app_quota(const std::unique_ptr<std::string>& uuid, const std
         }
 
         dq.dqb_valid = QIF_LIMITS;
-        dq.dqb_bhardlimit = (((stat.f_blocks * stat.f_frsize) / 10) * 9) / QIF_DQBLKSIZE;
+        dq.dqb_bhardlimit =
+            (((static_cast<uint64_t>(stat.f_blocks) * stat.f_frsize) / 10) * 9) / QIF_DQBLKSIZE;
         dq.dqb_ihardlimit = (stat.f_files / 2);
         if (quotactl(QCMD(Q_SETQUOTA, USRQUOTA), device.c_str(), uid,
                 reinterpret_cast<char*>(&dq)) != 0) {
@@ -1343,7 +1344,7 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
         const std::vector<std::string>& codePaths, std::vector<int64_t>* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
-    for (auto packageName : packageNames) {
+    for (const auto& packageName : packageNames) {
         CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     }
     // NOTE: Locking is relaxed on this method, since it's limited to
@@ -1382,7 +1383,7 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
     }
 
     ATRACE_BEGIN("obb");
-    for (auto packageName : packageNames) {
+    for (const auto& packageName : packageNames) {
         auto obbCodePath = create_data_media_obb_path(uuid_, packageName.c_str());
         calculate_tree_size(obbCodePath, &extStats.codeSize);
     }
@@ -1390,7 +1391,7 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
 
     if (flags & FLAG_USE_QUOTA && appId >= AID_APP_START) {
         ATRACE_BEGIN("code");
-        for (auto codePath : codePaths) {
+        for (const auto& codePath : codePaths) {
             calculate_tree_size(codePath, &stats.codeSize, -1,
                     multiuser_get_shared_gid(0, appId));
         }
@@ -1401,7 +1402,7 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
         ATRACE_END();
     } else {
         ATRACE_BEGIN("code");
-        for (auto codePath : codePaths) {
+        for (const auto& codePath : codePaths) {
             calculate_tree_size(codePath, &stats.codeSize);
         }
         ATRACE_END();
@@ -1641,6 +1642,7 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
     int64_t videoSize = 0;
     int64_t imageSize = 0;
     int64_t appSize = 0;
+    int64_t obbSize = 0;
 
     auto device = findQuotaDeviceForUuid(uuid);
     if (device.empty()) {
@@ -1687,6 +1689,13 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
             LOG(DEBUG) << "quotactl() for GID " << imageGid << " " << dq.dqb_curspace;
 #endif
             imageSize = dq.dqb_curspace;
+        }
+        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), device.c_str(), AID_MEDIA_OBB,
+                reinterpret_cast<char*>(&dq)) == 0) {
+#if MEASURE_DEBUG
+            LOG(DEBUG) << "quotactl() for GID " << AID_MEDIA_OBB << " " << dq.dqb_curspace;
+#endif
+            obbSize = dq.dqb_curspace;
         }
         ATRACE_END();
 
@@ -1744,6 +1753,11 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
         }
         fts_close(fts);
         ATRACE_END();
+
+        ATRACE_BEGIN("obb");
+        auto obbPath = create_data_media_obb_path(uuid_, "");
+        calculate_tree_size(obbPath, &obbSize);
+        ATRACE_END();
     }
 
     std::vector<int64_t> ret;
@@ -1752,6 +1766,7 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
     ret.push_back(videoSize);
     ret.push_back(imageSize);
     ret.push_back(appSize);
+    ret.push_back(obbSize);
 #if MEASURE_DEBUG
     LOG(DEBUG) << "Final result " << toString(ret);
 #endif
@@ -1811,8 +1826,8 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
         const std::unique_ptr<std::string>& packageName, const std::string& instructionSet,
         int32_t dexoptNeeded, const std::unique_ptr<std::string>& outputPath, int32_t dexFlags,
         const std::string& compilerFilter, const std::unique_ptr<std::string>& uuid,
-        const std::unique_ptr<std::string>& sharedLibraries,
-        const std::unique_ptr<std::string>& seInfo) {
+        const std::unique_ptr<std::string>& classLoaderContext,
+        const std::unique_ptr<std::string>& seInfo, bool downgrade) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     if (packageName && *packageName != "*") {
@@ -1826,10 +1841,11 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
     const char* oat_dir = outputPath ? outputPath->c_str() : nullptr;
     const char* compiler_filter = compilerFilter.c_str();
     const char* volume_uuid = uuid ? uuid->c_str() : nullptr;
-    const char* shared_libraries = sharedLibraries ? sharedLibraries->c_str() : nullptr;
+    const char* class_loader_context = classLoaderContext ? classLoaderContext->c_str() : nullptr;
     const char* se_info = seInfo ? seInfo->c_str() : nullptr;
     int res = android::installd::dexopt(apk_path, uid, pkgname, instruction_set, dexoptNeeded,
-            oat_dir, dexFlags, compiler_filter, volume_uuid, shared_libraries, se_info);
+            oat_dir, dexFlags, compiler_filter, volume_uuid, class_loader_context, se_info,
+            downgrade);
     return res ? error(res, "Failed to dexopt") : ok();
 }
 

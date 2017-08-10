@@ -126,8 +126,7 @@ static const std::string ZIP_ROOT_DIR = "FS";
 static const std::string kDumpstateBoardPath = "/bugreports/";
 static const std::string kDumpstateBoardFiles[] = {
     "dumpstate_board.txt",
-    // TODO: rename to dumpstate_board.bin once vendors can handle it
-    "modem_log_all.tar"
+    "dumpstate_board.bin"
 };
 static const int NUM_OF_DUMPS = arraysize(kDumpstateBoardFiles);
 
@@ -692,7 +691,7 @@ bool Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd) {
     std::string valid_name = entry_name;
 
     // Rename extension if necessary.
-    size_t idx = entry_name.rfind(".");
+    size_t idx = entry_name.rfind('.');
     if (idx != std::string::npos) {
         std::string extension = entry_name.substr(idx);
         std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
@@ -930,8 +929,10 @@ static void AddAnrTraceDir(const bool add_to_zip, const std::string& anr_traces_
                  "VM TRACES AT LAST ANR", add_to_zip);
 
         if (anr_data->size() > 1) {
+            // NOTE: Historical ANRs are always added as separate entries in the
+            // bugreport zip file.
             AddDumps(anr_data->begin() + 1, anr_data->end(),
-                     "HISTORICAL ANR", add_to_zip);
+                     "HISTORICAL ANR", true /* add_to_zip */);
         }
     } else {
         printf("*** NO ANRs to dump in %s\n\n", ANR_DIR.c_str());
@@ -1431,7 +1432,7 @@ bool Dumpstate::FinishZipFile() {
     return true;
 }
 
-static std::string SHA256_file_hash(std::string filepath) {
+static std::string SHA256_file_hash(const std::string& filepath) {
     android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(filepath.c_str(), O_RDONLY | O_NONBLOCK
             | O_CLOEXEC | O_NOFOLLOW)));
     if (fd == -1) {

@@ -1,4 +1,3 @@
-#define LOG_TAG "ServiceFramework"
 #include "pdx/service.h"
 
 #include <fcntl.h>
@@ -9,8 +8,6 @@
 #include <cstdint>
 
 #include <pdx/trace.h>
-
-#define TRACE 0
 
 namespace android {
 namespace pdx {

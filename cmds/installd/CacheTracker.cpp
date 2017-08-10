@@ -60,7 +60,7 @@ void CacheTracker::loadStats() {
 
     ATRACE_BEGIN("loadStats tree");
     cacheUsed = 0;
-    for (auto path : mDataPaths) {
+    for (const auto& path : mDataPaths) {
         auto cachePath = read_path_inode(path, "cache", kXattrInodeCache);
         auto codeCachePath = read_path_inode(path, "code_cache", kXattrInodeCodeCache);
         calculate_tree_size(cachePath, &cacheUsed);
@@ -148,6 +148,7 @@ void CacheTracker::loadItemsFrom(const std::string& path) {
         }
 
         // Bubble up modified time to parent
+        CHECK(p != nullptr);
         switch (p->fts_info) {
         case FTS_DP:
         case FTS_DEFAULT:
@@ -169,7 +170,7 @@ void CacheTracker::loadItems() {
     items.clear();
 
     ATRACE_BEGIN("loadItems");
-    for (auto path : mDataPaths) {
+    for (const auto& path : mDataPaths) {
         loadItemsFrom(read_path_inode(path, "cache", kXattrInodeCache));
         loadItemsFrom(read_path_inode(path, "code_cache", kXattrInodeCodeCache));
     }

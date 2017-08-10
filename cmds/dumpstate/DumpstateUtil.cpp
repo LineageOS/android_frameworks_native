@@ -30,7 +30,7 @@
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
-#include <cutils/log.h>
+#include <log/log.h>
 
 #include "DumpstateInternal.h"
 

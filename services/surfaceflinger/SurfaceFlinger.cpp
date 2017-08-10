@@ -46,6 +46,7 @@
 #include <gui/BufferQueue.h>
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
+#include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 
 #include <ui/GraphicBufferAllocator.h>
@@ -123,6 +124,21 @@ bool SurfaceFlinger::useVrFlinger;
 int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
 bool SurfaceFlinger::hasWideColorDisplay;
 
+
+std::string getHwcServiceName() {
+    char value[PROPERTY_VALUE_MAX] = {};
+    property_get("debug.sf.hwc_service_name", value, "default");
+    ALOGI("Using HWComposer service: '%s'", value);
+    return std::string(value);
+}
+
+bool useTrebleTestingOverride() {
+    char value[PROPERTY_VALUE_MAX] = {};
+    property_get("debug.sf.treble_testing_override", value, "false");
+    ALOGI("Treble testing override: '%s'", value);
+    return std::string(value) == "true";
+}
+
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
         mTransactionFlags(0),
@@ -134,6 +150,7 @@ SurfaceFlinger::SurfaceFlinger()
         mHwc(nullptr),
         mRealHwc(nullptr),
         mVrHwc(nullptr),
+        mHwcServiceName(getHwcServiceName()),
         mRenderEngine(nullptr),
         mBootTime(systemTime()),
         mBuiltinDisplays(),
@@ -233,6 +250,15 @@ SurfaceFlinger::SurfaceFlinger()
     // but since /data may be encrypted, we need to wait until after vold
     // comes online to attempt to read the property. The property is
     // instead read after the boot animation
+
+    if (useTrebleTestingOverride()) {
+        // Without the override SurfaceFlinger cannot connect to HIDL
+        // services that are not listed in the manifests.  Considered
+        // deriving the setting from the set service name, but it
+        // would be brittle if the name that's not 'default' is used
+        // for production purposes later on.
+        setenv("TREBLE_TESTING_OVERRIDE", "true", true);
+    }
 }
 
 void SurfaceFlinger::onFirstRef()
@@ -594,7 +620,7 @@ void SurfaceFlinger::init() {
     // initialize the primary display.
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
         "Starting with vr flinger active is not currently supported.");
-    mRealHwc = new HWComposer(false);
+    mRealHwc = new HWComposer(mHwcServiceName);
     mHwc = mRealHwc;
     mHwc->setEventHandler(static_cast<HWComposer::EventHandler*>(this));
 
@@ -1055,6 +1081,33 @@ status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    if ((uid != AID_SHELL) &&
+            !PermissionCache::checkPermission(sDump, pid, uid)) {
+        ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
+        return PERMISSION_DENIED;
+    }
+
+    // Try to acquire a lock for 1s, fail gracefully
+    const status_t err = mStateLock.timedLock(s2ns(1));
+    const bool locked = (err == NO_ERROR);
+    if (!locked) {
+        ALOGE("LayerDebugInfo: SurfaceFlinger unresponsive (%s [%d]) - exit", strerror(-err), err);
+        return TIMED_OUT;
+    }
+
+    outLayers->clear();
+    mCurrentState.traverseInZOrder([&](Layer* layer) {
+        outLayers->push_back(layer->getLayerDebugInfo());
+    });
+
+    mStateLock.unlock();
+    return NO_ERROR;
+}
+
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -1312,7 +1365,7 @@ void SurfaceFlinger::updateVrFlinger() {
 
     if (vrFlingerRequestsDisplay && !mVrHwc) {
         // Construct new HWComposer without holding any locks.
-        mVrHwc = new HWComposer(true);
+        mVrHwc = new HWComposer("vr");
 
         // Set up the event handlers. This step is neccessary to initialize the internal state of
         // the hardware composer object properly. Our callbacks are designed such that if they are
@@ -1376,7 +1429,6 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                             Fence::SIGNAL_TIME_PENDING);
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (mPropagateBackpressure && frameMissed) {
-                ALOGD("Backpressure trigger, skipping transaction & refresh!");
                 signalLayerUpdate();
                 break;
             }
@@ -1578,6 +1630,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     // |mStateLock| not needed as we are on the main thread
     const sp<const DisplayDevice> hw(getDefaultDisplayDeviceLocked());
 
+    mGlCompositionDoneTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
     if (mHwc->hasClientComposition(HWC_DISPLAY_PRIMARY)) {
         glCompositionDoneFenceTime =
@@ -1586,12 +1639,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     } else {
         glCompositionDoneFenceTime = FenceTime::NO_FENCE;
     }
-    mGlCompositionDoneTimeline.updateSignalTimes();
 
+    mDisplayTimeline.updateSignalTimes();
     sp<Fence> presentFence = mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
     auto presentFenceTime = std::make_shared<FenceTime>(presentFence);
     mDisplayTimeline.push(presentFenceTime);
-    mDisplayTimeline.updateSignalTimes();
 
     nsecs_t vsyncPhase = mPrimaryDispSync.computeNextRefresh(0);
     nsecs_t vsyncInterval = mPrimaryDispSync.getPeriod();
@@ -1616,8 +1668,8 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         }
     });
 
-    if (presentFence->isValid()) {
-        if (mPrimaryDispSync.addPresentFence(presentFence)) {
+    if (presentFenceTime->isValid()) {
+        if (mPrimaryDispSync.addPresentFence(presentFenceTime)) {
             enableHardwareVsync();
         } else {
             disableHardwareVsync(false);
@@ -2983,7 +3035,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             }
         }
         if (what & layer_state_t::eRelativeLayerChanged) {
+            ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
             if (layer->setRelativeLayer(s.relativeLayerHandle, s.z)) {
+                mCurrentState.layersSortedByZ.removeAt(idx);
+                mCurrentState.layersSortedByZ.add(layer);
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
         }
@@ -3706,7 +3761,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.appendFormat("Visible layers (count = %zu)\n", mNumLayers);
     colorizer.reset(result);
     mCurrentState.traverseInZOrder([&](Layer* layer) {
-        layer->dump(result, colorizer);
+        result.append(to_string(layer->getLayerDebugInfo()).c_str());
     });
 
     /*

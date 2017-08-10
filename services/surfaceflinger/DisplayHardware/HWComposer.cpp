@@ -59,7 +59,7 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-HWComposer::HWComposer(bool useVrComposer)
+HWComposer::HWComposer(const std::string& serviceName)
     : mHwcDevice(),
       mDisplayData(2),
       mFreeDisplaySlots(),
@@ -74,7 +74,7 @@ HWComposer::HWComposer(bool useVrComposer)
         mVSyncCounts[i] = 0;
     }
 
-    loadHwcModule(useVrComposer);
+    loadHwcModule(serviceName);
 }
 
 HWComposer::~HWComposer() {}
@@ -103,10 +103,11 @@ void HWComposer::setEventHandler(EventHandler* handler)
 }
 
 // Load and prepare the hardware composer module.  Sets mHwc.
-void HWComposer::loadHwcModule(bool useVrComposer)
+void HWComposer::loadHwcModule(const std::string& serviceName)
 {
     ALOGV("loadHwcModule");
-    mHwcDevice = std::make_unique<HWC2::Device>(useVrComposer);
+    mHwcDevice = std::make_unique<HWC2::Device>(serviceName);
+
     mRemainingHwcVirtualDisplays = mHwcDevice->getMaxVirtualDisplayCount();
 }
 

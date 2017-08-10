@@ -18,14 +18,13 @@ using android::pdx::LocalChannelHandle;
 using android::pdx::Status;
 using android::pdx::Transaction;
 
-#define arraysize(x) (static_cast<int32_t>(std::extent<decltype(x)>::value))
-
 namespace android {
 namespace dvr {
 namespace {
 
 typedef CPUMappedBroadcastRing<DvrPoseRing> SensorPoseRing;
 
+constexpr static int32_t MAX_CONTROLLERS = 2;
 }  // namespace
 
 // PoseClient is a remote interface to the pose service in sensord.
@@ -81,7 +80,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
 
   int GetControllerPose(int32_t controller_id, uint32_t vsync_count,
                         DvrPoseAsync* out_pose) {
-    if (controller_id < 0 || controller_id >= arraysize(controllers_)) {
+    if (controller_id < 0 || controller_id >= MAX_CONTROLLERS) {
       return -EINVAL;
     }
     if (!controllers_[controller_id].mapped_pose_buffer) {
@@ -166,7 +165,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
   }
 
   int GetControllerRingBuffer(int32_t controller_id) {
-    if (controller_id < 0 || controller_id >= arraysize(controllers_)) {
+    if (controller_id < 0 || controller_id >= MAX_CONTROLLERS) {
       return -EINVAL;
     }
     ControllerClientState& client_state = controllers_[controller_id];
@@ -254,7 +253,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
     std::unique_ptr<BufferConsumer> pose_buffer;
     const DvrPoseAsync* mapped_pose_buffer = nullptr;
   };
-  ControllerClientState controllers_[2];
+  ControllerClientState controllers_[MAX_CONTROLLERS];
 };
 
 }  // namespace dvr

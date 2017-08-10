@@ -82,8 +82,8 @@ TEST_F(StreamSplitterTest, OneInputOneOutput) {
     sp<Fence> fence;
     sp<GraphicBuffer> buffer;
     ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION,
-            inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-                    GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
+              inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                           nullptr, nullptr));
     ASSERT_EQ(OK, inputProducer->requestBuffer(slot, &buffer));
 
     uint32_t* dataIn;
@@ -116,8 +116,8 @@ TEST_F(StreamSplitterTest, OneInputOneOutput) {
     // This should succeed even with allocation disabled since it will have
     // received the buffer back from the output BufferQueue
     ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION,
-            inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-                    GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
+              inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                           nullptr, nullptr));
 }
 
 TEST_F(StreamSplitterTest, OneInputMultipleOutputs) {
@@ -154,8 +154,8 @@ TEST_F(StreamSplitterTest, OneInputMultipleOutputs) {
     sp<Fence> fence;
     sp<GraphicBuffer> buffer;
     ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION,
-            inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-                    GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
+              inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                           nullptr, nullptr));
     ASSERT_EQ(OK, inputProducer->requestBuffer(slot, &buffer));
 
     uint32_t* dataIn;
@@ -191,8 +191,8 @@ TEST_F(StreamSplitterTest, OneInputMultipleOutputs) {
     // This should succeed even with allocation disabled since it will have
     // received the buffer back from the output BufferQueues
     ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION,
-            inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-                    GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
+              inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                           nullptr, nullptr));
 }
 
 TEST_F(StreamSplitterTest, OutputAbandonment) {
@@ -218,8 +218,8 @@ TEST_F(StreamSplitterTest, OutputAbandonment) {
     sp<Fence> fence;
     sp<GraphicBuffer> buffer;
     ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION,
-            inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-                    GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
+              inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                           nullptr, nullptr));
     ASSERT_EQ(OK, inputProducer->requestBuffer(slot, &buffer));
 
     // Abandon the output
@@ -231,8 +231,9 @@ TEST_F(StreamSplitterTest, OutputAbandonment) {
     ASSERT_EQ(OK, inputProducer->queueBuffer(slot, qbInput, &qbOutput));
 
     // Input should be abandoned
-    ASSERT_EQ(NO_INIT, inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
-            GRALLOC_USAGE_SW_WRITE_OFTEN, nullptr));
+    ASSERT_EQ(NO_INIT,
+              inputProducer->dequeueBuffer(&slot, &fence, 0, 0, 0, GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                           nullptr, nullptr));
 }
 
 } // namespace android

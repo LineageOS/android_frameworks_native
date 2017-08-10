@@ -464,6 +464,162 @@ TEST_F(DvrBufferQueueTest, TestReadQueueEventFd) {
   ASSERT_GT(event_fd, 0);
 }
 
+// Verifies a Dvr{Read,Write}BufferQueue contains the same set of
+// Dvr{Read,Write}Buffer(s) during their lifecycles. And for the same buffer_id,
+// the corresponding AHardwareBuffer handle stays the same.
+TEST_F(DvrBufferQueueTest, TestStableBufferIdAndHardwareBuffer) {
+  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(kQueueCapacity));
+
+  int fence_fd = -1;
+  DvrReadBufferQueue* read_queue = nullptr;
+  EXPECT_EQ(0, dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue));
+
+  // Read buffers.
+  std::array<DvrReadBuffer*, kQueueCapacity> rbs;
+  // Write buffers.
+  std::array<DvrWriteBuffer*, kQueueCapacity> wbs;
+  // Hardware buffers for Read buffers.
+  std::unordered_map<int, AHardwareBuffer*> rhbs;
+  // Hardware buffers for Write buffers.
+  std::unordered_map<int, AHardwareBuffer*> whbs;
+
+  for (size_t i = 0; i < kQueueCapacity; i++) {
+    dvrReadBufferCreateEmpty(&rbs[i]);
+    dvrWriteBufferCreateEmpty(&wbs[i]);
+  }
+
+  constexpr int kNumTests = 100;
+  constexpr int kTimeout = 0;
+  TestMeta seq = 0U;
+
+  // This test runs the following operations many many times. Thus we prefer to
+  // use ASSERT_XXX rather than EXPECT_XXX to avoid spamming the output.
+  std::function<void(size_t i)> Gain = [&](size_t i) {
+    ASSERT_EQ(0, dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wbs[i],
+                                            &fence_fd));
+    ASSERT_LT(fence_fd, 0);  // expect invalid fence.
+    ASSERT_TRUE(dvrWriteBufferIsValid(wbs[i]));
+    int buffer_id = dvrWriteBufferGetId(wbs[i]);
+    ASSERT_GT(buffer_id, 0);
+
+    AHardwareBuffer* hb = nullptr;
+    ASSERT_EQ(0, dvrWriteBufferGetAHardwareBuffer(wbs[i], &hb));
+
+    auto whb_it = whbs.find(buffer_id);
+    if (whb_it == whbs.end()) {
+      // If this is a new buffer id, check that total number of unique
+      // hardware buffers won't exceed queue capacity.
+      ASSERT_LT(whbs.size(), kQueueCapacity);
+      whbs.emplace(buffer_id, hb);
+    } else {
+      // If this is a buffer id we have seen before, check that the
+      // buffer_id maps to the same AHardwareBuffer handle.
+      ASSERT_EQ(hb, whb_it->second);
+    }
+  };
+
+  std::function<void(size_t i)> Post = [&](size_t i) {
+    ASSERT_TRUE(dvrWriteBufferIsValid(wbs[i]));
+
+    seq++;
+    ASSERT_EQ(0, dvrWriteBufferPost(wbs[i], /*fence=*/-1, &seq, sizeof(seq)));
+  };
+
+  std::function<void(size_t i)> Acquire = [&](size_t i) {
+    TestMeta out_seq = 0U;
+    ASSERT_EQ(0,
+              dvrReadBufferQueueDequeue(read_queue, kTimeout, rbs[i], &fence_fd,
+                                        &out_seq, sizeof(out_seq)));
+    ASSERT_LT(fence_fd, 0);  // expect invalid fence.
+    ASSERT_TRUE(dvrReadBufferIsValid(rbs[i]));
+
+    int buffer_id = dvrReadBufferGetId(rbs[i]);
+    ASSERT_GT(buffer_id, 0);
+
+    AHardwareBuffer* hb = nullptr;
+    ASSERT_EQ(0, dvrReadBufferGetAHardwareBuffer(rbs[i], &hb));
+
+    auto rhb_it = rhbs.find(buffer_id);
+    if (rhb_it == rhbs.end()) {
+      // If this is a new buffer id, check that total number of unique hardware
+      // buffers won't exceed queue capacity.
+      ASSERT_LT(rhbs.size(), kQueueCapacity);
+      rhbs.emplace(buffer_id, hb);
+    } else {
+      // If this is a buffer id we have seen before, check that the buffer_id
+      // maps to the same AHardwareBuffer handle.
+      ASSERT_EQ(hb, rhb_it->second);
+    }
+  };
+
+  std::function<void(size_t i)> Release = [&](size_t i) {
+    ASSERT_TRUE(dvrReadBufferIsValid(rbs[i]));
+
+    seq++;
+    ASSERT_EQ(0, dvrReadBufferRelease(rbs[i], /*fence=*/-1));
+  };
+
+  // Scenario one:
+  for (int i = 0; i < kNumTests; i++) {
+    // Gain all write buffers.
+    for (size_t i = 0; i < kQueueCapacity; i++) {
+      ASSERT_NO_FATAL_FAILURE(Gain(i));
+    }
+    // Post all write buffers.
+    for (size_t i = 0; i < kQueueCapacity; i++) {
+      ASSERT_NO_FATAL_FAILURE(Post(i));
+    }
+    // Acquire all read buffers.
+    for (size_t i = 0; i < kQueueCapacity; i++) {
+      ASSERT_NO_FATAL_FAILURE(Acquire(i));
+    }
+    // Release all read buffers.
+    for (size_t i = 0; i < kQueueCapacity; i++) {
+      ASSERT_NO_FATAL_FAILURE(Release(i));
+    }
+  }
+
+  // Scenario two:
+  for (int i = 0; i < kNumTests; i++) {
+    // Gain and post all write buffers.
+    for (size_t i = 0; i < kQueueCapacity; i++) {
+      ASSERT_NO_FATAL_FAILURE(Gain(i));
+      ASSERT_NO_FATAL_FAILURE(Post(i));
+    }
+    // Acquire and release all read buffers.
+    for (size_t i = 0; i < kQueueCapacity; i++) {
+      ASSERT_NO_FATAL_FAILURE(Acquire(i));
+      ASSERT_NO_FATAL_FAILURE(Release(i));
+    }
+  }
+
+  // Scenario three:
+  for (int i = 0; i < kNumTests; i++) {
+    // Gain all write buffers then post them in reversed order.
+    for (size_t i = 0; i < kQueueCapacity; i++) {
+      ASSERT_NO_FATAL_FAILURE(Gain(i));
+    }
+    for (size_t i = 0; i < kQueueCapacity; i++) {
+      ASSERT_NO_FATAL_FAILURE(Post(kQueueCapacity - 1 - i));
+    }
+
+    // Acquire all write buffers then release them in reversed order.
+    for (size_t i = 0; i < kQueueCapacity; i++) {
+      ASSERT_NO_FATAL_FAILURE(Acquire(i));
+    }
+    for (size_t i = 0; i < kQueueCapacity; i++) {
+      ASSERT_NO_FATAL_FAILURE(Release(kQueueCapacity - 1 - i));
+    }
+  }
+
+  // Clean up all read buffers and write buffers.
+  for (size_t i = 0; i < kQueueCapacity; i++) {
+    dvrReadBufferDestroy(rbs[i]);
+    dvrWriteBufferDestroy(wbs[i]);
+  }
+}
+
 }  // namespace
 
 }  // namespace dvr

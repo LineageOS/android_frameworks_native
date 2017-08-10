@@ -16,10 +16,10 @@
 #include <pdx/client.h>
 #include <pdx/file_handle.h>
 #include <pdx/service.h>
+#include <pdx/service_dispatcher.h>
 #include <private/android_filesystem_config.h>
 #include <uds/client_channel.h>
 #include <uds/client_channel_factory.h>
-#include <uds/service_dispatcher.h>
 #include <uds/service_endpoint.h>
 
 using android::pdx::BorrowedChannelHandle;
@@ -425,7 +425,7 @@ class ServiceFrameworkTest : public ::testing::Test {
 
   void SetUp() override {
     // Create a dispatcher to handle messages to services.
-    dispatcher_ = android::pdx::uds::ServiceDispatcher::Create();
+    dispatcher_ = android::pdx::ServiceDispatcher::Create();
     ASSERT_NE(nullptr, dispatcher_);
 
     // Start the message dispatch loop in a separate thread.

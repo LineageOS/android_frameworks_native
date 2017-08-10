@@ -8,9 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cutils/android_filesystem_config.h>
 #include <cutils/multiuser.h>
-
-#include <private/android_filesystem_config.h>
 
 #include <selinux/android.h>
 #include <selinux/avc.h>

@@ -90,7 +90,7 @@ const bool yuvTexSameUV = false;
 static sp<GraphicBuffer> yuvTexBuffer;
 static GLuint yuvTex;
 
-bool setupYuvTexSurface(EGLDisplay dpy, EGLContext context) {
+static bool setupYuvTexSurface(EGLDisplay dpy) {
     int blockWidth = yuvTexWidth > 16 ? yuvTexWidth / 16 : 1;
     int blockHeight = yuvTexHeight > 16 ? yuvTexHeight / 16 : 1;
     yuvTexBuffer = new GraphicBuffer(yuvTexWidth, yuvTexHeight, yuvTexFormat,
@@ -298,7 +298,7 @@ int main(int /*argc*/, char** /*argv*/) {
     printGLString("Renderer", GL_RENDERER);
     printGLString("Extensions", GL_EXTENSIONS);
 
-    if(!setupYuvTexSurface(dpy, context)) {
+    if(!setupYuvTexSurface(dpy)) {
         fprintf(stderr, "Could not set up texture surface.\n");
         return 1;
     }

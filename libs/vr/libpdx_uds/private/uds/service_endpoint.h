@@ -12,7 +12,6 @@
 #include <pdx/service.h>
 #include <pdx/service_endpoint.h>
 #include <uds/channel_event_set.h>
-#include <uds/service_dispatcher.h>
 
 namespace android {
 namespace pdx {
@@ -105,7 +104,7 @@ class Endpoint : public pdx::Endpoint {
   // socket file descriptor.
   Status<void> RegisterNewChannelForTests(LocalHandle channel_fd);
 
-  int epoll_fd() const { return epoll_fd_.Get(); }
+  int epoll_fd() const override { return epoll_fd_.Get(); }
 
  private:
   struct ChannelData {

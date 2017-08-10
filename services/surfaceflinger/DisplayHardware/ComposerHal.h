@@ -136,7 +136,7 @@ private:
 // Composer is a wrapper to IComposer, a proxy to server-side composer.
 class Composer {
 public:
-    Composer(bool useVrComposer);
+    Composer(const std::string& serviceName);
 
     std::vector<IComposer::Capability> getCapabilities();
     std::string dumpDebugInfo();

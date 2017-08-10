@@ -381,8 +381,13 @@ typedef ASensorRef const* ASensorList;
  *     ASensorManager* sensorManager = ASensorManager_getInstance();
  *
  */
+#if __ANDROID_API__ >= __ANDROID_API_O__
 __attribute__ ((deprecated)) ASensorManager* ASensorManager_getInstance();
+#else
+ASensorManager* ASensorManager_getInstance();
+#endif
 
+#if __ANDROID_API__ >= __ANDROID_API_O__
 /*
  * Get a reference to the sensor manager. ASensorManager is a singleton
  * per package as different packages may have access to different sensors.
@@ -393,6 +398,7 @@ __attribute__ ((deprecated)) ASensorManager* ASensorManager_getInstance();
  *
  */
 ASensorManager* ASensorManager_getInstanceForPackage(const char* packageName);
+#endif
 
 /**
  * Returns the list of available sensors.

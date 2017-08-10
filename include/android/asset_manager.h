@@ -33,6 +33,10 @@
 extern "C" {
 #endif
 
+#if !defined(__ANDROID__) && !defined(__RENAME_IF_FILE_OFFSET64)
+#define __RENAME_IF_FILE_OFFSET64(x)
+#endif
+
 struct AAssetManager;
 /**
  * {@link AAssetManager} provides access to an application's raw assets by
@@ -132,9 +136,9 @@ int AAsset_read(AAsset* asset, void* buf, size_t count);
  *
  * Returns the new position on success, or (off_t) -1 on error.
  */
-off_t AAsset_seek(AAsset* asset, off_t offset, int whence);
+off_t AAsset_seek(AAsset* asset, off_t offset, int whence)
+    __RENAME_IF_FILE_OFFSET64(AAsset_seek64);
 
-#if __ANDROID_API__ >= 13
 /**
  * Seek to the specified offset within the asset data.  'whence' uses the
  * same constants as lseek()/fseek().
@@ -145,7 +149,6 @@ off_t AAsset_seek(AAsset* asset, off_t offset, int whence);
  * Returns the new position on success, or (off64_t) -1 on error.
  */
 off64_t AAsset_seek64(AAsset* asset, off64_t offset, int whence);
-#endif
 
 /**
  * Close the asset, freeing all associated resources.
@@ -162,29 +165,27 @@ const void* AAsset_getBuffer(AAsset* asset);
 /**
  * Report the total size of the asset data.
  */
-off_t AAsset_getLength(AAsset* asset);
+off_t AAsset_getLength(AAsset* asset)
+    __RENAME_IF_FILE_OFFSET64(AAsset_getLength64);
 
-#if __ANDROID_API__ >= 13
 /**
  * Report the total size of the asset data. Reports the size using a 64-bit
  * number insted of 32-bit as AAsset_getLength.
  */
 off64_t AAsset_getLength64(AAsset* asset);
-#endif
 
 /**
  * Report the total amount of asset data that can be read from the current position.
  */
-off_t AAsset_getRemainingLength(AAsset* asset);
+off_t AAsset_getRemainingLength(AAsset* asset)
+    __RENAME_IF_FILE_OFFSET64(AAsset_getRemainingLength64);
 
-#if __ANDROID_API__ >= 13
 /**
  * Report the total amount of asset data that can be read from the current position.
  *
  * Uses a 64-bit number instead of a 32-bit number as AAsset_getRemainingLength does.
  */
 off64_t AAsset_getRemainingLength64(AAsset* asset);
-#endif
 
 /**
  * Open a new file descriptor that can be used to read the asset data. If the
@@ -194,9 +195,9 @@ off64_t AAsset_getRemainingLength64(AAsset* asset);
  * Returns < 0 if direct fd access is not possible (for example, if the asset is
  * compressed).
  */
-int AAsset_openFileDescriptor(AAsset* asset, off_t* outStart, off_t* outLength);
+int AAsset_openFileDescriptor(AAsset* asset, off_t* outStart, off_t* outLength)
+    __RENAME_IF_FILE_OFFSET64(AAsset_openFileDescriptor64);
 
-#if __ANDROID_API__ >= 13
 /**
  * Open a new file descriptor that can be used to read the asset data.
  *
@@ -207,7 +208,6 @@ int AAsset_openFileDescriptor(AAsset* asset, off_t* outStart, off_t* outLength);
  * compressed).
  */
 int AAsset_openFileDescriptor64(AAsset* asset, off64_t* outStart, off64_t* outLength);
-#endif
 
 /**
  * Returns whether this asset's internal buffer is allocated in ordinary RAM (i.e. not

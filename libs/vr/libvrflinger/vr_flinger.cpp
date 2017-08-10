@@ -18,8 +18,6 @@
 #include <sys/prctl.h>
 #include <sys/resource.h>
 
-#include <pdx/default_transport/service_dispatcher.h>
-
 #include <functional>
 
 #include "DisplayHardware/ComposerHal.h"
@@ -76,7 +74,7 @@ bool VrFlinger::Init(Hwc2::Composer* hidl,
 
   request_display_callback_ = request_display_callback;
 
-  dispatcher_ = android::pdx::default_transport::ServiceDispatcher::Create();
+  dispatcher_ = android::pdx::ServiceDispatcher::Create();
   CHECK_ERROR(!dispatcher_, error, "Failed to create service dispatcher.");
 
   display_service_ =

@@ -9,7 +9,7 @@
 #include <sys/resource.h>
 #include <utils/threads.h>
 
-#include <pdx/default_transport/service_dispatcher.h>
+#include <pdx/service_dispatcher.h>
 #include <private/android_filesystem_config.h>
 
 #include "performance_service.h"
@@ -58,7 +58,7 @@ int main(int /*argc*/, char** /*argv*/) {
   CHECK_ERROR(ret < 0, error, "Could not set capabilities: %s",
               strerror(errno));
 
-  dispatcher = android::pdx::default_transport::ServiceDispatcher::Create();
+  dispatcher = android::pdx::ServiceDispatcher::Create();
   CHECK_ERROR(!dispatcher, error, "Failed to create service dispatcher.");
 
   service = android::dvr::PerformanceService::Create();

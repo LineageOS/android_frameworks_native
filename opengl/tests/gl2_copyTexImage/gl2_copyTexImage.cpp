@@ -362,7 +362,7 @@ int printEGLConfigurations(EGLDisplay dpy) {
     return true;
 }
 
-int main(int argc, char** argv) {
+int main(int /*argc*/, char** /*argv*/) {
     EGLBoolean returnValue;
     EGLConfig myConfig = {0};
 
