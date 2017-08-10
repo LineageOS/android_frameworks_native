@@ -20,7 +20,7 @@ class VrComposer
       public ComposerView::Observer,
       public IBinder::DeathRecipient {
  public:
-  VrComposer();
+  explicit VrComposer(ComposerView* composer_view);
   ~VrComposer() override;
 
   // BnVrComposer:
@@ -39,6 +39,8 @@ class VrComposer
   std::mutex mutex_;
 
   sp<IVrComposerCallback> callback_;
+
+  ComposerView* composer_view_;  // Not owned.
 
   VrComposer(const VrComposer&) = delete;
   void operator=(const VrComposer&) = delete;

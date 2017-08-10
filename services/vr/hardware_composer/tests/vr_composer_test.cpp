@@ -10,6 +10,24 @@ namespace {
 
 const char kVrDisplayName[] = "VrDisplay_Test";
 
+class TestComposerView : public ComposerView {
+ public:
+  TestComposerView() {}
+  ~TestComposerView() override = default;
+
+  size_t display_refresh_count() const { return display_refresh_count_; }
+
+  void ForceDisplaysRefresh() override { display_refresh_count_++; }
+  void RegisterObserver(Observer* observer) override {}
+  void UnregisterObserver(Observer* observer) override {}
+
+  TestComposerView(const TestComposerView&) = delete;
+  void operator=(const TestComposerView&) = delete;
+
+ private:
+  size_t display_refresh_count_ = 0;
+};
+
 class TestComposerCallback : public BnVrComposerCallback {
  public:
   TestComposerCallback() {}
@@ -57,7 +75,7 @@ sp<GraphicBuffer> CreateBuffer() {
 
 class VrComposerTest : public testing::Test {
  public:
-  VrComposerTest() : composer_(new VrComposer()) {}
+  VrComposerTest() : composer_(new VrComposer(&composer_view_)) {}
   ~VrComposerTest() override = default;
 
   sp<IVrComposer> GetComposerProxy() const {
@@ -72,6 +90,7 @@ class VrComposerTest : public testing::Test {
   }
 
  protected:
+  TestComposerView composer_view_;
   sp<VrComposer> composer_;
 
   VrComposerTest(const VrComposerTest&) = delete;
@@ -89,7 +108,9 @@ TEST_F(VrComposerTest, TestWithoutObserver) {
 TEST_F(VrComposerTest, TestWithObserver) {
   sp<IVrComposer> composer = GetComposerProxy();
   sp<TestComposerCallback> callback = new TestComposerCallback();
+  ASSERT_EQ(0, composer_view_.display_refresh_count());
   ASSERT_TRUE(composer->registerObserver(callback).isOk());
+  ASSERT_EQ(1, composer_view_.display_refresh_count());
 
   ComposerView::Frame frame;
   base::unique_fd fence = composer_->OnNewFrame(frame);

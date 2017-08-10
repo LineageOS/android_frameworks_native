@@ -21,24 +21,36 @@ bool CheckPermission() {
 
 }  // namespace
 
-VrComposer::VrComposer() {}
+VrComposer::VrComposer(ComposerView* composer_view)
+  : composer_view_(composer_view) {
+  composer_view_->RegisterObserver(this);
+}
 
-VrComposer::~VrComposer() {}
+VrComposer::~VrComposer() {
+  composer_view_->UnregisterObserver(this);
+}
 
 binder::Status VrComposer::registerObserver(
     const sp<IVrComposerCallback>& callback) {
-  std::lock_guard<std::mutex> guard(mutex_);
+  {
+    std::lock_guard<std::mutex> guard(mutex_);
 
-  if (!CheckPermission())
-    return binder::Status::fromStatusT(PERMISSION_DENIED);
+    if (!CheckPermission())
+      return binder::Status::fromStatusT(PERMISSION_DENIED);
 
-  if (callback_.get()) {
-    ALOGE("Failed to register callback, already registered");
-    return binder::Status::fromStatusT(ALREADY_EXISTS);
+    if (callback_.get()) {
+      ALOGE("Failed to register callback, already registered");
+      return binder::Status::fromStatusT(ALREADY_EXISTS);
+    }
+
+    callback_ = callback;
+    IInterface::asBinder(callback_)->linkToDeath(this);
   }
 
-  callback_ = callback;
-  IInterface::asBinder(callback_)->linkToDeath(this);
+  // Don't take the lock to force display refresh otherwise it could end in a
+  // deadlock since HWC calls this with new frames and it has a lock of its own
+  // to serialize access to the display information.
+  composer_view_->ForceDisplaysRefresh();
   return binder::Status::ok();
 }
 
