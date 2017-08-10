@@ -68,6 +68,7 @@ public:
     virtual status_t setAutoRefresh(bool autoRefresh) override;
     virtual void getFrameTimestamps(FrameEventHistoryDelta *outDelta) override;
     virtual status_t getUniqueId(uint64_t* outId) const override;
+    virtual status_t getConsumerUsage(uint64_t* outUsage) const override;
 
     // The Layer which created this producer, and on which queued Buffer's will be displayed.
     sp<Layer> getLayer() const;

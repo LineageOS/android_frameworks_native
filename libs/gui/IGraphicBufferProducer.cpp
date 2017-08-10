@@ -62,7 +62,8 @@ enum {
     SET_DEQUEUE_TIMEOUT,
     GET_LAST_QUEUED_BUFFER,
     GET_FRAME_TIMESTAMPS,
-    GET_UNIQUE_ID
+    GET_UNIQUE_ID,
+    GET_CONSUMER_USAGE,
 };
 
 class BpGraphicBufferProducer : public BpInterface<IGraphicBufferProducer>
@@ -504,6 +505,25 @@ public:
         }
         return actualResult;
     }
+
+    virtual status_t getConsumerUsage(uint64_t* outUsage) const {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
+        status_t result = remote()->transact(GET_CONSUMER_USAGE, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("getConsumerUsage failed to transact: %d", result);
+        }
+        status_t actualResult = NO_ERROR;
+        result = reply.readInt32(&actualResult);
+        if (result != NO_ERROR) {
+            return result;
+        }
+        result = reply.readUint64(outUsage);
+        if (result != NO_ERROR) {
+            return result;
+        }
+        return actualResult;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -621,6 +641,10 @@ public:
 
     status_t getUniqueId(uint64_t* outId) const override {
         return mBase->getUniqueId(outId);
+    }
+
+    status_t getConsumerUsage(uint64_t* outUsage) const override {
+        return mBase->getConsumerUsage(outUsage);
     }
 };
 
@@ -884,6 +908,20 @@ status_t BnGraphicBufferProducer::onTransact(
                 return result;
             }
             result = reply->writeUint64(outId);
+            if (result != NO_ERROR) {
+                return result;
+            }
+            return NO_ERROR;
+        }
+        case GET_CONSUMER_USAGE: {
+            CHECK_INTERFACE(IGraphicBufferProducer, data, reply);
+            uint64_t outUsage = 0;
+            status_t actualResult = getConsumerUsage(&outUsage);
+            status_t result = reply->writeInt32(actualResult);
+            if (result != NO_ERROR) {
+                return result;
+            }
+            result = reply->writeUint64(outUsage);
             if (result != NO_ERROR) {
                 return result;
             }

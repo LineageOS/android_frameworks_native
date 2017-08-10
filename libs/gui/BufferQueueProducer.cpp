@@ -1102,6 +1102,7 @@ int BufferQueueProducer::query(int what, int *outValue) {
             value = (mCore->mQueue.size() > 1);
             break;
         case NATIVE_WINDOW_CONSUMER_USAGE_BITS:
+            // deprecated; higher 32 bits are truncated
             value = static_cast<int32_t>(mCore->mConsumerUsageBits);
             break;
         case NATIVE_WINDOW_DEFAULT_DATASPACE:
@@ -1544,6 +1545,14 @@ status_t BufferQueueProducer::getUniqueId(uint64_t* outId) const {
     BQ_LOGV("getUniqueId");
 
     *outId = mCore->mUniqueId;
+    return NO_ERROR;
+}
+
+status_t BufferQueueProducer::getConsumerUsage(uint64_t* outUsage) const {
+    BQ_LOGV("getConsumerUsage");
+
+    Mutex::Autolock lock(mCore->mMutex);
+    *outUsage = mCore->mConsumerUsageBits;
     return NO_ERROR;
 }
 
