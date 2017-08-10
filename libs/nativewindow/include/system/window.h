@@ -115,7 +115,7 @@ enum {
      * The consumer gralloc usage bits currently set by the consumer.
      * The values are defined in hardware/libhardware/include/gralloc.h.
      */
-    NATIVE_WINDOW_CONSUMER_USAGE_BITS = 10,
+    NATIVE_WINDOW_CONSUMER_USAGE_BITS = 10, /* deprecated */
 
     /**
      * Transformation that will by applied to buffers by the hwcomposer.
@@ -224,6 +224,7 @@ enum {
     NATIVE_WINDOW_GET_WIDE_COLOR_SUPPORT        = 28,
     NATIVE_WINDOW_GET_HDR_SUPPORT               = 29,
     NATIVE_WINDOW_SET_USAGE64                   = 30,
+    NATIVE_WINDOW_GET_CONSUMER_USAGE64          = 31,
 // clang-format on
 };
 
@@ -900,13 +901,18 @@ static inline int native_window_get_frame_timestamps(
 
 static inline int native_window_get_wide_color_support(
     struct ANativeWindow* window, bool* outSupport) {
-  return window->perform(window, NATIVE_WINDOW_GET_WIDE_COLOR_SUPPORT,
-                         outSupport);
+    return window->perform(window, NATIVE_WINDOW_GET_WIDE_COLOR_SUPPORT,
+            outSupport);
 }
 
 static inline int native_window_get_hdr_support(struct ANativeWindow* window,
                                                 bool* outSupport) {
-  return window->perform(window, NATIVE_WINDOW_GET_HDR_SUPPORT, outSupport);
+    return window->perform(window, NATIVE_WINDOW_GET_HDR_SUPPORT, outSupport);
+}
+
+static inline int native_window_get_consumer_usage(struct ANativeWindow* window,
+                                                   uint64_t* outUsage) {
+    return window->perform(window, NATIVE_WINDOW_GET_CONSUMER_USAGE64, outUsage);
 }
 
 __END_DECLS
