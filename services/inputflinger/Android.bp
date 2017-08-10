@@ -42,6 +42,7 @@ cc_library_shared {
         "-Wextra",
         "-Werror",
         "-Wno-unused-parameter",
+        "-DONEHANDED_SUPPORT",
         // TODO: Move inputflinger to its own process and mark it hidden
         //-fvisibility=hidden
     ],

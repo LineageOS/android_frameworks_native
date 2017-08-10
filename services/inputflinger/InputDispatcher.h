@@ -266,6 +266,8 @@ public:
      */
     virtual bool checkInjectEventsPermissionNonReentrant(
             int32_t injectorPid, int32_t injectorUid) = 0;
+
+    virtual void notifyOutSideScreenTouch(int x, int y) { /* No op by default */ }
 };
 
 
@@ -277,6 +279,11 @@ protected:
     virtual ~InputDispatcherInterface() { }
 
 public:
+    virtual void updatePointerMappingParameters(int offsetX, int offestY, float scale, int width,
+            int height) {
+        ALOGE("calling into default no op updatePointerMappingParameters");
+        // NO_OP
+    }
     /* Dumps the state of the input dispatcher.
      *
      * This method may be called on any thread (usually by the input manager). */
@@ -371,6 +378,16 @@ protected:
 
 public:
     explicit InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy);
+
+    virtual void updatePointerMappingParameters(int offsetX, int offestY, float scale, int width,
+            int height) {
+        AutoMutex _l(mLock);
+        mPointerOffsetX = offsetX;
+        mPointerOffsetY = offestY;
+        mPointerScale = scale;
+        mPointerWidth = width;
+        mPointerHeight = height;
+    }
 
     virtual void dump(std::string& dump);
     virtual void monitor();
@@ -1027,6 +1044,12 @@ private:
 
     // Contains the last window which received a hover event.
     sp<InputWindowHandle> mLastHoverWindowHandle;
+
+    int32_t mPointerOffsetX;
+    int32_t mPointerOffsetY;
+    float mPointerScale;
+    int32_t mPointerWidth;
+    int32_t mPointerHeight;
 
     // Finding targets for input events.
     int32_t handleTargetsNotReadyLocked(nsecs_t currentTime, const EventEntry* entry,

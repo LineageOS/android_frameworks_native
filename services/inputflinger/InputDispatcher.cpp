@@ -250,6 +250,12 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
     mKeyRepeatState.lastKeyEntry = NULL;
 
     policy->getDispatcherConfiguration(&mConfig);
+
+    mPointerOffsetX = 0;
+    mPointerOffsetY = 0;
+    mPointerScale = 1.0f;
+    mPointerWidth = 0;
+    mPointerHeight = 0;
 }
 
 InputDispatcher::~InputDispatcher() {
@@ -514,6 +520,13 @@ void InputDispatcher::addRecentEventLocked(EventEntry* entry) {
 
 sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayId,
         int32_t x, int32_t y) {
+#ifdef ONEHANDED_SUPPORT
+        bool outSidedScreenAndOneHandModeActivated = mPointerScale != 1
+                && (x < 0 || y < 0 || x >= mPointerWidth || y >= mPointerHeight);
+#else
+        bool outSidedScreenAndOneHandModeActivated = false;
+#endif
+
     // Traverse windows from front to back to find touched window.
     size_t numWindows = mWindowHandles.size();
     for (size_t i = 0; i < numWindows; i++) {
@@ -526,7 +539,8 @@ sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t display
                 if (!(flags & InputWindowInfo::FLAG_NOT_TOUCHABLE)) {
                     bool isTouchModal = (flags & (InputWindowInfo::FLAG_NOT_FOCUSABLE
                             | InputWindowInfo::FLAG_NOT_TOUCH_MODAL)) == 0;
-                    if (isTouchModal || windowInfo->touchableRegionContainsPoint(x, y)) {
+                    if ((isTouchModal && !outSidedScreenAndOneHandModeActivated)
+                            || windowInfo->touchableRegionContainsPoint(x, y)) {
                         // Found window.
                         return windowHandle;
                     }
@@ -1254,12 +1268,20 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                 continue; // wrong display
             }
 
+#ifdef ONEHANDED_SUPPORT
+            bool outSidedScreenAndOnHandModeActivated = mPointerScale != 1
+                    && (x < 0 || y < 0 || x >= mPointerWidth || y >= mPointerHeight);
+#else
+            bool outSidedScreenAndOnHandModeActivated = false;
+#endif
+
             int32_t flags = windowInfo->layoutParamsFlags;
             if (windowInfo->visible) {
                 if (! (flags & InputWindowInfo::FLAG_NOT_TOUCHABLE)) {
                     isTouchModal = (flags & (InputWindowInfo::FLAG_NOT_FOCUSABLE
                             | InputWindowInfo::FLAG_NOT_TOUCH_MODAL)) == 0;
-                    if (isTouchModal || windowInfo->touchableRegionContainsPoint(x, y)) {
+                    if ((isTouchModal && !outSidedScreenAndOnHandModeActivated) // Sorry, the outsided touch belongs to one hand, not you
+                            || windowInfo->touchableRegionContainsPoint(x, y)) {
                         newTouchedWindowHandle = windowHandle;
                         break; // found touched window, exit window loop
                     }
@@ -1290,6 +1312,12 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             newTouchedWindowHandle = mTempTouchState.getFirstForegroundWindowHandle();
             if (newTouchedWindowHandle == NULL) {
                 ALOGI("Dropping event because there is no touchable window at (%d, %d).", x, y);
+
+#ifdef ONEHANDED_SUPPORT
+                if (!isHoverAction)
+                    mPolicy->notifyOutSideScreenTouch(x, y);
+#endif
+
                 injectionResult = INPUT_EVENT_INJECTION_FAILED;
                 goto Failed;
             }
@@ -2573,6 +2601,19 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
     bool needWake;
     { // acquire lock
         mLock.lock();
+
+
+#ifdef ONEHANDED_SUPPORT
+        // Translate only pointer motion events.
+        if (args->source & AINPUT_SOURCE_CLASS_POINTER) {
+            // We do not want to translate the injected motion event.
+            for (size_t i = 0; i < args->pointerCount; i++) {
+                // Using the helper method of PoitnerCoords is much better than calculate it our self
+                ((NotifyMotionArgs*)args)->pointerCoords[i].applyOffset(mPointerOffsetX, mPointerOffsetY);
+                ((NotifyMotionArgs*)args)->pointerCoords[i].scale(mPointerScale);
+            }
+        }
+#endif
 
         if (shouldSendMotionToInputFilterLocked(args)) {
             mLock.unlock();
