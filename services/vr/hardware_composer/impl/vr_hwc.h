@@ -103,6 +103,7 @@ class ComposerView {
 
   virtual ~ComposerView() {}
 
+  virtual void ForceDisplaysRefresh() = 0;
   virtual void RegisterObserver(Observer* observer) = 0;
   virtual void UnregisterObserver(Observer* observer) = 0;
 };
@@ -288,6 +289,7 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
   Return<void> createClient(createClient_cb hidl_cb) override;
 
   // ComposerView:
+  void ForceDisplaysRefresh() override;
   void RegisterObserver(Observer* observer) override;
   void UnregisterObserver(Observer* observer) override;
 
@@ -295,7 +297,6 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
   HwcDisplay* FindDisplay(Display display);
 
   wp<VrComposerClient> client_;
-  sp<IComposerCallback> callbacks_;
 
   // Guard access to internal state from binder threads.
   std::mutex mutex_;
