@@ -608,6 +608,14 @@ status_t BufferHubQueueProducer::getUniqueId(uint64_t* out_id) const {
   return NO_ERROR;
 }
 
+status_t BufferHubQueueProducer::getConsumerUsage(uint64_t* out_usage) const {
+  ALOGD_IF(TRACE, __FUNCTION__);
+
+  // same value as returned by querying NATIVE_WINDOW_CONSUMER_USAGE_BITS
+  *out_usage = 0;
+  return NO_ERROR;
+}
+
 status_t BufferHubQueueProducer::AllocateBuffer(uint32_t width, uint32_t height,
                                                 uint32_t layer_count,
                                                 PixelFormat format,
