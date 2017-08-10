@@ -92,6 +92,9 @@ public:
     }
     void getFrameTimestamps(FrameEventHistoryDelta*) override {}
     status_t getUniqueId(uint64_t* outId) const override { return mProducer->getUniqueId(outId); }
+    status_t getConsumerUsage(uint64_t* outUsage) const override {
+        return mProducer->getConsumerUsage(outUsage);
+    }
 
 protected:
     sp<IGraphicBufferProducer> mProducer;
