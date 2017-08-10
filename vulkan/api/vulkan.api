@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 0
-define VERSION_PATCH 49
+define VERSION_PATCH 53
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -85,7 +85,7 @@ define NULL_HANDLE 0
 @extension("VK_KHR_android_surface") define VK_KHR_ANDROID_SURFACE_NAME         "VK_KHR_android_surface"
 
 // 10
-@extension("VK_KHR_win32_surface") define VK_KHR_WIN32_SURFACE_SPEC_VERSION     5
+@extension("VK_KHR_win32_surface") define VK_KHR_WIN32_SURFACE_SPEC_VERSION     6
 @extension("VK_KHR_win32_surface") define VK_KHR_WIN32_SURFACE_NAME             "VK_KHR_win32_surface"
 
 // 11
@@ -93,7 +93,7 @@ define NULL_HANDLE 0
 @extension("VK_ANDROID_native_buffer") define VK_ANDROID_NATIVE_BUFFER_NAME             "VK_ANDROID_native_buffer"
 
 // 12
-@extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_SPEC_VERSION       6
+@extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_SPEC_VERSION       8
 @extension("VK_EXT_debug_report") define VK_EXT_DEBUG_REPORT_NAME               "VK_EXT_debug_report"
 
 // 13
@@ -151,6 +151,10 @@ define NULL_HANDLE 0
 // 38
 @extension("VK_AMD_shader_ballot") define VK_AMD_SHADER_BALLOT_SPEC_VERSION 1
 @extension("VK_AMD_shader_ballot") define VK_AMD_SHADER_BALLOT_EXTENSION_NAME "VK_AMD_shader_ballot"
+
+// 42
+@extension("VK_AMD_texture_gather_bias_lod") define VK_AMD_TEXTURE_GATHER_BIAS_LOD_SPEC_VERSION 1
+@extension("VK_AMD_texture_gather_bias_lod") define VK_AMD_TEXTURE_GATHER_BIAS_LOD_EXTENSION_NAME "VK_AMD_texture_gather_bias_lod"
 
 // 54
 @extension("VK_KHX_multiview") define VK_KHX_MULTIVIEW_SPEC_VERSION 1
@@ -331,6 +335,30 @@ define NULL_HANDLE 0
 // 124
 @extension("VK_MVK_macos_surface") define VK_MVK_MACOS_SURFACE_SPEC_VERSION 1
 @extension("VK_MVK_macos_surface") define VK_MVK_MACOS_SURFACE_EXTENSION_NAME "VK_MVK_macos_surface"
+
+// 131
+@extension("VK_EXT_sampler_filter_minmax") define VK_EXT_SAMPLER_FILTER_MINMAX_SPEC_VERSION 1
+@extension("VK_EXT_sampler_filter_minmax") define VK_EXT_SAMPLER_FILTER_MINMAX_EXTENSION_NAME "VK_EXT_sampler_filter_minmax"
+
+// 133
+@extension("VK_AMD_gpu_shader_int16") define VK_AMD_GPU_SHADER_INT16_SPEC_VERSION 1
+@extension("VK_AMD_gpu_shader_int16") define VK_AMD_GPU_SHADER_INT16_EXTENSION_NAME "VK_AMD_gpu_shader_int16"
+
+// 149
+@extension("VK_EXT_blend_operation_advanced") define VK_EXT_BLEND_OPERATION_ADVANCED_SPEC_VERSION 2
+@extension("VK_EXT_blend_operation_advanced") define VK_EXT_BLEND_OPERATION_ADVANCED_EXTENSION_NAME "VK_EXT_blend_operation_advanced"
+
+// 150
+@extension("VK_NV_fragment_coverage_to_color") define VK_NV_FRAGMENT_COVERAGE_TO_COLOR_SPEC_VERSION 1
+@extension("VK_NV_fragment_coverage_to_color") define VK_NV_FRAGMENT_COVERAGE_TO_COLOR_EXTENSION_NAME "VK_NV_fragment_coverage_to_color"
+
+// 153
+@extension("VK_NV_framebuffer_mixed_samples") define VK_NV_FRAMEBUFFER_MIXED_SAMPLES_SPEC_VERSION 1
+@extension("VK_NV_framebuffer_mixed_samples") define VK_NV_FRAMEBUFFER_MIXED_SAMPLES_EXTENSION_NAME "VK_NV_framebuffer_mixed_samples"
+
+// 154
+@extension("VK_NV_fill_rectangle") define VK_NV_FILL_RECTANGLE_SPEC_VERSION 1
+@extension("VK_NV_fill_rectangle") define VK_NV_FILL_RECTANGLE_EXTENSION_NAME "VK_NV_fill_rectangle"
 
 /////////////
 //  Types  //
@@ -554,6 +582,9 @@ enum VkPolygonMode {
     VK_POLYGON_MODE_FILL                                    = 0x00000000,
     VK_POLYGON_MODE_LINE                                    = 0x00000001,
     VK_POLYGON_MODE_POINT                                   = 0x00000002,
+
+    //@extension("VK_NV_fill_rectangle") // 154
+    VK_POLYGON_MODE_FILL_RECTANGLE_NV                       = 1000153000,
 }
 
 enum VkFrontFace {
@@ -589,6 +620,54 @@ enum VkBlendOp {
     VK_BLEND_OP_REVERSE_SUBTRACT                            = 0x00000002,
     VK_BLEND_OP_MIN                                         = 0x00000003,
     VK_BLEND_OP_MAX                                         = 0x00000004,
+
+    //@extension("VK_EXT_blend_operation_advanced") // 149
+    VK_BLEND_OP_ZERO_EXT                                    = 1000148000,
+    VK_BLEND_OP_SRC_EXT                                     = 1000148001,
+    VK_BLEND_OP_DST_EXT                                     = 1000148002,
+    VK_BLEND_OP_SRC_OVER_EXT                                = 1000148003,
+    VK_BLEND_OP_DST_OVER_EXT                                = 1000148004,
+    VK_BLEND_OP_SRC_IN_EXT                                  = 1000148005,
+    VK_BLEND_OP_DST_IN_EXT                                  = 1000148006,
+    VK_BLEND_OP_SRC_OUT_EXT                                 = 1000148007,
+    VK_BLEND_OP_DST_OUT_EXT                                 = 1000148008,
+    VK_BLEND_OP_SRC_ATOP_EXT                                = 1000148009,
+    VK_BLEND_OP_DST_ATOP_EXT                                = 1000148010,
+    VK_BLEND_OP_XOR_EXT                                     = 1000148011,
+    VK_BLEND_OP_MULTIPLY_EXT                                = 1000148012,
+    VK_BLEND_OP_SCREEN_EXT                                  = 1000148013,
+    VK_BLEND_OP_OVERLAY_EXT                                 = 1000148014,
+    VK_BLEND_OP_DARKEN_EXT                                  = 1000148015,
+    VK_BLEND_OP_LIGHTEN_EXT                                 = 1000148016,
+    VK_BLEND_OP_COLORDODGE_EXT                              = 1000148017,
+    VK_BLEND_OP_COLORBURN_EXT                               = 1000148018,
+    VK_BLEND_OP_HARDLIGHT_EXT                               = 1000148019,
+    VK_BLEND_OP_SOFTLIGHT_EXT                               = 1000148020,
+    VK_BLEND_OP_DIFFERENCE_EXT                              = 1000148021,
+    VK_BLEND_OP_EXCLUSION_EXT                               = 1000148022,
+    VK_BLEND_OP_INVERT_EXT                                  = 1000148023,
+    VK_BLEND_OP_INVERT_RGB_EXT                              = 1000148024,
+    VK_BLEND_OP_LINEARDODGE_EXT                             = 1000148025,
+    VK_BLEND_OP_LINEARBURN_EXT                              = 1000148026,
+    VK_BLEND_OP_VIVIDLIGHT_EXT                              = 1000148027,
+    VK_BLEND_OP_LINEARLIGHT_EXT                             = 1000148028,
+    VK_BLEND_OP_PINLIGHT_EXT                                = 1000148029,
+    VK_BLEND_OP_HARDMIX_EXT                                 = 1000148030,
+    VK_BLEND_OP_HSL_HUE_EXT                                 = 1000148031,
+    VK_BLEND_OP_HSL_SATURATION_EXT                          = 1000148032,
+    VK_BLEND_OP_HSL_COLOR_EXT                               = 1000148033,
+    VK_BLEND_OP_HSL_LUMINOSITY_EXT                          = 1000148034,
+    VK_BLEND_OP_PLUS_EXT                                    = 1000148035,
+    VK_BLEND_OP_PLUS_CLAMPED_EXT                            = 1000148036,
+    VK_BLEND_OP_PLUS_CLAMPED_ALPHA_EXT                      = 1000148037,
+    VK_BLEND_OP_PLUS_DARKER_EXT                             = 1000148038,
+    VK_BLEND_OP_MINUS_EXT                                   = 1000148039,
+    VK_BLEND_OP_MINUS_CLAMPED_EXT                           = 1000148040,
+    VK_BLEND_OP_CONTRAST_EXT                                = 1000148041,
+    VK_BLEND_OP_INVERT_OVG_EXT                              = 1000148042,
+    VK_BLEND_OP_RED_EXT                                     = 1000148043,
+    VK_BLEND_OP_GREEN_EXT                                   = 1000148044,
+    VK_BLEND_OP_BLUE_EXT                                    = 1000148045,
 }
 
 enum VkStencilOp {
@@ -947,6 +1026,9 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_BUFFER_CREATE_INFO_NV = 1000026001,
     VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV = 1000026002,
 
+    //@extension("VK_AMD_texture_gather_bias_lod") // 42
+    VK_STRUCTURE_TYPE_TEXTURE_LOD_GATHER_FORMAT_PROPERTIES_AMD  = 1000041000,
+
     //@extension("VK_KHX_multiview") // 54
     VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO_KHX     = 1000053000,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES_KHX    = 1000053001,
@@ -1096,6 +1178,21 @@ enum VkStructureType {
 
     //@extension("VK_MVK_macos_surface") // 124
     VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK             = 1000123000,
+
+    //@extension("VK_EXT_sampler_filter_minmax") // 131
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_FILTER_MINMAX_PROPERTIES_EXT = 1000130000,
+    VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT = 1000130001,
+
+    //@extension("VK_EXT_blend_operation_advanced") // 149
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BLEND_OPERATION_ADVANCED_FEATURES_EXT = 1000148000,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BLEND_OPERATION_ADVANCED_PROPERTIES_EXT = 1000148001,
+    VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_ADVANCED_STATE_CREATE_INFO_EXT = 1000148002,
+
+    //@extension("VK_NV_fragment_coverage_to_color") // 150
+    VK_STRUCTURE_TYPE_PIPELINE_COVERAGE_TO_COLOR_STATE_CREATE_INFO_NV = 1000149000,
+
+    //@structure("VK_NV_framebuffer_mixed_samples") // 153
+    VK_STRUCTURE_TYPE_PIPELINE_COVERAGE_MODULATION_STATE_CREATE_INFO_NV = 1000152000,
 }
 
 enum VkSubpassContents {
@@ -1288,7 +1385,7 @@ enum VkDebugReportObjectTypeEXT {
     VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT            = 25,
     VK_DEBUG_REPORT_OBJECT_TYPE_SURFACE_KHR_EXT             = 26,
     VK_DEBUG_REPORT_OBJECT_TYPE_SWAPCHAIN_KHR_EXT           = 27,
-    VK_DEBUG_REPORT_OBJECT_TYPE_DEBUG_REPORT_EXT            = 28,
+    VK_DEBUG_REPORT_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT_EXT = 28,
     VK_DEBUG_REPORT_OBJECT_TYPE_DISPLAY_KHR_EXT             = 29,
     VK_DEBUG_REPORT_OBJECT_TYPE_DISPLAY_MODE_KHR_EXT        = 30,
     VK_DEBUG_REPORT_OBJECT_TYPE_OBJECT_TABLE_NVX_EXT        = 31,
@@ -1296,12 +1393,6 @@ enum VkDebugReportObjectTypeEXT {
 
     //extension("VK_KHR_descriptor_update_template") // 86
     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_KHR_EXT = 1000085000,
-}
-
-@extension("VK_EXT_debug_report") // 12
-enum VkDebugReportErrorEXT {
-    VK_DEBUG_REPORT_ERROR_NONE_EXT                          = 0,
-    VK_DEBUG_REPORT_ERROR_CALLBACK_REF_EXT                  = 1,
 }
 
 @extension("VK_AMD_rasterization_order") // 19
@@ -1313,6 +1404,7 @@ enum VkRasterizationOrderAMD {
 @extension("VK_EXT_validation_flags") // 62
 enum VkValidationCheckEXT {
     VK_VALIDATION_CHECK_ALL_EXT                             = 0,
+    VK_VALIDATION_CHECK_SHADERS_EXT                         = 1,
 }
 
 @extension("VK_KHR_descriptor_update_template") // 86
@@ -1323,23 +1415,23 @@ enum VkDescriptorUpdateTemplateTypeKHR {
 
 @extension("VK_NVX_device_generated_commands") // 87
 enum VkIndirectCommandsTokenTypeNVX {
-    VK_INDIRECT_COMMANDS_TOKEN_PIPELINE_NVX                 = 0,
-    VK_INDIRECT_COMMANDS_TOKEN_DESCRIPTOR_SET_NVX           = 1,
-    VK_INDIRECT_COMMANDS_TOKEN_INDEX_BUFFER_NVX             = 2,
-    VK_INDIRECT_COMMANDS_TOKEN_VERTEX_BUFFER_NVX            = 3,
-    VK_INDIRECT_COMMANDS_TOKEN_PUSH_CONSTANT_NVX            = 4,
-    VK_INDIRECT_COMMANDS_TOKEN_DRAW_INDEXED_NVX             = 5,
-    VK_INDIRECT_COMMANDS_TOKEN_DRAW_NVX                     = 6,
-    VK_INDIRECT_COMMANDS_TOKEN_DISPATCH_NVX                 = 7,
+    VK_INDIRECT_COMMANDS_TOKEN_TYPE_PIPELINE_NVX            = 0,
+    VK_INDIRECT_COMMANDS_TOKEN_TYPE_DESCRIPTOR_SET_NVX      = 1,
+    VK_INDIRECT_COMMANDS_TOKEN_TYPE_INDEX_BUFFER_NVX        = 2,
+    VK_INDIRECT_COMMANDS_TOKEN_TYPE_VERTEX_BUFFER_NVX       = 3,
+    VK_INDIRECT_COMMANDS_TOKEN_TYPE_PUSH_CONSTANT_NVX       = 4,
+    VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_INDEXED_NVX        = 5,
+    VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_NVX                = 6,
+    VK_INDIRECT_COMMANDS_TOKEN_TYPE_DISPATCH_NVX            = 7,
 }
 
 @extension("VK_NVX_device_generated_commands") // 87
 enum VkObjectEntryTypeNVX {
-    VK_OBJECT_ENTRY_DESCRIPTOR_SET_NVX                      = 0,
-    VK_OBJECT_ENTRY_PIPELINE_NVX                            = 1,
-    VK_OBJECT_ENTRY_INDEX_BUFFER_NVX                        = 2,
-    VK_OBJECT_ENTRY_VERTEX_BUFFER_NVX                       = 3,
-    VK_OBJECT_ENTRY_PUSH_CONSTANT_NVX                       = 4,
+    VK_OBJECT_ENTRY_TYPE_DESCRIPTOR_SET_NVX                 = 0,
+    VK_OBJECT_ENTRY_TYPE_PIPELINE_NVX                       = 1,
+    VK_OBJECT_ENTRY_TYPE_INDEX_BUFFER_NVX                   = 2,
+    VK_OBJECT_ENTRY_TYPE_VERTEX_BUFFER_NVX                  = 3,
+    VK_OBJECT_ENTRY_TYPE_PUSH_CONSTANT_NVX                  = 4,
 }
 
 @extension("VK_EXT_display_control") // 92
@@ -1375,6 +1467,28 @@ enum VkViewportCoordinateSwizzleNV {
 enum VkDiscardRectangleModeEXT {
     VK_DISCARD_RECTANGLE_MODE_INCLUSIVE_EXT = 0,
     VK_DISCARD_RECTANGLE_MODE_EXCLUSIVE_EXT = 1,
+}
+
+@extension("VK_EXT_sampler_filter_minmax") // 131
+enum VkSamplerReductionModeEXT {
+    VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT          = 0,
+    VK_SAMPLER_REDUCTION_MODE_MIN_EXT                       = 1,
+    VK_SAMPLER_REDUCTION_MODE_MAX_EXT                       = 2,
+}
+
+@extension("VK_EXT_blend_operation_advanced") // 149
+enum VkBlendOverlapEXT {
+    VK_BLEND_OVERLAP_UNCORRELATED_EXT                       = 0,
+    VK_BLEND_OVERLAP_DISJOINT_EXT                           = 1,
+    VK_BLEND_OVERLAP_CONJOINT_EXT                           = 2,
+}
+
+@extension("VK_NV_framebuffer_mixed_samples") // 153
+enum VkCoverageModulationModeNV {
+    VK_COVERAGE_MODULATION_MODE_NONE_NV                     = 0,
+    VK_COVERAGE_MODULATION_MODE_RGB_NV                      = 1,
+    VK_COVERAGE_MODULATION_MODE_ALPHA_NV                    = 2,
+    VK_COVERAGE_MODULATION_MODE_RGBA_NV                     = 3,
 }
 
 /////////////////
@@ -1433,6 +1547,9 @@ bitfield VkAccessFlagBits {
     //@extension("VK_NVX_device_generated_commands") // 87
     VK_ACCESS_COMMAND_PROCESS_READ_BIT_NVX                  = 0x00020000,
     VK_ACCESS_COMMAND_PROCESS_WRITE_BIT_NVX                 = 0x00040000,
+
+    //@extension("VK_EXT_blend_operation_advanced") // 149
+    VK_ACCESS_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT     = 0x00080000,
 }
 
 /// Buffer usage flags
@@ -1571,6 +1688,9 @@ bitfield VkFormatFeatureFlagBits {
     //@extension("VK_KHR_maintenance1") // 70
     VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR                  = 0x00004000,
     VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR                  = 0x00008000,
+
+    //@extension("VK_EXT_sampler_filter_minmax") // 131
+    VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT_EXT   = 0x00010000,
 }
 
 /// Query control flags
@@ -2115,6 +2235,18 @@ type VkFlags VkIOSSurfaceCreateFlagsMVK
 type VkFlags VkMacOSSurfaceCreateFlagsMVK
 //@extension("VK_MVK_macos_surface") // 124
 //bitfield VkMacOSSurfaceCreateFlagBitsMVK {
+//}
+
+@extension("VK_NV_fragment_coverage_to_color") // 150
+type VkFlags VkPipelineCoverageToColorStateCreateFlagsNV
+@extension("VK_NV_fragment_coverage_to_color") // 150
+//bitfield VkPipelineCoverageToColorStateCreateFlagBitsNV {
+//}
+
+@extension("VK_NV_framebuffer_mixed_samples") // 153
+type VkFlags VkPipelineCoverageModulationStateCreateFlagsNV
+@extension("VK_NV_framebuffer_mixed_samples") // 153
+//bitfield VkPipelineCoverageModulationStateCreateFlagBitsNV {
 //}
 
 //////////////////
@@ -3498,6 +3630,13 @@ class VkDedicatedAllocationMemoryAllocateInfoNV {
     VkBuffer                                    buffer
 }
 
+@extension("VK_AMD_texture_gather_bias_lod") // 42
+class VkTextureLODGatherFormatPropertiesAMD {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkBool32                                    supportsTextureGatherLODBiasAMD
+}
+
 @extension("VK_KHX_multiview") // 54
 class VkRenderPassMultiviewCreateInfoKHX {
     VkStructureType                             sType
@@ -4350,6 +4489,69 @@ class VkMacOSSurfaceCreateInfoMVK {
     const void*                                     pNext
     VkMacOSSurfaceCreateFlagsMVK                    flags
     const void*                                     pView
+}
+
+@extension("VK_EXT_sampler_filter_minmax") // 131
+class VkSamplerReductionModeCreateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkSamplerReductionModeEXT                       reductionMode
+}
+
+@extension("VK_EXT_sampler_filter_minmax") // 131
+class VkPhysicalDeviceSamplerFilterMinmaxPropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        filterMinmaxSingleComponentFormats
+    VkBool32                                        filterMinmaxImageComponentMapping
+}
+
+@extension("VK_EXT_blend_operation_advanced") // 149
+class VkPhysicalDeviceBlendOperationAdvancedFeaturesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        advancedBlendCoherentOperations
+}
+
+@extension("VK_EXT_blend_operation_advanced") // 149
+class VkPhysicalDeviceBlendOperationAdvancedPropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u32                                             advancedBlendMaxColorAttachments
+    VkBool32                                        advancedBlendIndependentBlend
+    VkBool32                                        advancedBlendNonPremultipliedSrcColor
+    VkBool32                                        advancedBlendNonPremultipliedDstColor
+    VkBool32                                        advancedBlendCorrelatedOverlap
+    VkBool32                                        advancedBlendAllOperations
+}
+
+@extension("VK_EXT_blend_operation_advanced") // 149
+class VkPipelineColorBlendAdvancedStateCreateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkBool32                                        srcPremultiplied
+    VkBool32                                        dstPremultiplied
+    VkBlendOverlapEXT                               blendOverlap
+}
+
+@extension("VK_NV_fragment_coverage_to_color") // 150
+class VkPipelineCoverageToColorStateCreateInfoNV {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkPipelineCoverageToColorStateCreateFlagsNV     flags
+    VkBool32                                        coverageToColorEnable
+    u32                                             coverageToColorLocation
+}
+
+@extension("VK_NV_framebuffer_mixed_samples") // 153
+class VkPipelineCoverageModulationStateCreateInfoNV {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkPipelineCoverageModulationStateCreateFlagsNV  flags
+    VkCoverageModulationModeNV                      coverageModulationMode
+    VkBool32                                        coverageModulationTableEnable
+    u32                                             coverageModulationTableCount
+    const f32*                                      pCoverageModulationTable
 }
 
 ////////////////
