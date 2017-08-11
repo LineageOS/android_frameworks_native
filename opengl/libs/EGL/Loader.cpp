@@ -340,6 +340,14 @@ static void* load_system_driver(const char* kind) {
                     result = std::string("/vendor/lib/egl/lib") + kind + "_emulation.so";
 #endif
                     return result;
+                case 2:
+                    // Use guest side swiftshader library
+#if defined(__LP64__)
+                    result = std::string("/vendor/lib64/egl/lib") + kind + "_swiftshader.so";
+#else
+                    result = std::string("/vendor/lib/egl/lib") + kind + "_swiftshader.so";
+#endif
+                    return result;
                 default:
                     // Not in emulator, or use other guest-side implementation
                     break;
