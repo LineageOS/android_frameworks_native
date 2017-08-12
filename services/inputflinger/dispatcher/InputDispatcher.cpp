@@ -740,7 +740,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
 
         // Poke user activity for this event.
         if (mPendingEvent->policyFlags & POLICY_FLAG_PASS_TO_USER) {
-            pokeUserActivityLocked(*mPendingEvent);
+            pokeUserActivityLocked(mPendingEvent.get());
         }
     }
 
@@ -1693,7 +1693,7 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
 
     ALOG_ASSERT(eventEntry->dispatchInProgress); // should already have been set to true
 
-    pokeUserActivityLocked(*eventEntry);
+    pokeUserActivityLocked(eventEntry.get());
 
     for (const InputTarget& inputTarget : inputTargets) {
         sp<Connection> connection =
@@ -2704,15 +2704,15 @@ std::string InputDispatcher::getApplicationWindowLabel(
     }
 }
 
-void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
-    if (eventEntry.type == EventEntry::Type::FOCUS ||
-        eventEntry.type == EventEntry::Type::POINTER_CAPTURE_CHANGED ||
-        eventEntry.type == EventEntry::Type::DRAG) {
+void InputDispatcher::pokeUserActivityLocked(const EventEntry* eventEntry) {
+    if (eventEntry->type == EventEntry::Type::FOCUS ||
+        eventEntry->type == EventEntry::Type::POINTER_CAPTURE_CHANGED ||
+        eventEntry->type == EventEntry::Type::DRAG) {
         // Focus or pointer capture changed events are passed to apps, but do not represent user
         // activity.
         return;
     }
-    int32_t displayId = getTargetDisplayId(eventEntry);
+    int32_t displayId = getTargetDisplayId(*eventEntry);
     sp<InputWindowHandle> focusedWindowHandle = getFocusedWindowHandleLocked(displayId);
     if (focusedWindowHandle != nullptr) {
         const InputWindowInfo* info = focusedWindowHandle->getInfo();
@@ -2725,21 +2725,21 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
     }
 
     int32_t eventType = USER_ACTIVITY_EVENT_OTHER;
-    switch (eventEntry.type) {
+    switch (eventEntry->type) {
         case EventEntry::Type::MOTION: {
-            const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
-            if (motionEntry.action == AMOTION_EVENT_ACTION_CANCEL) {
+            const MotionEntry* motionEntry = static_cast<const MotionEntry*>(eventEntry);
+            if (motionEntry->action == AMOTION_EVENT_ACTION_CANCEL) {
                 return;
             }
 
-            if (MotionEvent::isTouchEvent(motionEntry.source, motionEntry.action)) {
+            if (MotionEvent::isTouchEvent(motionEntry->source, motionEntry->action)) {
                 eventType = USER_ACTIVITY_EVENT_TOUCH;
             }
             break;
         }
         case EventEntry::Type::KEY: {
-            const KeyEntry& keyEntry = static_cast<const KeyEntry&>(eventEntry);
-            if (keyEntry.flags & AKEY_EVENT_FLAG_CANCELED) {
+            const KeyEntry* keyEntry = static_cast<const KeyEntry*>(eventEntry);
+            if (keyEntry->flags & AKEY_EVENT_FLAG_CANCELED) {
                 return;
             }
             eventType = USER_ACTIVITY_EVENT_BUTTON;
@@ -2752,14 +2752,14 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
         case EventEntry::Type::POINTER_CAPTURE_CHANGED:
         case EventEntry::Type::DRAG: {
             LOG_ALWAYS_FATAL("%s events are not user activity",
-                             NamedEnum::string(eventEntry.type).c_str());
+                             NamedEnum::string(eventEntry->type).c_str());
             break;
         }
     }
 
     std::unique_ptr<CommandEntry> commandEntry =
             std::make_unique<CommandEntry>(&InputDispatcher::doPokeUserActivityLockedInterruptible);
-    commandEntry->eventTime = eventEntry.eventTime;
+    commandEntry->eventTime = eventEntry->eventTime;
     commandEntry->userActivityEventType = eventType;
     commandEntry->displayId = displayId;
     postCommandLocked(std::move(commandEntry));
@@ -6063,8 +6063,15 @@ bool InputDispatcher::afterMotionEventLockedInterruptible(const sp<Connection>& 
 void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) {
     mLock.unlock();
 
+    int32_t keyCode = AKEYCODE_UNKNOWN;
+
+    if (commandEntry->userActivityEventType == USER_ACTIVITY_EVENT_BUTTON &&
+            commandEntry->keyEntry) {
+        keyCode = commandEntry->keyEntry->keyCode;
+    }
+
     mPolicy->pokeUserActivity(commandEntry->eventTime, commandEntry->userActivityEventType,
-                              commandEntry->displayId);
+                              commandEntry->displayId, keyCode);
 
     mLock.lock();
 }
