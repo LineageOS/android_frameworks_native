@@ -99,7 +99,7 @@ public:
                               uint32_t policyFlags) = 0;
 
     /* Poke user activity for an event dispatched to a window. */
-    virtual void pokeUserActivity(nsecs_t eventTime, int32_t eventType) = 0;
+    virtual void pokeUserActivity(nsecs_t eventTime, int32_t eventType, int32_t keyCode) = 0;
 
     /* Checks whether a given application pid/uid has permission to inject input events
      * into other applications.
