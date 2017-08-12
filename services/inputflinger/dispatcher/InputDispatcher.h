@@ -513,7 +513,7 @@ private:
                                    std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId,
                                           float xOffset = 0, float yOffset = 0) REQUIRES(mLock);
-    void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);
+    void pokeUserActivityLocked(const EventEntry* eventEntry) REQUIRES(mLock);
     bool checkInjectionPermission(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                   const InjectionState* injectionState);
     // Enqueue a drag event if needed, and update the touch state.
