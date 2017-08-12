@@ -35,6 +35,7 @@ class VrComposerClient : public IVrComposerClient {
   virtual ~VrComposerClient();
 
   void onHotplug(Display display, IComposerCallback::Connection connected);
+  void onRefresh(Display display);
 
   // IComposerClient
   Return<void> registerCallback(const sp<IComposerCallback>& callback) override;
