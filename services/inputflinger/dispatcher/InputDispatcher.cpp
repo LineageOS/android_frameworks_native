@@ -776,7 +776,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
 
         // Poke user activity for this event.
         if (mPendingEvent->policyFlags & POLICY_FLAG_PASS_TO_USER) {
-            pokeUserActivityLocked(*mPendingEvent);
+            pokeUserActivityLocked(mPendingEvent.get());
         }
     }
 
@@ -1762,7 +1762,7 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
 
     ALOG_ASSERT(eventEntry->dispatchInProgress); // should already have been set to true
 
-    pokeUserActivityLocked(*eventEntry);
+    pokeUserActivityLocked(eventEntry.get());
 
     for (const InputTarget& inputTarget : inputTargets) {
         sp<Connection> connection =
@@ -2831,12 +2831,12 @@ std::string InputDispatcher::getApplicationWindowLabel(
     }
 }
 
-void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
-    if (!isUserActivityEvent(eventEntry)) {
+void InputDispatcher::pokeUserActivityLocked(const EventEntry* eventEntry) {
+    if (!isUserActivityEvent(*eventEntry)) {
         // Not poking user activity if the event type does not represent a user activity
         return;
     }
-    int32_t displayId = getTargetDisplayId(eventEntry);
+    int32_t displayId = getTargetDisplayId(*eventEntry);
     sp<WindowInfoHandle> focusedWindowHandle = getFocusedWindowHandleLocked(displayId);
     if (focusedWindowHandle != nullptr) {
         const WindowInfo* info = focusedWindowHandle->getInfo();
@@ -2849,37 +2849,39 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
     }
 
     int32_t eventType = USER_ACTIVITY_EVENT_OTHER;
-    switch (eventEntry.type) {
+    int32_t keyCode = AKEYCODE_UNKNOWN;
+    switch (eventEntry->type) {
         case EventEntry::Type::MOTION: {
-            const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
-            if (motionEntry.action == AMOTION_EVENT_ACTION_CANCEL) {
+            const MotionEntry* motionEntry = static_cast<const MotionEntry*>(eventEntry);
+            if (motionEntry->action == AMOTION_EVENT_ACTION_CANCEL) {
                 return;
             }
 
-            if (MotionEvent::isTouchEvent(motionEntry.source, motionEntry.action)) {
+            if (MotionEvent::isTouchEvent(motionEntry->source, motionEntry->action)) {
                 eventType = USER_ACTIVITY_EVENT_TOUCH;
             }
             break;
         }
         case EventEntry::Type::KEY: {
-            const KeyEntry& keyEntry = static_cast<const KeyEntry&>(eventEntry);
-            if (keyEntry.flags & AKEY_EVENT_FLAG_CANCELED) {
+            const KeyEntry* keyEntry = static_cast<const KeyEntry*>(eventEntry);
+            if (keyEntry->flags & AKEY_EVENT_FLAG_CANCELED) {
                 return;
             }
             eventType = USER_ACTIVITY_EVENT_BUTTON;
+            keyCode = keyEntry->keyCode;
             break;
         }
         default: {
             LOG_ALWAYS_FATAL("%s events are not user activity",
-                             ftl::enum_string(eventEntry.type).c_str());
+                             ftl::enum_string(eventEntry->type).c_str());
             break;
         }
     }
 
-    auto command = [this, eventTime = eventEntry.eventTime, eventType, displayId]()
+    auto command = [this, eventTime = eventEntry->eventTime, eventType, displayId, keyCode]()
                            REQUIRES(mLock) {
                                scoped_unlock unlock(mLock);
-                               mPolicy->pokeUserActivity(eventTime, eventType, displayId);
+                               mPolicy->pokeUserActivity(eventTime, eventType, displayId, keyCode);
                            };
     postCommandLocked(std::move(command));
 }

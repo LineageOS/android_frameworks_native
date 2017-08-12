@@ -553,7 +553,7 @@ private:
                                std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId)
             REQUIRES(mLock);
-    void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);
+    void pokeUserActivityLocked(const EventEntry* eventEntry) REQUIRES(mLock);
     // Enqueue a drag event if needed, and update the touch state.
     // Uses findTouchedWindowTargetsLocked to make the decision
     void addDragEventLocked(const MotionEntry& entry) REQUIRES(mLock);
