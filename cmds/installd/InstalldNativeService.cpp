@@ -311,6 +311,7 @@ static int prepare_app_quota(const std::unique_ptr<std::string>& uuid, const std
         return -1;
     }
 
+#if APPLY_HARD_QUOTAS
     if ((dq.dqb_bhardlimit == 0) || (dq.dqb_ihardlimit == 0)) {
         auto path = create_data_path(uuid ? uuid->c_str() : nullptr);
         struct statvfs stat;
@@ -335,6 +336,10 @@ static int prepare_app_quota(const std::unique_ptr<std::string>& uuid, const std
         // Hard quota already set; assume it's reasonable
         return 0;
     }
+#else
+    // Hard quotas disabled
+    return 0;
+#endif
 }
 
 binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::string>& uuid,
