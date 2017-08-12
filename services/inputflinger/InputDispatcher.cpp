@@ -1876,6 +1876,11 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry* eventEntry) {
             & InputDispatcher::doPokeUserActivityLockedInterruptible);
     commandEntry->eventTime = eventEntry->eventTime;
     commandEntry->userActivityEventType = eventType;
+    if (eventType == USER_ACTIVITY_EVENT_BUTTON) {
+        const KeyEntry* keyEntry = static_cast<const KeyEntry*>(eventEntry);
+        commandEntry->keyEntry = const_cast<KeyEntry*>(keyEntry);
+        keyEntry->refCount += 1;
+    }
 }
 
 void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
@@ -3866,7 +3871,20 @@ bool InputDispatcher::afterMotionEventLockedInterruptible(const sp<Connection>& 
 void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* commandEntry) {
     mLock.unlock();
 
-    mPolicy->pokeUserActivity(commandEntry->eventTime, commandEntry->userActivityEventType);
+    int32_t keyCode = AKEYCODE_UNKNOWN;
+
+    if (commandEntry->userActivityEventType == USER_ACTIVITY_EVENT_BUTTON &&
+            commandEntry->keyEntry) {
+        keyCode = commandEntry->keyEntry->keyCode;
+    }
+
+    mPolicy->pokeUserActivity(commandEntry->eventTime, commandEntry->userActivityEventType,
+            keyCode);
+
+    if (commandEntry->userActivityEventType == USER_ACTIVITY_EVENT_BUTTON &&
+            commandEntry->keyEntry) {
+        commandEntry->keyEntry->release();
+    }
 
     mLock.lock();
 }
