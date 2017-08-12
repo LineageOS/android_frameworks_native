@@ -33,6 +33,12 @@ enum {
     USER_ACTIVITY_EVENT_LAST = USER_ACTIVITY_EVENT_ACCESSIBILITY, // Last valid event code.
 };
 
+enum {
+    USER_ACTIVITY_FLAG_NO_CHANGE_LIGHTS = 1 << 0,
+    USER_ACTIVITY_FLAG_INDIRECT = 1 << 1,
+    USER_ACTIVITY_FLAG_NO_BUTTON_LIGHTS = 1 << 2,
+};
+
 }; // namespace android
 
 #endif // ANDROID_POWERMANAGER_H
