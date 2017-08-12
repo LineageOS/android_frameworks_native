@@ -44,6 +44,12 @@ enum class ThermalStatus : uint32_t {
     THERMAL_STATUS_SHUTDOWN = 6,
 };
 
+enum {
+    USER_ACTIVITY_FLAG_NO_CHANGE_LIGHTS = 1 << 0,
+    USER_ACTIVITY_FLAG_INDIRECT = 1 << 1,
+    USER_ACTIVITY_FLAG_NO_BUTTON_LIGHTS = 1 << 2,
+};
+
 }; // namespace android
 
 #endif // ANDROID_POWERMANAGER_H
