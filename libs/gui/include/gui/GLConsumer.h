@@ -210,7 +210,7 @@ public:
     // so the refactoring can proceed smoothly
     status_t setDefaultBufferFormat(PixelFormat defaultFormat);
     status_t setDefaultBufferDataSpace(android_dataspace defaultDataSpace);
-    status_t setConsumerUsageBits(uint32_t usage);
+    status_t setConsumerUsageBits(uint64_t usage);
     status_t setTransformHint(uint32_t hint);
     status_t setMaxAcquiredBufferCount(int maxAcquiredBuffers);
 
@@ -386,7 +386,7 @@ private:
     // BufferQueue instance; these will be OR:d with any additional flags passed
     // from the GLConsumer user. In particular, GLConsumer will always
     // consume buffers as hardware textures.
-    static const uint32_t DEFAULT_USAGE_FLAGS = GraphicBuffer::USAGE_HW_TEXTURE;
+    static const uint64_t DEFAULT_USAGE_FLAGS = GraphicBuffer::USAGE_HW_TEXTURE;
 
     // mCurrentTextureImage is the EglImage/buffer of the current texture. It's
     // possible that this buffer is not associated with any buffer slot, so we

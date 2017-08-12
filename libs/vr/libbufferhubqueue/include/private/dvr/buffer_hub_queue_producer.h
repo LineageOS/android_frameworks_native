@@ -112,6 +112,9 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
   // See |IGraphicBufferProducer::getUniqueId|
   status_t getUniqueId(uint64_t* out_id) const override;
 
+  // See |IGraphicBufferProducer::getConsumerUsage|
+  status_t getConsumerUsage(uint64_t* out_usage) const override;
+
  private:
   using LocalHandle = pdx::LocalHandle;
 

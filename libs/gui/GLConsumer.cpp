@@ -1115,7 +1115,7 @@ status_t GLConsumer::setDefaultBufferDataSpace(
     return mConsumer->setDefaultBufferDataSpace(defaultDataSpace);
 }
 
-status_t GLConsumer::setConsumerUsageBits(uint32_t usage) {
+status_t GLConsumer::setConsumerUsageBits(uint64_t usage) {
     Mutex::Autolock lock(mMutex);
     if (mAbandoned) {
         GLC_LOGE("setConsumerUsageBits: GLConsumer is abandoned!");
