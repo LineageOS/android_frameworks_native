@@ -126,7 +126,7 @@ public:
 
     /* Poke user activity for an event dispatched to a window. */
     virtual void pokeUserActivity(nsecs_t eventTime, int32_t eventType,
-                                  ui::LogicalDisplayId displayId) = 0;
+                                  ui::LogicalDisplayId displayId, int32_t keyCode) = 0;
 
     /*
      * Return true if the provided event is stale, and false otherwise. Used for determining
