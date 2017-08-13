@@ -158,6 +158,10 @@ status_t MonitoredProducer::getUniqueId(uint64_t* outId) const {
     return mProducer->getUniqueId(outId);
 }
 
+status_t MonitoredProducer::getConsumerUsage(uint64_t* outUsage) const {
+    return mProducer->getConsumerUsage(outUsage);
+}
+
 IBinder* MonitoredProducer::onAsBinder() {
     return this;
 }
