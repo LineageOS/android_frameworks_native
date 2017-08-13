@@ -593,6 +593,12 @@ public:
 
     // Returns a unique id for this BufferQueue
     virtual status_t getUniqueId(uint64_t* outId) const = 0;
+
+    // Returns the consumer usage flags for this BufferQueue. This returns the
+    // full 64-bit usage flags, rather than the truncated 32-bit usage flags
+    // returned by querying the now deprecated
+    // NATIVE_WINDOW_CONSUMER_USAGE_BITS attribute.
+    virtual status_t getConsumerUsage(uint64_t* outUsage) const = 0;
 };
 
 // ----------------------------------------------------------------------------

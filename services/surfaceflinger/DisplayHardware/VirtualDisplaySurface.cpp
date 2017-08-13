@@ -627,6 +627,10 @@ status_t VirtualDisplaySurface::getUniqueId(uint64_t* /*outId*/) const {
     return INVALID_OPERATION;
 }
 
+status_t VirtualDisplaySurface::getConsumerUsage(uint64_t* outUsage) const {
+    return mSource[SOURCE_SINK]->getConsumerUsage(outUsage);
+}
+
 void VirtualDisplaySurface::updateQueueBufferOutput(
         QueueBufferOutput&& qbo) {
     mQueueBufferOutput = std::move(qbo);
