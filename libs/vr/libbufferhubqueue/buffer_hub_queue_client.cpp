@@ -417,6 +417,28 @@ void BufferHubQueue::SetBufferRemovedCallback(BufferRemovedCallback callback) {
   on_buffer_removed_ = callback;
 }
 
+pdx::Status<void> BufferHubQueue::FreeAllBuffers() {
+  // Clear all available buffers.
+  available_buffers_.Clear();
+
+  pdx::Status<void> last_error;  // No error.
+  // Clear all buffers this producer queue is tracking.
+  for (size_t slot = 0; slot < BufferHubQueue::kMaxQueueCapacity; slot++) {
+    if (buffers_[slot] != nullptr) {
+      auto status = RemoveBuffer(slot);
+      if (!status) {
+        ALOGE(
+            "ProducerQueue::FreeAllBuffers: Failed to remove buffer at "
+            "slot=%d.",
+            slot);
+        last_error = status.error_status();
+      }
+    }
+  }
+
+  return last_error;
+}
+
 ProducerQueue::ProducerQueue(LocalChannelHandle handle)
     : BASE(std::move(handle)) {
   auto status = ImportQueue();

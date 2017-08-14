@@ -135,6 +135,10 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
   // Remove a buffer via BufferHubRPC.
   status_t RemoveBuffer(size_t slot);
 
+  // Free all buffers which are owned by the prodcuer. Note that if graphic
+  // buffers are acquired by the consumer, we can't .
+  status_t FreeAllBuffers();
+
   // Concreate implementation backed by BufferHubBuffer.
   std::shared_ptr<ProducerQueue> queue_;
 
