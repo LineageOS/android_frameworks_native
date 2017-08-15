@@ -28,6 +28,7 @@
 #include <utils/RefBase.h>
 #include <utils/Log.h>
 
+#include <ui/DebugUtils.h>
 #include <ui/DisplayInfo.h>
 #include <ui/PixelFormat.h>
 
@@ -617,6 +618,7 @@ uint32_t DisplayDevice::getPrimaryDisplayOrientationTransform() {
 
 void DisplayDevice::dump(String8& result) const {
     const Transform& tr(mGlobalTransform);
+    ANativeWindow* const window = mNativeWindow.get();
     EGLint redSize, greenSize, blueSize, alphaSize;
     eglGetConfigAttrib(mDisplay, mConfig, EGL_RED_SIZE, &redSize);
     eglGetConfigAttrib(mDisplay, mConfig, EGL_GREEN_SIZE, &greenSize);
@@ -626,9 +628,9 @@ void DisplayDevice::dump(String8& result) const {
     result.appendFormat("   type=%x, hwcId=%d, layerStack=%u, (%4dx%4d), ANativeWindow=%p "
                         "(%d:%d:%d:%d), orient=%2d (type=%08x), "
                         "flips=%u, isSecure=%d, powerMode=%d, activeConfig=%d, numLayers=%zu\n",
-                        mType, mHwcDisplayId, mLayerStack, mDisplayWidth, mDisplayHeight,
-                        mNativeWindow.get(), redSize, greenSize, blueSize, alphaSize, mOrientation,
-                        tr.getType(), getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
+                        mType, mHwcDisplayId, mLayerStack, mDisplayWidth, mDisplayHeight, window,
+                        redSize, greenSize, blueSize, alphaSize, mOrientation, tr.getType(),
+                        getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
                         mVisibleLayersSortedByZ.size());
     result.appendFormat("   v:[%d,%d,%d,%d], f:[%d,%d,%d,%d], s:[%d,%d,%d,%d],"
                         "transform:[[%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f]]\n",
@@ -636,6 +638,9 @@ void DisplayDevice::dump(String8& result) const {
                         mFrame.left, mFrame.top, mFrame.right, mFrame.bottom, mScissor.left,
                         mScissor.top, mScissor.right, mScissor.bottom, tr[0][0], tr[1][0], tr[2][0],
                         tr[0][1], tr[1][1], tr[2][1], tr[0][2], tr[1][2], tr[2][2]);
+    auto const surface = static_cast<Surface*>(window);
+    android_dataspace dataspace = surface->getBuffersDataSpace();
+    result.appendFormat("   dataspace: %s (%d)\n", dataspaceDetails(dataspace).c_str(), dataspace);
 
     String8 surfaceDump;
     mDisplaySurface->dumpAsString(surfaceDump);
