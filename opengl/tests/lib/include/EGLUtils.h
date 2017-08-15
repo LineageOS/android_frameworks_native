@@ -29,7 +29,7 @@
 #include <utils/Errors.h>
 #include <utils/String8.h>
 
-EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
+extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
 // ----------------------------------------------------------------------------
 namespace android {
