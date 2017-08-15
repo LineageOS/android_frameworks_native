@@ -23,6 +23,7 @@
 #include <gui/BufferItemConsumer.h>
 
 #include <ui/GraphicBuffer.h>
+#include <android/hardware/graphics/common/1.0/types.h>
 #include <math/vec4.h>
 
 #include <GLES3/gl3.h>
@@ -31,6 +32,7 @@
 #include "Hwc2TestLayers.h"
 
 using namespace android;
+using android::hardware::graphics::common::V1_0::BufferUsage;
 
 /* Returns a fence from egl */
 typedef void (*FenceCallback)(int32_t fence, void* callbackArgs);
@@ -396,8 +398,9 @@ int Hwc2TestBuffer::generateBuffer()
 {
     /* Create new graphic buffer with correct dimensions */
     mGraphicBuffer = new GraphicBuffer(mBufferArea.width, mBufferArea.height,
-            mFormat, GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER,
-            "hwc2_test_buffer");
+            mFormat, BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+            BufferUsage::COMPOSER_OVERLAY, "hwc2_test_buffer");
+
     int ret = mGraphicBuffer->initCheck();
     if (ret) {
         return ret;
@@ -408,7 +411,8 @@ int Hwc2TestBuffer::generateBuffer()
 
     /* Locks the buffer for writing */
     uint8_t* img;
-    mGraphicBuffer->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
+    mGraphicBuffer->lock(static_cast<uint32_t>(BufferUsage::CPU_WRITE_OFTEN),
+            (void**)(&img));
 
     uint32_t stride = mGraphicBuffer->getStride();
 
@@ -469,8 +473,9 @@ int Hwc2TestClientTargetBuffer::get(buffer_handle_t* outHandle,
 {
     /* Create new graphic buffer with correct dimensions */
     mGraphicBuffer = new GraphicBuffer(bufferArea.width, bufferArea.height,
-            mFormat, GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER,
-            "hwc2_test_buffer");
+            mFormat, BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+            BufferUsage::COMPOSER_OVERLAY, "hwc2_test_buffer");
+
     int ret = mGraphicBuffer->initCheck();
     if (ret) {
         return ret;
@@ -480,7 +485,8 @@ int Hwc2TestClientTargetBuffer::get(buffer_handle_t* outHandle,
     }
 
     uint8_t* img;
-    mGraphicBuffer->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
+    mGraphicBuffer->lock(static_cast<uint32_t>(BufferUsage::CPU_WRITE_OFTEN),
+            (void**)(&img));
 
     uint32_t stride = mGraphicBuffer->getStride();
 
