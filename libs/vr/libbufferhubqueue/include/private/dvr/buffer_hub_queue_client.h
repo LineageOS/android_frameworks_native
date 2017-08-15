@@ -122,6 +122,10 @@ class BufferHubQueue : public pdx::Client {
   // to deregister a buffer for epoll and internal bookkeeping.
   virtual pdx::Status<void> RemoveBuffer(size_t slot);
 
+  // Free all buffers that belongs to this queue. Can only be called from
+  // producer side.
+  virtual pdx::Status<void> FreeAllBuffers();
+
   // Dequeue a buffer from the free queue, blocking until one is available. The
   // timeout argument specifies the number of milliseconds that |Dequeue()| will
   // block. Specifying a timeout of -1 causes Dequeue() to block indefinitely,
@@ -296,6 +300,11 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
 
   // Remove producer buffer from the queue.
   pdx::Status<void> RemoveBuffer(size_t slot) override;
+
+  // Free all buffers on this producer queue.
+  pdx::Status<void> FreeAllBuffers() override {
+    return BufferHubQueue::FreeAllBuffers();
+  }
 
   // Dequeue a producer buffer to write. The returned buffer in |Gain|'ed mode,
   // and caller should call Post() once it's done writing to release the buffer
