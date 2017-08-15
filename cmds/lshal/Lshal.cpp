@@ -69,7 +69,7 @@ void Lshal::usage(const std::string &command) const {
             "    lshal [list] [--interface|-i] [--transport|-t] [-r|--arch] [-e|--threads]\n"
             "            [--pid|-p] [--address|-a] [--clients|-c] [--cmdline|-m]\n"
             "            [--sort={interface|i|pid|p}] [--init-vintf[=<output file>]]\n"
-            "            [--debug|-d[=<output file>]]\n"
+            "            [--debug|-d[=<output file>]] [--neat]\n"
             "        -i, --interface: print the interface name column\n"
             "        -n, --instance: print the instance name column\n"
             "        -t, --transport: print the transport mode column\n"
@@ -84,7 +84,8 @@ void Lshal::usage(const std::string &command) const {
             "                IBase::debug with empty options\n"
             "        --sort=i, --sort=interface: sort by interface name\n"
             "        --sort=p, --sort=pid: sort by server pid\n"
-            "        --init-vintf=<output file>: form a skeleton HAL manifest to specified\n"
+            "        --neat: output is machine parsable (no explanatory text)\n"
+            "        --init-vintf[=<output file>]: form a skeleton HAL manifest to specified\n"
             "                      file, or stdout if no file specified.\n";
 
     static const std::string debug =
