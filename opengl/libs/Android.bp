@@ -85,7 +85,6 @@ cc_defaults {
 cc_defaults {
     name: "egl_libs_defaults",
     defaults: ["gl_libs_defaults"],
-    vendor_available: true,
     cflags: [
         "-DLOG_TAG=\"libEGL\"",
     ],
@@ -117,9 +116,6 @@ cc_library_static {
 cc_library_shared {
     name: "libEGL",
     defaults: ["egl_libs_defaults"],
-    vndk: {
-        enabled: true,
-    },
     srcs: [
         "EGL/egl_tls.cpp",
         "EGL/egl_cache.cpp",
@@ -155,7 +151,6 @@ cc_test {
 cc_defaults {
     name: "gles_libs_defaults",
     defaults: ["gl_libs_defaults"],
-    vendor_available: true,
     arch: {
         arm: {
             instruction_set: "arm",
@@ -183,9 +178,6 @@ cc_library_shared {
 cc_library_shared {
     name: "libGLESv2",
     defaults: ["gles_libs_defaults"],
-    vndk: {
-        enabled: true,
-    },
     srcs: ["GLES2/gl2.cpp"],
     cflags: ["-DLOG_TAG=\"libGLESv2\""],
 }
