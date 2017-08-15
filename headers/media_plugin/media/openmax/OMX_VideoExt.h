@@ -58,6 +58,12 @@ typedef struct OMX_NALSTREAMFORMATTYPE{
     OMX_NALUFORMATSTYPE eNaluFormat;
 } OMX_NALSTREAMFORMATTYPE;
 
+/** AVC additional profiles */
+typedef enum OMX_VIDEO_AVCPROFILETYPEEXT {
+    OMX_VIDEO_AVCProfileConstrainedBaseline = 0x10000,   /**< Constrained baseline profile */
+    OMX_VIDEO_AVCProfileConstrainedHigh     = 0x80000,   /**< Constrained high profile */
+} OMX_VIDEO_AVCPROFILETYPEEXT;
+
 /** VP8 profiles */
 typedef enum OMX_VIDEO_VP8PROFILETYPE {
     OMX_VIDEO_VP8ProfileMain = 0x01,
