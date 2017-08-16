@@ -420,8 +420,14 @@ public:
     bool isPotentialCursor() const { return mPotentialCursor;}
 
     /*
-     * called with the state lock when the surface is removed from the
-     * current list
+     * called with the state lock from a binder thread when the layer is
+     * removed from the current list to the pending removal list
+     */
+    void onRemovedFromCurrentState();
+
+    /*
+     * called with the state lock from the main thread when the layer is
+     * removed from the pending removal list
      */
     void onRemoved();
 
