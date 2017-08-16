@@ -30,7 +30,7 @@
 #include <EGLUtils.h>
 
 using namespace android;
-EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
+extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
 static void printGLString(const char *name, GLenum s) {
     // fprintf(stderr, "printGLString %s, %d\n", name, s);

@@ -1509,6 +1509,12 @@ int Surface::setBuffersDataSpace(android_dataspace dataSpace)
     return NO_ERROR;
 }
 
+android_dataspace_t Surface::getBuffersDataSpace() {
+    ALOGV("Surface::getBuffersDataSpace");
+    Mutex::Autolock lock(mMutex);
+    return mDataSpace;
+}
+
 void Surface::freeAllBuffers() {
     for (int i = 0; i < NUM_BUFFER_SLOTS; i++) {
         mSlots[i].buffer = 0;

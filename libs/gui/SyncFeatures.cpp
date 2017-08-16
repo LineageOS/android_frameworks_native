@@ -27,7 +27,7 @@
 
 #include <private/gui/SyncFeatures.h>
 
-EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
+extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
 namespace android {
 
