@@ -14,6 +14,8 @@ using android::dvr::BufferHubQueueProducer;
 using android::dvr::BufferProducer;
 using android::dvr::ConsumerQueue;
 using android::dvr::ProducerQueue;
+using android::dvr::ProducerQueueConfigBuilder;
+using android::dvr::UsagePolicy;
 
 extern "C" {
 
@@ -153,6 +155,36 @@ int DvrWriteBufferQueue::ResizeBuffer(uint32_t width, uint32_t height) {
 
   width_ = width;
   height_ = height;
+  return 0;
+}
+
+int dvrWriteBufferQueueCreate(uint32_t width, uint32_t height, uint32_t format,
+                              uint32_t layer_count, uint64_t usage,
+                              size_t capacity, size_t metadata_size,
+                              DvrWriteBufferQueue** out_write_queue) {
+  if (!out_write_queue)
+    return -EINVAL;
+
+  auto config_builder = ProducerQueueConfigBuilder()
+                            .SetDefaultWidth(width)
+                            .SetDefaultHeight(height)
+                            .SetDefaultFormat(format)
+                            .SetMetadataSize(metadata_size);
+  std::unique_ptr<ProducerQueue> producer_queue =
+      ProducerQueue::Create(config_builder.Build(), UsagePolicy{});
+  if (!producer_queue) {
+    ALOGE("dvrWriteBufferQueueCreate: Failed to create producer queue.");
+    return -ENOMEM;
+  }
+
+  auto status = producer_queue->AllocateBuffers(width, height, layer_count,
+                                                format, usage, capacity);
+  if (!status.ok()) {
+    ALOGE("dvrWriteBufferQueueCreate: Failed to allocate buffers.");
+    return -ENOMEM;
+  }
+
+  *out_write_queue = new DvrWriteBufferQueue(std::move(producer_queue));
   return 0;
 }
 

@@ -159,6 +159,12 @@ typedef const struct native_handle* (*DvrBufferGetNativeHandlePtr)(
     DvrBuffer* buffer);
 
 // dvr_buffer_queue.h
+typedef int (*DvrWriteBufferQueueCreatePtr)(uint32_t width, uint32_t height,
+                                            uint32_t format,
+                                            uint32_t layer_count,
+                                            uint64_t usage, size_t capacity,
+                                            size_t metadata_size,
+                                            DvrWriteBufferQueue** queue_out);
 typedef void (*DvrWriteBufferQueueDestroyPtr)(DvrWriteBufferQueue* write_queue);
 typedef ssize_t (*DvrWriteBufferQueueGetCapacityPtr)(
     DvrWriteBufferQueue* write_queue);
