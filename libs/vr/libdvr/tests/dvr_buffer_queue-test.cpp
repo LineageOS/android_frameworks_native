@@ -1,24 +1,30 @@
+#include <android/log.h>
+#include <android/native_window.h>
+#include <android-base/unique_fd.h>
 #include <dvr/dvr_api.h>
 #include <dvr/dvr_buffer_queue.h>
-#include <gui/Surface.h>
-#include <private/dvr/buffer_hub_queue_client.h>
 
-#include <base/logging.h>
 #include <gtest/gtest.h>
 
-#include "../dvr_internal.h"
-#include "../dvr_buffer_queue_internal.h"
+#include <array>
+#include <unordered_map>
 
-namespace android {
-namespace dvr {
+#ifndef ALOGD
+#define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#endif
+
+#ifndef ALOGD_IF
+#define ALOGD_IF(cond, ...) \
+  ((__predict_false(cond)) ? ((void)ALOGD(__VA_ARGS__)) : (void)0)
+#endif
 
 namespace {
 
 static constexpr uint32_t kBufferWidth = 100;
 static constexpr uint32_t kBufferHeight = 1;
 static constexpr uint32_t kLayerCount = 1;
-static constexpr uint32_t kBufferFormat = HAL_PIXEL_FORMAT_BLOB;
-static constexpr uint64_t kBufferUsage = GRALLOC_USAGE_SW_READ_RARELY;
+static constexpr uint32_t kBufferFormat = AHARDWAREBUFFER_FORMAT_BLOB;
+static constexpr uint64_t kBufferUsage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN;
 static constexpr size_t kQueueCapacity = 3;
 
 typedef uint64_t TestMeta;
@@ -36,32 +42,11 @@ class DvrBufferQueueTest : public ::testing::Test {
   }
 
  protected:
-  void SetUp() override {
-    config_builder_ = ProducerQueueConfigBuilder()
-                          .SetDefaultWidth(kBufferWidth)
-                          .SetDefaultHeight(kBufferHeight)
-                          .SetDefaultFormat(kBufferFormat)
-                          .SetMetadata<TestMeta>();
-  }
-
   void TearDown() override {
     if (write_queue_ != nullptr) {
       dvrWriteBufferQueueDestroy(write_queue_);
       write_queue_ = nullptr;
     }
-  }
-
-  void CreateWriteBufferQueue() {
-    write_queue_ = new DvrWriteBufferQueue(
-        ProducerQueue::Create(config_builder_.Build(), UsagePolicy{}));
-    ASSERT_NE(nullptr, write_queue_);
-  }
-
-  void AllocateBuffers(size_t buffer_count) {
-    auto status = write_queue_->producer_queue()->AllocateBuffers(
-        kBufferWidth, kBufferHeight, kLayerCount, kBufferFormat, kBufferUsage,
-        buffer_count);
-    ASSERT_TRUE(status.ok());
   }
 
   void HandleBufferAvailable() {
@@ -75,22 +60,26 @@ class DvrBufferQueueTest : public ::testing::Test {
              buffer_removed_count_);
   }
 
-  ProducerQueueConfigBuilder config_builder_;
   DvrWriteBufferQueue* write_queue_{nullptr};
   int buffer_available_count_{0};
   int buffer_removed_count_{0};
 };
 
 TEST_F(DvrBufferQueueTest, TestWrite_QueueCreateDestroy) {
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      /*capacity=*/0, sizeof(TestMeta), &write_queue_);
+  ASSERT_EQ(0, ret);
 
   dvrWriteBufferQueueDestroy(write_queue_);
   write_queue_ = nullptr;
 }
 
 TEST_F(DvrBufferQueueTest, TestWrite_QueueGetCapacity) {
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
-  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(kQueueCapacity));
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      kQueueCapacity, sizeof(TestMeta), &write_queue_);
+  ASSERT_EQ(0, ret);
 
   size_t capacity = dvrWriteBufferQueueGetCapacity(write_queue_);
 
@@ -99,10 +88,13 @@ TEST_F(DvrBufferQueueTest, TestWrite_QueueGetCapacity) {
 }
 
 TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromWriteQueue) {
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      /*capacity=*/0, sizeof(TestMeta), &write_queue_);
+  ASSERT_EQ(0, ret);
 
   DvrReadBufferQueue* read_queue = nullptr;
-  int ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
+  ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
 
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, read_queue);
@@ -111,11 +103,14 @@ TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromWriteQueue) {
 }
 
 TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromReadQueue) {
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      /*capacity=*/0, sizeof(TestMeta), &write_queue_);
+  ASSERT_EQ(0, ret);
 
   DvrReadBufferQueue* read_queue1 = nullptr;
   DvrReadBufferQueue* read_queue2 = nullptr;
-  int ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue1);
+  ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue1);
 
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, read_queue1);
@@ -130,8 +125,10 @@ TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromReadQueue) {
 }
 
 TEST_F(DvrBufferQueueTest, CreateEmptyBuffer) {
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
-  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(3));
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      kQueueCapacity, sizeof(TestMeta), &write_queue_);
+  ASSERT_EQ(0, ret);
 
   DvrReadBuffer* read_buffer = nullptr;
   DvrWriteBuffer* write_buffer = nullptr;
@@ -164,8 +161,10 @@ TEST_F(DvrBufferQueueTest, CreateEmptyBuffer) {
 }
 
 TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
-  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(kQueueCapacity));
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      kQueueCapacity, sizeof(TestMeta), &write_queue_);
+  ASSERT_EQ(0, ret);
 
   static constexpr int kTimeout = 0;
   DvrReadBufferQueue* read_queue = nullptr;
@@ -173,7 +172,7 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
   DvrWriteBuffer* wb = nullptr;
   int fence_fd = -1;
 
-  int ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
+  ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
 
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, read_queue);
@@ -193,7 +192,7 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
   ASSERT_TRUE(dvrWriteBufferIsValid(wb));
   ALOGD_IF(TRACE, "TestDequeuePostDequeueRelease, gain buffer %p, fence_fd=%d",
            wb, fence_fd);
-  pdx::LocalHandle release_fence(fence_fd);
+  android::base::unique_fd release_fence(fence_fd);
 
   // Post buffer to the read_queue.
   TestMeta seq = 42U;
@@ -215,7 +214,7 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
   ALOGD_IF(TRACE,
            "TestDequeuePostDequeueRelease, acquire buffer %p, fence_fd=%d", rb,
            fence_fd);
-  pdx::LocalHandle acquire_fence(fence_fd);
+  android::base::unique_fd acquire_fence(fence_fd);
 
   // Release buffer to the write_queue.
   ret = dvrReadBufferRelease(rb, -1);
@@ -234,40 +233,52 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
 }
 
 TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      /*capacity=*/0, sizeof(TestMeta), &write_queue_);
+  ASSERT_EQ(0, ret);
 
   ANativeWindow* window = nullptr;
 
   // The |write_queue_| doesn't have proper metadata (must be
   // DvrNativeBufferMetadata) configured during creation.
-  int ret = dvrWriteBufferQueueGetExternalSurface(write_queue_, &window);
+  ret = dvrWriteBufferQueueGetExternalSurface(write_queue_, &window);
   ASSERT_EQ(-EINVAL, ret);
   ASSERT_EQ(nullptr, window);
+  dvrWriteBufferQueueDestroy(write_queue_);
+  write_queue_ = nullptr;
 
   // A write queue with DvrNativeBufferMetadata should work fine.
-  auto config = ProducerQueueConfigBuilder()
-                    .SetMetadata<DvrNativeBufferMetadata>()
-                    .Build();
-  std::unique_ptr<DvrWriteBufferQueue, decltype(&dvrWriteBufferQueueDestroy)>
-      write_queue(
-          new DvrWriteBufferQueue(ProducerQueue::Create(config, UsagePolicy{})),
-          dvrWriteBufferQueueDestroy);
-  ASSERT_NE(nullptr, write_queue.get());
+  ASSERT_EQ(nullptr, write_queue_);
 
-  ret = dvrWriteBufferQueueGetExternalSurface(write_queue.get(), &window);
+  ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      /*capacity=*/0, sizeof(DvrNativeBufferMetadata), &write_queue_);
+  ASSERT_EQ(0, ret);
+  ASSERT_NE(nullptr, write_queue_);
+
+  ret = dvrWriteBufferQueueGetExternalSurface(write_queue_, &window);
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, window);
 
-  sp<Surface> surface = static_cast<Surface*>(window);
-  ASSERT_TRUE(Surface::isValid(surface));
+  // TODO(b/64723700): Remove dependencies of Android platform bits so that we
+  // can run dvr_buffer_queue-test in DTS.
+  uint32_t width = ANativeWindow_getWidth(window);
+  uint32_t height = ANativeWindow_getHeight(window);
+  uint32_t format = ANativeWindow_getFormat(window);
+  ASSERT_EQ(kBufferWidth, width);
+  ASSERT_EQ(kBufferHeight, height);
+  ASSERT_EQ(kBufferFormat, format);
 }
 
 // Create buffer queue of three buffers and dequeue three buffers out of it.
 // Before each dequeue operation, we resize the buffer queue and expect the
 // queue always return buffer with desired dimension.
 TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
-  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(kQueueCapacity));
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      kQueueCapacity, sizeof(TestMeta), &write_queue_);
+  ASSERT_EQ(0, ret);
 
   static constexpr int kTimeout = 0;
   int fence_fd = -1;
@@ -281,7 +292,7 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   AHardwareBuffer* ahb3 = nullptr;
   AHardwareBuffer_Desc buffer_desc;
 
-  int ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
+  ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
 
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, read_queue);
@@ -314,7 +325,7 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ASSERT_EQ(0, ret);
   ASSERT_TRUE(dvrWriteBufferIsValid(wb1));
   ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p", wb1);
-  pdx::LocalHandle release_fence1(fence_fd);
+  android::base::unique_fd release_fence1(fence_fd);
 
   // Check the buffer dimension.
   ret = dvrWriteBufferGetAHardwareBuffer(wb1, &ahb1);
@@ -341,7 +352,7 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ASSERT_TRUE(dvrWriteBufferIsValid(wb2));
   ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p, fence_fd=%d", wb2,
            fence_fd);
-  pdx::LocalHandle release_fence2(fence_fd);
+  android::base::unique_fd release_fence2(fence_fd);
 
   // Check the buffer dimension, should be new width
   ret = dvrWriteBufferGetAHardwareBuffer(wb2, &ahb2);
@@ -367,7 +378,7 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ASSERT_TRUE(dvrWriteBufferIsValid(wb3));
   ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p, fence_fd=%d", wb3,
            fence_fd);
-  pdx::LocalHandle release_fence3(fence_fd);
+  android::base::unique_fd release_fence3(fence_fd);
 
   // Check the buffer dimension, should be new width
   ret = dvrWriteBufferGetAHardwareBuffer(wb3, &ahb3);
@@ -387,9 +398,10 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
 
 TEST_F(DvrBufferQueueTest, DequeueEmptyMetadata) {
   // Overrides default queue parameters: Empty metadata.
-  config_builder_.SetMetadata<void>();
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
-  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(1));
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      /*capacity=*/1, /*metadata_size=*/0, &write_queue_);
+  ASSERT_EQ(0, ret);
 
   DvrReadBuffer* rb = nullptr;
   DvrWriteBuffer* wb = nullptr;
@@ -416,8 +428,10 @@ TEST_F(DvrBufferQueueTest, DequeueEmptyMetadata) {
 }
 
 TEST_F(DvrBufferQueueTest, DequeueMismatchMetadata) {
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
-  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(1));
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      /*capacity=*/1, sizeof(TestMeta), &write_queue_);
+  ASSERT_EQ(0, ret);
 
   DvrReadBuffer* rb = nullptr;
   DvrWriteBuffer* wb = nullptr;
@@ -451,11 +465,13 @@ TEST_F(DvrBufferQueueTest, DequeueMismatchMetadata) {
 }
 
 TEST_F(DvrBufferQueueTest, TestReadQueueEventFd) {
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
-  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(kQueueCapacity));
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      kQueueCapacity, sizeof(TestMeta), &write_queue_);
+  ASSERT_EQ(0, ret);
 
   DvrReadBufferQueue* read_queue = nullptr;
-  int ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
+  ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
 
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, read_queue);
@@ -468,8 +484,10 @@ TEST_F(DvrBufferQueueTest, TestReadQueueEventFd) {
 // Dvr{Read,Write}Buffer(s) during their lifecycles. And for the same buffer_id,
 // the corresponding AHardwareBuffer handle stays the same.
 TEST_F(DvrBufferQueueTest, TestStableBufferIdAndHardwareBuffer) {
-  ASSERT_NO_FATAL_FAILURE(CreateWriteBufferQueue());
-  ASSERT_NO_FATAL_FAILURE(AllocateBuffers(kQueueCapacity));
+  int ret = dvrWriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      kQueueCapacity, sizeof(TestMeta), &write_queue_);
+  ASSERT_EQ(0, ret);
 
   int fence_fd = -1;
   DvrReadBufferQueue* read_queue = nullptr;
@@ -621,6 +639,3 @@ TEST_F(DvrBufferQueueTest, TestStableBufferIdAndHardwareBuffer) {
 }
 
 }  // namespace
-
-}  // namespace dvr
-}  // namespace android
