@@ -2779,6 +2779,7 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) 
         return NO_ERROR;
     }
 
+    layer->onRemovedFromCurrentState();
     mLayersPendingRemoval.add(layer);
     mLayersRemoved = true;
     mNumLayers -= 1 + layer->getChildrenCount();

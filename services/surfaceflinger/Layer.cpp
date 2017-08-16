@@ -202,9 +202,11 @@ Layer::~Layer() {
     mFrameTracker.logAndResetStats(mName);
 
 #ifdef USE_HWC2
-    ALOGE_IF(!mHwcLayers.empty(),
-            "Found stale hardware composer layers when destroying "
-            "surface flinger layer");
+    if (!mHwcLayers.empty()) {
+        ALOGE("Found stale hardware composer layers when destroying "
+                "surface flinger layer %s", mName.string());
+        destroyAllHwcLayers();
+    }
 #endif
 }
 
@@ -293,20 +295,27 @@ void Layer::onSidebandStreamChanged() {
     }
 }
 
-// called with SurfaceFlinger::mStateLock from the drawing thread after
-// the layer has been remove from the current state list (and just before
-// it's removed from the drawing state list)
-void Layer::onRemoved() {
+void Layer::onRemovedFromCurrentState() {
+    // the layer is removed from SF mCurrentState to mLayersPendingRemoval
+
     if (mCurrentState.zOrderRelativeOf != nullptr) {
         sp<Layer> strongRelative = mCurrentState.zOrderRelativeOf.promote();
         if (strongRelative != nullptr) {
             strongRelative->removeZOrderRelative(this);
+            mFlinger->setTransactionFlags(eTraversalNeeded);
         }
         mCurrentState.zOrderRelativeOf = nullptr;
     }
 
-    mSurfaceFlingerConsumer->abandon();
+    for (const auto& child : mCurrentChildren) {
+        child->onRemovedFromCurrentState();
+    }
+}
 
+void Layer::onRemoved() {
+    // the layer is removed from SF mLayersPendingRemoval
+
+    mSurfaceFlingerConsumer->abandon();
 #ifdef USE_HWC2
     destroyAllHwcLayers();
 #endif
