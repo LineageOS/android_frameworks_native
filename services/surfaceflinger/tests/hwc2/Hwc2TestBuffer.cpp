@@ -570,8 +570,8 @@ int Hwc2TestClientTargetBuffer::get(buffer_handle_t* outHandle,
                      * (100x50) at the end of the transformation. */
                     if (transform & HWC_TRANSFORM_ROT_90) {
                         float tmp = xPos;
-                        xPos = -yPos * dfW / dfH;
-                        yPos = tmp * dfH / dfW;
+                        xPos = yPos * dfW / dfH;
+                        yPos = -tmp * dfH / dfW;
                     }
 
                     /* Change origin back to the top left corner of the
