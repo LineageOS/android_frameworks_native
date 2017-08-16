@@ -377,20 +377,10 @@ void SurfaceFlinger::bootFinished()
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
 
-    sp<LambdaMessage> bootFinished = new LambdaMessage([&]() {
-        mBootFinished = true;
-
+    sp<LambdaMessage> readProperties = new LambdaMessage([&]() {
         readPersistentProperties();
-
-#ifdef USE_HWC2
-        sp<DisplayDevice> hw(getDisplayDevice(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]));
-        if (hw->getWideColorSupport()) {
-            hw->setCompositionDataSpace(HAL_DATASPACE_V0_SRGB);
-            setActiveColorModeInternal(hw, HAL_COLOR_MODE_SRGB);
-        }
-#endif
     });
-    postMessageAsync(bootFinished);
+    postMessageAsync(readProperties);
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
@@ -555,7 +545,7 @@ void SurfaceFlinger::init() {
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
             "Initializing graphics H/W...");
 
-    ALOGI("Phase offset NS: %" PRId64 "", vsyncPhaseOffsetNs);
+    ALOGI("Phase offest NS: %" PRId64 "", vsyncPhaseOffsetNs);
 
     { // Autolock scope
         Mutex::Autolock _l(mStateLock);
@@ -1224,7 +1214,11 @@ void SurfaceFlinger::createDefaultDisplayDevice() {
                                              token, fbs, producer, mRenderEngine->getEGLConfig(),
                                              hasWideColorModes && hasWideColorDisplay);
     mDisplays.add(token, hw);
-    setActiveColorModeInternal(hw, HAL_COLOR_MODE_NATIVE);
+    android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
+    if (hasWideColorModes && hasWideColorDisplay) {
+        defaultColorMode = HAL_COLOR_MODE_SRGB;
+    }
+    setActiveColorModeInternal(hw, defaultColorMode);
     hw->setCompositionDataSpace(HAL_DATASPACE_UNKNOWN);
 }
 
@@ -1870,12 +1864,7 @@ void SurfaceFlinger::setUpHWComposer() {
             }
             newColorMode = pickColorMode(newDataSpace);
 
-            // We want the color mode of the boot animation to match that of the bootloader
-            // To achieve this we suppress color mode changes until after the boot animation
-            if (mBootFinished) {
-                setActiveColorModeInternal(displayDevice, newColorMode);
-                displayDevice->setCompositionDataSpace(newDataSpace);
-            }
+            setActiveColorModeInternal(displayDevice, newColorMode);
         }
     }
 
