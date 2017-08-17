@@ -5,13 +5,13 @@ cc_test {
     srcs: ["installd_utils_test.cpp"],
     shared_libs: [
         "libbase",
-        "liblog",
         "libutils",
         "libcutils",
     ],
     static_libs: [
-        "libinstalld",
         "libdiskusage",
+        "libinstalld",
+        "liblog",
     ],
 }
 
@@ -23,14 +23,14 @@ cc_test {
         "libbase",
         "libbinder",
         "libcutils",
-        "liblog",
-        "liblogwrap",
         "libselinux",
         "libutils",
     ],
     static_libs: [
-        "libinstalld",
         "libdiskusage",
+        "libinstalld",
+        "liblog",
+        "liblogwrap",
     ],
 }
 
@@ -42,13 +42,13 @@ cc_test {
         "libbase",
         "libbinder",
         "libcutils",
-        "liblog",
-        "liblogwrap",
         "libselinux",
         "libutils",
     ],
     static_libs: [
-        "libinstalld",
         "libdiskusage",
+        "libinstalld",
+        "liblog",
+        "liblogwrap",
     ],
 }
