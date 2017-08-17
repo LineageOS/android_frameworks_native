@@ -48,15 +48,18 @@ Task::Task(pid_t task_id)
       thread_count_(0),
       cpus_allowed_mask_(0) {
   task_fd_ = OpenTaskDirectory(task_id_);
-  ALOGE_IF(task_fd_.get() < 0,
+  const int error = errno;
+  ALOGE_IF(task_fd_.get() < 0 && error != EACCES,
            "Task::Task: Failed to open task directory for task_id=%d: %s",
-           task_id, strerror(errno));
+           task_id, strerror(error));
 
-  ReadStatusFields();
-
-  ALOGD_IF(TRACE, "Task::Task: task_id=%d name=%s tgid=%d ppid=%d cpu_mask=%x",
-           task_id_, name_.c_str(), thread_group_id_, parent_process_id_,
-           cpus_allowed_mask_);
+  if (IsValid()) {
+    ReadStatusFields();
+    ALOGD_IF(TRACE,
+             "Task::Task: task_id=%d name=%s tgid=%d ppid=%d cpu_mask=%x",
+             task_id_, name_.c_str(), thread_group_id_, parent_process_id_,
+             cpus_allowed_mask_);
+  }
 }
 
 base::unique_fd Task::OpenTaskFile(const std::string& name) const {

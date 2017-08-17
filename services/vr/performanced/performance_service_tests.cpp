@@ -1,24 +1,65 @@
 #include <errno.h>
 #include <sched.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 #include <condition_variable>
 #include <cstdlib>
+#include <iostream>
 #include <mutex>
+#include <sstream>
 #include <thread>
+#include <utility>
 
+#include <android-base/unique_fd.h>
 #include <dvr/performance_client_api.h>
 #include <gtest/gtest.h>
 #include <private/android_filesystem_config.h>
+
+#include "stdio_filebuf.h"
+#include "string_trim.h"
+#include "unique_file.h"
+
+using android::dvr::Trim;
+using android::dvr::UniqueFile;
+using android::dvr::stdio_filebuf;
 
 namespace {
 
 const char kTrustedUidEnvironmentVariable[] = "GTEST_TRUSTED_UID";
 
+const char kProcBase[] = "/proc";
+
+std::pair<UniqueFile, int> OpenTaskFile(pid_t task_id,
+                                        const std::string& name) {
+  std::ostringstream stream;
+  stream << kProcBase << "/" << task_id << "/" << name;
+
+  UniqueFile file{fopen(stream.str().c_str(), "r")};
+  const int error = file ? 0 : errno;
+  return {std::move(file), error};
+}
+
+std::string GetTaskCpuSet(pid_t task_id) {
+  int error;
+  UniqueFile file;
+
+  std::tie(file, error) = OpenTaskFile(task_id, "cpuset");
+  if (!file)
+    return std::string("errno:") + strerror(error);
+
+  stdio_filebuf<char> filebuf(file.get());
+  std::istream file_stream(&filebuf);
+
+  std::string line;
+  std::getline(file_stream, line);
+  return Trim(line);
+}
+
 }  // anonymous namespace
 
-TEST(DISABLED_PerformanceTest, SetCpuPartition) {
+TEST(PerformanceTest, SetCpuPartition) {
   int error;
 
   // Test setting the the partition for the current task.
@@ -59,13 +100,6 @@ TEST(DISABLED_PerformanceTest, SetCpuPartition) {
   }
   thread.join();
 
-  // Test setting the partition for a task that isn't valid using
-  // the task id of the thread that we just joined. Technically the
-  // id could wrap around by the time we get here, but this is
-  // extremely unlikely.
-  error = dvrSetCpuPartition(task_id, "/application");
-  EXPECT_EQ(-EINVAL, error);
-
   // Test setting the partition for a task that doesn't belong to us.
   error = dvrSetCpuPartition(1, "/application");
   EXPECT_EQ(-EINVAL, error);
@@ -73,6 +107,10 @@ TEST(DISABLED_PerformanceTest, SetCpuPartition) {
   // Test setting the partition to one that doesn't exist.
   error = dvrSetCpuPartition(0, "/foobar");
   EXPECT_EQ(-ENOENT, error);
+
+  // Set the test back to the root partition.
+  error = dvrSetCpuPartition(0, "/");
+  EXPECT_EQ(0, error);
 }
 
 TEST(PerformanceTest, SetSchedulerClass) {
@@ -96,8 +134,6 @@ TEST(PerformanceTest, SetSchedulerClass) {
   EXPECT_EQ(-EINVAL, error);
 }
 
-// This API mirrors SetSchedulerClass for now. Replace with with a more specific
-// test once the policy API is fully implemented.
 TEST(PerformanceTest, SetSchedulerPolicy) {
   int error;
 
@@ -115,6 +151,50 @@ TEST(PerformanceTest, SetSchedulerPolicy) {
 
   error = dvrSetSchedulerPolicy(0, "foobar");
   EXPECT_EQ(-EINVAL, error);
+
+  // Set the test back to the root partition.
+  error = dvrSetCpuPartition(0, "/");
+  EXPECT_EQ(0, error);
+
+  const std::string original_cpuset = GetTaskCpuSet(gettid());
+  EXPECT_EQ("/", original_cpuset);
+
+  error = dvrSetSchedulerPolicy(0, "vr:system:arp");
+  EXPECT_EQ(0, error);
+  EXPECT_EQ(SCHED_FIFO | SCHED_RESET_ON_FORK, sched_getscheduler(0));
+
+  const std::string new_cpuset = GetTaskCpuSet(gettid());
+  EXPECT_NE(original_cpuset, new_cpuset);
+
+  // The cpuset for the thread group is now new_cpuset. Scheduler profiles that
+  // do not specify a cpuset should not change the cpuset of a thread, except to
+  // restore it to the thread group cpuset.
+  std::string thread_original_cpuset;
+  std::string thread_new_cpuset;
+  std::string thread_final_cpuset;
+
+  std::thread thread{
+      [&thread_original_cpuset, &thread_new_cpuset, &thread_final_cpuset]() {
+        thread_original_cpuset = GetTaskCpuSet(gettid());
+
+        int error = dvrSetSchedulerPolicy(0, "vr:app:render");
+        EXPECT_EQ(0, error);
+
+        thread_new_cpuset = GetTaskCpuSet(gettid());
+
+        error = dvrSetSchedulerPolicy(0, "normal");
+        EXPECT_EQ(0, error);
+
+        thread_final_cpuset = GetTaskCpuSet(gettid());
+      }};
+  thread.join();
+
+  EXPECT_EQ(new_cpuset, thread_original_cpuset);
+  EXPECT_NE(new_cpuset, thread_new_cpuset);
+  EXPECT_EQ(new_cpuset, thread_final_cpuset);
+
+  error = dvrSetCpuPartition(0, original_cpuset.c_str());
+  EXPECT_EQ(0, error);
 }
 
 TEST(PerformanceTest, SchedulerClassResetOnFork) {
@@ -424,11 +504,11 @@ TEST(PerformanceTest, Permissions) {
     error = dvrSetSchedulerPolicy(0, "audio:high");
     EXPECT_EQ(-EINVAL, error);
     error = dvrSetSchedulerPolicy(0, "graphics");
-    EXPECT_EQ(0, error);
+    EXPECT_EQ(-EINVAL, error);
     error = dvrSetSchedulerPolicy(0, "graphics:low");
-    EXPECT_EQ(0, error);
+    EXPECT_EQ(-EINVAL, error);
     error = dvrSetSchedulerPolicy(0, "graphics:high");
-    EXPECT_EQ(0, error);
+    EXPECT_EQ(-EINVAL, error);
     error = dvrSetSchedulerPolicy(0, "sensors");
     EXPECT_EQ(-EINVAL, error);
     error = dvrSetSchedulerPolicy(0, "sensors:low");

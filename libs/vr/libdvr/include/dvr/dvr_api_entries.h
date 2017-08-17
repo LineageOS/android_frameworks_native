@@ -160,3 +160,6 @@ DVR_V1_API_ENTRY(PoseClientSensorsEnable);
 
 // Read buffer queue
 DVR_V1_API_ENTRY(ReadBufferQueueGetEventFd);
+
+// Create write buffer queue locally
+DVR_V1_API_ENTRY(WriteBufferQueueCreate);

@@ -12,6 +12,36 @@ typedef struct ANativeWindow ANativeWindow;
 typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
 typedef struct DvrReadBufferQueue DvrReadBufferQueue;
 
+// Creates a write buffer queue to be used locally.
+//
+// Note that this API is mostly for testing purpose. For now there is no
+// mechanism to send a DvrWriteBufferQueue cross process. Use
+// dvrSurfaceCreateWriteBufferQueue if cross-process buffer transport is
+// intended.
+//
+// @param width The width of the buffers that this queue will produce.
+// @param height The height of buffers that this queue will produce.
+// @param format The format of the buffers that this queue will produce. This
+//     must be one of the AHARDWAREBUFFER_FORMAT_XXX enums.
+// @param layer_count The number of layers of the buffers that this queue will
+//     produce.
+// @param usage The usage of the buffers that this queue will produce. This
+//     must a combination of the AHARDWAREBUFFER_USAGE_XXX flags.
+// @param capacity The number of buffer that this queue will allocate. Note that
+//     all buffers will be allocated on create. Currently, the number of buffers
+//     is the queue cannot be changed after creation though DVR API. However,
+//     ANativeWindow can choose to reallocate, attach, or detach buffers from
+//     a DvrWriteBufferQueue through Android platform logic.
+// @param metadata_size The size of metadata in bytes.
+// @param out_write_queue The pointer of a DvrWriteBufferQueue will be filled
+//      here if the method call succeeds. The metadata size must match
+//      the metadata size in dvrWriteBufferPost/dvrReadBufferAcquire.
+// @return Zero on success, or negative error code.
+int dvrWriteBufferQueueCreate(uint32_t width, uint32_t height, uint32_t format,
+                              uint32_t layer_count, uint64_t usage,
+                              size_t capacity, size_t metadata_size,
+                              DvrWriteBufferQueue** out_write_queue);
+
 // Destroy a write buffer queue.
 //
 // @param write_queue The DvrWriteBufferQueue of interest.
