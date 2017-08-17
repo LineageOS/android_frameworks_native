@@ -22,12 +22,14 @@ using android::dvr::Task;
 using android::pdx::ErrorStatus;
 using android::pdx::Message;
 using android::pdx::Status;
-using android::pdx::rpc::DispatchRemoteMethod;
 using android::pdx::default_transport::Endpoint;
+using android::pdx::rpc::DispatchRemoteMethod;
 
 namespace {
 
 const char kCpuSetBasePath[] = "/dev/cpuset";
+
+const char kRootCpuSet[] = "/";
 
 constexpr unsigned long kTimerSlackForegroundNs = 50000;
 constexpr unsigned long kTimerSlackBackgroundNs = 40000000;
@@ -123,22 +125,22 @@ PerformanceService::PerformanceService()
   // hack for now to put some form of permission logic in place while a longer
   // term solution is developed.
   using AllowRootSystem =
-      CheckAnd<SameProcess, CheckOr<UserId<AID_ROOT, AID_SYSTEM>,
-                                    GroupId<AID_SYSTEM>>>;
+      CheckAnd<SameProcess,
+               CheckOr<UserId<AID_ROOT, AID_SYSTEM>, GroupId<AID_SYSTEM>>>;
   using AllowRootSystemGraphics =
       CheckAnd<SameProcess, CheckOr<UserId<AID_ROOT, AID_SYSTEM, AID_GRAPHICS>,
                                     GroupId<AID_SYSTEM, AID_GRAPHICS>>>;
   using AllowRootSystemAudio =
       CheckAnd<SameProcess, CheckOr<UserId<AID_ROOT, AID_SYSTEM, AID_AUDIO>,
                                     GroupId<AID_SYSTEM, AID_AUDIO>>>;
-  using AllowRootSystemTrusted = CheckOr<Trusted, UserId<AID_ROOT, AID_SYSTEM>,
-                                        GroupId<AID_SYSTEM>>;
+  using AllowRootSystemTrusted =
+      CheckOr<Trusted, UserId<AID_ROOT, AID_SYSTEM>, GroupId<AID_SYSTEM>>;
 
   partition_permission_check_ = AllowRootSystemTrusted::Check;
 
   // Setup the scheduler classes.
   // TODO(eieio): Replace this with a device-specific config file.
-  scheduler_classes_ = {
+  scheduler_policies_ = {
       {"audio:low",
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,
@@ -183,12 +185,14 @@ PerformanceService::PerformanceService()
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,
         .priority = fifo_medium + 2,
-        .permission_check = AllowRootSystemTrusted::Check}},
+        .permission_check = AllowRootSystemTrusted::Check,
+        "/system/performance"}},
       {"vr:app:render",
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,
         .priority = fifo_medium + 1,
-        .permission_check = AllowRootSystemTrusted::Check}},
+        .permission_check = AllowRootSystemTrusted::Check,
+        "/application/performance"}},
       {"normal",
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_NORMAL,
@@ -219,14 +223,80 @@ std::string PerformanceService::DumpState(size_t /*max_length*/) {
 
 Status<void> PerformanceService::OnSetSchedulerPolicy(
     Message& message, pid_t task_id, const std::string& scheduler_policy) {
-  // Forward to scheduler class handler for now. In the future this method will
-  // subsume the others by unifying both scheduler class and cpu partiton into a
-  // single policy concept.
   ALOGI(
       "PerformanceService::OnSetSchedulerPolicy: task_id=%d "
       "scheduler_policy=%s",
       task_id, scheduler_policy.c_str());
-  return OnSetSchedulerClass(message, task_id, scheduler_policy);
+
+  Task task(task_id);
+  if (!task) {
+    ALOGE(
+        "PerformanceService::OnSetSchedulerPolicy: Unable to access /proc/%d "
+        "to gather task information.",
+        task_id);
+    return ErrorStatus(EINVAL);
+  }
+
+  auto search = scheduler_policies_.find(scheduler_policy);
+  if (search != scheduler_policies_.end()) {
+    auto config = search->second;
+
+    // Make sure the sending process is allowed to make the requested change to
+    // this task.
+    if (!config.IsAllowed(message, task))
+      return ErrorStatus(EINVAL);
+
+    // Get the thread group's cpu set. Policies that do not specify a cpuset
+    // should default to this cpuset.
+    std::string thread_group_cpuset;
+    Task thread_group{task.thread_group_id()};
+    if (thread_group) {
+      thread_group_cpuset = thread_group.GetCpuSetPath();
+    } else {
+      ALOGE(
+          "PerformanceService::OnSetSchedulerPolicy: Failed to get thread "
+          "group tgid=%d for task_id=%d",
+          task.thread_group_id(), task_id);
+      thread_group_cpuset = kRootCpuSet;
+    }
+
+    std::string target_cpuset;
+    if (config.cpuset.empty()) {
+      target_cpuset = thread_group_cpuset;
+    } else {
+      target_cpuset = config.cpuset;
+    }
+    ALOGI("PerformanceService::OnSetSchedulerPolicy: Using cpuset=%s",
+          target_cpuset.c_str());
+
+    auto target_set = cpuset_.Lookup(target_cpuset);
+    if (target_set) {
+      auto attach_status = target_set->AttachTask(task_id);
+      ALOGW_IF(!attach_status,
+               "PerformanceService::OnSetSchedulerPolicy: Failed to attach "
+               "task=%d to cpuset=%s: %s",
+               task_id, target_cpuset.c_str(),
+               attach_status.GetErrorMessage().c_str());
+    } else {
+      ALOGW(
+          "PerformanceService::OnSetSchedulerPolicy: Failed to lookup "
+          "cpuset=%s",
+          target_cpuset.c_str());
+    }
+
+    struct sched_param param;
+    param.sched_priority = config.priority;
+
+    sched_setscheduler(task_id, config.scheduler_policy, &param);
+    prctl(PR_SET_TIMERSLACK_PID, config.timer_slack, task_id);
+    return {};
+  } else {
+    ALOGE(
+        "PerformanceService::OnSetSchedulerPolicy: Invalid scheduler_policy=%s "
+        "requested by task=%d.",
+        scheduler_policy.c_str(), task_id);
+    return ErrorStatus(EINVAL);
+  }
 }
 
 Status<void> PerformanceService::OnSetCpuPartition(
@@ -259,8 +329,8 @@ Status<void> PerformanceService::OnSetSchedulerClass(
   if (!task)
     return ErrorStatus(EINVAL);
 
-  auto search = scheduler_classes_.find(scheduler_class);
-  if (search != scheduler_classes_.end()) {
+  auto search = scheduler_policies_.find(scheduler_class);
+  if (search != scheduler_policies_.end()) {
     auto config = search->second;
 
     // Make sure the sending process is allowed to make the requested change to
