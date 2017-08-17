@@ -76,7 +76,7 @@ status_t HdrCapabilities::unflatten(void const* buffer, size_t size) {
     mMaxAverageLuminance = reinterpret_cast<float const&>(buf[1]);
     mMinLuminance        = reinterpret_cast<float const&>(buf[2]);
     if (itemCount) {
-        mSupportedHdrTypes.reserve(itemCount);
+        mSupportedHdrTypes.resize(itemCount);
         for (size_t i = 0; i < itemCount; ++i) {
             mSupportedHdrTypes[i] = buf[4 + i];
         }
