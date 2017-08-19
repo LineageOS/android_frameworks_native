@@ -67,7 +67,8 @@ extern "C" {
  * \param env The JNIEnv* pointer
  * \param sharedMemory The Java android.os.SharedMemory object
  * \return file descriptor that denotes the shared memory; -1 if the shared memory object is
- *      already closed or if the JNIEnv or jobject is NULL.
+ *      already closed, if the JNIEnv or jobject is NULL, or if there are too many open file
+ *      descriptors (errno=EMFILE)
  */
 int ASharedMemory_dupFromJava(JNIEnv* env, jobject sharedMemory);
 
