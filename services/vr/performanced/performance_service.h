@@ -44,13 +44,13 @@ class PerformanceService : public pdx::ServiceBase<PerformanceService> {
   int sched_fifo_min_priority_;
   int sched_fifo_max_priority_;
 
-  // Scheduler class config type.
-  struct SchedulerClassConfig {
+  struct SchedulerPolicyConfig {
     unsigned long timer_slack;
     int scheduler_policy;
     int priority;
     std::function<bool(const pdx::Message& message, const Task& task)>
         permission_check;
+    std::string cpuset;
 
     // Check the permisison of the given task to use this scheduler class. If a
     // permission check function is not set then operations are only allowed on
@@ -65,7 +65,7 @@ class PerformanceService : public pdx::ServiceBase<PerformanceService> {
     }
   };
 
-  std::unordered_map<std::string, SchedulerClassConfig> scheduler_classes_;
+  std::unordered_map<std::string, SchedulerPolicyConfig> scheduler_policies_;
 
   std::function<bool(const pdx::Message& message, const Task& task)>
       partition_permission_check_;
