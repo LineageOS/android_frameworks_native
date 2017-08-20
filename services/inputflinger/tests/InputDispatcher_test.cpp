@@ -88,7 +88,7 @@ private:
     virtual void notifySwitch(nsecs_t, uint32_t, uint32_t, uint32_t) {
     }
 
-    virtual void pokeUserActivity(nsecs_t, int32_t) {
+    virtual void pokeUserActivity(nsecs_t, int32_t, int32_t) {
     }
 
     virtual bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) {
