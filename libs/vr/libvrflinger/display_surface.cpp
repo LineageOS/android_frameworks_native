@@ -26,14 +26,12 @@ namespace dvr {
 
 DisplaySurface::DisplaySurface(DisplayService* service,
                                SurfaceType surface_type, int surface_id,
-                               int process_id, int user_id,
-                               const display::SurfaceAttributes& attributes)
+                               int process_id, int user_id)
     : service_(service),
       surface_type_(surface_type),
       surface_id_(surface_id),
       process_id_(process_id),
       user_id_(user_id),
-      attributes_(attributes),
       update_flags_(display::SurfaceUpdateFlags::NewSurface) {}
 
 DisplaySurface::~DisplaySurface() {
@@ -471,8 +469,8 @@ Status<std::shared_ptr<DisplaySurface>> DisplaySurface::Create(
   if (direct) {
     const bool trusted = user_id == AID_ROOT || IsTrustedUid(user_id);
     if (trusted) {
-      return {std::shared_ptr<DisplaySurface>{new DirectDisplaySurface(
-          service, surface_id, process_id, user_id, attributes)}};
+      return {std::shared_ptr<DisplaySurface>{
+          new DirectDisplaySurface(service, surface_id, process_id, user_id)}};
     } else {
       ALOGE(
           "DisplaySurface::Create: Direct surfaces may only be created by "
@@ -482,7 +480,7 @@ Status<std::shared_ptr<DisplaySurface>> DisplaySurface::Create(
     }
   } else {
     return {std::shared_ptr<DisplaySurface>{new ApplicationDisplaySurface(
-        service, surface_id, process_id, user_id, attributes)}};
+        service, surface_id, process_id, user_id)}};
   }
 }
 
