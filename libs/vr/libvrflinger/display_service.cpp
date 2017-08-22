@@ -243,18 +243,16 @@ Status<display::SurfaceInfo> DisplayService::OnCreateSurface(
           surface_status.GetErrorMessage().c_str());
     return ErrorStatus(surface_status.error());
   }
+  auto surface = surface_status.take();
+  message.SetChannel(surface);
 
-  SurfaceType surface_type = surface_status.get()->surface_type();
-  display::SurfaceUpdateFlags update_flags =
-      surface_status.get()->update_flags();
-  display::SurfaceInfo surface_info{surface_status.get()->surface_id(),
-                                    surface_status.get()->visible(),
-                                    surface_status.get()->z_order()};
+  // Update the surface with the attributes supplied with the create call. For
+  // application surfaces this has the side effect of notifying the display
+  // manager of the new surface. For direct surfaces, this may trigger a mode
+  // change, depending on the value of the visible attribute.
+  surface->OnSetAttributes(message, attributes);
 
-  message.SetChannel(surface_status.take());
-
-  SurfaceUpdated(surface_type, update_flags);
-  return {surface_info};
+  return {{surface->surface_id(), surface->visible(), surface->z_order()}};
 }
 
 void DisplayService::SurfaceUpdated(SurfaceType surface_type,
