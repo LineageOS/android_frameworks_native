@@ -43,13 +43,13 @@
 #include <gui/FrameTimestamps.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
+#include <gui/LayerState.h>
+
 #include <gui/OccupancyTracker.h>
 
 #include <hardware/hwcomposer_defs.h>
 
 #include <system/graphics.h>
-
-#include <private/gui/LayerState.h>
 
 #include "Barrier.h"
 #include "DisplayDevice.h"

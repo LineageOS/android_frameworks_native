@@ -33,13 +33,13 @@
 #include <gui/CpuConsumer.h>
 #include <gui/SurfaceControl.h>
 #include <math/vec3.h>
+#include <gui/LayerState.h>
 
 namespace android {
 
 // ---------------------------------------------------------------------------
 
 struct DisplayInfo;
-class Composer;
 class HdrCapabilities;
 class ISurfaceComposerClient;
 class IGraphicBufferProducer;
@@ -122,93 +122,158 @@ public:
     //! Possible values for id are eDisplayIdMain and eDisplayIdHdmi.
     static sp<IBinder> getBuiltInDisplay(int32_t id);
 
-    // ------------------------------------------------------------------------
-    // Composer parameters
-    // All composer parameters must be changed within a transaction
-    // several surfaces can be updated in one transaction, all changes are
-    // committed at once when the transaction is closed.
-    // closeGlobalTransaction() requires an IPC with the server.
-
-    //! Open a composer transaction on all active SurfaceComposerClients.
-    static void openGlobalTransaction();
-
-    //! Close a composer transaction on all active SurfaceComposerClients.
-    static void closeGlobalTransaction(bool synchronous = false);
-
     static status_t enableVSyncInjections(bool enable);
 
     static status_t injectVSync(nsecs_t when);
 
-    //! Flag the currently open transaction as an animation transaction.
-    static void setAnimationTransaction();
+    class Transaction {
+        SortedVector<ComposerState> mComposerStates;
+        SortedVector<DisplayState > mDisplayStates;
+        uint32_t                    mForceSynchronous = 0;
+        uint32_t                    mTransactionNestCount = 0;
+        bool                        mAnimation = false;
 
-    status_t    hide(const sp<IBinder>& id);
-    status_t    show(const sp<IBinder>& id);
-    status_t    setFlags(const sp<IBinder>& id, uint32_t flags, uint32_t mask);
-    status_t    setTransparentRegionHint(const sp<IBinder>& id, const Region& transparent);
-    status_t    setLayer(const sp<IBinder>& id, int32_t layer);
-    status_t    setRelativeLayer(const sp<IBinder>& id,
-            const sp<IBinder>& relativeTo, int32_t layer);
-    status_t    setAlpha(const sp<IBinder>& id, float alpha=1.0f);
-    status_t    setColor(const sp<IBinder>& id, const half3& color);
-    status_t    setMatrix(const sp<IBinder>& id, float dsdx, float dtdx, float dtdy, float dsdy);
-    status_t    setPosition(const sp<IBinder>& id, float x, float y);
-    status_t    setSize(const sp<IBinder>& id, uint32_t w, uint32_t h);
-    status_t    setCrop(const sp<IBinder>& id, const Rect& crop);
-    status_t    setFinalCrop(const sp<IBinder>& id, const Rect& crop);
-    status_t    setLayerStack(const sp<IBinder>& id, uint32_t layerStack);
-    status_t    deferTransactionUntil(const sp<IBinder>& id,
-            const sp<IBinder>& handle, uint64_t frameNumber);
-    status_t    deferTransactionUntil(const sp<IBinder>& id,
-            const sp<Surface>& handle, uint64_t frameNumber);
-    status_t    reparentChildren(const sp<IBinder>& id,
-            const sp<IBinder>& newParentHandle);
-    status_t    reparent(const sp<IBinder>& id, const sp<IBinder>& newParentHandle);
-    status_t    detachChildren(const sp<IBinder>& id);
-    status_t    setOverrideScalingMode(const sp<IBinder>& id,
-            int32_t overrideScalingMode);
-    status_t    setGeometryAppliesWithResize(const sp<IBinder>& id);
+        int mStatus = NO_ERROR;
+
+        layer_state_t* getLayerStateLocked(const sp<SurfaceControl>& sc);
+        DisplayState& getDisplayStateLocked(const sp<IBinder>& token);
+
+    public:
+        Transaction() = default;
+        virtual ~Transaction() = default;
+        Transaction(Transaction const& other);
+
+        status_t apply(bool synchronous = false);
+
+        Transaction& show(const sp<SurfaceControl>& sc);
+        Transaction& hide(const sp<SurfaceControl>& sc);
+        Transaction& setPosition(const sp<SurfaceControl>& sc,
+                float x, float y);
+        Transaction& setSize(const sp<SurfaceControl>& sc,
+                uint32_t w, uint32_t h);
+        Transaction& setLayer(const sp<SurfaceControl>& sc,
+                int32_t z);
+
+        // Sets a Z order relative to the Surface specified by "relativeTo" but
+        // without becoming a full child of the relative. Z-ordering works exactly
+        // as if it were a child however.
+        //
+        // As a nod to sanity, only non-child surfaces may have a relative Z-order.
+        //
+        // This overrides any previous call and is overriden by any future calls
+        // to setLayer.
+        //
+        // If the relative is removed, the Surface will have no layer and be
+        // invisible, until the next time set(Relative)Layer is called.
+        Transaction& setRelativeLayer(const sp<SurfaceControl>& sc,
+                const sp<IBinder>& relativeTo, int32_t z);
+        Transaction& setFlags(const sp<SurfaceControl>& sc,
+                uint32_t flags, uint32_t mask);
+        Transaction& setTransparentRegionHint(const sp<SurfaceControl>& sc,
+                const Region& transparentRegion);
+        Transaction& setAlpha(const sp<SurfaceControl>& sc,
+                float alpha);
+        Transaction& setMatrix(const sp<SurfaceControl>& sc,
+                float dsdx, float dtdx, float dtdy, float dsdy);
+        Transaction& setOrientation(const sp<SurfaceControl>& sc,
+                const Rect& crop);
+        Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
+        Transaction& setFinalCrop(const sp<SurfaceControl>& sc, const Rect& crop);
+        Transaction& setLayerStack(const sp<SurfaceControl>& sc, uint32_t layerStack);
+        // Defers applying any changes made in this transaction until the Layer
+        // identified by handle reaches the given frameNumber. If the Layer identified
+        // by handle is removed, then we will apply this transaction regardless of
+        // what frame number has been reached.
+        Transaction& deferTransactionUntil(const sp<SurfaceControl>& sc,
+                const sp<IBinder>& handle,
+                uint64_t frameNumber);
+        // A variant of deferTransactionUntil which identifies the Layer we wait for by
+        // Surface instead of Handle. Useful for clients which may not have the
+        // SurfaceControl for some of their Surfaces. Otherwise behaves identically.
+        Transaction& deferTransactionUntil(const sp<SurfaceControl>& sc,
+                const sp<Surface>& barrierSurface,
+                uint64_t frameNumber);
+        // Reparents all children of this layer to the new parent handle.
+        Transaction& reparentChildren(const sp<SurfaceControl>& sc,
+                const sp<IBinder>& newParentHandle);
+
+        /// Reparents the current layer to the new parent handle. The new parent must not be null.
+        // This can be used instead of reparentChildren if the caller wants to
+        // only re-parent a specific child.
+        Transaction& reparent(const sp<SurfaceControl>& sc,
+                const sp<IBinder>& newParentHandle);
+
+        Transaction& setColor(const sp<SurfaceControl>& sc, const half3& color);
+
+        // Detaches all child surfaces (and their children recursively)
+        // from their SurfaceControl.
+        // The child SurfaceControls will not throw exceptions or return errors,
+        // but transactions will have no effect.
+        // The child surfaces will continue to follow their parent surfaces,
+        // and remain eligible for rendering, but their relative state will be
+        // frozen. We use this in the WindowManager, in app shutdown/relaunch
+        // scenarios, where the app would otherwise clean up its child Surfaces.
+        // Sometimes the WindowManager needs to extend their lifetime slightly
+        // in order to perform an exit animation or prevent flicker.
+        Transaction& detachChildren(const sp<SurfaceControl>& sc);
+        // Set an override scaling mode as documented in <system/window.h>
+        // the override scaling mode will take precedence over any client
+        // specified scaling mode. -1 will clear the override scaling mode.
+        Transaction& setOverrideScalingMode(const sp<SurfaceControl>& sc,
+                int32_t overrideScalingMode);
+
+        // If the size changes in this transaction, all geometry updates specified
+        // in this transaction will not complete until a buffer of the new size
+        // arrives. As some elements normally apply immediately, this enables
+        // freezing the total geometry of a surface until a resize is completed.
+        Transaction& setGeometryAppliesWithResize(const sp<SurfaceControl>& sc);
+
+        status_t setDisplaySurface(const sp<IBinder>& token,
+                const sp<IGraphicBufferProducer>& bufferProducer);
+
+        void setDisplayLayerStack(const sp<IBinder>& token, uint32_t layerStack);
+
+        /* setDisplayProjection() defines the projection of layer stacks
+         * to a given display.
+         *
+         * - orientation defines the display's orientation.
+         * - layerStackRect defines which area of the window manager coordinate
+         * space will be used.
+         * - displayRect defines where on the display will layerStackRect be
+         * mapped to. displayRect is specified post-orientation, that is
+         * it uses the orientation seen by the end-user.
+         */
+        void setDisplayProjection(const sp<IBinder>& token,
+                uint32_t orientation,
+                const Rect& layerStackRect,
+                const Rect& displayRect);
+        void setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height);
+        void setAnimationTransaction();
+    };
 
     status_t    destroySurface(const sp<IBinder>& id);
 
     status_t clearLayerFrameStats(const sp<IBinder>& token) const;
     status_t getLayerFrameStats(const sp<IBinder>& token, FrameStats* outStats) const;
-
     static status_t clearAnimationFrameStats();
     static status_t getAnimationFrameStats(FrameStats* outStats);
 
     static status_t getHdrCapabilities(const sp<IBinder>& display,
             HdrCapabilities* outCapabilities);
 
-    static status_t setDisplaySurface(const sp<IBinder>& token,
-            sp<IGraphicBufferProducer> bufferProducer);
-    static void setDisplayLayerStack(const sp<IBinder>& token,
-            uint32_t layerStack);
-    static void setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height);
-
-    /* setDisplayProjection() defines the projection of layer stacks
-     * to a given display.
-     *
-     * - orientation defines the display's orientation.
-     * - layerStackRect defines which area of the window manager coordinate
-     * space will be used.
-     * - displayRect defines where on the display will layerStackRect be
-     * mapped to. displayRect is specified post-orientation, that is
-     * it uses the orientation seen by the end-user.
-     */
     static void setDisplayProjection(const sp<IBinder>& token,
             uint32_t orientation,
             const Rect& layerStackRect,
             const Rect& displayRect);
 
+    inline sp<ISurfaceComposerClient> getClient() { return mClient; }
+
 private:
     virtual void onFirstRef();
-    Composer& getComposer();
 
     mutable     Mutex                       mLock;
                 status_t                    mStatus;
                 sp<ISurfaceComposerClient>  mClient;
-                Composer&                   mComposer;
                 wp<IGraphicBufferProducer>  mParent;
 };
 

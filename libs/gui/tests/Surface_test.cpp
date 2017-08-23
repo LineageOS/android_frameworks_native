@@ -42,6 +42,8 @@ using namespace std::chrono_literals;
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 
+using Transaction = SurfaceComposerClient::Transaction;
+
 static bool hasWideColorDisplay =
         getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
 
@@ -69,10 +71,10 @@ protected:
         ASSERT_TRUE(mSurfaceControl != NULL);
         ASSERT_TRUE(mSurfaceControl->isValid());
 
-        SurfaceComposerClient::openGlobalTransaction();
-        ASSERT_EQ(NO_ERROR, mSurfaceControl->setLayer(0x7fffffff));
-        ASSERT_EQ(NO_ERROR, mSurfaceControl->show());
-        SurfaceComposerClient::closeGlobalTransaction();
+        Transaction t;
+        ASSERT_EQ(NO_ERROR, t.setLayer(mSurfaceControl, 0x7fffffff)
+                .show(mSurfaceControl)
+                .apply());
 
         mSurface = mSurfaceControl->getSurface();
         ASSERT_TRUE(mSurface != NULL);
