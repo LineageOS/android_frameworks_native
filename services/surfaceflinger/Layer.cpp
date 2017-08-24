@@ -2501,7 +2501,7 @@ void Layer::miniDump(String8& result, int32_t hwcId) const {
 
     const Layer::State& layerState(getDrawingState());
     const HWCInfo& hwcInfo = mHwcLayers.at(hwcId);
-    result.appendFormat("  %10u | ", layerState.z);
+    result.appendFormat("  %10d | ", layerState.z);
     result.appendFormat("%10s | ",
             to_string(getCompositionType(hwcId)).c_str());
     const Rect& frame = hwcInfo.displayFrame;
