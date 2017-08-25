@@ -191,6 +191,13 @@ status_t SurfaceControl::reparentChildren(const sp<IBinder>& newParentHandle) {
     return mClient->reparentChildren(mHandle, newParentHandle);
 }
 
+status_t SurfaceControl::reparentChild(const sp<IBinder>& newParentHandle,
+        const sp<IBinder>& childHandle) {
+    status_t err = validate();
+    if (err < 0) return err;
+    return mClient->reparentChild(mHandle, newParentHandle, childHandle);
+}
+
 status_t SurfaceControl::detachChildren() {
     status_t err = validate();
     if (err < 0) return err;

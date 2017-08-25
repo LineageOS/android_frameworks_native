@@ -1123,4 +1123,33 @@ TEST_F(ChildLayerTest, Bug36858924) {
     fillSurfaceRGBA8(mFGSurfaceControl, 0, 255, 0);
 }
 
+TEST_F(ChildLayerTest, ReparentChild) {
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->show();
+    mChild->setPosition(10, 10);
+    mFGSurfaceControl->setPosition(64, 64);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // Top left of foreground must now be visible
+        mCapture->expectFGColor(64, 64);
+        // But 10 pixels in we should see the child surface
+        mCapture->expectChildColor(74, 74);
+        // And 10 more pixels we should be back to the foreground surface
+        mCapture->expectFGColor(84, 84);
+    }
+    mFGSurfaceControl->reparentChild(mBGSurfaceControl->getHandle(), mChild->getHandle());
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->expectFGColor(64, 64);
+        // In reparenting we should have exposed the entire foreground surface.
+        mCapture->expectFGColor(74, 74);
+        // And the child layer should now begin at 10, 10 (since the BG
+        // layer is at (0, 0)).
+        mCapture->expectBGColor(9, 9);
+        mCapture->expectChildColor(10, 10);
+    }
+}
+
 }
