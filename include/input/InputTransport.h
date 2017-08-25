@@ -384,6 +384,10 @@ private:
         const PointerCoords& getPointerById(uint32_t id) const {
             return pointers[idToIndex[id]];
         }
+
+        bool hasPointerId(uint32_t id) const {
+            return idBits.hasBit(id);
+        }
     };
     struct TouchState {
         int32_t deviceId;
@@ -417,6 +421,9 @@ private:
         bool recentCoordinatesAreIdentical(uint32_t id) const {
             // Return true if the two most recently received "raw" coordinates are identical
             if (historySize < 2) {
+                return false;
+            }
+            if (!getHistory(0)->hasPointerId(id) || !getHistory(1)->hasPointerId(id)) {
                 return false;
             }
             float currentX = getHistory(0)->getPointerById(id).getX();
