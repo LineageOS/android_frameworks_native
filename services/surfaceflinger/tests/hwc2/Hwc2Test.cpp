@@ -1775,6 +1775,145 @@ protected:
         }
     }
 
+    void createAndPresentVirtualDisplay(size_t layerCnt,
+            Hwc2TestCoverage coverage,
+            const std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage>&
+            coverageExceptions)
+    {
+        Hwc2TestVirtualDisplay testVirtualDisplay(coverage);
+        hwc2_display_t display;
+        android_pixel_format_t desiredFormat = HAL_PIXEL_FORMAT_RGBA_8888;
+
+        do {
+            // Items dependent on the display dimensions
+            hwc2_error_t err = HWC2_ERROR_NONE;
+            const UnsignedArea& dimension =
+                    testVirtualDisplay.getDisplayDimension();
+            ASSERT_NO_FATAL_FAILURE(createVirtualDisplay(dimension.width,
+                    dimension.height, &desiredFormat, &display, &err));
+            ASSERT_TRUE(err == HWC2_ERROR_NONE)
+                    << "Cannot allocate virtual display";
+
+            ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_ON));
+            ASSERT_NO_FATAL_FAILURE(enableVsync(display));
+
+            std::vector<hwc2_config_t> configs;
+            ASSERT_NO_FATAL_FAILURE(getDisplayConfigs(display, &configs));
+
+            for (auto config : configs) {
+                ASSERT_NO_FATAL_FAILURE(setActiveConfig(display, config));
+
+                Area displayArea;
+                ASSERT_NO_FATAL_FAILURE(getActiveDisplayArea(display,
+                        &displayArea));
+
+                std::vector<hwc2_layer_t> layers;
+                ASSERT_NO_FATAL_FAILURE(createLayers(display, &layers,
+                        layerCnt));
+                Hwc2TestLayers testLayers(layers, coverage, displayArea,
+                        coverageExceptions);
+
+                /*
+                 * Layouts that do not cover an entire virtual display will
+                 * cause undefined behavior.
+                 * Enable optimizeLayouts to avoid this.
+                 */
+                testLayers.optimizeLayouts();
+                do {
+                    // Items dependent on the testLayers properties
+                    std::set<hwc2_layer_t> clientLayers;
+                    std::set<hwc2_layer_t> clearLayers;
+                    uint32_t numTypes, numRequests;
+                    bool hasChanges, skip;
+                    bool flipClientTarget;
+                    int32_t presentFence;
+                    Hwc2TestClientTarget testClientTarget;
+                    buffer_handle_t outputBufferHandle;
+                    android::base::unique_fd outputBufferReleaseFence;
+
+                    ASSERT_NO_FATAL_FAILURE(setLayerProperties(display, layers,
+                            &testLayers, &skip));
+
+                    if (skip)
+                        continue;
+
+                    ASSERT_NO_FATAL_FAILURE(validateDisplay(display, &numTypes,
+                            &numRequests, &hasChanges));
+
+                    if (hasChanges)
+                        EXPECT_LE(numTypes, static_cast<uint32_t>(layers.size()))
+                                << "wrong number of requests";
+
+                    ASSERT_NO_FATAL_FAILURE(handleCompositionChanges(display,
+                            testLayers, layers, numTypes, &clientLayers));
+
+                    ASSERT_NO_FATAL_FAILURE(handleRequests(display, layers,
+                            numRequests, &clearLayers, &flipClientTarget));
+                    ASSERT_NO_FATAL_FAILURE(setClientTarget(display,
+                            &testClientTarget, testLayers, clientLayers,
+                            clearLayers, flipClientTarget, displayArea));
+                    ASSERT_NO_FATAL_FAILURE(acceptDisplayChanges(display));
+
+                    ASSERT_EQ(testVirtualDisplay.getOutputBuffer(
+                            &outputBufferHandle, &outputBufferReleaseFence), 0);
+                    ASSERT_NO_FATAL_FAILURE(setOutputBuffer(display,
+                            outputBufferHandle, outputBufferReleaseFence));
+
+                    EXPECT_NO_FATAL_FAILURE(presentDisplay(display,
+                            &presentFence));
+                    ASSERT_NO_FATAL_FAILURE(closeFences(display, presentFence));
+
+                    ASSERT_EQ(testVirtualDisplay.verifyOutputBuffer(&testLayers,
+                            &layers, &clearLayers), 0);
+
+                    /*
+                     * Upscaling the image causes minor pixel differences.
+                     * Work around this by using some threshold.
+                     *
+                     * Fail test if we are off by more than 1% of our
+                     * pixels.
+                     */
+                    ComparatorResult& comparatorResult = ComparatorResult::get();
+                    int threshold = (dimension.width * dimension.height) / 100;
+                    double diffPercent = (comparatorResult.getDifferentPixelCount() * 100.0) /
+                            (dimension.width * dimension.height);
+
+                    if (comparatorResult.getDifferentPixelCount() != 0)
+                        EXPECT_TRUE(false)
+                                << comparatorResult.getDifferentPixelCount() << " pixels ("
+                                << diffPercent << "%) are different.";
+
+                    if (comparatorResult.getDifferentPixelCount() > threshold) {
+                        EXPECT_TRUE(false)
+                                << "Mismatched pixel count exceeds threshold. "
+                                << "Writing buffers to file.";
+
+                        const ::testing::TestInfo* const test_info =
+                                ::testing::UnitTest::GetInstance()
+                                ->current_test_info();
+
+                        EXPECT_EQ(testVirtualDisplay.writeBuffersToFile(
+                                test_info->name()), 0)
+                                << "Failed to write buffers.";
+                    }
+
+                    ASSERT_LE(comparatorResult.getDifferentPixelCount(), threshold)
+                            << comparatorResult.getDifferentPixelCount() << " pixels ("
+                            << diffPercent << "%) are different. "
+                            << "Exceeds 1% threshold, terminating test. "
+                            << "Test case: " << testLayers.dump();
+
+                } while (testLayers.advance());
+
+                ASSERT_NO_FATAL_FAILURE(destroyLayers(display,
+                        std::move(layers)));
+            }
+            ASSERT_NO_FATAL_FAILURE(disableVsync(display));
+            ASSERT_NO_FATAL_FAILURE(setPowerMode(display, HWC2_POWER_MODE_OFF));
+            ASSERT_NO_FATAL_FAILURE(destroyVirtualDisplay(display));
+        } while (testVirtualDisplay.advance());
+    }
+
     hwc2_device_t* mHwc2Device = nullptr;
 
     enum class Hwc2TestHotplugStatus {
@@ -4479,7 +4618,7 @@ TEST_F(Hwc2Test, SET_OUTPUT_BUFFER)
                 buffer_handle_t handle;
                 android::base::unique_fd acquireFence;
 
-                if (testVirtualDisplay->getBuffer(&handle, &acquireFence) >= 0)
+                if (testVirtualDisplay->getOutputBuffer(&handle, &acquireFence) >= 0)
                     EXPECT_NO_FATAL_FAILURE(test->setOutputBuffer(display,
                             handle, acquireFence));
             }));
@@ -4499,7 +4638,7 @@ TEST_F(Hwc2Test, SET_OUTPUT_BUFFER_bad_display)
 
                 ASSERT_NO_FATAL_FAILURE(test->getBadDisplay(&badDisplay));
 
-                if (testVirtualDisplay->getBuffer(&handle, &acquireFence) < 0)
+                if (testVirtualDisplay->getOutputBuffer(&handle, &acquireFence) < 0)
                     return;
 
                 ASSERT_NO_FATAL_FAILURE(test->setOutputBuffer(badDisplay,
@@ -4539,7 +4678,7 @@ TEST_F(Hwc2Test, SET_OUTPUT_BUFFER_unsupported)
             android::base::unique_fd acquireFence;
             hwc2_error_t err = HWC2_ERROR_NONE;
 
-            if (testVirtualDisplay.getBuffer(&handle, &acquireFence) < 0)
+            if (testVirtualDisplay.getOutputBuffer(&handle, &acquireFence) < 0)
                 continue;
 
             ASSERT_NO_FATAL_FAILURE(setOutputBuffer(display, handle,
@@ -4556,4 +4695,75 @@ TEST_F(Hwc2Test, DUMP)
     std::string buffer;
 
     ASSERT_NO_FATAL_FAILURE(dump(&buffer));
+}
+
+/*
+ * TODO(b/64724708): Hwc2TestPropertyName::BufferArea MUST be default for all
+ * virtual display tests as we don't handle this case correctly.
+ *
+ * Only default dataspace is supported in our drawing code.
+ */
+const std::unordered_map<Hwc2TestPropertyName, Hwc2TestCoverage>
+        virtualDisplayExceptions =
+        {{Hwc2TestPropertyName::BufferArea, Hwc2TestCoverage::Default},
+        {Hwc2TestPropertyName::Dataspace, Hwc2TestCoverage::Default}};
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with default coverage on a
+ * virtual display. */
+TEST_F(Hwc2Test, PRESENT_VIRTUAL_DISPLAY_default_1)
+{
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    const size_t layerCnt = 1;
+    ASSERT_NO_FATAL_FAILURE(createAndPresentVirtualDisplay(layerCnt, coverage,
+            virtualDisplayExceptions));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 1 layer with basic coverage on a
+ * virtual display. */
+TEST_F(Hwc2Test, PRESENT_VIRTUAL_DISPLAY_basic_1)
+{
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Basic;
+    const size_t layerCnt = 1;
+    ASSERT_NO_FATAL_FAILURE(createAndPresentVirtualDisplay(layerCnt, coverage,
+            virtualDisplayExceptions));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 2 layers with default coverage on a
+ * virtual display. */
+TEST_F(Hwc2Test, PRESENT_VIRTUAL_DISPLAY_default_2)
+{
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    const size_t layerCnt = 2;
+    ASSERT_NO_FATAL_FAILURE(createAndPresentVirtualDisplay(layerCnt, coverage,
+            virtualDisplayExceptions));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 3 layers with default coverage on a
+ * virtual display. */
+TEST_F(Hwc2Test, PRESENT_VIRTUAL_DISPLAY_default_3)
+{
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    const size_t layerCnt = 3;
+    ASSERT_NO_FATAL_FAILURE(createAndPresentVirtualDisplay(layerCnt, coverage,
+            virtualDisplayExceptions));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 4 layers with default coverage on a
+ * virtual display. */
+TEST_F(Hwc2Test, PRESENT_VIRTUAL_DISPLAY_default_4)
+{
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    const size_t layerCnt = 4;
+    ASSERT_NO_FATAL_FAILURE(createAndPresentVirtualDisplay(layerCnt, coverage,
+            virtualDisplayExceptions));
+}
+
+/* TESTCASE: Tests that the HWC2 can present 5 layers with default coverage on a
+ * virtual display. */
+TEST_F(Hwc2Test, PRESENT_VIRTUAL_DISPLAY_default_5)
+{
+    Hwc2TestCoverage coverage = Hwc2TestCoverage::Default;
+    const size_t layerCnt = 5;
+    ASSERT_NO_FATAL_FAILURE(createAndPresentVirtualDisplay(layerCnt, coverage,
+            virtualDisplayExceptions));
 }

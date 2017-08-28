@@ -18,6 +18,7 @@
 #define _HWC2_TEST_VIRTUAL_DISPLAY_H
 
 #include "Hwc2TestBuffer.h"
+#include "Hwc2TestPixelComparator.h"
 #include "Hwc2TestProperties.h"
 
 #define HWC2_INCLUDE_STRINGIFICATION
@@ -32,17 +33,22 @@ public:
 
     std::string dump() const;
 
-    int getBuffer(buffer_handle_t* outHandle,
+    int getOutputBuffer(buffer_handle_t* outHandle,
             android::base::unique_fd* outAcquireFence);
 
+    int verifyOutputBuffer(const Hwc2TestLayers* testLayers,
+            const std::vector<hwc2_layer_t>* allLayers,
+            const std::set<hwc2_layer_t>* clearLayers);
+
+    int writeBuffersToFile(std::string name);
     void reset();
     bool advance();
 
     UnsignedArea getDisplayDimension() const;
 
 private:
-    Hwc2TestBuffer mBuffer;
-
+    Hwc2TestOutputBuffer mOutputBuffer;
+    Hwc2TestExpectedBuffer mExpectedBuffer;
     Hwc2TestDisplayDimension mDisplayDimension;
 };
 

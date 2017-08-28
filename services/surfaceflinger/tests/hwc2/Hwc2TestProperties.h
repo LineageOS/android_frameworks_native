@@ -243,6 +243,7 @@ protected:
     static const std::array<bool, 6> mCompositionSupport;
 };
 
+class Hwc2TestVirtualBuffer;
 
 class Hwc2TestDisplayDimension : public Hwc2TestProperty<UnsignedArea> {
 public:
@@ -250,12 +251,12 @@ public:
 
     std::string dump() const;
 
-    void setDependent(Hwc2TestBuffer* buffer);
+    void setDependent(Hwc2TestVirtualBuffer* buffer);
 
 private:
     void updateDependents();
 
-    Hwc2TestBuffer* mBuffer;
+    std::set<Hwc2TestVirtualBuffer*> mBuffers;
 
     static const std::vector<UnsignedArea> mDefaultDisplayDimensions;
     static const std::vector<UnsignedArea> mBasicDisplayDimensions;

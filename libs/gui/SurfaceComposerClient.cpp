@@ -176,6 +176,9 @@ public:
     status_t reparentChildren(const sp<SurfaceComposerClient>& client,
             const sp<IBinder>& id,
             const sp<IBinder>& newParentHandle);
+    status_t reparentChild(const sp<SurfaceComposerClient>& client,
+            const sp<IBinder>& id, const sp<IBinder>& newParentHandle,
+            const sp<IBinder>& childHandle);
     status_t detachChildren(const sp<SurfaceComposerClient>& client,
             const sp<IBinder>& id);
     status_t setOverrideScalingMode(const sp<SurfaceComposerClient>& client,
@@ -490,6 +493,21 @@ status_t Composer::reparentChildren(
     }
     s->what |= layer_state_t::eReparentChildren;
     s->reparentHandle = newParentHandle;
+    return NO_ERROR;
+}
+
+status_t Composer::reparentChild(const sp<SurfaceComposerClient>& client,
+        const sp<IBinder>& id,
+        const sp<IBinder>& newParentHandle,
+        const sp<IBinder>& childHandle) {
+    Mutex::Autolock lock(mLock);
+    layer_state_t* s = getLayerStateLocked(client, id);
+    if (!s) {
+        return BAD_INDEX;
+    }
+    s->what |= layer_state_t::eReparentChild;
+    s->parentHandleForChild = newParentHandle;
+    s->childHandle = childHandle;
     return NO_ERROR;
 }
 
@@ -829,6 +847,11 @@ status_t SurfaceComposerClient::deferTransactionUntil(const sp<IBinder>& id,
 status_t SurfaceComposerClient::reparentChildren(const sp<IBinder>& id,
         const sp<IBinder>& newParentHandle) {
     return getComposer().reparentChildren(this, id, newParentHandle);
+}
+
+status_t SurfaceComposerClient::reparentChild(const sp<IBinder>& id,
+        const sp<IBinder>& newParentHandle, const sp<IBinder>& childHandle) {
+    return getComposer().reparentChild(this, id, newParentHandle, childHandle);
 }
 
 status_t SurfaceComposerClient::detachChildren(const sp<IBinder>& id) {

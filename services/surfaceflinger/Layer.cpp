@@ -2501,7 +2501,7 @@ void Layer::miniDump(String8& result, int32_t hwcId) const {
 
     const Layer::State& layerState(getDrawingState());
     const HWCInfo& hwcInfo = mHwcLayers.at(hwcId);
-    result.appendFormat("  %10u | ", layerState.z);
+    result.appendFormat("  %10d | ", layerState.z);
     result.appendFormat("%10s | ",
             to_string(getCompositionType(hwcId)).c_str());
     const Rect& frame = hwcInfo.displayFrame;
@@ -2622,6 +2622,44 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
     }
     mCurrentChildren.clear();
 
+    return true;
+}
+
+bool Layer::reparentChild(const sp<IBinder>& newParentHandle, const sp<IBinder>& childHandle) {
+    if (newParentHandle == nullptr || childHandle == nullptr) {
+        return false;
+    }
+
+    auto handle = static_cast<Handle*>(newParentHandle.get());
+    sp<Layer> newParent = handle->owner.promote();
+    if (newParent == nullptr) {
+        ALOGE("Unable to promote Layer handle");
+        return false;
+    }
+
+    handle = static_cast<Handle*>(childHandle.get());
+    sp<Layer> child = handle->owner.promote();
+    if (child == nullptr) {
+        ALOGE("Unable to promote child Layer handle");
+        return false;
+    }
+
+    if (mCurrentChildren.indexOf(child) < 0) {
+        ALOGE("Child layer is not child of current layer");
+        return false;
+    }
+
+    sp<Client> parentClient(mClientRef.promote());
+    sp<Client> childClient(child->mClientRef.promote());
+    sp<Client> newParentClient(newParent->mClientRef.promote());
+
+    if (parentClient != childClient || childClient != newParentClient) {
+        ALOGE("Current layer, child layer, and new parent layer must have the same client");
+        return false;
+    }
+
+    newParent->addChild(child);
+    mCurrentChildren.remove(child);
     return true;
 }
 

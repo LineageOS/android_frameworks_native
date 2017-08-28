@@ -335,9 +335,9 @@ std::string Hwc2TestDisplayDimension::dump() const
     return dmp.str();
 }
 
-void Hwc2TestDisplayDimension::setDependent(Hwc2TestBuffer* buffer)
+void Hwc2TestDisplayDimension::setDependent(Hwc2TestVirtualBuffer* buffer)
 {
-    mBuffer = buffer;
+    mBuffers.insert(buffer);
     updateDependents();
 }
 
@@ -345,8 +345,8 @@ void Hwc2TestDisplayDimension::updateDependents()
 {
     const UnsignedArea& curr = get();
 
-    if (mBuffer)
-        mBuffer->updateBufferArea({static_cast<int32_t>(curr.width),
+    for (Hwc2TestVirtualBuffer* buffer : mBuffers)
+        buffer->updateBufferArea({static_cast<int32_t>(curr.width),
                 static_cast<int32_t>(curr.height)});
 }
 

@@ -124,6 +124,12 @@ public:
     // Reparents all children of this layer to the new parent handle.
     status_t reparentChildren(const sp<IBinder>& newParentHandle);
 
+    // Reparents a specified child from this layer to the new parent handle.
+    // The child, parent, and new parent must all have the same client.
+    // This can be used instead of reparentChildren if the caller wants to
+    // only re-parent specific children.
+    status_t reparentChild(const sp<IBinder>& newParentHandle, const sp<IBinder>& childHandle);
+
     // Detaches all child surfaces (and their children recursively)
     // from their SurfaceControl.
     // The child SurfaceControl's will not throw exceptions or return errors,
