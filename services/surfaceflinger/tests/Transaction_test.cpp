@@ -1152,4 +1152,19 @@ TEST_F(ChildLayerTest, ReparentChild) {
     }
 }
 
+TEST_F(ChildLayerTest, NestedChildren) {
+    sp<SurfaceControl> grandchild = mComposerClient->createSurface(
+        String8("Grandchild surface"),
+        10, 10, PIXEL_FORMAT_RGBA_8888,
+        0, mChild.get());
+    fillSurfaceRGBA8(grandchild, 50, 50, 50);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // Expect the grandchild to begin at 64, 64 because it's a child of mChild layer
+        // which begins at 64, 64
+        mCapture->checkPixel(64, 64, 50, 50, 50);
+    }
+}
+
 }
