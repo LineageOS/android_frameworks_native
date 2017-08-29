@@ -1139,16 +1139,23 @@ class Dex2oatFileWrapper {
 // (re)Creates the app image if needed.
 Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path, bool profile_guided,
         bool is_public, int uid, bool is_secondary_dex) {
-    // Use app images only if it is enabled (by a set image format) and we are compiling
-    // profile-guided (so the app image doesn't conservatively contain all classes).
-    // Note that we don't create an image for secondary dex files.
-    if (is_secondary_dex || !profile_guided) {
+
+    // We don't create an image for secondary dex files.
+    if (is_secondary_dex) {
         return Dex2oatFileWrapper();
     }
 
     const std::string image_path = create_image_filename(out_oat_path);
     if (image_path.empty()) {
         // Happens when the out_oat_path has an unknown extension.
+        return Dex2oatFileWrapper();
+    }
+
+    // Use app images only if it is enabled (by a set image format) and we are compiling
+    // profile-guided (so the app image doesn't conservatively contain all classes).
+    if (!profile_guided) {
+        // In case there is a stale image, remove it now. Ignore any error.
+        unlink(image_path.c_str());
         return Dex2oatFileWrapper();
     }
     char app_image_format[kPropertyValueMax];
