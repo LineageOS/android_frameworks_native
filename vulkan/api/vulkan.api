@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 0
-define VERSION_PATCH 53
+define VERSION_PATCH 54
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -38,8 +38,10 @@ define VK_MAX_DESCRIPTION_SIZE          256
 define VK_MAX_MEMORY_TYPES              32
 define VK_MAX_MEMORY_HEAPS              16    /// The maximum number of unique memory heaps, each of which supporting 1 or more memory types.
 define VK_MAX_DEVICE_GROUP_SIZE_KHX     32
-define VK_LUID_SIZE_KHX                 8
-define VK_QUEUE_FAMILY_EXTERNAL_KHX     -2
+//@extension("VK_KHR_external_memory_capabilities")
+define VK_LUID_SIZE_KHR                 8
+//@extension("VK_KHR_external_memory")
+define VK_QUEUE_FAMILY_EXTERNAL_KHR     -2
 
 // API keywords
 define VK_TRUE        1
@@ -213,44 +215,48 @@ define NULL_HANDLE 0
 @extension("VK_KHX_device_group_creation") define VK_KHX_DEVICE_GROUP_CREATION_EXTENSION_NAME "VK_KHX_device_group_creation"
 
 // 72
-@extension("VK_KHX_external_memory_capabilities") define VK_KHX_EXTERNAL_MEMORY_CAPABILITIES_SPEC_VERSION 1
-@extension("VK_KHX_external_memory_capabilities") define VK_KHX_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME "VK_KHX_external_memory_capabilities"
+@extension("VK_KHR_external_memory_capabilities") define VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_SPEC_VERSION 1
+@extension("VK_KHR_external_memory_capabilities") define VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME "VK_KHR_external_memory_capabilities"
 
 // 73
-@extension("VK_KHX_external_memory") define VK_KHX_EXTERNAL_MEMORY_SPEC_VERSION 1
-@extension("VK_KHX_external_memory") define VK_KHX_EXTERNAL_MEMORY_EXTENSION_NAME "VK_KHX_external_memory"
+@extension("VK_KHR_external_memory") define VK_KHR_EXTERNAL_MEMORY_SPEC_VERSION 1
+@extension("VK_KHR_external_memory") define VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME "VK_KHR_external_memory"
 
 // 74
-@extension("VK_KHX_external_memory_win32") define VK_KHX_EXTERNAL_MEMORY_WIN32_SPEC_VERSION 1
-@extension("VK_KHX_external_memory_win32") define VK_KHX_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME "VK_KHX_external_memory_win32"
+@extension("VK_KHR_external_memory_win32") define VK_KHR_EXTERNAL_MEMORY_WIN32_SPEC_VERSION 1
+@extension("VK_KHR_external_memory_win32") define VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME "VK_KHR_external_memory_win32"
 
 // 75
-@extension("VK_KHX_external_memory_fd") define VK_KHX_EXTERNAL_MEMORY_FD_SPEC_VERSION 1
-@extension("VK_KHX_external_memory_fd") define VK_KHX_EXTERNAL_MEMORY_FD_EXTENSION_NAME "VK_KHX_external_memory_fd"
+@extension("VK_KHR_external_memory_fd") define VK_KHR_EXTERNAL_MEMORY_FD_SPEC_VERSION 1
+@extension("VK_KHR_external_memory_fd") define VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME "VK_KHR_external_memory_fd"
 
 // 76
-@extension("VK_KHX_win32_keyed_mutex") define VK_KHX_WIN32_KEYED_MUTEX_SPEC_VERSION 1
-@extension("VK_KHX_win32_keyed_mutex") define VK_KHX_WIN32_KEYED_MUTEX_EXTENSION_NAME "VK_KHX_win32_keyed_mutex"
+@extension("VK_KHR_win32_keyed_mutex") define VK_KHR_WIN32_KEYED_MUTEX_SPEC_VERSION 1
+@extension("VK_KHR_win32_keyed_mutex") define VK_KHR_WIN32_KEYED_MUTEX_EXTENSION_NAME "VK_KHR_win32_keyed_mutex"
 
 // 77
-@extension("VK_KHX_external_semaphore_capabilities") define VK_KHX_EXTERNAL_SEMAPHORE_CAPABILITIES_SPEC_VERSION 1
-@extension("VK_KHX_external_semaphore_capabilities") define VK_KHX_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME "VK_KHX_external_semaphore_capabilities"
+@extension("VK_KHR_external_semaphore_capabilities") define VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_SPEC_VERSION 1
+@extension("VK_KHR_external_semaphore_capabilities") define VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME "VK_KHR_external_semaphore_capabilities"
 
 // 78
-@extension("VK_KHX_external_semaphore") define VK_KHX_EXTERNAL_SEMAPHORE_SPEC_VERSION 1
-@extension("VK_KHX_external_semaphore") define VK_KHX_EXTERNAL_SEMAPHORE_EXTENSION_NAME "VK_KHX_external_semaphore"
+@extension("VK_KHR_external_semaphore") define VK_KHR_EXTERNAL_SEMAPHORE_SPEC_VERSION 1
+@extension("VK_KHR_external_semaphore") define VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME "VK_KHR_external_semaphore"
 
 // 79
-@extension("VK_KHX_external_semaphore_win32") define VK_KHX_EXTERNAL_SEMAPHORE_WIN32_SPEC_VERSION 1
-@extension("VK_KHX_external_semaphore_win32") define VK_KHX_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME "VK_KHX_external_semaphore_win32"
+@extension("VK_KHR_external_semaphore_win32") define VK_KHR_EXTERNAL_SEMAPHORE_WIN32_SPEC_VERSION 1
+@extension("VK_KHR_external_semaphore_win32") define VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME "VK_KHR_external_semaphore_win32"
 
 // 80
-@extension("VK_KHX_external_semaphore_fd") define VK_KHX_EXTERNAL_SEMAPHORE_FD_SPEC_VERSION 1
-@extension("VK_KHX_external_semaphore_fd") define VK_KHX_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME "VK_KHX_external_semaphore_fd"
+@extension("VK_KHR_external_semaphore_fd") define VK_KHR_EXTERNAL_SEMAPHORE_FD_SPEC_VERSION 1
+@extension("VK_KHR_external_semaphore_fd") define VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME "VK_KHR_external_semaphore_fd"
 
 // 81
 @extension("VK_KHR_push_descriptor") define VK_KHR_PUSH_DESCRIPTOR_SPEC_VERSION 1
 @extension("VK_KHR_push_descriptor") define VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME "VK_KHR_push_descriptor"
+
+// 84
+@extension("VK_KHR_16bit_storage") define VK_KHR_16BIT_STORAGE_SPEC_VERSION 1
+@extension("VK_KHR_16bit_storage") define VK_KHR_16BIT_STORAGE_EXTENSION_NAME "VK_KHR_16bit_storage"
 
 // 85
 @extension("VK_KHR_incremental_present") define VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION 1
@@ -324,9 +330,29 @@ define NULL_HANDLE 0
 @extension("VK_KHR_shared_presentable_image") define VK_KHR_SHARED_PRESENTABLE_IMAGE_SPEC_VERSION 1
 @extension("VK_KHR_shared_presentable_image") define VK_KHR_SHARED_PRESENTABLE_IMAGE_EXTENSION_NAME "VK_KHR_shared_presentable_image"
 
+// 113
+@extension("VK_KHR_external_fence_capabilities") define VK_KHR_EXTERNAL_FENCE_CAPABILITIES_SPEC_VERSION 1
+@extension("VK_KHR_external_fence_capabilities") define VK_KHR_EXTERNAL_FENCE_CAPABILITIES_EXTENSION_NAME "VK_KHR_external_fence_capabilities"
+
+// 114
+@extension("VK_KHR_external_fence") define VK_KHR_EXTERNAL_FENCE_SPEC_VERSION 1
+@extension("VK_KHR_external_fence") define VK_KHR_EXTERNAL_FENCE_EXTENSION_NAME "VK_KHR_external_fence"
+
+// 115
+@extension("VK_KHR_external_fence_win32") define VK_KHR_EXTERNAL_FENCE_WIN32_SPEC_VERSION 1
+@extension("VK_KHR_external_fence_win32") define VK_KHR_EXTERNAL_FENCE_WIN32_EXTENSION_NAME "VK_KHR_external_fence_win32"
+
+// 116
+@extension("VK_KHR_external_fence_fd") define VK_KHR_EXTERNAL_FENCE_FD_SPEC_VERSION 1
+@extension("VK_KHR_external_fence_fd") define VK_KHR_EXTERNAL_FENCE_FD_EXTENSION_NAME "VK_KHR_external_fence_fd"
+
 // 120
 @extension("VK_KHR_get_surface_capabilities2") define VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION 1
 @extension("VK_KHR_get_surface_capabilities2") define VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME "VK_KHR_get_surface_capabilities2"
+
+// 121
+@extension("VK_KHR_variable_pointers") define VK_KHR_VARIABLE_POINTERS_SPEC_VERSION 1
+@extension("VK_KHR_variable_pointers") define VK_KHR_VARIABLE_POINTERS_EXTENSION_NAME "VK_KHR_variable_pointers"
 
 // 123
 @extension("VK_MVK_ios_surface") define VK_MVK_IOS_SURFACE_SPEC_VERSION 1
@@ -336,13 +362,25 @@ define NULL_HANDLE 0
 @extension("VK_MVK_macos_surface") define VK_MVK_MACOS_SURFACE_SPEC_VERSION 1
 @extension("VK_MVK_macos_surface") define VK_MVK_MACOS_SURFACE_EXTENSION_NAME "VK_MVK_macos_surface"
 
+// 128
+@extension("VK_KHR_dedicated_allocation") define VK_KHR_DEDICATED_ALLOCATION_SPEC_VERSION 1
+@extension("VK_KHR_dedicated_allocation") define VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME "VK_KHR_dedicated_allocation"
+
 // 131
 @extension("VK_EXT_sampler_filter_minmax") define VK_EXT_SAMPLER_FILTER_MINMAX_SPEC_VERSION 1
 @extension("VK_EXT_sampler_filter_minmax") define VK_EXT_SAMPLER_FILTER_MINMAX_EXTENSION_NAME "VK_EXT_sampler_filter_minmax"
 
+// 132
+@extension("VK_KHR_storage_buffer_storage_class") define VK_KHR_STORAGE_BUFFER_STORAGE_CLASS_SPEC_VERSION 1
+@extension("VK_KHR_storage_buffer_storage_class") define VK_KHR_STORAGE_BUFFER_STORAGE_CLASS_EXTENSION_NAME "VK_KHR_storage_buffer_storage_class"
+
 // 133
 @extension("VK_AMD_gpu_shader_int16") define VK_AMD_GPU_SHADER_INT16_SPEC_VERSION 1
 @extension("VK_AMD_gpu_shader_int16") define VK_AMD_GPU_SHADER_INT16_EXTENSION_NAME "VK_AMD_gpu_shader_int16"
+
+// 147
+@extension("VK_KHR_get_memory_requirements2") define VK_KHR_GET_MEMORY_REQUIREMENTS2_SPEC_VERSION 1
+@extension("VK_KHR_get_memory_requirements2") define VK_KHR_GET_MEMORY_REQUIREMENTS2_EXTENSION_NAME "VK_KHR_get_memory_requirements2"
 
 // 149
 @extension("VK_EXT_blend_operation_advanced") define VK_EXT_BLEND_OPERATION_ADVANCED_SPEC_VERSION 2
@@ -1081,47 +1119,51 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES_KHX      = 1000070000,
     VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO_KHX       = 1000070001,
 
-    //@extension("VK_KHX_external_memory_capabilities") // 72
-    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO_KHX    = 1000071000,
-    VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES_KHX      = 1000071001,
-    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_BUFFER_INFO_KHX  = 1000071002,
-    VK_STRUCTURE_TYPE_EXTERNAL_BUFFER_PROPERTIES_KHX            = 1000071003,
-    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES_KHX         = 1000071004,
+    //@extension("VK_KHR_external_memory_capabilities") // 72
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO_KHR    = 1000071000,
+    VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES_KHR      = 1000071001,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_BUFFER_INFO_KHR  = 1000071002,
+    VK_STRUCTURE_TYPE_EXTERNAL_BUFFER_PROPERTIES_KHR            = 1000071003,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES_KHR         = 1000071004,
 
-    //@extension("VK_KHX_external_memory") // 73
-    VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO_KHX    = 1000072000,
-    VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO_KHX     = 1000072001,
-    VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHX           = 1000072002,
+    //@extension("VK_KHR_external_memory") // 73
+    VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO_KHR    = 1000072000,
+    VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO_KHR     = 1000072001,
+    VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHR           = 1000072002,
 
-    //@extension("VK_KHX_external_memory_win32") // 74
-    VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHX       = 1000073000,
-    VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHX       = 1000073001,
-    VK_STRUCTURE_TYPE_MEMORY_WIN32_HANDLE_PROPERTIES_KHX        = 1000073002,
+    //@extension("VK_KHR_external_memory_win32") // 74
+    VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR       = 1000073000,
+    VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR       = 1000073001,
+    VK_STRUCTURE_TYPE_MEMORY_WIN32_HANDLE_PROPERTIES_KHR        = 1000073002,
 
-    //@extension("VK_KHX_external_memory_fd") // 75
-    VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHX                 = 1000074000,
-    VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHX                  = 1000074001,
+    //@extension("VK_KHR_external_memory_fd") // 75
+    VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR                 = 1000074000,
+    VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR                  = 1000074001,
 
-    //@extension("VK_KHX_win32_keyed_mutex") // 76
-    VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHX    = 1000075000,
+    //@extension("VK_KHR_win32_keyed_mutex") // 76
+    VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR    = 1000075000,
 
-    //@extension("VK_KHX_external_semaphore_capabilities") // 77
-    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_SEMAPHORE_INFO_KHX   = 1000076000,
-    VK_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_PROPERTIES_KHX         = 1000076001,
+    //@extension("VK_KHR_external_semaphore_capabilities") // 77
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_SEMAPHORE_INFO_KHR   = 1000076000,
+    VK_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_PROPERTIES_KHR         = 1000076001,
 
-    //@extension("VK_KHX_external_semaphore") // 78
-    VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO_KHX          = 1000077000,
+    //@extension("VK_KHR_external_semaphore") // 78
+    VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO_KHR          = 1000077000,
 
-    //@extension("VK_KHX_external_semaphore_win32") // 79
-    VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHX    = 1000078000,
-    VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHX    = 1000078001,
-    VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHX               = 1000078002,
+    //@extension("VK_KHR_external_semaphore_win32") // 79
+    VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR    = 1000078000,
+    VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR    = 1000078001,
+    VK_STRUCTURE_TYPE_D3D12_FENCE_SUBMIT_INFO_KHR               = 1000078002,
 
-    //@extension("VK_KHX_external_semaphore_fd") // 80
-    VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHX              = 1000079000,
+    //@extension("VK_KHR_external_semaphore_fd") // 80
+    VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR              = 1000079000,
+    VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR                 = 1000079001,
 
     //@extension("VK_KHR_push_descriptor") // 81
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES_KHR    = 1000080000,
+
+    //@extension("VK_KHR_16bit_storage") // 84
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES_KHR    = 1000083000,
 
     //@extension("VK_KHR_incremental_present") // 85
     VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR                       = 1000084000,
@@ -1168,10 +1210,29 @@ enum VkStructureType {
     //@extension("VK_KHR_shared_presentable_image") // 112
     VK_STRUCTURE_TYPE_SHARED_PRESENT_SURFACE_CAPABILITIES_KHR   = 1000111000,
 
+    //@extension("VK_KHR_external_fence_capabilities") // 113
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_FENCE_INFO_KHR   = 1000112000,
+    VK_STRUCTURE_TYPE_EXTERNAL_FENCE_PROPERTIES_KHR             = 1000112001,
+
+    //@extension("VK_KHR_external_fence") // 114
+    VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO_KHR              = 1000113000,
+
+    //@extension("VK_KHR_external_fence_win32") // 115
+    VK_STRUCTURE_TYPE_IMPORT_FENCE_WIN32_HANDLE_INFO_KHR        = 1000114000,
+    VK_STRUCTURE_TYPE_EXPORT_FENCE_WIN32_HANDLE_INFO_KHR        = 1000114001,
+    VK_STRUCTURE_TYPE_FENCE_GET_WIN32_HANDLE_INFO_KHR           = 1000114002,
+
+    //@extension("VK_KHR_external_fence_fd") // 117
+    VK_STRUCTURE_TYPE_IMPORT_FENCE_FD_INFO_KHR                  = 1000115000,
+    VK_STRUCTURE_TYPE_FENCE_GET_FD_INFO_KHR                     = 1000115001,
+
     //@extension("VK_KHR_get_surface_capabilities2") // 120
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR        = 1000119000,
     VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR                = 1000119001,
     VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR                      = 1000119002,
+
+    //@extension("VK_KHR_variable_pointers") // 121
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES_KHR = 1000120000,
 
     //@extension("VK_MVK_ios_surface") // 123
     VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK               = 1000122000,
@@ -1179,9 +1240,20 @@ enum VkStructureType {
     //@extension("VK_MVK_macos_surface") // 124
     VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK             = 1000123000,
 
+    //@extension("VK_KHR_dedicated_allocation") // 128
+    VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS_KHR         = 1000127000,
+    VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR        = 1000127001,
+
     //@extension("VK_EXT_sampler_filter_minmax") // 131
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_FILTER_MINMAX_PROPERTIES_EXT = 1000130000,
     VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT = 1000130001,
+
+    //@extension("VK_KHR_get_memory_requirements2") // 147
+    VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2_KHR         = 1000146000,
+    VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2_KHR          = 1000146001,
+    VK_STRUCTURE_TYPE_IMAGE_SPARSE_MEMORY_REQUIREMENTS_INFO_2_KHR   = 1000146002,
+    VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR                     = 1000146003,
+    VK_STRUCTURE_TYPE_SPARSE_IMAGE_MEMORY_REQUIREMENTS_2_KHR        = 1000146004,
 
     //@extension("VK_EXT_blend_operation_advanced") // 149
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BLEND_OPERATION_ADVANCED_FEATURES_EXT = 1000148000,
@@ -1251,8 +1323,8 @@ enum VkResult {
     //@extension("VK_KHR_maintenance1") // 70
     VK_ERROR_OUT_OF_POOL_MEMORY_KHR                         = 0xC4642878, // -1000069000
 
-    //@extension("VK_KHX_external_memory") // 73
-    VK_ERROR_INVALID_EXTERNAL_HANDLE_KHX                    = 0xC4641CBD, // -1000072003
+    //@extension("VK_KHR_external_memory") // 73
+    VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR                    = 0xC4641CBD, // -1000072003
 }
 
 enum VkDynamicState {
@@ -2141,45 +2213,52 @@ type VkFlags VkCommandPoolTrimFlagsKHR
 //bitfield VkCommandPoolTrimFlagBitsKHR {
 //}
 
-@extension("VK_KHX_external_memory_capabilities") // 72
-type VkFlags VkExternalMemoryHandleTypeFlagsKHX
-@extension("VK_KHX_external_memory_capabilities") // 72
-bitfield VkExternalMemoryHandleTypeFlagBitsKHX {
-    VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHX            = 0x00000001,
-    VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHX         = 0x00000002,
-    VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHX     = 0x00000004,
-    VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT_KHX        = 0x00000008,
-    VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT_KHX    = 0x00000010,
-    VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT_KHX           = 0x00000020,
-    VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT_KHX       = 0x00000040,
+@extension("VK_KHR_external_memory_capabilities") // 72
+type VkFlags VkExternalMemoryHandleTypeFlagsKHR
+@extension("VK_KHR_external_memory_capabilities") // 72
+bitfield VkExternalMemoryHandleTypeFlagBitsKHR {
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR            = 0x00000001,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR         = 0x00000002,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR     = 0x00000004,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT_KHR        = 0x00000008,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT_KHR    = 0x00000010,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT_KHR           = 0x00000020,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT_KHR       = 0x00000040,
 }
 
-@extension("VK_KHX_external_memory_capabilities") // 72
-type VkFlags VkExternalMemoryFeatureFlagsKHX
-@extension("VK_KHX_external_memory_capabilities") // 72
-bitfield VkExternalMemoryFeatureFlagBitsKHX {
-    VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT_KHX           = 0x00000001,
-    VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_KHX               = 0x00000002,
-    VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT_KHX               = 0x00000004,
+@extension("VK_KHR_external_memory_capabilities") // 72
+type VkFlags VkExternalMemoryFeatureFlagsKHR
+@extension("VK_KHR_external_memory_capabilities") // 72
+bitfield VkExternalMemoryFeatureFlagBitsKHR {
+    VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT_KHR           = 0x00000001,
+    VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT_KHR               = 0x00000002,
+    VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT_KHR               = 0x00000004,
 }
 
-@extension("VK_KHX_external_semaphore_capabilities") // 77
-type VkFlags VkExternalSemaphoreHandleTypeFlagsKHX
-@extension("VK_KHX_external_semaphore_capabilities") // 77
-bitfield VkExternalSemaphoreHandleTypeFlagBitsKHX {
-    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT_KHX         = 0x00000001
-    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHX      = 0x00000002
-    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHX  = 0x00000004
-    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D12_FENCE_BIT_KHX       = 0x00000008
-    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_FENCE_FD_BIT_KHX          = 0x00000010
+@extension("VK_KHR_external_semaphore_capabilities") // 77
+type VkFlags VkExternalSemaphoreHandleTypeFlagsKHR
+@extension("VK_KHR_external_semaphore_capabilities") // 77
+bitfield VkExternalSemaphoreHandleTypeFlagBitsKHR {
+    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT_KHR         = 0x00000001
+    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR      = 0x00000002
+    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR  = 0x00000004
+    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D12_FENCE_BIT_KHR       = 0x00000008
+    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_FENCE_FD_BIT_KHR          = 0x00000010
 }
 
-@extension("VK_KHX_external_semaphore_capabilities") // 77
-type VkFlags VkExternalSemaphoreFeatureFlagsKHX
-@extension("VK_KHX_external_semaphore_capabilities") // 77
-bitfield VkExternalSemaphoreFeatureFlagBitsKHX {
-    VK_EXTERNAL_SEMAPHORE_FEATURE_EXPORTABLE_BIT_KHX            = 0x00000001,
-    VK_EXTERNAL_SEMAPHORE_FEATURE_IMPORTABLE_BIT_KHX            = 0x00000002,
+@extension("VK_KHR_external_semaphore_capabilities") // 77
+type VkFlags VkExternalSemaphoreFeatureFlagsKHR
+@extension("VK_KHR_external_semaphore_capabilities") // 77
+bitfield VkExternalSemaphoreFeatureFlagBitsKHR {
+    VK_EXTERNAL_SEMAPHORE_FEATURE_EXPORTABLE_BIT_KHR            = 0x00000001,
+    VK_EXTERNAL_SEMAPHORE_FEATURE_IMPORTABLE_BIT_KHR            = 0x00000002,
+}
+
+@extension("VK_KHR_external_semaphore") // 78
+type VkFlags VkSemaphoreImportFlagsKHR
+@extension("VK_KHR_external_semaphore") // 78
+bitfield VkSemaphoreImportFlagBitsKHR {
+    VK_SEMAPHORE_IMPORT_TEMPORARY_BIT_KHR                       = 0x00000001,
 }
 
 @extension("VK_KHR_descriptor_update_template") // 86
@@ -2224,6 +2303,31 @@ type VkFlags VkPipelineDiscardRectangleStateCreateFlagsEXT
 //@extension("VK_EXT_discard_rectangles") // 100
 //bitfield VkPipelineDiscardRectangleStateCreateFlagBitsEXT {
 //}
+
+@extension("VK_KHR_external_fence_capabilities") // 113
+type VkFlags VkExternalFenceHandleTypeFlagsKHR
+@extension("VK_KHR_external_fence_capabilities") // 113
+bitfield VkExternalFenceHandleTypeFlagBitsKHR {
+    VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_FD_BIT_KHR         = 0x00000001,
+    VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR      = 0x00000002,
+    VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR  = 0x00000004,
+    VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT_KHR           = 0x00000008,
+}
+
+@extension("VK_KHR_external_fence_capabilities") // 113
+type VkFlags VkExternalFenceFeatureFlagsKHR
+@extension("VK_KHR_external_fence_capabilities") // 113
+bitfield VkExternalFenceFeatureFlagBitsKHR {
+    VK_EXTERNAL_FENCE_FEATURE_EXPORTABLE_BIT_KHR            = 0x00000001,
+    VK_EXTERNAL_FENCE_FEATURE_IMPORTABLE_BIT_KHR            = 0x00000002,
+}
+
+@extension("VK_KHR_external_fence") // 114
+type VkFlags VkFenceImportFlagsKHR
+@extension("VK_KHR_external_fence") // 114
+bitfield VkFenceImportFlagBitsKHR {
+    VK_FENCE_IMPORT_TEMPORARY_BIT_KHR                       = 0x00000001,
+}
 
 @extension("VK_MVK_ios_surface") // 123
 type VkFlags VkIOSSurfaceCreateFlagsMVK
@@ -3939,84 +4043,86 @@ class VkDeviceGroupDeviceCreateInfoKHX {
     const VkPhysicalDevice*                     pPhysicalDevices
 }
 
-@extension("VK_KHX_external_memory_capabilities") // 72
-class VkExternalMemoryPropertiesKHX {
-    VkExternalMemoryFeatureFlagsKHX             externalMemoryFeatures
-    VkExternalMemoryHandleTypeFlagsKHX          exportFromImportedHandleTypes
-    VkExternalMemoryHandleTypeFlagsKHX          compatibleHandleTypes
+@extension("VK_KHR_external_memory_capabilities") // 72
+class VkExternalMemoryPropertiesKHR {
+    VkExternalMemoryFeatureFlagsKHR             externalMemoryFeatures
+    VkExternalMemoryHandleTypeFlagsKHR          exportFromImportedHandleTypes
+    VkExternalMemoryHandleTypeFlagsKHR          compatibleHandleTypes
 }
 
-@extension("VK_KHX_external_memory_capabilities") // 72
-class VkPhysicalDeviceExternalImageFormatInfoKHX {
+@extension("VK_KHR_external_memory_capabilities") // 72
+class VkPhysicalDeviceExternalImageFormatInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
-    VkExternalMemoryHandleTypeFlagBitsKHX       handleType
+    VkExternalMemoryHandleTypeFlagBitsKHR       handleType
 }
 
-@extension("VK_KHX_external_memory_capabilities") // 72
-class VkExternalImageFormatPropertiesKHX {
+@extension("VK_KHR_external_memory_capabilities") // 72
+class VkExternalImageFormatPropertiesKHR {
     VkStructureType                             sType
     void*                                       pNext
-    VkExternalMemoryPropertiesKHX               externalMemoryProperties
+    VkExternalMemoryPropertiesKHR               externalMemoryProperties
 }
 
-@extension("VK_KHX_external_memory_capabilities") // 72
-class VkPhysicalDeviceExternalBufferInfoKHX {
+@extension("VK_KHR_external_memory_capabilities") // 72
+class VkPhysicalDeviceExternalBufferInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
     VkBufferCreateFlags                         flags
     VkBufferUsageFlags                          usage
-    VkExternalMemoryHandleTypeFlagBitsKHX       handleType
+    VkExternalMemoryHandleTypeFlagBitsKHR       handleType
 }
 
-@extension("VK_KHX_external_memory_capabilities") // 72
-class VkExternalBufferPropertiesKHX {
+@extension("VK_KHR_external_memory_capabilities") // 72
+class VkExternalBufferPropertiesKHR {
     VkStructureType                             sType
     void*                                       pNext
-    VkExternalMemoryPropertiesKHX               externalMemoryProperties
+    VkExternalMemoryPropertiesKHR               externalMemoryProperties
 }
 
-@extension("VK_KHX_external_memory_capabilities") // 72
-class VkPhysicalDeviceIDPropertiesKHX {
+@extension("VK_KHR_external_memory_capabilities") // 72
+class VkPhysicalDeviceIDPropertiesKHR {
     VkStructureType                             sType
     void*                                       pNext
     u8[VK_UUID_SIZE]                            deviceUUID
     u8[VK_UUID_SIZE]                            driverUUID
-    u8[VK_LUID_SIZE_KHX]                        deviceLUID
+    u8[VK_LUID_SIZE_KHR]                        deviceLUID
+    u32                                         deviceNodeMask
     VkBool32                                    deviceLUIDValid
 }
 
-@extension("VK_KHX_external_memory") // 73
-class VkExternalMemoryImageCreateInfoKHX {
+@extension("VK_KHR_external_memory") // 73
+class VkExternalMemoryImageCreateInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
-    VkExternalMemoryHandleTypeFlagsKHX          handleTypes
+    VkExternalMemoryHandleTypeFlagsKHR          handleTypes
 }
 
-@extension("VK_KHX_external_memory") // 73
-class VkExternalMemoryBufferCreateInfoKHX {
+@extension("VK_KHR_external_memory") // 73
+class VkExternalMemoryBufferCreateInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
-    VkExternalMemoryHandleTypeFlagsKHX          handleTypes
+    VkExternalMemoryHandleTypeFlagsKHR          handleTypes
 }
 
-@extension("VK_KHX_external_memory") // 73
-class VkExportMemoryAllocateInfoKHX {
+@extension("VK_KHR_external_memory") // 73
+class VkExportMemoryAllocateInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
-    VkExternalMemoryHandleTypeFlagsKHX          handleTypes
+    VkExternalMemoryHandleTypeFlagsKHR          handleTypes
 }
 
-@extension("VK_KHX_external_memory_win32") // 74
-class VkImportMemoryWin32HandleInfoKHX {
+@extension("VK_KHR_external_memory_win32") // 74
+class VkImportMemoryWin32HandleInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
-    VkExternalMemoryHandleTypeFlagBitsKHX       handleType
+    VkExternalMemoryHandleTypeFlagBitsKHR       handleType
     platform.HANDLE                             handle
+    platform.LPCWSTR                            name
 }
 
-@extension("VK_KHX_external_memory_win32") // 74
-class VkExportMemoryWin32HandleInfoKHX {
+@extension("VK_KHR_external_memory_win32") // 74
+class VkExportMemoryWin32HandleInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
     const platform.SECURITY_ATTRIBUTES*         pAttributes
@@ -4024,30 +4130,46 @@ class VkExportMemoryWin32HandleInfoKHX {
     platform.LPCWSTR                            name
 }
 
-@extension("VK_KHX_external_memory_win32") // 74
-class VkMemoryWin32HandlePropertiesKHX {
+@extension("VK_KHR_external_memory_win32") // 74
+class VkMemoryWin32HandlePropertiesKHR {
     VkStructureType                             sType
     void*                                       pNext
     u32                                         memoryTypeBits
 }
 
-@extension("VK_KHX_external_memory_fd") // 75
-class VkImportMemoryFdInfoKHX {
+@extension("VK_KHR_external_memory_win32") // 74
+class VkMemoryGetWin32HandleInfoKHR {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkDeviceMemory                              memory
+    VkExternalMemoryHandleTypeFlagBitsKHR       handleType
+}
+
+@extension("VK_KHR_external_memory_fd") // 75
+class VkImportMemoryFdInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
-    VkExternalMemoryHandleTypeFlagBitsKHX       handleType
+    VkExternalMemoryHandleTypeFlagBitsKHR       handleType
     int                                         fd
 }
 
-@extension("VK_KHX_external_memory_fd") // 75
-class VkMemoryFdPropertiesKHX {
+@extension("VK_KHR_external_memory_fd") // 75
+class VkMemoryFdPropertiesKHR {
     VkStructureType                             sType
     void*                                       pNext
     u32                                         memoryTypeBits
 }
 
-@extension("VK_KHX_win32_keyed_mutex") // 76
-class VkWin32KeyedMutexAcquireReleaseInfoKHX {
+@extension("VK_KHR_external_memory_fd") // 75
+class VkMemoryGetFdInfoKHR {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkDeviceMemory                              memory
+    VkExternalMemoryHandleTypeFlagBitsKHR       handleType
+}
+
+@extension("VK_KHR_win32_keyed_mutex") // 76
+class VkWin32KeyedMutexAcquireReleaseInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
     u32                                         acquireCount
@@ -4059,40 +4181,42 @@ class VkWin32KeyedMutexAcquireReleaseInfoKHX {
     const u64*                                  pReleaseKeys
 }
 
-@extension("VK_KHX_external_semaphore_capabilities") // 77
-class VkPhysicalDeviceExternalSemaphoreInfoKHX {
+@extension("VK_KHR_external_semaphore_capabilities") // 77
+class VkPhysicalDeviceExternalSemaphoreInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
-    VkExternalSemaphoreHandleTypeFlagBitsKHX    handleType
+    VkExternalSemaphoreHandleTypeFlagBitsKHR    handleType
 }
 
-@extension("VK_KHX_external_semaphore_capabilities") // 77
-class VkExternalSemaphorePropertiesKHX {
+@extension("VK_KHR_external_semaphore_capabilities") // 77
+class VkExternalSemaphorePropertiesKHR {
     VkStructureType                             sType
     void*                                       pNext
-    VkExternalSemaphoreHandleTypeFlagsKHX       exportFromImportedHandleTypes
-    VkExternalSemaphoreHandleTypeFlagsKHX       compatibleHandleTypes
-    VkExternalSemaphoreFeatureFlagsKHX          externalSemaphoreFeatures
+    VkExternalSemaphoreHandleTypeFlagsKHR       exportFromImportedHandleTypes
+    VkExternalSemaphoreHandleTypeFlagsKHR       compatibleHandleTypes
+    VkExternalSemaphoreFeatureFlagsKHR          externalSemaphoreFeatures
 }
 
-@extension("VK_KHX_external_semaphore") // 78
-class VkExportSemaphoreCreateInfoKHX {
+@extension("VK_KHR_external_semaphore") // 78
+class VkExportSemaphoreCreateInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
-    VkExternalSemaphoreHandleTypeFlagsKHX       handleTypes
+    VkExternalSemaphoreHandleTypeFlagsKHR       handleTypes
 }
 
-@extension("VK_KHX_external_semaphore_win32") // 79
-class VkImportSemaphoreWin32HandleInfoKHX {
+@extension("VK_KHR_external_semaphore_win32") // 79
+class VkImportSemaphoreWin32HandleInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
     VkSemaphore                                 semaphore
-    VkExternalSemaphoreHandleTypeFlagsKHX       handleType
+    VkSemaphoreImportFlagsKHR                   flags
+    VkExternalSemaphoreHandleTypeFlagsKHR       handleType
     platform.HANDLE                             handle
+    platform.LPCWSTR                            name
 }
 
-@extension("VK_KHX_external_semaphore_win32") // 79
-class VkExportSemaphoreWin32HandleInfoKHX {
+@extension("VK_KHR_external_semaphore_win32") // 79
+class VkExportSemaphoreWin32HandleInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
     const platform.SECURITY_ATTRIBUTES*         pAttributes
@@ -4100,8 +4224,8 @@ class VkExportSemaphoreWin32HandleInfoKHX {
     platform.LPCWSTR                            name
 }
 
-@extension("VK_KHX_external_semaphore_win32") // 79
-class VkD3D12FenceSubmitInfoKHX {
+@extension("VK_KHR_external_semaphore_win32") // 79
+class VkD3D12FenceSubmitInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
     u32                                         waitSemaphoreValuesCount
@@ -4110,13 +4234,30 @@ class VkD3D12FenceSubmitInfoKHX {
     const u64*                                  pSignalSemaphoreValues
 }
 
-@extension("VK_KHX_external_semaphore_fd") // 80
-class VkImportSemaphoreFdInfoKHX {
+@extension("VK_KHR_external_semaphore_win32") // 79
+class VkSemaphoreGetWin32HandleInfoKHR {
     VkStructureType                             sType
     const void*                                 pNext
     VkSemaphore                                 semaphore
-    VkExternalSemaphoreHandleTypeFlagBitsKHX    handleType
+    VkExternalSemaphoreHandleTypeFlagBitsKHR    handleType
+}
+
+@extension("VK_KHR_external_semaphore_fd") // 80
+class VkImportSemaphoreFdInfoKHR {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkSemaphore                                 semaphore
+    VkSemaphoreImportFlagsKHR                   flags
+    VkExternalSemaphoreHandleTypeFlagBitsKHR    handleType
     s32                                         fd
+}
+
+@extension("VK_KHR_external_semaphore_fd") // 80
+class VkSemaphoreGetFdInfoKHR {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkSemaphore                                 semaphore
+    VkExternalSemaphoreHandleTypeFlagBitsKHR    handleType
 }
 
 @extension("VK_KHR_push_descriptor") // 81
@@ -4124,6 +4265,16 @@ class VkPhysicalDevicePushDescriptorPropertiesKHR {
     VkStructureType                             sType
     void*                                       pNext
     u32                                         maxPushDescriptors
+}
+
+@extension("VK_KHR_16bit_storage") // 84
+class VkPhysicalDevice16BitStorageFeaturesKHR {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkBool32                                    storageBuffer16BitAccess
+    VkBool32                                    uniformAndStorageBuffer16BitAccess
+    VkBool32                                    storagePushConstant16
+    VkBool32                                    storageInputOutput16
 }
 
 @extension("VK_KHR_incremental_present") // 85
@@ -4454,6 +4605,75 @@ class VkSharedPresentSurfaceCapabilitiesKHR {
     VkImageUsageFlags                               sharedPresentSupportedUsageFlags
 }
 
+@extension("VK_KHR_external_fence_capabilities") // 113
+class VkPhysicalDeviceExternalFenceInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkExternalFenceHandleTypeFlagBitsKHR            handleType
+}
+
+@extension("VK_KHR_external_fence_capabilities") // 113
+class VkExternalFencePropertiesKHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkExternalFenceHandleTypeFlagsKHR               exportFromImportedHandleTypes
+    VkExternalFenceHandleTypeFlagsKHR               compatibleHandleTypes
+    VkExternalFenceFeatureFlagsKHR                  externalFenceFeatures
+}
+
+@extension("VK_KHR_external_fence") // 114
+class VkExportFenceCreateInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkExternalFenceHandleTypeFlagsKHR               handleTypes
+}
+
+@extension("VK_KHR_external_fence_win32") // 115
+class VkImportFenceWin32HandleInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkFence                                         fence
+    VkFenceImportFlagsKHR                           flags
+    VkExternalFenceHandleTypeFlagBitsKHR            handleType
+    platform.HANDLE                                 handle
+    platform.LPCWSTR                                name
+}
+
+@extension("VK_KHR_external_fence_win32") // 115
+class VkExportFenceWin32HandleInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    const platform.SECURITY_ATTRIBUTES*             pAttributes
+    platform.DWORD                                  dwAccess
+    platform.LPCWSTR                                name
+}
+
+@extension("VK_KHR_external_fence_win32") // 115
+class VkFenceGetWin32HandleInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkFence                                         fence
+    VkExternalFenceHandleTypeFlagBitsKHR            handleType
+}
+
+@extension("VK_KHR_external_fence_fd") // 116
+class VkImportFenceFdInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkFence                                         fence
+    VkFenceImportFlagsKHR                           flags
+    VkExternalFenceHandleTypeFlagBitsKHR            handleType
+    int                                             fd
+}
+
+@extension("VK_KHR_external_fence_fd") // 116
+class VkFenceGetFdInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkFence                                         fence
+    VkExternalFenceHandleTypeFlagBitsKHR            handleType
+}
+
 @extension("VK_KHR_get_surface_capabilities2") // 120
 class VkPhysicalDeviceSurfaceInfo2KHR {
     VkStructureType                                 sType
@@ -4475,6 +4695,14 @@ class VkSurfaceFormat2KHR {
     VkSurfaceFormatKHR                              surfaceFormat
 }
 
+@extension("VK_KHR_variable_pointers") // 121
+class VkPhysicalDeviceVariablePointerFeaturesKHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        variablePointersStorageBuffer
+    VkBool32                                        variablePointers
+}
+
 @extension("VK_MVK_ios_surface") // 123
 class VkIOSSurfaceCreateInfoMVK {
     VkStructureType                                 sType
@@ -4491,6 +4719,22 @@ class VkMacOSSurfaceCreateInfoMVK {
     const void*                                     pView
 }
 
+@extension("VK_KHR_dedicated_allocation") // 128
+class VkMemoryDedicatedRequirementsKHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        prefersDedicatedAllocation
+    VkBool32                                        requiresDedicatedAllocation
+}
+
+@extension("VK_KHR_dedicated_allocation") // 128
+class VkMemoryDedicatedAllocateInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkImage                                         image
+    VkBuffer                                        buffer
+}
+
 @extension("VK_EXT_sampler_filter_minmax") // 131
 class VkSamplerReductionModeCreateInfoEXT {
     VkStructureType                                 sType
@@ -4504,6 +4748,41 @@ class VkPhysicalDeviceSamplerFilterMinmaxPropertiesEXT {
     void*                                           pNext
     VkBool32                                        filterMinmaxSingleComponentFormats
     VkBool32                                        filterMinmaxImageComponentMapping
+}
+
+@extension("VK_KHR_get_memory_requirements2") // 147
+class VkBufferMemoryRequirementsInfo2KHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkBuffer                                        buffer
+}
+
+@extension("VK_KHR_get_memory_requirements2") // 147
+class VkImageMemoryRequirementsInfo2KHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkImage                                         image
+}
+
+@extension("VK_KHR_get_memory_requirements2") // 147
+class VkImageSparseMemoryRequirementsInfo2KHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkImage                                         image
+}
+
+@extension("VK_KHR_get_memory_requirements2") // 147
+class VkMemoryRequirements2KHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkMemoryRequirements                            memoryRequirements
+}
+
+@extension("VK_KHR_get_memory_requirements2") // 147
+class VkSparseImageMemoryRequirements2KHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkSparseImageMemoryRequirements                 memoryRequirements
 }
 
 @extension("VK_EXT_blend_operation_advanced") // 149
@@ -7393,84 +7672,80 @@ cmd VkResult vkEnumeratePhysicalDeviceGroupsKHX(
     return ?
 }
 
-@extension("VK_KHX_external_memory_capabilities") // 72
-cmd void vkGetPhysicalDeviceExternalBufferPropertiesKHX(
+@extension("VK_KHR_external_memory_capabilities") // 72
+cmd void vkGetPhysicalDeviceExternalBufferPropertiesKHR(
         VkPhysicalDevice                                physicalDevice,
-        const VkPhysicalDeviceExternalBufferInfoKHX*    pExternalBufferInfo,
-        VkExternalBufferPropertiesKHX*                  pExternalBufferProperties) {
+        const VkPhysicalDeviceExternalBufferInfoKHR*    pExternalBufferInfo,
+        VkExternalBufferPropertiesKHR*                  pExternalBufferProperties) {
 }
 
-@extension("VK_KHX_external_memory_win32") // 74
-cmd VkResult vkGetMemoryWin32HandleKHX(
+@extension("VK_KHR_external_memory_win32") // 74
+cmd VkResult vkGetMemoryWin32HandleKHR(
         VkDevice                                    device,
-        VkDeviceMemory                              memory,
-        VkExternalMemoryHandleTypeFlagBitsKHX       handleType,
+        const VkMemoryGetWin32HandleInfoKHR*        pGetWin32HandleInfo,
         platform.HANDLE*                            pHandle) {
     return ?
 }
 
-@extension("VK_KHX_external_memory_win32") // 74
-cmd VkResult vkGetMemoryWin32HandlePropertiesKHX(
+@extension("VK_KHR_external_memory_win32") // 74
+cmd VkResult vkGetMemoryWin32HandlePropertiesKHR(
         VkDevice                                    device,
-        VkExternalMemoryHandleTypeFlagBitsKHX       handleType,
+        VkExternalMemoryHandleTypeFlagBitsKHR       handleType,
         platform.HANDLE                             handle,
-        VkMemoryWin32HandlePropertiesKHX*           pMemoryWin32HandleProperties) {
+        VkMemoryWin32HandlePropertiesKHR*           pMemoryWin32HandleProperties) {
     return ?
 }
 
-@extension("VK_KHX_external_memory_fd") // 75
-cmd VkResult vkGetMemoryFdKHX(
+@extension("VK_KHR_external_memory_fd") // 75
+cmd VkResult vkGetMemoryFdKHR(
         VkDevice                                    device,
-        VkDeviceMemory                              memory,
-        VkExternalMemoryHandleTypeFlagBitsKHX       handleType,
+        const VkMemoryGetFdInfoKHR*                 pGetFdInfo,
         s32*                                        pFd) {
     return ?
 }
 
-@extension("VK_KHX_external_memory_fd") // 75
-cmd VkResult vkGetMemoryFdPropertiesKHX(
+@extension("VK_KHR_external_memory_fd") // 75
+cmd VkResult vkGetMemoryFdPropertiesKHR(
         VkDevice                                    device,
-        VkExternalMemoryHandleTypeFlagBitsKHX       handleType,
+        VkExternalMemoryHandleTypeFlagBitsKHR       handleType,
         s32                                         fd,
-        VkMemoryFdPropertiesKHX*                    pMemoryFdProperties) {
+        VkMemoryFdPropertiesKHR*                    pMemoryFdProperties) {
     return ?
 }
 
-@extension("VK_KHX_external_semaphore_capabilities") // 77
-cmd void vkGetPhysicalDeviceExternalSemaphorePropertiesKHX(
+@extension("VK_KHR_external_semaphore_capabilities") // 77
+cmd void vkGetPhysicalDeviceExternalSemaphorePropertiesKHR(
         VkPhysicalDevice                            physicalDevice,
-        const VkPhysicalDeviceExternalSemaphoreInfoKHX* pExternalSemaphoreInfo,
-        VkExternalSemaphorePropertiesKHX*           pExternalSemaphoreProperties) {
+        const VkPhysicalDeviceExternalSemaphoreInfoKHR* pExternalSemaphoreInfo,
+        VkExternalSemaphorePropertiesKHR*           pExternalSemaphoreProperties) {
 }
 
-@extension("VK_KHX_external_semaphore_win32") // 79
-cmd VkResult vkImportSemaphoreWin32HandleKHX(
+@extension("VK_KHR_external_semaphore_win32") // 79
+cmd VkResult vkImportSemaphoreWin32HandleKHR(
         VkDevice                                    device,
-        const VkImportSemaphoreWin32HandleInfoKHX*  pImportSemaphoreWin32HandleInfo) {
+        const VkImportSemaphoreWin32HandleInfoKHR*  pImportSemaphoreWin32HandleInfo) {
     return ?
 }
 
-@extension("VK_KHX_external_semaphore_win32") // 79
-cmd VkResult vkGetSemaphoreWin32HandleKHX(
+@extension("VK_KHR_external_semaphore_win32") // 79
+cmd VkResult vkGetSemaphoreWin32HandleKHR(
         VkDevice                                    device,
-        VkSemaphore                                 semaphore,
-        VkExternalSemaphoreHandleTypeFlagBitsKHX    handleType,
+        const VkSemaphoreGetWin32HandleInfoKHR*     pGetWin32HandleInfo,
         platform.HANDLE*                            pHandle) {
     return ?
 }
 
-@extension("VK_KHX_external_semaphore_fd") // 80
-cmd VkResult vkImportSemaphoreFdKHX(
+@extension("VK_KHR_external_semaphore_fd") // 80
+cmd VkResult vkImportSemaphoreFdKHR(
         VkDevice                                    device,
-        const VkImportSemaphoreFdInfoKHX*           pImportSemaphoreFdInfo) {
+        const VkImportSemaphoreFdInfoKHR*           pImportSemaphoreFdInfo) {
     return ?
 }
 
-@extension("VK_KHX_external_semaphore_fd") // 80
-cmd VkResult vkGetSemaphoreFdKHX(
+@extension("VK_KHR_external_semaphore_fd") // 80
+cmd VkResult vkGetSemaphoreFdKHR(
         VkDevice                                    device,
-        VkSemaphore                                 semaphore,
-        VkExternalSemaphoreHandleTypeFlagBitsKHX    handleType,
+        const VkSemaphoreGetFdInfoKHR*              pGetFdInfo,
         s32*                                        pFd) {
     return ?
 }
@@ -7711,6 +7986,43 @@ cmd VkResult vkGetSwapchainStatusKHR(
     return ?
 }
 
+@extension("VK_KHR_external_fence_capabilities") // 113
+cmd void vkGetPhysicalDeviceExternalFencePropertiesKHR(
+        VkPhysicalDevice                            physicalDevice,
+        const VkPhysicalDeviceExternalFenceInfoKHR* pExternalFenceInfo,
+        VkExternalFencePropertiesKHR*               pExternalFenceProperties) {
+}
+
+@extension("VK_KHR_external_fence_win32") // 115
+cmd VkResult vkImportFenceWin32HandleKHR(
+        VkDevice                                    device,
+        const VkImportFenceWin32HandleInfoKHR*      pImportFenceWin32HandleInfo) {
+    return ?
+}
+
+@extension("VK_KHR_external_fence_win32") // 115
+cmd VkResult vkGetFenceWin32HandleKHR(
+        VkDevice                                    device,
+        const VkFenceGetWin32HandleInfoKHR*         pGetWin32HandleInfo,
+        platform.HANDLE*                            pHandle) {
+    return ?
+}
+
+@extension("VK_KHR_external_fence_fd") // 116
+cmd VkResult vkImportFenceFdKHR(
+        VkDevice                                    device,
+        const VkImportFenceFdInfoKHR*               pImportFenceFdInfo) {
+    return ?
+}
+
+@extension("VK_KHR_external_fence_fd") // 116
+cmd VkResult vkGetFenceFdKHR(
+        VkDevice                                    device,
+        const VkFenceGetFdInfoKHR*                  pGetFdInfo,
+        int*                                        pFd) {
+    return ?
+}
+
 @extension("VK_KHR_get_surface_capabilities2") // 120
 cmd VkResult vkGetPhysicalDeviceSurfaceCapabilities2KHR(
         VkPhysicalDevice                            physicalDevice,
@@ -7744,6 +8056,28 @@ cmd VkResult vkCreateMacOSSurfaceMVK(
         const VkAllocationCallbacks*                pAllocator,
         VkSurfaceKHR*                               pSurface) {
     return ?
+}
+
+@extension("VK_KHR_get_memory_requirements2") // 147
+cmd void vkGetImageMemoryRequirements2KHR(
+        VkDevice                                    device,
+        const VkImageMemoryRequirementsInfo2KHR*    pInfo,
+        VkMemoryRequirements2KHR*                   pMemoryRequirements) {
+}
+
+@extension("VK_KHR_get_memory_requirements2") // 147
+cmd void vkGetBufferMemoryRequirements2KHR(
+        VkDevice                                    device,
+        const VkBufferMemoryRequirementsInfo2KHR*   pInfo,
+        VkMemoryRequirements2KHR*                   pMemoryRequirements) {
+}
+
+@extension("VK_KHR_get_memory_requirements2") // 147
+cmd void vkGetImageSparseMemoryRequirements2KHR(
+        VkDevice                                        device,
+        const VkImageSparseMemoryRequirementsInfo2KHR*  pInfo,
+        u32*                                            pSparseMemoryRequirementCount,
+        VkSparseImageMemoryRequirements2KHR*            pSparseMemoryRequirements) {
 }
 
 ////////////////
