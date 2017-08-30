@@ -389,7 +389,7 @@ static void* load_system_driver(const char* kind) {
         static bool find(std::string& result,
                 const std::string& pattern, const char* const search, bool exact) {
             if (exact) {
-                std::string absolutePath = std::string(search) + "/" + pattern;
+                std::string absolutePath = std::string(search) + "/" + pattern + ".so";
                 if (!access(absolutePath.c_str(), R_OK)) {
                     result = absolutePath;
                     return true;
