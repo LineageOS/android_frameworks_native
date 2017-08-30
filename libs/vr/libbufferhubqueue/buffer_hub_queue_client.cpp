@@ -429,7 +429,7 @@ pdx::Status<void> BufferHubQueue::FreeAllBuffers() {
       if (!status) {
         ALOGE(
             "ProducerQueue::FreeAllBuffers: Failed to remove buffer at "
-            "slot=%d.",
+            "slot=%zu.",
             slot);
         last_error = status.error_status();
       }

@@ -97,18 +97,12 @@ void ThermalServiceDaemon::getThermalHal() {
 }
 
 void ThermalServiceDaemon::thermalCallbackStartup() {
-    status_t err;
-
     // HIDL IThermalCallback startup
     // Need at least 2 threads in thread pool since we wait for dead HAL
     // to come back on the binder death notification thread and we need
     // another thread for the incoming service now available call.
     configureRpcThreadpool(2, false /* callerWillJoin */);
     mThermalCallback = new ThermalCallback();
-    err = mThermalCallback->registerAsService();
-    ALOGE_IF(err != OK, "Cannot register %s: %d",
-        IThermalCallback::descriptor, err);
-
     // Lookup Thermal HAL and register our ThermalCallback.
     getThermalHal();
 }
