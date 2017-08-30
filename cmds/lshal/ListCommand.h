@@ -82,7 +82,7 @@ private:
     NullableOStream<std::ostream> mOut;
     NullableOStream<std::ofstream> mFileOutput = nullptr;
     TableEntryCompare mSortColumn = nullptr;
-    TableEntrySelect mSelectedColumns = 0;
+    std::vector<TableColumnType> mSelectedColumns;
     // If true, cmdlines will be printed instead of pid.
     bool mEnableCmdlines = false;
 

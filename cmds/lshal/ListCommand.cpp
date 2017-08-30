@@ -213,29 +213,37 @@ void ListCommand::addLine(TextTable *textTable, const std::string &interfaceName
                           const std::string &serverCmdline, const std::string &address,
                           const std::string &clients, const std::string &clientCmdlines) const {
     std::vector<std::string> columns;
-    if (mSelectedColumns & ENABLE_INTERFACE_NAME)
-        columns.push_back(interfaceName);
-    if (mSelectedColumns & ENABLE_TRANSPORT)
-        columns.push_back(transport);
-    if (mSelectedColumns & ENABLE_ARCH)
-        columns.push_back(arch);
-    if (mSelectedColumns & ENABLE_THREADS) {
-        columns.push_back(threadUsage);
-    }
-    if (mSelectedColumns & ENABLE_SERVER_PID) {
-        if (mEnableCmdlines) {
-            columns.push_back(serverCmdline);
-        } else {
-            columns.push_back(server);
-        }
-    }
-    if (mSelectedColumns & ENABLE_SERVER_ADDR)
-        columns.push_back(address);
-    if (mSelectedColumns & ENABLE_CLIENT_PIDS) {
-        if (mEnableCmdlines) {
-            columns.push_back(clientCmdlines);
-        } else {
-            columns.push_back(clients);
+    for (TableColumnType type : mSelectedColumns) {
+        switch (type) {
+            case TableColumnType::INTERFACE_NAME: {
+                columns.push_back(interfaceName);
+            } break;
+            case TableColumnType::TRANSPORT: {
+                columns.push_back(transport);
+            } break;
+            case TableColumnType::ARCH: {
+                columns.push_back(arch);
+            } break;
+            case TableColumnType::THREADS: {
+                columns.push_back(threadUsage);
+            } break;
+            case TableColumnType::SERVER_ADDR: {
+                columns.push_back(address);
+            } break;
+            case TableColumnType::SERVER_PID: {
+                if (mEnableCmdlines) {
+                    columns.push_back(serverCmdline);
+                } else {
+                    columns.push_back(server);
+                }
+            } break;
+            case TableColumnType::CLIENT_PIDS: {
+                if (mEnableCmdlines) {
+                    columns.push_back(clientCmdlines);
+                } else {
+                    columns.push_back(clients);
+                }
+            } break;
         }
     }
     textTable->add(std::move(columns));
@@ -720,31 +728,31 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
             mVintf = true;
         }
         case 'i': {
-            mSelectedColumns |= ENABLE_INTERFACE_NAME;
+            mSelectedColumns.push_back(TableColumnType::INTERFACE_NAME);
             break;
         }
         case 't': {
-            mSelectedColumns |= ENABLE_TRANSPORT;
+            mSelectedColumns.push_back(TableColumnType::TRANSPORT);
             break;
         }
         case 'r': {
-            mSelectedColumns |= ENABLE_ARCH;
+            mSelectedColumns.push_back(TableColumnType::ARCH);
             break;
         }
         case 'p': {
-            mSelectedColumns |= ENABLE_SERVER_PID;
+            mSelectedColumns.push_back(TableColumnType::SERVER_PID);
             break;
         }
         case 'a': {
-            mSelectedColumns |= ENABLE_SERVER_ADDR;
+            mSelectedColumns.push_back(TableColumnType::SERVER_ADDR);
             break;
         }
         case 'c': {
-            mSelectedColumns |= ENABLE_CLIENT_PIDS;
+            mSelectedColumns.push_back(TableColumnType::CLIENT_PIDS);
             break;
         }
         case 'e': {
-            mSelectedColumns |= ENABLE_THREADS;
+            mSelectedColumns.push_back(TableColumnType::THREADS);
             break;
         }
         case 'm': {
@@ -788,8 +796,9 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
         return USAGE;
     }
 
-    if (mSelectedColumns == 0) {
-        mSelectedColumns = ENABLE_INTERFACE_NAME | ENABLE_SERVER_PID | ENABLE_CLIENT_PIDS | ENABLE_THREADS;
+    if (mSelectedColumns.empty()) {
+        mSelectedColumns = {TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
+                            TableColumnType::SERVER_PID, TableColumnType::CLIENT_PIDS};
     }
     return OK;
 }
@@ -807,3 +816,4 @@ Status ListCommand::main(const std::string &command, const Arg &arg) {
 
 }  // namespace lshal
 }  // namespace android
+
