@@ -73,6 +73,10 @@ int dvrWriteBufferQueueGetId(DvrWriteBufferQueue* write_queue);
 //     the method call succeeds.
 // @return Zero on success; or -EINVAL if this DvrWriteBufferQueue does not
 //     support being used as an android Surface.
+int dvrWriteBufferQueueGetANativeWindow(DvrWriteBufferQueue* write_queue,
+                                        ANativeWindow** out_window);
+
+// @deprecated Please use dvrWriteBufferQueueGetANativeWindow instead.
 int dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
                                           ANativeWindow** out_window);
 
