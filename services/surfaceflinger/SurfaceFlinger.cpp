@@ -2144,7 +2144,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                     sp<const DisplayDevice> hw(mDisplays[dpy]);
                     if (hw->getLayerStack() == currentlayerStack) {
                         if (disp == NULL) {
-                            disp = hw;
+                            disp = std::move(hw);
                         } else {
                             disp = NULL;
                             break;
