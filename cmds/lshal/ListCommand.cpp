@@ -35,6 +35,7 @@
 
 #include "Lshal.h"
 #include "PipeRelay.h"
+#include "TextTable.h"
 #include "Timeout.h"
 #include "utils.h"
 
@@ -206,42 +207,38 @@ void ListCommand::postprocess() {
     }
 }
 
-void ListCommand::printLine(
-        const std::string &interfaceName,
-        const std::string &transport,
-        const std::string &arch,
-        const std::string &threadUsage,
-        const std::string &server,
-        const std::string &serverCmdline,
-        const std::string &address,
-        const std::string &clients,
-        const std::string &clientCmdlines) const {
+void ListCommand::addLine(TextTable *textTable, const std::string &interfaceName,
+                          const std::string &transport, const std::string &arch,
+                          const std::string &threadUsage, const std::string &server,
+                          const std::string &serverCmdline, const std::string &address,
+                          const std::string &clients, const std::string &clientCmdlines) const {
+    std::vector<std::string> columns;
     if (mSelectedColumns & ENABLE_INTERFACE_NAME)
-        mOut << std::setw(80) << interfaceName << "\t";
+        columns.push_back(interfaceName);
     if (mSelectedColumns & ENABLE_TRANSPORT)
-        mOut << std::setw(10) << transport << "\t";
+        columns.push_back(transport);
     if (mSelectedColumns & ENABLE_ARCH)
-        mOut << std::setw(5) << arch << "\t";
+        columns.push_back(arch);
     if (mSelectedColumns & ENABLE_THREADS) {
-        mOut << std::setw(8) << threadUsage << "\t";
+        columns.push_back(threadUsage);
     }
     if (mSelectedColumns & ENABLE_SERVER_PID) {
         if (mEnableCmdlines) {
-            mOut << std::setw(15) << serverCmdline << "\t";
+            columns.push_back(serverCmdline);
         } else {
-            mOut << std::setw(5)  << server << "\t";
+            columns.push_back(server);
         }
     }
     if (mSelectedColumns & ENABLE_SERVER_ADDR)
-        mOut << std::setw(16) << address << "\t";
+        columns.push_back(address);
     if (mSelectedColumns & ENABLE_CLIENT_PIDS) {
         if (mEnableCmdlines) {
-            mOut << std::setw(0)  << clientCmdlines;
+            columns.push_back(clientCmdlines);
         } else {
-            mOut << std::setw(0)  << clients;
+            columns.push_back(clients);
         }
     }
-    mOut << std::endl;
+    textTable->add(std::move(columns));
 }
 
 static inline bool findAndBumpVersion(vintf::ManifestHal* hal, const vintf::Version& version) {
@@ -397,7 +394,25 @@ static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo:
     }
 }
 
+void ListCommand::addLine(TextTable *table, const TableEntry &entry) {
+    addLine(table, entry.interfaceName, entry.transport, getArchString(entry.arch),
+            entry.getThreadUsage(),
+            entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
+            entry.serverCmdline,
+            entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
+            join(entry.clientPids, " "), join(entry.clientCmdlines, ";"));
+}
+
 void ListCommand::dumpTable() {
+    if (mNeat) {
+        TextTable textTable;
+        forEachTable([this, &textTable](const Table &table) {
+            for (const auto &entry : table) addLine(&textTable, entry);
+        });
+        textTable.dump(mOut.buf());
+        return;
+    }
+
     mServicesTable.description =
             "All binderized services (registered services through hwservicemanager)";
     mPassthroughRefTable.description =
@@ -409,42 +424,34 @@ void ListCommand::dumpTable() {
             "the library and successfully fetched the passthrough implementation.";
     mImplementationsTable.description =
             "All available passthrough implementations (all -impl.so files)";
-    forEachTable([this] (const Table &table) {
-        if (!mNeat) {
-            mOut << table.description << std::endl;
-        }
-        mOut << std::left;
-        if (!mNeat) {
-            printLine("Interface", "Transport", "Arch", "Thread Use", "Server",
-                      "Server CMD", "PTR", "Clients", "Clients CMD");
-        }
+
+    forEachTable([this](const Table &table) {
+        TextTable textTable;
+
+        textTable.add(table.description);
+        addLine(&textTable, "Interface", "Transport", "Arch", "Thread Use", "Server", "Server CMD",
+                "PTR", "Clients", "Clients CMD");
 
         for (const auto &entry : table) {
-            printLine(entry.interfaceName,
-                    entry.transport,
-                    getArchString(entry.arch),
-                    entry.getThreadUsage(),
-                    entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
-                    entry.serverCmdline,
-                    entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
-                    join(entry.clientPids, " "),
-                    join(entry.clientCmdlines, ";"));
-
+            addLine(&textTable, entry);
             // We're only interested in dumping debug info for already
             // instantiated services. There's little value in dumping the
             // debug info for a service we create on the fly, so we only operate
             // on the "mServicesTable".
             if (mEmitDebugInfo && &table == &mServicesTable) {
+                std::stringstream out;
                 auto pair = splitFirst(entry.interfaceName, '/');
-                mLshal.emitDebugInfo(pair.first, pair.second, {}, mOut.buf(),
-                        NullableOStream<std::ostream>(nullptr));
+                mLshal.emitDebugInfo(pair.first, pair.second, {}, out,
+                                     NullableOStream<std::ostream>(nullptr));
+                textTable.add(out.str());
             }
         }
-        if (!mNeat) {
-            mOut << std::endl;
-        }
-    });
 
+        // Add empty line after each table
+        textTable.add();
+
+        textTable.dump(mOut.buf());
+    });
 }
 
 void ListCommand::dump() {
@@ -771,6 +778,14 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
     if (optind < arg.argc) {
         // see non option
         mErr << "Unrecognized option `" << arg.argv[optind] << "`" << std::endl;
+        mLshal.usage(command);
+        return USAGE;
+    }
+
+    if (mNeat && mEmitDebugInfo) {
+        mErr << "Error: --neat should not be used with --debug." << std::endl;
+        mLshal.usage(command);
+        return USAGE;
     }
 
     if (mSelectedColumns == 0) {
@@ -792,4 +807,3 @@ Status ListCommand::main(const std::string &command, const Arg &arg) {
 
 }  // namespace lshal
 }  // namespace android
-
