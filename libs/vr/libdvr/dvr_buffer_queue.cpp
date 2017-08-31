@@ -208,6 +208,14 @@ int dvrWriteBufferQueueGetId(DvrWriteBufferQueue* write_queue) {
 
 int dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
                                           ANativeWindow** out_window) {
+  ALOGW(
+      "dvrWriteBufferQueueGetExternalSurface: This API has been deprecated and "
+      "renamed to dvrWriteBufferQueueGetANativeWindow.");
+  return dvrWriteBufferQueueGetANativeWindow(write_queue, out_window);
+}
+
+int dvrWriteBufferQueueGetANativeWindow(DvrWriteBufferQueue* write_queue,
+                                        ANativeWindow** out_window) {
   if (!write_queue || !out_window)
     return -EINVAL;
 
