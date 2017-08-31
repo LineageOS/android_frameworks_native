@@ -130,6 +130,14 @@ static const TracingCategory k_categories[] = {
         { REQ,      "events/irq/enable" },
         { OPT,      "events/ipi/enable" },
     } },
+    { "irqoff",     "IRQ-disabled code section tracing", 0, {
+        { REQ,      "events/preemptirq/irq_enable/enable" },
+        { REQ,      "events/preemptirq/irq_disable/enable" },
+    } },
+    { "preemptoff", "Preempt-disabled code section tracing", 0, {
+        { REQ,      "events/preemptirq/preempt_enable/enable" },
+        { REQ,      "events/preemptirq/preempt_disable/enable" },
+    } },
     { "i2c",        "I2C Events",   0, {
         { REQ,      "events/i2c/enable" },
         { REQ,      "events/i2c/i2c_read/enable" },
