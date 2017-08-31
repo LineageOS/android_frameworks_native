@@ -232,7 +232,7 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
   dvrReadBufferQueueDestroy(read_queue);
 }
 
-TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
+TEST_F(DvrBufferQueueTest, TestGetANativeWindow) {
   int ret = dvrWriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
       /*capacity=*/0, sizeof(TestMeta), &write_queue_);
@@ -242,7 +242,7 @@ TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
 
   // The |write_queue_| doesn't have proper metadata (must be
   // DvrNativeBufferMetadata) configured during creation.
-  ret = dvrWriteBufferQueueGetExternalSurface(write_queue_, &window);
+  ret = dvrWriteBufferQueueGetANativeWindow(write_queue_, &window);
   ASSERT_EQ(-EINVAL, ret);
   ASSERT_EQ(nullptr, window);
   dvrWriteBufferQueueDestroy(write_queue_);
@@ -257,7 +257,7 @@ TEST_F(DvrBufferQueueTest, TestGetExternalSurface) {
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, write_queue_);
 
-  ret = dvrWriteBufferQueueGetExternalSurface(write_queue_, &window);
+  ret = dvrWriteBufferQueueGetANativeWindow(write_queue_, &window);
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, window);
 

@@ -171,6 +171,8 @@ typedef ssize_t (*DvrWriteBufferQueueGetCapacityPtr)(
 typedef int (*DvrWriteBufferQueueGetIdPtr)(DvrWriteBufferQueue* write_queue);
 typedef int (*DvrWriteBufferQueueGetExternalSurfacePtr)(
     DvrWriteBufferQueue* write_queue, ANativeWindow** out_window);
+typedef int (*DvrWriteBufferQueueGetANativeWindowPtr)(
+    DvrWriteBufferQueue* write_queue, ANativeWindow** out_window);
 typedef int (*DvrWriteBufferQueueCreateReadQueuePtr)(
     DvrWriteBufferQueue* write_queue, DvrReadBufferQueue** out_read_queue);
 typedef int (*DvrWriteBufferQueueDequeuePtr)(DvrWriteBufferQueue* write_queue,
