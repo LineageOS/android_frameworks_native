@@ -35,6 +35,7 @@
 
 #include "Lshal.h"
 #include "PipeRelay.h"
+#include "TextTable.h"
 #include "Timeout.h"
 #include "utils.h"
 
@@ -206,42 +207,46 @@ void ListCommand::postprocess() {
     }
 }
 
-void ListCommand::printLine(
-        const std::string &interfaceName,
-        const std::string &transport,
-        const std::string &arch,
-        const std::string &threadUsage,
-        const std::string &server,
-        const std::string &serverCmdline,
-        const std::string &address,
-        const std::string &clients,
-        const std::string &clientCmdlines) const {
-    if (mSelectedColumns & ENABLE_INTERFACE_NAME)
-        mOut << std::setw(80) << interfaceName << "\t";
-    if (mSelectedColumns & ENABLE_TRANSPORT)
-        mOut << std::setw(10) << transport << "\t";
-    if (mSelectedColumns & ENABLE_ARCH)
-        mOut << std::setw(5) << arch << "\t";
-    if (mSelectedColumns & ENABLE_THREADS) {
-        mOut << std::setw(8) << threadUsage << "\t";
-    }
-    if (mSelectedColumns & ENABLE_SERVER_PID) {
-        if (mEnableCmdlines) {
-            mOut << std::setw(15) << serverCmdline << "\t";
-        } else {
-            mOut << std::setw(5)  << server << "\t";
+void ListCommand::addLine(TextTable *textTable, const std::string &interfaceName,
+                          const std::string &transport, const std::string &arch,
+                          const std::string &threadUsage, const std::string &server,
+                          const std::string &serverCmdline, const std::string &address,
+                          const std::string &clients, const std::string &clientCmdlines) const {
+    std::vector<std::string> columns;
+    for (TableColumnType type : mSelectedColumns) {
+        switch (type) {
+            case TableColumnType::INTERFACE_NAME: {
+                columns.push_back(interfaceName);
+            } break;
+            case TableColumnType::TRANSPORT: {
+                columns.push_back(transport);
+            } break;
+            case TableColumnType::ARCH: {
+                columns.push_back(arch);
+            } break;
+            case TableColumnType::THREADS: {
+                columns.push_back(threadUsage);
+            } break;
+            case TableColumnType::SERVER_ADDR: {
+                columns.push_back(address);
+            } break;
+            case TableColumnType::SERVER_PID: {
+                if (mEnableCmdlines) {
+                    columns.push_back(serverCmdline);
+                } else {
+                    columns.push_back(server);
+                }
+            } break;
+            case TableColumnType::CLIENT_PIDS: {
+                if (mEnableCmdlines) {
+                    columns.push_back(clientCmdlines);
+                } else {
+                    columns.push_back(clients);
+                }
+            } break;
         }
     }
-    if (mSelectedColumns & ENABLE_SERVER_ADDR)
-        mOut << std::setw(16) << address << "\t";
-    if (mSelectedColumns & ENABLE_CLIENT_PIDS) {
-        if (mEnableCmdlines) {
-            mOut << std::setw(0)  << clientCmdlines;
-        } else {
-            mOut << std::setw(0)  << clients;
-        }
-    }
-    mOut << std::endl;
+    textTable->add(std::move(columns));
 }
 
 static inline bool findAndBumpVersion(vintf::ManifestHal* hal, const vintf::Version& version) {
@@ -397,7 +402,25 @@ static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo:
     }
 }
 
+void ListCommand::addLine(TextTable *table, const TableEntry &entry) {
+    addLine(table, entry.interfaceName, entry.transport, getArchString(entry.arch),
+            entry.getThreadUsage(),
+            entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
+            entry.serverCmdline,
+            entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
+            join(entry.clientPids, " "), join(entry.clientCmdlines, ";"));
+}
+
 void ListCommand::dumpTable() {
+    if (mNeat) {
+        TextTable textTable;
+        forEachTable([this, &textTable](const Table &table) {
+            for (const auto &entry : table) addLine(&textTable, entry);
+        });
+        textTable.dump(mOut.buf());
+        return;
+    }
+
     mServicesTable.description =
             "All binderized services (registered services through hwservicemanager)";
     mPassthroughRefTable.description =
@@ -409,42 +432,34 @@ void ListCommand::dumpTable() {
             "the library and successfully fetched the passthrough implementation.";
     mImplementationsTable.description =
             "All available passthrough implementations (all -impl.so files)";
-    forEachTable([this] (const Table &table) {
-        if (!mNeat) {
-            mOut << table.description << std::endl;
-        }
-        mOut << std::left;
-        if (!mNeat) {
-            printLine("Interface", "Transport", "Arch", "Thread Use", "Server",
-                      "Server CMD", "PTR", "Clients", "Clients CMD");
-        }
+
+    forEachTable([this](const Table &table) {
+        TextTable textTable;
+
+        textTable.add(table.description);
+        addLine(&textTable, "Interface", "Transport", "Arch", "Thread Use", "Server", "Server CMD",
+                "PTR", "Clients", "Clients CMD");
 
         for (const auto &entry : table) {
-            printLine(entry.interfaceName,
-                    entry.transport,
-                    getArchString(entry.arch),
-                    entry.getThreadUsage(),
-                    entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
-                    entry.serverCmdline,
-                    entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
-                    join(entry.clientPids, " "),
-                    join(entry.clientCmdlines, ";"));
-
+            addLine(&textTable, entry);
             // We're only interested in dumping debug info for already
             // instantiated services. There's little value in dumping the
             // debug info for a service we create on the fly, so we only operate
             // on the "mServicesTable".
             if (mEmitDebugInfo && &table == &mServicesTable) {
+                std::stringstream out;
                 auto pair = splitFirst(entry.interfaceName, '/');
-                mLshal.emitDebugInfo(pair.first, pair.second, {}, mOut.buf(),
-                        NullableOStream<std::ostream>(nullptr));
+                mLshal.emitDebugInfo(pair.first, pair.second, {}, out,
+                                     NullableOStream<std::ostream>(nullptr));
+                textTable.add(out.str());
             }
         }
-        if (!mNeat) {
-            mOut << std::endl;
-        }
-    });
 
+        // Add empty line after each table
+        textTable.add();
+
+        textTable.dump(mOut.buf());
+    });
 }
 
 void ListCommand::dump() {
@@ -713,31 +728,31 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
             mVintf = true;
         }
         case 'i': {
-            mSelectedColumns |= ENABLE_INTERFACE_NAME;
+            mSelectedColumns.push_back(TableColumnType::INTERFACE_NAME);
             break;
         }
         case 't': {
-            mSelectedColumns |= ENABLE_TRANSPORT;
+            mSelectedColumns.push_back(TableColumnType::TRANSPORT);
             break;
         }
         case 'r': {
-            mSelectedColumns |= ENABLE_ARCH;
+            mSelectedColumns.push_back(TableColumnType::ARCH);
             break;
         }
         case 'p': {
-            mSelectedColumns |= ENABLE_SERVER_PID;
+            mSelectedColumns.push_back(TableColumnType::SERVER_PID);
             break;
         }
         case 'a': {
-            mSelectedColumns |= ENABLE_SERVER_ADDR;
+            mSelectedColumns.push_back(TableColumnType::SERVER_ADDR);
             break;
         }
         case 'c': {
-            mSelectedColumns |= ENABLE_CLIENT_PIDS;
+            mSelectedColumns.push_back(TableColumnType::CLIENT_PIDS);
             break;
         }
         case 'e': {
-            mSelectedColumns |= ENABLE_THREADS;
+            mSelectedColumns.push_back(TableColumnType::THREADS);
             break;
         }
         case 'm': {
@@ -771,10 +786,19 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
     if (optind < arg.argc) {
         // see non option
         mErr << "Unrecognized option `" << arg.argv[optind] << "`" << std::endl;
+        mLshal.usage(command);
+        return USAGE;
     }
 
-    if (mSelectedColumns == 0) {
-        mSelectedColumns = ENABLE_INTERFACE_NAME | ENABLE_SERVER_PID | ENABLE_CLIENT_PIDS | ENABLE_THREADS;
+    if (mNeat && mEmitDebugInfo) {
+        mErr << "Error: --neat should not be used with --debug." << std::endl;
+        mLshal.usage(command);
+        return USAGE;
+    }
+
+    if (mSelectedColumns.empty()) {
+        mSelectedColumns = {TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
+                            TableColumnType::SERVER_PID, TableColumnType::CLIENT_PIDS};
     }
     return OK;
 }

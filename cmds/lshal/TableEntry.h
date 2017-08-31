@@ -84,17 +84,15 @@ struct Table {
 
 using TableEntryCompare = std::function<bool(const TableEntry &, const TableEntry &)>;
 
-enum : unsigned int {
-    ENABLE_INTERFACE_NAME = 1 << 0,
-    ENABLE_TRANSPORT      = 1 << 1,
-    ENABLE_SERVER_PID     = 1 << 2,
-    ENABLE_SERVER_ADDR    = 1 << 3,
-    ENABLE_CLIENT_PIDS    = 1 << 4,
-    ENABLE_ARCH           = 1 << 5,
-    ENABLE_THREADS        = 1 << 6,
+enum class TableColumnType : unsigned int {
+    INTERFACE_NAME,
+    TRANSPORT,
+    SERVER_PID,
+    SERVER_ADDR,
+    CLIENT_PIDS,
+    ARCH,
+    THREADS,
 };
-
-using TableEntrySelect = unsigned int;
 
 enum {
     NO_PID = -1,
