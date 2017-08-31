@@ -28,6 +28,7 @@
 
 #include "NullableOStream.h"
 #include "TableEntry.h"
+#include "TextTable.h"
 #include "utils.h"
 
 namespace android {
@@ -58,16 +59,11 @@ private:
 
     void dumpTable();
     void dumpVintf() const;
-    void printLine(
-            const std::string &interfaceName,
-            const std::string &transport,
-            const std::string &arch,
-            const std::string &threadUsage,
-            const std::string &server,
-            const std::string &serverCmdline,
-            const std::string &address,
-            const std::string &clients,
-            const std::string &clientCmdlines) const;
+    void addLine(TextTable *table, const std::string &interfaceName, const std::string &transport,
+                 const std::string &arch, const std::string &threadUsage, const std::string &server,
+                 const std::string &serverCmdline, const std::string &address,
+                 const std::string &clients, const std::string &clientCmdlines) const;
+    void addLine(TextTable *table, const TableEntry &entry);
     // Return /proc/{pid}/cmdline if it exists, else empty string.
     const std::string &getCmdline(pid_t pid);
     // Call getCmdline on all pid in pids. If it returns empty string, the process might
@@ -86,7 +82,7 @@ private:
     NullableOStream<std::ostream> mOut;
     NullableOStream<std::ofstream> mFileOutput = nullptr;
     TableEntryCompare mSortColumn = nullptr;
-    TableEntrySelect mSelectedColumns = 0;
+    std::vector<TableColumnType> mSelectedColumns;
     // If true, cmdlines will be printed instead of pid.
     bool mEnableCmdlines = false;
 

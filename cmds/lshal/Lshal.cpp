@@ -63,7 +63,7 @@ void Lshal::usage(const std::string &command) const {
             "list:\n"
             "    lshal\n"
             "    lshal list\n"
-            "        List all hals with default ordering and columns (`lshal list -ipc`)\n"
+            "        List all hals with default ordering and columns (`lshal list -iepc`)\n"
             "    lshal list [-h|--help]\n"
             "        -h, --help: Print help message for list (`lshal help list`)\n"
             "    lshal [list] [--interface|-i] [--transport|-t] [-r|--arch] [-e|--threads]\n"
@@ -81,10 +81,11 @@ void Lshal::usage(const std::string &command) const {
             "        -c, --clients: print the client PIDs, or client cmdlines if -m is set\n"
             "        -m, --cmdline: print cmdline instead of PIDs\n"
             "        -d[=<output file>], --debug[=<output file>]: emit debug info from \n"
-            "                IBase::debug with empty options\n"
+            "                IBase::debug with empty options. Cannot be used with --neat.\n"
             "        --sort=i, --sort=interface: sort by interface name\n"
             "        --sort=p, --sort=pid: sort by server pid\n"
             "        --neat: output is machine parsable (no explanatory text)\n"
+            "                Cannot be used with --debug.\n"
             "        --init-vintf[=<output file>]: form a skeleton HAL manifest to specified\n"
             "                      file, or stdout if no file specified.\n";
 
