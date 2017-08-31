@@ -325,17 +325,17 @@ static void* load_system_driver(const char* kind) {
             switch (emulationStatus) {
                 case 0:
 #if defined(__LP64__)
-                    result = "/system/lib64/egl/libGLES_android.so";
+                    result = "/vendor/lib64/egl/libGLES_android.so";
 #else
-                    result = "/system/lib/egl/libGLES_android.so";
+                    result = "/vendor/lib/egl/libGLES_android.so";
 #endif
                     return result;
                 case 1:
                     // Use host-side OpenGL through the "emulation" library
 #if defined(__LP64__)
-                    result = std::string("/system/lib64/egl/lib") + kind + "_emulation.so";
+                    result = std::string("/vendor/lib64/egl/lib") + kind + "_emulation.so";
 #else
-                    result = std::string("/system/lib/egl/lib") + kind + "_emulation.so";
+                    result = std::string("/vendor/lib/egl/lib") + kind + "_emulation.so";
 #endif
                     return result;
                 default:
