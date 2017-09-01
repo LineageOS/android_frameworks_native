@@ -192,6 +192,8 @@ public:
 
     // force full composition on all displays
     void repaintEverything();
+    // Can only be called from the main thread or with mStateLock held
+    void repaintEverythingLocked();
 
     // returns the default Display
     sp<const DisplayDevice> getDefaultDisplayDevice() const {
@@ -343,7 +345,9 @@ private:
      * Message handling
      */
     void waitForEvent();
+    // Can only be called from the main thread or with mStateLock held
     void signalTransaction();
+    // Can only be called from the main thread or with mStateLock held
     void signalLayerUpdate();
     void signalRefresh();
 
@@ -386,6 +390,7 @@ private:
      */
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t peekTransactionFlags();
+    // Can only be called from the main thread or with mStateLock held
     uint32_t setTransactionFlags(uint32_t flags);
     void commitTransaction();
     uint32_t setClientStateLocked(const sp<Client>& client, const layer_state_t& s);
@@ -642,8 +647,26 @@ private:
     // access must be protected by mInvalidateLock
     volatile int32_t mRepaintEverything;
 
-    // The current hardware composer interface. When switching into and out of
-    // vr, our HWComposer instance will be recreated.
+    // The current hardware composer interface.
+    //
+    // The following thread safety rules apply when accessing mHwc, either
+    // directly or via getHwComposer():
+    //
+    // 1. When recreating mHwc, acquire mStateLock. We currently recreate mHwc
+    //    only when switching into and out of vr. Recreating mHwc must only be
+    //    done on the main thread.
+    //
+    // 2. When accessing mHwc on the main thread, it's not necessary to acquire
+    //    mStateLock.
+    //
+    // 3. When accessing mHwc on a thread other than the main thread, we always
+    //    need to acquire mStateLock. This is because the main thread could be
+    //    in the process of destroying the current mHwc instance.
+    //
+    // The above thread safety rules only apply to SurfaceFlinger.cpp. In
+    // SurfaceFlinger_hwc1.cpp we create mHwc at surface flinger init and never
+    // destroy it, so it's always safe to access mHwc from any thread without
+    // acquiring mStateLock.
     std::unique_ptr<HWComposer> mHwc;
 
     // constant members (no synchronization needed for access)
