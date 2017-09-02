@@ -32,6 +32,8 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
+DisplayEventReceiver::DisplayEventReceiver() : DisplayEventReceiver(ISurfaceComposer::eVsyncSourceApp) {}
+
 DisplayEventReceiver::DisplayEventReceiver(ISurfaceComposer::VsyncSource vsyncSource) {
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
     if (sf != NULL) {
