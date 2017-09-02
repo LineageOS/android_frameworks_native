@@ -83,6 +83,16 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
 {
 }
 
+/* OnePlus compat */
+GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
+        PixelFormat inFormat, uint32_t inUsage,
+        uint32_t inStride, native_handle_t* inHandle, bool keepOwnership)
+    : GraphicBuffer(inHandle, keepOwnership ? TAKE_HANDLE : WRAP_HANDLE,
+            inWidth, inHeight, inFormat, 1, static_cast<uint64_t>(inUsage),
+            inStride)
+{
+}
+
 GraphicBuffer::GraphicBuffer(const native_handle_t* handle,
         HandleWrapMethod method, uint32_t width, uint32_t height,
         PixelFormat format, uint32_t layerCount,
@@ -150,6 +160,14 @@ status_t GraphicBuffer::reallocate(uint32_t inWidth, uint32_t inHeight,
     return initWithSize(inWidth, inHeight, inFormat, inLayerCount,
             inUsage, "[Reallocation]");
 }
+
+/* OnePlus compatibility */
+status_t GraphicBuffer::reallocate(uint32_t inWidth, uint32_t inHeight,
+        PixelFormat inFormat, uint32_t inUsage)
+{
+    return reallocate(inWidth, inHeight, inFormat, 1, inUsage);
+}
+
 
 bool GraphicBuffer::needsReallocation(uint32_t inWidth, uint32_t inHeight,
         PixelFormat inFormat, uint32_t inLayerCount, uint64_t inUsage)

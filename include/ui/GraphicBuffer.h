@@ -132,7 +132,10 @@ public:
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inLayerCount, uint32_t inUsage, uint32_t inStride,
             native_handle_t* inHandle, bool keepOwnership);
-    GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
+   GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
+            uint32_t inUsage, uint32_t inStride,
+            native_handle_t* inHandle, bool keepOwnership);
+   GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inUsage, std::string requestorName = "<Unknown>");
 
     // return status
@@ -157,6 +160,9 @@ public:
     // rules.
     status_t reallocate(uint32_t inWidth, uint32_t inHeight,
             PixelFormat inFormat, uint32_t inLayerCount, uint64_t inUsage);
+
+    /* OnePlus compatibility */
+    status_t reallocate(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat, uint32_t inUsage);
 
     bool needsReallocation(uint32_t inWidth, uint32_t inHeight,
             PixelFormat inFormat, uint32_t inLayerCount, uint64_t inUsage);
