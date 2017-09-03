@@ -1811,42 +1811,56 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
         return false;
     }
 
-    // The secondary dex does not exist anymore. Clear any generated files.
-    char oat_path[PKG_PATH_MAX];
-    char oat_dir[PKG_PATH_MAX];
-    char oat_isa_dir[PKG_PATH_MAX];
-    bool result = true;
-    for (size_t i = 0; i < isas.size(); i++) {
-        if (!create_secondary_dex_oat_layout(dex_path, isas[i], oat_dir, oat_isa_dir, oat_path)) {
-            LOG(ERROR) << "Could not create secondary odex layout: " << dex_path;
-            result = false;
-            continue;
-        }
+    // As a security measure we want to unlink art artifacts with the reduced capabilities
+    // of the package user id. So we fork and drop capabilities in the child.
+    pid_t pid = fork();
+    if (pid == 0) {
+        // The secondary dex does not exist anymore. Clear any generated files.
+        char oat_path[PKG_PATH_MAX];
+        char oat_dir[PKG_PATH_MAX];
+        char oat_isa_dir[PKG_PATH_MAX];
+        bool result = true;
+        /* child -- drop privileges before continuing */
+        drop_capabilities(uid);
+        for (size_t i = 0; i < isas.size(); i++) {
+            if (!create_secondary_dex_oat_layout(dex_path,
+                                                 isas[i],
+                                                 oat_dir,
+                                                 oat_isa_dir,
+                                                 oat_path)) {
+                LOG(ERROR) << "Could not create secondary odex layout: "
+                           << dex_path;
+                result = false;
+                continue;
+            }
 
-        // Delete oat/vdex/art files.
-        result = unlink_if_exists(oat_path) && result;
-        result = unlink_if_exists(create_vdex_filename(oat_path)) && result;
-        result = unlink_if_exists(create_image_filename(oat_path)) && result;
+            // Delete oat/vdex/art files.
+            result = unlink_if_exists(oat_path) && result;
+            result = unlink_if_exists(create_vdex_filename(oat_path)) && result;
+            result = unlink_if_exists(create_image_filename(oat_path)) && result;
 
-        // Delete profiles.
-        std::string current_profile = create_current_profile_path(
+            // Delete profiles.
+            std::string current_profile = create_current_profile_path(
                 multiuser_get_user_id(uid), dex_path, /*is_secondary*/true);
-        std::string reference_profile = create_reference_profile_path(
+            std::string reference_profile = create_reference_profile_path(
                 dex_path, /*is_secondary*/true);
-        result = unlink_if_exists(current_profile) && result;
-        result = unlink_if_exists(reference_profile) && result;
+            result = unlink_if_exists(current_profile) && result;
+            result = unlink_if_exists(reference_profile) && result;
 
-        // We upgraded once the location of current profile for secondary dex files.
-        // Check for any previous left-overs and remove them as well.
-        std::string old_current_profile = dex_path + ".prof";
-        result = unlink_if_exists(old_current_profile);
+            // We upgraded once the location of current profile for secondary dex files.
+            // Check for any previous left-overs and remove them as well.
+            std::string old_current_profile = dex_path + ".prof";
+            result = unlink_if_exists(old_current_profile);
 
-        // Try removing the directories as well, they might be empty.
-        result = rmdir_if_empty(oat_isa_dir) && result;
-        result = rmdir_if_empty(oat_dir) && result;
+            // Try removing the directories as well, they might be empty.
+            result = rmdir_if_empty(oat_isa_dir) && result;
+            result = rmdir_if_empty(oat_dir) && result;
+        }
+        result ? _exit(0) : _exit(1);
     }
 
-    return result;
+    int return_code = wait_child(pid);
+    return return_code == 0;
 }
 
 // Helper for move_ab, so that we can have common failure-case cleanup.
