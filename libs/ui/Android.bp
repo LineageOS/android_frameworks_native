@@ -17,6 +17,13 @@ cc_library_shared {
     vendor_available: true,
 
     clang: true,
+    product_variables: {
+        lineage: {
+            exynos4_enhancements: {
+                cppflags: ["-DEXYNOS4_ENHANCEMENTS"],
+            },
+        },
+    },
     cppflags: [
         "-Weverything",
         "-Werror",
