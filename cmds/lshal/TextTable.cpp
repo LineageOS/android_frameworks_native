@@ -26,11 +26,9 @@ void TextTable::computeWidth(const std::vector<std::string>& v) {
     if (mWidths.size() < v.size()) {
         mWidths.resize(v.size());
     }
-    for (size_t i = 0; i < v.size() - 1; ++i) {
+    for (size_t i = 0; i < v.size(); ++i) {
         mWidths[i] = std::max(mWidths[i], v[i].length());
     }
-    // last column has std::setw(0) to avoid printing unnecessary spaces.
-    mWidths[v.size() - 1] = 0;
 }
 
 void TextTable::dump(std::ostream& out) const {
@@ -45,7 +43,8 @@ void TextTable::dump(std::ostream& out) const {
             if (i != 0) {
                 out << " ";
             }
-            if (i < mWidths.size()) {
+            // last column does not std::setw to avoid printing unnecessary spaces.
+            if (i < row.fields().size() - 1) {
                 out << std::setw(mWidths[i]);
             }
             out << row.fields()[i];

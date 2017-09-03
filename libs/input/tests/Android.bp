@@ -6,6 +6,7 @@ cc_test {
         "InputChannel_test.cpp",
         "InputEvent_test.cpp",
         "InputPublisherAndConsumer_test.cpp",
+        "VelocityTracker_test.cpp",
     ],
     shared_libs: [
         "libinput",
@@ -13,6 +14,7 @@ cc_test {
         "libutils",
         "libbinder",
         "libui",
+        "libbase",
     ]
 }
 

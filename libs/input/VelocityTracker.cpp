@@ -75,7 +75,9 @@ static std::string vectorToString(const float* a, uint32_t m) {
     str += " ]";
     return str;
 }
+#endif
 
+#if DEBUG_STRATEGY
 static std::string matrixToString(const float* a, uint32_t m, uint32_t n, bool rowMajor) {
     std::string str;
     str = "[";
