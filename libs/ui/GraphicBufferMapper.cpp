@@ -45,6 +45,10 @@ ANDROID_SINGLETON_STATIC_INSTANCE( GraphicBufferMapper )
 GraphicBufferMapper::GraphicBufferMapper()
   : mMapper(std::make_unique<const Gralloc2::Mapper>())
 {
+    if (!mMapper->valid()) {
+        mLoader = std::make_unique<Gralloc1::Loader>();
+        mDevice = mLoader->getDevice();
+    }
 }
 
 status_t GraphicBufferMapper::importBuffer(buffer_handle_t rawHandle,
@@ -52,8 +56,13 @@ status_t GraphicBufferMapper::importBuffer(buffer_handle_t rawHandle,
 {
     ATRACE_CALL();
 
-    Gralloc2::Error error = mMapper->importBuffer(
-            hardware::hidl_handle(rawHandle), outHandle);
+    Gralloc2::Error error;
+    if (mMapper->valid()) {
+        error = mMapper->importBuffer(hardware::hidl_handle(rawHandle),
+                outHandle);
+    } else {
+        error = Gralloc2::Error::UNSUPPORTED;
+    }
 
     ALOGW_IF(error != Gralloc2::Error::NONE, "importBuffer(%p) failed: %d",
             rawHandle, error);
@@ -61,13 +70,77 @@ status_t GraphicBufferMapper::importBuffer(buffer_handle_t rawHandle,
     return static_cast<status_t>(error);
 }
 
+status_t GraphicBufferMapper::importBuffer(const GraphicBuffer* buffer)
+{
+    ATRACE_CALL();
+
+    ANativeWindowBuffer* nativeBuffer = buffer->getNativeBuffer();
+    buffer_handle_t rawHandle = nativeBuffer->handle;
+
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        buffer_handle_t importedHandle;
+        error = static_cast<gralloc1_error_t>(mMapper->importBuffer(
+                    hardware::hidl_handle(rawHandle), &importedHandle));
+        if (error == GRALLOC1_ERROR_NONE) {
+            nativeBuffer->handle = importedHandle;
+        }
+    } else {
+        native_handle_t* clonedHandle = native_handle_clone(rawHandle);
+        if (clonedHandle) {
+            nativeBuffer->handle = clonedHandle;
+            error = mDevice->retain(buffer);
+            if (error != GRALLOC1_ERROR_NONE) {
+                nativeBuffer->handle = rawHandle;
+                native_handle_close(clonedHandle);
+                native_handle_delete(clonedHandle);
+            }
+        } else {
+            error = GRALLOC1_ERROR_NO_RESOURCES;
+        }
+    }
+
+    // the raw handle is owned by GraphicBuffer and is now replaced
+    if (error == GRALLOC1_ERROR_NONE) {
+        native_handle_close(rawHandle);
+        native_handle_delete(const_cast<native_handle_t*>(rawHandle));
+    }
+
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "importBuffer(%p) failed: %d",
+            rawHandle, error);
+
+    return error;
+}
+
 status_t GraphicBufferMapper::freeBuffer(buffer_handle_t handle)
 {
     ATRACE_CALL();
 
-    mMapper->freeBuffer(handle);
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        mMapper->freeBuffer(handle);
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        error = mDevice->release(handle);
+        if (!mDevice->hasCapability(GRALLOC1_CAPABILITY_RELEASE_IMPLY_DELETE)) {
+            native_handle_close(handle);
+            native_handle_delete(const_cast<native_handle_t*>(handle));
+        }
+    }
 
-    return NO_ERROR;
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "freeBuffer(%p): failed %d",
+            handle, error);
+
+    return error;
+}
+
+static inline gralloc1_rect_t asGralloc1Rect(const Rect& rect) {
+    gralloc1_rect_t outRect{};
+    outRect.left = rect.left;
+    outRect.top = rect.top;
+    outRect.width = rect.width();
+    outRect.height = rect.height();
+    return outRect;
 }
 
 static inline Gralloc2::IMapper::Rect asGralloc2Rect(const Rect& rect) {
@@ -114,15 +187,26 @@ status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
 {
     ATRACE_CALL();
 
-    const uint64_t usage = static_cast<uint64_t>(
-            android_convertGralloc1To0Usage(producerUsage, consumerUsage));
-    Gralloc2::Error error = mMapper->lock(handle, usage,
-            asGralloc2Rect(bounds), fenceFd, vaddr);
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        const uint64_t usage =
+            static_cast<uint64_t>(android_convertGralloc1To0Usage(
+                        producerUsage, consumerUsage));
+        error = static_cast<gralloc1_error_t>(mMapper->lock(handle,
+                usage, asGralloc2Rect(bounds), fenceFd, vaddr));
+    } else {
+        gralloc1_rect_t accessRegion = asGralloc1Rect(bounds);
+        sp<Fence> fence = new Fence(fenceFd);
+        error = mDevice->lock(handle,
+                static_cast<gralloc1_producer_usage_t>(producerUsage),
+                static_cast<gralloc1_consumer_usage_t>(consumerUsage),
+                &accessRegion, vaddr, fence);
+    }
 
-    ALOGW_IF(error != Gralloc2::Error::NONE, "lock(%p, ...) failed: %d",
-            handle, error);
+    ALOGW_IF(error != GRALLOC1_ERROR_NONE, "lock(%p, ...) failed: %d", handle,
+            error);
 
-    return static_cast<status_t>(error);
+    return error;
 }
 
 static inline bool isValidYCbCrPlane(const android_flex_plane_t& plane) {
@@ -153,28 +237,160 @@ status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
 {
     ATRACE_CALL();
 
-    Gralloc2::YCbCrLayout layout;
-    Gralloc2::Error error = mMapper->lock(handle, usage,
-            asGralloc2Rect(bounds), fenceFd, &layout);
-    if (error == Gralloc2::Error::NONE) {
-        ycbcr->y = layout.y;
-        ycbcr->cb = layout.cb;
-        ycbcr->cr = layout.cr;
-        ycbcr->ystride = static_cast<size_t>(layout.yStride);
-        ycbcr->cstride = static_cast<size_t>(layout.cStride);
-        ycbcr->chroma_step = static_cast<size_t>(layout.chromaStep);
+    gralloc1_rect_t accessRegion = asGralloc1Rect(bounds);
+
+    std::vector<android_flex_plane_t> planes;
+    android_flex_layout_t flexLayout{};
+    gralloc1_error_t error;
+
+    if (mMapper->valid()) {
+        Gralloc2::YCbCrLayout layout;
+        error = static_cast<gralloc1_error_t>(mMapper->lock(handle, usage,
+                asGralloc2Rect(bounds), fenceFd, &layout));
+        if (error == GRALLOC1_ERROR_NONE) {
+            ycbcr->y = layout.y;
+            ycbcr->cb = layout.cb;
+            ycbcr->cr = layout.cr;
+            ycbcr->ystride = static_cast<size_t>(layout.yStride);
+            ycbcr->cstride = static_cast<size_t>(layout.cStride);
+            ycbcr->chroma_step = static_cast<size_t>(layout.chromaStep);
+        }
+
+        return error;
+    } else {
+        sp<Fence> fence = new Fence(fenceFd);
+
+        if (mDevice->hasCapability(GRALLOC1_CAPABILITY_ON_ADAPTER)) {
+            error = mDevice->lockYCbCr(handle,
+                    static_cast<gralloc1_producer_usage_t>(usage),
+                    static_cast<gralloc1_consumer_usage_t>(usage),
+                    &accessRegion, ycbcr, fence);
+            ALOGW_IF(error != GRALLOC1_ERROR_NONE,
+                    "lockYCbCr(%p, ...) failed: %d", handle, error);
+            return error;
+        }
+
+        uint32_t numPlanes = 0;
+        error = mDevice->getNumFlexPlanes(handle, &numPlanes);
+
+        if (error != GRALLOC1_ERROR_NONE) {
+            ALOGV("Failed to retrieve number of flex planes: %d", error);
+            return error;
+        }
+        if (numPlanes < 3) {
+            ALOGV("Not enough planes for YCbCr (%u found)", numPlanes);
+            return GRALLOC1_ERROR_UNSUPPORTED;
+        }
+
+        planes.resize(numPlanes);
+        flexLayout.num_planes = numPlanes;
+        flexLayout.planes = planes.data();
+
+        error = mDevice->lockFlex(handle,
+                static_cast<gralloc1_producer_usage_t>(usage),
+                static_cast<gralloc1_consumer_usage_t>(usage),
+                &accessRegion, &flexLayout, fence);
     }
 
-    return static_cast<status_t>(error);
+    if (error != GRALLOC1_ERROR_NONE) {
+        ALOGW("lockFlex(%p, ...) failed: %d", handle, error);
+        return error;
+    }
+    if (flexLayout.format != FLEX_FORMAT_YCbCr) {
+        ALOGV("Unable to convert flex-format buffer to YCbCr");
+        unlock(handle);
+        return GRALLOC1_ERROR_UNSUPPORTED;
+    }
+
+    // Find planes
+    auto yPlane = planes.cend();
+    auto cbPlane = planes.cend();
+    auto crPlane = planes.cend();
+    for (auto planeIter = planes.cbegin(); planeIter != planes.cend();
+            ++planeIter) {
+        if (planeIter->component == FLEX_COMPONENT_Y) {
+            yPlane = planeIter;
+        } else if (planeIter->component == FLEX_COMPONENT_Cb) {
+            cbPlane = planeIter;
+        } else if (planeIter->component == FLEX_COMPONENT_Cr) {
+            crPlane = planeIter;
+        }
+    }
+    if (yPlane == planes.cend()) {
+        ALOGV("Unable to find Y plane");
+        unlock(handle);
+        return GRALLOC1_ERROR_UNSUPPORTED;
+    }
+    if (cbPlane == planes.cend()) {
+        ALOGV("Unable to find Cb plane");
+        unlock(handle);
+        return GRALLOC1_ERROR_UNSUPPORTED;
+    }
+    if (crPlane == planes.cend()) {
+        ALOGV("Unable to find Cr plane");
+        unlock(handle);
+        return GRALLOC1_ERROR_UNSUPPORTED;
+    }
+
+    // Validate planes
+    if (!isValidYCbCrPlane(*yPlane)) {
+        ALOGV("Y plane is invalid");
+        unlock(handle);
+        return GRALLOC1_ERROR_UNSUPPORTED;
+    }
+    if (!isValidYCbCrPlane(*cbPlane)) {
+        ALOGV("Cb plane is invalid");
+        unlock(handle);
+        return GRALLOC1_ERROR_UNSUPPORTED;
+    }
+    if (!isValidYCbCrPlane(*crPlane)) {
+        ALOGV("Cr plane is invalid");
+        unlock(handle);
+        return GRALLOC1_ERROR_UNSUPPORTED;
+    }
+    if (cbPlane->v_increment != crPlane->v_increment) {
+        ALOGV("Cb and Cr planes have different step (%d vs. %d)",
+                cbPlane->v_increment, crPlane->v_increment);
+        unlock(handle);
+        return GRALLOC1_ERROR_UNSUPPORTED;
+    }
+    if (cbPlane->h_increment != crPlane->h_increment) {
+        ALOGV("Cb and Cr planes have different stride (%d vs. %d)",
+                cbPlane->h_increment, crPlane->h_increment);
+        unlock(handle);
+        return GRALLOC1_ERROR_UNSUPPORTED;
+    }
+
+    // Pack plane data into android_ycbcr struct
+    ycbcr->y = yPlane->top_left;
+    ycbcr->cb = cbPlane->top_left;
+    ycbcr->cr = crPlane->top_left;
+    ycbcr->ystride = static_cast<size_t>(yPlane->v_increment);
+    ycbcr->cstride = static_cast<size_t>(cbPlane->v_increment);
+    ycbcr->chroma_step = static_cast<size_t>(cbPlane->h_increment);
+
+    return error;
 }
 
 status_t GraphicBufferMapper::unlockAsync(buffer_handle_t handle, int *fenceFd)
 {
     ATRACE_CALL();
 
-    *fenceFd = mMapper->unlock(handle);
+    gralloc1_error_t error;
+    if (mMapper->valid()) {
+        *fenceFd = mMapper->unlock(handle);
+        error = GRALLOC1_ERROR_NONE;
+    } else {
+        sp<Fence> fence = Fence::NO_FENCE;
+        error = mDevice->unlock(handle, &fence);
+        if (error != GRALLOC1_ERROR_NONE) {
+            ALOGE("unlock(%p) failed: %d", handle, error);
+            return error;
+        }
 
-    return NO_ERROR;
+        *fenceFd = fence->dup();
+    }
+    return error;
 }
 
 // ---------------------------------------------------------------------------

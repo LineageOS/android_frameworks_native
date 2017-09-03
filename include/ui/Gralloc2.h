@@ -41,6 +41,9 @@ class Mapper {
 public:
     Mapper();
 
+    // this will be removed and Mapper will be always valid
+    bool valid() const { return (mMapper != nullptr); }
+
     Error createDescriptor(
             const IMapper::BufferDescriptorInfo& descriptorInfo,
             BufferDescriptor* outDescriptor) const;
@@ -80,6 +83,9 @@ public:
     // An allocator relies on a mapper, and that mapper must be alive at all
     // time.
     Allocator(const Mapper& mapper);
+
+    // this will be removed and Allocator will be always valid
+    bool valid() const { return (mAllocator != nullptr); }
 
     std::string dumpDebugInfo() const;
 
