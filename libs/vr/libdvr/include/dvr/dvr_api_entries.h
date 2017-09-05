@@ -166,3 +166,8 @@ DVR_V1_API_ENTRY(WriteBufferQueueCreate);
 
 // Gets an ANativeWindow from DvrWriteBufferQueue.
 DVR_V1_API_ENTRY(WriteBufferQueueGetANativeWindow);
+
+// Pose client
+DVR_V1_API_ENTRY(PoseClientGetDataReader);
+DVR_V1_API_ENTRY(PoseClientDataCapture);
+DVR_V1_API_ENTRY(PoseClientDataReaderDestroy);

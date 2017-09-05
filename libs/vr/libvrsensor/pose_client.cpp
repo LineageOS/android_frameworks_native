@@ -9,10 +9,12 @@
 #include <pdx/default_transport/client_channel_factory.h>
 #include <pdx/file_handle.h>
 #include <private/dvr/buffer_hub_client.h>
+#include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/display_client.h>
 #include <private/dvr/pose-ipc.h>
 #include <private/dvr/shared_buffer_helpers.h>
 
+using android::dvr::ConsumerQueue;
 using android::pdx::LocalHandle;
 using android::pdx::LocalChannelHandle;
 using android::pdx::Status;
@@ -139,6 +141,44 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
     return ReturnStatusOrError(status);
   }
 
+  int GetTangoReaderHandle(DvrPoseRawDataType data_type, ConsumerQueue** queue_out) {
+    // Get buffer.
+    Transaction trans{*this};
+    Status<LocalChannelHandle> status = trans.Send<LocalChannelHandle>(
+        DVR_POSE_GET_TANGO_READER, &data_type, sizeof(data_type), nullptr, 0);
+
+    if (!status) {
+      ALOGE("PoseClient GetTangoReaderHandle() failed because: %s",
+            status.GetErrorMessage().c_str());
+      *queue_out = nullptr;
+      return -status.error();
+    }
+
+    std::unique_ptr<ConsumerQueue> consumer_queue =
+        ConsumerQueue::Import(status.take());
+    *queue_out = consumer_queue.release();
+    return 0;
+  }
+
+  int DataCapture(const DvrPoseDataCaptureRequest* request) {
+    Transaction trans{*this};
+    Status<int> status = trans.Send<int>(DVR_POSE_DATA_CAPTURE, request,
+                                         sizeof(*request), nullptr, 0);
+    ALOGE_IF(!status, "PoseClient DataCapture() failed because: %s\n",
+             status.GetErrorMessage().c_str());
+    return ReturnStatusOrError(status);
+  }
+
+  int DataReaderDestroy(DvrPoseRawDataType data_type) {
+    Transaction trans{*this};
+    Status<int> status = trans.Send<int>(DVR_POSE_TANGO_READER_DESTROY,
+                                         &data_type, sizeof(data_type), nullptr,
+                                         0);
+    ALOGE_IF(!status, "PoseClient DataReaderDestroy() failed because: %s\n",
+             status.GetErrorMessage().c_str());
+    return ReturnStatusOrError(status);
+  }
+
   // Enables or disables all pose processing from sensors
   int EnableSensors(bool enabled) {
     Transaction trans{*this};
@@ -256,6 +296,12 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
   ControllerClientState controllers_[MAX_CONTROLLERS];
 };
 
+int dvrPoseClientGetDataReaderHandle(DvrPoseClient* client,
+                                     DvrPoseRawDataType type,
+                                     ConsumerQueue** queue_out) {
+  return PoseClient::FromC(client)->GetTangoReaderHandle(type, queue_out);
+}
+
 }  // namespace dvr
 }  // namespace android
 
@@ -307,9 +353,18 @@ int dvrPoseClientModeGet(DvrPoseClient* client, DvrPoseMode* mode) {
   return PoseClient::FromC(client)->GetMode(mode);
 }
 
-
 int dvrPoseClientSensorsEnable(DvrPoseClient* client, bool enabled) {
   return PoseClient::FromC(client)->EnableSensors(enabled);
+}
+
+int dvrPoseClientDataCapture(DvrPoseClient* client,
+                             const DvrPoseDataCaptureRequest* request) {
+  return PoseClient::FromC(client)->DataCapture(request);
+}
+
+int dvrPoseClientDataReaderDestroy(DvrPoseClient* client,
+                                   DvrPoseRawDataType data_type) {
+  return PoseClient::FromC(client)->DataReaderDestroy(data_type);
 }
 
 }  // extern "C"
