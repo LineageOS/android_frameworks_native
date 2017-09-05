@@ -738,6 +738,7 @@ enum {
     AKEYCODE_MEDIA_STEP_BACKWARD = 275,
     /** Put device to sleep unless a wakelock is held. */
     AKEYCODE_SOFT_SLEEP = 276
+    AKEYCODE_SOFT_WAKE = 277
 
     // NOTE: If you add a new keycode here you must also add it to several other files.
     //       Refer to frameworks/base/core/java/android/view/KeyEvent.java for the full list.
