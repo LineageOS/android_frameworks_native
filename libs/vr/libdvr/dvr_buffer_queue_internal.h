@@ -9,6 +9,13 @@
 
 struct ANativeWindow;
 
+typedef struct DvrReadBuffer DvrReadBuffer;
+typedef struct DvrReadBufferQueue DvrReadBufferQueue;
+typedef struct DvrWriteBuffer DvrWriteBuffer;
+typedef void (*DvrReadBufferQueueBufferAvailableCallback)(void* context);
+typedef void (*DvrReadBufferQueueBufferRemovedCallback)(DvrReadBuffer* buffer,
+                                                        void* context);
+
 struct DvrWriteBufferQueue {
   using ProducerQueue = android::dvr::ProducerQueue;
 

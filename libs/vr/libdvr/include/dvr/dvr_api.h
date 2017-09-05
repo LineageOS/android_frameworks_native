@@ -23,6 +23,7 @@ typedef uint64_t DvrSurfaceUpdateFlags;
 typedef struct DvrDisplayManager DvrDisplayManager;
 typedef struct DvrSurfaceState DvrSurfaceState;
 typedef struct DvrPoseClient DvrPoseClient;
+typedef struct DvrPoseDataCaptureRequest DvrPoseDataCaptureRequest;
 typedef struct DvrVSyncClient DvrVSyncClient;
 typedef struct DvrVirtualTouchpad DvrVirtualTouchpad;
 
@@ -246,6 +247,15 @@ typedef int (*DvrPoseClientGetControllerPtr)(DvrPoseClient* client,
                                              DvrPoseAsync* out_pose);
 typedef int (*DvrPoseClientSensorsEnablePtr)(DvrPoseClient* client,
                                              bool enabled);
+typedef int (*DvrPoseClientDataCapturePtr)(DvrPoseClient* client,
+    const DvrPoseDataCaptureRequest* request);
+typedef int (*DvrPoseClientDataReaderDestroyPtr)(DvrPoseClient* client,
+                                                 DvrPoseRawDataType data_type);
+
+// dvr_pose.h
+typedef int (*DvrPoseClientGetDataReaderPtr)(DvrPoseClient* client,
+                                             DvrPoseRawDataType data_type,
+                                             DvrReadBufferQueue** read_queue);
 
 // services/vr/virtual_touchpad/include/dvr/virtual_touchpad_client.h
 
