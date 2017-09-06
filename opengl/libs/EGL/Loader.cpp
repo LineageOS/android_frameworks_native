@@ -28,7 +28,7 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 
-#include <ui/GraphicsEnv.h>
+#include <graphicsenv/GraphicsEnv.h>
 #include <vndksupport/linker.h>
 
 #include "egl_trace.h"
