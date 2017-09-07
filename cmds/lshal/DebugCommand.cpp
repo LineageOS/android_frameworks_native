@@ -21,9 +21,6 @@
 namespace android {
 namespace lshal {
 
-DebugCommand::DebugCommand(Lshal &lshal) : mLshal(lshal) {
-}
-
 Status DebugCommand::parseArgs(const std::string &command, const Arg &arg) {
     if (optind >= arg.argc) {
         mLshal.usage(command);

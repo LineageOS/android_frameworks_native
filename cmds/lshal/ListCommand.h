@@ -26,6 +26,7 @@
 #include <android-base/macros.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 
+#include "Command.h"
 #include "NullableOStream.h"
 #include "TableEntry.h"
 #include "TextTable.h"
@@ -42,11 +43,11 @@ struct PidInfo {
     uint32_t threadCount; // number of threads total
 };
 
-class ListCommand {
+class ListCommand : public Command {
 public:
-    ListCommand(Lshal &lshal);
+    ListCommand(Lshal &lshal) : Command(lshal) {}
     virtual ~ListCommand() = default;
-    Status main(const std::string &command, const Arg &arg);
+    Status main(const std::string &command, const Arg &arg) override;
 protected:
     Status parseArgs(const std::string &command, const Arg &arg);
     Status fetch();
@@ -78,8 +79,6 @@ protected:
 
     NullableOStream<std::ostream> err() const;
     NullableOStream<std::ostream> out() const;
-
-    Lshal &mLshal;
 
     Table mServicesTable{};
     Table mPassthroughRefTable{};

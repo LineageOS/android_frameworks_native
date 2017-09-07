@@ -14,14 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef FRAMEWORK_NATIVE_CMDS_LSHAL_DEBUG_COMMAND_H_
-#define FRAMEWORK_NATIVE_CMDS_LSHAL_DEBUG_COMMAND_H_
+#ifndef FRAMEWORK_NATIVE_CMDS_LSHAL_COMMAND_H_
+#define FRAMEWORK_NATIVE_CMDS_LSHAL_COMMAND_H_
 
-#include <string>
-
-#include <android-base/macros.h>
-
-#include "Command.h"
 #include "utils.h"
 
 namespace android {
@@ -29,22 +24,21 @@ namespace lshal {
 
 class Lshal;
 
-class DebugCommand : public Command {
+// Base class for all *Commands
+class Command {
 public:
-    DebugCommand(Lshal &lshal) : Command(lshal) {}
-    ~DebugCommand() = default;
-    Status main(const std::string &command, const Arg &arg) override;
-private:
-    Status parseArgs(const std::string &command, const Arg &arg);
+    Command(Lshal& lshal) : mLshal(lshal) {}
+    virtual ~Command() = default;
+    // Expect optind to be set by Lshal::main and points to the next argument
+    // to process.
+    virtual Status main(const std::string &command, const Arg &arg) = 0;
 
-    std::string mInterfaceName;
-    std::vector<std::string> mOptions;
-
-    DISALLOW_COPY_AND_ASSIGN(DebugCommand);
+protected:
+    Lshal& mLshal;
 };
 
 
 }  // namespace lshal
 }  // namespace android
 
-#endif  // FRAMEWORK_NATIVE_CMDS_LSHAL_DEBUG_COMMAND_H_
+#endif  // FRAMEWORK_NATIVE_CMDS_LSHAL_LIST_COMMAND_H_

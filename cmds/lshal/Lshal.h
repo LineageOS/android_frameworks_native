@@ -24,6 +24,7 @@
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <utils/StrongPointer.h>
 
+#include "Command.h"
 #include "NullableOStream.h"
 #include "utils.h"
 
@@ -50,8 +51,12 @@ public:
             const std::vector<std::string> &options,
             std::ostream &out,
             NullableOStream<std::ostream> err) const;
+
+    std::unique_ptr<Command> selectCommand(const std::string& command);
+
 private:
     Status parseArgs(const Arg &arg);
+
     std::string mCommand;
     Arg mCmdArgs;
     NullableOStream<std::ostream> mOut;

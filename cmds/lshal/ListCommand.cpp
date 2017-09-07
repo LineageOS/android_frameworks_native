@@ -44,9 +44,6 @@ using ::android::hidl::manager::V1_0::IServiceManager;
 namespace android {
 namespace lshal {
 
-ListCommand::ListCommand(Lshal &lshal) : mLshal(lshal) {
-}
-
 NullableOStream<std::ostream> ListCommand::out() const {
     return mLshal.out();
 }
