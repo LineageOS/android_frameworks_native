@@ -107,7 +107,7 @@ public:
 
 };
 
-class LshalTest : public ::testing::Test {
+class DebugTest : public ::testing::Test {
 public:
     void SetUp() override {
         using ::android::hardware::tests::baz::V1_0::IQuux;
@@ -122,40 +122,47 @@ public:
                     return new Quux();
                 return nullptr;
             }));
+
+        lshal = std::make_unique<Lshal>(out, err, serviceManager, serviceManager);
     }
     void TearDown() override {}
 
     std::stringstream err;
     std::stringstream out;
     sp<MockServiceManager> serviceManager;
+
+    std::unique_ptr<Lshal> lshal;
 };
 
-TEST_F(LshalTest, Debug) {
-    const char *args[] = {
+static Arg createArg(const std::vector<const char*>& args) {
+    return Arg{static_cast<int>(args.size()), const_cast<char**>(args.data())};
+}
+
+template<typename T>
+static Status callMain(const std::unique_ptr<T>& lshal, const std::vector<const char*>& args) {
+    return lshal->main(createArg(args));
+}
+
+TEST_F(DebugTest, Debug) {
+    EXPECT_EQ(0u, callMain(lshal, {
         "lshal", "debug", "android.hardware.tests.baz@1.0::IQuux/default", "foo", "bar"
-    };
-    EXPECT_EQ(0u, Lshal(out, err, serviceManager, serviceManager)
-            .main({NELEMS(args), const_cast<char **>(args)}));
+    }));
     EXPECT_THAT(out.str(), StrEq("android.hardware.tests.baz@1.0::IQuux\nfoo\nbar"));
     EXPECT_THAT(err.str(), IsEmpty());
 }
 
-TEST_F(LshalTest, Debug2) {
-    const char *args[] = {
+TEST_F(DebugTest, Debug2) {
+    EXPECT_EQ(0u, callMain(lshal, {
         "lshal", "debug", "android.hardware.tests.baz@1.0::IQuux", "baz", "quux"
-    };
-    EXPECT_EQ(0u, Lshal(out, err, serviceManager, serviceManager)
-            .main({NELEMS(args), const_cast<char **>(args)}));
+    }));
     EXPECT_THAT(out.str(), StrEq("android.hardware.tests.baz@1.0::IQuux\nbaz\nquux"));
     EXPECT_THAT(err.str(), IsEmpty());
 }
 
-TEST_F(LshalTest, Debug3) {
-    const char *args[] = {
+TEST_F(DebugTest, Debug3) {
+    EXPECT_NE(0u, callMain(lshal, {
         "lshal", "debug", "android.hardware.tests.doesnotexist@1.0::IDoesNotExist",
-    };
-    EXPECT_NE(0u, Lshal(out, err, serviceManager, serviceManager)
-            .main({NELEMS(args), const_cast<char **>(args)}));
+    }));
     EXPECT_THAT(err.str(), HasSubstr("does not exist"));
 }
 
