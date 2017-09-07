@@ -27,6 +27,7 @@
 #include <android/hardware/tests/baz/1.0/IQuux.h>
 #include <hidl/HidlTransportSupport.h>
 
+#include "ListCommand.h"
 #include "Lshal.h"
 
 #define NELEMS(array)   static_cast<int>(sizeof(array) / sizeof(array[0]))
@@ -164,6 +165,72 @@ TEST_F(DebugTest, Debug3) {
         "lshal", "debug", "android.hardware.tests.doesnotexist@1.0::IDoesNotExist",
     }));
     EXPECT_THAT(err.str(), HasSubstr("does not exist"));
+}
+
+class MockLshal : public Lshal {
+public:
+    MockLshal() {}
+    ~MockLshal() = default;
+    MOCK_CONST_METHOD0(out, NullableOStream<std::ostream>());
+    MOCK_CONST_METHOD0(err, NullableOStream<std::ostream>());
+};
+
+// expose protected fields and methods for ListCommand
+class MockListCommand : public ListCommand {
+public:
+    MockListCommand(Lshal* lshal) : ListCommand(*lshal) {}
+
+    Status parseArgs(const Arg& arg) { return ListCommand::parseArgs("", arg); }
+    void forEachTable(const std::function<void(const Table &)> &f) const {
+        return ListCommand::forEachTable(f);
+    }
+};
+
+class ListParseArgsTest : public ::testing::Test {
+public:
+    void SetUp() override {
+        mockLshal = std::make_unique<NiceMock<MockLshal>>();
+        mockList = std::make_unique<MockListCommand>(mockLshal.get());
+        // ListCommand::parseArgs should parse arguments from the second element
+        optind = 1;
+    }
+    std::unique_ptr<MockLshal> mockLshal;
+    std::unique_ptr<MockListCommand> mockList;
+    std::stringstream output;
+};
+
+TEST_F(ListParseArgsTest, Default) {
+    // default args
+    EXPECT_EQ(0u, mockList->parseArgs(createArg({})));
+    mockList->forEachTable([](const Table& table) {
+        EXPECT_EQ(SelectedColumns({TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
+                                   TableColumnType::SERVER_PID, TableColumnType::CLIENT_PIDS}),
+                  table.getSelectedColumns());
+    });
+}
+
+TEST_F(ListParseArgsTest, Args) {
+    EXPECT_EQ(0u, mockList->parseArgs(createArg({"lshal", "-p", "-i", "-a", "-c"})));
+    mockList->forEachTable([](const Table& table) {
+        EXPECT_EQ(SelectedColumns({TableColumnType::SERVER_PID, TableColumnType::INTERFACE_NAME,
+                                   TableColumnType::SERVER_ADDR, TableColumnType::CLIENT_PIDS}),
+                  table.getSelectedColumns());
+    });
+}
+
+TEST_F(ListParseArgsTest, Cmds) {
+    EXPECT_EQ(0u, mockList->parseArgs(createArg({"lshal", "-m"})));
+    mockList->forEachTable([](const Table& table) {
+        EXPECT_EQ(SelectedColumns({TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
+                                   TableColumnType::SERVER_CMD, TableColumnType::CLIENT_CMDS}),
+                  table.getSelectedColumns());
+    });
+}
+
+TEST_F(ListParseArgsTest, DebugAndNeat) {
+    ON_CALL(*mockLshal, err()).WillByDefault(Return(NullableOStream<std::ostream>(output)));
+    EXPECT_NE(0u, mockList->parseArgs(createArg({"lshal", "--neat", "-d"})));
+    EXPECT_THAT(output.str(), StrNe(""));
 }
 
 } // namespace lshal

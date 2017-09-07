@@ -40,7 +40,7 @@ class ListCommand {
 public:
     ListCommand(Lshal &lshal);
     Status main(const std::string &command, const Arg &arg);
-private:
+protected:
     Status parseArgs(const std::string &command, const Arg &arg);
     Status fetch();
     void postprocess();
