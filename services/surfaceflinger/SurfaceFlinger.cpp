@@ -606,6 +606,8 @@ void SurfaceFlinger::init() {
         auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
             ALOGI("VR request display mode: requestDisplay=%d", requestDisplay);
             mVrFlingerRequestsDisplay = requestDisplay;
+            ConditionalLock _l(mStateLock,
+                    std::this_thread::get_id() != mMainThreadId);
             signalTransaction();
         };
         mVrFlinger = dvr::VrFlinger::Create(mHwc->getComposer(),
@@ -693,6 +695,8 @@ status_t SurfaceFlinger::getSupportedFrameTimestamps(
         FrameEvent::DEQUEUE_READY,
         FrameEvent::RELEASE,
     };
+    ConditionalLock _l(mStateLock,
+            std::this_thread::get_id() != mMainThreadId);
     if (!getHwComposer().hasCapability(
             HWC2::Capability::PresentFenceIsNotReliable)) {
         outSupported->push_back(FrameEvent::DISPLAY_PRESENT);
@@ -740,6 +744,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
 
     configs->clear();
 
+    ConditionalLock _l(mStateLock,
+            std::this_thread::get_id() != mMainThreadId);
     for (const auto& hwConfig : getHwComposer().getConfigs(type)) {
         DisplayInfo info = DisplayInfo();
 
@@ -763,7 +769,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
             info.density = density;
 
             // TODO: this needs to go away (currently needed only by webkit)
-            sp<const DisplayDevice> hw(getDefaultDisplayDevice());
+            sp<const DisplayDevice> hw(getDefaultDisplayDeviceLocked());
             info.orientation = hw->getOrientation();
         } else {
             // TODO: where should this value come from?
@@ -906,7 +912,12 @@ status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& display,
         return type;
     }
 
-    std::vector<android_color_mode_t> modes = getHwComposer().getColorModes(type);
+    std::vector<android_color_mode_t> modes;
+    {
+        ConditionalLock _l(mStateLock,
+                std::this_thread::get_id() != mMainThreadId);
+        modes = getHwComposer().getColorModes(type);
+    }
     outColorModes->clear();
     std::copy(modes.cbegin(), modes.cend(), std::back_inserter(*outColorModes));
 
@@ -1287,7 +1298,7 @@ void SurfaceFlinger::onRefreshReceived(int sequenceId,
     if (sequenceId != mComposerSequenceId) {
         return;
     }
-    repaintEverything();
+    repaintEverythingLocked();
 }
 
 void SurfaceFlinger::setVsyncEnabled(int disp, int enabled) {
@@ -3291,7 +3302,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
 
         mVisibleRegionsDirty = true;
         mHasPoweredOff = true;
-        repaintEverything();
+        repaintEverythingLocked();
 
         struct sched_param param = {0};
         param.sched_priority = 1;
@@ -3935,6 +3946,7 @@ status_t SurfaceFlinger::onTransact(
                 return NO_ERROR;
             }
             case 1005:{ // force transaction
+                Mutex::Autolock _l(mStateLock);
                 setTransactionFlags(
                         eTransactionNeeded|
                         eDisplayTransactionNeeded|
@@ -4071,9 +4083,15 @@ status_t SurfaceFlinger::onTransact(
     return err;
 }
 
-void SurfaceFlinger::repaintEverything() {
+void SurfaceFlinger::repaintEverythingLocked() {
     android_atomic_or(1, &mRepaintEverything);
     signalTransaction();
+}
+
+void SurfaceFlinger::repaintEverything() {
+    ConditionalLock _l(mStateLock,
+            std::this_thread::get_id() != mMainThreadId);
+    repaintEverythingLocked();
 }
 
 // Checks that the requested width and height are valid and updates them to the display dimensions
