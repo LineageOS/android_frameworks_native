@@ -28,6 +28,7 @@ cc_library_shared {
         "Lshal.cpp",
         "ListCommand.cpp",
         "PipeRelay.cpp",
+        "TableEntry.cpp",
         "TextTable.cpp",
         "utils.cpp",
     ],

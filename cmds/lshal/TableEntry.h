@@ -23,6 +23,8 @@
 #include <vector>
 #include <iostream>
 
+#include "TextTable.h"
+
 namespace android {
 namespace lshal {
 
@@ -42,6 +44,18 @@ enum : unsigned int {
     ARCH_BOTH    = ARCH32 | ARCH64
 };
 using Architecture = unsigned int;
+
+enum class TableColumnType : unsigned int {
+    INTERFACE_NAME,
+    TRANSPORT,
+    SERVER_PID,
+    SERVER_CMD,
+    SERVER_ADDR,
+    CLIENT_PIDS,
+    CLIENT_CMDS,
+    ARCH,
+    THREADS,
+};
 
 struct TableEntry {
     std::string interfaceName;
@@ -69,29 +83,46 @@ struct TableEntry {
 
         return std::to_string(threadUsage) + "/" + std::to_string(threadCount);
     }
+
+    std::string getField(TableColumnType type) const;
 };
 
-struct Table {
-    using Entries = std::vector<TableEntry>;
-    std::string description;
-    Entries entries;
+using SelectedColumns = std::vector<TableColumnType>;
 
-    Entries::iterator begin() { return entries.begin(); }
-    Entries::const_iterator begin() const { return entries.begin(); }
-    Entries::iterator end() { return entries.end(); }
-    Entries::const_iterator end() const { return entries.end(); }
+class Table {
+public:
+    using Entries = std::vector<TableEntry>;
+
+    Entries::iterator begin() { return mEntries.begin(); }
+    Entries::const_iterator begin() const { return mEntries.begin(); }
+    Entries::iterator end() { return mEntries.end(); }
+    Entries::const_iterator end() const { return mEntries.end(); }
+
+    void add(TableEntry&& entry) { mEntries.push_back(std::move(entry)); }
+
+    void setSelectedColumns(const SelectedColumns& s) { mSelectedColumns = s; }
+    const SelectedColumns& getSelectedColumns() const { return mSelectedColumns; }
+
+    void setDescription(std::string&& d) { mDescription = std::move(d); }
+
+    // Write table content.
+    TextTable createTextTable(bool neat = true,
+        const std::function<std::string(const std::string&)>& emitDebugInfo = nullptr) const;
+
+private:
+    std::string mDescription;
+    Entries mEntries;
+    SelectedColumns mSelectedColumns;
 };
 
 using TableEntryCompare = std::function<bool(const TableEntry &, const TableEntry &)>;
 
-enum class TableColumnType : unsigned int {
-    INTERFACE_NAME,
-    TRANSPORT,
-    SERVER_PID,
-    SERVER_ADDR,
-    CLIENT_PIDS,
-    ARCH,
-    THREADS,
+class MergedTable {
+public:
+    MergedTable(std::vector<const Table*>&& tables) : mTables(std::move(tables)) {}
+    TextTable createTextTable();
+private:
+    std::vector<const Table*> mTables;
 };
 
 enum {

@@ -35,7 +35,6 @@
 
 #include "Lshal.h"
 #include "PipeRelay.h"
-#include "TextTable.h"
 #include "Timeout.h"
 #include "utils.h"
 
@@ -207,48 +206,6 @@ void ListCommand::postprocess() {
     }
 }
 
-void ListCommand::addLine(TextTable *textTable, const std::string &interfaceName,
-                          const std::string &transport, const std::string &arch,
-                          const std::string &threadUsage, const std::string &server,
-                          const std::string &serverCmdline, const std::string &address,
-                          const std::string &clients, const std::string &clientCmdlines) const {
-    std::vector<std::string> columns;
-    for (TableColumnType type : mSelectedColumns) {
-        switch (type) {
-            case TableColumnType::INTERFACE_NAME: {
-                columns.push_back(interfaceName);
-            } break;
-            case TableColumnType::TRANSPORT: {
-                columns.push_back(transport);
-            } break;
-            case TableColumnType::ARCH: {
-                columns.push_back(arch);
-            } break;
-            case TableColumnType::THREADS: {
-                columns.push_back(threadUsage);
-            } break;
-            case TableColumnType::SERVER_ADDR: {
-                columns.push_back(address);
-            } break;
-            case TableColumnType::SERVER_PID: {
-                if (mEnableCmdlines) {
-                    columns.push_back(serverCmdline);
-                } else {
-                    columns.push_back(server);
-                }
-            } break;
-            case TableColumnType::CLIENT_PIDS: {
-                if (mEnableCmdlines) {
-                    columns.push_back(clientCmdlines);
-                } else {
-                    columns.push_back(clients);
-                }
-            } break;
-        }
-    }
-    textTable->add(std::move(columns));
-}
-
 static inline bool findAndBumpVersion(vintf::ManifestHal* hal, const vintf::Version& version) {
     for (vintf::Version& v : hal->versions) {
         if (v.majorVer == version.majorVer) {
@@ -372,24 +329,6 @@ void ListCommand::dumpVintf() const {
     mOut << vintf::gHalManifestConverter(manifest);
 }
 
-static const std::string &getArchString(Architecture arch) {
-    static const std::string sStr64 = "64";
-    static const std::string sStr32 = "32";
-    static const std::string sStrBoth = "32+64";
-    static const std::string sStrUnknown = "";
-    switch (arch) {
-        case ARCH64:
-            return sStr64;
-        case ARCH32:
-            return sStr32;
-        case ARCH_BOTH:
-            return sStrBoth;
-        case ARCH_UNKNOWN: // fall through
-        default:
-            return sStrUnknown;
-    }
-}
-
 static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo::Architecture a) {
     switch (a) {
         case ::android::hidl::base::V1_0::DebugInfo::Architecture::IS_64BIT:
@@ -402,63 +341,43 @@ static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo:
     }
 }
 
-void ListCommand::addLine(TextTable *table, const TableEntry &entry) {
-    addLine(table, entry.interfaceName, entry.transport, getArchString(entry.arch),
-            entry.getThreadUsage(),
-            entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
-            entry.serverCmdline,
-            entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
-            join(entry.clientPids, " "), join(entry.clientCmdlines, ";"));
-}
-
 void ListCommand::dumpTable() {
     if (mNeat) {
-        TextTable textTable;
-        forEachTable([this, &textTable](const Table &table) {
-            for (const auto &entry : table) addLine(&textTable, entry);
-        });
-        textTable.dump(mOut.buf());
+        MergedTable({&mServicesTable, &mPassthroughRefTable, &mImplementationsTable})
+            .createTextTable().dump(mOut.buf());
         return;
     }
 
-    mServicesTable.description =
-            "All binderized services (registered services through hwservicemanager)";
-    mPassthroughRefTable.description =
+    mServicesTable.setDescription(
+            "All binderized services (registered services through hwservicemanager)");
+    mPassthroughRefTable.setDescription(
             "All interfaces that getService() has ever return as a passthrough interface;\n"
             "PIDs / processes shown below might be inaccurate because the process\n"
             "might have relinquished the interface or might have died.\n"
             "The Server / Server CMD column can be ignored.\n"
             "The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
-            "the library and successfully fetched the passthrough implementation.";
-    mImplementationsTable.description =
-            "All available passthrough implementations (all -impl.so files)";
+            "the library and successfully fetched the passthrough implementation.");
+    mImplementationsTable.setDescription(
+            "All available passthrough implementations (all -impl.so files)");
 
     forEachTable([this](const Table &table) {
-        TextTable textTable;
 
-        textTable.add(table.description);
-        addLine(&textTable, "Interface", "Transport", "Arch", "Thread Use", "Server", "Server CMD",
-                "PTR", "Clients", "Clients CMD");
-
-        for (const auto &entry : table) {
-            addLine(&textTable, entry);
-            // We're only interested in dumping debug info for already
-            // instantiated services. There's little value in dumping the
-            // debug info for a service we create on the fly, so we only operate
-            // on the "mServicesTable".
-            if (mEmitDebugInfo && &table == &mServicesTable) {
+        // We're only interested in dumping debug info for already
+        // instantiated services. There's little value in dumping the
+        // debug info for a service we create on the fly, so we only operate
+        // on the "mServicesTable".
+        std::function<std::string(const std::string&)> emitDebugInfo = nullptr;
+        if (mEmitDebugInfo && &table == &mServicesTable) {
+            emitDebugInfo = [this](const auto& iName) {
                 std::stringstream out;
-                auto pair = splitFirst(entry.interfaceName, '/');
+                auto pair = splitFirst(iName, '/');
                 mLshal.emitDebugInfo(pair.first, pair.second, {}, out,
                                      NullableOStream<std::ostream>(nullptr));
-                textTable.add(out.str());
-            }
+                return out.str();
+            };
         }
-
-        // Add empty line after each table
-        textTable.add();
-
-        textTable.dump(mOut.buf());
+        table.createTextTable(mNeat, emitDebugInfo).dump(mOut.buf());
+        mOut << std::endl;
     });
 }
 
@@ -489,7 +408,7 @@ void ListCommand::putEntry(TableEntrySource source, TableEntry &&entry) {
             mErr << "Error: Unknown source of entry " << source << std::endl;
     }
     if (table) {
-        table->entries.push_back(std::forward<TableEntry>(entry));
+        table->add(std::forward<TableEntry>(entry));
     }
 }
 
@@ -693,6 +612,9 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
         { 0,          0,                 0,  0  }
     };
 
+    std::vector<TableColumnType> selectedColumns;
+    bool enableCmdlines = false;
+
     int optionIndex;
     int c;
     // Lshal::parseArgs has set optind to the next option to parse
@@ -728,35 +650,35 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
             mVintf = true;
         }
         case 'i': {
-            mSelectedColumns.push_back(TableColumnType::INTERFACE_NAME);
+            selectedColumns.push_back(TableColumnType::INTERFACE_NAME);
             break;
         }
         case 't': {
-            mSelectedColumns.push_back(TableColumnType::TRANSPORT);
+            selectedColumns.push_back(TableColumnType::TRANSPORT);
             break;
         }
         case 'r': {
-            mSelectedColumns.push_back(TableColumnType::ARCH);
+            selectedColumns.push_back(TableColumnType::ARCH);
             break;
         }
         case 'p': {
-            mSelectedColumns.push_back(TableColumnType::SERVER_PID);
+            selectedColumns.push_back(TableColumnType::SERVER_PID);
             break;
         }
         case 'a': {
-            mSelectedColumns.push_back(TableColumnType::SERVER_ADDR);
+            selectedColumns.push_back(TableColumnType::SERVER_ADDR);
             break;
         }
         case 'c': {
-            mSelectedColumns.push_back(TableColumnType::CLIENT_PIDS);
+            selectedColumns.push_back(TableColumnType::CLIENT_PIDS);
             break;
         }
         case 'e': {
-            mSelectedColumns.push_back(TableColumnType::THREADS);
+            selectedColumns.push_back(TableColumnType::THREADS);
             break;
         }
         case 'm': {
-            mEnableCmdlines = true;
+            enableCmdlines = true;
             break;
         }
         case 'd': {
@@ -796,10 +718,26 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
         return USAGE;
     }
 
-    if (mSelectedColumns.empty()) {
-        mSelectedColumns = {TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
+    if (selectedColumns.empty()) {
+        selectedColumns = {TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
                             TableColumnType::SERVER_PID, TableColumnType::CLIENT_PIDS};
     }
+
+    if (enableCmdlines) {
+        for (size_t i = 0; i < selectedColumns.size(); ++i) {
+            if (selectedColumns[i] == TableColumnType::SERVER_PID) {
+                selectedColumns[i] = TableColumnType::SERVER_CMD;
+            }
+            if (selectedColumns[i] == TableColumnType::CLIENT_PIDS) {
+                selectedColumns[i] = TableColumnType::CLIENT_CMDS;
+            }
+        }
+    }
+
+    forEachTable([&selectedColumns] (Table& table) {
+        table.setSelectedColumns(selectedColumns);
+    });
+
     return OK;
 }
 

@@ -82,11 +82,7 @@ private:
     NullableOStream<std::ostream> mOut;
     NullableOStream<std::ofstream> mFileOutput = nullptr;
     TableEntryCompare mSortColumn = nullptr;
-    std::vector<TableColumnType> mSelectedColumns;
-    // If true, cmdlines will be printed instead of pid.
-    bool mEnableCmdlines = false;
 
-    // If true, calls IBase::debug(...) on each service.
     bool mEmitDebugInfo = false;
 
     // If true, output in VINTF format.
