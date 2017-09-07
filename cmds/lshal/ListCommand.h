@@ -44,7 +44,7 @@ private:
     Status parseArgs(const std::string &command, const Arg &arg);
     Status fetch();
     void postprocess();
-    void dump();
+    Status dump();
     void putEntry(TableEntrySource source, TableEntry &&entry);
     Status fetchPassthrough(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchBinderized(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
@@ -57,8 +57,8 @@ private:
     };
     bool getPidInfo(pid_t serverPid, PidInfo *info) const;
 
-    void dumpTable();
-    void dumpVintf() const;
+    void dumpTable(const NullableOStream<std::ostream>& out) const;
+    void dumpVintf(const NullableOStream<std::ostream>& out) const;
     void addLine(TextTable *table, const std::string &interfaceName, const std::string &transport,
                  const std::string &arch, const std::string &threadUsage, const std::string &server,
                  const std::string &serverCmdline, const std::string &address,
@@ -81,7 +81,7 @@ private:
     Table mPassthroughRefTable{};
     Table mImplementationsTable{};
 
-    NullableOStream<std::ofstream> mFileOutput = nullptr;
+    std::string mFileOutputPath;
     TableEntryCompare mSortColumn = nullptr;
 
     bool mEmitDebugInfo = false;

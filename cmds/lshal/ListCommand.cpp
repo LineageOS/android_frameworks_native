@@ -212,6 +212,18 @@ void ListCommand::postprocess() {
             }
         }
     }
+
+    mServicesTable.setDescription(
+            "All binderized services (registered services through hwservicemanager)");
+    mPassthroughRefTable.setDescription(
+            "All interfaces that getService() has ever return as a passthrough interface;\n"
+            "PIDs / processes shown below might be inaccurate because the process\n"
+            "might have relinquished the interface or might have died.\n"
+            "The Server / Server CMD column can be ignored.\n"
+            "The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
+            "the library and successfully fetched the passthrough implementation.");
+    mImplementationsTable.setDescription(
+            "All available passthrough implementations (all -impl.so files)");
 }
 
 static inline bool findAndBumpVersion(vintf::ManifestHal* hal, const vintf::Version& version) {
@@ -224,9 +236,9 @@ static inline bool findAndBumpVersion(vintf::ManifestHal* hal, const vintf::Vers
     return false;
 }
 
-void ListCommand::dumpVintf() const {
+void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
     using vintf::operator|=;
-    mOut << "<!-- " << std::endl
+    out << "<!-- " << std::endl
          << "    This is a skeleton device manifest. Notes: " << std::endl
          << "    1. android.hidl.*, android.frameworks.*, android.system.* are not included." << std::endl
          << "    2. If a HAL is supported in both hwbinder and passthrough transport, " << std::endl
@@ -334,7 +346,7 @@ void ListCommand::dumpVintf() const {
             }
         }
     });
-    mOut << vintf::gHalManifestConverter(manifest);
+    out << vintf::gHalManifestConverter(manifest);
 }
 
 static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo::Architecture a) {
@@ -349,26 +361,14 @@ static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo:
     }
 }
 
-void ListCommand::dumpTable() {
+void ListCommand::dumpTable(const NullableOStream<std::ostream>& out) const {
     if (mNeat) {
         MergedTable({&mServicesTable, &mPassthroughRefTable, &mImplementationsTable})
-            .createTextTable().dump(mOut.buf());
+            .createTextTable().dump(out.buf());
         return;
     }
 
-    mServicesTable.setDescription(
-            "All binderized services (registered services through hwservicemanager)");
-    mPassthroughRefTable.setDescription(
-            "All interfaces that getService() has ever return as a passthrough interface;\n"
-            "PIDs / processes shown below might be inaccurate because the process\n"
-            "might have relinquished the interface or might have died.\n"
-            "The Server / Server CMD column can be ignored.\n"
-            "The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
-            "the library and successfully fetched the passthrough implementation.");
-    mImplementationsTable.setDescription(
-            "All available passthrough implementations (all -impl.so files)");
-
-    forEachTable([this](const Table &table) {
+    forEachTable([this, &out](const Table &table) {
 
         // We're only interested in dumping debug info for already
         // instantiated services. There's little value in dumping the
@@ -377,30 +377,38 @@ void ListCommand::dumpTable() {
         std::function<std::string(const std::string&)> emitDebugInfo = nullptr;
         if (mEmitDebugInfo && &table == &mServicesTable) {
             emitDebugInfo = [this](const auto& iName) {
-                std::stringstream out;
+                std::stringstream ss;
                 auto pair = splitFirst(iName, '/');
-                mLshal.emitDebugInfo(pair.first, pair.second, {}, out,
+                mLshal.emitDebugInfo(pair.first, pair.second, {}, ss,
                                      NullableOStream<std::ostream>(nullptr));
-                return out.str();
+                return ss.str();
             };
         }
-        table.createTextTable(mNeat, emitDebugInfo).dump(mOut.buf());
-        mOut << std::endl;
+        table.createTextTable(mNeat, emitDebugInfo).dump(out.buf());
+        out << std::endl;
     });
 }
 
-void ListCommand::dump() {
-    if (mVintf) {
-        dumpVintf();
-        if (!!mFileOutput) {
-            mFileOutput.buf().close();
-            delete &mFileOutput.buf();
-            mFileOutput = nullptr;
-        }
-        mOut = std::cout;
-    } else {
-        dumpTable();
+Status ListCommand::dump() {
+    auto dump = mVintf ? &ListCommand::dumpVintf : &ListCommand::dumpTable;
+
+    if (mFileOutputPath.empty()) {
+        (*this.*dump)(out());
+        return OK;
     }
+
+    std::ofstream fileOutput(mFileOutputPath);
+    if (!fileOutput.is_open()) {
+        err() << "Could not open file '" << mFileOutputPath << "'." << std::endl;
+        return IO_ERROR;
+    }
+    chown(mFileOutputPath.c_str(), AID_SHELL, AID_SHELL);
+
+    (*this.*dump)(NullableOStream<std::ostream>(fileOutput));
+
+    fileOutput.flush();
+    fileOutput.close();
+    return OK;
 }
 
 void ListCommand::putEntry(TableEntrySource source, TableEntry &&entry) {
@@ -647,15 +655,9 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
             break;
         }
         case 'v': {
-            if (optarg) {
-                mFileOutput = new std::ofstream{optarg};
-                mOut = mFileOutput;
-                if (!mFileOutput.buf().is_open()) {
-                    mErr << "Could not open file '" << optarg << "'." << std::endl;
-                    return IO_ERROR;
-                }
-            }
             mVintf = true;
+            if (optarg) mFileOutputPath = optarg;
+            break;
         }
         case 'i': {
             selectedColumns.push_back(TableColumnType::INTERFACE_NAME);
@@ -691,16 +693,7 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
         }
         case 'd': {
             mEmitDebugInfo = true;
-
-            if (optarg) {
-                mFileOutput = new std::ofstream{optarg};
-                mOut = mFileOutput;
-                if (!mFileOutput.buf().is_open()) {
-                    mErr << "Could not open file '" << optarg << "'." << std::endl;
-                    return IO_ERROR;
-                }
-                chown(optarg, AID_SHELL, AID_SHELL);
-            }
+            if (optarg) mFileOutputPath = optarg;
             break;
         }
         case 'n': {
@@ -756,7 +749,7 @@ Status ListCommand::main(const std::string &command, const Arg &arg) {
     }
     status = fetch();
     postprocess();
-    dump();
+    status |= dump();
     return status;
 }
 
