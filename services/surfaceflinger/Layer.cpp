@@ -2669,8 +2669,9 @@ bool Layer::detachChildren() {
             return;
         }
 
+        sp<Client> parentClient = mClientRef.promote();
         sp<Client> client(child->mClientRef.promote());
-        if (client != nullptr) {
+        if (client != nullptr && parentClient != client) {
             client->detachLayer(child);
         }
     });
