@@ -99,20 +99,20 @@ typedef struct __attribute__((packed, aligned(16))) DvrPose {
 } DvrPose;
 
 // Represents a data type that can be streamed from pose service.
-typedef enum DvrPoseRawDataType {
-  DVR_POSE_RAW_DATA_STEREO_IMAGE,
-  DVR_POSE_RAW_DATA_POINT_CLOUD,
-  DVR_POSE_RAW_DATA_FEATURES,
+enum {
+  DVR_POSE_RAW_DATA_STEREO_IMAGE = (1ULL << 0),
+  DVR_POSE_RAW_DATA_POINT_CLOUD = (1ULL << 1),
+  DVR_POSE_RAW_DATA_FEATURES = (1ULL << 2),
 
   // Always last.
-  DVR_POSE_RAW_DATA_COUNT,
-} DvrPoseRawDataType;
+  DVR_POSE_RAW_DATA_COUNT = (1ULL << 3),
+};
 
 // A request to retrieve data from the pose service. Expects that a buffer
 // queue has been initialized through dvrPoseClientGetDataReader().
 typedef struct DvrPoseDataCaptureRequest {
-  // The type of data to capture. Refer to enum DvrPoseRawDataType for types.
-  DvrPoseRawDataType data_type;
+  // The type of data to capture. Refer to enum DVR_POSE_RAW_DATA_* for types.
+  uint64_t data_type;
   // The sample interval. This can be used to skip samples. For example, a
   // value of 5 will capture every fifth frame and discard the 4 frames in
   // between. Set to 1 to capture all frames.
@@ -144,8 +144,7 @@ typedef struct DvrPoseDataCaptureRequest {
 // be found in the metadata struct DvrNativeBufferMetadata, where width is
 // |crop_right| and height is |crop_bottom|/2. Each image is contiguous in
 // memory with stride equal to width.
-int dvrPoseClientGetDataReader(DvrPoseClient* client,
-                               DvrPoseRawDataType data_type,
+int dvrPoseClientGetDataReader(DvrPoseClient* client, uint64_t data_type,
                                DvrReadBufferQueue** queue_out);
 
 // TODO(b/65067592): Move pose api's from pose_client.h to here.
