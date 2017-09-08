@@ -167,8 +167,7 @@ int dvrPoseClientDataCapture(DvrPoseClient* client,
                              const DvrPoseDataCaptureRequest* request);
 
 // Destroys the write buffer queue for the given |data_type|.
-int dvrPoseClientDataReaderDestroy(DvrPoseClient* client,
-                                   DvrPoseRawDataType data_type);
+int dvrPoseClientDataReaderDestroy(DvrPoseClient* client, uint64_t data_type);
 
 #ifdef __cplusplus
 }  // extern "C"

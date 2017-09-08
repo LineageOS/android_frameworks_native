@@ -9,8 +9,7 @@
 
 using android::dvr::ConsumerQueue;
 
-int dvrPoseClientGetDataReader(DvrPoseClient* client,
-                               DvrPoseRawDataType data_type,
+int dvrPoseClientGetDataReader(DvrPoseClient* client, uint64_t data_type,
                                DvrReadBufferQueue** queue_out) {
   if (!client || !queue_out)
     return -EINVAL;
