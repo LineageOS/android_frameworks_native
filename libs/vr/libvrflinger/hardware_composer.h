@@ -52,10 +52,7 @@ struct HWCDisplayMetrics {
 // source supplying buffers for the layer's contents.
 class Layer {
  public:
-  Layer() {}
-
-  // Releases any shared pointers and fence handles held by this instance.
-  void Reset();
+  Layer() = default;
 
   // Sets up the layer to use a display surface as its content source. The Layer
   // automatically handles ACQUIRE/RELEASE phases for the surface's buffer train
@@ -66,10 +63,9 @@ class Layer {
   // |composition_type| receives either HWC_FRAMEBUFFER for most layers or
   // HWC_FRAMEBUFFER_TARGET (unless you know what you are doing).
   // |index| is the index of this surface in the DirectDisplaySurface array.
-  void Setup(const std::shared_ptr<DirectDisplaySurface>& surface,
-             const HWCDisplayMetrics& display_metrics, Hwc2::Composer* hidl,
-             HWC::BlendMode blending, HWC::Transform transform,
-             HWC::Composition composition_type, size_t z_roder);
+  Layer(const std::shared_ptr<DirectDisplaySurface>& surface,
+        HWC::BlendMode blending, HWC::Transform transform,
+        HWC::Composition composition_type, size_t z_roder);
 
   // Sets up the layer to use a direct buffer as its content source. No special
   // handling of the buffer is performed; responsibility for updating or
@@ -79,10 +75,17 @@ class Layer {
   // |transform| receives HWC_TRANSFORM_* values.
   // |composition_type| receives either HWC_FRAMEBUFFER for most layers or
   // HWC_FRAMEBUFFER_TARGET (unless you know what you are doing).
-  void Setup(const std::shared_ptr<IonBuffer>& buffer,
-             const HWCDisplayMetrics& display_metrics, Hwc2::Composer* hidl,
-             HWC::BlendMode blending, HWC::Transform transform,
-             HWC::Composition composition_type, size_t z_order);
+  Layer(const std::shared_ptr<IonBuffer>& buffer, HWC::BlendMode blending,
+        HWC::Transform transform, HWC::Composition composition_type,
+        size_t z_order);
+
+  Layer(Layer&&);
+  Layer& operator=(Layer&&);
+
+  ~Layer();
+
+  // Releases any shared pointers and fence handles held by this instance.
+  void Reset();
 
   // Layers that use a direct IonBuffer should call this each frame to update
   // which buffer will be used for the next PostLayers.
@@ -117,9 +120,6 @@ class Layer {
   HWC::Layer GetLayerHandle() const { return hardware_composer_layer_; }
   bool IsLayerSetup() const { return !source_.empty(); }
 
-  // Applies all of the settings to this layer using the hwc functions
-  void UpdateLayerSettings(const HWCDisplayMetrics& display_metrics);
-
   int GetSurfaceId() const {
     int surface_id = -1;
     pdx::rpc::IfAnyOf<SourceSurface>::Call(
@@ -138,10 +138,41 @@ class Layer {
     return buffer_id;
   }
 
- private:
-  void CommonLayerSetup(const HWCDisplayMetrics& display_metrics);
+  // Compares Layers by surface id.
+  bool operator<(const Layer& other) const {
+    return GetSurfaceId() < other.GetSurfaceId();
+  }
+  bool operator<(int surface_id) const {
+    return GetSurfaceId() < surface_id;
+  }
 
-  Hwc2::Composer* hidl_ = nullptr;
+  // Sets the composer instance used by all Layer instances.
+  static void SetComposer(Hwc2::Composer* composer) { composer_ = composer; }
+
+  // Sets the display metrics used by all Layer instances.
+  static void SetDisplayMetrics(HWCDisplayMetrics display_metrics) {
+    display_metrics_ = display_metrics;
+  }
+
+ private:
+  void CommonLayerSetup();
+
+  // Applies all of the settings to this layer using the hwc functions
+  void UpdateLayerSettings();
+
+  // Applies visibility settings that may have changed.
+  void UpdateVisibilitySettings();
+
+  // Composer instance shared by all instances of Layer. This must be set
+  // whenever a new instance of the Composer is created. This may be set to
+  // nullptr as long as there are no instances of Layer that might need to use
+  // it.
+  static Hwc2::Composer* composer_;
+
+  // Display metrics shared by all instances of Layer. This must be set at least
+  // once during VrFlinger initialization and is expected to remain constant
+  // thereafter.
+  static HWCDisplayMetrics display_metrics_;
 
   // The hardware composer layer and metrics to use during the prepare cycle.
   hwc2_layer_t hardware_composer_layer_ = 0;
@@ -235,6 +266,7 @@ class Layer {
 
   pdx::LocalHandle acquire_fence_;
   bool surface_rect_functions_applied_ = false;
+  bool pending_visibility_settings_ = true;
 
   Layer(const Layer&) = delete;
   void operator=(const Layer&) = delete;
@@ -254,14 +286,10 @@ class HardwareComposer {
   using VSyncCallback = std::function<void(int, int64_t, int64_t, uint32_t)>;
   using RequestDisplayCallback = std::function<void(bool)>;
 
-  // Since there is no universal way to query the number of hardware layers,
-  // just set it to 4 for now.
-  static constexpr size_t kMaxHardwareLayers = 4;
-
   HardwareComposer();
   ~HardwareComposer();
 
-  bool Initialize(Hwc2::Composer* hidl,
+  bool Initialize(Hwc2::Composer* composer,
                   RequestDisplayCallback request_display_callback);
 
   bool IsInitialized() const { return initialized_; }
@@ -299,11 +327,11 @@ class HardwareComposer {
   void OnDeletedGlobalBuffer(DvrGlobalBufferKey key);
 
  private:
-  HWC::Error GetDisplayAttribute(Hwc2::Composer* hidl, hwc2_display_t display,
-                                 hwc2_config_t config,
+  HWC::Error GetDisplayAttribute(Hwc2::Composer* composer,
+                                 hwc2_display_t display, hwc2_config_t config,
                                  hwc2_attribute_t attributes,
                                  int32_t* out_value) const;
-  HWC::Error GetDisplayMetrics(Hwc2::Composer* hidl, hwc2_display_t display,
+  HWC::Error GetDisplayMetrics(Hwc2::Composer* composer, hwc2_display_t display,
                                hwc2_config_t config,
                                HWCDisplayMetrics* out_metrics) const;
 
@@ -319,6 +347,7 @@ class HardwareComposer {
                                    int64_t timestamp) override;
     const pdx::LocalHandle& GetVsyncEventFd() const;
     int64_t GetVsyncTime();
+
    private:
     std::mutex vsync_mutex_;
     pdx::LocalHandle vsync_event_fd_;
@@ -356,8 +385,7 @@ class HardwareComposer {
   // the case of a timeout. If we're interrupted, kPostThreadInterrupted will be
   // returned.
   int PostThreadPollInterruptible(const pdx::LocalHandle& event_fd,
-                                  int requested_events,
-                                  int timeout_ms);
+                                  int requested_events, int timeout_ms);
 
   // WaitForVSync and SleepUntil are blocking calls made on the post thread that
   // can be interrupted by a control thread. If interrupted, these calls return
@@ -386,8 +414,8 @@ class HardwareComposer {
 
   bool initialized_;
 
-  std::unique_ptr<Hwc2::Composer> hidl_;
-  sp<ComposerCallback> hidl_callback_;
+  std::unique_ptr<Hwc2::Composer> composer_;
+  sp<ComposerCallback> composer_callback_;
   RequestDisplayCallback request_display_callback_;
 
   // Display metrics of the physical display.
@@ -403,13 +431,9 @@ class HardwareComposer {
   // thread and read by the post thread.
   std::vector<std::shared_ptr<DirectDisplaySurface>> pending_surfaces_;
 
-  // The surfaces displayed by the post thread. Used exclusively by the post
-  // thread.
-  std::vector<std::shared_ptr<DirectDisplaySurface>> display_surfaces_;
-
-  // Layer array for handling buffer flow into hardware composer layers.
-  std::array<Layer, kMaxHardwareLayers> layers_;
-  size_t active_layer_count_ = 0;
+  // Layer set for handling buffer flow into hardware composer layers. This
+  // vector must be sorted by surface_id in ascending order.
+  std::vector<Layer> layers_;
 
   // Handler to hook vsync events outside of this class.
   VSyncCallback vsync_callback_;
@@ -419,8 +443,8 @@ class HardwareComposer {
   std::thread post_thread_;
 
   // Post thread state machine and synchronization primitives.
-  PostThreadStateType post_thread_state_{
-      PostThreadState::Idle | PostThreadState::Suspended};
+  PostThreadStateType post_thread_state_{PostThreadState::Idle |
+                                         PostThreadState::Suspended};
   std::atomic<bool> post_thread_quiescent_{true};
   bool post_thread_resumed_{false};
   pdx::LocalHandle post_thread_event_fd_;
