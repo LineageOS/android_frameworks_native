@@ -109,15 +109,15 @@ void Lshal::usage(const std::string &command) const {
             "        Print help message for debug\n";
 
     if (command == "list") {
-        mErr << list;
+        err() << list;
         return;
     }
     if (command == "debug") {
-        mErr << debug;
+        err() << debug;
         return;
     }
 
-    mErr << helpSummary << "\n" << list << "\n" << debug << "\n" << help;
+    err() << helpSummary << "\n" << list << "\n" << debug << "\n" << help;
 }
 
 // A unique_ptr type using a custom deleter function.
@@ -206,7 +206,7 @@ Status Lshal::parseArgs(const Arg &arg) {
         return OK;
     }
 
-    mErr << arg.argv[0] << ": unrecognized option `" << arg.argv[optind] << "`" << std::endl;
+    err() << arg.argv[0] << ": unrecognized option `" << arg.argv[optind] << "`" << std::endl;
     usage();
     return USAGE;
 }

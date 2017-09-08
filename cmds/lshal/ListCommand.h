@@ -72,14 +72,15 @@ private:
     void forEachTable(const std::function<void(Table &)> &f);
     void forEachTable(const std::function<void(const Table &)> &f) const;
 
+    NullableOStream<std::ostream> err() const;
+    NullableOStream<std::ostream> out() const;
+
     Lshal &mLshal;
 
     Table mServicesTable{};
     Table mPassthroughRefTable{};
     Table mImplementationsTable{};
 
-    NullableOStream<std::ostream> mErr;
-    NullableOStream<std::ostream> mOut;
     NullableOStream<std::ofstream> mFileOutput = nullptr;
     TableEntryCompare mSortColumn = nullptr;
 
