@@ -141,7 +141,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
     return ReturnStatusOrError(status);
   }
 
-  int GetTangoReaderHandle(DvrPoseRawDataType data_type, ConsumerQueue** queue_out) {
+  int GetTangoReaderHandle(uint64_t data_type, ConsumerQueue** queue_out) {
     // Get buffer.
     Transaction trans{*this};
     Status<LocalChannelHandle> status = trans.Send<LocalChannelHandle>(
@@ -169,7 +169,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
     return ReturnStatusOrError(status);
   }
 
-  int DataReaderDestroy(DvrPoseRawDataType data_type) {
+  int DataReaderDestroy(uint64_t data_type) {
     Transaction trans{*this};
     Status<int> status = trans.Send<int>(DVR_POSE_TANGO_READER_DESTROY,
                                          &data_type, sizeof(data_type), nullptr,
@@ -296,8 +296,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
   ControllerClientState controllers_[MAX_CONTROLLERS];
 };
 
-int dvrPoseClientGetDataReaderHandle(DvrPoseClient* client,
-                                     DvrPoseRawDataType type,
+int dvrPoseClientGetDataReaderHandle(DvrPoseClient* client, uint64_t type,
                                      ConsumerQueue** queue_out) {
   return PoseClient::FromC(client)->GetTangoReaderHandle(type, queue_out);
 }
@@ -362,8 +361,7 @@ int dvrPoseClientDataCapture(DvrPoseClient* client,
   return PoseClient::FromC(client)->DataCapture(request);
 }
 
-int dvrPoseClientDataReaderDestroy(DvrPoseClient* client,
-                                   DvrPoseRawDataType data_type) {
+int dvrPoseClientDataReaderDestroy(DvrPoseClient* client, uint64_t data_type) {
   return PoseClient::FromC(client)->DataReaderDestroy(data_type);
 }
 

@@ -250,11 +250,11 @@ typedef int (*DvrPoseClientSensorsEnablePtr)(DvrPoseClient* client,
 typedef int (*DvrPoseClientDataCapturePtr)(DvrPoseClient* client,
     const DvrPoseDataCaptureRequest* request);
 typedef int (*DvrPoseClientDataReaderDestroyPtr)(DvrPoseClient* client,
-                                                 DvrPoseRawDataType data_type);
+                                                 uint64_t data_type);
 
 // dvr_pose.h
 typedef int (*DvrPoseClientGetDataReaderPtr)(DvrPoseClient* client,
-                                             DvrPoseRawDataType data_type,
+                                             uint64_t data_type,
                                              DvrReadBufferQueue** read_queue);
 
 // services/vr/virtual_touchpad/include/dvr/virtual_touchpad_client.h
