@@ -85,6 +85,9 @@ struct TableEntry {
     }
 
     std::string getField(TableColumnType type) const;
+
+    bool operator==(const TableEntry& other) const;
+    std::string to_string() const;
 };
 
 using SelectedColumns = std::vector<TableColumnType>;
@@ -97,6 +100,7 @@ public:
     Entries::const_iterator begin() const { return mEntries.begin(); }
     Entries::iterator end() { return mEntries.end(); }
     Entries::const_iterator end() const { return mEntries.end(); }
+    size_t size() const { return mEntries.size(); }
 
     void add(TableEntry&& entry) { mEntries.push_back(std::move(entry)); }
 

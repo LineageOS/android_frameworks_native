@@ -55,7 +55,7 @@ NullableOStream<std::ostream> ListCommand::err() const {
     return mLshal.err();
 }
 
-std::string getCmdline(pid_t pid) {
+std::string ListCommand::parseCmdline(pid_t pid) const {
     std::ifstream ifs("/proc/" + std::to_string(pid) + "/cmdline");
     std::string cmdline;
     if (!ifs.is_open()) {
@@ -70,7 +70,7 @@ const std::string &ListCommand::getCmdline(pid_t pid) {
     if (pair != mCmdlines.end()) {
         return pair->second;
     }
-    mCmdlines[pid] = ::android::lshal::getCmdline(pid);
+    mCmdlines[pid] = parseCmdline(pid);
     return mCmdlines[pid];
 }
 

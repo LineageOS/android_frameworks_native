@@ -152,5 +152,27 @@ TextTable MergedTable::createTextTable() {
     return textTable;
 }
 
+bool TableEntry::operator==(const TableEntry& other) const {
+    if (this == &other) {
+        return true;
+    }
+    return interfaceName == other.interfaceName && transport == other.transport &&
+        serverPid == other.serverPid && threadUsage == other.threadUsage &&
+        threadCount == other.threadCount && serverCmdline == other.serverCmdline &&
+        serverObjectAddress == other.serverObjectAddress && clientPids == other.clientPids &&
+        clientCmdlines == other.clientCmdlines && arch == other.arch;
+}
+
+std::string TableEntry::to_string() const {
+    std::stringstream ss;
+    ss << "name=" << interfaceName << ";transport=" << transport << ";thread=" << getThreadUsage()
+       << ";server=" << serverPid
+       << "(" << serverObjectAddress << ";" << serverCmdline << ");clients=["
+       << join(clientPids, ";") << "](" << join(clientCmdlines, ";") << ");arch="
+       << getArchString(arch);
+    return ss.str();
+
+}
+
 } // namespace lshal
 } // namespace android
