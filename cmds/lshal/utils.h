@@ -29,6 +29,7 @@ namespace lshal {
 
 enum : unsigned int {
     OK                                      = 0,
+    // Return to Lshal::main to print help info.
     USAGE                                   = 1 << 0,
     NO_BINDERIZED_MANAGER                   = 1 << 1,
     NO_PASSTHROUGH_MANAGER                  = 1 << 2,

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef FRAMEWORK_NATIVE_CMDS_LSHAL_DEBUG_COMMAND_H_
-#define FRAMEWORK_NATIVE_CMDS_LSHAL_DEBUG_COMMAND_H_
+#ifndef FRAMEWORK_NATIVE_CMDS_LSHAL_HELP_COMMAND_H_
+#define FRAMEWORK_NATIVE_CMDS_LSHAL_HELP_COMMAND_H_
 
 #include <string>
 
@@ -29,23 +29,17 @@ namespace lshal {
 
 class Lshal;
 
-class DebugCommand : public Command {
+class HelpCommand : public Command {
 public:
-    DebugCommand(Lshal &lshal) : Command(lshal) {}
-    ~DebugCommand() = default;
+    HelpCommand(Lshal &lshal) : Command(lshal) {}
+    ~HelpCommand() = default;
     Status main(const Arg &arg) override;
     void usage() const override;
-private:
-    Status parseArgs(const Arg &arg);
-
-    std::string mInterfaceName;
-    std::vector<std::string> mOptions;
-
-    DISALLOW_COPY_AND_ASSIGN(DebugCommand);
+    Status usageOfCommand(const std::string& c) const;
 };
 
 
 }  // namespace lshal
 }  // namespace android
 
-#endif  // FRAMEWORK_NATIVE_CMDS_LSHAL_DEBUG_COMMAND_H_
+#endif  // FRAMEWORK_NATIVE_CMDS_LSHAL_HELP_COMMAND_H_

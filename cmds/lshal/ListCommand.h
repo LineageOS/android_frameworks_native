@@ -47,9 +47,10 @@ class ListCommand : public Command {
 public:
     ListCommand(Lshal &lshal) : Command(lshal) {}
     virtual ~ListCommand() = default;
-    Status main(const std::string &command, const Arg &arg) override;
+    Status main(const Arg &arg) override;
+    void usage() const override;
 protected:
-    Status parseArgs(const std::string &command, const Arg &arg);
+    Status parseArgs(const Arg &arg);
     Status fetch();
     void postprocess();
     Status dump();

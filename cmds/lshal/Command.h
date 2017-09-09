@@ -31,7 +31,9 @@ public:
     virtual ~Command() = default;
     // Expect optind to be set by Lshal::main and points to the next argument
     // to process.
-    virtual Status main(const std::string &command, const Arg &arg) = 0;
+    virtual Status main(const Arg &arg) = 0;
+
+    virtual void usage() const = 0;
 
 protected:
     Lshal& mLshal;

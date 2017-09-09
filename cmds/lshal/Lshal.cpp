@@ -48,7 +48,7 @@ Lshal::Lshal(std::ostream &out, std::ostream &err,
 
 }
 
-void Lshal::usage(const std::string &command) const {
+void Lshal::usage() {
     static const std::string helpSummary =
             "lshal: List and debug HALs.\n"
             "\n"
@@ -59,65 +59,12 @@ void Lshal::usage(const std::string &command) const {
             "\n"
             "If no command is specified, `list` is the default.\n";
 
-    static const std::string list =
-            "list:\n"
-            "    lshal\n"
-            "    lshal list\n"
-            "        List all hals with default ordering and columns (`lshal list -iepc`)\n"
-            "    lshal list [-h|--help]\n"
-            "        -h, --help: Print help message for list (`lshal help list`)\n"
-            "    lshal [list] [--interface|-i] [--transport|-t] [-r|--arch] [-e|--threads]\n"
-            "            [--pid|-p] [--address|-a] [--clients|-c] [--cmdline|-m]\n"
-            "            [--sort={interface|i|pid|p}] [--init-vintf[=<output file>]]\n"
-            "            [--debug|-d[=<output file>]] [--neat]\n"
-            "        -i, --interface: print the interface name column\n"
-            "        -n, --instance: print the instance name column\n"
-            "        -t, --transport: print the transport mode column\n"
-            "        -r, --arch: print if the HAL is in 64-bit or 32-bit\n"
-            "        -e, --threads: print currently used/available threads\n"
-            "                       (note, available threads created lazily)\n"
-            "        -p, --pid: print the server PID, or server cmdline if -m is set\n"
-            "        -a, --address: print the server object address column\n"
-            "        -c, --clients: print the client PIDs, or client cmdlines if -m is set\n"
-            "        -m, --cmdline: print cmdline instead of PIDs\n"
-            "        -d[=<output file>], --debug[=<output file>]: emit debug info from \n"
-            "                IBase::debug with empty options. Cannot be used with --neat.\n"
-            "        --sort=i, --sort=interface: sort by interface name\n"
-            "        --sort=p, --sort=pid: sort by server pid\n"
-            "        --neat: output is machine parsable (no explanatory text)\n"
-            "                Cannot be used with --debug.\n"
-            "        --init-vintf[=<output file>]: form a skeleton HAL manifest to specified\n"
-            "                      file, or stdout if no file specified.\n";
-
-    static const std::string debug =
-            "debug:\n"
-            "    lshal debug <interface> [options [options [...]]] \n"
-            "        Print debug information of a specified interface.\n"
-            "        <inteface>: Format is `android.hardware.foo@1.0::IFoo/default`.\n"
-            "            If instance name is missing `default` is used.\n"
-            "        options: space separated options to IBase::debug.\n";
-
-    static const std::string help =
-            "help:\n"
-            "    lshal -h\n"
-            "    lshal --help\n"
-            "    lshal help\n"
-            "        Print this help message\n"
-            "    lshal help list\n"
-            "        Print help message for list\n"
-            "    lshal help debug\n"
-            "        Print help message for debug\n";
-
-    if (command == "list") {
-        err() << list;
-        return;
-    }
-    if (command == "debug") {
-        err() << debug;
-        return;
-    }
-
-    err() << helpSummary << "\n" << list << "\n" << debug << "\n" << help;
+    err() << helpSummary << "\n";
+    selectCommand("list")->usage();
+    err() << "\n";
+    selectCommand("debug")->usage();
+    err() << "\n";
+    selectCommand("help")->usage();
 }
 
 // A unique_ptr type using a custom deleter function.
@@ -206,8 +153,7 @@ Status Lshal::parseArgs(const Arg &arg) {
         return OK;
     }
 
-    err() << arg.argv[0] << ": unrecognized option `" << arg.argv[optind] << "`" << std::endl;
-    usage();
+    err() << arg.argv[0] << ": unrecognized option `" << arg.argv[optind] << "'" << std::endl;
     return USAGE;
 }
 
@@ -218,6 +164,10 @@ void signalHandler(int sig) {
     }
 }
 
+std::unique_ptr<HelpCommand> Lshal::selectHelpCommand() {
+    return std::make_unique<HelpCommand>(*this);
+}
+
 std::unique_ptr<Command> Lshal::selectCommand(const std::string& command) {
     // Default command is list
     if (command == "list" || command == "") {
@@ -225,6 +175,9 @@ std::unique_ptr<Command> Lshal::selectCommand(const std::string& command) {
     }
     if (command == "debug") {
         return std::make_unique<DebugCommand>(*this);
+    }
+    if (command == "help") {
+        return selectHelpCommand();
     }
     return nullptr;
 }
@@ -235,18 +188,24 @@ Status Lshal::main(const Arg &arg) {
 
     Status status = parseArgs(arg);
     if (status != OK) {
+        usage();
         return status;
     }
-    if (mCommand == "help") {
-        usage(optind < arg.argc ? arg.argv[optind] : "");
+    auto c = selectCommand(mCommand);
+    if (c == nullptr) {
+        // unknown command, print global usage
+        usage();
         return USAGE;
     }
-    auto c = selectCommand(mCommand);
-    if (c != nullptr) {
-        return c->main(mCommand, arg);
+    status = c->main(arg);
+    if (status == USAGE) {
+        // bad options. Run `lshal help ${mCommand}` instead.
+        // For example, `lshal --unknown-option` becomes `lshal help` (prints global help)
+        // and `lshal list --unknown-option` becomes `lshal help list`
+        return selectHelpCommand()->usageOfCommand(mCommand);
     }
-    usage();
-    return USAGE;
+
+    return status;
 }
 
 NullableOStream<std::ostream> Lshal::err() const {

@@ -25,6 +25,7 @@
 #include <utils/StrongPointer.h>
 
 #include "Command.h"
+#include "HelpCommand.h"
 #include "NullableOStream.h"
 #include "utils.h"
 
@@ -39,7 +40,8 @@ public:
             sp<hidl::manager::V1_0::IServiceManager> serviceManager,
             sp<hidl::manager::V1_0::IServiceManager> passthroughManager);
     Status main(const Arg &arg);
-    void usage(const std::string &command = "") const;
+    // global usage
+    void usage();
     virtual NullableOStream<std::ostream> err() const;
     virtual NullableOStream<std::ostream> out() const;
     const sp<hidl::manager::V1_0::IServiceManager> &serviceManager() const;
@@ -56,6 +58,7 @@ public:
 
 private:
     Status parseArgs(const Arg &arg);
+    std::unique_ptr<HelpCommand> selectHelpCommand();
 
     std::string mCommand;
     Arg mCmdArgs;

@@ -604,7 +604,7 @@ Status ListCommand::fetch() {
     return status;
 }
 
-Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
+Status ListCommand::parseArgs(const Arg &arg) {
     static struct option longOptions[] = {
         // long options with short alternatives
         {"help",      no_argument,       0, 'h' },
@@ -628,6 +628,9 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
     std::vector<TableColumnType> selectedColumns;
     bool enableCmdlines = false;
 
+    // suppress output to std::err for unknown options
+    opterr = 0;
+
     int optionIndex;
     int c;
     // Lshal::parseArgs has set optind to the next option to parse
@@ -646,7 +649,6 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
                 mSortColumn = TableEntry::sortByServerPid;
             } else {
                 err() << "Unrecognized sorting column: " << optarg << std::endl;
-                mLshal.usage(command);
                 return USAGE;
             }
             break;
@@ -697,22 +699,22 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
             mNeat = true;
             break;
         }
-        case 'h': // falls through
+        case 'h': {
+            return USAGE;
+        }
         default: // see unrecognized options
-            mLshal.usage(command);
+            err() << "unrecognized option `" << arg.argv[optind - 1] << "'" << std::endl;
             return USAGE;
         }
     }
     if (optind < arg.argc) {
         // see non option
-        err() << "Unrecognized option `" << arg.argv[optind] << "`" << std::endl;
-        mLshal.usage(command);
+        err() << "unrecognized option `" << arg.argv[optind] << "'" << std::endl;
         return USAGE;
     }
 
     if (mNeat && mEmitDebugInfo) {
         err() << "Error: --neat should not be used with --debug." << std::endl;
-        mLshal.usage(command);
         return USAGE;
     }
 
@@ -739,8 +741,8 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
     return OK;
 }
 
-Status ListCommand::main(const std::string &command, const Arg &arg) {
-    Status status = parseArgs(command, arg);
+Status ListCommand::main(const Arg &arg) {
+    Status status = parseArgs(arg);
     if (status != OK) {
         return status;
     }
@@ -748,6 +750,41 @@ Status ListCommand::main(const std::string &command, const Arg &arg) {
     postprocess();
     status |= dump();
     return status;
+}
+
+void ListCommand::usage() const {
+
+    static const std::string list =
+            "list:\n"
+            "    lshal\n"
+            "    lshal list\n"
+            "        List all hals with default ordering and columns (`lshal list -iepc`)\n"
+            "    lshal list [-h|--help]\n"
+            "        -h, --help: Print help message for list (`lshal help list`)\n"
+            "    lshal [list] [--interface|-i] [--transport|-t] [-r|--arch] [-e|--threads]\n"
+            "            [--pid|-p] [--address|-a] [--clients|-c] [--cmdline|-m]\n"
+            "            [--sort={interface|i|pid|p}] [--init-vintf[=<output file>]]\n"
+            "            [--debug|-d[=<output file>]] [--neat]\n"
+            "        -i, --interface: print the interface name column\n"
+            "        -n, --instance: print the instance name column\n"
+            "        -t, --transport: print the transport mode column\n"
+            "        -r, --arch: print if the HAL is in 64-bit or 32-bit\n"
+            "        -e, --threads: print currently used/available threads\n"
+            "                       (note, available threads created lazily)\n"
+            "        -p, --pid: print the server PID, or server cmdline if -m is set\n"
+            "        -a, --address: print the server object address column\n"
+            "        -c, --clients: print the client PIDs, or client cmdlines if -m is set\n"
+            "        -m, --cmdline: print cmdline instead of PIDs\n"
+            "        -d[=<output file>], --debug[=<output file>]: emit debug info from \n"
+            "                IBase::debug with empty options. Cannot be used with --neat.\n"
+            "        --sort=i, --sort=interface: sort by interface name\n"
+            "        --sort=p, --sort=pid: sort by server pid\n"
+            "        --neat: output is machine parsable (no explanatory text)\n"
+            "                Cannot be used with --debug.\n"
+            "        --init-vintf[=<output file>]: form a skeleton HAL manifest to specified\n"
+            "                      file, or stdout if no file specified.\n";
+
+    err() << list;
 }
 
 }  // namespace lshal
