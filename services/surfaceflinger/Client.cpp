@@ -140,7 +140,8 @@ status_t Client::createSurface(
 {
     sp<Layer> parent = nullptr;
     if (parentHandle != nullptr) {
-        parent = getLayerUser(parentHandle);
+        auto layerHandle = reinterpret_cast<Layer::Handle*>(parentHandle.get());
+        parent = layerHandle->owner.promote();
         if (parent == nullptr) {
             return NAME_NOT_FOUND;
         }

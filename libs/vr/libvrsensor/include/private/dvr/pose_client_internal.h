@@ -10,8 +10,7 @@ typedef struct DvrPoseClient DvrPoseClient;
 namespace android {
 namespace dvr {
 
-int dvrPoseClientGetDataReaderHandle(DvrPoseClient *client,
-                                     DvrPoseRawDataType data_type,
+int dvrPoseClientGetDataReaderHandle(DvrPoseClient *client, uint64_t data_type,
                                      ConsumerQueue **queue_out);
 
 }  // namespace dvr
