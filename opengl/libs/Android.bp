@@ -64,6 +64,15 @@ cc_defaults {
         "liblog",
         "libdl",
     ],
+    static_libs: [
+        "libarect",
+    ],
+    header_libs: [
+        "gl_headers",
+        "libsystem_headers",
+        "libhardware_headers",
+    ],
+    export_header_lib_headers: ["gl_headers"],
 
     // we need to access the private Bionic header <bionic_tls.h>
     include_dirs: ["bionic/libc/private"],
@@ -75,6 +84,7 @@ cc_defaults {
 cc_defaults {
     name: "egl_libs_defaults",
     defaults: ["gl_libs_defaults"],
+    vendor_available: true,
     cflags: [
         "-DLOG_TAG=\"libEGL\"",
     ],
@@ -85,6 +95,11 @@ cc_defaults {
         "libnativewindow",
         "libbacktrace",
     ],
+    target: {
+        vendor: {
+            exclude_shared_libs: ["libgraphicsenv"],
+        },
+    },
 }
 
 cc_library_static {
@@ -129,6 +144,7 @@ cc_test {
 cc_defaults {
     name: "gles_libs_defaults",
     defaults: ["gl_libs_defaults"],
+    vendor_available: true,
     arch: {
         arm: {
             instruction_set: "arm",

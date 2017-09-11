@@ -28,7 +28,9 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 
+#ifndef __ANDROID_VNDK__
 #include <graphicsenv/GraphicsEnv.h>
+#endif
 #include <vndksupport/linker.h>
 
 #include "egl_trace.h"
@@ -477,10 +479,12 @@ void *Loader::load_driver(const char* kind,
     ATRACE_CALL();
 
     void* dso = nullptr;
+#ifndef __ANDROID_VNDK__
     android_namespace_t* ns = android_getDriverNamespace();
     if (ns) {
         dso = load_updated_driver(kind, ns);
     }
+#endif
     if (!dso) {
         dso = load_system_driver(kind);
         if (!dso)
