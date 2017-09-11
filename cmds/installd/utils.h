@@ -126,7 +126,7 @@ void remove_path_xattr(const std::string& path, const char* inode_xattr);
 
 int validate_system_app_path(const char* path);
 bool validate_secondary_dex_path(const std::string& pkgname, const std::string& dex_path,
-        const char* volume_uuid, int uid, int storage_flag);
+        const char* volume_uuid, int uid, int storage_flag, bool validate_package_path = true);
 
 int get_path_from_env(dir_rec_t* rec, const char* var);
 
