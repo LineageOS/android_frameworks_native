@@ -1796,8 +1796,14 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
     }
 
     const char* volume_uuid_cstr = volume_uuid == nullptr ? nullptr : volume_uuid->c_str();
+
+    // Note that we cannot validate the package path here because the file might not exist
+    // and we cannot call realpath to resolve system symlinks. Since /data/user/0 symlinks to
+    // /data/data/ a lot of validations will fail if we attempt to check the package path.
+    // It is still ok to be more relaxed because any file removal is done after forking and
+    // dropping capabilities.
     if (!validate_secondary_dex_path(pkgname.c_str(), dex_path.c_str(), volume_uuid_cstr,
-            uid, storage_flag)) {
+            uid, storage_flag, /*validate_package_path*/ false)) {
         LOG(ERROR) << "Could not validate secondary dex path " << dex_path;
         return false;
     }
