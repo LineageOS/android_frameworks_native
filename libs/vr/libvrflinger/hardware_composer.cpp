@@ -85,9 +85,6 @@ bool SetThreadPolicy(const std::string& scheduler_class,
 
 }  // anonymous namespace
 
-// HardwareComposer static data;
-constexpr size_t HardwareComposer::kMaxHardwareLayers;
-
 HardwareComposer::HardwareComposer()
     : initialized_(false), request_display_callback_(nullptr) {}
 
@@ -98,7 +95,7 @@ HardwareComposer::~HardwareComposer(void) {
 }
 
 bool HardwareComposer::Initialize(
-    Hwc2::Composer* hidl, RequestDisplayCallback request_display_callback) {
+    Hwc2::Composer* composer, RequestDisplayCallback request_display_callback) {
   if (initialized_) {
     ALOGE("HardwareComposer::Initialize: already initialized.");
     return false;
@@ -109,7 +106,7 @@ bool HardwareComposer::Initialize(
   HWC::Error error = HWC::Error::None;
 
   Hwc2::Config config;
-  error = hidl->getActiveConfig(HWC_DISPLAY_PRIMARY, &config);
+  error = composer->getActiveConfig(HWC_DISPLAY_PRIMARY, &config);
 
   if (error != HWC::Error::None) {
     ALOGE("HardwareComposer: Failed to get current display config : %d",
@@ -117,7 +114,7 @@ bool HardwareComposer::Initialize(
     return false;
   }
 
-  error = GetDisplayMetrics(hidl, HWC_DISPLAY_PRIMARY, config,
+  error = GetDisplayMetrics(composer, HWC_DISPLAY_PRIMARY, config,
                             &native_display_metrics_);
 
   if (error != HWC::Error::None) {
@@ -139,6 +136,9 @@ bool HardwareComposer::Initialize(
   // rotation processing in hwc.
   display_transform_ = HWC_TRANSFORM_NONE;
   display_metrics_ = native_display_metrics_;
+
+  // Setup the display metrics used by all Layer instances.
+  Layer::SetDisplayMetrics(native_display_metrics_);
 
   post_thread_event_fd_.Reset(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
   LOG_ALWAYS_FATAL_IF(
@@ -198,9 +198,10 @@ void HardwareComposer::UpdatePostThreadState(PostThreadStateType state,
 }
 
 void HardwareComposer::OnPostThreadResumed() {
-  hidl_.reset(new Hwc2::Composer(false));
-  hidl_callback_ = new ComposerCallback;
-  hidl_->registerCallback(hidl_callback_);
+  composer_.reset(new Hwc2::Composer(false));
+  composer_callback_ = new ComposerCallback;
+  composer_->registerCallback(composer_callback_);
+  Layer::SetComposer(composer_.get());
 
   EnableVsync(true);
 
@@ -217,19 +218,15 @@ void HardwareComposer::OnPostThreadResumed() {
 
 void HardwareComposer::OnPostThreadPaused() {
   retire_fence_fds_.clear();
-  display_surfaces_.clear();
+  layers_.clear();
 
-  for (size_t i = 0; i < kMaxHardwareLayers; ++i) {
-    layers_[i].Reset();
-  }
-  active_layer_count_ = 0;
-
-  if (hidl_) {
+  if (composer_) {
     EnableVsync(false);
   }
 
-  hidl_callback_ = nullptr;
-  hidl_.reset(nullptr);
+  composer_callback_ = nullptr;
+  composer_.reset(nullptr);
+  Layer::SetComposer(nullptr);
 
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "idle");
@@ -239,21 +236,21 @@ HWC::Error HardwareComposer::Validate(hwc2_display_t display) {
   uint32_t num_types;
   uint32_t num_requests;
   HWC::Error error =
-      hidl_->validateDisplay(display, &num_types, &num_requests);
+      composer_->validateDisplay(display, &num_types, &num_requests);
 
   if (error == HWC2_ERROR_HAS_CHANGES) {
     // TODO(skiazyk): We might need to inspect the requested changes first, but
     // so far it seems like we shouldn't ever hit a bad state.
     // error = hwc2_funcs_.accept_display_changes_fn_(hardware_composer_device_,
     //                                               display);
-    error = hidl_->acceptDisplayChanges(display);
+    error = composer_->acceptDisplayChanges(display);
   }
 
   return error;
 }
 
 HWC::Error HardwareComposer::EnableVsync(bool enabled) {
-  return hidl_->setVsyncEnabled(
+  return composer_->setVsyncEnabled(
       HWC_DISPLAY_PRIMARY,
       (Hwc2::IComposerClient::Vsync)(enabled ? HWC2_VSYNC_ENABLE
                                              : HWC2_VSYNC_DISABLE));
@@ -261,7 +258,7 @@ HWC::Error HardwareComposer::EnableVsync(bool enabled) {
 
 HWC::Error HardwareComposer::Present(hwc2_display_t display) {
   int32_t present_fence;
-  HWC::Error error = hidl_->presentDisplay(display, &present_fence);
+  HWC::Error error = composer_->presentDisplay(display, &present_fence);
 
   // According to the documentation, this fence is signaled at the time of
   // vsync/DMA for physical displays.
@@ -275,21 +272,21 @@ HWC::Error HardwareComposer::Present(hwc2_display_t display) {
   return error;
 }
 
-HWC::Error HardwareComposer::GetDisplayAttribute(Hwc2::Composer* hidl,
+HWC::Error HardwareComposer::GetDisplayAttribute(Hwc2::Composer* composer,
                                                  hwc2_display_t display,
                                                  hwc2_config_t config,
                                                  hwc2_attribute_t attribute,
                                                  int32_t* out_value) const {
-  return hidl->getDisplayAttribute(
+  return composer->getDisplayAttribute(
       display, config, (Hwc2::IComposerClient::Attribute)attribute, out_value);
 }
 
 HWC::Error HardwareComposer::GetDisplayMetrics(
-    Hwc2::Composer* hidl, hwc2_display_t display, hwc2_config_t config,
+    Hwc2::Composer* composer, hwc2_display_t display, hwc2_config_t config,
     HWCDisplayMetrics* out_metrics) const {
   HWC::Error error;
 
-  error = GetDisplayAttribute(hidl, display, config, HWC2_ATTRIBUTE_WIDTH,
+  error = GetDisplayAttribute(composer, display, config, HWC2_ATTRIBUTE_WIDTH,
                               &out_metrics->width);
   if (error != HWC::Error::None) {
     ALOGE(
@@ -298,7 +295,7 @@ HWC::Error HardwareComposer::GetDisplayMetrics(
     return error;
   }
 
-  error = GetDisplayAttribute(hidl, display, config, HWC2_ATTRIBUTE_HEIGHT,
+  error = GetDisplayAttribute(composer, display, config, HWC2_ATTRIBUTE_HEIGHT,
                               &out_metrics->height);
   if (error != HWC::Error::None) {
     ALOGE(
@@ -307,7 +304,7 @@ HWC::Error HardwareComposer::GetDisplayMetrics(
     return error;
   }
 
-  error = GetDisplayAttribute(hidl, display, config,
+  error = GetDisplayAttribute(composer, display, config,
                               HWC2_ATTRIBUTE_VSYNC_PERIOD,
                               &out_metrics->vsync_period_ns);
   if (error != HWC::Error::None) {
@@ -317,7 +314,7 @@ HWC::Error HardwareComposer::GetDisplayMetrics(
     return error;
   }
 
-  error = GetDisplayAttribute(hidl, display, config, HWC2_ATTRIBUTE_DPI_X,
+  error = GetDisplayAttribute(composer, display, config, HWC2_ATTRIBUTE_DPI_X,
                               &out_metrics->dpi.x);
   if (error != HWC::Error::None) {
     ALOGE(
@@ -326,7 +323,7 @@ HWC::Error HardwareComposer::GetDisplayMetrics(
     return error;
   }
 
-  error = GetDisplayAttribute(hidl, display, config, HWC2_ATTRIBUTE_DPI_Y,
+  error = GetDisplayAttribute(composer, display, config, HWC2_ATTRIBUTE_DPI_Y,
                               &out_metrics->dpi.y);
   if (error != HWC::Error::None) {
     ALOGE(
@@ -349,10 +346,10 @@ std::string HardwareComposer::Dump() {
          << std::endl;
 
   stream << "Post thread resumed: " << post_thread_resumed_ << std::endl;
-  stream << "Active layers:       " << active_layer_count_ << std::endl;
+  stream << "Active layers:       " << layers_.size() << std::endl;
   stream << std::endl;
 
-  for (size_t i = 0; i < active_layer_count_; i++) {
+  for (size_t i = 0; i < layers_.size(); i++) {
     stream << "Layer " << i << ":";
     stream << " type=" << layers_[i].GetCompositionType().to_string();
     stream << " surface_id=" << layers_[i].GetSurfaceId();
@@ -363,7 +360,7 @@ std::string HardwareComposer::Dump() {
 
   if (post_thread_resumed_) {
     stream << "Hardware Composer Debug Info:" << std::endl;
-    stream << hidl_->dumpDebugInfo();
+    stream << composer_->dumpDebugInfo();
   }
 
   return stream.str();
@@ -373,8 +370,8 @@ void HardwareComposer::PostLayers() {
   ATRACE_NAME("HardwareComposer::PostLayers");
 
   // Setup the hardware composer layers with current buffers.
-  for (size_t i = 0; i < active_layer_count_; i++) {
-    layers_[i].Prepare();
+  for (auto& layer : layers_) {
+    layer.Prepare();
   }
 
   HWC::Error error = Validate(HWC_DISPLAY_PRIMARY);
@@ -408,8 +405,8 @@ void HardwareComposer::PostLayers() {
              "Warning: dropping a frame to catch up with HWC (pending = %zd)",
              retire_fence_fds_.size());
 
-    for (size_t i = 0; i < active_layer_count_; i++) {
-      layers_[i].Drop();
+    for (auto& layer : layers_) {
+      layer.Drop();
     }
     return;
   } else {
@@ -419,7 +416,7 @@ void HardwareComposer::PostLayers() {
   }
 
 #if TRACE > 1
-  for (size_t i = 0; i < active_layer_count_; i++) {
+  for (size_t i = 0; i < layers_.size(); i++) {
     ALOGI("HardwareComposer::PostLayers: layer=%zu buffer_id=%d composition=%s",
           i, layers_[i].GetBufferId(),
           layers_[i].GetCompositionType().to_string().c_str());
@@ -435,18 +432,18 @@ void HardwareComposer::PostLayers() {
 
   std::vector<Hwc2::Layer> out_layers;
   std::vector<int> out_fences;
-  error = hidl_->getReleaseFences(HWC_DISPLAY_PRIMARY, &out_layers,
-                                  &out_fences);
+  error = composer_->getReleaseFences(HWC_DISPLAY_PRIMARY, &out_layers,
+                                      &out_fences);
   ALOGE_IF(error != HWC::Error::None,
            "HardwareComposer::PostLayers: Failed to get release fences: %s",
            error.to_string().c_str());
 
-  // Perform post-frame bookkeeping. Unused layers are a no-op.
+  // Perform post-frame bookkeeping.
   uint32_t num_elements = out_layers.size();
   for (size_t i = 0; i < num_elements; ++i) {
-    for (size_t j = 0; j < active_layer_count_; ++j) {
-      if (layers_[j].GetLayerHandle() == out_layers[i]) {
-        layers_[j].Finish(out_fences[i]);
+    for (auto& layer : layers_) {
+      if (layer.GetLayerHandle() == out_layers[i]) {
+        layer.Finish(out_fences[i]);
       }
     }
   }
@@ -618,12 +615,12 @@ int HardwareComposer::ReadWaitPPState() {
 // vsync already passed since the last call, returns the latest vsync timestamp
 // instead of blocking.
 int HardwareComposer::WaitForVSync(int64_t* timestamp) {
-  int error = PostThreadPollInterruptible(
-      hidl_callback_->GetVsyncEventFd(), POLLIN, /*timeout_ms*/ 1000);
+  int error = PostThreadPollInterruptible(composer_callback_->GetVsyncEventFd(),
+                                          POLLIN, /*timeout_ms*/ 1000);
   if (error == kPostThreadInterrupted || error < 0) {
     return error;
   } else {
-    *timestamp = hidl_callback_->GetVsyncTime();
+    *timestamp = composer_callback_->GetVsyncTime();
     return 0;
   }
 }
@@ -827,38 +824,60 @@ bool HardwareComposer::UpdateLayerConfig() {
 
   ATRACE_NAME("UpdateLayerConfig_HwLayers");
 
-  display_surfaces_.clear();
+  // Sort the new direct surface list by z-order to determine the relative order
+  // of the surfaces. This relative order is used for the HWC z-order value to
+  // insulate VrFlinger and HWC z-order semantics from each other.
+  std::sort(surfaces.begin(), surfaces.end(), [](const auto& a, const auto& b) {
+    return a->z_order() < b->z_order();
+  });
 
-  Layer* target_layer;
-  size_t layer_index;
-  for (layer_index = 0;
-       layer_index < std::min(surfaces.size(), kMaxHardwareLayers);
-       layer_index++) {
+  // Prepare a new layer stack, pulling in layers from the previous
+  // layer stack that are still active and updating their attributes.
+  std::vector<Layer> layers;
+  size_t layer_index = 0;
+  for (const auto& surface : surfaces) {
     // The bottom layer is opaque, other layers blend.
     HWC::BlendMode blending =
         layer_index == 0 ? HWC::BlendMode::None : HWC::BlendMode::Coverage;
-    layers_[layer_index].Setup(surfaces[layer_index], native_display_metrics_,
-                               hidl_.get(), blending,
-                               display_transform_, HWC::Composition::Device,
-                               layer_index);
-    display_surfaces_.push_back(surfaces[layer_index]);
+
+    // Try to find a layer for this surface in the set of active layers.
+    auto search =
+        std::lower_bound(layers_.begin(), layers_.end(), surface->surface_id());
+    const bool found = search != layers_.end() &&
+                       search->GetSurfaceId() == surface->surface_id();
+    if (found) {
+      // Update the attributes of the layer that may have changed.
+      search->SetBlending(blending);
+      search->SetZOrder(layer_index);  // Relative z-order.
+
+      // Move the existing layer to the new layer set and remove the empty layer
+      // object from the current set.
+      layers.push_back(std::move(*search));
+      layers_.erase(search);
+    } else {
+      // Insert a layer for the new surface.
+      layers.emplace_back(surface, blending, display_transform_,
+                          HWC::Composition::Device, layer_index);
+    }
+
+    ALOGI_IF(
+        TRACE,
+        "HardwareComposer::UpdateLayerConfig: layer_index=%zu surface_id=%d",
+        layer_index, layers[layer_index].GetSurfaceId());
+
+    layer_index++;
   }
 
-  // Clear unused layers.
-  for (size_t i = layer_index; i < kMaxHardwareLayers; i++)
-    layers_[i].Reset();
+  // Sort the new layer stack by ascending surface id.
+  std::sort(layers.begin(), layers.end());
 
-  active_layer_count_ = layer_index;
+  // Replace the previous layer set with the new layer set. The destructor of
+  // the previous set will clean up the remaining Layers that are not moved to
+  // the new layer set.
+  layers_ = std::move(layers);
+
   ALOGD_IF(TRACE, "HardwareComposer::UpdateLayerConfig: %zd active layers",
-           active_layer_count_);
-
-  // Any surfaces left over could not be assigned a hardware layer and will
-  // not be displayed.
-  ALOGW_IF(surfaces.size() != display_surfaces_.size(),
-           "HardwareComposer::UpdateLayerConfig: More surfaces than layers: "
-           "pending_surfaces=%zu display_surfaces=%zu",
-           surfaces.size(), display_surfaces_.size());
-
+           layers_.size());
   return true;
 }
 
@@ -920,13 +939,15 @@ int64_t HardwareComposer::ComposerCallback::GetVsyncTime() {
   return return_val;
 }
 
+Hwc2::Composer* Layer::composer_{nullptr};
+HWCDisplayMetrics Layer::display_metrics_{0, 0, {0, 0}, 0};
+
 void Layer::Reset() {
-  if (hidl_ != nullptr && hardware_composer_layer_) {
-    hidl_->destroyLayer(HWC_DISPLAY_PRIMARY, hardware_composer_layer_);
+  if (hardware_composer_layer_) {
+    composer_->destroyLayer(HWC_DISPLAY_PRIMARY, hardware_composer_layer_);
     hardware_composer_layer_ = 0;
   }
 
-  hidl_ = nullptr;
   z_order_ = 0;
   blending_ = HWC::BlendMode::None;
   transform_ = HWC::Transform::None;
@@ -935,38 +956,52 @@ void Layer::Reset() {
   source_ = EmptyVariant{};
   acquire_fence_.Close();
   surface_rect_functions_applied_ = false;
+  pending_visibility_settings_ = true;
 }
 
-void Layer::Setup(const std::shared_ptr<DirectDisplaySurface>& surface,
-                  const HWCDisplayMetrics& display_metrics,
-                  Hwc2::Composer* hidl, HWC::BlendMode blending,
-                  HWC::Transform transform, HWC::Composition composition_type,
-                  size_t z_order) {
-  Reset();
-  hidl_ = hidl;
-  z_order_ = z_order;
-  blending_ = blending;
-  transform_ = transform;
-  composition_type_ = HWC::Composition::Invalid;
-  target_composition_type_ = composition_type;
-  source_ = SourceSurface{surface};
-  CommonLayerSetup(display_metrics);
+Layer::Layer(const std::shared_ptr<DirectDisplaySurface>& surface,
+             HWC::BlendMode blending, HWC::Transform transform,
+             HWC::Composition composition_type, size_t z_order)
+    : z_order_{z_order},
+      blending_{blending},
+      transform_{transform},
+      target_composition_type_{composition_type},
+      source_{SourceSurface{surface}} {
+  CommonLayerSetup();
 }
 
-void Layer::Setup(const std::shared_ptr<IonBuffer>& buffer,
-                  const HWCDisplayMetrics& display_metrics,
-                  Hwc2::Composer* hidl, HWC::BlendMode blending,
-                  HWC::Transform transform, HWC::Composition composition_type,
-                  size_t z_order) {
-  Reset();
-  hidl_ = hidl;
-  z_order_ = z_order;
-  blending_ = blending;
-  transform_ = transform;
-  composition_type_ = HWC::Composition::Invalid;
-  target_composition_type_ = composition_type;
-  source_ = SourceBuffer{buffer};
-  CommonLayerSetup(display_metrics);
+Layer::Layer(const std::shared_ptr<IonBuffer>& buffer, HWC::BlendMode blending,
+             HWC::Transform transform, HWC::Composition composition_type,
+             size_t z_order)
+    : z_order_{z_order},
+      blending_{blending},
+      transform_{transform},
+      target_composition_type_{composition_type},
+      source_{SourceBuffer{buffer}} {
+  CommonLayerSetup();
+}
+
+Layer::~Layer() { Reset(); }
+
+Layer::Layer(Layer&& other) { *this = std::move(other); }
+
+Layer& Layer::operator=(Layer&& other) {
+  if (this != &other) {
+    Reset();
+    using std::swap;
+    swap(hardware_composer_layer_, other.hardware_composer_layer_);
+    swap(z_order_, other.z_order_);
+    swap(blending_, other.blending_);
+    swap(transform_, other.transform_);
+    swap(composition_type_, other.composition_type_);
+    swap(target_composition_type_, other.target_composition_type_);
+    swap(source_, other.source_);
+    swap(acquire_fence_, other.acquire_fence_);
+    swap(surface_rect_functions_applied_,
+         other.surface_rect_functions_applied_);
+    swap(pending_visibility_settings_, other.pending_visibility_settings_);
+  }
+  return *this;
 }
 
 void Layer::UpdateBuffer(const std::shared_ptr<IonBuffer>& buffer) {
@@ -974,8 +1009,19 @@ void Layer::UpdateBuffer(const std::shared_ptr<IonBuffer>& buffer) {
     std::get<SourceBuffer>(source_) = {buffer};
 }
 
-void Layer::SetBlending(HWC::BlendMode blending) { blending_ = blending; }
-void Layer::SetZOrder(size_t z_order) { z_order_ = z_order; }
+void Layer::SetBlending(HWC::BlendMode blending) {
+  if (blending_ != blending) {
+    blending_ = blending;
+    pending_visibility_settings_ = true;
+  }
+}
+
+void Layer::SetZOrder(size_t z_order) {
+  if (z_order_ != z_order) {
+    z_order_ = z_order;
+    pending_visibility_settings_ = true;
+  }
+}
 
 IonBuffer* Layer::GetBuffer() {
   struct Visitor {
@@ -986,67 +1032,65 @@ IonBuffer* Layer::GetBuffer() {
   return source_.Visit(Visitor{});
 }
 
-void Layer::UpdateLayerSettings(const HWCDisplayMetrics& display_metrics) {
-  if (!IsLayerSetup()) {
-    ALOGE(
-        "HardwareComposer::Layer::UpdateLayerSettings: Attempt to update "
-        "unused Layer!");
-    return;
-  }
+void Layer::UpdateVisibilitySettings() {
+  if (pending_visibility_settings_) {
+    pending_visibility_settings_ = false;
 
+    HWC::Error error;
+    hwc2_display_t display = HWC_DISPLAY_PRIMARY;
+
+    error = composer_->setLayerBlendMode(
+        display, hardware_composer_layer_,
+        blending_.cast<Hwc2::IComposerClient::BlendMode>());
+    ALOGE_IF(error != HWC::Error::None,
+             "Layer::UpdateLayerSettings: Error setting layer blend mode: %s",
+             error.to_string().c_str());
+
+    error =
+        composer_->setLayerZOrder(display, hardware_composer_layer_, z_order_);
+    ALOGE_IF(error != HWC::Error::None,
+             "Layer::UpdateLayerSettings: Error setting z_ order: %s",
+             error.to_string().c_str());
+  }
+}
+
+void Layer::UpdateLayerSettings() {
   HWC::Error error;
   hwc2_display_t display = HWC_DISPLAY_PRIMARY;
 
-  error = hidl_->setLayerCompositionType(
-      display, hardware_composer_layer_,
-      composition_type_.cast<Hwc2::IComposerClient::Composition>());
-  ALOGE_IF(
-      error != HWC::Error::None,
-      "Layer::UpdateLayerSettings: Error setting layer composition type: %s",
-      error.to_string().c_str());
-
-  error = hidl_->setLayerBlendMode(
-      display, hardware_composer_layer_,
-      blending_.cast<Hwc2::IComposerClient::BlendMode>());
-  ALOGE_IF(error != HWC::Error::None,
-           "Layer::UpdateLayerSettings: Error setting layer blend mode: %s",
-           error.to_string().c_str());
+  UpdateVisibilitySettings();
 
   // TODO(eieio): Use surface attributes or some other mechanism to control
   // the layer display frame.
-  error = hidl_->setLayerDisplayFrame(
+  error = composer_->setLayerDisplayFrame(
       display, hardware_composer_layer_,
-      {0, 0, display_metrics.width, display_metrics.height});
+      {0, 0, display_metrics_.width, display_metrics_.height});
   ALOGE_IF(error != HWC::Error::None,
            "Layer::UpdateLayerSettings: Error setting layer display frame: %s",
            error.to_string().c_str());
 
-  error = hidl_->setLayerVisibleRegion(
+  error = composer_->setLayerVisibleRegion(
       display, hardware_composer_layer_,
-      {{0, 0, display_metrics.width, display_metrics.height}});
+      {{0, 0, display_metrics_.width, display_metrics_.height}});
   ALOGE_IF(error != HWC::Error::None,
            "Layer::UpdateLayerSettings: Error setting layer visible region: %s",
            error.to_string().c_str());
 
-  error = hidl_->setLayerPlaneAlpha(display, hardware_composer_layer_, 1.0f);
+  error =
+      composer_->setLayerPlaneAlpha(display, hardware_composer_layer_, 1.0f);
   ALOGE_IF(error != HWC::Error::None,
            "Layer::UpdateLayerSettings: Error setting layer plane alpha: %s",
            error.to_string().c_str());
-
-  error = hidl_->setLayerZOrder(display, hardware_composer_layer_, z_order_);
-  ALOGE_IF(error != HWC::Error::None,
-           "Layer::UpdateLayerSettings: Error setting z_ order: %s",
-           error.to_string().c_str());
 }
 
-void Layer::CommonLayerSetup(const HWCDisplayMetrics& display_metrics) {
+void Layer::CommonLayerSetup() {
   HWC::Error error =
-      hidl_->createLayer(HWC_DISPLAY_PRIMARY, &hardware_composer_layer_);
-  ALOGE_IF(
-      error != HWC::Error::None,
-      "Layer::CommonLayerSetup: Failed to create layer on primary display: %s",
-      error.to_string().c_str());
-  UpdateLayerSettings(display_metrics);
+      composer_->createLayer(HWC_DISPLAY_PRIMARY, &hardware_composer_layer_);
+  ALOGE_IF(error != HWC::Error::None,
+           "Layer::CommonLayerSetup: Failed to create layer on primary "
+           "display: %s",
+           error.to_string().c_str());
+  UpdateLayerSettings();
 }
 
 void Layer::Prepare() {
@@ -1058,19 +1102,23 @@ void Layer::Prepare() {
     std::tie(right, bottom, handle, acquire_fence_) = source.Acquire();
   });
 
-  // When a layer is first setup there may be some time before the first buffer
-  // arrives. Setup the HWC layer as a solid color to stall for time until the
-  // first buffer arrives. Once the first buffer arrives there will always be a
-  // buffer for the frame even if it is old.
+  // Update any visibility (blending, z-order) changes that occurred since
+  // last prepare.
+  UpdateVisibilitySettings();
+
+  // When a layer is first setup there may be some time before the first
+  // buffer arrives. Setup the HWC layer as a solid color to stall for time
+  // until the first buffer arrives. Once the first buffer arrives there will
+  // always be a buffer for the frame even if it is old.
   if (!handle.get()) {
     if (composition_type_ == HWC::Composition::Invalid) {
       composition_type_ = HWC::Composition::SolidColor;
-      hidl_->setLayerCompositionType(
+      composer_->setLayerCompositionType(
           HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
           composition_type_.cast<Hwc2::IComposerClient::Composition>());
       Hwc2::IComposerClient::Color layer_color = {0, 0, 0, 0};
-      hidl_->setLayerColor(HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
-                           layer_color);
+      composer_->setLayerColor(HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+                               layer_color);
     } else {
       // The composition type is already set. Nothing else to do until a
       // buffer arrives.
@@ -1078,15 +1126,15 @@ void Layer::Prepare() {
   } else {
     if (composition_type_ != target_composition_type_) {
       composition_type_ = target_composition_type_;
-      hidl_->setLayerCompositionType(
+      composer_->setLayerCompositionType(
           HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
           composition_type_.cast<Hwc2::IComposerClient::Composition>());
     }
 
     HWC::Error error{HWC::Error::None};
-    error = hidl_->setLayerBuffer(HWC_DISPLAY_PRIMARY,
-                                  hardware_composer_layer_, 0, handle,
-                                  acquire_fence_.Get());
+    error =
+        composer_->setLayerBuffer(HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+                                  0, handle, acquire_fence_.Get());
 
     ALOGE_IF(error != HWC::Error::None,
              "Layer::Prepare: Error setting layer buffer: %s",
@@ -1095,9 +1143,9 @@ void Layer::Prepare() {
     if (!surface_rect_functions_applied_) {
       const float float_right = right;
       const float float_bottom = bottom;
-      error = hidl_->setLayerSourceCrop(HWC_DISPLAY_PRIMARY,
-                                        hardware_composer_layer_,
-                                        {0, 0, float_right, float_bottom});
+      error = composer_->setLayerSourceCrop(HWC_DISPLAY_PRIMARY,
+                                            hardware_composer_layer_,
+                                            {0, 0, float_right, float_bottom});
 
       ALOGE_IF(error != HWC::Error::None,
                "Layer::Prepare: Error setting layer source crop: %s",

@@ -257,7 +257,7 @@ bool InputReaderConfiguration::getDisplayViewport(ViewportType viewportType,
         const String8* uniqueDisplayId, DisplayViewport* outViewport) const {
     const DisplayViewport* viewport = NULL;
     if (viewportType == ViewportType::VIEWPORT_VIRTUAL && uniqueDisplayId != NULL) {
-        for (DisplayViewport currentViewport : mVirtualDisplays) {
+        for (const DisplayViewport& currentViewport : mVirtualDisplays) {
             if (currentViewport.uniqueId == *uniqueDisplayId) {
                 viewport = &currentViewport;
                 break;
