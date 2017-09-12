@@ -429,7 +429,7 @@ void InputReader::processEventsLocked(const RawEvent* rawEvents, size_t count) {
                 batchSize += 1;
             }
 #if DEBUG_RAW_EVENTS
-            ALOGD("BatchSize: %d Count: %d", batchSize, count);
+            ALOGD("BatchSize: %zu Count: %zu", batchSize, count);
 #endif
             processEventsForDeviceLocked(deviceId, rawEvent, batchSize);
         } else {
@@ -1176,7 +1176,7 @@ void InputDevice::process(const RawEvent* rawEvents, size_t count) {
     size_t numMappers = mMappers.size();
     for (const RawEvent* rawEvent = rawEvents; count--; rawEvent++) {
 #if DEBUG_RAW_EVENTS
-        ALOGD("Input event: device=%d type=0x%04x code=0x%04x value=0x%08x when=%lld",
+        ALOGD("Input event: device=%d type=0x%04x code=0x%04x value=0x%08x when=%" PRId64,
                 rawEvent->deviceId, rawEvent->type, rawEvent->code, rawEvent->value,
                 rawEvent->when);
 #endif
@@ -1851,7 +1851,7 @@ void MultiTouchMotionAccumulator::process(const RawEvent* rawEvent) {
 #if DEBUG_POINTERS
             if (newSlot) {
                 ALOGW("MultiTouch device emitted invalid slot index %d but it "
-                        "should be between 0 and %d; ignoring this slot.",
+                        "should be between 0 and %zd; ignoring this slot.",
                         mCurrentSlot, mSlotCount - 1);
             }
 #endif
@@ -2147,9 +2147,9 @@ void VibratorInputMapper::vibrate(const nsecs_t* pattern, size_t patternSize, ss
         if (i != 0) {
             patternStr.append(", ");
         }
-        patternStr.appendFormat("%lld", pattern[i]);
+        patternStr.appendFormat("%" PRId64, pattern[i]);
     }
-    ALOGD("vibrate: deviceId=%d, pattern=[%s], repeat=%ld, token=%d",
+    ALOGD("vibrate: deviceId=%d, pattern=[%s], repeat=%zd, token=%d",
             getDeviceId(), patternStr.string(), repeat, token);
 #endif
 
@@ -2198,8 +2198,7 @@ void VibratorInputMapper::nextStep() {
     nsecs_t duration = mPattern[mIndex];
     if (vibratorOn) {
 #if DEBUG_VIBRATOR
-        ALOGD("nextStep: sending vibrate deviceId=%d, duration=%lld",
-                getDeviceId(), duration);
+        ALOGD("nextStep: sending vibrate deviceId=%d, duration=%" PRId64, getDeviceId(), duration);
 #endif
         getEventHub()->vibrate(getDeviceId(), duration);
     } else {
@@ -6631,7 +6630,7 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
 #if DEBUG_POINTER_ASSIGNMENT
     ALOGD("assignPointerIds - initial distance min-heap: size=%d", heapSize);
     for (size_t i = 0; i < heapSize; i++) {
-        ALOGD("  heap[%d]: cur=%d, last=%d, distance=%lld",
+        ALOGD("  heap[%zu]: cur=%d, last=%d, distance=%" PRId64,
                 i, heap[i].currentPointerIndex, heap[i].lastPointerIndex,
                 heap[i].distance);
     }
@@ -6677,7 +6676,7 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
 #if DEBUG_POINTER_ASSIGNMENT
                 ALOGD("assignPointerIds - reduced distance min-heap: size=%d", heapSize);
                 for (size_t i = 0; i < heapSize; i++) {
-                    ALOGD("  heap[%d]: cur=%d, last=%d, distance=%lld",
+                    ALOGD("  heap[%zu]: cur=%d, last=%d, distance=%" PRId64,
                             i, heap[i].currentPointerIndex, heap[i].lastPointerIndex,
                             heap[i].distance);
                 }
@@ -6703,7 +6702,7 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
             usedIdBits.markBit(id);
 
 #if DEBUG_POINTER_ASSIGNMENT
-            ALOGD("assignPointerIds - matched: cur=%d, last=%d, id=%d, distance=%lld",
+            ALOGD("assignPointerIds - matched: cur=%d, last=%d, id=%d, distance=%" PRId64,
                     lastPointerIndex, currentPointerIndex, id, heap[0].distance);
 #endif
             break;

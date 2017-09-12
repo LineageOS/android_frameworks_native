@@ -254,7 +254,7 @@ status_t InputPublisher::publishKeyEvent(
 #if DEBUG_TRANSPORT_ACTIONS
     ALOGD("channel '%s' publisher ~ publishKeyEvent: seq=%u, deviceId=%d, source=0x%x, "
             "action=0x%x, flags=0x%x, keyCode=%d, scanCode=%d, metaState=0x%x, repeatCount=%d,"
-            "downTime=%lld, eventTime=%lld",
+            "downTime=%" PRId64 ", eventTime=%" PRId64,
             mChannel->getName().string(), seq,
             deviceId, source, action, flags, keyCode, scanCode, metaState, repeatCount,
             downTime, eventTime);
@@ -305,7 +305,7 @@ status_t InputPublisher::publishMotionEvent(
     ALOGD("channel '%s' publisher ~ publishMotionEvent: seq=%u, deviceId=%d, source=0x%x, "
             "action=0x%x, actionButton=0x%08x, flags=0x%x, edgeFlags=0x%x, "
             "metaState=0x%x, buttonState=0x%x, xOffset=%f, yOffset=%f, "
-            "xPrecision=%f, yPrecision=%f, downTime=%lld, eventTime=%lld, "
+            "xPrecision=%f, yPrecision=%f, downTime=%" PRId64 ", eventTime=%" PRId64 ", "
             "pointerCount=%" PRIu32,
             mChannel->getName().string(), seq,
             deviceId, source, action, actionButton, flags, edgeFlags, metaState, buttonState,
@@ -401,7 +401,7 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
         bool consumeBatches, nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent,
         int32_t* displayId) {
 #if DEBUG_TRANSPORT_ACTIONS
-    ALOGD("channel '%s' consumer ~ consume: consumeBatches=%s, frameTime=%lld",
+    ALOGD("channel '%s' consumer ~ consume: consumeBatches=%s, frameTime=%" PRId64,
             mChannel->getName().string(), consumeBatches ? "true" : "false", frameTime);
 #endif
 
