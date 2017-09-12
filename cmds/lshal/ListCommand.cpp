@@ -35,7 +35,6 @@
 
 #include "Lshal.h"
 #include "PipeRelay.h"
-#include "TextTable.h"
 #include "Timeout.h"
 #include "utils.h"
 
@@ -45,10 +44,18 @@ using ::android::hidl::manager::V1_0::IServiceManager;
 namespace android {
 namespace lshal {
 
-ListCommand::ListCommand(Lshal &lshal) : mLshal(lshal), mErr(lshal.err()), mOut(lshal.out()) {
+ListCommand::ListCommand(Lshal &lshal) : mLshal(lshal) {
 }
 
-std::string getCmdline(pid_t pid) {
+NullableOStream<std::ostream> ListCommand::out() const {
+    return mLshal.out();
+}
+
+NullableOStream<std::ostream> ListCommand::err() const {
+    return mLshal.err();
+}
+
+std::string ListCommand::parseCmdline(pid_t pid) const {
     std::ifstream ifs("/proc/" + std::to_string(pid) + "/cmdline");
     std::string cmdline;
     if (!ifs.is_open()) {
@@ -63,7 +70,7 @@ const std::string &ListCommand::getCmdline(pid_t pid) {
     if (pair != mCmdlines.end()) {
         return pair->second;
     }
-    mCmdlines[pid] = ::android::lshal::getCmdline(pid);
+    mCmdlines[pid] = parseCmdline(pid);
     return mCmdlines[pid];
 }
 
@@ -114,7 +121,7 @@ bool ListCommand::getPidInfo(
             uint64_t ptr;
             if (!::android::base::ParseUint(ptrString.c_str(), &ptr)) {
                 // Should not reach here, but just be tolerant.
-                mErr << "Could not parse number " << ptrString << std::endl;
+                err() << "Could not parse number " << ptrString << std::endl;
                 return;
             }
             const std::string proc = " proc ";
@@ -123,7 +130,7 @@ bool ListCommand::getPidInfo(
                 for (const std::string &pidStr : split(line.substr(pos + proc.size()), ' ')) {
                     int32_t pid;
                     if (!::android::base::ParseInt(pidStr, &pid)) {
-                        mErr << "Could not parse number " << pidStr << std::endl;
+                        err() << "Could not parse number " << pidStr << std::endl;
                         return;
                     }
                     pidInfo->refPids[ptr].push_back(pid);
@@ -205,48 +212,18 @@ void ListCommand::postprocess() {
             }
         }
     }
-}
 
-void ListCommand::addLine(TextTable *textTable, const std::string &interfaceName,
-                          const std::string &transport, const std::string &arch,
-                          const std::string &threadUsage, const std::string &server,
-                          const std::string &serverCmdline, const std::string &address,
-                          const std::string &clients, const std::string &clientCmdlines) const {
-    std::vector<std::string> columns;
-    for (TableColumnType type : mSelectedColumns) {
-        switch (type) {
-            case TableColumnType::INTERFACE_NAME: {
-                columns.push_back(interfaceName);
-            } break;
-            case TableColumnType::TRANSPORT: {
-                columns.push_back(transport);
-            } break;
-            case TableColumnType::ARCH: {
-                columns.push_back(arch);
-            } break;
-            case TableColumnType::THREADS: {
-                columns.push_back(threadUsage);
-            } break;
-            case TableColumnType::SERVER_ADDR: {
-                columns.push_back(address);
-            } break;
-            case TableColumnType::SERVER_PID: {
-                if (mEnableCmdlines) {
-                    columns.push_back(serverCmdline);
-                } else {
-                    columns.push_back(server);
-                }
-            } break;
-            case TableColumnType::CLIENT_PIDS: {
-                if (mEnableCmdlines) {
-                    columns.push_back(clientCmdlines);
-                } else {
-                    columns.push_back(clients);
-                }
-            } break;
-        }
-    }
-    textTable->add(std::move(columns));
+    mServicesTable.setDescription(
+            "All binderized services (registered services through hwservicemanager)");
+    mPassthroughRefTable.setDescription(
+            "All interfaces that getService() has ever return as a passthrough interface;\n"
+            "PIDs / processes shown below might be inaccurate because the process\n"
+            "might have relinquished the interface or might have died.\n"
+            "The Server / Server CMD column can be ignored.\n"
+            "The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
+            "the library and successfully fetched the passthrough implementation.");
+    mImplementationsTable.setDescription(
+            "All available passthrough implementations (all -impl.so files)");
 }
 
 static inline bool findAndBumpVersion(vintf::ManifestHal* hal, const vintf::Version& version) {
@@ -259,9 +236,9 @@ static inline bool findAndBumpVersion(vintf::ManifestHal* hal, const vintf::Vers
     return false;
 }
 
-void ListCommand::dumpVintf() const {
+void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
     using vintf::operator|=;
-    mOut << "<!-- " << std::endl
+    out << "<!-- " << std::endl
          << "    This is a skeleton device manifest. Notes: " << std::endl
          << "    1. android.hidl.*, android.frameworks.*, android.system.* are not included." << std::endl
          << "    2. If a HAL is supported in both hwbinder and passthrough transport, " << std::endl
@@ -288,7 +265,7 @@ void ListCommand::dumpVintf() const {
             auto splittedFqInstanceName = splitFirst(fqInstanceName, '/');
             FQName fqName(splittedFqInstanceName.first);
             if (!fqName.isValid()) {
-                mErr << "Warning: '" << splittedFqInstanceName.first
+                err() << "Warning: '" << splittedFqInstanceName.first
                      << "' is not a valid FQName." << std::endl;
                 continue;
             }
@@ -321,12 +298,12 @@ void ListCommand::dumpVintf() const {
                         arch = vintf::Arch::ARCH_32_64; break;
                     case lshal::ARCH_UNKNOWN: // fallthrough
                     default:
-                        mErr << "Warning: '" << fqName.package()
+                        err() << "Warning: '" << fqName.package()
                              << "' doesn't have bitness info, assuming 32+64." << std::endl;
                         arch = vintf::Arch::ARCH_32_64;
                 }
             } else {
-                mErr << "Warning: '" << entry.transport << "' is not a valid transport." << std::endl;
+                err() << "Warning: '" << entry.transport << "' is not a valid transport." << std::endl;
                 continue;
             }
 
@@ -334,7 +311,7 @@ void ListCommand::dumpVintf() const {
             for (vintf::ManifestHal *hal : manifest.getHals(fqName.package())) {
                 if (hal->transport() != transport) {
                     if (transport != vintf::Transport::PASSTHROUGH) {
-                        mErr << "Fatal: should not reach here. Generated result may be wrong for '"
+                        err() << "Fatal: should not reach here. Generated result may be wrong for '"
                              << hal->name << "'."
                              << std::endl;
                     }
@@ -365,29 +342,11 @@ void ListCommand::dumpVintf() const {
                     .versions = {version},
                     .transportArch = {transport, arch},
                     .interfaces = interfaces})) {
-                mErr << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
+                err() << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
             }
         }
     });
-    mOut << vintf::gHalManifestConverter(manifest);
-}
-
-static const std::string &getArchString(Architecture arch) {
-    static const std::string sStr64 = "64";
-    static const std::string sStr32 = "32";
-    static const std::string sStrBoth = "32+64";
-    static const std::string sStrUnknown = "";
-    switch (arch) {
-        case ARCH64:
-            return sStr64;
-        case ARCH32:
-            return sStr32;
-        case ARCH_BOTH:
-            return sStrBoth;
-        case ARCH_UNKNOWN: // fall through
-        default:
-            return sStrUnknown;
-    }
+    out << vintf::gHalManifestConverter(manifest);
 }
 
 static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo::Architecture a) {
@@ -402,78 +361,54 @@ static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo:
     }
 }
 
-void ListCommand::addLine(TextTable *table, const TableEntry &entry) {
-    addLine(table, entry.interfaceName, entry.transport, getArchString(entry.arch),
-            entry.getThreadUsage(),
-            entry.serverPid == NO_PID ? "N/A" : std::to_string(entry.serverPid),
-            entry.serverCmdline,
-            entry.serverObjectAddress == NO_PTR ? "N/A" : toHexString(entry.serverObjectAddress),
-            join(entry.clientPids, " "), join(entry.clientCmdlines, ";"));
-}
-
-void ListCommand::dumpTable() {
+void ListCommand::dumpTable(const NullableOStream<std::ostream>& out) const {
     if (mNeat) {
-        TextTable textTable;
-        forEachTable([this, &textTable](const Table &table) {
-            for (const auto &entry : table) addLine(&textTable, entry);
-        });
-        textTable.dump(mOut.buf());
+        MergedTable({&mServicesTable, &mPassthroughRefTable, &mImplementationsTable})
+            .createTextTable().dump(out.buf());
         return;
     }
 
-    mServicesTable.description =
-            "All binderized services (registered services through hwservicemanager)";
-    mPassthroughRefTable.description =
-            "All interfaces that getService() has ever return as a passthrough interface;\n"
-            "PIDs / processes shown below might be inaccurate because the process\n"
-            "might have relinquished the interface or might have died.\n"
-            "The Server / Server CMD column can be ignored.\n"
-            "The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
-            "the library and successfully fetched the passthrough implementation.";
-    mImplementationsTable.description =
-            "All available passthrough implementations (all -impl.so files)";
+    forEachTable([this, &out](const Table &table) {
 
-    forEachTable([this](const Table &table) {
-        TextTable textTable;
-
-        textTable.add(table.description);
-        addLine(&textTable, "Interface", "Transport", "Arch", "Thread Use", "Server", "Server CMD",
-                "PTR", "Clients", "Clients CMD");
-
-        for (const auto &entry : table) {
-            addLine(&textTable, entry);
-            // We're only interested in dumping debug info for already
-            // instantiated services. There's little value in dumping the
-            // debug info for a service we create on the fly, so we only operate
-            // on the "mServicesTable".
-            if (mEmitDebugInfo && &table == &mServicesTable) {
-                std::stringstream out;
-                auto pair = splitFirst(entry.interfaceName, '/');
-                mLshal.emitDebugInfo(pair.first, pair.second, {}, out,
+        // We're only interested in dumping debug info for already
+        // instantiated services. There's little value in dumping the
+        // debug info for a service we create on the fly, so we only operate
+        // on the "mServicesTable".
+        std::function<std::string(const std::string&)> emitDebugInfo = nullptr;
+        if (mEmitDebugInfo && &table == &mServicesTable) {
+            emitDebugInfo = [this](const auto& iName) {
+                std::stringstream ss;
+                auto pair = splitFirst(iName, '/');
+                mLshal.emitDebugInfo(pair.first, pair.second, {}, ss,
                                      NullableOStream<std::ostream>(nullptr));
-                textTable.add(out.str());
-            }
+                return ss.str();
+            };
         }
-
-        // Add empty line after each table
-        textTable.add();
-
-        textTable.dump(mOut.buf());
+        table.createTextTable(mNeat, emitDebugInfo).dump(out.buf());
+        out << std::endl;
     });
 }
 
-void ListCommand::dump() {
-    if (mVintf) {
-        dumpVintf();
-        if (!!mFileOutput) {
-            mFileOutput.buf().close();
-            delete &mFileOutput.buf();
-            mFileOutput = nullptr;
-        }
-        mOut = std::cout;
-    } else {
-        dumpTable();
+Status ListCommand::dump() {
+    auto dump = mVintf ? &ListCommand::dumpVintf : &ListCommand::dumpTable;
+
+    if (mFileOutputPath.empty()) {
+        (*this.*dump)(out());
+        return OK;
     }
+
+    std::ofstream fileOutput(mFileOutputPath);
+    if (!fileOutput.is_open()) {
+        err() << "Could not open file '" << mFileOutputPath << "'." << std::endl;
+        return IO_ERROR;
+    }
+    chown(mFileOutputPath.c_str(), AID_SHELL, AID_SHELL);
+
+    (*this.*dump)(NullableOStream<std::ostream>(fileOutput));
+
+    fileOutput.flush();
+    fileOutput.close();
+    return OK;
 }
 
 void ListCommand::putEntry(TableEntrySource source, TableEntry &&entry) {
@@ -486,10 +421,10 @@ void ListCommand::putEntry(TableEntrySource source, TableEntry &&entry) {
         case LIST_DLLIB :
             table = &mImplementationsTable; break;
         default:
-            mErr << "Error: Unknown source of entry " << source << std::endl;
+            err() << "Error: Unknown source of entry " << source << std::endl;
     }
     if (table) {
-        table->entries.push_back(std::forward<TableEntry>(entry));
+        table->add(std::forward<TableEntry>(entry));
     }
 }
 
@@ -517,7 +452,7 @@ Status ListCommand::fetchAllLibraries(const sp<IServiceManager> &manager) {
         }
     });
     if (!ret.isOk()) {
-        mErr << "Error: Failed to call list on getPassthroughServiceManager(): "
+        err() << "Error: Failed to call list on getPassthroughServiceManager(): "
              << ret.description() << std::endl;
         return DUMP_ALL_LIBS_ERROR;
     }
@@ -547,7 +482,7 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
         }
     });
     if (!ret.isOk()) {
-        mErr << "Error: Failed to call debugDump on defaultServiceManager(): "
+        err() << "Error: Failed to call debugDump on defaultServiceManager(): "
              << ret.description() << std::endl;
         return DUMP_PASSTHROUGH_ERROR;
     }
@@ -567,7 +502,7 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
         fqInstanceNames = names;
     });
     if (!listRet.isOk()) {
-        mErr << "Error: Failed to list services for " << mode << ": "
+        err() << "Error: Failed to list services for " << mode << ": "
              << listRet.description() << std::endl;
         return DUMP_BINDERIZED_ERROR;
     }
@@ -582,7 +517,7 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
         const auto &instanceName = pair.second;
         auto getRet = timeoutIPC(manager, &IServiceManager::get, serviceName, instanceName);
         if (!getRet.isOk()) {
-            mErr << "Warning: Skipping \"" << fqInstanceName << "\": "
+            err() << "Warning: Skipping \"" << fqInstanceName << "\": "
                  << "cannot be fetched from service manager:"
                  << getRet.description() << std::endl;
             status |= DUMP_BINDERIZED_ERROR;
@@ -590,7 +525,7 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
         }
         sp<IBase> service = getRet;
         if (service == nullptr) {
-            mErr << "Warning: Skipping \"" << fqInstanceName << "\": "
+            err() << "Warning: Skipping \"" << fqInstanceName << "\": "
                  << "cannot be fetched from service manager (null)"
                  << std::endl;
             status |= DUMP_BINDERIZED_ERROR;
@@ -603,7 +538,7 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
             }
         });
         if (!debugRet.isOk()) {
-            mErr << "Warning: Skipping \"" << fqInstanceName << "\": "
+            err() << "Warning: Skipping \"" << fqInstanceName << "\": "
                  << "debugging information cannot be retrieved:"
                  << debugRet.description() << std::endl;
             status |= DUMP_BINDERIZED_ERROR;
@@ -613,7 +548,7 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
     for (auto &pair : allPids) {
         pid_t serverPid = pair.first;
         if (!getPidInfo(serverPid, &allPids[serverPid])) {
-            mErr << "Warning: no information for PID " << serverPid
+            err() << "Warning: no information for PID " << serverPid
                       << ", are you root?" << std::endl;
             status |= DUMP_BINDERIZED_ERROR;
         }
@@ -654,7 +589,7 @@ Status ListCommand::fetch() {
     Status status = OK;
     auto bManager = mLshal.serviceManager();
     if (bManager == nullptr) {
-        mErr << "Failed to get defaultServiceManager()!" << std::endl;
+        err() << "Failed to get defaultServiceManager()!" << std::endl;
         status |= NO_BINDERIZED_MANAGER;
     } else {
         status |= fetchBinderized(bManager);
@@ -664,7 +599,7 @@ Status ListCommand::fetch() {
 
     auto pManager = mLshal.passthroughManager();
     if (pManager == nullptr) {
-        mErr << "Failed to get getPassthroughServiceManager()!" << std::endl;
+        err() << "Failed to get getPassthroughServiceManager()!" << std::endl;
         status |= NO_PASSTHROUGH_MANAGER;
     } else {
         status |= fetchAllLibraries(pManager);
@@ -693,6 +628,9 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
         { 0,          0,                 0,  0  }
     };
 
+    std::vector<TableColumnType> selectedColumns;
+    bool enableCmdlines = false;
+
     int optionIndex;
     int c;
     // Lshal::parseArgs has set optind to the next option to parse
@@ -710,67 +648,52 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
             } else if (strcmp(optarg, "pid") == 0 || strcmp(optarg, "p") == 0) {
                 mSortColumn = TableEntry::sortByServerPid;
             } else {
-                mErr << "Unrecognized sorting column: " << optarg << std::endl;
+                err() << "Unrecognized sorting column: " << optarg << std::endl;
                 mLshal.usage(command);
                 return USAGE;
             }
             break;
         }
         case 'v': {
-            if (optarg) {
-                mFileOutput = new std::ofstream{optarg};
-                mOut = mFileOutput;
-                if (!mFileOutput.buf().is_open()) {
-                    mErr << "Could not open file '" << optarg << "'." << std::endl;
-                    return IO_ERROR;
-                }
-            }
             mVintf = true;
+            if (optarg) mFileOutputPath = optarg;
+            break;
         }
         case 'i': {
-            mSelectedColumns.push_back(TableColumnType::INTERFACE_NAME);
+            selectedColumns.push_back(TableColumnType::INTERFACE_NAME);
             break;
         }
         case 't': {
-            mSelectedColumns.push_back(TableColumnType::TRANSPORT);
+            selectedColumns.push_back(TableColumnType::TRANSPORT);
             break;
         }
         case 'r': {
-            mSelectedColumns.push_back(TableColumnType::ARCH);
+            selectedColumns.push_back(TableColumnType::ARCH);
             break;
         }
         case 'p': {
-            mSelectedColumns.push_back(TableColumnType::SERVER_PID);
+            selectedColumns.push_back(TableColumnType::SERVER_PID);
             break;
         }
         case 'a': {
-            mSelectedColumns.push_back(TableColumnType::SERVER_ADDR);
+            selectedColumns.push_back(TableColumnType::SERVER_ADDR);
             break;
         }
         case 'c': {
-            mSelectedColumns.push_back(TableColumnType::CLIENT_PIDS);
+            selectedColumns.push_back(TableColumnType::CLIENT_PIDS);
             break;
         }
         case 'e': {
-            mSelectedColumns.push_back(TableColumnType::THREADS);
+            selectedColumns.push_back(TableColumnType::THREADS);
             break;
         }
         case 'm': {
-            mEnableCmdlines = true;
+            enableCmdlines = true;
             break;
         }
         case 'd': {
             mEmitDebugInfo = true;
-
-            if (optarg) {
-                mFileOutput = new std::ofstream{optarg};
-                mOut = mFileOutput;
-                if (!mFileOutput.buf().is_open()) {
-                    mErr << "Could not open file '" << optarg << "'." << std::endl;
-                    return IO_ERROR;
-                }
-                chown(optarg, AID_SHELL, AID_SHELL);
-            }
+            if (optarg) mFileOutputPath = optarg;
             break;
         }
         case 'n': {
@@ -785,21 +708,37 @@ Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
     }
     if (optind < arg.argc) {
         // see non option
-        mErr << "Unrecognized option `" << arg.argv[optind] << "`" << std::endl;
+        err() << "Unrecognized option `" << arg.argv[optind] << "`" << std::endl;
         mLshal.usage(command);
         return USAGE;
     }
 
     if (mNeat && mEmitDebugInfo) {
-        mErr << "Error: --neat should not be used with --debug." << std::endl;
+        err() << "Error: --neat should not be used with --debug." << std::endl;
         mLshal.usage(command);
         return USAGE;
     }
 
-    if (mSelectedColumns.empty()) {
-        mSelectedColumns = {TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
+    if (selectedColumns.empty()) {
+        selectedColumns = {TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
                             TableColumnType::SERVER_PID, TableColumnType::CLIENT_PIDS};
     }
+
+    if (enableCmdlines) {
+        for (size_t i = 0; i < selectedColumns.size(); ++i) {
+            if (selectedColumns[i] == TableColumnType::SERVER_PID) {
+                selectedColumns[i] = TableColumnType::SERVER_CMD;
+            }
+            if (selectedColumns[i] == TableColumnType::CLIENT_PIDS) {
+                selectedColumns[i] = TableColumnType::CLIENT_CMDS;
+            }
+        }
+    }
+
+    forEachTable([&selectedColumns] (Table& table) {
+        table.setSelectedColumns(selectedColumns);
+    });
+
     return OK;
 }
 
@@ -810,7 +749,7 @@ Status ListCommand::main(const std::string &command, const Arg &arg) {
     }
     status = fetch();
     postprocess();
-    dump();
+    status |= dump();
     return status;
 }
 

@@ -53,5 +53,15 @@ void TextTable::dump(std::ostream& out) const {
     }
 }
 
+void TextTable::addAll(TextTable&& other) {
+    for (auto&& row : other.mTable) {
+        if (row.isRow()) {
+            computeWidth(row.fields());
+        }
+
+        mTable.emplace_back(std::move(row));
+    }
+}
+
 } // namespace lshal
 } // namespace android
