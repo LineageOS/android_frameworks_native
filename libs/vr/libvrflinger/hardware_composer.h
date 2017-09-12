@@ -336,6 +336,7 @@ class HardwareComposer {
                                HWCDisplayMetrics* out_metrics) const;
 
   HWC::Error EnableVsync(bool enabled);
+  HWC::Error SetPowerMode(bool active);
 
   class ComposerCallback : public Hwc2::IComposerCallback {
    public:
@@ -394,7 +395,7 @@ class HardwareComposer {
   int WaitForVSync(int64_t* timestamp);
   int SleepUntil(int64_t wakeup_timestamp);
 
-  bool IsFramePendingInDriver() { return ReadWaitPPState() == 1; }
+  bool IsFramePendingInDriver() { return false; }
 
   // Reconfigures the layer stack if the display surfaces changed since the last
   // frame. Called only from the post thread.
@@ -413,6 +414,7 @@ class HardwareComposer {
   void UpdateConfigBuffer();
 
   bool initialized_;
+  bool is_standalone_device_;
 
   std::unique_ptr<Hwc2::Composer> composer_;
   sp<ComposerCallback> composer_callback_;
@@ -454,9 +456,6 @@ class HardwareComposer {
 
   // Backlight LED brightness sysfs node.
   pdx::LocalHandle backlight_brightness_fd_;
-
-  // Primary display wait_pingpong state sysfs node.
-  pdx::LocalHandle primary_display_wait_pp_fd_;
 
   // VSync sleep timerfd.
   pdx::LocalHandle vsync_sleep_timer_fd_;
