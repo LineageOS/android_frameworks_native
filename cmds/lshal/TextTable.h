@@ -21,8 +21,6 @@
 #include <string>
 #include <vector>
 
-#include "TableEntry.h"
-
 namespace android {
 namespace lshal {
 
@@ -67,6 +65,8 @@ public:
     }
     void add(const std::string& s) { mTable.emplace_back(s); }
     void add(std::string&& s) { mTable.emplace_back(std::move(s)); }
+
+    void addAll(TextTable&& other);
 
     // Prints the table to out, with column widths adjusted appropriately according
     // to the content.
