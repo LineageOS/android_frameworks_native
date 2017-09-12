@@ -36,34 +36,38 @@ namespace lshal {
 
 class Lshal;
 
+struct PidInfo {
+    std::map<uint64_t, Pids> refPids; // pids that are referenced
+    uint32_t threadUsage; // number of threads in use
+    uint32_t threadCount; // number of threads total
+};
+
 class ListCommand {
 public:
     ListCommand(Lshal &lshal);
+    virtual ~ListCommand() = default;
     Status main(const std::string &command, const Arg &arg);
-private:
+protected:
     Status parseArgs(const std::string &command, const Arg &arg);
     Status fetch();
     void postprocess();
-    void dump();
+    Status dump();
     void putEntry(TableEntrySource source, TableEntry &&entry);
     Status fetchPassthrough(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchBinderized(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchAllLibraries(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
 
-    struct PidInfo {
-        std::map<uint64_t, Pids> refPids; // pids that are referenced
-        uint32_t threadUsage; // number of threads in use
-        uint32_t threadCount; // number of threads total
-    };
-    bool getPidInfo(pid_t serverPid, PidInfo *info) const;
+    virtual bool getPidInfo(pid_t serverPid, PidInfo *info) const;
 
-    void dumpTable();
-    void dumpVintf() const;
+    void dumpTable(const NullableOStream<std::ostream>& out) const;
+    void dumpVintf(const NullableOStream<std::ostream>& out) const;
     void addLine(TextTable *table, const std::string &interfaceName, const std::string &transport,
                  const std::string &arch, const std::string &threadUsage, const std::string &server,
                  const std::string &serverCmdline, const std::string &address,
                  const std::string &clients, const std::string &clientCmdlines) const;
     void addLine(TextTable *table, const TableEntry &entry);
+    // Read and return /proc/{pid}/cmdline.
+    virtual std::string parseCmdline(pid_t pid) const;
     // Return /proc/{pid}/cmdline if it exists, else empty string.
     const std::string &getCmdline(pid_t pid);
     // Call getCmdline on all pid in pids. If it returns empty string, the process might
@@ -72,21 +76,18 @@ private:
     void forEachTable(const std::function<void(Table &)> &f);
     void forEachTable(const std::function<void(const Table &)> &f) const;
 
+    NullableOStream<std::ostream> err() const;
+    NullableOStream<std::ostream> out() const;
+
     Lshal &mLshal;
 
     Table mServicesTable{};
     Table mPassthroughRefTable{};
     Table mImplementationsTable{};
 
-    NullableOStream<std::ostream> mErr;
-    NullableOStream<std::ostream> mOut;
-    NullableOStream<std::ofstream> mFileOutput = nullptr;
+    std::string mFileOutputPath;
     TableEntryCompare mSortColumn = nullptr;
-    std::vector<TableColumnType> mSelectedColumns;
-    // If true, cmdlines will be printed instead of pid.
-    bool mEnableCmdlines = false;
 
-    // If true, calls IBase::debug(...) on each service.
     bool mEmitDebugInfo = false;
 
     // If true, output in VINTF format.
