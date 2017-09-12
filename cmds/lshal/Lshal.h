@@ -33,13 +33,14 @@ namespace lshal {
 class Lshal {
 public:
     Lshal();
+    virtual ~Lshal() {}
     Lshal(std::ostream &out, std::ostream &err,
             sp<hidl::manager::V1_0::IServiceManager> serviceManager,
             sp<hidl::manager::V1_0::IServiceManager> passthroughManager);
     Status main(const Arg &arg);
     void usage(const std::string &command = "") const;
-    NullableOStream<std::ostream> err() const;
-    NullableOStream<std::ostream> out() const;
+    virtual NullableOStream<std::ostream> err() const;
+    virtual NullableOStream<std::ostream> out() const;
     const sp<hidl::manager::V1_0::IServiceManager> &serviceManager() const;
     const sp<hidl::manager::V1_0::IServiceManager> &passthroughManager() const;
 
