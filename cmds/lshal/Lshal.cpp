@@ -34,9 +34,8 @@ namespace lshal {
 using ::android::hidl::manager::V1_0::IServiceManager;
 
 Lshal::Lshal()
-    : mOut(std::cout), mErr(std::cerr),
-      mServiceManager(::android::hardware::defaultServiceManager()),
-      mPassthroughManager(::android::hardware::getPassthroughServiceManager()) {
+    : Lshal(std::cout, std::cerr, ::android::hardware::defaultServiceManager(),
+            ::android::hardware::getPassthroughServiceManager()) {
 }
 
 Lshal::Lshal(std::ostream &out, std::ostream &err,
@@ -46,25 +45,39 @@ Lshal::Lshal(std::ostream &out, std::ostream &err,
       mServiceManager(serviceManager),
       mPassthroughManager(passthroughManager) {
 
+    mRegisteredCommands.push_back({std::make_unique<ListCommand>(*this)});
+    mRegisteredCommands.push_back({std::make_unique<DebugCommand>(*this)});
+    mRegisteredCommands.push_back({std::make_unique<HelpCommand>(*this)});
+}
+
+void Lshal::forEachCommand(const std::function<void(const Command* c)>& f) const {
+    for (const auto& e : mRegisteredCommands) f(e.get());
 }
 
 void Lshal::usage() {
-    static const std::string helpSummary =
-            "lshal: List and debug HALs.\n"
-            "\n"
-            "commands:\n"
-            "    help            Print help message\n"
-            "    list            list HALs\n"
-            "    debug           debug a specified HAL\n"
-            "\n"
-            "If no command is specified, `list` is the default.\n";
+    err() << "lshal: List and debug HALs." << std::endl << std::endl
+          << "commands:" << std::endl;
 
-    err() << helpSummary << "\n";
-    selectCommand("list")->usage();
-    err() << "\n";
-    selectCommand("debug")->usage();
-    err() << "\n";
-    selectCommand("help")->usage();
+    size_t nameMaxLength = 0;
+    forEachCommand([&](const Command* e) {
+        nameMaxLength = std::max(nameMaxLength, e->getName().length());
+    });
+    bool first = true;
+    forEachCommand([&](const Command* e) {
+        if (!first) err() << std::endl;
+        first = false;
+        err() << "    " << std::left << std::setw(nameMaxLength + 8) << e->getName()
+              << e->getSimpleDescription();
+    });
+    err() << std::endl << "If no command is specified, `" << ListCommand::GetName()
+          << "` is the default." << std::endl << std::endl;
+
+    first = true;
+    forEachCommand([&](const Command* e) {
+        if (!first) err() << std::endl;
+        first = false;
+        e->usage();
+    });
 }
 
 // A unique_ptr type using a custom deleter function.
@@ -135,21 +148,20 @@ Status Lshal::emitDebugInfo(
 }
 
 Status Lshal::parseArgs(const Arg &arg) {
-    static std::set<std::string> sAllCommands{"list", "debug", "help"};
     optind = 1;
     if (optind >= arg.argc) {
         // no options at all.
         return OK;
     }
     mCommand = arg.argv[optind];
-    if (sAllCommands.find(mCommand) != sAllCommands.end()) {
+    if (selectCommand(mCommand) != nullptr) {
         ++optind;
         return OK; // mCommand is set correctly
     }
 
     if (mCommand.size() > 0 && mCommand[0] == '-') {
         // first argument is an option, set command to "" (which is recognized as "list")
-        mCommand = "";
+        mCommand.clear();
         return OK;
     }
 
@@ -164,20 +176,14 @@ void signalHandler(int sig) {
     }
 }
 
-std::unique_ptr<HelpCommand> Lshal::selectHelpCommand() {
-    return std::make_unique<HelpCommand>(*this);
-}
-
-std::unique_ptr<Command> Lshal::selectCommand(const std::string& command) {
-    // Default command is list
-    if (command == "list" || command == "") {
-        return std::make_unique<ListCommand>(*this);
+Command* Lshal::selectCommand(const std::string& command) const {
+    if (command.empty()) {
+        return selectCommand(ListCommand::GetName());
     }
-    if (command == "debug") {
-        return std::make_unique<DebugCommand>(*this);
-    }
-    if (command == "help") {
-        return selectHelpCommand();
+    for (const auto& e : mRegisteredCommands) {
+        if (e->getName() == command) {
+            return e.get();
+        }
     }
     return nullptr;
 }
@@ -202,7 +208,8 @@ Status Lshal::main(const Arg &arg) {
         // bad options. Run `lshal help ${mCommand}` instead.
         // For example, `lshal --unknown-option` becomes `lshal help` (prints global help)
         // and `lshal list --unknown-option` becomes `lshal help list`
-        return selectHelpCommand()->usageOfCommand(mCommand);
+        auto&& help = selectCommand(HelpCommand::GetName());
+        return static_cast<HelpCommand*>(help)->usageOfCommand(mCommand);
     }
 
     return status;

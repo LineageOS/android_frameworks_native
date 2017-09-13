@@ -35,6 +35,12 @@ public:
 
     virtual void usage() const = 0;
 
+    // e.g. "list"
+    virtual std::string getName() const = 0;
+
+    // e.g. "list HALs"
+    virtual std::string getSimpleDescription() const = 0;
+
 protected:
     Lshal& mLshal;
 };

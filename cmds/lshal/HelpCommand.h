@@ -35,6 +35,9 @@ public:
     ~HelpCommand() = default;
     Status main(const Arg &arg) override;
     void usage() const override;
+    std::string getSimpleDescription() const override;
+    std::string getName() const override { return GetName(); }
+    static std::string GetName();
     Status usageOfCommand(const std::string& c) const;
 };
 

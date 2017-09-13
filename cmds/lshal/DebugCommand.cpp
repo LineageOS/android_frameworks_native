@@ -21,6 +21,14 @@
 namespace android {
 namespace lshal {
 
+std::string DebugCommand::getName() const {
+    return "debug";
+}
+
+std::string DebugCommand::getSimpleDescription() const {
+    return "Debug a specified HAL.";
+}
+
 Status DebugCommand::parseArgs(const Arg &arg) {
     if (optind >= arg.argc) {
         return USAGE;

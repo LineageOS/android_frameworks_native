@@ -49,6 +49,10 @@ public:
     virtual ~ListCommand() = default;
     Status main(const Arg &arg) override;
     void usage() const override;
+    std::string getSimpleDescription() const override;
+    std::string getName() const override { return GetName(); }
+
+    static std::string GetName();
 protected:
     Status parseArgs(const Arg &arg);
     Status fetch();

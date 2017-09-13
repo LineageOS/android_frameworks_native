@@ -54,11 +54,12 @@ public:
             std::ostream &out,
             NullableOStream<std::ostream> err) const;
 
-    std::unique_ptr<Command> selectCommand(const std::string& command);
+    Command* selectCommand(const std::string& command) const;
+
+    void forEachCommand(const std::function<void(const Command* c)>& f) const;
 
 private:
     Status parseArgs(const Arg &arg);
-    std::unique_ptr<HelpCommand> selectHelpCommand();
 
     std::string mCommand;
     Arg mCmdArgs;
@@ -67,6 +68,8 @@ private:
 
     sp<hidl::manager::V1_0::IServiceManager> mServiceManager;
     sp<hidl::manager::V1_0::IServiceManager> mPassthroughManager;
+
+    std::vector<std::unique_ptr<Command>> mRegisteredCommands;
 
     DISALLOW_COPY_AND_ASSIGN(Lshal);
 };

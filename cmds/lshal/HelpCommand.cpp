@@ -21,6 +21,14 @@
 namespace android {
 namespace lshal {
 
+std::string HelpCommand::GetName() {
+    return "help";
+}
+
+std::string HelpCommand::getSimpleDescription() const {
+    return "Print help message.";
+}
+
 Status HelpCommand::main(const Arg &arg) {
     if (optind >= arg.argc) {
         // `lshal help` prints global usage.
@@ -49,18 +57,17 @@ Status HelpCommand::usageOfCommand(const std::string& c) const {
 }
 
 void HelpCommand::usage() const {
-    static const std::string help =
-            "help:\n"
-            "    lshal -h\n"
-            "    lshal --help\n"
-            "    lshal help\n"
-            "        Print this help message\n"
-            "    lshal help list\n"
-            "        Print help message for list\n"
-            "    lshal help debug\n"
-            "        Print help message for debug\n";
+    mLshal.err()
+            << "help:" << std::endl
+            << "    lshal -h" << std::endl
+            << "    lshal --help" << std::endl
+            << "    lshal help" << std::endl
+            << "        Print this help message" << std::endl;
+    mLshal.forEachCommand([&](const Command* e) {
+        mLshal.err() << "    lshal help " << e->getName() << std::endl
+                     << "        Print help message for " << e->getName() << std::endl;
+    });
 
-    mLshal.err() << help;
 }
 
 }  // namespace lshal

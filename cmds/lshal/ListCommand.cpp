@@ -52,6 +52,13 @@ NullableOStream<std::ostream> ListCommand::err() const {
     return mLshal.err();
 }
 
+std::string ListCommand::GetName() {
+    return "list";
+}
+std::string ListCommand::getSimpleDescription() const {
+    return "List HALs.";
+}
+
 std::string ListCommand::parseCmdline(pid_t pid) const {
     std::ifstream ifs("/proc/" + std::to_string(pid) + "/cmdline");
     std::string cmdline;

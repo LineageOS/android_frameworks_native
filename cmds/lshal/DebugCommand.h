@@ -35,6 +35,8 @@ public:
     ~DebugCommand() = default;
     Status main(const Arg &arg) override;
     void usage() const override;
+    std::string getSimpleDescription() const override;
+    std::string getName() const override;
 private:
     Status parseArgs(const Arg &arg);
 
