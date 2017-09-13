@@ -61,6 +61,10 @@ cc_test {
     shared_libs: [
         "android.hardware.tests.baz@1.0"
     ],
+    ldflags: [
+        "-Wl,--rpath,${ORIGIN}/..",
+        "-Wl,--enable-new-dtags",
+    ],
     srcs: [
         "test.cpp"
     ]
