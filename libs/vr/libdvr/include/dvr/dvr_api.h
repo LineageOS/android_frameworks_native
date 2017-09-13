@@ -34,6 +34,7 @@ typedef struct AHardwareBuffer AHardwareBuffer;
 
 typedef struct DvrReadBufferQueue DvrReadBufferQueue;
 typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
+typedef struct DvrNativeBufferMetadata DvrNativeBufferMetadata;
 
 typedef struct DvrSurface DvrSurface;
 typedef uint64_t DvrSurfaceAttributeType;
@@ -180,6 +181,13 @@ typedef int (*DvrWriteBufferQueueDequeuePtr)(DvrWriteBufferQueue* write_queue,
                                              int timeout,
                                              DvrWriteBuffer* out_buffer,
                                              int* out_fence_fd);
+typedef int (*DvrWriteBufferQueueGainBufferPtr)(
+    DvrWriteBufferQueue* write_queue, int timeout,
+    DvrWriteBuffer** out_write_buffer, DvrNativeBufferMetadata* out_meta,
+    int* out_fence_fd);
+typedef int (*DvrWriteBufferQueuePostBufferPtr)(
+    DvrWriteBufferQueue* write_queue, DvrWriteBuffer* write_buffer,
+    const DvrNativeBufferMetadata* meta, int ready_fence_fd);
 typedef int (*DvrWriteBufferQueueResizeBufferPtr)(
     DvrWriteBufferQueue* write_queue, uint32_t width, uint32_t height);
 typedef void (*DvrReadBufferQueueDestroyPtr)(DvrReadBufferQueue* read_queue);
@@ -194,6 +202,13 @@ typedef int (*DvrReadBufferQueueDequeuePtr)(DvrReadBufferQueue* read_queue,
                                             DvrReadBuffer* out_buffer,
                                             int* out_fence_fd, void* out_meta,
                                             size_t meta_size_bytes);
+typedef int (*DvrReadBufferQueueAcquireBufferPtr)(
+    DvrReadBufferQueue* read_queue, int timeout,
+    DvrReadBuffer** out_read_buffer, DvrNativeBufferMetadata* out_meta,
+    int* out_fence_fd);
+typedef int (*DvrReadBufferQueueReleaseBufferPtr)(
+    DvrReadBufferQueue* read_queue, DvrReadBuffer* read_buffer,
+    const DvrNativeBufferMetadata* meta, int release_fence_fd);
 typedef void (*DvrReadBufferQueueBufferAvailableCallback)(void* context);
 typedef int (*DvrReadBufferQueueSetBufferAvailableCallbackPtr)(
     DvrReadBufferQueue* read_queue,
