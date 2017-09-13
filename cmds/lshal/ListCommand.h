@@ -101,6 +101,7 @@ protected:
     // If an entry exist and not empty, it contains the cached content of /proc/{pid}/cmdline.
     std::map<pid_t, std::string> mCmdlines;
 
+private:
     DISALLOW_COPY_AND_ASSIGN(ListCommand);
 };
 
