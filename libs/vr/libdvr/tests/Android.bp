@@ -47,6 +47,7 @@ cc_test {
     cflags: [
         "-DLOG_TAG=\"dvr_api-test\"",
         "-DTRACE=0",
+        "-Wno-missing-field-initializers",
         "-O0",
         "-g",
     ],

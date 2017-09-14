@@ -27,8 +27,6 @@ static constexpr uint32_t kBufferFormat = AHARDWAREBUFFER_FORMAT_BLOB;
 static constexpr uint64_t kBufferUsage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN;
 static constexpr size_t kQueueCapacity = 3;
 
-typedef uint64_t TestMeta;
-
 class DvrBufferQueueTest : public ::testing::Test {
  public:
   static void BufferAvailableCallback(void* context) {
@@ -65,20 +63,20 @@ class DvrBufferQueueTest : public ::testing::Test {
   int buffer_removed_count_{0};
 };
 
-TEST_F(DvrBufferQueueTest, TestWrite_QueueCreateDestroy) {
+TEST_F(DvrBufferQueueTest, WriteQueueCreateDestroy) {
   int ret = dvrWriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      /*capacity=*/0, sizeof(TestMeta), &write_queue_);
+      /*capacity=*/0, sizeof(DvrNativeBufferMetadata), &write_queue_);
   ASSERT_EQ(0, ret);
 
   dvrWriteBufferQueueDestroy(write_queue_);
   write_queue_ = nullptr;
 }
 
-TEST_F(DvrBufferQueueTest, TestWrite_QueueGetCapacity) {
+TEST_F(DvrBufferQueueTest, WriteQueueGetCapacity) {
   int ret = dvrWriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      kQueueCapacity, sizeof(TestMeta), &write_queue_);
+      kQueueCapacity, sizeof(DvrNativeBufferMetadata), &write_queue_);
   ASSERT_EQ(0, ret);
 
   size_t capacity = dvrWriteBufferQueueGetCapacity(write_queue_);
@@ -87,10 +85,10 @@ TEST_F(DvrBufferQueueTest, TestWrite_QueueGetCapacity) {
   ASSERT_EQ(kQueueCapacity, capacity);
 }
 
-TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromWriteQueue) {
+TEST_F(DvrBufferQueueTest, CreateReadQueueFromWriteQueue) {
   int ret = dvrWriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      /*capacity=*/0, sizeof(TestMeta), &write_queue_);
+      /*capacity=*/0, sizeof(DvrNativeBufferMetadata), &write_queue_);
   ASSERT_EQ(0, ret);
 
   DvrReadBufferQueue* read_queue = nullptr;
@@ -102,10 +100,10 @@ TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromWriteQueue) {
   dvrReadBufferQueueDestroy(read_queue);
 }
 
-TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromReadQueue) {
+TEST_F(DvrBufferQueueTest, CreateReadQueueFromReadQueue) {
   int ret = dvrWriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      /*capacity=*/0, sizeof(TestMeta), &write_queue_);
+      /*capacity=*/0, sizeof(DvrNativeBufferMetadata), &write_queue_);
   ASSERT_EQ(0, ret);
 
   DvrReadBufferQueue* read_queue1 = nullptr;
@@ -124,102 +122,86 @@ TEST_F(DvrBufferQueueTest, TestCreateReadQueueFromReadQueue) {
   dvrReadBufferQueueDestroy(read_queue2);
 }
 
-TEST_F(DvrBufferQueueTest, CreateEmptyBuffer) {
+TEST_F(DvrBufferQueueTest, GainBuffer) {
   int ret = dvrWriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      kQueueCapacity, sizeof(TestMeta), &write_queue_);
-  ASSERT_EQ(0, ret);
+      kQueueCapacity, sizeof(DvrNativeBufferMetadata), &write_queue_);
+  ASSERT_EQ(ret, 0);
 
-  DvrReadBuffer* read_buffer = nullptr;
-  DvrWriteBuffer* write_buffer = nullptr;
+  DvrWriteBuffer* wb = nullptr;
+  EXPECT_FALSE(dvrWriteBufferIsValid(wb));
 
-  EXPECT_FALSE(dvrReadBufferIsValid(read_buffer));
-  EXPECT_FALSE(dvrWriteBufferIsValid(write_buffer));
-
-  dvrReadBufferCreateEmpty(&read_buffer);
-  ASSERT_NE(nullptr, read_buffer);
-
-  dvrWriteBufferCreateEmpty(&write_buffer);
-  ASSERT_NE(nullptr, write_buffer);
-
-  EXPECT_FALSE(dvrReadBufferIsValid(read_buffer));
-  EXPECT_FALSE(dvrWriteBufferIsValid(write_buffer));
-
-  DvrReadBufferQueue* read_queue = nullptr;
-
-  ASSERT_EQ(0, dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue));
-
-  const int kTimeoutMs = 0;
+  DvrNativeBufferMetadata meta = {0};
   int fence_fd = -1;
-  ASSERT_EQ(0, dvrWriteBufferQueueDequeue(write_queue_, kTimeoutMs,
-                                          write_buffer, &fence_fd));
-  EXPECT_EQ(-1, fence_fd);
-  EXPECT_TRUE(dvrWriteBufferIsValid(write_buffer));
-
-  ASSERT_EQ(0, dvrWriteBufferClear(write_buffer));
-  EXPECT_FALSE(dvrWriteBufferIsValid(write_buffer));
+  ret = dvrWriteBufferQueueGainBuffer(write_queue_, /*timeout=*/0, &wb, &meta,
+                                      &fence_fd);
+  ASSERT_EQ(ret, 0);
+  EXPECT_EQ(fence_fd, -1);
+  EXPECT_NE(wb, nullptr);
+  EXPECT_TRUE(dvrWriteBufferIsValid(wb));
 }
 
-TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
+TEST_F(DvrBufferQueueTest, AcquirePostGainRelease) {
   int ret = dvrWriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      kQueueCapacity, sizeof(TestMeta), &write_queue_);
-  ASSERT_EQ(0, ret);
+      kQueueCapacity, sizeof(DvrNativeBufferMetadata), &write_queue_);
+  ASSERT_EQ(ret, 0);
 
-  static constexpr int kTimeout = 0;
   DvrReadBufferQueue* read_queue = nullptr;
   DvrReadBuffer* rb = nullptr;
   DvrWriteBuffer* wb = nullptr;
+  DvrNativeBufferMetadata meta1 = {0};
+  DvrNativeBufferMetadata meta2 = {0};
   int fence_fd = -1;
 
   ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
 
-  ASSERT_EQ(0, ret);
-  ASSERT_NE(nullptr, read_queue);
+  ASSERT_EQ(ret, 0);
+  ASSERT_NE(read_queue, nullptr);
 
   dvrReadBufferQueueSetBufferAvailableCallback(read_queue,
                                                &BufferAvailableCallback, this);
 
-  dvrWriteBufferCreateEmpty(&wb);
-  ASSERT_NE(nullptr, wb);
-
-  dvrReadBufferCreateEmpty(&rb);
-  ASSERT_NE(nullptr, rb);
-
   // Gain buffer for writing.
-  ret = dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wb, &fence_fd);
-  ASSERT_EQ(0, ret);
+  ret = dvrWriteBufferQueueGainBuffer(write_queue_, /*timeout=*/0, &wb, &meta1,
+                                      &fence_fd);
+  ASSERT_EQ(ret, 0);
+  ASSERT_NE(wb, nullptr);
   ASSERT_TRUE(dvrWriteBufferIsValid(wb));
   ALOGD_IF(TRACE, "TestDequeuePostDequeueRelease, gain buffer %p, fence_fd=%d",
            wb, fence_fd);
   android::base::unique_fd release_fence(fence_fd);
 
   // Post buffer to the read_queue.
-  TestMeta seq = 42U;
-  ret = dvrWriteBufferPost(wb, /* fence */ -1, &seq, sizeof(seq));
-  ASSERT_EQ(0, ret);
-  dvrWriteBufferDestroy(wb);
+  meta1.timestamp = 42;
+  ret = dvrWriteBufferQueuePostBuffer(write_queue_, wb, &meta1, /*fence=*/-1);
+  ASSERT_EQ(ret, 0);
+  ASSERT_FALSE(dvrWriteBufferIsValid(wb));
   wb = nullptr;
 
   // Acquire buffer for reading.
-  TestMeta acquired_seq = 0U;
-  ret = dvrReadBufferQueueDequeue(read_queue, kTimeout, rb, &fence_fd,
-                                  &acquired_seq, sizeof(acquired_seq));
-  ASSERT_EQ(0, ret);
+  ret = dvrReadBufferQueueAcquireBuffer(read_queue, /*timeout=*/0, &rb, &meta2,
+                                        &fence_fd);
+  ASSERT_EQ(ret, 0);
+  ASSERT_NE(rb, nullptr);
 
   // Dequeue is successfully, BufferAvailableCallback should be fired once.
-  ASSERT_EQ(1, buffer_available_count_);
+  ASSERT_EQ(buffer_available_count_, 1);
   ASSERT_TRUE(dvrReadBufferIsValid(rb));
-  ASSERT_EQ(seq, acquired_seq);
+
+  // Metadata should be passed along from producer to consumer properly.
+  ASSERT_EQ(meta1.timestamp, meta2.timestamp);
+
   ALOGD_IF(TRACE,
            "TestDequeuePostDequeueRelease, acquire buffer %p, fence_fd=%d", rb,
            fence_fd);
   android::base::unique_fd acquire_fence(fence_fd);
 
   // Release buffer to the write_queue.
-  ret = dvrReadBufferRelease(rb, -1);
-  ASSERT_EQ(0, ret);
-  dvrReadBufferDestroy(rb);
+  ret = dvrReadBufferQueueReleaseBuffer(read_queue, rb, &meta2,
+                                        /*release_fence_fd=*/-1);
+  ASSERT_EQ(ret, 0);
+  ASSERT_FALSE(dvrReadBufferIsValid(rb));
   rb = nullptr;
 
   // TODO(b/34387835) Currently buffer allocation has to happen after all queues
@@ -232,37 +214,18 @@ TEST_F(DvrBufferQueueTest, TestDequeuePostDequeueRelease) {
   dvrReadBufferQueueDestroy(read_queue);
 }
 
-TEST_F(DvrBufferQueueTest, TestGetANativeWindow) {
+TEST_F(DvrBufferQueueTest, GetANativeWindow) {
   int ret = dvrWriteBufferQueueCreate(
-      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      /*capacity=*/0, sizeof(TestMeta), &write_queue_);
-  ASSERT_EQ(0, ret);
-
-  ANativeWindow* window = nullptr;
-
-  // The |write_queue_| doesn't have proper metadata (must be
-  // DvrNativeBufferMetadata) configured during creation.
-  ret = dvrWriteBufferQueueGetANativeWindow(write_queue_, &window);
-  ASSERT_EQ(-EINVAL, ret);
-  ASSERT_EQ(nullptr, window);
-  dvrWriteBufferQueueDestroy(write_queue_);
-  write_queue_ = nullptr;
-
-  // A write queue with DvrNativeBufferMetadata should work fine.
-  ASSERT_EQ(nullptr, write_queue_);
-
-  ret = dvrWriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
       /*capacity=*/0, sizeof(DvrNativeBufferMetadata), &write_queue_);
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, write_queue_);
 
+  ANativeWindow* window = nullptr;
   ret = dvrWriteBufferQueueGetANativeWindow(write_queue_, &window);
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, window);
 
-  // TODO(b/64723700): Remove dependencies of Android platform bits so that we
-  // can run dvr_buffer_queue-test in DTS.
   uint32_t width = ANativeWindow_getWidth(window);
   uint32_t height = ANativeWindow_getHeight(window);
   uint32_t format = ANativeWindow_getFormat(window);
@@ -274,15 +237,15 @@ TEST_F(DvrBufferQueueTest, TestGetANativeWindow) {
 // Create buffer queue of three buffers and dequeue three buffers out of it.
 // Before each dequeue operation, we resize the buffer queue and expect the
 // queue always return buffer with desired dimension.
-TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
+TEST_F(DvrBufferQueueTest, ResizeBuffer) {
   int ret = dvrWriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      kQueueCapacity, sizeof(TestMeta), &write_queue_);
+      kQueueCapacity, sizeof(DvrNativeBufferMetadata), &write_queue_);
   ASSERT_EQ(0, ret);
 
-  static constexpr int kTimeout = 0;
   int fence_fd = -1;
 
+  DvrNativeBufferMetadata meta = {0};
   DvrReadBufferQueue* read_queue = nullptr;
   DvrWriteBuffer* wb1 = nullptr;
   DvrWriteBuffer* wb2 = nullptr;
@@ -300,13 +263,6 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   dvrReadBufferQueueSetBufferRemovedCallback(read_queue, &BufferRemovedCallback,
                                              this);
 
-  dvrWriteBufferCreateEmpty(&wb1);
-  ASSERT_NE(nullptr, wb1);
-  dvrWriteBufferCreateEmpty(&wb2);
-  ASSERT_NE(nullptr, wb2);
-  dvrWriteBufferCreateEmpty(&wb3);
-  ASSERT_NE(nullptr, wb3);
-
   // Handle all pending events on the read queue.
   ret = dvrReadBufferQueueHandleEvents(read_queue);
   ASSERT_EQ(0, ret);
@@ -321,7 +277,8 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ASSERT_EQ(0, ret);
 
   // Gain first buffer for writing. All buffers will be resized.
-  ret = dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wb1, &fence_fd);
+  ret = dvrWriteBufferQueueGainBuffer(write_queue_, /*timeout=*/0, &wb1, &meta,
+                                      &fence_fd);
   ASSERT_EQ(0, ret);
   ASSERT_TRUE(dvrWriteBufferIsValid(wb1));
   ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p", wb1);
@@ -347,7 +304,8 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ASSERT_EQ(0, ret);
 
   // The next buffer we dequeued should have new width.
-  ret = dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wb2, &fence_fd);
+  ret = dvrWriteBufferQueueGainBuffer(write_queue_, /*timeout=*/0, &wb2, &meta,
+                                      &fence_fd);
   ASSERT_EQ(0, ret);
   ASSERT_TRUE(dvrWriteBufferIsValid(wb2));
   ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p, fence_fd=%d", wb2,
@@ -373,7 +331,8 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   ASSERT_EQ(0, ret);
 
   // The next buffer we dequeued should have new width.
-  ret = dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wb3, &fence_fd);
+  ret = dvrWriteBufferQueueGainBuffer(write_queue_, /*timeout=*/0, &wb3, &meta,
+                                      &fence_fd);
   ASSERT_EQ(0, ret);
   ASSERT_TRUE(dvrWriteBufferIsValid(wb3));
   ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p, fence_fd=%d", wb3,
@@ -396,78 +355,10 @@ TEST_F(DvrBufferQueueTest, TestResizeBuffer) {
   dvrReadBufferQueueDestroy(read_queue);
 }
 
-TEST_F(DvrBufferQueueTest, DequeueEmptyMetadata) {
-  // Overrides default queue parameters: Empty metadata.
+TEST_F(DvrBufferQueueTest, ReadQueueEventFd) {
   int ret = dvrWriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      /*capacity=*/1, /*metadata_size=*/0, &write_queue_);
-  ASSERT_EQ(0, ret);
-
-  DvrReadBuffer* rb = nullptr;
-  DvrWriteBuffer* wb = nullptr;
-  dvrReadBufferCreateEmpty(&rb);
-  dvrWriteBufferCreateEmpty(&wb);
-
-  DvrReadBufferQueue* read_queue = nullptr;
-  EXPECT_EQ(0, dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue));
-
-  const int kTimeoutMs = 0;
-  int fence_fd = -1;
-  EXPECT_EQ(0, dvrWriteBufferQueueDequeue(write_queue_, 0, wb, &fence_fd));
-
-  EXPECT_EQ(0, dvrWriteBufferPost(wb, /*fence=*/-1, nullptr, 0));
-  EXPECT_EQ(0, dvrWriteBufferClear(wb));
-  dvrWriteBufferDestroy(wb);
-  wb = nullptr;
-
-  // When acquire buffer, it's legit to pass nullptr as out_meta iff metadata
-  // size is Zero.
-  EXPECT_EQ(0, dvrReadBufferQueueDequeue(read_queue, kTimeoutMs, rb, &fence_fd,
-                                         nullptr, 0));
-  EXPECT_TRUE(dvrReadBufferIsValid(rb));
-}
-
-TEST_F(DvrBufferQueueTest, DequeueMismatchMetadata) {
-  int ret = dvrWriteBufferQueueCreate(
-      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      /*capacity=*/1, sizeof(TestMeta), &write_queue_);
-  ASSERT_EQ(0, ret);
-
-  DvrReadBuffer* rb = nullptr;
-  DvrWriteBuffer* wb = nullptr;
-  dvrReadBufferCreateEmpty(&rb);
-  dvrWriteBufferCreateEmpty(&wb);
-
-  DvrReadBufferQueue* read_queue = nullptr;
-  EXPECT_EQ(0, dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue));
-
-  const int kTimeoutMs = 0;
-  int fence_fd = -1;
-  EXPECT_EQ(0, dvrWriteBufferQueueDequeue(write_queue_, 0, wb, &fence_fd));
-
-  TestMeta seq = 42U;
-  EXPECT_EQ(0, dvrWriteBufferPost(wb, /*fence=*/-1, &seq, sizeof(seq)));
-  EXPECT_EQ(0, dvrWriteBufferClear(wb));
-  dvrWriteBufferDestroy(wb);
-  wb = nullptr;
-
-  // Dequeue with wrong metadata will cause EINVAL.
-  int8_t wrong_metadata;
-  EXPECT_EQ(-EINVAL,
-            dvrReadBufferQueueDequeue(read_queue, kTimeoutMs, rb, &fence_fd,
-                                      &wrong_metadata, sizeof(wrong_metadata)));
-  EXPECT_FALSE(dvrReadBufferIsValid(rb));
-
-  // Dequeue with empty metadata will cause EINVAL.
-  EXPECT_EQ(-EINVAL, dvrReadBufferQueueDequeue(read_queue, kTimeoutMs, rb,
-                                               &fence_fd, nullptr, 0));
-  EXPECT_FALSE(dvrReadBufferIsValid(rb));
-}
-
-TEST_F(DvrBufferQueueTest, TestReadQueueEventFd) {
-  int ret = dvrWriteBufferQueueCreate(
-      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      kQueueCapacity, sizeof(TestMeta), &write_queue_);
+      kQueueCapacity, sizeof(DvrNativeBufferMetadata), &write_queue_);
   ASSERT_EQ(0, ret);
 
   DvrReadBufferQueue* read_queue = nullptr;
@@ -483,10 +374,10 @@ TEST_F(DvrBufferQueueTest, TestReadQueueEventFd) {
 // Verifies a Dvr{Read,Write}BufferQueue contains the same set of
 // Dvr{Read,Write}Buffer(s) during their lifecycles. And for the same buffer_id,
 // the corresponding AHardwareBuffer handle stays the same.
-TEST_F(DvrBufferQueueTest, TestStableBufferIdAndHardwareBuffer) {
+TEST_F(DvrBufferQueueTest, StableBufferIdAndHardwareBuffer) {
   int ret = dvrWriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      kQueueCapacity, sizeof(TestMeta), &write_queue_);
+      kQueueCapacity, sizeof(DvrNativeBufferMetadata), &write_queue_);
   ASSERT_EQ(0, ret);
 
   int fence_fd = -1;
@@ -497,25 +388,21 @@ TEST_F(DvrBufferQueueTest, TestStableBufferIdAndHardwareBuffer) {
   std::array<DvrReadBuffer*, kQueueCapacity> rbs;
   // Write buffers.
   std::array<DvrWriteBuffer*, kQueueCapacity> wbs;
+  // Buffer metadata.
+  std::array<DvrNativeBufferMetadata, kQueueCapacity> metas;
   // Hardware buffers for Read buffers.
   std::unordered_map<int, AHardwareBuffer*> rhbs;
   // Hardware buffers for Write buffers.
   std::unordered_map<int, AHardwareBuffer*> whbs;
 
-  for (size_t i = 0; i < kQueueCapacity; i++) {
-    dvrReadBufferCreateEmpty(&rbs[i]);
-    dvrWriteBufferCreateEmpty(&wbs[i]);
-  }
-
   constexpr int kNumTests = 100;
-  constexpr int kTimeout = 0;
-  TestMeta seq = 0U;
 
   // This test runs the following operations many many times. Thus we prefer to
   // use ASSERT_XXX rather than EXPECT_XXX to avoid spamming the output.
   std::function<void(size_t i)> Gain = [&](size_t i) {
-    ASSERT_EQ(0, dvrWriteBufferQueueDequeue(write_queue_, kTimeout, wbs[i],
-                                            &fence_fd));
+    int ret = dvrWriteBufferQueueGainBuffer(write_queue_, /*timeout=*/0,
+                                            &wbs[i], &metas[i], &fence_fd);
+    ASSERT_EQ(ret, 0);
     ASSERT_LT(fence_fd, 0);  // expect invalid fence.
     ASSERT_TRUE(dvrWriteBufferIsValid(wbs[i]));
     int buffer_id = dvrWriteBufferGetId(wbs[i]);
@@ -540,15 +427,16 @@ TEST_F(DvrBufferQueueTest, TestStableBufferIdAndHardwareBuffer) {
   std::function<void(size_t i)> Post = [&](size_t i) {
     ASSERT_TRUE(dvrWriteBufferIsValid(wbs[i]));
 
-    seq++;
-    ASSERT_EQ(0, dvrWriteBufferPost(wbs[i], /*fence=*/-1, &seq, sizeof(seq)));
+    metas[i].timestamp++;
+    int ret = dvrWriteBufferQueuePostBuffer(write_queue_, wbs[i], &metas[i],
+                                            /*fence=*/-1);
+    ASSERT_EQ(ret, 0);
   };
 
   std::function<void(size_t i)> Acquire = [&](size_t i) {
-    TestMeta out_seq = 0U;
-    ASSERT_EQ(0,
-              dvrReadBufferQueueDequeue(read_queue, kTimeout, rbs[i], &fence_fd,
-                                        &out_seq, sizeof(out_seq)));
+    int ret = dvrReadBufferQueueAcquireBuffer(read_queue, /*timeout=*/0,
+                                              &rbs[i], &metas[i], &fence_fd);
+    ASSERT_EQ(ret, 0);
     ASSERT_LT(fence_fd, 0);  // expect invalid fence.
     ASSERT_TRUE(dvrReadBufferIsValid(rbs[i]));
 
@@ -574,8 +462,9 @@ TEST_F(DvrBufferQueueTest, TestStableBufferIdAndHardwareBuffer) {
   std::function<void(size_t i)> Release = [&](size_t i) {
     ASSERT_TRUE(dvrReadBufferIsValid(rbs[i]));
 
-    seq++;
-    ASSERT_EQ(0, dvrReadBufferRelease(rbs[i], /*fence=*/-1));
+    int ret = dvrReadBufferQueueReleaseBuffer(read_queue, rbs[i], &metas[i],
+                                              /*release_fence_fd=*/-1);
+    ASSERT_EQ(ret, 0);
   };
 
   // Scenario one:
@@ -629,12 +518,6 @@ TEST_F(DvrBufferQueueTest, TestStableBufferIdAndHardwareBuffer) {
     for (size_t i = 0; i < kQueueCapacity; i++) {
       ASSERT_NO_FATAL_FAILURE(Release(kQueueCapacity - 1 - i));
     }
-  }
-
-  // Clean up all read buffers and write buffers.
-  for (size_t i = 0; i < kQueueCapacity; i++) {
-    dvrReadBufferDestroy(rbs[i]);
-    dvrWriteBufferDestroy(wbs[i]);
   }
 }
 
