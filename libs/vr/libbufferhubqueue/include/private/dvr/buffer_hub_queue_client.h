@@ -66,6 +66,11 @@ class BufferHubQueue : public pdx::Client {
 
   explicit operator bool() const { return epoll_fd_.IsValid(); }
 
+  int GetBufferId(size_t slot) const {
+    return (slot < buffers_.size() && buffers_[slot]) ? buffers_[slot]->id()
+                                                      : -1;
+  }
+
   std::shared_ptr<BufferHubBuffer> GetBuffer(size_t slot) const {
     return buffers_[slot];
   }
@@ -218,7 +223,7 @@ class BufferHubQueue : public pdx::Client {
   // Tracks the buffers belonging to this queue. Buffers are stored according to
   // "slot" in this vector. Each slot is a logical id of the buffer within this
   // queue regardless of its queue position or presence in the ring buffer.
-  std::vector<std::shared_ptr<BufferHubBuffer>> buffers_{kMaxQueueCapacity};
+  std::array<std::shared_ptr<BufferHubBuffer>, kMaxQueueCapacity> buffers_;
 
   // Buffers and related data that are available for dequeue.
   RingBuffer<Entry> available_buffers_{kMaxQueueCapacity};

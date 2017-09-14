@@ -167,6 +167,12 @@ DVR_V1_API_ENTRY(WriteBufferQueueCreate);
 // Gets an ANativeWindow from DvrWriteBufferQueue.
 DVR_V1_API_ENTRY(WriteBufferQueueGetANativeWindow);
 
+// Dvr{Read,Write}BufferQueue API for asynchronous IPC.
+DVR_V1_API_ENTRY(WriteBufferQueueGainBuffer);
+DVR_V1_API_ENTRY(WriteBufferQueuePostBuffer);
+DVR_V1_API_ENTRY(ReadBufferQueueAcquireBuffer);
+DVR_V1_API_ENTRY(ReadBufferQueueReleaseBuffer);
+
 // Pose client
 DVR_V1_API_ENTRY(PoseClientGetDataReader);
 DVR_V1_API_ENTRY(PoseClientDataCapture);
