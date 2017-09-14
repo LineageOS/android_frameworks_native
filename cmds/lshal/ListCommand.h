@@ -78,7 +78,7 @@ public:
 protected:
     Status parseArgs(const Arg &arg);
     Status fetch();
-    void postprocess();
+    virtual void postprocess();
     Status dump();
     void putEntry(TableEntrySource source, TableEntry &&entry);
     Status fetchPassthrough(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);

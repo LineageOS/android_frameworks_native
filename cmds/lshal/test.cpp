@@ -185,6 +185,9 @@ public:
 
     Status parseArgs(const Arg& arg) { return ListCommand::parseArgs(arg); }
     Status main(const Arg& arg) { return ListCommand::main(arg); }
+    void forEachTable(const std::function<void(Table &)> &f) {
+        return ListCommand::forEachTable(f);
+    }
     void forEachTable(const std::function<void(const Table &)> &f) const {
         return ListCommand::forEachTable(f);
     }
@@ -192,7 +195,9 @@ public:
     void dumpVintf(const NullableOStream<std::ostream>& out) {
         return ListCommand::dumpVintf(out);
     }
+    void internalPostprocess() { ListCommand::postprocess(); }
 
+    MOCK_METHOD0(postprocess, void());
     MOCK_CONST_METHOD2(getPidInfo, bool(pid_t, PidInfo*));
     MOCK_CONST_METHOD1(parseCmdline, std::string(pid_t));
 };
@@ -303,6 +308,13 @@ public:
                 return true;
             }));
         ON_CALL(*mockList, parseCmdline(_)).WillByDefault(Invoke(&getCmdlineFromId));
+        ON_CALL(*mockList, postprocess()).WillByDefault(Invoke([&]() {
+            mockList->internalPostprocess();
+            size_t i = 0;
+            mockList->forEachTable([&](Table& table) {
+                table.setDescription("[fake description " + std::to_string(i++) + "]");
+            });
+        }));
     }
 
     void initMockServiceManager() {
@@ -458,22 +470,17 @@ TEST_F(ListTest, DumpVintf) {
 
 TEST_F(ListTest, Dump) {
     const std::string expected =
-        "All binderized services (registered services through hwservicemanager)\n"
+        "[fake description 0]\n"
         "Interface            Transport Arch Thread Use Server PTR              Clients\n"
         "a.h.foo1@1.0::IFoo/1 hwbinder  64   11/21      1      0000000000002711 2 4\n"
         "a.h.foo2@2.0::IFoo/2 hwbinder  64   12/22      2      0000000000002712 3 5\n"
         "\n"
-        "All interfaces that getService() has ever return as a passthrough interface;\n"
-        "PIDs / processes shown below might be inaccurate because the process\n"
-        "might have relinquished the interface or might have died.\n"
-        "The Server / Server CMD column can be ignored.\n"
-        "The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
-        "the library and successfully fetched the passthrough implementation.\n"
+        "[fake description 1]\n"
         "Interface            Transport   Arch Thread Use Server PTR Clients\n"
         "a.h.foo3@3.0::IFoo/3 passthrough 32   N/A        N/A    N/A 4 6\n"
         "a.h.foo4@4.0::IFoo/4 passthrough 32   N/A        N/A    N/A 5 7\n"
         "\n"
-        "All available passthrough implementations (all -impl.so files)\n"
+        "[fake description 2]\n"
         "Interface            Transport   Arch Thread Use Server PTR Clients\n"
         "a.h.foo5@5.0::IFoo/5 passthrough 32   N/A        N/A    N/A 6 8\n"
         "a.h.foo6@6.0::IFoo/6 passthrough 32   N/A        N/A    N/A 7 9\n"
@@ -487,22 +494,17 @@ TEST_F(ListTest, Dump) {
 
 TEST_F(ListTest, DumpCmdline) {
     const std::string expected =
-        "All binderized services (registered services through hwservicemanager)\n"
+        "[fake description 0]\n"
         "Interface            Transport Arch Thread Use Server CMD     PTR              Clients CMD\n"
         "a.h.foo1@1.0::IFoo/1 hwbinder  64   11/21      command_line_1 0000000000002711 command_line_2;command_line_4\n"
         "a.h.foo2@2.0::IFoo/2 hwbinder  64   12/22      command_line_2 0000000000002712 command_line_3;command_line_5\n"
         "\n"
-        "All interfaces that getService() has ever return as a passthrough interface;\n"
-        "PIDs / processes shown below might be inaccurate because the process\n"
-        "might have relinquished the interface or might have died.\n"
-        "The Server / Server CMD column can be ignored.\n"
-        "The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
-        "the library and successfully fetched the passthrough implementation.\n"
+        "[fake description 1]\n"
         "Interface            Transport   Arch Thread Use Server CMD PTR Clients CMD\n"
         "a.h.foo3@3.0::IFoo/3 passthrough 32   N/A                   N/A command_line_4;command_line_6\n"
         "a.h.foo4@4.0::IFoo/4 passthrough 32   N/A                   N/A command_line_5;command_line_7\n"
         "\n"
-        "All available passthrough implementations (all -impl.so files)\n"
+        "[fake description 2]\n"
         "Interface            Transport   Arch Thread Use Server CMD PTR Clients CMD\n"
         "a.h.foo5@5.0::IFoo/5 passthrough 32   N/A                   N/A command_line_6;command_line_8\n"
         "a.h.foo6@6.0::IFoo/6 passthrough 32   N/A                   N/A command_line_7;command_line_9\n"
