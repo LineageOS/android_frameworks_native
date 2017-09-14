@@ -11,6 +11,7 @@ class MockClientChannel : public ClientChannel {
  public:
   MOCK_CONST_METHOD0(GetIpcTag, uint32_t());
   MOCK_CONST_METHOD0(event_fd, int());
+  MOCK_CONST_METHOD0(GetEventSources, std::vector<EventSource>());
   MOCK_METHOD1(GetEventMask, Status<int>(int));
   MOCK_METHOD0(GetChannelHandle, LocalChannelHandle&());
   MOCK_METHOD0(AllocateTransactionState, void*());

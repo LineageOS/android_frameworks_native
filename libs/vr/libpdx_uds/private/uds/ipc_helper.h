@@ -110,10 +110,12 @@ template <typename FileHandleType>
 class ChannelInfo {
  public:
   FileHandleType data_fd;
-  FileHandleType event_fd;
+  FileHandleType pollin_event_fd;
+  FileHandleType pollhup_event_fd;
 
  private:
-  PDX_SERIALIZABLE_MEMBERS(ChannelInfo, data_fd, event_fd);
+  PDX_SERIALIZABLE_MEMBERS(ChannelInfo, data_fd, pollin_event_fd,
+                           pollhup_event_fd);
 };
 
 template <typename FileHandleType>

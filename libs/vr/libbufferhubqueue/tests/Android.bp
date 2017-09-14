@@ -1,4 +1,7 @@
 
+header_libraries = [
+    "libdvr_headers",
+]
 
 shared_libraries = [
     "libbase",
@@ -21,6 +24,7 @@ static_libraries = [
 
 cc_test {
     srcs: ["buffer_hub_queue-test.cpp"],
+    header_libs: header_libraries,
     static_libs: static_libraries,
     shared_libs: shared_libraries,
     cflags: [
@@ -35,6 +39,7 @@ cc_test {
 
 cc_test {
     srcs: ["buffer_hub_queue_producer-test.cpp"],
+    header_libs: header_libraries,
     static_libs: static_libraries,
     shared_libs: shared_libraries,
     cflags: [
