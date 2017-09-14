@@ -90,10 +90,12 @@ Status<void> SendRequest(const BorrowedHandle& socket_fd,
   size_t send_len = CountVectorSize(send_vector, send_count);
   InitRequest(&transaction_state->request, opcode, send_len, max_recv_len,
               false);
-  auto status = SendData(socket_fd, transaction_state->request);
-  if (status && send_len > 0)
-    status = SendDataVector(socket_fd, send_vector, send_count);
-  return status;
+  if (send_len == 0) {
+    send_vector = nullptr;
+    send_count = 0;
+  }
+  return SendData(socket_fd, transaction_state->request, send_vector,
+                  send_count);
 }
 
 Status<void> ReceiveResponse(const BorrowedHandle& socket_fd,
