@@ -685,7 +685,7 @@ InputDispatcher::KeyEntry* InputDispatcher::synthesizeKeyRepeatLocked(nsecs_t cu
 bool InputDispatcher::dispatchConfigurationChangedLocked(
         nsecs_t currentTime, ConfigurationChangedEntry* entry) {
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-    ALOGD("dispatchConfigurationChanged - eventTime=%lld", entry->eventTime);
+    ALOGD("dispatchConfigurationChanged - eventTime=%" PRId64, entry->eventTime);
 #endif
 
     // Reset key repeating in case a keyboard device was added or removed or something.
@@ -701,7 +701,8 @@ bool InputDispatcher::dispatchConfigurationChangedLocked(
 bool InputDispatcher::dispatchDeviceResetLocked(
         nsecs_t currentTime, DeviceResetEntry* entry) {
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-    ALOGD("dispatchDeviceReset - eventTime=%lld, deviceId=%d", entry->eventTime, entry->deviceId);
+    ALOGD("dispatchDeviceReset - eventTime=%" PRId64 ", deviceId=%d", entry->eventTime,
+            entry->deviceId);
 #endif
 
     CancelationOptions options(CancelationOptions::CANCEL_ALL_EVENTS,
@@ -811,9 +812,9 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
 
 void InputDispatcher::logOutboundKeyDetailsLocked(const char* prefix, const KeyEntry* entry) {
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-    ALOGD("%seventTime=%lld, deviceId=%d, source=0x%x, policyFlags=0x%x, "
+    ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, policyFlags=0x%x, "
             "action=0x%x, flags=0x%x, keyCode=0x%x, scanCode=0x%x, metaState=0x%x, "
-            "repeatCount=%d, downTime=%lld",
+            "repeatCount=%d, downTime=%" PRId64,
             prefix,
             entry->eventTime, entry->deviceId, entry->source, entry->policyFlags,
             entry->action, entry->flags, entry->keyCode, entry->scanCode, entry->metaState,
@@ -884,10 +885,10 @@ bool InputDispatcher::dispatchMotionLocked(
 
 void InputDispatcher::logOutboundMotionDetailsLocked(const char* prefix, const MotionEntry* entry) {
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-    ALOGD("%seventTime=%lld, deviceId=%d, source=0x%x, policyFlags=0x%x, "
+    ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, policyFlags=0x%x, "
             "action=0x%x, actionButton=0x%x, flags=0x%x, "
             "metaState=0x%x, buttonState=0x%x,"
-            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%lld",
+            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64,
             prefix,
             entry->eventTime, entry->deviceId, entry->source, entry->policyFlags,
             entry->action, entry->actionButton, entry->flags,
@@ -1131,8 +1132,6 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         INJECTION_PERMISSION_GRANTED,
         INJECTION_PERMISSION_DENIED
     };
-
-    nsecs_t startTime = now();
 
     // For security reasons, we defer updating the touch state until we are sure that
     // event injection will be allowed.
@@ -2233,7 +2232,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
 
     if (!cancelationEvents.isEmpty()) {
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-        ALOGD("channel '%s' ~ Synthesized %d cancelation events to bring channel back in sync "
+        ALOGD("channel '%s' ~ Synthesized %zu cancelation events to bring channel back in sync "
                 "with reality: %s, mode=%d.",
                 connection->getInputChannelName(), cancelationEvents.size(),
                 options.reason, options.mode);
@@ -2369,7 +2368,7 @@ InputDispatcher::splitMotionEvent(const MotionEntry* originalMotionEntry, BitSet
 
 void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
-    ALOGD("notifyConfigurationChanged - eventTime=%lld", args->eventTime);
+    ALOGD("notifyConfigurationChanged - eventTime=%" PRId64, args->eventTime);
 #endif
 
     bool needWake;
@@ -2387,8 +2386,9 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
 
 void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
-    ALOGD("notifyKey - eventTime=%lld, deviceId=%d, source=0x%x, policyFlags=0x%x, action=0x%x, "
-            "flags=0x%x, keyCode=0x%x, scanCode=0x%x, metaState=0x%x, downTime=%lld",
+    ALOGD("notifyKey - eventTime=%" PRId64
+            ", deviceId=%d, source=0x%x, policyFlags=0x%x, action=0x%x, "
+            "flags=0x%x, keyCode=0x%x, scanCode=0x%x, metaState=0x%x, downTime=%" PRId64,
             args->eventTime, args->deviceId, args->source, args->policyFlags,
             args->action, args->flags, args->keyCode, args->scanCode,
             args->metaState, args->downTime);
@@ -2482,9 +2482,9 @@ bool InputDispatcher::shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args
 
 void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
-    ALOGD("notifyMotion - eventTime=%lld, deviceId=%d, source=0x%x, policyFlags=0x%x, "
+    ALOGD("notifyMotion - eventTime=%" PRId64 ", deviceId=%d, source=0x%x, policyFlags=0x%x, "
             "action=0x%x, actionButton=0x%x, flags=0x%x, metaState=0x%x, buttonState=0x%x,"
-            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%lld",
+            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64,
             args->eventTime, args->deviceId, args->source, args->policyFlags,
             args->action, args->actionButton, args->flags, args->metaState, args->buttonState,
             args->edgeFlags, args->xPrecision, args->yPrecision, args->downTime);
@@ -2562,9 +2562,9 @@ bool InputDispatcher::shouldSendMotionToInputFilterLocked(const NotifyMotionArgs
 
 void InputDispatcher::notifySwitch(const NotifySwitchArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
-    ALOGD("notifySwitch - eventTime=%lld, policyFlags=0x%x, switchValues=0x%08x, switchMask=0x%08x",
-            args->eventTime, args->policyFlags,
-            args->switchValues, args->switchMask);
+    ALOGD("notifySwitch - eventTime=%" PRId64 ", policyFlags=0x%x, switchValues=0x%08x, "
+            "switchMask=0x%08x",
+            args->eventTime, args->policyFlags, args->switchValues, args->switchMask);
 #endif
 
     uint32_t policyFlags = args->policyFlags;
@@ -2575,7 +2575,7 @@ void InputDispatcher::notifySwitch(const NotifySwitchArgs* args) {
 
 void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
-    ALOGD("notifyDeviceReset - eventTime=%lld, deviceId=%d",
+    ALOGD("notifyDeviceReset - eventTime=%" PRId64 ", deviceId=%d",
             args->eventTime, args->deviceId);
 #endif
 
@@ -3743,7 +3743,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
                     msg.appendFormat(", %d->%d", fallbackKeys.keyAt(i),
                             fallbackKeys.valueAt(i));
                 }
-                ALOGD("Unhandled key event: %d currently tracked fallback keys%s.",
+                ALOGD("Unhandled key event: %zu currently tracked fallback keys%s.",
                         fallbackKeys.size(), msg.string());
             }
 #endif
