@@ -801,7 +801,7 @@ int validate_system_app_path(const char* path) {
 }
 
 bool validate_secondary_dex_path(const std::string& pkgname, const std::string& dex_path,
-        const char* volume_uuid, int uid, int storage_flag) {
+        const char* volume_uuid, int uid, int storage_flag, bool validate_package_path) {
     CHECK(storage_flag == FLAG_STORAGE_CE || storage_flag == FLAG_STORAGE_DE);
 
     // Empty paths are not allowed.
@@ -815,15 +815,18 @@ bool validate_secondary_dex_path(const std::string& pkgname, const std::string& 
     // The path should be at most PKG_PATH_MAX long.
     if (dex_path.size() > PKG_PATH_MAX) { return false; }
 
-    // The dex_path should be under the app data directory.
-    std::string app_private_dir = storage_flag == FLAG_STORAGE_CE
-        ? create_data_user_ce_package_path(
-                volume_uuid, multiuser_get_user_id(uid), pkgname.c_str())
-        : create_data_user_de_package_path(
-                volume_uuid, multiuser_get_user_id(uid), pkgname.c_str());
+    if (validate_package_path) {
+        // If we are asked to validate the package path check that
+        // the dex_path is under the app data directory.
+        std::string app_private_dir = storage_flag == FLAG_STORAGE_CE
+            ? create_data_user_ce_package_path(
+                    volume_uuid, multiuser_get_user_id(uid), pkgname.c_str())
+            : create_data_user_de_package_path(
+                    volume_uuid, multiuser_get_user_id(uid), pkgname.c_str());
 
-    if (strncmp(dex_path.c_str(), app_private_dir.c_str(), app_private_dir.size()) != 0) {
-        return false;
+        if (strncmp(dex_path.c_str(), app_private_dir.c_str(), app_private_dir.size()) != 0) {
+            return false;
+        }
     }
 
     // If we got here we have a valid path.
