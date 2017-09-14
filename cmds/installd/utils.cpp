@@ -1074,7 +1074,7 @@ int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t ta
     } else {
         // Mismatched GID/mode is recoverable; fall through to update
         LOG(DEBUG) << "Mismatched cache GID/mode at " << path << ": found " << st.st_gid
-                << " but expected " << gid;
+                << "/" << actual_mode << " but expected " << gid << "/" << target_mode;
     }
 
     // Directory is owned correctly, but GID or mode mismatch means it's
