@@ -31,13 +31,18 @@ enum : unsigned int {
     OK                                      = 0,
     // Return to Lshal::main to print help info.
     USAGE                                   = 1 << 0,
+    // no service managers
     NO_BINDERIZED_MANAGER                   = 1 << 1,
     NO_PASSTHROUGH_MANAGER                  = 1 << 2,
+    // general error in getting information from the three sources
     DUMP_BINDERIZED_ERROR                   = 1 << 3,
     DUMP_PASSTHROUGH_ERROR                  = 1 << 4,
     DUMP_ALL_LIBS_ERROR                     = 1 << 5,
+    // I/O error in reading files
     IO_ERROR                                = 1 << 6,
+    // Interface does not exist (IServiceManager::get fails)
     NO_INTERFACE                            = 1 << 7,
+    // Transaction error from hwbinder transactions
     TRANSACTION_ERROR                       = 1 << 8,
 };
 using Status = unsigned int;
