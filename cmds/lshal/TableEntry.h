@@ -55,19 +55,28 @@ enum class TableColumnType : unsigned int {
     CLIENT_CMDS,
     ARCH,
     THREADS,
+    RELEASED,
+    HASH,
+};
+
+enum {
+    NO_PID = -1,
+    NO_PTR = 0
 };
 
 struct TableEntry {
-    std::string interfaceName;
-    std::string transport;
-    int32_t serverPid;
-    uint32_t threadUsage;
-    uint32_t threadCount;
-    std::string serverCmdline;
-    uint64_t serverObjectAddress;
-    Pids clientPids;
-    std::vector<std::string> clientCmdlines;
-    Architecture arch;
+    std::string interfaceName{};
+    std::string transport{};
+    int32_t serverPid{NO_PID};
+    uint32_t threadUsage{0};
+    uint32_t threadCount{0};
+    std::string serverCmdline{};
+    uint64_t serverObjectAddress{NO_PTR};
+    Pids clientPids{};
+    std::vector<std::string> clientCmdlines{};
+    Architecture arch{ARCH_UNKNOWN};
+    // empty: unknown, all zeros: unreleased, otherwise: released
+    std::string hash{};
 
     static bool sortByInterfaceName(const TableEntry &a, const TableEntry &b) {
         return a.interfaceName < b.interfaceName;
@@ -83,6 +92,8 @@ struct TableEntry {
 
         return std::to_string(threadUsage) + "/" + std::to_string(threadCount);
     }
+
+    std::string isReleased() const;
 
     std::string getField(TableColumnType type) const;
 
@@ -127,11 +138,6 @@ public:
     TextTable createTextTable();
 private:
     std::vector<const Table*> mTables;
-};
-
-enum {
-    NO_PID = -1,
-    NO_PTR = 0
 };
 
 }  // namespace lshal
