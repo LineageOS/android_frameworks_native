@@ -17,6 +17,7 @@
 #ifndef FRAMEWORK_NATIVE_CMDS_LSHAL_LIST_COMMAND_H_
 #define FRAMEWORK_NATIVE_CMDS_LSHAL_LIST_COMMAND_H_
 
+#include <getopt.h>
 #include <stdint.h>
 
 #include <fstream>
@@ -26,6 +27,7 @@
 #include <android-base/macros.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 
+#include "Command.h"
 #include "NullableOStream.h"
 #include "TableEntry.h"
 #include "TextTable.h"
@@ -42,13 +44,39 @@ struct PidInfo {
     uint32_t threadCount; // number of threads total
 };
 
-class ListCommand {
+class ListCommand : public Command {
 public:
-    ListCommand(Lshal &lshal);
+    ListCommand(Lshal &lshal) : Command(lshal) {}
     virtual ~ListCommand() = default;
-    Status main(const std::string &command, const Arg &arg);
+    Status main(const Arg &arg) override;
+    void usage() const override;
+    std::string getSimpleDescription() const override;
+    std::string getName() const override { return GetName(); }
+
+    static std::string GetName();
+
+    struct RegisteredOption {
+        // short alternative, e.g. 'v'. If '\0', no short options is available.
+        char shortOption;
+        // long alternative, e.g. 'init-vintf'
+        std::string longOption;
+        // no_argument, required_argument or optional_argument
+        int hasArg;
+        // value written to 'flag' by getopt_long
+        int val;
+        // operation when the argument is present
+        std::function<Status(ListCommand* thiz, const char* arg)> op;
+        // help message
+        std::string help;
+
+        const std::string& getHelpMessageForArgument() const;
+    };
+    // A list of acceptable command line options
+    // key: value returned by getopt_long
+    using RegisteredOptions = std::vector<RegisteredOption>;
+
 protected:
-    Status parseArgs(const std::string &command, const Arg &arg);
+    Status parseArgs(const Arg &arg);
     Status fetch();
     void postprocess();
     Status dump();
@@ -79,7 +107,7 @@ protected:
     NullableOStream<std::ostream> err() const;
     NullableOStream<std::ostream> out() const;
 
-    Lshal &mLshal;
+    void registerAllOptions();
 
     Table mServicesTable{};
     Table mPassthroughRefTable{};
@@ -101,6 +129,13 @@ protected:
     // If an entry exist and not empty, it contains the cached content of /proc/{pid}/cmdline.
     std::map<pid_t, std::string> mCmdlines;
 
+    RegisteredOptions mOptions;
+    // All selected columns
+    std::vector<TableColumnType> mSelectedColumns;
+    // If true, emit cmdlines instead of PIDs
+    bool mEnableCmdlines = false;
+
+private:
     DISALLOW_COPY_AND_ASSIGN(ListCommand);
 };
 

@@ -183,8 +183,8 @@ class MockListCommand : public ListCommand {
 public:
     MockListCommand(Lshal* lshal) : ListCommand(*lshal) {}
 
-    Status parseArgs(const Arg& arg) { return ListCommand::parseArgs("", arg); }
-    Status main(const Arg& arg) { return ListCommand::main("", arg); }
+    Status parseArgs(const Arg& arg) { return ListCommand::parseArgs(arg); }
+    Status main(const Arg& arg) { return ListCommand::main(arg); }
     void forEachTable(const std::function<void(const Table &)> &f) const {
         return ListCommand::forEachTable(f);
     }
@@ -528,6 +528,70 @@ TEST_F(ListTest, DumpNeat) {
     EXPECT_EQ(expected, out.str());
     EXPECT_EQ("", err.str());
 }
+
+class HelpTest : public ::testing::Test {
+public:
+    void SetUp() override {
+        lshal = std::make_unique<Lshal>(out, err, new MockServiceManager() /* serviceManager */,
+                                        new MockServiceManager() /* passthruManager */);
+    }
+
+    std::stringstream err;
+    std::stringstream out;
+    std::unique_ptr<Lshal> lshal;
+};
+
+TEST_F(HelpTest, GlobalUsage) {
+    (void)callMain(lshal, {"lshal", "--help"}); // ignore return
+    std::string errStr = err.str();
+    EXPECT_THAT(errStr, ContainsRegex("(^|\n)commands:($|\n)"))
+        << "`lshal --help` does not contain global usage";
+    EXPECT_THAT(errStr, ContainsRegex("(^|\n)list:($|\n)"))
+        << "`lshal --help` does not contain usage for 'list' command";
+    EXPECT_THAT(errStr, ContainsRegex("(^|\n)debug:($|\n)"))
+        << "`lshal --help` does not contain usage for 'debug' command";
+    EXPECT_THAT(errStr, ContainsRegex("(^|\n)help:($|\n)"))
+        << "`lshal --help` does not contain usage for 'help' command";
+
+    err.str("");
+    (void)callMain(lshal, {"lshal", "help"}); // ignore return
+    EXPECT_EQ(errStr, err.str()) << "`lshal help` should have the same output as `lshal --help`";
+
+    err.str("");
+    EXPECT_NE(0u, callMain(lshal, {"lshal", "--unknown-option"}));
+    EXPECT_THAT(err.str(), ContainsRegex("unrecognized option"));
+    EXPECT_THAT(err.str(), EndsWith(errStr))
+            << "`lshal --unknown-option` should have the same output as `lshal --help`";
+    EXPECT_EQ("", out.str());
+}
+
+TEST_F(HelpTest, UnknownOptionList1) {
+    (void)callMain(lshal, {"lshal", "help", "list"});
+    EXPECT_THAT(err.str(), ContainsRegex("(^|\n)list:($|\n)"))
+        << "`lshal help list` does not contain usage for 'list' command";
+}
+
+TEST_F(HelpTest, UnknownOptionList2) {
+    EXPECT_NE(0u, callMain(lshal, {"lshal", "list", "--unknown-option"}));
+    EXPECT_THAT(err.str(), ContainsRegex("unrecognized option"));
+    EXPECT_THAT(err.str(), ContainsRegex("(^|\n)list:($|\n)"))
+        << "`lshal list --unknown-option` does not contain usage for 'list' command";
+    EXPECT_EQ("", out.str());
+}
+
+TEST_F(HelpTest, UnknownOptionHelp1) {
+    (void)callMain(lshal, {"lshal", "help", "help"});
+    EXPECT_THAT(err.str(), ContainsRegex("(^|\n)help:($|\n)"))
+        << "`lshal help help` does not contain usage for 'help' command";
+}
+
+TEST_F(HelpTest, UnknownOptionHelp2) {
+    (void)callMain(lshal, {"lshal", "help", "--unknown-option"});
+    EXPECT_THAT(err.str(), ContainsRegex("(^|\n)help:($|\n)"))
+        << "`lshal help --unknown-option` does not contain usage for 'help' command";
+    EXPECT_EQ("", out.str());
+}
+
 } // namespace lshal
 } // namespace android
 

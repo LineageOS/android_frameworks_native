@@ -21,12 +21,16 @@
 namespace android {
 namespace lshal {
 
-DebugCommand::DebugCommand(Lshal &lshal) : mLshal(lshal) {
+std::string DebugCommand::getName() const {
+    return "debug";
 }
 
-Status DebugCommand::parseArgs(const std::string &command, const Arg &arg) {
+std::string DebugCommand::getSimpleDescription() const {
+    return "Debug a specified HAL.";
+}
+
+Status DebugCommand::parseArgs(const Arg &arg) {
     if (optind >= arg.argc) {
-        mLshal.usage(command);
         return USAGE;
     }
     mInterfaceName = arg.argv[optind];
@@ -37,8 +41,8 @@ Status DebugCommand::parseArgs(const std::string &command, const Arg &arg) {
     return OK;
 }
 
-Status DebugCommand::main(const std::string &command, const Arg &arg) {
-    Status status = parseArgs(command, arg);
+Status DebugCommand::main(const Arg &arg) {
+    Status status = parseArgs(arg);
     if (status != OK) {
         return status;
     }
@@ -47,6 +51,19 @@ Status DebugCommand::main(const std::string &command, const Arg &arg) {
             pair.first, pair.second.empty() ? "default" : pair.second, mOptions,
             mLshal.out().buf(),
             mLshal.err());
+}
+
+void DebugCommand::usage() const {
+
+    static const std::string debug =
+            "debug:\n"
+            "    lshal debug <interface> [options [options [...]]] \n"
+            "        Print debug information of a specified interface.\n"
+            "        <inteface>: Format is `android.hardware.foo@1.0::IFoo/default`.\n"
+            "            If instance name is missing `default` is used.\n"
+            "        options: space separated options to IBase::debug.\n";
+
+    mLshal.err() << debug;
 }
 
 }  // namespace lshal
