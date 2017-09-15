@@ -39,6 +39,9 @@
 #include "utils.h"
 
 using ::android::hardware::hidl_string;
+using ::android::hardware::hidl_vec;
+using ::android::hidl::base::V1_0::DebugInfo;
+using ::android::hidl::base::V1_0::IBase;
 using ::android::hidl::manager::V1_0::IServiceManager;
 
 namespace android {
@@ -455,10 +458,7 @@ Status ListCommand::fetchAllLibraries(const sp<IServiceManager> &manager) {
             entries.emplace(interfaceName, TableEntry{
                 .interfaceName = interfaceName,
                 .transport = "passthrough",
-                .serverPid = NO_PID,
-                .serverObjectAddress = NO_PTR,
                 .clientPids = info.clientPids,
-                .arch = ARCH_UNKNOWN
             }).first->second.arch |= fromBaseArchitecture(info.arch);
         }
         for (auto &&pair : entries) {
@@ -489,7 +489,6 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
                         std::string{info.instanceName.c_str()},
                 .transport = "passthrough",
                 .serverPid = info.clientPids.size() == 1 ? info.clientPids[0] : NO_PID,
-                .serverObjectAddress = NO_PTR,
                 .clientPids = info.clientPids,
                 .arch = fromBaseArchitecture(info.arch)
             });
@@ -504,10 +503,6 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
 }
 
 Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
-    using namespace ::std;
-    using namespace ::android::hardware;
-    using namespace ::android::hidl::manager::V1_0;
-    using namespace ::android::hidl::base::V1_0;
     const std::string mode = "hwbinder";
 
     hidl_vec<hidl_string> fqInstanceNames;
@@ -522,80 +517,79 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
     }
 
     Status status = OK;
-    // server pid, .ptr value of binder object, child pids
-    std::map<std::string, DebugInfo> allDebugInfos;
-    std::map<pid_t, PidInfo> allPids;
+    std::map<std::string, TableEntry> allTableEntries;
     for (const auto &fqInstanceName : fqInstanceNames) {
-        const auto pair = splitFirst(fqInstanceName, '/');
-        const auto &serviceName = pair.first;
-        const auto &instanceName = pair.second;
-        auto getRet = timeoutIPC(manager, &IServiceManager::get, serviceName, instanceName);
-        if (!getRet.isOk()) {
-            err() << "Warning: Skipping \"" << fqInstanceName << "\": "
-                 << "cannot be fetched from service manager:"
-                 << getRet.description() << std::endl;
-            status |= DUMP_BINDERIZED_ERROR;
-            continue;
-        }
-        sp<IBase> service = getRet;
-        if (service == nullptr) {
-            err() << "Warning: Skipping \"" << fqInstanceName << "\": "
-                 << "cannot be fetched from service manager (null)"
-                 << std::endl;
-            status |= DUMP_BINDERIZED_ERROR;
-            continue;
-        }
-        auto debugRet = timeoutIPC(service, &IBase::getDebugInfo, [&] (const auto &debugInfo) {
-            allDebugInfos[fqInstanceName] = debugInfo;
-            if (debugInfo.pid >= 0) {
-                allPids[static_cast<pid_t>(debugInfo.pid)] = PidInfo();
-            }
+        // create entry and default assign all fields.
+        TableEntry& entry = allTableEntries[fqInstanceName];
+        entry.interfaceName = fqInstanceName;
+        entry.transport = mode;
+
+        status |= fetchBinderizedEntry(manager, &entry);
+    }
+
+    for (auto& pair : allTableEntries) {
+        putEntry(HWSERVICEMANAGER_LIST, std::move(pair.second));
+    }
+    return status;
+}
+
+Status ListCommand::fetchBinderizedEntry(const sp<IServiceManager> &manager,
+                                         TableEntry *entry) {
+    Status status = OK;
+    const auto handleError = [&](Status additionalError, const std::string& msg) {
+        err() << "Warning: Skipping \"" << entry->interfaceName << "\": " << msg << std::endl;
+        status |= DUMP_BINDERIZED_ERROR | additionalError;
+    };
+
+    const auto pair = splitFirst(entry->interfaceName, '/');
+    const auto &serviceName = pair.first;
+    const auto &instanceName = pair.second;
+    auto getRet = timeoutIPC(manager, &IServiceManager::get, serviceName, instanceName);
+    if (!getRet.isOk()) {
+        handleError(TRANSACTION_ERROR,
+                    "cannot be fetched from service manager:" + getRet.description());
+        return status;
+    }
+    sp<IBase> service = getRet;
+    if (service == nullptr) {
+        handleError(NO_INTERFACE, "cannot be fetched from service manager (null)");
+        return status;
+    }
+
+    // getDebugInfo
+    do {
+        DebugInfo debugInfo;
+        auto debugRet = timeoutIPC(service, &IBase::getDebugInfo, [&] (const auto &received) {
+            debugInfo = received;
         });
         if (!debugRet.isOk()) {
-            err() << "Warning: Skipping \"" << fqInstanceName << "\": "
-                 << "debugging information cannot be retrieved:"
-                 << debugRet.description() << std::endl;
-            status |= DUMP_BINDERIZED_ERROR;
+            handleError(TRANSACTION_ERROR,
+                        "debugging information cannot be retrieved: " + debugRet.description());
+            break; // skip getPidInfo
         }
-    }
 
-    for (auto &pair : allPids) {
-        pid_t serverPid = pair.first;
-        if (!getPidInfo(serverPid, &allPids[serverPid])) {
-            err() << "Warning: no information for PID " << serverPid
-                      << ", are you root?" << std::endl;
-            status |= DUMP_BINDERIZED_ERROR;
-        }
-    }
-    for (const auto &fqInstanceName : fqInstanceNames) {
-        auto it = allDebugInfos.find(fqInstanceName);
-        if (it == allDebugInfos.end()) {
-            putEntry(HWSERVICEMANAGER_LIST, {
-                .interfaceName = fqInstanceName,
-                .transport = mode,
-                .serverPid = NO_PID,
-                .serverObjectAddress = NO_PTR,
-                .clientPids = {},
-                .threadUsage = 0,
-                .threadCount = 0,
-                .arch = ARCH_UNKNOWN
-            });
-            continue;
-        }
-        const DebugInfo &info = it->second;
-        bool writePidInfo = info.pid != NO_PID && info.ptr != NO_PTR;
+        entry->serverPid = debugInfo.pid;
+        entry->serverObjectAddress = debugInfo.ptr;
+        entry->arch = fromBaseArchitecture(debugInfo.arch);
 
-        putEntry(HWSERVICEMANAGER_LIST, {
-            .interfaceName = fqInstanceName,
-            .transport = mode,
-            .serverPid = info.pid,
-            .serverObjectAddress = info.ptr,
-            .clientPids = writePidInfo ? allPids[info.pid].refPids[info.ptr] : Pids{},
-            .threadUsage = writePidInfo ? allPids[info.pid].threadUsage : 0,
-            .threadCount = writePidInfo ? allPids[info.pid].threadCount : 0,
-            .arch = fromBaseArchitecture(info.arch),
-        });
-    }
+        if (debugInfo.pid != NO_PID) {
+            const PidInfo* pidInfo = getPidInfoCached(debugInfo.pid);
+            if (pidInfo == nullptr) {
+                handleError(IO_ERROR,
+                            "no information for PID " + std::to_string(debugInfo.pid) +
+                            ", are you root?");
+                break;
+            }
+            if (debugInfo.ptr != NO_PTR) {
+                auto it = pidInfo->refPids.find(debugInfo.ptr);
+                if (it != pidInfo->refPids.end()) {
+                    entry->clientPids = it->second;
+                }
+            }
+            entry->threadUsage = pidInfo->threadUsage;
+            entry->threadCount = pidInfo->threadCount;
+        }
+    } while (0);
     return status;
 }
 
