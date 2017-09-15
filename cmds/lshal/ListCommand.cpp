@@ -85,7 +85,7 @@ void ListCommand::removeDeadProcesses(Pids *pids) {
     }), pids->end());
 }
 
-bool scanBinderContext(pid_t pid,
+static bool scanBinderContext(pid_t pid,
         const std::string &contextName,
         std::function<void(const std::string&)> eachLine) {
     std::ifstream ifs("/d/binder/proc/" + std::to_string(pid));
@@ -169,6 +169,16 @@ bool ListCommand::getPidInfo(
         // not reference or thread line
         return;
     });
+}
+
+const PidInfo* ListCommand::getPidInfoCached(pid_t serverPid) {
+    auto pair = mCachedPidInfos.insert({serverPid, PidInfo{}});
+    if (pair.second /* did insertion take place? */) {
+        if (!getPidInfo(serverPid, &pair.first->second)) {
+            return nullptr;
+        }
+    }
+    return &pair.first->second;
 }
 
 // Must process hwbinder services first, then passthrough services.

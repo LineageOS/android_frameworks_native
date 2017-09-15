@@ -85,7 +85,11 @@ protected:
     Status fetchBinderized(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchAllLibraries(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
 
+    // Get relevant information for a PID by parsing files under /d/binder.
+    // It is a virtual member function so that it can be mocked.
     virtual bool getPidInfo(pid_t serverPid, PidInfo *info) const;
+    // Retrieve from mCachedPidInfos and call getPidInfo if necessary.
+    const PidInfo* getPidInfoCached(pid_t serverPid);
 
     void dumpTable(const NullableOStream<std::ostream>& out) const;
     void dumpVintf(const NullableOStream<std::ostream>& out) const;
@@ -128,6 +132,9 @@ protected:
     // If an entry exist but is an empty string, process might have died.
     // If an entry exist and not empty, it contains the cached content of /proc/{pid}/cmdline.
     std::map<pid_t, std::string> mCmdlines;
+
+    // Cache for getPidInfo.
+    std::map<pid_t, PidInfo> mCachedPidInfos;
 
     RegisteredOptions mOptions;
     // All selected columns

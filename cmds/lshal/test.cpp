@@ -196,6 +196,9 @@ public:
         return ListCommand::dumpVintf(out);
     }
     void internalPostprocess() { ListCommand::postprocess(); }
+    const PidInfo* getPidInfoCached(pid_t serverPid) {
+        return ListCommand::getPidInfoCached(serverPid);
+    }
 
     MOCK_METHOD0(postprocess, void());
     MOCK_CONST_METHOD2(getPidInfo, bool(pid_t, PidInfo*));
@@ -354,6 +357,13 @@ public:
     sp<MockServiceManager> serviceManager;
     sp<MockServiceManager> passthruManager;
 };
+
+TEST_F(ListTest, GetPidInfoCached) {
+    EXPECT_CALL(*mockList, getPidInfo(5, _)).Times(1);
+
+    EXPECT_NE(nullptr, mockList->getPidInfoCached(5));
+    EXPECT_NE(nullptr, mockList->getPidInfoCached(5));
+}
 
 TEST_F(ListTest, Fetch) {
     EXPECT_EQ(0u, mockList->fetch());
