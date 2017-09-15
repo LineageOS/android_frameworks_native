@@ -16,6 +16,8 @@
 #define LOG_TAG "lshal"
 #include <android-base/logging.h>
 
+#include <hidl-hash/Hash.h>
+
 #include "TableEntry.h"
 
 #include "TextTable.h"
@@ -53,8 +55,10 @@ static std::string getTitle(TableColumnType type) {
         case TableColumnType::CLIENT_CMDS:      return "Clients CMD";
         case TableColumnType::ARCH:             return "Arch";
         case TableColumnType::THREADS:          return "Thread Use";
+        case TableColumnType::RELEASED:         return "R";
+        case TableColumnType::HASH:             return "Hash";
         default:
-            LOG(FATAL) << "Should not reach here.";
+            LOG(FATAL) << __func__ << "Should not reach here. " << static_cast<int>(type);
             return "";
     }
 }
@@ -79,10 +83,23 @@ std::string TableEntry::getField(TableColumnType type) const {
             return getArchString(arch);
         case TableColumnType::THREADS:
             return getThreadUsage();
+        case TableColumnType::RELEASED:
+            return isReleased();
+        case TableColumnType::HASH:
+            return hash;
         default:
-            LOG(FATAL) << "Should not reach here.";
+            LOG(FATAL) << __func__ << "Should not reach here. " << static_cast<int>(type);
             return "";
     }
+}
+
+std::string TableEntry::isReleased() const {
+    static const std::string unreleased = Hash::hexString(Hash::kEmptyHash);
+
+    if (hash.empty() || hash == unreleased) {
+        return " "; // unknown or unreleased
+    }
+    return "Y"; // released
 }
 
 TextTable Table::createTextTable(bool neat,

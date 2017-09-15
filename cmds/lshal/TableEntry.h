@@ -55,6 +55,8 @@ enum class TableColumnType : unsigned int {
     CLIENT_CMDS,
     ARCH,
     THREADS,
+    RELEASED,
+    HASH,
 };
 
 enum {
@@ -73,6 +75,8 @@ struct TableEntry {
     Pids clientPids{};
     std::vector<std::string> clientCmdlines{};
     Architecture arch{ARCH_UNKNOWN};
+    // empty: unknown, all zeros: unreleased, otherwise: released
+    std::string hash{};
 
     static bool sortByInterfaceName(const TableEntry &a, const TableEntry &b) {
         return a.interfaceName < b.interfaceName;
@@ -88,6 +92,8 @@ struct TableEntry {
 
         return std::to_string(threadUsage) + "/" + std::to_string(threadCount);
     }
+
+    std::string isReleased() const;
 
     std::string getField(TableColumnType type) const;
 

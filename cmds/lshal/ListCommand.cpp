@@ -27,6 +27,7 @@
 
 #include <android-base/parseint.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
+#include <hidl-hash/Hash.h>
 #include <hidl-util/FQName.h>
 #include <private/android_filesystem_config.h>
 #include <sys/stat.h>
@@ -590,6 +591,44 @@ Status ListCommand::fetchBinderizedEntry(const sp<IServiceManager> &manager,
             entry->threadCount = pidInfo->threadCount;
         }
     } while (0);
+
+    // hash
+    do {
+        ssize_t hashIndex = -1;
+        auto ifaceChainRet = timeoutIPC(service, &IBase::interfaceChain, [&] (const auto& c) {
+            for (size_t i = 0; i < c.size(); ++i) {
+                if (serviceName == c[i]) {
+                    hashIndex = static_cast<ssize_t>(i);
+                    break;
+                }
+            }
+        });
+        if (!ifaceChainRet.isOk()) {
+            handleError(TRANSACTION_ERROR,
+                        "interfaceChain fails: " + ifaceChainRet.description());
+            break; // skip getHashChain
+        }
+        if (hashIndex < 0) {
+            handleError(BAD_IMPL, "Interface name does not exist in interfaceChain.");
+            break; // skip getHashChain
+        }
+        auto hashRet = timeoutIPC(service, &IBase::getHashChain, [&] (const auto& hashChain) {
+            if (static_cast<size_t>(hashIndex) >= hashChain.size()) {
+                handleError(BAD_IMPL,
+                            "interfaceChain indicates position " + std::to_string(hashIndex) +
+                            " but getHashChain returns " + std::to_string(hashChain.size()) +
+                            " hashes");
+                return;
+            }
+
+            auto&& hashArray = hashChain[hashIndex];
+            std::vector<uint8_t> hashVec{hashArray.data(), hashArray.data() + hashArray.size()};
+            entry->hash = Hash::hexString(hashVec);
+        });
+        if (!hashRet.isOk()) {
+            handleError(TRANSACTION_ERROR, "getHashChain failed: " + hashRet.description());
+        }
+    } while (0);
     return status;
 }
 
@@ -627,6 +666,10 @@ void ListCommand::registerAllOptions() {
         thiz->mSelectedColumns.push_back(TableColumnType::INTERFACE_NAME);
         return OK;
     }, "print the instance name column"});
+    mOptions.push_back({'l', "released", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::RELEASED);
+        return OK;
+    }, "print the 'is released?' column\n(Y=released, empty=unreleased or unknown)"});
     mOptions.push_back({'t', "transport", no_argument, v++, [](ListCommand* thiz, const char*) {
         thiz->mSelectedColumns.push_back(TableColumnType::TRANSPORT);
         return OK;
@@ -635,6 +678,10 @@ void ListCommand::registerAllOptions() {
         thiz->mSelectedColumns.push_back(TableColumnType::ARCH);
         return OK;
     }, "print the bitness column"});
+    mOptions.push_back({'s', "hash", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::HASH);
+        return OK;
+    }, "print hash of the interface"});
     mOptions.push_back({'p', "pid", no_argument, v++, [](ListCommand* thiz, const char*) {
         thiz->mSelectedColumns.push_back(TableColumnType::SERVER_PID);
         return OK;
@@ -777,7 +824,8 @@ Status ListCommand::parseArgs(const Arg &arg) {
     }
 
     if (mSelectedColumns.empty()) {
-        mSelectedColumns = {TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
+        mSelectedColumns = {TableColumnType::RELEASED,
+                            TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
                             TableColumnType::SERVER_PID, TableColumnType::CLIENT_PIDS};
     }
 
@@ -845,7 +893,7 @@ void ListCommand::usage() const {
     err() << "list:" << std::endl
           << "    lshal" << std::endl
           << "    lshal list" << std::endl
-          << "        List all hals with default ordering and columns (`lshal list -iepc`)" << std::endl
+          << "        List all hals with default ordering and columns (`lshal list -riepc`)" << std::endl
           << "    lshal list [-h|--help]" << std::endl
           << "        -h, --help: Print help message for list (`lshal help list`)" << std::endl
           << "    lshal [list] [OPTIONS...]" << std::endl;
