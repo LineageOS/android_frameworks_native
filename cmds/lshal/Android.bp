@@ -25,6 +25,7 @@ cc_library_shared {
     ],
     srcs: [
         "DebugCommand.cpp",
+        "HelpCommand.cpp",
         "Lshal.cpp",
         "ListCommand.cpp",
         "PipeRelay.cpp",
