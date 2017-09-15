@@ -215,16 +215,6 @@ public:
     std::stringstream output;
 };
 
-TEST_F(ListParseArgsTest, Default) {
-    // default args
-    EXPECT_EQ(0u, mockList->parseArgs(createArg({})));
-    mockList->forEachTable([](const Table& table) {
-        EXPECT_EQ(SelectedColumns({TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
-                                   TableColumnType::SERVER_PID, TableColumnType::CLIENT_PIDS}),
-                  table.getSelectedColumns());
-    });
-}
-
 TEST_F(ListParseArgsTest, Args) {
     EXPECT_EQ(0u, mockList->parseArgs(createArg({"lshal", "-p", "-i", "-a", "-c"})));
     mockList->forEachTable([](const Table& table) {
@@ -237,9 +227,14 @@ TEST_F(ListParseArgsTest, Args) {
 TEST_F(ListParseArgsTest, Cmds) {
     EXPECT_EQ(0u, mockList->parseArgs(createArg({"lshal", "-m"})));
     mockList->forEachTable([](const Table& table) {
-        EXPECT_EQ(SelectedColumns({TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
-                                   TableColumnType::SERVER_CMD, TableColumnType::CLIENT_CMDS}),
-                  table.getSelectedColumns());
+        EXPECT_THAT(table.getSelectedColumns(), Not(Contains(TableColumnType::SERVER_PID)))
+                << "should not print server PID with -m";
+        EXPECT_THAT(table.getSelectedColumns(), Not(Contains(TableColumnType::CLIENT_PIDS)))
+                << "should not print client PIDs with -m";
+        EXPECT_THAT(table.getSelectedColumns(), Contains(TableColumnType::SERVER_CMD))
+                << "should print server cmd with -m";
+        EXPECT_THAT(table.getSelectedColumns(), Contains(TableColumnType::CLIENT_CMDS))
+                << "should print client cmds with -m";
     });
 }
 
@@ -526,7 +521,7 @@ TEST_F(ListTest, DumpNeat) {
         "a.h.foo6@6.0::IFoo/6 N/A   N/A 7 9\n";
 
     optind = 1; // mimic Lshal::parseArg()
-    EXPECT_EQ(0u, mockList->main(createArg({"lshal", "--neat"})));
+    EXPECT_EQ(0u, mockList->main(createArg({"lshal", "-iepc", "--neat"})));
     EXPECT_EQ(expected, out.str());
     EXPECT_EQ("", err.str());
 }
