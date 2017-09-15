@@ -44,6 +44,8 @@ enum : unsigned int {
     NO_INTERFACE                            = 1 << 7,
     // Transaction error from hwbinder transactions
     TRANSACTION_ERROR                       = 1 << 8,
+    // No transaction error, but return value is unexpected.
+    BAD_IMPL                                = 1 << 9,
 };
 using Status = unsigned int;
 
