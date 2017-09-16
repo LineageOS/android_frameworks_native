@@ -27,6 +27,7 @@
 
 #include <android-base/parseint.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
+#include <hidl-hash/Hash.h>
 #include <hidl-util/FQName.h>
 #include <private/android_filesystem_config.h>
 #include <sys/stat.h>
@@ -39,13 +40,13 @@
 #include "utils.h"
 
 using ::android::hardware::hidl_string;
+using ::android::hardware::hidl_vec;
+using ::android::hidl::base::V1_0::DebugInfo;
+using ::android::hidl::base::V1_0::IBase;
 using ::android::hidl::manager::V1_0::IServiceManager;
 
 namespace android {
 namespace lshal {
-
-ListCommand::ListCommand(Lshal &lshal) : mLshal(lshal) {
-}
 
 NullableOStream<std::ostream> ListCommand::out() const {
     return mLshal.out();
@@ -53,6 +54,13 @@ NullableOStream<std::ostream> ListCommand::out() const {
 
 NullableOStream<std::ostream> ListCommand::err() const {
     return mLshal.err();
+}
+
+std::string ListCommand::GetName() {
+    return "list";
+}
+std::string ListCommand::getSimpleDescription() const {
+    return "List HALs.";
 }
 
 std::string ListCommand::parseCmdline(pid_t pid) const {
@@ -81,7 +89,7 @@ void ListCommand::removeDeadProcesses(Pids *pids) {
     }), pids->end());
 }
 
-bool scanBinderContext(pid_t pid,
+static bool scanBinderContext(pid_t pid,
         const std::string &contextName,
         std::function<void(const std::string&)> eachLine) {
     std::ifstream ifs("/d/binder/proc/" + std::to_string(pid));
@@ -165,6 +173,16 @@ bool ListCommand::getPidInfo(
         // not reference or thread line
         return;
     });
+}
+
+const PidInfo* ListCommand::getPidInfoCached(pid_t serverPid) {
+    auto pair = mCachedPidInfos.insert({serverPid, PidInfo{}});
+    if (pair.second /* did insertion take place? */) {
+        if (!getPidInfo(serverPid, &pair.first->second)) {
+            return nullptr;
+        }
+    }
+    return &pair.first->second;
 }
 
 // Must process hwbinder services first, then passthrough services.
@@ -441,10 +459,7 @@ Status ListCommand::fetchAllLibraries(const sp<IServiceManager> &manager) {
             entries.emplace(interfaceName, TableEntry{
                 .interfaceName = interfaceName,
                 .transport = "passthrough",
-                .serverPid = NO_PID,
-                .serverObjectAddress = NO_PTR,
                 .clientPids = info.clientPids,
-                .arch = ARCH_UNKNOWN
             }).first->second.arch |= fromBaseArchitecture(info.arch);
         }
         for (auto &&pair : entries) {
@@ -475,7 +490,6 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
                         std::string{info.instanceName.c_str()},
                 .transport = "passthrough",
                 .serverPid = info.clientPids.size() == 1 ? info.clientPids[0] : NO_PID,
-                .serverObjectAddress = NO_PTR,
                 .clientPids = info.clientPids,
                 .arch = fromBaseArchitecture(info.arch)
             });
@@ -490,10 +504,6 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
 }
 
 Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
-    using namespace ::std;
-    using namespace ::android::hardware;
-    using namespace ::android::hidl::manager::V1_0;
-    using namespace ::android::hidl::base::V1_0;
     const std::string mode = "hwbinder";
 
     hidl_vec<hidl_string> fqInstanceNames;
@@ -508,80 +518,117 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
     }
 
     Status status = OK;
-    // server pid, .ptr value of binder object, child pids
-    std::map<std::string, DebugInfo> allDebugInfos;
-    std::map<pid_t, PidInfo> allPids;
+    std::map<std::string, TableEntry> allTableEntries;
     for (const auto &fqInstanceName : fqInstanceNames) {
-        const auto pair = splitFirst(fqInstanceName, '/');
-        const auto &serviceName = pair.first;
-        const auto &instanceName = pair.second;
-        auto getRet = timeoutIPC(manager, &IServiceManager::get, serviceName, instanceName);
-        if (!getRet.isOk()) {
-            err() << "Warning: Skipping \"" << fqInstanceName << "\": "
-                 << "cannot be fetched from service manager:"
-                 << getRet.description() << std::endl;
-            status |= DUMP_BINDERIZED_ERROR;
-            continue;
-        }
-        sp<IBase> service = getRet;
-        if (service == nullptr) {
-            err() << "Warning: Skipping \"" << fqInstanceName << "\": "
-                 << "cannot be fetched from service manager (null)"
-                 << std::endl;
-            status |= DUMP_BINDERIZED_ERROR;
-            continue;
-        }
-        auto debugRet = timeoutIPC(service, &IBase::getDebugInfo, [&] (const auto &debugInfo) {
-            allDebugInfos[fqInstanceName] = debugInfo;
-            if (debugInfo.pid >= 0) {
-                allPids[static_cast<pid_t>(debugInfo.pid)] = PidInfo();
-            }
+        // create entry and default assign all fields.
+        TableEntry& entry = allTableEntries[fqInstanceName];
+        entry.interfaceName = fqInstanceName;
+        entry.transport = mode;
+
+        status |= fetchBinderizedEntry(manager, &entry);
+    }
+
+    for (auto& pair : allTableEntries) {
+        putEntry(HWSERVICEMANAGER_LIST, std::move(pair.second));
+    }
+    return status;
+}
+
+Status ListCommand::fetchBinderizedEntry(const sp<IServiceManager> &manager,
+                                         TableEntry *entry) {
+    Status status = OK;
+    const auto handleError = [&](Status additionalError, const std::string& msg) {
+        err() << "Warning: Skipping \"" << entry->interfaceName << "\": " << msg << std::endl;
+        status |= DUMP_BINDERIZED_ERROR | additionalError;
+    };
+
+    const auto pair = splitFirst(entry->interfaceName, '/');
+    const auto &serviceName = pair.first;
+    const auto &instanceName = pair.second;
+    auto getRet = timeoutIPC(manager, &IServiceManager::get, serviceName, instanceName);
+    if (!getRet.isOk()) {
+        handleError(TRANSACTION_ERROR,
+                    "cannot be fetched from service manager:" + getRet.description());
+        return status;
+    }
+    sp<IBase> service = getRet;
+    if (service == nullptr) {
+        handleError(NO_INTERFACE, "cannot be fetched from service manager (null)");
+        return status;
+    }
+
+    // getDebugInfo
+    do {
+        DebugInfo debugInfo;
+        auto debugRet = timeoutIPC(service, &IBase::getDebugInfo, [&] (const auto &received) {
+            debugInfo = received;
         });
         if (!debugRet.isOk()) {
-            err() << "Warning: Skipping \"" << fqInstanceName << "\": "
-                 << "debugging information cannot be retrieved:"
-                 << debugRet.description() << std::endl;
-            status |= DUMP_BINDERIZED_ERROR;
+            handleError(TRANSACTION_ERROR,
+                        "debugging information cannot be retrieved: " + debugRet.description());
+            break; // skip getPidInfo
         }
-    }
 
-    for (auto &pair : allPids) {
-        pid_t serverPid = pair.first;
-        if (!getPidInfo(serverPid, &allPids[serverPid])) {
-            err() << "Warning: no information for PID " << serverPid
-                      << ", are you root?" << std::endl;
-            status |= DUMP_BINDERIZED_ERROR;
-        }
-    }
-    for (const auto &fqInstanceName : fqInstanceNames) {
-        auto it = allDebugInfos.find(fqInstanceName);
-        if (it == allDebugInfos.end()) {
-            putEntry(HWSERVICEMANAGER_LIST, {
-                .interfaceName = fqInstanceName,
-                .transport = mode,
-                .serverPid = NO_PID,
-                .serverObjectAddress = NO_PTR,
-                .clientPids = {},
-                .threadUsage = 0,
-                .threadCount = 0,
-                .arch = ARCH_UNKNOWN
-            });
-            continue;
-        }
-        const DebugInfo &info = it->second;
-        bool writePidInfo = info.pid != NO_PID && info.ptr != NO_PTR;
+        entry->serverPid = debugInfo.pid;
+        entry->serverObjectAddress = debugInfo.ptr;
+        entry->arch = fromBaseArchitecture(debugInfo.arch);
 
-        putEntry(HWSERVICEMANAGER_LIST, {
-            .interfaceName = fqInstanceName,
-            .transport = mode,
-            .serverPid = info.pid,
-            .serverObjectAddress = info.ptr,
-            .clientPids = writePidInfo ? allPids[info.pid].refPids[info.ptr] : Pids{},
-            .threadUsage = writePidInfo ? allPids[info.pid].threadUsage : 0,
-            .threadCount = writePidInfo ? allPids[info.pid].threadCount : 0,
-            .arch = fromBaseArchitecture(info.arch),
+        if (debugInfo.pid != NO_PID) {
+            const PidInfo* pidInfo = getPidInfoCached(debugInfo.pid);
+            if (pidInfo == nullptr) {
+                handleError(IO_ERROR,
+                            "no information for PID " + std::to_string(debugInfo.pid) +
+                            ", are you root?");
+                break;
+            }
+            if (debugInfo.ptr != NO_PTR) {
+                auto it = pidInfo->refPids.find(debugInfo.ptr);
+                if (it != pidInfo->refPids.end()) {
+                    entry->clientPids = it->second;
+                }
+            }
+            entry->threadUsage = pidInfo->threadUsage;
+            entry->threadCount = pidInfo->threadCount;
+        }
+    } while (0);
+
+    // hash
+    do {
+        ssize_t hashIndex = -1;
+        auto ifaceChainRet = timeoutIPC(service, &IBase::interfaceChain, [&] (const auto& c) {
+            for (size_t i = 0; i < c.size(); ++i) {
+                if (serviceName == c[i]) {
+                    hashIndex = static_cast<ssize_t>(i);
+                    break;
+                }
+            }
         });
-    }
+        if (!ifaceChainRet.isOk()) {
+            handleError(TRANSACTION_ERROR,
+                        "interfaceChain fails: " + ifaceChainRet.description());
+            break; // skip getHashChain
+        }
+        if (hashIndex < 0) {
+            handleError(BAD_IMPL, "Interface name does not exist in interfaceChain.");
+            break; // skip getHashChain
+        }
+        auto hashRet = timeoutIPC(service, &IBase::getHashChain, [&] (const auto& hashChain) {
+            if (static_cast<size_t>(hashIndex) >= hashChain.size()) {
+                handleError(BAD_IMPL,
+                            "interfaceChain indicates position " + std::to_string(hashIndex) +
+                            " but getHashChain returns " + std::to_string(hashChain.size()) +
+                            " hashes");
+                return;
+            }
+
+            auto&& hashArray = hashChain[hashIndex];
+            std::vector<uint8_t> hashVec{hashArray.data(), hashArray.data() + hashArray.size()};
+            entry->hash = Hash::hexString(hashVec);
+        });
+        if (!hashRet.isOk()) {
+            handleError(TRANSACTION_ERROR, "getHashChain failed: " + hashRet.description());
+        }
+    } while (0);
     return status;
 }
 
@@ -607,143 +654,201 @@ Status ListCommand::fetch() {
     return status;
 }
 
-Status ListCommand::parseArgs(const std::string &command, const Arg &arg) {
-    static struct option longOptions[] = {
-        // long options with short alternatives
-        {"help",      no_argument,       0, 'h' },
-        {"interface", no_argument,       0, 'i' },
-        {"transport", no_argument,       0, 't' },
-        {"arch",      no_argument,       0, 'r' },
-        {"pid",       no_argument,       0, 'p' },
-        {"address",   no_argument,       0, 'a' },
-        {"clients",   no_argument,       0, 'c' },
-        {"threads",   no_argument,       0, 'e' },
-        {"cmdline",   no_argument,       0, 'm' },
-        {"debug",     optional_argument, 0, 'd' },
+void ListCommand::registerAllOptions() {
+    int v = mOptions.size();
+    // A list of acceptable command line options
+    // key: value returned by getopt_long
+    // long options with short alternatives
+    mOptions.push_back({'h', "help", no_argument, v++, [](ListCommand*, const char*) {
+        return USAGE;
+    }, ""});
+    mOptions.push_back({'i', "interface", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::INTERFACE_NAME);
+        return OK;
+    }, "print the instance name column"});
+    mOptions.push_back({'l', "released", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::RELEASED);
+        return OK;
+    }, "print the 'is released?' column\n(Y=released, empty=unreleased or unknown)"});
+    mOptions.push_back({'t', "transport", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::TRANSPORT);
+        return OK;
+    }, "print the transport mode column"});
+    mOptions.push_back({'r', "arch", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::ARCH);
+        return OK;
+    }, "print the bitness column"});
+    mOptions.push_back({'s', "hash", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::HASH);
+        return OK;
+    }, "print hash of the interface"});
+    mOptions.push_back({'p', "pid", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::SERVER_PID);
+        return OK;
+    }, "print the server PID, or server cmdline if -m is set"});
+    mOptions.push_back({'a', "address", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::SERVER_ADDR);
+        return OK;
+    }, "print the server object address column"});
+    mOptions.push_back({'c', "clients", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::CLIENT_PIDS);
+        return OK;
+    }, "print the client PIDs, or client cmdlines if -m is set"});
+    mOptions.push_back({'e', "threads", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::THREADS);
+        return OK;
+    }, "print currently used/available threads\n(note, available threads created lazily)"});
+    mOptions.push_back({'m', "cmdline", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mEnableCmdlines = true;
+        return OK;
+    }, "print cmdline instead of PIDs"});
+    mOptions.push_back({'d', "debug", optional_argument, v++, [](ListCommand* thiz, const char* arg) {
+        thiz->mEmitDebugInfo = true;
+        if (arg) thiz->mFileOutputPath = arg;
+        return OK;
+    }, "Emit debug info from\nIBase::debug with empty options. Cannot be used with --neat.\n"
+        "Writes to specified file if 'arg' is provided, otherwise stdout."});
 
-        // long options without short alternatives
-        {"sort",      required_argument, 0, 's' },
-        {"init-vintf",optional_argument, 0, 'v' },
-        {"neat",      no_argument,       0, 'n' },
-        { 0,          0,                 0,  0  }
-    };
+    // long options without short alternatives
+    mOptions.push_back({'\0', "init-vintf", no_argument, v++, [](ListCommand* thiz, const char* arg) {
+        thiz->mVintf = true;
+        if (arg) thiz->mFileOutputPath = arg;
+        return OK;
+    }, "form a skeleton HAL manifest to specified file,\nor stdout if no file specified."});
+    mOptions.push_back({'\0', "sort", required_argument, v++, [](ListCommand* thiz, const char* arg) {
+        if (strcmp(arg, "interface") == 0 || strcmp(arg, "i") == 0) {
+            thiz->mSortColumn = TableEntry::sortByInterfaceName;
+        } else if (strcmp(arg, "pid") == 0 || strcmp(arg, "p") == 0) {
+            thiz->mSortColumn = TableEntry::sortByServerPid;
+        } else {
+            thiz->err() << "Unrecognized sorting column: " << arg << std::endl;
+            return USAGE;
+        }
+        return OK;
+    }, "sort by a column. 'arg' can be (i|interface) or (p|pid)."});
+    mOptions.push_back({'\0', "neat", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mNeat = true;
+        return OK;
+    }, "output is machine parsable (no explanatory text).\nCannot be used with --debug."});
+}
 
-    std::vector<TableColumnType> selectedColumns;
-    bool enableCmdlines = false;
+// Create 'longopts' argument to getopt_long. Caller is responsible for maintaining
+// the lifetime of "options" during the usage of the returned array.
+static std::unique_ptr<struct option[]> getLongOptions(
+        const ListCommand::RegisteredOptions& options,
+        int* longOptFlag) {
+    std::unique_ptr<struct option[]> ret{new struct option[options.size() + 1]};
+    int i = 0;
+    for (const auto& e : options) {
+        ret[i].name = e.longOption.c_str();
+        ret[i].has_arg = e.hasArg;
+        ret[i].flag = longOptFlag;
+        ret[i].val = e.val;
+
+        i++;
+    }
+    // getopt_long last option has all zeros
+    ret[i].name = NULL;
+    ret[i].has_arg = 0;
+    ret[i].flag = NULL;
+    ret[i].val = 0;
+
+    return ret;
+}
+
+// Create 'optstring' argument to getopt_long.
+static std::string getShortOptions(const ListCommand::RegisteredOptions& options) {
+    std::stringstream ss;
+    for (const auto& e : options) {
+        if (e.shortOption != '\0') {
+            ss << e.shortOption;
+        }
+    }
+    return ss.str();
+}
+
+Status ListCommand::parseArgs(const Arg &arg) {
+
+    if (mOptions.empty()) {
+        registerAllOptions();
+    }
+    int longOptFlag;
+    std::unique_ptr<struct option[]> longOptions = getLongOptions(mOptions, &longOptFlag);
+    std::string shortOptions = getShortOptions(mOptions);
+
+    // suppress output to std::err for unknown options
+    opterr = 0;
 
     int optionIndex;
     int c;
     // Lshal::parseArgs has set optind to the next option to parse
     for (;;) {
-        // using getopt_long in case we want to add other options in the future
         c = getopt_long(arg.argc, arg.argv,
-                "hitrpacmde", longOptions, &optionIndex);
+                shortOptions.c_str(), longOptions.get(), &optionIndex);
         if (c == -1) {
             break;
         }
-        switch (c) {
-        case 's': {
-            if (strcmp(optarg, "interface") == 0 || strcmp(optarg, "i") == 0) {
-                mSortColumn = TableEntry::sortByInterfaceName;
-            } else if (strcmp(optarg, "pid") == 0 || strcmp(optarg, "p") == 0) {
-                mSortColumn = TableEntry::sortByServerPid;
-            } else {
-                err() << "Unrecognized sorting column: " << optarg << std::endl;
-                mLshal.usage(command);
-                return USAGE;
+        const RegisteredOption* found = nullptr;
+        if (c == 0) {
+            // see long option
+            for (const auto& e : mOptions) {
+                if (longOptFlag == e.val) found = &e;
             }
-            break;
+        } else {
+            // see short option
+            for (const auto& e : mOptions) {
+                if (c == e.shortOption) found = &e;
+            }
         }
-        case 'v': {
-            mVintf = true;
-            if (optarg) mFileOutputPath = optarg;
-            break;
-        }
-        case 'i': {
-            selectedColumns.push_back(TableColumnType::INTERFACE_NAME);
-            break;
-        }
-        case 't': {
-            selectedColumns.push_back(TableColumnType::TRANSPORT);
-            break;
-        }
-        case 'r': {
-            selectedColumns.push_back(TableColumnType::ARCH);
-            break;
-        }
-        case 'p': {
-            selectedColumns.push_back(TableColumnType::SERVER_PID);
-            break;
-        }
-        case 'a': {
-            selectedColumns.push_back(TableColumnType::SERVER_ADDR);
-            break;
-        }
-        case 'c': {
-            selectedColumns.push_back(TableColumnType::CLIENT_PIDS);
-            break;
-        }
-        case 'e': {
-            selectedColumns.push_back(TableColumnType::THREADS);
-            break;
-        }
-        case 'm': {
-            enableCmdlines = true;
-            break;
-        }
-        case 'd': {
-            mEmitDebugInfo = true;
-            if (optarg) mFileOutputPath = optarg;
-            break;
-        }
-        case 'n': {
-            mNeat = true;
-            break;
-        }
-        case 'h': // falls through
-        default: // see unrecognized options
-            mLshal.usage(command);
+
+        if (found == nullptr) {
+            // see unrecognized options
+            err() << "unrecognized option `" << arg.argv[optind - 1] << "'" << std::endl;
             return USAGE;
+        }
+
+        Status status = found->op(this, optarg);
+        if (status != OK) {
+            return status;
         }
     }
     if (optind < arg.argc) {
         // see non option
-        err() << "Unrecognized option `" << arg.argv[optind] << "`" << std::endl;
-        mLshal.usage(command);
+        err() << "unrecognized option `" << arg.argv[optind] << "'" << std::endl;
         return USAGE;
     }
 
     if (mNeat && mEmitDebugInfo) {
         err() << "Error: --neat should not be used with --debug." << std::endl;
-        mLshal.usage(command);
         return USAGE;
     }
 
-    if (selectedColumns.empty()) {
-        selectedColumns = {TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
+    if (mSelectedColumns.empty()) {
+        mSelectedColumns = {TableColumnType::RELEASED,
+                            TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
                             TableColumnType::SERVER_PID, TableColumnType::CLIENT_PIDS};
     }
 
-    if (enableCmdlines) {
-        for (size_t i = 0; i < selectedColumns.size(); ++i) {
-            if (selectedColumns[i] == TableColumnType::SERVER_PID) {
-                selectedColumns[i] = TableColumnType::SERVER_CMD;
+    if (mEnableCmdlines) {
+        for (size_t i = 0; i < mSelectedColumns.size(); ++i) {
+            if (mSelectedColumns[i] == TableColumnType::SERVER_PID) {
+                mSelectedColumns[i] = TableColumnType::SERVER_CMD;
             }
-            if (selectedColumns[i] == TableColumnType::CLIENT_PIDS) {
-                selectedColumns[i] = TableColumnType::CLIENT_CMDS;
+            if (mSelectedColumns[i] == TableColumnType::CLIENT_PIDS) {
+                mSelectedColumns[i] = TableColumnType::CLIENT_CMDS;
             }
         }
     }
 
-    forEachTable([&selectedColumns] (Table& table) {
-        table.setSelectedColumns(selectedColumns);
+    forEachTable([this] (Table& table) {
+        table.setSelectedColumns(this->mSelectedColumns);
     });
 
     return OK;
 }
 
-Status ListCommand::main(const std::string &command, const Arg &arg) {
-    Status status = parseArgs(command, arg);
+Status ListCommand::main(const Arg &arg) {
+    Status status = parseArgs(arg);
     if (status != OK) {
         return status;
     }
@@ -751,6 +856,66 @@ Status ListCommand::main(const std::string &command, const Arg &arg) {
     postprocess();
     status |= dump();
     return status;
+}
+
+static std::vector<std::string> splitString(const std::string &s, char c) {
+    std::vector<std::string> components;
+
+    size_t startPos = 0;
+    size_t matchPos;
+    while ((matchPos = s.find(c, startPos)) != std::string::npos) {
+        components.push_back(s.substr(startPos, matchPos - startPos));
+        startPos = matchPos + 1;
+    }
+
+    if (startPos <= s.length()) {
+        components.push_back(s.substr(startPos));
+    }
+    return components;
+}
+
+const std::string& ListCommand::RegisteredOption::getHelpMessageForArgument() const {
+    static const std::string empty{};
+    static const std::string optional{"[=<arg>]"};
+    static const std::string required{"=<arg>"};
+
+    if (hasArg == optional_argument) {
+        return optional;
+    }
+    if (hasArg == required_argument) {
+        return required;
+    }
+    return empty;
+}
+
+void ListCommand::usage() const {
+
+    err() << "list:" << std::endl
+          << "    lshal" << std::endl
+          << "    lshal list" << std::endl
+          << "        List all hals with default ordering and columns (`lshal list -riepc`)" << std::endl
+          << "    lshal list [-h|--help]" << std::endl
+          << "        -h, --help: Print help message for list (`lshal help list`)" << std::endl
+          << "    lshal [list] [OPTIONS...]" << std::endl;
+    for (const auto& e : mOptions) {
+        if (e.help.empty()) {
+            continue;
+        }
+        err() << "        ";
+        if (e.shortOption != '\0')
+            err() << "-" << e.shortOption << e.getHelpMessageForArgument();
+        if (e.shortOption != '\0' && !e.longOption.empty())
+            err() << ", ";
+        if (!e.longOption.empty())
+            err() << "--" << e.longOption << e.getHelpMessageForArgument();
+        err() << ": ";
+        std::vector<std::string> lines = splitString(e.help, '\n');
+        for (const auto& line : lines) {
+            if (&line != &lines.front())
+                err() << "            ";
+            err() << line << std::endl;
+        }
+    }
 }
 
 }  // namespace lshal

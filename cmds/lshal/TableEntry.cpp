@@ -16,6 +16,8 @@
 #define LOG_TAG "lshal"
 #include <android-base/logging.h>
 
+#include <hidl-hash/Hash.h>
+
 #include "TableEntry.h"
 
 #include "TextTable.h"
@@ -44,74 +46,60 @@ static const std::string &getArchString(Architecture arch) {
 
 static std::string getTitle(TableColumnType type) {
     switch (type) {
-        case TableColumnType::INTERFACE_NAME: {
-            return "Interface";
-        } break;
-        case TableColumnType::TRANSPORT: {
-            return "Transport";
-        } break;
-        case TableColumnType::SERVER_PID: {
-            return "Server";
-        } break;
-        case TableColumnType::SERVER_CMD: {
-            return "Server CMD";
-        }
-        case TableColumnType::SERVER_ADDR: {
-            return "PTR";
-        } break;
-        case TableColumnType::CLIENT_PIDS: {
-            return "Clients";
-        } break;
-        case TableColumnType::CLIENT_CMDS: {
-            return "Clients CMD";
-        } break;
-        case TableColumnType::ARCH: {
-            return "Arch";
-        } break;
-        case TableColumnType::THREADS: {
-            return "Thread Use";
-        } break;
-        default: {
-            LOG(FATAL) << "Should not reach here.";
+        case TableColumnType::INTERFACE_NAME:   return "Interface";
+        case TableColumnType::TRANSPORT:        return "Transport";
+        case TableColumnType::SERVER_PID:       return "Server";
+        case TableColumnType::SERVER_CMD:       return "Server CMD";
+        case TableColumnType::SERVER_ADDR:      return "PTR";
+        case TableColumnType::CLIENT_PIDS:      return "Clients";
+        case TableColumnType::CLIENT_CMDS:      return "Clients CMD";
+        case TableColumnType::ARCH:             return "Arch";
+        case TableColumnType::THREADS:          return "Thread Use";
+        case TableColumnType::RELEASED:         return "R";
+        case TableColumnType::HASH:             return "Hash";
+        default:
+            LOG(FATAL) << __func__ << "Should not reach here. " << static_cast<int>(type);
             return "";
-        }
     }
 }
 
 std::string TableEntry::getField(TableColumnType type) const {
     switch (type) {
-        case TableColumnType::INTERFACE_NAME: {
+        case TableColumnType::INTERFACE_NAME:
             return interfaceName;
-        } break;
-        case TableColumnType::TRANSPORT: {
+        case TableColumnType::TRANSPORT:
             return transport;
-        } break;
-        case TableColumnType::SERVER_PID: {
+        case TableColumnType::SERVER_PID:
             return serverPid == NO_PID ? "N/A" : std::to_string(serverPid);
-        } break;
-        case TableColumnType::SERVER_CMD: {
+        case TableColumnType::SERVER_CMD:
             return serverCmdline;
-        } break;
-        case TableColumnType::SERVER_ADDR: {
+        case TableColumnType::SERVER_ADDR:
             return serverObjectAddress == NO_PTR ? "N/A" : toHexString(serverObjectAddress);
-        } break;
-        case TableColumnType::CLIENT_PIDS: {
+        case TableColumnType::CLIENT_PIDS:
             return join(clientPids, " ");
-        } break;
-        case TableColumnType::CLIENT_CMDS: {
+        case TableColumnType::CLIENT_CMDS:
             return join(clientCmdlines, ";");
-        } break;
-        case TableColumnType::ARCH: {
+        case TableColumnType::ARCH:
             return getArchString(arch);
-        } break;
-        case TableColumnType::THREADS: {
+        case TableColumnType::THREADS:
             return getThreadUsage();
-        } break;
-        default: {
-            LOG(FATAL) << "Should not reach here.";
+        case TableColumnType::RELEASED:
+            return isReleased();
+        case TableColumnType::HASH:
+            return hash;
+        default:
+            LOG(FATAL) << __func__ << "Should not reach here. " << static_cast<int>(type);
             return "";
-        }
     }
+}
+
+std::string TableEntry::isReleased() const {
+    static const std::string unreleased = Hash::hexString(Hash::kEmptyHash);
+
+    if (hash.empty() || hash == unreleased) {
+        return " "; // unknown or unreleased
+    }
+    return "Y"; // released
 }
 
 TextTable Table::createTextTable(bool neat,

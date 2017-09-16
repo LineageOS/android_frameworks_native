@@ -34,9 +34,8 @@ namespace lshal {
 using ::android::hidl::manager::V1_0::IServiceManager;
 
 Lshal::Lshal()
-    : mOut(std::cout), mErr(std::cerr),
-      mServiceManager(::android::hardware::defaultServiceManager()),
-      mPassthroughManager(::android::hardware::getPassthroughServiceManager()) {
+    : Lshal(std::cout, std::cerr, ::android::hardware::defaultServiceManager(),
+            ::android::hardware::getPassthroughServiceManager()) {
 }
 
 Lshal::Lshal(std::ostream &out, std::ostream &err,
@@ -46,78 +45,39 @@ Lshal::Lshal(std::ostream &out, std::ostream &err,
       mServiceManager(serviceManager),
       mPassthroughManager(passthroughManager) {
 
+    mRegisteredCommands.push_back({std::make_unique<ListCommand>(*this)});
+    mRegisteredCommands.push_back({std::make_unique<DebugCommand>(*this)});
+    mRegisteredCommands.push_back({std::make_unique<HelpCommand>(*this)});
 }
 
-void Lshal::usage(const std::string &command) const {
-    static const std::string helpSummary =
-            "lshal: List and debug HALs.\n"
-            "\n"
-            "commands:\n"
-            "    help            Print help message\n"
-            "    list            list HALs\n"
-            "    debug           debug a specified HAL\n"
-            "\n"
-            "If no command is specified, `list` is the default.\n";
+void Lshal::forEachCommand(const std::function<void(const Command* c)>& f) const {
+    for (const auto& e : mRegisteredCommands) f(e.get());
+}
 
-    static const std::string list =
-            "list:\n"
-            "    lshal\n"
-            "    lshal list\n"
-            "        List all hals with default ordering and columns (`lshal list -iepc`)\n"
-            "    lshal list [-h|--help]\n"
-            "        -h, --help: Print help message for list (`lshal help list`)\n"
-            "    lshal [list] [--interface|-i] [--transport|-t] [-r|--arch] [-e|--threads]\n"
-            "            [--pid|-p] [--address|-a] [--clients|-c] [--cmdline|-m]\n"
-            "            [--sort={interface|i|pid|p}] [--init-vintf[=<output file>]]\n"
-            "            [--debug|-d[=<output file>]] [--neat]\n"
-            "        -i, --interface: print the interface name column\n"
-            "        -n, --instance: print the instance name column\n"
-            "        -t, --transport: print the transport mode column\n"
-            "        -r, --arch: print if the HAL is in 64-bit or 32-bit\n"
-            "        -e, --threads: print currently used/available threads\n"
-            "                       (note, available threads created lazily)\n"
-            "        -p, --pid: print the server PID, or server cmdline if -m is set\n"
-            "        -a, --address: print the server object address column\n"
-            "        -c, --clients: print the client PIDs, or client cmdlines if -m is set\n"
-            "        -m, --cmdline: print cmdline instead of PIDs\n"
-            "        -d[=<output file>], --debug[=<output file>]: emit debug info from \n"
-            "                IBase::debug with empty options. Cannot be used with --neat.\n"
-            "        --sort=i, --sort=interface: sort by interface name\n"
-            "        --sort=p, --sort=pid: sort by server pid\n"
-            "        --neat: output is machine parsable (no explanatory text)\n"
-            "                Cannot be used with --debug.\n"
-            "        --init-vintf[=<output file>]: form a skeleton HAL manifest to specified\n"
-            "                      file, or stdout if no file specified.\n";
+void Lshal::usage() {
+    err() << "lshal: List and debug HALs." << std::endl << std::endl
+          << "commands:" << std::endl;
 
-    static const std::string debug =
-            "debug:\n"
-            "    lshal debug <interface> [options [options [...]]] \n"
-            "        Print debug information of a specified interface.\n"
-            "        <inteface>: Format is `android.hardware.foo@1.0::IFoo/default`.\n"
-            "            If instance name is missing `default` is used.\n"
-            "        options: space separated options to IBase::debug.\n";
+    size_t nameMaxLength = 0;
+    forEachCommand([&](const Command* e) {
+        nameMaxLength = std::max(nameMaxLength, e->getName().length());
+    });
+    bool first = true;
+    forEachCommand([&](const Command* e) {
+        if (!first) err() << std::endl;
+        first = false;
+        err() << "    " << std::left << std::setw(nameMaxLength + 8) << e->getName()
+              << e->getSimpleDescription();
+    });
+    err() << std::endl << "If no command is specified, `" << ListCommand::GetName()
+          << "` is the default." << std::endl << std::endl;
 
-    static const std::string help =
-            "help:\n"
-            "    lshal -h\n"
-            "    lshal --help\n"
-            "    lshal help\n"
-            "        Print this help message\n"
-            "    lshal help list\n"
-            "        Print help message for list\n"
-            "    lshal help debug\n"
-            "        Print help message for debug\n";
-
-    if (command == "list") {
-        err() << list;
-        return;
-    }
-    if (command == "debug") {
-        err() << debug;
-        return;
-    }
-
-    err() << helpSummary << "\n" << list << "\n" << debug << "\n" << help;
+    first = true;
+    forEachCommand([&](const Command* e) {
+        if (!first) err() << std::endl;
+        first = false;
+        e->usage();
+    });
 }
 
 // A unique_ptr type using a custom deleter function.
@@ -188,26 +148,24 @@ Status Lshal::emitDebugInfo(
 }
 
 Status Lshal::parseArgs(const Arg &arg) {
-    static std::set<std::string> sAllCommands{"list", "debug", "help"};
     optind = 1;
     if (optind >= arg.argc) {
         // no options at all.
         return OK;
     }
     mCommand = arg.argv[optind];
-    if (sAllCommands.find(mCommand) != sAllCommands.end()) {
+    if (selectCommand(mCommand) != nullptr) {
         ++optind;
         return OK; // mCommand is set correctly
     }
 
     if (mCommand.size() > 0 && mCommand[0] == '-') {
         // first argument is an option, set command to "" (which is recognized as "list")
-        mCommand = "";
+        mCommand.clear();
         return OK;
     }
 
-    err() << arg.argv[0] << ": unrecognized option `" << arg.argv[optind] << "`" << std::endl;
-    usage();
+    err() << arg.argv[0] << ": unrecognized option `" << arg.argv[optind] << "'" << std::endl;
     return USAGE;
 }
 
@@ -218,27 +176,43 @@ void signalHandler(int sig) {
     }
 }
 
+Command* Lshal::selectCommand(const std::string& command) const {
+    if (command.empty()) {
+        return selectCommand(ListCommand::GetName());
+    }
+    for (const auto& e : mRegisteredCommands) {
+        if (e->getName() == command) {
+            return e.get();
+        }
+    }
+    return nullptr;
+}
+
 Status Lshal::main(const Arg &arg) {
     // Allow SIGINT to terminate all threads.
     signal(SIGINT, signalHandler);
 
     Status status = parseArgs(arg);
     if (status != OK) {
+        usage();
         return status;
     }
-    if (mCommand == "help") {
-        usage(optind < arg.argc ? arg.argv[optind] : "");
+    auto c = selectCommand(mCommand);
+    if (c == nullptr) {
+        // unknown command, print global usage
+        usage();
         return USAGE;
     }
-    // Default command is list
-    if (mCommand == "list" || mCommand == "") {
-        return ListCommand{*this}.main(mCommand, arg);
+    status = c->main(arg);
+    if (status == USAGE) {
+        // bad options. Run `lshal help ${mCommand}` instead.
+        // For example, `lshal --unknown-option` becomes `lshal help` (prints global help)
+        // and `lshal list --unknown-option` becomes `lshal help list`
+        auto&& help = selectCommand(HelpCommand::GetName());
+        return static_cast<HelpCommand*>(help)->usageOfCommand(mCommand);
     }
-    if (mCommand == "debug") {
-        return DebugCommand{*this}.main(mCommand, arg);
-    }
-    usage();
-    return USAGE;
+
+    return status;
 }
 
 NullableOStream<std::ostream> Lshal::err() const {
