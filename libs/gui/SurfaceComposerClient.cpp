@@ -176,9 +176,8 @@ public:
     status_t reparentChildren(const sp<SurfaceComposerClient>& client,
             const sp<IBinder>& id,
             const sp<IBinder>& newParentHandle);
-    status_t reparentChild(const sp<SurfaceComposerClient>& client,
-            const sp<IBinder>& id, const sp<IBinder>& newParentHandle,
-            const sp<IBinder>& childHandle);
+    status_t reparent(const sp<SurfaceComposerClient>& client,
+            const sp<IBinder>& id, const sp<IBinder>& newParentHandle);
     status_t detachChildren(const sp<SurfaceComposerClient>& client,
             const sp<IBinder>& id);
     status_t setOverrideScalingMode(const sp<SurfaceComposerClient>& client,
@@ -496,18 +495,16 @@ status_t Composer::reparentChildren(
     return NO_ERROR;
 }
 
-status_t Composer::reparentChild(const sp<SurfaceComposerClient>& client,
+status_t Composer::reparent(const sp<SurfaceComposerClient>& client,
         const sp<IBinder>& id,
-        const sp<IBinder>& newParentHandle,
-        const sp<IBinder>& childHandle) {
+        const sp<IBinder>& newParentHandle) {
     Mutex::Autolock lock(mLock);
     layer_state_t* s = getLayerStateLocked(client, id);
     if (!s) {
         return BAD_INDEX;
     }
-    s->what |= layer_state_t::eReparentChild;
+    s->what |= layer_state_t::eReparent;
     s->parentHandleForChild = newParentHandle;
-    s->childHandle = childHandle;
     return NO_ERROR;
 }
 
@@ -849,9 +846,9 @@ status_t SurfaceComposerClient::reparentChildren(const sp<IBinder>& id,
     return getComposer().reparentChildren(this, id, newParentHandle);
 }
 
-status_t SurfaceComposerClient::reparentChild(const sp<IBinder>& id,
-        const sp<IBinder>& newParentHandle, const sp<IBinder>& childHandle) {
-    return getComposer().reparentChild(this, id, newParentHandle, childHandle);
+status_t SurfaceComposerClient::reparent(const sp<IBinder>& id,
+        const sp<IBinder>& newParentHandle) {
+    return getComposer().reparent(this, id, newParentHandle);
 }
 
 status_t SurfaceComposerClient::detachChildren(const sp<IBinder>& id) {

@@ -161,8 +161,7 @@ public:
             const sp<Surface>& handle, uint64_t frameNumber);
     status_t    reparentChildren(const sp<IBinder>& id,
             const sp<IBinder>& newParentHandle);
-    status_t    reparentChild(const sp<IBinder>& id, const sp<IBinder>& newParentHandle,
-            const sp<IBinder>& childHandle);
+    status_t    reparent(const sp<IBinder>& id, const sp<IBinder>& newParentHandle);
     status_t    detachChildren(const sp<IBinder>& id);
     status_t    setOverrideScalingMode(const sp<IBinder>& id,
             int32_t overrideScalingMode);

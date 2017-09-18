@@ -2625,8 +2625,8 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
     return true;
 }
 
-bool Layer::reparentChild(const sp<IBinder>& newParentHandle, const sp<IBinder>& childHandle) {
-    if (newParentHandle == nullptr || childHandle == nullptr) {
+bool Layer::reparent(const sp<IBinder>& newParentHandle) {
+    if (newParentHandle == nullptr) {
         return false;
     }
 
@@ -2637,29 +2637,19 @@ bool Layer::reparentChild(const sp<IBinder>& newParentHandle, const sp<IBinder>&
         return false;
     }
 
-    handle = static_cast<Handle*>(childHandle.get());
-    sp<Layer> child = handle->owner.promote();
-    if (child == nullptr) {
-        ALOGE("Unable to promote child Layer handle");
-        return false;
+    sp<Layer> parent = getParent();
+    if (parent != nullptr) {
+        parent->removeChild(this);
     }
+    newParent->addChild(this);
 
-    if (mCurrentChildren.indexOf(child) < 0) {
-        ALOGE("Child layer is not child of current layer");
-        return false;
-    }
-
-    sp<Client> parentClient(mClientRef.promote());
-    sp<Client> childClient(child->mClientRef.promote());
+    sp<Client> client(mClientRef.promote());
     sp<Client> newParentClient(newParent->mClientRef.promote());
 
-    if (parentClient != childClient || childClient != newParentClient) {
-        ALOGE("Current layer, child layer, and new parent layer must have the same client");
-        return false;
+    if (client != newParentClient) {
+        client->setParentLayer(newParent);
     }
 
-    newParent->addChild(child);
-    mCurrentChildren.remove(child);
     return true;
 }
 
