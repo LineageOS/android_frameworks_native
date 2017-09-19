@@ -30,6 +30,7 @@
 #include <EGLUtils.h>
 
 using namespace android;
+EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
 static void printGLString(const char *name, GLenum s) {
     // fprintf(stderr, "printGLString %s, %d\n", name, s);
@@ -46,7 +47,8 @@ static void printGLString(const char *name, GLenum s) {
 
 static void printEGLString(EGLDisplay dpy, const char *name, GLenum s) {
     const char *v = (const char *) eglQueryString(dpy, s);
-    fprintf(stderr, "GL %s = %s\n", name, v);
+    const char* va = (const char*)eglQueryStringImplementationANDROID(dpy, s);
+    fprintf(stderr, "GL %s = %s\nImplementationANDROID: %s\n", name, v, va);
 }
 
 static void checkEglError(const char* op, EGLBoolean returnVal = EGL_TRUE) {
