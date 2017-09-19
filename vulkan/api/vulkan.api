@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 0
-define VERSION_PATCH 54
+define VERSION_PATCH 60
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -101,6 +101,10 @@ define NULL_HANDLE 0
 // 13
 @extension("VK_NV_glsl_shader") define VK_NV_GLSL_SHADER_SPEC_VERSION           1
 @extension("VK_NV_glsl_shader") define VK_NV_GLSL_SHADER_NAME                   "VK_NV_glsl_shader"
+
+// 14
+@extension("VK_EXT_depth_range_unrestricted") define VK_EXT_DEPTH_RANGE_UNRESTRICTED_SPEC_VERSION   1
+@extension("VK_EXT_depth_range_unrestricted") define VK_EXT_DEPTH_RANGE_UNRESTRICTED_NAME           "VK_EXT_depth_range_unrestricted"
 
 // 15
 @extension("VK_KHR_sampler_mirror_clamp_to_edge") define VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_SPEC_VERSION   1
@@ -267,7 +271,7 @@ define NULL_HANDLE 0
 @extension("VK_KHR_descriptor_update_template") define VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_EXTENSION_NAME "VK_KHR_descriptor_update_template"
 
 // 87
-@extension("VK_NVX_device_generated_commands") define VK_NVX_DEVICE_GENERATED_COMMANDS_SPEC_VERSION 1
+@extension("VK_NVX_device_generated_commands") define VK_NVX_DEVICE_GENERATED_COMMANDS_SPEC_VERSION 3
 @extension("VK_NVX_device_generated_commands") define VK_NVX_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME "VK_NVX_device_generated_commands"
 
 // 88
@@ -319,7 +323,7 @@ define NULL_HANDLE 0
 @extension("VK_EXT_discard_rectangles") define VK_EXT_DISCARD_RECTANGLES_EXTENSION_NAME "VK_EXT_discard_rectangles"
 
 // 105
-@extension("VK_EXT_swapchain_colorspace") define VK_EXT_SWAPCHAIN_COLORSPACE_SPEC_VERSION 2
+@extension("VK_EXT_swapchain_colorspace") define VK_EXT_SWAPCHAIN_COLORSPACE_SPEC_VERSION 3
 @extension("VK_EXT_swapchain_colorspace") define VK_EXT_SWAPCHAIN_COLORSPACE_EXTENSION_NAME "VK_EXT_swapchain_colorspace"
 
 // 106
@@ -363,7 +367,7 @@ define NULL_HANDLE 0
 @extension("VK_MVK_macos_surface") define VK_MVK_MACOS_SURFACE_EXTENSION_NAME "VK_MVK_macos_surface"
 
 // 128
-@extension("VK_KHR_dedicated_allocation") define VK_KHR_DEDICATED_ALLOCATION_SPEC_VERSION 1
+@extension("VK_KHR_dedicated_allocation") define VK_KHR_DEDICATED_ALLOCATION_SPEC_VERSION 3
 @extension("VK_KHR_dedicated_allocation") define VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME "VK_KHR_dedicated_allocation"
 
 // 131
@@ -377,6 +381,26 @@ define NULL_HANDLE 0
 // 133
 @extension("VK_AMD_gpu_shader_int16") define VK_AMD_GPU_SHADER_INT16_SPEC_VERSION 1
 @extension("VK_AMD_gpu_shader_int16") define VK_AMD_GPU_SHADER_INT16_EXTENSION_NAME "VK_AMD_gpu_shader_int16"
+
+// 137
+@extension("VK_AMD_mixed_attachment_samples") define VK_AMD_MIXED_ATTACHMENT_SAMPLES_SPEC_VERSION 1
+@extension("VK_AMD_mixed_attachment_samples") define VK_AMD_MIXED_ATTACHMENT_SAMPLES_EXTENSION_NAME "VK_AMD_mixed_attachment_samples"
+
+// 138
+@extension("VK_AMD_shader_fragment_mask") define VK_AMD_SHADER_FRAGMENT_MASK_SPEC_VERSION 1
+@extension("VK_AMD_shader_fragment_mask") define VK_AMD_SHADER_FRAGMENT_MASK_EXTENSION_NAME "VK_AMD_shader_fragment_mask"
+
+// 141
+@extension("VK_EXT_shader_stencil_export") define VK_EXT_SHADER_STENCIL_EXPORT_SPEC_VERSION 1
+@extension("VK_EXT_shader_stencil_export") define VK_EXT_SHADER_STENCIL_EXPORT_EXTENSION_NAME "VK_EXT_shader_stencil_export"
+
+// 144
+@extension("VK_EXT_sample_locations") define VK_EXT_SAMPLE_LOCATIONS_SPEC_VERSION 1
+@extension("VK_EXT_sample_locations") define VK_EXT_SAMPLE_LOCATIONS_EXTENSION_NAME "VK_EXT_sample_locations"
+
+// 145
+@extension("VK_KHR_relaxed_block_layout") define VK_KHR_RELAXED_BLOCK_LAYOUT_SPEC_VERSION 1
+@extension("VK_KHR_relaxed_block_layout") define VK_KHR_RELAXED_BLOCK_LAYOUT_EXTENSION_NAME "VK_KHR_relaxed_block_layout"
 
 // 147
 @extension("VK_KHR_get_memory_requirements2") define VK_KHR_GET_MEMORY_REQUIREMENTS2_SPEC_VERSION 1
@@ -397,6 +421,18 @@ define NULL_HANDLE 0
 // 154
 @extension("VK_NV_fill_rectangle") define VK_NV_FILL_RECTANGLE_SPEC_VERSION 1
 @extension("VK_NV_fill_rectangle") define VK_NV_FILL_RECTANGLE_EXTENSION_NAME "VK_NV_fill_rectangle"
+
+// 156
+@extension("VK_EXT_post_depth_coverage") define VK_EXT_POST_DEPTH_COVERAGE_SPEC_VERSION 1
+@extension("VK_EXT_post_depth_coverage") define VK_EXT_POST_DEPTH_COVERAGE_EXTENSION_NAME "VK_EXT_post_depth_coverage"
+
+// 161
+@extension("VK_EXT_validation_cache") define VK_EXT_VALIDATION_CACHE_SPEC_VERSION 1
+@extension("VK_EXT_validation_cache") define VK_EXT_VALIDATION_CACHE_EXTENSION_NAME "VK_EXT_validation_cache"
+
+// 165
+@extension("VK_EXT_shader_viewport_index_layer") define VK_EXT_SHADER_VIEWPORT_INDEX_LAYER_SPEC_VERSION 1
+@extension("VK_EXT_shader_viewport_index_layer") define VK_EXT_SHADER_VIEWPORT_INDEX_LAYER_EXTENSION_NAME "VK_EXT_shader_viewport_index_layer"
 
 /////////////
 //  Types  //
@@ -456,6 +492,8 @@ type u32 VkSampleMask
 @extension("VK_NVX_device_generated_commands") @nonDispatchHandle type u64 VkObjectTableNVX
 @extension("VK_NVX_device_generated_commands") @nonDispatchHandle type u64 VkIndirectCommandsLayoutNVX
 
+// 161
+@extension("VK_EXT_validation_cache") @nonDispatchHandle type u64 VkValidationCacheEXT
 
 /////////////
 //  Enums  //
@@ -1183,7 +1221,7 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_W_SCALING_STATE_CREATE_INFO_NV  = 1000087000,
 
     //@extension("VK_EXT_display_surface_counter") // 91
-    VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES2_EXT                 = 1000090000,
+    VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_EXT                = 1000090000,
 
     //@extension("VK_EXT_display_control") // 92
     VK_STRUCTURE_TYPE_DISPLAY_POWER_INFO_EXT                    = 1000091000,
@@ -1248,6 +1286,13 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_FILTER_MINMAX_PROPERTIES_EXT = 1000130000,
     VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT = 1000130001,
 
+    //@extension("VK_EXT_sample_locations") // 144
+    VK_STRUCTURE_TYPE_SAMPLE_LOCATIONS_INFO_EXT                         = 1000143000,
+    VK_STRUCTURE_TYPE_RENDER_PASS_SAMPLE_LOCATIONS_BEGIN_INFO_EXT       = 1000143001,
+    VK_STRUCTURE_TYPE_PIPELINE_SAMPLE_LOCATIONS_STATE_CREATE_INFO_EXT   = 1000143002,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLE_LOCATIONS_PROPERTIES_EXT   = 1000143003,
+    VK_STRUCTURE_TYPE_MULTISAMPLE_PROPERTIES_EXT                        = 1000143004,
+
     //@extension("VK_KHR_get_memory_requirements2") // 147
     VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2_KHR         = 1000146000,
     VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2_KHR          = 1000146001,
@@ -1263,8 +1308,12 @@ enum VkStructureType {
     //@extension("VK_NV_fragment_coverage_to_color") // 150
     VK_STRUCTURE_TYPE_PIPELINE_COVERAGE_TO_COLOR_STATE_CREATE_INFO_NV = 1000149000,
 
-    //@structure("VK_NV_framebuffer_mixed_samples") // 153
+    //@extension("VK_NV_framebuffer_mixed_samples") // 153
     VK_STRUCTURE_TYPE_PIPELINE_COVERAGE_MODULATION_STATE_CREATE_INFO_NV = 1000152000,
+
+    //@extension("VK_EXT_validation_cache") // 161
+    VK_STRUCTURE_TYPE_VALIDATION_CACHE_CREATE_INFO_EXT                  = 1000160000,
+    VK_STRUCTURE_TYPE_SHADER_MODULE_VALIDATION_CACHE_CREATE_INFO_EXT    = 1000160001,
 }
 
 enum VkSubpassContents {
@@ -1343,6 +1392,9 @@ enum VkDynamicState {
 
     //@extension("VK_EXT_discard_rectangles") // 100
     VK_DYNAMIC_STATE_DISCARD_RECTANGLE_EXT                  = 1000099000,
+
+    //@extension("VK_EXT_sample_locations") // 144
+    VK_DYNAMIC_STATE_SAMPLE_LOCATIONS_EXT                   = 1000143000,
 }
 
 enum VkObjectType {
@@ -1392,6 +1444,9 @@ enum VkObjectType {
     //@extension("VK_NVX_device_generated_commands") // 87
     VK_OBJECT_TYPE_OBJECT_TABLE_NVX                         = 1000086000,
     VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX             = 1000086001,
+
+    //@extension("VK_EXT_validation_cache") // 161
+    VK_OBJECT_TYPE_VALIDATION_CACHE_EXT                     = 1000160000,
 }
 
 @extension("VK_KHR_surface") // 1
@@ -1424,6 +1479,7 @@ enum VkColorSpaceKHR {
     VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT                      = 1000104011,
     VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT                   = 1000104012,
     VK_COLOR_SPACE_PASS_THROUGH_EXT                         = 1000104013,
+    VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT              = 1000104014,
 }
 
 @extension("VK_EXT_debug_report") // 12
@@ -1462,8 +1518,12 @@ enum VkDebugReportObjectTypeEXT {
     VK_DEBUG_REPORT_OBJECT_TYPE_OBJECT_TABLE_NVX_EXT        = 31,
     VK_DEBUG_REPORT_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX_EXT = 32,
 
+    //extension("VK_EXT_validation_cache") // 161
+    VK_DEBUG_REPORT_OBJECT_TYPE_VALIDATION_CACHE_EXT        = 33,
+
     //extension("VK_KHR_descriptor_update_template") // 86
     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_KHR_EXT = 1000085000,
+
 }
 
 @extension("VK_AMD_rasterization_order") // 19
@@ -1560,6 +1620,11 @@ enum VkCoverageModulationModeNV {
     VK_COVERAGE_MODULATION_MODE_RGB_NV                      = 1,
     VK_COVERAGE_MODULATION_MODE_ALPHA_NV                    = 2,
     VK_COVERAGE_MODULATION_MODE_RGBA_NV                     = 3,
+}
+
+@extension("VK_EXT_validation_cache") // 161
+enum VkValidationCacheHeaderVersionEXT {
+    VK_VALIDATION_CACHE_HEADER_VERSION_ONE_EXT              = 1,
 }
 
 /////////////////
@@ -1697,6 +1762,9 @@ bitfield VkImageCreateFlagBits {
 
     //@extension("VK_KHX_device_group") // 61
     VK_IMAGE_CREATE_BIND_SFR_BIT_KHX                        = 0x00000040,
+
+    //@extension("VK_EXT_sample_locations") // 144
+    VK_IMAGE_CREATE_SAMPLE_LOCATIONS_COMPATIBLE_DEPTH_BIT_EXT = 0x00001000,
 }
 
 /// Image view creation flags
@@ -2350,6 +2418,12 @@ type VkFlags VkPipelineCoverageToColorStateCreateFlagsNV
 type VkFlags VkPipelineCoverageModulationStateCreateFlagsNV
 @extension("VK_NV_framebuffer_mixed_samples") // 153
 //bitfield VkPipelineCoverageModulationStateCreateFlagBitsNV {
+//}
+
+@extension("VK_EXT_validation_cache") // 161
+type VkFlags VkValidationCacheCreateFlagsEXT
+@extension("VK_EXT_validation_cache") // 161
+//bitfield VkValidationCacheCreateFlagBitsEXT {
 //}
 
 //////////////////
@@ -4749,6 +4823,70 @@ class VkPhysicalDeviceSamplerFilterMinmaxPropertiesEXT {
     VkBool32                                        filterMinmaxImageComponentMapping
 }
 
+@extension("VK_EXT_sample_locations") // 144
+class VkSampleLocationEXT {
+    f32                                             x
+    f32                                             y
+}
+
+@extension("VK_EXT_sample_locations") // 144
+class VkSampleLocationsInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkSampleCountFlagBits                           sampleLocationsPerPixel
+    VkExtent2D                                      sampleLocationGridSize
+    u32                                             sampleLocationsCount
+    const VkSampleLocationEXT*                      pSampleLocations
+}
+
+@extension("VK_EXT_sample_locations") // 144
+class VkAttachmentSampleLocationsEXT {
+    u32                                             attachmentIndex
+    VkSampleLocationsInfoEXT                        sampleLocationsInfo
+}
+
+@extension("VK_EXT_sample_locations") // 144
+class VkSubpassSampleLocationsEXT {
+    u32                                             subpassIndex
+    VkSampleLocationsInfoEXT                        sampleLocationsInfo
+}
+
+@extension("VK_EXT_sample_locations") // 144
+class VkRenderPassSampleLocationsBeginInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u32                                             attachmentInitialSampleLocationsCount
+    const VkAttachmentSampleLocationsEXT*           pAttachmentInitialSampleLocations
+    u32                                             postSubpassSampleLocationsCount
+    const VkSubpassSampleLocationsEXT*              pSubpassSampleLocations
+}
+
+@extension("VK_EXT_sample_locations") // 144
+class VkPipelineSampleLocationsStateCreateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkBool32                                        sampleLocationsEnable
+    VkSampleLocationsInfoEXT                        sampleLocationsInfo
+}
+
+@extension("VK_EXT_sample_locations") // 144
+class VkPhysicalDeviceSampleLocationsPropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkSampleCountFlags                              sampleLocationSampleCounts
+    VkExtent2D                                      maxSampleLocationGridSize
+    f32[2]                                          sampleLocationCoordinateRange
+    u32                                             sampleLocationSubPixelBits
+    VkBool32                                        variableSampleLocations
+}
+
+@extension("VK_EXT_sample_locations") // 144
+class VkMultisamplePropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkExtent2D                                      maxSampleLocationGridSize
+}
+
 @extension("VK_KHR_get_memory_requirements2") // 147
 class VkBufferMemoryRequirementsInfo2KHR {
     VkStructureType                                 sType
@@ -4830,6 +4968,22 @@ class VkPipelineCoverageModulationStateCreateInfoNV {
     VkBool32                                        coverageModulationTableEnable
     u32                                             coverageModulationTableCount
     const f32*                                      pCoverageModulationTable
+}
+
+@extension("VK_EXT_validation_cache") // 161
+class VkValidationCacheCreateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkValidationCacheCreateFlagsEXT                 flags
+    platform.size_t                                 initialDataSize
+    const void*                                     pInitialData
+}
+
+@extension("VK_EXT_validation_cache") // 161
+class VkShaderModuleValidationCacheCreateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkValidationCacheEXT                            validationCache
 }
 
 ////////////////
@@ -7453,21 +7607,21 @@ cmd void vkDebugReportMessageEXT(
 @extension("VK_EXT_debug_marker") // 23
 cmd VkResult vkDebugMarkerSetObjectTagEXT(
         VkDevice                                    device,
-        VkDebugMarkerObjectTagInfoEXT*              pTagInfo) {
+        const VkDebugMarkerObjectTagInfoEXT*        pTagInfo) {
     return ?
 }
 
 @extension("VK_EXT_debug_marker") // 23
 cmd VkResult vkDebugMarkerSetObjectNameEXT(
         VkDevice                                    device,
-        VkDebugMarkerObjectNameInfoEXT*             pNameInfo) {
+        const VkDebugMarkerObjectNameInfoEXT*       pNameInfo) {
     return ?
 }
 
 @extension("VK_EXT_debug_marker") // 23
 cmd void vkCmdDebugMarkerBeginEXT(
         VkCommandBuffer                             commandBuffer,
-        VkDebugMarkerMarkerInfoEXT*                 pMarkerInfo) {
+        const VkDebugMarkerMarkerInfoEXT*           pMarkerInfo) {
 }
 
 @extension("VK_EXT_debug_marker") // 23
@@ -7478,7 +7632,7 @@ cmd void vkCmdDebugMarkerEndEXT(
 @extension("VK_EXT_debug_marker") // 23
 cmd void vkCmdDebugMarkerInsertEXT(
         VkCommandBuffer                             commandBuffer,
-        VkDebugMarkerMarkerInfoEXT*                 pMarkerInfo) {
+        const VkDebugMarkerMarkerInfoEXT*           pMarkerInfo) {
 }
 
 @extension("VK_AMD_draw_indirect_count") // 34
@@ -8057,6 +8211,19 @@ cmd VkResult vkCreateMacOSSurfaceMVK(
     return ?
 }
 
+@extension("VK_EXT_sample_locations") // 144
+cmd void vkCmdSetSampleLocationsEXT(
+        VkCommandBuffer                             commandBuffer,
+        const VkSampleLocationsInfoEXT*             pSampleLocationsInfo) {
+}
+
+@extension("VK_EXT_sample_locations") // 144
+cmd void vkGetPhysicalDeviceMultisamplePropertiesEXT(
+        VkPhysicalDevice                            physicalDevice,
+        VkSampleCountFlagBits                       samples,
+        VkMultisamplePropertiesEXT*                 pMultisampleProperties) {
+}
+
 @extension("VK_KHR_get_memory_requirements2") // 147
 cmd void vkGetImageMemoryRequirements2KHR(
         VkDevice                                    device,
@@ -8077,6 +8244,40 @@ cmd void vkGetImageSparseMemoryRequirements2KHR(
         const VkImageSparseMemoryRequirementsInfo2KHR*  pInfo,
         u32*                                            pSparseMemoryRequirementCount,
         VkSparseImageMemoryRequirements2KHR*            pSparseMemoryRequirements) {
+}
+
+@extension("VK_EXT_validation_cache") // 161
+cmd VkResult vkCreateValidationCacheEXT(
+        VkDevice                                    device,
+        const VkValidationCacheCreateInfoEXT*       pCreateInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkValidationCacheEXT*                       pValidationCache) {
+    return ?
+}
+
+@extension("VK_EXT_validation_cache") // 161
+cmd void vkDestroyValidationCacheEXT(
+        VkDevice                                    device,
+        VkValidationCacheEXT                        validationCache,
+        const VkAllocationCallbacks*                pAllocator) {
+}
+
+@extension("VK_EXT_validation_cache") // 161
+cmd VkResult vkMergeValidationCachesEXT(
+        VkDevice                                    device,
+        VkValidationCacheEXT                        dstCache,
+        u32                                         srcCacheCount,
+        const VkValidationCacheEXT*                 pSrcCaches) {
+    return ?
+}
+
+@extension("VK_EXT_validation_cache") // 161
+cmd VkResult vkGetValidationCacheDataEXT(
+        VkDevice                                    device,
+        VkValidationCacheEXT                        validationCache,
+        platform.size_t*                            pDataSize,
+        void*                                       pData) {
+    return ?
 }
 
 ////////////////
