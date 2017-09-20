@@ -1272,6 +1272,10 @@ Error HWC2On1Adapter::Display::set(hwc_display_contents_1& hwcContents) {
     // Set up the client/framebuffer target
     auto numLayers = hwcContents.numHwLayers;
 
+    //Refresh Output buffer
+    mHwc1RequestedContents->outbuf = mOutputBuffer.getBuffer();
+    mHwc1RequestedContents->outbufAcquireFenceFd = mOutputBuffer.getFence();
+
     // Close acquire fences on FRAMEBUFFER layers, since they will not be used
     // by HWC
     for (size_t l = 0; l < numLayers - 1; ++l) {

@@ -1191,8 +1191,10 @@ int main(int argc, char **argv)
     }
 
     bool ok = true;
-    ok &= setUpTrace();
-    ok &= startTrace();
+    if (traceStart) {
+        ok &= setUpTrace();
+        ok &= startTrace();
+    }
 
     if (ok && traceStart) {
         if (!traceStream) {

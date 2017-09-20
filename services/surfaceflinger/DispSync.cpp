@@ -377,18 +377,22 @@ private:
 DispSync::DispSync(const char* name) :
         mName(name),
         mRefreshSkipCount(0),
-        mThread(new DispSyncThread(name)),
-        mIgnorePresentFences(!SurfaceFlinger::hasSyncFramework){
+        mThread(new DispSyncThread(name)) {
+}
 
-    mPresentTimeOffset = SurfaceFlinger::dispSyncPresentTimeOffset;
+DispSync::~DispSync() {}
+
+void DispSync::init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset) {
+    mIgnorePresentFences = !hasSyncFramework;
+    mPresentTimeOffset = dispSyncPresentTimeOffset;
     mThread->run("DispSync", PRIORITY_URGENT_DISPLAY + PRIORITY_MORE_FAVORABLE);
+
     // set DispSync to SCHED_FIFO to minimize jitter
     struct sched_param param = {0};
     param.sched_priority = 2;
     if (sched_setscheduler(mThread->getTid(), SCHED_FIFO, &param) != 0) {
         ALOGE("Couldn't set SCHED_FIFO for DispSyncThread");
     }
-
 
     reset();
     beginResync();
@@ -404,8 +408,6 @@ DispSync::DispSync(const char* name) :
         }
     }
 }
-
-DispSync::~DispSync() {}
 
 void DispSync::reset() {
     Mutex::Autolock lock(mMutex);

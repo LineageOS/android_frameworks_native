@@ -31,6 +31,7 @@
 #include <configstore/Utils.h>
 #include "GpuService.h"
 #include "SurfaceFlinger.h"
+#include "DisplayUtils.h"
 
 using namespace android;
 
@@ -89,7 +90,7 @@ int main(int, char**) {
     ps->startThreadPool();
 
     // instantiate surfaceflinger
-    sp<SurfaceFlinger> flinger = new SurfaceFlinger();
+    sp<SurfaceFlinger> flinger = DisplayUtils::getInstance()->getSFInstance();
 
     setpriority(PRIO_PROCESS, 0, PRIORITY_URGENT_DISPLAY);
 
