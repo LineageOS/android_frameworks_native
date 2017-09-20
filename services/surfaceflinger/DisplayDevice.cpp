@@ -119,6 +119,7 @@ DisplayDevice::DisplayDevice(
     Surface* surface;
     mNativeWindow = surface = new Surface(producer, false);
     ANativeWindow* const window = mNativeWindow.get();
+    char property[PROPERTY_VALUE_MAX];
 
 #ifdef USE_HWC2
     mActiveColorMode = static_cast<android_color_mode_t>(-1);
@@ -180,6 +181,11 @@ DisplayDevice::DisplayDevice(
             mDisplayName = "Virtual Screen";    // e.g. Overlay #n
             break;
     }
+
+    mPanelMountFlip = 0;
+    // 1: H-Flip, 2: V-Flip, 3: 180 (HV Flip)
+    property_get("ro.panel.mountflip", property, "0");
+    mPanelMountFlip = atoi(property);
 
     // initialize the display orientation transform.
     setProjection(DisplayState::eOrientationDefault, mViewport, mFrame);
@@ -313,7 +319,7 @@ status_t DisplayDevice::prepareFrame(const HWComposer& hwc) const {
 
 void DisplayDevice::swapBuffers(HWComposer& hwc) const {
 #ifdef USE_HWC2
-    if (hwc.hasClientComposition(mHwcDisplayId)) {
+    if (hwc.hasClientComposition(mHwcDisplayId) || hwc.hasFlipFBTRequest(mHwcDisplayId)) {
 #else
     // We need to call eglSwapBuffers() if:
     //  (1) we don't have a hardware composer, or
@@ -492,6 +498,11 @@ status_t DisplayDevice::orientationToTransfrom(
     default:
         return BAD_VALUE;
     }
+
+    if (DISPLAY_PRIMARY == mHwcDisplayId) {
+        flags = flags ^ getPanelMountFlip();
+    }
+
     tr->set(flags, w, h);
     return NO_ERROR;
 }
