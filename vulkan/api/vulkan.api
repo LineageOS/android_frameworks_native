@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 0
-define VERSION_PATCH 60
+define VERSION_PATCH 61
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -187,7 +187,7 @@ define NULL_HANDLE 0
 @extension("VK_KHR_get_physical_device_properties2") define VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME "VK_KHR_get_physical_device_properties2"
 
 // 61
-@extension("VK_KHX_device_group") define VK_KHX_DEVICE_GROUP_SPEC_VERSION 1
+@extension("VK_KHX_device_group") define VK_KHX_DEVICE_GROUP_SPEC_VERSION 2
 @extension("VK_KHX_device_group") define VK_KHX_DEVICE_GROUP_EXTENSION_NAME "VK_KHX_device_group"
 
 // 62
@@ -350,6 +350,10 @@ define NULL_HANDLE 0
 @extension("VK_KHR_external_fence_fd") define VK_KHR_EXTERNAL_FENCE_FD_SPEC_VERSION 1
 @extension("VK_KHR_external_fence_fd") define VK_KHR_EXTERNAL_FENCE_FD_EXTENSION_NAME "VK_KHR_external_fence_fd"
 
+// 118
+@extension("VK_KHR_maintenance2") define VK_KHR_MAINTENANCE2_SPEC_VERSION 1
+@extension("VK_KHR_maintenance2") define VK_KHR_MAINTENANCE2_EXTENSION_NAME "VK_KHR_maintenance2"
+
 // 120
 @extension("VK_KHR_get_surface_capabilities2") define VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION 1
 @extension("VK_KHR_get_surface_capabilities2") define VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME "VK_KHR_get_surface_capabilities2"
@@ -406,6 +410,10 @@ define NULL_HANDLE 0
 @extension("VK_KHR_get_memory_requirements2") define VK_KHR_GET_MEMORY_REQUIREMENTS2_SPEC_VERSION 1
 @extension("VK_KHR_get_memory_requirements2") define VK_KHR_GET_MEMORY_REQUIREMENTS2_EXTENSION_NAME "VK_KHR_get_memory_requirements2"
 
+// 148
+@extension("VK_KHR_image_format_list") define VK_KHR_IMAGE_FORMAT_LIST_SPEC_VERSION 1
+@extension("VK_KHR_image_format_list") define VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME "VK_KHR_image_format_list"
+
 // 149
 @extension("VK_EXT_blend_operation_advanced") define VK_EXT_BLEND_OPERATION_ADVANCED_SPEC_VERSION 2
 @extension("VK_EXT_blend_operation_advanced") define VK_EXT_BLEND_OPERATION_ADVANCED_EXTENSION_NAME "VK_EXT_blend_operation_advanced"
@@ -425,6 +433,14 @@ define NULL_HANDLE 0
 // 156
 @extension("VK_EXT_post_depth_coverage") define VK_EXT_POST_DEPTH_COVERAGE_SPEC_VERSION 1
 @extension("VK_EXT_post_depth_coverage") define VK_EXT_POST_DEPTH_COVERAGE_EXTENSION_NAME "VK_EXT_post_depth_coverage"
+
+// 157
+@extension("VK_KHR_sampler_ycbcr_conversion") define VK_KHR_SAMPLER_YCBCR_CONVERSION_SPEC_VERSION 1
+@extension("VK_KHR_sampler_ycbcr_conversion") define VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME "VK_KHR_sampler_ycbcr_conversion"
+
+// 158
+@extension("VK_KHR_bind_memory2") define VK_KHR_BIND_MEMORY2_SPEC_VERSION 1
+@extension("VK_KHR_bind_memory2") define VK_KHR_BIND_MEMORY2_EXTENSION_NAME "VK_KHR_bind_memory2"
 
 // 161
 @extension("VK_EXT_validation_cache") define VK_EXT_VALIDATION_CACHE_SPEC_VERSION 1
@@ -492,6 +508,9 @@ type u32 VkSampleMask
 @extension("VK_NVX_device_generated_commands") @nonDispatchHandle type u64 VkObjectTableNVX
 @extension("VK_NVX_device_generated_commands") @nonDispatchHandle type u64 VkIndirectCommandsLayoutNVX
 
+// 157
+@extension("VK_KHR_sampler_ycbcr_conversion") @nonDispatchHandle type u64 VkSamplerYcbcrConversionKHR
+
 // 161
 @extension("VK_EXT_validation_cache") @nonDispatchHandle type u64 VkValidationCacheEXT
 
@@ -515,6 +534,10 @@ enum VkImageLayout {
 
     //@extension("VK_KHR_shared_presentable_image") // 112
     VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR                      = 1000111000,
+
+    //@extension("VK_KHR_maintenance2") // 118
+    VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL_KHR  = 1000117000,
+    VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL_KHR  = 1000117001,
 }
 
 enum VkAttachmentLoadOp {
@@ -998,6 +1021,42 @@ enum VkFormat {
     VK_FORMAT_PVRTC1_4BPP_SRGB_BLOCK_IMG                    = 1000054005,
     VK_FORMAT_PVRTC2_2BPP_SRGB_BLOCK_IMG                    = 1000054006,
     VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG                    = 1000054007,
+
+    //@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+    VK_FORMAT_G8B8G8R8_422_UNORM_KHR                            = 1000156000,
+    VK_FORMAT_B8G8R8G8_422_UNORM_KHR                            = 1000156001,
+    VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM_KHR                     = 1000156002,
+    VK_FORMAT_G8_B8R8_2PLANE_420_UNORM_KHR                      = 1000156003,
+    VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM_KHR                     = 1000156004,
+    VK_FORMAT_G8_B8R8_2PLANE_422_UNORM_KHR                      = 1000156005,
+    VK_FORMAT_G8_B8_R8_3PLANE_444_UNORM_KHR                     = 1000156006,
+    VK_FORMAT_R10X6_UNORM_PACK16_KHR                            = 1000156007,
+    VK_FORMAT_R10X6G10X6_UNORM_2PACK16_KHR                      = 1000156008,
+    VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16_KHR            = 1000156009,
+    VK_FORMAT_G10X6B10X6G10X6R10X6_422_UNORM_4PACK16_KHR        = 1000156010,
+    VK_FORMAT_B10X6G10X6R10X6G10X6_422_UNORM_4PACK16_KHR        = 1000156011,
+    VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16_KHR    = 1000156012,
+    VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16_KHR     = 1000156013,
+    VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16_KHR    = 1000156014,
+    VK_FORMAT_G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16_KHR     = 1000156015,
+    VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16_KHR    = 1000156016,
+    VK_FORMAT_R12X4_UNORM_PACK16_KHR                            = 1000156017,
+    VK_FORMAT_R12X4G12X4_UNORM_2PACK16_KHR                      = 1000156018,
+    VK_FORMAT_R12X4G12X4B12X4A12X4_UNORM_4PACK16_KHR            = 1000156019,
+    VK_FORMAT_G12X4B12X4G12X4R12X4_422_UNORM_4PACK16_KHR        = 1000156020,
+    VK_FORMAT_B12X4G12X4R12X4G12X4_422_UNORM_4PACK16_KHR        = 1000156021,
+    VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16_KHR    = 1000156022,
+    VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16_KHR     = 1000156023,
+    VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16_KHR    = 1000156024,
+    VK_FORMAT_G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16_KHR     = 1000156025,
+    VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16_KHR    = 1000156026,
+    VK_FORMAT_G16B16G16R16_422_UNORM_KHR                        = 1000156027,
+    VK_FORMAT_B16G16R16G16_422_UNORM_KHR                        = 1000156028,
+    VK_FORMAT_G16_B16_R16_3PLANE_420_UNORM_KHR                  = 1000156029,
+    VK_FORMAT_G16_B16R16_2PLANE_420_UNORM_KHR                   = 1000156030,
+    VK_FORMAT_G16_B16_R16_3PLANE_422_UNORM_KHR                  = 1000156031,
+    VK_FORMAT_G16_B16R16_2PLANE_422_UNORM_KHR                   = 1000156032,
+    VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM_KHR                  = 1000156033,
 }
 
 /// Structure type enumerant
@@ -1134,8 +1193,6 @@ enum VkStructureType {
 
     //@extension("VK_KHX_device_group") // 61
     VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO_KHX            = 1000060000,
-    VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO_KHX               = 1000060001,
-    VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO_KHX                = 1000060002,
     VK_STRUCTURE_TYPE_DEVICE_GROUP_RENDER_PASS_BEGIN_INFO_KHX   = 1000060003,
     VK_STRUCTURE_TYPE_DEVICE_GROUP_COMMAND_BUFFER_BEGIN_INFO_KHX = 1000060004,
     VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO_KHX              = 1000060005,
@@ -1146,6 +1203,8 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_ACQUIRE_NEXT_IMAGE_INFO_KHX               = 1000060010,
     VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_INFO_KHX             = 1000060011,
     VK_STRUCTURE_TYPE_DEVICE_GROUP_SWAPCHAIN_CREATE_INFO_KHX    = 1000060012,
+    VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_DEVICE_GROUP_INFO_KHX  = 1000060013,
+    VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO_KHX   = 1000060014,
 
     //@extension("VK_EXT_validation_flags") // 62
     VK_STRUCTURE_TYPE_VALIDATION_FLAGS_EXT                      = 1000061000,
@@ -1264,6 +1323,12 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_IMPORT_FENCE_FD_INFO_KHR                  = 1000115000,
     VK_STRUCTURE_TYPE_FENCE_GET_FD_INFO_KHR                     = 1000115001,
 
+    //@extension("VK_KHR_maintenance2") // 118
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_POINT_CLIPPING_PROPERTIES_KHR             = 1000117000,
+    VK_STRUCTURE_TYPE_RENDER_PASS_INPUT_ATTACHMENT_ASPECT_CREATE_INFO_KHR       = 1000117001,
+    VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO_KHR                          = 1000117002,
+    VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_DOMAIN_ORIGIN_STATE_CREATE_INFO_KHR = 1000117003,
+
     //@extension("VK_KHR_get_surface_capabilities2") // 120
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR        = 1000119000,
     VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR                = 1000119001,
@@ -1300,6 +1365,9 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR                     = 1000146003,
     VK_STRUCTURE_TYPE_SPARSE_IMAGE_MEMORY_REQUIREMENTS_2_KHR        = 1000146004,
 
+    //@extension("VK_KHR_image_format_list") // 148
+    VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO_KHR             = 1000147000,
+
     //@extension("VK_EXT_blend_operation_advanced") // 149
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BLEND_OPERATION_ADVANCED_FEATURES_EXT = 1000148000,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BLEND_OPERATION_ADVANCED_PROPERTIES_EXT = 1000148001,
@@ -1310,6 +1378,18 @@ enum VkStructureType {
 
     //@extension("VK_NV_framebuffer_mixed_samples") // 153
     VK_STRUCTURE_TYPE_PIPELINE_COVERAGE_MODULATION_STATE_CREATE_INFO_NV = 1000152000,
+
+    //@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+    VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO_KHR              = 1000156000,
+    VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO_KHR                     = 1000156001,
+    VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO_KHR                      = 1000156002,
+    VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO_KHR              = 1000156003,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES_KHR = 1000156004,
+    VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_IMAGE_FORMAT_PROPERTIES_KHR  = 1000156005,
+
+    //@extension("VK_KHR_bind_memory2") // 158
+    VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO_KHR                       = 1000157000,
+    VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO_KHR                        = 1000157001,
 
     //@extension("VK_EXT_validation_cache") // 161
     VK_STRUCTURE_TYPE_VALIDATION_CACHE_CREATE_INFO_EXT                  = 1000160000,
@@ -1445,6 +1525,9 @@ enum VkObjectType {
     VK_OBJECT_TYPE_OBJECT_TABLE_NVX                         = 1000086000,
     VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX             = 1000086001,
 
+    //@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+    VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION_KHR             = 1000156000,
+
     //@extension("VK_EXT_validation_cache") // 161
     VK_OBJECT_TYPE_VALIDATION_CACHE_EXT                     = 1000160000,
 }
@@ -1524,6 +1607,8 @@ enum VkDebugReportObjectTypeEXT {
     //extension("VK_KHR_descriptor_update_template") // 86
     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_KHR_EXT = 1000085000,
 
+    //@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+    VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION_KHR_EXT = 1000156000,
 }
 
 @extension("VK_AMD_rasterization_order") // 19
@@ -1600,6 +1685,18 @@ enum VkDiscardRectangleModeEXT {
     VK_DISCARD_RECTANGLE_MODE_EXCLUSIVE_EXT = 1,
 }
 
+@extension("VK_KHR_maintenance2") // 118
+enum VkPointClippingBehaviorKHR {
+    VK_POINT_CLIPPING_BEHAVIOR_ALL_CLIP_PLANES_KHR          = 0,
+    VK_POINT_CLIPPING_BEHAVIOR_USER_CLIP_PLANES_ONLY_KHR    = 1,
+}
+
+@extension("VK_KHR_maintenance2") // 118
+enum VkTessellationDomainOriginKHR {
+    VK_TESSELLATION_DOMAIN_ORIGIN_UPPER_LEFT_KHR            = 0,
+    VK_TESSELLATION_DOMAIN_ORIGIN_LOWER_LEFT_KHR            = 1,
+}
+
 @extension("VK_EXT_sampler_filter_minmax") // 131
 enum VkSamplerReductionModeEXT {
     VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT          = 0,
@@ -1620,6 +1717,27 @@ enum VkCoverageModulationModeNV {
     VK_COVERAGE_MODULATION_MODE_RGB_NV                      = 1,
     VK_COVERAGE_MODULATION_MODE_ALPHA_NV                    = 2,
     VK_COVERAGE_MODULATION_MODE_RGBA_NV                     = 3,
+}
+
+@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+enum VkSamplerYcbcrModelConversionKHR {
+    VK_SAMPLER_YCBCR_MODEL_CONVERSION_RGB_IDENTITY_KHR      = 0,
+    VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_IDENTITY_KHR    = 1,
+    VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709_KHR         = 2,
+    VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601_KHR         = 3,
+    VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_2020_KHR        = 4,
+}
+
+@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+enum VkSamplerYcbcrRangeKHR {
+    VK_SAMPLER_YCBCR_RANGE_ITU_FULL_KHR                     = 0,
+    VK_SAMPLER_YCBCR_RANGE_ITU_NARROW_KHR                   = 1,
+}
+
+@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+enum VkChromaLocationKHR {
+    VK_CHROMA_LOCATION_COSITED_EVEN_KHR                     = 0,
+    VK_CHROMA_LOCATION_MIDPOINT_KHR                         = 1,
 }
 
 @extension("VK_EXT_validation_cache") // 161
@@ -1765,6 +1883,16 @@ bitfield VkImageCreateFlagBits {
 
     //@extension("VK_EXT_sample_locations") // 144
     VK_IMAGE_CREATE_SAMPLE_LOCATIONS_COMPATIBLE_DEPTH_BIT_EXT = 0x00001000,
+
+    //@extension("VK_KHR_maintenance2") // 118
+    VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT_KHR     = 0x00000080,
+    VK_IMAGE_CREATE_EXTENDED_USAGE_BIT_KHR                  = 0x00000100,
+
+    //@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+    VK_IMAGE_CREATE_DISJOINT_BIT_KHR                        = 0x00000200,
+
+    //@extension("VK_KHR_bind_memory2") // 158
+    VK_IMAGE_CREATE_ALIAS_BIT_KHR                           = 0x00000400,
 }
 
 /// Image view creation flags
@@ -1830,6 +1958,15 @@ bitfield VkFormatFeatureFlagBits {
 
     //@extension("VK_EXT_sampler_filter_minmax") // 131
     VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT_EXT   = 0x00010000,
+
+    //@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+    VK_FORMAT_FEATURE_MIDPOINT_CHROMA_SAMPLES_BIT_KHR                                                   = 0x00020000,
+    VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_LINEAR_FILTER_BIT_KHR                              = 0x00040000,
+    VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_SEPARATE_RECONSTRUCTION_FILTER_BIT_KHR             = 0x00080000,
+    VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_CHROMA_RECONSTRUCTION_EXPLICIT_BIT_KHR             = 0x00100000,
+    VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_CHROMA_RECONSTRUCTION_EXPLICIT_FORCEABLE_BIT_KHR   = 0x00200000,
+    VK_FORMAT_FEATURE_DISJOINT_BIT_KHR                                                                  = 0x00400000,
+    VK_FORMAT_FEATURE_COSITED_CHROMA_SAMPLES_BIT_KHR                                                    = 0x00800000,
 }
 
 /// Query control flags
@@ -1893,6 +2030,11 @@ bitfield VkImageAspectFlagBits {
     VK_IMAGE_ASPECT_DEPTH_BIT                               = 0x00000002,
     VK_IMAGE_ASPECT_STENCIL_BIT                             = 0x00000004,
     VK_IMAGE_ASPECT_METADATA_BIT                            = 0x00000008,
+
+    //@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+    VK_IMAGE_ASPECT_PLANE_0_BIT_KHR                         = 0x00000010,
+    VK_IMAGE_ASPECT_PLANE_1_BIT_KHR                         = 0x00000020,
+    VK_IMAGE_ASPECT_PLANE_2_BIT_KHR                         = 0x00000040,
 }
 
 /// Sparse memory bind flags
@@ -3974,23 +4116,17 @@ class VkMemoryAllocateFlagsInfoKHX {
 }
 
 @extension("VK_KHX_device_group") // 61
-class VkBindBufferMemoryInfoKHX {
+class VkBindBufferMemoryDeviceGroupInfoKHX {
     VkStructureType                             sType
     const void*                                 pNext
-    VkBuffer                                    buffer
-    VkDeviceMemory                              memory
-    VkDeviceSize                                memoryOffset
     u32                                         deviceIndexCount
     const u32*                                  pDeviceIndices
 }
 
 @extension("VK_KHX_device_group") // 61
-class VkBindImageMemoryInfoKHX {
+class VkBindImageMemoryDeviceGroupInfoKHX {
     VkStructureType                             sType
     const void*                                 pNext
-    VkImage                                     image
-    VkDeviceMemory                              memory
-    VkDeviceSize                                memoryOffset
     u32                                         deviceIndexCount
     const u32*                                  pDeviceIndices
     u32                                         SFRRectCount
@@ -4747,6 +4883,42 @@ class VkFenceGetFdInfoKHR {
     VkExternalFenceHandleTypeFlagBitsKHR            handleType
 }
 
+@extension("VK_KHR_maintenance2") // 118
+class VkPhysicalDevicePointClippingPropertiesKHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkPointClippingBehaviorKHR                      pointClippingBehavior
+}
+
+@extension("VK_KHR_maintenance2") // 118
+class VkInputAttachmentAspectReferenceKHR {
+    u32                                             subpass
+    u32                                             inputAttachmentIndex
+    VkImageAspectFlags                              aspectMask
+}
+
+@extension("VK_KHR_maintenance2") // 118
+class VkRenderPassInputAttachmentAspectCreateInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u32                                             aspectReferenceCount
+    const VkInputAttachmentAspectReferenceKHR*      pAspectReferences
+}
+
+@extension("VK_KHR_maintenance2") // 118
+class VkImageViewUsageCreateInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkImageUsageFlags                               usage
+}
+
+@extension("VK_KHR_maintenance2") // 118
+class VkPipelineTessellationDomainOriginStateCreateInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkTessellationDomainOriginKHR                   domainOrigin
+}
+
 @extension("VK_KHR_get_surface_capabilities2") // 120
 class VkPhysicalDeviceSurfaceInfo2KHR {
     VkStructureType                                 sType
@@ -4922,6 +5094,14 @@ class VkSparseImageMemoryRequirements2KHR {
     VkSparseImageMemoryRequirements                 memoryRequirements
 }
 
+@extension("VK_KHR_image_format_list") // 148
+class VkImageFormatListCreateInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u32                                             viewFormatCount
+    const VkFormat*                                 pViewFormats
+}
+
 @extension("VK_EXT_blend_operation_advanced") // 149
 class VkPhysicalDeviceBlendOperationAdvancedFeaturesEXT {
     VkStructureType                                 sType
@@ -4968,6 +5148,73 @@ class VkPipelineCoverageModulationStateCreateInfoNV {
     VkBool32                                        coverageModulationTableEnable
     u32                                             coverageModulationTableCount
     const f32*                                      pCoverageModulationTable
+}
+
+@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+class VkSamplerYcbcrConversionCreateInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkFormat                                        format
+    VkSamplerYcbcrModelConversionKHR                ycbcrModel
+    VkSamplerYcbcrRangeKHR                          ycbcrRange
+    VkComponentMapping                              components
+    VkChromaLocationKHR                             xChromaOffset
+    VkChromaLocationKHR                             yChromaOffset
+    VkFilter                                        chromaFilter
+    VkBool32                                        forceExplicitReconstruction
+}
+
+@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+class VkSamplerYcbcrConversionInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkSamplerYcbcrConversionKHR                     conversion
+}
+
+@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+class VkBindImagePlaneMemoryInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkImageAspectFlagBits                           planeAspect
+}
+
+@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+class VkImagePlaneMemoryRequirementsInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkImageAspectFlagBits                           planeAspect
+}
+
+@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+class VkPhysicalDeviceSamplerYcbcrConversionFeaturesKHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        samplerYcbcrConversion
+}
+
+@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+class VkSamplerYcbcrConversionImageFormatPropertiesKHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u32                                             combinedImageSamplerDescriptorCount
+}
+
+@extension("VK_KHR_bind_memory2") // 158
+class VkBindBufferMemoryInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkBuffer                                        buffer
+    VkDeviceMemory                                  memory
+    VkDeviceSize                                    memoryOffset
+}
+
+@extension("VK_KHR_bind_memory2") // 158
+class VkBindImageMemoryInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkImage                                         image
+    VkDeviceMemory                                  memory
+    VkDeviceSize                                    memoryOffset
 }
 
 @extension("VK_EXT_validation_cache") // 161
@@ -7737,22 +7984,6 @@ cmd void vkGetDeviceGroupPeerMemoryFeaturesKHX(
 }
 
 @extension("VK_KHX_device_group") // 61
-cmd VkResult vkBindBufferMemory2KHX(
-        VkDevice                                    device,
-        u32                                         bindInfoCount,
-        const VkBindBufferMemoryInfoKHX*            pBindInfos) {
-    return ?
-}
-
-@extension("VK_KHX_device_group") // 61
-cmd VkResult vkBindImageMemory2KHX(
-        VkDevice                                    device,
-        u32                                         bindInfoCount,
-        const VkBindImageMemoryInfoKHX*             pBindInfos) {
-    return ?
-}
-
-@extension("VK_KHX_device_group") // 61
 cmd void vkCmdSetDeviceMaskKHX(
         VkCommandBuffer                             commandBuffer,
         u32                                         deviceMask) {
@@ -8244,6 +8475,38 @@ cmd void vkGetImageSparseMemoryRequirements2KHR(
         const VkImageSparseMemoryRequirementsInfo2KHR*  pInfo,
         u32*                                            pSparseMemoryRequirementCount,
         VkSparseImageMemoryRequirements2KHR*            pSparseMemoryRequirements) {
+}
+
+@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+cmd VkResult vkCreateSamplerYcbcrConversionKHR(
+        VkDevice                                        device,
+        const VkSamplerYcbcrConversionCreateInfoKHR*    pCreateInfo,
+        const VkAllocationCallbacks*                    pAllocator,
+        VkSamplerYcbcrConversionKHR*                    pYcbcrConversion) {
+    return ?
+}
+
+@extension("VK_KHR_sampler_ycbcr_conversion") // 157
+cmd void vkDestroySamplerYcbcrConversionKHR(
+        VkDevice                                        device,
+        VkSamplerYcbcrConversionKHR                     ycbcrConversion,
+        const VkAllocationCallbacks*                    pAllocator) {
+}
+
+@extension("VK_KHR_bind_memory2") // 158
+cmd VkResult vkBindBufferMemory2KHR(
+        VkDevice                                        device,
+        u32                                             bindInfoCount,
+        const VkBindBufferMemoryInfoKHR*                pBindInfos) {
+    return ?
+}
+
+@extension("VK_KHR_bind_memory2") // 158
+cmd VkResult vkBindImageMemory2KHR(
+        VkDevice                                        device,
+        u32                                             bindInfoCount,
+        const VkBindImageMemoryInfoKHR*                 pBindInfos) {
+    return ?
 }
 
 @extension("VK_EXT_validation_cache") // 161
