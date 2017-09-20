@@ -575,6 +575,19 @@ bool HWComposer::hasDeviceComposition(int32_t displayId) const {
     return mDisplayData[displayId].hasDeviceComposition;
 }
 
+bool HWComposer::hasFlipFBTRequest(int32_t displayId) const {
+    if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
+        // Displays without a corresponding HWC display are never composed by
+        // the device
+        return false;
+    }
+    if (!isValidDisplay(displayId)) {
+        ALOGE("hasFlipFBTRequest: Invalid display %d", displayId);
+        return false;
+    }
+    return (mDisplayData[displayId].displayRequests == HWC2::DisplayRequest::FlipClientTarget);
+}
+
 bool HWComposer::hasClientComposition(int32_t displayId) const {
     if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
         // Displays without a corresponding HWC display are always composed by
