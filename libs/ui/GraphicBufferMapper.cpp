@@ -95,7 +95,7 @@ status_t GraphicBufferMapper::unlock(buffer_handle_t handle)
 {
     int32_t fenceFd = -1;
     status_t error = unlockAsync(handle, &fenceFd);
-    if (error == NO_ERROR) {
+    if (error == NO_ERROR && fenceFd >= 0) {
         sync_wait(fenceFd, -1);
         close(fenceFd);
     }
