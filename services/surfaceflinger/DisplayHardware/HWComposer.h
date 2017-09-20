@@ -119,6 +119,9 @@ public:
     // does this display have layers handled by HWC
     bool hasDeviceComposition(int32_t displayId) const;
 
+    // does this display have pending request to flip FBT
+    bool hasFlipFBTRequest(int32_t displayId) const;
+
     // does this display have layers handled by GLES
     bool hasClientComposition(int32_t displayId) const;
 

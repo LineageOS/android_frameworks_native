@@ -320,7 +320,7 @@ static int prepare_app_quota(const std::unique_ptr<std::string>& uuid, const std
         }
 
         dq.dqb_valid = QIF_LIMITS;
-        dq.dqb_bhardlimit = (((stat.f_blocks * stat.f_frsize) / 10) * 9) / QIF_DQBLKSIZE;
+        dq.dqb_bhardlimit = ((((__u64)stat.f_blocks * stat.f_frsize) / 10) * 9) / QIF_DQBLKSIZE;
         dq.dqb_ihardlimit = (stat.f_files / 2);
         if (quotactl(QCMD(Q_SETQUOTA, USRQUOTA), device.c_str(), uid,
                 reinterpret_cast<char*>(&dq)) != 0) {

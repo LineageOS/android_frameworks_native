@@ -575,6 +575,19 @@ bool HWComposer::hasDeviceComposition(int32_t displayId) const {
     return mDisplayData[displayId].hasDeviceComposition;
 }
 
+bool HWComposer::hasFlipFBTRequest(int32_t displayId) const {
+    if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
+        // Displays without a corresponding HWC display are never composed by
+        // the device
+        return false;
+    }
+    if (!isValidDisplay(displayId)) {
+        ALOGE("hasFlipFBTRequest: Invalid display %d", displayId);
+        return false;
+    }
+    return (mDisplayData[displayId].displayRequests == HWC2::DisplayRequest::FlipClientTarget);
+}
+
 bool HWComposer::hasClientComposition(int32_t displayId) const {
     if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
         // Displays without a corresponding HWC display are always composed by
@@ -621,7 +634,16 @@ status_t HWComposer::presentAndGetReleaseFences(int32_t displayId) {
     auto& hwcDisplay = displayData.hwcDisplay;
 
     if (displayData.validateWasSkipped) {
-        hwcDisplay->discardCommands();
+        bool discardCommands = true;
+        for (int32_t display = HWC_DISPLAY_PRIMARY; display < HWC_NUM_DISPLAY_TYPES; display++) {
+            if (isValidDisplay(display) && !mDisplayData[display].validateWasSkipped) {
+                discardCommands = false;
+                break;
+            }
+        }
+        if (discardCommands) {
+            hwcDisplay->discardCommands();
+        }
         auto error = displayData.presentError;
         if (error != HWC2::Error::None) {
             ALOGE("skipValidate: failed for display %d: %s (%d)",
