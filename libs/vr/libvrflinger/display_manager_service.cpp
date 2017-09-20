@@ -65,6 +65,7 @@ void DisplayManagerService::OnChannelClose(
 }
 
 pdx::Status<void> DisplayManagerService::HandleMessage(pdx::Message& message) {
+  ATRACE_NAME("DisplayManagerService::HandleMessage");
   auto channel = std::static_pointer_cast<DisplayManager>(message.GetChannel());
 
   switch (message.GetOp()) {
