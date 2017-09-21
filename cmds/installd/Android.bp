@@ -4,6 +4,7 @@ cc_defaults {
     cflags: [
         "-Wall",
         "-Werror",
+        "-Wextra",
     ],
     srcs: [
         "CacheItem.cpp",
@@ -25,6 +26,17 @@ cc_defaults {
     ],
 
     clang: true,
+
+    tidy: true,
+    tidy_checks: [
+        "-*",
+        "clang-analyzer-security*",
+        "cert-*",
+        "-cert-err58-cpp",
+    ],
+    tidy_flags: [
+        "-warnings-as-errors=clang-analyzer-security*,cert-*"
+    ],
 }
 
 //
