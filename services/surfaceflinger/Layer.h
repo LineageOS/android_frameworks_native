@@ -241,7 +241,7 @@ public:
     bool setOverrideScalingMode(int32_t overrideScalingMode);
     void setInfo(uint32_t type, uint32_t appId);
     bool reparentChildren(const sp<IBinder>& layer);
-    bool reparentChild(const sp<IBinder>& newParentHandle, const sp<IBinder>& childHandle);
+    bool reparent(const sp<IBinder>& newParentHandle);
     bool detachChildren();
 
     // If we have received a new buffer this frame, we will pass its surface
