@@ -142,9 +142,7 @@ class Layer {
   bool operator<(const Layer& other) const {
     return GetSurfaceId() < other.GetSurfaceId();
   }
-  bool operator<(int surface_id) const {
-    return GetSurfaceId() < surface_id;
-  }
+  bool operator<(int surface_id) const { return GetSurfaceId() < surface_id; }
 
   // Sets the composer instance used by all Layer instances.
   static void SetComposer(Hwc2::Composer* composer) { composer_ = composer; }
@@ -340,19 +338,23 @@ class HardwareComposer {
 
   class ComposerCallback : public Hwc2::IComposerCallback {
    public:
-    ComposerCallback();
+    ComposerCallback() = default;
     hardware::Return<void> onHotplug(Hwc2::Display display,
                                      Connection conn) override;
     hardware::Return<void> onRefresh(Hwc2::Display display) override;
     hardware::Return<void> onVsync(Hwc2::Display display,
                                    int64_t timestamp) override;
-    const pdx::LocalHandle& GetVsyncEventFd() const;
-    int64_t GetVsyncTime();
+
+    pdx::Status<int64_t> GetVsyncTime(Hwc2::Display display);
 
    private:
     std::mutex vsync_mutex_;
-    pdx::LocalHandle vsync_event_fd_;
-    int64_t vsync_time_ = -1;
+
+    struct Display {
+      pdx::LocalHandle driver_vsync_event_fd;
+      int64_t callback_vsync_timestamp{0};
+    };
+    std::array<Display, HWC_NUM_PHYSICAL_DISPLAY_TYPES> displays_;
   };
 
   HWC::Error Validate(hwc2_display_t display);
@@ -392,10 +394,9 @@ class HardwareComposer {
   // can be interrupted by a control thread. If interrupted, these calls return
   // kPostThreadInterrupted.
   int ReadWaitPPState();
-  int WaitForVSync(int64_t* timestamp);
+  pdx::Status<int64_t> WaitForVSync();
+  pdx::Status<int64_t> GetVSyncTime();
   int SleepUntil(int64_t wakeup_timestamp);
-
-  bool IsFramePendingInDriver() { return false; }
 
   // Reconfigures the layer stack if the display surfaces changed since the last
   // frame. Called only from the post thread.
@@ -462,6 +463,9 @@ class HardwareComposer {
 
   // The timestamp of the last vsync.
   int64_t last_vsync_timestamp_ = 0;
+
+  // The number of vsync intervals to predict since the last vsync.
+  int vsync_prediction_interval_ = 1;
 
   // Vsync count since display on.
   uint32_t vsync_count_ = 0;

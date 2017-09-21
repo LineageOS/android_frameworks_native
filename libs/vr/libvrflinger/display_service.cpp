@@ -124,6 +124,8 @@ void DisplayService::OnChannelClose(pdx::Message& message,
 // surface-specific messages to the per-instance handlers.
 Status<void> DisplayService::HandleMessage(pdx::Message& message) {
   ALOGD_IF(TRACE, "DisplayService::HandleMessage: opcode=%d", message.GetOp());
+  ATRACE_NAME("DisplayService::HandleMessage");
+
   switch (message.GetOp()) {
     case DisplayProtocol::GetMetrics::Opcode:
       DispatchRemoteMethod<DisplayProtocol::GetMetrics>(
