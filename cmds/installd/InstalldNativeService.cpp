@@ -711,6 +711,9 @@ binder::Status InstalldNativeService::fixupAppData(const std::unique_ptr<std::st
                     // Ignore all other GID transitions, since they're kinda shady
                     LOG(WARNING) << "Ignoring " << p->fts_path << " with unexpected GID " << actual
                             << " instead of " << expected;
+                    if (!(flags & FLAG_FORCE)) {
+                        fts_set(fts, p, FTS_SKIP);
+                    }
                 }
             }
         }
