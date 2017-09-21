@@ -5,12 +5,14 @@
 #include <fcntl.h>
 #include <log/log.h>
 #include <poll.h>
+#include <stdint.h>
 #include <sync/sync.h>
 #include <sys/eventfd.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/system_properties.h>
 #include <sys/timerfd.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 #include <utils/Trace.h>
@@ -30,7 +32,9 @@
 
 using android::hardware::Return;
 using android::hardware::Void;
+using android::pdx::ErrorStatus;
 using android::pdx::LocalHandle;
+using android::pdx::Status;
 using android::pdx::rpc::EmptyVariant;
 using android::pdx::rpc::IfAnyOf;
 
@@ -44,9 +48,8 @@ namespace {
 const char kBacklightBrightnessSysFile[] =
     "/sys/class/leds/lcd-backlight/brightness";
 
-const char kPrimaryDisplayWaitPPEventFile[] = "/sys/class/graphics/fb0/wait_pp";
-
 const char kDvrPerformanceProperty[] = "sys.dvr.performance";
+const char kDvrStandaloneProperty[] = "ro.boot.vr";
 
 const char kRightEyeOffsetProperty[] = "dvr.right_eye_offset_ns";
 
@@ -83,6 +86,29 @@ bool SetThreadPolicy(const std::string& scheduler_class,
   return true;
 }
 
+// Utility to generate scoped tracers with arguments.
+// TODO(eieio): Move/merge this into utils/Trace.h?
+class TraceArgs {
+ public:
+  template <typename... Args>
+  TraceArgs(const char* format, Args&&... args) {
+    std::array<char, 1024> buffer;
+    snprintf(buffer.data(), buffer.size(), format, std::forward<Args>(args)...);
+    atrace_begin(ATRACE_TAG, buffer.data());
+  }
+
+  ~TraceArgs() { atrace_end(ATRACE_TAG); }
+
+ private:
+  TraceArgs(const TraceArgs&) = delete;
+  void operator=(const TraceArgs&) = delete;
+};
+
+// Macro to define a scoped tracer with arguments. Uses PASTE(x, y) macro
+// defined in utils/Trace.h.
+#define TRACE_FORMAT(format, ...) \
+  TraceArgs PASTE(__tracer, __LINE__) { format, ##__VA_ARGS__ }
+
 }  // anonymous namespace
 
 HardwareComposer::HardwareComposer()
@@ -100,6 +126,8 @@ bool HardwareComposer::Initialize(
     ALOGE("HardwareComposer::Initialize: already initialized.");
     return false;
   }
+
+  is_standalone_device_ = property_get_bool(kDvrStandaloneProperty, false);
 
   request_display_callback_ = request_display_callback;
 
@@ -198,10 +226,17 @@ void HardwareComposer::UpdatePostThreadState(PostThreadStateType state,
 }
 
 void HardwareComposer::OnPostThreadResumed() {
-  composer_.reset(new Hwc2::Composer(false));
-  composer_callback_ = new ComposerCallback;
-  composer_->registerCallback(composer_callback_);
-  Layer::SetComposer(composer_.get());
+  // Phones create a new composer client on resume and destroy it on pause.
+  // Standalones only create the composer client once and then use SetPowerMode
+  // to control the screen on pause/resume.
+  if (!is_standalone_device_ || !composer_) {
+    composer_.reset(new Hwc2::Composer(false));
+    composer_callback_ = new ComposerCallback;
+    composer_->registerCallback(composer_callback_);
+    Layer::SetComposer(composer_.get());
+  } else {
+    SetPowerMode(true);
+  }
 
   EnableVsync(true);
 
@@ -224,9 +259,13 @@ void HardwareComposer::OnPostThreadPaused() {
     EnableVsync(false);
   }
 
-  composer_callback_ = nullptr;
-  composer_.reset(nullptr);
-  Layer::SetComposer(nullptr);
+  if (!is_standalone_device_) {
+    composer_callback_ = nullptr;
+    composer_.reset(nullptr);
+    Layer::SetComposer(nullptr);
+  } else {
+    SetPowerMode(false);
+  }
 
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "idle");
@@ -254,6 +293,12 @@ HWC::Error HardwareComposer::EnableVsync(bool enabled) {
       HWC_DISPLAY_PRIMARY,
       (Hwc2::IComposerClient::Vsync)(enabled ? HWC2_VSYNC_ENABLE
                                              : HWC2_VSYNC_DISABLE));
+}
+
+HWC::Error HardwareComposer::SetPowerMode(bool active) {
+  HWC::PowerMode power_mode = active ? HWC::PowerMode::On : HWC::PowerMode::Off;
+  return composer_->setPowerMode(
+      HWC_DISPLAY_PRIMARY, power_mode.cast<Hwc2::IComposerClient::PowerMode>());
 }
 
 HWC::Error HardwareComposer::Present(hwc2_display_t display) {
@@ -393,14 +438,12 @@ void HardwareComposer::PostLayers() {
     retire_fence_fds_.erase(retire_fence_fds_.begin());
   }
 
-  const bool is_frame_pending = IsFramePendingInDriver();
   const bool is_fence_pending = static_cast<int32_t>(retire_fence_fds_.size()) >
                                 post_thread_config_.allowed_pending_fence_count;
 
-  if (is_fence_pending || is_frame_pending) {
+  if (is_fence_pending) {
     ATRACE_INT("frame_skip_count", ++frame_skip_count_);
 
-    ALOGW_IF(is_frame_pending, "Warning: frame already queued, dropping frame");
     ALOGW_IF(is_fence_pending,
              "Warning: dropping a frame to catch up with HWC (pending = %zd)",
              retire_fence_fds_.size());
@@ -459,7 +502,7 @@ void HardwareComposer::SetDisplaySurfaces(
     pending_surfaces_ = std::move(surfaces);
   }
 
-  if (request_display_callback_)
+  if (request_display_callback_ && (!is_standalone_device_ || !composer_))
     request_display_callback_(!display_idle);
 
   // Set idle state based on whether there are any surfaces to handle.
@@ -569,60 +612,28 @@ int HardwareComposer::PostThreadPollInterruptible(
   }
 }
 
-// Reads the value of the display driver wait_pingpong state. Returns 0 or 1
-// (the value of the state) on success or a negative error otherwise.
-// TODO(eieio): This is pretty driver specific, this should be moved to a
-// separate class eventually.
-int HardwareComposer::ReadWaitPPState() {
-  // Gracefully handle when the kernel does not support this feature.
-  if (!primary_display_wait_pp_fd_)
-    return 0;
-
-  const int wait_pp_fd = primary_display_wait_pp_fd_.Get();
-  int ret, error;
-
-  ret = lseek(wait_pp_fd, 0, SEEK_SET);
-  if (ret < 0) {
-    error = errno;
-    ALOGE("HardwareComposer::ReadWaitPPState: Failed to seek wait_pp fd: %s",
-          strerror(error));
-    return -error;
-  }
-
-  char data = -1;
-  ret = read(wait_pp_fd, &data, sizeof(data));
-  if (ret < 0) {
-    error = errno;
-    ALOGE("HardwareComposer::ReadWaitPPState: Failed to read wait_pp state: %s",
-          strerror(error));
-    return -error;
-  }
-
-  switch (data) {
-    case '0':
-      return 0;
-    case '1':
-      return 1;
-    default:
-      ALOGE(
-          "HardwareComposer::ReadWaitPPState: Unexpected value for wait_pp: %d",
-          data);
-      return -EINVAL;
-  }
+Status<int64_t> HardwareComposer::GetVSyncTime() {
+  auto status = composer_callback_->GetVsyncTime(HWC_DISPLAY_PRIMARY);
+  ALOGE_IF(!status,
+           "HardwareComposer::GetVSyncTime: Failed to get vsync timestamp: %s",
+           status.GetErrorMessage().c_str());
+  return status;
 }
 
 // Waits for the next vsync and returns the timestamp of the vsync event. If
 // vsync already passed since the last call, returns the latest vsync timestamp
 // instead of blocking.
-int HardwareComposer::WaitForVSync(int64_t* timestamp) {
-  int error = PostThreadPollInterruptible(composer_callback_->GetVsyncEventFd(),
-                                          POLLIN, /*timeout_ms*/ 1000);
-  if (error == kPostThreadInterrupted || error < 0) {
+Status<int64_t> HardwareComposer::WaitForVSync() {
+  const int64_t predicted_vsync_time =
+      last_vsync_timestamp_ +
+      display_metrics_.vsync_period_ns * vsync_prediction_interval_;
+  const int error = SleepUntil(predicted_vsync_time);
+  if (error < 0) {
+    ALOGE("HardwareComposer::WaifForVSync:: Failed to sleep: %s",
+          strerror(-error));
     return error;
-  } else {
-    *timestamp = composer_callback_->GetVsyncTime();
-    return 0;
   }
+  return {predicted_vsync_time};
 }
 
 int HardwareComposer::SleepUntil(int64_t wakeup_timestamp) {
@@ -640,8 +651,8 @@ int HardwareComposer::SleepUntil(int64_t wakeup_timestamp) {
     return -error;
   }
 
-  return PostThreadPollInterruptible(
-      vsync_sleep_timer_fd_, POLLIN, /*timeout_ms*/ -1);
+  return PostThreadPollInterruptible(vsync_sleep_timer_fd_, POLLIN,
+                                     /*timeout_ms*/ -1);
 }
 
 void HardwareComposer::PostThread() {
@@ -663,15 +674,6 @@ void HardwareComposer::PostThread() {
            "HardwareComposer: Failed to open backlight brightness control: %s",
            strerror(errno));
 #endif  // ENABLE_BACKLIGHT_BRIGHTNESS
-
-  // Open the wait pingpong status node for the primary display.
-  // TODO(eieio): Move this into a platform-specific class.
-  primary_display_wait_pp_fd_ =
-      LocalHandle(kPrimaryDisplayWaitPPEventFile, O_RDONLY);
-  ALOGW_IF(
-      !primary_display_wait_pp_fd_,
-      "HardwareComposer: Failed to open wait_pp node for primary display: %s",
-      strerror(errno));
 
   // Create a timerfd based on CLOCK_MONOTINIC.
   vsync_sleep_timer_fd_.Reset(timerfd_create(CLOCK_MONOTONIC, 0));
@@ -737,26 +739,41 @@ void HardwareComposer::PostThread() {
         thread_policy_setup =
             SetThreadPolicy("graphics:high", "/system/performance");
       }
+
+      // Initialize the last vsync timestamp with the current time. The
+      // predictor below uses this time + the vsync interval in absolute time
+      // units for the initial delay. Once the driver starts reporting vsync the
+      // predictor will sync up with the real vsync.
+      last_vsync_timestamp_ = GetSystemClockNs();
     }
 
     int64_t vsync_timestamp = 0;
     {
-      std::array<char, 128> buf;
-      snprintf(buf.data(), buf.size(), "wait_vsync|vsync=%d|",
-               vsync_count_ + 1);
-      ATRACE_NAME(buf.data());
+      TRACE_FORMAT("wait_vsync|vsync=%u;last_timestamp=%" PRId64
+                   ";prediction_interval=%d|",
+                   vsync_count_ + 1, last_vsync_timestamp_,
+                   vsync_prediction_interval_);
 
-      const int error = WaitForVSync(&vsync_timestamp);
+      auto status = WaitForVSync();
       ALOGE_IF(
-          error < 0,
+          !status,
           "HardwareComposer::PostThread: Failed to wait for vsync event: %s",
-          strerror(-error));
-      // Don't bother processing this frame if a pause was requested
-      if (error == kPostThreadInterrupted)
+          status.GetErrorMessage().c_str());
+
+      // If there was an error either sleeping was interrupted due to pausing or
+      // there was an error getting the latest timestamp.
+      if (!status)
         continue;
+
+      // Predicted vsync timestamp for this interval. This is stable because we
+      // use absolute time for the wakeup timer.
+      vsync_timestamp = status.get();
     }
 
-    ++vsync_count_;
+    // Advance the vsync counter only if the system is keeping up with hardware
+    // vsync to give clients an indication of the delays.
+    if (vsync_prediction_interval_ == 1)
+      ++vsync_count_;
 
     const bool layer_config_changed = UpdateLayerConfig();
 
@@ -803,6 +820,38 @@ void HardwareComposer::PostThread() {
           }
           continue;
         }
+      }
+    }
+
+    {
+      auto status = GetVSyncTime();
+      if (!status) {
+        ALOGE("HardwareComposer::PostThread: Failed to get VSYNC time: %s",
+              status.GetErrorMessage().c_str());
+      }
+
+      // If we failed to read vsync there might be a problem with the driver.
+      // Since there's nothing we can do just behave as though we didn't get an
+      // updated vsync time and let the prediction continue.
+      const int64_t current_vsync_timestamp =
+          status ? status.get() : last_vsync_timestamp_;
+
+      const bool vsync_delayed =
+          last_vsync_timestamp_ == current_vsync_timestamp;
+      ATRACE_INT("vsync_delayed", vsync_delayed);
+
+      // If vsync was delayed advance the prediction interval and allow the
+      // fence logic in PostLayers() to skip the frame.
+      if (vsync_delayed) {
+        ALOGW(
+            "HardwareComposer::PostThread: VSYNC timestamp did not advance "
+            "since last frame: timestamp=%" PRId64 " prediction_interval=%d",
+            current_vsync_timestamp, vsync_prediction_interval_);
+        vsync_prediction_interval_++;
+      } else {
+        // We have an updated vsync timestamp, reset the prediction interval.
+        last_vsync_timestamp_ = current_vsync_timestamp;
+        vsync_prediction_interval_ = 1;
       }
     }
 
@@ -893,17 +942,28 @@ void HardwareComposer::SetBacklightBrightness(int brightness) {
   }
 }
 
-HardwareComposer::ComposerCallback::ComposerCallback() {
-  vsync_event_fd_.Reset(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
-  LOG_ALWAYS_FATAL_IF(
-      !vsync_event_fd_,
-      "Failed to create vsync event fd : %s",
-      strerror(errno));
-}
-
 Return<void> HardwareComposer::ComposerCallback::onHotplug(
-    Hwc2::Display /*display*/,
-    IComposerCallback::Connection /*conn*/) {
+    Hwc2::Display display, IComposerCallback::Connection /*conn*/) {
+  // See if the driver supports the vsync_event node in sysfs.
+  if (display < HWC_NUM_PHYSICAL_DISPLAY_TYPES &&
+      !displays_[display].driver_vsync_event_fd) {
+    std::array<char, 1024> buffer;
+    snprintf(buffer.data(), buffer.size(),
+             "/sys/class/graphics/fb%" PRIu64 "/vsync_event", display);
+    if (LocalHandle handle{buffer.data(), O_RDONLY}) {
+      ALOGI(
+          "HardwareComposer::ComposerCallback::onHotplug: Driver supports "
+          "vsync_event node for display %" PRIu64,
+          display);
+      displays_[display].driver_vsync_event_fd = std::move(handle);
+    } else {
+      ALOGI(
+          "HardwareComposer::ComposerCallback::onHotplug: Driver does not "
+          "support vsync_event node for display %" PRIu64,
+          display);
+    }
+  }
+
   return Void();
 }
 
@@ -912,31 +972,83 @@ Return<void> HardwareComposer::ComposerCallback::onRefresh(
   return hardware::Void();
 }
 
-Return<void> HardwareComposer::ComposerCallback::onVsync(
-    Hwc2::Display display, int64_t timestamp) {
-  if (display == HWC_DISPLAY_PRIMARY) {
-    std::lock_guard<std::mutex> lock(vsync_mutex_);
-    vsync_time_ = timestamp;
-    int error = eventfd_write(vsync_event_fd_.Get(), 1);
-    LOG_ALWAYS_FATAL_IF(error != 0, "Failed writing to vsync event fd");
+Return<void> HardwareComposer::ComposerCallback::onVsync(Hwc2::Display display,
+                                                         int64_t timestamp) {
+  TRACE_FORMAT("vsync_callback|display=%" PRIu64 ";timestamp=%" PRId64 "|",
+               display, timestamp);
+  if (display < HWC_NUM_PHYSICAL_DISPLAY_TYPES) {
+    displays_[display].callback_vsync_timestamp = timestamp;
+  } else {
+    ALOGW(
+        "HardwareComposer::ComposerCallback::onVsync: Received vsync on "
+        "non-physical display: display=%" PRId64,
+        display);
   }
   return Void();
 }
 
-const pdx::LocalHandle&
-HardwareComposer::ComposerCallback::GetVsyncEventFd() const {
-  return vsync_event_fd_;
-}
+Status<int64_t> HardwareComposer::ComposerCallback::GetVsyncTime(
+    Hwc2::Display display) {
+  if (display >= HWC_NUM_PHYSICAL_DISPLAY_TYPES) {
+    ALOGE(
+        "HardwareComposer::ComposerCallback::GetVsyncTime: Invalid physical "
+        "display requested: display=%" PRIu64,
+        display);
+    return ErrorStatus(EINVAL);
+  }
 
-int64_t HardwareComposer::ComposerCallback::GetVsyncTime() {
-  std::lock_guard<std::mutex> lock(vsync_mutex_);
-  eventfd_t event;
-  eventfd_read(vsync_event_fd_.Get(), &event);
-  LOG_ALWAYS_FATAL_IF(vsync_time_ < 0,
-                      "Attempt to read vsync time before vsync event");
-  int64_t return_val = vsync_time_;
-  vsync_time_ = -1;
-  return return_val;
+  // See if the driver supports direct vsync events.
+  LocalHandle& event_fd = displays_[display].driver_vsync_event_fd;
+  if (!event_fd) {
+    // Fall back to returning the last timestamp returned by the vsync
+    // callback.
+    std::lock_guard<std::mutex> autolock(vsync_mutex_);
+    return displays_[display].callback_vsync_timestamp;
+  }
+
+  // When the driver supports the vsync_event sysfs node we can use it to
+  // determine the latest vsync timestamp, even if the HWC callback has been
+  // delayed.
+
+  // The driver returns data in the form "VSYNC=<timestamp ns>".
+  std::array<char, 32> data;
+  data.fill('\0');
+
+  // Seek back to the beginning of the event file.
+  int ret = lseek(event_fd.Get(), 0, SEEK_SET);
+  if (ret < 0) {
+    const int error = errno;
+    ALOGE(
+        "HardwareComposer::ComposerCallback::GetVsyncTime: Failed to seek "
+        "vsync event fd: %s",
+        strerror(error));
+    return ErrorStatus(error);
+  }
+
+  // Read the vsync event timestamp.
+  ret = read(event_fd.Get(), data.data(), data.size());
+  if (ret < 0) {
+    const int error = errno;
+    ALOGE_IF(error != EAGAIN,
+             "HardwareComposer::ComposerCallback::GetVsyncTime: Error "
+             "while reading timestamp: %s",
+             strerror(error));
+    return ErrorStatus(error);
+  }
+
+  int64_t timestamp;
+  ret = sscanf(data.data(), "VSYNC=%" PRIu64,
+               reinterpret_cast<uint64_t*>(&timestamp));
+  if (ret < 0) {
+    const int error = errno;
+    ALOGE(
+        "HardwareComposer::ComposerCallback::GetVsyncTime: Error while "
+        "parsing timestamp: %s",
+        strerror(error));
+    return ErrorStatus(error);
+  }
+
+  return {timestamp};
 }
 
 Hwc2::Composer* Layer::composer_{nullptr};

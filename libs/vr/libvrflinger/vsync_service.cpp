@@ -110,6 +110,7 @@ void VSyncService::UpdateClients() {
 }
 
 pdx::Status<void> VSyncService::HandleMessage(pdx::Message& message) {
+  ATRACE_NAME("VSyncService::HandleMessage");
   switch (message.GetOp()) {
     case VSyncProtocol::Wait::Opcode:
       AddWaiter(message);

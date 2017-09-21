@@ -89,21 +89,44 @@ int dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
 int dvrWriteBufferQueueCreateReadQueue(DvrWriteBufferQueue* write_queue,
                                        DvrReadBufferQueue** out_read_queue);
 
-// Dequeue a buffer to write into.
+// @deprecated Please use dvrWriteBufferQueueGainBuffer instead.
+int dvrWriteBufferQueueDequeue(DvrWriteBufferQueue* write_queue, int timeout,
+                               DvrWriteBuffer* out_buffer, int* out_fence_fd);
+
+// Gains a buffer to write into.
 //
-// @param write_queue The DvrWriteBufferQueue of interest.
+// @param write_queue The DvrWriteBufferQueue to gain buffer from.
 // @param timeout Specifies the number of milliseconds that the method will
 //     block. Specifying a timeout of -1 causes it to block indefinitely,
 //     while specifying a timeout equal to zero cause it to return immediately,
 //     even if no buffers are available.
 // @param out_buffer A targeting DvrWriteBuffer object to hold the output of the
-//     dequeue operation. Must be created by |dvrWriteBufferCreateEmpty|.
+//     dequeue operation.
+// @param out_meta A DvrNativeBufferMetadata object populated by the
+//     corresponding dvrReadBufferQueueReleaseBuffer API.
 // @param out_fence_fd A sync fence fd defined in NDK's sync.h API, which
 //     signals the release of underlying buffer. The producer should wait until
 //     this fence clears before writing data into it.
 // @return Zero on success, or negative error code.
-int dvrWriteBufferQueueDequeue(DvrWriteBufferQueue* write_queue, int timeout,
-                               DvrWriteBuffer* out_buffer, int* out_fence_fd);
+int dvrWriteBufferQueueGainBuffer(DvrWriteBufferQueue* write_queue, int timeout,
+                                  DvrWriteBuffer** out_write_buffer,
+                                  DvrNativeBufferMetadata* out_meta,
+                                  int* out_fence_fd);
+
+// Posts a buffer and signals its readiness to be read from.
+//
+// @param write_queue The DvrWriteBufferQueue to post buffer into.
+// @param write_buffer The buffer to be posted.
+// @param meta The buffer metadata describing the buffer.
+// @param ready_fence_fd  A sync fence fd defined in NDK's sync.h API, which
+//     signals the readdiness of underlying buffer. When a valid fence gets
+//     passed in, the consumer will wait the fence to be ready before it starts
+//     to ready from the buffer.
+// @return Zero on success, or negative error code.
+int dvrWriteBufferQueuePostBuffer(DvrWriteBufferQueue* write_queue,
+                                  DvrWriteBuffer* write_buffer,
+                                  const DvrNativeBufferMetadata* meta,
+                                  int ready_fence_fd);
 
 // Overrides buffer dimension with new width and height.
 //
@@ -153,28 +176,45 @@ int dvrReadBufferQueueGetEventFd(DvrReadBufferQueue* read_queue);
 int dvrReadBufferQueueCreateReadQueue(DvrReadBufferQueue* read_queue,
                                       DvrReadBufferQueue** out_read_queue);
 
-// Dequeue a buffer to read from.
+// @deprecated Please use dvrReadBufferQueueAcquireBuffer instead.
+int dvrReadBufferQueueDequeue(DvrReadBufferQueue* read_queue, int timeout,
+                              DvrReadBuffer* out_buffer, int* out_fence_fd,
+                              void* out_meta, size_t meta_size_bytes);
+
+// Dequeues a buffer to read from.
 //
-// @param read_queue The DvrReadBufferQueue of interest.
+// @param read_queue The DvrReadBufferQueue to acquire buffer from.
 // @param timeout Specifies the number of milliseconds that the method will
 //     block. Specifying a timeout of -1 causes it to block indefinitely,
 //     while specifying a timeout equal to zero cause it to return immediately,
 //     even if no buffers are available.
 // @param out_buffer A targeting DvrReadBuffer object to hold the output of the
 //     dequeue operation. Must be created by |dvrReadBufferCreateEmpty|.
+// @param out_meta A DvrNativeBufferMetadata object populated by the
+//     corresponding dvrWriteBufferQueuePostBuffer API.
 // @param out_fence_fd A sync fence fd defined in NDK's sync.h API, which
 //     signals the release of underlying buffer. The consumer should wait until
 //     this fence clears before reading data from it.
-// @param out_meta The memory area where a metadata object will be filled.
-//     Can be nullptr iff |meta_size_bytes| is zero (i.e., there is no
-//     metadata).
-// @param meta_size_bytes Size of the metadata object caller expects. If it
-//     doesn't match the size of actually metadata transported by the buffer
-//     queue, the method returns -EINVAL.
 // @return Zero on success, or negative error code.
-int dvrReadBufferQueueDequeue(DvrReadBufferQueue* read_queue, int timeout,
-                              DvrReadBuffer* out_buffer, int* out_fence_fd,
-                              void* out_meta, size_t meta_size_bytes);
+int dvrReadBufferQueueAcquireBuffer(DvrReadBufferQueue* read_queue, int timeout,
+                                    DvrReadBuffer** out_read_buffer,
+                                    DvrNativeBufferMetadata* out_meta,
+                                    int* out_fence_fd);
+
+// Releases a buffer and signals its readiness to be written into.
+//
+// @param read_queue The DvrReadBufferQueue to release buffer into.
+// @param read_buffer The buffer to be released.
+// @param meta The buffer metadata describing the buffer.
+// @param release_fence_fd A sync fence fd defined in NDK's sync.h API, which
+//     signals the readdiness of underlying buffer. When a valid fence gets
+//     passed in, the producer will wait the fence to be ready before it starts
+//     to write into the buffer again.
+// @return Zero on success, or negative error code.
+int dvrReadBufferQueueReleaseBuffer(DvrReadBufferQueue* read_queue,
+                                    DvrReadBuffer* read_buffer,
+                                    const DvrNativeBufferMetadata* meta,
+                                    int release_fence_fd);
 
 // Callback function which will be called when a buffer is avaiable.
 //

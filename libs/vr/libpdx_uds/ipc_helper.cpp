@@ -20,6 +20,9 @@ namespace uds {
 
 namespace {
 
+constexpr size_t kMaxFdCount =
+    256;  // Total of 1KiB of data to transfer these FDs.
+
 // Default implementations of Send/Receive interfaces to use standard socket
 // send/sendmsg/recv/recvmsg functions.
 class SocketSender : public SendInterface {
@@ -175,20 +178,31 @@ Status<void> SendPayload::Send(const BorrowedHandle& socket_fd) {
 }
 
 Status<void> SendPayload::Send(const BorrowedHandle& socket_fd,
-                               const ucred* cred) {
+                               const ucred* cred, const iovec* data_vec,
+                               size_t vec_count) {
+  if (file_handles_.size() > kMaxFdCount) {
+    ALOGE(
+        "SendPayload::Send: Trying to send too many file descriptors (%zu), "
+        "max allowed = %zu",
+        file_handles_.size(), kMaxFdCount);
+    return ErrorStatus{EINVAL};
+  }
+
   SendInterface* sender = sender_ ? sender_ : &g_socket_sender;
   MessagePreamble preamble;
   preamble.magic = kMagicPreamble;
   preamble.data_size = buffer_.size();
   preamble.fd_count = file_handles_.size();
-  Status<void> ret = SendAll(sender, socket_fd, &preamble, sizeof(preamble));
-  if (!ret)
-    return ret;
 
   msghdr msg = {};
-  iovec recv_vect = {buffer_.data(), buffer_.size()};
-  msg.msg_iov = &recv_vect;
-  msg.msg_iovlen = 1;
+  msg.msg_iovlen = 2 + vec_count;
+  msg.msg_iov = static_cast<iovec*>(alloca(sizeof(iovec) * msg.msg_iovlen));
+  msg.msg_iov[0].iov_base = &preamble;
+  msg.msg_iov[0].iov_len = sizeof(preamble);
+  msg.msg_iov[1].iov_base = buffer_.data();
+  msg.msg_iov[1].iov_len = buffer_.size();
+  for (size_t i = 0; i < vec_count; i++)
+    msg.msg_iov[i + 2] = data_vec[i];
 
   if (cred || !file_handles_.empty()) {
     const size_t fd_bytes = file_handles_.size() * sizeof(int);
@@ -270,7 +284,15 @@ Status<void> ReceivePayload::Receive(const BorrowedHandle& socket_fd,
                                      ucred* cred) {
   RecvInterface* receiver = receiver_ ? receiver_ : &g_socket_receiver;
   MessagePreamble preamble;
-  Status<void> ret = RecvAll(receiver, socket_fd, &preamble, sizeof(preamble));
+  msghdr msg = {};
+  iovec recv_vect = {&preamble, sizeof(preamble)};
+  msg.msg_iov = &recv_vect;
+  msg.msg_iovlen = 1;
+  const size_t receive_fd_bytes = kMaxFdCount * sizeof(int);
+  msg.msg_controllen = CMSG_SPACE(sizeof(ucred)) + CMSG_SPACE(receive_fd_bytes);
+  msg.msg_control = alloca(msg.msg_controllen);
+
+  Status<void> ret = RecvMsgAll(receiver, socket_fd, &msg);
   if (!ret)
     return ret;
 
@@ -283,23 +305,6 @@ Status<void> ReceivePayload::Receive(const BorrowedHandle& socket_fd,
   buffer_.resize(preamble.data_size);
   file_handles_.clear();
   read_pos_ = 0;
-
-  msghdr msg = {};
-  iovec recv_vect = {buffer_.data(), buffer_.size()};
-  msg.msg_iov = &recv_vect;
-  msg.msg_iovlen = 1;
-
-  if (cred || preamble.fd_count) {
-    const size_t receive_fd_bytes = preamble.fd_count * sizeof(int);
-    msg.msg_controllen =
-        (cred ? CMSG_SPACE(sizeof(ucred)) : 0) +
-        (receive_fd_bytes == 0 ? 0 : CMSG_SPACE(receive_fd_bytes));
-    msg.msg_control = alloca(msg.msg_controllen);
-  }
-
-  ret = RecvMsgAll(receiver, socket_fd, &msg);
-  if (!ret)
-    return ret;
 
   bool cred_available = false;
   file_handles_.reserve(preamble.fd_count);
@@ -319,6 +324,10 @@ Status<void> ReceivePayload::Receive(const BorrowedHandle& socket_fd,
     }
     cmsg = CMSG_NXTHDR(&msg, cmsg);
   }
+
+  ret = RecvAll(receiver, socket_fd, buffer_.data(), buffer_.size());
+  if (!ret)
+    return ret;
 
   if (cred && !cred_available) {
     ALOGE("ReceivePayload::Receive: Failed to obtain message credentials");
