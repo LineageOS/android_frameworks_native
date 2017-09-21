@@ -2437,7 +2437,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
 
                 // compute the opaque region
                 const int32_t layerOrientation = tr.getOrientation();
-                if (s.alpha == 1.0f && !translucent &&
+                if (layer->getAlpha() == 1.0f && !translucent &&
                         ((layerOrientation & Transform::ROT_INVALID) == false)) {
                     // the opaque region is the layer's footprint
                     opaqueRegion = visibleRegion;
