@@ -129,24 +129,6 @@ std::string create_data_user_de_package_path(const char* volume_uuid,
             create_data_user_de_path(volume_uuid, user).c_str(), package_name);
 }
 
-int create_pkg_path(char path[PKG_PATH_MAX], const char *pkgname,
-        const char *postfix, userid_t userid) {
-    if (!is_valid_package_name(pkgname)) {
-        path[0] = '\0';
-        return -1;
-    }
-
-    std::string _tmp(create_data_user_ce_package_path(nullptr, userid, pkgname) + postfix);
-    const char* tmp = _tmp.c_str();
-    if (strlen(tmp) >= PKG_PATH_MAX) {
-        path[0] = '\0';
-        return -1;
-    } else {
-        strcpy(path, tmp);
-        return 0;
-    }
-}
-
 std::string create_data_path(const char* volume_uuid) {
     if (volume_uuid == nullptr) {
         return "/data";
@@ -213,7 +195,7 @@ std::string create_data_misc_legacy_path(userid_t userid) {
 }
 
 std::string create_primary_cur_profile_dir_path(userid_t userid) {
-    return StringPrintf("%s/cur/%u", android_profiles_dir.path, userid);
+    return StringPrintf("%s/cur/%u", android_profiles_dir.c_str(), userid);
 }
 
 std::string create_primary_current_profile_package_dir_path(userid_t user,
@@ -224,12 +206,12 @@ std::string create_primary_current_profile_package_dir_path(userid_t user,
 }
 
 std::string create_primary_ref_profile_dir_path() {
-    return StringPrintf("%s/ref", android_profiles_dir.path);
+    return StringPrintf("%s/ref", android_profiles_dir.c_str());
 }
 
 std::string create_primary_reference_profile_package_dir_path(const std::string& package_name) {
     check_package_name(package_name.c_str());
-    return StringPrintf("%s/ref/%s", android_profiles_dir.path, package_name.c_str());
+    return StringPrintf("%s/ref/%s", android_profiles_dir.c_str(), package_name.c_str());
 }
 
 std::string create_data_dalvik_cache_path() {
@@ -375,20 +357,6 @@ int calculate_tree_size(const std::string& path, int64_t* size,
     }
 #endif
     *size += matchedSize;
-    return 0;
-}
-
-int create_move_path(char path[PKG_PATH_MAX],
-    const char* pkgname,
-    const char* leaf,
-    userid_t userid ATTRIBUTE_UNUSED)
-{
-    if ((android_data_dir.len + strlen(PRIMARY_USER_PREFIX) + strlen(pkgname) + strlen(leaf) + 1)
-            >= PKG_PATH_MAX) {
-        return -1;
-    }
-
-    sprintf(path, "%s%s%s/%s", android_data_dir.path, PRIMARY_USER_PREFIX, pkgname, leaf);
     return 0;
 }
 
@@ -767,22 +735,33 @@ void remove_path_xattr(const std::string& path, const char* inode_xattr) {
  * The path is allowed to have at most one subdirectory and no indirections
  * to top level directories (i.e. have "..").
  */
-static int validate_path(const dir_rec_t* dir, const char* path, int maxSubdirs) {
-    size_t dir_len = dir->len;
-    const char* subdir = strchr(path + dir_len, '/');
-
-    // Only allow the path to have at most one subdirectory.
-    if (subdir != NULL) {
-        ++subdir;
-        if ((--maxSubdirs == 0) && strchr(subdir, '/') != NULL) {
-            ALOGE("invalid apk path '%s' (subdir?)\n", path);
-            return -1;
-        }
+static int validate_path(const std::string& dir, const std::string& path, int maxSubdirs) {
+    // Argument sanity checking
+    if (dir.find('/') != 0 || dir.rfind('/') != dir.size() - 1
+            || dir.find("..") != std::string::npos) {
+        LOG(ERROR) << "Invalid directory " << dir;
+        return -1;
+    }
+    if (path.find("..") != std::string::npos) {
+        LOG(ERROR) << "Invalid path " << path;
+        return -1;
     }
 
-    // Directories can't have a period directly after the directory markers to prevent "..".
-    if ((path[dir_len] == '.') || ((subdir != NULL) && (*subdir == '.'))) {
-        ALOGE("invalid apk path '%s' (trickery)\n", path);
+    if (path.compare(0, dir.size(), dir) != 0) {
+        // Common case, path isn't under directory
+        return -1;
+    }
+
+    // Count number of subdirectories
+    auto pos = path.find('/', dir.size());
+    int count = 0;
+    while (pos != std::string::npos) {
+        pos = path.find('/', pos + 1);
+        count++;
+    }
+
+    if (count > maxSubdirs) {
+        LOG(ERROR) << "Invalid path depth " << path << " when tested against " << dir;
         return -1;
     }
 
@@ -794,15 +773,12 @@ static int validate_path(const dir_rec_t* dir, const char* path, int maxSubdirs)
  * if it is a system app or -1 if it is not.
  */
 int validate_system_app_path(const char* path) {
-    size_t i;
-
-    for (i = 0; i < android_system_dirs.count; i++) {
-        const size_t dir_len = android_system_dirs.dirs[i].len;
-        if (!strncmp(path, android_system_dirs.dirs[i].path, dir_len)) {
-            return validate_path(android_system_dirs.dirs + i, path, 1);
+    std::string path_ = path;
+    for (const auto& dir : android_system_dirs) {
+        if (validate_path(dir, path, 1) == 0) {
+            return 0;
         }
     }
-
     return -1;
 }
 
@@ -840,116 +816,26 @@ bool validate_secondary_dex_path(const std::string& pkgname, const std::string& 
 }
 
 /**
- * Get the contents of a environment variable that contains a path. Caller
- * owns the string that is inserted into the directory record. Returns
- * 0 on success and -1 on error.
- */
-int get_path_from_env(dir_rec_t* rec, const char* var) {
-    const char* path = getenv(var);
-    int ret = get_path_from_string(rec, path);
-    if (ret < 0) {
-        ALOGW("Problem finding value for environment variable %s\n", var);
-    }
-    return ret;
-}
-
-/**
- * Puts the string into the record as a directory. Appends '/' to the end
- * of all paths. Caller owns the string that is inserted into the directory
- * record. A null value will result in an error.
- *
- * Returns 0 on success and -1 on error.
- */
-int get_path_from_string(dir_rec_t* rec, const char* path) {
-    if (path == NULL) {
-        return -1;
-    } else {
-        const size_t path_len = strlen(path);
-        if (path_len <= 0) {
-            return -1;
-        }
-
-        // Make sure path is absolute.
-        if (path[0] != '/') {
-            return -1;
-        }
-
-        if (path[path_len - 1] == '/') {
-            // Path ends with a forward slash. Make our own copy.
-
-            rec->path = strdup(path);
-            if (rec->path == NULL) {
-                return -1;
-            }
-
-            rec->len = path_len;
-        } else {
-            // Path does not end with a slash. Generate a new string.
-            char *dst;
-
-            // Add space for slash and terminating null.
-            size_t dst_size = path_len + 2;
-
-            rec->path = (char*) malloc(dst_size);
-            if (rec->path == NULL) {
-                return -1;
-            }
-
-            dst = rec->path;
-
-            if (append_and_increment(&dst, path, &dst_size) < 0
-                    || append_and_increment(&dst, "/", &dst_size)) {
-                ALOGE("Error canonicalizing path");
-                return -1;
-            }
-
-            rec->len = dst - rec->path;
-        }
-    }
-    return 0;
-}
-
-int copy_and_append(dir_rec_t* dst, const dir_rec_t* src, const char* suffix) {
-    dst->len = src->len + strlen(suffix);
-    const size_t dstSize = dst->len + 1;
-    dst->path = (char*) malloc(dstSize);
-
-    if (dst->path == NULL
-            || snprintf(dst->path, dstSize, "%s%s", src->path, suffix)
-                    != (ssize_t) dst->len) {
-        ALOGE("Could not allocate memory to hold appended path; aborting\n");
-        return -1;
-    }
-
-    return 0;
-}
-
-/**
  * Check whether path points to a valid path for an APK file. The path must
  * begin with a whitelisted prefix path and must be no deeper than |maxSubdirs| within
  * that path. Returns -1 when an invalid path is encountered and 0 when a valid path
  * is encountered.
  */
 static int validate_apk_path_internal(const char *path, int maxSubdirs) {
-    const dir_rec_t* dir = NULL;
-    if (!strncmp(path, android_app_dir.path, android_app_dir.len)) {
-        dir = &android_app_dir;
-    } else if (!strncmp(path, android_app_private_dir.path, android_app_private_dir.len)) {
-        dir = &android_app_private_dir;
-    } else if (!strncmp(path, android_app_ephemeral_dir.path, android_app_ephemeral_dir.len)) {
-        dir = &android_app_ephemeral_dir;
-    } else if (!strncmp(path, android_asec_dir.path, android_asec_dir.len)) {
-        dir = &android_asec_dir;
-    } else if (!strncmp(path, android_mnt_expand_dir.path, android_mnt_expand_dir.len)) {
-        dir = &android_mnt_expand_dir;
-        if (maxSubdirs < 2) {
-            maxSubdirs = 2;
-        }
+    std::string path_ = path;
+    if (validate_path(android_app_dir, path_, maxSubdirs) == 0) {
+        return 0;
+    } else if (validate_path(android_app_private_dir, path_, maxSubdirs) == 0) {
+        return 0;
+    } else if (validate_path(android_app_ephemeral_dir, path_, maxSubdirs) == 0) {
+        return 0;
+    } else if (validate_path(android_asec_dir, path_, maxSubdirs) == 0) {
+        return 0;
+    } else if (validate_path(android_mnt_expand_dir, path_, std::max(maxSubdirs, 2)) == 0) {
+        return 0;
     } else {
         return -1;
     }
-
-    return validate_path(dir, path, maxSubdirs);
 }
 
 int validate_apk_path(const char* path) {
@@ -958,48 +844,6 @@ int validate_apk_path(const char* path) {
 
 int validate_apk_path_subdirs(const char* path) {
     return validate_apk_path_internal(path, 3 /* maxSubdirs */);
-}
-
-int append_and_increment(char** dst, const char* src, size_t* dst_size) {
-    ssize_t ret = strlcpy(*dst, src, *dst_size);
-    if (ret < 0 || (size_t) ret >= *dst_size) {
-        return -1;
-    }
-    *dst += ret;
-    *dst_size -= ret;
-    return 0;
-}
-
-char *build_string2(const char *s1, const char *s2) {
-    if (s1 == NULL || s2 == NULL) return NULL;
-
-    int len_s1 = strlen(s1);
-    int len_s2 = strlen(s2);
-    int len = len_s1 + len_s2 + 1;
-    char *result = (char *) malloc(len);
-    if (result == NULL) return NULL;
-
-    strcpy(result, s1);
-    strcpy(result + len_s1, s2);
-
-    return result;
-}
-
-char *build_string3(const char *s1, const char *s2, const char *s3) {
-    if (s1 == NULL || s2 == NULL || s3 == NULL) return NULL;
-
-    int len_s1 = strlen(s1);
-    int len_s2 = strlen(s2);
-    int len_s3 = strlen(s3);
-    int len = len_s1 + len_s2 + len_s3 + 1;
-    char *result = (char *) malloc(len);
-    if (result == NULL) return NULL;
-
-    strcpy(result, s1);
-    strcpy(result + len_s1, s2);
-    strcpy(result + len_s1 + len_s2, s3);
-
-    return result;
 }
 
 int ensure_config_user_dirs(userid_t userid) {

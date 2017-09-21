@@ -30,6 +30,7 @@
 #include <private/android_filesystem_config.h>
 
 #include "InstalldNativeService.h"
+#include "dexopt.h"
 #include "globals.h"
 #include "installd_constants.h"
 #include "installd_deps.h"  // Need to fill in requirements of commands.
@@ -50,133 +51,22 @@ int get_property(const char *key, char *value, const char *default_value) {
     return property_get(key, value, default_value);
 }
 
-// Compute the output path of
-bool calculate_oat_file_path(char path[PKG_PATH_MAX],
-                             const char *oat_dir,
-                             const char *apk_path,
-                             const char *instruction_set) {
-    const char *file_name_start;
-    const char *file_name_end;
-
-    file_name_start = strrchr(apk_path, '/');
-    if (file_name_start == NULL) {
-        SLOGE("apk_path '%s' has no '/'s in it\n", apk_path);
-        return false;
-    }
-    file_name_end = strrchr(apk_path, '.');
-    if (file_name_end < file_name_start) {
-        SLOGE("apk_path '%s' has no extension\n", apk_path);
-        return false;
-    }
-
-    // Calculate file_name
-    int file_name_len = file_name_end - file_name_start - 1;
-    char file_name[file_name_len + 1];
-    memcpy(file_name, file_name_start + 1, file_name_len);
-    file_name[file_name_len] = '\0';
-
-    // <apk_parent_dir>/oat/<isa>/<file_name>.odex
-    snprintf(path, PKG_PATH_MAX, "%s/%s/%s.odex", oat_dir, instruction_set, file_name);
-    return true;
+bool calculate_oat_file_path(char path[PKG_PATH_MAX], const char *oat_dir, const char *apk_path,
+        const char *instruction_set) {
+    return calculate_oat_file_path_default(path, oat_dir, apk_path, instruction_set);
 }
 
-/*
- * Computes the odex file for the given apk_path and instruction_set.
- * /system/framework/whatever.jar -> /system/framework/oat/<isa>/whatever.odex
- *
- * Returns false if it failed to determine the odex file path.
- */
-bool calculate_odex_file_path(char path[PKG_PATH_MAX],
-                              const char *apk_path,
-                              const char *instruction_set) {
-    if (strlen(apk_path) + strlen("oat/") + strlen(instruction_set)
-            + strlen("/") + strlen("odex") + 1 > PKG_PATH_MAX) {
-        SLOGE("apk_path '%s' may be too long to form odex file path.\n", apk_path);
-        return false;
-    }
-
-    strcpy(path, apk_path);
-    char *end = strrchr(path, '/');
-    if (end == NULL) {
-        SLOGE("apk_path '%s' has no '/'s in it?!\n", apk_path);
-        return false;
-    }
-    const char *apk_end = apk_path + (end - path); // strrchr(apk_path, '/');
-
-    strcpy(end + 1, "oat/");       // path = /system/framework/oat/\0
-    strcat(path, instruction_set); // path = /system/framework/oat/<isa>\0
-    strcat(path, apk_end);         // path = /system/framework/oat/<isa>/whatever.jar\0
-    end = strrchr(path, '.');
-    if (end == NULL) {
-        SLOGE("apk_path '%s' has no extension.\n", apk_path);
-        return false;
-    }
-    strcpy(end + 1, "odex");
-    return true;
+bool calculate_odex_file_path(char path[PKG_PATH_MAX], const char *apk_path,
+        const char *instruction_set) {
+    return calculate_odex_file_path_default(path, apk_path, instruction_set);
 }
 
-bool create_cache_path(char path[PKG_PATH_MAX],
-                       const char *src,
-                       const char *instruction_set) {
-    /* demand that we are an absolute path */
-    if ((src == nullptr) || (src[0] != '/') || strstr(src,"..")) {
-        return false;
-    }
-
-    size_t srclen = strlen(src);
-
-    if (srclen > PKG_PATH_MAX) {        // XXX: PKG_NAME_MAX?
-        return false;
-    }
-
-    size_t dstlen =
-        android_data_dir.len +
-        strlen(DALVIK_CACHE) +
-        1 +
-        strlen(instruction_set) +
-        srclen +
-        strlen(DALVIK_CACHE_POSTFIX) + 2;
-
-    if (dstlen > PKG_PATH_MAX) {
-        return false;
-    }
-
-    sprintf(path,"%s%s/%s/%s",
-            android_data_dir.path,
-            DALVIK_CACHE,
-            instruction_set,
-            src + 1 /* skip the leading / */);
-
-    char* tmp =
-            path +
-            android_data_dir.len +
-            strlen(DALVIK_CACHE) +
-            1 +
-            strlen(instruction_set) + 1;
-
-    for(; *tmp; tmp++) {
-        if (*tmp == '/') {
-            *tmp = '@';
-        }
-    }
-
-    strcat(path, DALVIK_CACHE_POSTFIX);
-    return true;
+bool create_cache_path(char path[PKG_PATH_MAX], const char *src, const char *instruction_set) {
+    return create_cache_path_default(path, src, instruction_set);
 }
 
 static bool initialize_globals() {
-    const char* data_path = getenv("ANDROID_DATA");
-    if (data_path == nullptr) {
-        SLOGE("Could not find ANDROID_DATA");
-        return false;
-    }
-    const char* root_path = getenv("ANDROID_ROOT");
-    if (root_path == nullptr) {
-        SLOGE("Could not find ANDROID_ROOT");
-        return false;
-    }
-
-    return init_globals_from_data_and_root(data_path, root_path);
+    return init_globals_from_data_and_root();
 }
 
 static int initialize_directories() {
@@ -184,7 +74,7 @@ static int initialize_directories() {
 
     // Read current filesystem layout version to handle upgrade paths
     char version_path[PATH_MAX];
-    snprintf(version_path, PATH_MAX, "%s.layout_version", android_data_dir.path);
+    snprintf(version_path, PATH_MAX, "%s.layout_version", android_data_dir.c_str());
 
     int oldVersion;
     if (fs_read_atomic_int(version_path, &oldVersion) == -1) {
@@ -206,7 +96,7 @@ static int initialize_directories() {
         SLOGD("Upgrading to /data/misc/user directories");
 
         char misc_dir[PATH_MAX];
-        snprintf(misc_dir, PATH_MAX, "%smisc", android_data_dir.path);
+        snprintf(misc_dir, PATH_MAX, "%smisc", android_data_dir.c_str());
 
         char keychain_added_dir[PATH_MAX];
         snprintf(keychain_added_dir, PATH_MAX, "%s/keychain/cacerts-added", misc_dir);
@@ -227,7 +117,7 @@ static int initialize_directories() {
                     if ((name[1] == '.') && (name[2] == 0)) continue;
                 }
 
-                uint32_t user_id = atoi(name);
+                uint32_t user_id = std::stoi(name);
 
                 // /data/misc/user/<user_id>
                 if (ensure_config_user_dirs(user_id) == -1) {
@@ -281,7 +171,7 @@ fail:
     return res;
 }
 
-static int log_callback(int type, const char *fmt, ...) {
+static int log_callback(int type, const char *fmt, ...) { // NOLINT
     va_list ap;
     int priority;
 
