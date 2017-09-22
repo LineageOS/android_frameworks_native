@@ -19,40 +19,29 @@
 #define GLOBALS_H_
 
 #include <inttypes.h>
+#include <string>
+#include <vector>
 
 namespace android {
 namespace installd {
 
-/* constants */
-
 // Name of the environment variable that contains the asec mountpoint.
 static constexpr const char* ASEC_MOUNTPOINT_ENV_NAME = "ASEC_MOUNTPOINT";
 
-/* data structures */
+extern std::string android_app_dir;
+extern std::string android_app_ephemeral_dir;
+extern std::string android_app_lib_dir;
+extern std::string android_app_private_dir;
+extern std::string android_asec_dir;
+extern std::string android_data_dir;
+extern std::string android_media_dir;
+extern std::string android_mnt_expand_dir;
+extern std::string android_profiles_dir;
+extern std::string android_root_dir;
 
-struct dir_rec_t {
-    char* path;
-    size_t len;
-};
+extern std::vector<std::string> android_system_dirs;
 
-struct dir_rec_array_t {
-    size_t count;
-    dir_rec_t* dirs;
-};
-
-extern dir_rec_t android_app_dir;
-extern dir_rec_t android_app_ephemeral_dir;
-extern dir_rec_t android_app_lib_dir;
-extern dir_rec_t android_app_private_dir;
-extern dir_rec_t android_asec_dir;
-extern dir_rec_t android_data_dir;
-extern dir_rec_t android_media_dir;
-extern dir_rec_t android_mnt_expand_dir;
-extern dir_rec_t android_profiles_dir;
-
-extern dir_rec_array_t android_system_dirs;
-
-void free_globals();
+bool init_globals_from_data_and_root();
 bool init_globals_from_data_and_root(const char* data, const char* root);
 
 }  // namespace installd

@@ -146,12 +146,12 @@ class OTAPreoptService {
                 return 0;
             }
             // Copy in the default value.
-            strncpy(value, default_value, kPropertyValueMax - 1);
+            strlcpy(value, default_value, kPropertyValueMax - 1);
             value[kPropertyValueMax - 1] = 0;
             return strlen(default_value);// TODO: Need to truncate?
         }
         size_t size = std::min(kPropertyValueMax - 1, prop_value->length());
-        strncpy(value, prop_value->data(), size);
+        strlcpy(value, prop_value->data(), size);
         value[size] = 0;
         return static_cast<int>(size);
     }
