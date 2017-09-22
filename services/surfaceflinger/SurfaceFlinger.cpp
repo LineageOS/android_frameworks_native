@@ -1739,7 +1739,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
 
     // rebuild the visible layer list per screen
     if (CC_UNLIKELY(mVisibleRegionsDirty)) {
-        ATRACE_CALL();
+        ATRACE_NAME("rebuildLayerStacks VR Dirty");
         mVisibleRegionsDirty = false;
         invalidateHwcGeometry();
 
