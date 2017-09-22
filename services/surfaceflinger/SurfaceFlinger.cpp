@@ -1739,7 +1739,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
 
     // rebuild the visible layer list per screen
     if (CC_UNLIKELY(mVisibleRegionsDirty)) {
-        ATRACE_CALL();
+        ATRACE_NAME("rebuildLayerStacks VR Dirty");
         mVisibleRegionsDirty = false;
         invalidateHwcGeometry();
 
@@ -2437,7 +2437,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
 
                 // compute the opaque region
                 const int32_t layerOrientation = tr.getOrientation();
-                if (s.alpha == 1.0f && !translucent &&
+                if (layer->getAlpha() == 1.0f && !translucent &&
                         ((layerOrientation & Transform::ROT_INVALID) == false)) {
                     // the opaque region is the layer's footprint
                     opaqueRegion = visibleRegion;
@@ -3121,10 +3121,8 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             // We don't trigger a traversal here because if no other state is
             // changed, we don't want this to cause any more work
         }
-        // Always re-parent the children that explicitly requested to get
-        // re-parented before the general re-parent of all children.
-        if (what & layer_state_t::eReparentChild) {
-            if (layer->reparentChild(s.parentHandleForChild, s.childHandle)) {
+        if (what & layer_state_t::eReparent) {
+            if (layer->reparent(s.parentHandleForChild)) {
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
         }

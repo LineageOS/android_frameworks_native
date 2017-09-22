@@ -41,6 +41,7 @@
 #include <system/thread_defs.h>
 
 #include "dexopt.h"
+#include "globals.h"
 #include "installd_deps.h"
 #include "otapreopt_utils.h"
 #include "utils.h"
@@ -156,7 +157,7 @@ static int split_count(const char *str)
   int count = 0;
   char buf[kPropertyValueMax];
 
-  strncpy(buf, str, sizeof(buf));
+  strlcpy(buf, str, sizeof(buf));
   char *pBuf = buf;
 
   while(strtok_r(pBuf, " ", &ctx) != NULL) {
@@ -333,7 +334,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
 
     bool have_dex2oat_compiler_filter_flag = false;
     if (skip_compilation) {
-        strcpy(dex2oat_compiler_filter_arg, "--compiler-filter=extract");
+        strlcpy(dex2oat_compiler_filter_arg, "--compiler-filter=extract",
+                sizeof(dex2oat_compiler_filter_arg));
         have_dex2oat_compiler_filter_flag = true;
         have_dex2oat_relocation_skip_flag = true;
     } else if (compiler_filter != nullptr) {
@@ -955,14 +957,6 @@ static std::string create_vdex_filename(const std::string& oat_path) {
     return replace_file_extension(oat_path, ".vdex");
 }
 
-static bool add_extension_to_file_name(char* file_name, const char* extension) {
-    if (strlen(file_name) + strlen(extension) + 1 > PKG_PATH_MAX) {
-        return false;
-    }
-    strcat(file_name, extension);
-    return true;
-}
-
 static int open_output_file(const char* file_name, bool recreate, int permissions) {
     int flags = O_RDWR | O_CREAT;
     if (recreate) {
@@ -1198,21 +1192,16 @@ unique_fd maybe_open_dexopt_swap_file(const char* out_oat_path) {
     if (!ShouldUseSwapFileForDexopt()) {
         return invalid_unique_fd();
     }
-    // Make sure there really is enough space.
-    char swap_file_name[PKG_PATH_MAX];
-    strcpy(swap_file_name, out_oat_path);
-    if (!add_extension_to_file_name(swap_file_name, ".swap")) {
-        return invalid_unique_fd();
-    }
+    auto swap_file_name = std::string(out_oat_path) + ".swap";
     unique_fd swap_fd(open_output_file(
-            swap_file_name, /*recreate*/true, /*permissions*/0600));
+            swap_file_name.c_str(), /*recreate*/true, /*permissions*/0600));
     if (swap_fd.get() < 0) {
         // Could not create swap file. Optimistically go on and hope that we can compile
         // without it.
-        ALOGE("installd could not create '%s' for swap during dexopt\n", swap_file_name);
+        ALOGE("installd could not create '%s' for swap during dexopt\n", swap_file_name.c_str());
     } else {
         // Immediately unlink. We don't really want to hit flash.
-        if (unlink(swap_file_name) < 0) {
+        if (unlink(swap_file_name.c_str()) < 0) {
             PLOG(ERROR) << "Couldn't unlink swap file " << swap_file_name;
         }
     }
@@ -2038,6 +2027,99 @@ bool delete_odex(const char* apk_path, const char* instruction_set, const char* 
 
     // Report success.
     return return_value_oat && return_value_art && return_value_vdex;
+}
+
+static bool is_absolute_path(const std::string& path) {
+    if (path.find('/') != 0 || path.find("..") != std::string::npos) {
+        LOG(ERROR) << "Invalid absolute path " << path;
+        return false;
+    } else {
+        return true;
+    }
+}
+
+static bool is_valid_instruction_set(const std::string& instruction_set) {
+    // TODO: add explicit whitelisting of instruction sets
+    if (instruction_set.find('/') != std::string::npos) {
+        LOG(ERROR) << "Invalid instruction set " << instruction_set;
+        return false;
+    } else {
+        return true;
+    }
+}
+
+bool calculate_oat_file_path_default(char path[PKG_PATH_MAX], const char *oat_dir,
+        const char *apk_path, const char *instruction_set) {
+    std::string oat_dir_ = oat_dir;
+    std::string apk_path_ = apk_path;
+    std::string instruction_set_ = instruction_set;
+
+    if (!is_absolute_path(oat_dir_)) return false;
+    if (!is_absolute_path(apk_path_)) return false;
+    if (!is_valid_instruction_set(instruction_set_)) return false;
+
+    std::string::size_type end = apk_path_.rfind('.');
+    std::string::size_type start = apk_path_.rfind('/', end);
+    if (end == std::string::npos || start == std::string::npos) {
+        LOG(ERROR) << "Invalid apk_path " << apk_path_;
+        return false;
+    }
+
+    std::string res_ = oat_dir_ + '/' + instruction_set + '/'
+            + apk_path_.substr(start + 1, end - start - 1) + ".odex";
+    const char* res = res_.c_str();
+    if (strlen(res) >= PKG_PATH_MAX) {
+        LOG(ERROR) << "Result too large";
+        return false;
+    } else {
+        strlcpy(path, res, PKG_PATH_MAX);
+        return true;
+    }
+}
+
+bool calculate_odex_file_path_default(char path[PKG_PATH_MAX], const char *apk_path,
+        const char *instruction_set) {
+    std::string apk_path_ = apk_path;
+    std::string instruction_set_ = instruction_set;
+
+    if (!is_absolute_path(apk_path_)) return false;
+    if (!is_valid_instruction_set(instruction_set_)) return false;
+
+    std::string::size_type end = apk_path_.rfind('.');
+    std::string::size_type start = apk_path_.rfind('/', end);
+    if (end == std::string::npos || start == std::string::npos) {
+        LOG(ERROR) << "Invalid apk_path " << apk_path_;
+        return false;
+    }
+
+    std::string oat_dir = apk_path_.substr(0, start + 1) + "oat";
+    return calculate_oat_file_path_default(path, oat_dir.c_str(), apk_path, instruction_set);
+}
+
+bool create_cache_path_default(char path[PKG_PATH_MAX], const char *src,
+        const char *instruction_set) {
+    std::string src_ = src;
+    std::string instruction_set_ = instruction_set;
+
+    if (!is_absolute_path(src_)) return false;
+    if (!is_valid_instruction_set(instruction_set_)) return false;
+
+    for (auto it = src_.begin() + 1; it < src_.end(); ++it) {
+        if (*it == '/') {
+            *it = '@';
+        }
+    }
+
+    std::string res_ = android_data_dir + DALVIK_CACHE + '/' + instruction_set_ + src_
+            + DALVIK_CACHE_POSTFIX;
+    const char* res = res_.c_str();
+    if (strlen(res) >= PKG_PATH_MAX) {
+        LOG(ERROR) << "Result too large";
+        return false;
+    } else {
+        strlcpy(path, res, PKG_PATH_MAX);
+        return true;
+    }
 }
 
 }  // namespace installd

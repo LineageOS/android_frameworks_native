@@ -41,17 +41,10 @@
 namespace android {
 namespace installd {
 
-struct dir_rec_t;
-
 constexpr const char* kXattrInodeCache = "user.inode_cache";
 constexpr const char* kXattrInodeCodeCache = "user.inode_code_cache";
 constexpr const char* kXattrCacheGroup = "user.cache_group";
 constexpr const char* kXattrCacheTombstone = "user.cache_tombstone";
-
-int create_pkg_path(char path[PKG_PATH_MAX],
-                    const char *pkgname,
-                    const char *postfix,
-                    userid_t userid);
 
 std::string create_data_path(const char* volume_uuid);
 
@@ -96,11 +89,6 @@ int calculate_tree_size(const std::string& path, int64_t* size,
 
 int create_user_config_path(char path[PKG_PATH_MAX], userid_t userid);
 
-int create_move_path(char path[PKG_PATH_MAX],
-                     const char* pkgname,
-                     const char* leaf,
-                     userid_t userid);
-
 bool is_valid_filename(const std::string& name);
 bool is_valid_package_name(const std::string& packageName);
 
@@ -127,19 +115,8 @@ int validate_system_app_path(const char* path);
 bool validate_secondary_dex_path(const std::string& pkgname, const std::string& dex_path,
         const char* volume_uuid, int uid, int storage_flag, bool validate_package_path = true);
 
-int get_path_from_env(dir_rec_t* rec, const char* var);
-
-int get_path_from_string(dir_rec_t* rec, const char* path);
-
-int copy_and_append(dir_rec_t* dst, const dir_rec_t* src, const char* suffix);
-
 int validate_apk_path(const char *path);
 int validate_apk_path_subdirs(const char *path);
-
-int append_and_increment(char** dst, const char* src, size_t* dst_size);
-
-char *build_string2(const char *s1, const char *s2);
-char *build_string3(const char *s1, const char *s2, const char *s3);
 
 int ensure_config_user_dirs(userid_t userid);
 

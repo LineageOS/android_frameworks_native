@@ -60,7 +60,7 @@ struct layer_state_t {
         eReparentChildren           = 0x00002000,
         eDetachChildren             = 0x00004000,
         eRelativeLayerChanged       = 0x00008000,
-        eReparentChild              = 0x00010000
+        eReparent                   = 0x00010000
     };
 
     layer_state_t()
@@ -109,7 +109,6 @@ struct layer_state_t {
             sp<IBinder>     relativeLayerHandle;
 
             sp<IBinder>     parentHandleForChild;
-            sp<IBinder>     childHandle;
 
             // non POD must be last. see write/read
             Region          transparentRegion;

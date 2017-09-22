@@ -1169,7 +1169,7 @@ TEST_F(ChildLayerTest, Bug36858924) {
     fillSurfaceRGBA8(mFGSurfaceControl, 0, 255, 0);
 }
 
-TEST_F(ChildLayerTest, ReparentChild) {
+TEST_F(ChildLayerTest, Reparent) {
     SurfaceComposerClient::openGlobalTransaction();
     mChild->show();
     mChild->setPosition(10, 10);
@@ -1185,7 +1185,7 @@ TEST_F(ChildLayerTest, ReparentChild) {
         // And 10 more pixels we should be back to the foreground surface
         mCapture->expectFGColor(84, 84);
     }
-    mFGSurfaceControl->reparentChild(mBGSurfaceControl->getHandle(), mChild->getHandle());
+    mChild->reparent(mBGSurfaceControl->getHandle());
     {
         ScreenCapture::captureScreen(&mCapture);
         mCapture->expectFGColor(64, 64);
@@ -1195,6 +1195,69 @@ TEST_F(ChildLayerTest, ReparentChild) {
         // layer is at (0, 0)).
         mCapture->expectBGColor(9, 9);
         mCapture->expectChildColor(10, 10);
+    }
+}
+
+TEST_F(ChildLayerTest, ReparentToNoParent) {
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->show();
+    mChild->setPosition(10, 10);
+    mFGSurfaceControl->setPosition(64, 64);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // Top left of foreground must now be visible
+        mCapture->expectFGColor(64, 64);
+        // But 10 pixels in we should see the child surface
+        mCapture->expectChildColor(74, 74);
+        // And 10 more pixels we should be back to the foreground surface
+        mCapture->expectFGColor(84, 84);
+    }
+    mChild->reparent(nullptr);
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // Nothing should have changed.
+        mCapture->expectFGColor(64, 64);
+        mCapture->expectChildColor(74, 74);
+        mCapture->expectFGColor(84, 84);
+    }
+}
+
+TEST_F(ChildLayerTest, ReparentFromNoParent) {
+    sp<SurfaceControl> newSurface = mComposerClient->createSurface(
+        String8("New Surface"), 10, 10, PIXEL_FORMAT_RGBA_8888, 0);
+    ASSERT_TRUE(newSurface != NULL);
+    ASSERT_TRUE(newSurface->isValid());
+
+    fillSurfaceRGBA8(newSurface, 63, 195, 63);
+    SurfaceComposerClient::openGlobalTransaction();
+    mChild->hide();
+    newSurface->show();
+    newSurface->setPosition(10, 10);
+    newSurface->setLayer(INT32_MAX-2);
+    mFGSurfaceControl->setPosition(64, 64);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // Top left of foreground must now be visible
+        mCapture->expectFGColor(64, 64);
+        // At 10, 10 we should see the new surface
+        mCapture->checkPixel(10, 10, 63, 195, 63);
+    }
+
+    SurfaceComposerClient::openGlobalTransaction();
+    newSurface->reparent(mFGSurfaceControl->getHandle());
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        // newSurface will now be a child of mFGSurface so it will be 10, 10 offset from
+        // mFGSurface, putting it at 74, 74.
+        mCapture->expectFGColor(64, 64);
+        mCapture->checkPixel(74, 74, 63, 195, 63);
+        mCapture->expectFGColor(84, 84);
     }
 }
 

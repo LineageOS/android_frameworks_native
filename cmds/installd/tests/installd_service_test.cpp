@@ -25,6 +25,7 @@
 #include <gtest/gtest.h>
 
 #include "InstalldNativeService.h"
+#include "dexopt.h"
 #include "globals.h"
 #include "utils.h"
 
@@ -41,25 +42,18 @@ int get_property(const char *key, char *value, const char *default_value) {
     return property_get(key, value, default_value);
 }
 
-bool calculate_oat_file_path(char path[PKG_PATH_MAX] ATTRIBUTE_UNUSED,
-        const char *oat_dir ATTRIBUTE_UNUSED,
-        const char *apk_path ATTRIBUTE_UNUSED,
-        const char *instruction_set ATTRIBUTE_UNUSED) {
-    return false;
-}
-
-bool calculate_odex_file_path(char path[PKG_PATH_MAX] ATTRIBUTE_UNUSED,
-        const char *apk_path ATTRIBUTE_UNUSED,
-        const char *instruction_set ATTRIBUTE_UNUSED) {
-    return false;
-}
-
-bool create_cache_path(char path[PKG_PATH_MAX],
-        const char *src,
+bool calculate_oat_file_path(char path[PKG_PATH_MAX], const char *oat_dir, const char *apk_path,
         const char *instruction_set) {
-    // Not really a valid path but it's good enough for testing.
-    sprintf(path,"/data/dalvik-cache/%s/%s", instruction_set, src);
-    return true;
+    return calculate_oat_file_path_default(path, oat_dir, apk_path, instruction_set);
+}
+
+bool calculate_odex_file_path(char path[PKG_PATH_MAX], const char *apk_path,
+        const char *instruction_set) {
+    return calculate_odex_file_path_default(path, apk_path, instruction_set);
+}
+
+bool create_cache_path(char path[PKG_PATH_MAX], const char *src, const char *instruction_set) {
+    return create_cache_path_default(path, src, instruction_set);
 }
 
 static void mkdir(const char* path, uid_t owner, gid_t group, mode_t mode) {
@@ -102,6 +96,8 @@ protected:
         testUuid = std::make_unique<std::string>();
         *testUuid = std::string(kTestUuid);
         system("mkdir -p /data/local/tmp/user/0");
+
+        init_globals_from_data_and_root();
     }
 
     virtual void TearDown() {
@@ -153,12 +149,28 @@ TEST_F(ServiceTest, FixupAppData_Moved) {
     EXPECT_EQ(10000, stat_gid("com.example/bar/file"));
 }
 
-TEST_F(ServiceTest, RmDexNoDalvikCache) {
-    LOG(INFO) << "RmDexNoDalvikCache";
+TEST_F(ServiceTest, CalculateOat) {
+    char buf[PKG_PATH_MAX];
 
-    // Try to remove a non existing dalvik cache dex. The call should be
-    // successful because there's nothing to remove.
-    EXPECT_TRUE(service->rmdex("com.example", "arm").isOk());
+    EXPECT_TRUE(calculate_oat_file_path(buf, "/path/to/oat", "/path/to/file.apk", "isa"));
+    EXPECT_EQ("/path/to/oat/isa/file.odex", std::string(buf));
+
+    EXPECT_FALSE(calculate_oat_file_path(buf, "/path/to/oat", "/path/to/file", "isa"));
+    EXPECT_FALSE(calculate_oat_file_path(buf, "/path/to/oat", "file", "isa"));
+}
+
+TEST_F(ServiceTest, CalculateOdex) {
+    char buf[PKG_PATH_MAX];
+
+    EXPECT_TRUE(calculate_odex_file_path(buf, "/path/to/file.apk", "isa"));
+    EXPECT_EQ("/path/to/oat/isa/file.odex", std::string(buf));
+}
+
+TEST_F(ServiceTest, CalculateCache) {
+    char buf[PKG_PATH_MAX];
+
+    EXPECT_TRUE(create_cache_path(buf, "/path/to/file.apk", "isa"));
+    EXPECT_EQ("/data/dalvik-cache/isa/path@to@file.apk@classes.dex", std::string(buf));
 }
 
 }  // namespace installd

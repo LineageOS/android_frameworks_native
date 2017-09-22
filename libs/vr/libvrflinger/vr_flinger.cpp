@@ -64,9 +64,6 @@ bool VrFlinger::Init(Hwc2::Composer* hidl,
 
   ALOGI("Starting up VrFlinger...");
 
-  setpriority(PRIO_PROCESS, 0, android::PRIORITY_URGENT_DISPLAY);
-  set_sched_policy(0, SP_FOREGROUND);
-
   // We need to be able to create endpoints with full perms.
   umask(0000);
 
@@ -99,6 +96,9 @@ bool VrFlinger::Init(Hwc2::Composer* hidl,
   dispatcher_thread_ = std::thread([this]() {
     prctl(PR_SET_NAME, reinterpret_cast<unsigned long>("VrDispatch"), 0, 0, 0);
     ALOGI("Entering message loop.");
+
+    setpriority(PRIO_PROCESS, 0, android::PRIORITY_URGENT_DISPLAY);
+    set_sched_policy(0, SP_FOREGROUND);
 
     int ret = dispatcher_->EnterDispatchLoop();
     if (ret < 0) {
