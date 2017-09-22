@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_LAYER_DIM_H
-#define ANDROID_LAYER_DIM_H
+#ifndef ANDROID_COLOR_LAYER_H
+#define ANDROID_COLOR_LAYER_H
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -26,14 +26,14 @@
 
 namespace android {
 
-class LayerDim : public Layer
+class ColorLayer : public Layer
 {
 public:
-                LayerDim(SurfaceFlinger* flinger, const sp<Client>& client,
+    ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client,
                         const String8& name, uint32_t w, uint32_t h, uint32_t flags);
-        virtual ~LayerDim();
+    virtual ~ColorLayer() = default;
 
-    virtual const char* getTypeId() const { return "LayerDim"; }
+    virtual const char* getTypeId() const { return "ColorLayer"; }
     virtual void onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
             bool useIdentityTransform) const;
     virtual bool isOpaque(const Layer::State&) const { return false; }
@@ -46,4 +46,4 @@ public:
 
 }; // namespace android
 
-#endif // ANDROID_LAYER_DIM_H
+#endif // ANDROID_COLOR_LAYER_H

@@ -29,6 +29,7 @@
 #include <ui/Region.h>
 
 #include <gui/ISurfaceComposerClient.h>
+#include <math/vec3.h>
 
 namespace android {
 
@@ -90,6 +91,7 @@ public:
     status_t    setFlags(uint32_t flags, uint32_t mask);
     status_t    setTransparentRegionHint(const Region& transparent);
     status_t    setAlpha(float alpha=1.0f);
+    status_t    setColor(const half3& color);
 
     // Experimentarily it appears that the matrix transforms the
     // on-screen rectangle and it's contents before the position is

@@ -1,5 +1,5 @@
 {
         "presubmit": {
-            "filter": "LayerUpdateTest.*:ChildLayerTest.*:SurfaceFlingerStress.*:CropLatchingTest.*:GeometryLatchingTest.*"
+            "filter": "LayerUpdateTest.*:ChildLayerTest.*:SurfaceFlingerStress.*:CropLatchingTest.*:GeometryLatchingTest.*:LayerColorTest.*"
         }
 }

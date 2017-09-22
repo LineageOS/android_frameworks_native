@@ -204,56 +204,21 @@ void GLES20RenderEngine::setViewportAndProjection(
     mVpHeight = vph;
 }
 
-#ifdef USE_HWC2
 void GLES20RenderEngine::setupLayerBlending(bool premultipliedAlpha,
-        bool opaque, float alpha) {
-#else
-void GLES20RenderEngine::setupLayerBlending(
-    bool premultipliedAlpha, bool opaque, int alpha) {
-#endif
-
+        bool opaque, bool disableTexture, const half4& color) {
     mState.setPremultipliedAlpha(premultipliedAlpha);
     mState.setOpaque(opaque);
-#ifdef USE_HWC2
-    mState.setPlaneAlpha(alpha);
+    mState.setColor(color);
 
-    if (alpha < 1.0f || !opaque) {
-#else
-    mState.setPlaneAlpha(alpha / 255.0f);
+    if (disableTexture) {
+        mState.disableTexture();
+    }
 
-    if (alpha < 0xFF || !opaque) {
-#endif
+    if (color.a < 1.0f || !opaque) {
         glEnable(GL_BLEND);
         glBlendFunc(premultipliedAlpha ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     } else {
         glDisable(GL_BLEND);
-    }
-}
-
-#ifdef USE_HWC2
-void GLES20RenderEngine::setupDimLayerBlending(float alpha) {
-#else
-void GLES20RenderEngine::setupDimLayerBlending(int alpha) {
-#endif
-    mState.setPlaneAlpha(1.0f);
-    mState.setPremultipliedAlpha(true);
-    mState.setOpaque(false);
-#ifdef USE_HWC2
-    mState.setColor(0, 0, 0, alpha);
-#else
-    mState.setColor(0, 0, 0, alpha/255.0f);
-#endif
-    mState.disableTexture();
-
-#ifdef USE_HWC2
-    if (alpha == 1.0f) {
-#else
-    if (alpha == 0xFF) {
-#endif
-        glDisable(GL_BLEND);
-    } else {
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     }
 }
 
@@ -355,10 +320,9 @@ void GLES20RenderEngine::unbindFramebuffer(uint32_t texName, uint32_t fbName) {
 }
 
 void GLES20RenderEngine::setupFillWithColor(float r, float g, float b, float a) {
-    mState.setPlaneAlpha(1.0f);
     mState.setPremultipliedAlpha(true);
     mState.setOpaque(false);
-    mState.setColor(r, g, b, a);
+    mState.setColor(half4(r, g, b, a));
     mState.disableTexture();
     glDisable(GL_BLEND);
 }

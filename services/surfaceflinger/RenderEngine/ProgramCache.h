@@ -57,9 +57,9 @@ public:
             OPACITY_TRANSLUCENT     =       0x00000000,
             OPACITY_MASK            =       0x00000002,
 
-            PLANE_ALPHA_LT_ONE      =       0x00000004,
-            PLANE_ALPHA_EQ_ONE      =       0x00000000,
-            PLANE_ALPHA_MASK        =       0x00000004,
+            ALPHA_LT_ONE            =       0x00000004,
+            ALPHA_EQ_ONE            =       0x00000000,
+            ALPHA_MASK              =       0x00000004,
 
             TEXTURE_OFF             =       0x00000000,
             TEXTURE_EXT             =       0x00000008,
@@ -95,8 +95,8 @@ public:
         inline bool isOpaque() const {
             return (mKey & OPACITY_MASK) == OPACITY_OPAQUE;
         }
-        inline bool hasPlaneAlpha() const {
-            return (mKey & PLANE_ALPHA_MASK) == PLANE_ALPHA_LT_ONE;
+        inline bool hasAlpha() const {
+            return (mKey & ALPHA_MASK) == ALPHA_LT_ONE;
         }
         inline bool hasColorMatrix() const {
             return (mKey & COLOR_MATRIX_MASK) == COLOR_MATRIX_ON;

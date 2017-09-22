@@ -14,7 +14,7 @@ LOCAL_SRC_FILES := \
     FrameTracker.cpp \
     GpuService.cpp \
     Layer.cpp \
-    LayerDim.cpp \
+    ColorLayer.cpp \
     LayerRejecter.cpp \
     LayerVector.cpp \
     MessageQueue.cpp \

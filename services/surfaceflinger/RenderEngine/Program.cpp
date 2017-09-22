@@ -22,6 +22,7 @@
 #include "Program.h"
 #include "ProgramCache.h"
 #include "Description.h"
+#include <math/mat4.h>
 
 namespace android {
 
@@ -63,7 +64,6 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
         mTextureMatrixLoc = glGetUniformLocation(programId, "texture");
         mSamplerLoc = glGetUniformLocation(programId, "sampler");
         mColorLoc = glGetUniformLocation(programId, "color");
-        mAlphaPlaneLoc = glGetUniformLocation(programId, "alphaPlane");
 
         // set-up the default values for our uniforms
         glUseProgram(programId);
@@ -132,11 +132,9 @@ void Program::setUniforms(const Description& desc) {
         glUniform1i(mSamplerLoc, 0);
         glUniformMatrix4fv(mTextureMatrixLoc, 1, GL_FALSE, desc.mTexture.getMatrix().asArray());
     }
-    if (mAlphaPlaneLoc >= 0) {
-        glUniform1f(mAlphaPlaneLoc, desc.mPlaneAlpha);
-    }
     if (mColorLoc >= 0) {
-        glUniform4fv(mColorLoc, 1, desc.mColor);
+        const float* color = &static_cast<details::TVec4<float> const &>(desc.mColor)[0];
+        glUniform4fv(mColorLoc, 1, color);
     }
     if (mColorMatrixLoc >= 0) {
         glUniformMatrix4fv(mColorMatrixLoc, 1, GL_FALSE, desc.mColorMatrix.asArray());
