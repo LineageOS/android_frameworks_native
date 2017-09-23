@@ -68,10 +68,9 @@ protected:
     virtual void setViewportAndProjection(size_t vpw, size_t vph,
             Rect sourceCrop, size_t hwh, bool yswap,
             Transform::orientation_flags rotation);
-#ifdef USE_HWC2
     virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque,
-            float alpha) override;
-    virtual void setupDimLayerBlending(float alpha) override;
+            bool disableTexture, const half4& color) override;
+#ifdef USE_HWC2
 
     // Color management related functions and state
     void setColorMode(android_color_mode mode);
@@ -92,10 +91,6 @@ protected:
 
     // Currently only supporting sRGB and DisplayP3 color spaces
     mat4 mSrgbToDisplayP3;
-#else
-    virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque,
-            int alpha);
-    virtual void setupDimLayerBlending(int alpha);
 #endif
     bool mPlatformHasWideColor = false;
 

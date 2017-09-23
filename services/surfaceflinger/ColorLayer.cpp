@@ -16,7 +16,7 @@
 
 // #define LOG_NDEBUG 0
 #undef LOG_TAG
-#define LOG_TAG "LayerDim"
+#define LOG_TAG "ColorLayer"
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -27,7 +27,7 @@
 
 #include <ui/GraphicBuffer.h>
 
-#include "LayerDim.h"
+#include "ColorLayer.h"
 #include "SurfaceFlinger.h"
 #include "DisplayDevice.h"
 #include "RenderEngine/RenderEngine.h"
@@ -35,31 +35,29 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
-LayerDim::LayerDim(SurfaceFlinger* flinger, const sp<Client>& client,
+ColorLayer::ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags)
     : Layer(flinger, client, name, w, h, flags) {
 }
 
-LayerDim::~LayerDim() {
-}
-
-void LayerDim::onDraw(const sp<const DisplayDevice>& hw,
+void ColorLayer::onDraw(const sp<const DisplayDevice>& hw,
         const Region& /* clip */, bool useIdentityTransform) const
 {
     const State& s(getDrawingState());
-    if (s.alpha>0) {
+    if (s.color.a>0) {
         Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2);
         computeGeometry(hw, mesh, useIdentityTransform);
         RenderEngine& engine(mFlinger->getRenderEngine());
-        engine.setupDimLayerBlending(s.alpha);
+        engine.setupLayerBlending(getPremultipledAlpha(), false /* opaque */,
+              true /* disableTexture */, s.color);
         engine.drawMesh(mesh);
         engine.disableBlending();
     }
 }
 
-bool LayerDim::isVisible() const {
+bool ColorLayer::isVisible() const {
     const Layer::State& s(getDrawingState());
-    return !isHiddenByPolicy() && s.alpha;
+    return !isHiddenByPolicy() && s.color.a;
 }
 
 

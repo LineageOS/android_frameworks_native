@@ -35,8 +35,6 @@ class Description {
     friend class Program;
     friend class ProgramCache;
 
-    // value of the plane-alpha, between 0 and 1
-    GLclampf mPlaneAlpha;
     // whether textures are premultiplied
     bool mPremultipliedAlpha;
     // whether this layer is marked as opaque
@@ -46,8 +44,8 @@ class Description {
     Texture mTexture;
     bool mTextureEnabled;
 
-    // color used when texturing is disabled
-    GLclampf mColor[4];
+    // color used when texturing is disabled or when setting alpha.
+    half4 mColor;
     // projection matrix
     mat4 mProjectionMatrix;
 
@@ -60,12 +58,11 @@ public:
     Description();
     ~Description();
 
-    void setPlaneAlpha(GLclampf planeAlpha);
     void setPremultipliedAlpha(bool premultipliedAlpha);
     void setOpaque(bool opaque);
     void setTexture(const Texture& texture);
     void disableTexture();
-    void setColor(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
+    void setColor(const half4& color);
     void setProjectionMatrix(const mat4& mtx);
     void setColorMatrix(const mat4& mtx);
     const mat4& getColorMatrix() const;

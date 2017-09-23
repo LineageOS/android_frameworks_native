@@ -43,7 +43,10 @@ status_t LayerDebugInfo::writeToParcel(Parcel* parcel) const {
     RETURN_ON_ERROR(parcel->writeInt32(mHeight));
     RETURN_ON_ERROR(parcel->write(mCrop));
     RETURN_ON_ERROR(parcel->write(mFinalCrop));
-    RETURN_ON_ERROR(parcel->writeFloat(mAlpha));
+    RETURN_ON_ERROR(parcel->writeFloat(mColor.r));
+    RETURN_ON_ERROR(parcel->writeFloat(mColor.g));
+    RETURN_ON_ERROR(parcel->writeFloat(mColor.b));
+    RETURN_ON_ERROR(parcel->writeFloat(mColor.a));
     RETURN_ON_ERROR(parcel->writeUint32(mFlags));
     RETURN_ON_ERROR(parcel->writeInt32(mPixelFormat));
     RETURN_ON_ERROR(parcel->writeUint32(static_cast<uint32_t>(mDataSpace)));
@@ -79,7 +82,14 @@ status_t LayerDebugInfo::readFromParcel(const Parcel* parcel) {
     RETURN_ON_ERROR(parcel->readInt32(&mHeight));
     RETURN_ON_ERROR(parcel->read(mCrop));
     RETURN_ON_ERROR(parcel->read(mFinalCrop));
-    RETURN_ON_ERROR(parcel->readFloat(&mAlpha));
+    mColor.r = parcel->readFloat();
+    RETURN_ON_ERROR(parcel->errorCheck());
+    mColor.g = parcel->readFloat();
+    RETURN_ON_ERROR(parcel->errorCheck());
+    mColor.b = parcel->readFloat();
+    RETURN_ON_ERROR(parcel->errorCheck());
+    mColor.a = parcel->readFloat();
+    RETURN_ON_ERROR(parcel->errorCheck());
     RETURN_ON_ERROR(parcel->readUint32(&mFlags));
     RETURN_ON_ERROR(parcel->readInt32(&mPixelFormat));
     // \todo [2017-07-25 kraita]: Static casting mDataSpace pointer to an uint32 does work. Better ways?
@@ -116,8 +126,10 @@ std::string to_string(const LayerDebugInfo& info) {
     result.appendFormat("isOpaque=%1d, invalidate=%1d, ", info.mIsOpaque, info.mContentDirty);
     result.appendFormat("dataspace=%s, ", dataspaceDetails(info.mDataSpace).c_str());
     result.appendFormat("pixelformat=%s, ", decodePixelFormat(info.mPixelFormat).c_str());
-    result.appendFormat("alpha=%.3f, flags=0x%08x, ",
-            static_cast<double>(info.mAlpha), info.mFlags);
+    result.appendFormat("color=(%.3f,%.3f,%.3f,%.3f), flags=0x%08x, ",
+            static_cast<double>(info.mColor.r), static_cast<double>(info.mColor.g),
+            static_cast<double>(info.mColor.b), static_cast<double>(info.mColor.a),
+            info.mFlags);
     result.appendFormat("tr=[%.2f, %.2f][%.2f, %.2f]",
             static_cast<double>(info.mMatrix[0][0]), static_cast<double>(info.mMatrix[0][1]),
             static_cast<double>(info.mMatrix[1][0]), static_cast<double>(info.mMatrix[1][1]));

@@ -71,7 +71,7 @@
 #include "EventThread.h"
 #include "Layer.h"
 #include "LayerVector.h"
-#include "LayerDim.h"
+#include "ColorLayer.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 
@@ -2024,7 +2024,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
 
                 // compute the opaque region
                 const int32_t layerOrientation = tr.getOrientation();
-                if (s.alpha==255 && !translucent &&
+                if (layer->getAlpha()==1.0f && !translucent &&
                         ((layerOrientation & Transform::ROT_INVALID) == false)) {
                     // the opaque region is the layer's footprint
                     opaqueRegion = visibleRegion;
@@ -2297,7 +2297,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& hw, const 
                         const Layer::State& state(layer->getDrawingState());
                         if ((cur->getHints() & HWC_HINT_CLEAR_FB)
                                 && i
-                                && layer->isOpaque(state) && (state.alpha == 0xFF)
+                                && layer->isOpaque(state) && (state.color.a == 1.0f)
                                 && hasGlesComposition) {
                             // never clear the very first layer since we're
                             // guaranteed the FB is already cleared
@@ -2622,8 +2622,13 @@ uint32_t SurfaceFlinger::setClientStateLocked(
             }
         }
         if (what & layer_state_t::eAlphaChanged) {
-            if (layer->setAlpha(uint8_t(255.0f*s.alpha+0.5f)))
+            if (layer->setAlpha(s.alpha))
                 flags |= eTraversalNeeded;
+        }
+        if (what & layer_state_t::eColorChanged) {
+            if (layer->setColor(s.color)) {
+                flags |= eTraversalNeeded;
+            }
         }
         if (what & layer_state_t::eMatrixChanged) {
             if (layer->setMatrix(s.matrix))
@@ -2728,8 +2733,8 @@ status_t SurfaceFlinger::createLayer(
                     uniqueName, w, h, flags, format,
                     handle, gbp, &layer);
             break;
-        case ISurfaceComposerClient::eFXSurfaceDim:
-            result = createDimLayer(client,
+        case ISurfaceComposerClient::eFXSurfaceColor:
+            result = createColorLayer(client,
                     uniqueName, w, h, flags,
                     handle, gbp, &layer);
             break;
@@ -2804,11 +2809,11 @@ status_t SurfaceFlinger::createNormalLayer(const sp<Client>& client,
     return err;
 }
 
-status_t SurfaceFlinger::createDimLayer(const sp<Client>& client,
+status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* outLayer)
 {
-    *outLayer = new LayerDim(this, client, name, w, h, flags);
+    *outLayer = new ColorLayer(this, client, name, w, h, flags);
     *handle = (*outLayer)->getHandle();
     *gbp = (*outLayer)->getProducer();
     return NO_ERROR;
@@ -4089,10 +4094,10 @@ void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* v
             if (layer->getLayerStack() == hw->getLayerStack() && state.z >= minLayerZ &&
                     state.z <= maxLayerZ) {
                 layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
-                    ALOGE("%c index=%zu, name=%s, layerStack=%d, z=%d, visible=%d, flags=%x, alpha=%x",
+                    ALOGE("%c index=%zu, name=%s, layerStack=%d, z=%d, visible=%d, flags=%x, alpha=%.3f",
                             layer->isVisible() ? '+' : '-',
                             i, layer->getName().string(), layer->getLayerStack(), state.z,
-                            layer->isVisible(), state.flags, state.alpha);
+                            layer->isVisible(), state.flags, static_cast<float>(state.color.a));
                     i++;
                 });
             }

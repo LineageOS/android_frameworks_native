@@ -32,6 +32,7 @@
 
 #include <gui/CpuConsumer.h>
 #include <gui/SurfaceControl.h>
+#include <math/vec3.h>
 
 namespace android {
 
@@ -149,6 +150,7 @@ public:
     status_t    setRelativeLayer(const sp<IBinder>& id,
             const sp<IBinder>& relativeTo, int32_t layer);
     status_t    setAlpha(const sp<IBinder>& id, float alpha=1.0f);
+    status_t    setColor(const sp<IBinder>& id, const half3& color);
     status_t    setMatrix(const sp<IBinder>& id, float dsdx, float dtdx, float dtdy, float dsdy);
     status_t    setPosition(const sp<IBinder>& id, float x, float y);
     status_t    setSize(const sp<IBinder>& id, uint32_t w, uint32_t h);

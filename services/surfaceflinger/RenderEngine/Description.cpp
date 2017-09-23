@@ -27,20 +27,13 @@
 namespace android {
 
 Description::Description() {
-    mPlaneAlpha = 1.0f;
     mPremultipliedAlpha = false;
     mOpaque = true;
     mTextureEnabled = false;
     mColorMatrixEnabled = false;
-
-    memset(mColor, 0, sizeof(mColor));
 }
 
 Description::~Description() {
-}
-
-void Description::setPlaneAlpha(GLclampf planeAlpha) {
-    mPlaneAlpha = planeAlpha;
 }
 
 void Description::setPremultipliedAlpha(bool premultipliedAlpha) {
@@ -60,11 +53,8 @@ void Description::disableTexture() {
     mTextureEnabled = false;
 }
 
-void Description::setColor(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha) {
-    mColor[0] = red;
-    mColor[1] = green;
-    mColor[2] = blue;
-    mColor[3] = alpha;
+void Description::setColor(const half4& color) {
+    mColor = color;
 }
 
 void Description::setProjectionMatrix(const mat4& mtx) {

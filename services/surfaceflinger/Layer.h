@@ -51,6 +51,8 @@
 #include "RenderEngine/Mesh.h"
 #include "RenderEngine/Texture.h"
 
+#include <math/vec4.h>
+
 namespace android {
 
 // ---------------------------------------------------------------------------
@@ -119,11 +121,6 @@ public:
         // to achieve mirroring.
         uint32_t layerStack;
 
-#ifdef USE_HWC2
-        float alpha;
-#else
-        uint8_t alpha;
-#endif
         uint8_t flags;
         uint8_t mask;
         uint8_t reserved[2];
@@ -158,6 +155,8 @@ public:
 
         // A list of surfaces whose Z-order is interpreted relative to ours.
         SortedVector<wp<Layer>> zOrderRelatives;
+
+        half4 color;
     };
 
     // -----------------------------------------------------------------------
@@ -225,11 +224,8 @@ public:
     bool setLayer(int32_t z);
     bool setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ);
 
-#ifdef USE_HWC2
     bool setAlpha(float alpha);
-#else
-    bool setAlpha(uint8_t alpha);
-#endif
+    bool setColor(const half3& color);
     bool setTransparentRegionHint(const Region& transparent);
     bool setFlags(uint8_t flags, uint8_t mask);
     bool setLayerStack(uint32_t layerStack);
@@ -509,11 +505,8 @@ public:
     // Returns the Alpha of the Surface, accounting for the Alpha
     // of parent Surfaces in the hierarchy (alpha's will be multiplied
     // down the hierarchy).
-#ifdef USE_HWC2
-    float getAlpha() const;
-#else
-    uint8_t getAlpha() const;
-#endif
+    half getAlpha() const;
+    half4 getColor() const;
 
     void traverseInReverseZOrder(LayerVector::StateSet stateSet,
                                  const LayerVector::Visitor& visitor);
@@ -683,9 +676,8 @@ public:
     sp<IGraphicBufferProducer> getProducer() const;
     const String8& getName() const;
     void notifyAvailableFrames();
-
     PixelFormat getPixelFormat() const { return mFormat; }
-
+    bool getPremultipledAlpha() const;
 private:
 
     // -----------------------------------------------------------------------
