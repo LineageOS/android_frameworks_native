@@ -30,7 +30,7 @@ Sensor::Sensor(const char * name) :
         mName(name), mHandle(0), mType(0),
         mMinValue(0), mMaxValue(0), mResolution(0),
         mPower(0), mMinDelay(0), mVersion(0), mFifoReservedEventCount(0),
-        mFifoMaxEventCount(0), mRequiredAppOp(0),
+        mFifoMaxEventCount(0), mRequiredAppOp(-1),
         mMaxDelay(0), mFlags(0) {
 }
 
@@ -38,7 +38,8 @@ Sensor::Sensor(struct sensor_t const* hwSensor, int halVersion) :
         Sensor(*hwSensor, uuid_t(), halVersion) {
 }
 
-Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersion) {
+Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersion) :
+        Sensor("") {
     mName = hwSensor.name;
     mVendor = hwSensor.vendor;
     mVersion = hwSensor.version;
@@ -410,6 +411,10 @@ bool Sensor::isWakeUpSensor() const {
 
 bool Sensor::isDynamicSensor() const {
     return (mFlags & SENSOR_FLAG_DYNAMIC_SENSOR) != 0;
+}
+
+bool Sensor::isDataInjectionSupported() const {
+    return (mFlags & SENSOR_FLAG_DATA_INJECTION) != 0;
 }
 
 bool Sensor::hasAdditionalInfo() const {

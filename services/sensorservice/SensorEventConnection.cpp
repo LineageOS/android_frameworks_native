@@ -32,7 +32,8 @@ SensorService::SensorEventConnection::SensorEventConnection(
         const String16& opPackageName)
     : mService(service), mUid(uid), mWakeLockRefCount(0), mHasLooperCallbacks(false),
       mDead(false), mDataInjectionMode(isDataInjectionMode), mEventCache(NULL),
-      mCacheSize(0), mMaxCacheSize(0), mPackageName(packageName), mOpPackageName(opPackageName) {
+      mCacheSize(0), mMaxCacheSize(0), mPackageName(packageName), mOpPackageName(opPackageName),
+      mDestroyed(false) {
     mChannel = new BitTube(mService->mSocketBufferSize);
 #if DEBUG_CONNECTIONS
     mEventsReceived = mEventsSentFromCache = mEventsSent = 0;
@@ -42,10 +43,22 @@ SensorService::SensorEventConnection::SensorEventConnection(
 
 SensorService::SensorEventConnection::~SensorEventConnection() {
     ALOGD_IF(DEBUG_CONNECTIONS, "~SensorEventConnection(%p)", this);
+    destroy();
+}
+
+void SensorService::SensorEventConnection::destroy() {
+    Mutex::Autolock _l(mDestroyLock);
+
+    // destroy once only
+    if (mDestroyed) {
+        return;
+    }
+
     mService->cleanupConnection(this);
     if (mEventCache != NULL) {
         delete mEventCache;
     }
+    mDestroyed = true;
 }
 
 void SensorService::SensorEventConnection::onFirstRef() {
@@ -477,7 +490,14 @@ void SensorService::SensorEventConnection::countFlushCompleteEventsLocked(
     // separately before the next batch of events.
     for (int j = 0; j < numEventsDropped; ++j) {
         if (scratch[j].type == SENSOR_TYPE_META_DATA) {
-            FlushInfo& flushInfo = mSensorInfo.editValueFor(scratch[j].meta_data.sensor);
+            ssize_t index = mSensorInfo.indexOfKey(scratch[j].meta_data.sensor);
+            if (index < 0) {
+                ALOGW("%s: sensor 0x%x is not found in connection",
+                      __func__, scratch[j].meta_data.sensor);
+                continue;
+            }
+
+            FlushInfo& flushInfo = mSensorInfo.editValueAt(index);
             flushInfo.mPendingFlushEventsToSend++;
             ALOGD_IF(DEBUG_CONNECTIONS, "increment pendingFlushCount %d",
                      flushInfo.mPendingFlushEventsToSend);

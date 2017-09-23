@@ -42,6 +42,8 @@ public:
     virtual status_t setEventRate(int handle, nsecs_t ns) = 0;
     virtual status_t flush() = 0;
     virtual int32_t configureChannel(int32_t handle, int32_t rateLevel) = 0;
+protected:
+    virtual void destroy() = 0; // synchronously release resource hold by remote object
 };
 
 // ----------------------------------------------------------------------------

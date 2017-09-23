@@ -394,6 +394,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             }
         } else if (!mSensors.hasAnySensor()) {
             result.append("No Sensors on the device\n");
+            result.appendFormat("devInitCheck : %d\n", SensorDevice::getInstance().initCheck());
         } else {
             // Default dump the sensor list and debugging information.
             //
@@ -932,8 +933,14 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
     }
 
     uid_t uid = IPCThreadState::self()->getCallingUid();
-    sp<SensorEventConnection> result(new SensorEventConnection(this, uid, packageName,
-            requestedMode == DATA_INJECTION, opPackageName));
+    pid_t pid = IPCThreadState::self()->getCallingPid();
+
+    String8 connPackageName =
+            (packageName == "") ? String8::format("unknown_package_pid_%d", pid) : packageName;
+    String16 connOpPackageName =
+            (opPackageName == String16("")) ? String16(connPackageName) : opPackageName;
+    sp<SensorEventConnection> result(new SensorEventConnection(this, uid, connPackageName,
+            requestedMode == DATA_INJECTION, connOpPackageName));
     if (requestedMode == DATA_INJECTION) {
         if (mActiveConnections.indexOf(result) < 0) {
             mActiveConnections.add(result);
@@ -1032,17 +1039,16 @@ sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
 }
 
 int SensorService::setOperationParameter(
-            int32_t type, const Vector<float> &floats, const Vector<int32_t> &ints) {
+            int32_t handle, int32_t type,
+            const Vector<float> &floats, const Vector<int32_t> &ints) {
     Mutex::Autolock _l(mLock);
 
-    // check permission
-    int32_t uid;
-    bool hasPermission = checkCallingPermission(sLocationHardwarePermission, nullptr, &uid);
-    if (!hasPermission || (uid != 1000 && uid != 0)) {
+    if (!checkCallingPermission(sLocationHardwarePermission, nullptr, nullptr)) {
         return PERMISSION_DENIED;
     }
 
     bool isFloat = true;
+    bool isCustom = false;
     size_t expectSize = INT32_MAX;
     switch (type) {
         case AINFO_LOCAL_GEOMAGNETIC_FIELD:
@@ -1060,7 +1066,21 @@ int SensorService::setOperationParameter(
             expectSize = 1;
             break;
         default:
-            return BAD_VALUE;
+            // CUSTOM events must only contain float data; it may have variable size
+            if (type < AINFO_CUSTOM_START || type >= AINFO_DEBUGGING_START ||
+                    ints.size() ||
+                    sizeof(additional_info_event_t::data_float)/sizeof(float) < floats.size() ||
+                    handle < 0) {
+                return BAD_VALUE;
+            }
+            isFloat = true;
+            isCustom = true;
+            expectSize = floats.size();
+            break;
+    }
+
+    if (!isCustom && handle != -1) {
+        return BAD_VALUE;
     }
 
     // three events: first one is begin tag, last one is end tag, the one in the middle
@@ -1070,7 +1090,7 @@ int SensorService::setOperationParameter(
     for (sensors_event_t* i = event; i < event + 3; i++) {
         *i = (sensors_event_t) {
             .version = sizeof(sensors_event_t),
-            .sensor = SENSORS_HANDLE_BASE - 1, // sensor that never exists
+            .sensor = handle,
             .type = SENSOR_TYPE_ADDITIONAL_INFO,
             .timestamp = timestamp++,
             .additional_info = (additional_info_event_t) {
