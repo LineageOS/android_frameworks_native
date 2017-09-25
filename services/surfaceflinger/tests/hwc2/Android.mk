@@ -37,7 +37,7 @@ LOCAL_SHARED_LIBRARIES := \
     libgui \
     liblog \
     libsync \
-    libskia \
+    libhwui \
     android.hardware.graphics.common@1.0
 LOCAL_STATIC_LIBRARIES := \
     libbase \
