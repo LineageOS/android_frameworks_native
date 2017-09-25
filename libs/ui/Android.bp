@@ -44,7 +44,7 @@ cc_library_shared {
     ],
 
     sanitize: {
-        //misc_undefined: ["integer"],
+        integer_overflow: true,
     },
 
     srcs: [
