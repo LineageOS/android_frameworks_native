@@ -77,6 +77,7 @@ struct layer_state_t {
         matrix.dsdy = matrix.dtdx = 0.0f;
     }
 
+    void merge(const layer_state_t& other);
     status_t    write(Parcel& output) const;
     status_t    read(const Parcel& input);
 
@@ -144,6 +145,7 @@ struct DisplayState {
     };
 
     DisplayState();
+    void merge(const DisplayState& other);
 
     uint32_t what;
     sp<IBinder> token;

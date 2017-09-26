@@ -104,6 +104,30 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other) :
     mComposerStates = other.mComposerStates;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Transaction&& other) {
+    for (auto const& state : other.mComposerStates) {
+        ssize_t index = mComposerStates.indexOf(state);
+        if (index < 0) {
+            mComposerStates.add(state);
+        } else {
+            mComposerStates.editItemAt(static_cast<size_t>(index)).state.merge(state.state);
+        }
+    }
+    other.mComposerStates.clear();
+
+    for (auto const& state : other.mDisplayStates) {
+        ssize_t index = mDisplayStates.indexOf(state);
+        if (index < 0) {
+            mDisplayStates.add(state);
+        } else {
+            mDisplayStates.editItemAt(static_cast<size_t>(index)).merge(state);
+        }
+    }
+    other.mDisplayStates.clear();
+
+    return *this;
+}
+
 status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
     if (mStatus != NO_ERROR) {
         return mStatus;
