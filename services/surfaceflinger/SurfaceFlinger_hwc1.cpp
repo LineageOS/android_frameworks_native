@@ -87,6 +87,8 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 
+#include <layerproto/LayerProtoParser.h>
+
 #define DISPLAY_COUNT       1
 
 /*
@@ -3073,6 +3075,13 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args)
                 dumpFrameEventsLocked(result);
                 dumpAll = false;
             }
+
+            if ((index < numArgs) && (args[index] == String16("--proto"))) {
+                index++;
+                LayersProto layersProto = dumpProtoInfo();
+                result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
+                dumpAll = false;
+            }
         }
 
         if (dumpAll) {
@@ -3243,6 +3252,16 @@ void SurfaceFlinger::dumpBufferingStats(String8& result) const {
     result.append("\n");
 }
 
+LayersProto SurfaceFlinger::dumpProtoInfo() const {
+    LayersProto layersProto;
+    mCurrentState.traverseInZOrder([&](Layer* layer) {
+        LayerProto* layerProto = layersProto.add_layers();
+        layer->writeToProto(layerProto, LayerVector::StateSet::Current);
+    });
+
+    return layersProto;
+}
+
 void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
         String8& result) const
 {
@@ -3302,9 +3321,10 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     colorizer.bold(result);
     result.appendFormat("Visible layers (count = %zu)\n", mNumLayers);
     colorizer.reset(result);
-    mCurrentState.traverseInZOrder([&](Layer* layer) {
-        result.append(to_string(layer->getLayerDebugInfo()).c_str());
-    });
+
+    LayersProto layersProto = dumpProtoInfo();
+    auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
+    result.append(LayerProtoParser::layersToString(layerTree).c_str());
 
     /*
      * Dump Display state

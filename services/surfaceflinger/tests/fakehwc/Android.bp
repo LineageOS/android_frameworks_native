@@ -22,7 +22,8 @@ cc_test {
         "libsync",
         "libfmq",
         "libbase",
-        "libhidltransport"
+        "libhidltransport",
+        "liblayers_proto"
     ],
     static_libs: [
         "libhwcomposer-client",

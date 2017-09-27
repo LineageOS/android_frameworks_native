@@ -78,6 +78,10 @@
 #include <thread>
 #include <utility>
 
+#include <layerproto/LayerProtoHeader.h>
+
+using namespace android::surfaceflinger;
+
 namespace android {
 
 // ---------------------------------------------------------------------------
@@ -622,6 +626,7 @@ private:
             std::vector<OccupancyTracker::Segment>&& history);
     void dumpBufferingStats(String8& result) const;
     void dumpWideColorInfo(String8& result) const;
+    LayersProto dumpProtoInfo() const;
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;

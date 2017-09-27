@@ -56,6 +56,7 @@
 #include "RenderEngine/RenderEngine.h"
 
 #include <mutex>
+#include "LayerProtoHelper.h"
 
 #define DEBUG_RESIZE    0
 
@@ -2824,6 +2825,82 @@ void Layer::commitChildList() {
     }
     mDrawingChildren = mCurrentChildren;
     mDrawingParent = mCurrentParent;
+}
+
+void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) {
+    const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
+    const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
+    const State& state = useDrawing ? mDrawingState : mCurrentState;
+
+    Transform requestedTransform = state.active.transform;
+    Transform transform = getTransform();
+
+    layerInfo->set_id(sequence);
+    layerInfo->set_name(getName().c_str());
+    layerInfo->set_type(String8(getTypeId()));
+
+    for (const auto& child : children) {
+        layerInfo->add_children(child->sequence);
+    }
+
+    for (const wp<Layer>& weakRelative : state.zOrderRelatives) {
+        sp<Layer> strongRelative = weakRelative.promote();
+        if (strongRelative != nullptr) {
+            layerInfo->add_relatives(strongRelative->sequence);
+        }
+    }
+
+    LayerProtoHelper::writeToProto(state.activeTransparentRegion,
+                                   layerInfo->mutable_transparent_region());
+    LayerProtoHelper::writeToProto(visibleRegion, layerInfo->mutable_visible_region());
+    LayerProtoHelper::writeToProto(surfaceDamageRegion, layerInfo->mutable_damage_region());
+
+    layerInfo->set_layer_stack(getLayerStack());
+    layerInfo->set_z(state.z);
+
+    PositionProto* position = layerInfo->mutable_position();
+    position->set_x(transform.tx());
+    position->set_y(transform.ty());
+
+    PositionProto* requestedPosition = layerInfo->mutable_requested_position();
+    requestedPosition->set_x(requestedTransform.tx());
+    requestedPosition->set_y(requestedTransform.ty());
+
+    SizeProto* size = layerInfo->mutable_size();
+    size->set_w(state.active.w);
+    size->set_h(state.active.h);
+
+    LayerProtoHelper::writeToProto(state.crop, layerInfo->mutable_crop());
+    LayerProtoHelper::writeToProto(state.finalCrop, layerInfo->mutable_final_crop());
+
+    layerInfo->set_is_opaque(isOpaque(state));
+    layerInfo->set_invalidate(contentDirty);
+    layerInfo->set_dataspace(dataspaceDetails(getDataSpace()));
+    layerInfo->set_pixel_format(decodePixelFormat(getPixelFormat()));
+    LayerProtoHelper::writeToProto(getColor(), layerInfo->mutable_color());
+    LayerProtoHelper::writeToProto(state.color, layerInfo->mutable_requested_color());
+    layerInfo->set_flags(state.flags);
+
+    LayerProtoHelper::writeToProto(transform, layerInfo->mutable_transform());
+    LayerProtoHelper::writeToProto(requestedTransform, layerInfo->mutable_requested_transform());
+
+    auto parent = getParent();
+    if (parent != nullptr) {
+        layerInfo->set_parent(parent->sequence);
+    }
+
+    auto zOrderRelativeOf = state.zOrderRelativeOf.promote();
+    if (zOrderRelativeOf != nullptr) {
+        layerInfo->set_z_order_relative_of(zOrderRelativeOf->sequence);
+    }
+
+    auto activeBuffer = getActiveBuffer();
+    if (activeBuffer != nullptr) {
+        LayerProtoHelper::writeToProto(activeBuffer, layerInfo->mutable_active_buffer());
+    }
+
+    layerInfo->set_queued_frames(getQueuedFrameCount());
+    layerInfo->set_refresh_pending(isBufferLatched());
 }
 
 // ---------------------------------------------------------------------------

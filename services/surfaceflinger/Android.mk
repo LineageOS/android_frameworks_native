@@ -39,6 +39,7 @@ LOCAL_SRC_FILES := \
     RenderEngine/RenderEngine.cpp \
     RenderEngine/Texture.cpp \
     RenderEngine/GLES20RenderEngine.cpp \
+    LayerProtoHelper.cpp \
 
 LOCAL_MODULE := libsurfaceflinger
 LOCAL_C_INCLUDES := \
@@ -98,7 +99,8 @@ LOCAL_SHARED_LIBRARIES := \
     libsync \
     libprotobuf-cpp-lite \
     libbase \
-    android.hardware.power@1.0
+    android.hardware.power@1.0 \
+    liblayers_proto
 
 LOCAL_EXPORT_SHARED_LIBRARY_HEADERS := \
     android.hardware.graphics.allocator@2.0 \
@@ -145,7 +147,8 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     libui \
     libgui \
-    libdl
+    libdl \
+    liblayers_proto
 
 LOCAL_WHOLE_STATIC_LIBRARIES := libsigchain
 LOCAL_STATIC_LIBRARIES := libtrace_proto \
