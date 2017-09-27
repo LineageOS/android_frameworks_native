@@ -3107,11 +3107,21 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         }
     }
     if (what & layer_state_t::eRelativeLayerChanged) {
-        ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
-        if (layer->setRelativeLayer(s.relativeLayerHandle, s.z)) {
-            mCurrentState.layersSortedByZ.removeAt(idx);
-            mCurrentState.layersSortedByZ.add(layer);
-            flags |= eTransactionNeeded|eTraversalNeeded;
+        // NOTE: index needs to be calculated before we update the state
+        const auto& p = layer->getParent();
+        if (p == nullptr) {
+            ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
+            if (layer->setRelativeLayer(s.relativeLayerHandle, s.z) && idx >= 0) {
+                mCurrentState.layersSortedByZ.removeAt(idx);
+                mCurrentState.layersSortedByZ.add(layer);
+                // we need traversal (state changed)
+                // AND transaction (list changed)
+                flags |= eTransactionNeeded|eTraversalNeeded;
+            }
+        } else {
+            if (p->setChildRelativeLayer(layer, s.relativeLayerHandle, s.z)) {
+                flags |= eTransactionNeeded|eTraversalNeeded;
+            }
         }
     }
     if (what & layer_state_t::eSizeChanged) {

@@ -1100,6 +1100,19 @@ bool Layer::setChildLayer(const sp<Layer>& childLayer, int32_t z) {
     return true;
 }
 
+bool Layer::setChildRelativeLayer(const sp<Layer>& childLayer,
+        const sp<IBinder>& relativeToHandle, int32_t relativeZ) {
+    ssize_t idx = mCurrentChildren.indexOf(childLayer);
+    if (idx < 0) {
+        return false;
+    }
+    if (childLayer->setRelativeLayer(relativeToHandle, relativeZ)) {
+        mCurrentChildren.removeAt(idx);
+        mCurrentChildren.add(childLayer);
+    }
+    return true;
+}
+
 bool Layer::setLayer(int32_t z) {
     if (mCurrentState.z == z) return false;
     mCurrentState.sequence++;
@@ -1601,11 +1614,7 @@ __attribute__((no_sanitize("unsigned-integer-overflow"))) LayerVector Layer::mak
     const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
 
-    if (state.zOrderRelatives.size() == 0) {
-        return children;
-    }
     LayerVector traverse;
-
     for (const wp<Layer>& weakRelative : state.zOrderRelatives) {
         sp<Layer> strongRelative = weakRelative.promote();
         if (strongRelative != nullptr) {
@@ -1614,6 +1623,10 @@ __attribute__((no_sanitize("unsigned-integer-overflow"))) LayerVector Layer::mak
     }
 
     for (const sp<Layer>& child : children) {
+        const State& childState = useDrawing ? child->mDrawingState : child->mCurrentState;
+        if (childState.zOrderRelativeOf != nullptr) {
+            continue;
+        }
         traverse.add(child);
     }
 

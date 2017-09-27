@@ -482,6 +482,8 @@ public:
     bool hasParent() const { return getParent() != nullptr; }
     Rect computeScreenBounds(bool reduceTransparentRegion = true) const;
     bool setChildLayer(const sp<Layer>& childLayer, int32_t z);
+    bool setChildRelativeLayer(const sp<Layer>& childLayer,
+            const sp<IBinder>& relativeToHandle, int32_t relativeZ);
 
     // Copy the current list of children to the drawing state. Called by
     // SurfaceFlinger to complete a transaction.
