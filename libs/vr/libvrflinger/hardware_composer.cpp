@@ -570,6 +570,9 @@ void HardwareComposer::UpdateConfigBuffer() {
   // Copy from latest record in shared_config_ring_ to local copy.
   DvrConfig record;
   if (shared_config_ring_.GetNewest(&shared_config_ring_sequence_, &record)) {
+    ALOGI("DvrConfig updated: sequence %u, post offset %d",
+          shared_config_ring_sequence_, record.frame_post_offset_ns);
+    ++shared_config_ring_sequence_;
     post_thread_config_ = record;
   }
 }
