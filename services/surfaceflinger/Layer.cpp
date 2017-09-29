@@ -1691,23 +1691,28 @@ uint32_t Layer::doTransaction(uint32_t flags) {
                 c.requested.w, c.requested.h);
     }
 
-    const bool resizePending = (c.requested.w != c.active.w) ||
-            (c.requested.h != c.active.h);
+    // Don't let Layer::doTransaction update the drawing state
+    // if we have a pending resize, unless we are in fixed-size mode.
+    // the drawing state will be updated only once we receive a buffer
+    // with the correct size.
+    //
+    // In particular, we want to make sure the clip (which is part
+    // of the geometry state) is latched together with the size but is
+    // latched immediately when no resizing is involved.
+    //
+    // If a sideband stream is attached, however, we want to skip this
+    // optimization so that transactions aren't missed when a buffer
+    // never arrives
+    //
+    // In the case that we don't have a buffer we ignore other factors
+    // and avoid entering the resizePending state. At a high level the
+    // resizePending state is to avoid applying the state of the new buffer
+    // to the old buffer. However in the state where we don't have an old buffer
+    // there is no such concern but we may still be being used as a parent layer.
+    const bool resizePending = ((c.requested.w != c.active.w) ||
+            (c.requested.h != c.active.h)) && (mActiveBuffer != nullptr);
     if (!isFixedSize()) {
         if (resizePending && mSidebandStream == NULL) {
-            // don't let Layer::doTransaction update the drawing state
-            // if we have a pending resize, unless we are in fixed-size mode.
-            // the drawing state will be updated only once we receive a buffer
-            // with the correct size.
-            //
-            // in particular, we want to make sure the clip (which is part
-            // of the geometry state) is latched together with the size but is
-            // latched immediately when no resizing is involved.
-            //
-            // If a sideband stream is attached, however, we want to skip this
-            // optimization so that transactions aren't missed when a buffer
-            // never arrives
-
             flags |= eDontUpdateGeometryState;
         }
     }
