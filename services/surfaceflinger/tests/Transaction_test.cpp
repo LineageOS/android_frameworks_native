@@ -789,6 +789,41 @@ TEST_F(LayerUpdateTest, LayerSetRelativeLayerWorks) {
     }
 }
 
+TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
+    sp<ScreenCapture> sc;
+
+    sp<SurfaceControl> childNoBuffer =
+        mComposerClient->createSurface(String8("Bufferless child"),
+                10, 10, PIXEL_FORMAT_RGBA_8888,
+                0, mFGSurfaceControl.get());
+    sp<SurfaceControl> childBuffer = mComposerClient->createSurface(
+            String8("Buffered child"), 20, 20,
+            PIXEL_FORMAT_RGBA_8888, 0, childNoBuffer.get());
+    fillSurfaceRGBA8(childBuffer, 200, 200, 200);
+
+    SurfaceComposerClient::openGlobalTransaction();
+    childNoBuffer->show();
+    childBuffer->show();
+    SurfaceComposerClient::closeGlobalTransaction();
+
+
+    {
+        ScreenCapture::captureScreen(&sc);
+        sc->expectChildColor(73, 73);
+        sc->expectFGColor(74, 74);
+    }
+
+    SurfaceComposerClient::openGlobalTransaction();
+    childNoBuffer->setSize(20, 20);
+    SurfaceComposerClient::closeGlobalTransaction(true);
+
+    {
+        ScreenCapture::captureScreen(&sc);
+        sc->expectChildColor(73, 73);
+        sc->expectChildColor(74, 74);
+    }
+}
+
 class ChildLayerTest : public LayerUpdateTest {
 protected:
     void SetUp() override {

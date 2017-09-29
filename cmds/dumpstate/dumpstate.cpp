@@ -1135,7 +1135,7 @@ static void dumpstate() {
     RunCommand("VOLD DUMP", {"vdc", "dump"});
     RunCommand("SECURE CONTAINERS", {"vdc", "asec", "list"});
 
-    RunCommand("STORAGED TASKIOINFO", {"storaged", "-u"}, CommandOptions::WithTimeout(10).Build());
+    RunCommand("STORAGED UID IO INFO", {"storaged", "-u"});
 
     RunCommand("FILESYSTEMS & FREE SPACE", {"df"});
 
@@ -1849,6 +1849,9 @@ int main(int argc, char *argv[]) {
         // Run ss as root so we can see socket marks.
         RunCommand("DETAILED SOCKET STATE", {"ss", "-eionptu"},
                    CommandOptions::WithTimeout(10).Build());
+
+        // Run iotop as root to show top 100 IO threads
+        RunCommand("IOTOP", {"iotop", "-n", "1", "-m", "100"});
 
         if (!DropRootUser()) {
             return -1;
