@@ -605,7 +605,7 @@ int HardwareComposer::PostThreadPollInterruptible(
   } else if (pfd[0].revents != 0) {
     return 0;
   } else if (pfd[1].revents != 0) {
-    ALOGI("VrHwcPost thread interrupted");
+    ALOGI("VrHwcPost thread interrupted: revents=%x", pfd[1].revents);
     return kPostThreadInterrupted;
   } else {
     return 0;
@@ -1069,6 +1069,7 @@ void Layer::Reset() {
   acquire_fence_.Close();
   surface_rect_functions_applied_ = false;
   pending_visibility_settings_ = true;
+  cached_buffer_map_.clear();
 }
 
 Layer::Layer(const std::shared_ptr<DirectDisplaySurface>& surface,
@@ -1112,6 +1113,7 @@ Layer& Layer::operator=(Layer&& other) {
     swap(surface_rect_functions_applied_,
          other.surface_rect_functions_applied_);
     swap(pending_visibility_settings_, other.pending_visibility_settings_);
+    swap(cached_buffer_map_, other.cached_buffer_map_);
   }
   return *this;
 }
@@ -1205,14 +1207,29 @@ void Layer::CommonLayerSetup() {
   UpdateLayerSettings();
 }
 
+bool Layer::CheckAndUpdateCachedBuffer(std::size_t slot, int buffer_id) {
+  auto search = cached_buffer_map_.find(slot);
+  if (search != cached_buffer_map_.end() && search->second == buffer_id)
+    return true;
+
+  // Assign or update the buffer slot.
+  if (buffer_id >= 0)
+    cached_buffer_map_[slot] = buffer_id;
+  return false;
+}
+
 void Layer::Prepare() {
-  int right, bottom;
+  int right, bottom, id;
   sp<GraphicBuffer> handle;
+  std::size_t slot;
 
   // Acquire the next buffer according to the type of source.
   IfAnyOf<SourceSurface, SourceBuffer>::Call(&source_, [&](auto& source) {
-    std::tie(right, bottom, handle, acquire_fence_) = source.Acquire();
+    std::tie(right, bottom, id, handle, acquire_fence_, slot) =
+        source.Acquire();
   });
+
+  TRACE_FORMAT("Layer::Prepare|buffer_id=%d;slot=%zu|", id, slot);
 
   // Update any visibility (blending, z-order) changes that occurred since
   // last prepare.
@@ -1243,10 +1260,15 @@ void Layer::Prepare() {
           composition_type_.cast<Hwc2::IComposerClient::Composition>());
     }
 
+    // See if the HWC cache already has this buffer.
+    const bool cached = CheckAndUpdateCachedBuffer(slot, id);
+    if (cached)
+      handle = nullptr;
+
     HWC::Error error{HWC::Error::None};
     error =
         composer_->setLayerBuffer(HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
-                                  0, handle, acquire_fence_.Get());
+                                  slot, handle, acquire_fence_.Get());
 
     ALOGE_IF(error != HWC::Error::None,
              "Layer::Prepare: Error setting layer buffer: %s",
