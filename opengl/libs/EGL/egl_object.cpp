@@ -116,17 +116,23 @@ void egl_context_t::onMakeCurrent(EGLSurface draw, EGLSurface read) {
     if (gl_extensions.empty()) {
         // call the implementation's glGetString(GL_EXTENSIONS)
         const char* exts = (const char *)gEGLImpl.hooks[version]->gl.glGetString(GL_EXTENSIONS);
-        gl_extensions = exts;
-        if (gl_extensions.find("GL_EXT_debug_marker") == std::string::npos) {
-            gl_extensions.insert(0, "GL_EXT_debug_marker ");
-        }
 
-        // tokenize the supported extensions for the glGetStringi() wrapper
-        std::stringstream ss;
-        std::string str;
-        ss << gl_extensions;
-        while (ss >> str) {
-            tokenized_gl_extensions.push_back(str);
+        // If this context is sharing with another context, and the other context was reset
+        // e.g. due to robustness failure, this context might also be reset and glGetString can
+        // return NULL.
+        if (exts) {
+            gl_extensions = exts;
+            if (gl_extensions.find("GL_EXT_debug_marker") == std::string::npos) {
+                gl_extensions.insert(0, "GL_EXT_debug_marker ");
+            }
+
+            // tokenize the supported extensions for the glGetStringi() wrapper
+            std::stringstream ss;
+            std::string str;
+            ss << gl_extensions;
+            while (ss >> str) {
+                tokenized_gl_extensions.push_back(str);
+            }
         }
     }
 }
