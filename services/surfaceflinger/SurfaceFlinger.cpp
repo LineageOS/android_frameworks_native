@@ -630,11 +630,18 @@ void SurfaceFlinger::init() {
 
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
-            ALOGI("VR request display mode: requestDisplay=%d", requestDisplay);
-            mVrFlingerRequestsDisplay = requestDisplay;
-            ConditionalLock _l(mStateLock,
-                    std::this_thread::get_id() != mMainThreadId);
-            signalTransaction();
+            // This callback is called from the vr flinger dispatch thread. We
+            // need to call signalTransaction(), which requires holding
+            // mStateLock when we're not on the main thread. Acquiring
+            // mStateLock from the vr flinger dispatch thread might trigger a
+            // deadlock in surface flinger (see b/66916578), so post a message
+            // to be handled on the main thread instead.
+            sp<LambdaMessage> message = new LambdaMessage([=]() {
+                ALOGI("VR request display mode: requestDisplay=%d", requestDisplay);
+                mVrFlingerRequestsDisplay = requestDisplay;
+                signalTransaction();
+            });
+            postMessageAsync(message);
         };
         mVrFlinger = dvr::VrFlinger::Create(mHwc->getComposer(),
                                             vrFlingerRequestDisplayCallback);

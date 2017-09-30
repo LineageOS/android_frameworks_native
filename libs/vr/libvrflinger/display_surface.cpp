@@ -382,7 +382,7 @@ void DirectDisplaySurface::DequeueBuffersLocked() {
     }
 
     acquired_buffers_.Append(
-        AcquiredBuffer(buffer_consumer, std::move(acquire_fence)));
+        AcquiredBuffer(buffer_consumer, std::move(acquire_fence), slot));
   }
 }
 
