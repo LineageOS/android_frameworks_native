@@ -120,6 +120,7 @@ int get_path_inode(const std::string& path, ino_t *inode);
 
 int write_path_inode(const std::string& parent, const char* name, const char* inode_xattr);
 std::string read_path_inode(const std::string& parent, const char* name, const char* inode_xattr);
+void remove_path_xattr(const std::string& path, const char* inode_xattr);
 
 int validate_system_app_path(const char* path);
 bool validate_secondary_dex_path(const std::string& pkgname, const std::string& dex_path,

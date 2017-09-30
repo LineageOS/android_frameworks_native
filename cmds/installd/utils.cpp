@@ -733,6 +733,12 @@ std::string read_path_inode(const std::string& parent, const char* name, const c
     }
 }
 
+void remove_path_xattr(const std::string& path, const char* inode_xattr) {
+    if (removexattr(path.c_str(), inode_xattr) && errno != ENODATA) {
+        PLOG(ERROR) << "Failed to remove xattr " << inode_xattr << " at " << path;
+    }
+}
+
 /**
  * Validate that the path is valid in the context of the provided directory.
  * The path is allowed to have at most one subdirectory and no indirections
