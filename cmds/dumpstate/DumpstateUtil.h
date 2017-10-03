@@ -89,6 +89,8 @@ class CommandOptions {
         CommandOptionsBuilder& Always();
         /* Sets the command's PrivilegeMode as `SU_ROOT` */
         CommandOptionsBuilder& AsRoot();
+        /* If !IsUserBuild(), sets the command's PrivilegeMode as `SU_ROOT` */
+        CommandOptionsBuilder& AsRootIfAvailable();
         /* Sets the command's PrivilegeMode as `DROP_ROOT` */
         CommandOptionsBuilder& DropRoot();
         /* Sets the command's OutputMode as `REDIRECT_TO_STDERR` */
