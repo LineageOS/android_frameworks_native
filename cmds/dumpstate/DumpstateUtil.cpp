@@ -103,6 +103,12 @@ CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::As
     return *this;
 }
 
+CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::AsRootIfAvailable() {
+    if (!PropertiesHelper::IsUserBuild())
+        values.account_mode_ = SU_ROOT;
+    return *this;
+}
+
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::DropRoot() {
     values.account_mode_ = DROP_ROOT;
     return *this;
