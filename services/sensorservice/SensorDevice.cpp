@@ -26,11 +26,10 @@
 #include <cinttypes>
 #include <thread>
 
-using android::hardware::hidl_vec;
-
 using namespace android::hardware::sensors::V1_0;
 using namespace android::hardware::sensors::V1_0::implementation;
-
+using android::hardware::hidl_vec;
+using android::SensorDeviceUtils::HidlServiceRegistrationWaiter;
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -52,7 +51,8 @@ static status_t StatusFromResult(Result result) {
     }
 }
 
-SensorDevice::SensorDevice() : mHidlTransportErrors(20) {
+SensorDevice::SensorDevice()
+        : mHidlTransportErrors(20), mRestartWaiter(new HidlServiceRegistrationWaiter()) {
     if (!connectHidlService()) {
         return;
     }
@@ -87,35 +87,29 @@ SensorDevice::SensorDevice() : mHidlTransportErrors(20) {
 }
 
 bool SensorDevice::connectHidlService() {
-    // SensorDevice may wait upto 100ms * 10 = 1s for hidl service.
-    constexpr auto RETRY_DELAY = std::chrono::milliseconds(100);
+    // SensorDevice will wait for HAL service to start if HAL is declared in device manifest.
     size_t retry = 10;
 
-    while (true) {
-        int initStep = 0;
+    while (retry-- > 0) {
         mSensors = ISensors::getService();
-        if (mSensors != nullptr) {
-            ++initStep;
-            // Poke ISensor service. If it has lingering connection from previous generation of
-            // system server, it will kill itself. There is no intention to handle the poll result,
-            // which will be done since the size is 0.
-            if(mSensors->poll(0, [](auto, const auto &, const auto &) {}).isOk()) {
-                // ok to continue
-                break;
-            }
-            // hidl service is restarting, pointer is invalid.
-            mSensors = nullptr;
-        }
-
-        if (--retry <= 0) {
-            ALOGE("Cannot connect to ISensors hidl service!");
+        if (mSensors == nullptr) {
+            // no sensor hidl service found
             break;
         }
-        // Delay 100ms before retry, hidl service is expected to come up in short time after
-        // crash.
-        ALOGI("%s unsuccessful, try again soon (remaining retry %zu).",
-                (initStep == 0) ? "getService()" : "poll() check", retry);
-        std::this_thread::sleep_for(RETRY_DELAY);
+
+        mRestartWaiter->reset();
+        // Poke ISensor service. If it has lingering connection from previous generation of
+        // system server, it will kill itself. There is no intention to handle the poll result,
+        // which will be done since the size is 0.
+        if(mSensors->poll(0, [](auto, const auto &, const auto &) {}).isOk()) {
+            // ok to continue
+            break;
+        }
+
+        // hidl service is restarting, pointer is invalid.
+        mSensors = nullptr;
+        ALOGI("%s unsuccessful, remaining retry %zu.", __FUNCTION__, retry);
+        mRestartWaiter->wait();
     }
     return (mSensors != nullptr);
 }
@@ -173,7 +167,7 @@ ssize_t SensorDevice::getSensorList(sensor_t const** list) {
 }
 
 status_t SensorDevice::initCheck() const {
-    return mSensors != NULL ? NO_ERROR : NO_INIT;
+    return mSensors != nullptr ? NO_ERROR : NO_INIT;
 }
 
 ssize_t SensorDevice::poll(sensors_event_t* buffer, size_t count) {
