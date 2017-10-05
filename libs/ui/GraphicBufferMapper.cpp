@@ -125,29 +125,6 @@ status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
     return static_cast<status_t>(error);
 }
 
-static inline bool isValidYCbCrPlane(const android_flex_plane_t& plane) {
-    if (plane.bits_per_component != 8) {
-        ALOGV("Invalid number of bits per component: %d",
-                plane.bits_per_component);
-        return false;
-    }
-    if (plane.bits_used != 8) {
-        ALOGV("Invalid number of bits used: %d", plane.bits_used);
-        return false;
-    }
-
-    bool hasValidIncrement = plane.h_increment == 1 ||
-            (plane.component != FLEX_COMPONENT_Y && plane.h_increment == 2);
-    hasValidIncrement = hasValidIncrement && plane.v_increment > 0;
-    if (!hasValidIncrement) {
-        ALOGV("Invalid increment: h %d v %d", plane.h_increment,
-                plane.v_increment);
-        return false;
-    }
-
-    return true;
-}
-
 status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
         uint32_t usage, const Rect& bounds, android_ycbcr *ycbcr, int fenceFd)
 {

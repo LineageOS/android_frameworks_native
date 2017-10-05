@@ -1075,7 +1075,6 @@ TEST_F(GetFrameTimestampsTest, CompositorTimingUpdatesBasic) {
     EXPECT_EQ(initialCompositorTiming.presentLatency,
               compositeToPresentLatency);
 
-    const uint64_t fId1 = getNextFrameId();
     dequeueAndQueue(0);
     addFrameEvents(true, NO_FRAME_INDEX, 0);
 
@@ -1089,7 +1088,6 @@ TEST_F(GetFrameTimestampsTest, CompositorTimingUpdatesBasic) {
     EXPECT_EQ(initialCompositorTiming.presentLatency,
               compositeToPresentLatency);
 
-    const uint64_t fId2 = getNextFrameId();
     dequeueAndQueue(1);
     addFrameEvents(true, 0, 1);
 
@@ -1162,7 +1160,6 @@ TEST_F(GetFrameTimestampsTest, CompositorTimingDeadlineSnaps) {
     nsecs_t expectedDeadline = initialCompositorTiming.deadline;
     EXPECT_EQ(expectedDeadline, compositeDeadline);
 
-    const uint64_t fId1 = getNextFrameId();
     dequeueAndQueue(0);
     addFrameEvents(true, NO_FRAME_INDEX, 0);
 
@@ -1175,7 +1172,6 @@ TEST_F(GetFrameTimestampsTest, CompositorTimingDeadlineSnaps) {
             initialCompositorTiming.deadline +initialCompositorTiming.interval;
     EXPECT_EQ(expectedDeadline, compositeDeadline);
 
-    const uint64_t fId2 = getNextFrameId();
     dequeueAndQueue(1);
     addFrameEvents(true, 0, 1);
 
