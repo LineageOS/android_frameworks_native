@@ -7,6 +7,12 @@ cc_test {
         "InputEvent_test.cpp",
         "InputPublisherAndConsumer_test.cpp",
     ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wno-error=sign-compare", // to fix later
+        "-Wno-unused-variable",
+    ],
     shared_libs: [
         "libinput",
         "libcutils",
@@ -24,5 +30,7 @@ cc_library_static {
     srcs: ["StructLayout_test.cpp"],
     cflags: [
         "-O0",
+        "-Wall",
+        "-Werror",
     ],
 }
