@@ -15,4 +15,5 @@
 cc_library_static {
     name: "libdiskusage",
     srcs: ["dirsize.c"],
+    cflags: ["-Wall", "-Werror"],
 }

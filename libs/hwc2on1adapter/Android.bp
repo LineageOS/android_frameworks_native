@@ -17,9 +17,13 @@ cc_library_shared {
     vendor: true,
 
     clang: true,
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wno-user-defined-warnings",
+    ],
     cppflags: [
         "-Weverything",
-        "-Wall",
         "-Wunused",
         "-Wunreachable-code",
 
