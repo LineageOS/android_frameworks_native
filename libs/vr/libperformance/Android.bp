@@ -32,7 +32,9 @@ cc_library {
     srcs: sourceFiles,
     cflags: [
         "-DLOG_TAG=\"libperformance\"",
-	"-DTRACE=0"
+        "-DTRACE=0",
+        "-Wall",
+        "-Werror",
     ],
     export_include_dirs: includeFiles,
     static_libs: staticLibraries,

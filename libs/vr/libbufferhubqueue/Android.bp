@@ -48,6 +48,11 @@ cc_library {
         "-DLOG_TAG=\"libbufferhubqueue\"",
         "-DTRACE=0",
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
+        "-Wall",
+        "-Werror",
+        "-Wno-error=sign-compare", // to fix later
+        "-Wno-unused-parameter",
+        "-Wno-unused-variable",
     ],
     srcs: sourceFiles,
     export_include_dirs: includeFiles,

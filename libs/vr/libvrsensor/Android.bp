@@ -40,6 +40,10 @@ sharedLibraries = [
 
 cc_library {
     srcs: sourceFiles,
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
     export_include_dirs: includeFiles,
     static_libs: staticLibraries,
     shared_libs: sharedLibraries,
