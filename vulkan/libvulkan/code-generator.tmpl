@@ -733,7 +733,12 @@ VK_KHR_get_physical_device_properties2
     {{     if eq $.Name "vkCreateInstance"}}true
     {{else if eq $.Name "vkCreateDevice"}}true
     {{else if eq $.Name "vkEnumeratePhysicalDevices"}}true
+    {{else if eq $.Name "vkEnumeratePhysicalDeviceGroups"}}true
+    {{else if eq $.Name "vkGetDeviceGroupPresentCapabilitiesKHR"}}true
+    {{else if eq $.Name "vkGetDeviceGroupSurfacePresentModesKHR"}}true
+    {{else if eq $.Name "vkGetPhysicalDevicePresentRectanglesKHR"}}true
     {{else if eq $.Name "vkGetDeviceQueue"}}true
+    {{else if eq $.Name "vkGetDeviceQueue2"}}true
     {{else if eq $.Name "vkAllocateCommandBuffers"}}true
 
     {{/* Destroy functions of dispatchable objects */}}
@@ -958,6 +963,7 @@ VK_KHR_get_physical_device_properties2
     {{/* Create functions of dispatchable objects */}}
     {{     if eq $.Name "vkCreateDevice"}}true
     {{else if eq $.Name "vkGetDeviceQueue"}}true
+    {{else if eq $.Name "vkGetDeviceQueue2"}}true
     {{else if eq $.Name "vkAllocateCommandBuffers"}}true
 
     {{/* Destroy functions of dispatchable objects */}}
@@ -969,6 +975,10 @@ VK_KHR_get_physical_device_properties2
 
     {{/* We cache physical devices in loader.cpp */}}
     {{else if eq $.Name "vkEnumeratePhysicalDevices"}}true
+    {{else if eq $.Name "vkEnumeratePhysicalDeviceGroups"}}true
+    {{else if eq $.Name "vkGetDeviceGroupPresentCapabilitiesKHR"}}true
+    {{else if eq $.Name "vkGetDeviceGroupSurfacePresentModesKHR"}}true
+    {{else if eq $.Name "vkGetPhysicalDevicePresentRectanglesKHR"}}true
 
     {{else if eq $.Name "vkGetInstanceProcAddr"}}true
     {{else if eq $.Name "vkGetDeviceProcAddr"}}true

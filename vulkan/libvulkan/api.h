@@ -33,6 +33,7 @@ VKAPI_ATTR VkResult EnumerateInstanceLayerProperties(uint32_t* pPropertyCount, V
 VKAPI_ATTR VkResult EnumerateInstanceExtensionProperties(const char* pLayerName, uint32_t* pPropertyCount, VkExtensionProperties* pProperties);
 VKAPI_ATTR VkResult EnumerateDeviceLayerProperties(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkLayerProperties* pProperties);
 VKAPI_ATTR VkResult EnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice, const char* pLayerName, uint32_t* pPropertyCount, VkExtensionProperties* pProperties);
+VKAPI_ATTR VkResult EnumerateInstanceVersion(uint32_t* pApiVersion);
 // clang-format on
 
 inline InstanceData& GetData(VkInstance instance) {
