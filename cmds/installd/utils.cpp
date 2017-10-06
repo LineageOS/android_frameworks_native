@@ -756,8 +756,11 @@ static int validate_path(const std::string& dir, const std::string& path, int ma
     auto pos = path.find('/', dir.size());
     int count = 0;
     while (pos != std::string::npos) {
-        pos = path.find('/', pos + 1);
-        count++;
+        auto next = path.find('/', pos + 1);
+        if (next > pos + 1) {
+            count++;
+        }
+        pos = next;
     }
 
     if (count > maxSubdirs) {

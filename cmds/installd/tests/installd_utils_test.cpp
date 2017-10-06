@@ -168,12 +168,6 @@ TEST_F(UtilsTest, IsValidApkPath_EscapeFail) {
             << badasec1 << " should be rejected as a invalid path";
 }
 
-TEST_F(UtilsTest, IsValidApkPath_DoubleSlashFail) {
-    const char *badasec2 = TEST_ASEC_DIR "com.example.asec//pkg.apk";
-    EXPECT_EQ(-1, validate_apk_path(badasec2))
-            << badasec2 << " should be rejected as a invalid path";
-}
-
 TEST_F(UtilsTest, IsValidApkPath_SubdirEscapeFail) {
     const char *badasec3 = TEST_ASEC_DIR "com.example.asec/../../../pkg.apk";
     EXPECT_EQ(-1, validate_apk_path(badasec3))
@@ -449,6 +443,30 @@ TEST_F(UtilsTest, ValidateSecondaryDexFilesPath) {
     std::string too_long = create_too_long_path("too_long_");
     fail_secondary_dex_validation(
         package_name, app_dir_ce_user_10 + "/" + too_long, app_uid_for_user_10, FLAG_STORAGE_CE);
+}
+
+TEST_F(UtilsTest, ValidateApkPath) {
+    EXPECT_EQ(0, validate_apk_path("/data/app/com.example"));
+    EXPECT_EQ(0, validate_apk_path("/data/app/com.example/file"));
+    EXPECT_EQ(0, validate_apk_path("/data/app/com.example//file"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/file"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/dir/file"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/dir//file"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/dir/dir/file"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/dir/dir//file"));
+}
+
+TEST_F(UtilsTest, ValidateApkPathSubdirs) {
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/file"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example//file"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/file"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/file"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir//file"));
+    EXPECT_NE(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir/file"));
+    EXPECT_NE(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir//file"));
 }
 
 }  // namespace installd
