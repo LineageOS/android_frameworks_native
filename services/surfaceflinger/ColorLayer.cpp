@@ -61,6 +61,36 @@ bool ColorLayer::isVisible() const {
     return !isHiddenByPolicy() && s.color.a;
 }
 
+#ifdef USE_HWC2
+void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
+    const Transform& tr = displayDevice->getTransform();
+    const auto& viewport = displayDevice->getViewport();
+    Region visible = tr.transform(visibleRegion.intersect(viewport));
+    auto hwcId = displayDevice->getHwcDisplayId();
+    auto& hwcInfo = mHwcLayers[hwcId];
+    auto& hwcLayer = hwcInfo.layer;
+    auto error = hwcLayer->setVisibleRegion(visible);
+
+    setCompositionType(hwcId, HWC2::Composition::SolidColor);
+
+    half4 color = getColor();
+    error = hwcLayer->setColor({static_cast<uint8_t>(std::round(255.0f * color.r)),
+                                static_cast<uint8_t>(std::round(255.0f * color.g)),
+                                static_cast<uint8_t>(std::round(255.0f * color.b)), 255});
+    if (error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set color: %s (%d)", mName.string(), to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+
+    // Clear out the transform, because it doesn't make sense absent a source buffer
+    error = hwcLayer->setTransform(HWC2::Transform::None);
+    if (error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to clear transform: %s (%d)", mName.string(), to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+}
+#endif
+
 // ---------------------------------------------------------------------------
 
 }; // namespace android

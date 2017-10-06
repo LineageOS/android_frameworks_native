@@ -46,8 +46,29 @@ public:
     void releasePendingBuffer(nsecs_t) override {}
 #endif
     Region latchBuffer(bool&, nsecs_t) override { return Region(); }
+    void useSurfaceDamage() override {}
+    void useEmptyDamage() override {}
     bool isBufferLatched() const override { return false; }
     bool onPreComposition(nsecs_t) override { return true; }
+    void abandon() override {}
+#ifdef USE_HWC2
+    void setPerFrameData(const sp<const DisplayDevice>& displayDevice) override;
+#else
+    void setAcquireFence(const sp<const DisplayDevice>& /*hw*/,
+                         HWComposer::HWCLayerInterface& /*layer*/) override {}
+#endif
+    void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) override {}
+    bool shouldPresentNow(const DispSync& /*dispSync*/) const override { return false; }
+    bool onPostComposition(const std::shared_ptr<FenceTime>& /*glDoneFence*/,
+                           const std::shared_ptr<FenceTime>& /*presentFence*/,
+                           const CompositorTiming& /*compositorTiming*/) override {
+        return false;
+    }
+    void setTransformHint(uint32_t /*orientation*/) const override {}
+    std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool /*forceFlush*/) override {
+        return {};
+    }
+    bool getTransformToDisplayInverse() const override { return false; }
 };
 
 // ---------------------------------------------------------------------------
