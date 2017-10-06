@@ -21,6 +21,7 @@
 
 #include <android/hardware/graphics/allocator/2.0/IAllocator.h>
 #include <android/hardware/graphics/mapper/2.0/IMapper.h>
+#include <android/hardware/graphics/mapper/2.1/IMapper.h>
 #include <utils/StrongPointer.h>
 
 namespace android {
@@ -55,6 +56,13 @@ public:
 
     void freeBuffer(buffer_handle_t bufferHandle) const;
 
+    Error validateBufferSize(buffer_handle_t bufferHandle,
+            const IMapper::BufferDescriptorInfo& descriptorInfo,
+            uint32_t stride) const;
+
+    void getTransportSize(buffer_handle_t bufferHandle,
+            uint32_t* outNumFds, uint32_t* outNumInts) const;
+
     // The ownership of acquireFence is always transferred to the callee, even
     // on errors.
     Error lock(buffer_handle_t bufferHandle, uint64_t usage,
@@ -73,6 +81,7 @@ public:
 
 private:
     sp<IMapper> mMapper;
+    sp<hardware::graphics::mapper::V2_1::IMapper> mMapperV2_1;
 };
 
 // A wrapper to IAllocator

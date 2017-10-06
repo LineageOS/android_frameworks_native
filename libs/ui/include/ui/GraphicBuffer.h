@@ -230,6 +230,10 @@ private:
     GraphicBufferMapper& mBufferMapper;
     ssize_t mInitCheck;
 
+    // numbers of fds/ints in native_handle_t to flatten
+    uint32_t mTransportNumFds;
+    uint32_t mTransportNumInts;
+
     uint64_t mId;
 
     // Stores the generation number of this buffer. If this number does not

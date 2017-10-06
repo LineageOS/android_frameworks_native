@@ -1082,11 +1082,15 @@ void ImpulseVelocityTrackerStrategy::addMovement(nsecs_t eventTime, BitSet32 idB
  * Note that approach 2) is sensitive to the proper ordering of the data in time, since
  * the boundary condition must be applied to the oldest sample to be accurate.
  */
+static float kineticEnergyToVelocity(float work) {
+    static constexpr float sqrt2 = 1.41421356237;
+    return (work < 0 ? -1.0 : 1.0) * sqrtf(fabsf(work)) * sqrt2;
+}
+
 static float calculateImpulseVelocity(const nsecs_t* t, const float* x, size_t count) {
     // The input should be in reversed time order (most recent sample at index i=0)
     // t[i] is in nanoseconds, but due to FP arithmetic, convert to seconds inside this function
     static constexpr float NANOS_PER_SECOND = 1E-9;
-    static constexpr float sqrt2 = 1.41421356237;
 
     if (count < 2) {
         return 0; // if 0 or 1 points, velocity is zero
@@ -1103,21 +1107,19 @@ static float calculateImpulseVelocity(const nsecs_t* t, const float* x, size_t c
     }
     // Guaranteed to have at least 3 points here
     float work = 0;
-    float vprev, vcurr; // v[i-1] and v[i], respectively
-    vprev = 0;
     for (size_t i = count - 1; i > 0 ; i--) { // start with the oldest sample and go forward in time
         if (t[i] == t[i-1]) {
             ALOGE("Events have identical time stamps t=%" PRId64 ", skipping sample", t[i]);
             continue;
         }
-        vcurr = (x[i] - x[i-1]) / (NANOS_PER_SECOND * (t[i] - t[i-1]));
+        float vprev = kineticEnergyToVelocity(work); // v[i-1]
+        float vcurr = (x[i] - x[i-1]) / (NANOS_PER_SECOND * (t[i] - t[i-1])); // v[i]
         work += (vcurr - vprev) * fabsf(vcurr);
         if (i == count - 1) {
             work *= 0.5; // initial condition, case 2) above
         }
-        vprev = vcurr;
     }
-    return (work < 0 ? -1.0 : 1.0) * sqrtf(fabsf(work)) * sqrt2;
+    return kineticEnergyToVelocity(work);
 }
 
 bool ImpulseVelocityTrackerStrategy::getEstimator(uint32_t id,
