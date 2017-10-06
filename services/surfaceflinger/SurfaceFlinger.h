@@ -47,6 +47,8 @@
 
 #include <hardware/hwcomposer_defs.h>
 
+#include <serviceutils/PriorityDumper.h>
+
 #include <system/graphics.h>
 
 #include <private/gui/LayerState.h>
@@ -105,6 +107,7 @@ enum {
 };
 
 class SurfaceFlinger : public BnSurfaceComposer,
+                       public PriorityDumper,
                        private IBinder::DeathRecipient,
 #ifdef USE_HWC2
                        private HWC2::ComposerCallback
@@ -272,7 +275,7 @@ private:
      */
     virtual status_t onTransact(uint32_t code, const Parcel& data,
         Parcel* reply, uint32_t flags);
-    virtual status_t dump(int fd, const Vector<String16>& args);
+    virtual status_t dump(int fd, const Vector<String16>& args) { return priorityDump(fd, args); }
 
     /* ------------------------------------------------------------------------
      * ISurfaceComposer interface
@@ -592,6 +595,13 @@ private:
     /* ------------------------------------------------------------------------
      * Debugging & dumpsys
      */
+public:
+    status_t dumpCritical(int fd, const Vector<String16>& /*args*/) {
+        return doDump(fd, Vector<String16>());
+    }
+
+    status_t dumpAll(int fd, const Vector<String16>& args) { return doDump(fd, args); }
+private:
     void listLayersLocked(const Vector<String16>& args, size_t& index, String8& result) const;
     void dumpStatsLocked(const Vector<String16>& args, size_t& index, String8& result) const;
     void clearStatsLocked(const Vector<String16>& args, size_t& index, String8& result);
@@ -616,6 +626,7 @@ private:
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
     }
+    status_t doDump(int fd, const Vector<String16>& args);
 
 #ifdef USE_HWC2
     /* ------------------------------------------------------------------------

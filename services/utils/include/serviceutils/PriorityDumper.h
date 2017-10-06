@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_UTILS_PRIORITYDUMP_H
-#define ANDROID_UTILS_PRIORITYDUMP_H
+#ifndef ANDROID_UTILS_PRIORITYDUMPER_H
+#define ANDROID_UTILS_PRIORITYDUMPER_H
 
+#include <utils/Errors.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
 
@@ -30,33 +31,29 @@ constexpr const char16_t PRIORITY_ARG_NORMAL[] = u"NORMAL";
 // Helper class to split dumps into various priority buckets.
 class PriorityDumper {
 public:
+    // Parses the argument list checking if the first argument is --dump_priority and
+    // the second argument is the priority type (HIGH, CRITICAL or NORMAL). If the
+    // arguments are found, they are stripped and the appropriate PriorityDumper
+    // method is called.
+    // If --dump_priority argument is not passed, all supported sections are dumped.
+    status_t priorityDump(int fd, const Vector<String16>& args);
+
     // Dumps CRITICAL priority sections.
-    virtual void dumpCritical(int fd, const Vector<String16>& args) {}
+    virtual status_t dumpCritical(int /*fd*/, const Vector<String16>& /*args*/) { return OK; }
 
     // Dumps HIGH priority sections.
-    virtual void dumpHigh(int fd, const Vector<String16>& args) {}
+    virtual status_t dumpHigh(int /*fd*/, const Vector<String16>& /*args*/) { return OK; }
 
     // Dumps normal priority sections.
-    virtual void dumpNormal(int fd, const Vector<String16>& args) {}
+    virtual status_t dumpNormal(int /*fd*/, const Vector<String16>& /*args*/) { return OK; }
 
     // Dumps all sections.
     // This method is called when priorityDump is called without priority
     // arguments. By default, it calls all three dump methods.
-    virtual void dump(int fd, const Vector<String16>& args) {
-        dumpCritical(fd, args);
-        dumpHigh(fd, args);
-        dumpNormal(fd, args);
-    }
+    virtual status_t dumpAll(int fd, const Vector<String16>& args);
     virtual ~PriorityDumper() = default;
 };
 
-// Parses the argument list checking if the first argument is --dump_priority and
-// the second argument is the priority type (HIGH, CRITICAL or NORMAL). If the
-// arguments are found, they are stripped and the appropriate PriorityDumper
-// method is called.
-// If --dump_priority argument is not passed, all supported sections are dumped.
-void priorityDump(PriorityDumper& dumper, int fd, const Vector<String16>& args);
+} // namespace android
 
-}; // namespace android
-
-#endif // ANDROID_UTILS_PRIORITYDUMP_H
+#endif // ANDROID_UTILS_PRIORITYDUMPER_H
