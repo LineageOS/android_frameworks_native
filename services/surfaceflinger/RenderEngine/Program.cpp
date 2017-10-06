@@ -133,7 +133,7 @@ void Program::setUniforms(const Description& desc) {
         glUniformMatrix4fv(mTextureMatrixLoc, 1, GL_FALSE, desc.mTexture.getMatrix().asArray());
     }
     if (mColorLoc >= 0) {
-        const float* color = &static_cast<details::TVec4<float> const &>(desc.mColor)[0];
+        const float color[4] = {desc.mColor.r, desc.mColor.g, desc.mColor.b, desc.mColor.a};
         glUniform4fv(mColorLoc, 1, color);
     }
     if (mColorMatrixLoc >= 0) {
