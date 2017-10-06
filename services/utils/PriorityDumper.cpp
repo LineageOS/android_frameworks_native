@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "include/serviceutils/PriorityDumper.h"
+#include "include/PriorityDumper.h"
 
 namespace android {
 
@@ -25,35 +25,22 @@ static void getStrippedArgs(Vector<String16>& dest, const Vector<String16>& sour
     }
 }
 
-status_t PriorityDumper::dumpAll(int fd, const Vector<String16>& args) {
-    status_t status;
-    status = dumpCritical(fd, args);
-    if (status != OK) return status;
-    status = dumpHigh(fd, args);
-    if (status != OK) return status;
-    status = dumpNormal(fd, args);
-    if (status != OK) return status;
-    return status;
-}
-
-status_t PriorityDumper::priorityDump(int fd, const Vector<String16>& args) {
-    status_t status;
+void priorityDump(PriorityDumper& dumper, int fd, const Vector<String16>& args) {
     if (args.size() >= 2 && args[0] == PRIORITY_ARG) {
         String16 priority = args[1];
         Vector<String16> strippedArgs;
         getStrippedArgs(strippedArgs, args, 2);
         if (priority == PRIORITY_ARG_CRITICAL) {
-            status = dumpCritical(fd, strippedArgs);
+            dumper.dumpCritical(fd, strippedArgs);
         } else if (priority == PRIORITY_ARG_HIGH) {
-            status = dumpHigh(fd, strippedArgs);
+            dumper.dumpHigh(fd, strippedArgs);
         } else if (priority == PRIORITY_ARG_NORMAL) {
-            status = dumpNormal(fd, strippedArgs);
+            dumper.dumpNormal(fd, strippedArgs);
         } else {
-            status = dumpAll(fd, args);
+            dumper.dump(fd, args);
         }
     } else {
-        status = dumpAll(fd, args);
+        dumper.dump(fd, args);
     }
-    return status;
 }
 } // namespace android

@@ -1,8 +1,6 @@
 cc_library_static {
     name: "libsurfaceflingerincludes",
     export_include_dirs: ["."],
-    static_libs = ["libserviceutils"],
-    export_static_lib_headers = ["libserviceutils"],
 }
 
 subdirs = ["tests/fakehwc"]
