@@ -20,6 +20,7 @@ cc_library_static {
 
     cflags: [
         "-Wall",
+        "-Wno-unused-parameter",
         "-Werror",
     ],
 

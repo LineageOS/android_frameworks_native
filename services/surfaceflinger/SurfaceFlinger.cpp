@@ -3459,7 +3459,8 @@ void SurfaceFlinger::setPowerMode(const sp<IBinder>& display, int mode) {
 
 // ---------------------------------------------------------------------------
 
-status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args) {
+status_t SurfaceFlinger::dump(int fd, const Vector<String16>& args)
+{
     String8 result;
 
     IPCThreadState* ipc = IPCThreadState::self();
