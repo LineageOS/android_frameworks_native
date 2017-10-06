@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "PriorityDumper.h"
+#include "serviceutils/PriorityDumper.h"
 
 #include <vector>
 
@@ -32,17 +32,17 @@ using ::testing::Test;
 
 class PriorityDumperMock : public PriorityDumper {
 public:
-    MOCK_METHOD2(dumpCritical, void(int, const Vector<String16>&));
-    MOCK_METHOD2(dumpHigh, void(int, const Vector<String16>&));
-    MOCK_METHOD2(dumpNormal, void(int, const Vector<String16>&));
-    MOCK_METHOD2(dump, void(int, const Vector<String16>&));
+    MOCK_METHOD2(dumpCritical, status_t(int, const Vector<String16>&));
+    MOCK_METHOD2(dumpHigh, status_t(int, const Vector<String16>&));
+    MOCK_METHOD2(dumpNormal, status_t(int, const Vector<String16>&));
+    MOCK_METHOD2(dumpAll, status_t(int, const Vector<String16>&));
 };
 
 class DumpAllMock : public PriorityDumper {
 public:
-    MOCK_METHOD2(dumpCritical, void(int, const Vector<String16>&));
-    MOCK_METHOD2(dumpHigh, void(int, const Vector<String16>&));
-    MOCK_METHOD2(dumpNormal, void(int, const Vector<String16>&));
+    MOCK_METHOD2(dumpCritical, status_t(int, const Vector<String16>&));
+    MOCK_METHOD2(dumpHigh, status_t(int, const Vector<String16>&));
+    MOCK_METHOD2(dumpNormal, status_t(int, const Vector<String16>&));
 };
 
 class PriorityDumperTest : public Test {
@@ -61,15 +61,15 @@ static void addAll(Vector<String16>& av, const std::vector<std::string>& v) {
 
 TEST_F(PriorityDumperTest, noArgsPassed) {
     Vector<String16> args;
-    EXPECT_CALL(dumper_, dump(fd, ElementsAreArray(args)));
-    priorityDump(dumper_, fd, args);
+    EXPECT_CALL(dumper_, dumpAll(fd, ElementsAreArray(args)));
+    dumper_.priorityDump(fd, args);
 }
 
 TEST_F(PriorityDumperTest, noPriorityArgsPassed) {
     Vector<String16> args;
     addAll(args, {"bunch", "of", "args"});
-    EXPECT_CALL(dumper_, dump(fd, ElementsAreArray(args)));
-    priorityDump(dumper_, fd, args);
+    EXPECT_CALL(dumper_, dumpAll(fd, ElementsAreArray(args)));
+    dumper_.priorityDump(fd, args);
 }
 
 TEST_F(PriorityDumperTest, priorityArgsOnly) {
@@ -77,8 +77,7 @@ TEST_F(PriorityDumperTest, priorityArgsOnly) {
     addAll(args, {"--dump-priority", "CRITICAL"});
     Vector<String16> strippedArgs;
     EXPECT_CALL(dumper_, dumpCritical(fd, ElementsAreArray(strippedArgs)));
-
-    priorityDump(dumper_, fd, args);
+    dumper_.priorityDump(fd, args);
 }
 
 TEST_F(PriorityDumperTest, dumpCritical) {
@@ -88,7 +87,7 @@ TEST_F(PriorityDumperTest, dumpCritical) {
     addAll(strippedArgs, {"args", "left", "behind"});
 
     EXPECT_CALL(dumper_, dumpCritical(fd, ElementsAreArray(strippedArgs)));
-    priorityDump(dumper_, fd, args);
+    dumper_.priorityDump(fd, args);
 }
 
 TEST_F(PriorityDumperTest, dumpHigh) {
@@ -98,7 +97,7 @@ TEST_F(PriorityDumperTest, dumpHigh) {
     addAll(strippedArgs, {"args", "left", "behind"});
 
     EXPECT_CALL(dumper_, dumpHigh(fd, ElementsAreArray(strippedArgs)));
-    priorityDump(dumper_, fd, args);
+    dumper_.priorityDump(fd, args);
 }
 
 TEST_F(PriorityDumperTest, dumpNormal) {
@@ -108,7 +107,7 @@ TEST_F(PriorityDumperTest, dumpNormal) {
     addAll(strippedArgs, {"args", "left", "behind"});
 
     EXPECT_CALL(dumper_, dumpNormal(fd, ElementsAreArray(strippedArgs)));
-    priorityDump(dumper_, fd, args);
+    dumper_.priorityDump(fd, args);
 }
 
 TEST_F(PriorityDumperTest, dumpAll) {
@@ -119,21 +118,21 @@ TEST_F(PriorityDumperTest, dumpAll) {
     EXPECT_CALL(dumpAlldumper_, dumpHigh(fd, ElementsAreArray(args)));
     EXPECT_CALL(dumpAlldumper_, dumpNormal(fd, ElementsAreArray(args)));
 
-    priorityDump(dumpAlldumper_, fd, args);
+    dumpAlldumper_.priorityDump(fd, args);
 }
 
 TEST_F(PriorityDumperTest, priorityArgWithPriorityMissing) {
     Vector<String16> args;
     addAll(args, {"--dump-priority"});
-    EXPECT_CALL(dumper_, dump(fd, ElementsAreArray(args)));
+    EXPECT_CALL(dumper_, dumpAll(fd, ElementsAreArray(args)));
 
-    priorityDump(dumper_, fd, args);
+    dumper_.priorityDump(fd, args);
 }
 
 TEST_F(PriorityDumperTest, priorityArgWithInvalidPriority) {
     Vector<String16> args;
     addAll(args, {"--dump-priority", "REALLY_HIGH"});
-    EXPECT_CALL(dumper_, dump(fd, ElementsAreArray(args)));
+    EXPECT_CALL(dumper_, dumpAll(fd, ElementsAreArray(args)));
 
-    priorityDump(dumper_, fd, args);
+    dumper_.priorityDump(fd, args);
 }

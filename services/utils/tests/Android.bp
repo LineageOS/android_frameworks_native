@@ -21,9 +21,6 @@ cc_test {
     shared_libs: [
         "libutils",
     ],
-    cflags: [
-        "-Wno-unused-parameter",
-    ],
     static_libs = [
         "libgmock",
         "libserviceutils"
