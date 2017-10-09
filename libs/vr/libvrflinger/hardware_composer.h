@@ -161,6 +161,14 @@ class Layer {
   // Applies visibility settings that may have changed.
   void UpdateVisibilitySettings();
 
+  // Checks whether the buffer, given by id, is associated with the given slot
+  // in the HWC buffer cache. If the slot is not associated with the given
+  // buffer the cache is updated to establish the association and the buffer
+  // should be sent to HWC using setLayerBuffer. Returns true if the association
+  // was already established, false if not. A buffer_id of -1 is never
+  // associated and always returns false.
+  bool CheckAndUpdateCachedBuffer(std::size_t slot, int buffer_id);
+
   // Composer instance shared by all instances of Layer. This must be set
   // whenever a new instance of the Composer is created. This may be set to
   // nullptr as long as there are no instances of Layer that might need to use
@@ -198,19 +206,21 @@ class Layer {
     // the previous buffer is returned or an empty value if no buffer has ever
     // been posted. When a new buffer is acquired the previous buffer's release
     // fence is passed out automatically.
-    std::tuple<int, int, sp<GraphicBuffer>, pdx::LocalHandle> Acquire() {
+    std::tuple<int, int, int, sp<GraphicBuffer>, pdx::LocalHandle, std::size_t>
+    Acquire() {
       if (surface->IsBufferAvailable()) {
         acquired_buffer.Release(std::move(release_fence));
         acquired_buffer = surface->AcquireCurrentBuffer();
         ATRACE_ASYNC_END("BufferPost", acquired_buffer.buffer()->id());
       }
       if (!acquired_buffer.IsEmpty()) {
-        return std::make_tuple(acquired_buffer.buffer()->width(),
-                               acquired_buffer.buffer()->height(),
-                               acquired_buffer.buffer()->buffer()->buffer(),
-                               acquired_buffer.ClaimAcquireFence());
+        return std::make_tuple(
+            acquired_buffer.buffer()->width(),
+            acquired_buffer.buffer()->height(), acquired_buffer.buffer()->id(),
+            acquired_buffer.buffer()->buffer()->buffer(),
+            acquired_buffer.ClaimAcquireFence(), acquired_buffer.slot());
       } else {
-        return std::make_tuple(0, 0, nullptr, pdx::LocalHandle{});
+        return std::make_tuple(0, 0, -1, nullptr, pdx::LocalHandle{}, 0);
       }
     }
 
@@ -242,12 +252,13 @@ class Layer {
   struct SourceBuffer {
     std::shared_ptr<IonBuffer> buffer;
 
-    std::tuple<int, int, sp<GraphicBuffer>, pdx::LocalHandle> Acquire() {
+    std::tuple<int, int, int, sp<GraphicBuffer>, pdx::LocalHandle, std::size_t>
+    Acquire() {
       if (buffer)
-        return std::make_tuple(buffer->width(), buffer->height(),
-                               buffer->buffer(), pdx::LocalHandle{});
+        return std::make_tuple(buffer->width(), buffer->height(), -1,
+                               buffer->buffer(), pdx::LocalHandle{}, 0);
       else
-        return std::make_tuple(0, 0, nullptr, pdx::LocalHandle{});
+        return std::make_tuple(0, 0, -1, nullptr, pdx::LocalHandle{}, 0);
     }
 
     void Finish(pdx::LocalHandle /*fence*/) {}
@@ -265,6 +276,12 @@ class Layer {
   pdx::LocalHandle acquire_fence_;
   bool surface_rect_functions_applied_ = false;
   bool pending_visibility_settings_ = true;
+
+  // Map of buffer slot assignments that have already been established with HWC:
+  // slot -> buffer_id. When this map contains a matching slot and buffer_id the
+  // buffer argument to setLayerBuffer may be nullptr to avoid the cost of
+  // importing a buffer HWC already knows about.
+  std::map<std::size_t, int> cached_buffer_map_;
 
   Layer(const Layer&) = delete;
   void operator=(const Layer&) = delete;

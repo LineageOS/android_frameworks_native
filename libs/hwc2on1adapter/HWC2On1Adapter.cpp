@@ -426,7 +426,13 @@ Error HWC2On1Adapter::registerCallback(Callback descriptor,
 
     std::unique_lock<std::recursive_timed_mutex> lock(mStateMutex);
 
-    mCallbacks[descriptor] = {callbackData, pointer};
+    if (pointer != nullptr) {
+        mCallbacks[descriptor] = {callbackData, pointer};
+    } else {
+        ALOGI("unregisterCallback(%s)", to_string(descriptor).c_str());
+        mCallbacks.erase(descriptor);
+        return Error::None;
+    }
 
     bool hasPendingInvalidate = false;
     std::vector<hwc2_display_t> displayIds;
