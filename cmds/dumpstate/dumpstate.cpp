@@ -1169,7 +1169,7 @@ static void dumpstate() {
     RunCommand("VOLD DUMP", {"vdc", "dump"});
     RunCommand("SECURE CONTAINERS", {"vdc", "asec", "list"});
 
-    RunCommand("STORAGED UID IO INFO", {"storaged", "-u"});
+    RunCommand("STORAGED IO INFO", {"storaged", "-u", "-p"});
 
     RunCommand("FILESYSTEMS & FREE SPACE", {"df"});
 
