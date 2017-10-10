@@ -67,7 +67,10 @@ LOCAL_STATIC_LIBRARIES := \
     libtrace_proto \
     libvkjson \
     libvr_manager \
-    libvrflinger
+    libvrflinger \
+    libserviceutils
+
+LOCAL_EXPORT_STATIC_LIBRARY_HEADERS := libserviceutils
 
 LOCAL_SHARED_LIBRARIES := \
     android.frameworks.vr.composer@1.0 \
@@ -145,7 +148,8 @@ LOCAL_SHARED_LIBRARIES := \
     libdl
 
 LOCAL_WHOLE_STATIC_LIBRARIES := libsigchain
-LOCAL_STATIC_LIBRARIES := libtrace_proto
+LOCAL_STATIC_LIBRARIES := libtrace_proto \
+    libserviceutils
 
 LOCAL_MODULE := surfaceflinger
 

@@ -1062,7 +1062,7 @@ static void dumpstate() {
     DumpFile("KERNEL SYNC", "/d/sync");
 
     RunCommand("PROCESSES AND THREADS",
-               {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy"});
+               {"ps", "-A", "-T", "-Z", "-O", "pri,nice,rtprio,sched,pcy,time"});
     RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT);
 
     if (ds.IsZipping()) {
