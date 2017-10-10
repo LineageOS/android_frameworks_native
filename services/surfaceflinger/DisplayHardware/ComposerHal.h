@@ -152,6 +152,9 @@ public:
     // skip a frame but have already queued some commands.
     void resetCommands();
 
+    // Explicitly flush all pending commands in the command buffer.
+    Error executeCommands();
+
     uint32_t getMaxVirtualDisplayCount();
     bool isUsingVrComposer() const { return mIsUsingVrComposer; }
     Error createVirtualDisplay(uint32_t width, uint32_t height,
