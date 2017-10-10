@@ -257,6 +257,10 @@ std::string Dumpstate::GetPath(const std::string& suffix) const {
                                        name_.c_str(), suffix.c_str());
 }
 
+bool Dumpstate::CurrentVersionSupportsPriorityDumps() const {
+    return (version_ == VERSION_PRIORITY_DUMPS);
+}
+
 void Dumpstate::SetProgress(std::unique_ptr<Progress> progress) {
     progress_ = std::move(progress);
 }

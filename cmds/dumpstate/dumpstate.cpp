@@ -1038,6 +1038,40 @@ static void DumpIpAddrAndRules() {
     RunCommand("IP RULES v6", {"ip", "-6", "rule", "show"});
 }
 
+// Runs dumpsys on services that must dump first and and will take less than 100ms to dump.
+static void RunDumpsysCritical() {
+    if (ds.CurrentVersionSupportsPriorityDumps()) {
+        RunDumpsys("DUMPSYS CRITICAL", {"--priority", "CRITICAL"},
+                   CommandOptions::WithTimeout(5).DropRoot().Build());
+    } else {
+        RunDumpsys("DUMPSYS MEMINFO", {"meminfo", "-a"},
+                   CommandOptions::WithTimeout(90).DropRoot().Build());
+        RunDumpsys("DUMPSYS CPUINFO", {"cpuinfo", "-a"},
+                   CommandOptions::WithTimeout(10).DropRoot().Build());
+    }
+}
+
+// Runs dumpsys on services that must dump first but can take up to 250ms to dump.
+static void RunDumpsysHigh() {
+    if (ds.CurrentVersionSupportsPriorityDumps()) {
+        RunDumpsys("DUMPSYS HIGH", {"--priority", "HIGH"},
+                   CommandOptions::WithTimeout(20).DropRoot().Build());
+    } else {
+        RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"});
+    }
+}
+
+// Runs dumpsys on services that must dump but can take up to 10s to dump.
+static void RunDumpsysNormal() {
+    if (ds.CurrentVersionSupportsPriorityDumps()) {
+        RunDumpsys("DUMPSYS NORMAL", {"--priority", "NORMAL"},
+                   CommandOptions::WithTimeout(90).DropRoot().Build());
+    } else {
+        RunDumpsys("DUMPSYS", {"--skip", "meminfo", "cpuinfo"},
+                   CommandOptions::WithTimeout(90).Build(), 10);
+    }
+}
+
 static void dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
 
@@ -1128,8 +1162,7 @@ static void dumpstate() {
     RunCommand("IPv6 ND CACHE", {"ip", "-6", "neigh", "show"});
     RunCommand("MULTICAST ADDRESSES", {"ip", "maddr"});
 
-    RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
-               CommandOptions::WithTimeout(10).Build());
+    RunDumpsysHigh();
 
     RunCommand("SYSTEM PROPERTIES", {"getprop"});
 
@@ -1182,8 +1215,7 @@ static void dumpstate() {
     printf("== Android Framework Services\n");
     printf("========================================================\n");
 
-    RunDumpsys("DUMPSYS", {"--skip", "meminfo", "cpuinfo"}, CommandOptions::WithTimeout(90).Build(),
-               10);
+    RunDumpsysNormal();
 
     printf("========================================================\n");
     printf("== Checkins\n");
@@ -1624,10 +1656,12 @@ int main(int argc, char *argv[]) {
         ds.version_ = VERSION_CURRENT;
     }
 
-    if (ds.version_ != VERSION_CURRENT && ds.version_ != VERSION_SPLIT_ANR) {
-        MYLOGE("invalid version requested ('%s'); suppported values are: ('%s', '%s', '%s')\n",
-               ds.version_.c_str(), VERSION_DEFAULT.c_str(), VERSION_CURRENT.c_str(),
-               VERSION_SPLIT_ANR.c_str());
+    if (ds.version_ != VERSION_CURRENT && ds.version_ != VERSION_SPLIT_ANR &&
+        ds.version_ != VERSION_PRIORITY_DUMPS) {
+        MYLOGE(
+            "invalid version requested ('%s'); suppported values are: ('%s', '%s', '%s', '%s')\n",
+            ds.version_.c_str(), VERSION_DEFAULT.c_str(), VERSION_CURRENT.c_str(),
+            VERSION_SPLIT_ANR.c_str(), VERSION_PRIORITY_DUMPS.c_str());
         exit(1);
     }
 
@@ -1818,10 +1852,7 @@ int main(int argc, char *argv[]) {
 
         // Invoking the following dumpsys calls before dump_traces() to try and
         // keep the system stats as close to its initial state as possible.
-        RunDumpsys("DUMPSYS MEMINFO", {"meminfo", "-a"},
-                   CommandOptions::WithTimeout(90).DropRoot().Build());
-        RunDumpsys("DUMPSYS CPUINFO", {"cpuinfo", "-a"},
-                   CommandOptions::WithTimeout(10).DropRoot().Build());
+        RunDumpsysCritical();
 
         // TODO: Drop root user and move into dumpstate() once b/28633932 is fixed.
         dump_raft();
