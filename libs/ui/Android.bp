@@ -106,4 +106,7 @@ cc_library_shared {
     ],
 }
 
-subdirs = ["tests"]
+subdirs = [
+    "tests",
+    "tools",
+]
