@@ -40,7 +40,8 @@ cc_library {
     srcs: sourceFiles,
     cflags: [
         "-DLOG_TAG=\"libbufferhub\"",
-        "-DTRACE=0"
+        "-DTRACE=0",
+        "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     ],
     export_include_dirs: localIncludeFiles,
     static_libs: staticLibraries,
