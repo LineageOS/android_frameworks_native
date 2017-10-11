@@ -20,8 +20,8 @@ using android::pdx::Channel;
 using android::pdx::ErrorStatus;
 using android::pdx::Message;
 using android::pdx::Status;
-using android::pdx::rpc::DispatchRemoteMethod;
 using android::pdx::default_transport::Endpoint;
+using android::pdx::rpc::DispatchRemoteMethod;
 
 namespace android {
 namespace dvr {
@@ -53,7 +53,15 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
   stream << " ";
   stream << std::setw(6) << "Format";
   stream << " ";
-  stream << std::setw(11) << "Usage";
+  stream << std::setw(10) << "Usage";
+  stream << " ";
+  stream << std::setw(9) << "Pending";
+  stream << " ";
+  stream << std::setw(18) << "State";
+  stream << " ";
+  stream << std::setw(18) << "Signaled";
+  stream << " ";
+  stream << std::setw(10) << "Index";
   stream << " ";
   stream << "Name";
   stream << std::endl;
@@ -83,46 +91,15 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
       stream << std::setw(8) << info.usage;
       stream << std::dec << std::setfill(' ');
       stream << " ";
-      stream << info.name;
-      stream << std::endl;
-    }
-  }
-
-  stream << "Active Consumer Buffers:\n";
-  stream << std::right;
-  stream << std::setw(6) << "Id";
-  stream << " ";
-  stream << std::setw(14) << "Geometry";
-  stream << " ";
-  stream << "Name";
-  stream << std::endl;
-
-  for (const auto& channel : channels) {
-    if (channel->channel_type() == BufferHubChannel::kConsumerType) {
-      BufferHubChannel::BufferInfo info = channel->GetBufferInfo();
-
-      stream << std::right;
-      stream << std::setw(6) << info.id;
+      stream << std::setw(9) << info.pending_count;
       stream << " ";
-
-      if (info.consumer_count == 0) {
-        // consumer_count is tracked by producer. When it's zero, producer must
-        // have already hung up and the consumer is orphaned.
-        stream << std::setw(14) << "Orphaned.";
-        stream << (" channel_id=" + std::to_string(channel->channel_id()));
-        stream << std::endl;
-        continue;
-      }
-
-      if (info.format == HAL_PIXEL_FORMAT_BLOB) {
-        std::string size = std::to_string(info.width) + " B";
-        stream << std::setw(14) << size;
-      } else {
-        std::string dimensions = std::to_string(info.width) + "x" +
-                                 std::to_string(info.height) + "x" +
-                                 std::to_string(info.layer_count);
-        stream << std::setw(14) << dimensions;
-      }
+      stream << "0x" << std::hex << std::setfill('0');
+      stream << std::setw(16) << info.state;
+      stream << " ";
+      stream << "0x" << std::setw(16) << info.signaled_mask;
+      stream << std::dec << std::setfill(' ');
+      stream << " ";
+      stream << std::setw(8) << info.index;
       stream << " ";
       stream << info.name;
       stream << std::endl;
@@ -180,6 +157,32 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
 
       stream << std::right << std::setw(6) << info.id;
       stream << std::right << std::setw(12) << info.capacity;
+      stream << std::endl;
+    }
+  }
+
+  stream << std::endl;
+  stream << "Orphaned Consumer Buffers:\n";
+  stream << std::right;
+  stream << std::setw(6) << "Id";
+  stream << " ";
+  stream << std::setw(14) << "Geometry";
+  stream << " ";
+  stream << "Name";
+  stream << std::endl;
+
+  for (const auto& channel : channels) {
+    BufferHubChannel::BufferInfo info = channel->GetBufferInfo();
+    // consumer_count is tracked by producer. When it's zero, producer must have
+    // already hung up and the consumer is orphaned.
+    if (channel->channel_type() == BufferHubChannel::kConsumerType &&
+        info.consumer_count == 0) {
+      stream << std::right;
+      stream << std::setw(6) << info.id;
+      stream << " ";
+
+      stream << std::setw(14) << "Orphaned.";
+      stream << (" channel_id=" + std::to_string(channel->channel_id()));
       stream << std::endl;
     }
   }
@@ -444,6 +447,7 @@ void BufferHubChannel::SignalAvailable() {
            "BufferHubChannel::SignalAvailable: channel_id=%d buffer_id=%d",
            channel_id(), buffer_id());
   if (!IsDetached()) {
+    signaled_ = true;
     const auto status = service_->ModifyChannelEvents(channel_id_, 0, POLLIN);
     ALOGE_IF(!status,
              "BufferHubChannel::SignalAvailable: failed to signal availability "
@@ -460,6 +464,7 @@ void BufferHubChannel::ClearAvailable() {
            "BufferHubChannel::ClearAvailable: channel_id=%d buffer_id=%d",
            channel_id(), buffer_id());
   if (!IsDetached()) {
+    signaled_ = false;
     const auto status = service_->ModifyChannelEvents(channel_id_, POLLIN, 0);
     ALOGE_IF(!status,
              "BufferHubChannel::ClearAvailable: failed to clear availability "

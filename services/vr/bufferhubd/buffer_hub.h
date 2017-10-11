@@ -53,6 +53,10 @@ class BufferHubChannel : public pdx::Channel {
     uint32_t layer_count = 0;
     uint32_t format = 0;
     uint64_t usage = 0;
+    size_t pending_count = 0;
+    uint64_t state = 0;
+    uint64_t signaled_mask = 0;
+    uint64_t index = 0;
     std::string name;
 
     // Data filed for producer queue.
@@ -60,7 +64,9 @@ class BufferHubChannel : public pdx::Channel {
     UsagePolicy usage_policy{0, 0, 0, 0};
 
     BufferInfo(int id, size_t consumer_count, uint32_t width, uint32_t height,
-               uint32_t layer_count, uint32_t format, uint64_t usage, const std::string& name)
+               uint32_t layer_count, uint32_t format, uint64_t usage,
+               size_t pending_count, uint64_t state, uint64_t signaled_mask,
+               uint64_t index, const std::string& name)
         : id(id),
           type(kProducerType),
           consumer_count(consumer_count),
@@ -69,6 +75,10 @@ class BufferHubChannel : public pdx::Channel {
           layer_count(layer_count),
           format(format),
           usage(usage),
+          pending_count(pending_count),
+          state(state),
+          signaled_mask(signaled_mask),
+          index(index),
           name(name) {}
 
     BufferInfo(int id, size_t consumer_count, size_t capacity,
@@ -101,6 +111,8 @@ class BufferHubChannel : public pdx::Channel {
   int channel_id() const { return channel_id_; }
   bool IsDetached() const { return channel_id_ == kDetachedId; }
 
+  bool signaled() const { return signaled_; }
+
   void Detach() {
     if (channel_type_ == kProducerType)
       channel_id_ = kDetachedId;
@@ -123,6 +135,8 @@ class BufferHubChannel : public pdx::Channel {
   // The channel id of the buffer. This may change for a persistent producer
   // buffer if it is detached and re-attached to another channel.
   int channel_id_;
+
+  bool signaled_;
 
   ChannelType channel_type_;
 

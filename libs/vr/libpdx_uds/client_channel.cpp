@@ -33,7 +33,9 @@ struct TransactionState {
     } else if (static_cast<size_t>(index) < response.channels.size()) {
       auto& channel_info = response.channels[index];
       *handle = ChannelManager::Get().CreateHandle(
-          std::move(channel_info.data_fd), std::move(channel_info.event_fd));
+          std::move(channel_info.data_fd),
+          std::move(channel_info.pollin_event_fd),
+          std::move(channel_info.pollhup_event_fd));
     } else {
       return false;
     }
@@ -53,9 +55,9 @@ struct TransactionState {
 
     if (auto* channel_data =
             ChannelManager::Get().GetChannelData(handle.value())) {
-      ChannelInfo<BorrowedHandle> channel_info;
-      channel_info.data_fd.Reset(handle.value());
-      channel_info.event_fd = channel_data->event_receiver.event_fd();
+      ChannelInfo<BorrowedHandle> channel_info{
+          channel_data->data_fd(), channel_data->pollin_event_fd(),
+          channel_data->pollhup_event_fd()};
       request.channels.push_back(std::move(channel_info));
       return request.channels.size() - 1;
     } else {
