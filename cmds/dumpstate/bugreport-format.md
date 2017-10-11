@@ -56,8 +56,20 @@ files upon the end user’s request:
 - `description.txt`: whose value is a multi-line, detailed description of the problem.
 
 ## Android O versions
-On _Android O (OhMightyAndroidWhatsYourNextReleaseName?)_, the following changes were made:
-- The ANR traces are added to the `FS` folder, typically under `FS/data/anr` (version `2.0-dev-1`).
+On _Android O (Oreo)_, the following changes were made:
+- The ANR traces are added to the `FS` folder, typically under `FS/data/anr` (version `2.0-dev-split-anr`).
+
+## Android P versions
+On _Android P (PleaseMightyAndroidWhatsYourNextReleaseName?)_, the following changes were made:
+- Dumpsys sections are dumped by priority (version `2.0-dev-priority-dumps`).
+  Supported priorities can be specified when registering framework services. Section headers are
+  changed to contain priority info.
+  `DUMPSYS` -> `DUMPSYS CRITICAL/HIGH/NORMAL`
+  `DUMP OF SERVICE <servicename>` -> `DUMP OF SERVICE CRITICAL/HIGH/NORMAL <servicename>`
+  Supported Priorities:
+    - CRITICAL - services that must dump first, and fast (under 100ms). Ex: cpuinfo.
+    - HIGH - services that also must dump first, but can take longer (under 250ms) to dump. Ex: meminfo.
+    - NORMAL - services that have no rush to dump and can take a long time (under 10s).
 
 ## Intermediate versions
 During development, the versions will be suffixed with _-devX_ or

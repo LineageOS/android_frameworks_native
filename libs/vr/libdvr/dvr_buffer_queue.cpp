@@ -151,7 +151,7 @@ int DvrWriteBufferQueue::Dequeue(int timeout, DvrWriteBuffer* write_buffer,
 
 int DvrWriteBufferQueue::GainBuffer(int timeout,
                                     DvrWriteBuffer** out_write_buffer,
-                                    DvrNativeBufferMetadata* /* out_meta */,
+                                    DvrNativeBufferMetadata* out_meta,
                                     int* out_fence_fd) {
   DvrWriteBuffer write_buffer;
   int fence_fd;
@@ -438,7 +438,7 @@ int DvrReadBufferQueue::AcquireBuffer(int timeout,
 }
 
 int DvrReadBufferQueue::ReleaseBuffer(DvrReadBuffer* read_buffer,
-                                      const DvrNativeBufferMetadata* /* meta */,
+                                      const DvrNativeBufferMetadata* meta,
                                       int release_fence_fd) {
   LOG_FATAL_IF(
       (read_buffers->slot < 0 || read_buffers->slot >= read_buffers_size()),

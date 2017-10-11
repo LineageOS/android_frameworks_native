@@ -149,9 +149,15 @@ static std::string VERSION_CURRENT = "1.0";
 
 /*
  * Temporary version that adds a anr-traces.txt entry. Once tools support it, the current version
- * will be bumped to 2.0-dev-1.
+ * will be bumped to 2.0.
  */
-static std::string VERSION_SPLIT_ANR = "2.0-dev-1";
+static std::string VERSION_SPLIT_ANR = "2.0-dev-split-anr";
+
+/*
+ * Temporary version that adds priority based dumps. Once tools support it, the current version
+ * will be bumped to 2.0.
+ */
+static std::string VERSION_PRIORITY_DUMPS = "2.0-dev-priority-dumps";
 
 /*
  * "Alias" for the current version.
@@ -265,6 +271,9 @@ class Dumpstate {
 
     /* Gets the path of a bugreport file with the given suffix. */
     std::string GetPath(const std::string& suffix) const;
+
+    /* Returns true if the current version supports priority dump feature. */
+    bool CurrentVersionSupportsPriorityDumps() const;
 
     // TODO: initialize fields on constructor
 
