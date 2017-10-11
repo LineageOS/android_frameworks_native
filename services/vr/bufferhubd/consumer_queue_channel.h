@@ -19,7 +19,7 @@ class ConsumerQueueChannel : public BufferHubChannel {
   using RemoteChannelHandle = pdx::RemoteChannelHandle;
 
   ConsumerQueueChannel(BufferHubService* service, int buffer_id, int channel_id,
-                       const std::shared_ptr<Channel>& producer);
+                       const std::shared_ptr<Channel>& producer, bool silent);
   ~ConsumerQueueChannel() override;
 
   bool HandleMessage(Message& message) override;
@@ -53,6 +53,10 @@ class ConsumerQueueChannel : public BufferHubChannel {
 
   // Tracks how many buffers have this queue imported.
   size_t capacity_;
+
+  // A silent queue does not signal or export buffers. It is only used to spawn
+  // another consumer queue.
+  bool silent_;
 
   ConsumerQueueChannel(const ConsumerQueueChannel&) = delete;
   void operator=(const ConsumerQueueChannel&) = delete;

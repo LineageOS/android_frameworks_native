@@ -36,6 +36,7 @@ cc_test {
         "variant_tests.cpp",
     ],
     static_libs: [
+        "libcutils",
         "libgmock",
         "libpdx",
         "liblog",

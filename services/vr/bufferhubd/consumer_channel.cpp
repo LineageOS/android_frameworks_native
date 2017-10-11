@@ -19,9 +19,10 @@ namespace android {
 namespace dvr {
 
 ConsumerChannel::ConsumerChannel(BufferHubService* service, int buffer_id,
-                                 int channel_id,
+                                 int channel_id, uint64_t consumer_state_bit,
                                  const std::shared_ptr<Channel> producer)
     : BufferHubChannel(service, buffer_id, channel_id, kConsumerType),
+      consumer_state_bit_(consumer_state_bit),
       producer_(producer) {
   GetProducer()->AddConsumer(this);
 }
@@ -32,8 +33,6 @@ ConsumerChannel::~ConsumerChannel() {
            channel_id(), buffer_id());
 
   if (auto producer = GetProducer()) {
-    if (!released_)  // Producer is waiting for our Release.
-      producer->OnConsumerIgnored();
     producer->RemoveConsumer(this);
   }
 }
@@ -43,6 +42,8 @@ BufferHubChannel::BufferInfo ConsumerChannel::GetBufferInfo() const {
   if (auto producer = GetProducer()) {
     // If producer has not hung up, copy most buffer info from the producer.
     info = producer->GetBufferInfo();
+  } else {
+    info.signaled_mask = consumer_state_bit();
   }
   info.id = buffer_id();
   return info;
@@ -55,6 +56,9 @@ std::shared_ptr<ProducerChannel> ConsumerChannel::GetProducer() const {
 void ConsumerChannel::HandleImpulse(Message& message) {
   ATRACE_NAME("ConsumerChannel::HandleImpulse");
   switch (message.GetOp()) {
+    case BufferHubRPC::ConsumerAcquire::Opcode:
+      OnConsumerAcquire(message);
+      break;
     case BufferHubRPC::ConsumerRelease::Opcode:
       OnConsumerRelease(message, {});
       break;
@@ -70,7 +74,7 @@ bool ConsumerChannel::HandleMessage(Message& message) {
   switch (message.GetOp()) {
     case BufferHubRPC::GetBuffer::Opcode:
       DispatchRemoteMethod<BufferHubRPC::GetBuffer>(
-          *producer, &ProducerChannel::OnGetBuffer, message);
+          *this, &ConsumerChannel::OnGetBuffer, message);
       return true;
 
     case BufferHubRPC::NewConsumer::Opcode:
@@ -98,9 +102,18 @@ bool ConsumerChannel::HandleMessage(Message& message) {
   }
 }
 
-Status<std::pair<BorrowedFence, ConsumerChannel::MetaData>>
-ConsumerChannel::OnConsumerAcquire(Message& message,
-                                   std::size_t metadata_size) {
+Status<BufferDescription<BorrowedHandle>> ConsumerChannel::OnGetBuffer(
+    Message& /*message*/) {
+  ATRACE_NAME("ConsumerChannel::OnGetBuffer");
+  ALOGD_IF(TRACE, "ConsumerChannel::OnGetBuffer: buffer=%d", buffer_id());
+  if (auto producer = GetProducer()) {
+    return {producer->GetBuffer(consumer_state_bit_)};
+  } else {
+    return ErrorStatus(EPIPE);
+  }
+}
+
+Status<LocalFence> ConsumerChannel::OnConsumerAcquire(Message& message) {
   ATRACE_NAME("ConsumerChannel::OnConsumerAcquire");
   auto producer = GetProducer();
   if (!producer)
@@ -114,7 +127,7 @@ ConsumerChannel::OnConsumerAcquire(Message& message,
         producer->buffer_id());
     return ErrorStatus(EBUSY);
   } else {
-    auto status = producer->OnConsumerAcquire(message, metadata_size);
+    auto status = producer->OnConsumerAcquire(message);
     if (status) {
       ClearAvailable();
       acquired_ = true;

@@ -328,7 +328,7 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
 
   LocalHandle fence_fd(fence->isValid() ? fence->dup() : -1);
 
-  DvrNativeBufferMetadata meta_data = {};
+  DvrNativeBufferMetadata meta_data;
   meta_data.timestamp = timestamp;
   meta_data.is_auto_timestamp = static_cast<int32_t>(is_auto_timestamp);
   meta_data.dataspace = static_cast<int32_t>(dataspace);
@@ -339,7 +339,7 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
   meta_data.scaling_mode = static_cast<int32_t>(scaling_mode);
   meta_data.transform = static_cast<int32_t>(transform);
 
-  buffer_producer->Post(fence_fd, &meta_data, sizeof(meta_data));
+  buffer_producer->PostAsync(&meta_data, fence_fd);
   buffers_[slot].mBufferState.queue();
 
   output->width = buffer_producer->width();
@@ -384,7 +384,7 @@ status_t BufferHubQueueProducer::cancelBuffer(int slot,
   }
 
   auto buffer_producer = buffers_[slot].mBufferProducer;
-  queue_->Enqueue(buffer_producer, slot);
+  queue_->Enqueue(buffer_producer, slot, 0ULL);
   buffers_[slot].mBufferState.cancel();
   buffers_[slot].mFence = fence;
   ALOGD_IF(TRACE, "cancelBuffer: slot %d", slot);

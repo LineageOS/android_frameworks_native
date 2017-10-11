@@ -26,7 +26,7 @@ class ProducerQueueChannel : public BufferHubChannel {
   // Returns a handle for the service channel, as well as the size of the
   // metadata associated with the queue.
   pdx::Status<pdx::RemoteChannelHandle> OnCreateConsumerQueue(
-      pdx::Message& message);
+      pdx::Message& message, bool silent);
 
   pdx::Status<QueueInfo> OnGetQueueInfo(pdx::Message& message);
 

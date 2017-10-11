@@ -27,15 +27,6 @@ DvrWriteBufferQueue::DvrWriteBufferQueue(
       format_(producer_queue->default_format()) {}
 
 int DvrWriteBufferQueue::GetNativeWindow(ANativeWindow** out_window) {
-  if (producer_queue_->metadata_size() != sizeof(DvrNativeBufferMetadata)) {
-    ALOGE(
-        "DvrWriteBufferQueue::GetNativeWindow: The size of buffer metadata "
-        "(%zu) of the write queue does not match  of size of "
-        "DvrNativeBufferMetadata (%zu).",
-        producer_queue_->metadata_size(), sizeof(DvrNativeBufferMetadata));
-    return -EINVAL;
-  }
-
   if (native_window_ == nullptr) {
     // Lazy creation of |native_window|, as not everyone is using
     // DvrWriteBufferQueue as an external surface.
@@ -63,10 +54,27 @@ int DvrWriteBufferQueue::CreateReadQueue(DvrReadBufferQueue** out_read_queue) {
 }
 
 int DvrWriteBufferQueue::Dequeue(int timeout, DvrWriteBuffer* write_buffer,
-                                 int* out_fence_fd, size_t* out_slot) {
+                                 int* out_fence_fd) {
+  DvrNativeBufferMetadata meta;
+  DvrWriteBuffer* buffer = nullptr;
+  int fence_fd = -1;
+  if (const int ret = GainBuffer(timeout, &buffer, &meta, &fence_fd))
+    return ret;
+  if (!buffer)
+    return -ENOMEM;
+
+  write_buffers_[buffer->slot].reset(buffer);
+  write_buffer->write_buffer = std::move(buffer->write_buffer);
+  *out_fence_fd = fence_fd;
+  return 0;
+}
+
+int DvrWriteBufferQueue::GainBuffer(int timeout,
+                                    DvrWriteBuffer** out_write_buffer,
+                                    DvrNativeBufferMetadata* out_meta,
+                                    int* out_fence_fd) {
   size_t slot;
-  pdx::LocalHandle fence;
-  std::shared_ptr<BufferProducer> buffer_producer;
+  pdx::LocalHandle release_fence;
 
   // Need to retry N+1 times, where N is total number of buffers in the queue.
   // As in the worst case, we will dequeue all N buffers and reallocate them, on
@@ -75,15 +83,29 @@ int DvrWriteBufferQueue::Dequeue(int timeout, DvrWriteBuffer* write_buffer,
   size_t retry = 0;
 
   for (; retry < max_retries; retry++) {
-    auto buffer_status = producer_queue_->Dequeue(timeout, &slot, &fence);
+    auto buffer_status =
+        producer_queue_->Dequeue(timeout, &slot, out_meta, &release_fence);
     if (!buffer_status) {
       ALOGE_IF(buffer_status.error() != ETIMEDOUT,
-               "DvrWriteBufferQueue::Dequeue: Failed to dequeue buffer: %s",
+               "DvrWriteBufferQueue::GainBuffer: Failed to dequeue buffer: %s",
                buffer_status.GetErrorMessage().c_str());
       return -buffer_status.error();
     }
 
-    buffer_producer = buffer_status.take();
+    if (write_buffers_[slot] == nullptr) {
+      // Lazy initialization of a write_buffers_ slot. Note that a slot will
+      // only be dynamically allocated once during the entire cycle life of a
+      // queue.
+      write_buffers_[slot] = std::make_unique<DvrWriteBuffer>();
+      write_buffers_[slot]->slot = slot;
+    }
+
+    LOG_ALWAYS_FATAL_IF(
+        write_buffers_[slot]->write_buffer,
+        "DvrWriteBufferQueue::GainBuffer: Buffer slot is not empty: %zu", slot);
+    write_buffers_[slot]->write_buffer = std::move(buffer_status.take());
+
+    const auto& buffer_producer = write_buffers_[slot]->write_buffer;
     if (!buffer_producer)
       return -ENOMEM;
 
@@ -122,6 +144,9 @@ int DvrWriteBufferQueue::Dequeue(int timeout, DvrWriteBuffer* write_buffer,
             remove_status.GetErrorMessage().c_str());
       return -remove_status.error();
     }
+    // Make sure that the previously allocated buffer is dereferenced from
+    // write_buffers_ array.
+    write_buffers_[slot]->write_buffer = nullptr;
 
     auto allocate_status = producer_queue_->AllocateBuffer(
         width_, height_, old_layer_count, format_, old_usage);
@@ -139,46 +164,8 @@ int DvrWriteBufferQueue::Dequeue(int timeout, DvrWriteBuffer* write_buffer,
     return -ENOMEM;
   }
 
-  write_buffer->write_buffer = std::move(buffer_producer);
-  *out_fence_fd = fence.Release();
-  if (out_slot) {
-    // TODO(b/65469368): Remove this null check once dvrWriteBufferQueueDequeue
-    // is deprecated.
-    *out_slot = slot;
-  }
-  return 0;
-}
-
-int DvrWriteBufferQueue::GainBuffer(int timeout,
-                                    DvrWriteBuffer** out_write_buffer,
-                                    DvrNativeBufferMetadata* out_meta,
-                                    int* out_fence_fd) {
-  DvrWriteBuffer write_buffer;
-  int fence_fd;
-  size_t slot;
-  const int ret = Dequeue(timeout, &write_buffer, &fence_fd, &slot);
-  if (ret < 0) {
-    ALOGE_IF(
-        ret != -ETIMEDOUT,
-        "DvrWriteBufferQueue::GainBuffer: Failed to dequeue buffer, ret=%d",
-        ret);
-    return ret;
-  }
-
-  if (write_buffers_[slot] == nullptr) {
-    // Lazy initialization of a write_buffers_ slot. Note that a slot will only
-    // be dynamically allocated once during the entire cycle life of a queue.
-    write_buffers_[slot] = std::make_unique<DvrWriteBuffer>();
-    write_buffers_[slot]->slot = slot;
-  }
-
-  LOG_ALWAYS_FATAL_IF(
-      write_buffers_[slot]->write_buffer,
-      "DvrWriteBufferQueue::GainBuffer: Buffer slot is not empty: %zu", slot);
-  write_buffers_[slot]->write_buffer = std::move(write_buffer.write_buffer);
-
   *out_write_buffer = write_buffers_[slot].release();
-  *out_fence_fd = fence_fd;
+  *out_fence_fd = release_fence.Release();
 
   return 0;
 }
@@ -202,14 +189,16 @@ int DvrWriteBufferQueue::PostBuffer(DvrWriteBuffer* write_buffer,
   }
   if (write_buffer->write_buffer->id() != producer_queue_->GetBufferId(slot)) {
     ALOGE(
-        "DvrWriteBufferQueue::PostBuffer: Buffer to be released does not "
-        "belong to this buffer queue.");
+        "DvrWriteBufferQueue::PostBuffer: Buffer to be posted does not "
+        "belong to this buffer queue. Posting buffer: id=%d, buffer in "
+        "queue: id=%d",
+        write_buffer->write_buffer->id(), producer_queue_->GetBufferId(slot));
     return -EINVAL;
   }
 
+  write_buffer->write_buffer->SetQueueIndex(next_post_index_++);
   pdx::LocalHandle fence(ready_fence_fd);
-  // TODO(b/65455724): All BufferHub operations should be async.
-  const int ret = write_buffer->write_buffer->Post(fence, meta, sizeof(*meta));
+  const int ret = write_buffer->write_buffer->PostAsync(meta, fence);
   if (ret < 0) {
     ALOGE("DvrWriteBufferQueue::PostBuffer: Failed to post buffer, ret=%d",
           ret);
@@ -316,8 +305,7 @@ int dvrWriteBufferQueueDequeue(DvrWriteBufferQueue* write_queue, int timeout,
   if (!write_queue || !write_buffer || !out_fence_fd)
     return -EINVAL;
 
-  // TODO(b/65469368): Deprecate this API once new GainBuffer API is in use.
-  return write_queue->Dequeue(timeout, write_buffer, out_fence_fd, nullptr);
+  return write_queue->Dequeue(timeout, write_buffer, out_fence_fd);
 }
 
 int dvrWriteBufferQueueGainBuffer(DvrWriteBufferQueue* write_queue, int timeout,
@@ -370,8 +358,8 @@ int DvrReadBufferQueue::CreateReadQueue(DvrReadBufferQueue** out_read_queue) {
 }
 
 int DvrReadBufferQueue::Dequeue(int timeout, DvrReadBuffer* read_buffer,
-                                int* out_fence_fd, size_t* out_slot,
-                                void* out_meta, size_t meta_size_bytes) {
+                                int* out_fence_fd, void* out_meta,
+                                size_t meta_size_bytes) {
   if (meta_size_bytes != consumer_queue_->metadata_size()) {
     ALOGE(
         "DvrReadBufferQueue::Dequeue: Invalid metadata size, expected (%zu), "
@@ -394,11 +382,6 @@ int DvrReadBufferQueue::Dequeue(int timeout, DvrReadBuffer* read_buffer,
   read_buffer->read_buffer = buffer_status.take();
   *out_fence_fd = acquire_fence.Release();
 
-  if (out_slot) {
-    // TODO(b/65469368): Remove this null check once dvrReadBufferQueueDequeue
-    // is deprecated.
-    *out_slot = slot;
-  }
   return 0;
 }
 
@@ -406,17 +389,15 @@ int DvrReadBufferQueue::AcquireBuffer(int timeout,
                                       DvrReadBuffer** out_read_buffer,
                                       DvrNativeBufferMetadata* out_meta,
                                       int* out_fence_fd) {
-  DvrReadBuffer read_buffer;
-  int fence_fd;
   size_t slot;
-  const int ret = Dequeue(timeout, &read_buffer, &fence_fd, &slot, out_meta,
-                          sizeof(*out_meta));
-  if (ret < 0) {
-    ALOGE_IF(
-        ret != -ETIMEDOUT,
-        "DvrReadBufferQueue::AcquireBuffer: Failed to dequeue buffer, error=%d",
-        ret);
-    return ret;
+  pdx::LocalHandle acquire_fence;
+  auto buffer_status =
+      consumer_queue_->Dequeue(timeout, &slot, out_meta, &acquire_fence);
+  if (!buffer_status) {
+    ALOGE_IF(buffer_status.error() != ETIMEDOUT,
+             "DvrReadBufferQueue::AcquireBuffer: Failed to dequeue buffer: %s",
+             buffer_status.GetErrorMessage().c_str());
+    return -buffer_status.error();
   }
 
   if (read_buffers_[slot] == nullptr) {
@@ -429,10 +410,10 @@ int DvrReadBufferQueue::AcquireBuffer(int timeout,
   LOG_FATAL_IF(
       read_buffers_[slot]->read_buffer,
       "DvrReadBufferQueue::AcquireBuffer: Buffer slot is not empty: %zu", slot);
-  read_buffers_[slot]->read_buffer = std::move(read_buffer.read_buffer);
+  read_buffers_[slot]->read_buffer = std::move(buffer_status.take());
 
   *out_read_buffer = read_buffers_[slot].release();
-  *out_fence_fd = fence_fd;
+  *out_fence_fd = acquire_fence.Release();
 
   return 0;
 }
@@ -457,20 +438,14 @@ int DvrReadBufferQueue::ReleaseBuffer(DvrReadBuffer* read_buffer,
   if (read_buffer->read_buffer->id() != consumer_queue_->GetBufferId(slot)) {
     ALOGE(
         "DvrReadBufferQueue::ReleaseBuffer: Buffer to be released does not "
-        "belong to this buffer queue.");
+        "belong to this buffer queue. Releasing buffer: id=%d, buffer in "
+        "queue: id=%d",
+        read_buffer->read_buffer->id(), consumer_queue_->GetBufferId(slot));
     return -EINVAL;
   }
 
   pdx::LocalHandle fence(release_fence_fd);
-  int ret = 0;
-  if (fence) {
-    ret = read_buffer->read_buffer->Release(fence);
-  } else {
-    // TODO(b/65458354): Send metadata back to producer once shared memory based
-    // metadata is implemented.
-    // TODO(b/65455724): All BufferHub operations should be async.
-    ret = read_buffer->read_buffer->ReleaseAsync();
-  }
+  int ret = read_buffer->read_buffer->ReleaseAsync(meta, fence);
   if (ret < 0) {
     ALOGE("DvrReadBufferQueue::ReleaseBuffer: Failed to release buffer, ret=%d",
           ret);
@@ -559,9 +534,8 @@ int dvrReadBufferQueueDequeue(DvrReadBufferQueue* read_queue, int timeout,
   if (meta_size_bytes != 0 && !out_meta)
     return -EINVAL;
 
-  // TODO(b/65469368): Deprecate this API once new AcquireBuffer API is in use.
-  return read_queue->Dequeue(timeout, read_buffer, out_fence_fd, nullptr,
-                             out_meta, meta_size_bytes);
+  return read_queue->Dequeue(timeout, read_buffer, out_fence_fd, out_meta,
+                             meta_size_bytes);
 }
 
 int dvrReadBufferQueueAcquireBuffer(DvrReadBufferQueue* read_queue, int timeout,
