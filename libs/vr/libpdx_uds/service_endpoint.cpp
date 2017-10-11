@@ -49,7 +49,9 @@ struct MessageState {
     } else if (static_cast<size_t>(index) < request.channels.size()) {
       auto& channel_info = request.channels[index];
       *handle = ChannelManager::Get().CreateHandle(
-          std::move(channel_info.data_fd), std::move(channel_info.event_fd));
+          std::move(channel_info.data_fd),
+          std::move(channel_info.pollin_event_fd),
+          std::move(channel_info.pollhup_event_fd));
     } else {
       return false;
     }
@@ -69,9 +71,9 @@ struct MessageState {
 
     if (auto* channel_data =
             ChannelManager::Get().GetChannelData(handle.value())) {
-      ChannelInfo<BorrowedHandle> channel_info;
-      channel_info.data_fd.Reset(handle.value());
-      channel_info.event_fd = channel_data->event_receiver.event_fd();
+      ChannelInfo<BorrowedHandle> channel_info{
+          channel_data->data_fd(), channel_data->pollin_event_fd(),
+          channel_data->pollhup_event_fd()};
       response.channels.push_back(std::move(channel_info));
       return response.channels.size() - 1;
     } else {
@@ -80,12 +82,13 @@ struct MessageState {
   }
 
   Status<ChannelReference> PushChannelHandle(BorrowedHandle data_fd,
-                                             BorrowedHandle event_fd) {
-    if (!data_fd || !event_fd)
+                                             BorrowedHandle pollin_event_fd,
+                                             BorrowedHandle pollhup_event_fd) {
+    if (!data_fd || !pollin_event_fd || !pollhup_event_fd)
       return ErrorStatus{EINVAL};
-    ChannelInfo<BorrowedHandle> channel_info;
-    channel_info.data_fd = std::move(data_fd);
-    channel_info.event_fd = std::move(event_fd);
+    ChannelInfo<BorrowedHandle> channel_info{std::move(data_fd),
+                                             std::move(pollin_event_fd),
+                                             std::move(pollhup_event_fd)};
     response.channels.push_back(std::move(channel_info));
     return response.channels.size() - 1;
   }
@@ -287,7 +290,6 @@ Status<std::pair<int32_t, Endpoint::ChannelData*>> Endpoint::OnNewChannelLocked(
     return ErrorStatus(errno);
   }
   ChannelData channel_data;
-  channel_data.event_set.AddDataFd(channel_fd);
   channel_data.data_fd = std::move(channel_fd);
   channel_data.channel_state = channel_state;
   for (;;) {
@@ -431,18 +433,21 @@ Status<RemoteChannelHandle> Endpoint::PushChannel(Message* message,
     return status.error_status();
 
   std::lock_guard<std::mutex> autolock(channel_mutex_);
-  auto channel_data = OnNewChannelLocked(std::move(local_socket), channel);
-  if (!channel_data)
-    return channel_data.error_status();
-  *channel_id = channel_data.get().first;
+  auto channel_data_status =
+      OnNewChannelLocked(std::move(local_socket), channel);
+  if (!channel_data_status)
+    return channel_data_status.error_status();
+
+  ChannelData* channel_data;
+  std::tie(*channel_id, channel_data) = channel_data_status.take();
 
   // Flags are ignored for now.
   // TODO(xiaohuit): Implement those.
 
   auto* state = static_cast<MessageState*>(message->GetState());
   Status<ChannelReference> ref = state->PushChannelHandle(
-      remote_socket.Borrow(),
-      channel_data.get().second->event_set.event_fd().Borrow());
+      remote_socket.Borrow(), channel_data->event_set.pollin_event_fd(),
+      channel_data->event_set.pollhup_event_fd());
   if (!ref)
     return ref.error_status();
   state->sockets_to_close.push_back(std::move(remote_socket));
@@ -472,13 +477,15 @@ BorrowedHandle Endpoint::GetChannelSocketFd(int32_t channel_id) {
   return handle;
 }
 
-BorrowedHandle Endpoint::GetChannelEventFd(int32_t channel_id) {
+Status<std::pair<BorrowedHandle, BorrowedHandle>> Endpoint::GetChannelEventFd(
+    int32_t channel_id) {
   std::lock_guard<std::mutex> autolock(channel_mutex_);
-  BorrowedHandle handle;
   auto channel_data = channels_.find(channel_id);
-  if (channel_data != channels_.end())
-    handle = channel_data->second.event_set.event_fd().Borrow();
-  return handle;
+  if (channel_data != channels_.end()) {
+    return {{channel_data->second.event_set.pollin_event_fd(),
+             channel_data->second.event_set.pollhup_event_fd()}};
+  }
+  return ErrorStatus(ENOENT);
 }
 
 int32_t Endpoint::GetChannelId(const BorrowedHandle& channel_fd) {
@@ -593,11 +600,6 @@ Status<void> Endpoint::MessageReceive(Message* message) {
   }
 
   BorrowedHandle channel_fd{event.data.fd};
-  if (event.events & (EPOLLRDHUP | EPOLLHUP)) {
-    BuildCloseMessage(GetChannelId(channel_fd), message);
-    return {};
-  }
-
   return ReceiveMessageForChannel(channel_fd, message);
 }
 
@@ -616,12 +618,23 @@ Status<void> Endpoint::MessageReply(Message* message, int return_code) {
       if (return_code < 0) {
         return CloseChannel(channel_id);
       } else {
-        // Reply with the event fd.
-        auto push_status = state->PushFileHandle(GetChannelEventFd(channel_id));
-        state->response_data.clear();  // Just in case...
-        if (!push_status)
-          return push_status.error_status();
-        return_code = push_status.get();
+        // Open messages do not have a payload and may not transfer any channels
+        // or file descriptors on behalf of the service.
+        state->response_data.clear();
+        state->response.file_descriptors.clear();
+        state->response.channels.clear();
+
+        // Return the channel event-related fds in a single ChannelInfo entry
+        // with an empty data_fd member.
+        auto status = GetChannelEventFd(channel_id);
+        if (!status)
+          return status.error_status();
+
+        auto handles = status.take();
+        state->response.channels.push_back({BorrowedHandle(),
+                                            std::move(handles.first),
+                                            std::move(handles.second)});
+        return_code = 0;
       }
       break;
   }

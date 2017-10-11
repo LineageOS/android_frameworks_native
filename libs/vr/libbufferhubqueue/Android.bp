@@ -48,6 +48,7 @@ cc_library {
     cflags: [
         "-DLOG_TAG=\"libbufferhubqueue\"",
         "-DTRACE=0",
+        "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     ],
     srcs: sourceFiles,
     export_include_dirs: includeFiles,

@@ -2,6 +2,8 @@
 
 #include <log/log.h>
 #include <sync/sync.h>
+#include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <sys/poll.h>
 #include <utils/Trace.h>
 
@@ -24,21 +26,85 @@ using android::pdx::rpc::WrapBuffer;
 namespace android {
 namespace dvr {
 
+namespace {
+
+static inline uint64_t FindNextClearedBit(uint64_t bits) {
+  return ~bits - (~bits & (~bits - 1));
+}
+
+}  // namespace
+
 ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
                                  uint32_t width, uint32_t height,
                                  uint32_t layer_count, uint32_t format,
-                                 uint64_t usage, size_t meta_size_bytes,
+                                 uint64_t usage, size_t user_metadata_size,
                                  int* error)
     : BufferHubChannel(service, channel_id, channel_id, kProducerType),
       pending_consumers_(0),
       producer_owns_(true),
-      meta_size_bytes_(meta_size_bytes),
-      meta_(meta_size_bytes ? new uint8_t[meta_size_bytes] : nullptr) {
-  const int ret = buffer_.Alloc(width, height, layer_count, format, usage);
-  if (ret < 0) {
+      user_metadata_size_(user_metadata_size),
+      metadata_buf_size_(BufferHubDefs::kMetadataHeaderSize +
+                         user_metadata_size) {
+  if (int ret = buffer_.Alloc(width, height, layer_count, format, usage)) {
     ALOGE("ProducerChannel::ProducerChannel: Failed to allocate buffer: %s",
           strerror(-ret));
     *error = ret;
+    return;
+  }
+
+  if (int ret = metadata_buffer_.Alloc(metadata_buf_size_, /*height=*/1,
+                                       /*layer_count=*/1,
+                                       BufferHubDefs::kMetadataFormat,
+                                       BufferHubDefs::kMetadataUsage)) {
+    ALOGE("ProducerChannel::ProducerChannel: Failed to allocate metadata: %s",
+          strerror(-ret));
+    *error = ret;
+    return;
+  }
+
+  void* metadata_ptr = nullptr;
+  if (int ret = metadata_buffer_.Lock(BufferHubDefs::kMetadataUsage, /*x=*/0,
+                                      /*y=*/0, metadata_buf_size_,
+                                      /*height=*/1, &metadata_ptr)) {
+    ALOGE("ProducerChannel::ProducerChannel: Failed to lock metadata.");
+    *error = -ret;
+    return;
+  }
+  metadata_header_ =
+      reinterpret_cast<BufferHubDefs::MetadataHeader*>(metadata_ptr);
+
+  // Using placement new here to reuse shared memory instead of new allocation
+  // and also initialize the value to zero.
+  buffer_state_ =
+      new (&metadata_header_->buffer_state) std::atomic<uint64_t>(0);
+  fence_state_ =
+      new (&metadata_header_->fence_state) std::atomic<uint64_t>(0);
+
+  acquire_fence_fd_.Reset(epoll_create1(EPOLL_CLOEXEC));
+  release_fence_fd_.Reset(epoll_create1(EPOLL_CLOEXEC));
+  if (!acquire_fence_fd_ || !release_fence_fd_) {
+    ALOGE("ProducerChannel::ProducerChannel: Failed to create shared fences.");
+    *error = -EIO;
+    return;
+  }
+
+  dummy_fence_fd_.Reset(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
+  if (!dummy_fence_fd_) {
+    ALOGE("ProducerChannel::ProducerChannel: Failed to create dummy fences.");
+    *error = -EIO;
+    return;
+  }
+
+  epoll_event event;
+  event.events = 0;
+  event.data.u64 = 0ULL;
+  if (epoll_ctl(release_fence_fd_.Get(), EPOLL_CTL_ADD, dummy_fence_fd_.Get(),
+                &event) < 0) {
+    ALOGE(
+        "ProducerChannel::ProducerChannel: Failed to modify the shared "
+        "release fence to include the dummy fence: %s",
+        strerror(errno));
+    *error = -EIO;
     return;
   }
 
@@ -49,11 +115,11 @@ ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
 Status<std::shared_ptr<ProducerChannel>> ProducerChannel::Create(
     BufferHubService* service, int channel_id, uint32_t width, uint32_t height,
     uint32_t layer_count, uint32_t format, uint64_t usage,
-    size_t meta_size_bytes) {
+    size_t user_metadata_size) {
   int error;
   std::shared_ptr<ProducerChannel> producer(
       new ProducerChannel(service, channel_id, width, height, layer_count,
-                          format, usage, meta_size_bytes, &error));
+                          format, usage, user_metadata_size, &error));
   if (error < 0)
     return ErrorStatus(-error);
   else
@@ -62,16 +128,24 @@ Status<std::shared_ptr<ProducerChannel>> ProducerChannel::Create(
 
 ProducerChannel::~ProducerChannel() {
   ALOGD_IF(TRACE,
-           "ProducerChannel::~ProducerChannel: channel_id=%d buffer_id=%d",
-           channel_id(), buffer_id());
+           "ProducerChannel::~ProducerChannel: channel_id=%d buffer_id=%d "
+           "state=%" PRIx64 ".",
+           channel_id(), buffer_id(), buffer_state_->load());
   for (auto consumer : consumer_channels_)
     consumer->OnProducerClosed();
 }
 
 BufferHubChannel::BufferInfo ProducerChannel::GetBufferInfo() const {
+  // Derive the mask of signaled buffers in this producer / consumer set.
+  uint64_t signaled_mask = signaled() ? BufferHubDefs::kProducerStateBit : 0;
+  for (const ConsumerChannel* consumer : consumer_channels_) {
+    signaled_mask |= consumer->signaled() ? consumer->consumer_state_bit() : 0;
+  }
+
   return BufferInfo(buffer_id(), consumer_channels_.size(), buffer_.width(),
                     buffer_.height(), buffer_.layer_count(), buffer_.format(),
-                    buffer_.usage(), name_);
+                    buffer_.usage(), pending_consumers_, buffer_state_->load(),
+                    signaled_mask, metadata_header_->queue_index, name_);
 }
 
 void ProducerChannel::HandleImpulse(Message& message) {
@@ -79,6 +153,9 @@ void ProducerChannel::HandleImpulse(Message& message) {
   switch (message.GetOp()) {
     case BufferHubRPC::ProducerGain::Opcode:
       OnProducerGain(message);
+      break;
+    case BufferHubRPC::ProducerPost::Opcode:
+      OnProducerPost(message, {});
       break;
   }
 }
@@ -121,16 +198,26 @@ bool ProducerChannel::HandleMessage(Message& message) {
   }
 }
 
-Status<NativeBufferHandle<BorrowedHandle>> ProducerChannel::OnGetBuffer(
+BufferDescription<BorrowedHandle> ProducerChannel::GetBuffer(
+    uint64_t buffer_state_bit) {
+  return {
+      buffer_,          metadata_buffer_,           buffer_id(),
+      buffer_state_bit, acquire_fence_fd_.Borrow(), release_fence_fd_.Borrow()};
+}
+
+Status<BufferDescription<BorrowedHandle>> ProducerChannel::OnGetBuffer(
     Message& /*message*/) {
   ATRACE_NAME("ProducerChannel::OnGetBuffer");
-  ALOGD_IF(TRACE, "ProducerChannel::OnGetBuffer: buffer=%d", buffer_id());
-  return {NativeBufferHandle<BorrowedHandle>(buffer_, buffer_id())};
+  ALOGD_IF(TRACE, "ProducerChannel::OnGetBuffer: buffer=%d, state=%" PRIx64 ".",
+           buffer_id(), buffer_state_->load());
+  return {GetBuffer(BufferHubDefs::kProducerStateBit)};
 }
 
 Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(Message& message) {
   ATRACE_NAME("ProducerChannel::CreateConsumer");
-  ALOGD_IF(TRACE, "ProducerChannel::CreateConsumer: buffer_id=%d", buffer_id());
+  ALOGD_IF(TRACE,
+           "ProducerChannel::CreateConsumer: buffer_id=%d, producer_owns=%d",
+           buffer_id(), producer_owns_);
 
   int channel_id;
   auto status = message.PushChannel(0, nullptr, &channel_id);
@@ -141,8 +228,21 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(Message& message) {
     return ErrorStatus(ENOMEM);
   }
 
-  auto consumer = std::make_shared<ConsumerChannel>(
-      service(), buffer_id(), channel_id, shared_from_this());
+  // Try find the next consumer state bit which has not been claimed by any
+  // consumer yet.
+  uint64_t consumer_state_bit = FindNextClearedBit(
+      active_consumer_bit_mask_ | orphaned_consumer_bit_mask_ |
+      BufferHubDefs::kProducerStateBit);
+  if (consumer_state_bit == 0ULL) {
+    ALOGE(
+        "ProducerChannel::CreateConsumer: reached the maximum mumber of "
+        "consumers per producer: 63.");
+    return ErrorStatus(E2BIG);
+  }
+
+  auto consumer =
+      std::make_shared<ConsumerChannel>(service(), buffer_id(), channel_id,
+                                        consumer_state_bit, shared_from_this());
   const auto channel_status = service()->SetChannel(channel_id, consumer);
   if (!channel_status) {
     ALOGE(
@@ -152,12 +252,14 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(Message& message) {
     return ErrorStatus(ENOMEM);
   }
 
-  if (!producer_owns_) {
+  if (!producer_owns_ &&
+      !BufferHubDefs::IsBufferReleased(buffer_state_->load())) {
     // Signal the new consumer when adding it to a posted producer.
     if (consumer->OnProducerPosted())
       pending_consumers_++;
   }
 
+  active_consumer_bit_mask_ |= consumer_state_bit;
   return {status.take()};
 }
 
@@ -168,8 +270,7 @@ Status<RemoteChannelHandle> ProducerChannel::OnNewConsumer(Message& message) {
 }
 
 Status<void> ProducerChannel::OnProducerPost(
-    Message&, LocalFence acquire_fence,
-    BufferWrapper<std::vector<std::uint8_t>> metadata) {
+    Message&, LocalFence acquire_fence) {
   ATRACE_NAME("ProducerChannel::OnProducerPost");
   ALOGD_IF(TRACE, "ProducerChannel::OnProducerPost: buffer_id=%d", buffer_id());
   if (!producer_owns_) {
@@ -177,27 +278,45 @@ Status<void> ProducerChannel::OnProducerPost(
     return ErrorStatus(EBUSY);
   }
 
-  if (meta_size_bytes_ != metadata.size()) {
-    ALOGD_IF(TRACE,
-             "ProducerChannel::OnProducerPost: Expected meta_size_bytes=%zu "
-             "got size=%zu",
-             meta_size_bytes_, metadata.size());
-    return ErrorStatus(EINVAL);
+  epoll_event event;
+  event.events = 0;
+  event.data.u64 = 0ULL;
+  int ret = epoll_ctl(release_fence_fd_.Get(), EPOLL_CTL_MOD,
+                      dummy_fence_fd_.Get(), &event);
+  ALOGE_IF(ret < 0,
+      "ProducerChannel::OnProducerPost: Failed to modify the shared "
+      "release fence to include the dummy fence: %s",
+      strerror(errno));
+
+  eventfd_t dummy_fence_count = 0ULL;
+  if (eventfd_read(dummy_fence_fd_.Get(), &dummy_fence_count) < 0) {
+    const int error = errno;
+    if (error != EAGAIN) {
+      ALOGE(
+          "ProducerChannel::ProducerChannel: Failed to read dummy fence, "
+          "error: %s",
+          strerror(error));
+      return ErrorStatus(error);
+    }
   }
 
-  std::copy(metadata.begin(), metadata.end(), meta_.get());
+  ALOGW_IF(dummy_fence_count > 0,
+           "ProducerChannel::ProducerChannel: %" PRIu64
+           " dummy fence(s) was signaled during last release/gain cycle "
+           "buffer_id=%d.",
+           dummy_fence_count, buffer_id());
+
   post_fence_ = std::move(acquire_fence);
   producer_owns_ = false;
 
-  // Signal any interested consumers. If there are none, automatically release
-  // the buffer.
+  // Signal any interested consumers. If there are none, the buffer will stay
+  // in posted state until a consumer comes online. This behavior guarantees
+  // that no frame is silently dropped.
   pending_consumers_ = 0;
   for (auto consumer : consumer_channels_) {
     if (consumer->OnProducerPosted())
       pending_consumers_++;
   }
-  if (pending_consumers_ == 0)
-    SignalAvailable();
   ALOGD_IF(TRACE, "ProducerChannel::OnProducerPost: %d pending consumers",
            pending_consumers_);
 
@@ -214,8 +333,13 @@ Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
   }
 
   // There are still pending consumers, return busy.
-  if (pending_consumers_ > 0)
+  if (pending_consumers_ > 0) {
+    ALOGE(
+        "ProducerChannel::OnGain: Producer (id=%d) is gaining a buffer that "
+        "still has %d pending consumer(s).",
+        buffer_id(), pending_consumers_);
     return ErrorStatus(EBUSY);
+  }
 
   ClearAvailable();
   producer_owns_ = true;
@@ -223,9 +347,7 @@ Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
   return {std::move(returned_fence_)};
 }
 
-Status<std::pair<BorrowedFence, BufferWrapper<std::uint8_t*>>>
-ProducerChannel::OnConsumerAcquire(Message& /*message*/,
-                                   std::size_t metadata_size) {
+Status<LocalFence> ProducerChannel::OnConsumerAcquire(Message& /*message*/) {
   ATRACE_NAME("ProducerChannel::OnConsumerAcquire");
   ALOGD_IF(TRACE, "ProducerChannel::OnConsumerAcquire: buffer_id=%d",
            buffer_id());
@@ -236,12 +358,7 @@ ProducerChannel::OnConsumerAcquire(Message& /*message*/,
 
   // Return a borrowed fd to avoid unnecessary duplication of the underlying fd.
   // Serialization just needs to read the handle.
-  if (metadata_size == 0)
-    return {std::make_pair(post_fence_.borrow(),
-                           WrapBuffer<std::uint8_t>(nullptr, 0))};
-  else
-    return {std::make_pair(post_fence_.borrow(),
-                           WrapBuffer(meta_.get(), meta_size_bytes_))};
+  return {std::move(post_fence_)};
 }
 
 Status<void> ProducerChannel::OnConsumerRelease(Message&,
@@ -273,15 +390,73 @@ Status<void> ProducerChannel::OnConsumerRelease(Message&,
   }
 
   OnConsumerIgnored();
+  if (pending_consumers_ == 0) {
+    // Clear the producer bit atomically to transit into released state. This
+    // has to done by BufferHub as it requries synchronization among all
+    // consumers.
+    BufferHubDefs::ModifyBufferState(buffer_state_,
+                                     BufferHubDefs::kProducerStateBit, 0ULL);
+    ALOGD_IF(TRACE,
+             "ProducerChannel::OnConsumerRelease: releasing last consumer: "
+             "buffer_id=%d state=%" PRIx64 ".",
+             buffer_id(), buffer_state_->load());
+
+    if (orphaned_consumer_bit_mask_) {
+      ALOGW(
+          "ProducerChannel::OnConsumerRelease: orphaned buffer detected "
+          "during the this acquire/release cycle: id=%d orphaned=0x%" PRIx64
+          " queue_index=%" PRIu64 ".",
+          buffer_id(), orphaned_consumer_bit_mask_,
+          metadata_header_->queue_index);
+      orphaned_consumer_bit_mask_ = 0;
+    }
+
+    SignalAvailable();
+  }
+
+  ALOGE_IF(pending_consumers_ &&
+               BufferHubDefs::IsBufferReleased(buffer_state_->load()),
+           "ProducerChannel::OnConsumerRelease: buffer state inconsistent: "
+           "pending_consumers=%d, buffer buffer is in releaed state.",
+           pending_consumers_);
   return {};
 }
 
 void ProducerChannel::OnConsumerIgnored() {
-  if (!--pending_consumers_)
-    SignalAvailable();
+  if (pending_consumers_ == 0) {
+    ALOGE("ProducerChannel::OnConsumerIgnored: no pending consumer.");
+    return;
+  }
+
+  --pending_consumers_;
   ALOGD_IF(TRACE,
            "ProducerChannel::OnConsumerIgnored: buffer_id=%d %d consumers left",
            buffer_id(), pending_consumers_);
+}
+
+void ProducerChannel::OnConsumerOrphaned(ConsumerChannel* channel) {
+  // Ignore the orphaned consumer.
+  OnConsumerIgnored();
+
+  const uint64_t consumer_state_bit = channel->consumer_state_bit();
+  ALOGE_IF(orphaned_consumer_bit_mask_ & consumer_state_bit,
+           "ProducerChannel::OnConsumerOrphaned: Consumer "
+           "(consumer_state_bit=%" PRIx64 ") is already orphaned.",
+           consumer_state_bit);
+  orphaned_consumer_bit_mask_ |= consumer_state_bit;
+
+  // Atomically clear the fence state bit as an orphaned consumer will never
+  // signal a release fence. Also clear the buffer state as it won't be released
+  // as well.
+  fence_state_->fetch_and(~consumer_state_bit);
+  BufferHubDefs::ModifyBufferState(buffer_state_, consumer_state_bit, 0ULL);
+
+  ALOGW(
+      "ProducerChannel::OnConsumerOrphaned: detected new orphaned consumer "
+      "buffer_id=%d consumer_state_bit=%" PRIx64 " queue_index=%" PRIu64
+      " buffer_state=%" PRIx64 " fence_state=%" PRIx64 ".",
+      buffer_id(), consumer_state_bit, metadata_header_->queue_index,
+      buffer_state_->load(), fence_state_->load());
 }
 
 Status<void> ProducerChannel::OnProducerMakePersistent(Message& message,
@@ -335,6 +510,40 @@ void ProducerChannel::AddConsumer(ConsumerChannel* channel) {
 void ProducerChannel::RemoveConsumer(ConsumerChannel* channel) {
   consumer_channels_.erase(
       std::find(consumer_channels_.begin(), consumer_channels_.end(), channel));
+  active_consumer_bit_mask_ &= ~channel->consumer_state_bit();
+
+  const uint64_t buffer_state = buffer_state_->load();
+  if (BufferHubDefs::IsBufferPosted(buffer_state) ||
+      BufferHubDefs::IsBufferAcquired(buffer_state)) {
+    // The consumer client is being destoryed without releasing. This could
+    // happen in corner cases when the consumer crashes. Here we mark it
+    // orphaned before remove it from producer.
+    OnConsumerOrphaned(channel);
+  }
+
+  if (BufferHubDefs::IsBufferReleased(buffer_state) ||
+      BufferHubDefs::IsBufferGained(buffer_state)) {
+    // The consumer is being close while it is suppose to signal a release
+    // fence. Signal the dummy fence here.
+    if (fence_state_->load() & channel->consumer_state_bit()) {
+      epoll_event event;
+      event.events = EPOLLIN;
+      event.data.u64 = channel->consumer_state_bit();
+      if (epoll_ctl(release_fence_fd_.Get(), EPOLL_CTL_MOD,
+                    dummy_fence_fd_.Get(), &event) < 0) {
+        ALOGE(
+            "ProducerChannel::RemoveConsumer: Failed to modify the shared "
+            "release fence to include the dummy fence: %s",
+            strerror(errno));
+        return;
+      }
+      ALOGW(
+          "ProducerChannel::RemoveConsumer: signal dummy release fence "
+          "buffer_id=%d",
+          buffer_id());
+      eventfd_write(dummy_fence_fd_.Get(), 1);
+    }
+  }
 }
 
 // Returns true if either the user or group ids match the owning ids or both
@@ -350,10 +559,12 @@ bool ProducerChannel::CheckAccess(int euid, int egid) {
 // Returns true if the given parameters match the underlying buffer parameters.
 bool ProducerChannel::CheckParameters(uint32_t width, uint32_t height,
                                       uint32_t layer_count, uint32_t format,
-                                      uint64_t usage, size_t meta_size_bytes) {
-  return meta_size_bytes == meta_size_bytes_ && buffer_.width() == width &&
-         buffer_.height() == height && buffer_.layer_count() == layer_count &&
-         buffer_.format() == format && buffer_.usage() == usage;
+                                      uint64_t usage,
+                                      size_t user_metadata_size) {
+  return user_metadata_size == user_metadata_size_ &&
+         buffer_.width() == width && buffer_.height() == height &&
+         buffer_.layer_count() == layer_count && buffer_.format() == format &&
+         buffer_.usage() == usage;
 }
 
 }  // namespace dvr

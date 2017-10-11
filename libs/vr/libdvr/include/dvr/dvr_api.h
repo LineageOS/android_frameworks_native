@@ -15,6 +15,12 @@
 extern "C" {
 #endif
 
+#ifdef __GNUC__
+#define ALIGNED_DVR_STRUCT(x) __attribute__((packed, aligned(x)))
+#else
+#define ALIGNED_DVR_STRUCT(x)
+#endif
+
 typedef struct ANativeWindow ANativeWindow;
 
 typedef struct DvrPoseAsync DvrPoseAsync;
@@ -367,7 +373,24 @@ typedef int (*DvrPerformanceSetSchedulerPolicyPtr)(
 // existing data members. If new fields need to be added, please take extra care
 // to make sure that new data field is padded properly the size of the struct
 // stays same.
-struct DvrNativeBufferMetadata {
+struct ALIGNED_DVR_STRUCT(8) DvrNativeBufferMetadata {
+#ifdef __cplusplus
+  DvrNativeBufferMetadata()
+      : timestamp(0),
+        is_auto_timestamp(0),
+        dataspace(0),
+        crop_left(0),
+        crop_top(0),
+        crop_right(0),
+        crop_bottom(0),
+        scaling_mode(0),
+        transform(0),
+        index(0),
+        user_metadata_size(0),
+        user_metadata_ptr(0),
+        release_fence_mask(0),
+        reserved{0} {}
+#endif
   // Timestamp of the frame.
   int64_t timestamp;
 
@@ -391,9 +414,31 @@ struct DvrNativeBufferMetadata {
   // android/native_window.h
   int32_t transform;
 
-  // Reserved bytes for so that the struct is forward compatible.
-  int32_t reserved[16];
+  // The index of the frame.
+  int64_t index;
+
+  // Size of additional metadata requested by user.
+  uint64_t user_metadata_size;
+
+  // Raw memory address of the additional user defined metadata. Only valid when
+  // user_metadata_size is non-zero.
+  uint64_t user_metadata_ptr;
+
+  // Only applicable for metadata retrieved from GainAsync. This indicates which
+  // consumer has pending fence that producer should epoll on.
+  uint64_t release_fence_mask;
+
+  // Reserved bytes for so that the struct is forward compatible and padding to
+  // 104 bytes so the size is a multiple of 8.
+  int32_t reserved[8];
 };
+
+#ifdef __cplusplus
+// Warning: DvrNativeBufferMetadata is part of the DVR API and changing its size
+// will cause compatiblity issues between different DVR API releases.
+static_assert(sizeof(DvrNativeBufferMetadata) == 104,
+              "Unexpected size for DvrNativeBufferMetadata");
+#endif
 
 struct DvrApi_v1 {
 // Defines an API entry for V1 (no version suffix).

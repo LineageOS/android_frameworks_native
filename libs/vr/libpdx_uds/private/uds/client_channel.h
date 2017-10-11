@@ -23,11 +23,19 @@ class ClientChannel : public pdx::ClientChannel {
   uint32_t GetIpcTag() const override { return Endpoint::kIpcTag; }
 
   int event_fd() const override {
-    return channel_data_ ? channel_data_->event_receiver.event_fd().Get() : -1;
+    return channel_data_ ? channel_data_->event_fd().Get() : -1;
   }
+
+  std::vector<EventSource> GetEventSources() const override {
+    if (channel_data_)
+      return channel_data_->GetEventSources();
+    else
+      return {};
+  }
+
   Status<int> GetEventMask(int /*events*/) override {
     if (channel_data_)
-      return channel_data_->event_receiver.GetPendingEvents();
+      return channel_data_->GetPendingEvents();
     else
       return ErrorStatus(EINVAL);
   }
@@ -74,7 +82,7 @@ class ClientChannel : public pdx::ClientChannel {
                              const iovec* receive_vector, size_t receive_count);
 
   LocalChannelHandle channel_handle_;
-  ChannelManager::ChannelData* channel_data_;
+  ChannelEventReceiver* channel_data_;
   std::mutex socket_mutex_;
 };
 

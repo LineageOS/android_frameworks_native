@@ -22,6 +22,9 @@ sourceFiles := \
     consumer_queue_channel.cpp \
     producer_queue_channel.cpp \
 
+headerLibraries := \
+	libdvr_headers
+
 staticLibraries := \
 	libperformance \
 	libpdx_default_transport \
@@ -41,6 +44,7 @@ LOCAL_SRC_FILES := $(sourceFiles)
 LOCAL_CFLAGS := -DLOG_TAG=\"bufferhubd\"
 LOCAL_CFLAGS += -DTRACE=0
 LOCAL_CFLAGS += -DATRACE_TAG=ATRACE_TAG_GRAPHICS
+LOCAL_HEADER_LIBRARIES := $(headerLibraries)
 LOCAL_STATIC_LIBRARIES := $(staticLibraries)
 LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
 LOCAL_MODULE := bufferhubd

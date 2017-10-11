@@ -131,7 +131,7 @@ TEST_F(DvrBufferQueueTest, GainBuffer) {
   DvrWriteBuffer* wb = nullptr;
   EXPECT_FALSE(dvrWriteBufferIsValid(wb));
 
-  DvrNativeBufferMetadata meta = {0};
+  DvrNativeBufferMetadata meta;
   int fence_fd = -1;
   ret = dvrWriteBufferQueueGainBuffer(write_queue_, /*timeout=*/0, &wb, &meta,
                                       &fence_fd);
@@ -150,8 +150,8 @@ TEST_F(DvrBufferQueueTest, AcquirePostGainRelease) {
   DvrReadBufferQueue* read_queue = nullptr;
   DvrReadBuffer* rb = nullptr;
   DvrWriteBuffer* wb = nullptr;
-  DvrNativeBufferMetadata meta1 = {0};
-  DvrNativeBufferMetadata meta2 = {0};
+  DvrNativeBufferMetadata meta1;
+  DvrNativeBufferMetadata meta2;
   int fence_fd = -1;
 
   ret = dvrWriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
@@ -180,7 +180,7 @@ TEST_F(DvrBufferQueueTest, AcquirePostGainRelease) {
   wb = nullptr;
 
   // Acquire buffer for reading.
-  ret = dvrReadBufferQueueAcquireBuffer(read_queue, /*timeout=*/0, &rb, &meta2,
+  ret = dvrReadBufferQueueAcquireBuffer(read_queue, /*timeout=*/10, &rb, &meta2,
                                         &fence_fd);
   ASSERT_EQ(ret, 0);
   ASSERT_NE(rb, nullptr);
@@ -245,7 +245,7 @@ TEST_F(DvrBufferQueueTest, ResizeBuffer) {
 
   int fence_fd = -1;
 
-  DvrNativeBufferMetadata meta = {0};
+  DvrNativeBufferMetadata meta;
   DvrReadBufferQueue* read_queue = nullptr;
   DvrWriteBuffer* wb1 = nullptr;
   DvrWriteBuffer* wb2 = nullptr;
@@ -400,7 +400,7 @@ TEST_F(DvrBufferQueueTest, StableBufferIdAndHardwareBuffer) {
   // This test runs the following operations many many times. Thus we prefer to
   // use ASSERT_XXX rather than EXPECT_XXX to avoid spamming the output.
   std::function<void(size_t i)> Gain = [&](size_t i) {
-    int ret = dvrWriteBufferQueueGainBuffer(write_queue_, /*timeout=*/0,
+    int ret = dvrWriteBufferQueueGainBuffer(write_queue_, /*timeout=*/10,
                                             &wbs[i], &metas[i], &fence_fd);
     ASSERT_EQ(ret, 0);
     ASSERT_LT(fence_fd, 0);  // expect invalid fence.
@@ -434,7 +434,7 @@ TEST_F(DvrBufferQueueTest, StableBufferIdAndHardwareBuffer) {
   };
 
   std::function<void(size_t i)> Acquire = [&](size_t i) {
-    int ret = dvrReadBufferQueueAcquireBuffer(read_queue, /*timeout=*/0,
+    int ret = dvrReadBufferQueueAcquireBuffer(read_queue, /*timeout=*/10,
                                               &rbs[i], &metas[i], &fence_fd);
     ASSERT_EQ(ret, 0);
     ASSERT_LT(fence_fd, 0);  // expect invalid fence.

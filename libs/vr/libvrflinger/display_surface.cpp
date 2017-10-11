@@ -213,8 +213,8 @@ Status<LocalChannelHandle> ApplicationDisplaySurface::OnCreateQueue(
   ATRACE_NAME("ApplicationDisplaySurface::OnCreateQueue");
   ALOGD_IF(TRACE,
            "ApplicationDisplaySurface::OnCreateQueue: surface_id=%d, "
-           "meta_size_bytes=%zu",
-           surface_id(), config.meta_size_bytes);
+           "user_metadata_size=%zu",
+           surface_id(), config.user_metadata_size);
 
   std::lock_guard<std::mutex> autolock(lock_);
   auto producer = ProducerQueue::Create(config, UsagePolicy{});
@@ -280,10 +280,10 @@ std::vector<int32_t> DirectDisplaySurface::GetQueueIds() const {
 Status<LocalChannelHandle> DirectDisplaySurface::OnCreateQueue(
     Message& /*message*/, const ProducerQueueConfig& config) {
   ATRACE_NAME("DirectDisplaySurface::OnCreateQueue");
-  ALOGD_IF(
-      TRACE,
-      "DirectDisplaySurface::OnCreateQueue: surface_id=%d meta_size_bytes=%zu",
-      surface_id(), config.meta_size_bytes);
+  ALOGD_IF(TRACE,
+           "DirectDisplaySurface::OnCreateQueue: surface_id=%d "
+           "user_metadata_size=%zu",
+           surface_id(), config.user_metadata_size);
 
   std::lock_guard<std::mutex> autolock(lock_);
   if (!direct_queue_) {
