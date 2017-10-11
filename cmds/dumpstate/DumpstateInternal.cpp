@@ -18,6 +18,7 @@
 
 #include "DumpstateInternal.h"
 
+#include <errno.h>
 #include <grp.h>
 #include <pwd.h>
 #include <stdint.h>
