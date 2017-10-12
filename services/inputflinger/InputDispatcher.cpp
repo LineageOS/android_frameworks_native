@@ -1135,8 +1135,6 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         INJECTION_PERMISSION_DENIED
     };
 
-    nsecs_t startTime = now();
-
     // For security reasons, we defer updating the touch state until we are sure that
     // event injection will be allowed.
     int32_t displayId = entry->displayId;
