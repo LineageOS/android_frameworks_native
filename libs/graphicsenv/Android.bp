@@ -19,6 +19,8 @@ cc_library_shared {
         "GraphicsEnv.cpp",
     ],
 
+    cflags: ["-Wall", "-Werror"],
+
     shared_libs: [
         "libnativeloader",
         "liblog",
