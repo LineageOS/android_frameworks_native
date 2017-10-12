@@ -176,6 +176,11 @@ bool BufferHubQueue::WaitForBuffers(int timeout) {
       int32_t index;
       std::tie(event_fd, index) = Unstuff(events[i].data.u64);
 
+      PDX_TRACE_FORMAT(
+          "epoll_event|queue_id=%d;num_events=%d;event_index=%d;event_fd=%d;"
+          "slot=%d|",
+          id(), num_events, i, event_fd, index);
+
       ALOGD_IF(TRACE,
                "BufferHubQueue::WaitForBuffers: event %d: event_fd=%d index=%d",
                i, event_fd, index);
@@ -213,6 +218,10 @@ Status<void> BufferHubQueue::HandleBufferEvent(size_t slot, int event_fd,
   }
 
   const int events = status.get();
+  PDX_TRACE_FORMAT(
+      "buffer|queue_id=%d;buffer_id=%d;slot=%zu;event_fd=%d;poll_events=%x;"
+      "events=%d|",
+      id(), buffers_[slot]->id(), slot, event_fd, poll_events, events);
 
   if (events & EPOLLIN) {
     return Enqueue({buffers_[slot], slot, buffers_[slot]->GetQueueIndex()});
@@ -344,12 +353,17 @@ Status<std::shared_ptr<BufferHubBuffer>> BufferHubQueue::Dequeue(int timeout,
   ALOGD_IF(TRACE, "BufferHubQueue::Dequeue: count=%zu, timeout=%d", count(),
            timeout);
 
+  PDX_TRACE_FORMAT("BufferHubQueue::Dequeue|count=%zu|", count());
+
   if (count() == 0) {
     if (!WaitForBuffers(timeout))
       return ErrorStatus(ETIMEDOUT);
   }
 
   auto& entry = available_buffers_.top();
+  PDX_TRACE_FORMAT("buffer|buffer_id=%d;slot=%zu|", entry.buffer->id(),
+                   entry.slot);
+
   std::shared_ptr<BufferHubBuffer> buffer = std::move(entry.buffer);
   *slot = entry.slot;
 
