@@ -28,9 +28,6 @@ cc_test {
         "-DTRACE=0",
         "-O0",
         "-g",
-        "-Wall",
-        "-Werror",
-        "-Wno-error=sign-compare", // to fix later
     ],
     name: "buffer_hub_queue-test",
     tags: ["optional"],
@@ -45,9 +42,6 @@ cc_test {
         "-DTRACE=0",
         "-O0",
         "-g",
-        "-Wall",
-        "-Werror",
-        "-Wno-error=sign-compare", // to fix later
     ],
     name: "buffer_hub_queue_producer-test",
     tags: ["optional"],
