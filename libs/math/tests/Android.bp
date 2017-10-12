@@ -18,22 +18,26 @@ cc_test {
     name: "vec_test",
     srcs: ["vec_test.cpp"],
     static_libs: ["libmath"],
+    cflags: ["-Wall", "-Werror"],
 }
 
 cc_test {
     name: "mat_test",
     srcs: ["mat_test.cpp"],
     static_libs: ["libmath"],
+    cflags: ["-Wall", "-Werror"],
 }
 
 cc_test {
     name: "half_test",
     srcs: ["half_test.cpp"],
     static_libs: ["libmath"],
+    cflags: ["-Wall", "-Werror"],
 }
 
 cc_test {
     name: "quat_test",
     srcs: ["quat_test.cpp"],
     static_libs: ["libmath"],
+    cflags: ["-Wall", "-Werror"],
 }
