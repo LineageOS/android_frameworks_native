@@ -34,6 +34,12 @@ cc_library {
 
     clang: true,
 
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wno-unused-function",
+    ],
+
     cppflags: [
         "-std=c++1z"
     ],

@@ -23,4 +23,5 @@ cc_test {
     srcs: [
         "AHardwareBufferTest.cpp",
         "c_compatibility.c"],
+    cflags: ["-Wall", "-Werror"],
 }
