@@ -87,7 +87,7 @@ public:
 
 /*
  * All surface state changes are supposed to happen inside a global
- * transaction. GlobalTransactionScope object at the beginning of
+ * transaction. TransactionScope object at the beginning of
  * scope automates the process. The resulting scope gives a visual cue
  * on the span of the transaction as well.
  *
@@ -96,23 +96,26 @@ public:
  * is built to explicitly request vsyncs one at the time. A delayed
  * request must be made before closing the transaction or the test
  * thread stalls until SurfaceFlinger does an emergency vsync by
- * itself. GlobalTransactionScope encapsulates this vsync magic.
+ * itself. TransactionScope encapsulates this vsync magic.
  */
-class GlobalTransactionScope {
+class TransactionScope : public android::SurfaceComposerClient::Transaction {
 public:
-    GlobalTransactionScope(FakeComposerClient& composer) : mComposer(composer) {
-        android::SurfaceComposerClient::openGlobalTransaction();
+    TransactionScope(FakeComposerClient& composer) :
+            Transaction(),
+            mComposer(composer) {
     }
-    ~GlobalTransactionScope() {
+
+    ~TransactionScope() {
         int frameCount = mComposer.getFrameCount();
         mComposer.runVSyncAfter(1ms);
-        android::SurfaceComposerClient::closeGlobalTransaction(true);
+        LOG_ALWAYS_FATAL_IF(android::NO_ERROR != apply());
         // Make sure that exactly one frame has been rendered.
         mComposer.waitUntilFrame(frameCount + 1);
         LOG_ALWAYS_FATAL_IF(frameCount + 1 != mComposer.getFrameCount(),
                             "Unexpected frame advance. Delta: %d",
                             mComposer.getFrameCount() - frameCount);
     }
+
     FakeComposerClient& mComposer;
 };
 

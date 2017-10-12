@@ -97,123 +97,6 @@ bool SurfaceControl::isSameSurface(
     return lhs->mHandle == rhs->mHandle;
 }
 
-status_t SurfaceControl::setLayerStack(uint32_t layerStack) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setLayerStack(mHandle, layerStack);
-}
-
-status_t SurfaceControl::setLayer(int32_t layer) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setLayer(mHandle, layer);
-}
-
-status_t SurfaceControl::setRelativeLayer(const sp<IBinder>& relativeTo, int32_t layer) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setRelativeLayer(mHandle, relativeTo, layer);
-}
-
-status_t SurfaceControl::setPosition(float x, float y) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setPosition(mHandle, x, y);
-}
-status_t SurfaceControl::setGeometryAppliesWithResize() {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setGeometryAppliesWithResize(mHandle);
-}
-status_t SurfaceControl::setSize(uint32_t w, uint32_t h) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setSize(mHandle, w, h);
-}
-status_t SurfaceControl::hide() {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->hide(mHandle);
-}
-status_t SurfaceControl::show() {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->show(mHandle);
-}
-status_t SurfaceControl::setFlags(uint32_t flags, uint32_t mask) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setFlags(mHandle, flags, mask);
-}
-status_t SurfaceControl::setTransparentRegionHint(const Region& transparent) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setTransparentRegionHint(mHandle, transparent);
-}
-status_t SurfaceControl::setAlpha(float alpha) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setAlpha(mHandle, alpha);
-}
-status_t SurfaceControl::setColor(const half3& color) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setColor(mHandle, color);
-}
-status_t SurfaceControl::setMatrix(float dsdx, float dtdx, float dtdy, float dsdy) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setMatrix(mHandle, dsdx, dtdx, dtdy, dsdy);
-}
-status_t SurfaceControl::setCrop(const Rect& crop) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setCrop(mHandle, crop);
-}
-status_t SurfaceControl::setFinalCrop(const Rect& crop) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setFinalCrop(mHandle, crop);
-}
-
-status_t SurfaceControl::deferTransactionUntil(const sp<IBinder>& handle,
-        uint64_t frameNumber) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->deferTransactionUntil(mHandle, handle, frameNumber);
-}
-
-status_t SurfaceControl::deferTransactionUntil(const sp<Surface>& handle,
-        uint64_t frameNumber) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->deferTransactionUntil(mHandle, handle, frameNumber);
-}
-
-status_t SurfaceControl::reparentChildren(const sp<IBinder>& newParentHandle) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->reparentChildren(mHandle, newParentHandle);
-}
-
-status_t SurfaceControl::reparent(const sp<IBinder>& newParentHandle) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->reparent(mHandle, newParentHandle);
-}
-
-status_t SurfaceControl::detachChildren() {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->detachChildren(mHandle);
-}
-
-status_t SurfaceControl::setOverrideScalingMode(int32_t overrideScalingMode) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setOverrideScalingMode(mHandle, overrideScalingMode);
-}
-
 status_t SurfaceControl::clearLayerFrameStats() const {
     status_t err = validate();
     if (err < 0) return err;
@@ -276,6 +159,11 @@ sp<IBinder> SurfaceControl::getHandle() const
 {
     Mutex::Autolock lock(mLock);
     return mHandle;
+}
+
+sp<SurfaceComposerClient> SurfaceControl::getClient() const
+{
+    return mClient;
 }
 
 // ----------------------------------------------------------------------------
