@@ -77,6 +77,10 @@ cc_library_static {
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
         "-DGL_GLEXT_PROTOTYPES",
         "-DEGL_EGLEXT_PROTOTYPES",
+        "-Wall",
+        "-Werror",
+        "-Wno-error=sign-compare", // to fix later
+        "-Wno-unused-variable",
     ],
     shared_libs: sharedLibraries,
     whole_static_libs: staticLibraries,

@@ -51,6 +51,11 @@ cc_test {
         "-Wno-missing-field-initializers",
         "-O0",
         "-g",
+        "-Wall",
+        "-Werror",
+        "-Wno-error=macro-redefined", // to fix later
+        "-Wno-error=sign-compare", // to fix later
+        "-Wno-unused-variable",
     ],
     name: "dvr_api-test",
 }
