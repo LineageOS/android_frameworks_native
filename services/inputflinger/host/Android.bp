@@ -32,6 +32,8 @@ cc_library_shared {
     ],
 
     cflags: [
+        "-Wall",
+        "-Werror",
         "-Wno-unused-parameter",
         // TODO: Move inputflinger to its own process and mark it hidden
         //-fvisibility=hidden
@@ -46,6 +48,8 @@ cc_binary {
     name: "inputflinger",
 
     srcs: ["main.cpp"],
+
+    cflags: ["-Wall", "-Werror"],
 
     shared_libs: [
         "libbinder",
