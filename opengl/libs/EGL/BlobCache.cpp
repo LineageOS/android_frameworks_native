@@ -18,6 +18,7 @@
 
 #include "BlobCache.h"
 
+#include <errno.h>
 #include <inttypes.h>
 
 #include <cutils/properties.h>
