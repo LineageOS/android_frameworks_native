@@ -37,7 +37,7 @@ define VK_MAX_EXTENSION_NAME_SIZE       256
 define VK_MAX_DESCRIPTION_SIZE          256
 define VK_MAX_MEMORY_TYPES              32
 define VK_MAX_MEMORY_HEAPS              16    /// The maximum number of unique memory heaps, each of which supporting 1 or more memory types.
-//@version 1.1
+@vulkan1_1
 define VK_MAX_DEVICE_GROUP_SIZE         32
 define VK_LUID_SIZE                     8
 define VK_QUEUE_FAMILY_EXTERNAL         -2
@@ -491,7 +491,7 @@ type u32 VkSampleMask
 @nonDispatchHandle type u64 VkRenderPass
 @nonDispatchHandle type u64 VkPipelineCache
 
-//@version 1.1
+@vulkan1_1
 @nonDispatchHandle type u64 VkSamplerYcbcrConversion
 @nonDispatchHandle type u64 VkDescriptorUpdateTemplate
 
@@ -536,7 +536,7 @@ enum VkImageLayout {
     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL                    = 0x00000007,   /// Optimal layout when image is used only as destination of transfer operations
     VK_IMAGE_LAYOUT_PREINITIALIZED                          = 0x00000008,   /// Initial layout used when the data is populated by the CPU
 
-    //@version 1.1
+    //@vulkan1_1
     VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL = 1000117000,
     VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL = 1000117001,
 
@@ -1023,7 +1023,7 @@ enum VkFormat {
     VK_FORMAT_ASTC_12x12_UNORM_BLOCK                        = 183,
     VK_FORMAT_ASTC_12x12_SRGB_BLOCK                         = 184,
 
-    //@version 1.1
+    //@vulkan1_1
     VK_FORMAT_G8B8G8R8_422_UNORM                            = 1000156000,
     VK_FORMAT_B8G8R8G8_422_UNORM                            = 1000156001,
     VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM                     = 1000156002,
@@ -1158,7 +1158,7 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO               = 47,
     VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO                 = 48,
 
-    //@version 1.1
+    //@vulkan1_1
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES       = 1000094000,
     VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO                   = 1000157000,
     VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO                    = 1000157001,
@@ -1554,7 +1554,7 @@ enum VkResult {
     VK_ERROR_FORMAT_NOT_SUPPORTED                           = 0xFFFFFFF5, // -11
     VK_ERROR_FRAGMENTED_POOL                                = 0xFFFFFFF4, // -12
 
-    //@version 1.1
+    //@vulkan1_1
     VK_ERROR_OUT_OF_POOL_MEMORY                             = 0xC4642878, // -1000069000
     VK_ERROR_INVALID_EXTERNAL_HANDLE                        = 0xC4641CBD, // -1000072003
 
@@ -1630,7 +1630,7 @@ enum VkObjectType {
     VK_OBJECT_TYPE_FRAMEBUFFER                              = 24,
     VK_OBJECT_TYPE_COMMAND_POOL                             = 25,
 
-    //@version 1.1
+    //@vulkan1_1
     VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION                 = 1000156000,
     VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE               = 1000085000,
 
@@ -1662,7 +1662,7 @@ enum VkObjectType {
 }
 
 
-//@version 1.1 enums
+//@vulkan1_1 enums
 
 enum VkPointClippingBehavior {
     VK_POINT_CLIPPING_BEHAVIOR_ALL_CLIP_PLANES              = 0,
@@ -1711,7 +1711,6 @@ enum VkPresentModeKHR {
 
 @extension("VK_KHR_surface") // 1
 enum VkColorSpaceKHR {
-    VK_COLORSPACE_SRGB_NONLINEAR_KHR                        = 0x00000000,
     VK_COLOR_SPACE_SRGB_NONLINEAR_KHR                       = 0x00000000,
 
     //@extension("VK_EXT_swapchain_colorspace") // 105
@@ -1923,7 +1922,7 @@ bitfield VkQueueFlagBits {
     VK_QUEUE_TRANSFER_BIT                                   = 0x00000004,    /// Queue supports transfer operations
     VK_QUEUE_SPARSE_BINDING_BIT                             = 0x00000008,    /// Queue supports sparse resource memory management operations
 
-    //@version 1.1
+    //@vulkan1_1
     VK_QUEUE_PROTECTED_BIT                                  = 0x00000010,
 }
 
@@ -1936,7 +1935,7 @@ bitfield VkMemoryPropertyFlagBits {
     VK_MEMORY_PROPERTY_HOST_CACHED_BIT                      = 0x00000008,
     VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT                 = 0x00000010,
 
-    //@version 1.1
+    //@vulkan1_1
     VK_MEMORY_PROPERTY_PROTECTED_BIT                        = 0x00000020,
 }
 
@@ -1945,7 +1944,7 @@ type VkFlags VkMemoryHeapFlags
 bitfield VkMemoryHeapFlagBits {
     VK_MEMORY_HEAP_DEVICE_LOCAL_BIT                         = 0x00000001,
 
-    //@version 1.1
+    //@vulkan1_1
     VK_MEMORY_HEAP_MULTI_INSTANCE_BIT                       = 0x00000002,
 
     //@extension("VK_KHR_device_group_creation") // 71
@@ -2002,7 +2001,7 @@ bitfield VkBufferCreateFlagBits {
     VK_BUFFER_CREATE_SPARSE_RESIDENCY_BIT                   = 0x00000002,    /// Buffer should support sparse backing with partial residency
     VK_BUFFER_CREATE_SPARSE_ALIASED_BIT                     = 0x00000004,    /// Buffer should support constent data access to physical memory blocks mapped into multiple locations of sparse buffers
 
-    //@version 1.1
+    //@vulkan1_1
     VK_BUFFER_CREATE_PROTECTED_BIT                          = 0x00000008,
 }
 
@@ -2053,23 +2052,20 @@ bitfield VkImageCreateFlagBits {
     VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT                      = 0x00000008,    /// Allows image views to have different format than the base image
     VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT                     = 0x00000010,    /// Allows creating image views with cube type from the created image
 
-    //@version 1.1
-    VK_IMAGE_CREATE_ALIAS_BIT                               = 0x00000400,
-    VK_IMAGE_CREATE_BIND_SFR_BIT                            = 0x00000040,
+    //@vulkan1_1
     VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT                 = 0x00000020,
+    VK_IMAGE_CREATE_BIND_SFR_BIT                            = 0x00000040,
     VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT         = 0x00000080,
     VK_IMAGE_CREATE_EXTENDED_USAGE_BIT                      = 0x00000100,
-    VK_IMAGE_CREATE_PROTECTED_BIT                           = 0x00000800,
     VK_IMAGE_CREATE_DISJOINT_BIT                            = 0x00000200,
+    VK_IMAGE_CREATE_ALIAS_BIT                               = 0x00000400,
+    VK_IMAGE_CREATE_PROTECTED_BIT                           = 0x00000800,
 
     //@extension("VK_KHR_maintenance1") // 70
     VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT_KHR             = 0x00000020,
 
     //@extension("VK_KHR_device_group") // 61
     VK_IMAGE_CREATE_BIND_SFR_BIT_KHR                        = 0x00000040,
-
-    //@extension("VK_EXT_sample_locations") // 144
-    VK_IMAGE_CREATE_SAMPLE_LOCATIONS_COMPATIBLE_DEPTH_BIT_EXT = 0x00001000,
 
     //@extension("VK_KHR_maintenance2") // 118
     VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT_KHR     = 0x00000080,
@@ -2080,6 +2076,9 @@ bitfield VkImageCreateFlagBits {
 
     //@extension("VK_KHR_bind_memory2") // 158
     VK_IMAGE_CREATE_ALIAS_BIT_KHR                           = 0x00000400,
+
+    //@extension("VK_EXT_sample_locations") // 144
+    VK_IMAGE_CREATE_SAMPLE_LOCATIONS_COMPATIBLE_DEPTH_BIT_EXT = 0x00001000,
 }
 
 /// Image view creation flags
@@ -2094,7 +2093,7 @@ bitfield VkPipelineCreateFlagBits {
     VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT                = 0x00000002,
     VK_PIPELINE_CREATE_DERIVATIVE_BIT                       = 0x00000004,
 
-    //@version 1.1
+    //@vulkan1_1
     VK_PIPELINE_CREATE_VIEW_INDEX_FROM_DEVICE_INDEX_BIT     = 0x00000008,
     VK_PIPELINE_CREATE_DISPATCH_BASE                        = 0x00000010,
 
@@ -2140,7 +2139,7 @@ bitfield VkFormatFeatureFlagBits {
     VK_FORMAT_FEATURE_BLIT_DST_BIT                          = 0x00000800,    /// Format can be used as the destination image of blits with vkCommandBlitImage
     VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT       = 0x00001000,
 
-    //@version 1.1
+    //@vulkan1_1
     VK_FORMAT_FEATURE_TRANSFER_SRC_BIT                      = 0x00004000,
     VK_FORMAT_FEATURE_TRANSFER_DST_BIT                      = 0x00008000,
     VK_FORMAT_FEATURE_MIDPOINT_CHROMA_SAMPLES_BIT                                                   = 0x00020000,
@@ -2233,7 +2232,7 @@ bitfield VkImageAspectFlagBits {
     VK_IMAGE_ASPECT_STENCIL_BIT                             = 0x00000004,
     VK_IMAGE_ASPECT_METADATA_BIT                            = 0x00000008,
 
-    //@version 1.1
+    //@vulkan1_1
     VK_IMAGE_ASPECT_PLANE_0_BIT                             = 0x00000010,
     VK_IMAGE_ASPECT_PLANE_1_BIT                             = 0x00000020,
     VK_IMAGE_ASPECT_PLANE_2_BIT                             = 0x00000040,
@@ -2304,7 +2303,7 @@ bitfield VkCommandPoolCreateFlagBits {
     VK_COMMAND_POOL_CREATE_TRANSIENT_BIT                    = 0x00000001,  /// Command buffers have a short lifetime
     VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT         = 0x00000002,  /// Command buffers may release their memory individually
 
-    //@version 1.1
+    //@vulkan1_1
     VK_COMMAND_POOL_CREATE_PROTECTED_BIT                    = 0x00000004,
 }
 
@@ -2349,7 +2348,7 @@ type VkFlags VkDeviceCreateFlags
 
 /// Device queue creation flags
 type VkFlags VkDeviceQueueCreateFlags
-//@version 1.1
+@vulkan1_1
 bitfield VkDeviceQueueCreateFlagBits {
     VK_DEVICE_QUEUE_CREATE_PROTECTED_BIT                    = 0x00000001,
 }
@@ -2451,7 +2450,7 @@ type VkFlags VkDependencyFlags
 bitfield VkDependencyFlagBits {
     VK_DEPENDENCY_BY_REGION_BIT                             = 0x00000001,
 
-    //@version 1.1
+    //@vulkan1_1
     VK_DEPENDENCY_DEVICE_GROUP_BIT                          = 0x00000004,
     VK_DEPENDENCY_VIEW_LOCAL_BIT                            = 0x00000002,
 
@@ -2471,7 +2470,7 @@ bitfield VkCullModeFlagBits {
     VK_CULL_MODE_FRONT_AND_BACK                             = 0x00000003,
 }
 
-//@version 1.1 flags
+//@vulkan1_1 flags
 
 /// Subgroup feature flags
 type VkFlags VkSubgroupFeatureFlags
@@ -2603,15 +2602,15 @@ bitfield VkCompositeAlphaFlagBitsKHR {
 type VkFlags VkSwapchainCreateFlagsKHR
 @extension("VK_KHR_swapchain") // 2
 bitfield VkSwapchainCreateFlagBitsKHR {
-    //@version 1.1
+    //@vulkan1_1
     VK_SWAPCHAIN_CREATE_BIND_SFR_BIT_KHR                    = 0x00000001,
     VK_SWAPCHAIN_CREATE_PROTECTED_BIT_KHR                   = 0x00000002,
 }
 
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 type VkFlags VkDeviceGroupPresentModeFlagsKHR
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 bitfield VkDeviceGroupPresentModeFlagBitsKHR {
     VK_DEVICE_GROUP_PRESENT_MODE_LOCAL_BIT_KHR              = 0x00000001,
@@ -3994,7 +3993,7 @@ class VkDispatchIndirectCommand {
     u32                                         z
 }
 
-//@version 1.1 structures
+//@vulkan1_1 structures
 
 class VkPhysicalDeviceSubgroupProperties {
     VkStructureType                             sType
@@ -4535,7 +4534,7 @@ class VkPresentInfoKHR {
     VkResult*                                   pResults
 }
 
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 class VkImageSwapchainCreateInfoKHR {
     VkStructureType                             sType
@@ -4543,7 +4542,7 @@ class VkImageSwapchainCreateInfoKHR {
     VkSwapchainKHR                              swapchain
 }
 
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 class VkBindImageMemorySwapchainInfoKHR {
     VkStructureType                             sType
@@ -4552,7 +4551,7 @@ class VkBindImageMemorySwapchainInfoKHR {
     u32                                         imageIndex
 }
 
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 class VkAcquireNextImageInfoKHR {
     VkStructureType                             sType
@@ -4564,7 +4563,7 @@ class VkAcquireNextImageInfoKHR {
     u32                                         deviceMask
 }
 
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 class VkDeviceGroupPresentCapabilitiesKHR {
     VkStructureType                             sType
@@ -4573,7 +4572,7 @@ class VkDeviceGroupPresentCapabilitiesKHR {
     VkDeviceGroupPresentModeFlagsKHR            modes
 }
 
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 class VkDeviceGroupPresentInfoKHR {
     VkStructureType                             sType
@@ -4583,7 +4582,7 @@ class VkDeviceGroupPresentInfoKHR {
     VkDeviceGroupPresentModeFlagBitsKHR         mode
 }
 
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 class VkDeviceGroupSwapchainCreateInfoKHR {
     VkStructureType                             sType
@@ -8259,13 +8258,15 @@ cmd void vkCmdExecuteCommands(
     }
 }
 
-//@version 1.1 functions
+//@vulkan1_1 functions
 
+@vulkan1_1
 cmd VkResult vkEnumerateInstanceVersion(
         u32*                                            pApiVersion) {
     return ?
 }
 
+@vulkan1_1
 cmd VkResult vkBindBufferMemory2(
         VkDevice                                        device,
         u32                                             bindInfoCount,
@@ -8273,6 +8274,7 @@ cmd VkResult vkBindBufferMemory2(
     return ?
 }
 
+@vulkan1_1
 cmd VkResult vkBindImageMemory2(
         VkDevice                                        device,
         u32                                             bindInfoCount,
@@ -8280,6 +8282,7 @@ cmd VkResult vkBindImageMemory2(
     return ?
 }
 
+@vulkan1_1
 cmd void vkGetDeviceGroupPeerMemoryFeatures(
         VkDevice                                    device,
         u32                                         heapIndex,
@@ -8288,11 +8291,13 @@ cmd void vkGetDeviceGroupPeerMemoryFeatures(
         VkPeerMemoryFeatureFlags*                   pPeerMemoryFeatures) {
 }
 
+@vulkan1_1
 cmd void vkCmdSetDeviceMask(
         VkCommandBuffer                             commandBuffer,
         u32                                         deviceMask) {
 }
 
+@vulkan1_1
 cmd void vkCmdDispatchBase(
         VkCommandBuffer                             commandBuffer,
         u32                                         baseGroupX,
@@ -8304,6 +8309,7 @@ cmd void vkCmdDispatchBase(
 }
 
 @threadSafety("system")
+@vulkan1_1
 cmd VkResult vkEnumeratePhysicalDeviceGroups(
         VkInstance                                  instance,
         u32*                                        pPhysicalDeviceGroupCount,
@@ -8325,18 +8331,21 @@ cmd VkResult vkEnumeratePhysicalDeviceGroups(
     return ?
 }
 
+@vulkan1_1
 cmd void vkGetImageMemoryRequirements2(
         VkDevice                                    device,
         const VkImageMemoryRequirementsInfo2*       pInfo,
         VkMemoryRequirements2*                      pMemoryRequirements) {
 }
 
+@vulkan1_1
 cmd void vkGetBufferMemoryRequirements2(
         VkDevice                                    device,
         const VkBufferMemoryRequirementsInfo2*      pInfo,
         VkMemoryRequirements2*                      pMemoryRequirements) {
 }
 
+@vulkan1_1
 cmd void vkGetImageSparseMemoryRequirements2(
         VkDevice                                        device,
         const VkImageSparseMemoryRequirementsInfo2*     pInfo,
@@ -8344,22 +8353,26 @@ cmd void vkGetImageSparseMemoryRequirements2(
         VkSparseImageMemoryRequirements2*               pSparseMemoryRequirements) {
 }
 
+@vulkan1_1
 cmd void vkGetPhysicalDeviceFeatures2(
         VkPhysicalDevice                            physicalDevice,
         VkPhysicalDeviceFeatures2*                  pFeatures) {
 }
 
+@vulkan1_1
 cmd void vkGetPhysicalDeviceProperties2(
         VkPhysicalDevice                            physicalDevice,
         VkPhysicalDeviceProperties2*                pProperties) {
 }
 
+@vulkan1_1
 cmd void vkGetPhysicalDeviceFormatProperties2(
         VkPhysicalDevice                            physicalDevice,
         VkFormat                                    format,
         VkFormatProperties2*                        pFormatProperties) {
 }
 
+@vulkan1_1
 cmd VkResult vkGetPhysicalDeviceImageFormatProperties2(
         VkPhysicalDevice                            physicalDevice,
         const VkPhysicalDeviceImageFormatInfo2*     pImageFormatInfo,
@@ -8367,17 +8380,20 @@ cmd VkResult vkGetPhysicalDeviceImageFormatProperties2(
     return ?
 }
 
+@vulkan1_1
 cmd void vkGetPhysicalDeviceQueueFamilyProperties2(
         VkPhysicalDevice                            physicalDevice,
         u32*                                        pQueueFamilyPropertyCount,
         VkQueueFamilyProperties2*                   pQueueFamilyProperties) {
 }
 
+@vulkan1_1
 cmd void vkGetPhysicalDeviceMemoryProperties2(
         VkPhysicalDevice                            physicalDevice,
         VkPhysicalDeviceMemoryProperties2*          pMemoryProperties) {
 }
 
+@vulkan1_1
 cmd void vkGetPhysicalDeviceSparseImageFormatProperties2(
         VkPhysicalDevice                                    physicalDevice,
         const VkPhysicalDeviceSparseImageFormatInfo2*       pFormatInfo,
@@ -8385,6 +8401,7 @@ cmd void vkGetPhysicalDeviceSparseImageFormatProperties2(
         VkSparseImageFormatProperties2*                     pProperties) {
 }
 
+@vulkan1_1
 cmd void vkTrimCommandPool(
         VkDevice                                    device,
         VkCommandPool                               commandPool,
@@ -8392,6 +8409,7 @@ cmd void vkTrimCommandPool(
 }
 
 
+@vulkan1_1
 cmd void vkGetDeviceQueue2(
         VkDevice                                    device,
         const VkDeviceQueueInfo2*                   pQueueInfo,
@@ -8406,6 +8424,7 @@ cmd void vkGetDeviceQueue2(
     }
 }
 
+@vulkan1_1
 cmd VkResult vkCreateSamplerYcbcrConversion(
         VkDevice                                        device,
         const VkSamplerYcbcrConversionCreateInfo*       pCreateInfo,
@@ -8414,12 +8433,14 @@ cmd VkResult vkCreateSamplerYcbcrConversion(
     return ?
 }
 
+@vulkan1_1
 cmd void vkDestroySamplerYcbcrConversion(
         VkDevice                                        device,
         VkSamplerYcbcrConversion                        ycbcrConversion,
         const VkAllocationCallbacks*                    pAllocator) {
 }
 
+@vulkan1_1
 cmd VkResult vkCreateDescriptorUpdateTemplate(
         VkDevice                                    device,
         const VkDescriptorUpdateTemplateCreateInfo* pCreateInfo,
@@ -8428,12 +8449,14 @@ cmd VkResult vkCreateDescriptorUpdateTemplate(
     return ?
 }
 
+@vulkan1_1
 cmd void vkDestroyDescriptorUpdateTemplate(
         VkDevice                                    device,
         VkDescriptorUpdateTemplate                  descriptorUpdateTemplate,
         const VkAllocationCallbacks*                pAllocator) {
 }
 
+@vulkan1_1
 cmd void vkUpdateDescriptorSetWithTemplate(
         VkDevice                                    device,
         VkDescriptorSet                             descriptorSet,
@@ -8441,24 +8464,28 @@ cmd void vkUpdateDescriptorSetWithTemplate(
         const void*                                 pData) {
 }
 
+@vulkan1_1
 cmd void vkGetPhysicalDeviceExternalBufferProperties(
         VkPhysicalDevice                                physicalDevice,
         const VkPhysicalDeviceExternalBufferInfo*       pExternalBufferInfo,
         VkExternalBufferProperties*                     pExternalBufferProperties) {
 }
 
+@vulkan1_1
 cmd void vkGetPhysicalDeviceExternalFenceProperties(
         VkPhysicalDevice                            physicalDevice,
         const VkPhysicalDeviceExternalFenceInfo*    pExternalFenceInfo,
         VkExternalFenceProperties*                  pExternalFenceProperties) {
 }
 
+@vulkan1_1
 cmd void vkGetPhysicalDeviceExternalSemaphoreProperties(
         VkPhysicalDevice                                physicalDevice,
         const VkPhysicalDeviceExternalSemaphoreInfo*    pExternalSemaphoreInfo,
         VkExternalSemaphoreProperties*                  pExternalSemaphoreProperties) {
 }
 
+@vulkan1_1
 cmd void vkGetDescriptorSetLayoutSupport(
         VkDevice                                    device,
         const VkDescriptorSetLayoutCreateInfo*      pCreateInfo,
@@ -8620,7 +8647,7 @@ cmd VkResult vkQueuePresentKHR(
     return ?
 }
 
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 cmd VkResult vkGetDeviceGroupPresentCapabilitiesKHR(
         VkDevice                                    device,
@@ -8628,7 +8655,7 @@ cmd VkResult vkGetDeviceGroupPresentCapabilitiesKHR(
     return ?
 }
 
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 cmd VkResult vkGetDeviceGroupSurfacePresentModesKHR(
         VkDevice                                    device,
@@ -8637,7 +8664,7 @@ cmd VkResult vkGetDeviceGroupSurfacePresentModesKHR(
     return ?
 }
 
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 cmd VkResult vkGetPhysicalDevicePresentRectanglesKHR(
         VkPhysicalDevice                            physicalDevice,
@@ -8647,7 +8674,7 @@ cmd VkResult vkGetPhysicalDevicePresentRectanglesKHR(
     return ?
 }
 
-//@version 1.1
+@vulkan1_1
 @extension("VK_KHR_swapchain") // 2
 cmd VkResult vkAcquireNextImage2KHR(
         VkDevice                                    device,

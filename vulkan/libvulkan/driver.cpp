@@ -1053,9 +1053,13 @@ VkResult EnumeratePhysicalDeviceGroups(
         instance, pPhysicalDeviceGroupCount, pPhysicalDeviceGroupProperties);
     if ((result == VK_SUCCESS || result == VK_INCOMPLETE) &&
         *pPhysicalDeviceGroupCount && pPhysicalDeviceGroupProperties) {
-        for (uint32_t i = 0;
-             i < pPhysicalDeviceGroupProperties->physicalDeviceCount; i++)
-            SetData(pPhysicalDeviceGroupProperties->physicalDevices[i], data);
+        for (uint32_t i = 0; i < *pPhysicalDeviceGroupCount; i++) {
+            for (uint32_t j = 0;
+                 j < pPhysicalDeviceGroupProperties->physicalDeviceCount; j++) {
+                SetData(pPhysicalDeviceGroupProperties->physicalDevices[j],
+                        data);
+            }
+        }
     }
 
     return result;
