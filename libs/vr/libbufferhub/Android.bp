@@ -37,7 +37,8 @@ sharedLibraries = [
     "libnativewindow"
 ]
 
-HeaderLibraries = [
+headerLibraries = [
+    "libdvr_headers",
     "libnativebase_headers",
 ]
 
@@ -45,12 +46,13 @@ cc_library {
     srcs: sourceFiles,
     cflags: [
         "-DLOG_TAG=\"libbufferhub\"",
-        "-DTRACE=0"
+        "-DTRACE=0",
+        "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     ],
     export_include_dirs: localIncludeFiles,
     static_libs: staticLibraries,
     shared_libs: sharedLibraries,
-    header_libs: HeaderLibraries,
+    header_libs: headerLibraries,
     name: "libbufferhub",
     export_header_lib_headers: [
         "libnativebase_headers",
@@ -62,6 +64,7 @@ cc_test {
     srcs: ["bufferhub_tests.cpp"],
     static_libs: ["libbufferhub"] + staticLibraries,
     shared_libs: sharedLibraries,
+    header_libs: headerLibraries,
     name: "bufferhub_tests",
 }
 

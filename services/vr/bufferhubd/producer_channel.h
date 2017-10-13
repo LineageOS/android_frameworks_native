@@ -33,7 +33,7 @@ class ProducerChannel : public BufferHubChannel {
   static pdx::Status<std::shared_ptr<ProducerChannel>> Create(
       BufferHubService* service, int channel_id, uint32_t width,
       uint32_t height, uint32_t layer_count, uint32_t format, uint64_t usage,
-      size_t meta_size_bytes);
+      size_t user_metadata_size);
 
   ~ProducerChannel() override;
 
@@ -42,24 +42,25 @@ class ProducerChannel : public BufferHubChannel {
 
   BufferInfo GetBufferInfo() const override;
 
-  pdx::Status<NativeBufferHandle<BorrowedHandle>> OnGetBuffer(Message& message);
+  BufferDescription<BorrowedHandle> GetBuffer(uint64_t buffer_state_bit);
 
   pdx::Status<RemoteChannelHandle> CreateConsumer(Message& message);
   pdx::Status<RemoteChannelHandle> OnNewConsumer(Message& message);
 
-  pdx::Status<std::pair<BorrowedFence, BufferWrapper<std::uint8_t*>>>
-  OnConsumerAcquire(Message& message, std::size_t metadata_size);
+  pdx::Status<LocalFence> OnConsumerAcquire(Message& message);
   pdx::Status<void> OnConsumerRelease(Message& message,
                                       LocalFence release_fence);
 
   void OnConsumerIgnored();
+  void OnConsumerOrphaned(ConsumerChannel* channel);
 
   void AddConsumer(ConsumerChannel* channel);
   void RemoveConsumer(ConsumerChannel* channel);
 
   bool CheckAccess(int euid, int egid);
   bool CheckParameters(uint32_t width, uint32_t height, uint32_t layer_count,
-                       uint32_t format, uint64_t usage, size_t meta_size_bytes);
+                       uint32_t format, uint64_t usage,
+                       size_t user_metadata_size);
 
   pdx::Status<void> OnProducerMakePersistent(Message& message,
                                              const std::string& name,
@@ -74,11 +75,28 @@ class ProducerChannel : public BufferHubChannel {
 
   IonBuffer buffer_;
 
+  // IonBuffer that is shared between bufferhubd, producer, and consumers.
+  IonBuffer metadata_buffer_;
+  BufferHubDefs::MetadataHeader* metadata_header_ = nullptr;
+  std::atomic<uint64_t>* buffer_state_ = nullptr;
+  std::atomic<uint64_t>* fence_state_ = nullptr;
+
+  // All active consumer bits. Valid bits are the lower 63 bits, while the
+  // highest bit is reserved for the producer and should not be set.
+  uint64_t active_consumer_bit_mask_{0ULL};
+  // All orphaned consumer bits. Valid bits are the lower 63 bits, while the
+  // highest bit is reserved for the producer and should not be set.
+  uint64_t orphaned_consumer_bit_mask_{0ULL};
+
   bool producer_owns_;
   LocalFence post_fence_;
   LocalFence returned_fence_;
-  size_t meta_size_bytes_;
-  std::unique_ptr<uint8_t[]> meta_;
+  size_t user_metadata_size_;  // size of user requested buffer buffer size.
+  size_t metadata_buf_size_;  // size of the ion buffer that holds metadata.
+
+  pdx::LocalHandle acquire_fence_fd_;
+  pdx::LocalHandle release_fence_fd_;
+  pdx::LocalHandle dummy_fence_fd_;
 
   static constexpr int kNoCheckId = -1;
   static constexpr int kUseCallerId = 0;
@@ -92,11 +110,10 @@ class ProducerChannel : public BufferHubChannel {
 
   ProducerChannel(BufferHubService* service, int channel, uint32_t width,
                   uint32_t height, uint32_t layer_count, uint32_t format,
-                  uint64_t usage, size_t meta_size_bytes, int* error);
+                  uint64_t usage, size_t user_metadata_size, int* error);
 
-  pdx::Status<void> OnProducerPost(
-      Message& message, LocalFence acquire_fence,
-      BufferWrapper<std::vector<std::uint8_t>> metadata);
+  pdx::Status<BufferDescription<BorrowedHandle>> OnGetBuffer(Message& message);
+  pdx::Status<void> OnProducerPost(Message& message, LocalFence acquire_fence);
   pdx::Status<LocalFence> OnProducerGain(Message& message);
 
   ProducerChannel(const ProducerChannel&) = delete;

@@ -29,8 +29,7 @@
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerDebugInfo.h>
-
-#include <private/gui/LayerState.h>
+#include <gui/LayerState.h>
 
 #include <system/graphics.h>
 

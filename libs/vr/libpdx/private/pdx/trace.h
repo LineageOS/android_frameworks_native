@@ -1,35 +1,82 @@
 #ifndef ANDROID_PDX_TRACE_H_
 #define ANDROID_PDX_TRACE_H_
 
-// Tracing utilities for libpdx. Tracing in the service framework is enabled
-// under these conditions:
-//    1. ATRACE_TAG is defined, AND
-//    2. ATRACE_TAG does not equal ATRACE_TAG_NEVER, AND
-//    3. PDX_TRACE_ENABLED is defined, AND
-//    4. PDX_TRACE_ENABLED is equal to logical true.
-//
-// If any of these conditions are not met tracing is completely removed from the
-// library and headers.
+#include <array>
 
-// If ATRACE_TAG is not defined, default to never.
-#ifndef ATRACE_TAG
-#define ATRACE_TAG ATRACE_TAG_NEVER
-#endif
-
-// Include tracing functions after the trace tag is defined.
 #include <utils/Trace.h>
 
-// If PDX_TRACE_ENABLED is not defined, default to off.
-#ifndef PDX_TRACE_ENABLED
-#define PDX_TRACE_ENABLED 0
+// Enables internal tracing in libpdx. This is disabled by default to avoid
+// spamming the trace buffers during normal trace activities. libpdx must be
+// built with this set to true to enable internal tracing.
+#ifndef PDX_LIB_TRACE_ENABLED
+#define PDX_LIB_TRACE_ENABLED false
 #endif
 
-#if (ATRACE_TAG) != (ATRACE_TAG_NEVER) && (PDX_TRACE_ENABLED)
-#define PDX_TRACE_NAME ATRACE_NAME
-#else
-#define PDX_TRACE_NAME(name) \
-  do {                       \
-  } while (0)
-#endif
+namespace android {
+namespace pdx {
+
+// Utility to generate scoped tracers with arguments.
+class ScopedTraceArgs {
+ public:
+  template <typename... Args>
+  ScopedTraceArgs(uint64_t tag, const char* format, Args&&... args)
+      : tag_{tag} {
+    if (atrace_is_tag_enabled(tag_)) {
+      std::array<char, 1024> buffer;
+      snprintf(buffer.data(), buffer.size(), format,
+               std::forward<Args>(args)...);
+      atrace_begin(tag_, buffer.data());
+    }
+  }
+
+  ~ScopedTraceArgs() { atrace_end(tag_); }
+
+ private:
+  uint64_t tag_;
+
+  ScopedTraceArgs(const ScopedTraceArgs&) = delete;
+  void operator=(const ScopedTraceArgs&) = delete;
+};
+
+// Utility to generate scoped tracers.
+class ScopedTrace {
+ public:
+  template <typename... Args>
+  ScopedTrace(uint64_t tag, bool enabled, const char* name)
+      : tag_{tag}, enabled_{enabled} {
+    if (enabled_)
+      atrace_begin(tag_, name);
+  }
+
+  ~ScopedTrace() {
+    if (enabled_)
+      atrace_end(tag_);
+  }
+
+ private:
+  uint64_t tag_;
+  bool enabled_;
+
+  ScopedTrace(const ScopedTrace&) = delete;
+  void operator=(const ScopedTrace&) = delete;
+};
+
+}  // namespace pdx
+}  // namespace android
+
+// Macro to define a scoped tracer with arguments. Uses PASTE(x, y) macro
+// defined in utils/Trace.h.
+#define PDX_TRACE_FORMAT(format, ...)                         \
+  ::android::pdx::ScopedTraceArgs PASTE(__tracer, __LINE__) { \
+    ATRACE_TAG, format, ##__VA_ARGS__                         \
+  }
+
+// TODO(eieio): Rename this to PDX_LIB_TRACE_NAME() for internal use by libpdx
+// and rename internal uses inside the library. This version is only enabled
+// when PDX_LIB_TRACE_ENABLED is true.
+#define PDX_TRACE_NAME(name)                              \
+  ::android::pdx::ScopedTrace PASTE(__tracer, __LINE__) { \
+    ATRACE_TAG, PDX_LIB_TRACE_ENABLED, name               \
+  }
 
 #endif  // ANDROID_PDX_TRACE_H_

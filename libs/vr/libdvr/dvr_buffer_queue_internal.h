@@ -42,8 +42,7 @@ struct DvrWriteBufferQueue {
 
   int GetNativeWindow(ANativeWindow** out_window);
   int CreateReadQueue(DvrReadBufferQueue** out_read_queue);
-  int Dequeue(int timeout, DvrWriteBuffer* write_buffer, int* out_fence_fd,
-              size_t* out_slot);
+  int Dequeue(int timeout, DvrWriteBuffer* write_buffer, int* out_fence_fd);
   int GainBuffer(int timeout, DvrWriteBuffer** out_write_buffer,
                  DvrNativeBufferMetadata* out_meta, int* out_fence_fd);
   int PostBuffer(DvrWriteBuffer* write_buffer,
@@ -55,6 +54,7 @@ struct DvrWriteBufferQueue {
   std::array<std::unique_ptr<DvrWriteBuffer>, BufferHubQueue::kMaxQueueCapacity>
       write_buffers_;
 
+  int64_t next_post_index_ = 0;
   uint32_t width_;
   uint32_t height_;
   uint32_t format_;
@@ -75,7 +75,7 @@ struct DvrReadBufferQueue {
 
   int CreateReadQueue(DvrReadBufferQueue** out_read_queue);
   int Dequeue(int timeout, DvrReadBuffer* read_buffer, int* out_fence_fd,
-              size_t* out_slot, void* out_meta, size_t meta_size_bytes);
+              void* out_meta, size_t user_metadata_size);
   int AcquireBuffer(int timeout, DvrReadBuffer** out_read_buffer,
                     DvrNativeBufferMetadata* out_meta, int* out_fence_fd);
   int ReleaseBuffer(DvrReadBuffer* read_buffer,

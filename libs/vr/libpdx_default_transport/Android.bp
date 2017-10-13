@@ -42,6 +42,7 @@ cc_binary {
         "pdx_tool.cpp",
     ],
     shared_libs: [
+        "libcutils",
         "liblog",
     ],
     static_libs: [

@@ -33,8 +33,7 @@
 #include <ui/Region.h>
 
 #include <gui/ISurfaceComposerClient.h>
-
-#include <private/gui/LayerState.h>
+#include <gui/LayerState.h>
 
 #include <list>
 

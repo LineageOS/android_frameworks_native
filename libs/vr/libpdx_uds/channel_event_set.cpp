@@ -1,6 +1,10 @@
 #include "private/uds/channel_event_set.h"
 
+#include <errno.h>
 #include <log/log.h>
+#include <poll.h>
+#include <sys/epoll.h>
+#include <sys/eventfd.h>
 
 #include <uds/ipc_helper.h>
 
@@ -8,41 +12,34 @@ namespace android {
 namespace pdx {
 namespace uds {
 
-ChannelEventSet::ChannelEventSet() {
-  const int flags = EFD_CLOEXEC | EFD_NONBLOCK;
-  LocalHandle epoll_fd, event_fd;
+namespace {
 
-  if (!SetupHandle(epoll_create1(EPOLL_CLOEXEC), &epoll_fd, "epoll") ||
-      !SetupHandle(eventfd(0, flags), &event_fd, "event")) {
-    return;
-  }
-
-  epoll_event event;
-  event.events = 0;
-  event.data.u32 = 0;
-  if (epoll_ctl(epoll_fd.Get(), EPOLL_CTL_ADD, event_fd.Get(), &event) < 0) {
-    const int error = errno;
-    ALOGE("ChannelEventSet::ChannelEventSet: Failed to add event_fd: %s",
-          strerror(error));
-    return;
-  }
-
-  epoll_fd_ = std::move(epoll_fd);
-  event_fd_ = std::move(event_fd);
-}
-
-Status<void> ChannelEventSet::AddDataFd(const LocalHandle& data_fd) {
-  epoll_event event;
-  event.events = EPOLLHUP | EPOLLRDHUP;
-  event.data.u32 = event.events;
-  if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, data_fd.Get(), &event) < 0) {
-    const int error = errno;
-    ALOGE("ChannelEventSet::ChannelEventSet: Failed to add event_fd: %s",
+template <typename FileHandleType>
+Status<void> SetupHandle(int fd, FileHandleType* handle,
+                         const char* error_name) {
+  const int error = errno;
+  handle->Reset(fd);
+  if (!*handle) {
+    ALOGE("SetupHandle: Failed to setup %s handle: %s", error_name,
           strerror(error));
     return ErrorStatus{error};
-  } else {
-    return {};
   }
+  return {};
+}
+
+}  // anonymous namespace
+
+ChannelEventSet::ChannelEventSet() {
+  const int flags = EFD_CLOEXEC | EFD_NONBLOCK;
+  LocalHandle pollin_event_fd, pollhup_event_fd;
+
+  if (!SetupHandle(eventfd(0, flags), &pollin_event_fd, "pollin_event") ||
+      !SetupHandle(eventfd(0, flags), &pollhup_event_fd, "pollhup_event")) {
+    return;
+  }
+
+  pollin_event_fd_ = std::move(pollin_event_fd);
+  pollhup_event_fd_ = std::move(pollhup_event_fd);
 }
 
 int ChannelEventSet::ModifyEvents(int clear_mask, int set_mask) {
@@ -51,66 +48,101 @@ int ChannelEventSet::ModifyEvents(int clear_mask, int set_mask) {
   const int old_bits = event_bits_;
   const int new_bits = (event_bits_ & ~clear_mask) | set_mask;
   event_bits_ = new_bits;
+  eventfd_t value;
 
-  // If anything changed clear the event and update the event mask.
-  if (old_bits != new_bits) {
-    eventfd_t value;
-    eventfd_read(event_fd_.Get(), &value);
+  // Calculate which bits changed and how. Bits that haven't changed since last
+  // modification will not change the state of an eventfd.
+  const int set_bits = new_bits & ~old_bits;
+  const int clear_bits = ~new_bits & old_bits;
 
-    epoll_event event;
-    event.events = POLLIN;
-    event.data.u32 = event_bits_;
-    if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_MOD, event_fd_.Get(), &event) <
-        0) {
-      const int error = errno;
-      ALOGE("ChannelEventSet::AddEventHandle: Failed to update event: %s",
-            strerror(error));
-      return -error;
-    }
-  }
+  if (set_bits & EPOLLIN)
+    eventfd_write(pollin_event_fd_.Get(), 1);
+  else if (clear_bits & EPOLLIN)
+    eventfd_read(pollin_event_fd_.Get(), &value);
 
-  // If there are any bits set, re-trigger the eventfd.
-  if (new_bits)
-    eventfd_write(event_fd_.Get(), 1);
+  if (set_bits & EPOLLHUP)
+    eventfd_write(pollhup_event_fd_.Get(), 1);
+  else if (clear_bits & EPOLLHUP)
+    eventfd_read(pollhup_event_fd_.Get(), &value);
 
   return 0;
 }
 
-Status<void> ChannelEventSet::SetupHandle(int fd, LocalHandle* handle,
-                                          const char* error_name) {
-  const int error = errno;
-  handle->Reset(fd);
-  if (!*handle) {
-    ALOGE("ChannelEventSet::SetupHandle: Failed to setup %s handle: %s",
-          error_name, strerror(error));
+ChannelEventReceiver::ChannelEventReceiver(LocalHandle data_fd,
+                                           LocalHandle pollin_event_fd,
+                                           LocalHandle pollhup_event_fd) {
+  LocalHandle epoll_fd;
+  if (!SetupHandle(epoll_create1(EPOLL_CLOEXEC), &epoll_fd, "epoll")) {
+    return;
+  }
+
+  epoll_event event;
+  event.events = EPOLLHUP | EPOLLRDHUP;
+  event.data.u32 = 0;
+  if (epoll_ctl(epoll_fd.Get(), EPOLL_CTL_ADD, data_fd.Get(), &event) < 0) {
+    const int error = errno;
+    ALOGE("ChannelEventSet::ChannelEventSet: Failed to add data_fd: %s",
+          strerror(error));
+    return;
+  }
+
+  event.events = EPOLLIN;
+  event.data.u32 = 0;
+  if (epoll_ctl(epoll_fd.Get(), EPOLL_CTL_ADD, pollin_event_fd.Get(), &event) <
+      0) {
+    const int error = errno;
+    ALOGE("ChannelEventSet::ChannelEventSet: Failed to add pollin_event_fd: %s",
+          strerror(error));
+    return;
+  }
+
+  event.events = EPOLLIN;
+  event.data.u32 = 0;
+  if (epoll_ctl(epoll_fd.Get(), EPOLL_CTL_ADD, pollhup_event_fd.Get(), &event) <
+      0) {
+    const int error = errno;
+    ALOGE(
+        "ChannelEventSet::ChannelEventSet: Failed to add pollhup_event_fd: %s",
+        strerror(error));
+    return;
+  }
+
+  pollin_event_fd_ = std::move(pollin_event_fd);
+  pollhup_event_fd_ = std::move(pollhup_event_fd);
+  data_fd_ = std::move(data_fd);
+  epoll_fd_ = std::move(epoll_fd);
+}
+
+Status<int> ChannelEventReceiver::PollPendingEvents(int timeout_ms) const {
+  std::array<pollfd, 3> pfds = {{{pollin_event_fd_.Get(), POLLIN, 0},
+                                 {pollhup_event_fd_.Get(), POLLIN, 0},
+                                 {data_fd_.Get(), POLLHUP | POLLRDHUP, 0}}};
+  if (RETRY_EINTR(poll(pfds.data(), pfds.size(), timeout_ms)) < 0) {
+    const int error = errno;
+    ALOGE(
+        "ChannelEventReceiver::PollPendingEvents: Failed to poll for events: "
+        "%s",
+        strerror(error));
     return ErrorStatus{error};
   }
-  return {};
+
+  const int event_mask =
+      ((pfds[0].revents & POLLIN) ? EPOLLIN : 0) |
+      ((pfds[1].revents & POLLIN) ? EPOLLHUP : 0) |
+      ((pfds[2].revents & (POLLHUP | POLLRDHUP)) ? EPOLLHUP : 0);
+  return {event_mask};
 }
 
 Status<int> ChannelEventReceiver::GetPendingEvents() const {
   constexpr long kTimeoutMs = 0;
-  epoll_event event;
-  const int count =
-      RETRY_EINTR(epoll_wait(epoll_fd_.Get(), &event, 1, kTimeoutMs));
+  return PollPendingEvents(kTimeoutMs);
+}
 
-  Status<int> status;
-  if (count < 0) {
-    status.SetError(errno);
-    ALOGE("ChannelEventReceiver::GetPendingEvents: Failed to get events: %s",
-          status.GetErrorMessage().c_str());
-    return status;
-  } else if (count == 0) {
-    status.SetError(ETIMEDOUT);
-    return status;
-  }
-
-  const int mask_out = event.data.u32;
-  ALOGD_IF(TRACE, "ChannelEventReceiver::GetPendingEvents: mask_out=%x",
-           mask_out);
-
-  status.SetValue(mask_out);
-  return status;
+std::vector<ClientChannel::EventSource> ChannelEventReceiver::GetEventSources()
+    const {
+  return {{data_fd_.Get(), EPOLLHUP | EPOLLRDHUP},
+          {pollin_event_fd_.Get(), EPOLLIN},
+          {pollhup_event_fd_.Get(), POLLIN}};
 }
 
 }  // namespace uds

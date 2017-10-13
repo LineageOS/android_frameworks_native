@@ -18,7 +18,7 @@
 #include <binder/Parcel.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/IGraphicBufferProducer.h>
-#include <private/gui/LayerState.h>
+#include <gui/LayerState.h>
 
 namespace android {
 
