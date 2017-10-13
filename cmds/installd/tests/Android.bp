@@ -3,6 +3,7 @@ cc_test {
     name: "installd_utils_test",
     clang: true,
     srcs: ["installd_utils_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
     shared_libs: [
         "libbase",
         "liblog",
@@ -19,6 +20,7 @@ cc_test {
     name: "installd_cache_test",
     clang: true,
     srcs: ["installd_cache_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
     shared_libs: [
         "libbase",
         "libbinder",
@@ -38,6 +40,7 @@ cc_test {
     name: "installd_service_test",
     clang: true,
     srcs: ["installd_service_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
     shared_libs: [
         "libbase",
         "libbinder",
