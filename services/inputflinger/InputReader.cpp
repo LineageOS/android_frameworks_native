@@ -6630,7 +6630,7 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
 #if DEBUG_POINTER_ASSIGNMENT
     ALOGD("assignPointerIds - initial distance min-heap: size=%d", heapSize);
     for (size_t i = 0; i < heapSize; i++) {
-        ALOGD("  heap[%zu]: cur=%d, last=%d, distance=%" PRId64,
+        ALOGD("  heap[%zu]: cur=%" PRIu32 ", last=%" PRIu32 ", distance=%" PRIu64,
                 i, heap[i].currentPointerIndex, heap[i].lastPointerIndex,
                 heap[i].distance);
     }
@@ -6676,7 +6676,7 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
 #if DEBUG_POINTER_ASSIGNMENT
                 ALOGD("assignPointerIds - reduced distance min-heap: size=%d", heapSize);
                 for (size_t i = 0; i < heapSize; i++) {
-                    ALOGD("  heap[%zu]: cur=%d, last=%d, distance=%" PRId64,
+                    ALOGD("  heap[%zu]: cur=%" PRIu32 ", last=%" PRIu32 ", distance=%" PRIu64,
                             i, heap[i].currentPointerIndex, heap[i].lastPointerIndex,
                             heap[i].distance);
                 }
@@ -6702,7 +6702,8 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
             usedIdBits.markBit(id);
 
 #if DEBUG_POINTER_ASSIGNMENT
-            ALOGD("assignPointerIds - matched: cur=%d, last=%d, id=%d, distance=%" PRId64,
+            ALOGD("assignPointerIds - matched: cur=%" PRIu32 ", last=%" PRIu32
+                    ", id=%" PRIu32 ", distance=%" PRIu64,
                     lastPointerIndex, currentPointerIndex, id, heap[0].distance);
 #endif
             break;
@@ -6720,8 +6721,7 @@ void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current)
                 current->rawPointerData.isHovering(currentPointerIndex));
 
 #if DEBUG_POINTER_ASSIGNMENT
-        ALOGD("assignPointerIds - assigned: cur=%d, id=%d",
-                currentPointerIndex, id);
+        ALOGD("assignPointerIds - assigned: cur=%" PRIu32 ", id=%" PRIu32, currentPointerIndex, id);
 #endif
     }
 }
