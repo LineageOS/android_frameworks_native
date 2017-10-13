@@ -775,13 +775,8 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
 
 VKAPI_ATTR
 VkResult GetDeviceGroupPresentCapabilitiesKHR(
-    VkDevice device,
+    VkDevice,
     VkDeviceGroupPresentCapabilitiesKHR* pDeviceGroupPresentCapabilities) {
-    ALOGV("vkGetDeviceGroupPresentCapabilitiesKHR: device=0x%" PRIx64
-          "pDeviceGroupPresentCapabilities=0x%" PRIx64,
-          reinterpret_cast<uint64_t>(device),
-          reinterpret_cast<uint64_t>(pDeviceGroupPresentCapabilities));
-
     ALOGV_IF(pDeviceGroupPresentCapabilities->sType !=
                  VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_CAPABILITIES_KHR,
              "vkGetDeviceGroupPresentCapabilitiesKHR: invalid "
@@ -801,30 +796,18 @@ VkResult GetDeviceGroupPresentCapabilitiesKHR(
 
 VKAPI_ATTR
 VkResult GetDeviceGroupSurfacePresentModesKHR(
-    VkDevice device,
-    VkSurfaceKHR surface,
+    VkDevice,
+    VkSurfaceKHR,
     VkDeviceGroupPresentModeFlagsKHR* pModes) {
-    ALOGV("vkGetDeviceGroupSurfacePresentModesKHR: device=0x%" PRIx64
-          "surface=0x%" PRIx64 "pModes=0x%" PRIx64,
-          reinterpret_cast<uint64_t>(device),
-          reinterpret_cast<uint64_t>(surface),
-          reinterpret_cast<uint64_t>(pModes));
-
     *pModes = VK_DEVICE_GROUP_PRESENT_MODE_LOCAL_BIT_KHR;
     return VK_SUCCESS;
 }
 
 VKAPI_ATTR
-VkResult GetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice physicalDevice,
+VkResult GetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice,
                                                VkSurfaceKHR surface,
                                                uint32_t* pRectCount,
                                                VkRect2D* pRects) {
-    ALOGV("GetPhysicalDevicePresentRectanglesKHR: physicalDevice=0x%" PRIx64
-          "surface=0x%" PRIx64 "pRectCount=%d pRects=0x%" PRIx64,
-          reinterpret_cast<uint64_t>(physicalDevice),
-          reinterpret_cast<uint64_t>(surface), *pRectCount,
-          reinterpret_cast<uint64_t>(pRects));
-
     if (!pRects) {
         *pRectCount = 1;
     } else {

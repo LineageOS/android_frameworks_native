@@ -419,7 +419,7 @@ bool InitDriverTable(VkDevice dev, PFN_vkGetDeviceProcAddr get_proc,
     INIT_PROC(§
   {{end}}
 
-  {{if GetAnnotation $ "optional"}}false{{else}}true{{end}}, §
+  {{if GetAnnotation $ "optional"}}false{{else if GetAnnotation $ "vulkan1_1"}}false{{else}}true{{end}}, §
 
   {{if (Macro "IsInstanceDispatched" $)}}
     instance, §
@@ -734,9 +734,6 @@ VK_KHR_get_physical_device_properties2
     {{else if eq $.Name "vkCreateDevice"}}true
     {{else if eq $.Name "vkEnumeratePhysicalDevices"}}true
     {{else if eq $.Name "vkEnumeratePhysicalDeviceGroups"}}true
-    {{else if eq $.Name "vkGetDeviceGroupPresentCapabilitiesKHR"}}true
-    {{else if eq $.Name "vkGetDeviceGroupSurfacePresentModesKHR"}}true
-    {{else if eq $.Name "vkGetPhysicalDevicePresentRectanglesKHR"}}true
     {{else if eq $.Name "vkGetDeviceQueue"}}true
     {{else if eq $.Name "vkGetDeviceQueue2"}}true
     {{else if eq $.Name "vkAllocateCommandBuffers"}}true
@@ -976,9 +973,6 @@ VK_KHR_get_physical_device_properties2
     {{/* We cache physical devices in loader.cpp */}}
     {{else if eq $.Name "vkEnumeratePhysicalDevices"}}true
     {{else if eq $.Name "vkEnumeratePhysicalDeviceGroups"}}true
-    {{else if eq $.Name "vkGetDeviceGroupPresentCapabilitiesKHR"}}true
-    {{else if eq $.Name "vkGetDeviceGroupSurfacePresentModesKHR"}}true
-    {{else if eq $.Name "vkGetPhysicalDevicePresentRectanglesKHR"}}true
 
     {{else if eq $.Name "vkGetInstanceProcAddr"}}true
     {{else if eq $.Name "vkGetDeviceProcAddr"}}true

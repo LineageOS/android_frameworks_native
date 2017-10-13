@@ -492,8 +492,7 @@ bool InitDriverTable(VkInstance instance,
     INIT_PROC(true, instance, GetPhysicalDeviceProperties);
     INIT_PROC(true, instance, CreateDevice);
     INIT_PROC(true, instance, EnumerateDeviceExtensionProperties);
-    INIT_PROC(true, instance, EnumeratePhysicalDeviceGroups);
-    INIT_PROC_EXT(KHR_swapchain, true, instance, GetPhysicalDevicePresentRectanglesKHR);
+    INIT_PROC(false, instance, EnumeratePhysicalDeviceGroups);
     INIT_PROC_EXT(EXT_debug_report, true, instance, CreateDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DestroyDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DebugReportMessageEXT);
@@ -516,9 +515,7 @@ bool InitDriverTable(VkDevice dev,
     INIT_PROC(true, dev, CreateImage);
     INIT_PROC(true, dev, DestroyImage);
     INIT_PROC(true, dev, AllocateCommandBuffers);
-    INIT_PROC(true, dev, GetDeviceQueue2);
-    INIT_PROC_EXT(KHR_swapchain, true, dev, GetDeviceGroupPresentCapabilitiesKHR);
-    INIT_PROC_EXT(KHR_swapchain, true, dev, GetDeviceGroupSurfacePresentModesKHR);
+    INIT_PROC(false, dev, GetDeviceQueue2);
     INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsageANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsage2ANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, AcquireImageANDROID);
