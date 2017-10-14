@@ -20,9 +20,12 @@ cc_library_shared {
     },
 
     clang: true,
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
     cppflags: [
         "-Weverything",
-        "-Werror",
 
         // The static constructors and destructors in this library have not been noted to
         // introduce significant overheads
