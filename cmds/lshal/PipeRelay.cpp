@@ -57,8 +57,7 @@ bool PipeRelay::RelayThread::threadLoop() {
 ////////////////////////////////////////////////////////////////////////////////
 
 PipeRelay::PipeRelay(std::ostream &os)
-    : mOutStream(os),
-      mInitCheck(NO_INIT) {
+    : mInitCheck(NO_INIT) {
     int res = socketpair(AF_UNIX, SOCK_STREAM, 0 /* protocol */, mFds);
 
     if (res < 0) {

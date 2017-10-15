@@ -8,7 +8,11 @@ cc_binary {
         "libbinder",
     ],
 
-    cflags: ["-DXP_UNIX"],
+    cflags: [
+        "-DXP_UNIX",
+        "-Wall",
+        "-Werror",
+    ],
 }
 
 cc_binary {
@@ -22,5 +26,10 @@ cc_binary {
         "libbinder",
     ],
 
-    cflags: ["-DXP_UNIX", "-DVENDORSERVICES"],
+    cflags: [
+        "-DXP_UNIX",
+        "-DVENDORSERVICES",
+        "-Wall",
+        "-Werror",
+    ],
 }

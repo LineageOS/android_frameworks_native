@@ -62,7 +62,6 @@ private:
     Status parseArgs(const Arg &arg);
 
     std::string mCommand;
-    Arg mCmdArgs;
     NullableOStream<std::ostream> mOut;
     NullableOStream<std::ostream> mErr;
 
