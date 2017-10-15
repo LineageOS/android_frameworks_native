@@ -323,7 +323,6 @@ TEST_F(SurfaceTextureGLTest, TexturingFromCpuFilledYV12BuffersRepeatedly) {
         for (int j = 0; j < numTestPixels; j++) {
             int x = testPixels[j].x;
             int y = testPixels[j].y;
-            uint8_t value = 0;
             if (j == (i % numTestPixels)) {
                 // We must y-invert the texture coords
                 EXPECT_TRUE(checkPixel(x, texHeight-y-1, 255, 255, 255, 255));
