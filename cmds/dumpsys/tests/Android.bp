@@ -4,6 +4,7 @@ cc_test {
     test_suites: ["device-tests"],
 
     srcs: ["dumpsys_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
 
     shared_libs: [
         "libbase",

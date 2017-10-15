@@ -3,6 +3,10 @@
 cc_binary {
     name: "atrace",
     srcs: ["atrace.cpp"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 
     shared_libs: [
         "libbinder",
