@@ -310,8 +310,6 @@ void checkGreyscaleBuffer(const CpuConsumer::LockedBuffer &buf) {
     uint32_t h = buf.height;
     const int blockWidth = w > 16 ? w / 16 : 1;
     const int blockHeight = h > 16 ? h / 16 : 1;
-    const int blockRows = h / blockHeight;
-    const int blockCols = w / blockWidth;
 
     // Top-left square is bright
     checkPixel(buf, 0, 0, 191);
@@ -349,8 +347,6 @@ void checkRgba8888Buffer(const CpuConsumer::LockedBuffer &buf) {
     uint32_t h = buf.height;
     const int blockWidth = w > 16 ? w / 16 : 1;
     const int blockHeight = h > 16 ? h / 16 : 1;
-    const int blockRows = h / blockHeight;
-    const int blockCols = w / blockWidth;
 
     // Top-left square is bright red
     checkPixel(buf, 0, 0, 191, 63, 63);
@@ -392,8 +388,6 @@ void checkBayerRawBuffer(const CpuConsumer::LockedBuffer &buf) {
     uint32_t h = buf.height;
     const int blockWidth = (w > 16 ? w / 8 : 2) & ~0x1;
     const int blockHeight = (h > 16 ? h / 8 : 2) & ~0x1;
-    const int blockRows = h / blockHeight;
-    const int blockCols = w / blockWidth;
 
     // Top-left square is red
     checkPixel(buf, 0, 0, 1000, 200, 200);
