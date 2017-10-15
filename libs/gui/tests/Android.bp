@@ -7,6 +7,10 @@ cc_test {
     test_suites: ["device-tests"],
 
     clang: true,
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 
     srcs: [
         "BufferItemConsumer_test.cpp",
