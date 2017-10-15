@@ -225,8 +225,11 @@ static const char* k_traceClockPath =
 static const char* k_traceBufferSizePath =
     "buffer_size_kb";
 
+#if 0
+// TODO: Re-enable after stabilization
 static const char* k_traceCmdlineSizePath =
     "saved_cmdlines_size";
+#endif
 
 static const char* k_tracingOverwriteEnablePath =
     "options/overwrite";
@@ -248,9 +251,6 @@ static const char* k_funcgraphProcPath =
 
 static const char* k_funcgraphFlatPath =
     "options/funcgraph-flat";
-
-static const char* k_funcgraphDurationPath =
-    "options/funcgraph-duration";
 
 static const char* k_ftraceFilterPath =
     "set_ftrace_filter";
@@ -444,7 +444,6 @@ static bool clearTrace()
 static bool setTraceBufferSizeKB(int size)
 {
     char str[32] = "1";
-    int len;
     if (size < 1) {
         size = 1;
     }
@@ -452,6 +451,8 @@ static bool setTraceBufferSizeKB(int size)
     return writeStr(k_traceBufferSizePath, str);
 }
 
+#if 0
+// TODO: Re-enable after stabilization
 // Set the default size of cmdline hashtable
 static bool setCmdlineSize()
 {
@@ -460,6 +461,7 @@ static bool setCmdlineSize()
     }
     return true;
 }
+#endif
 
 // Set the clock to the best available option while tracing. Use 'boot' if it's
 // available; otherwise, use 'mono'. If neither are available use 'global'.

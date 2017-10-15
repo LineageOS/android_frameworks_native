@@ -34,6 +34,10 @@ cc_library_shared {
         "TextTable.cpp",
         "utils.cpp",
     ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
 }
 
 cc_defaults {
@@ -44,7 +48,8 @@ cc_defaults {
         "libhidltransport",
         "liblshal",
         "libutils",
-    ]
+    ],
+    cflags: ["-Wall", "-Werror"],
 }
 
 cc_binary {
