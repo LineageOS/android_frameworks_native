@@ -96,6 +96,9 @@
 
 #define DISPLAY_COUNT       1
 
+#define FBIOBLANK               0x4611
+#define FB_BLANK_UNBLANK        0
+
 /*
  * DEBUG_SCREENSHOTS: set to true to check that screenshots are not all
  * black pixels.
@@ -2702,6 +2705,16 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
         int mode) {
     ALOGD("Set power mode=%d, type=%d flinger=%p", mode, hw->getDisplayType(),
             this);
+
+    if (mode == 2) //Awaking the lcd
+    {
+	int fd, ret;
+	fd = open("/dev/graphics/fb0",O_WRONLY);
+	ret = ioctl(fd, FBIOBLANK, FB_BLANK_UNBLANK);
+
+	if (ret < 0)
+		ALOGE("Error waking up LCD: %d (%s)\n", ret, strerror(errno));
+    }
     int32_t type = hw->getDisplayType();
     int currentMode = hw->getPowerMode();
 
