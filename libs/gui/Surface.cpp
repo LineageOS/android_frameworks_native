@@ -155,7 +155,10 @@ status_t Surface::getDisplayRefreshCycleDuration(nsecs_t* outRefreshDuration) {
     ATRACE_CALL();
 
     DisplayStatInfo stats;
-    status_t err = composerService()->getDisplayStats(NULL, &stats);
+    status_t result = composerService()->getDisplayStats(NULL, &stats);
+    if (result != NO_ERROR) {
+        return result;
+    }
 
     *outRefreshDuration = stats.vsyncPeriod;
 
