@@ -42,7 +42,6 @@ struct PipeRelay {
 private:
     struct RelayThread;
 
-    std::ostream &mOutStream;
     status_t mInitCheck;
     int mFds[2];
     sp<RelayThread> mThread;

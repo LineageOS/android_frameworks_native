@@ -16,15 +16,15 @@ Contact
 
 Status
 
-    Draft
+    Complete
 
 Version
 
-    Version 1.0, January 27, 2017
+    Version 3, October 11, 2017
 
 Number
 
-    EGL Extension #XXX
+    EGL Extension #123
 
 Dependencies
 
@@ -43,11 +43,11 @@ Overview
 
 New Types
 
-struct AHardwareBuffer
+    struct AHardwareBuffer
 
 New Procedures and Functions
 
-EGLClientBuffer eglGetNativeClientBufferANDROID(const AHardwareBuffer *buffer)
+    EGLClientBuffer eglGetNativeClientBufferANDROID(const struct AHardwareBuffer *buffer)
 
 New Tokens
 
@@ -62,7 +62,7 @@ Changes to Chapter 3 of the EGL 1.2 Specification (EGL Functions and Errors)
    "The command
 
         EGLClientBuffer eglGetNativeClientBufferANDROID(
-                                AHardwareBuffer *buffer)
+                                const struct AHardwareBuffer *buffer)
 
     may be used to create an EGLClientBuffer from an AHardwareBuffer object.
     EGL implementations must guarantee that the lifetime of the returned
@@ -91,6 +91,9 @@ Issues
     Android version and implementation should be documented by that version.
 
 Revision History
+
+#3 (Jesse Hall, October 11, 2017)
+    - Assigned extension number, fixed minor issues for publication
 
 #2 (Craig Donner, February 17, 2017)
     - Fix typographical errors.
