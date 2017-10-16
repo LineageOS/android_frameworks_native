@@ -123,6 +123,9 @@ public:
     binder::Status reconcileSecondaryDexFile(const std::string& dexPath,
         const std::string& packageName, int32_t uid, const std::vector<std::string>& isa,
         const std::unique_ptr<std::string>& volumeUuid, int32_t storage_flag, bool* _aidl_return);
+    binder::Status hashSecondaryDexFile(const std::string& dexPath,
+        const std::string& packageName, int32_t uid, const std::unique_ptr<std::string>& volumeUuid,
+        int32_t storageFlag, std::vector<uint8_t>* _aidl_return);
 
     binder::Status invalidateMounts();
     binder::Status isQuotaSupported(const std::unique_ptr<std::string>& volumeUuid,

@@ -15,6 +15,7 @@
  */
 #define LOG_TAG "installed"
 
+#include <array>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +28,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
@@ -36,6 +38,7 @@
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
 #include <log/log.h>               // TODO: Move everything to base/logging.
+#include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
 #include <selinux/android.h>
 #include <system/thread_defs.h>
@@ -46,8 +49,10 @@
 #include "otapreopt_utils.h"
 #include "utils.h"
 
-using android::base::StringPrintf;
 using android::base::EndsWith;
+using android::base::ReadFully;
+using android::base::StringPrintf;
+using android::base::WriteFully;
 using android::base::unique_fd;
 
 namespace android {
@@ -2079,6 +2084,90 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
             *out_secondary_dex_exists = false;
             return false;
     }
+}
+
+// Compute and return the hash (SHA-256) of the secondary dex file at dex_path.
+// Returns true if all parameters are valid and the hash successfully computed and stored in
+// out_secondary_dex_hash.
+// Also returns true with an empty hash if the file does not currently exist or is not accessible to
+// the app.
+// For any other errors (e.g. if any of the parameters are invalid) returns false.
+bool hash_secondary_dex_file(const std::string& dex_path, const std::string& pkgname, int uid,
+        const std::unique_ptr<std::string>& volume_uuid, int storage_flag,
+        std::vector<uint8_t>* out_secondary_dex_hash) {
+    out_secondary_dex_hash->clear();
+
+    const char* volume_uuid_cstr = volume_uuid == nullptr ? nullptr : volume_uuid->c_str();
+
+    if (storage_flag != FLAG_STORAGE_CE && storage_flag != FLAG_STORAGE_DE) {
+        LOG(ERROR) << "hash_secondary_dex_file called with invalid storage_flag: "
+                << storage_flag;
+        return false;
+    }
+
+    // Pipe to get the hash result back from our child process.
+    unique_fd pipe_read, pipe_write;
+    if (!Pipe(&pipe_read, &pipe_write)) {
+        PLOG(ERROR) << "Failed to create pipe";
+        return false;
+    }
+
+    // Fork so that actual access to the files is done in the app's own UID, to ensure we only
+    // access data the app itself can access.
+    pid_t pid = fork();
+    if (pid == 0) {
+        // child -- drop privileges before continuing
+        drop_capabilities(uid);
+        pipe_read.reset();
+
+        if (!validate_secondary_dex_path(pkgname, dex_path, volume_uuid_cstr, uid, storage_flag)) {
+            LOG(ERROR) << "Could not validate secondary dex path " << dex_path;
+            _exit(1);
+        }
+
+        unique_fd fd(TEMP_FAILURE_RETRY(open(dex_path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW)));
+        if (fd == -1) {
+            if (errno == EACCES || errno == ENOENT) {
+                // Not treated as an error.
+                _exit(0);
+            }
+            PLOG(ERROR) << "Failed to open secondary dex " << dex_path;
+            _exit(1);
+        }
+
+        SHA256_CTX ctx;
+        SHA256_Init(&ctx);
+
+        std::vector<uint8_t> buffer(65536);
+        while (true) {
+            ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd, buffer.data(), buffer.size()));
+            if (bytes_read == 0) {
+                break;
+            } else if (bytes_read == -1) {
+                PLOG(ERROR) << "Failed to read secondary dex " << dex_path;
+                _exit(1);
+            }
+
+            SHA256_Update(&ctx, buffer.data(), bytes_read);
+        }
+
+        std::array<uint8_t, SHA256_DIGEST_LENGTH> hash;
+        SHA256_Final(hash.data(), &ctx);
+        if (!WriteFully(pipe_write, hash.data(), hash.size())) {
+            _exit(1);
+        }
+
+        _exit(0);
+    }
+
+    // parent
+    pipe_write.reset();
+
+    out_secondary_dex_hash->resize(SHA256_DIGEST_LENGTH);
+    if (!ReadFully(pipe_read, out_secondary_dex_hash->data(), out_secondary_dex_hash->size())) {
+        out_secondary_dex_hash->clear();
+    }
+    return wait_child(pid) == 0;
 }
 
 // Helper for move_ab, so that we can have common failure-case cleanup.

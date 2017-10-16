@@ -75,6 +75,10 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
         const std::unique_ptr<std::string>& volumeUuid, int storage_flag,
         /*out*/bool* out_secondary_dex_exists);
 
+bool hash_secondary_dex_file(const std::string& dex_path,
+        const std::string& pkgname, int uid, const std::unique_ptr<std::string>& volume_uuid,
+        int storage_flag, std::vector<uint8_t>* out_secondary_dex_hash);
+
 int dexopt(const char *apk_path, uid_t uid, const char *pkgName, const char *instruction_set,
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
         const char* volume_uuid, const char* class_loader_context, const char* se_info,
