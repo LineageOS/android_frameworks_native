@@ -7,6 +7,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <pdx/service.h>
@@ -139,7 +140,8 @@ class Endpoint : public pdx::Endpoint {
   Status<void> ReenableEpollEvent(const BorrowedHandle& channel_fd);
   Channel* GetChannelState(int32_t channel_id);
   BorrowedHandle GetChannelSocketFd(int32_t channel_id);
-  BorrowedHandle GetChannelEventFd(int32_t channel_id);
+  Status<std::pair<BorrowedHandle, BorrowedHandle>> GetChannelEventFd(
+      int32_t channel_id);
   int32_t GetChannelId(const BorrowedHandle& channel_fd);
   Status<void> CreateChannelSocketPair(LocalHandle* local_socket,
                                        LocalHandle* remote_socket);

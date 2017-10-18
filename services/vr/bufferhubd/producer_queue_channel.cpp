@@ -7,8 +7,8 @@
 
 using android::pdx::ErrorStatus;
 using android::pdx::Message;
-using android::pdx::Status;
 using android::pdx::RemoteChannelHandle;
+using android::pdx::Status;
 using android::pdx::rpc::DispatchRemoteMethod;
 
 namespace android {
@@ -96,10 +96,12 @@ BufferHubChannel::BufferInfo ProducerQueueChannel::GetBufferInfo() const {
 }
 
 Status<RemoteChannelHandle> ProducerQueueChannel::OnCreateConsumerQueue(
-    Message& message) {
+    Message& message, bool silent) {
   ATRACE_NAME("ProducerQueueChannel::OnCreateConsumerQueue");
-  ALOGD_IF(TRACE, "ProducerQueueChannel::OnCreateConsumerQueue: channel_id=%d",
-           channel_id());
+  ALOGD_IF(
+      TRACE,
+      "ProducerQueueChannel::OnCreateConsumerQueue: channel_id=%d slient=%d",
+      channel_id(), silent);
 
   int channel_id;
   auto status = message.PushChannel(0, nullptr, &channel_id);
@@ -112,7 +114,7 @@ Status<RemoteChannelHandle> ProducerQueueChannel::OnCreateConsumerQueue(
   }
 
   auto consumer_queue_channel = std::make_shared<ConsumerQueueChannel>(
-      service(), buffer_id(), channel_id, shared_from_this());
+      service(), buffer_id(), channel_id, shared_from_this(), silent);
 
   // Register the existing buffers with the new consumer queue.
   for (size_t slot = 0; slot < BufferHubRPC::kMaxQueueCapacity; slot++) {
@@ -222,7 +224,7 @@ ProducerQueueChannel::AllocateBuffer(Message& message, uint32_t width,
 
   auto producer_channel_status =
       ProducerChannel::Create(service(), buffer_id, width, height, layer_count,
-                              format, usage, config_.meta_size_bytes);
+                              format, usage, config_.user_metadata_size);
   if (!producer_channel_status) {
     ALOGE(
         "ProducerQueueChannel::AllocateBuffer: Failed to create producer "
