@@ -54,7 +54,6 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_CFLAGS := -DLOG_TAG=\"SurfaceFlinger\"
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
-LOCAL_CFLAGS += -DUSE_HWC2
 
 LOCAL_CFLAGS += -fvisibility=hidden -Werror=format
 
@@ -119,8 +118,6 @@ LOCAL_LDFLAGS_64 := -Wl,--version-script,art/sigchainlib/version-script64.txt -W
 LOCAL_CFLAGS := -DLOG_TAG=\"SurfaceFlinger\"
 
 LOCAL_INIT_RC := surfaceflinger.rc
-
-LOCAL_CFLAGS += -DUSE_HWC2
 
 LOCAL_SRC_FILES := \
     main_surfaceflinger.cpp

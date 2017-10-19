@@ -85,9 +85,6 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
         mFiltering(false),
         mNeedsFiltering(false),
         mMesh(Mesh::TRIANGLE_FAN, 4, 2, 2),
-#ifndef USE_HWC2
-        mIsGlesComposition(false),
-#endif
         mProtectedByApp(false),
         mClientRef(client),
         mPotentialCursor(false),
@@ -128,13 +125,9 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
 
-#ifdef USE_HWC2
     const auto& hwc = flinger->getHwComposer();
     const auto& activeConfig = hwc.getActiveConfig(HWC_DISPLAY_PRIMARY);
     nsecs_t displayPeriod = activeConfig->getVsyncPeriod();
-#else
-    nsecs_t displayPeriod = flinger->getHwComposer().getRefreshPeriod(HWC_DISPLAY_PRIMARY);
-#endif
     mFrameTracker.setDisplayRefreshPeriod(displayPeriod);
 
     CompositorTiming compositorTiming;
@@ -157,12 +150,7 @@ Layer::~Layer() {
  * Layer.  So, the implementation is done in BufferLayer.  When called on a
  * ColorLayer object, it's essentially a NOP.
  */
-#ifdef USE_HWC2
 void Layer::onLayerDisplayed(const sp<Fence>& /*releaseFence*/) {}
-#else
-void Layer::onLayerDisplayed(const sp<const DisplayDevice>& /* hw */,
-                             HWComposer::HWCLayerInterface* /*layer*/) {}
-#endif
 
 void Layer::onRemovedFromCurrentState() {
     // the layer is removed from SF mCurrentState to mLayersPendingRemoval
@@ -187,9 +175,7 @@ void Layer::onRemoved() {
     // the layer is removed from SF mLayersPendingRemoval
     abandon();
 
-#ifdef USE_HWC2
     destroyAllHwcLayers();
-#endif
 
     for (const auto& child : mCurrentChildren) {
         child->onRemoved();
@@ -217,7 +203,6 @@ sp<IBinder> Layer::getHandle() {
 // h/w composer set-up
 // ---------------------------------------------------------------------------
 
-#ifdef USE_HWC2
 bool Layer::createHwcLayer(HWComposer* hwc, int32_t hwcId) {
     LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0, "Already have a layer for hwcId %d", hwcId);
     HWC2::Layer* layer = hwc->createLayer(hwcId);
@@ -254,7 +239,6 @@ void Layer::destroyAllHwcLayers() {
     LOG_ALWAYS_FATAL_IF(!mHwcLayers.empty(),
                         "All hardware composer layers should have been destroyed");
 }
-#endif
 
 Rect Layer::getContentCrop() const {
     // this is the crop rectangle that applies to the buffer
@@ -470,21 +454,12 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
     return crop;
 }
 
-#ifdef USE_HWC2
 void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z)
-#else
-void Layer::setGeometry(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerInterface& layer)
-#endif
 {
-#ifdef USE_HWC2
     const auto hwcId = displayDevice->getHwcDisplayId();
     auto& hwcInfo = mHwcLayers[hwcId];
-#else
-    layer.setDefaultState();
-#endif
 
     // enable this layer
-#ifdef USE_HWC2
     hwcInfo.forceClientComposition = false;
 
     if (isSecure() && !displayDevice->isSecure()) {
@@ -492,17 +467,9 @@ void Layer::setGeometry(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerI
     }
 
     auto& hwcLayer = hwcInfo.layer;
-#else
-    layer.setSkip(false);
-
-    if (isSecure() && !hw->isSecure()) {
-        layer.setSkip(true);
-    }
-#endif
 
     // this gives us only the "orientation" component of the transform
     const State& s(getDrawingState());
-#ifdef USE_HWC2
     auto blendMode = HWC2::BlendMode::None;
     if (!isOpaque(s) || getAlpha() != 1.0f) {
         blendMode =
@@ -514,11 +481,6 @@ void Layer::setGeometry(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerI
              " %s (%d)",
              mName.string(), to_string(blendMode).c_str(), to_string(error).c_str(),
              static_cast<int32_t>(error));
-#else
-    if (!isOpaque(s) || getAlpha() != 1.0f) {
-        layer.setBlending(mPremultipliedAlpha ? HWC_BLENDING_PREMULT : HWC_BLENDING_COVERAGE);
-    }
-#endif
 
     // apply the layer's transform, followed by the display's global transform
     // here we're guaranteed that the layer's transform preserves rects
@@ -527,11 +489,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerI
     if (!s.crop.isEmpty()) {
         Rect activeCrop(s.crop);
         activeCrop = t.transform(activeCrop);
-#ifdef USE_HWC2
         if (!activeCrop.intersect(displayDevice->getViewport(), &activeCrop)) {
-#else
-        if (!activeCrop.intersect(hw->getViewport(), &activeCrop)) {
-#endif
             activeCrop.clear();
         }
         activeCrop = t.inverse().transform(activeCrop, true);
@@ -558,7 +516,6 @@ void Layer::setGeometry(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerI
             frame.clear();
         }
     }
-#ifdef USE_HWC2
     if (!frame.intersect(displayDevice->getViewport(), &frame)) {
         frame.clear();
     }
@@ -607,15 +564,6 @@ void Layer::setGeometry(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerI
     error = hwcLayer->setInfo(type, appId);
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set info (%d)", mName.string(),
              static_cast<int32_t>(error));
-#else
-    if (!frame.intersect(hw->getViewport(), &frame)) {
-        frame.clear();
-    }
-    const Transform& tr(hw->getTransform());
-    layer.setFrame(tr.transform(frame));
-    layer.setCrop(computeCrop(hw));
-    layer.setPlaneAlpha(static_cast<uint8_t>(std::round(255.0f * getAlpha())));
-#endif
 
     /*
      * Transformations are applied in this order:
@@ -650,7 +598,6 @@ void Layer::setGeometry(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerI
 
     // this gives us only the "orientation" component of the transform
     const uint32_t orientation = transform.getOrientation();
-#ifdef USE_HWC2
     if (orientation & Transform::ROT_INVALID) {
         // we can only handle simple transformation
         hwcInfo.forceClientComposition = true;
@@ -663,17 +610,8 @@ void Layer::setGeometry(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerI
                  mName.string(), to_string(transform).c_str(), to_string(error).c_str(),
                  static_cast<int32_t>(error));
     }
-#else
-    if (orientation & Transform::ROT_INVALID) {
-        // we can only handle simple transformation
-        layer.setSkip(true);
-    } else {
-        layer.setTransform(orientation);
-    }
-#endif
 }
 
-#ifdef USE_HWC2
 void Layer::forceClientComposition(int32_t hwcId) {
     if (mHwcLayers.count(hwcId) == 0) {
         ALOGE("forceClientComposition: no HWC layer found (%d)", hwcId);
@@ -682,32 +620,7 @@ void Layer::forceClientComposition(int32_t hwcId) {
 
     mHwcLayers[hwcId].forceClientComposition = true;
 }
-#else
-void Layer::setPerFrameData(const sp<const DisplayDevice>& hw,
-                                  HWComposer::HWCLayerInterface& layer) {
-    // we have to set the visible region on every frame because
-    // we currently free it during onLayerDisplayed(), which is called
-    // after HWComposer::commit() -- every frame.
-    // Apply this display's projection's viewport to the visible region
-    // before giving it to the HWC HAL.
-    const Transform& tr = hw->getTransform();
-    Region visible = tr.transform(visibleRegion.intersect(hw->getViewport()));
-    layer.setVisibleRegionScreen(visible);
-    layer.setSurfaceDamage(surfaceDamageRegion);
-    mIsGlesComposition = (layer.getCompositionType() == HWC_FRAMEBUFFER);
 
-    if (mSidebandStream.get()) {
-        layer.setSidebandStream(mSidebandStream);
-    } else {
-        // NOTE: buffer can be NULL if the client never drew into this
-        // layer yet, or if we ran out of memory
-        layer.setBuffer(mActiveBuffer);
-    }
-}
-#endif
-
-
-#ifdef USE_HWC2
 void Layer::updateCursorPosition(const sp<const DisplayDevice>& displayDevice) {
     auto hwcId = displayDevice->getHwcDisplayId();
     if (mHwcLayers.count(hwcId) == 0 || getCompositionType(hwcId) != HWC2::Composition::Cursor) {
@@ -740,28 +653,6 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& displayDevice) {
              mName.string(), position.left, position.top, to_string(error).c_str(),
              static_cast<int32_t>(error));
 }
-#else
-Rect Layer::getPosition(const sp<const DisplayDevice>& hw) {
-    // this gives us only the "orientation" component of the transform
-    const State& s(getCurrentState());
-
-    // apply the layer's transform, followed by the display's global transform
-    // here we're guaranteed that the layer's transform preserves rects
-    Rect win(s.active.w, s.active.h);
-    if (!s.crop.isEmpty()) {
-        win.intersect(s.crop, &win);
-    }
-    // subtract the transparent region and snap to the bounds
-    Rect bounds = reduce(win, s.activeTransparentRegion);
-    Rect frame(getTransform().transform(bounds));
-    frame.intersect(hw->getViewport(), &frame);
-    if (!s.finalCrop.isEmpty()) {
-        frame.intersect(s.finalCrop, &frame);
-    }
-    const Transform& tr(hw->getTransform());
-    return Rect(tr.transform(frame));
-}
-#endif
 
 // ---------------------------------------------------------------------------
 // drawing...
@@ -791,7 +682,6 @@ void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
     clearWithOpenGL(renderArea, 0, 0, 0, 0);
 }
 
-#ifdef USE_HWC2
 void Layer::setCompositionType(int32_t hwcId, HWC2::Composition type, bool callIntoHwc) {
     if (mHwcLayers.count(hwcId) == 0) {
         ALOGE("setCompositionType called without a valid HWC layer");
@@ -843,7 +733,6 @@ bool Layer::getClearClientTarget(int32_t hwcId) const {
     }
     return mHwcLayers.at(hwcId).clearClientTarget;
 }
-#endif
 
 bool Layer::addSyncPoint(const std::shared_ptr<SyncPoint>& point) {
     if (point->getFrameNumber() <= mCurrentFrameNumber) {
@@ -1496,7 +1385,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mContentDirty = contentDirty;
     return info;
 }
-#ifdef USE_HWC2
+
 void Layer::miniDumpHeader(String8& result) {
     result.append("----------------------------------------");
     result.append("---------------------------------------\n");
@@ -1539,7 +1428,6 @@ void Layer::miniDump(String8& result, int32_t hwcId) const {
     result.append("- - - - - - - - - - - - - - - - - - - - ");
     result.append("- - - - - - - - - - - - - - - - - - - -\n");
 }
-#endif
 
 void Layer::dumpFrameStats(String8& result) const {
     mFrameTracker.dumpStats(result);

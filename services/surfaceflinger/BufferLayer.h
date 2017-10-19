@@ -105,12 +105,7 @@ public:
     void onDraw(const RenderArea& renderArea, const Region& clip,
                 bool useIdentityTransform) const override;
 
-#ifdef USE_HWC2
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
-#else
-    void onLayerDisplayed(const sp<const DisplayDevice>& hw,
-                          HWComposer::HWCLayerInterface* layer) override;
-#endif
 
     void abandon() override;
     bool shouldPresentNow(const DispSync& dispSync) const override;
@@ -124,10 +119,8 @@ public:
 public:
     bool onPreComposition(nsecs_t refreshStartTime) override;
 
-#ifdef USE_HWC2
     // If a buffer was replaced this frame, release the former buffer
     void releasePendingBuffer(nsecs_t dequeueReadyTime);
-#endif
 
     /*
      * latchBuffer - called each time the screen is redrawn and returns whether
@@ -139,12 +132,7 @@ public:
     bool isBufferLatched() const override { return mRefreshPending; }
     void setDefaultBufferSize(uint32_t w, uint32_t h) override;
 
-#ifdef USE_HWC2
     void setPerFrameData(const sp<const DisplayDevice>& displayDevice) override;
-#else
-    void setAcquireFence(const sp<const DisplayDevice>& hw,
-                         HWComposer::HWCLayerInterface& layer) override;
-#endif
 
     bool isOpaque(const Layer::State& s) const override;
 
