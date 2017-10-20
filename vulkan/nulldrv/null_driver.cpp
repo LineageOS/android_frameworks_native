@@ -343,9 +343,14 @@ void DestroyInstance(VkInstance instance,
 VkResult EnumeratePhysicalDevices(VkInstance instance,
                                   uint32_t* physical_device_count,
                                   VkPhysicalDevice* physical_devices) {
-    if (physical_devices && *physical_device_count >= 1)
+    if (!physical_devices)
+        *physical_device_count = 1;
+    else if (*physical_device_count == 0)
+        return VK_INCOMPLETE;
+    else {
         physical_devices[0] = &instance->physical_device;
-    *physical_device_count = 1;
+        *physical_device_count = 1;
+    }
     return VK_SUCCESS;
 }
 
