@@ -25,8 +25,8 @@
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
 
-#include <utils/String8.h>
 #include <ui/DisplayInfo.h>
+#include <utils/String8.h>
 
 #include <math.h>
 #include <math/vec3.h>
@@ -38,8 +38,8 @@ namespace android {
 using Transaction = SurfaceComposerClient::Transaction;
 
 // Fill an RGBA_8888 formatted surface with a single color.
-static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc,
-        uint8_t r, uint8_t g, uint8_t b, bool unlock=true) {
+static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, uint8_t r, uint8_t g, uint8_t b,
+                             bool unlock = true) {
     ANativeWindow_Buffer outBuffer;
     sp<Surface> s = sc->getSurface();
     ASSERT_TRUE(s != NULL);
@@ -47,7 +47,7 @@ static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc,
     uint8_t* img = reinterpret_cast<uint8_t*>(outBuffer.bits);
     for (int y = 0; y < outBuffer.height; y++) {
         for (int x = 0; x < outBuffer.width; x++) {
-            uint8_t* pixel = img + (4 * (y*outBuffer.stride + x));
+            uint8_t* pixel = img + (4 * (y * outBuffer.stride + x));
             pixel[0] = r;
             pixel[1] = g;
             pixel[2] = b;
@@ -69,12 +69,10 @@ public:
         BufferQueue::createBufferQueue(&producer, &consumer);
         sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        sp<IBinder> display(sf->getBuiltInDisplay(
-                ISurfaceComposer::eDisplayIdMain));
+        sp<IBinder> display(sf->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
         SurfaceComposerClient::Transaction().apply(true);
 
-        ASSERT_EQ(NO_ERROR, sf->captureScreen(display, producer, Rect(), 0, 0,
-                0, INT_MAX, false));
+        ASSERT_EQ(NO_ERROR, sf->captureScreen(display, producer, Rect(), 0, 0, 0, INT_MAX, false));
         *sc = new ScreenCapture(cpuConsumer);
     }
 
@@ -84,33 +82,24 @@ public:
         const uint8_t* pixel = img + (4 * (y * mBuf.stride + x));
         if (r != pixel[0] || g != pixel[1] || b != pixel[2]) {
             String8 err(String8::format("pixel @ (%3d, %3d): "
-                    "expected [%3d, %3d, %3d], got [%3d, %3d, %3d]",
-                    x, y, r, g, b, pixel[0], pixel[1], pixel[2]));
+                                        "expected [%3d, %3d, %3d], got [%3d, %3d, %3d]",
+                                        x, y, r, g, b, pixel[0], pixel[1], pixel[2]));
             EXPECT_EQ(String8(), err) << err.string();
         }
     }
 
-    void expectFGColor(uint32_t x, uint32_t y) {
-        checkPixel(x, y, 195, 63, 63);
-    }
+    void expectFGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 195, 63, 63); }
 
-    void expectBGColor(uint32_t x, uint32_t y) {
-        checkPixel(x, y, 63, 63, 195);
-    }
+    void expectBGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 63, 63, 195); }
 
-    void expectChildColor(uint32_t x, uint32_t y) {
-        checkPixel(x, y, 200, 200, 200);
-    }
+    void expectChildColor(uint32_t x, uint32_t y) { checkPixel(x, y, 200, 200, 200); }
 
 private:
-    ScreenCapture(const sp<CpuConsumer>& cc) :
-        mCC(cc) {
+    ScreenCapture(const sp<CpuConsumer>& cc) : mCC(cc) {
         EXPECT_EQ(NO_ERROR, mCC->lockNextBuffer(&mBuf));
     }
 
-    ~ScreenCapture() {
-        mCC->unlockBuffer(mBuf);
-    }
+    ~ScreenCapture() { mCC->unlockBuffer(mBuf); }
 
     sp<CpuConsumer> mCC;
     CpuConsumer::LockedBuffer mBuf;
@@ -124,8 +113,7 @@ public:
         BufferQueue::createBufferQueue(&producer, &consumer);
         sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        sp<IBinder> display(sf->getBuiltInDisplay(
-            ISurfaceComposer::eDisplayIdMain));
+        sp<IBinder> display(sf->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
         SurfaceComposerClient::Transaction().apply(true);
         ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, producer));
         *sc = std::make_unique<CaptureLayer>(cpuConsumer);
@@ -137,38 +125,28 @@ public:
         const uint8_t* pixel = img + (4 * (y * mBuffer.stride + x));
         if (r != pixel[0] || g != pixel[1] || b != pixel[2]) {
             String8 err(String8::format("pixel @ (%3d, %3d): "
-                                            "expected [%3d, %3d, %3d], got [%3d, %3d, %3d]",
+                                        "expected [%3d, %3d, %3d], got [%3d, %3d, %3d]",
                                         x, y, r, g, b, pixel[0], pixel[1], pixel[2]));
             EXPECT_EQ(String8(), err) << err.string();
         }
     }
 
-    void expectFGColor(uint32_t x, uint32_t y) {
-        checkPixel(x, y, 195, 63, 63);
-    }
+    void expectFGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 195, 63, 63); }
 
-    void expectBGColor(uint32_t x, uint32_t y) {
-        checkPixel(x, y, 63, 63, 195);
-    }
+    void expectBGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 63, 63, 195); }
 
-    void expectChildColor(uint32_t x, uint32_t y) {
-        checkPixel(x, y, 200, 200, 200);
-    }
+    void expectChildColor(uint32_t x, uint32_t y) { checkPixel(x, y, 200, 200, 200); }
 
-    CaptureLayer(const sp<CpuConsumer>& cc) :
-        mCC(cc) {
+    CaptureLayer(const sp<CpuConsumer>& cc) : mCC(cc) {
         EXPECT_EQ(NO_ERROR, mCC->lockNextBuffer(&mBuffer));
     }
 
-    ~CaptureLayer() {
-        mCC->unlockBuffer(mBuffer);
-    }
+    ~CaptureLayer() { mCC->unlockBuffer(mBuffer); }
 
 private:
     sp<CpuConsumer> mCC;
     CpuConsumer::LockedBuffer mBuffer;
 };
-
 
 class LayerUpdateTest : public ::testing::Test {
 protected:
@@ -176,8 +154,8 @@ protected:
         mComposerClient = new SurfaceComposerClient;
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
 
-        sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(
-                ISurfaceComposer::eDisplayIdMain));
+        sp<IBinder> display(
+                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
         DisplayInfo info;
         SurfaceComposerClient::getDisplayInfo(display, &info);
 
@@ -185,24 +163,24 @@ protected:
         ssize_t displayHeight = info.h;
 
         // Background surface
-        mBGSurfaceControl = mComposerClient->createSurface(
-                String8("BG Test Surface"), displayWidth, displayHeight,
-                PIXEL_FORMAT_RGBA_8888, 0);
+        mBGSurfaceControl =
+                mComposerClient->createSurface(String8("BG Test Surface"), displayWidth,
+                                               displayHeight, PIXEL_FORMAT_RGBA_8888, 0);
         ASSERT_TRUE(mBGSurfaceControl != NULL);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
         fillSurfaceRGBA8(mBGSurfaceControl, 63, 63, 195);
 
         // Foreground surface
-        mFGSurfaceControl = mComposerClient->createSurface(
-                String8("FG Test Surface"), 64, 64, PIXEL_FORMAT_RGBA_8888, 0);
+        mFGSurfaceControl = mComposerClient->createSurface(String8("FG Test Surface"), 64, 64,
+                                                           PIXEL_FORMAT_RGBA_8888, 0);
         ASSERT_TRUE(mFGSurfaceControl != NULL);
         ASSERT_TRUE(mFGSurfaceControl->isValid());
 
         fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
 
         // Synchronization surface
-        mSyncSurfaceControl = mComposerClient->createSurface(
-                String8("Sync Test Surface"), 1, 1, PIXEL_FORMAT_RGBA_8888, 0);
+        mSyncSurfaceControl = mComposerClient->createSurface(String8("Sync Test Surface"), 1, 1,
+                                                             PIXEL_FORMAT_RGBA_8888, 0);
         ASSERT_TRUE(mSyncSurfaceControl != NULL);
         ASSERT_TRUE(mSyncSurfaceControl->isValid());
 
@@ -211,17 +189,15 @@ protected:
         asTransaction([&](Transaction& t) {
             t.setDisplayLayerStack(display, 0);
 
-            t.setLayer(mBGSurfaceControl, INT32_MAX-2)
-                .show(mBGSurfaceControl);
+            t.setLayer(mBGSurfaceControl, INT32_MAX - 2).show(mBGSurfaceControl);
 
-            t.setLayer(mFGSurfaceControl, INT32_MAX-1)
-                .setPosition(mFGSurfaceControl, 64, 64)
-                .show(mFGSurfaceControl);
+            t.setLayer(mFGSurfaceControl, INT32_MAX - 1)
+                    .setPosition(mFGSurfaceControl, 64, 64)
+                    .show(mFGSurfaceControl);
 
-            t.setLayer(mSyncSurfaceControl, INT32_MAX-1)
-                .setPosition(mSyncSurfaceControl, displayWidth-2,
-                        displayHeight-2)
-                .show(mSyncSurfaceControl);
+            t.setLayer(mSyncSurfaceControl, INT32_MAX - 1)
+                    .setPosition(mSyncSurfaceControl, displayWidth - 2, displayHeight - 2)
+                    .show(mSyncSurfaceControl);
         });
     }
 
@@ -261,12 +237,13 @@ protected:
 TEST_F(LayerUpdateTest, RelativesAreNotDetached) {
     sp<ScreenCapture> sc;
 
-    sp<SurfaceControl> relative = mComposerClient->createSurface(
-            String8("relativeTestSurface"), 10, 10, PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> relative = mComposerClient->createSurface(String8("relativeTestSurface"), 10,
+                                                                 10, PIXEL_FORMAT_RGBA_8888, 0);
     fillSurfaceRGBA8(relative, 10, 10, 10);
     waitForPostedBuffers();
 
-    Transaction{}.setRelativeLayer(relative, mFGSurfaceControl->getHandle(), 1)
+    Transaction{}
+            .setRelativeLayer(relative, mFGSurfaceControl->getHandle(), 1)
             .setPosition(relative, 64, 64)
             .apply();
 
@@ -275,8 +252,7 @@ TEST_F(LayerUpdateTest, RelativesAreNotDetached) {
         ScreenCapture::captureScreen(&sc);
         sc->checkPixel(64, 64, 10, 10, 10);
     }
-    Transaction{}.detachChildren(mFGSurfaceControl)
-            .apply();
+    Transaction{}.detachChildren(mFGSurfaceControl).apply();
 
     {
         // Nothing should change at this point.
@@ -284,8 +260,7 @@ TEST_F(LayerUpdateTest, RelativesAreNotDetached) {
         sc->checkPixel(64, 64, 10, 10, 10);
     }
 
-    Transaction{}.hide(relative)
-            .apply();
+    Transaction{}.hide(relative).apply();
 
     {
         // Ensure that the relative was actually hidden, rather than
@@ -305,9 +280,7 @@ TEST_F(LayerUpdateTest, LayerMoveWorks) {
         sc->expectBGColor(145, 145);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.setPosition(mFGSurfaceControl, 128, 128);
-    });
+    asTransaction([&](Transaction& t) { t.setPosition(mFGSurfaceControl, 128, 128); });
 
     {
         // This should reflect the new position, but not the new color.
@@ -341,9 +314,7 @@ TEST_F(LayerUpdateTest, LayerResizeWorks) {
     }
 
     ALOGD("resizing");
-    asTransaction([&](Transaction& t) {
-        t.setSize(mFGSurfaceControl, 128, 128);
-    });
+    asTransaction([&](Transaction& t) { t.setSize(mFGSurfaceControl, 128, 128); });
     ALOGD("resized");
     {
         // This should not reflect the new size or color because SurfaceFlinger
@@ -430,9 +401,7 @@ TEST_F(LayerUpdateTest, LayerSetLayerWorks) {
         sc->expectBGColor(145, 145);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.setLayer(mFGSurfaceControl, INT_MAX - 3);
-    });
+    asTransaction([&](Transaction& t) { t.setLayer(mFGSurfaceControl, INT_MAX - 3); });
 
     {
         // This should hide the foreground surface beneath the background.
@@ -454,9 +423,7 @@ TEST_F(LayerUpdateTest, LayerShowHideWorks) {
         sc->expectBGColor(145, 145);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.hide(mFGSurfaceControl);
-    });
+    asTransaction([&](Transaction& t) { t.hide(mFGSurfaceControl); });
 
     {
         // This should hide the foreground surface.
@@ -467,9 +434,7 @@ TEST_F(LayerUpdateTest, LayerShowHideWorks) {
         sc->expectBGColor(145, 145);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.show(mFGSurfaceControl);
-    });
+    asTransaction([&](Transaction& t) { t.show(mFGSurfaceControl); });
 
     {
         // This should show the foreground surface.
@@ -491,9 +456,7 @@ TEST_F(LayerUpdateTest, LayerSetAlphaWorks) {
         sc->expectBGColor(145, 145);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.setAlpha(mFGSurfaceControl, 0.75f);
-    });
+    asTransaction([&](Transaction& t) { t.setAlpha(mFGSurfaceControl, 0.75f); });
 
     {
         // This should set foreground to be 75% opaque.
@@ -515,9 +478,7 @@ TEST_F(LayerUpdateTest, LayerSetLayerStackWorks) {
         sc->expectBGColor(145, 145);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.setLayerStack(mFGSurfaceControl, 1);
-    });
+    asTransaction([&](Transaction& t) { t.setLayerStack(mFGSurfaceControl, 1); });
     {
         // This should hide the foreground surface since it goes to a different
         // layer stack.
@@ -540,8 +501,7 @@ TEST_F(LayerUpdateTest, LayerSetFlagsWorks) {
     }
 
     asTransaction([&](Transaction& t) {
-          t.setFlags(mFGSurfaceControl,
-                layer_state_t::eLayerHidden, layer_state_t::eLayerHidden);
+        t.setFlags(mFGSurfaceControl, layer_state_t::eLayerHidden, layer_state_t::eLayerHidden);
     });
     {
         // This should hide the foreground surface
@@ -565,9 +525,7 @@ TEST_F(LayerUpdateTest, LayerSetMatrixWorks) {
     }
 
     asTransaction([&](Transaction& t) {
-        t.setMatrix(mFGSurfaceControl,
-                M_SQRT1_2, M_SQRT1_2,
-                -M_SQRT1_2, M_SQRT1_2);
+        t.setMatrix(mFGSurfaceControl, M_SQRT1_2, M_SQRT1_2, -M_SQRT1_2, M_SQRT1_2);
     });
     {
         SCOPED_TRACE("after setMatrix");
@@ -581,7 +539,7 @@ TEST_F(LayerUpdateTest, LayerSetMatrixWorks) {
 
 class GeometryLatchingTest : public LayerUpdateTest {
 protected:
-    void EXPECT_INITIAL_STATE(const char * trace) {
+    void EXPECT_INITIAL_STATE(const char* trace) {
         SCOPED_TRACE(trace);
         ScreenCapture::captureScreen(&sc);
         // We find the leading edge of the FG surface.
@@ -589,9 +547,7 @@ protected:
         sc->expectBGColor(128, 128);
     }
 
-    void lockAndFillFGBuffer() {
-        fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63, false);
-    }
+    void lockAndFillFGBuffer() { fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63, false); }
 
     void unlockFGBuffer() {
         sp<Surface> s = mFGSurfaceControl->getSurface();
@@ -784,9 +740,7 @@ TEST_F(CropLatchingTest, FinalCropLatchingRegressionForb37531386) {
 
     EXPECT_INITIAL_STATE("after setting crops with geometryAppliesWithResize");
 
-    asTransaction([&](Transaction& t) {
-        t.setFinalCrop(mFGSurfaceControl, Rect(0, 0, -1, -1));
-    });
+    asTransaction([&](Transaction& t) { t.setFinalCrop(mFGSurfaceControl, Rect(0, 0, -1, -1)); });
 
     EXPECT_INITIAL_STATE("after setting another crop");
 
@@ -809,13 +763,13 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     asTransaction([&](Transaction& t) {
         t.setAlpha(mFGSurfaceControl, 0.75);
         t.deferTransactionUntil(mFGSurfaceControl, mSyncSurfaceControl->getHandle(),
-                mSyncSurfaceControl->getSurface()->getNextFrameNumber());
+                                mSyncSurfaceControl->getSurface()->getNextFrameNumber());
     });
 
     asTransaction([&](Transaction& t) {
-        t.setPosition(mFGSurfaceControl, 128,128);
+        t.setPosition(mFGSurfaceControl, 128, 128);
         t.deferTransactionUntil(mFGSurfaceControl, mSyncSurfaceControl->getHandle(),
-                mSyncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
+                                mSyncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
     });
 
     {
@@ -837,9 +791,7 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     }
 
     // should show up immediately since it's not deferred
-    asTransaction([&](Transaction& t) {
-        t.setAlpha(mFGSurfaceControl, 1.0);
-    });
+    asTransaction([&](Transaction& t) { t.setAlpha(mFGSurfaceControl, 1.0); });
 
     // trigger the second deferred transaction
     fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
@@ -862,8 +814,8 @@ TEST_F(LayerUpdateTest, LayerSetRelativeLayerWorks) {
         sc->expectBGColor(145, 145);
     }
 
-    auto relativeSurfaceControl = mComposerClient->createSurface(
-            String8("Test Surface"), 64, 64, PIXEL_FORMAT_RGBA_8888, 0);
+    auto relativeSurfaceControl = mComposerClient->createSurface(String8("Test Surface"), 64, 64,
+                                                                 PIXEL_FORMAT_RGBA_8888, 0);
     fillSurfaceRGBA8(relativeSurfaceControl, 255, 177, 177);
     waitForPostedBuffers();
 
@@ -882,9 +834,7 @@ TEST_F(LayerUpdateTest, LayerSetRelativeLayerWorks) {
     }
 
     // A call to setLayer will override a call to setRelativeLayer
-    asTransaction([&](Transaction& t) {
-        t.setLayer(relativeSurfaceControl, 0);
-    });
+    asTransaction([&](Transaction& t) { t.setLayer(relativeSurfaceControl, 0); });
 
     {
         SCOPED_TRACE("after set layer");
@@ -898,18 +848,14 @@ TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
     sp<ScreenCapture> sc;
 
     sp<SurfaceControl> childNoBuffer =
-        mComposerClient->createSurface(String8("Bufferless child"),
-                10, 10, PIXEL_FORMAT_RGBA_8888,
-                0, mFGSurfaceControl.get());
-    sp<SurfaceControl> childBuffer = mComposerClient->createSurface(
-            String8("Buffered child"), 20, 20,
-            PIXEL_FORMAT_RGBA_8888, 0, childNoBuffer.get());
+            mComposerClient->createSurface(String8("Bufferless child"), 10, 10,
+                                           PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    sp<SurfaceControl> childBuffer =
+            mComposerClient->createSurface(String8("Buffered child"), 20, 20,
+                                           PIXEL_FORMAT_RGBA_8888, 0, childNoBuffer.get());
     fillSurfaceRGBA8(childBuffer, 200, 200, 200);
 
-    SurfaceComposerClient::Transaction{}
-            .show(childNoBuffer)
-            .show(childBuffer)
-            .apply(true);
+    SurfaceComposerClient::Transaction{}.show(childNoBuffer).show(childBuffer).apply(true);
 
     {
         ScreenCapture::captureScreen(&sc);
@@ -917,9 +863,7 @@ TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
         sc->expectFGColor(74, 74);
     }
 
-    SurfaceComposerClient::Transaction{}
-            .setSize(childNoBuffer, 20, 20)
-            .apply(true);
+    SurfaceComposerClient::Transaction{}.setSize(childNoBuffer, 20, 20).apply(true);
 
     {
         ScreenCapture::captureScreen(&sc);
@@ -956,10 +900,8 @@ class ChildLayerTest : public LayerUpdateTest {
 protected:
     void SetUp() override {
         LayerUpdateTest::SetUp();
-        mChild = mComposerClient->createSurface(
-                String8("Child surface"),
-                10, 10, PIXEL_FORMAT_RGBA_8888,
-                0, mFGSurfaceControl.get());
+        mChild = mComposerClient->createSurface(String8("Child surface"), 10, 10,
+                                                PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
         fillSurfaceRGBA8(mChild, 200, 200, 200);
 
         {
@@ -994,9 +936,7 @@ TEST_F(ChildLayerTest, ChildLayerPositioning) {
         mCapture->expectFGColor(84, 84);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.setPosition(mFGSurfaceControl, 0, 0);
-    });
+    asTransaction([&](Transaction& t) { t.setPosition(mFGSurfaceControl, 0, 0); });
 
     {
         ScreenCapture::captureScreen(&mCapture);
@@ -1060,9 +1000,7 @@ TEST_F(ChildLayerTest, ChildLayerConstraints) {
 }
 
 TEST_F(ChildLayerTest, ChildLayerScaling) {
-    asTransaction([&](Transaction& t) {
-        t.setPosition(mFGSurfaceControl, 0, 0);
-    });
+    asTransaction([&](Transaction& t) { t.setPosition(mFGSurfaceControl, 0, 0); });
 
     // Find the boundary between the parent and child
     {
@@ -1071,9 +1009,7 @@ TEST_F(ChildLayerTest, ChildLayerScaling) {
         mCapture->expectFGColor(10, 10);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.setMatrix(mFGSurfaceControl, 2.0, 0, 0, 2.0);
-    });
+    asTransaction([&](Transaction& t) { t.setMatrix(mFGSurfaceControl, 2.0, 0, 0, 2.0); });
 
     // The boundary should be twice as far from the origin now.
     // The pixels from the last test should all be child now
@@ -1104,9 +1040,7 @@ TEST_F(ChildLayerTest, ChildLayerAlpha) {
         mCapture->checkPixel(0, 0, 0, 254, 0);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.setAlpha(mChild, 0.5);
-    });
+    asTransaction([&](Transaction& t) { t.setAlpha(mChild, 0.5); });
 
     {
         ScreenCapture::captureScreen(&mCapture);
@@ -1114,9 +1048,7 @@ TEST_F(ChildLayerTest, ChildLayerAlpha) {
         mCapture->checkPixel(0, 0, 127, 127, 0);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.setAlpha(mFGSurfaceControl, 0.5);
-    });
+    asTransaction([&](Transaction& t) { t.setAlpha(mFGSurfaceControl, 0.5); });
 
     {
         ScreenCapture::captureScreen(&mCapture);
@@ -1175,13 +1107,9 @@ TEST_F(ChildLayerTest, DetachChildrenSameClient) {
         mCapture->expectFGColor(84, 84);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.detachChildren(mFGSurfaceControl);
-    });
+    asTransaction([&](Transaction& t) { t.detachChildren(mFGSurfaceControl); });
 
-    asTransaction([&](Transaction& t) {
-        t.hide(mChild);
-    });
+    asTransaction([&](Transaction& t) { t.hide(mChild); });
 
     // Since the child has the same client as the parent, it will not get
     // detached and will be hidden.
@@ -1195,9 +1123,9 @@ TEST_F(ChildLayerTest, DetachChildrenSameClient) {
 
 TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
     sp<SurfaceComposerClient> mNewComposerClient = new SurfaceComposerClient;
-    sp<SurfaceControl> mChildNewClient = mNewComposerClient->createSurface(
-        String8("New Child Test Surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
-        0, mFGSurfaceControl.get());
+    sp<SurfaceControl> mChildNewClient =
+            mNewComposerClient->createSurface(String8("New Child Test Surface"), 10, 10,
+                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
 
     ASSERT_TRUE(mChildNewClient != NULL);
     ASSERT_TRUE(mChildNewClient->isValid());
@@ -1221,13 +1149,9 @@ TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
         mCapture->expectFGColor(84, 84);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.detachChildren(mFGSurfaceControl);
-    });
+    asTransaction([&](Transaction& t) { t.detachChildren(mFGSurfaceControl); });
 
-    asTransaction([&](Transaction& t) {
-        t.hide(mChildNewClient);
-    });
+    asTransaction([&](Transaction& t) { t.hide(mChildNewClient); });
 
     // Nothing should have changed.
     {
@@ -1287,9 +1211,7 @@ TEST_F(ChildLayerTest, ChildrenWithParentBufferTransform) {
     }
     // We set things up as in b/37673612 so that there is a mismatch between the buffer size and
     // the WM specified state size.
-    asTransaction([&](Transaction& t) {
-         t.setSize(mFGSurfaceControl, 128, 64);
-    });
+    asTransaction([&](Transaction& t) { t.setSize(mFGSurfaceControl, 128, 64); });
     sp<Surface> s = mFGSurfaceControl->getSurface();
     auto anw = static_cast<ANativeWindow*>(s.get());
     native_window_set_buffers_transform(anw, NATIVE_WINDOW_TRANSFORM_ROT_90);
@@ -1318,7 +1240,7 @@ TEST_F(ChildLayerTest, Bug36858924) {
     // Show the child layer in a deferred transaction
     asTransaction([&](Transaction& t) {
         t.deferTransactionUntil(mChild, mFGSurfaceControl->getHandle(),
-                mFGSurfaceControl->getSurface()->getNextFrameNumber());
+                                mFGSurfaceControl->getSurface()->getNextFrameNumber());
         t.show(mChild);
     });
 
@@ -1354,9 +1276,7 @@ TEST_F(ChildLayerTest, Reparent) {
         mCapture->expectFGColor(84, 84);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.reparent(mChild, mBGSurfaceControl->getHandle());
-    });
+    asTransaction([&](Transaction& t) { t.reparent(mChild, mBGSurfaceControl->getHandle()); });
 
     {
         ScreenCapture::captureScreen(&mCapture);
@@ -1386,9 +1306,7 @@ TEST_F(ChildLayerTest, ReparentToNoParent) {
         // And 10 more pixels we should be back to the foreground surface
         mCapture->expectFGColor(84, 84);
     }
-    asTransaction([&](Transaction& t) {
-        t.reparent(mChild, nullptr);
-    });
+    asTransaction([&](Transaction& t) { t.reparent(mChild, nullptr); });
     {
         ScreenCapture::captureScreen(&mCapture);
         // Nothing should have changed.
@@ -1399,8 +1317,8 @@ TEST_F(ChildLayerTest, ReparentToNoParent) {
 }
 
 TEST_F(ChildLayerTest, ReparentFromNoParent) {
-    sp<SurfaceControl> newSurface = mComposerClient->createSurface(
-        String8("New Surface"), 10, 10, PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> newSurface = mComposerClient->createSurface(String8("New Surface"), 10, 10,
+                                                                   PIXEL_FORMAT_RGBA_8888, 0);
     ASSERT_TRUE(newSurface != NULL);
     ASSERT_TRUE(newSurface->isValid());
 
@@ -1409,7 +1327,7 @@ TEST_F(ChildLayerTest, ReparentFromNoParent) {
         t.hide(mChild);
         t.show(newSurface);
         t.setPosition(newSurface, 10, 10);
-        t.setLayer(newSurface, INT32_MAX-2);
+        t.setLayer(newSurface, INT32_MAX - 2);
         t.setPosition(mFGSurfaceControl, 64, 64);
     });
 
@@ -1421,9 +1339,7 @@ TEST_F(ChildLayerTest, ReparentFromNoParent) {
         mCapture->checkPixel(10, 10, 63, 195, 63);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.reparent(newSurface, mFGSurfaceControl->getHandle());
-    });
+    asTransaction([&](Transaction& t) { t.reparent(newSurface, mFGSurfaceControl->getHandle()); });
 
     {
         ScreenCapture::captureScreen(&mCapture);
@@ -1436,10 +1352,9 @@ TEST_F(ChildLayerTest, ReparentFromNoParent) {
 }
 
 TEST_F(ChildLayerTest, NestedChildren) {
-    sp<SurfaceControl> grandchild = mComposerClient->createSurface(
-        String8("Grandchild surface"),
-        10, 10, PIXEL_FORMAT_RGBA_8888,
-        0, mChild.get());
+    sp<SurfaceControl> grandchild =
+            mComposerClient->createSurface(String8("Grandchild surface"), 10, 10,
+                                           PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
     fillSurfaceRGBA8(grandchild, 50, 50, 50);
 
     {
@@ -1451,8 +1366,8 @@ TEST_F(ChildLayerTest, NestedChildren) {
 }
 
 TEST_F(ChildLayerTest, ChildLayerRelativeLayer) {
-    sp<SurfaceControl> relative = mComposerClient->createSurface(String8("Relative surface"),
-            128, 128, PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> relative = mComposerClient->createSurface(String8("Relative surface"), 128,
+                                                                 128, PIXEL_FORMAT_RGBA_8888, 0);
     fillSurfaceRGBA8(relative, 255, 255, 255);
 
     Transaction t;
@@ -1472,20 +1387,20 @@ TEST_F(ChildLayerTest, ChildLayerRelativeLayer) {
 }
 
 class LayerColorTest : public LayerUpdateTest {
- protected:
+protected:
     void SetUp() override {
         LayerUpdateTest::SetUp();
 
-        mLayerColorControl = mComposerClient->createSurface(
-            String8("Layer color surface"),
-            128, 128, PIXEL_FORMAT_RGBA_8888,
-            ISurfaceComposerClient::eFXSurfaceColor);
+        mLayerColorControl =
+                mComposerClient->createSurface(String8("Layer color surface"), 128, 128,
+                                               PIXEL_FORMAT_RGBA_8888,
+                                               ISurfaceComposerClient::eFXSurfaceColor);
 
         ASSERT_TRUE(mLayerColorControl != NULL);
         ASSERT_TRUE(mLayerColorControl->isValid());
 
         asTransaction([&](Transaction& t) {
-            t.setLayer(mLayerColorControl, INT32_MAX-1);
+            t.setLayer(mLayerColorControl, INT32_MAX - 1);
             t.setPosition(mLayerColorControl, 140, 140);
             t.hide(mLayerColorControl);
             t.hide(mFGSurfaceControl);
@@ -1510,7 +1425,7 @@ TEST_F(LayerColorTest, ColorLayerNoAlpha) {
     }
 
     asTransaction([&](Transaction& t) {
-        half3 color(43.0f/255.0f, 207.0f/255.0f, 131.0f/255.0f);
+        half3 color(43.0f / 255.0f, 207.0f / 255.0f, 131.0f / 255.0f);
         t.setColor(mLayerColorControl, color);
         t.show(mLayerColorControl);
     });
@@ -1533,7 +1448,7 @@ TEST_F(LayerColorTest, ColorLayerWithAlpha) {
     }
 
     asTransaction([&](Transaction& t) {
-        half3 color(43.0f/255.0f, 207.0f/255.0f, 131.0f/255.0f);
+        half3 color(43.0f / 255.0f, 207.0f / 255.0f, 131.0f / 255.0f);
         t.setColor(mLayerColorControl, color);
         t.setAlpha(mLayerColorControl, .75f);
         t.show(mLayerColorControl);
@@ -1555,9 +1470,7 @@ TEST_F(LayerColorTest, ColorLayerWithNoColor) {
         sc->expectBGColor(145, 145);
     }
 
-    asTransaction([&](Transaction& t) {
-        t.show(mLayerColorControl);
-    });
+    asTransaction([&](Transaction& t) { t.show(mLayerColorControl); });
 
     {
         // There should now be set to 0,0,0 (black) as default.
@@ -1583,15 +1496,12 @@ TEST_F(ScreenCaptureTest, CaptureSingleLayer) {
 TEST_F(ScreenCaptureTest, CaptureLayerWithChild) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
-    sp<SurfaceControl> child = mComposerClient->createSurface(
-        String8("Child surface"),
-        10, 10, PIXEL_FORMAT_RGBA_8888,
-        0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child =
+            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+                                           0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
 
-    SurfaceComposerClient::Transaction()
-        .show(child)
-        .apply(true);
+    SurfaceComposerClient::Transaction().show(child).apply(true);
 
     // Captures mFGSurfaceControl layer and its child.
     CaptureLayer::captureScreen(&mCapture, fgHandle);
@@ -1602,22 +1512,21 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithChild) {
 TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
-    sp<SurfaceControl> child = mComposerClient->createSurface(
-        String8("Child surface"),
-        10, 10, PIXEL_FORMAT_RGBA_8888,
-        0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child =
+            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+                                           0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
 
-    sp<SurfaceControl> grandchild = mComposerClient->createSurface(
-        String8("Grandchild surface"), 5, 5,
-        PIXEL_FORMAT_RGBA_8888, 0, child.get());
+    sp<SurfaceControl> grandchild =
+            mComposerClient->createSurface(String8("Grandchild surface"), 5, 5,
+                                           PIXEL_FORMAT_RGBA_8888, 0, child.get());
 
     fillSurfaceRGBA8(grandchild, 50, 50, 50);
     SurfaceComposerClient::Transaction()
-        .show(child)
-        .setPosition(grandchild, 5, 5)
-        .show(grandchild)
-        .apply(true);
+            .show(child)
+            .setPosition(grandchild, 5, 5)
+            .show(grandchild)
+            .apply(true);
 
     // Captures mFGSurfaceControl, its child, and the grandchild.
     CaptureLayer::captureScreen(&mCapture, fgHandle);
@@ -1627,17 +1536,13 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
 }
 
 TEST_F(ScreenCaptureTest, CaptureChildOnly) {
-    sp<SurfaceControl> child = mComposerClient->createSurface(
-        String8("Child surface"),
-        10, 10, PIXEL_FORMAT_RGBA_8888,
-        0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child =
+            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+                                           0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
     auto childHandle = child->getHandle();
 
-    SurfaceComposerClient::Transaction()
-        .setPosition(child, 5, 5)
-        .show(child)
-        .apply(true);
+    SurfaceComposerClient::Transaction().setPosition(child, 5, 5).show(child).apply(true);
 
     // Captures only the child layer, and not the parent.
     CaptureLayer::captureScreen(&mCapture, childHandle);
@@ -1646,23 +1551,22 @@ TEST_F(ScreenCaptureTest, CaptureChildOnly) {
 }
 
 TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
-    sp<SurfaceControl> child = mComposerClient->createSurface(
-        String8("Child surface"),
-        10, 10, PIXEL_FORMAT_RGBA_8888,
-        0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child =
+            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+                                           0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
     auto childHandle = child->getHandle();
 
-    sp<SurfaceControl> grandchild = mComposerClient->createSurface(
-        String8("Grandchild surface"), 5, 5,
-        PIXEL_FORMAT_RGBA_8888, 0, child.get());
+    sp<SurfaceControl> grandchild =
+            mComposerClient->createSurface(String8("Grandchild surface"), 5, 5,
+                                           PIXEL_FORMAT_RGBA_8888, 0, child.get());
     fillSurfaceRGBA8(grandchild, 50, 50, 50);
 
     SurfaceComposerClient::Transaction()
-        .show(child)
-        .setPosition(grandchild, 5, 5)
-        .show(grandchild)
-        .apply(true);
+            .show(child)
+            .setPosition(grandchild, 5, 5)
+            .show(grandchild)
+            .apply(true);
 
     auto grandchildHandle = grandchild->getHandle();
 
@@ -1672,4 +1576,4 @@ TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
     mCapture->checkPixel(4, 4, 50, 50, 50);
 }
 
-}
+} // namespace android
