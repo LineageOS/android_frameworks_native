@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+#include <algorithm>
+#include <functional>
+#include <limits>
+#include <ostream>
+
 #include <gtest/gtest.h>
 
 #include <android/native_window.h>
@@ -26,14 +31,106 @@
 #include <private/gui/ComposerService.h>
 
 #include <ui/DisplayInfo.h>
+#include <ui/Rect.h>
 #include <utils/String8.h>
 
 #include <math.h>
 #include <math/vec3.h>
 
-#include <functional>
-
 namespace android {
+
+namespace {
+
+struct Color {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+    uint8_t a;
+
+    static const Color RED;
+    static const Color BLACK;
+};
+
+const Color Color::RED{255, 0, 0, 255};
+const Color Color::BLACK{0, 0, 0, 255};
+
+std::ostream& operator<<(std::ostream& os, const Color& color) {
+    os << int(color.r) << ", " << int(color.g) << ", " << int(color.b) << ", " << int(color.a);
+    return os;
+}
+
+// Fill a region with the specified color.
+void fillBufferColor(const ANativeWindow_Buffer& buffer, const Rect& rect, const Color& color) {
+    int32_t x = rect.left;
+    int32_t y = rect.top;
+    int32_t width = rect.right - rect.left;
+    int32_t height = rect.bottom - rect.top;
+
+    if (x < 0) {
+        width += x;
+        x = 0;
+    }
+    if (y < 0) {
+        height += y;
+        y = 0;
+    }
+    if (x + width > buffer.width) {
+        x = std::min(x, buffer.width);
+        width = buffer.width - x;
+    }
+    if (y + height > buffer.height) {
+        y = std::min(y, buffer.height);
+        height = buffer.height - y;
+    }
+
+    for (int32_t j = 0; j < height; j++) {
+        uint8_t* dst = static_cast<uint8_t*>(buffer.bits) + (buffer.stride * (y + j) + x) * 4;
+        for (int32_t i = 0; i < width; i++) {
+            dst[0] = color.r;
+            dst[1] = color.g;
+            dst[2] = color.b;
+            dst[3] = color.a;
+            dst += 4;
+        }
+    }
+}
+
+// Check if a region has the specified color.
+void expectBufferColor(const CpuConsumer::LockedBuffer& buffer, const Rect& rect,
+                       const Color& color, uint8_t tolerance) {
+    int32_t x = rect.left;
+    int32_t y = rect.top;
+    int32_t width = rect.right - rect.left;
+    int32_t height = rect.bottom - rect.top;
+
+    if (x + width > int32_t(buffer.width)) {
+        x = std::min(x, int32_t(buffer.width));
+        width = buffer.width - x;
+    }
+    if (y + height > int32_t(buffer.height)) {
+        y = std::min(y, int32_t(buffer.height));
+        height = buffer.height - y;
+    }
+
+    auto colorCompare = [tolerance](uint8_t a, uint8_t b) {
+        uint8_t tmp = a >= b ? a - b : b - a;
+        return tmp <= tolerance;
+    };
+    for (int32_t j = 0; j < height; j++) {
+        const uint8_t* src =
+                static_cast<const uint8_t*>(buffer.data) + (buffer.stride * (y + j) + x) * 4;
+        for (int32_t i = 0; i < width; i++) {
+            const uint8_t expected[4] = {color.r, color.g, color.b, color.a};
+            EXPECT_TRUE(std::equal(src, src + 4, expected, colorCompare))
+                    << "pixel @ (" << x + i << ", " << y + j << "): "
+                    << "expected (" << color << "), "
+                    << "got (" << Color{src[0], src[1], src[2], src[3]} << ")";
+            src += 4;
+        }
+    }
+}
+
+} // anonymous namespace
 
 using Transaction = SurfaceComposerClient::Transaction;
 
@@ -63,7 +160,8 @@ static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, uint8_t r, uint8_t g,
 // individual pixel values for testing purposes.
 class ScreenCapture : public RefBase {
 public:
-    static void captureScreen(sp<ScreenCapture>* sc) {
+    static void captureScreen(sp<ScreenCapture>* sc, int32_t minLayerZ = 0,
+                              int32_t maxLayerZ = std::numeric_limits<int32_t>::max()) {
         sp<IGraphicBufferProducer> producer;
         sp<IGraphicBufferConsumer> consumer;
         BufferQueue::createBufferQueue(&producer, &consumer);
@@ -72,8 +170,51 @@ public:
         sp<IBinder> display(sf->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
         SurfaceComposerClient::Transaction().apply(true);
 
-        ASSERT_EQ(NO_ERROR, sf->captureScreen(display, producer, Rect(), 0, 0, 0, INT_MAX, false));
+        ASSERT_EQ(NO_ERROR,
+                  sf->captureScreen(display, producer, Rect(), 0, 0, minLayerZ, maxLayerZ, false));
         *sc = new ScreenCapture(cpuConsumer);
+    }
+
+    void expectColor(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
+        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mBuf.format);
+        expectBufferColor(mBuf, rect, color, tolerance);
+    }
+
+    void expectBorder(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
+        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mBuf.format);
+        const bool leftBorder = rect.left > 0;
+        const bool topBorder = rect.top > 0;
+        const bool rightBorder = rect.right < int32_t(mBuf.width);
+        const bool bottomBorder = rect.bottom < int32_t(mBuf.height);
+
+        if (topBorder) {
+            Rect top(rect.left, rect.top - 1, rect.right, rect.top);
+            if (leftBorder) {
+                top.left -= 1;
+            }
+            if (rightBorder) {
+                top.right += 1;
+            }
+            expectColor(top, color, tolerance);
+        }
+        if (leftBorder) {
+            Rect left(rect.left - 1, rect.top, rect.left, rect.bottom);
+            expectColor(left, color, tolerance);
+        }
+        if (rightBorder) {
+            Rect right(rect.right, rect.top, rect.right + 1, rect.bottom);
+            expectColor(right, color, tolerance);
+        }
+        if (bottomBorder) {
+            Rect bottom(rect.left, rect.bottom, rect.right, rect.bottom + 1);
+            if (leftBorder) {
+                bottom.left -= 1;
+            }
+            if (rightBorder) {
+                bottom.right += 1;
+            }
+            expectColor(bottom, color, tolerance);
+        }
     }
 
     void checkPixel(uint32_t x, uint32_t y, uint8_t r, uint8_t g, uint8_t b) {
@@ -147,6 +288,261 @@ private:
     sp<CpuConsumer> mCC;
     CpuConsumer::LockedBuffer mBuffer;
 };
+
+class LayerTransactionTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        mClient = new SurfaceComposerClient;
+        ASSERT_EQ(NO_ERROR, mClient->initCheck()) << "failed to create SurfaceComposerClient";
+
+        ASSERT_NO_FATAL_FAILURE(SetUpDisplay());
+    }
+
+    sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
+                                   uint32_t flags = 0) {
+        auto layer =
+                mClient->createSurface(String8(name), width, height, PIXEL_FORMAT_RGBA_8888, flags);
+        EXPECT_NE(nullptr, layer.get()) << "failed to create SurfaceControl";
+
+        status_t error = Transaction()
+                                 .setLayerStack(layer, mDisplayLayerStack)
+                                 .setLayer(layer, mLayerZBase)
+                                 .apply();
+        if (error != NO_ERROR) {
+            ADD_FAILURE() << "failed to initialize SurfaceControl";
+            layer.clear();
+        }
+
+        return layer;
+    }
+
+    ANativeWindow_Buffer getLayerBuffer(const sp<SurfaceControl>& layer) {
+        // wait for previous transactions (such as setSize) to complete
+        Transaction().apply(true);
+
+        ANativeWindow_Buffer buffer = {};
+        EXPECT_EQ(NO_ERROR, layer->getSurface()->lock(&buffer, nullptr));
+
+        return buffer;
+    }
+
+    void postLayerBuffer(const sp<SurfaceControl>& layer) {
+        ASSERT_EQ(NO_ERROR, layer->getSurface()->unlockAndPost());
+
+        // wait for the newly posted buffer to be latched
+        waitForLayerBuffers();
+    }
+
+    void fillLayerColor(const sp<SurfaceControl>& layer, const Color& color) {
+        ANativeWindow_Buffer buffer;
+        ASSERT_NO_FATAL_FAILURE(buffer = getLayerBuffer(layer));
+        fillBufferColor(buffer, Rect(0, 0, buffer.width, buffer.height), color);
+        postLayerBuffer(layer);
+    }
+
+    sp<ScreenCapture> screenshot() {
+        sp<ScreenCapture> screenshot;
+        ScreenCapture::captureScreen(&screenshot, mLayerZBase);
+        return screenshot;
+    }
+
+    sp<SurfaceComposerClient> mClient;
+
+    sp<IBinder> mDisplay;
+    uint32_t mDisplayWidth;
+    uint32_t mDisplayHeight;
+    uint32_t mDisplayLayerStack;
+
+    // leave room for ~256 layers
+    const int32_t mLayerZBase = std::numeric_limits<int32_t>::max() - 256;
+
+private:
+    void SetUpDisplay() {
+        mDisplay = mClient->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain);
+        ASSERT_NE(nullptr, mDisplay.get()) << "failed to get built-in display";
+
+        // get display width/height
+        DisplayInfo info;
+        SurfaceComposerClient::getDisplayInfo(mDisplay, &info);
+        mDisplayWidth = info.w;
+        mDisplayHeight = info.h;
+
+        // After a new buffer is queued, SurfaceFlinger is notified and will
+        // latch the new buffer on next vsync.  Let's heuristically wait for 3
+        // vsyncs.
+        mBufferPostDelay = int32_t(1e6 / info.fps) * 3;
+
+        mDisplayLayerStack = 0;
+        // set layer stack (b/68888219)
+        Transaction t;
+        t.setDisplayLayerStack(mDisplay, mDisplayLayerStack);
+        t.apply();
+    }
+
+    void waitForLayerBuffers() { usleep(mBufferPostDelay); }
+
+    int32_t mBufferPostDelay;
+};
+
+TEST_F(LayerTransactionTest, SetPositionBasic) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    {
+        SCOPED_TRACE("default position");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    Transaction().setPosition(layer, 5, 10).apply();
+    {
+        SCOPED_TRACE("new position");
+        auto shot = screenshot();
+        shot->expectColor(Rect(5, 10, 37, 42), Color::RED);
+        shot->expectBorder(Rect(5, 10, 37, 42), Color::BLACK);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetPositionRounding) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // GLES requires only 4 bits of subpixel precision during rasterization
+    // XXX GLES composition does not match HWC composition due to precision
+    // loss (b/69315223)
+    const float epsilon = 1.0f / 16.0f;
+    Transaction().setPosition(layer, 0.5f - epsilon, 0.5f - epsilon).apply();
+    {
+        SCOPED_TRACE("rounding down");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    Transaction().setPosition(layer, 0.5f + epsilon, 0.5f + epsilon).apply();
+    {
+        SCOPED_TRACE("rounding up");
+        screenshot()->expectColor(Rect(1, 1, 33, 33), Color::RED);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetPositionOutOfBounds) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    Transaction().setPosition(layer, -32, -32).apply();
+    {
+        SCOPED_TRACE("negative coordinates");
+        screenshot()->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
+    }
+
+    Transaction().setPosition(layer, mDisplayWidth, mDisplayHeight).apply();
+    {
+        SCOPED_TRACE("positive coordinates");
+        screenshot()->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetPositionPartiallyOutOfBounds) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // partially out of bounds
+    Transaction().setPosition(layer, -30, -30).apply();
+    {
+        SCOPED_TRACE("negative coordinates");
+        screenshot()->expectColor(Rect(0, 0, 2, 2), Color::RED);
+    }
+
+    Transaction().setPosition(layer, mDisplayWidth - 2, mDisplayHeight - 2).apply();
+    {
+        SCOPED_TRACE("positive coordinates");
+        screenshot()->expectColor(Rect(mDisplayWidth - 2, mDisplayHeight - 2, mDisplayWidth,
+                                       mDisplayHeight),
+                                  Color::RED);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetPositionWithResize) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // setPosition is applied immediately by default, with or without resize
+    // pending
+    Transaction().setPosition(layer, 5, 10).setSize(layer, 64, 64).apply();
+    {
+        SCOPED_TRACE("resize pending");
+        auto shot = screenshot();
+        shot->expectColor(Rect(5, 10, 37, 42), Color::RED);
+        shot->expectBorder(Rect(5, 10, 37, 42), Color::BLACK);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    {
+        SCOPED_TRACE("resize applied");
+        screenshot()->expectColor(Rect(5, 10, 69, 74), Color::RED);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetPositionWithNextResize) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // request setPosition to be applied with the next resize
+    Transaction().setPosition(layer, 5, 10).setGeometryAppliesWithResize(layer).apply();
+    {
+        SCOPED_TRACE("new position pending");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    Transaction().setPosition(layer, 15, 20).apply();
+    {
+        SCOPED_TRACE("pending new position modified");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    Transaction().setSize(layer, 64, 64).apply();
+    {
+        SCOPED_TRACE("resize pending");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    // finally resize and latch the buffer
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    {
+        SCOPED_TRACE("new position applied");
+        screenshot()->expectColor(Rect(15, 20, 79, 84), Color::RED);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetPositionWithNextResizeScaleToWindow) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // setPosition is not immediate even with SCALE_TO_WINDOW override
+    Transaction()
+            .setPosition(layer, 5, 10)
+            .setSize(layer, 64, 64)
+            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
+            .setGeometryAppliesWithResize(layer)
+            .apply();
+    {
+        SCOPED_TRACE("new position pending");
+        screenshot()->expectColor(Rect(0, 0, 64, 64), Color::RED);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    {
+        SCOPED_TRACE("new position applied");
+        screenshot()->expectColor(Rect(5, 10, 69, 74), Color::RED);
+    }
+}
 
 class LayerUpdateTest : public ::testing::Test {
 protected:
