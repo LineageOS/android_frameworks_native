@@ -94,6 +94,9 @@ class BufferHubBuffer : public pdx::Client {
 
   int id() const { return id_; }
 
+  // Returns the buffer buffer state.
+  uint64_t buffer_state() { return buffer_state_->load(); };
+
   // A state mask which is unique to a buffer hub client among all its siblings
   // sharing the same concrete graphic buffer.
   uint64_t buffer_state_bit() const { return buffer_state_bit_; }
