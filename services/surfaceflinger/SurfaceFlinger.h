@@ -772,6 +772,7 @@ private:
 #endif
 
     float mSaturation = 1.0f;
+    bool mForceNativeColorMode = false;
 };
 }; // namespace android
 
