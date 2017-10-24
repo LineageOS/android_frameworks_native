@@ -596,11 +596,14 @@ private:
      * Debugging & dumpsys
      */
 public:
-    status_t dumpCritical(int fd, const Vector<String16>& /*args*/) {
-        return doDump(fd, Vector<String16>());
+    status_t dumpCritical(int fd, const Vector<String16>& /*args*/, bool asProto) {
+        return doDump(fd, Vector<String16>(), asProto);
     }
 
-    status_t dumpAll(int fd, const Vector<String16>& args) { return doDump(fd, args); }
+    status_t dumpAll(int fd, const Vector<String16>& args, bool asProto) {
+        return doDump(fd, args, asProto);
+    }
+
 private:
     void listLayersLocked(const Vector<String16>& args, size_t& index, String8& result) const;
     void dumpStatsLocked(const Vector<String16>& args, size_t& index, String8& result) const;
@@ -626,7 +629,7 @@ private:
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
     }
-    status_t doDump(int fd, const Vector<String16>& args);
+    status_t doDump(int fd, const Vector<String16>& args, bool asProto);
 
 #ifdef USE_HWC2
     /* ------------------------------------------------------------------------

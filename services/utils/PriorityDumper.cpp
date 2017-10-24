@@ -18,41 +18,68 @@
 
 namespace android {
 
-static void getStrippedArgs(Vector<String16>& dest, const Vector<String16>& source,
-                            std::size_t numArgsToStrip) {
-    for (auto it = source.begin() + numArgsToStrip; it != source.end(); it++) {
-        dest.add(*it);
+const char16_t PriorityDumper::PROTO_ARG[] = u"--proto";
+const char16_t PriorityDumper::PRIORITY_ARG[] = u"--dump-priority";
+const char16_t PriorityDumper::PRIORITY_ARG_CRITICAL[] = u"CRITICAL";
+const char16_t PriorityDumper::PRIORITY_ARG_HIGH[] = u"HIGH";
+const char16_t PriorityDumper::PRIORITY_ARG_NORMAL[] = u"NORMAL";
+
+enum class PriorityType { INVALID, CRITICAL, HIGH, NORMAL };
+
+static PriorityType getPriorityType(const String16& arg) {
+    if (arg == PriorityDumper::PRIORITY_ARG_CRITICAL) {
+        return PriorityType::CRITICAL;
+    } else if (arg == PriorityDumper::PRIORITY_ARG_HIGH) {
+        return PriorityType::HIGH;
+    } else if (arg == PriorityDumper::PRIORITY_ARG_NORMAL) {
+        return PriorityType::NORMAL;
     }
+    return PriorityType::INVALID;
 }
 
-status_t PriorityDumper::dumpAll(int fd, const Vector<String16>& args) {
+status_t PriorityDumper::dumpAll(int fd, const Vector<String16>& args, bool asProto) {
     status_t status;
-    status = dumpCritical(fd, args);
+    status = dumpCritical(fd, args, asProto);
     if (status != OK) return status;
-    status = dumpHigh(fd, args);
+    status = dumpHigh(fd, args, asProto);
     if (status != OK) return status;
-    status = dumpNormal(fd, args);
+    status = dumpNormal(fd, args, asProto);
     if (status != OK) return status;
     return status;
 }
 
 status_t PriorityDumper::priorityDump(int fd, const Vector<String16>& args) {
     status_t status;
-    if (args.size() >= 2 && args[0] == PRIORITY_ARG) {
-        String16 priority = args[1];
-        Vector<String16> strippedArgs;
-        getStrippedArgs(strippedArgs, args, 2);
-        if (priority == PRIORITY_ARG_CRITICAL) {
-            status = dumpCritical(fd, strippedArgs);
-        } else if (priority == PRIORITY_ARG_HIGH) {
-            status = dumpHigh(fd, strippedArgs);
-        } else if (priority == PRIORITY_ARG_NORMAL) {
-            status = dumpNormal(fd, strippedArgs);
+    bool asProto = false;
+    PriorityType priority = PriorityType::INVALID;
+
+    Vector<String16> strippedArgs;
+    for (uint32_t argIndex = 0; argIndex < args.size(); argIndex++) {
+        if (args[argIndex] == PROTO_ARG) {
+            asProto = true;
+        } else if (args[argIndex] == PRIORITY_ARG) {
+            if (argIndex + 1 < args.size()) {
+                argIndex++;
+                priority = getPriorityType(args[argIndex]);
+            }
         } else {
-            status = dumpAll(fd, args);
+            strippedArgs.add(args[argIndex]);
         }
-    } else {
-        status = dumpAll(fd, args);
+    }
+
+    switch (priority) {
+        case PriorityType::CRITICAL:
+            status = dumpCritical(fd, strippedArgs, asProto);
+            break;
+        case PriorityType::HIGH:
+            status = dumpHigh(fd, strippedArgs, asProto);
+            break;
+        case PriorityType::NORMAL:
+            status = dumpNormal(fd, strippedArgs, asProto);
+            break;
+        default:
+            status = dumpAll(fd, strippedArgs, asProto);
+            break;
     }
     return status;
 }

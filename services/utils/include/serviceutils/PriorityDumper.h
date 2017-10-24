@@ -23,34 +23,43 @@
 
 namespace android {
 
-constexpr const char16_t PRIORITY_ARG[] = u"--dump-priority";
-constexpr const char16_t PRIORITY_ARG_CRITICAL[] = u"CRITICAL";
-constexpr const char16_t PRIORITY_ARG_HIGH[] = u"HIGH";
-constexpr const char16_t PRIORITY_ARG_NORMAL[] = u"NORMAL";
-
-// Helper class to split dumps into various priority buckets.
+// Helper class to parse common arguments responsible for splitting dumps into
+// various priority buckets and changing the output format of the dump.
 class PriorityDumper {
 public:
-    // Parses the argument list checking if the first argument is --dump_priority and
-    // the second argument is the priority type (HIGH, CRITICAL or NORMAL). If the
-    // arguments are found, they are stripped and the appropriate PriorityDumper
-    // method is called.
-    // If --dump_priority argument is not passed, all supported sections are dumped.
+    static const char16_t PRIORITY_ARG[];
+    static const char16_t PRIORITY_ARG_CRITICAL[];
+    static const char16_t PRIORITY_ARG_HIGH[];
+    static const char16_t PRIORITY_ARG_NORMAL[];
+    static const char16_t PROTO_ARG[];
+
+    // Parses the argument list searching for --dump_priority with a priority type
+    // (HIGH, CRITICAL or NORMAL) and --proto. Matching arguments are stripped.
+    // If a valid priority type is found, the associated PriorityDumper
+    // method is called otherwise all supported sections are dumped.
+    // If --proto is found, the dumpAsProto flag is set to dump sections in proto
+    // format.
     status_t priorityDump(int fd, const Vector<String16>& args);
 
     // Dumps CRITICAL priority sections.
-    virtual status_t dumpCritical(int /*fd*/, const Vector<String16>& /*args*/) { return OK; }
+    virtual status_t dumpCritical(int /*fd*/, const Vector<String16>& /*args*/, bool /*asProto*/) {
+        return OK;
+    }
 
     // Dumps HIGH priority sections.
-    virtual status_t dumpHigh(int /*fd*/, const Vector<String16>& /*args*/) { return OK; }
+    virtual status_t dumpHigh(int /*fd*/, const Vector<String16>& /*args*/, bool /*asProto*/) {
+        return OK;
+    }
 
     // Dumps normal priority sections.
-    virtual status_t dumpNormal(int /*fd*/, const Vector<String16>& /*args*/) { return OK; }
+    virtual status_t dumpNormal(int /*fd*/, const Vector<String16>& /*args*/, bool /*asProto*/) {
+        return OK;
+    }
 
     // Dumps all sections.
     // This method is called when priorityDump is called without priority
     // arguments. By default, it calls all three dump methods.
-    virtual status_t dumpAll(int fd, const Vector<String16>& args);
+    virtual status_t dumpAll(int fd, const Vector<String16>& args, bool asProto);
     virtual ~PriorityDumper() = default;
 };
 

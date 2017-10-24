@@ -3005,13 +3005,18 @@ void SurfaceFlinger::setPowerMode(const sp<IBinder>& display, int mode) {
 
 // ---------------------------------------------------------------------------
 
-status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args)
-{
+status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asProto) {
     String8 result;
 
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
+
+    if (asProto) {
+        // Return early as SurfaceFlinger does not support dumping sections in proto format
+        return OK;
+    }
+
     if ((uid != AID_SHELL) &&
             !PermissionCache::checkPermission(sDump, pid, uid)) {
         result.appendFormat("Permission Denial: "
