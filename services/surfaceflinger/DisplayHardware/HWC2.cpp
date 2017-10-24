@@ -221,6 +221,11 @@ void Device::loadCapabilities()
     }
 }
 
+Error Device::flushCommands()
+{
+    return static_cast<Error>(mComposer->executeCommands());
+}
+
 // Display methods
 
 Display::Display(android::Hwc2::Composer& composer,
@@ -630,11 +635,6 @@ Error Display::presentOrValidate(uint32_t* outNumTypes, uint32_t* outNumRequests
         *outNumRequests = numRequests;
     }
     return error;
-}
-
-void Display::discardCommands()
-{
-    mComposer.resetCommands();
 }
 
 // For use by Device

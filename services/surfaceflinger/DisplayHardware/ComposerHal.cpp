@@ -223,6 +223,10 @@ void Composer::resetCommands() {
     mWriter.reset();
 }
 
+Error Composer::executeCommands() {
+    return execute();
+}
+
 uint32_t Composer::getMaxVirtualDisplayCount()
 {
     auto ret = mClient->getMaxVirtualDisplayCount();
@@ -748,6 +752,11 @@ Error Composer::execute()
             mWriter.reset();
             return error;
         }
+    }
+
+    if (commandLength == 0) {
+        mWriter.reset();
+        return Error::NONE;
     }
 
     Error error = kDefaultError;

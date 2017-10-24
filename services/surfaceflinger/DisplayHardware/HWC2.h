@@ -106,6 +106,11 @@ public:
 
     android::Hwc2::Composer* getComposer() { return mComposer.get(); }
 
+    // We buffer most state changes and flush them implicitly with
+    // Display::validate, Display::present, and Display::presentOrValidate.
+    // This method provides an explicit way to flush state changes to HWC.
+    Error flushCommands();
+
 private:
     // Initialization methods
 
@@ -243,12 +248,6 @@ public:
     [[clang::warn_unused_result]] Error presentOrValidate(uint32_t* outNumTypes,
                                                  uint32_t* outNumRequests,
                                                           android::sp<android::Fence>* outPresentFence, uint32_t* state);
-
-    // Most methods in this class write a command to a command buffer.  The
-    // command buffer is implicitly submitted in validate, present, and
-    // presentOrValidate.  This method provides a way to discard the commands,
-    // which can be used to discard stale commands.
-    void discardCommands();
 
     // Other Display methods
 
