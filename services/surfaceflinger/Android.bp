@@ -5,4 +5,4 @@ cc_library_static {
     export_static_lib_headers = ["libserviceutils"],
 }
 
-subdirs = ["tests/fakehwc"]
+subdirs = ["tests/fakehwc", "layerproto"]

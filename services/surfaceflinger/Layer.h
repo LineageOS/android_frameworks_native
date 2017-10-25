@@ -49,8 +49,11 @@
 #include "DisplayHardware/HWComposerBufferCache.h"
 #include "RenderEngine/Mesh.h"
 #include "RenderEngine/Texture.h"
+#include <layerproto/LayerProtoHeader.h>
 
 #include <math/vec4.h>
+
+using namespace android::surfaceflinger;
 
 namespace android {
 
@@ -302,6 +305,8 @@ public:
      * isFixedSize - true if content has a fixed size
      */
     virtual bool isFixedSize() const;
+
+    void writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
 
 protected:
     /*

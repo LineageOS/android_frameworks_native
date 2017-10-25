@@ -1,0 +1,35 @@
+cc_library_shared {
+    name: "liblayers_proto",
+    vendor_available: true,
+    export_include_dirs: ["include"],
+
+    srcs: [
+        "LayerProtoParser.cpp",
+        "layers.proto",
+    ],
+
+    shared_libs: [
+        "libui",
+        "libprotobuf-cpp-lite",
+        "libbase",
+    ],
+
+    proto: {
+        export_proto_headers: true,
+    },
+
+    cppflags: [
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-Wno-format",
+        "-Wno-c++98-compat-pedantic",
+        "-Wno-float-conversion",
+        "-Wno-disabled-macro-expansion",
+        "-Wno-float-equal",
+        "-Wno-sign-conversion",
+        "-Wno-padded",
+        "-Wno-old-style-cast",
+        "-Wno-undef",
+    ],
+
+}
