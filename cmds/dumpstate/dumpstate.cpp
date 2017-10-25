@@ -1613,6 +1613,7 @@ int main(int argc, char *argv[]) {
             do_fb = 0;
         } else if (ds.extra_options_ == "bugreportwear") {
             ds.update_progress_ = true;
+            do_zip_file = 1;
         } else if (ds.extra_options_ == "bugreporttelephony") {
             telephony_only = true;
         } else {
