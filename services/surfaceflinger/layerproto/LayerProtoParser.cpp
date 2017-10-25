@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
+#include <android-base/stringprintf.h>
 #include <layerproto/LayerProtoParser.h>
+#include <ui/DebugUtils.h>
+
+using android::base::StringAppendF;
+using android::base::StringPrintf;
 
 namespace android {
 namespace surfaceflinger {
+
 bool sortLayers(const LayerProtoParser::Layer* lhs, const LayerProtoParser::Layer* rhs) {
     uint32_t ls = lhs->layerStack;
     uint32_t rs = rhs->layerStack;
@@ -215,6 +221,63 @@ std::string LayerProtoParser::layerToString(const LayerProtoParser::Layer* layer
         const auto& relative = traverse[i];
         result.append(layerToString(relative).c_str());
     }
+
+    return result;
+}
+
+std::string LayerProtoParser::ActiveBuffer::to_string() const {
+    return StringPrintf("[%4ux%4u:%4u,%s]", width, height, stride,
+                        decodePixelFormat(format).c_str());
+}
+
+std::string LayerProtoParser::Transform::to_string() const {
+    return StringPrintf("[%.2f, %.2f][%.2f, %.2f]", static_cast<double>(dsdx),
+                        static_cast<double>(dtdx), static_cast<double>(dsdy),
+                        static_cast<double>(dtdy));
+}
+
+std::string LayerProtoParser::Rect::to_string() const {
+    return StringPrintf("[%3d, %3d, %3d, %3d]", left, top, right, bottom);
+}
+
+std::string LayerProtoParser::Region::to_string(const char* what) const {
+    std::string result =
+            StringPrintf("  Region %s (this=%lx count=%d)\n", what, static_cast<unsigned long>(id),
+                         static_cast<int>(rects.size()));
+
+    for (auto& rect : rects) {
+        StringAppendF(&result, "    %s\n", rect.to_string().c_str());
+    }
+
+    return result;
+}
+
+std::string LayerProtoParser::Layer::to_string() const {
+    std::string result;
+    StringAppendF(&result, "+ %s (%s)\n", type.c_str(), name.c_str());
+    result.append(transparentRegion.to_string("TransparentRegion").c_str());
+    result.append(visibleRegion.to_string("VisibleRegion").c_str());
+    result.append(damageRegion.to_string("SurfaceDamageRegion").c_str());
+
+    StringAppendF(&result, "      layerStack=%4d, z=%9d, pos=(%g,%g), size=(%4d,%4d), ", layerStack,
+                  z, static_cast<double>(position.x), static_cast<double>(position.y), size.x,
+                  size.y);
+
+    StringAppendF(&result, "crop=%s, finalCrop=%s, ", crop.to_string().c_str(),
+                  finalCrop.to_string().c_str());
+    StringAppendF(&result, "isOpaque=%1d, invalidate=%1d, ", isOpaque, invalidate);
+    StringAppendF(&result, "dataspace=%s, ", dataspace.c_str());
+    StringAppendF(&result, "pixelformat=%s, ", pixelFormat.c_str());
+    StringAppendF(&result, "color=(%.3f,%.3f,%.3f,%.3f), flags=0x%08x, ",
+                  static_cast<double>(color.r), static_cast<double>(color.g),
+                  static_cast<double>(color.b), static_cast<double>(color.a), flags);
+    StringAppendF(&result, "tr=%s", transform.to_string().c_str());
+    result.append("\n");
+    StringAppendF(&result, "      parent=%s\n", parent == nullptr ? "none" : parent->name.c_str());
+    StringAppendF(&result, "      zOrderRelativeOf=%s\n",
+                  zOrderRelativeOf == nullptr ? "none" : zOrderRelativeOf->name.c_str());
+    StringAppendF(&result, "      activeBuffer=%s,", activeBuffer.to_string().c_str());
+    StringAppendF(&result, " queued-frames=%d, mRefreshPending=%d", queuedFrames, refreshPending);
 
     return result;
 }

@@ -18,13 +18,8 @@
 
 #include <math/vec4.h>
 
-#include <android-base/stringprintf.h>
-#include <ui/DebugUtils.h>
 #include <unordered_map>
 #include <vector>
-
-using android::base::StringAppendF;
-using android::base::StringPrintf;
 
 namespace android {
 namespace surfaceflinger {
@@ -38,10 +33,7 @@ public:
         uint32_t stride;
         int32_t format;
 
-        std::string to_string() const {
-            return StringPrintf("[%4ux%4u:%4u,%s]", width, height, stride,
-                                decodePixelFormat(format).c_str());
-        }
+        std::string to_string() const;
     };
 
     class Transform {
@@ -51,11 +43,7 @@ public:
         float dsdy;
         float dtdy;
 
-        std::string to_string() const {
-            return StringPrintf("[%.2f, %.2f][%.2f, %.2f]", static_cast<double>(dsdx),
-                                static_cast<double>(dtdx), static_cast<double>(dsdy),
-                                static_cast<double>(dtdy));
-        }
+        std::string to_string() const;
     };
 
     class Rect {
@@ -65,9 +53,7 @@ public:
         int32_t right;
         int32_t bottom;
 
-        std::string to_string() const {
-            return StringPrintf("[%3d, %3d, %3d, %3d]", left, top, right, bottom);
-        }
+        std::string to_string() const;
     };
 
     class Region {
@@ -75,17 +61,7 @@ public:
         uint64_t id;
         std::vector<Rect> rects;
 
-        std::string to_string(const char* what) const {
-            std::string result =
-                    StringPrintf("  Region %s (this=%lx count=%d)\n", what,
-                                 static_cast<unsigned long>(id), static_cast<int>(rects.size()));
-
-            for (auto& rect : rects) {
-                StringAppendF(&result, "    %s\n", rect.to_string().c_str());
-            }
-
-            return result;
-        }
+        std::string to_string(const char* what) const;
     };
 
     class Layer {
@@ -120,37 +96,7 @@ public:
         int32_t queuedFrames;
         bool refreshPending;
 
-        std::string to_string() const {
-            std::string result;
-            StringAppendF(&result, "+ %s (%s)\n", type.c_str(), name.c_str());
-            result.append(transparentRegion.to_string("TransparentRegion").c_str());
-            result.append(visibleRegion.to_string("VisibleRegion").c_str());
-            result.append(damageRegion.to_string("SurfaceDamageRegion").c_str());
-
-            StringAppendF(&result, "      layerStack=%4d, z=%9d, pos=(%g,%g), size=(%4d,%4d), ",
-                          layerStack, z, static_cast<double>(position.x),
-                          static_cast<double>(position.y), size.x, size.y);
-
-            StringAppendF(&result, "crop=%s, finalCrop=%s, ", crop.to_string().c_str(),
-                          finalCrop.to_string().c_str());
-            StringAppendF(&result, "isOpaque=%1d, invalidate=%1d, ", isOpaque, invalidate);
-            StringAppendF(&result, "dataspace=%s, ", dataspace.c_str());
-            StringAppendF(&result, "pixelformat=%s, ", pixelFormat.c_str());
-            StringAppendF(&result, "color=(%.3f,%.3f,%.3f,%.3f), flags=0x%08x, ",
-                          static_cast<double>(color.r), static_cast<double>(color.g),
-                          static_cast<double>(color.b), static_cast<double>(color.a), flags);
-            StringAppendF(&result, "tr=%s", transform.to_string().c_str());
-            result.append("\n");
-            StringAppendF(&result, "      parent=%s\n",
-                          parent == nullptr ? "none" : parent->name.c_str());
-            StringAppendF(&result, "      zOrderRelativeOf=%s\n",
-                          zOrderRelativeOf == nullptr ? "none" : zOrderRelativeOf->name.c_str());
-            StringAppendF(&result, "      activeBuffer=%s,", activeBuffer.to_string().c_str());
-            StringAppendF(&result, " queued-frames=%d, mRefreshPending=%d", queuedFrames,
-                          refreshPending);
-
-            return result;
-        }
+        std::string to_string() const;
     };
 
     static std::vector<const Layer*> generateLayerTree(const LayersProto& layersProto);
