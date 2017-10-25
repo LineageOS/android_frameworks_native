@@ -61,10 +61,10 @@ cc_library {
 
 cc_test {
     tags: ["optional"],
-    srcs: ["bufferhub_tests.cpp"],
+    srcs: ["buffer_hub-test.cpp"],
     static_libs: ["libbufferhub"] + staticLibraries,
     shared_libs: sharedLibraries,
     header_libs: headerLibraries,
-    name: "bufferhub_tests",
+    name: "buffer_hub-test",
 }
 

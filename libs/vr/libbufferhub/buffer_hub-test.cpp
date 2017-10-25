@@ -20,6 +20,10 @@
 using android::dvr::BufferConsumer;
 using android::dvr::BufferHubDefs::kConsumerStateMask;
 using android::dvr::BufferHubDefs::kProducerStateBit;
+using android::dvr::BufferHubDefs::IsBufferGained;
+using android::dvr::BufferHubDefs::IsBufferPosted;
+using android::dvr::BufferHubDefs::IsBufferAcquired;
+using android::dvr::BufferHubDefs::IsBufferReleased;
 using android::dvr::BufferProducer;
 using android::pdx::LocalHandle;
 
@@ -28,6 +32,7 @@ const int kHeight = 480;
 const int kFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 const int kUsage = 0;
 const uint64_t kContext = 42;
+const size_t kMaxConsumerCount = 63;
 
 using LibBufferHubTest = ::testing::Test;
 
@@ -159,10 +164,10 @@ TEST_F(LibBufferHubTest, TestStateMask) {
       kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
   ASSERT_TRUE(p.get() != nullptr);
 
-  // It's ok to create up to 63 consumer buffers.
+  // It's ok to create up to kMaxConsumerCount consumer buffers.
   uint64_t buffer_state_bits = p->buffer_state_bit();
-  std::array<std::unique_ptr<BufferConsumer>, 63> cs;
-  for (size_t i = 0; i < 63; i++) {
+  std::array<std::unique_ptr<BufferConsumer>, kMaxConsumerCount> cs;
+  for (size_t i = 0; i < kMaxConsumerCount; i++) {
     cs[i] = BufferConsumer::Import(p->CreateConsumer());
     ASSERT_TRUE(cs[i].get() != nullptr);
     // Expect all buffers have unique state mask.
@@ -176,7 +181,7 @@ TEST_F(LibBufferHubTest, TestStateMask) {
   EXPECT_EQ(state.error(), E2BIG);
 
   // Release any consumer should allow us to re-create.
-  for (size_t i = 0; i < 63; i++) {
+  for (size_t i = 0; i < kMaxConsumerCount; i++) {
     buffer_state_bits &= ~cs[i]->buffer_state_bit();
     cs[i] = nullptr;
     cs[i] = BufferConsumer::Import(p->CreateConsumer());
@@ -238,6 +243,217 @@ TEST_F(LibBufferHubTest, TestStateTransitions) {
   EXPECT_EQ(-EBUSY, c->Acquire(&fence, &context));
   EXPECT_EQ(-EBUSY, c->Release(LocalHandle()));
   EXPECT_EQ(-EALREADY, p->Gain(&fence));
+}
+
+TEST_F(LibBufferHubTest, TestAsyncStateTransitions) {
+  std::unique_ptr<BufferProducer> p = BufferProducer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  ASSERT_TRUE(p.get() != nullptr);
+  std::unique_ptr<BufferConsumer> c =
+      BufferConsumer::Import(p->CreateConsumer());
+  ASSERT_TRUE(c.get() != nullptr);
+
+  DvrNativeBufferMetadata metadata;
+  LocalHandle invalid_fence;
+
+  // The producer buffer starts in gained state.
+
+  // Acquire, release, and gain in gained state should fail.
+  EXPECT_EQ(-EBUSY, c->AcquireAsync(&metadata, &invalid_fence));
+  EXPECT_FALSE(invalid_fence.IsValid());
+  EXPECT_EQ(-EBUSY, c->ReleaseAsync(&metadata, invalid_fence));
+  EXPECT_EQ(-EALREADY, p->GainAsync(&metadata, &invalid_fence));
+  EXPECT_FALSE(invalid_fence.IsValid());
+
+  // Post in gained state should succeed.
+  EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
+  EXPECT_EQ(p->buffer_state(), c->buffer_state());
+  EXPECT_TRUE(IsBufferPosted(p->buffer_state()));
+
+  // Post, release, and gain in posted state should fail.
+  EXPECT_EQ(-EBUSY, p->PostAsync(&metadata, invalid_fence));
+  EXPECT_EQ(-EBUSY, c->ReleaseAsync(&metadata, invalid_fence));
+  EXPECT_EQ(-EBUSY, p->GainAsync(&metadata, &invalid_fence));
+  EXPECT_FALSE(invalid_fence.IsValid());
+
+  // Acquire in posted state should succeed.
+  EXPECT_LT(0, RETRY_EINTR(c->Poll(10)));
+  EXPECT_EQ(0, c->AcquireAsync(&metadata, &invalid_fence));
+  EXPECT_FALSE(invalid_fence.IsValid());
+  EXPECT_EQ(p->buffer_state(), c->buffer_state());
+  EXPECT_TRUE(IsBufferAcquired(p->buffer_state()));
+
+  // Acquire, post, and gain in acquired state should fail.
+  EXPECT_EQ(-EBUSY, c->AcquireAsync(&metadata, &invalid_fence));
+  EXPECT_FALSE(invalid_fence.IsValid());
+  EXPECT_EQ(-EBUSY, p->PostAsync(&metadata, invalid_fence));
+  EXPECT_EQ(-EBUSY, p->GainAsync(&metadata, &invalid_fence));
+  EXPECT_FALSE(invalid_fence.IsValid());
+
+  // Release in acquired state should succeed.
+  EXPECT_EQ(0, c->ReleaseAsync(&metadata, invalid_fence));
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_EQ(p->buffer_state(), c->buffer_state());
+  EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
+
+  // Release, acquire, and post in released state should fail.
+  EXPECT_EQ(-EBUSY, c->ReleaseAsync(&metadata, invalid_fence));
+  EXPECT_EQ(-EBUSY, c->AcquireAsync(&metadata, &invalid_fence));
+  EXPECT_FALSE(invalid_fence.IsValid());
+  EXPECT_EQ(-EBUSY, p->PostAsync(&metadata, invalid_fence));
+
+  // Gain in released state should succeed.
+  EXPECT_EQ(0, p->GainAsync(&metadata, &invalid_fence));
+  EXPECT_FALSE(invalid_fence.IsValid());
+  EXPECT_EQ(p->buffer_state(), c->buffer_state());
+  EXPECT_TRUE(IsBufferGained(p->buffer_state()));
+
+  // Acquire, release, and gain in gained state should fail.
+  EXPECT_EQ(-EBUSY, c->AcquireAsync(&metadata, &invalid_fence));
+  EXPECT_FALSE(invalid_fence.IsValid());
+  EXPECT_EQ(-EBUSY, c->ReleaseAsync(&metadata, invalid_fence));
+  EXPECT_EQ(-EALREADY, p->GainAsync(&metadata, &invalid_fence));
+  EXPECT_FALSE(invalid_fence.IsValid());
+}
+
+TEST_F(LibBufferHubTest, TestZeroConsumer) {
+  std::unique_ptr<BufferProducer> p = BufferProducer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  ASSERT_TRUE(p.get() != nullptr);
+
+  DvrNativeBufferMetadata metadata;
+  LocalHandle invalid_fence;
+
+  // Newly created.
+  EXPECT_TRUE(IsBufferGained(p->buffer_state()));
+  EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
+  EXPECT_TRUE(IsBufferPosted(p->buffer_state()));
+
+  // The buffer should stay in posted stay until a consumer picks it up.
+  EXPECT_GE(0, RETRY_EINTR(p->Poll(100)));
+
+  // A new consumer should still be able to acquire the buffer immediately.
+  std::unique_ptr<BufferConsumer> c =
+      BufferConsumer::Import(p->CreateConsumer());
+  ASSERT_TRUE(c.get() != nullptr);
+  EXPECT_EQ(0, c->AcquireAsync(&metadata, &invalid_fence));
+  EXPECT_TRUE(IsBufferAcquired(c->buffer_state()));
+}
+
+TEST_F(LibBufferHubTest, TestMaxConsumers) {
+  std::unique_ptr<BufferProducer> p = BufferProducer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  ASSERT_TRUE(p.get() != nullptr);
+
+  std::array<std::unique_ptr<BufferConsumer>, kMaxConsumerCount> cs;
+  for (size_t i = 0; i < kMaxConsumerCount; i++) {
+    cs[i] = BufferConsumer::Import(p->CreateConsumer());
+    ASSERT_TRUE(cs[i].get() != nullptr);
+    EXPECT_TRUE(IsBufferGained(cs[i]->buffer_state()));
+  }
+
+  DvrNativeBufferMetadata metadata;
+  LocalHandle invalid_fence;
+
+  // Post the producer should trigger all consumers to be available.
+  EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
+  EXPECT_TRUE(IsBufferPosted(p->buffer_state()));
+  for (size_t i = 0; i < kMaxConsumerCount; i++) {
+    EXPECT_TRUE(IsBufferPosted(cs[i]->buffer_state(),
+                               cs[i]->buffer_state_bit()));
+    EXPECT_LT(0, RETRY_EINTR(cs[i]->Poll(10)));
+    EXPECT_EQ(0, cs[i]->AcquireAsync(&metadata, &invalid_fence));
+    EXPECT_TRUE(IsBufferAcquired(p->buffer_state()));
+  }
+
+  // All consumers have to release before the buffer is considered to be
+  // released.
+  for (size_t i = 0; i < kMaxConsumerCount; i++) {
+    EXPECT_FALSE(IsBufferReleased(p->buffer_state()));
+    EXPECT_EQ(0, cs[i]->ReleaseAsync(&metadata, invalid_fence));
+  }
+
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
+
+  // Buffer state cross all clients must be consistent.
+  for (size_t i = 0; i < kMaxConsumerCount; i++) {
+    EXPECT_EQ(p->buffer_state(), cs[i]->buffer_state());
+  }
+}
+
+TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferGained) {
+  std::unique_ptr<BufferProducer> p = BufferProducer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  ASSERT_TRUE(p.get() != nullptr);
+  EXPECT_TRUE(IsBufferGained(p->buffer_state()));
+
+  std::unique_ptr<BufferConsumer> c =
+      BufferConsumer::Import(p->CreateConsumer());
+  ASSERT_TRUE(c.get() != nullptr);
+  EXPECT_TRUE(IsBufferGained(c->buffer_state()));
+
+  DvrNativeBufferMetadata metadata;
+  LocalHandle invalid_fence;
+
+  // Post the gained buffer should signal already created consumer.
+  EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
+  EXPECT_TRUE(IsBufferPosted(p->buffer_state()));
+  EXPECT_LT(0, RETRY_EINTR(c->Poll(10)));
+  EXPECT_EQ(0, c->AcquireAsync(&metadata, &invalid_fence));
+  EXPECT_TRUE(IsBufferAcquired(c->buffer_state()));
+}
+
+TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferPosted) {
+  std::unique_ptr<BufferProducer> p = BufferProducer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  ASSERT_TRUE(p.get() != nullptr);
+  EXPECT_TRUE(IsBufferGained(p->buffer_state()));
+
+  DvrNativeBufferMetadata metadata;
+  LocalHandle invalid_fence;
+
+  // Post the gained buffer before any consumer gets created.
+  EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
+  EXPECT_TRUE(IsBufferPosted(p->buffer_state()));
+
+  // Newly created consumer should be automatically sigalled.
+  std::unique_ptr<BufferConsumer> c =
+      BufferConsumer::Import(p->CreateConsumer());
+  ASSERT_TRUE(c.get() != nullptr);
+  EXPECT_TRUE(IsBufferPosted(c->buffer_state()));
+  EXPECT_EQ(0, c->AcquireAsync(&metadata, &invalid_fence));
+  EXPECT_TRUE(IsBufferAcquired(c->buffer_state()));
+}
+
+TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferReleased) {
+  std::unique_ptr<BufferProducer> p = BufferProducer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  ASSERT_TRUE(p.get() != nullptr);
+
+  std::unique_ptr<BufferConsumer> c1 =
+      BufferConsumer::Import(p->CreateConsumer());
+  ASSERT_TRUE(c1.get() != nullptr);
+
+  DvrNativeBufferMetadata metadata;
+  LocalHandle invalid_fence;
+
+  // Post, acquire, and release the buffer..
+  EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
+  EXPECT_LT(0, RETRY_EINTR(c1->Poll(10)));
+  EXPECT_EQ(0, c1->AcquireAsync(&metadata, &invalid_fence));
+  EXPECT_EQ(0, c1->ReleaseAsync(&metadata, invalid_fence));
+
+  // Create another consumer immediately after the release, should not make the
+  // buffer un-released. This is guaranteed by IPC execution order in bufferhubd.
+  std::unique_ptr<BufferConsumer> c2 =
+      BufferConsumer::Import(p->CreateConsumer());
+  ASSERT_TRUE(c2.get() != nullptr);
+
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
+  EXPECT_EQ(0, p->GainAsync(&metadata, &invalid_fence));
+  EXPECT_TRUE(IsBufferGained(p->buffer_state()));
 }
 
 TEST_F(LibBufferHubTest, TestWithCustomMetadata) {
