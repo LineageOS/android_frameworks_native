@@ -12,6 +12,7 @@ shared_libraries = [
     "libhardware",
     "libui",
     "libutils",
+    "libnativewindow",
 ]
 
 static_libraries = [
@@ -20,6 +21,7 @@ static_libraries = [
     "libchrome",
     "libdvrcommon",
     "libpdx_default_transport",
+    "libperformance",
 ]
 
 cc_test {
@@ -49,5 +51,19 @@ cc_test {
         "-g",
     ],
     name: "buffer_hub_queue_producer-test",
+    tags: ["optional"],
+}
+
+cc_test {
+    srcs: ["buffer_transport_benchmark.cpp"],
+    static_libs: static_libraries,
+    shared_libs: shared_libraries,
+    header_libs: header_libraries,
+    cflags: [
+        "-DLOG_TAG=\"buffer_transport_benchmark\"",
+        "-DTRACE=0",
+        "-O2",
+    ],
+    name: "buffer_transport_benchmark",
     tags: ["optional"],
 }
