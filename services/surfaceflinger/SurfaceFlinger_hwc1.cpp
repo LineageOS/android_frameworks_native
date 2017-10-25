@@ -178,6 +178,8 @@ SurfaceFlinger::SurfaceFlinger()
     maxFrameBufferAcquiredBuffers = getInt64< ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::maxFrameBufferAcquiredBuffers>(2);
 
+    mPrimaryDispSync.init(hasSyncFramework, dispSyncPresentTimeOffset);
+
     char value[PROPERTY_VALUE_MAX];
 
     property_get("ro.bq.gpu_to_cpu_unsupported", value, "0");
