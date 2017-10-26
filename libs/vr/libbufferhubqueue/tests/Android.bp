@@ -54,7 +54,7 @@ cc_test {
     tags: ["optional"],
 }
 
-cc_test {
+cc_benchmark {
     srcs: ["buffer_transport_benchmark.cpp"],
     static_libs: static_libraries,
     shared_libs: shared_libraries,
