@@ -62,6 +62,8 @@ static void usage() {
             "         --help: shows this help\n"
             "         -l: only list services, do not dump them\n"
             "         -t TIMEOUT: TIMEOUT to use in seconds instead of default 10 seconds\n"
+            "         --proto: filter services that support dumping data in proto format. Dumps"
+            "               will be in proto format.\n"
             "         --priority LEVEL: filter services based on specified priority\n"
             "               LEVEL must be one of CRITICAL | HIGH | NORMAL\n"
             "         --skip SERVICES: dumps all services but SERVICES (comma-separated list)\n"
@@ -77,17 +79,17 @@ static bool IsSkipped(const Vector<String16>& skipped, const String16& service) 
     return false;
 }
 
-static bool ConvertPriorityTypeToBitmask(String16& type, int& bitmask) {
-    if (type == PRIORITY_ARG_CRITICAL) {
-        bitmask = IServiceManager::DUMP_PRIORITY_CRITICAL;
+static bool ConvertPriorityTypeToBitmask(const String16& type, int& bitmask) {
+    if (type == PriorityDumper::PRIORITY_ARG_CRITICAL) {
+        bitmask = IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL;
         return true;
     }
-    if (type == PRIORITY_ARG_HIGH) {
-        bitmask = IServiceManager::DUMP_PRIORITY_HIGH;
+    if (type == PriorityDumper::PRIORITY_ARG_HIGH) {
+        bitmask = IServiceManager::DUMP_FLAG_PRIORITY_HIGH;
         return true;
     }
-    if (type == PRIORITY_ARG_NORMAL) {
-        bitmask = IServiceManager::DUMP_PRIORITY_NORMAL;
+    if (type == PriorityDumper::PRIORITY_ARG_NORMAL) {
+        bitmask = IServiceManager::DUMP_FLAG_PRIORITY_NORMAL;
         return true;
     }
     return false;
@@ -98,11 +100,14 @@ int Dumpsys::main(int argc, char* const argv[]) {
     Vector<String16> args;
     String16 priorityType;
     Vector<String16> skippedServices;
+    Vector<String16> protoServices;
     bool showListOnly = false;
     bool skipServices = false;
+    bool filterByProto = false;
     int timeoutArg = 10;
-    int dumpPriority = IServiceManager::DUMP_PRIORITY_ALL;
+    int dumpPriorityFlags = IServiceManager::DUMP_FLAG_PRIORITY_ALL;
     static struct option longOptions[] = {{"priority", required_argument, 0, 0},
+                                          {"proto", no_argument, 0, 0},
                                           {"skip", no_argument, 0, 0},
                                           {"help", no_argument, 0, 0},
                                           {0, 0, 0, 0}};
@@ -124,12 +129,14 @@ int Dumpsys::main(int argc, char* const argv[]) {
         case 0:
             if (!strcmp(longOptions[optionIndex].name, "skip")) {
                 skipServices = true;
+            } else if (!strcmp(longOptions[optionIndex].name, "proto")) {
+                filterByProto = true;
             } else if (!strcmp(longOptions[optionIndex].name, "help")) {
                 usage();
                 return 0;
             } else if (!strcmp(longOptions[optionIndex].name, "priority")) {
                 priorityType = String16(String8(optarg));
-                if (!ConvertPriorityTypeToBitmask(priorityType, dumpPriority)) {
+                if (!ConvertPriorityTypeToBitmask(priorityType, dumpPriorityFlags)) {
                     fprintf(stderr, "\n");
                     usage();
                     return -1;
@@ -179,10 +186,19 @@ int Dumpsys::main(int argc, char* const argv[]) {
 
     if (services.empty() || showListOnly) {
         // gets all services
-        services = sm_->listServices(dumpPriority);
+        services = sm_->listServices(dumpPriorityFlags);
         services.sort(sort_func);
-        if (dumpPriority != IServiceManager::DUMP_PRIORITY_ALL) {
-            args.insertAt(String16(PRIORITY_ARG), 0);
+        if (filterByProto) {
+            protoServices = sm_->listServices(IServiceManager::DUMP_FLAG_PROTO);
+            protoServices.sort(sort_func);
+            Vector<String16> intersection;
+            std::set_intersection(services.begin(), services.end(), protoServices.begin(),
+                                  protoServices.end(), std::back_inserter(intersection));
+            services = std::move(intersection);
+            args.insertAt(String16(PriorityDumper::PROTO_ARG), 0);
+        }
+        if (dumpPriorityFlags != IServiceManager::DUMP_FLAG_PRIORITY_ALL) {
+            args.insertAt(String16(PriorityDumper::PRIORITY_ARG), 0);
             args.insertAt(priorityType, 1);
         } else {
             args.add(String16("-a"));
@@ -230,7 +246,7 @@ int Dumpsys::main(int argc, char* const argv[]) {
             if (N > 1) {
                 aout << "------------------------------------------------------------"
                         "-------------------" << endl;
-                if (dumpPriority == IServiceManager::DUMP_PRIORITY_ALL) {
+                if (dumpPriorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_ALL) {
                     aout << "DUMP OF SERVICE " << service_name << ":" << endl;
                 } else {
                     aout << "DUMP OF SERVICE " << priorityType << " " << service_name << ":" << endl;
