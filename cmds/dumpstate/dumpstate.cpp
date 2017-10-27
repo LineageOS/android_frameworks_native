@@ -202,18 +202,34 @@ static bool AddDumps(const std::vector<DumpData>::const_iterator start,
         const std::string& name = it->name;
         const int fd = it->fd;
         dumped = true;
+
+        // Seek to the beginning of the file before dumping any data. A given
+        // DumpData entry might be dumped multiple times in the report.
+        //
+        // For example, the most recent ANR entry is dumped to the body of the
+        // main entry and it also shows up as a separate entry in the bugreport
+        // ZIP file.
+        if (lseek(fd, 0, SEEK_SET) != static_cast<off_t>(0)) {
+            MYLOGE("Unable to add %s to zip file, lseek failed: %s\n", name.c_str(),
+                   strerror(errno));
+        }
+
         if (ds.IsZipping() && add_to_zip) {
             if (!ds.AddZipEntryFromFd(ZIP_ROOT_DIR + name, fd)) {
-                MYLOGE("Unable to add %s %s to zip file\n", name.c_str(), type_name);
+                MYLOGE("Unable to add %s to zip file, addZipEntryFromFd failed\n", name.c_str());
             }
         } else {
             dump_file_from_fd(type_name, name.c_str(), fd);
         }
-
-        close(fd);
     }
 
     return dumped;
+}
+
+static void CloseDumpFds(const std::vector<DumpData>* dumps) {
+    for (auto it = dumps->begin(); it != dumps->end(); ++it) {
+        close(it->fd);
+    }
 }
 
 // for_each_pid() callback to get mount info about a process.
@@ -882,9 +898,9 @@ static void AddGlobalAnrTraceFile(const bool add_to_zip, const std::string& anr_
     MYLOGD("AddGlobalAnrTraceFile(): dump_traces_dir=%s, anr_traces_dir=%s, already_dumped=%d\n",
            dump_traces_dir.c_str(), anr_traces_dir.c_str(), already_dumped);
 
-    int fd = TEMP_FAILURE_RETRY(
-        open(anr_traces_file.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK));
-    if (fd < 0) {
+    android::base::unique_fd fd(TEMP_FAILURE_RETRY(
+        open(anr_traces_file.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK)));
+    if (fd.get() < 0) {
         printf("*** NO ANR VM TRACES FILE (%s): %s\n\n", anr_traces_file.c_str(), strerror(errno));
     } else {
         if (add_to_zip) {
@@ -896,7 +912,7 @@ static void AddGlobalAnrTraceFile(const bool add_to_zip, const std::string& anr_
         } else {
             MYLOGD("Dumping last ANR traces (%s) to the main bugreport entry\n",
                    anr_traces_file.c_str());
-            dump_file_from_fd("VM TRACES AT LAST ANR", anr_traces_file.c_str(), fd);
+            dump_file_from_fd("VM TRACES AT LAST ANR", anr_traces_file.c_str(), fd.get());
         }
     }
 }
@@ -929,12 +945,12 @@ static void AddAnrTraceDir(const bool add_to_zip, const std::string& anr_traces_
         AddDumps(anr_data->begin(), anr_data->begin() + 1,
                  "VM TRACES AT LAST ANR", add_to_zip);
 
-        if (anr_data->size() > 1) {
-            // NOTE: Historical ANRs are always added as separate entries in the
-            // bugreport zip file.
-            AddDumps(anr_data->begin() + 1, anr_data->end(),
-                     "HISTORICAL ANR", true /* add_to_zip */);
-        }
+        // The "last" ANR will always be included as separate entry in the zip file. In addition,
+        // it will be present in the body of the main entry if |add_to_zip| == false.
+        //
+        // Historical ANRs are always included as separate entries in the bugreport zip file.
+        AddDumps(anr_data->begin() + ((add_to_zip) ? 1 : 0), anr_data->end(),
+                 "HISTORICAL ANR", true /* add_to_zip */);
     } else {
         printf("*** NO ANRs to dump in %s\n\n", ANR_DIR.c_str());
     }
@@ -1993,6 +2009,9 @@ int main(int argc, char *argv[]) {
         MYLOGD("Closing control socket\n");
         close(ds.control_socket_fd_);
     }
+
+    CloseDumpFds(tombstone_data.get());
+    CloseDumpFds(anr_data.get());
 
     return 0;
 }
