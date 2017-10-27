@@ -40,13 +40,12 @@ ColorLayer::ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client,
     : Layer(flinger, client, name, w, h, flags) {
 }
 
-void ColorLayer::onDraw(const sp<const DisplayDevice>& hw,
-        const Region& /* clip */, bool useIdentityTransform) const
-{
+void ColorLayer::onDraw(const RenderArea& renderArea, const Region& /* clip */,
+                        bool useIdentityTransform) const {
     const State& s(getDrawingState());
     if (s.color.a>0) {
         Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2);
-        computeGeometry(hw, mesh, useIdentityTransform);
+        computeGeometry(renderArea, mesh, useIdentityTransform);
         RenderEngine& engine(mFlinger->getRenderEngine());
         engine.setupLayerBlending(getPremultipledAlpha(), false /* opaque */,
               true /* disableTexture */, s.color);

@@ -37,7 +37,9 @@
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
+#include <gui/ISurfaceComposer.h>
 #include <hardware/hwcomposer_defs.h>
+#include "RenderArea.h"
 
 #ifdef USE_HWC2
 #include <memory>
@@ -298,6 +300,35 @@ struct DisplayDeviceState {
     uint32_t height = 0;
     String8 displayName;
     bool isSecure = false;
+};
+
+class DisplayRenderArea : public RenderArea {
+public:
+    DisplayRenderArea(const sp<const DisplayDevice> device,
+                      ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
+          : DisplayRenderArea(device, device->getBounds(), device->getHeight(), device->getWidth(),
+                              rotation) {}
+    DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqHeight,
+                      uint32_t reqWidth, ISurfaceComposer::Rotation rotation)
+          : RenderArea(reqHeight, reqWidth, rotation), mDevice(device), mSourceCrop(sourceCrop) {}
+
+    const Transform& getTransform() const override { return mDevice->getTransform(); }
+    Rect getBounds() const override { return mDevice->getBounds(); }
+    int getHeight() const override { return mDevice->getHeight(); }
+    int getWidth() const override { return mDevice->getWidth(); }
+    bool isSecure() const override { return mDevice->isSecure(); }
+    bool needsFiltering() const override { return mDevice->needsFiltering(); }
+    Rect getSourceCrop() const override { return mSourceCrop; }
+#ifdef USE_HWC2
+    bool getWideColorSupport() const override { return mDevice->getWideColorSupport(); }
+    android_color_mode_t getActiveColorMode() const override {
+        return mDevice->getActiveColorMode();
+    }
+#endif
+
+private:
+    const sp<const DisplayDevice> mDevice;
+    const Rect mSourceCrop;
 };
 
 }; // namespace android

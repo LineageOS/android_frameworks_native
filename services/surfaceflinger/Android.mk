@@ -40,6 +40,7 @@ LOCAL_SRC_FILES := \
     RenderEngine/Texture.cpp \
     RenderEngine/GLES20RenderEngine.cpp \
     LayerProtoHelper.cpp \
+    RenderArea.cpp \
 
 LOCAL_MODULE := libsurfaceflinger
 LOCAL_C_INCLUDES := \

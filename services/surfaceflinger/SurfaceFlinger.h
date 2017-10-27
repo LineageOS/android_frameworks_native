@@ -77,6 +77,7 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include "RenderArea.h"
 
 #include <layerproto/LayerProtoHeader.h>
 
@@ -96,6 +97,8 @@ class RenderEngine;
 class EventControlThread;
 class VSyncSource;
 class InjectVSyncSource;
+
+typedef std::function<void(const LayerVector::Visitor&)> TraverseLayersFunction;
 
 namespace dvr {
 class VrFlinger;
@@ -303,6 +306,9 @@ private:
             Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
             int32_t minLayerZ, int32_t maxLayerZ,
             bool useIdentityTransform, ISurfaceComposer::Rotation rotation);
+    virtual status_t captureLayers(const sp<IBinder>& parentHandle,
+                                   const sp<IGraphicBufferProducer>& producer,
+                                   ISurfaceComposer::Rotation rotation);
     virtual status_t getDisplayStats(const sp<IBinder>& display,
             DisplayStatInfo* stats);
     virtual status_t getDisplayConfigs(const sp<IBinder>& display,
@@ -448,28 +454,26 @@ private:
 
     void startBootAnim();
 
-    void renderScreenImplLocked(
-            const sp<const DisplayDevice>& hw,
-            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            int32_t minLayerZ, int32_t maxLayerZ,
-            bool yswap, bool useIdentityTransform, Transform::orientation_flags rotation);
+    void renderScreenImplLocked(const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
+                                bool yswap, bool useIdentityTransform);
+
+    status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
+                                 const sp<IGraphicBufferProducer>& producer,
+                                 bool useIdentityTransform);
 
 #ifdef USE_HWC2
-    status_t captureScreenImplLocked(const sp<const DisplayDevice>& device,
-                                     ANativeWindowBuffer* buffer, Rect sourceCrop,
-                                     uint32_t reqWidth, uint32_t reqHeight, int32_t minLayerZ,
-                                     int32_t maxLayerZ, bool useIdentityTransform,
-                                     Transform::orientation_flags rotation, bool isLocalScreenshot,
-                                     int* outSyncFd);
+    status_t captureScreenImplLocked(const RenderArea& renderArea,
+                                     TraverseLayersFunction traverseLayers,
+                                     ANativeWindowBuffer* buffer, bool useIdentityTransform,
+                                     bool isLocalScreenshot, int* outSyncFd);
 #else
-    status_t captureScreenImplLocked(
-            const sp<const DisplayDevice>& hw,
-            const sp<IGraphicBufferProducer>& producer,
-            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            int32_t minLayerZ, int32_t maxLayerZ,
-            bool useIdentityTransform, Transform::orientation_flags rotation,
-            bool isLocalScreenshot);
+    status_t captureScreenImplLocked(const RenderArea& renderArea,
+                                     TraverseLayersFunction traverseLayers,
+                                     const sp<IGraphicBufferProducer>& producer,
+                                     bool useIdentityTransform, bool isLocalScreenshot);
 #endif
+    void traverseLayersInDisplay(const sp<const DisplayDevice>& display, int32_t minLayerZ,
+                                 int32_t maxLayerZ, const LayerVector::Visitor& visitor);
 
     sp<StartPropertySetThread> mStartPropertySetThread = nullptr;
 
@@ -616,8 +620,7 @@ private:
     bool startDdmConnection();
     void appendSfConfigString(String8& result) const;
     void checkScreenshot(size_t w, size_t s, size_t h, void const* vaddr,
-            const sp<const DisplayDevice>& hw,
-            int32_t minLayerZ, int32_t maxLayerZ);
+                         TraverseLayersFunction traverseLayers);
 
     void logFrameStats();
 

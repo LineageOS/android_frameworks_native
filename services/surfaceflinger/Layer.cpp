@@ -1063,17 +1063,16 @@ Rect Layer::getPosition(
 // drawing...
 // ---------------------------------------------------------------------------
 
-void Layer::draw(const sp<const DisplayDevice>& hw, const Region& clip) const {
-    onDraw(hw, clip, false);
+void Layer::draw(const RenderArea& renderArea, const Region& clip) const {
+    onDraw(renderArea, clip, false);
 }
 
-void Layer::draw(const sp<const DisplayDevice>& hw,
-        bool useIdentityTransform) const {
-    onDraw(hw, Region(hw->bounds()), useIdentityTransform);
+void Layer::draw(const RenderArea& renderArea, bool useIdentityTransform) const {
+    onDraw(renderArea, Region(renderArea.getBounds()), useIdentityTransform);
 }
 
-void Layer::draw(const sp<const DisplayDevice>& hw) const {
-    onDraw(hw, Region(hw->bounds()), false);
+void Layer::draw(const RenderArea& renderArea) const {
+    onDraw(renderArea, Region(renderArea.getBounds()), false);
 }
 
 static constexpr mat4 inverseOrientation(uint32_t transform) {
@@ -1097,7 +1096,7 @@ static constexpr mat4 inverseOrientation(uint32_t transform) {
 /*
  * onDraw will draw the current layer onto the presentable buffer
  */
-void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
+void Layer::onDraw(const RenderArea& renderArea, const Region& clip,
         bool useIdentityTransform) const
 {
     ATRACE_CALL();
@@ -1119,12 +1118,12 @@ void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
                 finished = true;
                 return;
             }
-            under.orSelf( hw->getTransform().transform(layer->visibleRegion) );
+            under.orSelf(renderArea.getTransform().transform(layer->visibleRegion));
         });
         // if not everything below us is covered, we plug the holes!
         Region holes(clip.subtract(under));
         if (!holes.isEmpty()) {
-            clearWithOpenGL(hw, 0, 0, 0, 1);
+            clearWithOpenGL(renderArea, 0, 0, 0, 1);
         }
         return;
     }
@@ -1138,13 +1137,13 @@ void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
         // is probably going to have something visibly wrong.
     }
 
-    bool blackOutLayer = isProtected() || (isSecure() && !hw->isSecure());
+    bool blackOutLayer = isProtected() || (isSecure() && !renderArea.isSecure());
 
     RenderEngine& engine(mFlinger->getRenderEngine());
 
     if (!blackOutLayer) {
         // TODO: we could be more subtle with isFixedSize()
-        const bool useFiltering = getFiltering() || needsFiltering(hw) || isFixedSize();
+        const bool useFiltering = getFiltering() || needsFiltering(renderArea) || isFixedSize();
 
         // Query the texture matrix given our current filtering mode.
         float textureMatrix[16];
@@ -1190,31 +1189,29 @@ void Layer::onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
     } else {
         engine.setupLayerBlackedOut();
     }
-    drawWithOpenGL(hw, useIdentityTransform);
+    drawWithOpenGL(renderArea, useIdentityTransform);
     engine.disableTexturing();
 }
 
 
-void Layer::clearWithOpenGL(const sp<const DisplayDevice>& hw,
+void Layer::clearWithOpenGL(const RenderArea& renderArea,
         float red, float green, float blue,
         float alpha) const
 {
     RenderEngine& engine(mFlinger->getRenderEngine());
-    computeGeometry(hw, mMesh, false);
+    computeGeometry(renderArea, mMesh, false);
     engine.setupFillWithColor(red, green, blue, alpha);
     engine.drawMesh(mMesh);
 }
 
-void Layer::clearWithOpenGL(
-        const sp<const DisplayDevice>& hw) const {
-    clearWithOpenGL(hw, 0,0,0,0);
+void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
+    clearWithOpenGL(renderArea, 0,0,0,0);
 }
 
-void Layer::drawWithOpenGL(const sp<const DisplayDevice>& hw,
-        bool useIdentityTransform) const {
+void Layer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const {
     const State& s(getDrawingState());
 
-    computeGeometry(hw, mMesh, useIdentityTransform);
+    computeGeometry(renderArea, mMesh, useIdentityTransform);
 
     /*
      * NOTE: the way we compute the texture coordinates here produces
@@ -1440,12 +1437,11 @@ static void boundPoint(vec2* point, const Rect& crop) {
     }
 }
 
-void Layer::computeGeometry(const sp<const DisplayDevice>& hw, Mesh& mesh,
-        bool useIdentityTransform) const
-{
+void Layer::computeGeometry(const RenderArea& renderArea, Mesh& mesh,
+                            bool useIdentityTransform) const {
     const Layer::State& s(getDrawingState());
-    const Transform hwTransform(hw->getTransform());
-    const uint32_t hw_h = hw->getHeight();
+    const Transform renderAreaTransform(renderArea.getTransform());
+    const uint32_t height = renderArea.getHeight();
     Rect win = computeBounds();
 
     vec2 lt = vec2(win.left, win.top);
@@ -1469,12 +1465,12 @@ void Layer::computeGeometry(const sp<const DisplayDevice>& hw, Mesh& mesh,
     }
 
     Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
-    position[0] = hwTransform.transform(lt);
-    position[1] = hwTransform.transform(lb);
-    position[2] = hwTransform.transform(rb);
-    position[3] = hwTransform.transform(rt);
+    position[0] = renderAreaTransform.transform(lt);
+    position[1] = renderAreaTransform.transform(lb);
+    position[2] = renderAreaTransform.transform(rb);
+    position[3] = renderAreaTransform.transform(rt);
     for (size_t i=0 ; i<4 ; i++) {
-        position[i].y = hw_h - position[i].y;
+        position[i].y = height - position[i].y;
     }
 }
 
@@ -1512,8 +1508,8 @@ bool Layer::isCropped() const {
     return !mCurrentCrop.isEmpty();
 }
 
-bool Layer::needsFiltering(const sp<const DisplayDevice>& hw) const {
-    return mNeedsFiltering || hw->needsFiltering();
+bool Layer::needsFiltering(const RenderArea& renderArea) const {
+    return mNeedsFiltering || renderArea.needsFiltering();
 }
 
 void Layer::setVisibleRegion(const Region& visibleRegion) {
@@ -2770,6 +2766,29 @@ void Layer::traverseInReverseZOrder(LayerVector::StateSet stateSet,
     for (; i>=0; i--) {
         const auto& relative = list[i];
         relative->traverseInReverseZOrder(stateSet, visitor);
+    }
+}
+
+/**
+ * Traverse only children in z order, ignoring relative layers.
+ */
+void Layer::traverseChildrenInZOrder(LayerVector::StateSet stateSet,
+                                     const LayerVector::Visitor& visitor) {
+    const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
+    const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
+
+    size_t i = 0;
+    for (; i < children.size(); i++) {
+        const auto& relative = children[i];
+        if (relative->getZ() >= 0) {
+            break;
+        }
+        relative->traverseChildrenInZOrder(stateSet, visitor);
+    }
+    visitor(this);
+    for (; i < children.size(); i++) {
+        const auto& relative = children[i];
+        relative->traverseChildrenInZOrder(stateSet, visitor);
     }
 }
 

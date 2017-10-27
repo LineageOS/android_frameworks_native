@@ -122,6 +122,18 @@ public:
         return reply.readInt32();
     }
 
+    virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
+                                   const sp<IGraphicBufferProducer>& producer,
+                                   ISurfaceComposer::Rotation rotation) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        data.writeStrongBinder(layerHandleBinder);
+        data.writeStrongBinder(IInterface::asBinder(producer));
+        data.writeInt32(static_cast<int32_t>(rotation));
+        remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
+        return reply.readInt32();
+    }
+
     virtual bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& bufferProducer) const
     {
@@ -585,6 +597,18 @@ status_t BnSurfaceComposer::onTransact(
                     sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ,
                     useIdentityTransform,
                     static_cast<ISurfaceComposer::Rotation>(rotation));
+            reply->writeInt32(res);
+            return NO_ERROR;
+        }
+        case CAPTURE_LAYERS: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> layerHandleBinder = data.readStrongBinder();
+            sp<IGraphicBufferProducer> producer =
+                    interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
+            int32_t rotation = data.readInt32();
+
+            status_t res = captureLayers(layerHandleBinder, producer,
+                                         static_cast<ISurfaceComposer::Rotation>(rotation));
             reply->writeInt32(res);
             return NO_ERROR;
         }
