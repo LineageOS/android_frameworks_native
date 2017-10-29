@@ -880,19 +880,6 @@ VkResult CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
     const VkAllocationCallbacks& data_allocator =
         (pAllocator) ? *pAllocator : GetDefaultAllocator();
 
-    if (pCreateInfo->pApplicationInfo &&
-        pCreateInfo->pApplicationInfo->apiVersion >= VK_MAKE_VERSION(1, 1, 0)) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-        ALOGI(
-            "Requested Vulkan instance version %d.%d is greater than max "
-            "supported version (1.0)",
-            VK_VERSION_MAJOR(pCreateInfo->pApplicationInfo->apiVersion),
-            VK_VERSION_MINOR(pCreateInfo->pApplicationInfo->apiVersion));
-#pragma clang diagnostic pop
-        return VK_ERROR_INCOMPATIBLE_DRIVER;
-    }
-
     CreateInfoWrapper wrapper(*pCreateInfo, data_allocator);
     VkResult result = wrapper.Validate();
     if (result != VK_SUCCESS)
@@ -1056,6 +1043,28 @@ VkResult EnumeratePhysicalDevices(VkInstance instance,
     return result;
 }
 
+VkResult EnumeratePhysicalDeviceGroups(
+    VkInstance instance,
+    uint32_t* pPhysicalDeviceGroupCount,
+    VkPhysicalDeviceGroupProperties* pPhysicalDeviceGroupProperties) {
+    const auto& data = GetData(instance);
+
+    VkResult result = data.driver.EnumeratePhysicalDeviceGroups(
+        instance, pPhysicalDeviceGroupCount, pPhysicalDeviceGroupProperties);
+    if ((result == VK_SUCCESS || result == VK_INCOMPLETE) &&
+        *pPhysicalDeviceGroupCount && pPhysicalDeviceGroupProperties) {
+        for (uint32_t i = 0; i < *pPhysicalDeviceGroupCount; i++) {
+            for (uint32_t j = 0;
+                 j < pPhysicalDeviceGroupProperties->physicalDeviceCount; j++) {
+                SetData(pPhysicalDeviceGroupProperties->physicalDevices[j],
+                        data);
+            }
+        }
+    }
+
+    return result;
+}
+
 void GetDeviceQueue(VkDevice device,
                     uint32_t queueFamilyIndex,
                     uint32_t queueIndex,
@@ -1063,6 +1072,15 @@ void GetDeviceQueue(VkDevice device,
     const auto& data = GetData(device);
 
     data.driver.GetDeviceQueue(device, queueFamilyIndex, queueIndex, pQueue);
+    SetData(*pQueue, data);
+}
+
+void GetDeviceQueue2(VkDevice device,
+                     const VkDeviceQueueInfo2* pQueueInfo,
+                     VkQueue* pQueue) {
+    const auto& data = GetData(device);
+
+    data.driver.GetDeviceQueue2(device, pQueueInfo, pQueue);
     SetData(*pQueue, data);
 }
 

@@ -116,6 +116,60 @@ private:
     CpuConsumer::LockedBuffer mBuf;
 };
 
+class CaptureLayer {
+public:
+    static void captureScreen(std::unique_ptr<CaptureLayer>* sc, sp<IBinder>& parentHandle) {
+        sp<IGraphicBufferProducer> producer;
+        sp<IGraphicBufferConsumer> consumer;
+        BufferQueue::createBufferQueue(&producer, &consumer);
+        sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
+        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+        sp<IBinder> display(sf->getBuiltInDisplay(
+            ISurfaceComposer::eDisplayIdMain));
+        SurfaceComposerClient::Transaction().apply(true);
+        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, producer));
+        *sc = std::make_unique<CaptureLayer>(cpuConsumer);
+    }
+
+    void checkPixel(uint32_t x, uint32_t y, uint8_t r, uint8_t g, uint8_t b) {
+        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mBuffer.format);
+        const uint8_t* img = static_cast<const uint8_t*>(mBuffer.data);
+        const uint8_t* pixel = img + (4 * (y * mBuffer.stride + x));
+        if (r != pixel[0] || g != pixel[1] || b != pixel[2]) {
+            String8 err(String8::format("pixel @ (%3d, %3d): "
+                                            "expected [%3d, %3d, %3d], got [%3d, %3d, %3d]",
+                                        x, y, r, g, b, pixel[0], pixel[1], pixel[2]));
+            EXPECT_EQ(String8(), err) << err.string();
+        }
+    }
+
+    void expectFGColor(uint32_t x, uint32_t y) {
+        checkPixel(x, y, 195, 63, 63);
+    }
+
+    void expectBGColor(uint32_t x, uint32_t y) {
+        checkPixel(x, y, 63, 63, 195);
+    }
+
+    void expectChildColor(uint32_t x, uint32_t y) {
+        checkPixel(x, y, 200, 200, 200);
+    }
+
+    CaptureLayer(const sp<CpuConsumer>& cc) :
+        mCC(cc) {
+        EXPECT_EQ(NO_ERROR, mCC->lockNextBuffer(&mBuffer));
+    }
+
+    ~CaptureLayer() {
+        mCC->unlockBuffer(mBuffer);
+    }
+
+private:
+    sp<CpuConsumer> mCC;
+    CpuConsumer::LockedBuffer mBuffer;
+};
+
+
 class LayerUpdateTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
@@ -1429,6 +1483,111 @@ TEST_F(LayerColorTest, ColorLayerWithNoColor) {
         ScreenCapture::captureScreen(&sc);
         sc->checkPixel(145, 145, 0, 0, 0);
     }
+}
+
+class ScreenCaptureTest : public LayerUpdateTest {
+protected:
+    std::unique_ptr<CaptureLayer> mCapture;
+};
+
+TEST_F(ScreenCaptureTest, CaptureSingleLayer) {
+    auto bgHandle = mBGSurfaceControl->getHandle();
+    CaptureLayer::captureScreen(&mCapture, bgHandle);
+    mCapture->expectBGColor(0, 0);
+    // Doesn't capture FG layer which is at 64, 64
+    mCapture->expectBGColor(64, 64);
+}
+
+TEST_F(ScreenCaptureTest, CaptureLayerWithChild) {
+    auto fgHandle = mFGSurfaceControl->getHandle();
+
+    sp<SurfaceControl> child = mComposerClient->createSurface(
+        String8("Child surface"),
+        10, 10, PIXEL_FORMAT_RGBA_8888,
+        0, mFGSurfaceControl.get());
+    fillSurfaceRGBA8(child, 200, 200, 200);
+
+    SurfaceComposerClient::Transaction()
+        .show(child)
+        .apply(true);
+
+    // Captures mFGSurfaceControl layer and its child.
+    CaptureLayer::captureScreen(&mCapture, fgHandle);
+    mCapture->expectFGColor(10, 10);
+    mCapture->expectChildColor(0, 0);
+}
+
+TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
+    auto fgHandle = mFGSurfaceControl->getHandle();
+
+    sp<SurfaceControl> child = mComposerClient->createSurface(
+        String8("Child surface"),
+        10, 10, PIXEL_FORMAT_RGBA_8888,
+        0, mFGSurfaceControl.get());
+    fillSurfaceRGBA8(child, 200, 200, 200);
+
+    sp<SurfaceControl> grandchild = mComposerClient->createSurface(
+        String8("Grandchild surface"), 5, 5,
+        PIXEL_FORMAT_RGBA_8888, 0, child.get());
+
+    fillSurfaceRGBA8(grandchild, 50, 50, 50);
+    SurfaceComposerClient::Transaction()
+        .show(child)
+        .setPosition(grandchild, 5, 5)
+        .show(grandchild)
+        .apply(true);
+
+    // Captures mFGSurfaceControl, its child, and the grandchild.
+    CaptureLayer::captureScreen(&mCapture, fgHandle);
+    mCapture->expectFGColor(10, 10);
+    mCapture->expectChildColor(0, 0);
+    mCapture->checkPixel(5, 5, 50, 50, 50);
+}
+
+TEST_F(ScreenCaptureTest, CaptureChildOnly) {
+    sp<SurfaceControl> child = mComposerClient->createSurface(
+        String8("Child surface"),
+        10, 10, PIXEL_FORMAT_RGBA_8888,
+        0, mFGSurfaceControl.get());
+    fillSurfaceRGBA8(child, 200, 200, 200);
+    auto childHandle = child->getHandle();
+
+    SurfaceComposerClient::Transaction()
+        .setPosition(child, 5, 5)
+        .show(child)
+        .apply(true);
+
+    // Captures only the child layer, and not the parent.
+    CaptureLayer::captureScreen(&mCapture, childHandle);
+    mCapture->expectChildColor(0, 0);
+    mCapture->expectChildColor(9, 9);
+}
+
+TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
+    sp<SurfaceControl> child = mComposerClient->createSurface(
+        String8("Child surface"),
+        10, 10, PIXEL_FORMAT_RGBA_8888,
+        0, mFGSurfaceControl.get());
+    fillSurfaceRGBA8(child, 200, 200, 200);
+    auto childHandle = child->getHandle();
+
+    sp<SurfaceControl> grandchild = mComposerClient->createSurface(
+        String8("Grandchild surface"), 5, 5,
+        PIXEL_FORMAT_RGBA_8888, 0, child.get());
+    fillSurfaceRGBA8(grandchild, 50, 50, 50);
+
+    SurfaceComposerClient::Transaction()
+        .show(child)
+        .setPosition(grandchild, 5, 5)
+        .show(grandchild)
+        .apply(true);
+
+    auto grandchildHandle = grandchild->getHandle();
+
+    // Captures only the grandchild.
+    CaptureLayer::captureScreen(&mCapture, grandchildHandle);
+    mCapture->checkPixel(0, 0, 50, 50, 50);
+    mCapture->checkPixel(4, 4, 50, 50, 50);
 }
 
 }

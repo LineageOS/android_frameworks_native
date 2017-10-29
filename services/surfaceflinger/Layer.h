@@ -50,6 +50,7 @@
 #include "RenderEngine/Mesh.h"
 #include "RenderEngine/Texture.h"
 #include <layerproto/LayerProtoHeader.h>
+#include "RenderArea.h"
 
 #include <math/vec4.h>
 
@@ -255,8 +256,7 @@ public:
         return getLayerStack() == layerStack && (!mPrimaryDisplayOnly || isPrimaryDisplay);
     }
 
-    void computeGeometry(const sp<const DisplayDevice>& hw, Mesh& mesh,
-            bool useIdentityTransform) const;
+    void computeGeometry(const RenderArea& renderArea, Mesh& mesh, bool useIdentityTransform) const;
     Rect computeBounds(const Region& activeTransparentRegion) const;
     Rect computeBounds() const;
 
@@ -312,7 +312,7 @@ protected:
     /*
      * onDraw - draws the surface.
      */
-    virtual void onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
+    virtual void onDraw(const RenderArea& renderArea, const Region& clip,
             bool useIdentityTransform) const;
 
 public:
@@ -379,9 +379,9 @@ public:
      * draw - performs some global clipping optimizations
      * and calls onDraw().
      */
-    void draw(const sp<const DisplayDevice>& hw, const Region& clip) const;
-    void draw(const sp<const DisplayDevice>& hw, bool useIdentityTransform) const;
-    void draw(const sp<const DisplayDevice>& hw) const;
+    void draw(const RenderArea& renderArea, const Region& clip) const;
+    void draw(const RenderArea& renderArea, bool useIdentityTransform) const;
+    void draw(const RenderArea& renderArea) const;
 
     /*
      * doTransaction - process the transaction. This is a good place to figure
@@ -472,7 +472,7 @@ public:
 #endif
     // -----------------------------------------------------------------------
 
-    void clearWithOpenGL(const sp<const DisplayDevice>& hw) const;
+    void clearWithOpenGL(const RenderArea& renderArea) const;
     void setFiltering(bool filtering);
     bool getFiltering() const;
 
@@ -515,6 +515,9 @@ public:
     void traverseInReverseZOrder(LayerVector::StateSet stateSet,
                                  const LayerVector::Visitor& visitor);
     void traverseInZOrder(LayerVector::StateSet stateSet, const LayerVector::Visitor& visitor);
+
+    void traverseChildrenInZOrder(LayerVector::StateSet stateSet,
+                                  const LayerVector::Visitor& visitor);
 
     size_t getChildrenCount() const;
     void addChild(const sp<Layer>& layer);
@@ -569,7 +572,7 @@ private:
     void commitTransaction(const State& stateToCommit);
 
     // needsLinearFiltering - true if this surface's state requires filtering
-    bool needsFiltering(const sp<const DisplayDevice>& hw) const;
+    bool needsFiltering(const RenderArea& renderArea) const;
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
 
@@ -582,9 +585,9 @@ private:
     static bool getOpacityForFormat(uint32_t format);
 
     // drawing
-    void clearWithOpenGL(const sp<const DisplayDevice>& hw,
+    void clearWithOpenGL(const RenderArea& renderArea,
             float r, float g, float b, float alpha) const;
-    void drawWithOpenGL(const sp<const DisplayDevice>& hw,
+    void drawWithOpenGL(const RenderArea& renderArea,
             bool useIdentityTransform) const;
 
     // Temporary - Used only for LEGACY camera mode.

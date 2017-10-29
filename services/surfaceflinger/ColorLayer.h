@@ -34,7 +34,7 @@ public:
     virtual ~ColorLayer() = default;
 
     virtual const char* getTypeId() const { return "ColorLayer"; }
-    virtual void onDraw(const sp<const DisplayDevice>& hw, const Region& clip,
+    virtual void onDraw(const RenderArea& renderArea, const Region& clip,
             bool useIdentityTransform) const;
     virtual bool isOpaque(const Layer::State&) const { return false; }
     virtual bool isSecure() const         { return false; }

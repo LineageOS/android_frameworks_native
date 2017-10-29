@@ -174,6 +174,10 @@ public:
             bool useIdentityTransform,
             Rotation rotation = eRotateNone) = 0;
 
+    virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
+                                   const sp<IGraphicBufferProducer>& producer,
+                                   Rotation rotation = eRotateNone) = 0;
+
     /* Clears the frame statistics for animations.
      *
      * Requires the ACCESS_SURFACE_FLINGER permission.
@@ -226,6 +230,7 @@ public:
         SET_ACTIVE_CONFIG,
         CONNECT_DISPLAY,
         CAPTURE_SCREEN,
+        CAPTURE_LAYERS,
         CLEAR_ANIMATION_FRAME_STATS,
         GET_ANIMATION_FRAME_STATS,
         SET_POWER_MODE,

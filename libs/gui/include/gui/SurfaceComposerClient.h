@@ -297,6 +297,9 @@ public:
             bool useIdentityTransform,
             uint32_t rotation,
             sp<GraphicBuffer>* outbuffer);
+    static status_t captureLayers(const sp<IBinder>& layerHandle,
+                                  const sp<IGraphicBufferProducer>& producer, uint32_t rotation);
+
 private:
     mutable sp<CpuConsumer> mCpuConsumer;
     mutable sp<IGraphicBufferProducer> mProducer;

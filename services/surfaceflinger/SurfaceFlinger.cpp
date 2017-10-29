@@ -570,7 +570,9 @@ public:
 
     virtual void onInjectSyncEvent(nsecs_t when) {
         std::lock_guard<std::mutex> lock(mCallbackMutex);
-        mCallback->onVSyncEvent(when);
+        if (mCallback) {
+            mCallback->onVSyncEvent(when);
+        }
     }
 
     virtual void setVSyncEnabled(bool) {}
@@ -1066,28 +1068,34 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& display,
 }
 
 status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
-    if (enable == mInjectVSyncs) {
-        return NO_ERROR;
-    }
+    sp<LambdaMessage> enableVSyncInjections = new LambdaMessage([&]() {
+        Mutex::Autolock _l(mStateLock);
 
-    if (enable) {
-        mInjectVSyncs = enable;
-        ALOGV("VSync Injections enabled");
-        if (mVSyncInjector.get() == nullptr) {
-            mVSyncInjector = new InjectVSyncSource();
-            mInjectorEventThread = new EventThread(mVSyncInjector, *this, false);
+        if (mInjectVSyncs == enable) {
+            return;
         }
-        mEventQueue.setEventThread(mInjectorEventThread);
-    } else {
+
+        if (enable) {
+            ALOGV("VSync Injections enabled");
+            if (mVSyncInjector.get() == nullptr) {
+                mVSyncInjector = new InjectVSyncSource();
+                mInjectorEventThread = new EventThread(mVSyncInjector, *this, false);
+            }
+            mEventQueue.setEventThread(mInjectorEventThread);
+        } else {
+            ALOGV("VSync Injections disabled");
+            mEventQueue.setEventThread(mSFEventThread);
+        }
+
         mInjectVSyncs = enable;
-        ALOGV("VSync Injections disabled");
-        mEventQueue.setEventThread(mSFEventThread);
-        mVSyncInjector.clear();
-    }
+    });
+    postMessageSync(enableVSyncInjections);
     return NO_ERROR;
 }
 
 status_t SurfaceFlinger::injectVSync(nsecs_t when) {
+    Mutex::Autolock _l(mStateLock);
+
     if (!mInjectVSyncs) {
         ALOGE("VSync Injections not enabled");
         return BAD_VALUE;
@@ -2642,6 +2650,7 @@ bool SurfaceFlinger::doComposeSurfaces(
 {
     ALOGV("doComposeSurfaces");
 
+    const DisplayRenderArea renderArea(displayDevice);
     const auto hwcId = displayDevice->getHwcDisplayId();
 
     mat4 oldColorMatrix;
@@ -2751,12 +2760,12 @@ bool SurfaceFlinger::doComposeSurfaces(
                                 && hasClientComposition) {
                             // never clear the very first layer since we're
                             // guaranteed the FB is already cleared
-                            layer->clearWithOpenGL(displayDevice);
+                            layer->clearWithOpenGL(renderArea);
                         }
                         break;
                     }
                     case HWC2::Composition::Client: {
-                        layer->draw(displayDevice, clip);
+                        layer->draw(renderArea, clip);
                         break;
                     }
                     default:
@@ -2773,7 +2782,7 @@ bool SurfaceFlinger::doComposeSurfaces(
             const Region clip(dirty.intersect(
                     displayTransform.transform(layer->visibleRegion)));
             if (!clip.isEmpty()) {
-                layer->draw(displayDevice, clip);
+                layer->draw(renderArea, clip);
             }
         }
     }
@@ -3474,12 +3483,18 @@ void SurfaceFlinger::setPowerMode(const sp<IBinder>& display, int mode) {
 
 // ---------------------------------------------------------------------------
 
-status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args) {
+status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asProto) {
     String8 result;
 
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
+
+    if (asProto) {
+        // Return early as SurfaceFlinger does not support dumping sections in proto format
+        return OK;
+    }
+
     if ((uid != AID_SHELL) &&
             !PermissionCache::checkPermission(sDump, pid, uid)) {
         result.appendFormat("Permission Denial: "
@@ -3983,6 +3998,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ANIMATION_FRAME_STATS:
         case SET_POWER_MODE:
         case GET_HDR_CAPABILITIES:
+        case ENABLE_VSYNC_INJECTIONS:
+        case INJECT_VSYNC:
         {
             // codes that require permission check
             IPCThreadState* ipc = IPCThreadState::self();
@@ -4014,6 +4031,17 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             const int uid = ipc->getCallingUid();
             if ((uid != AID_GRAPHICS) &&
                     !PermissionCache::checkPermission(sReadFramebuffer, pid, uid)) {
+                ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
+                return PERMISSION_DENIED;
+            }
+            break;
+        }
+        case CAPTURE_LAYERS: {
+            IPCThreadState* ipc = IPCThreadState::self();
+            const int pid = ipc->getCallingPid();
+            const int uid = ipc->getCallingUid();
+            if ((uid != AID_GRAPHICS) &&
+                !PermissionCache::checkPermission(sReadFramebuffer, pid, uid)) {
                 ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
                 return PERMISSION_DENIED;
             }
@@ -4218,35 +4246,6 @@ void SurfaceFlinger::repaintEverything() {
     repaintEverythingLocked();
 }
 
-// Checks that the requested width and height are valid and updates them to the display dimensions
-// if they are set to 0
-static status_t updateDimensionsLocked(const sp<const DisplayDevice>& displayDevice,
-                                       Transform::orientation_flags rotation,
-                                       uint32_t* requestedWidth, uint32_t* requestedHeight) {
-    // get screen geometry
-    uint32_t displayWidth = displayDevice->getWidth();
-    uint32_t displayHeight = displayDevice->getHeight();
-
-    if (rotation & Transform::ROT_90) {
-        std::swap(displayWidth, displayHeight);
-    }
-
-    if ((*requestedWidth > displayWidth) || (*requestedHeight > displayHeight)) {
-        ALOGE("size mismatch (%d, %d) > (%d, %d)",
-                *requestedWidth, *requestedHeight, displayWidth, displayHeight);
-        return BAD_VALUE;
-    }
-
-    if (*requestedWidth == 0) {
-        *requestedWidth = displayWidth;
-    }
-    if (*requestedHeight == 0) {
-        *requestedHeight = displayHeight;
-    }
-
-    return NO_ERROR;
-}
-
 // A simple RAII class to disconnect from an ANativeWindow* when it goes out of scope
 class WindowDisconnector {
 public:
@@ -4295,49 +4294,85 @@ static status_t getWindowBuffer(ANativeWindow* window, uint32_t requestedWidth,
 }
 
 status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
-        const sp<IGraphicBufferProducer>& producer,
-        Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        int32_t minLayerZ, int32_t maxLayerZ,
-        bool useIdentityTransform, ISurfaceComposer::Rotation rotation) {
+                                       const sp<IGraphicBufferProducer>& producer, Rect sourceCrop,
+                                       uint32_t reqWidth, uint32_t reqHeight, int32_t minLayerZ,
+                                       int32_t maxLayerZ, bool useIdentityTransform,
+                                       ISurfaceComposer::Rotation rotation) {
     ATRACE_CALL();
 
-    if (CC_UNLIKELY(display == 0))
-        return BAD_VALUE;
+    if (CC_UNLIKELY(display == 0)) return BAD_VALUE;
+
+    const sp<const DisplayDevice> device(getDisplayDeviceLocked(display));
+    DisplayRenderArea renderArea(device, sourceCrop, reqHeight, reqWidth, rotation);
+
+    auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
+                                    device, minLayerZ, maxLayerZ, std::placeholders::_1);
+    return captureScreenCommon(renderArea, traverseLayers, producer, useIdentityTransform);
+}
+
+status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
+                                       const sp<IGraphicBufferProducer>& producer,
+                                       ISurfaceComposer::Rotation rotation) {
+    ATRACE_CALL();
+
+    class LayerRenderArea : public RenderArea {
+    public:
+        LayerRenderArea(const sp<Layer>& layer, ISurfaceComposer::Rotation rotation)
+              : RenderArea(layer->getCurrentState().active.h, layer->getCurrentState().active.w,
+                           rotation),
+                mLayer(layer) {}
+        const Transform& getTransform() const override {
+            // Make the top level transform the inverse the transform and it's parent so it sets
+            // the whole capture back to 0,0
+            return *new Transform(mLayer->getTransform().inverse());
+        }
+        Rect getBounds() const override {
+            const Layer::State& layerState(mLayer->getDrawingState());
+            return Rect(layerState.active.w, layerState.active.h);
+        }
+        int getHeight() const override { return mLayer->getDrawingState().active.h; }
+        int getWidth() const override { return mLayer->getDrawingState().active.w; }
+        bool isSecure() const override { return false; }
+        bool needsFiltering() const override { return false; }
+
+        Rect getSourceCrop() const override { return getBounds(); }
+        bool getWideColorSupport() const override { return false; }
+        android_color_mode_t getActiveColorMode() const override { return HAL_COLOR_MODE_NATIVE; }
+
+    private:
+        const sp<Layer>& mLayer;
+    };
+
+    auto layerHandle = reinterpret_cast<Layer::Handle*>(layerHandleBinder.get());
+    auto parent = layerHandle->owner.promote();
+
+    LayerRenderArea renderArea(parent, rotation);
+    auto traverseLayers = [parent](const LayerVector::Visitor& visitor) {
+        parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
+            if (!layer->isVisible()) {
+                return;
+            }
+            visitor(layer);
+        });
+    };
+    return captureScreenCommon(renderArea, traverseLayers, producer, false);
+}
+
+status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
+                                             TraverseLayersFunction traverseLayers,
+                                             const sp<IGraphicBufferProducer>& producer,
+                                             bool useIdentityTransform) {
+    ATRACE_CALL();
 
     if (CC_UNLIKELY(producer == 0))
         return BAD_VALUE;
+
+    renderArea.updateDimensions();
 
     // if we have secure windows on this display, never allow the screen capture
     // unless the producer interface is local (i.e.: we can take a screenshot for
     // ourselves).
     bool isLocalScreenshot = IInterface::asBinder(producer)->localBinder();
-
-    // Convert to surfaceflinger's internal rotation type.
-    Transform::orientation_flags rotationFlags;
-    switch (rotation) {
-        case ISurfaceComposer::eRotateNone:
-            rotationFlags = Transform::ROT_0;
-            break;
-        case ISurfaceComposer::eRotate90:
-            rotationFlags = Transform::ROT_90;
-            break;
-        case ISurfaceComposer::eRotate180:
-            rotationFlags = Transform::ROT_180;
-            break;
-        case ISurfaceComposer::eRotate270:
-            rotationFlags = Transform::ROT_270;
-            break;
-        default:
-            rotationFlags = Transform::ROT_0;
-            ALOGE("Invalid rotation passed to captureScreen(): %d\n", rotation);
-            break;
-    }
-
-    { // Autolock scope
-        Mutex::Autolock lock(mStateLock);
-        sp<const DisplayDevice> displayDevice(getDisplayDeviceLocked(display));
-        updateDimensionsLocked(displayDevice, rotationFlags, &reqWidth, &reqHeight);
-    }
 
     // create a surface (because we're a producer, and we need to
     // dequeue/queue a buffer)
@@ -4359,9 +4394,9 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
     WindowDisconnector disconnector(window, NATIVE_WINDOW_API_EGL);
 
     ANativeWindowBuffer* buffer = nullptr;
-    result = getWindowBuffer(window, reqWidth, reqHeight,
-            hasWideColorDisplay && !mForceNativeColorMode,
-            getRenderEngine().usesWideColor(), &buffer);
+    result = getWindowBuffer(window, renderArea.getReqWidth(), renderArea.getReqHeight(),
+                             hasWideColorDisplay && !mForceNativeColorMode,
+                             getRenderEngine().usesWideColor(), &buffer);
     if (result != NO_ERROR) {
         return result;
     }
@@ -4389,10 +4424,8 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
         int fd = -1;
         {
             Mutex::Autolock _l(mStateLock);
-            sp<const DisplayDevice> device(getDisplayDeviceLocked(display));
-            result = captureScreenImplLocked(device, buffer, sourceCrop, reqWidth, reqHeight,
-                                             minLayerZ, maxLayerZ, useIdentityTransform,
-                                             rotationFlags, isLocalScreenshot, &fd);
+            result = captureScreenImplLocked(renderArea, traverseLayers, buffer,
+                                             useIdentityTransform, isLocalScreenshot, &fd);
         }
 
         {
@@ -4421,84 +4454,66 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
         // queueBuffer takes ownership of syncFd
         result = window->queueBuffer(window, buffer, syncFd);
     }
-
     return result;
 }
 
-
-void SurfaceFlinger::renderScreenImplLocked(
-        const sp<const DisplayDevice>& hw,
-        Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        int32_t minLayerZ, int32_t maxLayerZ,
-        bool yswap, bool useIdentityTransform, Transform::orientation_flags rotation)
-{
+void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
+                                            TraverseLayersFunction traverseLayers, bool yswap,
+                                            bool useIdentityTransform) {
     ATRACE_CALL();
+
     RenderEngine& engine(getRenderEngine());
 
     // get screen geometry
-    const int32_t hw_w = hw->getWidth();
-    const int32_t hw_h = hw->getHeight();
-    const bool filtering = static_cast<int32_t>(reqWidth) != hw_w ||
-                           static_cast<int32_t>(reqHeight) != hw_h;
+    const auto raWidth = renderArea.getWidth();
+    const auto raHeight = renderArea.getHeight();
+
+    const auto reqWidth = renderArea.getReqWidth();
+    const auto reqHeight = renderArea.getReqHeight();
+    Rect sourceCrop = renderArea.getSourceCrop();
+
+    const bool filtering = static_cast<int32_t>(reqWidth) != raWidth ||
+            static_cast<int32_t>(reqHeight) != raHeight;
 
     // if a default or invalid sourceCrop is passed in, set reasonable values
-    if (sourceCrop.width() == 0 || sourceCrop.height() == 0 ||
-            !sourceCrop.isValid()) {
+    if (sourceCrop.width() == 0 || sourceCrop.height() == 0 || !sourceCrop.isValid()) {
         sourceCrop.setLeftTop(Point(0, 0));
-        sourceCrop.setRightBottom(Point(hw_w, hw_h));
+        sourceCrop.setRightBottom(Point(raWidth, raHeight));
     }
 
     // ensure that sourceCrop is inside screen
     if (sourceCrop.left < 0) {
         ALOGE("Invalid crop rect: l = %d (< 0)", sourceCrop.left);
     }
-    if (sourceCrop.right > hw_w) {
-        ALOGE("Invalid crop rect: r = %d (> %d)", sourceCrop.right, hw_w);
+    if (sourceCrop.right > raWidth) {
+        ALOGE("Invalid crop rect: r = %d (> %d)", sourceCrop.right, raWidth);
     }
     if (sourceCrop.top < 0) {
         ALOGE("Invalid crop rect: t = %d (< 0)", sourceCrop.top);
     }
-    if (sourceCrop.bottom > hw_h) {
-        ALOGE("Invalid crop rect: b = %d (> %d)", sourceCrop.bottom, hw_h);
+    if (sourceCrop.bottom > raHeight) {
+        ALOGE("Invalid crop rect: b = %d (> %d)", sourceCrop.bottom, raHeight);
     }
 
-#ifdef USE_HWC2
-     engine.setWideColor(hw->getWideColorSupport() && !mForceNativeColorMode);
-     engine.setColorMode(mForceNativeColorMode ? HAL_COLOR_MODE_NATIVE : hw->getActiveColorMode());
-#endif
+    engine.setWideColor(renderArea.getWideColorSupport() && !mForceNativeColorMode);
+    engine.setColorMode(mForceNativeColorMode ? HAL_COLOR_MODE_NATIVE : renderArea.getActiveColorMode());
 
     // make sure to clear all GL error flags
     engine.checkErrors();
 
     // set-up our viewport
-    engine.setViewportAndProjection(
-        reqWidth, reqHeight, sourceCrop, hw_h, yswap, rotation);
+    engine.setViewportAndProjection(reqWidth, reqHeight, sourceCrop, raHeight, yswap,
+                                    renderArea.getRotationFlags());
     engine.disableTexturing();
 
     // redraw the screen entirely...
     engine.clearWithColor(0, 0, 0, 1);
 
-    // We loop through the first level of layers without traversing,
-    // as we need to interpret min/max layer Z in the top level Z space.
-    for (const auto& layer : mDrawingState.layersSortedByZ) {
-        if (!layer->belongsToDisplay(hw->getLayerStack(), false)) {
-            continue;
-        }
-        const Layer::State& state(layer->getDrawingState());
-        if (state.z < minLayerZ || state.z > maxLayerZ) {
-            continue;
-        }
-        layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
-            if (!layer->isVisible()) {
-                return;
-            }
-            if (filtering) layer->setFiltering(true);
-            layer->draw(hw, useIdentityTransform);
-            if (filtering) layer->setFiltering(false);
-        });
-    }
-
-    hw->setViewportAndProjection();
+    traverseLayers([&](Layer* layer) {
+        if (filtering) layer->setFiltering(true);
+        layer->draw(renderArea, useIdentityTransform);
+        if (filtering) layer->setFiltering(false);
+    });
 }
 
 // A simple RAII class that holds an EGLImage and destroys it either:
@@ -4521,27 +4536,18 @@ private:
     EGLImageKHR mImage;
 };
 
-status_t SurfaceFlinger::captureScreenImplLocked(const sp<const DisplayDevice>& hw,
-                                                 ANativeWindowBuffer* buffer, Rect sourceCrop,
-                                                 uint32_t reqWidth, uint32_t reqHeight,
-                                                 int32_t minLayerZ, int32_t maxLayerZ,
-                                                 bool useIdentityTransform,
-                                                 Transform::orientation_flags rotation,
-                                                 bool isLocalScreenshot, int* outSyncFd) {
+status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
+                                                 TraverseLayersFunction traverseLayers,
+                                                 ANativeWindowBuffer* buffer,
+                                                 bool useIdentityTransform, bool isLocalScreenshot,
+                                                 int* outSyncFd) {
     ATRACE_CALL();
 
     bool secureLayerIsVisible = false;
-    for (const auto& layer : mDrawingState.layersSortedByZ) {
-        const Layer::State& state(layer->getDrawingState());
-        if (!layer->belongsToDisplay(hw->getLayerStack(), false) ||
-                (state.z < minLayerZ || state.z > maxLayerZ)) {
-            continue;
-        }
-        layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer *layer) {
-            secureLayerIsVisible = secureLayerIsVisible || (layer->isVisible() &&
-                    layer->isSecure());
-        });
-    }
+
+    traverseLayers([&](Layer* layer) {
+        secureLayerIsVisible = secureLayerIsVisible || (layer->isVisible() && layer->isSecure());
+    });
 
     if (!isLocalScreenshot && secureLayerIsVisible) {
         ALOGW("FB is protected: PERMISSION_DENIED");
@@ -4572,9 +4578,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const sp<const DisplayDevice>& 
     // via an FBO, which means we didn't have to create
     // an EGLSurface and therefore we're not
     // dependent on the context's EGLConfig.
-    renderScreenImplLocked(
-        hw, sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ, true,
-        useIdentityTransform, rotation);
+    renderScreenImplLocked(renderArea, traverseLayers, true, useIdentityTransform);
 
     // Attempt to create a sync khr object that can produce a sync point. If that
     // isn't available, create a non-dupable sync object in the fallback path and
@@ -4615,46 +4619,40 @@ status_t SurfaceFlinger::captureScreenImplLocked(const sp<const DisplayDevice>& 
     *outSyncFd = syncFd;
 
     if (DEBUG_SCREENSHOTS) {
+        const auto reqWidth = renderArea.getReqWidth();
+        const auto reqHeight = renderArea.getReqHeight();
+
         uint32_t* pixels = new uint32_t[reqWidth*reqHeight];
         getRenderEngine().readPixels(0, 0, reqWidth, reqHeight, pixels);
-        checkScreenshot(reqWidth, reqHeight, reqWidth, pixels,
-                hw, minLayerZ, maxLayerZ);
+        checkScreenshot(reqWidth, reqHeight, reqWidth, pixels, traverseLayers);
         delete [] pixels;
     }
 
     // destroy our image
     imageHolder.destroy();
-
     return NO_ERROR;
 }
 
 void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* vaddr,
-        const sp<const DisplayDevice>& hw, int32_t minLayerZ, int32_t maxLayerZ) {
+                                     TraverseLayersFunction traverseLayers) {
     if (DEBUG_SCREENSHOTS) {
-        for (size_t y=0 ; y<h ; y++) {
-            uint32_t const * p = (uint32_t const *)vaddr + y*s;
-            for (size_t x=0 ; x<w ; x++) {
+        for (size_t y = 0; y < h; y++) {
+            uint32_t const* p = (uint32_t const*)vaddr + y * s;
+            for (size_t x = 0; x < w; x++) {
                 if (p[x] != 0xFF000000) return;
             }
         }
-        ALOGE("*** we just took a black screenshot ***\n"
-                "requested minz=%d, maxz=%d, layerStack=%d",
-                minLayerZ, maxLayerZ, hw->getLayerStack());
+        ALOGE("*** we just took a black screenshot ***");
 
         size_t i = 0;
-        for (const auto& layer : mDrawingState.layersSortedByZ) {
+        traverseLayers([&](Layer* layer) {
             const Layer::State& state(layer->getDrawingState());
-            if (layer->belongsToDisplay(hw->getLayerStack(), false) && state.z >= minLayerZ &&
-                    state.z <= maxLayerZ) {
-                layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
-                    ALOGE("%c index=%zu, name=%s, layerStack=%d, z=%d, visible=%d, flags=%x, alpha=%.3f",
-                            layer->isVisible() ? '+' : '-',
-                            i, layer->getName().string(), layer->getLayerStack(), state.z,
-                            layer->isVisible(), state.flags, static_cast<float>(state.color.a));
-                    i++;
-                });
-            }
-        }
+            ALOGE("%c index=%zu, name=%s, layerStack=%d, z=%d, visible=%d, flags=%x, alpha=%.3f",
+                  layer->isVisible() ? '+' : '-', i, layer->getName().string(),
+                  layer->getLayerStack(), state.z, layer->isVisible(), state.flags,
+                  static_cast<float>(state.color.a));
+            i++;
+        });
     }
 }
 
@@ -4666,6 +4664,28 @@ void SurfaceFlinger::State::traverseInZOrder(const LayerVector::Visitor& visitor
 
 void SurfaceFlinger::State::traverseInReverseZOrder(const LayerVector::Visitor& visitor) const {
     layersSortedByZ.traverseInReverseZOrder(stateSet, visitor);
+}
+
+void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& hw, int32_t minLayerZ,
+                                             int32_t maxLayerZ,
+                                             const LayerVector::Visitor& visitor) {
+    // We loop through the first level of layers without traversing,
+    // as we need to interpret min/max layer Z in the top level Z space.
+    for (const auto& layer : mDrawingState.layersSortedByZ) {
+        if (!layer->belongsToDisplay(hw->getLayerStack(), false)) {
+            continue;
+        }
+        const Layer::State& state(layer->getDrawingState());
+        if (state.z < minLayerZ || state.z > maxLayerZ) {
+            continue;
+        }
+        layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
+            if (!layer->isVisible()) {
+                return;
+            }
+            visitor(layer);
+        });
+    }
 }
 
 }; // namespace android

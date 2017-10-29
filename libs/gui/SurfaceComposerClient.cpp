@@ -731,6 +731,15 @@ status_t ScreenshotClient::captureToBuffer(const sp<IBinder>& display,
     return ret;
 }
 
+status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle,
+                                         const sp<IGraphicBufferProducer>& producer,
+                                         uint32_t rotation) {
+    sp<ISurfaceComposer> s(ComposerService::getComposerService());
+    if (s == NULL) return NO_INIT;
+    return s->captureLayers(layerHandle, producer,
+                            static_cast<ISurfaceComposer::Rotation>(rotation));
+}
+
 ScreenshotClient::ScreenshotClient()
     : mHaveBuffer(false) {
     memset(&mBuffer, 0, sizeof(mBuffer));

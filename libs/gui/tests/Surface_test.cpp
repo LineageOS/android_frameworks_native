@@ -529,6 +529,11 @@ public:
             int32_t /*minLayerZ*/, int32_t /*maxLayerZ*/,
             bool /*useIdentityTransform*/,
             Rotation /*rotation*/) override { return NO_ERROR; }
+    virtual status_t captureLayers(const sp<IBinder>& /*parentHandle*/,
+                                   const sp<IGraphicBufferProducer>& /*producer*/,
+                                   ISurfaceComposer::Rotation /*rotation*/) override {
+        return NO_ERROR;
+    }
     status_t clearAnimationFrameStats() override { return NO_ERROR; }
     status_t getAnimationFrameStats(FrameStats* /*outStats*/) const override {
         return NO_ERROR;

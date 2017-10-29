@@ -1280,5 +1280,10 @@ VkResult EnumerateDeviceExtensionProperties(
         physicalDevice, nullptr, pPropertyCount, pProperties);
 }
 
+VkResult EnumerateInstanceVersion(uint32_t* pApiVersion) {
+    *pApiVersion = VK_API_VERSION_1_1;
+    return VK_SUCCESS;
+}
+
 }  // namespace api
 }  // namespace vulkan

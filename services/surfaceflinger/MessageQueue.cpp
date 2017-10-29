@@ -91,6 +91,14 @@ void MessageQueue::init(const sp<SurfaceFlinger>& flinger)
 
 void MessageQueue::setEventThread(const sp<EventThread>& eventThread)
 {
+    if (mEventThread == eventThread) {
+        return;
+    }
+
+    if (mEventTube.getFd() >= 0) {
+        mLooper->removeFd(mEventTube.getFd());
+    }
+
     mEventThread = eventThread;
     mEvents = eventThread->createEventConnection();
     mEvents->stealReceiveChannel(&mEventTube);
