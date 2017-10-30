@@ -71,7 +71,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
     :   contentDirty(false),
         sequence(uint32_t(android_atomic_inc(&sSequence))),
         mFlinger(flinger),
-        mTextureName(-1U),
+        mTextureName(UINT32_MAX),
         mPremultipliedAlpha(true),
         mName("unnamed"),
         mFormat(PIXEL_FORMAT_NONE),
@@ -2700,6 +2700,7 @@ int32_t Layer::getZ() const {
     return mDrawingState.z;
 }
 
+__attribute__((no_sanitize("unsigned-integer-overflow")))
 LayerVector Layer::makeTraversalList(LayerVector::StateSet stateSet) {
     LOG_ALWAYS_FATAL_IF(stateSet == LayerVector::StateSet::Invalid,
                         "makeTraversalList received invalid stateSet");
