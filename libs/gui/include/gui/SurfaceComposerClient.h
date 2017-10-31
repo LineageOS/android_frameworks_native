@@ -144,7 +144,9 @@ public:
         Transaction(Transaction const& other);
 
         status_t apply(bool synchronous = false);
-
+        // Merge another transaction in to this one, clearing other
+        // as if it had been applied.
+        Transaction& merge(Transaction&& other);
         Transaction& show(const sp<SurfaceControl>& sc);
         Transaction& hide(const sp<SurfaceControl>& sc);
         Transaction& setPosition(const sp<SurfaceControl>& sc,
@@ -175,8 +177,6 @@ public:
                 float alpha);
         Transaction& setMatrix(const sp<SurfaceControl>& sc,
                 float dsdx, float dtdx, float dtdy, float dsdy);
-        Transaction& setOrientation(const sp<SurfaceControl>& sc,
-                const Rect& crop);
         Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
         Transaction& setFinalCrop(const sp<SurfaceControl>& sc, const Rect& crop);
         Transaction& setLayerStack(const sp<SurfaceControl>& sc, uint32_t layerStack);
