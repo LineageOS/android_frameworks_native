@@ -49,11 +49,13 @@ struct Color {
 
     static const Color RED;
     static const Color GREEN;
+    static const Color BLUE;
     static const Color BLACK;
 };
 
 const Color Color::RED{255, 0, 0, 255};
 const Color Color::GREEN{0, 255, 0, 255};
+const Color Color::BLUE{0, 0, 255, 255};
 const Color Color::BLACK{0, 0, 0, 255};
 
 std::ostream& operator<<(std::ostream& os, const Color& color) {
@@ -629,6 +631,120 @@ TEST_F(LayerTransactionTest, SetZNegative) {
         ScreenCapture::captureScreen(&screenshot, -3, -1);
         screenshot->expectColor(Rect(0, 0, 32, 32), Color::GREEN);
     }
+}
+
+TEST_F(LayerTransactionTest, SetRelativeZBasic) {
+    sp<SurfaceControl> layerR;
+    sp<SurfaceControl> layerG;
+    ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+
+    Transaction()
+            .setPosition(layerG, 16, 16)
+            .setRelativeLayer(layerG, layerR->getHandle(), 1)
+            .apply();
+    {
+        SCOPED_TRACE("layerG above");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 16, 16), Color::RED);
+        shot->expectColor(Rect(16, 16, 48, 48), Color::GREEN);
+    }
+
+    Transaction().setRelativeLayer(layerG, layerR->getHandle(), -1).apply();
+    {
+        SCOPED_TRACE("layerG below");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectColor(Rect(32, 32, 48, 48), Color::GREEN);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetRelativeZGroup) {
+    sp<SurfaceControl> layerR;
+    sp<SurfaceControl> layerG;
+    sp<SurfaceControl> layerB;
+    ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+    ASSERT_NO_FATAL_FAILURE(layerB = createLayer("test B", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerB, Color::BLUE));
+
+    // layerR = 0, layerG = layerR + 3, layerB = 2
+    Transaction()
+            .setPosition(layerG, 8, 8)
+            .setRelativeLayer(layerG, layerR->getHandle(), 3)
+            .setPosition(layerB, 16, 16)
+            .setLayer(layerB, mLayerZBase + 2)
+            .apply();
+    {
+        SCOPED_TRACE("(layerR < layerG) < layerB");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 8, 8), Color::RED);
+        shot->expectColor(Rect(8, 8, 16, 16), Color::GREEN);
+        shot->expectColor(Rect(16, 16, 48, 48), Color::BLUE);
+    }
+
+    // layerR = 4, layerG = layerR + 3, layerB = 2
+    Transaction().setLayer(layerR, mLayerZBase + 4).apply();
+    {
+        SCOPED_TRACE("layerB < (layerR < layerG)");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 8, 8), Color::RED);
+        shot->expectColor(Rect(8, 8, 40, 40), Color::GREEN);
+        shot->expectColor(Rect(40, 40, 48, 48), Color::BLUE);
+    }
+
+    // layerR = 4, layerG = layerR - 3, layerB = 2
+    Transaction().setRelativeLayer(layerG, layerR->getHandle(), -3).apply();
+    {
+        SCOPED_TRACE("layerB < (layerG < layerR)");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectColor(Rect(32, 32, 40, 40), Color::GREEN);
+        shot->expectColor(Rect(40, 40, 48, 48), Color::BLUE);
+    }
+
+    // restore to absolute z
+    // layerR = 4, layerG = 0, layerB = 2
+    Transaction().setLayer(layerG, mLayerZBase).apply();
+    {
+        SCOPED_TRACE("layerG < layerB < layerR");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectColor(Rect(32, 32, 48, 48), Color::BLUE);
+    }
+
+    // layerR should not affect layerG anymore
+    // layerR = 1, layerG = 0, layerB = 2
+    Transaction().setLayer(layerR, mLayerZBase + 1).apply();
+    {
+        SCOPED_TRACE("layerG < layerR < layerB");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 16, 16), Color::RED);
+        shot->expectColor(Rect(16, 16, 48, 48), Color::BLUE);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetRelativeZBug64572777) {
+    sp<SurfaceControl> layerR;
+    sp<SurfaceControl> layerG;
+
+    ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+
+    Transaction()
+            .setPosition(layerG, 16, 16)
+            .setRelativeLayer(layerG, layerR->getHandle(), 1)
+            .apply();
+
+    mClient->destroySurface(layerG->getHandle());
+    // layerG should have been removed
+    screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 
 class LayerUpdateTest : public ::testing::Test {
