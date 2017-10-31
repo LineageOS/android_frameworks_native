@@ -110,17 +110,6 @@ class VirtualTouchpadForTesting : public VirtualTouchpadEvdev {
   EvdevInjectorForTesting injector[kTouchpads];
 };
 
-void DumpDifference(const char* expect, const char* actual) {
-  printf("  common: ");
-  while (*expect && *expect == *actual) {
-    putchar(*expect);
-    ++expect;
-    ++actual;
-  }
-  printf("\n  expect: %s\n", expect);
-  printf("  actual: %s\n", actual);
-}
-
 }  // anonymous namespace
 
 class VirtualTouchpadTest : public testing::Test {};
@@ -153,7 +142,6 @@ TEST_F(VirtualTouchpadTest, Goodness) {
   }
   const int32_t width = 1 + uidev->absmax[ABS_MT_POSITION_X];
   const int32_t height = 1 + uidev->absmax[ABS_MT_POSITION_Y];
-  const int32_t slots = uidev->absmax[ABS_MT_SLOT];
 
   for (int t = 0; t < touchpad->GetTouchpadCount(); ++t) {
     SCOPED_TRACE(t);
