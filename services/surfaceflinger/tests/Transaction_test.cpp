@@ -747,6 +747,74 @@ TEST_F(LayerTransactionTest, SetRelativeZBug64572777) {
     screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 
+TEST_F(LayerTransactionTest, SetFlagsHidden) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    Transaction().setFlags(layer, layer_state_t::eLayerHidden, layer_state_t::eLayerHidden).apply();
+    {
+        SCOPED_TRACE("layer hidden");
+        screenshot()->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
+    }
+
+    Transaction().setFlags(layer, 0, layer_state_t::eLayerHidden).apply();
+    {
+        SCOPED_TRACE("layer shown");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetFlagsOpaque) {
+    const Color translucentRed = {100, 0, 0, 100};
+    sp<SurfaceControl> layerR;
+    sp<SurfaceControl> layerG;
+    ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, translucentRed));
+    ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+
+    Transaction()
+            .setLayer(layerR, mLayerZBase + 1)
+            .setFlags(layerR, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque)
+            .apply();
+    {
+        SCOPED_TRACE("layerR opaque");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), {100, 0, 0, 255});
+    }
+
+    Transaction().setFlags(layerR, 0, layer_state_t::eLayerOpaque).apply();
+    {
+        SCOPED_TRACE("layerR translucent");
+        const uint8_t g = uint8_t(255 - translucentRed.a);
+        screenshot()->expectColor(Rect(0, 0, 32, 32), {100, g, 0, 255});
+    }
+}
+
+TEST_F(LayerTransactionTest, SetFlagsSecure) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
+
+    Transaction()
+            .setFlags(layer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
+            .apply(true);
+    ASSERT_EQ(PERMISSION_DENIED,
+              composer->captureScreen(mDisplay, producer, Rect(), 0, 0, mLayerZBase, mLayerZBase,
+                                      false));
+
+    Transaction().setFlags(layer, 0, layer_state_t::eLayerSecure).apply(true);
+    ASSERT_EQ(NO_ERROR,
+              composer->captureScreen(mDisplay, producer, Rect(), 0, 0, mLayerZBase, mLayerZBase,
+                                      false));
+}
+
 class LayerUpdateTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
