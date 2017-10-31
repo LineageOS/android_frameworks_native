@@ -546,6 +546,13 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& hw) const {
             activeCrop.clear();
         }
     }
+
+    const auto& p = mDrawingParent.promote();
+    if (p != nullptr) {
+        auto parentCrop = p->computeInitialCrop(hw);
+        activeCrop.intersect(parentCrop, &activeCrop);
+    }
+
     return activeCrop;
 }
 
@@ -559,11 +566,6 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
 
     // Screen space to make reduction to parent crop clearer.
     Rect activeCrop = computeInitialCrop(hw);
-    const auto& p = mDrawingParent.promote();
-    if (p != nullptr) {
-        auto parentCrop = p->computeInitialCrop(hw);
-        activeCrop.intersect(parentCrop, &activeCrop);
-    }
     Transform t = getTransform();
     // Back to layer space to work with the content crop.
     activeCrop = t.inverse().transform(activeCrop);
