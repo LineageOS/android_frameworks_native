@@ -48,10 +48,12 @@ struct Color {
     uint8_t a;
 
     static const Color RED;
+    static const Color GREEN;
     static const Color BLACK;
 };
 
 const Color Color::RED{255, 0, 0, 255};
+const Color Color::GREEN{0, 255, 0, 255};
 const Color Color::BLACK{0, 0, 0, 255};
 
 std::ostream& operator<<(std::ostream& os, const Color& color) {
@@ -581,6 +583,52 @@ TEST_F(LayerTransactionTest, SetSizeWithScaleToWindow) {
             .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
             .apply();
     screenshot()->expectColor(Rect(0, 0, 64, 64), Color::RED);
+}
+
+TEST_F(LayerTransactionTest, SetZBasic) {
+    sp<SurfaceControl> layerR;
+    sp<SurfaceControl> layerG;
+    ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+
+    Transaction().setLayer(layerR, mLayerZBase + 1).apply();
+    {
+        SCOPED_TRACE("layerR");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    Transaction().setLayer(layerG, mLayerZBase + 2).apply();
+    {
+        SCOPED_TRACE("layerG");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::GREEN);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetZNegative) {
+    sp<SurfaceControl> layerR;
+    sp<SurfaceControl> layerG;
+    ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+
+    Transaction().setLayer(layerR, -1).setLayer(layerG, -2).apply();
+    {
+        SCOPED_TRACE("layerR");
+        sp<ScreenCapture> screenshot;
+        ScreenCapture::captureScreen(&screenshot, -2, -1);
+        screenshot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    Transaction().setLayer(layerR, -3).apply();
+    {
+        SCOPED_TRACE("layerG");
+        sp<ScreenCapture> screenshot;
+        ScreenCapture::captureScreen(&screenshot, -3, -1);
+        screenshot->expectColor(Rect(0, 0, 32, 32), Color::GREEN);
+    }
 }
 
 class LayerUpdateTest : public ::testing::Test {
