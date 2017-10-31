@@ -1644,6 +1644,7 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
     int64_t videoSize = 0;
     int64_t imageSize = 0;
     int64_t appSize = 0;
+    int64_t obbSize = 0;
 
     auto device = findQuotaDeviceForUuid(uuid);
     if (device.empty()) {
@@ -1690,6 +1691,13 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
             LOG(DEBUG) << "quotactl() for GID " << imageGid << " " << dq.dqb_curspace;
 #endif
             imageSize = dq.dqb_curspace;
+        }
+        if (quotactl(QCMD(Q_GETQUOTA, GRPQUOTA), device.c_str(), AID_MEDIA_OBB,
+                reinterpret_cast<char*>(&dq)) == 0) {
+#if MEASURE_DEBUG
+            LOG(DEBUG) << "quotactl() for GID " << AID_MEDIA_OBB << " " << dq.dqb_curspace;
+#endif
+            obbSize = dq.dqb_curspace;
         }
         ATRACE_END();
 
@@ -1747,6 +1755,11 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
         }
         fts_close(fts);
         ATRACE_END();
+
+        ATRACE_BEGIN("obb");
+        auto obbPath = create_data_media_obb_path(uuid_, "");
+        calculate_tree_size(obbPath, &obbSize);
+        ATRACE_END();
     }
 
     std::vector<int64_t> ret;
@@ -1755,6 +1768,7 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
     ret.push_back(videoSize);
     ret.push_back(imageSize);
     ret.push_back(appSize);
+    ret.push_back(obbSize);
 #if MEASURE_DEBUG
     LOG(DEBUG) << "Final result " << toString(ret);
 #endif
