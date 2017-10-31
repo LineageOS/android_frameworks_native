@@ -544,6 +544,45 @@ TEST_F(LayerTransactionTest, SetPositionWithNextResizeScaleToWindow) {
     }
 }
 
+TEST_F(LayerTransactionTest, SetSizeBasic) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    Transaction().setSize(layer, 64, 64).apply();
+    {
+        SCOPED_TRACE("resize pending");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    {
+        SCOPED_TRACE("resize applied");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 64, 64), Color::RED);
+        shot->expectBorder(Rect(0, 0, 64, 64), Color::BLACK);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetSizeInvalid) {
+    // cannot test robustness against invalid sizes (zero or really huge)
+}
+
+TEST_F(LayerTransactionTest, SetSizeWithScaleToWindow) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // setSize is immediate with SCALE_TO_WINDOW, unlike setPosition
+    Transaction()
+            .setSize(layer, 64, 64)
+            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
+            .apply();
+    screenshot()->expectColor(Rect(0, 0, 64, 64), Color::RED);
+}
+
 class LayerUpdateTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
