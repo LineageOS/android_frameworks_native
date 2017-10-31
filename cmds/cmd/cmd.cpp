@@ -61,7 +61,8 @@ class MyShellCallback : public BnShellCallback
 public:
     bool mActive = true;
 
-    virtual int openOutputFile(const String16& path, const String16& seLinuxContext) {
+    virtual int openFile(const String16& path, const String16& seLinuxContext,
+            const String16& mode) {
         String8 path8(path);
         char cwd[256];
         getcwd(cwd, 256);
@@ -71,7 +72,26 @@ public:
             aerr << "Open attempt after active for: " << fullPath << endl;
             return -EPERM;
         }
-        int fd = open(fullPath.string(), O_WRONLY|O_CREAT|O_TRUNC, S_IRWXU|S_IRWXG);
+        int flags = 0;
+        bool checkRead = false;
+        bool checkWrite = false;
+        if (mode == String16("w")) {
+            flags = O_WRONLY|O_CREAT|O_TRUNC;
+            checkWrite = true;
+        } else if (mode == String16("w+")) {
+            flags = O_RDWR|O_CREAT|O_TRUNC;
+            checkRead = checkWrite = true;
+        } else if (mode == String16("r")) {
+            flags = O_RDONLY;
+            checkRead = true;
+        } else if (mode == String16("r+")) {
+            flags = O_RDWR;
+            checkRead = checkWrite = true;
+        } else {
+            aerr << "Invalid mode requested: " << mode.string() << endl;
+            return -EINVAL;
+        }
+        int fd = open(fullPath.string(), flags, S_IRWXU|S_IRWXG);
         if (fd < 0) {
             return fd;
         }
@@ -80,14 +100,27 @@ public:
             security_context_t tmp = NULL;
             int ret = getfilecon(fullPath.string(), &tmp);
             Unique_SecurityContext context(tmp);
-            int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
-                    "file", "write", NULL);
-            if (accessGranted != 0) {
-                close(fd);
-                aerr << "System server has no access to file context " << context.get()
-                        << " (from path " << fullPath.string() << ", context "
-                        << seLinuxContext8.string() << ")" << endl;
-                return -EPERM;
+            if (checkWrite) {
+                int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
+                        "file", "write", NULL);
+                if (accessGranted != 0) {
+                    close(fd);
+                    aerr << "System server has no access to write file context " << context.get()
+                            << " (from path " << fullPath.string() << ", context "
+                            << seLinuxContext8.string() << ")" << endl;
+                    return -EPERM;
+                }
+            }
+            if (checkRead) {
+                int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
+                        "file", "read", NULL);
+                if (accessGranted != 0) {
+                    close(fd);
+                    aerr << "System server has no access to read file context " << context.get()
+                            << " (from path " << fullPath.string() << ", context "
+                            << seLinuxContext8.string() << ")" << endl;
+                    return -EPERM;
+                }
             }
         }
         return fd;
