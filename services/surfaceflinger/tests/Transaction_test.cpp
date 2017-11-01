@@ -920,6 +920,74 @@ TEST_F(LayerTransactionTest, SetAlphaClamped) {
     }
 }
 
+TEST_F(LayerTransactionTest, SetColorBasic) {
+    sp<SurfaceControl> bufferLayer;
+    sp<SurfaceControl> colorLayer;
+    ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test bg", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(bufferLayer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(
+            colorLayer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
+
+    Transaction().setLayer(colorLayer, mLayerZBase + 1).apply();
+    {
+        SCOPED_TRACE("default color");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    const half3 color(15.0f / 255.0f, 51.0f / 255.0f, 85.0f / 255.0f);
+    const Color expected = {15, 51, 85, 255};
+    // this is handwavy, but the precison loss scaled by 255 (8-bit per
+    // channel) should be less than one
+    const uint8_t tolerance = 1;
+    Transaction().setColor(colorLayer, color).apply();
+    {
+        SCOPED_TRACE("new color");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), expected, tolerance);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetColorClamped) {
+    sp<SurfaceControl> colorLayer;
+    ASSERT_NO_FATAL_FAILURE(
+            colorLayer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
+
+    Transaction().setColor(colorLayer, half3(2.0f, -1.0f, 0.0f)).apply();
+    screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+}
+
+TEST_F(LayerTransactionTest, SetColorWithAlpha) {
+    sp<SurfaceControl> bufferLayer;
+    sp<SurfaceControl> colorLayer;
+    ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test bg", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(bufferLayer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(
+            colorLayer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
+
+    const half3 color(15.0f / 255.0f, 51.0f / 255.0f, 85.0f / 255.0f);
+    const float alpha = 0.25f;
+    const ubyte3 expected((vec3(color) * alpha + vec3(1.0f, 0.0f, 0.0f) * (1.0f - alpha)) * 255.0f);
+    // this is handwavy, but the precison loss scaled by 255 (8-bit per
+    // channel) should be less than one
+    const uint8_t tolerance = 1;
+    Transaction()
+            .setColor(colorLayer, color)
+            .setAlpha(colorLayer, alpha)
+            .setLayer(colorLayer, mLayerZBase + 1)
+            .apply();
+    screenshot()->expectColor(Rect(0, 0, 32, 32), {expected.r, expected.g, expected.b, 255},
+                              tolerance);
+}
+
+TEST_F(LayerTransactionTest, SetColorWithBuffer) {
+    sp<SurfaceControl> bufferLayer;
+    ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(bufferLayer, Color::RED));
+
+    // color is ignored
+    Transaction().setColor(bufferLayer, half3(0.0f, 1.0f, 0.0f)).apply();
+    screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+}
+
 class LayerUpdateTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
