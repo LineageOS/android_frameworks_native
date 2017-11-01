@@ -1999,10 +1999,10 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
             const PointerCoords* usingCoords = motionEntry->pointerCoords;
 
             // Set the X and Y offset depending on the input source.
-            float xOffset, yOffset, scaleFactor;
+            float xOffset, yOffset;
             if ((motionEntry->source & AINPUT_SOURCE_CLASS_POINTER)
                     && !(dispatchEntry->targetFlags & InputTarget::FLAG_ZERO_COORDS)) {
-                scaleFactor = dispatchEntry->scaleFactor;
+                float scaleFactor = dispatchEntry->scaleFactor;
                 xOffset = dispatchEntry->xOffset * scaleFactor;
                 yOffset = dispatchEntry->yOffset * scaleFactor;
                 if (scaleFactor != 1.0f) {
@@ -2015,7 +2015,6 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
             } else {
                 xOffset = 0.0f;
                 yOffset = 0.0f;
-                scaleFactor = 1.0f;
 
                 // We don't want the dispatch target to know.
                 if (dispatchEntry->targetFlags & InputTarget::FLAG_ZERO_COORDS) {

@@ -9,8 +9,8 @@ cc_test {
     ],
     cflags: [
         "-Wall",
+        "-Wextra",
         "-Werror",
-        "-Wno-error=sign-compare", // to fix later
         "-Wno-unused-variable",
     ],
     shared_libs: [
