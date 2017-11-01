@@ -761,7 +761,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
     input.deflate(&requestedPresentTimestamp, &isAutoTimestamp, &dataSpace,
             &crop, &scalingMode, &transform, &acquireFence, &stickyTransform,
             &getFrameTimestamps);
-    Region surfaceDamage = input.getSurfaceDamage();
+    const Region& surfaceDamage = input.getSurfaceDamage();
 
     if (acquireFence == NULL) {
         BQ_LOGE("queueBuffer: fence is NULL");
