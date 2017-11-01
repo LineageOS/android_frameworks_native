@@ -17,6 +17,8 @@
 #ifndef DEXOPT_H_
 #define DEXOPT_H_
 
+#include "installd_constants.h"
+
 #include <sys/types.h>
 
 #include <cutils/multiuser.h>
@@ -65,6 +67,15 @@ int dexopt(const char *apk_path, uid_t uid, const char *pkgName, const char *ins
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
         const char* volume_uuid, const char* class_loader_context, const char* se_info,
         bool downgrade);
+
+bool calculate_oat_file_path_default(char path[PKG_PATH_MAX], const char *oat_dir,
+        const char *apk_path, const char *instruction_set);
+
+bool calculate_odex_file_path_default(char path[PKG_PATH_MAX], const char *apk_path,
+        const char *instruction_set);
+
+bool create_cache_path_default(char path[PKG_PATH_MAX], const char *src,
+        const char *instruction_set);
 
 }  // namespace installd
 }  // namespace android

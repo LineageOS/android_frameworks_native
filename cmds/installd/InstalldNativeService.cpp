@@ -714,6 +714,9 @@ binder::Status InstalldNativeService::fixupAppData(const std::unique_ptr<std::st
                     // Ignore all other GID transitions, since they're kinda shady
                     LOG(WARNING) << "Ignoring " << p->fts_path << " with unexpected GID " << actual
                             << " instead of " << expected;
+                    if (!(flags & FLAG_FORCE)) {
+                        fts_set(fts, p, FTS_SKIP);
+                    }
                 }
             }
         }
@@ -1866,7 +1869,7 @@ binder::Status InstalldNativeService::markBootComplete(const std::string& instru
     char boot_marker_path[PKG_PATH_MAX];
     sprintf(boot_marker_path,
           "%s/%s/%s/.booting",
-          android_data_dir.path,
+          android_data_dir.c_str(),
           DALVIK_CACHE,
           instruction_set);
 

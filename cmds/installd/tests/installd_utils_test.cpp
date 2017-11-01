@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <android-base/logging.h>
 #include <gtest/gtest.h>
 
 #include "InstalldNativeService.h"
@@ -27,6 +28,7 @@
 #define LOG_TAG "utils_test"
 
 #define TEST_DATA_DIR "/data/"
+#define TEST_ROOT_DIR "/system/"
 #define TEST_APP_DIR "/data/app/"
 #define TEST_APP_PRIVATE_DIR "/data/app-private/"
 #define TEST_APP_EPHEMERAL_DIR "/data/app-ephemeral/"
@@ -44,39 +46,13 @@ namespace installd {
 class UtilsTest : public testing::Test {
 protected:
     virtual void SetUp() {
-        android_app_dir.path = (char*) TEST_APP_DIR;
-        android_app_dir.len = strlen(TEST_APP_DIR);
+        setenv("ANDROID_LOG_TAGS", "*:v", 1);
+        android::base::InitLogging(nullptr);
 
-        android_app_private_dir.path = (char*) TEST_APP_PRIVATE_DIR;
-        android_app_private_dir.len = strlen(TEST_APP_PRIVATE_DIR);
-
-        android_app_ephemeral_dir.path = (char*) TEST_APP_EPHEMERAL_DIR;
-        android_app_ephemeral_dir.len = strlen(TEST_APP_EPHEMERAL_DIR);
-
-        android_data_dir.path = (char*) TEST_DATA_DIR;
-        android_data_dir.len = strlen(TEST_DATA_DIR);
-
-        android_asec_dir.path = (char*) TEST_ASEC_DIR;
-        android_asec_dir.len = strlen(TEST_ASEC_DIR);
-
-        android_mnt_expand_dir.path = (char*) TEST_EXPAND_DIR;
-        android_mnt_expand_dir.len = strlen(TEST_EXPAND_DIR);
-
-        android_system_dirs.count = 2;
-
-        android_system_dirs.dirs = (dir_rec_t*) calloc(android_system_dirs.count, sizeof(dir_rec_t));
-        android_system_dirs.dirs[0].path = (char*) TEST_SYSTEM_DIR1;
-        android_system_dirs.dirs[0].len = strlen(TEST_SYSTEM_DIR1);
-
-        android_system_dirs.dirs[1].path = (char*) TEST_SYSTEM_DIR2;
-        android_system_dirs.dirs[1].len = strlen(TEST_SYSTEM_DIR2);
-
-        android_profiles_dir.path = (char*) TEST_PROFILE_DIR;
-        android_profiles_dir.len = strlen(TEST_PROFILE_DIR);
+        init_globals_from_data_and_root(TEST_DATA_DIR, TEST_ROOT_DIR);
     }
 
     virtual void TearDown() {
-        free(android_system_dirs.dirs);
     }
 
     std::string create_too_long_path(const std::string& seed) {
@@ -192,12 +168,6 @@ TEST_F(UtilsTest, IsValidApkPath_EscapeFail) {
             << badasec1 << " should be rejected as a invalid path";
 }
 
-TEST_F(UtilsTest, IsValidApkPath_DoubleSlashFail) {
-    const char *badasec2 = TEST_ASEC_DIR "com.example.asec//pkg.apk";
-    EXPECT_EQ(-1, validate_apk_path(badasec2))
-            << badasec2 << " should be rejected as a invalid path";
-}
-
 TEST_F(UtilsTest, IsValidApkPath_SubdirEscapeFail) {
     const char *badasec3 = TEST_ASEC_DIR "com.example.asec/../../../pkg.apk";
     EXPECT_EQ(-1, validate_apk_path(badasec3))
@@ -274,184 +244,6 @@ TEST_F(UtilsTest, CheckSystemApp_Subdir) {
     const char *badapp2 = TEST_SYSTEM_DIR1 "com.example1/../com.example2/com.example.apk";
     EXPECT_EQ(-1, validate_system_app_path(badapp2))
             << badapp2 << " should be rejected not a system path";
-}
-
-TEST_F(UtilsTest, GetPathFromString_NullPathFail) {
-    dir_rec_t test1;
-    EXPECT_EQ(-1, get_path_from_string(&test1, (const char *) NULL))
-            << "Should not allow NULL as a path.";
-}
-
-TEST_F(UtilsTest, GetPathFromString_EmptyPathFail) {
-    dir_rec_t test1;
-    EXPECT_EQ(-1, get_path_from_string(&test1, ""))
-            << "Should not allow empty paths.";
-}
-
-TEST_F(UtilsTest, GetPathFromString_RelativePathFail) {
-    dir_rec_t test1;
-    EXPECT_EQ(-1, get_path_from_string(&test1, "mnt/asec"))
-            << "Should not allow relative paths.";
-}
-
-TEST_F(UtilsTest, GetPathFromString_NonCanonical) {
-    dir_rec_t test1;
-
-    EXPECT_EQ(0, get_path_from_string(&test1, "/mnt/asec"))
-            << "Should be able to canonicalize directory /mnt/asec";
-    EXPECT_STREQ("/mnt/asec/", test1.path)
-            << "/mnt/asec should be canonicalized to /mnt/asec/";
-    EXPECT_EQ(10, (ssize_t) test1.len)
-            << "path len should be equal to the length of /mnt/asec/ (10)";
-    free(test1.path);
-}
-
-TEST_F(UtilsTest, GetPathFromString_CanonicalPath) {
-    dir_rec_t test3;
-    EXPECT_EQ(0, get_path_from_string(&test3, "/data/app/"))
-            << "Should be able to canonicalize directory /data/app/";
-    EXPECT_STREQ("/data/app/", test3.path)
-            << "/data/app/ should be canonicalized to /data/app/";
-    EXPECT_EQ(10, (ssize_t) test3.len)
-            << "path len should be equal to the length of /data/app/ (10)";
-    free(test3.path);
-}
-
-TEST_F(UtilsTest, CreatePkgPath_LongPkgNameSuccess) {
-    char path[PKG_PATH_MAX];
-
-    // Create long packagename of "aaaaa..."
-    size_t pkgnameSize = PKG_NAME_MAX;
-    char pkgname[pkgnameSize + 1];
-    memset(pkgname, 'a', pkgnameSize);
-    pkgname[1] = '.';
-    pkgname[pkgnameSize] = '\0';
-
-    EXPECT_EQ(0, create_pkg_path(path, pkgname, "", 0))
-            << "Should successfully be able to create package name.";
-
-    std::string prefix = std::string(TEST_DATA_DIR) + PRIMARY_USER_PREFIX;
-    size_t offset = prefix.length();
-
-    EXPECT_STREQ(pkgname, path + offset)
-             << "Package path should be a really long string of a's";
-}
-
-TEST_F(UtilsTest, CreatePkgPath_LongPostfixFail) {
-    char path[PKG_PATH_MAX];
-
-    // Create long packagename of "aaaaa..."
-    size_t postfixSize = PKG_PATH_MAX;
-    char postfix[postfixSize + 1];
-    memset(postfix, 'a', postfixSize);
-    postfix[postfixSize] = '\0';
-
-    EXPECT_EQ(-1, create_pkg_path(path, "com.example.package", postfix, 0))
-            << "Should return error because postfix is too long.";
-}
-
-TEST_F(UtilsTest, CreatePkgPath_PrimaryUser) {
-    char path[PKG_PATH_MAX];
-
-    EXPECT_EQ(0, create_pkg_path(path, "com.example.package", "", 0))
-            << "Should return error because postfix is too long.";
-
-    std::string p = std::string(TEST_DATA_DIR)
-                    + PRIMARY_USER_PREFIX
-                    + "com.example.package";
-    EXPECT_STREQ(p.c_str(), path)
-            << "Package path should be in /data/data/";
-}
-
-TEST_F(UtilsTest, CreatePkgPath_SecondaryUser) {
-    char path[PKG_PATH_MAX];
-
-    EXPECT_EQ(0, create_pkg_path(path, "com.example.package", "", 1))
-            << "Should successfully create package path.";
-
-    std::string p = std::string(TEST_DATA_DIR)
-                    + SECONDARY_USER_PREFIX
-                    + "1/com.example.package";
-    EXPECT_STREQ(p.c_str(), path)
-            << "Package path should be in /data/user/";
-}
-
-TEST_F(UtilsTest, CreateMovePath_Primary) {
-    char path[PKG_PATH_MAX];
-
-    EXPECT_EQ(0, create_move_path(path, "com.android.test", "shared_prefs", 0))
-            << "Should be able to create move path for primary user";
-
-    EXPECT_STREQ("/data/data/com.android.test/shared_prefs", path)
-            << "Primary user package directory should be created correctly";
-}
-
-
-TEST_F(UtilsTest, CreateMovePath_Fail_AppTooLong) {
-    char path[PKG_PATH_MAX];
-    std::string really_long_app_name = create_too_long_path("com.example");
-    EXPECT_EQ(-1, create_move_path(path, really_long_app_name.c_str(), "shared_prefs", 0))
-            << "Should fail to create move path for primary user";
-}
-
-TEST_F(UtilsTest, CreateMovePath_Fail_LeafTooLong) {
-    char path[PKG_PATH_MAX];
-    std::string really_long_leaf_name = create_too_long_path("leaf_");
-    EXPECT_EQ(-1, create_move_path(path, "com.android.test", really_long_leaf_name.c_str(), 0))
-            << "Should fail to create move path for primary user";
-}
-
-TEST_F(UtilsTest, CopyAndAppend_Normal) {
-    //int copy_and_append(dir_rec_t* dst, dir_rec_t* src, char* suffix)
-    dir_rec_t dst;
-    dir_rec_t src;
-
-    src.path = (char*) "/data/";
-    src.len = strlen(src.path);
-
-    EXPECT_EQ(0, copy_and_append(&dst, &src, "app/"))
-            << "Should return error because postfix is too long.";
-
-    EXPECT_STREQ("/data/app/", dst.path)
-            << "Appended path should be correct";
-
-    EXPECT_EQ(10, (ssize_t) dst.len)
-            << "Appended path should be length of '/data/app/' (10)";
-}
-
-TEST_F(UtilsTest, AppendAndIncrement_Normal) {
-    size_t dst_size = 10;
-    char dst[dst_size];
-    char *dstp = dst;
-    const char* src = "FOO";
-
-    EXPECT_EQ(0, append_and_increment(&dstp, src, &dst_size))
-            << "String should append successfully";
-
-    EXPECT_STREQ("FOO", dst)
-            << "String should append correctly";
-
-    EXPECT_EQ(0, append_and_increment(&dstp, src, &dst_size))
-            << "String should append successfully again";
-
-    EXPECT_STREQ("FOOFOO", dst)
-            << "String should append correctly again";
-}
-
-TEST_F(UtilsTest, AppendAndIncrement_TooBig) {
-    size_t dst_size = 5;
-    char dst[dst_size];
-    char *dstp = dst;
-    const char* src = "FOO";
-
-    EXPECT_EQ(0, append_and_increment(&dstp, src, &dst_size))
-            << "String should append successfully";
-
-    EXPECT_STREQ("FOO", dst)
-            << "String should append correctly";
-
-    EXPECT_EQ(-1, append_and_increment(&dstp, src, &dst_size))
-            << "String should fail because it's too large to fit";
 }
 
 TEST_F(UtilsTest, CreateDataPath) {
@@ -651,6 +443,30 @@ TEST_F(UtilsTest, ValidateSecondaryDexFilesPath) {
     std::string too_long = create_too_long_path("too_long_");
     fail_secondary_dex_validation(
         package_name, app_dir_ce_user_10 + "/" + too_long, app_uid_for_user_10, FLAG_STORAGE_CE);
+}
+
+TEST_F(UtilsTest, ValidateApkPath) {
+    EXPECT_EQ(0, validate_apk_path("/data/app/com.example"));
+    EXPECT_EQ(0, validate_apk_path("/data/app/com.example/file"));
+    EXPECT_EQ(0, validate_apk_path("/data/app/com.example//file"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/file"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/dir/file"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/dir//file"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/dir/dir/file"));
+    EXPECT_NE(0, validate_apk_path("/data/app/com.example/dir/dir/dir//file"));
+}
+
+TEST_F(UtilsTest, ValidateApkPathSubdirs) {
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/file"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example//file"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/file"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/file"));
+    EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir//file"));
+    EXPECT_NE(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir/file"));
+    EXPECT_NE(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir//file"));
 }
 
 }  // namespace installd
