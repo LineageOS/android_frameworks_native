@@ -51,12 +51,14 @@ struct Color {
     static const Color GREEN;
     static const Color BLUE;
     static const Color BLACK;
+    static const Color TRANSPARENT;
 };
 
 const Color Color::RED{255, 0, 0, 255};
 const Color Color::GREEN{0, 255, 0, 255};
 const Color Color::BLUE{0, 0, 255, 255};
 const Color Color::BLACK{0, 0, 0, 255};
+const Color Color::TRANSPARENT{0, 0, 0, 0};
 
 std::ostream& operator<<(std::ostream& os, const Color& color) {
     os << int(color.r) << ", " << int(color.g) << ", " << int(color.b) << ", " << int(color.a);
@@ -813,6 +815,64 @@ TEST_F(LayerTransactionTest, SetFlagsSecure) {
     ASSERT_EQ(NO_ERROR,
               composer->captureScreen(mDisplay, producer, Rect(), 0, 0, mLayerZBase, mLayerZBase,
                                       false));
+}
+
+TEST_F(LayerTransactionTest, SetTransparentRegionHintBasic) {
+    const Rect top(0, 0, 32, 16);
+    const Rect bottom(0, 16, 32, 32);
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+
+    ANativeWindow_Buffer buffer;
+    ASSERT_NO_FATAL_FAILURE(buffer = getLayerBuffer(layer));
+    ASSERT_NO_FATAL_FAILURE(fillBufferColor(buffer, top, Color::TRANSPARENT));
+    ASSERT_NO_FATAL_FAILURE(fillBufferColor(buffer, bottom, Color::RED));
+    // setTransparentRegionHint always applies to the following buffer
+    Transaction().setTransparentRegionHint(layer, Region(top)).apply();
+    ASSERT_NO_FATAL_FAILURE(postLayerBuffer(layer));
+    {
+        SCOPED_TRACE("top transparent");
+        auto shot = screenshot();
+        shot->expectColor(top, Color::BLACK);
+        shot->expectColor(bottom, Color::RED);
+    }
+
+    Transaction().setTransparentRegionHint(layer, Region(bottom)).apply();
+    {
+        SCOPED_TRACE("transparent region hint pending");
+        auto shot = screenshot();
+        shot->expectColor(top, Color::BLACK);
+        shot->expectColor(bottom, Color::RED);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(buffer = getLayerBuffer(layer));
+    ASSERT_NO_FATAL_FAILURE(fillBufferColor(buffer, top, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferColor(buffer, bottom, Color::TRANSPARENT));
+    ASSERT_NO_FATAL_FAILURE(postLayerBuffer(layer));
+    {
+        SCOPED_TRACE("bottom transparent");
+        auto shot = screenshot();
+        shot->expectColor(top, Color::RED);
+        shot->expectColor(bottom, Color::BLACK);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetTransparentRegionHintOutOfBounds) {
+    sp<SurfaceControl> layerTransparent;
+    sp<SurfaceControl> layerR;
+    ASSERT_NO_FATAL_FAILURE(layerTransparent = createLayer("test transparent", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
+
+    // check that transparent region hint is bound by the layer size
+    Transaction()
+            .setTransparentRegionHint(layerTransparent,
+                                      Region(Rect(0, 0, mDisplayWidth, mDisplayHeight)))
+            .setPosition(layerR, 16, 16)
+            .setLayer(layerR, mLayerZBase + 1)
+            .apply();
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerTransparent, Color::TRANSPARENT));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    screenshot()->expectColor(Rect(16, 16, 48, 48), Color::RED);
 }
 
 class LayerUpdateTest : public ::testing::Test {
