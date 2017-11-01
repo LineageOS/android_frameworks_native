@@ -94,6 +94,7 @@ class CreateInfoWrapper {
     ~CreateInfoWrapper();
 
     VkResult Validate();
+    void DowngradeApiVersion();
 
     const std::bitset<ProcHook::EXTENSION_COUNT>& GetHookExtensions() const;
     const std::bitset<ProcHook::EXTENSION_COUNT>& GetHalExtensions() const;
@@ -130,6 +131,8 @@ class CreateInfoWrapper {
         VkInstanceCreateInfo instance_info_;
         VkDeviceCreateInfo dev_info_;
     };
+
+    VkApplicationInfo application_info_;
 
     ExtensionFilter extension_filter_;
 
@@ -537,6 +540,15 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
     }
 }
 
+void CreateInfoWrapper::DowngradeApiVersion() {
+    // If pApplicationInfo is NULL, apiVersion is assumed to be 1.0:
+    if (instance_info_.pApplicationInfo) {
+        application_info_ = *instance_info_.pApplicationInfo;
+        instance_info_.pApplicationInfo = &application_info_;
+        application_info_.apiVersion = VK_API_VERSION_1_0;
+    }
+}
+
 VKAPI_ATTR void* DefaultAllocate(void*,
                                  size_t size,
                                  size_t alignment,
@@ -890,6 +902,33 @@ VkResult CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     data->hook_extensions |= wrapper.GetHookExtensions();
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+    uint32_t api_version = ((pCreateInfo->pApplicationInfo)
+                                ? pCreateInfo->pApplicationInfo->apiVersion
+                                : VK_API_VERSION_1_0);
+    uint32_t api_major_version = VK_VERSION_MAJOR(api_version);
+    uint32_t api_minor_version = VK_VERSION_MINOR(api_version);
+    uint32_t icd_api_version;
+    PFN_vkEnumerateInstanceVersion pfn_enumerate_instance_version =
+        reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
+            Hal::Device().GetInstanceProcAddr(NULL,
+                                              "vkEnumerateInstanceVersion"));
+    if (!pfn_enumerate_instance_version) {
+        icd_api_version = VK_API_VERSION_1_0;
+    } else {
+        result = (*pfn_enumerate_instance_version)(&icd_api_version);
+    }
+    uint32_t icd_api_major_version = VK_VERSION_MAJOR(icd_api_version);
+    uint32_t icd_api_minor_version = VK_VERSION_MINOR(icd_api_version);
+
+    if ((icd_api_major_version == 1) && (icd_api_minor_version == 0) &&
+        ((api_major_version > 1) || (api_minor_version > 0))) {
+        api_version = VK_API_VERSION_1_0;
+        wrapper.DowngradeApiVersion();
+    }
+#pragma clang diagnostic pop
 
     // call into the driver
     VkInstance instance;
