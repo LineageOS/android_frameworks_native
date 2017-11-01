@@ -41,6 +41,7 @@
 #include <system/thread_defs.h>
 
 #include "dexopt.h"
+#include "globals.h"
 #include "installd_deps.h"
 #include "otapreopt_utils.h"
 #include "utils.h"
@@ -156,7 +157,7 @@ static int split_count(const char *str)
   int count = 0;
   char buf[kPropertyValueMax];
 
-  strncpy(buf, str, sizeof(buf));
+  strlcpy(buf, str, sizeof(buf));
   char *pBuf = buf;
 
   while(strtok_r(pBuf, " ", &ctx) != NULL) {
@@ -333,7 +334,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
 
     bool have_dex2oat_compiler_filter_flag = false;
     if (skip_compilation) {
-        strcpy(dex2oat_compiler_filter_arg, "--compiler-filter=extract");
+        strlcpy(dex2oat_compiler_filter_arg, "--compiler-filter=extract",
+                sizeof(dex2oat_compiler_filter_arg));
         have_dex2oat_compiler_filter_flag = true;
         have_dex2oat_relocation_skip_flag = true;
     } else if (compiler_filter != nullptr) {
@@ -955,14 +957,6 @@ static std::string create_vdex_filename(const std::string& oat_path) {
     return replace_file_extension(oat_path, ".vdex");
 }
 
-static bool add_extension_to_file_name(char* file_name, const char* extension) {
-    if (strlen(file_name) + strlen(extension) + 1 > PKG_PATH_MAX) {
-        return false;
-    }
-    strcat(file_name, extension);
-    return true;
-}
-
 static int open_output_file(const char* file_name, bool recreate, int permissions) {
     int flags = O_RDWR | O_CREAT;
     if (recreate) {
@@ -1198,21 +1192,16 @@ unique_fd maybe_open_dexopt_swap_file(const char* out_oat_path) {
     if (!ShouldUseSwapFileForDexopt()) {
         return invalid_unique_fd();
     }
-    // Make sure there really is enough space.
-    char swap_file_name[PKG_PATH_MAX];
-    strcpy(swap_file_name, out_oat_path);
-    if (!add_extension_to_file_name(swap_file_name, ".swap")) {
-        return invalid_unique_fd();
-    }
+    auto swap_file_name = std::string(out_oat_path) + ".swap";
     unique_fd swap_fd(open_output_file(
-            swap_file_name, /*recreate*/true, /*permissions*/0600));
+            swap_file_name.c_str(), /*recreate*/true, /*permissions*/0600));
     if (swap_fd.get() < 0) {
         // Could not create swap file. Optimistically go on and hope that we can compile
         // without it.
-        ALOGE("installd could not create '%s' for swap during dexopt\n", swap_file_name);
+        ALOGE("installd could not create '%s' for swap during dexopt\n", swap_file_name.c_str());
     } else {
         // Immediately unlink. We don't really want to hit flash.
-        if (unlink(swap_file_name) < 0) {
+        if (unlink(swap_file_name.c_str()) < 0) {
             PLOG(ERROR) << "Couldn't unlink swap file " << swap_file_name;
         }
     }
@@ -1805,8 +1794,14 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
     }
 
     const char* volume_uuid_cstr = volume_uuid == nullptr ? nullptr : volume_uuid->c_str();
+
+    // Note that we cannot validate the package path here because the file might not exist
+    // and we cannot call realpath to resolve system symlinks. Since /data/user/0 symlinks to
+    // /data/data/ a lot of validations will fail if we attempt to check the package path.
+    // It is still ok to be more relaxed because any file removal is done after forking and
+    // dropping capabilities.
     if (!validate_secondary_dex_path(pkgname.c_str(), dex_path.c_str(), volume_uuid_cstr,
-            uid, storage_flag)) {
+            uid, storage_flag, /*validate_package_path*/ false)) {
         LOG(ERROR) << "Could not validate secondary dex path " << dex_path;
         return false;
     }
@@ -1820,42 +1815,56 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
         return false;
     }
 
-    // The secondary dex does not exist anymore. Clear any generated files.
-    char oat_path[PKG_PATH_MAX];
-    char oat_dir[PKG_PATH_MAX];
-    char oat_isa_dir[PKG_PATH_MAX];
-    bool result = true;
-    for (size_t i = 0; i < isas.size(); i++) {
-        if (!create_secondary_dex_oat_layout(dex_path, isas[i], oat_dir, oat_isa_dir, oat_path)) {
-            LOG(ERROR) << "Could not create secondary odex layout: " << dex_path;
-            result = false;
-            continue;
-        }
+    // As a security measure we want to unlink art artifacts with the reduced capabilities
+    // of the package user id. So we fork and drop capabilities in the child.
+    pid_t pid = fork();
+    if (pid == 0) {
+        // The secondary dex does not exist anymore. Clear any generated files.
+        char oat_path[PKG_PATH_MAX];
+        char oat_dir[PKG_PATH_MAX];
+        char oat_isa_dir[PKG_PATH_MAX];
+        bool result = true;
+        /* child -- drop privileges before continuing */
+        drop_capabilities(uid);
+        for (size_t i = 0; i < isas.size(); i++) {
+            if (!create_secondary_dex_oat_layout(dex_path,
+                                                 isas[i],
+                                                 oat_dir,
+                                                 oat_isa_dir,
+                                                 oat_path)) {
+                LOG(ERROR) << "Could not create secondary odex layout: "
+                           << dex_path;
+                result = false;
+                continue;
+            }
 
-        // Delete oat/vdex/art files.
-        result = unlink_if_exists(oat_path) && result;
-        result = unlink_if_exists(create_vdex_filename(oat_path)) && result;
-        result = unlink_if_exists(create_image_filename(oat_path)) && result;
+            // Delete oat/vdex/art files.
+            result = unlink_if_exists(oat_path) && result;
+            result = unlink_if_exists(create_vdex_filename(oat_path)) && result;
+            result = unlink_if_exists(create_image_filename(oat_path)) && result;
 
-        // Delete profiles.
-        std::string current_profile = create_current_profile_path(
+            // Delete profiles.
+            std::string current_profile = create_current_profile_path(
                 multiuser_get_user_id(uid), dex_path, /*is_secondary*/true);
-        std::string reference_profile = create_reference_profile_path(
+            std::string reference_profile = create_reference_profile_path(
                 dex_path, /*is_secondary*/true);
-        result = unlink_if_exists(current_profile) && result;
-        result = unlink_if_exists(reference_profile) && result;
+            result = unlink_if_exists(current_profile) && result;
+            result = unlink_if_exists(reference_profile) && result;
 
-        // We upgraded once the location of current profile for secondary dex files.
-        // Check for any previous left-overs and remove them as well.
-        std::string old_current_profile = dex_path + ".prof";
-        result = unlink_if_exists(old_current_profile);
+            // We upgraded once the location of current profile for secondary dex files.
+            // Check for any previous left-overs and remove them as well.
+            std::string old_current_profile = dex_path + ".prof";
+            result = unlink_if_exists(old_current_profile);
 
-        // Try removing the directories as well, they might be empty.
-        result = rmdir_if_empty(oat_isa_dir) && result;
-        result = rmdir_if_empty(oat_dir) && result;
+            // Try removing the directories as well, they might be empty.
+            result = rmdir_if_empty(oat_isa_dir) && result;
+            result = rmdir_if_empty(oat_dir) && result;
+        }
+        result ? _exit(0) : _exit(1);
     }
 
-    return result;
+    int return_code = wait_child(pid);
+    return return_code == 0;
 }
 
 // Helper for move_ab, so that we can have common failure-case cleanup.
@@ -2018,6 +2027,99 @@ bool delete_odex(const char* apk_path, const char* instruction_set, const char* 
 
     // Report success.
     return return_value_oat && return_value_art && return_value_vdex;
+}
+
+static bool is_absolute_path(const std::string& path) {
+    if (path.find('/') != 0 || path.find("..") != std::string::npos) {
+        LOG(ERROR) << "Invalid absolute path " << path;
+        return false;
+    } else {
+        return true;
+    }
+}
+
+static bool is_valid_instruction_set(const std::string& instruction_set) {
+    // TODO: add explicit whitelisting of instruction sets
+    if (instruction_set.find('/') != std::string::npos) {
+        LOG(ERROR) << "Invalid instruction set " << instruction_set;
+        return false;
+    } else {
+        return true;
+    }
+}
+
+bool calculate_oat_file_path_default(char path[PKG_PATH_MAX], const char *oat_dir,
+        const char *apk_path, const char *instruction_set) {
+    std::string oat_dir_ = oat_dir;
+    std::string apk_path_ = apk_path;
+    std::string instruction_set_ = instruction_set;
+
+    if (!is_absolute_path(oat_dir_)) return false;
+    if (!is_absolute_path(apk_path_)) return false;
+    if (!is_valid_instruction_set(instruction_set_)) return false;
+
+    std::string::size_type end = apk_path_.rfind('.');
+    std::string::size_type start = apk_path_.rfind('/', end);
+    if (end == std::string::npos || start == std::string::npos) {
+        LOG(ERROR) << "Invalid apk_path " << apk_path_;
+        return false;
+    }
+
+    std::string res_ = oat_dir_ + '/' + instruction_set + '/'
+            + apk_path_.substr(start + 1, end - start - 1) + ".odex";
+    const char* res = res_.c_str();
+    if (strlen(res) >= PKG_PATH_MAX) {
+        LOG(ERROR) << "Result too large";
+        return false;
+    } else {
+        strlcpy(path, res, PKG_PATH_MAX);
+        return true;
+    }
+}
+
+bool calculate_odex_file_path_default(char path[PKG_PATH_MAX], const char *apk_path,
+        const char *instruction_set) {
+    std::string apk_path_ = apk_path;
+    std::string instruction_set_ = instruction_set;
+
+    if (!is_absolute_path(apk_path_)) return false;
+    if (!is_valid_instruction_set(instruction_set_)) return false;
+
+    std::string::size_type end = apk_path_.rfind('.');
+    std::string::size_type start = apk_path_.rfind('/', end);
+    if (end == std::string::npos || start == std::string::npos) {
+        LOG(ERROR) << "Invalid apk_path " << apk_path_;
+        return false;
+    }
+
+    std::string oat_dir = apk_path_.substr(0, start + 1) + "oat";
+    return calculate_oat_file_path_default(path, oat_dir.c_str(), apk_path, instruction_set);
+}
+
+bool create_cache_path_default(char path[PKG_PATH_MAX], const char *src,
+        const char *instruction_set) {
+    std::string src_ = src;
+    std::string instruction_set_ = instruction_set;
+
+    if (!is_absolute_path(src_)) return false;
+    if (!is_valid_instruction_set(instruction_set_)) return false;
+
+    for (auto it = src_.begin() + 1; it < src_.end(); ++it) {
+        if (*it == '/') {
+            *it = '@';
+        }
+    }
+
+    std::string res_ = android_data_dir + DALVIK_CACHE + '/' + instruction_set_ + src_
+            + DALVIK_CACHE_POSTFIX;
+    const char* res = res_.c_str();
+    if (strlen(res) >= PKG_PATH_MAX) {
+        LOG(ERROR) << "Result too large";
+        return false;
+    } else {
+        strlcpy(path, res, PKG_PATH_MAX);
+        return true;
+    }
 }
 
 }  // namespace installd
