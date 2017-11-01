@@ -1145,6 +1145,26 @@ TEST_F(LayerTransactionTest, SetMatrixWithScaleToWindow) {
     screenshot()->expectColor(Rect(0, 0, 128, 128), Color::RED);
 }
 
+TEST_F(LayerTransactionTest, SetOverrideScalingModeBasic) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(
+            fillLayerQuadrant(layer, Color::RED, Color::GREEN, Color::BLUE, Color::WHITE));
+
+    // XXX SCALE_CROP is not respected; calling setSize and
+    // setOverrideScalingMode in separate transactions does not work
+    // (b/69315456)
+    Transaction()
+            .setSize(layer, 64, 16)
+            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
+            .apply();
+    {
+        SCOPED_TRACE("SCALE_TO_WINDOW");
+        screenshot()->expectQuadrant(Rect(0, 0, 64, 16), Color::RED, Color::GREEN, Color::BLUE,
+                                     Color::WHITE, true /* filtered */);
+    }
+}
+
 class LayerUpdateTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
