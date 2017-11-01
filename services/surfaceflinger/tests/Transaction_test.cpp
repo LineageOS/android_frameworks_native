@@ -891,6 +891,30 @@ TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
     }
 }
 
+TEST_F(LayerUpdateTest, MergingTransactions) {
+    sp<ScreenCapture> sc;
+    {
+        SCOPED_TRACE("before move");
+        ScreenCapture::captureScreen(&sc);
+        sc->expectBGColor(0, 12);
+        sc->expectFGColor(75, 75);
+        sc->expectBGColor(145, 145);
+    }
+
+    Transaction t1, t2;
+    t1.setPosition(mFGSurfaceControl, 128, 128);
+    t2.setPosition(mFGSurfaceControl, 0, 0);
+    // We expect that the position update from t2 now
+    // overwrites the position update from t1.
+    t1.merge(std::move(t2));
+    t1.apply();
+
+    {
+        ScreenCapture::captureScreen(&sc);
+        sc->expectFGColor(1, 1);
+    }
+}
+
 class ChildLayerTest : public LayerUpdateTest {
 protected:
     void SetUp() override {
