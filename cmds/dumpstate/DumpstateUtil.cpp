@@ -30,6 +30,7 @@
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
+#include <android-base/unique_fd.h>
 #include <cutils/log.h>
 
 #include "DumpstateInternal.h"
@@ -182,8 +183,8 @@ bool PropertiesHelper::IsDryRun() {
 }
 
 int DumpFileToFd(int out_fd, const std::string& title, const std::string& path) {
-    int fd = TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
-    if (fd < 0) {
+    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC)));
+    if (fd.get() < 0) {
         int err = errno;
         if (title.empty()) {
             dprintf(out_fd, "*** Error dumping %s: %s\n", path.c_str(), strerror(err));
@@ -194,7 +195,7 @@ int DumpFileToFd(int out_fd, const std::string& title, const std::string& path) 
         fsync(out_fd);
         return -1;
     }
-    return DumpFileFromFdToFd(title, path, fd, out_fd, PropertiesHelper::IsDryRun());
+    return DumpFileFromFdToFd(title, path, fd.get(), out_fd, PropertiesHelper::IsDryRun());
 }
 
 int RunCommandToFd(int fd, const std::string& title, const std::vector<std::string>& full_command,

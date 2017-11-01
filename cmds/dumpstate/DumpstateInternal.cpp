@@ -153,7 +153,6 @@ int DumpFileFromFdToFd(const std::string& title, const std::string& path_string,
             }
         }
     }
-    close(fd);
 
     if (!newline) dprintf(out_fd, "\n");
     if (!title.empty()) dprintf(out_fd, "\n");
