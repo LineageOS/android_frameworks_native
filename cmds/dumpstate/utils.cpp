@@ -628,7 +628,7 @@ int dump_files(const std::string& title, const char* dir, bool (*skip)(const cha
     struct dirent *d;
     char *newpath = NULL;
     const char *slash = "/";
-    int fd, retval = 0;
+    int retval = 0;
 
     if (!title.empty()) {
         printf("------ %s (%s) ------\n", title.c_str(), dir);
@@ -670,13 +670,13 @@ int dump_files(const std::string& title, const char* dir, bool (*skip)(const cha
             }
             continue;
         }
-        fd = TEMP_FAILURE_RETRY(open(newpath, O_RDONLY | O_NONBLOCK | O_CLOEXEC));
-        if (fd < 0) {
-            retval = fd;
+        android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(newpath, O_RDONLY | O_NONBLOCK | O_CLOEXEC)));
+        if (fd.get() < 0) {
+            retval = -1;
             printf("*** %s: %s\n", newpath, strerror(errno));
             continue;
         }
-        (*dump_from_fd)(NULL, newpath, fd);
+        (*dump_from_fd)(NULL, newpath, fd.get());
     }
     closedir(dirp);
     if (!title.empty()) {
@@ -695,11 +695,9 @@ int dump_file_from_fd(const char *title, const char *path, int fd) {
     int flags = fcntl(fd, F_GETFL);
     if (flags == -1) {
         printf("*** %s: failed to get flags on fd %d: %s\n", path, fd, strerror(errno));
-        close(fd);
         return -1;
     } else if (!(flags & O_NONBLOCK)) {
         printf("*** %s: fd must have O_NONBLOCK set.\n", path);
-        close(fd);
         return -1;
     }
     return DumpFileFromFdToFd(title, path, fd, STDOUT_FILENO, PropertiesHelper::IsDryRun());
