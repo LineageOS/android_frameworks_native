@@ -875,6 +875,51 @@ TEST_F(LayerTransactionTest, SetTransparentRegionHintOutOfBounds) {
     screenshot()->expectColor(Rect(16, 16, 48, 48), Color::RED);
 }
 
+TEST_F(LayerTransactionTest, SetAlphaBasic) {
+    sp<SurfaceControl> layer1;
+    sp<SurfaceControl> layer2;
+    ASSERT_NO_FATAL_FAILURE(layer1 = createLayer("test 1", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(layer2 = createLayer("test 2", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer1, {64, 0, 0, 255}));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer2, {0, 64, 0, 255}));
+
+    Transaction()
+            .setAlpha(layer1, 0.25f)
+            .setAlpha(layer2, 0.75f)
+            .setPosition(layer2, 16, 0)
+            .setLayer(layer2, mLayerZBase + 1)
+            .apply();
+    {
+        auto shot = screenshot();
+        uint8_t r = 16; // 64 * 0.25f
+        uint8_t g = 48; // 64 * 0.75f
+        shot->expectColor(Rect(0, 0, 16, 32), {r, 0, 0, 255});
+        shot->expectColor(Rect(32, 0, 48, 32), {0, g, 0, 255});
+
+        r /= 4; // r * (1.0f - 0.75f)
+        shot->expectColor(Rect(16, 0, 32, 32), {r, g, 0, 255});
+    }
+}
+
+TEST_F(LayerTransactionTest, SetAlphaClamped) {
+    const Color color = {64, 0, 0, 255};
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, color));
+
+    Transaction().setAlpha(layer, 2.0f).apply();
+    {
+        SCOPED_TRACE("clamped to 1.0f");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), color);
+    }
+
+    Transaction().setAlpha(layer, -1.0f).apply();
+    {
+        SCOPED_TRACE("clamped to 0.0f");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+}
+
 class LayerUpdateTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
