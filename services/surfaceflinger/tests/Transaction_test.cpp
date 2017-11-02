@@ -50,6 +50,7 @@ struct Color {
     static const Color RED;
     static const Color GREEN;
     static const Color BLUE;
+    static const Color WHITE;
     static const Color BLACK;
     static const Color TRANSPARENT;
 };
@@ -57,6 +58,7 @@ struct Color {
 const Color Color::RED{255, 0, 0, 255};
 const Color Color::GREEN{0, 255, 0, 255};
 const Color Color::BLUE{0, 0, 255, 255};
+const Color Color::WHITE{255, 255, 255, 255};
 const Color Color::BLACK{0, 0, 0, 255};
 const Color Color::TRANSPARENT{0, 0, 0, 0};
 
@@ -223,6 +225,26 @@ public:
         }
     }
 
+    void expectQuadrant(const Rect& rect, const Color& topLeft, const Color& topRight,
+                        const Color& bottomLeft, const Color& bottomRight, bool filtered = false,
+                        uint8_t tolerance = 0) {
+        ASSERT_TRUE((rect.right - rect.left) % 2 == 0 && (rect.bottom - rect.top) % 2 == 0);
+
+        const int32_t centerX = rect.left + (rect.right - rect.left) / 2;
+        const int32_t centerY = rect.top + (rect.bottom - rect.top) / 2;
+        // avoid checking borders due to unspecified filtering behavior
+        const int32_t offsetX = filtered ? 2 : 0;
+        const int32_t offsetY = filtered ? 2 : 0;
+        expectColor(Rect(rect.left, rect.top, centerX - offsetX, centerY - offsetY), topLeft,
+                    tolerance);
+        expectColor(Rect(centerX + offsetX, rect.top, rect.right, centerY - offsetY), topRight,
+                    tolerance);
+        expectColor(Rect(rect.left, centerY + offsetY, centerX - offsetX, rect.bottom), bottomLeft,
+                    tolerance);
+        expectColor(Rect(centerX + offsetX, centerY + offsetY, rect.right, rect.bottom),
+                    bottomRight, tolerance);
+    }
+
     void checkPixel(uint32_t x, uint32_t y, uint8_t r, uint8_t g, uint8_t b) {
         ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mBuf.format);
         const uint8_t* img = static_cast<const uint8_t*>(mBuf.data);
@@ -343,6 +365,23 @@ protected:
         ANativeWindow_Buffer buffer;
         ASSERT_NO_FATAL_FAILURE(buffer = getLayerBuffer(layer));
         fillBufferColor(buffer, Rect(0, 0, buffer.width, buffer.height), color);
+        postLayerBuffer(layer);
+    }
+
+    void fillLayerQuadrant(const sp<SurfaceControl>& layer, const Color& topLeft,
+                           const Color& topRight, const Color& bottomLeft,
+                           const Color& bottomRight) {
+        ANativeWindow_Buffer buffer;
+        ASSERT_NO_FATAL_FAILURE(buffer = getLayerBuffer(layer));
+        ASSERT_TRUE(buffer.width % 2 == 0 && buffer.height % 2 == 0);
+
+        const int32_t halfW = buffer.width / 2;
+        const int32_t halfH = buffer.height / 2;
+        fillBufferColor(buffer, Rect(0, 0, halfW, halfH), topLeft);
+        fillBufferColor(buffer, Rect(halfW, 0, buffer.width, halfH), topRight);
+        fillBufferColor(buffer, Rect(0, halfH, halfW, buffer.height), bottomLeft);
+        fillBufferColor(buffer, Rect(halfW, halfH, buffer.width, buffer.height), bottomRight);
+
         postLayerBuffer(layer);
     }
 
@@ -1004,6 +1043,106 @@ TEST_F(LayerTransactionTest, SetLayerStackBasic) {
         SCOPED_TRACE("original layer stack");
         screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
     }
+}
+
+TEST_F(LayerTransactionTest, SetMatrixBasic) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(
+            fillLayerQuadrant(layer, Color::RED, Color::GREEN, Color::BLUE, Color::WHITE));
+
+    Transaction().setMatrix(layer, 1.0f, 0.0f, 0.0f, 1.0f).setPosition(layer, 0, 0).apply();
+    {
+        SCOPED_TRACE("IDENTITY");
+        screenshot()->expectQuadrant(Rect(0, 0, 32, 32), Color::RED, Color::GREEN, Color::BLUE,
+                                     Color::WHITE);
+    }
+
+    Transaction().setMatrix(layer, -1.0f, 0.0f, 0.0f, 1.0f).setPosition(layer, 32, 0).apply();
+    {
+        SCOPED_TRACE("FLIP_H");
+        screenshot()->expectQuadrant(Rect(0, 0, 32, 32), Color::GREEN, Color::RED, Color::WHITE,
+                                     Color::BLUE);
+    }
+
+    Transaction().setMatrix(layer, 1.0f, 0.0f, 0.0f, -1.0f).setPosition(layer, 0, 32).apply();
+    {
+        SCOPED_TRACE("FLIP_V");
+        screenshot()->expectQuadrant(Rect(0, 0, 32, 32), Color::BLUE, Color::WHITE, Color::RED,
+                                     Color::GREEN);
+    }
+
+    Transaction().setMatrix(layer, 0.0f, 1.0f, -1.0f, 0.0f).setPosition(layer, 32, 0).apply();
+    {
+        SCOPED_TRACE("ROT_90");
+        screenshot()->expectQuadrant(Rect(0, 0, 32, 32), Color::BLUE, Color::RED, Color::WHITE,
+                                     Color::GREEN);
+    }
+
+    Transaction().setMatrix(layer, 2.0f, 0.0f, 0.0f, 2.0f).setPosition(layer, 0, 0).apply();
+    {
+        SCOPED_TRACE("SCALE");
+        screenshot()->expectQuadrant(Rect(0, 0, 64, 64), Color::RED, Color::GREEN, Color::BLUE,
+                                     Color::WHITE, true /* filtered */);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetMatrixRot45) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(
+            fillLayerQuadrant(layer, Color::RED, Color::GREEN, Color::BLUE, Color::WHITE));
+
+    const float rot = M_SQRT1_2; // 45 degrees
+    const float trans = M_SQRT2 * 16.0f;
+    Transaction().setMatrix(layer, rot, rot, -rot, rot).setPosition(layer, trans, 0).apply();
+
+    auto shot = screenshot();
+    // check a 8x8 region inside each color
+    auto get8x8Rect = [](int32_t centerX, int32_t centerY) {
+        const int32_t halfL = 4;
+        return Rect(centerX - halfL, centerY - halfL, centerX + halfL, centerY + halfL);
+    };
+    const int32_t unit = int32_t(trans / 2);
+    shot->expectColor(get8x8Rect(2 * unit, 1 * unit), Color::RED);
+    shot->expectColor(get8x8Rect(3 * unit, 2 * unit), Color::GREEN);
+    shot->expectColor(get8x8Rect(1 * unit, 2 * unit), Color::BLUE);
+    shot->expectColor(get8x8Rect(2 * unit, 3 * unit), Color::WHITE);
+}
+
+TEST_F(LayerTransactionTest, SetMatrixWithResize) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // setMatrix is applied after any pending resize, unlike setPosition
+    Transaction().setMatrix(layer, 2.0f, 0.0f, 0.0f, 2.0f).setSize(layer, 64, 64).apply();
+    {
+        SCOPED_TRACE("resize pending");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    {
+        SCOPED_TRACE("resize applied");
+        screenshot()->expectColor(Rect(0, 0, 128, 128), Color::RED);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetMatrixWithScaleToWindow) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // setMatrix is immediate with SCALE_TO_WINDOW, unlike setPosition
+    Transaction()
+            .setMatrix(layer, 2.0f, 0.0f, 0.0f, 2.0f)
+            .setSize(layer, 64, 64)
+            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
+            .apply();
+    screenshot()->expectColor(Rect(0, 0, 128, 128), Color::RED);
 }
 
 class LayerUpdateTest : public ::testing::Test {
