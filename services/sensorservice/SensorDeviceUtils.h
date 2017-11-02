@@ -47,7 +47,7 @@ public:
      */
     bool wait();
 private:
-    const bool mRegistered;
+    bool mRegistered;
 
     std::mutex mLock;
     std::condition_variable mCondition;
