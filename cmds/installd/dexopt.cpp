@@ -1407,7 +1407,7 @@ static void exec_dexoptanalyzer(const std::string& dex_file, const std::string& 
         argv[i++] = downgrade_flag;
     }
     if (class_loader_context != nullptr) {
-        argv[i++] = class_loader_context;
+        argv[i++] = class_loader_context_arg.c_str();
     }
     argv[i] = NULL;
 
