@@ -65,13 +65,25 @@ class DisplayDevice;
 class GraphicBuffer;
 class SurfaceFlinger;
 class LayerDebugInfo;
+class LayerBE;
 
 // ---------------------------------------------------------------------------
+
+class LayerBE {
+public:
+    LayerBE();
+
+    // The mesh used to draw the layer in GLES composition mode
+    Mesh mMesh;
+
+};
 
 class Layer : public virtual RefBase {
     static int32_t sSequence;
 
 public:
+    LayerBE& getBE() { return mBE; }
+    LayerBE& getBE() const { return mBE; }
     mutable bool contentDirty;
     // regions below are in window-manager space
     Region visibleRegion;
@@ -652,8 +664,6 @@ protected:
     bool mFiltering;
     // Whether filtering is needed b/c of the drawingstate
     bool mNeedsFiltering;
-    // The mesh used to draw the layer in GLES composition mode
-    mutable Mesh mMesh;
 
     bool mPendingRemoval = false;
 
@@ -708,6 +718,8 @@ protected:
 
     wp<Layer> mCurrentParent;
     wp<Layer> mDrawingParent;
+
+    mutable LayerBE mBE;
 };
 
 // ---------------------------------------------------------------------------

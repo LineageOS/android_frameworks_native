@@ -62,6 +62,11 @@
 
 namespace android {
 
+LayerBE::LayerBE()
+      : mMesh(Mesh::TRIANGLE_FAN, 4, 2, 2) {
+}
+
+
 int32_t Layer::sSequence = 1;
 
 Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
@@ -84,7 +89,6 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
         mFrameLatencyNeeded(false),
         mFiltering(false),
         mNeedsFiltering(false),
-        mMesh(Mesh::TRIANGLE_FAN, 4, 2, 2),
         mProtectedByApp(false),
         mClientRef(client),
         mPotentialCursor(false),
@@ -133,6 +137,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
     CompositorTiming compositorTiming;
     flinger->getCompositorTiming(&compositorTiming);
     mFrameEventHistory.initializeCompositorTiming(compositorTiming);
+
 }
 
 void Layer::onFirstRef() {}
@@ -204,7 +209,8 @@ sp<IBinder> Layer::getHandle() {
 // ---------------------------------------------------------------------------
 
 bool Layer::createHwcLayer(HWComposer* hwc, int32_t hwcId) {
-    LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0, "Already have a layer for hwcId %d", hwcId);
+    LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0,
+                        "Already have a layer for hwcId %d", hwcId);
     HWC2::Layer* layer = hwc->createLayer(hwcId);
     if (!layer) {
         return false;
@@ -634,7 +640,8 @@ bool Layer::getForceClientComposition(int32_t hwcId) {
 
 void Layer::updateCursorPosition(const sp<const DisplayDevice>& displayDevice) {
     auto hwcId = displayDevice->getHwcDisplayId();
-    if (mHwcLayers.count(hwcId) == 0 || getCompositionType(hwcId) != HWC2::Composition::Cursor) {
+    if (mHwcLayers.count(hwcId) == 0 ||
+        getCompositionType(hwcId) != HWC2::Composition::Cursor) {
         return;
     }
 
@@ -657,7 +664,8 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& displayDevice) {
     auto& displayTransform(displayDevice->getTransform());
     auto position = displayTransform.transform(frame);
 
-    auto error = mHwcLayers[hwcId].layer->setCursorPosition(position.left, position.top);
+    auto error = mHwcLayers[hwcId].layer->setCursorPosition(position.left,
+                                                                              position.top);
     ALOGE_IF(error != HWC2::Error::None,
              "[%s] Failed to set cursor position "
              "to (%d, %d): %s (%d)",
@@ -684,9 +692,9 @@ void Layer::draw(const RenderArea& renderArea) const {
 void Layer::clearWithOpenGL(const RenderArea& renderArea, float red, float green, float blue,
                             float alpha) const {
     RenderEngine& engine(mFlinger->getRenderEngine());
-    computeGeometry(renderArea, mMesh, false);
+    computeGeometry(renderArea, getBE().mMesh, false);
     engine.setupFillWithColor(red, green, blue, alpha);
-    engine.drawMesh(mMesh);
+    engine.drawMesh(getBE().mMesh);
 }
 
 void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
@@ -961,11 +969,12 @@ uint32_t Layer::doTransaction(uint32_t flags) {
                  "            requested={ wh={%4u,%4u} }}\n"
                  "  drawing={ active   ={ wh={%4u,%4u} crop={%4d,%4d,%4d,%4d} (%4d,%4d) }\n"
                  "            requested={ wh={%4u,%4u} }}\n",
-                 this, getName().string(), mCurrentTransform, getEffectiveScalingMode(), c.active.w,
-                 c.active.h, c.crop.left, c.crop.top, c.crop.right, c.crop.bottom,
-                 c.crop.getWidth(), c.crop.getHeight(), c.requested.w, c.requested.h, s.active.w,
-                 s.active.h, s.crop.left, s.crop.top, s.crop.right, s.crop.bottom,
-                 s.crop.getWidth(), s.crop.getHeight(), s.requested.w, s.requested.h);
+                 this, getName().string(), mCurrentTransform,
+                 getEffectiveScalingMode(), c.active.w, c.active.h, c.crop.left, c.crop.top,
+                 c.crop.right, c.crop.bottom, c.crop.getWidth(), c.crop.getHeight(), c.requested.w,
+                 c.requested.h, s.active.w, s.active.h, s.crop.left, s.crop.top, s.crop.right,
+                 s.crop.bottom, s.crop.getWidth(), s.crop.getHeight(), s.requested.w,
+                 s.requested.h);
 
         // record the new size, form this point on, when the client request
         // a buffer, it'll get the new size.
