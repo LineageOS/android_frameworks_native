@@ -988,6 +988,24 @@ TEST_F(LayerTransactionTest, SetColorWithBuffer) {
     screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 
+TEST_F(LayerTransactionTest, SetLayerStackBasic) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    Transaction().setLayerStack(layer, mDisplayLayerStack + 1).apply();
+    {
+        SCOPED_TRACE("non-existing layer stack");
+        screenshot()->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), Color::BLACK);
+    }
+
+    Transaction().setLayerStack(layer, mDisplayLayerStack).apply();
+    {
+        SCOPED_TRACE("original layer stack");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+}
+
 class LayerUpdateTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
