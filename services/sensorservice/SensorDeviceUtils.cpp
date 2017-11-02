@@ -29,6 +29,11 @@ namespace android {
 namespace SensorDeviceUtils {
 
 HidlServiceRegistrationWaiter::HidlServiceRegistrationWaiter() {
+}
+
+void HidlServiceRegistrationWaiter::onFirstRef() {
+    // Creating sp<...>(this) in the constructor should be avoided, hence
+    // registerForNotifications is called in onFirstRef callback.
     mRegistered = ISensors::registerForNotifications("default", this);
 }
 
