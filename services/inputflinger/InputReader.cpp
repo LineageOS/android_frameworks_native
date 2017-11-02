@@ -2258,7 +2258,7 @@ void KeyboardInputMapper::dump(String8& dump) {
     dump.appendFormat(INDENT3 "Orientation: %d\n", mOrientation);
     dump.appendFormat(INDENT3 "KeyDowns: %zu keys currently down\n", mKeyDowns.size());
     dump.appendFormat(INDENT3 "MetaState: 0x%0x\n", mMetaState);
-    dump.appendFormat(INDENT3 "DownTime: %lld\n", (long long)mDownTime);
+    dump.appendFormat(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
 
 
@@ -2619,7 +2619,7 @@ void CursorInputMapper::dump(String8& dump) {
     dump.appendFormat(INDENT3 "Orientation: %d\n", mOrientation);
     dump.appendFormat(INDENT3 "ButtonState: 0x%08x\n", mButtonState);
     dump.appendFormat(INDENT3 "Down: %s\n", toString(isPointerDown(mButtonState)));
-    dump.appendFormat(INDENT3 "DownTime: %lld\n", (long long)mDownTime);
+    dump.appendFormat(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
 
 void CursorInputMapper::configure(nsecs_t when,
@@ -5508,18 +5508,15 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when,
     // Otherwise choose an arbitrary remaining pointer.
     // This guarantees we always have an active touch id when there is at least one pointer.
     // We keep the same active touch id for as long as possible.
-    bool activeTouchChanged = false;
     int32_t lastActiveTouchId = mPointerGesture.activeTouchId;
     int32_t activeTouchId = lastActiveTouchId;
     if (activeTouchId < 0) {
         if (!mCurrentCookedState.fingerIdBits.isEmpty()) {
-            activeTouchChanged = true;
             activeTouchId = mPointerGesture.activeTouchId =
                     mCurrentCookedState.fingerIdBits.firstMarkedBit();
             mPointerGesture.firstTouchTime = when;
         }
     } else if (!mCurrentCookedState.fingerIdBits.hasBit(activeTouchId)) {
-        activeTouchChanged = true;
         if (!mCurrentCookedState.fingerIdBits.isEmpty()) {
             activeTouchId = mPointerGesture.activeTouchId =
                     mCurrentCookedState.fingerIdBits.firstMarkedBit();
@@ -5615,7 +5612,6 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when,
             }
             if (bestId >= 0 && bestId != activeTouchId) {
                 mPointerGesture.activeTouchId = activeTouchId = bestId;
-                activeTouchChanged = true;
 #if DEBUG_GESTURES
                 ALOGD("Gestures: BUTTON_CLICK_OR_DRAG switched pointers, "
                         "bestId=%d, bestSpeed=%0.3f", bestId, bestSpeed);
