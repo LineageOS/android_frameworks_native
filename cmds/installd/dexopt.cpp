@@ -1240,7 +1240,7 @@ Dex2oatFileWrapper maybe_open_reference_profile(const std::string& pkgname,
 
 // Opens the vdex files and assigns the input fd to in_vdex_wrapper_fd and the output fd to
 // out_vdex_wrapper_fd. Returns true for success or false in case of errors.
-bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_needed,
+bool open_vdex_files_for_dex2oat(const char* apk_path, const char* out_oat_path, int dexopt_needed,
         const char* instruction_set, bool is_public, int uid, bool is_secondary_dex,
         bool profile_guided, Dex2oatFileWrapper* in_vdex_wrapper_fd,
         Dex2oatFileWrapper* out_vdex_wrapper_fd) {
@@ -1353,6 +1353,37 @@ Dex2oatFileWrapper open_oat_out_file(const char* apk_path, const char* oat_dir,
     return wrapper_fd;
 }
 
+// Creates RDONLY fds for oat and vdex files, if exist.
+// Returns false if it fails to create oat out path for the given apk path.
+// Note that the method returns true even if the files could not be opened.
+bool maybe_open_oat_and_vdex_file(const std::string& apk_path,
+                                  const std::string& oat_dir,
+                                  const std::string& instruction_set,
+                                  bool is_secondary_dex,
+                                  unique_fd* oat_file_fd,
+                                  unique_fd* vdex_file_fd) {
+    char oat_path[PKG_PATH_MAX];
+    if (!create_oat_out_path(apk_path.c_str(),
+                             instruction_set.c_str(),
+                             oat_dir.c_str(),
+                             is_secondary_dex,
+                             oat_path)) {
+        return false;
+    }
+    oat_file_fd->reset(open(oat_path, O_RDONLY));
+    if (oat_file_fd->get() < 0) {
+        PLOG(INFO) << "installd cannot open oat file during dexopt" <<  oat_path;
+    }
+
+    std::string vdex_filename = create_vdex_filename(oat_path);
+    vdex_file_fd->reset(open(vdex_filename.c_str(), O_RDONLY));
+    if (vdex_file_fd->get() < 0) {
+        PLOG(INFO) << "installd cannot open vdex file during dexopt" <<  vdex_filename;
+    }
+
+    return true;
+}
+
 // Updates the access times of out_oat_path based on those from apk_path.
 void update_out_oat_access_times(const char* apk_path, const char* out_oat_path) {
     struct stat input_stat;
@@ -1374,9 +1405,11 @@ void update_out_oat_access_times(const char* apk_path, const char* out_oat_path)
 // The analyzer will check if the dex_file needs to be (re)compiled to match the compiler_filter.
 // If this is for a profile guided compilation, profile_was_updated will tell whether or not
 // the profile has changed.
-static void exec_dexoptanalyzer(const std::string& dex_file, const std::string& instruction_set,
-        const std::string& compiler_filter, bool profile_was_updated, bool downgrade,
+static void exec_dexoptanalyzer(const std::string& dex_file, int vdex_fd, int oat_fd,
+        int zip_fd, const std::string& instruction_set, const std::string& compiler_filter,
+        bool profile_was_updated, bool downgrade,
         const char* class_loader_context) {
+    CHECK_GE(zip_fd, 0);
     const char* dexoptanalyzer_bin =
             is_debug_runtime()
                     ? "/system/bin/dexoptanalyzerd"
@@ -1390,6 +1423,9 @@ static void exec_dexoptanalyzer(const std::string& dex_file, const std::string& 
     }
 
     std::string dex_file_arg = "--dex-file=" + dex_file;
+    std::string oat_fd_arg = "--oat-fd=" + std::to_string(oat_fd);
+    std::string vdex_fd_arg = "--vdex-fd=" + std::to_string(vdex_fd);
+    std::string zip_fd_arg = "--zip-fd=" + std::to_string(zip_fd);
     std::string isa_arg = "--isa=" + instruction_set;
     std::string compiler_filter_arg = "--compiler-filter=" + compiler_filter;
     const char* assume_profile_changed = "--assume-profile-changed";
@@ -1400,8 +1436,10 @@ static void exec_dexoptanalyzer(const std::string& dex_file, const std::string& 
     }
 
     // program name, dex file, isa, filter, the final NULL
-    const int argc = 5 +
+    const int argc = 6 +
         (profile_was_updated ? 1 : 0) +
+        (vdex_fd >= 0 ? 1 : 0) +
+        (oat_fd >= 0 ? 1 : 0) +
         (downgrade ? 1 : 0) +
         (class_loader_context != nullptr ? 1 : 0);
     const char* argv[argc];
@@ -1410,6 +1448,13 @@ static void exec_dexoptanalyzer(const std::string& dex_file, const std::string& 
     argv[i++] = dex_file_arg.c_str();
     argv[i++] = isa_arg.c_str();
     argv[i++] = compiler_filter_arg.c_str();
+    if (oat_fd >= 0) {
+        argv[i++] = oat_fd_arg.c_str();
+    }
+    if (vdex_fd >= 0) {
+        argv[i++] = vdex_fd_arg.c_str();
+    }
+    argv[i++] = zip_fd_arg.c_str();
     if (profile_was_updated) {
         argv[i++] = assume_profile_changed;
     }
@@ -1564,12 +1609,35 @@ static bool process_secondary_dex_dexopt(const char* original_dex_path, const ch
     // Analyze profiles.
     bool profile_was_updated = analyze_profiles(uid, dex_path, /*is_secondary_dex*/true);
 
+    unique_fd oat_file_fd;
+    unique_fd vdex_file_fd;
+    unique_fd zip_fd;
+    zip_fd.reset(open(dex_path.c_str(), O_RDONLY));
+    if (zip_fd.get() < 0) {
+        PLOG(ERROR) << "installd cannot open " << dex_path << " for input during dexopt";
+        return false;
+    }
+    if (!maybe_open_oat_and_vdex_file(dex_path,
+                                      *oat_dir_out,
+                                      instruction_set,
+                                      true /* is_secondary_dex */,
+                                      &oat_file_fd,
+                                      &vdex_file_fd)) {
+      return false;
+    }
+
     pid_t pid = fork();
     if (pid == 0) {
         // child -- drop privileges before continuing.
         drop_capabilities(uid);
         // Run dexoptanalyzer to get dexopt_needed code.
-        exec_dexoptanalyzer(dex_path, instruction_set, compiler_filter, profile_was_updated,
+        exec_dexoptanalyzer(dex_path,
+                            vdex_file_fd.get(),
+                            oat_file_fd.get(),
+                            zip_fd.get(),
+                            instruction_set,
+                            compiler_filter,
+                            profile_was_updated,
                             downgrade, class_loader_context);
         exit(DEXOPTANALYZER_BIN_EXEC_ERROR);
     }
@@ -1661,8 +1729,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     // Open vdex files.
     Dex2oatFileWrapper in_vdex_fd;
     Dex2oatFileWrapper out_vdex_fd;
-    if (!open_vdex_files(dex_path, out_oat_path, dexopt_needed, instruction_set, is_public, uid,
-            is_secondary_dex, profile_guided, &in_vdex_fd, &out_vdex_fd)) {
+    if (!open_vdex_files_for_dex2oat(dex_path, out_oat_path, dexopt_needed, instruction_set,
+            is_public, uid, is_secondary_dex, profile_guided, &in_vdex_fd, &out_vdex_fd)) {
         return -1;
     }
 
