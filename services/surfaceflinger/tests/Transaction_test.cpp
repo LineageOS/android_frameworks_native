@@ -1322,6 +1322,168 @@ TEST_F(LayerTransactionTest, SetCropWithNextResizeScaleToWindow) {
     }
 }
 
+TEST_F(LayerTransactionTest, SetFinalCropBasic) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    const Rect crop(8, 8, 24, 24);
+
+    // same as in SetCropBasic
+    Transaction().setFinalCrop(layer, crop).apply();
+    auto shot = screenshot();
+    shot->expectColor(crop, Color::RED);
+    shot->expectBorder(crop, Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetFinalCropEmpty) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // same as in SetCropEmpty
+    {
+        SCOPED_TRACE("empty rect");
+        Transaction().setFinalCrop(layer, Rect(8, 8, 8, 8)).apply();
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    {
+        SCOPED_TRACE("negative rect");
+        Transaction().setFinalCrop(layer, Rect(8, 8, 0, 0)).apply();
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetFinalCropOutOfBounds) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // same as in SetCropOutOfBounds
+    Transaction().setFinalCrop(layer, Rect(-128, -64, 128, 64)).apply();
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetFinalCropWithTranslation) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // final crop is applied post-translation
+    Transaction().setPosition(layer, 16, 16).setFinalCrop(layer, Rect(8, 8, 24, 24)).apply();
+    auto shot = screenshot();
+    shot->expectColor(Rect(16, 16, 24, 24), Color::RED);
+    shot->expectBorder(Rect(16, 16, 24, 24), Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetFinalCropWithScale) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // final crop is not affected by matrix
+    Transaction()
+            .setMatrix(layer, 2.0f, 0.0f, 0.0f, 2.0f)
+            .setFinalCrop(layer, Rect(8, 8, 24, 24))
+            .apply();
+    auto shot = screenshot();
+    shot->expectColor(Rect(8, 8, 24, 24), Color::RED);
+    shot->expectBorder(Rect(8, 8, 24, 24), Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetFinalCropWithResize) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // same as in SetCropWithResize
+    Transaction().setFinalCrop(layer, Rect(8, 8, 24, 24)).setSize(layer, 16, 16).apply();
+    {
+        SCOPED_TRACE("resize pending");
+        auto shot = screenshot();
+        shot->expectColor(Rect(8, 8, 24, 24), Color::RED);
+        shot->expectBorder(Rect(8, 8, 24, 24), Color::BLACK);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    {
+        SCOPED_TRACE("resize applied");
+        auto shot = screenshot();
+        shot->expectColor(Rect(8, 8, 16, 16), Color::RED);
+        shot->expectBorder(Rect(8, 8, 16, 16), Color::BLACK);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetFinalCropWithNextResize) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // same as in SetCropWithNextResize
+    Transaction()
+            .setFinalCrop(layer, Rect(8, 8, 24, 24))
+            .setGeometryAppliesWithResize(layer)
+            .apply();
+    {
+        SCOPED_TRACE("waiting for next resize");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    Transaction().setFinalCrop(layer, Rect(4, 4, 12, 12)).apply();
+    {
+        SCOPED_TRACE("pending final crop modified");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    Transaction().setSize(layer, 16, 16).apply();
+    {
+        SCOPED_TRACE("resize pending");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    // finally resize
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    {
+        SCOPED_TRACE("new final crop applied");
+        auto shot = screenshot();
+        shot->expectColor(Rect(4, 4, 12, 12), Color::RED);
+        shot->expectBorder(Rect(4, 4, 12, 12), Color::BLACK);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetFinalCropWithNextResizeScaleToWindow) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+
+    // same as in SetCropWithNextResizeScaleToWindow
+    Transaction()
+            .setFinalCrop(layer, Rect(4, 4, 12, 12))
+            .setSize(layer, 16, 16)
+            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
+            .setGeometryAppliesWithResize(layer)
+            .apply();
+    {
+        SCOPED_TRACE("new final crop pending");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 16, 16), Color::RED);
+        shot->expectBorder(Rect(0, 0, 16, 16), Color::BLACK);
+    }
+
+    // XXX final crop is never latched without other geometry change (b/69315677)
+    Transaction().setPosition(layer, 1, 0).setGeometryAppliesWithResize(layer).apply();
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    Transaction().setPosition(layer, 0, 0).apply();
+    {
+        SCOPED_TRACE("new final crop applied");
+        auto shot = screenshot();
+        shot->expectColor(Rect(4, 4, 12, 12), Color::RED);
+        shot->expectBorder(Rect(4, 4, 12, 12), Color::BLACK);
+    }
+}
+
 class LayerUpdateTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
