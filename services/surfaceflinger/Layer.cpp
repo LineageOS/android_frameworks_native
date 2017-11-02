@@ -175,6 +175,8 @@ void Layer::onLayerDisplayed(const sp<const DisplayDevice>& /* hw */,
 void Layer::onRemovedFromCurrentState() {
     // the layer is removed from SF mCurrentState to mLayersPendingRemoval
 
+    mPendingRemoval = true;
+
     if (mCurrentState.zOrderRelativeOf != nullptr) {
         sp<Layer> strongRelative = mCurrentState.zOrderRelativeOf.promote();
         if (strongRelative != nullptr) {
