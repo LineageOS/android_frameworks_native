@@ -81,7 +81,9 @@ namespace android {
 
 const unsigned int NUM_DISPLAYS = 1;
 
+#ifndef __ANDROID__
 static pthread_mutex_t gInitMutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 static pthread_mutex_t gErrorKeyMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_key_t gEGLErrorKey = -1;
 #ifndef __ANDROID__
@@ -1776,7 +1778,6 @@ EGLBoolean eglMakeCurrent(  EGLDisplay dpy, EGLSurface draw,
         // if we're detaching, we need the current context
         current_ctx = (EGLContext)getGlThreadSpecific();
     } else {
-        egl_context_t* c = egl_context_t::context(ctx);
         egl_surface_t* d = (egl_surface_t*)draw;
         egl_surface_t* r = (egl_surface_t*)read;
         if ((d && d->ctx && d->ctx != ctx) ||

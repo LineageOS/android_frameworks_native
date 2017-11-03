@@ -38,6 +38,8 @@ LOCAL_CFLAGS_mips += -fstrict-aliasing
 # The graphics code can generate division by zero
 LOCAL_CFLAGS_mips += -mno-check-zero-division
 
+LOCAL_CFLAGS += -Wall -Werror
+
 # we need to access the private Bionic header <bionic_tls.h>
 LOCAL_C_INCLUDES += bionic/libc/private
 

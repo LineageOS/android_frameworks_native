@@ -467,7 +467,6 @@ static void lightx(GLenum i, GLenum pname, GLfixed param, ogles_context_t* c)
     }
 
     light_t& light = c->lighting.lights[i-GL_LIGHT0];
-    const GLfixed kDegToRad = GLfixed((M_PI * gglIntToFixed(1)) / 180.0f);
     switch (pname) {
     case GL_SPOT_EXPONENT:
         if (GGLfixed(param) >= gglIntToFixed(128)) {
