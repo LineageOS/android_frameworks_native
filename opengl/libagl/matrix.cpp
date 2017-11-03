@@ -51,7 +51,6 @@ static const matrixx_t gIdentityx = {
 static void point2__nop(transform_t const*, vec4_t* c, vec4_t const* o);
 static void point3__nop(transform_t const*, vec4_t* c, vec4_t const* o);
 static void point4__nop(transform_t const*, vec4_t* c, vec4_t const* o);
-static void normal__nop(transform_t const*, vec4_t* c, vec4_t const* o);
 static void point2__generic(transform_t const*, vec4_t* c, vec4_t const* o);
 static void point3__generic(transform_t const*, vec4_t* c, vec4_t const* o);
 static void point4__generic(transform_t const*, vec4_t* c, vec4_t const* o);
@@ -522,16 +521,6 @@ void transform_state_t::update_mvp()
     } else {
         mvp = mvp4;
     }
-}
-
-static inline 
-GLfloat det22(GLfloat a, GLfloat b, GLfloat c, GLfloat d) {
-    return a*d - b*c;
-}
-
-static inline
-GLfloat ndet22(GLfloat a, GLfloat b, GLfloat c, GLfloat d) {
-    return b*c - a*d;
 }
 
 static __attribute__((noinline))
