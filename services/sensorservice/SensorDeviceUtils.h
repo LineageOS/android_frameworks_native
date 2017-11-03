@@ -46,6 +46,8 @@ public:
      * @return true if service is restart since last reset(); false otherwise.
      */
     bool wait();
+protected:
+    void onFirstRef() override;
 private:
     bool mRegistered;
 
