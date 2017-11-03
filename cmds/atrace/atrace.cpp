@@ -152,6 +152,8 @@ static const TracingCategory k_categories[] = {
     { "freq",       "CPU Frequency",    0, {
         { REQ,      "events/power/cpu_frequency/enable" },
         { OPT,      "events/power/clock_set_rate/enable" },
+        { OPT,      "events/power/clock_disable/enable" },
+        { OPT,      "events/power/clock_enable/enable" },
         { OPT,      "events/power/cpu_frequency_limits/enable" },
     } },
     { "membus",     "Memory Bus Utilization", 0, {
