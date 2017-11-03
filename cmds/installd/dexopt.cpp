@@ -53,6 +53,15 @@ using android::base::unique_fd;
 namespace android {
 namespace installd {
 
+// Should minidebug info be included in compiled artifacts? Even if this value is
+// "true," usage might still be conditional to other constraints, e.g., system
+// property overrides.
+static constexpr bool kEnableMinidebugInfo = true;
+
+static constexpr const char* kMinidebugInfoSystemProperty = "dalvik.vm.dex2oat-minidebuginfo";
+static constexpr bool kMinidebugInfoSystemPropertyDefault = false;
+static constexpr const char* kMinidebugDex2oatFlag = "--generate-mini-debug-info";
+
 // Deleter using free() for use with std::unique_ptr<>. See also UniqueCPtr<> below.
 struct FreeDelete {
   // NOTE: Deleting a const object is valid but free() takes a non-const pointer.
@@ -201,7 +210,7 @@ static const char* get_location_from_path(const char* path) {
 static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vdex_fd, int image_fd,
         const char* input_file_name, const char* output_file_name, int swap_fd,
         const char* instruction_set, const char* compiler_filter,
-        bool debuggable, bool post_bootcomplete, bool try_debug_for_background, int profile_fd,
+        bool debuggable, bool post_bootcomplete, bool background_job_compile, int profile_fd,
         const char* class_loader_context) {
     static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
 
@@ -281,10 +290,14 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     // If the runtime was requested to use libartd.so, we'll run dex2oatd, otherwise dex2oat.
     const char* dex2oat_bin = "/system/bin/dex2oat";
     static const char* kDex2oatDebugPath = "/system/bin/dex2oatd";
-    if (is_debug_runtime() || (try_debug_for_background && is_debuggable_build())) {
+    if (is_debug_runtime() || (background_job_compile && is_debuggable_build())) {
         DCHECK(access(kDex2oatDebugPath, X_OK) == 0);
         dex2oat_bin = kDex2oatDebugPath;
     }
+
+    bool generate_minidebug_info = kEnableMinidebugInfo &&
+            android::base::GetBoolProperty(kMinidebugInfoSystemProperty,
+                                           kMinidebugInfoSystemPropertyDefault);
 
     static const char* RUNTIME_ARG = "--runtime-arg";
 
@@ -413,7 +426,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
                      + (profile_fd == -1 ? 0 : 1)
                      + (class_loader_context != nullptr ? 1 : 0)
                      + (has_base_dir ? 1 : 0)
-                     + (have_dex2oat_large_app_threshold ? 1 : 0)];
+                     + (have_dex2oat_large_app_threshold ? 1 : 0)
+                     + (generate_minidebug_info ? 1 : 0)];
     int i = 0;
     argv[i++] = dex2oat_bin;
     argv[i++] = zip_fd_arg;
@@ -476,6 +490,9 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     }
     if (class_loader_context != nullptr) {
         argv[i++] = class_loader_context_arg;
+    }
+    if (generate_minidebug_info) {
+        argv[i++] = kMinidebugDex2oatFlag;
     }
 
     // Do not add after dex2oat_flags, they should override others for debugging.
@@ -1687,7 +1704,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     bool boot_complete = (dexopt_flags & DEXOPT_BOOTCOMPLETE) != 0;
     bool profile_guided = (dexopt_flags & DEXOPT_PROFILE_GUIDED) != 0;
     bool is_secondary_dex = (dexopt_flags & DEXOPT_SECONDARY_DEX) != 0;
-    bool try_debug_for_background = (dexopt_flags & DEXOPT_IDLE_BACKGROUND_JOB) != 0;
+    bool background_job_compile = (dexopt_flags & DEXOPT_IDLE_BACKGROUND_JOB) != 0;
 
     // Check if we're dealing with a secondary dex file and if we need to compile it.
     std::string oat_dir_str;
@@ -1783,7 +1800,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                     compiler_filter,
                     debuggable,
                     boot_complete,
-                    try_debug_for_background,
+                    background_job_compile,
                     reference_profile_fd.get(),
                     class_loader_context);
         _exit(68);   /* only get here on exec failure */
