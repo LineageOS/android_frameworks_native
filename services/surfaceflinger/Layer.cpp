@@ -1868,6 +1868,10 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t z) {
     mCurrentState.modified = true;
     mCurrentState.z = z;
 
+    auto oldZOrderRelativeOf = mCurrentState.zOrderRelativeOf.promote();
+    if (oldZOrderRelativeOf != nullptr) {
+        oldZOrderRelativeOf->removeZOrderRelative(this);
+    }
     mCurrentState.zOrderRelativeOf = relative;
     relative->addZOrderRelative(this);
 
