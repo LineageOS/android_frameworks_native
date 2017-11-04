@@ -32,6 +32,7 @@ staticLibraries := \
 
 sharedLibraries := \
 	libbase \
+	libbinder \
 	libcutils \
 	liblog \
 	libsync \

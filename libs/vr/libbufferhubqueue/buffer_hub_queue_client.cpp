@@ -137,6 +137,28 @@ Status<LocalChannelHandle> BufferHubQueue::CreateConsumerQueueHandle(
   return status;
 }
 
+pdx::Status<ConsumerQueueParcelable>
+BufferHubQueue::CreateConsumerQueueParcelable(bool silent) {
+  auto status = CreateConsumerQueueHandle(silent);
+  if (!status)
+    return status.error_status();
+
+  // A temporary consumer queue client to pull its channel parcelable.
+  auto consumer_queue =
+      std::unique_ptr<ConsumerQueue>(new ConsumerQueue(status.take()));
+  ConsumerQueueParcelable queue_parcelable(
+      consumer_queue->GetChannel()->TakeChannelParcelable());
+
+  if (!queue_parcelable.IsValid()) {
+    ALOGE(
+        "BufferHubQueue::CreateConsumerQueueParcelable: Failed to create "
+        "consumer queue parcelable.");
+    return ErrorStatus(EINVAL);
+  }
+
+  return {std::move(queue_parcelable)};
+}
+
 bool BufferHubQueue::WaitForBuffers(int timeout) {
   ATRACE_NAME("BufferHubQueue::WaitForBuffers");
   std::array<epoll_event, kMaxEvents> events;
@@ -553,6 +575,25 @@ pdx::Status<std::shared_ptr<BufferProducer>> ProducerQueue::Dequeue(
     return ErrorStatus(-ret);
 
   return {std::move(buffer)};
+}
+
+pdx::Status<ProducerQueueParcelable> ProducerQueue::TakeAsParcelable() {
+  if (capacity() != 0) {
+    ALOGE(
+        "ProducerQueue::TakeAsParcelable: producer queue can only be taken out"
+        " as a parcelable when empty. Current queue capacity: %zu",
+        capacity());
+    return ErrorStatus(EINVAL);
+  }
+
+  std::unique_ptr<pdx::ClientChannel> channel = TakeChannel();
+  ProducerQueueParcelable queue_parcelable(channel->TakeChannelParcelable());
+
+  // Here the queue parcelable is returned and holds the underlying system
+  // resources backing the queue; while the original client channel of this
+  // producer queue is destroyed in place so that this client can no longer
+  // provide producer operations.
+  return {std::move(queue_parcelable)};
 }
 
 ConsumerQueue::ConsumerQueue(LocalChannelHandle handle)

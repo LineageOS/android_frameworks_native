@@ -4,6 +4,7 @@
 #include <vector>
 
 #include <pdx/channel_handle.h>
+#include <pdx/channel_parcelable.h>
 #include <pdx/file_handle.h>
 #include <pdx/status.h>
 
@@ -61,6 +62,11 @@ class ClientChannel {
                              LocalHandle* handle) const = 0;
   virtual bool GetChannelHandle(void* transaction_state, ChannelReference ref,
                                 LocalChannelHandle* handle) const = 0;
+
+  // Returns the internal state of the channel as a parcelable object. The
+  // ClientChannel is invalidated however, the channel is kept alive by the
+  // parcelable object and may be transferred to another process.
+  virtual std::unique_ptr<ChannelParcelable> TakeChannelParcelable() = 0;
 };
 
 }  // namespace pdx
