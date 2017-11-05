@@ -241,6 +241,7 @@ void compute_iterators_t::initTriangle(
     m_dx20 = v0->window.x - v2->window.x;
     m_dy02 = v2->window.y - v0->window.y;
     m_area = m_dx01*m_dy02 + (-m_dy10)*m_dx20;
+    (void)m_reserved; // suppress unused warning
 }
 
 void compute_iterators_t::initLine(

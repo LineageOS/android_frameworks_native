@@ -455,7 +455,6 @@ private:
             int32_t* displayId);
 
     void updateTouchState(InputMessage& msg);
-    bool rewriteMessage(const TouchState& state, InputMessage& msg);
     void resampleTouchState(nsecs_t frameTime, MotionEvent* event,
             const InputMessage *next);
 
@@ -464,6 +463,7 @@ private:
 
     status_t sendUnchainedFinishedSignal(uint32_t seq, bool handled);
 
+    static bool rewriteMessage(const TouchState& state, InputMessage& msg);
     static void initializeKeyEvent(KeyEvent* event, const InputMessage* msg);
     static void initializeMotionEvent(MotionEvent* event, const InputMessage* msg);
     static void addSample(MotionEvent* event, const InputMessage* msg);

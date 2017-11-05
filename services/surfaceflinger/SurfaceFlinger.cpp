@@ -3490,11 +3490,6 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
 
-    if (asProto) {
-        // Return early as SurfaceFlinger does not support dumping sections in proto format
-        return OK;
-    }
-
     if ((uid != AID_SHELL) &&
             !PermissionCache::checkPermission(sDump, pid, uid)) {
         result.appendFormat("Permission Denial: "
@@ -3514,6 +3509,13 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
         bool dumpAll = true;
         size_t index = 0;
         size_t numArgs = args.size();
+
+        if (asProto) {
+            LayersProto layersProto = dumpProtoInfo();
+            result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
+            dumpAll = false;
+        }
+
         if (numArgs) {
             if ((index < numArgs) &&
                     (args[index] == String16("--list"))) {
@@ -3560,13 +3562,6 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
             if ((index < numArgs) && (args[index] == String16("--wide-color"))) {
                 index++;
                 dumpWideColorInfo(result);
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) && (args[index] == String16("--proto"))) {
-                index++;
-                LayersProto layersProto = dumpProtoInfo();
-                result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
                 dumpAll = false;
             }
         }

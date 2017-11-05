@@ -71,7 +71,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
     :   contentDirty(false),
         sequence(uint32_t(android_atomic_inc(&sSequence))),
         mFlinger(flinger),
-        mTextureName(-1U),
+        mTextureName(UINT32_MAX),
         mPremultipliedAlpha(true),
         mName("unnamed"),
         mFormat(PIXEL_FORMAT_NONE),
@@ -1868,6 +1868,10 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t z) {
     mCurrentState.modified = true;
     mCurrentState.z = z;
 
+    auto oldZOrderRelativeOf = mCurrentState.zOrderRelativeOf.promote();
+    if (oldZOrderRelativeOf != nullptr) {
+        oldZOrderRelativeOf->removeZOrderRelative(this);
+    }
     mCurrentState.zOrderRelativeOf = relative;
     relative->addZOrderRelative(this);
 
@@ -2702,6 +2706,7 @@ int32_t Layer::getZ() const {
     return mDrawingState.z;
 }
 
+__attribute__((no_sanitize("unsigned-integer-overflow")))
 LayerVector Layer::makeTraversalList(LayerVector::StateSet stateSet) {
     LOG_ALWAYS_FATAL_IF(stateSet == LayerVector::StateSet::Invalid,
                         "makeTraversalList received invalid stateSet");

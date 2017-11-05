@@ -28,8 +28,13 @@ using namespace android::hardware::sensors::V1_0;
 namespace android {
 namespace SensorDeviceUtils {
 
-HidlServiceRegistrationWaiter::HidlServiceRegistrationWaiter()
-        : mRegistered(ISensors::registerForNotifications("default", this)) {
+HidlServiceRegistrationWaiter::HidlServiceRegistrationWaiter() {
+}
+
+void HidlServiceRegistrationWaiter::onFirstRef() {
+    // Creating sp<...>(this) in the constructor should be avoided, hence
+    // registerForNotifications is called in onFirstRef callback.
+    mRegistered = ISensors::registerForNotifications("default", this);
 }
 
 Return<void> HidlServiceRegistrationWaiter::onRegistration(

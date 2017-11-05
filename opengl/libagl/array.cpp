@@ -136,9 +136,6 @@ void ogles_uninit_array(ogles_context_t* c)
 static void currentColor(ogles_context_t* c, GLfixed* v, const GLvoid*) {
     memcpy(v, c->current.color.v, sizeof(vec4_t));
 }
-static void currentColor_clamp(ogles_context_t* c, GLfixed* v, const GLvoid*) {
-    memcpy(v, c->currentColorClamped.v, sizeof(vec4_t));
-}
 static void currentNormal(ogles_context_t* c, GLfixed* v, const GLvoid*) {
     memcpy(v, c->currentNormal.v, sizeof(vec3_t));
 }
@@ -349,6 +346,7 @@ void vertex_cache_t::init()
 {
     // make sure the size of vertex_t allows cache-line alignment
     CTA<(sizeof(vertex_t) & 0x1F) == 0> assertAlignedSize;
+    (void)assertAlignedSize; // suppress unused warning.
 
     const int align = 32;
     const size_t s = VERTEX_BUFFER_SIZE + VERTEX_CACHE_SIZE;

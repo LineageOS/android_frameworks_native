@@ -55,7 +55,7 @@
     <feature name="android.software.device_admin" />
 
     <!-- Feature to specify if the device support managed users. -->
-    <feature name="android.software.managed_users" />
+    <feature name="android.software.managed_users" notLowRam="true"/>
 
     <!-- Feature to specify if the device supports a VR mode.
          feature name="android.software.vr.mode" -->

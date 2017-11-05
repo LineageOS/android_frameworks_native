@@ -53,6 +53,15 @@ using android::base::unique_fd;
 namespace android {
 namespace installd {
 
+// Should minidebug info be included in compiled artifacts? Even if this value is
+// "true," usage might still be conditional to other constraints, e.g., system
+// property overrides.
+static constexpr bool kEnableMinidebugInfo = true;
+
+static constexpr const char* kMinidebugInfoSystemProperty = "dalvik.vm.dex2oat-minidebuginfo";
+static constexpr bool kMinidebugInfoSystemPropertyDefault = false;
+static constexpr const char* kMinidebugDex2oatFlag = "--generate-mini-debug-info";
+
 // Deleter using free() for use with std::unique_ptr<>. See also UniqueCPtr<> below.
 struct FreeDelete {
   // NOTE: Deleting a const object is valid but free() takes a non-const pointer.
@@ -201,7 +210,7 @@ static const char* get_location_from_path(const char* path) {
 static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vdex_fd, int image_fd,
         const char* input_file_name, const char* output_file_name, int swap_fd,
         const char* instruction_set, const char* compiler_filter,
-        bool debuggable, bool post_bootcomplete, bool try_debug_for_background, int profile_fd,
+        bool debuggable, bool post_bootcomplete, bool background_job_compile, int profile_fd,
         const char* class_loader_context) {
     static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
 
@@ -281,10 +290,14 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     // If the runtime was requested to use libartd.so, we'll run dex2oatd, otherwise dex2oat.
     const char* dex2oat_bin = "/system/bin/dex2oat";
     static const char* kDex2oatDebugPath = "/system/bin/dex2oatd";
-    if (is_debug_runtime() || (try_debug_for_background && is_debuggable_build())) {
+    if (is_debug_runtime() || (background_job_compile && is_debuggable_build())) {
         DCHECK(access(kDex2oatDebugPath, X_OK) == 0);
         dex2oat_bin = kDex2oatDebugPath;
     }
+
+    bool generate_minidebug_info = kEnableMinidebugInfo &&
+            android::base::GetBoolProperty(kMinidebugInfoSystemProperty,
+                                           kMinidebugInfoSystemPropertyDefault);
 
     static const char* RUNTIME_ARG = "--runtime-arg";
 
@@ -413,7 +426,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
                      + (profile_fd == -1 ? 0 : 1)
                      + (class_loader_context != nullptr ? 1 : 0)
                      + (has_base_dir ? 1 : 0)
-                     + (have_dex2oat_large_app_threshold ? 1 : 0)];
+                     + (have_dex2oat_large_app_threshold ? 1 : 0)
+                     + (generate_minidebug_info ? 1 : 0)];
     int i = 0;
     argv[i++] = dex2oat_bin;
     argv[i++] = zip_fd_arg;
@@ -476,6 +490,9 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     }
     if (class_loader_context != nullptr) {
         argv[i++] = class_loader_context_arg;
+    }
+    if (generate_minidebug_info) {
+        argv[i++] = kMinidebugDex2oatFlag;
     }
 
     // Do not add after dex2oat_flags, they should override others for debugging.
@@ -1240,7 +1257,7 @@ Dex2oatFileWrapper maybe_open_reference_profile(const std::string& pkgname,
 
 // Opens the vdex files and assigns the input fd to in_vdex_wrapper_fd and the output fd to
 // out_vdex_wrapper_fd. Returns true for success or false in case of errors.
-bool open_vdex_files(const char* apk_path, const char* out_oat_path, int dexopt_needed,
+bool open_vdex_files_for_dex2oat(const char* apk_path, const char* out_oat_path, int dexopt_needed,
         const char* instruction_set, bool is_public, int uid, bool is_secondary_dex,
         bool profile_guided, Dex2oatFileWrapper* in_vdex_wrapper_fd,
         Dex2oatFileWrapper* out_vdex_wrapper_fd) {
@@ -1353,6 +1370,37 @@ Dex2oatFileWrapper open_oat_out_file(const char* apk_path, const char* oat_dir,
     return wrapper_fd;
 }
 
+// Creates RDONLY fds for oat and vdex files, if exist.
+// Returns false if it fails to create oat out path for the given apk path.
+// Note that the method returns true even if the files could not be opened.
+bool maybe_open_oat_and_vdex_file(const std::string& apk_path,
+                                  const std::string& oat_dir,
+                                  const std::string& instruction_set,
+                                  bool is_secondary_dex,
+                                  unique_fd* oat_file_fd,
+                                  unique_fd* vdex_file_fd) {
+    char oat_path[PKG_PATH_MAX];
+    if (!create_oat_out_path(apk_path.c_str(),
+                             instruction_set.c_str(),
+                             oat_dir.c_str(),
+                             is_secondary_dex,
+                             oat_path)) {
+        return false;
+    }
+    oat_file_fd->reset(open(oat_path, O_RDONLY));
+    if (oat_file_fd->get() < 0) {
+        PLOG(INFO) << "installd cannot open oat file during dexopt" <<  oat_path;
+    }
+
+    std::string vdex_filename = create_vdex_filename(oat_path);
+    vdex_file_fd->reset(open(vdex_filename.c_str(), O_RDONLY));
+    if (vdex_file_fd->get() < 0) {
+        PLOG(INFO) << "installd cannot open vdex file during dexopt" <<  vdex_filename;
+    }
+
+    return true;
+}
+
 // Updates the access times of out_oat_path based on those from apk_path.
 void update_out_oat_access_times(const char* apk_path, const char* out_oat_path) {
     struct stat input_stat;
@@ -1374,9 +1422,11 @@ void update_out_oat_access_times(const char* apk_path, const char* out_oat_path)
 // The analyzer will check if the dex_file needs to be (re)compiled to match the compiler_filter.
 // If this is for a profile guided compilation, profile_was_updated will tell whether or not
 // the profile has changed.
-static void exec_dexoptanalyzer(const std::string& dex_file, const std::string& instruction_set,
-        const std::string& compiler_filter, bool profile_was_updated, bool downgrade,
+static void exec_dexoptanalyzer(const std::string& dex_file, int vdex_fd, int oat_fd,
+        int zip_fd, const std::string& instruction_set, const std::string& compiler_filter,
+        bool profile_was_updated, bool downgrade,
         const char* class_loader_context) {
+    CHECK_GE(zip_fd, 0);
     const char* dexoptanalyzer_bin =
             is_debug_runtime()
                     ? "/system/bin/dexoptanalyzerd"
@@ -1390,6 +1440,9 @@ static void exec_dexoptanalyzer(const std::string& dex_file, const std::string& 
     }
 
     std::string dex_file_arg = "--dex-file=" + dex_file;
+    std::string oat_fd_arg = "--oat-fd=" + std::to_string(oat_fd);
+    std::string vdex_fd_arg = "--vdex-fd=" + std::to_string(vdex_fd);
+    std::string zip_fd_arg = "--zip-fd=" + std::to_string(zip_fd);
     std::string isa_arg = "--isa=" + instruction_set;
     std::string compiler_filter_arg = "--compiler-filter=" + compiler_filter;
     const char* assume_profile_changed = "--assume-profile-changed";
@@ -1400,8 +1453,10 @@ static void exec_dexoptanalyzer(const std::string& dex_file, const std::string& 
     }
 
     // program name, dex file, isa, filter, the final NULL
-    const int argc = 5 +
+    const int argc = 6 +
         (profile_was_updated ? 1 : 0) +
+        (vdex_fd >= 0 ? 1 : 0) +
+        (oat_fd >= 0 ? 1 : 0) +
         (downgrade ? 1 : 0) +
         (class_loader_context != nullptr ? 1 : 0);
     const char* argv[argc];
@@ -1410,6 +1465,13 @@ static void exec_dexoptanalyzer(const std::string& dex_file, const std::string& 
     argv[i++] = dex_file_arg.c_str();
     argv[i++] = isa_arg.c_str();
     argv[i++] = compiler_filter_arg.c_str();
+    if (oat_fd >= 0) {
+        argv[i++] = oat_fd_arg.c_str();
+    }
+    if (vdex_fd >= 0) {
+        argv[i++] = vdex_fd_arg.c_str();
+    }
+    argv[i++] = zip_fd_arg.c_str();
     if (profile_was_updated) {
         argv[i++] = assume_profile_changed;
     }
@@ -1564,12 +1626,35 @@ static bool process_secondary_dex_dexopt(const char* original_dex_path, const ch
     // Analyze profiles.
     bool profile_was_updated = analyze_profiles(uid, dex_path, /*is_secondary_dex*/true);
 
+    unique_fd oat_file_fd;
+    unique_fd vdex_file_fd;
+    unique_fd zip_fd;
+    zip_fd.reset(open(dex_path.c_str(), O_RDONLY));
+    if (zip_fd.get() < 0) {
+        PLOG(ERROR) << "installd cannot open " << dex_path << " for input during dexopt";
+        return false;
+    }
+    if (!maybe_open_oat_and_vdex_file(dex_path,
+                                      *oat_dir_out,
+                                      instruction_set,
+                                      true /* is_secondary_dex */,
+                                      &oat_file_fd,
+                                      &vdex_file_fd)) {
+      return false;
+    }
+
     pid_t pid = fork();
     if (pid == 0) {
         // child -- drop privileges before continuing.
         drop_capabilities(uid);
         // Run dexoptanalyzer to get dexopt_needed code.
-        exec_dexoptanalyzer(dex_path, instruction_set, compiler_filter, profile_was_updated,
+        exec_dexoptanalyzer(dex_path,
+                            vdex_file_fd.get(),
+                            oat_file_fd.get(),
+                            zip_fd.get(),
+                            instruction_set,
+                            compiler_filter,
+                            profile_was_updated,
                             downgrade, class_loader_context);
         exit(DEXOPTANALYZER_BIN_EXEC_ERROR);
     }
@@ -1619,7 +1704,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     bool boot_complete = (dexopt_flags & DEXOPT_BOOTCOMPLETE) != 0;
     bool profile_guided = (dexopt_flags & DEXOPT_PROFILE_GUIDED) != 0;
     bool is_secondary_dex = (dexopt_flags & DEXOPT_SECONDARY_DEX) != 0;
-    bool try_debug_for_background = (dexopt_flags & DEXOPT_IDLE_BACKGROUND_JOB) != 0;
+    bool background_job_compile = (dexopt_flags & DEXOPT_IDLE_BACKGROUND_JOB) != 0;
 
     // Check if we're dealing with a secondary dex file and if we need to compile it.
     std::string oat_dir_str;
@@ -1661,8 +1746,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     // Open vdex files.
     Dex2oatFileWrapper in_vdex_fd;
     Dex2oatFileWrapper out_vdex_fd;
-    if (!open_vdex_files(dex_path, out_oat_path, dexopt_needed, instruction_set, is_public, uid,
-            is_secondary_dex, profile_guided, &in_vdex_fd, &out_vdex_fd)) {
+    if (!open_vdex_files_for_dex2oat(dex_path, out_oat_path, dexopt_needed, instruction_set,
+            is_public, uid, is_secondary_dex, profile_guided, &in_vdex_fd, &out_vdex_fd)) {
         return -1;
     }
 
@@ -1715,7 +1800,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                     compiler_filter,
                     debuggable,
                     boot_complete,
-                    try_debug_for_background,
+                    background_job_compile,
                     reference_profile_fd.get(),
                     class_loader_context);
         _exit(68);   /* only get here on exec failure */
