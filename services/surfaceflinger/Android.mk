@@ -21,6 +21,7 @@ LOCAL_SRC_FILES := \
     MonitoredProducer.cpp \
     SurfaceFlingerConsumer.cpp \
     SurfaceInterceptor.cpp \
+    SurfaceTracing.cpp \
     Transform.cpp \
     DisplayHardware/ComposerHal.cpp \
     DisplayHardware/FramebufferSurface.cpp \

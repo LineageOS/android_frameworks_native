@@ -1520,6 +1520,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     rebuildLayerStacks();
     setUpHWComposer();
     doDebugFlashRegions();
+    doTracing("handleRefresh");
     doComposition();
     postComposition(refreshStartTime);
 
@@ -1576,6 +1577,14 @@ void SurfaceFlinger::doDebugFlashRegions()
         status_t result = displayDevice->prepareFrame(*mHwc);
         ALOGE_IF(result != NO_ERROR, "prepareFrame for display %zd failed:"
                 " %d (%s)", displayId, result, strerror(-result));
+    }
+}
+
+void SurfaceFlinger::doTracing(const char* where) {
+    ATRACE_CALL();
+    ATRACE_NAME(where);
+    if (CC_UNLIKELY(mTracing.isEnabled())) {
+        mTracing.traceLayers(where, dumpProtoInfo());
     }
 }
 
@@ -4223,6 +4232,20 @@ status_t SurfaceFlinger::onTransact(
             }
             case 1024: { // Is wide color gamut rendering/color management supported?
                 reply->writeBool(hasWideColorDisplay);
+                return NO_ERROR;
+            }
+            case 1025: { // tracing
+                n = data.readInt32();
+                if (n) {
+                    ALOGV("LayerTracing enabled");
+                    mTracing.enable();
+                    doTracing("tracing.enable");
+                    reply->writeInt32(NO_ERROR);
+                } else {
+                    ALOGV("LayerTracing disabled");
+                    status_t err = mTracing.disable();
+                    reply->writeInt32(err);
+                }
                 return NO_ERROR;
             }
         }
