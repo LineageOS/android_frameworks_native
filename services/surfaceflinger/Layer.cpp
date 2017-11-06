@@ -2714,7 +2714,7 @@ void Layer::traverseInReverseZOrder(LayerVector::StateSet stateSet,
     LayerVector list = makeTraversalList(stateSet);
 
     int32_t i = 0;
-    for (i = list.size()-1; i>=0; i--) {
+    for (i = int32_t(list.size()) - 1; i >= 0; i--) {
         const auto& relative = list[i];
         if (relative->getZ() < 0) {
             break;
