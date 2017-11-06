@@ -26,13 +26,14 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
 #include <android-base/file.h>
-#include <cutils/log.h>
+#include <log/log.h>
 #include <private/android_filesystem_config.h>
 
 uint64_t Nanotime() {
