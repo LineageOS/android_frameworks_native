@@ -381,6 +381,18 @@ private:
             }
         }
 
+        void initializeFrom(const History& other) {
+            eventTime = other.eventTime;
+            idBits = other.idBits; // temporary copy
+            for (size_t i = 0; i < other.idBits.count(); i++) {
+                uint32_t id = idBits.clearFirstMarkedBit();
+                int32_t index = other.idToIndex[id];
+                idToIndex[id] = index;
+                pointers[index].copyFrom(other.pointers[index]);
+            }
+            idBits = other.idBits; // final copy
+        }
+
         const PointerCoords& getPointerById(uint32_t id) const {
             return pointers[idToIndex[id]];
         }
@@ -463,7 +475,7 @@ private:
 
     status_t sendUnchainedFinishedSignal(uint32_t seq, bool handled);
 
-    static bool rewriteMessage(const TouchState& state, InputMessage& msg);
+    static void rewriteMessage(TouchState& state, InputMessage& msg);
     static void initializeKeyEvent(KeyEvent* event, const InputMessage* msg);
     static void initializeMotionEvent(MotionEvent* event, const InputMessage* msg);
     static void addSample(MotionEvent* event, const InputMessage* msg);
