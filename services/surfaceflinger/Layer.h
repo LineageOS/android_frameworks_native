@@ -69,14 +69,8 @@ class LayerDebugInfo;
 
 // ---------------------------------------------------------------------------
 
-/*
- * A new BufferQueue and a new SurfaceFlingerConsumer are created when the
- * Layer is first referenced.
- *
- * This also implements onFrameAvailable(), which notifies SurfaceFlinger
- * that new data has arrived.
- */
-class Layer : public SurfaceFlingerConsumer::ContentsChangedListener {
+class Layer : public virtual RefBase
+{
     static int32_t sSequence;
 
 public:
@@ -162,17 +156,11 @@ public:
         half4 color;
     };
 
-    // -----------------------------------------------------------------------
-
     Layer(SurfaceFlinger* flinger, const sp<Client>& client,
             const String8& name, uint32_t w, uint32_t h, uint32_t flags);
-
     virtual ~Layer();
 
     void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
-
-    // the this layer's size and format
-    status_t setBuffers(uint32_t w, uint32_t h, PixelFormat format, uint32_t flags);
 
     // ------------------------------------------------------------------------
     // Geometry setting functions.
@@ -264,8 +252,7 @@ public:
 
     // -----------------------------------------------------------------------
     // Virtuals
-
-    virtual const char* getTypeId() const { return "Layer"; }
+    virtual const char* getTypeId() const = 0;
 
     /*
      * isOpaque - true if this surface is opaque
@@ -274,24 +261,18 @@ public:
      * pixel format includes an alpha channel) and the "opaque" flag set
      * on the layer.  It does not examine the current plane alpha value.
      */
-    virtual bool isOpaque(const Layer::State& s) const;
+    virtual bool isOpaque(const Layer::State& s) const = 0;
 
     /*
      * isSecure - true if this surface is secure, that is if it prevents
      * screenshots or VNC servers.
      */
-    virtual bool isSecure() const;
-
-    /*
-     * isProtected - true if the layer may contain protected content in the
-     * GRALLOC_USAGE_PROTECTED sense.
-     */
-    virtual bool isProtected() const;
+    bool isSecure() const;
 
     /*
      * isVisible - true if this layer is visible, false otherwise
      */
-    virtual bool isVisible() const;
+    virtual bool isVisible() const = 0;
 
     /*
      * isHiddenByPolicy - true if this layer has been forced invisible.
@@ -299,12 +280,12 @@ public:
      * For example if this layer has no active buffer, it may not be hidden by
      * policy, but it still can not be visible.
      */
-    virtual bool isHiddenByPolicy() const;
+    bool isHiddenByPolicy() const;
 
     /*
      * isFixedSize - true if content has a fixed size
      */
-    virtual bool isFixedSize() const;
+    virtual bool isFixedSize() const = 0;
 
     void writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
 
@@ -313,11 +294,9 @@ protected:
      * onDraw - draws the surface.
      */
     virtual void onDraw(const RenderArea& renderArea, const Region& clip,
-            bool useIdentityTransform) const;
+                        bool useIdentityTransform) const = 0;
 
 public:
-    // -----------------------------------------------------------------------
-
 #ifdef USE_HWC2
     void setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z);
     void forceClientComposition(int32_t hwcId);
@@ -325,22 +304,17 @@ public:
 
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state
-    void setCompositionType(int32_t hwcId, HWC2::Composition type,
-            bool callIntoHwc = true);
+    void setCompositionType(int32_t hwcId, HWC2::Composition type, bool callIntoHwc = true);
     HWC2::Composition getCompositionType(int32_t hwcId) const;
-
     void setClearClientTarget(int32_t hwcId, bool clear);
     bool getClearClientTarget(int32_t hwcId) const;
-
     void updateCursorPosition(const sp<const DisplayDevice>& hw);
 #else
     void setGeometry(const sp<const DisplayDevice>& hw,
-            HWComposer::HWCLayerInterface& layer);
-    void setPerFrameData(const sp<const DisplayDevice>& hw,
-            HWComposer::HWCLayerInterface& layer);
+                             HWComposer::HWCLayerInterface& layer);
+    void setPerFrameData(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerInterface& layer);
     void setAcquireFence(const sp<const DisplayDevice>& hw,
-            HWComposer::HWCLayerInterface& layer);
-
+                                 HWComposer::HWCLayerInterface& layer);
     Rect getPosition(const sp<const DisplayDevice>& hw);
 #endif
 
@@ -360,7 +334,7 @@ public:
      * called before composition.
      * returns true if the layer has pending updates.
      */
-    bool onPreComposition(nsecs_t refreshStartTime);
+    virtual bool onPreComposition(nsecs_t refreshStartTime) = 0;
 
     /*
      * called after composition.
@@ -372,7 +346,7 @@ public:
 
 #ifdef USE_HWC2
     // If a buffer was replaced this frame, release the former buffer
-    void releasePendingBuffer(nsecs_t dequeueReadyTime);
+    virtual void releasePendingBuffer(nsecs_t dequeueReadyTime) = 0;
 #endif
 
     /*
@@ -415,11 +389,10 @@ public:
      * operation, so this should be set only if needed). Typically this is used
      * to figure out if the content or size of a surface has changed.
      */
-    Region latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime);
-    bool isBufferLatched() const { return mRefreshPending; }
+    virtual Region latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) = 0;
+    virtual bool isBufferLatched() const = 0;
 
-    bool isPotentialCursor() const { return mPotentialCursor;}
-
+    bool isPotentialCursor() const { return mPotentialCursor; }
     /*
      * called with the state lock from a binder thread when the layer is
      * removed from the current list to the pending removal list
@@ -526,14 +499,12 @@ public:
     ssize_t removeChild(const sp<Layer>& layer);
     sp<Layer> getParent() const { return mCurrentParent.promote(); }
     bool hasParent() const { return getParent() != nullptr; }
-
     Rect computeScreenBounds(bool reduceTransparentRegion = true) const;
     bool setChildLayer(const sp<Layer>& childLayer, int32_t z);
 
     // Copy the current list of children to the drawing state. Called by
     // SurfaceFlinger to complete a transaction.
     void commitChildList();
-
     int32_t getZ() const;
 protected:
     // constant
@@ -562,39 +533,21 @@ protected:
 
 
 
-private:
     friend class SurfaceInterceptor;
-    // Interface implementation for SurfaceFlingerConsumer::ContentsChangedListener
-    virtual void onFrameAvailable(const BufferItem& item) override;
-    virtual void onFrameReplaced(const BufferItem& item) override;
-    virtual void onSidebandStreamChanged() override;
-
     void commitTransaction(const State& stateToCommit);
-
-    // needsLinearFiltering - true if this surface's state requires filtering
-    bool needsFiltering(const RenderArea& renderArea) const;
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
 
     FloatRect computeCrop(const sp<const DisplayDevice>& hw) const;
-    // Compute the initial crop as specified by parent layers and the SurfaceControl
-    // for this layer. Does not include buffer crop from the IGraphicBufferProducer
-    // client, as that should not affect child clipping. Returns in screen space.
+    // Compute the initial crop as specified by parent layers and the
+    // SurfaceControl for this layer. Does not include buffer crop from the
+    // IGraphicBufferProducer client, as that should not affect child clipping.
+    // Returns in screen space.
     Rect computeInitialCrop(const sp<const DisplayDevice>& hw) const;
-    bool isCropped() const;
-    static bool getOpacityForFormat(uint32_t format);
 
     // drawing
     void clearWithOpenGL(const RenderArea& renderArea,
             float r, float g, float b, float alpha) const;
-    void drawWithOpenGL(const RenderArea& renderArea,
-            bool useIdentityTransform) const;
-
-    // Temporary - Used only for LEGACY camera mode.
-    uint32_t getProducerStickyTransform() const;
-
-    // Loads the corresponding system property once per process
-    static bool latchUnsignaledBuffers();
 
     void setParent(const sp<Layer>& layer);
 
@@ -602,8 +555,7 @@ private:
     void addZOrderRelative(const wp<Layer>& relative);
     void removeZOrderRelative(const wp<Layer>& relative);
 
-    // -----------------------------------------------------------------------
-
+protected:
     class SyncPoint
     {
     public:
@@ -646,9 +598,6 @@ private:
     // is applied
     std::list<std::shared_ptr<SyncPoint>> mRemoteSyncPoints;
 
-    uint64_t getHeadFrameNumber() const;
-    bool headFenceHasSignaled() const;
-
     // Returns false if the relevant frame has already been latched
     bool addSyncPoint(const std::shared_ptr<SyncPoint>& point);
 
@@ -661,7 +610,7 @@ private:
     // Returns mCurrentScaling mode (originating from the
     // Client) or mOverrideScalingMode mode (originating from
     // the Surface Controller) if set.
-    uint32_t getEffectiveScalingMode() const;
+    virtual uint32_t getEffectiveScalingMode() const = 0;
 public:
     /*
      * The layer handle is just a BBinder object passed to the client
@@ -680,28 +629,19 @@ public:
     };
 
     sp<IBinder> getHandle();
-    sp<IGraphicBufferProducer> getProducer() const;
     const String8& getName() const;
-    void notifyAvailableFrames();
-    PixelFormat getPixelFormat() const { return mFormat; }
+    virtual void notifyAvailableFrames() = 0;
+    virtual PixelFormat getPixelFormat() const = 0;
     bool getPremultipledAlpha() const;
-private:
+protected:
 
     // -----------------------------------------------------------------------
 
-    // Check all of the local sync points to ensure that all transactions
-    // which need to have been applied prior to the frame which is about to
-    // be latched have signaled
-    bool allTransactionsSignaled();
-
     // constants
     sp<SurfaceFlingerConsumer> mSurfaceFlingerConsumer;
-    sp<IGraphicBufferProducer> mProducer;
-    uint32_t mTextureName;      // from GLES
     bool mPremultipliedAlpha;
     String8 mName;
-    String8 mTransactionName; // A cached version of "TX - " + mName for systraces
-    PixelFormat mFormat;
+    String8 mTransactionName;  // A cached version of "TX - " + mName for systraces
 
     bool mPrimaryDisplayOnly = false;
 
@@ -716,7 +656,7 @@ private:
 
     // thread-safe
     volatile int32_t mQueuedFrames;
-    volatile int32_t mSidebandStreamChanged; // used like an atomic boolean
+    volatile int32_t mSidebandStreamChanged;  // used like an atomic boolean
 
     // Timestamp history for UIAutomation. Thread safe.
     FrameTracker mFrameTracker;
@@ -734,14 +674,10 @@ private:
     sp<NativeHandle> mSidebandStream;
     Rect mCurrentCrop;
     uint32_t mCurrentTransform;
-    uint32_t mCurrentScalingMode;
     // We encode unset as -1.
     int32_t mOverrideScalingMode;
     bool mCurrentOpacity;
-    bool mBufferLatched = false;  // TODO: Use mActiveBuffer?
     std::atomic<uint64_t> mCurrentFrameNumber;
-    uint64_t mPreviousFrameNumber; // Only accessed on the main thread.
-    bool mRefreshPending;
     bool mFrameLatencyNeeded;
     // Whether filtering is forced on or not
     bool mFiltering;
@@ -749,8 +685,7 @@ private:
     bool mNeedsFiltering;
     // The mesh used to draw the layer in GLES composition mode
     mutable Mesh mMesh;
-    // The texture used to draw the layer in GLES composition mode
-    mutable Texture mTexture;
+
 
 #ifdef USE_HWC2
     // HWC items, accessed from the main thread
@@ -786,8 +721,7 @@ private:
 
     // protected by mLock
     mutable Mutex mLock;
-    // Set to true once we've returned this surface's handle
-    mutable bool mHasSurface;
+
     const wp<Client> mClientRef;
 
     // This layer can be a cursor on some displays.
@@ -798,8 +732,6 @@ private:
     Condition mQueueItemCondition;
     Vector<BufferItem> mQueueItems;
     std::atomic<uint64_t> mLastFrameNumberReceived;
-    bool mUpdateTexImageFailed; // This is only accessed on the main thread.
-
     bool mAutoRefresh;
     bool mFreezeGeometryUpdates;
 

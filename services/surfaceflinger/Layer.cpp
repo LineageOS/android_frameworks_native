@@ -62,19 +62,16 @@
 
 namespace android {
 
-// ---------------------------------------------------------------------------
-
 int32_t Layer::sSequence = 1;
 
 Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags)
-    :   contentDirty(false),
+      : contentDirty(false),
         sequence(uint32_t(android_atomic_inc(&sSequence))),
         mFlinger(flinger),
-        mTextureName(UINT32_MAX),
+        mSurfaceFlingerConsumer(NULL),
         mPremultipliedAlpha(true),
-        mName("unnamed"),
-        mFormat(PIXEL_FORMAT_NONE),
+        mName(name),
         mTransactionFlags(0),
         mPendingStateMutex(),
         mPendingStates(),
@@ -82,13 +79,9 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
         mSidebandStreamChanged(false),
         mActiveBufferSlot(BufferQueue::INVALID_BUFFER_SLOT),
         mCurrentTransform(0),
-        mCurrentScalingMode(NATIVE_WINDOW_SCALING_MODE_FREEZE),
         mOverrideScalingMode(-1),
         mCurrentOpacity(true),
-        mBufferLatched(false),
         mCurrentFrameNumber(0),
-        mPreviousFrameNumber(0),
-        mRefreshPending(false),
         mFrameLatencyNeeded(false),
         mFiltering(false),
         mNeedsFiltering(false),
@@ -97,24 +90,17 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
         mIsGlesComposition(false),
 #endif
         mProtectedByApp(false),
-        mHasSurface(false),
         mClientRef(client),
         mPotentialCursor(false),
         mQueueItemLock(),
         mQueueItemCondition(),
         mQueueItems(),
         mLastFrameNumberReceived(0),
-        mUpdateTexImageFailed(false),
         mAutoRefresh(false),
         mFreezeGeometryUpdates(false)
 {
-#ifdef USE_HWC2
-    ALOGV("Creating Layer %s", name.string());
-#endif
 
     mCurrentCrop.makeInvalid();
-    mFlinger->getRenderEngine().genTextures(1, &mTextureName);
-    mTexture.init(Texture::TEXTURE_EXTERNAL, mTextureName);
 
     uint32_t layerFlags = 0;
     if (flags & ISurfaceComposerClient::eHidden)
@@ -124,14 +110,12 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
     if (flags & ISurfaceComposerClient::eSecure)
         layerFlags |= layer_state_t::eLayerSecure;
 
-    if (flags & ISurfaceComposerClient::eNonPremultiplied)
-        mPremultipliedAlpha = false;
-
     mName = name;
     mTransactionName = String8("TX - ") + mName;
 
     mCurrentState.active.w = w;
     mCurrentState.active.h = h;
+    mCurrentState.flags = layerFlags;
     mCurrentState.active.transform.set(0, 0);
     mCurrentState.crop.makeInvalid();
     mCurrentState.finalCrop.makeInvalid();
@@ -140,7 +124,6 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
     mCurrentState.z = 0;
     mCurrentState.color.a = 1.0f;
     mCurrentState.layerStack = 0;
-    mCurrentState.flags = layerFlags;
     mCurrentState.sequence = 0;
     mCurrentState.requested = mCurrentState.active;
     mCurrentState.dataSpace = HAL_DATASPACE_UNKNOWN;
@@ -166,46 +149,10 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client,
 }
 
 void Layer::onFirstRef() {
-    // Creates a custom BufferQueue for SurfaceFlingerConsumer to use
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer, true);
-    mProducer = new MonitoredProducer(producer, mFlinger, this);
-    mSurfaceFlingerConsumer = new SurfaceFlingerConsumer(consumer, mTextureName, this);
-    mSurfaceFlingerConsumer->setConsumerUsageBits(getEffectiveUsage(0));
-    mSurfaceFlingerConsumer->setContentsChangedListener(this);
-    mSurfaceFlingerConsumer->setName(mName);
-
-    if (mFlinger->isLayerTripleBufferingDisabled()) {
-        mProducer->setMaxDequeuedBufferCount(2);
-    }
-
-    const sp<const DisplayDevice> hw(mFlinger->getDefaultDisplayDevice());
-    updateTransformHint(hw);
 }
 
 Layer::~Layer() {
-  sp<Client> c(mClientRef.promote());
-    if (c != 0) {
-        c->detachLayer(this);
-    }
-
-    for (auto& point : mRemoteSyncPoints) {
-        point->setTransactionApplied();
-    }
-    for (auto& point : mLocalSyncPoints) {
-        point->setFrameAvailable();
-    }
-    mFlinger->deleteTextureAsync(mTextureName);
     mFrameTracker.logAndResetStats(mName);
-
-#ifdef USE_HWC2
-    if (!mHwcLayers.empty()) {
-        ALOGE("Found stale hardware composer layers when destroying "
-                "surface flinger layer %s", mName.string());
-        destroyAllHwcLayers();
-    }
-#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -217,7 +164,9 @@ void Layer::onLayerDisplayed(const sp<Fence>& releaseFence) {
     if (mHwcLayers.empty()) {
         return;
     }
-    mSurfaceFlingerConsumer->setReleaseFence(releaseFence);
+    if (mSurfaceFlingerConsumer) {
+        mSurfaceFlingerConsumer->setReleaseFence(releaseFence);
+    }
 }
 #else
 void Layer::onLayerDisplayed(const sp<const DisplayDevice>& /* hw */,
@@ -228,70 +177,6 @@ void Layer::onLayerDisplayed(const sp<const DisplayDevice>& /* hw */,
     }
 }
 #endif
-
-void Layer::onFrameAvailable(const BufferItem& item) {
-    // Add this buffer from our internal queue tracker
-    { // Autolock scope
-        Mutex::Autolock lock(mQueueItemLock);
-        mFlinger->mInterceptor.saveBufferUpdate(this, item.mGraphicBuffer->getWidth(),
-                item.mGraphicBuffer->getHeight(), item.mFrameNumber);
-        // Reset the frame number tracker when we receive the first buffer after
-        // a frame number reset
-        if (item.mFrameNumber == 1) {
-            mLastFrameNumberReceived = 0;
-        }
-
-        // Ensure that callbacks are handled in order
-        while (item.mFrameNumber != mLastFrameNumberReceived + 1) {
-            status_t result = mQueueItemCondition.waitRelative(mQueueItemLock,
-                    ms2ns(500));
-            if (result != NO_ERROR) {
-                ALOGE("[%s] Timed out waiting on callback", mName.string());
-            }
-        }
-
-        mQueueItems.push_back(item);
-        android_atomic_inc(&mQueuedFrames);
-
-        // Wake up any pending callbacks
-        mLastFrameNumberReceived = item.mFrameNumber;
-        mQueueItemCondition.broadcast();
-    }
-
-    mFlinger->signalLayerUpdate();
-}
-
-void Layer::onFrameReplaced(const BufferItem& item) {
-    { // Autolock scope
-        Mutex::Autolock lock(mQueueItemLock);
-
-        // Ensure that callbacks are handled in order
-        while (item.mFrameNumber != mLastFrameNumberReceived + 1) {
-            status_t result = mQueueItemCondition.waitRelative(mQueueItemLock,
-                    ms2ns(500));
-            if (result != NO_ERROR) {
-                ALOGE("[%s] Timed out waiting on callback", mName.string());
-            }
-        }
-
-        if (mQueueItems.empty()) {
-            ALOGE("Can't replace a frame on an empty queue");
-            return;
-        }
-        mQueueItems.editItemAt(mQueueItems.size() - 1) = item;
-
-        // Wake up any pending callbacks
-        mLastFrameNumberReceived = item.mFrameNumber;
-        mQueueItemCondition.broadcast();
-    }
-}
-
-void Layer::onSidebandStreamChanged() {
-    if (android_atomic_release_cas(false, true, &mSidebandStreamChanged) == 0) {
-        // mSidebandStreamChanged was false
-        mFlinger->signalLayerUpdate();
-    }
-}
 
 void Layer::onRemovedFromCurrentState() {
     // the layer is removed from SF mCurrentState to mLayersPendingRemoval
@@ -313,7 +198,9 @@ void Layer::onRemovedFromCurrentState() {
 void Layer::onRemoved() {
     // the layer is removed from SF mLayersPendingRemoval
 
-    mSurfaceFlingerConsumer->abandon();
+    if (mSurfaceFlingerConsumer) {
+        mSurfaceFlingerConsumer->abandon();
+    }
 #ifdef USE_HWC2
     destroyAllHwcLayers();
 #endif
@@ -335,45 +222,9 @@ bool Layer::getPremultipledAlpha() const {
     return mPremultipliedAlpha;
 }
 
-status_t Layer::setBuffers( uint32_t w, uint32_t h,
-                            PixelFormat format, uint32_t flags)
-{
-    uint32_t const maxSurfaceDims = min(
-            mFlinger->getMaxTextureSize(), mFlinger->getMaxViewportDims());
-
-    // never allow a surface larger than what our underlying GL implementation
-    // can handle.
-    if ((uint32_t(w)>maxSurfaceDims) || (uint32_t(h)>maxSurfaceDims)) {
-        ALOGE("dimensions too large %u x %u", uint32_t(w), uint32_t(h));
-        return BAD_VALUE;
-    }
-
-    mFormat = format;
-
-    mPotentialCursor = (flags & ISurfaceComposerClient::eCursorWindow) ? true : false;
-    mProtectedByApp = (flags & ISurfaceComposerClient::eProtectedByApp) ? true : false;
-    mCurrentOpacity = getOpacityForFormat(format);
-
-    mSurfaceFlingerConsumer->setDefaultBufferSize(w, h);
-    mSurfaceFlingerConsumer->setDefaultBufferFormat(format);
-    mSurfaceFlingerConsumer->setConsumerUsageBits(getEffectiveUsage(0));
-
-    return NO_ERROR;
-}
-
 sp<IBinder> Layer::getHandle() {
     Mutex::Autolock _l(mLock);
-
-    LOG_ALWAYS_FATAL_IF(mHasSurface,
-            "Layer::getHandle() has already been called");
-
-    mHasSurface = true;
-
     return new Handle(mFlinger, this);
-}
-
-sp<IGraphicBufferProducer> Layer::getProducer() const {
-    return mProducer;
 }
 
 // ---------------------------------------------------------------------------
@@ -1077,125 +928,6 @@ void Layer::draw(const RenderArea& renderArea) const {
     onDraw(renderArea, Region(renderArea.getBounds()), false);
 }
 
-static constexpr mat4 inverseOrientation(uint32_t transform) {
-    const mat4 flipH(-1,0,0,0,  0,1,0,0, 0,0,1,0, 1,0,0,1);
-    const mat4 flipV( 1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,1,0,1);
-    const mat4 rot90( 0,1,0,0, -1,0,0,0, 0,0,1,0, 1,0,0,1);
-    mat4 tr;
-
-    if (transform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
-        tr = tr * rot90;
-    }
-    if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_H) {
-        tr = tr * flipH;
-    }
-    if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_V) {
-        tr = tr * flipV;
-    }
-    return inverse(tr);
-}
-
-/*
- * onDraw will draw the current layer onto the presentable buffer
- */
-void Layer::onDraw(const RenderArea& renderArea, const Region& clip,
-        bool useIdentityTransform) const
-{
-    ATRACE_CALL();
-
-    if (CC_UNLIKELY(mActiveBuffer == 0)) {
-        // the texture has not been created yet, this Layer has
-        // in fact never been drawn into. This happens frequently with
-        // SurfaceView because the WindowManager can't know when the client
-        // has drawn the first time.
-
-        // If there is nothing under us, we paint the screen in black, otherwise
-        // we just skip this update.
-
-        // figure out if there is something below us
-        Region under;
-        bool finished = false;
-        mFlinger->mDrawingState.traverseInZOrder([&](Layer* layer) {
-            if (finished || layer == static_cast<Layer const*>(this)) {
-                finished = true;
-                return;
-            }
-            under.orSelf(renderArea.getTransform().transform(layer->visibleRegion));
-        });
-        // if not everything below us is covered, we plug the holes!
-        Region holes(clip.subtract(under));
-        if (!holes.isEmpty()) {
-            clearWithOpenGL(renderArea, 0, 0, 0, 1);
-        }
-        return;
-    }
-
-    // Bind the current buffer to the GL texture, and wait for it to be
-    // ready for us to draw into.
-    status_t err = mSurfaceFlingerConsumer->bindTextureImage();
-    if (err != NO_ERROR) {
-        ALOGW("onDraw: bindTextureImage failed (err=%d)", err);
-        // Go ahead and draw the buffer anyway; no matter what we do the screen
-        // is probably going to have something visibly wrong.
-    }
-
-    bool blackOutLayer = isProtected() || (isSecure() && !renderArea.isSecure());
-
-    RenderEngine& engine(mFlinger->getRenderEngine());
-
-    if (!blackOutLayer) {
-        // TODO: we could be more subtle with isFixedSize()
-        const bool useFiltering = getFiltering() || needsFiltering(renderArea) || isFixedSize();
-
-        // Query the texture matrix given our current filtering mode.
-        float textureMatrix[16];
-        mSurfaceFlingerConsumer->setFilteringEnabled(useFiltering);
-        mSurfaceFlingerConsumer->getTransformMatrix(textureMatrix);
-
-        if (getTransformToDisplayInverse()) {
-
-            /*
-             * the code below applies the primary display's inverse transform to
-             * the texture transform
-             */
-            uint32_t transform =
-                    DisplayDevice::getPrimaryDisplayOrientationTransform();
-            mat4 tr = inverseOrientation(transform);
-
-            /**
-             * TODO(b/36727915): This is basically a hack.
-             *
-             * Ensure that regardless of the parent transformation,
-             * this buffer is always transformed from native display
-             * orientation to display orientation. For example, in the case
-             * of a camera where the buffer remains in native orientation,
-             * we want the pixels to always be upright.
-             */
-            sp<Layer> p = mDrawingParent.promote();
-            if (p != nullptr) {
-                const auto parentTransform = p->getTransform();
-                tr = tr * inverseOrientation(parentTransform.getOrientation());
-            }
-
-            // and finally apply it to the original texture matrix
-            const mat4 texTransform(mat4(static_cast<const float*>(textureMatrix)) * tr);
-            memcpy(textureMatrix, texTransform.asArray(), sizeof(textureMatrix));
-        }
-
-        // Set things up for texturing.
-        mTexture.setDimensions(mActiveBuffer->getWidth(), mActiveBuffer->getHeight());
-        mTexture.setFiltering(useFiltering);
-        mTexture.setMatrix(textureMatrix);
-
-        engine.setupLayerTexturing(mTexture);
-    } else {
-        engine.setupLayerBlackedOut();
-    }
-    drawWithOpenGL(renderArea, useIdentityTransform);
-    engine.disableTexturing();
-}
-
-
 void Layer::clearWithOpenGL(const RenderArea& renderArea,
         float red, float green, float blue,
         float alpha) const
@@ -1208,62 +940,6 @@ void Layer::clearWithOpenGL(const RenderArea& renderArea,
 
 void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
     clearWithOpenGL(renderArea, 0,0,0,0);
-}
-
-void Layer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const {
-    const State& s(getDrawingState());
-
-    computeGeometry(renderArea, mMesh, useIdentityTransform);
-
-    /*
-     * NOTE: the way we compute the texture coordinates here produces
-     * different results than when we take the HWC path -- in the later case
-     * the "source crop" is rounded to texel boundaries.
-     * This can produce significantly different results when the texture
-     * is scaled by a large amount.
-     *
-     * The GL code below is more logical (imho), and the difference with
-     * HWC is due to a limitation of the HWC API to integers -- a question
-     * is suspend is whether we should ignore this problem or revert to
-     * GL composition when a buffer scaling is applied (maybe with some
-     * minimal value)? Or, we could make GL behave like HWC -- but this feel
-     * like more of a hack.
-     */
-    Rect win(computeBounds());
-
-    Transform t = getTransform();
-    if (!s.finalCrop.isEmpty()) {
-        win = t.transform(win);
-        if (!win.intersect(s.finalCrop, &win)) {
-            win.clear();
-        }
-        win = t.inverse().transform(win);
-        if (!win.intersect(computeBounds(), &win)) {
-            win.clear();
-        }
-    }
-
-    float left   = float(win.left)   / float(s.active.w);
-    float top    = float(win.top)    / float(s.active.h);
-    float right  = float(win.right)  / float(s.active.w);
-    float bottom = float(win.bottom) / float(s.active.h);
-
-    // TODO: we probably want to generate the texture coords with the mesh
-    // here we assume that we only have 4 vertices
-    Mesh::VertexArray<vec2> texCoords(mMesh.getTexCoordArray<vec2>());
-    texCoords[0] = vec2(left, 1.0f - top);
-    texCoords[1] = vec2(left, 1.0f - bottom);
-    texCoords[2] = vec2(right, 1.0f - bottom);
-    texCoords[3] = vec2(right, 1.0f - top);
-
-    RenderEngine& engine(mFlinger->getRenderEngine());
-    engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s),
-        false /* disableTexture */, getColor());
-#ifdef USE_HWC2
-    engine.setSourceDataSpace(mCurrentState.dataSpace);
-#endif
-    engine.drawMesh(mMesh);
-    engine.disableBlending();
 }
 
 #ifdef USE_HWC2
@@ -1320,64 +996,6 @@ bool Layer::getClearClientTarget(int32_t hwcId) const {
 }
 #endif
 
-uint32_t Layer::getProducerStickyTransform() const {
-    int producerStickyTransform = 0;
-    int ret = mProducer->query(NATIVE_WINDOW_STICKY_TRANSFORM, &producerStickyTransform);
-    if (ret != OK) {
-        ALOGW("%s: Error %s (%d) while querying window sticky transform.", __FUNCTION__,
-                strerror(-ret), ret);
-        return 0;
-    }
-    return static_cast<uint32_t>(producerStickyTransform);
-}
-
-bool Layer::latchUnsignaledBuffers() {
-    static bool propertyLoaded = false;
-    static bool latch = false;
-    static std::mutex mutex;
-    std::lock_guard<std::mutex> lock(mutex);
-    if (!propertyLoaded) {
-        char value[PROPERTY_VALUE_MAX] = {};
-        property_get("debug.sf.latch_unsignaled", value, "0");
-        latch = atoi(value);
-        propertyLoaded = true;
-    }
-    return latch;
-}
-
-uint64_t Layer::getHeadFrameNumber() const {
-    Mutex::Autolock lock(mQueueItemLock);
-    if (!mQueueItems.empty()) {
-        return mQueueItems[0].mFrameNumber;
-    } else {
-        return mCurrentFrameNumber;
-    }
-}
-
-bool Layer::headFenceHasSignaled() const {
-#ifdef USE_HWC2
-    if (latchUnsignaledBuffers()) {
-        return true;
-    }
-
-    Mutex::Autolock lock(mQueueItemLock);
-    if (mQueueItems.empty()) {
-        return true;
-    }
-    if (mQueueItems[0].mIsDroppable) {
-        // Even though this buffer's fence may not have signaled yet, it could
-        // be replaced by another buffer before it has a chance to, which means
-        // that it's possible to get into a situation where a buffer is never
-        // able to be latched. To avoid this, grab this buffer anyway.
-        return true;
-    }
-    return mQueueItems[0].mFenceTime->getSignalTime() !=
-            Fence::SIGNAL_TIME_PENDING;
-#else
-    return true;
-#endif
-}
-
 bool Layer::addSyncPoint(const std::shared_ptr<SyncPoint>& point) {
     if (point->getFrameNumber() <= mCurrentFrameNumber) {
         // Don't bother with a SyncPoint, since we've already latched the
@@ -1396,28 +1014,6 @@ void Layer::setFiltering(bool filtering) {
 
 bool Layer::getFiltering() const {
     return mFiltering;
-}
-
-// As documented in libhardware header, formats in the range
-// 0x100 - 0x1FF are specific to the HAL implementation, and
-// are known to have no alpha channel
-// TODO: move definition for device-specific range into
-// hardware.h, instead of using hard-coded values here.
-#define HARDWARE_IS_DEVICE_FORMAT(f) ((f) >= 0x100 && (f) <= 0x1FF)
-
-bool Layer::getOpacityForFormat(uint32_t format) {
-    if (HARDWARE_IS_DEVICE_FORMAT(format)) {
-        return true;
-    }
-    switch (format) {
-        case HAL_PIXEL_FORMAT_RGBA_8888:
-        case HAL_PIXEL_FORMAT_BGRA_8888:
-        case HAL_PIXEL_FORMAT_RGBA_FP16:
-        case HAL_PIXEL_FORMAT_RGBA_1010102:
-            return false;
-    }
-    // in all other case, we have no blending (also for unknown formats)
-    return true;
 }
 
 // ----------------------------------------------------------------------------
@@ -1476,42 +1072,10 @@ void Layer::computeGeometry(const RenderArea& renderArea, Mesh& mesh,
     }
 }
 
-bool Layer::isOpaque(const Layer::State& s) const
-{
-    // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
-    // layer's opaque flag.
-    if ((mSidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
-        return false;
-    }
-
-    // if the layer has the opaque flag, then we're always opaque,
-    // otherwise we use the current buffer's format.
-    return ((s.flags & layer_state_t::eLayerOpaque) != 0) || mCurrentOpacity;
-}
-
 bool Layer::isSecure() const
 {
     const Layer::State& s(mDrawingState);
     return (s.flags & layer_state_t::eLayerSecure);
-}
-
-bool Layer::isProtected() const
-{
-    const sp<GraphicBuffer>& activeBuffer(mActiveBuffer);
-    return (activeBuffer != 0) &&
-            (activeBuffer->getUsage() & GRALLOC_USAGE_PROTECTED);
-}
-
-bool Layer::isFixedSize() const {
-    return getEffectiveScalingMode() != NATIVE_WINDOW_SCALING_MODE_FREEZE;
-}
-
-bool Layer::isCropped() const {
-    return !mCurrentCrop.isEmpty();
-}
-
-bool Layer::needsFiltering(const RenderArea& renderArea) const {
-    return mNeedsFiltering || renderArea.needsFiltering();
 }
 
 void Layer::setVisibleRegion(const Region& visibleRegion) {
@@ -1632,17 +1196,6 @@ bool Layer::applyPendingStates(State* stateToCommit) {
     return stateUpdateAvailable;
 }
 
-void Layer::notifyAvailableFrames() {
-    auto headFrameNumber = getHeadFrameNumber();
-    bool headFenceSignaled = headFenceHasSignaled();
-    Mutex::Autolock lock(mLocalSyncPointMutex);
-    for (auto& point : mLocalSyncPoints) {
-        if (headFrameNumber >= point->getFrameNumber() && headFenceSignaled) {
-            point->setFrameAvailable();
-        }
-    }
-}
-
 uint32_t Layer::doTransaction(uint32_t flags) {
     ATRACE_CALL();
 
@@ -1657,7 +1210,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     const bool sizeChanged = (c.requested.w != s.requested.w) ||
                              (c.requested.h != s.requested.h);
 
-    if (sizeChanged) {
+    if (mSurfaceFlingerConsumer && sizeChanged) {
         // the size changed, we need to ask our client to request a new buffer
         ALOGD_IF(DEBUG_RESIZE,
                 "doTransaction: geometry (layer=%p '%s'), tr=%02x, scalingMode=%d\n"
@@ -1984,13 +1537,6 @@ void Layer::setInfo(uint32_t type, uint32_t appId) {
   setTransactionFlags(eTransactionNeeded);
 }
 
-uint32_t Layer::getEffectiveScalingMode() const {
-    if (mOverrideScalingMode >= 0) {
-      return mOverrideScalingMode;
-    }
-    return mCurrentScalingMode;
-}
-
 bool Layer::setLayerStack(uint32_t layerStack) {
     if (mCurrentState.layerStack == layerStack)
         return false;
@@ -2081,15 +1627,6 @@ bool Layer::shouldPresentNow(const DispSync& dispSync) const {
     return isDue || !isPlausible;
 }
 
-bool Layer::onPreComposition(nsecs_t refreshStartTime) {
-    if (mBufferLatched) {
-        Mutex::Autolock lock(mFrameEventHistoryMutex);
-        mFrameEventHistory.addPreComposition(mCurrentFrameNumber, refreshStartTime);
-    }
-    mRefreshPending = false;
-    return mQueuedFrames > 0 || mSidebandStreamChanged || mAutoRefresh;
-}
-
 bool Layer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
         const std::shared_ptr<FenceTime>& presentFence,
         const CompositorTiming& compositorTiming) {
@@ -2135,25 +1672,6 @@ bool Layer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
     return true;
 }
 
-#ifdef USE_HWC2
-void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
-    if (!mSurfaceFlingerConsumer->releasePendingBuffer()) {
-        return;
-    }
-
-    auto releaseFenceTime = std::make_shared<FenceTime>(
-            mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
-    mReleaseTimeline.updateSignalTimes();
-    mReleaseTimeline.push(releaseFenceTime);
-
-    Mutex::Autolock lock(mFrameEventHistoryMutex);
-    if (mPreviousFrameNumber != 0) {
-        mFrameEventHistory.addRelease(mPreviousFrameNumber,
-                dequeueReadyTime, std::move(releaseFenceTime));
-    }
-}
-#endif
-
 bool Layer::isHiddenByPolicy() const {
     const Layer::State& s(mDrawingState);
     const auto& parent = mDrawingParent.promote();
@@ -2161,249 +1679,6 @@ bool Layer::isHiddenByPolicy() const {
         return true;
     }
     return s.flags & layer_state_t::eLayerHidden;
-}
-
-bool Layer::isVisible() const {
-    return !(isHiddenByPolicy()) && getAlpha() > 0.0f
-            && (mActiveBuffer != NULL || mSidebandStream != NULL);
-}
-
-bool Layer::allTransactionsSignaled() {
-    auto headFrameNumber = getHeadFrameNumber();
-    bool matchingFramesFound = false;
-    bool allTransactionsApplied = true;
-    Mutex::Autolock lock(mLocalSyncPointMutex);
-
-    for (auto& point : mLocalSyncPoints) {
-        if (point->getFrameNumber() > headFrameNumber) {
-            break;
-        }
-        matchingFramesFound = true;
-
-        if (!point->frameIsAvailable()) {
-           // We haven't notified the remote layer that the frame for
-           // this point is available yet. Notify it now, and then
-           // abort this attempt to latch.
-           point->setFrameAvailable();
-           allTransactionsApplied = false;
-           break;
-        }
-
-        allTransactionsApplied = allTransactionsApplied && point->transactionIsApplied();
-    }
-    return !matchingFramesFound || allTransactionsApplied;
-}
-
-Region Layer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime)
-{
-    ATRACE_CALL();
-
-    if (android_atomic_acquire_cas(true, false, &mSidebandStreamChanged) == 0) {
-        // mSidebandStreamChanged was true
-        mSidebandStream = mSurfaceFlingerConsumer->getSidebandStream();
-        if (mSidebandStream != NULL) {
-            setTransactionFlags(eTransactionNeeded);
-            mFlinger->setTransactionFlags(eTraversalNeeded);
-        }
-        recomputeVisibleRegions = true;
-
-        const State& s(getDrawingState());
-        return getTransform().transform(Region(Rect(s.active.w, s.active.h)));
-    }
-
-    Region outDirtyRegion;
-    if (mQueuedFrames <= 0 && !mAutoRefresh) {
-        return outDirtyRegion;
-    }
-
-    // if we've already called updateTexImage() without going through
-    // a composition step, we have to skip this layer at this point
-    // because we cannot call updateTeximage() without a corresponding
-    // compositionComplete() call.
-    // we'll trigger an update in onPreComposition().
-    if (mRefreshPending) {
-        return outDirtyRegion;
-    }
-
-    // If the head buffer's acquire fence hasn't signaled yet, return and
-    // try again later
-    if (!headFenceHasSignaled()) {
-        mFlinger->signalLayerUpdate();
-        return outDirtyRegion;
-    }
-
-    // Capture the old state of the layer for comparisons later
-    const State& s(getDrawingState());
-    const bool oldOpacity = isOpaque(s);
-    sp<GraphicBuffer> oldActiveBuffer = mActiveBuffer;
-
-    if (!allTransactionsSignaled()) {
-        mFlinger->signalLayerUpdate();
-        return outDirtyRegion;
-    }
-
-    // This boolean is used to make sure that SurfaceFlinger's shadow copy
-    // of the buffer queue isn't modified when the buffer queue is returning
-    // BufferItem's that weren't actually queued. This can happen in shared
-    // buffer mode.
-    bool queuedBuffer = false;
-    LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
-                    getProducerStickyTransform() != 0, mName.string(),
-                    mOverrideScalingMode, mFreezeGeometryUpdates);
-    status_t updateResult = mSurfaceFlingerConsumer->updateTexImage(&r,
-            mFlinger->mPrimaryDispSync, &mAutoRefresh, &queuedBuffer,
-            mLastFrameNumberReceived);
-    if (updateResult == BufferQueue::PRESENT_LATER) {
-        // Producer doesn't want buffer to be displayed yet.  Signal a
-        // layer update so we check again at the next opportunity.
-        mFlinger->signalLayerUpdate();
-        return outDirtyRegion;
-    } else if (updateResult == SurfaceFlingerConsumer::BUFFER_REJECTED) {
-        // If the buffer has been rejected, remove it from the shadow queue
-        // and return early
-        if (queuedBuffer) {
-            Mutex::Autolock lock(mQueueItemLock);
-            mQueueItems.removeAt(0);
-            android_atomic_dec(&mQueuedFrames);
-        }
-        return outDirtyRegion;
-    } else if (updateResult != NO_ERROR || mUpdateTexImageFailed) {
-        // This can occur if something goes wrong when trying to create the
-        // EGLImage for this buffer. If this happens, the buffer has already
-        // been released, so we need to clean up the queue and bug out
-        // early.
-        if (queuedBuffer) {
-            Mutex::Autolock lock(mQueueItemLock);
-            mQueueItems.clear();
-            android_atomic_and(0, &mQueuedFrames);
-        }
-
-        // Once we have hit this state, the shadow queue may no longer
-        // correctly reflect the incoming BufferQueue's contents, so even if
-        // updateTexImage starts working, the only safe course of action is
-        // to continue to ignore updates.
-        mUpdateTexImageFailed = true;
-
-        return outDirtyRegion;
-    }
-
-    if (queuedBuffer) {
-        // Autolock scope
-        auto currentFrameNumber = mSurfaceFlingerConsumer->getFrameNumber();
-
-        Mutex::Autolock lock(mQueueItemLock);
-
-        // Remove any stale buffers that have been dropped during
-        // updateTexImage
-        while (mQueueItems[0].mFrameNumber != currentFrameNumber) {
-            mQueueItems.removeAt(0);
-            android_atomic_dec(&mQueuedFrames);
-        }
-
-        mQueueItems.removeAt(0);
-    }
-
-
-    // Decrement the queued-frames count.  Signal another event if we
-    // have more frames pending.
-    if ((queuedBuffer && android_atomic_dec(&mQueuedFrames) > 1)
-            || mAutoRefresh) {
-        mFlinger->signalLayerUpdate();
-    }
-
-    // update the active buffer
-    mActiveBuffer = mSurfaceFlingerConsumer->getCurrentBuffer(
-            &mActiveBufferSlot);
-    if (mActiveBuffer == NULL) {
-        // this can only happen if the very first buffer was rejected.
-        return outDirtyRegion;
-    }
-
-    mBufferLatched = true;
-    mPreviousFrameNumber = mCurrentFrameNumber;
-    mCurrentFrameNumber = mSurfaceFlingerConsumer->getFrameNumber();
-
-    {
-        Mutex::Autolock lock(mFrameEventHistoryMutex);
-        mFrameEventHistory.addLatch(mCurrentFrameNumber, latchTime);
-#ifndef USE_HWC2
-        auto releaseFenceTime = std::make_shared<FenceTime>(
-                mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
-        mReleaseTimeline.updateSignalTimes();
-        mReleaseTimeline.push(releaseFenceTime);
-        if (mPreviousFrameNumber != 0) {
-            mFrameEventHistory.addRelease(mPreviousFrameNumber,
-                    latchTime, std::move(releaseFenceTime));
-        }
-#endif
-    }
-
-    mRefreshPending = true;
-    mFrameLatencyNeeded = true;
-    if (oldActiveBuffer == NULL) {
-         // the first time we receive a buffer, we need to trigger a
-         // geometry invalidation.
-        recomputeVisibleRegions = true;
-     }
-
-    setDataSpace(mSurfaceFlingerConsumer->getCurrentDataSpace());
-
-    Rect crop(mSurfaceFlingerConsumer->getCurrentCrop());
-    const uint32_t transform(mSurfaceFlingerConsumer->getCurrentTransform());
-    const uint32_t scalingMode(mSurfaceFlingerConsumer->getCurrentScalingMode());
-    if ((crop != mCurrentCrop) ||
-        (transform != mCurrentTransform) ||
-        (scalingMode != mCurrentScalingMode))
-    {
-        mCurrentCrop = crop;
-        mCurrentTransform = transform;
-        mCurrentScalingMode = scalingMode;
-        recomputeVisibleRegions = true;
-    }
-
-    if (oldActiveBuffer != NULL) {
-        uint32_t bufWidth  = mActiveBuffer->getWidth();
-        uint32_t bufHeight = mActiveBuffer->getHeight();
-        if (bufWidth != uint32_t(oldActiveBuffer->width) ||
-            bufHeight != uint32_t(oldActiveBuffer->height)) {
-            recomputeVisibleRegions = true;
-        }
-    }
-
-    mCurrentOpacity = getOpacityForFormat(mActiveBuffer->format);
-    if (oldOpacity != isOpaque(s)) {
-        recomputeVisibleRegions = true;
-    }
-
-    // Remove any sync points corresponding to the buffer which was just
-    // latched
-    {
-        Mutex::Autolock lock(mLocalSyncPointMutex);
-        auto point = mLocalSyncPoints.begin();
-        while (point != mLocalSyncPoints.end()) {
-            if (!(*point)->frameIsAvailable() ||
-                    !(*point)->transactionIsApplied()) {
-                // This sync point must have been added since we started
-                // latching. Don't drop it yet.
-                ++point;
-                continue;
-            }
-
-            if ((*point)->getFrameNumber() <= mCurrentFrameNumber) {
-                point = mLocalSyncPoints.erase(point);
-            } else {
-                ++point;
-            }
-        }
-    }
-
-    // FIXME: postedRegion should be dirty & bounds
-    Region dirtyRegion(Rect(s.active.w, s.active.h));
-
-    // transform the dirty region to window-manager space
-    outDirtyRegion = (getTransform().transform(dirtyRegion));
-
-    return outDirtyRegion;
 }
 
 uint32_t Layer::getEffectiveUsage(uint32_t usage) const
@@ -2432,7 +1707,9 @@ void Layer::updateTransformHint(const sp<const DisplayDevice>& hw) const {
             orientation = 0;
         }
     }
-    mSurfaceFlingerConsumer->setTransformHint(orientation);
+    if (mSurfaceFlingerConsumer) {
+        mSurfaceFlingerConsumer->setTransformHint(orientation);
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -2584,6 +1861,10 @@ void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
 std::vector<OccupancyTracker::Segment> Layer::getOccupancyHistory(
         bool forceFlush) {
     std::vector<OccupancyTracker::Segment> history;
+
+    if (!mSurfaceFlingerConsumer)
+        return {};
+
     status_t result = mSurfaceFlingerConsumer->getOccupancyHistory(forceFlush,
             &history);
     if (result != NO_ERROR) {
@@ -2595,7 +1876,10 @@ std::vector<OccupancyTracker::Segment> Layer::getOccupancyHistory(
 }
 
 bool Layer::getTransformToDisplayInverse() const {
-    return mSurfaceFlingerConsumer->getTransformToDisplayInverse();
+    if (mSurfaceFlingerConsumer) {
+        return mSurfaceFlingerConsumer->getTransformToDisplayInverse();
+    }
+    return false;
 }
 
 size_t Layer::getChildrenCount() const {

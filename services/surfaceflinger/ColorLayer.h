@@ -26,8 +26,7 @@
 
 namespace android {
 
-class ColorLayer : public Layer
-{
+class ColorLayer : public Layer {
 public:
     ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client,
                         const String8& name, uint32_t w, uint32_t h, uint32_t flags);
@@ -36,10 +35,19 @@ public:
     virtual const char* getTypeId() const { return "ColorLayer"; }
     virtual void onDraw(const RenderArea& renderArea, const Region& clip,
             bool useIdentityTransform) const;
+    bool isVisible() const override;
     virtual bool isOpaque(const Layer::State&) const { return false; }
-    virtual bool isSecure() const         { return false; }
     virtual bool isFixedSize() const      { return true; }
-    virtual bool isVisible() const;
+
+    void notifyAvailableFrames() override {}
+    PixelFormat getPixelFormat() const override { return PIXEL_FORMAT_NONE; }
+    uint32_t getEffectiveScalingMode() const override { return 0; }
+#ifdef USE_HWC2
+    void releasePendingBuffer(nsecs_t) override {}
+#endif
+    Region latchBuffer(bool&, nsecs_t) override { return Region(); }
+    bool isBufferLatched() const override { return false; }
+    bool onPreComposition(nsecs_t) override { return true; }
 };
 
 // ---------------------------------------------------------------------------

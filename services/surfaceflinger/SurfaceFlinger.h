@@ -244,6 +244,7 @@ private:
     friend class DisplayEventConnection;
     friend class EventThread;
     friend class Layer;
+    friend class BufferLayer;
     friend class MonitoredProducer;
 
     // This value is specified in number of frames.  Log frame stats at most
@@ -419,14 +420,14 @@ private:
             uint32_t windowType, uint32_t ownerUid, sp<IBinder>* handle,
             sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent);
 
-    status_t createNormalLayer(const sp<Client>& client, const String8& name,
+    status_t createBufferLayer(const sp<Client>& client, const String8& name,
             uint32_t w, uint32_t h, uint32_t flags, PixelFormat& format,
             sp<IBinder>* outHandle, sp<IGraphicBufferProducer>* outGbp,
             sp<Layer>* outLayer);
 
     status_t createColorLayer(const sp<Client>& client, const String8& name,
             uint32_t w, uint32_t h, uint32_t flags, sp<IBinder>* outHandle,
-            sp<IGraphicBufferProducer>* outGbp, sp<Layer>* outLayer);
+            sp<Layer>* outLayer);
 
     String8 getUniqueLayerName(const String8& name);
 
