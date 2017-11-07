@@ -3695,8 +3695,8 @@ void SurfaceFlinger::dumpStaticScreenStats(String8& result) const
 
 void SurfaceFlinger::recordBufferingStats(const char* layerName,
         std::vector<OccupancyTracker::Segment>&& history) {
-    Mutex::Autolock lock(mBufferingStatsMutex);
-    auto& stats = mBufferingStats[layerName];
+    Mutex::Autolock lock(getBE().mBufferingStatsMutex);
+    auto& stats = getBE().mBufferingStats[layerName];
     for (const auto& segment : history) {
         if (!segment.usedThirdBuffer) {
             stats.twoBufferTime += segment.totalTime;
@@ -3725,12 +3725,12 @@ void SurfaceFlinger::dumpBufferingStats(String8& result) const {
     result.append("Buffering stats:\n");
     result.append("  [Layer name] <Active time> <Two buffer> "
             "<Double buffered> <Triple buffered>\n");
-    Mutex::Autolock lock(mBufferingStatsMutex);
+    Mutex::Autolock lock(getBE().mBufferingStatsMutex);
     typedef std::tuple<std::string, float, float, float> BufferTuple;
     std::map<float, BufferTuple, std::greater<float>> sorted;
-    for (const auto& statsPair : mBufferingStats) {
+    for (const auto& statsPair : getBE().mBufferingStats) {
         const char* name = statsPair.first.c_str();
-        const BufferingStats& stats = statsPair.second;
+        const SurfaceFlingerBE::BufferingStats& stats = statsPair.second;
         if (stats.numSegments == 0) {
             continue;
         }
