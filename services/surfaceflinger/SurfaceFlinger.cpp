@@ -156,6 +156,9 @@ bool useTrebleTestingOverride() {
 SurfaceFlingerBE::SurfaceFlingerBE()
       : mHwcServiceName(getHwcServiceName()),
         mRenderEngine(nullptr),
+        mFrameBuckets(),
+        mTotalTime(0),
+        mLastSwapTime(0),
         mComposerSequenceId(0) {
 }
 
@@ -188,9 +191,6 @@ SurfaceFlinger::SurfaceFlinger()
         mHWVsyncAvailable(false),
         mHasColorMatrix(false),
         mHasPoweredOff(false),
-        mFrameBuckets(),
-        mTotalTime(0),
-        mLastSwapTime(0),
         mNumLayers(0),
         mVrFlingerRequestsDisplay(false),
         mMainThreadId(std::this_thread::get_id())
@@ -1742,16 +1742,16 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     if (mHasPoweredOff) {
         mHasPoweredOff = false;
     } else {
-        nsecs_t elapsedTime = currentTime - mLastSwapTime;
+        nsecs_t elapsedTime = currentTime - getBE().mLastSwapTime;
         size_t numPeriods = static_cast<size_t>(elapsedTime / vsyncInterval);
-        if (numPeriods < NUM_BUCKETS - 1) {
-            mFrameBuckets[numPeriods] += elapsedTime;
+        if (numPeriods < SurfaceFlingerBE::NUM_BUCKETS - 1) {
+            getBE().mFrameBuckets[numPeriods] += elapsedTime;
         } else {
-            mFrameBuckets[NUM_BUCKETS - 1] += elapsedTime;
+            getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1] += elapsedTime;
         }
-        mTotalTime += elapsedTime;
+        getBE().mTotalTime += elapsedTime;
     }
-    mLastSwapTime = currentTime;
+    getBE().mLastSwapTime = currentTime;
 }
 
 void SurfaceFlinger::rebuildLayerStacks() {
@@ -3679,18 +3679,18 @@ void SurfaceFlinger::appendSfConfigString(String8& result) const
 void SurfaceFlinger::dumpStaticScreenStats(String8& result) const
 {
     result.appendFormat("Static screen stats:\n");
-    for (size_t b = 0; b < NUM_BUCKETS - 1; ++b) {
-        float bucketTimeSec = mFrameBuckets[b] / 1e9;
+    for (size_t b = 0; b < SurfaceFlingerBE::NUM_BUCKETS - 1; ++b) {
+        float bucketTimeSec = getBE().mFrameBuckets[b] / 1e9;
         float percent = 100.0f *
-                static_cast<float>(mFrameBuckets[b]) / mTotalTime;
+                static_cast<float>(getBE().mFrameBuckets[b]) / getBE().mTotalTime;
         result.appendFormat("  < %zd frames: %.3f s (%.1f%%)\n",
                 b + 1, bucketTimeSec, percent);
     }
-    float bucketTimeSec = mFrameBuckets[NUM_BUCKETS - 1] / 1e9;
+    float bucketTimeSec = getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1] / 1e9;
     float percent = 100.0f *
-            static_cast<float>(mFrameBuckets[NUM_BUCKETS - 1]) / mTotalTime;
+            static_cast<float>(getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1]) / getBE().mTotalTime;
     result.appendFormat("  %zd+ frames: %.3f s (%.1f%%)\n",
-            NUM_BUCKETS - 1, bucketTimeSec, percent);
+            SurfaceFlingerBE::NUM_BUCKETS - 1, bucketTimeSec, percent);
 }
 
 void SurfaceFlinger::recordBufferingStats(const char* layerName,

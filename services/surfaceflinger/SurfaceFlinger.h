@@ -154,6 +154,11 @@ public:
     };
     std::queue<CompositePresentTime> mCompositePresentTimes;
 
+    static const size_t NUM_BUCKETS = 8; // < 1-7, 7+
+    nsecs_t mFrameBuckets[NUM_BUCKETS];
+    nsecs_t mTotalTime;
+    std::atomic<nsecs_t> mLastSwapTime;
+
     // Double- vs. triple-buffering stats
     struct BufferingStats {
         BufferingStats()
@@ -785,10 +790,6 @@ private:
 
     // Static screen stats
     bool mHasPoweredOff;
-    static const size_t NUM_BUCKETS = 8; // < 1-7, 7+
-    nsecs_t mFrameBuckets[NUM_BUCKETS];
-    nsecs_t mTotalTime;
-    std::atomic<nsecs_t> mLastSwapTime;
 
     size_t mNumLayers;
 
