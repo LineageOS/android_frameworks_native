@@ -18,6 +18,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := ip-up-vpn.c
+LOCAL_CFLAGS := -Wall -Werror
 LOCAL_SHARED_LIBRARIES := libcutils liblog
 LOCAL_MODULE := ip-up-vpn
 LOCAL_MODULE_PATH := $(TARGET_OUT_ETC)/ppp
