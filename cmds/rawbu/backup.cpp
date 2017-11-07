@@ -129,7 +129,6 @@ static int wipe (const char *path)
         }
 
         if(S_ISDIR(statBuffer.st_mode)) {
-            int i;
             char *newpath;
 
             newpath = strdup(nameBuffer);
