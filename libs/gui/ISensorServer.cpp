@@ -59,7 +59,8 @@ public:
         Vector<Sensor> v;
         uint32_t n = reply.readUint32();
         v.setCapacity(n);
-        while (n--) {
+        while (n) {
+            n--;
             reply.read(s);
             v.add(s);
         }
@@ -76,7 +77,8 @@ public:
         Vector<Sensor> v;
         uint32_t n = reply.readUint32();
         v.setCapacity(n);
-        while (n--) {
+        while (n) {
+            n--;
             reply.read(s);
             v.add(s);
         }
