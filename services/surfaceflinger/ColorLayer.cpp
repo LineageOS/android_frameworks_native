@@ -18,8 +18,8 @@
 #undef LOG_TAG
 #define LOG_TAG "ColorLayer"
 
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <sys/types.h>
 
 #include <utils/Errors.h>
@@ -28,17 +28,16 @@
 #include <ui/GraphicBuffer.h>
 
 #include "ColorLayer.h"
-#include "SurfaceFlinger.h"
 #include "DisplayDevice.h"
 #include "RenderEngine/RenderEngine.h"
+#include "SurfaceFlinger.h"
 
 namespace android {
 // ---------------------------------------------------------------------------
 
-ColorLayer::ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client,
-        const String8& name, uint32_t w, uint32_t h, uint32_t flags)
+ColorLayer::ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
+                       uint32_t w, uint32_t h, uint32_t flags)
       : Layer(flinger, client, name, w, h, flags) {
-
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
 }
@@ -46,12 +45,12 @@ ColorLayer::ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client,
 void ColorLayer::onDraw(const RenderArea& renderArea, const Region& /* clip */,
                         bool useIdentityTransform) const {
     const State& s(getDrawingState());
-    if (s.color.a>0) {
+    if (s.color.a > 0) {
         Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2);
         computeGeometry(renderArea, mesh, useIdentityTransform);
         RenderEngine& engine(mFlinger->getRenderEngine());
         engine.setupLayerBlending(getPremultipledAlpha(), false /* opaque */,
-              true /* disableTexture */, s.color);
+                                  true /* disableTexture */, s.color);
         engine.drawMesh(mesh);
         engine.disableBlending();
     }
@@ -61,7 +60,6 @@ bool ColorLayer::isVisible() const {
     const Layer::State& s(getDrawingState());
     return !isHiddenByPolicy() && s.color.a;
 }
-
 
 // ---------------------------------------------------------------------------
 

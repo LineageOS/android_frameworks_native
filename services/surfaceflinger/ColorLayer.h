@@ -28,16 +28,16 @@ namespace android {
 
 class ColorLayer : public Layer {
 public:
-    ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client,
-                        const String8& name, uint32_t w, uint32_t h, uint32_t flags);
+    ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
+               uint32_t h, uint32_t flags);
     virtual ~ColorLayer() = default;
 
     virtual const char* getTypeId() const { return "ColorLayer"; }
     virtual void onDraw(const RenderArea& renderArea, const Region& clip,
-            bool useIdentityTransform) const;
+                        bool useIdentityTransform) const;
     bool isVisible() const override;
     virtual bool isOpaque(const Layer::State&) const { return false; }
-    virtual bool isFixedSize() const      { return true; }
+    virtual bool isFixedSize() const { return true; }
 
     void notifyAvailableFrames() override {}
     PixelFormat getPixelFormat() const override { return PIXEL_FORMAT_NONE; }
