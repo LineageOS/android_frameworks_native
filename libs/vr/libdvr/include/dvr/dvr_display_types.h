@@ -13,7 +13,7 @@ __BEGIN_DECLS
 #ifndef __FLOAT32X4T_86
 #define __FLOAT32X4T_86
 typedef float float32x4_t __attribute__((__vector_size__(16)));
-typedef struct float32x4x4_t { float32x4_t val[4]; };
+typedef struct float32x4x4_t { float32x4_t val[4]; } float32x4x4_t;
 #endif
 #endif
 

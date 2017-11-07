@@ -44,6 +44,13 @@ cc_library_shared {
 
   cflags: [
     "-DLOG_TAG=\"vr_hwc\"",
+    "-Wall",
+    "-Werror",
+    // mVrClient unused in vr_composer_client.cpp
+    "-Wno-error=unused-private-field",
+    // Warnings in vr_hwc.cpp to be fixed after sync of goog/master.
+    "-Wno-sign-compare",
+    "-Wno-unused-parameter",
   ],
 
 }
@@ -62,6 +69,11 @@ cc_library_static {
     export_aidl_headers: true,
   },
   export_include_dirs: ["aidl"],
+
+  cflags: [
+    "-Wall",
+    "-Werror",
+  ],
 
   shared_libs: [
     "libbinder",
@@ -92,6 +104,8 @@ cc_library_static {
   ],
   cflags: [
     "-DLOG_TAG=\"vr_hwc\"",
+    "-Wall",
+    "-Werror",
   ],
 }
 
@@ -120,6 +134,8 @@ cc_binary {
   ],
   cflags: [
     "-DLOG_TAG=\"vr_hwc\"",
+    "-Wall",
+    "-Werror",
   ],
   init_rc: [
     "vr_hwc.rc",
@@ -136,6 +152,13 @@ cc_test {
     // NOTE: This needs to be included after the *-impl lib otherwise the
     // symbols in the *-binder library get optimized out.
     "libvr_hwc-binder",
+  ],
+  cflags: [
+    "-Wall",
+    "-Werror",
+    // warnings in vr_composer_test.cpp to be fixed after merge of goog/master
+    "-Wno-sign-compare",
+    "-Wno-unused-parameter",
   ],
   shared_libs: [
     "libbase",
