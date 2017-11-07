@@ -64,6 +64,12 @@ public:
 
     ~BufferLayer() override;
 
+    // If we have received a new buffer this frame, we will pass its surface
+    // damage down to hardware composer. Otherwise, we must send a region with
+    // one empty rect.
+    void useSurfaceDamage();
+    void useEmptyDamage();
+
     // -----------------------------------------------------------------------
     // Overriden from Layer
     // -----------------------------------------------------------------------
@@ -99,6 +105,23 @@ public:
     void onDraw(const RenderArea& renderArea, const Region& clip,
                 bool useIdentityTransform) const override;
 
+#ifdef USE_HWC2
+    void onLayerDisplayed(const sp<Fence>& releaseFence) override;
+#else
+    void onLayerDisplayed(const sp<const DisplayDevice>& hw,
+                          HWComposer::HWCLayerInterface* layer) override;
+#endif
+
+    void abandon() override;
+    bool shouldPresentNow(const DispSync& dispSync) const override;
+    void setTransformHint(uint32_t orientation) const override;
+    bool onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
+                           const std::shared_ptr<FenceTime>& presentFence,
+                           const CompositorTiming& compositorTiming) override;
+    std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush) override;
+    bool getTransformToDisplayInverse() const override;
+
+public:
     bool onPreComposition(nsecs_t refreshStartTime) override;
 
 #ifdef USE_HWC2
@@ -114,13 +137,15 @@ public:
      */
     Region latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) override;
     bool isBufferLatched() const override { return mRefreshPending; }
+    void setDefaultBufferSize(uint32_t w, uint32_t h) override;
 
 #ifdef USE_HWC2
-    void setPerFrameData(const sp<const DisplayDevice>& displayDevice);
+    void setPerFrameData(const sp<const DisplayDevice>& displayDevice) override;
 #else
-    void setPerFrameData(const sp<const DisplayDevice>& hw,
-                         HWComposer::HWCLayerInterface& layer);
+    void setAcquireFence(const sp<const DisplayDevice>& hw,
+                         HWComposer::HWCLayerInterface& layer) override;
 #endif
+
     bool isOpaque(const Layer::State& s) const override;
 
 private:
@@ -160,6 +185,8 @@ public:
     sp<IGraphicBufferProducer> getProducer() const;
 
 private:
+    sp<SurfaceFlingerConsumer> mSurfaceFlingerConsumer;
+
     // Check all of the local sync points to ensure that all transactions
     // which need to have been applied prior to the frame which is about to
     // be latched have signaled

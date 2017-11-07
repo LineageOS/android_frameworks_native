@@ -42,7 +42,6 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
-#include "SurfaceFlingerConsumer.h"
 #include "Transform.h"
 
 #include <layerproto/LayerProtoHeader.h>
@@ -230,8 +229,8 @@ public:
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
     // one empty rect.
-    void useSurfaceDamage();
-    void useEmptyDamage();
+    virtual void useSurfaceDamage() = 0;
+    virtual void useEmptyDamage() = 0;
 
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t setTransactionFlags(uint32_t flags);
@@ -294,10 +293,12 @@ protected:
                         bool useIdentityTransform) const = 0;
 
 public:
+    virtual void setDefaultBufferSize(uint32_t w, uint32_t h) = 0;
+
 #ifdef USE_HWC2
     void setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z);
     void forceClientComposition(int32_t hwcId);
-    void setPerFrameData(const sp<const DisplayDevice>& displayDevice);
+    virtual void setPerFrameData(const sp<const DisplayDevice>& displayDevice) = 0;
 
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state
@@ -309,8 +310,8 @@ public:
 #else
     void setGeometry(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerInterface& layer);
     void setPerFrameData(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerInterface& layer);
-    void setAcquireFence(const sp<const DisplayDevice>& hw,
-                                 HWComposer::HWCLayerInterface& layer);
+    virtual void setAcquireFence(const sp<const DisplayDevice>& hw,
+                                 HWComposer::HWCLayerInterface& layer) = 0;
     Rect getPosition(const sp<const DisplayDevice>& hw);
 #endif
 
@@ -318,12 +319,16 @@ public:
      * called after page-flip
      */
 #ifdef USE_HWC2
-    void onLayerDisplayed(const sp<Fence>& releaseFence);
+    virtual void onLayerDisplayed(const sp<Fence>& releaseFence);
 #else
-    void onLayerDisplayed(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerInterface* layer);
+    virtual void onLayerDisplayed(const sp<const DisplayDevice>& hw,
+                                  HWComposer::HWCLayerInterface* layer);
 #endif
 
-    bool shouldPresentNow(const DispSync& dispSync) const;
+    virtual void abandon() = 0;
+
+    virtual bool shouldPresentNow(const DispSync& dispSync) const = 0;
+    virtual void setTransformHint(uint32_t orientation) const = 0;
 
     /*
      * called before composition.
@@ -335,9 +340,9 @@ public:
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
      */
-    bool onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
-                           const std::shared_ptr<FenceTime>& presentFence,
-                           const CompositorTiming& compositorTiming);
+    virtual bool onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
+                                   const std::shared_ptr<FenceTime>& presentFence,
+                                   const CompositorTiming& compositorTiming) = 0;
 
 #ifdef USE_HWC2
     // If a buffer was replaced this frame, release the former buffer
@@ -461,13 +466,13 @@ public:
     void logFrameStats();
     void getFrameStats(FrameStats* outStats) const;
 
-    std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush);
+    virtual std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush) = 0;
 
     void onDisconnect();
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newEntry,
                                   FrameEventHistoryDelta* outDelta);
 
-    bool getTransformToDisplayInverse() const;
+    virtual bool getTransformToDisplayInverse() const = 0;
 
     Transform getTransform() const;
 
@@ -524,6 +529,7 @@ protected:
     virtual void onFirstRef();
 
     friend class SurfaceInterceptor;
+
     void commitTransaction(const State& stateToCommit);
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
@@ -545,7 +551,6 @@ protected:
     void addZOrderRelative(const wp<Layer>& relative);
     void removeZOrderRelative(const wp<Layer>& relative);
 
-protected:
     class SyncPoint {
     public:
         explicit SyncPoint(uint64_t frameNumber)
@@ -617,8 +622,6 @@ public:
 protected:
     // -----------------------------------------------------------------------
 
-    // constants
-    sp<SurfaceFlingerConsumer> mSurfaceFlingerConsumer;
     bool mPremultipliedAlpha;
     String8 mName;
     String8 mTransactionName; // A cached version of "TX - " + mName for systraces
