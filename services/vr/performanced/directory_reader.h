@@ -19,7 +19,7 @@ class DirectoryReader {
     directory_ = fdopendir(directory_fd.get());
     error_ = errno;
     if (directory_ != nullptr)
-      directory_fd.release();
+      (void) directory_fd.release(); // ignore return result?
   }
 
   ~DirectoryReader() {
