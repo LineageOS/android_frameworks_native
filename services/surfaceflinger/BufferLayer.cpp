@@ -99,11 +99,9 @@ BufferLayer::~BufferLayer() {
 #endif
 }
 
-bool BufferLayer::isProtected() const
-{
+bool BufferLayer::isProtected() const {
     const sp<GraphicBuffer>& activeBuffer(mActiveBuffer);
-    return (activeBuffer != 0) &&
-            (activeBuffer->getUsage() & GRALLOC_USAGE_PROTECTED);
+    return (activeBuffer != 0) && (activeBuffer->getUsage() & GRALLOC_USAGE_PROTECTED);
 }
 
 bool BufferLayer::isVisible() const {
@@ -140,9 +138,9 @@ status_t BufferLayer::setBuffers(uint32_t w, uint32_t h, PixelFormat format, uin
 }
 
 static constexpr mat4 inverseOrientation(uint32_t transform) {
-    const mat4 flipH(-1,0,0,0,  0,1,0,0, 0,0,1,0, 1,0,0,1);
-    const mat4 flipV( 1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,1,0,1);
-    const mat4 rot90( 0,1,0,0, -1,0,0,0, 0,0,1,0, 1,0,0,1);
+    const mat4 flipH(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1);
+    const mat4 flipV(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1);
+    const mat4 rot90(0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1);
     mat4 tr;
 
     if (transform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
@@ -605,8 +603,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& hw,
 }
 #endif
 
-bool BufferLayer::isOpaque(const Layer::State& s) const
-{
+bool BufferLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
     if ((mSidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
@@ -730,8 +727,7 @@ bool BufferLayer::getOpacityForFormat(uint32_t format) {
     return true;
 }
 
-void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, 
-        bool useIdentityTransform) const {
+void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const {
     const State& s(getDrawingState());
 
     computeGeometry(renderArea, mMesh, useIdentityTransform);

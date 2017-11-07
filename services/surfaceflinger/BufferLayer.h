@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include "Layer.h"
 #include "Client.h"
+#include "Layer.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/HWComposerBufferCache.h"
 #include "FrameTracker.h"
@@ -118,7 +118,8 @@ public:
 #ifdef USE_HWC2
     void setPerFrameData(const sp<const DisplayDevice>& displayDevice);
 #else
-    void setPerFrameData(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerInterface& layer);
+    void setPerFrameData(const sp<const DisplayDevice>& hw,
+                         HWComposer::HWCLayerInterface& layer);
 #endif
     bool isOpaque(const Layer::State& s) const override;
 
@@ -137,8 +138,7 @@ private:
     static bool getOpacityForFormat(uint32_t format);
 
     // drawing
-    void drawWithOpenGL(const RenderArea& renderArea,
-            bool useIdentityTransform) const;
+    void drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const;
 
     // Temporary - Used only for LEGACY camera mode.
     uint32_t getProducerStickyTransform() const;

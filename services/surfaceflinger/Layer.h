@@ -37,20 +37,20 @@
 
 #include <list>
 
-#include "FrameTracker.h"
 #include "Client.h"
+#include "FrameTracker.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceFlingerConsumer.h"
 #include "Transform.h"
 
+#include <layerproto/LayerProtoHeader.h>
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/HWComposerBufferCache.h"
+#include "RenderArea.h"
 #include "RenderEngine/Mesh.h"
 #include "RenderEngine/Texture.h"
-#include <layerproto/LayerProtoHeader.h>
-#include "RenderArea.h"
 
 #include <math/vec4.h>
 
@@ -69,8 +69,7 @@ class LayerDebugInfo;
 
 // ---------------------------------------------------------------------------
 
-class Layer : public virtual RefBase
-{
+class Layer : public virtual RefBase {
     static int32_t sSequence;
 
 public:
@@ -96,14 +95,11 @@ public:
         uint32_t h;
         Transform transform;
 
-        inline bool operator ==(const Geometry& rhs) const {
-            return (w == rhs.w && h == rhs.h) &&
-                    (transform.tx() == rhs.transform.tx()) &&
+        inline bool operator==(const Geometry& rhs) const {
+            return (w == rhs.w && h == rhs.h) && (transform.tx() == rhs.transform.tx()) &&
                     (transform.ty() == rhs.transform.ty());
         }
-        inline bool operator !=(const Geometry& rhs) const {
-            return !operator ==(rhs);
-        }
+        inline bool operator!=(const Geometry& rhs) const { return !operator==(rhs); }
     };
 
     struct State {
@@ -156,8 +152,8 @@ public:
         half4 color;
     };
 
-    Layer(SurfaceFlinger* flinger, const sp<Client>& client,
-            const String8& name, uint32_t w, uint32_t h, uint32_t flags);
+    Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
+          uint32_t h, uint32_t flags);
     virtual ~Layer();
 
     void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
@@ -287,7 +283,8 @@ public:
      */
     virtual bool isFixedSize() const = 0;
 
-    void writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
+    void writeToProto(LayerProto* layerInfo,
+                      LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
 
 protected:
     /*
@@ -310,8 +307,7 @@ public:
     bool getClearClientTarget(int32_t hwcId) const;
     void updateCursorPosition(const sp<const DisplayDevice>& hw);
 #else
-    void setGeometry(const sp<const DisplayDevice>& hw,
-                             HWComposer::HWCLayerInterface& layer);
+    void setGeometry(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerInterface& layer);
     void setPerFrameData(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerInterface& layer);
     void setAcquireFence(const sp<const DisplayDevice>& hw,
                                  HWComposer::HWCLayerInterface& layer);
@@ -324,8 +320,7 @@ public:
 #ifdef USE_HWC2
     void onLayerDisplayed(const sp<Fence>& releaseFence);
 #else
-    void onLayerDisplayed(const sp<const DisplayDevice>& hw,
-            HWComposer::HWCLayerInterface* layer);
+    void onLayerDisplayed(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerInterface* layer);
 #endif
 
     bool shouldPresentNow(const DispSync& dispSync) const;
@@ -341,8 +336,8 @@ public:
      * returns true if the layer latched a new buffer this frame.
      */
     bool onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
-            const std::shared_ptr<FenceTime>& presentFence,
-            const CompositorTiming& compositorTiming);
+                           const std::shared_ptr<FenceTime>& presentFence,
+                           const CompositorTiming& compositorTiming);
 
 #ifdef USE_HWC2
     // If a buffer was replaced this frame, release the former buffer
@@ -380,8 +375,7 @@ public:
      * setVisibleNonTransparentRegion - called when the visible and
      * non-transparent region changes.
      */
-    void setVisibleNonTransparentRegion(const Region&
-            visibleNonTransparentRegion);
+    void setVisibleNonTransparentRegion(const Region& visibleNonTransparentRegion);
 
     /*
      * latchBuffer - called each time the screen is redrawn and returns whether
@@ -405,7 +399,6 @@ public:
      */
     void onRemoved();
 
-
     // Updates the transform hint in our SurfaceFlingerConsumer to match
     // the current orientation of the display device.
     void updateTransformHint(const sp<const DisplayDevice>& hw) const;
@@ -419,8 +412,9 @@ public:
     /*
      * Returns if a frame is queued.
      */
-    bool hasQueuedFrame() const { return mQueuedFrames > 0 ||
-            mSidebandStreamChanged || mAutoRefresh; }
+    bool hasQueuedFrame() const {
+        return mQueuedFrames > 0 || mSidebandStreamChanged || mAutoRefresh;
+    }
 
     int32_t getQueuedFrameCount() const { return mQueuedFrames; }
 
@@ -431,9 +425,7 @@ public:
     void destroyHwcLayer(int32_t hwcId);
     void destroyAllHwcLayers();
 
-    bool hasHwcLayer(int32_t hwcId) {
-        return mHwcLayers.count(hwcId) > 0;
-    }
+    bool hasHwcLayer(int32_t hwcId) { return mHwcLayers.count(hwcId) > 0; }
 
     HWC2::Layer* getHwcLayer(int32_t hwcId) {
         if (mHwcLayers.count(hwcId) == 0) {
@@ -452,9 +444,9 @@ public:
     // only for debugging
     inline const sp<GraphicBuffer>& getActiveBuffer() const { return mActiveBuffer; }
 
-    inline  const State&    getDrawingState() const { return mDrawingState; }
-    inline  const State&    getCurrentState() const { return mCurrentState; }
-    inline  State&          getCurrentState()       { return mCurrentState; }
+    inline const State& getDrawingState() const { return mDrawingState; }
+    inline const State& getCurrentState() const { return mCurrentState; }
+    inline State& getCurrentState() { return mCurrentState; }
 
     LayerDebugInfo getLayerDebugInfo() const;
 
@@ -473,7 +465,7 @@ public:
 
     void onDisconnect();
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newEntry,
-            FrameEventHistoryDelta* outDelta);
+                                  FrameEventHistoryDelta* outDelta);
 
     bool getTransformToDisplayInverse() const;
 
@@ -506,6 +498,7 @@ public:
     // SurfaceFlinger to complete a transaction.
     void commitChildList();
     int32_t getZ() const;
+
 protected:
     // constant
     sp<SurfaceFlinger> mFlinger;
@@ -516,22 +509,19 @@ protected:
     class LayerCleaner {
         sp<SurfaceFlinger> mFlinger;
         wp<Layer> mLayer;
+
     protected:
         ~LayerCleaner() {
             // destroy client resources
             mFlinger->onLayerDestroyed(mLayer);
         }
+
     public:
-        LayerCleaner(const sp<SurfaceFlinger>& flinger,
-                const sp<Layer>& layer)
-            : mFlinger(flinger), mLayer(layer) {
-        }
+        LayerCleaner(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer)
+              : mFlinger(flinger), mLayer(layer) {}
     };
 
-
     virtual void onFirstRef();
-
-
 
     friend class SurfaceInterceptor;
     void commitTransaction(const State& stateToCommit);
@@ -546,8 +536,8 @@ protected:
     Rect computeInitialCrop(const sp<const DisplayDevice>& hw) const;
 
     // drawing
-    void clearWithOpenGL(const RenderArea& renderArea,
-            float r, float g, float b, float alpha) const;
+    void clearWithOpenGL(const RenderArea& renderArea, float r, float g, float b,
+                         float alpha) const;
 
     void setParent(const sp<Layer>& layer);
 
@@ -556,31 +546,20 @@ protected:
     void removeZOrderRelative(const wp<Layer>& relative);
 
 protected:
-    class SyncPoint
-    {
+    class SyncPoint {
     public:
-        explicit SyncPoint(uint64_t frameNumber) : mFrameNumber(frameNumber),
-                mFrameIsAvailable(false), mTransactionIsApplied(false) {}
+        explicit SyncPoint(uint64_t frameNumber)
+              : mFrameNumber(frameNumber), mFrameIsAvailable(false), mTransactionIsApplied(false) {}
 
-        uint64_t getFrameNumber() const {
-            return mFrameNumber;
-        }
+        uint64_t getFrameNumber() const { return mFrameNumber; }
 
-        bool frameIsAvailable() const {
-            return mFrameIsAvailable;
-        }
+        bool frameIsAvailable() const { return mFrameIsAvailable; }
 
-        void setFrameAvailable() {
-            mFrameIsAvailable = true;
-        }
+        void setFrameAvailable() { mFrameIsAvailable = true; }
 
-        bool transactionIsApplied() const {
-            return mTransactionIsApplied;
-        }
+        bool transactionIsApplied() const { return mTransactionIsApplied; }
 
-        void setTransactionApplied() {
-            mTransactionIsApplied = true;
-        }
+        void setTransactionApplied() { mTransactionIsApplied = true; }
 
     private:
         const uint64_t mFrameNumber;
@@ -611,6 +590,7 @@ protected:
     // Client) or mOverrideScalingMode mode (originating from
     // the Surface Controller) if set.
     virtual uint32_t getEffectiveScalingMode() const = 0;
+
 public:
     /*
      * The layer handle is just a BBinder object passed to the client
@@ -621,11 +601,11 @@ public:
      * this layer when the handle is destroyed.
      */
     class Handle : public BBinder, public LayerCleaner {
-        public:
-            Handle(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer)
-                : LayerCleaner(flinger, layer), owner(layer) {}
+    public:
+        Handle(const sp<SurfaceFlinger>& flinger, const sp<Layer>& layer)
+              : LayerCleaner(flinger, layer), owner(layer) {}
 
-            wp<Layer> owner;
+        wp<Layer> owner;
     };
 
     sp<IBinder> getHandle();
@@ -633,15 +613,15 @@ public:
     virtual void notifyAvailableFrames() = 0;
     virtual PixelFormat getPixelFormat() const = 0;
     bool getPremultipledAlpha() const;
-protected:
 
+protected:
     // -----------------------------------------------------------------------
 
     // constants
     sp<SurfaceFlingerConsumer> mSurfaceFlingerConsumer;
     bool mPremultipliedAlpha;
     String8 mName;
-    String8 mTransactionName;  // A cached version of "TX - " + mName for systraces
+    String8 mTransactionName; // A cached version of "TX - " + mName for systraces
 
     bool mPrimaryDisplayOnly = false;
 
@@ -656,7 +636,7 @@ protected:
 
     // thread-safe
     volatile int32_t mQueuedFrames;
-    volatile int32_t mSidebandStreamChanged;  // used like an atomic boolean
+    volatile int32_t mSidebandStreamChanged; // used like an atomic boolean
 
     // Timestamp history for UIAutomation. Thread safe.
     FrameTracker mFrameTracker;
@@ -686,16 +666,15 @@ protected:
     // The mesh used to draw the layer in GLES composition mode
     mutable Mesh mMesh;
 
-
 #ifdef USE_HWC2
     // HWC items, accessed from the main thread
     struct HWCInfo {
         HWCInfo()
-          : hwc(nullptr),
-            layer(nullptr),
-            forceClientComposition(false),
-            compositionType(HWC2::Composition::Invalid),
-            clearClientTarget(false) {}
+              : hwc(nullptr),
+                layer(nullptr),
+                forceClientComposition(false),
+                compositionType(HWC2::Composition::Invalid),
+                clearClientTarget(false) {}
 
         HWComposer* hwc;
         HWC2::Layer* layer;
