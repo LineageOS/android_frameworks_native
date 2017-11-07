@@ -21,3 +21,4 @@
 // This file should be included instead of directly including layer.b.h
 #pragma GCC system_header
 #include <layers.pb.h>
+#include <layerstrace.pb.h>

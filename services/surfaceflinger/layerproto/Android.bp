@@ -6,6 +6,7 @@ cc_library_shared {
     srcs: [
         "LayerProtoParser.cpp",
         "layers.proto",
+        "layerstrace.proto",
     ],
 
     shared_libs: [
