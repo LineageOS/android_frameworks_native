@@ -36,6 +36,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(sourceFiles)
 LOCAL_CFLAGS := -DLOG_TAG=\"performanced\"
 LOCAL_CFLAGS += -DTRACE=0
+LOCAL_CFLAGS += -Wall -Werror
 LOCAL_STATIC_LIBRARIES := $(staticLibraries)
 LOCAL_SHARED_LIBRARIES := $(sharedLibraries)
 LOCAL_MODULE := performanced

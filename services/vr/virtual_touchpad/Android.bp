@@ -23,7 +23,11 @@ cc_library {
     shared_libs: shared_libs,
     header_libs: header_libraries,
     cppflags: ["-std=c++11"],
-    cflags: ["-DLOG_TAG=\"VrVirtualTouchpad\""],
+    cflags: [
+        "-DLOG_TAG=\"VrVirtualTouchpad\"",
+        "-Wall",
+        "-Werror",
+    ],
     name: "libvirtualtouchpad",
     tags: ["optional"],
 }
@@ -44,6 +48,10 @@ cc_test {
     srcs: test_src_files,
     static_libs: test_static_libs,
     header_libs: header_libraries,
+    cflags = [
+        "-Wall",
+        "-Werror",
+    ],
     cppflags = [
         "-std=c++11",
     ],
@@ -83,6 +91,8 @@ cc_binary {
     cppflags: ["-std=c++11"],
     cflags: [
         "-DLOG_TAG=\"VrVirtualTouchpad\"",
+        "-Wall",
+        "-Werror",
     ],
     host_ldlibs: ["-llog"],
     name: "virtual_touchpad",
@@ -112,7 +122,11 @@ cc_library {
     shared_libs: client_shared_libs,
     header_libs: header_libraries,
     cppflags: ["-std=c++11"],
-    cflags: ["-DLOG_TAG=\"VirtualTouchpadClient\""],
+    cflags: [
+        "-DLOG_TAG=\"VirtualTouchpadClient\"",
+        "-Wall",
+        "-Werror",
+    ],
     host_ldlibs: ["-llog"],
     name: "libvirtualtouchpadclient",
     tags: ["optional"],
