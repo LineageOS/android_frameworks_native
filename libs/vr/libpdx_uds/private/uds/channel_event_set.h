@@ -54,6 +54,14 @@ class ChannelEventReceiver {
   BorrowedHandle pollhup_event_fd() const { return pollhup_event_fd_.Borrow(); }
   BorrowedHandle data_fd() const { return data_fd_.Borrow(); }
 
+  // Moves file descriptors out of ChannelEventReceiver. Note these operations
+  // immediately invalidates the receiver.
+  std::tuple<LocalHandle, LocalHandle, LocalHandle> TakeFds() {
+    epoll_fd_.Close();
+    return {std::move(data_fd_), std::move(pollin_event_fd_),
+            std::move(pollhup_event_fd_)};
+  }
+
   Status<int> GetPendingEvents() const;
   Status<int> PollPendingEvents(int timeout_ms) const;
 
