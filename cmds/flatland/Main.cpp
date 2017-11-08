@@ -284,7 +284,6 @@ class Layer {
 public:
 
     Layer() :
-        mFirstFrame(true),
         mGLHelper(NULL),
         mSurface(EGL_NO_SURFACE) {
     }
@@ -358,8 +357,6 @@ public:
     }
 
 private:
-    bool mFirstFrame;
-
     LayerDesc mDesc;
 
     GLHelper* mGLHelper;
@@ -389,7 +386,6 @@ public:
         ATRACE_CALL();
 
         bool result;
-        EGLint resulte;
 
         float scaleFactor = float(mDesc.runHeights[mInstance]) /
             float(mDesc.height);
@@ -465,7 +461,6 @@ public:
         ATRACE_CALL();
 
         bool result;
-        status_t err;
 
         resetColorGenerator();
 

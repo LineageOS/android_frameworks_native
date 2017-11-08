@@ -26,20 +26,49 @@
 
 namespace android {
 
-class ColorLayer : public Layer
-{
+class ColorLayer : public Layer {
 public:
-    ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client,
-                        const String8& name, uint32_t w, uint32_t h, uint32_t flags);
+    ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
+               uint32_t h, uint32_t flags);
     virtual ~ColorLayer() = default;
 
     virtual const char* getTypeId() const { return "ColorLayer"; }
     virtual void onDraw(const RenderArea& renderArea, const Region& clip,
-            bool useIdentityTransform) const;
+                        bool useIdentityTransform) const;
+    bool isVisible() const override;
     virtual bool isOpaque(const Layer::State&) const { return false; }
-    virtual bool isSecure() const         { return false; }
-    virtual bool isFixedSize() const      { return true; }
-    virtual bool isVisible() const;
+    virtual bool isFixedSize() const { return true; }
+
+    void notifyAvailableFrames() override {}
+    PixelFormat getPixelFormat() const override { return PIXEL_FORMAT_NONE; }
+    uint32_t getEffectiveScalingMode() const override { return 0; }
+#ifdef USE_HWC2
+    void releasePendingBuffer(nsecs_t) override {}
+#endif
+    Region latchBuffer(bool&, nsecs_t) override { return Region(); }
+    void useSurfaceDamage() override {}
+    void useEmptyDamage() override {}
+    bool isBufferLatched() const override { return false; }
+    bool onPreComposition(nsecs_t) override { return true; }
+    void abandon() override {}
+#ifdef USE_HWC2
+    void setPerFrameData(const sp<const DisplayDevice>& displayDevice) override;
+#else
+    void setAcquireFence(const sp<const DisplayDevice>& /*hw*/,
+                         HWComposer::HWCLayerInterface& /*layer*/) override {}
+#endif
+    void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) override {}
+    bool shouldPresentNow(const DispSync& /*dispSync*/) const override { return false; }
+    bool onPostComposition(const std::shared_ptr<FenceTime>& /*glDoneFence*/,
+                           const std::shared_ptr<FenceTime>& /*presentFence*/,
+                           const CompositorTiming& /*compositorTiming*/) override {
+        return false;
+    }
+    void setTransformHint(uint32_t /*orientation*/) const override {}
+    std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool /*forceFlush*/) override {
+        return {};
+    }
+    bool getTransformToDisplayInverse() const override { return false; }
 };
 
 // ---------------------------------------------------------------------------

@@ -72,6 +72,7 @@
 #include "EventControlThread.h"
 #include "EventThread.h"
 #include "Layer.h"
+#include "BufferLayer.h"
 #include "LayerVector.h"
 #include "ColorLayer.h"
 #include "MonitoredProducer.h"
@@ -3208,14 +3209,15 @@ status_t SurfaceFlinger::createLayer(
 
     switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceNormal:
-            result = createNormalLayer(client,
+            result = createBufferLayer(client,
                     uniqueName, w, h, flags, format,
                     handle, gbp, &layer);
+
             break;
         case ISurfaceComposerClient::eFXSurfaceColor:
             result = createColorLayer(client,
                     uniqueName, w, h, flags,
-                    handle, gbp, &layer);
+                    handle, &layer);
             break;
         default:
             result = BAD_VALUE;
@@ -3269,7 +3271,7 @@ String8 SurfaceFlinger::getUniqueLayerName(const String8& name)
     return uniqueName;
 }
 
-status_t SurfaceFlinger::createNormalLayer(const sp<Client>& client,
+status_t SurfaceFlinger::createBufferLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags, PixelFormat& format,
         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* outLayer)
 {
@@ -3284,24 +3286,24 @@ status_t SurfaceFlinger::createNormalLayer(const sp<Client>& client,
         break;
     }
 
-    *outLayer = new Layer(this, client, name, w, h, flags);
-    status_t err = (*outLayer)->setBuffers(w, h, format, flags);
+    sp<BufferLayer> layer = new BufferLayer(this, client, name, w, h, flags);
+    status_t err = layer->setBuffers(w, h, format, flags);
     if (err == NO_ERROR) {
-        *handle = (*outLayer)->getHandle();
-        *gbp = (*outLayer)->getProducer();
+        *handle = layer->getHandle();
+        *gbp = layer->getProducer();
+        *outLayer = layer;
     }
 
-    ALOGE_IF(err, "createNormalLayer() failed (%s)", strerror(-err));
+    ALOGE_IF(err, "createBufferLayer() failed (%s)", strerror(-err));
     return err;
 }
 
 status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
-        sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* outLayer)
+        sp<IBinder>* handle, sp<Layer>* outLayer)
 {
     *outLayer = new ColorLayer(this, client, name, w, h, flags);
     *handle = (*outLayer)->getHandle();
-    *gbp = (*outLayer)->getProducer();
     return NO_ERROR;
 }
 

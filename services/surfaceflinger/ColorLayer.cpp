@@ -18,8 +18,8 @@
 #undef LOG_TAG
 #define LOG_TAG "ColorLayer"
 
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <sys/types.h>
 
 #include <utils/Errors.h>
@@ -28,27 +28,29 @@
 #include <ui/GraphicBuffer.h>
 
 #include "ColorLayer.h"
-#include "SurfaceFlinger.h"
 #include "DisplayDevice.h"
 #include "RenderEngine/RenderEngine.h"
+#include "SurfaceFlinger.h"
 
 namespace android {
 // ---------------------------------------------------------------------------
 
-ColorLayer::ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client,
-        const String8& name, uint32_t w, uint32_t h, uint32_t flags)
-    : Layer(flinger, client, name, w, h, flags) {
+ColorLayer::ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
+                       uint32_t w, uint32_t h, uint32_t flags)
+      : Layer(flinger, client, name, w, h, flags) {
+    // drawing state & current state are identical
+    mDrawingState = mCurrentState;
 }
 
 void ColorLayer::onDraw(const RenderArea& renderArea, const Region& /* clip */,
                         bool useIdentityTransform) const {
     const State& s(getDrawingState());
-    if (s.color.a>0) {
+    if (s.color.a > 0) {
         Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2);
         computeGeometry(renderArea, mesh, useIdentityTransform);
         RenderEngine& engine(mFlinger->getRenderEngine());
         engine.setupLayerBlending(getPremultipledAlpha(), false /* opaque */,
-              true /* disableTexture */, s.color);
+                                  true /* disableTexture */, s.color);
         engine.drawMesh(mesh);
         engine.disableBlending();
     }
@@ -59,6 +61,35 @@ bool ColorLayer::isVisible() const {
     return !isHiddenByPolicy() && s.color.a;
 }
 
+#ifdef USE_HWC2
+void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
+    const Transform& tr = displayDevice->getTransform();
+    const auto& viewport = displayDevice->getViewport();
+    Region visible = tr.transform(visibleRegion.intersect(viewport));
+    auto hwcId = displayDevice->getHwcDisplayId();
+    auto& hwcInfo = mHwcLayers[hwcId];
+    auto& hwcLayer = hwcInfo.layer;
+    auto error = hwcLayer->setVisibleRegion(visible);
+
+    setCompositionType(hwcId, HWC2::Composition::SolidColor);
+
+    half4 color = getColor();
+    error = hwcLayer->setColor({static_cast<uint8_t>(std::round(255.0f * color.r)),
+                                static_cast<uint8_t>(std::round(255.0f * color.g)),
+                                static_cast<uint8_t>(std::round(255.0f * color.b)), 255});
+    if (error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set color: %s (%d)", mName.string(), to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+
+    // Clear out the transform, because it doesn't make sense absent a source buffer
+    error = hwcLayer->setTransform(HWC2::Transform::None);
+    if (error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to clear transform: %s (%d)", mName.string(), to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+}
+#endif
 
 // ---------------------------------------------------------------------------
 

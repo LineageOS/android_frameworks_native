@@ -8,6 +8,8 @@ LOCAL_SRC_FILES:=   \
     Renderers.cpp   \
     Main.cpp        \
 
+LOCAL_CFLAGS := -Wall -Werror
+
 LOCAL_MODULE:= flatland
 
 LOCAL_MODULE_TAGS := tests
