@@ -37,9 +37,9 @@ static const uint32_t blobCacheVersion = 3;
 static const uint32_t blobCacheDeviceVersion = 1;
 
 BlobCache::BlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize):
+        mMaxTotalSize(maxTotalSize),
         mMaxKeySize(maxKeySize),
         mMaxValueSize(maxValueSize),
-        mMaxTotalSize(maxTotalSize),
         mTotalSize(0) {
     int64_t now = std::chrono::steady_clock::now().time_since_epoch().count();
 #ifdef _WIN32
