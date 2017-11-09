@@ -107,7 +107,7 @@ static std::string matrixToString(const float* a, uint32_t m, uint32_t n, bool r
 // this is the strategy that applications will actually use.  Be very careful
 // when adjusting the default strategy because it can dramatically affect
 // (often in a bad way) the user experience.
-const char* VelocityTracker::DEFAULT_STRATEGY = "impulse";
+const char* VelocityTracker::DEFAULT_STRATEGY = "lsq2";
 
 VelocityTracker::VelocityTracker(const char* strategy) :
         mLastEventTime(0), mCurrentPointerIdBits(0), mActivePointerId(-1) {
