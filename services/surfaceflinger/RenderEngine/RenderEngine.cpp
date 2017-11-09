@@ -337,21 +337,33 @@ void RenderEngine::dump(String8& result) {
 
 // ---------------------------------------------------------------------------
 
-RenderEngine::BindImageAsFramebuffer::BindImageAsFramebuffer(
-        RenderEngine& engine, EGLImageKHR image) : mEngine(engine)
+RenderEngine::BindNativeBufferAsFramebuffer::BindNativeBufferAsFramebuffer(
+        RenderEngine& engine, ANativeWindowBuffer* buffer) : mEngine(engine)
 {
-    mEngine.bindImageAsFramebuffer(image, &mTexName, &mFbName, &mStatus);
+    mImage = eglCreateImageKHR(mEngine.mEGLDisplay, EGL_NO_CONTEXT,
+            EGL_NATIVE_BUFFER_ANDROID, buffer, NULL);
+    if (mImage == EGL_NO_IMAGE_KHR) {
+        mStatus = GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+        return;
+    }
+
+    mEngine.bindImageAsFramebuffer(mImage, &mTexName, &mFbName, &mStatus);
 
     ALOGE_IF(mStatus != GL_FRAMEBUFFER_COMPLETE_OES,
             "glCheckFramebufferStatusOES error %d", mStatus);
 }
 
-RenderEngine::BindImageAsFramebuffer::~BindImageAsFramebuffer() {
+RenderEngine::BindNativeBufferAsFramebuffer::~BindNativeBufferAsFramebuffer() {
+    if (mImage == EGL_NO_IMAGE_KHR) {
+        return;
+    }
+
     // back to main framebuffer
     mEngine.unbindFramebuffer(mTexName, mFbName);
+    eglDestroyImageKHR(mEngine.mEGLDisplay, mImage);
 }
 
-status_t RenderEngine::BindImageAsFramebuffer::getStatus() const {
+status_t RenderEngine::BindNativeBufferAsFramebuffer::getStatus() const {
     return mStatus == GL_FRAMEBUFFER_COMPLETE_OES ? NO_ERROR : BAD_VALUE;
 }
 

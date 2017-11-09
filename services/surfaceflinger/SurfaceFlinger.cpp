@@ -4546,26 +4546,6 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     });
 }
 
-// A simple RAII class that holds an EGLImage and destroys it either:
-//   a) When the destroy() method is called
-//   b) When the object goes out of scope
-class ImageHolder {
-public:
-    ImageHolder(EGLDisplay display, EGLImageKHR image) : mDisplay(display), mImage(image) {}
-    ~ImageHolder() { destroy(); }
-
-    void destroy() {
-        if (mImage != EGL_NO_IMAGE_KHR) {
-            eglDestroyImageKHR(mDisplay, mImage);
-            mImage = EGL_NO_IMAGE_KHR;
-        }
-    }
-
-private:
-    const EGLDisplay mDisplay;
-    EGLImageKHR mImage;
-};
-
 status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
                                                  TraverseLayersFunction traverseLayers,
                                                  ANativeWindowBuffer* buffer,
@@ -4584,22 +4564,11 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         return PERMISSION_DENIED;
     }
 
-    // create an EGLImage from the buffer so we can later
-    // turn it into a texture
-    EGLImageKHR image = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT,
-            EGL_NATIVE_BUFFER_ANDROID, buffer, NULL);
-    if (image == EGL_NO_IMAGE_KHR) {
-        return BAD_VALUE;
-    }
-
-    // This will automatically destroy the image if we return before calling its destroy method
-    ImageHolder imageHolder(mEGLDisplay, image);
-
     // this binds the given EGLImage as a framebuffer for the
     // duration of this scope.
-    RenderEngine::BindImageAsFramebuffer imageBond(getRenderEngine(), image);
-    if (imageBond.getStatus() != NO_ERROR) {
-        ALOGE("got GL_FRAMEBUFFER_COMPLETE_OES error while taking screenshot");
+    RenderEngine::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
+    if (bufferBond.getStatus() != NO_ERROR) {
+        ALOGE("got ANWB binding error while taking screenshot");
         return INVALID_OPERATION;
     }
 
@@ -4621,8 +4590,6 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         delete [] pixels;
     }
 
-    // destroy our image
-    imageHolder.destroy();
     return NO_ERROR;
 }
 

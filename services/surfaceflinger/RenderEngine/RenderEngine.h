@@ -31,6 +31,8 @@
 
 #define EGL_NO_CONFIG ((EGLConfig)0)
 
+struct ANativeWindowBuffer;
+
 // ---------------------------------------------------------------------------
 namespace android {
 // ---------------------------------------------------------------------------
@@ -90,13 +92,14 @@ public:
     void deleteTextures(size_t count, uint32_t const* names);
     void readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels);
 
-    class BindImageAsFramebuffer {
+    class BindNativeBufferAsFramebuffer {
         RenderEngine& mEngine;
+        EGLImageKHR mImage;
         uint32_t mTexName, mFbName;
         uint32_t mStatus;
     public:
-        BindImageAsFramebuffer(RenderEngine& engine, EGLImageKHR image);
-        ~BindImageAsFramebuffer();
+        BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer);
+        ~BindNativeBufferAsFramebuffer();
         int getStatus() const;
     };
 
