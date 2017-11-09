@@ -56,8 +56,6 @@ public:
     // region in layer-stack space
     mutable Region dirtyRegion;
     // region in screen space
-    mutable Region swapRegion;
-    // region in screen space
     Region undefinedRegion;
     bool lastCompositionHadVisibleLayers;
 
@@ -97,7 +95,7 @@ public:
 
     // Flip the front and back buffers if the back buffer is "dirty".  Might
     // be instantaneous, might involve copying the frame buffer around.
-    void flip(const Region& dirty) const;
+    void flip() const;
 
     int         getWidth() const;
     int         getHeight() const;

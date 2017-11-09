@@ -1534,7 +1534,7 @@ void SurfaceFlinger::doDebugFlashRegions()
             const Region dirtyRegion(hw->getDirtyRegion(repaintEverything));
             if (!dirtyRegion.isEmpty()) {
                 // redraw the whole screen
-                doComposeSurfaces(hw, Region(hw->bounds()));
+                doComposeSurfaces(hw);
 
                 // and draw the dirty region
                 const int32_t height = hw->getHeight();
@@ -2009,8 +2009,7 @@ void SurfaceFlinger::doComposition() {
             doDisplayComposition(hw, dirtyRegion);
 
             hw->dirtyRegion.clear();
-            hw->flip(hw->swapRegion);
-            hw->swapRegion.clear();
+            hw->flip();
         }
     }
     postFramebuffer();
@@ -2643,30 +2642,17 @@ void SurfaceFlinger::doDisplayComposition(
     }
 
     ALOGV("doDisplayComposition");
-
-    Region dirtyRegion(inDirtyRegion);
-
-    // compute the invalid region
-    displayDevice->swapRegion.orSelf(dirtyRegion);
-
-    // we need to redraw everything (the whole screen)
-    dirtyRegion.set(displayDevice->bounds());
-    displayDevice->swapRegion = dirtyRegion;
-
-    if (!doComposeSurfaces(displayDevice, dirtyRegion)) return;
-
-    // update the swap region and clear the dirty region
-    displayDevice->swapRegion.orSelf(dirtyRegion);
+    if (!doComposeSurfaces(displayDevice)) return;
 
     // swap buffers (presentation)
     displayDevice->swapBuffers(getHwComposer());
 }
 
-bool SurfaceFlinger::doComposeSurfaces(
-        const sp<const DisplayDevice>& displayDevice, const Region& dirty)
+bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDevice)
 {
     ALOGV("doComposeSurfaces");
 
+    const Region bounds(displayDevice->bounds());
     const DisplayRenderArea renderArea(displayDevice);
     const auto hwcId = displayDevice->getHwcDisplayId();
 
@@ -2708,19 +2694,13 @@ bool SurfaceFlinger::doComposeSurfaces(
             // We'll revisit later if needed.
             mRenderEngine->clearWithColor(0, 0, 0, 0);
         } else {
-            // we start with the whole screen area
-            const Region bounds(displayDevice->getBounds());
-
-            // we remove the scissor part
+            // we start with the whole screen area and remove the scissor part
             // we're left with the letterbox region
             // (common case is that letterbox ends-up being empty)
             const Region letterbox(bounds.subtract(displayDevice->getScissor()));
 
             // compute the area to clear
             Region region(displayDevice->undefinedRegion.merge(letterbox));
-
-            // but limit it to the dirty region
-            region.andSelf(dirty);
 
             // screen is already cleared here
             if (!region.isEmpty()) {
@@ -2758,7 +2738,7 @@ bool SurfaceFlinger::doComposeSurfaces(
         // we're using h/w composer
         bool firstLayer = true;
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            const Region clip(dirty.intersect(
+            const Region clip(bounds.intersect(
                     displayTransform.transform(layer->visibleRegion)));
             ALOGV("Layer: %s", layer->getName().string());
             ALOGV("  Composition type: %s",
@@ -2794,7 +2774,7 @@ bool SurfaceFlinger::doComposeSurfaces(
     } else {
         // we're not using h/w composer
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            const Region clip(dirty.intersect(
+            const Region clip(bounds.intersect(
                     displayTransform.transform(layer->visibleRegion)));
             if (!clip.isEmpty()) {
                 layer->draw(renderArea, clip);

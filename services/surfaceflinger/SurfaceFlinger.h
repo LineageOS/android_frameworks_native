@@ -543,7 +543,7 @@ private:
 
     // compose surfaces for display hw. this fails if using GL and the surface
     // has been destroyed and is no longer valid.
-    bool doComposeSurfaces(const sp<const DisplayDevice>& displayDevice, const Region& dirty);
+    bool doComposeSurfaces(const sp<const DisplayDevice>& displayDevice);
 
     void postFramebuffer();
     void drawWormhole(const sp<const DisplayDevice>& displayDevice, const Region& region) const;

@@ -201,7 +201,7 @@ uint32_t DisplayDevice::getPageFlipCount() const {
     return mPageFlipCount;
 }
 
-void DisplayDevice::flip(const Region& /*dirty*/) const
+void DisplayDevice::flip() const
 {
     mFlinger->getRenderEngine().checkErrors();
     mPageFlipCount++;
