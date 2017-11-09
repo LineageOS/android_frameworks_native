@@ -70,11 +70,6 @@ public:
     };
 
     enum {
-        PARTIAL_UPDATES = 0x00020000, // video driver feature
-        SWAP_RECTANGLE  = 0x00080000,
-    };
-
-    enum {
         NO_LAYER_STACK = 0xFFFFFFFF,
     };
 
@@ -106,7 +101,6 @@ public:
 
     int         getWidth() const;
     int         getHeight() const;
-    uint32_t    getFlags() const;
 
     EGLSurface  getEGLSurface() const;
 
@@ -203,7 +197,6 @@ private:
     EGLSurface      mSurface;
     int             mDisplayWidth;
     int             mDisplayHeight;
-    uint32_t        mFlags;
     mutable uint32_t mPageFlipCount;
     String8         mDisplayName;
     bool            mIsSecure;

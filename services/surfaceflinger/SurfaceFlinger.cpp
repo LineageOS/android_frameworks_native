@@ -2649,25 +2649,9 @@ void SurfaceFlinger::doDisplayComposition(
     // compute the invalid region
     displayDevice->swapRegion.orSelf(dirtyRegion);
 
-    uint32_t flags = displayDevice->getFlags();
-    if (flags & DisplayDevice::SWAP_RECTANGLE) {
-        // we can redraw only what's dirty, but since SWAP_RECTANGLE only
-        // takes a rectangle, we must make sure to update that whole
-        // rectangle in that case
-        dirtyRegion.set(displayDevice->swapRegion.bounds());
-    } else {
-        if (flags & DisplayDevice::PARTIAL_UPDATES) {
-            // We need to redraw the rectangle that will be updated
-            // (pushed to the framebuffer).
-            // This is needed because PARTIAL_UPDATES only takes one
-            // rectangle instead of a region (see DisplayDevice::flip())
-            dirtyRegion.set(displayDevice->swapRegion.bounds());
-        } else {
-            // we need to redraw everything (the whole screen)
-            dirtyRegion.set(displayDevice->bounds());
-            displayDevice->swapRegion = dirtyRegion;
-        }
-    }
+    // we need to redraw everything (the whole screen)
+    dirtyRegion.set(displayDevice->bounds());
+    displayDevice->swapRegion = dirtyRegion;
 
     if (!doComposeSurfaces(displayDevice, dirtyRegion)) return;
 

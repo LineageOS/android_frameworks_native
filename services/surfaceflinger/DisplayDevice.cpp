@@ -53,24 +53,12 @@
 using namespace android;
 // ----------------------------------------------------------------------------
 
-#ifdef EGL_ANDROID_swap_rectangle
-static constexpr bool kEGLAndroidSwapRectangle = true;
-#else
-static constexpr bool kEGLAndroidSwapRectangle = false;
-#endif
-
 // retrieve triple buffer setting from configstore
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 
 static bool useTripleFramebuffer = getInt64< ISurfaceFlingerConfigs,
         &ISurfaceFlingerConfigs::maxFrameBufferAcquiredBuffers>(2) >= 3;
-
-#if !defined(EGL_EGLEXT_PROTOTYPES) || !defined(EGL_ANDROID_swap_rectangle)
-// Dummy implementation in case it is missing.
-inline void eglSetSwapRectangleANDROID (EGLDisplay, EGLSurface, EGLint, EGLint, EGLint, EGLint) {
-}
-#endif
 
 /*
  * Initialize the display to the specified values.
@@ -99,7 +87,6 @@ DisplayDevice::DisplayDevice(
       mSurface(EGL_NO_SURFACE),
       mDisplayWidth(),
       mDisplayHeight(),
-      mFlags(),
       mPageFlipCount(),
       mIsSecure(isSecure),
       mLayerStack(NO_LAYER_STACK),
@@ -214,19 +201,9 @@ uint32_t DisplayDevice::getPageFlipCount() const {
     return mPageFlipCount;
 }
 
-void DisplayDevice::flip(const Region& dirty) const
+void DisplayDevice::flip(const Region& /*dirty*/) const
 {
     mFlinger->getRenderEngine().checkErrors();
-
-    if (kEGLAndroidSwapRectangle) {
-        if (mFlags & SWAP_RECTANGLE) {
-            const Region newDirty(dirty.intersect(bounds()));
-            const Rect b(newDirty.getBounds());
-            eglSetSwapRectangleANDROID(mDisplay, mSurface,
-                    b.left, b.top, b.width(), b.height());
-        }
-    }
-
     mPageFlipCount++;
 }
 
@@ -283,11 +260,6 @@ void DisplayDevice::swapBuffers(HWComposer& hwc) const {
 
 void DisplayDevice::onSwapBuffersCompleted() const {
     mDisplaySurface->onFrameCommitted();
-}
-
-uint32_t DisplayDevice::getFlags() const
-{
-    return mFlags;
 }
 
 EGLBoolean DisplayDevice::makeCurrent() const {
