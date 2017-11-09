@@ -77,7 +77,8 @@ public:
     virtual void dump(String8& result);
 
     // helpers
-    void flush();
+    // flush returns -1 or a valid native fence fd owned by the caller
+    int flush(bool wait);
     void clearWithColor(float red, float green, float blue, float alpha);
     void fillRegionWithColor(const Region& region, uint32_t height,
             float red, float green, float blue, float alpha);

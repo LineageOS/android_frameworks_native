@@ -247,8 +247,51 @@ void RenderEngine::fillRegionWithColor(const Region& region, uint32_t height,
     drawMesh(mesh);
 }
 
-void RenderEngine::flush() {
-    glFlush();
+int RenderEngine::flush(bool wait) {
+    // Attempt to create a sync khr object that can produce a sync point. If that
+    // isn't available, create a non-dupable sync object in the fallback path and
+    // wait on it directly.
+    EGLSyncKHR sync;
+    if (!wait) {
+        EGLint syncFd = EGL_NO_NATIVE_FENCE_FD_ANDROID;
+
+        sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
+        if (sync != EGL_NO_SYNC_KHR) {
+            // native fence fd will not be populated until flush() is done.
+            glFlush();
+
+            // get the sync fd
+            syncFd = eglDupNativeFenceFDANDROID(mEGLDisplay, sync);
+            if (syncFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+                ALOGW("failed to dup sync khr object");
+            }
+
+            eglDestroySyncKHR(mEGLDisplay, sync);
+        }
+
+        if (syncFd != EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+            return syncFd;
+        }
+    }
+
+    // fallback or explicit wait
+    sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
+    if (sync != EGL_NO_SYNC_KHR) {
+        EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync,
+                EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, 2000000000 /*2 sec*/);
+        EGLint eglErr = eglGetError();
+        if (result == EGL_TIMEOUT_EXPIRED_KHR) {
+            ALOGW("fence wait timed out");
+        } else {
+            ALOGW_IF(eglErr != EGL_SUCCESS,
+                    "error waiting on EGL fence: %#x", eglErr);
+        }
+        eglDestroySyncKHR(mEGLDisplay, sync);
+    } else {
+        ALOGW("error creating EGL fence: %#x", eglGetError());
+    }
+
+    return -1;
 }
 
 void RenderEngine::clearWithColor(float red, float green, float blue, float alpha) {
