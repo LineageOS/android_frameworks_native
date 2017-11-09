@@ -22,7 +22,8 @@ LOCAL_SRC_FILES:= \
     InputListener.cpp \
     InputManager.cpp \
     InputReader.cpp \
-    InputWindow.cpp
+    InputWindow.cpp \
+    InputHookVendor.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     libbinder \
@@ -44,6 +45,10 @@ LOCAL_CFLAGS += -Wno-unused-parameter
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)
 
 LOCAL_MODULE := libinputflinger
+
+ifneq ($(strip $(TARGET_INPUTHOOK_VENDOR_LIB)),)
+LOCAL_WHOLE_STATIC_LIBRARIES += $(TARGET_INPUTHOOK_VENDOR_LIB)
+endif
 
 include $(BUILD_SHARED_LIBRARY)
 

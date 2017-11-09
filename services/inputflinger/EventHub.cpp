@@ -36,6 +36,7 @@
 // #define LOG_NDEBUG 0
 
 #include "EventHub.h"
+#include "InputHookVendor.h"
 
 #include <hardware_legacy/power.h>
 
@@ -188,6 +189,8 @@ EventHub::EventHub(void) :
         mNeedToReopenDevices(false), mNeedToScanDevices(true),
         mPendingEventCount(0), mPendingEventIndex(0), mPendingINotify(false) {
     acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
+
+    inputhook_vendor_init(this);
 
     mEpollFd = epoll_create(EPOLL_SIZE_HINT);
     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance.  errno=%d", errno);
