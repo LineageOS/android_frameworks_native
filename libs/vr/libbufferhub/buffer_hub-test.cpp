@@ -33,6 +33,7 @@ const int kFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 const int kUsage = 0;
 const uint64_t kContext = 42;
 const size_t kMaxConsumerCount = 63;
+const int kPollTimeoutMs = 100;
 
 using LibBufferHubTest = ::testing::Test;
 
@@ -51,51 +52,51 @@ TEST_F(LibBufferHubTest, TestBasicUsage) {
   // Producer state mask is unique, i.e. 1.
   EXPECT_EQ(p->buffer_state_bit(), kProducerStateBit);
   // Consumer state mask cannot have producer bit on.
-  EXPECT_EQ(c->buffer_state_bit() & kProducerStateBit, 0);
+  EXPECT_EQ(c->buffer_state_bit() & kProducerStateBit, 0U);
   // Consumer state mask must be a single, i.e. power of 2.
-  EXPECT_NE(c->buffer_state_bit(), 0);
-  EXPECT_EQ(c->buffer_state_bit() & (c->buffer_state_bit() - 1), 0);
+  EXPECT_NE(c->buffer_state_bit(), 0U);
+  EXPECT_EQ(c->buffer_state_bit() & (c->buffer_state_bit() - 1), 0U);
   // Consumer state mask cannot have producer bit on.
-  EXPECT_EQ(c2->buffer_state_bit() & kProducerStateBit, 0);
+  EXPECT_EQ(c2->buffer_state_bit() & kProducerStateBit, 0U);
   // Consumer state mask must be a single, i.e. power of 2.
-  EXPECT_NE(c2->buffer_state_bit(), 0);
-  EXPECT_EQ(c2->buffer_state_bit() & (c2->buffer_state_bit() - 1), 0);
+  EXPECT_NE(c2->buffer_state_bit(), 0U);
+  EXPECT_EQ(c2->buffer_state_bit() & (c2->buffer_state_bit() - 1), 0U);
   // Each consumer should have unique bit.
-  EXPECT_EQ(c->buffer_state_bit() & c2->buffer_state_bit(), 0);
+  EXPECT_EQ(c->buffer_state_bit() & c2->buffer_state_bit(), 0U);
 
   // Initial state: producer not available, consumers not available.
-  EXPECT_EQ(0, RETRY_EINTR(p->Poll(100)));
-  EXPECT_EQ(0, RETRY_EINTR(c->Poll(100)));
-  EXPECT_EQ(0, RETRY_EINTR(c2->Poll(100)));
+  EXPECT_EQ(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
+  EXPECT_EQ(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
+  EXPECT_EQ(0, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
 
   EXPECT_EQ(0, p->Post(LocalHandle(), kContext));
 
   // New state: producer not available, consumers available.
-  EXPECT_EQ(0, RETRY_EINTR(p->Poll(100)));
-  EXPECT_EQ(1, RETRY_EINTR(c->Poll(100)));
-  EXPECT_EQ(1, RETRY_EINTR(c2->Poll(100)));
+  EXPECT_EQ(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
+  EXPECT_EQ(1, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
+  EXPECT_EQ(1, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
 
   uint64_t context;
   LocalHandle fence;
   EXPECT_EQ(0, c->Acquire(&fence, &context));
   EXPECT_EQ(kContext, context);
-  EXPECT_EQ(0, RETRY_EINTR(c->Poll(100)));
-  EXPECT_EQ(1, RETRY_EINTR(c2->Poll(100)));
+  EXPECT_EQ(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
+  EXPECT_EQ(1, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
 
   EXPECT_EQ(0, c2->Acquire(&fence, &context));
   EXPECT_EQ(kContext, context);
-  EXPECT_EQ(0, RETRY_EINTR(c2->Poll(100)));
-  EXPECT_EQ(0, RETRY_EINTR(c->Poll(100)));
+  EXPECT_EQ(0, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
+  EXPECT_EQ(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
 
   EXPECT_EQ(0, c->Release(LocalHandle()));
-  EXPECT_EQ(0, RETRY_EINTR(p->Poll(100)));
+  EXPECT_EQ(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
   EXPECT_EQ(0, c2->Discard());
 
-  EXPECT_EQ(1, RETRY_EINTR(p->Poll(100)));
+  EXPECT_EQ(1, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
   EXPECT_EQ(0, p->Gain(&fence));
-  EXPECT_EQ(0, RETRY_EINTR(p->Poll(100)));
-  EXPECT_EQ(0, RETRY_EINTR(c->Poll(100)));
-  EXPECT_EQ(0, RETRY_EINTR(c2->Poll(100)));
+  EXPECT_EQ(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
+  EXPECT_EQ(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
+  EXPECT_EQ(0, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
 }
 
 TEST_F(LibBufferHubTest, TestEpoll) {
@@ -137,7 +138,8 @@ TEST_F(LibBufferHubTest, TestEpoll) {
 
   // Post the producer and check for consumer signal.
   EXPECT_EQ(0, p->Post({}, kContext));
-  ASSERT_EQ(1, epoll_wait(epoll_fd.Get(), events.data(), events.size(), 100));
+  ASSERT_EQ(1, epoll_wait(epoll_fd.Get(), events.data(), events.size(),
+                          kPollTimeoutMs));
   ASSERT_TRUE(events[0].events & EPOLLIN);
   ASSERT_EQ(c->event_fd(), events[0].data.fd);
 
@@ -145,10 +147,14 @@ TEST_F(LibBufferHubTest, TestEpoll) {
   event = events[0];
 
   // Check for events again. Edge-triggered mode should prevent any.
-  EXPECT_EQ(0, epoll_wait(epoll_fd.Get(), events.data(), events.size(), 100));
-  EXPECT_EQ(0, epoll_wait(epoll_fd.Get(), events.data(), events.size(), 100));
-  EXPECT_EQ(0, epoll_wait(epoll_fd.Get(), events.data(), events.size(), 100));
-  EXPECT_EQ(0, epoll_wait(epoll_fd.Get(), events.data(), events.size(), 100));
+  EXPECT_EQ(0, epoll_wait(epoll_fd.Get(), events.data(), events.size(),
+                          kPollTimeoutMs));
+  EXPECT_EQ(0, epoll_wait(epoll_fd.Get(), events.data(), events.size(),
+                          kPollTimeoutMs));
+  EXPECT_EQ(0, epoll_wait(epoll_fd.Get(), events.data(), events.size(),
+                          kPollTimeoutMs));
+  EXPECT_EQ(0, epoll_wait(epoll_fd.Get(), events.data(), events.size(),
+                          kPollTimeoutMs));
 
   // Translate the events.
   auto event_status = c->GetEventMask(event.events);
@@ -156,7 +162,8 @@ TEST_F(LibBufferHubTest, TestEpoll) {
   ASSERT_TRUE(event_status.get() & EPOLLIN);
 
   // Check for events again. Edge-triggered mode should prevent any.
-  EXPECT_EQ(0, epoll_wait(epoll_fd.Get(), events.data(), events.size(), 100));
+  EXPECT_EQ(0, epoll_wait(epoll_fd.Get(), events.data(), events.size(),
+                          kPollTimeoutMs));
 }
 
 TEST_F(LibBufferHubTest, TestStateMask) {
@@ -171,7 +178,7 @@ TEST_F(LibBufferHubTest, TestStateMask) {
     cs[i] = BufferConsumer::Import(p->CreateConsumer());
     ASSERT_TRUE(cs[i].get() != nullptr);
     // Expect all buffers have unique state mask.
-    EXPECT_EQ(buffer_state_bits & cs[i]->buffer_state_bit(), 0);
+    EXPECT_EQ(buffer_state_bits & cs[i]->buffer_state_bit(), 0U);
     buffer_state_bits |= cs[i]->buffer_state_bit();
   }
   EXPECT_EQ(buffer_state_bits, kProducerStateBit | kConsumerStateMask);
@@ -187,7 +194,7 @@ TEST_F(LibBufferHubTest, TestStateMask) {
     cs[i] = BufferConsumer::Import(p->CreateConsumer());
     ASSERT_TRUE(cs[i].get() != nullptr);
     // The released state mask will be reused.
-    EXPECT_EQ(buffer_state_bits & cs[i]->buffer_state_bit(), 0);
+    EXPECT_EQ(buffer_state_bits & cs[i]->buffer_state_bit(), 0U);
     buffer_state_bits |= cs[i]->buffer_state_bit();
     EXPECT_EQ(buffer_state_bits, kProducerStateBit | kConsumerStateMask);
   }
@@ -229,7 +236,7 @@ TEST_F(LibBufferHubTest, TestStateTransitions) {
 
   // Release in acquired state should succeed.
   EXPECT_EQ(0, c->Release(LocalHandle()));
-  EXPECT_LT(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
 
   // Release, acquire, and post in released state should fail.
   EXPECT_EQ(-EBUSY, c->Release(LocalHandle()));
@@ -277,7 +284,7 @@ TEST_F(LibBufferHubTest, TestAsyncStateTransitions) {
   EXPECT_FALSE(invalid_fence.IsValid());
 
   // Acquire in posted state should succeed.
-  EXPECT_LT(0, RETRY_EINTR(c->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
   EXPECT_EQ(0, c->AcquireAsync(&metadata, &invalid_fence));
   EXPECT_FALSE(invalid_fence.IsValid());
   EXPECT_EQ(p->buffer_state(), c->buffer_state());
@@ -292,7 +299,7 @@ TEST_F(LibBufferHubTest, TestAsyncStateTransitions) {
 
   // Release in acquired state should succeed.
   EXPECT_EQ(0, c->ReleaseAsync(&metadata, invalid_fence));
-  EXPECT_LT(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
   EXPECT_EQ(p->buffer_state(), c->buffer_state());
   EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
 
@@ -330,7 +337,7 @@ TEST_F(LibBufferHubTest, TestZeroConsumer) {
   EXPECT_TRUE(IsBufferPosted(p->buffer_state()));
 
   // The buffer should stay in posted stay until a consumer picks it up.
-  EXPECT_GE(0, RETRY_EINTR(p->Poll(100)));
+  EXPECT_GE(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
 
   // A new consumer should still be able to acquire the buffer immediately.
   std::unique_ptr<BufferConsumer> c =
@@ -361,7 +368,7 @@ TEST_F(LibBufferHubTest, TestMaxConsumers) {
   for (size_t i = 0; i < kMaxConsumerCount; i++) {
     EXPECT_TRUE(IsBufferPosted(cs[i]->buffer_state(),
                                cs[i]->buffer_state_bit()));
-    EXPECT_LT(0, RETRY_EINTR(cs[i]->Poll(10)));
+    EXPECT_LT(0, RETRY_EINTR(cs[i]->Poll(kPollTimeoutMs)));
     EXPECT_EQ(0, cs[i]->AcquireAsync(&metadata, &invalid_fence));
     EXPECT_TRUE(IsBufferAcquired(p->buffer_state()));
   }
@@ -373,7 +380,7 @@ TEST_F(LibBufferHubTest, TestMaxConsumers) {
     EXPECT_EQ(0, cs[i]->ReleaseAsync(&metadata, invalid_fence));
   }
 
-  EXPECT_LT(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
   EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
 
   // Buffer state cross all clients must be consistent.
@@ -399,7 +406,7 @@ TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferGained) {
   // Post the gained buffer should signal already created consumer.
   EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
   EXPECT_TRUE(IsBufferPosted(p->buffer_state()));
-  EXPECT_LT(0, RETRY_EINTR(c->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
   EXPECT_EQ(0, c->AcquireAsync(&metadata, &invalid_fence));
   EXPECT_TRUE(IsBufferAcquired(c->buffer_state()));
 }
@@ -440,7 +447,7 @@ TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferReleased) {
 
   // Post, acquire, and release the buffer..
   EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
-  EXPECT_LT(0, RETRY_EINTR(c1->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(c1->Poll(kPollTimeoutMs)));
   EXPECT_EQ(0, c1->AcquireAsync(&metadata, &invalid_fence));
   EXPECT_EQ(0, c1->ReleaseAsync(&metadata, invalid_fence));
 
@@ -450,7 +457,7 @@ TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferReleased) {
       BufferConsumer::Import(p->CreateConsumer());
   ASSERT_TRUE(c2.get() != nullptr);
 
-  EXPECT_LT(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
   EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
   EXPECT_EQ(0, p->GainAsync(&metadata, &invalid_fence));
   EXPECT_TRUE(IsBufferGained(p->buffer_state()));
@@ -470,7 +477,7 @@ TEST_F(LibBufferHubTest, TestWithCustomMetadata) {
 
   Metadata m = {1, 3};
   EXPECT_EQ(0, p->Post(LocalHandle(), m));
-  EXPECT_LE(0, RETRY_EINTR(c->Poll(10)));
+  EXPECT_LE(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
 
   LocalHandle fence;
   Metadata m2 = {};
@@ -503,7 +510,7 @@ TEST_F(LibBufferHubTest, TestPostWithWrongMetaSize) {
   // buffer allocation.
   OverSizedMetadata evil_meta = {};
   EXPECT_NE(0, p->Post(LocalHandle(), evil_meta));
-  EXPECT_GE(0, RETRY_EINTR(c->Poll(10)));
+  EXPECT_GE(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
 
   // It is ok to post metadata smaller than originally requested during
   // buffer allocation.
@@ -638,7 +645,7 @@ TEST_F(LibBufferHubTest, TestRemovePersistentBuffer) {
   EXPECT_EQ(0, p->Post<void>(LocalHandle()));
   EXPECT_EQ(0, c->Acquire(&fence));
   EXPECT_EQ(0, c->Release(LocalHandle()));
-  EXPECT_LT(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
 
   // Test that removing persistence and closing the producer orphans the
   // consumer.
@@ -679,7 +686,7 @@ TEST_F(LibBufferHubTest, TestAcquireFence) {
 
   // Should acquire a valid fence.
   LocalHandle f2;
-  EXPECT_LT(0, RETRY_EINTR(c->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
   EXPECT_EQ(0, c->AcquireAsync(&meta, &f2));
   EXPECT_TRUE(f2.IsValid());
   // The original fence and acquired fence should have different fd number.
@@ -689,14 +696,14 @@ TEST_F(LibBufferHubTest, TestAcquireFence) {
   // Signal the original fence will trigger the new fence.
   eventfd_write(f1.Get(), 1);
   // Now the original FD has been signaled.
-  EXPECT_LT(0, PollFd(f2.Get(), 10));
+  EXPECT_LT(0, PollFd(f2.Get(), kPollTimeoutMs));
 
   // Release the consumer with an invalid fence.
   EXPECT_EQ(0, c->ReleaseAsync(&meta, LocalHandle()));
 
   // Should gain an invalid fence.
   LocalHandle f3;
-  EXPECT_LT(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
   EXPECT_EQ(0, p->GainAsync(&meta, &f3));
   EXPECT_FALSE(f3.IsValid());
 
@@ -705,10 +712,10 @@ TEST_F(LibBufferHubTest, TestAcquireFence) {
 
   // Should acquire a valid fence and it's already signalled.
   LocalHandle f4;
-  EXPECT_LT(0, RETRY_EINTR(c->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
   EXPECT_EQ(0, c->AcquireAsync(&meta, &f4));
   EXPECT_TRUE(f4.IsValid());
-  EXPECT_LT(0, PollFd(f4.Get(), 10));
+  EXPECT_LT(0, PollFd(f4.Get(), kPollTimeoutMs));
 
   // Release with an unsignalled fence and signal it immediately after release
   // without producer gainning.
@@ -718,10 +725,10 @@ TEST_F(LibBufferHubTest, TestAcquireFence) {
 
   // Should gain a valid fence, which is already signaled.
   LocalHandle f6;
-  EXPECT_LT(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
   EXPECT_EQ(0, p->GainAsync(&meta, &f6));
   EXPECT_TRUE(f6.IsValid());
-  EXPECT_LT(0, PollFd(f6.Get(), 10));
+  EXPECT_LT(0, PollFd(f6.Get(), kPollTimeoutMs));
 }
 
 TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
@@ -737,12 +744,12 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
   EXPECT_EQ(0, p->PostAsync(&meta, LocalHandle()));
 
   LocalHandle fence;
-  EXPECT_LT(0, RETRY_EINTR(c1->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(c1->Poll(kPollTimeoutMs)));
   EXPECT_LE(0, c1->AcquireAsync(&meta, &fence));
   // Destroy the consumer now will make it orphaned and the buffer is still
   // acquired.
   c1 = nullptr;
-  EXPECT_GE(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_GE(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
 
   std::unique_ptr<BufferConsumer> c2 =
       BufferConsumer::Import(p->CreateConsumer());
@@ -751,13 +758,13 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
   EXPECT_NE(consumer_state_bit1, consumer_state_bit2);
 
   // The new consumer is available for acquire.
-  EXPECT_LT(0, RETRY_EINTR(c2->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
   EXPECT_LE(0, c2->AcquireAsync(&meta, &fence));
   // Releasing the consumer makes the buffer gainable.
   EXPECT_EQ(0, c2->ReleaseAsync(&meta, LocalHandle()));
 
   // The buffer is now available for the producer to gain.
-  EXPECT_LT(0, RETRY_EINTR(p->Poll(10)));
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
 
   // But if another consumer is created in released state.
   std::unique_ptr<BufferConsumer> c3 =
@@ -766,7 +773,7 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
   const uint64_t consumer_state_bit3 = c3->buffer_state_bit();
   EXPECT_NE(consumer_state_bit2, consumer_state_bit3);
   // The consumer buffer is not acquirable.
-  EXPECT_GE(0, RETRY_EINTR(c3->Poll(10)));
+  EXPECT_GE(0, RETRY_EINTR(c3->Poll(kPollTimeoutMs)));
   EXPECT_EQ(-EBUSY, c3->AcquireAsync(&meta, &fence));
 
   // Producer should be able to gain no matter what.
