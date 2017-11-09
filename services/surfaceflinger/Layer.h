@@ -282,6 +282,8 @@ public:
      */
     virtual bool isFixedSize() const = 0;
 
+    bool isPendingRemoval() const { return mPendingRemoval; }
+
     void writeToProto(LayerProto* layerInfo,
                       LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
 
@@ -668,6 +670,8 @@ protected:
     bool mNeedsFiltering;
     // The mesh used to draw the layer in GLES composition mode
     mutable Mesh mMesh;
+
+    bool mPendingRemoval = false;
 
 #ifdef USE_HWC2
     // HWC items, accessed from the main thread
