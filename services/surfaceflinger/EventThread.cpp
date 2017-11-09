@@ -248,7 +248,7 @@ Vector< sp<EventThread::Connection> > EventThread::waitForEvent(
 
         // find out connections waiting for events
         size_t count = mDisplayEventConnections.size();
-        for (size_t i=0 ; i<count ; i++) {
+        for (size_t i=0 ; i<count ; ) {
             sp<Connection> connection(mDisplayEventConnections[i].promote());
             if (connection != NULL) {
                 bool added = false;
@@ -279,11 +279,12 @@ Vector< sp<EventThread::Connection> > EventThread::waitForEvent(
                     // messages.
                     signalConnections.add(connection);
                 }
+                ++i;
             } else {
                 // we couldn't promote this reference, the connection has
                 // died, so clean-up!
                 mDisplayEventConnections.removeAt(i);
-                --i; --count;
+                --count;
             }
         }
 
