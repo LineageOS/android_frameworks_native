@@ -155,7 +155,7 @@ public:
     void setDisplayName(const String8& displayName);
     const String8& getDisplayName() const { return mDisplayName; }
 
-    EGLBoolean makeCurrent(EGLDisplay dpy, EGLContext ctx) const;
+    EGLBoolean makeCurrent() const;
     void setViewportAndProjection() const;
 
     const sp<Fence>& getClientTargetAcquireFence() const;

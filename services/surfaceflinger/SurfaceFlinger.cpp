@@ -1313,7 +1313,7 @@ void SurfaceFlinger::createDefaultDisplayDevice() {
 
     // make the GLContext current so that we can create textures when creating
     // Layers (which may happens before we render something)
-    hw->makeCurrent(mEGLDisplay, mEGLContext);
+    hw->makeCurrent();
 }
 
 void SurfaceFlinger::onHotplugReceived(int32_t sequenceId,
@@ -1384,7 +1384,7 @@ void SurfaceFlinger::resetDisplayState() {
     // mCurrentState and mDrawingState and re-apply all changes when we make the
     // transition.
     mDrawingState.displays.clear();
-    eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    getRenderEngine().resetCurrentSurface();
     mDisplays.clear();
 }
 
@@ -2041,7 +2041,7 @@ void SurfaceFlinger::postFramebuffer()
             mHwc->presentAndGetReleaseFences(hwcId);
         }
         displayDevice->onSwapBuffersCompleted();
-        displayDevice->makeCurrent(mEGLDisplay, mEGLContext);
+        displayDevice->makeCurrent();
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
@@ -2167,7 +2167,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                         // be sure that nothing associated with this display
                         // is current.
                         const sp<const DisplayDevice> defaultDisplay(getDefaultDisplayDeviceLocked());
-                        defaultDisplay->makeCurrent(mEGLDisplay, mEGLContext);
+                        defaultDisplay->makeCurrent();
                         sp<DisplayDevice> hw(getDisplayDeviceLocked(draw.keyAt(i)));
                         if (hw != NULL)
                             hw->disconnect(getHwComposer());
@@ -2711,13 +2711,13 @@ bool SurfaceFlinger::doComposeSurfaces(
                 displayDevice->getWideColorSupport() && !mForceNativeColorMode);
         mRenderEngine->setColorMode(mForceNativeColorMode ?
                 HAL_COLOR_MODE_NATIVE : displayDevice->getActiveColorMode());
-        if (!displayDevice->makeCurrent(mEGLDisplay, mEGLContext)) {
+        if (!displayDevice->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
                   displayDevice->getDisplayName().string());
-            eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+            getRenderEngine().resetCurrentSurface();
 
             // |mStateLock| not needed as we are on the main thread
-            if(!getDefaultDisplayDeviceLocked()->makeCurrent(mEGLDisplay, mEGLContext)) {
+            if(!getDefaultDisplayDeviceLocked()->makeCurrent()) {
               ALOGE("DisplayDevice::makeCurrent on default display failed. Aborting.");
             }
             return false;

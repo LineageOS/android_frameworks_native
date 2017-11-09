@@ -290,14 +290,14 @@ uint32_t DisplayDevice::getFlags() const
     return mFlags;
 }
 
-EGLBoolean DisplayDevice::makeCurrent(EGLDisplay dpy, EGLContext ctx) const {
+EGLBoolean DisplayDevice::makeCurrent() const {
     EGLBoolean result = EGL_TRUE;
     EGLSurface sur = eglGetCurrentSurface(EGL_DRAW);
     if (sur != mSurface) {
-        result = eglMakeCurrent(dpy, mSurface, mSurface, ctx);
+        result = mFlinger->getRenderEngine().setCurrentSurface(mSurface);
         if (result == EGL_TRUE) {
             if (mType >= DisplayDevice::DISPLAY_VIRTUAL)
-                eglSwapInterval(dpy, 0);
+                eglSwapInterval(mDisplay, 0);
         }
     }
     setViewportAndProjection();

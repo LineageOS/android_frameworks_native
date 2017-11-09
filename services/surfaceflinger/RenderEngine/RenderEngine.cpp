@@ -187,6 +187,14 @@ EGLContext RenderEngine::getEGLContext() const {
     return mEGLContext;
 }
 
+bool RenderEngine::setCurrentSurface(EGLSurface surface) {
+    return eglMakeCurrent(mEGLDisplay, surface, surface, mEGLContext) == EGL_TRUE;
+}
+
+void RenderEngine::resetCurrentSurface() {
+    eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+}
+
 void RenderEngine::checkErrors() const {
     do {
         // there could be more than one error flag

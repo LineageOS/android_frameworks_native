@@ -99,6 +99,9 @@ public:
         int getStatus() const;
     };
 
+    bool setCurrentSurface(EGLSurface surface);
+    void resetCurrentSurface();
+
     // set-up
     virtual void checkErrors() const;
     virtual void setViewportAndProjection(size_t vpw, size_t vph,
