@@ -1184,9 +1184,6 @@ static void dumpstate() {
 
     RunCommand("SYSTEM PROPERTIES", {"getprop"});
 
-    RunCommand("VOLD DUMP", {"vdc", "dump"});
-    RunCommand("SECURE CONTAINERS", {"vdc", "asec", "list"});
-
     RunCommand("STORAGED IO INFO", {"storaged", "-u", "-p"});
 
     RunCommand("FILESYSTEMS & FREE SPACE", {"df"});
