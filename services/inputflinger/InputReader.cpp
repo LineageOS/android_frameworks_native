@@ -43,6 +43,7 @@
 #define DEBUG_STYLUS_FUSION 0
 
 #include "InputReader.h"
+#include "InputHookVendor.h"
 
 #include <cutils/log.h>
 #include <input/Keyboard.h>
@@ -3385,6 +3386,8 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
 
             mSurfaceOrientation = mParameters.orientationAware ?
                     mViewport.orientation : DISPLAY_ORIENTATION_0;
+
+	    inputhook_vendor_touchrotate(&mSurfaceWidth, &mSurfaceHeight, &mSurfaceOrientation);
         } else {
             mSurfaceWidth = rawWidth;
             mSurfaceHeight = rawHeight;
