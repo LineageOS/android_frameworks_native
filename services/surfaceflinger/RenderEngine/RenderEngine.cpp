@@ -139,7 +139,7 @@ std::unique_ptr<RenderEngine> RenderEngine::create(EGLDisplay display,
         engine = std::make_unique<GLES20RenderEngine>(featureFlags);
         break;
     }
-    engine->setEGLHandles(config, ctxt);
+    engine->setEGLHandles(display, config, ctxt);
 
     ALOGI("OpenGL ES informations:");
     ALOGI("vendor    : %s", extensions.getVendor());
@@ -155,18 +155,24 @@ std::unique_ptr<RenderEngine> RenderEngine::create(EGLDisplay display,
     return engine;
 }
 
-RenderEngine::RenderEngine() : mEGLConfig(NULL), mEGLContext(EGL_NO_CONTEXT) {
+RenderEngine::RenderEngine() : mEGLDisplay(EGL_NO_DISPLAY), mEGLConfig(NULL),
+    mEGLContext(EGL_NO_CONTEXT) {
 }
 
 RenderEngine::~RenderEngine() {
 }
 
-void RenderEngine::setEGLHandles(EGLConfig config, EGLContext ctxt) {
+void RenderEngine::setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt) {
+    mEGLDisplay = display;
     mEGLConfig = config;
     mEGLContext = ctxt;
 }
 
-EGLContext RenderEngine::getEGLConfig() const {
+EGLDisplay RenderEngine::getEGLDisplay() const {
+    return mEGLDisplay;
+}
+
+EGLConfig RenderEngine::getEGLConfig() const {
     return mEGLConfig;
 }
 

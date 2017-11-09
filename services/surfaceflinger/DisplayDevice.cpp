@@ -120,7 +120,8 @@ DisplayDevice::DisplayDevice(
      */
 
     EGLSurface eglSurface;
-    EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    EGLDisplay display = mFlinger->getRenderEngine().getEGLDisplay();
+
     if (config == EGL_NO_CONFIG) {
         config = RenderEngine::chooseEglConfig(display, PIXEL_FORMAT_RGBA_8888,
                                                /*logConfig*/ false);

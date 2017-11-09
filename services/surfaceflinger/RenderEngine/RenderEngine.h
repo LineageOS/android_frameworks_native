@@ -50,9 +50,10 @@ class RenderEngine {
     };
     static GlesVersion parseGlesVersion(const char* str);
 
+    EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;
     EGLContext mEGLContext;
-    void setEGLHandles(EGLConfig config, EGLContext ctxt);
+    void setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt);
 
     virtual void bindImageAsFramebuffer(EGLImageKHR image, uint32_t* texName, uint32_t* fbName, uint32_t* status) = 0;
     virtual void unbindFramebuffer(uint32_t texName, uint32_t fbName) = 0;
@@ -127,6 +128,7 @@ public:
     virtual size_t getMaxTextureSize() const = 0;
     virtual size_t getMaxViewportDims() const = 0;
 
+    EGLDisplay getEGLDisplay() const;
     EGLConfig getEGLConfig() const;
     EGLContext getEGLContext() const;
 };
