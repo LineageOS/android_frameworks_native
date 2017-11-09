@@ -28,8 +28,6 @@
 #include <stdatomic.h>
 #include <optional>
 
-#include <EGL/egl.h>
-
 #include <cutils/properties.h>
 #include <log/log.h>
 
@@ -612,10 +610,6 @@ void SurfaceFlinger::init() {
     mRenderEngine = RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
             hasWideColorDisplay ? RenderEngine::WIDE_COLOR_SUPPORT : 0);
     LOG_ALWAYS_FATAL_IF(mRenderEngine == nullptr, "couldn't create RenderEngine");
-
-    // retrieve the EGL display/context that was selected/created
-    mEGLDisplay = mRenderEngine->getEGLDisplay();
-    mEGLContext = mRenderEngine->getEGLContext();
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");

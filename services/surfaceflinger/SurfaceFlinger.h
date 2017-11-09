@@ -21,8 +21,6 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <EGL/egl.h>
-
 /*
  * NOTE: Make sure this file doesn't include  anything from <gl/ > or <gl2/ >
  */
@@ -667,8 +665,6 @@ private:
     sp<EventThread> mInjectorEventThread;
     sp<InjectVSyncSource> mVSyncInjector;
     sp<EventControlThread> mEventControlThread;
-    EGLContext mEGLContext;
-    EGLDisplay mEGLDisplay;
     sp<IBinder> mBuiltinDisplays[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES];
 
     // Can only accessed from the main thread, these members

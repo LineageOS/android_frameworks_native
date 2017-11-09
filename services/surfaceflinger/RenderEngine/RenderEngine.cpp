@@ -183,10 +183,6 @@ EGLConfig RenderEngine::getEGLConfig() const {
     return mEGLConfig;
 }
 
-EGLContext RenderEngine::getEGLContext() const {
-    return mEGLContext;
-}
-
 bool RenderEngine::setCurrentSurface(EGLSurface surface) {
     return eglMakeCurrent(mEGLDisplay, surface, surface, mEGLContext) == EGL_TRUE;
 }

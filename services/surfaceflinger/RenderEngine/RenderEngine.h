@@ -136,7 +136,6 @@ public:
 
     EGLDisplay getEGLDisplay() const;
     EGLConfig getEGLConfig() const;
-    EGLContext getEGLContext() const;
 };
 
 // ---------------------------------------------------------------------------
