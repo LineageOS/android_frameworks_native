@@ -101,8 +101,6 @@
  */
 #define DEBUG_SCREENSHOTS   false
 
-extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
-
 namespace android {
 
 using namespace android::hardware::configstore;
@@ -3927,13 +3925,6 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
 
     HWComposer& hwc(getHwComposer());
     sp<const DisplayDevice> hw(getDefaultDisplayDeviceLocked());
-
-    colorizer.bold(result);
-    result.appendFormat("EGL implementation : %s\n",
-            eglQueryStringImplementationANDROID(mEGLDisplay, EGL_VERSION));
-    colorizer.reset(result);
-    result.appendFormat("%s\n",
-            eglQueryStringImplementationANDROID(mEGLDisplay, EGL_EXTENSIONS));
 
     mRenderEngine->dump(result);
 
