@@ -47,7 +47,8 @@ static bool findExtension(const char* exts, const char* name) {
     return false;
 }
 
-RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat, uint32_t featureFlags) {
+std::unique_ptr<RenderEngine> RenderEngine::create(EGLDisplay display,
+        int hwcFormat, uint32_t featureFlags) {
     // EGL_ANDROIDX_no_config_context is an experimental extension with no
     // written specification. It will be replaced by something more formal.
     // SurfaceFlinger is using it to allow a single EGLContext to render to
@@ -127,7 +128,7 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat, uint32_t f
 
     // initialize the renderer while GL is current
 
-    RenderEngine* engine = NULL;
+    std::unique_ptr<RenderEngine> engine;
     switch (version) {
     case GLES_VERSION_1_0:
     case GLES_VERSION_1_1:
@@ -135,7 +136,7 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat, uint32_t f
         break;
     case GLES_VERSION_2_0:
     case GLES_VERSION_3_0:
-        engine = new GLES20RenderEngine(featureFlags);
+        engine = std::make_unique<GLES20RenderEngine>(featureFlags);
         break;
     }
     engine->setEGLHandles(config, ctxt);

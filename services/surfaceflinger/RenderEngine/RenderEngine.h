@@ -18,6 +18,8 @@
 #ifndef SF_RENDERENGINE_H_
 #define SF_RENDERENGINE_H_
 
+#include <memory>
+
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -57,13 +59,15 @@ class RenderEngine {
 
 protected:
     RenderEngine();
-    virtual ~RenderEngine() = 0;
 
 public:
+    virtual ~RenderEngine() = 0;
+
     enum FeatureFlag {
         WIDE_COLOR_SUPPORT = 1 << 0 // Platform has a wide color display
     };
-    static RenderEngine* create(EGLDisplay display, int hwcFormat, uint32_t featureFlags);
+    static std::unique_ptr<RenderEngine> create(EGLDisplay display,
+            int hwcFormat, uint32_t featureFlags);
 
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
 

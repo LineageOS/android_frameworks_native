@@ -60,9 +60,9 @@ class GLES20RenderEngine : public RenderEngine {
 
 public:
     GLES20RenderEngine(uint32_t featureFlags); // See RenderEngine::FeatureFlag
+    virtual ~GLES20RenderEngine();
 
 protected:
-    virtual ~GLES20RenderEngine();
 
     virtual void dump(String8& result);
     virtual void setViewportAndProjection(size_t vpw, size_t vph,

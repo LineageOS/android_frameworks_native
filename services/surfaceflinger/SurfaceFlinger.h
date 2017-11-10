@@ -659,7 +659,7 @@ private:
     const std::string mHwcServiceName; // "default" for real use, something else for testing.
 
     // constant members (no synchronization needed for access)
-    RenderEngine* mRenderEngine;
+    std::unique_ptr<RenderEngine> mRenderEngine;
     nsecs_t mBootTime;
     bool mGpuToCpuSupported;
     sp<EventThread> mEventThread;
