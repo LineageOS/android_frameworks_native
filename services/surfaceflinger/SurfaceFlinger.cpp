@@ -1297,8 +1297,7 @@ void SurfaceFlinger::createDefaultDisplayDevice() {
     }
     bool useWideColorMode = hasWideColorModes && hasWideColorDisplay && !mForceNativeColorMode;
     sp<DisplayDevice> hw = new DisplayDevice(this, DisplayDevice::DISPLAY_PRIMARY, type, isSecure,
-                                             token, fbs, producer, mRenderEngine->getEGLConfig(),
-                                             useWideColorMode);
+                                             token, fbs, producer, useWideColorMode);
     mDisplays.add(token, hw);
     android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
     if (useWideColorMode) {
@@ -2285,9 +2284,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                     if (dispSurface != NULL) {
                         sp<DisplayDevice> hw =
                                 new DisplayDevice(this, state.type, hwcId, state.isSecure, display,
-                                                  dispSurface, producer,
-                                                  mRenderEngine->getEGLConfig(),
-                                                  hasWideColorDisplay);
+                                                  dispSurface, producer, hasWideColorDisplay);
                         hw->setLayerStack(state.layerStack);
                         hw->setProjection(state.orientation,
                                 state.viewport, state.frame);

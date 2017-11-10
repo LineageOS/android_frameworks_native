@@ -88,7 +88,6 @@ DisplayDevice::DisplayDevice(
         const wp<IBinder>& displayToken,
         const sp<DisplaySurface>& displaySurface,
         const sp<IGraphicBufferProducer>& producer,
-        EGLConfig config,
         bool supportWideColor)
     : lastCompositionHadVisibleLayers(false),
       mFlinger(flinger),
@@ -121,6 +120,7 @@ DisplayDevice::DisplayDevice(
 
     EGLSurface eglSurface;
     EGLDisplay display = mFlinger->getRenderEngine().getEGLDisplay();
+    EGLConfig config = mFlinger->getRenderEngine().getEGLConfig();
 
     if (config == EGL_NO_CONFIG) {
         config = RenderEngine::chooseEglConfig(display, PIXEL_FORMAT_RGBA_8888,

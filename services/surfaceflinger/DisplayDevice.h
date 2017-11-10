@@ -87,7 +87,6 @@ public:
             const wp<IBinder>& displayToken,
             const sp<DisplaySurface>& displaySurface,
             const sp<IGraphicBufferProducer>& producer,
-            EGLConfig config,
             bool supportWideColor);
     // clang-format on
 
