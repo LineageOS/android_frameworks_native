@@ -54,7 +54,7 @@ BufferLayer::BufferLayer(SurfaceFlinger* flinger, const sp<Client>& client, cons
                          uint32_t w, uint32_t h, uint32_t flags)
       : Layer(flinger, client, name, w, h, flags),
         mSurfaceFlingerConsumer(nullptr),
-        mTextureName(-1U),
+        mTextureName(UINT32_MAX),
         mFormat(PIXEL_FORMAT_NONE),
         mCurrentScalingMode(NATIVE_WINDOW_SCALING_MODE_FREEZE),
         mBufferLatched(false),
