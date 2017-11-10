@@ -285,9 +285,6 @@ void SurfaceFlinger::onFirstRef()
 
 SurfaceFlinger::~SurfaceFlinger()
 {
-    EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    eglTerminate(display);
 }
 
 void SurfaceFlinger::binderDied(const wp<IBinder>& /* who */)

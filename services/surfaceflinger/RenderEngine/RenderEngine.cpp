@@ -165,6 +165,8 @@ RenderEngine::RenderEngine() : mEGLDisplay(EGL_NO_DISPLAY), mEGLConfig(NULL),
 }
 
 RenderEngine::~RenderEngine() {
+    eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglTerminate(mEGLDisplay);
 }
 
 void RenderEngine::setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt) {
