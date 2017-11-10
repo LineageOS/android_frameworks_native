@@ -32,9 +32,6 @@
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/PixelFormat.h>

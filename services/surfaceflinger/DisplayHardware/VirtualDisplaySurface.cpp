@@ -244,8 +244,7 @@ void VirtualDisplaySurface::onFrameCommitted() {
         VDS_LOGV("onFrameCommitted: release scratch sslot=%d", sslot);
         addReleaseFenceLocked(sslot, mProducerBuffers[mFbProducerSlot],
                 retireFence);
-        releaseBufferLocked(sslot, mProducerBuffers[mFbProducerSlot],
-                EGL_NO_DISPLAY, EGL_NO_SYNC_KHR);
+        releaseBufferLocked(sslot, mProducerBuffers[mFbProducerSlot]);
     }
 
     if (mOutputProducerSlot >= 0) {
