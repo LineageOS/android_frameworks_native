@@ -43,6 +43,10 @@ class Region;
 class Mesh;
 class Texture;
 
+namespace RE {
+class Surface;
+}
+
 class RenderEngine {
     enum GlesVersion {
         GLES_VERSION_1_0    = 0x10000,
@@ -103,7 +107,7 @@ public:
         int getStatus() const;
     };
 
-    bool setCurrentSurface(EGLSurface surface);
+    bool setCurrentSurface(const RE::Surface& surface);
     void resetCurrentSurface();
 
     // set-up
@@ -134,6 +138,7 @@ public:
     virtual size_t getMaxTextureSize() const = 0;
     virtual size_t getMaxViewportDims() const = 0;
 
+    // internal to RenderEngine
     EGLDisplay getEGLDisplay() const;
     EGLConfig getEGLConfig() const;
 };

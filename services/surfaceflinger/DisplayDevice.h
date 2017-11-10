@@ -23,9 +23,6 @@
 
 #include <ui/Region.h>
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-
 #include <binder/IBinder.h>
 #include <utils/RefBase.h>
 #include <utils/Mutex.h>
@@ -35,6 +32,7 @@
 #include <gui/ISurfaceComposer.h>
 #include <hardware/hwcomposer_defs.h>
 #include "RenderArea.h"
+#include "RenderEngine/Surface.h"
 
 #include <memory>
 
@@ -100,8 +98,6 @@ public:
     int         getWidth() const;
     int         getHeight() const;
 
-    EGLSurface  getEGLSurface() const;
-
     void                    setVisibleLayersSortedByZ(const Vector< sp<Layer> >& layers);
     const Vector< sp<Layer> >& getVisibleLayersSortedByZ() const;
     void                    setLayersNeedingFences(const Vector< sp<Layer> >& layers);
@@ -146,7 +142,7 @@ public:
     void setDisplayName(const String8& displayName);
     const String8& getDisplayName() const { return mDisplayName; }
 
-    EGLBoolean makeCurrent() const;
+    bool makeCurrent() const;
     void setViewportAndProjection() const;
 
     const sp<Fence>& getClientTargetAcquireFence() const;
@@ -190,9 +186,7 @@ private:
     sp<ANativeWindow> mNativeWindow;
     sp<DisplaySurface> mDisplaySurface;
 
-    EGLConfig       mConfig;
-    EGLDisplay      mDisplay;
-    EGLSurface      mSurface;
+    RE::Surface     mSurface;
     int             mDisplayWidth;
     int             mDisplayHeight;
     mutable uint32_t mPageFlipCount;

@@ -183,8 +183,17 @@ EGLConfig RenderEngine::getEGLConfig() const {
     return mEGLConfig;
 }
 
-bool RenderEngine::setCurrentSurface(EGLSurface surface) {
-    return eglMakeCurrent(mEGLDisplay, surface, surface, mEGLContext) == EGL_TRUE;
+bool RenderEngine::setCurrentSurface(const RE::Surface& surface) {
+    bool success = true;
+    EGLSurface eglSurface = surface.getEGLSurface();
+    if (eglSurface != eglGetCurrentSurface(EGL_DRAW)) {
+        success = eglMakeCurrent(mEGLDisplay, eglSurface, eglSurface, mEGLContext) == EGL_TRUE;
+        if (success && surface.getAsync()) {
+            eglSwapInterval(mEGLDisplay, 0);
+        }
+    }
+
+    return success;
 }
 
 void RenderEngine::resetCurrentSurface() {
