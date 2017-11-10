@@ -594,10 +594,6 @@ void SurfaceFlinger::init() {
 
     Mutex::Autolock _l(mStateLock);
 
-    // initialize EGL for the default display
-    mEGLDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    eglInitialize(mEGLDisplay, NULL, NULL);
-
     // start the EventThread
     sp<VSyncSource> vsyncSrc = new DispSyncSource(&mPrimaryDispSync,
             vsyncPhaseOffsetNs, true, "app");
@@ -618,15 +614,13 @@ void SurfaceFlinger::init() {
     }
 
     // Get a RenderEngine for the given display / config (can't fail)
-    mRenderEngine = RenderEngine::create(mEGLDisplay,
-            HAL_PIXEL_FORMAT_RGBA_8888,
+    mRenderEngine = RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
             hasWideColorDisplay ? RenderEngine::WIDE_COLOR_SUPPORT : 0);
+    LOG_ALWAYS_FATAL_IF(mRenderEngine == nullptr, "couldn't create RenderEngine");
 
-    // retrieve the EGL context that was selected/created
+    // retrieve the EGL display/context that was selected/created
+    mEGLDisplay = mRenderEngine->getEGLDisplay();
     mEGLContext = mRenderEngine->getEGLContext();
-
-    LOG_ALWAYS_FATAL_IF(mEGLContext == EGL_NO_CONTEXT,
-            "couldn't create EGLContext");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");

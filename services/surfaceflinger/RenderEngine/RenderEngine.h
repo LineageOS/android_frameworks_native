@@ -67,8 +67,7 @@ public:
     enum FeatureFlag {
         WIDE_COLOR_SUPPORT = 1 << 0 // Platform has a wide color display
     };
-    static std::unique_ptr<RenderEngine> create(EGLDisplay display,
-            int hwcFormat, uint32_t featureFlags);
+    static std::unique_ptr<RenderEngine> create(int hwcFormat, uint32_t featureFlags);
 
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
 
