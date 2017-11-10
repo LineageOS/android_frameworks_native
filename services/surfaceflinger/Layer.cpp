@@ -1002,7 +1002,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     const bool resizePending = ((c.requested.w != c.active.w) || (c.requested.h != c.active.h)) &&
             (mActiveBuffer != nullptr);
     if (!isFixedSize()) {
-        if (resizePending && mSidebandStream == NULL) {
+        if (resizePending && getBE().mSidebandStream == NULL) {
             flags |= eDontUpdateGeometryState;
         }
     }
