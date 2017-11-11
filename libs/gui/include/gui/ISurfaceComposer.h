@@ -176,7 +176,7 @@ public:
 
     virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
                                    const sp<IGraphicBufferProducer>& producer,
-                                   Rotation rotation = eRotateNone) = 0;
+                                   const Rect& sourceCrop, float frameScale = 1.0) = 0;
 
     /* Clears the frame statistics for animations.
      *

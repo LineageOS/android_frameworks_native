@@ -4398,15 +4398,14 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
 
 status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                                        const sp<IGraphicBufferProducer>& producer,
-                                       ISurfaceComposer::Rotation rotation) {
+                                       const Rect& sourceCrop, float frameScale) {
     ATRACE_CALL();
 
     class LayerRenderArea : public RenderArea {
     public:
-        LayerRenderArea(const sp<Layer>& layer, ISurfaceComposer::Rotation rotation)
-              : RenderArea(layer->getCurrentState().active.h, layer->getCurrentState().active.w,
-                           rotation),
-                mLayer(layer) {}
+        LayerRenderArea(const sp<Layer>& layer, const Rect crop, int32_t reqWidth,
+            int32_t reqHeight)
+              : RenderArea(reqHeight, reqWidth), mLayer(layer), mCrop(crop) {}
         const Transform& getTransform() const override {
             // Make the top level transform the inverse the transform and it's parent so it sets
             // the whole capture back to 0,0
@@ -4421,18 +4420,45 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         bool isSecure() const override { return false; }
         bool needsFiltering() const override { return false; }
 
-        Rect getSourceCrop() const override { return getBounds(); }
+        Rect getSourceCrop() const override {
+            if (mCrop.isEmpty()) {
+                return getBounds();
+            } else {
+                return mCrop;
+            }
+        }
         bool getWideColorSupport() const override { return false; }
         android_color_mode_t getActiveColorMode() const override { return HAL_COLOR_MODE_NATIVE; }
 
     private:
-        const sp<Layer>& mLayer;
+        const sp<Layer> mLayer;
+        const Rect mCrop;
     };
 
     auto layerHandle = reinterpret_cast<Layer::Handle*>(layerHandleBinder.get());
     auto parent = layerHandle->owner.promote();
 
-    LayerRenderArea renderArea(parent, rotation);
+    if (parent == nullptr || parent->isPendingRemoval()) {
+        ALOGE("captureLayers called with a removed parent");
+        return NAME_NOT_FOUND;
+    }
+
+    Rect crop(sourceCrop);
+    if (sourceCrop.width() <= 0) {
+        crop.left = 0;
+        crop.right = parent->getCurrentState().active.w;
+    }
+
+    if (sourceCrop.height() <= 0) {
+        crop.top = 0;
+        crop.bottom = parent->getCurrentState().active.h;
+    }
+
+    int32_t reqWidth = crop.width() * frameScale;
+    int32_t reqHeight = crop.height() * frameScale;
+
+    LayerRenderArea renderArea(parent, crop, reqWidth, reqHeight);
+
     auto traverseLayers = [parent](const LayerVector::Visitor& visitor) {
         parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
             if (!layer->isVisible()) {

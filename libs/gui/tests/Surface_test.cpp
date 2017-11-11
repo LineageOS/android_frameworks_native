@@ -531,7 +531,7 @@ public:
             Rotation /*rotation*/) override { return NO_ERROR; }
     virtual status_t captureLayers(const sp<IBinder>& /*parentHandle*/,
                                    const sp<IGraphicBufferProducer>& /*producer*/,
-                                   ISurfaceComposer::Rotation /*rotation*/) override {
+                                   const Rect& /*sourceCrop*/, float /*frameScale*/) override {
         return NO_ERROR;
     }
     status_t clearAnimationFrameStats() override { return NO_ERROR; }
