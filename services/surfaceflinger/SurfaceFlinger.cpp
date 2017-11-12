@@ -2857,6 +2857,10 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
 status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) {
     Mutex::Autolock _l(mStateLock);
 
+    if (layer->isPendingRemoval()) {
+        return NO_ERROR;
+    }
+
     const auto& p = layer->getParent();
     ssize_t index;
     if (p != nullptr) {
@@ -3060,130 +3064,138 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         const sp<Client>& client,
         const layer_state_t& s)
 {
-    uint32_t flags = 0;
     sp<Layer> layer(client->getLayerUser(s.surface));
-    if (layer != 0) {
-        const uint32_t what = s.what;
-        bool geometryAppliesWithResize =
-                what & layer_state_t::eGeometryAppliesWithResize;
-        if (what & layer_state_t::ePositionChanged) {
-            if (layer->setPosition(s.x, s.y, !geometryAppliesWithResize)) {
-                flags |= eTraversalNeeded;
-            }
+    if (layer == nullptr) {
+        return 0;
+    }
+
+    if (layer->isPendingRemoval()) {
+        ALOGW("Attempting to set client state on removed layer: %s", layer->getName().string());
+        return 0;
+    }
+
+    uint32_t flags = 0;
+
+    const uint32_t what = s.what;
+    bool geometryAppliesWithResize =
+            what & layer_state_t::eGeometryAppliesWithResize;
+    if (what & layer_state_t::ePositionChanged) {
+        if (layer->setPosition(s.x, s.y, !geometryAppliesWithResize)) {
+            flags |= eTraversalNeeded;
         }
-        if (what & layer_state_t::eLayerChanged) {
-            // NOTE: index needs to be calculated before we update the state
-            const auto& p = layer->getParent();
-            if (p == nullptr) {
-                ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
-                if (layer->setLayer(s.z) && idx >= 0) {
-                    mCurrentState.layersSortedByZ.removeAt(idx);
-                    mCurrentState.layersSortedByZ.add(layer);
-                    // we need traversal (state changed)
-                    // AND transaction (list changed)
-                    flags |= eTransactionNeeded|eTraversalNeeded;
-                }
-            } else {
-                if (p->setChildLayer(layer, s.z)) {
-                    flags |= eTransactionNeeded|eTraversalNeeded;
-                }
-            }
-        }
-        if (what & layer_state_t::eRelativeLayerChanged) {
+    }
+    if (what & layer_state_t::eLayerChanged) {
+        // NOTE: index needs to be calculated before we update the state
+        const auto& p = layer->getParent();
+        if (p == nullptr) {
             ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
-            if (layer->setRelativeLayer(s.relativeLayerHandle, s.z)) {
-                mCurrentState.layersSortedByZ.removeAt(idx);
-                mCurrentState.layersSortedByZ.add(layer);
-                flags |= eTransactionNeeded|eTraversalNeeded;
-            }
-        }
-        if (what & layer_state_t::eSizeChanged) {
-            if (layer->setSize(s.w, s.h)) {
-                flags |= eTraversalNeeded;
-            }
-        }
-        if (what & layer_state_t::eAlphaChanged) {
-            if (layer->setAlpha(s.alpha))
-                flags |= eTraversalNeeded;
-        }
-        if (what & layer_state_t::eColorChanged) {
-            if (layer->setColor(s.color))
-                flags |= eTraversalNeeded;
-        }
-        if (what & layer_state_t::eMatrixChanged) {
-            if (layer->setMatrix(s.matrix))
-                flags |= eTraversalNeeded;
-        }
-        if (what & layer_state_t::eTransparentRegionChanged) {
-            if (layer->setTransparentRegionHint(s.transparentRegion))
-                flags |= eTraversalNeeded;
-        }
-        if (what & layer_state_t::eFlagsChanged) {
-            if (layer->setFlags(s.flags, s.mask))
-                flags |= eTraversalNeeded;
-        }
-        if (what & layer_state_t::eCropChanged) {
-            if (layer->setCrop(s.crop, !geometryAppliesWithResize))
-                flags |= eTraversalNeeded;
-        }
-        if (what & layer_state_t::eFinalCropChanged) {
-            if (layer->setFinalCrop(s.finalCrop, !geometryAppliesWithResize))
-                flags |= eTraversalNeeded;
-        }
-        if (what & layer_state_t::eLayerStackChanged) {
-            ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
-            // We only allow setting layer stacks for top level layers,
-            // everything else inherits layer stack from its parent.
-            if (layer->hasParent()) {
-                ALOGE("Attempt to set layer stack on layer with parent (%s) is invalid",
-                        layer->getName().string());
-            } else if (idx < 0) {
-                ALOGE("Attempt to set layer stack on layer without parent (%s) that "
-                        "that also does not appear in the top level layer list. Something"
-                        " has gone wrong.", layer->getName().string());
-            } else if (layer->setLayerStack(s.layerStack)) {
+            if (layer->setLayer(s.z) && idx >= 0) {
                 mCurrentState.layersSortedByZ.removeAt(idx);
                 mCurrentState.layersSortedByZ.add(layer);
                 // we need traversal (state changed)
                 // AND transaction (list changed)
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
-        }
-        if (what & layer_state_t::eDeferTransaction) {
-            if (s.barrierHandle != nullptr) {
-                layer->deferTransactionUntil(s.barrierHandle, s.frameNumber);
-            } else if (s.barrierGbp != nullptr) {
-                const sp<IGraphicBufferProducer>& gbp = s.barrierGbp;
-                if (authenticateSurfaceTextureLocked(gbp)) {
-                    const auto& otherLayer =
-                        (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
-                    layer->deferTransactionUntil(otherLayer, s.frameNumber);
-                } else {
-                    ALOGE("Attempt to defer transaction to to an"
-                            " unrecognized GraphicBufferProducer");
-                }
-            }
-            // We don't trigger a traversal here because if no other state is
-            // changed, we don't want this to cause any more work
-        }
-        if (what & layer_state_t::eReparent) {
-            if (layer->reparent(s.parentHandleForChild)) {
+        } else {
+            if (p->setChildLayer(layer, s.z)) {
                 flags |= eTransactionNeeded|eTraversalNeeded;
             }
         }
-        if (what & layer_state_t::eReparentChildren) {
-            if (layer->reparentChildren(s.reparentHandle)) {
-                flags |= eTransactionNeeded|eTraversalNeeded;
+    }
+    if (what & layer_state_t::eRelativeLayerChanged) {
+        ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
+        if (layer->setRelativeLayer(s.relativeLayerHandle, s.z)) {
+            mCurrentState.layersSortedByZ.removeAt(idx);
+            mCurrentState.layersSortedByZ.add(layer);
+            flags |= eTransactionNeeded|eTraversalNeeded;
+        }
+    }
+    if (what & layer_state_t::eSizeChanged) {
+        if (layer->setSize(s.w, s.h)) {
+            flags |= eTraversalNeeded;
+        }
+    }
+    if (what & layer_state_t::eAlphaChanged) {
+        if (layer->setAlpha(s.alpha))
+            flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eColorChanged) {
+        if (layer->setColor(s.color))
+            flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eMatrixChanged) {
+        if (layer->setMatrix(s.matrix))
+            flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eTransparentRegionChanged) {
+        if (layer->setTransparentRegionHint(s.transparentRegion))
+            flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eFlagsChanged) {
+        if (layer->setFlags(s.flags, s.mask))
+            flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eCropChanged) {
+        if (layer->setCrop(s.crop, !geometryAppliesWithResize))
+            flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eFinalCropChanged) {
+        if (layer->setFinalCrop(s.finalCrop, !geometryAppliesWithResize))
+            flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eLayerStackChanged) {
+        ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
+        // We only allow setting layer stacks for top level layers,
+        // everything else inherits layer stack from its parent.
+        if (layer->hasParent()) {
+            ALOGE("Attempt to set layer stack on layer with parent (%s) is invalid",
+                    layer->getName().string());
+        } else if (idx < 0) {
+            ALOGE("Attempt to set layer stack on layer without parent (%s) that "
+                    "that also does not appear in the top level layer list. Something"
+                    " has gone wrong.", layer->getName().string());
+        } else if (layer->setLayerStack(s.layerStack)) {
+            mCurrentState.layersSortedByZ.removeAt(idx);
+            mCurrentState.layersSortedByZ.add(layer);
+            // we need traversal (state changed)
+            // AND transaction (list changed)
+            flags |= eTransactionNeeded|eTraversalNeeded;
+        }
+    }
+    if (what & layer_state_t::eDeferTransaction) {
+        if (s.barrierHandle != nullptr) {
+            layer->deferTransactionUntil(s.barrierHandle, s.frameNumber);
+        } else if (s.barrierGbp != nullptr) {
+            const sp<IGraphicBufferProducer>& gbp = s.barrierGbp;
+            if (authenticateSurfaceTextureLocked(gbp)) {
+                const auto& otherLayer =
+                    (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
+                layer->deferTransactionUntil(otherLayer, s.frameNumber);
+            } else {
+                ALOGE("Attempt to defer transaction to to an"
+                        " unrecognized GraphicBufferProducer");
             }
         }
-        if (what & layer_state_t::eDetachChildren) {
-            layer->detachChildren();
+        // We don't trigger a traversal here because if no other state is
+        // changed, we don't want this to cause any more work
+    }
+    if (what & layer_state_t::eReparent) {
+        if (layer->reparent(s.parentHandleForChild)) {
+            flags |= eTransactionNeeded|eTraversalNeeded;
         }
-        if (what & layer_state_t::eOverrideScalingModeChanged) {
-            layer->setOverrideScalingMode(s.overrideScalingMode);
-            // We don't trigger a traversal here because if no other state is
-            // changed, we don't want this to cause any more work
+    }
+    if (what & layer_state_t::eReparentChildren) {
+        if (layer->reparentChildren(s.reparentHandle)) {
+            flags |= eTransactionNeeded|eTraversalNeeded;
         }
+    }
+    if (what & layer_state_t::eDetachChildren) {
+        layer->detachChildren();
+    }
+    if (what & layer_state_t::eOverrideScalingModeChanged) {
+        layer->setOverrideScalingMode(s.overrideScalingMode);
+        // We don't trigger a traversal here because if no other state is
+        // changed, we don't want this to cause any more work
     }
     return flags;
 }
@@ -3431,7 +3443,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
             ALOGW("Couldn't set SCHED_OTHER on display off");
         }
 
-        if (type == DisplayDevice::DISPLAY_PRIMARY) {
+        if (type == DisplayDevice::DISPLAY_PRIMARY &&
+            currentMode != HWC_POWER_MODE_DOZE_SUSPEND) {
             disableHardwareVsync(true); // also cancels any in-progress resync
 
             // FIXME: eventthread only knows about the main display right now
@@ -3445,7 +3458,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
                mode == HWC_POWER_MODE_NORMAL) {
         // Update display while dozing
         getHwComposer().setPowerMode(type, mode);
-        if (type == DisplayDevice::DISPLAY_PRIMARY) {
+        if (type == DisplayDevice::DISPLAY_PRIMARY &&
+            currentMode == HWC_POWER_MODE_DOZE_SUSPEND) {
             // FIXME: eventthread only knows about the main display right now
             mEventThread->onScreenAcquired();
             resyncToHardwareVsync(true);
