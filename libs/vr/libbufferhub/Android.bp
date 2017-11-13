@@ -47,6 +47,8 @@ cc_library {
         "-DLOG_TAG=\"libbufferhub\"",
         "-DTRACE=0",
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
+        "-Wall",
+        "-Werror",
     ],
     export_include_dirs: localIncludeFiles,
     static_libs: staticLibraries,
