@@ -64,7 +64,6 @@ int main(int /*argc*/, char** /*argv*/)
      eglMakeCurrent(dpy, surface, surface, context);   
      eglQuerySurface(dpy, surface, EGL_WIDTH, &w);
      eglQuerySurface(dpy, surface, EGL_HEIGHT, &h);
-     GLint dim = w<h ? w : h;
 
      glBindTexture(GL_TEXTURE_2D, 0);
      glTexParameterx(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);

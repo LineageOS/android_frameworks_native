@@ -5,6 +5,11 @@ cc_test {
 
     srcs: ["configdump.cpp"],
 
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+
     shared_libs: [
         "libcutils",
         "libEGL",
