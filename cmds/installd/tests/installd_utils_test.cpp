@@ -379,6 +379,7 @@ static void fail_secondary_dex_validation(const std::string& package_name,
 TEST_F(UtilsTest, ValidateSecondaryDexFilesPath) {
     std::string package_name = "com.test.app";
     std::string app_dir_ce_user_0 = "/data/data/" + package_name;
+    std::string app_dir_ce_user_0_link = "/data/user/0/" + package_name;
     std::string app_dir_ce_user_10 = "/data/user/10/" + package_name;
 
     std::string app_dir_de_user_0 = "/data/user_de/0/" + package_name;
@@ -400,6 +401,8 @@ TEST_F(UtilsTest, ValidateSecondaryDexFilesPath) {
     // Standard path for user 0 on CE storage.
     pass_secondary_dex_validation(
         package_name, app_dir_ce_user_0 + "/ce0.dex", app_uid_for_user_0, FLAG_STORAGE_CE);
+    pass_secondary_dex_validation(
+        package_name, app_dir_ce_user_0_link + "/ce0.dex", app_uid_for_user_0, FLAG_STORAGE_CE);
     // Standard path for user 10 on CE storage.
     pass_secondary_dex_validation(
         package_name, app_dir_ce_user_10 + "/ce10.dex", app_uid_for_user_10, FLAG_STORAGE_CE);
