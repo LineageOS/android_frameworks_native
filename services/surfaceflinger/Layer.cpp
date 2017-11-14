@@ -1786,7 +1786,7 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     LayerProtoHelper::writeToProto(transform, layerInfo->mutable_transform());
     LayerProtoHelper::writeToProto(requestedTransform, layerInfo->mutable_requested_transform());
 
-    auto parent = getParent();
+    auto parent = useDrawing ? mDrawingParent.promote() : mCurrentParent.promote();
     if (parent != nullptr) {
         layerInfo->set_parent(parent->sequence);
     }
