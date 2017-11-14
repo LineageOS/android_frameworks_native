@@ -621,6 +621,15 @@ void Layer::forceClientComposition(int32_t hwcId) {
     mHwcLayers[hwcId].forceClientComposition = true;
 }
 
+bool Layer::getForceClientComposition(int32_t hwcId) {
+    if (mHwcLayers.count(hwcId) == 0) {
+        ALOGE("getForceClientComposition: no HWC layer found (%d)", hwcId);
+        return false;
+    }
+
+    return mHwcLayers[hwcId].forceClientComposition;
+}
+
 void Layer::updateCursorPosition(const sp<const DisplayDevice>& displayDevice) {
     auto hwcId = displayDevice->getHwcDisplayId();
     if (mHwcLayers.count(hwcId) == 0 || getCompositionType(hwcId) != HWC2::Composition::Cursor) {
