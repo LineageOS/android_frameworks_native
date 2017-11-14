@@ -49,6 +49,7 @@ class MockClientChannel : public ClientChannel {
   MOCK_CONST_METHOD3(GetChannelHandle,
                      bool(void* transaction_state, ChannelReference ref,
                           LocalChannelHandle* handle));
+  MOCK_METHOD0(TakeChannelParcelable, std::unique_ptr<ChannelParcelable>());
 };
 
 }  // namespace pdx
