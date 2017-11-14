@@ -66,6 +66,7 @@ class MockEndpoint : public Endpoint {
   MOCK_METHOD0(AllocateMessageState, void*());
   MOCK_METHOD1(FreeMessageState, void(void* state));
   MOCK_METHOD0(Cancel, Status<void>());
+  MOCK_CONST_METHOD0(epoll_fd, int());
 };
 
 }  // namespace pdx

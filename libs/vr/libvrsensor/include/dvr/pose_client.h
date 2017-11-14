@@ -157,6 +157,18 @@ int dvrPoseClientGetRingBuffer(DvrPoseClient* client,
 // @return Zero on success
 int dvrPoseClientSensorsEnable(DvrPoseClient* client, bool enabled);
 
+// Requests a burst of data samples from pose service. The data samples are
+// passed through a shared memory buffer obtained by calling
+// dvrPoseClientGetDataReader().
+//
+// @param DvrPoseDataCaptureRequest Parameters on how to capture data.
+// @return Zero on success.
+int dvrPoseClientDataCapture(DvrPoseClient* client,
+                             const DvrPoseDataCaptureRequest* request);
+
+// Destroys the write buffer queue for the given |data_type|.
+int dvrPoseClientDataReaderDestroy(DvrPoseClient* client, uint64_t data_type);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

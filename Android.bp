@@ -8,8 +8,15 @@ ndk_headers {
 
 subdirs = [
     "cmds/*",
+    "headers",
     "libs/*",
     "opengl",
     "services/*",
     "vulkan",
 ]
+
+cc_library_headers {
+    name: "libandroid_sensor_headers",
+    vendor: true,
+    export_include_dirs: ["include_sensor"],
+}

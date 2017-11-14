@@ -26,14 +26,12 @@ namespace dvr {
 
 DisplaySurface::DisplaySurface(DisplayService* service,
                                SurfaceType surface_type, int surface_id,
-                               int process_id, int user_id,
-                               const display::SurfaceAttributes& attributes)
+                               int process_id, int user_id)
     : service_(service),
       surface_type_(surface_type),
       surface_id_(surface_id),
       process_id_(process_id),
       user_id_(user_id),
-      attributes_(attributes),
       update_flags_(display::SurfaceUpdateFlags::NewSurface) {}
 
 DisplaySurface::~DisplaySurface() {
@@ -215,8 +213,8 @@ Status<LocalChannelHandle> ApplicationDisplaySurface::OnCreateQueue(
   ATRACE_NAME("ApplicationDisplaySurface::OnCreateQueue");
   ALOGD_IF(TRACE,
            "ApplicationDisplaySurface::OnCreateQueue: surface_id=%d, "
-           "meta_size_bytes=%zu",
-           surface_id(), config.meta_size_bytes);
+           "user_metadata_size=%zu",
+           surface_id(), config.user_metadata_size);
 
   std::lock_guard<std::mutex> autolock(lock_);
   auto producer = ProducerQueue::Create(config, UsagePolicy{});
@@ -282,10 +280,10 @@ std::vector<int32_t> DirectDisplaySurface::GetQueueIds() const {
 Status<LocalChannelHandle> DirectDisplaySurface::OnCreateQueue(
     Message& /*message*/, const ProducerQueueConfig& config) {
   ATRACE_NAME("DirectDisplaySurface::OnCreateQueue");
-  ALOGD_IF(
-      TRACE,
-      "DirectDisplaySurface::OnCreateQueue: surface_id=%d meta_size_bytes=%zu",
-      surface_id(), config.meta_size_bytes);
+  ALOGD_IF(TRACE,
+           "DirectDisplaySurface::OnCreateQueue: surface_id=%d "
+           "user_metadata_size=%zu",
+           surface_id(), config.user_metadata_size);
 
   std::lock_guard<std::mutex> autolock(lock_);
   if (!direct_queue_) {
@@ -301,6 +299,9 @@ Status<LocalChannelHandle> DirectDisplaySurface::OnCreateQueue(
     }
 
     direct_queue_ = producer->CreateConsumerQueue();
+    if (direct_queue_->metadata_size() > 0) {
+      metadata_.reset(new uint8_t[direct_queue_->metadata_size()]);
+    }
     auto status = RegisterQueue(direct_queue_);
     if (!status) {
       ALOGE(
@@ -345,7 +346,12 @@ void DirectDisplaySurface::DequeueBuffersLocked() {
   while (true) {
     LocalHandle acquire_fence;
     size_t slot;
-    auto buffer_status = direct_queue_->Dequeue(0, &slot, &acquire_fence);
+    auto buffer_status = direct_queue_->Dequeue(
+        0, &slot, metadata_.get(),
+        direct_queue_->metadata_size(), &acquire_fence);
+    ALOGD_IF(TRACE,
+             "DirectDisplaySurface::DequeueBuffersLocked: Dequeue with metadata_size: %zu",
+             direct_queue_->metadata_size());
     if (!buffer_status) {
       ALOGD_IF(
           TRACE > 1 && buffer_status.error() == ETIMEDOUT,
@@ -376,7 +382,7 @@ void DirectDisplaySurface::DequeueBuffersLocked() {
     }
 
     acquired_buffers_.Append(
-        AcquiredBuffer(buffer_consumer, std::move(acquire_fence)));
+        AcquiredBuffer(buffer_consumer, std::move(acquire_fence), slot));
   }
 }
 
@@ -463,8 +469,8 @@ Status<std::shared_ptr<DisplaySurface>> DisplaySurface::Create(
   if (direct) {
     const bool trusted = user_id == AID_ROOT || IsTrustedUid(user_id);
     if (trusted) {
-      return {std::shared_ptr<DisplaySurface>{new DirectDisplaySurface(
-          service, surface_id, process_id, user_id, attributes)}};
+      return {std::shared_ptr<DisplaySurface>{
+          new DirectDisplaySurface(service, surface_id, process_id, user_id)}};
     } else {
       ALOGE(
           "DisplaySurface::Create: Direct surfaces may only be created by "
@@ -474,7 +480,7 @@ Status<std::shared_ptr<DisplaySurface>> DisplaySurface::Create(
     }
   } else {
     return {std::shared_ptr<DisplaySurface>{new ApplicationDisplaySurface(
-        service, surface_id, process_id, user_id, attributes)}};
+        service, surface_id, process_id, user_id)}};
   }
 }
 

@@ -217,13 +217,8 @@ ssize_t SensorDevice::poll(sensors_event_t* buffer, size_t count) {
 }
 
 void SensorDevice::autoDisable(void *ident, int handle) {
+    Info& info( mActivationCount.editValueFor(handle) );
     Mutex::Autolock _l(mLock);
-    ssize_t activationIndex = mActivationCount.indexOfKey(handle);
-    if (activationIndex < 0) {
-        ALOGW("Handle %d cannot be found in activation record", handle);
-        return;
-    }
-    Info& info(mActivationCount.editValueAt(activationIndex));
     info.removeBatchParamsForIdent(ident);
 }
 
@@ -234,12 +229,7 @@ status_t SensorDevice::activate(void* ident, int handle, int enabled) {
     bool actuateHardware = false;
 
     Mutex::Autolock _l(mLock);
-    ssize_t activationIndex = mActivationCount.indexOfKey(handle);
-    if (activationIndex < 0) {
-        ALOGW("Handle %d cannot be found in activation record", handle);
-        return BAD_VALUE;
-    }
-    Info& info(mActivationCount.editValueAt(activationIndex));
+    Info& info( mActivationCount.editValueFor(handle) );
 
     ALOGD_IF(DEBUG_CONNECTIONS,
              "SensorDevice::activate: ident=%p, handle=0x%08x, enabled=%d, count=%zu",
@@ -333,12 +323,7 @@ status_t SensorDevice::batch(
              ident, handle, flags, samplingPeriodNs, maxBatchReportLatencyNs);
 
     Mutex::Autolock _l(mLock);
-    ssize_t activationIndex = mActivationCount.indexOfKey(handle);
-    if (activationIndex < 0) {
-        ALOGW("Handle %d cannot be found in activation record", handle);
-        return BAD_VALUE;
-    }
-    Info& info(mActivationCount.editValueAt(activationIndex));
+    Info& info(mActivationCount.editValueFor(handle));
 
     if (info.batchParams.indexOfKey(ident) < 0) {
         BatchParams params(samplingPeriodNs, maxBatchReportLatencyNs);

@@ -126,8 +126,7 @@ static const std::string ZIP_ROOT_DIR = "FS";
 static const std::string kDumpstateBoardPath = "/bugreports/";
 static const std::string kDumpstateBoardFiles[] = {
     "dumpstate_board.txt",
-    // TODO: rename to dumpstate_board.bin once vendors can handle it
-    "modem_log_all.tar"
+    "dumpstate_board.bin"
 };
 static const int NUM_OF_DUMPS = arraysize(kDumpstateBoardFiles);
 
@@ -145,10 +144,12 @@ static const CommandOptions AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot(
  * Returns a vector of dump fds under |dir_path| with a given |file_prefix|.
  * The returned vector is sorted by the mtimes of the dumps. If |limit_by_mtime|
  * is set, the vector only contains files that were written in the last 30 minutes.
+ * If |limit_by_count| is set, the vector only contains the ten latest files.
  */
 static std::vector<DumpData>* GetDumpFds(const std::string& dir_path,
                                          const std::string& file_prefix,
-                                         bool limit_by_mtime) {
+                                         bool limit_by_mtime,
+                                         bool limit_by_count = true) {
     const time_t thirty_minutes_ago = ds.now_ - 60 * 30;
 
     std::unique_ptr<std::vector<DumpData>> dump_data(new std::vector<DumpData>());
@@ -190,6 +191,10 @@ static std::vector<DumpData>* GetDumpFds(const std::string& dir_path,
     }
 
     std::sort(dump_data->begin(), dump_data->end());
+
+    if (limit_by_count && dump_data->size() > 10) {
+        dump_data->erase(dump_data->begin() + 10, dump_data->end());
+    }
 
     return dump_data.release();
 }

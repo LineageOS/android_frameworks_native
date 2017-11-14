@@ -22,18 +22,26 @@ void ChannelManager::CloseHandle(int32_t handle) {
 }
 
 LocalChannelHandle ChannelManager::CreateHandle(LocalHandle data_fd,
-                                                LocalHandle event_fd) {
-  if (data_fd && event_fd) {
+                                                LocalHandle pollin_event_fd,
+                                                LocalHandle pollhup_event_fd) {
+  if (data_fd && pollin_event_fd && pollhup_event_fd) {
     std::lock_guard<std::mutex> autolock(mutex_);
-    int32_t handle = data_fd.Get();
-    channels_.emplace(handle,
-                      ChannelData{std::move(data_fd), std::move(event_fd)});
+    const int32_t handle = data_fd.Get();
+    channels_.emplace(
+        handle,
+        ChannelEventReceiver{std::move(data_fd), std::move(pollin_event_fd),
+                             std::move(pollhup_event_fd)});
     return LocalChannelHandle(this, handle);
+  } else {
+    ALOGE(
+        "ChannelManager::CreateHandle: Invalid arguments: data_fd=%d "
+        "pollin_event_fd=%d pollhup_event_fd=%d",
+        data_fd.Get(), pollin_event_fd.Get(), pollhup_event_fd.Get());
+    return LocalChannelHandle(nullptr, -1);
   }
-  return LocalChannelHandle(nullptr, -1);
 }
 
-ChannelManager::ChannelData* ChannelManager::GetChannelData(int32_t handle) {
+ChannelEventReceiver* ChannelManager::GetChannelData(int32_t handle) {
   std::lock_guard<std::mutex> autolock(mutex_);
   auto channel = channels_.find(handle);
   return channel != channels_.end() ? &channel->second : nullptr;

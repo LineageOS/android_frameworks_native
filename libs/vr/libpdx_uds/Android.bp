@@ -16,7 +16,6 @@ cc_library_static {
         "client_channel_factory.cpp",
         "client_channel.cpp",
         "ipc_helper.cpp",
-        "service_dispatcher.cpp",
         "service_endpoint.cpp",
     ],
     static_libs: [

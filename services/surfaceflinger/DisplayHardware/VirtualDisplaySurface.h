@@ -104,9 +104,9 @@ private:
     virtual status_t requestBuffer(int pslot, sp<GraphicBuffer>* outBuf);
     virtual status_t setMaxDequeuedBufferCount(int maxDequeuedBuffers);
     virtual status_t setAsyncMode(bool async);
-    virtual status_t dequeueBuffer(int* pslot, sp<Fence>* fence, uint32_t w,
-            uint32_t h, PixelFormat format, uint64_t usage,
-            FrameEventHistoryDelta *outTimestamps);
+    virtual status_t dequeueBuffer(int* pslot, sp<Fence>* fence, uint32_t w, uint32_t h,
+                                   PixelFormat format, uint64_t usage, uint64_t* outBufferAge,
+                                   FrameEventHistoryDelta* outTimestamps);
     virtual status_t detachBuffer(int slot);
     virtual status_t detachNextBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence);
@@ -130,6 +130,7 @@ private:
     virtual status_t getLastQueuedBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence, float outTransformMatrix[16]) override;
     virtual status_t getUniqueId(uint64_t* outId) const override;
+    virtual status_t getConsumerUsage(uint64_t* outUsage) const override;
 
     //
     // Utility methods

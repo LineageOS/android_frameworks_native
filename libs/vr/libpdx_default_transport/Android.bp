@@ -36,12 +36,13 @@ cc_library_static {
 }
 
 cc_binary {
-    name: "servicetool",
+    name: "pdx_tool",
     defaults: ["pdx_default_transport_compiler_defaults"],
     srcs: [
-        "servicetool.cpp",
+        "pdx_tool.cpp",
     ],
     shared_libs: [
+        "libcutils",
         "liblog",
     ],
     static_libs: [

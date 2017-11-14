@@ -19,6 +19,8 @@
 #include "DumpstateInternal.h"
 
 #include <errno.h>
+#include <grp.h>
+#include <pwd.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -34,7 +36,6 @@
 
 #include <android-base/file.h>
 #include <log/log.h>
-#include <private/android_filesystem_config.h>
 
 uint64_t Nanotime() {
     timespec ts;
@@ -44,7 +45,17 @@ uint64_t Nanotime() {
 
 // Switches to non-root user and group.
 bool DropRootUser() {
-    if (getgid() == AID_SHELL && getuid() == AID_SHELL) {
+    struct group* grp = getgrnam("shell");
+    gid_t shell_gid = grp != nullptr ? grp->gr_gid : 0;
+    struct passwd* pwd = getpwnam("shell");
+    uid_t shell_uid = pwd != nullptr ? pwd->pw_uid : 0;
+
+    if (!shell_gid || !shell_uid) {
+        MYLOGE("Unable to get AID_SHELL: %s\n", strerror(errno));
+        return false;
+    }
+
+    if (getgid() == shell_gid && getuid() == shell_uid) {
         MYLOGD("drop_root_user(): already running as Shell\n");
         return true;
     }
@@ -54,17 +65,28 @@ bool DropRootUser() {
         return false;
     }
 
-    gid_t groups[] = {AID_LOG,  AID_SDCARD_R,     AID_SDCARD_RW, AID_MOUNT,
-                      AID_INET, AID_NET_BW_STATS, AID_READPROC,  AID_BLUETOOTH};
-    if (setgroups(sizeof(groups) / sizeof(groups[0]), groups) != 0) {
+    static const std::vector<std::string> group_names{
+        "log", "sdcard_r", "sdcard_rw", "mount", "inet", "net_bw_stats", "readproc", "bluetooth"};
+    std::vector<gid_t> groups(group_names.size(), 0);
+    for (size_t i = 0; i < group_names.size(); ++i) {
+        grp = getgrnam(group_names[i].c_str());
+        groups[i] = grp != nullptr ? grp->gr_gid : 0;
+        if (groups[i] == 0) {
+            MYLOGE("Unable to get required gid '%s': %s\n", group_names[i].c_str(),
+                   strerror(errno));
+            return false;
+        }
+    }
+
+    if (setgroups(groups.size(), groups.data()) != 0) {
         MYLOGE("Unable to setgroups, aborting: %s\n", strerror(errno));
         return false;
     }
-    if (setgid(AID_SHELL) != 0) {
+    if (setgid(shell_gid) != 0) {
         MYLOGE("Unable to setgid, aborting: %s\n", strerror(errno));
         return false;
     }
-    if (setuid(AID_SHELL) != 0) {
+    if (setuid(shell_uid) != 0) {
         MYLOGE("Unable to setuid, aborting: %s\n", strerror(errno));
         return false;
     }

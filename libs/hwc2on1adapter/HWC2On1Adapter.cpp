@@ -426,7 +426,13 @@ Error HWC2On1Adapter::registerCallback(Callback descriptor,
 
     std::unique_lock<std::recursive_timed_mutex> lock(mStateMutex);
 
-    mCallbacks[descriptor] = {callbackData, pointer};
+    if (pointer != nullptr) {
+        mCallbacks[descriptor] = {callbackData, pointer};
+    } else {
+        ALOGI("unregisterCallback(%s)", to_string(descriptor).c_str());
+        mCallbacks.erase(descriptor);
+        return Error::None;
+    }
 
     bool hasPendingInvalidate = false;
     std::vector<hwc2_display_t> displayIds;
@@ -2005,10 +2011,21 @@ Error HWC2On1Adapter::Layer::setTransform(Transform transform) {
     return Error::None;
 }
 
+static bool compareRects(const hwc_rect_t& rect1, const hwc_rect_t& rect2) {
+    return rect1.left == rect2.left &&
+            rect1.right == rect2.right &&
+            rect1.top == rect2.top &&
+            rect1.bottom == rect2.bottom;
+}
+
 Error HWC2On1Adapter::Layer::setVisibleRegion(hwc_region_t visible) {
-    mVisibleRegion.resize(visible.numRects);
-    std::copy_n(visible.rects, visible.numRects, mVisibleRegion.begin());
-    mDisplay.markGeometryChanged();
+    if ((getNumVisibleRegions() != visible.numRects) ||
+        !std::equal(mVisibleRegion.begin(), mVisibleRegion.end(), visible.rects,
+                    compareRects)) {
+        mVisibleRegion.resize(visible.numRects);
+        std::copy_n(visible.rects, visible.numRects, mVisibleRegion.begin());
+        mDisplay.markGeometryChanged();
+    }
     return Error::None;
 }
 

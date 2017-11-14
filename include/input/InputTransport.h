@@ -370,19 +370,23 @@ private:
         int32_t idToIndex[MAX_POINTER_ID + 1];
         PointerCoords pointers[MAX_POINTERS];
 
-        void initializeFrom(const InputMessage* msg) {
-            eventTime = msg->body.motion.eventTime;
+        void initializeFrom(const InputMessage& msg) {
+            eventTime = msg.body.motion.eventTime;
             idBits.clear();
-            for (uint32_t i = 0; i < msg->body.motion.pointerCount; i++) {
-                uint32_t id = msg->body.motion.pointers[i].properties.id;
+            for (uint32_t i = 0; i < msg.body.motion.pointerCount; i++) {
+                uint32_t id = msg.body.motion.pointers[i].properties.id;
                 idBits.markBit(id);
                 idToIndex[id] = i;
-                pointers[i].copyFrom(msg->body.motion.pointers[i].coords);
+                pointers[i].copyFrom(msg.body.motion.pointers[i].coords);
             }
         }
 
         const PointerCoords& getPointerById(uint32_t id) const {
             return pointers[idToIndex[id]];
+        }
+
+        bool hasPointerId(uint32_t id) const {
+            return idBits.hasBit(id);
         }
     };
     struct TouchState {
@@ -402,7 +406,7 @@ private:
             lastResample.idBits.clear();
         }
 
-        void addHistory(const InputMessage* msg) {
+        void addHistory(const InputMessage& msg) {
             historyCurrent ^= 1;
             if (historySize < 2) {
                 historySize += 1;
@@ -412,6 +416,24 @@ private:
 
         const History* getHistory(size_t index) const {
             return &history[(historyCurrent + index) & 1];
+        }
+
+        bool recentCoordinatesAreIdentical(uint32_t id) const {
+            // Return true if the two most recently received "raw" coordinates are identical
+            if (historySize < 2) {
+                return false;
+            }
+            if (!getHistory(0)->hasPointerId(id) || !getHistory(1)->hasPointerId(id)) {
+                return false;
+            }
+            float currentX = getHistory(0)->getPointerById(id).getX();
+            float currentY = getHistory(0)->getPointerById(id).getY();
+            float previousX = getHistory(1)->getPointerById(id).getX();
+            float previousY = getHistory(1)->getPointerById(id).getY();
+            if (currentX == previousX && currentY == previousY) {
+                return true;
+            }
+            return false;
         }
     };
     Vector<TouchState> mTouchStates;
@@ -432,8 +454,8 @@ private:
             Batch& batch, size_t count, uint32_t* outSeq, InputEvent** outEvent,
             int32_t* displayId);
 
-    void updateTouchState(InputMessage* msg);
-    void rewriteMessage(const TouchState& state, InputMessage* msg);
+    void updateTouchState(InputMessage& msg);
+    bool rewriteMessage(const TouchState& state, InputMessage& msg);
     void resampleTouchState(nsecs_t frameTime, MotionEvent* event,
             const InputMessage *next);
 

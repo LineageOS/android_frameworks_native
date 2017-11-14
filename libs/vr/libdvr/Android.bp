@@ -34,6 +34,7 @@ srcs = [
     "dvr_display_manager.cpp",
     "dvr_hardware_composer_client.cpp",
     "dvr_performance.cpp",
+    "dvr_pose.cpp",
     "dvr_surface.cpp",
     "dvr_vsync.cpp",
 ]

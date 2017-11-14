@@ -65,24 +65,14 @@ class String8;
 class HWComposer
 {
 public:
-    class EventHandler {
-        friend class HWComposer;
-        virtual void onVSyncReceived(
-            HWComposer* composer, int32_t disp, nsecs_t timestamp) = 0;
-        virtual void onHotplugReceived(HWComposer* composer, int32_t disp, bool connected) = 0;
-        virtual void onInvalidateReceived(HWComposer* composer) = 0;
-    protected:
-        virtual ~EventHandler() {}
-    };
-
-    // useVrComposer is passed to the composer HAL. When true, the composer HAL
-    // will use the vr composer service, otherwise it uses the real hardware
-    // composer.
-    HWComposer(bool useVrComposer);
+    // Uses the named composer service. Valid choices for normal use
+    // are 'default' and 'vr'.
+    HWComposer(const std::string& serviceName);
 
     ~HWComposer();
 
-    void setEventHandler(EventHandler* handler);
+    void registerCallback(HWC2::ComposerCallback* callback,
+                          int32_t sequenceId);
 
     bool hasCapability(HWC2::Capability capability) const;
 
@@ -92,7 +82,9 @@ public:
             android_pixel_format_t* format, int32_t* outId);
 
     // Attempts to create a new layer on this display
-    std::shared_ptr<HWC2::Layer> createLayer(int32_t displayId);
+    HWC2::Layer* createLayer(int32_t displayId);
+    // Destroy a previously created layer
+    void destroyLayer(int32_t displayId, HWC2::Layer* layer);
 
     // Asks the HAL what it can do
     status_t prepare(DisplayDevice& displayDevice);
@@ -127,7 +119,7 @@ public:
 
     // Get last release fence for the given layer
     sp<Fence> getLayerReleaseFence(int32_t displayId,
-            const std::shared_ptr<HWC2::Layer>& layer) const;
+            HWC2::Layer* layer) const;
 
     // Set the output buffer and acquire fence for a virtual display.
     // Returns INVALID_OPERATION if displayId is not a virtual display.
@@ -142,6 +134,12 @@ public:
     std::unique_ptr<HdrCapabilities> getHdrCapabilities(int32_t displayId);
 
     // Events handling ---------------------------------------------------------
+
+    // Returns true if successful, false otherwise. The
+    // DisplayDevice::DisplayType of the display is returned as an output param.
+    bool onVsync(hwc2_display_t displayId, int64_t timestamp,
+                 int32_t* outDisplay);
+    void onHotplug(hwc2_display_t displayId, HWC2::Connection connection);
 
     void setVsyncEnabled(int32_t displayId, HWC2::Vsync enabled);
 
@@ -170,18 +168,10 @@ public:
 private:
     static const int32_t VIRTUAL_DISPLAY_ID_BASE = 2;
 
-    void loadHwcModule(bool useVrComposer);
-
     bool isValidDisplay(int32_t displayId) const;
     static void validateChange(HWC2::Composition from, HWC2::Composition to);
 
     struct cb_context;
-
-    void invalidate(const std::shared_ptr<HWC2::Display>& display);
-    void vsync(const std::shared_ptr<HWC2::Display>& display,
-            int64_t timestamp);
-    void hotplug(const std::shared_ptr<HWC2::Display>& display,
-            HWC2::Connection connected);
 
     struct DisplayData {
         DisplayData();
@@ -190,11 +180,10 @@ private:
 
         bool hasClientComposition;
         bool hasDeviceComposition;
-        std::shared_ptr<HWC2::Display> hwcDisplay;
+        HWC2::Display* hwcDisplay;
         HWC2::DisplayRequest displayRequests;
         sp<Fence> lastPresentFence;  // signals when the last set op retires
-        std::unordered_map<std::shared_ptr<HWC2::Layer>, sp<Fence>>
-                releaseFences;
+        std::unordered_map<HWC2::Layer*, sp<Fence>> releaseFences;
         buffer_handle_t outbufHandle;
         sp<Fence> outbufAcquireFence;
         mutable std::unordered_map<int32_t,
@@ -215,7 +204,6 @@ private:
     mutable Mutex mDisplayLock;
 
     cb_context*                     mCBContext;
-    EventHandler*                   mEventHandler;
     size_t                          mVSyncCounts[HWC_NUM_PHYSICAL_DISPLAY_TYPES];
     uint32_t                        mRemainingHwcVirtualDisplays;
 

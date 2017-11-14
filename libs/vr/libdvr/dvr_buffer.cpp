@@ -44,7 +44,13 @@ void dvrWriteBufferCreateEmpty(DvrWriteBuffer** write_buffer) {
 }
 
 void dvrWriteBufferDestroy(DvrWriteBuffer* write_buffer) {
-  delete write_buffer;
+  if (write_buffer != nullptr) {
+    ALOGW_IF(
+        write_buffer->slot != -1,
+        "dvrWriteBufferDestroy: Destroying a buffer associated with a valid "
+        "buffer queue slot. This may indicate possible leaks.");
+    delete write_buffer;
+  }
 }
 
 int dvrWriteBufferIsValid(DvrWriteBuffer* write_buffer) {
@@ -107,7 +113,15 @@ void dvrReadBufferCreateEmpty(DvrReadBuffer** read_buffer) {
     *read_buffer = new DvrReadBuffer;
 }
 
-void dvrReadBufferDestroy(DvrReadBuffer* read_buffer) { delete read_buffer; }
+void dvrReadBufferDestroy(DvrReadBuffer* read_buffer) {
+  if (read_buffer != nullptr) {
+    ALOGW_IF(
+        read_buffer->slot != -1,
+        "dvrReadBufferDestroy: Destroying a buffer associated with a valid "
+        "buffer queue slot. This may indicate possible leaks.");
+    delete read_buffer;
+  }
+}
 
 int dvrReadBufferIsValid(DvrReadBuffer* read_buffer) {
   return read_buffer && read_buffer->read_buffer;

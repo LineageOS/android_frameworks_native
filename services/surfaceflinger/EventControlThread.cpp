@@ -31,34 +31,35 @@ void EventControlThread::setVsyncEnabled(bool enabled) {
 }
 
 bool EventControlThread::threadLoop() {
-    Mutex::Autolock lock(mMutex);
-
-    bool vsyncEnabled = mVsyncEnabled;
-
-#ifdef USE_HWC2
-    mFlinger->setVsyncEnabled(HWC_DISPLAY_PRIMARY, mVsyncEnabled);
-#else
-    mFlinger->eventControl(HWC_DISPLAY_PRIMARY, SurfaceFlinger::EVENT_VSYNC,
-            mVsyncEnabled);
-#endif
+    enum class VsyncState {Unset, On, Off};
+    auto currentVsyncState = VsyncState::Unset;
 
     while (true) {
-        status_t err = mCond.wait(mMutex);
-        if (err != NO_ERROR) {
-            ALOGE("error waiting for new events: %s (%d)",
-                strerror(-err), err);
-            return false;
+        auto requestedVsyncState = VsyncState::On;
+        {
+            Mutex::Autolock lock(mMutex);
+            requestedVsyncState =
+                    mVsyncEnabled ? VsyncState::On : VsyncState::Off;
+            while (currentVsyncState == requestedVsyncState) {
+                status_t err = mCond.wait(mMutex);
+                if (err != NO_ERROR) {
+                    ALOGE("error waiting for new events: %s (%d)",
+                          strerror(-err), err);
+                    return false;
+                }
+                requestedVsyncState =
+                        mVsyncEnabled ? VsyncState::On : VsyncState::Off;
+            }
         }
 
-        if (vsyncEnabled != mVsyncEnabled) {
+        bool enable = requestedVsyncState == VsyncState::On;
 #ifdef USE_HWC2
-            mFlinger->setVsyncEnabled(HWC_DISPLAY_PRIMARY, mVsyncEnabled);
+        mFlinger->setVsyncEnabled(HWC_DISPLAY_PRIMARY, enable);
 #else
-            mFlinger->eventControl(HWC_DISPLAY_PRIMARY,
-                    SurfaceFlinger::EVENT_VSYNC, mVsyncEnabled);
+        mFlinger->eventControl(HWC_DISPLAY_PRIMARY,
+                SurfaceFlinger::EVENT_VSYNC, enable);
 #endif
-            vsyncEnabled = mVsyncEnabled;
-        }
+        currentVsyncState = requestedVsyncState;
     }
 
     return false;

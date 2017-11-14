@@ -41,6 +41,7 @@
 #include <gui/BufferQueue.h>
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
+#include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 
 #include <ui/GraphicBufferAllocator.h>
@@ -536,8 +537,8 @@ void SurfaceFlinger::init() {
 
     // Initialize the H/W composer object.  There may or may not be an
     // actual hardware composer underneath.
-    mHwc = new HWComposer(this,
-            *static_cast<HWComposer::EventHandler *>(this));
+    mHwc.reset(new HWComposer(this,
+            *static_cast<HWComposer::EventHandler *>(this)));
 
     // get a RenderEngine for the given display / config (can't fail)
     mRenderEngine = RenderEngine::create(mEGLDisplay,
@@ -933,6 +934,34 @@ status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    if ((uid != AID_SHELL) &&
+            !PermissionCache::checkPermission(sDump, pid, uid)) {
+        ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
+        return PERMISSION_DENIED;
+    }
+
+    // Try to acquire a lock for 1s, fail gracefully
+    status_t err = mStateLock.timedLock(s2ns(1));
+    bool locked = (err == NO_ERROR);
+    if (!locked) {
+        ALOGE("LayerDebugInfo: SurfaceFlinger unresponsive (%s [%d]) - exit", strerror(-err), err);
+        return TIMED_OUT;
+    }
+
+    outLayers->clear();
+    mCurrentState.traverseInZOrder([&](Layer* layer) {
+            outLayers->push_back(layer->getLayerDebugInfo());
+        });
+
+    mStateLock.unlock();
+
+    return NO_ERROR;
+}
+
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -1259,6 +1288,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     const HWComposer& hwc = getHwComposer();
     const sp<const DisplayDevice> hw(getDefaultDisplayDevice());
 
+    mGlCompositionDoneTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
     if (getHwComposer().hasGlesComposition(hw->getHwcDisplayId())) {
         glCompositionDoneFenceTime =
@@ -1267,12 +1297,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     } else {
         glCompositionDoneFenceTime = FenceTime::NO_FENCE;
     }
-    mGlCompositionDoneTimeline.updateSignalTimes();
 
+    mDisplayTimeline.updateSignalTimes();
     sp<Fence> retireFence = mHwc->getDisplayFence(HWC_DISPLAY_PRIMARY);
     auto retireFenceTime = std::make_shared<FenceTime>(retireFence);
     mDisplayTimeline.push(retireFenceTime);
-    mDisplayTimeline.updateSignalTimes();
 
     nsecs_t vsyncPhase = mPrimaryDispSync.computeNextRefresh(0);
     nsecs_t vsyncInterval = mPrimaryDispSync.getPeriod();
@@ -1300,7 +1329,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     });
 
     if (retireFence->isValid()) {
-        if (mPrimaryDispSync.addPresentFence(retireFence)) {
+        if (mPrimaryDispSync.addPresentFence(retireFenceTime)) {
             enableHardwareVsync();
         } else {
             disableHardwareVsync(false);
@@ -2384,6 +2413,7 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) 
         return NO_ERROR;
     }
 
+    layer->onRemovedFromCurrentState();
     mLayersPendingRemoval.add(layer);
     mLayersRemoved = true;
     mNumLayers -= 1 + layer->getChildrenCount();
@@ -2576,6 +2606,14 @@ uint32_t SurfaceFlinger::setClientStateLocked(
                 if (p->setChildLayer(layer, s.z)) {
                     flags |= eTransactionNeeded|eTraversalNeeded;
                 }
+            }
+        }
+        if (what & layer_state_t::eRelativeLayerChanged) {
+            ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
+            if (layer->setRelativeLayer(s.relativeLayerHandle, s.z)) {
+                mCurrentState.layersSortedByZ.removeAt(idx);
+                mCurrentState.layersSortedByZ.add(layer);
+                flags |= eTransactionNeeded|eTraversalNeeded;
             }
         }
         if (what & layer_state_t::eSizeChanged) {
@@ -3255,7 +3293,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.appendFormat("Visible layers (count = %zu)\n", mNumLayers);
     colorizer.reset(result);
     mCurrentState.traverseInZOrder([&](Layer* layer) {
-        layer->dump(result, colorizer);
+        result.append(to_string(layer->getLayerDebugInfo()).c_str());
     });
 
     /*

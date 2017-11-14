@@ -496,7 +496,7 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
             MotionEvent* motionEvent = factory->createMotionEvent();
             if (! motionEvent) return NO_MEMORY;
 
-            updateTouchState(&mMsg);
+            updateTouchState(mMsg);
             initializeMotionEvent(motionEvent, &mMsg);
             *outSeq = mMsg.body.motion.seq;
             *outEvent = motionEvent;
@@ -564,7 +564,7 @@ status_t InputConsumer::consumeSamples(InputEventFactoryInterface* factory,
     uint32_t chain = 0;
     for (size_t i = 0; i < count; i++) {
         InputMessage& msg = batch.samples.editItemAt(i);
-        updateTouchState(&msg);
+        updateTouchState(msg);
         if (i) {
             SeqChain seqChain;
             seqChain.seq = msg.body.motion.seq;
@@ -584,20 +584,19 @@ status_t InputConsumer::consumeSamples(InputEventFactoryInterface* factory,
     return OK;
 }
 
-void InputConsumer::updateTouchState(InputMessage* msg) {
+void InputConsumer::updateTouchState(InputMessage& msg) {
     if (!mResampleTouch ||
-            !(msg->body.motion.source & AINPUT_SOURCE_CLASS_POINTER)) {
+            !(msg.body.motion.source & AINPUT_SOURCE_CLASS_POINTER)) {
         return;
     }
 
-    int32_t deviceId = msg->body.motion.deviceId;
-    int32_t source = msg->body.motion.source;
-    nsecs_t eventTime = msg->body.motion.eventTime;
+    int32_t deviceId = msg.body.motion.deviceId;
+    int32_t source = msg.body.motion.source;
 
     // Update the touch state history to incorporate the new input message.
     // If the message is in the past relative to the most recently produced resampled
     // touch, then use the resampled time and coordinates instead.
-    switch (msg->body.motion.action & AMOTION_EVENT_ACTION_MASK) {
+    switch (msg.body.motion.action & AMOTION_EVENT_ACTION_MASK) {
     case AMOTION_EVENT_ACTION_DOWN: {
         ssize_t index = findTouchState(deviceId, source);
         if (index < 0) {
@@ -615,9 +614,8 @@ void InputConsumer::updateTouchState(InputMessage* msg) {
         if (index >= 0) {
             TouchState& touchState = mTouchStates.editItemAt(index);
             touchState.addHistory(msg);
-            if (eventTime < touchState.lastResample.eventTime) {
-                rewriteMessage(touchState, msg);
-            } else {
+            bool messageRewritten = rewriteMessage(touchState, msg);
+            if (!messageRewritten) {
                 touchState.lastResample.idBits.clear();
             }
         }
@@ -628,7 +626,7 @@ void InputConsumer::updateTouchState(InputMessage* msg) {
         ssize_t index = findTouchState(deviceId, source);
         if (index >= 0) {
             TouchState& touchState = mTouchStates.editItemAt(index);
-            touchState.lastResample.idBits.clearBit(msg->body.motion.getActionId());
+            touchState.lastResample.idBits.clearBit(msg.body.motion.getActionId());
             rewriteMessage(touchState, msg);
         }
         break;
@@ -639,7 +637,7 @@ void InputConsumer::updateTouchState(InputMessage* msg) {
         if (index >= 0) {
             TouchState& touchState = mTouchStates.editItemAt(index);
             rewriteMessage(touchState, msg);
-            touchState.lastResample.idBits.clearBit(msg->body.motion.getActionId());
+            touchState.lastResample.idBits.clearBit(msg.body.motion.getActionId());
         }
         break;
     }
@@ -666,23 +664,28 @@ void InputConsumer::updateTouchState(InputMessage* msg) {
     }
 }
 
-void InputConsumer::rewriteMessage(const TouchState& state, InputMessage* msg) {
-    for (uint32_t i = 0; i < msg->body.motion.pointerCount; i++) {
-        uint32_t id = msg->body.motion.pointers[i].properties.id;
+bool InputConsumer::rewriteMessage(const TouchState& state, InputMessage& msg) {
+    bool messageRewritten = false;
+    nsecs_t eventTime = msg.body.motion.eventTime;
+    for (uint32_t i = 0; i < msg.body.motion.pointerCount; i++) {
+        uint32_t id = msg.body.motion.pointers[i].properties.id;
         if (state.lastResample.idBits.hasBit(id)) {
-            PointerCoords& msgCoords = msg->body.motion.pointers[i].coords;
+            PointerCoords& msgCoords = msg.body.motion.pointers[i].coords;
             const PointerCoords& resampleCoords = state.lastResample.getPointerById(id);
+            if (eventTime < state.lastResample.eventTime ||
+                    state.recentCoordinatesAreIdentical(id)) {
+                msgCoords.setAxisValue(AMOTION_EVENT_AXIS_X, resampleCoords.getX());
+                msgCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, resampleCoords.getY());
 #if DEBUG_RESAMPLING
-            ALOGD("[%d] - rewrite (%0.3f, %0.3f), old (%0.3f, %0.3f)", id,
-                    resampleCoords.getAxisValue(AMOTION_EVENT_AXIS_X),
-                    resampleCoords.getAxisValue(AMOTION_EVENT_AXIS_Y),
-                    msgCoords.getAxisValue(AMOTION_EVENT_AXIS_X),
-                    msgCoords.getAxisValue(AMOTION_EVENT_AXIS_Y));
+                ALOGD("[%d] - rewrite (%0.3f, %0.3f), old (%0.3f, %0.3f)", id,
+                        resampleCoords.getX(), resampleCoords.getY(),
+                        msgCoords.getX(), msgCoords.getY());
 #endif
-            msgCoords.setAxisValue(AMOTION_EVENT_AXIS_X, resampleCoords.getX());
-            msgCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, resampleCoords.getY());
+                messageRewritten = true;
+            }
         }
     }
+    return messageRewritten;
 }
 
 void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
@@ -710,6 +713,7 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
     }
 
     // Ensure that the current sample has all of the pointers that need to be reported.
+    // Also ensure that the past two "real" touch events do not contain duplicate coordinates
     const History* current = touchState.getHistory(0);
     size_t pointerCount = event->getPointerCount();
     for (size_t i = 0; i < pointerCount; i++) {
@@ -717,6 +721,12 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
         if (!current->idBits.hasBit(id)) {
 #if DEBUG_RESAMPLING
             ALOGD("Not resampled, missing id %d", id);
+#endif
+            return;
+        }
+        if (touchState.recentCoordinatesAreIdentical(id)) {
+#if DEBUG_RESAMPLING
+            ALOGD("Not resampled, past two historical events have duplicate coordinates");
 #endif
             return;
         }
@@ -729,12 +739,12 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
     if (next) {
         // Interpolate between current sample and future sample.
         // So current->eventTime <= sampleTime <= future.eventTime.
-        future.initializeFrom(next);
+        future.initializeFrom(*next);
         other = &future;
         nsecs_t delta = future.eventTime - current->eventTime;
         if (delta < RESAMPLE_MIN_DELTA) {
 #if DEBUG_RESAMPLING
-            ALOGD("Not resampled, delta time is too small: %lld ns.", delta);
+            ALOGD("Not resampled, delta time is too small: %" PRId64 " ns.", delta);
 #endif
             return;
         }
@@ -746,12 +756,12 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
         nsecs_t delta = current->eventTime - other->eventTime;
         if (delta < RESAMPLE_MIN_DELTA) {
 #if DEBUG_RESAMPLING
-            ALOGD("Not resampled, delta time is too small: %lld ns.", delta);
+            ALOGD("Not resampled, delta time is too small: %" PRId64 " ns.", delta);
 #endif
             return;
         } else if (delta > RESAMPLE_MAX_DELTA) {
 #if DEBUG_RESAMPLING
-            ALOGD("Not resampled, delta time is too large: %lld ns.", delta);
+            ALOGD("Not resampled, delta time is too large: %" PRId64 " ns.", delta);
 #endif
             return;
         }
@@ -759,7 +769,7 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
         if (sampleTime > maxPredict) {
 #if DEBUG_RESAMPLING
             ALOGD("Sample time is too far in the future, adjusting prediction "
-                    "from %lld to %lld ns.",
+                    "from %" PRId64 " to %" PRId64 " ns.",
                     sampleTime - current->eventTime, maxPredict - current->eventTime);
 #endif
             sampleTime = maxPredict;

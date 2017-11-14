@@ -139,20 +139,33 @@ Status<std::unique_ptr<pdx::ClientChannel>> ClientChannelFactory::Connect(
 
   RequestHeader<BorrowedHandle> request;
   InitRequest(&request, opcodes::CHANNEL_OPEN, 0, 0, false);
+
   status = SendData(socket_.Borrow(), request);
   if (!status)
     return status.error_status();
+
   ResponseHeader<LocalHandle> response;
   status = ReceiveData(socket_.Borrow(), &response);
   if (!status)
     return status.error_status();
-  int ref = response.ret_code;
-  if (ref < 0 || static_cast<size_t>(ref) > response.file_descriptors.size())
+  else if (response.ret_code < 0 || response.channels.size() != 1)
     return ErrorStatus(EIO);
 
-  LocalHandle event_fd = std::move(response.file_descriptors[ref]);
+  LocalHandle pollin_event_fd = std::move(response.channels[0].pollin_event_fd);
+  LocalHandle pollhup_event_fd =
+      std::move(response.channels[0].pollhup_event_fd);
+
+  if (!pollin_event_fd || !pollhup_event_fd) {
+    ALOGE(
+        "ClientChannelFactory::Connect: Required fd was not returned from the "
+        "service: pollin_event_fd=%d pollhup_event_fd=%d",
+        pollin_event_fd.Get(), pollhup_event_fd.Get());
+    return ErrorStatus(EIO);
+  }
+
   return ClientChannel::Create(ChannelManager::Get().CreateHandle(
-      std::move(socket_), std::move(event_fd)));
+      std::move(socket_), std::move(pollin_event_fd),
+      std::move(pollhup_event_fd)));
 }
 
 }  // namespace uds

@@ -161,6 +161,10 @@ void VrComposerClient::onHotplug(Display display,
   client_->onHotplug(display, connected);
 }
 
+void VrComposerClient::onRefresh(Display display) {
+  client_->onRefresh(display);
+}
+
 Return<void> VrComposerClient::registerCallback(
     const sp<IComposerCallback>& callback) {
   return client_->registerCallback(callback);

@@ -34,6 +34,7 @@
 #include <gui/BufferQueue.h>
 #include <gui/Surface.h>
 
+#include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 
@@ -103,6 +104,7 @@ status_t FramebufferSurface::advanceFrame() {
     sp<Fence> acquireFence(Fence::NO_FENCE);
     android_dataspace_t dataspace = HAL_DATASPACE_UNKNOWN;
     status_t result = nextBuffer(slot, buf, acquireFence, dataspace);
+    mDataSpace = dataspace;
     if (result != NO_ERROR) {
         ALOGE("error latching next FramebufferSurface buffer: %s (%d)",
                 strerror(-result), result);
@@ -249,7 +251,10 @@ status_t FramebufferSurface::compositionComplete()
 #endif
 
 void FramebufferSurface::dumpAsString(String8& result) const {
-    ConsumerBase::dumpState(result);
+    Mutex::Autolock lock(mMutex);
+    result.appendFormat("FramebufferSurface: dataspace: %s(%d)\n",
+                        dataspaceDetails(mDataSpace).c_str(), mDataSpace);
+    ConsumerBase::dumpLocked(result, "");
 }
 
 void FramebufferSurface::dumpLocked(String8& result, const char* prefix) const

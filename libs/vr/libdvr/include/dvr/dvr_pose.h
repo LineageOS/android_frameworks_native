@@ -15,6 +15,9 @@ typedef float float32x4_t __attribute__((__vector_size__(16)));
 #endif
 #endif
 
+typedef struct DvrPoseClient DvrPoseClient;
+typedef struct DvrReadBufferQueue DvrReadBufferQueue;
+
 // Represents an estimated pose, accessed asynchronously through a shared ring
 // buffer. No assumptions should be made about the data in padding space.
 // The size of this struct is 128 bytes.
@@ -94,6 +97,57 @@ typedef struct __attribute__((packed, aligned(16))) DvrPose {
   // Padding to 112 bytes so the size is a multiple of 16.
   uint8_t padding[12];
 } DvrPose;
+
+// Represents a data type that can be streamed from pose service.
+enum {
+  DVR_POSE_RAW_DATA_STEREO_IMAGE = (1ULL << 0),
+  DVR_POSE_RAW_DATA_POINT_CLOUD = (1ULL << 1),
+  DVR_POSE_RAW_DATA_FEATURES = (1ULL << 2),
+
+  // Always last.
+  DVR_POSE_RAW_DATA_COUNT = (1ULL << 3),
+};
+
+// A request to retrieve data from the pose service. Expects that a buffer
+// queue has been initialized through dvrPoseClientGetDataReader().
+typedef struct DvrPoseDataCaptureRequest {
+  // The type of data to capture. Refer to enum DVR_POSE_RAW_DATA_* for types.
+  uint64_t data_type;
+  // The sample interval. This can be used to skip samples. For example, a
+  // value of 5 will capture every fifth frame and discard the 4 frames in
+  // between. Set to 1 to capture all frames.
+  uint32_t sample_interval;
+  // The length of time to capture samples in milliseconds. Set to 0 to capture
+  // indefinitely.
+  uint32_t capture_time_ms;
+  // Reserved fields.
+  uint32_t reserved0;
+  uint32_t reserved1;
+  uint32_t reserved2;
+  uint32_t reserved3;
+  uint32_t reserved4;
+} DvrPoseDataCaptureRequest;
+
+// Gets a read buffer queue for the data type |data_type|. Each call returns a
+// different read buffer queue connected to the same write buffer queue. A
+// separate write buffer queue exists for each |data_type|.
+//
+// PoseService supports a single consumer per write buffer queue. The consumer
+// is expected to hold a single DvrReadBufferQueue at a time. Callers should
+// cache these instead of requesting new ones when possible. If the consumer
+// disconnects from the queue, it can regain a read buffer queue for the same
+// producer by calling this function.
+//
+// For data_type DVR_POSE_RAW_DATA_STEREO_IMAGE, each buffer consists of two
+// images formatted as a AHARDWAREBUFFER_FORMAT_BLOB, where height is 1 and
+// width is the total size of both images. The size of an individual image can
+// be found in the metadata struct DvrNativeBufferMetadata, where width is
+// |crop_right| and height is |crop_bottom|/2. Each image is contiguous in
+// memory with stride equal to width.
+int dvrPoseClientGetDataReader(DvrPoseClient* client, uint64_t data_type,
+                               DvrReadBufferQueue** queue_out);
+
+// TODO(b/65067592): Move pose api's from pose_client.h to here.
 
 __END_DECLS
 

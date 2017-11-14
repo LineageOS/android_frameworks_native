@@ -15,10 +15,11 @@ namespace dvr {
 
 ConsumerQueueChannel::ConsumerQueueChannel(
     BufferHubService* service, int buffer_id, int channel_id,
-    const std::shared_ptr<Channel>& producer)
+    const std::shared_ptr<Channel>& producer, bool silent)
     : BufferHubChannel(service, buffer_id, channel_id, kConsumerQueueType),
       producer_(producer),
-      capacity_(0) {
+      capacity_(0),
+      silent_(silent) {
   GetProducer()->AddConsumer(this);
 }
 
@@ -83,23 +84,30 @@ BufferHubChannel::BufferInfo ConsumerQueueChannel::GetBufferInfo() const {
 void ConsumerQueueChannel::RegisterNewBuffer(
     const std::shared_ptr<ProducerChannel>& producer_channel, size_t slot) {
   ALOGD_IF(TRACE,
-           "ConsumerQueueChannel::RegisterNewBuffer: buffer_id=%d slot=%zu",
-           producer_channel->buffer_id(), slot);
-  pending_buffer_slots_.emplace(producer_channel, slot);
+           "ConsumerQueueChannel::RegisterNewBuffer: queue_id=%d buffer_id=%d "
+           "slot=%zu silent=%d",
+           buffer_id(), producer_channel->buffer_id(), slot, silent_);
+  // Only register buffers if the queue is not silent.
+  if (!silent_) {
+    pending_buffer_slots_.emplace(producer_channel, slot);
 
-  // Signal the client that there is new buffer available throught POLLIN.
-  SignalAvailable();
+    // Signal the client that there is new buffer available.
+    SignalAvailable();
+  }
 }
 
 Status<std::vector<std::pair<RemoteChannelHandle, size_t>>>
 ConsumerQueueChannel::OnConsumerQueueImportBuffers(Message& message) {
   std::vector<std::pair<RemoteChannelHandle, size_t>> buffer_handles;
   ATRACE_NAME("ConsumerQueueChannel::OnConsumerQueueImportBuffers");
-  ALOGD_IF(
-      TRACE,
-      "ConsumerQueueChannel::OnConsumerQueueImportBuffers number of buffers to "
-      "import: %zu",
-      pending_buffer_slots_.size());
+  ALOGD_IF(TRACE,
+           "ConsumerQueueChannel::OnConsumerQueueImportBuffers: "
+           "pending_buffer_slots=%zu",
+           pending_buffer_slots_.size());
+
+  // Indicate this is a silent queue that will not import buffers.
+  if (silent_)
+    return ErrorStatus(EBADR);
 
   while (!pending_buffer_slots_.empty()) {
     auto producer_channel = pending_buffer_slots_.front().first.lock();

@@ -34,10 +34,20 @@ DvrWriteBuffer* CreateDvrWriteBufferFromBufferProducer(
 extern "C" {
 
 struct DvrWriteBuffer {
+  // The slot nubmer of the buffer, a valid slot number must be in the range of
+  // [0, android::BufferQueueDefs::NUM_BUFFER_SLOTS). This is only valid for
+  // DvrWriteBuffer acquired from a DvrWriteBufferQueue.
+  int32_t slot = -1;
+
   std::shared_ptr<android::dvr::BufferProducer> write_buffer;
 };
 
 struct DvrReadBuffer {
+  // The slot nubmer of the buffer, a valid slot number must be in the range of
+  // [0, android::BufferQueueDefs::NUM_BUFFER_SLOTS). This is only valid for
+  // DvrReadBuffer acquired from a DvrReadBufferQueue.
+  int32_t slot = -1;
+
   std::shared_ptr<android::dvr::BufferConsumer> read_buffer;
 };
 

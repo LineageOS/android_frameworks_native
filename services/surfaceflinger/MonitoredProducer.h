@@ -39,9 +39,9 @@ public:
     virtual status_t requestBuffer(int slot, sp<GraphicBuffer>* buf);
     virtual status_t setMaxDequeuedBufferCount(int maxDequeuedBuffers);
     virtual status_t setAsyncMode(bool async);
-    virtual status_t dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w,
-            uint32_t h, PixelFormat format, uint64_t usage,
-            FrameEventHistoryDelta* outTimestamps);
+    virtual status_t dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w, uint32_t h,
+                                   PixelFormat format, uint64_t usage, uint64_t* outBufferAge,
+                                   FrameEventHistoryDelta* outTimestamps);
     virtual status_t detachBuffer(int slot);
     virtual status_t detachNextBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence);
@@ -68,6 +68,7 @@ public:
     virtual status_t setAutoRefresh(bool autoRefresh) override;
     virtual void getFrameTimestamps(FrameEventHistoryDelta *outDelta) override;
     virtual status_t getUniqueId(uint64_t* outId) const override;
+    virtual status_t getConsumerUsage(uint64_t* outUsage) const override;
 
     // The Layer which created this producer, and on which queued Buffer's will be displayed.
     sp<Layer> getLayer() const;

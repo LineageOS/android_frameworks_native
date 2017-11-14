@@ -59,13 +59,12 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-HWComposer::HWComposer(bool useVrComposer)
+HWComposer::HWComposer(const std::string& serviceName)
     : mHwcDevice(),
       mDisplayData(2),
       mFreeDisplaySlots(),
       mHwcDisplaySlots(),
       mCBContext(),
-      mEventHandler(nullptr),
       mVSyncCounts(),
       mRemainingHwcVirtualDisplays(0)
 {
@@ -74,40 +73,15 @@ HWComposer::HWComposer(bool useVrComposer)
         mVSyncCounts[i] = 0;
     }
 
-    loadHwcModule(useVrComposer);
+    mHwcDevice = std::make_unique<HWC2::Device>(serviceName);
+    mRemainingHwcVirtualDisplays = mHwcDevice->getMaxVirtualDisplayCount();
 }
 
 HWComposer::~HWComposer() {}
 
-void HWComposer::setEventHandler(EventHandler* handler)
-{
-    if (handler == nullptr) {
-        ALOGE("setEventHandler: Rejected attempt to clear handler");
-        return;
-    }
-
-    bool wasNull = (mEventHandler == nullptr);
-    mEventHandler = handler;
-
-    if (wasNull) {
-        auto hotplugHook = std::bind(&HWComposer::hotplug, this,
-                std::placeholders::_1, std::placeholders::_2);
-        mHwcDevice->registerHotplugCallback(hotplugHook);
-        auto invalidateHook = std::bind(&HWComposer::invalidate, this,
-                std::placeholders::_1);
-        mHwcDevice->registerRefreshCallback(invalidateHook);
-        auto vsyncHook = std::bind(&HWComposer::vsync, this,
-                std::placeholders::_1, std::placeholders::_2);
-        mHwcDevice->registerVsyncCallback(vsyncHook);
-    }
-}
-
-// Load and prepare the hardware composer module.  Sets mHwc.
-void HWComposer::loadHwcModule(bool useVrComposer)
-{
-    ALOGV("loadHwcModule");
-    mHwcDevice = std::make_unique<HWC2::Device>(useVrComposer);
-    mRemainingHwcVirtualDisplays = mHwcDevice->getMaxVirtualDisplayCount();
+void HWComposer::registerCallback(HWC2::ComposerCallback* callback,
+                                  int32_t sequenceId) {
+    mHwcDevice->registerCallback(callback, sequenceId);
 }
 
 bool HWComposer::hasCapability(HWC2::Capability capability) const
@@ -145,54 +119,51 @@ void HWComposer::validateChange(HWC2::Composition from, HWC2::Composition to) {
     }
 }
 
-void HWComposer::hotplug(const std::shared_ptr<HWC2::Display>& display,
-        HWC2::Connection connected) {
-    ALOGV("hotplug: %" PRIu64 ", %s", display->getId(),
-            to_string(connected).c_str());
-    int32_t disp = 0;
+void HWComposer::onHotplug(hwc2_display_t displayId,
+                           HWC2::Connection connection) {
+    ALOGV("hotplug: %" PRIu64 ", %s", displayId,
+            to_string(connection).c_str());
+    mHwcDevice->onHotplug(displayId, connection);
     if (!mDisplayData[0].hwcDisplay) {
-        ALOGE_IF(connected != HWC2::Connection::Connected, "Assumed primary"
+        ALOGE_IF(connection != HWC2::Connection::Connected, "Assumed primary"
                 " display would be connected");
-        mDisplayData[0].hwcDisplay = display;
-        mHwcDisplaySlots[display->getId()] = 0;
-        disp = DisplayDevice::DISPLAY_PRIMARY;
+        mDisplayData[0].hwcDisplay = mHwcDevice->getDisplayById(displayId);
+        mHwcDisplaySlots[displayId] = 0;
     } else {
         // Disconnect is handled through HWComposer::disconnectDisplay via
         // SurfaceFlinger's onHotplugReceived callback handling
-        if (connected == HWC2::Connection::Connected) {
-            mDisplayData[1].hwcDisplay = display;
-            mHwcDisplaySlots[display->getId()] = 1;
+        if (connection == HWC2::Connection::Connected) {
+            mDisplayData[1].hwcDisplay = mHwcDevice->getDisplayById(displayId);
+            mHwcDisplaySlots[displayId] = 1;
         }
-        disp = DisplayDevice::DISPLAY_EXTERNAL;
     }
-    mEventHandler->onHotplugReceived(this, disp,
-            connected == HWC2::Connection::Connected);
 }
 
-void HWComposer::invalidate(const std::shared_ptr<HWC2::Display>& /*display*/) {
-    mEventHandler->onInvalidateReceived(this);
-}
-
-void HWComposer::vsync(const std::shared_ptr<HWC2::Display>& display,
-        int64_t timestamp) {
+bool HWComposer::onVsync(hwc2_display_t displayId, int64_t timestamp,
+                         int32_t* outDisplay) {
+    auto display = mHwcDevice->getDisplayById(displayId);
+    if (!display) {
+        ALOGE("onVsync Failed to find display %" PRIu64, displayId);
+        return false;
+    }
     auto displayType = HWC2::DisplayType::Invalid;
     auto error = display->getType(&displayType);
     if (error != HWC2::Error::None) {
-        ALOGE("vsync: Failed to determine type of display %" PRIu64,
+        ALOGE("onVsync: Failed to determine type of display %" PRIu64,
                 display->getId());
-        return;
+        return false;
     }
 
     if (displayType == HWC2::DisplayType::Virtual) {
         ALOGE("Virtual display %" PRIu64 " passed to vsync callback",
                 display->getId());
-        return;
+        return false;
     }
 
     if (mHwcDisplaySlots.count(display->getId()) == 0) {
         ALOGE("Unknown physical display %" PRIu64 " passed to vsync callback",
                 display->getId());
-        return;
+        return false;
     }
 
     int32_t disp = mHwcDisplaySlots[display->getId()];
@@ -206,17 +177,21 @@ void HWComposer::vsync(const std::shared_ptr<HWC2::Display>& display,
         if (timestamp == mLastHwVSync[disp]) {
             ALOGW("Ignoring duplicate VSYNC event from HWC (t=%" PRId64 ")",
                     timestamp);
-            return;
+            return false;
         }
 
         mLastHwVSync[disp] = timestamp;
+    }
+
+    if (outDisplay) {
+        *outDisplay = disp;
     }
 
     char tag[16];
     snprintf(tag, sizeof(tag), "HW_VSYNC_%1u", disp);
     ATRACE_INT(tag, ++mVSyncCounts[disp] & 1);
 
-    mEventHandler->onVSyncReceived(this, disp, timestamp);
+    return true;
 }
 
 status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
@@ -235,7 +210,7 @@ status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
         return INVALID_OPERATION;
     }
 
-    std::shared_ptr<HWC2::Display> display;
+    HWC2::Display* display;
     auto error = mHwcDevice->createVirtualDisplay(width, height, format,
             &display);
     if (error != HWC2::Error::None) {
@@ -264,13 +239,13 @@ status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
     return NO_ERROR;
 }
 
-std::shared_ptr<HWC2::Layer> HWComposer::createLayer(int32_t displayId) {
+HWC2::Layer* HWComposer::createLayer(int32_t displayId) {
     if (!isValidDisplay(displayId)) {
         ALOGE("Failed to create layer on invalid display %d", displayId);
         return nullptr;
     }
     auto display = mDisplayData[displayId].hwcDisplay;
-    std::shared_ptr<HWC2::Layer> layer;
+    HWC2::Layer* layer;
     auto error = display->createLayer(&layer);
     if (error != HWC2::Error::None) {
         ALOGE("Failed to create layer on display %d: %s (%d)", displayId,
@@ -278,6 +253,19 @@ std::shared_ptr<HWC2::Layer> HWComposer::createLayer(int32_t displayId) {
         return nullptr;
     }
     return layer;
+}
+
+void HWComposer::destroyLayer(int32_t displayId, HWC2::Layer* layer) {
+    if (!isValidDisplay(displayId)) {
+        ALOGE("Failed to destroy layer on invalid display %d", displayId);
+        return;
+    }
+    auto display = mDisplayData[displayId].hwcDisplay;
+    auto error = display->destroyLayer(layer);
+    if (error != HWC2::Error::None) {
+        ALOGE("Failed to destroy layer on display %d: %s (%d)", displayId,
+                to_string(error).c_str(), static_cast<int32_t>(error));
+    }
 }
 
 nsecs_t HWComposer::getRefreshTimestamp(int32_t displayId) const {
@@ -347,10 +335,8 @@ std::vector<android_color_mode_t> HWComposer::getColorModes(int32_t displayId) c
                 displayId);
         return modes;
     }
-    const std::shared_ptr<HWC2::Display>& hwcDisplay =
-            mDisplayData[displayId].hwcDisplay;
 
-    auto error = hwcDisplay->getColorModes(&modes);
+    auto error = mDisplayData[displayId].hwcDisplay->getColorModes(&modes);
     if (error != HWC2::Error::None) {
         ALOGE("getColorModes failed for display %d: %s (%d)", displayId,
                 to_string(error).c_str(), static_cast<int32_t>(error));
@@ -470,7 +456,7 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
             return UNKNOWN_ERROR;
         }
         if (state == 1) { //Present Succeeded.
-            std::unordered_map<std::shared_ptr<HWC2::Layer>, sp<Fence>> releaseFences;
+            std::unordered_map<HWC2::Layer*, sp<Fence>> releaseFences;
             error = hwcDisplay->getReleaseFences(&releaseFences);
             displayData.releaseFences = std::move(releaseFences);
             displayData.lastPresentFence = outPresentFence;
@@ -489,8 +475,7 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
         return BAD_INDEX;
     }
 
-    std::unordered_map<std::shared_ptr<HWC2::Layer>, HWC2::Composition>
-        changedTypes;
+    std::unordered_map<HWC2::Layer*, HWC2::Composition> changedTypes;
     changedTypes.reserve(numTypes);
     error = hwcDisplay->getChangedCompositionTypes(&changedTypes);
     if (error != HWC2::Error::None) {
@@ -502,8 +487,7 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
 
 
     displayData.displayRequests = static_cast<HWC2::DisplayRequest>(0);
-    std::unordered_map<std::shared_ptr<HWC2::Layer>, HWC2::LayerRequest>
-        layerRequests;
+    std::unordered_map<HWC2::Layer*, HWC2::LayerRequest> layerRequests;
     layerRequests.reserve(numRequests);
     error = hwcDisplay->getRequests(&displayData.displayRequests,
             &layerRequests);
@@ -597,7 +581,7 @@ sp<Fence> HWComposer::getPresentFence(int32_t displayId) const {
 }
 
 sp<Fence> HWComposer::getLayerReleaseFence(int32_t displayId,
-        const std::shared_ptr<HWC2::Layer>& layer) const {
+        HWC2::Layer* layer) const {
     if (!isValidDisplay(displayId)) {
         ALOGE("getLayerReleaseFence: Invalid display");
         return Fence::NO_FENCE;
@@ -638,7 +622,7 @@ status_t HWComposer::presentAndGetReleaseFences(int32_t displayId) {
         return UNKNOWN_ERROR;
     }
 
-    std::unordered_map<std::shared_ptr<HWC2::Layer>, sp<Fence>> releaseFences;
+    std::unordered_map<HWC2::Layer*, sp<Fence>> releaseFences;
     error = hwcDisplay->getReleaseFences(&releaseFences);
     if (error != HWC2::Error::None) {
         ALOGE("presentAndGetReleaseFences: Failed to get release fences "
@@ -786,6 +770,8 @@ void HWComposer::disconnectDisplay(int displayId) {
     auto hwcId = displayData.hwcDisplay->getId();
     mHwcDisplaySlots.erase(hwcId);
     displayData.reset();
+
+    mHwcDevice->destroyDisplay(hwcId);
 }
 
 status_t HWComposer::setOutputBuffer(int32_t displayId,
@@ -884,7 +870,7 @@ void HWComposer::dump(String8& result) const {
 HWComposer::DisplayData::DisplayData()
   : hasClientComposition(false),
     hasDeviceComposition(false),
-    hwcDisplay(),
+    hwcDisplay(nullptr),
     lastPresentFence(Fence::NO_FENCE),
     outbufHandle(nullptr),
     outbufAcquireFence(Fence::NO_FENCE),
