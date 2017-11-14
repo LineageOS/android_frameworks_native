@@ -20,6 +20,7 @@ LOCAL_SRC_FILES := \
     LayerVector.cpp \
     MessageQueue.cpp \
     MonitoredProducer.cpp \
+    SurfaceFlinger.cpp \
     SurfaceFlingerConsumer.cpp \
     SurfaceInterceptor.cpp \
     SurfaceTracing.cpp \
@@ -27,6 +28,7 @@ LOCAL_SRC_FILES := \
     DisplayHardware/ComposerHal.cpp \
     DisplayHardware/FramebufferSurface.cpp \
     DisplayHardware/HWC2.cpp \
+    DisplayHardware/HWComposer.cpp \
     DisplayHardware/HWComposerBufferCache.cpp \
     DisplayHardware/PowerHAL.cpp \
     DisplayHardware/VirtualDisplaySurface.cpp \
@@ -52,17 +54,6 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_CFLAGS := -DLOG_TAG=\"SurfaceFlinger\"
 LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
-
-ifeq ($(TARGET_USES_HWC2),true)
-    LOCAL_CFLAGS += -DUSE_HWC2
-    LOCAL_SRC_FILES += \
-        SurfaceFlinger.cpp \
-        DisplayHardware/HWComposer.cpp
-else
-    LOCAL_SRC_FILES += \
-        SurfaceFlinger_hwc1.cpp \
-        DisplayHardware/HWComposer_hwc1.cpp
-endif
 
 LOCAL_CFLAGS += -fvisibility=hidden -Werror=format
 
@@ -127,10 +118,6 @@ LOCAL_LDFLAGS_64 := -Wl,--version-script,art/sigchainlib/version-script64.txt -W
 LOCAL_CFLAGS := -DLOG_TAG=\"SurfaceFlinger\"
 
 LOCAL_INIT_RC := surfaceflinger.rc
-
-ifeq ($(TARGET_USES_HWC2),true)
-    LOCAL_CFLAGS += -DUSE_HWC2
-endif
 
 LOCAL_SRC_FILES := \
     main_surfaceflinger.cpp

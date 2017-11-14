@@ -2675,12 +2675,10 @@ bool SurfaceFlinger::doComposeSurfaces(
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
 
-#ifdef USE_HWC2
         mRenderEngine->setWideColor(
                 displayDevice->getWideColorSupport() && !mForceNativeColorMode);
         mRenderEngine->setColorMode(mForceNativeColorMode ?
                 HAL_COLOR_MODE_NATIVE : displayDevice->getActiveColorMode());
-#endif
         if (!displayDevice->makeCurrent(mEGLDisplay, mEGLContext)) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
                   displayDevice->getDisplayName().string());

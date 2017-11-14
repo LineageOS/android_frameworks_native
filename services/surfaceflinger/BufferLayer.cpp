@@ -61,9 +61,7 @@ BufferLayer::BufferLayer(SurfaceFlinger* flinger, const sp<Client>& client, cons
         mPreviousFrameNumber(0),
         mUpdateTexImageFailed(false),
         mRefreshPending(false) {
-#ifdef USE_HWC2
     ALOGV("Creating Layer %s", name.string());
-#endif
 
     mFlinger->getRenderEngine().genTextures(1, &mTextureName);
     mTexture.init(Texture::TEXTURE_EXTERNAL, mTextureName);
@@ -90,14 +88,12 @@ BufferLayer::~BufferLayer() {
     }
     mFlinger->deleteTextureAsync(mTextureName);
 
-#ifdef USE_HWC2
     if (!mHwcLayers.empty()) {
         ALOGE("Found stale hardware composer layers when destroying "
               "surface flinger layer %s",
               mName.string());
         destroyAllHwcLayers();
     }
-#endif
 }
 
 void BufferLayer::useSurfaceDamage() {
@@ -265,22 +261,12 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
     engine.disableTexturing();
 }
 
-#ifdef USE_HWC2
 void BufferLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
     if (mHwcLayers.empty()) {
         return;
     }
     mSurfaceFlingerConsumer->setReleaseFence(releaseFence);
 }
-#else
-void BufferLayer::onLayerDisplayed(const sp<const DisplayDevice>& /*hw*/,
-                                   HWComposer::HWCLayerInterface* layer) {
-    if (layer) {
-        layer->onDisplayed();
-        mSurfaceFlingerConsumer->setReleaseFence(layer->getAndResetReleaseFence());
-    }
-}
-#endif
 
 void BufferLayer::abandon() {
     mSurfaceFlingerConsumer->abandon();
@@ -376,7 +362,6 @@ bool BufferLayer::getTransformToDisplayInverse() const {
     return mSurfaceFlingerConsumer->getTransformToDisplayInverse();
 }
 
-#ifdef USE_HWC2
 void BufferLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     if (!mSurfaceFlingerConsumer->releasePendingBuffer()) {
         return;
@@ -393,7 +378,6 @@ void BufferLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
                                       std::move(releaseFenceTime));
     }
 }
-#endif
 
 Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) {
     ATRACE_CALL();
@@ -523,16 +507,6 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
         mFrameEventHistory.addLatch(mCurrentFrameNumber, latchTime);
-#ifndef USE_HWC2
-        auto releaseFenceTime =
-                std::make_shared<FenceTime>(mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
-        mReleaseTimeline.updateSignalTimes();
-        mReleaseTimeline.push(releaseFenceTime);
-        if (mPreviousFrameNumber != 0) {
-            mFrameEventHistory.addRelease(mPreviousFrameNumber, latchTime,
-                                          std::move(releaseFenceTime));
-        }
-#endif
     }
 
     mRefreshPending = true;
@@ -604,7 +578,6 @@ void BufferLayer::setDefaultBufferSize(uint32_t w, uint32_t h) {
     mSurfaceFlingerConsumer->setDefaultBufferSize(w, h);
 }
 
-#ifdef USE_HWC2
 void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     // Apply this display's projection's viewport to the visible region
     // before giving it to the HWC HAL.
@@ -675,28 +648,6 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 }
-
-#else
-void BufferLayer::setAcquireFence(const sp<const DisplayDevice>& /* hw */,
-                                  HWComposer::HWCLayerInterface& layer) {
-    int fenceFd = -1;
-
-    // TODO: there is a possible optimization here: we only need to set the
-    // acquire fence the first time a new buffer is acquired on EACH display.
-
-    if (layer.getCompositionType() == HWC_OVERLAY ||
-        layer.getCompositionType() == HWC_CURSOR_OVERLAY) {
-        sp<Fence> fence = mSurfaceFlingerConsumer->getCurrentFence();
-        if (fence->isValid()) {
-            fenceFd = fence->dup();
-            if (fenceFd == -1) {
-                ALOGW("failed to dup layer fence, skipping sync: %d", errno);
-            }
-        }
-    }
-    layer.setAcquireFenceFd(fenceFd);
-}
-#endif
 
 bool BufferLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
@@ -871,9 +822,7 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
     RenderEngine& engine(mFlinger->getRenderEngine());
     engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), false /* disableTexture */,
                               getColor());
-#ifdef USE_HWC2
     engine.setSourceDataSpace(mCurrentState.dataSpace);
-#endif
     engine.drawMesh(mMesh);
     engine.disableBlending();
 }
@@ -913,7 +862,6 @@ uint64_t BufferLayer::getHeadFrameNumber() const {
 }
 
 bool BufferLayer::headFenceHasSignaled() const {
-#ifdef USE_HWC2
     if (latchUnsignaledBuffers()) {
         return true;
     }
@@ -930,9 +878,6 @@ bool BufferLayer::headFenceHasSignaled() const {
         return true;
     }
     return mQueueItems[0].mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
-#else
-    return true;
-#endif
 }
 
 uint32_t BufferLayer::getEffectiveScalingMode() const {

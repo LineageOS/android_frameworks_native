@@ -38,9 +38,7 @@
 
 #include "DisplayHardware/DisplaySurface.h"
 #include "DisplayHardware/HWComposer.h"
-#ifdef USE_HWC2
 #include "DisplayHardware/HWC2.h"
-#endif
 #include "RenderEngine/RenderEngine.h"
 
 #include "clz.h"
@@ -86,9 +84,6 @@ DisplayDevice::DisplayDevice(
         const sp<SurfaceFlinger>& flinger,
         DisplayType type,
         int32_t hwcId,
-#ifndef USE_HWC2
-        int format,
-#endif
         bool isSecure,
         const wp<IBinder>& displayToken,
         const sp<DisplaySurface>& displaySurface,
@@ -105,9 +100,6 @@ DisplayDevice::DisplayDevice(
       mSurface(EGL_NO_SURFACE),
       mDisplayWidth(),
       mDisplayHeight(),
-#ifndef USE_HWC2
-      mFormat(),
-#endif
       mFlags(),
       mPageFlipCount(),
       mIsSecure(isSecure),
@@ -121,12 +113,8 @@ DisplayDevice::DisplayDevice(
     mNativeWindow = surface = new Surface(producer, false);
     ANativeWindow* const window = mNativeWindow.get();
 
-#ifdef USE_HWC2
     mActiveColorMode = HAL_COLOR_MODE_NATIVE;
     mDisplayHasWideColor = supportWideColor;
-#else
-    (void) supportWideColor;
-#endif
     /*
      * Create our display's surface
      */
@@ -134,13 +122,8 @@ DisplayDevice::DisplayDevice(
     EGLSurface eglSurface;
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (config == EGL_NO_CONFIG) {
-#ifdef USE_HWC2
         config = RenderEngine::chooseEglConfig(display, PIXEL_FORMAT_RGBA_8888,
                                                /*logConfig*/ false);
-#else
-        config = RenderEngine::chooseEglConfig(display, format,
-                                               /*logConfig*/ false);
-#endif
     }
     eglSurface = eglCreateWindowSurface(display, config, window, NULL);
     eglQuerySurface(display, eglSurface, EGL_WIDTH,  &mDisplayWidth);
@@ -159,9 +142,6 @@ DisplayDevice::DisplayDevice(
     mConfig = config;
     mDisplay = display;
     mSurface = eglSurface;
-#ifndef USE_HWC2
-    mFormat = format;
-#endif
     mPageFlipCount = 0;
     mViewport.makeInvalid();
     mFrame.makeInvalid();
@@ -202,10 +182,6 @@ DisplayDevice::~DisplayDevice() {
 void DisplayDevice::disconnect(HWComposer& hwc) {
     if (mHwcDisplayId >= 0) {
         hwc.disconnectDisplay(mHwcDisplayId);
-#ifndef USE_HWC2
-        if (mHwcDisplayId >= DISPLAY_VIRTUAL)
-            hwc.freeDisplayId(mHwcDisplayId);
-#endif
         mHwcDisplayId = -1;
     }
 }
@@ -222,12 +198,6 @@ int DisplayDevice::getHeight() const {
     return mDisplayHeight;
 }
 
-#ifndef USE_HWC2
-PixelFormat DisplayDevice::getFormat() const {
-    return mFormat;
-}
-#endif
-
 EGLSurface DisplayDevice::getEGLSurface() const {
     return mSurface;
 }
@@ -242,12 +212,6 @@ void DisplayDevice::setDisplayName(const String8& displayName) {
 uint32_t DisplayDevice::getPageFlipCount() const {
     return mPageFlipCount;
 }
-
-#ifndef USE_HWC2
-status_t DisplayDevice::compositionComplete() const {
-    return mDisplaySurface->compositionComplete();
-}
-#endif
 
 void DisplayDevice::flip(const Region& dirty) const
 {
@@ -269,7 +233,6 @@ status_t DisplayDevice::beginFrame(bool mustRecompose) const {
     return mDisplaySurface->beginFrame(mustRecompose);
 }
 
-#ifdef USE_HWC2
 status_t DisplayDevice::prepareFrame(HWComposer& hwc) {
     status_t error = hwc.prepare(*this);
     if (error != NO_ERROR) {
@@ -293,41 +256,9 @@ status_t DisplayDevice::prepareFrame(HWComposer& hwc) {
     }
     return mDisplaySurface->prepareFrame(compositionType);
 }
-#else
-status_t DisplayDevice::prepareFrame(const HWComposer& hwc) const {
-    DisplaySurface::CompositionType compositionType;
-    bool haveGles = hwc.hasGlesComposition(mHwcDisplayId);
-    bool haveHwc = hwc.hasHwcComposition(mHwcDisplayId);
-    if (haveGles && haveHwc) {
-        compositionType = DisplaySurface::COMPOSITION_MIXED;
-    } else if (haveGles) {
-        compositionType = DisplaySurface::COMPOSITION_GLES;
-    } else if (haveHwc) {
-        compositionType = DisplaySurface::COMPOSITION_HWC;
-    } else {
-        // Nothing to do -- when turning the screen off we get a frame like
-        // this. Call it a HWC frame since we won't be doing any GLES work but
-        // will do a prepare/set cycle.
-        compositionType = DisplaySurface::COMPOSITION_HWC;
-    }
-    return mDisplaySurface->prepareFrame(compositionType);
-}
-#endif
 
 void DisplayDevice::swapBuffers(HWComposer& hwc) const {
-#ifdef USE_HWC2
     if (hwc.hasClientComposition(mHwcDisplayId)) {
-#else
-    // We need to call eglSwapBuffers() if:
-    //  (1) we don't have a hardware composer, or
-    //  (2) we did GLES composition this frame, and either
-    //    (a) we have framebuffer target support (not present on legacy
-    //        devices, where HWComposer::commit() handles things); or
-    //    (b) this is a virtual display
-    if (hwc.initCheck() != NO_ERROR ||
-            (hwc.hasGlesComposition(mHwcDisplayId) &&
-             (hwc.supportsFramebufferTarget() || mType >= DISPLAY_VIRTUAL))) {
-#endif
         EGLBoolean success = eglSwapBuffers(mDisplay, mSurface);
         if (!success) {
             EGLint error = eglGetError();
@@ -349,17 +280,9 @@ void DisplayDevice::swapBuffers(HWComposer& hwc) const {
     }
 }
 
-#ifdef USE_HWC2
 void DisplayDevice::onSwapBuffersCompleted() const {
     mDisplaySurface->onFrameCommitted();
 }
-#else
-void DisplayDevice::onSwapBuffersCompleted(HWComposer& hwc) const {
-    if (hwc.initCheck() == NO_ERROR) {
-        mDisplaySurface->onFrameCommitted();
-    }
-}
-#endif
 
 uint32_t DisplayDevice::getFlags() const
 {
@@ -437,7 +360,6 @@ int DisplayDevice::getActiveConfig()  const {
 }
 
 // ----------------------------------------------------------------------------
-#ifdef USE_HWC2
 void DisplayDevice::setActiveColorMode(android_color_mode_t mode) {
     mActiveColorMode = mode;
 }
@@ -450,7 +372,6 @@ void DisplayDevice::setCompositionDataSpace(android_dataspace dataspace) {
     ANativeWindow* const window = mNativeWindow.get();
     native_window_set_buffers_data_space(window, dataspace);
 }
-#endif
 
 // ----------------------------------------------------------------------------
 

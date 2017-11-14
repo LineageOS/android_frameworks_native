@@ -89,11 +89,7 @@ status_t SurfaceFlingerConsumer::updateTexImage(BufferRejecter* rejecter,
     }
 
     // Release the previous buffer.
-#ifdef USE_HWC2
     err = updateAndReleaseLocked(item, &mPendingRelease);
-#else
-    err = updateAndReleaseLocked(item);
-#endif
     if (err != NO_ERROR) {
         return err;
     }
@@ -197,7 +193,6 @@ sp<Fence> SurfaceFlingerConsumer::getPrevFinalReleaseFence() const {
     return ConsumerBase::mPrevFinalReleaseFence;
 }
 
-#ifdef USE_HWC2
 void SurfaceFlingerConsumer::setReleaseFence(const sp<Fence>& fence)
 {
     if (!mPendingRelease.isPending) {
@@ -230,7 +225,6 @@ bool SurfaceFlingerConsumer::releasePendingBuffer()
     mPendingRelease = PendingRelease();
     return true;
 }
-#endif
 
 void SurfaceFlingerConsumer::setContentsChangedListener(
         const wp<ContentsChangedListener>& listener) {

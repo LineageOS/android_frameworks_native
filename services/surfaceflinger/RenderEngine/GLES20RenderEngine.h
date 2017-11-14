@@ -70,7 +70,6 @@ protected:
             Transform::orientation_flags rotation);
     virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque,
             bool disableTexture, const half4& color) override;
-#ifdef USE_HWC2
 
     // Color management related functions and state
     void setColorMode(android_color_mode mode);
@@ -91,7 +90,6 @@ protected:
 
     // Currently only supporting sRGB and DisplayP3 color spaces
     mat4 mSrgbToDisplayP3;
-#endif
     bool mPlatformHasWideColor = false;
 
     virtual void setupLayerTexturing(const Texture& texture);

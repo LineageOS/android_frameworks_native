@@ -63,12 +63,8 @@
 #include "SurfaceTracing.h"
 #include "StartPropertySetThread.h"
 
-#ifdef USE_HWC2
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/HWComposer.h"
-#else
-#include "DisplayHardware/HWComposer_hwc1.h"
-#endif
 
 #include "Effects/Daltonizer.h"
 
@@ -117,11 +113,7 @@ enum {
 class SurfaceFlinger : public BnSurfaceComposer,
                        public PriorityDumper,
                        private IBinder::DeathRecipient,
-#ifdef USE_HWC2
                        private HWC2::ComposerCallback
-#else
-                       private HWComposer::EventHandler
-#endif
 {
 public:
 
@@ -217,11 +209,7 @@ public:
 
     // enable/disable h/w composer event
     // TODO: this should be made accessible only to EventThread
-#ifdef USE_HWC2
     void setVsyncEnabled(int disp, int enabled);
-#else
-    void eventControl(int disp, int event, int enabled);
-#endif
 
     // called on the main thread by MessageQueue when an internal message
     // is received
@@ -344,18 +332,12 @@ private:
     /* ------------------------------------------------------------------------
      * HWC2::ComposerCallback / HWComposer::EventHandler interface
      */
-#ifdef USE_HWC2
     void onVsyncReceived(int32_t sequenceId, hwc2_display_t display,
                          int64_t timestamp) override;
     void onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
                            HWC2::Connection connection,
                            bool primaryDisplay) override;
     void onRefreshReceived(int32_t sequenceId, hwc2_display_t display) override;
-#else
-    void onVSyncReceived(HWComposer* composer, int type, nsecs_t timestamp) override;
-    void onHotplugReceived(HWComposer* composer, int disp, bool connected) override;
-    void onInvalidateReceived(HWComposer* composer) override;
-#endif
 
     /* ------------------------------------------------------------------------
      * Message handling
@@ -372,12 +354,8 @@ private:
     // called on the main thread in response to setActiveConfig()
     void setActiveConfigInternal(const sp<DisplayDevice>& hw, int mode);
     // called on the main thread in response to setPowerMode()
-#ifdef USE_HWC2
     void setPowerModeInternal(const sp<DisplayDevice>& hw, int mode,
                               bool stateLockHeld);
-#else
-    void setPowerModeInternal(const sp<DisplayDevice>& hw, int mode);
-#endif
 
     // Called on the main thread in response to setActiveColorMode()
     void setActiveColorModeInternal(const sp<DisplayDevice>& hw, android_color_mode_t colorMode);
@@ -463,17 +441,10 @@ private:
                                  const sp<IGraphicBufferProducer>& producer,
                                  bool useIdentityTransform);
 
-#ifdef USE_HWC2
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
                                      ANativeWindowBuffer* buffer, bool useIdentityTransform,
                                      bool isLocalScreenshot, int* outSyncFd);
-#else
-    status_t captureScreenImplLocked(const RenderArea& renderArea,
-                                     TraverseLayersFunction traverseLayers,
-                                     const sp<IGraphicBufferProducer>& producer,
-                                     bool useIdentityTransform, bool isLocalScreenshot);
-#endif
     void traverseLayersInDisplay(const sp<const DisplayDevice>& display, int32_t minLayerZ,
                                  int32_t maxLayerZ, const LayerVector::Visitor& visitor);
 
@@ -539,10 +510,6 @@ private:
     // mark a region of a layer stack dirty. this updates the dirty
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
-
-#ifndef USE_HWC2
-    int32_t allocateHwcDisplayId(DisplayDevice::DisplayType type);
-#endif
 
     /* ------------------------------------------------------------------------
      * H/W composer
@@ -642,7 +609,6 @@ private:
     }
     status_t doDump(int fd, const Vector<String16>& args, bool asProto);
 
-#ifdef USE_HWC2
     /* ------------------------------------------------------------------------
      * VrFlinger
      */
@@ -650,7 +616,6 @@ private:
 
     // Check to see if we should handoff to vr flinger.
     void updateVrFlinger();
-#endif
 
     /* ------------------------------------------------------------------------
      * Attributes
@@ -695,9 +660,7 @@ private:
     // acquiring mStateLock.
     std::unique_ptr<HWComposer> mHwc;
 
-#ifdef USE_HWC2
     const std::string mHwcServiceName; // "default" for real use, something else for testing.
-#endif
 
     // constant members (no synchronization needed for access)
     RenderEngine* mRenderEngine;
@@ -716,17 +679,11 @@ private:
     // don't need synchronization
     State mDrawingState{LayerVector::StateSet::Drawing};
     bool mVisibleRegionsDirty;
-#ifndef USE_HWC2
-    bool mHwWorkListDirty;
-#else
     bool mGeometryInvalid;
-#endif
     bool mAnimCompositionPending;
-#ifdef USE_HWC2
     std::vector<sp<Layer>> mLayersWithQueuedFrames;
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
     bool mHadClientComposition = false;
-#endif
     FenceTimeline mGlCompositionDoneTimeline;
     FenceTimeline mDisplayTimeline;
 
@@ -745,9 +702,7 @@ private:
     nsecs_t mLastTransactionTime;
     bool mBootFinished;
     bool mForceFullDamage;
-#ifdef USE_HWC2
     bool mPropagateBackpressure = true;
-#endif
     SurfaceInterceptor mInterceptor;
     SurfaceTracing mTracing;
     bool mUseHwcVirtualDisplays = false;
@@ -789,9 +744,6 @@ private:
     bool mInjectVSyncs;
 
     Daltonizer mDaltonizer;
-#ifndef USE_HWC2
-    bool mDaltonize;
-#endif
 
     mat4 mPreviousColorMatrix;
     mat4 mColorMatrix;
@@ -833,7 +785,6 @@ private:
     // either AID_GRAPHICS or AID_SYSTEM.
     status_t CheckTransactCodeCredentials(uint32_t code);
 
-#ifdef USE_HWC2
     std::unique_ptr<dvr::VrFlinger> mVrFlinger;
     std::atomic<bool> mVrFlingerRequestsDisplay;
     static bool useVrFlinger;
@@ -842,7 +793,6 @@ private:
     // use to differentiate callbacks from different hardware composer
     // instances. Each hardware composer instance gets a different sequence id.
     int32_t mComposerSequenceId;
-#endif
 
     float mSaturation = 1.0f;
     bool mForceNativeColorMode = false;

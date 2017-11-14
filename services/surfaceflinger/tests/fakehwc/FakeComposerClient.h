@@ -16,7 +16,11 @@
 
 #pragma once
 
+#define HWC2_USE_CPP11
+#define HWC2_INCLUDE_STRINGIFICATION
 #include "ComposerClient.h"
+#undef HWC2_USE_CPP11
+#undef HWC2_INCLUDE_STRINGIFICATION
 #include "RenderState.h"
 
 // Needed for display type/ID enums

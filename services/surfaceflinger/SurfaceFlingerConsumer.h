@@ -81,10 +81,8 @@ public:
     nsecs_t computeExpectedPresent(const DispSync& dispSync);
 
     sp<Fence> getPrevFinalReleaseFence() const;
-#ifdef USE_HWC2
     virtual void setReleaseFence(const sp<Fence>& fence) override;
     bool releasePendingBuffer();
-#endif
 
     void onDisconnect() override;
     void addAndGetFrameTimestamps(
@@ -104,11 +102,9 @@ private:
     // The portion of this surface that has changed since the previous frame
     Region mSurfaceDamage;
 
-#ifdef USE_HWC2
     // A release that is pending on the receipt of a new release fence from
     // presentDisplay
     PendingRelease mPendingRelease;
-#endif
 
     // The layer for this SurfaceFlingerConsumer
     const wp<Layer> mLayer;
