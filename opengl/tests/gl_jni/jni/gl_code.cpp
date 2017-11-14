@@ -140,13 +140,13 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_android_gljni_GLJNILib_changeBackground(JNIEnv * env, jobject obj);
 };
 
-JNIEXPORT void JNICALL Java_com_android_gljni_GLJNILib_init(JNIEnv * env, jobject obj,  jint width, jint height)
+JNIEXPORT void JNICALL Java_com_android_gljni_GLJNILib_init(JNIEnv * /*env*/, jobject /*obj*/,  jint width, jint height)
 {
     init_scene(width, height);
     create_texture();
 }
 
-JNIEXPORT void JNICALL Java_com_android_gljni_GLJNILib_step(JNIEnv * env, jobject obj)
+JNIEXPORT void JNICALL Java_com_android_gljni_GLJNILib_step(JNIEnv * /*env*/, jobject /*obj*/)
 {
     const GLfloat vertices[] = {
             -1,  -1,  0,
@@ -177,7 +177,7 @@ JNIEXPORT void JNICALL Java_com_android_gljni_GLJNILib_step(JNIEnv * env, jobjec
     glDrawElements(GL_TRIANGLES, nelem, GL_UNSIGNED_SHORT, quadIndices);
 }
 
-JNIEXPORT void JNICALL Java_com_android_gljni_GLJNILib_changeBackground(JNIEnv * env, jobject obj)
+JNIEXPORT void JNICALL Java_com_android_gljni_GLJNILib_changeBackground(JNIEnv * /*env*/, jobject /*obj*/)
 {
     background = 1.0f - background;
 }

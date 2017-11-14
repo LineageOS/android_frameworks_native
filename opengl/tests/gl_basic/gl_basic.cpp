@@ -189,7 +189,7 @@ int printEGLConfigurations(EGLDisplay dpy) {
     return true;
 }
 
-int main(int argc, char **argv)
+int main(int /*argc*/, char **/*argv*/)
 {
     int q;
     int start, end;
