@@ -42,6 +42,7 @@ cc_binary {
         "pdx_tool.cpp",
     ],
     shared_libs: [
+        "libbinder",
         "libcutils",
         "liblog",
     ],
@@ -59,6 +60,7 @@ cc_binary {
     ],
     shared_libs: [
         "libbase",
+        "libbinder",
         "libchrome",
         "libcutils",
         "liblog",

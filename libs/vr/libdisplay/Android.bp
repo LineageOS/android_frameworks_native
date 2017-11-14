@@ -26,6 +26,7 @@ localIncludeFiles = [
 
 sharedLibraries = [
     "libbase",
+    "libbinder",
     "libcutils",
     "liblog",
     "libutils",

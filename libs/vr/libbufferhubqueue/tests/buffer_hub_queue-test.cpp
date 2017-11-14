@@ -1,4 +1,5 @@
 #include <base/logging.h>
+#include <binder/Parcel.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
 
@@ -14,6 +15,7 @@
 namespace android {
 namespace dvr {
 
+using pdx::LocalChannelHandle;
 using pdx::LocalHandle;
 
 namespace {
@@ -678,6 +680,156 @@ TEST_F(BufferHubQueueTest, TestFreeAllBuffers) {
   CHECK_NO_BUFFER_THEN_ALLOCATE(kBufferCount);
 
 #undef CHECK_NO_BUFFER_THEN_ALLOCATE
+}
+
+TEST_F(BufferHubQueueTest, TestProducerToParcelableNotEmpty) {
+  ASSERT_TRUE(CreateQueues(config_builder_.SetMetadata<uint64_t>().Build(),
+                           UsagePolicy{}));
+
+  // Allocate only one buffer.
+  AllocateBuffer();
+
+  // Export should fail as the queue is not empty.
+  auto status = producer_queue_->TakeAsParcelable();
+  EXPECT_FALSE(status.ok());
+}
+
+TEST_F(BufferHubQueueTest, TestProducerExportToParcelable) {
+  ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
+
+  auto s1 = producer_queue_->TakeAsParcelable();
+  EXPECT_TRUE(s1.ok());
+
+  ProducerQueueParcelable output_parcelable = s1.take();
+  EXPECT_TRUE(output_parcelable.IsValid());
+
+  Parcel parcel;
+  status_t res;
+  res = output_parcelable.writeToParcel(&parcel);
+  EXPECT_EQ(res, NO_ERROR);
+
+  // After written into parcelable, the output_parcelable is still valid has
+  // keeps the producer channel alive.
+  EXPECT_TRUE(output_parcelable.IsValid());
+
+  // Creating producer buffer should fail.
+  auto s2 = producer_queue_->AllocateBuffer(kBufferWidth, kBufferHeight,
+                                            kBufferLayerCount, kBufferFormat,
+                                            kBufferUsage);
+  ASSERT_FALSE(s2.ok());
+
+  // Reset the data position so that we can read back from the same parcel
+  // without doing actually Binder IPC.
+  parcel.setDataPosition(0);
+  producer_queue_ = nullptr;
+
+  // Recreate the producer queue from the parcel.
+  ProducerQueueParcelable input_parcelable;
+  EXPECT_FALSE(input_parcelable.IsValid());
+
+  res = input_parcelable.readFromParcel(&parcel);
+  EXPECT_EQ(res, NO_ERROR);
+  EXPECT_TRUE(input_parcelable.IsValid());
+
+  EXPECT_EQ(producer_queue_, nullptr);
+  producer_queue_ = ProducerQueue::Import(input_parcelable.TakeChannelHandle());
+  EXPECT_FALSE(input_parcelable.IsValid());
+  ASSERT_NE(producer_queue_, nullptr);
+
+  // Newly created queue from the parcel can allocate buffer, post buffer to
+  // consumer.
+  EXPECT_NO_FATAL_FAILURE(AllocateBuffer());
+  EXPECT_EQ(producer_queue_->count(), 1U);
+  EXPECT_EQ(producer_queue_->capacity(), 1U);
+
+  size_t slot;
+  DvrNativeBufferMetadata producer_meta;
+  DvrNativeBufferMetadata consumer_meta;
+  LocalHandle fence;
+  auto s3 = producer_queue_->Dequeue(0, &slot, &producer_meta, &fence);
+  EXPECT_TRUE(s3.ok());
+
+  std::shared_ptr<BufferProducer> p1 = s3.take();
+  EXPECT_NE(p1, nullptr);
+
+  producer_meta.timestamp = 42;
+  EXPECT_EQ(p1->PostAsync(&producer_meta, LocalHandle()), 0);
+
+  // Make sure the buffer can be dequeued from consumer side.
+  auto s4 = consumer_queue_->Dequeue(100, &slot, &consumer_meta, &fence);
+  EXPECT_TRUE(s4.ok());
+  EXPECT_EQ(consumer_queue_->capacity(), 1U);
+
+  auto consumer = s4.take();
+  EXPECT_NE(consumer, nullptr);
+  EXPECT_EQ(producer_meta.timestamp, consumer_meta.timestamp);
+}
+
+TEST_F(BufferHubQueueTest, TestCreateConsumerParcelable) {
+  ASSERT_TRUE(CreateProducerQueue(config_builder_.Build(), UsagePolicy{}));
+
+  auto s1 = producer_queue_->CreateConsumerQueueParcelable();
+  EXPECT_TRUE(s1.ok());
+  ConsumerQueueParcelable output_parcelable = s1.take();
+  EXPECT_TRUE(output_parcelable.IsValid());
+
+  // Write to a Parcel new object.
+  Parcel parcel;
+  status_t res;
+  res = output_parcelable.writeToParcel(&parcel);
+
+  // Reset the data position so that we can read back from the same parcel
+  // without doing actually Binder IPC.
+  parcel.setDataPosition(0);
+
+  // No consumer queue created yet.
+  EXPECT_EQ(consumer_queue_, nullptr);
+
+  // If the parcel contains a consumer queue, read into a
+  // ProducerQueueParcelable should fail.
+  ProducerQueueParcelable wrongly_typed_parcelable;
+  EXPECT_FALSE(wrongly_typed_parcelable.IsValid());
+  res = wrongly_typed_parcelable.readFromParcel(&parcel);
+  EXPECT_EQ(res, -EINVAL);
+  parcel.setDataPosition(0);
+
+  // Create the consumer queue from the parcel.
+  ConsumerQueueParcelable input_parcelable;
+  EXPECT_FALSE(input_parcelable.IsValid());
+
+  res = input_parcelable.readFromParcel(&parcel);
+  EXPECT_EQ(res, NO_ERROR);
+  EXPECT_TRUE(input_parcelable.IsValid());
+
+  consumer_queue_ = ConsumerQueue::Import(input_parcelable.TakeChannelHandle());
+  EXPECT_FALSE(input_parcelable.IsValid());
+  ASSERT_NE(consumer_queue_, nullptr);
+
+  EXPECT_NO_FATAL_FAILURE(AllocateBuffer());
+  EXPECT_EQ(producer_queue_->count(), 1U);
+  EXPECT_EQ(producer_queue_->capacity(), 1U);
+
+  size_t slot;
+  DvrNativeBufferMetadata producer_meta;
+  DvrNativeBufferMetadata consumer_meta;
+  LocalHandle fence;
+  auto s2 = producer_queue_->Dequeue(0, &slot, &producer_meta, &fence);
+  EXPECT_TRUE(s2.ok());
+
+  std::shared_ptr<BufferProducer> p1 = s2.take();
+  EXPECT_NE(p1, nullptr);
+
+  producer_meta.timestamp = 42;
+  EXPECT_EQ(p1->PostAsync(&producer_meta, LocalHandle()), 0);
+
+  // Make sure the buffer can be dequeued from consumer side.
+  auto s3 = consumer_queue_->Dequeue(100, &slot, &consumer_meta, &fence);
+  EXPECT_TRUE(s3.ok());
+  EXPECT_EQ(consumer_queue_->capacity(), 1U);
+
+  auto consumer = s3.take();
+  EXPECT_NE(consumer, nullptr);
+  EXPECT_EQ(producer_meta.timestamp, consumer_meta.timestamp);
 }
 
 }  // namespace

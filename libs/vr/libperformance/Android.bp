@@ -23,6 +23,7 @@ staticLibraries = ["libpdx_default_transport"]
 
 sharedLibraries = [
     "libbase",
+    "libbinder",
     "libcutils",
     "liblog",
     "libutils",

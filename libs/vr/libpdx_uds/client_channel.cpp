@@ -1,3 +1,4 @@
+#include "uds/channel_parcelable.h"
 #include "uds/client_channel.h"
 
 #include <errno.h>
@@ -290,6 +291,29 @@ bool ClientChannel::GetChannelHandle(void* transaction_state,
                                      LocalChannelHandle* handle) const {
   auto* state = static_cast<TransactionState*>(transaction_state);
   return state->GetLocalChannelHandle(ref, handle);
+}
+
+std::unique_ptr<pdx::ChannelParcelable> ClientChannel::TakeChannelParcelable()
+    {
+  if (!channel_handle_)
+    return nullptr;
+
+  if (auto* channel_data =
+          ChannelManager::Get().GetChannelData(channel_handle_.value())) {
+    auto fds = channel_data->TakeFds();
+    auto parcelable = std::make_unique<ChannelParcelable>(
+        std::move(std::get<0>(fds)), std::move(std::get<1>(fds)),
+        std::move(std::get<2>(fds)));
+
+    // Here we need to explicitly close the channel handle so that the channel
+    // won't get shutdown in the destructor, while the FDs in ChannelParcelable
+    // can keep the channel alive so that new client can be created from it
+    // later.
+    channel_handle_.Close();
+    return parcelable;
+  } else {
+    return nullptr;
+  }
 }
 
 }  // namespace uds

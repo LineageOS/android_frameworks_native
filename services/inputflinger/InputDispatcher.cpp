@@ -2903,7 +2903,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle> >& inpu
 
         for (size_t d = 0; d < mTouchStatesByDisplay.size(); d++) {
             TouchState& state = mTouchStatesByDisplay.editValueAt(d);
-            for (size_t i = 0; i < state.windows.size(); i++) {
+            for (size_t i = 0; i < state.windows.size(); ) {
                 TouchedWindow& touchedWindow = state.windows.editItemAt(i);
                 if (!hasWindowHandleLocked(touchedWindow.windowHandle)) {
 #if DEBUG_FOCUS
@@ -2918,7 +2918,9 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle> >& inpu
                         synthesizeCancelationEventsForInputChannelLocked(
                                 touchedInputChannel, options);
                     }
-                    state.windows.removeAt(i--);
+                    state.windows.removeAt(i);
+                } else {
+                  ++i;
                 }
             }
         }

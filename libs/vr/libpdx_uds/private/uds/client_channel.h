@@ -74,6 +74,8 @@ class ClientChannel : public pdx::ClientChannel {
   bool GetChannelHandle(void* transaction_state, ChannelReference ref,
                         LocalChannelHandle* handle) const override;
 
+  std::unique_ptr<pdx::ChannelParcelable> TakeChannelParcelable() override;
+
  private:
   explicit ClientChannel(LocalChannelHandle channel_handle);
 
