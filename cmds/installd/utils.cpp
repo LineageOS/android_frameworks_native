@@ -87,6 +87,20 @@ std::string create_data_user_ce_package_path(const char* volume_uuid,
             create_data_user_ce_path(volume_uuid, user).c_str(), package_name);
 }
 
+/**
+ * Create the path name where package data should be stored for the given
+ * volume UUID, package name, and user ID. An empty UUID is assumed to be
+ * internal storage.
+ * Compared to create_data_user_ce_package_path this method always return the
+ * ".../user/..." directory.
+ */
+std::string create_data_user_ce_package_path_as_user_link(
+        const char* volume_uuid, userid_t userid, const char* package_name) {
+    check_package_name(package_name);
+    std::string data(create_data_path(volume_uuid));
+    return StringPrintf("%s/user/%u/%s", data.c_str(), userid, package_name);
+}
+
 std::string create_data_user_ce_package_path(const char* volume_uuid, userid_t user,
         const char* package_name, ino_t ce_data_inode) {
     // For testing purposes, rely on the inode when defined; this could be
@@ -786,7 +800,7 @@ int validate_system_app_path(const char* path) {
 }
 
 bool validate_secondary_dex_path(const std::string& pkgname, const std::string& dex_path,
-        const char* volume_uuid, int uid, int storage_flag, bool validate_package_path) {
+        const char* volume_uuid, int uid, int storage_flag) {
     CHECK(storage_flag == FLAG_STORAGE_CE || storage_flag == FLAG_STORAGE_DE);
 
     // Empty paths are not allowed.
@@ -800,16 +814,20 @@ bool validate_secondary_dex_path(const std::string& pkgname, const std::string& 
     // The path should be at most PKG_PATH_MAX long.
     if (dex_path.size() > PKG_PATH_MAX) { return false; }
 
-    if (validate_package_path) {
-        // If we are asked to validate the package path check that
-        // the dex_path is under the app data directory.
-        std::string app_private_dir = storage_flag == FLAG_STORAGE_CE
+    // The dex_path should be under the app data directory.
+    std::string app_private_dir = storage_flag == FLAG_STORAGE_CE
             ? create_data_user_ce_package_path(
                     volume_uuid, multiuser_get_user_id(uid), pkgname.c_str())
             : create_data_user_de_package_path(
                     volume_uuid, multiuser_get_user_id(uid), pkgname.c_str());
 
-        if (strncmp(dex_path.c_str(), app_private_dir.c_str(), app_private_dir.size()) != 0) {
+    if (strncmp(dex_path.c_str(), app_private_dir.c_str(), app_private_dir.size()) != 0) {
+        // The check above might fail if the dex file is accessed via the /data/user/0 symlink.
+        // If that's the case, attempt to validate against the user data link.
+        std::string app_private_dir_symlink = create_data_user_ce_package_path_as_user_link(
+                volume_uuid, multiuser_get_user_id(uid), pkgname.c_str());
+        if (strncmp(dex_path.c_str(), app_private_dir_symlink.c_str(),
+                app_private_dir_symlink.size()) != 0) {
             return false;
         }
     }
