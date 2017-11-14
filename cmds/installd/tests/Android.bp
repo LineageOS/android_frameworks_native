@@ -55,3 +55,23 @@ cc_test {
         "liblogwrap",
     ],
 }
+
+cc_test {
+    name: "installd_dexopt_test",
+    clang: true,
+    srcs: ["installd_dexopt_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libcutils",
+        "libselinux",
+        "libutils",
+    ],
+    static_libs: [
+        "libdiskusage",
+        "libinstalld",
+        "liblog",
+        "liblogwrap",
+    ],
+}
