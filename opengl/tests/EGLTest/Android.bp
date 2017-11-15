@@ -8,6 +8,11 @@ cc_test {
         "EGL_test.cpp",
     ],
 
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+
     shared_libs: [
         "android.hardware.configstore@1.0",
         "android.hardware.configstore-utils",

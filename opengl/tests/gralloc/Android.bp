@@ -3,6 +3,11 @@ cc_test {
 
     srcs: ["gralloc.cpp"],
 
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+
     gtest: false,
 
     shared_libs: [

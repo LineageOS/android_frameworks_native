@@ -19,5 +19,7 @@ cc_test {
     cflags: [
         "-DGL_GLEXT_PROTOTYPES",
         "-DEGL_EGLEXT_PROTOTYPES",
+        "-Wall",
+        "-Werror",
     ],
 }
