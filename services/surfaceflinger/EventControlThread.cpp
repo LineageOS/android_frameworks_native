@@ -53,12 +53,7 @@ bool EventControlThread::threadLoop() {
         }
 
         bool enable = requestedVsyncState == VsyncState::On;
-#ifdef USE_HWC2
         mFlinger->setVsyncEnabled(HWC_DISPLAY_PRIMARY, enable);
-#else
-        mFlinger->eventControl(HWC_DISPLAY_PRIMARY,
-                SurfaceFlinger::EVENT_VSYNC, enable);
-#endif
         currentVsyncState = requestedVsyncState;
     }
 

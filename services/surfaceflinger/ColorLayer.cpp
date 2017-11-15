@@ -61,7 +61,6 @@ bool ColorLayer::isVisible() const {
     return !isHiddenByPolicy() && s.color.a;
 }
 
-#ifdef USE_HWC2
 void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     const Transform& tr = displayDevice->getTransform();
     const auto& viewport = displayDevice->getViewport();
@@ -89,7 +88,6 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
               static_cast<int32_t>(error));
     }
 }
-#endif
 
 // ---------------------------------------------------------------------------
 

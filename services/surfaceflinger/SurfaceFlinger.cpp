@@ -1956,6 +1956,12 @@ void SurfaceFlinger::setUpHWComposer() {
                     "display %zd: %d", displayId, result);
         }
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
+            if (layer->getForceClientComposition(hwcId)) {
+                ALOGV("[%s] Requesting Client composition", layer->getName().string());
+                layer->setCompositionType(hwcId, HWC2::Composition::Client);
+                continue;
+            }
+
             layer->setPerFrameData(displayDevice);
         }
 
@@ -2675,12 +2681,10 @@ bool SurfaceFlinger::doComposeSurfaces(
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
 
-#ifdef USE_HWC2
         mRenderEngine->setWideColor(
                 displayDevice->getWideColorSupport() && !mForceNativeColorMode);
         mRenderEngine->setColorMode(mForceNativeColorMode ?
                 HAL_COLOR_MODE_NATIVE : displayDevice->getActiveColorMode());
-#endif
         if (!displayDevice->makeCurrent(mEGLDisplay, mEGLContext)) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
                   displayDevice->getDisplayName().string());

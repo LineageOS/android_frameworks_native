@@ -24,10 +24,8 @@ public:
     int getReqHeight() const { return mReqHeight; };
     int getReqWidth() const { return mReqWidth; };
     Transform::orientation_flags getRotationFlags() const { return mRotationFlags; };
-#ifdef USE_HWC2
     virtual bool getWideColorSupport() const = 0;
     virtual android_color_mode_t getActiveColorMode() const = 0;
-#endif
 
     status_t updateDimensions();
 

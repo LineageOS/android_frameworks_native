@@ -297,9 +297,9 @@ protected:
 public:
     virtual void setDefaultBufferSize(uint32_t w, uint32_t h) = 0;
 
-#ifdef USE_HWC2
     void setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z);
     void forceClientComposition(int32_t hwcId);
+    bool getForceClientComposition(int32_t hwcId);
     virtual void setPerFrameData(const sp<const DisplayDevice>& displayDevice) = 0;
 
     // callIntoHwc exists so we can update our local state and call
@@ -309,23 +309,11 @@ public:
     void setClearClientTarget(int32_t hwcId, bool clear);
     bool getClearClientTarget(int32_t hwcId) const;
     void updateCursorPosition(const sp<const DisplayDevice>& hw);
-#else
-    void setGeometry(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerInterface& layer);
-    void setPerFrameData(const sp<const DisplayDevice>& hw, HWComposer::HWCLayerInterface& layer);
-    virtual void setAcquireFence(const sp<const DisplayDevice>& hw,
-                                 HWComposer::HWCLayerInterface& layer) = 0;
-    Rect getPosition(const sp<const DisplayDevice>& hw);
-#endif
 
     /*
      * called after page-flip
      */
-#ifdef USE_HWC2
     virtual void onLayerDisplayed(const sp<Fence>& releaseFence);
-#else
-    virtual void onLayerDisplayed(const sp<const DisplayDevice>& hw,
-                                  HWComposer::HWCLayerInterface* layer);
-#endif
 
     virtual void abandon() = 0;
 
@@ -346,10 +334,8 @@ public:
                                    const std::shared_ptr<FenceTime>& presentFence,
                                    const CompositorTiming& compositorTiming) = 0;
 
-#ifdef USE_HWC2
     // If a buffer was replaced this frame, release the former buffer
     virtual void releasePendingBuffer(nsecs_t dequeueReadyTime) = 0;
-#endif
 
     /*
      * draw - performs some global clipping optimizations
@@ -425,7 +411,6 @@ public:
 
     int32_t getQueuedFrameCount() const { return mQueuedFrames; }
 
-#ifdef USE_HWC2
     // -----------------------------------------------------------------------
 
     bool createHwcLayer(HWComposer* hwc, int32_t hwcId);
@@ -441,7 +426,6 @@ public:
         return mHwcLayers[hwcId].layer;
     }
 
-#endif
     // -----------------------------------------------------------------------
 
     void clearWithOpenGL(const RenderArea& renderArea) const;
@@ -458,10 +442,8 @@ public:
     LayerDebugInfo getLayerDebugInfo() const;
 
     /* always call base class first */
-#ifdef USE_HWC2
     static void miniDumpHeader(String8& result);
     void miniDump(String8& result, int32_t hwcId) const;
-#endif
     void dumpFrameStats(String8& result) const;
     void dumpFrameEvents(String8& result);
     void clearFrameStats();
@@ -673,7 +655,6 @@ protected:
 
     bool mPendingRemoval = false;
 
-#ifdef USE_HWC2
     // HWC items, accessed from the main thread
     struct HWCInfo {
         HWCInfo()
@@ -698,9 +679,6 @@ protected:
     // case we need to keep track. In non-mirror mode, a layer will have only one
     // HWCInfo. This map key is a display layerStack.
     std::unordered_map<int32_t, HWCInfo> mHwcLayers;
-#else
-    bool mIsGlesComposition;
-#endif
 
     // page-flip thread (currently main thread)
     bool mProtectedByApp; // application requires protected path to external sink
