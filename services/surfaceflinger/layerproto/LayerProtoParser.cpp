@@ -29,9 +29,11 @@ bool sortLayers(const LayerProtoParser::Layer* lhs, const LayerProtoParser::Laye
     uint32_t rs = rhs->layerStack;
     if (ls != rs) return ls < rs;
 
-    uint32_t lz = lhs->z;
-    uint32_t rz = rhs->z;
-    if (lz != rz) return lz < rz;
+    int32_t lz = lhs->z;
+    int32_t rz = rhs->z;
+    if (lz != rz) {
+        return (lz > rz) ? 1 : -1;
+    }
 
     return lhs->id < rhs->id;
 }
