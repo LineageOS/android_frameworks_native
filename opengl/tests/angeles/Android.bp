@@ -8,6 +8,11 @@ cc_test {
         "demo.c",
     ],
 
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+
     gtest: false,
 
     shared_libs: [

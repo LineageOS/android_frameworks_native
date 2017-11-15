@@ -4,6 +4,8 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
 	tritex.cpp
 
+LOCAL_CFLAGS := -Wall -Werror
+
 LOCAL_SHARED_LIBRARIES := \
 	libcutils \
     libEGL \

@@ -62,9 +62,6 @@ using namespace android;
 
 int gAppAlive = 1;
 
-static const char sAppName[] =
-        "San Angeles Observation OpenGL ES version example (Linux)";
-
 static int sWindowWidth = WINDOW_DEFAULT_WIDTH;
 static int sWindowHeight = WINDOW_DEFAULT_HEIGHT;
 static EGLDisplay sEglDisplay = EGL_NO_DISPLAY;
@@ -132,7 +129,6 @@ static int initGraphics(EGLint samples, const WindowSurface& windowSurface)
     EGLContext context;
     EGLConfig config;
     EGLSurface surface;
-    EGLint w, h;
     EGLDisplay dpy;
 
     EGLNativeWindowType window = windowSurface.getSurface();
