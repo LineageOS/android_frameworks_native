@@ -191,8 +191,6 @@ int printEGLConfigurations(EGLDisplay dpy) {
 
 int main(int /*argc*/, char **/*argv*/)
 {
-    int q;
-    int start, end;
     printf("Initializing EGL...\n");
     WindowSurface windowSurface;
     if(!init_gl_surface(windowSurface))
@@ -212,7 +210,6 @@ int main(int /*argc*/, char **/*argv*/)
 
 int init_gl_surface(const WindowSurface& windowSurface)
 {
-    EGLint numConfigs = 1;
     EGLConfig myConfig = {0};
     EGLint attrib[] =
     {
@@ -265,7 +262,6 @@ int init_gl_surface(const WindowSurface& windowSurface)
     checkEglError("eglQuerySurface");
     eglQuerySurface(eglDisplay, eglSurface, EGL_HEIGHT, &h);
     checkEglError("eglQuerySurface");
-    GLint dim = w < h ? w : h;
     
     fprintf(stderr, "Window dimensions: %d x %d\n", w, h);
 
@@ -336,9 +332,6 @@ void create_texture(void)
 
 void render()
 {
-    int i, j;
-    int quads = 1;
-
     const GLfloat vertices[] = {
             -1,  -1,  0,
              1,  -1,  0,

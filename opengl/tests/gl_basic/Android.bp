@@ -3,6 +3,11 @@ cc_test {
 
     srcs: ["gl_basic.cpp"],
 
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+
     gtest: false,
 
     shared_libs: [
