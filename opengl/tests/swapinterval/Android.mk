@@ -4,6 +4,8 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
 	swapinterval.cpp
 
+LOCAL_CFLAGS := -Wall -Werror
+
 LOCAL_SHARED_LIBRARIES := \
 	libcutils \
 	libutils \
