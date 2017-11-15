@@ -364,7 +364,6 @@ public:
     void forceClientComposition(int32_t hwcId);
     bool getForceClientComposition(int32_t hwcId);
     virtual void setPerFrameData(const sp<const DisplayDevice>& displayDevice) = 0;
-    void setUpFrameBuffer(const sp<const DisplayDevice>& displayDevice);
 
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state
