@@ -613,14 +613,6 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
         return;
     }
 
-    // Client layers
-    if (hwcInfo.forceClientComposition ||
-        (mActiveBuffer != nullptr && mActiveBuffer->handle == nullptr)) {
-        ALOGV("[%s] Requesting Client composition", mName.string());
-        setCompositionType(hwcId, HWC2::Composition::Client);
-        return;
-    }
-
     // Device or Cursor layers
     if (mPotentialCursor) {
         ALOGV("[%s] Requesting Cursor composition", mName.string());
