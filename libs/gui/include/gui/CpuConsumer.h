@@ -119,7 +119,7 @@ class CpuConsumer : public ConsumerBase
 
   private:
     // Maximum number of buffers that can be locked at a time
-    size_t mMaxLockedBuffers;
+    const size_t mMaxLockedBuffers;
 
     status_t releaseAcquiredBufferLocked(size_t lockedIdx);
 

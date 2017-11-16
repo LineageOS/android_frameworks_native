@@ -168,6 +168,9 @@ status_t CpuConsumer::lockNextBuffer(LockedBuffer *nativeBuffer) {
     status_t err;
 
     if (!nativeBuffer) return BAD_VALUE;
+
+    Mutex::Autolock _l(mMutex);
+
     if (mCurrentLockedBuffers == mMaxLockedBuffers) {
         CC_LOGW("Max buffers have been locked (%zd), cannot lock anymore.",
                 mMaxLockedBuffers);
@@ -175,9 +178,6 @@ status_t CpuConsumer::lockNextBuffer(LockedBuffer *nativeBuffer) {
     }
 
     BufferItem b;
-
-    Mutex::Autolock _l(mMutex);
-
     err = acquireBufferLocked(&b, 0);
     if (err != OK) {
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
