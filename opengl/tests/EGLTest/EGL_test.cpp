@@ -53,7 +53,20 @@ using namespace android::hardware::configstore::V1_0;
 static bool hasWideColorDisplay =
         getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
 
+static bool hasHdrDisplay =
+        getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasHDRDisplay>(false);
+
+union FlexAttribute {
+    EGLint uint_value;
+    float float_value;
+};
+
 class EGLTest : public ::testing::Test {
+public:
+    void get8BitConfig(EGLConfig& config);
+    void addOptionalWindowMetadata(std::vector<EGLint>& attrs);
+    void checkOptionalWindowMetadata(EGLSurface eglSurface);
+
 protected:
     EGLDisplay mEglDisplay;
 
@@ -365,6 +378,261 @@ TEST_F(EGLTest, EGLDisplayP31010102) {
     EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
 }
 
+void EGLTest::get8BitConfig(EGLConfig& config) {
+    EGLint numConfigs;
+    EGLBoolean success;
+
+    // Use 8-bit to keep focus on colorspace aspect
+    const EGLint attrs[] = {
+            // clang-format off
+            EGL_SURFACE_TYPE,             EGL_WINDOW_BIT,
+            EGL_RENDERABLE_TYPE,          EGL_OPENGL_ES2_BIT,
+            EGL_SURFACE_TYPE,             EGL_WINDOW_BIT | EGL_PBUFFER_BIT,
+            EGL_RED_SIZE,                 8,
+            EGL_GREEN_SIZE,               8,
+            EGL_BLUE_SIZE,                8,
+            EGL_ALPHA_SIZE,               8,
+            EGL_COLOR_COMPONENT_TYPE_EXT, EGL_COLOR_COMPONENT_TYPE_FIXED_EXT,
+            EGL_NONE,
+            // clang-format on
+    };
+    success = eglChooseConfig(mEglDisplay, attrs, &config, 1, &numConfigs);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(1, numConfigs);
+
+    EGLint components[4];
+    EGLint value;
+    eglGetConfigAttrib(mEglDisplay, config, EGL_CONFIG_ID, &value);
+
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_RED_SIZE, &components[0]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_GREEN_SIZE, &components[1]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_BLUE_SIZE, &components[2]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    success = eglGetConfigAttrib(mEglDisplay, config, EGL_ALPHA_SIZE, &components[3]);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+
+    // Verify component sizes on config match what was asked for.
+    EXPECT_EQ(components[0], 8);
+    EXPECT_EQ(components[1], 8);
+    EXPECT_EQ(components[2], 8);
+    EXPECT_EQ(components[3], 8);
+}
+
+void EGLTest::addOptionalWindowMetadata(std::vector<EGLint>& attrs) {
+    FlexAttribute data;
+    if (hasEglExtension(mEglDisplay, "EGL_EXT_surface_SMPTE2086_metadata")) {
+        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT);
+        data.float_value = 0.640;
+        attrs.push_back(data.uint_value);
+        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT);
+        data.float_value = 0.330;
+        attrs.push_back(data.uint_value);
+        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT);
+        data.float_value = 0.290;
+        attrs.push_back(data.uint_value);
+        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT);
+        data.float_value = 0.600;
+        attrs.push_back(data.uint_value);
+        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT);
+        data.float_value = 0.150;
+        attrs.push_back(data.uint_value);
+        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT);
+        data.float_value = 0.060;
+        attrs.push_back(data.uint_value);
+        attrs.push_back(EGL_SMPTE2086_WHITE_POINT_X_EXT);
+        data.float_value = 0.3127;
+        attrs.push_back(data.uint_value);
+        attrs.push_back(EGL_SMPTE2086_WHITE_POINT_Y_EXT);
+        data.float_value = 0.3290;
+        attrs.push_back(data.uint_value);
+        attrs.push_back(EGL_SMPTE2086_MAX_LUMINANCE_EXT);
+        data.float_value = 300.0;
+        attrs.push_back(data.uint_value);
+        attrs.push_back(EGL_SMPTE2086_MIN_LUMINANCE_EXT);
+        data.float_value = 0.7;
+        attrs.push_back(data.uint_value);
+    }
+
+    if (hasEglExtension(mEglDisplay, "EGL_EXT_surface_CTA861_3_metadata")) {
+        attrs.push_back(EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT);
+        data.float_value = 300.0;
+        attrs.push_back(data.uint_value);
+        attrs.push_back(EGL_CTA861_3_MAX_FRAME_AVERAGE_LEVEL_EXT);
+        data.float_value = 75.0;
+        attrs.push_back(data.uint_value);
+    }
+}
+
+void EGLTest::checkOptionalWindowMetadata(EGLSurface eglSurface) {
+    EGLBoolean success;
+    EGLint value;
+    FlexAttribute expected;
+
+    if (hasEglExtension(mEglDisplay, "EGL_EXT_surface_SMPTE2086_metadata")) {
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 0.640;
+        ASSERT_EQ(expected.uint_value, value);
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 0.330;
+        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(0, value);
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 0.290;
+        ASSERT_EQ(expected.uint_value, value);
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 0.600;
+        ASSERT_EQ(expected.uint_value, value);
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 0.150;
+        ASSERT_EQ(expected.uint_value, value);
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 0.060;
+        ASSERT_EQ(expected.uint_value, value);
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_WHITE_POINT_X_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 0.3127;
+        ASSERT_EQ(expected.uint_value, value);
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_WHITE_POINT_Y_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 0.3290;
+        ASSERT_EQ(expected.uint_value, value);
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_MAX_LUMINANCE_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 300.0;
+        ASSERT_EQ(expected.uint_value, value);
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_MIN_LUMINANCE_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 0.7;
+        ASSERT_EQ(expected.uint_value, value);
+    }
+
+    if (hasEglExtension(mEglDisplay, "EGL_EXT_surface_CTA861_3_metadata")) {
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 300.0;
+        ASSERT_EQ(expected.uint_value, value);
+        success = eglQuerySurface(mEglDisplay, eglSurface, EGL_CTA861_3_MAX_FRAME_AVERAGE_LEVEL_EXT, &value);
+        ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+        expected.float_value = 75.0;
+        ASSERT_EQ(expected.uint_value, value);
+    }
+}
+
+TEST_F(EGLTest, EGLBT2020Linear) {
+    EGLConfig config;
+    EGLBoolean success;
+
+    if (!hasHdrDisplay) {
+        // skip this test if device does not have HDR display
+        RecordProperty("hasHdrDisplay", false);
+        return;
+    }
+
+    // Test that bt2020 linear extension exists
+    ASSERT_TRUE(hasEglExtension(mEglDisplay, "EGL_EXT_gl_colorspace_bt2020_linear"))
+            << "EGL_EXT_gl_colorspace_bt2020_linear extension not available";
+
+    ASSERT_NO_FATAL_FAILURE(get8BitConfig(config));
+
+    struct DummyConsumer : public BnConsumerListener {
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
+    };
+
+    // Create a EGLSurface
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    consumer->consumerConnect(new DummyConsumer, false);
+    sp<Surface> mSTC = new Surface(producer);
+    sp<ANativeWindow> mANW = mSTC;
+
+    std::vector<EGLint> winAttrs;
+    winAttrs.push_back(EGL_GL_COLORSPACE_KHR);
+    winAttrs.push_back(EGL_GL_COLORSPACE_BT2020_PQ_EXT);
+
+    ASSERT_NO_FATAL_FAILURE(addOptionalWindowMetadata(winAttrs));
+
+    winAttrs.push_back(EGL_NONE);
+
+    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), winAttrs.data());
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    ASSERT_NE(EGL_NO_SURFACE, eglSurface);
+
+    EGLint value;
+    success = eglQuerySurface(mEglDisplay, eglSurface, EGL_GL_COLORSPACE_KHR, &value);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_GL_COLORSPACE_BT2020_PQ_EXT, value);
+
+    ASSERT_NO_FATAL_FAILURE(checkOptionalWindowMetadata(eglSurface));
+
+    EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
+}
+
+TEST_F(EGLTest, EGLBT2020PQ) {
+    EGLConfig config;
+    EGLBoolean success;
+
+    if (!hasHdrDisplay) {
+        // skip this test if device does not have HDR display
+        RecordProperty("hasHdrDisplay", false);
+        return;
+    }
+
+    // Test that bt2020-pq extension exists
+    ASSERT_TRUE(hasEglExtension(mEglDisplay, "EGL_EXT_gl_colorspace_bt2020_pq"))
+            << "EGL_EXT_gl_colorspace_bt2020_pq extension not available";
+
+    ASSERT_NO_FATAL_FAILURE(get8BitConfig(config));
+
+    struct DummyConsumer : public BnConsumerListener {
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
+    };
+
+    // Create a EGLSurface
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    consumer->consumerConnect(new DummyConsumer, false);
+    sp<Surface> mSTC = new Surface(producer);
+    sp<ANativeWindow> mANW = mSTC;
+    std::vector<EGLint> winAttrs;
+    winAttrs.push_back(EGL_GL_COLORSPACE_KHR);
+    winAttrs.push_back(EGL_GL_COLORSPACE_BT2020_PQ_EXT);
+
+    ASSERT_NO_FATAL_FAILURE(addOptionalWindowMetadata(winAttrs));
+
+    winAttrs.push_back(EGL_NONE);
+
+    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), winAttrs.data());
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    ASSERT_NE(EGL_NO_SURFACE, eglSurface);
+
+    EGLint value;
+    success = eglQuerySurface(mEglDisplay, eglSurface, EGL_GL_COLORSPACE_KHR, &value);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(EGL_GL_COLORSPACE_BT2020_PQ_EXT, value);
+
+    ASSERT_NO_FATAL_FAILURE(checkOptionalWindowMetadata(eglSurface));
+
+    EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
+}
+
 TEST_F(EGLTest, EGLConfigFP16) {
     EGLint numConfigs;
     EGLConfig config;
@@ -372,13 +640,13 @@ TEST_F(EGLTest, EGLConfigFP16) {
 
     if (!hasWideColorDisplay) {
         // skip this test if device does not have wide-color display
-        std::cerr << "[          ] Device does not support wide-color, test skipped" << std::endl;
+        RecordProperty("hasWideColorDisplay", false);
         return;
     }
 
     ASSERT_TRUE(hasEglExtension(mEglDisplay, "EGL_EXT_pixel_format_float"));
 
-    EGLint attrs[] = {
+    const EGLint attrs[] = {
             // clang-format off
             EGL_SURFACE_TYPE,             EGL_WINDOW_BIT,
             EGL_RENDERABLE_TYPE,          EGL_OPENGL_ES2_BIT,
@@ -387,7 +655,7 @@ TEST_F(EGLTest, EGLConfigFP16) {
             EGL_BLUE_SIZE,                16,
             EGL_ALPHA_SIZE,               16,
             EGL_COLOR_COMPONENT_TYPE_EXT, EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT,
-            EGL_NONE,                     EGL_NONE
+            EGL_NONE,
             // clang-format on
     };
     success = eglChooseConfig(mEglDisplay, attrs, &config, 1, &numConfigs);
@@ -437,7 +705,7 @@ TEST_F(EGLTest, EGLConfigFP16) {
 TEST_F(EGLTest, EGLNoConfigContext) {
     if (!hasWideColorDisplay) {
         // skip this test if device does not have wide-color display
-        std::cerr << "[          ] Device does not support wide-color, test skipped" << std::endl;
+        RecordProperty("hasWideColorDisplay", false);
         return;
     }
 
@@ -475,11 +743,11 @@ TEST_F(EGLTest, EGLConfig1010102) {
 
     if (!hasWideColorDisplay) {
         // skip this test if device does not have wide-color display
-        std::cerr << "[          ] Device does not support wide-color, test skipped" << std::endl;
+        RecordProperty("hasWideColorDisplay", false);
         return;
     }
 
-    EGLint attrs[] = {
+    const EGLint attrs[] = {
             // clang-format off
             EGL_SURFACE_TYPE,             EGL_WINDOW_BIT,
             EGL_RENDERABLE_TYPE,          EGL_OPENGL_ES2_BIT,

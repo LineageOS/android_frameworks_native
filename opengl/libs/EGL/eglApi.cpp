@@ -468,12 +468,17 @@ static android_dataspace modifyBufferDataspace(android_dataspace dataSpace,
         return HAL_DATASPACE_V0_SCRGB;
     } else if (colorspace == EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT) {
         return HAL_DATASPACE_V0_SCRGB_LINEAR;
+    } else if (colorspace == EGL_GL_COLORSPACE_BT2020_LINEAR_EXT) {
+        return HAL_DATASPACE_BT2020_LINEAR;
+    } else if (colorspace == EGL_GL_COLORSPACE_BT2020_PQ_EXT) {
+        return HAL_DATASPACE_BT2020_PQ;
     }
     return dataSpace;
 }
 
-// Return true if we stripped any EGL_GL_COLORSPACE_KHR attributes.
-static EGLBoolean stripColorSpaceAttribute(egl_display_ptr dp, const EGLint* attrib_list,
+// Return true if we stripped any EGL_GL_COLORSPACE_KHR or HDR metadata attributes.
+// Protect devices from attributes they don't recognize that are  managed by Android
+static EGLBoolean stripAttributes(egl_display_ptr dp, const EGLint* attrib_list,
                                            EGLint format,
                                            std::vector<EGLint>& stripped_attrib_list) {
     std::vector<EGLint> allowedColorSpaces;
@@ -494,32 +499,63 @@ static EGLBoolean stripColorSpaceAttribute(egl_display_ptr dp, const EGLint* att
             break;
     }
 
+    if (!attrib_list) return false;
+
     bool stripped = false;
-    if (attrib_list && dp->haveExtension("EGL_KHR_gl_colorspace")) {
-        for (const EGLint* attr = attrib_list; attr[0] != EGL_NONE; attr += 2) {
-            if (attr[0] == EGL_GL_COLORSPACE_KHR) {
-                EGLint colorSpace = attr[1];
-                bool found = false;
-                // Verify that color space is allowed
-                for (auto it : allowedColorSpaces) {
-                    if (colorSpace == it) {
-                        found = true;
+    for (const EGLint* attr = attrib_list; attr[0] != EGL_NONE; attr += 2) {
+        switch (attr[0]) {
+            case EGL_GL_COLORSPACE_KHR: {
+                    EGLint colorSpace = attr[1];
+                    bool found = false;
+                    // Verify that color space is allowed
+                    for (auto it : allowedColorSpaces) {
+                        if (colorSpace == it) {
+                            found = true;
+                        }
+                    }
+                    if (found && dp->haveExtension("EGL_KHR_gl_colorspace")) {
+                        stripped = true;
+                    } else {
+                        stripped_attrib_list.push_back(attr[0]);
+                        stripped_attrib_list.push_back(attr[1]);
                     }
                 }
-                if (!found) {
+                break;
+            case EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT:
+            case EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT:
+            case EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT:
+            case EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT:
+            case EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT:
+            case EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT:
+            case EGL_SMPTE2086_WHITE_POINT_X_EXT:
+            case EGL_SMPTE2086_WHITE_POINT_Y_EXT:
+            case EGL_SMPTE2086_MAX_LUMINANCE_EXT:
+            case EGL_SMPTE2086_MIN_LUMINANCE_EXT:
+                if (dp->haveExtension("EGL_EXT_surface_SMPTE2086_metadata")) {
                     stripped = true;
                 } else {
                     stripped_attrib_list.push_back(attr[0]);
                     stripped_attrib_list.push_back(attr[1]);
                 }
-            } else {
+                break;
+            case EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT:
+            case EGL_CTA861_3_MAX_FRAME_AVERAGE_LEVEL_EXT:
+                if (dp->haveExtension("EGL_EXT_surface_CTA861_3_metadata")) {
+                    stripped = true;
+                } else {
+                    stripped_attrib_list.push_back(attr[0]);
+                    stripped_attrib_list.push_back(attr[1]);
+                }
+                break;
+            default:
                 stripped_attrib_list.push_back(attr[0]);
                 stripped_attrib_list.push_back(attr[1]);
-            }
+                break;
         }
     }
+
+    // Make sure there is at least one attribute
     if (stripped) {
-        stripped_attrib_list.push_back(EGL_NONE);
         stripped_attrib_list.push_back(EGL_NONE);
     }
     return stripped;
@@ -544,10 +580,10 @@ static EGLBoolean getColorSpaceAttribute(egl_display_ptr dp, NativeWindowType wi
                     // is available, so no need to verify.
                     found = true;
                     verify = false;
-                } else if (colorSpace == EGL_EXT_gl_colorspace_bt2020_linear &&
+                } else if (colorSpace == EGL_GL_COLORSPACE_BT2020_LINEAR_EXT &&
                            dp->haveExtension("EGL_EXT_gl_colorspace_bt2020_linear")) {
                     found = true;
-                } else if (colorSpace == EGL_EXT_gl_colorspace_bt2020_pq &&
+                } else if (colorSpace == EGL_GL_COLORSPACE_BT2020_PQ_EXT &&
                            dp->haveExtension("EGL_EXT_gl_colorspace_bt2020_pq")) {
                     found = true;
                 } else if (colorSpace == EGL_GL_COLORSPACE_SCRGB_EXT &&
@@ -664,10 +700,43 @@ void getNativePixelFormat(EGLDisplay dpy, egl_connection_t* cnx, EGLConfig confi
     }
 }
 
+EGLBoolean setSurfaceMetadata(egl_surface_t* s, NativeWindowType window,
+                              const EGLint *attrib_list) {
+    // set any HDR metadata
+    bool smpte2086 = false;
+    bool cta8613 = false;
+    if (attrib_list == nullptr) return EGL_TRUE;
+
+    for (const EGLint* attr = attrib_list; attr[0] != EGL_NONE; attr += 2) {
+        smpte2086 |= s->setSmpte2086Attribute(attr[0], attr[1]);
+        cta8613 |= s->setCta8613Attribute(attr[0], attr[1]);
+    }
+    if (smpte2086) {
+        int err = native_window_set_buffers_smpte2086_metadata(window, s->getSmpte2086Metadata());
+        if (err != 0) {
+            ALOGE("error setting native window smpte2086 metadata: %s (%d)",
+                  strerror(-err), err);
+            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+            return EGL_FALSE;
+        }
+    }
+    if (cta8613) {
+        int err = native_window_set_buffers_cta861_3_metadata(window, s->getCta8613Metadata());
+        if (err != 0) {
+            ALOGE("error setting native window CTS 861.3 metadata: %s (%d)",
+                  strerror(-err), err);
+            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+            return EGL_FALSE;
+        }
+    }
+    return EGL_TRUE;
+}
+
 EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
                                     NativeWindowType window,
                                     const EGLint *attrib_list)
 {
+    const EGLint *origAttribList = attrib_list;
     clearError();
 
     egl_connection_t* cnx = NULL;
@@ -705,7 +774,7 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         }
 
         std::vector<EGLint> strippedAttribList;
-        if (stripColorSpaceAttribute(dp, attrib_list, format, strippedAttribList)) {
+        if (stripAttributes(dp, attrib_list, format, strippedAttribList)) {
             // Had to modify the attribute list due to use of color space.
             // Use modified list from here on.
             attrib_list = strippedAttribList.data();
@@ -741,7 +810,11 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         if (surface != EGL_NO_SURFACE) {
             egl_surface_t* s =
                     new egl_surface_t(dp.get(), config, window, surface, colorSpace, cnx);
-            return s;
+
+            if (setSurfaceMetadata(s, window, origAttribList)) {
+                return s;
+            }
+            eglDestroySurface(dpy, s);
         }
 
         // EGLSurface creation failed
@@ -802,7 +875,7 @@ EGLSurface eglCreatePbufferSurface( EGLDisplay dpy, EGLConfig config,
         // colorspace. We do need to filter out color spaces the
         // driver doesn't know how to process.
         std::vector<EGLint> strippedAttribList;
-        if (stripColorSpaceAttribute(dp, attrib_list, format, strippedAttribList)) {
+        if (stripAttributes(dp, attrib_list, format, strippedAttribList)) {
             // Had to modify the attribute list due to use of color space.
             // Use modified list from here on.
             attrib_list = strippedAttribList.data();
@@ -850,12 +923,14 @@ EGLBoolean eglQuerySurface( EGLDisplay dpy, EGLSurface surface,
         return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
 
     egl_surface_t const * const s = get_surface(surface);
-    if (attribute == EGL_GL_COLORSPACE_KHR) {
-        *value = s->getColorSpace();
+    if (s->getColorSpaceAttribute(attribute, value)) {
+        return EGL_TRUE;
+    } else if (s->getSmpte2086Attribute(attribute, value)) {
+        return EGL_TRUE;
+    } else if (s->getCta8613Attribute(attribute, value)) {
         return EGL_TRUE;
     }
-    return s->cnx->egl.eglQuerySurface(
-            dp->disp.dpy, s->surface, attribute, value);
+    return s->cnx->egl.eglQuerySurface(dp->disp.dpy, s->surface, attribute, value);
 }
 
 void EGLAPI eglBeginFrame(EGLDisplay dpy, EGLSurface surface) {
