@@ -262,9 +262,6 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
 }
 
 void BufferLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
-    if (mHwcLayers.empty()) {
-        return;
-    }
     mSurfaceFlingerConsumer->setReleaseFence(releaseFence);
 }
 

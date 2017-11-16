@@ -217,9 +217,9 @@ bool Layer::createHwcLayer(HWComposer* hwc, int32_t hwcId) {
     return true;
 }
 
-void Layer::destroyHwcLayer(int32_t hwcId) {
+bool Layer::destroyHwcLayer(int32_t hwcId) {
     if (mHwcLayers.count(hwcId) == 0) {
-        return;
+        return false;
     }
     auto& hwcInfo = mHwcLayers[hwcId];
     LOG_ALWAYS_FATAL_IF(hwcInfo.layer == nullptr, "Attempt to destroy null layer");
@@ -228,6 +228,8 @@ void Layer::destroyHwcLayer(int32_t hwcId) {
     // The layer destroyed listener should have cleared the entry from
     // mHwcLayers. Verify that.
     LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0, "Stale layer entry in mHwcLayers");
+
+    return true;
 }
 
 void Layer::destroyAllHwcLayers() {
