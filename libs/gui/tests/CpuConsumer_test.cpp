@@ -681,6 +681,15 @@ TEST_P(CpuConsumerTest, FromCpuLockMax) {
     }
 }
 
+TEST_P(CpuConsumerTest, FromCpuInvalid) {
+    status_t err = mCC->lockNextBuffer(nullptr);
+    ASSERT_EQ(BAD_VALUE, err) << "lockNextBuffer did not fail";
+
+    CpuConsumer::LockedBuffer b;
+    err = mCC->unlockBuffer(b);
+    ASSERT_EQ(BAD_VALUE, err) << "unlockBuffer did not fail";
+}
+
 CpuConsumerTestParams y8TestSets[] = {
     { 512,   512, 1, HAL_PIXEL_FORMAT_Y8},
     { 512,   512, 3, HAL_PIXEL_FORMAT_Y8},

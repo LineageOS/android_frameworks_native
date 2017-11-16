@@ -60,6 +60,21 @@ void CpuConsumer::setName(const String8& name) {
     mConsumer->setConsumerName(name);
 }
 
+size_t CpuConsumer::findAcquiredBufferLocked(uintptr_t id) const {
+    for (size_t i = 0; i < mMaxLockedBuffers; i++) {
+        const auto& ab = mAcquiredBuffers[i];
+        // note that this finds AcquiredBuffer::kUnusedId as well
+        if (ab.mLockedBufferId == id) {
+            return i;
+        }
+    }
+    return mMaxLockedBuffers; // an invalid index
+}
+
+static uintptr_t getLockedBufferId(const CpuConsumer::LockedBuffer& buffer) {
+    return reinterpret_cast<uintptr_t>(buffer.data);
+}
+
 static bool isPossiblyYUV(PixelFormat format) {
     switch (static_cast<int>(format)) {
         case HAL_PIXEL_FORMAT_RGBA_8888:
@@ -165,20 +180,6 @@ status_t CpuConsumer::lockNextBuffer(LockedBuffer *nativeBuffer) {
         }
     }
 
-    size_t lockedIdx = 0;
-    for (; lockedIdx < static_cast<size_t>(mMaxLockedBuffers); lockedIdx++) {
-        if (mAcquiredBuffers[lockedIdx].mSlot ==
-                BufferQueue::INVALID_BUFFER_SLOT) {
-            break;
-        }
-    }
-    assert(lockedIdx < mMaxLockedBuffers);
-
-    AcquiredBuffer &ab = mAcquiredBuffers.editItemAt(lockedIdx);
-    ab.mSlot = slot;
-    ab.mBufferPointer = bufferPointer;
-    ab.mGraphicBuffer = mSlots[slot].mGraphicBuffer;
-
     nativeBuffer->data   =
             reinterpret_cast<uint8_t*>(bufferPointer);
     nativeBuffer->width  = mSlots[slot].mGraphicBuffer->getWidth();
@@ -201,6 +202,15 @@ status_t CpuConsumer::lockNextBuffer(LockedBuffer *nativeBuffer) {
     nativeBuffer->chromaStride = static_cast<uint32_t>(ycbcr.cstride);
     nativeBuffer->chromaStep   = static_cast<uint32_t>(ycbcr.chroma_step);
 
+    // find an unused AcquiredBuffer
+    size_t lockedIdx = findAcquiredBufferLocked(AcquiredBuffer::kUnusedId);
+    ALOG_ASSERT(lockedIdx < mMaxLockedBuffers);
+    AcquiredBuffer& ab = mAcquiredBuffers.editItemAt(lockedIdx);
+
+    ab.mSlot = slot;
+    ab.mGraphicBuffer = mSlots[slot].mGraphicBuffer;
+    ab.mLockedBufferId = getLockedBufferId(*nativeBuffer);
+
     mCurrentLockedBuffers++;
 
     return OK;
@@ -208,12 +218,10 @@ status_t CpuConsumer::lockNextBuffer(LockedBuffer *nativeBuffer) {
 
 status_t CpuConsumer::unlockBuffer(const LockedBuffer &nativeBuffer) {
     Mutex::Autolock _l(mMutex);
-    size_t lockedIdx = 0;
 
-    void *bufPtr = reinterpret_cast<void *>(nativeBuffer.data);
-    for (; lockedIdx < static_cast<size_t>(mMaxLockedBuffers); lockedIdx++) {
-        if (bufPtr == mAcquiredBuffers[lockedIdx].mBufferPointer) break;
-    }
+    uintptr_t id = getLockedBufferId(nativeBuffer);
+    size_t lockedIdx =
+        (id != AcquiredBuffer::kUnusedId) ? findAcquiredBufferLocked(id) : mMaxLockedBuffers;
     if (lockedIdx == mMaxLockedBuffers) {
         CC_LOGE("%s: Can't find buffer to free", __FUNCTION__);
         return BAD_VALUE;
@@ -252,9 +260,7 @@ status_t CpuConsumer::releaseAcquiredBufferLocked(size_t lockedIdx) {
     }
 
     AcquiredBuffer &ab = mAcquiredBuffers.editItemAt(lockedIdx);
-    ab.mSlot = BufferQueue::INVALID_BUFFER_SLOT;
-    ab.mBufferPointer = NULL;
-    ab.mGraphicBuffer.clear();
+    ab.reset();
 
     mCurrentLockedBuffers--;
     return OK;

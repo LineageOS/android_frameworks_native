@@ -127,18 +127,29 @@ class CpuConsumer : public ConsumerBase
 
     // Tracking for buffers acquired by the user
     struct AcquiredBuffer {
+        static constexpr uintptr_t kUnusedId = 0;
+
         // Need to track the original mSlot index and the buffer itself because
         // the mSlot entry may be freed/reused before the acquired buffer is
         // released.
         int mSlot;
         sp<GraphicBuffer> mGraphicBuffer;
-        void *mBufferPointer;
+        uintptr_t mLockedBufferId;
 
         AcquiredBuffer() :
                 mSlot(BufferQueue::INVALID_BUFFER_SLOT),
-                mBufferPointer(NULL) {
+                mLockedBufferId(kUnusedId) {
+        }
+
+        void reset() {
+            mSlot = BufferQueue::INVALID_BUFFER_SLOT;
+            mGraphicBuffer.clear();
+            mLockedBufferId = kUnusedId;
         }
     };
+
+    size_t findAcquiredBufferLocked(uintptr_t id) const;
+
     Vector<AcquiredBuffer> mAcquiredBuffers;
 
     // Count of currently locked buffers
