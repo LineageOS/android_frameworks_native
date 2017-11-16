@@ -37,8 +37,8 @@ int LayerVector::do_compare(const void* lhs, const void* rhs) const
     if (ls != rs)
         return (ls > rs) ? 1 : -1;
 
-    uint32_t lz = l->getCurrentState().z;
-    uint32_t rz = r->getCurrentState().z;
+    int32_t lz = l->getCurrentState().z;
+    int32_t rz = r->getCurrentState().z;
     if (lz != rz)
         return (lz > rz) ? 1 : -1;
 
