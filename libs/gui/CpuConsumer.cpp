@@ -18,7 +18,6 @@
 #define LOG_TAG "CpuConsumer"
 //#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <cutils/compiler.h>
 #include <utils/Log.h>
 #include <gui/BufferItem.h>
 #include <gui/CpuConsumer.h>
@@ -222,42 +221,24 @@ status_t CpuConsumer::unlockBuffer(const LockedBuffer &nativeBuffer) {
         return BAD_VALUE;
     }
 
-    return releaseAcquiredBufferLocked(lockedIdx);
-}
+    AcquiredBuffer& ab = mAcquiredBuffers.editItemAt(lockedIdx);
 
-status_t CpuConsumer::releaseAcquiredBufferLocked(size_t lockedIdx) {
-    status_t err;
-    int fd = -1;
-
-    err = mAcquiredBuffers[lockedIdx].mGraphicBuffer->unlockAsync(&fd);
+    int fenceFd = -1;
+    status_t err = ab.mGraphicBuffer->unlockAsync(&fenceFd);
     if (err != OK) {
         CC_LOGE("%s: Unable to unlock graphic buffer %zd", __FUNCTION__,
                 lockedIdx);
         return err;
     }
-    int buf = mAcquiredBuffers[lockedIdx].mSlot;
-    if (CC_LIKELY(fd != -1)) {
-        sp<Fence> fence(new Fence(fd));
-        addReleaseFenceLocked(
-            mAcquiredBuffers[lockedIdx].mSlot,
-            mSlots[buf].mGraphicBuffer,
-            fence);
-    }
 
-    // release the buffer if it hasn't already been freed by the BufferQueue.
-    // This can happen, for example, when the producer of this buffer
-    // disconnected after this buffer was acquired.
-    if (CC_LIKELY(mAcquiredBuffers[lockedIdx].mGraphicBuffer ==
-            mSlots[buf].mGraphicBuffer)) {
-        releaseBufferLocked(
-                buf, mAcquiredBuffers[lockedIdx].mGraphicBuffer,
-                EGL_NO_DISPLAY, EGL_NO_SYNC_KHR);
-    }
+    sp<Fence> fence(fenceFd >= 0 ? new Fence(fenceFd) : Fence::NO_FENCE);
+    addReleaseFenceLocked(ab.mSlot, ab.mGraphicBuffer, fence);
+    releaseBufferLocked(ab.mSlot, ab.mGraphicBuffer);
 
-    AcquiredBuffer &ab = mAcquiredBuffers.editItemAt(lockedIdx);
     ab.reset();
 
     mCurrentLockedBuffers--;
+
     return OK;
 }
 

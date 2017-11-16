@@ -121,8 +121,6 @@ class CpuConsumer : public ConsumerBase
     // Maximum number of buffers that can be locked at a time
     const size_t mMaxLockedBuffers;
 
-    status_t releaseAcquiredBufferLocked(size_t lockedIdx);
-
     virtual void freeBufferLocked(int slotIndex);
 
     // Tracking for buffers acquired by the user
