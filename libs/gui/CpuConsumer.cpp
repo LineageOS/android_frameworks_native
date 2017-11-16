@@ -103,6 +103,67 @@ static bool isPossiblyYUV(PixelFormat format) {
     }
 }
 
+status_t CpuConsumer::lockBufferItem(const BufferItem& item, LockedBuffer* outBuffer) const {
+    android_ycbcr ycbcr = android_ycbcr();
+
+    PixelFormat format = item.mGraphicBuffer->getPixelFormat();
+    PixelFormat flexFormat = format;
+    if (isPossiblyYUV(format)) {
+        int fenceFd = item.mFence.get() ? item.mFence->dup() : -1;
+        status_t err = item.mGraphicBuffer->lockAsyncYCbCr(GraphicBuffer::USAGE_SW_READ_OFTEN,
+                                                           item.mCrop, &ycbcr, fenceFd);
+        if (err == OK) {
+            flexFormat = HAL_PIXEL_FORMAT_YCbCr_420_888;
+            if (format != HAL_PIXEL_FORMAT_YCbCr_420_888) {
+                CC_LOGV("locking buffer of format %#x as flex YUV", format);
+            }
+        } else if (format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+            CC_LOGE("Unable to lock YCbCr buffer for CPU reading: %s (%d)", strerror(-err), err);
+            return err;
+        }
+    }
+
+    if (ycbcr.y != nullptr) {
+        outBuffer->data = reinterpret_cast<uint8_t*>(ycbcr.y);
+        outBuffer->stride = static_cast<uint32_t>(ycbcr.ystride);
+        outBuffer->dataCb = reinterpret_cast<uint8_t*>(ycbcr.cb);
+        outBuffer->dataCr = reinterpret_cast<uint8_t*>(ycbcr.cr);
+        outBuffer->chromaStride = static_cast<uint32_t>(ycbcr.cstride);
+        outBuffer->chromaStep = static_cast<uint32_t>(ycbcr.chroma_step);
+    } else {
+        // not flexible YUV; try lockAsync
+        void* bufferPointer = nullptr;
+        int fenceFd = item.mFence.get() ? item.mFence->dup() : -1;
+        status_t err = item.mGraphicBuffer->lockAsync(GraphicBuffer::USAGE_SW_READ_OFTEN,
+                                                      item.mCrop, &bufferPointer, fenceFd);
+        if (err != OK) {
+            CC_LOGE("Unable to lock buffer for CPU reading: %s (%d)", strerror(-err), err);
+            return err;
+        }
+
+        outBuffer->data = reinterpret_cast<uint8_t*>(bufferPointer);
+        outBuffer->stride = item.mGraphicBuffer->getStride();
+        outBuffer->dataCb = nullptr;
+        outBuffer->dataCr = nullptr;
+        outBuffer->chromaStride = 0;
+        outBuffer->chromaStep = 0;
+    }
+
+    outBuffer->width = item.mGraphicBuffer->getWidth();
+    outBuffer->height = item.mGraphicBuffer->getHeight();
+    outBuffer->format = format;
+    outBuffer->flexFormat = flexFormat;
+
+    outBuffer->crop = item.mCrop;
+    outBuffer->transform = item.mTransform;
+    outBuffer->scalingMode = item.mScalingMode;
+    outBuffer->timestamp = item.mTimestamp;
+    outBuffer->dataSpace = item.mDataSpace;
+    outBuffer->frameNumber = item.mFrameNumber;
+
+    return OK;
+}
+
 status_t CpuConsumer::lockNextBuffer(LockedBuffer *nativeBuffer) {
     status_t err;
 
@@ -127,88 +188,22 @@ status_t CpuConsumer::lockNextBuffer(LockedBuffer *nativeBuffer) {
         }
     }
 
-    int slot = b.mSlot;
-
-    void *bufferPointer = NULL;
-    android_ycbcr ycbcr = android_ycbcr();
-
-    PixelFormat format = mSlots[slot].mGraphicBuffer->getPixelFormat();
-    PixelFormat flexFormat = format;
-    if (isPossiblyYUV(format)) {
-        if (b.mFence.get()) {
-            err = mSlots[slot].mGraphicBuffer->lockAsyncYCbCr(
-                GraphicBuffer::USAGE_SW_READ_OFTEN,
-                b.mCrop,
-                &ycbcr,
-                b.mFence->dup());
-        } else {
-            err = mSlots[slot].mGraphicBuffer->lockYCbCr(
-                GraphicBuffer::USAGE_SW_READ_OFTEN,
-                b.mCrop,
-                &ycbcr);
-        }
-        if (err == OK) {
-            bufferPointer = ycbcr.y;
-            flexFormat = HAL_PIXEL_FORMAT_YCbCr_420_888;
-            if (format != HAL_PIXEL_FORMAT_YCbCr_420_888) {
-                CC_LOGV("locking buffer of format %#x as flex YUV", format);
-            }
-        } else if (format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
-            CC_LOGE("Unable to lock YCbCr buffer for CPU reading: %s (%d)",
-                    strerror(-err), err);
-            return err;
-        }
+    if (b.mGraphicBuffer == nullptr) {
+        b.mGraphicBuffer = mSlots[b.mSlot].mGraphicBuffer;
     }
 
-    if (bufferPointer == NULL) { // not flexible YUV
-        if (b.mFence.get()) {
-            err = mSlots[slot].mGraphicBuffer->lockAsync(
-                GraphicBuffer::USAGE_SW_READ_OFTEN,
-                b.mCrop,
-                &bufferPointer,
-                b.mFence->dup());
-        } else {
-            err = mSlots[slot].mGraphicBuffer->lock(
-                GraphicBuffer::USAGE_SW_READ_OFTEN,
-                b.mCrop,
-                &bufferPointer);
-        }
-        if (err != OK) {
-            CC_LOGE("Unable to lock buffer for CPU reading: %s (%d)",
-                    strerror(-err), err);
-            return err;
-        }
+    err = lockBufferItem(b, nativeBuffer);
+    if (err != OK) {
+        return err;
     }
-
-    nativeBuffer->data   =
-            reinterpret_cast<uint8_t*>(bufferPointer);
-    nativeBuffer->width  = mSlots[slot].mGraphicBuffer->getWidth();
-    nativeBuffer->height = mSlots[slot].mGraphicBuffer->getHeight();
-    nativeBuffer->format = format;
-    nativeBuffer->flexFormat = flexFormat;
-    nativeBuffer->stride = (ycbcr.y != NULL) ?
-            static_cast<uint32_t>(ycbcr.ystride) :
-            mSlots[slot].mGraphicBuffer->getStride();
-
-    nativeBuffer->crop        = b.mCrop;
-    nativeBuffer->transform   = b.mTransform;
-    nativeBuffer->scalingMode = b.mScalingMode;
-    nativeBuffer->timestamp   = b.mTimestamp;
-    nativeBuffer->dataSpace   = b.mDataSpace;
-    nativeBuffer->frameNumber = b.mFrameNumber;
-
-    nativeBuffer->dataCb       = reinterpret_cast<uint8_t*>(ycbcr.cb);
-    nativeBuffer->dataCr       = reinterpret_cast<uint8_t*>(ycbcr.cr);
-    nativeBuffer->chromaStride = static_cast<uint32_t>(ycbcr.cstride);
-    nativeBuffer->chromaStep   = static_cast<uint32_t>(ycbcr.chroma_step);
 
     // find an unused AcquiredBuffer
     size_t lockedIdx = findAcquiredBufferLocked(AcquiredBuffer::kUnusedId);
     ALOG_ASSERT(lockedIdx < mMaxLockedBuffers);
     AcquiredBuffer& ab = mAcquiredBuffers.editItemAt(lockedIdx);
 
-    ab.mSlot = slot;
-    ab.mGraphicBuffer = mSlots[slot].mGraphicBuffer;
+    ab.mSlot = b.mSlot;
+    ab.mGraphicBuffer = b.mGraphicBuffer;
     ab.mLockedBufferId = getLockedBufferId(*nativeBuffer);
 
     mCurrentLockedBuffers++;

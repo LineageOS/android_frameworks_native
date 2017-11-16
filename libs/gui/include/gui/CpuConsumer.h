@@ -150,6 +150,8 @@ class CpuConsumer : public ConsumerBase
 
     size_t findAcquiredBufferLocked(uintptr_t id) const;
 
+    status_t lockBufferItem(const BufferItem& item, LockedBuffer* outBuffer) const;
+
     Vector<AcquiredBuffer> mAcquiredBuffers;
 
     // Count of currently locked buffers
