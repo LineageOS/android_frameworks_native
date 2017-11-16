@@ -74,7 +74,8 @@ class BufferHubQueue : public pdx::Client {
     return available_buffers_.size() >= kMaxQueueCapacity;
   }
 
-  explicit operator bool() const { return epoll_fd_.IsValid(); }
+  // Returns whether the buffer queue is connected to bufferhubd.
+  bool is_connected() const { return !!GetChannel(); }
 
   int GetBufferId(size_t slot) const {
     return (slot < buffers_.size() && buffers_[slot]) ? buffers_[slot]->id()

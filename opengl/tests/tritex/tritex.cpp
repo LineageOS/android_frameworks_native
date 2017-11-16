@@ -93,9 +93,6 @@ static void gluLookAt(float eyeX, float eyeY, float eyeZ,
 
 int main(int argc, char **argv)
 {
-    int q;
-    int start, end;
-
     printf("Initializing EGL...\n");
 
     WindowSurface windowSurface;
@@ -120,7 +117,6 @@ int main(int argc, char **argv)
 
 int init_gl_surface(const WindowSurface& windowSurface)
 {
-    EGLint numConfigs = 1;
     EGLConfig myConfig = {0};
     EGLint attrib[] =
     {

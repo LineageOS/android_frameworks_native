@@ -27,6 +27,7 @@ LOCAL_SRC_FILES := otapreopt.cpp globals.cpp utils.cpp dexopt.cpp
 LOCAL_HEADER_LIBRARIES := dex2oat_headers
 LOCAL_SHARED_LIBRARIES := \
     libbase \
+    libcrypto \
     libcutils \
     liblog \
     liblogwrap \

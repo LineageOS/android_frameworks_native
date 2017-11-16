@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <sstream>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/statvfs.h>
@@ -56,16 +57,19 @@ bool create_cache_path(char path[PKG_PATH_MAX], const char *src, const char *ins
     return create_cache_path_default(path, src, instruction_set);
 }
 
+static std::string get_full_path(const char* path) {
+    return StringPrintf("/data/local/tmp/user/0/%s", path);
+}
+
 static void mkdir(const char* path, uid_t owner, gid_t group, mode_t mode) {
-    const char* fullPath = StringPrintf("/data/local/tmp/user/0/%s", path).c_str();
-    ::mkdir(fullPath, mode);
-    ::chown(fullPath, owner, group);
-    ::chmod(fullPath, mode);
+    const std::string fullPath = get_full_path(path);
+    ::mkdir(fullPath.c_str(), mode);
+    ::chown(fullPath.c_str(), owner, group);
+    ::chmod(fullPath.c_str(), mode);
 }
 
 static void touch(const char* path, uid_t owner, gid_t group, mode_t mode) {
-    int fd = ::open(StringPrintf("/data/local/tmp/user/0/%s", path).c_str(),
-            O_RDWR | O_CREAT, mode);
+    int fd = ::open(get_full_path(path).c_str(), O_RDWR | O_CREAT, mode);
     ::fchown(fd, owner, group);
     ::fchmod(fd, mode);
     ::close(fd);
@@ -73,13 +77,13 @@ static void touch(const char* path, uid_t owner, gid_t group, mode_t mode) {
 
 static int stat_gid(const char* path) {
     struct stat buf;
-    ::stat(StringPrintf("/data/local/tmp/user/0/%s", path).c_str(), &buf);
+    ::stat(get_full_path(path).c_str(), &buf);
     return buf.st_gid;
 }
 
 static int stat_mode(const char* path) {
     struct stat buf;
-    ::stat(StringPrintf("/data/local/tmp/user/0/%s", path).c_str(), &buf);
+    ::stat(get_full_path(path).c_str(), &buf);
     return buf.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID);
 }
 
@@ -147,6 +151,69 @@ TEST_F(ServiceTest, FixupAppData_Moved) {
     EXPECT_EQ(10000, stat_gid("com.example/foo/file"));
     EXPECT_EQ(10000, stat_gid("com.example/bar"));
     EXPECT_EQ(10000, stat_gid("com.example/bar/file"));
+}
+
+TEST_F(ServiceTest, HashSecondaryDex) {
+    LOG(INFO) << "HashSecondaryDex";
+
+    mkdir("com.example", 10000, 10000, 0700);
+    mkdir("com.example/foo", 10000, 10000, 0700);
+    touch("com.example/foo/file", 10000, 20000, 0700);
+
+    std::vector<uint8_t> result;
+    std::string dexPath = get_full_path("com.example/foo/file");
+    EXPECT_TRUE(service->hashSecondaryDexFile(
+        dexPath, "com.example", 10000, testUuid, FLAG_STORAGE_CE, &result).isOk());
+
+    EXPECT_EQ(result.size(), 32U);
+
+    std::ostringstream output;
+    output << std::hex << std::setfill('0');
+    for (auto b : result) {
+        output << std::setw(2) << +b;
+    }
+
+    // This is the SHA256 of an empty string (sha256sum /dev/null)
+    EXPECT_EQ(output.str(), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+}
+
+TEST_F(ServiceTest, HashSecondaryDex_NoSuch) {
+    LOG(INFO) << "HashSecondaryDex_NoSuch";
+
+    std::vector<uint8_t> result;
+    std::string dexPath = get_full_path("com.example/foo/file");
+    EXPECT_TRUE(service->hashSecondaryDexFile(
+        dexPath, "com.example", 10000, testUuid, FLAG_STORAGE_CE, &result).isOk());
+
+    EXPECT_EQ(result.size(), 0U);
+}
+
+TEST_F(ServiceTest, HashSecondaryDex_Unreadable) {
+    LOG(INFO) << "HashSecondaryDex_Unreadable";
+
+    mkdir("com.example", 10000, 10000, 0700);
+    mkdir("com.example/foo", 10000, 10000, 0700);
+    touch("com.example/foo/file", 10000, 20000, 0300);
+
+    std::vector<uint8_t> result;
+    std::string dexPath = get_full_path("com.example/foo/file");
+    EXPECT_TRUE(service->hashSecondaryDexFile(
+        dexPath, "com.example", 10000, testUuid, FLAG_STORAGE_CE, &result).isOk());
+
+    EXPECT_EQ(result.size(), 0U);
+}
+
+TEST_F(ServiceTest, HashSecondaryDex_WrongApp) {
+    LOG(INFO) << "HashSecondaryDex_WrongApp";
+
+    mkdir("com.example", 10000, 10000, 0700);
+    mkdir("com.example/foo", 10000, 10000, 0700);
+    touch("com.example/foo/file", 10000, 20000, 0700);
+
+    std::vector<uint8_t> result;
+    std::string dexPath = get_full_path("com.example/foo/file");
+    EXPECT_FALSE(service->hashSecondaryDexFile(
+        dexPath, "com.wrong", 10000, testUuid, FLAG_STORAGE_CE, &result).isOk());
 }
 
 TEST_F(ServiceTest, CalculateOat) {

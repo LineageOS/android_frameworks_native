@@ -16,5 +16,9 @@ cc_test {
 
     static_libs: ["libglTest"],
 
-    cflags: ["-DGL_GLEXT_PROTOTYPES"],
+    cflags: [
+        "-DGL_GLEXT_PROTOTYPES",
+        "-Wall",
+        "-Werror",
+    ],
 }

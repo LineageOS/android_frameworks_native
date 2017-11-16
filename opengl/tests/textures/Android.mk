@@ -21,5 +21,6 @@ LOCAL_MODULE:= test-opengl-textures
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_CFLAGS := -DGL_GLEXT_PROTOTYPES
+LOCAL_CFLAGS += -Wall -Werror
 
 include $(BUILD_EXECUTABLE)

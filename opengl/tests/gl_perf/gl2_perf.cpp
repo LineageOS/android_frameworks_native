@@ -44,13 +44,6 @@ static void checkEglError(const char* op, EGLBoolean returnVal = EGL_TRUE) {
     }
 }
 
-static void checkGlError(const char* op) {
-    for (GLint error = glGetError(); error; error
-            = glGetError()) {
-        fprintf(stderr, "after %s() glError (0x%x)\n", op, error);
-    }
-}
-
 bool doTest(uint32_t w, uint32_t h);
 
 static EGLDisplay dpy;
@@ -118,7 +111,6 @@ int main(int /*argc*/, char** /*argv*/) {
     checkEglError("eglQuerySurface");
     eglQuerySurface(dpy, surface, EGL_HEIGHT, &h);
     checkEglError("eglQuerySurface");
-    GLint dim = w < h ? w : h;
 
     glViewport(0, 0, w, h);
 
