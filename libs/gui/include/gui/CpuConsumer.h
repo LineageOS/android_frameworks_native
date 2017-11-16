@@ -94,8 +94,6 @@ class CpuConsumer : public ConsumerBase
     CpuConsumer(const sp<IGraphicBufferConsumer>& bq,
             size_t maxLockedBuffers, bool controlledByApp = false);
 
-    virtual ~CpuConsumer();
-
     // set the name of the CpuConsumer that will be used to identify it in
     // log messages.
     void setName(const String8& name);
@@ -120,8 +118,6 @@ class CpuConsumer : public ConsumerBase
   private:
     // Maximum number of buffers that can be locked at a time
     const size_t mMaxLockedBuffers;
-
-    virtual void freeBufferLocked(int slotIndex);
 
     // Tracking for buffers acquired by the user
     struct AcquiredBuffer {
@@ -154,7 +150,6 @@ class CpuConsumer : public ConsumerBase
 
     // Count of currently locked buffers
     size_t mCurrentLockedBuffers;
-
 };
 
 } // namespace android

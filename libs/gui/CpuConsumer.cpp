@@ -18,9 +18,10 @@
 #define LOG_TAG "CpuConsumer"
 //#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <utils/Log.h>
-#include <gui/BufferItem.h>
 #include <gui/CpuConsumer.h>
+
+#include <gui/BufferItem.h>
+#include <utils/Log.h>
 
 #define CC_LOGV(x, ...) ALOGV("[%s] " x, mName.string(), ##__VA_ARGS__)
 //#define CC_LOGD(x, ...) ALOGD("[%s] " x, mName.string(), ##__VA_ARGS__)
@@ -42,12 +43,6 @@ CpuConsumer::CpuConsumer(const sp<IGraphicBufferConsumer>& bq,
     mConsumer->setConsumerUsageBits(GRALLOC_USAGE_SW_READ_OFTEN);
     mConsumer->setMaxAcquiredBufferCount(static_cast<int32_t>(maxLockedBuffers));
 }
-
-CpuConsumer::~CpuConsumer() {
-    // ConsumerBase destructor does all the work.
-}
-
-
 
 void CpuConsumer::setName(const String8& name) {
     Mutex::Autolock _l(mMutex);
@@ -240,10 +235,6 @@ status_t CpuConsumer::unlockBuffer(const LockedBuffer &nativeBuffer) {
     mCurrentLockedBuffers--;
 
     return OK;
-}
-
-void CpuConsumer::freeBufferLocked(int slotIndex) {
-    ConsumerBase::freeBufferLocked(slotIndex);
 }
 
 } // namespace android
