@@ -602,7 +602,7 @@ private:
             std::vector<OccupancyTracker::Segment>&& history);
     void dumpBufferingStats(String8& result) const;
     void dumpWideColorInfo(String8& result) const;
-    LayersProto dumpProtoInfo() const;
+    LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
