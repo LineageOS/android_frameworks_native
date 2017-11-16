@@ -3,6 +3,7 @@
 
 #include <gui/IGraphicBufferProducer.h>
 #include <private/dvr/buffer_hub_queue_client.h>
+#include <private/dvr/buffer_hub_queue_parcelable.h>
 
 namespace android {
 namespace dvr {
@@ -17,13 +18,15 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
   // that.
   static constexpr int kDefaultUndequeuedBuffers = 1;
 
-  // Create a BufferHubQueueProducer instance by creating a new producer queue.
-  static sp<BufferHubQueueProducer> Create();
-
-  // Create a BufferHubQueueProducer instance by importing an existing prodcuer
+  // Creates a BufferHubQueueProducer instance by importing an existing prodcuer
   // queue.
   static sp<BufferHubQueueProducer> Create(
       const std::shared_ptr<ProducerQueue>& producer);
+
+  // Creates a BufferHubQueueProducer instance by importing an existing prodcuer
+  // parcelable. Note that this call takes the ownership of the parcelable
+  // object and is guaranteed to succeed if parcelable object is valid.
+  static sp<BufferHubQueueProducer> Create(ProducerQueueParcelable parcelable);
 
   // See |IGraphicBufferProducer::requestBuffer|
   status_t requestBuffer(int slot, sp<GraphicBuffer>* buf) override;
@@ -114,6 +117,14 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
 
   // See |IGraphicBufferProducer::getConsumerUsage|
   status_t getConsumerUsage(uint64_t* out_usage) const override;
+
+  // Takes out the current producer as a binder parcelable object. Note that the
+  // producer must be disconnected to be exportable. After successful export,
+  // the producer queue can no longer be connected again. Returns NO_ERROR when
+  // takeout is successful and out_parcelable will hold the new parcelable
+  // object. Also note that out_parcelable cannot be NULL and must points to an
+  // invalid parcelable.
+  status_t TakeAsParcelable(ProducerQueueParcelable* out_parcelable);
 
  private:
   using LocalHandle = pdx::LocalHandle;

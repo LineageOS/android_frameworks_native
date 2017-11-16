@@ -9,16 +9,6 @@ namespace android {
 namespace dvr {
 
 /* static */
-sp<BufferHubQueueProducer> BufferHubQueueProducer::Create() {
-  sp<BufferHubQueueProducer> producer = new BufferHubQueueProducer;
-  auto config = ProducerQueueConfigBuilder()
-                    .SetMetadata<DvrNativeBufferMetadata>()
-                    .Build();
-  producer->queue_ = ProducerQueue::Create(config, UsagePolicy{});
-  return producer;
-}
-
-/* static */
 sp<BufferHubQueueProducer> BufferHubQueueProducer::Create(
     const std::shared_ptr<ProducerQueue>& queue) {
   if (queue->metadata_size() != sizeof(DvrNativeBufferMetadata)) {
@@ -30,6 +20,19 @@ sp<BufferHubQueueProducer> BufferHubQueueProducer::Create(
 
   sp<BufferHubQueueProducer> producer = new BufferHubQueueProducer;
   producer->queue_ = queue;
+  return producer;
+}
+
+/* static */
+sp<BufferHubQueueProducer> BufferHubQueueProducer::Create(
+    ProducerQueueParcelable parcelable) {
+  if (!parcelable.IsValid()) {
+    ALOGE("BufferHubQueueProducer::Create: Invalid producer parcelable.");
+    return nullptr;
+  }
+
+  sp<BufferHubQueueProducer> producer = new BufferHubQueueProducer;
+  producer->queue_ = ProducerQueue::Import(parcelable.TakeChannelHandle());
   return producer;
 }
 
@@ -475,6 +478,13 @@ status_t BufferHubQueueProducer::connect(
     return BAD_VALUE;
   }
 
+  if (!queue_->is_connected()) {
+    ALOGE(
+        "BufferHubQueueProducer::connect: This BufferHubQueueProducer is not "
+        "connected to bufferhud. Has it been taken out as a parcelable?");
+    return BAD_VALUE;
+  }
+
   switch (api) {
     case NATIVE_WINDOW_API_EGL:
     case NATIVE_WINDOW_API_CPU:
@@ -614,6 +624,39 @@ status_t BufferHubQueueProducer::getConsumerUsage(uint64_t* out_usage) const {
 
   // same value as returned by querying NATIVE_WINDOW_CONSUMER_USAGE_BITS
   *out_usage = 0;
+  return NO_ERROR;
+}
+
+status_t BufferHubQueueProducer::TakeAsParcelable(
+    ProducerQueueParcelable* out_parcelable) {
+  if (!out_parcelable || out_parcelable->IsValid())
+    return BAD_VALUE;
+
+  if (connected_api_ != kNoConnectedApi) {
+    ALOGE(
+        "BufferHubQueueProducer::TakeAsParcelable: BufferHubQueueProducer has "
+        "connected client. Must disconnect first.");
+    return BAD_VALUE;
+  }
+
+  if (!queue_->is_connected()) {
+    ALOGE(
+        "BufferHubQueueProducer::TakeAsParcelable: This BufferHubQueueProducer "
+        "is not connected to bufferhud. Has it been taken out as a "
+        "parcelable?");
+    return BAD_VALUE;
+  }
+
+  auto status = queue_->TakeAsParcelable();
+  if (!status) {
+    ALOGE(
+        "BufferHubQueueProducer::TakeAsParcelable: Failed to take out "
+        "ProducuerQueueParcelable from the producer queue, error: %s.",
+        status.GetErrorMessage().c_str());
+    return BAD_VALUE;
+  }
+
+  *out_parcelable = status.take();
   return NO_ERROR;
 }
 
