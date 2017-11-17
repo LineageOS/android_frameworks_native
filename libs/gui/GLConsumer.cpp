@@ -758,25 +758,6 @@ status_t GLConsumer::syncForReleaseLocked(EGLDisplay dpy) {
     return OK;
 }
 
-bool GLConsumer::isExternalFormat(PixelFormat format)
-{
-    switch (format) {
-    // supported YUV formats
-    case HAL_PIXEL_FORMAT_YV12:
-    // Legacy/deprecated YUV formats
-    case HAL_PIXEL_FORMAT_YCbCr_422_SP:
-    case HAL_PIXEL_FORMAT_YCrCb_420_SP:
-    case HAL_PIXEL_FORMAT_YCbCr_422_I:
-        return true;
-    }
-
-    // Any OEM format needs to be considered
-    if (format>=0x100 && format<=0x1FF)
-        return true;
-
-    return false;
-}
-
 uint32_t GLConsumer::getCurrentTextureTarget() const {
     return mTexTarget;
 }
@@ -1004,11 +985,6 @@ sp<Fence> GLConsumer::getCurrentFence() const {
 std::shared_ptr<FenceTime> GLConsumer::getCurrentFenceTime() const {
     Mutex::Autolock lock(mMutex);
     return mCurrentFenceTime;
-}
-
-status_t GLConsumer::doGLFenceWait() const {
-    Mutex::Autolock lock(mMutex);
-    return doGLFenceWaitLocked();
 }
 
 status_t GLConsumer::doGLFenceWaitLocked() const {

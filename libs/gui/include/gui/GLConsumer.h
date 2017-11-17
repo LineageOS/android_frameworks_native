@@ -197,11 +197,6 @@ public:
     // buffer is ready to be read from.
     std::shared_ptr<FenceTime> getCurrentFenceTime() const;
 
-    // doGLFenceWait inserts a wait command into the OpenGL ES command stream
-    // to ensure that it is safe for future OpenGL ES commands to access the
-    // current texture buffer.
-    status_t doGLFenceWait() const;
-
     // setConsumerUsageBits overrides the ConsumerBase method to OR
     // DEFAULT_USAGE_FLAGS to usage.
     status_t setConsumerUsageBits(uint64_t usage);
@@ -258,8 +253,6 @@ protected:
             const sp<GraphicBuffer> graphicBuffer, EGLSyncKHR eglFence) {
         return releaseBufferLocked(slot, graphicBuffer, mEglDisplay, eglFence);
     }
-
-    static bool isExternalFormat(PixelFormat format);
 
     struct PendingRelease {
         PendingRelease() : isPending(false), currentTexture(-1),
