@@ -43,7 +43,11 @@
 // a given process. this limitation exists because we need to have
 // a static function for each extension and currently these static functions
 // are generated at compile time.
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+#define MAX_NUMBER_OF_GL_EXTENSIONS 768
+#else
 #define MAX_NUMBER_OF_GL_EXTENSIONS 256
+#endif
 
 
 #include <bionic_tls.h>  /* special private C library header */
