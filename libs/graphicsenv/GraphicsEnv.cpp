@@ -22,6 +22,7 @@
 
 #include <log/log.h>
 #include <nativeloader/dlext_namespaces.h>
+#include <nativeloader/native_loader.h>
 
 // TODO(b/37049319) Get this from a header once one exists
 extern "C" {
@@ -43,6 +44,32 @@ void GraphicsEnv::setDriverPath(const std::string path) {
     }
     ALOGV("setting driver path to '%s'", path.c_str());
     mDriverPath = path;
+}
+
+void GraphicsEnv::setLayerPaths(android_namespace_t* appNamespace, const std::string layerPaths) {
+    if (mLayerPaths.empty()) {
+        mLayerPaths = layerPaths;
+        mAppNamespace = appNamespace;
+    } else {
+        ALOGV("Vulkan layer search path already set, not clobbering with '%s' for namespace %p'",
+                layerPaths.c_str(), appNamespace);
+    }
+}
+
+android_namespace_t* GraphicsEnv::getAppNamespace() {
+    return mAppNamespace;
+}
+
+const std::string GraphicsEnv::getLayerPaths(){
+    return mLayerPaths;
+}
+
+const std::string GraphicsEnv::getDebugLayers() {
+    return mDebugLayers;
+}
+
+void GraphicsEnv::setDebugLayers(const std::string layers) {
+    mDebugLayers = layers;
 }
 
 android_namespace_t* GraphicsEnv::getDriverNamespace() {
