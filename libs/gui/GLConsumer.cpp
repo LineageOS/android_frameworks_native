@@ -31,6 +31,8 @@
 
 #include <hardware/hardware.h>
 
+#include <math/mat4.h>
+
 #include <gui/BufferItem.h>
 #include <gui/GLConsumer.h>
 #include <gui/ISurfaceComposer.h>
@@ -75,33 +77,7 @@ static const struct {
     "_______________"
 };
 
-// Transform matrices
-static float mtxIdentity[16] = {
-    1, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 1, 0,
-    0, 0, 0, 1,
-};
-static float mtxFlipH[16] = {
-    -1, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 1, 0,
-    1, 0, 0, 1,
-};
-static float mtxFlipV[16] = {
-    1, 0, 0, 0,
-    0, -1, 0, 0,
-    0, 0, 1, 0,
-    0, 1, 0, 1,
-};
-static float mtxRot90[16] = {
-    0, 1, 0, 0,
-    -1, 0, 0, 0,
-    0, 0, 1, 0,
-    1, 0, 0, 1,
-};
-
-static void mtxMul(float out[16], const float a[16], const float b[16]);
+static const mat4 mtxIdentity;
 
 Mutex GLConsumer::sStaticInitLock;
 sp<GraphicBuffer> GLConsumer::sReleasedTexImageBuffer;
@@ -173,7 +149,7 @@ GLConsumer::GLConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex,
 {
     GLC_LOGV("GLConsumer");
 
-    memcpy(mCurrentTransformMatrix, mtxIdentity,
+    memcpy(mCurrentTransformMatrix, mtxIdentity.asArray(),
             sizeof(mCurrentTransformMatrix));
 
     mConsumer->setConsumerUsageBits(DEFAULT_USAGE_FLAGS);
@@ -202,7 +178,7 @@ GLConsumer::GLConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t texTarget,
 {
     GLC_LOGV("GLConsumer");
 
-    memcpy(mCurrentTransformMatrix, mtxIdentity,
+    memcpy(mCurrentTransformMatrix, mtxIdentity.asArray(),
             sizeof(mCurrentTransformMatrix));
 
     mConsumer->setConsumerUsageBits(DEFAULT_USAGE_FLAGS);
@@ -801,34 +777,37 @@ void GLConsumer::computeCurrentTransformMatrixLocked() {
 void GLConsumer::computeTransformMatrix(float outTransform[16],
         const sp<GraphicBuffer>& buf, const Rect& cropRect, uint32_t transform,
         bool filtering) {
+    // Transform matrices
+    static const mat4 mtxFlipH(
+        -1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        1, 0, 0, 1
+    );
+    static const mat4 mtxFlipV(
+        1, 0, 0, 0,
+        0, -1, 0, 0,
+        0, 0, 1, 0,
+        0, 1, 0, 1
+    );
+    static const mat4 mtxRot90(
+        0, 1, 0, 0,
+        -1, 0, 0, 0,
+        0, 0, 1, 0,
+        1, 0, 0, 1
+    );
 
-    float xform[16];
-    for (int i = 0; i < 16; i++) {
-        xform[i] = mtxIdentity[i];
-    }
+    mat4 xform;
     if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_H) {
-        float result[16];
-        mtxMul(result, xform, mtxFlipH);
-        for (int i = 0; i < 16; i++) {
-            xform[i] = result[i];
-        }
+        xform *= mtxFlipH;
     }
     if (transform & NATIVE_WINDOW_TRANSFORM_FLIP_V) {
-        float result[16];
-        mtxMul(result, xform, mtxFlipV);
-        for (int i = 0; i < 16; i++) {
-            xform[i] = result[i];
-        }
+        xform *= mtxFlipV;
     }
     if (transform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
-        float result[16];
-        mtxMul(result, xform, mtxRot90);
-        for (int i = 0; i < 16; i++) {
-            xform[i] = result[i];
-        }
+        xform *= mtxRot90;
     }
 
-    float mtxBeforeFlipV[16];
     if (!cropRect.isEmpty()) {
         float tx = 0.0f, ty = 0.0f, sx = 1.0f, sy = 1.0f;
         float bufferWidth = buf->getWidth();
@@ -874,25 +853,23 @@ void GLConsumer::computeTransformMatrix(float outTransform[16],
             sy = (float(cropRect.height()) - (2.0f * shrinkAmount)) /
                     bufferHeight;
         }
-        float crop[16] = {
+
+        mat4 crop(
             sx, 0, 0, 0,
             0, sy, 0, 0,
             0, 0, 1, 0,
-            tx, ty, 0, 1,
-        };
-
-        mtxMul(mtxBeforeFlipV, crop, xform);
-    } else {
-        for (int i = 0; i < 16; i++) {
-            mtxBeforeFlipV[i] = xform[i];
-        }
+            tx, ty, 0, 1
+        );
+        xform = crop * xform;
     }
 
     // SurfaceFlinger expects the top of its window textures to be at a Y
     // coordinate of 0, so GLConsumer must behave the same way.  We don't
     // want to expose this to applications, however, so we must add an
     // additional vertical flip to the transform after all the other transforms.
-    mtxMul(outTransform, mtxFlipV, mtxBeforeFlipV);
+    xform = mtxFlipV * xform;
+
+    memcpy(outTransform, xform.asArray(), sizeof(xform));
 }
 
 nsecs_t GLConsumer::getTimestamp() {
@@ -1076,28 +1053,6 @@ void GLConsumer::dumpLocked(String8& result, const char* prefix) const
        mCurrentTransform);
 
     ConsumerBase::dumpLocked(result, prefix);
-}
-
-static void mtxMul(float out[16], const float a[16], const float b[16]) {
-    out[0] = a[0]*b[0] + a[4]*b[1] + a[8]*b[2] + a[12]*b[3];
-    out[1] = a[1]*b[0] + a[5]*b[1] + a[9]*b[2] + a[13]*b[3];
-    out[2] = a[2]*b[0] + a[6]*b[1] + a[10]*b[2] + a[14]*b[3];
-    out[3] = a[3]*b[0] + a[7]*b[1] + a[11]*b[2] + a[15]*b[3];
-
-    out[4] = a[0]*b[4] + a[4]*b[5] + a[8]*b[6] + a[12]*b[7];
-    out[5] = a[1]*b[4] + a[5]*b[5] + a[9]*b[6] + a[13]*b[7];
-    out[6] = a[2]*b[4] + a[6]*b[5] + a[10]*b[6] + a[14]*b[7];
-    out[7] = a[3]*b[4] + a[7]*b[5] + a[11]*b[6] + a[15]*b[7];
-
-    out[8] = a[0]*b[8] + a[4]*b[9] + a[8]*b[10] + a[12]*b[11];
-    out[9] = a[1]*b[8] + a[5]*b[9] + a[9]*b[10] + a[13]*b[11];
-    out[10] = a[2]*b[8] + a[6]*b[9] + a[10]*b[10] + a[14]*b[11];
-    out[11] = a[3]*b[8] + a[7]*b[9] + a[11]*b[10] + a[15]*b[11];
-
-    out[12] = a[0]*b[12] + a[4]*b[13] + a[8]*b[14] + a[12]*b[15];
-    out[13] = a[1]*b[12] + a[5]*b[13] + a[9]*b[14] + a[13]*b[15];
-    out[14] = a[2]*b[12] + a[6]*b[13] + a[10]*b[14] + a[14]*b[15];
-    out[15] = a[3]*b[12] + a[7]*b[13] + a[11]*b[14] + a[15]*b[15];
 }
 
 GLConsumer::EglImage::EglImage(sp<GraphicBuffer> graphicBuffer) :
