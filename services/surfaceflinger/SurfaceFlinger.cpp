@@ -647,6 +647,7 @@ void SurfaceFlinger::init() {
 
     // set initial conditions (e.g. unblank default device)
     initializeDisplays();
+    ALOGV("Displays initialized");
 
     getBE().mRenderEngine->primeCache();
 
@@ -1971,6 +1972,18 @@ void SurfaceFlinger::setUpHWComposer() {
 
     mPreviousColorMatrix = colorMatrix;
 
+    for (size_t dpy = 0; dpy < mDisplays.size(); dpy++) {
+        sp<const DisplayDevice> displayDevice(mDisplays[dpy]);
+        const auto hwcId = displayDevice->getHwcDisplayId();
+        if (hwcId >= 0) {
+            const Vector<sp<Layer>>& currentLayers(
+                    displayDevice->getVisibleLayersSortedByZ());
+            for (auto& layer : currentLayers) {
+                layer->configureHwcLayer(displayDevice);
+            }
+        }
+    }
+
     for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
         auto& displayDevice = mDisplays[displayId];
         if (!displayDevice->isDisplayOn()) {
@@ -2762,6 +2775,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
     }
 
     bool hasClientComposition = getBE().mHwc->hasClientComposition(hwcId);
+    ATRACE_INT("hasClientComposition", hasClientComposition);
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
 
@@ -4871,7 +4885,6 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& hw, 
 }
 
 }; // namespace android
-
 
 #if defined(__gl_h_)
 #error "don't include gl/gl.h in this file"

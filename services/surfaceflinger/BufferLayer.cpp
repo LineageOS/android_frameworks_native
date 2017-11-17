@@ -593,32 +593,14 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
     const auto& viewport = displayDevice->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
     auto hwcId = displayDevice->getHwcDisplayId();
-    auto& hwcInfo = getBE().mHwcLayers[hwcId];
-    auto& hwcLayer = hwcInfo.layer;
-    auto error = (*hwcLayer)->setVisibleRegion(visible);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        visible.dump(LOG_TAG);
-    }
 
-    error = (*hwcLayer)->setSurfaceDamage(surfaceDamageRegion);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set surface damage: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        surfaceDamageRegion.dump(LOG_TAG);
-    }
+    getBE().compositionInfo.hwc.visibleRegion = visible;
+    getBE().compositionInfo.hwc.surfaceDamage = surfaceDamageRegion;
 
     // Sideband layers
     if (getBE().compositionInfo.hwc.sidebandStream.get()) {
         setCompositionType(hwcId, HWC2::Composition::Sideband);
-        ALOGV("[%s] Requesting Sideband composition", mName.string());
-        error = (*hwcLayer)->setSidebandStream(getBE().compositionInfo.hwc.sidebandStream->handle());
-        if (error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
-                  getBE().compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
-                  static_cast<int32_t>(error));
-        }
+        getBE().compositionInfo.compositionType = HWC2::Composition::Sideband;
         return;
     }
 
@@ -631,32 +613,13 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
         setCompositionType(hwcId, HWC2::Composition::Device);
     }
 
-    ALOGV("setPerFrameData: dataspace = %d", mDrawingState.dataSpace);
-    error = (*hwcLayer)->setDataspace(mDrawingState.dataSpace);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mDrawingState.dataSpace,
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
-    const HdrMetadata& metadata = mConsumer->getCurrentHdrMetadata();
-    error = (*hwcLayer)->setHdrMetadata(metadata);
-    if (error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
-        ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
-    uint32_t hwcSlot = 0;
-    sp<GraphicBuffer> hwcBuffer;
-    getBE().mHwcLayers[hwcId].bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot,
-                                                       &hwcBuffer);
+    getBE().compositionInfo.hwc.dataspace = mDrawingState.dataSpace;
+    getBE().compositionInfo.hwc.hdrMetadata = mConsumer->getCurrentHdrMetadata();
 
     auto acquireFence = mConsumer->getCurrentFence();
-    error = (*hwcLayer)->setBuffer(hwcSlot, hwcBuffer, acquireFence);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
-              getBE().compositionInfo.mBuffer->handle, to_string(error).c_str(),
-              static_cast<int32_t>(error));
-    }
+    getBE().compositionInfo.mBufferSlot = mActiveBufferSlot;
+    getBE().compositionInfo.mBuffer = mActiveBuffer;
+    getBE().compositionInfo.hwc.fence = acquireFence;
 }
 
 bool BufferLayer::isOpaque(const Layer::State& s) const {

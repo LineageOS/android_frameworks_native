@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <gui/HdrMetadata.h>
 #include <ui/Region.h>
 
 #include "SurfaceFlinger.h"
@@ -80,6 +81,7 @@ struct CompositionInfo {
         sp<NativeHandle> sidebandStream;
         android_dataspace dataspace;
         hwc_color_t color;
+        HdrMetadata hdrMetadata;
     } hwc;
     struct {
         Mesh* mesh;
