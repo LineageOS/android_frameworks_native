@@ -100,6 +100,13 @@ cc_defaults {
             exclude_shared_libs: ["libgraphicsenv"],
         },
     },
+    product_variables: {
+        lineage: {
+            uses_nvidia_enhancements: {
+                cppflags: ["-DNV_ANDROID_FRAMEWORK_ENHANCEMENTS"],
+            },
+        },
+    },
 }
 
 cc_library_static {
