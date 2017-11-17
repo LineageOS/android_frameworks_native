@@ -37,7 +37,7 @@ public:
     void traceLayers(const char* where, LayersProto);
 
 private:
-    static constexpr auto DEFAULT_FILENAME = "/data/misc/trace/layerstrace.pb";
+    static constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/layers_trace.pb";
 
     status_t writeProtoFileLocked();
 

@@ -81,6 +81,7 @@ void add_mountinfo();
 #define PROFILE_DATA_DIR_CUR "/data/misc/profiles/cur"
 #define PROFILE_DATA_DIR_REF "/data/misc/profiles/ref"
 #define WLUTIL "/vendor/xbin/wlutil"
+#define WMTRACE_DATA_DIR "/data/misc/wmtrace"
 
 // TODO(narayan): Since this information has to be kept in sync
 // with tombstoned, we should just put it in a common header.
@@ -1209,6 +1210,11 @@ static void dumpstate() {
     DumpFile("BINDER TRANSACTIONS", "/sys/kernel/debug/binder/transactions");
     DumpFile("BINDER STATS", "/sys/kernel/debug/binder/stats");
     DumpFile("BINDER STATE", "/sys/kernel/debug/binder/state");
+
+    /* Add window and surface trace files. */
+    if (!PropertiesHelper::IsUserBuild()) {
+        ds.AddDir(WMTRACE_DATA_DIR, false);
+    }
 
     ds.DumpstateBoard();
 
