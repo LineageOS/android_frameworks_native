@@ -87,6 +87,7 @@ cc_defaults {
     defaults: ["gl_libs_defaults"],
     cflags: [
         "-DLOG_TAG=\"libEGL\"",
+        "-DNV_ANDROID_FRAMEWORK_ENHANCEMENTS",
     ],
     shared_libs: [
         // ***** DO NOT ADD NEW DEPENDENCIES HERE *****
