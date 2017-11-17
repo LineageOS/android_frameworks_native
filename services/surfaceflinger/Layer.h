@@ -31,6 +31,7 @@
 
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
+#include <gui/BufferQueue.h>
 
 #include <list>
 
@@ -66,14 +67,36 @@ class LayerBE;
 
 // ---------------------------------------------------------------------------
 
+struct CompositionInfo {
+    HWC2::Composition compositionType;
+    sp<GraphicBuffer> mBuffer = nullptr;
+    int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
+    struct {
+        HWComposer* hwc;
+        sp<Fence> fence;
+        HWC2::BlendMode blendMode;
+        Rect displayFrame;
+        float alpha;
+        FloatRect sourceCrop;
+        HWC2::Transform transform;
+        int z;
+        int type;
+        int appId;
+        Region visibleRegion;
+        Region surfaceDamage;
+        sp<NativeHandle> sidebandStream;
+        android_dataspace dataspace;
+        hwc_color_t color;
+    } hwc;
+    struct {
+        RenderEngine* renderEngine;
+        Mesh* mesh;
+    } renderEngine;
+};
+
 class LayerBE {
 public:
     LayerBE();
-
-    // main thread
-    int mBufferSlot;
-    sp<GraphicBuffer> mBuffer;
-    sp<NativeHandle> mSidebandStream;
 
     // The mesh used to draw the layer in GLES composition mode
     Mesh mMesh;
@@ -102,6 +125,8 @@ public:
     // case we need to keep track. In non-mirror mode, a layer will have only one
     // HWCInfo. This map key is a display layerStack.
     std::unordered_map<int32_t, HWCInfo> mHwcLayers;
+
+    CompositionInfo compositionInfo;
 };
 
 class Layer : public virtual RefBase {
@@ -339,6 +364,7 @@ public:
     void forceClientComposition(int32_t hwcId);
     bool getForceClientComposition(int32_t hwcId);
     virtual void setPerFrameData(const sp<const DisplayDevice>& displayDevice) = 0;
+    void setUpFrameBuffer(const sp<const DisplayDevice>& displayDevice);
 
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state
