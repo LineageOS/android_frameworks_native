@@ -62,6 +62,10 @@
 
 #include "FrameRateHelper.h"
 
+#if defined(USES_HWC_SERVICES)
+#include "ExynosHWCService.h"
+#endif
+
 #include <map>
 #include <string>
 
@@ -626,6 +630,10 @@ private:
     nsecs_t mFrameBuckets[NUM_BUCKETS];
     nsecs_t mTotalTime;
     std::atomic<nsecs_t> mLastSwapTime;
+#if defined(USES_HWC_SERVICES)
+    sp<IExynosHWCService> mHwcService;
+    sp<const IExynosHWCService> getHwcService();
+#endif
 
     // Double- vs. triple-buffering stats
     struct BufferingStats {
