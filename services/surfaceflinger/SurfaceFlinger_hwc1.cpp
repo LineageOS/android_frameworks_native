@@ -140,6 +140,9 @@ const String16 sDump("android.permission.DUMP");
 
 // ---------------------------------------------------------------------------
 
+#if defined(USES_HWC_SERVICES)
+static bool notifyPSRExit = true;
+#endif
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
         mTransactionFlags(0),
@@ -172,6 +175,9 @@ SurfaceFlinger::SurfaceFlinger()
         mFrameBuckets(),
         mTotalTime(0),
         mLastSwapTime(0),
+#if defined(USES_HWC_SERVICES)
+        mHwcService(NULL),
+#endif
         mActiveFrameSequence(0)
 {
     ALOGI("SurfaceFlinger is starting");
@@ -204,6 +210,27 @@ SurfaceFlinger::SurfaceFlinger()
     // 90 -> 1, 180 -> 2, 270 -> 3
     mHardwareRotation = property_get_int32("ro.sf.hwrotation", 0) / 90;
 }
+
+#if defined(USES_HWC_SERVICES)
+sp<const IExynosHWCService> SurfaceFlinger::getHwcService()
+{
+    if (mHwcService != NULL)
+        return mHwcService;
+    else {
+        HWComposer& hwc(getHwComposer());
+        if (hwc.initCheck() == NO_ERROR) {
+            sp<IServiceManager> sm = defaultServiceManager();
+            mHwcService =
+                interface_cast<android::IExynosHWCService>(sm->getService(String16("Exynos.HWCService")));
+            if (mHwcService == NULL) {
+                ALOGE("Getting HWCService failed");
+            }
+            return mHwcService;
+        }
+    }
+    return NULL;
+}
+#endif
 
 void SurfaceFlinger::onFirstRef()
 {
@@ -326,6 +353,12 @@ void SurfaceFlinger::bootFinished()
     // formerly we would just kill the process, but we now ask it to exit so it
     // can choose where to stop the animation.
     property_set("service.bootanim.exit", "1");
+
+#if defined(USES_HWC_SERVICES)
+    ALOGD("boot finished. Inform HWC");
+    if (getHwcService() != NULL)
+        mHwcService->setBootFinished();
+#endif
 
     const int LOGTAG_SF_STOP_BOOTANIM = 60110;
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
@@ -919,6 +952,15 @@ void SurfaceFlinger::signalTransaction() {
 }
 
 void SurfaceFlinger::signalLayerUpdate() {
+#ifdef USES_HWC_SERVICES
+    if (notifyPSRExit) {
+        notifyPSRExit = false;
+        if (getHwcService() != NULL)
+            mHwcService->notifyPSRExit();
+        else
+            ALOGE("HWCService::notifyPSRExit failed");
+    }
+#endif
     mEventQueue.invalidate();
 }
 
@@ -1094,6 +1136,9 @@ void SurfaceFlinger::handleMessageRefresh() {
     doDebugFlashRegions();
     doComposition();
     postComposition(refreshStartTime);
+#ifdef USES_HWC_SERVICES
+    notifyPSRExit = true;
+#endif
 }
 
 void SurfaceFlinger::doDebugFlashRegions()
