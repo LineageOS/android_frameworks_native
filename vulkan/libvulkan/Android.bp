@@ -61,7 +61,6 @@ cc_library_shared {
         "layers_extensions.cpp",
         "stubhal.cpp",
         "swapchain.cpp",
-        "vulkan_loader_data.cpp",
     ],
 
     export_header_lib_headers: ["vulkan_headers"],

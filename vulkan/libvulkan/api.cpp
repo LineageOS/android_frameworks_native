@@ -29,13 +29,16 @@
 #include <new>
 #include <utility>
 
+#include <android-base/strings.h>
 #include <cutils/properties.h>
 #include <log/log.h>
 
 #include <vulkan/vk_layer_interface.h>
+#include <graphicsenv/GraphicsEnv.h>
 #include "api.h"
 #include "driver.h"
 #include "layers_extensions.h"
+
 
 namespace vulkan {
 namespace api {
@@ -121,15 +124,33 @@ class OverrideLayerNames {
         if (!is_instance_ || !driver::Debuggable())
             return;
 
-        ParseDebugVulkanLayers();
-        property_list(ParseDebugVulkanLayer, this);
+        GetLayersFromSettings();
 
-        // sort by priorities
-        auto& arr = implicit_layers_;
-        std::sort(arr.elements, arr.elements + arr.count,
-                  [](const ImplicitLayer& a, const ImplicitLayer& b) {
-                      return (a.priority < b.priority);
-                  });
+        // If no layers specified via Settings, check legacy properties
+        if (implicit_layers_.count <= 0) {
+            ParseDebugVulkanLayers();
+            property_list(ParseDebugVulkanLayer, this);
+
+            // sort by priorities
+            auto& arr = implicit_layers_;
+            std::sort(arr.elements, arr.elements + arr.count,
+                      [](const ImplicitLayer& a, const ImplicitLayer& b) {
+                          return (a.priority < b.priority);
+                      });
+        }
+    }
+
+    void GetLayersFromSettings() {
+        // These will only be available if conditions are met in GraphicsEnvironemnt
+        // gpu_debug_layers = layer1:layer2:layerN
+        const std::string layers = android::GraphicsEnv::getInstance().getDebugLayers();
+        if (!layers.empty()) {
+            ALOGV("Debug layer list: %s", layers.c_str());
+            std::vector<std::string> paths = android::base::Split(layers, ":");
+            for (uint32_t i = 0; i < paths.size(); i++) {
+                AddImplicitLayer(int(i), paths[i].c_str(), paths[i].length());
+            }
+        }
     }
 
     void ParseDebugVulkanLayers() {
