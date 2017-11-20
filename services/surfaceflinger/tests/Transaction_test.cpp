@@ -258,6 +258,43 @@ protected:
     sp<SurfaceControl> mSyncSurfaceControl;
 };
 
+TEST_F(LayerUpdateTest, RelativesAreNotDetached) {
+    sp<ScreenCapture> sc;
+
+    sp<SurfaceControl> relative = mComposerClient->createSurface(
+            String8("relativeTestSurface"), 10, 10, PIXEL_FORMAT_RGBA_8888, 0);
+    fillSurfaceRGBA8(relative, 10, 10, 10);
+    waitForPostedBuffers();
+
+    Transaction{}.setRelativeLayer(relative, mFGSurfaceControl->getHandle(), 1)
+            .setPosition(relative, 64, 64)
+            .apply();
+
+    {
+        // The relative should be on top of the FG control.
+        ScreenCapture::captureScreen(&sc);
+        sc->checkPixel(64, 64, 10, 10, 10);
+    }
+    Transaction{}.detachChildren(mFGSurfaceControl)
+            .apply();
+
+    {
+        // Nothing should change at this point.
+        ScreenCapture::captureScreen(&sc);
+        sc->checkPixel(64, 64, 10, 10, 10);
+    }
+
+    Transaction{}.hide(relative)
+            .apply();
+
+    {
+        // Ensure that the relative was actually hidden, rather than
+        // being left in the detached but visible state.
+        ScreenCapture::captureScreen(&sc);
+        sc->expectFGColor(64, 64);
+    }
+}
+
 TEST_F(LayerUpdateTest, LayerMoveWorks) {
     sp<ScreenCapture> sc;
     {

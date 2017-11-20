@@ -1573,17 +1573,14 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
 }
 
 bool Layer::detachChildren() {
-    traverseInZOrder(LayerVector::StateSet::Drawing, [this](Layer* child) {
-        if (child == this) {
-            return;
-        }
-
+    for (const sp<Layer>& child : mCurrentChildren) {
         sp<Client> parentClient = mClientRef.promote();
         sp<Client> client(child->mClientRef.promote());
         if (client != nullptr && parentClient != client) {
-            client->detachLayer(child);
+            client->detachLayer(child.get());
+            child->detachChildren();
         }
-    });
+    }
 
     return true;
 }
