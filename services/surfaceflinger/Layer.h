@@ -414,7 +414,7 @@ public:
     // -----------------------------------------------------------------------
 
     bool createHwcLayer(HWComposer* hwc, int32_t hwcId);
-    void destroyHwcLayer(int32_t hwcId);
+    bool destroyHwcLayer(int32_t hwcId);
     void destroyAllHwcLayers();
 
     bool hasHwcLayer(int32_t hwcId) { return mHwcLayers.count(hwcId) > 0; }
