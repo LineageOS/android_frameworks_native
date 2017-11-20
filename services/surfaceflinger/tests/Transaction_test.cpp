@@ -1413,6 +1413,27 @@ TEST_F(ChildLayerTest, NestedChildren) {
     }
 }
 
+TEST_F(ChildLayerTest, ChildLayerRelativeLayer) {
+    sp<SurfaceControl> relative = mComposerClient->createSurface(String8("Relative surface"),
+            128, 128, PIXEL_FORMAT_RGBA_8888, 0);
+    fillSurfaceRGBA8(relative, 255, 255, 255);
+
+    Transaction t;
+    t.setLayer(relative, INT32_MAX)
+            .setRelativeLayer(mChild, relative->getHandle(), 1)
+            .setPosition(mFGSurfaceControl, 0, 0)
+            .apply(true);
+
+    // We expect that the child should have been elevated above our
+    // INT_MAX layer even though it's not a child of it.
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->expectChildColor(0, 0);
+        mCapture->expectChildColor(9, 9);
+        mCapture->checkPixel(10, 10, 255, 255, 255);
+    }
+}
+
 class LayerColorTest : public LayerUpdateTest {
  protected:
     void SetUp() override {
