@@ -401,6 +401,14 @@ const Vector< sp<Layer> >& DisplayDevice::getVisibleLayersSortedByZ() const {
     return mVisibleLayersSortedByZ;
 }
 
+void DisplayDevice::setLayersNeedingFences(const Vector< sp<Layer> >& layers) {
+    mLayersNeedingFences = layers;
+}
+
+const Vector< sp<Layer> >& DisplayDevice::getLayersNeedingFences() const {
+    return mLayersNeedingFences;
+}
+
 Region DisplayDevice::getDirtyRegion(bool repaintEverything) const {
     Region dirty;
     if (repaintEverything) {

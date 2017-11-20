@@ -217,9 +217,6 @@ Layer::~Layer() {
 
 #ifdef USE_HWC2
 void Layer::onLayerDisplayed(const sp<Fence>& releaseFence) {
-    if (mHwcLayers.empty()) {
-        return;
-    }
     mSurfaceFlingerConsumer->setReleaseFence(releaseFence);
 }
 #else
@@ -395,9 +392,9 @@ bool Layer::createHwcLayer(HWComposer* hwc, int32_t hwcId) {
     return true;
 }
 
-void Layer::destroyHwcLayer(int32_t hwcId) {
+bool Layer::destroyHwcLayer(int32_t hwcId) {
     if (mHwcLayers.count(hwcId) == 0) {
-        return;
+        return false;
     }
     auto& hwcInfo = mHwcLayers[hwcId];
     LOG_ALWAYS_FATAL_IF(hwcInfo.layer == nullptr,
@@ -408,6 +405,8 @@ void Layer::destroyHwcLayer(int32_t hwcId) {
     // mHwcLayers. Verify that.
     LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0,
             "Stale layer entry in mHwcLayers");
+
+    return true;
 }
 
 void Layer::destroyAllHwcLayers() {
