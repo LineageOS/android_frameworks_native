@@ -702,6 +702,26 @@ TEST_F(LayerTransactionTest, SetRelativeZBasic) {
     }
 }
 
+TEST_F(LayerTransactionTest, SetRelativeZNegative) {
+    sp<SurfaceControl> layerR;
+    sp<SurfaceControl> layerG;
+    sp<SurfaceControl> layerB;
+    ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+    ASSERT_NO_FATAL_FAILURE(layerB = createLayer("test B", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerB, Color::BLUE));
+
+    // layerR = mLayerZBase, layerG = layerR - 1, layerB = -2
+    Transaction().setRelativeLayer(layerG, layerR->getHandle(), -1).setLayer(layerB, -2).apply();
+
+    sp<ScreenCapture> screenshot;
+    // only layerB is in this range
+    ScreenCapture::captureScreen(&screenshot, -2, -1);
+    screenshot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
+}
+
 TEST_F(LayerTransactionTest, SetRelativeZGroup) {
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;

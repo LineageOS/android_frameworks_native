@@ -4762,7 +4762,8 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& hw, 
             continue;
         }
         const Layer::State& state(layer->getDrawingState());
-        if (state.z < minLayerZ || state.z > maxLayerZ) {
+        // relative layers are traversed in Layer::traverseInZOrder
+        if (state.zOrderRelativeOf != nullptr || state.z < minLayerZ || state.z > maxLayerZ) {
             continue;
         }
         layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
