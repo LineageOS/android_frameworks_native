@@ -72,6 +72,9 @@ public:
             aerr << "Open attempt after active for: " << fullPath << endl;
             return -EPERM;
         }
+#if DEBUG
+        ALOGD("openFile: %s, full=%s", path8.string(), fullPath.string());
+#endif
         int flags = 0;
         bool checkRead = false;
         bool checkWrite = false;
@@ -92,6 +95,9 @@ public:
             return -EINVAL;
         }
         int fd = open(fullPath.string(), flags, S_IRWXU|S_IRWXG);
+#if DEBUG
+        ALOGD("openFile: fd=%d", fd);
+#endif
         if (fd < 0) {
             return fd;
         }
@@ -104,6 +110,9 @@ public:
                 int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
                         "file", "write", NULL);
                 if (accessGranted != 0) {
+#if DEBUG
+                    ALOGD("openFile: failed selinux write check!");
+#endif
                     close(fd);
                     aerr << "System server has no access to write file context " << context.get()
                             << " (from path " << fullPath.string() << ", context "
@@ -115,6 +124,9 @@ public:
                 int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
                         "file", "read", NULL);
                 if (accessGranted != 0) {
+#if DEBUG
+                    ALOGD("openFile: failed selinux read check!");
+#endif
                     close(fd);
                     aerr << "System server has no access to read file context " << context.get()
                             << " (from path " << fullPath.string() << ", context "
@@ -164,6 +176,9 @@ int main(int argc, char* const argv[])
     proc->setThreadPoolMaxThreadCount(0);
     proc->startThreadPool();
 
+#if DEBUG
+    ALOGD("cmd: starting");
+#endif
     sp<IServiceManager> sm = defaultServiceManager();
     fflush(stdout);
     if (sm == NULL) {
