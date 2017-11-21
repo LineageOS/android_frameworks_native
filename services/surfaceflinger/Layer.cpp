@@ -217,9 +217,9 @@ bool Layer::createHwcLayer(HWComposer* hwc, int32_t hwcId) {
     return true;
 }
 
-void Layer::destroyHwcLayer(int32_t hwcId) {
+bool Layer::destroyHwcLayer(int32_t hwcId) {
     if (mHwcLayers.count(hwcId) == 0) {
-        return;
+        return false;
     }
     auto& hwcInfo = mHwcLayers[hwcId];
     LOG_ALWAYS_FATAL_IF(hwcInfo.layer == nullptr, "Attempt to destroy null layer");
@@ -228,6 +228,8 @@ void Layer::destroyHwcLayer(int32_t hwcId) {
     // The layer destroyed listener should have cleared the entry from
     // mHwcLayers. Verify that.
     LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0, "Stale layer entry in mHwcLayers");
+
+    return true;
 }
 
 void Layer::destroyAllHwcLayers() {
@@ -1100,6 +1102,19 @@ bool Layer::setChildLayer(const sp<Layer>& childLayer, int32_t z) {
     return true;
 }
 
+bool Layer::setChildRelativeLayer(const sp<Layer>& childLayer,
+        const sp<IBinder>& relativeToHandle, int32_t relativeZ) {
+    ssize_t idx = mCurrentChildren.indexOf(childLayer);
+    if (idx < 0) {
+        return false;
+    }
+    if (childLayer->setRelativeLayer(relativeToHandle, relativeZ)) {
+        mCurrentChildren.removeAt(idx);
+        mCurrentChildren.add(childLayer);
+    }
+    return true;
+}
+
 bool Layer::setLayer(int32_t z) {
     if (mCurrentState.z == z) return false;
     mCurrentState.sequence++;
@@ -1558,17 +1573,14 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
 }
 
 bool Layer::detachChildren() {
-    traverseInZOrder(LayerVector::StateSet::Drawing, [this](Layer* child) {
-        if (child == this) {
-            return;
-        }
-
+    for (const sp<Layer>& child : mCurrentChildren) {
         sp<Client> parentClient = mClientRef.promote();
         sp<Client> client(child->mClientRef.promote());
         if (client != nullptr && parentClient != client) {
-            client->detachLayer(child);
+            client->detachLayer(child.get());
+            child->detachChildren();
         }
-    });
+    }
 
     return true;
 }
@@ -1601,11 +1613,7 @@ __attribute__((no_sanitize("unsigned-integer-overflow"))) LayerVector Layer::mak
     const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
 
-    if (state.zOrderRelatives.size() == 0) {
-        return children;
-    }
     LayerVector traverse;
-
     for (const wp<Layer>& weakRelative : state.zOrderRelatives) {
         sp<Layer> strongRelative = weakRelative.promote();
         if (strongRelative != nullptr) {
@@ -1614,6 +1622,10 @@ __attribute__((no_sanitize("unsigned-integer-overflow"))) LayerVector Layer::mak
     }
 
     for (const sp<Layer>& child : children) {
+        const State& childState = useDrawing ? child->mDrawingState : child->mCurrentState;
+        if (childState.zOrderRelativeOf != nullptr) {
+            continue;
+        }
         traverse.add(child);
     }
 

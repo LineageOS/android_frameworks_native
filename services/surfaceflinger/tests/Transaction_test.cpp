@@ -258,6 +258,43 @@ protected:
     sp<SurfaceControl> mSyncSurfaceControl;
 };
 
+TEST_F(LayerUpdateTest, RelativesAreNotDetached) {
+    sp<ScreenCapture> sc;
+
+    sp<SurfaceControl> relative = mComposerClient->createSurface(
+            String8("relativeTestSurface"), 10, 10, PIXEL_FORMAT_RGBA_8888, 0);
+    fillSurfaceRGBA8(relative, 10, 10, 10);
+    waitForPostedBuffers();
+
+    Transaction{}.setRelativeLayer(relative, mFGSurfaceControl->getHandle(), 1)
+            .setPosition(relative, 64, 64)
+            .apply();
+
+    {
+        // The relative should be on top of the FG control.
+        ScreenCapture::captureScreen(&sc);
+        sc->checkPixel(64, 64, 10, 10, 10);
+    }
+    Transaction{}.detachChildren(mFGSurfaceControl)
+            .apply();
+
+    {
+        // Nothing should change at this point.
+        ScreenCapture::captureScreen(&sc);
+        sc->checkPixel(64, 64, 10, 10, 10);
+    }
+
+    Transaction{}.hide(relative)
+            .apply();
+
+    {
+        // Ensure that the relative was actually hidden, rather than
+        // being left in the detached but visible state.
+        ScreenCapture::captureScreen(&sc);
+        sc->expectFGColor(64, 64);
+    }
+}
+
 TEST_F(LayerUpdateTest, LayerMoveWorks) {
     sp<ScreenCapture> sc;
     {
@@ -1410,6 +1447,27 @@ TEST_F(ChildLayerTest, NestedChildren) {
         // Expect the grandchild to begin at 64, 64 because it's a child of mChild layer
         // which begins at 64, 64
         mCapture->checkPixel(64, 64, 50, 50, 50);
+    }
+}
+
+TEST_F(ChildLayerTest, ChildLayerRelativeLayer) {
+    sp<SurfaceControl> relative = mComposerClient->createSurface(String8("Relative surface"),
+            128, 128, PIXEL_FORMAT_RGBA_8888, 0);
+    fillSurfaceRGBA8(relative, 255, 255, 255);
+
+    Transaction t;
+    t.setLayer(relative, INT32_MAX)
+            .setRelativeLayer(mChild, relative->getHandle(), 1)
+            .setPosition(mFGSurfaceControl, 0, 0)
+            .apply(true);
+
+    // We expect that the child should have been elevated above our
+    // INT_MAX layer even though it's not a child of it.
+    {
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->expectChildColor(0, 0);
+        mCapture->expectChildColor(9, 9);
+        mCapture->checkPixel(10, 10, 255, 255, 255);
     }
 }
 
