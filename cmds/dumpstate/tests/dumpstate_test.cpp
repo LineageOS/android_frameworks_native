@@ -1001,7 +1001,7 @@ TEST_F(DumpstateUtilTest, RunCommandCrashes) {
         err, StartsWith("stderr\n*** command '" + kSimpleCommand + " --crash' failed: exit code"));
 }
 
-TEST_F(DumpstateUtilTest, RunCommandTimesout) {
+TEST_F(DumpstateUtilTest, RunCommandTimesoutWithSec) {
     CreateFd("RunCommandTimesout.txt");
     EXPECT_EQ(-1, RunCommand("", {kSimpleCommand, "--sleep", "2"},
                              CommandOptions::WithTimeout(1).Build()));
@@ -1010,6 +1010,17 @@ TEST_F(DumpstateUtilTest, RunCommandTimesout) {
     EXPECT_THAT(err, StartsWith("sleeping for 2s\n*** command '" + kSimpleCommand +
                                 " --sleep 2' timed out after 1"));
 }
+
+TEST_F(DumpstateUtilTest, RunCommandTimesoutWithMsec) {
+    CreateFd("RunCommandTimesout.txt");
+    EXPECT_EQ(-1, RunCommand("", {kSimpleCommand, "--sleep", "2"},
+                             CommandOptions::WithTimeoutInMs(1000).Build()));
+    EXPECT_THAT(out, StartsWith("stdout line1\n*** command '" + kSimpleCommand +
+                                " --sleep 2' timed out after 1"));
+    EXPECT_THAT(err, StartsWith("sleeping for 2s\n*** command '" + kSimpleCommand +
+                                " --sleep 2' timed out after 1"));
+}
+
 
 TEST_F(DumpstateUtilTest, RunCommandIsKilled) {
     CreateFd("RunCommandIsKilled.txt");

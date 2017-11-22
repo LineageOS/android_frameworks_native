@@ -299,12 +299,25 @@ TEST_F(DumpsysTest, DumpRunningService) {
 }
 
 // Tests 'dumpsys -t 1 service_name' on a service that times out after 2s
-TEST_F(DumpsysTest, DumpRunningServiceTimeout) {
+TEST_F(DumpsysTest, DumpRunningServiceTimeoutInSec) {
     sp<BinderMock> binder_mock = ExpectDumpAndHang("Valet", 2, "Here's your car");
 
     CallMain({"-t", "1", "Valet"});
 
-    AssertOutputContains("SERVICE 'Valet' DUMP TIMEOUT (1s) EXPIRED");
+    AssertOutputContains("SERVICE 'Valet' DUMP TIMEOUT (1000ms) EXPIRED");
+    AssertNotDumped("Here's your car");
+
+    // TODO(b/65056227): BinderMock is not destructed because thread is detached on dumpsys.cpp
+    Mock::AllowLeak(binder_mock.get());
+}
+
+// Tests 'dumpsys -T 500 service_name' on a service that times out after 2s
+TEST_F(DumpsysTest, DumpRunningServiceTimeoutInMs) {
+    sp<BinderMock> binder_mock = ExpectDumpAndHang("Valet", 2, "Here's your car");
+
+    CallMain({"-T", "500", "Valet"});
+
+    AssertOutputContains("SERVICE 'Valet' DUMP TIMEOUT (500ms) EXPIRED");
     AssertNotDumped("Here's your car");
 
     // TODO(b/65056227): BinderMock is not destructed because thread is detached on dumpsys.cpp

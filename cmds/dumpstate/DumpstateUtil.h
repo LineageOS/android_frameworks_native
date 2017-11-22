@@ -19,6 +19,16 @@
 #include <cstdint>
 #include <string>
 
+/*
+ * Converts seconds to milliseconds.
+ */
+#define SEC_TO_MSEC(second) (second * 1000)
+
+/*
+ * Converts milliseconds to seconds.
+ */
+#define MSEC_TO_SEC(millisecond) (millisecond / 1000)
+
 namespace android {
 namespace os {
 namespace dumpstate {
@@ -66,9 +76,9 @@ class CommandOptions {
   private:
     class CommandOptionsValues {
       private:
-        CommandOptionsValues(int64_t timeout);
+        CommandOptionsValues(int64_t timeout_ms);
 
-        int64_t timeout_;
+        int64_t timeout_ms_;
         bool always_;
         PrivilegeMode account_mode_;
         OutputMode output_mode_;
@@ -102,13 +112,15 @@ class CommandOptions {
         CommandOptions Build();
 
       private:
-        CommandOptionsBuilder(int64_t timeout);
+        CommandOptionsBuilder(int64_t timeout_ms);
         CommandOptionsValues values;
         friend class CommandOptions;
     };
 
-    /** Gets the command timeout, in seconds. */
+    /** Gets the command timeout in seconds. */
     int64_t Timeout() const;
+    /** Gets the command timeout in milliseconds. */
+    int64_t TimeoutInMs() const;
     /* Checks whether the command should always be run, even on dry-run mode. */
     bool Always() const;
     /** Gets the PrivilegeMode of the command. */
@@ -118,8 +130,11 @@ class CommandOptions {
     /** Gets the logging message header, it any. */
     std::string LoggingMessage() const;
 
-    /** Creates a builder with the requied timeout. */
-    static CommandOptionsBuilder WithTimeout(int64_t timeout);
+    /** Creates a builder with the requied timeout in seconds. */
+    static CommandOptionsBuilder WithTimeout(int64_t timeout_sec);
+
+    /** Creates a builder with the requied timeout in milliseconds. */
+    static CommandOptionsBuilder WithTimeoutInMs(int64_t timeout_ms);
 
     // Common options.
     static CommandOptions DEFAULT;

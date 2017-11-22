@@ -43,7 +43,7 @@ namespace {
 
 static constexpr const char* kSuPath = "/system/xbin/su";
 
-static bool waitpid_with_timeout(pid_t pid, int timeout_seconds, int* status) {
+static bool waitpid_with_timeout(pid_t pid, int timeout_ms, int* status) {
     sigset_t child_mask, old_mask;
     sigemptyset(&child_mask);
     sigaddset(&child_mask, SIGCHLD);
@@ -54,10 +54,11 @@ static bool waitpid_with_timeout(pid_t pid, int timeout_seconds, int* status) {
     }
 
     timespec ts;
-    ts.tv_sec = timeout_seconds;
-    ts.tv_nsec = 0;
+    ts.tv_sec = MSEC_TO_SEC(timeout_ms);
+    ts.tv_nsec = (timeout_ms % 1000) * 1000000;
     int ret = TEMP_FAILURE_RETRY(sigtimedwait(&child_mask, NULL, &ts));
     int saved_errno = errno;
+
     // Set the signals back the way they were.
     if (sigprocmask(SIG_SETMASK, &old_mask, NULL) == -1) {
         printf("*** sigprocmask failed: %s\n", strerror(errno));
@@ -91,7 +92,7 @@ static bool waitpid_with_timeout(pid_t pid, int timeout_seconds, int* status) {
 CommandOptions CommandOptions::DEFAULT = CommandOptions::WithTimeout(10).Build();
 CommandOptions CommandOptions::AS_ROOT = CommandOptions::WithTimeout(10).AsRoot().Build();
 
-CommandOptions::CommandOptionsBuilder::CommandOptionsBuilder(int64_t timeout) : values(timeout) {
+CommandOptions::CommandOptionsBuilder::CommandOptionsBuilder(int64_t timeout_ms) : values(timeout_ms) {
 }
 
 CommandOptions::CommandOptionsBuilder& CommandOptions::CommandOptionsBuilder::Always() {
@@ -130,8 +131,8 @@ CommandOptions CommandOptions::CommandOptionsBuilder::Build() {
     return CommandOptions(values);
 }
 
-CommandOptions::CommandOptionsValues::CommandOptionsValues(int64_t timeout)
-    : timeout_(timeout),
+CommandOptions::CommandOptionsValues::CommandOptionsValues(int64_t timeout_ms)
+    : timeout_ms_(timeout_ms),
       always_(false),
       account_mode_(DONT_DROP_ROOT),
       output_mode_(NORMAL_OUTPUT),
@@ -142,7 +143,11 @@ CommandOptions::CommandOptions(const CommandOptionsValues& values) : values(valu
 }
 
 int64_t CommandOptions::Timeout() const {
-    return values.timeout_;
+    return MSEC_TO_SEC(values.timeout_ms_);
+}
+
+int64_t CommandOptions::TimeoutInMs() const {
+    return values.timeout_ms_;
 }
 
 bool CommandOptions::Always() const {
@@ -161,8 +166,12 @@ std::string CommandOptions::LoggingMessage() const {
     return values.logging_message_;
 }
 
-CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(int64_t timeout) {
-    return CommandOptions::CommandOptionsBuilder(timeout);
+CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeout(int64_t timeout_sec) {
+    return CommandOptions::CommandOptionsBuilder(SEC_TO_MSEC(timeout_sec));
+}
+
+CommandOptions::CommandOptionsBuilder CommandOptions::WithTimeoutInMs(int64_t timeout_ms) {
+    return CommandOptions::CommandOptionsBuilder(timeout_ms);
 }
 
 std::string PropertiesHelper::build_type_ = "";
@@ -314,7 +323,7 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
 
     /* handle parent case */
     int status;
-    bool ret = waitpid_with_timeout(pid, options.Timeout(), &status);
+    bool ret = waitpid_with_timeout(pid, options.TimeoutInMs(), &status);
     fsync(fd);
 
     uint64_t elapsed = Nanotime() - start;
@@ -333,9 +342,9 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
                    static_cast<float>(elapsed) / NANOS_PER_SEC, pid);
         }
         kill(pid, SIGTERM);
-        if (!waitpid_with_timeout(pid, 5, nullptr)) {
+        if (!waitpid_with_timeout(pid, 5000, nullptr)) {
             kill(pid, SIGKILL);
-            if (!waitpid_with_timeout(pid, 5, nullptr)) {
+            if (!waitpid_with_timeout(pid, 5000, nullptr)) {
                 if (!silent)
                     dprintf(fd, "could not kill command '%s' (pid %d) even with SIGKILL.\n",
                             command, pid);
