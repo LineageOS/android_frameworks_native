@@ -31,6 +31,9 @@ cc_test {
         "libtrace_proto",
         "libgmock"
     ],
+    cppflags: [
+        "-std=c++1z",
+    ],
     tags: ["tests"],
     test_suites: ["device-tests"]
 }

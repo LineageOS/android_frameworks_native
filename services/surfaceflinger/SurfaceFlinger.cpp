@@ -649,7 +649,8 @@ void SurfaceFlinger::init() {
             postMessageAsync(message);
         };
         mVrFlinger = dvr::VrFlinger::Create(mHwc->getComposer(),
-                                            vrFlingerRequestDisplayCallback);
+                mHwc->getHwcDisplayId(HWC_DISPLAY_PRIMARY).value_or(0),
+                vrFlingerRequestDisplayCallback);
         if (!mVrFlinger) {
             ALOGE("Failed to start vrflinger");
         }
