@@ -109,13 +109,14 @@ void BufferLayer::useEmptyDamage() {
 }
 
 bool BufferLayer::isProtected() const {
-    const sp<GraphicBuffer>& activeBuffer(mActiveBuffer);
-    return (activeBuffer != 0) && (activeBuffer->getUsage() & GRALLOC_USAGE_PROTECTED);
+    const sp<GraphicBuffer>& buffer(getBE().mBuffer);
+    return (buffer != 0) &&
+            (buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
 }
 
 bool BufferLayer::isVisible() const {
     return !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
-            (mActiveBuffer != NULL || getBE().mSidebandStream != NULL);
+            (getBE().mBuffer != NULL || getBE().mSidebandStream != NULL);
 }
 
 bool BufferLayer::isFixedSize() const {
@@ -171,7 +172,7 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
                          bool useIdentityTransform) const {
     ATRACE_CALL();
 
-    if (CC_UNLIKELY(mActiveBuffer == 0)) {
+    if (CC_UNLIKELY(getBE().mBuffer == 0)) {
         // the texture has not been created yet, this Layer has
         // in fact never been drawn into. This happens frequently with
         // SurfaceView because the WindowManager can't know when the client
@@ -249,8 +250,8 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
         }
 
         // Set things up for texturing.
-        mTexture.setDimensions(mActiveBuffer->getWidth(),
-                               mActiveBuffer->getHeight());
+        mTexture.setDimensions(getBE().mBuffer->getWidth(),
+                               getBE().mBuffer->getHeight());
         mTexture.setFiltering(useFiltering);
         mTexture.setMatrix(textureMatrix);
 
@@ -421,7 +422,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     // Capture the old state of the layer for comparisons later
     const State& s(getDrawingState());
     const bool oldOpacity = isOpaque(s);
-    sp<GraphicBuffer> oldActiveBuffer = mActiveBuffer;
+    sp<GraphicBuffer> oldBuffer = getBE().mBuffer;
 
     if (!allTransactionsSignaled()) {
         mFlinger->signalLayerUpdate();
@@ -498,9 +499,11 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     }
 
     // update the active buffer
-    mActiveBuffer =
-            mSurfaceFlingerConsumer->getCurrentBuffer(&mActiveBufferSlot);
-    if (mActiveBuffer == NULL) {
+    getBE().mBuffer =
+            mSurfaceFlingerConsumer->getCurrentBuffer(&getBE().mBufferSlot);
+    // replicated in LayerBE until FE/BE is ready to be synchronized
+    mActiveBuffer = getBE().mBuffer;
+    if (getBE().mBuffer == NULL) {
         // this can only happen if the very first buffer was rejected.
         return outDirtyRegion;
     }
@@ -516,7 +519,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
 
     mRefreshPending = true;
     mFrameLatencyNeeded = true;
-    if (oldActiveBuffer == NULL) {
+    if (oldBuffer == NULL) {
         // the first time we receive a buffer, we need to trigger a
         // geometry invalidation.
         recomputeVisibleRegions = true;
@@ -536,16 +539,16 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
         recomputeVisibleRegions = true;
     }
 
-    if (oldActiveBuffer != NULL) {
-        uint32_t bufWidth = mActiveBuffer->getWidth();
-        uint32_t bufHeight = mActiveBuffer->getHeight();
-        if (bufWidth != uint32_t(oldActiveBuffer->width) ||
-            bufHeight != uint32_t(oldActiveBuffer->height)) {
+    if (oldBuffer != NULL) {
+        uint32_t bufWidth = getBE().mBuffer->getWidth();
+        uint32_t bufHeight = getBE().mBuffer->getHeight();
+        if (bufWidth != uint32_t(oldBuffer->width) ||
+            bufHeight != uint32_t(oldBuffer->height)) {
             recomputeVisibleRegions = true;
         }
     }
 
-    mCurrentOpacity = getOpacityForFormat(mActiveBuffer->format);
+    mCurrentOpacity = getOpacityForFormat(getBE().mBuffer->format);
     if (oldOpacity != isOpaque(s)) {
         recomputeVisibleRegions = true;
     }
@@ -638,14 +641,14 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
 
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
-    hwcInfo.bufferCache.getHwcBuffer(mActiveBufferSlot,
-                                     mActiveBuffer, &hwcSlot, &hwcBuffer);
+    hwcInfo.bufferCache.getHwcBuffer(getBE().mBufferSlot,
+                                     getBE().mBuffer, &hwcSlot, &hwcBuffer);
 
     auto acquireFence = mSurfaceFlingerConsumer->getCurrentFence();
     error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
-              mActiveBuffer->handle, to_string(error).c_str(),
+              getBE().mBuffer->handle, to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
 }
@@ -653,7 +656,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
 bool BufferLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
-    if ((getBE().mSidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
+    if ((getBE().mSidebandStream == nullptr) && (getBE().mBuffer == nullptr)) {
         return false;
     }
 

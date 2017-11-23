@@ -63,7 +63,9 @@
 namespace android {
 
 LayerBE::LayerBE()
-      : mMesh(Mesh::TRIANGLE_FAN, 4, 2, 2) {
+      : mBufferSlot(BufferQueue::INVALID_BUFFER_SLOT),
+        mBuffer(nullptr),
+        mMesh(Mesh::TRIANGLE_FAN, 4, 2, 2) {
 }
 
 
@@ -255,9 +257,9 @@ Rect Layer::getContentCrop() const {
     if (!mCurrentCrop.isEmpty()) {
         // if the buffer crop is defined, we use that
         crop = mCurrentCrop;
-    } else if (mActiveBuffer != NULL) {
+    } else if (getBE().mBuffer != NULL) {
         // otherwise we use the whole buffer
-        crop = mActiveBuffer->getBounds();
+        crop = getBE().mBuffer->getBounds();
     } else {
         // if we don't have a buffer yet, we use an empty/invalid crop
         crop.makeInvalid();
@@ -1000,7 +1002,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     // to the old buffer. However in the state where we don't have an old buffer
     // there is no such concern but we may still be being used as a parent layer.
     const bool resizePending = ((c.requested.w != c.active.w) || (c.requested.h != c.active.h)) &&
-            (mActiveBuffer != nullptr);
+            (getBE().mBuffer != nullptr);
     if (!isFixedSize()) {
         if (resizePending && getBE().mSidebandStream == NULL) {
             flags |= eDontUpdateGeometryState;
@@ -1399,12 +1401,12 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mMatrix[1][0] = ds.active.transform[1][0];
     info.mMatrix[1][1] = ds.active.transform[1][1];
     {
-        sp<const GraphicBuffer> activeBuffer = getActiveBuffer();
-        if (activeBuffer != 0) {
-            info.mActiveBufferWidth = activeBuffer->getWidth();
-            info.mActiveBufferHeight = activeBuffer->getHeight();
-            info.mActiveBufferStride = activeBuffer->getStride();
-            info.mActiveBufferFormat = activeBuffer->format;
+        sp<const GraphicBuffer> buffer = getBE().mBuffer;
+        if (buffer != 0) {
+            info.mActiveBufferWidth = buffer->getWidth();
+            info.mActiveBufferHeight = buffer->getHeight();
+            info.mActiveBufferStride = buffer->getStride();
+            info.mActiveBufferFormat = buffer->format;
         } else {
             info.mActiveBufferWidth = 0;
             info.mActiveBufferHeight = 0;
@@ -1718,15 +1720,15 @@ Transform Layer::getTransform() const {
         // for in the transform. We need to mirror this scaling in child surfaces
         // or we will break the contract where WM can treat child surfaces as
         // pixels in the parent surface.
-        if (p->isFixedSize() && p->mActiveBuffer != nullptr) {
+        if (p->isFixedSize() && p->getBE().mBuffer != nullptr) {
             int bufferWidth;
             int bufferHeight;
             if ((p->mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) == 0) {
-                bufferWidth = p->mActiveBuffer->getWidth();
-                bufferHeight = p->mActiveBuffer->getHeight();
+                bufferWidth = p->getBE().mBuffer->getWidth();
+                bufferHeight = p->getBE().mBuffer->getHeight();
             } else {
-                bufferHeight = p->mActiveBuffer->getWidth();
-                bufferWidth = p->mActiveBuffer->getHeight();
+                bufferHeight = p->getBE().mBuffer->getWidth();
+                bufferWidth = p->getBE().mBuffer->getHeight();
             }
             float sx = p->getDrawingState().active.w / static_cast<float>(bufferWidth);
             float sy = p->getDrawingState().active.h / static_cast<float>(bufferHeight);
@@ -1826,9 +1828,9 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
         layerInfo->set_z_order_relative_of(zOrderRelativeOf->sequence);
     }
 
-    auto activeBuffer = getActiveBuffer();
-    if (activeBuffer != nullptr) {
-        LayerProtoHelper::writeToProto(activeBuffer, layerInfo->mutable_active_buffer());
+    auto buffer = getBE().mBuffer;
+    if (buffer != nullptr) {
+        LayerProtoHelper::writeToProto(buffer, layerInfo->mutable_active_buffer());
     }
 
     layerInfo->set_queued_frames(getQueuedFrameCount());
