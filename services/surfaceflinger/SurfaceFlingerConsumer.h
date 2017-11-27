@@ -32,33 +32,14 @@ class Layer;
  */
 class SurfaceFlingerConsumer : public BufferLayerConsumer {
 public:
-    static const status_t BUFFER_REJECTED = UNKNOWN_ERROR + 8;
-
     SurfaceFlingerConsumer(const sp<IGraphicBufferConsumer>& consumer,
             uint32_t tex, Layer* layer)
         : BufferLayerConsumer(consumer, tex, layer),
           mTransformToDisplayInverse(false), mSurfaceDamage()
     {}
 
-    class BufferRejecter {
-        friend class SurfaceFlingerConsumer;
-        virtual bool reject(const sp<GraphicBuffer>& buf,
-                const BufferItem& item) = 0;
-
-    protected:
-        virtual ~BufferRejecter() { }
-    };
-
     virtual status_t acquireBufferLocked(BufferItem *item, nsecs_t presentWhen,
             uint64_t maxFrameNumber = 0) override;
-
-    // This version of updateTexImage() takes a functor that may be used to
-    // reject the newly acquired buffer.  Unlike the BufferLayerConsumer version,
-    // this does not guarantee that the buffer has been bound to the GL
-    // texture.
-    status_t updateTexImage(BufferRejecter* rejecter, const DispSync& dispSync,
-            bool* autoRefresh, bool* queuedBuffer,
-            uint64_t maxFrameNumber);
 
     // See BufferLayerConsumer::bindTextureImageLocked().
     status_t bindTextureImage();
@@ -68,11 +49,7 @@ public:
     // must be called from SF main thread
     const Region& getSurfaceDamage() const;
 
-    nsecs_t computeExpectedPresent(const DispSync& dispSync);
-
     sp<Fence> getPrevFinalReleaseFence() const;
-    virtual void setReleaseFence(const sp<Fence>& fence) override;
-    bool releasePendingBuffer();
 
 private:
     // Indicates this buffer must be transformed by the inverse transform of the screen
@@ -82,10 +59,6 @@ private:
 
     // The portion of this surface that has changed since the previous frame
     Region mSurfaceDamage;
-
-    // A release that is pending on the receipt of a new release fence from
-    // presentDisplay
-    PendingRelease mPendingRelease;
 };
 
 // ----------------------------------------------------------------------------

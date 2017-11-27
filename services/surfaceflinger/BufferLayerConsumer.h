@@ -33,6 +33,7 @@
 namespace android {
 // ----------------------------------------------------------------------------
 
+class DispSync;
 class Layer;
 class String8;
 
@@ -54,6 +55,16 @@ class String8;
  */
 class BufferLayerConsumer : public ConsumerBase {
 public:
+    static const status_t BUFFER_REJECTED = UNKNOWN_ERROR + 8;
+
+    class BufferRejecter {
+        friend class BufferLayerConsumer;
+        virtual bool reject(const sp<GraphicBuffer>& buf, const BufferItem& item) = 0;
+
+    protected:
+        virtual ~BufferRejecter() {}
+    };
+
     struct ContentsChangedListener : public FrameAvailableListener {
         virtual void onSidebandStreamChanged() = 0;
     };
@@ -67,6 +78,8 @@ public:
     // ConsumerBase::setFrameAvailableListener().
     void setContentsChangedListener(const wp<ContentsChangedListener>& listener);
 
+    nsecs_t computeExpectedPresent(const DispSync& dispSync);
+
     // updateTexImage acquires the most recently queued buffer, and sets the
     // image contents of the target texture to it.
     //
@@ -74,14 +87,22 @@ public:
     // target texture belongs is bound to the calling thread.
     //
     // This calls doGLFenceWait to ensure proper synchronization.
-    status_t updateTexImage();
+    //
+    // This version of updateTexImage() takes a functor that may be used to
+    // reject the newly acquired buffer.  Unlike the GLConsumer version,
+    // this does not guarantee that the buffer has been bound to the GL
+    // texture.
+    status_t updateTexImage(BufferRejecter* rejecter, const DispSync& dispSync, bool* autoRefresh,
+                            bool* queuedBuffer, uint64_t maxFrameNumber);
 
     // setReleaseFence stores a fence that will signal when the current buffer
     // is no longer being read. This fence will be returned to the producer
     // when the current buffer is released by updateTexImage(). Multiple
     // fences can be set for a given buffer; they will be merged into a single
     // union fence.
-    virtual void setReleaseFence(const sp<Fence>& fence);
+    void setReleaseFence(const sp<Fence>& fence);
+
+    bool releasePendingBuffer();
 
     // getTransformMatrix retrieves the 4x4 texture coordinate transform matrix
     // associated with the texture image set by the most recent call to
@@ -384,6 +405,10 @@ private:
     // that no buffer is bound to the texture. A call to setBufferCount will
     // reset mCurrentTexture to INVALID_BUFFER_SLOT.
     int mCurrentTexture;
+
+    // A release that is pending on the receipt of a new release fence from
+    // presentDisplay
+    PendingRelease mPendingRelease;
 };
 
 // ----------------------------------------------------------------------------

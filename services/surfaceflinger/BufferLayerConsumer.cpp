@@ -21,6 +21,7 @@
 
 #include "BufferLayerConsumer.h"
 
+#include "DispSync.h"
 #include "Layer.h"
 
 #include <inttypes.h>
@@ -149,7 +150,56 @@ void BufferLayerConsumer::setContentsChangedListener(const wp<ContentsChangedLis
     mContentsChangedListener = listener;
 }
 
-status_t BufferLayerConsumer::updateTexImage() {
+// We need to determine the time when a buffer acquired now will be
+// displayed.  This can be calculated:
+//   time when previous buffer's actual-present fence was signaled
+//    + current display refresh rate * HWC latency
+//    + a little extra padding
+//
+// Buffer producers are expected to set their desired presentation time
+// based on choreographer time stamps, which (coming from vsync events)
+// will be slightly later then the actual-present timing.  If we get a
+// desired-present time that is unintentionally a hair after the next
+// vsync, we'll hold the frame when we really want to display it.  We
+// need to take the offset between actual-present and reported-vsync
+// into account.
+//
+// If the system is configured without a DispSync phase offset for the app,
+// we also want to throw in a bit of padding to avoid edge cases where we
+// just barely miss.  We want to do it here, not in every app.  A major
+// source of trouble is the app's use of the display's ideal refresh time
+// (via Display.getRefreshRate()), which could be off of the actual refresh
+// by a few percent, with the error multiplied by the number of frames
+// between now and when the buffer should be displayed.
+//
+// If the refresh reported to the app has a phase offset, we shouldn't need
+// to tweak anything here.
+nsecs_t BufferLayerConsumer::computeExpectedPresent(const DispSync& dispSync) {
+    // The HWC doesn't currently have a way to report additional latency.
+    // Assume that whatever we submit now will appear right after the flip.
+    // For a smart panel this might be 1.  This is expressed in frames,
+    // rather than time, because we expect to have a constant frame delay
+    // regardless of the refresh rate.
+    const uint32_t hwcLatency = 0;
+
+    // Ask DispSync when the next refresh will be (CLOCK_MONOTONIC).
+    const nsecs_t nextRefresh = dispSync.computeNextRefresh(hwcLatency);
+
+    // The DispSync time is already adjusted for the difference between
+    // vsync and reported-vsync (SurfaceFlinger::dispSyncPresentTimeOffset), so
+    // we don't need to factor that in here.  Pad a little to avoid
+    // weird effects if apps might be requesting times right on the edge.
+    nsecs_t extraPadding = 0;
+    if (SurfaceFlinger::vsyncPhaseOffsetNs == 0) {
+        extraPadding = 1000000; // 1ms (6% of 60Hz)
+    }
+
+    return nextRefresh + extraPadding;
+}
+
+status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const DispSync& dispSync,
+                                             bool* autoRefresh, bool* queuedBuffer,
+                                             uint64_t maxFrameNumber) {
     ATRACE_CALL();
     BLC_LOGV("updateTexImage");
     Mutex::Autolock lock(mMutex);
@@ -170,29 +220,86 @@ status_t BufferLayerConsumer::updateTexImage() {
     // Acquire the next buffer.
     // In asynchronous mode the list is guaranteed to be one buffer
     // deep, while in synchronous mode we use the oldest buffer.
-    err = acquireBufferLocked(&item, 0);
+    err = acquireBufferLocked(&item, computeExpectedPresent(dispSync), maxFrameNumber);
     if (err != NO_ERROR) {
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
-            // We always bind the texture even if we don't update its contents.
-            BLC_LOGV("updateTexImage: no buffers were available");
-            glBindTexture(sTexTarget, mTexName);
             err = NO_ERROR;
+        } else if (err == BufferQueue::PRESENT_LATER) {
+            // return the error, without logging
         } else {
             BLC_LOGE("updateTexImage: acquire failed: %s (%d)", strerror(-err), err);
         }
         return err;
     }
 
+    if (autoRefresh) {
+        *autoRefresh = item.mAutoRefresh;
+    }
+
+    if (queuedBuffer) {
+        *queuedBuffer = item.mQueuedBuffer;
+    }
+
+    // We call the rejecter here, in case the caller has a reason to
+    // not accept this buffer.  This is used by SurfaceFlinger to
+    // reject buffers which have the wrong size
+    int slot = item.mSlot;
+    if (rejecter && rejecter->reject(mSlots[slot].mGraphicBuffer, item)) {
+        releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer);
+        return BUFFER_REJECTED;
+    }
+
     // Release the previous buffer.
-    err = updateAndReleaseLocked(item);
+    err = updateAndReleaseLocked(item, &mPendingRelease);
     if (err != NO_ERROR) {
-        // We always bind the texture.
-        glBindTexture(sTexTarget, mTexName);
         return err;
     }
 
-    // Bind the new buffer to the GL texture, and wait until it's ready.
-    return bindTextureImageLocked();
+    if (!SyncFeatures::getInstance().useNativeFenceSync()) {
+        // Bind the new buffer to the GL texture.
+        //
+        // Older devices require the "implicit" synchronization provided
+        // by glEGLImageTargetTexture2DOES, which this method calls.  Newer
+        // devices will either call this in Layer::onDraw, or (if it's not
+        // a GL-composited layer) not at all.
+        err = bindTextureImageLocked();
+    }
+
+    return err;
+}
+
+void BufferLayerConsumer::setReleaseFence(const sp<Fence>& fence) {
+    if (!fence->isValid()) {
+        return;
+    }
+
+    auto slot = mPendingRelease.isPending ? mPendingRelease.currentTexture : mCurrentTexture;
+    if (slot == BufferQueue::INVALID_BUFFER_SLOT) {
+        return;
+    }
+
+    auto buffer = mPendingRelease.isPending ? mPendingRelease.graphicBuffer
+                                            : mCurrentTextureImage->graphicBuffer();
+    auto err = addReleaseFence(slot, buffer, fence);
+    if (err != OK) {
+        BLC_LOGE("setReleaseFence: failed to add the fence: %s (%d)", strerror(-err), err);
+    }
+}
+
+bool BufferLayerConsumer::releasePendingBuffer() {
+    if (!mPendingRelease.isPending) {
+        BLC_LOGV("Pending buffer already released");
+        return false;
+    }
+    BLC_LOGV("Releasing pending buffer");
+    Mutex::Autolock lock(mMutex);
+    status_t result =
+            releaseBufferLocked(mPendingRelease.currentTexture, mPendingRelease.graphicBuffer);
+    if (result < NO_ERROR) {
+        BLC_LOGE("releasePendingBuffer failed: %s (%d)", strerror(-result), result);
+    }
+    mPendingRelease = PendingRelease();
+    return true;
 }
 
 status_t BufferLayerConsumer::acquireBufferLocked(BufferItem* item, nsecs_t presentWhen,
@@ -349,16 +456,6 @@ status_t BufferLayerConsumer::checkAndUpdateEglStateLocked() {
     }
 
     return NO_ERROR;
-}
-
-void BufferLayerConsumer::setReleaseFence(const sp<Fence>& fence) {
-    if (fence->isValid() && mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
-        status_t err =
-                addReleaseFence(mCurrentTexture, mCurrentTextureImage->graphicBuffer(), fence);
-        if (err != OK) {
-            BLC_LOGE("setReleaseFence: failed to add the fence: %s (%d)", strerror(-err), err);
-        }
-    }
 }
 
 status_t BufferLayerConsumer::syncForReleaseLocked(EGLDisplay dpy) {
