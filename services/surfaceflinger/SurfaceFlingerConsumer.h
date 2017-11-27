@@ -17,10 +17,10 @@
 #ifndef ANDROID_SURFACEFLINGERCONSUMER_H
 #define ANDROID_SURFACEFLINGERCONSUMER_H
 
+#include "BufferLayerConsumer.h"
 #include "DispSync.h"
 
 #include <ui/Region.h>
-#include <gui/GLConsumer.h>
 
 namespace android {
 // ----------------------------------------------------------------------------
@@ -28,9 +28,9 @@ namespace android {
 class Layer;
 
 /*
- * This is a thin wrapper around GLConsumer.
+ * This is a thin wrapper around BufferLayerConsumer.
  */
-class SurfaceFlingerConsumer : public GLConsumer {
+class SurfaceFlingerConsumer : public BufferLayerConsumer {
 public:
     static const status_t BUFFER_REJECTED = UNKNOWN_ERROR + 8;
 
@@ -40,7 +40,7 @@ public:
 
     SurfaceFlingerConsumer(const sp<IGraphicBufferConsumer>& consumer,
             uint32_t tex, Layer* layer)
-        : GLConsumer(consumer, tex, GLConsumer::TEXTURE_EXTERNAL, false, false),
+        : BufferLayerConsumer(consumer, tex, BufferLayerConsumer::TEXTURE_EXTERNAL, false, false),
           mTransformToDisplayInverse(false), mSurfaceDamage(), mLayer(layer)
     {}
 
@@ -57,14 +57,14 @@ public:
             uint64_t maxFrameNumber = 0) override;
 
     // This version of updateTexImage() takes a functor that may be used to
-    // reject the newly acquired buffer.  Unlike the GLConsumer version,
+    // reject the newly acquired buffer.  Unlike the BufferLayerConsumer version,
     // this does not guarantee that the buffer has been bound to the GL
     // texture.
     status_t updateTexImage(BufferRejecter* rejecter, const DispSync& dispSync,
             bool* autoRefresh, bool* queuedBuffer,
             uint64_t maxFrameNumber);
 
-    // See GLConsumer::bindTextureImageLocked().
+    // See BufferLayerConsumer::bindTextureImageLocked().
     status_t bindTextureImage();
 
     bool getTransformToDisplayInverse() const;
@@ -93,7 +93,7 @@ private:
     wp<ContentsChangedListener> mContentsChangedListener;
 
     // Indicates this buffer must be transformed by the inverse transform of the screen
-    // it is displayed onto. This is applied after GLConsumer::mCurrentTransform.
+    // it is displayed onto. This is applied after BufferLayerConsumer::mCurrentTransform.
     // This must be set/read from SurfaceFlinger's main thread.
     bool mTransformToDisplayInverse;
 

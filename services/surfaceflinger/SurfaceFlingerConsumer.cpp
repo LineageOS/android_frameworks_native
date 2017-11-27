@@ -42,7 +42,7 @@ status_t SurfaceFlingerConsumer::updateTexImage(BufferRejecter* rejecter,
     Mutex::Autolock lock(mMutex);
 
     if (mAbandoned) {
-        ALOGE("updateTexImage: GLConsumer is abandoned!");
+        ALOGE("updateTexImage: BufferLayerConsumer is abandoned!");
         return NO_INIT;
     }
 
@@ -116,7 +116,7 @@ status_t SurfaceFlingerConsumer::bindTextureImage()
 
 status_t SurfaceFlingerConsumer::acquireBufferLocked(BufferItem* item,
         nsecs_t presentWhen, uint64_t maxFrameNumber) {
-    status_t result = GLConsumer::acquireBufferLocked(item, presentWhen,
+    status_t result = BufferLayerConsumer::acquireBufferLocked(item, presentWhen,
             maxFrameNumber);
     if (result == NO_ERROR) {
         mTransformToDisplayInverse = item->mTransformToDisplayInverse;
@@ -190,7 +190,7 @@ sp<Fence> SurfaceFlingerConsumer::getPrevFinalReleaseFence() const {
 void SurfaceFlingerConsumer::setReleaseFence(const sp<Fence>& fence)
 {
     if (!mPendingRelease.isPending) {
-        GLConsumer::setReleaseFence(fence);
+        BufferLayerConsumer::setReleaseFence(fence);
         return;
     }
     auto currentTexture = mPendingRelease.currentTexture;
