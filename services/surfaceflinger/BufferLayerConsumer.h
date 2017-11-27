@@ -96,11 +96,6 @@ public:
     // functions.
     void getTransformMatrix(float mtx[16]);
 
-    // Computes the transform matrix documented by getTransformMatrix
-    // from the BufferItem sub parts.
-    static void computeTransformMatrix(float outTransform[16], const sp<GraphicBuffer>& buf,
-                                       const Rect& cropRect, uint32_t transform, bool filtering);
-
     // Scale the crop down horizontally or vertically such that it has the
     // same aspect ratio as the buffer does.
     static Rect scaleDownCrop(const Rect& crop, uint32_t bufferWidth, uint32_t bufferHeight);
