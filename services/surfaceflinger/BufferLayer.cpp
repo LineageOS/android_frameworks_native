@@ -249,7 +249,8 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
         }
 
         // Set things up for texturing.
-        mTexture.setDimensions(mActiveBuffer->getWidth(), mActiveBuffer->getHeight());
+        mTexture.setDimensions(mActiveBuffer->getWidth(),
+                               mActiveBuffer->getHeight());
         mTexture.setFiltering(useFiltering);
         mTexture.setMatrix(textureMatrix);
 
@@ -299,10 +300,12 @@ void BufferLayer::setTransformHint(uint32_t orientation) const {
 bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
     if (mBufferLatched) {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
-        mFrameEventHistory.addPreComposition(mCurrentFrameNumber, refreshStartTime);
+        mFrameEventHistory.addPreComposition(mCurrentFrameNumber,
+                                             refreshStartTime);
     }
     mRefreshPending = false;
-    return mQueuedFrames > 0 || mSidebandStreamChanged || mAutoRefresh;
+    return mQueuedFrames > 0 || mSidebandStreamChanged ||
+            mAutoRefresh;
 }
 bool BufferLayer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
                                     const std::shared_ptr<FenceTime>& presentFence,
@@ -314,8 +317,8 @@ bool BufferLayer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFenc
     // Update mFrameEventHistory.
     {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
-        mFrameEventHistory.addPostComposition(mCurrentFrameNumber, glDoneFence, presentFence,
-                                              compositorTiming);
+        mFrameEventHistory.addPostComposition(mCurrentFrameNumber, glDoneFence,
+                                              presentFence, compositorTiming);
     }
 
     // Update mFrameTracker.
@@ -429,11 +432,12 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     // buffer mode.
     bool queuedBuffer = false;
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
-                    getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
-                    mFreezeGeometryUpdates);
+                    getProducerStickyTransform() != 0, mName.string(),
+                    mOverrideScalingMode, mFreezeGeometryUpdates);
     status_t updateResult =
-            mSurfaceFlingerConsumer->updateTexImage(&r, mFlinger->mPrimaryDispSync, &mAutoRefresh,
-                                                    &queuedBuffer, mLastFrameNumberReceived);
+            mSurfaceFlingerConsumer->updateTexImage(&r, mFlinger->mPrimaryDispSync,
+                                                    &mAutoRefresh, &queuedBuffer,
+                                                    mLastFrameNumberReceived);
     if (updateResult == BufferQueue::PRESENT_LATER) {
         // Producer doesn't want buffer to be displayed yet.  Signal a
         // layer update so we check again at the next opportunity.
@@ -486,12 +490,14 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
 
     // Decrement the queued-frames count.  Signal another event if we
     // have more frames pending.
-    if ((queuedBuffer && android_atomic_dec(&mQueuedFrames) > 1) || mAutoRefresh) {
+    if ((queuedBuffer && android_atomic_dec(&mQueuedFrames) > 1) ||
+        mAutoRefresh) {
         mFlinger->signalLayerUpdate();
     }
 
     // update the active buffer
-    mActiveBuffer = mSurfaceFlingerConsumer->getCurrentBuffer(&mActiveBufferSlot);
+    mActiveBuffer =
+            mSurfaceFlingerConsumer->getCurrentBuffer(&mActiveBufferSlot);
     if (mActiveBuffer == NULL) {
         // this can only happen if the very first buffer was rejected.
         return outDirtyRegion;
@@ -519,7 +525,8 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     Rect crop(mSurfaceFlingerConsumer->getCurrentCrop());
     const uint32_t transform(mSurfaceFlingerConsumer->getCurrentTransform());
     const uint32_t scalingMode(mSurfaceFlingerConsumer->getCurrentScalingMode());
-    if ((crop != mCurrentCrop) || (transform != mCurrentTransform) ||
+    if ((crop != mCurrentCrop) ||
+        (transform != mCurrentTransform) ||
         (scalingMode != mCurrentScalingMode)) {
         mCurrentCrop = crop;
         mCurrentTransform = transform;
@@ -605,7 +612,8 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
         error = hwcLayer->setSidebandStream(mSidebandStream->handle());
         if (error != HWC2::Error::None) {
             ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
-                  mSidebandStream->handle(), to_string(error).c_str(), static_cast<int32_t>(error));
+                  mSidebandStream->handle(), to_string(error).c_str(),
+                  static_cast<int32_t>(error));
         }
         return;
     }
@@ -628,13 +636,15 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
 
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
-    hwcInfo.bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot, &hwcBuffer);
+    hwcInfo.bufferCache.getHwcBuffer(mActiveBufferSlot,
+                                     mActiveBuffer, &hwcSlot, &hwcBuffer);
 
     auto acquireFence = mSurfaceFlingerConsumer->getCurrentFence();
     error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
     if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(), mActiveBuffer->handle,
-              to_string(error).c_str(), static_cast<int32_t>(error));
+        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
+              mActiveBuffer->handle, to_string(error).c_str(),
+              static_cast<int32_t>(error));
     }
 }
 
@@ -688,7 +698,8 @@ void BufferLayer::onFrameAvailable(const BufferItem& item) {
 
         // Ensure that callbacks are handled in order
         while (item.mFrameNumber != mLastFrameNumberReceived + 1) {
-            status_t result = mQueueItemCondition.waitRelative(mQueueItemLock, ms2ns(500));
+            status_t result = mQueueItemCondition.waitRelative(mQueueItemLock,
+                                                               ms2ns(500));
             if (result != NO_ERROR) {
                 ALOGE("[%s] Timed out waiting on callback", mName.string());
             }
@@ -711,7 +722,8 @@ void BufferLayer::onFrameReplaced(const BufferItem& item) {
 
         // Ensure that callbacks are handled in order
         while (item.mFrameNumber != mLastFrameNumberReceived + 1) {
-            status_t result = mQueueItemCondition.waitRelative(mQueueItemLock, ms2ns(500));
+            status_t result = mQueueItemCondition.waitRelative(mQueueItemLock,
+                                                               ms2ns(500));
             if (result != NO_ERROR) {
                 ALOGE("[%s] Timed out waiting on callback", mName.string());
             }
@@ -765,7 +777,7 @@ bool BufferLayer::getOpacityForFormat(uint32_t format) {
 void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const {
     const State& s(getDrawingState());
 
-    computeGeometry(renderArea, mMesh, useIdentityTransform);
+    computeGeometry(renderArea, getBE().mMesh, useIdentityTransform);
 
     /*
      * NOTE: the way we compute the texture coordinates here produces
@@ -802,7 +814,7 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
 
     // TODO: we probably want to generate the texture coords with the mesh
     // here we assume that we only have 4 vertices
-    Mesh::VertexArray<vec2> texCoords(mMesh.getTexCoordArray<vec2>());
+    Mesh::VertexArray<vec2> texCoords(getBE().mMesh.getTexCoordArray<vec2>());
     texCoords[0] = vec2(left, 1.0f - top);
     texCoords[1] = vec2(left, 1.0f - bottom);
     texCoords[2] = vec2(right, 1.0f - bottom);
@@ -812,7 +824,7 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
     engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), false /* disableTexture */,
                               getColor());
     engine.setSourceDataSpace(mCurrentState.dataSpace);
-    engine.drawMesh(mMesh);
+    engine.drawMesh(getBE().mMesh);
     engine.disableBlending();
 }
 
@@ -866,7 +878,8 @@ bool BufferLayer::headFenceHasSignaled() const {
         // able to be latched. To avoid this, grab this buffer anyway.
         return true;
     }
-    return mQueueItems[0].mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
+    return mQueueItems[0].mFenceTime->getSignalTime() !=
+            Fence::SIGNAL_TIME_PENDING;
 }
 
 uint32_t BufferLayer::getEffectiveScalingMode() const {
