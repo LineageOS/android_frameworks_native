@@ -49,16 +49,6 @@ BufferItemConsumer::BufferItemConsumer(
 
 BufferItemConsumer::~BufferItemConsumer() {}
 
-void BufferItemConsumer::setName(const String8& name) {
-    Mutex::Autolock _l(mMutex);
-    if (mAbandoned) {
-        BI_LOGE("setName: BufferItemConsumer is abandoned!");
-        return;
-    }
-    mName = name;
-    mConsumer->setConsumerName(name);
-}
-
 void BufferItemConsumer::setBufferFreedListener(
         const wp<BufferFreedListener>& listener) {
     Mutex::Autolock _l(mMutex);

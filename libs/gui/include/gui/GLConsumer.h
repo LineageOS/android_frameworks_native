@@ -202,17 +202,9 @@ public:
     // current texture buffer.
     status_t doGLFenceWait() const;
 
-    // set the name of the GLConsumer that will be used to identify it in
-    // log messages.
-    void setName(const String8& name);
-
-    // These functions call the corresponding BufferQueue implementation
-    // so the refactoring can proceed smoothly
-    status_t setDefaultBufferFormat(PixelFormat defaultFormat);
-    status_t setDefaultBufferDataSpace(android_dataspace defaultDataSpace);
+    // setConsumerUsageBits overrides the ConsumerBase method to OR
+    // DEFAULT_USAGE_FLAGS to usage.
     status_t setConsumerUsageBits(uint64_t usage);
-    status_t setTransformHint(uint32_t hint);
-    status_t setMaxAcquiredBufferCount(int maxAcquiredBuffers);
 
     // detachFromContext detaches the GLConsumer from the calling thread's
     // current OpenGL ES context.  This context must be the same as the context

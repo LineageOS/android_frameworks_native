@@ -44,16 +44,6 @@ CpuConsumer::CpuConsumer(const sp<IGraphicBufferConsumer>& bq,
     mConsumer->setMaxAcquiredBufferCount(static_cast<int32_t>(maxLockedBuffers));
 }
 
-void CpuConsumer::setName(const String8& name) {
-    Mutex::Autolock _l(mMutex);
-    if (mAbandoned) {
-        CC_LOGE("setName: CpuConsumer is abandoned!");
-        return;
-    }
-    mName = name;
-    mConsumer->setConsumerName(name);
-}
-
 size_t CpuConsumer::findAcquiredBufferLocked(uintptr_t id) const {
     for (size_t i = 0; i < mMaxLockedBuffers; i++) {
         const auto& ab = mAcquiredBuffers[i];

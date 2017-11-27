@@ -1086,61 +1086,8 @@ void GLConsumer::abandonLocked() {
     ConsumerBase::abandonLocked();
 }
 
-void GLConsumer::setName(const String8& name) {
-    Mutex::Autolock _l(mMutex);
-    if (mAbandoned) {
-        GLC_LOGE("setName: GLConsumer is abandoned!");
-        return;
-    }
-    mName = name;
-    mConsumer->setConsumerName(name);
-}
-
-status_t GLConsumer::setDefaultBufferFormat(PixelFormat defaultFormat) {
-    Mutex::Autolock lock(mMutex);
-    if (mAbandoned) {
-        GLC_LOGE("setDefaultBufferFormat: GLConsumer is abandoned!");
-        return NO_INIT;
-    }
-    return mConsumer->setDefaultBufferFormat(defaultFormat);
-}
-
-status_t GLConsumer::setDefaultBufferDataSpace(
-        android_dataspace defaultDataSpace) {
-    Mutex::Autolock lock(mMutex);
-    if (mAbandoned) {
-        GLC_LOGE("setDefaultBufferDataSpace: GLConsumer is abandoned!");
-        return NO_INIT;
-    }
-    return mConsumer->setDefaultBufferDataSpace(defaultDataSpace);
-}
-
 status_t GLConsumer::setConsumerUsageBits(uint64_t usage) {
-    Mutex::Autolock lock(mMutex);
-    if (mAbandoned) {
-        GLC_LOGE("setConsumerUsageBits: GLConsumer is abandoned!");
-        return NO_INIT;
-    }
-    usage |= DEFAULT_USAGE_FLAGS;
-    return mConsumer->setConsumerUsageBits(usage);
-}
-
-status_t GLConsumer::setTransformHint(uint32_t hint) {
-    Mutex::Autolock lock(mMutex);
-    if (mAbandoned) {
-        GLC_LOGE("setTransformHint: GLConsumer is abandoned!");
-        return NO_INIT;
-    }
-    return mConsumer->setTransformHint(hint);
-}
-
-status_t GLConsumer::setMaxAcquiredBufferCount(int maxAcquiredBuffers) {
-    Mutex::Autolock lock(mMutex);
-    if (mAbandoned) {
-        GLC_LOGE("setMaxAcquiredBufferCount: GLConsumer is abandoned!");
-        return NO_INIT;
-    }
-    return mConsumer->setMaxAcquiredBufferCount(maxAcquiredBuffers);
+    return ConsumerBase::setConsumerUsageBits(usage | DEFAULT_USAGE_FLAGS);
 }
 
 void GLConsumer::dumpLocked(String8& result, const char* prefix) const

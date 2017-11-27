@@ -94,10 +94,6 @@ class CpuConsumer : public ConsumerBase
     CpuConsumer(const sp<IGraphicBufferConsumer>& bq,
             size_t maxLockedBuffers, bool controlledByApp = false);
 
-    // set the name of the CpuConsumer that will be used to identify it in
-    // log messages.
-    void setName(const String8& name);
-
     // Gets the next graphics buffer from the producer and locks it for CPU use,
     // filling out the passed-in locked buffer structure with the native pointer
     // and metadata. Returns BAD_VALUE if no new buffer is available, and

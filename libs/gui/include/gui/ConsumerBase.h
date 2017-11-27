@@ -89,6 +89,18 @@ public:
     // See IGraphicBufferConsumer::setDefaultBufferDataSpace
     status_t setDefaultBufferDataSpace(android_dataspace defaultDataSpace);
 
+    // See IGraphicBufferConsumer::setConsumerUsageBits
+    status_t setConsumerUsageBits(uint64_t usage);
+
+    // See IGraphicBufferConsumer::setTransformHint
+    status_t setTransformHint(uint32_t hint);
+
+    // See IGraphicBufferConsumer::setMaxAcquiredBufferCount
+    status_t setMaxAcquiredBufferCount(int maxAcquiredBuffers);
+
+    // See IGraphicBufferConsumer::getSidebandStream
+    sp<NativeHandle> getSidebandStream() const;
+
     // See IGraphicBufferConsumer::getOccupancyHistory
     status_t getOccupancyHistory(bool forceFlush,
             std::vector<OccupancyTracker::Segment>* outHistory);

@@ -76,8 +76,6 @@ public:
     // ConsumerBase::setFrameAvailableListener().
     void setContentsChangedListener(const wp<ContentsChangedListener>& listener);
 
-    sp<NativeHandle> getSidebandStream() const;
-
     nsecs_t computeExpectedPresent(const DispSync& dispSync);
 
     sp<Fence> getPrevFinalReleaseFence() const;
