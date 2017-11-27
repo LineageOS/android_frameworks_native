@@ -219,31 +219,6 @@ bool SurfaceFlingerConsumer::releasePendingBuffer()
     return true;
 }
 
-void SurfaceFlingerConsumer::setContentsChangedListener(
-        const wp<ContentsChangedListener>& listener) {
-    setFrameAvailableListener(listener);
-    Mutex::Autolock lock(mMutex);
-    mContentsChangedListener = listener;
-}
-
-void SurfaceFlingerConsumer::onSidebandStreamChanged() {
-    FrameAvailableListener* unsafeFrameAvailableListener = nullptr;
-    {
-        Mutex::Autolock lock(mFrameAvailableMutex);
-        unsafeFrameAvailableListener = mFrameAvailableListener.unsafe_get();
-    }
-    sp<ContentsChangedListener> listener;
-    {   // scope for the lock
-        Mutex::Autolock lock(mMutex);
-        ALOG_ASSERT(unsafeFrameAvailableListener == mContentsChangedListener.unsafe_get());
-        listener = mContentsChangedListener.promote();
-    }
-
-    if (listener != NULL) {
-        listener->onSidebandStreamChanged();
-    }
-}
-
 // ---------------------------------------------------------------------------
 }; // namespace android
 

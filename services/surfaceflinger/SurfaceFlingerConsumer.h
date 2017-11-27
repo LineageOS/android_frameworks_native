@@ -34,10 +34,6 @@ class SurfaceFlingerConsumer : public BufferLayerConsumer {
 public:
     static const status_t BUFFER_REJECTED = UNKNOWN_ERROR + 8;
 
-    struct ContentsChangedListener: public FrameAvailableListener {
-        virtual void onSidebandStreamChanged() = 0;
-    };
-
     SurfaceFlingerConsumer(const sp<IGraphicBufferConsumer>& consumer,
             uint32_t tex, Layer* layer)
         : BufferLayerConsumer(consumer, tex, layer),
@@ -72,10 +68,6 @@ public:
     // must be called from SF main thread
     const Region& getSurfaceDamage() const;
 
-    // Sets the contents changed listener. This should be used instead of
-    // ConsumerBase::setFrameAvailableListener().
-    void setContentsChangedListener(const wp<ContentsChangedListener>& listener);
-
     nsecs_t computeExpectedPresent(const DispSync& dispSync);
 
     sp<Fence> getPrevFinalReleaseFence() const;
@@ -83,10 +75,6 @@ public:
     bool releasePendingBuffer();
 
 private:
-    virtual void onSidebandStreamChanged();
-
-    wp<ContentsChangedListener> mContentsChangedListener;
-
     // Indicates this buffer must be transformed by the inverse transform of the screen
     // it is displayed onto. This is applied after BufferLayerConsumer::mCurrentTransform.
     // This must be set/read from SurfaceFlinger's main thread.

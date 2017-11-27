@@ -54,12 +54,18 @@ class String8;
  */
 class BufferLayerConsumer : public ConsumerBase {
 public:
-    typedef ConsumerBase::FrameAvailableListener FrameAvailableListener;
+    struct ContentsChangedListener : public FrameAvailableListener {
+        virtual void onSidebandStreamChanged() = 0;
+    };
 
     // BufferLayerConsumer constructs a new BufferLayerConsumer object.
     // The tex parameter indicates the name of the OpenGL ES
     // texture to which images are to be streamed.
     BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex, Layer* layer);
+
+    // Sets the contents changed listener. This should be used instead of
+    // ConsumerBase::setFrameAvailableListener().
+    void setContentsChangedListener(const wp<ContentsChangedListener>& listener);
 
     // updateTexImage acquires the most recently queued buffer, and sets the
     // image contents of the target texture to it.
@@ -257,6 +263,7 @@ private:
 
     // IConsumerListener interface
     void onDisconnect() override;
+    void onSidebandStreamChanged() override;
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                   FrameEventHistoryDelta* outDelta) override;
 
@@ -340,6 +347,8 @@ private:
 
     // The layer for this BufferLayerConsumer
     const wp<Layer> mLayer;
+
+    wp<ContentsChangedListener> mContentsChangedListener;
 
     // EGLSlot contains the information and object references that
     // BufferLayerConsumer maintains about a BufferQueue buffer slot.

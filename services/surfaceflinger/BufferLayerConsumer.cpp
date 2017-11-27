@@ -143,6 +143,12 @@ status_t BufferLayerConsumer::setDefaultBufferSize(uint32_t w, uint32_t h) {
     return mConsumer->setDefaultBufferSize(w, h);
 }
 
+void BufferLayerConsumer::setContentsChangedListener(const wp<ContentsChangedListener>& listener) {
+    setFrameAvailableListener(listener);
+    Mutex::Autolock lock(mMutex);
+    mContentsChangedListener = listener;
+}
+
 status_t BufferLayerConsumer::updateTexImage() {
     ATRACE_CALL();
     BLC_LOGV("updateTexImage");
@@ -546,6 +552,24 @@ void BufferLayerConsumer::onDisconnect() {
     sp<Layer> l = mLayer.promote();
     if (l.get()) {
         l->onDisconnect();
+    }
+}
+
+void BufferLayerConsumer::onSidebandStreamChanged() {
+    FrameAvailableListener* unsafeFrameAvailableListener = nullptr;
+    {
+        Mutex::Autolock lock(mFrameAvailableMutex);
+        unsafeFrameAvailableListener = mFrameAvailableListener.unsafe_get();
+    }
+    sp<ContentsChangedListener> listener;
+    { // scope for the lock
+        Mutex::Autolock lock(mMutex);
+        ALOG_ASSERT(unsafeFrameAvailableListener == mContentsChangedListener.unsafe_get());
+        listener = mContentsChangedListener.promote();
+    }
+
+    if (listener != NULL) {
+        listener->onSidebandStreamChanged();
     }
 }
 
