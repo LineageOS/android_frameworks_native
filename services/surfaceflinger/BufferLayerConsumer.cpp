@@ -105,9 +105,8 @@ static bool isEglImageCroppable(const Rect& crop) {
     return hasEglAndroidImageCrop() && (crop.left == 0 && crop.top == 0);
 }
 
-BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex,
-                                         uint32_t texTarget, bool isControlledByApp)
-      : ConsumerBase(bq, isControlledByApp),
+BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex)
+      : ConsumerBase(bq, false),
         mCurrentCrop(Rect::EMPTY_RECT),
         mCurrentTransform(0),
         mCurrentScalingMode(NATIVE_WINDOW_SCALING_MODE_FREEZE),
@@ -119,7 +118,6 @@ BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, u
         mDefaultHeight(1),
         mFilteringEnabled(true),
         mTexName(tex),
-        mTexTarget(texTarget),
         mEglDisplay(EGL_NO_DISPLAY),
         mEglContext(EGL_NO_CONTEXT),
         mCurrentTexture(BufferQueue::INVALID_BUFFER_SLOT) {
@@ -167,7 +165,7 @@ status_t BufferLayerConsumer::updateTexImage() {
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
             // We always bind the texture even if we don't update its contents.
             BLC_LOGV("updateTexImage: no buffers were available");
-            glBindTexture(mTexTarget, mTexName);
+            glBindTexture(sTexTarget, mTexName);
             err = NO_ERROR;
         } else {
             BLC_LOGE("updateTexImage: acquire failed: %s (%d)", strerror(-err), err);
@@ -179,7 +177,7 @@ status_t BufferLayerConsumer::updateTexImage() {
     err = updateAndReleaseLocked(item);
     if (err != NO_ERROR) {
         // We always bind the texture.
-        glBindTexture(mTexTarget, mTexName);
+        glBindTexture(sTexTarget, mTexName);
         return err;
     }
 
@@ -299,7 +297,7 @@ status_t BufferLayerConsumer::bindTextureImageLocked() {
         BLC_LOGW("bindTextureImage: clearing GL error: %#04x", error);
     }
 
-    glBindTexture(mTexTarget, mTexName);
+    glBindTexture(sTexTarget, mTexName);
     if (mCurrentTexture == BufferQueue::INVALID_BUFFER_SLOT && mCurrentTextureImage == NULL) {
         BLC_LOGE("bindTextureImage: no currently-bound texture");
         return NO_INIT;
@@ -311,7 +309,7 @@ status_t BufferLayerConsumer::bindTextureImageLocked() {
                  mCurrentTexture);
         return UNKNOWN_ERROR;
     }
-    mCurrentTextureImage->bindToTextureTarget(mTexTarget);
+    mCurrentTextureImage->bindToTextureTarget(sTexTarget);
 
     // Wait for the new buffer to be ready.
     return doGLFenceWaitLocked();
@@ -385,10 +383,6 @@ status_t BufferLayerConsumer::syncForReleaseLocked(EGLDisplay dpy) {
     }
 
     return OK;
-}
-
-uint32_t BufferLayerConsumer::getCurrentTextureTarget() const {
-    return mTexTarget;
 }
 
 void BufferLayerConsumer::getTransformMatrix(float mtx[16]) {

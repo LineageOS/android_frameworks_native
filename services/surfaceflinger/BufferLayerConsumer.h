@@ -53,16 +53,12 @@ class String8;
  */
 class BufferLayerConsumer : public ConsumerBase {
 public:
-    enum { TEXTURE_EXTERNAL = 0x8D65 }; // GL_TEXTURE_EXTERNAL_OES
     typedef ConsumerBase::FrameAvailableListener FrameAvailableListener;
 
     // BufferLayerConsumer constructs a new BufferLayerConsumer object.
     // The tex parameter indicates the name of the OpenGL ES
-    // texture to which images are to be streamed. texTarget specifies the
-    // OpenGL ES texture target to which the texture will be bound in
-    // updateTexImage.
-    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex, uint32_t texureTarget,
-                        bool isControlledByApp);
+    // texture to which images are to be streamed.
+    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex);
 
     // updateTexImage acquires the most recently queued buffer, and sets the
     // image contents of the target texture to it.
@@ -147,10 +143,6 @@ public:
     // returned.
     sp<GraphicBuffer> getCurrentBuffer(int* outSlot = nullptr) const;
 
-    // getCurrentTextureTarget returns the texture target of the current
-    // texture as returned by updateTexImage().
-    uint32_t getCurrentTextureTarget() const;
-
     // getCurrentCrop returns the cropping rectangle of the current buffer.
     Rect getCurrentCrop() const;
 
@@ -203,7 +195,7 @@ protected:
     status_t updateAndReleaseLocked(const BufferItem& item,
                                     PendingRelease* pendingRelease = nullptr);
 
-    // Binds mTexName and the current buffer to mTexTarget.  Uses
+    // Binds mTexName and the current buffer to sTexTarget.  Uses
     // mCurrentTexture if it's set, mCurrentTextureImage if not.  If the
     // bind succeeds, this calls doGLFenceWait.
     status_t bindTextureImageLocked();
@@ -288,6 +280,10 @@ private:
     // before the outstanding accesses have completed.
     status_t syncForReleaseLocked(EGLDisplay dpy);
 
+    // sTexTarget is the GL texture target with which the GL texture object is
+    // associated.
+    static constexpr uint32_t sTexTarget = 0x8D65; // GL_TEXTURE_EXTERNAL_OES
+
     // The default consumer usage flags that BufferLayerConsumer always sets on its
     // BufferQueue instance; these will be OR:d with any additional flags passed
     // from the BufferLayerConsumer user. In particular, BufferLayerConsumer will always
@@ -344,15 +340,6 @@ private:
     // mTexName is the name of the OpenGL texture to which streamed images will
     // be bound when updateTexImage is called. It is set at construction time.
     const uint32_t mTexName;
-
-    // mTexTarget is the GL texture target with which the GL texture object is
-    // associated.  It is set in the constructor and never changed.  It is
-    // almost always GL_TEXTURE_EXTERNAL_OES except for one use case in Android
-    // Browser.  In that case it is set to GL_TEXTURE_2D to allow
-    // glCopyTexSubImage to read from the texture.  This is a hack to work
-    // around a GL driver limitation on the number of FBO attachments, which the
-    // browser's tile cache exceeds.
-    const uint32_t mTexTarget;
 
     // EGLSlot contains the information and object references that
     // BufferLayerConsumer maintains about a BufferQueue buffer slot.
