@@ -18,10 +18,10 @@
 #define ANDROID_LAYER_REJECTER_H
 
 #include "Layer.h"
-#include "SurfaceFlingerConsumer.h"
+#include "BufferLayerConsumer.h"
 
 namespace android {
-    class LayerRejecter : public SurfaceFlingerConsumer::BufferRejecter {
+    class LayerRejecter : public BufferLayerConsumer::BufferRejecter {
     public:
         LayerRejecter(Layer::State &front,
                       Layer::State &current,

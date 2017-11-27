@@ -96,6 +96,9 @@ public:
     status_t updateTexImage(BufferRejecter* rejecter, const DispSync& dispSync, bool* autoRefresh,
                             bool* queuedBuffer, uint64_t maxFrameNumber);
 
+    // See BufferLayerConsumer::bindTextureImageLocked().
+    status_t bindTextureImage();
+
     // setReleaseFence stores a fence that will signal when the current buffer
     // is no longer being read. This fence will be returned to the producer
     // when the current buffer is released by updateTexImage(). Multiple
@@ -104,6 +107,8 @@ public:
     void setReleaseFence(const sp<Fence>& fence);
 
     bool releasePendingBuffer();
+
+    sp<Fence> getPrevFinalReleaseFence() const;
 
     // getTransformMatrix retrieves the 4x4 texture coordinate transform matrix
     // associated with the texture image set by the most recent call to

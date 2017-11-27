@@ -22,7 +22,6 @@ LOCAL_SRC_FILES := \
     MessageQueue.cpp \
     MonitoredProducer.cpp \
     SurfaceFlinger.cpp \
-    SurfaceFlingerConsumer.cpp \
     SurfaceInterceptor.cpp \
     SurfaceTracing.cpp \
     Transform.cpp \

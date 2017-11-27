@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "BufferLayerConsumer.h"
 #include "Client.h"
 #include "Layer.h"
 #include "DisplayHardware/HWComposer.h"
@@ -26,7 +27,6 @@
 #include "RenderEngine/Mesh.h"
 #include "RenderEngine/Texture.h"
 #include "SurfaceFlinger.h"
-#include "SurfaceFlingerConsumer.h"
 #include "Transform.h"
 
 #include <gui/ISurfaceComposerClient.h>
@@ -48,13 +48,13 @@
 namespace android {
 
 /*
- * A new BufferQueue and a new SurfaceFlingerConsumer are created when the
+ * A new BufferQueue and a new BufferLayerConsumer are created when the
  * BufferLayer is first referenced.
  *
  * This also implements onFrameAvailable(), which notifies SurfaceFlinger
  * that new data has arrived.
  */
-class BufferLayer : public Layer, public SurfaceFlingerConsumer::ContentsChangedListener {
+class BufferLayer : public Layer, public BufferLayerConsumer::ContentsChangedListener {
 public:
     BufferLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
                 uint32_t h, uint32_t flags);
@@ -137,7 +137,7 @@ private:
     void onFirstRef() override;
 
     // Interface implementation for
-    // SurfaceFlingerConsumer::ContentsChangedListener
+    // BufferLayerConsumer::ContentsChangedListener
     void onFrameAvailable(const BufferItem& item) override;
     void onFrameReplaced(const BufferItem& item) override;
     void onSidebandStreamChanged() override;
@@ -170,7 +170,7 @@ public:
     sp<IGraphicBufferProducer> getProducer() const;
 
 private:
-    sp<SurfaceFlingerConsumer> mSurfaceFlingerConsumer;
+    sp<BufferLayerConsumer> mSurfaceFlingerConsumer;
 
     // Check all of the local sync points to ensure that all transactions
     // which need to have been applied prior to the frame which is about to
