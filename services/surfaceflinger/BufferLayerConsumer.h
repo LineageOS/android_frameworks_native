@@ -33,6 +33,7 @@
 namespace android {
 // ----------------------------------------------------------------------------
 
+class Layer;
 class String8;
 
 /*
@@ -58,7 +59,7 @@ public:
     // BufferLayerConsumer constructs a new BufferLayerConsumer object.
     // The tex parameter indicates the name of the OpenGL ES
     // texture to which images are to be streamed.
-    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex);
+    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex, Layer* layer);
 
     // updateTexImage acquires the most recently queued buffer, and sets the
     // image contents of the target texture to it.
@@ -254,6 +255,11 @@ private:
     // This method must be called with mMutex locked.
     virtual void freeBufferLocked(int slotIndex);
 
+    // IConsumerListener interface
+    void onDisconnect() override;
+    void addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
+                                  FrameEventHistoryDelta* outDelta) override;
+
     // computeCurrentTransformMatrixLocked computes the transform matrix for the
     // current texture.  It uses mCurrentTransform and the current GraphicBuffer
     // to compute this matrix and stores it in mCurrentTransformMatrix.
@@ -331,6 +337,9 @@ private:
     // mTexName is the name of the OpenGL texture to which streamed images will
     // be bound when updateTexImage is called. It is set at construction time.
     const uint32_t mTexName;
+
+    // The layer for this BufferLayerConsumer
+    const wp<Layer> mLayer;
 
     // EGLSlot contains the information and object references that
     // BufferLayerConsumer maintains about a BufferQueue buffer slot.

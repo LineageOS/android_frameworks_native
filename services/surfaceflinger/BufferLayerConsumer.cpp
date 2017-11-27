@@ -21,6 +21,8 @@
 
 #include "BufferLayerConsumer.h"
 
+#include "Layer.h"
+
 #include <inttypes.h>
 
 #include <EGL/egl.h>
@@ -105,7 +107,8 @@ static bool isEglImageCroppable(const Rect& crop) {
     return hasEglAndroidImageCrop() && (crop.left == 0 && crop.top == 0);
 }
 
-BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex)
+BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex,
+                                         Layer* layer)
       : ConsumerBase(bq, false),
         mCurrentCrop(Rect::EMPTY_RECT),
         mCurrentTransform(0),
@@ -118,6 +121,7 @@ BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, u
         mDefaultHeight(1),
         mFilteringEnabled(true),
         mTexName(tex),
+        mLayer(layer),
         mEglDisplay(EGL_NO_DISPLAY),
         mEglContext(EGL_NO_CONTEXT),
         mCurrentTexture(BufferQueue::INVALID_BUFFER_SLOT) {
@@ -536,6 +540,21 @@ void BufferLayerConsumer::freeBufferLocked(int slotIndex) {
     }
     mEglSlots[slotIndex].mEglImage.clear();
     ConsumerBase::freeBufferLocked(slotIndex);
+}
+
+void BufferLayerConsumer::onDisconnect() {
+    sp<Layer> l = mLayer.promote();
+    if (l.get()) {
+        l->onDisconnect();
+    }
+}
+
+void BufferLayerConsumer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
+                                                   FrameEventHistoryDelta* outDelta) {
+    sp<Layer> l = mLayer.promote();
+    if (l.get()) {
+        l->addAndGetFrameTimestamps(newTimestamps, outDelta);
+    }
 }
 
 void BufferLayerConsumer::abandonLocked() {

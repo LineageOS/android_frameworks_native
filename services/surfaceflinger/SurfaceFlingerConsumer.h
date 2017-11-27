@@ -40,8 +40,8 @@ public:
 
     SurfaceFlingerConsumer(const sp<IGraphicBufferConsumer>& consumer,
             uint32_t tex, Layer* layer)
-        : BufferLayerConsumer(consumer, tex),
-          mTransformToDisplayInverse(false), mSurfaceDamage(), mLayer(layer)
+        : BufferLayerConsumer(consumer, tex, layer),
+          mTransformToDisplayInverse(false), mSurfaceDamage()
     {}
 
     class BufferRejecter {
@@ -82,11 +82,6 @@ public:
     virtual void setReleaseFence(const sp<Fence>& fence) override;
     bool releasePendingBuffer();
 
-    void onDisconnect() override;
-    void addAndGetFrameTimestamps(
-            const NewFrameEventsEntry* newTimestamps,
-            FrameEventHistoryDelta* outDelta) override;
-
 private:
     virtual void onSidebandStreamChanged();
 
@@ -103,9 +98,6 @@ private:
     // A release that is pending on the receipt of a new release fence from
     // presentDisplay
     PendingRelease mPendingRelease;
-
-    // The layer for this SurfaceFlingerConsumer
-    const wp<Layer> mLayer;
 };
 
 // ----------------------------------------------------------------------------

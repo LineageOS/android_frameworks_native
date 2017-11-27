@@ -244,22 +244,6 @@ void SurfaceFlingerConsumer::onSidebandStreamChanged() {
     }
 }
 
-void SurfaceFlingerConsumer::onDisconnect() {
-    sp<Layer> l = mLayer.promote();
-    if (l.get()) {
-        l->onDisconnect();
-    }
-}
-
-void SurfaceFlingerConsumer::addAndGetFrameTimestamps(
-        const NewFrameEventsEntry* newTimestamps,
-        FrameEventHistoryDelta *outDelta) {
-    sp<Layer> l = mLayer.promote();
-    if (l.get()) {
-        l->addAndGetFrameTimestamps(newTimestamps, outDelta);
-    }
-}
-
 // ---------------------------------------------------------------------------
 }; // namespace android
 
