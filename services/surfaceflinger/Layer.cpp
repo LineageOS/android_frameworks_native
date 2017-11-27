@@ -209,42 +209,42 @@ sp<IBinder> Layer::getHandle() {
 // ---------------------------------------------------------------------------
 
 bool Layer::createHwcLayer(HWComposer* hwc, int32_t hwcId) {
-    LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0,
+    LOG_ALWAYS_FATAL_IF(getBE().mHwcLayers.count(hwcId) != 0,
                         "Already have a layer for hwcId %d", hwcId);
     HWC2::Layer* layer = hwc->createLayer(hwcId);
     if (!layer) {
         return false;
     }
-    HWCInfo& hwcInfo = mHwcLayers[hwcId];
+    LayerBE::HWCInfo& hwcInfo = getBE().mHwcLayers[hwcId];
     hwcInfo.hwc = hwc;
     hwcInfo.layer = layer;
     layer->setLayerDestroyedListener(
-            [this, hwcId](HWC2::Layer* /*layer*/) { mHwcLayers.erase(hwcId); });
+            [this, hwcId](HWC2::Layer* /*layer*/) { getBE().mHwcLayers.erase(hwcId); });
     return true;
 }
 
 bool Layer::destroyHwcLayer(int32_t hwcId) {
-    if (mHwcLayers.count(hwcId) == 0) {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
         return false;
     }
-    auto& hwcInfo = mHwcLayers[hwcId];
+    auto& hwcInfo = getBE().mHwcLayers[hwcId];
     LOG_ALWAYS_FATAL_IF(hwcInfo.layer == nullptr, "Attempt to destroy null layer");
     LOG_ALWAYS_FATAL_IF(hwcInfo.hwc == nullptr, "Missing HWComposer");
     hwcInfo.hwc->destroyLayer(hwcId, hwcInfo.layer);
     // The layer destroyed listener should have cleared the entry from
     // mHwcLayers. Verify that.
-    LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0, "Stale layer entry in mHwcLayers");
-
+    LOG_ALWAYS_FATAL_IF(getBE().mHwcLayers.count(hwcId) != 0,
+                        "Stale layer entry in getBE().mHwcLayers");
     return true;
 }
 
 void Layer::destroyAllHwcLayers() {
-    size_t numLayers = mHwcLayers.size();
+    size_t numLayers = getBE().mHwcLayers.size();
     for (size_t i = 0; i < numLayers; ++i) {
-        LOG_ALWAYS_FATAL_IF(mHwcLayers.empty(), "destroyAllHwcLayers failed");
-        destroyHwcLayer(mHwcLayers.begin()->first);
+        LOG_ALWAYS_FATAL_IF(getBE().mHwcLayers.empty(), "destroyAllHwcLayers failed");
+        destroyHwcLayer(getBE().mHwcLayers.begin()->first);
     }
-    LOG_ALWAYS_FATAL_IF(!mHwcLayers.empty(),
+    LOG_ALWAYS_FATAL_IF(!getBE().mHwcLayers.empty(),
                         "All hardware composer layers should have been destroyed");
 }
 
@@ -465,7 +465,7 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
 void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z)
 {
     const auto hwcId = displayDevice->getHwcDisplayId();
-    auto& hwcInfo = mHwcLayers[hwcId];
+    auto& hwcInfo = getBE().mHwcLayers[hwcId];
 
     // enable this layer
     hwcInfo.forceClientComposition = false;
@@ -621,26 +621,26 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
 }
 
 void Layer::forceClientComposition(int32_t hwcId) {
-    if (mHwcLayers.count(hwcId) == 0) {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
         ALOGE("forceClientComposition: no HWC layer found (%d)", hwcId);
         return;
     }
 
-    mHwcLayers[hwcId].forceClientComposition = true;
+    getBE().mHwcLayers[hwcId].forceClientComposition = true;
 }
 
 bool Layer::getForceClientComposition(int32_t hwcId) {
-    if (mHwcLayers.count(hwcId) == 0) {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
         ALOGE("getForceClientComposition: no HWC layer found (%d)", hwcId);
         return false;
     }
 
-    return mHwcLayers[hwcId].forceClientComposition;
+    return getBE().mHwcLayers[hwcId].forceClientComposition;
 }
 
 void Layer::updateCursorPosition(const sp<const DisplayDevice>& displayDevice) {
     auto hwcId = displayDevice->getHwcDisplayId();
-    if (mHwcLayers.count(hwcId) == 0 ||
+    if (getBE().mHwcLayers.count(hwcId) == 0 ||
         getCompositionType(hwcId) != HWC2::Composition::Cursor) {
         return;
     }
@@ -664,7 +664,7 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& displayDevice) {
     auto& displayTransform(displayDevice->getTransform());
     auto position = displayTransform.transform(frame);
 
-    auto error = mHwcLayers[hwcId].layer->setCursorPosition(position.left,
+    auto error = getBE().mHwcLayers[hwcId].layer->setCursorPosition(position.left,
                                                                               position.top);
     ALOGE_IF(error != HWC2::Error::None,
              "[%s] Failed to set cursor position "
@@ -702,11 +702,11 @@ void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
 }
 
 void Layer::setCompositionType(int32_t hwcId, HWC2::Composition type, bool callIntoHwc) {
-    if (mHwcLayers.count(hwcId) == 0) {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
         ALOGE("setCompositionType called without a valid HWC layer");
         return;
     }
-    auto& hwcInfo = mHwcLayers[hwcId];
+    auto& hwcInfo = getBE().mHwcLayers[hwcId];
     auto& hwcLayer = hwcInfo.layer;
     ALOGV("setCompositionType(%" PRIx64 ", %s, %d)", hwcLayer->getId(), to_string(type).c_str(),
           static_cast<int>(callIntoHwc));
@@ -730,27 +730,27 @@ HWC2::Composition Layer::getCompositionType(int32_t hwcId) const {
         // have a HWC counterpart, then it will always be Client
         return HWC2::Composition::Client;
     }
-    if (mHwcLayers.count(hwcId) == 0) {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
         ALOGE("getCompositionType called with an invalid HWC layer");
         return HWC2::Composition::Invalid;
     }
-    return mHwcLayers.at(hwcId).compositionType;
+    return getBE().mHwcLayers.at(hwcId).compositionType;
 }
 
 void Layer::setClearClientTarget(int32_t hwcId, bool clear) {
-    if (mHwcLayers.count(hwcId) == 0) {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
         ALOGE("setClearClientTarget called without a valid HWC layer");
         return;
     }
-    mHwcLayers[hwcId].clearClientTarget = clear;
+    getBE().mHwcLayers[hwcId].clearClientTarget = clear;
 }
 
 bool Layer::getClearClientTarget(int32_t hwcId) const {
-    if (mHwcLayers.count(hwcId) == 0) {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
         ALOGE("getClearClientTarget called without a valid HWC layer");
         return false;
     }
-    return mHwcLayers.at(hwcId).clearClientTarget;
+    return getBE().mHwcLayers.at(hwcId).clearClientTarget;
 }
 
 bool Layer::addSyncPoint(const std::shared_ptr<SyncPoint>& point) {
@@ -1432,7 +1432,7 @@ void Layer::miniDumpHeader(String8& result) {
 }
 
 void Layer::miniDump(String8& result, int32_t hwcId) const {
-    if (mHwcLayers.count(hwcId) == 0) {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
         return;
     }
 
@@ -1450,7 +1450,7 @@ void Layer::miniDump(String8& result, int32_t hwcId) const {
     result.appendFormat(" %s\n", name.string());
 
     const Layer::State& layerState(getDrawingState());
-    const HWCInfo& hwcInfo = mHwcLayers.at(hwcId);
+    const LayerBE::HWCInfo& hwcInfo = getBE().mHwcLayers.at(hwcId);
     result.appendFormat("  %10d | ", layerState.z);
     result.appendFormat("%10s | ", to_string(getCompositionType(hwcId)).c_str());
     const Rect& frame = hwcInfo.displayFrame;

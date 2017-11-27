@@ -78,6 +78,30 @@ public:
     // The mesh used to draw the layer in GLES composition mode
     Mesh mMesh;
 
+    // HWC items, accessed from the main thread
+    struct HWCInfo {
+        HWCInfo()
+              : hwc(nullptr),
+                layer(nullptr),
+                forceClientComposition(false),
+                compositionType(HWC2::Composition::Invalid),
+                clearClientTarget(false) {}
+
+        HWComposer* hwc;
+        HWC2::Layer* layer;
+        bool forceClientComposition;
+        HWC2::Composition compositionType;
+        bool clearClientTarget;
+        Rect displayFrame;
+        FloatRect sourceCrop;
+        HWComposerBufferCache bufferCache;
+    };
+
+    // A layer can be attached to multiple displays when operating in mirror mode
+    // (a.k.a: when several displays are attached with equal layerStack). In this
+    // case we need to keep track. In non-mirror mode, a layer will have only one
+    // HWCInfo. This map key is a display layerStack.
+    std::unordered_map<int32_t, HWCInfo> mHwcLayers;
 };
 
 class Layer : public virtual RefBase {
@@ -431,13 +455,15 @@ public:
     bool destroyHwcLayer(int32_t hwcId);
     void destroyAllHwcLayers();
 
-    bool hasHwcLayer(int32_t hwcId) { return mHwcLayers.count(hwcId) > 0; }
+    bool hasHwcLayer(int32_t hwcId) {
+        return getBE().mHwcLayers.count(hwcId) > 0;
+    }
 
     HWC2::Layer* getHwcLayer(int32_t hwcId) {
-        if (mHwcLayers.count(hwcId) == 0) {
+        if (getBE().mHwcLayers.count(hwcId) == 0) {
             return nullptr;
         }
-        return mHwcLayers[hwcId].layer;
+        return getBE().mHwcLayers[hwcId].layer;
     }
 
     // -----------------------------------------------------------------------
@@ -668,31 +694,6 @@ protected:
     bool mNeedsFiltering;
 
     bool mPendingRemoval = false;
-
-    // HWC items, accessed from the main thread
-    struct HWCInfo {
-        HWCInfo()
-              : hwc(nullptr),
-                layer(nullptr),
-                forceClientComposition(false),
-                compositionType(HWC2::Composition::Invalid),
-                clearClientTarget(false) {}
-
-        HWComposer* hwc;
-        HWC2::Layer* layer;
-        bool forceClientComposition;
-        HWC2::Composition compositionType;
-        bool clearClientTarget;
-        Rect displayFrame;
-        FloatRect sourceCrop;
-        HWComposerBufferCache bufferCache;
-    };
-
-    // A layer can be attached to multiple displays when operating in mirror mode
-    // (a.k.a: when several displays are attached with equal layerStack). In this
-    // case we need to keep track. In non-mirror mode, a layer will have only one
-    // HWCInfo. This map key is a display layerStack.
-    std::unordered_map<int32_t, HWCInfo> mHwcLayers;
 
     // page-flip thread (currently main thread)
     bool mProtectedByApp; // application requires protected path to external sink
