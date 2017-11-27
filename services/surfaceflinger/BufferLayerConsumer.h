@@ -96,13 +96,6 @@ public:
     // This calls doGLFenceWait to ensure proper synchronization.
     status_t updateTexImage();
 
-    // releaseTexImage releases the texture acquired in updateTexImage().
-    // This is intended to be used in single buffer mode.
-    //
-    // This call may only be made while the OpenGL ES context to which the
-    // target texture belongs is bound to the calling thread.
-    status_t releaseTexImage();
-
     // setReleaseFence stores a fence that will signal when the current buffer
     // is no longer being read. This fence will be returned to the producer
     // when the current buffer is released by updateTexImage(). Multiple
@@ -293,7 +286,6 @@ protected:
 private:
     // EglImage is a utility class for tracking and creating EGLImageKHRs. There
     // is primarily just one image per slot, but there is also special cases:
-    //  - For releaseTexImage, we use a debug image (mReleasedTexImage)
     //  - After freeBuffer, we must still keep the current image/buffer
     // Reference counting EGLImages lets us handle all these cases easily while
     // also only creating new EGLImages from buffers when required.
@@ -364,9 +356,6 @@ private:
     // current slot's fence to guard against a producer accessing the buffer
     // before the outstanding accesses have completed.
     status_t syncForReleaseLocked(EGLDisplay dpy);
-
-    // returns a graphic buffer used when the texture image has been released
-    static sp<GraphicBuffer> getDebugTexImageBuffer();
 
     // The default consumer usage flags that BufferLayerConsumer always sets on its
     // BufferQueue instance; these will be OR:d with any additional flags passed
@@ -492,14 +481,6 @@ private:
     // It is set to false by detachFromContext, and then set to true again by
     // attachToContext.
     bool mAttached;
-
-    // protects static initialization
-    static Mutex sStaticInitLock;
-
-    // mReleasedTexImageBuffer is a dummy buffer used when in single buffer
-    // mode and releaseTexImage() has been called
-    static sp<GraphicBuffer> sReleasedTexImageBuffer;
-    sp<EglImage> mReleasedTexImage;
 };
 
 // ----------------------------------------------------------------------------

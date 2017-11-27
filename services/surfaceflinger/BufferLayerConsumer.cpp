@@ -59,27 +59,7 @@ namespace android {
 #define BLC_LOGW(x, ...) ALOGW("[%s] " x, mName.string(), ##__VA_ARGS__)
 #define BLC_LOGE(x, ...) ALOGE("[%s] " x, mName.string(), ##__VA_ARGS__)
 
-static const struct {
-    uint32_t width, height;
-    char const* bits;
-} kDebugData = {15, 12,
-                "_______________"
-                "_______________"
-                "_____XX_XX_____"
-                "__X_X_____X_X__"
-                "__X_XXXXXXX_X__"
-                "__XXXXXXXXXXX__"
-                "___XX_XXX_XX___"
-                "____XXXXXXX____"
-                "_____X___X_____"
-                "____X_____X____"
-                "_______________"
-                "_______________"};
-
 static const mat4 mtxIdentity;
-
-Mutex BufferLayerConsumer::sStaticInitLock;
-sp<GraphicBuffer> BufferLayerConsumer::sReleasedTexImageBuffer;
 
 static bool hasEglAndroidImageCropImpl() {
     EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -235,106 +215,6 @@ status_t BufferLayerConsumer::updateTexImage() {
 
     // Bind the new buffer to the GL texture, and wait until it's ready.
     return bindTextureImageLocked();
-}
-
-status_t BufferLayerConsumer::releaseTexImage() {
-    ATRACE_CALL();
-    BLC_LOGV("releaseTexImage");
-    Mutex::Autolock lock(mMutex);
-
-    if (mAbandoned) {
-        BLC_LOGE("releaseTexImage: BufferLayerConsumer is abandoned!");
-        return NO_INIT;
-    }
-
-    // Make sure the EGL state is the same as in previous calls.
-    status_t err = NO_ERROR;
-
-    if (mAttached) {
-        err = checkAndUpdateEglStateLocked(true);
-        if (err != NO_ERROR) {
-            return err;
-        }
-    } else {
-        // if we're detached, no need to validate EGL's state -- we won't use it.
-    }
-
-    // Update the BufferLayerConsumer state.
-    int buf = mCurrentTexture;
-    if (buf != BufferQueue::INVALID_BUFFER_SLOT) {
-        BLC_LOGV("releaseTexImage: (slot=%d, mAttached=%d)", buf, mAttached);
-
-        if (mAttached) {
-            // Do whatever sync ops we need to do before releasing the slot.
-            err = syncForReleaseLocked(mEglDisplay);
-            if (err != NO_ERROR) {
-                BLC_LOGE("syncForReleaseLocked failed (slot=%d), err=%d", buf, err);
-                return err;
-            }
-        } else {
-            // if we're detached, we just use the fence that was created in detachFromContext()
-            // so... basically, nothing more to do here.
-        }
-
-        err = releaseBufferLocked(buf, mSlots[buf].mGraphicBuffer, mEglDisplay, EGL_NO_SYNC_KHR);
-        if (err < NO_ERROR) {
-            BLC_LOGE("releaseTexImage: failed to release buffer: %s (%d)", strerror(-err), err);
-            return err;
-        }
-
-        if (mReleasedTexImage == NULL) {
-            mReleasedTexImage = new EglImage(getDebugTexImageBuffer());
-        }
-
-        mCurrentTexture = BufferQueue::INVALID_BUFFER_SLOT;
-        mCurrentTextureImage = mReleasedTexImage;
-        mCurrentCrop.makeInvalid();
-        mCurrentTransform = 0;
-        mCurrentTimestamp = 0;
-        mCurrentDataSpace = HAL_DATASPACE_UNKNOWN;
-        mCurrentFence = Fence::NO_FENCE;
-        mCurrentFenceTime = FenceTime::NO_FENCE;
-
-        if (mAttached) {
-            // This binds a dummy buffer (mReleasedTexImage).
-            status_t result = bindTextureImageLocked();
-            if (result != NO_ERROR) {
-                return result;
-            }
-        } else {
-            // detached, don't touch the texture (and we may not even have an
-            // EGLDisplay here.
-        }
-    }
-
-    return NO_ERROR;
-}
-
-sp<GraphicBuffer> BufferLayerConsumer::getDebugTexImageBuffer() {
-    Mutex::Autolock _l(sStaticInitLock);
-    if (CC_UNLIKELY(sReleasedTexImageBuffer == NULL)) {
-        // The first time, create the debug texture in case the application
-        // continues to use it.
-        sp<GraphicBuffer> buffer =
-                new GraphicBuffer(kDebugData.width, kDebugData.height, PIXEL_FORMAT_RGBA_8888,
-                                  GraphicBuffer::USAGE_SW_WRITE_RARELY,
-                                  "[BufferLayerConsumer debug texture]");
-        uint32_t* bits;
-        buffer->lock(GraphicBuffer::USAGE_SW_WRITE_RARELY, reinterpret_cast<void**>(&bits));
-        uint32_t stride = buffer->getStride();
-        uint32_t height = buffer->getHeight();
-        memset(bits, 0, stride * height * 4);
-        for (uint32_t y = 0; y < kDebugData.height; y++) {
-            for (uint32_t x = 0; x < kDebugData.width; x++) {
-                bits[x] = (kDebugData.bits[y + kDebugData.width + x] == 'X') ? 0xFF000000
-                                                                             : 0xFFFFFFFF;
-            }
-            bits += stride;
-        }
-        buffer->unlock();
-        sReleasedTexImageBuffer = buffer;
-    }
-    return sReleasedTexImageBuffer;
 }
 
 status_t BufferLayerConsumer::acquireBufferLocked(BufferItem* item, nsecs_t presentWhen,
