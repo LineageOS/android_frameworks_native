@@ -106,8 +106,7 @@ static bool isEglImageCroppable(const Rect& crop) {
 }
 
 BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex,
-                                         uint32_t texTarget, bool useFenceSync,
-                                         bool isControlledByApp)
+                                         uint32_t texTarget, bool isControlledByApp)
       : ConsumerBase(bq, isControlledByApp),
         mCurrentCrop(Rect::EMPTY_RECT),
         mCurrentTransform(0),
@@ -120,7 +119,6 @@ BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, u
         mDefaultHeight(1),
         mFilteringEnabled(true),
         mTexName(tex),
-        mUseFenceSync(useFenceSync),
         mTexTarget(texTarget),
         mEglDisplay(EGL_NO_DISPLAY),
         mEglContext(EGL_NO_CONTEXT),
@@ -207,17 +205,6 @@ status_t BufferLayerConsumer::acquireBufferLocked(BufferItem* item, nsecs_t pres
     return NO_ERROR;
 }
 
-status_t BufferLayerConsumer::releaseBufferLocked(int buf, sp<GraphicBuffer> graphicBuffer,
-                                                  EGLDisplay display, EGLSyncKHR eglFence) {
-    // release the buffer if it hasn't already been discarded by the
-    // BufferQueue. This can happen, for example, when the producer of this
-    // buffer has reallocated the original buffer slot after this buffer
-    // was acquired.
-    status_t err = ConsumerBase::releaseBufferLocked(buf, graphicBuffer, display, eglFence);
-    mEglSlots[buf].mEglFence = EGL_NO_SYNC_KHR;
-    return err;
-}
-
 status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
                                                      PendingRelease* pendingRelease) {
     status_t err = NO_ERROR;
@@ -227,7 +214,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     // Confirm state.
     err = checkAndUpdateEglStateLocked();
     if (err != NO_ERROR) {
-        releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer, mEglDisplay, EGL_NO_SYNC_KHR);
+        releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer);
         return err;
     }
 
@@ -240,7 +227,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     if (err != NO_ERROR) {
         BLC_LOGW("updateAndRelease: unable to createImage on display=%p slot=%d", mEglDisplay,
                  slot);
-        releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer, mEglDisplay, EGL_NO_SYNC_KHR);
+        releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer);
         return UNKNOWN_ERROR;
     }
 
@@ -252,7 +239,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
             // release the old buffer, so instead we just drop the new frame.
             // As we are still under lock since acquireBuffer, it is safe to
             // release by slot.
-            releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer, mEglDisplay, EGL_NO_SYNC_KHR);
+            releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer);
             return err;
         }
     }
@@ -270,8 +257,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
         if (pendingRelease == nullptr) {
             status_t status =
-                    releaseBufferLocked(mCurrentTexture, mCurrentTextureImage->graphicBuffer(),
-                                        mEglDisplay, mEglSlots[mCurrentTexture].mEglFence);
+                    releaseBufferLocked(mCurrentTexture, mCurrentTextureImage->graphicBuffer());
             if (status < NO_ERROR) {
                 BLC_LOGE("updateAndRelease: failed to release buffer: %s (%d)", strerror(-status),
                          status);
@@ -281,8 +267,6 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
         } else {
             pendingRelease->currentTexture = mCurrentTexture;
             pendingRelease->graphicBuffer = mCurrentTextureImage->graphicBuffer();
-            pendingRelease->display = mEglDisplay;
-            pendingRelease->fence = mEglSlots[mCurrentTexture].mEglFence;
             pendingRelease->isPending = true;
         }
     }
@@ -397,36 +381,6 @@ status_t BufferLayerConsumer::syncForReleaseLocked(EGLDisplay dpy) {
                          strerror(-err), err);
                 return err;
             }
-        } else if (mUseFenceSync && SyncFeatures::getInstance().useFenceSync()) {
-            EGLSyncKHR fence = mEglSlots[mCurrentTexture].mEglFence;
-            if (fence != EGL_NO_SYNC_KHR) {
-                // There is already a fence for the current slot.  We need to
-                // wait on that before replacing it with another fence to
-                // ensure that all outstanding buffer accesses have completed
-                // before the producer accesses it.
-                EGLint result = eglClientWaitSyncKHR(dpy, fence, 0, 1000000000);
-                if (result == EGL_FALSE) {
-                    BLC_LOGE("syncForReleaseLocked: error waiting for previous "
-                             "fence: %#x",
-                             eglGetError());
-                    return UNKNOWN_ERROR;
-                } else if (result == EGL_TIMEOUT_EXPIRED_KHR) {
-                    BLC_LOGE("syncForReleaseLocked: timeout waiting for previous "
-                             "fence");
-                    return TIMED_OUT;
-                }
-                eglDestroySyncKHR(dpy, fence);
-            }
-
-            // Create a fence for the outstanding accesses in the current
-            // OpenGL ES context.
-            fence = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL);
-            if (fence == EGL_NO_SYNC_KHR) {
-                BLC_LOGE("syncForReleaseLocked: error creating fence: %#x", eglGetError());
-                return UNKNOWN_ERROR;
-            }
-            glFlush();
-            mEglSlots[mCurrentTexture].mEglFence = fence;
         }
     }
 

@@ -60,11 +60,9 @@ public:
     // The tex parameter indicates the name of the OpenGL ES
     // texture to which images are to be streamed. texTarget specifies the
     // OpenGL ES texture target to which the texture will be bound in
-    // updateTexImage. useFenceSync specifies whether fences should be used to
-    // synchronize access to buffers if that behavior is enabled at
-    // compile-time.
+    // updateTexImage.
     BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex, uint32_t texureTarget,
-                        bool useFenceSync, bool isControlledByApp);
+                        bool isControlledByApp);
 
     // updateTexImage acquires the most recently queued buffer, and sets the
     // image contents of the target texture to it.
@@ -188,29 +186,12 @@ protected:
     virtual status_t acquireBufferLocked(BufferItem* item, nsecs_t presentWhen,
                                          uint64_t maxFrameNumber = 0) override;
 
-    // releaseBufferLocked overrides the ConsumerBase method to update the
-    // mEglSlots array in addition to the ConsumerBase.
-    virtual status_t releaseBufferLocked(int slot, const sp<GraphicBuffer> graphicBuffer,
-                                         EGLDisplay display, EGLSyncKHR eglFence) override;
-
-    status_t releaseBufferLocked(int slot, const sp<GraphicBuffer> graphicBuffer,
-                                 EGLSyncKHR eglFence) {
-        return releaseBufferLocked(slot, graphicBuffer, mEglDisplay, eglFence);
-    }
-
     struct PendingRelease {
-        PendingRelease()
-              : isPending(false),
-                currentTexture(-1),
-                graphicBuffer(),
-                display(nullptr),
-                fence(nullptr) {}
+        PendingRelease() : isPending(false), currentTexture(-1), graphicBuffer() {}
 
         bool isPending;
         int currentTexture;
         sp<GraphicBuffer> graphicBuffer;
-        EGLDisplay display;
-        EGLSyncKHR fence;
     };
 
     // This releases the buffer in the slot referenced by mCurrentTexture,
@@ -364,12 +345,6 @@ private:
     // be bound when updateTexImage is called. It is set at construction time.
     const uint32_t mTexName;
 
-    // mUseFenceSync indicates whether creation of the EGL_KHR_fence_sync
-    // extension should be used to prevent buffers from being dequeued before
-    // it's safe for them to be written. It gets set at construction time and
-    // never changes.
-    const bool mUseFenceSync;
-
     // mTexTarget is the GL texture target with which the GL texture object is
     // associated.  It is set in the constructor and never changed.  It is
     // almost always GL_TEXTURE_EXTERNAL_OES except for one use case in Android
@@ -382,16 +357,8 @@ private:
     // EGLSlot contains the information and object references that
     // BufferLayerConsumer maintains about a BufferQueue buffer slot.
     struct EglSlot {
-        EglSlot() : mEglFence(EGL_NO_SYNC_KHR) {}
-
         // mEglImage is the EGLImage created from mGraphicBuffer.
         sp<EglImage> mEglImage;
-
-        // mFence is the EGL sync object that must signal before the buffer
-        // associated with this buffer slot may be dequeued. It is initialized
-        // to EGL_NO_SYNC_KHR when the buffer is created and (optionally, based
-        // on a compile-time option) set to a new sync object in updateTexImage.
-        EGLSyncKHR mEglFence;
     };
 
     // mEglDisplay is the EGLDisplay with which this BufferLayerConsumer is currently

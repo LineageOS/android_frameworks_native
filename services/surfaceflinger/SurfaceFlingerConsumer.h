@@ -40,7 +40,7 @@ public:
 
     SurfaceFlingerConsumer(const sp<IGraphicBufferConsumer>& consumer,
             uint32_t tex, Layer* layer)
-        : BufferLayerConsumer(consumer, tex, BufferLayerConsumer::TEXTURE_EXTERNAL, false, false),
+        : BufferLayerConsumer(consumer, tex, BufferLayerConsumer::TEXTURE_EXTERNAL, false),
           mTransformToDisplayInverse(false), mSurfaceDamage(), mLayer(layer)
     {}
 

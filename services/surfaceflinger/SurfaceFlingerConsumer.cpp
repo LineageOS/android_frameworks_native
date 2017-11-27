@@ -84,7 +84,7 @@ status_t SurfaceFlingerConsumer::updateTexImage(BufferRejecter* rejecter,
     // reject buffers which have the wrong size
     int slot = item.mSlot;
     if (rejecter && rejecter->reject(mSlots[slot].mGraphicBuffer, item)) {
-        releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer, EGL_NO_SYNC_KHR);
+        releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer);
         return BUFFER_REJECTED;
     }
 
@@ -212,8 +212,7 @@ bool SurfaceFlingerConsumer::releasePendingBuffer()
     ALOGV("Releasing pending buffer");
     Mutex::Autolock lock(mMutex);
     status_t result = releaseBufferLocked(mPendingRelease.currentTexture,
-            mPendingRelease.graphicBuffer, mPendingRelease.display,
-            mPendingRelease.fence);
+            mPendingRelease.graphicBuffer);
     ALOGE_IF(result < NO_ERROR, "releasePendingBuffer failed: %s (%d)",
             strerror(-result), result);
     mPendingRelease = PendingRelease();
