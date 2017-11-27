@@ -73,6 +73,8 @@ class LayerBE {
 public:
     LayerBE();
 
+    sp<NativeHandle> mSidebandStream;
+
     // The mesh used to draw the layer in GLES composition mode
     Mesh mMesh;
 

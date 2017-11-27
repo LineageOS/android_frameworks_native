@@ -115,7 +115,7 @@ bool BufferLayer::isProtected() const {
 
 bool BufferLayer::isVisible() const {
     return !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
-            (mActiveBuffer != NULL || mSidebandStream != NULL);
+            (mActiveBuffer != NULL || getBE().mSidebandStream != NULL);
 }
 
 bool BufferLayer::isFixedSize() const {
@@ -385,7 +385,9 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     if (android_atomic_acquire_cas(true, false, &mSidebandStreamChanged) == 0) {
         // mSidebandStreamChanged was true
         mSidebandStream = mSurfaceFlingerConsumer->getSidebandStream();
-        if (mSidebandStream != NULL) {
+        // replicated in LayerBE until FE/BE is ready to be synchronized
+        getBE().mSidebandStream = mSidebandStream;
+        if (getBE().mSidebandStream != NULL) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
         }
@@ -606,13 +608,13 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
     }
 
     // Sideband layers
-    if (mSidebandStream.get()) {
+    if (getBE().mSidebandStream.get()) {
         setCompositionType(hwcId, HWC2::Composition::Sideband);
         ALOGV("[%s] Requesting Sideband composition", mName.string());
-        error = hwcLayer->setSidebandStream(mSidebandStream->handle());
+        error = hwcLayer->setSidebandStream(getBE().mSidebandStream->handle());
         if (error != HWC2::Error::None) {
             ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
-                  mSidebandStream->handle(), to_string(error).c_str(),
+                  getBE().mSidebandStream->handle(), to_string(error).c_str(),
                   static_cast<int32_t>(error));
         }
         return;
@@ -651,7 +653,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
 bool BufferLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
-    if ((mSidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
+    if ((getBE().mSidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
         return false;
     }
 
