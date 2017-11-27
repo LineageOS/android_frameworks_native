@@ -44,9 +44,10 @@ class String8;
  * If a new frame is available, the texture will be updated.  If not,
  * the previous contents are retained.
  *
- * By default, the texture is attached to the GL_TEXTURE_EXTERNAL_OES
- * texture target, in the EGL context of the first thread that calls
- * updateTexImage().
+ * The texture is attached to the GL_TEXTURE_EXTERNAL_OES texture target, in
+ * the EGL context of the first thread that calls updateTexImage(). After that
+ * point, all calls to updateTexImage must be made with the same OpenGL ES
+ * context current.
  *
  * This class was previously called SurfaceTexture.
  */
@@ -55,36 +56,14 @@ public:
     enum { TEXTURE_EXTERNAL = 0x8D65 }; // GL_TEXTURE_EXTERNAL_OES
     typedef ConsumerBase::FrameAvailableListener FrameAvailableListener;
 
-    // BufferLayerConsumer constructs a new BufferLayerConsumer object. If the constructor with
-    // the tex parameter is used, tex indicates the name of the OpenGL ES
+    // BufferLayerConsumer constructs a new BufferLayerConsumer object.
+    // The tex parameter indicates the name of the OpenGL ES
     // texture to which images are to be streamed. texTarget specifies the
     // OpenGL ES texture target to which the texture will be bound in
     // updateTexImage. useFenceSync specifies whether fences should be used to
     // synchronize access to buffers if that behavior is enabled at
     // compile-time.
-    //
-    // A BufferLayerConsumer may be detached from one OpenGL ES context and then
-    // attached to a different context using the detachFromContext and
-    // attachToContext methods, respectively. The intention of these methods is
-    // purely to allow a BufferLayerConsumer to be transferred from one consumer
-    // context to another. If such a transfer is not needed there is no
-    // requirement that either of these methods be called.
-    //
-    // If the constructor with the tex parameter is used, the BufferLayerConsumer is
-    // created in a state where it is considered attached to an OpenGL ES
-    // context for the purposes of the attachToContext and detachFromContext
-    // methods. However, despite being considered "attached" to a context, the
-    // specific OpenGL ES context doesn't get latched until the first call to
-    // updateTexImage. After that point, all calls to updateTexImage must be
-    // made with the same OpenGL ES context current.
-    //
-    // If the constructor without the tex parameter is used, the BufferLayerConsumer is
-    // created in a detached state, and attachToContext must be called before
-    // calls to updateTexImage.
     BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex, uint32_t texureTarget,
-                        bool useFenceSync, bool isControlledByApp);
-
-    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t texureTarget,
                         bool useFenceSync, bool isControlledByApp);
 
     // updateTexImage acquires the most recently queued buffer, and sets the
@@ -195,33 +174,6 @@ public:
     // DEFAULT_USAGE_FLAGS to usage.
     status_t setConsumerUsageBits(uint64_t usage);
 
-    // detachFromContext detaches the BufferLayerConsumer from the calling thread's
-    // current OpenGL ES context.  This context must be the same as the context
-    // that was current for previous calls to updateTexImage.
-    //
-    // Detaching a BufferLayerConsumer from an OpenGL ES context will result in the
-    // deletion of the OpenGL ES texture object into which the images were being
-    // streamed.  After a BufferLayerConsumer has been detached from the OpenGL ES
-    // context calls to updateTexImage will fail returning INVALID_OPERATION
-    // until the BufferLayerConsumer is attached to a new OpenGL ES context using the
-    // attachToContext method.
-    status_t detachFromContext();
-
-    // attachToContext attaches a BufferLayerConsumer that is currently in the
-    // 'detached' state to the current OpenGL ES context.  A BufferLayerConsumer is
-    // in the 'detached' state iff detachFromContext has successfully been
-    // called and no calls to attachToContext have succeeded since the last
-    // detachFromContext call.  Calls to attachToContext made on a
-    // BufferLayerConsumer that is not in the 'detached' state will result in an
-    // INVALID_OPERATION error.
-    //
-    // The tex argument specifies the OpenGL ES texture object name in the
-    // new context into which the image contents will be streamed.  A successful
-    // call to attachToContext will result in this texture object being bound to
-    // the texture target and populated with the image contents that were
-    // current at the time of the last call to detachFromContext.
-    status_t attachToContext(uint32_t tex);
-
 protected:
     // abandonLocked overrides the ConsumerBase method to clear
     // mCurrentTextureImage in addition to the ConsumerBase behavior.
@@ -279,9 +231,7 @@ protected:
     // to mEglDisplay and mEglContext.  If the fields have been previously
     // set, the values must match; if not, the fields are set to the current
     // values.
-    // The contextCheck argument is used to ensure that a GL context is
-    // properly set; when set to false, the check is not performed.
-    status_t checkAndUpdateEglStateLocked(bool contextCheck = false);
+    status_t checkAndUpdateEglStateLocked();
 
 private:
     // EglImage is a utility class for tracking and creating EGLImageKHRs. There
@@ -295,7 +245,7 @@ private:
 
         // createIfNeeded creates an EGLImage if required (we haven't created
         // one yet, or the EGLDisplay or crop-rect has changed).
-        status_t createIfNeeded(EGLDisplay display, const Rect& cropRect, bool forceCreate = false);
+        status_t createIfNeeded(EGLDisplay display, const Rect& cropRect);
 
         // This calls glEGLImageTargetTexture2DOES to bind the image to the
         // texture in the specified texture target.
@@ -411,9 +361,8 @@ private:
     bool mFilteringEnabled;
 
     // mTexName is the name of the OpenGL texture to which streamed images will
-    // be bound when updateTexImage is called. It is set at construction time
-    // and can be changed with a call to attachToContext.
-    uint32_t mTexName;
+    // be bound when updateTexImage is called. It is set at construction time.
+    const uint32_t mTexName;
 
     // mUseFenceSync indicates whether creation of the EGL_KHR_fence_sync
     // extension should be used to prevent buffers from being dequeued before
@@ -447,14 +396,13 @@ private:
 
     // mEglDisplay is the EGLDisplay with which this BufferLayerConsumer is currently
     // associated.  It is intialized to EGL_NO_DISPLAY and gets set to the
-    // current display when updateTexImage is called for the first time and when
-    // attachToContext is called.
+    // current display when updateTexImage is called for the first time.
     EGLDisplay mEglDisplay;
 
     // mEglContext is the OpenGL ES context with which this BufferLayerConsumer is
     // currently associated.  It is initialized to EGL_NO_CONTEXT and gets set
     // to the current GL context when updateTexImage is called for the first
-    // time and when attachToContext is called.
+    // time.
     EGLContext mEglContext;
 
     // mEGLSlots stores the buffers that have been allocated by the BufferQueue
@@ -473,14 +421,6 @@ private:
     // that no buffer is bound to the texture. A call to setBufferCount will
     // reset mCurrentTexture to INVALID_BUFFER_SLOT.
     int mCurrentTexture;
-
-    // mAttached indicates whether the ConsumerBase is currently attached to
-    // an OpenGL ES context.  For legacy reasons, this is initialized to true,
-    // indicating that the ConsumerBase is considered to be attached to
-    // whatever context is current at the time of the first updateTexImage call.
-    // It is set to false by detachFromContext, and then set to true again by
-    // attachToContext.
-    bool mAttached;
 };
 
 // ----------------------------------------------------------------------------

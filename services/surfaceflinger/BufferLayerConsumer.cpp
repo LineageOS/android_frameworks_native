@@ -124,35 +124,7 @@ BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, u
         mTexTarget(texTarget),
         mEglDisplay(EGL_NO_DISPLAY),
         mEglContext(EGL_NO_CONTEXT),
-        mCurrentTexture(BufferQueue::INVALID_BUFFER_SLOT),
-        mAttached(true) {
-    BLC_LOGV("BufferLayerConsumer");
-
-    memcpy(mCurrentTransformMatrix, mtxIdentity.asArray(), sizeof(mCurrentTransformMatrix));
-
-    mConsumer->setConsumerUsageBits(DEFAULT_USAGE_FLAGS);
-}
-
-BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t texTarget,
-                                         bool useFenceSync, bool isControlledByApp)
-      : ConsumerBase(bq, isControlledByApp),
-        mCurrentCrop(Rect::EMPTY_RECT),
-        mCurrentTransform(0),
-        mCurrentScalingMode(NATIVE_WINDOW_SCALING_MODE_FREEZE),
-        mCurrentFence(Fence::NO_FENCE),
-        mCurrentTimestamp(0),
-        mCurrentDataSpace(HAL_DATASPACE_UNKNOWN),
-        mCurrentFrameNumber(0),
-        mDefaultWidth(1),
-        mDefaultHeight(1),
-        mFilteringEnabled(true),
-        mTexName(0),
-        mUseFenceSync(useFenceSync),
-        mTexTarget(texTarget),
-        mEglDisplay(EGL_NO_DISPLAY),
-        mEglContext(EGL_NO_CONTEXT),
-        mCurrentTexture(BufferQueue::INVALID_BUFFER_SLOT),
-        mAttached(false) {
+        mCurrentTexture(BufferQueue::INVALID_BUFFER_SLOT) {
     BLC_LOGV("BufferLayerConsumer");
 
     memcpy(mCurrentTransformMatrix, mtxIdentity.asArray(), sizeof(mCurrentTransformMatrix));
@@ -251,13 +223,6 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     status_t err = NO_ERROR;
 
     int slot = item.mSlot;
-
-    if (!mAttached) {
-        BLC_LOGE("updateAndRelease: BufferLayerConsumer is not attached to an OpenGL "
-                 "ES context");
-        releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer, mEglDisplay, EGL_NO_SYNC_KHR);
-        return INVALID_OPERATION;
-    }
 
     // Confirm state.
     err = checkAndUpdateEglStateLocked();
@@ -364,42 +329,21 @@ status_t BufferLayerConsumer::bindTextureImageLocked() {
     }
     mCurrentTextureImage->bindToTextureTarget(mTexTarget);
 
-    // In the rare case that the display is terminated and then initialized
-    // again, we can't detect that the display changed (it didn't), but the
-    // image is invalid. In this case, repeat the exact same steps while
-    // forcing the creation of a new image.
-    if ((error = glGetError()) != GL_NO_ERROR) {
-        glBindTexture(mTexTarget, mTexName);
-        status_t result = mCurrentTextureImage->createIfNeeded(mEglDisplay, mCurrentCrop, true);
-        if (result != NO_ERROR) {
-            BLC_LOGW("bindTextureImage: can't create image on display=%p slot=%d", mEglDisplay,
-                     mCurrentTexture);
-            return UNKNOWN_ERROR;
-        }
-        mCurrentTextureImage->bindToTextureTarget(mTexTarget);
-        if ((error = glGetError()) != GL_NO_ERROR) {
-            BLC_LOGE("bindTextureImage: error binding external image: %#04x", error);
-            return UNKNOWN_ERROR;
-        }
-    }
-
     // Wait for the new buffer to be ready.
     return doGLFenceWaitLocked();
 }
 
-status_t BufferLayerConsumer::checkAndUpdateEglStateLocked(bool contextCheck) {
+status_t BufferLayerConsumer::checkAndUpdateEglStateLocked() {
     EGLDisplay dpy = eglGetCurrentDisplay();
     EGLContext ctx = eglGetCurrentContext();
 
-    if (!contextCheck) {
-        // if this is the first time we're called, mEglDisplay/mEglContext have
-        // never been set, so don't error out (below).
-        if (mEglDisplay == EGL_NO_DISPLAY) {
-            mEglDisplay = dpy;
-        }
-        if (mEglContext == EGL_NO_CONTEXT) {
-            mEglContext = ctx;
-        }
+    // if this is the first time we're called, mEglDisplay/mEglContext have
+    // never been set, so don't error out (below).
+    if (mEglDisplay == EGL_NO_DISPLAY) {
+        mEglDisplay = dpy;
+    }
+    if (mEglContext == EGL_NO_CONTEXT) {
+        mEglContext = ctx;
     }
 
     if (mEglDisplay != dpy || dpy == EGL_NO_DISPLAY) {
@@ -412,8 +356,6 @@ status_t BufferLayerConsumer::checkAndUpdateEglStateLocked(bool contextCheck) {
         return INVALID_OPERATION;
     }
 
-    mEglDisplay = dpy;
-    mEglContext = ctx;
     return NO_ERROR;
 }
 
@@ -425,103 +367,6 @@ void BufferLayerConsumer::setReleaseFence(const sp<Fence>& fence) {
             BLC_LOGE("setReleaseFence: failed to add the fence: %s (%d)", strerror(-err), err);
         }
     }
-}
-
-status_t BufferLayerConsumer::detachFromContext() {
-    ATRACE_CALL();
-    BLC_LOGV("detachFromContext");
-    Mutex::Autolock lock(mMutex);
-
-    if (mAbandoned) {
-        BLC_LOGE("detachFromContext: abandoned BufferLayerConsumer");
-        return NO_INIT;
-    }
-
-    if (!mAttached) {
-        BLC_LOGE("detachFromContext: BufferLayerConsumer is not attached to a "
-                 "context");
-        return INVALID_OPERATION;
-    }
-
-    EGLDisplay dpy = eglGetCurrentDisplay();
-    EGLContext ctx = eglGetCurrentContext();
-
-    if (mEglDisplay != dpy && mEglDisplay != EGL_NO_DISPLAY) {
-        BLC_LOGE("detachFromContext: invalid current EGLDisplay");
-        return INVALID_OPERATION;
-    }
-
-    if (mEglContext != ctx && mEglContext != EGL_NO_CONTEXT) {
-        BLC_LOGE("detachFromContext: invalid current EGLContext");
-        return INVALID_OPERATION;
-    }
-
-    if (dpy != EGL_NO_DISPLAY && ctx != EGL_NO_CONTEXT) {
-        status_t err = syncForReleaseLocked(dpy);
-        if (err != OK) {
-            return err;
-        }
-
-        glDeleteTextures(1, &mTexName);
-    }
-
-    mEglDisplay = EGL_NO_DISPLAY;
-    mEglContext = EGL_NO_CONTEXT;
-    mAttached = false;
-
-    return OK;
-}
-
-status_t BufferLayerConsumer::attachToContext(uint32_t tex) {
-    ATRACE_CALL();
-    BLC_LOGV("attachToContext");
-    Mutex::Autolock lock(mMutex);
-
-    if (mAbandoned) {
-        BLC_LOGE("attachToContext: abandoned BufferLayerConsumer");
-        return NO_INIT;
-    }
-
-    if (mAttached) {
-        BLC_LOGE("attachToContext: BufferLayerConsumer is already attached to a "
-                 "context");
-        return INVALID_OPERATION;
-    }
-
-    EGLDisplay dpy = eglGetCurrentDisplay();
-    EGLContext ctx = eglGetCurrentContext();
-
-    if (dpy == EGL_NO_DISPLAY) {
-        BLC_LOGE("attachToContext: invalid current EGLDisplay");
-        return INVALID_OPERATION;
-    }
-
-    if (ctx == EGL_NO_CONTEXT) {
-        BLC_LOGE("attachToContext: invalid current EGLContext");
-        return INVALID_OPERATION;
-    }
-
-    // We need to bind the texture regardless of whether there's a current
-    // buffer.
-    glBindTexture(mTexTarget, GLuint(tex));
-
-    mEglDisplay = dpy;
-    mEglContext = ctx;
-    mTexName = tex;
-    mAttached = true;
-
-    if (mCurrentTextureImage != NULL) {
-        // This may wait for a buffer a second time. This is likely required if
-        // this is a different context, since otherwise the wait could be skipped
-        // by bouncing through another context. For the same context the extra
-        // wait is redundant.
-        status_t err = bindTextureImageLocked();
-        if (err != NO_ERROR) {
-            return err;
-        }
-    }
-
-    return OK;
 }
 
 status_t BufferLayerConsumer::syncForReleaseLocked(EGLDisplay dpy) {
@@ -894,13 +739,13 @@ BufferLayerConsumer::EglImage::~EglImage() {
     }
 }
 
-status_t BufferLayerConsumer::EglImage::createIfNeeded(EGLDisplay eglDisplay, const Rect& cropRect,
-                                                       bool forceCreation) {
+status_t BufferLayerConsumer::EglImage::createIfNeeded(EGLDisplay eglDisplay,
+                                                       const Rect& cropRect) {
     // If there's an image and it's no longer valid, destroy it.
     bool haveImage = mEglImage != EGL_NO_IMAGE_KHR;
     bool displayInvalid = mEglDisplay != eglDisplay;
     bool cropInvalid = hasEglAndroidImageCrop() && mCropRect != cropRect;
-    if (haveImage && (displayInvalid || cropInvalid || forceCreation)) {
+    if (haveImage && (displayInvalid || cropInvalid)) {
         if (!eglDestroyImageKHR(mEglDisplay, mEglImage)) {
             ALOGE("createIfNeeded: eglDestroyImageKHR failed");
         }
