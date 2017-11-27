@@ -118,6 +118,8 @@ BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, u
         mCurrentTimestamp(0),
         mCurrentDataSpace(HAL_DATASPACE_UNKNOWN),
         mCurrentFrameNumber(0),
+        mCurrentTransformToDisplayInverse(false),
+        mCurrentSurfaceDamage(),
         mDefaultWidth(1),
         mDefaultHeight(1),
         mFilteringEnabled(true),
@@ -397,6 +399,8 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     mCurrentFence = item.mFence;
     mCurrentFenceTime = item.mFenceTime;
     mCurrentFrameNumber = item.mFrameNumber;
+    mCurrentTransformToDisplayInverse = item.mTransformToDisplayInverse;
+    mCurrentSurfaceDamage = item.mSurfaceDamage;
 
     computeCurrentTransformMatrixLocked();
 
@@ -545,6 +549,15 @@ uint64_t BufferLayerConsumer::getFrameNumber() {
     BLC_LOGV("getFrameNumber");
     Mutex::Autolock lock(mMutex);
     return mCurrentFrameNumber;
+}
+
+bool BufferLayerConsumer::getTransformToDisplayInverse() const {
+    Mutex::Autolock lock(mMutex);
+    return mCurrentTransformToDisplayInverse;
+}
+
+const Region& BufferLayerConsumer::getSurfaceDamage() const {
+    return mCurrentSurfaceDamage;
 }
 
 sp<GraphicBuffer> BufferLayerConsumer::getCurrentBuffer(int* outSlot) const {

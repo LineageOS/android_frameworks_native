@@ -34,31 +34,13 @@ class SurfaceFlingerConsumer : public BufferLayerConsumer {
 public:
     SurfaceFlingerConsumer(const sp<IGraphicBufferConsumer>& consumer,
             uint32_t tex, Layer* layer)
-        : BufferLayerConsumer(consumer, tex, layer),
-          mTransformToDisplayInverse(false), mSurfaceDamage()
+        : BufferLayerConsumer(consumer, tex, layer)
     {}
-
-    virtual status_t acquireBufferLocked(BufferItem *item, nsecs_t presentWhen,
-            uint64_t maxFrameNumber = 0) override;
 
     // See BufferLayerConsumer::bindTextureImageLocked().
     status_t bindTextureImage();
 
-    bool getTransformToDisplayInverse() const;
-
-    // must be called from SF main thread
-    const Region& getSurfaceDamage() const;
-
     sp<Fence> getPrevFinalReleaseFence() const;
-
-private:
-    // Indicates this buffer must be transformed by the inverse transform of the screen
-    // it is displayed onto. This is applied after BufferLayerConsumer::mCurrentTransform.
-    // This must be set/read from SurfaceFlinger's main thread.
-    bool mTransformToDisplayInverse;
-
-    // The portion of this surface that has changed since the previous frame
-    Region mSurfaceDamage;
 };
 
 // ----------------------------------------------------------------------------

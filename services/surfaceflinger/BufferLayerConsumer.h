@@ -25,6 +25,7 @@
 
 #include <ui/FenceTime.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/Region.h>
 
 #include <utils/String8.h>
 #include <utils/Vector.h>
@@ -142,6 +143,11 @@ public:
     // The frame number is an incrementing counter set to 0 at the creation of
     // the BufferQueue associated with this consumer.
     uint64_t getFrameNumber();
+
+    bool getTransformToDisplayInverse() const;
+
+    // must be called from SF main thread
+    const Region& getSurfaceDamage() const;
 
     // setDefaultBufferSize is used to set the size of buffers returned by
     // requestBuffers when a with and height of zero is requested.
@@ -354,6 +360,14 @@ private:
     // mCurrentFrameNumber is the frame counter for the current texture.
     // It gets set each time updateTexImage is called.
     uint64_t mCurrentFrameNumber;
+
+    // Indicates this buffer must be transformed by the inverse transform of the screen
+    // it is displayed onto. This is applied after BufferLayerConsumer::mCurrentTransform.
+    // This must be set/read from SurfaceFlinger's main thread.
+    bool mCurrentTransformToDisplayInverse;
+
+    // The portion of this surface that has changed since the previous frame
+    Region mCurrentSurfaceDamage;
 
     uint32_t mDefaultWidth, mDefaultHeight;
 

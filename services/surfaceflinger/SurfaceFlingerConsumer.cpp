@@ -40,26 +40,6 @@ status_t SurfaceFlingerConsumer::bindTextureImage()
     return bindTextureImageLocked();
 }
 
-status_t SurfaceFlingerConsumer::acquireBufferLocked(BufferItem* item,
-        nsecs_t presentWhen, uint64_t maxFrameNumber) {
-    status_t result = BufferLayerConsumer::acquireBufferLocked(item, presentWhen,
-            maxFrameNumber);
-    if (result == NO_ERROR) {
-        mTransformToDisplayInverse = item->mTransformToDisplayInverse;
-        mSurfaceDamage = item->mSurfaceDamage;
-    }
-    return result;
-}
-
-bool SurfaceFlingerConsumer::getTransformToDisplayInverse() const {
-    Mutex::Autolock lock(mMutex);
-    return mTransformToDisplayInverse;
-}
-
-const Region& SurfaceFlingerConsumer::getSurfaceDamage() const {
-    return mSurfaceDamage;
-}
-
 sp<Fence> SurfaceFlingerConsumer::getPrevFinalReleaseFence() const {
     Mutex::Autolock lock(mMutex);
     return ConsumerBase::mPrevFinalReleaseFence;
