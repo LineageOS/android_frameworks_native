@@ -542,7 +542,9 @@ public:
 
     virtual void onInjectSyncEvent(nsecs_t when) {
         std::lock_guard<std::mutex> lock(mCallbackMutex);
-        mCallback->onVSyncEvent(when);
+        if (mCallback != nullptr) {
+            mCallback->onVSyncEvent(when);
+        }
     }
 
     virtual void setVSyncEnabled(bool) {}
@@ -1037,13 +1039,14 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& display,
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
-    if (enable == mInjectVSyncs) {
-        return NO_ERROR;
+void SurfaceFlinger::enableVSyncInjectionsInternal(bool enable) {
+    Mutex::Autolock _l(mStateLock);
+
+    if (mInjectVSyncs == enable) {
+        return;
     }
 
     if (enable) {
-        mInjectVSyncs = enable;
         ALOGV("VSync Injections enabled");
         if (mVSyncInjector.get() == nullptr) {
             mVSyncInjector = new InjectVSyncSource();
@@ -1051,15 +1054,33 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
         }
         mEventQueue.setEventThread(mInjectorEventThread);
     } else {
-        mInjectVSyncs = enable;
         ALOGV("VSync Injections disabled");
         mEventQueue.setEventThread(mSFEventThread);
-        mVSyncInjector.clear();
     }
+
+    mInjectVSyncs = enable;
+}
+
+status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
+    class MessageEnableVSyncInjections : public MessageBase {
+        SurfaceFlinger* mFlinger;
+        bool mEnable;
+    public:
+        MessageEnableVSyncInjections(SurfaceFlinger* flinger, bool enable)
+            : mFlinger(flinger), mEnable(enable) { }
+        virtual bool handler() {
+            mFlinger->enableVSyncInjectionsInternal(mEnable);
+            return true;
+        }
+    };
+    sp<MessageBase> msg = new MessageEnableVSyncInjections(this, enable);
+    postMessageSync(msg);
     return NO_ERROR;
 }
 
 status_t SurfaceFlinger::injectVSync(nsecs_t when) {
+    Mutex::Autolock _l(mStateLock);
+
     if (!mInjectVSyncs) {
         ALOGE("VSync Injections not enabled");
         return BAD_VALUE;
@@ -3891,6 +3912,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ANIMATION_FRAME_STATS:
         case SET_POWER_MODE:
         case GET_HDR_CAPABILITIES:
+        case ENABLE_VSYNC_INJECTIONS:
+        case INJECT_VSYNC:
         {
             // codes that require permission check
             IPCThreadState* ipc = IPCThreadState::self();
