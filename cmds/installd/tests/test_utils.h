@@ -1,6 +1,9 @@
-#include <android-base/logging.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/capability.h>
+
+#include <android-base/logging.h>
+#include <selinux/android.h>
 
 uint8_t kBase64Map[256] = {
     255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
@@ -103,5 +106,29 @@ bool WriteBase64ToFile(const char* base64, const std::string& file,
         PLOG(ERROR) << "Could not chmod file " << file;
         return false;
     }
+    return true;
+}
+
+// TODO(calin): fix dexopt drop_capabilities and move to general utils (b/69678790).
+bool DropCapabilities(uid_t uid, gid_t gid) {
+    if (setgid(gid) != 0) {
+        PLOG(ERROR) << "setgid failed: " <<  gid;
+        return false;
+    }
+    if (setuid(uid) != 0) {
+        PLOG(ERROR) << "setuid failed: " <<  uid;
+        return false;
+    }
+    // drop capabilities
+    struct __user_cap_header_struct capheader;
+    struct __user_cap_data_struct capdata[2];
+    memset(&capheader, 0, sizeof(capheader));
+    memset(&capdata, 0, sizeof(capdata));
+    capheader.version = _LINUX_CAPABILITY_VERSION_3;
+    if (capset(&capheader, &capdata[0]) < 0) {
+        PLOG(ERROR) << "capset failed";
+        return false;
+    }
+
     return true;
 }
