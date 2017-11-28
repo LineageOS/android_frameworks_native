@@ -113,8 +113,8 @@ static int RunCommand(const std::string& title, const std::vector<std::string>& 
 }
 static void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsysArgs,
                        const CommandOptions& options = Dumpstate::DEFAULT_DUMPSYS,
-                       long dumpsysTimeout = 0) {
-    return ds.RunDumpsys(title, dumpsysArgs, options, dumpsysTimeout);
+                       long dumpsysTimeoutMs = 0) {
+    return ds.RunDumpsys(title, dumpsysArgs, options, dumpsysTimeoutMs);
 }
 static int DumpFile(const std::string& title, const std::string& path) {
     return ds.DumpFile(title, path);
@@ -830,33 +830,32 @@ static void DoKmsg() {
 }
 
 static void DoLogcat() {
-    unsigned long timeout;
+    unsigned long timeout_ms;
     // DumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
     // calculate timeout
-    timeout = logcat_timeout("main") + logcat_timeout("system") + logcat_timeout("crash");
-    if (timeout < 20000) {
-        timeout = 20000;
+    timeout_ms = logcat_timeout("main") + logcat_timeout("system") + logcat_timeout("crash");
+    if (timeout_ms < 20000) {
+        timeout_ms = 20000;
     }
     RunCommand("SYSTEM LOG",
-               {"logcat", "-v", "threadtime", "-v", "printable", "-v", "uid",
-                        "-d", "*:v"},
-               CommandOptions::WithTimeout(timeout / 1000).Build());
-    timeout = logcat_timeout("events");
-    if (timeout < 20000) {
-        timeout = 20000;
+               {"logcat", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
+               CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+    timeout_ms = logcat_timeout("events");
+    if (timeout_ms < 20000) {
+        timeout_ms = 20000;
     }
     RunCommand("EVENT LOG",
                {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-v", "uid",
                         "-d", "*:v"},
-               CommandOptions::WithTimeout(timeout / 1000).Build());
-    timeout = logcat_timeout("radio");
-    if (timeout < 20000) {
-        timeout = 20000;
+               CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+    timeout_ms = logcat_timeout("radio");
+    if (timeout_ms < 20000) {
+        timeout_ms = 20000;
     }
     RunCommand("RADIO LOG",
                {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-v", "uid",
                         "-d", "*:v"},
-               CommandOptions::WithTimeout(timeout / 1000).Build());
+               CommandOptions::WithTimeoutInMs(timeout_ms).Build());
 
     RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
 
