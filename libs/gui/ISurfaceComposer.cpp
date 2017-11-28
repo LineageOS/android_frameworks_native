@@ -124,12 +124,13 @@ public:
 
     virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
                                    const sp<IGraphicBufferProducer>& producer,
-                                   ISurfaceComposer::Rotation rotation) {
+                                   const Rect& sourceCrop, float frameScale) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(layerHandleBinder);
         data.writeStrongBinder(IInterface::asBinder(producer));
-        data.writeInt32(static_cast<int32_t>(rotation));
+        data.write(sourceCrop);
+        data.writeFloat(frameScale);
         remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
         return reply.readInt32();
     }
@@ -605,10 +606,11 @@ status_t BnSurfaceComposer::onTransact(
             sp<IBinder> layerHandleBinder = data.readStrongBinder();
             sp<IGraphicBufferProducer> producer =
                     interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
-            int32_t rotation = data.readInt32();
+            Rect sourceCrop(Rect::EMPTY_RECT);
+            data.read(sourceCrop);
+            float frameScale = data.readFloat();
 
-            status_t res = captureLayers(layerHandleBinder, producer,
-                                         static_cast<ISurfaceComposer::Rotation>(rotation));
+            status_t res = captureLayers(layerHandleBinder, producer, sourceCrop, frameScale);
             reply->writeInt32(res);
             return NO_ERROR;
         }

@@ -276,15 +276,15 @@ private:
 
 class CaptureLayer {
 public:
-    static void captureScreen(std::unique_ptr<CaptureLayer>* sc, sp<IBinder>& parentHandle) {
+    static void captureScreen(std::unique_ptr<CaptureLayer>* sc, sp<IBinder>& parentHandle,
+                              Rect crop = Rect::EMPTY_RECT, float frameScale = 1.0) {
         sp<IGraphicBufferProducer> producer;
         sp<IGraphicBufferConsumer> consumer;
         BufferQueue::createBufferQueue(&producer, &consumer);
         sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        sp<IBinder> display(sf->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
         SurfaceComposerClient::Transaction().apply(true);
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, producer));
+        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, producer, crop, frameScale));
         *sc = std::make_unique<CaptureLayer>(cpuConsumer);
     }
 
@@ -2412,4 +2412,89 @@ TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
     mCapture->checkPixel(4, 4, 50, 50, 50);
 }
 
-} // namespace android
+TEST_F(ScreenCaptureTest, CaptureCrop) {
+    sp<SurfaceControl> redLayer = mComposerClient->createSurface(
+        String8("Red surface"),
+        60, 60, PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> blueLayer = mComposerClient->createSurface(
+        String8("Blue surface"),
+        30, 30, PIXEL_FORMAT_RGBA_8888, 0, redLayer.get());
+
+    fillSurfaceRGBA8(redLayer, 255, 0, 0);
+    fillSurfaceRGBA8(blueLayer, 0, 0, 255);
+
+    SurfaceComposerClient::Transaction()
+        .setLayer(redLayer, INT32_MAX-1)
+        .show(redLayer)
+        .show(blueLayer)
+        .apply(true);
+
+    auto redLayerHandle = redLayer->getHandle();
+
+    // Capturing full screen should have both red and blue are visible.
+    CaptureLayer::captureScreen(&mCapture, redLayerHandle);
+    mCapture->checkPixel(29, 29, 0, 0, 255);
+    mCapture->checkPixel(30, 30, 255, 0, 0);
+
+    Rect crop = Rect(0, 0, 30, 30);
+    CaptureLayer::captureScreen(&mCapture, redLayerHandle, crop);
+    // Capturing the cropped screen, cropping out the shown red area, should leave only the blue
+    // area visible.
+    mCapture->checkPixel(29, 29, 0, 0, 255);
+    mCapture->checkPixel(30, 30, 0, 0, 0);
+}
+
+TEST_F(ScreenCaptureTest, CaptureSize) {
+    sp<SurfaceControl> redLayer = mComposerClient->createSurface(
+        String8("Red surface"),
+        60, 60, PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> blueLayer = mComposerClient->createSurface(
+        String8("Blue surface"),
+        30, 30, PIXEL_FORMAT_RGBA_8888, 0, redLayer.get());
+
+    fillSurfaceRGBA8(redLayer, 255, 0, 0);
+    fillSurfaceRGBA8(blueLayer, 0, 0, 255);
+
+    SurfaceComposerClient::Transaction()
+        .setLayer(redLayer, INT32_MAX-1)
+        .show(redLayer)
+        .show(blueLayer)
+        .apply(true);
+
+    auto redLayerHandle = redLayer->getHandle();
+
+    // Capturing full screen should have both red and blue are visible.
+    CaptureLayer::captureScreen(&mCapture, redLayerHandle);
+    mCapture->checkPixel(29, 29, 0, 0, 255);
+    mCapture->checkPixel(30, 30, 255, 0, 0);
+
+    CaptureLayer::captureScreen(&mCapture, redLayerHandle, Rect::EMPTY_RECT, 0.5);
+    // Capturing the downsized area (30x30) should leave both red and blue but in a smaller area.
+    mCapture->checkPixel(14, 14, 0, 0, 255);
+    mCapture->checkPixel(15, 15, 255, 0, 0);
+    mCapture->checkPixel(29, 29, 255, 0, 0);
+    mCapture->checkPixel(30, 30, 0, 0, 0);
+}
+
+TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
+    sp<SurfaceControl> redLayer = mComposerClient->createSurface(
+        String8("Red surface"),
+        60, 60, PIXEL_FORMAT_RGBA_8888, 0);
+
+    fillSurfaceRGBA8(redLayer, 255, 0, 0);
+
+    auto redLayerHandle = redLayer->getHandle();
+    mComposerClient->destroySurface(redLayerHandle);
+    SurfaceComposerClient::Transaction().apply(true);
+
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+
+    // Layer was deleted so captureLayers should fail with NAME_NOT_FOUND
+    ASSERT_EQ(NAME_NOT_FOUND, sf->captureLayers(redLayerHandle, producer, Rect::EMPTY_RECT, 1.0));
+}
+
+}

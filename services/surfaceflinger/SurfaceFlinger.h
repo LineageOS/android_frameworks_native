@@ -298,7 +298,7 @@ private:
             bool useIdentityTransform, ISurfaceComposer::Rotation rotation);
     virtual status_t captureLayers(const sp<IBinder>& parentHandle,
                                    const sp<IGraphicBufferProducer>& producer,
-                                   ISurfaceComposer::Rotation rotation);
+                                   const Rect& sourceCrop, float frameScale);
     virtual status_t getDisplayStats(const sp<IBinder>& display,
             DisplayStatInfo* stats);
     virtual status_t getDisplayConfigs(const sp<IBinder>& display,

@@ -757,11 +757,34 @@ status_t ScreenshotClient::captureToBuffer(const sp<IBinder>& display,
 
 status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle,
                                          const sp<IGraphicBufferProducer>& producer,
-                                         uint32_t rotation) {
+                                         Rect sourceCrop, float frameScale) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == NULL) return NO_INIT;
-    return s->captureLayers(layerHandle, producer,
-                            static_cast<ISurfaceComposer::Rotation>(rotation));
+    return s->captureLayers(layerHandle, producer, sourceCrop, frameScale);
+}
+
+status_t ScreenshotClient::captureLayersToBuffer(const sp<IBinder>& layerHandle, Rect sourceCrop,
+                                                 float frameScale, sp<GraphicBuffer>* outBuffer) {
+    sp<ISurfaceComposer> s(ComposerService::getComposerService());
+    if (s == NULL) return NO_INIT;
+
+    sp<IGraphicBufferConsumer> gbpConsumer;
+    sp<IGraphicBufferProducer> producer;
+    BufferQueue::createBufferQueue(&producer, &gbpConsumer);
+    sp<BufferItemConsumer> consumer(new BufferItemConsumer(gbpConsumer,
+                                                           GRALLOC_USAGE_HW_TEXTURE |
+                                                                   GRALLOC_USAGE_SW_READ_NEVER |
+                                                                   GRALLOC_USAGE_SW_WRITE_NEVER,
+                                                           1, true));
+
+    status_t ret = s->captureLayers(layerHandle, producer, sourceCrop, frameScale);
+    if (ret != NO_ERROR) {
+        return ret;
+    }
+    BufferItem b;
+    consumer->acquireBuffer(&b, 0, true);
+    *outBuffer = b.mGraphicBuffer;
+    return ret;
 }
 
 ScreenshotClient::ScreenshotClient()
