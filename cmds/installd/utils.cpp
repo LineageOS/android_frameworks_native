@@ -236,6 +236,7 @@ std::string create_data_dalvik_cache_path() {
 const std::string PROFILE_EXT = ".prof";
 const std::string CURRENT_PROFILE_EXT = ".cur";
 const std::string PRIMARY_PROFILE_NAME = "primary" + PROFILE_EXT;
+const std::string SNAPSHOT_PROFILE_EXT = ".snapshot";
 
 // Gets the parent directory and the file name for the given secondary dex path.
 // Returns true on success, false on failure (if the dex_path does not have the expected
@@ -287,6 +288,14 @@ std::string create_reference_profile_path(const std::string& location, bool is_s
         std::string profile_dir = create_primary_reference_profile_package_dir_path(location);
         return StringPrintf("%s/%s", profile_dir.c_str(), PRIMARY_PROFILE_NAME.c_str());
     }
+}
+
+std::string create_snapshot_profile_path(const std::string& package,
+        const std::string& code_path ATTRIBUTE_UNUSED) {
+    // TODD(calin): code_path is ignored for now. It will be used when each split gets its own
+    // profile file.
+    std::string ref_profile = create_reference_profile_path(package, /*is_secondary_dex*/ false);
+    return ref_profile + SNAPSHOT_PROFILE_EXT;
 }
 
 std::vector<userid_t> get_known_users(const char* volume_uuid) {

@@ -14,19 +14,32 @@
  * limitations under the License.
  */
 
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
+#include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
+#include <android-base/unique_fd.h>
+
 #include <cutils/properties.h>
+
 #include <gtest/gtest.h>
+
+#include <selinux/android.h>
+#include <selinux/avc.h>
 
 #include "dexopt.h"
 #include "InstalldNativeService.h"
 #include "globals.h"
 #include "tests/test_utils.h"
 #include "utils.h"
+
+using android::base::ReadFully;
+using android::base::unique_fd;
 
 namespace android {
 namespace installd {
@@ -76,6 +89,42 @@ static void mkdir(const std::string& path, uid_t owner, gid_t group, mode_t mode
     ::chmod(path.c_str(), mode);
 }
 
+static int log_callback(int type, const char *fmt, ...) { // NOLINT
+    va_list ap;
+    int priority;
+
+    switch (type) {
+        case SELINUX_WARNING:
+            priority = ANDROID_LOG_WARN;
+            break;
+        case SELINUX_INFO:
+            priority = ANDROID_LOG_INFO;
+            break;
+        default:
+            priority = ANDROID_LOG_ERROR;
+            break;
+    }
+    va_start(ap, fmt);
+    LOG_PRI_VA(priority, "SELinux", fmt, ap);
+    va_end(ap);
+    return 0;
+}
+
+static bool init_selinux() {
+    int selinux_enabled = (is_selinux_enabled() > 0);
+
+    union selinux_callback cb;
+    cb.func_log = log_callback;
+    selinux_set_callback(SELINUX_CB_LOG, cb);
+
+    if (selinux_enabled && selinux_status_open(true) < 0) {
+        LOG(ERROR) << "Could not open selinux status; exiting";
+        return false;
+    }
+
+    return true;
+}
+
 // Base64 encoding of a simple dex files with 2 methods.
 static const char kDexFile[] =
     "UEsDBBQAAAAIAOiOYUs9y6BLCgEAABQCAAALABwAY2xhc3Nlcy5kZXhVVAkAA/Ns+lkOHv1ZdXgL"
@@ -97,6 +146,7 @@ protected:
     static constexpr int32_t kAppDataFlags = FLAG_STORAGE_CE | FLAG_STORAGE_DE;
     static constexpr uid_t kTestAppUid = 19999;
     static constexpr gid_t kTestAppGid = 19999;
+    static constexpr uid_t kTestAppId = kTestAppUid;
     static constexpr int32_t kTestUserId = 0;
 
     InstalldNativeService* service_;
@@ -116,15 +166,18 @@ protected:
     virtual void SetUp() {
         setenv("ANDROID_LOG_TAGS", "*:v", 1);
         android::base::InitLogging(nullptr);
-
+        // Initialize the globals holding the file system main paths (/data/, /system/ etc..).
+        // This is needed in order to compute the application and profile paths.
+        ASSERT_TRUE(init_globals_from_data_and_root());
+        // Initialize selinux log callbacks.
+        // This ensures that selinux is up and running and re-directs the selinux messages
+        // to logcat (in order to make it easier to investigate test results).
+        ASSERT_TRUE(init_selinux());
         service_ = new InstalldNativeService();
 
         volume_uuid_ = nullptr;
         package_name_ = "com.installd.test.dexopt";
         se_info_ = "default";
-
-        init_globals_from_data_and_root();
-
         app_apk_dir_ = android_app_dir + package_name_;
 
         create_mock_app();
@@ -183,14 +236,14 @@ protected:
     }
 
 
-    std::string get_secondary_dex_artifact(const std::string& path, const std::string& type) {
+    std::string GetSecondaryDexArtifact(const std::string& path, const std::string& type) {
         std::string::size_type end = path.rfind('.');
         std::string::size_type start = path.rfind('/', end);
         return path.substr(0, start) + "/oat/" + kRuntimeIsa + "/" +
                 path.substr(start + 1, end - start) + type;
     }
 
-    void compile_secondary_dex(const std::string& path, int32_t dex_storage_flag,
+    void CompileSecondaryDex(const std::string& path, int32_t dex_storage_flag,
             bool should_binder_call_succeed, bool should_dex_be_compiled = true,
             int uid = kTestAppUid) {
         std::unique_ptr<std::string> package_name_ptr(new std::string(package_name_));
@@ -216,9 +269,9 @@ protected:
                                                  downgrade);
         ASSERT_EQ(should_binder_call_succeed, result.isOk());
         int expected_access = should_dex_be_compiled ? 0 : -1;
-        std::string odex = get_secondary_dex_artifact(path, "odex");
-        std::string vdex = get_secondary_dex_artifact(path, "vdex");
-        std::string art = get_secondary_dex_artifact(path, "art");
+        std::string odex = GetSecondaryDexArtifact(path, "odex");
+        std::string vdex = GetSecondaryDexArtifact(path, "vdex");
+        std::string art = GetSecondaryDexArtifact(path, "art");
         ASSERT_EQ(expected_access, access(odex.c_str(), R_OK));
         ASSERT_EQ(expected_access, access(vdex.c_str(), R_OK));
         ASSERT_EQ(-1, access(art.c_str(), R_OK));  // empty profiles do not generate an image.
@@ -243,56 +296,64 @@ protected:
         ASSERT_EQ(should_dex_exist, out_secondary_dex_exists);
 
         int expected_access = should_dex_be_deleted ? -1 : 0;
-        std::string odex = get_secondary_dex_artifact(path, "odex");
-        std::string vdex = get_secondary_dex_artifact(path, "vdex");
-        std::string art = get_secondary_dex_artifact(path, "art");
+        std::string odex = GetSecondaryDexArtifact(path, "odex");
+        std::string vdex = GetSecondaryDexArtifact(path, "vdex");
+        std::string art = GetSecondaryDexArtifact(path, "art");
         ASSERT_EQ(expected_access, access(odex.c_str(), F_OK));
         ASSERT_EQ(expected_access, access(vdex.c_str(), F_OK));
         ASSERT_EQ(-1, access(art.c_str(), R_OK));  // empty profiles do not generate an image.
+    }
+
+    void CheckFileAccess(const std::string& file, uid_t uid, gid_t gid, mode_t mode) {
+        struct stat st;
+        ASSERT_EQ(0, stat(file.c_str(), &st));
+        ASSERT_EQ(uid, st.st_uid);
+        ASSERT_EQ(gid, st.st_gid);
+        ASSERT_EQ(mode, st.st_mode);
     }
 };
 
 
 TEST_F(DexoptTest, DexoptSecondaryCe) {
     LOG(INFO) << "DexoptSecondaryCe";
-    compile_secondary_dex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
+    CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
         /*binder_ok*/ true, /*compile_ok*/ true);
 }
 
 TEST_F(DexoptTest, DexoptSecondaryCeLink) {
     LOG(INFO) << "DexoptSecondaryCeLink";
-    compile_secondary_dex(secondary_dex_ce_link_, DEXOPT_STORAGE_CE,
+    CompileSecondaryDex(secondary_dex_ce_link_, DEXOPT_STORAGE_CE,
         /*binder_ok*/ true, /*compile_ok*/ true);
 }
 
 TEST_F(DexoptTest, DexoptSecondaryDe) {
     LOG(INFO) << "DexoptSecondaryDe";
-    compile_secondary_dex(secondary_dex_de_, DEXOPT_STORAGE_DE,
+    CompileSecondaryDex(secondary_dex_de_, DEXOPT_STORAGE_DE,
         /*binder_ok*/ true, /*compile_ok*/ true);
 }
 
 TEST_F(DexoptTest, DexoptSecondaryDoesNotExist) {
     LOG(INFO) << "DexoptSecondaryDoesNotExist";
     // If the file validates but does not exist we do not treat it as an error.
-    compile_secondary_dex(secondary_dex_ce_ + "not.there", DEXOPT_STORAGE_CE,
+    CompileSecondaryDex(secondary_dex_ce_ + "not.there", DEXOPT_STORAGE_CE,
         /*binder_ok*/ true,  /*compile_ok*/ false);
 }
 
 TEST_F(DexoptTest, DexoptSecondaryStorageValidationError) {
     LOG(INFO) << "DexoptSecondaryStorageValidationError";
-    compile_secondary_dex(secondary_dex_ce_, DEXOPT_STORAGE_DE,
+    CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_DE,
         /*binder_ok*/ false,  /*compile_ok*/ false);
 }
 
 TEST_F(DexoptTest, DexoptSecondaryAppOwnershipValidationError) {
     LOG(INFO) << "DexoptSecondaryAppOwnershipValidationError";
-    compile_secondary_dex("/data/data/random.app/secondary.jar", DEXOPT_STORAGE_CE,
+    CompileSecondaryDex("/data/data/random.app/secondary.jar", DEXOPT_STORAGE_CE,
         /*binder_ok*/ false,  /*compile_ok*/ false);
 }
 
 TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
     LOG(INFO) << "DexoptSecondaryAcessViaDifferentUidError";
-    compile_secondary_dex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
+    CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
         /*binder_ok*/ false,  /*compile_ok*/ false, kSystemUid);
 }
 
@@ -300,9 +361,9 @@ TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
 class ReconcileTest : public DexoptTest {
     virtual void SetUp() {
         DexoptTest::SetUp();
-        compile_secondary_dex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
+        CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
             /*binder_ok*/ true, /*compile_ok*/ true);
-        compile_secondary_dex(secondary_dex_de_, DEXOPT_STORAGE_DE,
+        CompileSecondaryDex(secondary_dex_de_, DEXOPT_STORAGE_DE,
             /*binder_ok*/ true, /*compile_ok*/ true);
     }
 };
@@ -353,6 +414,146 @@ TEST_F(ReconcileTest, ReconcileSecondaryAcessViaDifferentUidError) {
     LOG(INFO) << "ReconcileSecondaryAcessViaDifferentUidError";
     reconcile_secondary_dex(secondary_dex_ce_, FLAG_STORAGE_CE,
         /*binder_ok*/ true, /*dex_ok */ false, /*odex_deleted*/ false, kSystemUid);
+}
+
+class ProfileTest : public DexoptTest {
+  protected:
+    std::string cur_profile_;
+    std::string ref_profile_;
+    std::string snap_profile_;
+
+    virtual void SetUp() {
+        DexoptTest::SetUp();
+        cur_profile_ = create_current_profile_path(
+                kTestUserId, package_name_, /*is_secondary_dex*/ false);
+        ref_profile_ = create_reference_profile_path(package_name_, /*is_secondary_dex*/ false);
+        snap_profile_ = create_snapshot_profile_path(package_name_, "base.jar");
+    }
+
+    void SetupProfile(const std::string& path, uid_t uid, gid_t gid, mode_t mode, int32_t seed) {
+        run_cmd("profman --generate-test-profile-seed=" + std::to_string(seed) +
+                " --generate-test-profile-num-dex=2 --generate-test-profile=" + path);
+        ::chmod(path.c_str(), mode);
+        ::chown(path.c_str(), uid, gid);
+    }
+
+    void SetupProfiles(bool setup_ref) {
+        SetupProfile(cur_profile_, kTestAppUid, kTestAppGid, 0600, 1);
+        if (setup_ref) {
+            SetupProfile(ref_profile_, kTestAppUid, kTestAppGid, 0060, 2);
+        }
+    }
+
+    void SnapshotProfile(int32_t appid, const std::string& package_name, bool expected_result) {
+        bool result;
+        binder::Status binder_result = service_->snapshotProfile(
+                appid, package_name, "base.jar", &result);
+        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_EQ(expected_result, result);
+
+        if (!expected_result) {
+            // Do not check the files if we expect to fail.
+            return;
+        }
+
+        // Check that the snapshot was created witht he expected acess flags.
+        CheckFileAccess(snap_profile_, kSystemUid, kSystemGid, 0600 | S_IFREG);
+
+        // The snapshot should be equivalent to the merge of profiles.
+        std::string expected_profile_content = snap_profile_ + ".expected";
+        run_cmd("rm -f " + expected_profile_content);
+        run_cmd("touch " + expected_profile_content);
+        run_cmd("profman --profile-file=" + cur_profile_ +
+                " --profile-file=" + ref_profile_ +
+                " --reference-profile-file=" + expected_profile_content);
+
+        ASSERT_TRUE(AreFilesEqual(expected_profile_content, snap_profile_));
+
+        pid_t pid = fork();
+        if (pid == 0) {
+            /* child */
+            TransitionToSystemServer();
+
+            // System server should be able to open the the spanshot.
+            unique_fd fd(open(snap_profile_.c_str(), O_RDONLY));
+            ASSERT_TRUE(fd > -1) << "Failed to open profile as kSystemUid: " << strerror(errno);
+            _exit(0);
+        }
+        /* parent */
+        ASSERT_TRUE(WIFEXITED(wait_child(pid)));
+    }
+
+  private:
+    void TransitionToSystemServer() {
+        ASSERT_TRUE(DropCapabilities(kSystemUid, kSystemGid));
+        int32_t res = selinux_android_setcontext(
+                kSystemUid, true, se_info_.c_str(), "system_server");
+        ASSERT_EQ(0, res) << "Failed to setcon " << strerror(errno);
+    }
+
+    bool AreFilesEqual(const std::string& file1, const std::string& file2) {
+        std::vector<uint8_t> content1;
+        std::vector<uint8_t> content2;
+
+        if (!ReadAll(file1, &content1)) return false;
+        if (!ReadAll(file2, &content2)) return false;
+        return content1 == content2;
+    }
+
+    bool ReadAll(const std::string& file, std::vector<uint8_t>* content) {
+        unique_fd fd(open(file.c_str(), O_RDONLY));
+        if (fd < 0) {
+            PLOG(ERROR) << "Failed to open " << file;
+            return false;
+        }
+        struct stat st;
+        if (fstat(fd, &st) != 0) {
+            PLOG(ERROR) << "Failed to stat " << file;
+            return false;
+        }
+        content->resize(st.st_size);
+        bool result = ReadFully(fd, content->data(), content->size());
+        if (!result) {
+            PLOG(ERROR) << "Failed to read " << file;
+        }
+        return result;
+    }
+};
+
+TEST_F(ProfileTest, ProfileSnapshotOk) {
+    LOG(INFO) << "ProfileSnapshotOk";
+
+    SetupProfiles(/*setup_ref*/ true);
+    SnapshotProfile(kTestAppId, package_name_, /*expected_result*/ true);
+}
+
+// The reference profile is created on the fly. We need to be able to
+// snapshot without one.
+TEST_F(ProfileTest, ProfileSnapshotOkNoReference) {
+    LOG(INFO) << "ProfileSnapshotOkNoReference";
+
+    SetupProfiles(/*setup_ref*/ false);
+    SnapshotProfile(kTestAppId, package_name_, /*expected_result*/ true);
+}
+
+TEST_F(ProfileTest, ProfileSnapshotFailWrongPackage) {
+    LOG(INFO) << "ProfileSnapshotFailWrongPackage";
+
+    SetupProfiles(/*setup_ref*/ true);
+    SnapshotProfile(kTestAppId, "not.there", /*expected_result*/ false);
+}
+
+TEST_F(ProfileTest, ProfileSnapshotDestroySnapshot) {
+    LOG(INFO) << "ProfileSnapshotDestroySnapshot";
+
+    SetupProfiles(/*setup_ref*/ true);
+    SnapshotProfile(kTestAppId, package_name_, /*expected_result*/ true);
+
+    binder::Status binder_result = service_->destroyProfileSnapshot(package_name_, "base.jar");
+    ASSERT_TRUE(binder_result.isOk());
+    struct stat st;
+    ASSERT_EQ(-1, stat(snap_profile_.c_str(), &st));
+    ASSERT_EQ(ENOENT, errno);
 }
 
 }  // namespace installd

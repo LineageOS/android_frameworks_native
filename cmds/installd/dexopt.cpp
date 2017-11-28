@@ -561,14 +561,12 @@ static void SetDex2OatScheduling(bool set_to_bg) {
     }
 }
 
-static bool create_profile(int uid, const std::string& profile) {
-    unique_fd fd(TEMP_FAILURE_RETRY(open(profile.c_str(), O_CREAT | O_NOFOLLOW, 0600)));
+static unique_fd create_profile(uid_t uid, const std::string& profile, int32_t flags) {
+    unique_fd fd(TEMP_FAILURE_RETRY(open(profile.c_str(), flags, 0600)));
     if (fd.get() < 0) {
-        if (errno == EEXIST) {
-            return true;
-        } else {
+        if (errno != EEXIST) {
             PLOG(ERROR) << "Failed to create profile " << profile;
-            return false;
+            return invalid_unique_fd();
         }
     }
     // Profiles should belong to the app; make sure of that by giving ownership to
@@ -576,27 +574,26 @@ static bool create_profile(int uid, const std::string& profile) {
     // since dex2oat/profman will fail with SElinux denials.
     if (fchown(fd.get(), uid, uid) < 0) {
         PLOG(ERROR) << "Could not chwon profile " << profile;
-        return false;
+        return invalid_unique_fd();
     }
-    return true;
+    return fd;
 }
 
-static unique_fd open_profile(int uid, const std::string& profile, bool read_write) {
-    // Check if we need to open the profile for a read-write operation. If so, we
-    // might need to create the profile since the file might not be there. Reference
-    // profiles are created on the fly so they might not exist beforehand.
-    if (read_write) {
-        if (!create_profile(uid, profile)) {
-            return invalid_unique_fd();
-        }
-    }
-    int flags = read_write ? O_RDWR : O_RDONLY;
+static unique_fd open_profile(uid_t uid, const std::string& profile, int32_t flags) {
     // Do not follow symlinks when opening a profile:
     //   - primary profiles should not contain symlinks in their paths
     //   - secondary dex paths should have been already resolved and validated
     flags |= O_NOFOLLOW;
 
-    unique_fd fd(TEMP_FAILURE_RETRY(open(profile.c_str(), flags)));
+    // Check if we need to create the profile
+    // Reference profiles and snapshots are created on the fly; so they might not exist beforehand.
+    unique_fd fd;
+    if ((flags & O_CREAT) != 0) {
+        fd = create_profile(uid, profile, flags);
+    } else {
+        fd.reset(TEMP_FAILURE_RETRY(open(profile.c_str(), flags)));
+    }
+
     if (fd.get() < 0) {
         if (errno != ENOENT) {
             // Profiles might be missing for various reasons. For example, in a
@@ -616,13 +613,19 @@ static unique_fd open_profile(int uid, const std::string& profile, bool read_wri
 static unique_fd open_current_profile(uid_t uid, userid_t user, const std::string& location,
         bool is_secondary_dex) {
     std::string profile = create_current_profile_path(user, location, is_secondary_dex);
-    return open_profile(uid, profile, /*read_write*/false);
+    return open_profile(uid, profile, O_RDONLY);
 }
 
 static unique_fd open_reference_profile(uid_t uid, const std::string& location, bool read_write,
         bool is_secondary_dex) {
     std::string profile = create_reference_profile_path(location, is_secondary_dex);
-    return open_profile(uid, profile, read_write);
+    return open_profile(uid, profile, read_write ? (O_CREAT | O_RDWR) : O_RDONLY);
+}
+
+static unique_fd open_spnashot_profile(uid_t uid, const std::string& package_name,
+        const std::string& code_path) {
+    std::string profile = create_snapshot_profile_path(package_name, code_path);
+    return open_profile(uid, profile, O_CREAT | O_RDWR | O_TRUNC);
 }
 
 static void open_profile_files(uid_t uid, const std::string& location, bool is_secondary_dex,
@@ -2305,6 +2308,43 @@ bool create_cache_path_default(char path[PKG_PATH_MAX], const char *src,
         strlcpy(path, res, PKG_PATH_MAX);
         return true;
     }
+}
+
+bool snapshot_profile(int32_t app_id, const std::string& package_name,
+        const std::string& code_path) {
+    int app_shared_gid = multiuser_get_shared_gid(/*user_id*/ 0, app_id);
+
+    unique_fd snapshot_fd = open_spnashot_profile(AID_SYSTEM, package_name, code_path);
+    if (snapshot_fd < 0) {
+        return false;
+    }
+
+    std::vector<unique_fd> profiles_fd;
+    unique_fd reference_profile_fd;
+    open_profile_files(app_shared_gid, package_name, /*is_secondary_dex*/ false, &profiles_fd,
+            &reference_profile_fd);
+    if (profiles_fd.empty() || (reference_profile_fd.get() < 0)) {
+        return false;
+    }
+
+    profiles_fd.push_back(std::move(reference_profile_fd));
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        /* child -- drop privileges before continuing */
+        drop_capabilities(app_shared_gid);
+        run_profman_merge(profiles_fd, snapshot_fd);
+        exit(42);   /* only get here on exec failure */
+    }
+
+    /* parent */
+    int return_code = wait_child(pid);
+    if (!WIFEXITED(return_code)) {
+        LOG(WARNING) << "profman failed for " << package_name << ":" << code_path;
+        return false;
+    }
+
+    return true;
 }
 
 }  // namespace installd

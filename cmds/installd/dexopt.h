@@ -50,6 +50,17 @@ bool move_ab(const char* apk_path, const char* instruction_set, const char* outp
 // the reference profiles accessible with open_reference_profile().
 bool analyze_primary_profiles(uid_t uid, const std::string& pkgname);
 
+// Create a snapshot of the profile information for the given package and code path.
+// The profile snapshot is the aggregation of all existing profiles (all current user
+// profiles & the reference profile) and is meant to capture the all the profile information
+// without performing a merge into the reference profile which might impact future dex2oat
+// compilations.
+// The snapshot is created next to the reference profile of the package and the
+// ownership is assigned to AID_SYSTEM.
+// The snapshot location is reference_profile_location.snapshot. If a snapshot is already
+// there, it will be truncated and overwritten.
+bool snapshot_profile(int32_t app_id, const std::string& package, const std::string& code_path);
+
 bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_paths);
 
 bool copy_system_profile(const std::string& system_profile,

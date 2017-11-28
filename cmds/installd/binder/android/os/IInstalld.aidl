@@ -62,6 +62,9 @@ interface IInstalld {
     void clearAppProfiles(@utf8InCpp String packageName);
     void destroyAppProfiles(@utf8InCpp String packageName);
 
+    boolean snapshotProfile(int appId, @utf8InCpp String packageName, @utf8InCpp String codePath);
+    void destroyProfileSnapshot(@utf8InCpp String packageName, @utf8InCpp String codePath);
+
     void idmap(@utf8InCpp String targetApkPath, @utf8InCpp String overlayApkPath, int uid);
     void removeIdmap(@utf8InCpp String overlayApkPath);
     void rmPackageDir(@utf8InCpp String packageDir);
