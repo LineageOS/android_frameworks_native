@@ -2869,14 +2869,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
         if (parent == nullptr) {
             mCurrentState.layersSortedByZ.add(lbc);
         } else {
-            bool found = false;
-            mCurrentState.traverseInZOrder([&](Layer* layer) {
-                if (layer == parent.get()) {
-                    found = true;
-                }
-            });
-
-            if (!found) {
+            if (parent->isPendingRemoval()) {
                 ALOGE("addClientLayer called with a removed parent");
                 return NAME_NOT_FOUND;
             }
