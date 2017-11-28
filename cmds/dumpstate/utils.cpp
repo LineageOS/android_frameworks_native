@@ -215,10 +215,10 @@ int32_t Progress::Get() const {
     return progress_;
 }
 
-bool Progress::Inc(int32_t delta) {
+bool Progress::Inc(int32_t delta_sec) {
     bool changed = false;
-    if (delta >= 0) {
-        progress_ += delta;
+    if (delta_sec >= 0) {
+        progress_ += delta_sec;
         if (progress_ > max_) {
             int32_t old_max = max_;
             max_ = floor((float)progress_ * growth_factor_);
@@ -723,9 +723,9 @@ int Dumpstate::RunCommand(const std::string& title, const std::vector<std::strin
 }
 
 void Dumpstate::RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsys_args,
-                           const CommandOptions& options, long dumpsysTimeout) {
-    long timeout = dumpsysTimeout > 0 ? dumpsysTimeout : options.Timeout();
-    std::vector<std::string> dumpsys = {"/system/bin/dumpsys", "-t", std::to_string(timeout)};
+                           const CommandOptions& options, long dumpsysTimeoutMs) {
+    long timeout_ms = dumpsysTimeoutMs > 0 ? dumpsysTimeoutMs : options.TimeoutInMs();
+    std::vector<std::string> dumpsys = {"/system/bin/dumpsys", "-T", std::to_string(timeout_ms)};
     dumpsys.insert(dumpsys.end(), dumpsys_args.begin(), dumpsys_args.end());
     RunCommand(title, dumpsys, options);
 }
@@ -1165,14 +1165,14 @@ void dump_route_tables() {
 }
 
 // TODO: make this function thread safe if sections are generated in parallel.
-void Dumpstate::UpdateProgress(int32_t delta) {
+void Dumpstate::UpdateProgress(int32_t delta_sec) {
     if (progress_ == nullptr) {
         MYLOGE("UpdateProgress: progress_ not set\n");
         return;
     }
 
     // Always update progess so stats can be tuned...
-    bool max_changed = progress_->Inc(delta);
+    bool max_changed = progress_->Inc(delta_sec);
 
     // ...but only notifiy listeners when necessary.
     if (!update_progress_) return;

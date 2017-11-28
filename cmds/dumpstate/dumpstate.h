@@ -196,19 +196,19 @@ class Dumpstate {
 
     /*
      * Runs `dumpsys` with the given arguments, automatically setting its timeout
-     * (`-t` argument)
+     * (`-T` argument)
      * according to the command options.
      *
      * |title| description of the command printed on `stdout` (or empty to skip
      * description).
      * |dumpsys_args| `dumpsys` arguments (except `-t`).
      * |options| optional argument defining the command's behavior.
-     * |dumpsys_timeout| when > 0, defines the value passed to `dumpsys -t` (otherwise it uses the
+     * |dumpsys_timeout| when > 0, defines the value passed to `dumpsys -T` (otherwise it uses the
      * timeout from `options`)
      */
     void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsys_args,
                     const android::os::dumpstate::CommandOptions& options = DEFAULT_DUMPSYS,
-                    long dumpsys_timeout = 0);
+                    long dumpsys_timeout_ms = 0);
 
     /*
      * Prints the contents of a file.
