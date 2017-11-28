@@ -350,6 +350,12 @@ TEST_F(UtilsTest, CreatePrimaryReferenceProfile) {
             create_reference_profile_path("com.example", /*is_secondary*/false));
 }
 
+TEST_F(UtilsTest, CreateProfileSnapshot) {
+    std::string expected =
+        create_primary_reference_profile_package_dir_path("com.example") + "/primary.prof.snapshot";
+    EXPECT_EQ(expected, create_snapshot_profile_path("com.example", "base.apk"));
+}
+
 TEST_F(UtilsTest, CreateSecondaryCurrentProfile) {
     EXPECT_EQ("/data/user/0/com.example/oat/secondary.dex.cur.prof",
             create_current_profile_path(/*user*/0,
