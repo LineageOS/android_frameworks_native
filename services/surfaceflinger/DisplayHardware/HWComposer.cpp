@@ -868,6 +868,14 @@ void HWComposer::dump(String8& result) const {
     result.append(mHwcDevice->dump().c_str());
 }
 
+std::optional<hwc2_display_t>
+HWComposer::getHwcDisplayId(int32_t displayId) const {
+    if (!isValidDisplay(displayId)) {
+        return {};
+    }
+    return mDisplayData[displayId].hwcDisplay->getId();
+}
+
 // ---------------------------------------------------------------------------
 
 HWComposer::DisplayData::DisplayData()

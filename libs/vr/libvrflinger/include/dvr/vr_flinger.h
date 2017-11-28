@@ -4,6 +4,12 @@
 #include <thread>
 #include <memory>
 
+#define HWC2_INCLUDE_STRINGIFICATION
+#define HWC2_USE_CPP11
+#include <hardware/hwcomposer2.h>
+#undef HWC2_INCLUDE_STRINGIFICATION
+#undef HWC2_USE_CPP11
+
 #include <pdx/service_dispatcher.h>
 #include <vr/vr_manager/vr_manager.h>
 
@@ -21,7 +27,9 @@ class VrFlinger {
  public:
   using RequestDisplayCallback = std::function<void(bool)>;
   static std::unique_ptr<VrFlinger> Create(
-      Hwc2::Composer* hidl, RequestDisplayCallback request_display_callback);
+      Hwc2::Composer* hidl,
+      hwc2_display_t primary_display_id,
+      RequestDisplayCallback request_display_callback);
   ~VrFlinger();
 
   // These functions are all called on surface flinger's main thread.
@@ -35,6 +43,7 @@ class VrFlinger {
  private:
   VrFlinger();
   bool Init(Hwc2::Composer* hidl,
+            hwc2_display_t primary_display_id,
             RequestDisplayCallback request_display_callback);
 
   // Needs to be a separate class for binder's ref counting

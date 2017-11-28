@@ -38,10 +38,12 @@ namespace android {
 namespace dvr {
 
 DisplayService::DisplayService(Hwc2::Composer* hidl,
+                               hwc2_display_t primary_display_id,
                                RequestDisplayCallback request_display_callback)
     : BASE("DisplayService",
            Endpoint::Create(display::DisplayProtocol::kClientPath)) {
-  hardware_composer_.Initialize(hidl, request_display_callback);
+    hardware_composer_.Initialize(
+        hidl, primary_display_id, request_display_callback);
 }
 
 bool DisplayService::IsInitialized() const {

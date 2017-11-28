@@ -152,6 +152,11 @@ class Layer {
     display_metrics_ = display_metrics;
   }
 
+  // Sets the display id used by all Layer instances.
+  static void SetDisplayId(hwc2_display_t display_id) {
+    display_id_ = display_id;
+  }
+
  private:
   void CommonLayerSetup();
 
@@ -179,6 +184,11 @@ class Layer {
   // once during VrFlinger initialization and is expected to remain constant
   // thereafter.
   static HWCDisplayMetrics display_metrics_;
+
+  // Id of the primary display. Shared by all instances of Layer. This must be
+  // set whenever the primary display id changes. This can be left unset as long
+  // as there are no instances of Layer that might need to use it.
+  static hwc2_display_t display_id_;
 
   // The hardware composer layer and metrics to use during the prepare cycle.
   hwc2_layer_t hardware_composer_layer_ = 0;
@@ -298,13 +308,14 @@ class Layer {
 class HardwareComposer {
  public:
   // Type for vsync callback.
-  using VSyncCallback = std::function<void(int, int64_t, int64_t, uint32_t)>;
+  using VSyncCallback = std::function<void(int64_t, int64_t, uint32_t)>;
   using RequestDisplayCallback = std::function<void(bool)>;
 
   HardwareComposer();
   ~HardwareComposer();
 
   bool Initialize(Hwc2::Composer* composer,
+                  hwc2_display_t primary_display_id,
                   RequestDisplayCallback request_display_callback);
 
   bool IsInitialized() const { return initialized_; }
@@ -362,16 +373,16 @@ class HardwareComposer {
     hardware::Return<void> onVsync(Hwc2::Display display,
                                    int64_t timestamp) override;
 
-    pdx::Status<int64_t> GetVsyncTime(Hwc2::Display display);
+    bool HasDisplayId() { return has_display_id_; }
+    hwc2_display_t GetDisplayId() { return display_id_; }
+    pdx::Status<int64_t> GetVsyncTime();
 
    private:
     std::mutex vsync_mutex_;
-
-    struct Display {
-      pdx::LocalHandle driver_vsync_event_fd;
-      int64_t callback_vsync_timestamp{0};
-    };
-    std::array<Display, HWC_NUM_PHYSICAL_DISPLAY_TYPES> displays_;
+    bool has_display_id_ = false;
+    hwc2_display_t display_id_;
+    pdx::LocalHandle driver_vsync_event_fd_;
+    int64_t callback_vsync_timestamp_{0};
   };
 
   HWC::Error Validate(hwc2_display_t display);
@@ -412,7 +423,6 @@ class HardwareComposer {
   // kPostThreadInterrupted.
   int ReadWaitPPState();
   pdx::Status<int64_t> WaitForVSync();
-  pdx::Status<int64_t> GetVSyncTime();
   int SleepUntil(int64_t wakeup_timestamp);
 
   // Reconfigures the layer stack if the display surfaces changed since the last

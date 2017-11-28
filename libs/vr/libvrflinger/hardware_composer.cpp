@@ -121,7 +121,8 @@ HardwareComposer::~HardwareComposer(void) {
 }
 
 bool HardwareComposer::Initialize(
-    Hwc2::Composer* composer, RequestDisplayCallback request_display_callback) {
+    Hwc2::Composer* composer, hwc2_display_t primary_display_id,
+    RequestDisplayCallback request_display_callback) {
   if (initialized_) {
     ALOGE("HardwareComposer::Initialize: already initialized.");
     return false;
@@ -134,7 +135,7 @@ bool HardwareComposer::Initialize(
   HWC::Error error = HWC::Error::None;
 
   Hwc2::Config config;
-  error = composer->getActiveConfig(HWC_DISPLAY_PRIMARY, &config);
+  error = composer->getActiveConfig(primary_display_id, &config);
 
   if (error != HWC::Error::None) {
     ALOGE("HardwareComposer: Failed to get current display config : %d",
@@ -142,7 +143,7 @@ bool HardwareComposer::Initialize(
     return false;
   }
 
-  error = GetDisplayMetrics(composer, HWC_DISPLAY_PRIMARY, config,
+  error = GetDisplayMetrics(composer, primary_display_id, config,
                             &native_display_metrics_);
 
   if (error != HWC::Error::None) {
@@ -233,7 +234,10 @@ void HardwareComposer::OnPostThreadResumed() {
     composer_.reset(new Hwc2::Composer("default"));
     composer_callback_ = new ComposerCallback;
     composer_->registerCallback(composer_callback_);
+    LOG_ALWAYS_FATAL_IF(!composer_callback_->HasDisplayId(),
+        "Registered composer callback but didn't get primary display");
     Layer::SetComposer(composer_.get());
+    Layer::SetDisplayId(composer_callback_->GetDisplayId());
   } else {
     SetPowerMode(true);
   }
@@ -263,6 +267,7 @@ void HardwareComposer::OnPostThreadPaused() {
     composer_callback_ = nullptr;
     composer_.reset(nullptr);
     Layer::SetComposer(nullptr);
+    Layer::SetDisplayId(0);
   } else {
     SetPowerMode(false);
   }
@@ -290,7 +295,7 @@ HWC::Error HardwareComposer::Validate(hwc2_display_t display) {
 
 HWC::Error HardwareComposer::EnableVsync(bool enabled) {
   return composer_->setVsyncEnabled(
-      HWC_DISPLAY_PRIMARY,
+      composer_callback_->GetDisplayId(),
       (Hwc2::IComposerClient::Vsync)(enabled ? HWC2_VSYNC_ENABLE
                                              : HWC2_VSYNC_DISABLE));
 }
@@ -298,7 +303,8 @@ HWC::Error HardwareComposer::EnableVsync(bool enabled) {
 HWC::Error HardwareComposer::SetPowerMode(bool active) {
   HWC::PowerMode power_mode = active ? HWC::PowerMode::On : HWC::PowerMode::Off;
   return composer_->setPowerMode(
-      HWC_DISPLAY_PRIMARY, power_mode.cast<Hwc2::IComposerClient::PowerMode>());
+      composer_callback_->GetDisplayId(),
+      power_mode.cast<Hwc2::IComposerClient::PowerMode>());
 }
 
 HWC::Error HardwareComposer::Present(hwc2_display_t display) {
@@ -419,7 +425,7 @@ void HardwareComposer::PostLayers() {
     layer.Prepare();
   }
 
-  HWC::Error error = Validate(HWC_DISPLAY_PRIMARY);
+  HWC::Error error = Validate(composer_callback_->GetDisplayId());
   if (error != HWC::Error::None) {
     ALOGE("HardwareComposer::PostLayers: Validate failed: %s",
           error.to_string().c_str());
@@ -466,7 +472,7 @@ void HardwareComposer::PostLayers() {
   }
 #endif
 
-  error = Present(HWC_DISPLAY_PRIMARY);
+  error = Present(composer_callback_->GetDisplayId());
   if (error != HWC::Error::None) {
     ALOGE("HardwareComposer::PostLayers: Present failed: %s",
           error.to_string().c_str());
@@ -475,8 +481,8 @@ void HardwareComposer::PostLayers() {
 
   std::vector<Hwc2::Layer> out_layers;
   std::vector<int> out_fences;
-  error = composer_->getReleaseFences(HWC_DISPLAY_PRIMARY, &out_layers,
-                                      &out_fences);
+  error = composer_->getReleaseFences(composer_callback_->GetDisplayId(),
+                                      &out_layers, &out_fences);
   ALOGE_IF(error != HWC::Error::None,
            "HardwareComposer::PostLayers: Failed to get release fences: %s",
            error.to_string().c_str());
@@ -613,14 +619,6 @@ int HardwareComposer::PostThreadPollInterruptible(
   } else {
     return 0;
   }
-}
-
-Status<int64_t> HardwareComposer::GetVSyncTime() {
-  auto status = composer_callback_->GetVsyncTime(HWC_DISPLAY_PRIMARY);
-  ALOGE_IF(!status,
-           "HardwareComposer::GetVSyncTime: Failed to get vsync timestamp: %s",
-           status.GetErrorMessage().c_str());
-  return status;
 }
 
 // Waits for the next vsync and returns the timestamp of the vsync event. If
@@ -795,8 +793,7 @@ void HardwareComposer::PostThread() {
     // Signal all of the vsync clients. Because absolute time is used for the
     // wakeup time below, this can take a little time if necessary.
     if (vsync_callback_)
-      vsync_callback_(HWC_DISPLAY_PRIMARY, vsync_timestamp,
-                      /*frame_time_estimate*/ 0, vsync_count_);
+      vsync_callback_(vsync_timestamp, /*frame_time_estimate*/ 0, vsync_count_);
 
     {
       // Sleep until shortly before vsync.
@@ -819,7 +816,7 @@ void HardwareComposer::PostThread() {
             // If the layer config changed we need to validateDisplay() even if
             // we're going to drop the frame, to flush the Composer object's
             // internal command buffer and apply our layer changes.
-            Validate(HWC_DISPLAY_PRIMARY);
+            Validate(composer_callback_->GetDisplayId());
           }
           continue;
         }
@@ -827,7 +824,7 @@ void HardwareComposer::PostThread() {
     }
 
     {
-      auto status = GetVSyncTime();
+      auto status = composer_callback_->GetVsyncTime();
       if (!status) {
         ALOGE("HardwareComposer::PostThread: Failed to get VSYNC time: %s",
               status.GetErrorMessage().c_str());
@@ -946,10 +943,17 @@ void HardwareComposer::SetBacklightBrightness(int brightness) {
 }
 
 Return<void> HardwareComposer::ComposerCallback::onHotplug(
-    Hwc2::Display display, IComposerCallback::Connection /*conn*/) {
-  // See if the driver supports the vsync_event node in sysfs.
-  if (display < HWC_NUM_PHYSICAL_DISPLAY_TYPES &&
-      !displays_[display].driver_vsync_event_fd) {
+    Hwc2::Display display, IComposerCallback::Connection conn) {
+  // Our first onHotplug callback is always for the primary display.
+  //
+  // Ignore any other hotplug callbacks since the primary display is never
+  // disconnected and we don't care about other displays.
+  if (!has_display_id_) {
+    LOG_ALWAYS_FATAL_IF(conn != IComposerCallback::Connection::CONNECTED,
+        "Initial onHotplug callback should be primary display connected");
+    has_display_id_ = true;
+    display_id_ = display;
+
     std::array<char, 1024> buffer;
     snprintf(buffer.data(), buffer.size(),
              "/sys/class/graphics/fb%" PRIu64 "/vsync_event", display);
@@ -958,7 +962,7 @@ Return<void> HardwareComposer::ComposerCallback::onHotplug(
           "HardwareComposer::ComposerCallback::onHotplug: Driver supports "
           "vsync_event node for display %" PRIu64,
           display);
-      displays_[display].driver_vsync_event_fd = std::move(handle);
+      driver_vsync_event_fd_ = std::move(handle);
     } else {
       ALOGI(
           "HardwareComposer::ComposerCallback::onHotplug: Driver does not "
@@ -977,36 +981,23 @@ Return<void> HardwareComposer::ComposerCallback::onRefresh(
 
 Return<void> HardwareComposer::ComposerCallback::onVsync(Hwc2::Display display,
                                                          int64_t timestamp) {
-  TRACE_FORMAT("vsync_callback|display=%" PRIu64 ";timestamp=%" PRId64 "|",
-               display, timestamp);
-  if (display < HWC_NUM_PHYSICAL_DISPLAY_TYPES) {
-    displays_[display].callback_vsync_timestamp = timestamp;
-  } else {
-    ALOGW(
-        "HardwareComposer::ComposerCallback::onVsync: Received vsync on "
-        "non-physical display: display=%" PRId64,
-        display);
+  // Ignore any onVsync callbacks for the non-primary display.
+  if (has_display_id_ && display == display_id_) {
+    TRACE_FORMAT("vsync_callback|display=%" PRIu64 ";timestamp=%" PRId64 "|",
+                 display, timestamp);
+    callback_vsync_timestamp_ = timestamp;
   }
   return Void();
 }
 
-Status<int64_t> HardwareComposer::ComposerCallback::GetVsyncTime(
-    Hwc2::Display display) {
-  if (display >= HWC_NUM_PHYSICAL_DISPLAY_TYPES) {
-    ALOGE(
-        "HardwareComposer::ComposerCallback::GetVsyncTime: Invalid physical "
-        "display requested: display=%" PRIu64,
-        display);
-    return ErrorStatus(EINVAL);
-  }
-
+Status<int64_t> HardwareComposer::ComposerCallback::GetVsyncTime() {
   // See if the driver supports direct vsync events.
-  LocalHandle& event_fd = displays_[display].driver_vsync_event_fd;
+  LocalHandle& event_fd = driver_vsync_event_fd_;
   if (!event_fd) {
     // Fall back to returning the last timestamp returned by the vsync
     // callback.
     std::lock_guard<std::mutex> autolock(vsync_mutex_);
-    return displays_[display].callback_vsync_timestamp;
+    return callback_vsync_timestamp_;
   }
 
   // When the driver supports the vsync_event sysfs node we can use it to
@@ -1056,10 +1047,11 @@ Status<int64_t> HardwareComposer::ComposerCallback::GetVsyncTime(
 
 Hwc2::Composer* Layer::composer_{nullptr};
 HWCDisplayMetrics Layer::display_metrics_{0, 0, {0, 0}, 0};
+hwc2_display_t Layer::display_id_{0};
 
 void Layer::Reset() {
   if (hardware_composer_layer_) {
-    composer_->destroyLayer(HWC_DISPLAY_PRIMARY, hardware_composer_layer_);
+    composer_->destroyLayer(display_id_, hardware_composer_layer_);
     hardware_composer_layer_ = 0;
   }
 
@@ -1154,17 +1146,16 @@ void Layer::UpdateVisibilitySettings() {
     pending_visibility_settings_ = false;
 
     HWC::Error error;
-    hwc2_display_t display = HWC_DISPLAY_PRIMARY;
 
     error = composer_->setLayerBlendMode(
-        display, hardware_composer_layer_,
+        display_id_, hardware_composer_layer_,
         blending_.cast<Hwc2::IComposerClient::BlendMode>());
     ALOGE_IF(error != HWC::Error::None,
              "Layer::UpdateLayerSettings: Error setting layer blend mode: %s",
              error.to_string().c_str());
 
-    error =
-        composer_->setLayerZOrder(display, hardware_composer_layer_, z_order_);
+    error = composer_->setLayerZOrder(display_id_, hardware_composer_layer_,
+                                      z_order_);
     ALOGE_IF(error != HWC::Error::None,
              "Layer::UpdateLayerSettings: Error setting z_ order: %s",
              error.to_string().c_str());
@@ -1173,36 +1164,35 @@ void Layer::UpdateVisibilitySettings() {
 
 void Layer::UpdateLayerSettings() {
   HWC::Error error;
-  hwc2_display_t display = HWC_DISPLAY_PRIMARY;
 
   UpdateVisibilitySettings();
 
   // TODO(eieio): Use surface attributes or some other mechanism to control
   // the layer display frame.
   error = composer_->setLayerDisplayFrame(
-      display, hardware_composer_layer_,
+      display_id_, hardware_composer_layer_,
       {0, 0, display_metrics_.width, display_metrics_.height});
   ALOGE_IF(error != HWC::Error::None,
            "Layer::UpdateLayerSettings: Error setting layer display frame: %s",
            error.to_string().c_str());
 
   error = composer_->setLayerVisibleRegion(
-      display, hardware_composer_layer_,
+      display_id_, hardware_composer_layer_,
       {{0, 0, display_metrics_.width, display_metrics_.height}});
   ALOGE_IF(error != HWC::Error::None,
            "Layer::UpdateLayerSettings: Error setting layer visible region: %s",
            error.to_string().c_str());
 
-  error =
-      composer_->setLayerPlaneAlpha(display, hardware_composer_layer_, 1.0f);
+  error = composer_->setLayerPlaneAlpha(display_id_, hardware_composer_layer_,
+                                        1.0f);
   ALOGE_IF(error != HWC::Error::None,
            "Layer::UpdateLayerSettings: Error setting layer plane alpha: %s",
            error.to_string().c_str());
 }
 
 void Layer::CommonLayerSetup() {
-  HWC::Error error =
-      composer_->createLayer(HWC_DISPLAY_PRIMARY, &hardware_composer_layer_);
+  HWC::Error error = composer_->createLayer(display_id_,
+                                            &hardware_composer_layer_);
   ALOGE_IF(error != HWC::Error::None,
            "Layer::CommonLayerSetup: Failed to create layer on primary "
            "display: %s",
@@ -1246,10 +1236,10 @@ void Layer::Prepare() {
     if (composition_type_ == HWC::Composition::Invalid) {
       composition_type_ = HWC::Composition::SolidColor;
       composer_->setLayerCompositionType(
-          HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+          display_id_, hardware_composer_layer_,
           composition_type_.cast<Hwc2::IComposerClient::Composition>());
       Hwc2::IComposerClient::Color layer_color = {0, 0, 0, 0};
-      composer_->setLayerColor(HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+      composer_->setLayerColor(display_id_, hardware_composer_layer_,
                                layer_color);
     } else {
       // The composition type is already set. Nothing else to do until a
@@ -1259,7 +1249,7 @@ void Layer::Prepare() {
     if (composition_type_ != target_composition_type_) {
       composition_type_ = target_composition_type_;
       composer_->setLayerCompositionType(
-          HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+          display_id_, hardware_composer_layer_,
           composition_type_.cast<Hwc2::IComposerClient::Composition>());
     }
 
@@ -1270,7 +1260,7 @@ void Layer::Prepare() {
 
     HWC::Error error{HWC::Error::None};
     error =
-        composer_->setLayerBuffer(HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+        composer_->setLayerBuffer(display_id_, hardware_composer_layer_,
                                   slot, handle, acquire_fence_.Get());
 
     ALOGE_IF(error != HWC::Error::None,
@@ -1280,7 +1270,7 @@ void Layer::Prepare() {
     if (!surface_rect_functions_applied_) {
       const float float_right = right;
       const float float_bottom = bottom;
-      error = composer_->setLayerSourceCrop(HWC_DISPLAY_PRIMARY,
+      error = composer_->setLayerSourceCrop(display_id_,
                                             hardware_composer_layer_,
                                             {0, 0, float_right, float_bottom});
 
