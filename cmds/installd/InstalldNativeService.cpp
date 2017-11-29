@@ -342,6 +342,47 @@ static int prepare_app_quota(const std::unique_ptr<std::string>& uuid, const std
 #endif
 }
 
+static bool prepare_app_profile_dir(const std::string& packageName, int32_t appId, int32_t userId) {
+    if (!property_get_bool("dalvik.vm.usejitprofiles", false)) {
+        return true;
+    }
+
+    int32_t uid = multiuser_get_uid(userId, appId);
+    int shared_app_gid = multiuser_get_shared_gid(userId, appId);
+    if (shared_app_gid == -1) {
+        // TODO(calin): this should no longer be possible but do not continue if we don't get
+        // a valid shared gid.
+        PLOG(WARNING) << "Invalid shared_app_gid for " << packageName;
+        return true;
+    }
+
+    const std::string profile_dir =
+            create_primary_current_profile_package_dir_path(userId, packageName);
+    // read-write-execute only for the app user.
+    if (fs_prepare_dir_strict(profile_dir.c_str(), 0700, uid, uid) != 0) {
+        PLOG(ERROR) << "Failed to prepare " << profile_dir;
+        return false;
+    }
+    const std::string profile_file = create_current_profile_path(userId, packageName,
+            /*is_secondary_dex*/false);
+    // read-write only for the app user.
+    if (fs_prepare_file_strict(profile_file.c_str(), 0600, uid, uid) != 0) {
+        PLOG(ERROR) << "Failed to prepare " << profile_file;
+        return false;
+    }
+
+    const std::string ref_profile_path =
+            create_primary_reference_profile_package_dir_path(packageName);
+    // dex2oat/profman runs under the shared app gid and it needs to read/write reference
+    // profiles.
+    if (fs_prepare_dir_strict(
+            ref_profile_path.c_str(), 0701, shared_app_gid, shared_app_gid) != 0) {
+        PLOG(ERROR) << "Failed to prepare " << ref_profile_path;
+        return false;
+    }
+    return true;
+}
+
 binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::string>& uuid,
         const std::string& packageName, int32_t userId, int32_t flags, int32_t appId,
         const std::string& seInfo, int32_t targetSdkVersion, int64_t* _aidl_return) {
@@ -417,28 +458,8 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
             return error("Failed to set hard quota " + path);
         }
 
-        if (property_get_bool("dalvik.vm.usejitprofiles", false)) {
-            const std::string profile_dir =
-                    create_primary_current_profile_package_dir_path(userId, pkgname);
-            // read-write-execute only for the app user.
-            if (fs_prepare_dir_strict(profile_dir.c_str(), 0700, uid, uid) != 0) {
-                return error("Failed to prepare " + profile_dir);
-            }
-            const std::string profile_file = create_current_profile_path(userId, pkgname,
-                    /*is_secondary_dex*/false);
-            // read-write only for the app user.
-            if (fs_prepare_file_strict(profile_file.c_str(), 0600, uid, uid) != 0) {
-                return error("Failed to prepare " + profile_file);
-            }
-            const std::string ref_profile_path =
-                    create_primary_reference_profile_package_dir_path(pkgname);
-            // dex2oat/profman runs under the shared app gid and it needs to read/write reference
-            // profiles.
-            int shared_app_gid = multiuser_get_shared_gid(0, appId);
-            if ((shared_app_gid != -1) && fs_prepare_dir_strict(
-                    ref_profile_path.c_str(), 0701, shared_app_gid, shared_app_gid) != 0) {
-                return error("Failed to prepare " + ref_profile_path);
-            }
+        if (!prepare_app_profile_dir(packageName, appId, userId)) {
+            return error("Failed to prepare profiles for " + packageName);
         }
     }
     return ok();

@@ -144,10 +144,11 @@ protected:
     static constexpr uid_t kSystemGid = 1000;
     static constexpr int32_t kOSdkVersion = 25;
     static constexpr int32_t kAppDataFlags = FLAG_STORAGE_CE | FLAG_STORAGE_DE;
-    static constexpr uid_t kTestAppUid = 19999;
-    static constexpr gid_t kTestAppGid = 19999;
-    static constexpr uid_t kTestAppId = kTestAppUid;
     static constexpr int32_t kTestUserId = 0;
+    static constexpr uid_t kTestAppId = 19999;
+
+    const gid_t kTestAppUid = multiuser_get_uid(kTestUserId, kTestAppId);
+    const uid_t kTestAppGid = multiuser_get_shared_gid(kTestUserId, kTestAppId);
 
     InstalldNativeService* service_;
     std::unique_ptr<std::string> volume_uuid_;
@@ -245,7 +246,10 @@ protected:
 
     void CompileSecondaryDex(const std::string& path, int32_t dex_storage_flag,
             bool should_binder_call_succeed, bool should_dex_be_compiled = true,
-            int uid = kTestAppUid) {
+            int32_t uid = -1) {
+        if (uid == -1) {
+            uid = kTestAppUid;
+        }
         std::unique_ptr<std::string> package_name_ptr(new std::string(package_name_));
         int32_t dexopt_needed = 0;  // does not matter;
         std::unique_ptr<std::string> out_path = nullptr;  // does not matter
@@ -279,7 +283,10 @@ protected:
 
     void reconcile_secondary_dex(const std::string& path, int32_t storage_flag,
             bool should_binder_call_succeed, bool should_dex_exist, bool should_dex_be_deleted,
-            int uid = kTestAppUid, std::string* package_override = nullptr) {
+            int32_t uid = -1, std::string* package_override = nullptr) {
+        if (uid == -1) {
+            uid = kTestAppUid;
+        }
         std::vector<std::string> isas;
         isas.push_back(kRuntimeIsa);
         bool out_secondary_dex_exists = false;
@@ -554,6 +561,20 @@ TEST_F(ProfileTest, ProfileSnapshotDestroySnapshot) {
     struct stat st;
     ASSERT_EQ(-1, stat(snap_profile_.c_str(), &st));
     ASSERT_EQ(ENOENT, errno);
+}
+
+TEST_F(ProfileTest, ProfileDirOk) {
+    LOG(INFO) << "ProfileDirOk";
+
+    std::string cur_profile_dir = create_primary_current_profile_package_dir_path(
+            kTestUserId, package_name_);
+    std::string cur_profile_file = create_current_profile_path(kTestUserId, package_name_,
+            /*is_secondary_dex*/false);
+    std::string ref_profile_dir = create_primary_reference_profile_package_dir_path(package_name_);
+
+    CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
+    CheckFileAccess(cur_profile_file, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
+    CheckFileAccess(ref_profile_dir, kTestAppGid, kTestAppGid, 0701 | S_IFDIR);
 }
 
 }  // namespace installd
