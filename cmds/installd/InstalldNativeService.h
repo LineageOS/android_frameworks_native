@@ -96,6 +96,11 @@ public:
     binder::Status clearAppProfiles(const std::string& packageName);
     binder::Status destroyAppProfiles(const std::string& packageName);
 
+    binder::Status snapshotProfile(int32_t appId, const std::string& packageName,
+            const std::string& codePath, bool* _aidl_return);
+    binder::Status destroyProfileSnapshot(const std::string& packageName,
+            const std::string& codePath);
+
     binder::Status idmap(const std::string& targetApkPath, const std::string& overlayApkPath,
             int32_t uid);
     binder::Status removeIdmap(const std::string& overlayApkPath);

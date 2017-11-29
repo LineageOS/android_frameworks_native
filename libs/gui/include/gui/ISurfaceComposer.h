@@ -29,6 +29,7 @@
 
 #include <ui/FrameStats.h>
 #include <ui/PixelFormat.h>
+#include <ui/GraphicBuffer.h>
 
 #include <vector>
 
@@ -167,16 +168,14 @@ public:
     /* Capture the specified screen. requires READ_FRAME_BUFFER permission
      * This function will fail if there is a secure window on screen.
      */
-    virtual status_t captureScreen(const sp<IBinder>& display,
-            const sp<IGraphicBufferProducer>& producer,
-            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            int32_t minLayerZ, int32_t maxLayerZ,
-            bool useIdentityTransform,
-            Rotation rotation = eRotateNone) = 0;
+    virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
+                                   Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
+                                   int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
+                                   Rotation rotation = eRotateNone) = 0;
 
     virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
-                                   const sp<IGraphicBufferProducer>& producer,
-                                   Rotation rotation = eRotateNone) = 0;
+                                   sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
+                                   float frameScale = 1.0) = 0;
 
     /* Clears the frame statistics for animations.
      *

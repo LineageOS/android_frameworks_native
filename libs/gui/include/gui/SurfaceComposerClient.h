@@ -279,70 +279,16 @@ private:
 
 // ---------------------------------------------------------------------------
 
-class ScreenshotClient
-{
+class ScreenshotClient {
 public:
     // if cropping isn't required, callers may pass in a default Rect, e.g.:
     //   capture(display, producer, Rect(), reqWidth, ...);
-    static status_t capture(
-            const sp<IBinder>& display,
-            const sp<IGraphicBufferProducer>& producer,
-            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            int32_t minLayerZ, int32_t maxLayerZ,
-            bool useIdentityTransform);
-    static status_t captureToBuffer(
-            const sp<IBinder>& display,
-            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            int32_t minLayerZ, int32_t maxLayerZ,
-            bool useIdentityTransform,
-            uint32_t rotation,
-            sp<GraphicBuffer>* outbuffer);
-    static status_t captureLayers(const sp<IBinder>& layerHandle,
-                                  const sp<IGraphicBufferProducer>& producer, uint32_t rotation);
-
-private:
-    mutable sp<CpuConsumer> mCpuConsumer;
-    mutable sp<IGraphicBufferProducer> mProducer;
-    CpuConsumer::LockedBuffer mBuffer;
-    bool mHaveBuffer;
-
-public:
-    ScreenshotClient();
-    ~ScreenshotClient();
-
-    // frees the previous screenshot and captures a new one
-    // if cropping isn't required, callers may pass in a default Rect, e.g.:
-    //   update(display, Rect(), useIdentityTransform);
-    status_t update(const sp<IBinder>& display,
-            Rect sourceCrop, bool useIdentityTransform);
-    status_t update(const sp<IBinder>& display,
-            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            bool useIdentityTransform);
-    status_t update(const sp<IBinder>& display,
-            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            int32_t minLayerZ, int32_t maxLayerZ,
-            bool useIdentityTransform);
-    status_t update(const sp<IBinder>& display,
-            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            int32_t minLayerZ, int32_t maxLayerZ,
-            bool useIdentityTransform, uint32_t rotation);
-
-    sp<CpuConsumer> getCpuConsumer() const;
-
-    // release memory occupied by the screenshot
-    void release();
-
-    // pixels are valid until this object is freed or
-    // release() or update() is called
-    void const* getPixels() const;
-
-    uint32_t getWidth() const;
-    uint32_t getHeight() const;
-    PixelFormat getFormat() const;
-    uint32_t getStride() const;
-    // size of allocated memory in bytes
-    size_t getSize() const;
-    android_dataspace getDataSpace() const;
+    static status_t capture(const sp<IBinder>& display, Rect sourceCrop, uint32_t reqWidth,
+                            uint32_t reqHeight, int32_t minLayerZ, int32_t maxLayerZ,
+                            bool useIdentityTransform, uint32_t rotation,
+                            sp<GraphicBuffer>* outBuffer);
+    static status_t captureLayers(const sp<IBinder>& layerHandle, Rect sourceCrop, float fameScale,
+                                  sp<GraphicBuffer>* outBuffer);
 };
 
 // ---------------------------------------------------------------------------

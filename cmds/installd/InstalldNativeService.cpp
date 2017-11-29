@@ -436,7 +436,7 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
             // profiles.
             int shared_app_gid = multiuser_get_shared_gid(0, appId);
             if ((shared_app_gid != -1) && fs_prepare_dir_strict(
-                    ref_profile_path.c_str(), 0700, shared_app_gid, shared_app_gid) != 0) {
+                    ref_profile_path.c_str(), 0701, shared_app_gid, shared_app_gid) != 0) {
                 return error("Failed to prepare " + ref_profile_path);
             }
         }
@@ -1830,6 +1830,29 @@ binder::Status InstalldNativeService::mergeProfiles(int32_t uid, const std::stri
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     *_aidl_return = analyze_primary_profiles(uid, packageName);
+    return ok();
+}
+
+binder::Status InstalldNativeService::snapshotProfile(int32_t appId, const std::string& packageName,
+        const std::string& codePath, bool* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    *_aidl_return = snapshot_profile(appId, packageName, codePath);
+    return ok();
+}
+
+binder::Status InstalldNativeService::destroyProfileSnapshot(const std::string& packageName,
+        const std::string& codePath) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    std::string snapshot = create_snapshot_profile_path(packageName, codePath);
+    if ((unlink(snapshot.c_str()) != 0) && (errno != ENOENT)) {
+        return error("Failed to destroy profile snapshot for " + packageName + ":" + codePath);
+    }
     return ok();
 }
 

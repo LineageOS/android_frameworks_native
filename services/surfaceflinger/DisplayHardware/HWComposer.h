@@ -33,6 +33,7 @@
 #include <utils/Vector.h>
 
 #include <memory>
+#include <optional>
 #include <set>
 #include <vector>
 
@@ -161,6 +162,8 @@ public:
     void dump(String8& out) const;
 
     android::Hwc2::Composer* getComposer() const { return mHwcDevice->getComposer(); }
+
+    std::optional<hwc2_display_t> getHwcDisplayId(int32_t displayId) const;
 private:
     static const int32_t VIRTUAL_DISPLAY_ID_BASE = 2;
 

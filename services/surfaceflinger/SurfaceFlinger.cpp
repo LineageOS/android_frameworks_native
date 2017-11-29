@@ -649,7 +649,8 @@ void SurfaceFlinger::init() {
             postMessageAsync(message);
         };
         mVrFlinger = dvr::VrFlinger::Create(mHwc->getComposer(),
-                                            vrFlingerRequestDisplayCallback);
+                mHwc->getHwcDisplayId(HWC_DISPLAY_PRIMARY).value_or(0),
+                vrFlingerRequestDisplayCallback);
         if (!mVrFlinger) {
             ALOGE("Failed to start vrflinger");
         }
@@ -4338,44 +4339,10 @@ private:
     const int mApi;
 };
 
-static status_t getWindowBuffer(ANativeWindow* window, uint32_t requestedWidth,
-                                uint32_t requestedHeight, bool hasWideColorDisplay,
-                                bool renderEngineUsesWideColor, ANativeWindowBuffer** outBuffer) {
-    const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
-            GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
-
-    int err = 0;
-    err = native_window_set_buffers_dimensions(window, requestedWidth, requestedHeight);
-    err |= native_window_set_scaling_mode(window, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-    err |= native_window_set_buffers_format(window, HAL_PIXEL_FORMAT_RGBA_8888);
-    err |= native_window_set_usage(window, usage);
-
-    if (hasWideColorDisplay) {
-        err |= native_window_set_buffers_data_space(window,
-                                                    renderEngineUsesWideColor
-                                                            ? HAL_DATASPACE_DISPLAY_P3
-                                                            : HAL_DATASPACE_V0_SRGB);
-    }
-
-    if (err != NO_ERROR) {
-        return BAD_VALUE;
-    }
-
-    /* TODO: Once we have the sync framework everywhere this can use
-     * server-side waits on the fence that dequeueBuffer returns.
-     */
-    err = native_window_dequeue_buffer_and_wait(window, outBuffer);
-    if (err != NO_ERROR) {
-        return err;
-    }
-
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
-                                       const sp<IGraphicBufferProducer>& producer, Rect sourceCrop,
-                                       uint32_t reqWidth, uint32_t reqHeight, int32_t minLayerZ,
-                                       int32_t maxLayerZ, bool useIdentityTransform,
+status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
+                                       Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
+                                       int32_t minLayerZ, int32_t maxLayerZ,
+                                       bool useIdentityTransform,
                                        ISurfaceComposer::Rotation rotation) {
     ATRACE_CALL();
 
@@ -4386,20 +4353,19 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
 
     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
                                     device, minLayerZ, maxLayerZ, std::placeholders::_1);
-    return captureScreenCommon(renderArea, traverseLayers, producer, useIdentityTransform);
+    return captureScreenCommon(renderArea, traverseLayers, outBuffer, useIdentityTransform);
 }
 
 status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
-                                       const sp<IGraphicBufferProducer>& producer,
-                                       ISurfaceComposer::Rotation rotation) {
+                                       sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop, 
+                                       float frameScale) {
     ATRACE_CALL();
 
     class LayerRenderArea : public RenderArea {
     public:
-        LayerRenderArea(const sp<Layer>& layer, ISurfaceComposer::Rotation rotation)
-              : RenderArea(layer->getCurrentState().active.h, layer->getCurrentState().active.w,
-                           rotation),
-                mLayer(layer) {}
+        LayerRenderArea(const sp<Layer>& layer, const Rect crop, int32_t reqWidth,
+                        int32_t reqHeight)
+              : RenderArea(reqHeight, reqWidth), mLayer(layer), mCrop(crop) {}
         const Transform& getTransform() const override {
             // Make the top level transform the inverse the transform and it's parent so it sets
             // the whole capture back to 0,0
@@ -4414,18 +4380,45 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         bool isSecure() const override { return false; }
         bool needsFiltering() const override { return false; }
 
-        Rect getSourceCrop() const override { return getBounds(); }
+        Rect getSourceCrop() const override {
+            if (mCrop.isEmpty()) {
+                return getBounds();
+            } else {
+                return mCrop;
+            }
+        }
         bool getWideColorSupport() const override { return false; }
         android_color_mode_t getActiveColorMode() const override { return HAL_COLOR_MODE_NATIVE; }
 
     private:
-        const sp<Layer>& mLayer;
+        const sp<Layer> mLayer;
+        const Rect mCrop;
     };
 
     auto layerHandle = reinterpret_cast<Layer::Handle*>(layerHandleBinder.get());
     auto parent = layerHandle->owner.promote();
 
-    LayerRenderArea renderArea(parent, rotation);
+    if (parent == nullptr || parent->isPendingRemoval()) {
+        ALOGE("captureLayers called with a removed parent");
+        return NAME_NOT_FOUND;
+    }
+
+    Rect crop(sourceCrop);
+    if (sourceCrop.width() <= 0) {
+        crop.left = 0;
+        crop.right = parent->getCurrentState().active.w;
+    }
+
+    if (sourceCrop.height() <= 0) {
+        crop.top = 0;
+        crop.bottom = parent->getCurrentState().active.h;
+    }
+
+    int32_t reqWidth = crop.width() * frameScale;
+    int32_t reqHeight = crop.height() * frameScale;
+
+    LayerRenderArea renderArea(parent, crop, reqWidth, reqHeight);
+
     auto traverseLayers = [parent](const LayerVector::Visitor& visitor) {
         parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
             if (!layer->isVisible()) {
@@ -4434,51 +4427,21 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
             visitor(layer);
         });
     };
-    return captureScreenCommon(renderArea, traverseLayers, producer, false);
+    return captureScreenCommon(renderArea, traverseLayers, outBuffer, false);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              TraverseLayersFunction traverseLayers,
-                                             const sp<IGraphicBufferProducer>& producer,
+                                             sp<GraphicBuffer>* outBuffer,
                                              bool useIdentityTransform) {
     ATRACE_CALL();
 
-    if (CC_UNLIKELY(producer == 0))
-        return BAD_VALUE;
-
     renderArea.updateDimensions();
 
-    // if we have secure windows on this display, never allow the screen capture
-    // unless the producer interface is local (i.e.: we can take a screenshot for
-    // ourselves).
-    bool isLocalScreenshot = IInterface::asBinder(producer)->localBinder();
-
-    // create a surface (because we're a producer, and we need to
-    // dequeue/queue a buffer)
-    sp<Surface> surface = new Surface(producer, false);
-
-    // Put the screenshot Surface into async mode so that
-    // Layer::headFenceHasSignaled will always return true and we'll latch the
-    // first buffer regardless of whether or not its acquire fence has
-    // signaled. This is needed to avoid a race condition in the rotation
-    // animation. See b/30209608
-    surface->setAsyncMode(true);
-
-    ANativeWindow* window = surface.get();
-
-    status_t result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
-    if (result != NO_ERROR) {
-        return result;
-    }
-    WindowDisconnector disconnector(window, NATIVE_WINDOW_API_EGL);
-
-    ANativeWindowBuffer* buffer = nullptr;
-    result = getWindowBuffer(window, renderArea.getReqWidth(), renderArea.getReqHeight(),
-                             hasWideColorDisplay && !mForceNativeColorMode,
-                             getRenderEngine().usesWideColor(), &buffer);
-    if (result != NO_ERROR) {
-        return result;
-    }
+    const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
+            GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
+    *outBuffer = new GraphicBuffer(renderArea.getReqWidth(), renderArea.getReqHeight(),
+                                   HAL_PIXEL_FORMAT_RGBA_8888, 1, usage, "screenshot");
 
     // This mutex protects syncFd and captureResult for communication of the return values from the
     // main thread back to this Binder thread
@@ -4503,8 +4466,8 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
         int fd = -1;
         {
             Mutex::Autolock _l(mStateLock);
-            result = captureScreenImplLocked(renderArea, traverseLayers, buffer,
-                                             useIdentityTransform, isLocalScreenshot, &fd);
+            result = captureScreenImplLocked(renderArea, traverseLayers, (*outBuffer).get(),
+                                             useIdentityTransform, &fd);
         }
 
         {
@@ -4515,7 +4478,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
         }
     });
 
-    result = postMessageAsync(message);
+    status_t result = postMessageAsync(message);
     if (result == NO_ERROR) {
         captureCondition.wait(captureLock, [&]() { return captureResult; });
         while (*captureResult == EAGAIN) {
@@ -4530,9 +4493,10 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
     }
 
     if (result == NO_ERROR) {
-        // queueBuffer takes ownership of syncFd
-        result = window->queueBuffer(window, buffer, syncFd);
+        sync_wait(syncFd, -1);
+        close(syncFd);
     }
+
     return result;
 }
 
@@ -4575,7 +4539,8 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     }
 
     engine.setWideColor(renderArea.getWideColorSupport() && !mForceNativeColorMode);
-    engine.setColorMode(mForceNativeColorMode ? HAL_COLOR_MODE_NATIVE : renderArea.getActiveColorMode());
+    engine.setColorMode(mForceNativeColorMode ? HAL_COLOR_MODE_NATIVE
+                                              : renderArea.getActiveColorMode());
 
     // make sure to clear all GL error flags
     engine.checkErrors();
@@ -4618,7 +4583,7 @@ private:
 status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
                                                  TraverseLayersFunction traverseLayers,
                                                  ANativeWindowBuffer* buffer,
-                                                 bool useIdentityTransform, bool isLocalScreenshot,
+                                                 bool useIdentityTransform,
                                                  int* outSyncFd) {
     ATRACE_CALL();
 
@@ -4628,7 +4593,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         secureLayerIsVisible = secureLayerIsVisible || (layer->isVisible() && layer->isSecure());
     });
 
-    if (!isLocalScreenshot && secureLayerIsVisible) {
+    if (secureLayerIsVisible) {
         ALOGW("FB is protected: PERMISSION_DENIED");
         return PERMISSION_DENIED;
     }

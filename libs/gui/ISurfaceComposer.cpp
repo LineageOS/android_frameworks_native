@@ -100,17 +100,13 @@ public:
         remote()->transact(BnSurfaceComposer::BOOT_FINISHED, data, &reply);
     }
 
-    virtual status_t captureScreen(const sp<IBinder>& display,
-            const sp<IGraphicBufferProducer>& producer,
-            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            int32_t minLayerZ, int32_t maxLayerZ,
-            bool useIdentityTransform,
-            ISurfaceComposer::Rotation rotation)
-    {
+    virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
+                                   Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
+                                   int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
+                                   ISurfaceComposer::Rotation rotation) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
-        data.writeStrongBinder(IInterface::asBinder(producer));
         data.write(sourceCrop);
         data.writeUint32(reqWidth);
         data.writeUint32(reqHeight);
@@ -118,20 +114,45 @@ public:
         data.writeInt32(maxLayerZ);
         data.writeInt32(static_cast<int32_t>(useIdentityTransform));
         data.writeInt32(static_cast<int32_t>(rotation));
-        remote()->transact(BnSurfaceComposer::CAPTURE_SCREEN, data, &reply);
-        return reply.readInt32();
+        status_t err = remote()->transact(BnSurfaceComposer::CAPTURE_SCREEN, data, &reply);
+
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        err = reply.readInt32();
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        *outBuffer = new GraphicBuffer();
+        reply.read(**outBuffer);
+        return err;
     }
 
     virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
-                                   const sp<IGraphicBufferProducer>& producer,
-                                   ISurfaceComposer::Rotation rotation) {
+                                   sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
+                                   float frameScale) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(layerHandleBinder);
-        data.writeStrongBinder(IInterface::asBinder(producer));
-        data.writeInt32(static_cast<int32_t>(rotation));
-        remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
-        return reply.readInt32();
+        data.write(sourceCrop);
+        data.writeFloat(frameScale);
+        status_t err = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
+
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        err = reply.readInt32();
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        *outBuffer = new GraphicBuffer();
+        reply.read(**outBuffer);
+
+        return err;
     }
 
     virtual bool authenticateSurfaceTexture(
@@ -582,8 +603,7 @@ status_t BnSurfaceComposer::onTransact(
         case CAPTURE_SCREEN: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> display = data.readStrongBinder();
-            sp<IGraphicBufferProducer> producer =
-                    interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
+            sp<GraphicBuffer> outBuffer;
             Rect sourceCrop(Rect::EMPTY_RECT);
             data.read(sourceCrop);
             uint32_t reqWidth = data.readUint32();
@@ -593,23 +613,28 @@ status_t BnSurfaceComposer::onTransact(
             bool useIdentityTransform = static_cast<bool>(data.readInt32());
             int32_t rotation = data.readInt32();
 
-            status_t res = captureScreen(display, producer,
-                    sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ,
-                    useIdentityTransform,
-                    static_cast<ISurfaceComposer::Rotation>(rotation));
+            status_t res = captureScreen(display, &outBuffer, sourceCrop, reqWidth, reqHeight,
+                                         minLayerZ, maxLayerZ, useIdentityTransform,
+                                         static_cast<ISurfaceComposer::Rotation>(rotation));
             reply->writeInt32(res);
+            if (res == NO_ERROR) {
+                reply->write(*outBuffer);
+            }
             return NO_ERROR;
         }
         case CAPTURE_LAYERS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> layerHandleBinder = data.readStrongBinder();
-            sp<IGraphicBufferProducer> producer =
-                    interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
-            int32_t rotation = data.readInt32();
+            sp<GraphicBuffer> outBuffer;
+            Rect sourceCrop(Rect::EMPTY_RECT);
+            data.read(sourceCrop);
+            float frameScale = data.readFloat();
 
-            status_t res = captureLayers(layerHandleBinder, producer,
-                                         static_cast<ISurfaceComposer::Rotation>(rotation));
+            status_t res = captureLayers(layerHandleBinder, &outBuffer, sourceCrop, frameScale);
             reply->writeInt32(res);
+            if (res == NO_ERROR) {
+                reply->write(*outBuffer);
+            }
             return NO_ERROR;
         }
         case AUTHENTICATE_SURFACE: {

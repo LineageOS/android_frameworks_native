@@ -717,158 +717,27 @@ status_t SurfaceComposerClient::getHdrCapabilities(const sp<IBinder>& display,
 
 // ----------------------------------------------------------------------------
 
-status_t ScreenshotClient::capture(
-        const sp<IBinder>& display,
-        const sp<IGraphicBufferProducer>& producer,
-        Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform) {
+status_t ScreenshotClient::capture(const sp<IBinder>& display, Rect sourceCrop, uint32_t reqWidth,
+                                   uint32_t reqHeight, int32_t minLayerZ, int32_t maxLayerZ,
+                                   bool useIdentityTransform, uint32_t rotation,
+                                   sp<GraphicBuffer>* outBuffer) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == NULL) return NO_INIT;
-    return s->captureScreen(display, producer, sourceCrop,
-            reqWidth, reqHeight, minLayerZ, maxLayerZ, useIdentityTransform);
-}
-
-status_t ScreenshotClient::captureToBuffer(const sp<IBinder>& display,
-        Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
-        uint32_t rotation,
-        sp<GraphicBuffer>* outBuffer) {
-    sp<ISurfaceComposer> s(ComposerService::getComposerService());
-    if (s == NULL) return NO_INIT;
-
-    sp<IGraphicBufferConsumer> gbpConsumer;
-    sp<IGraphicBufferProducer> producer;
-    BufferQueue::createBufferQueue(&producer, &gbpConsumer);
-    sp<BufferItemConsumer> consumer(new BufferItemConsumer(gbpConsumer,
-           GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_NEVER,
-           1, true));
-
-    status_t ret = s->captureScreen(display, producer, sourceCrop, reqWidth, reqHeight,
-            minLayerZ, maxLayerZ, useIdentityTransform,
-            static_cast<ISurfaceComposer::Rotation>(rotation));
+    status_t ret = s->captureScreen(display, outBuffer, sourceCrop, reqWidth, reqHeight, minLayerZ,
+                                    maxLayerZ, useIdentityTransform,
+                                    static_cast<ISurfaceComposer::Rotation>(rotation));
     if (ret != NO_ERROR) {
         return ret;
     }
-    BufferItem b;
-    consumer->acquireBuffer(&b, 0, true);
-    *outBuffer = b.mGraphicBuffer;
     return ret;
 }
 
-status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle,
-                                         const sp<IGraphicBufferProducer>& producer,
-                                         uint32_t rotation) {
+status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle, Rect sourceCrop,
+                                         float frameScale, sp<GraphicBuffer>* outBuffer) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == NULL) return NO_INIT;
-    return s->captureLayers(layerHandle, producer,
-                            static_cast<ISurfaceComposer::Rotation>(rotation));
+    status_t ret = s->captureLayers(layerHandle, outBuffer, sourceCrop, frameScale);
+    return ret;
 }
-
-ScreenshotClient::ScreenshotClient()
-    : mHaveBuffer(false) {
-    memset(&mBuffer, 0, sizeof(mBuffer));
-}
-
-ScreenshotClient::~ScreenshotClient() {
-    ScreenshotClient::release();
-}
-
-sp<CpuConsumer> ScreenshotClient::getCpuConsumer() const {
-    if (mCpuConsumer == NULL) {
-        sp<IGraphicBufferConsumer> consumer;
-        BufferQueue::createBufferQueue(&mProducer, &consumer);
-        mCpuConsumer = new CpuConsumer(consumer, 1);
-        mCpuConsumer->setName(String8("ScreenshotClient"));
-    }
-    return mCpuConsumer;
-}
-
-status_t ScreenshotClient::update(const sp<IBinder>& display,
-        Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        int32_t minLayerZ, int32_t maxLayerZ,
-        bool useIdentityTransform, uint32_t rotation) {
-    sp<ISurfaceComposer> s(ComposerService::getComposerService());
-    if (s == NULL) return NO_INIT;
-    sp<CpuConsumer> cpuConsumer = getCpuConsumer();
-
-    if (mHaveBuffer) {
-        mCpuConsumer->unlockBuffer(mBuffer);
-        memset(&mBuffer, 0, sizeof(mBuffer));
-        mHaveBuffer = false;
-    }
-
-    status_t err = s->captureScreen(display, mProducer, sourceCrop,
-            reqWidth, reqHeight, minLayerZ, maxLayerZ, useIdentityTransform,
-            static_cast<ISurfaceComposer::Rotation>(rotation));
-
-    if (err == NO_ERROR) {
-        err = mCpuConsumer->lockNextBuffer(&mBuffer);
-        if (err == NO_ERROR) {
-            mHaveBuffer = true;
-        }
-    }
-    return err;
-}
-
-status_t ScreenshotClient::update(const sp<IBinder>& display,
-        Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-        int32_t minLayerZ, int32_t maxLayerZ,
-        bool useIdentityTransform) {
-
-    return ScreenshotClient::update(display, sourceCrop, reqWidth, reqHeight,
-            minLayerZ, maxLayerZ, useIdentityTransform, ISurfaceComposer::eRotateNone);
-}
-
-status_t ScreenshotClient::update(const sp<IBinder>& display, Rect sourceCrop,
-        bool useIdentityTransform) {
-    return ScreenshotClient::update(display, sourceCrop, 0, 0,
-            INT32_MIN, INT32_MAX,
-            useIdentityTransform, ISurfaceComposer::eRotateNone);
-}
-
-status_t ScreenshotClient::update(const sp<IBinder>& display, Rect sourceCrop,
-        uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform) {
-    return ScreenshotClient::update(display, sourceCrop, reqWidth, reqHeight,
-            INT32_MIN, INT32_MAX,
-            useIdentityTransform, ISurfaceComposer::eRotateNone);
-}
-
-void ScreenshotClient::release() {
-    if (mHaveBuffer) {
-        mCpuConsumer->unlockBuffer(mBuffer);
-        memset(&mBuffer, 0, sizeof(mBuffer));
-        mHaveBuffer = false;
-    }
-    mCpuConsumer.clear();
-}
-
-void const* ScreenshotClient::getPixels() const {
-    return mBuffer.data;
-}
-
-uint32_t ScreenshotClient::getWidth() const {
-    return mBuffer.width;
-}
-
-uint32_t ScreenshotClient::getHeight() const {
-    return mBuffer.height;
-}
-
-PixelFormat ScreenshotClient::getFormat() const {
-    return mBuffer.format;
-}
-
-uint32_t ScreenshotClient::getStride() const {
-    return mBuffer.stride;
-}
-
-size_t ScreenshotClient::getSize() const {
-    return mBuffer.stride * mBuffer.height * bytesPerPixel(mBuffer.format);
-}
-
-android_dataspace ScreenshotClient::getDataSpace() const {
-    return mBuffer.dataSpace;
-}
-
 // ----------------------------------------------------------------------------
 }; // namespace android

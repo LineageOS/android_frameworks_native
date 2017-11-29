@@ -81,6 +81,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   using RequestDisplayCallback = std::function<void(bool)>;
 
   DisplayService(android::Hwc2::Composer* hidl,
+                 hwc2_display_t primary_display_id,
                  RequestDisplayCallback request_display_callback);
 
   pdx::Status<BorrowedNativeBufferHandle> OnGetGlobalBuffer(

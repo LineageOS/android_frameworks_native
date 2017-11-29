@@ -291,14 +291,12 @@ private:
             std::vector<FrameEvent>* outSupported) const;
     virtual sp<IDisplayEventConnection> createDisplayEventConnection(
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp);
-    virtual status_t captureScreen(const sp<IBinder>& display,
-            const sp<IGraphicBufferProducer>& producer,
-            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            int32_t minLayerZ, int32_t maxLayerZ,
-            bool useIdentityTransform, ISurfaceComposer::Rotation rotation);
-    virtual status_t captureLayers(const sp<IBinder>& parentHandle,
-                                   const sp<IGraphicBufferProducer>& producer,
+    virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
+                                   Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
+                                   int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
                                    ISurfaceComposer::Rotation rotation);
+    virtual status_t captureLayers(const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
+                                   const Rect& sourceCrop, float frameScale);
     virtual status_t getDisplayStats(const sp<IBinder>& display,
             DisplayStatInfo* stats);
     virtual status_t getDisplayConfigs(const sp<IBinder>& display,
@@ -436,15 +434,13 @@ private:
 
     void renderScreenImplLocked(const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                 bool yswap, bool useIdentityTransform);
-
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                 const sp<IGraphicBufferProducer>& producer,
+                                 sp<GraphicBuffer>* outBuffer,
                                  bool useIdentityTransform);
-
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
                                      ANativeWindowBuffer* buffer, bool useIdentityTransform,
-                                     bool isLocalScreenshot, int* outSyncFd);
+                                     int* outSyncFd);
     void traverseLayersInDisplay(const sp<const DisplayDevice>& display, int32_t minLayerZ,
                                  int32_t maxLayerZ, const LayerVector::Visitor& visitor);
 

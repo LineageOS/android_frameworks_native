@@ -83,6 +83,7 @@ std::string create_current_profile_path(
         userid_t user, const std::string& package_name, bool is_secondary_dex);
 std::string create_reference_profile_path(
         const std::string& package_name, bool is_secondary_dex);
+std::string create_snapshot_profile_path(const std::string& package, const std::string& code_path);
 
 std::vector<userid_t> get_known_users(const char* volume_uuid);
 

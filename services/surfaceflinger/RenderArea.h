@@ -6,7 +6,8 @@ namespace android {
 
 class RenderArea {
 public:
-    RenderArea(uint32_t reqHeight, uint32_t reqWidth, ISurfaceComposer::Rotation rotation)
+    RenderArea(uint32_t reqHeight, uint32_t reqWidth,
+               ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
           : mReqHeight(reqHeight), mReqWidth(reqWidth) {
         mRotationFlags = Transform::fromRotation(rotation);
     }
