@@ -3224,7 +3224,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         // changed, we don't want this to cause any more work
     }
     if (what & layer_state_t::eReparent) {
+        bool hadParent = layer->hasParent();
         if (layer->reparent(s.parentHandleForChild)) {
+            if (!hadParent) {
+                mCurrentState.layersSortedByZ.remove(layer);
+            }
             flags |= eTransactionNeeded|eTraversalNeeded;
         }
     }
