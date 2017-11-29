@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include <stdint.h>
 #include <math/mat4.h>
+#include <stdint.h>
 
 #ifndef SF_RENDER_ENGINE_TEXTURE_H
 #define SF_RENDER_ENGINE_TEXTURE_H

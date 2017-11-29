@@ -21,9 +21,10 @@
 namespace android {
 
 Mesh::Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t texCoordSize)
-    : mVertexCount(vertexCount), mVertexSize(vertexSize), mTexCoordsSize(texCoordSize),
-      mPrimitive(primitive)
-{
+      : mVertexCount(vertexCount),
+        mVertexSize(vertexSize),
+        mTexCoordsSize(texCoordSize),
+        mPrimitive(primitive) {
     if (vertexCount == 0) {
         mVertices = new float[1];
         mVertices[0] = 0.0f;
@@ -37,8 +38,7 @@ Mesh::Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t te
     // either vertexSize or texCoordSize, it must have overflowed. remainder
     // will be equal to stride as long as stride * vertexCount doesn't overflow.
     if ((stride < vertexSize) || (remainder != stride)) {
-        ALOGE("Overflow in Mesh(..., %zu, %zu, %zu)", vertexCount, vertexSize,
-                texCoordSize);
+        ALOGE("Overflow in Mesh(..., %zu, %zu, %zu)", vertexCount, vertexSize, texCoordSize);
         mVertices = new float[1];
         mVertices[0] = 0.0f;
         mVertexCount = 0;
@@ -53,13 +53,12 @@ Mesh::Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t te
 }
 
 Mesh::~Mesh() {
-    delete [] mVertices;
+    delete[] mVertices;
 }
 
 Mesh::Primitive Mesh::getPrimitive() const {
     return mPrimitive;
 }
-
 
 float const* Mesh::getPositions() const {
     return mVertices;
@@ -75,7 +74,6 @@ float* Mesh::getTexCoords() {
     return mVertices + mVertexSize;
 }
 
-
 size_t Mesh::getVertexCount() const {
     return mVertexCount;
 }
@@ -89,7 +87,7 @@ size_t Mesh::getTexCoordsSize() const {
 }
 
 size_t Mesh::getByteStride() const {
-    return mStride*sizeof(float);
+    return mStride * sizeof(float);
 }
 
 size_t Mesh::getStride() const {

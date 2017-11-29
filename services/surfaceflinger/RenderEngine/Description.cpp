@@ -33,8 +33,7 @@ Description::Description() {
     mColorMatrixEnabled = false;
 }
 
-Description::~Description() {
-}
+Description::~Description() {}
 
 void Description::setPremultipliedAlpha(bool premultipliedAlpha) {
     mPremultipliedAlpha = premultipliedAlpha;

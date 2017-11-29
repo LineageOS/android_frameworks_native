@@ -19,15 +19,15 @@
 #include <log/log.h>
 #include <utils/String8.h>
 
+#include <math/mat4.h>
+#include "Description.h"
 #include "Program.h"
 #include "ProgramCache.h"
-#include "Description.h"
-#include <math/mat4.h>
 
 namespace android {
 
 Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const char* fragment)
-        : mInitialized(false) {
+      : mInitialized(false) {
     GLuint vertexId = buildShader(vertex, GL_VERTEX_SHADER);
     GLuint fragmentId = buildShader(fragment, GL_FRAGMENT_SHADER);
     GLuint programId = glCreateProgram();
@@ -67,14 +67,12 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
 
         // set-up the default values for our uniforms
         glUseProgram(programId);
-        const GLfloat m[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
-        glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, m);
+        glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, mat4().asArray());
         glEnableVertexAttribArray(0);
     }
 }
 
-Program::~Program() {
-}
+Program::~Program() {}
 
 bool Program::isValid() const {
     return mInitialized;
@@ -119,12 +117,11 @@ String8& Program::dumpShader(String8& result, GLenum /*type*/) {
     char* src = new char[l];
     glGetShaderSource(shader, l, NULL, src);
     result.append(src);
-    delete [] src;
+    delete[] src;
     return result;
 }
 
 void Program::setUniforms(const Description& desc) {
-
     // TODO: we should have a mechanism here to not always reset uniforms that
     // didn't change for this program.
 

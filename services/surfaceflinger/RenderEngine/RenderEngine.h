@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 #ifndef SF_RENDERENGINE_H_
 #define SF_RENDERENGINE_H_
 
@@ -25,9 +24,9 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <math/mat4.h>
 #include <Transform.h>
 #include <gui/SurfaceControl.h>
+#include <math/mat4.h>
 
 #define EGL_NO_CONFIG ((EGLConfig)0)
 
@@ -49,10 +48,10 @@ class Surface;
 
 class RenderEngine {
     enum GlesVersion {
-        GLES_VERSION_1_0    = 0x10000,
-        GLES_VERSION_1_1    = 0x10001,
-        GLES_VERSION_2_0    = 0x20000,
-        GLES_VERSION_3_0    = 0x30000,
+        GLES_VERSION_1_0 = 0x10000,
+        GLES_VERSION_1_1 = 0x10001,
+        GLES_VERSION_2_0 = 0x20000,
+        GLES_VERSION_3_0 = 0x30000,
     };
     static GlesVersion parseGlesVersion(const char* str);
 
@@ -61,7 +60,8 @@ class RenderEngine {
     EGLContext mEGLContext;
     void setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt);
 
-    virtual void bindImageAsFramebuffer(EGLImageKHR image, uint32_t* texName, uint32_t* fbName, uint32_t* status) = 0;
+    virtual void bindImageAsFramebuffer(EGLImageKHR image, uint32_t* texName, uint32_t* fbName,
+                                        uint32_t* status) = 0;
     virtual void unbindFramebuffer(uint32_t texName, uint32_t fbName) = 0;
 
 protected:
@@ -86,8 +86,8 @@ public:
     // flush returns -1 or a valid native fence fd owned by the caller
     int flush(bool wait);
     void clearWithColor(float red, float green, float blue, float alpha);
-    void fillRegionWithColor(const Region& region, uint32_t height,
-            float red, float green, float blue, float alpha);
+    void fillRegionWithColor(const Region& region, uint32_t height, float red, float green,
+                             float blue, float alpha);
 
     // common to all GL versions
     void setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top);
@@ -101,6 +101,7 @@ public:
         EGLImageKHR mImage;
         uint32_t mTexName, mFbName;
         uint32_t mStatus;
+
     public:
         BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer);
         ~BindNativeBufferAsFramebuffer();
@@ -112,10 +113,10 @@ public:
 
     // set-up
     virtual void checkErrors() const;
-    virtual void setViewportAndProjection(size_t vpw, size_t vph,
-            Rect sourceCrop, size_t hwh, bool yswap, Transform::orientation_flags rotation) = 0;
-    virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque,
-            bool disableTexture, const half4& color) = 0;
+    virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop, size_t hwh,
+                                          bool yswap, Transform::orientation_flags rotation) = 0;
+    virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
+                                    const half4& color) = 0;
     virtual void setColorMode(android_color_mode mode) = 0;
     virtual void setSourceDataSpace(android_dataspace source) = 0;
     virtual void setWideColor(bool hasWideColor) = 0;
@@ -124,9 +125,7 @@ public:
     virtual void setupLayerBlackedOut() = 0;
     virtual void setupFillWithColor(float r, float g, float b, float a) = 0;
 
-    virtual mat4 setupColorTransform(const mat4& /* colorTransform */) {
-        return mat4();
-    }
+    virtual mat4 setupColorTransform(const mat4& /* colorTransform */) { return mat4(); }
 
     virtual void disableTexturing() = 0;
     virtual void disableBlending() = 0;
