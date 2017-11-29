@@ -116,11 +116,14 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
     sp<ANativeWindow> anw(mSurface);
 
     // Verify the screenshot works with no protected buffers.
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
     sp<IBinder> display(sf->getBuiltInDisplay(
             ISurfaceComposer::eDisplayIdMain));
-    sp<GraphicBuffer> outBuffer;
-    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, Rect(),
+    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, producer, Rect(),
             64, 64, 0, 0x7fffffff, false));
 
     ASSERT_EQ(NO_ERROR, native_window_api_connect(anw.get(),
@@ -151,7 +154,7 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
                 &buf));
         ASSERT_EQ(NO_ERROR, anw->queueBuffer(anw.get(), buf, -1));
     }
-    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, Rect(),
+    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, producer, Rect(),
             64, 64, 0, 0x7fffffff, false));
 }
 
@@ -521,13 +524,13 @@ public:
     status_t setActiveColorMode(const sp<IBinder>& /*display*/,
             android_color_mode_t /*colorMode*/) override { return NO_ERROR; }
     status_t captureScreen(const sp<IBinder>& /*display*/,
-            sp<GraphicBuffer>* /*outBuffer*/,
+            const sp<IGraphicBufferProducer>& /*producer*/,
             Rect /*sourceCrop*/, uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
             int32_t /*minLayerZ*/, int32_t /*maxLayerZ*/,
             bool /*useIdentityTransform*/,
             Rotation /*rotation*/) override { return NO_ERROR; }
     virtual status_t captureLayers(const sp<IBinder>& /*parentHandle*/,
-                                   sp<GraphicBuffer>* /*outBuffer*/,
+                                   const sp<IGraphicBufferProducer>& /*producer*/,
                                    const Rect& /*sourceCrop*/, float /*frameScale*/) override {
         return NO_ERROR;
     }
