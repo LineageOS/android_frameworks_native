@@ -32,19 +32,6 @@ extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy
 namespace android {
 // ---------------------------------------------------------------------------
 
-static bool findExtension(const char* exts, const char* name) {
-    if (!exts) return false;
-    size_t len = strlen(name);
-
-    const char* pos = exts;
-    while ((pos = strstr(pos, name)) != NULL) {
-        if (pos[len] == '\0' || pos[len] == ' ') return true;
-        pos += len;
-    }
-
-    return false;
-}
-
 std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featureFlags) {
     // initialize EGL for the default display
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -52,22 +39,14 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
         LOG_ALWAYS_FATAL("failed to initialize EGL");
     }
 
-    // EGL_ANDROIDX_no_config_context is an experimental extension with no
-    // written specification. It will be replaced by something more formal.
-    // SurfaceFlinger is using it to allow a single EGLContext to render to
-    // both a 16-bit primary display framebuffer and a 32-bit virtual display
-    // framebuffer.
-    //
-    // EGL_KHR_no_config_context is official extension to allow creating a
-    // context that works with any surface of a display.
-    //
+    GLExtensions& extensions(GLExtensions::getInstance());
+    extensions.initWithEGLStrings(eglQueryStringImplementationANDROID(display, EGL_VERSION),
+                                  eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS));
+
     // The code assumes that ES2 or later is available if this extension is
     // supported.
     EGLConfig config = EGL_NO_CONFIG;
-    if (!findExtension(eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS),
-                       "EGL_ANDROIDX_no_config_context") &&
-        !findExtension(eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS),
-                       "EGL_KHR_no_config_context")) {
+    if (!extensions.hasNoConfigContext()) {
         config = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
     }
 
@@ -117,7 +96,6 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
     EGLBoolean success = eglMakeCurrent(display, dummy, dummy, ctxt);
     LOG_ALWAYS_FATAL_IF(!success, "can't make dummy pbuffer current");
 
-    GLExtensions& extensions(GLExtensions::getInstance());
     extensions.initWithGLStrings(glGetString(GL_VENDOR), glGetString(GL_RENDERER),
                                  glGetString(GL_VERSION), glGetString(GL_EXTENSIONS));
 
@@ -142,7 +120,7 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
     ALOGI("vendor    : %s", extensions.getVendor());
     ALOGI("renderer  : %s", extensions.getRenderer());
     ALOGI("version   : %s", extensions.getVersion());
-    ALOGI("extensions: %s", extensions.getExtension());
+    ALOGI("extensions: %s", extensions.getExtensions());
     ALOGI("GL_MAX_TEXTURE_SIZE = %zu", engine->getMaxTextureSize());
     ALOGI("GL_MAX_VIEWPORT_DIMS = %zu", engine->getMaxViewportDims());
 
@@ -315,14 +293,14 @@ void RenderEngine::readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* 
 }
 
 void RenderEngine::dump(String8& result) {
-    result.appendFormat("EGL implementation : %s\n",
-                        eglQueryStringImplementationANDROID(mEGLDisplay, EGL_VERSION));
-    result.appendFormat("%s\n", eglQueryStringImplementationANDROID(mEGLDisplay, EGL_EXTENSIONS));
-
     const GLExtensions& extensions(GLExtensions::getInstance());
+
+    result.appendFormat("EGL implementation : %s\n", extensions.getEGLVersion());
+    result.appendFormat("%s\n", extensions.getEGLExtensions());
+
     result.appendFormat("GLES: %s, %s, %s\n", extensions.getVendor(), extensions.getRenderer(),
                         extensions.getVersion());
-    result.appendFormat("%s\n", extensions.getExtension());
+    result.appendFormat("%s\n", extensions.getExtensions());
 }
 
 // ---------------------------------------------------------------------------

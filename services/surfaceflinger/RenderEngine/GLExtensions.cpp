@@ -25,7 +25,22 @@ namespace android {
 
 ANDROID_SINGLETON_STATIC_INSTANCE(GLExtensions)
 
-GLExtensions::GLExtensions() : mHaveFramebufferObject(false) {}
+SortedVector<String8> GLExtensions::parseExtensionString(char const* extensions) {
+    SortedVector<String8> list;
+
+    char const* curr = extensions;
+    char const* head = curr;
+    do {
+        head = strchr(curr, ' ');
+        String8 s(curr, head ? head - curr : strlen(curr));
+        if (s.length()) {
+            list.add(s);
+        }
+        curr = head + 1;
+    } while (head);
+
+    return list;
+}
 
 void GLExtensions::initWithGLStrings(GLubyte const* vendor, GLubyte const* renderer,
                                      GLubyte const* version, GLubyte const* extensions) {
@@ -33,21 +48,7 @@ void GLExtensions::initWithGLStrings(GLubyte const* vendor, GLubyte const* rende
     mRenderer = (char const*)renderer;
     mVersion = (char const*)version;
     mExtensions = (char const*)extensions;
-
-    char const* curr = (char const*)extensions;
-    char const* head = curr;
-    do {
-        head = strchr(curr, ' ');
-        String8 s(curr, head ? head - curr : strlen(curr));
-        if (s.length()) {
-            mExtensionList.add(s);
-        }
-        curr = head + 1;
-    } while (head);
-
-    if (hasExtension("GL_OES_framebuffer_object")) {
-        mHaveFramebufferObject = true;
-    }
+    mExtensionList = parseExtensionString(mExtensions);
 }
 
 bool GLExtensions::hasExtension(char const* extension) const {
@@ -67,8 +68,40 @@ char const* GLExtensions::getVersion() const {
     return mVersion.string();
 }
 
-char const* GLExtensions::getExtension() const {
+char const* GLExtensions::getExtensions() const {
     return mExtensions.string();
+}
+
+void GLExtensions::initWithEGLStrings(char const* eglVersion, char const* eglExtensions) {
+    mEGLVersion = eglVersion;
+    mEGLExtensions = eglExtensions;
+    mEGLExtensionList = parseExtensionString(mEGLExtensions);
+
+    // EGL_ANDROIDX_no_config_context is an experimental extension with no
+    // written specification. It will be replaced by something more formal.
+    // SurfaceFlinger is using it to allow a single EGLContext to render to
+    // both a 16-bit primary display framebuffer and a 32-bit virtual display
+    // framebuffer.
+    //
+    // EGL_KHR_no_config_context is official extension to allow creating a
+    // context that works with any surface of a display.
+    if (hasEGLExtension("EGL_ANDROIDX_no_config_context") ||
+        hasEGLExtension("EGL_KHR_no_config_context")) {
+        mHasNoConfigContext = true;
+    }
+}
+
+char const* GLExtensions::getEGLVersion() const {
+    return mEGLVersion.string();
+}
+
+char const* GLExtensions::getEGLExtensions() const {
+    return mEGLExtensions.string();
+}
+
+bool GLExtensions::hasEGLExtension(char const* extension) const {
+    const String8 s(extension);
+    return mEGLExtensionList.indexOf(s) >= 0;
 }
 
 // ---------------------------------------------------------------------------
