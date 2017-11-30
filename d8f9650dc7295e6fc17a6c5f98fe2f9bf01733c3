@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "a593fdd2_434a9f96",
+        "filename": "services/inputflinger/InputReader.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 88,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2017-11-30T03:12:59Z",
+      "side": 1,
+      "message": "Shouldn\u0027t this be 1 \u003c\u003c 9 ?",
+      "revId": "d8f9650dc7295e6fc17a6c5f98fe2f9bf01733c3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
