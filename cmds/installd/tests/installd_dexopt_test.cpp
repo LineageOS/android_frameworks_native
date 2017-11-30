@@ -574,7 +574,39 @@ TEST_F(ProfileTest, ProfileDirOk) {
 
     CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
     CheckFileAccess(cur_profile_file, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
-    CheckFileAccess(ref_profile_dir, kTestAppGid, kTestAppGid, 0701 | S_IFDIR);
+    CheckFileAccess(ref_profile_dir, kSystemUid, kTestAppGid, 0770 | S_IFDIR);
+}
+
+// Verify that the profile directories are fixed up during an upgrade.
+// (The reference profile directory is prepared lazily).
+TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
+    LOG(INFO) << "ProfileDirOkAfterFixup";
+
+    std::string cur_profile_dir = create_primary_current_profile_package_dir_path(
+            kTestUserId, package_name_);
+    std::string cur_profile_file = create_current_profile_path(kTestUserId, package_name_,
+            /*is_secondary_dex*/false);
+    std::string ref_profile_dir = create_primary_reference_profile_package_dir_path(package_name_);
+
+    // Simulate a pre-P setup by changing the owner to kTestAppGid and permissions to 0700.
+    ASSERT_EQ(0, chown(ref_profile_dir.c_str(), kTestAppGid, kTestAppGid));
+    ASSERT_EQ(0, chmod(ref_profile_dir.c_str(), 0700));
+
+    // Run createAppData again which will offer to fix-up the profile directories.
+    ASSERT_TRUE(service_->createAppData(
+            volume_uuid_,
+            package_name_,
+            kTestUserId,
+            kAppDataFlags,
+            kTestAppUid,
+            se_info_,
+            kOSdkVersion,
+            &ce_data_inode_).isOk());
+
+    // Check the file access.
+    CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
+    CheckFileAccess(cur_profile_file, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
+    CheckFileAccess(ref_profile_dir, kSystemUid, kTestAppGid, 0770 | S_IFDIR);
 }
 
 }  // namespace installd
