@@ -14,42 +14,35 @@
  * limitations under the License.
  */
 
-#include <stdlib.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "GLExtensions.h"
 
 namespace android {
 // ---------------------------------------------------------------------------
 
-ANDROID_SINGLETON_STATIC_INSTANCE( GLExtensions )
+ANDROID_SINGLETON_STATIC_INSTANCE(GLExtensions)
 
-GLExtensions::GLExtensions()
-    : mHaveFramebufferObject(false)
-{
-}
+GLExtensions::GLExtensions() : mHaveFramebufferObject(false) {}
 
-void GLExtensions::initWithGLStrings(
-        GLubyte const* vendor,
-        GLubyte const* renderer,
-        GLubyte const* version,
-        GLubyte const* extensions)
-{
-    mVendor     = (char const*)vendor;
-    mRenderer   = (char const*)renderer;
-    mVersion    = (char const*)version;
+void GLExtensions::initWithGLStrings(GLubyte const* vendor, GLubyte const* renderer,
+                                     GLubyte const* version, GLubyte const* extensions) {
+    mVendor = (char const*)vendor;
+    mRenderer = (char const*)renderer;
+    mVersion = (char const*)version;
     mExtensions = (char const*)extensions;
 
     char const* curr = (char const*)extensions;
     char const* head = curr;
     do {
         head = strchr(curr, ' ');
-        String8 s(curr, head ? head-curr : strlen(curr));
+        String8 s(curr, head ? head - curr : strlen(curr));
         if (s.length()) {
             mExtensionList.add(s);
         }
-        curr = head+1;
+        curr = head + 1;
     } while (head);
 
     if (hasExtension("GL_OES_framebuffer_object")) {
@@ -57,8 +50,7 @@ void GLExtensions::initWithGLStrings(
     }
 }
 
-bool GLExtensions::hasExtension(char const* extension) const
-{
+bool GLExtensions::hasExtension(char const* extension) const {
     const String8 s(extension);
     return mExtensionList.indexOf(s) >= 0;
 }

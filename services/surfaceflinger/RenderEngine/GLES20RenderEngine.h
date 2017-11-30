@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 #ifndef SF_GLES20RENDERENGINE_H_
 #define SF_GLES20RENDERENGINE_H_
 
@@ -24,9 +23,9 @@
 #include <GLES2/gl2.h>
 #include <Transform.h>
 
-#include "RenderEngine.h"
-#include "ProgramCache.h"
 #include "Description.h"
+#include "ProgramCache.h"
+#include "RenderEngine.h"
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -54,22 +53,20 @@ class GLES20RenderEngine : public RenderEngine {
     Description mState;
     Vector<Group> mGroupStack;
 
-    virtual void bindImageAsFramebuffer(EGLImageKHR image,
-            uint32_t* texName, uint32_t* fbName, uint32_t* status);
+    virtual void bindImageAsFramebuffer(EGLImageKHR image, uint32_t* texName, uint32_t* fbName,
+                                        uint32_t* status);
     virtual void unbindFramebuffer(uint32_t texName, uint32_t fbName);
 
 public:
     GLES20RenderEngine(uint32_t featureFlags); // See RenderEngine::FeatureFlag
-
-protected:
     virtual ~GLES20RenderEngine();
 
+protected:
     virtual void dump(String8& result);
-    virtual void setViewportAndProjection(size_t vpw, size_t vph,
-            Rect sourceCrop, size_t hwh, bool yswap,
-            Transform::orientation_flags rotation);
-    virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque,
-            bool disableTexture, const half4& color) override;
+    virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop, size_t hwh,
+                                          bool yswap, Transform::orientation_flags rotation);
+    virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
+                                    const half4& color) override;
 
     // Color management related functions and state
     void setColorMode(android_color_mode mode);

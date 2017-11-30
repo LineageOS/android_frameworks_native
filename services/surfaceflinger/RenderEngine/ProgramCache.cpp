@@ -19,13 +19,12 @@
 
 #include <utils/String8.h>
 
-#include "ProgramCache.h"
-#include "Program.h"
 #include "Description.h"
+#include "Program.h"
+#include "ProgramCache.h"
 
 namespace android {
 // -----------------------------------------------------------------------------------------------
-
 
 /*
  * A simple formatter class to automatically add the endl and
@@ -42,23 +41,22 @@ class Formatter {
     typedef Formatter& (*FormaterManipFunc)(Formatter&);
     friend Formatter& indent(Formatter& f);
     friend Formatter& dedent(Formatter& f);
+
 public:
     Formatter() : mIndent(0) {}
 
-    String8 getString() const {
-        return mString;
-    }
+    String8 getString() const { return mString; }
 
-    friend Formatter& operator << (Formatter& out, const char* in) {
-        for (int i=0 ; i<out.mIndent ; i++) {
+    friend Formatter& operator<<(Formatter& out, const char* in) {
+        for (int i = 0; i < out.mIndent; i++) {
             out.mString.append("    ");
         }
         out.mString.append(in);
         out.mString.append("\n");
         return out;
     }
-    friend inline Formatter& operator << (Formatter& out, const String8& in) {
-        return operator << (out, in.string());
+    friend inline Formatter& operator<<(Formatter& out, const String8& in) {
+        return operator<<(out, in.string());
     }
     friend inline Formatter& operator<<(Formatter& to, FormaterManipFunc func) {
         return (*func)(to);
@@ -83,13 +81,11 @@ ProgramCache::ProgramCache() {
     primeCache();
 }
 
-ProgramCache::~ProgramCache() {
-}
+ProgramCache::~ProgramCache() {}
 
 void ProgramCache::primeCache() {
     uint32_t shaderCount = 0;
-    uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK |
-                       Key::ALPHA_MASK | Key::TEXTURE_MASK;
+    uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK | Key::ALPHA_MASK | Key::TEXTURE_MASK;
     // Prime the cache for all combinations of the above masks,
     // leaving off the experimental color matrix mask options.
 
@@ -98,9 +94,7 @@ void ProgramCache::primeCache() {
         Key shaderKey;
         shaderKey.set(keyMask, keyVal);
         uint32_t tex = shaderKey.getTextureTarget();
-        if (tex != Key::TEXTURE_OFF &&
-            tex != Key::TEXTURE_EXT &&
-            tex != Key::TEXTURE_2D) {
+        if (tex != Key::TEXTURE_OFF && tex != Key::TEXTURE_EXT && tex != Key::TEXTURE_2D) {
             continue;
         }
         Program* program = mCache.valueFor(shaderKey);
@@ -118,34 +112,36 @@ void ProgramCache::primeCache() {
 ProgramCache::Key ProgramCache::computeKey(const Description& description) {
     Key needs;
     needs.set(Key::TEXTURE_MASK,
-            !description.mTextureEnabled ? Key::TEXTURE_OFF :
-            description.mTexture.getTextureTarget() == GL_TEXTURE_EXTERNAL_OES ? Key::TEXTURE_EXT :
-            description.mTexture.getTextureTarget() == GL_TEXTURE_2D           ? Key::TEXTURE_2D :
-            Key::TEXTURE_OFF)
-    .set(Key::ALPHA_MASK,
-            (description.mColor.a < 1) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE)
-    .set(Key::BLEND_MASK,
-            description.mPremultipliedAlpha ? Key::BLEND_PREMULT : Key::BLEND_NORMAL)
-    .set(Key::OPACITY_MASK,
-            description.mOpaque ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT)
-    .set(Key::COLOR_MATRIX_MASK,
-            description.mColorMatrixEnabled ? Key::COLOR_MATRIX_ON :  Key::COLOR_MATRIX_OFF)
-    .set(Key::WIDE_GAMUT_MASK,
-            description.mIsWideGamut ? Key::WIDE_GAMUT_ON : Key::WIDE_GAMUT_OFF);
+              !description.mTextureEnabled
+                      ? Key::TEXTURE_OFF
+                      : description.mTexture.getTextureTarget() == GL_TEXTURE_EXTERNAL_OES
+                              ? Key::TEXTURE_EXT
+                              : description.mTexture.getTextureTarget() == GL_TEXTURE_2D
+                                      ? Key::TEXTURE_2D
+                                      : Key::TEXTURE_OFF)
+            .set(Key::ALPHA_MASK,
+                 (description.mColor.a < 1) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE)
+            .set(Key::BLEND_MASK,
+                 description.mPremultipliedAlpha ? Key::BLEND_PREMULT : Key::BLEND_NORMAL)
+            .set(Key::OPACITY_MASK,
+                 description.mOpaque ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT)
+            .set(Key::COLOR_MATRIX_MASK,
+                 description.mColorMatrixEnabled ? Key::COLOR_MATRIX_ON : Key::COLOR_MATRIX_OFF)
+            .set(Key::WIDE_GAMUT_MASK,
+                 description.mIsWideGamut ? Key::WIDE_GAMUT_ON : Key::WIDE_GAMUT_OFF);
     return needs;
 }
 
 String8 ProgramCache::generateVertexShader(const Key& needs) {
     Formatter vs;
     if (needs.isTexturing()) {
-        vs  << "attribute vec4 texCoords;"
-            << "varying vec2 outTexCoords;";
+        vs << "attribute vec4 texCoords;"
+           << "varying vec2 outTexCoords;";
     }
     vs << "attribute vec4 position;"
        << "uniform mat4 projection;"
        << "uniform mat4 texture;"
-       << "void main(void) {" << indent
-       << "gl_Position = projection * position;";
+       << "void main(void) {" << indent << "gl_Position = projection * position;";
     if (needs.isTexturing()) {
         vs << "outTexCoords = (texture * texCoords).st;";
     }
@@ -272,11 +268,10 @@ Program* ProgramCache::generateProgram(const Key& needs) {
 }
 
 void ProgramCache::useProgram(const Description& description) {
-
     // generate the key for the shader based on the description
     Key needs(computeKey(description));
 
-     // look-up the program in the cache
+    // look-up the program in the cache
     Program* program = mCache.valueFor(needs);
     if (program == NULL) {
         // we didn't find our program, so generate one...
@@ -285,7 +280,7 @@ void ProgramCache::useProgram(const Description& description) {
         mCache.add(needs, program);
         time += systemTime();
 
-        //ALOGD(">>> generated new program: needs=%08X, time=%u ms (%d programs)",
+        // ALOGD(">>> generated new program: needs=%08X, time=%u ms (%d programs)",
         //        needs.mNeeds, uint32_t(ns2ms(time)), mCache.size());
     }
 
@@ -295,6 +290,5 @@ void ProgramCache::useProgram(const Description& description) {
         program->setUniforms(description);
     }
 }
-
 
 } /* namespace android */

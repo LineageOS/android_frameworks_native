@@ -21,8 +21,6 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <EGL/egl.h>
-
 /*
  * NOTE: Make sure this file doesn't include  anything from <gl/ > or <gl2/ >
  */
@@ -291,11 +289,13 @@ private:
             std::vector<FrameEvent>* outSupported) const;
     virtual sp<IDisplayEventConnection> createDisplayEventConnection(
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp);
-    virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                                   int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
-                                   ISurfaceComposer::Rotation rotation);
-    virtual status_t captureLayers(const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
+    virtual status_t captureScreen(const sp<IBinder>& display,
+            const sp<IGraphicBufferProducer>& producer,
+            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
+            int32_t minLayerZ, int32_t maxLayerZ,
+            bool useIdentityTransform, ISurfaceComposer::Rotation rotation);
+    virtual status_t captureLayers(const sp<IBinder>& parentHandle,
+                                   const sp<IGraphicBufferProducer>& producer,
                                    const Rect& sourceCrop, float frameScale);
     virtual status_t getDisplayStats(const sp<IBinder>& display,
             DisplayStatInfo* stats);
@@ -434,13 +434,15 @@ private:
 
     void renderScreenImplLocked(const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                 bool yswap, bool useIdentityTransform);
+
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                 sp<GraphicBuffer>* outBuffer,
+                                 const sp<IGraphicBufferProducer>& producer,
                                  bool useIdentityTransform);
+
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
                                      ANativeWindowBuffer* buffer, bool useIdentityTransform,
-                                     int* outSyncFd);
+                                     bool isLocalScreenshot, int* outSyncFd);
     void traverseLayersInDisplay(const sp<const DisplayDevice>& display, int32_t minLayerZ,
                                  int32_t maxLayerZ, const LayerVector::Visitor& visitor);
 
@@ -545,7 +547,7 @@ private:
 
     // compose surfaces for display hw. this fails if using GL and the surface
     // has been destroyed and is no longer valid.
-    bool doComposeSurfaces(const sp<const DisplayDevice>& displayDevice, const Region& dirty);
+    bool doComposeSurfaces(const sp<const DisplayDevice>& displayDevice);
 
     void postFramebuffer();
     void drawWormhole(const sp<const DisplayDevice>& displayDevice, const Region& region) const;
@@ -659,7 +661,7 @@ private:
     const std::string mHwcServiceName; // "default" for real use, something else for testing.
 
     // constant members (no synchronization needed for access)
-    RenderEngine* mRenderEngine;
+    std::unique_ptr<RenderEngine> mRenderEngine;
     nsecs_t mBootTime;
     bool mGpuToCpuSupported;
     sp<EventThread> mEventThread;
@@ -667,8 +669,6 @@ private:
     sp<EventThread> mInjectorEventThread;
     sp<InjectVSyncSource> mVSyncInjector;
     sp<EventControlThread> mEventControlThread;
-    EGLContext mEGLContext;
-    EGLDisplay mEGLDisplay;
     sp<IBinder> mBuiltinDisplays[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES];
 
     // Can only accessed from the main thread, these members

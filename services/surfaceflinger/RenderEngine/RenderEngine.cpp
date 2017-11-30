@@ -18,13 +18,13 @@
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
-#include "RenderEngine.h"
 #include "GLES20RenderEngine.h"
 #include "GLExtensions.h"
 #include "Mesh.h"
+#include "RenderEngine.h"
 
-#include <vector>
 #include <SurfaceFlinger.h>
+#include <vector>
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
@@ -33,21 +33,25 @@ namespace android {
 // ---------------------------------------------------------------------------
 
 static bool findExtension(const char* exts, const char* name) {
-    if (!exts)
-        return false;
+    if (!exts) return false;
     size_t len = strlen(name);
 
     const char* pos = exts;
     while ((pos = strstr(pos, name)) != NULL) {
-        if (pos[len] == '\0' || pos[len] == ' ')
-            return true;
+        if (pos[len] == '\0' || pos[len] == ' ') return true;
         pos += len;
     }
 
     return false;
 }
 
-RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat, uint32_t featureFlags) {
+std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featureFlags) {
+    // initialize EGL for the default display
+    EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (!eglInitialize(display, NULL, NULL)) {
+        LOG_ALWAYS_FATAL("failed to initialize EGL");
+    }
+
     // EGL_ANDROIDX_no_config_context is an experimental extension with no
     // written specification. It will be replaced by something more formal.
     // SurfaceFlinger is using it to allow a single EGLContext to render to
@@ -70,8 +74,7 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat, uint32_t f
     EGLint renderableType = 0;
     if (config == EGL_NO_CONFIG) {
         renderableType = EGL_OPENGL_ES2_BIT;
-    } else if (!eglGetConfigAttrib(display, config,
-            EGL_RENDERABLE_TYPE, &renderableType)) {
+    } else if (!eglGetConfigAttrib(display, config, EGL_RENDERABLE_TYPE, &renderableType)) {
         LOG_ALWAYS_FATAL("can't query EGLConfig RENDERABLE_TYPE");
     }
     EGLint contextClientVersion = 0;
@@ -96,12 +99,10 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat, uint32_t f
     contextAttributes.push_back(EGL_NONE);
     contextAttributes.push_back(EGL_NONE);
 
-    EGLContext ctxt = eglCreateContext(display, config, NULL,
-                                       contextAttributes.data());
+    EGLContext ctxt = eglCreateContext(display, config, NULL, contextAttributes.data());
 
     // if can't create a GL context, we can only abort.
-    LOG_ALWAYS_FATAL_IF(ctxt==EGL_NO_CONTEXT, "EGLContext creation failed");
-
+    LOG_ALWAYS_FATAL_IF(ctxt == EGL_NO_CONTEXT, "EGLContext creation failed");
 
     // now figure out what version of GL did we actually get
     // NOTE: a dummy surface is not needed if KHR_create_context is supported
@@ -110,35 +111,32 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat, uint32_t f
     if (dummyConfig == EGL_NO_CONFIG) {
         dummyConfig = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
     }
-    EGLint attribs[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE, EGL_NONE };
+    EGLint attribs[] = {EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE, EGL_NONE};
     EGLSurface dummy = eglCreatePbufferSurface(display, dummyConfig, attribs);
-    LOG_ALWAYS_FATAL_IF(dummy==EGL_NO_SURFACE, "can't create dummy pbuffer");
+    LOG_ALWAYS_FATAL_IF(dummy == EGL_NO_SURFACE, "can't create dummy pbuffer");
     EGLBoolean success = eglMakeCurrent(display, dummy, dummy, ctxt);
     LOG_ALWAYS_FATAL_IF(!success, "can't make dummy pbuffer current");
 
     GLExtensions& extensions(GLExtensions::getInstance());
-    extensions.initWithGLStrings(
-            glGetString(GL_VENDOR),
-            glGetString(GL_RENDERER),
-            glGetString(GL_VERSION),
-            glGetString(GL_EXTENSIONS));
+    extensions.initWithGLStrings(glGetString(GL_VENDOR), glGetString(GL_RENDERER),
+                                 glGetString(GL_VERSION), glGetString(GL_EXTENSIONS));
 
-    GlesVersion version = parseGlesVersion( extensions.getVersion() );
+    GlesVersion version = parseGlesVersion(extensions.getVersion());
 
     // initialize the renderer while GL is current
 
-    RenderEngine* engine = NULL;
+    std::unique_ptr<RenderEngine> engine;
     switch (version) {
-    case GLES_VERSION_1_0:
-    case GLES_VERSION_1_1:
-        LOG_ALWAYS_FATAL("SurfaceFlinger requires OpenGL ES 2.0 minimum to run.");
-        break;
-    case GLES_VERSION_2_0:
-    case GLES_VERSION_3_0:
-        engine = new GLES20RenderEngine(featureFlags);
-        break;
+        case GLES_VERSION_1_0:
+        case GLES_VERSION_1_1:
+            LOG_ALWAYS_FATAL("SurfaceFlinger requires OpenGL ES 2.0 minimum to run.");
+            break;
+        case GLES_VERSION_2_0:
+        case GLES_VERSION_3_0:
+            engine = std::make_unique<GLES20RenderEngine>(featureFlags);
+            break;
     }
-    engine->setEGLHandles(config, ctxt);
+    engine->setEGLHandles(display, config, ctxt);
 
     ALOGI("OpenGL ES informations:");
     ALOGI("vendor    : %s", extensions.getVendor());
@@ -154,31 +152,50 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat, uint32_t f
     return engine;
 }
 
-RenderEngine::RenderEngine() : mEGLConfig(NULL), mEGLContext(EGL_NO_CONTEXT) {
-}
+RenderEngine::RenderEngine()
+      : mEGLDisplay(EGL_NO_DISPLAY), mEGLConfig(NULL), mEGLContext(EGL_NO_CONTEXT) {}
 
 RenderEngine::~RenderEngine() {
+    eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglTerminate(mEGLDisplay);
 }
 
-void RenderEngine::setEGLHandles(EGLConfig config, EGLContext ctxt) {
+void RenderEngine::setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt) {
+    mEGLDisplay = display;
     mEGLConfig = config;
     mEGLContext = ctxt;
 }
 
-EGLContext RenderEngine::getEGLConfig() const {
+EGLDisplay RenderEngine::getEGLDisplay() const {
+    return mEGLDisplay;
+}
+
+EGLConfig RenderEngine::getEGLConfig() const {
     return mEGLConfig;
 }
 
-EGLContext RenderEngine::getEGLContext() const {
-    return mEGLContext;
+bool RenderEngine::setCurrentSurface(const RE::Surface& surface) {
+    bool success = true;
+    EGLSurface eglSurface = surface.getEGLSurface();
+    if (eglSurface != eglGetCurrentSurface(EGL_DRAW)) {
+        success = eglMakeCurrent(mEGLDisplay, eglSurface, eglSurface, mEGLContext) == EGL_TRUE;
+        if (success && surface.getAsync()) {
+            eglSwapInterval(mEGLDisplay, 0);
+        }
+    }
+
+    return success;
+}
+
+void RenderEngine::resetCurrentSurface() {
+    eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 }
 
 void RenderEngine::checkErrors() const {
     do {
         // there could be more than one error flag
         GLenum error = glGetError();
-        if (error == GL_NO_ERROR)
-            break;
+        if (error == GL_NO_ERROR) break;
         ALOGE("GL error 0x%04x", int(error));
     } while (true);
 }
@@ -201,32 +218,74 @@ RenderEngine::GlesVersion RenderEngine::parseGlesVersion(const char* str) {
     return GLES_VERSION_1_0;
 }
 
-void RenderEngine::fillRegionWithColor(const Region& region, uint32_t height,
-        float red, float green, float blue, float alpha) {
+void RenderEngine::fillRegionWithColor(const Region& region, uint32_t height, float red,
+                                       float green, float blue, float alpha) {
     size_t c;
     Rect const* r = region.getArray(&c);
-    Mesh mesh(Mesh::TRIANGLES, c*6, 2);
+    Mesh mesh(Mesh::TRIANGLES, c * 6, 2);
     Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
-    for (size_t i=0 ; i<c ; i++, r++) {
-        position[i*6 + 0].x = r->left;
-        position[i*6 + 0].y = height - r->top;
-        position[i*6 + 1].x = r->left;
-        position[i*6 + 1].y = height - r->bottom;
-        position[i*6 + 2].x = r->right;
-        position[i*6 + 2].y = height - r->bottom;
-        position[i*6 + 3].x = r->left;
-        position[i*6 + 3].y = height - r->top;
-        position[i*6 + 4].x = r->right;
-        position[i*6 + 4].y = height - r->bottom;
-        position[i*6 + 5].x = r->right;
-        position[i*6 + 5].y = height - r->top;
+    for (size_t i = 0; i < c; i++, r++) {
+        position[i * 6 + 0].x = r->left;
+        position[i * 6 + 0].y = height - r->top;
+        position[i * 6 + 1].x = r->left;
+        position[i * 6 + 1].y = height - r->bottom;
+        position[i * 6 + 2].x = r->right;
+        position[i * 6 + 2].y = height - r->bottom;
+        position[i * 6 + 3].x = r->left;
+        position[i * 6 + 3].y = height - r->top;
+        position[i * 6 + 4].x = r->right;
+        position[i * 6 + 4].y = height - r->bottom;
+        position[i * 6 + 5].x = r->right;
+        position[i * 6 + 5].y = height - r->top;
     }
     setupFillWithColor(red, green, blue, alpha);
     drawMesh(mesh);
 }
 
-void RenderEngine::flush() {
-    glFlush();
+int RenderEngine::flush(bool wait) {
+    // Attempt to create a sync khr object that can produce a sync point. If that
+    // isn't available, create a non-dupable sync object in the fallback path and
+    // wait on it directly.
+    EGLSyncKHR sync;
+    if (!wait) {
+        EGLint syncFd = EGL_NO_NATIVE_FENCE_FD_ANDROID;
+
+        sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
+        if (sync != EGL_NO_SYNC_KHR) {
+            // native fence fd will not be populated until flush() is done.
+            glFlush();
+
+            // get the sync fd
+            syncFd = eglDupNativeFenceFDANDROID(mEGLDisplay, sync);
+            if (syncFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+                ALOGW("failed to dup sync khr object");
+            }
+
+            eglDestroySyncKHR(mEGLDisplay, sync);
+        }
+
+        if (syncFd != EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+            return syncFd;
+        }
+    }
+
+    // fallback or explicit wait
+    sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
+    if (sync != EGL_NO_SYNC_KHR) {
+        EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR,
+                                             2000000000 /*2 sec*/);
+        EGLint eglErr = eglGetError();
+        if (result == EGL_TIMEOUT_EXPIRED_KHR) {
+            ALOGW("fence wait timed out");
+        } else {
+            ALOGW_IF(eglErr != EGL_SUCCESS, "error waiting on EGL fence: %#x", eglErr);
+        }
+        eglDestroySyncKHR(mEGLDisplay, sync);
+    } else {
+        ALOGW("error creating EGL fence: %#x", eglGetError());
+    }
+
+    return -1;
 }
 
 void RenderEngine::clearWithColor(float red, float green, float blue, float alpha) {
@@ -234,8 +293,7 @@ void RenderEngine::clearWithColor(float red, float green, float blue, float alph
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void RenderEngine::setScissor(
-        uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) {
+void RenderEngine::setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) {
     glScissor(left, bottom, right, top);
     glEnable(GL_SCISSOR_TEST);
 }
@@ -257,38 +315,52 @@ void RenderEngine::readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* 
 }
 
 void RenderEngine::dump(String8& result) {
+    result.appendFormat("EGL implementation : %s\n",
+                        eglQueryStringImplementationANDROID(mEGLDisplay, EGL_VERSION));
+    result.appendFormat("%s\n", eglQueryStringImplementationANDROID(mEGLDisplay, EGL_EXTENSIONS));
+
     const GLExtensions& extensions(GLExtensions::getInstance());
-    result.appendFormat("GLES: %s, %s, %s\n",
-            extensions.getVendor(),
-            extensions.getRenderer(),
-            extensions.getVersion());
+    result.appendFormat("GLES: %s, %s, %s\n", extensions.getVendor(), extensions.getRenderer(),
+                        extensions.getVersion());
     result.appendFormat("%s\n", extensions.getExtension());
 }
 
 // ---------------------------------------------------------------------------
 
-RenderEngine::BindImageAsFramebuffer::BindImageAsFramebuffer(
-        RenderEngine& engine, EGLImageKHR image) : mEngine(engine)
-{
-    mEngine.bindImageAsFramebuffer(image, &mTexName, &mFbName, &mStatus);
+RenderEngine::BindNativeBufferAsFramebuffer::BindNativeBufferAsFramebuffer(
+        RenderEngine& engine, ANativeWindowBuffer* buffer)
+      : mEngine(engine) {
+    mImage = eglCreateImageKHR(mEngine.mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
+                               buffer, NULL);
+    if (mImage == EGL_NO_IMAGE_KHR) {
+        mStatus = GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+        return;
+    }
 
-    ALOGE_IF(mStatus != GL_FRAMEBUFFER_COMPLETE_OES,
-            "glCheckFramebufferStatusOES error %d", mStatus);
+    mEngine.bindImageAsFramebuffer(mImage, &mTexName, &mFbName, &mStatus);
+
+    ALOGE_IF(mStatus != GL_FRAMEBUFFER_COMPLETE_OES, "glCheckFramebufferStatusOES error %d",
+             mStatus);
 }
 
-RenderEngine::BindImageAsFramebuffer::~BindImageAsFramebuffer() {
+RenderEngine::BindNativeBufferAsFramebuffer::~BindNativeBufferAsFramebuffer() {
+    if (mImage == EGL_NO_IMAGE_KHR) {
+        return;
+    }
+
     // back to main framebuffer
     mEngine.unbindFramebuffer(mTexName, mFbName);
+    eglDestroyImageKHR(mEngine.mEGLDisplay, mImage);
 }
 
-status_t RenderEngine::BindImageAsFramebuffer::getStatus() const {
+status_t RenderEngine::BindNativeBufferAsFramebuffer::getStatus() const {
     return mStatus == GL_FRAMEBUFFER_COMPLETE_OES ? NO_ERROR : BAD_VALUE;
 }
 
 // ---------------------------------------------------------------------------
 
-static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs,
-        EGLint attribute, EGLint wanted, EGLConfig* outConfig) {
+static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs, EGLint attribute,
+                                         EGLint wanted, EGLConfig* outConfig) {
     EGLint numConfigs = -1, n = 0;
     eglGetConfigs(dpy, NULL, 0, &numConfigs);
     EGLConfig* const configs = new EGLConfig[numConfigs];
@@ -296,23 +368,23 @@ static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs,
 
     if (n) {
         if (attribute != EGL_NONE) {
-            for (int i=0 ; i<n ; i++) {
+            for (int i = 0; i < n; i++) {
                 EGLint value = 0;
                 eglGetConfigAttrib(dpy, configs[i], attribute, &value);
                 if (wanted == value) {
                     *outConfig = configs[i];
-                    delete [] configs;
+                    delete[] configs;
                     return NO_ERROR;
                 }
             }
         } else {
             // just pick the first one
             *outConfig = configs[0];
-            delete [] configs;
+            delete[] configs;
             return NO_ERROR;
         }
     }
-    delete [] configs;
+    delete[] configs;
     return NAME_NOT_FOUND;
 }
 
@@ -322,10 +394,10 @@ class EGLAttributeVector {
     friend class Adder;
     KeyedVector<Attribute, EGLint> mList;
     struct Attribute {
-        Attribute() : v(0) {};
-        explicit Attribute(EGLint v) : v(v) { }
+        Attribute() : v(0){};
+        explicit Attribute(EGLint v) : v(v) {}
         EGLint v;
-        bool operator < (const Attribute& other) const {
+        bool operator<(const Attribute& other) const {
             // this places EGL_NONE at the end
             EGLint lhs(v);
             EGLint rhs(other.v);
@@ -338,39 +410,32 @@ class EGLAttributeVector {
         friend class EGLAttributeVector;
         EGLAttributeVector& v;
         EGLint attribute;
-        Adder(EGLAttributeVector& v, EGLint attribute)
-            : v(v), attribute(attribute) {
-        }
+        Adder(EGLAttributeVector& v, EGLint attribute) : v(v), attribute(attribute) {}
+
     public:
-        void operator = (EGLint value) {
+        void operator=(EGLint value) {
             if (attribute != EGL_NONE) {
                 v.mList.add(Attribute(attribute), value);
             }
         }
-        operator EGLint () const { return v.mList[attribute]; }
+        operator EGLint() const { return v.mList[attribute]; }
     };
+
 public:
-    EGLAttributeVector() {
-        mList.add(Attribute(EGL_NONE), EGL_NONE);
-    }
+    EGLAttributeVector() { mList.add(Attribute(EGL_NONE), EGL_NONE); }
     void remove(EGLint attribute) {
         if (attribute != EGL_NONE) {
             mList.removeItem(Attribute(attribute));
         }
     }
-    Adder operator [] (EGLint attribute) {
-        return Adder(*this, attribute);
-    }
-    EGLint operator [] (EGLint attribute) const {
-       return mList[attribute];
-    }
+    Adder operator[](EGLint attribute) { return Adder(*this, attribute); }
+    EGLint operator[](EGLint attribute) const { return mList[attribute]; }
     // cast-operator to (EGLint const*)
-    operator EGLint const* () const { return &mList.keyAt(0).v; }
+    operator EGLint const*() const { return &mList.keyAt(0).v; }
 };
 
-
-static status_t selectEGLConfig(EGLDisplay display, EGLint format,
-    EGLint renderableType, EGLConfig* config) {
+static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint renderableType,
+                                EGLConfig* config) {
     // select our EGLConfig. It must support EGL_RECORDABLE_ANDROID if
     // it is to be used with WIFI displays
     status_t err;
@@ -379,24 +444,23 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format,
 
     EGLAttributeVector attribs;
     if (renderableType) {
-        attribs[EGL_RENDERABLE_TYPE]            = renderableType;
-        attribs[EGL_RECORDABLE_ANDROID]         = EGL_TRUE;
-        attribs[EGL_SURFACE_TYPE]               = EGL_WINDOW_BIT|EGL_PBUFFER_BIT;
+        attribs[EGL_RENDERABLE_TYPE] = renderableType;
+        attribs[EGL_RECORDABLE_ANDROID] = EGL_TRUE;
+        attribs[EGL_SURFACE_TYPE] = EGL_WINDOW_BIT | EGL_PBUFFER_BIT;
         attribs[EGL_FRAMEBUFFER_TARGET_ANDROID] = EGL_TRUE;
-        attribs[EGL_RED_SIZE]                   = 8;
-        attribs[EGL_GREEN_SIZE]                 = 8;
-        attribs[EGL_BLUE_SIZE]                  = 8;
-        attribs[EGL_ALPHA_SIZE]                 = 8;
-        wantedAttribute                         = EGL_NONE;
-        wantedAttributeValue                    = EGL_NONE;
+        attribs[EGL_RED_SIZE] = 8;
+        attribs[EGL_GREEN_SIZE] = 8;
+        attribs[EGL_BLUE_SIZE] = 8;
+        attribs[EGL_ALPHA_SIZE] = 8;
+        wantedAttribute = EGL_NONE;
+        wantedAttributeValue = EGL_NONE;
     } else {
         // if no renderable type specified, fallback to a simplified query
-        wantedAttribute                         = EGL_NATIVE_VISUAL_ID;
-        wantedAttributeValue                    = format;
+        wantedAttribute = EGL_NATIVE_VISUAL_ID;
+        wantedAttributeValue = format;
     }
 
-    err = selectConfigForAttribute(display, attribs,
-            wantedAttribute, wantedAttributeValue, config);
+    err = selectConfigForAttribute(display, attribs, wantedAttribute, wantedAttributeValue, config);
     if (err == NO_ERROR) {
         EGLint caveat;
         if (eglGetConfigAttrib(display, *config, EGL_CONFIG_CAVEAT, &caveat))
@@ -406,8 +470,7 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format,
     return err;
 }
 
-EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format,
-                                        bool logConfig) {
+EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format, bool logConfig) {
     status_t err;
     EGLConfig config;
 
@@ -430,22 +493,21 @@ EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format,
 
     if (logConfig) {
         // print some debugging info
-        EGLint r,g,b,a;
-        eglGetConfigAttrib(display, config, EGL_RED_SIZE,   &r);
+        EGLint r, g, b, a;
+        eglGetConfigAttrib(display, config, EGL_RED_SIZE, &r);
         eglGetConfigAttrib(display, config, EGL_GREEN_SIZE, &g);
-        eglGetConfigAttrib(display, config, EGL_BLUE_SIZE,  &b);
+        eglGetConfigAttrib(display, config, EGL_BLUE_SIZE, &b);
         eglGetConfigAttrib(display, config, EGL_ALPHA_SIZE, &a);
         ALOGI("EGL information:");
         ALOGI("vendor    : %s", eglQueryString(display, EGL_VENDOR));
         ALOGI("version   : %s", eglQueryString(display, EGL_VERSION));
         ALOGI("extensions: %s", eglQueryString(display, EGL_EXTENSIONS));
-        ALOGI("Client API: %s", eglQueryString(display, EGL_CLIENT_APIS)?:"Not Supported");
+        ALOGI("Client API: %s", eglQueryString(display, EGL_CLIENT_APIS) ?: "Not Supported");
         ALOGI("EGLSurface: %d-%d-%d-%d, config=%p", r, g, b, a, config);
     }
 
     return config;
 }
-
 
 void RenderEngine::primeCache() const {
     // Getting the ProgramCache instance causes it to prime its shader cache,

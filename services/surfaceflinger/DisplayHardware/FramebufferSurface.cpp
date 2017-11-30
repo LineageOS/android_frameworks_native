@@ -27,8 +27,6 @@
 #include <utils/String8.h>
 #include <log/log.h>
 
-#include <EGL/egl.h>
-
 #include <hardware/hardware.h>
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
@@ -164,8 +162,7 @@ void FramebufferSurface::onFrameCommitted() {
             ALOGE_IF(result != NO_ERROR, "onFrameCommitted: failed to add the"
                     " fence: %s (%d)", strerror(-result), result);
         }
-        status_t result = releaseBufferLocked(mPreviousBufferSlot,
-                mPreviousBuffer, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR);
+        status_t result = releaseBufferLocked(mPreviousBufferSlot, mPreviousBuffer);
         ALOGE_IF(result != NO_ERROR, "onFrameCommitted: error releasing buffer:"
                 " %s (%d)", strerror(-result), result);
 

@@ -23,9 +23,6 @@
 
 #include <ui/Region.h>
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-
 #include <binder/IBinder.h>
 #include <utils/RefBase.h>
 #include <utils/Mutex.h>
@@ -35,6 +32,7 @@
 #include <gui/ISurfaceComposer.h>
 #include <hardware/hwcomposer_defs.h>
 #include "RenderArea.h"
+#include "RenderEngine/Surface.h"
 
 #include <memory>
 
@@ -56,8 +54,6 @@ public:
     // region in layer-stack space
     mutable Region dirtyRegion;
     // region in screen space
-    mutable Region swapRegion;
-    // region in screen space
     Region undefinedRegion;
     bool lastCompositionHadVisibleLayers;
 
@@ -67,11 +63,6 @@ public:
         DISPLAY_EXTERNAL    = HWC_DISPLAY_EXTERNAL,
         DISPLAY_VIRTUAL     = HWC_DISPLAY_VIRTUAL,
         NUM_BUILTIN_DISPLAY_TYPES = HWC_NUM_PHYSICAL_DISPLAY_TYPES,
-    };
-
-    enum {
-        PARTIAL_UPDATES = 0x00020000, // video driver feature
-        SWAP_RECTANGLE  = 0x00080000,
     };
 
     enum {
@@ -87,7 +78,6 @@ public:
             const wp<IBinder>& displayToken,
             const sp<DisplaySurface>& displaySurface,
             const sp<IGraphicBufferProducer>& producer,
-            EGLConfig config,
             bool supportWideColor);
     // clang-format on
 
@@ -103,13 +93,10 @@ public:
 
     // Flip the front and back buffers if the back buffer is "dirty".  Might
     // be instantaneous, might involve copying the frame buffer around.
-    void flip(const Region& dirty) const;
+    void flip() const;
 
     int         getWidth() const;
     int         getHeight() const;
-    uint32_t    getFlags() const;
-
-    EGLSurface  getEGLSurface() const;
 
     void                    setVisibleLayersSortedByZ(const Vector< sp<Layer> >& layers);
     const Vector< sp<Layer> >& getVisibleLayersSortedByZ() const;
@@ -155,7 +142,7 @@ public:
     void setDisplayName(const String8& displayName);
     const String8& getDisplayName() const { return mDisplayName; }
 
-    EGLBoolean makeCurrent(EGLDisplay dpy, EGLContext ctx) const;
+    bool makeCurrent() const;
     void setViewportAndProjection() const;
 
     const sp<Fence>& getClientTargetAcquireFence() const;
@@ -199,12 +186,9 @@ private:
     sp<ANativeWindow> mNativeWindow;
     sp<DisplaySurface> mDisplaySurface;
 
-    EGLConfig       mConfig;
-    EGLDisplay      mDisplay;
-    EGLSurface      mSurface;
+    RE::Surface     mSurface;
     int             mDisplayWidth;
     int             mDisplayHeight;
-    uint32_t        mFlags;
     mutable uint32_t mPageFlipCount;
     String8         mDisplayName;
     bool            mIsSecure;
