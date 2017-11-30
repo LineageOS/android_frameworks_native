@@ -373,13 +373,22 @@ static bool prepare_app_profile_dir(const std::string& packageName, int32_t appI
 
     const std::string ref_profile_path =
             create_primary_reference_profile_package_dir_path(packageName);
-    // dex2oat/profman runs under the shared app gid and it needs to read/write reference
-    // profiles.
-    if (fs_prepare_dir_strict(
-            ref_profile_path.c_str(), 0701, shared_app_gid, shared_app_gid) != 0) {
+
+    // Prepare the reference profile directory. Note that we use the non strict version of
+    // fs_prepare_dir. This will fix the permission and the ownership to the correct values.
+    // This is particularly important given that in O there were some fixes for how the
+    // shared_app_gid is computed.
+    //
+    // Note that by the time we get here we know that we are using a correct uid (otherwise
+    // prepare_app_dir and the above fs_prepare_file_strict which check the uid). So we
+    // are sure that the gid being used belongs to the owning app and not someone else.
+    //
+    // dex2oat/profman runs under the shared app gid and it needs to read/write reference profiles.
+    if (fs_prepare_dir(ref_profile_path.c_str(), 0770, AID_SYSTEM, shared_app_gid) != 0) {
         PLOG(ERROR) << "Failed to prepare " << ref_profile_path;
         return false;
     }
+
     return true;
 }
 
