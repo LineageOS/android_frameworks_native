@@ -41,6 +41,7 @@ LOCAL_SRC_FILES := \
     RenderEngine/ProgramCache.cpp \
     RenderEngine/GLExtensions.cpp \
     RenderEngine/RenderEngine.cpp \
+    RenderEngine/Surface.cpp \
     RenderEngine/Texture.cpp \
     RenderEngine/GLES20RenderEngine.cpp \
     LayerProtoHelper.cpp \

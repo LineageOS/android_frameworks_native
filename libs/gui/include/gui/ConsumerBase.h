@@ -187,7 +187,7 @@ protected:
     // ConsumerBase::releaseBufferLocked.
     virtual status_t releaseBufferLocked(int slot,
             const sp<GraphicBuffer> graphicBuffer,
-            EGLDisplay display, EGLSyncKHR eglFence);
+            EGLDisplay display = EGL_NO_DISPLAY, EGLSyncKHR eglFence = EGL_NO_SYNC_KHR);
 
     // returns true iff the slot still has the graphicBuffer in it.
     bool stillTracking(int slot, const sp<GraphicBuffer> graphicBuffer);

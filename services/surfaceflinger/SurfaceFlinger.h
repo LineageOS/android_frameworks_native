@@ -21,8 +21,6 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <EGL/egl.h>
-
 /*
  * NOTE: Make sure this file doesn't include  anything from <gl/ > or <gl2/ >
  */
@@ -549,7 +547,7 @@ private:
 
     // compose surfaces for display hw. this fails if using GL and the surface
     // has been destroyed and is no longer valid.
-    bool doComposeSurfaces(const sp<const DisplayDevice>& displayDevice, const Region& dirty);
+    bool doComposeSurfaces(const sp<const DisplayDevice>& displayDevice);
 
     void postFramebuffer();
     void drawWormhole(const sp<const DisplayDevice>& displayDevice, const Region& region) const;
@@ -663,7 +661,7 @@ private:
     const std::string mHwcServiceName; // "default" for real use, something else for testing.
 
     // constant members (no synchronization needed for access)
-    RenderEngine* mRenderEngine;
+    std::unique_ptr<RenderEngine> mRenderEngine;
     nsecs_t mBootTime;
     bool mGpuToCpuSupported;
     sp<EventThread> mEventThread;
@@ -671,8 +669,6 @@ private:
     sp<EventThread> mInjectorEventThread;
     sp<InjectVSyncSource> mVSyncInjector;
     sp<EventControlThread> mEventControlThread;
-    EGLContext mEGLContext;
-    EGLDisplay mEGLDisplay;
     sp<IBinder> mBuiltinDisplays[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES];
 
     // Can only accessed from the main thread, these members

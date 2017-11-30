@@ -19,8 +19,8 @@
 
 #include <GLES2/gl2.h>
 
-#include <utils/Singleton.h>
 #include <utils/KeyedVector.h>
+#include <utils/Singleton.h>
 #include <utils/TypeHelpers.h>
 
 #include "Description.h"
@@ -47,63 +47,50 @@ public:
         friend class ProgramCache;
         typedef uint32_t key_t;
         key_t mKey;
+
     public:
         enum {
-            BLEND_PREMULT           =       0x00000001,
-            BLEND_NORMAL            =       0x00000000,
-            BLEND_MASK              =       0x00000001,
+            BLEND_PREMULT = 0x00000001,
+            BLEND_NORMAL = 0x00000000,
+            BLEND_MASK = 0x00000001,
 
-            OPACITY_OPAQUE          =       0x00000002,
-            OPACITY_TRANSLUCENT     =       0x00000000,
-            OPACITY_MASK            =       0x00000002,
+            OPACITY_OPAQUE = 0x00000002,
+            OPACITY_TRANSLUCENT = 0x00000000,
+            OPACITY_MASK = 0x00000002,
 
-            ALPHA_LT_ONE            =       0x00000004,
-            ALPHA_EQ_ONE            =       0x00000000,
-            ALPHA_MASK              =       0x00000004,
+            ALPHA_LT_ONE = 0x00000004,
+            ALPHA_EQ_ONE = 0x00000000,
+            ALPHA_MASK = 0x00000004,
 
-            TEXTURE_OFF             =       0x00000000,
-            TEXTURE_EXT             =       0x00000008,
-            TEXTURE_2D              =       0x00000010,
-            TEXTURE_MASK            =       0x00000018,
+            TEXTURE_OFF = 0x00000000,
+            TEXTURE_EXT = 0x00000008,
+            TEXTURE_2D = 0x00000010,
+            TEXTURE_MASK = 0x00000018,
 
-            COLOR_MATRIX_OFF        =       0x00000000,
-            COLOR_MATRIX_ON         =       0x00000020,
-            COLOR_MATRIX_MASK       =       0x00000020,
+            COLOR_MATRIX_OFF = 0x00000000,
+            COLOR_MATRIX_ON = 0x00000020,
+            COLOR_MATRIX_MASK = 0x00000020,
 
-            WIDE_GAMUT_OFF          =       0x00000000,
-            WIDE_GAMUT_ON           =       0x00000040,
-            WIDE_GAMUT_MASK         =       0x00000040,
+            WIDE_GAMUT_OFF = 0x00000000,
+            WIDE_GAMUT_ON = 0x00000040,
+            WIDE_GAMUT_MASK = 0x00000040,
         };
 
-        inline Key() : mKey(0) { }
-        inline Key(const Key& rhs) : mKey(rhs.mKey) { }
+        inline Key() : mKey(0) {}
+        inline Key(const Key& rhs) : mKey(rhs.mKey) {}
 
         inline Key& set(key_t mask, key_t value) {
             mKey = (mKey & ~mask) | value;
             return *this;
         }
 
-        inline bool isTexturing() const {
-            return (mKey & TEXTURE_MASK) != TEXTURE_OFF;
-        }
-        inline int getTextureTarget() const {
-            return (mKey & TEXTURE_MASK);
-        }
-        inline bool isPremultiplied() const {
-            return (mKey & BLEND_MASK) == BLEND_PREMULT;
-        }
-        inline bool isOpaque() const {
-            return (mKey & OPACITY_MASK) == OPACITY_OPAQUE;
-        }
-        inline bool hasAlpha() const {
-            return (mKey & ALPHA_MASK) == ALPHA_LT_ONE;
-        }
-        inline bool hasColorMatrix() const {
-            return (mKey & COLOR_MATRIX_MASK) == COLOR_MATRIX_ON;
-        }
-        inline bool isWideGamut() const {
-            return (mKey & WIDE_GAMUT_MASK) == WIDE_GAMUT_ON;
-        }
+        inline bool isTexturing() const { return (mKey & TEXTURE_MASK) != TEXTURE_OFF; }
+        inline int getTextureTarget() const { return (mKey & TEXTURE_MASK); }
+        inline bool isPremultiplied() const { return (mKey & BLEND_MASK) == BLEND_PREMULT; }
+        inline bool isOpaque() const { return (mKey & OPACITY_MASK) == OPACITY_OPAQUE; }
+        inline bool hasAlpha() const { return (mKey & ALPHA_MASK) == ALPHA_LT_ONE; }
+        inline bool hasColorMatrix() const { return (mKey & COLOR_MATRIX_MASK) == COLOR_MATRIX_ON; }
+        inline bool isWideGamut() const { return (mKey & WIDE_GAMUT_MASK) == WIDE_GAMUT_ON; }
 
         // this is the definition of a friend function -- not a method of class Needs
         friend inline int strictly_order_type(const Key& lhs, const Key& rhs) {
@@ -134,7 +121,6 @@ private:
     // is never shrunk.
     DefaultKeyedVector<Key, Program*> mCache;
 };
-
 
 ANDROID_BASIC_TYPES_TRAITS(ProgramCache::Key)
 

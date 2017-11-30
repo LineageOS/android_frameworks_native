@@ -28,8 +28,6 @@
 #include <stdatomic.h>
 #include <optional>
 
-#include <EGL/egl.h>
-
 #include <cutils/properties.h>
 #include <log/log.h>
 
@@ -100,8 +98,6 @@
  * black pixels.
  */
 #define DEBUG_SCREENSHOTS   false
-
-extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
 namespace android {
 
@@ -285,9 +281,6 @@ void SurfaceFlinger::onFirstRef()
 
 SurfaceFlinger::~SurfaceFlinger()
 {
-    EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    eglTerminate(display);
 }
 
 void SurfaceFlinger::binderDied(const wp<IBinder>& /* who */)
@@ -594,10 +587,6 @@ void SurfaceFlinger::init() {
 
     Mutex::Autolock _l(mStateLock);
 
-    // initialize EGL for the default display
-    mEGLDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    eglInitialize(mEGLDisplay, NULL, NULL);
-
     // start the EventThread
     sp<VSyncSource> vsyncSrc = new DispSyncSource(&mPrimaryDispSync,
             vsyncPhaseOffsetNs, true, "app");
@@ -618,15 +607,9 @@ void SurfaceFlinger::init() {
     }
 
     // Get a RenderEngine for the given display / config (can't fail)
-    mRenderEngine = RenderEngine::create(mEGLDisplay,
-            HAL_PIXEL_FORMAT_RGBA_8888,
+    mRenderEngine = RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
             hasWideColorDisplay ? RenderEngine::WIDE_COLOR_SUPPORT : 0);
-
-    // retrieve the EGL context that was selected/created
-    mEGLContext = mRenderEngine->getEGLContext();
-
-    LOG_ALWAYS_FATAL_IF(mEGLContext == EGL_NO_CONTEXT,
-            "couldn't create EGLContext");
+    LOG_ALWAYS_FATAL_IF(mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");
@@ -1308,8 +1291,7 @@ void SurfaceFlinger::createDefaultDisplayDevice() {
     }
     bool useWideColorMode = hasWideColorModes && hasWideColorDisplay && !mForceNativeColorMode;
     sp<DisplayDevice> hw = new DisplayDevice(this, DisplayDevice::DISPLAY_PRIMARY, type, isSecure,
-                                             token, fbs, producer, mRenderEngine->getEGLConfig(),
-                                             useWideColorMode);
+                                             token, fbs, producer, useWideColorMode);
     mDisplays.add(token, hw);
     android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
     if (useWideColorMode) {
@@ -1324,7 +1306,7 @@ void SurfaceFlinger::createDefaultDisplayDevice() {
 
     // make the GLContext current so that we can create textures when creating
     // Layers (which may happens before we render something)
-    hw->makeCurrent(mEGLDisplay, mEGLContext);
+    hw->makeCurrent();
 }
 
 void SurfaceFlinger::onHotplugReceived(int32_t sequenceId,
@@ -1395,7 +1377,7 @@ void SurfaceFlinger::resetDisplayState() {
     // mCurrentState and mDrawingState and re-apply all changes when we make the
     // transition.
     mDrawingState.displays.clear();
-    eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    getRenderEngine().resetCurrentSurface();
     mDisplays.clear();
 }
 
@@ -1552,7 +1534,7 @@ void SurfaceFlinger::doDebugFlashRegions()
             const Region dirtyRegion(hw->getDirtyRegion(repaintEverything));
             if (!dirtyRegion.isEmpty()) {
                 // redraw the whole screen
-                doComposeSurfaces(hw, Region(hw->bounds()));
+                doComposeSurfaces(hw);
 
                 // and draw the dirty region
                 const int32_t height = hw->getHeight();
@@ -2027,8 +2009,7 @@ void SurfaceFlinger::doComposition() {
             doDisplayComposition(hw, dirtyRegion);
 
             hw->dirtyRegion.clear();
-            hw->flip(hw->swapRegion);
-            hw->swapRegion.clear();
+            hw->flip();
         }
     }
     postFramebuffer();
@@ -2052,7 +2033,7 @@ void SurfaceFlinger::postFramebuffer()
             mHwc->presentAndGetReleaseFences(hwcId);
         }
         displayDevice->onSwapBuffersCompleted();
-        displayDevice->makeCurrent(mEGLDisplay, mEGLContext);
+        displayDevice->makeCurrent();
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
@@ -2178,7 +2159,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                         // be sure that nothing associated with this display
                         // is current.
                         const sp<const DisplayDevice> defaultDisplay(getDefaultDisplayDeviceLocked());
-                        defaultDisplay->makeCurrent(mEGLDisplay, mEGLContext);
+                        defaultDisplay->makeCurrent();
                         sp<DisplayDevice> hw(getDisplayDeviceLocked(draw.keyAt(i)));
                         if (hw != NULL)
                             hw->disconnect(getHwComposer());
@@ -2296,9 +2277,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                     if (dispSurface != NULL) {
                         sp<DisplayDevice> hw =
                                 new DisplayDevice(this, state.type, hwcId, state.isSecure, display,
-                                                  dispSurface, producer,
-                                                  mRenderEngine->getEGLConfig(),
-                                                  hasWideColorDisplay);
+                                                  dispSurface, producer, hasWideColorDisplay);
                         hw->setLayerStack(state.layerStack);
                         hw->setProjection(state.orientation,
                                 state.viewport, state.frame);
@@ -2663,46 +2642,17 @@ void SurfaceFlinger::doDisplayComposition(
     }
 
     ALOGV("doDisplayComposition");
-
-    Region dirtyRegion(inDirtyRegion);
-
-    // compute the invalid region
-    displayDevice->swapRegion.orSelf(dirtyRegion);
-
-    uint32_t flags = displayDevice->getFlags();
-    if (flags & DisplayDevice::SWAP_RECTANGLE) {
-        // we can redraw only what's dirty, but since SWAP_RECTANGLE only
-        // takes a rectangle, we must make sure to update that whole
-        // rectangle in that case
-        dirtyRegion.set(displayDevice->swapRegion.bounds());
-    } else {
-        if (flags & DisplayDevice::PARTIAL_UPDATES) {
-            // We need to redraw the rectangle that will be updated
-            // (pushed to the framebuffer).
-            // This is needed because PARTIAL_UPDATES only takes one
-            // rectangle instead of a region (see DisplayDevice::flip())
-            dirtyRegion.set(displayDevice->swapRegion.bounds());
-        } else {
-            // we need to redraw everything (the whole screen)
-            dirtyRegion.set(displayDevice->bounds());
-            displayDevice->swapRegion = dirtyRegion;
-        }
-    }
-
-    if (!doComposeSurfaces(displayDevice, dirtyRegion)) return;
-
-    // update the swap region and clear the dirty region
-    displayDevice->swapRegion.orSelf(dirtyRegion);
+    if (!doComposeSurfaces(displayDevice)) return;
 
     // swap buffers (presentation)
     displayDevice->swapBuffers(getHwComposer());
 }
 
-bool SurfaceFlinger::doComposeSurfaces(
-        const sp<const DisplayDevice>& displayDevice, const Region& dirty)
+bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDevice)
 {
     ALOGV("doComposeSurfaces");
 
+    const Region bounds(displayDevice->bounds());
     const DisplayRenderArea renderArea(displayDevice);
     const auto hwcId = displayDevice->getHwcDisplayId();
 
@@ -2722,13 +2672,13 @@ bool SurfaceFlinger::doComposeSurfaces(
                 displayDevice->getWideColorSupport() && !mForceNativeColorMode);
         mRenderEngine->setColorMode(mForceNativeColorMode ?
                 HAL_COLOR_MODE_NATIVE : displayDevice->getActiveColorMode());
-        if (!displayDevice->makeCurrent(mEGLDisplay, mEGLContext)) {
+        if (!displayDevice->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
                   displayDevice->getDisplayName().string());
-            eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+            getRenderEngine().resetCurrentSurface();
 
             // |mStateLock| not needed as we are on the main thread
-            if(!getDefaultDisplayDeviceLocked()->makeCurrent(mEGLDisplay, mEGLContext)) {
+            if(!getDefaultDisplayDeviceLocked()->makeCurrent()) {
               ALOGE("DisplayDevice::makeCurrent on default display failed. Aborting.");
             }
             return false;
@@ -2744,19 +2694,13 @@ bool SurfaceFlinger::doComposeSurfaces(
             // We'll revisit later if needed.
             mRenderEngine->clearWithColor(0, 0, 0, 0);
         } else {
-            // we start with the whole screen area
-            const Region bounds(displayDevice->getBounds());
-
-            // we remove the scissor part
+            // we start with the whole screen area and remove the scissor part
             // we're left with the letterbox region
             // (common case is that letterbox ends-up being empty)
             const Region letterbox(bounds.subtract(displayDevice->getScissor()));
 
             // compute the area to clear
             Region region(displayDevice->undefinedRegion.merge(letterbox));
-
-            // but limit it to the dirty region
-            region.andSelf(dirty);
 
             // screen is already cleared here
             if (!region.isEmpty()) {
@@ -2794,7 +2738,7 @@ bool SurfaceFlinger::doComposeSurfaces(
         // we're using h/w composer
         bool firstLayer = true;
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            const Region clip(dirty.intersect(
+            const Region clip(bounds.intersect(
                     displayTransform.transform(layer->visibleRegion)));
             ALOGV("Layer: %s", layer->getName().string());
             ALOGV("  Composition type: %s",
@@ -2830,7 +2774,7 @@ bool SurfaceFlinger::doComposeSurfaces(
     } else {
         // we're not using h/w composer
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            const Region clip(dirty.intersect(
+            const Region clip(bounds.intersect(
                     displayTransform.transform(layer->visibleRegion)));
             if (!clip.isEmpty()) {
                 layer->draw(renderArea, clip);
@@ -3937,13 +3881,6 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     HWComposer& hwc(getHwComposer());
     sp<const DisplayDevice> hw(getDefaultDisplayDeviceLocked());
 
-    colorizer.bold(result);
-    result.appendFormat("EGL implementation : %s\n",
-            eglQueryStringImplementationANDROID(mEGLDisplay, EGL_VERSION));
-    colorizer.reset(result);
-    result.appendFormat("%s\n",
-            eglQueryStringImplementationANDROID(mEGLDisplay, EGL_EXTENSIONS));
-
     mRenderEngine->dump(result);
 
     hw->undefinedRegion.dump(result, "undefinedRegion");
@@ -4626,26 +4563,6 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     });
 }
 
-// A simple RAII class that holds an EGLImage and destroys it either:
-//   a) When the destroy() method is called
-//   b) When the object goes out of scope
-class ImageHolder {
-public:
-    ImageHolder(EGLDisplay display, EGLImageKHR image) : mDisplay(display), mImage(image) {}
-    ~ImageHolder() { destroy(); }
-
-    void destroy() {
-        if (mImage != EGL_NO_IMAGE_KHR) {
-            eglDestroyImageKHR(mDisplay, mImage);
-            mImage = EGL_NO_IMAGE_KHR;
-        }
-    }
-
-private:
-    const EGLDisplay mDisplay;
-    EGLImageKHR mImage;
-};
-
 status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
                                                  TraverseLayersFunction traverseLayers,
                                                  ANativeWindowBuffer* buffer,
@@ -4664,23 +4581,11 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         return PERMISSION_DENIED;
     }
 
-    int syncFd = -1;
-    // create an EGLImage from the buffer so we can later
-    // turn it into a texture
-    EGLImageKHR image = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT,
-            EGL_NATIVE_BUFFER_ANDROID, buffer, NULL);
-    if (image == EGL_NO_IMAGE_KHR) {
-        return BAD_VALUE;
-    }
-
-    // This will automatically destroy the image if we return before calling its destroy method
-    ImageHolder imageHolder(mEGLDisplay, image);
-
     // this binds the given EGLImage as a framebuffer for the
     // duration of this scope.
-    RenderEngine::BindImageAsFramebuffer imageBond(getRenderEngine(), image);
-    if (imageBond.getStatus() != NO_ERROR) {
-        ALOGE("got GL_FRAMEBUFFER_COMPLETE_OES error while taking screenshot");
+    RenderEngine::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
+    if (bufferBond.getStatus() != NO_ERROR) {
+        ALOGE("got ANWB binding error while taking screenshot");
         return INVALID_OPERATION;
     }
 
@@ -4690,43 +4595,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
     // dependent on the context's EGLConfig.
     renderScreenImplLocked(renderArea, traverseLayers, true, useIdentityTransform);
 
-    // Attempt to create a sync khr object that can produce a sync point. If that
-    // isn't available, create a non-dupable sync object in the fallback path and
-    // wait on it directly.
-    EGLSyncKHR sync = EGL_NO_SYNC_KHR;
-    if (!DEBUG_SCREENSHOTS) {
-       sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
-       // native fence fd will not be populated until flush() is done.
-       getRenderEngine().flush();
-    }
-
-    if (sync != EGL_NO_SYNC_KHR) {
-        // get the sync fd
-        syncFd = eglDupNativeFenceFDANDROID(mEGLDisplay, sync);
-        if (syncFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-            ALOGW("captureScreen: failed to dup sync khr object");
-            syncFd = -1;
-        }
-        eglDestroySyncKHR(mEGLDisplay, sync);
-    } else {
-        // fallback path
-        sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
-        if (sync != EGL_NO_SYNC_KHR) {
-            EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync,
-                EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, 2000000000 /*2 sec*/);
-            EGLint eglErr = eglGetError();
-            if (result == EGL_TIMEOUT_EXPIRED_KHR) {
-                ALOGW("captureScreen: fence wait timed out");
-            } else {
-                ALOGW_IF(eglErr != EGL_SUCCESS,
-                        "captureScreen: error waiting on EGL fence: %#x", eglErr);
-            }
-            eglDestroySyncKHR(mEGLDisplay, sync);
-        } else {
-            ALOGW("captureScreen: error creating EGL fence: %#x", eglGetError());
-        }
-    }
-    *outSyncFd = syncFd;
+    *outSyncFd = getRenderEngine().flush(DEBUG_SCREENSHOTS);
 
     if (DEBUG_SCREENSHOTS) {
         const auto reqWidth = renderArea.getReqWidth();
@@ -4738,8 +4607,6 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         delete [] pixels;
     }
 
-    // destroy our image
-    imageHolder.destroy();
     return NO_ERROR;
 }
 

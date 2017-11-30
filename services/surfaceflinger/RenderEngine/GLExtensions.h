@@ -20,9 +20,9 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <utils/String8.h>
-#include <utils/SortedVector.h>
 #include <utils/Singleton.h>
+#include <utils/SortedVector.h>
+#include <utils/String8.h>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -32,8 +32,7 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
-class GLExtensions : public Singleton<GLExtensions>
-{
+class GLExtensions : public Singleton<GLExtensions> {
     friend class Singleton<GLExtensions>;
 
     bool mHaveFramebufferObject : 1;
@@ -45,22 +44,16 @@ class GLExtensions : public Singleton<GLExtensions>
     SortedVector<String8> mExtensionList;
 
     GLExtensions(const GLExtensions&);
-    GLExtensions& operator = (const GLExtensions&);
+    GLExtensions& operator=(const GLExtensions&);
 
 protected:
     GLExtensions();
 
 public:
+    inline bool haveFramebufferObject() const { return mHaveFramebufferObject; }
 
-    inline bool haveFramebufferObject() const {
-        return mHaveFramebufferObject;
-    }
-
-    void initWithGLStrings(
-            GLubyte const* vendor,
-            GLubyte const* renderer,
-            GLubyte const* version,
-            GLubyte const* extensions);
+    void initWithGLStrings(GLubyte const* vendor, GLubyte const* renderer, GLubyte const* version,
+                           GLubyte const* extensions);
 
     char const* getVendor() const;
     char const* getRenderer() const;
@@ -69,7 +62,6 @@ public:
 
     bool hasExtension(char const* extension) const;
 };
-
 
 // ---------------------------------------------------------------------------
 }; // namespace android
