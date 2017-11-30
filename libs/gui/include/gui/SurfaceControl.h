@@ -44,6 +44,9 @@ class SurfaceComposerClient;
 class SurfaceControl : public RefBase
 {
 public:
+    static sp<SurfaceControl> readFromParcel(Parcel* parcel);
+    void writeToParcel(Parcel* parcel);
+
     static bool isValid(const sp<SurfaceControl>& surface) {
         return (surface != 0) && surface->isValid();
     }
