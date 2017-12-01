@@ -36,6 +36,7 @@ namespace android {
 
 class DispSync;
 class Layer;
+class RenderEngine;
 class String8;
 
 /*
@@ -73,7 +74,8 @@ public:
     // BufferLayerConsumer constructs a new BufferLayerConsumer object.
     // The tex parameter indicates the name of the OpenGL ES
     // texture to which images are to be streamed.
-    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex, Layer* layer);
+    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, RenderEngine& engine, uint32_t tex,
+                        Layer* layer);
 
     // Sets the contents changed listener. This should be used instead of
     // ConsumerBase::setFrameAvailableListener().
@@ -230,12 +232,6 @@ protected:
     // bind succeeds, this calls doGLFenceWait.
     status_t bindTextureImageLocked();
 
-    // Gets the current EGLDisplay and EGLContext values, and compares them
-    // to mEglDisplay and mEglContext.  If the fields have been previously
-    // set, the values must match; if not, the fields are set to the current
-    // values.
-    status_t checkAndUpdateEglStateLocked();
-
 private:
     // EglImage is a utility class for tracking and creating EGLImageKHRs. There
     // is primarily just one image per slot, but there is also special cases:
@@ -381,6 +377,11 @@ private:
     // setFilteringEnabled().
     bool mFilteringEnabled;
 
+    RenderEngine& mRE;
+
+    // mEglDisplay is initialized to RenderEngine's EGLDisplay.
+    const EGLDisplay mEglDisplay;
+
     // mTexName is the name of the OpenGL texture to which streamed images will
     // be bound when updateTexImage is called. It is set at construction time.
     const uint32_t mTexName;
@@ -396,17 +397,6 @@ private:
         // mEglImage is the EGLImage created from mGraphicBuffer.
         sp<EglImage> mEglImage;
     };
-
-    // mEglDisplay is the EGLDisplay with which this BufferLayerConsumer is currently
-    // associated.  It is intialized to EGL_NO_DISPLAY and gets set to the
-    // current display when updateTexImage is called for the first time.
-    EGLDisplay mEglDisplay;
-
-    // mEglContext is the OpenGL ES context with which this BufferLayerConsumer is
-    // currently associated.  It is initialized to EGL_NO_CONTEXT and gets set
-    // to the current GL context when updateTexImage is called for the first
-    // time.
-    EGLContext mEglContext;
 
     // mEGLSlots stores the buffers that have been allocated by the BufferQueue
     // for each buffer slot.  It is initialized to null pointers, and gets

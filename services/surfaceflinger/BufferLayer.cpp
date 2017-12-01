@@ -660,7 +660,8 @@ void BufferLayer::onFirstRef() {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer, true);
     mProducer = new MonitoredProducer(producer, mFlinger, this);
-    mSurfaceFlingerConsumer = new BufferLayerConsumer(consumer, mTextureName, this);
+    mSurfaceFlingerConsumer = new BufferLayerConsumer(consumer,
+            mFlinger->getRenderEngine(), mTextureName, this);
     mSurfaceFlingerConsumer->setConsumerUsageBits(getEffectiveUsage(0));
     mSurfaceFlingerConsumer->setContentsChangedListener(this);
     mSurfaceFlingerConsumer->setName(mName);

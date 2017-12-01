@@ -157,6 +157,10 @@ bool RenderEngine::supportsImageCrop() const {
     return GLExtensions::getInstance().hasImageCrop();
 }
 
+bool RenderEngine::isCurrent() const {
+    return mEGLDisplay == eglGetCurrentDisplay() && mEGLContext == eglGetCurrentContext();
+}
+
 bool RenderEngine::setCurrentSurface(const RE::Surface& surface) {
     bool success = true;
     EGLSurface eglSurface = surface.getEGLSurface();

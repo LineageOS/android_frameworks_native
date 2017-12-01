@@ -86,6 +86,10 @@ public:
 
     bool supportsImageCrop() const;
 
+    bool isCurrent() const;
+    bool setCurrentSurface(const RE::Surface& surface);
+    void resetCurrentSurface();
+
     // synchronization
 
     // flush submits RenderEngine command stream for execution and returns a
@@ -123,9 +127,6 @@ public:
         ~BindNativeBufferAsFramebuffer();
         int getStatus() const;
     };
-
-    bool setCurrentSurface(const RE::Surface& surface);
-    void resetCurrentSurface();
 
     // set-up
     virtual void checkErrors() const;

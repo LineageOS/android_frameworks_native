@@ -23,6 +23,7 @@
 
 #include "DispSync.h"
 #include "Layer.h"
+#include "RenderEngine/RenderEngine.h"
 
 #include <inttypes.h>
 
@@ -108,8 +109,8 @@ static bool isEglImageCroppable(const Rect& crop) {
     return hasEglAndroidImageCrop() && (crop.left == 0 && crop.top == 0);
 }
 
-BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex,
-                                         Layer* layer)
+BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, RenderEngine& engine,
+                                         uint32_t tex, Layer* layer)
       : ConsumerBase(bq, false),
         mCurrentCrop(Rect::EMPTY_RECT),
         mCurrentTransform(0),
@@ -123,10 +124,10 @@ BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, u
         mDefaultWidth(1),
         mDefaultHeight(1),
         mFilteringEnabled(true),
+        mRE(engine),
+        mEglDisplay(mRE.getEGLDisplay()),
         mTexName(tex),
         mLayer(layer),
-        mEglDisplay(EGL_NO_DISPLAY),
-        mEglContext(EGL_NO_CONTEXT),
         mCurrentTexture(BufferQueue::INVALID_BUFFER_SLOT) {
     BLC_LOGV("BufferLayerConsumer");
 
@@ -211,10 +212,10 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const Dis
         return NO_INIT;
     }
 
-    // Make sure the EGL state is the same as in previous calls.
-    status_t err = checkAndUpdateEglStateLocked();
-    if (err != NO_ERROR) {
-        return err;
+    // Make sure RenderEngine is current
+    if (!mRE.isCurrent()) {
+        BLC_LOGE("updateTexImage: RenderEngine is not current");
+        return INVALID_OPERATION;
     }
 
     BufferItem item;
@@ -222,7 +223,7 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const Dis
     // Acquire the next buffer.
     // In asynchronous mode the list is guaranteed to be one buffer
     // deep, while in synchronous mode we use the oldest buffer.
-    err = acquireBufferLocked(&item, computeExpectedPresent(dispSync), maxFrameNumber);
+    status_t err = acquireBufferLocked(&item, computeExpectedPresent(dispSync), maxFrameNumber);
     if (err != NO_ERROR) {
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
             err = NO_ERROR;
@@ -338,13 +339,6 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
 
     int slot = item.mSlot;
 
-    // Confirm state.
-    err = checkAndUpdateEglStateLocked();
-    if (err != NO_ERROR) {
-        releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer);
-        return err;
-    }
-
     // Ensure we have a valid EglImageKHR for the slot, creating an EglImage
     // if nessessary, for the gralloc buffer currently in the slot in
     // ConsumerBase.
@@ -418,15 +412,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
 }
 
 status_t BufferLayerConsumer::bindTextureImageLocked() {
-    if (mEglDisplay == EGL_NO_DISPLAY) {
-        ALOGE("bindTextureImage: invalid display");
-        return INVALID_OPERATION;
-    }
-
-    GLenum error;
-    while ((error = glGetError()) != GL_NO_ERROR) {
-        BLC_LOGW("bindTextureImage: clearing GL error: %#04x", error);
-    }
+    mRE.checkErrors();
 
     glBindTexture(sTexTarget, mTexName);
     if (mCurrentTexture == BufferQueue::INVALID_BUFFER_SLOT && mCurrentTextureImage == NULL) {
@@ -444,32 +430,6 @@ status_t BufferLayerConsumer::bindTextureImageLocked() {
 
     // Wait for the new buffer to be ready.
     return doGLFenceWaitLocked();
-}
-
-status_t BufferLayerConsumer::checkAndUpdateEglStateLocked() {
-    EGLDisplay dpy = eglGetCurrentDisplay();
-    EGLContext ctx = eglGetCurrentContext();
-
-    // if this is the first time we're called, mEglDisplay/mEglContext have
-    // never been set, so don't error out (below).
-    if (mEglDisplay == EGL_NO_DISPLAY) {
-        mEglDisplay = dpy;
-    }
-    if (mEglContext == EGL_NO_CONTEXT) {
-        mEglContext = ctx;
-    }
-
-    if (mEglDisplay != dpy || dpy == EGL_NO_DISPLAY) {
-        BLC_LOGE("checkAndUpdateEglState: invalid current EGLDisplay");
-        return INVALID_OPERATION;
-    }
-
-    if (mEglContext != ctx || ctx == EGL_NO_CONTEXT) {
-        BLC_LOGE("checkAndUpdateEglState: invalid current EGLContext");
-        return INVALID_OPERATION;
-    }
-
-    return NO_ERROR;
 }
 
 status_t BufferLayerConsumer::syncForReleaseLocked(EGLDisplay dpy) {
@@ -608,16 +568,8 @@ std::shared_ptr<FenceTime> BufferLayerConsumer::getCurrentFenceTime() const {
 }
 
 status_t BufferLayerConsumer::doGLFenceWaitLocked() const {
-    EGLDisplay dpy = eglGetCurrentDisplay();
-    EGLContext ctx = eglGetCurrentContext();
-
-    if (mEglDisplay != dpy || mEglDisplay == EGL_NO_DISPLAY) {
-        BLC_LOGE("doGLFenceWait: invalid current EGLDisplay");
-        return INVALID_OPERATION;
-    }
-
-    if (mEglContext != ctx || mEglContext == EGL_NO_CONTEXT) {
-        BLC_LOGE("doGLFenceWait: invalid current EGLContext");
+    if (!mRE.isCurrent()) {
+        BLC_LOGE("doGLFenceWait: RenderEngine is not current");
         return INVALID_OPERATION;
     }
 
@@ -630,7 +582,7 @@ status_t BufferLayerConsumer::doGLFenceWaitLocked() const {
                 return -errno;
             }
             EGLint attribs[] = {EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fenceFd, EGL_NONE};
-            EGLSyncKHR sync = eglCreateSyncKHR(dpy, EGL_SYNC_NATIVE_FENCE_ANDROID, attribs);
+            EGLSyncKHR sync = eglCreateSyncKHR(mEglDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, attribs);
             if (sync == EGL_NO_SYNC_KHR) {
                 close(fenceFd);
                 BLC_LOGE("doGLFenceWait: error creating EGL fence: %#x", eglGetError());
@@ -640,9 +592,9 @@ status_t BufferLayerConsumer::doGLFenceWaitLocked() const {
             // XXX: The spec draft is inconsistent as to whether this should
             // return an EGLint or void.  Ignore the return value for now, as
             // it's not strictly needed.
-            eglWaitSyncKHR(dpy, sync, 0);
+            eglWaitSyncKHR(mEglDisplay, sync, 0);
             EGLint eglErr = eglGetError();
-            eglDestroySyncKHR(dpy, sync);
+            eglDestroySyncKHR(mEglDisplay, sync);
             if (eglErr != EGL_SUCCESS) {
                 BLC_LOGE("doGLFenceWait: error waiting for EGL fence: %#x", eglErr);
                 return UNKNOWN_ERROR;
