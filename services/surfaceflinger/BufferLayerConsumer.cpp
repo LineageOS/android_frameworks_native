@@ -422,46 +422,6 @@ void BufferLayerConsumer::computeCurrentTransformMatrixLocked() {
                                        mCurrentTransform, mFilteringEnabled);
 }
 
-Rect BufferLayerConsumer::scaleDownCrop(const Rect& crop, uint32_t bufferWidth,
-                                        uint32_t bufferHeight) {
-    Rect outCrop = crop;
-
-    uint32_t newWidth = static_cast<uint32_t>(crop.width());
-    uint32_t newHeight = static_cast<uint32_t>(crop.height());
-
-    if (newWidth * bufferHeight > newHeight * bufferWidth) {
-        newWidth = newHeight * bufferWidth / bufferHeight;
-        ALOGV("too wide: newWidth = %d", newWidth);
-    } else if (newWidth * bufferHeight < newHeight * bufferWidth) {
-        newHeight = newWidth * bufferHeight / bufferWidth;
-        ALOGV("too tall: newHeight = %d", newHeight);
-    }
-
-    uint32_t currentWidth = static_cast<uint32_t>(crop.width());
-    uint32_t currentHeight = static_cast<uint32_t>(crop.height());
-
-    // The crop is too wide
-    if (newWidth < currentWidth) {
-        uint32_t dw = currentWidth - newWidth;
-        auto halfdw = dw / 2;
-        outCrop.left += halfdw;
-        // Not halfdw because it would subtract 1 too few when dw is odd
-        outCrop.right -= (dw - halfdw);
-        // The crop is too tall
-    } else if (newHeight < currentHeight) {
-        uint32_t dh = currentHeight - newHeight;
-        auto halfdh = dh / 2;
-        outCrop.top += halfdh;
-        // Not halfdh because it would subtract 1 too few when dh is odd
-        outCrop.bottom -= (dh - halfdh);
-    }
-
-    ALOGV("getCurrentCrop final crop [%d,%d,%d,%d]", outCrop.left, outCrop.top, outCrop.right,
-          outCrop.bottom);
-
-    return outCrop;
-}
-
 nsecs_t BufferLayerConsumer::getTimestamp() {
     BLC_LOGV("getTimestamp");
     Mutex::Autolock lock(mMutex);
@@ -493,7 +453,7 @@ sp<GraphicBuffer> BufferLayerConsumer::getCurrentBuffer(int* outSlot) const {
 Rect BufferLayerConsumer::getCurrentCrop() const {
     Mutex::Autolock lock(mMutex);
     return (mCurrentScalingMode == NATIVE_WINDOW_SCALING_MODE_SCALE_CROP)
-            ? scaleDownCrop(mCurrentCrop, mDefaultWidth, mDefaultHeight)
+            ? GLConsumer::scaleDownCrop(mCurrentCrop, mDefaultWidth, mDefaultHeight)
             : mCurrentCrop;
 }
 

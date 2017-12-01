@@ -96,10 +96,6 @@ public:
     // functions.
     void getTransformMatrix(float mtx[16]);
 
-    // Scale the crop down horizontally or vertically such that it has the
-    // same aspect ratio as the buffer does.
-    static Rect scaleDownCrop(const Rect& crop, uint32_t bufferWidth, uint32_t bufferHeight);
-
     // getTimestamp retrieves the timestamp associated with the texture image
     // set by the most recent call to updateTexImage.
     //
