@@ -89,7 +89,7 @@ public:
     // This call may only be made while the OpenGL ES context to which the
     // target texture belongs is bound to the calling thread.
     //
-    // This calls doGLFenceWait to ensure proper synchronization.
+    // This calls doFenceWait to ensure proper synchronization.
     //
     // This version of updateTexImage() takes a functor that may be used to
     // reject the newly acquired buffer.  Unlike the GLConsumer version,
@@ -229,7 +229,7 @@ protected:
 
     // Binds mTexName and the current buffer to sTexTarget.  Uses
     // mCurrentTexture if it's set, mCurrentTextureImage if not.  If the
-    // bind succeeds, this calls doGLFenceWait.
+    // bind succeeds, this calls doFenceWait.
     status_t bindTextureImageLocked();
 
 private:
@@ -301,16 +301,16 @@ private:
     // mCurrentTextureImage must not be NULL.
     void computeCurrentTransformMatrixLocked();
 
-    // doGLFenceWaitLocked inserts a wait command into the OpenGL ES command
-    // stream to ensure that it is safe for future OpenGL ES commands to
+    // doFenceWaitLocked inserts a wait command into the RenderEngine command
+    // stream to ensure that it is safe for future RenderEngine commands to
     // access the current texture buffer.
-    status_t doGLFenceWaitLocked() const;
+    status_t doFenceWaitLocked() const;
 
     // syncForReleaseLocked performs the synchronization needed to release the
-    // current slot from an OpenGL ES context.  If needed it will set the
-    // current slot's fence to guard against a producer accessing the buffer
-    // before the outstanding accesses have completed.
-    status_t syncForReleaseLocked(EGLDisplay dpy);
+    // current slot from RenderEngine.  If needed it will set the current
+    // slot's fence to guard against a producer accessing the buffer before
+    // the outstanding accesses have completed.
+    status_t syncForReleaseLocked();
 
     // sTexTarget is the GL texture target with which the GL texture object is
     // associated.

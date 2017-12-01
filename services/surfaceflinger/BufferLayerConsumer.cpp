@@ -354,7 +354,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
 
     // Do whatever sync ops we need to do before releasing the old slot.
     if (slot != mCurrentTexture) {
-        err = syncForReleaseLocked(mEglDisplay);
+        err = syncForReleaseLocked();
         if (err != NO_ERROR) {
             // Release the buffer we just acquired.  It's not safe to
             // release the old buffer, so instead we just drop the new frame.
@@ -429,26 +429,17 @@ status_t BufferLayerConsumer::bindTextureImageLocked() {
     mCurrentTextureImage->bindToTextureTarget(sTexTarget);
 
     // Wait for the new buffer to be ready.
-    return doGLFenceWaitLocked();
+    return doFenceWaitLocked();
 }
 
-status_t BufferLayerConsumer::syncForReleaseLocked(EGLDisplay dpy) {
+status_t BufferLayerConsumer::syncForReleaseLocked() {
     BLC_LOGV("syncForReleaseLocked");
 
     if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
         if (SyncFeatures::getInstance().useNativeFenceSync()) {
-            EGLSyncKHR sync = eglCreateSyncKHR(dpy, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
-            if (sync == EGL_NO_SYNC_KHR) {
-                BLC_LOGE("syncForReleaseLocked: error creating EGL fence: %#x", eglGetError());
-                return UNKNOWN_ERROR;
-            }
-            glFlush();
-            int fenceFd = eglDupNativeFenceFDANDROID(dpy, sync);
-            eglDestroySyncKHR(dpy, sync);
-            if (fenceFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-                BLC_LOGE("syncForReleaseLocked: error dup'ing native fence "
-                         "fd: %#x",
-                         eglGetError());
+            base::unique_fd fenceFd = mRE.flush();
+            if (fenceFd == -1) {
+                BLC_LOGE("syncForReleaseLocked: failed to flush RenderEngine");
                 return UNKNOWN_ERROR;
             }
             sp<Fence> fence(new Fence(fenceFd));
@@ -567,42 +558,27 @@ std::shared_ptr<FenceTime> BufferLayerConsumer::getCurrentFenceTime() const {
     return mCurrentFenceTime;
 }
 
-status_t BufferLayerConsumer::doGLFenceWaitLocked() const {
+status_t BufferLayerConsumer::doFenceWaitLocked() const {
     if (!mRE.isCurrent()) {
-        BLC_LOGE("doGLFenceWait: RenderEngine is not current");
+        BLC_LOGE("doFenceWait: RenderEngine is not current");
         return INVALID_OPERATION;
     }
 
     if (mCurrentFence->isValid()) {
         if (SyncFeatures::getInstance().useWaitSync()) {
-            // Create an EGLSyncKHR from the current fence.
-            int fenceFd = mCurrentFence->dup();
+            base::unique_fd fenceFd(mCurrentFence->dup());
             if (fenceFd == -1) {
-                BLC_LOGE("doGLFenceWait: error dup'ing fence fd: %d", errno);
+                BLC_LOGE("doFenceWait: error dup'ing fence fd: %d", errno);
                 return -errno;
             }
-            EGLint attribs[] = {EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fenceFd, EGL_NONE};
-            EGLSyncKHR sync = eglCreateSyncKHR(mEglDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, attribs);
-            if (sync == EGL_NO_SYNC_KHR) {
-                close(fenceFd);
-                BLC_LOGE("doGLFenceWait: error creating EGL fence: %#x", eglGetError());
-                return UNKNOWN_ERROR;
-            }
-
-            // XXX: The spec draft is inconsistent as to whether this should
-            // return an EGLint or void.  Ignore the return value for now, as
-            // it's not strictly needed.
-            eglWaitSyncKHR(mEglDisplay, sync, 0);
-            EGLint eglErr = eglGetError();
-            eglDestroySyncKHR(mEglDisplay, sync);
-            if (eglErr != EGL_SUCCESS) {
-                BLC_LOGE("doGLFenceWait: error waiting for EGL fence: %#x", eglErr);
+            if (!mRE.waitFence(std::move(fenceFd))) {
+                BLC_LOGE("doFenceWait: failed to wait on fence fd");
                 return UNKNOWN_ERROR;
             }
         } else {
-            status_t err = mCurrentFence->waitForever("BufferLayerConsumer::doGLFenceWaitLocked");
+            status_t err = mCurrentFence->waitForever("BufferLayerConsumer::doFenceWaitLocked");
             if (err != NO_ERROR) {
-                BLC_LOGE("doGLFenceWait: error waiting for fence: %d", err);
+                BLC_LOGE("doFenceWait: error waiting for fence: %d", err);
                 return err;
             }
         }
