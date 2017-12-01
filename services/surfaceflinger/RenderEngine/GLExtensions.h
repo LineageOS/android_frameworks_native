@@ -39,6 +39,8 @@ class GLExtensions : public Singleton<GLExtensions> {
     bool mHasNativeFenceSync = false;
     bool mHasFenceSync = false;
     bool mHasWaitSync = false;
+    bool mHasImageCrop = false;
+    bool mHasProtectedContent = false;
 
     String8 mVendor;
     String8 mRenderer;
@@ -63,6 +65,8 @@ public:
     bool hasNativeFenceSync() const { return mHasNativeFenceSync; }
     bool hasFenceSync() const { return mHasFenceSync; }
     bool hasWaitSync() const { return mHasWaitSync; }
+    bool hasImageCrop() const { return mHasImageCrop; }
+    bool hasProtectedContent() const { return mHasProtectedContent; }
 
     void initWithGLStrings(GLubyte const* vendor, GLubyte const* renderer, GLubyte const* version,
                            GLubyte const* extensions);

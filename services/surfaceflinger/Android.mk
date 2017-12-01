@@ -35,6 +35,7 @@ LOCAL_SRC_FILES := \
     EventLog/EventLogTags.logtags \
     EventLog/EventLog.cpp \
     RenderEngine/Description.cpp \
+    RenderEngine/Image.cpp \
     RenderEngine/Mesh.cpp \
     RenderEngine/Program.cpp \
     RenderEngine/ProgramCache.cpp \

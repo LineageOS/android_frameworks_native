@@ -20,6 +20,7 @@
 
 #include "GLES20RenderEngine.h"
 #include "GLExtensions.h"
+#include "Image.h"
 #include "Mesh.h"
 #include "RenderEngine.h"
 
@@ -150,6 +151,10 @@ EGLDisplay RenderEngine::getEGLDisplay() const {
 
 EGLConfig RenderEngine::getEGLConfig() const {
     return mEGLConfig;
+}
+
+bool RenderEngine::supportsImageCrop() const {
+    return GLExtensions::getInstance().hasImageCrop();
 }
 
 bool RenderEngine::setCurrentSurface(const RE::Surface& surface) {
@@ -322,6 +327,15 @@ void RenderEngine::genTextures(size_t count, uint32_t* names) {
 
 void RenderEngine::deleteTextures(size_t count, uint32_t const* names) {
     glDeleteTextures(count, names);
+}
+
+void RenderEngine::bindExternalTextureImage(uint32_t texName, const RE::Image& image) {
+    const GLenum target = GL_TEXTURE_EXTERNAL_OES;
+
+    glBindTexture(target, texName);
+    if (image.getEGLImage() != EGL_NO_IMAGE_KHR) {
+        glEGLImageTargetTexture2DOES(target, static_cast<GLeglImageOES>(image.getEGLImage()));
+    }
 }
 
 void RenderEngine::readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) {
