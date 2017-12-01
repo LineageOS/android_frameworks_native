@@ -17,8 +17,7 @@
 #ifndef ANDROID_BUFFERLAYERCONSUMER_H
 #define ANDROID_BUFFERLAYERCONSUMER_H
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
+#include "RenderEngine/Image.h"
 
 #include <gui/BufferQueueDefs.h>
 #include <gui/ConsumerBase.h>
@@ -206,9 +205,11 @@ protected:
     virtual void dumpLocked(String8& result, const char* prefix) const;
 
     // acquireBufferLocked overrides the ConsumerBase method to update the
-    // mEglSlots array in addition to the ConsumerBase behavior.
+    // mImages array in addition to the ConsumerBase behavior.
     virtual status_t acquireBufferLocked(BufferItem* item, nsecs_t presentWhen,
                                          uint64_t maxFrameNumber = 0) override;
+
+    bool canUseImageCrop(const Rect& crop) const;
 
     struct PendingRelease {
         PendingRelease() : isPending(false), currentTexture(-1), graphicBuffer() {}
@@ -227,59 +228,48 @@ protected:
     status_t updateAndReleaseLocked(const BufferItem& item,
                                     PendingRelease* pendingRelease = nullptr);
 
-    // Binds mTexName and the current buffer to sTexTarget.  Uses
+    // Binds mTexName and the current buffer to TEXTURE_EXTERNAL target.  Uses
     // mCurrentTexture if it's set, mCurrentTextureImage if not.  If the
     // bind succeeds, this calls doFenceWait.
     status_t bindTextureImageLocked();
 
 private:
-    // EglImage is a utility class for tracking and creating EGLImageKHRs. There
+    // Image is a utility class for tracking and creating RE::Images. There
     // is primarily just one image per slot, but there is also special cases:
     //  - After freeBuffer, we must still keep the current image/buffer
-    // Reference counting EGLImages lets us handle all these cases easily while
-    // also only creating new EGLImages from buffers when required.
-    class EglImage : public LightRefBase<EglImage> {
+    // Reference counting RE::Images lets us handle all these cases easily while
+    // also only creating new RE::Images from buffers when required.
+    class Image : public LightRefBase<Image> {
     public:
-        EglImage(sp<GraphicBuffer> graphicBuffer);
+        Image(sp<GraphicBuffer> graphicBuffer, const RenderEngine& engine);
 
-        // createIfNeeded creates an EGLImage if required (we haven't created
-        // one yet, or the EGLDisplay or crop-rect has changed).
-        status_t createIfNeeded(EGLDisplay display, const Rect& cropRect);
+        Image(const Image& rhs) = delete;
+        Image& operator=(const Image& rhs) = delete;
 
-        // This calls glEGLImageTargetTexture2DOES to bind the image to the
-        // texture in the specified texture target.
-        void bindToTextureTarget(uint32_t texTarget);
+        // createIfNeeded creates an RE::Image if required (we haven't created
+        // one yet, or the crop-rect has changed).
+        status_t createIfNeeded(const Rect& imageCrop);
 
         const sp<GraphicBuffer>& graphicBuffer() { return mGraphicBuffer; }
         const native_handle* graphicBufferHandle() {
             return mGraphicBuffer == NULL ? NULL : mGraphicBuffer->handle;
         }
 
+        const RE::Image& image() const { return mImage; }
+
     private:
         // Only allow instantiation using ref counting.
-        friend class LightRefBase<EglImage>;
-        virtual ~EglImage();
-
-        // createImage creates a new EGLImage from a GraphicBuffer.
-        EGLImageKHR createImage(EGLDisplay dpy, const sp<GraphicBuffer>& graphicBuffer,
-                                const Rect& crop);
-
-        // Disallow copying
-        EglImage(const EglImage& rhs);
-        void operator=(const EglImage& rhs);
+        friend class LightRefBase<Image>;
+        virtual ~Image() = default;
 
         // mGraphicBuffer is the buffer that was used to create this image.
         sp<GraphicBuffer> mGraphicBuffer;
 
-        // mEglImage is the EGLImage created from mGraphicBuffer.
-        EGLImageKHR mEglImage;
-
-        // mEGLDisplay is the EGLDisplay that was used to create mEglImage.
-        EGLDisplay mEglDisplay;
-
-        // mCropRect is the crop rectangle passed to EGL when mEglImage
-        // was created.
-        Rect mCropRect;
+        // mImage is the image created from mGraphicBuffer.
+        RE::Image mImage;
+        bool mCreated;
+        int32_t mCropWidth;
+        int32_t mCropHeight;
     };
 
     // freeBufferLocked frees up the given buffer slot. If the slot has been
@@ -312,20 +302,16 @@ private:
     // the outstanding accesses have completed.
     status_t syncForReleaseLocked();
 
-    // sTexTarget is the GL texture target with which the GL texture object is
-    // associated.
-    static constexpr uint32_t sTexTarget = 0x8D65; // GL_TEXTURE_EXTERNAL_OES
-
     // The default consumer usage flags that BufferLayerConsumer always sets on its
     // BufferQueue instance; these will be OR:d with any additional flags passed
     // from the BufferLayerConsumer user. In particular, BufferLayerConsumer will always
     // consume buffers as hardware textures.
     static const uint64_t DEFAULT_USAGE_FLAGS = GraphicBuffer::USAGE_HW_TEXTURE;
 
-    // mCurrentTextureImage is the EglImage/buffer of the current texture. It's
+    // mCurrentTextureImage is the Image/buffer of the current texture. It's
     // possible that this buffer is not associated with any buffer slot, so we
     // must track it separately in order to support the getCurrentBuffer method.
-    sp<EglImage> mCurrentTextureImage;
+    sp<Image> mCurrentTextureImage;
 
     // mCurrentCrop is the crop rectangle that applies to the current texture.
     // It gets set each time updateTexImage is called.
@@ -379,9 +365,6 @@ private:
 
     RenderEngine& mRE;
 
-    // mEglDisplay is initialized to RenderEngine's EGLDisplay.
-    const EGLDisplay mEglDisplay;
-
     // mTexName is the name of the OpenGL texture to which streamed images will
     // be bound when updateTexImage is called. It is set at construction time.
     const uint32_t mTexName;
@@ -391,21 +374,14 @@ private:
 
     wp<ContentsChangedListener> mContentsChangedListener;
 
-    // EGLSlot contains the information and object references that
-    // BufferLayerConsumer maintains about a BufferQueue buffer slot.
-    struct EglSlot {
-        // mEglImage is the EGLImage created from mGraphicBuffer.
-        sp<EglImage> mEglImage;
-    };
-
-    // mEGLSlots stores the buffers that have been allocated by the BufferQueue
+    // mImages stores the buffers that have been allocated by the BufferQueue
     // for each buffer slot.  It is initialized to null pointers, and gets
     // filled in with the result of BufferQueue::acquire when the
     // client dequeues a buffer from a
     // slot that has not yet been used. The buffer allocated to a slot will also
     // be replaced if the requested buffer usage or geometry differs from that
     // of the buffer allocated to a slot.
-    EglSlot mEglSlots[BufferQueueDefs::NUM_BUFFER_SLOTS];
+    sp<Image> mImages[BufferQueueDefs::NUM_BUFFER_SLOTS];
 
     // mCurrentTexture is the buffer slot index of the buffer that is currently
     // bound to the OpenGL texture. It is initialized to INVALID_BUFFER_SLOT,
