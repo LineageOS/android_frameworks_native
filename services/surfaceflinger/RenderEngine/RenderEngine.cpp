@@ -169,6 +169,88 @@ void RenderEngine::resetCurrentSurface() {
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 }
 
+base::unique_fd RenderEngine::flush() {
+    if (!GLExtensions::getInstance().hasNativeFenceSync()) {
+        return base::unique_fd();
+    }
+
+    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
+    if (sync == EGL_NO_SYNC_KHR) {
+        ALOGW("failed to create EGL native fence sync: %#x", eglGetError());
+        return base::unique_fd();
+    }
+
+    // native fence fd will not be populated until flush() is done.
+    glFlush();
+
+    // get the fence fd
+    base::unique_fd fenceFd(eglDupNativeFenceFDANDROID(mEGLDisplay, sync));
+    eglDestroySyncKHR(mEGLDisplay, sync);
+    if (fenceFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+        ALOGW("failed to dup EGL native fence sync: %#x", eglGetError());
+    }
+
+    return fenceFd;
+}
+
+bool RenderEngine::finish() {
+    if (!GLExtensions::getInstance().hasFenceSync()) {
+        ALOGW("no synchronization support");
+        return false;
+    }
+
+    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
+    if (sync == EGL_NO_SYNC_KHR) {
+        ALOGW("failed to create EGL fence sync: %#x", eglGetError());
+        return false;
+    }
+
+    EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR,
+                                         2000000000 /*2 sec*/);
+    EGLint error = eglGetError();
+    eglDestroySyncKHR(mEGLDisplay, sync);
+    if (result != EGL_CONDITION_SATISFIED_KHR) {
+        if (result == EGL_TIMEOUT_EXPIRED_KHR) {
+            ALOGW("fence wait timed out");
+        } else {
+            ALOGW("error waiting on EGL fence: %#x", error);
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool RenderEngine::waitFence(base::unique_fd fenceFd) {
+    if (!GLExtensions::getInstance().hasNativeFenceSync() ||
+        !GLExtensions::getInstance().hasWaitSync()) {
+        return false;
+    }
+
+    EGLint attribs[] = {EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fenceFd, EGL_NONE};
+    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, attribs);
+    if (sync == EGL_NO_SYNC_KHR) {
+        ALOGE("failed to create EGL native fence sync: %#x", eglGetError());
+        return false;
+    }
+
+    // fenceFd is now owned by EGLSync
+    (void)fenceFd.release();
+
+    // XXX: The spec draft is inconsistent as to whether this should return an
+    // EGLint or void.  Ignore the return value for now, as it's not strictly
+    // needed.
+    eglWaitSyncKHR(mEGLDisplay, sync, 0);
+    EGLint error = eglGetError();
+    eglDestroySyncKHR(mEGLDisplay, sync);
+    if (error != EGL_SUCCESS) {
+        ALOGE("failed to wait for EGL native fence sync: %#x", error);
+        return false;
+    }
+
+    return true;
+}
+
 void RenderEngine::checkErrors() const {
     do {
         // there could be more than one error flag
@@ -218,52 +300,6 @@ void RenderEngine::fillRegionWithColor(const Region& region, uint32_t height, fl
     }
     setupFillWithColor(red, green, blue, alpha);
     drawMesh(mesh);
-}
-
-int RenderEngine::flush(bool wait) {
-    // Attempt to create a sync khr object that can produce a sync point. If that
-    // isn't available, create a non-dupable sync object in the fallback path and
-    // wait on it directly.
-    EGLSyncKHR sync;
-    if (!wait) {
-        EGLint syncFd = EGL_NO_NATIVE_FENCE_FD_ANDROID;
-
-        sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
-        if (sync != EGL_NO_SYNC_KHR) {
-            // native fence fd will not be populated until flush() is done.
-            glFlush();
-
-            // get the sync fd
-            syncFd = eglDupNativeFenceFDANDROID(mEGLDisplay, sync);
-            if (syncFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-                ALOGW("failed to dup sync khr object");
-            }
-
-            eglDestroySyncKHR(mEGLDisplay, sync);
-        }
-
-        if (syncFd != EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-            return syncFd;
-        }
-    }
-
-    // fallback or explicit wait
-    sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
-    if (sync != EGL_NO_SYNC_KHR) {
-        EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR,
-                                             2000000000 /*2 sec*/);
-        EGLint eglErr = eglGetError();
-        if (result == EGL_TIMEOUT_EXPIRED_KHR) {
-            ALOGW("fence wait timed out");
-        } else {
-            ALOGW_IF(eglErr != EGL_SUCCESS, "error waiting on EGL fence: %#x", eglErr);
-        }
-        eglDestroySyncKHR(mEGLDisplay, sync);
-    } else {
-        ALOGW("error creating EGL fence: %#x", eglGetError());
-    }
-
-    return -1;
 }
 
 void RenderEngine::clearWithColor(float red, float green, float blue, float alpha) {

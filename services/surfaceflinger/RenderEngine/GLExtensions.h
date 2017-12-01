@@ -36,6 +36,9 @@ class GLExtensions : public Singleton<GLExtensions> {
     friend class Singleton<GLExtensions>;
 
     bool mHasNoConfigContext = false;
+    bool mHasNativeFenceSync = false;
+    bool mHasFenceSync = false;
+    bool mHasWaitSync = false;
 
     String8 mVendor;
     String8 mRenderer;
@@ -57,6 +60,9 @@ protected:
 
 public:
     bool hasNoConfigContext() const { return mHasNoConfigContext; }
+    bool hasNativeFenceSync() const { return mHasNativeFenceSync; }
+    bool hasFenceSync() const { return mHasFenceSync; }
+    bool hasWaitSync() const { return mHasWaitSync; }
 
     void initWithGLStrings(GLubyte const* vendor, GLubyte const* renderer, GLubyte const* version,
                            GLubyte const* extensions);

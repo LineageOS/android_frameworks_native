@@ -25,6 +25,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <Transform.h>
+#include <android-base/unique_fd.h>
 #include <gui/SurfaceControl.h>
 #include <math/mat4.h>
 
@@ -82,9 +83,20 @@ public:
     // dump the extension strings. always call the base class.
     virtual void dump(String8& result);
 
+    // synchronization
+
+    // flush submits RenderEngine command stream for execution and returns a
+    // native fence fd that is signaled when the execution has completed.  It
+    // returns -1 on errors.
+    base::unique_fd flush();
+    // finish waits until RenderEngine command stream has been executed.  It
+    // returns false on errors.
+    bool finish();
+    // waitFence inserts a wait on an external fence fd to RenderEngine
+    // command stream.  It returns false on errors.
+    bool waitFence(base::unique_fd fenceFd);
+
     // helpers
-    // flush returns -1 or a valid native fence fd owned by the caller
-    int flush(bool wait);
     void clearWithColor(float red, float green, float blue, float alpha);
     void fillRegionWithColor(const Region& region, uint32_t height, float red, float green,
                              float blue, float alpha);

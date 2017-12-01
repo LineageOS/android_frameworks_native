@@ -89,6 +89,16 @@ void GLExtensions::initWithEGLStrings(char const* eglVersion, char const* eglExt
         hasEGLExtension("EGL_KHR_no_config_context")) {
         mHasNoConfigContext = true;
     }
+
+    if (hasEGLExtension("EGL_ANDROID_native_fence_sync")) {
+        mHasNativeFenceSync = true;
+    }
+    if (hasEGLExtension("EGL_KHR_fence_sync")) {
+        mHasFenceSync = true;
+    }
+    if (hasEGLExtension("EGL_KHR_wait_sync")) {
+        mHasWaitSync = true;
+    }
 }
 
 char const* GLExtensions::getEGLVersion() const {
