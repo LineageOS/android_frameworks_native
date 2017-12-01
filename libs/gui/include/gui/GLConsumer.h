@@ -138,6 +138,10 @@ public:
             const sp<GraphicBuffer>& buf, const Rect& cropRect,
             uint32_t transform, bool filtering);
 
+    // Scale the crop down horizontally or vertically such that it has the
+    // same aspect ratio as the buffer does.
+    static Rect scaleDownCrop(const Rect& crop, uint32_t bufferWidth, uint32_t bufferHeight);
+
     // getTimestamp retrieves the timestamp associated with the texture image
     // set by the most recent call to updateTexImage.
     //
