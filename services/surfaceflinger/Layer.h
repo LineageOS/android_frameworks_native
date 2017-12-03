@@ -70,6 +70,9 @@ class LayerBE {
 public:
     LayerBE();
 
+    // main thread
+    int mBufferSlot;
+    sp<GraphicBuffer> mBuffer;
     sp<NativeHandle> mSidebandStream;
 
     // The mesh used to draw the layer in GLES composition mode
@@ -469,8 +472,6 @@ public:
     void setFiltering(bool filtering);
     bool getFiltering() const;
 
-    // only for debugging
-    inline const sp<GraphicBuffer>& getActiveBuffer() const { return mActiveBuffer; }
 
     inline const State& getDrawingState() const { return mDrawingState; }
     inline const State& getCurrentState() const { return mCurrentState; }
