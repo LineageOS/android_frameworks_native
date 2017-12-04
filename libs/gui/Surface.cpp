@@ -1760,4 +1760,25 @@ status_t Surface::getAndFlushRemovedBuffers(std::vector<sp<GraphicBuffer>>* out)
     return OK;
 }
 
+status_t Surface::attachAndQueueBuffer(Surface* surface, sp<GraphicBuffer> buffer) {
+    if (buffer == nullptr) {
+        return BAD_VALUE;
+    }
+    int err = static_cast<ANativeWindow*>(surface)->perform(surface, NATIVE_WINDOW_API_CONNECT,
+                                                            NATIVE_WINDOW_API_CPU);
+    if (err != OK) {
+        return err;
+    }
+    err = surface->attachBuffer(buffer->getNativeBuffer());
+    if (err != OK) {
+        return err;
+    }
+    err = static_cast<ANativeWindow*>(surface)->queueBuffer(surface, buffer->getNativeBuffer(), -1);
+    if (err != OK) {
+        return err;
+    }
+    err = surface->disconnect(NATIVE_WINDOW_API_CPU);
+    return err;
+}
+
 }; // namespace android

@@ -104,20 +104,22 @@ void fillBufferColor(const ANativeWindow_Buffer& buffer, const Rect& rect, const
 }
 
 // Check if a region has the specified color.
-void expectBufferColor(const CpuConsumer::LockedBuffer& buffer, const Rect& rect,
+void expectBufferColor(const sp<GraphicBuffer>& outBuffer, uint8_t* pixels, const Rect& rect,
                        const Color& color, uint8_t tolerance) {
     int32_t x = rect.left;
     int32_t y = rect.top;
     int32_t width = rect.right - rect.left;
     int32_t height = rect.bottom - rect.top;
 
-    if (x + width > int32_t(buffer.width)) {
-        x = std::min(x, int32_t(buffer.width));
-        width = buffer.width - x;
+    int32_t bufferWidth = int32_t(outBuffer->getWidth());
+    int32_t bufferHeight = int32_t(outBuffer->getHeight());
+    if (x + width > bufferWidth) {
+        x = std::min(x, bufferWidth);
+        width = bufferWidth - x;
     }
-    if (y + height > int32_t(buffer.height)) {
-        y = std::min(y, int32_t(buffer.height));
-        height = buffer.height - y;
+    if (y + height > bufferHeight) {
+        y = std::min(y, bufferHeight);
+        height = bufferHeight - y;
     }
 
     auto colorCompare = [tolerance](uint8_t a, uint8_t b) {
@@ -125,8 +127,7 @@ void expectBufferColor(const CpuConsumer::LockedBuffer& buffer, const Rect& rect
         return tmp <= tolerance;
     };
     for (int32_t j = 0; j < height; j++) {
-        const uint8_t* src =
-                static_cast<const uint8_t*>(buffer.data) + (buffer.stride * (y + j) + x) * 4;
+        const uint8_t* src = pixels + (outBuffer->getStride() * (y + j) + x) * 4;
         for (int32_t i = 0; i < width; i++) {
             const uint8_t expected[4] = {color.r, color.g, color.b, color.a};
             EXPECT_TRUE(std::equal(src, src + 4, expected, colorCompare))
@@ -170,30 +171,38 @@ class ScreenCapture : public RefBase {
 public:
     static void captureScreen(sp<ScreenCapture>* sc, int32_t minLayerZ = 0,
                               int32_t maxLayerZ = std::numeric_limits<int32_t>::max()) {
-        sp<IGraphicBufferProducer> producer;
-        sp<IGraphicBufferConsumer> consumer;
-        BufferQueue::createBufferQueue(&producer, &consumer);
-        sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
         sp<IBinder> display(sf->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
         SurfaceComposerClient::Transaction().apply(true);
 
+        sp<GraphicBuffer> outBuffer;
         ASSERT_EQ(NO_ERROR,
-                  sf->captureScreen(display, producer, Rect(), 0, 0, minLayerZ, maxLayerZ, false));
-        *sc = new ScreenCapture(cpuConsumer);
+                  sf->captureScreen(display, &outBuffer, Rect(), 0, 0, minLayerZ, maxLayerZ,
+                                    false));
+        *sc = new ScreenCapture(outBuffer);
+    }
+
+    static void captureLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
+                              Rect crop = Rect::EMPTY_RECT, float frameScale = 1.0) {
+        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+        SurfaceComposerClient::Transaction().apply(true);
+
+        sp<GraphicBuffer> outBuffer;
+        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, &outBuffer, crop, frameScale));
+        *sc = std::make_unique<ScreenCapture>(outBuffer);
     }
 
     void expectColor(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
-        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mBuf.format);
-        expectBufferColor(mBuf, rect, color, tolerance);
+        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
+        expectBufferColor(mOutBuffer, mPixels, rect, color, tolerance);
     }
 
     void expectBorder(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
-        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mBuf.format);
+        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
         const bool leftBorder = rect.left > 0;
         const bool topBorder = rect.top > 0;
-        const bool rightBorder = rect.right < int32_t(mBuf.width);
-        const bool bottomBorder = rect.bottom < int32_t(mBuf.height);
+        const bool rightBorder = rect.right < int32_t(mOutBuffer->getWidth());
+        const bool bottomBorder = rect.bottom < int32_t(mOutBuffer->getHeight());
 
         if (topBorder) {
             Rect top(rect.left, rect.top - 1, rect.right, rect.top);
@@ -246,9 +255,8 @@ public:
     }
 
     void checkPixel(uint32_t x, uint32_t y, uint8_t r, uint8_t g, uint8_t b) {
-        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mBuf.format);
-        const uint8_t* img = static_cast<const uint8_t*>(mBuf.data);
-        const uint8_t* pixel = img + (4 * (y * mBuf.stride + x));
+        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
+        const uint8_t* pixel = mPixels + (4 * (y * mOutBuffer->getStride() + x));
         if (r != pixel[0] || g != pixel[1] || b != pixel[2]) {
             String8 err(String8::format("pixel @ (%3d, %3d): "
                                         "expected [%3d, %3d, %3d], got [%3d, %3d, %3d]",
@@ -263,58 +271,15 @@ public:
 
     void expectChildColor(uint32_t x, uint32_t y) { checkPixel(x, y, 200, 200, 200); }
 
-private:
-    ScreenCapture(const sp<CpuConsumer>& cc) : mCC(cc) {
-        EXPECT_EQ(NO_ERROR, mCC->lockNextBuffer(&mBuf));
+    ScreenCapture(const sp<GraphicBuffer>& outBuffer) : mOutBuffer(outBuffer) {
+        mOutBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, reinterpret_cast<void**>(&mPixels));
     }
 
-    ~ScreenCapture() { mCC->unlockBuffer(mBuf); }
-
-    sp<CpuConsumer> mCC;
-    CpuConsumer::LockedBuffer mBuf;
-};
-
-class CaptureLayer {
-public:
-    static void captureScreen(std::unique_ptr<CaptureLayer>* sc, sp<IBinder>& parentHandle,
-                              Rect crop = Rect::EMPTY_RECT, float frameScale = 1.0) {
-        sp<IGraphicBufferProducer> producer;
-        sp<IGraphicBufferConsumer> consumer;
-        BufferQueue::createBufferQueue(&producer, &consumer);
-        sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        SurfaceComposerClient::Transaction().apply(true);
-        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, producer, crop, frameScale));
-        *sc = std::make_unique<CaptureLayer>(cpuConsumer);
-    }
-
-    void checkPixel(uint32_t x, uint32_t y, uint8_t r, uint8_t g, uint8_t b) {
-        ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mBuffer.format);
-        const uint8_t* img = static_cast<const uint8_t*>(mBuffer.data);
-        const uint8_t* pixel = img + (4 * (y * mBuffer.stride + x));
-        if (r != pixel[0] || g != pixel[1] || b != pixel[2]) {
-            String8 err(String8::format("pixel @ (%3d, %3d): "
-                                        "expected [%3d, %3d, %3d], got [%3d, %3d, %3d]",
-                                        x, y, r, g, b, pixel[0], pixel[1], pixel[2]));
-            EXPECT_EQ(String8(), err) << err.string();
-        }
-    }
-
-    void expectFGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 195, 63, 63); }
-
-    void expectBGColor(uint32_t x, uint32_t y) { checkPixel(x, y, 63, 63, 195); }
-
-    void expectChildColor(uint32_t x, uint32_t y) { checkPixel(x, y, 200, 200, 200); }
-
-    CaptureLayer(const sp<CpuConsumer>& cc) : mCC(cc) {
-        EXPECT_EQ(NO_ERROR, mCC->lockNextBuffer(&mBuffer));
-    }
-
-    ~CaptureLayer() { mCC->unlockBuffer(mBuffer); }
+    ~ScreenCapture() { mOutBuffer->unlock(); }
 
 private:
-    sp<CpuConsumer> mCC;
-    CpuConsumer::LockedBuffer mBuffer;
+    sp<GraphicBuffer> mOutBuffer;
+    uint8_t* mPixels = NULL;
 };
 
 class LayerTransactionTest : public ::testing::Test {
@@ -858,21 +823,17 @@ TEST_F(LayerTransactionTest, SetFlagsSecure) {
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
 
     sp<ISurfaceComposer> composer = ComposerService::getComposerService();
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer);
-    sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
-
+    sp<GraphicBuffer> outBuffer;
     Transaction()
             .setFlags(layer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
             .apply(true);
     ASSERT_EQ(PERMISSION_DENIED,
-              composer->captureScreen(mDisplay, producer, Rect(), 0, 0, mLayerZBase, mLayerZBase,
+              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, mLayerZBase, mLayerZBase,
                                       false));
 
     Transaction().setFlags(layer, 0, layer_state_t::eLayerSecure).apply(true);
     ASSERT_EQ(NO_ERROR,
-              composer->captureScreen(mDisplay, producer, Rect(), 0, 0, mLayerZBase, mLayerZBase,
+              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, mLayerZBase, mLayerZBase,
                                       false));
 }
 
@@ -1504,7 +1465,7 @@ TEST_F(LayerTransactionTest, SetFinalCropWithNextResizeScaleToWindow) {
     }
 }
 
-class LayerUpdateTest : public ::testing::Test {
+class LayerUpdateTest : public LayerTransactionTest {
 protected:
     virtual void SetUp() {
         mComposerClient = new SurfaceComposerClient;
@@ -2318,12 +2279,12 @@ TEST_F(ChildLayerTest, ChildLayerRelativeLayer) {
 
 class ScreenCaptureTest : public LayerUpdateTest {
 protected:
-    std::unique_ptr<CaptureLayer> mCapture;
+    std::unique_ptr<ScreenCapture> mCapture;
 };
 
 TEST_F(ScreenCaptureTest, CaptureSingleLayer) {
     auto bgHandle = mBGSurfaceControl->getHandle();
-    CaptureLayer::captureScreen(&mCapture, bgHandle);
+    ScreenCapture::captureLayers(&mCapture, bgHandle);
     mCapture->expectBGColor(0, 0);
     // Doesn't capture FG layer which is at 64, 64
     mCapture->expectBGColor(64, 64);
@@ -2340,7 +2301,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithChild) {
     SurfaceComposerClient::Transaction().show(child).apply(true);
 
     // Captures mFGSurfaceControl layer and its child.
-    CaptureLayer::captureScreen(&mCapture, fgHandle);
+    ScreenCapture::captureLayers(&mCapture, fgHandle);
     mCapture->expectFGColor(10, 10);
     mCapture->expectChildColor(0, 0);
 }
@@ -2365,7 +2326,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
             .apply(true);
 
     // Captures mFGSurfaceControl, its child, and the grandchild.
-    CaptureLayer::captureScreen(&mCapture, fgHandle);
+    ScreenCapture::captureLayers(&mCapture, fgHandle);
     mCapture->expectFGColor(10, 10);
     mCapture->expectChildColor(0, 0);
     mCapture->checkPixel(5, 5, 50, 50, 50);
@@ -2381,7 +2342,7 @@ TEST_F(ScreenCaptureTest, CaptureChildOnly) {
     SurfaceComposerClient::Transaction().setPosition(child, 5, 5).show(child).apply(true);
 
     // Captures only the child layer, and not the parent.
-    CaptureLayer::captureScreen(&mCapture, childHandle);
+    ScreenCapture::captureLayers(&mCapture, childHandle);
     mCapture->expectChildColor(0, 0);
     mCapture->expectChildColor(9, 9);
 }
@@ -2407,94 +2368,96 @@ TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
     auto grandchildHandle = grandchild->getHandle();
 
     // Captures only the grandchild.
-    CaptureLayer::captureScreen(&mCapture, grandchildHandle);
+    ScreenCapture::captureLayers(&mCapture, grandchildHandle);
     mCapture->checkPixel(0, 0, 50, 50, 50);
     mCapture->checkPixel(4, 4, 50, 50, 50);
 }
 
 TEST_F(ScreenCaptureTest, CaptureCrop) {
-    sp<SurfaceControl> redLayer = mComposerClient->createSurface(
-        String8("Red surface"),
-        60, 60, PIXEL_FORMAT_RGBA_8888, 0);
-    sp<SurfaceControl> blueLayer = mComposerClient->createSurface(
-        String8("Blue surface"),
-        30, 30, PIXEL_FORMAT_RGBA_8888, 0, redLayer.get());
+    sp<SurfaceControl> redLayer = mComposerClient->createSurface(String8("Red surface"), 60, 60,
+                                                                 PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> blueLayer =
+            mComposerClient->createSurface(String8("Blue surface"), 30, 30, PIXEL_FORMAT_RGBA_8888,
+                                           0, redLayer.get());
 
-    fillSurfaceRGBA8(redLayer, 255, 0, 0);
-    fillSurfaceRGBA8(blueLayer, 0, 0, 255);
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(redLayer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(blueLayer, Color::BLUE));
 
     SurfaceComposerClient::Transaction()
-        .setLayer(redLayer, INT32_MAX-1)
-        .show(redLayer)
-        .show(blueLayer)
-        .apply(true);
+            .setLayer(redLayer, INT32_MAX - 1)
+            .show(redLayer)
+            .show(blueLayer)
+            .apply(true);
 
     auto redLayerHandle = redLayer->getHandle();
 
     // Capturing full screen should have both red and blue are visible.
-    CaptureLayer::captureScreen(&mCapture, redLayerHandle);
-    mCapture->checkPixel(29, 29, 0, 0, 255);
-    mCapture->checkPixel(30, 30, 255, 0, 0);
+    ScreenCapture::captureLayers(&mCapture, redLayerHandle);
+    mCapture->expectColor(Rect(0, 0, 29, 29), Color::BLUE);
+    // red area below the blue area
+    mCapture->expectColor(Rect(0, 30, 59, 59), Color::RED);
+    // red area to the right of the blue area
+    mCapture->expectColor(Rect(30, 0, 59, 59), Color::RED);
 
     Rect crop = Rect(0, 0, 30, 30);
-    CaptureLayer::captureScreen(&mCapture, redLayerHandle, crop);
+    ScreenCapture::captureLayers(&mCapture, redLayerHandle, crop);
     // Capturing the cropped screen, cropping out the shown red area, should leave only the blue
     // area visible.
-    mCapture->checkPixel(29, 29, 0, 0, 255);
+    mCapture->expectColor(Rect(0, 0, 29, 29), Color::BLUE);
     mCapture->checkPixel(30, 30, 0, 0, 0);
 }
 
 TEST_F(ScreenCaptureTest, CaptureSize) {
-    sp<SurfaceControl> redLayer = mComposerClient->createSurface(
-        String8("Red surface"),
-        60, 60, PIXEL_FORMAT_RGBA_8888, 0);
-    sp<SurfaceControl> blueLayer = mComposerClient->createSurface(
-        String8("Blue surface"),
-        30, 30, PIXEL_FORMAT_RGBA_8888, 0, redLayer.get());
+    sp<SurfaceControl> redLayer = mComposerClient->createSurface(String8("Red surface"), 60, 60,
+                                                                 PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> blueLayer =
+            mComposerClient->createSurface(String8("Blue surface"), 30, 30, PIXEL_FORMAT_RGBA_8888,
+                                           0, redLayer.get());
 
-    fillSurfaceRGBA8(redLayer, 255, 0, 0);
-    fillSurfaceRGBA8(blueLayer, 0, 0, 255);
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(redLayer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(blueLayer, Color::BLUE));
 
     SurfaceComposerClient::Transaction()
-        .setLayer(redLayer, INT32_MAX-1)
-        .show(redLayer)
-        .show(blueLayer)
-        .apply(true);
+            .setLayer(redLayer, INT32_MAX - 1)
+            .show(redLayer)
+            .show(blueLayer)
+            .apply(true);
 
     auto redLayerHandle = redLayer->getHandle();
 
     // Capturing full screen should have both red and blue are visible.
-    CaptureLayer::captureScreen(&mCapture, redLayerHandle);
-    mCapture->checkPixel(29, 29, 0, 0, 255);
-    mCapture->checkPixel(30, 30, 255, 0, 0);
+    ScreenCapture::captureLayers(&mCapture, redLayerHandle);
+    mCapture->expectColor(Rect(0, 0, 29, 29), Color::BLUE);
+    // red area below the blue area
+    mCapture->expectColor(Rect(0, 30, 59, 59), Color::RED);
+    // red area to the right of the blue area
+    mCapture->expectColor(Rect(30, 0, 59, 59), Color::RED);
 
-    CaptureLayer::captureScreen(&mCapture, redLayerHandle, Rect::EMPTY_RECT, 0.5);
+    ScreenCapture::captureLayers(&mCapture, redLayerHandle, Rect::EMPTY_RECT, 0.5);
     // Capturing the downsized area (30x30) should leave both red and blue but in a smaller area.
-    mCapture->checkPixel(14, 14, 0, 0, 255);
-    mCapture->checkPixel(15, 15, 255, 0, 0);
-    mCapture->checkPixel(29, 29, 255, 0, 0);
+    mCapture->expectColor(Rect(0, 0, 14, 14), Color::BLUE);
+    // red area below the blue area
+    mCapture->expectColor(Rect(0, 15, 29, 29), Color::RED);
+    // red area to the right of the blue area
+    mCapture->expectColor(Rect(15, 0, 29, 29), Color::RED);
     mCapture->checkPixel(30, 30, 0, 0, 0);
 }
 
 TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
-    sp<SurfaceControl> redLayer = mComposerClient->createSurface(
-        String8("Red surface"),
-        60, 60, PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> redLayer = mComposerClient->createSurface(String8("Red surface"), 60, 60,
+                                                                 PIXEL_FORMAT_RGBA_8888, 0);
 
-    fillSurfaceRGBA8(redLayer, 255, 0, 0);
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(redLayer, Color::RED));
 
     auto redLayerHandle = redLayer->getHandle();
     mComposerClient->destroySurface(redLayerHandle);
     SurfaceComposerClient::Transaction().apply(true);
 
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer);
-    sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
-    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    sp<GraphicBuffer> outBuffer;
 
     // Layer was deleted so captureLayers should fail with NAME_NOT_FOUND
-    ASSERT_EQ(NAME_NOT_FOUND, sf->captureLayers(redLayerHandle, producer, Rect::EMPTY_RECT, 1.0));
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    ASSERT_EQ(NAME_NOT_FOUND, sf->captureLayers(redLayerHandle, &outBuffer, Rect::EMPTY_RECT, 1.0));
 }
 
-}
+} // namespace android

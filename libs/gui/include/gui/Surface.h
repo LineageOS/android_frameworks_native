@@ -283,6 +283,8 @@ public:
 
     android_dataspace_t getBuffersDataSpace();
 
+    static status_t attachAndQueueBuffer(Surface* surface, sp<GraphicBuffer> buffer);
+
 protected:
     enum { NUM_BUFFER_SLOTS = BufferQueueDefs::NUM_BUFFER_SLOTS };
     enum { DEFAULT_FORMAT = PIXEL_FORMAT_RGBA_8888 };
