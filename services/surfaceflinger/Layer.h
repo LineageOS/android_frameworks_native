@@ -571,7 +571,7 @@ protected:
 
     void setParent(const sp<Layer>& layer);
 
-    LayerVector makeTraversalList(LayerVector::StateSet stateSet);
+    LayerVector makeTraversalList(LayerVector::StateSet stateSet, bool* outSkipRelativeZUsers);
     void addZOrderRelative(const wp<Layer>& relative);
     void removeZOrderRelative(const wp<Layer>& relative);
 
@@ -645,6 +645,7 @@ public:
 
 protected:
     // -----------------------------------------------------------------------
+    bool usingRelativeZ(LayerVector::StateSet stateSet);
 
     bool mPremultipliedAlpha;
     String8 mName;
