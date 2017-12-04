@@ -13,7 +13,7 @@ cc_defaults {
         "dexopt.cpp",
         "globals.cpp",
         "utils.cpp",
-        "binder/android/os/IInstalld.aidl",
+        ":installd_aidl",
     ],
     shared_libs: [
         "libbase",
@@ -81,6 +81,13 @@ cc_binary {
     shared_libs: [
         "libbase",
         "liblog",
+    ],
+}
+
+filegroup {
+    name: "installd_aidl",
+    srcs: [
+        "binder/android/os/IInstalld.aidl",
     ],
 }
 
