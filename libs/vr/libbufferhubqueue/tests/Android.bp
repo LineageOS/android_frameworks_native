@@ -68,6 +68,8 @@ cc_benchmark {
         "-DLOG_TAG=\"buffer_transport_benchmark\"",
         "-DTRACE=0",
         "-O2",
+        "-Wall",
+        "-Werror",
     ],
     name: "buffer_transport_benchmark",
     tags: ["optional"],

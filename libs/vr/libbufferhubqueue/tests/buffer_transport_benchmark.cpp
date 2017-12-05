@@ -34,7 +34,6 @@ using ::benchmark::State;
 static const String16 kBinderService = String16("bufferTransport");
 static const uint32_t kBufferWidth = 100;
 static const uint32_t kBufferHeight = 1;
-static const uint32_t kBufferLayerCount = 1;
 static const uint32_t kBufferFormat = HAL_PIXEL_FORMAT_BLOB;
 static const uint64_t kBufferUsage =
     GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN;
@@ -75,10 +74,9 @@ class BufferTransportService : public BBinder {
  private:
   struct FrameListener : public ConsumerBase::FrameAvailableListener {
    public:
-    FrameListener(BufferTransportService* service,
+    FrameListener(BufferTransportService* /*service*/,
                   sp<BufferItemConsumer> buffer_item_consumer)
-        : service_(service),
-          buffer_item_consumer_(buffer_item_consumer) {}
+        : buffer_item_consumer_(buffer_item_consumer) {}
 
     void onFrameAvailable(const BufferItem& /*item*/) override {
       BufferItem buffer;
@@ -106,7 +104,6 @@ class BufferTransportService : public BBinder {
     }
 
    private:
-    BufferTransportService* service_ = nullptr;
     sp<BufferItemConsumer> buffer_item_consumer_;
   };
 
