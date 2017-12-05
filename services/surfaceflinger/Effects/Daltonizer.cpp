@@ -133,8 +133,6 @@ void Daltonizer::update() {
                         0.7, 0.7, 1.0, 0,
                           0,   0,   0, 1);
 
-    const mat4 identity;
-
     // And the magic happens here...
     // We construct the matrix that will perform the whole correction.
 
