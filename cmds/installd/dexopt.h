@@ -59,7 +59,8 @@ bool analyze_primary_profiles(uid_t uid, const std::string& pkgname);
 // ownership is assigned to AID_SYSTEM.
 // The snapshot location is reference_profile_location.snapshot. If a snapshot is already
 // there, it will be truncated and overwritten.
-bool snapshot_profile(int32_t app_id, const std::string& package, const std::string& code_path);
+bool create_profile_snapshot(int32_t app_id, const std::string& package,
+        const std::string& code_path);
 
 bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_paths);
 
