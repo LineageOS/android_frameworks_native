@@ -5,7 +5,6 @@
 #include <dvr/dvr_surface.h>
 #include <system/graphics.h>
 
-#include <base/logging.h>
 #include <gtest/gtest.h>
 
 namespace android {
@@ -22,7 +21,7 @@ TEST(DvrGlobalBufferTest, TestGlobalBuffersSameName) {
 
   DvrBuffer* buffer2 = nullptr;
   int ret2 = dvrSetupGlobalBuffer(buffer_key, 10, 0, &buffer2);
-  ASSERT_EQ(0, ret1);
+  ASSERT_EQ(0, ret2);
   ASSERT_NE(nullptr, buffer2);
 
   AHardwareBuffer* hardware_buffer1 = nullptr;
@@ -159,7 +158,7 @@ TEST(DvrGlobalBufferTest, TestGlobalBufferCarriesData) {
     ASSERT_EQ(0, e3);
     ASSERT_NE(nullptr, buffer);
     // Verify that the buffer pointer is at least 16 byte aligned.
-    ASSERT_EQ(0, reinterpret_cast<uintptr_t>(buffer) & (16 - 1));
+    ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(buffer) & (16 - 1));
 
     uint64_t* data = static_cast<uint64_t*>(buffer);
     constexpr size_t num_values = size / sizeof(uint64_t);
@@ -192,7 +191,7 @@ TEST(DvrGlobalBufferTest, TestGlobalBufferCarriesData) {
     ASSERT_EQ(0, e3);
     ASSERT_NE(nullptr, buffer);
     // Verify that the buffer pointer is at least 16 byte aligned.
-    ASSERT_EQ(0, reinterpret_cast<uintptr_t>(buffer) & (16 - 1));
+    ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(buffer) & (16 - 1));
 
     uint64_t* data = static_cast<uint64_t*>(buffer);
     constexpr size_t num_values = size / sizeof(uint64_t);
@@ -233,7 +232,7 @@ TEST(DvrGlobalBufferTest, TestGlobalBufferZeroed) {
   ASSERT_EQ(0, e3);
   ASSERT_NE(nullptr, buffer);
   // Verify that the buffer pointer is at least 16 byte aligned.
-  ASSERT_EQ(0, reinterpret_cast<uintptr_t>(buffer) & (16 - 1));
+  ASSERT_EQ(0U, reinterpret_cast<uintptr_t>(buffer) & (16 - 1));
 
   uint64_t* data = static_cast<uint64_t*>(buffer);
   constexpr size_t num_values = size / sizeof(uint64_t);
@@ -241,7 +240,7 @@ TEST(DvrGlobalBufferTest, TestGlobalBufferZeroed) {
   for (size_t i = 0; i < num_values; ++i) {
     zero |= data[i];
   }
-  ASSERT_EQ(0, zero);
+  ASSERT_EQ(0U, zero);
 
   int32_t fence = -1;
   int e4 = AHardwareBuffer_unlock(hardware_buffer, &fence);
