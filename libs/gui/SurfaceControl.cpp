@@ -166,5 +166,28 @@ sp<SurfaceComposerClient> SurfaceControl::getClient() const
     return mClient;
 }
 
+void SurfaceControl::writeToParcel(Parcel* parcel)
+{
+    parcel->writeStrongBinder(ISurfaceComposerClient::asBinder(mClient->getClient()));
+    parcel->writeStrongBinder(mHandle);
+    parcel->writeStrongBinder(IGraphicBufferProducer::asBinder(mGraphicBufferProducer));
+}
+
+sp<SurfaceControl> SurfaceControl::readFromParcel(Parcel* parcel)
+{
+    sp<IBinder> client = parcel->readStrongBinder();
+    sp<IBinder> handle = parcel->readStrongBinder();
+    if (client == nullptr || handle == nullptr)
+    {
+        ALOGE("Invalid parcel");
+        return nullptr;
+    }
+    sp<IBinder> gbp;
+    parcel->readNullableStrongBinder(&gbp);
+    return new SurfaceControl(new SurfaceComposerClient(
+                    interface_cast<ISurfaceComposerClient>(client)),
+            handle.get(), interface_cast<IGraphicBufferProducer>(gbp));
+}
+
 // ----------------------------------------------------------------------------
 }; // namespace android

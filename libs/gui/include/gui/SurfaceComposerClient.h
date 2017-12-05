@@ -52,6 +52,7 @@ class SurfaceComposerClient : public RefBase
     friend class Composer;
 public:
                 SurfaceComposerClient();
+                SurfaceComposerClient(const sp<ISurfaceComposerClient>& client);
                 SurfaceComposerClient(const sp<IGraphicBufferProducer>& parent);
     virtual     ~SurfaceComposerClient();
 
