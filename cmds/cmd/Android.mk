@@ -10,6 +10,8 @@ LOCAL_SHARED_LIBRARIES := \
     libselinux \
 	libbinder
 
+LOCAL_CFLAGS := -Wall -Werror
+
 LOCAL_C_INCLUDES += \
     $(JNI_H_INCLUDE)
 
