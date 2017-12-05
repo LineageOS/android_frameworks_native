@@ -78,7 +78,7 @@ public:
         if (is_selinux_enabled() && seLinuxContext.size() > 0) {
             String8 seLinuxContext8(seLinuxContext);
             security_context_t tmp = NULL;
-            int ret = getfilecon(fullPath.string(), &tmp);
+            getfilecon(fullPath.string(), &tmp);
             Unique_SecurityContext context(tmp);
             int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
                     "file", "write", NULL);
