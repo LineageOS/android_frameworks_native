@@ -143,6 +143,17 @@ public:
     EGLContext mEGLContext;
     EGLDisplay mEGLDisplay;
 
+    // protected by mCompositorTimingLock;
+    mutable std::mutex mCompositorTimingLock;
+    CompositorTiming mCompositorTiming;
+    
+    // Only accessed from the main thread.
+    struct CompositePresentTime {
+        nsecs_t composite { -1 };
+        std::shared_ptr<FenceTime> display { FenceTime::NO_FENCE };
+    };
+    std::queue<CompositePresentTime> mCompositePresentTimes;
+
     // The composer sequence id is a monotonically increasing integer that we
     // use to differentiate callbacks from different hardware composer
     // instances. Each hardware composer instance gets a different sequence id.
@@ -735,16 +746,7 @@ private:
     bool mPrimaryHWVsyncEnabled;
     bool mHWVsyncAvailable;
 
-    // protected by mCompositorTimingLock;
-    mutable std::mutex mCompositorTimingLock;
-    CompositorTiming mCompositorTiming;
 
-    // Only accessed from the main thread.
-    struct CompositePresentTime {
-        nsecs_t composite { -1 };
-        std::shared_ptr<FenceTime> display { FenceTime::NO_FENCE };
-    };
-    std::queue<CompositePresentTime> mCompositePresentTimes;
 
     std::atomic<bool> mRefreshPending{false};
 

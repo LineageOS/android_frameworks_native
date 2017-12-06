@@ -228,7 +228,7 @@ SurfaceFlinger::SurfaceFlinger()
     hasWideColorDisplay =
             getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
 
-    mPrimaryDispSync.init(hasSyncFramework, dispSyncPresentTimeOffset);
+    mPrimaryDispSync.init(SurfaceFlinger::hasSyncFramework, SurfaceFlinger::dispSyncPresentTimeOffset);
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
@@ -591,11 +591,11 @@ void SurfaceFlinger::init() {
     Mutex::Autolock _l(mStateLock);
 
     // start the EventThread
-    sp<VSyncSource> vsyncSrc = new DispSyncSource(&mPrimaryDispSync,
-            vsyncPhaseOffsetNs, true, "app");
+    sp<VSyncSource> vsyncSrc =
+            new DispSyncSource(&mPrimaryDispSync, SurfaceFlinger::vsyncPhaseOffsetNs, true, "app");
     mEventThread = new EventThread(vsyncSrc, *this, false);
-    sp<VSyncSource> sfVsyncSrc = new DispSyncSource(&mPrimaryDispSync,
-            sfVsyncPhaseOffsetNs, true, "sf");
+    sp<VSyncSource> sfVsyncSrc =
+            new DispSyncSource(&mPrimaryDispSync, SurfaceFlinger::sfVsyncPhaseOffsetNs, true, "sf");
     mSFEventThread = new EventThread(sfVsyncSrc, *this, true);
     mEventQueue.setEventThread(mSFEventThread);
 
@@ -1262,8 +1262,8 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId,
 }
 
 void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
-    std::lock_guard<std::mutex> lock(mCompositorTimingLock);
-    *compositorTiming = mCompositorTiming;
+    std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
+    *compositorTiming = getBE().mCompositorTiming;
 }
 
 void SurfaceFlinger::createDefaultDisplayDevice() {
@@ -1598,10 +1598,10 @@ void SurfaceFlinger::updateCompositorTiming(
         std::shared_ptr<FenceTime>& presentFenceTime) {
     // Update queue of past composite+present times and determine the
     // most recently known composite to present latency.
-    mCompositePresentTimes.push({compositeTime, presentFenceTime});
+    getBE().mCompositePresentTimes.push({compositeTime, presentFenceTime});
     nsecs_t compositeToPresentLatency = -1;
-    while (!mCompositePresentTimes.empty()) {
-        CompositePresentTime& cpt = mCompositePresentTimes.front();
+    while (!getBE().mCompositePresentTimes.empty()) {
+        SurfaceFlingerBE::CompositePresentTime& cpt = getBE().mCompositePresentTimes.front();
         // Cached values should have been updated before calling this method,
         // which helps avoid duplicate syscalls.
         nsecs_t displayTime = cpt.display->getCachedSignalTime();
@@ -1609,12 +1609,12 @@ void SurfaceFlinger::updateCompositorTiming(
             break;
         }
         compositeToPresentLatency = displayTime - cpt.composite;
-        mCompositePresentTimes.pop();
+        getBE().mCompositePresentTimes.pop();
     }
 
     // Don't let mCompositePresentTimes grow unbounded, just in case.
-    while (mCompositePresentTimes.size() > 16) {
-        mCompositePresentTimes.pop();
+    while (getBE().mCompositePresentTimes.size() > 16) {
+        getBE().mCompositePresentTimes.pop();
     }
 
     setCompositorTimingSnapped(
@@ -1646,10 +1646,10 @@ void SurfaceFlinger::setCompositorTimingSnapped(nsecs_t vsyncPhase,
     nsecs_t snappedCompositeToPresentLatency = (extraVsyncs > 0) ?
             idealLatency + (extraVsyncs * vsyncInterval) : idealLatency;
 
-    std::lock_guard<std::mutex> lock(mCompositorTimingLock);
-    mCompositorTiming.deadline = vsyncPhase - idealLatency;
-    mCompositorTiming.interval = vsyncInterval;
-    mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
+    std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
+    getBE().mCompositorTiming.deadline = vsyncPhase - idealLatency;
+    getBE().mCompositorTiming.interval = vsyncInterval;
+    getBE().mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
 }
 
 void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
@@ -1691,8 +1691,8 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         vsyncPhase, vsyncInterval, refreshStartTime, presentFenceTime);
     CompositorTiming compositorTiming;
     {
-        std::lock_guard<std::mutex> lock(mCompositorTimingLock);
-        compositorTiming = mCompositorTiming;
+        std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
+        compositorTiming = getBE().mCompositorTiming;
     }
 
     mDrawingState.traverseInZOrder([&](Layer* layer) {
