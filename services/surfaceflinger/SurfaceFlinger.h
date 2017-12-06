@@ -154,6 +154,34 @@ public:
     };
     std::queue<CompositePresentTime> mCompositePresentTimes;
 
+    static const size_t NUM_BUCKETS = 8; // < 1-7, 7+
+    nsecs_t mFrameBuckets[NUM_BUCKETS];
+    nsecs_t mTotalTime;
+    std::atomic<nsecs_t> mLastSwapTime;
+
+    // Double- vs. triple-buffering stats
+    struct BufferingStats {
+        BufferingStats()
+          : numSegments(0),
+            totalTime(0),
+            twoBufferTime(0),
+            doubleBufferedTime(0),
+            tripleBufferedTime(0) {}
+
+        size_t numSegments;
+        nsecs_t totalTime;
+
+        // "Two buffer" means that a third buffer was never used, whereas
+        // "double-buffered" means that on average the segment only used two
+        // buffers (though it may have used a third for some part of the
+        // segment)
+        nsecs_t twoBufferTime;
+        nsecs_t doubleBufferedTime;
+        nsecs_t tripleBufferedTime;
+    };
+    mutable Mutex mBufferingStatsMutex;
+    std::unordered_map<std::string, BufferingStats> mBufferingStats;
+
     // The composer sequence id is a monotonically increasing integer that we
     // use to differentiate callbacks from different hardware composer
     // instances. Each hardware composer instance gets a different sequence id.
@@ -746,8 +774,6 @@ private:
     bool mPrimaryHWVsyncEnabled;
     bool mHWVsyncAvailable;
 
-
-
     std::atomic<bool> mRefreshPending{false};
 
     /* ------------------------------------------------------------------------
@@ -764,35 +790,9 @@ private:
 
     // Static screen stats
     bool mHasPoweredOff;
-    static const size_t NUM_BUCKETS = 8; // < 1-7, 7+
-    nsecs_t mFrameBuckets[NUM_BUCKETS];
-    nsecs_t mTotalTime;
-    std::atomic<nsecs_t> mLastSwapTime;
 
     size_t mNumLayers;
 
-    // Double- vs. triple-buffering stats
-    struct BufferingStats {
-        BufferingStats()
-          : numSegments(0),
-            totalTime(0),
-            twoBufferTime(0),
-            doubleBufferedTime(0),
-            tripleBufferedTime(0) {}
-
-        size_t numSegments;
-        nsecs_t totalTime;
-
-        // "Two buffer" means that a third buffer was never used, whereas
-        // "double-buffered" means that on average the segment only used two
-        // buffers (though it may have used a third for some part of the
-        // segment)
-        nsecs_t twoBufferTime;
-        nsecs_t doubleBufferedTime;
-        nsecs_t tripleBufferedTime;
-    };
-    mutable Mutex mBufferingStatsMutex;
-    std::unordered_map<std::string, BufferingStats> mBufferingStats;
 
     // Verify that transaction is being called by an approved process:
     // either AID_GRAPHICS or AID_SYSTEM.
