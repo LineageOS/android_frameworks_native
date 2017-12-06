@@ -833,6 +833,17 @@ static void DoKmsg() {
 
 static const long MINIMUM_LOGCAT_TIMEOUT_MS = 50000;
 
+static void DoKernelLogcat() {
+    unsigned long timeout_ms = logcat_timeout("kernel");
+    if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
+        timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
+    }
+    RunCommand(
+        "KERNEL LOG",
+        {"logcat", "-b", "kernel", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
+        CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+}
+
 static void DoLogcat() {
     unsigned long timeout_ms;
     // DumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
@@ -848,25 +859,24 @@ static void DoLogcat() {
     if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
         timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
     }
-    RunCommand("EVENT LOG",
-               {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-v", "uid",
-                        "-d", "*:v"},
-               CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+    RunCommand(
+        "EVENT LOG",
+        {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
+        CommandOptions::WithTimeoutInMs(timeout_ms).Build());
     timeout_ms = logcat_timeout("radio");
     if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
         timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
     }
-    RunCommand("RADIO LOG",
-               {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-v", "uid",
-                        "-d", "*:v"},
-               CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+    RunCommand(
+        "RADIO LOG",
+        {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
+        CommandOptions::WithTimeoutInMs(timeout_ms).Build());
 
     RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
 
     /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
-    RunCommand("LAST LOGCAT",
-                {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable", "-v", "uid",
-                        "-d", "*:v"});
+    RunCommand("LAST LOGCAT", {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable",
+                               "-v", "uid", "-d", "*:v"});
 }
 
 static void DumpIpTablesAsRoot() {
@@ -1187,7 +1197,12 @@ static void dumpstate() {
         RunCommand("LSMOD", {"lsmod"});
     }
 
-    do_dmesg();
+    if (__android_logger_property_get_bool(
+            "ro.logd.kernel", BOOL_DEFAULT_TRUE | BOOL_DEFAULT_FLAG_ENG | BOOL_DEFAULT_FLAG_SVELTE)) {
+        DoKernelLogcat();
+    } else {
+        do_dmesg();
+    }
 
     RunCommand("LIST OF OPEN FILES", {"lsof"}, CommandOptions::AS_ROOT);
     for_each_pid(do_showmap, "SMAPS OF ALL PROCESSES");
