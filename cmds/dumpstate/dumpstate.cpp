@@ -691,7 +691,9 @@ void Dumpstate::PrintHeader() const {
     printf("Kernel: ");
     DumpFileToFd(STDOUT_FILENO, "", "/proc/version");
     printf("Command line: %s\n", strtok(cmdline_buf, "\n"));
-    ds.RunCommand("UPTIME", {"uptime"}, CommandOptions::DEFAULT);
+    printf("Uptime: ");
+    RunCommandToFd(STDOUT_FILENO, "", {"uptime", "-p"},
+                   CommandOptions::WithTimeout(1).Always().Build());
     printf("Bugreport format version: %s\n", version_.c_str());
     printf("Dumpstate info: id=%d pid=%d dry_run=%d args=%s extra_options=%s\n", id_, pid_,
            PropertiesHelper::IsDryRun(), args_.c_str(), extra_options_.c_str());
@@ -1093,7 +1095,6 @@ static void dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
 
     dump_dev_files("TRUSTY VERSION", "/sys/bus/platform/drivers/trusty", "trusty_version");
-    /* TODO: Remove duplicate uptime call when tools use it from header */
     RunCommand("UPTIME", {"uptime"});
     DumpBlockStatFiles();
     dump_emmc_ecsd("/d/mmc0/mmc0:0001/ext_csd");
