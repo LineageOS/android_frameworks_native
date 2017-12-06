@@ -109,14 +109,14 @@ void BufferLayer::useEmptyDamage() {
 }
 
 bool BufferLayer::isProtected() const {
-    const sp<GraphicBuffer>& buffer(getBE().mBuffer);
+    const sp<GraphicBuffer>& buffer(getBE().compositionInfo.mBuffer);
     return (buffer != 0) &&
             (buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
 }
 
 bool BufferLayer::isVisible() const {
     return !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
-            (getBE().mBuffer != NULL || getBE().mSidebandStream != NULL);
+            (getBE().compositionInfo.mBuffer != NULL || getBE().compositionInfo.hwc.sidebandStream != NULL);
 }
 
 bool BufferLayer::isFixedSize() const {
@@ -172,7 +172,7 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
                          bool useIdentityTransform) const {
     ATRACE_CALL();
 
-    if (CC_UNLIKELY(getBE().mBuffer == 0)) {
+    if (CC_UNLIKELY(getBE().compositionInfo.mBuffer == 0)) {
         // the texture has not been created yet, this Layer has
         // in fact never been drawn into. This happens frequently with
         // SurfaceView because the WindowManager can't know when the client
@@ -250,8 +250,8 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
         }
 
         // Set things up for texturing.
-        mTexture.setDimensions(getBE().mBuffer->getWidth(),
-                               getBE().mBuffer->getHeight());
+        mTexture.setDimensions(getBE().compositionInfo.mBuffer->getWidth(),
+                               getBE().compositionInfo.mBuffer->getHeight());
         mTexture.setFiltering(useFiltering);
         mTexture.setMatrix(textureMatrix);
 
@@ -387,8 +387,8 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
         // mSidebandStreamChanged was true
         mSidebandStream = mSurfaceFlingerConsumer->getSidebandStream();
         // replicated in LayerBE until FE/BE is ready to be synchronized
-        getBE().mSidebandStream = mSidebandStream;
-        if (getBE().mSidebandStream != NULL) {
+        getBE().compositionInfo.hwc.sidebandStream = mSidebandStream;
+        if (getBE().compositionInfo.hwc.sidebandStream != NULL) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
         }
@@ -422,7 +422,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     // Capture the old state of the layer for comparisons later
     const State& s(getDrawingState());
     const bool oldOpacity = isOpaque(s);
-    sp<GraphicBuffer> oldBuffer = getBE().mBuffer;
+    sp<GraphicBuffer> oldBuffer = getBE().compositionInfo.mBuffer;
 
     if (!allTransactionsSignaled()) {
         mFlinger->signalLayerUpdate();
@@ -499,11 +499,11 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     }
 
     // update the active buffer
-    getBE().mBuffer =
-            mSurfaceFlingerConsumer->getCurrentBuffer(&getBE().mBufferSlot);
+    getBE().compositionInfo.mBuffer =
+            mSurfaceFlingerConsumer->getCurrentBuffer(&getBE().compositionInfo.mBufferSlot);
     // replicated in LayerBE until FE/BE is ready to be synchronized
-    mActiveBuffer = getBE().mBuffer;
-    if (getBE().mBuffer == NULL) {
+    mActiveBuffer = getBE().compositionInfo.mBuffer;
+    if (getBE().compositionInfo.mBuffer == NULL) {
         // this can only happen if the very first buffer was rejected.
         return outDirtyRegion;
     }
@@ -540,15 +540,15 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     }
 
     if (oldBuffer != NULL) {
-        uint32_t bufWidth = getBE().mBuffer->getWidth();
-        uint32_t bufHeight = getBE().mBuffer->getHeight();
+        uint32_t bufWidth = getBE().compositionInfo.mBuffer->getWidth();
+        uint32_t bufHeight = getBE().compositionInfo.mBuffer->getHeight();
         if (bufWidth != uint32_t(oldBuffer->width) ||
             bufHeight != uint32_t(oldBuffer->height)) {
             recomputeVisibleRegions = true;
         }
     }
 
-    mCurrentOpacity = getOpacityForFormat(getBE().mBuffer->format);
+    mCurrentOpacity = getOpacityForFormat(getBE().compositionInfo.mBuffer->format);
     if (oldOpacity != isOpaque(s)) {
         recomputeVisibleRegions = true;
     }
@@ -611,13 +611,13 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
     }
 
     // Sideband layers
-    if (getBE().mSidebandStream.get()) {
+    if (getBE().compositionInfo.hwc.sidebandStream.get()) {
         setCompositionType(hwcId, HWC2::Composition::Sideband);
         ALOGV("[%s] Requesting Sideband composition", mName.string());
-        error = hwcLayer->setSidebandStream(getBE().mSidebandStream->handle());
+        error = hwcLayer->setSidebandStream(getBE().compositionInfo.hwc.sidebandStream->handle());
         if (error != HWC2::Error::None) {
             ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
-                  getBE().mSidebandStream->handle(), to_string(error).c_str(),
+                  getBE().compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
                   static_cast<int32_t>(error));
         }
         return;
@@ -641,14 +641,14 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
 
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
-    hwcInfo.bufferCache.getHwcBuffer(getBE().mBufferSlot,
-                                     getBE().mBuffer, &hwcSlot, &hwcBuffer);
+    hwcInfo.bufferCache.getHwcBuffer(getBE().compositionInfo.mBufferSlot,
+                                     getBE().compositionInfo.mBuffer, &hwcSlot, &hwcBuffer);
 
     auto acquireFence = mSurfaceFlingerConsumer->getCurrentFence();
     error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
-              getBE().mBuffer->handle, to_string(error).c_str(),
+              getBE().compositionInfo.mBuffer->handle, to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
 }
@@ -656,7 +656,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
 bool BufferLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
-    if ((getBE().mSidebandStream == nullptr) && (getBE().mBuffer == nullptr)) {
+    if ((getBE().compositionInfo.hwc.sidebandStream == nullptr) && (getBE().compositionInfo.mBuffer == nullptr)) {
         return false;
     }
 

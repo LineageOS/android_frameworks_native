@@ -39,7 +39,6 @@
 #include <ui/PixelFormat.h>
 
 #include <gui/BufferItem.h>
-#include <gui/BufferQueue.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 
@@ -63,9 +62,7 @@
 namespace android {
 
 LayerBE::LayerBE()
-      : mBufferSlot(BufferQueue::INVALID_BUFFER_SLOT),
-        mBuffer(nullptr),
-        mMesh(Mesh::TRIANGLE_FAN, 4, 2, 2) {
+      : mMesh(Mesh::TRIANGLE_FAN, 4, 2, 2) {
 }
 
 
@@ -257,9 +254,9 @@ Rect Layer::getContentCrop() const {
     if (!mCurrentCrop.isEmpty()) {
         // if the buffer crop is defined, we use that
         crop = mCurrentCrop;
-    } else if (getBE().mBuffer != NULL) {
+    } else if (getBE().compositionInfo.mBuffer != NULL) {
         // otherwise we use the whole buffer
-        crop = getBE().mBuffer->getBounds();
+        crop = getBE().compositionInfo.mBuffer->getBounds();
     } else {
         // if we don't have a buffer yet, we use an empty/invalid crop
         crop.makeInvalid();
@@ -1002,9 +999,9 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     // to the old buffer. However in the state where we don't have an old buffer
     // there is no such concern but we may still be being used as a parent layer.
     const bool resizePending = ((c.requested.w != c.active.w) || (c.requested.h != c.active.h)) &&
-            (getBE().mBuffer != nullptr);
+            (getBE().compositionInfo.mBuffer != nullptr);
     if (!isFixedSize()) {
-        if (resizePending && getBE().mSidebandStream == NULL) {
+        if (resizePending && getBE().compositionInfo.hwc.sidebandStream == nullptr) {
             flags |= eDontUpdateGeometryState;
         }
     }
@@ -1401,7 +1398,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mMatrix[1][0] = ds.active.transform[1][0];
     info.mMatrix[1][1] = ds.active.transform[1][1];
     {
-        sp<const GraphicBuffer> buffer = getBE().mBuffer;
+        sp<const GraphicBuffer> buffer = getBE().compositionInfo.mBuffer;
         if (buffer != 0) {
             info.mActiveBufferWidth = buffer->getWidth();
             info.mActiveBufferHeight = buffer->getHeight();
@@ -1759,15 +1756,15 @@ Transform Layer::getTransform() const {
         // for in the transform. We need to mirror this scaling in child surfaces
         // or we will break the contract where WM can treat child surfaces as
         // pixels in the parent surface.
-        if (p->isFixedSize() && p->getBE().mBuffer != nullptr) {
+        if (p->isFixedSize() && p->getBE().compositionInfo.mBuffer != nullptr) {
             int bufferWidth;
             int bufferHeight;
             if ((p->mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) == 0) {
-                bufferWidth = p->getBE().mBuffer->getWidth();
-                bufferHeight = p->getBE().mBuffer->getHeight();
+                bufferWidth = p->getBE().compositionInfo.mBuffer->getWidth();
+                bufferHeight = p->getBE().compositionInfo.mBuffer->getHeight();
             } else {
-                bufferHeight = p->getBE().mBuffer->getWidth();
-                bufferWidth = p->getBE().mBuffer->getHeight();
+                bufferHeight = p->getBE().compositionInfo.mBuffer->getWidth();
+                bufferWidth = p->getBE().compositionInfo.mBuffer->getHeight();
             }
             float sx = p->getDrawingState().active.w / static_cast<float>(bufferWidth);
             float sy = p->getDrawingState().active.h / static_cast<float>(bufferHeight);
@@ -1867,7 +1864,7 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
         layerInfo->set_z_order_relative_of(zOrderRelativeOf->sequence);
     }
 
-    auto buffer = getBE().mBuffer;
+    auto buffer = getBE().compositionInfo.mBuffer;
     if (buffer != nullptr) {
         LayerProtoHelper::writeToProto(buffer, layerInfo->mutable_active_buffer());
     }
