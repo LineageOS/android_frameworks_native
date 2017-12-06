@@ -581,7 +581,7 @@ void FakeComposerClient::clearFrames() {
 }
 
 void FakeComposerClient::onSurfaceFlingerStart() {
-    mSurfaceComposer == nullptr;
+    mSurfaceComposer = nullptr;
     do {
         mSurfaceComposer = new android::SurfaceComposerClient;
         android::status_t initResult = mSurfaceComposer->initCheck();

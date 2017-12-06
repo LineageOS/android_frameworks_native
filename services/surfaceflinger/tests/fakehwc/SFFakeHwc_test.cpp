@@ -165,7 +165,7 @@ void DisplayTest::SetUp() {
     sp<ComposerClient> client = new ComposerClient(*mMockComposer);
     mMockComposer->setClient(client.get());
     mFakeService = new FakeComposerService(client);
-    mFakeService->registerAsService("mock");
+    (void)mFakeService->registerAsService("mock");
 
     android::hardware::ProcessState::self()->startThreadPool();
     android::ProcessState::self()->startThreadPool();
@@ -323,7 +323,7 @@ void TransactionTest::SetUpTestCase() {
     sp<ComposerClient> client = new ComposerClient(*sFakeComposer);
     sFakeComposer->setClient(client.get());
     sp<IComposer> fakeService = new FakeComposerService(client);
-    fakeService->registerAsService("mock");
+    (void)fakeService->registerAsService("mock");
 
     android::hardware::ProcessState::self()->startThreadPool();
     android::ProcessState::self()->startThreadPool();
