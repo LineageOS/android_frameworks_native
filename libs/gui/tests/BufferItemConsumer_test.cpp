@@ -76,8 +76,8 @@ class BufferItemConsumerTest : public ::testing::Test {
 
         int slot;
         sp<Fence> outFence;
-        status_t ret = mProducer->dequeueBuffer(&slot, &outFence, kWidth,
-                                                kHeight, 0, 0, nullptr);
+        status_t ret = mProducer->dequeueBuffer(&slot, &outFence, kWidth, kHeight, 0, 0,
+                                                nullptr, nullptr);
         ASSERT_GE(ret, 0);
 
         ALOGV("dequeueBuffer: slot=%d", slot);

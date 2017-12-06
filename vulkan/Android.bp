@@ -25,8 +25,22 @@ ndk_headers {
 
 cc_library_headers {
     name: "vulkan_headers",
-    export_include_dirs: ["include"],
     vendor_available: true,
+    header_libs: [
+        "libcutils_headers",
+        "libhardware_headers",
+    ],
+    export_header_lib_headers: [
+        "libcutils_headers",
+        "libhardware_headers",
+    ],
+    export_include_dirs: ["include"],
+}
+
+cc_library_headers {
+    name: "vulkan_headers_ndk",
+    export_include_dirs: ["include"],
+    sdk_version: "24",
 }
 
 subdirs = [

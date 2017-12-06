@@ -347,10 +347,10 @@ status_t BufferQueueProducer::waitForFreeSlotThenRelock(FreeSlotCaller caller,
     return NO_ERROR;
 }
 
-status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
-        sp<android::Fence> *outFence, uint32_t width, uint32_t height,
-        PixelFormat format, uint64_t usage,
-        FrameEventHistoryDelta* outTimestamps) {
+status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* outFence,
+                                            uint32_t width, uint32_t height, PixelFormat format,
+                                            uint64_t usage, uint64_t* outBufferAge,
+                                            FrameEventHistoryDelta* outTimestamps) {
     ATRACE_CALL();
     { // Autolock scope
         Mutex::Autolock lock(mCore->mMutex);
@@ -558,6 +558,9 @@ status_t BufferQueueProducer::dequeueBuffer(int *outSlot,
             mSlots[*outSlot].mFrameNumber,
             mSlots[*outSlot].mGraphicBuffer->handle, returnFlags);
 
+    if (outBufferAge) {
+        *outBufferAge = mCore->mBufferAge;
+    }
     addAndGetFrameTimestamps(nullptr, outTimestamps);
 
     return returnFlags;
@@ -1099,6 +1102,7 @@ int BufferQueueProducer::query(int what, int *outValue) {
             value = (mCore->mQueue.size() > 1);
             break;
         case NATIVE_WINDOW_CONSUMER_USAGE_BITS:
+            // deprecated; higher 32 bits are truncated
             value = static_cast<int32_t>(mCore->mConsumerUsageBits);
             break;
         case NATIVE_WINDOW_DEFAULT_DATASPACE:
@@ -1541,6 +1545,14 @@ status_t BufferQueueProducer::getUniqueId(uint64_t* outId) const {
     BQ_LOGV("getUniqueId");
 
     *outId = mCore->mUniqueId;
+    return NO_ERROR;
+}
+
+status_t BufferQueueProducer::getConsumerUsage(uint64_t* outUsage) const {
+    BQ_LOGV("getConsumerUsage");
+
+    Mutex::Autolock lock(mCore->mMutex);
+    *outUsage = mCore->mConsumerUsageBits;
     return NO_ERROR;
 }
 

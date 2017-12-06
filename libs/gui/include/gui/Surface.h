@@ -159,6 +159,7 @@ public:
     status_t getHdrSupport(bool* supported);
 
     status_t getUniqueId(uint64_t* outId) const;
+    status_t getConsumerUsage(uint64_t* outUsage) const;
 
     // Returns the CLOCK_MONOTONIC start time of the last dequeueBuffer call
     nsecs_t getLastDequeueStartTime() const;
@@ -223,6 +224,7 @@ private:
     int dispatchGetFrameTimestamps(va_list args);
     int dispatchGetWideColorSupport(va_list args);
     int dispatchGetHdrSupport(va_list args);
+    int dispatchGetConsumerUsage64(va_list args);
 
 protected:
     virtual int dequeueBuffer(ANativeWindowBuffer** buffer, int* fenceFd);
@@ -402,6 +404,10 @@ protected:
     // When a non-CPU producer is attached, this reflects the surface damage
     // (the change since the previous frame) passed in by the producer.
     Region mDirtyRegion;
+
+    // mBufferAge tracks the age of the contents of the most recently dequeued
+    // buffer as the number of frames that have elapsed since it was last queued
+    uint64_t mBufferAge;
 
     // Stores the current generation number. See setGenerationNumber and
     // IGraphicBufferProducer::setGenerationNumber for more information.

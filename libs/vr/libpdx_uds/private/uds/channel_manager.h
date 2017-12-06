@@ -16,13 +16,11 @@ class ChannelManager : public ChannelManagerInterface {
  public:
   static ChannelManager& Get();
 
-  LocalChannelHandle CreateHandle(LocalHandle data_fd, LocalHandle event_fd);
-  struct ChannelData {
-    LocalHandle data_fd;
-    ChannelEventReceiver event_receiver;
-  };
+  LocalChannelHandle CreateHandle(LocalHandle data_fd,
+                                  LocalHandle pollin_event_fd,
+                                  LocalHandle pollhup_event_fd);
 
-  ChannelData* GetChannelData(int32_t handle);
+  ChannelEventReceiver* GetChannelData(int32_t handle);
 
  private:
   ChannelManager() = default;
@@ -30,7 +28,7 @@ class ChannelManager : public ChannelManagerInterface {
   void CloseHandle(int32_t handle) override;
 
   std::mutex mutex_;
-  std::unordered_map<int32_t, ChannelData> channels_;
+  std::unordered_map<int32_t, ChannelEventReceiver> channels_;
 };
 
 }  // namespace uds

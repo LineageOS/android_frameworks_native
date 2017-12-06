@@ -60,6 +60,7 @@ class Colorizer;
 class DisplayDevice;
 class GraphicBuffer;
 class SurfaceFlinger;
+class LayerDebugInfo;
 
 // ---------------------------------------------------------------------------
 
@@ -419,8 +420,14 @@ public:
     bool isPotentialCursor() const { return mPotentialCursor;}
 
     /*
-     * called with the state lock when the surface is removed from the
-     * current list
+     * called with the state lock from a binder thread when the layer is
+     * removed from the current list to the pending removal list
+     */
+    void onRemovedFromCurrentState();
+
+    /*
+     * called with the state lock from the main thread when the layer is
+     * removed from the pending removal list
      */
     void onRemoved();
 
@@ -441,38 +448,24 @@ public:
     bool hasQueuedFrame() const { return mQueuedFrames > 0 ||
             mSidebandStreamChanged || mAutoRefresh; }
 
+    int32_t getQueuedFrameCount() const { return mQueuedFrames; }
+
 #ifdef USE_HWC2
     // -----------------------------------------------------------------------
 
+    bool createHwcLayer(HWComposer* hwc, int32_t hwcId);
+    bool destroyHwcLayer(int32_t hwcId);
+    void destroyAllHwcLayers();
+
     bool hasHwcLayer(int32_t hwcId) {
-        if (mHwcLayers.count(hwcId) == 0) {
-            return false;
-        }
-        if (mHwcLayers[hwcId].layer->isAbandoned()) {
-            ALOGI("Erasing abandoned layer %s on %d", mName.string(), hwcId);
-            mHwcLayers.erase(hwcId);
-            return false;
-        }
-        return true;
+        return mHwcLayers.count(hwcId) > 0;
     }
 
-    std::shared_ptr<HWC2::Layer> getHwcLayer(int32_t hwcId) {
+    HWC2::Layer* getHwcLayer(int32_t hwcId) {
         if (mHwcLayers.count(hwcId) == 0) {
             return nullptr;
         }
         return mHwcLayers[hwcId].layer;
-    }
-
-    void setHwcLayer(int32_t hwcId, std::shared_ptr<HWC2::Layer>&& layer) {
-        if (layer) {
-            mHwcLayers[hwcId].layer = layer;
-        } else {
-            mHwcLayers.erase(hwcId);
-        }
-    }
-
-    void clearHwcLayers() {
-        mHwcLayers.clear();
     }
 
 #endif
@@ -489,9 +482,9 @@ public:
     inline  const State&    getCurrentState() const { return mCurrentState; }
     inline  State&          getCurrentState()       { return mCurrentState; }
 
+    LayerDebugInfo getLayerDebugInfo() const;
 
     /* always call base class first */
-    void dump(String8& result, Colorizer& colorizer) const;
 #ifdef USE_HWC2
     static void miniDumpHeader(String8& result);
     void miniDump(String8& result, int32_t hwcId) const;
@@ -689,6 +682,9 @@ public:
     sp<IGraphicBufferProducer> getProducer() const;
     const String8& getName() const;
     void notifyAvailableFrames();
+
+    PixelFormat getPixelFormat() const { return mFormat; }
+
 private:
 
     // -----------------------------------------------------------------------
@@ -760,12 +756,14 @@ private:
     // HWC items, accessed from the main thread
     struct HWCInfo {
         HWCInfo()
-          : layer(),
+          : hwc(nullptr),
+            layer(nullptr),
             forceClientComposition(false),
             compositionType(HWC2::Composition::Invalid),
             clearClientTarget(false) {}
 
-        std::shared_ptr<HWC2::Layer> layer;
+        HWComposer* hwc;
+        HWC2::Layer* layer;
         bool forceClientComposition;
         HWC2::Composition compositionType;
         bool clearClientTarget;

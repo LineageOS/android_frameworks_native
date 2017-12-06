@@ -43,6 +43,7 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
   // See |IGraphicBufferProducer::dequeueBuffer|
   status_t dequeueBuffer(int* out_slot, sp<Fence>* out_fence, uint32_t width,
                          uint32_t height, PixelFormat format, uint64_t usage,
+                         uint64_t* outBufferAge,
                          FrameEventHistoryDelta* outTimestamps) override;
 
   // See |IGraphicBufferProducer::detachBuffer|
@@ -111,6 +112,9 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
   // See |IGraphicBufferProducer::getUniqueId|
   status_t getUniqueId(uint64_t* out_id) const override;
 
+  // See |IGraphicBufferProducer::getConsumerUsage|
+  status_t getConsumerUsage(uint64_t* out_usage) const override;
+
  private:
   using LocalHandle = pdx::LocalHandle;
 
@@ -130,6 +134,10 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
 
   // Remove a buffer via BufferHubRPC.
   status_t RemoveBuffer(size_t slot);
+
+  // Free all buffers which are owned by the prodcuer. Note that if graphic
+  // buffers are acquired by the consumer, we can't .
+  status_t FreeAllBuffers();
 
   // Concreate implementation backed by BufferHubBuffer.
   std::shared_ptr<ProducerQueue> queue_;

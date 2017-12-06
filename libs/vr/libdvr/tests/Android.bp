@@ -42,11 +42,13 @@ cc_test {
         "dvr_named_buffer-test.cpp",
     ],
 
+    header_libs: ["libdvr_headers"],
     static_libs: static_libraries,
     shared_libs: shared_libraries,
     cflags: [
         "-DLOG_TAG=\"dvr_api-test\"",
         "-DTRACE=0",
+        "-Wno-missing-field-initializers",
         "-O0",
         "-g",
     ],

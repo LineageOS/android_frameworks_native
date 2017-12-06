@@ -18,8 +18,6 @@
 #include <sys/prctl.h>
 #include <sys/resource.h>
 
-#include <pdx/default_transport/service_dispatcher.h>
-
 #include <functional>
 
 #include "DisplayHardware/ComposerHal.h"
@@ -66,9 +64,6 @@ bool VrFlinger::Init(Hwc2::Composer* hidl,
 
   ALOGI("Starting up VrFlinger...");
 
-  setpriority(PRIO_PROCESS, 0, android::PRIORITY_URGENT_DISPLAY);
-  set_sched_policy(0, SP_FOREGROUND);
-
   // We need to be able to create endpoints with full perms.
   umask(0000);
 
@@ -76,7 +71,7 @@ bool VrFlinger::Init(Hwc2::Composer* hidl,
 
   request_display_callback_ = request_display_callback;
 
-  dispatcher_ = android::pdx::default_transport::ServiceDispatcher::Create();
+  dispatcher_ = android::pdx::ServiceDispatcher::Create();
   CHECK_ERROR(!dispatcher_, error, "Failed to create service dispatcher.");
 
   display_service_ =
@@ -101,6 +96,9 @@ bool VrFlinger::Init(Hwc2::Composer* hidl,
   dispatcher_thread_ = std::thread([this]() {
     prctl(PR_SET_NAME, reinterpret_cast<unsigned long>("VrDispatch"), 0, 0, 0);
     ALOGI("Entering message loop.");
+
+    setpriority(PRIO_PROCESS, 0, android::PRIORITY_URGENT_DISPLAY);
+    set_sched_policy(0, SP_FOREGROUND);
 
     int ret = dispatcher_->EnterDispatchLoop();
     if (ret < 0) {
@@ -133,10 +131,6 @@ void VrFlinger::GrantDisplayOwnership() {
 
 void VrFlinger::SeizeDisplayOwnership() {
   display_service_->SeizeDisplayOwnership();
-}
-
-void VrFlinger::OnHardwareComposerRefresh() {
-  display_service_->OnHardwareComposerRefresh();
 }
 
 std::string VrFlinger::Dump() {

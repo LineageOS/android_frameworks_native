@@ -40,6 +40,7 @@
 
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
+#include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 
 #include "clz.h"
@@ -200,6 +201,14 @@ Layer::~Layer() {
     }
     mFlinger->deleteTextureAsync(mTextureName);
     mFrameTracker.logAndResetStats(mName);
+
+#ifdef USE_HWC2
+    if (!mHwcLayers.empty()) {
+        ALOGE("Found stale hardware composer layers when destroying "
+                "surface flinger layer %s", mName.string());
+        destroyAllHwcLayers();
+    }
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -284,22 +293,29 @@ void Layer::onSidebandStreamChanged() {
     }
 }
 
-// called with SurfaceFlinger::mStateLock from the drawing thread after
-// the layer has been remove from the current state list (and just before
-// it's removed from the drawing state list)
-void Layer::onRemoved() {
+void Layer::onRemovedFromCurrentState() {
+    // the layer is removed from SF mCurrentState to mLayersPendingRemoval
+
     if (mCurrentState.zOrderRelativeOf != nullptr) {
         sp<Layer> strongRelative = mCurrentState.zOrderRelativeOf.promote();
         if (strongRelative != nullptr) {
             strongRelative->removeZOrderRelative(this);
+            mFlinger->setTransactionFlags(eTraversalNeeded);
         }
         mCurrentState.zOrderRelativeOf = nullptr;
     }
 
-    mSurfaceFlingerConsumer->abandon();
+    for (const auto& child : mCurrentChildren) {
+        child->onRemovedFromCurrentState();
+    }
+}
 
+void Layer::onRemoved() {
+    // the layer is removed from SF mLayersPendingRemoval
+
+    mSurfaceFlingerConsumer->abandon();
 #ifdef USE_HWC2
-    clearHwcLayers();
+    destroyAllHwcLayers();
 #endif
 
     for (const auto& child : mCurrentChildren) {
@@ -359,6 +375,50 @@ sp<IGraphicBufferProducer> Layer::getProducer() const {
 // ---------------------------------------------------------------------------
 // h/w composer set-up
 // ---------------------------------------------------------------------------
+
+#ifdef USE_HWC2
+bool Layer::createHwcLayer(HWComposer* hwc, int32_t hwcId) {
+    LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0,
+                "Already have a layer for hwcId %d", hwcId);
+    HWC2::Layer* layer = hwc->createLayer(hwcId);
+    if (!layer) {
+        return false;
+    }
+    HWCInfo& hwcInfo = mHwcLayers[hwcId];
+    hwcInfo.hwc = hwc;
+    hwcInfo.layer = layer;
+    layer->setLayerDestroyedListener(
+            [this, hwcId] (HWC2::Layer* /*layer*/){mHwcLayers.erase(hwcId);});
+    return true;
+}
+
+bool Layer::destroyHwcLayer(int32_t hwcId) {
+    if (mHwcLayers.count(hwcId) == 0) {
+        return false;
+    }
+    auto& hwcInfo = mHwcLayers[hwcId];
+    LOG_ALWAYS_FATAL_IF(hwcInfo.layer == nullptr,
+            "Attempt to destroy null layer");
+    LOG_ALWAYS_FATAL_IF(hwcInfo.hwc == nullptr, "Missing HWComposer");
+    hwcInfo.hwc->destroyLayer(hwcId, hwcInfo.layer);
+    // The layer destroyed listener should have cleared the entry from
+    // mHwcLayers. Verify that.
+    LOG_ALWAYS_FATAL_IF(mHwcLayers.count(hwcId) != 0,
+            "Stale layer entry in mHwcLayers");
+
+    return true;
+}
+
+void Layer::destroyAllHwcLayers() {
+    size_t numLayers = mHwcLayers.size();
+    for (size_t i = 0; i < numLayers; ++i) {
+        LOG_ALWAYS_FATAL_IF(mHwcLayers.empty(), "destroyAllHwcLayers failed");
+        destroyHwcLayer(mHwcLayers.begin()->first);
+    }
+    LOG_ALWAYS_FATAL_IF(!mHwcLayers.empty(),
+            "All hardware composer layers should have been destroyed");
+}
+#endif
 
 Rect Layer::getContentCrop() const {
     // this is the crop rectangle that applies to the buffer
@@ -1306,7 +1366,8 @@ bool Layer::headFenceHasSignaled() const {
         // able to be latched. To avoid this, grab this buffer anyway.
         return true;
     }
-    return mQueueItems[0].mFence->getSignalTime() != INT64_MAX;
+    return mQueueItems[0].mFenceTime->getSignalTime() !=
+            Fence::SIGNAL_TIME_PENDING;
 #else
     return true;
 #endif
@@ -2008,9 +2069,6 @@ bool Layer::onPreComposition(nsecs_t refreshStartTime) {
 bool Layer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
         const std::shared_ptr<FenceTime>& presentFence,
         const CompositorTiming& compositorTiming) {
-    mAcquireTimeline.updateSignalTimes();
-    mReleaseTimeline.updateSignalTimes();
-
     // mFrameLatencyNeeded is true when a new frame was latched for the
     // composition.
     if (!mFrameLatencyNeeded)
@@ -2061,6 +2119,7 @@ void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
 
     auto releaseFenceTime = std::make_shared<FenceTime>(
             mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
+    mReleaseTimeline.updateSignalTimes();
     mReleaseTimeline.push(releaseFenceTime);
 
     Mutex::Autolock lock(mFrameEventHistoryMutex);
@@ -2251,6 +2310,7 @@ Region Layer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime)
 #ifndef USE_HWC2
         auto releaseFenceTime = std::make_shared<FenceTime>(
                 mSurfaceFlingerConsumer->getPrevFinalReleaseFence());
+        mReleaseTimeline.updateSignalTimes();
         mReleaseTimeline.push(releaseFenceTime);
         if (mPreviousFrameNumber != 0) {
             mFrameEventHistory.addRelease(mPreviousFrameNumber,
@@ -2360,69 +2420,51 @@ void Layer::updateTransformHint(const sp<const DisplayDevice>& hw) const {
 // debugging
 // ----------------------------------------------------------------------------
 
-void Layer::dump(String8& result, Colorizer& colorizer) const
-{
-    const Layer::State& s(getDrawingState());
-
-    colorizer.colorize(result, Colorizer::GREEN);
-    result.appendFormat(
-            "+ %s %p (%s)\n",
-            getTypeId(), this, getName().string());
-    colorizer.reset(result);
-
-    s.activeTransparentRegion.dump(result, "transparentRegion");
-    visibleRegion.dump(result, "visibleRegion");
-    surfaceDamageRegion.dump(result, "surfaceDamageRegion");
-    sp<Client> client(mClientRef.promote());
-    PixelFormat pf = PIXEL_FORMAT_UNKNOWN;
-    const sp<GraphicBuffer>& buffer(getActiveBuffer());
-    if (buffer != NULL) {
-        pf = buffer->getPixelFormat();
+LayerDebugInfo Layer::getLayerDebugInfo() const {
+    LayerDebugInfo info;
+    const Layer::State& ds = getDrawingState();
+    info.mName = getName();
+    sp<Layer> parent = getParent();
+    info.mParentName = (parent == nullptr ? std::string("none") : parent->getName().string());
+    info.mType = String8(getTypeId());
+    info.mTransparentRegion = ds.activeTransparentRegion;
+    info.mVisibleRegion = visibleRegion;
+    info.mSurfaceDamageRegion = surfaceDamageRegion;
+    info.mLayerStack = getLayerStack();
+    info.mX = ds.active.transform.tx();
+    info.mY = ds.active.transform.ty();
+    info.mZ = ds.z;
+    info.mWidth = ds.active.w;
+    info.mHeight = ds.active.h;
+    info.mCrop = ds.crop;
+    info.mFinalCrop = ds.finalCrop;
+    info.mAlpha = ds.alpha;
+    info.mFlags = ds.flags;
+    info.mPixelFormat = getPixelFormat();
+    info.mDataSpace = getDataSpace();
+    info.mMatrix[0][0] = ds.active.transform[0][0];
+    info.mMatrix[0][1] = ds.active.transform[0][1];
+    info.mMatrix[1][0] = ds.active.transform[1][0];
+    info.mMatrix[1][1] = ds.active.transform[1][1];
+    {
+        sp<const GraphicBuffer> activeBuffer = getActiveBuffer();
+        if (activeBuffer != 0) {
+            info.mActiveBufferWidth = activeBuffer->getWidth();
+            info.mActiveBufferHeight = activeBuffer->getHeight();
+            info.mActiveBufferStride = activeBuffer->getStride();
+            info.mActiveBufferFormat = activeBuffer->format;
+        } else {
+            info.mActiveBufferWidth = 0;
+            info.mActiveBufferHeight = 0;
+            info.mActiveBufferStride = 0;
+            info.mActiveBufferFormat = 0;
+        }
     }
-
-    result.appendFormat(            "      "
-            "layerStack=%4d, z=%9d, pos=(%g,%g), size=(%4d,%4d), "
-            "crop=(%4d,%4d,%4d,%4d), finalCrop=(%4d,%4d,%4d,%4d), "
-            "isOpaque=%1d, invalidate=%1d, "
-            "dataspace=%s, pixelformat=%s "
-#ifdef USE_HWC2
-            "alpha=%.3f, flags=0x%08x, tr=[%.2f, %.2f][%.2f, %.2f]\n"
-#else
-            "alpha=0x%02x, flags=0x%08x, tr=[%.2f, %.2f][%.2f, %.2f]\n"
-#endif
-            "      client=%p\n",
-            getLayerStack(), s.z,
-            s.active.transform.tx(), s.active.transform.ty(),
-            s.active.w, s.active.h,
-            s.crop.left, s.crop.top,
-            s.crop.right, s.crop.bottom,
-            s.finalCrop.left, s.finalCrop.top,
-            s.finalCrop.right, s.finalCrop.bottom,
-            isOpaque(s), contentDirty,
-            dataspaceDetails(getDataSpace()).c_str(), decodePixelFormat(pf).c_str(),
-            s.alpha, s.flags,
-            s.active.transform[0][0], s.active.transform[0][1],
-            s.active.transform[1][0], s.active.transform[1][1],
-            client.get());
-
-    sp<const GraphicBuffer> buf0(mActiveBuffer);
-    uint32_t w0=0, h0=0, s0=0, f0=0;
-    if (buf0 != 0) {
-        w0 = buf0->getWidth();
-        h0 = buf0->getHeight();
-        s0 = buf0->getStride();
-        f0 = buf0->format;
-    }
-    result.appendFormat(
-            "      "
-            "format=%2d, activeBuffer=[%4ux%4u:%4u,%3X],"
-            " queued-frames=%d, mRefreshPending=%d\n",
-            mFormat, w0, h0, s0,f0,
-            mQueuedFrames, mRefreshPending);
-
-    if (mSurfaceFlingerConsumer != 0) {
-        mSurfaceFlingerConsumer->dumpState(result, "            ");
-    }
+    info.mNumQueuedFrames = getQueuedFrameCount();
+    info.mRefreshPending = isBufferLatched();
+    info.mIsOpaque = isOpaque(ds);
+    info.mContentDirty = contentDirty;
+    return info;
 }
 
 #ifdef USE_HWC2
@@ -2506,6 +2548,12 @@ void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
         FrameEventHistoryDelta *outDelta) {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     if (newTimestamps) {
+        // If there are any unsignaled fences in the aquire timeline at this
+        // point, the previously queued frame hasn't been latched yet. Go ahead
+        // and try to get the signal time here so the syscall is taken out of
+        // the main thread's critical path.
+        mAcquireTimeline.updateSignalTimes();
+        // Push the new fence after updating since it's likely still pending.
         mAcquireTimeline.push(newTimestamps->acquireFence);
         mFrameEventHistory.addQueue(*newTimestamps);
     }

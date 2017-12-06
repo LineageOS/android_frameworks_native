@@ -111,6 +111,12 @@ cc_library_shared {
     ],
 }
 
+cc_library_headers {
+    name: "libui_headers",
+    export_include_dirs: ["include"],
+    vendor_available: true,
+}
+
 subdirs = [
     "tests",
     "tools",

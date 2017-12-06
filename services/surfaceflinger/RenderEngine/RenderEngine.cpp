@@ -64,7 +64,7 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat, uint32_t f
                        "EGL_ANDROIDX_no_config_context") &&
         !findExtension(eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS),
                        "EGL_KHR_no_config_context")) {
-        config = chooseEglConfig(display, hwcFormat);
+        config = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
     }
 
     EGLint renderableType = 0;
@@ -108,7 +108,7 @@ RenderEngine* RenderEngine::create(EGLDisplay display, int hwcFormat, uint32_t f
 
     EGLConfig dummyConfig = config;
     if (dummyConfig == EGL_NO_CONFIG) {
-        dummyConfig = chooseEglConfig(display, hwcFormat);
+        dummyConfig = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
     }
     EGLint attribs[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE, EGL_NONE };
     EGLSurface dummy = eglCreatePbufferSurface(display, dummyConfig, attribs);
@@ -406,7 +406,8 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format,
     return err;
 }
 
-EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format) {
+EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format,
+                                        bool logConfig) {
     status_t err;
     EGLConfig config;
 
@@ -427,18 +428,20 @@ EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format) {
         }
     }
 
-    // print some debugging info
-    EGLint r,g,b,a;
-    eglGetConfigAttrib(display, config, EGL_RED_SIZE,   &r);
-    eglGetConfigAttrib(display, config, EGL_GREEN_SIZE, &g);
-    eglGetConfigAttrib(display, config, EGL_BLUE_SIZE,  &b);
-    eglGetConfigAttrib(display, config, EGL_ALPHA_SIZE, &a);
-    ALOGI("EGL information:");
-    ALOGI("vendor    : %s", eglQueryString(display, EGL_VENDOR));
-    ALOGI("version   : %s", eglQueryString(display, EGL_VERSION));
-    ALOGI("extensions: %s", eglQueryString(display, EGL_EXTENSIONS));
-    ALOGI("Client API: %s", eglQueryString(display, EGL_CLIENT_APIS)?:"Not Supported");
-    ALOGI("EGLSurface: %d-%d-%d-%d, config=%p", r, g, b, a, config);
+    if (logConfig) {
+        // print some debugging info
+        EGLint r,g,b,a;
+        eglGetConfigAttrib(display, config, EGL_RED_SIZE,   &r);
+        eglGetConfigAttrib(display, config, EGL_GREEN_SIZE, &g);
+        eglGetConfigAttrib(display, config, EGL_BLUE_SIZE,  &b);
+        eglGetConfigAttrib(display, config, EGL_ALPHA_SIZE, &a);
+        ALOGI("EGL information:");
+        ALOGI("vendor    : %s", eglQueryString(display, EGL_VENDOR));
+        ALOGI("version   : %s", eglQueryString(display, EGL_VERSION));
+        ALOGI("extensions: %s", eglQueryString(display, EGL_EXTENSIONS));
+        ALOGI("Client API: %s", eglQueryString(display, EGL_CLIENT_APIS)?:"Not Supported");
+        ALOGI("EGLSurface: %d-%d-%d-%d, config=%p", r, g, b, a, config);
+    }
 
     return config;
 }

@@ -23,10 +23,14 @@
 #include <utils/Timers.h>
 #include <utils/RefBase.h>
 
+#include <ui/FenceTime.h>
+
+#include <memory>
+
 namespace android {
 
 class String8;
-class Fence;
+class FenceTime;
 class DispSyncThread;
 
 // DispSync maintains a model of the periodic hardware-based vsync events of a
@@ -69,7 +73,7 @@ public:
     //
     // This method should be called with the retire fence from each HWComposer
     // set call that affects the display.
-    bool addPresentFence(const sp<Fence>& fence);
+    bool addPresentFence(const std::shared_ptr<FenceTime>& fenceTime);
 
     // The beginResync, addResyncSample, and endResync methods are used to re-
     // synchronize the DispSync's model to the hardware vsync events.  The re-
@@ -131,6 +135,7 @@ private:
     enum { MIN_RESYNC_SAMPLES_FOR_UPDATE = 6 };
     enum { NUM_PRESENT_SAMPLES = 8 };
     enum { MAX_RESYNC_SAMPLES_WITHOUT_PRESENT = 4 };
+    enum { ACCEPTABLE_ZERO_ERR_SAMPLES_COUNT = 64 };
 
     const char* const mName;
 
@@ -148,8 +153,13 @@ private:
 
     // mError is the computed model error.  It is based on the difference
     // between the estimated vsync event times and those observed in the
-    // mPresentTimes array.
+    // mPresentFences array.
     nsecs_t mError;
+
+    // mZeroErrSamplesCount keeps track of how many times in a row there were
+    // zero timestamps available in the mPresentFences array.
+    // Used to sanity check that we are able to calculate the model error.
+    size_t mZeroErrSamplesCount;
 
     // Whether we have updated the vsync event model since the last resync.
     bool mModelUpdated;
@@ -164,8 +174,8 @@ private:
 
     // These member variables store information about the present fences used
     // to validate the currently computed model.
-    sp<Fence> mPresentFences[NUM_PRESENT_SAMPLES];
-    nsecs_t mPresentTimes[NUM_PRESENT_SAMPLES];
+    std::shared_ptr<FenceTime>
+            mPresentFences[NUM_PRESENT_SAMPLES] {FenceTime::NO_FENCE};
     size_t mPresentSampleOffset;
 
     int mRefreshSkipCount;

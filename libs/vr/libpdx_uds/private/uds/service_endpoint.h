@@ -7,12 +7,12 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <pdx/service.h>
 #include <pdx/service_endpoint.h>
 #include <uds/channel_event_set.h>
-#include <uds/service_dispatcher.h>
 
 namespace android {
 namespace pdx {
@@ -105,7 +105,7 @@ class Endpoint : public pdx::Endpoint {
   // socket file descriptor.
   Status<void> RegisterNewChannelForTests(LocalHandle channel_fd);
 
-  int epoll_fd() const { return epoll_fd_.Get(); }
+  int epoll_fd() const override { return epoll_fd_.Get(); }
 
  private:
   struct ChannelData {
@@ -140,7 +140,8 @@ class Endpoint : public pdx::Endpoint {
   Status<void> ReenableEpollEvent(const BorrowedHandle& channel_fd);
   Channel* GetChannelState(int32_t channel_id);
   BorrowedHandle GetChannelSocketFd(int32_t channel_id);
-  BorrowedHandle GetChannelEventFd(int32_t channel_id);
+  Status<std::pair<BorrowedHandle, BorrowedHandle>> GetChannelEventFd(
+      int32_t channel_id);
   int32_t GetChannelId(const BorrowedHandle& channel_fd);
   Status<void> CreateChannelSocketPair(LocalHandle* local_socket,
                                        LocalHandle* remote_socket);

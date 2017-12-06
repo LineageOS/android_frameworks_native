@@ -133,13 +133,14 @@ void HwcDisplay::GetChangedCompositionTypes(
               return lhs.info.z_order < rhs.info.z_order;
             });
 
-  int first_client_layer = -1, last_client_layer = -1;
+  const size_t no_layer = std::numeric_limits<size_t>::max();
+  size_t first_client_layer = no_layer, last_client_layer = no_layer;
   for (size_t i = 0; i < layers_.size(); ++i) {
     switch (layers_[i].composition_type) {
       case IComposerClient::Composition::SOLID_COLOR:
       case IComposerClient::Composition::CURSOR:
       case IComposerClient::Composition::SIDEBAND:
-        if (first_client_layer < 0)
+        if (first_client_layer == no_layer)
           first_client_layer = i;
 
         last_client_layer = i;
@@ -231,7 +232,7 @@ VrHwc::VrHwc() {}
 
 VrHwc::~VrHwc() {}
 
-bool VrHwc::hasCapability(Capability capability) const { return false; }
+bool VrHwc::hasCapability(Capability /* capability */) const { return false; }
 
 void VrHwc::removeClient() {
   std::lock_guard<std::mutex> guard(mutex_);
@@ -305,13 +306,15 @@ Error VrHwc::getActiveConfig(Display display, Config* outConfig) {
   return Error::NONE;
 }
 
-Error VrHwc::getClientTargetSupport(Display display, uint32_t width,
-                                    uint32_t height, PixelFormat format,
-                                    Dataspace dataspace) {
+Error VrHwc::getClientTargetSupport(Display /* display */, uint32_t /* width */,
+                                    uint32_t /* height */,
+                                    PixelFormat /* format */,
+                                    Dataspace /* dataspace */) {
   return Error::NONE;
 }
 
-Error VrHwc::getColorModes(Display display, hidl_vec<ColorMode>* outModes) {
+Error VrHwc::getColorModes(Display /* display */,
+                           hidl_vec<ColorMode>* outModes) {
   std::vector<ColorMode> color_modes(1, ColorMode::NATIVE);
   *outModes = hidl_vec<ColorMode>(color_modes);
   return Error::NONE;
@@ -378,7 +381,7 @@ Error VrHwc::getDisplayConfigs(Display display, hidl_vec<Config>* outConfigs) {
   return Error::NONE;
 }
 
-Error VrHwc::getDisplayName(Display display, hidl_string* outName) {
+Error VrHwc::getDisplayName(Display /* display */, hidl_string* outName) {
   *outName = hidl_string();
   return Error::NONE;
 }
@@ -408,7 +411,8 @@ Error VrHwc::getDozeSupport(Display display, bool* outSupport) {
   return Error::NONE;
 }
 
-Error VrHwc::getHdrCapabilities(Display display, hidl_vec<Hdr>* outTypes,
+Error VrHwc::getHdrCapabilities(Display /* display */,
+                                hidl_vec<Hdr>* /* outTypes */,
                                 float* outMaxLuminance,
                                 float* outMaxAverageLuminance,
                                 float* outMinLuminance) {
@@ -472,8 +476,8 @@ Error VrHwc::setColorTransform(Display display, const float* matrix,
 }
 
 Error VrHwc::setClientTarget(Display display, buffer_handle_t target,
-                             int32_t acquireFence, int32_t dataspace,
-                             const std::vector<hwc_rect_t>& damage) {
+                             int32_t acquireFence, int32_t /* dataspace */,
+                             const std::vector<hwc_rect_t>& /* damage */) {
   base::unique_fd fence(acquireFence);
   std::lock_guard<std::mutex> guard(mutex_);
   auto display_ptr = FindDisplay(display);
@@ -489,7 +493,7 @@ Error VrHwc::setClientTarget(Display display, buffer_handle_t target,
   return Error::NONE;
 }
 
-Error VrHwc::setOutputBuffer(Display display, buffer_handle_t buffer,
+Error VrHwc::setOutputBuffer(Display display, buffer_handle_t /* buffer */,
                              int32_t releaseFence) {
   base::unique_fd fence(releaseFence);
   std::lock_guard<std::mutex> guard(mutex_);
@@ -504,8 +508,9 @@ Error VrHwc::setOutputBuffer(Display display, buffer_handle_t buffer,
 Error VrHwc::validateDisplay(
     Display display, std::vector<Layer>* outChangedLayers,
     std::vector<IComposerClient::Composition>* outCompositionTypes,
-    uint32_t* outDisplayRequestMask, std::vector<Layer>* outRequestedLayers,
-    std::vector<uint32_t>* outRequestMasks) {
+    uint32_t* /* outDisplayRequestMask */,
+    std::vector<Layer>* /* outRequestedLayers */,
+    std::vector<uint32_t>* /* outRequestMasks */) {
   std::lock_guard<std::mutex> guard(mutex_);
   auto display_ptr = FindDisplay(display);
   if (!display_ptr)
@@ -516,7 +521,7 @@ Error VrHwc::validateDisplay(
   return Error::NONE;
 }
 
-Error VrHwc::acceptDisplayChanges(Display display) { return Error::NONE; }
+Error VrHwc::acceptDisplayChanges(Display /* display */) { return Error::NONE; }
 
 Error VrHwc::presentDisplay(Display display, int32_t* outPresentFence,
                             std::vector<Layer>* outLayers,
@@ -708,8 +713,8 @@ Error VrHwc::setLayerPlaneAlpha(Display display, Layer layer, float alpha) {
   return Error::NONE;
 }
 
-Error VrHwc::setLayerSidebandStream(Display display, Layer layer,
-                                    buffer_handle_t stream) {
+Error VrHwc::setLayerSidebandStream(Display display, Layer /* layer */,
+                                    buffer_handle_t /* stream */) {
   std::lock_guard<std::mutex> guard(mutex_);
   if (!FindDisplay(display))
     return Error::BAD_DISPLAY;
@@ -848,6 +853,14 @@ Return<void> VrHwc::createClient(createClient_cb hidl_cb) {
   client_ = client;
   hidl_cb(status, client);
   return Void();
+}
+
+void VrHwc::ForceDisplaysRefresh() {
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (client_ != nullptr) {
+    for (const auto& pair : displays_)
+      client_.promote()->onRefresh(pair.first);
+  }
 }
 
 void VrHwc::RegisterObserver(Observer* observer) {

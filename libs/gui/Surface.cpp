@@ -44,21 +44,19 @@
 
 namespace android {
 
-Surface::Surface(
-        const sp<IGraphicBufferProducer>& bufferProducer,
-        bool controlledByApp)
-    : mGraphicBufferProducer(bufferProducer),
-      mCrop(Rect::EMPTY_RECT),
-      mGenerationNumber(0),
-      mSharedBufferMode(false),
-      mAutoRefresh(false),
-      mSharedBufferSlot(BufferItem::INVALID_BUFFER_SLOT),
-      mSharedBufferHasBeenQueued(false),
-      mQueriedSupportedTimestamps(false),
-      mFrameTimestampsSupportsPresent(false),
-      mEnableFrameTimestamps(false),
-      mFrameEventHistory(std::make_unique<ProducerFrameEventHistory>())
-{
+Surface::Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controlledByApp)
+      : mGraphicBufferProducer(bufferProducer),
+        mCrop(Rect::EMPTY_RECT),
+        mBufferAge(0),
+        mGenerationNumber(0),
+        mSharedBufferMode(false),
+        mAutoRefresh(false),
+        mSharedBufferSlot(BufferItem::INVALID_BUFFER_SLOT),
+        mSharedBufferHasBeenQueued(false),
+        mQueriedSupportedTimestamps(false),
+        mFrameTimestampsSupportsPresent(false),
+        mEnableFrameTimestamps(false),
+        mFrameEventHistory(std::make_unique<ProducerFrameEventHistory>()) {
     // Initialize the ANativeWindow function pointers.
     ANativeWindow::setSwapInterval  = hook_setSwapInterval;
     ANativeWindow::dequeueBuffer    = hook_dequeueBuffer;
@@ -509,9 +507,10 @@ int Surface::dequeueBuffer(android_native_buffer_t** buffer, int* fenceFd) {
     nsecs_t startTime = systemTime();
 
     FrameEventHistoryDelta frameTimestamps;
-    status_t result = mGraphicBufferProducer->dequeueBuffer(&buf, &fence,
-            reqWidth, reqHeight, reqFormat, reqUsage,
-            enableFrameTimestamps ? &frameTimestamps : nullptr);
+    status_t result = mGraphicBufferProducer->dequeueBuffer(&buf, &fence, reqWidth, reqHeight,
+                                                            reqFormat, reqUsage, &mBufferAge,
+                                                            enableFrameTimestamps ? &frameTimestamps
+                                                                                  : nullptr);
     mLastDequeueDuration = systemTime() - startTime;
 
     if (result < 0) {
@@ -848,6 +847,14 @@ int Surface::query(int what, int* value) const {
                 }
                 return err;
             }
+            case NATIVE_WINDOW_BUFFER_AGE: {
+                if (mBufferAge > INT32_MAX) {
+                    *value = 0;
+                } else {
+                    *value = static_cast<int32_t>(mBufferAge);
+                }
+                return NO_ERROR;
+            }
             case NATIVE_WINDOW_LAST_DEQUEUE_DURATION: {
                 int64_t durationUs = mLastDequeueDuration / 1000;
                 *value = durationUs > std::numeric_limits<int>::max() ?
@@ -969,6 +976,9 @@ int Surface::perform(int operation, va_list args)
         break;
     case NATIVE_WINDOW_SET_USAGE64:
         res = dispatchSetUsage64(args);
+        break;
+    case NATIVE_WINDOW_GET_CONSUMER_USAGE64:
+        res = dispatchGetConsumerUsage64(args);
         break;
     default:
         res = NAME_NOT_FOUND;
@@ -1146,6 +1156,11 @@ int Surface::dispatchGetWideColorSupport(va_list args) {
 int Surface::dispatchGetHdrSupport(va_list args) {
     bool* outSupport = va_arg(args, bool*);
     return getHdrSupport(outSupport);
+}
+
+int Surface::dispatchGetConsumerUsage64(va_list args) {
+    uint64_t* usage = va_arg(args, uint64_t*);
+    return getConsumerUsage(usage);
 }
 
 int Surface::connect(int api) {
@@ -1715,6 +1730,11 @@ bool Surface::waitForNextFrame(uint64_t lastFrame, nsecs_t timeout) {
 status_t Surface::getUniqueId(uint64_t* outId) const {
     Mutex::Autolock lock(mMutex);
     return mGraphicBufferProducer->getUniqueId(outId);
+}
+
+int Surface::getConsumerUsage(uint64_t* outUsage) const {
+    Mutex::Autolock lock(mMutex);
+    return mGraphicBufferProducer->getConsumerUsage(outUsage);
 }
 
 nsecs_t Surface::getLastDequeueStartTime() const {

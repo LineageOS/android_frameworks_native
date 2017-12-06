@@ -382,7 +382,9 @@ public:
         if (outErr) {
             *outErr = err;
         } else {
-            ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set cursor position";
+            ASSERT_TRUE((err == HWC2_ERROR_NONE) ||
+                (err == HWC2_ERROR_BAD_LAYER)) <<
+                "failed to set cursor position";
         }
     }
 
@@ -652,7 +654,7 @@ public:
             hwc2_layer_request_t request = requests.at(i);
 
             EXPECT_EQ(std::count(layers.begin(), layers.end(), requestedLayer),
-                    0) << "get display requests returned an unknown layer";
+                    1) << "get display requests returned an unknown layer";
             EXPECT_NE(request, 0) << "returned empty request for layer "
                     << requestedLayer;
 
@@ -1603,9 +1605,10 @@ protected:
         EXPECT_EQ(layers.size(), fences.size());
 
         for (int32_t fence : fences) {
-            EXPECT_GE(sync_wait(fence, msWait), 0);
-            if (fence >= 0)
+            if (fence >= 0) {
+                EXPECT_GE(sync_wait(fence, msWait), 0);
                 close(fence);
+            }
         }
     }
 
@@ -1643,8 +1646,9 @@ protected:
                 testLayers->getBlendMode(layer)));
         EXPECT_NO_FATAL_FAILURE(setLayerColor(display, layer,
                 testLayers->getColor(layer)));
-        EXPECT_NO_FATAL_FAILURE(setCursorPosition(display, layer, cursor.left,
-                cursor.top));
+        if (composition == HWC2_COMPOSITION_CURSOR)
+            EXPECT_NO_FATAL_FAILURE(setCursorPosition(display, layer,
+            cursor.left, cursor.top));
         EXPECT_NO_FATAL_FAILURE(setLayerDataspace(display, layer,
                 testLayers->getDataspace(layer)));
         EXPECT_NO_FATAL_FAILURE(setLayerDisplayFrame(display, layer,
@@ -2895,7 +2899,6 @@ TEST_F(Hwc2Test, SET_CURSOR_POSITION_composition_type_unset)
     ASSERT_NO_FATAL_FAILURE(setLayerProperty(Hwc2TestCoverage::Complete,
             [] (Hwc2Test* test, hwc2_display_t display, hwc2_layer_t layer,
                     Hwc2TestLayer* testLayer, hwc2_error_t* outErr) {
-
                 const hwc_rect_t cursorPosition = testLayer->getCursorPosition();
                 EXPECT_NO_FATAL_FAILURE(test->setCursorPosition(display, layer,
                         cursorPosition.left, cursorPosition.top, outErr));
@@ -4406,11 +4409,11 @@ TEST_F(Hwc2Test, DESTROY_VIRTUAL_DISPLAY_bad_display)
 /* TESTCASE: Tests that the HWC2 cannot destroy a physical display. */
 TEST_F(Hwc2Test, DESTROY_VIRTUAL_DISPLAY_bad_parameter)
 {
-    hwc2_display_t display = HWC_DISPLAY_PRIMARY;
     hwc2_error_t err = HWC2_ERROR_NONE;
-
-    ASSERT_NO_FATAL_FAILURE(destroyVirtualDisplay(display, &err));
-    EXPECT_EQ(err, HWC2_ERROR_BAD_PARAMETER) << "returned wrong error code";
+    for (auto display : mDisplays) {
+        ASSERT_NO_FATAL_FAILURE(destroyVirtualDisplay(display, &err));
+        EXPECT_EQ(err, HWC2_ERROR_BAD_PARAMETER) << "returned wrong error code";
+    }
 }
 
 /* TESTCASE: Tests that the HWC2 can get the max virtual display count. */

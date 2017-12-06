@@ -40,10 +40,8 @@ namespace dvr {
 DisplayService::DisplayService(Hwc2::Composer* hidl,
                                RequestDisplayCallback request_display_callback)
     : BASE("DisplayService",
-           Endpoint::Create(display::DisplayProtocol::kClientPath)),
-      hardware_composer_(hidl, request_display_callback),
-      request_display_callback_(request_display_callback) {
-  hardware_composer_.Initialize();
+           Endpoint::Create(display::DisplayProtocol::kClientPath)) {
+  hardware_composer_.Initialize(hidl, request_display_callback);
 }
 
 bool DisplayService::IsInitialized() const {
@@ -126,6 +124,8 @@ void DisplayService::OnChannelClose(pdx::Message& message,
 // surface-specific messages to the per-instance handlers.
 Status<void> DisplayService::HandleMessage(pdx::Message& message) {
   ALOGD_IF(TRACE, "DisplayService::HandleMessage: opcode=%d", message.GetOp());
+  ATRACE_NAME("DisplayService::HandleMessage");
+
   switch (message.GetOp()) {
     case DisplayProtocol::GetMetrics::Opcode:
       DispatchRemoteMethod<DisplayProtocol::GetMetrics>(
@@ -245,18 +245,16 @@ Status<display::SurfaceInfo> DisplayService::OnCreateSurface(
           surface_status.GetErrorMessage().c_str());
     return ErrorStatus(surface_status.error());
   }
+  auto surface = surface_status.take();
+  message.SetChannel(surface);
 
-  SurfaceType surface_type = surface_status.get()->surface_type();
-  display::SurfaceUpdateFlags update_flags =
-      surface_status.get()->update_flags();
-  display::SurfaceInfo surface_info{surface_status.get()->surface_id(),
-                                    surface_status.get()->visible(),
-                                    surface_status.get()->z_order()};
+  // Update the surface with the attributes supplied with the create call. For
+  // application surfaces this has the side effect of notifying the display
+  // manager of the new surface. For direct surfaces, this may trigger a mode
+  // change, depending on the value of the visible attribute.
+  surface->OnSetAttributes(message, attributes);
 
-  message.SetChannel(surface_status.take());
-
-  SurfaceUpdated(surface_type, update_flags);
-  return {surface_info};
+  return {{surface->surface_id(), surface->visible(), surface->z_order()}};
 }
 
 void DisplayService::SurfaceUpdated(SurfaceType surface_type,
@@ -353,17 +351,9 @@ DisplayService::GetVisibleDisplaySurfaces() const {
 
 void DisplayService::UpdateActiveDisplaySurfaces() {
   auto visible_surfaces = GetVisibleDisplaySurfaces();
-
-  std::sort(visible_surfaces.begin(), visible_surfaces.end(),
-            [](const std::shared_ptr<DisplaySurface>& a,
-               const std::shared_ptr<DisplaySurface>& b) {
-              return a->z_order() < b->z_order();
-            });
-
   ALOGD_IF(TRACE,
            "DisplayService::UpdateActiveDisplaySurfaces: %zd visible surfaces",
            visible_surfaces.size());
-
   hardware_composer_.SetDisplaySurfaces(std::move(visible_surfaces));
 }
 
@@ -396,10 +386,6 @@ pdx::Status<void> DisplayService::DeleteGlobalBuffer(DvrGlobalBufferKey key) {
   }
 
   return {0};
-}
-
-void DisplayService::OnHardwareComposerRefresh() {
-  hardware_composer_.OnHardwareComposerRefresh();
 }
 
 void DisplayService::SetDisplayConfigurationUpdateNotifier(

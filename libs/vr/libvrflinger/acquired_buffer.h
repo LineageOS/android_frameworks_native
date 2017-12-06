@@ -21,7 +21,7 @@ class AcquiredBuffer {
   // this constructor; the constructor does not attempt to ACQUIRE the buffer
   // itself.
   AcquiredBuffer(const std::shared_ptr<BufferConsumer>& buffer,
-                 pdx::LocalHandle acquire_fence);
+                 pdx::LocalHandle acquire_fence, std::size_t slot = 0);
 
   // Constructs an AcquiredBuffer from a BufferConsumer. The BufferConsumer MUST
   // be in the POSTED state prior to calling this constructor, as this
@@ -64,13 +64,18 @@ class AcquiredBuffer {
   // to the producer. On success, the BufferConsumer and acquire fence are set
   // to empty state; if release fails, the BufferConsumer and acquire fence are
   // left in place and a negative error code is returned.
-  int Release(pdx::LocalHandle release_fence);
+  int Release(pdx::LocalHandle release_fence = {});
+
+  // Returns the slot in the queue this buffer belongs to. Buffers that are not
+  // part of a queue return 0.
+  std::size_t slot() const { return slot_; }
 
  private:
   std::shared_ptr<BufferConsumer> buffer_;
   // Mutable so that the fence can be closed when it is determined to be
   // signaled during IsAvailable().
   mutable pdx::LocalHandle acquire_fence_;
+  std::size_t slot_{0};
 
   AcquiredBuffer(const AcquiredBuffer&) = delete;
   void operator=(const AcquiredBuffer&) = delete;

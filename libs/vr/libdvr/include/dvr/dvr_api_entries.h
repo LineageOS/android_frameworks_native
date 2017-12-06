@@ -65,7 +65,7 @@ DVR_V1_API_ENTRY(BufferGlobalLayoutVersionGet);
 DVR_V1_API_ENTRY(WriteBufferQueueDestroy);
 DVR_V1_API_ENTRY(WriteBufferQueueGetCapacity);
 DVR_V1_API_ENTRY(WriteBufferQueueGetId);
-DVR_V1_API_ENTRY(WriteBufferQueueGetExternalSurface);
+DVR_V1_API_ENTRY(WriteBufferQueueGetExternalSurface);  // deprecated
 DVR_V1_API_ENTRY(WriteBufferQueueCreateReadQueue);
 DVR_V1_API_ENTRY(WriteBufferQueueDequeue);
 DVR_V1_API_ENTRY(WriteBufferQueueResizeBuffer);
@@ -160,3 +160,20 @@ DVR_V1_API_ENTRY(PoseClientSensorsEnable);
 
 // Read buffer queue
 DVR_V1_API_ENTRY(ReadBufferQueueGetEventFd);
+
+// Create write buffer queue locally
+DVR_V1_API_ENTRY(WriteBufferQueueCreate);
+
+// Gets an ANativeWindow from DvrWriteBufferQueue.
+DVR_V1_API_ENTRY(WriteBufferQueueGetANativeWindow);
+
+// Dvr{Read,Write}BufferQueue API for asynchronous IPC.
+DVR_V1_API_ENTRY(WriteBufferQueueGainBuffer);
+DVR_V1_API_ENTRY(WriteBufferQueuePostBuffer);
+DVR_V1_API_ENTRY(ReadBufferQueueAcquireBuffer);
+DVR_V1_API_ENTRY(ReadBufferQueueReleaseBuffer);
+
+// Pose client
+DVR_V1_API_ENTRY(PoseClientGetDataReader);
+DVR_V1_API_ENTRY(PoseClientDataCapture);
+DVR_V1_API_ENTRY(PoseClientDataReaderDestroy);

@@ -52,7 +52,7 @@ class BufferItemConsumer: public ConsumerBase
     // controlledByApp tells whether this consumer is controlled by the
     // application.
     BufferItemConsumer(const sp<IGraphicBufferConsumer>& consumer,
-            uint32_t consumerUsage, int bufferCount = DEFAULT_MAX_BUFFERS,
+            uint64_t consumerUsage, int bufferCount = DEFAULT_MAX_BUFFERS,
             bool controlledByApp = false);
 
     ~BufferItemConsumer() override;
