@@ -92,6 +92,7 @@ class RenderEngine;
 class EventControlThread;
 class VSyncSource;
 class InjectVSyncSource;
+class SurfaceFlingerBE;
 
 typedef std::function<void(const LayerVector::Visitor&)> TraverseLayersFunction;
 
@@ -108,12 +109,97 @@ enum {
     eTransactionMask          = 0x07
 };
 
+class SurfaceFlingerBE
+{
+public:
+    SurfaceFlingerBE();
+
+    // The current hardware composer interface.
+    //
+    // The following thread safety rules apply when accessing mHwc, either
+    // directly or via getHwComposer():
+    //
+    // 1. When recreating mHwc, acquire mStateLock. We currently recreate mHwc
+    //    only when switching into and out of vr. Recreating mHwc must only be
+    //    done on the main thread.
+    //
+    // 2. When accessing mHwc on the main thread, it's not necessary to acquire
+    //    mStateLock.
+    //
+    // 3. When accessing mHwc on a thread other than the main thread, we always
+    //    need to acquire mStateLock. This is because the main thread could be
+    //    in the process of destroying the current mHwc instance.
+    //
+    // The above thread safety rules only apply to SurfaceFlinger.cpp. In
+    // SurfaceFlinger_hwc1.cpp we create mHwc at surface flinger init and never
+    // destroy it, so it's always safe to access mHwc from any thread without
+    // acquiring mStateLock.
+    std::unique_ptr<HWComposer> mHwc;
+
+    const std::string mHwcServiceName; // "default" for real use, something else for testing.
+
+    // constant members (no synchronization needed for access)
+    std::unique_ptr<RenderEngine> mRenderEngine;
+    EGLContext mEGLContext;
+    EGLDisplay mEGLDisplay;
+    
+    FenceTimeline mGlCompositionDoneTimeline;
+    FenceTimeline mDisplayTimeline;
+
+    // protected by mCompositorTimingLock;
+    mutable std::mutex mCompositorTimingLock;
+    CompositorTiming mCompositorTiming;
+    
+    // Only accessed from the main thread.
+    struct CompositePresentTime {
+        nsecs_t composite { -1 };
+        std::shared_ptr<FenceTime> display { FenceTime::NO_FENCE };
+    };
+    std::queue<CompositePresentTime> mCompositePresentTimes;
+
+    static const size_t NUM_BUCKETS = 8; // < 1-7, 7+
+    nsecs_t mFrameBuckets[NUM_BUCKETS];
+    nsecs_t mTotalTime;
+    std::atomic<nsecs_t> mLastSwapTime;
+
+    // Double- vs. triple-buffering stats
+    struct BufferingStats {
+        BufferingStats()
+          : numSegments(0),
+            totalTime(0),
+            twoBufferTime(0),
+            doubleBufferedTime(0),
+            tripleBufferedTime(0) {}
+
+        size_t numSegments;
+        nsecs_t totalTime;
+
+        // "Two buffer" means that a third buffer was never used, whereas
+        // "double-buffered" means that on average the segment only used two
+        // buffers (though it may have used a third for some part of the
+        // segment)
+        nsecs_t twoBufferTime;
+        nsecs_t doubleBufferedTime;
+        nsecs_t tripleBufferedTime;
+    };
+    mutable Mutex mBufferingStatsMutex;
+    std::unordered_map<std::string, BufferingStats> mBufferingStats;
+
+    // The composer sequence id is a monotonically increasing integer that we
+    // use to differentiate callbacks from different hardware composer
+    // instances. Each hardware composer instance gets a different sequence id.
+    int32_t mComposerSequenceId;
+};
+
+
 class SurfaceFlinger : public BnSurfaceComposer,
                        public PriorityDumper,
                        private IBinder::DeathRecipient,
                        private HWC2::ComposerCallback
 {
 public:
+    SurfaceFlingerBE& getBE() { return mBE; }
+    const SurfaceFlingerBE& getBE() const { return mBE; }
 
     // This is the phase offset in nanoseconds of the software vsync event
     // relative to the vsync event reported by HWComposer.  The software vsync
@@ -219,7 +305,7 @@ public:
     const Vector< sp<Layer> >& getLayerSortedByZForHwcDisplay(int id);
 
     RenderEngine& getRenderEngine() const {
-        return *mRenderEngine;
+        return *getBE().mRenderEngine;
     }
 
     bool authenticateSurfaceTextureLocked(
@@ -509,7 +595,7 @@ private:
      * H/W composer
      */
 
-    HWComposer& getHwComposer() const { return *mHwc; }
+    HWComposer& getHwComposer() const { return *getBE().mHwc; }
 
     /* ------------------------------------------------------------------------
      * Compositing
@@ -632,32 +718,7 @@ private:
     // access must be protected by mInvalidateLock
     volatile int32_t mRepaintEverything;
 
-    // The current hardware composer interface.
-    //
-    // The following thread safety rules apply when accessing mHwc, either
-    // directly or via getHwComposer():
-    //
-    // 1. When recreating mHwc, acquire mStateLock. We currently recreate mHwc
-    //    only when switching into and out of vr. Recreating mHwc must only be
-    //    done on the main thread.
-    //
-    // 2. When accessing mHwc on the main thread, it's not necessary to acquire
-    //    mStateLock.
-    //
-    // 3. When accessing mHwc on a thread other than the main thread, we always
-    //    need to acquire mStateLock. This is because the main thread could be
-    //    in the process of destroying the current mHwc instance.
-    //
-    // The above thread safety rules only apply to SurfaceFlinger.cpp. In
-    // SurfaceFlinger_hwc1.cpp we create mHwc at surface flinger init and never
-    // destroy it, so it's always safe to access mHwc from any thread without
-    // acquiring mStateLock.
-    std::unique_ptr<HWComposer> mHwc;
-
-    const std::string mHwcServiceName; // "default" for real use, something else for testing.
-
     // constant members (no synchronization needed for access)
-    std::unique_ptr<RenderEngine> mRenderEngine;
     nsecs_t mBootTime;
     bool mGpuToCpuSupported;
     sp<EventThread> mEventThread;
@@ -676,8 +737,6 @@ private:
     std::vector<sp<Layer>> mLayersWithQueuedFrames;
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
     bool mHadClientComposition = false;
-    FenceTimeline mGlCompositionDoneTimeline;
-    FenceTimeline mDisplayTimeline;
 
     // this may only be written from the main thread with mStateLock held
     // it may be read from other threads with mStateLock held
@@ -716,17 +775,6 @@ private:
     bool mPrimaryHWVsyncEnabled;
     bool mHWVsyncAvailable;
 
-    // protected by mCompositorTimingLock;
-    mutable std::mutex mCompositorTimingLock;
-    CompositorTiming mCompositorTiming;
-
-    // Only accessed from the main thread.
-    struct CompositePresentTime {
-        nsecs_t composite { -1 };
-        std::shared_ptr<FenceTime> display { FenceTime::NO_FENCE };
-    };
-    std::queue<CompositePresentTime> mCompositePresentTimes;
-
     std::atomic<bool> mRefreshPending{false};
 
     /* ------------------------------------------------------------------------
@@ -743,35 +791,9 @@ private:
 
     // Static screen stats
     bool mHasPoweredOff;
-    static const size_t NUM_BUCKETS = 8; // < 1-7, 7+
-    nsecs_t mFrameBuckets[NUM_BUCKETS];
-    nsecs_t mTotalTime;
-    std::atomic<nsecs_t> mLastSwapTime;
 
     size_t mNumLayers;
 
-    // Double- vs. triple-buffering stats
-    struct BufferingStats {
-        BufferingStats()
-          : numSegments(0),
-            totalTime(0),
-            twoBufferTime(0),
-            doubleBufferedTime(0),
-            tripleBufferedTime(0) {}
-
-        size_t numSegments;
-        nsecs_t totalTime;
-
-        // "Two buffer" means that a third buffer was never used, whereas
-        // "double-buffered" means that on average the segment only used two
-        // buffers (though it may have used a third for some part of the
-        // segment)
-        nsecs_t twoBufferTime;
-        nsecs_t doubleBufferedTime;
-        nsecs_t tripleBufferedTime;
-    };
-    mutable Mutex mBufferingStatsMutex;
-    std::unordered_map<std::string, BufferingStats> mBufferingStats;
 
     // Verify that transaction is being called by an approved process:
     // either AID_GRAPHICS or AID_SYSTEM.
@@ -781,13 +803,11 @@ private:
     std::atomic<bool> mVrFlingerRequestsDisplay;
     static bool useVrFlinger;
     std::thread::id mMainThreadId;
-    // The composer sequence id is a monotonically increasing integer that we
-    // use to differentiate callbacks from different hardware composer
-    // instances. Each hardware composer instance gets a different sequence id.
-    int32_t mComposerSequenceId;
 
     float mSaturation = 1.0f;
     bool mForceNativeColorMode = false;
+
+    SurfaceFlingerBE mBE;
 };
 }; // namespace android
 
