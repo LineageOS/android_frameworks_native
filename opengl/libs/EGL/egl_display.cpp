@@ -79,6 +79,10 @@ egl_display_t::~egl_display_t() {
 }
 
 egl_display_t* egl_display_t::get(EGLDisplay dpy) {
+    if (uintptr_t(dpy) == 0) {
+        return nullptr;
+    }
+
     uintptr_t index = uintptr_t(dpy)-1U;
     if (index >= NUM_DISPLAYS || !sDisplay[index].isValid()) {
         return nullptr;
