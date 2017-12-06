@@ -136,12 +136,17 @@ private:
 // Composer is a wrapper to IComposer, a proxy to server-side composer.
 class Composer {
 public:
-    Composer(bool useVrComposer);
+    Composer(const std::string& serviceName);
 
     std::vector<IComposer::Capability> getCapabilities();
     std::string dumpDebugInfo();
 
     void registerCallback(const sp<IComposerCallback>& callback);
+
+    // Returns true if the connected composer service is running in a remote
+    // process, false otherwise. This will return false if the service is
+    // configured in passthrough mode, for example.
+    bool isRemote();
 
     // Reset all pending commands in the command buffer. Useful if you want to
     // skip a frame but have already queued some commands.

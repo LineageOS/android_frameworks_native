@@ -1,26 +1,25 @@
-#include "uds/service_dispatcher.h"
+#include <pdx/service_dispatcher.h>
 
 #include <errno.h>
 #include <log/log.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 
-#include "pdx/service.h"
-#include "uds/service_endpoint.h"
+#include <pdx/service.h>
+#include <pdx/service_endpoint.h>
 
 static const int kMaxEventsPerLoop = 128;
 
 namespace android {
 namespace pdx {
-namespace uds {
 
-std::unique_ptr<pdx::ServiceDispatcher> ServiceDispatcher::Create() {
+std::unique_ptr<ServiceDispatcher> ServiceDispatcher::Create() {
   std::unique_ptr<ServiceDispatcher> dispatcher{new ServiceDispatcher()};
   if (!dispatcher->epoll_fd_ || !dispatcher->event_fd_) {
     dispatcher.reset();
   }
 
-  return std::move(dispatcher);
+  return dispatcher;
 }
 
 ServiceDispatcher::ServiceDispatcher() {
@@ -70,18 +69,14 @@ void ServiceDispatcher::ThreadExit() {
 }
 
 int ServiceDispatcher::AddService(const std::shared_ptr<Service>& service) {
-  if (service->endpoint()->GetIpcTag() != Endpoint::kIpcTag)
-    return -EINVAL;
-
   std::lock_guard<std::mutex> autolock(mutex_);
 
-  auto* endpoint = static_cast<Endpoint*>(service->endpoint());
   epoll_event event;
   event.events = EPOLLIN;
   event.data.ptr = service.get();
 
-  if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, endpoint->epoll_fd(), &event) <
-      0) {
+  if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_ADD, service->endpoint()->epoll_fd(),
+                &event) < 0) {
     ALOGE("Failed to add service to dispatcher because: %s\n", strerror(errno));
     return -errno;
   }
@@ -91,9 +86,6 @@ int ServiceDispatcher::AddService(const std::shared_ptr<Service>& service) {
 }
 
 int ServiceDispatcher::RemoveService(const std::shared_ptr<Service>& service) {
-  if (service->endpoint()->GetIpcTag() != Endpoint::kIpcTag)
-    return -EINVAL;
-
   std::lock_guard<std::mutex> autolock(mutex_);
 
   // It's dangerous to remove a service while other threads may be using it.
@@ -101,16 +93,15 @@ int ServiceDispatcher::RemoveService(const std::shared_ptr<Service>& service) {
     return -EBUSY;
 
   epoll_event dummy;  // See BUGS in man 2 epoll_ctl.
-
-  auto* endpoint = static_cast<Endpoint*>(service->endpoint());
-  if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_DEL, endpoint->epoll_fd(), &dummy) <
-      0) {
+  if (epoll_ctl(epoll_fd_.Get(), EPOLL_CTL_DEL, service->endpoint()->epoll_fd(),
+                &dummy) < 0) {
     ALOGE("Failed to remove service from dispatcher because: %s\n",
           strerror(errno));
     return -errno;
   }
 
-  services_.remove(service);
+  services_.erase(std::remove(services_.begin(), services_.end(), service),
+                  services_.end());
   return 0;
 }
 
@@ -139,7 +130,7 @@ int ServiceDispatcher::ReceiveAndDispatch(int timeout) {
       Service* service = static_cast<Service*>(events[i].data.ptr);
 
       ALOGI_IF(TRACE, "Dispatching message: fd=%d\n",
-               static_cast<Endpoint*>(service->endpoint())->epoll_fd());
+               service->endpoint()->epoll_fd());
       service->ReceiveAndDispatch();
     }
   }
@@ -171,7 +162,7 @@ int ServiceDispatcher::EnterDispatchLoop() {
         Service* service = static_cast<Service*>(events[i].data.ptr);
 
         ALOGI_IF(TRACE, "Dispatching message: fd=%d\n",
-                 static_cast<Endpoint*>(service->endpoint())->epoll_fd());
+                 service->endpoint()->epoll_fd());
         service->ReceiveAndDispatch();
       }
     }
@@ -197,6 +188,5 @@ void ServiceDispatcher::SetCanceled(bool cancel) {
 
 bool ServiceDispatcher::IsCanceled() const { return canceled_; }
 
-}  // namespace uds
 }  // namespace pdx
 }  // namespace android

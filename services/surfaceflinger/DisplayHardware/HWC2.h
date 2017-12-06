@@ -53,24 +53,37 @@ namespace HWC2 {
 class Display;
 class Layer;
 
-typedef std::function<void(std::shared_ptr<Display>, Connection)>
-        HotplugCallback;
-typedef std::function<void(std::shared_ptr<Display>)> RefreshCallback;
-typedef std::function<void(std::shared_ptr<Display>, nsecs_t)> VsyncCallback;
+// Implement this interface to receive hardware composer events.
+//
+// These callback functions will generally be called on a hwbinder thread, but
+// when first registering the callback the onHotplugReceived() function will
+// immediately be called on the thread calling registerCallback().
+//
+// All calls receive a sequenceId, which will be the value that was supplied to
+// HWC2::Device::registerCallback(). It's used to help differentiate callbacks
+// from different hardware composer instances.
+class ComposerCallback {
+ public:
+    virtual void onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
+                                   Connection connection,
+                                   bool primaryDisplay) = 0;
+    virtual void onRefreshReceived(int32_t sequenceId,
+                                   hwc2_display_t display) = 0;
+    virtual void onVsyncReceived(int32_t sequenceId, hwc2_display_t display,
+                                 int64_t timestamp) = 0;
+    virtual ~ComposerCallback() = default;
+};
 
 // C++ Wrapper around hwc2_device_t. Load all functions pointers
 // and handle callback registration.
 class Device
 {
 public:
-    // useVrComposer is passed to the composer HAL. When true, the composer HAL
-    // will use the vr composer service, otherwise it uses the real hardware
-    // composer.
-    Device(bool useVrComposer);
-    ~Device();
+    // Service name is expected to be 'default' or 'vr' for normal use.
+    // 'vr' will slightly modify the behavior of the mComposer.
+    Device(const std::string& serviceName);
 
-    friend class HWC2::Display;
-    friend class HWC2::Layer;
+    void registerCallback(ComposerCallback* callback, int32_t sequenceId);
 
     // Required by HWC2
 
@@ -82,27 +95,14 @@ public:
 
     uint32_t getMaxVirtualDisplayCount() const;
     Error createVirtualDisplay(uint32_t width, uint32_t height,
-            android_pixel_format_t* format,
-            std::shared_ptr<Display>* outDisplay);
+            android_pixel_format_t* format, Display** outDisplay);
+    void destroyDisplay(hwc2_display_t displayId);
 
-    void registerHotplugCallback(HotplugCallback hotplug);
-    void registerRefreshCallback(RefreshCallback refresh);
-    void registerVsyncCallback(VsyncCallback vsync);
-
-    // For use by callbacks
-
-    void callHotplug(std::shared_ptr<Display> display, Connection connected);
-    void callRefresh(std::shared_ptr<Display> display);
-    void callVsync(std::shared_ptr<Display> display, nsecs_t timestamp);
+    void onHotplug(hwc2_display_t displayId, Connection connection);
 
     // Other Device methods
 
-    // This will create a Display if one is not found, but it will not be marked
-    // as connected. This Display may be null if the display has been torn down
-    // but has not been removed from the map yet.
-    std::shared_ptr<Display> getDisplayById(hwc2_display_t id);
-
-    bool hasCapability(HWC2::Capability capability) const;
+    Display* getDisplayById(hwc2_display_t id);
 
     android::Hwc2::Composer* getComposer() { return mComposer.get(); }
 
@@ -110,36 +110,22 @@ private:
     // Initialization methods
 
     void loadCapabilities();
-    void registerCallbacks();
-
-    // For use by Display
-
-    void destroyVirtualDisplay(hwc2_display_t display);
 
     // Member variables
     std::unique_ptr<android::Hwc2::Composer> mComposer;
-
     std::unordered_set<Capability> mCapabilities;
-    std::unordered_map<hwc2_display_t, std::weak_ptr<Display>> mDisplays;
-
-    HotplugCallback mHotplug;
-    std::vector<std::pair<std::shared_ptr<Display>, Connection>>
-            mPendingHotplugs;
-    RefreshCallback mRefresh;
-    std::vector<std::shared_ptr<Display>> mPendingRefreshes;
-    VsyncCallback mVsync;
-    std::vector<std::pair<std::shared_ptr<Display>, nsecs_t>> mPendingVsyncs;
+    std::unordered_map<hwc2_display_t, std::unique_ptr<Display>> mDisplays;
+    bool mRegisteredCallback;
 };
 
 // Convenience C++ class to access hwc2_device_t Display functions directly.
-class Display : public std::enable_shared_from_this<Display>
+class Display
 {
 public:
-    Display(Device& device, hwc2_display_t id);
+    Display(android::Hwc2::Composer& composer,
+            const std::unordered_set<Capability>& capabilities,
+            hwc2_display_t id, DisplayType type);
     ~Display();
-
-    friend class HWC2::Device;
-    friend class HWC2::Layer;
 
     class Config
     {
@@ -213,12 +199,12 @@ public:
     // Required by HWC2
 
     [[clang::warn_unused_result]] Error acceptChanges();
-    [[clang::warn_unused_result]] Error createLayer(
-            std::shared_ptr<Layer>* outLayer);
+    [[clang::warn_unused_result]] Error createLayer(Layer** outLayer);
+    [[clang::warn_unused_result]] Error destroyLayer(Layer* layer);
     [[clang::warn_unused_result]] Error getActiveConfig(
             std::shared_ptr<const Config>* outConfig) const;
     [[clang::warn_unused_result]] Error getChangedCompositionTypes(
-            std::unordered_map<std::shared_ptr<Layer>, Composition>* outTypes);
+            std::unordered_map<Layer*, Composition>* outTypes);
     [[clang::warn_unused_result]] Error getColorModes(
             std::vector<android_color_mode_t>* outModes) const;
 
@@ -228,14 +214,13 @@ public:
     [[clang::warn_unused_result]] Error getName(std::string* outName) const;
     [[clang::warn_unused_result]] Error getRequests(
             DisplayRequest* outDisplayRequests,
-            std::unordered_map<std::shared_ptr<Layer>, LayerRequest>*
-                    outLayerRequests);
+            std::unordered_map<Layer*, LayerRequest>* outLayerRequests);
     [[clang::warn_unused_result]] Error getType(DisplayType* outType) const;
     [[clang::warn_unused_result]] Error supportsDoze(bool* outSupport) const;
     [[clang::warn_unused_result]] Error getHdrCapabilities(
             std::unique_ptr<android::HdrCapabilities>* outCapabilities) const;
     [[clang::warn_unused_result]] Error getReleaseFences(
-            std::unordered_map<std::shared_ptr<Layer>,
+            std::unordered_map<Layer*,
                     android::sp<android::Fence>>* outFences) const;
     [[clang::warn_unused_result]] Error present(
             android::sp<android::Fence>* outPresentFence);
@@ -267,32 +252,31 @@ public:
 
     // Other Display methods
 
-    Device& getDevice() const { return mDevice; }
     hwc2_display_t getId() const { return mId; }
     bool isConnected() const { return mIsConnected; }
+    void setConnected(bool connected);  // For use by Device only
 
 private:
-    // For use by Device
-
-    void setConnected(bool connected) { mIsConnected = connected; }
     int32_t getAttribute(hwc2_config_t configId, Attribute attribute);
     void loadConfig(hwc2_config_t configId);
     void loadConfigs();
 
-    // For use by Layer
-    void destroyLayer(hwc2_layer_t layerId);
-
     // This may fail (and return a null pointer) if no layer with this ID exists
     // on this display
-    std::shared_ptr<Layer> getLayerById(hwc2_layer_t id) const;
+    Layer* getLayerById(hwc2_layer_t id) const;
 
     // Member variables
 
-    Device& mDevice;
+    // These are references to data owned by HWC2::Device, which will outlive
+    // this HWC2::Display, so these references are guaranteed to be valid for
+    // the lifetime of this object.
+    android::Hwc2::Composer& mComposer;
+    const std::unordered_set<Capability>& mCapabilities;
+
     hwc2_display_t mId;
     bool mIsConnected;
     DisplayType mType;
-    std::unordered_map<hwc2_layer_t, std::weak_ptr<Layer>> mLayers;
+    std::unordered_map<hwc2_layer_t, std::unique_ptr<Layer>> mLayers;
     // The ordering in this map matters, for getConfigs(), when it is
     // converted to a vector
     std::map<hwc2_config_t, std::shared_ptr<const Config>> mConfigs;
@@ -302,11 +286,17 @@ private:
 class Layer
 {
 public:
-    Layer(const std::shared_ptr<Display>& display, hwc2_layer_t id);
+    Layer(android::Hwc2::Composer& composer,
+          const std::unordered_set<Capability>& capabilities,
+          hwc2_display_t displayId, hwc2_layer_t layerId);
     ~Layer();
 
-    bool isAbandoned() const { return mDisplay.expired(); }
     hwc2_layer_t getId() const { return mId; }
+
+    // Register a listener to be notified when the layer is destroyed. When the
+    // listener function is called, the Layer will be in the process of being
+    // destroyed, so it's not safe to call methods on it.
+    void setLayerDestroyedListener(std::function<void(Layer*)> listener);
 
     [[clang::warn_unused_result]] Error setCursorPosition(int32_t x, int32_t y);
     [[clang::warn_unused_result]] Error setBuffer(uint32_t slot,
@@ -334,11 +324,16 @@ public:
     [[clang::warn_unused_result]] Error setInfo(uint32_t type, uint32_t appId);
 
 private:
-    std::weak_ptr<Display> mDisplay;
+    // These are references to data owned by HWC2::Device, which will outlive
+    // this HWC2::Layer, so these references are guaranteed to be valid for
+    // the lifetime of this object.
+    android::Hwc2::Composer& mComposer;
+    const std::unordered_set<Capability>& mCapabilities;
+
     hwc2_display_t mDisplayId;
-    Device& mDevice;
     hwc2_layer_t mId;
     android_dataspace mDataSpace = HAL_DATASPACE_UNKNOWN;
+    std::function<void(Layer*)> mLayerDestroyedListener;
 };
 
 } // namespace HWC2

@@ -38,8 +38,10 @@ public:
     }
     status_t setAsyncMode(bool async) override { return mProducer->setAsyncMode(async); }
     status_t dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w, uint32_t h, PixelFormat format,
-                           uint64_t usage, FrameEventHistoryDelta* outTimestamps) override {
-        return mProducer->dequeueBuffer(slot, fence, w, h, format, usage, outTimestamps);
+                           uint64_t usage, uint64_t* outBufferAge,
+                           FrameEventHistoryDelta* outTimestamps) override {
+        return mProducer->dequeueBuffer(slot, fence, w, h, format, usage, outBufferAge,
+                                        outTimestamps);
     }
     status_t detachBuffer(int slot) override { return mProducer->detachBuffer(slot); }
     status_t detachNextBuffer(sp<GraphicBuffer>* outBuffer, sp<Fence>* outFence) override {
@@ -90,6 +92,9 @@ public:
     }
     void getFrameTimestamps(FrameEventHistoryDelta*) override {}
     status_t getUniqueId(uint64_t* outId) const override { return mProducer->getUniqueId(outId); }
+    status_t getConsumerUsage(uint64_t* outUsage) const override {
+        return mProducer->getConsumerUsage(outUsage);
+    }
 
 protected:
     sp<IGraphicBufferProducer> mProducer;
@@ -105,10 +110,10 @@ public:
 
     // Override dequeueBuffer, optionally corrupting the returned slot number
     status_t dequeueBuffer(int* buf, sp<Fence>* fence, uint32_t width, uint32_t height,
-                           PixelFormat format, uint64_t usage,
+                           PixelFormat format, uint64_t usage, uint64_t* outBufferAge,
                            FrameEventHistoryDelta* outTimestamps) override {
         EXPECT_EQ(BUFFER_NEEDS_REALLOCATION,
-                  mProducer->dequeueBuffer(buf, fence, width, height, format, usage,
+                  mProducer->dequeueBuffer(buf, fence, width, height, format, usage, outBufferAge,
                                            outTimestamps));
         EXPECT_EQ(mExpectedSlot, *buf);
         if (mMaliciousValue != 0) {

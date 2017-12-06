@@ -25,6 +25,8 @@ on post-fs
     chown root shell /sys/kernel/tracing/events/sched/sched_blocked_reason/enable
     chown root shell /sys/kernel/debug/tracing/events/sched/sched_cpu_hotplug/enable
     chown root shell /sys/kernel/tracing/events/sched/sched_cpu_hotplug/enable
+    chown root shell /sys/kernel/debug/tracing/events/cgroup/enable
+    chown root shell /sys/kernel/tracing/events/cgroup/enable
     chown root shell /sys/kernel/debug/tracing/events/power/cpu_frequency/enable
     chown root shell /sys/kernel/tracing/events/power/cpu_frequency/enable
     chown root shell /sys/kernel/debug/tracing/events/power/cpu_idle/enable
@@ -77,6 +79,8 @@ on post-fs
     chmod 0664 /sys/kernel/tracing/events/sched/sched_blocked_reason/enable
     chmod 0664 /sys/kernel/debug/tracing/events/sched/sched_cpu_hotplug/enable
     chmod 0664 /sys/kernel/tracing/events/sched/sched_cpu_hotplug/enable
+    chmod 0664 /sys/kernel/debug/tracing/events/cgroup/enable
+    chmod 0664 /sys/kernel/tracing/events/cgroup/enable
     chmod 0664 /sys/kernel/debug/tracing/events/power/cpu_frequency/enable
     chmod 0664 /sys/kernel/tracing/events/power/cpu_frequency/enable
     chmod 0664 /sys/kernel/debug/tracing/events/power/cpu_idle/enable

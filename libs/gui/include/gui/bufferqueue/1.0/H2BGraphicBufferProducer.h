@@ -64,9 +64,9 @@ struct H2BGraphicBufferProducer : public ::android::H2BConverter<
     status_t requestBuffer(int slot, sp<GraphicBuffer>* buf) override;
     status_t setMaxDequeuedBufferCount(int maxDequeuedBuffers) override;
     status_t setAsyncMode(bool async) override;
-    status_t dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w,
-            uint32_t h, ::android::PixelFormat format, uint64_t usage,
-            FrameEventHistoryDelta* outTimestamps) override;
+    status_t dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w, uint32_t h,
+                           ::android::PixelFormat format, uint64_t usage, uint64_t* outBufferAge,
+                           FrameEventHistoryDelta* outTimestamps) override;
     status_t detachBuffer(int slot) override;
     status_t detachNextBuffer(sp<GraphicBuffer>* outBuffer, sp<Fence>* outFence)
             override;
@@ -94,6 +94,7 @@ struct H2BGraphicBufferProducer : public ::android::H2BConverter<
           sp<Fence>* outFence, float outTransformMatrix[16]) override;
     void getFrameTimestamps(FrameEventHistoryDelta* outDelta) override;
     status_t getUniqueId(uint64_t* outId) const override;
+    status_t getConsumerUsage(uint64_t* outUsage) const override;
 };
 
 }  // namespace utils

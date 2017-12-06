@@ -4,7 +4,7 @@
 #include <thread>
 #include <memory>
 
-#include <pdx/default_transport/service_dispatcher.h>
+#include <pdx/service_dispatcher.h>
 #include <vr/vr_manager/vr_manager.h>
 
 namespace android {
@@ -28,9 +28,6 @@ class VrFlinger {
   void OnBootFinished();
   void GrantDisplayOwnership();
   void SeizeDisplayOwnership();
-
-  // Called on a binder thread.
-  void OnHardwareComposerRefresh();
 
   // dump all vr flinger state.
   std::string Dump();

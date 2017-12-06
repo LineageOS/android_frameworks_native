@@ -21,6 +21,8 @@
 #include <gui/bufferqueue/1.0/H2BGraphicBufferProducer.h>
 #include <gui/bufferqueue/1.0/B2HProducerListener.h>
 
+#include <system/window.h>
+
 namespace android {
 namespace hardware {
 namespace graphics {
@@ -989,10 +991,10 @@ status_t H2BGraphicBufferProducer::setAsyncMode(bool async) {
 }
 
 // FIXME: usage bits truncated -- needs a 64-bits usage version
-status_t H2BGraphicBufferProducer::dequeueBuffer(
-        int* slot, sp<Fence>* fence,
-        uint32_t w, uint32_t h, ::android::PixelFormat format,
-        uint64_t usage, FrameEventHistoryDelta* outTimestamps) {
+status_t H2BGraphicBufferProducer::dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w,
+                                                 uint32_t h, ::android::PixelFormat format,
+                                                 uint64_t usage, uint64_t* outBufferAge,
+                                                 FrameEventHistoryDelta* outTimestamps) {
     *fence = new Fence();
     status_t fnStatus;
     status_t transStatus = toStatusT(mBase->dequeueBuffer(
@@ -1016,6 +1018,10 @@ status_t H2BGraphicBufferProducer::dequeueBuffer(
                     fnStatus = fnStatus == NO_ERROR ? BAD_VALUE : fnStatus;
                 }
             }));
+    if (outBufferAge) {
+        // Since the HAL version doesn't return the buffer age, set it to 0:
+        *outBufferAge = 0;
+    }
     return transStatus == NO_ERROR ? fnStatus : transStatus;
 }
 
@@ -1226,6 +1232,18 @@ status_t H2BGraphicBufferProducer::getUniqueId(uint64_t* outId) const {
                 *outId = id;
             }));
     return transStatus == NO_ERROR ? fnStatus : transStatus;
+}
+
+status_t H2BGraphicBufferProducer::getConsumerUsage(uint64_t* outUsage) const {
+    ALOGW("getConsumerUsage is not fully supported");
+    int result;
+    status_t transStatus = toStatusT(mBase->query(
+            NATIVE_WINDOW_CONSUMER_USAGE_BITS,
+            [&result, outUsage] (int32_t tResult, int32_t tValue) {
+                result = static_cast<int>(tResult);
+                *outUsage = static_cast<uint64_t>(tValue);
+            }));
+    return transStatus == NO_ERROR ? result : static_cast<int>(transStatus);
 }
 
 }  // namespace utils

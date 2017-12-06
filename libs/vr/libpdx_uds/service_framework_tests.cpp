@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
@@ -16,10 +17,10 @@
 #include <pdx/client.h>
 #include <pdx/file_handle.h>
 #include <pdx/service.h>
+#include <pdx/service_dispatcher.h>
 #include <private/android_filesystem_config.h>
 #include <uds/client_channel.h>
 #include <uds/client_channel_factory.h>
-#include <uds/service_dispatcher.h>
 #include <uds/service_endpoint.h>
 
 using android::pdx::BorrowedChannelHandle;
@@ -425,7 +426,7 @@ class ServiceFrameworkTest : public ::testing::Test {
 
   void SetUp() override {
     // Create a dispatcher to handle messages to services.
-    dispatcher_ = android::pdx::uds::ServiceDispatcher::Create();
+    dispatcher_ = android::pdx::ServiceDispatcher::Create();
     ASSERT_NE(nullptr, dispatcher_);
 
     // Start the message dispatch loop in a separate thread.
@@ -506,6 +507,37 @@ TEST_F(ServiceFrameworkTest, Impulse) {
   EXPECT_EQ(-EINVAL, client->SendAsync(invalid_pointer, sizeof(int)));
 }
 
+// Test impulses.
+TEST_F(ServiceFrameworkTest, ImpulseHangup) {
+  // Create a test service and add it to the dispatcher.
+  auto service = TestService::Create(kTestService1);
+  ASSERT_NE(nullptr, service);
+  ASSERT_EQ(0, dispatcher_->AddService(service));
+
+  auto client = TestClient::Create(kTestService1);
+  ASSERT_NE(nullptr, client);
+
+  const int kMaxIterations = 1000;
+  for (int i = 0; i < kMaxIterations; i++) {
+    auto impulse_client = TestClient::Create(kTestService1);
+    ASSERT_NE(nullptr, impulse_client);
+
+    const uint8_t a = (i >> 0) & 0xff;
+    const uint8_t b = (i >> 8) & 0xff;
+    const uint8_t c = (i >> 16) & 0xff;
+    const uint8_t d = (i >> 24) & 0xff;
+    ImpulsePayload expected_payload = {{a, b, c, d}};
+    EXPECT_EQ(0, impulse_client->SendAsync(expected_payload.data(), 4));
+
+    // Hangup the impulse test client, then send a sync message over client to
+    // make sure the hangup message is handled before checking the impulse
+    // payload.
+    impulse_client = nullptr;
+    client->GetThisChannelId();
+    EXPECT_EQ(expected_payload, service->GetImpulsePayload());
+  }
+}
+
 // Test Message::PushChannel/Service::PushChannel API.
 TEST_F(ServiceFrameworkTest, PushChannel) {
   // Create a test service and add it to the dispatcher.
@@ -574,9 +606,7 @@ TEST_F(ServiceFrameworkTest, Ids) {
 
   pid_t process_id2;
 
-  std::thread thread([&]() {
-    process_id2 = client->GetThisProcessId();
-  });
+  std::thread thread([&]() { process_id2 = client->GetThisProcessId(); });
   thread.join();
 
   EXPECT_LT(2, process_id2);
@@ -614,15 +644,15 @@ TEST_F(ServiceFrameworkTest, PollIn) {
   auto client = TestClient::Create(kTestService1);
   ASSERT_NE(nullptr, client);
 
-  epoll_event event;
-  int count = epoll_wait(client->event_fd(), &event, 1, 0);
+  pollfd pfd{client->event_fd(), POLLIN, 0};
+  int count = poll(&pfd, 1, 0);
   ASSERT_EQ(0, count);
 
   client->SendPollInEvent();
 
-  count = epoll_wait(client->event_fd(), &event, 1, -1);
+  count = poll(&pfd, 1, 10000 /*10s*/);
   ASSERT_EQ(1, count);
-  ASSERT_TRUE((EPOLLIN & event.events) != 0);
+  ASSERT_TRUE((POLLIN & pfd.revents) != 0);
 }
 
 TEST_F(ServiceFrameworkTest, PollHup) {
@@ -635,15 +665,15 @@ TEST_F(ServiceFrameworkTest, PollHup) {
   auto client = TestClient::Create(kTestService1);
   ASSERT_NE(nullptr, client);
 
-  epoll_event event;
-  int count = epoll_wait(client->event_fd(), &event, 1, 0);
+  pollfd pfd{client->event_fd(), POLLIN, 0};
+  int count = poll(&pfd, 1, 0);
   ASSERT_EQ(0, count);
 
   client->SendPollHupEvent();
 
-  count = epoll_wait(client->event_fd(), &event, 1, -1);
+  count = poll(&pfd, 1, 10000 /*10s*/);
   ASSERT_EQ(1, count);
-  auto event_status = client->GetEventMask(event.events);
+  auto event_status = client->GetEventMask(pfd.revents);
   ASSERT_TRUE(event_status.ok());
   ASSERT_TRUE((EPOLLHUP & event_status.get()) != 0);
 }

@@ -23,13 +23,14 @@
 // Log debug messages about the progress of the algorithm itself.
 #define DEBUG_STRATEGY 0
 
-#include <math.h>
+#include <inttypes.h>
 #include <limits.h>
+#include <math.h>
 
+#include <android-base/stringprintf.h>
 #include <cutils/properties.h>
 #include <input/VelocityTracker.h>
 #include <utils/BitSet.h>
-#include <utils/String8.h>
 #include <utils/Timers.h>
 
 namespace android {
@@ -46,8 +47,7 @@ static const nsecs_t ASSUME_POINTER_STOPPED_TIME = 40 * NANOS_PER_MS;
 
 static float vectorDot(const float* a, const float* b, uint32_t m) {
     float r = 0;
-    while (m) {
-        m--;
+    for (size_t i = 0; i < m; i++) {
         r += *(a++) * *(b++);
     }
     return r;
@@ -55,8 +55,7 @@ static float vectorDot(const float* a, const float* b, uint32_t m) {
 
 static float vectorNorm(const float* a, uint32_t m) {
     float r = 0;
-    while (m) {
-        m--;
+    for (size_t i = 0; i < m; i++) {
         float t = *(a++);
         r += t * t;
     }
@@ -64,36 +63,36 @@ static float vectorNorm(const float* a, uint32_t m) {
 }
 
 #if DEBUG_STRATEGY || DEBUG_VELOCITY
-static String8 vectorToString(const float* a, uint32_t m) {
-    String8 str;
-    str.append("[");
-    while (m--) {
-        str.appendFormat(" %f", *(a++));
-        if (m) {
-            str.append(",");
+static std::string vectorToString(const float* a, uint32_t m) {
+    std::string str;
+    str += "[";
+    for (size_t i = 0; i < m; i++) {
+        if (i) {
+            str += ",";
         }
+        str += android::base::StringPrintf(" %f", *(a++));
     }
-    str.append(" ]");
+    str += " ]";
     return str;
 }
 
-static String8 matrixToString(const float* a, uint32_t m, uint32_t n, bool rowMajor) {
-    String8 str;
-    str.append("[");
+static std::string matrixToString(const float* a, uint32_t m, uint32_t n, bool rowMajor) {
+    std::string str;
+    str = "[";
     for (size_t i = 0; i < m; i++) {
         if (i) {
-            str.append(",");
+            str += ",";
         }
-        str.append(" [");
+        str += " [";
         for (size_t j = 0; j < n; j++) {
             if (j) {
-                str.append(",");
+                str += ",";
             }
-            str.appendFormat(" %f", a[rowMajor ? i * n + j : j * m + i]);
+            str += android::base::StringPrintf(" %f", a[rowMajor ? i * n + j : j * m + i]);
         }
-        str.append(" ]");
+        str += " ]";
     }
-    str.append(" ]");
+    str += " ]";
     return str;
 }
 #endif
@@ -244,7 +243,7 @@ void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits, const Posi
     mStrategy->addMovement(eventTime, idBits, positions);
 
 #if DEBUG_VELOCITY
-    ALOGD("VelocityTracker: addMovement eventTime=%lld, idBits=0x%08x, activePointerId=%d",
+    ALOGD("VelocityTracker: addMovement eventTime=%" PRId64 ", idBits=0x%08x, activePointerId=%d",
             eventTime, idBits.value, mActivePointerId);
     for (BitSet32 iterBits(idBits); !iterBits.isEmpty(); ) {
         uint32_t id = iterBits.firstMarkedBit();
@@ -256,8 +255,8 @@ void VelocityTracker::addMovement(nsecs_t eventTime, BitSet32 idBits, const Posi
                 "estimator (degree=%d, xCoeff=%s, yCoeff=%s, confidence=%f)",
                 id, positions[index].x, positions[index].y,
                 int(estimator.degree),
-                vectorToString(estimator.xCoeff, estimator.degree + 1).string(),
-                vectorToString(estimator.yCoeff, estimator.degree + 1).string(),
+                vectorToString(estimator.xCoeff, estimator.degree + 1).c_str(),
+                vectorToString(estimator.yCoeff, estimator.degree + 1).c_str(),
                 estimator.confidence);
     }
 #endif
@@ -443,8 +442,8 @@ static bool solveLeastSquares(const float* x, const float* y,
         const float* w, uint32_t m, uint32_t n, float* outB, float* outDet) {
 #if DEBUG_STRATEGY
     ALOGD("solveLeastSquares: m=%d, n=%d, x=%s, y=%s, w=%s", int(m), int(n),
-            vectorToString(x, m).string(), vectorToString(y, m).string(),
-            vectorToString(w, m).string());
+            vectorToString(x, m).c_str(), vectorToString(y, m).c_str(),
+            vectorToString(w, m).c_str());
 #endif
 
     // Expand the X vector to a matrix A, pre-multiplied by the weights.
@@ -456,7 +455,7 @@ static bool solveLeastSquares(const float* x, const float* y,
         }
     }
 #if DEBUG_STRATEGY
-    ALOGD("  - a=%s", matrixToString(&a[0][0], m, n, false /*rowMajor*/).string());
+    ALOGD("  - a=%s", matrixToString(&a[0][0], m, n, false /*rowMajor*/).c_str());
 #endif
 
     // Apply the Gram-Schmidt process to A to obtain its QR decomposition.
@@ -491,8 +490,8 @@ static bool solveLeastSquares(const float* x, const float* y,
         }
     }
 #if DEBUG_STRATEGY
-    ALOGD("  - q=%s", matrixToString(&q[0][0], m, n, false /*rowMajor*/).string());
-    ALOGD("  - r=%s", matrixToString(&r[0][0], n, n, true /*rowMajor*/).string());
+    ALOGD("  - q=%s", matrixToString(&q[0][0], m, n, false /*rowMajor*/).c_str());
+    ALOGD("  - r=%s", matrixToString(&r[0][0], n, n, true /*rowMajor*/).c_str());
 
     // calculate QR, if we factored A correctly then QR should equal A
     float qr[n][m];
@@ -504,7 +503,7 @@ static bool solveLeastSquares(const float* x, const float* y,
             }
         }
     }
-    ALOGD("  - qr=%s", matrixToString(&qr[0][0], m, n, false /*rowMajor*/).string());
+    ALOGD("  - qr=%s", matrixToString(&qr[0][0], m, n, false /*rowMajor*/).c_str());
 #endif
 
     // Solve R B = Qt W Y to find B.  This is easy because R is upper triangular.
@@ -522,7 +521,7 @@ static bool solveLeastSquares(const float* x, const float* y,
         outB[i] /= r[i][i];
     }
 #if DEBUG_STRATEGY
-    ALOGD("  - b=%s", vectorToString(outB, n).string());
+    ALOGD("  - b=%s", vectorToString(outB, n).c_str());
 #endif
 
     // Calculate the coefficient of determination as 1 - (SSerr / SStot) where
@@ -555,6 +554,46 @@ static bool solveLeastSquares(const float* x, const float* y,
     ALOGD("  - det=%f", *outDet);
 #endif
     return true;
+}
+
+/*
+ * Optimized unweighted second-order least squares fit. About 2x speed improvement compared to
+ * the default implementation
+ */
+static float solveUnweightedLeastSquaresDeg2(const float* x, const float* y, size_t count) {
+    float sxi = 0, sxiyi = 0, syi = 0, sxi2 = 0, sxi3 = 0, sxi2yi = 0, sxi4 = 0;
+
+    for (size_t i = 0; i < count; i++) {
+        float xi = x[i];
+        float yi = y[i];
+        float xi2 = xi*xi;
+        float xi3 = xi2*xi;
+        float xi4 = xi3*xi;
+        float xi2yi = xi2*yi;
+        float xiyi = xi*yi;
+
+        sxi += xi;
+        sxi2 += xi2;
+        sxiyi += xiyi;
+        sxi2yi += xi2yi;
+        syi += yi;
+        sxi3 += xi3;
+        sxi4 += xi4;
+    }
+
+    float Sxx = sxi2 - sxi*sxi / count;
+    float Sxy = sxiyi - sxi*syi / count;
+    float Sxx2 = sxi3 - sxi*sxi2 / count;
+    float Sx2y = sxi2yi - sxi2*syi / count;
+    float Sx2x2 = sxi4 - sxi2*sxi2 / count;
+
+    float numerator = Sxy*Sx2x2 - Sx2y*Sxx2;
+    float denominator = Sxx*Sx2x2 - Sxx2*Sxx2;
+    if (denominator == 0) {
+        ALOGW("division by 0 when computing velocity, Sxx=%f, Sx2x2=%f, Sxx2=%f", Sxx, Sx2x2, Sxx2);
+        return 0;
+    }
+    return numerator/denominator;
 }
 
 bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
@@ -598,6 +637,19 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
         degree = m - 1;
     }
     if (degree >= 1) {
+        if (degree == 2 && mWeighting == WEIGHTING_NONE) { // optimize unweighted, degree=2 fit
+            outEstimator->time = newestMovement.eventTime;
+            outEstimator->degree = 2;
+            outEstimator->confidence = 1;
+            outEstimator->xCoeff[0] = 0; // only slope is calculated, set rest of coefficients = 0
+            outEstimator->yCoeff[0] = 0;
+            outEstimator->xCoeff[1] = solveUnweightedLeastSquaresDeg2(time, x, m);
+            outEstimator->yCoeff[1] = solveUnweightedLeastSquaresDeg2(time, y, m);
+            outEstimator->xCoeff[2] = 0;
+            outEstimator->yCoeff[2] = 0;
+            return true;
+        }
+
         float xdet, ydet;
         uint32_t n = degree + 1;
         if (solveLeastSquares(time, x, w, m, n, outEstimator->xCoeff, &xdet)
@@ -608,8 +660,8 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
 #if DEBUG_STRATEGY
             ALOGD("estimate: degree=%d, xCoeff=%s, yCoeff=%s, confidence=%f",
                     int(outEstimator->degree),
-                    vectorToString(outEstimator->xCoeff, n).string(),
-                    vectorToString(outEstimator->yCoeff, n).string(),
+                    vectorToString(outEstimator->xCoeff, n).c_str(),
+                    vectorToString(outEstimator->yCoeff, n).c_str(),
                     outEstimator->confidence);
 #endif
             return true;

@@ -194,9 +194,9 @@ public:
     //
     // All other negative values are an unknown error returned downstream
     // from the graphics allocator (typically errno).
-    virtual status_t dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w,
-            uint32_t h, PixelFormat format, uint64_t usage,
-            FrameEventHistoryDelta* outTimestamps) = 0;
+    virtual status_t dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w, uint32_t h,
+                                   PixelFormat format, uint64_t usage, uint64_t* outBufferAge,
+                                   FrameEventHistoryDelta* outTimestamps) = 0;
 
     // detachBuffer attempts to remove all ownership of the buffer in the given
     // slot from the buffer queue. If this call succeeds, the slot will be
@@ -593,6 +593,12 @@ public:
 
     // Returns a unique id for this BufferQueue
     virtual status_t getUniqueId(uint64_t* outId) const = 0;
+
+    // Returns the consumer usage flags for this BufferQueue. This returns the
+    // full 64-bit usage flags, rather than the truncated 32-bit usage flags
+    // returned by querying the now deprecated
+    // NATIVE_WINDOW_CONSUMER_USAGE_BITS attribute.
+    virtual status_t getConsumerUsage(uint64_t* outUsage) const = 0;
 };
 
 // ----------------------------------------------------------------------------

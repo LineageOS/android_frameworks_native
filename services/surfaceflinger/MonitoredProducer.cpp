@@ -68,11 +68,11 @@ status_t MonitoredProducer::setAsyncMode(bool async) {
     return mProducer->setAsyncMode(async);
 }
 
-status_t MonitoredProducer::dequeueBuffer(int* slot, sp<Fence>* fence,
-        uint32_t w, uint32_t h, PixelFormat format, uint64_t usage,
-        FrameEventHistoryDelta* outTimestamps) {
-    return mProducer->dequeueBuffer(
-            slot, fence, w, h, format, usage, outTimestamps);
+status_t MonitoredProducer::dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w, uint32_t h,
+                                          PixelFormat format, uint64_t usage,
+                                          uint64_t* outBufferAge,
+                                          FrameEventHistoryDelta* outTimestamps) {
+    return mProducer->dequeueBuffer(slot, fence, w, h, format, usage, outBufferAge, outTimestamps);
 }
 
 status_t MonitoredProducer::detachBuffer(int slot) {
@@ -156,6 +156,10 @@ void MonitoredProducer::getFrameTimestamps(FrameEventHistoryDelta* outDelta) {
 
 status_t MonitoredProducer::getUniqueId(uint64_t* outId) const {
     return mProducer->getUniqueId(outId);
+}
+
+status_t MonitoredProducer::getConsumerUsage(uint64_t* outUsage) const {
+    return mProducer->getConsumerUsage(outUsage);
 }
 
 IBinder* MonitoredProducer::onAsBinder() {

@@ -59,7 +59,8 @@ class SendPayload : public MessageWriter, public OutputResourceMapper {
  public:
   SendPayload(SendInterface* sender = nullptr) : sender_{sender} {}
   Status<void> Send(const BorrowedHandle& socket_fd);
-  Status<void> Send(const BorrowedHandle& socket_fd, const ucred* cred);
+  Status<void> Send(const BorrowedHandle& socket_fd, const ucred* cred,
+                    const iovec* data_vec = nullptr, size_t vec_count = 0);
 
   // MessageWriter
   void* GetNextWriteBufferSection(size_t size) override;
@@ -109,10 +110,12 @@ template <typename FileHandleType>
 class ChannelInfo {
  public:
   FileHandleType data_fd;
-  FileHandleType event_fd;
+  FileHandleType pollin_event_fd;
+  FileHandleType pollhup_event_fd;
 
  private:
-  PDX_SERIALIZABLE_MEMBERS(ChannelInfo, data_fd, event_fd);
+  PDX_SERIALIZABLE_MEMBERS(ChannelInfo, data_fd, pollin_event_fd,
+                           pollhup_event_fd);
 };
 
 template <typename FileHandleType>
@@ -156,18 +159,22 @@ class ResponseHeader {
 };
 
 template <typename T>
-inline Status<void> SendData(const BorrowedHandle& socket_fd, const T& data) {
+inline Status<void> SendData(const BorrowedHandle& socket_fd, const T& data,
+                             const iovec* data_vec = nullptr,
+                             size_t vec_count = 0) {
   SendPayload payload;
   rpc::Serialize(data, &payload);
-  return payload.Send(socket_fd);
+  return payload.Send(socket_fd, nullptr, data_vec, vec_count);
 }
 
 template <typename FileHandleType>
 inline Status<void> SendData(const BorrowedHandle& socket_fd,
-                             const RequestHeader<FileHandleType>& request) {
+                             const RequestHeader<FileHandleType>& request,
+                             const iovec* data_vec = nullptr,
+                             size_t vec_count = 0) {
   SendPayload payload;
   rpc::Serialize(request, &payload);
-  return payload.Send(socket_fd, &request.cred);
+  return payload.Send(socket_fd, &request.cred, data_vec, vec_count);
 }
 
 Status<void> SendData(const BorrowedHandle& socket_fd, const void* data,

@@ -1227,6 +1227,7 @@ private:
 
     int32_t mSource;
     float mScalingFactor;
+    int32_t mOrientation;
 
     void sync(nsecs_t when);
 };

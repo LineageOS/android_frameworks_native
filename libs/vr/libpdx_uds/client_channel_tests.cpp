@@ -13,6 +13,7 @@
 #include <pdx/client.h>
 #include <pdx/rpc/remote_method.h>
 #include <pdx/service.h>
+#include <pdx/service_dispatcher.h>
 
 #include <uds/client_channel_factory.h>
 #include <uds/service_endpoint.h>
@@ -81,7 +82,7 @@ class TestServiceRunner {
     auto endpoint = Endpoint::CreateFromSocketFd(LocalHandle{});
     endpoint->RegisterNewChannelForTests(std::move(channel_socket));
     service_ = TestService::Create(std::move(endpoint));
-    dispatcher_ = android::pdx::uds::ServiceDispatcher::Create();
+    dispatcher_ = ServiceDispatcher::Create();
     dispatcher_->AddService(service_);
     dispatch_thread_ = std::thread(
         std::bind(&ServiceDispatcher::EnterDispatchLoop, dispatcher_.get()));

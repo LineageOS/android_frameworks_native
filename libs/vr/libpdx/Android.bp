@@ -5,12 +5,15 @@ cc_library_static {
         "-Wall",
         "-Wextra",
         "-Werror",
+        "-DLOG_TAG=\"libpdx\"",
+        "-DTRACE=0",
     ],
     export_include_dirs: ["private"],
     local_include_dirs: ["private"],
     srcs: [
         "client.cpp",
         "service.cpp",
+        "service_dispatcher.cpp",
         "status.cpp",
     ],
 }
@@ -33,6 +36,7 @@ cc_test {
         "variant_tests.cpp",
     ],
     static_libs: [
+        "libcutils",
         "libgmock",
         "libpdx",
         "liblog",

@@ -1,11 +1,9 @@
 #ifndef ANDROID_PDX_UDS_CHANNEL_EVENT_SET_H_
 #define ANDROID_PDX_UDS_CHANNEL_EVENT_SET_H_
 
-#include <errno.h>
-#include <poll.h>
-#include <sys/epoll.h>
-#include <sys/eventfd.h>
+#include <vector>
 
+#include <pdx/client_channel.h>
 #include <pdx/file_handle.h>
 #include <pdx/status.h>
 
@@ -19,20 +17,19 @@ class ChannelEventSet {
   ChannelEventSet(ChannelEventSet&&) = default;
   ChannelEventSet& operator=(ChannelEventSet&&) = default;
 
-  BorrowedHandle event_fd() const { return epoll_fd_.Borrow(); }
+  BorrowedHandle pollin_event_fd() const { return pollin_event_fd_.Borrow(); }
+  BorrowedHandle pollhup_event_fd() const { return pollhup_event_fd_.Borrow(); }
 
-  explicit operator bool() const { return !!epoll_fd_ && !!event_fd_; }
+  explicit operator bool() const {
+    return !!pollin_event_fd_ && !!pollhup_event_fd_;
+  }
 
-  Status<void> AddDataFd(const LocalHandle& data_fd);
   int ModifyEvents(int clear_mask, int set_mask);
 
  private:
-  LocalHandle epoll_fd_;
-  LocalHandle event_fd_;
+  LocalHandle pollin_event_fd_;
+  LocalHandle pollhup_event_fd_;
   uint32_t event_bits_ = 0;
-
-  static Status<void> SetupHandle(int fd, LocalHandle* handle,
-                                  const char* error_name);
 
   ChannelEventSet(const ChannelEventSet&) = delete;
   void operator=(const ChannelEventSet&) = delete;
@@ -41,14 +38,31 @@ class ChannelEventSet {
 class ChannelEventReceiver {
  public:
   ChannelEventReceiver() = default;
-  ChannelEventReceiver(LocalHandle epoll_fd) : epoll_fd_{std::move(epoll_fd)} {}
+  ChannelEventReceiver(LocalHandle data_fd, LocalHandle pollin_event_fd,
+                       LocalHandle pollhup_event_fd);
   ChannelEventReceiver(ChannelEventReceiver&&) = default;
   ChannelEventReceiver& operator=(ChannelEventReceiver&&) = default;
 
+  explicit operator bool() const {
+    return !!pollin_event_fd_ && !!pollhup_event_fd_ && !!data_fd_ &&
+           !!epoll_fd_;
+  }
+
   BorrowedHandle event_fd() const { return epoll_fd_.Borrow(); }
+
+  BorrowedHandle pollin_event_fd() const { return pollin_event_fd_.Borrow(); }
+  BorrowedHandle pollhup_event_fd() const { return pollhup_event_fd_.Borrow(); }
+  BorrowedHandle data_fd() const { return data_fd_.Borrow(); }
+
   Status<int> GetPendingEvents() const;
+  Status<int> PollPendingEvents(int timeout_ms) const;
+
+  std::vector<ClientChannel::EventSource> GetEventSources() const;
 
  private:
+  LocalHandle data_fd_;
+  LocalHandle pollin_event_fd_;
+  LocalHandle pollhup_event_fd_;
   LocalHandle epoll_fd_;
 
   ChannelEventReceiver(const ChannelEventReceiver&) = delete;

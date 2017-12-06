@@ -19,12 +19,12 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <array>
 
 #include <log/log.h>
-#include <utils/Errors.h>
 
 #include "null_driver_gen.h"
 

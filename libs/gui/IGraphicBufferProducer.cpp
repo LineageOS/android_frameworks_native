@@ -62,7 +62,8 @@ enum {
     SET_DEQUEUE_TIMEOUT,
     GET_LAST_QUEUED_BUFFER,
     GET_FRAME_TIMESTAMPS,
-    GET_UNIQUE_ID
+    GET_UNIQUE_ID,
+    GET_CONSUMER_USAGE,
 };
 
 class BpGraphicBufferProducer : public BpInterface<IGraphicBufferProducer>
@@ -124,9 +125,9 @@ public:
         return result;
     }
 
-    virtual status_t dequeueBuffer(int *buf, sp<Fence>* fence, uint32_t width,
-            uint32_t height, PixelFormat format, uint64_t usage,
-            FrameEventHistoryDelta* outTimestamps) {
+    virtual status_t dequeueBuffer(int* buf, sp<Fence>* fence, uint32_t width, uint32_t height,
+                                   PixelFormat format, uint64_t usage, uint64_t* outBufferAge,
+                                   FrameEventHistoryDelta* outTimestamps) {
         Parcel data, reply;
         bool getFrameTimestamps = (outTimestamps != nullptr);
 
@@ -147,6 +148,17 @@ public:
         result = reply.read(**fence);
         if (result != NO_ERROR) {
             fence->clear();
+            return result;
+        }
+        if (outBufferAge) {
+            result = reply.readUint64(outBufferAge);
+        } else {
+            // Read the value even if outBufferAge is nullptr:
+            uint64_t bufferAge;
+            result = reply.readUint64(&bufferAge);
+        }
+        if (result != NO_ERROR) {
+            ALOGE("IGBP::dequeueBuffer failed to read buffer age: %d", result);
             return result;
         }
         if (getFrameTimestamps) {
@@ -493,6 +505,25 @@ public:
         }
         return actualResult;
     }
+
+    virtual status_t getConsumerUsage(uint64_t* outUsage) const {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
+        status_t result = remote()->transact(GET_CONSUMER_USAGE, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("getConsumerUsage failed to transact: %d", result);
+        }
+        status_t actualResult = NO_ERROR;
+        result = reply.readInt32(&actualResult);
+        if (result != NO_ERROR) {
+            return result;
+        }
+        result = reply.readUint64(outUsage);
+        if (result != NO_ERROR) {
+            return result;
+        }
+        return actualResult;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -516,11 +547,10 @@ public:
         return mBase->setAsyncMode(async);
     }
 
-    status_t dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w, uint32_t h,
-            PixelFormat format, uint64_t usage,
-            FrameEventHistoryDelta* outTimestamps) override {
-        return mBase->dequeueBuffer(
-                slot, fence, w, h, format, usage, outTimestamps);
+    status_t dequeueBuffer(int* slot, sp<Fence>* fence, uint32_t w, uint32_t h, PixelFormat format,
+                           uint64_t usage, uint64_t* outBufferAge,
+                           FrameEventHistoryDelta* outTimestamps) override {
+        return mBase->dequeueBuffer(slot, fence, w, h, format, usage, outBufferAge, outTimestamps);
     }
 
     status_t detachBuffer(int slot) override {
@@ -612,6 +642,10 @@ public:
     status_t getUniqueId(uint64_t* outId) const override {
         return mBase->getUniqueId(outId);
     }
+
+    status_t getConsumerUsage(uint64_t* outUsage) const override {
+        return mBase->getConsumerUsage(outUsage);
+    }
 };
 
 IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer, HGraphicBufferProducer,
@@ -655,16 +689,18 @@ status_t BnGraphicBufferProducer::onTransact(
             uint32_t height = data.readUint32();
             PixelFormat format = static_cast<PixelFormat>(data.readInt32());
             uint64_t usage = data.readUint64();
+            uint64_t bufferAge = 0;
             bool getTimestamps = data.readBool();
 
             int buf = 0;
             sp<Fence> fence = Fence::NO_FENCE;
             FrameEventHistoryDelta frameTimestamps;
-            int result = dequeueBuffer(&buf, &fence, width, height, format,
-                    usage, getTimestamps ? &frameTimestamps : nullptr);
+            int result = dequeueBuffer(&buf, &fence, width, height, format, usage, &bufferAge,
+                                       getTimestamps ? &frameTimestamps : nullptr);
 
             reply->writeInt32(buf);
             reply->write(*fence);
+            reply->writeUint64(bufferAge);
             if (getTimestamps) {
                 reply->write(frameTimestamps);
             }
@@ -872,6 +908,20 @@ status_t BnGraphicBufferProducer::onTransact(
                 return result;
             }
             result = reply->writeUint64(outId);
+            if (result != NO_ERROR) {
+                return result;
+            }
+            return NO_ERROR;
+        }
+        case GET_CONSUMER_USAGE: {
+            CHECK_INTERFACE(IGraphicBufferProducer, data, reply);
+            uint64_t outUsage = 0;
+            status_t actualResult = getConsumerUsage(&outUsage);
+            status_t result = reply->writeInt32(actualResult);
+            if (result != NO_ERROR) {
+                return result;
+            }
+            result = reply->writeUint64(outUsage);
             if (result != NO_ERROR) {
                 return result;
             }

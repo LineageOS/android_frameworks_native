@@ -930,6 +930,14 @@ inline static const char *asString(OMX_VIDEO_AVCLOOPFILTERTYPE i, const char *de
 #ifndef AS_STRING_FOR_OMX_VIDEOEXT_H
 #define AS_STRING_FOR_OMX_VIDEOEXT_H
 
+inline static const char *asString(OMX_VIDEO_AVCPROFILEEXTTYPE i, const char *def = "??") {
+    switch (i) {
+        case OMX_VIDEO_AVCProfileConstrainedBaseline:   return "ConstrainedBaseline";
+        case OMX_VIDEO_AVCProfileConstrainedHigh:       return "ConstrainedHigh";
+        default:                                return asString((OMX_VIDEO_AVCPROFILETYPE)i, def);
+    }
+}
+
 inline static const char *asString(OMX_VIDEO_VP8PROFILETYPE i, const char *def = "??") {
     switch (i) {
         case OMX_VIDEO_VP8ProfileMain:    return "Main";

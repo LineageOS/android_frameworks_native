@@ -69,7 +69,12 @@ cc_library {
         "TextOutput.cpp",
         "IpPrefix.cpp",
         "Value.cpp",
+        ":libbinder_aidl",
     ],
+
+    aidl: {
+        export_aidl_headers: true,
+    },
 
     cflags: [
         "-Wall",
@@ -101,6 +106,14 @@ cc_library {
     sanitize: {
         misc_undefined: ["integer"],
     },
+}
+
+// AIDL interface between libbinder and framework.jar
+filegroup {
+    name: "libbinder_aidl",
+    srcs: [
+        "aidl/android/content/pm/IPackageManagerNative.aidl",
+    ],
 }
 
 subdirs = ["tests"]

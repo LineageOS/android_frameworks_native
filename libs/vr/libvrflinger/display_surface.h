@@ -53,8 +53,7 @@ class DisplaySurface : public pdx::Channel {
 
  protected:
   DisplaySurface(DisplayService* service, SurfaceType surface_type,
-                 int surface_id, int process_id, int user_id,
-                 const display::SurfaceAttributes& attributes);
+                 int surface_id, int process_id, int user_id);
 
   // Utility to retrieve a shared pointer to this channel as the desired derived
   // type.
@@ -119,10 +118,9 @@ class DisplaySurface : public pdx::Channel {
 class ApplicationDisplaySurface : public DisplaySurface {
  public:
   ApplicationDisplaySurface(DisplayService* service, int surface_id,
-                            int process_id, int user_id,
-                            const display::SurfaceAttributes& attributes)
+                            int process_id, int user_id)
       : DisplaySurface(service, SurfaceType::Application, surface_id,
-                       process_id, user_id, attributes) {}
+                       process_id, user_id) {}
 
   std::shared_ptr<ConsumerQueue> GetQueue(int32_t queue_id);
   std::vector<int32_t> GetQueueIds() const override;
@@ -140,11 +138,11 @@ class ApplicationDisplaySurface : public DisplaySurface {
 class DirectDisplaySurface : public DisplaySurface {
  public:
   DirectDisplaySurface(DisplayService* service, int surface_id, int process_id,
-                       int user_id,
-                       const display::SurfaceAttributes& attributes)
+                       int user_id)
       : DisplaySurface(service, SurfaceType::Direct, surface_id, process_id,
-                       user_id, attributes),
-        acquired_buffers_(kMaxPostedBuffers) {}
+                       user_id),
+        acquired_buffers_(kMaxPostedBuffers),
+        metadata_(nullptr) {}
   std::vector<int32_t> GetQueueIds() const override;
   bool IsBufferAvailable();
   bool IsBufferPosted();
@@ -179,6 +177,9 @@ class DirectDisplaySurface : public DisplaySurface {
   RingBuffer<AcquiredBuffer> acquired_buffers_;
 
   std::shared_ptr<ConsumerQueue> direct_queue_;
+
+  // Stores metadata when it dequeue buffers from consumer queue.
+  std::unique_ptr<uint8_t[]> metadata_;
 };
 
 }  // namespace dvr
