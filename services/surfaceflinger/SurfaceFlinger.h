@@ -136,6 +136,13 @@ public:
     // acquiring mStateLock.
     std::unique_ptr<HWComposer> mHwc;
 
+    const std::string mHwcServiceName; // "default" for real use, something else for testing.
+
+    // constant members (no synchronization needed for access)
+    std::unique_ptr<RenderEngine> mRenderEngine;
+    EGLContext mEGLContext;
+    EGLDisplay mEGLDisplay;
+
     // The composer sequence id is a monotonically increasing integer that we
     // use to differentiate callbacks from different hardware composer
     // instances. Each hardware composer instance gets a different sequence id.
@@ -256,7 +263,7 @@ public:
     const Vector< sp<Layer> >& getLayerSortedByZForHwcDisplay(int id);
 
     RenderEngine& getRenderEngine() const {
-        return *mRenderEngine;
+        return *getBE().mRenderEngine;
     }
 
     bool authenticateSurfaceTextureLocked(
@@ -669,10 +676,7 @@ private:
     // access must be protected by mInvalidateLock
     volatile int32_t mRepaintEverything;
 
-    const std::string mHwcServiceName; // "default" for real use, something else for testing.
-
     // constant members (no synchronization needed for access)
-    std::unique_ptr<RenderEngine> mRenderEngine;
     nsecs_t mBootTime;
     bool mGpuToCpuSupported;
     sp<EventThread> mEventThread;

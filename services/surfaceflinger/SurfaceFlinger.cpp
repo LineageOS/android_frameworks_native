@@ -119,10 +119,6 @@ private:
 };
 }  // namespace anonymous
 
-SurfaceFlingerBE::SurfaceFlingerBE() 
-    : mComposerSequenceId(0) {
-}
-
 // ---------------------------------------------------------------------------
 
 const String16 sHardwareTest("android.permission.HARDWARE_TEST");
@@ -157,6 +153,12 @@ bool useTrebleTestingOverride() {
     return std::string(value) == "true";
 }
 
+SurfaceFlingerBE::SurfaceFlingerBE()
+      : mHwcServiceName(getHwcServiceName()),
+        mRenderEngine(nullptr),
+        mComposerSequenceId(0) {
+}
+
 SurfaceFlinger::SurfaceFlinger()
     :   BnSurfaceComposer(),
         mTransactionFlags(0),
@@ -165,8 +167,6 @@ SurfaceFlinger::SurfaceFlinger()
         mLayersRemoved(false),
         mLayersAdded(false),
         mRepaintEverything(0),
-        mHwcServiceName(getHwcServiceName()),
-        mRenderEngine(nullptr),
         mBootTime(systemTime()),
         mBuiltinDisplays(),
         mVisibleRegionsDirty(false),
@@ -610,13 +610,13 @@ void SurfaceFlinger::init() {
     }
 
     // Get a RenderEngine for the given display / config (can't fail)
-    mRenderEngine = RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
+    getBE().mRenderEngine = RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
             hasWideColorDisplay ? RenderEngine::WIDE_COLOR_SUPPORT : 0);
-    LOG_ALWAYS_FATAL_IF(mRenderEngine == nullptr, "couldn't create RenderEngine");
+    LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");
-    getBE().mHwc.reset(new HWComposer(mHwcServiceName));
+    getBE().mHwc.reset(new HWComposer(getBE().mHwcServiceName));
     getBE().mHwc->registerCallback(this, getBE().mComposerSequenceId);
 
     if (useVrFlinger) {
@@ -651,7 +651,7 @@ void SurfaceFlinger::init() {
     // set initial conditions (e.g. unblank default device)
     initializeDisplays();
 
-    mRenderEngine->primeCache();
+    getBE().mRenderEngine->primeCache();
 
     // Inform native graphics APIs whether the present timestamp is supported:
     if (getHwComposer().hasCapability(
@@ -693,11 +693,11 @@ void SurfaceFlinger::startBootAnim() {
 }
 
 size_t SurfaceFlinger::getMaxTextureSize() const {
-    return mRenderEngine->getMaxTextureSize();
+    return getBE().mRenderEngine->getMaxTextureSize();
 }
 
 size_t SurfaceFlinger::getMaxViewportDims() const {
-    return mRenderEngine->getMaxViewportDims();
+    return getBE().mRenderEngine->getMaxViewportDims();
 }
 
 // ----------------------------------------------------------------------------
@@ -1411,7 +1411,7 @@ void SurfaceFlinger::updateVrFlinger() {
 
     resetDisplayState();
     getBE().mHwc.reset(); // Delete the current instance before creating the new one
-    getBE().mHwc.reset(new HWComposer(vrFlingerRequestsDisplay ? "vr" : mHwcServiceName));
+    getBE().mHwc.reset(new HWComposer(vrFlingerRequestsDisplay ? "vr" : getBE().mHwcServiceName));
     getBE().mHwc->registerCallback(this, ++getBE().mComposerSequenceId);
 
     LOG_ALWAYS_FATAL_IF(!getBE().mHwc->getComposer()->isRemote(),
@@ -2672,9 +2672,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
 
-        mRenderEngine->setWideColor(
+        getBE().mRenderEngine->setWideColor(
                 displayDevice->getWideColorSupport() && !mForceNativeColorMode);
-        mRenderEngine->setColorMode(mForceNativeColorMode ?
+        getBE().mRenderEngine->setColorMode(mForceNativeColorMode ?
                 HAL_COLOR_MODE_NATIVE : displayDevice->getActiveColorMode());
         if (!displayDevice->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
@@ -2696,7 +2696,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
             // remove where there are opaque FB layers. however, on some
             // GPUs doing a "clean slate" clear might be more efficient.
             // We'll revisit later if needed.
-            mRenderEngine->clearWithColor(0, 0, 0, 0);
+            getBE().mRenderEngine->clearWithColor(0, 0, 0, 0);
         } else {
             // we start with the whole screen area and remove the scissor part
             // we're left with the letterbox region
@@ -2726,7 +2726,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
 
                 // enable scissor for this frame
                 const uint32_t height = displayDevice->getHeight();
-                mRenderEngine->setScissor(scissor.left, height - scissor.bottom,
+                getBE().mRenderEngine->setScissor(scissor.left, height - scissor.bottom,
                         scissor.getWidth(), scissor.getHeight());
             }
         }
@@ -2791,7 +2791,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
     }
 
     // disable scissor at the end of the frame
-    mRenderEngine->disableScissor();
+    getBE().mRenderEngine->disableScissor();
     return true;
 }
 
@@ -3885,7 +3885,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     HWComposer& hwc(getHwComposer());
     sp<const DisplayDevice> hw(getDefaultDisplayDeviceLocked());
 
-    mRenderEngine->dump(result);
+    getBE().mRenderEngine->dump(result);
 
     hw->undefinedRegion.dump(result, "undefinedRegion");
     result.appendFormat("  orientation=%d, isDisplayOn=%d\n",
