@@ -451,13 +451,19 @@ TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferReleased) {
   EXPECT_EQ(0, c1->AcquireAsync(&metadata, &invalid_fence));
   EXPECT_EQ(0, c1->ReleaseAsync(&metadata, invalid_fence));
 
+  // Note that the next PDX call is on the producer channel, which may be
+  // executed before Release impulse gets executed by bufferhubd. Thus, here we
+  // need to wait until the releasd is confirmed before creating another
+  // consumer.
+  EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
+  EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
+
   // Create another consumer immediately after the release, should not make the
-  // buffer un-released. This is guaranteed by IPC execution order in bufferhubd.
+  // buffer un-released.
   std::unique_ptr<BufferConsumer> c2 =
       BufferConsumer::Import(p->CreateConsumer());
   ASSERT_TRUE(c2.get() != nullptr);
 
-  EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
   EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
   EXPECT_EQ(0, p->GainAsync(&metadata, &invalid_fence));
   EXPECT_TRUE(IsBufferGained(p->buffer_state()));
