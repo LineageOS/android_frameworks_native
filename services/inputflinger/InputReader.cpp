@@ -54,6 +54,7 @@
 
 #include <log/log.h>
 
+#include <android-base/stringprintf.h>
 #include <input/Keyboard.h>
 #include <input/VirtualKeyMap.h>
 
@@ -62,6 +63,8 @@
 #define INDENT3 "      "
 #define INDENT4 "        "
 #define INDENT5 "          "
+
+using android::base::StringPrintf;
 
 namespace android {
 
@@ -290,19 +293,19 @@ void InputReaderConfiguration::setVirtualDisplayViewports(
     mVirtualDisplays = viewports;
 }
 
-void InputReaderConfiguration::dump(String8& dump) const {
-    dump.append(INDENT4 "ViewportInternal:\n");
+void InputReaderConfiguration::dump(std::string& dump) const {
+    dump += INDENT4 "ViewportInternal:\n";
     dumpViewport(dump, mInternalDisplay);
-    dump.append(INDENT4 "ViewportExternal:\n");
+    dump += INDENT4 "ViewportExternal:\n";
     dumpViewport(dump, mExternalDisplay);
-    dump.append(INDENT4 "ViewportVirtual:\n");
+    dump += INDENT4 "ViewportVirtual:\n";
     for (const DisplayViewport& viewport : mVirtualDisplays) {
         dumpViewport(dump, viewport);
     }
 }
 
-void InputReaderConfiguration::dumpViewport(String8& dump, const DisplayViewport& viewport) const {
-    dump.appendFormat(INDENT5 "Viewport: displayId=%d, orientation=%d, uniqueId='%s', "
+void InputReaderConfiguration::dumpViewport(std::string& dump, const DisplayViewport& viewport) const {
+    dump += StringPrintf(INDENT5 "Viewport: displayId=%d, orientation=%d, uniqueId='%s', "
             "logicalFrame=[%d, %d, %d, %d], "
             "physicalFrame=[%d, %d, %d, %d], "
             "deviceSize=[%d, %d]\n",
@@ -873,71 +876,71 @@ bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
     return false;
 }
 
-void InputReader::dump(String8& dump) {
+void InputReader::dump(std::string& dump) {
     AutoMutex _l(mLock);
 
     mEventHub->dump(dump);
-    dump.append("\n");
+    dump += "\n";
 
-    dump.append("Input Reader State:\n");
+    dump += "Input Reader State:\n";
 
     for (size_t i = 0; i < mDevices.size(); i++) {
         mDevices.valueAt(i)->dump(dump);
     }
 
-    dump.append(INDENT "Configuration:\n");
-    dump.append(INDENT2 "ExcludedDeviceNames: [");
+    dump += INDENT "Configuration:\n";
+    dump += INDENT2 "ExcludedDeviceNames: [";
     for (size_t i = 0; i < mConfig.excludedDeviceNames.size(); i++) {
         if (i != 0) {
-            dump.append(", ");
+            dump += ", ";
         }
-        dump.append(mConfig.excludedDeviceNames.itemAt(i).string());
+        dump += mConfig.excludedDeviceNames.itemAt(i).string();
     }
-    dump.append("]\n");
-    dump.appendFormat(INDENT2 "VirtualKeyQuietTime: %0.1fms\n",
+    dump += "]\n";
+    dump += StringPrintf(INDENT2 "VirtualKeyQuietTime: %0.1fms\n",
             mConfig.virtualKeyQuietTime * 0.000001f);
 
-    dump.appendFormat(INDENT2 "PointerVelocityControlParameters: "
+    dump += StringPrintf(INDENT2 "PointerVelocityControlParameters: "
             "scale=%0.3f, lowThreshold=%0.3f, highThreshold=%0.3f, acceleration=%0.3f\n",
             mConfig.pointerVelocityControlParameters.scale,
             mConfig.pointerVelocityControlParameters.lowThreshold,
             mConfig.pointerVelocityControlParameters.highThreshold,
             mConfig.pointerVelocityControlParameters.acceleration);
 
-    dump.appendFormat(INDENT2 "WheelVelocityControlParameters: "
+    dump += StringPrintf(INDENT2 "WheelVelocityControlParameters: "
             "scale=%0.3f, lowThreshold=%0.3f, highThreshold=%0.3f, acceleration=%0.3f\n",
             mConfig.wheelVelocityControlParameters.scale,
             mConfig.wheelVelocityControlParameters.lowThreshold,
             mConfig.wheelVelocityControlParameters.highThreshold,
             mConfig.wheelVelocityControlParameters.acceleration);
 
-    dump.appendFormat(INDENT2 "PointerGesture:\n");
-    dump.appendFormat(INDENT3 "Enabled: %s\n",
+    dump += StringPrintf(INDENT2 "PointerGesture:\n");
+    dump += StringPrintf(INDENT3 "Enabled: %s\n",
             toString(mConfig.pointerGesturesEnabled));
-    dump.appendFormat(INDENT3 "QuietInterval: %0.1fms\n",
+    dump += StringPrintf(INDENT3 "QuietInterval: %0.1fms\n",
             mConfig.pointerGestureQuietInterval * 0.000001f);
-    dump.appendFormat(INDENT3 "DragMinSwitchSpeed: %0.1fpx/s\n",
+    dump += StringPrintf(INDENT3 "DragMinSwitchSpeed: %0.1fpx/s\n",
             mConfig.pointerGestureDragMinSwitchSpeed);
-    dump.appendFormat(INDENT3 "TapInterval: %0.1fms\n",
+    dump += StringPrintf(INDENT3 "TapInterval: %0.1fms\n",
             mConfig.pointerGestureTapInterval * 0.000001f);
-    dump.appendFormat(INDENT3 "TapDragInterval: %0.1fms\n",
+    dump += StringPrintf(INDENT3 "TapDragInterval: %0.1fms\n",
             mConfig.pointerGestureTapDragInterval * 0.000001f);
-    dump.appendFormat(INDENT3 "TapSlop: %0.1fpx\n",
+    dump += StringPrintf(INDENT3 "TapSlop: %0.1fpx\n",
             mConfig.pointerGestureTapSlop);
-    dump.appendFormat(INDENT3 "MultitouchSettleInterval: %0.1fms\n",
+    dump += StringPrintf(INDENT3 "MultitouchSettleInterval: %0.1fms\n",
             mConfig.pointerGestureMultitouchSettleInterval * 0.000001f);
-    dump.appendFormat(INDENT3 "MultitouchMinDistance: %0.1fpx\n",
+    dump += StringPrintf(INDENT3 "MultitouchMinDistance: %0.1fpx\n",
             mConfig.pointerGestureMultitouchMinDistance);
-    dump.appendFormat(INDENT3 "SwipeTransitionAngleCosine: %0.1f\n",
+    dump += StringPrintf(INDENT3 "SwipeTransitionAngleCosine: %0.1f\n",
             mConfig.pointerGestureSwipeTransitionAngleCosine);
-    dump.appendFormat(INDENT3 "SwipeMaxWidthRatio: %0.1f\n",
+    dump += StringPrintf(INDENT3 "SwipeMaxWidthRatio: %0.1f\n",
             mConfig.pointerGestureSwipeMaxWidthRatio);
-    dump.appendFormat(INDENT3 "MovementSpeedRatio: %0.1f\n",
+    dump += StringPrintf(INDENT3 "MovementSpeedRatio: %0.1f\n",
             mConfig.pointerGestureMovementSpeedRatio);
-    dump.appendFormat(INDENT3 "ZoomSpeedRatio: %0.1f\n",
+    dump += StringPrintf(INDENT3 "ZoomSpeedRatio: %0.1f\n",
             mConfig.pointerGestureZoomSpeedRatio);
 
-    dump.append(INDENT3 "Viewports:\n");
+    dump += INDENT3 "Viewports:\n";
     mConfig.dump(dump);
 }
 
@@ -1069,21 +1072,21 @@ void InputDevice::setEnabled(bool enabled, nsecs_t when) {
     bumpGeneration();
 }
 
-void InputDevice::dump(String8& dump) {
+void InputDevice::dump(std::string& dump) {
     InputDeviceInfo deviceInfo;
     getDeviceInfo(& deviceInfo);
 
-    dump.appendFormat(INDENT "Device %d: %s\n", deviceInfo.getId(),
+    dump += StringPrintf(INDENT "Device %d: %s\n", deviceInfo.getId(),
             deviceInfo.getDisplayName().string());
-    dump.appendFormat(INDENT2 "Generation: %d\n", mGeneration);
-    dump.appendFormat(INDENT2 "IsExternal: %s\n", toString(mIsExternal));
-    dump.appendFormat(INDENT2 "HasMic:     %s\n", toString(mHasMic));
-    dump.appendFormat(INDENT2 "Sources: 0x%08x\n", deviceInfo.getSources());
-    dump.appendFormat(INDENT2 "KeyboardType: %d\n", deviceInfo.getKeyboardType());
+    dump += StringPrintf(INDENT2 "Generation: %d\n", mGeneration);
+    dump += StringPrintf(INDENT2 "IsExternal: %s\n", toString(mIsExternal));
+    dump += StringPrintf(INDENT2 "HasMic:     %s\n", toString(mHasMic));
+    dump += StringPrintf(INDENT2 "Sources: 0x%08x\n", deviceInfo.getSources());
+    dump += StringPrintf(INDENT2 "KeyboardType: %d\n", deviceInfo.getKeyboardType());
 
     const Vector<InputDeviceInfo::MotionRange>& ranges = deviceInfo.getMotionRanges();
     if (!ranges.isEmpty()) {
-        dump.append(INDENT2 "Motion Ranges:\n");
+        dump += INDENT2 "Motion Ranges:\n";
         for (size_t i = 0; i < ranges.size(); i++) {
             const InputDeviceInfo::MotionRange& range = ranges.itemAt(i);
             const char* label = getAxisLabel(range.axis);
@@ -1094,7 +1097,7 @@ void InputDevice::dump(String8& dump) {
             } else {
                 snprintf(name, sizeof(name), "%d", range.axis);
             }
-            dump.appendFormat(INDENT3 "%s: source=0x%08x, "
+            dump += StringPrintf(INDENT3 "%s: source=0x%08x, "
                     "min=%0.3f, max=%0.3f, flat=%0.3f, fuzz=%0.3f, resolution=%0.3f\n",
                     name, range.source, range.min, range.max, range.flat, range.fuzz,
                     range.resolution);
@@ -1982,7 +1985,7 @@ void InputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     info->addSource(getSources());
 }
 
-void InputMapper::dump(String8& dump) {
+void InputMapper::dump(std::string& dump) {
 }
 
 void InputMapper::configure(nsecs_t when,
@@ -2044,21 +2047,21 @@ void InputMapper::bumpGeneration() {
     mDevice->bumpGeneration();
 }
 
-void InputMapper::dumpRawAbsoluteAxisInfo(String8& dump,
+void InputMapper::dumpRawAbsoluteAxisInfo(std::string& dump,
         const RawAbsoluteAxisInfo& axis, const char* name) {
     if (axis.valid) {
-        dump.appendFormat(INDENT4 "%s: min=%d, max=%d, flat=%d, fuzz=%d, resolution=%d\n",
+        dump += StringPrintf(INDENT4 "%s: min=%d, max=%d, flat=%d, fuzz=%d, resolution=%d\n",
                 name, axis.minValue, axis.maxValue, axis.flat, axis.fuzz, axis.resolution);
     } else {
-        dump.appendFormat(INDENT4 "%s: unknown range\n", name);
+        dump += StringPrintf(INDENT4 "%s: unknown range\n", name);
     }
 }
 
-void InputMapper::dumpStylusState(String8& dump, const StylusState& state) {
-    dump.appendFormat(INDENT4 "When: %" PRId64 "\n", state.when);
-    dump.appendFormat(INDENT4 "Pressure: %f\n", state.pressure);
-    dump.appendFormat(INDENT4 "Button State: 0x%08x\n", state.buttons);
-    dump.appendFormat(INDENT4 "Tool Type: %" PRId32 "\n", state.toolType);
+void InputMapper::dumpStylusState(std::string& dump, const StylusState& state) {
+    dump += StringPrintf(INDENT4 "When: %" PRId64 "\n", state.when);
+    dump += StringPrintf(INDENT4 "Pressure: %f\n", state.pressure);
+    dump += StringPrintf(INDENT4 "Button State: 0x%08x\n", state.buttons);
+    dump += StringPrintf(INDENT4 "Tool Type: %" PRId32 "\n", state.toolType);
 }
 
 // --- SwitchInputMapper ---
@@ -2112,9 +2115,9 @@ int32_t SwitchInputMapper::getSwitchState(uint32_t sourceMask, int32_t switchCod
     return getEventHub()->getSwitchState(getDeviceId(), switchCode);
 }
 
-void SwitchInputMapper::dump(String8& dump) {
-    dump.append(INDENT2 "Switch Input Mapper:\n");
-    dump.appendFormat(INDENT3 "SwitchValues: %x\n", mSwitchValues);
+void SwitchInputMapper::dump(std::string& dump) {
+    dump += INDENT2 "Switch Input Mapper:\n";
+    dump += StringPrintf(INDENT3 "SwitchValues: %x\n", mSwitchValues);
 }
 
 // --- VibratorInputMapper ---
@@ -2143,15 +2146,15 @@ void VibratorInputMapper::process(const RawEvent* rawEvent) {
 void VibratorInputMapper::vibrate(const nsecs_t* pattern, size_t patternSize, ssize_t repeat,
         int32_t token) {
 #if DEBUG_VIBRATOR
-    String8 patternStr;
+    std::string patternStr;
     for (size_t i = 0; i < patternSize; i++) {
         if (i != 0) {
-            patternStr.append(", ");
+            patternStr += ", ";
         }
-        patternStr.appendFormat("%" PRId64, pattern[i]);
+        patternStr += StringPrintf("%" PRId64, pattern[i]);
     }
     ALOGD("vibrate: deviceId=%d, pattern=[%s], repeat=%zd, token=%d",
-            getDeviceId(), patternStr.string(), repeat, token);
+            getDeviceId(), patternStr.c_str(), repeat, token);
 #endif
 
     mVibrating = true;
@@ -2224,9 +2227,9 @@ void VibratorInputMapper::stopVibrating() {
     getEventHub()->cancelVibrate(getDeviceId());
 }
 
-void VibratorInputMapper::dump(String8& dump) {
-    dump.append(INDENT2 "Vibrator Input Mapper:\n");
-    dump.appendFormat(INDENT3 "Vibrating: %s\n", toString(mVibrating));
+void VibratorInputMapper::dump(std::string& dump) {
+    dump += INDENT2 "Vibrator Input Mapper:\n";
+    dump += StringPrintf(INDENT3 "Vibrating: %s\n", toString(mVibrating));
 }
 
 
@@ -2252,14 +2255,14 @@ void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     info->setKeyCharacterMap(getEventHub()->getKeyCharacterMap(getDeviceId()));
 }
 
-void KeyboardInputMapper::dump(String8& dump) {
-    dump.append(INDENT2 "Keyboard Input Mapper:\n");
+void KeyboardInputMapper::dump(std::string& dump) {
+    dump += INDENT2 "Keyboard Input Mapper:\n";
     dumpParameters(dump);
-    dump.appendFormat(INDENT3 "KeyboardType: %d\n", mKeyboardType);
-    dump.appendFormat(INDENT3 "Orientation: %d\n", mOrientation);
-    dump.appendFormat(INDENT3 "KeyDowns: %zu keys currently down\n", mKeyDowns.size());
-    dump.appendFormat(INDENT3 "MetaState: 0x%0x\n", mMetaState);
-    dump.appendFormat(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
+    dump += StringPrintf(INDENT3 "KeyboardType: %d\n", mKeyboardType);
+    dump += StringPrintf(INDENT3 "Orientation: %d\n", mOrientation);
+    dump += StringPrintf(INDENT3 "KeyDowns: %zu keys currently down\n", mKeyDowns.size());
+    dump += StringPrintf(INDENT3 "MetaState: 0x%0x\n", mMetaState);
+    dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
 
 
@@ -2319,13 +2322,13 @@ void KeyboardInputMapper::configureParameters() {
             mParameters.handlesKeyRepeat);
 }
 
-void KeyboardInputMapper::dumpParameters(String8& dump) {
-    dump.append(INDENT3 "Parameters:\n");
-    dump.appendFormat(INDENT4 "HasAssociatedDisplay: %s\n",
+void KeyboardInputMapper::dumpParameters(std::string& dump) {
+    dump += INDENT3 "Parameters:\n";
+    dump += StringPrintf(INDENT4 "HasAssociatedDisplay: %s\n",
             toString(mParameters.hasAssociatedDisplay));
-    dump.appendFormat(INDENT4 "OrientationAware: %s\n",
+    dump += StringPrintf(INDENT4 "OrientationAware: %s\n",
             toString(mParameters.orientationAware));
-    dump.appendFormat(INDENT4 "HandlesKeyRepeat: %s\n",
+    dump += StringPrintf(INDENT4 "HandlesKeyRepeat: %s\n",
             toString(mParameters.handlesKeyRepeat));
 }
 
@@ -2604,23 +2607,23 @@ void CursorInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     }
 }
 
-void CursorInputMapper::dump(String8& dump) {
-    dump.append(INDENT2 "Cursor Input Mapper:\n");
+void CursorInputMapper::dump(std::string& dump) {
+    dump += INDENT2 "Cursor Input Mapper:\n";
     dumpParameters(dump);
-    dump.appendFormat(INDENT3 "XScale: %0.3f\n", mXScale);
-    dump.appendFormat(INDENT3 "YScale: %0.3f\n", mYScale);
-    dump.appendFormat(INDENT3 "XPrecision: %0.3f\n", mXPrecision);
-    dump.appendFormat(INDENT3 "YPrecision: %0.3f\n", mYPrecision);
-    dump.appendFormat(INDENT3 "HaveVWheel: %s\n",
+    dump += StringPrintf(INDENT3 "XScale: %0.3f\n", mXScale);
+    dump += StringPrintf(INDENT3 "YScale: %0.3f\n", mYScale);
+    dump += StringPrintf(INDENT3 "XPrecision: %0.3f\n", mXPrecision);
+    dump += StringPrintf(INDENT3 "YPrecision: %0.3f\n", mYPrecision);
+    dump += StringPrintf(INDENT3 "HaveVWheel: %s\n",
             toString(mCursorScrollAccumulator.haveRelativeVWheel()));
-    dump.appendFormat(INDENT3 "HaveHWheel: %s\n",
+    dump += StringPrintf(INDENT3 "HaveHWheel: %s\n",
             toString(mCursorScrollAccumulator.haveRelativeHWheel()));
-    dump.appendFormat(INDENT3 "VWheelScale: %0.3f\n", mVWheelScale);
-    dump.appendFormat(INDENT3 "HWheelScale: %0.3f\n", mHWheelScale);
-    dump.appendFormat(INDENT3 "Orientation: %d\n", mOrientation);
-    dump.appendFormat(INDENT3 "ButtonState: 0x%08x\n", mButtonState);
-    dump.appendFormat(INDENT3 "Down: %s\n", toString(isPointerDown(mButtonState)));
-    dump.appendFormat(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
+    dump += StringPrintf(INDENT3 "VWheelScale: %0.3f\n", mVWheelScale);
+    dump += StringPrintf(INDENT3 "HWheelScale: %0.3f\n", mHWheelScale);
+    dump += StringPrintf(INDENT3 "Orientation: %d\n", mOrientation);
+    dump += StringPrintf(INDENT3 "ButtonState: 0x%08x\n", mButtonState);
+    dump += StringPrintf(INDENT3 "Down: %s\n", toString(isPointerDown(mButtonState)));
+    dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
 
 void CursorInputMapper::configure(nsecs_t when,
@@ -2728,26 +2731,26 @@ void CursorInputMapper::configureParameters() {
     }
 }
 
-void CursorInputMapper::dumpParameters(String8& dump) {
-    dump.append(INDENT3 "Parameters:\n");
-    dump.appendFormat(INDENT4 "HasAssociatedDisplay: %s\n",
+void CursorInputMapper::dumpParameters(std::string& dump) {
+    dump += INDENT3 "Parameters:\n";
+    dump += StringPrintf(INDENT4 "HasAssociatedDisplay: %s\n",
             toString(mParameters.hasAssociatedDisplay));
 
     switch (mParameters.mode) {
     case Parameters::MODE_POINTER:
-        dump.append(INDENT4 "Mode: pointer\n");
+        dump += INDENT4 "Mode: pointer\n";
         break;
     case Parameters::MODE_POINTER_RELATIVE:
-        dump.append(INDENT4 "Mode: relative pointer\n");
+        dump += INDENT4 "Mode: relative pointer\n";
         break;
     case Parameters::MODE_NAVIGATION:
-        dump.append(INDENT4 "Mode: navigation\n");
+        dump += INDENT4 "Mode: navigation\n";
         break;
     default:
         ALOG_ASSERT(false);
     }
 
-    dump.appendFormat(INDENT4 "OrientationAware: %s\n",
+    dump += StringPrintf(INDENT4 "OrientationAware: %s\n",
             toString(mParameters.orientationAware));
 }
 
@@ -3000,9 +3003,9 @@ void RotaryEncoderInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     }
 }
 
-void RotaryEncoderInputMapper::dump(String8& dump) {
-    dump.append(INDENT2 "Rotary Encoder Input Mapper:\n");
-    dump.appendFormat(INDENT3 "HaveWheel: %s\n",
+void RotaryEncoderInputMapper::dump(std::string& dump) {
+    dump += INDENT2 "Rotary Encoder Input Mapper:\n";
+    dump += StringPrintf(INDENT3 "HaveWheel: %s\n",
             toString(mRotaryEncoderScrollAccumulator.haveRelativeVWheel()));
 }
 
@@ -3151,8 +3154,8 @@ void TouchInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
     }
 }
 
-void TouchInputMapper::dump(String8& dump) {
-    dump.appendFormat(INDENT2 "Touch Input Mapper (mode - %s):\n", modeToString(mDeviceMode));
+void TouchInputMapper::dump(std::string& dump) {
+    dump += StringPrintf(INDENT2 "Touch Input Mapper (mode - %s):\n", modeToString(mDeviceMode));
     dumpParameters(dump);
     dumpVirtualKeys(dump);
     dumpRawPointerAxes(dump);
@@ -3160,30 +3163,30 @@ void TouchInputMapper::dump(String8& dump) {
     dumpAffineTransformation(dump);
     dumpSurface(dump);
 
-    dump.appendFormat(INDENT3 "Translation and Scaling Factors:\n");
-    dump.appendFormat(INDENT4 "XTranslate: %0.3f\n", mXTranslate);
-    dump.appendFormat(INDENT4 "YTranslate: %0.3f\n", mYTranslate);
-    dump.appendFormat(INDENT4 "XScale: %0.3f\n", mXScale);
-    dump.appendFormat(INDENT4 "YScale: %0.3f\n", mYScale);
-    dump.appendFormat(INDENT4 "XPrecision: %0.3f\n", mXPrecision);
-    dump.appendFormat(INDENT4 "YPrecision: %0.3f\n", mYPrecision);
-    dump.appendFormat(INDENT4 "GeometricScale: %0.3f\n", mGeometricScale);
-    dump.appendFormat(INDENT4 "PressureScale: %0.3f\n", mPressureScale);
-    dump.appendFormat(INDENT4 "SizeScale: %0.3f\n", mSizeScale);
-    dump.appendFormat(INDENT4 "OrientationScale: %0.3f\n", mOrientationScale);
-    dump.appendFormat(INDENT4 "DistanceScale: %0.3f\n", mDistanceScale);
-    dump.appendFormat(INDENT4 "HaveTilt: %s\n", toString(mHaveTilt));
-    dump.appendFormat(INDENT4 "TiltXCenter: %0.3f\n", mTiltXCenter);
-    dump.appendFormat(INDENT4 "TiltXScale: %0.3f\n", mTiltXScale);
-    dump.appendFormat(INDENT4 "TiltYCenter: %0.3f\n", mTiltYCenter);
-    dump.appendFormat(INDENT4 "TiltYScale: %0.3f\n", mTiltYScale);
+    dump += StringPrintf(INDENT3 "Translation and Scaling Factors:\n");
+    dump += StringPrintf(INDENT4 "XTranslate: %0.3f\n", mXTranslate);
+    dump += StringPrintf(INDENT4 "YTranslate: %0.3f\n", mYTranslate);
+    dump += StringPrintf(INDENT4 "XScale: %0.3f\n", mXScale);
+    dump += StringPrintf(INDENT4 "YScale: %0.3f\n", mYScale);
+    dump += StringPrintf(INDENT4 "XPrecision: %0.3f\n", mXPrecision);
+    dump += StringPrintf(INDENT4 "YPrecision: %0.3f\n", mYPrecision);
+    dump += StringPrintf(INDENT4 "GeometricScale: %0.3f\n", mGeometricScale);
+    dump += StringPrintf(INDENT4 "PressureScale: %0.3f\n", mPressureScale);
+    dump += StringPrintf(INDENT4 "SizeScale: %0.3f\n", mSizeScale);
+    dump += StringPrintf(INDENT4 "OrientationScale: %0.3f\n", mOrientationScale);
+    dump += StringPrintf(INDENT4 "DistanceScale: %0.3f\n", mDistanceScale);
+    dump += StringPrintf(INDENT4 "HaveTilt: %s\n", toString(mHaveTilt));
+    dump += StringPrintf(INDENT4 "TiltXCenter: %0.3f\n", mTiltXCenter);
+    dump += StringPrintf(INDENT4 "TiltXScale: %0.3f\n", mTiltXScale);
+    dump += StringPrintf(INDENT4 "TiltYCenter: %0.3f\n", mTiltYCenter);
+    dump += StringPrintf(INDENT4 "TiltYScale: %0.3f\n", mTiltYScale);
 
-    dump.appendFormat(INDENT3 "Last Raw Button State: 0x%08x\n", mLastRawState.buttonState);
-    dump.appendFormat(INDENT3 "Last Raw Touch: pointerCount=%d\n",
+    dump += StringPrintf(INDENT3 "Last Raw Button State: 0x%08x\n", mLastRawState.buttonState);
+    dump += StringPrintf(INDENT3 "Last Raw Touch: pointerCount=%d\n",
             mLastRawState.rawPointerData.pointerCount);
     for (uint32_t i = 0; i < mLastRawState.rawPointerData.pointerCount; i++) {
         const RawPointerData::Pointer& pointer = mLastRawState.rawPointerData.pointers[i];
-        dump.appendFormat(INDENT4 "[%d]: id=%d, x=%d, y=%d, pressure=%d, "
+        dump += StringPrintf(INDENT4 "[%d]: id=%d, x=%d, y=%d, pressure=%d, "
                 "touchMajor=%d, touchMinor=%d, toolMajor=%d, toolMinor=%d, "
                 "orientation=%d, tiltX=%d, tiltY=%d, distance=%d, "
                 "toolType=%d, isHovering=%s\n", i,
@@ -3194,14 +3197,14 @@ void TouchInputMapper::dump(String8& dump) {
                 pointer.toolType, toString(pointer.isHovering));
     }
 
-    dump.appendFormat(INDENT3 "Last Cooked Button State: 0x%08x\n", mLastCookedState.buttonState);
-    dump.appendFormat(INDENT3 "Last Cooked Touch: pointerCount=%d\n",
+    dump += StringPrintf(INDENT3 "Last Cooked Button State: 0x%08x\n", mLastCookedState.buttonState);
+    dump += StringPrintf(INDENT3 "Last Cooked Touch: pointerCount=%d\n",
             mLastCookedState.cookedPointerData.pointerCount);
     for (uint32_t i = 0; i < mLastCookedState.cookedPointerData.pointerCount; i++) {
         const PointerProperties& pointerProperties =
                 mLastCookedState.cookedPointerData.pointerProperties[i];
         const PointerCoords& pointerCoords = mLastCookedState.cookedPointerData.pointerCoords[i];
-        dump.appendFormat(INDENT4 "[%d]: id=%d, x=%0.3f, y=%0.3f, pressure=%0.3f, "
+        dump += StringPrintf(INDENT4 "[%d]: id=%d, x=%0.3f, y=%0.3f, pressure=%0.3f, "
                 "touchMajor=%0.3f, touchMinor=%0.3f, toolMajor=%0.3f, toolMinor=%0.3f, "
                 "orientation=%0.3f, tilt=%0.3f, distance=%0.3f, "
                 "toolType=%d, isHovering=%s\n", i,
@@ -3220,26 +3223,26 @@ void TouchInputMapper::dump(String8& dump) {
                 toString(mLastCookedState.cookedPointerData.isHovering(i)));
     }
 
-    dump.append(INDENT3 "Stylus Fusion:\n");
-    dump.appendFormat(INDENT4 "ExternalStylusConnected: %s\n",
+    dump += INDENT3 "Stylus Fusion:\n";
+    dump += StringPrintf(INDENT4 "ExternalStylusConnected: %s\n",
             toString(mExternalStylusConnected));
-    dump.appendFormat(INDENT4 "External Stylus ID: %" PRId64 "\n", mExternalStylusId);
-    dump.appendFormat(INDENT4 "External Stylus Data Timeout: %" PRId64 "\n",
+    dump += StringPrintf(INDENT4 "External Stylus ID: %" PRId64 "\n", mExternalStylusId);
+    dump += StringPrintf(INDENT4 "External Stylus Data Timeout: %" PRId64 "\n",
             mExternalStylusFusionTimeout);
-    dump.append(INDENT3 "External Stylus State:\n");
+    dump += INDENT3 "External Stylus State:\n";
     dumpStylusState(dump, mExternalStylusState);
 
     if (mDeviceMode == DEVICE_MODE_POINTER) {
-        dump.appendFormat(INDENT3 "Pointer Gesture Detector:\n");
-        dump.appendFormat(INDENT4 "XMovementScale: %0.3f\n",
+        dump += StringPrintf(INDENT3 "Pointer Gesture Detector:\n");
+        dump += StringPrintf(INDENT4 "XMovementScale: %0.3f\n",
                 mPointerXMovementScale);
-        dump.appendFormat(INDENT4 "YMovementScale: %0.3f\n",
+        dump += StringPrintf(INDENT4 "YMovementScale: %0.3f\n",
                 mPointerYMovementScale);
-        dump.appendFormat(INDENT4 "XZoomScale: %0.3f\n",
+        dump += StringPrintf(INDENT4 "XZoomScale: %0.3f\n",
                 mPointerXZoomScale);
-        dump.appendFormat(INDENT4 "YZoomScale: %0.3f\n",
+        dump += StringPrintf(INDENT4 "YZoomScale: %0.3f\n",
                 mPointerYZoomScale);
-        dump.appendFormat(INDENT4 "MaxSwipeWidth: %f\n",
+        dump += StringPrintf(INDENT4 "MaxSwipeWidth: %f\n",
                 mPointerGestureMaxSwipeWidth);
     }
 }
@@ -3400,15 +3403,15 @@ void TouchInputMapper::configureParameters() {
             mParameters.wake);
 }
 
-void TouchInputMapper::dumpParameters(String8& dump) {
-    dump.append(INDENT3 "Parameters:\n");
+void TouchInputMapper::dumpParameters(std::string& dump) {
+    dump += INDENT3 "Parameters:\n";
 
     switch (mParameters.gestureMode) {
     case Parameters::GESTURE_MODE_SINGLE_TOUCH:
-        dump.append(INDENT4 "GestureMode: single-touch\n");
+        dump += INDENT4 "GestureMode: single-touch\n";
         break;
     case Parameters::GESTURE_MODE_MULTI_TOUCH:
-        dump.append(INDENT4 "GestureMode: multi-touch\n");
+        dump += INDENT4 "GestureMode: multi-touch\n";
         break;
     default:
         assert(false);
@@ -3416,27 +3419,27 @@ void TouchInputMapper::dumpParameters(String8& dump) {
 
     switch (mParameters.deviceType) {
     case Parameters::DEVICE_TYPE_TOUCH_SCREEN:
-        dump.append(INDENT4 "DeviceType: touchScreen\n");
+        dump += INDENT4 "DeviceType: touchScreen\n";
         break;
     case Parameters::DEVICE_TYPE_TOUCH_PAD:
-        dump.append(INDENT4 "DeviceType: touchPad\n");
+        dump += INDENT4 "DeviceType: touchPad\n";
         break;
     case Parameters::DEVICE_TYPE_TOUCH_NAVIGATION:
-        dump.append(INDENT4 "DeviceType: touchNavigation\n");
+        dump += INDENT4 "DeviceType: touchNavigation\n";
         break;
     case Parameters::DEVICE_TYPE_POINTER:
-        dump.append(INDENT4 "DeviceType: pointer\n");
+        dump += INDENT4 "DeviceType: pointer\n";
         break;
     default:
         ALOG_ASSERT(false);
     }
 
-    dump.appendFormat(
+    dump += StringPrintf(
             INDENT4 "AssociatedDisplay: hasAssociatedDisplay=%s, isExternal=%s, displayId='%s'\n",
             toString(mParameters.hasAssociatedDisplay),
             toString(mParameters.associatedDisplayIsExternal),
             mParameters.uniqueDisplayId.c_str());
-    dump.appendFormat(INDENT4 "OrientationAware: %s\n",
+    dump += StringPrintf(INDENT4 "OrientationAware: %s\n",
             toString(mParameters.orientationAware));
 }
 
@@ -3444,8 +3447,8 @@ void TouchInputMapper::configureRawPointerAxes() {
     mRawPointerAxes.clear();
 }
 
-void TouchInputMapper::dumpRawPointerAxes(String8& dump) {
-    dump.append(INDENT3 "Raw Touch Axes:\n");
+void TouchInputMapper::dumpRawPointerAxes(std::string& dump) {
+    dump += INDENT3 "Raw Touch Axes:\n";
     dumpRawAbsoluteAxisInfo(dump, mRawPointerAxes.x, "X");
     dumpRawAbsoluteAxisInfo(dump, mRawPointerAxes.y, "Y");
     dumpRawAbsoluteAxisInfo(dump, mRawPointerAxes.pressure, "Pressure");
@@ -3890,8 +3893,8 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     }
 }
 
-void TouchInputMapper::dumpSurface(String8& dump) {
-    dump.appendFormat(INDENT3 "Viewport: displayId=%d, orientation=%d, "
+void TouchInputMapper::dumpSurface(std::string& dump) {
+    dump += StringPrintf(INDENT3 "Viewport: displayId=%d, orientation=%d, "
             "logicalFrame=[%d, %d, %d, %d], "
             "physicalFrame=[%d, %d, %d, %d], "
             "deviceSize=[%d, %d]\n",
@@ -3902,11 +3905,11 @@ void TouchInputMapper::dumpSurface(String8& dump) {
             mViewport.physicalRight, mViewport.physicalBottom,
             mViewport.deviceWidth, mViewport.deviceHeight);
 
-    dump.appendFormat(INDENT3 "SurfaceWidth: %dpx\n", mSurfaceWidth);
-    dump.appendFormat(INDENT3 "SurfaceHeight: %dpx\n", mSurfaceHeight);
-    dump.appendFormat(INDENT3 "SurfaceLeft: %d\n", mSurfaceLeft);
-    dump.appendFormat(INDENT3 "SurfaceTop: %d\n", mSurfaceTop);
-    dump.appendFormat(INDENT3 "SurfaceOrientation: %d\n", mSurfaceOrientation);
+    dump += StringPrintf(INDENT3 "SurfaceWidth: %dpx\n", mSurfaceWidth);
+    dump += StringPrintf(INDENT3 "SurfaceHeight: %dpx\n", mSurfaceHeight);
+    dump += StringPrintf(INDENT3 "SurfaceLeft: %d\n", mSurfaceLeft);
+    dump += StringPrintf(INDENT3 "SurfaceTop: %d\n", mSurfaceTop);
+    dump += StringPrintf(INDENT3 "SurfaceOrientation: %d\n", mSurfaceOrientation);
 }
 
 void TouchInputMapper::configureVirtualKeys() {
@@ -3963,13 +3966,13 @@ void TouchInputMapper::configureVirtualKeys() {
     }
 }
 
-void TouchInputMapper::dumpVirtualKeys(String8& dump) {
+void TouchInputMapper::dumpVirtualKeys(std::string& dump) {
     if (!mVirtualKeys.isEmpty()) {
-        dump.append(INDENT3 "Virtual Keys:\n");
+        dump += INDENT3 "Virtual Keys:\n";
 
         for (size_t i = 0; i < mVirtualKeys.size(); i++) {
             const VirtualKey& virtualKey = mVirtualKeys.itemAt(i);
-            dump.appendFormat(INDENT4 "%zu: scanCode=%d, keyCode=%d, "
+            dump += StringPrintf(INDENT4 "%zu: scanCode=%d, keyCode=%d, "
                     "hitLeft=%d, hitRight=%d, hitTop=%d, hitBottom=%d\n",
                     i, virtualKey.scanCode, virtualKey.keyCode,
                     virtualKey.hitLeft, virtualKey.hitRight,
@@ -4118,75 +4121,75 @@ void TouchInputMapper::resolveCalibration() {
     }
 }
 
-void TouchInputMapper::dumpCalibration(String8& dump) {
-    dump.append(INDENT3 "Calibration:\n");
+void TouchInputMapper::dumpCalibration(std::string& dump) {
+    dump += INDENT3 "Calibration:\n";
 
     // Size
     switch (mCalibration.sizeCalibration) {
     case Calibration::SIZE_CALIBRATION_NONE:
-        dump.append(INDENT4 "touch.size.calibration: none\n");
+        dump += INDENT4 "touch.size.calibration: none\n";
         break;
     case Calibration::SIZE_CALIBRATION_GEOMETRIC:
-        dump.append(INDENT4 "touch.size.calibration: geometric\n");
+        dump += INDENT4 "touch.size.calibration: geometric\n";
         break;
     case Calibration::SIZE_CALIBRATION_DIAMETER:
-        dump.append(INDENT4 "touch.size.calibration: diameter\n");
+        dump += INDENT4 "touch.size.calibration: diameter\n";
         break;
     case Calibration::SIZE_CALIBRATION_BOX:
-        dump.append(INDENT4 "touch.size.calibration: box\n");
+        dump += INDENT4 "touch.size.calibration: box\n";
         break;
     case Calibration::SIZE_CALIBRATION_AREA:
-        dump.append(INDENT4 "touch.size.calibration: area\n");
+        dump += INDENT4 "touch.size.calibration: area\n";
         break;
     default:
         ALOG_ASSERT(false);
     }
 
     if (mCalibration.haveSizeScale) {
-        dump.appendFormat(INDENT4 "touch.size.scale: %0.3f\n",
+        dump += StringPrintf(INDENT4 "touch.size.scale: %0.3f\n",
                 mCalibration.sizeScale);
     }
 
     if (mCalibration.haveSizeBias) {
-        dump.appendFormat(INDENT4 "touch.size.bias: %0.3f\n",
+        dump += StringPrintf(INDENT4 "touch.size.bias: %0.3f\n",
                 mCalibration.sizeBias);
     }
 
     if (mCalibration.haveSizeIsSummed) {
-        dump.appendFormat(INDENT4 "touch.size.isSummed: %s\n",
+        dump += StringPrintf(INDENT4 "touch.size.isSummed: %s\n",
                 toString(mCalibration.sizeIsSummed));
     }
 
     // Pressure
     switch (mCalibration.pressureCalibration) {
     case Calibration::PRESSURE_CALIBRATION_NONE:
-        dump.append(INDENT4 "touch.pressure.calibration: none\n");
+        dump += INDENT4 "touch.pressure.calibration: none\n";
         break;
     case Calibration::PRESSURE_CALIBRATION_PHYSICAL:
-        dump.append(INDENT4 "touch.pressure.calibration: physical\n");
+        dump += INDENT4 "touch.pressure.calibration: physical\n";
         break;
     case Calibration::PRESSURE_CALIBRATION_AMPLITUDE:
-        dump.append(INDENT4 "touch.pressure.calibration: amplitude\n");
+        dump += INDENT4 "touch.pressure.calibration: amplitude\n";
         break;
     default:
         ALOG_ASSERT(false);
     }
 
     if (mCalibration.havePressureScale) {
-        dump.appendFormat(INDENT4 "touch.pressure.scale: %0.3f\n",
+        dump += StringPrintf(INDENT4 "touch.pressure.scale: %0.3f\n",
                 mCalibration.pressureScale);
     }
 
     // Orientation
     switch (mCalibration.orientationCalibration) {
     case Calibration::ORIENTATION_CALIBRATION_NONE:
-        dump.append(INDENT4 "touch.orientation.calibration: none\n");
+        dump += INDENT4 "touch.orientation.calibration: none\n";
         break;
     case Calibration::ORIENTATION_CALIBRATION_INTERPOLATED:
-        dump.append(INDENT4 "touch.orientation.calibration: interpolated\n");
+        dump += INDENT4 "touch.orientation.calibration: interpolated\n";
         break;
     case Calibration::ORIENTATION_CALIBRATION_VECTOR:
-        dump.append(INDENT4 "touch.orientation.calibration: vector\n");
+        dump += INDENT4 "touch.orientation.calibration: vector\n";
         break;
     default:
         ALOG_ASSERT(false);
@@ -4195,41 +4198,41 @@ void TouchInputMapper::dumpCalibration(String8& dump) {
     // Distance
     switch (mCalibration.distanceCalibration) {
     case Calibration::DISTANCE_CALIBRATION_NONE:
-        dump.append(INDENT4 "touch.distance.calibration: none\n");
+        dump += INDENT4 "touch.distance.calibration: none\n";
         break;
     case Calibration::DISTANCE_CALIBRATION_SCALED:
-        dump.append(INDENT4 "touch.distance.calibration: scaled\n");
+        dump += INDENT4 "touch.distance.calibration: scaled\n";
         break;
     default:
         ALOG_ASSERT(false);
     }
 
     if (mCalibration.haveDistanceScale) {
-        dump.appendFormat(INDENT4 "touch.distance.scale: %0.3f\n",
+        dump += StringPrintf(INDENT4 "touch.distance.scale: %0.3f\n",
                 mCalibration.distanceScale);
     }
 
     switch (mCalibration.coverageCalibration) {
     case Calibration::COVERAGE_CALIBRATION_NONE:
-        dump.append(INDENT4 "touch.coverage.calibration: none\n");
+        dump += INDENT4 "touch.coverage.calibration: none\n";
         break;
     case Calibration::COVERAGE_CALIBRATION_BOX:
-        dump.append(INDENT4 "touch.coverage.calibration: box\n");
+        dump += INDENT4 "touch.coverage.calibration: box\n";
         break;
     default:
         ALOG_ASSERT(false);
     }
 }
 
-void TouchInputMapper::dumpAffineTransformation(String8& dump) {
-    dump.append(INDENT3 "Affine Transformation:\n");
+void TouchInputMapper::dumpAffineTransformation(std::string& dump) {
+    dump += INDENT3 "Affine Transformation:\n";
 
-    dump.appendFormat(INDENT4 "X scale: %0.3f\n", mAffineTransform.x_scale);
-    dump.appendFormat(INDENT4 "X ymix: %0.3f\n", mAffineTransform.x_ymix);
-    dump.appendFormat(INDENT4 "X offset: %0.3f\n", mAffineTransform.x_offset);
-    dump.appendFormat(INDENT4 "Y xmix: %0.3f\n", mAffineTransform.y_xmix);
-    dump.appendFormat(INDENT4 "Y scale: %0.3f\n", mAffineTransform.y_scale);
-    dump.appendFormat(INDENT4 "Y offset: %0.3f\n", mAffineTransform.y_offset);
+    dump += StringPrintf(INDENT4 "X scale: %0.3f\n", mAffineTransform.x_scale);
+    dump += StringPrintf(INDENT4 "X ymix: %0.3f\n", mAffineTransform.x_ymix);
+    dump += StringPrintf(INDENT4 "X offset: %0.3f\n", mAffineTransform.x_offset);
+    dump += StringPrintf(INDENT4 "Y xmix: %0.3f\n", mAffineTransform.y_xmix);
+    dump += StringPrintf(INDENT4 "Y scale: %0.3f\n", mAffineTransform.y_scale);
+    dump += StringPrintf(INDENT4 "Y offset: %0.3f\n", mAffineTransform.y_offset);
 }
 
 void TouchInputMapper::updateAffineTransformation() {
@@ -7005,11 +7008,11 @@ void ExternalStylusInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
             0.0f, 1.0f, 0.0f, 0.0f, 0.0f);
 }
 
-void ExternalStylusInputMapper::dump(String8& dump) {
-    dump.append(INDENT2 "External Stylus Input Mapper:\n");
-    dump.append(INDENT3 "Raw Stylus Axes:\n");
+void ExternalStylusInputMapper::dump(std::string& dump) {
+    dump += INDENT2 "External Stylus Input Mapper:\n";
+    dump += INDENT3 "Raw Stylus Axes:\n";
     dumpRawAbsoluteAxisInfo(dump, mRawPressureAxis, "Pressure");
-    dump.append(INDENT3 "Stylus State:\n");
+    dump += INDENT3 "Stylus State:\n";
     dumpStylusState(dump, mStylusState);
 }
 
@@ -7114,37 +7117,37 @@ int32_t JoystickInputMapper::getCompatAxis(int32_t axis) {
     return -1;
 }
 
-void JoystickInputMapper::dump(String8& dump) {
-    dump.append(INDENT2 "Joystick Input Mapper:\n");
+void JoystickInputMapper::dump(std::string& dump) {
+    dump += INDENT2 "Joystick Input Mapper:\n";
 
-    dump.append(INDENT3 "Axes:\n");
+    dump += INDENT3 "Axes:\n";
     size_t numAxes = mAxes.size();
     for (size_t i = 0; i < numAxes; i++) {
         const Axis& axis = mAxes.valueAt(i);
         const char* label = getAxisLabel(axis.axisInfo.axis);
         if (label) {
-            dump.appendFormat(INDENT4 "%s", label);
+            dump += StringPrintf(INDENT4 "%s", label);
         } else {
-            dump.appendFormat(INDENT4 "%d", axis.axisInfo.axis);
+            dump += StringPrintf(INDENT4 "%d", axis.axisInfo.axis);
         }
         if (axis.axisInfo.mode == AxisInfo::MODE_SPLIT) {
             label = getAxisLabel(axis.axisInfo.highAxis);
             if (label) {
-                dump.appendFormat(" / %s (split at %d)", label, axis.axisInfo.splitValue);
+                dump += StringPrintf(" / %s (split at %d)", label, axis.axisInfo.splitValue);
             } else {
-                dump.appendFormat(" / %d (split at %d)", axis.axisInfo.highAxis,
+                dump += StringPrintf(" / %d (split at %d)", axis.axisInfo.highAxis,
                         axis.axisInfo.splitValue);
             }
         } else if (axis.axisInfo.mode == AxisInfo::MODE_INVERT) {
-            dump.append(" (invert)");
+            dump += " (invert)";
         }
 
-        dump.appendFormat(": min=%0.5f, max=%0.5f, flat=%0.5f, fuzz=%0.5f, resolution=%0.5f\n",
+        dump += StringPrintf(": min=%0.5f, max=%0.5f, flat=%0.5f, fuzz=%0.5f, resolution=%0.5f\n",
                 axis.min, axis.max, axis.flat, axis.fuzz, axis.resolution);
-        dump.appendFormat(INDENT4 "  scale=%0.5f, offset=%0.5f, "
+        dump += StringPrintf(INDENT4 "  scale=%0.5f, offset=%0.5f, "
                 "highScale=%0.5f, highOffset=%0.5f\n",
                 axis.scale, axis.offset, axis.highScale, axis.highOffset);
-        dump.appendFormat(INDENT4 "  rawAxis=%d, rawMin=%d, rawMax=%d, "
+        dump += StringPrintf(INDENT4 "  rawAxis=%d, rawMin=%d, rawMax=%d, "
                 "rawFlat=%d, rawFuzz=%d, rawResolution=%d\n",
                 mAxes.keyAt(i), axis.rawAxisInfo.minValue, axis.rawAxisInfo.maxValue,
                 axis.rawAxisInfo.flat, axis.rawAxisInfo.fuzz, axis.rawAxisInfo.resolution);

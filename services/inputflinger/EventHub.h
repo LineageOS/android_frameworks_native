@@ -24,7 +24,6 @@
 #include <input/KeyLayoutMap.h>
 #include <input/KeyCharacterMap.h>
 #include <input/VirtualKeyMap.h>
-#include <utils/String8.h>
 #include <utils/Mutex.h>
 #include <utils/Log.h>
 #include <utils/List.h>
@@ -262,7 +261,7 @@ public:
     virtual void wake() = 0;
 
     /* Dump EventHub state to a string. */
-    virtual void dump(String8& dump) = 0;
+    virtual void dump(std::string& dump) = 0;
 
     /* Called by the heatbeat to ensures that the reader has not deadlocked. */
     virtual void monitor() = 0;
@@ -333,7 +332,7 @@ public:
 
     virtual void wake();
 
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
     virtual void monitor();
 
 protected:

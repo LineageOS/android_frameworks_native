@@ -1863,13 +1863,13 @@ binder::Status InstalldNativeService::mergeProfiles(int32_t uid, const std::stri
     return ok();
 }
 
-binder::Status InstalldNativeService::snapshotProfile(int32_t appId, const std::string& packageName,
-        const std::string& codePath, bool* _aidl_return) {
+binder::Status InstalldNativeService::createProfileSnapshot(int32_t appId,
+        const std::string& packageName, const std::string& codePath, bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    *_aidl_return = snapshot_profile(appId, packageName, codePath);
+    *_aidl_return = create_profile_snapshot(appId, packageName, codePath);
     return ok();
 }
 

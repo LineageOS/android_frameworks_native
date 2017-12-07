@@ -18,10 +18,8 @@
 #define _UI_INPUT_APPLICATION_H
 
 #include <input/Input.h>
-
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
-#include <utils/String8.h>
 
 namespace android {
 
@@ -29,7 +27,7 @@ namespace android {
  * Describes the properties of an application that can receive input.
  */
 struct InputApplicationInfo {
-    String8 name;
+    std::string name;
     nsecs_t dispatchingTimeout;
 };
 
@@ -46,8 +44,8 @@ public:
         return mInfo;
     }
 
-    inline String8 getName() const {
-        return mInfo ? mInfo->name : String8("<invalid>");
+    inline std::string getName() const {
+        return mInfo ? mInfo->name : "<invalid>";
     }
 
     inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {

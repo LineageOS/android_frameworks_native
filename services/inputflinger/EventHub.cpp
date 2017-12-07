@@ -39,6 +39,7 @@
 
 #include <hardware_legacy/power.h>
 
+#include <android-base/stringprintf.h>
 #include <cutils/properties.h>
 #include <openssl/sha.h>
 #include <utils/Log.h>
@@ -63,6 +64,8 @@
 #define INDENT "  "
 #define INDENT2 "    "
 #define INDENT3 "      "
+
+using android::base::StringPrintf;
 
 namespace android {
 
@@ -1733,43 +1736,43 @@ void EventHub::requestReopenDevices() {
     mNeedToReopenDevices = true;
 }
 
-void EventHub::dump(String8& dump) {
-    dump.append("Event Hub State:\n");
+void EventHub::dump(std::string& dump) {
+    dump += "Event Hub State:\n";
 
     { // acquire lock
         AutoMutex _l(mLock);
 
-        dump.appendFormat(INDENT "BuiltInKeyboardId: %d\n", mBuiltInKeyboardId);
+        dump += StringPrintf(INDENT "BuiltInKeyboardId: %d\n", mBuiltInKeyboardId);
 
-        dump.append(INDENT "Devices:\n");
+        dump += INDENT "Devices:\n";
 
         for (size_t i = 0; i < mDevices.size(); i++) {
             const Device* device = mDevices.valueAt(i);
             if (mBuiltInKeyboardId == device->id) {
-                dump.appendFormat(INDENT2 "%d: %s (aka device 0 - built-in keyboard)\n",
+                dump += StringPrintf(INDENT2 "%d: %s (aka device 0 - built-in keyboard)\n",
                         device->id, device->identifier.name.string());
             } else {
-                dump.appendFormat(INDENT2 "%d: %s\n", device->id,
+                dump += StringPrintf(INDENT2 "%d: %s\n", device->id,
                         device->identifier.name.string());
             }
-            dump.appendFormat(INDENT3 "Classes: 0x%08x\n", device->classes);
-            dump.appendFormat(INDENT3 "Path: %s\n", device->path.string());
-            dump.appendFormat(INDENT3 "Enabled: %s\n", toString(device->enabled));
-            dump.appendFormat(INDENT3 "Descriptor: %s\n", device->identifier.descriptor.string());
-            dump.appendFormat(INDENT3 "Location: %s\n", device->identifier.location.string());
-            dump.appendFormat(INDENT3 "ControllerNumber: %d\n", device->controllerNumber);
-            dump.appendFormat(INDENT3 "UniqueId: %s\n", device->identifier.uniqueId.string());
-            dump.appendFormat(INDENT3 "Identifier: bus=0x%04x, vendor=0x%04x, "
+            dump += StringPrintf(INDENT3 "Classes: 0x%08x\n", device->classes);
+            dump += StringPrintf(INDENT3 "Path: %s\n", device->path.string());
+            dump += StringPrintf(INDENT3 "Enabled: %s\n", toString(device->enabled));
+            dump += StringPrintf(INDENT3 "Descriptor: %s\n", device->identifier.descriptor.string());
+            dump += StringPrintf(INDENT3 "Location: %s\n", device->identifier.location.string());
+            dump += StringPrintf(INDENT3 "ControllerNumber: %d\n", device->controllerNumber);
+            dump += StringPrintf(INDENT3 "UniqueId: %s\n", device->identifier.uniqueId.string());
+            dump += StringPrintf(INDENT3 "Identifier: bus=0x%04x, vendor=0x%04x, "
                     "product=0x%04x, version=0x%04x\n",
                     device->identifier.bus, device->identifier.vendor,
                     device->identifier.product, device->identifier.version);
-            dump.appendFormat(INDENT3 "KeyLayoutFile: %s\n",
+            dump += StringPrintf(INDENT3 "KeyLayoutFile: %s\n",
                     device->keyMap.keyLayoutFile.string());
-            dump.appendFormat(INDENT3 "KeyCharacterMapFile: %s\n",
+            dump += StringPrintf(INDENT3 "KeyCharacterMapFile: %s\n",
                     device->keyMap.keyCharacterMapFile.string());
-            dump.appendFormat(INDENT3 "ConfigurationFile: %s\n",
+            dump += StringPrintf(INDENT3 "ConfigurationFile: %s\n",
                     device->configurationFile.string());
-            dump.appendFormat(INDENT3 "HaveKeyboardLayoutOverlay: %s\n",
+            dump += StringPrintf(INDENT3 "HaveKeyboardLayoutOverlay: %s\n",
                     toString(device->overlayKeyMap != NULL));
         }
     } // release lock

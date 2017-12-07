@@ -798,7 +798,7 @@ private:
         return false;
     }
 
-    virtual void dump(String8&) {
+    virtual void dump(std::string&) {
     }
 
     virtual void monitor() {
