@@ -47,10 +47,12 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <sstream>
 #include <stddef.h>
 #include <time.h>
 #include <unistd.h>
 
+#include <android-base/stringprintf.h>
 #include <log/log.h>
 #include <utils/Trace.h>
 #include <powermanager/PowerManager.h>
@@ -60,6 +62,8 @@
 #define INDENT2 "    "
 #define INDENT3 "      "
 #define INDENT4 "        "
+
+using android::base::StringPrintf;
 
 namespace android {
 
@@ -176,9 +180,9 @@ static bool isMainDisplay(int32_t displayId) {
     return displayId == ADISPLAY_ID_DEFAULT || displayId == ADISPLAY_ID_NONE;
 }
 
-static void dumpRegion(String8& dump, const Region& region) {
+static void dumpRegion(std::string& dump, const Region& region) {
     if (region.isEmpty()) {
-        dump.append("<empty>");
+        dump += "<empty>";
         return;
     }
 
@@ -189,9 +193,9 @@ static void dumpRegion(String8& dump, const Region& region) {
         if (first) {
             first = false;
         } else {
-            dump.append("|");
+            dump += "|";
         }
-        dump.appendFormat("[%d,%d][%d,%d]", cur->left, cur->top, cur->right, cur->bottom);
+        dump += StringPrintf("[%d,%d][%d,%d]", cur->left, cur->top, cur->right, cur->bottom);
         cur++;
     }
 }
@@ -937,7 +941,7 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
 #if DEBUG_FOCUS
             ALOGD("Dropping event delivery to target with channel '%s' because it "
                     "is no longer registered with the input dispatcher.",
-                    inputTarget.inputChannel->getName().string());
+                    inputTarget.inputChannel->getName().c_str());
 #endif
         }
     }
@@ -963,7 +967,7 @@ int32_t InputDispatcher::handleTargetsNotReadyLocked(nsecs_t currentTime,
         if (mInputTargetWaitCause != INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY) {
 #if DEBUG_FOCUS
             ALOGD("Waiting for application to become ready for input: %s.  Reason: %s",
-                    getApplicationWindowLabelLocked(applicationHandle, windowHandle).string(),
+                    getApplicationWindowLabelLocked(applicationHandle, windowHandle).c_str(),
                     reason);
 #endif
             nsecs_t timeout;
@@ -1070,7 +1074,7 @@ void InputDispatcher::resetANRTimeoutsLocked() {
 int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
         const EventEntry* entry, Vector<InputTarget>& inputTargets, nsecs_t* nextWakeupTime) {
     int32_t injectionResult;
-    String8 reason;
+    std::string reason;
 
     // If there is no currently focused window and no focused application
     // then drop the event.
@@ -1098,9 +1102,9 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
     // Check whether the window is ready for more input.
     reason = checkWindowReadyForMoreInputLocked(currentTime,
             mFocusedWindowHandle, entry, "focused");
-    if (!reason.isEmpty()) {
+    if (!reason.empty()) {
         injectionResult = handleTargetsNotReadyLocked(currentTime, entry,
-                mFocusedApplicationHandle, mFocusedWindowHandle, nextWakeupTime, reason.string());
+                mFocusedApplicationHandle, mFocusedWindowHandle, nextWakeupTime, reason.c_str());
         goto Unresponsive;
     }
 
@@ -1309,8 +1313,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                     && newTouchedWindowHandle != NULL) {
 #if DEBUG_FOCUS
                 ALOGD("Touch is slipping out of window %s into window %s.",
-                        oldTouchedWindowHandle->getName().string(),
-                        newTouchedWindowHandle->getName().string());
+                        oldTouchedWindowHandle->getName().c_str(),
+                        newTouchedWindowHandle->getName().c_str());
 #endif
                 // Make a slippery exit from the old window.
                 mTempTouchState.addOrUpdateWindow(oldTouchedWindowHandle,
@@ -1344,7 +1348,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         if (mLastHoverWindowHandle != NULL) {
 #if DEBUG_HOVER
             ALOGD("Sending hover exit event to window %s.",
-                    mLastHoverWindowHandle->getName().string());
+                    mLastHoverWindowHandle->getName().c_str());
 #endif
             mTempTouchState.addOrUpdateWindow(mLastHoverWindowHandle,
                     InputTarget::FLAG_DISPATCH_AS_HOVER_EXIT, BitSet32(0));
@@ -1354,7 +1358,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         if (newHoverWindowHandle != NULL) {
 #if DEBUG_HOVER
             ALOGD("Sending hover enter event to window %s.",
-                    newHoverWindowHandle->getName().string());
+                    newHoverWindowHandle->getName().c_str());
 #endif
             mTempTouchState.addOrUpdateWindow(newHoverWindowHandle,
                     InputTarget::FLAG_DISPATCH_AS_HOVER_ENTER, BitSet32(0));
@@ -1412,11 +1416,11 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         const TouchedWindow& touchedWindow = mTempTouchState.windows[i];
         if (touchedWindow.targetFlags & InputTarget::FLAG_FOREGROUND) {
             // Check whether the window is ready for more input.
-            String8 reason = checkWindowReadyForMoreInputLocked(currentTime,
+            std::string reason = checkWindowReadyForMoreInputLocked(currentTime,
                     touchedWindow.windowHandle, entry, "touched");
-            if (!reason.isEmpty()) {
+            if (!reason.empty()) {
                 injectionResult = handleTargetsNotReadyLocked(currentTime, entry,
-                        NULL, touchedWindow.windowHandle, nextWakeupTime, reason.string());
+                        NULL, touchedWindow.windowHandle, nextWakeupTime, reason.c_str());
                 goto Unresponsive;
             }
         }
@@ -1604,7 +1608,7 @@ bool InputDispatcher::checkInjectionPermission(const sp<InputWindowHandle>& wind
             ALOGW("Permission denied: injecting event from pid %d uid %d to window %s "
                     "owned by uid %d",
                     injectionState->injectorPid, injectionState->injectorUid,
-                    windowHandle->getName().string(),
+                    windowHandle->getName().c_str(),
                     windowHandle->getInfo()->ownerUid);
         } else {
             ALOGW("Permission denied: injecting event from pid %d uid %d",
@@ -1656,18 +1660,18 @@ bool InputDispatcher::isWindowObscuredLocked(const sp<InputWindowHandle>& window
     return false;
 }
 
-String8 InputDispatcher::checkWindowReadyForMoreInputLocked(nsecs_t currentTime,
+std::string InputDispatcher::checkWindowReadyForMoreInputLocked(nsecs_t currentTime,
         const sp<InputWindowHandle>& windowHandle, const EventEntry* eventEntry,
         const char* targetType) {
     // If the window is paused then keep waiting.
     if (windowHandle->getInfo()->paused) {
-        return String8::format("Waiting because the %s window is paused.", targetType);
+        return StringPrintf("Waiting because the %s window is paused.", targetType);
     }
 
     // If the window's connection is not registered then keep waiting.
     ssize_t connectionIndex = getConnectionIndexLocked(windowHandle->getInputChannel());
     if (connectionIndex < 0) {
-        return String8::format("Waiting because the %s window's input channel is not "
+        return StringPrintf("Waiting because the %s window's input channel is not "
                 "registered with the input dispatcher.  The window may be in the process "
                 "of being removed.", targetType);
     }
@@ -1675,14 +1679,14 @@ String8 InputDispatcher::checkWindowReadyForMoreInputLocked(nsecs_t currentTime,
     // If the connection is dead then keep waiting.
     sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
     if (connection->status != Connection::STATUS_NORMAL) {
-        return String8::format("Waiting because the %s window's input connection is %s."
+        return StringPrintf("Waiting because the %s window's input connection is %s."
                 "The window may be in the process of being removed.", targetType,
                 connection->getStatusLabel());
     }
 
     // If the connection is backed up then keep waiting.
     if (connection->inputPublisherBlocked) {
-        return String8::format("Waiting because the %s window's input channel is full.  "
+        return StringPrintf("Waiting because the %s window's input channel is full.  "
                 "Outbound queue length: %d.  Wait queue length: %d.",
                 targetType, connection->outboundQueue.count(), connection->waitQueue.count());
     }
@@ -1701,7 +1705,7 @@ String8 InputDispatcher::checkWindowReadyForMoreInputLocked(nsecs_t currentTime,
         // To obtain this behavior, we must serialize key events with respect to all
         // prior input events.
         if (!connection->outboundQueue.isEmpty() || !connection->waitQueue.isEmpty()) {
-            return String8::format("Waiting to send key event because the %s window has not "
+            return StringPrintf("Waiting to send key event because the %s window has not "
                     "finished processing all of the input events that were previously "
                     "delivered to it.  Outbound queue length: %d.  Wait queue length: %d.",
                     targetType, connection->outboundQueue.count(), connection->waitQueue.count());
@@ -1725,7 +1729,7 @@ String8 InputDispatcher::checkWindowReadyForMoreInputLocked(nsecs_t currentTime,
         if (!connection->waitQueue.isEmpty()
                 && currentTime >= connection->waitQueue.head->deliveryTime
                         + STREAM_AHEAD_EVENT_TIMEOUT) {
-            return String8::format("Waiting to send non-key event because the %s window has not "
+            return StringPrintf("Waiting to send non-key event because the %s window has not "
                     "finished processing certain input events that were delivered to it over "
                     "%0.1fms ago.  Wait queue length: %d.  Wait queue head age: %0.1fms.",
                     targetType, STREAM_AHEAD_EVENT_TIMEOUT * 0.000001f,
@@ -1733,17 +1737,17 @@ String8 InputDispatcher::checkWindowReadyForMoreInputLocked(nsecs_t currentTime,
                     (currentTime - connection->waitQueue.head->deliveryTime) * 0.000001f);
         }
     }
-    return String8::empty();
+    return "";
 }
 
-String8 InputDispatcher::getApplicationWindowLabelLocked(
+std::string InputDispatcher::getApplicationWindowLabelLocked(
         const sp<InputApplicationHandle>& applicationHandle,
         const sp<InputWindowHandle>& windowHandle) {
     if (applicationHandle != NULL) {
         if (windowHandle != NULL) {
-            String8 label(applicationHandle->getName());
-            label.append(" - ");
-            label.append(windowHandle->getName());
+            std::string label(applicationHandle->getName());
+            label += " - ";
+            label += windowHandle->getName();
             return label;
         } else {
             return applicationHandle->getName();
@@ -1751,7 +1755,7 @@ String8 InputDispatcher::getApplicationWindowLabelLocked(
     } else if (windowHandle != NULL) {
         return windowHandle->getName();
     } else {
-        return String8("<unknown application or window>");
+        return "<unknown application or window>";
     }
 }
 
@@ -1760,7 +1764,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry* eventEntry) {
         const InputWindowInfo* info = mFocusedWindowHandle->getInfo();
         if (info->inputFeatures & InputWindowInfo::INPUT_FEATURE_DISABLE_USER_ACTIVITY) {
 #if DEBUG_DISPATCH_CYCLE
-            ALOGD("Not poking user activity: disabled by window '%s'.", info->name.string());
+            ALOGD("Not poking user activity: disabled by window '%s'.", info->name.c_str());
 #endif
             return;
         }
@@ -2882,7 +2886,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle> >& inpu
             if (mFocusedWindowHandle != NULL) {
 #if DEBUG_FOCUS
                 ALOGD("Focus left window: %s",
-                        mFocusedWindowHandle->getName().string());
+                        mFocusedWindowHandle->getName().c_str());
 #endif
                 sp<InputChannel> focusedInputChannel = mFocusedWindowHandle->getInputChannel();
                 if (focusedInputChannel != NULL) {
@@ -2895,7 +2899,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle> >& inpu
             if (newFocusedWindowHandle != NULL) {
 #if DEBUG_FOCUS
                 ALOGD("Focus entered window: %s",
-                        newFocusedWindowHandle->getName().string());
+                        newFocusedWindowHandle->getName().c_str());
 #endif
             }
             mFocusedWindowHandle = newFocusedWindowHandle;
@@ -2908,7 +2912,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle> >& inpu
                 if (!hasWindowHandleLocked(touchedWindow.windowHandle)) {
 #if DEBUG_FOCUS
                     ALOGD("Touched window was removed: %s",
-                            touchedWindow.windowHandle->getName().string());
+                            touchedWindow.windowHandle->getName().c_str());
 #endif
                     sp<InputChannel> touchedInputChannel =
                             touchedWindow.windowHandle->getInputChannel();
@@ -2933,7 +2937,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle> >& inpu
             const sp<InputWindowHandle>& oldWindowHandle = oldWindowHandles.itemAt(i);
             if (!hasWindowHandleLocked(oldWindowHandle)) {
 #if DEBUG_FOCUS
-                ALOGD("Window went away: %s", oldWindowHandle->getName().string());
+                ALOGD("Window went away: %s", oldWindowHandle->getName().c_str());
 #endif
                 oldWindowHandle->releaseInfo();
             }
@@ -3035,7 +3039,7 @@ bool InputDispatcher::transferTouchFocus(const sp<InputChannel>& fromChannel,
         const sp<InputChannel>& toChannel) {
 #if DEBUG_FOCUS
     ALOGD("transferTouchFocus: fromChannel=%s, toChannel=%s",
-            fromChannel->getName().string(), toChannel->getName().string());
+            fromChannel->getName().c_str(), toChannel->getName().c_str());
 #endif
     { // acquire lock
         AutoMutex _l(mLock);
@@ -3132,72 +3136,68 @@ void InputDispatcher::resetAndDropEverythingLocked(const char* reason) {
 }
 
 void InputDispatcher::logDispatchStateLocked() {
-    String8 dump;
+    std::string dump;
     dumpDispatchStateLocked(dump);
 
-    char* text = dump.lockBuffer(dump.size());
-    char* start = text;
-    while (*start != '\0') {
-        char* end = strchr(start, '\n');
-        if (*end == '\n') {
-            *(end++) = '\0';
-        }
-        ALOGD("%s", start);
-        start = end;
+    std::istringstream stream(dump);
+    std::string line;
+
+    while (std::getline(stream, line, '\n')) {
+        ALOGD("%s", line.c_str());
     }
 }
 
-void InputDispatcher::dumpDispatchStateLocked(String8& dump) {
-    dump.appendFormat(INDENT "DispatchEnabled: %d\n", mDispatchEnabled);
-    dump.appendFormat(INDENT "DispatchFrozen: %d\n", mDispatchFrozen);
+void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
+    dump += StringPrintf(INDENT "DispatchEnabled: %d\n", mDispatchEnabled);
+    dump += StringPrintf(INDENT "DispatchFrozen: %d\n", mDispatchFrozen);
 
     if (mFocusedApplicationHandle != NULL) {
-        dump.appendFormat(INDENT "FocusedApplication: name='%s', dispatchingTimeout=%0.3fms\n",
-                mFocusedApplicationHandle->getName().string(),
+        dump += StringPrintf(INDENT "FocusedApplication: name='%s', dispatchingTimeout=%0.3fms\n",
+                mFocusedApplicationHandle->getName().c_str(),
                 mFocusedApplicationHandle->getDispatchingTimeout(
                         DEFAULT_INPUT_DISPATCHING_TIMEOUT) / 1000000.0);
     } else {
-        dump.append(INDENT "FocusedApplication: <null>\n");
+        dump += StringPrintf(INDENT "FocusedApplication: <null>\n");
     }
-    dump.appendFormat(INDENT "FocusedWindow: name='%s'\n",
-            mFocusedWindowHandle != NULL ? mFocusedWindowHandle->getName().string() : "<null>");
+    dump += StringPrintf(INDENT "FocusedWindow: name='%s'\n",
+            mFocusedWindowHandle != NULL ? mFocusedWindowHandle->getName().c_str() : "<null>");
 
     if (!mTouchStatesByDisplay.isEmpty()) {
-        dump.appendFormat(INDENT "TouchStatesByDisplay:\n");
+        dump += StringPrintf(INDENT "TouchStatesByDisplay:\n");
         for (size_t i = 0; i < mTouchStatesByDisplay.size(); i++) {
             const TouchState& state = mTouchStatesByDisplay.valueAt(i);
-            dump.appendFormat(INDENT2 "%d: down=%s, split=%s, deviceId=%d, source=0x%08x\n",
+            dump += StringPrintf(INDENT2 "%d: down=%s, split=%s, deviceId=%d, source=0x%08x\n",
                     state.displayId, toString(state.down), toString(state.split),
                     state.deviceId, state.source);
             if (!state.windows.isEmpty()) {
-                dump.append(INDENT3 "Windows:\n");
+                dump += INDENT3 "Windows:\n";
                 for (size_t i = 0; i < state.windows.size(); i++) {
                     const TouchedWindow& touchedWindow = state.windows[i];
-                    dump.appendFormat(INDENT4 "%zu: name='%s', pointerIds=0x%0x, targetFlags=0x%x\n",
-                            i, touchedWindow.windowHandle->getName().string(),
+                    dump += StringPrintf(INDENT4 "%zu: name='%s', pointerIds=0x%0x, targetFlags=0x%x\n",
+                            i, touchedWindow.windowHandle->getName().c_str(),
                             touchedWindow.pointerIds.value,
                             touchedWindow.targetFlags);
                 }
             } else {
-                dump.append(INDENT3 "Windows: <none>\n");
+                dump += INDENT3 "Windows: <none>\n";
             }
         }
     } else {
-        dump.append(INDENT "TouchStates: <no displays touched>\n");
+        dump += INDENT "TouchStates: <no displays touched>\n";
     }
 
     if (!mWindowHandles.isEmpty()) {
-        dump.append(INDENT "Windows:\n");
+        dump += INDENT "Windows:\n";
         for (size_t i = 0; i < mWindowHandles.size(); i++) {
             const sp<InputWindowHandle>& windowHandle = mWindowHandles.itemAt(i);
             const InputWindowInfo* windowInfo = windowHandle->getInfo();
 
-            dump.appendFormat(INDENT2 "%zu: name='%s', displayId=%d, "
+            dump += StringPrintf(INDENT2 "%zu: name='%s', displayId=%d, "
                     "paused=%s, hasFocus=%s, hasWallpaper=%s, "
                     "visible=%s, canReceiveKeys=%s, flags=0x%08x, type=0x%08x, layer=%d, "
                     "frame=[%d,%d][%d,%d], scale=%f, "
                     "touchableRegion=",
-                    i, windowInfo->name.string(), windowInfo->displayId,
+                    i, windowInfo->name.c_str(), windowInfo->displayId,
                     toString(windowInfo->paused),
                     toString(windowInfo->hasFocus),
                     toString(windowInfo->hasWallpaper),
@@ -3209,140 +3209,140 @@ void InputDispatcher::dumpDispatchStateLocked(String8& dump) {
                     windowInfo->frameRight, windowInfo->frameBottom,
                     windowInfo->scaleFactor);
             dumpRegion(dump, windowInfo->touchableRegion);
-            dump.appendFormat(", inputFeatures=0x%08x", windowInfo->inputFeatures);
-            dump.appendFormat(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%0.3fms\n",
+            dump += StringPrintf(", inputFeatures=0x%08x", windowInfo->inputFeatures);
+            dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%0.3fms\n",
                     windowInfo->ownerPid, windowInfo->ownerUid,
                     windowInfo->dispatchingTimeout / 1000000.0);
         }
     } else {
-        dump.append(INDENT "Windows: <none>\n");
+        dump += INDENT "Windows: <none>\n";
     }
 
     if (!mMonitoringChannels.isEmpty()) {
-        dump.append(INDENT "MonitoringChannels:\n");
+        dump += INDENT "MonitoringChannels:\n";
         for (size_t i = 0; i < mMonitoringChannels.size(); i++) {
             const sp<InputChannel>& channel = mMonitoringChannels[i];
-            dump.appendFormat(INDENT2 "%zu: '%s'\n", i, channel->getName().string());
+            dump += StringPrintf(INDENT2 "%zu: '%s'\n", i, channel->getName().c_str());
         }
     } else {
-        dump.append(INDENT "MonitoringChannels: <none>\n");
+        dump += INDENT "MonitoringChannels: <none>\n";
     }
 
     nsecs_t currentTime = now();
 
     // Dump recently dispatched or dropped events from oldest to newest.
     if (!mRecentQueue.isEmpty()) {
-        dump.appendFormat(INDENT "RecentQueue: length=%u\n", mRecentQueue.count());
+        dump += StringPrintf(INDENT "RecentQueue: length=%u\n", mRecentQueue.count());
         for (EventEntry* entry = mRecentQueue.head; entry; entry = entry->next) {
-            dump.append(INDENT2);
+            dump += INDENT2;
             entry->appendDescription(dump);
-            dump.appendFormat(", age=%0.1fms\n",
+            dump += StringPrintf(", age=%0.1fms\n",
                     (currentTime - entry->eventTime) * 0.000001f);
         }
     } else {
-        dump.append(INDENT "RecentQueue: <empty>\n");
+        dump += INDENT "RecentQueue: <empty>\n";
     }
 
     // Dump event currently being dispatched.
     if (mPendingEvent) {
-        dump.append(INDENT "PendingEvent:\n");
-        dump.append(INDENT2);
+        dump += INDENT "PendingEvent:\n";
+        dump += INDENT2;
         mPendingEvent->appendDescription(dump);
-        dump.appendFormat(", age=%0.1fms\n",
+        dump += StringPrintf(", age=%0.1fms\n",
                 (currentTime - mPendingEvent->eventTime) * 0.000001f);
     } else {
-        dump.append(INDENT "PendingEvent: <none>\n");
+        dump += INDENT "PendingEvent: <none>\n";
     }
 
     // Dump inbound events from oldest to newest.
     if (!mInboundQueue.isEmpty()) {
-        dump.appendFormat(INDENT "InboundQueue: length=%u\n", mInboundQueue.count());
+        dump += StringPrintf(INDENT "InboundQueue: length=%u\n", mInboundQueue.count());
         for (EventEntry* entry = mInboundQueue.head; entry; entry = entry->next) {
-            dump.append(INDENT2);
+            dump += INDENT2;
             entry->appendDescription(dump);
-            dump.appendFormat(", age=%0.1fms\n",
+            dump += StringPrintf(", age=%0.1fms\n",
                     (currentTime - entry->eventTime) * 0.000001f);
         }
     } else {
-        dump.append(INDENT "InboundQueue: <empty>\n");
+        dump += INDENT "InboundQueue: <empty>\n";
     }
 
     if (!mReplacedKeys.isEmpty()) {
-        dump.append(INDENT "ReplacedKeys:\n");
+        dump += INDENT "ReplacedKeys:\n";
         for (size_t i = 0; i < mReplacedKeys.size(); i++) {
             const KeyReplacement& replacement = mReplacedKeys.keyAt(i);
             int32_t newKeyCode = mReplacedKeys.valueAt(i);
-            dump.appendFormat(INDENT2 "%zu: originalKeyCode=%d, deviceId=%d, newKeyCode=%d\n",
+            dump += StringPrintf(INDENT2 "%zu: originalKeyCode=%d, deviceId=%d, newKeyCode=%d\n",
                     i, replacement.keyCode, replacement.deviceId, newKeyCode);
         }
     } else {
-        dump.append(INDENT "ReplacedKeys: <empty>\n");
+        dump += INDENT "ReplacedKeys: <empty>\n";
     }
 
     if (!mConnectionsByFd.isEmpty()) {
-        dump.append(INDENT "Connections:\n");
+        dump += INDENT "Connections:\n";
         for (size_t i = 0; i < mConnectionsByFd.size(); i++) {
             const sp<Connection>& connection = mConnectionsByFd.valueAt(i);
-            dump.appendFormat(INDENT2 "%zu: channelName='%s', windowName='%s', "
+            dump += StringPrintf(INDENT2 "%zu: channelName='%s', windowName='%s', "
                     "status=%s, monitor=%s, inputPublisherBlocked=%s\n",
                     i, connection->getInputChannelName(), connection->getWindowName(),
                     connection->getStatusLabel(), toString(connection->monitor),
                     toString(connection->inputPublisherBlocked));
 
             if (!connection->outboundQueue.isEmpty()) {
-                dump.appendFormat(INDENT3 "OutboundQueue: length=%u\n",
+                dump += StringPrintf(INDENT3 "OutboundQueue: length=%u\n",
                         connection->outboundQueue.count());
                 for (DispatchEntry* entry = connection->outboundQueue.head; entry;
                         entry = entry->next) {
                     dump.append(INDENT4);
                     entry->eventEntry->appendDescription(dump);
-                    dump.appendFormat(", targetFlags=0x%08x, resolvedAction=%d, age=%0.1fms\n",
+                    dump += StringPrintf(", targetFlags=0x%08x, resolvedAction=%d, age=%0.1fms\n",
                             entry->targetFlags, entry->resolvedAction,
                             (currentTime - entry->eventEntry->eventTime) * 0.000001f);
                 }
             } else {
-                dump.append(INDENT3 "OutboundQueue: <empty>\n");
+                dump += INDENT3 "OutboundQueue: <empty>\n";
             }
 
             if (!connection->waitQueue.isEmpty()) {
-                dump.appendFormat(INDENT3 "WaitQueue: length=%u\n",
+                dump += StringPrintf(INDENT3 "WaitQueue: length=%u\n",
                         connection->waitQueue.count());
                 for (DispatchEntry* entry = connection->waitQueue.head; entry;
                         entry = entry->next) {
-                    dump.append(INDENT4);
+                    dump += INDENT4;
                     entry->eventEntry->appendDescription(dump);
-                    dump.appendFormat(", targetFlags=0x%08x, resolvedAction=%d, "
+                    dump += StringPrintf(", targetFlags=0x%08x, resolvedAction=%d, "
                             "age=%0.1fms, wait=%0.1fms\n",
                             entry->targetFlags, entry->resolvedAction,
                             (currentTime - entry->eventEntry->eventTime) * 0.000001f,
                             (currentTime - entry->deliveryTime) * 0.000001f);
                 }
             } else {
-                dump.append(INDENT3 "WaitQueue: <empty>\n");
+                dump += INDENT3 "WaitQueue: <empty>\n";
             }
         }
     } else {
-        dump.append(INDENT "Connections: <none>\n");
+        dump += INDENT "Connections: <none>\n";
     }
 
     if (isAppSwitchPendingLocked()) {
-        dump.appendFormat(INDENT "AppSwitch: pending, due in %0.1fms\n",
+        dump += StringPrintf(INDENT "AppSwitch: pending, due in %0.1fms\n",
                 (mAppSwitchDueTime - now()) / 1000000.0);
     } else {
-        dump.append(INDENT "AppSwitch: not pending\n");
+        dump += INDENT "AppSwitch: not pending\n";
     }
 
-    dump.append(INDENT "Configuration:\n");
-    dump.appendFormat(INDENT2 "KeyRepeatDelay: %0.1fms\n",
+    dump += INDENT "Configuration:\n";
+    dump += StringPrintf(INDENT2 "KeyRepeatDelay: %0.1fms\n",
             mConfig.keyRepeatDelay * 0.000001f);
-    dump.appendFormat(INDENT2 "KeyRepeatTimeout: %0.1fms\n",
+    dump += StringPrintf(INDENT2 "KeyRepeatTimeout: %0.1fms\n",
             mConfig.keyRepeatTimeout * 0.000001f);
 }
 
 status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChannel,
         const sp<InputWindowHandle>& inputWindowHandle, bool monitor) {
 #if DEBUG_REGISTRATION
-    ALOGD("channel '%s' ~ registerInputChannel - monitor=%s", inputChannel->getName().string(),
+    ALOGD("channel '%s' ~ registerInputChannel - monitor=%s", inputChannel->getName().c_str(),
             toString(monitor));
 #endif
 
@@ -3351,7 +3351,7 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
 
         if (getConnectionIndexLocked(inputChannel) >= 0) {
             ALOGW("Attempted to register already registered input channel '%s'",
-                    inputChannel->getName().string());
+                    inputChannel->getName().c_str());
             return BAD_VALUE;
         }
 
@@ -3374,7 +3374,7 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
 
 status_t InputDispatcher::unregisterInputChannel(const sp<InputChannel>& inputChannel) {
 #if DEBUG_REGISTRATION
-    ALOGD("channel '%s' ~ unregisterInputChannel", inputChannel->getName().string());
+    ALOGD("channel '%s' ~ unregisterInputChannel", inputChannel->getName().c_str());
 #endif
 
     { // acquire lock
@@ -3397,7 +3397,7 @@ status_t InputDispatcher::unregisterInputChannelLocked(const sp<InputChannel>& i
     ssize_t connectionIndex = getConnectionIndexLocked(inputChannel);
     if (connectionIndex < 0) {
         ALOGW("Attempted to unregister already unregistered input channel '%s'",
-                inputChannel->getName().string());
+                inputChannel->getName().c_str());
         return BAD_VALUE;
     }
 
@@ -3466,7 +3466,7 @@ void InputDispatcher::onANRLocked(
     float waitDuration = (currentTime - waitStartTime) * 0.000001f;
     ALOGI("Application is not responding: %s.  "
             "It has been %0.1fms since event, %0.1fms since wait started.  Reason: %s",
-            getApplicationWindowLabelLocked(applicationHandle, windowHandle).string(),
+            getApplicationWindowLabelLocked(applicationHandle, windowHandle).c_str(),
             dispatchLatency, waitDuration, reason);
 
     // Capture a record of the InputDispatcher state at the time of the ANR.
@@ -3476,13 +3476,13 @@ void InputDispatcher::onANRLocked(
     char timestr[64];
     strftime(timestr, sizeof(timestr), "%F %T", &tm);
     mLastANRState.clear();
-    mLastANRState.append(INDENT "ANR:\n");
-    mLastANRState.appendFormat(INDENT2 "Time: %s\n", timestr);
-    mLastANRState.appendFormat(INDENT2 "Window: %s\n",
-            getApplicationWindowLabelLocked(applicationHandle, windowHandle).string());
-    mLastANRState.appendFormat(INDENT2 "DispatchLatency: %0.1fms\n", dispatchLatency);
-    mLastANRState.appendFormat(INDENT2 "WaitDuration: %0.1fms\n", waitDuration);
-    mLastANRState.appendFormat(INDENT2 "Reason: %s\n", reason);
+    mLastANRState += INDENT "ANR:\n";
+    mLastANRState += StringPrintf(INDENT2 "Time: %s\n", timestr);
+    mLastANRState += StringPrintf(INDENT2 "Window: %s\n",
+            getApplicationWindowLabelLocked(applicationHandle, windowHandle).c_str());
+    mLastANRState += StringPrintf(INDENT2 "DispatchLatency: %0.1fms\n", dispatchLatency);
+    mLastANRState += StringPrintf(INDENT2 "WaitDuration: %0.1fms\n", waitDuration);
+    mLastANRState += StringPrintf(INDENT2 "Reason: %s\n", reason);
     dumpDispatchStateLocked(mLastANRState);
 
     CommandEntry* commandEntry = postCommandLocked(
@@ -3566,11 +3566,11 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(
     if (dispatchEntry) {
         nsecs_t eventDuration = finishTime - dispatchEntry->deliveryTime;
         if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
-            String8 msg;
-            msg.appendFormat("Window '%s' spent %0.1fms processing the last input event: ",
+            std::string msg =
+                    StringPrintf("Window '%s' spent %0.1fms processing the last input event: ",
                     connection->getWindowName(), eventDuration * 0.000001f);
             dispatchEntry->eventEntry->appendDescription(msg);
-            ALOGI("%s", msg.string());
+            ALOGI("%s", msg.c_str());
         }
 
         bool restartEvent;
@@ -3737,15 +3737,15 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
 
 #if DEBUG_OUTBOUND_EVENT_DETAILS
             {
-                String8 msg;
+                std::string msg;
                 const KeyedVector<int32_t, int32_t>& fallbackKeys =
                         connection->inputState.getFallbackKeys();
                 for (size_t i = 0; i < fallbackKeys.size(); i++) {
-                    msg.appendFormat(", %d->%d", fallbackKeys.keyAt(i),
+                    msg += StringPrintf(", %d->%d", fallbackKeys.keyAt(i),
                             fallbackKeys.valueAt(i));
                 }
                 ALOGD("Unhandled key event: %zu currently tracked fallback keys%s.",
-                        fallbackKeys.size(), msg.string());
+                        fallbackKeys.size(), msg.c_str());
             }
 #endif
 
@@ -3824,15 +3824,15 @@ void InputDispatcher::traceWaitQueueLengthLocked(const sp<Connection>& connectio
     }
 }
 
-void InputDispatcher::dump(String8& dump) {
+void InputDispatcher::dump(std::string& dump) {
     AutoMutex _l(mLock);
 
-    dump.append("Input Dispatcher State:\n");
+    dump += "Input Dispatcher State:\n";
     dumpDispatchStateLocked(dump);
 
-    if (!mLastANRState.isEmpty()) {
-        dump.append("\nInput Dispatcher State at time of last ANR:\n");
-        dump.append(mLastANRState);
+    if (!mLastANRState.empty()) {
+        dump += "\nInput Dispatcher State at time of last ANR:\n";
+        dump += mLastANRState;
     }
 }
 
@@ -3904,9 +3904,8 @@ InputDispatcher::ConfigurationChangedEntry::ConfigurationChangedEntry(nsecs_t ev
 InputDispatcher::ConfigurationChangedEntry::~ConfigurationChangedEntry() {
 }
 
-void InputDispatcher::ConfigurationChangedEntry::appendDescription(String8& msg) const {
-    msg.append("ConfigurationChangedEvent(), policyFlags=0x%08x",
-            policyFlags);
+void InputDispatcher::ConfigurationChangedEntry::appendDescription(std::string& msg) const {
+    msg += StringPrintf("ConfigurationChangedEvent(), policyFlags=0x%08x", policyFlags);
 }
 
 
@@ -3920,8 +3919,8 @@ InputDispatcher::DeviceResetEntry::DeviceResetEntry(nsecs_t eventTime, int32_t d
 InputDispatcher::DeviceResetEntry::~DeviceResetEntry() {
 }
 
-void InputDispatcher::DeviceResetEntry::appendDescription(String8& msg) const {
-    msg.appendFormat("DeviceResetEvent(deviceId=%d), policyFlags=0x%08x",
+void InputDispatcher::DeviceResetEntry::appendDescription(std::string& msg) const {
+    msg += StringPrintf("DeviceResetEvent(deviceId=%d), policyFlags=0x%08x",
             deviceId, policyFlags);
 }
 
@@ -3943,8 +3942,8 @@ InputDispatcher::KeyEntry::KeyEntry(nsecs_t eventTime,
 InputDispatcher::KeyEntry::~KeyEntry() {
 }
 
-void InputDispatcher::KeyEntry::appendDescription(String8& msg) const {
-    msg.appendFormat("KeyEvent(deviceId=%d, source=0x%08x, action=%d, "
+void InputDispatcher::KeyEntry::appendDescription(std::string& msg) const {
+    msg += StringPrintf("KeyEvent(deviceId=%d, source=0x%08x, action=%d, "
             "flags=0x%08x, keyCode=%d, scanCode=%d, metaState=0x%08x, "
             "repeatCount=%d), policyFlags=0x%08x",
             deviceId, source, action, flags, keyCode, scanCode, metaState,
@@ -3988,20 +3987,20 @@ InputDispatcher::MotionEntry::MotionEntry(nsecs_t eventTime, int32_t deviceId,
 InputDispatcher::MotionEntry::~MotionEntry() {
 }
 
-void InputDispatcher::MotionEntry::appendDescription(String8& msg) const {
-    msg.appendFormat("MotionEvent(deviceId=%d, source=0x%08x, action=%d, actionButton=0x%08x, "
+void InputDispatcher::MotionEntry::appendDescription(std::string& msg) const {
+    msg += StringPrintf("MotionEvent(deviceId=%d, source=0x%08x, action=%d, actionButton=0x%08x, "
             "flags=0x%08x, metaState=0x%08x, buttonState=0x%08x, "
             "edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, displayId=%d, pointers=[",
             deviceId, source, action, actionButton, flags, metaState, buttonState, edgeFlags,
             xPrecision, yPrecision, displayId);
     for (uint32_t i = 0; i < pointerCount; i++) {
         if (i) {
-            msg.append(", ");
+            msg += ", ";
         }
-        msg.appendFormat("%d: (%.1f, %.1f)", pointerProperties[i].id,
+        msg += StringPrintf("%d: (%.1f, %.1f)", pointerProperties[i].id,
                 pointerCoords[i].getX(), pointerCoords[i].getY());
     }
-    msg.appendFormat("]), policyFlags=0x%08x", policyFlags);
+    msg += StringPrintf("]), policyFlags=0x%08x", policyFlags);
 }
 
 
@@ -4400,7 +4399,7 @@ InputDispatcher::Connection::~Connection() {
 
 const char* InputDispatcher::Connection::getWindowName() const {
     if (inputWindowHandle != NULL) {
-        return inputWindowHandle->getName().string();
+        return inputWindowHandle->getName().c_str();
     }
     if (monitor) {
         return "monitor";

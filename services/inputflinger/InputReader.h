@@ -32,7 +32,6 @@
 #include <utils/Mutex.h>
 #include <utils/Timers.h>
 #include <utils/RefBase.h>
-#include <utils/String8.h>
 #include <utils/BitSet.h>
 #include <utils/SortedVector.h>
 
@@ -207,8 +206,8 @@ struct InputReaderConfiguration {
     void setVirtualDisplayViewports(const Vector<DisplayViewport>& viewports);
 
 
-    void dump(String8& dump) const;
-    void dumpViewport(String8& dump, const DisplayViewport& viewport) const;
+    void dump(std::string& dump) const;
+    void dumpViewport(std::string& dump, const DisplayViewport& viewport) const;
 
 private:
     DisplayViewport mInternalDisplay;
@@ -292,7 +291,7 @@ public:
     /* Dumps the state of the input reader.
      *
      * This method may be called on any thread (usually by the input manager). */
-    virtual void dump(String8& dump) = 0;
+    virtual void dump(std::string& dump) = 0;
 
     /* Called by the heatbeat to ensures that the reader has not deadlocked. */
     virtual void monitor() = 0;
@@ -412,7 +411,7 @@ public:
             const sp<InputListenerInterface>& listener);
     virtual ~InputReader();
 
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
     virtual void monitor();
 
     virtual void loopOnce();
@@ -569,7 +568,7 @@ public:
     bool isEnabled();
     void setEnabled(bool enabled, nsecs_t when);
 
-    void dump(String8& dump);
+    void dump(std::string& dump);
     void addMapper(InputMapper* mapper);
     void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
     void reset(nsecs_t when);
@@ -987,7 +986,7 @@ public:
 
     virtual uint32_t getSources() = 0;
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
     virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
     virtual void reset(nsecs_t when);
     virtual void process(const RawEvent* rawEvent) = 0;
@@ -1017,9 +1016,9 @@ protected:
     status_t getAbsoluteAxisInfo(int32_t axis, RawAbsoluteAxisInfo* axisInfo);
     void bumpGeneration();
 
-    static void dumpRawAbsoluteAxisInfo(String8& dump,
+    static void dumpRawAbsoluteAxisInfo(std::string& dump,
             const RawAbsoluteAxisInfo& axis, const char* name);
-    static void dumpStylusState(String8& dump, const StylusState& state);
+    static void dumpStylusState(std::string& dump, const StylusState& state);
 };
 
 
@@ -1032,7 +1031,7 @@ public:
     virtual void process(const RawEvent* rawEvent);
 
     virtual int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
 
 private:
     uint32_t mSwitchValues;
@@ -1056,7 +1055,7 @@ public:
             int32_t token);
     virtual void cancelVibrate(int32_t token);
     virtual void timeoutExpired(nsecs_t when);
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
 
 private:
     bool mVibrating;
@@ -1079,7 +1078,7 @@ public:
 
     virtual uint32_t getSources();
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
     virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
     virtual void reset(nsecs_t when);
     virtual void process(const RawEvent* rawEvent);
@@ -1125,7 +1124,7 @@ private:
     } mParameters;
 
     void configureParameters();
-    void dumpParameters(String8& dump);
+    void dumpParameters(std::string& dump);
 
     bool isKeyboardOrGamepadKey(int32_t scanCode);
     bool isMediaKey(int32_t keyCode);
@@ -1151,7 +1150,7 @@ public:
 
     virtual uint32_t getSources();
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
     virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
     virtual void reset(nsecs_t when);
     virtual void process(const RawEvent* rawEvent);
@@ -1204,7 +1203,7 @@ private:
     nsecs_t mDownTime;
 
     void configureParameters();
-    void dumpParameters(String8& dump);
+    void dumpParameters(std::string& dump);
 
     void sync(nsecs_t when);
 };
@@ -1217,7 +1216,7 @@ public:
 
     virtual uint32_t getSources();
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
     virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
     virtual void reset(nsecs_t when);
     virtual void process(const RawEvent* rawEvent);
@@ -1239,7 +1238,7 @@ public:
 
     virtual uint32_t getSources();
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
     virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
     virtual void reset(nsecs_t when);
     virtual void process(const RawEvent* rawEvent);
@@ -1482,18 +1481,18 @@ protected:
     Vector<VirtualKey> mVirtualKeys;
 
     virtual void configureParameters();
-    virtual void dumpParameters(String8& dump);
+    virtual void dumpParameters(std::string& dump);
     virtual void configureRawPointerAxes();
-    virtual void dumpRawPointerAxes(String8& dump);
+    virtual void dumpRawPointerAxes(std::string& dump);
     virtual void configureSurface(nsecs_t when, bool* outResetNeeded);
-    virtual void dumpSurface(String8& dump);
+    virtual void dumpSurface(std::string& dump);
     virtual void configureVirtualKeys();
-    virtual void dumpVirtualKeys(String8& dump);
+    virtual void dumpVirtualKeys(std::string& dump);
     virtual void parseCalibration();
     virtual void resolveCalibration();
-    virtual void dumpCalibration(String8& dump);
+    virtual void dumpCalibration(std::string& dump);
     virtual void updateAffineTransformation();
-    virtual void dumpAffineTransformation(String8& dump);
+    virtual void dumpAffineTransformation(std::string& dump);
     virtual void resolveExternalStylusPresence();
     virtual bool hasStylus() const = 0;
     virtual bool hasExternalStylus() const;
@@ -1904,7 +1903,7 @@ public:
 
     virtual uint32_t getSources();
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
     virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
     virtual void reset(nsecs_t when);
     virtual void process(const RawEvent* rawEvent);
@@ -1926,7 +1925,7 @@ public:
 
     virtual uint32_t getSources();
     virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
     virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
     virtual void reset(nsecs_t when);
     virtual void process(const RawEvent* rawEvent);

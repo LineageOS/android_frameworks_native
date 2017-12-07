@@ -36,7 +36,7 @@ protected:
     PreallocatedInputEventFactory mEventFactory;
 
     virtual void SetUp() {
-        status_t result = InputChannel::openInputChannelPair(String8("channel name"),
+        status_t result = InputChannel::openInputChannelPair("channel name",
                 serverChannel, clientChannel);
 
         mPublisher = new InputPublisher(serverChannel);
