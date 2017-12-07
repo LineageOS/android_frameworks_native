@@ -2154,7 +2154,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
             // (ie: in drawing state but not in current state)
             // also handle displays that changed
             // (ie: displays that are in both lists)
-            for (size_t i=0 ; i<dc ; i++) {
+            for (size_t i=0 ; i<dc ;) {
                 const ssize_t j = curr.indexOfKey(draw.keyAt(i));
                 if (j < 0) {
                     // in drawing state but not in current state
@@ -2189,7 +2189,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                             hw->disconnect(getHwComposer());
                         mDisplays.removeItem(display);
                         mDrawingState.displays.removeItemsAt(i);
-                        dc--; i--;
+                        dc--;
                         // at this point we must loop to the next item
                         continue;
                     }
@@ -2211,6 +2211,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                         }
                     }
                 }
+                ++i;
             }
 
             // find displays that were added
