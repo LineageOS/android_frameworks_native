@@ -451,9 +451,10 @@ class ProfileTest : public DexoptTest {
         }
     }
 
-    void SnapshotProfile(int32_t appid, const std::string& package_name, bool expected_result) {
+    void createProfileSnapshot(int32_t appid, const std::string& package_name,
+            bool expected_result) {
         bool result;
-        binder::Status binder_result = service_->snapshotProfile(
+        binder::Status binder_result = service_->createProfileSnapshot(
                 appid, package_name, "base.jar", &result);
         ASSERT_TRUE(binder_result.isOk());
         ASSERT_EQ(expected_result, result);
@@ -531,7 +532,7 @@ TEST_F(ProfileTest, ProfileSnapshotOk) {
     LOG(INFO) << "ProfileSnapshotOk";
 
     SetupProfiles(/*setup_ref*/ true);
-    SnapshotProfile(kTestAppId, package_name_, /*expected_result*/ true);
+    createProfileSnapshot(kTestAppId, package_name_, /*expected_result*/ true);
 }
 
 // The reference profile is created on the fly. We need to be able to
@@ -540,21 +541,21 @@ TEST_F(ProfileTest, ProfileSnapshotOkNoReference) {
     LOG(INFO) << "ProfileSnapshotOkNoReference";
 
     SetupProfiles(/*setup_ref*/ false);
-    SnapshotProfile(kTestAppId, package_name_, /*expected_result*/ true);
+    createProfileSnapshot(kTestAppId, package_name_, /*expected_result*/ true);
 }
 
 TEST_F(ProfileTest, ProfileSnapshotFailWrongPackage) {
     LOG(INFO) << "ProfileSnapshotFailWrongPackage";
 
     SetupProfiles(/*setup_ref*/ true);
-    SnapshotProfile(kTestAppId, "not.there", /*expected_result*/ false);
+    createProfileSnapshot(kTestAppId, "not.there", /*expected_result*/ false);
 }
 
 TEST_F(ProfileTest, ProfileSnapshotDestroySnapshot) {
     LOG(INFO) << "ProfileSnapshotDestroySnapshot";
 
     SetupProfiles(/*setup_ref*/ true);
-    SnapshotProfile(kTestAppId, package_name_, /*expected_result*/ true);
+    createProfileSnapshot(kTestAppId, package_name_, /*expected_result*/ true);
 
     binder::Status binder_result = service_->destroyProfileSnapshot(package_name_, "base.jar");
     ASSERT_TRUE(binder_result.isOk());
