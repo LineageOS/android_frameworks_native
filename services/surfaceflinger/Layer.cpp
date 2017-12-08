@@ -142,6 +142,17 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
 void Layer::onFirstRef() {}
 
 Layer::~Layer() {
+    sp<Client> c(mClientRef.promote());
+    if (c != 0) {
+        c->detachLayer(this);
+    }
+
+    for (auto& point : mRemoteSyncPoints) {
+        point->setTransactionApplied();
+    }
+    for (auto& point : mLocalSyncPoints) {
+        point->setFrameAvailable();
+    }
     mFrameTracker.logAndResetStats(mName);
 }
 
