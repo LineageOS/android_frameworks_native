@@ -2310,7 +2310,7 @@ bool create_cache_path_default(char path[PKG_PATH_MAX], const char *src,
     }
 }
 
-bool snapshot_profile(int32_t app_id, const std::string& package_name,
+bool create_profile_snapshot(int32_t app_id, const std::string& package_name,
         const std::string& code_path) {
     int app_shared_gid = multiuser_get_shared_gid(/*user_id*/ 0, app_id);
 
