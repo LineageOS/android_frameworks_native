@@ -75,17 +75,6 @@ BufferLayer::BufferLayer(SurfaceFlinger* flinger, const sp<Client>& client, cons
 }
 
 BufferLayer::~BufferLayer() {
-    sp<Client> c(mClientRef.promote());
-    if (c != 0) {
-        c->detachLayer(this);
-    }
-
-    for (auto& point : mRemoteSyncPoints) {
-        point->setTransactionApplied();
-    }
-    for (auto& point : mLocalSyncPoints) {
-        point->setFrameAvailable();
-    }
     mFlinger->deleteTextureAsync(mTextureName);
 
     if (!getBE().mHwcLayers.empty()) {

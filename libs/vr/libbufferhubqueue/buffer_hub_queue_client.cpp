@@ -31,20 +31,6 @@ namespace dvr {
 
 namespace {
 
-// Polls an fd for the given events.
-Status<int> PollEvents(int fd, short events) {
-  const int kTimeoutMs = 0;
-  pollfd pfd{fd, events, 0};
-  const int count = RETRY_EINTR(poll(&pfd, 1, kTimeoutMs));
-  if (count < 0) {
-    return ErrorStatus(errno);
-  } else if (count == 0) {
-    return ErrorStatus(ETIMEDOUT);
-  } else {
-    return {pfd.revents};
-  }
-}
-
 std::pair<int32_t, int32_t> Unstuff(uint64_t value) {
   return {static_cast<int32_t>(value >> 32),
           static_cast<int32_t>(value & ((1ull << 32) - 1))};
@@ -670,27 +656,7 @@ Status<void> ConsumerQueue::AddBuffer(
     const std::shared_ptr<BufferConsumer>& buffer, size_t slot) {
   ALOGD_IF(TRACE, "ConsumerQueue::AddBuffer: queue_id=%d buffer_id=%d slot=%zu",
            id(), buffer->id(), slot);
-  auto status = BufferHubQueue::AddBuffer(buffer, slot);
-  if (!status)
-    return status;
-
-  // Check to see if the buffer is already signaled. This is necessary to catch
-  // cases where buffers are already available; epoll edge triggered mode does
-  // not fire until an edge transition when adding new buffers to the epoll
-  // set. Note that we only poll the fd events because HandleBufferEvent() takes
-  // care of checking the translated buffer events.
-  auto poll_status = PollEvents(buffer->event_fd(), POLLIN);
-  if (!poll_status && poll_status.error() != ETIMEDOUT) {
-    ALOGE("ConsumerQueue::AddBuffer: Failed to poll consumer buffer: %s",
-          poll_status.GetErrorMessage().c_str());
-    return poll_status.error_status();
-  }
-
-  // Update accounting if the buffer is available.
-  if (poll_status)
-    return HandleBufferEvent(slot, buffer->event_fd(), poll_status.get());
-  else
-    return {};
+  return BufferHubQueue::AddBuffer(buffer, slot);
 }
 
 Status<std::shared_ptr<BufferConsumer>> ConsumerQueue::Dequeue(

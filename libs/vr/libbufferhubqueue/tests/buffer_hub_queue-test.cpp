@@ -329,7 +329,9 @@ TEST_F(BufferHubQueueTest, TestMultipleConsumers) {
 
   // Check that buffers are correctly imported on construction.
   EXPECT_EQ(consumer_queue_->capacity(), kBufferCount);
-  EXPECT_EQ(consumer_queue_->count(), 1U);
+  // Buffers are only imported, but their availability is not checked until
+  // first call to Dequeue().
+  EXPECT_EQ(consumer_queue_->count(), 0U);
 
   // Reclaim released/ignored buffers.
   EXPECT_EQ(producer_queue_->count(), kBufferCount - 1);
