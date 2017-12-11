@@ -45,6 +45,8 @@ public:
     FakeComposerClient();
     virtual ~FakeComposerClient();
 
+    bool hasCapability(hwc2_capability_t capability) override;
+
     void removeClient() override;
     void enableCallback(bool enable) override;
     uint32_t getMaxVirtualDisplayCount() override;
