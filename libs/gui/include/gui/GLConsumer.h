@@ -138,6 +138,10 @@ public:
             const sp<GraphicBuffer>& buf, const Rect& cropRect,
             uint32_t transform, bool filtering);
 
+    // Scale the crop down horizontally or vertically such that it has the
+    // same aspect ratio as the buffer does.
+    static Rect scaleDownCrop(const Rect& crop, uint32_t bufferWidth, uint32_t bufferHeight);
+
     // getTimestamp retrieves the timestamp associated with the texture image
     // set by the most recent call to updateTexImage.
     //
@@ -197,22 +201,9 @@ public:
     // buffer is ready to be read from.
     std::shared_ptr<FenceTime> getCurrentFenceTime() const;
 
-    // doGLFenceWait inserts a wait command into the OpenGL ES command stream
-    // to ensure that it is safe for future OpenGL ES commands to access the
-    // current texture buffer.
-    status_t doGLFenceWait() const;
-
-    // set the name of the GLConsumer that will be used to identify it in
-    // log messages.
-    void setName(const String8& name);
-
-    // These functions call the corresponding BufferQueue implementation
-    // so the refactoring can proceed smoothly
-    status_t setDefaultBufferFormat(PixelFormat defaultFormat);
-    status_t setDefaultBufferDataSpace(android_dataspace defaultDataSpace);
+    // setConsumerUsageBits overrides the ConsumerBase method to OR
+    // DEFAULT_USAGE_FLAGS to usage.
     status_t setConsumerUsageBits(uint64_t usage);
-    status_t setTransformHint(uint32_t hint);
-    status_t setMaxAcquiredBufferCount(int maxAcquiredBuffers);
 
     // detachFromContext detaches the GLConsumer from the calling thread's
     // current OpenGL ES context.  This context must be the same as the context
@@ -266,8 +257,6 @@ protected:
             const sp<GraphicBuffer> graphicBuffer, EGLSyncKHR eglFence) {
         return releaseBufferLocked(slot, graphicBuffer, mEglDisplay, eglFence);
     }
-
-    static bool isExternalFormat(PixelFormat format);
 
     struct PendingRelease {
         PendingRelease() : isPending(false), currentTexture(-1),

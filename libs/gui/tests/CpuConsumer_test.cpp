@@ -33,6 +33,7 @@
 #include <utils/Mutex.h>
 #include <utils/Condition.h>
 
+#include <thread>
 #include <vector>
 #define CPU_CONSUMER_TEST_FORMAT_RAW 0
 #define CPU_CONSUMER_TEST_FORMAT_Y8 0
@@ -678,6 +679,70 @@ TEST_P(CpuConsumerTest, FromCpuLockMax) {
 
     for (int i = 1; i < params.maxLockedBuffers; i++) {
         mCC->unlockBuffer(b[i]);
+    }
+}
+
+TEST_P(CpuConsumerTest, FromCpuInvalid) {
+    status_t err = mCC->lockNextBuffer(nullptr);
+    ASSERT_EQ(BAD_VALUE, err) << "lockNextBuffer did not fail";
+
+    CpuConsumer::LockedBuffer b;
+    err = mCC->unlockBuffer(b);
+    ASSERT_EQ(BAD_VALUE, err) << "unlockBuffer did not fail";
+}
+
+TEST_P(CpuConsumerTest, FromCpuMultiThread) {
+    CpuConsumerTestParams params = GetParam();
+    ASSERT_NO_FATAL_FAILURE(configureANW(mANW, params, params.maxLockedBuffers + 1));
+
+    for (int i = 0; i < 10; i++) {
+        std::atomic<int> threadReadyCount(0);
+        auto lockAndUnlock = [&]() {
+            threadReadyCount++;
+            // busy wait
+            while (threadReadyCount < params.maxLockedBuffers + 1);
+
+            CpuConsumer::LockedBuffer b;
+            status_t err = mCC->lockNextBuffer(&b);
+            if (err == NO_ERROR) {
+                usleep(1000);
+                err = mCC->unlockBuffer(b);
+                ASSERT_NO_ERROR(err, "Could not unlock buffer: ");
+            } else if (err == NOT_ENOUGH_DATA) {
+                // there are params.maxLockedBuffers+1 threads so one of the
+                // threads might get this error
+            } else {
+                FAIL() << "Could not lock buffer";
+            }
+        };
+
+        // produce buffers
+        for (int j = 0; j < params.maxLockedBuffers + 1; j++) {
+            const int64_t time = 1234L;
+            uint32_t stride;
+            ASSERT_NO_FATAL_FAILURE(produceOneFrame(mANW, params, time, &stride));
+        }
+
+        // spawn threads
+        std::vector<std::thread> threads;
+        for (int j = 0; j < params.maxLockedBuffers + 1; j++) {
+            threads.push_back(std::thread(lockAndUnlock));
+        }
+
+        // join threads
+        for (auto& thread : threads) {
+            thread.join();
+        }
+
+        // we produced N+1 buffers, but the threads might only consume N
+        CpuConsumer::LockedBuffer b;
+        if (mCC->lockNextBuffer(&b) == NO_ERROR) {
+            mCC->unlockBuffer(b);
+        }
+
+        if (HasFatalFailure()) {
+            break;
+        }
     }
 }
 

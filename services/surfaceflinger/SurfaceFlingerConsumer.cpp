@@ -134,12 +134,6 @@ const Region& SurfaceFlingerConsumer::getSurfaceDamage() const {
     return mSurfaceDamage;
 }
 
-sp<NativeHandle> SurfaceFlingerConsumer::getSidebandStream() const {
-    sp<NativeHandle> stream;
-    mConsumer->getSidebandStream(&stream);
-    return stream;
-}
-
 // We need to determine the time when a buffer acquired now will be
 // displayed.  This can be calculated:
 //   time when previous buffer's actual-present fence was signaled

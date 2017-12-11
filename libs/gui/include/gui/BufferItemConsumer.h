@@ -57,10 +57,6 @@ class BufferItemConsumer: public ConsumerBase
 
     ~BufferItemConsumer() override;
 
-    // set the name of the BufferItemConsumer that will be used to identify it in
-    // log messages.
-    void setName(const String8& name);
-
     // setBufferFreedListener sets the listener object that will be notified
     // when an old buffer is being freed.
     void setBufferFreedListener(const wp<BufferFreedListener>& listener);
