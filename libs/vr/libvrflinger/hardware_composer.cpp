@@ -457,13 +457,6 @@ void HardwareComposer::PostLayers() {
     layer.Prepare();
   }
 
-  HWC::Error error = Validate(composer_callback_->GetDisplayId());
-  if (error != HWC::Error::None) {
-    ALOGE("HardwareComposer::PostLayers: Validate failed: %s",
-          error.to_string().c_str());
-    return;
-  }
-
   // Now that we have taken in a frame from the application, we have a chance
   // to drop the frame before passing the frame along to HWC.
   // If the display driver has become backed up, we detect it here and then
@@ -503,6 +496,13 @@ void HardwareComposer::PostLayers() {
           layers_[i].GetCompositionType().to_string().c_str());
   }
 #endif
+
+  HWC::Error error = Validate(composer_callback_->GetDisplayId());
+  if (error != HWC::Error::None) {
+    ALOGE("HardwareComposer::PostLayers: Validate failed: %s",
+          error.to_string().c_str());
+    return;
+  }
 
   error = Present(composer_callback_->GetDisplayId());
   if (error != HWC::Error::None) {
@@ -862,17 +862,13 @@ void HardwareComposer::PostThread() {
       ATRACE_INT64("sleep_time_ns", sleep_time_ns);
       if (sleep_time_ns > 0) {
         int error = SleepUntil(wakeup_time_ns);
-        ALOGE_IF(error < 0, "HardwareComposer::PostThread: Failed to sleep: %s",
+        ALOGE_IF(error < 0 && error != kPostThreadInterrupted,
+                 "HardwareComposer::PostThread: Failed to sleep: %s",
                  strerror(-error));
-        if (error == kPostThreadInterrupted) {
-          if (layer_config_changed) {
-            // If the layer config changed we need to validateDisplay() even if
-            // we're going to drop the frame, to flush the Composer object's
-            // internal command buffer and apply our layer changes.
-            Validate(composer_callback_->GetDisplayId());
-          }
-          continue;
-        }
+        // If the sleep was interrupted (error == kPostThreadInterrupted),
+        // we still go through and present this frame because we may have set
+        // layers earlier and we want to flush the Composer's internal command
+        // buffer by continuing through to validate and present.
       }
     }
 
