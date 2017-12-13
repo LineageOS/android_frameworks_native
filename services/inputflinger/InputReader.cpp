@@ -3705,11 +3705,13 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
 
         // Pressure factors.
         mPressureScale = 0;
+        float pressureMax = 1.0;
         if (mCalibration.pressureCalibration == Calibration::PRESSURE_CALIBRATION_PHYSICAL
                 || mCalibration.pressureCalibration
                         == Calibration::PRESSURE_CALIBRATION_AMPLITUDE) {
             if (mCalibration.havePressureScale) {
                 mPressureScale = mCalibration.pressureScale;
+                pressureMax = mPressureScale * mRawPointerAxes.pressure.maxValue;
             } else if (mRawPointerAxes.pressure.valid
                     && mRawPointerAxes.pressure.maxValue != 0) {
                 mPressureScale = 1.0f / mRawPointerAxes.pressure.maxValue;
@@ -3719,7 +3721,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
         mOrientedRanges.pressure.axis = AMOTION_EVENT_AXIS_PRESSURE;
         mOrientedRanges.pressure.source = mSource;
         mOrientedRanges.pressure.min = 0;
-        mOrientedRanges.pressure.max = 1.0;
+        mOrientedRanges.pressure.max = pressureMax;
         mOrientedRanges.pressure.flat = 0;
         mOrientedRanges.pressure.fuzz = 0;
         mOrientedRanges.pressure.resolution = 0;
