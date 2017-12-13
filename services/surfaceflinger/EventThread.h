@@ -29,7 +29,6 @@
 #include <utils/SortedVector.h>
 
 #include "DisplayDevice.h"
-#include "DisplayHardware/PowerHAL.h"
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -99,7 +98,6 @@ public:
             DisplayEventReceiver::Event* event);
 
     void dump(String8& result) const;
-    void sendVsyncHintOff();
 
     void setPhaseOffset(nsecs_t phaseOffset);
 
@@ -112,11 +110,9 @@ private:
     void removeDisplayEventConnection(const wp<Connection>& connection);
     void enableVSyncLocked();
     void disableVSyncLocked();
-    void sendVsyncHintOnLocked();
 
     // constants
     sp<VSyncSource> mVSyncSource;
-    PowerHAL mPowerHAL;
     SurfaceFlinger& mFlinger;
 
     mutable Mutex mLock;
@@ -132,9 +128,7 @@ private:
     // for debugging
     bool mDebugVsyncEnabled;
 
-    bool mVsyncHintSent;
     const bool mInterceptVSyncs;
-    timer_t mTimerId;
 };
 
 // ---------------------------------------------------------------------------
