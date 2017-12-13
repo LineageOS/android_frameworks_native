@@ -30,7 +30,10 @@ ndk_library {
 
 cc_library {
     name: "libnativewindow",
-    export_include_dirs: ["include"],
+    export_include_dirs: [
+        "include",
+        "include-private",
+    ],
 
     clang: true,
 
