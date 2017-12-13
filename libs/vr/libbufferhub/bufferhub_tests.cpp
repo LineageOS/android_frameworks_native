@@ -46,17 +46,17 @@ TEST_F(LibBufferHubTest, TestBasicUsage) {
   // Producer state mask is unique, i.e. 1.
   EXPECT_EQ(p->buffer_state_bit(), kProducerStateBit);
   // Consumer state mask cannot have producer bit on.
-  EXPECT_EQ(c->buffer_state_bit() & kProducerStateBit, 0);
+  EXPECT_EQ(c->buffer_state_bit() & kProducerStateBit, 0ULL);
   // Consumer state mask must be a single, i.e. power of 2.
-  EXPECT_NE(c->buffer_state_bit(), 0);
-  EXPECT_EQ(c->buffer_state_bit() & (c->buffer_state_bit() - 1), 0);
+  EXPECT_NE(c->buffer_state_bit(), 0ULL);
+  EXPECT_EQ(c->buffer_state_bit() & (c->buffer_state_bit() - 1), 0ULL);
   // Consumer state mask cannot have producer bit on.
-  EXPECT_EQ(c2->buffer_state_bit() & kProducerStateBit, 0);
+  EXPECT_EQ(c2->buffer_state_bit() & kProducerStateBit, 0ULL);
   // Consumer state mask must be a single, i.e. power of 2.
-  EXPECT_NE(c2->buffer_state_bit(), 0);
-  EXPECT_EQ(c2->buffer_state_bit() & (c2->buffer_state_bit() - 1), 0);
+  EXPECT_NE(c2->buffer_state_bit(), 0ULL);
+  EXPECT_EQ(c2->buffer_state_bit() & (c2->buffer_state_bit() - 1), 0ULL);
   // Each consumer should have unique bit.
-  EXPECT_EQ(c->buffer_state_bit() & c2->buffer_state_bit(), 0);
+  EXPECT_EQ(c->buffer_state_bit() & c2->buffer_state_bit(), 0ULL);
 
   // Initial state: producer not available, consumers not available.
   EXPECT_EQ(0, RETRY_EINTR(p->Poll(100)));
@@ -166,7 +166,7 @@ TEST_F(LibBufferHubTest, TestStateMask) {
     cs[i] = BufferConsumer::Import(p->CreateConsumer());
     ASSERT_TRUE(cs[i].get() != nullptr);
     // Expect all buffers have unique state mask.
-    EXPECT_EQ(buffer_state_bits & cs[i]->buffer_state_bit(), 0);
+    EXPECT_EQ(buffer_state_bits & cs[i]->buffer_state_bit(), 0ULL);
     buffer_state_bits |= cs[i]->buffer_state_bit();
   }
   EXPECT_EQ(buffer_state_bits, kProducerStateBit | kConsumerStateMask);
@@ -182,7 +182,7 @@ TEST_F(LibBufferHubTest, TestStateMask) {
     cs[i] = BufferConsumer::Import(p->CreateConsumer());
     ASSERT_TRUE(cs[i].get() != nullptr);
     // The released state mask will be reused.
-    EXPECT_EQ(buffer_state_bits & cs[i]->buffer_state_bit(), 0);
+    EXPECT_EQ(buffer_state_bits & cs[i]->buffer_state_bit(), 0ULL);
     buffer_state_bits |= cs[i]->buffer_state_bit();
     EXPECT_EQ(buffer_state_bits, kProducerStateBit | kConsumerStateMask);
   }
