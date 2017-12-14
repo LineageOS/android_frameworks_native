@@ -30,7 +30,6 @@ LOCAL_SRC_FILES := \
     DisplayHardware/HWC2.cpp \
     DisplayHardware/HWComposer.cpp \
     DisplayHardware/HWComposerBufferCache.cpp \
-    DisplayHardware/PowerHAL.cpp \
     DisplayHardware/VirtualDisplaySurface.cpp \
     Effects/Daltonizer.cpp \
     EventLog/EventLogTags.logtags \
@@ -89,7 +88,6 @@ LOCAL_SHARED_LIBRARIES := \
     libbinder \
     libui \
     libgui \
-    libpowermanager \
     libvulkan \
     libsync \
     libprotobuf-cpp-lite \
