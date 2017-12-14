@@ -42,6 +42,7 @@
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 #include "Transform.h"
+#include "LayerBE.h"
 
 #include <layerproto/LayerProtoHeader.h>
 #include "DisplayHardware/HWComposer.h"
@@ -67,68 +68,6 @@ class LayerDebugInfo;
 class LayerBE;
 
 // ---------------------------------------------------------------------------
-
-struct CompositionInfo {
-    HWC2::Composition compositionType;
-    sp<GraphicBuffer> mBuffer = nullptr;
-    int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
-    struct {
-        HWComposer* hwc;
-        sp<Fence> fence;
-        HWC2::BlendMode blendMode;
-        Rect displayFrame;
-        float alpha;
-        FloatRect sourceCrop;
-        HWC2::Transform transform;
-        int z;
-        int type;
-        int appId;
-        Region visibleRegion;
-        Region surfaceDamage;
-        sp<NativeHandle> sidebandStream;
-        android_dataspace dataspace;
-        hwc_color_t color;
-    } hwc;
-    struct {
-        RE::RenderEngine* renderEngine;
-        Mesh* mesh;
-    } renderEngine;
-};
-
-class LayerBE {
-public:
-    LayerBE();
-
-    // The mesh used to draw the layer in GLES composition mode
-    Mesh mMesh;
-
-    // HWC items, accessed from the main thread
-    struct HWCInfo {
-        HWCInfo()
-              : hwc(nullptr),
-                layer(nullptr),
-                forceClientComposition(false),
-                compositionType(HWC2::Composition::Invalid),
-                clearClientTarget(false) {}
-
-        HWComposer* hwc;
-        HWC2::Layer* layer;
-        bool forceClientComposition;
-        HWC2::Composition compositionType;
-        bool clearClientTarget;
-        Rect displayFrame;
-        FloatRect sourceCrop;
-        HWComposerBufferCache bufferCache;
-    };
-
-    // A layer can be attached to multiple displays when operating in mirror mode
-    // (a.k.a: when several displays are attached with equal layerStack). In this
-    // case we need to keep track. In non-mirror mode, a layer will have only one
-    // HWCInfo. This map key is a display layerStack.
-    std::unordered_map<int32_t, HWCInfo> mHwcLayers;
-
-    CompositionInfo compositionInfo;
-};
 
 class Layer : public virtual RefBase {
     static int32_t sSequence;
