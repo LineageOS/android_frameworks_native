@@ -19,7 +19,7 @@ cc_library_headers {
 
 cc_library_shared {
     name: "libgui",
-    vendor_available: true,
+    vendor_available: false,
     vndk: {
         enabled: true,
     },
