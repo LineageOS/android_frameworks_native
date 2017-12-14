@@ -40,19 +40,15 @@ class String8;
 
 /*
  * BufferLayerConsumer consumes buffers of graphics data from a BufferQueue,
- * and makes them available to OpenGL as a texture.
+ * and makes them available to RenderEngine as a texture.
  *
- * A typical usage pattern is to set up the BufferLayerConsumer with the
- * desired options, and call updateTexImage() when a new frame is desired.
- * If a new frame is available, the texture will be updated.  If not,
- * the previous contents are retained.
+ * A typical usage pattern is to call updateTexImage() when a new frame is
+ * desired.  If a new frame is available, the frame is latched.  If not, the
+ * previous contents are retained.  The texture is attached and updated after
+ * bindTextureImage() is called.
  *
- * The texture is attached to the GL_TEXTURE_EXTERNAL_OES texture target, in
- * the EGL context of the first thread that calls updateTexImage(). After that
- * point, all calls to updateTexImage must be made with the same OpenGL ES
- * context current.
- *
- * This class was previously called SurfaceTexture.
+ * All calls to updateTexImage must be made with RenderEngine being current.
+ * The texture is attached to the TEXTURE_EXTERNAL texture target.
  */
 class BufferLayerConsumer : public ConsumerBase {
 public:
@@ -70,9 +66,9 @@ public:
         virtual void onSidebandStreamChanged() = 0;
     };
 
-    // BufferLayerConsumer constructs a new BufferLayerConsumer object.
-    // The tex parameter indicates the name of the OpenGL ES
-    // texture to which images are to be streamed.
+    // BufferLayerConsumer constructs a new BufferLayerConsumer object.  The
+    // tex parameter indicates the name of the RenderEngine texture to which
+    // images are to be streamed.
     BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, RenderEngine& engine, uint32_t tex,
                         Layer* layer);
 
@@ -85,15 +81,14 @@ public:
     // updateTexImage acquires the most recently queued buffer, and sets the
     // image contents of the target texture to it.
     //
-    // This call may only be made while the OpenGL ES context to which the
-    // target texture belongs is bound to the calling thread.
+    // This call may only be made while RenderEngine is current.
     //
-    // This calls doFenceWait to ensure proper synchronization.
+    // This calls doFenceWait to ensure proper synchronization unless native
+    // fence is supported.
     //
-    // This version of updateTexImage() takes a functor that may be used to
-    // reject the newly acquired buffer.  Unlike the GLConsumer version,
-    // this does not guarantee that the buffer has been bound to the GL
-    // texture.
+    // Unlike the GLConsumer version, this version takes a functor that may be
+    // used to reject the newly acquired buffer.  It also does not bind the
+    // RenderEngine texture until bindTextureImage is called.
     status_t updateTexImage(BufferRejecter* rejecter, const DispSync& dispSync, bool* autoRefresh,
                             bool* queuedBuffer, uint64_t maxFrameNumber);
 
@@ -111,24 +106,7 @@ public:
 
     sp<Fence> getPrevFinalReleaseFence() const;
 
-    // getTransformMatrix retrieves the 4x4 texture coordinate transform matrix
-    // associated with the texture image set by the most recent call to
-    // updateTexImage.
-    //
-    // This transform matrix maps 2D homogeneous texture coordinates of the form
-    // (s, t, 0, 1) with s and t in the inclusive range [0, 1] to the texture
-    // coordinate that should be used to sample that location from the texture.
-    // Sampling the texture outside of the range of this transform is undefined.
-    //
-    // This transform is necessary to compensate for transforms that the stream
-    // content producer may implicitly apply to the content. By forcing users of
-    // a BufferLayerConsumer to apply this transform we avoid performing an extra
-    // copy of the data that would be needed to hide the transform from the
-    // user.
-    //
-    // The matrix is stored in column-major order so that it may be passed
-    // directly to OpenGL ES via the glLoadMatrixf or glUniformMatrix4fv
-    // functions.
+    // See GLConsumer::getTransformMatrix.
     void getTransformMatrix(float mtx[16]);
 
     // getTimestamp retrieves the timestamp associated with the texture image
@@ -155,14 +133,7 @@ public:
     // must be called from SF main thread
     const Region& getSurfaceDamage() const;
 
-    // setDefaultBufferSize is used to set the size of buffers returned by
-    // requestBuffers when a with and height of zero is requested.
-    // A call to setDefaultBufferSize() may trigger requestBuffers() to
-    // be called from the client.
-    // The width and height parameters must be no greater than the minimum of
-    // GL_MAX_VIEWPORT_DIMS and GL_MAX_TEXTURE_SIZE (see: glGetIntegerv).
-    // An error due to invalid dimensions might not be reported until
-    // updateTexImage() is called.
+    // See GLConsumer::setDefaultBufferSize.
     status_t setDefaultBufferSize(uint32_t width, uint32_t height);
 
     // setFilteringEnabled sets whether the transform matrix should be computed
@@ -273,8 +244,9 @@ private:
     };
 
     // freeBufferLocked frees up the given buffer slot. If the slot has been
-    // initialized this will release the reference to the GraphicBuffer in that
-    // slot and destroy the EGLImage in that slot.  Otherwise it has no effect.
+    // initialized this will release the reference to the GraphicBuffer in
+    // that slot and destroy the RE::Image in that slot.  Otherwise it has no
+    // effect.
     //
     // This method must be called with mMutex locked.
     virtual void freeBufferLocked(int slotIndex);
@@ -365,8 +337,9 @@ private:
 
     RenderEngine& mRE;
 
-    // mTexName is the name of the OpenGL texture to which streamed images will
-    // be bound when updateTexImage is called. It is set at construction time.
+    // mTexName is the name of the RenderEngine texture to which streamed
+    // images will be bound when bindTexImage is called. It is set at
+    // construction time.
     const uint32_t mTexName;
 
     // The layer for this BufferLayerConsumer
@@ -384,7 +357,7 @@ private:
     sp<Image> mImages[BufferQueueDefs::NUM_BUFFER_SLOTS];
 
     // mCurrentTexture is the buffer slot index of the buffer that is currently
-    // bound to the OpenGL texture. It is initialized to INVALID_BUFFER_SLOT,
+    // bound to the RenderEngine texture. It is initialized to INVALID_BUFFER_SLOT,
     // indicating that no buffer slot is currently bound to the texture. Note,
     // however, that a value of INVALID_BUFFER_SLOT does not necessarily mean
     // that no buffer is bound to the texture. A call to setBufferCount will
