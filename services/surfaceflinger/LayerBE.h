@@ -39,7 +39,7 @@ struct CompositionInfo {
     int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
     LayerBE* layer = nullptr;
     struct {
-        HWC2::Layer* hwcLayer;
+        std::shared_ptr<HWC2::Layer> hwcLayer;
         sp<Fence> fence;
         HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
         Rect displayFrame;
@@ -103,7 +103,7 @@ private:
                 transform(HWC2::Transform::None) {}
 
         HWComposer* hwc;
-        HWC2::Layer* layer;
+        std::shared_ptr<HWC2::Layer> layer;
         bool forceClientComposition;
         HWC2::Composition compositionType;
         bool clearClientTarget;
