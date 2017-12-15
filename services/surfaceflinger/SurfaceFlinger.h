@@ -638,6 +638,7 @@ private:
      * Display management
      */
     void processDisplayChangesLocked();
+    void processDisplayHotplugEventsLocked();
 
     /* ------------------------------------------------------------------------
      * VSync
@@ -738,6 +739,14 @@ private:
     std::vector<sp<Layer>> mLayersWithQueuedFrames;
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
     bool mHadClientComposition = false;
+
+    struct HotplugEvent {
+        hwc2_display_t display;
+        HWC2::Connection connection = HWC2::Connection::Invalid;
+        bool isPrimaryDisplay;
+    };
+    // protected by mStateLock
+    std::vector<HotplugEvent> mPendingHotplugEvents;
 
     // this may only be written from the main thread with mStateLock held
     // it may be read from other threads with mStateLock held
