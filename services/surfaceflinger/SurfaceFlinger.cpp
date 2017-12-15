@@ -1263,14 +1263,10 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     *compositorTiming = getBE().mCompositorTiming;
 }
 
-void SurfaceFlinger::onHotplugReceived(int32_t sequenceId,
-        hwc2_display_t display, HWC2::Connection connection,
-        bool primaryDisplay) {
-    ALOGV("onHotplugReceived(%d, %" PRIu64 ", %s, %s)",
-          sequenceId, display,
-          connection == HWC2::Connection::Connected ?
-                  "connected" : "disconnected",
-          primaryDisplay ? "primary" : "external");
+void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
+                                       HWC2::Connection connection) {
+    ALOGV("onHotplugReceived(%d, %" PRIu64 ", %s)", sequenceId, display,
+          connection == HWC2::Connection::Connected ? "connected" : "disconnected");
 
     // Ignore events that do not have the right sequenceId.
     if (sequenceId != getBE().mComposerSequenceId) {
@@ -1283,7 +1279,7 @@ void SurfaceFlinger::onHotplugReceived(int32_t sequenceId,
     // acquire it here.
     ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
 
-    mPendingHotplugEvents.emplace_back(HotplugEvent{display, connection, primaryDisplay});
+    mPendingHotplugEvents.emplace_back(HotplugEvent{display, connection});
 
     setTransactionFlags(eDisplayTransactionNeeded);
 }
@@ -2044,17 +2040,46 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
     // here the transaction has been committed
 }
 
+DisplayDevice::DisplayType SurfaceFlinger::determineDisplayType(hwc2_display_t display,
+        HWC2::Connection connection) const {
+    // Figure out whether the event is for the primary display or an
+    // external display by matching the Hwc display id against one for a
+    // connected display. If we did not find a match, we then check what
+    // displays are not already connected to determine the type. If we don't
+    // have a connected primary display, we assume the new display is meant to
+    // be the primary display, and then if we don't have an external display,
+    // we assume it is that.
+    const auto primaryDisplayId =
+            getBE().mHwc->getHwcDisplayId(DisplayDevice::DISPLAY_PRIMARY);
+    const auto externalDisplayId =
+            getBE().mHwc->getHwcDisplayId(DisplayDevice::DISPLAY_EXTERNAL);
+    if (primaryDisplayId && primaryDisplayId == display) {
+        return DisplayDevice::DISPLAY_PRIMARY;
+    } else if (externalDisplayId && externalDisplayId == display) {
+        return  DisplayDevice::DISPLAY_EXTERNAL;
+    } else if (connection == HWC2::Connection::Connected && !primaryDisplayId) {
+        return DisplayDevice::DISPLAY_PRIMARY;
+    } else if (connection == HWC2::Connection::Connected && !externalDisplayId) {
+        return DisplayDevice::DISPLAY_EXTERNAL;
+    }
+
+    return DisplayDevice::DISPLAY_ID_INVALID;
+}
+
 void SurfaceFlinger::processDisplayHotplugEventsLocked() {
     for (const auto& event : mPendingHotplugEvents) {
-        DisplayDevice::DisplayType displayType = event.isPrimaryDisplay ?
-                DisplayDevice::DISPLAY_PRIMARY : DisplayDevice::DISPLAY_EXTERNAL;
+        auto displayType = determineDisplayType(event.display, event.connection);
+        if (displayType == DisplayDevice::DISPLAY_ID_INVALID) {
+            ALOGW("Unable to determine the display type for display %" PRIu64, event.display);
+            continue;
+        }
 
         if (getBE().mHwc->isUsingVrComposer() && displayType == DisplayDevice::DISPLAY_EXTERNAL) {
             ALOGE("External displays are not supported by the vr hardware composer.");
             continue;
         }
 
-        getBE().mHwc->onHotplug(event.display, event.connection);
+        getBE().mHwc->onHotplug(event.display, displayType, event.connection);
 
         if (event.connection == HWC2::Connection::Connected) {
             ALOGV("Creating built in display %d", displayType);

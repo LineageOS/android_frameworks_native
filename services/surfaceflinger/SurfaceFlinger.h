@@ -417,8 +417,7 @@ private:
     void onVsyncReceived(int32_t sequenceId, hwc2_display_t display,
                          int64_t timestamp) override;
     void onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
-                           HWC2::Connection connection,
-                           bool primaryDisplay) override;
+                           HWC2::Connection connection) override;
     void onRefreshReceived(int32_t sequenceId, hwc2_display_t display) override;
 
     /* ------------------------------------------------------------------------
@@ -631,6 +630,8 @@ private:
     /* ------------------------------------------------------------------------
      * Display management
      */
+    DisplayDevice::DisplayType determineDisplayType(hwc2_display_t display,
+            HWC2::Connection connection) const;
     void processDisplayChangesLocked();
     void processDisplayHotplugEventsLocked();
 
@@ -737,7 +738,6 @@ private:
     struct HotplugEvent {
         hwc2_display_t display;
         HWC2::Connection connection = HWC2::Connection::Invalid;
-        bool isPrimaryDisplay;
     };
     // protected by mStateLock
     std::vector<HotplugEvent> mPendingHotplugEvents;
