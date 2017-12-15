@@ -648,8 +648,8 @@ private:
     void computeVisibleRegions(const sp<const DisplayDevice>& display, Region& dirtyRegion,
                                Region& opaqueRegion);
 
-    void preComposition(nsecs_t refreshStartTime);
-    void postComposition(nsecs_t refreshStartTime);
+    void preComposition();
+    void postComposition();
     void updateCompositorTiming(
             nsecs_t vsyncPhase, nsecs_t vsyncInterval, nsecs_t compositeTime,
             std::shared_ptr<FenceTime>& presentFenceTime);
@@ -668,6 +668,17 @@ private:
                        ui::Dataspace* outDataSpace, ui::RenderIntent* outRenderIntent) const;
 
     void calculateWorkingSet();
+    /*
+     * beginFrame - This function handles any pre-frame processing that needs to be
+     * prior to any CompositionInfo handling and is not dependent on data in
+     * CompositionInfo
+     */
+    void beginFrame();
+    /* prepareFrame - This function will call into the DisplayDevice to prepare a
+     * frame after CompositionInfo has been programmed.   This provides a mechanism
+     * to prepare the hardware composer
+     */
+    void prepareFrame();
     void doComposition();
     void doDebugFlashRegions();
     void doTracing(const char* where);
@@ -863,6 +874,7 @@ private:
     Mutex mHWVsyncLock;
     bool mPrimaryHWVsyncEnabled;
     bool mHWVsyncAvailable;
+    nsecs_t mRefreshStartTime;
 
     std::atomic<bool> mRefreshPending{false};
 
