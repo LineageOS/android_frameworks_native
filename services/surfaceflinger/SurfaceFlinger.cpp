@@ -627,6 +627,11 @@ void SurfaceFlinger::init() {
             "Starting with vr flinger active is not currently supported.");
     mHwc.reset(new HWComposer(mHwcServiceName));
     mHwc->registerCallback(this, mComposerSequenceId);
+    // Process any initial hotplug and resulting display changes.
+    processDisplayHotplugEventsLocked();
+    LOG_ALWAYS_FATAL_IF(!mHwc->isConnected(HWC_DISPLAY_PRIMARY),
+                        "Registered composer callback but didn't create the default primary "
+                        "display");
 
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
@@ -1317,39 +1322,20 @@ void SurfaceFlinger::onHotplugReceived(int32_t sequenceId,
                   "connected" : "disconnected",
           primaryDisplay ? "primary" : "external");
 
+    // Ignore events that do not have the right sequenceId.
+    if (sequenceId != mComposerSequenceId) {
+        return;
+    }
+
     // Only lock if we're not on the main thread. This function is normally
     // called on a hwbinder thread, but for the primary display it's called on
     // the main thread with the state lock already held, so don't attempt to
     // acquire it here.
-    ConditionalLock lock(mStateLock,
-            std::this_thread::get_id() != mMainThreadId);
+    ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
 
-    if (primaryDisplay) {
-        mHwc->onHotplug(display, connection);
-        if (!mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY].get()) {
-            createBuiltinDisplayLocked(DisplayDevice::DISPLAY_PRIMARY);
-        }
-        createDefaultDisplayDevice();
-    } else {
-        if (sequenceId != mComposerSequenceId) {
-            return;
-        }
-        if (mHwc->isUsingVrComposer()) {
-            ALOGE("External displays are not supported by the vr hardware composer.");
-            return;
-        }
-        mHwc->onHotplug(display, connection);
-        auto type = DisplayDevice::DISPLAY_EXTERNAL;
-        if (connection == HWC2::Connection::Connected) {
-            createBuiltinDisplayLocked(type);
-        } else {
-            mCurrentState.displays.removeItem(mBuiltinDisplays[type]);
-            mBuiltinDisplays[type].clear();
-        }
-        setTransactionFlags(eDisplayTransactionNeeded);
+    mPendingHotplugEvents.emplace_back(HotplugEvent{display, connection, primaryDisplay});
 
-        // Defer EventThread notification until SF has updated mDisplays.
-    }
+    setTransactionFlags(eDisplayTransactionNeeded);
 }
 
 void SurfaceFlinger::onRefreshReceived(int sequenceId,
@@ -2089,6 +2075,36 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
     // here the transaction has been committed
 }
 
+void SurfaceFlinger::processDisplayHotplugEventsLocked() {
+    for (const auto& event : mPendingHotplugEvents) {
+        DisplayDevice::DisplayType displayType = event.isPrimaryDisplay
+                ? DisplayDevice::DISPLAY_PRIMARY
+                : DisplayDevice::DISPLAY_EXTERNAL;
+
+        if (mHwc->isUsingVrComposer() && displayType == DisplayDevice::DISPLAY_EXTERNAL) {
+            ALOGE("External displays are not supported by the vr hardware composer.");
+            continue;
+        }
+
+        mHwc->onHotplug(event.display, event.connection);
+
+        if (event.connection == HWC2::Connection::Connected) {
+            createBuiltinDisplayLocked(displayType);
+        } else {
+            mCurrentState.displays.removeItem(mBuiltinDisplays[displayType]);
+            mBuiltinDisplays[displayType].clear();
+        }
+
+        if (displayType == DisplayDevice::DISPLAY_PRIMARY) {
+            createDefaultDisplayDevice();
+        }
+
+        processDisplayChangesLocked();
+    }
+
+    mPendingHotplugEvents.clear();
+}
+
 void SurfaceFlinger::processDisplayChangesLocked() {
     // here we take advantage of Vector's copy-on-write semantics to
     // improve performance by skipping the transaction entirely when
@@ -2230,6 +2246,8 @@ void SurfaceFlinger::processDisplayChangesLocked() {
             }
         }
     }
+
+    mDrawingState.displays = mCurrentState.displays;
 }
 
 void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
@@ -2261,6 +2279,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
 
     if (transactionFlags & eDisplayTransactionNeeded) {
         processDisplayChangesLocked();
+        processDisplayHotplugEventsLocked();
     }
 
     if (transactionFlags & (eTraversalNeeded|eDisplayTransactionNeeded)) {
