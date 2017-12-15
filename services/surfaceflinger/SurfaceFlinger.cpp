@@ -1967,6 +1967,20 @@ android_dataspace SurfaceFlinger::bestTargetDataSpace(
     return HAL_DATASPACE_V0_SRGB;
 }
 
+void SurfaceFlinger::configureSidebandComposition(const CompositionInfo& compositionInfo) const
+{
+    HWC2::Error error;
+    LOG_ALWAYS_FATAL_IF(compositionInfo.hwc.sidebandStream == nullptr,
+                        "CompositionType is sideband, but sideband stream is nullptr");
+    error = (*compositionInfo.hwc.hwcLayer)
+                    ->setSidebandStream(compositionInfo.hwc.sidebandStream->handle());
+    if (error != HWC2::Error::None) {
+        ALOGE("[SF] Failed to set sideband stream %p: %s (%d)",
+                compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
+                static_cast<int32_t>(error));
+    }
+}
+
 void SurfaceFlinger::configureHwcCommonData(const CompositionInfo& compositionInfo) const
 {
     HWC2::Error error;
@@ -2114,7 +2128,10 @@ void SurfaceFlinger::setUpHWComposer() {
                 case HWC2::Composition::Invalid:
                 case HWC2::Composition::Client:
                 case HWC2::Composition::Cursor:
+                    break;
+
                 case HWC2::Composition::Sideband:
+                    configureSidebandComposition(compositionInfo);
                     break;
 
                 case HWC2::Composition::SolidColor:

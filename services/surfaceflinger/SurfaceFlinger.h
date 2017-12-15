@@ -741,8 +741,9 @@ private:
     volatile int32_t mRepaintEverything;
 
     // helper methods
-    void configureDeviceComposition(const CompositionInfo& compositionInfo) const;
     void configureHwcCommonData(const CompositionInfo& compositionInfo) const;
+    void configureDeviceComposition(const CompositionInfo& compositionInfo) const;
+    void configureSidebandComposition(const CompositionInfo& compositionInfo) const;
 
     // constant members (no synchronization needed for access)
     nsecs_t mBootTime;
