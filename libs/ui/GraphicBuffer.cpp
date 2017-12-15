@@ -82,6 +82,20 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
 {
 }
 
+GraphicBuffer::GraphicBuffer(ANativeWindowBuffer* buffer, bool keepOwnership)
+    : BASE(), mOwner(keepOwnership ? ownHandle : ownNone),
+      mBufferMapper(GraphicBufferMapper::get()),
+      mInitCheck(NO_ERROR), mId(getUniqueId()), mGenerationNumber(0)
+{
+    width  = buffer->width;
+    height = buffer->height;
+    stride = buffer->stride;
+    format = buffer->format;
+    layerCount = buffer->layerCount;
+    usage  = buffer->usage;
+    handle = buffer->handle;
+}
+
 GraphicBuffer::GraphicBuffer(const native_handle_t* handle,
         HandleWrapMethod method, uint32_t width, uint32_t height,
         PixelFormat format, uint32_t layerCount,

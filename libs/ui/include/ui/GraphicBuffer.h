@@ -135,6 +135,9 @@ public:
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inUsage, std::string requestorName = "<Unknown>");
 
+    // create a buffer from an existing ANativeWindowBuffer
+    GraphicBuffer(ANativeWindowBuffer* buffer, bool keepOwnership);
+
     // return status
     status_t initCheck() const;
 
