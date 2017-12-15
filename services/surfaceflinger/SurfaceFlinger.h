@@ -483,9 +483,9 @@ private:
     // called when starting, or restarting after system_server death
     void initializeDisplays();
 
-    // Create an IBinder for a builtin display and add it to current state
+#ifndef USE_HWC2
     void createBuiltinDisplayLocked(DisplayDevice::DisplayType type);
-
+#endif
 
     sp<const DisplayDevice> getDisplayDevice(const wp<IBinder>& dpy) const {
       Mutex::Autolock _l(mStateLock);
@@ -510,8 +510,6 @@ private:
     sp<const DisplayDevice> getDefaultDisplayDeviceLocked() const {
         return getDisplayDeviceLocked(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]);
     }
-
-    void createDefaultDisplayDevice();
 
     int32_t getDisplayType(const sp<IBinder>& display) {
         if (!display.get()) return NAME_NOT_FOUND;

@@ -369,17 +369,6 @@ void SurfaceFlinger::destroyDisplay(const sp<IBinder>& display) {
     setTransactionFlags(eDisplayTransactionNeeded);
 }
 
-void SurfaceFlinger::createBuiltinDisplayLocked(DisplayDevice::DisplayType type) {
-    ALOGV("createBuiltinDisplayLocked(%d)", type);
-    ALOGW_IF(mBuiltinDisplays[type],
-            "Overwriting display token for display type %d", type);
-    mBuiltinDisplays[type] = new BBinder();
-    // All non-virtual displays are currently considered secure.
-    DisplayDeviceState info(type, true);
-    mCurrentState.displays.add(mBuiltinDisplays[type], info);
-    mInterceptor.saveDisplayCreation(info);
-}
-
 sp<IBinder> SurfaceFlinger::getBuiltInDisplay(int32_t id) {
     if (uint32_t(id) >= DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES) {
         ALOGE("getDefaultDisplay: id=%d is not a valid default display id", id);
@@ -632,6 +621,10 @@ void SurfaceFlinger::init() {
     LOG_ALWAYS_FATAL_IF(!mHwc->isConnected(HWC_DISPLAY_PRIMARY),
                         "Registered composer callback but didn't create the default primary "
                         "display");
+
+    // make the default display GLContext current so that we can create textures
+    // when creating Layers (which may happens before we render something)
+    getDefaultDisplayDeviceLocked()->makeCurrent(mEGLDisplay, mEGLContext);
 
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
@@ -1265,52 +1258,6 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId,
 void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     std::lock_guard<std::mutex> lock(mCompositorTimingLock);
     *compositorTiming = mCompositorTiming;
-}
-
-void SurfaceFlinger::createDefaultDisplayDevice() {
-    const DisplayDevice::DisplayType type = DisplayDevice::DISPLAY_PRIMARY;
-    wp<IBinder> token = mBuiltinDisplays[type];
-
-    // All non-virtual displays are currently considered secure.
-    const bool isSecure = true;
-
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer);
-
-    sp<FramebufferSurface> fbs = new FramebufferSurface(*mHwc, type, consumer);
-
-    bool hasWideColorModes = false;
-    std::vector<android_color_mode_t> modes = getHwComposer().getColorModes(type);
-    for (android_color_mode_t colorMode : modes) {
-        switch (colorMode) {
-            case HAL_COLOR_MODE_DISPLAY_P3:
-            case HAL_COLOR_MODE_ADOBE_RGB:
-            case HAL_COLOR_MODE_DCI_P3:
-                hasWideColorModes = true;
-                break;
-            default:
-                break;
-        }
-    }
-    sp<DisplayDevice> hw = new DisplayDevice(this, DisplayDevice::DISPLAY_PRIMARY, type, isSecure,
-                                             token, fbs, producer, mRenderEngine->getEGLConfig(),
-                                             hasWideColorModes && hasWideColorDisplay);
-    mDisplays.add(token, hw);
-    android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
-    if (hasWideColorModes && hasWideColorDisplay) {
-        defaultColorMode = HAL_COLOR_MODE_SRGB;
-    }
-    setActiveColorModeInternal(hw, defaultColorMode);
-    hw->setCompositionDataSpace(HAL_DATASPACE_UNKNOWN);
-
-    // Add the primary display token to mDrawingState so we don't try to
-    // recreate the DisplayDevice for the primary display.
-    mDrawingState.displays.add(token, DisplayDeviceState(type, true));
-
-    // make the GLContext current so that we can create textures when creating
-    // Layers (which may happens before we render something)
-    hw->makeCurrent(mEGLDisplay, mEGLContext);
 }
 
 void SurfaceFlinger::onHotplugReceived(int32_t sequenceId,
@@ -2094,14 +2041,26 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
         mHwc->onHotplug(event.display, event.connection);
 
         if (event.connection == HWC2::Connection::Connected) {
-            createBuiltinDisplayLocked(displayType);
+            ALOGV("Creating built in display %d", displayType);
+            ALOGW_IF(mBuiltinDisplays[displayType], "Overwriting display token for display type %d",
+                     displayType);
+            mBuiltinDisplays[displayType] = new BBinder();
+            // All non-virtual displays are currently considered secure.
+            DisplayDeviceState info(displayType, true);
+            info.displayName = displayType == DisplayDevice::DISPLAY_PRIMARY ? "Built-in Screen"
+                                                                             : "External Screen";
+            mCurrentState.displays.add(mBuiltinDisplays[displayType], info);
+            mInterceptor.saveDisplayCreation(info);
         } else {
-            mCurrentState.displays.removeItem(mBuiltinDisplays[displayType]);
-            mBuiltinDisplays[displayType].clear();
-        }
+            ALOGV("Removing built in display %d", displayType);
 
-        if (displayType == DisplayDevice::DISPLAY_PRIMARY) {
-            createDefaultDisplayDevice();
+            ssize_t idx = mCurrentState.displays.indexOfKey(mBuiltinDisplays[displayType]);
+            if (idx >= 0) {
+                const DisplayDeviceState& info(mCurrentState.displays.valueAt(idx));
+                mInterceptor.saveDisplayDeletion(info.displayId);
+                mCurrentState.displays.removeItemsAt(idx);
+            }
+            mBuiltinDisplays[displayType].clear();
         }
 
         processDisplayChangesLocked();
@@ -2235,11 +2194,41 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 }
 
                 const wp<IBinder>& display(curr.keyAt(i));
+
                 if (dispSurface != NULL) {
+                    bool useWideColorMode = hasWideColorDisplay;
+                    if (state.isMainDisplay()) {
+                        bool hasWideColorModes = false;
+                        std::vector<android_color_mode_t> modes =
+                                getHwComposer().getColorModes(state.type);
+                        for (android_color_mode_t colorMode : modes) {
+                            switch (colorMode) {
+                                case HAL_COLOR_MODE_DISPLAY_P3:
+                                case HAL_COLOR_MODE_ADOBE_RGB:
+                                case HAL_COLOR_MODE_DCI_P3:
+                                    hasWideColorModes = true;
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                        useWideColorMode = hasWideColorModes && hasWideColorDisplay;
+                    }
+
                     sp<DisplayDevice> hw =
                             new DisplayDevice(this, state.type, hwcId, state.isSecure, display,
                                               dispSurface, producer, mRenderEngine->getEGLConfig(),
-                                              hasWideColorDisplay);
+                                              useWideColorMode);
+
+                    if (state.isMainDisplay()) {
+                        android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
+                        if (useWideColorMode) {
+                            defaultColorMode = HAL_COLOR_MODE_SRGB;
+                        }
+                        setActiveColorModeInternal(hw, defaultColorMode);
+                        hw->setCompositionDataSpace(HAL_DATASPACE_UNKNOWN);
+                    }
+
                     hw->setLayerStack(state.layerStack);
                     hw->setProjection(state.orientation, state.viewport, state.frame);
                     hw->setDisplayName(state.displayName);
