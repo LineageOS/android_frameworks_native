@@ -142,6 +142,7 @@ public:
     Layer getLayer(size_t index) const;
 
     void hotplugDisplay(Display display, IComposerCallback::Connection state);
+    void refreshDisplay(Display display);
 
 private:
     LayerImpl& getLayerImpl(Layer handle);

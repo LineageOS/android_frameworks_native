@@ -22,25 +22,22 @@
 #include "FakeComposerService.h"
 #include "FakeComposerUtils.h"
 
+#include <gui/DisplayEventReceiver.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 
-#include <private/gui/ComposerService.h>
-
-#include <ui/DisplayInfo.h>
-
-#include <android/native_window.h>
-
 #include <android/hidl/manager/1.0/IServiceManager.h>
-
-#include <hwbinder/ProcessState.h>
-
+#include <android/looper.h>
+#include <android/native_window.h>
 #include <binder/ProcessState.h>
-
+#include <hwbinder/ProcessState.h>
 #include <log/log.h>
+#include <private/gui/ComposerService.h>
+#include <ui/DisplayInfo.h>
+#include <utils/Looper.h>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -142,13 +139,22 @@ public:
     };
 
 protected:
+    static int processDisplayEvents(int fd, int events, void* data);
+
     void SetUp() override;
     void TearDown() override;
+
+    void waitForDisplayTransaction();
+    bool waitForHotplugEvent(uint32_t id, bool connected);
 
     sp<IComposer> mFakeService;
     sp<SurfaceComposerClient> mComposerClient;
 
     MockComposerClient* mMockComposer;
+
+    std::unique_ptr<DisplayEventReceiver> mReceiver;
+    sp<Looper> mLooper;;
+    std::deque<DisplayEventReceiver::Event> mReceivedDisplayEvents;
 };
 
 void DisplayTest::SetUp() {
@@ -188,9 +194,16 @@ void DisplayTest::SetUp() {
 
     mComposerClient = new SurfaceComposerClient;
     ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
+
+    mReceiver.reset(new DisplayEventReceiver());
+    mLooper = new Looper(false);
+    mLooper->addFd(mReceiver->getFd(), 0, ALOOPER_EVENT_INPUT, processDisplayEvents, this);
 }
 
 void DisplayTest::TearDown() {
+    mLooper = nullptr;
+    mReceiver = nullptr;
+
     mComposerClient->dispose();
     mComposerClient = nullptr;
 
@@ -204,6 +217,55 @@ void DisplayTest::TearDown() {
     mMockComposer = nullptr;
 }
 
+
+int DisplayTest::processDisplayEvents(int /*fd*/, int /*events*/, void* data) {
+    auto self = static_cast<DisplayTest*>(data);
+
+    ssize_t n;
+    DisplayEventReceiver::Event buffer[1];
+
+    while ((n = self->mReceiver->getEvents(buffer, 1)) > 0) {
+        for (int i=0 ; i<n ; i++) {
+            self->mReceivedDisplayEvents.push_back(buffer[i]);
+        }
+    }
+    ALOGD_IF(n < 0, "Error reading events (%s)\n", strerror(-n));
+    return 1;
+}
+
+void DisplayTest::waitForDisplayTransaction() {
+    // Both a refresh and a vsync event are needed to apply pending display
+    // transactions.
+    mMockComposer->refreshDisplay(EXTERNAL_DISPLAY);
+    mMockComposer->runVSyncAndWait();
+
+    // Extra vsync and wait to avoid a 10% flake due to a race.
+    mMockComposer->runVSyncAndWait();
+}
+
+bool DisplayTest::waitForHotplugEvent(uint32_t id, bool connected) {
+    int waitCount = 20;
+    while (waitCount--) {
+        while (!mReceivedDisplayEvents.empty()) {
+            auto event = mReceivedDisplayEvents.front();
+            mReceivedDisplayEvents.pop_front();
+
+            ALOGV_IF(event.header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG,
+                    "event hotplug: id %d, connected %d\t", event.header.id,
+                    event.hotplug.connected);
+
+            if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG &&
+                event.header.id == id && event.hotplug.connected == connected) {
+                return true;
+            }
+        }
+
+        mLooper->pollOnce(1);
+    }
+
+    return false;
+}
+
 TEST_F(DisplayTest, Hotplug) {
     ALOGD("DisplayTest::Hotplug");
 
@@ -215,7 +277,7 @@ TEST_F(DisplayTest, Hotplug) {
     EXPECT_CALL(*mMockComposer, getDisplayAttribute(EXTERNAL_DISPLAY, 1, _, _))
             .Times(2 * 3)
             .WillRepeatedly(Invoke(mMockComposer, &MockComposerClient::getDisplayAttributeFake));
-    // ... and then special handling for dimensions. Specifying this
+    // ... and then special handling for dimensions. Specifying these
     // rules later means that gmock will try them first, i.e.,
     // ordering of width/height vs. the default implementation for
     // other queries is significant.
@@ -229,10 +291,11 @@ TEST_F(DisplayTest, Hotplug) {
             .Times(2)
             .WillRepeatedly(DoAll(SetArgPointee<3>(200), Return(Error::NONE)));
 
-    // TODO: Width and height queries are not actually called. Display
-    // info returns dimensions 0x0 in display info. Why?
-
     mMockComposer->hotplugDisplay(EXTERNAL_DISPLAY, IComposerCallback::Connection::CONNECTED);
+
+    waitForDisplayTransaction();
+
+    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, true));
 
     {
         sp<android::IBinder> display(
@@ -264,6 +327,11 @@ TEST_F(DisplayTest, Hotplug) {
 
     mMockComposer->hotplugDisplay(EXTERNAL_DISPLAY, IComposerCallback::Connection::CONNECTED);
 
+    waitForDisplayTransaction();
+
+    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, false));
+    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, true));
+
     {
         sp<android::IBinder> display(
                 SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdHdmi));
@@ -288,6 +356,64 @@ TEST_F(DisplayTest, Hotplug) {
         }
     }
     mMockComposer->hotplugDisplay(EXTERNAL_DISPLAY, IComposerCallback::Connection::DISCONNECTED);
+}
+
+TEST_F(DisplayTest, HotplugPrimaryDisplay) {
+    ALOGD("DisplayTest::HotplugPrimaryDisplay");
+
+    mMockComposer->hotplugDisplay(PRIMARY_DISPLAY, IComposerCallback::Connection::DISCONNECTED);
+
+    waitForDisplayTransaction();
+
+    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdMain, false));
+
+    {
+        sp<android::IBinder> display(
+                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+        DisplayInfo info;
+        auto result = SurfaceComposerClient::getDisplayInfo(display, &info);
+        EXPECT_NE(NO_ERROR, result);
+    }
+
+    mMockComposer->clearFrames();
+
+    EXPECT_CALL(*mMockComposer, getDisplayType(PRIMARY_DISPLAY, _))
+            .Times(2)
+            .WillRepeatedly(DoAll(SetArgPointee<1>(IComposerClient::DisplayType::PHYSICAL),
+                                  Return(Error::NONE)));
+    // The attribute queries will get done twice. This is for defaults
+    EXPECT_CALL(*mMockComposer, getDisplayAttribute(PRIMARY_DISPLAY, 1, _, _))
+            .Times(2 * 3)
+            .WillRepeatedly(Invoke(mMockComposer, &MockComposerClient::getDisplayAttributeFake));
+    // ... and then special handling for dimensions. Specifying these
+    // rules later means that gmock will try them first, i.e.,
+    // ordering of width/height vs. the default implementation for
+    // other queries is significant.
+    EXPECT_CALL(*mMockComposer,
+                getDisplayAttribute(PRIMARY_DISPLAY, 1, IComposerClient::Attribute::WIDTH, _))
+            .Times(2)
+            .WillRepeatedly(DoAll(SetArgPointee<3>(400), Return(Error::NONE)));
+
+    EXPECT_CALL(*mMockComposer,
+                getDisplayAttribute(PRIMARY_DISPLAY, 1, IComposerClient::Attribute::HEIGHT, _))
+            .Times(2)
+            .WillRepeatedly(DoAll(SetArgPointee<3>(200), Return(Error::NONE)));
+
+    mMockComposer->hotplugDisplay(PRIMARY_DISPLAY, IComposerCallback::Connection::CONNECTED);
+
+    waitForDisplayTransaction();
+
+    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdMain, true));
+
+    {
+        sp<android::IBinder> display(
+                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+        DisplayInfo info;
+        auto result = SurfaceComposerClient::getDisplayInfo(display, &info);
+        EXPECT_EQ(NO_ERROR, result);
+        ASSERT_EQ(400u, info.w);
+        ASSERT_EQ(200u, info.h);
+    }
 }
 
 ////////////////////////////////////////////////

@@ -798,7 +798,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
 
             // TODO: this needs to go away (currently needed only by webkit)
             sp<const DisplayDevice> hw(getDefaultDisplayDeviceLocked());
-            info.orientation = hw->getOrientation();
+            info.orientation = hw ? hw->getOrientation() : 0;
         } else {
             // TODO: where should this value come from?
             static const int TV_DENSITY = 213;
@@ -1596,7 +1596,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
 
     getBE().mGlCompositionDoneTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
-    if (getBE().mHwc->hasClientComposition(HWC_DISPLAY_PRIMARY)) {
+    if (hw && getBE().mHwc->hasClientComposition(HWC_DISPLAY_PRIMARY)) {
         glCompositionDoneFenceTime =
                 std::make_shared<FenceTime>(hw->getClientTargetAcquireFence());
         getBE().mGlCompositionDoneTimeline.push(glCompositionDoneFenceTime);
@@ -1641,7 +1641,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     }
 
     if (!hasSyncFramework) {
-        if (hw->isDisplayOn()) {
+        if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY) && hw->isDisplayOn()) {
             enableHardwareVsync();
         }
     }
@@ -1652,7 +1652,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         if (presentFenceTime->isValid()) {
             mAnimFrameTracker.setActualPresentFence(
                     std::move(presentFenceTime));
-        } else {
+        } else if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY)) {
             // The HWC doesn't support present fences, so use the refresh
             // timestamp instead.
             nsecs_t presentTime =
@@ -1662,7 +1662,8 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         mAnimFrameTracker.advanceFrame();
     }
 
-    if (hw->getPowerMode() == HWC_POWER_MODE_OFF) {
+    if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY) &&
+            hw->getPowerMode() == HWC_POWER_MODE_OFF) {
         return;
     }
 
@@ -2005,9 +2006,11 @@ void SurfaceFlinger::postFramebuffer()
     mDebugInSwapBuffers = 0;
 
     // |mStateLock| not needed as we are on the main thread
-    uint32_t flipCount = getDefaultDisplayDeviceLocked()->getPageFlipCount();
-    if (flipCount % LOG_FRAME_STATS_PERIOD == 0) {
-        logFrameStats();
+    if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY)) {
+        uint32_t flipCount = getDefaultDisplayDeviceLocked()->getPageFlipCount();
+        if (flipCount % LOG_FRAME_STATS_PERIOD == 0) {
+            logFrameStats();
+        }
     }
 }
 
@@ -2129,20 +2132,16 @@ void SurfaceFlinger::processDisplayChangesLocked() {
             const ssize_t j = curr.indexOfKey(draw.keyAt(i));
             if (j < 0) {
                 // in drawing state but not in current state
-                if (!draw[i].isMainDisplay()) {
-                    // Call makeCurrent() on the primary display so we can
-                    // be sure that nothing associated with this display
-                    // is current.
-                    const sp<const DisplayDevice> defaultDisplay(getDefaultDisplayDeviceLocked());
-                    defaultDisplay->makeCurrent();
-                    sp<DisplayDevice> hw(getDisplayDeviceLocked(draw.keyAt(i)));
-                    if (hw != nullptr) hw->disconnect(getHwComposer());
-                    if (draw[i].type < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES)
-                        mEventThread->onHotplugReceived(draw[i].type, false);
-                    mDisplays.removeItem(draw.keyAt(i));
-                } else {
-                    ALOGW("trying to remove the main display");
-                }
+                // Call makeCurrent() on the primary display so we can
+                // be sure that nothing associated with this display
+                // is current.
+                const sp<const DisplayDevice> defaultDisplay(getDefaultDisplayDeviceLocked());
+                if (defaultDisplay != nullptr) defaultDisplay->makeCurrent();
+                sp<DisplayDevice> hw(getDisplayDeviceLocked(draw.keyAt(i)));
+                if (hw != nullptr) hw->disconnect(getHwComposer());
+                if (draw[i].type < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES)
+                    mEventThread->onHotplugReceived(draw[i].type, false);
+                mDisplays.removeItem(draw.keyAt(i));
             } else {
                 // this display is in both lists. see if something changed.
                 const DisplayDeviceState& state(curr[j]);
@@ -2375,6 +2374,9 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                     // screen off/on times.
                     disp = getDefaultDisplayDeviceLocked();
                 }
+                layer->updateTransformHint(disp);
+            }
+            if (disp != nullptr) {
                 layer->updateTransformHint(disp);
             }
 
@@ -3912,9 +3914,11 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
 
     getBE().mRenderEngine->dump(result);
 
-    hw->undefinedRegion.dump(result, "undefinedRegion");
-    result.appendFormat("  orientation=%d, isDisplayOn=%d\n",
-            hw->getOrientation(), hw->isDisplayOn());
+    if (hw) {
+        hw->undefinedRegion.dump(result, "undefinedRegion");
+        result.appendFormat("  orientation=%d, isDisplayOn=%d\n",
+                hw->getOrientation(), hw->isDisplayOn());
+    }
     result.appendFormat(
             "  last eglSwapBuffers() time: %f us\n"
             "  last transaction time     : %f us\n"
