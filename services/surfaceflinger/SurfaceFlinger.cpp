@@ -1417,11 +1417,8 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
             refreshNeeded |= handleMessageInvalidate();
             refreshNeeded |= mRepaintEverything;
 
-            const nsecs_t refreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
-
-            preComposition(refreshStartTime);
+            preComposition();
             rebuildLayerStacks();
-
             calculateWorkingSet();
 
             if (refreshNeeded) {
@@ -1554,14 +1551,20 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mRefreshPending = false;
 
-    nsecs_t refreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
-    setUpHWComposer();
+
+    beginFrame();
+    for (auto compositionInfo : getBE().mCompositionInfo) {
+        setUpHWComposer(compositionInfo);
+    }
+    prepareFrame();
     doDebugFlashRegions();
     doTracing("handleRefresh");
     logLayerStats();
     doComposition();
-    postComposition(refreshStartTime);
+    postComposition();
+
+    getBE().mCompositionInfo.clear();
 
     mPreviousPresentFence = getBE().mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
 
@@ -1648,14 +1651,14 @@ void SurfaceFlinger::logLayerStats() {
     }
 }
 
-void SurfaceFlinger::preComposition(nsecs_t refreshStartTime)
+void SurfaceFlinger::preComposition()
 {
     ATRACE_CALL();
     ALOGV("preComposition");
 
     bool needExtraInvalidate = false;
     mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (layer->onPreComposition(refreshStartTime)) {
+        if (layer->onPreComposition(mRefreshStartTime)) {
             needExtraInvalidate = true;
         }
     });
@@ -1724,7 +1727,7 @@ void SurfaceFlinger::setCompositorTimingSnapped(nsecs_t vsyncPhase,
     getBE().mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
 }
 
-void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
+void SurfaceFlinger::postComposition()
 {
     ATRACE_CALL();
     ALOGV("postComposition");
@@ -1756,11 +1759,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     nsecs_t vsyncPhase = mPrimaryDispSync.computeNextRefresh(0);
     nsecs_t vsyncInterval = mPrimaryDispSync.getPeriod();
 
-    // We use the refreshStartTime which might be sampled a little later than
+    // We use the mRefreshStartTime which might be sampled a little later than
     // when we started doing work for this frame, but that should be okay
     // since updateCompositorTiming has snapping logic.
     updateCompositorTiming(
-        vsyncPhase, vsyncInterval, refreshStartTime, presentFenceTime);
+        vsyncPhase, vsyncInterval, mRefreshStartTime, presentFenceTime);
     CompositorTiming compositorTiming;
     {
         std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
@@ -2074,18 +2077,16 @@ void SurfaceFlinger::configureDeviceComposition(const CompositionInfo& compositi
             "[SF] Failed to set surface damage: %s (%d)",
             to_string(error).c_str(), static_cast<int32_t>(error));
 
-    if (compositionInfo.updateBuffer) {
-        error = (*compositionInfo.hwc.hwcLayer)->setBuffer(compositionInfo.mBufferSlot,
-                compositionInfo.mBuffer, compositionInfo.hwc.fence);
-        ALOGE_IF(error != HWC2::Error::None,
-                "[SF] Failed to set buffer: %s (%d)",
-                to_string(error).c_str(), static_cast<int32_t>(error));
-    }
+    error = (*compositionInfo.hwc.hwcLayer)->setBuffer(compositionInfo.mBufferSlot,
+            compositionInfo.mBuffer, compositionInfo.hwc.fence);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set buffer: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
 }
 
-void SurfaceFlinger::setUpHWComposer() {
-    ATRACE_CALL();
-    ALOGV("setUpHWComposer");
+void SurfaceFlinger::beginFrame()
+{
+    mRefreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
         bool dirty = !mDisplays[dpy]->getDirtyRegion(false).isEmpty();
@@ -2115,38 +2116,10 @@ void SurfaceFlinger::setUpHWComposer() {
             mDisplays[dpy]->lastCompositionHadVisibleLayers = !empty;
         }
     }
+}
 
-    {
-        ATRACE_NAME("Programming_HWCOMPOSER");
-        for (auto compositionInfo : getBE().mCompositionInfo) {
-            ALOGV("[SF] hwcLayer=%p(%lu), compositionType=%d",
-                  static_cast<HWC2::Layer*>(*compositionInfo.hwc.hwcLayer),
-                  compositionInfo.hwc.hwcLayer.use_count(), compositionInfo.compositionType);
-
-            switch (compositionInfo.compositionType)
-            {
-                case HWC2::Composition::Invalid:
-                case HWC2::Composition::Client:
-                case HWC2::Composition::Cursor:
-                    break;
-
-                case HWC2::Composition::Sideband:
-                    configureSidebandComposition(compositionInfo);
-                    break;
-
-                case HWC2::Composition::SolidColor:
-                    configureHwcCommonData(compositionInfo);
-                    break;
-
-                case HWC2::Composition::Device:
-                    configureHwcCommonData(compositionInfo);
-                    configureDeviceComposition(compositionInfo);
-                break;
-            }
-        }
-        getBE().mCompositionInfo.clear();
-    }
-
+void SurfaceFlinger::prepareFrame()
+{
     for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
         auto& displayDevice = mDisplays[displayId];
         if (!displayDevice->isDisplayOn()) {
@@ -2156,6 +2129,32 @@ void SurfaceFlinger::setUpHWComposer() {
         status_t result = displayDevice->prepareFrame(*getBE().mHwc);
         ALOGE_IF(result != NO_ERROR, "prepareFrame for display %zd failed:"
                 " %d (%s)", displayId, result, strerror(-result));
+    }
+}
+
+void SurfaceFlinger::setUpHWComposer(const CompositionInfo& compositionInfo) {
+    ATRACE_CALL();
+    ALOGV("setUpHWComposer");
+
+    switch (compositionInfo.compositionType)
+    {
+        case HWC2::Composition::Invalid:
+        case HWC2::Composition::Client:
+        case HWC2::Composition::Cursor:
+            break;
+
+        case HWC2::Composition::Sideband:
+            configureSidebandComposition(compositionInfo);
+            break;
+
+        case HWC2::Composition::SolidColor:
+            configureHwcCommonData(compositionInfo);
+            break;
+
+        case HWC2::Composition::Device:
+            configureHwcCommonData(compositionInfo);
+            configureDeviceComposition(compositionInfo);
+            break;
     }
 }
 

@@ -620,7 +620,6 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
     getBE().compositionInfo.mBufferSlot = mActiveBufferSlot;
     getBE().compositionInfo.mBuffer = mActiveBuffer;
     getBE().compositionInfo.hwc.fence = acquireFence;
-    getBE().compositionInfo.updateBuffer = true;
 }
 
 bool BufferLayer::isOpaque(const Layer::State& s) const {
