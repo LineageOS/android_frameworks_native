@@ -1967,41 +1967,35 @@ android_dataspace SurfaceFlinger::bestTargetDataSpace(
     return HAL_DATASPACE_V0_SRGB;
 }
 
-void SurfaceFlinger::configureDeviceComposition(const CompositionInfo& compositionInfo) const
+void SurfaceFlinger::configureHwcCommonData(const CompositionInfo& compositionInfo) const
 {
     HWC2::Error error;
 
     if (!compositionInfo.hwc.skipGeometry) {
-        if (compositionInfo.hwc.blendMode != HWC2::BlendMode::Invalid) {
-            error = (*compositionInfo.hwc.hwcLayer)->setBlendMode(compositionInfo.hwc.blendMode);
-            ALOGE_IF(error != HWC2::Error::None,
-                     "[SF] Failed to set blend mode %s:"
-                     " %s (%d)",
-                     to_string(compositionInfo.hwc.blendMode).c_str(), to_string(error).c_str(),
-                     static_cast<int32_t>(error));
-        }
+        error = (*compositionInfo.hwc.hwcLayer)->setBlendMode(compositionInfo.hwc.blendMode);
+        ALOGE_IF(error != HWC2::Error::None,
+                 "[SF] Failed to set blend mode %s:"
+                 " %s (%d)",
+                 to_string(compositionInfo.hwc.blendMode).c_str(), to_string(error).c_str(),
+                 static_cast<int32_t>(error));
 
-        if (compositionInfo.hwc.displayFrame.isValid()) {
-            error = (*compositionInfo.hwc.hwcLayer)->setDisplayFrame(compositionInfo.hwc.displayFrame);
-            ALOGE_IF(error != HWC2::Error::None,
-                    "[SF] Failed to set the display frame [%d, %d, %d, %d] %s (%d)",
-                    compositionInfo.hwc.displayFrame.left,
-                    compositionInfo.hwc.displayFrame.right,
-                    compositionInfo.hwc.displayFrame.top,
-                    compositionInfo.hwc.displayFrame.bottom,
-                    to_string(error).c_str(), static_cast<int32_t>(error));
-        }
+        error = (*compositionInfo.hwc.hwcLayer)->setDisplayFrame(compositionInfo.hwc.displayFrame);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set the display frame [%d, %d, %d, %d] %s (%d)",
+                compositionInfo.hwc.displayFrame.left,
+                compositionInfo.hwc.displayFrame.right,
+                compositionInfo.hwc.displayFrame.top,
+                compositionInfo.hwc.displayFrame.bottom,
+                to_string(error).c_str(), static_cast<int32_t>(error));
 
-        if ((compositionInfo.hwc.sourceCrop.getWidth() > 0) && (compositionInfo.hwc.sourceCrop.getHeight() > 0)) {
-            error = (*compositionInfo.hwc.hwcLayer)->setSourceCrop(compositionInfo.hwc.sourceCrop);
-            ALOGE_IF(error != HWC2::Error::None,
-                    "[SF] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: %s (%d)",
-                    compositionInfo.hwc.sourceCrop.left,
-                    compositionInfo.hwc.sourceCrop.right,
-                    compositionInfo.hwc.sourceCrop.top,
-                    compositionInfo.hwc.sourceCrop.bottom,
-                    to_string(error).c_str(), static_cast<int32_t>(error));
-        }
+        error = (*compositionInfo.hwc.hwcLayer)->setSourceCrop(compositionInfo.hwc.sourceCrop);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: %s (%d)",
+                compositionInfo.hwc.sourceCrop.left,
+                compositionInfo.hwc.sourceCrop.right,
+                compositionInfo.hwc.sourceCrop.top,
+                compositionInfo.hwc.sourceCrop.bottom,
+                to_string(error).c_str(), static_cast<int32_t>(error));
 
         error = (*compositionInfo.hwc.hwcLayer)->setPlaneAlpha(compositionInfo.hwc.alpha);
         ALOGE_IF(error != HWC2::Error::None,
@@ -2017,39 +2011,24 @@ void SurfaceFlinger::configureDeviceComposition(const CompositionInfo& compositi
                 compositionInfo.hwc.z,
                 to_string(error).c_str(), static_cast<int32_t>(error));
 
-        error = (*compositionInfo.hwc.hwcLayer)->setInfo(compositionInfo.hwc.type, compositionInfo.hwc.appId);
+        error = (*compositionInfo.hwc.hwcLayer)
+                        ->setInfo(compositionInfo.hwc.type, compositionInfo.hwc.appId);
         ALOGE_IF(error != HWC2::Error::None,
                 "[SF] Failed to set info (%d)",
                 static_cast<int32_t>(error));
 
-        if (compositionInfo.hwc.transform != HWC2::Transform::None) {
-            error = (*compositionInfo.hwc.hwcLayer)->setTransform(compositionInfo.hwc.transform);
-            ALOGE_IF(error != HWC2::Error::None,
-                     "[SF] Failed to set transform %s: "
-                     "%s (%d)",
-                     to_string(compositionInfo.hwc.transform).c_str(), to_string(error).c_str(),
-                     static_cast<int32_t>(error));
-        }
-    }
-
-    if (!compositionInfo.hwc.visibleRegion.isEmpty()) {
-        error = (*compositionInfo.hwc.hwcLayer)->setVisibleRegion(compositionInfo.hwc.visibleRegion);
+        error = (*compositionInfo.hwc.hwcLayer)->setTransform(compositionInfo.hwc.transform);
         ALOGE_IF(error != HWC2::Error::None,
-                "[SF] Failed to set visible region: %s (%d)",
-                to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
-    if (!compositionInfo.hwc.surfaceDamage.isEmpty()) {
-        error = (*compositionInfo.hwc.hwcLayer)->setSurfaceDamage(compositionInfo.hwc.surfaceDamage);
-        ALOGE_IF(error != HWC2::Error::None,
-                "[SF] Failed to set surface damage: %s (%d)",
-                to_string(error).c_str(), static_cast<int32_t>(error));
+                 "[SF] Failed to set transform %s: "
+                 "%s (%d)",
+                 to_string(compositionInfo.hwc.transform).c_str(), to_string(error).c_str(),
+                 static_cast<int32_t>(error));
     }
 
     error = (*compositionInfo.hwc.hwcLayer)->setCompositionType(compositionInfo.compositionType);
     ALOGE_IF(error != HWC2::Error::None,
             "[SF] Failed to set composition type: %s (%d)",
-            to_string(error).c_str(), static_cast<int32_t>(error));
+                to_string(error).c_str(), static_cast<int32_t>(error));
 
     error = (*compositionInfo.hwc.hwcLayer)->setDataspace(compositionInfo.hwc.dataspace);
     ALOGE_IF(error != HWC2::Error::None,
@@ -2059,6 +2038,26 @@ void SurfaceFlinger::configureDeviceComposition(const CompositionInfo& compositi
     error = (*compositionInfo.hwc.hwcLayer)->setHdrMetadata(compositionInfo.hwc.hdrMetadata);
     ALOGE_IF(error != HWC2::Error::None && error != HWC2::Error::Unsupported,
             "[SF] Failed to set hdrMetadata: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
+
+    error = (*compositionInfo.hwc.hwcLayer)->setColor(compositionInfo.hwc.color);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set color: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
+
+    error = (*compositionInfo.hwc.hwcLayer)->setVisibleRegion(compositionInfo.hwc.visibleRegion);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set visible region: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
+}
+
+void SurfaceFlinger::configureDeviceComposition(const CompositionInfo& compositionInfo) const
+{
+    HWC2::Error error;
+
+    error = (*compositionInfo.hwc.hwcLayer)->setSurfaceDamage(compositionInfo.hwc.surfaceDamage);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set surface damage: %s (%d)",
             to_string(error).c_str(), static_cast<int32_t>(error));
 
     if (compositionInfo.updateBuffer) {
@@ -2113,21 +2112,17 @@ void SurfaceFlinger::setUpHWComposer() {
             switch (compositionInfo.compositionType)
             {
                 case HWC2::Composition::Invalid:
-                    break;
-
                 case HWC2::Composition::Client:
-                    break;
-
-                case HWC2::Composition::SolidColor:
-                    break;
-
                 case HWC2::Composition::Cursor:
-                    break;
-
                 case HWC2::Composition::Sideband:
                     break;
 
+                case HWC2::Composition::SolidColor:
+                    configureHwcCommonData(compositionInfo);
+                    break;
+
                 case HWC2::Composition::Device:
+                    configureHwcCommonData(compositionInfo);
                     configureDeviceComposition(compositionInfo);
                 break;
             }
