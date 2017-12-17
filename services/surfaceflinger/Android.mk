@@ -15,13 +15,13 @@ LOCAL_SRC_FILES := \
     GpuService.cpp \
     Layer.cpp \
     BufferLayer.cpp \
+    BufferLayerConsumer.cpp \
     ColorLayer.cpp \
     LayerRejecter.cpp \
     LayerVector.cpp \
     MessageQueue.cpp \
     MonitoredProducer.cpp \
     SurfaceFlinger.cpp \
-    SurfaceFlingerConsumer.cpp \
     SurfaceInterceptor.cpp \
     SurfaceTracing.cpp \
     Transform.cpp \

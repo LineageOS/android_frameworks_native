@@ -435,7 +435,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
         // layer update so we check again at the next opportunity.
         mFlinger->signalLayerUpdate();
         return outDirtyRegion;
-    } else if (updateResult == SurfaceFlingerConsumer::BUFFER_REJECTED) {
+    } else if (updateResult == BufferLayerConsumer::BUFFER_REJECTED) {
         // If the buffer has been rejected, remove it from the shadow queue
         // and return early
         if (queuedBuffer) {
@@ -660,7 +660,7 @@ void BufferLayer::onFirstRef() {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer, true);
     mProducer = new MonitoredProducer(producer, mFlinger, this);
-    mSurfaceFlingerConsumer = new SurfaceFlingerConsumer(consumer, mTextureName, this);
+    mSurfaceFlingerConsumer = new BufferLayerConsumer(consumer, mTextureName, this);
     mSurfaceFlingerConsumer->setConsumerUsageBits(getEffectiveUsage(0));
     mSurfaceFlingerConsumer->setContentsChangedListener(this);
     mSurfaceFlingerConsumer->setName(mName);
