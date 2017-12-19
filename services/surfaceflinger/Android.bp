@@ -17,7 +17,6 @@ cc_defaults {
         "-DGL_GLEXT_PROTOTYPES",
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
-    logtags: ["EventLog/EventLogTags.logtags"],
     shared_libs: [
         "android.frameworks.vr.composer@1.0",
         "android.hardware.configstore-utils",
@@ -131,10 +130,17 @@ cc_library_shared {
     srcs: [
         ":libsurfaceflinger_sources",
     ],
+    logtags: ["EventLog/EventLogTags.logtags"],
     include_dirs: [
         "external/vulkan-validation-layers/libs/vkjson",
         "frameworks/native/vulkan/include",
     ],
+    cppflags: [
+        "-fwhole-program-vtables",  // requires ThinLTO
+    ],
+    lto: {
+        thin: true,
+    },
 }
 
 cc_binary {

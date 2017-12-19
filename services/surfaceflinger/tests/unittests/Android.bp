@@ -13,38 +13,18 @@
 // limitations under the License.
 
 cc_test {
-    name: "SurfaceFlinger_test",
-    defaults: ["surfaceflinger_defaults"],
+    name: "libsurfaceflinger_unittest",
     tags: ["test"],
+    defaults: ["libsurfaceflinger_defaults"],
     test_suites: ["device-tests"],
     srcs: [
-        "Stress_test.cpp",
-        "SurfaceInterceptor_test.cpp",
-        "Transaction_test.cpp",
+        ":libsurfaceflinger_sources",
+        "DisplayTransactionTest.cpp",
     ],
-    data: ["SurfaceFlinger_test.filter"],
     static_libs: [
-        "libtrace_proto",
+        "libgmock",
     ],
-    shared_libs: [
-        "libandroid",
-        "libbinder",
-        "libcutils",
-        "libEGL",
-        "libGLESv2",
-        "libgui",
-        "liblog",
-        "libprotobuf-cpp-full",
-        "libui",
-        "libutils",
-    ]
-
+    header_libs: [
+        "libsurfaceflinger_headers",
+    ],
 }
-
-subdirs = [
-    "fakehwc",
-    "hwc2",
-    "unittests",
-    "vsync",
-    "waitforvsync",
-]
