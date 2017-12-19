@@ -667,6 +667,9 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
             mDataSpace, crop, mScalingMode, mTransform ^ mStickyTransform,
             fence, mStickyTransform, mEnableFrameTimestamps);
 
+    // we should send HDR metadata as needed if this becomes a bottleneck
+    input.setHdrMetadata(mHdrMetadata);
+
     if (mConnectedToCpu || mDirtyRegion.bounds() == Rect::INVALID_RECT) {
         input.setSurfaceDamage(Region::INVALID_REGION);
     } else {
@@ -944,6 +947,12 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_SET_BUFFERS_DATASPACE:
         res = dispatchSetBuffersDataSpace(args);
         break;
+    case NATIVE_WINDOW_SET_BUFFERS_SMPTE2086_METADATA:
+        res = dispatchSetBuffersSmpte2086Metadata(args);
+        break;
+    case NATIVE_WINDOW_SET_BUFFERS_CTA861_3_METADATA:
+        res = dispatchSetBuffersCta8613Metadata(args);
+        break;
     case NATIVE_WINDOW_SET_SURFACE_DAMAGE:
         res = dispatchSetSurfaceDamage(args);
         break;
@@ -1086,6 +1095,18 @@ int Surface::dispatchSetBuffersDataSpace(va_list args) {
     android_dataspace dataspace =
             static_cast<android_dataspace>(va_arg(args, int));
     return setBuffersDataSpace(dataspace);
+}
+
+int Surface::dispatchSetBuffersSmpte2086Metadata(va_list args) {
+    const android_smpte2086_metadata* metadata =
+        va_arg(args, const android_smpte2086_metadata*);
+    return setBuffersSmpte2086Metadata(metadata);
+}
+
+int Surface::dispatchSetBuffersCta8613Metadata(va_list args) {
+    const android_cta861_3_metadata* metadata =
+        va_arg(args, const android_cta861_3_metadata*);
+    return setBuffersCta8613Metadata(metadata);
 }
 
 int Surface::dispatchSetSurfaceDamage(va_list args) {
@@ -1509,6 +1530,30 @@ int Surface::setBuffersDataSpace(android_dataspace dataSpace)
     ALOGV("Surface::setBuffersDataSpace");
     Mutex::Autolock lock(mMutex);
     mDataSpace = dataSpace;
+    return NO_ERROR;
+}
+
+int Surface::setBuffersSmpte2086Metadata(const android_smpte2086_metadata* metadata) {
+    ALOGV("Surface::setBuffersSmpte2086Metadata");
+    Mutex::Autolock lock(mMutex);
+    if (metadata) {
+        mHdrMetadata.smpte2086 = *metadata;
+        mHdrMetadata.validTypes |= HdrMetadata::SMPTE2086;
+    } else {
+        mHdrMetadata.validTypes &= ~HdrMetadata::SMPTE2086;
+    }
+    return NO_ERROR;
+}
+
+int Surface::setBuffersCta8613Metadata(const android_cta861_3_metadata* metadata) {
+    ALOGV("Surface::setBuffersCta8613Metadata");
+    Mutex::Autolock lock(mMutex);
+    if (metadata) {
+        mHdrMetadata.cta8613 = *metadata;
+        mHdrMetadata.validTypes |= HdrMetadata::CTA861_3;
+    } else {
+        mHdrMetadata.validTypes &= ~HdrMetadata::CTA861_3;
+    }
     return NO_ERROR;
 }
 

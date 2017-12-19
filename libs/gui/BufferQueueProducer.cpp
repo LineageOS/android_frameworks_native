@@ -765,6 +765,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
             &crop, &scalingMode, &transform, &acquireFence, &stickyTransform,
             &getFrameTimestamps);
     const Region& surfaceDamage = input.getSurfaceDamage();
+    const HdrMetadata& hdrMetadata = input.getHdrMetadata();
 
     if (acquireFence == NULL) {
         BQ_LOGE("queueBuffer: fence is NULL");
@@ -825,9 +826,9 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         }
 
         BQ_LOGV("queueBuffer: slot=%d/%" PRIu64 " time=%" PRIu64 " dataSpace=%d"
-                " crop=[%d,%d,%d,%d] transform=%#x scale=%s",
-                slot, mCore->mFrameCounter + 1, requestedPresentTimestamp,
-                dataSpace, crop.left, crop.top, crop.right, crop.bottom,
+                " validHdrMetadataTypes=0x%x crop=[%d,%d,%d,%d] transform=%#x scale=%s",
+                slot, mCore->mFrameCounter + 1, requestedPresentTimestamp, dataSpace,
+                hdrMetadata.validTypes, crop.left, crop.top, crop.right, crop.bottom,
                 transform,
                 BufferItem::scalingModeName(static_cast<uint32_t>(scalingMode)));
 
@@ -866,6 +867,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         item.mTimestamp = requestedPresentTimestamp;
         item.mIsAutoTimestamp = isAutoTimestamp;
         item.mDataSpace = dataSpace;
+        item.mHdrMetadata = hdrMetadata;
         item.mFrameNumber = currentFrameNumber;
         item.mSlot = slot;
         item.mFence = acquireFence;

@@ -17,8 +17,9 @@
 #ifndef ANDROID_GUI_SURFACE_H
 #define ANDROID_GUI_SURFACE_H
 
-#include <gui/IGraphicBufferProducer.h>
 #include <gui/BufferQueueDefs.h>
+#include <gui/HdrMetadata.h>
+#include <gui/IGraphicBufferProducer.h>
 
 #include <ui/ANativeObjectBase.h>
 #include <ui/Region.h>
@@ -214,6 +215,8 @@ private:
     int dispatchUnlockAndPost(va_list args);
     int dispatchSetSidebandStream(va_list args);
     int dispatchSetBuffersDataSpace(va_list args);
+    int dispatchSetBuffersSmpte2086Metadata(va_list args);
+    int dispatchSetBuffersCta8613Metadata(va_list args);
     int dispatchSetSurfaceDamage(va_list args);
     int dispatchSetSharedBufferMode(va_list args);
     int dispatchSetAutoRefresh(va_list args);
@@ -243,6 +246,8 @@ protected:
     virtual int setBuffersStickyTransform(uint32_t transform);
     virtual int setBuffersTimestamp(int64_t timestamp);
     virtual int setBuffersDataSpace(android_dataspace dataSpace);
+    virtual int setBuffersSmpte2086Metadata(const android_smpte2086_metadata* metadata);
+    virtual int setBuffersCta8613Metadata(const android_cta861_3_metadata* metadata);
     virtual int setCrop(Rect const* rect);
     virtual int setUsage(uint64_t reqUsage);
     virtual void setSurfaceDamage(android_native_rect_t* rects, size_t numRects);
@@ -338,6 +343,10 @@ protected:
     // queue operation. It defaults to HAL_DATASPACE_UNKNOWN, which
     // means that the buffer contains some type of color data.
     android_dataspace mDataSpace;
+
+    // mHdrMetadata is the HDR metadata that will be used for the next buffer
+    // queue operation.  There is no HDR metadata by default.
+    HdrMetadata mHdrMetadata;
 
     // mCrop is the crop rectangle that will be used for the next buffer
     // that gets queued. It is set by calling setCrop.
