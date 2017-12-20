@@ -224,6 +224,27 @@ Rect Transform::transform(const Rect& bounds, bool roundOutwards) const
     return r;
 }
 
+FloatRect Transform::transform(const FloatRect& bounds) const
+{
+    vec2 lt(bounds.left, bounds.top);
+    vec2 rt(bounds.right, bounds.top);
+    vec2 lb(bounds.left, bounds.bottom);
+    vec2 rb(bounds.right, bounds.bottom);
+
+    lt = transform(lt);
+    rt = transform(rt);
+    lb = transform(lb);
+    rb = transform(rb);
+
+    FloatRect r;
+    r.left = min(lt[0], rt[0], lb[0], rb[0]);
+    r.top = min(lt[1], rt[1], lb[1], rb[1]);
+    r.right = max(lt[0], rt[0], lb[0], rb[0]);
+    r.bottom = max(lt[1], rt[1], lb[1], rb[1]);
+
+    return r;
+}
+
 Region Transform::transform(const Region& reg) const
 {
     Region out;

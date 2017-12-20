@@ -27,6 +27,17 @@ public:
     float getWidth() const { return right - left; }
     float getHeight() const { return bottom - top; }
 
+    FloatRect intersect(const FloatRect& other) const {
+        return {
+            // Inline to avoid tromping on other min/max defines or adding a
+            // dependency on STL
+            (left > other.left) ? left : other.left,
+            (top > other.top) ? top : other.top,
+            (right < other.right) ? right : other.right,
+            (bottom < other.bottom) ? bottom : other.bottom
+        };
+    }
+
     float left = 0.0f;
     float top = 0.0f;
     float right = 0.0f;
