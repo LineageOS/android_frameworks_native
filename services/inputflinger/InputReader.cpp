@@ -1174,7 +1174,7 @@ void InputDevice::process(const RawEvent* rawEvents, size_t count) {
     // gamepad button presses are handled by different mappers but they should be dispatched
     // in the order received.
     size_t numMappers = mMappers.size();
-    for (const RawEvent* rawEvent = rawEvents; count--; rawEvent++) {
+    for (const RawEvent* rawEvent = rawEvents; count != 0; rawEvent++) {
 #if DEBUG_RAW_EVENTS
         ALOGD("Input event: device=%d type=0x%04x code=0x%04x value=0x%08x when=%lld",
                 rawEvent->deviceId, rawEvent->type, rawEvent->code, rawEvent->value,
@@ -1202,6 +1202,7 @@ void InputDevice::process(const RawEvent* rawEvents, size_t count) {
                 mapper->process(rawEvent);
             }
         }
+        --count;
     }
 }
 
