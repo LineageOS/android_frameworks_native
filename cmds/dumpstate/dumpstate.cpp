@@ -1365,7 +1365,7 @@ static void ShowUsageAndExit(int exitCode = 1) {
             "  -p: capture screenshot to filename.png (requires -o)\n"
             "  -z: generate zipped file (requires -o)\n"
             "  -s: write output to control socket (for init)\n"
-            "  -S: write file location to control socket (for init; requires -o and -z)"
+            "  -S: write file location to control socket (for init; requires -o and -z)\n"
             "  -q: disable vibrate\n"
             "  -B: send broadcast when finished (requires -o)\n"
             "  -P: send broadcast when started and update system properties on "
@@ -1941,9 +1941,11 @@ int main(int argc, char *argv[]) {
     }
 
     /* vibrate a few but shortly times to let user know it's finished */
-    for (int i = 0; i < 3; i++) {
-        Vibrate(75);
-        usleep((75 + 50) * 1000);
+    if (do_vibrate) {
+        for (int i = 0; i < 3; i++) {
+            Vibrate(75);
+            usleep((75 + 50) * 1000);
+        }
     }
 
     /* tell activity manager we're done */
