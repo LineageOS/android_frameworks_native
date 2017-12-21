@@ -78,9 +78,7 @@ class ComposerCallback {
 class Device
 {
 public:
-    // Service name is expected to be 'default' or 'vr' for normal use.
-    // 'vr' will slightly modify the behavior of the mComposer.
-    Device(const std::string& serviceName);
+    explicit Device(std::unique_ptr<android::Hwc2::Composer> composer);
 
     void registerCallback(ComposerCallback* callback, int32_t sequenceId);
 
@@ -119,7 +117,7 @@ private:
     std::unique_ptr<android::Hwc2::Composer> mComposer;
     std::unordered_set<Capability> mCapabilities;
     std::unordered_map<hwc2_display_t, std::unique_ptr<Display>> mDisplays;
-    bool mRegisteredCallback;
+    bool mRegisteredCallback = false;
 };
 
 // Convenience C++ class to access hwc2_device_t Display functions directly.

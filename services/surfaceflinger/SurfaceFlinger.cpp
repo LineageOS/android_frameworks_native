@@ -593,7 +593,8 @@ void SurfaceFlinger::init() {
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");
-    getBE().mHwc.reset(new HWComposer(getBE().mHwcServiceName));
+    getBE().mHwc.reset(
+            new HWComposer(std::make_unique<Hwc2::impl::Composer>(getBE().mHwcServiceName)));
     getBE().mHwc->registerCallback(this, getBE().mComposerSequenceId);
     // Process any initial hotplug and resulting display changes.
     processDisplayHotplugEventsLocked();
@@ -1342,7 +1343,8 @@ void SurfaceFlinger::updateVrFlinger() {
 
     resetDisplayState();
     getBE().mHwc.reset(); // Delete the current instance before creating the new one
-    getBE().mHwc.reset(new HWComposer(vrFlingerRequestsDisplay ? "vr" : getBE().mHwcServiceName));
+    getBE().mHwc.reset(new HWComposer(std::make_unique<Hwc2::impl::Composer>(
+            vrFlingerRequestsDisplay ? "vr" : getBE().mHwcServiceName)));
     getBE().mHwc->registerCallback(this, ++getBE().mComposerSequenceId);
 
     LOG_ALWAYS_FATAL_IF(!getBE().mHwc->getComposer()->isRemote(),

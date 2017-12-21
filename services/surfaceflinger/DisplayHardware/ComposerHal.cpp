@@ -31,6 +31,8 @@ using hardware::hidl_handle;
 
 namespace Hwc2 {
 
+Composer::~Composer() = default;
+
 namespace {
 
 class BufferHandle {
@@ -102,6 +104,8 @@ Error unwrapRet(Return<Error>& ret)
 }
 
 } // anonymous namespace
+
+namespace impl {
 
 Composer::CommandWriter::CommandWriter(uint32_t initialMaxSize)
     : CommandWriterBase(initialMaxSize) {}
@@ -185,6 +189,8 @@ Composer::Composer(const std::string& serviceName)
         }
     }
 }
+
+Composer::~Composer() = default;
 
 std::vector<IComposer::Capability> Composer::getCapabilities()
 {
@@ -1117,6 +1123,8 @@ void CommandReader::takePresentOrValidateStage(Display display, uint32_t* state)
     ReturnData& data = found->second;
     *state = data.presentOrValidateState;
 }
+
+} // namespace impl
 
 } // namespace Hwc2
 

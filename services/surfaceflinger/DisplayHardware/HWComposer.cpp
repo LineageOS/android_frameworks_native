@@ -59,25 +59,10 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-HWComposer::HWComposer(const std::string& serviceName)
-    : mHwcDevice(),
-      mDisplayData(2),
-      mFreeDisplaySlots(),
-      mHwcDisplaySlots(),
-      mCBContext(),
-      mVSyncCounts(),
-      mRemainingHwcVirtualDisplays(0)
-{
-    for (size_t i=0 ; i<HWC_NUM_PHYSICAL_DISPLAY_TYPES ; i++) {
-        mLastHwVSync[i] = 0;
-        mVSyncCounts[i] = 0;
-    }
+HWComposer::HWComposer(std::unique_ptr<android::Hwc2::Composer> composer)
+      : mHwcDevice(std::make_unique<HWC2::Device>(std::move(composer))) {}
 
-    mHwcDevice = std::make_unique<HWC2::Device>(serviceName);
-    mRemainingHwcVirtualDisplays = mHwcDevice->getMaxVirtualDisplayCount();
-}
-
-HWComposer::~HWComposer() {}
+HWComposer::~HWComposer() = default;
 
 void HWComposer::registerCallback(HWC2::ComposerCallback* callback,
                                   int32_t sequenceId) {

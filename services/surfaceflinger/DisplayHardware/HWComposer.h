@@ -59,12 +59,14 @@ class NativeHandle;
 class Region;
 class String8;
 
+namespace Hwc2 {
+class Composer;
+} // namespace Hwc2
+
 class HWComposer
 {
 public:
-    // Uses the named composer service. Valid choices for normal use
-    // are 'default' and 'vr'.
-    HWComposer(const std::string& serviceName);
+    explicit HWComposer(std::unique_ptr<android::Hwc2::Composer> composer);
 
     ~HWComposer();
 
@@ -199,19 +201,20 @@ private:
     };
 
     std::unique_ptr<HWC2::Device>   mHwcDevice;
-    std::vector<DisplayData>        mDisplayData;
+    std::vector<DisplayData> mDisplayData{HWC_NUM_PHYSICAL_DISPLAY_TYPES};
     std::set<size_t>                mFreeDisplaySlots;
     std::unordered_map<hwc2_display_t, int32_t> mHwcDisplaySlots;
     // protect mDisplayData from races between prepare and dump
     mutable Mutex mDisplayLock;
 
-    cb_context*                     mCBContext;
-    size_t                          mVSyncCounts[HWC_NUM_PHYSICAL_DISPLAY_TYPES];
-    uint32_t                        mRemainingHwcVirtualDisplays;
+    cb_context* mCBContext = nullptr;
+    size_t mVSyncCounts[HWC_NUM_PHYSICAL_DISPLAY_TYPES]{0, 0};
+    uint32_t mRemainingHwcVirtualDisplays{mHwcDevice->getMaxVirtualDisplayCount()};
 
     // protected by mLock
     mutable Mutex mLock;
-    mutable std::unordered_map<int32_t, nsecs_t> mLastHwVSync;
+    mutable std::unordered_map<int32_t, nsecs_t> mLastHwVSync{
+            {{HWC_DISPLAY_PRIMARY, 0}, {HWC_DISPLAY_EXTERNAL, 0}}};
 
     // thread-safe
     mutable Mutex mVsyncLock;
