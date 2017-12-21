@@ -574,15 +574,16 @@ void SurfaceFlinger::init() {
     Mutex::Autolock _l(mStateLock);
 
     // start the EventThread
-
-    mEventThreadSource = std::make_unique<DispSyncSource>(
-            &mPrimaryDispSync, SurfaceFlinger::vsyncPhaseOffsetNs, true, "app");
-    mEventThread = std::make_unique<EventThread>(
-            mEventThreadSource.get(), *this, false, "sfEventThread");
-    mSfEventThreadSource = std::make_unique<DispSyncSource>(
-            &mPrimaryDispSync, SurfaceFlinger::sfVsyncPhaseOffsetNs, true, "sf");
-    mSFEventThread = std::make_unique<EventThread>(
-            mSfEventThreadSource.get(), *this, true, "appEventThread");
+    mEventThreadSource =
+            std::make_unique<DispSyncSource>(&mPrimaryDispSync, SurfaceFlinger::vsyncPhaseOffsetNs,
+                                             true, "app");
+    mEventThread = std::make_unique<impl::EventThread>(mEventThreadSource.get(), *this, false,
+                                                       "appEventThread");
+    mSfEventThreadSource =
+            std::make_unique<DispSyncSource>(&mPrimaryDispSync,
+                                             SurfaceFlinger::sfVsyncPhaseOffsetNs, true, "sf");
+    mSFEventThread = std::make_unique<impl::EventThread>(mSfEventThreadSource.get(), *this, true,
+                                                         "sfEventThread");
     mEventQueue.setEventThread(mSFEventThread.get());
 
     // Get a RenderEngine for the given display / config (can't fail)
@@ -1068,8 +1069,9 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
             ALOGV("VSync Injections enabled");
             if (mVSyncInjector.get() == nullptr) {
                 mVSyncInjector = std::make_unique<InjectVSyncSource>();
-                mInjectorEventThread = std::make_unique<EventThread>(
-                        mVSyncInjector.get(), *this, false, "injEvThread");
+                mInjectorEventThread =
+                        std::make_unique<impl::EventThread>(mVSyncInjector.get(), *this, false,
+                                                            "injEventThread");
             }
             mEventQueue.setEventThread(mInjectorEventThread.get());
         } else {

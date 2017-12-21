@@ -93,6 +93,10 @@ class Surface;
 class SurfaceFlingerBE;
 class VSyncSource;
 
+namespace impl {
+class EventThread;
+} // namespace impl
+
 namespace RE {
 class RenderEngine;
 }
@@ -312,7 +316,7 @@ public:
 private:
     friend class Client;
     friend class DisplayEventConnection;
-    friend class EventThread;
+    friend class impl::EventThread;
     friend class Layer;
     friend class BufferLayer;
     friend class MonitoredProducer;

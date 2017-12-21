@@ -43,6 +43,10 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
+EventThread::~EventThread() = default;
+
+namespace impl {
+
 EventThread::EventThread(VSyncSource* src, SurfaceFlinger& flinger, bool interceptVSyncs,
                          const char* threadName)
       : mVSyncSource(src), mFlinger(flinger), mInterceptVSyncs(interceptVSyncs) {
@@ -84,7 +88,7 @@ void EventThread::setPhaseOffset(nsecs_t phaseOffset) {
     mVSyncSource->setPhaseOffset(phaseOffset);
 }
 
-sp<EventThread::Connection> EventThread::createEventConnection() const {
+sp<BnDisplayEventConnection> EventThread::createEventConnection() const {
     return new Connection(const_cast<EventThread*>(this));
 }
 
@@ -404,4 +408,5 @@ status_t EventThread::Connection::postEvent(const DisplayEventReceiver::Event& e
 
 // ---------------------------------------------------------------------------
 
+} // namespace impl
 } // namespace android
