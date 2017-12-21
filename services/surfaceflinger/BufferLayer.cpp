@@ -98,15 +98,13 @@ void BufferLayer::useEmptyDamage() {
 }
 
 bool BufferLayer::isProtected() const {
-    const sp<GraphicBuffer>& buffer(getBE().compositionInfo.mBuffer);
-    return (buffer != 0) &&
-            (buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
+    const sp<GraphicBuffer>& buffer(mActiveBuffer);
+    return (buffer != 0) && (buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
 }
 
 bool BufferLayer::isVisible() const {
     return !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
-            (getBE().compositionInfo.mBuffer != nullptr ||
-             getBE().compositionInfo.hwc.sidebandStream != nullptr);
+            (mActiveBuffer != nullptr || getBE().compositionInfo.hwc.sidebandStream != nullptr);
 }
 
 bool BufferLayer::isFixedSize() const {
@@ -162,7 +160,7 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
                          bool useIdentityTransform) const {
     ATRACE_CALL();
 
-    if (CC_UNLIKELY(getBE().compositionInfo.mBuffer == 0)) {
+    if (CC_UNLIKELY(mActiveBuffer == 0)) {
         // the texture has not been created yet, this Layer has
         // in fact never been drawn into. This happens frequently with
         // SurfaceView because the WindowManager can't know when the client
@@ -240,8 +238,7 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
         }
 
         // Set things up for texturing.
-        mTexture.setDimensions(getBE().compositionInfo.mBuffer->getWidth(),
-                               getBE().compositionInfo.mBuffer->getHeight());
+        mTexture.setDimensions(mActiveBuffer->getWidth(), mActiveBuffer->getHeight());
         mTexture.setFiltering(useFiltering);
         mTexture.setMatrix(textureMatrix);
 
@@ -291,12 +288,10 @@ void BufferLayer::setTransformHint(uint32_t orientation) const {
 bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
     if (mBufferLatched) {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
-        mFrameEventHistory.addPreComposition(mCurrentFrameNumber,
-                                             refreshStartTime);
+        mFrameEventHistory.addPreComposition(mCurrentFrameNumber, refreshStartTime);
     }
     mRefreshPending = false;
-    return mQueuedFrames > 0 || mSidebandStreamChanged ||
-            mAutoRefresh;
+    return mQueuedFrames > 0 || mSidebandStreamChanged || mAutoRefresh;
 }
 bool BufferLayer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
                                     const std::shared_ptr<FenceTime>& presentFence,
@@ -308,8 +303,8 @@ bool BufferLayer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFenc
     // Update mFrameEventHistory.
     {
         Mutex::Autolock lock(mFrameEventHistoryMutex);
-        mFrameEventHistory.addPostComposition(mCurrentFrameNumber, glDoneFence,
-                                              presentFence, compositorTiming);
+        mFrameEventHistory.addPostComposition(mCurrentFrameNumber, glDoneFence, presentFence,
+                                              compositorTiming);
     }
 
     // Update mFrameTracker.
@@ -358,8 +353,7 @@ void BufferLayer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
         return;
     }
 
-    auto releaseFenceTime =
-            std::make_shared<FenceTime>(mConsumer->getPrevFinalReleaseFence());
+    auto releaseFenceTime = std::make_shared<FenceTime>(mConsumer->getPrevFinalReleaseFence());
     mReleaseTimeline.updateSignalTimes();
     mReleaseTimeline.push(releaseFenceTime);
 
@@ -412,7 +406,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     // Capture the old state of the layer for comparisons later
     const State& s(getDrawingState());
     const bool oldOpacity = isOpaque(s);
-    sp<GraphicBuffer> oldBuffer = getBE().compositionInfo.mBuffer;
+    sp<GraphicBuffer> oldBuffer = mActiveBuffer;
 
     if (!allTransactionsSignaled()) {
         mFlinger->signalLayerUpdate();
@@ -425,12 +419,10 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     // buffer mode.
     bool queuedBuffer = false;
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
-                    getProducerStickyTransform() != 0, mName.string(),
-                    mOverrideScalingMode, mFreezeGeometryUpdates);
-    status_t updateResult =
-            mConsumer->updateTexImage(&r, mFlinger->mPrimaryDispSync,
-                                                    &mAutoRefresh, &queuedBuffer,
-                                                    mLastFrameNumberReceived);
+                    getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
+                    mFreezeGeometryUpdates);
+    status_t updateResult = mConsumer->updateTexImage(&r, mFlinger->mPrimaryDispSync, &mAutoRefresh,
+                                                      &queuedBuffer, mLastFrameNumberReceived);
     if (updateResult == BufferQueue::PRESENT_LATER) {
         // Producer doesn't want buffer to be displayed yet.  Signal a
         // layer update so we check again at the next opportunity.
@@ -483,17 +475,16 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
 
     // Decrement the queued-frames count.  Signal another event if we
     // have more frames pending.
-    if ((queuedBuffer && android_atomic_dec(&mQueuedFrames) > 1) ||
-        mAutoRefresh) {
+    if ((queuedBuffer && android_atomic_dec(&mQueuedFrames) > 1) || mAutoRefresh) {
         mFlinger->signalLayerUpdate();
     }
 
     // update the active buffer
-    getBE().compositionInfo.mBuffer =
-            mConsumer->getCurrentBuffer(&getBE().compositionInfo.mBufferSlot);
-    // replicated in LayerBE until FE/BE is ready to be synchronized
-    mActiveBuffer = getBE().compositionInfo.mBuffer;
-    if (getBE().compositionInfo.mBuffer == nullptr) {
+    mActiveBuffer = mConsumer->getCurrentBuffer(&mActiveBufferSlot);
+    getBE().compositionInfo.mBuffer = mActiveBuffer;
+    getBE().compositionInfo.mBufferSlot = mActiveBufferSlot;
+
+    if (mActiveBuffer == nullptr) {
         // this can only happen if the very first buffer was rejected.
         return outDirtyRegion;
     }
@@ -520,8 +511,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     Rect crop(mConsumer->getCurrentCrop());
     const uint32_t transform(mConsumer->getCurrentTransform());
     const uint32_t scalingMode(mConsumer->getCurrentScalingMode());
-    if ((crop != mCurrentCrop) ||
-        (transform != mCurrentTransform) ||
+    if ((crop != mCurrentCrop) || (transform != mCurrentTransform) ||
         (scalingMode != mCurrentScalingMode)) {
         mCurrentCrop = crop;
         mCurrentTransform = transform;
@@ -530,15 +520,14 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     }
 
     if (oldBuffer != nullptr) {
-        uint32_t bufWidth = getBE().compositionInfo.mBuffer->getWidth();
-        uint32_t bufHeight = getBE().compositionInfo.mBuffer->getHeight();
-        if (bufWidth != uint32_t(oldBuffer->width) ||
-            bufHeight != uint32_t(oldBuffer->height)) {
+        uint32_t bufWidth = mActiveBuffer->getWidth();
+        uint32_t bufHeight = mActiveBuffer->getHeight();
+        if (bufWidth != uint32_t(oldBuffer->width) || bufHeight != uint32_t(oldBuffer->height)) {
             recomputeVisibleRegions = true;
         }
     }
 
-    mCurrentOpacity = getOpacityForFormat(getBE().compositionInfo.mBuffer->format);
+    mCurrentOpacity = getOpacityForFormat(mActiveBuffer->format);
     if (oldOpacity != isOpaque(s)) {
         recomputeVisibleRegions = true;
     }
@@ -631,8 +620,8 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
 
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
-    hwcInfo.bufferCache.getHwcBuffer(getBE().compositionInfo.mBufferSlot,
-                                     getBE().compositionInfo.mBuffer, &hwcSlot, &hwcBuffer);
+    getBE().mHwcLayers[hwcId].bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot,
+                                                       &hwcBuffer);
 
     auto acquireFence = mConsumer->getCurrentFence();
     error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
@@ -646,7 +635,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
 bool BufferLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
-    if ((getBE().compositionInfo.hwc.sidebandStream == nullptr) && (getBE().compositionInfo.mBuffer == nullptr)) {
+    if ((getBE().compositionInfo.hwc.sidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
         return false;
     }
 
@@ -661,8 +650,7 @@ void BufferLayer::onFirstRef() {
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer, true);
     mProducer = new MonitoredProducer(producer, mFlinger, this);
-    mConsumer = new BufferLayerConsumer(consumer,
-            mFlinger->getRenderEngine(), mTextureName, this);
+    mConsumer = new BufferLayerConsumer(consumer, mFlinger->getRenderEngine(), mTextureName, this);
     mConsumer->setConsumerUsageBits(getEffectiveUsage(0));
     mConsumer->setContentsChangedListener(this);
     mConsumer->setName(mName);
@@ -694,8 +682,7 @@ void BufferLayer::onFrameAvailable(const BufferItem& item) {
 
         // Ensure that callbacks are handled in order
         while (item.mFrameNumber != mLastFrameNumberReceived + 1) {
-            status_t result = mQueueItemCondition.waitRelative(mQueueItemLock,
-                                                               ms2ns(500));
+            status_t result = mQueueItemCondition.waitRelative(mQueueItemLock, ms2ns(500));
             if (result != NO_ERROR) {
                 ALOGE("[%s] Timed out waiting on callback", mName.string());
             }
@@ -718,8 +705,7 @@ void BufferLayer::onFrameReplaced(const BufferItem& item) {
 
         // Ensure that callbacks are handled in order
         while (item.mFrameNumber != mLastFrameNumberReceived + 1) {
-            status_t result = mQueueItemCondition.waitRelative(mQueueItemLock,
-                                                               ms2ns(500));
+            status_t result = mQueueItemCondition.waitRelative(mQueueItemLock, ms2ns(500));
             if (result != NO_ERROR) {
                 ALOGE("[%s] Timed out waiting on callback", mName.string());
             }
@@ -884,8 +870,7 @@ bool BufferLayer::headFenceHasSignaled() const {
         // able to be latched. To avoid this, grab this buffer anyway.
         return true;
     }
-    return mQueueItems[0].mFenceTime->getSignalTime() !=
-            Fence::SIGNAL_TIME_PENDING;
+    return mQueueItems[0].mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
 }
 
 uint32_t BufferLayer::getEffectiveScalingMode() const {
