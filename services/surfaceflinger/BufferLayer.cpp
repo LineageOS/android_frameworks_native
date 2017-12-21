@@ -788,16 +788,17 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
      * minimal value)? Or, we could make GL behave like HWC -- but this feel
      * like more of a hack.
      */
-    Rect win(computeBounds());
+    const Rect bounds{computeBounds()}; // Rounds from FloatRect
 
     Transform t = getTransform();
+    Rect win = bounds;
     if (!s.finalCrop.isEmpty()) {
         win = t.transform(win);
         if (!win.intersect(s.finalCrop, &win)) {
             win.clear();
         }
         win = t.inverse().transform(win);
-        if (!win.intersect(computeBounds(), &win)) {
+        if (!win.intersect(bounds, &win)) {
             win.clear();
         }
     }
