@@ -882,7 +882,7 @@ private:
         //        backs to do weird things.)
         const char* apk_path = package_parameters_.apk_path;
         CHECK(apk_path != nullptr);
-        if (StartsWith(apk_path, android_root_.c_str())) {
+        if (StartsWith(apk_path, android_root_)) {
             const char* last_slash = strrchr(apk_path, '/');
             if (last_slash != nullptr) {
                 std::string path(apk_path, last_slash - apk_path + 1);
