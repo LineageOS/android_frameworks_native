@@ -958,7 +958,7 @@ static std::string replace_file_extension(const std::string& oat_path, const std
   if (EndsWith(oat_path, ".dex")) {
     std::string new_path = oat_path;
     new_path.replace(new_path.length() - strlen(".dex"), strlen(".dex"), new_ext);
-    CHECK(EndsWith(new_path, new_ext.c_str()));
+    CHECK(EndsWith(new_path, new_ext));
     return new_path;
   }
 
