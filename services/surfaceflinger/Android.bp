@@ -103,6 +103,7 @@ filegroup {
         "FrameTracker.cpp",
         "GpuService.cpp",
         "Layer.cpp",
+	"LayerBE.cpp",
         "LayerProtoHelper.cpp",
         "LayerRejecter.cpp",
         "LayerStats.cpp",

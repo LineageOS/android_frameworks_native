@@ -30,6 +30,8 @@
 
 namespace android {
 
+class LayerBE;
+
 class LayerContainer
 {
     public:
@@ -56,9 +58,11 @@ class LayerContainer
 };
 
 struct CompositionInfo {
+    std::string layerName;
     HWC2::Composition compositionType;
     sp<GraphicBuffer> mBuffer = nullptr;
     int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
+    LayerBE* layer = nullptr;
     struct {
         std::shared_ptr<LayerContainer> hwcLayer;
         int32_t hwid = -1;
@@ -87,12 +91,26 @@ struct CompositionInfo {
         Texture texture;
         bool useIdentityTransform = false;
     } re;
+
+    void dump(const char* tag) const;
+    void dumpHwc(const char* tag) const;
+    void dumpRe(const char* tag) const;
 };
 
 class LayerBE {
 public:
-    LayerBE();
+    friend class Layer;
+    friend class BufferLayer;
+    friend class ColorLayer;
+    friend class SurfaceFlinger;
 
+    LayerBE(Layer* layer);
+
+    void onLayerDisplayed(const sp<Fence>& releaseFence);
+    Mesh& getMesh() { return mMesh; }
+
+private:
+    Layer*const mLayer;
     // The mesh used to draw the layer in GLES composition mode
     Mesh mMesh;
 

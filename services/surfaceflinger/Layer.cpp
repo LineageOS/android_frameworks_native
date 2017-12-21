@@ -61,11 +61,6 @@
 
 namespace android {
 
-LayerBE::LayerBE()
-      : mMesh(Mesh::TRIANGLE_FAN, 4, 2, 2) {
-}
-
-
 int32_t Layer::sSequence = 1;
 
 Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
@@ -96,7 +91,8 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
         mQueueItems(),
         mLastFrameNumberReceived(0),
         mAutoRefresh(false),
-        mFreezeGeometryUpdates(false) {
+        mFreezeGeometryUpdates(false),
+        mBE{this} {
 
     mCurrentCrop.makeInvalid();
 
