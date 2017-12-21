@@ -196,8 +196,6 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
   VrHwc();
   ~VrHwc() override;
 
-  bool hasCapability(Capability capability) const;
-
   Error setLayerInfo(Display display, Layer layer, uint32_t type,
                      uint32_t appId);
   Error setClientTargetMetadata(
@@ -207,6 +205,8 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
       const IVrComposerClient::BufferMetadata& metadata);
 
   // ComposerBase
+  bool hasCapability(hwc2_capability_t capability) override;
+
   void removeClient() override;
   void enableCallback(bool enable) override;
 

@@ -232,7 +232,7 @@ VrHwc::VrHwc() {}
 
 VrHwc::~VrHwc() {}
 
-bool VrHwc::hasCapability(Capability /* capability */) const { return false; }
+bool VrHwc::hasCapability(hwc2_capability_t /* capability */) { return false; }
 
 void VrHwc::removeClient() {
   std::lock_guard<std::mutex> guard(mutex_);

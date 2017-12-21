@@ -157,6 +157,10 @@ FakeComposerClient::FakeComposerClient()
 
 FakeComposerClient::~FakeComposerClient() {}
 
+bool FakeComposerClient::hasCapability(hwc2_capability_t /*capability*/) {
+    return false;
+}
+
 void FakeComposerClient::removeClient() {
     ALOGV("removeClient");
     // TODO: Ahooga! Only thing current lifetime management choices in
