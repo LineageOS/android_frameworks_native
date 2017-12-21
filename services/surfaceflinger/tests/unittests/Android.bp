@@ -21,6 +21,7 @@ cc_test {
         ":libsurfaceflinger_sources",
         "DisplayTransactionTest.cpp",
         "MockComposer.cpp",
+        "MockRenderEngine.cpp",
     ],
     static_libs: [
         "libgmock",
