@@ -47,6 +47,8 @@ cc_library {
         "-std=c++1z"
     ],
 
+    version_script: "libnativewindow.map.txt",
+
     srcs: [
         "AHardwareBuffer.cpp",
         "ANativeWindow.cpp",
