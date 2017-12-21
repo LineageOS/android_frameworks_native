@@ -23,6 +23,10 @@
 namespace android {
 namespace RE {
 
+Surface::~Surface() = default;
+
+namespace impl {
+
 Surface::Surface(const RenderEngine& engine)
       : mEGLDisplay(engine.getEGLDisplay()), mEGLConfig(engine.getEGLConfig()) {
     // RE does not assume any config when EGL_KHR_no_config_context is supported
@@ -102,5 +106,6 @@ int32_t Surface::queryHeight() const {
     return querySurface(EGL_HEIGHT);
 }
 
+} // namespace impl
 } // namespace RE
 } // namespace android

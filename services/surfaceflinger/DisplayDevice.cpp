@@ -84,7 +84,7 @@ DisplayDevice::DisplayDevice(
       mHwcDisplayId(hwcId),
       mDisplayToken(displayToken),
       mDisplaySurface(displaySurface),
-      mSurface{flinger->getRenderEngine()},
+      mSurface{flinger->getRenderEngine().createSurface()},
       mDisplayWidth(),
       mDisplayHeight(),
       mPageFlipCount(),
@@ -106,11 +106,11 @@ DisplayDevice::DisplayDevice(
     /*
      * Create our display's surface
      */
-    mSurface.setCritical(mType == DisplayDevice::DISPLAY_PRIMARY);
-    mSurface.setAsync(mType >= DisplayDevice::DISPLAY_VIRTUAL);
-    mSurface.setNativeWindow(window);
-    mDisplayWidth = mSurface.queryWidth();
-    mDisplayHeight = mSurface.queryHeight();
+    mSurface->setCritical(mType == DisplayDevice::DISPLAY_PRIMARY);
+    mSurface->setAsync(mType >= DisplayDevice::DISPLAY_VIRTUAL);
+    mSurface->setNativeWindow(window);
+    mDisplayWidth = mSurface->queryWidth();
+    mDisplayHeight = mSurface->queryHeight();
 
     // Make sure that composition can never be stalled by a virtual display
     // consumer that isn't processing buffers fast enough. We have to do this
@@ -207,7 +207,7 @@ status_t DisplayDevice::prepareFrame(HWComposer& hwc) {
 
 void DisplayDevice::swapBuffers(HWComposer& hwc) const {
     if (hwc.hasClientComposition(mHwcDisplayId) || hwc.hasFlipClientTargetRequest(mHwcDisplayId)) {
-        mSurface.swapBuffers();
+        mSurface->swapBuffers();
     }
 
     status_t result = mDisplaySurface->advanceFrame();
@@ -222,7 +222,7 @@ void DisplayDevice::onSwapBuffersCompleted() const {
 }
 
 bool DisplayDevice::makeCurrent() const {
-    bool success = mFlinger->getRenderEngine().setCurrentSurface(mSurface);
+    bool success = mFlinger->getRenderEngine().setCurrentSurface(*mSurface);
     setViewportAndProjection();
     return success;
 }
@@ -360,14 +360,14 @@ status_t DisplayDevice::orientationToTransfrom(
 void DisplayDevice::setDisplaySize(const int newWidth, const int newHeight) {
     dirtyRegion.set(getBounds());
 
-    mSurface.setNativeWindow(nullptr);
+    mSurface->setNativeWindow(nullptr);
 
     mDisplaySurface->resizeBuffers(newWidth, newHeight);
 
     ANativeWindow* const window = mNativeWindow.get();
-    mSurface.setNativeWindow(window);
-    mDisplayWidth = mSurface.queryWidth();
-    mDisplayHeight = mSurface.queryHeight();
+    mSurface->setNativeWindow(window);
+    mDisplayWidth = mSurface->queryWidth();
+    mDisplayHeight = mSurface->queryHeight();
 
     LOG_FATAL_IF(mDisplayWidth != newWidth,
                 "Unable to set new width to %d", newWidth);
@@ -474,9 +474,9 @@ void DisplayDevice::dump(String8& result) const {
                         "(%d:%d:%d:%d), orient=%2d (type=%08x), "
                         "flips=%u, isSecure=%d, powerMode=%d, activeConfig=%d, numLayers=%zu\n",
                         mType, mHwcDisplayId, mLayerStack, mDisplayWidth, mDisplayHeight, window,
-                        mSurface.queryRedSize(), mSurface.queryGreenSize(), mSurface.queryBlueSize(),
-                        mSurface.queryAlphaSize(), mOrientation, tr.getType(),
-                        getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
+                        mSurface->queryRedSize(), mSurface->queryGreenSize(),
+                        mSurface->queryBlueSize(), mSurface->queryAlphaSize(), mOrientation,
+                        tr.getType(), getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
                         mVisibleLayersSortedByZ.size());
     result.appendFormat("   v:[%d,%d,%d,%d], f:[%d,%d,%d,%d], s:[%d,%d,%d,%d],"
                         "transform:[[%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f]]\n",

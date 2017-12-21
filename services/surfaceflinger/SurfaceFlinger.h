@@ -83,16 +83,19 @@ namespace android {
 // ---------------------------------------------------------------------------
 
 class Client;
-class DisplayEventConnection;
-class EventThread;
-class Layer;
 class ColorLayer;
-class Surface;
-class RenderEngine;
+class DisplayEventConnection;
 class EventControlThread;
-class VSyncSource;
+class EventThread;
 class InjectVSyncSource;
+class Layer;
+class Surface;
 class SurfaceFlingerBE;
+class VSyncSource;
+
+namespace RE {
+class RenderEngine;
+}
 
 typedef std::function<void(const LayerVector::Visitor&)> TraverseLayersFunction;
 
@@ -139,7 +142,7 @@ public:
     const std::string mHwcServiceName; // "default" for real use, something else for testing.
 
     // constant members (no synchronization needed for access)
-    std::unique_ptr<RenderEngine> mRenderEngine;
+    std::unique_ptr<RE::RenderEngine> mRenderEngine;
     EGLContext mEGLContext;
     EGLDisplay mEGLDisplay;
 
@@ -301,9 +304,7 @@ public:
     // TODO: this should be made accessible only to HWComposer
     const Vector< sp<Layer> >& getLayerSortedByZForHwcDisplay(int id);
 
-    RenderEngine& getRenderEngine() const {
-        return *getBE().mRenderEngine;
-    }
+    RE::RenderEngine& getRenderEngine() const { return *getBE().mRenderEngine; }
 
     bool authenticateSurfaceTextureLocked(
         const sp<IGraphicBufferProducer>& bufferProducer) const;

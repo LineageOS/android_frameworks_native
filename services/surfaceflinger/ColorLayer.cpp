@@ -48,7 +48,7 @@ void ColorLayer::onDraw(const RenderArea& renderArea, const Region& /* clip */,
     if (s.color.a > 0) {
         Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2);
         computeGeometry(renderArea, mesh, useIdentityTransform);
-        RenderEngine& engine(mFlinger->getRenderEngine());
+        auto& engine(mFlinger->getRenderEngine());
         engine.setupLayerBlending(getPremultipledAlpha(), false /* opaque */,
                                   true /* disableTexture */, s.color);
         engine.drawMesh(mesh);

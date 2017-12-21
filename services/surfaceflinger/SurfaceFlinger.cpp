@@ -410,12 +410,11 @@ void SurfaceFlinger::bootFinished()
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
     class MessageDestroyGLTexture : public MessageBase {
-        RenderEngine& engine;
+        RE::RenderEngine& engine;
         uint32_t texture;
     public:
-        MessageDestroyGLTexture(RenderEngine& engine, uint32_t texture)
-            : engine(engine), texture(texture) {
-        }
+        MessageDestroyGLTexture(RE::RenderEngine& engine, uint32_t texture)
+              : engine(engine), texture(texture) {}
         virtual bool handler() {
             engine.deleteTextures(1, &texture);
             return true;
@@ -587,8 +586,11 @@ void SurfaceFlinger::init() {
     mEventQueue.setEventThread(mSFEventThread.get());
 
     // Get a RenderEngine for the given display / config (can't fail)
-    getBE().mRenderEngine = RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
-            hasWideColorDisplay ? RenderEngine::WIDE_COLOR_SUPPORT : 0);
+    getBE().mRenderEngine =
+            RE::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
+                                           hasWideColorDisplay
+                                                   ? RE::RenderEngine::WIDE_COLOR_SUPPORT
+                                                   : 0);
     LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
@@ -1473,7 +1475,7 @@ void SurfaceFlinger::doDebugFlashRegions()
 
                 // and draw the dirty region
                 const int32_t height = hw->getHeight();
-                RenderEngine& engine(getRenderEngine());
+                auto& engine(getRenderEngine());
                 engine.fillRegionWithColor(dirtyRegion, height, 1, 0, 1, 1);
 
                 hw->swapBuffers(getHwComposer());
@@ -2856,7 +2858,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
 
 void SurfaceFlinger::drawWormhole(const sp<const DisplayDevice>& displayDevice, const Region& region) const {
     const int32_t height = displayDevice->getHeight();
-    RenderEngine& engine(getRenderEngine());
+    auto& engine(getRenderEngine());
     engine.fillRegionWithColor(region, height, 0, 0, 0, 0);
 }
 
@@ -4518,7 +4520,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                             bool useIdentityTransform) {
     ATRACE_CALL();
 
-    RenderEngine& engine(getRenderEngine());
+    auto& engine(getRenderEngine());
 
     // get screen geometry
     const auto raWidth = renderArea.getWidth();
@@ -4597,7 +4599,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
 
     // this binds the given EGLImage as a framebuffer for the
     // duration of this scope.
-    RenderEngine::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
+    RE::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
     if (bufferBond.getStatus() != NO_ERROR) {
         ALOGE("got ANWB binding error while taking screenshot");
         return INVALID_OPERATION;

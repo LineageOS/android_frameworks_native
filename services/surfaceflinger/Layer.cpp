@@ -719,7 +719,7 @@ void Layer::draw(const RenderArea& renderArea) const {
 
 void Layer::clearWithOpenGL(const RenderArea& renderArea, float red, float green, float blue,
                             float alpha) const {
-    RenderEngine& engine(mFlinger->getRenderEngine());
+    auto& engine(mFlinger->getRenderEngine());
     computeGeometry(renderArea, getBE().mMesh, false);
     engine.setupFillWithColor(red, green, blue, alpha);
     engine.drawMesh(getBE().mMesh);
