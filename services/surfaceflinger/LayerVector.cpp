@@ -35,14 +35,17 @@ int LayerVector::do_compare(const void* lhs, const void* rhs) const
     uint32_t ls = l->getCurrentState().layerStack;
     uint32_t rs = r->getCurrentState().layerStack;
     if (ls != rs)
-        return ls - rs;
+        return (ls > rs) ? 1 : -1;
 
     uint32_t lz = l->getCurrentState().z;
     uint32_t rz = r->getCurrentState().z;
     if (lz != rz)
-        return lz - rz;
+        return (lz > rz) ? 1 : -1;
 
-    return l->sequence - r->sequence;
+    if (l->sequence == r->sequence)
+        return 0;
+
+    return (l->sequence > r->sequence) ? 1 : -1;
 }
 
 void LayerVector::traverseInZOrder(StateSet stateSet, const Visitor& visitor) const {
