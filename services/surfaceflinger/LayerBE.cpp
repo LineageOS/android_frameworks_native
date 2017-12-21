@@ -23,10 +23,11 @@
 
 namespace android {
 
-LayerBE::LayerBE(Layer* layer)
+LayerBE::LayerBE(Layer* layer, std::string layerName)
       : mLayer(layer),
         mMesh(Mesh::TRIANGLE_FAN, 4, 2, 2) {
     compositionInfo.layer = this;
+    compositionInfo.layerName = layerName;
 }
 
 void LayerBE::onLayerDisplayed(const sp<Fence>& releaseFence) {

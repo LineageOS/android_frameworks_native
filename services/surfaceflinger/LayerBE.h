@@ -104,7 +104,7 @@ public:
     friend class ColorLayer;
     friend class SurfaceFlinger;
 
-    LayerBE(Layer* layer);
+    LayerBE(Layer* layer, std::string layerName);
 
     void onLayerDisplayed(const sp<Fence>& releaseFence);
     Mesh& getMesh() { return mMesh; }
