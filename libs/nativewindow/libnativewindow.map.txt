@@ -3,13 +3,11 @@ LIBNATIVEWINDOW {
     AHardwareBuffer_acquire;
     AHardwareBuffer_allocate;
     AHardwareBuffer_describe;
-    AHardwareBuffer_fromHardwareBuffer;
     AHardwareBuffer_getNativeHandle; # vndk
     AHardwareBuffer_lock;
     AHardwareBuffer_recvHandleFromUnixSocket;
     AHardwareBuffer_release;
     AHardwareBuffer_sendHandleToUnixSocket;
-    AHardwareBuffer_toHardwareBuffer;
     AHardwareBuffer_unlock;
     ANativeWindowBuffer_getHardwareBuffer; # vndk
     ANativeWindow_OemStorageGet; # vndk
@@ -17,8 +15,6 @@ LIBNATIVEWINDOW {
     ANativeWindow_acquire;
     ANativeWindow_cancelBuffer; # vndk
     ANativeWindow_dequeueBuffer; # vndk
-    ANativeWindow_fromSurface;
-    ANativeWindow_fromSurfaceTexture;
     ANativeWindow_getFormat;
     ANativeWindow_getHeight;
     ANativeWindow_getWidth;
@@ -42,3 +38,17 @@ LIBNATIVEWINDOW {
   local:
     *;
 };
+
+LIBNATIVEWINDOW_PLATFORM {
+  global:
+    extern "C++" {
+      android::AHardwareBuffer_isValidPixelFormat*;
+      android::AHardwareBuffer_convertFromPixelFormat*;
+      android::AHardwareBuffer_convertToPixelFormat*;
+      android::AHardwareBuffer_convertFromGrallocUsageBits*;
+      android::AHardwareBuffer_convertToGrallocUsageBits*;
+      android::AHardwareBuffer_to_GraphicBuffer*;
+      android::AHardwareBuffer_to_ANativeWindowBuffer*;
+      android::AHardwareBuffer_from_GraphicBuffer*;
+    };
+} LIBNATIVEWINDOW;
