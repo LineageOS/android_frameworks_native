@@ -392,7 +392,7 @@ status_t BufferLayerConsumer::syncForReleaseLocked() {
 
     if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
         if (SyncFeatures::getInstance().useNativeFenceSync()) {
-            base::unique_fd fenceFd = mRE.flush();
+            int fenceFd = mRE.flush().release();
             if (fenceFd == -1) {
                 BLC_LOGE("syncForReleaseLocked: failed to flush RenderEngine");
                 return UNKNOWN_ERROR;
