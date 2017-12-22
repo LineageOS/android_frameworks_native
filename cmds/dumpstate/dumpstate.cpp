@@ -1160,19 +1160,6 @@ static void dumpstate() {
 
     RunCommand("LAST RADIO LOG", {"parse_radio_log", "/proc/last_radio_log"});
 
-    printf("------ BACKLIGHTS ------\n");
-    printf("LCD brightness=");
-    DumpFile("", "/sys/class/leds/lcd-backlight/brightness");
-    printf("Button brightness=");
-    DumpFile("", "/sys/class/leds/button-backlight/brightness");
-    printf("Keyboard brightness=");
-    DumpFile("", "/sys/class/leds/keyboard-backlight/brightness");
-    printf("ALS mode=");
-    DumpFile("", "/sys/class/leds/lcd-backlight/als");
-    printf("LCD driver registers:\n");
-    DumpFile("", "/sys/class/leds/lcd-backlight/registers");
-    printf("\n");
-
     /* Binder state is expensive to look at as it uses a lot of memory. */
     DumpFile("BINDER FAILED TRANSACTION LOG", "/sys/kernel/debug/binder/failed_transaction_log");
     DumpFile("BINDER TRANSACTION LOG", "/sys/kernel/debug/binder/transaction_log");
