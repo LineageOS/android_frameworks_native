@@ -50,6 +50,7 @@ class IGraphicBufferProducer;
 class Layer;
 class SurfaceFlinger;
 class HWComposer;
+struct CompositionInfo;
 
 class DisplayDevice : public LightRefBase<DisplayDevice>
 {
@@ -142,7 +143,7 @@ public:
     // We pass in mustRecompose so we can keep VirtualDisplaySurface's state
     // machine happy without actually queueing a buffer if nothing has changed
     status_t beginFrame(bool mustRecompose) const;
-    status_t prepareFrame(HWComposer& hwc);
+    status_t prepareFrame(HWComposer& hwc, std::vector<CompositionInfo>& compositionInfo);
 
     bool hasWideColorGamut() const { return mHasWideColorGamut; }
     // Whether h/w composer has native support for specific HDR type.

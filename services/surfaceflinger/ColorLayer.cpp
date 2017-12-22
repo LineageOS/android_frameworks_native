@@ -45,25 +45,15 @@ void ColorLayer::onDraw(const RenderArea& renderArea, const Region& /* clip */,
                         bool useIdentityTransform) {
     half4 color = getColor();
     if (color.a > 0) {
-        computeGeometry(renderArea, getBE().mMesh, useIdentityTransform);
-        getBE().compositionInfo.re.preMultipliedAlpha = getPremultipledAlpha();
-        getBE().compositionInfo.re.opaque = false;
-        getBE().compositionInfo.re.disableTexture = true;
-        getBE().compositionInfo.re.color = color;
+        Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2);
+        computeGeometry(renderArea, mesh, useIdentityTransform);
+        auto& engine(mFlinger->getRenderEngine());
+        engine.setupLayerBlending(getPremultipledAlpha(), false /* opaque */,
+                                  true /* disableTexture */, color);
+        engine.setSourceDataSpace(mCurrentDataSpace);
+        engine.drawMesh(mesh);
+        engine.disableBlending();
     }
-}
-
-void ColorLayer::drawNow(const RenderArea& renderArea, bool useIdentityTransform) {
-    CompositionInfo& compositionInfo = getBE().compositionInfo;
-    auto& engine(mFlinger->getRenderEngine());
-
-    draw(renderArea, useIdentityTransform);
-
-    engine.setupLayerBlending(compositionInfo.re.preMultipliedAlpha, compositionInfo.re.opaque,
-            compositionInfo.re.disableTexture, compositionInfo.re.color);
-    engine.setSourceDataSpace(compositionInfo.hwc.dataspace);
-    engine.drawMesh(getBE().getMesh());
-    engine.disableBlending();
 }
 
 bool ColorLayer::isVisible() const {

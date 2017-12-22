@@ -61,6 +61,7 @@ class NativeHandle;
 class Region;
 class String8;
 class TestableSurfaceFlinger;
+struct CompositionInfo;
 
 namespace Hwc2 {
 class Composer;
@@ -92,7 +93,8 @@ public:
     void destroyLayer(int32_t displayId, HWC2::Layer* layer);
 
     // Asks the HAL what it can do
-    status_t prepare(DisplayDevice& display);
+    status_t prepare(DisplayDevice& display,
+            std::vector<CompositionInfo>& compositionData);
 
     status_t setClientTarget(int32_t displayId, uint32_t slot,
             const sp<Fence>& acquireFence,

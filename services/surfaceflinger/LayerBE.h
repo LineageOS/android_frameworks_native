@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <renderengine/Mesh.h>
+#include <renderengine/RenderEngine.h>
 #include <renderengine/Texture.h>
 #include <ui/Region.h>
 
@@ -34,6 +35,7 @@ class LayerBE;
 struct CompositionInfo {
     std::string layerName;
     HWC2::Composition compositionType;
+    bool firstClear = false;
     sp<GraphicBuffer> mBuffer = nullptr;
     int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
     std::shared_ptr<LayerBE> layer;
@@ -59,14 +61,12 @@ struct CompositionInfo {
         HdrMetadata hdrMetadata;
     } hwc;
     struct {
-        Mesh* mesh;
         bool blackoutLayer = false;
         bool clearArea = false;
         bool preMultipliedAlpha = false;
         bool opaque = false;
         bool disableTexture = false;
         half4 color;
-        Texture texture;
         bool useIdentityTransform = false;
         bool Y410BT2020 = false;
     } re;
@@ -90,10 +90,11 @@ public:
     explicit LayerBE(const LayerBE& layer);
 
     void onLayerDisplayed(const sp<Fence>& releaseFence);
+    void clear(RE::RenderEngine& renderEngine);
     Mesh& getMesh() { return mMesh; }
 
-private:
     Layer*const mLayer;
+private:
     // The mesh used to draw the layer in GLES composition mode
     Mesh mMesh;
 

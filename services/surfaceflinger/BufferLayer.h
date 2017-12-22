@@ -77,7 +77,6 @@ public:
     // onDraw - draws the surface.
     void onDraw(const RenderArea& renderArea, const Region& clip,
                 bool useIdentityTransform) override;
-    void drawNow(const RenderArea& renderArea, bool useIdentityTransform);
 
     bool isHdrY410() const override;
 

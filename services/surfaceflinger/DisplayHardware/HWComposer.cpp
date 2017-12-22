@@ -417,7 +417,8 @@ status_t HWComposer::setClientTarget(int32_t displayId, uint32_t slot,
     return NO_ERROR;
 }
 
-status_t HWComposer::prepare(DisplayDevice& display) {
+status_t HWComposer::prepare(DisplayDevice& display,
+        std::vector<CompositionInfo>& compositionData) {
     ATRACE_CALL();
 
     Mutex::Autolock _l(mDisplayLock);
@@ -488,18 +489,19 @@ status_t HWComposer::prepare(DisplayDevice& display) {
 
     displayData.hasClientComposition = false;
     displayData.hasDeviceComposition = false;
-    for (auto& layer : display.getVisibleLayersSortedByZ()) {
-        auto hwcLayer = layer->getHwcLayer(displayId);
+    for (auto& compositionInfo : compositionData) {
+        auto hwcLayer = compositionInfo.hwc.hwcLayer;
 
-        if (changedTypes.count(hwcLayer) != 0) {
+        if (changedTypes.count(&*hwcLayer) != 0) {
             // We pass false so we only update our state and don't call back
             // into the HWC device
-            validateChange(layer->getCompositionType(displayId),
-                    changedTypes[hwcLayer]);
-            layer->setCompositionType(displayId, changedTypes[hwcLayer], false);
+            validateChange(compositionInfo.compositionType,
+                    changedTypes[&*hwcLayer]);
+            compositionInfo.compositionType = changedTypes[&*hwcLayer];
+            compositionInfo.layer->mLayer->setCompositionType(displayId, compositionInfo.compositionType, false);
         }
 
-        switch (layer->getCompositionType(displayId)) {
+        switch (compositionInfo.compositionType) {
             case HWC2::Composition::Client:
                 displayData.hasClientComposition = true;
                 break;
@@ -513,17 +515,17 @@ status_t HWComposer::prepare(DisplayDevice& display) {
                 break;
         }
 
-        if (layerRequests.count(hwcLayer) != 0 &&
-                layerRequests[hwcLayer] ==
+        if (layerRequests.count(&*hwcLayer) != 0 &&
+                layerRequests[&*hwcLayer] ==
                         HWC2::LayerRequest::ClearClientTarget) {
-            layer->setClearClientTarget(displayId, true);
+            compositionInfo.hwc.clearClientTarget = true;
         } else {
-            if (layerRequests.count(hwcLayer) != 0) {
+            if (layerRequests.count(&*hwcLayer) != 0) {
                 LOG_DISPLAY_ERROR(displayId,
-                                  ("Unknown layer request " + to_string(layerRequests[hwcLayer]))
+                                  ("Unknown layer request " + to_string(layerRequests[&*hwcLayer]))
                                           .c_str());
             }
-            layer->setClearClientTarget(displayId, false);
+            compositionInfo.hwc.clearClientTarget = false;
         }
     }
 
