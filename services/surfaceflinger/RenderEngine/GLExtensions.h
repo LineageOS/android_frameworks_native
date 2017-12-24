@@ -35,7 +35,12 @@ namespace android {
 class GLExtensions : public Singleton<GLExtensions> {
     friend class Singleton<GLExtensions>;
 
-    bool mHaveFramebufferObject : 1;
+    bool mHasNoConfigContext = false;
+    bool mHasNativeFenceSync = false;
+    bool mHasFenceSync = false;
+    bool mHasWaitSync = false;
+    bool mHasImageCrop = false;
+    bool mHasProtectedContent = false;
 
     String8 mVendor;
     String8 mRenderer;
@@ -43,24 +48,38 @@ class GLExtensions : public Singleton<GLExtensions> {
     String8 mExtensions;
     SortedVector<String8> mExtensionList;
 
+    String8 mEGLVersion;
+    String8 mEGLExtensions;
+    SortedVector<String8> mEGLExtensionList;
+
+    static SortedVector<String8> parseExtensionString(char const* extensions);
+
     GLExtensions(const GLExtensions&);
     GLExtensions& operator=(const GLExtensions&);
 
 protected:
-    GLExtensions();
+    GLExtensions() = default;
 
 public:
-    inline bool haveFramebufferObject() const { return mHaveFramebufferObject; }
+    bool hasNoConfigContext() const { return mHasNoConfigContext; }
+    bool hasNativeFenceSync() const { return mHasNativeFenceSync; }
+    bool hasFenceSync() const { return mHasFenceSync; }
+    bool hasWaitSync() const { return mHasWaitSync; }
+    bool hasImageCrop() const { return mHasImageCrop; }
+    bool hasProtectedContent() const { return mHasProtectedContent; }
 
     void initWithGLStrings(GLubyte const* vendor, GLubyte const* renderer, GLubyte const* version,
                            GLubyte const* extensions);
-
     char const* getVendor() const;
     char const* getRenderer() const;
     char const* getVersion() const;
-    char const* getExtension() const;
-
+    char const* getExtensions() const;
     bool hasExtension(char const* extension) const;
+
+    void initWithEGLStrings(char const* eglVersion, char const* eglExtensions);
+    char const* getEGLVersion() const;
+    char const* getEGLExtensions() const;
+    bool hasEGLExtension(char const* extension) const;
 };
 
 // ---------------------------------------------------------------------------

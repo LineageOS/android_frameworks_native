@@ -23,13 +23,10 @@
 
 #include "DispSync.h"
 #include "Layer.h"
+#include "RenderEngine/RenderEngine.h"
 
 #include <inttypes.h>
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
 #include <cutils/compiler.h>
 
 #include <hardware/hardware.h>
@@ -48,11 +45,6 @@
 #include <utils/String8.h>
 #include <utils/Trace.h>
 
-extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
-#define CROP_EXT_STR "EGL_ANDROID_image_crop"
-#define PROT_CONTENT_EXT_STR "EGL_EXT_protected_content"
-#define EGL_PROTECTED_CONTENT_EXT 0x32C0
-
 namespace android {
 
 // Macros for including the BufferLayerConsumer name in log messages
@@ -64,52 +56,8 @@ namespace android {
 
 static const mat4 mtxIdentity;
 
-static bool hasEglAndroidImageCropImpl() {
-    EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    const char* exts = eglQueryStringImplementationANDROID(dpy, EGL_EXTENSIONS);
-    size_t cropExtLen = strlen(CROP_EXT_STR);
-    size_t extsLen = strlen(exts);
-    bool equal = !strcmp(CROP_EXT_STR, exts);
-    bool atStart = !strncmp(CROP_EXT_STR " ", exts, cropExtLen + 1);
-    bool atEnd = (cropExtLen + 1) < extsLen &&
-            !strcmp(" " CROP_EXT_STR, exts + extsLen - (cropExtLen + 1));
-    bool inMiddle = strstr(exts, " " CROP_EXT_STR " ");
-    return equal || atStart || atEnd || inMiddle;
-}
-
-static bool hasEglAndroidImageCrop() {
-    // Only compute whether the extension is present once the first time this
-    // function is called.
-    static bool hasIt = hasEglAndroidImageCropImpl();
-    return hasIt;
-}
-
-static bool hasEglProtectedContentImpl() {
-    EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    const char* exts = eglQueryString(dpy, EGL_EXTENSIONS);
-    size_t cropExtLen = strlen(PROT_CONTENT_EXT_STR);
-    size_t extsLen = strlen(exts);
-    bool equal = !strcmp(PROT_CONTENT_EXT_STR, exts);
-    bool atStart = !strncmp(PROT_CONTENT_EXT_STR " ", exts, cropExtLen + 1);
-    bool atEnd = (cropExtLen + 1) < extsLen &&
-            !strcmp(" " PROT_CONTENT_EXT_STR, exts + extsLen - (cropExtLen + 1));
-    bool inMiddle = strstr(exts, " " PROT_CONTENT_EXT_STR " ");
-    return equal || atStart || atEnd || inMiddle;
-}
-
-static bool hasEglProtectedContent() {
-    // Only compute whether the extension is present once the first time this
-    // function is called.
-    static bool hasIt = hasEglProtectedContentImpl();
-    return hasIt;
-}
-
-static bool isEglImageCroppable(const Rect& crop) {
-    return hasEglAndroidImageCrop() && (crop.left == 0 && crop.top == 0);
-}
-
-BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex,
-                                         Layer* layer)
+BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, RenderEngine& engine,
+                                         uint32_t tex, Layer* layer)
       : ConsumerBase(bq, false),
         mCurrentCrop(Rect::EMPTY_RECT),
         mCurrentTransform(0),
@@ -123,10 +71,9 @@ BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, u
         mDefaultWidth(1),
         mDefaultHeight(1),
         mFilteringEnabled(true),
+        mRE(engine),
         mTexName(tex),
         mLayer(layer),
-        mEglDisplay(EGL_NO_DISPLAY),
-        mEglContext(EGL_NO_CONTEXT),
         mCurrentTexture(BufferQueue::INVALID_BUFFER_SLOT) {
     BLC_LOGV("BufferLayerConsumer");
 
@@ -211,10 +158,10 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const Dis
         return NO_INIT;
     }
 
-    // Make sure the EGL state is the same as in previous calls.
-    status_t err = checkAndUpdateEglStateLocked();
-    if (err != NO_ERROR) {
-        return err;
+    // Make sure RenderEngine is current
+    if (!mRE.isCurrent()) {
+        BLC_LOGE("updateTexImage: RenderEngine is not current");
+        return INVALID_OPERATION;
     }
 
     BufferItem item;
@@ -222,7 +169,7 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const Dis
     // Acquire the next buffer.
     // In asynchronous mode the list is guaranteed to be one buffer
     // deep, while in synchronous mode we use the oldest buffer.
-    err = acquireBufferLocked(&item, computeExpectedPresent(dispSync), maxFrameNumber);
+    status_t err = acquireBufferLocked(&item, computeExpectedPresent(dispSync), maxFrameNumber);
     if (err != NO_ERROR) {
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
             err = NO_ERROR;
@@ -325,11 +272,18 @@ status_t BufferLayerConsumer::acquireBufferLocked(BufferItem* item, nsecs_t pres
     // before, so any prior EglImage created is using a stale buffer. This
     // replaces any old EglImage with a new one (using the new buffer).
     if (item->mGraphicBuffer != NULL) {
-        int slot = item->mSlot;
-        mEglSlots[slot].mEglImage = new EglImage(item->mGraphicBuffer);
+        mImages[item->mSlot] = new Image(item->mGraphicBuffer, mRE);
     }
 
     return NO_ERROR;
+}
+
+bool BufferLayerConsumer::canUseImageCrop(const Rect& crop) const {
+    // If the crop rect is not at the origin, we can't set the crop on the
+    // EGLImage because that's not allowed by the EGL_ANDROID_image_crop
+    // extension.  In the future we can add a layered extension that
+    // removes this restriction if there is hardware that can support it.
+    return mRE.supportsImageCrop() && crop.left == 0 && crop.top == 0;
 }
 
 status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
@@ -338,29 +292,22 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
 
     int slot = item.mSlot;
 
-    // Confirm state.
-    err = checkAndUpdateEglStateLocked();
-    if (err != NO_ERROR) {
-        releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer);
-        return err;
-    }
-
     // Ensure we have a valid EglImageKHR for the slot, creating an EglImage
     // if nessessary, for the gralloc buffer currently in the slot in
     // ConsumerBase.
     // We may have to do this even when item.mGraphicBuffer == NULL (which
     // means the buffer was previously acquired).
-    err = mEglSlots[slot].mEglImage->createIfNeeded(mEglDisplay, item.mCrop);
+    const Rect& imageCrop = canUseImageCrop(item.mCrop) ? item.mCrop : Rect::EMPTY_RECT;
+    err = mImages[slot]->createIfNeeded(imageCrop);
     if (err != NO_ERROR) {
-        BLC_LOGW("updateAndRelease: unable to createImage on display=%p slot=%d", mEglDisplay,
-                 slot);
+        BLC_LOGW("updateAndRelease: unable to createImage on slot=%d", slot);
         releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer);
         return UNKNOWN_ERROR;
     }
 
     // Do whatever sync ops we need to do before releasing the old slot.
     if (slot != mCurrentTexture) {
-        err = syncForReleaseLocked(mEglDisplay);
+        err = syncForReleaseLocked();
         if (err != NO_ERROR) {
             // Release the buffer we just acquired.  It's not safe to
             // release the old buffer, so instead we just drop the new frame.
@@ -378,7 +325,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     // Hang onto the pointer so that it isn't freed in the call to
     // releaseBufferLocked() if we're in shared buffer mode and both buffers are
     // the same.
-    sp<EglImage> nextTextureImage = mEglSlots[slot].mEglImage;
+    sp<Image> nextTextureImage = mImages[slot];
 
     // release old buffer
     if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
@@ -418,77 +365,36 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
 }
 
 status_t BufferLayerConsumer::bindTextureImageLocked() {
-    if (mEglDisplay == EGL_NO_DISPLAY) {
-        ALOGE("bindTextureImage: invalid display");
-        return INVALID_OPERATION;
-    }
+    mRE.checkErrors();
 
-    GLenum error;
-    while ((error = glGetError()) != GL_NO_ERROR) {
-        BLC_LOGW("bindTextureImage: clearing GL error: %#04x", error);
-    }
-
-    glBindTexture(sTexTarget, mTexName);
     if (mCurrentTexture == BufferQueue::INVALID_BUFFER_SLOT && mCurrentTextureImage == NULL) {
         BLC_LOGE("bindTextureImage: no currently-bound texture");
+        mRE.bindExternalTextureImage(mTexName, RE::Image(mRE));
         return NO_INIT;
     }
 
-    status_t err = mCurrentTextureImage->createIfNeeded(mEglDisplay, mCurrentCrop);
+    const Rect& imageCrop = canUseImageCrop(mCurrentCrop) ? mCurrentCrop : Rect::EMPTY_RECT;
+    status_t err = mCurrentTextureImage->createIfNeeded(imageCrop);
     if (err != NO_ERROR) {
-        BLC_LOGW("bindTextureImage: can't create image on display=%p slot=%d", mEglDisplay,
-                 mCurrentTexture);
+        BLC_LOGW("bindTextureImage: can't create image on slot=%d", mCurrentTexture);
+        mRE.bindExternalTextureImage(mTexName, RE::Image(mRE));
         return UNKNOWN_ERROR;
     }
-    mCurrentTextureImage->bindToTextureTarget(sTexTarget);
+
+    mRE.bindExternalTextureImage(mTexName, mCurrentTextureImage->image());
 
     // Wait for the new buffer to be ready.
-    return doGLFenceWaitLocked();
+    return doFenceWaitLocked();
 }
 
-status_t BufferLayerConsumer::checkAndUpdateEglStateLocked() {
-    EGLDisplay dpy = eglGetCurrentDisplay();
-    EGLContext ctx = eglGetCurrentContext();
-
-    // if this is the first time we're called, mEglDisplay/mEglContext have
-    // never been set, so don't error out (below).
-    if (mEglDisplay == EGL_NO_DISPLAY) {
-        mEglDisplay = dpy;
-    }
-    if (mEglContext == EGL_NO_CONTEXT) {
-        mEglContext = ctx;
-    }
-
-    if (mEglDisplay != dpy || dpy == EGL_NO_DISPLAY) {
-        BLC_LOGE("checkAndUpdateEglState: invalid current EGLDisplay");
-        return INVALID_OPERATION;
-    }
-
-    if (mEglContext != ctx || ctx == EGL_NO_CONTEXT) {
-        BLC_LOGE("checkAndUpdateEglState: invalid current EGLContext");
-        return INVALID_OPERATION;
-    }
-
-    return NO_ERROR;
-}
-
-status_t BufferLayerConsumer::syncForReleaseLocked(EGLDisplay dpy) {
+status_t BufferLayerConsumer::syncForReleaseLocked() {
     BLC_LOGV("syncForReleaseLocked");
 
     if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
         if (SyncFeatures::getInstance().useNativeFenceSync()) {
-            EGLSyncKHR sync = eglCreateSyncKHR(dpy, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
-            if (sync == EGL_NO_SYNC_KHR) {
-                BLC_LOGE("syncForReleaseLocked: error creating EGL fence: %#x", eglGetError());
-                return UNKNOWN_ERROR;
-            }
-            glFlush();
-            int fenceFd = eglDupNativeFenceFDANDROID(dpy, sync);
-            eglDestroySyncKHR(dpy, sync);
-            if (fenceFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-                BLC_LOGE("syncForReleaseLocked: error dup'ing native fence "
-                         "fd: %#x",
-                         eglGetError());
+            int fenceFd = mRE.flush().release();
+            if (fenceFd == -1) {
+                BLC_LOGE("syncForReleaseLocked: failed to flush RenderEngine");
                 return UNKNOWN_ERROR;
             }
             sp<Fence> fence(new Fence(fenceFd));
@@ -537,10 +443,9 @@ void BufferLayerConsumer::computeCurrentTransformMatrixLocked() {
         BLC_LOGD("computeCurrentTransformMatrixLocked: "
                  "mCurrentTextureImage is NULL");
     }
-    GLConsumer::computeTransformMatrix(mCurrentTransformMatrix, buf,
-                                       isEglImageCroppable(mCurrentCrop) ? Rect::EMPTY_RECT
-                                                                         : mCurrentCrop,
-                                       mCurrentTransform, mFilteringEnabled);
+    const Rect& cropRect = canUseImageCrop(mCurrentCrop) ? Rect::EMPTY_RECT : mCurrentCrop;
+    GLConsumer::computeTransformMatrix(mCurrentTransformMatrix, buf, cropRect, mCurrentTransform,
+                                       mFilteringEnabled);
 }
 
 nsecs_t BufferLayerConsumer::getTimestamp() {
@@ -607,50 +512,27 @@ std::shared_ptr<FenceTime> BufferLayerConsumer::getCurrentFenceTime() const {
     return mCurrentFenceTime;
 }
 
-status_t BufferLayerConsumer::doGLFenceWaitLocked() const {
-    EGLDisplay dpy = eglGetCurrentDisplay();
-    EGLContext ctx = eglGetCurrentContext();
-
-    if (mEglDisplay != dpy || mEglDisplay == EGL_NO_DISPLAY) {
-        BLC_LOGE("doGLFenceWait: invalid current EGLDisplay");
-        return INVALID_OPERATION;
-    }
-
-    if (mEglContext != ctx || mEglContext == EGL_NO_CONTEXT) {
-        BLC_LOGE("doGLFenceWait: invalid current EGLContext");
+status_t BufferLayerConsumer::doFenceWaitLocked() const {
+    if (!mRE.isCurrent()) {
+        BLC_LOGE("doFenceWait: RenderEngine is not current");
         return INVALID_OPERATION;
     }
 
     if (mCurrentFence->isValid()) {
         if (SyncFeatures::getInstance().useWaitSync()) {
-            // Create an EGLSyncKHR from the current fence.
-            int fenceFd = mCurrentFence->dup();
+            base::unique_fd fenceFd(mCurrentFence->dup());
             if (fenceFd == -1) {
-                BLC_LOGE("doGLFenceWait: error dup'ing fence fd: %d", errno);
+                BLC_LOGE("doFenceWait: error dup'ing fence fd: %d", errno);
                 return -errno;
             }
-            EGLint attribs[] = {EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fenceFd, EGL_NONE};
-            EGLSyncKHR sync = eglCreateSyncKHR(dpy, EGL_SYNC_NATIVE_FENCE_ANDROID, attribs);
-            if (sync == EGL_NO_SYNC_KHR) {
-                close(fenceFd);
-                BLC_LOGE("doGLFenceWait: error creating EGL fence: %#x", eglGetError());
-                return UNKNOWN_ERROR;
-            }
-
-            // XXX: The spec draft is inconsistent as to whether this should
-            // return an EGLint or void.  Ignore the return value for now, as
-            // it's not strictly needed.
-            eglWaitSyncKHR(dpy, sync, 0);
-            EGLint eglErr = eglGetError();
-            eglDestroySyncKHR(dpy, sync);
-            if (eglErr != EGL_SUCCESS) {
-                BLC_LOGE("doGLFenceWait: error waiting for EGL fence: %#x", eglErr);
+            if (!mRE.waitFence(std::move(fenceFd))) {
+                BLC_LOGE("doFenceWait: failed to wait on fence fd");
                 return UNKNOWN_ERROR;
             }
         } else {
-            status_t err = mCurrentFence->waitForever("BufferLayerConsumer::doGLFenceWaitLocked");
+            status_t err = mCurrentFence->waitForever("BufferLayerConsumer::doFenceWaitLocked");
             if (err != NO_ERROR) {
-                BLC_LOGE("doGLFenceWait: error waiting for fence: %d", err);
+                BLC_LOGE("doFenceWait: error waiting for fence: %d", err);
                 return err;
             }
         }
@@ -664,7 +546,7 @@ void BufferLayerConsumer::freeBufferLocked(int slotIndex) {
     if (slotIndex == mCurrentTexture) {
         mCurrentTexture = BufferQueue::INVALID_BUFFER_SLOT;
     }
-    mEglSlots[slotIndex].mEglImage.clear();
+    mImages[slotIndex].clear();
     ConsumerBase::freeBufferLocked(slotIndex);
 }
 
@@ -721,106 +603,37 @@ void BufferLayerConsumer::dumpLocked(String8& result, const char* prefix) const 
     ConsumerBase::dumpLocked(result, prefix);
 }
 
-BufferLayerConsumer::EglImage::EglImage(sp<GraphicBuffer> graphicBuffer)
+BufferLayerConsumer::Image::Image(sp<GraphicBuffer> graphicBuffer, const RenderEngine& engine)
       : mGraphicBuffer(graphicBuffer),
-        mEglImage(EGL_NO_IMAGE_KHR),
-        mEglDisplay(EGL_NO_DISPLAY),
-        mCropRect(Rect::EMPTY_RECT) {}
+        mImage{engine},
+        mCreated(false),
+        mCropWidth(0),
+        mCropHeight(0) {}
 
-BufferLayerConsumer::EglImage::~EglImage() {
-    if (mEglImage != EGL_NO_IMAGE_KHR) {
-        if (!eglDestroyImageKHR(mEglDisplay, mEglImage)) {
-            ALOGE("~EglImage: eglDestroyImageKHR failed");
-        }
-        eglTerminate(mEglDisplay);
-    }
-}
-
-status_t BufferLayerConsumer::EglImage::createIfNeeded(EGLDisplay eglDisplay,
-                                                       const Rect& cropRect) {
-    // If there's an image and it's no longer valid, destroy it.
-    bool haveImage = mEglImage != EGL_NO_IMAGE_KHR;
-    bool displayInvalid = mEglDisplay != eglDisplay;
-    bool cropInvalid = hasEglAndroidImageCrop() && mCropRect != cropRect;
-    if (haveImage && (displayInvalid || cropInvalid)) {
-        if (!eglDestroyImageKHR(mEglDisplay, mEglImage)) {
-            ALOGE("createIfNeeded: eglDestroyImageKHR failed");
-        }
-        eglTerminate(mEglDisplay);
-        mEglImage = EGL_NO_IMAGE_KHR;
-        mEglDisplay = EGL_NO_DISPLAY;
+status_t BufferLayerConsumer::Image::createIfNeeded(const Rect& imageCrop) {
+    const int32_t cropWidth = imageCrop.width();
+    const int32_t cropHeight = imageCrop.height();
+    if (mCreated && mCropWidth == cropWidth && mCropHeight == cropHeight) {
+        return OK;
     }
 
-    // If there's no image, create one.
-    if (mEglImage == EGL_NO_IMAGE_KHR) {
-        mEglDisplay = eglDisplay;
-        mCropRect = cropRect;
-        mEglImage = createImage(mEglDisplay, mGraphicBuffer, mCropRect);
-    }
+    mCreated = mImage.setNativeWindowBuffer(mGraphicBuffer->getNativeBuffer(),
+                                            mGraphicBuffer->getUsage() & GRALLOC_USAGE_PROTECTED,
+                                            cropWidth, cropHeight);
+    if (mCreated) {
+        mCropWidth = cropWidth;
+        mCropHeight = cropHeight;
+    } else {
+        mCropWidth = 0;
+        mCropHeight = 0;
 
-    // Fail if we can't create a valid image.
-    if (mEglImage == EGL_NO_IMAGE_KHR) {
-        mEglDisplay = EGL_NO_DISPLAY;
-        mCropRect.makeInvalid();
         const sp<GraphicBuffer>& buffer = mGraphicBuffer;
         ALOGE("Failed to create image. size=%ux%u st=%u usage=%#" PRIx64 " fmt=%d",
               buffer->getWidth(), buffer->getHeight(), buffer->getStride(), buffer->getUsage(),
               buffer->getPixelFormat());
-        return UNKNOWN_ERROR;
     }
 
-    return OK;
-}
-
-void BufferLayerConsumer::EglImage::bindToTextureTarget(uint32_t texTarget) {
-    glEGLImageTargetTexture2DOES(texTarget, static_cast<GLeglImageOES>(mEglImage));
-}
-
-EGLImageKHR BufferLayerConsumer::EglImage::createImage(EGLDisplay dpy,
-                                                       const sp<GraphicBuffer>& graphicBuffer,
-                                                       const Rect& crop) {
-    EGLClientBuffer cbuf = static_cast<EGLClientBuffer>(graphicBuffer->getNativeBuffer());
-    const bool createProtectedImage =
-            (graphicBuffer->getUsage() & GRALLOC_USAGE_PROTECTED) && hasEglProtectedContent();
-    EGLint attrs[] = {
-            EGL_IMAGE_PRESERVED_KHR,
-            EGL_TRUE,
-            EGL_IMAGE_CROP_LEFT_ANDROID,
-            crop.left,
-            EGL_IMAGE_CROP_TOP_ANDROID,
-            crop.top,
-            EGL_IMAGE_CROP_RIGHT_ANDROID,
-            crop.right,
-            EGL_IMAGE_CROP_BOTTOM_ANDROID,
-            crop.bottom,
-            createProtectedImage ? EGL_PROTECTED_CONTENT_EXT : EGL_NONE,
-            createProtectedImage ? EGL_TRUE : EGL_NONE,
-            EGL_NONE,
-    };
-    if (!crop.isValid()) {
-        // No crop rect to set, so leave the crop out of the attrib array. Make
-        // sure to propagate the protected content attrs if they are set.
-        attrs[2] = attrs[10];
-        attrs[3] = attrs[11];
-        attrs[4] = EGL_NONE;
-    } else if (!isEglImageCroppable(crop)) {
-        // The crop rect is not at the origin, so we can't set the crop on the
-        // EGLImage because that's not allowed by the EGL_ANDROID_image_crop
-        // extension.  In the future we can add a layered extension that
-        // removes this restriction if there is hardware that can support it.
-        attrs[2] = attrs[10];
-        attrs[3] = attrs[11];
-        attrs[4] = EGL_NONE;
-    }
-    eglInitialize(dpy, 0, 0);
-    EGLImageKHR image =
-            eglCreateImageKHR(dpy, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, cbuf, attrs);
-    if (image == EGL_NO_IMAGE_KHR) {
-        EGLint error = eglGetError();
-        ALOGE("error creating EGLImage: %#x", error);
-        eglTerminate(dpy);
-    }
-    return image;
+    return mCreated ? OK : UNKNOWN_ERROR;
 }
 
 }; // namespace android

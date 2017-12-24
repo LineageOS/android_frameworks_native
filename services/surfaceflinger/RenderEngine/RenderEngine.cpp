@@ -20,6 +20,7 @@
 
 #include "GLES20RenderEngine.h"
 #include "GLExtensions.h"
+#include "Image.h"
 #include "Mesh.h"
 #include "RenderEngine.h"
 
@@ -32,19 +33,6 @@ extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy
 namespace android {
 // ---------------------------------------------------------------------------
 
-static bool findExtension(const char* exts, const char* name) {
-    if (!exts) return false;
-    size_t len = strlen(name);
-
-    const char* pos = exts;
-    while ((pos = strstr(pos, name)) != NULL) {
-        if (pos[len] == '\0' || pos[len] == ' ') return true;
-        pos += len;
-    }
-
-    return false;
-}
-
 std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featureFlags) {
     // initialize EGL for the default display
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -52,22 +40,14 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
         LOG_ALWAYS_FATAL("failed to initialize EGL");
     }
 
-    // EGL_ANDROIDX_no_config_context is an experimental extension with no
-    // written specification. It will be replaced by something more formal.
-    // SurfaceFlinger is using it to allow a single EGLContext to render to
-    // both a 16-bit primary display framebuffer and a 32-bit virtual display
-    // framebuffer.
-    //
-    // EGL_KHR_no_config_context is official extension to allow creating a
-    // context that works with any surface of a display.
-    //
+    GLExtensions& extensions(GLExtensions::getInstance());
+    extensions.initWithEGLStrings(eglQueryStringImplementationANDROID(display, EGL_VERSION),
+                                  eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS));
+
     // The code assumes that ES2 or later is available if this extension is
     // supported.
     EGLConfig config = EGL_NO_CONFIG;
-    if (!findExtension(eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS),
-                       "EGL_ANDROIDX_no_config_context") &&
-        !findExtension(eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS),
-                       "EGL_KHR_no_config_context")) {
+    if (!extensions.hasNoConfigContext()) {
         config = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
     }
 
@@ -117,7 +97,6 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
     EGLBoolean success = eglMakeCurrent(display, dummy, dummy, ctxt);
     LOG_ALWAYS_FATAL_IF(!success, "can't make dummy pbuffer current");
 
-    GLExtensions& extensions(GLExtensions::getInstance());
     extensions.initWithGLStrings(glGetString(GL_VENDOR), glGetString(GL_RENDERER),
                                  glGetString(GL_VERSION), glGetString(GL_EXTENSIONS));
 
@@ -142,7 +121,7 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
     ALOGI("vendor    : %s", extensions.getVendor());
     ALOGI("renderer  : %s", extensions.getRenderer());
     ALOGI("version   : %s", extensions.getVersion());
-    ALOGI("extensions: %s", extensions.getExtension());
+    ALOGI("extensions: %s", extensions.getExtensions());
     ALOGI("GL_MAX_TEXTURE_SIZE = %zu", engine->getMaxTextureSize());
     ALOGI("GL_MAX_VIEWPORT_DIMS = %zu", engine->getMaxViewportDims());
 
@@ -174,6 +153,14 @@ EGLConfig RenderEngine::getEGLConfig() const {
     return mEGLConfig;
 }
 
+bool RenderEngine::supportsImageCrop() const {
+    return GLExtensions::getInstance().hasImageCrop();
+}
+
+bool RenderEngine::isCurrent() const {
+    return mEGLDisplay == eglGetCurrentDisplay() && mEGLContext == eglGetCurrentContext();
+}
+
 bool RenderEngine::setCurrentSurface(const RE::Surface& surface) {
     bool success = true;
     EGLSurface eglSurface = surface.getEGLSurface();
@@ -189,6 +176,88 @@ bool RenderEngine::setCurrentSurface(const RE::Surface& surface) {
 
 void RenderEngine::resetCurrentSurface() {
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+}
+
+base::unique_fd RenderEngine::flush() {
+    if (!GLExtensions::getInstance().hasNativeFenceSync()) {
+        return base::unique_fd();
+    }
+
+    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
+    if (sync == EGL_NO_SYNC_KHR) {
+        ALOGW("failed to create EGL native fence sync: %#x", eglGetError());
+        return base::unique_fd();
+    }
+
+    // native fence fd will not be populated until flush() is done.
+    glFlush();
+
+    // get the fence fd
+    base::unique_fd fenceFd(eglDupNativeFenceFDANDROID(mEGLDisplay, sync));
+    eglDestroySyncKHR(mEGLDisplay, sync);
+    if (fenceFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+        ALOGW("failed to dup EGL native fence sync: %#x", eglGetError());
+    }
+
+    return fenceFd;
+}
+
+bool RenderEngine::finish() {
+    if (!GLExtensions::getInstance().hasFenceSync()) {
+        ALOGW("no synchronization support");
+        return false;
+    }
+
+    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
+    if (sync == EGL_NO_SYNC_KHR) {
+        ALOGW("failed to create EGL fence sync: %#x", eglGetError());
+        return false;
+    }
+
+    EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR,
+                                         2000000000 /*2 sec*/);
+    EGLint error = eglGetError();
+    eglDestroySyncKHR(mEGLDisplay, sync);
+    if (result != EGL_CONDITION_SATISFIED_KHR) {
+        if (result == EGL_TIMEOUT_EXPIRED_KHR) {
+            ALOGW("fence wait timed out");
+        } else {
+            ALOGW("error waiting on EGL fence: %#x", error);
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool RenderEngine::waitFence(base::unique_fd fenceFd) {
+    if (!GLExtensions::getInstance().hasNativeFenceSync() ||
+        !GLExtensions::getInstance().hasWaitSync()) {
+        return false;
+    }
+
+    EGLint attribs[] = {EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fenceFd, EGL_NONE};
+    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, attribs);
+    if (sync == EGL_NO_SYNC_KHR) {
+        ALOGE("failed to create EGL native fence sync: %#x", eglGetError());
+        return false;
+    }
+
+    // fenceFd is now owned by EGLSync
+    (void)fenceFd.release();
+
+    // XXX: The spec draft is inconsistent as to whether this should return an
+    // EGLint or void.  Ignore the return value for now, as it's not strictly
+    // needed.
+    eglWaitSyncKHR(mEGLDisplay, sync, 0);
+    EGLint error = eglGetError();
+    eglDestroySyncKHR(mEGLDisplay, sync);
+    if (error != EGL_SUCCESS) {
+        ALOGE("failed to wait for EGL native fence sync: %#x", error);
+        return false;
+    }
+
+    return true;
 }
 
 void RenderEngine::checkErrors() const {
@@ -242,52 +311,6 @@ void RenderEngine::fillRegionWithColor(const Region& region, uint32_t height, fl
     drawMesh(mesh);
 }
 
-int RenderEngine::flush(bool wait) {
-    // Attempt to create a sync khr object that can produce a sync point. If that
-    // isn't available, create a non-dupable sync object in the fallback path and
-    // wait on it directly.
-    EGLSyncKHR sync;
-    if (!wait) {
-        EGLint syncFd = EGL_NO_NATIVE_FENCE_FD_ANDROID;
-
-        sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
-        if (sync != EGL_NO_SYNC_KHR) {
-            // native fence fd will not be populated until flush() is done.
-            glFlush();
-
-            // get the sync fd
-            syncFd = eglDupNativeFenceFDANDROID(mEGLDisplay, sync);
-            if (syncFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-                ALOGW("failed to dup sync khr object");
-            }
-
-            eglDestroySyncKHR(mEGLDisplay, sync);
-        }
-
-        if (syncFd != EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-            return syncFd;
-        }
-    }
-
-    // fallback or explicit wait
-    sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
-    if (sync != EGL_NO_SYNC_KHR) {
-        EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR,
-                                             2000000000 /*2 sec*/);
-        EGLint eglErr = eglGetError();
-        if (result == EGL_TIMEOUT_EXPIRED_KHR) {
-            ALOGW("fence wait timed out");
-        } else {
-            ALOGW_IF(eglErr != EGL_SUCCESS, "error waiting on EGL fence: %#x", eglErr);
-        }
-        eglDestroySyncKHR(mEGLDisplay, sync);
-    } else {
-        ALOGW("error creating EGL fence: %#x", eglGetError());
-    }
-
-    return -1;
-}
-
 void RenderEngine::clearWithColor(float red, float green, float blue, float alpha) {
     glClearColor(red, green, blue, alpha);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -310,19 +333,28 @@ void RenderEngine::deleteTextures(size_t count, uint32_t const* names) {
     glDeleteTextures(count, names);
 }
 
+void RenderEngine::bindExternalTextureImage(uint32_t texName, const RE::Image& image) {
+    const GLenum target = GL_TEXTURE_EXTERNAL_OES;
+
+    glBindTexture(target, texName);
+    if (image.getEGLImage() != EGL_NO_IMAGE_KHR) {
+        glEGLImageTargetTexture2DOES(target, static_cast<GLeglImageOES>(image.getEGLImage()));
+    }
+}
+
 void RenderEngine::readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) {
     glReadPixels(l, b, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 }
 
 void RenderEngine::dump(String8& result) {
-    result.appendFormat("EGL implementation : %s\n",
-                        eglQueryStringImplementationANDROID(mEGLDisplay, EGL_VERSION));
-    result.appendFormat("%s\n", eglQueryStringImplementationANDROID(mEGLDisplay, EGL_EXTENSIONS));
-
     const GLExtensions& extensions(GLExtensions::getInstance());
+
+    result.appendFormat("EGL implementation : %s\n", extensions.getEGLVersion());
+    result.appendFormat("%s\n", extensions.getEGLExtensions());
+
     result.appendFormat("GLES: %s, %s, %s\n", extensions.getVendor(), extensions.getRenderer(),
                         extensions.getVersion());
-    result.appendFormat("%s\n", extensions.getExtension());
+    result.appendFormat("%s\n", extensions.getExtensions());
 }
 
 // ---------------------------------------------------------------------------

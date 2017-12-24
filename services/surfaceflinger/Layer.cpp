@@ -285,6 +285,14 @@ static Rect reduce(const Rect& win, const Region& exclude) {
     return Region(win).subtract(exclude).getBounds();
 }
 
+static FloatRect reduce(const FloatRect& win, const Region& exclude) {
+    if (CC_LIKELY(exclude.isEmpty())) {
+        return win;
+    }
+    // Convert through Rect (by rounding) for lack of FloatRegion
+    return Region(Rect{win}).subtract(exclude).getBounds().toFloatRect();
+}
+
 Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
     const Layer::State& s(getDrawingState());
     Rect win(s.active.w, s.active.h);
@@ -323,12 +331,12 @@ Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
     return win;
 }
 
-Rect Layer::computeBounds() const {
+FloatRect Layer::computeBounds() const {
     const Layer::State& s(getDrawingState());
     return computeBounds(s.activeTransparentRegion);
 }
 
-Rect Layer::computeBounds(const Region& activeTransparentRegion) const {
+FloatRect Layer::computeBounds(const Region& activeTransparentRegion) const {
     const Layer::State& s(getDrawingState());
     Rect win(s.active.w, s.active.h);
 
@@ -345,14 +353,16 @@ Rect Layer::computeBounds(const Region& activeTransparentRegion) const {
     }
 
     Transform t = getTransform();
+
+    FloatRect floatWin = win.toFloatRect();
     if (p != nullptr) {
-        win = t.transform(win);
-        win.intersect(bounds, &win);
-        win = t.inverse().transform(win);
+        floatWin = t.transform(floatWin);
+        floatWin = floatWin.intersect(bounds.toFloatRect());
+        floatWin = t.inverse().transform(floatWin);
     }
 
     // subtract the transparent region and snap to the bounds
-    return reduce(win, activeTransparentRegion);
+    return reduce(floatWin, activeTransparentRegion);
 }
 
 Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& hw) const {
@@ -528,7 +538,9 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
                 Rect(activeCrop.right, activeCrop.top, s.active.w, activeCrop.bottom));
     }
 
-    Rect frame(t.transform(computeBounds(activeTransparentRegion)));
+    // computeBounds returns a FloatRect to provide more accuracy during the
+    // transformation. We then round upon constructing 'frame'.
+    Rect frame{t.transform(computeBounds(activeTransparentRegion))};
     if (!s.finalCrop.isEmpty()) {
         if (!frame.intersect(s.finalCrop, &frame)) {
             frame.clear();
@@ -807,7 +819,7 @@ void Layer::computeGeometry(const RenderArea& renderArea, Mesh& mesh,
     const Layer::State& s(getDrawingState());
     const Transform renderAreaTransform(renderArea.getTransform());
     const uint32_t height = renderArea.getHeight();
-    Rect win = computeBounds();
+    FloatRect win = computeBounds();
 
     vec2 lt = vec2(win.left, win.top);
     vec2 lb = vec2(win.left, win.bottom);

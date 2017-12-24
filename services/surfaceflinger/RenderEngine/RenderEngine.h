@@ -25,6 +25,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <Transform.h>
+#include <android-base/unique_fd.h>
 #include <gui/SurfaceControl.h>
 #include <math/mat4.h>
 
@@ -43,8 +44,9 @@ class Mesh;
 class Texture;
 
 namespace RE {
+class Image;
 class Surface;
-}
+} // namespace RE
 
 class RenderEngine {
     enum GlesVersion {
@@ -82,9 +84,26 @@ public:
     // dump the extension strings. always call the base class.
     virtual void dump(String8& result);
 
+    bool supportsImageCrop() const;
+
+    bool isCurrent() const;
+    bool setCurrentSurface(const RE::Surface& surface);
+    void resetCurrentSurface();
+
+    // synchronization
+
+    // flush submits RenderEngine command stream for execution and returns a
+    // native fence fd that is signaled when the execution has completed.  It
+    // returns -1 on errors.
+    base::unique_fd flush();
+    // finish waits until RenderEngine command stream has been executed.  It
+    // returns false on errors.
+    bool finish();
+    // waitFence inserts a wait on an external fence fd to RenderEngine
+    // command stream.  It returns false on errors.
+    bool waitFence(base::unique_fd fenceFd);
+
     // helpers
-    // flush returns -1 or a valid native fence fd owned by the caller
-    int flush(bool wait);
     void clearWithColor(float red, float green, float blue, float alpha);
     void fillRegionWithColor(const Region& region, uint32_t height, float red, float green,
                              float blue, float alpha);
@@ -94,6 +113,7 @@ public:
     void disableScissor();
     void genTextures(size_t count, uint32_t* names);
     void deleteTextures(size_t count, uint32_t const* names);
+    void bindExternalTextureImage(uint32_t texName, const RE::Image& image);
     void readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels);
 
     class BindNativeBufferAsFramebuffer {
@@ -107,9 +127,6 @@ public:
         ~BindNativeBufferAsFramebuffer();
         int getStatus() const;
     };
-
-    bool setCurrentSurface(const RE::Surface& surface);
-    void resetCurrentSurface();
 
     // set-up
     virtual void checkErrors() const;

@@ -4538,9 +4538,10 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
     // dependent on the context's EGLConfig.
     renderScreenImplLocked(renderArea, traverseLayers, true, useIdentityTransform);
 
-    *outSyncFd = getRenderEngine().flush(DEBUG_SCREENSHOTS);
-
     if (DEBUG_SCREENSHOTS) {
+        getRenderEngine().finish();
+        *outSyncFd = -1;
+
         const auto reqWidth = renderArea.getReqWidth();
         const auto reqHeight = renderArea.getReqHeight();
 
@@ -4548,6 +4549,12 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         getRenderEngine().readPixels(0, 0, reqWidth, reqHeight, pixels);
         checkScreenshot(reqWidth, reqHeight, reqWidth, pixels, traverseLayers);
         delete [] pixels;
+    } else {
+        base::unique_fd syncFd = getRenderEngine().flush();
+        if (syncFd < 0) {
+            getRenderEngine().finish();
+        }
+        *outSyncFd = syncFd.release();
     }
 
     return NO_ERROR;
