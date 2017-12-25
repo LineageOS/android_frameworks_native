@@ -244,6 +244,9 @@ SurfaceFlinger::SurfaceFlinger()
     mLayerTripleBufferingDisabled = atoi(value);
     ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
 
+    int32_t hwrotation = property_get_int32("ro.sf.hwrotation", 0);
+    mHwOrientation = hwrotation / 90;
+
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
     // comes online to attempt to read the property. The property is
@@ -819,6 +822,11 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
 
         // All non-virtual displays are currently considered secure.
         info.secure = true;
+
+        if (DisplayDevice::DISPLAY_PRIMARY == type &&
+            mHwOrientation & DisplayState::eOrientationSwapMask) {
+            std::swap(info.w, info.h);
+        }
 
         configs->push_back(info);
     }
@@ -4155,10 +4163,15 @@ void SurfaceFlinger::repaintEverything() {
 // if they are set to 0
 static status_t updateDimensionsLocked(const sp<const DisplayDevice>& displayDevice,
                                        Transform::orientation_flags rotation,
-                                       uint32_t* requestedWidth, uint32_t* requestedHeight) {
+                                       uint32_t* requestedWidth, uint32_t* requestedHeight,
+                                       int hwOrientation) {
     // get screen geometry
     uint32_t displayWidth = displayDevice->getWidth();
     uint32_t displayHeight = displayDevice->getHeight();
+
+    if (hwOrientation & DisplayState::eOrientationSwapMask) {
+        std::swap(displayWidth, displayHeight);
+    }
 
     if (rotation & Transform::ROT_90) {
         std::swap(displayWidth, displayHeight);
@@ -4269,7 +4282,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display,
     { // Autolock scope
         Mutex::Autolock lock(mStateLock);
         sp<const DisplayDevice> displayDevice(getDisplayDeviceLocked(display));
-        updateDimensionsLocked(displayDevice, rotationFlags, &reqWidth, &reqHeight);
+        updateDimensionsLocked(displayDevice, rotationFlags, &reqWidth, &reqHeight, mHwOrientation);
     }
 
     // create a surface (because we're a producer, and we need to
@@ -4385,6 +4398,23 @@ void SurfaceFlinger::renderScreenImplLocked(
             !sourceCrop.isValid()) {
         sourceCrop.setLeftTop(Point(0, 0));
         sourceCrop.setRightBottom(Point(hw_w, hw_h));
+    } else if (hw->getDisplayType() == DisplayDevice::DISPLAY_PRIMARY &&
+            mHwOrientation != DisplayState::eOrientationDefault) {
+        Transform tr;
+        uint32_t flags = 0x00;
+        switch (mHwOrientation) {
+            case DisplayState::eOrientation90:
+                flags = Transform::ROT_90;
+                break;
+            case DisplayState::eOrientation180:
+                flags = Transform::ROT_180;
+                break;
+            case DisplayState::eOrientation270:
+                flags = Transform::ROT_270;
+                break;
+        }
+        tr.set(flags, hw->getWidth(), hw->getHeight());
+        sourceCrop = tr.transform(sourceCrop);
     }
 
     // ensure that sourceCrop is inside screen
@@ -4408,6 +4438,37 @@ void SurfaceFlinger::renderScreenImplLocked(
 
     // make sure to clear all GL error flags
     engine.checkErrors();
+
+    if (hw->getDisplayType() == DisplayDevice::DISPLAY_PRIMARY &&
+        mHwOrientation != DisplayState::eOrientationDefault) {
+        // convert hw orientation into flag presentation
+        // here inverse transform needed
+        uint8_t hw_rot_90  = 0x00;
+        uint8_t hw_flip_hv = 0x00;
+        switch (mHwOrientation) {
+            case DisplayState::eOrientation90:
+                hw_rot_90 = Transform::ROT_90;
+                hw_flip_hv = Transform::ROT_180;
+                break;
+            case DisplayState::eOrientation180:
+                hw_flip_hv = Transform::ROT_180;
+                break;
+            case DisplayState::eOrientation270:
+                hw_rot_90  = Transform::ROT_90;
+                break;
+        }
+
+        // transform flags operation
+        // 1) flip H V if both have ROT_90 flag
+        // 2) XOR these flags
+        uint8_t rotation_rot_90  = rotation & Transform::ROT_90;
+        uint8_t rotation_flip_hv = rotation & Transform::ROT_180;
+        if (rotation_rot_90 & hw_rot_90) {
+            rotation_flip_hv = (~rotation_flip_hv) & Transform::ROT_180;
+        }
+        rotation = static_cast<Transform::orientation_flags>
+                   ((rotation_rot_90 ^ hw_rot_90) | (rotation_flip_hv ^ hw_flip_hv));
+    }
 
     // set-up our viewport
     engine.setViewportAndProjection(
